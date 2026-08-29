@@ -104,12 +104,15 @@ The library is built on one separation: it owns the mechanical question of what 
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | `ItemRetainer`, `TextRetainer`, `describeOmitted`, and `formatRetentionNotice` |
+| [`src/index.ts`](src/index.ts) | Public types, `describeOmitted`, `formatRetentionNotice`, and the retainer entry points |
+| [`src/item-retainer.ts`](src/item-retainer.ts) | `ItemRetainer` |
+| [`src/text-retainer.ts`](src/text-retainer.ts) | `TextRetainer` and the UTF-8 cut helpers |
+| [`src/budget.ts`](src/budget.ts) | Shared budget-field validation |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; the retention algebra is exercised by unit tests) |
 
 ### Two retainers, two resource models
 
-`ItemRetainer` bounds ordered logical units and keeps only the first `maxItems`; the caller keeps pushing every observed unit so the omission count is exact. `TextRetainer` bounds bytes with one shared prefix/suffix accumulator: `head` is prefix-only, `tail` is suffix-only, `headTail` is both, and the accumulator holds at most `headBytes + tailBytes + one chunk` in memory, so a large stream does not accumulate unbounded.
+`ItemRetainer` bounds ordered logical units and keeps only the first `maxItems`; the caller keeps pushing every observed unit so the omission count is exact. `TextRetainer` bounds bytes with one shared prefix/suffix accumulator: `head` is prefix-only, `tail` is suffix-only, `headTail` is both, and each side retains exactly the bytes `finish()` reads — at most `headBytes + tailBytes` in memory — so neither a large stream nor a single chunk larger than a window accumulates unbounded.
 
 ### How the budget facts stay honest
 

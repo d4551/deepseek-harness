@@ -58,7 +58,7 @@ export function clampTimeout(
 export interface Deadline {
   /** Aborts on upstream cancellation OR on timeout (the timeout carries a {@link TimeoutReason}). */
   readonly signal: AbortSignal
-  /** Clear the timer. Safe to call once; `using` calls it at scope exit. */
+  /** Clear the timer (idempotent); `using` calls it at scope exit. */
   [Symbol.dispose](): void
 }
 
@@ -74,7 +74,7 @@ export interface IdleWatchdog {
   next<T>(iterator: AsyncIterator<T>): Promise<IteratorResult<T>>
   /** Rearm an outstanding demand after transport activity that yields no iterator value; otherwise a no-op. */
   pulse(): void
-  /** Clear an armed timer; safe to call once at the owning stream's exit. */
+  /** Clear the armed timer (idempotent); call at the owning stream's exit. */
   [Symbol.dispose](): void
 }
 
@@ -153,20 +153,21 @@ export function idleWatchdog(
       if (outstanding) throw new Error('idleWatchdog next is already outstanding')
       outstanding = true
       arm()
-      try {
-        return await iterator.next()
-      } finally {
+      // Cleanup rides the promise's own finally: it runs on settle whether the
+      // demand resolves or rejects, and nothing is ever caught here.
+      return await iterator.next().finally(() => {
         clearTimeout(timer)
         timer = undefined
         outstanding = false
-      }
+      })
     },
     pulse(): void {
       if (disposed || !outstanding) return
       arm()
     },
     [Symbol.dispose](): void {
-      if (disposed) return
+      // Idempotent by construction: a second call re-sets the same flag and
+      // clears an already-undefined timer.
       disposed = true
       clearTimeout(timer)
       timer = undefined
