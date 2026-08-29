@@ -544,6 +544,34 @@ describe('Python release workflows', () => {
     expect(macosCheck).toContain('"$EXE" "$EXE-spawn-helper"')
   })
 
+  it('installs bun itself in GitLab, pinned to the manifest and verified', () => {
+    // GitLab provisions no bun: without an explicit install every `bun` step is
+    // command-not-found. corepack cannot supply it — it shims npm, pnpm and
+    // yarn only — so each job installs bun and proves the version it got.
+    const workflow = loadWorkflow('.gitlab-ci.yml')
+    for (const jobName of ['.runtime-wheel', 'runtime-windows-x64']) {
+      const job = workflow[jobName]
+      if (!isRecord(job) || !Array.isArray(job.script)) {
+        throw new TypeError(`GitLab CI must define the ${jobName} script`)
+      }
+      const script = JSON.stringify(job.script)
+      expect(script, `${jobName} must install bun`).toContain('bun.com/install')
+      // The version comes from packageManager, the same single source the
+      // GitHub jobs read through setup-bun's bun-version-file.
+      expect(script, `${jobName} must pin bun to the manifest`).toContain('packageManager')
+      expect(script, `${jobName} must verify the installed bun version`).toContain('bun --version')
+      const installIndex = job.script.findIndex(
+        step => typeof step === 'string' && step.includes('bun.com/install'),
+      )
+      const useIndex = job.script.findIndex(
+        step => typeof step === 'string' && step.includes('bun install --frozen-lockfile'),
+      )
+      expect(installIndex, `${jobName} must install bun`).toBeGreaterThanOrEqual(0)
+      expect(useIndex, `${jobName} must install dependencies`).toBeGreaterThanOrEqual(0)
+      expect(installIndex, `${jobName} must install bun before using it`).toBeLessThan(useIndex)
+    }
+  })
+
   it('builds and black-box tests the Windows x64 wheel in GitLab', () => {
     const workflow = loadWorkflow('.gitlab-ci.yml')
     const windows = workflow['runtime-windows-x64']

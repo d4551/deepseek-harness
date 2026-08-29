@@ -34,7 +34,10 @@ sdk-wheel:
   extends: .python-tools
   stage: build
   script:
-    - corepack enable
+    - export BUN_VERSION="$(python -c 'import json; print(json.load(open("package.json"))["packageManager"].split("@")[1])')"
+    - curl -fsSL https://bun.com/install | bash -s "bun-v$BUN_VERSION"
+    - export PATH="$HOME/.bun/bin:$PATH"
+    - test "$(bun --version)" = "$BUN_VERSION"
     - bun install --frozen-lockfile
     - bun run verify-runtime-closure
     - bun x tsx scripts/build-exe-for-python-sdk.ts --targets="$PKG_TARGET"
@@ -114,7 +117,10 @@ runtime-windows-x64:
     - .ci-python\Scripts\python.exe -m pip install uv==0.11.23
     - $env:Path = (Join-Path $PWD ".ci-python\Scripts") + [IO.Path]::PathSeparator + $env:Path
   script:
-    - corepack enable
+    - $env:BUN_VERSION = (& .ci-python\Scripts\python.exe -c 'import json; print(json.load(open("package.json"))["packageManager"].split("@")[1])')
+    - iex "& {$(irm https://bun.com/install.ps1)} -Version $env:BUN_VERSION"
+    - $env:Path = (Join-Path $env:USERPROFILE ".bun\bin") + [IO.Path]::PathSeparator + $env:Path
+    - if ((bun --version) -ne $env:BUN_VERSION) { throw "bun $env:BUN_VERSION expected, got $(bun --version)" }
     - bun install --frozen-lockfile
     - bun run verify-runtime-closure
     - bun x tsx scripts/build-exe-for-python-sdk.ts --targets=$env:PKG_TARGET
