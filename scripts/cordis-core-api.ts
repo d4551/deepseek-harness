@@ -17,11 +17,16 @@ import {
 } from 'typescript/unstable/ast/is'
 import { checkParams, checkReturns, parseJsDoc, parseTags, pointer, rawJsDoc, reportViolations } from './jsdoc.ts'
 import { cordisModuleBody } from './cordis-walk.ts'
-import { CORDIS_CORE_API_PAGES, type CordisCoreApiPage } from './cordis-core-api-pages.ts'
+import {
+  CORDIS_CORE_API_PAGES as PAGE_TABLE,
+  type CordisCoreApiPage as Page,
+  type CordisCoreApiSection as Section,
+} from './cordis-core-api-pages.ts'
 import { parsePath } from './ts7-session.ts'
 
-export type { CordisCoreApiPage, CordisCoreApiSection } from './cordis-core-api-pages.ts'
-export { CORDIS_CORE_API_PAGES }
+export const CORDIS_CORE_API_PAGES = PAGE_TABLE
+export type CordisCoreApiPage = Page
+export type CordisCoreApiSection = Section
 
 const root = resolve(import.meta.dirname, '..')
 const FENCE = 'ts cordis-catalog'

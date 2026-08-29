@@ -11,7 +11,17 @@ import { dirname, posix, relative, resolve, sep } from 'node:path'
 import { parseArgs } from 'node:util'
 import { publint, type Message, type PackFile } from 'publint'
 import { formatMessage } from 'publint/utils'
-import ts from '@typescript/typescript6'
+import type { Expression, Node, NoSubstitutionTemplateLiteral, StringLiteral } from 'typescript/unstable/ast'
+import { SyntaxKind } from 'typescript/unstable/ast'
+import {
+  isCallExpression,
+  isExportDeclaration,
+  isIdentifier,
+  isImportDeclaration,
+  isNoSubstitutionTemplateLiteral,
+  isStringLiteral,
+} from 'typescript/unstable/ast/is'
+import { createSourceFile } from './ts7-session.ts'
 
 const CONCURRENCY_ENV = 'DSH_PUBLINT_CONCURRENCY'
 const repositoryRoot = resolve(import.meta.dirname, '..')
@@ -153,25 +163,29 @@ function resolutionCandidates(target: string): string[] {
 }
 
 /** Extract relative static imports, re-exports, dynamic imports, and requires. */
+function isStringLiteralLike(node: Node): node is StringLiteral | NoSubstitutionTemplateLiteral {
+  return isStringLiteral(node) || isNoSubstitutionTemplateLiteral(node)
+}
+
 function relativeImports(file: string, sourceText: string): RelativeImport[] {
-  const source = ts.createSourceFile(file, sourceText, ts.ScriptTarget.Latest, false, ts.ScriptKind.JS)
+  const source = createSourceFile(file.endsWith('.js') || file.endsWith('.mjs') || file.endsWith('.cjs') ? file : `${file}.js`, sourceText)
   const imports: RelativeImport[] = []
-  const record = (node: ts.Node, literal: ts.Expression | undefined): void => {
-    if (literal === undefined || !ts.isStringLiteralLike(literal) || !literal.text.startsWith('.')) return
+  const record = (node: Node, literal: Expression | undefined) => {
+    if (literal === undefined || !isStringLiteralLike(literal) || !literal.text.startsWith('.')) return
     imports.push({
       specifier: literal.text,
       line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1,
     })
   }
-  const visit = (node: ts.Node): void => {
-    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
+  const visit = (node: Node) => {
+    if (isImportDeclaration(node) || isExportDeclaration(node)) {
       record(node, node.moduleSpecifier)
-    } else if (ts.isCallExpression(node)
-      && (node.expression.kind === ts.SyntaxKind.ImportKeyword
-        || ts.isIdentifier(node.expression) && node.expression.text === 'require')) {
+    } else if (isCallExpression(node)
+      && (node.expression.kind === SyntaxKind.ImportKeyword
+        || isIdentifier(node.expression) && node.expression.text === 'require')) {
       record(node, node.arguments[0])
     }
-    ts.forEachChild(node, visit)
+    node.forEachChild(visit)
   }
   visit(source)
   return imports

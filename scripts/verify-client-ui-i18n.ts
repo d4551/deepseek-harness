@@ -9,7 +9,39 @@
 
 import { globSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import ts from '@typescript/typescript6'
+import type { BindingName, Expression, Node, PropertyName } from 'typescript/unstable/ast'
+import { SyntaxKind } from 'typescript/unstable/ast'
+import {
+  isArrayLiteralExpression,
+  isArrowFunction,
+  isAsExpression,
+  isBinaryExpression,
+  isBindingElement,
+  isCallExpression,
+  isConditionalExpression,
+  isExpression,
+  isFunctionDeclaration,
+  isFunctionExpression,
+  isIdentifier,
+  isJsxAttribute,
+  isJsxElement,
+  isJsxExpression,
+  isJsxFragment,
+  isJsxText,
+  isMethodDeclaration,
+  isNonNullExpression,
+  isNoSubstitutionTemplateLiteral,
+  isObjectLiteralExpression,
+  isParenthesizedExpression,
+  isPropertyAssignment,
+  isReturnStatement,
+  isSatisfiesExpression,
+  isSourceFile,
+  isStringLiteral,
+  isTemplateExpression,
+  isVariableDeclaration,
+} from 'typescript/unstable/ast/is'
+import { createSourceFile } from './ts7-session.ts'
 
 const root = resolve(import.meta.dirname, '..')
 const MINIMUM_CLIENT_UI_SOURCES = 450
@@ -71,16 +103,24 @@ function localeOwner(file: string): boolean {
     || normalized.includes('/locales/')
 }
 
+function normalizeCopy(text: string): string {
+  return text.replace(/\s+/g, ' ').trim()
+}
+
 function containsProductText(text: string): boolean {
-  const normalized = text.replace(/\s+/g, ' ').trim()
+  const normalized = normalizeCopy(text)
   return normalized !== ''
     && !IMMUTABLE_LANGUAGE_TOKENS.has(normalized)
     && !LOCALE_KEY.test(normalized)
     && /\p{L}/u.test(normalized)
 }
 
-function propertyName(node: ts.PropertyName | ts.BindingName): string | undefined {
-  return ts.isIdentifier(node) || ts.isStringLiteral(node) ? node.text : undefined
+function propertyName(node: PropertyName | BindingName): string | undefined {
+  return isIdentifier(node) || isStringLiteral(node) ? node.text : undefined
+}
+
+function isCopyName(name: string | undefined): boolean {
+  return name !== undefined && (COPY_NAME.test(name) || COPY_SUFFIX.test(name))
 }
 
 function copyAttribute(name: string): boolean {
@@ -89,12 +129,12 @@ function copyAttribute(name: string): boolean {
 }
 
 function compactText(text: string): string {
-  const normalized = text.replace(/\s+/g, ' ').trim()
+  const normalized = normalizeCopy(text)
   return normalized.length <= 80 ? normalized : `${normalized.slice(0, 77)}...`
 }
 
 function looksLikeNaturalText(text: string): boolean {
-  const normalized = text.replace(/\s+/g, ' ').trim()
+  const normalized = normalizeCopy(text)
   return /\s|[\u3400-\u9fff]/u.test(normalized) || /^[A-Z]/.test(normalized)
 }
 
@@ -106,21 +146,15 @@ function looksLikeNaturalText(text: string): boolean {
  */
 export function findUiI18nViolations(file: string, sourceText: string): UiI18nViolation[] {
   if (localeOwner(file)) return []
-  const source = ts.createSourceFile(
-    file,
-    sourceText,
-    ts.ScriptTarget.Latest,
-    true,
-    file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
-  )
+  const source = createSourceFile(file.endsWith('.tsx') || file.endsWith('.ts') ? file : `${file}.ts`, sourceText)
   const violations = new Map<number, UiI18nViolation>()
 
   const report = (
-    node: ts.Node,
+    node: Node,
     text: string,
     reason: string,
     naturalOnly = false,
-  ): void => {
+  ) => {
     if (
       !containsProductText(text)
       || (naturalOnly && !looksLikeNaturalText(text))
@@ -137,15 +171,15 @@ export function findUiI18nViolations(file: string, sourceText: string): UiI18nVi
   }
 
   const collectExpression = (
-    node: ts.Expression,
+    node: Expression,
     reason: string,
     naturalOnly = false,
-  ): void => {
-    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+  ) => {
+    if (isStringLiteral(node) || isNoSubstitutionTemplateLiteral(node)) {
       report(node, node.text, reason, naturalOnly)
       return
     }
-    if (ts.isTemplateExpression(node)) {
+    if (isTemplateExpression(node)) {
       report(
         node,
         [node.head.text, ...node.templateSpans.map(span => span.literal.text)].join(''),
@@ -154,125 +188,113 @@ export function findUiI18nViolations(file: string, sourceText: string): UiI18nVi
       )
       return
     }
-    if (ts.isCallExpression(node)) {
-      // A call result is dynamic; copy-bearing arguments are visited through their own syntax.
+    if (isCallExpression(node)) {
       return
     }
     if (
-      ts.isParenthesizedExpression(node)
-      || ts.isAsExpression(node)
-      || ts.isSatisfiesExpression(node)
-      || ts.isNonNullExpression(node)
+      isParenthesizedExpression(node)
+      || isAsExpression(node)
+      || isSatisfiesExpression(node)
+      || isNonNullExpression(node)
     ) {
       collectExpression(node.expression, reason, naturalOnly)
       return
     }
-    if (ts.isConditionalExpression(node)) {
+    if (isConditionalExpression(node)) {
       collectExpression(node.whenTrue, reason, naturalOnly)
       collectExpression(node.whenFalse, reason, naturalOnly)
       return
     }
-    if (ts.isBinaryExpression(node)) {
-      if (node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken) {
+    if (isBinaryExpression(node)) {
+      if (node.operatorToken.kind === SyntaxKind.AmpersandAmpersandToken) {
         collectExpression(node.right, reason, naturalOnly)
       } else if (
-        node.operatorToken.kind === ts.SyntaxKind.PlusToken
-        || node.operatorToken.kind === ts.SyntaxKind.BarBarToken
-        || node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken
+        node.operatorToken.kind === SyntaxKind.PlusToken
+        || node.operatorToken.kind === SyntaxKind.BarBarToken
+        || node.operatorToken.kind === SyntaxKind.QuestionQuestionToken
       ) {
         collectExpression(node.left, reason, naturalOnly)
         collectExpression(node.right, reason, naturalOnly)
       }
       return
     }
-    if (ts.isArrayLiteralExpression(node)) {
+    if (isArrayLiteralExpression(node)) {
       for (const element of node.elements) {
-        if (ts.isExpression(element)) collectExpression(element, reason, naturalOnly)
+        if (isExpression(element)) collectExpression(element, reason, naturalOnly)
       }
       return
     }
-    if (ts.isObjectLiteralExpression(node)) {
+    if (isObjectLiteralExpression(node)) {
       for (const property of node.properties) {
-        if (ts.isPropertyAssignment(property)) {
-          const name = propertyName(property.name)
-          const propertyOwnsCopy = name !== undefined
-            && (COPY_NAME.test(name) || COPY_SUFFIX.test(name))
+        if (isPropertyAssignment(property)) {
+          const propertyOwnsCopy = isCopyName(propertyName(property.name))
           collectExpression(property.initializer, reason, naturalOnly || !propertyOwnsCopy)
         }
       }
     }
   }
 
-  const enclosingFunctionName = (node: ts.Node): string | undefined => {
+  const enclosingFunctionName = (node: Node): string | undefined => {
     let current = node.parent
-    while (!ts.isSourceFile(current)) {
-      if (ts.isFunctionDeclaration(current) || ts.isMethodDeclaration(current)) {
+    while (!isSourceFile(current)) {
+      if (isFunctionDeclaration(current) || isMethodDeclaration(current)) {
         return current.name === undefined ? undefined : propertyName(current.name)
       }
-      if (ts.isArrowFunction(current) || ts.isFunctionExpression(current)) {
+      if (isArrowFunction(current) || isFunctionExpression(current)) {
         const parent = current.parent
-        return ts.isVariableDeclaration(parent) ? propertyName(parent.name) : undefined
+        return isVariableDeclaration(parent) ? propertyName(parent.name) : undefined
       }
       current = current.parent
     }
     return undefined
   }
 
-  const hasExplicitStringReturn = (node: ts.Node): boolean => {
+  const hasExplicitStringReturn = (node: Node): boolean => {
     let current = node.parent
-    while (!ts.isSourceFile(current)) {
+    while (!isSourceFile(current)) {
       if (
-        ts.isFunctionDeclaration(current)
-        || ts.isMethodDeclaration(current)
-        || ts.isArrowFunction(current)
-        || ts.isFunctionExpression(current)
-      ) return current.type?.kind === ts.SyntaxKind.StringKeyword
+        isFunctionDeclaration(current)
+        || isMethodDeclaration(current)
+        || isArrowFunction(current)
+        || isFunctionExpression(current)
+      ) return current.type?.kind === SyntaxKind.StringKeyword
       current = current.parent
     }
     return false
   }
 
-  const visit = (node: ts.Node): void => {
-    if (ts.isJsxText(node)) report(node, node.text, 'JSX text')
+  const visit = (node: Node) => {
+    if (isJsxText(node)) report(node, node.text, 'JSX text')
 
-    if (ts.isJsxAttribute(node)) {
+    if (isJsxAttribute(node)) {
       const name = node.name.getText(source)
       if (copyAttribute(name) && node.initializer !== undefined) {
-        if (ts.isStringLiteral(node.initializer)) report(node.initializer, node.initializer.text, `${name} attribute`)
-        else if (ts.isJsxExpression(node.initializer) && node.initializer.expression !== undefined) {
+        if (isStringLiteral(node.initializer)) report(node.initializer, node.initializer.text, `${name} attribute`)
+        else if (isJsxExpression(node.initializer) && node.initializer.expression !== undefined) {
           collectExpression(node.initializer.expression, `${name} attribute`)
         }
       }
     }
 
     if (
-      ts.isJsxExpression(node)
+      isJsxExpression(node)
       && node.expression !== undefined
-      && (ts.isJsxElement(node.parent) || ts.isJsxFragment(node.parent))
+      && (isJsxElement(node.parent) || isJsxFragment(node.parent))
     ) collectExpression(node.expression, 'JSX child')
 
-    if (file.endsWith('.tsx') && ts.isPropertyAssignment(node)) {
-      const name = propertyName(node.name)
-      if (name !== undefined && (COPY_NAME.test(name) || COPY_SUFFIX.test(name))) {
-        collectExpression(node.initializer, `${name} property`)
-      }
+    if (file.endsWith('.tsx') && isPropertyAssignment(node)) {
+      collectNamedCopy(node, node.name, node.initializer, 'property')
     }
 
-    if (ts.isVariableDeclaration(node) && node.initializer !== undefined) {
-      const name = propertyName(node.name)
-      if (name !== undefined && (COPY_NAME.test(name) || COPY_SUFFIX.test(name))) {
-        collectExpression(node.initializer, `${name} value`)
-      }
+    if (isVariableDeclaration(node) && node.initializer !== undefined) {
+      collectNamedCopy(node, node.name, node.initializer, 'value')
     }
 
-    if (ts.isBindingElement(node) && node.initializer !== undefined) {
-      const name = propertyName(node.name)
-      if (name !== undefined && (COPY_NAME.test(name) || COPY_SUFFIX.test(name))) {
-        collectExpression(node.initializer, `${name} default value`)
-      }
+    if (isBindingElement(node) && node.initializer !== undefined && node.name !== undefined) {
+      collectNamedCopy(node, node.name, node.initializer, 'default value')
     }
 
-    if (ts.isReturnStatement(node) && node.expression !== undefined) {
+    if (isReturnStatement(node) && node.expression !== undefined) {
       const name = enclosingFunctionName(node)
       if (name !== undefined && (COPY_NAME.test(name) || COPY_SUFFIX.test(name))) {
         collectExpression(node.expression, `${name} return value`)
@@ -281,7 +303,7 @@ export function findUiI18nViolations(file: string, sourceText: string): UiI18nVi
       }
     }
 
-    ts.forEachChild(node, visit)
+    node.forEachChild(visit)
   }
   visit(source)
   return [...violations.values()].sort((left, right) => left.line - right.line || left.column - right.column)

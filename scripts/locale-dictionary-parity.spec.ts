@@ -20,11 +20,26 @@
  */
 
 import type { Dirent } from 'node:fs'
-import { readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import ts from '@typescript/typescript6'
+import type { Expression, Node, ObjectLiteralExpression } from 'typescript/unstable/ast'
+import { SyntaxKind } from 'typescript/unstable/ast'
+import {
+  isArrayLiteralExpression,
+  isAsExpression,
+  isCallExpression,
+  isIdentifier,
+  isObjectLiteralExpression,
+  isParenthesizedExpression,
+  isPropertyAccessExpression,
+  isPropertyAssignment,
+  isSatisfiesExpression,
+  isStringLiteral,
+  isVariableStatement,
+} from 'typescript/unstable/ast/is'
 import { describe, expect, it } from 'vitest'
+import { createSourceFile } from './ts7-session.ts'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 
@@ -58,12 +73,8 @@ function directories(dir: string): string[] {
  * @returns entries, or none when the directory does not exist.
  */
 function readEntries(dir: string): Dirent[] {
-  try {
-    return readdirSync(dir, { withFileTypes: true })
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
-    throw error
-  }
+  if (!existsSync(dir)) return []
+  return readdirSync(dir, { withFileTypes: true })
 }
 
 function walk(dir: string, out: string[]): void {
@@ -99,7 +110,7 @@ function dictionariesIn(file: string): Dictionary[] {
   // `\b(zh|en)\b` misses `zhSettings`/`accessZh`, because `\b` does not hold
   // between `h` and an uppercase letter.
   if (!/\b(zh|en)\b|\b(zh|en)[A-Z]|(Zh|En)\b/.test(text)) return []
-  const source = ts.createSourceFile(file, text, ts.ScriptTarget.ESNext, true)
+  const source = createSourceFile(file, text)
   const found: Dictionary[] = []
   const rel = relative(file)
 
@@ -107,23 +118,23 @@ function dictionariesIn(file: string): Dictionary[] {
   // `register(NS, 'zh'|'en', dict)` whose third argument is an identifier —
   // e.g. a local dictionary variable rather than an inline literal — resolves
   // through here so the gate still verifies its symmetry.
-  const moduleConsts = new Map<string, ts.Expression>()
+  const moduleConsts = new Map<string, Expression>()
   for (const statement of source.statements) {
-    if (!ts.isVariableStatement(statement)) continue
+    if (!isVariableStatement(statement)) continue
     for (const decl of statement.declarationList.declarations) {
-      if (ts.isIdentifier(decl.name) && decl.initializer !== undefined) {
+      if (isIdentifier(decl.name) && decl.initializer !== undefined) {
         moduleConsts.set(decl.name.text, decl.initializer)
       }
     }
   }
 
   for (const statement of source.statements) {
-    if (!ts.isVariableStatement(statement)) continue
-    if (statement.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword) !== true) continue
+    if (!isVariableStatement(statement)) continue
+    if (statement.modifiers?.some(m => m.kind === SyntaxKind.ExportKeyword) !== true) continue
     for (const decl of statement.declarationList.declarations) {
-      if (!ts.isIdentifier(decl.name)) continue
+      if (!isIdentifier(decl.name)) continue
       const literal = unwrap(decl.initializer)
-      if (literal === undefined || !ts.isObjectLiteralExpression(literal)) continue
+      if (literal === undefined || !isObjectLiteralExpression(literal)) continue
       if (localeOf(decl.name.text) === undefined) continue
       found.push({ file: rel, name: decl.name.text, keys: keysOf(literal) })
     }
@@ -141,73 +152,67 @@ function dictionariesIn(file: string): Dictionary[] {
   // handed to a registration loop keys off the enclosing array; separate
   // `register(NS, 'zh', {...})` / `register(NS, 'en', {...})` calls key off the
   // namespace argument, so the two calls pair with each other.
-  const visit = (node: ts.Node): void => {
-    if (ts.isCallExpression(node)) {
+  const visit = (node: Node) => {
+    if (isCallExpression(node)) {
       const callee = node.expression
-      const name = ts.isPropertyAccessExpression(callee)
+      const name = isPropertyAccessExpression(callee)
         ? callee.name.text
-        : ts.isIdentifier(callee) && callee.text === 'register' ? 'register' : undefined
+        : isIdentifier(callee) && callee.text === 'register' ? 'register' : undefined
       if (name === 'register' && node.arguments.length >= 3) {
         const [ns, tag, dict] = node.arguments
-        if (ns === undefined || tag === undefined || !ts.isStringLiteral(tag)) return
+        if (ns === undefined || tag === undefined || !isStringLiteral(tag)) return
         if (tag.text !== 'zh' && tag.text !== 'en') return
         const raw = unwrap(dict)
-        const literal = raw !== undefined && ts.isIdentifier(raw)
+        const literal = raw !== undefined && isIdentifier(raw)
           ? (() => {
             const resolved = moduleConsts.get(raw.text)
             return resolved === undefined ? undefined : unwrap(resolved)
           })()
           : raw
-        const why = raw !== undefined && ts.isIdentifier(raw)
+        const why = raw !== undefined && isIdentifier(raw)
           ? `third argument ${raw.text} does not resolve to an inline or module-scope object literal`
           : 'third argument is neither an object literal nor a resolvable dictionary variable'
-        if (literal === undefined || !ts.isObjectLiteralExpression(literal)) {
-          // The dictionary argument must resolve to an object literal; the
-          // gate refuses rather than skips, so the symmetry it verifies never
-          // silently narrows.
+        if (literal !== undefined && isObjectLiteralExpression(literal)) {
+          found.push({ file: rel, name: `${tag.text}@register:${ns.getText(source)}`, keys: keysOf(literal) })
+        } else {
           refuse(ns.getText(source), tag.text, why)
         }
-        const dictionary: ts.ObjectLiteralExpression = literal as ts.ObjectLiteralExpression
-        // The namespace expression's source text identifies the pair, so the
-        // zh and en calls for one namespace meet and calls for different
-        // namespaces stay apart.
-        found.push({ file: rel, name: `${tag.text}@register:${ns.getText(source)}`, keys: keysOf(dictionary) })
       }
     }
-    if (ts.isArrayLiteralExpression(node) && node.elements.length === 2) {
+    if (isArrayLiteralExpression(node) && node.elements.length === 2) {
       const site = source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1
       for (const element of node.elements) {
-        if (!ts.isArrayLiteralExpression(element) || element.elements.length !== 2) continue
+        if (!isArrayLiteralExpression(element) || element.elements.length !== 2) continue
         const [tag, dict] = element.elements
         const literal = unwrap(dict)
-        if (tag === undefined || !ts.isStringLiteral(tag)) continue
-        if (literal === undefined || !ts.isObjectLiteralExpression(literal)) continue
+        if (tag === undefined || !isStringLiteral(tag)) continue
+        if (literal === undefined || !isObjectLiteralExpression(literal)) continue
         if (tag.text !== 'zh' && tag.text !== 'en') continue
         found.push({ file: rel, name: `${tag.text}@inline:${site}`, keys: keysOf(literal) })
       }
     }
-    ts.forEachChild(node, visit)
+    node.forEachChild(visit)
   }
   visit(source)
   return found
 }
 
 /** Declared property names of an object literal, sorted. */
-function keysOf(literal: ts.ObjectLiteralExpression): string[] {
+function keysOf(literal: ObjectLiteralExpression): string[] {
   const keys: string[] = []
   for (const prop of literal.properties) {
-    if (!ts.isPropertyAssignment(prop)) continue
-    if (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name)) keys.push(prop.name.text)
+    if (!isPropertyAssignment(prop)) continue
+    if (isIdentifier(prop.name) || isStringLiteral(prop.name)) keys.push(prop.name.text)
   }
   return keys.sort()
 }
 
 /** Look through `satisfies`/`as`/parenthesized wrappers to the literal. */
-function unwrap(node: ts.Expression | undefined): ts.Expression | undefined {
+function unwrap(node: Expression | undefined): Expression | undefined {
   let current = node
   while (
     current !== undefined
-    && (ts.isSatisfiesExpression(current) || ts.isAsExpression(current) || ts.isParenthesizedExpression(current))
+    && (isSatisfiesExpression(current) || isAsExpression(current) || isParenthesizedExpression(current))
   ) {
     current = current.expression
   }

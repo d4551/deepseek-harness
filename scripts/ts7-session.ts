@@ -5,7 +5,7 @@
  */
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { basename, join } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import { parse as parseJsonc, type ParseError } from 'jsonc-parser'
 import { API } from 'typescript/unstable/sync'
 import type { Diagnostic } from 'typescript/unstable/sync'
@@ -64,13 +64,16 @@ export function parsePaths(files: readonly string[]): Map<string, SourceFile> {
 
 /**
  * Parse source text. Matching on-disk contents reuse the real path; other
- * text is written to a process-temp file the snapshot can open.
+ * text is written to a process-temp file the snapshot can open. Relative
+ * names resolve against the process working directory, because snapshot
+ * programs key source files by absolute path.
  * @param fileName - path used as the source-file name.
  * @param text - file contents.
  * @returns the bound source file.
  */
 export function createSourceFile(fileName: string, text: string): SourceFile {
-  if (existsSync(fileName) && readFileSync(fileName, 'utf8') === text) return parsePath(fileName)
+  const file = resolve(fileName)
+  if (existsSync(file) && readFileSync(file, 'utf8') === text) return parsePath(file)
   textRoot ??= mkdtempSync(join(tmpdir(), 'dsh-ts7-'))
   textSerial += 1
   const suffix = basename(fileName) || 'input.ts'
