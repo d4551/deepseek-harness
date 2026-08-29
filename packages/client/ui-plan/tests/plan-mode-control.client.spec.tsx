@@ -39,13 +39,13 @@ const chip = () => screen.getByRole('button', { name: 'plan mode 已开启，按
 
 describe('PlanChip', () => {
   it('renders nothing for an absent capability or a default-mode target', () => {
-    const absent = setup(undefined)
+    setup(undefined)
     expect(screen.queryByRole('button')).toBeNull()
     cleanup()
-    const inactive = setup({ active: false, pending: false })
+    setup({ active: false, pending: false })
     expect(screen.queryByRole('button')).toBeNull()
     cleanup()
-    const leaving = setup({ active: true, pending: true })
+    setup({ active: true, pending: true })
     expect(screen.queryByRole('button')).toBeNull()
   })
 

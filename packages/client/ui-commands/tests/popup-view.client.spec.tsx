@@ -139,7 +139,7 @@ describe('PopupSelectView', () => {
 
   it('Enter selects the highlighted row: onSelect, consume, close, focusComposer', async () => {
     const seen: Array<{ option: SelectOption; context: string }> = []
-    const { view, search, consume, focusComposer } = await mountOpen({
+    const { search, consume, focusComposer } = await mountOpen({
       onSelect: (option, context) => { seen.push({ option, context }) },
     })
     act(() => { fireEvent.keyDown(search, { key: 'ArrowDown' }) })
@@ -152,7 +152,7 @@ describe('PopupSelectView', () => {
 
   it('click selects a row; mouseenter moves the highlight', async () => {
     const seen: SelectOption[] = []
-    const { view } = await mountOpen({ onSelect: (option) => { seen.push(option) } })
+    await mountOpen({ onSelect: (option) => { seen.push(option) } })
     const options = screen.getAllByRole('option')
     act(() => { fireEvent.mouseEnter(options[2]!) })
     expect(screen.getAllByRole('option')[2]!.getAttribute('aria-selected')).toBe('true')
@@ -238,14 +238,14 @@ describe('PopupSelectView', () => {
   })
 
   it('Escape dismisses and restores composer focus', async () => {
-    const { view, search, focusComposer } = await mountOpen()
+    const { search, focusComposer } = await mountOpen()
     act(() => { fireEvent.keyDown(search, { key: 'Escape' }) })
     expect(screen.queryByRole('textbox', { name: '筛选选项' })).toBeNull()
     expect(focusComposer).toHaveBeenCalledTimes(1)
   })
 
   it('an outside pointerdown dismisses without focusComposer; an inside one does not dismiss', async () => {
-    const { view, focusComposer } = await mountOpen()
+    const { focusComposer } = await mountOpen()
     act(() => { fireEvent.pointerDown(screen.getAllByRole('option')[0]!) })
     expect(screen.getByRole('textbox', { name: '筛选选项' })).toBeTruthy()
     act(() => { fireEvent.pointerDown(document.body) })
