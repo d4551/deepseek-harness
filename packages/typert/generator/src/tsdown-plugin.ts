@@ -8,7 +8,7 @@
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import ts from '@typescript/typescript6'
+import { transformSync } from 'oxc-transform'
 import { WorkspaceTypertGenerator } from './workspace.ts'
 import type { WorkspaceEmitResult } from './workspace.ts'
 import type { TypertFace } from './model.ts'
@@ -48,18 +48,18 @@ export function typertPlugin(pluginOptions: TypertPluginOptions = {}): TypertPlu
     transform(code, id) {
       const file = id.split('?', 1)[0] ?? id
       if (!/\.[cm]?tsx?$/.test(file) || !DECORATOR_SYNTAX.test(code)) return
-      const result = ts.transpileModule(code, {
-        fileName: file,
-        compilerOptions: {
-          target: ts.ScriptTarget.ES2024,
-          module: ts.ModuleKind.ESNext,
-          ...(file.endsWith('x') ? { jsx: ts.JsxEmit.ReactJSX } : {}),
-          sourceMap: true,
-        },
+      const result = transformSync(file, code, {
+        sourcemap: true,
+        decorator: { legacy: false },
+        ...(file.endsWith('x') ? { jsx: { runtime: 'automatic' as const } } : {}),
       })
+      const fatal = result.errors.filter(error => error.severity === 'Error')
+      if (fatal.length > 0) {
+        throw new Error(fatal.map(error => error.message).join('\n'))
+      }
       return {
-        code: result.outputText.replace(/\n?\/\/# sourceMappingURL=.*$/u, '\n'),
-        map: result.sourceMapText,
+        code: result.code.replace(/\n?\/\/# sourceMappingURL=.*$/u, '\n'),
+        map: result.map === undefined ? undefined : JSON.stringify(result.map),
       }
     },
     writeBundle(bundleOptions) {

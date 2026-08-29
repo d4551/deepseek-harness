@@ -6,7 +6,23 @@
 
 import { existsSync, globSync, readFileSync } from 'node:fs'
 import { dirname, relative, resolve, sep } from 'node:path'
-import ts from '@typescript/typescript6'
+import type { ArrowFunction, Expression, FunctionExpression, Node, SourceFile, VariableStatement } from 'typescript/unstable/ast'
+import { SyntaxKind } from 'typescript/unstable/ast'
+import {
+  isArrowFunction,
+  isBlock,
+  isCallExpression,
+  isExportAssignment,
+  isExportDeclaration,
+  isFunctionExpression,
+  isIdentifier,
+  isNamespaceExport,
+  isNoSubstitutionTemplateLiteral,
+  isPropertyAccessExpression,
+  isStringLiteral,
+  isVariableStatement,
+} from 'typescript/unstable/ast/is'
+import { createSourceFile } from './ts7-session.ts'
 
 /** Required explanation marker for an intentionally empty installer. */
 const NO_RUNTIME_INVARIANT_MARKER = 'No runtime invariant:'
@@ -179,30 +195,24 @@ function checkSource(
     )
   }
 
-  const sourceFile = ts.createSourceFile(
-    absolutePath,
-    sourceText,
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.TS,
-  )
+  const sourceFile = createSourceFile(absolutePath, sourceText)
   const constants = topLevelStringConstants(sourceFile)
   const registrations: string[] = []
   const unresolved: number[] = []
   const mismatchedInstallers: number[] = []
-  const visit = (node: ts.Node): void => {
-    if (ts.isCallExpression(node) && isInvariantRegistration(node.expression)) {
+  const visit = (node: Node): void => {
+    if (isCallExpression(node) && isInvariantRegistration(node.expression)) {
       const line = sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1
       const argument = node.arguments[0]
       const packageName = argument === undefined ? undefined : stringValue(argument, constants)
       if (packageName === undefined) unresolved.push(line)
       else registrations.push(packageName)
       const installer = node.arguments[1]
-      if (installer === undefined || !ts.isIdentifier(installer) || installer.text !== 'install') {
+      if (installer === undefined || !isIdentifier(installer) || installer.text !== 'install') {
         mismatchedInstallers.push(line)
       }
     }
-    ts.forEachChild(node, visit)
+    node.forEachChild(visit)
   }
   visit(sourceFile)
 
@@ -240,16 +250,16 @@ function checkSource(
 
 function checkInstaller(
   owner: PackageInvariantOwner,
-  sourceFile: ts.SourceFile,
+  sourceFile: SourceFile,
   sourceText: string,
   violations: PackageInvariantViolation[],
 ): void {
-  let initializer: ts.Expression | undefined
-  let declarationStatement: ts.VariableStatement | undefined
+  let initializer: Expression | undefined
+  let declarationStatement: VariableStatement | undefined
   for (const statement of sourceFile.statements) {
-    if (!ts.isVariableStatement(statement)) continue
+    if (!isVariableStatement(statement)) continue
     for (const declaration of statement.declarationList.declarations) {
-      if (ts.isIdentifier(declaration.name)
+      if (isIdentifier(declaration.name)
         && declaration.name.text === 'install'
         && declaration.initializer !== undefined) {
         initializer = declaration.initializer
@@ -262,7 +272,7 @@ function checkInstaller(
     addViolation(violations, owner.sourcePath, 'must declare a local install function for package-owned checks')
     return
   }
-  if (ts.isBlock(installer.body) && installer.body.statements.length === 0) {
+  if (isBlock(installer.body) && installer.body.statements.length === 0) {
     const declarationText = declarationStatement === undefined
       ? ''
       : sourceText.slice(declarationStatement.getFullStart(), declarationStatement.getEnd())
@@ -276,7 +286,7 @@ function checkInstaller(
     return
   }
   const reporter = installer.parameters[1]?.name
-  if (reporter === undefined || !ts.isIdentifier(reporter)) {
+  if (reporter === undefined || !isIdentifier(reporter)) {
     addViolation(violations, owner.sourcePath, 'install function must accept the bound failure reporter as its second parameter')
     return
   }
@@ -285,32 +295,37 @@ function checkInstaller(
   }
 }
 
-function usesIdentifier(node: ts.Node, name: string): boolean {
-  return ts.isIdentifier(node) && node.text === name
-    || node.getChildren().some(child => usesIdentifier(child, name))
+function usesIdentifier(node: Node, name: string): boolean {
+  if (isIdentifier(node) && node.text === name) return true
+  let found = false
+  node.forEachChild((child) => {
+    if (!found) found = usesIdentifier(child, name)
+    return undefined
+  })
+  return found
 }
 
 function installerFunction(
-  initializer: ts.Expression,
-): ts.ArrowFunction | ts.FunctionExpression | undefined {
-  if (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer)) return initializer
-  if (ts.isCallExpression(initializer)
-    && ts.isPropertyAccessExpression(initializer.expression)
-    && ts.isIdentifier(initializer.expression.expression)
+  initializer: Expression,
+): ArrowFunction | FunctionExpression | undefined {
+  if (isArrowFunction(initializer) || isFunctionExpression(initializer)) return initializer
+  if (isCallExpression(initializer)
+    && isPropertyAccessExpression(initializer.expression)
+    && isIdentifier(initializer.expression.expression)
     && initializer.expression.expression.text === 'Object'
     && initializer.expression.name.text === 'assign') {
     const target = initializer.arguments[0]
-    if (target !== undefined && (ts.isArrowFunction(target) || ts.isFunctionExpression(target))) return target
+    if (target !== undefined && (isArrowFunction(target) || isFunctionExpression(target))) return target
   }
   return undefined
 }
 
-function topLevelStringConstants(sourceFile: ts.SourceFile): ReadonlyMap<string, string> {
+function topLevelStringConstants(sourceFile: SourceFile): ReadonlyMap<string, string> {
   const constants = new Map<string, string>()
   for (const statement of sourceFile.statements) {
-    if (!ts.isVariableStatement(statement)) continue
+    if (!isVariableStatement(statement)) continue
     for (const declaration of statement.declarationList.declarations) {
-      if (!ts.isIdentifier(declaration.name) || declaration.initializer === undefined) continue
+      if (!isIdentifier(declaration.name) || declaration.initializer === undefined) continue
       const value = stringValue(declaration.initializer, constants)
       if (value !== undefined) constants.set(declaration.name.text, value)
     }
@@ -318,34 +333,36 @@ function topLevelStringConstants(sourceFile: ts.SourceFile): ReadonlyMap<string,
   return constants
 }
 
-function stringValue(node: ts.Expression, constants: ReadonlyMap<string, string>): string | undefined {
-  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return node.text
-  if (ts.isIdentifier(node)) return constants.get(node.text)
+function stringValue(node: Expression, constants: ReadonlyMap<string, string>): string | undefined {
+  if (isStringLiteral(node) || isNoSubstitutionTemplateLiteral(node)) return node.text
+  if (isIdentifier(node)) return constants.get(node.text)
   return undefined
 }
 
-function isInvariantRegistration(expression: ts.LeftHandSideExpression): boolean {
-  return ts.isPropertyAccessExpression(expression)
+function isInvariantRegistration(expression: Node): boolean {
+  return isPropertyAccessExpression(expression)
     && expression.name.text === 'register'
-    && ts.isPropertyAccessExpression(expression.expression)
+    && isPropertyAccessExpression(expression.expression)
     && expression.expression.name.text === 'invariants'
 }
 
-function hasNamedExport(sourceFile: ts.SourceFile, name: string): boolean {
+function hasNamedExport(sourceFile: SourceFile, name: string): boolean {
   return sourceFile.statements.some((statement) => {
-    if (!ts.isVariableStatement(statement)
-      || !statement.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword)) return false
-    return statement.declarationList.declarations.some(declaration => ts.isIdentifier(declaration.name) && declaration.name.text === name)
+    if (!isVariableStatement(statement)
+      || !statement.modifiers?.some(modifier => modifier.kind === SyntaxKind.ExportKeyword)) return false
+    return statement.declarationList.declarations.some(declaration => isIdentifier(declaration.name) && declaration.name.text === name)
   })
 }
 
-function hasDefaultExport(sourceFile: ts.SourceFile): boolean {
+function hasDefaultExport(sourceFile: SourceFile): boolean {
   return sourceFile.statements.some((statement) => {
-    if (ts.isExportAssignment(statement)) return true
-    const modifiers = ts.canHaveModifiers(statement) ? ts.getModifiers(statement) : undefined
-    if (modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.DefaultKeyword)) return true
-    if (!ts.isExportDeclaration(statement) || statement.exportClause === undefined) return false
-    if (ts.isNamespaceExport(statement.exportClause)) {
+    if (isExportAssignment(statement)) return true
+    const modifiers = 'modifiers' in statement
+      ? (statement as VariableStatement).modifiers
+      : undefined
+    if (modifiers?.some(modifier => modifier.kind === SyntaxKind.DefaultKeyword)) return true
+    if (!isExportDeclaration(statement) || statement.exportClause === undefined) return false
+    if (isNamespaceExport(statement.exportClause)) {
       return statement.exportClause.name.text === 'default'
     }
     return statement.exportClause.elements.some(element => element.name.text === 'default')

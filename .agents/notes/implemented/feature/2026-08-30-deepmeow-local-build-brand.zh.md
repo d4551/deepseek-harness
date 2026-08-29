@@ -12,7 +12,7 @@ Status: implemented
 
 `common.brand.localBuild` 字典值在两种 locale 中均为 `DeepMeow`。`apps/web/index.html` 的 title 占位与 Vite `DEFAULT_CLIENT_TITLE` 与该名称一致，因此在未设置 `DSH_CLIENT_TITLE` 时，首份文档标题与 hydration 后的 locale 字符串相符。
 
-未填充的 `sidebar.brand.mark` 与 `conversation.hero.brand.mark` slot 渲染 `CatLogo`，这是 `@deepseek-ai/dsh-client-ui-primitives` 中的方形 currentColor 猫脸标记。`FishLogo` 仍是官方鲸鱼填充。`apps/web/public/favicon.svg` 使用同一猫脸 path，并仍在浅色 scheme 下绘制 `#000`，在 `prefers-color-scheme: dark` 下绘制 `#fff`。
+未填充的 `sidebar.brand.mark` 与 `conversation.hero.brand.mark` slot 渲染 `CatLogo`，这是 `@deepseek-ai/dsh-client-ui-primitives` 中的方形 currentColor 猫脸标记。`FishLogo` 仍是官方鲸鱼填充。`apps/web/public/favicon.svg` 使用同一猫脸 path，并仍在浅色 scheme 下绘制 `#000`，在 `prefers-color-scheme: dark` 下绘制 `#fff`。Chromium 可安装性 PNG（`icon-192.png`、`icon-512.png`、带 80% 安全区的 maskable 配对，以及 `apple-touch-icon.png`）由该标记栅格化。安装 manifest 的 `theme_color` 与 `background_color` 为 `#ffffff`，与浅色 `--dsw-alias-bg-base`（`--dsw-static-neutral-bluish-00`）一致。运行时 `theme-color` 元数据仍由 presenter 持有的计算后 body 背景决定。
 
 `@deepseek-ai/dsh-client-ui-brand-official` 仍在构建 profile 不是 `official` 时 no-op，因此 official 产物保留鲸鱼标记、DeepSeek Harness wordmark 以及 `DSH_CLIENT_TITLE`。
 
@@ -26,4 +26,4 @@ Status: implemented
 
 ## 后果
 
-本地 `dsh web` chrome 在侧栏、空白会话 hero、标签页图标、安装 manifest 和默认文档标题中显示 DeepMeow 与猫脸标记。official 构建仍用鲸鱼 wordmark 填充品牌 slot 并设置 `DSH_CLIENT_TITLE`，Vite closeBundle 会把该标题写入 `manifest.webmanifest`（`DeepSeek Harness` / `DSH`）。在 public 资源按 profile 拆分之前，它们共用这份猫 favicon。本地版本芯片使用主题的 code-block-small 字体，不追加 dirty。locale、primitive、sidebar、layout、assembled-boot 与 PWA 测试固定该名称、标记几何、回退占用以及 favicon 的 color-scheme 切换。
+本地 `dsh web` chrome 在侧栏、空白会话 hero、标签页图标、安装 manifest 和默认文档标题中显示 DeepMeow 与猫脸标记。official 构建仍用鲸鱼 wordmark 填充品牌 slot 并设置 `DSH_CLIENT_TITLE`，Vite closeBundle 会把该标题写入 `manifest.webmanifest`（`DeepSeek Harness` / `DSH`）。在 public 资源按 profile 拆分之前，它们共用这份猫 favicon 与栅格安装图标。本地版本芯片使用主题的 code-block-small 字体，不追加 dirty。locale、primitive、sidebar、layout、assembled-boot 与 PWA 测试固定该名称、标记几何、回退占用、favicon 的 color-scheme 切换、启动画面画布色以及 192/512 安装图标。

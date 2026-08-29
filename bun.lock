@@ -6615,6 +6615,8 @@
       "dependencies": {
         "@jridgewell/gen-mapping": "^0.3.13",
         "@typescript/typescript6": "^6.0.2",
+        "oxc-transform": "0.147.0",
+        "typescript": "^7.0.2",
       },
       "devDependencies": {
         "@deepseek-ai/cordis": "workspace:^",
