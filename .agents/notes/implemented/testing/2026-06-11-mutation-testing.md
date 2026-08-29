@@ -15,11 +15,11 @@ Stryker runs over `packages/util/*/src` with the Vitest runner, configured in [s
 - **Scope is the ratchet.** The zero-dependency utility tier is the code every other package builds on, so it goes first; the scope widens tier by tier as each one reaches its threshold.
 - **The suite is scoped with the mutants.** [vitest.mutation.config.ts](../../../../vitest.mutation.config.ts) includes only the tests owned by the packages under mutation. A mutant a consumer's suite would have killed therefore survives here, so the scoping can only lower the score, never inflate it.
 - **`coverageAnalysis: 'all'`, not per-test.** These suites reach their subject through tsconfig path aliases, which Stryker's per-test coverage attribution does not follow: it reported mutants as survived that fail the suite when applied by hand.
-- **`break` is the recorded score, and only moves up.** The scope's measured score is 96.08 — 777 killed plus 7 timed out of 816 reachable mutants — and the threshold sits at 95.
+- **`break` sits one mutant below the recorded score, and only moves up.** The scope measures 96.20 — 778 killed plus 7 timed out of 816 reachable mutants. One mutant is worth 0.1225 points here, so the threshold is 96.1: losing a single kill scores 96.08 and fails the run.
 
 ## What the survivors are
 
-The 32 survivors are not missing assertions; they are mutants no assertion over the public result can reach, and the distinction is what keeps the number meaningful:
+The 31 survivors are not missing assertions; they are mutants no assertion over the public result can reach, and the distinction is what keeps the number meaningful:
 
 - **Memory-bounded, output-identical.** `TextRetainer`'s suffix trim keeps the accumulator inside `suffixCap`. Its own comment records that `finish()` never reads past the last `suffixLen` bytes, so removing or inverting the trim changes allocation and nothing a caller can observe.
 - **No-ops by construction.** `clearTimeout(undefined)` does nothing, a second `[Symbol.dispose]()` does nothing, and `mkdir({ mode: undefined })` is the platform default.
@@ -41,7 +41,7 @@ Raising the score past this means deleting the code the survivors sit in or wide
 
 ## Consequences
 
-Surviving mutants are work items with a shape: pick one, write the test that kills it, repeat. That loop took this scope from 82.92 to 96.08 and produced tests for real behavior that had none — UTF-8 cut boundaries, LaunchServices parsing, temp-file exclusivity, name folding, the writer lock's deadline and backoff — plus three code simplifications the survivors exposed, and one narrowed `try` that had been swallowing this package's own parser failures as an absent macOS record.
+Surviving mutants are work items with a shape: pick one, write the test that kills it, repeat. That loop took this scope from 82.92 to 96.20 and produced tests for real behavior that had none — UTF-8 cut boundaries, LaunchServices parsing, temp-file exclusivity, name folding, the writer lock's deadline and backoff, and a thrown null reaching its caller intact — plus three code simplifications the survivors exposed, and one narrowed `try` that had been swallowing this package's own parser failures as an absent macOS record.
 
 Adding the lane moved `docs/testing.md`'s word ceiling from 1150 to 1200: the tier list gains a lane, and the coverage tier now describes every kind of exclusion its gate carries instead of naming only the `pwsh` one, which read as though it were the only exemption.
 
