@@ -11,7 +11,7 @@
 ### 前置条件
 
 - Node.js 支持 22.19+ 与 24+。CI 覆盖 22.19、24 和 26；见 [Node 引擎下限 Agent Note](../.agents/notes/implemented/process/2026-07-06-node-engine-floor.zh.md)。
-- bun。仓库在 `package.json` 中固定使用 `bun@1.3.11`；如果 `bun --version` 无法解析，请先从 [bun.com/docs/installation](https://bun.com/docs/installation) 安装。
+- bun。仓库在 `package.json` 中固定使用 `bun@1.4.0`；如果 `bun --version` 无法解析，请先从 [bun.com/docs/installation](https://bun.com/docs/installation) 安装。
 - Git 2.26 或更高版本；钩子设置会启用 Git 的 worktree 专属配置扩展。
 - 可选：一个 DeepSeek API key，用于 Web、headless 和 ACP（Agent Client Protocol）自动化 agent（智能体）演示以及真实 API 的 e2e 测试。
 
@@ -46,6 +46,8 @@ bun run typecheck
 <a id="typescript-project-layout"></a>
 
 ### TypeScript 项目布局
+
+Host 与 Client program 使用 TypeScript 7（`typescript` ^7.0.2）编译。调用 compiler API 的消费方（包括 Typert 和各 gate 脚本）导入 `@typescript/typescript6`。见 [TypeScript 7 Agent Note](../.agents/notes/implemented/process/2026-08-29-typescript-7-compiler.zh.md)。
 
 仓库使用相互隔离的 Host 与 Client aggregate。普通包只登记进其中一个 aggregate；Host 包进入 `tsconfig.host.json`，Client 包进入 `tsconfig.client.json`；`host/webserver`、`compaction/compaction` 与 `typert/registry` 三个包被两个 aggregate 同时引用，作为共享 leaf，让两侧对同一份源码做类型检查。
 

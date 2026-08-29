@@ -9,7 +9,7 @@ The setup tutorial takes a new contributor from prerequisites to a checked check
 ### Prerequisites
 
 - Node.js supports 22.19+ and 24+. CI covers 22.19, 24, and 26; see the [Node engine floor Agent Note](../.agents/notes/implemented/process/2026-07-06-node-engine-floor.md).
-- bun. The repo pins `bun@1.3.11` in `package.json`; install it from [bun.com/docs/installation](https://bun.com/docs/installation) if `bun --version` does not resolve.
+- bun. The repo pins `bun@1.4.0` in `package.json`; install it from [bun.com/docs/installation](https://bun.com/docs/installation) if `bun --version` does not resolve.
 - Git 2.26 or newer; hook setup enables Git's worktree-specific configuration extension.
 - Optional: a DeepSeek API key for the Web, headless, and ACP automation demos and real-API e2e tests.
 
@@ -42,6 +42,8 @@ Setup is complete when `bun run typecheck` exits successfully.
 ## Contributor reference
 
 ### TypeScript project layout
+
+Host and Client programs compile with TypeScript 7 (`typescript` ^7.0.2). Compiler-API consumers, including Typert and the gate scripts, import `@typescript/typescript6`. See [the TypeScript 7 Agent Note](../.agents/notes/implemented/process/2026-08-29-typescript-7-compiler.md).
 
 The repository uses isolated Host and Client aggregates. An ordinary package is registered in exactly one aggregate: Host packages in `tsconfig.host.json` and Client packages in `tsconfig.client.json`; three packages (`host/webserver`, `compaction/compaction`, `typert/registry`) are referenced by both aggregates as shared leaves so each side type-checks the same source.
 

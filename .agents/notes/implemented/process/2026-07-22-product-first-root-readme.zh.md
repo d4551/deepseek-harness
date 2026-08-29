@@ -10,7 +10,7 @@ Status: implemented
 
 ## 决策
 
-根 README 是简短的产品和贡献者入口。它说明产品定位与插件架构，链接文档站，标明开发者预览与安全状态，然后给出受支持的 npm 和源码启动路径。
+根 README 是简短的产品和贡献者入口。它说明产品定位与插件架构，链接文档站，写明本检出是 [上游仓库](https://github.com/deepseek-ai/deepseek-harness) 的 fork 及其 bun 1.4 / TypeScript 7 工具链，并标出开发者预览与安全状态，然后给出受支持的 npm 和源码启动路径。npm 路径运行已发布的 `@deepseek-ai/dsh` 软件包；源码路径克隆并构建本 fork。工具链依据见 [bun 包管理器 Agent Note](2026-08-29-bun-package-manager.zh.md) 与 [TypeScript 7 Agent Note](2026-08-29-typescript-7-compiler.zh.md)；贡献者搭建步骤见[开发指南](../../../../docs/development.zh.md)。
 
 两条启动路径都通过 `dsh` profile 入口启动 Web UI。源码路径先构建当前检出，再运行 `bun dsh web`。ACP、TUI、SDK、能力和包的详细说明由用户指南、架构文档与包索引维护，不在入口页重复。
 

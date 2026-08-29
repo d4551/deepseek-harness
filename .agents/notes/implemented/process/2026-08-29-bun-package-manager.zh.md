@@ -10,7 +10,7 @@ Status: implemented
 
 ## Decision
 
-采用 **bun 1.3.11**，通过 `packageManager` 字段固定；CI 使用 `oven-sh/setup-bun` 并以 `bun-version-file: package.json` 安装该固定版本。产品运行时仍是 Node——单文件可执行构建、`node-pty` 与 SEA 载体都是 Node 产物，`engines.node` 也未变。但启动器并非毫无改动：`dsh plugin` 现在转发给 `bun` 而非 `pnpm`，profile 的安装设置也从启动器写出的 `pnpm-workspace.yaml` 变为它现在写出的 `bunfig.toml`。对已存在 manifest（元数据清单）的目录会跳过 profile 初始化，因此由 `ensureProfileInstallSettings` 为本次改动之前创建的 profile 补写这些设置；否则这类 profile 会在 bun 默认的 isolated 布局下安装 out-of-tree 插件，从而失去它们赖以解析 peer 依赖的扁平 `node_modules`。已失效的 `pnpm-workspace.yaml` 保持原样，不从用户目录中删除。
+采用 **bun 1.4.0**，通过 `packageManager` 字段固定；CI 使用 `oven-sh/setup-bun` 并以 `bun-version-file: package.json` 安装该固定版本。产品运行时仍是 Node——单文件可执行构建、`node-pty` 与 SEA 载体都是 Node 产物，`engines.node` 也未变。bun 1.4 在自身作为进程时报告 Node 26.3，`NODE_MODULE_VERSION` 为 147；`dsh` 在已文档化的 Node 引擎范围下运行，因此原生 addon 按 Node ABI 加载。但启动器并非毫无改动：`dsh plugin` 现在转发给 `bun` 而非 `pnpm`，profile 的安装设置也从启动器写出的 `pnpm-workspace.yaml` 变为它现在写出的 `bunfig.toml`。对已存在 manifest（元数据清单）的目录会跳过 profile 初始化，因此由 `ensureProfileInstallSettings` 为本次改动之前创建的 profile 补写这些设置；否则这类 profile 会在 bun 默认的 isolated 布局下安装 out-of-tree 插件，从而失去它们赖以解析 peer 依赖的扁平 `node_modules`。已失效的 `pnpm-workspace.yaml` 保持原样，不从用户目录中删除。
 
 - **Workspaces** 从 `pnpm-workspace.yaml` 迁回 `package.json` 的 `workspaces` 数组（bun 原生读取该字段）；`python/sdk-runtime` 加入其中已列出的 glob。`pnpm-workspace.yaml` 被删除，`bun.lock` 变为 `bun.lock`。
 - **`bunfig.toml` 承载安装策略。** `linker = "isolated"` 保持非扁平布局，因此未声明的传递性导入仍在解析时失败，而不是借用兄弟包的依赖树。`minimumReleaseAge = 86400` 重述 pnpm 11 默认施加的供应链等待期，`minimumReleaseAgeExcludes` 承载 pnpm 配置中已审阅的豁免项，并新增 `@earendil-works/pi-telemetry`——pi-ai 家族按同一版本序列发布，只豁免其中一半会导致解析死锁。
