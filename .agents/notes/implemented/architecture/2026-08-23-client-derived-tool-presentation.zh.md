@@ -568,9 +568,9 @@ Host registry 允许不同 scope 为同一 tool name 提供不同定义；Sessio
 - 受影响 Host/Client TypeScript face；
 - lint 与 duplication；
 - 受影响源文件 per-file 100% coverage；
-- `DSH_SNAPSHOT=replay pnpm run test:web`，不得 refresh 现有展示 golden；
+- `DSH_SNAPSHOT=replay bun run test:web`，不得 refresh 现有展示 golden；
 - 手写 Remote 类型与 TypeScript 检查；
-- `pnpm run doc-sync`；
+- `bun run doc-sync`；
 - `git diff --check`。
 
 ## 已交付不变量

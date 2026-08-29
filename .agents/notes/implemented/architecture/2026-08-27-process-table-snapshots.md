@@ -20,7 +20,7 @@ Measured by driving the production `MacProcessInspector` against a real process 
 | 5 | 87.1 ms | 174% |
 | 10 | 178.4 ms | 357% |
 
-Any command spawning two or more children — a pipeline, `make`, `pnpm`, `git` — saturates the host event loop until it exits.
+Any command spawning two or more children — a pipeline, `make`, `bun`, `git` — saturates the host event loop until it exits.
 
 Teardown has the same structure. `signalProcess` fences each signal against PID reuse by asking liveness itself, so signalling N members costs N table reads.
 

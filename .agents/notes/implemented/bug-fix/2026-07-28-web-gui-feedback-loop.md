@@ -14,7 +14,7 @@ The [incident post-mortem](../../../../docs/postmortem/0003-web-agent-gui-feedba
 
 The ordinary `dsh web` composition mounts the Web bundle's `web-runtime` plugin, which publishes one canonical loopback URL as both model-visible orientation and a managed shell fact. The `app:web-surface` prompt section says that unqualified references identify this GUI and names the URL; `DSH_WEB_URL` carries the same fact into every foreground or managed background bash call. The section preserves the no-implicit-DOM, route, or screenshot boundary and does not claim that a LAN alias equals the browser's literal address. A complete-prompt profile sets the row's `surfaceContext` to false and receives neither the prompt section nor the managed variable; the Web launcher uses the same setting to suppress its source-checkout prompt section.
 
-The prompt makes the agent, rather than the user, own the hidden startup contract. The client-plugin HMR receiver is always mounted, but automatic client-plugin reload additionally requires a same-checkout `pnpm run dev:web` watcher, which the agent verifies before promising no-refresh updates. Shell and other plain-package changes still require rebuilding the affected artifacts and refreshing the existing URL. The agent does not launch a replacement GUI unless asked.
+The prompt makes the agent, rather than the user, own the hidden startup contract. The client-plugin HMR receiver is always mounted, but automatic client-plugin reload additionally requires a same-checkout `bun run dev:web` watcher, which the agent verifies before promising no-refresh updates. Shell and other plain-package changes still require rebuilding the affected artifacts and refreshing the existing URL. The agent does not launch a replacement GUI unless asked.
 
 The `apps/web` development script and Vite configuration reject serve mode before opening a port. Their diagnostics identify `apps/web` as a build-only shell, explain that only `dsh web` injects `window.__DSH_BOOT__`, and name the production and HMR entry paths. Vite build mode remains unchanged.
 
@@ -30,7 +30,7 @@ The keyless fresh-round-trip browser scenario boots the shipped Web composition,
 
 **Remove the `apps/web` development script without guarding Vite.** Rejected because `npx vite`, the exact incident command, bypasses package scripts. Serve mode itself must fail.
 
-**Automatically restart or replace the current Web process after every edit.** Rejected because the static server already reads current artifacts per request, a restart would interrupt the session that requested the edit, and client-plugin reload is owned by the always-mounted HMR chain plus the `pnpm run dev:web` watcher.
+**Automatically restart or replace the current Web process after every edit.** Rejected because the static server already reads current artifacts per request, a restart would interrupt the session that requested the edit, and client-plugin reload is owned by the always-mounted HMR chain plus the `bun run dev:web` watcher.
 
 **Send DOM, route, or screenshots with each request.** Deferred to a separate logged-input design. Stable URL identity closes this feedback loop without claiming browser state the host does not receive.
 

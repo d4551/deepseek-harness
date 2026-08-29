@@ -10,7 +10,7 @@ English | [中文](2026-08-27-inspector-development-mount.zh.md)
 
 ## Decision
 
-The inspector package owns two development overlays. `packages/experimental/inspector/cordis.source.patch.yml` inserts `./src/index.ts` for the tsx source launch behind `pnpm run demo:inspector`. `packages/experimental/inspector/cordis.patch.yml` inserts `./lib/index.js` for `node apps/cli/lib/bin.js web --patch ./packages/experimental/inspector/cordis.patch.yml` after `pnpm run build`.
+The inspector package owns two development overlays. `packages/experimental/inspector/cordis.source.patch.yml` inserts `./src/index.ts` for the tsx source launch behind `bun run demo:inspector`. `packages/experimental/inspector/cordis.patch.yml` inserts `./lib/index.js` for `node apps/cli/lib/bin.js web --patch ./packages/experimental/inspector/cordis.patch.yml` after `bun run build`.
 
 Each relative entry resolves from its overlay file's directory through the Loader's normal owning-tree `baseUrl`. The source launch therefore reaches TypeScript directly, while the built launch reaches the package artifact; neither path reads or modifies profile-installed plugin state. A missing source or built entry fails loud during Loader import rather than skipping the Inspector.
 

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/testing/2026-08-03-opt-in-reasoning-chunk-browser-stress.md
-2026-08-03-opt-in-reasoning-chunk-browser-stress.md: 70c200c7ade6ef995c68b68ddc21e4c85edf0da8
-2026-08-03-opt-in-reasoning-chunk-browser-stress.zh.md: 9fb4be27369d4489fc90a6151fcbd0861ef83f2c
+2026-08-03-opt-in-reasoning-chunk-browser-stress.md: 3231e08f9b22ebd2ee172e8b9b2672c62a5a5af4
+2026-08-03-opt-in-reasoning-chunk-browser-stress.zh.md: 7fa66063bc5029bad5acbb2ed3dde4f40118a791

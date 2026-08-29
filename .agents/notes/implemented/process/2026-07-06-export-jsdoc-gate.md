@@ -10,7 +10,7 @@ The [cordis JSDoc completeness gate](../../archived/process/2026-07-04-cordis-js
 
 ## Decision
 
-A new gate, `scripts/verify-export-jsdoc.ts` (`pnpm run verify-export-jsdoc`, wired into `doc-sync` beside `verify-cordis-catalog`), walks every module-level exported name under each `packages/<group>/<pkg>/src/` tree. The parsing and check helpers moved from `gen-cordis-catalog.ts` into a shared `scripts/jsdoc.ts`, so "documented" means the same thing on both surfaces: description prose ends at the first block tag, every checkable parameter needs a non-empty `@param`, a non-void ANNOTATED return needs a non-empty `@returns`, a stale `@param` errors, and violations aggregate into one report.
+A new gate, `scripts/verify-export-jsdoc.ts` (`bun run verify-export-jsdoc`, wired into `doc-sync` beside `verify-cordis-catalog`), walks every module-level exported name under each `packages/<group>/<pkg>/src/` tree. The parsing and check helpers moved from `gen-cordis-catalog.ts` into a shared `scripts/jsdoc.ts`, so "documented" means the same thing on both surfaces: description prose ends at the first block tag, every checkable parameter needs a non-empty `@param`, a non-void ANNOTATED return needs a non-empty `@returns`, a stale `@param` errors, and violations aggregate into one report.
 
 The contract by declaration kind:
 

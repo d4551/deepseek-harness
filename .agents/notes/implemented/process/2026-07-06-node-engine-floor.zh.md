@@ -6,7 +6,7 @@ Status: implemented
 
 ## 问题
 
-根 `engines.node` 范围中的 Node 22 分支是对安装后工作区的约定，而不仅仅是 harness 源码直接调用的运行时 API 的约定。它不得低于工作区在该分支上安装的依赖包所声明的 `engines.node`；否则 `pnpm install --engine-strict` 会在一个已宣传的 LTS 版本上失败，而非严格模式下的安装结果则会在依赖所支持的运行时范围之外运行。
+根 `engines.node` 范围中的 Node 22 分支是对安装后工作区的约定，而不仅仅是 harness 源码直接调用的运行时 API 的约定。它不得低于工作区在该分支上安装的依赖包所声明的 `engines.node`；否则 `bun install --engine-strict` 会在一个已宣传的 LTS 版本上失败，而非严格模式下的安装结果则会在依赖所支持的运行时范围之外运行。
 
 ## 决策
 

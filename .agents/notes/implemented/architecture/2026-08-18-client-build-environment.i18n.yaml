@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-18-client-build-environment.md
-2026-08-18-client-build-environment.md: c23a73e9520392e41949f95d04029dbf34213dd0
-2026-08-18-client-build-environment.zh.md: 5dbb5deeee75eb0f1b2cadf7e38ad8bfc5661f5c
+2026-08-18-client-build-environment.md: e493411bbc7ccadd5d22ed78bb21c9eeb5a3c820
+2026-08-18-client-build-environment.zh.md: 6e0ac0412af35052516be850cd5e34d2344baf8e

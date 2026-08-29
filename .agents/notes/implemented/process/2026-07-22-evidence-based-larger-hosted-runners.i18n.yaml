@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/process/2026-07-22-evidence-based-larger-hosted-runners.md
-2026-07-22-evidence-based-larger-hosted-runners.md: db08a4eb9812a2cb13499718cbd3ceb023960c06
-2026-07-22-evidence-based-larger-hosted-runners.zh.md: c6a3a5c12199d0f7fc1351e77c0824259896de52
+2026-07-22-evidence-based-larger-hosted-runners.md: 4fe409d3b93c876365f03d42154989d117f165a9
+2026-07-22-evidence-based-larger-hosted-runners.zh.md: ebbeec049efe2b5d79d9efb3a5c787faee3ca998

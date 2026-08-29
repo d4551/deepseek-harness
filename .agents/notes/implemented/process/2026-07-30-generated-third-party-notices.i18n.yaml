@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/process/2026-07-30-generated-third-party-notices.md
-2026-07-30-generated-third-party-notices.md: b81f386f0d0e820b0361c775fb4c45a9e633d04b
-2026-07-30-generated-third-party-notices.zh.md: d3b3e1686bfdf8901902f995205c1dbdd6dfbf38
+2026-07-30-generated-third-party-notices.md: 8c036fb9b9cad181fbabd9dbf268532f24826165
+2026-07-30-generated-third-party-notices.zh.md: b6a06a1c8b360ff2df71d1b5686ff19cbdf8931f

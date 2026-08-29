@@ -6,7 +6,7 @@ English | [中文](2026-06-22-subagent-snapshot-replay.zh.md)
 
 ## Problem
 
-The snapshot tier (`pnpm run test:snapshot`) boots the real `acp-agent` subprocess, replays a recorded session through [`dsh-llm-replay`](../../../../packages/test-support/llm-replay), and diffs the normalized automation wire + re-persisted session log against committed expected outputs. Most scenarios exercise assembled backend behavior through that real process boundary.
+The snapshot tier (`bun run test:snapshot`) boots the real `acp-agent` subprocess, replays a recorded session through [`dsh-llm-replay`](../../../../packages/test-support/llm-replay), and diffs the normalized automation wire + re-persisted session log against committed expected outputs. Most scenarios exercise assembled backend behavior through that real process boundary.
 
 It was built for ONE session per process, and that assumption is wired into two places:
 

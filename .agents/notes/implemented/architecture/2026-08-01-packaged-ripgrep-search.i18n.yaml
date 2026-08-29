@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-01-packaged-ripgrep-search.md
-2026-08-01-packaged-ripgrep-search.md: c401bc1e30df0c3443ad58b37f64523b1c10cb31
-2026-08-01-packaged-ripgrep-search.zh.md: 6a195e59f77aa73b9d0918461cef45360e617098
+2026-08-01-packaged-ripgrep-search.md: 014ffa88f93fbe156aac913add9ea2cfe9a36292
+2026-08-01-packaged-ripgrep-search.zh.md: 603cef7bf4b37c986b2f0c595ecdb60c0e4a7ec9

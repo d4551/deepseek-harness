@@ -45,7 +45,7 @@ needs a rebuild rather than a rewrite.
 | `bun run mutation` | 788 detected of 816 = 96.57%, `break` 96.5 |
 | `bun run typecheck` | clean |
 | `bun run test:docs` | 15 gates pass |
-| `bun run hygiene` | 15 gates pass |
+| `bun run hygiene` | recorded here as "1 knip finding, pre-existing"; the lane was in fact failing, and this row was never re-measured at this commit |
 | axe | 10 of the 43 packages under `packages/client/` |
 
 The 13 unit failures reproduce identically at the manifest from before the
@@ -102,10 +102,13 @@ cannot bind, and the subagent suites that need external binaries.
 | `bun run test:docs` | 15 gates pass |
 | `bun run test:snapshot` | 107 passed, 2 skipped, **0 failed** |
 | `bun run test` | 13 failed, 17,462 passed, 89 skipped of 17,564 |
+| `bun run mutation` | 788 detected of 816 = 96.57%, `break` 96.5 |
 
 No new failures: the nine failing files are exactly the pre-upgrade set, and
 the OOM containment case that timed out under load during the TypeScript 7 run
 did not recur.
+
+The mutation row is a fresh run, not the pre-upgrade figure carried forward. Both upgrades change what compiles and what resolves, so the earlier 96.57 could not be reported for this state without re-running Stryker in it. Re-run here, the score is 96.57 again — 788 detected of 816, with the same 28 survivors — so the number is unchanged and now measured where it is claimed.
 
 The ABI change does not reach the product. bun 1.4 reports Node 26.3.0 with
 `NODE_MODULE_VERSION` 147, but `dsh` runs under Node 22.22.2 at version 127,

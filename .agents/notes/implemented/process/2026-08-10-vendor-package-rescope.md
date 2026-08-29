@@ -34,9 +34,9 @@ Markdown splits along what a reader does with it. Every fence follows the rename
 
 - No upstream name remains in the publication set. `publish-npm-baseline.ts` now requires every published package to be `@deepseek-ai/*` with no vendored exemption, so regressing the rename fails before packing.
 - The `vendor/README.md` manifest table gains an upstream-name column; `gen-third-party-notices` parses six columns and renders that name into `THIRD_PARTY_NOTICES.md`, keeping MIT attribution pointed at each fork's origin rather than our scope.
-- `pnpm-workspace.yaml` drops the `cordis` and `@cordisjs/plugin-loader` `minimumReleaseAgeExclude` entries, which can no longer be fetched from a registry, and `knip.json` drops the `@cordisjs/.+` ignore pattern that `@deepseek-ai/.+` already covers.
-- Upstream sync follows the procedure in `vendor/README.md` with one added obligation in step 3: re-apply the rename over the copied sources with `pnpm run rescope-vendor --apply`, whose mapping and the table's two name columns must agree.
-- **Returning to the official upstream packages** means applying that mapping in reverse — `pnpm run rescope-vendor --apply --reverse` — then restoring the two `minimumReleaseAgeExclude` entries and relaxing the publication-set assertion. It spans roughly 1300 files, so replay it with the script rather than by hand.
+- `bunfig.toml` drops the `cordis` and `@cordisjs/plugin-loader` `minimumReleaseAgeExcludes` entries, which can no longer be fetched from a registry, and `knip.json` drops the `@cordisjs/.+` ignore pattern that `@deepseek-ai/.+` already covers.
+- Upstream sync follows the procedure in `vendor/README.md` with one added obligation in step 3: re-apply the rename over the copied sources with `bun run rescope-vendor --apply`, whose mapping and the table's two name columns must agree.
+- **Returning to the official upstream packages** means applying that mapping in reverse — `bun run rescope-vendor --apply --reverse` — then restoring the two `minimumReleaseAgeExclude` entries and relaxing the publication-set assertion. It spans roughly 1300 files, so replay it with the script rather than by hand.
 
 `scripts/rescope-vendor.ts` owns the rename: the mapping, the delimited-token rule, the per-file exemptions where a name is a directory instead of a package, the exact edits above, and a `--check` mode asserting no residue, every exact edit landed, and idempotency, which the `hygiene` gate runs on every CI pass. A rebase replays it instead of resolving a 1300-file conflict, and an upstream change to one of the pinned sites fails the run loudly instead of being silently skipped.
 
@@ -46,6 +46,6 @@ Markdown splits along what a reader does with it. Every fence follows the rename
 
 **Rename only at pack time.** Rejected because the published names would disagree with the source tree, every module specifier would have to be rewritten inside the publish path, and no local run could reproduce what was published.
 
-**Rename the `vendor/` directories and unify versions on the repository base version too.** Rejected because directory names are not publication identity — renaming them drags in project references, tsdown globs, and documentation paths for no gain — and a `0.0.1` version would no longer satisfy the preserved `^4.0.0-rc.7` ranges, so pnpm would look for a registry copy and `verify-vendored-links` would fail.
+**Rename the `vendor/` directories and unify versions on the repository base version too.** Rejected because directory names are not publication identity — renaming them drags in project references, tsdown globs, and documentation paths for no gain — and a `0.0.1` version would no longer satisfy the preserved `^4.0.0-rc.7` ranges, so the package manager would look for a registry copy and `verify-vendored-links` would fail.
 
 **Rewrite prose outside `docs/` and historical Agent Notes as well.** Rejected because those record what was true when written, and a bare `cordis` there is as likely to be an SDK option name or a preset id as a package; `docs/rescope.md` carries the mapping for readers instead.

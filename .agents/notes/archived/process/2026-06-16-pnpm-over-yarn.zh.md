@@ -1,6 +1,7 @@
 # Agent Note: 使用 pnpm 替代 Yarn 4 作为包管理器
 
 Status: implemented
+Archived: 2026-08-29
 
 [English](2026-06-16-pnpm-over-yarn.md) | 中文
 

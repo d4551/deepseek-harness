@@ -16,11 +16,11 @@ Node 兼容性汇总任务会在每条声明支持的兼容版本线上运行专
 
 ## 曾考虑的替代方案
 
-- **在包脚本或 CI 中设置 `NODE_OPTIONS=--no-webstorage`。** 否决：这会将测试运行器策略传播到子进程，也无法覆盖直接调用 `pnpm exec vitest` 的情况。
+- **在包脚本或 CI 中设置 `NODE_OPTIONS=--no-webstorage`。** 否决：这会将测试运行器策略传播到子进程，也无法覆盖直接调用 `bun x vitest` 的情况。
 - **向 Node 传入 `--localstorage-file`。** 否决：单个进程级持久化存储与每个 jsdom 环境分别创建的浏览器存储具有不同的归属和隔离语义。
 - **在初始化代码中修改 `globalThis.localStorage`，或为每个组件测试增加保护逻辑。** 否决：初始化逻辑会依赖 Vitest 私有的 jsdom 映射细节，而逐测试添加的保护逻辑会掩盖浏览器环境损坏，并在多个测试套件中重复该策略。
 - **将测试固定在 Node 24。** 否决：包的引擎范围声明支持更新的偶数 Node 版本线，而兼容性矩阵正是为了暴露这些版本的运行时变化。
 
 ## 后果
 
-同一条 `pnpm test` 命令在有无内置 Web Storage 的 Node 版本上均可运行。测试 worker 被有意禁止使用 Node 的进程级 Web Storage；未来若产品需要该 API，必须使用独立且显式的测试配置，而不能削弱 jsdom 隔离。兼容性通道只增加一个专项 Vitest 进程，无需在每个 Node 版本上重复整套单元测试。
+同一条 `bun run test` 命令在有无内置 Web Storage 的 Node 版本上均可运行。测试 worker 被有意禁止使用 Node 的进程级 Web Storage；未来若产品需要该 API，必须使用独立且显式的测试配置，而不能削弱 jsdom 隔离。兼容性通道只增加一个专项 Vitest 进程，无需在每个 Node 版本上重复整套单元测试。

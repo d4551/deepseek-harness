@@ -14,7 +14,7 @@ The entry modes and the personal file's name and location below are superseded b
 
 Two coupled pieces, aligned with the `apps/` assembly tier proposed by the `dsh web` PR (#443):
 
-**The `dsh` CLI (`apps/cli`, npm name `@deepseek-ai/dsh`).** `apps/*` is the product-assembly tier over `packages/*` libraries. One bin dispatches the default interactive TUI, `-p`/`--prompt` headless turns, and the `web` surface. The TUI boots `examples/tui-agent/cordis.yml` (or `--config`) with the invoking directory as the workspace. From a source checkout, the root `pnpm dsh` script runs the same entry with tsx's ESM hook without building; the [source-launch decision](../architecture/2026-07-29-dsh-source-launch-tsx-esm.md) owns the runtime vector and the [source-launch/build separation decision](../simplification/2026-08-12-separate-source-launch-from-build.md) owns artifact generation.
+**The `dsh` CLI (`apps/cli`, npm name `@deepseek-ai/dsh`).** `apps/*` is the product-assembly tier over `packages/*` libraries. One bin dispatches the default interactive TUI, `-p`/`--prompt` headless turns, and the `web` surface. The TUI boots `examples/tui-agent/cordis.yml` (or `--config`) with the invoking directory as the workspace. From a source checkout, the root `bun dsh` script runs the same entry with tsx's ESM hook without building; the [source-launch decision](../architecture/2026-07-29-dsh-source-launch-tsx-esm.md) owns the runtime vector and the [source-launch/build separation decision](../simplification/2026-08-12-separate-source-launch-from-build.md) owns artifact generation.
 
 **Personal config (`dsh-app-boot`).** The personal overlay lives in the Harness home — `$DSH_HOME`, else `~/.dsh` — resolved by the shared [`resolveDshHome`](../architecture/2026-07-24-single-harness-home-resolver.md) (`@deepseek-ai/dsh-home-paths`), the same single root skills and AGENTS.md resolve against. The dsh TUI, Web, and headless surfaces consume its two optional files; the demo bins boot their committed trees verbatim:
 
@@ -40,7 +40,7 @@ The TUI and Web register the exact personal path through Cordis HMR after boot. 
 
 ## Consequences
 
-- An installed `dsh` command can run from any directory, while source users invoke `pnpm dsh` from the checkout; both can apply personal providers, models, installed bundle entries, and other Loader entries with no checkout edit. The behavior was verified end to end against a personal Anthropic proxy with Opus 4.8, including a bash tool round trip.
+- An installed `dsh` command can run from any directory, while source users invoke `bun dsh` from the checkout; both can apply personal providers, models, installed bundle entries, and other Loader entries with no checkout edit. The behavior was verified end to end against a personal Anthropic proxy with Opus 4.8, including a bash tool round trip.
 - Because an id-targeted patch replaces the whole `config`, a personal override restates the base fields it keeps and can drift when the base entry changes shape; the loader's entry-not-found/name-mismatch warnings and [`dsh --dump-config`](../../../../apps/cli/README.md#profiles) (which prints the composed tree those patches produce) are the diagnostics.
 - Personal patches resolve ids against the booted file's own tree, so nested-include overlays (PTC mode) are not personalized; live-run parity for those leaves is deferred.
 - `dsh-app-boot` depends on `js-yaml` and imports the include's `!!js` YAML dialect (`entryListSchema`) directly, and, like `apps/cli`, depends on `@deepseek-ai/dsh-home-paths` for `resolveDshHome`.

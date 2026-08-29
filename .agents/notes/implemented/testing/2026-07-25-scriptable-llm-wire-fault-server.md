@@ -12,7 +12,7 @@ Connection refusal, a reset before the first event, clean EOF without `[DONE]`, 
 
 ## Decision
 
-`@deepseek-ai/dsh-llm-mock-server` is a private support package with an importable Node HTTP server. The repository-local `pnpm run mock:llm` source entry provides a standalone process for manual fault injection; the package exposes no installable binary. It accepts OpenAI-compatible root and `/v1` chat-completions paths, validates an optional bearer token, captures requests, and consumes one explicit behavior per accepted request. Script exhaustion fails loud; repetition requires `repeatLast`.
+`@deepseek-ai/dsh-llm-mock-server` is a private support package with an importable Node HTTP server. The repository-local `bun run mock:llm` source entry provides a standalone process for manual fault injection; the package exposes no installable binary. It accepts OpenAI-compatible root and `/v1` chat-completions paths, validates an optional bearer token, captures requests, and consumes one explicit behavior per accepted request. Script exhaustion fails loud; repetition requires `repeatLast`.
 
 Request behaviors cover socket reset, post-header disconnect, partial disconnect, stall, valid empty completion, clean truncated streams, malformed payloads, representative HTTP failures, complete text/reasoning/tool-call responses, slow streaming, and max-token completion. A true `connection_refused` is a CLI listener-lifecycle phase because a bound request handler cannot refuse its own TCP connection.
 
@@ -32,7 +32,7 @@ Package tests exercise every request behavior, split UTF-8 request decoding, HTT
 
 **Use only an in-process `LlmAdapter` mock** — rejected because it bypasses fetch, HTTP status/header parsing, SSE framing, socket termination, and the adapter idle watchdog: the exact boundaries this test infrastructure exists to exercise.
 
-**Expose an installable workspace binary** — rejected because pnpm links dependency binaries before repository build outputs exist, coupling clean installs to a test-only artifact. The repository-local source command supports the same manual fault injection without adding a package installation surface.
+**Expose an installable workspace binary** — rejected because bun links dependency binaries before repository build outputs exist, coupling clean installs to a test-only artifact. The repository-local source command supports the same manual fault injection without adding a package installation surface.
 
 **Change retry defaults with the server** — rejected because the server reveals existing semantics rather than deciding policy. Extending recovery to `STREAM_CLOSED` requires a separate decision with its own cost, latency, and duplicate-generation trade-offs.
 

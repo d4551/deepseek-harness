@@ -31,18 +31,18 @@ Inter-tier discipline: **each tier tests its own layer, upper tiers never re-tes
 
 | Scenario | Command | Content | When to run |
 |---|---|---|---|
-| Baseline | `pnpm run test:gui` | Tier 1+2 vitest (`packages/client packages/host`), seconds-fast, no browser, no server | Casually, after touching any GUI source |
-| Semantic snapshot | `DSH_EXAMPLE_MODE=lib pnpm run test:snapshot` | Keyless assembled-application semantics plus the repo's transport-specific expected outputs | After a human-visible GUI change; before delivery |
-| Browser end-to-end | `pnpm run test:web` | Rebuilds the front-end dist first, then runs the tier-3 browser set: the two-level smoke (fixture level + real-host level self-skip) plus the keyless replayed e2e scenarios (`DSH_SNAPSHOT=record`/`refresh` re-record fixtures / rewrite goldens) | After touching the build surface/boot/carriage; before delivery |
-| Browser expected-output gate | `DSH_SNAPSHOT=replay pnpm run test:web:built` | Reuses CI-built artifacts and compares every committed browser golden without writing | Every Linux pull request |
-| Gate | `pnpm run test:coverage` | The repo-wide gate (host and client GUI packages included, except annotated browser-grade exclusions) | The PR window |
+| Baseline | `bun run test:gui` | Tier 1+2 vitest (`packages/client packages/host`), seconds-fast, no browser, no server | Casually, after touching any GUI source |
+| Semantic snapshot | `DSH_EXAMPLE_MODE=lib bun run test:snapshot` | Keyless assembled-application semantics plus the repo's transport-specific expected outputs | After a human-visible GUI change; before delivery |
+| Browser end-to-end | `bun run test:web` | Rebuilds the front-end dist first, then runs the tier-3 browser set: the two-level smoke (fixture level + real-host level self-skip) plus the keyless replayed e2e scenarios (`DSH_SNAPSHOT=record`/`refresh` re-record fixtures / rewrite goldens) | After touching the build surface/boot/carriage; before delivery |
+| Browser expected-output gate | `DSH_SNAPSHOT=replay bun run test:web:built` | Reuses CI-built artifacts and compares every committed browser golden without writing | Every Linux pull request |
+| Gate | `bun run test:coverage` | The repo-wide gate (host and client GUI packages included, except annotated browser-grade exclusions) | The PR window |
 
 **Division of labor between the browser scripts and vitest**: Playwright owns browser/carrier black-box regression and long sequential user journeys; ordinary vitest owns data-layer semantics such as reference stability, timing, and wire shapes; snapshot vitest owns stable app-level semantic output through the built composition. These lanes complement each other rather than duplicating assertions.
 
 ## Anti-regression discipline
 
 - **Every bug fix pins an assertion**: a browser-visible bug is pinned into its owning browser spec (smoke or e2e scenario); a data-layer bug is pinned into the matching spec (precedent: the res-close misjudgment pinned in the webserver bridge suite — pure Node, reproduces in seconds, no longer needs the 12s browser sentinel as the only defense).
-- **All-green on fixture is not done, the real wire must pass too**: what the fixture short-circuits is exactly the wire carriage chain (node:http bridge close semantics, real network timing); both empirically confirmed bugs hid there. Changes touching connection/bridge/handler/SSE must run the browser lane (`pnpm run test:web`) — its keyless e2e scenarios drive the real HTTP/SSE carriage, and the with-key real-host smoke remains the live-model complement.
+- **All-green on fixture is not done, the real wire must pass too**: what the fixture short-circuits is exactly the wire carriage chain (node:http bridge close semantics, real network timing); both empirically confirmed bugs hid there. Changes touching connection/bridge/handler/SSE must run the browser lane (`bun run test:web`) — its keyless e2e scenarios drive the real HTTP/SSE carriage, and the with-key real-host smoke remains the live-model complement.
 - The code-on-disk-is-the-answer reconciliation workflow: when a behavior change lands and turns existing cases red, reconcile on the spot (fix the test or fix the code, with the RFC/contract as arbiter); no red left hanging.
 
 ## Consequences

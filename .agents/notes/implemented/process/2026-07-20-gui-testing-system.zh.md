@@ -31,18 +31,18 @@ GUI 栈需要考虑多种应用形态，同应用形态内的不同运行环境�
 
 | 场景 | 命令 | 内容 | 何时跑 |
 |---|---|---|---|
-| 基础 | `pnpm run test:gui` | 1+2 层 vitest（`packages/client packages/host`），秒级、无浏览器、无 server | 改 GUI 任意源码后随手跑 |
-| 语义快照 | `DSH_EXAMPLE_MODE=lib pnpm run test:snapshot` | 无需密钥的组装应用语义，以及仓库按传输形态划分的预期输出 | 用户可见的 GUI 变更后；交付前 |
-| 浏览器端到端 | `pnpm run test:web` | 先重建前端 dist，再跑 3 层浏览器全集：双级冒烟测试（fixture 级 + 真 host 级 self-skip）加上无密钥回放 e2e 场景（`DSH_SNAPSHOT=record`/`refresh` 重录 fixture / 重写期望输出） | 改构建面/boot/承载后；交付前 |
-| 浏览器预期输出门禁 | `DSH_SNAPSHOT=replay pnpm run test:web:built` | 复用 CI 构建的产物，并在不写入的情况下比较每份已提交的浏览器预期输出 | 每个 Linux 拉取请求 |
-| 门禁 | `pnpm run test:coverage` | 全仓门禁（host 与 client GUI 包均纳入，仅排除带注释的浏览器级例外） | PR（Pull Request）窗口 |
+| 基础 | `bun run test:gui` | 1+2 层 vitest（`packages/client packages/host`），秒级、无浏览器、无 server | 改 GUI 任意源码后随手跑 |
+| 语义快照 | `DSH_EXAMPLE_MODE=lib bun run test:snapshot` | 无需密钥的组装应用语义，以及仓库按传输形态划分的预期输出 | 用户可见的 GUI 变更后；交付前 |
+| 浏览器端到端 | `bun run test:web` | 先重建前端 dist，再跑 3 层浏览器全集：双级冒烟测试（fixture 级 + 真 host 级 self-skip）加上无密钥回放 e2e 场景（`DSH_SNAPSHOT=record`/`refresh` 重录 fixture / 重写期望输出） | 改构建面/boot/承载后；交付前 |
+| 浏览器预期输出门禁 | `DSH_SNAPSHOT=replay bun run test:web:built` | 复用 CI 构建的产物，并在不写入的情况下比较每份已提交的浏览器预期输出 | 每个 Linux 拉取请求 |
+| 门禁 | `bun run test:coverage` | 全仓门禁（host 与 client GUI 包均纳入，仅排除带注释的浏览器级例外） | PR（Pull Request）窗口 |
 
 **浏览器脚本与 vitest 的分工**：Playwright 负责浏览器/承载层黑盒回归和较长的连续用户操作流程；普通 vitest 负责引用稳定性、时序和 wire 结构等数据层语义；快照 vitest 通过构建后的组合负责稳定的应用层语义输出。这些车道彼此互补，而不重复断言。
 
 ## 防回归纪律
 
 - **修一个 bug 钉一条断言**：浏览器可见的 bug 钉进所属浏览器 spec（冒烟测试或 e2e 场景）；数据层 bug 钉进对应 spec（先例：res-close 误判钉在 webserver 桥 suite——纯 Node 秒级复现，不再需要 12s 浏览器哨兵作唯一防线）。
-- **fixture 全绿不算完，真 wire 也要过**：fixture 短路的恰是 wire 承载链（node:http 桥 close 语义、真网络时序），两次实证 bug 都藏在那里。改动触及连接/桥/handler/SSE 的，浏览器车道（`pnpm run test:web`）必跑——其无密钥 e2e 场景驱动真实 HTTP/SSE 承载，带密钥的真 host 冒烟测试仍是真模型侧的补充。
+- **fixture 全绿不算完，真 wire 也要过**：fixture 短路的恰是 wire 承载链（node:http 桥 close 语义、真网络时序），两次实证 bug 都藏在那里。改动触及连接/桥/handler/SSE 的，浏览器车道（`bun run test:web`）必跑——其无密钥 e2e 场景驱动真实 HTTP/SSE 承载，带密钥的真 host 冒烟测试仍是真模型侧的补充。
 - 落盘代码即答案的对表工作流：行为改动落盘打红既有用例时，当场对表校准（改测试还是改代码以 RFC/约定为裁），不留悬红。
 
 ## Consequences

@@ -12,9 +12,9 @@ Status: implemented
 
 ## 决策
 
-普通的 `pnpm run test:coverage` 命令仍只启动一次 Vitest。Linux 覆盖率 CI 将 `DSH_COVERAGE_PARTITIONS` 固定为 4；原生 Windows 现在也固定为 4，以降低自托管高并发下的进程创建压力。运行期间不会由任何耗时触发器改变这两个数量。[覆盖率豁免重型套件](2026-07-31-coverage-exempt-heavy-suites.zh.md)仍作为独立的无插桩门禁与插桩工作并排运行。
+普通的 `bun run test:coverage` 命令仍只启动一次 Vitest。Linux 覆盖率 CI 将 `DSH_COVERAGE_PARTITIONS` 固定为 4；原生 Windows 现在也固定为 4，以降低自托管高并发下的进程创建压力。运行期间不会由任何耗时触发器改变这两个数量。[覆盖率豁免重型套件](2026-07-31-coverage-exempt-heavy-suites.zh.md)仍作为独立的无插桩门禁与插桩工作并排运行。
 
-启用分区后，`scripts/run-gates.ts` 为插桩门禁选择 `pnpm run test:coverage:partitioned`。`scripts/coverage-partitions.ts` 按配置数量并发启动 Vitest 子进程，每个进程只用 1 个 worker，并各自接收一个 `--shard=<index>/<count>` 选项。分区模式会在各子进程中关闭阈值与覆盖率报告器，为每个子进程分配独立报告目录，并让每个进程写出 1 份 blob 报告。
+启用分区后，`scripts/run-gates.ts` 为插桩门禁选择 `bun run test:coverage:partitioned`。`scripts/coverage-partitions.ts` 按配置数量并发启动 Vitest 子进程，每个进程只用 1 个 worker，并各自接收一个 `--shard=<index>/<count>` 选项。分区模式会在各子进程中关闭阈值与覆盖率报告器，为每个子进程分配独立报告目录，并让每个进程写出 1 份 blob 报告。
 
 协调器等待全部子进程结束，验证 blob 目录只包含预期文件，然后执行一次 `vitest --merge-reports ... --coverage`。只有这条合并命令应用仓库的逐文件语句、分支、函数与行阈值，因此系统不会拿有意不完整的测试清单单独判定任一分区。
 

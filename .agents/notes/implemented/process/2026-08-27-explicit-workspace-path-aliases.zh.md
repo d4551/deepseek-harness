@@ -14,7 +14,7 @@ TypeScript 与 tsx 按顺序逐个尝试这些候选、取第一个存在的，�
 
 ## Decision
 
-`scripts/gen-tsconfig-paths.ts` 在 `paths` 末尾一个带标记的区域里，为每个 workspace 包写入一条显式别名，两条分组通配符随之删除。`pnpm run gen-tsconfig-paths` 重写该区域；`pnpm run verify-tsconfig-paths` 只报告漂移，并与其他生成物检查一起跑在 `ci-static` 车道上。
+`scripts/gen-tsconfig-paths.ts` 在 `paths` 末尾一个带标记的区域里，为每个 workspace 包写入一条显式别名，两条分组通配符随之删除。`bun run gen-tsconfig-paths` 重写该区域；`bun run verify-tsconfig-paths` 只报告漂移，并与其他生成物检查一起跑在 `ci-static` 车道上。
 
 生成器只为**声明名恰好等于 `@deepseek-ai/dsh-<目录名>`** 的包发别名，因为那是通配符唯一可能解析出的形态：它把说明符的后缀代入 `packages/<group>/<后缀>/src`。名字与目录不一致的包——`packages/typert/protocol` 上的 `@deepseek-ai/dsh-typert-protocol`、以及 `dsh-client-*` 与 `dsh-host-*` 两族——本来就有手写别名，保持不动。若某个说明符被两个包目录同时认领，生成器**抛错**而不是任选其一，因为显式映射无法表达通配符依赖的分组顺序裁决；当前不存在这种冲突。
 

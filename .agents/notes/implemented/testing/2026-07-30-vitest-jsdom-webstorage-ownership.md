@@ -16,11 +16,11 @@ The Node compatibility aggregate runs a dedicated jsdom smoke on every advertise
 
 ## Alternatives considered
 
-- **Set `NODE_OPTIONS=--no-webstorage` in package scripts or CI.** Rejected because it leaks test-runner policy into subprocesses and misses direct `pnpm exec vitest` invocations.
+- **Set `NODE_OPTIONS=--no-webstorage` in package scripts or CI.** Rejected because it leaks test-runner policy into subprocesses and misses direct `bun x vitest` invocations.
 - **Pass `--localstorage-file` to Node.** Rejected because one process-wide persistent store has different ownership and isolation semantics from browser storage created per jsdom environment.
 - **Patch `globalThis.localStorage` in setup code or guard every component test.** Rejected because setup would depend on Vitest's private jsdom projection details, while per-test guards hide a broken browser environment and duplicate policy across suites.
 - **Pin tests to Node 24.** Rejected because the package engine advertises newer even Node lines and the compatibility matrix exists to expose their runtime changes.
 
 ## Consequences
 
-The same `pnpm test` command works on Node releases with and without built-in Web Storage. Test workers deliberately cannot exercise Node's process-wide Web Storage; a future product need for that API requires a separate explicit test configuration rather than weakening jsdom isolation. The compatibility lane adds one focused Vitest process instead of duplicating the complete unit inventory on every Node version.
+The same `bun run test` command works on Node releases with and without built-in Web Storage. Test workers deliberately cannot exercise Node's process-wide Web Storage; a future product need for that API requires a separate explicit test configuration rather than weakening jsdom isolation. The compatibility lane adds one focused Vitest process instead of duplicating the complete unit inventory on every Node version.

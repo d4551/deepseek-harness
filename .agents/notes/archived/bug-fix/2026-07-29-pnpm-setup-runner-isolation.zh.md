@@ -1,6 +1,7 @@
 # Agent Note: 按 GitHub Actions runner 隔离 pnpm 设置
 
 Status: implemented
+Archived: 2026-08-29
 
 [English](2026-07-29-pnpm-setup-runner-isolation.md) | 中文
 

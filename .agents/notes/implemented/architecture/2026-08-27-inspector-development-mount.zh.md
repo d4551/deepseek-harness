@@ -10,7 +10,7 @@ Status: implemented
 
 ## Decision
 
-inspector 包自有两份开发 overlay。`packages/experimental/inspector/cordis.source.patch.yml` 为 `pnpm run demo:inspector` 背后的 tsx 源码启动插入 `./src/index.ts`；`packages/experimental/inspector/cordis.patch.yml` 为执行过 `pnpm run build` 后的 `node apps/cli/lib/bin.js web --patch ./packages/experimental/inspector/cordis.patch.yml` 插入 `./lib/index.js`。
+inspector 包自有两份开发 overlay。`packages/experimental/inspector/cordis.source.patch.yml` 为 `bun run demo:inspector` 背后的 tsx 源码启动插入 `./src/index.ts`；`packages/experimental/inspector/cordis.patch.yml` 为执行过 `bun run build` 后的 `node apps/cli/lib/bin.js web --patch ./packages/experimental/inspector/cordis.patch.yml` 插入 `./lib/index.js`。
 
 两个相对 entry 都通过 Loader 常规的所属 tree `baseUrl` 从各自 overlay 文件目录解析。源码启动因此直接读取 TypeScript，built 启动读取包产物；两条路径都不读取或修改 profile 已安装插件状态。源码或 built entry 缺失时，Loader import 会响亮失败，不会跳过 Inspector。
 

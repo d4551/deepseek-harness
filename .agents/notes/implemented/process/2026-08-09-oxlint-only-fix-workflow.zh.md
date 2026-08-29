@@ -14,7 +14,7 @@ Status: implemented
 
 仓库的所有 lint 与修复工作流都通过 [`scripts/run-oxlint.ts`](../../../../scripts/run-oxlint.ts) 调用 Oxlint。普通校验仍由单个进程执行，并直接继承输出。包含 `--fix`、`--fix-suggestions` 或 `--fix-dangerously` 的调用会捕获第一次 Oxlint 的运行结果；如果成功，就通过原有通道输出其 stdout 和 stderr；如果进程正常结束但状态非零，则丢弃其中可能已经失效的诊断，随后以继承输出的方式再运行一次相同命令。子进程被信号终止时，运行器会重新触发该信号，而不会重试或将其转换为退出码；第二个进程的结束结果作为最终结果。
 
-`lint:fix` 包脚本和处理暂存文件的 lefthook 作业直接使用该运行器。类型感知的根配置仍会忽略 `oxlint-tsgolint` 无法分析、需要保留原始形态的 TypeGraph fixture；不加载项目的暂存配置会重新纳入该目录，保留其中有意设置的 `any` 与引号规则例外，并在完整的类型感知修复轮次之前应用其样式修复。仓库中不存在仅用于格式化的 ESLint 配置，也不直接依赖 `eslint` 和 `@typescript-eslint/parser` 这两个开发依赖。`@stylistic/eslint-plugin` 和 `eslint-plugin-sonarjs` 仍作为 Oxlint 的 JavaScript 插件保留，因为它们承载了已强制执行的规则；pnpm 仍会将 ESLint 作为这些插件声明的对等依赖（peer dependency）进行安装，但仓库中的配置和工作流均不会调用它。
+`lint:fix` 包脚本和处理暂存文件的 lefthook 作业直接使用该运行器。类型感知的根配置仍会忽略 `oxlint-tsgolint` 无法分析、需要保留原始形态的 TypeGraph fixture；不加载项目的暂存配置会重新纳入该目录，保留其中有意设置的 `any` 与引号规则例外，并在完整的类型感知修复轮次之前应用其样式修复。仓库中不存在仅用于格式化的 ESLint 配置，也不直接依赖 `eslint` 和 `@typescript-eslint/parser` 这两个开发依赖。`@stylistic/eslint-plugin` 和 `eslint-plugin-sonarjs` 仍作为 Oxlint 的 JavaScript 插件保留，因为它们承载了已强制执行的规则；bun 仍会将 ESLint 作为这些插件声明的对等依赖（peer dependency）进行安装，但仓库中的配置和工作流均不会调用它。
 
 ## 验证
 

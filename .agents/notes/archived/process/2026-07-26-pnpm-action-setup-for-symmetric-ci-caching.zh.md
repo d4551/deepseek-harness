@@ -1,6 +1,7 @@
 # Agent Note: 经由 pnpm/action-setup 提供 CI 的 pnpm
 
 Status: implemented
+Archived: 2026-08-29
 
 [English](2026-07-26-pnpm-action-setup-for-symmetric-ci-caching.md) | 中文
 

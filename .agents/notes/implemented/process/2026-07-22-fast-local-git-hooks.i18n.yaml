@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/process/2026-07-22-fast-local-git-hooks.md
-2026-07-22-fast-local-git-hooks.md: ad187c5cfd021ca76ad5f569a17fb12c82dcf4e7
-2026-07-22-fast-local-git-hooks.zh.md: f38de6cc80c0f1ad853f8607ffae21ea22271093
+2026-07-22-fast-local-git-hooks.md: c36b918d3ae5365556e57437ca734c4381bae876
+2026-07-22-fast-local-git-hooks.zh.md: f378c8b9349d13032d160ba0aa8e371f119071f1

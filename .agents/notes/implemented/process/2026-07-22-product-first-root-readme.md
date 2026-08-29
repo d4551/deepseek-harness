@@ -12,7 +12,7 @@ The root README is the repository's product entry point. Its product-first struc
 
 The root README is a compact product and contributor entry point. It states the product identity and plugin architecture, links the documentation site, marks the developer-preview and safety status, and then gives the supported npm and source launch paths.
 
-Both launch paths start the Web UI through the `dsh` profile entry point. The source path builds the checkout before it runs `pnpm dsh web`. Detailed ACP, TUI, SDK, capability, and package guidance stays in the user guide, architecture documentation, and package map instead of being repeated on the landing page.
+Both launch paths start the Web UI through the `dsh` profile entry point. The source path builds the checkout before it runs `bun dsh web`. Detailed ACP, TUI, SDK, capability, and package guidance stays in the user guide, architecture documentation, and package map instead of being repeated on the landing page.
 
 The remaining sections link community support, contribution guidance, development documentation, agent instructions, the license, and third-party notices. The English and Chinese README sides keep the same technical structure while their community links serve their language audiences. The documentation website keeps a separate [quick-start entry route](../../../../docs/user/index.md).
 

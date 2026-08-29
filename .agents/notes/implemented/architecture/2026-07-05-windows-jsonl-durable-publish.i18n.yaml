@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-07-05-windows-jsonl-durable-publish.md
-2026-07-05-windows-jsonl-durable-publish.md: 546cde6086f3c84e22b4d4de144a48bb3425cd4e
-2026-07-05-windows-jsonl-durable-publish.zh.md: b99032e9d7e72e2028f39c5af91659278fd81343
+2026-07-05-windows-jsonl-durable-publish.md: fc184190158b9979c8598402d51c0b843d19ec03
+2026-07-05-windows-jsonl-durable-publish.zh.md: 1b374e6135c63395863321cc0d2ffe19026c4f11

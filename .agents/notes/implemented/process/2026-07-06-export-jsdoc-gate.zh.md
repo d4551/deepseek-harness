@@ -10,7 +10,7 @@ Status: implemented
 
 ## 决策
 
-新增门禁 `scripts/verify-export-jsdoc.ts`（`pnpm run verify-export-jsdoc`，接入 `doc-sync`（文档同步门禁），与 `verify-cordis-catalog` 并列），遍历每个 `packages/<group>/<pkg>/src/` 目录树下的所有模块级导出名称。解析与检查辅助函数从 `gen-cordis-catalog.ts` 移入共享的 `scripts/jsdoc.ts`，使得「已文档化」在两类接口上含义一致：描述性文字在第一个块标签处截止、每个可检查参数需要非空 `@param`、非 void 且有显式标注的返回值需要非空 `@returns`、过时的 `@param` 报错，违规项汇总为一份报告。
+新增门禁 `scripts/verify-export-jsdoc.ts`（`bun run verify-export-jsdoc`，接入 `doc-sync`（文档同步门禁），与 `verify-cordis-catalog` 并列），遍历每个 `packages/<group>/<pkg>/src/` 目录树下的所有模块级导出名称。解析与检查辅助函数从 `gen-cordis-catalog.ts` 移入共享的 `scripts/jsdoc.ts`，使得「已文档化」在两类接口上含义一致：描述性文字在第一个块标签处截止、每个可检查参数需要非空 `@param`、非 void 且有显式标注的返回值需要非空 `@returns`、过时的 `@param` 报错，违规项汇总为一份报告。
 
 按声明类型划分的约定：
 
