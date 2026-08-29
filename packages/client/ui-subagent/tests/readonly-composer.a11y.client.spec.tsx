@@ -15,18 +15,16 @@ describe('read-only composer accessibility', () => {
   const MINIMUM_ACCESSIBILITY_SCORE = 100
 
   it('renders no accessibility violations for either read-only reason', async () => {
+    const audits = []
     const oneShot = render(
       <main><SubagentReadOnlyComposer matched={{ reason: 'one-shot' }} t={t} /></main>,
     )
+    audits.push(await auditSurface('SubagentReadOnlyComposer one-shot', oneShot.baseElement))
+    cleanup()
     const parent = render(
       <main><SubagentReadOnlyComposer matched={{ reason: 'parent-unavailable' }} t={t} /></main>,
     )
-    expect(accessibilityFailures(
-      [
-        await auditSurface('SubagentReadOnlyComposer one-shot', oneShot.baseElement),
-        await auditSurface('SubagentReadOnlyComposer parent-unavailable', parent.baseElement),
-      ],
-      MINIMUM_ACCESSIBILITY_SCORE,
-    )).toBe('')
+    audits.push(await auditSurface('SubagentReadOnlyComposer parent-unavailable', parent.baseElement))
+    expect(accessibilityFailures(audits, MINIMUM_ACCESSIBILITY_SCORE)).toBe('')
   })
 })
