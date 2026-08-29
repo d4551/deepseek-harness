@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/testing/2026-06-11-mutation-testing.md
-2026-06-11-mutation-testing.md: 37d3535c3d0b3fe7b6efd29aba63c00c8fbdfcd3
-2026-06-11-mutation-testing.zh.md: d09137ef80b7820fc9bdaf4541a11f047c9bf1b1
+2026-06-11-mutation-testing.md: 8e2f64cefedbb3aca48448247ae55d2e917281bd
+2026-06-11-mutation-testing.zh.md: 36cff0314c19292b9ca93caa2be6d056f836bebb
