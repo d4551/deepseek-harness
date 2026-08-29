@@ -28,10 +28,10 @@ import {
 } from 'typescript/unstable/ast/is'
 import { NodeBuilderFlags, TypeFlags, type Checker, type Symbol, type Type } from 'typescript/unstable/sync'
 import {
-  dedupeCandidates, hasNonPublicDeclaration, isCordisModuleInterface, isThisParameter, parseScopeTag, quote,
+  dedupeCandidates, hasNonPublicDeclaration, isCordisModuleInterface, parseScopeTag, quote,
   type SubjectCandidate,
 } from './gen-scoped-events-scan.ts'
-import { pointer, rawJsDoc } from './jsdoc.ts'
+import { isThisParameter, pointer, rawJsDoc } from './jsdoc.ts'
 import { TypeScriptProject } from './ts-project.ts'
 
 const root = resolve(import.meta.dirname, '..')

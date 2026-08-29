@@ -1,11 +1,10 @@
 /**
- * Lexical helpers for {@link ./gen-scoped-events.ts}: Events-module tests,
- * this-parameter detection, and @dshScopeScan tag parsing.
+ * Lexical helpers for {@link ./gen-scoped-events.ts}: Events-module tests and
+ * @dshScopeScan tag parsing.
  */
-import type { InterfaceDeclaration, ParameterDeclaration } from 'typescript/unstable/ast'
+import type { InterfaceDeclaration } from 'typescript/unstable/ast'
 import { SyntaxKind } from 'typescript/unstable/ast'
 import {
-  isIdentifier,
   isModuleBlock,
   isModuleDeclaration,
   isStringLiteral,
@@ -32,11 +31,6 @@ export function isCordisModuleInterface(node: InterfaceDeclaration): boolean {
     && isModuleDeclaration(declaration)
     && isStringLiteral(declaration.name)
     && declaration.name.text === '@deepseek-ai/cordis'
-}
-
-/** Return whether a parameter is the explicit TypeScript this receiver. */
-export function isThisParameter(parameter: ParameterDeclaration): boolean {
-  return isIdentifier(parameter.name) && parameter.name.text === 'this'
 }
 
 /** Parse and validate the optional @dshScopeScan unsupported tag. */

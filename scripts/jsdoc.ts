@@ -13,17 +13,20 @@ export interface JsDocSourceFile {
   getLineAndCharacterOfPosition(position: number): { line: number }
 }
 
-/** Syntax node that can report its span and text. */
-export interface JsDocNode {
-  getStart(sourceFile?: JsDocSourceFile, includeJsDocComment?: boolean): number
-  getFullStart(): number
+/** Source text the gate renders for diagnostics. */
+export interface JsDocText {
   getText(sourceFile?: JsDocSourceFile): string
 }
 
+/** Syntax node that can report its span and text. */
+export interface JsDocNode extends JsDocText {
+  getStart(sourceFile?: JsDocSourceFile, includeJsDocComment?: boolean): number
+  getFullStart(): number
+}
+
 /** Parameter name: an identifier has `text`; a binding pattern does not. */
-export interface JsDocName {
+export interface JsDocName extends JsDocText {
   readonly text?: string
-  getText(sourceFile?: JsDocSourceFile): string
 }
 
 /** One function-like parameter for `@param` completeness. */
@@ -32,12 +35,20 @@ export interface JsDocParameter {
 }
 
 /** Return-type annotation used to decide whether `@returns` is required. */
-export interface JsDocTypeNode {
-  getText(sourceFile?: JsDocSourceFile): string
-}
+export type JsDocTypeNode = JsDocText
 
 function isSimpleIdentifier(name: JsDocName): name is JsDocName & { readonly text: string } {
   return typeof name.text === 'string'
+}
+
+/**
+ * Whether one parameter is the TypeScript `this` receiver, which `@param`
+ * never documents.
+ * @param p - a function-like parameter.
+ * @returns True for the `this` receiver annotation.
+ */
+export function isThisParameter(p: JsDocParameter): boolean {
+  return p.name.text === 'this'
 }
 
 /** Repo-relative source pointer `file:line` for a node's first character. */
