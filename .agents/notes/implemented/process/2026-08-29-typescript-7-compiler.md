@@ -6,7 +6,7 @@ English | [中文](2026-08-29-typescript-7-compiler.zh.md)
 
 ## Problem
 
-TypeScript 7.0 ships the Go-based `tsc` and does not ship a stable programmatic API; that API lands in 7.1. This repository compiles through `tsc` and also imports the compiler API in the Typert generator and the gate scripts. A single `typescript` major that provided both compile and API in 6.x no longer does both.
+TypeScript 7.0 ships the Go-based `tsc` and does not ship a stable programmatic API; that API lands in 7.1. This repository compiles through `tsc` and also imports the compiler API in the Typert generator and the gate scripts. A single `typescript` major cannot provide both compile and API in 7.0.
 
 ## Decision
 

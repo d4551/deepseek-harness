@@ -6,7 +6,7 @@ Status: implemented
 
 ## 问题
 
-TypeScript 7.0 提供基于 Go 的 `tsc`，但不提供稳定的 programmatic API；该 API 在 7.1 落地。本仓库通过 `tsc` 编译，并且 Typert generator 与各 gate 脚本也会导入 compiler API。在 6.x 中同时承担编译与 API 的同一个 `typescript` 主版本，现在无法同时承担这两项工作。
+TypeScript 7.0 提供基于 Go 的 `tsc`，但不提供稳定的 programmatic API；该 API 在 7.1 落地。本仓库通过 `tsc` 编译，并且 Typert generator 与各 gate 脚本也会导入 compiler API。同一个 `typescript` 主版本无法在 7.0 中同时承担编译与 API。
 
 ## 决策
 
