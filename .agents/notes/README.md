@@ -53,7 +53,7 @@ A feature-addition note may be consolidated into the later removal note only whe
 
 ## The file format
 
-Every active Agent Note follows one in-file format, enforced by `pnpm run verify-agent-note-format` ([scripts/verify-agent-note-format.ts](../../scripts/verify-agent-note-format.ts), part of `doc-sync`); the rationale for the format — and the alternatives it rejected — is [the uniform-format Agent Note](implemented/process/2026-07-05-uniform-agent-note-format.md). Archived notes retain the format they had when sealed plus the archive-date line above.
+Every active Agent Note follows one in-file format, enforced by `bun run verify-agent-note-format` ([scripts/verify-agent-note-format.ts](../../scripts/verify-agent-note-format.ts), part of `doc-sync`); the rationale for the format — and the alternatives it rejected — is [the uniform-format Agent Note](implemented/process/2026-07-05-uniform-agent-note-format.md). Archived notes retain the format they had when sealed plus the archive-date line above.
 
 ### The header block
 
