@@ -3,17 +3,19 @@
  * and config catalogs and the exported-API gate.
  */
 
-import ts from '@typescript/typescript6'
+import type { Node, ParameterDeclaration, SourceFile, TypeNode } from 'typescript/unstable/ast'
+import { isIdentifier } from 'typescript/unstable/ast/is'
+import { getLeadingCommentRanges } from 'typescript/unstable/ast/scanner'
 
 /** Repo-relative source pointer `file:line` for a node's first character. */
-export function pointer(rel: string, sf: ts.SourceFile, node: ts.Node): string {
+export function pointer(rel: string, sf: SourceFile, node: Node): string {
   const { line } = sf.getLineAndCharacterOfPosition(node.getStart(sf))
   return `${rel}:${line + 1}`
 }
 
 /** The raw `/** … *​/` JSDoc block immediately preceding a node, or '' if none. */
-export function rawJsDoc(text: string, node: ts.Node): string {
-  const ranges = ts.getLeadingCommentRanges(text, node.getFullStart()) ?? []
+export function rawJsDoc(text: string, node: Node): string {
+  const ranges = getLeadingCommentRanges(text, node.getFullStart()) ?? []
   const jsdoc = ranges.filter(r => text.slice(r.pos, r.pos + 3) === '/**').at(-1)
   return jsdoc ? text.slice(jsdoc.pos, jsdoc.end) : ''
 }
@@ -134,14 +136,14 @@ export function parseTags(raw: string): { params: Map<string, string>; returns: 
 export function checkParams(
   where: string,
   apiKind: string,
-  parameters: readonly ts.ParameterDeclaration[],
+  parameters: readonly ParameterDeclaration[],
   tags: Map<string, string>,
-  sf: ts.SourceFile,
-  isExempt: (p: ts.ParameterDeclaration) => boolean,
+  sf: SourceFile,
+  isExempt: (p: ParameterDeclaration) => boolean,
   violations: string[],
 ): void {
   for (const p of parameters) {
-    if (!ts.isIdentifier(p.name)) {
+    if (!isIdentifier(p.name)) {
       violations.push(`${where}: parameter '${p.name.getText(sf)}' is a binding pattern; the ${apiKind} API needs simple identifier parameters so @param can name them.`)
       continue
     }
@@ -151,7 +153,7 @@ export function checkParams(
     else if (!desc.trim()) violations.push(`${where}: @param ${p.name.text} has an empty description.`)
   }
   for (const tag of tags.keys()) {
-    if (!parameters.some(p => ts.isIdentifier(p.name) && p.name.text === tag)) {
+    if (!parameters.some(p => isIdentifier(p.name) && p.name.text === tag)) {
       violations.push(`${where}: @param ${tag} does not match any parameter (stale tag?).`)
     }
   }
@@ -170,9 +172,9 @@ export function checkParams(
  */
 export function checkReturns(
   where: string,
-  typeNode: ts.TypeNode | undefined,
+  typeNode: TypeNode | undefined,
   returns: string | null,
-  sf: ts.SourceFile,
+  sf: SourceFile,
   violations: string[],
 ): void {
   if (typeNode === undefined) {

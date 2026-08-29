@@ -4,8 +4,8 @@ import { existsSync } from 'node:fs'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { flattenDiagnosticMessageText, parseConfigFileTextToJson } from '@typescript/typescript6'
 import { describe, expect, it } from 'vitest'
+import { parseConfigFileTextToJson } from './ts7-session.ts'
 
 const repositoryRoot = fileURLToPath(new URL('..', import.meta.url))
 const oxlintCli = fileURLToPath(new URL('../node_modules/oxlint/bin/oxlint', import.meta.url))
@@ -156,9 +156,9 @@ export const longProbe = 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 +
 
   it('keeps the complete stylistic contract in Oxlint', async () => {
     const oxlintPath = join(repositoryRoot, '.oxlintrc.json')
-    const result = parseConfigFileTextToJson(oxlintPath, await readFile(oxlintPath, 'utf8'))
+    const result = parseConfigFileTextToJson(await readFile(oxlintPath, 'utf8'))
     if (result.error !== undefined) {
-      throw new Error(flattenDiagnosticMessageText(result.error.messageText, '\n'))
+      throw new Error(result.error.messageText)
     }
     const parsed = result.config as unknown
     if (!isRecord(parsed) || !isUnknownArray(parsed.overrides)) {
@@ -267,9 +267,9 @@ export const longProbe = 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 +
 
   it('keeps staged validation project-free while preserving source rules', async () => {
     const configPath = join(repositoryRoot, '.oxlintrc.staged.json')
-    const result = parseConfigFileTextToJson(configPath, await readFile(configPath, 'utf8'))
+    const result = parseConfigFileTextToJson(await readFile(configPath, 'utf8'))
     if (result.error !== undefined) {
-      throw new Error(flattenDiagnosticMessageText(result.error.messageText, '\n'))
+      throw new Error(result.error.messageText)
     }
     const stagedConfig = result.config as unknown
     if (!isRecord(stagedConfig)) throw new Error('.oxlintrc.staged.json must contain a config object')

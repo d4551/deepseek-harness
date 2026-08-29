@@ -1,4 +1,4 @@
-/* NEW SESSION hero (figma Input_Bottom 75:8208): fish + title, workspace chip
+/* NEW SESSION hero (figma Input_Bottom 75:8208): mark + title, workspace chip
    above the shared InputBar card. The input itself is InputBar — only stack
    geometry and the chip live here. */
 
@@ -23,7 +23,7 @@
   overflow: visible;
 }
 
-/* figma 34:10411: fish + title, gap 10, centered; 26/32 wt500. The preview
+/* figma 34:10411: mark + title, gap 10, centered; 26/32 wt500. The preview
    badge is a product addition outside that source: a mono superscript pill
    riding the title's top-right. */
 .headline {
@@ -62,7 +62,7 @@
 }
 
 /* Keep hover detection on a stationary box while the mark moves within it. */
-.fishHitbox {
+.markHitbox {
   grid-row: 1;
   grid-column: 1;
   display: inline-flex;
@@ -71,28 +71,28 @@
 }
 
 /* Keep the hero mark in the same primary ink as its headline. */
-.fish {
+.mark {
   color: var(--dsw-alias-label-primary);
-  transform-origin: 50% 60%;
+  transform-origin: 50% 80%;
 }
 
-@keyframes hero-fish-swim {
+@keyframes hero-mark-nod {
   0%, 100% {
-    transform: translate(0, 0) rotate(0deg);
+    transform: translateY(0);
   }
 
-  35% {
-    transform: translate(-1px, -1px) rotate(-5deg);
+  40% {
+    transform: translateY(-2px);
   }
 
   70% {
-    transform: translate(1px, 0) rotate(3deg);
+    transform: translateY(1px);
   }
 }
 
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  .fishHitbox:hover .fish {
-    animation: hero-fish-swim var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+  .markHitbox:hover .mark {
+    animation: hero-mark-nod var(--ds-transition-duration-slow) var(--ds-ease-in-out);
   }
 }
 

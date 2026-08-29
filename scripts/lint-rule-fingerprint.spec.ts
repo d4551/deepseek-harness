@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { flattenDiagnosticMessageText, parseConfigFileTextToJson } from '@typescript/typescript6'
 import { describe, expect, it } from 'vitest'
+import { parseConfigFileTextToJson } from './ts7-session.ts'
 
 type Rules = Record<string, unknown>
 
@@ -74,9 +74,9 @@ function mergedRules(overrides: readonly unknown[], indexes: readonly number[]):
 
 describe('Oxlint repository rule fingerprint', () => {
   const path = fileURLToPath(new URL('../.oxlintrc.json', import.meta.url))
-  const result = parseConfigFileTextToJson(path, readFileSync(path, 'utf8'))
+  const result = parseConfigFileTextToJson(readFileSync(path, 'utf8'))
   if (result.error !== undefined) {
-    throw new Error(flattenDiagnosticMessageText(result.error.messageText, '\n'))
+    throw new Error(result.error.messageText)
   }
   const parsed: unknown = result.config
   if (!isRecord(parsed) || !Array.isArray(parsed.overrides)) {
