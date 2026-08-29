@@ -567,14 +567,16 @@ class BaselinePackager {
       this.runner.run('bun', ['run', 'build'], worktree.path)
       this.runner.run('bun', ['run', 'publint'], worktree.path)
       this.runner.run('bun', ['run', 'verify-built-package-invariants'], worktree.path)
-      this.runner.run('bun', [
-        '--filter', './vendor/**',
-        '--filter', './packages/**',
-        '--filter', './apps/**',
-        '--recursive',
-        'pack',
-        '--pack-destination', artifactDirectory,
-      ], worktree.path)
+      // One `bun pm pack` per package, run in that package's directory: bun
+      // packs the package at its cwd, and `--filter` would instead look for a
+      // `pack` SCRIPT in each matched workspace, of which there are none.
+      for (const target of packageSet.packages) {
+        this.runner.run(
+          'bun',
+          ['pm', 'pack', '--destination', artifactDirectory],
+          resolve(worktree.path, target.directory),
+        )
+      }
 
       const bundle = ReleaseBundle.create(
         artifactDirectory,
@@ -591,16 +593,19 @@ class BaselinePackager {
       console.log(`  version:  ${bundle.manifest.version}`)
       console.log(`  dist-tag: ${bundle.manifest.distTag}`)
       console.log(`  manifest: ${resolve(bundle.directory, RELEASE_MANIFEST_NAME)}`)
+      // `bun exec` takes one shell command and accepts `--cwd` only after the
+      // subcommand, so the inner command is quoted as a single argument.
       console.log('  publish:  ' + formatCopyableCommand('bun', [
-        '--dir',
-        this.repositoryRoot,
         'exec',
-        'tsx',
-        resolve(this.repositoryRoot, 'scripts/publish-npm-baseline.ts'),
-        'publish',
-        '--manifest',
-        resolve(bundle.directory, RELEASE_MANIFEST_NAME),
-        '--yes',
+        '--cwd',
+        this.repositoryRoot,
+        formatCopyableCommand('tsx', [
+          resolve(this.repositoryRoot, 'scripts/publish-npm-baseline.ts'),
+          'publish',
+          '--manifest',
+          resolve(bundle.directory, RELEASE_MANIFEST_NAME),
+          '--yes',
+        ]),
       ]))
       return bundle
     } finally {
