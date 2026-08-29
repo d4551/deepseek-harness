@@ -139,7 +139,7 @@ Diff the sibling branch against `origin/master`, not against the current PR bran
 
 ## Validation And PR Hygiene
 
-For docs-only Agent Note work, run at least `pnpm run doc-sync`, `pnpm run lint`, and `git diff --check`. For code comments or skill changes, also run the relevant validator when one exists. Select any other evidence from the outgoing diff; the pre-push hook contributes typecheck only.
+For docs-only Agent Note work, run at least `bun run doc-sync`, `bun run lint`, and `git diff --check`. For code comments or skill changes, also run the relevant validator when one exists. Select any other evidence from the outgoing diff; the pre-push hook contributes typecheck only.
 
 When opening or updating a PR, summarize:
 

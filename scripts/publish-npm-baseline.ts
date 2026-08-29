@@ -555,8 +555,8 @@ class BaselinePackager {
       }
 
       console.log(`publish-npm-baseline: installing detached worktree ${plan.shortCommit}`)
-      this.runner.run('pnpm', ['install', '--frozen-lockfile'], worktree.path)
-      this.runner.run('pnpm', ['run', 'constraints'], worktree.path)
+      this.runner.run('bun', ['install', '--frozen-lockfile'], worktree.path)
+      this.runner.run('bun', ['run', 'constraints'], worktree.path)
       packageSet.stage(worktree.path, plan.version)
       mkdirSync(artifactDirectory, { recursive: true })
       createdArtifactDirectory = true
@@ -564,10 +564,10 @@ class BaselinePackager {
       console.log(
         `publish-npm-baseline: building ${packageSet.packages.length} packages as ${plan.version}`,
       )
-      this.runner.run('pnpm', ['run', 'build'], worktree.path)
-      this.runner.run('pnpm', ['run', 'publint'], worktree.path)
-      this.runner.run('pnpm', ['run', 'verify-built-package-invariants'], worktree.path)
-      this.runner.run('pnpm', [
+      this.runner.run('bun', ['run', 'build'], worktree.path)
+      this.runner.run('bun', ['run', 'publint'], worktree.path)
+      this.runner.run('bun', ['run', 'verify-built-package-invariants'], worktree.path)
+      this.runner.run('bun', [
         '--filter', './vendor/**',
         '--filter', './packages/**',
         '--filter', './apps/**',
@@ -591,7 +591,7 @@ class BaselinePackager {
       console.log(`  version:  ${bundle.manifest.version}`)
       console.log(`  dist-tag: ${bundle.manifest.distTag}`)
       console.log(`  manifest: ${resolve(bundle.directory, RELEASE_MANIFEST_NAME)}`)
-      console.log('  publish:  ' + formatCopyableCommand('pnpm', [
+      console.log('  publish:  ' + formatCopyableCommand('bun', [
         '--dir',
         this.repositoryRoot,
         'exec',
@@ -1004,10 +1004,10 @@ function quoteShellArgument(value: string): string {
 
 function printUsage(): void {
   console.log(`Usage:
-  pnpm exec tsx scripts/publish-npm-baseline.ts pack [options]
-  pnpm exec tsx scripts/publish-npm-baseline.ts release [options] [--yes]
-  pnpm exec tsx scripts/publish-npm-baseline.ts publish --manifest <path> [--yes]
-  pnpm exec tsx scripts/publish-npm-baseline.ts verify --manifest <path>
+  bun x tsx scripts/publish-npm-baseline.ts pack [options]
+  bun x tsx scripts/publish-npm-baseline.ts release [options] [--yes]
+  bun x tsx scripts/publish-npm-baseline.ts publish --manifest <path> [--yes]
+  bun x tsx scripts/publish-npm-baseline.ts verify --manifest <path>
 
 Pack/release options:
   --ref <git-ref>       Git commit to stage (default: HEAD)

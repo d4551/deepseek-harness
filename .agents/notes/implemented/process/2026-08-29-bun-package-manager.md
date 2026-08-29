@@ -1,0 +1,43 @@
+# Agent Note: bun as the package manager instead of pnpm
+
+Status: implemented
+
+English | [中文](2026-08-29-bun-package-manager.zh.md)
+
+## Problem
+
+The repo installed and ran its scripts through **pnpm 11.7.0** ([the pnpm decision](2026-06-16-pnpm-over-yarn.md)), which bought a strict symlinked `node_modules` whose phantom-dependency failures are load-bearing for the gate suite. pnpm carries a second toolchain alongside Node — Corepack provisioning, a store daemon, a lockfile format only pnpm reads — for work that is otherwise install-and-run. bun collapses that into one binary that also runs TypeScript, and its isolated linker reproduces the non-flat layout the correctness story depends on. The package manager still only has to resolve and link `node_modules`, run the workspace scripts, and satisfy the workspace constraints, so the blast radius is bounded to install, script re-entry, and CI provisioning.
+
+## Decision
+
+Adopt **bun 1.3.11**, pinned via the `packageManager` field; CI installs that pin through `oven-sh/setup-bun` with `bun-version-file: package.json`. The product runtime stays Node: `engines.node` and every shipped launcher are unchanged, because the single-exe build, `node-pty`, and the SEA carrier are Node artifacts.
+
+- **Workspaces** move from `pnpm-workspace.yaml` back into the `package.json` `workspaces` array, which bun reads natively; `python/sdk-runtime` joins the globs already listed there. `pnpm-workspace.yaml` is deleted and `pnpm-lock.yaml` becomes `bun.lock`.
+- **`bunfig.toml` carries install policy.** `linker = "isolated"` keeps the non-flat layout, so an undeclared transitive import still fails at resolution instead of borrowing a sibling's tree. `minimumReleaseAge = 86400` restates the supply-chain hold pnpm 11 applied by default, and `minimumReleaseAgeExcludes` carries the reviewed exemptions the pnpm config listed, plus `@earendil-works/pi-telemetry` — the pi-ai family ships on one version train, so exempting half of it deadlocks resolution.
+- **`trustedDependencies` replaces `allowBuilds`** as the install-script allowlist, and `patchedDependencies` moves from the workspace file into `package.json`; the `node-pty` patch applies unchanged.
+- **Shell-free package-manager re-entry simplifies.** bun always reports its own binary in `npm_execpath`, so `scripts/bun-invocation.ts` spawns that entrypoint directly and drops pnpm's JavaScript-entrypoint branch. Gate re-entry spells `bun run <script>` and `bun x <binary>`.
+- **The Python runtime closure is installed, not deployed.** bun has no `deploy` verb, so `scripts/build-exe-for-python-sdk.ts` writes the deploy root's manifest into the staging directory with every `workspace:` range rewritten to an absolute `file:` path, then runs `bun install --production --linker=hoisted` there. The existing link-materialization step is unchanged, because it already replaced deploy-time links with files.
+- **The test runner is pinned to a vite that implements `import.meta.resolve`.** vitest declares `vite` as `^6 || ^7 || ^8`, and bun satisfies it with the lowest version already in the graph — 6.4.3, which `apps/web` pins — whereas pnpm installed 8.x. vite 5 and 6 module runners reject `import.meta.resolve`, which product source uses to resolve under `import` export conditions. A root `vite` devDependency plus a scoped `overrides.vitest.vite` restores the pairing; the override only binds on a resolution that already has vite 8 present, so both are required.
+- All `pnpm …` verbs across CI, GitLab CI, lefthook, package scripts, and documentation become their bun spelling. `.gitignore` swaps `.pnpm-store/` for the bun equivalents. Vendored READMEs keep their upstream examples untouched per the Vendoring Policy.
+
+## Runner isolation
+
+`pnpm/action-setup` accepted a per-job `dest`, and the CI workflows used it so concurrent jobs on a self-hosted runner never raced one pnpm installation ([the runner-isolation Agent Note](../bug-fix/2026-07-29-pnpm-setup-runner-isolation.md)). `oven-sh/setup-bun` installs unconditionally into `~/.bun/bin` and exposes no equivalent input, so that isolation is genuinely unavailable. The replacement invariant is that every `setup-bun` step resolves the SAME version: `scripts/ci-workflow.spec.ts` asserts each one passes `bun-version-file: package.json` and no floating `bun-version`, so concurrent jobs install identical bytes rather than racing different ones.
+
+## Alternatives considered
+
+**Stay on pnpm.** Zero churn and keeps the per-job runner isolation. It also keeps a second toolchain whose provisioning, store, and lockfile exist only to install packages a single binary can install.
+
+**bun's hoisted linker.** A smoother migration — no per-package `node_modules` trees, fewer resolution surprises — but it discards the phantom-dependency safety that is the main correctness reason the layout is strict. The hoisted linker survives only in the two places that need a flat tree: the Wine gate's snapshot install and the Python runtime closure.
+
+**Rewrite the `import.meta.resolve` call sites to `createRequire`.** Would make the suite pass under vite 6 without touching resolution config, but `require.resolve` selects the `require` export condition. Sites that resolve `tsx/esm`, `tsx/esm/api`, or an ESM-only entry would silently resolve a different file, so this trades a loud failure for a quiet one in product source.
+
+**Pin vitest to 4.1.8.** The version that happened to work first. It is not the variable that matters — 4.1.11 passes once paired with vite 8 — so pinning it would have recorded a false cause and left the real one latent behind a caret range.
+
+**A global `overrides.vite`.** Simpler than a scoped override, but the website's VitePress toolchain needs vite 5 and `apps/web`'s React plugin caps at vite 7; one global version cannot satisfy the runner and both of them.
+
+## Consequences
+
+Install and script re-entry now need one binary that also runs TypeScript, and the lockfile is a text format readable in review. `verify-vendored-links` reads `bun.lock` structurally through `jsonc-parser` — bun writes JSONC — and now also fails when a vendored name is absent from `packages` entirely, a case the pnpm-era importer scan could not see.
+
+The costs are concrete. Per-job runner isolation is gone and is replaced by a version-pinning invariant, which is weaker: two jobs still write the same path, they just write the same bytes. Resolution differences from pnpm are not all discoverable by reading the manifest — the vite pairing surfaced only as 138 failing tests — so a future dependency bump can silently re-dedupe a peer the same way. The Python single-exe path and the Wine Windows gate are converted but were not executed end to end during the migration; both need their first real CI run to confirm.

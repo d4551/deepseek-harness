@@ -10,7 +10,7 @@ DeepSeek Harness 构建于 Cordis 框架之上。本仓库启动时，Cordis cor
 
 ## 决策
 
-将所需的 Cordis 包（core、loader、include、group、timer、hmr、logger-console）与 cordiverse 基础库（cosmokit、schemastery）以源码形式复制到 `vendor/`，扁平化放置，保留其原始 npm 包名以实现透明的 workspace 解析。`pnpm-workspace.yaml` 设置 `linkWorkspacePackages: true`，所以只要上游 semver 范围匹配，无论以源码执行还是以构建产物执行，依赖都会解析到这些固定版本的 workspace。真正的第三方依赖（js-yaml、chokidar、@standard-schema/spec 等）仍从 npm 获取。
+将所需的 Cordis 包（core、loader、include、group、timer、hmr、logger-console）与 cordiverse 基础库（cosmokit、schemastery）以源码形式复制到 `vendor/`，扁平化放置，保留其原始 npm 包名以实现透明的 workspace 解析。`package.json` 的 `workspaces` 通配符覆盖 `vendor/*`，所以只要上游 semver 范围匹配，无论以源码执行还是以构建产物执行，依赖都会解析到这些固定版本的 workspace。真正的第三方依赖（js-yaml、chokidar、@standard-schema/spec 等）仍从 npm 获取。
 
 `vendor/README.md` 是 manifest（元数据清单）：记录每个包的上游仓库和 commit SHA，以及一份详尽的本地修改日志。pre-commit 守卫（`scripts/check-vendor-manifest.sh`）会拒绝未在同一次提交中更新 manifest 的 vendor 源码变更。
 

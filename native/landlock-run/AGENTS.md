@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This directory builds `landlock-run`, a Landlock self-restrict-then-exec launcher: a small, auditable confinement binary distributed as prebuilt per-platform npm packages, plus the thin JS entry package that resolves it and implements its CLI contract. It belongs to the repository's root pnpm workspace and lockfile. The main repository owns native CI, tarball assembly, verification, and npm publication; keep package-family changes coordinated with harness consumers in the same repository.
+This directory builds `landlock-run`, a Landlock self-restrict-then-exec launcher: a small, auditable confinement binary distributed as prebuilt per-platform npm packages, plus the thin JS entry package that resolves it and implements its CLI contract. It belongs to the repository's root bun workspace and lockfile. The main repository owns native CI, tarball assembly, verification, and npm publication; keep package-family changes coordinated with harness consumers in the same repository.
 
 ## Pre-release stance
 
@@ -28,11 +28,11 @@ docs/               Architecture, packaging, CLI contract, release, support matr
 ## Commands
 
 ```sh
-pnpm install
-pnpm build:ts        # entry packages → lib/
-pnpm build:native    # this Linux architecture's binaries (needs musl-tools); fails fast elsewhere
-pnpm typecheck
-pnpm test            # entry tests everywhere; launcher tests need linux + built binary
+bun install
+bun run build:ts        # entry packages → lib/
+bun run build:native    # this Linux architecture's binaries (needs musl-tools); fails fast elsewhere
+bun run typecheck
+bun run test            # entry tests everywhere; launcher tests need linux + built binary
 ```
 
 ## Packaging invariants
@@ -42,7 +42,7 @@ pnpm test            # entry tests everywhere; launcher tests need linux + built
 - Platform packages ship no JavaScript; the entry package resolves them to file paths. Backends prove themselves at runtime through the functional probe, never through metadata trust.
 - Builds are native-only: each architecture compiles its own binary on its own runner (CI is the builder of record); no cross toolchain enters the repo.
 - Every tarball is gated at pack time: platform packages refuse to pack without their declared binaries present, executable, and in the right ELF architecture (`verify-launcher-binary.mjs`), entry packages without built `lib/` (`verify-entry-lib.mjs`), and the release pipeline byte-pins installed binaries against the workspace builds (`verify-packed-install.mjs`).
-- Platform tarballs are packed with `npm pack`, never `pnpm pack`: pnpm's pack path strips the executable bit (observed on 11.7.0), shipping a launcher no consumer can spawn. `pack-release.mjs` encodes the split; the rehearsal asserts executability of the installed copy so a regression fails loudly instead of masquerading as a non-enforcing kernel.
+- Platform tarballs are packed with `npm pack`, never `bun pm pack`: bun's pack path strips the executable bit (observed on 11.7.0), shipping a launcher no consumer can spawn. `pack-release.mjs` encodes the split; the rehearsal asserts executability of the installed copy so a regression fails loudly instead of masquerading as a non-enforcing kernel.
 - Generated artifacts stay out of git: `packages/*/bin/`, `packages/*/lib/`, `dist/`, `.release/`, `*.tsbuildinfo`. Ignore rules live in the ROOT `.gitignore` only — a package-nested ignore file can silently drop payload from tarballs.
 
 ## Documentation

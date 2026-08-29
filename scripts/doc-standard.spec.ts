@@ -2,8 +2,8 @@
  * Quick comprehensive documentation-standard tests: the reference example
  * stays valid, the consolidated `dsh-doc` skill carries no stale copied
  * website values or prototype-era language, and the kind system maps each
- * label to exactly one skill template. These run in `pnpm run test` and
- * `pnpm run test:docs` to guard the standard between heavier corpus gates.
+ * label to exactly one skill template. These run in `bun run test` and
+ * `bun run test:docs` to guard the standard between heavier corpus gates.
  * @module scripts/doc-standard.spec
  */
 
@@ -71,6 +71,7 @@ const PACKAGE_LIBRARIES: Readonly<Record<string, string>> = {
   'packages/test-support/session-snapshot': 'Test infrastructure; mounts nothing into a product composition.',
   'packages/test-support/agent-loop-testkit': 'Test helper library; mounts nothing into a product composition.',
   'packages/test-support/client-runtime': 'Browser-side test infrastructure.',
+  'packages/test-support/client-a11y': 'Browser-side test infrastructure; plain audit-function exports.',
   'packages/test-support/llm-mock-server': 'Test server library; substitutes provider wire behavior.',
   'packages/test-support/loader-smoke': 'Test harness library; mounts nothing into a product composition.',
   'packages/typert/generator': 'Build-time generator run outside any agent runtime.',

@@ -1,0 +1,33 @@
+# Bun install policy for the workspace. Package lists that belong to the
+# manifest (workspaces, trustedDependencies, patchedDependencies, overrides)
+# live in package.json; only installer behaviour is configured here.
+[install]
+# Every workspace package declares what it imports, so dependencies stay
+# unhoisted and an undeclared import fails at resolution instead of silently
+# borrowing a sibling's tree.
+linker = "isolated"
+
+# Supply-chain hold: a newly published version is not installable until it has
+# been on the registry long enough to be withdrawn. Reviewed closures that must
+# land before their window expires are listed in minimumReleaseAgeExcludes.
+minimumReleaseAge = 86400
+minimumReleaseAgeExcludes = [
+  # Fresh pi-ai releases carry the model catalog updates that are the whole
+  # point of bumping it; waiting out the release age would defeat that. Its
+  # sibling packages ship on the same version train, so the exemption covers
+  # the whole family or the resolution deadlocks.
+  "@earendil-works/pi-ai",
+  "@earendil-works/pi-telemetry",
+  "node-addon-native-custom-loader",
+  "node-addon-require-builtin",
+  "node-addon-require-builtin-darwin-arm64",
+  "node-addon-require-builtin-darwin-x64",
+  "node-addon-require-builtin-linux-arm64-gnu",
+  "node-addon-require-builtin-linux-x64-gnu",
+  "node-addon-require-builtin-win32-arm64-msvc",
+  "node-addon-require-builtin-win32-ia32-msvc",
+  "node-addon-require-builtin-win32-x64-msvc",
+  # Reviewed agent-subprocess runtime closures.
+  "@anthropic-ai/claude-agent-sdk",
+  "@openai/codex",
+]

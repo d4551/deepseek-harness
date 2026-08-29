@@ -4,7 +4,7 @@
 
 前几篇教程通过 `--patch` overlay 加载本地插件。本教程把它打包成可安装的**组合包**（bundle），用 `dsh plugin add` 安装进一个 **profile**，并解释决定组合后配置的层顺序。本文假设 `dsh` CLI 已安装。请先完成[插件配置](./config.zh.md)。
 
-如果改用全新的源码 checkout，请先按照[从源码运行章节](../../../../README.zh.md#run-from-source)完成准备，将本教程的 `hello-plugin` 目录放在仓库根目录，并从该目录把下文的 `dsh ...` 命令改为 `pnpm dsh ...`。构建与启动器行为见[源码执行](../../../../apps/cli/reference/README.zh.md#source-execution)。
+如果改用全新的源码 checkout，请先按照[从源码运行章节](../../../../README.zh.md#run-from-source)完成准备，将本教程的 `hello-plugin` 目录放在仓库根目录，并从该目录把下文的 `dsh ...` 命令改为 `bun run dsh ...`。构建与启动器行为见[源码执行](../../../../apps/cli/reference/README.zh.md#source-execution)。
 
 ## 两个概念，两种 manifest
 
@@ -67,20 +67,20 @@ export function apply() {
 
 profile 目录包含两个文件：
 
-- `package.json` — profile 的树外插件依赖（由 pnpm 管理），加上 `dsh.profile` manifest 及其有序的 `bundles` 列表。
+- `package.json` — profile 的树外插件依赖（由 bun 管理），加上 `dsh.profile` manifest 及其有序的 `bundles` 列表。
 - `cordis.patch.yml` — 用户自己的 patch 层，在每个组合包层之后应用。
 
 profile manifest 从不需要手写：`dsh plugin` 负责创建和维护它。下一节展示其结果。
 
 ## 安装进 profile
 
-`dsh plugin --profile <name> <args...>` 在 profile 目录内转发给 pnpm，因此所有 pnpm 子命令都可用。在包含 `hello-plugin` 的目录中安装该包的 checkout：
+`dsh plugin --profile <name> <args...>` 在 profile 目录内转发给 bun，因此所有 bun 子命令都可用。在包含 `hello-plugin` 的目录中安装该包的 checkout：
 
 ```sh
 dsh plugin --profile demo add ./hello-plugin
 ```
 
-首次使用会初始化 profile（`@deepseek-ai/dsh-base` 作为它的第一个组合包），pnpm 链接该 checkout，而 `dsh` 因为这个包声明了 `dsh.bundle`，把它追加进 `dsh.profile.bundles`：
+首次使用会初始化 profile（`@deepseek-ai/dsh-base` 作为它的第一个组合包），bun 链接该 checkout，而 `dsh` 因为这个包声明了 `dsh.bundle`，把它追加进 `dsh.profile.bundles`：
 
 ```json
 {
@@ -125,7 +125,7 @@ dsh --profile demo
 - 你的 patch 可以按 `id` 覆盖前面各层的行——就像 [`dsh-web-app` 组合包](../../../../packages/bundle/web-app/cordis.patch.yml)覆盖 `dsh-base` 的行那样——但必须重述该行需要的每一个键，而不是只写改动的那个。
 - 用户可以在自己 profile 的 `cordis.patch.yml` 中覆盖你的行，无需改动你的包，所以优先给出用户大概率会保留的配置默认值，其余交给 schema 承担。
 
-内置组合包名称始终从 dsh 安装目录本身解析；pnpm 只管理树外的包，所以你的组合包可以放心依赖 `@deepseek-ai/dsh-base` 存在且与安装保持一致。
+内置组合包名称始终从 dsh 安装目录本身解析；bun 只管理树外的包，所以你的组合包可以放心依赖 `@deepseek-ai/dsh-base` 存在且与安装保持一致。
 
 ## 让表层组合包持有自己的命令行
 
@@ -160,12 +160,11 @@ dsh plugin --profile demo add github:you/hello-plugin
 
 但 git 安装拉取的是**源码，不是构建产物**：没有任何环节运行你的 `build` 脚本，因此 TypeScript 包到手时没有 `lib/` 输出，加载会失败。必须两边各做一件事：
 
-- **作者**提供一个 `prepare` 脚本——pnpm 在 git 安装后运行它——从源码构建出发布入口，且必须自包含：不能假设仅开发环境才有的上下文，例如旁边有一份 monorepo checkout。[turtle-ui](https://github.com/deepseek-harness/turtle-ui) 是一个可用的例子：它的 `prepare` 运行一份专用的 tsdown 配置，直接转译 `src/`，不用项目引用，也不做类型检查。
-- **用户**为构建授权。pnpm ≥10 在得到显式允许之前拒绝运行 git 依赖的 `prepare` 脚本，所以第一次 `add` 会失败；`dsh` 会指出修法——把 pnpm 打印的确切包键复制进该 profile 的 `pnpm-workspace.yaml`：
+- **作者**提供一个 `prepare` 脚本——bun 在 git 安装后运行它——从源码构建出发布入口，且必须自包含：不能假设仅开发环境才有的上下文，例如旁边有一份 monorepo checkout。[turtle-ui](https://github.com/deepseek-harness/turtle-ui) 是一个可用的例子：它的 `prepare` 运行一份专用的 tsdown 配置，直接转译 `src/`，不用项目引用，也不做类型检查。
+- **用户**信任该构建。bun 在使用方点名该包之前不会运行 git 依赖的 `prepare` 脚本，所以第一次 `add` 会失败；`dsh` 会指出修法——把该包加入 profile 的 `package.json` 中的 `trustedDependencies`：
 
-  ```yaml
-  allowBuilds:
-    dsh-hello-plugin: true
+  ```json
+  "trustedDependencies": ["dsh-hello-plugin"]
   ```
 
   然后重新执行 `add`。
@@ -174,8 +173,8 @@ dsh plugin --profile demo add github:you/hello-plugin
 
 如果不想让用户做这项授权，就改为分发构建产物——以下两种形式都不需要任何构建权限：
 
-- **发布到 npm**，在 `pnpm publish` 时构建好 `lib/`；`dsh plugin add your-package` 安装的就是预构建代码。
-- **交付 tarball**：用 `pnpm pack` 打包；用户执行 `dsh plugin add ./hello-plugin-0.1.0.tgz`。
+- **发布到 npm**，在 `bun publish` 时构建好 `lib/`；`dsh plugin add your-package` 安装的就是预构建代码。
+- **交付 tarball**：用 `bun pm pack` 打包；用户执行 `dsh plugin add ./hello-plugin-0.1.0.tgz`。
 
 ## 下一步
 

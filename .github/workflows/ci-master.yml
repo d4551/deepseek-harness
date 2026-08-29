@@ -70,12 +70,14 @@ jobs:
   # Push-triggered, so this lane always executes the base branch's own
   # workflow definition. This workflow never listens to pull_request, so the
   # drill does not appear in PR checks. No cache steps because the VM's
-  # persistent pnpm store and tool caches make them redundant (and saving here
+  # persistent bun install cache and tool caches make them redundant (and saving here
   # would poison the hosted cache namespace with self-hosted paths).
   serial-linux-selfhosted:
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     name: serial / linux (self-hosted standby)
     runs-on: [self-hosted, linux, x64, vm-backup]
+    env:
+      BUN_INSTALL: ${{ runner.temp }}/bun-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
     steps:
       # DSH_ARCHIVE_BASE_REF below compares the frozen-archive gate against
       # github.event.before, so full history is required: depth 2 would miss it
@@ -85,24 +87,21 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          dest: ${{ runner.temp }}/setup-pnpm-${{ github.run_id }}-${{ github.run_attempt }}
+          bun-version-file: package.json
 
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.PRIMARY_NODE_VERSION }}
 
-      - name: Configure persistent pnpm store
-        run: echo "PNPM_CONFIG_STORE_DIR=$HOME/.local/share/pnpm/store" >> "$GITHUB_ENV"
-
       - name: Install (immutable)
-        run: pnpm install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       # The persistent VM image owns Playwright's Linux system packages; this
       # step also proves that browser provisioning remains usable for failover.
       - name: Install Playwright Chromium
-        run: pnpm --filter @deepseek-ai/dsh-web-frontend exec playwright install chromium
+        run: bun run --filter @deepseek-ai/dsh-web-frontend playwright:install
 
       - name: Prepare bubblewrap (unrestrict userns)
         run: bash scripts/prepare-ci-bubblewrap.sh
@@ -116,7 +115,7 @@ jobs:
           DSH_OXLINT_THREADS: '1'
           DSH_PUBLINT_CONCURRENCY: '1'
           DSH_SNAPSHOT_MAX_CONCURRENCY: '1'
-        run: pnpm run check:ci:linux-primary
+        run: bun run check:ci:linux-primary
 
   # TODO(hosted-serial-ci): Re-enable the one remaining disabled hosted serial
   # reference job (serial-macos) before release. Re-enabling serial-macos does
@@ -126,19 +125,21 @@ jobs:
     if: false
     name: serial / macos
     runs-on: macos-latest
+    env:
+      BUN_INSTALL: ${{ runner.temp }}/bun-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
     steps:
       - uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          dest: ${{ runner.temp }}/setup-pnpm-${{ github.run_id }}-${{ github.run_attempt }}
+          bun-version-file: package.json
 
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.PRIMARY_NODE_VERSION }}
 
       - name: Install (immutable)
-        run: pnpm install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Run complete unsharded primary Node CI serially
         env:
@@ -147,7 +148,7 @@ jobs:
           DSH_GATE_CONCURRENCY: '1'
           DSH_PUBLINT_CONCURRENCY: '1'
           DSH_SNAPSHOT_MAX_CONCURRENCY: '1'
-        run: pnpm run check:ci
+        run: bun run check:ci
 
   # Hot-standby drill for the in-house self-hosted Windows pool: every master
   # move re-runs the complete unsharded Windows gate inventory on the persistent
@@ -157,7 +158,7 @@ jobs:
   # runbook, no merge required). Push-triggered, so this lane always executes
   # the base branch's own workflow definition. This workflow never listens to
   # pull_request, so the drill does not appear in PR checks. No cache steps
-  # because the VM's persistent pnpm store and tool caches make them redundant
+  # because the VM's persistent bun install cache and tool caches make them redundant
   # (and saving here would poison the hosted cache namespace with self-hosted
   # paths).
   serial-windows:
@@ -165,6 +166,8 @@ jobs:
     name: serial / windows (self-hosted standby)
     runs-on: [self-hosted, dsh-win-ci, windows]
     timeout-minutes: 120
+    env:
+      BUN_INSTALL: ${{ runner.temp }}/bun-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
     steps:
       - uses: actions/checkout@v6
 
@@ -174,23 +177,17 @@ jobs:
           reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock"
           /t REG_DWORD /f /v "AllowDevelopmentWithoutDevLicense" /d "1"
 
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          dest: ${{ runner.temp }}/setup-pnpm-${{ github.run_id }}-${{ github.run_attempt }}
+          bun-version-file: package.json
 
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.PRIMARY_NODE_VERSION }}
 
-      - name: Configure persistent pnpm store
-        shell: pwsh
-        run: |
-          $storeRoot = "$env:LOCALAPPDATA\pnpm\store"
-          echo "PNPM_CONFIG_STORE_DIR=$storeRoot" >> $env:GITHUB_ENV
-
       - name: Install (immutable)
         shell: pwsh
-        run: pnpm install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Run complete unsharded Windows gate inventory serially
         shell: pwsh
@@ -198,7 +195,7 @@ jobs:
           DSH_COVERAGE_MAX_WORKERS: '1'
           DSH_GATE_CONCURRENCY: '1'
           DSH_PUBLINT_CONCURRENCY: '1'
-        run: pnpm run check:ci:windows-complete
+        run: bun run check:ci:windows-complete
 
   # Manual, bounded comparison of the actual critical Linux and Windows lanes.
   # The named pools are restricted at the organization level to this repository.
@@ -259,19 +256,20 @@ jobs:
             cores: '96'
             runner: dsh-windows-2025-96core
             workload: production-site
+    env:
+      BUN_INSTALL: ${{ runner.temp }}/bun-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
     steps:
       - uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          dest: ${{ runner.temp }}/setup-pnpm-${{ github.run_id }}-${{ github.run_attempt }}
+          bun-version-file: package.json
 
       # The benchmark's Windows lanes deliberately skip the store cache like
       # the independent native Windows job; an empty input disables caching.
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.PRIMARY_NODE_VERSION }}
-          cache: ${{ matrix.platform == 'linux' && 'pnpm' || '' }}
 
       - name: Report runner capacity
         run: >-
@@ -280,15 +278,15 @@ jobs:
           memoryGiB: Math.round(os.totalmem() / 2 ** 30) }))"
 
       - name: Install (immutable)
-        run: pnpm install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Run critical Linux typecheck lane
         if: matrix.platform == 'linux'
-        run: pnpm run typecheck
+        run: bun run typecheck
 
       - name: Run critical Windows production-site lane
         if: matrix.platform == 'windows'
-        run: pnpm run docs:build
+        run: bun run docs:build
 
   # Manual comparison of the intended low-fanout topology. Linux runs the
   # complete unsharded primary aggregate with bounded in-runner parallelism;
@@ -350,19 +348,20 @@ jobs:
             cores: '96'
             runner: dsh-windows-2025-96core
             workers: '2'
+    env:
+      BUN_INSTALL: ${{ runner.temp }}/bun-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
     steps:
       - uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          dest: ${{ runner.temp }}/setup-pnpm-${{ github.run_id }}-${{ github.run_attempt }}
+          bun-version-file: package.json
 
       # Unlike the larger-runner suite, both platforms cache the store here:
       # the consolidated topology measures cache mechanics as workload.
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.PRIMARY_NODE_VERSION }}
-          cache: pnpm
 
       - name: Report runner capacity
         run: >-
@@ -373,7 +372,7 @@ jobs:
       - name: Install and prepare Linux
         if: matrix.platform == 'linux'
         run: |
-          pnpm install --frozen-lockfile &
+          bun install --frozen-lockfile &
           install_pid=$!
           bash scripts/prepare-ci-bubblewrap.sh &
           sandbox_pid=$!
@@ -387,7 +386,7 @@ jobs:
       - name: Install (immutable)
         if: matrix.platform == 'windows'
         shell: pwsh
-        run: pnpm install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Run complete unsharded primary Node CI concurrently
         if: matrix.platform == 'linux'
@@ -397,11 +396,11 @@ jobs:
           DSH_OXLINT_THREADS: ${{ matrix.workers }}
           DSH_PUBLINT_CONCURRENCY: ${{ matrix.workers }}
           DSH_SNAPSHOT_MAX_CONCURRENCY: ${{ matrix.workers }}
-        run: pnpm run check:ci
+        run: bun run check:ci
 
       - name: Run blocking Windows builds concurrently
         if: matrix.platform == 'windows'
         shell: pwsh
         env:
           DSH_GATE_CONCURRENCY: ${{ matrix.workers }}
-        run: pnpm run check:ci:windows-blocking
+        run: bun run check:ci:windows-blocking

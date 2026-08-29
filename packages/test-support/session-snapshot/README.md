@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-session-snapshot` provides the shared support behind keyless recorded-session tests (`pnpm run test:snapshot`): closed manifests, typed identity redaction, normalization, workspace comparison, fixture guards, and protocol adapters for headless, SDK, ACP, and Web owners. The ACP adapter launches the tested profile as a real subprocess, drives a deterministic input script, and registers the complete record, replay, and refresh suite. Every scenario owns enough committed evidence to prove model-visible output and filesystem effects without trusting the agent's report. The package entry imports vitest and is therefore available only inside a vitest run.
+`dsh-session-snapshot` provides the shared support behind keyless recorded-session tests (`bun run test:snapshot`): closed manifests, typed identity redaction, normalization, workspace comparison, fixture guards, and protocol adapters for headless, SDK, ACP, and Web owners. The ACP adapter launches the tested profile as a real subprocess, drives a deterministic input script, and registers the complete record, replay, and refresh suite. Every scenario owns enough committed evidence to prove model-visible output and filesystem effects without trusting the agent's report. The package entry imports vitest and is therefore available only inside a vitest run.
 
 ## Table of Contents
 
@@ -70,11 +70,11 @@ defineAcpSnapshotSuite({
 
 Each recorded-session directory carries a closed `snapshot.yml` manifest plus its `session.jsonl` and contiguous `session.<n>.jsonl` child logs. The manifest names the scenario, shipped profile, composition/header class, recording source, and only the replay, platform, permission, environment, workspace, or input facts the completed session cannot reconstruct. The adapter registers expected-output, session-log, and optional `workspace.expected/` comparisons; guards reject orphan directories, missing files, absolute paths, malformed manifests, and platform-specific separators.
 
-`normalizeSessionSnapshot` retains the complete session header and event payloads but omits ordinary `seq`/`time` and packed-row `seq0`/`time0` envelopes from committed fixtures after normalizing paths and scrubbing request headers. Replay synthesizes the envelopes in memory, while runtime persistence continues to write complete logs. Fixtures use canonical packed rows; the [temporary repository migrator](../../../scripts/migrate-packed-session-fixtures.ts) (`pnpm run migrate:packed-session-fixtures`) rewrites older layouts, and its [removal proposal](../../../.agents/notes/proposed/process/2026-07-26-remove-packed-session-fixture-migrator.md) owns its deletion.
+`normalizeSessionSnapshot` retains the complete session header and event payloads but omits ordinary `seq`/`time` and packed-row `seq0`/`time0` envelopes from committed fixtures after normalizing paths and scrubbing request headers. Replay synthesizes the envelopes in memory, while runtime persistence continues to write complete logs. Fixtures use canonical packed rows; the [temporary repository migrator](../../../scripts/migrate-packed-session-fixtures.ts) (`bun run migrate:packed-session-fixtures`) rewrites older layouts, and its [removal proposal](../../../.agents/notes/proposed/process/2026-07-26-remove-packed-session-fixture-migrator.md) owns its deletion.
 
 ### Record, replay, and refresh
 
-`pnpm run test:snapshot:record` calls the live LLM and rewrites recorded model fixtures; `pnpm run test:snapshot:refresh` stays keyless, runs the replay overlay, and rewrites stdout, comparable session-log expected outputs, and owned prompt and tool-schema sidecars from committed model scripts. Each composition owner keeps its replay patch beside its live patch; top-level `snapshots/` owns session-driven scenarios, while other expected outputs stay beside their owning package. [`dsh-llm-replay`](../llm-replay/README.md) serves the recorded streams selected through `DSH_SNAPSHOT_*` environment values.
+`bun run test:snapshot:record` calls the live LLM and rewrites recorded model fixtures; `bun run test:snapshot:refresh` stays keyless, runs the replay overlay, and rewrites stdout, comparable session-log expected outputs, and owned prompt and tool-schema sidecars from committed model scripts. Each composition owner keeps its replay patch beside its live patch; top-level `snapshots/` owns session-driven scenarios, while other expected outputs stay beside their owning package. [`dsh-llm-replay`](../llm-replay/README.md) serves the recorded streams selected through `DSH_SNAPSHOT_*` environment values.
 
 ### Pinning request headers
 
@@ -88,7 +88,7 @@ A scenario requiring a non-Windows host declares `posixOnly`, which skips its ru
 
 - **A fixture guard rejects the committed files** — orphan scenario dirs, missing files, multiple pins for one header class, duplicate sidecar content, unscrubbed JSONL headers, and malformed pinning headers all fail the suite before comparisons run.
 - **The session harvest needs raw JSONL mode** — snapshot configs set the JSONL backend's `compression: 'none'`; compressed JSONL and SQLite compositions have no snapshot-harvest path.
-- **Built mode needs current artifacts** — run `pnpm run build` before selecting `DSH_EXAMPLE_MODE=lib`; source mode remains the zero-build path.
+- **Built mode needs current artifacts** — run `bun run build` before selecting `DSH_EXAMPLE_MODE=lib`; source mode remains the zero-build path.
 
 -----
 
@@ -155,7 +155,7 @@ None; this package neither assembles nor sends a provider request.
 These limits define when the kit needs special care. They are current package constraints, not a task backlog.
 
 - **Session harvest requires raw JSONL mode** — `runScenario` collects persisted `.jsonl` logs, so snapshot configs set the JSONL backend's `compression: 'none'`; compressed JSONL and SQLite compositions have no snapshot-harvest path.
-- **Built mode requires current artifacts** — run `pnpm run build` before selecting `DSH_EXAMPLE_MODE=lib`; source mode remains the zero-build path.
+- **Built mode requires current artifacts** — run `bun run build` before selecting `DSH_EXAMPLE_MODE=lib`; source mode remains the zero-build path.
 - **ACP remains for protocol behavior** — cancellation and permission round trips whose stimulus is the ACP client stay on that adapter; assembled one-shot and persistent-control behavior uses headless and SDK adapters.
 
 <a id="dev-note"></a>

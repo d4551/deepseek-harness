@@ -104,7 +104,7 @@ This section explains the design behind the registry; the observable behavior is
 - **Product-independent registry.** The service imports no session, agent, scope, or agent-loop package and contains none of their checks; companions carry checks next to their owners.
 - **Real relationships, not synthetic assertions.** A companion checks an event-stream or mutable-data relationship its package owns; confirming a method, plugin name, injection, or fixed pure result is a type, load, or unit-test concern, never a runtime invariant.
 - **Registration reserves ownership.** A package name is reserved even when filters keep its installer inactive, so two plugins can never silently claim the same name.
-- **Exhaustive wiring, mechanically enforced.** `pnpm run verify-package-invariants` rejects generated markers, unexplained empty installers, non-empty installers that omit or ignore the reporter, wrong registration names, and incomplete export, publication, dependency, or bundle wiring ([contracts note](../../../.agents/notes/implemented/architecture/2026-07-19-package-invariant-runtime-contracts.md)).
+- **Exhaustive wiring, mechanically enforced.** `bun run verify-package-invariants` rejects generated markers, unexplained empty installers, non-empty installers that omit or ignore the reporter, wrong registration names, and incomplete export, publication, dependency, or bundle wiring ([contracts note](../../../.agents/notes/implemented/architecture/2026-07-19-package-invariant-runtime-contracts.md)).
 
 ### Source map
 

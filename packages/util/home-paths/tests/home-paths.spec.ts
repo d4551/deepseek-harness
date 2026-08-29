@@ -69,6 +69,10 @@ describe('dsh path helpers', () => {
       const file = join(root, 'file')
       await writeFile(file, 'not a directory')
       await expect(canonicalizeWatchPath(join(file, 'child'))).rejects.toMatchObject({ code: 'ENOTDIR' })
+      // An existing leaf is canonicalized without the directory probe: the
+      // probe belongs to the missing-suffix path, and running it here would
+      // reject every watched file.
+      await expect(canonicalizeWatchPath(file)).resolves.toBe(await realpath(file))
     } finally {
       await rm(root, { recursive: true, force: true })
     }

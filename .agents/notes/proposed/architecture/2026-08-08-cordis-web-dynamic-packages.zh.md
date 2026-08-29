@@ -254,7 +254,7 @@ Host/Client Guard、Host 求值与 handler、Client 求值与 apply、Slot `onEn
 - `cordis_inspect_self` 分层返回列表、Package 摘要和精确源码/诊断；`@pluginId` 不直接注入源码且更新留在同一 Plugin。
 - 异步技术失败、Host handler、Client Guard 和 React 渲染错误保留 message/stack 并 steering owning Agent；用户面板操作只注入下一 step context。
 - System Prompt、Skill、Tool description 和 Provider/Catalog 按本 Note 分层，Skill 不可用时 Prompt 仍足以生成最低限度正确的插件。
-- 相关工作区 `pnpm run build` 通过；实现阶段补齐 Host/Client lifecycle、版本、审批、Inspect、Guard、Tool 卡片与真实应用快照覆盖。
+- 相关工作区 `bun run build` 通过；实现阶段补齐 Host/Client lifecycle、版本、审批、Inspect、Guard、Tool 卡片与真实应用快照覆盖。
 
 ## Risks
 

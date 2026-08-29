@@ -50,11 +50,10 @@ if (probe(launcher) !== 'unusable') {
 ## 开发
 
 ```sh
-corepack enable
-pnpm install
-pnpm build:ts        # entry packages → lib/
-pnpm build:native    # this Linux architecture's binaries (apt-get install musl-tools)
-pnpm test
+bun install
+bun run build:ts        # entry packages → lib/
+bun run build:native    # this Linux architecture's binaries (apt-get install musl-tools)
+bun run test
 ```
 
 二进制文件被 git 忽略，并且按架构原生构建：本地只构建当前机器的版本，CI 各架构 runner 产出的构建则作为正式发布依据。发布流程详见 [docs/release.md](docs/release.md)。

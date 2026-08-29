@@ -25,7 +25,7 @@ git merge-file \
   -L "$meta_path:other" \
   -- "$current_path" "$ancestor_path" "$other_path"
 fallback_status=$?
-echo 'merge-translation-pairing: restore Node dependencies, then rerun the merge or `pnpm run resolve-translation-pairing-conflicts`; use `git merge --abort` to cancel' >&2
+echo 'merge-translation-pairing: restore Node dependencies, then rerun the merge or `bun run resolve-translation-pairing-conflicts`; use `git merge --abort` to cancel' >&2
 
 # A clean text merge is still unverified pairing metadata, so the driver must
 # leave Git's index stages unresolved until the repository-aware resolver runs.

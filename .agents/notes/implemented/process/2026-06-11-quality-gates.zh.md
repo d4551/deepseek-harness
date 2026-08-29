@@ -25,6 +25,6 @@ Status: implemented
 
 - 约定不会因 agent 更替而失效；可低成本发现的 commit/push 缺陷会在本地触发失败，其余违规会在 CI 的完整检查中触发失败。
 - 门禁本身也是需要维护的代码；配置变更与其他变更一样需要评审。
-- 100% 覆盖率的压力可能催生无断言的测试——变异测试是计划中的对策（见[变异测试提案](../../proposed/testing/2026-06-11-mutation-testing.zh.md)）。
+- 100% 覆盖率的压力可能催生无断言的测试——变异测试是计划中的对策（见[变异测试提案](../testing/2026-06-11-mutation-testing.zh.md)）。
 
 <!-- agent-note-format: alternatives-not-recorded (pre-format Agent Note) -->

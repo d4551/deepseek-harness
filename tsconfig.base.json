@@ -231,7 +231,7 @@
       "@deepseek-ai/dsh-experimental-inspector": ["./packages/experimental/inspector/src"],
       "@deepseek-ai/dsh-experimental-inspector/client": ["./packages/experimental/inspector/src/client/index.ts"],
       "@deepseek-ai/dsh-util-crypto": ["./packages/util/crypto/src"],
-      // BEGIN generated package aliases — pnpm run gen-tsconfig-paths
+      // BEGIN generated package aliases — bun run gen-tsconfig-paths
       "@deepseek-ai/dsh-acp": ["./packages/acp/acp/src"],
       "@deepseek-ai/dsh-acp/invariant": ["./packages/acp/acp/src/invariant.ts"],
       "@deepseek-ai/dsh-acp-app": ["./packages/bundle/acp-app/src"],
@@ -270,6 +270,8 @@
       "@deepseek-ai/dsh-bash-sandbox/invariant": ["./packages/shell/bash-sandbox/src/invariant.ts"],
       "@deepseek-ai/dsh-brand": ["./packages/util/brand/src"],
       "@deepseek-ai/dsh-brand/invariant": ["./packages/util/brand/src/invariant.ts"],
+      "@deepseek-ai/dsh-client-a11y": ["./packages/test-support/client-a11y/src"],
+      "@deepseek-ai/dsh-client-a11y/invariant": ["./packages/test-support/client-a11y/src/invariant.ts"],
       "@deepseek-ai/dsh-cmdline": ["./packages/boot/cmdline/src"],
       "@deepseek-ai/dsh-cmdline/invariant": ["./packages/boot/cmdline/src/invariant.ts"],
       "@deepseek-ai/dsh-code-runtime": ["./packages/code-runtime/code-runtime/src"],

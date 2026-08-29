@@ -35,9 +35,9 @@ sdk-wheel:
   stage: build
   script:
     - corepack enable
-    - pnpm install --frozen-lockfile
-    - pnpm run verify-runtime-closure
-    - pnpm exec tsx scripts/build-exe-for-python-sdk.ts --targets="$PKG_TARGET"
+    - bun install --frozen-lockfile
+    - bun run verify-runtime-closure
+    - bun x tsx scripts/build-exe-for-python-sdk.ts --targets="$PKG_TARGET"
     - EXE="$PWD/dist-exe/deepseek-harness-sdk-runtime-$PLATFORM"
     - test -x "$EXE"
     - uv run --python 3.10 --group test --project python/sdk python scripts/smoke-python-runtime.py --scenario all --exe "$EXE"
@@ -115,9 +115,9 @@ runtime-windows-x64:
     - $env:Path = (Join-Path $PWD ".ci-python\Scripts") + [IO.Path]::PathSeparator + $env:Path
   script:
     - corepack enable
-    - pnpm install --frozen-lockfile
-    - pnpm run verify-runtime-closure
-    - pnpm exec tsx scripts/build-exe-for-python-sdk.ts --targets=$env:PKG_TARGET
+    - bun install --frozen-lockfile
+    - bun run verify-runtime-closure
+    - bun x tsx scripts/build-exe-for-python-sdk.ts --targets=$env:PKG_TARGET
     - $exe = Join-Path $PWD "dist-exe\deepseek-harness-sdk-runtime-win-x64.exe"
     - if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw "Runtime executable is missing at $exe" }
     - uv run --python 3.10 --group test --project python/sdk python scripts/smoke-python-runtime.py --scenario all --exe $exe

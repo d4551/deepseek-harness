@@ -6,7 +6,7 @@ English | [中文](2026-07-26-remove-packed-session-fixture-migrator.zh.md)
 
 ## Problem
 
-The repository's default writers and snapshot check keep session fixtures in the canonical packed-row layout. `pnpm run migrate:packed-session-fixtures` remains alongside that permanent enforcement only so in-flight branches carrying older fixture edits can merge current `master` and mechanically converge without re-recording model output.
+The repository's default writers and snapshot check keep session fixtures in the canonical packed-row layout. `bun run migrate:packed-session-fixtures` remains alongside that permanent enforcement only so in-flight branches carrying older fixture edits can merge current `master` and mechanically converge without re-recording model output.
 
 Once every such branch is merged, closed, or already canonical, the write command and its branch-convergence instructions have no continuing owner. Keeping a mutation command after its transition ends adds a second apparent maintenance path beside the permanent read-only snapshot check.
 
@@ -30,7 +30,7 @@ Before removing the command, each affected branch merges the current `master`, r
 
 - A live open-PR inventory finds no branch with session-format JSONL changes that still depends on the temporary migration command.
 - The temporary CLI, root package command, every branch-convergence link, and the command-specific gate diagnostic are absent; the permanent canonicalizer, unit tests, and snapshot check remain.
-- `pnpm run test:snapshot`, `pnpm run doc-sync`, lint, and whitespace validation pass without the temporary command.
+- `bun run test:snapshot`, `bun run doc-sync`, lint, and whitespace validation pass without the temporary command.
 - Current documentation describes only the packed default and permanent canonical-layout enforcement.
 
 ## Risks

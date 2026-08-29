@@ -1,6 +1,6 @@
 /**
  * Process helpers shared by the release scripts: the release steps drive `git`,
- * `pnpm`, `npm`, and `tar`, and each needs one of three failure behaviours.
+ * `bun`, `npm`, and `tar`, and each needs one of three failure behaviours.
  */
 
 import { spawn, spawnSync } from 'node:child_process'

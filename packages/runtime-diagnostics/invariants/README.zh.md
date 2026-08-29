@@ -104,7 +104,7 @@ ctx.plugin(SessionInvariant)
 - **与产品无关的注册表。** 服务不导入任何 session、agent、scope 或 agent-loop 包，也不包含它们的检查；配套入口把检查放在其归属者旁边。
 - **真实关系，而非人为断言。** 配套入口只检查其包拥有的事件流或可变数据关系；确认方法、插件名、注入或固定纯函数结果是类型、加载或单元测试关注点，绝不是运行时不变量。
 - **注册保留归属。** 即使过滤器让 installer 保持非活动，包名也会被保留，因此两个插件永远不会静默认领同一个名字。
-- **穷尽接线，机械强制。** `pnpm run verify-package-invariants` 拒绝生成标记、未说明的空 installer、省略或忽略 reporter 的非空 installer、错误注册名，以及不完整的导出、发布、依赖或 bundle 接线（[约定笔记](../../../.agents/notes/implemented/architecture/2026-07-19-package-invariant-runtime-contracts.zh.md)）。
+- **穷尽接线，机械强制。** `bun run verify-package-invariants` 拒绝生成标记、未说明的空 installer、省略或忽略 reporter 的非空 installer、错误注册名，以及不完整的导出、发布、依赖或 bundle 接线（[约定笔记](../../../.agents/notes/implemented/architecture/2026-07-19-package-invariant-runtime-contracts.zh.md)）。
 
 ### 源码地图
 

@@ -4,7 +4,12 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { withFileLock, writeFileAtomic } from '../src/index.ts'
 
-const state = vi.hoisted(() => ({ failLockCreateWithEPERM: false }))
+const state = vi.hoisted(() => ({
+  failLockCreateWithEPERM: false,
+  lockCreateErrorCode: '',
+  failTempWriteWithCode: '',
+  fixedTempSuffix: '',
+}))
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>()
@@ -15,13 +20,34 @@ vi.mock('node:fs/promises', async (importOriginal) => {
         state.failLockCreateWithEPERM = false
         throw Object.assign(new Error('EPERM: injected exclusive-create failure'), { code: 'EPERM' })
       }
+      if (state.lockCreateErrorCode !== '' && String(path).endsWith('.lock')) {
+        const code = state.lockCreateErrorCode
+        throw Object.assign(new Error(`${code}: injected exclusive-create failure`), { code })
+      }
+      if (state.failTempWriteWithCode !== '' && String(path).endsWith('.tmp')) {
+        const code = state.failTempWriteWithCode
+        throw Object.assign(new Error(`${code}: injected temp-create failure`), { code })
+      }
       return (actual.writeFile as (path: unknown, ...args: never[]) => Promise<void>)(path, ...rest)
     }) as typeof actual.writeFile,
   }
 })
 
+vi.mock('node:crypto', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:crypto')>()
+  return {
+    ...actual,
+    randomBytes: (size: number) => (state.fixedTempSuffix === ''
+      ? actual.randomBytes(size)
+      : Buffer.from(state.fixedTempSuffix, 'hex')),
+  }
+})
+
 afterEach(() => {
   state.failLockCreateWithEPERM = false
+  state.lockCreateErrorCode = ''
+  state.failTempWriteWithCode = ''
+  state.fixedTempSuffix = ''
 })
 
 async function scratch(): Promise<string> {
@@ -145,5 +171,158 @@ describe('withFileLock', () => {
     release()
     await holder
     expect(await patient).toBe('patient')
+  })
+})
+
+describe('atomic write directory mode and lock lifecycle', () => {
+  it('creates a missing parent directory with the requested mode', async () => {
+    const root = await scratch()
+    try {
+      const target = join(root, 'nested', 'settings.json')
+      await writeFileAtomic(target, '{}', { mode: 0o600, dirMode: 0o700 })
+
+      expect((await stat(join(root, 'nested'))).mode & 0o777).toBe(0o700)
+      expect(await readFile(target, 'utf8')).toBe('{}')
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('leaves the platform default in place when no directory mode is requested', async () => {
+    const root = await scratch()
+    try {
+      const target = join(root, 'plain', 'settings.json')
+      await writeFileAtomic(target, '{}', { mode: 0o600 })
+
+      // 0o700 is what the explicit case asks for, so a default that equals it
+      // would make the mode assertion above vacuous.
+      expect((await stat(join(root, 'plain'))).mode & 0o777).not.toBe(0o700)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('writes the holding process id into the lock file', async () => {
+    const root = await scratch()
+    try {
+      const target = join(root, 'settings.json')
+      const held = await withFileLock(target, async () => readFile(`${target}.lock`, 'utf8'))
+
+      expect(held).toBe(`${process.pid}\n`)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('releases cleanly when the operation removed the lock file itself', async () => {
+    const root = await scratch()
+    try {
+      const target = join(root, 'settings.json')
+      await expect(withFileLock(target, async () => {
+        await rm(`${target}.lock`)
+        return 'done'
+      })).resolves.toBe('done')
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('surfaces a non-contention lock failure even when the lock file exists', async () => {
+    const root = await scratch()
+    try {
+      const target = join(root, 'settings.json')
+      // An existing lock plus a code that is neither EEXIST nor EPERM is a real
+      // failure, not contention: retrying it would hide the cause behind a
+      // timeout.
+      await writeFile(`${target}.lock`, 'held\n')
+      state.lockCreateErrorCode = 'EACCES'
+      await expect(withFileLock(target, async () => 'unreachable', { waitMs: 50 }))
+        .rejects.toMatchObject({ code: 'EACCES' })
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('atomic write temp-file exclusivity and failure cleanup', () => {
+  it('refuses to overwrite an existing temp file instead of clobbering it', async () => {
+    const root = await scratch()
+    try {
+      const target = join(root, 'settings.json')
+      state.fixedTempSuffix = 'aabbccddeeff'
+      const temp = `${target}.aabbccddeeff.tmp`
+      // A concurrent writer already owns this temp name. Exclusive creation is
+      // what stops the second writer from renaming the first one's bytes over
+      // the target.
+      await writeFile(temp, 'other writer')
+
+      await expect(writeFileAtomic(target, 'mine', { mode: 0o600 }))
+        .rejects.toMatchObject({ code: 'EEXIST' })
+      await expect(readFile(target, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('reports the write failure itself when no temp file was left behind', async () => {
+    const root = await scratch()
+    try {
+      const target = join(root, 'settings.json')
+      state.failTempWriteWithCode = 'ENOSPC'
+      // Cleanup runs whether or not the temp exists, so the caller sees the
+      // original failure rather than an ENOENT from the removal.
+      await expect(writeFileAtomic(target, '{}', { mode: 0o600 }))
+        .rejects.toMatchObject({ code: 'ENOSPC' })
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('writer lock deadline and backoff', () => {
+  it('gives up the moment the wait reaches its deadline, not after it', async () => {
+    const root = await scratch()
+    const now = Date.now()
+    const clock = vi.spyOn(Date, 'now')
+    try {
+      const target = join(root, 'settings.json')
+      await writeFile(`${target}.lock`, 'held\n')
+      // The deadline is computed from the first reading; every later reading
+      // lands exactly on it. Waiting "until" the deadline must stop there —
+      // treating equality as still-waiting never terminates.
+      clock.mockReturnValueOnce(now).mockReturnValue(now + 50)
+
+      await expect(withFileLock(target, async () => 'unreachable', { waitMs: 50 }))
+        .rejects.toThrow(/timed out waiting for the writer lock/)
+    } finally {
+      clock.mockRestore()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('doubles the retry delay up to the cap while it waits', async () => {
+    const root = await scratch()
+    const delays: number[] = []
+    const realSetTimeout = globalThis.setTimeout
+    const timer = vi.spyOn(globalThis, 'setTimeout').mockImplementation(((
+      handler: TimerHandler, timeout?: number, ...rest: unknown[]
+    ) => {
+      delays.push(timeout ?? 0)
+      // Run the retry immediately: the sequence under test is the delay
+      // values, not the wall-clock time spent sleeping through them.
+      return realSetTimeout(handler, 0, ...rest as [])
+    }) as typeof globalThis.setTimeout)
+    try {
+      const target = join(root, 'settings.json')
+      await writeFile(`${target}.lock`, 'held\n')
+
+      await expect(withFileLock(target, async () => 'unreachable', { waitMs: 700 }))
+        .rejects.toThrow(/timed out waiting for the writer lock/)
+      expect(delays.slice(0, 5)).toEqual([20, 40, 80, 160, 200])
+      expect(delays.every(delay => delay <= 200)).toBe(true)
+    } finally {
+      timer.mockRestore()
+      await rm(root, { recursive: true, force: true })
+    }
   })
 })

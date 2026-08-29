@@ -9,7 +9,7 @@ This practice guide enables [`@deepseek-ai/dsh-tool-cordis`](../../../../package
 Start the browser interface with the checked-in overlay:
 
 ```sh
-pnpm dsh web --patch apps/cli/config/examples/cordis/cordis.yml
+bun run dsh web --patch apps/cli/config/examples/cordis/cordis.yml
 ```
 
 The command requires a model credential. The [Cordis tool reference](../../../../packages/extensions/tool-cordis/README.md) defines the tool arguments, lifetime, cleanup, and safety contracts.

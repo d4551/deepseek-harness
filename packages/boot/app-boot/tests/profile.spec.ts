@@ -90,7 +90,7 @@ describe('resolveProfileDir', () => {
 })
 
 describe('initProfile', () => {
-  it('creates manifest, user patch layer, and pnpm workspace once, never overwriting', () => {
+  it('creates manifest, user patch layer, and bun install settings once, never overwriting', () => {
     const home = tmp()
     const dir = resolveProfileDir('tui', home)
     initProfile(dir, ['@deepseek-ai/dsh-base'])
@@ -98,7 +98,7 @@ describe('initProfile', () => {
     expect(manifest.dsh?.profile?.bundles).toEqual(['@deepseek-ai/dsh-base'])
     expect(manifest.dsh?.profile?.patchReload).toBe('live')
     expect(readFileSync(join(dir, PROFILE_PATCH_FILENAME), 'utf8')).toContain('[]')
-    expect(readFileSync(join(dir, 'pnpm-workspace.yaml'), 'utf8')).toContain('nodeLinker: hoisted')
+    expect(readFileSync(join(dir, 'bunfig.toml'), 'utf8')).toContain('linker = "hoisted"')
     // Re-init keeps user edits.
     writeFileSync(join(dir, PROFILE_PATCH_FILENAME), '- id: x\n  config: {}\n')
     initProfile(dir, ['other'], 'startup')
@@ -398,7 +398,7 @@ describe('healProfilesModuleFallback', () => {
     const home = tmp()
     const dir = resolveProfileDir('symlinked', home)
     const profileModules = join(dir, 'node_modules')
-    const storeModules = join(tmp(), 'node_modules', '.pnpm', 'selected-bundle@0.0.0', 'node_modules')
+    const storeModules = join(tmp(), 'node_modules', '.bun', 'selected-bundle@0.0.0', 'node_modules')
     const realBundle = join(storeModules, 'selected-bundle')
     const realDependency = join(storeModules, 'bundle-only')
     mkdirSync(realBundle, { recursive: true })

@@ -155,12 +155,14 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    env:
+      BUN_INSTALL: ${{ runner.temp }}/bun-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
     steps:
       - uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          dest: ${{ runner.temp }}/setup-pnpm-js-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
+          bun-version-file: package.json
 
       - name: Enable Windows Developer Mode (symlink support)
         if: runner.os == 'Windows'
@@ -169,12 +171,11 @@ jobs:
           reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock"
           /t REG_DWORD /f /v "AllowDevelopmentWithoutDevLicense" /d "1"
 
-      # setup-node's built-in pnpm store cache keys on platform AND arch, so
-      # the Linux architectures sharing runner.os stay on separate caches.
+      # setup-bun caches bun's install store per platform AND arch, so the
+      # Linux architectures sharing runner.os stay on separate caches.
       - uses: actions/setup-node@v6
         with:
           node-version: 24
-          cache: pnpm
 
       - uses: actions/setup-python@v6.3.0
         with:
@@ -188,12 +189,12 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.pkg-cache
-          key: pkg-fetch-${{ matrix.target }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pkg-fetch-${{ matrix.target }}-${{ hashFiles('bun.lock') }}
           restore-keys: |
             pkg-fetch-${{ matrix.target }}-
 
       - name: Install (immutable)
-        run: pnpm install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Rebuild Linux node-pty against manylinux 2.28
         if: runner.os == 'Linux'
@@ -207,8 +208,8 @@ jobs:
             *) echo "::error::Unsupported Linux runner architecture $RUNNER_ARCH"; exit 1 ;;
           esac
           addon_dir="$(realpath packages/subprocess/subprocess-local/node_modules/node-pty)"
-          pnpm_setup_root="$(realpath "$(dirname "$(dirname "$PNPM_HOME")")")"
-          (cd "$addon_dir" && npm_config_build_from_source=true pnpm run install)
+          bun_setup_root="$(realpath "$(dirname "$(dirname "$BUN_INSTALL")")")"
+          (cd "$addon_dir" && npm_config_build_from_source=true bun run install)
           addon="$addon_dir/build/Release/pty.node"
           [ -f "$addon_dir/build/Makefile" ] || {
             echo "::error::node-pty install did not generate $addon_dir/build/Makefile"
@@ -218,7 +219,7 @@ jobs:
             --user "$(id -u):$(id -g)" \
             -v "$PWD:$PWD" \
             -v "$HOME/.cache/node-gyp:$HOME/.cache/node-gyp:ro" \
-            -v "$pnpm_setup_root:$pnpm_setup_root:ro" \
+            -v "$bun_setup_root:$bun_setup_root:ro" \
             -w "$addon_dir" \
             "$image" \
             bash -euxo pipefail -c \
@@ -235,7 +236,7 @@ jobs:
       - name: Build single-exe
         env:
           DSH_BUILD_CLIENT_PROFILE: official
-        run: pnpm exec tsx scripts/build-exe-for-python-sdk.ts --targets=${{ matrix.target }}
+        run: bun x tsx scripts/build-exe-for-python-sdk.ts --targets=${{ matrix.target }}
 
       - name: Resolve platform outputs (POSIX)
         id: runtime-posix

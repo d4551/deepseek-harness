@@ -254,7 +254,7 @@ After a model-initiated asynchronous Run succeeds, is rejected, or fails technic
 - `cordis_inspect_self` returns layered Plugin lists, Package summaries, and exact source/diagnostics. `@pluginId` does not inject source and keeps updates in the same Plugin.
 - Asynchronous technical failures, Host handlers, Client Guards, and React rendering errors preserve message/stack and steer the owning Agent; user panel actions only inject context into the next step.
 - The System Prompt, Skill, Tool descriptions, and Provider/Catalog layers follow this Note. The Prompt remains sufficient to generate a minimally correct plugin if the Skill is unavailable.
-- Relevant workspaces pass `pnpm run build`; implementation adds Host/Client lifecycle, versioning, approval, Inspect, Guard, Tool-card, and real-application snapshot coverage.
+- Relevant workspaces pass `bun run build`; implementation adds Host/Client lifecycle, versioning, approval, Inspect, Guard, Tool-card, and real-application snapshot coverage.
 
 ## Risks
 

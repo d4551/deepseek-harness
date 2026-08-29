@@ -148,14 +148,14 @@ export function runPlugin(profile: string, args: readonly string[]): number {
   if (exitCode === 0) {
     reconcilePlugins(before, dir)
   } else {
-    // pnpm's own diagnostics name pnpm-workspace.yaml without saying WHICH
-    // one; the profile owns it, and the commonest failure here is pnpm ≥10
-    // blocking a git dependency's prepare (build) script until allowlisted.
-    process.stderr.write(`${NAME}: pnpm failed in profile directory ${dir}\n`)
+    // bun's own diagnostics name the manifest without saying WHICH one; the
+    // profile owns it, and the commonest failure here is bun declining to run
+    // a git dependency's prepare (build) script until it is trusted.
+    process.stderr.write(`${NAME}: bun failed in profile directory ${dir}\n`)
     if (args.some(argument => /^git\+|^github:|\.git(?:#|$)/.test(argument))) {
       process.stderr.write(
-        `${NAME}: git-hosted plugins build on install via their prepare script, which pnpm blocks until allowed — `
-        + `add the exact key pnpm printed above under allowBuilds in ${join(dir, 'pnpm-workspace.yaml')}, then re-run\n`,
+        `${NAME}: git-hosted plugins build on install via their prepare script, which bun does not run until trusted — `
+        + `add the package name to trustedDependencies in ${join(dir, 'package.json')}, then re-run\n`,
       )
     }
   }

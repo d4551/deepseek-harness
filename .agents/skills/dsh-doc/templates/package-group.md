@@ -56,4 +56,4 @@ None.
 - Add a `ctx key`, package shape, or npm-name column only when that distinction helps readers choose among the direct packages.
 - Related documentation links adjacent owners (group maps, subsystem pages, Agent Notes) with a short phrase per link.
 - Do not add a Model Experience or Known Limitations section; the group map owns no runtime behavior.
-- Re-run `pnpm run verify-translation-pairing --write packages/<group>/README.md` after editing the pair.
+- Re-run `bun run verify-translation-pairing --write packages/<group>/README.md` after editing the pair.

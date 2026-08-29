@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-client-hmr` reloads a browser client plugin in place when its bundle is rebuilt, so a developer editing plugin source sees the change without a full page reload. The reload chain stays idle without a rebuild watcher: only a `pnpm run dev:web`-style process rewriting client bundles produces the rebuilds it reacts to. Each reload swaps one plugin with fresh component state while the data layer (connection, runtime, and Session objects) stays untouched. Everything here is development machinery in the browser; the model never sees it.
+`dsh-client-hmr` reloads a browser client plugin in place when its bundle is rebuilt, so a developer editing plugin source sees the change without a full page reload. The reload chain stays idle without a rebuild watcher: only a `bun run dev:web`-style process rewriting client bundles produces the rebuilds it reacts to. Each reload swaps one plugin with fresh component state while the data layer (connection, runtime, and Session objects) stays untouched. Everything here is development machinery in the browser; the model never sees it.
 
 ## Table of Contents
 
@@ -29,7 +29,7 @@ Enable the rebuild watcher for the plugin you are editing, then save: the browse
 
 ### Starting the reload chain
 
-Run `pnpm run dev:web` (or any tsdown watch process that writes the plugin's `lib/client.js`) against the same host; rebuilt plugins are then swapped into the running browser automatically, one at a time.
+Run `bun run dev:web` (or any tsdown watch process that writes the plugin's `lib/client.js`) against the same host; rebuilt plugins are then swapped into the running browser automatically, one at a time.
 
 ### What a reload does
 

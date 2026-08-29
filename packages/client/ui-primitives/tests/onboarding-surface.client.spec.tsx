@@ -18,7 +18,7 @@ afterEach(() => {
 
 describe('OnboardingSurface', () => {
   it('portals the overlay chrome to document.body around its content', () => {
-    const view = render(<OnboardingSurface><p>step content</p></OnboardingSurface>)
+    const view = render(<OnboardingSurface label="Onboarding"><p>step content</p></OnboardingSurface>)
     // Portaled: the overlay is a body child, not inside the render container.
     expect(view.container.querySelector('[class*="onboardingOverlay"]')).toBeNull()
     const overlay = document.body.querySelector('[class*="onboardingOverlay"]')
@@ -32,7 +32,7 @@ describe('OnboardingSurface', () => {
   })
 
   it('holds #root inert for exactly its own lifetime', () => {
-    const view = render(<OnboardingSurface>x</OnboardingSurface>)
+    const view = render(<OnboardingSurface label="Onboarding">x</OnboardingSurface>)
     expect(appRoot.inert).toBe(true)
     view.unmount()
     expect(appRoot.inert).toBe(false)
@@ -40,7 +40,7 @@ describe('OnboardingSurface', () => {
 
   it('renders without an #root element (compositions that mount elsewhere)', () => {
     appRoot.remove()
-    const view = render(<OnboardingSurface>x</OnboardingSurface>)
+    const view = render(<OnboardingSurface label="Onboarding">x</OnboardingSurface>)
     expect(document.body.querySelector('[class*="onboardingStage"]')!.textContent).toBe('x')
     view.unmount()
   })

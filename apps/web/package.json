@@ -25,8 +25,10 @@
     "build": "vite build",
     "dev": "vite",
     "watch": "vite build --watch --no-emptyOutDir",
-    "build:preview": "pnpm --filter @deepseek-ai/dsh-experimental-webworker-runtime exec tsdown && pnpm --filter @deepseek-ai/dsh-experimental-webworker-packer exec tsdown && vite build && dsh-pack-vfs-image --out dist/preview/vfs-image.tar.gz",
-    "serve:preview": "http-server dist -a 0.0.0.0 -p 4173 -c-1"
+    "build:preview": "bun run --filter @deepseek-ai/dsh-experimental-webworker-runtime build && bun run --filter @deepseek-ai/dsh-experimental-webworker-packer build && vite build && dsh-pack-vfs-image --out dist/preview/vfs-image.tar.gz",
+    "serve:preview": "http-server dist -a 0.0.0.0 -p 4173 -c-1",
+    "playwright:install": "playwright install chromium",
+    "playwright:install:deps": "playwright install --with-deps chromium"
   },
   "license": "MIT",
   "devDependencies": {

@@ -132,7 +132,7 @@ function npmPackageOf(id: string): string | undefined {
   const parts = id.split('/node_modules/')
   if (parts.length === 1) return undefined
   const [first, second] = parts[parts.length - 1].split('/')
-  if (first.startsWith('.')) return undefined // .pnpm store segment, not a package
+  if (first.startsWith('.')) return undefined // isolated-store segment, not a package
   if (first.startsWith('@')) return second === undefined ? undefined : `${first}/${second}`
   return first
 }

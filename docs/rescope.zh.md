@@ -22,8 +22,8 @@ Cordis 框架及其基础库以源码形式 vendored 在 [`vendor/`](../vendor/R
 
 ## 改名不碰什么
 
-- **目录名与上游源码版本。** `vendor/hmr/` 仍是 `vendor/hmr/`，清单表记录的是所钉住源码快照的上游版本，因此清单读作一份上游快照；而每个 vendored 包 `package.json` 自身的 `version` 字段是 harness 发布的清单版本，`pnpm run release:vendor` 会提升它，重新 sync 时会恢复成上游版本。
-- **依赖 range。** 依赖条目只换键、不换范围：`"cordis": "^4.0.0-rc.7"` 变成 `"@deepseek-ai/cordis": "^4.0.0-rc.7"`；`linkWorkspacePackages` 靠这些保留下来的范围把它们解析到固定的 workspace。
+- **目录名与上游源码版本。** `vendor/hmr/` 仍是 `vendor/hmr/`，清单表记录的是所钉住源码快照的上游版本，因此清单读作一份上游快照；而每个 vendored 包 `package.json` 自身的 `version` 字段是 harness 发布的清单版本，`bun run release:vendor` 会提升它，重新 sync 时会恢复成上游版本。
+- **依赖 range。** 依赖条目只换键、不换范围：`"cordis": "^4.0.0-rc.7"` 变成 `"@deepseek-ai/cordis": "^4.0.0-rc.7"`；`package.json` 的 `workspaces` 通配符靠这些保留下来的范围把它们解析到固定的 workspace。
 - **Loader 的 `cordis:` 内建前缀。** `cordis:include`、`cordis:group` 是协议前缀，不是包名。
 - **`cordis.yml` 配置文件家族**，包括 `*.cordis.yml`、`*.cordis.snapshot.yml`、`cordis.patch.yml`。
 - **名字里带这个词的 harness 包**，例如 `@deepseek-ai/dsh-tool-cordis`。
@@ -44,10 +44,10 @@ Cordis 框架及其基础库以源码形式 vendored 在 [`vendor/`](../vendor/R
 上面这份映射由 [`scripts/rescope-vendor.ts`](../scripts/rescope-vendor.ts) 承载并执行改名，任何引用都不靠手改：
 
 ```sh
-pnpm run rescope-vendor            # report what would change
-pnpm run rescope-vendor --apply    # rewrite every reference
-pnpm run rescope-vendor:check      # assert the post-state; runs in the hygiene gate
-pnpm run rescope-vendor --apply --reverse   # return to the upstream names
+bun run rescope-vendor            # report what would change
+bun run rescope-vendor --apply    # rewrite every reference
+bun run rescope-vendor:check      # assert the post-state; runs in the hygiene gate
+bun run rescope-vendor --apply --reverse   # return to the upstream names
 ```
 
-上游 sync 之后重跑它（[流程](../vendor/README.md)），并接上它打印的重生成：`pnpm install` 重生成 lockfile、`pnpm run gen-third-party-notices`、以及对它触及的双语对跑 `pnpm run verify-translation-pairing --write`。
+上游 sync 之后重跑它（[流程](../vendor/README.md)），并接上它打印的重生成：`bun install` 重生成 lockfile、`bun run gen-third-party-notices`、以及对它触及的双语对跑 `bun run verify-translation-pairing --write`。

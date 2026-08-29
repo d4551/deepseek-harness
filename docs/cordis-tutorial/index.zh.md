@@ -19,7 +19,7 @@ Cordis 是 DeepSeek Harness 底层的插件框架：它是一个小型运行时�
 ```sh
 git clone https://github.com/deepseek-ai/deepseek-harness.git
 cd deepseek-harness
-pnpm install
+bun install
 ```
 
 创建各章使用的临时目录。`tmp/` 已被 git 忽略，因此你在其中写入的任何内容都不会进入版本控制：

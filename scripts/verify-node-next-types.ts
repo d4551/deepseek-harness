@@ -2,7 +2,7 @@
  * Verify that built package declarations are consumable by a standard external
  * TypeScript ESM project using NodeNext resolution.
  *
- * Run after `pnpm run build` has emitted declaration files under package
+ * Run after `bun run build` has emitted declaration files under package
  * `lib/types` directories.
  */
 
@@ -100,7 +100,7 @@ const missingOutputs = packages
   .map(pkg => `${pkg.name}: missing ${pkg.manifest.types}`)
 
 if (missingOutputs.length > 0) {
-  console.error('verify-node-next-types: build outputs are missing; run `pnpm run build` first.')
+  console.error('verify-node-next-types: build outputs are missing; run `bun run build` first.')
   console.error(missingOutputs.join('\n'))
   process.exit(1)
 }

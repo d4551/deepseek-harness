@@ -82,7 +82,7 @@ class ScopedEventGenerator {
     return [
       '/**',
       ' * Generated scoped-event routing-subject resolvers for dsh-scope invariants.',
-      ' * Do not edit by hand; run `pnpm run gen-scoped-events`.',
+      ' * Do not edit by hand; run `bun run gen-scoped-events`.',
       ' *',
       ' * @module @deepseek-ai/dsh-scope/scoped-events.generated',
       ' */',
@@ -387,7 +387,7 @@ function main(): void {
       console.log(`gen-scoped-events: ${OUT} is up to date.`)
       return
     }
-    console.error(`gen-scoped-events: ${OUT} is stale. Run \`pnpm run gen-scoped-events\` and commit it.`)
+    console.error(`gen-scoped-events: ${OUT} is stale. Run \`bun run gen-scoped-events\` and commit it.`)
     process.exit(1)
   }
   writeFileSync(output, content)

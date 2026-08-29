@@ -757,6 +757,22 @@ describe('modelOverrides', () => {
 })
 
 describe('compat switches', () => {
+  /**
+   * One builtin route that serves two protocols, so a route-level switch has a
+   * model that declares the switched field and one that does not. The upstream
+   * catalog decides which provider is mixed, so this fails loudly rather than
+   * silently degrading to a single-protocol route that proves nothing.
+   */
+  function mixedRoute(): { completions: Model<Api>; messages: Model<Api> } {
+    const catalog = getBuiltinModels('fireworks') as readonly Model<Api>[]
+    const completions = catalog.find(model => model.api === 'openai-completions')
+    const messages = catalog.find(model => model.api === 'anthropic-messages')
+    if (completions === undefined || messages === undefined) {
+      throw new Error('fireworks no longer ships a mixed catalog')
+    }
+    return { completions, messages }
+  }
+
   /** The materialized models of one route, keyed by id. */
   function modelsOf(providers: Record<string, LlmPiAi.PiAiProviderProfile>, route: string): Map<string, Model<Api>> {
     const models = resolveProfiles(providers).get(route)?.piProvider.getModels() ?? []
@@ -796,22 +812,19 @@ describe('compat switches', () => {
   })
 
   it('skips models of other protocols on a mixed route instead of failing them', () => {
-    // xai ships both completions and responses models, so a route-level switch
-    // must land on the former without invalidating the latter.
-    const catalog = getBuiltinModels('xai') as readonly Model<Api>[]
-    const completions = catalog.find(model => model.api === 'openai-completions')
-    const responses = catalog.find(model => model.api === 'openai-responses')
-    if (completions === undefined || responses === undefined) throw new Error('xai no longer ships a mixed catalog')
+    // fireworks ships both completions and anthropic-messages models, so a
+    // route-level switch must land on the former without invalidating the latter.
+    const { completions, messages } = mixedRoute()
 
     const models = modelsOf({
-      xai: {
-        compat: { supportsReasoningEffort: false },
-        models: [{ id: completions.id }, { id: responses.id }],
+      fireworks: {
+        compat: { supportsStore: true },
+        models: [{ id: completions.id }, { id: messages.id }],
       },
-    }, 'xai')
+    }, 'fireworks')
 
-    expect((models.get(completions.id)?.compat as OpenAICompletionsCompat).supportsReasoningEffort).toBe(false)
-    expect(models.get(responses.id)?.compat).toEqual(responses.compat)
+    expect((models.get(completions.id)?.compat as OpenAICompletionsCompat).supportsStore).toBe(true)
+    expect(models.get(messages.id)?.compat).toEqual(messages.compat)
   })
 
   it('rejects a model-level switch on a protocol that has no such field, naming what it offers', () => {
@@ -877,25 +890,22 @@ describe('compat switches', () => {
   })
 
   it('lands each route switch only on the models whose protocol declares it', () => {
-    const catalog = getBuiltinModels('xai') as readonly Model<Api>[]
-    const completions = catalog.find(model => model.api === 'openai-completions')
-    const responses = catalog.find(model => model.api === 'openai-responses')
-    if (completions === undefined || responses === undefined) throw new Error('xai no longer ships a mixed catalog')
+    const { completions, messages } = mixedRoute()
 
     const models = modelsOf({
-      xai: {
+      fireworks: {
         // Both protocols take the first switch; only completions takes the second.
-        compat: { supportsDeveloperRole: false, thinkingFormat: 'openai' },
-        models: [{ id: completions.id }, { id: responses.id }],
+        compat: { supportsLongCacheRetention: true, supportsStore: true },
+        models: [{ id: completions.id }, { id: messages.id }],
       },
-    }, 'xai')
+    }, 'fireworks')
 
     const onCompletions = models.get(completions.id)?.compat as OpenAICompletionsCompat
-    expect(onCompletions.supportsDeveloperRole).toBe(false)
-    expect(onCompletions.thinkingFormat).toBe('openai')
-    const onResponses = models.get(responses.id)?.compat as { supportsDeveloperRole?: boolean; thinkingFormat?: string }
-    expect(onResponses.supportsDeveloperRole).toBe(false)
-    expect(onResponses.thinkingFormat).toBeUndefined()
+    expect(onCompletions.supportsLongCacheRetention).toBe(true)
+    expect(onCompletions.supportsStore).toBe(true)
+    const onMessages = models.get(messages.id)?.compat as { supportsLongCacheRetention?: boolean; supportsStore?: boolean }
+    expect(onMessages.supportsLongCacheRetention).toBe(true)
+    expect(onMessages.supportsStore).toBeUndefined()
   })
 
   it('carries chat-template kwargs beside the thinking format that dispatches through them', () => {

@@ -138,7 +138,9 @@ export function idleWatchdog(
   let disposed = false
 
   const arm = (): void => {
-    if (timer !== undefined) clearTimeout(timer)
+    // clearTimeout ignores undefined, so the previous timer is cleared without
+    // asking whether there was one.
+    clearTimeout(timer)
     timer = setTimeout(() => {
       timeout.abort(new TimeoutReason(code, timeoutMs))
     }, timeoutMs)
@@ -166,7 +168,7 @@ export function idleWatchdog(
     [Symbol.dispose](): void {
       if (disposed) return
       disposed = true
-      if (timer !== undefined) clearTimeout(timer)
+      clearTimeout(timer)
       timer = undefined
     },
   }

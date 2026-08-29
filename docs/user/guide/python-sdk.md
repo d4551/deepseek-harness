@@ -125,7 +125,7 @@ dsh --profile sdk-minimal --dump-default-config | Out-Null
 dsh plugin --profile sdk-minimal add file:C:/work/my-plugin-bundle
 ```
 
-The first command initializes the shipped standalone profile. The second forwards package management to `pnpm`, then records any installed package that exports a `dsh.bundle` layer. Install `pnpm` only for this management command; launching the installed SDK does not need it. Edit `$DSH_HOME/profiles/sdk-minimal/cordis.patch.yml` for persistent row changes, or pass patch files from Python for per-launch changes.
+The first command initializes the shipped standalone profile. The second forwards package management to `bun`, then records any installed package that exports a `dsh.bundle` layer. Install `bun` only for this management command; launching the installed SDK does not need it. Edit `$DSH_HOME/profiles/sdk-minimal/cordis.patch.yml` for persistent row changes, or pass patch files from Python for per-launch changes.
 
 Another `profile` is valid when it includes `@deepseek-ai/dsh-sdk-app` or another JSON-RPC server row. Missing server rows, unresolved plugins, and invalid patches fail during startup instead of falling back to another composition.
 

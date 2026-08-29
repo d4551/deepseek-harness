@@ -124,7 +124,7 @@ afterEach(() => {
   while (roots.length) rmSync(roots.pop()!, { recursive: true, force: true })
 })
 
-describe.skip('gen-cordis-catalog collectEvents', { timeout: 60_000 }, () => {
+describe('gen-cordis-catalog collectEvents', { timeout: 60_000 }, () => {
   it('extracts a well-formed event with its @mode and JSDoc', () => {
     const events = collectEvents(make(
       '    /**\n     * A thing happened.\n     * @param id - which thing.\n     * @mode emit\n     */\n    \'fix/happened\'(id: string): void',
@@ -239,7 +239,7 @@ describe.skip('gen-cordis-catalog collectEvents', { timeout: 60_000 }, () => {
   })
 })
 
-describe.skip('gen-cordis-catalog collectServices', () => {
+describe('gen-cordis-catalog collectServices', () => {
   const WELL_FORMED = `/** Fixture service. */
 export class FixService {
   /**
@@ -262,6 +262,7 @@ export class FixService {
     expect(services[0]).toMatchObject({ key: 'fix', type: 'FixService', abstract: false, doc: 'Fixture service.' })
     expect(services[0]?.methods).toHaveLength(3)
     expect(services[0]?.methods[0]).toEqual({
+      kind: 'method',
       signature: 'run(id: string): string',
       jsDoc: '/**\n * Do the thing.\n * @param id - which thing to do.\n * @returns the outcome of doing it.\n */',
     })

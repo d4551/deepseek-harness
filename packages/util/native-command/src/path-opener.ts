@@ -51,16 +51,19 @@ async function openInBrowser(
   run: PathOpenerRunner, env: NodeJS.ProcessEnv,
 ): Promise<boolean> {
   if (platform === 'darwin') {
-    let bundle: string | undefined
+    let plist: string
     try {
       const { stdout } = await run(
         'defaults', ['read', 'com.apple.LaunchServices/com.apple.launchservices.secure'], signal)
-      bundle = macBundleForHttps(stdout)
+      plist = stdout
     } catch {
       // No LaunchServices record (a fresh account never changed a default):
-      // the content-type handler is then the system's own choice anyway.
+      // the content-type handler is then the system's own choice anyway. Only
+      // the read is guarded — a parser failure is this package's own defect and
+      // must surface rather than read as an absent record.
       return false
     }
+    const bundle = macBundleForHttps(plist)
     if (bundle === undefined) return false
     await run('open', ['-b', bundle, path], signal)
     return true

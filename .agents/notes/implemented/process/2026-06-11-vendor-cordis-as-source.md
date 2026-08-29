@@ -10,7 +10,7 @@ DeepSeek Harness is built on the Cordis framework. Cordis core was at 4.0.0-rc.6
 
 ## Decision
 
-Copy the needed Cordis packages (core, loader, include, group, timer, hmr, logger-console) and the cordiverse foundation libraries (cosmokit, schemastery) into `vendor/` as source, flattened, keeping their original npm names so workspace resolution is transparent. `pnpm-workspace.yaml` sets `linkWorkspacePackages: true`, so matching upstream semver ranges resolve these pinned workspaces in both source and built-artifact execution. Truly third-party dependencies (js-yaml, chokidar, @standard-schema/spec, …) stay on npm.
+Copy the needed Cordis packages (core, loader, include, group, timer, hmr, logger-console) and the cordiverse foundation libraries (cosmokit, schemastery) into `vendor/` as source, flattened, keeping their original npm names so workspace resolution is transparent. The `workspaces` globs in `package.json` cover `vendor/*`, so matching upstream semver ranges resolve these pinned workspaces in both source and built-artifact execution. Truly third-party dependencies (js-yaml, chokidar, @standard-schema/spec, …) stay on npm.
 
 `vendor/README.md` is the manifest: upstream repo + commit SHA per package and an exhaustive local-modification log. A pre-commit guard (`scripts/check-vendor-manifest.sh`) rejects vendored-source changes that don't update the manifest in the same commit.
 

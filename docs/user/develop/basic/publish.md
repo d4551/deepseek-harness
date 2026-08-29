@@ -4,7 +4,7 @@ English | [中文](publish.zh.md)
 
 The previous tutorials loaded a local plugin through a `--patch` overlay. This tutorial packages it as an installable **bundle**, installs it into a **profile** with `dsh plugin add`, and explains the layer order that determines the composed configuration. It assumes the `dsh` CLI is installed. Complete [plugin configuration](./config.md) first.
 
-To use a fresh source checkout instead, complete the [run-from-source section](../../../../README.md#run-from-source), keep this tutorial's `hello-plugin` directory at the repository root, and run the remaining `dsh ...` commands from there as `pnpm dsh ...`. See [source execution](../../../../apps/cli/reference/README.md#source-execution) for build and launcher behavior.
+To use a fresh source checkout instead, complete the [run-from-source section](../../../../README.md#run-from-source), keep this tutorial's `hello-plugin` directory at the repository root, and run the remaining `dsh ...` commands from there as `bun run dsh ...`. See [source execution](../../../../apps/cli/reference/README.md#source-execution) for build and launcher behavior.
 
 ## Two concepts, two manifests
 
@@ -67,20 +67,20 @@ A package without the `dsh.bundle` declaration still installs, but only as a pla
 
 A profile directory holds two files:
 
-- `package.json` — the profile's out-of-tree plugin dependencies (managed by pnpm) plus the `dsh.profile` manifest with its ordered `bundles` list.
+- `package.json` — the profile's out-of-tree plugin dependencies (managed by bun) plus the `dsh.profile` manifest with its ordered `bundles` list.
 - `cordis.patch.yml` — the user's own patch layer, applied after every bundle layer.
 
 You never write a profile manifest by hand: `dsh plugin` creates and maintains it. The next section shows the result.
 
 ## Install into a profile
 
-`dsh plugin --profile <name> <args...>` forwards to pnpm in the profile directory, so every pnpm verb works. From the directory that contains `hello-plugin`, install the package checkout:
+`dsh plugin --profile <name> <args...>` forwards to bun in the profile directory, so every bun verb works. From the directory that contains `hello-plugin`, install the package checkout:
 
 ```sh
 dsh plugin --profile demo add ./hello-plugin
 ```
 
-The first use initializes the profile (with `@deepseek-ai/dsh-base` as its first bundle), pnpm links the checkout, and `dsh` appends the bundle to `dsh.profile.bundles` because the package declares `dsh.bundle`:
+The first use initializes the profile (with `@deepseek-ai/dsh-base` as its first bundle), bun links the checkout, and `dsh` appends the bundle to `dsh.profile.bundles` because the package declares `dsh.bundle`:
 
 ```json
 {
@@ -125,7 +125,7 @@ Later layers win per row, and a patch replaces a row's entire `config` value rat
 - Your patch can override rows from earlier layers by `id` — the same way [the `dsh-web-app` bundle](../../../../packages/bundle/web-app/cordis.patch.yml) overrides `dsh-base` rows — but must restate every key the row needs, not just the changed one.
 - Users can override your rows in their profile's `cordis.patch.yml` without touching your package, so prefer configuration defaults users are likely to keep and let the schema carry the rest.
 
-In-box bundle names always resolve from the dsh installation itself; pnpm manages only out-of-tree packages, so your bundle can rely on `@deepseek-ai/dsh-base` being present and current.
+In-box bundle names always resolve from the dsh installation itself; bun manages only out-of-tree packages, so your bundle can rely on `@deepseek-ai/dsh-base` being present and current.
 
 ## Give a surface bundle its own command line
 
@@ -160,22 +160,21 @@ dsh plugin --profile demo add github:you/hello-plugin
 
 But a git install fetches **sources, not built artifacts**: nothing runs your `build` script, so a TypeScript package arrives without its `lib/` output and fails to load. Two things must happen, one on each side:
 
-- **The author** ships a `prepare` script — pnpm runs it after a git install — that builds the published entry points from source, self-contained: it must not assume dev-only context such as a sibling monorepo checkout. [turtle-ui](https://github.com/deepseek-harness/turtle-ui) is a working example: its `prepare` runs a dedicated tsdown config that transpiles `src/` without project references or type checking.
-- **The user** allowlists the build. pnpm ≥10 refuses to run a git dependency's `prepare` script until it is explicitly allowed, so the first `add` fails; `dsh` points at the fix — copy the exact package key pnpm printed into the profile's `pnpm-workspace.yaml`:
+- **The author** ships a `prepare` script — bun runs it after a git install — that builds the published entry points from source, self-contained: it must not assume dev-only context such as a sibling monorepo checkout. [turtle-ui](https://github.com/deepseek-harness/turtle-ui) is a working example: its `prepare` runs a dedicated tsdown config that transpiles `src/` without project references or type checking.
+- **The user** trusts the build. bun does not run a git dependency's `prepare` script until the consumer names the package, so the first `add` fails; `dsh` points at the fix — add the package to `trustedDependencies` in the profile's `package.json`:
 
-  ```yaml
-  allowBuilds:
-    dsh-hello-plugin: true
+  ```json
+  "trustedDependencies": ["dsh-hello-plugin"]
   ```
 
   and re-run the `add`.
 
-Treat that allowance as **permission to execute the package's code on your machine at install time**, outside any sandbox the agent runs under. Only allow packages whose source you trust, and pin a commit (`github:you/hello-plugin#<sha>`) so a later push cannot silently change what runs.
+Treat that trust as **permission to execute the package's code on your machine at install time**, outside any sandbox the agent runs under. Only allow packages whose source you trust, and pin a commit (`github:you/hello-plugin#<sha>`) so a later push cannot silently change what runs.
 
 If you would rather not ask users for the allowance, distribute built artifacts instead — neither form needs any build permission:
 
-- **Publish to npm** with `lib/` built at `pnpm publish` time; `dsh plugin add your-package` then installs prebuilt code.
-- **Ship a tarball** from `pnpm pack`; users run `dsh plugin add ./hello-plugin-0.1.0.tgz`.
+- **Publish to npm** with `lib/` built at `bun publish` time; `dsh plugin add your-package` then installs prebuilt code.
+- **Ship a tarball** from `bun pm pack`; users run `dsh plugin add ./hello-plugin-0.1.0.tgz`.
 
 ## Next steps
 

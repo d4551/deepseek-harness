@@ -56,7 +56,7 @@ interface InvariantInstaller {
 
 ## 配套插件约定
 
-每个工作区包都拥有一个 `./invariant` 配套插件（[包约定](../../packages/AGENTS.md)）；发布与注册是穷尽式的，但刻意不合成断言。只有当包拥有某个可观察事件或某种可变数据关系时，配套插件才安装检查；否则它导出一个空安装器，其起始注释以 `No runtime invariant:` 开头，针对该包具体解释为什么没有可检查项。`pnpm run verify-package-invariants` 机械地拒绝「生成文件」标记、无解释的空安装器、遗漏或忽略报告器的非空安装器、错误的注册名称，以及不完整的导出、发布、依赖或打包接线（[机械规则 Agent Note](../../.agents/notes/implemented/architecture/2026-07-19-package-invariant-runtime-contracts.zh.md)）。可执行配套插件的目录与标准组合方式见[包 README](../../packages/runtime-diagnostics/invariants/README.zh.md)。
+每个工作区包都拥有一个 `./invariant` 配套插件（[包约定](../../packages/AGENTS.md)）；发布与注册是穷尽式的，但刻意不合成断言。只有当包拥有某个可观察事件或某种可变数据关系时，配套插件才安装检查；否则它导出一个空安装器，其起始注释以 `No runtime invariant:` 开头，针对该包具体解释为什么没有可检查项。`bun run verify-package-invariants` 机械地拒绝「生成文件」标记、无解释的空安装器、遗漏或忽略报告器的非空安装器、错误的注册名称，以及不完整的导出、发布、依赖或打包接线（[机械规则 Agent Note](../../.agents/notes/implemented/architecture/2026-07-19-package-invariant-runtime-contracts.zh.md)）。可执行配套插件的目录与标准组合方式见[包 README](../../packages/runtime-diagnostics/invariants/README.zh.md)。
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 

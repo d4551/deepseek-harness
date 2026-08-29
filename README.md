@@ -33,12 +33,12 @@ To run from a repository checkout:
 ```sh
 git clone https://github.com/deepseek-ai/deepseek-harness.git
 cd deepseek-harness
-pnpm install
-pnpm run build
-pnpm dsh web
+bun install
+bun run build
+bun run dsh web
 ```
 
-`pnpm run build` prepares the repository artifacts. `pnpm dsh web` uses those built artifacts without rebuilding.
+`bun run build` prepares the repository artifacts. `bun run dsh web` uses those built artifacts without rebuilding.
 
 ## Community and support
 

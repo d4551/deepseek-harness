@@ -51,9 +51,9 @@ Covered automatically by globs — no edits needed: root `package.json` workspac
 ## 4. Verify
 
 ```sh
-pnpm install        # registers the workspace
-pnpm run typecheck
-pnpm run build && pnpm run constraints
+bun install        # registers the workspace
+bun run typecheck
+bun run build && bun run constraints
 ```
 
 Run the behavior checks selected by the [testing policy](../testing.md). The source `paths` map lives once in `tsconfig.base.json` and serves every graph. The important isolation boundary is the project-reference graph: vendored source must be referenced through its own `vendor/<dir>/tsconfig.json`, not pulled into an aggregate's strict program ([layout](../development.md#typescript-project-layout)).

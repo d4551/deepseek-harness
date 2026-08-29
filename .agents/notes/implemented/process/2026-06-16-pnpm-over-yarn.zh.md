@@ -4,6 +4,8 @@ Status: implemented
 
 [English](2026-06-16-pnpm-over-yarn.md) | 中文
 
+已被 [bun 包管理器决策](2026-08-29-bun-package-manager.zh.md)取代；本记录保存它所替换的 pnpm 决策，不再反映仓库当前的安装方式。
+
 ## 问题
 
 本仓库最初使用 **Yarn 4** 搭配 `node-modules` 链接器。这是一个刻意保守的选择：行为类似 npm 的扁平布局，同时享有 Yarn 的 workspaces 和 `yarn constraints`。它能正常工作。但 Yarn 4 源自 Plug'n'Play 的血统，使得 `node-modules` 链接器成为非主流模式；而更广泛的 JS 生态——工具默认值、CI action、Corepack 示例、贡献者的熟悉度——正日益以 pnpm 为中心。对于一个主要由 agent（智能体）构建、偶尔有人类贡献者阅读的仓库而言，「大多数工具和人所期望的包管理器」具有实际价值：更少的意外、更成熟的故障路径、更多可直接复用的解答。

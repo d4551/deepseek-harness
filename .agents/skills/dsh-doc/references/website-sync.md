@@ -62,7 +62,7 @@ Do not write website-specific routes into canonical Markdown just to satisfy Vit
 Run local preview while editing:
 
 ```sh
-pnpm docs:dev
+bun docs:dev
 ```
 
 The dev server watches mapped source files and reprojects them. Restart it after changing the manifest if the new source is not picked up automatically.
@@ -70,7 +70,7 @@ The dev server watches mapped source files and reprojects them. Restart it after
 Run the focused website gate before treating the mapping as valid:
 
 ```sh
-pnpm docs:check
+bun run docs:check
 ```
 
 If Markdown link checks pass but the site build reports a missing fragment, follow the `verify-doc-site-fragments` source and target paths. Preserve the English GitHub id with an explicit alias in authored Markdown or in the owning generator.
@@ -78,9 +78,9 @@ If Markdown link checks pass but the site build reports a missing fragment, foll
 Before committing a documentation-site change, run:
 
 ```sh
-pnpm run test:docs
-pnpm run doc-sync
-pnpm run lint
+bun run test:docs
+bun run doc-sync
+bun run lint
 git diff --check
 ```
 

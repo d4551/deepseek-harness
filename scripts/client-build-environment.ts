@@ -303,7 +303,7 @@ export function readClientBuildRecord(
 ): ClientBuildRecord {
   const path = resolve(root, CLIENT_BUILD_RECORD_PATH)
   if (!existsSync(path)) {
-    throw new Error(`client build record ${CLIENT_BUILD_RECORD_PATH} is missing; run a complete pnpm run build first`)
+    throw new Error(`client build record ${CLIENT_BUILD_RECORD_PATH} is missing; run a complete bun run build first`)
   }
 
   let parsed: unknown
@@ -319,7 +319,7 @@ export function readClientBuildRecord(
   const current = clientArtifactDigest(root)
   if (current.fileCount !== record.artifacts.fileCount || current.sha256 !== record.artifacts.sha256) {
     throw new Error(
-      `client artifacts differ from ${CLIENT_BUILD_RECORD_PATH}; run a complete pnpm run build before consuming them`,
+      `client artifacts differ from ${CLIENT_BUILD_RECORD_PATH}; run a complete bun run build before consuming them`,
     )
   }
   return record

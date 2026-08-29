@@ -28,7 +28,7 @@ pre-commit:
     # lefthook only inspects files present on disk — so that one case still
     # falls through to the freshness assertion in the test lane.
     - name: third-party notices (staged)
-      glob: '{package.json,*/package.json,*/*/package.json,*/*/*/package.json,*/*/*/*/package.json,pnpm-workspace.yaml,*/*/pnpm-workspace.yaml,pnpm-lock.yaml,vendor/README.md,python/*/pyproject.toml,scripts/gen-third-party-notices.ts,scripts/build-exe-for-python-sdk.ts}'
+      glob: '{package.json,*/package.json,*/*/package.json,*/*/*/package.json,*/*/*/*/package.json,bunfig.toml,bun.lock,vendor/README.md,python/*/pyproject.toml,scripts/gen-third-party-notices.ts,scripts/build-exe-for-python-sdk.ts}'
       run: node_modules/.bin/tsx scripts/gen-third-party-notices.ts && git add THIRD_PARTY_NOTICES.md
 
     - name: whitespace (staged)
@@ -52,4 +52,4 @@ pre-merge-commit:
 pre-push:
   jobs:
     - name: typecheck
-      run: pnpm run typecheck
+      run: bun run typecheck

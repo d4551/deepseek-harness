@@ -1,6 +1,6 @@
 name: E2E (real DeepSeek API)
 
-# Real-API end-to-end suite (`pnpm run test:e2e`). Unlike ci.yml this job
+# Real-API end-to-end suite (`bun run test:e2e`). Unlike ci.yml this job
 # consumes the DEEPSEEK_API_KEY_EXTERNAL secret (mapped to the env var
 # DEEPSEEK_API_KEY the tests read) and hits the external API at
 # https://api.deepseek.com (DEEPSEEK_BASE_URL is pinned to it explicitly so a
@@ -67,15 +67,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
 
       - uses: actions/setup-node@v6
         with:
           node-version: 24
-          cache: pnpm
 
       - name: Install (immutable)
-        run: pnpm install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       # The with-key escalation e2e self-skips without a usable runner. Prepare
       # bwrap so trusted CI exercises it; the functional probe remains the
@@ -105,7 +106,7 @@ jobs:
       # the built artifact under plain Node, resolving plugins through real package
       # exports — the shape a real consumer runs. That requires a prior build.
       - name: Build (lib for the e2e example bins)
-        run: pnpm run build:official
+        run: bun run build:official
 
       # Real-API end-to-end tests only. The keyless gates (lint/typecheck/
       # coverage/snapshot/etc.) already run in ci.yml (pull requests) and
@@ -118,4 +119,4 @@ jobs:
           DEEPSEEK_BASE_URL: https://api.deepseek.com
           DSH_E2E_MAX_WORKERS: 4
           DSH_EXAMPLE_MODE: lib
-        run: pnpm run test:e2e
+        run: bun run test:e2e

@@ -30,8 +30,8 @@ English | [中文](README.zh.md)
 From this repository checkout, add the package to an initialized profile, then run a task that asks the Lead to delegate work:
 
 ```sh
-pnpm dsh plugin --profile headless add ./packages/experimental/agent-team-profile
-pnpm dsh --profile headless "Use Agent Teams to split this task between two teammates, wait, and summarize."
+bun run dsh plugin --profile headless add ./packages/experimental/agent-team-profile
+bun run dsh --profile headless "Use Agent Teams to split this task between two teammates, wait, and summarize."
 ```
 
 The profile must already contain `@deepseek-ai/dsh-base`, whose Subagent services and provider rows this layer consumes. Removing the package with `dsh plugin --profile <name> remove @deepseek-ai/dsh-experimental-agent-team-profile` removes the bundle from the profile's ordered layer list.

@@ -374,3 +374,131 @@ describe('formatRetentionNotice', () => {
     expect(out).toBe('Omitted 500 bytes. Kept 2000B head + 2000B tail.')
   })
 })
+
+/** Retain exactly `maxBytes` leading bytes of one pushed buffer. */
+const headOf = (bytes: Uint8Array, maxBytes: number): string => {
+  const retainer = new TextRetainer({ kind: 'head', maxBytes })
+  retainer.push(bytes)
+  return retainer.finish().text
+}
+
+describe('TextRetainer - UTF-8 cut boundaries', () => {
+  /** Retain exactly `maxBytes` trailing bytes of one pushed buffer. */
+  const tailOf = (bytes: Uint8Array, maxBytes: number): string => {
+    const retainer = new TextRetainer({ kind: 'tail', maxBytes })
+    retainer.push(bytes)
+    return retainer.finish().text
+  }
+
+  /** U+FFFD, what a non-fatal decoder emits for each malformed byte. */
+  const REPLACEMENT = '�'
+  /** Four UTF-8 bytes. */
+  const GRINNING = '\u{1F600}'
+  /** Two UTF-8 bytes. */
+  const E_ACUTE = 'é'
+  /** Three UTF-8 bytes. */
+  const SNOWMAN = '☃'
+
+  it('drops a trailing sequence cut after one, two, or three of its four bytes', () => {
+    const emoji = utf8(`a${GRINNING}`)
+    expect(emoji).toHaveLength(5)
+    expect(headOf(emoji, 2)).toBe('a')
+    expect(headOf(emoji, 3)).toBe('a')
+    expect(headOf(emoji, 4)).toBe('a')
+    expect(headOf(emoji, 5)).toBe(`a${GRINNING}`)
+  })
+
+  it('keeps a complete two- and three-byte sequence and drops each incomplete one', () => {
+    const two = utf8(`a${E_ACUTE}`)
+    expect(headOf(two, 2)).toBe('a')
+    expect(headOf(two, 3)).toBe(`a${E_ACUTE}`)
+    const three = utf8(`a${SNOWMAN}`)
+    expect(headOf(three, 2)).toBe('a')
+    expect(headOf(three, 3)).toBe('a')
+    expect(headOf(three, 4)).toBe(`a${SNOWMAN}`)
+  })
+
+  it('leaves a continuation run longer than any sequence untouched', () => {
+    // Five continuation bytes cannot belong to one sequence, so the scan stops
+    // and the buffer is returned for the decoder to replace.
+    const run = Uint8Array.from([0x80, 0x80, 0x80, 0x80, 0x80])
+    expect(headOf(run, 5)).toBe(REPLACEMENT.repeat(5))
+  })
+
+  it('leaves a buffer that is only continuation bytes untouched', () => {
+    expect(headOf(Uint8Array.from([0x80]), 1)).toBe(REPLACEMENT)
+    expect(headOf(Uint8Array.from([0x80, 0x80]), 2)).toBe(REPLACEMENT.repeat(2))
+  })
+
+  it('leaves a byte that is not a valid lead untouched', () => {
+    // 0xf8 starts no sequence, so the trailing continuation stays put.
+    expect(headOf(Uint8Array.from([0xf8, 0x80]), 2)).toBe(REPLACEMENT.repeat(2))
+  })
+
+  it('classifies the lead byte at each sequence-length boundary', () => {
+    // Each cap sits one byte below the input, so the cut is real and the trim runs.
+    // 0x7f is a complete one-byte sequence; a lone 0xdf, 0xe0, or 0xf0 is not.
+    expect(headOf(Uint8Array.from([0x41, 0x7f, 0x41]), 2)).toBe('A\u007f')
+    expect(headOf(Uint8Array.from([0x41, 0xdf, 0xbf]), 2)).toBe('A')
+    expect(headOf(Uint8Array.from([0xe0, 0xa0, 0x80]), 2)).toBe('')
+    expect(headOf(Uint8Array.from([0xe0, 0xa0, 0x80, 0x41]), 3)).toBe('\u0800')
+    expect(headOf(Uint8Array.from([0xf0, 0x9f, 0x98, 0x80]), 3)).toBe('')
+    expect(headOf(Uint8Array.from([0xf0, 0x9f, 0x98, 0x80, 0x41]), 4)).toBe(GRINNING)
+  })
+
+  it('drops leading continuation bytes at a suffix cut', () => {
+    const emoji = utf8(`${GRINNING}b`)
+    expect(emoji).toHaveLength(5)
+    expect(tailOf(emoji, 2)).toBe('b')
+    expect(tailOf(emoji, 3)).toBe('b')
+    expect(tailOf(emoji, 4)).toBe('b')
+    expect(tailOf(emoji, 5)).toBe(`${GRINNING}b`)
+  })
+
+  it('keeps a suffix that already starts on a lead byte', () => {
+    expect(tailOf(utf8('ab'), 2)).toBe('ab')
+    expect(tailOf(Uint8Array.from([0x41, 0xdf, 0xbf]), 2)).toBe('\u07ff')
+  })
+})
+
+describe('TextRetainer - head and tail budgets together', () => {
+  it('reports omitted bytes from the two caps rather than their sum with the prefix', () => {
+    const retainer = new TextRetainer({ kind: 'headTail', headBytes: 2, tailBytes: 3 })
+    retainer.push(utf8('abcdefghij'))
+    const result = retainer.finish()
+
+    expect(result.text).toBe('abhij')
+    expect(result.truncated).toBe(true)
+    expect(result.omittedBytes).toEqual({ kind: 'exact', count: 5 })
+  })
+
+  it('keeps the smaller of the remaining stream and the tail cap', () => {
+    const retainer = new TextRetainer({ kind: 'headTail', headBytes: 2, tailBytes: 8 })
+    retainer.push(utf8('abcde'))
+    const result = retainer.finish()
+
+    expect(result.text).toBe('abcde')
+    expect(result.truncated).toBe(false)
+    expect(result.omittedBytes).toEqual({ kind: 'none' })
+  })
+
+  it('marks the exact push that crosses the combined budget', () => {
+    const retainer = new TextRetainer({ kind: 'headTail', headBytes: 2, tailBytes: 2 })
+    expect(retainer.push(utf8('ab'))).toEqual({ kept: true, truncated: false })
+    expect(retainer.push(utf8('cd'))).toEqual({ kept: true, truncated: false })
+    expect(retainer.push(utf8('ef'))).toEqual({ kept: false, truncated: true })
+    expect(retainer.finish().text).toBe('abef')
+  })
+})
+
+describe('TextRetainer - sequence length decides what a cut keeps', () => {
+  it('keeps a complete two-byte sequence that a longer length would have trimmed', () => {
+    // The cut leaves exactly two bytes after the lead. Reading 0xdf as a
+    // two-byte lead keeps the sequence; reading it as three would drop it.
+    expect(headOf(Uint8Array.from([0x41, 0xdf, 0xbf, 0x41]), 3)).toBe('A߿')
+  })
+
+  it('keeps a complete three-byte sequence that a longer length would have trimmed', () => {
+    expect(headOf(Uint8Array.from([0x41, 0xe0, 0xa0, 0x80, 0x41]), 4)).toBe('Aࠀ')
+  })
+})

@@ -21,15 +21,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
 
       - uses: actions/setup-node@v6
         with:
           node-version: 24
-          cache: pnpm
 
       - name: Install (immutable)
-        run: pnpm install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       # The tests self-skip locally when the credential is absent. A manually
       # dispatched run must fail instead of reporting an all-skipped green.
@@ -46,7 +47,7 @@ jobs:
 
       # The Loader smoke runs package exports under plain Node in lib mode.
       - name: Build (lib for the E2B Loader smoke)
-        run: pnpm run build:official
+        run: bun run build:official
 
       - name: E2B tests (live sandbox)
         env:
@@ -54,5 +55,5 @@ jobs:
           DSH_E2E_MAX_WORKERS: '1'
           DSH_EXAMPLE_MODE: lib
         run: >-
-          pnpm exec vitest run --config vitest.e2e.config.ts
+          bun x vitest run --config vitest.e2e.config.ts
           packages/e2b/e2b/tests/composition.e2e.ts

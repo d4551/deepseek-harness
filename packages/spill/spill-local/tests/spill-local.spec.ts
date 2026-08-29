@@ -267,10 +267,14 @@ describe('startup cleanup sweep', () => {
   it('keeps a file exactly at the boundary (only strictly-older expires)', async () => {
     const dir = sessionDir(root, 'sess-1')
     mkdirSync(dir, { recursive: true })
-    const cutoffMs = Date.now() - 30 * DAY_MS
     const boundary = join(dir, 'boundary.txt')
     writeFileSync(boundary, 'x')
-    utimesSync(boundary, cutoffMs / 1000, cutoffMs / 1000)
+    utimesSync(boundary, (Date.now() - 30 * DAY_MS) / 1000, (Date.now() - 30 * DAY_MS) / 1000)
+    // The seconds round-trip goes through a double, so the stored mtime can
+    // land a fraction of a millisecond below the value asked for. Reading it
+    // back is what makes "exactly at the boundary" exact, instead of leaving
+    // the case under test dependent on the current wall clock.
+    const cutoffMs = statSync(boundary).mtimeMs
     await sweepSpillRoots({ roots: [active(root)], cutoffMs, warn: () => {} })
     expect(existsSync(boundary)).toBe(true)
   })

@@ -641,8 +641,8 @@ describe('translation pairing merge composition', { timeout: 15_000 }, () => {
     })
 
     expect(result.status).toBe(1)
-    expect(result.stderr).toContain('pnpm run verify-translation-pairing --write <pair>')
-    expect(result.stderr).toContain('pnpm run resolve-translation-pairing-conflicts')
+    expect(result.stderr).toContain('bun run verify-translation-pairing --write <pair>')
+    expect(result.stderr).toContain('bun run resolve-translation-pairing-conflicts')
   })
 
   it('resolves an already-stopped generated-only conflict from index stages', () => {

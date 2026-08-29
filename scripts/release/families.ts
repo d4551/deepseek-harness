@@ -386,7 +386,7 @@ class VendorFamily extends ReleaseFamily {
    * export `./src/*` for source navigation, so dropping `src` would publish a
    * package whose export map points at absent files. What must hold instead is
    * that every path the manifest selects is present, which `files` already
-   * decides and `pnpm pack` already enforces.
+   * decides and `bun pm pack` already enforces.
    * @param member - the packed member.
    * @param files - every path inside its tarball.
    */
@@ -418,7 +418,7 @@ export function releaseFamily(id: string): ReleaseFamily {
 }
 
 /**
- * The npm tarball filename `pnpm pack` writes for a member.
+ * The npm tarball filename `bun pm pack` writes for a member.
  * @param member - the packed member.
  * @returns The tarball filename.
  */
