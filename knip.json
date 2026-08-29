@@ -37,6 +37,9 @@
         "scripts/**/*.mjs",
         "scripts/**/*.cjs",
         "snapshots/**/*.mjs"
+      ],
+      "ignoreDependencies": [
+        "@deepseek-ai/.+"
       ]
     },
     "packages/host/directory-picker-auto": {
@@ -712,16 +715,6 @@
       "entry": [
         "tests/**/*.spec.ts",
         "tests/fixtures/loader/driver.ts"
-      ],
-      "project": [
-        "src/**/*.ts",
-        "tests/**/*.ts"
-      ]
-    },
-    "packages/test-support/loader-smoke": {
-      "entry": [
-        "tests/**/*.spec.ts",
-        "tests/fixtures/*.ts"
       ],
       "project": [
         "src/**/*.ts",

@@ -142,6 +142,7 @@ External packages **directly declared** only by repository tooling, test infrast
 | [`@lexical/headless`](https://github.com/facebook/lexical) | MIT |
 | [`@modelcontextprotocol/server-everything`](https://github.com/modelcontextprotocol/servers) | MIT / Apache-2.0 |
 | [`@modelcontextprotocol/server-filesystem`](https://github.com/modelcontextprotocol/servers) | MIT / Apache-2.0 |
+| [`@stryker-mutator/api`](https://github.com/stryker-mutator/stryker-js) | Apache-2.0 |
 | [`@stryker-mutator/core`](https://github.com/stryker-mutator/stryker-js) | Apache-2.0 |
 | [`@stryker-mutator/vitest-runner`](https://github.com/stryker-mutator/stryker-js) | Apache-2.0 |
 | [`@stylistic/eslint-plugin`](https://github.com/eslint-stylistic/eslint-stylistic) | MIT |
