@@ -36,11 +36,16 @@ export default {
   // No exclusions: a `types.ts` carries no runtime code and so yields no
   // mutants on its own, and every other file in the tier is in scope.
   mutate: ['packages/util/*/src/**/*.ts'],
-  // Recorded score for this scope is rewritten after the next measured run.
-  // The previous 96.92 / break 96.8 figure was not reproduced on this tree
-  // (96.58 of 818, 28 survivors). `break` stays at the last honest measured
-  // floor until a new run replaces it.
-  thresholds: { high: 100, low: 96.5, break: 96.5 },
+  // Recorded score from the 2026-08-30 measured run: 99.08 (757 detected of
+  // 764; 7 survivors, each verified equivalent in context — a lock-contention
+  // catch arm whose sole call site reads truthiness, a loop bound whose extra
+  // iteration slices an empty range, a symmetric case-fold, a regex
+  // replacement whose block is extracted by a later regex regardless, a
+  // missing-block early return whose subsequent match returns the same
+  // undefined, an out-of-bounds walk exit, and a lead byte the walk cannot
+  // stop on).
+  // One mutant is 0.131%, so break 98.9 fails on the second new survivor.
+  thresholds: { high: 100, low: 98.9, break: 98.9 },
   // Agent-session state and build output are not project sources; Stryker copies
   // the working tree into its sandbox, and `.claude/skills` is a directory
   // symlink its file copier cannot follow.

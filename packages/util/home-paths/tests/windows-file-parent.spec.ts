@@ -26,7 +26,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   return {
     ...actual,
     realpath: async (path: Parameters<typeof actual.realpath>[0]) => {
-      if (String(path).endsWith('child')) {
+      if (String(path).endsWith('child') || String(path).includes('unresolvable') || String(path) === '/') {
         const error: NodeJS.ErrnoException = new Error('ENOENT: no such file or directory')
         error.code = 'ENOENT'
         throw error
@@ -60,5 +60,11 @@ describe('canonicalizeWatchPath on a Windows-style ENOENT', () => {
     root = await mkdtemp(join(tmpdir(), 'dsh-file-parent-ok-'))
     // The ancestor is realpath'd; macOS tmpdir is /var → /private/var.
     await expect(canonicalizeWatchPath(join(root, 'child'))).resolves.toBe(join(await realpath(root), 'child'))
+  })
+
+  it('fails loud when even the filesystem root refuses to resolve', async () => {
+    // Every ancestor answers ENOENT, the root included: the walk must rethrow
+    // at the root instead of descending forever.
+    await expect(canonicalizeWatchPath('/unresolvable-a1/deep/leaf')).rejects.toMatchObject({ code: 'ENOENT' })
   })
 })

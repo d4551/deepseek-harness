@@ -58,7 +58,6 @@ export interface LaunchEnvironmentSnapshot {
  * @returns the key to store and look up by.
  */
 function lookupKey(name: string): string {
-  /* v8 ignore next -- native Windows coverage exercises the folding arm; POSIX covers the exact one */
   return process.platform === 'win32' ? name.toUpperCase() : name
 }
 
@@ -78,10 +77,10 @@ export interface LaunchEnvironmentLayerInput {
 export function createLaunchEnvironmentSnapshot(layers: readonly LaunchEnvironmentLayerInput[]): LaunchEnvironmentSnapshot {
   // Copy every layer so later mutations cannot change the snapshot. Fold names
   // on Windows so case variants cannot split precedence; POSIX remains exact.
-  const bySource = new Map<LaunchEnvironmentSource, { path?: string; values: Map<string, string> }>()
+  const bySource = new Map<LaunchEnvironmentSource, { path: string | undefined; values: Map<string, string> }>()
   for (const layer of layers) {
     bySource.set(layer.source, {
-      ...layer.path === undefined ? {} : { path: layer.path },
+      path: layer.path,
       values: new Map(Object.entries(layer.values).map(([name, value]) => [lookupKey(name), value])),
     })
   }
@@ -90,9 +89,10 @@ export function createLaunchEnvironmentSnapshot(layers: readonly LaunchEnvironme
     for (const source of SOURCE_ORDER) {
       if (!sources.includes(source)) continue
       const layer = bySource.get(source)
-      const value = layer?.values.get(key)
+      if (layer === undefined) continue
+      const value = layer.values.get(key)
       if (value === undefined) continue
-      return { value, source, ...layer?.path === undefined ? {} : { path: layer.path } }
+      return { value, source, ...layer.path === undefined ? {} : { path: layer.path } }
     }
     return undefined
   }

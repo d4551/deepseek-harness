@@ -15,13 +15,10 @@ const decoder = new TextDecoder() // utf-8, non-fatal: internal malformed bytes 
  * A complete tail, or a run that is not a lead, is returned untouched.
  */
 function trimTrailingPartialUtf8(bytes: Uint8Array): Uint8Array {
-  if (bytes.length === 0) return bytes
   let start = bytes.length - 1
   while (start >= 0 && ((bytes[start] as number) & 0xc0) === 0x80) start -= 1
-  if (start < 0) return bytes
   const lead = bytes[start] as number
   const need = lead < 0x80 ? 1 : lead < 0xe0 ? 2 : lead < 0xf0 ? 3 : lead < 0xf8 ? 4 : 0
-  if (need === 0) return bytes
   return bytes.length - start < need ? bytes.subarray(0, start) : bytes
 }
 

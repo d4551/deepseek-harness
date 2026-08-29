@@ -6,7 +6,7 @@ import { Context } from '@deepseek-ai/cordis'
 import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
 import type { TypertContribution } from '@deepseek-ai/dsh-typert-registry/types'
 import { EVENT_API, SERVICE_API, TYPE_API } from '@deepseek-ai/dsh-tool-cordis/src/api-catalog.ts'
-import { WorkspaceAnalyzer } from '../src/analyzer.ts'
+import { WorkspaceAnalyzer } from '../src/analyzer-workspace.ts'
 import { FaceModelEmitter } from '../src/emitter.ts'
 
 const workspaceRoot = resolve(import.meta.dirname, '../../../..')

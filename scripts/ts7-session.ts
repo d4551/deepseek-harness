@@ -144,3 +144,16 @@ export function parseConfigFile(path: string): {
     outDir: typeof outDir === 'string' ? outDir : undefined,
   }
 }
+
+/**
+ * Syntactic diagnostics for one on-disk file already opened through this session.
+ * @param file - absolute path of a source file this session has parsed.
+ * @returns flattened diagnostic messages, empty when the file parses.
+ */
+export function syntacticDiagnostics(file: string): string[] {
+  const snapshot = compiler().updateSnapshot({ openFiles: [file] })
+  const project = snapshot.getDefaultProjectForFile(file)
+  if (project === undefined) return [`ts7: no project for ${file}`]
+  return project.program.getSyntacticDiagnostics(file).map(diagnostic =>
+    flattenDiagnosticMessageText(diagnostic, '\n'))
+}

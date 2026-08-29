@@ -5,8 +5,9 @@
 
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { TypertAnalysisError, WorkspaceAnalyzer, WorkspaceCaches } from './analyzer.ts'
-import type { DiscoveredTypertPackage } from './analyzer.ts'
+import { TypertAnalysisError } from './analyzer-error.ts'
+import type { DiscoveredTypertPackage } from './analyzer-types.ts'
+import { WorkspaceAnalyzer, WorkspaceCaches } from './analyzer-workspace.ts'
 import { FaceModelEmitter } from './emitter.ts'
 import type { ModelEmitResult } from './emitter.ts'
 import type { TypertFace } from './model.ts'

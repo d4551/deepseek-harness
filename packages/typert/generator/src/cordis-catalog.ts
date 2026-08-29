@@ -5,7 +5,7 @@
  * @module @deepseek-ai/dsh-typert-generator
  */
 
-import { WorkspaceAnalyzer, WorkspaceCaches } from './analyzer.ts'
+import { WorkspaceAnalyzer, WorkspaceCaches } from './analyzer-workspace.ts'
 import { childTypeNodeIds } from './model.ts'
 import { TypeGraphRenderer } from './renderer.ts'
 import type {
