@@ -20,7 +20,8 @@ Status: implemented
 - **测试运行器被固定到实现了 `import.meta.resolve` 的 vite 上。** vitest 声明 `vite` 为 `^6 || ^7 || ^8`，而 bun 用依赖图中已存在的最低版本满足它——即 `apps/web` 固定的 6.4.3——pnpm 则安装 8.x。vite 5 与 6 的 module runner 拒绝 `import.meta.resolve`，而产品源码用它按 `import` 导出条件解析。根级 `vite` devDependency 加上作用域化的 `overrides.vitest.vite` 恢复了该配对；该 override 只在解析结果中已存在 vite 8 时才生效，因此两者缺一不可。
 - **GitHub CI 通过 `setup-bun` 装配 bun；GitLab 自行安装。** GitLab 原先执行 `corepack enable`，而 corepack 只为 npm、pnpm 与 yarn 提供 shim，无法提供 bun，因此两个 wheel 作业改为按 `packageManager` 中的版本从上游安装脚本装入 bun，并断言实际安装的版本与该锁定值一致。
 - CI、GitLab CI、lefthook、包脚本、发布脚本与文档中可执行的 `pnpm …` 动词改写为 bun 拼法。`.gitignore` 将 `.pnpm-store/` 换成 bun 的对应项。
-- **仍写着 `pnpm` 的部分，用计数而非归类来说明。** 204 份已归档 Agent Note，按归档策略冻结。147 份已实现 Agent Note，其中记录的命令已过时：这是待办工作，而非一项决定。4 处 client 测试夹具中的示例字符串，描述的是产品用户在自己项目中运行的命令。2 处注释分别说明 corepack 提供哪些 shim、以及 Stryker 的 `packageManager` 接受哪些取值——它们陈述的是那些工具的事实，而非本仓库的事实。vendored 文件中一处也没有——本清单的早先版本声称存在一项 Vendoring Policy 例外，而该例外覆盖的文件数为零。
+- **仍写着 `pnpm` 的部分，用计数而非归类来说明。** 204 份已归档 Agent Note，按归档策略冻结。147 份已实现 Agent Note，其中记录的命令已过时：这是待办工作，而非一项决定。4 处 client 测试夹具中的示例字符串，描述的是产品用户在自己项目中运行的命令。2 处注释分别说明 corepack 提供哪些 shim、以及 Stryker 的 `packageManager` 接受哪些取值——它们陈述的是那些工具的事实，而非本仓库的事实。vendored 文件中一处也没有——本清单的早先版本声称存在一项 Vendoring Policy 例外，而该例外覆盖的文件数为零。另有三份记录提及该词，因为它正是它们的主题：本记录、[审计循环记录](../../../audit-loop.md)，以及下述 gate。
+- **该清单由检查保证，而非靠相信。** `scripts/bun-conversion-residue.spec.ts` 断言每一处被跟踪的出现都落在上述类别之内，并另行断言任何 workflow、manifest、lockfile、apps 与 native 路径中都不含该词——那些地方的过时动词会直接让构建失败，而不只是读起来别扭。落在类别之外的出现会让该运行失败；而这正是本清单还是散文时做不到的事。
 
 ## Runner isolation
 
