@@ -266,7 +266,7 @@ export function standardKitMembers(files: readonly ScannedFile[], interfaceName:
         for (const member of statement.members) {
           if (!isPropertySignatureDeclaration(member)) continue
           const type = member.type.getText(file.sf)
-          out.push(`${member.name.getText(file.sf)}${member.questionToken === undefined ? '' : '?'}: ${collapse(type)}`)
+          out.push(`${member.name.getText(file.sf)}${member.postfixToken?.kind === SyntaxKind.QuestionToken ? '?' : ''}: ${collapse(type)}`)
         }
       }
     }

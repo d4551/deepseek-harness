@@ -1,20 +1,53 @@
 /**
  * Shared JSDoc parsing and completeness checks for the Cordis, persistence,
  * and config catalogs and the exported-API gate.
+ *
+ * Node/source types are structural: TypeScript 7 `unstable/ast` nodes satisfy
+ * them, and comment-range scanning uses `typescript/unstable/ast/scanner`.
  */
 
-import type { Node, ParameterDeclaration, SourceFile, TypeNode } from 'typescript/unstable/ast'
-import { isIdentifier } from 'typescript/unstable/ast/is'
 import { getLeadingCommentRanges } from 'typescript/unstable/ast/scanner'
 
+/** Source file that can map a UTF-16 offset to a 0-based line. */
+export interface JsDocSourceFile {
+  getLineAndCharacterOfPosition(position: number): { line: number }
+}
+
+/** Syntax node that can report its span and text. */
+export interface JsDocNode {
+  getStart(sourceFile?: JsDocSourceFile, includeJsDocComment?: boolean): number
+  getFullStart(): number
+  getText(sourceFile?: JsDocSourceFile): string
+}
+
+/** Parameter name: an identifier has `text`; a binding pattern does not. */
+export interface JsDocName {
+  readonly text?: string
+  getText(sourceFile?: JsDocSourceFile): string
+}
+
+/** One function-like parameter for `@param` completeness. */
+export interface JsDocParameter {
+  readonly name: JsDocName
+}
+
+/** Return-type annotation used to decide whether `@returns` is required. */
+export interface JsDocTypeNode {
+  getText(sourceFile?: JsDocSourceFile): string
+}
+
+function isSimpleIdentifier(name: JsDocName): name is JsDocName & { readonly text: string } {
+  return typeof name.text === 'string'
+}
+
 /** Repo-relative source pointer `file:line` for a node's first character. */
-export function pointer(rel: string, sf: SourceFile, node: Node): string {
+export function pointer(rel: string, sf: JsDocSourceFile, node: JsDocNode): string {
   const { line } = sf.getLineAndCharacterOfPosition(node.getStart(sf))
   return `${rel}:${line + 1}`
 }
 
 /** The raw `/** … *​/` JSDoc block immediately preceding a node, or '' if none. */
-export function rawJsDoc(text: string, node: Node): string {
+export function rawJsDoc(text: string, node: JsDocNode): string {
   const ranges = getLeadingCommentRanges(text, node.getFullStart()) ?? []
   const jsdoc = ranges.filter(r => text.slice(r.pos, r.pos + 3) === '/**').at(-1)
   return jsdoc ? text.slice(jsdoc.pos, jsdoc.end) : ''
@@ -136,14 +169,14 @@ export function parseTags(raw: string): { params: Map<string, string>; returns: 
 export function checkParams(
   where: string,
   apiKind: string,
-  parameters: readonly ParameterDeclaration[],
+  parameters: readonly JsDocParameter[],
   tags: Map<string, string>,
-  sf: SourceFile,
-  isExempt: (p: ParameterDeclaration) => boolean,
+  sf: JsDocSourceFile,
+  isExempt: (p: JsDocParameter) => boolean,
   violations: string[],
 ): void {
   for (const p of parameters) {
-    if (!isIdentifier(p.name)) {
+    if (!isSimpleIdentifier(p.name)) {
       violations.push(`${where}: parameter '${p.name.getText(sf)}' is a binding pattern; the ${apiKind} API needs simple identifier parameters so @param can name them.`)
       continue
     }
@@ -153,7 +186,7 @@ export function checkParams(
     else if (!desc.trim()) violations.push(`${where}: @param ${p.name.text} has an empty description.`)
   }
   for (const tag of tags.keys()) {
-    if (!parameters.some(p => isIdentifier(p.name) && p.name.text === tag)) {
+    if (!parameters.some(p => isSimpleIdentifier(p.name) && p.name.text === tag)) {
       violations.push(`${where}: @param ${tag} does not match any parameter (stale tag?).`)
     }
   }
@@ -172,9 +205,9 @@ export function checkParams(
  */
 export function checkReturns(
   where: string,
-  typeNode: TypeNode | undefined,
+  typeNode: JsDocTypeNode | undefined,
   returns: string | null,
-  sf: SourceFile,
+  sf: JsDocSourceFile,
   violations: string[],
 ): void {
   if (typeNode === undefined) {

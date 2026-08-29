@@ -27,7 +27,7 @@
 
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import type { ExportDeclaration, Identifier, ImportDeclaration, ModuleExportName } from 'typescript/unstable/ast'
+import type { ExportDeclaration, Identifier, ImportDeclaration, StringLiteral } from 'typescript/unstable/ast'
 import { SyntaxKind } from 'typescript/unstable/ast'
 import {
   isExportDeclaration,
@@ -120,7 +120,7 @@ function optionalFor(projectRoot: string, relativePath: string): Map<string, Opt
  * @returns True when the binding carries value meaning, and on an unresolved
  * symbol, so an unresolvable binding fails closed.
  */
-function bindsValue(name: Identifier | ModuleExportName, checker: Checker): boolean {
+function bindsValue(name: Identifier | StringLiteral, checker: Checker): boolean {
   const symbol = checker.getSymbolAtLocation(name)
   if (symbol === undefined) return true
   const target = (symbol.flags & SymbolFlags.Alias) === 0 ? symbol : checker.getAliasedSymbol(symbol)
