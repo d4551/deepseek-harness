@@ -45,8 +45,8 @@ for (const manifestPath of manifests) {
   }
 
   // Keep the staged view below its owning package so Node reaches the real
-  // pnpm dependency links. Junctioning node_modules elsewhere breaks pnpm's
-  // relative workspace links on Windows. Copy the manifest-declared lib view
+  // dependency links. Junctioning node_modules elsewhere breaks the isolated
+  // linker's relative workspace links on Windows. Copy the manifest-declared lib view
   // so a companion that imports an undeclared runtime chunk fails here.
   const stagedPackageDir = mkdtempSync(resolve(packageDir, '.dsh-built-invariant-'))
   try {

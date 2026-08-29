@@ -6,11 +6,11 @@ import { describe, expect, it } from 'vitest'
 const root = resolve(import.meta.dirname, '..')
 /**
  * `oven-sh/setup-bun` installs unconditionally into `~/.bun/bin`, with no input
- * for a per-job destination, so two halves replace pnpm's per-job `dest`: every
- * job pins the SAME bun version, so concurrent installs of the binary write
- * identical bytes; and every job points `BUN_INSTALL` at a run-private
- * directory, so the mutable state they would otherwise contend on — bun's
- * install cache and global directory — is not shared at all.
+ * for a per-job destination. Two halves keep concurrent jobs on one runner from
+ * contending: every job pins the SAME bun version, so concurrent installs of the
+ * binary write identical bytes; and every job points `BUN_INSTALL` at a
+ * run-private directory, so the mutable state they would otherwise contend on —
+ * bun's install cache and global directory — is not shared at all.
  */
 const MANIFEST_PINNED_BUN_VERSION_FILE = 'package.json'
 const RUN_PRIVATE_BUN_INSTALL = '${{ runner.temp }}/bun-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}'

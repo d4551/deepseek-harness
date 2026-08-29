@@ -1,6 +1,6 @@
 """Drive the repo-source dsh SDK profile through the SDK and a keyless mock SSE server.
 
-Requires ``pnpm install`` but no build. This manual test is not collected by
+Requires ``bun install`` but no build. This manual test is not collected by
 pytest; run ``python tests/manual_sdk_agent_smoke.py``.
 """
 
