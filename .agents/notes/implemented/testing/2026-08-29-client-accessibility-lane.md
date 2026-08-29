@@ -50,4 +50,4 @@ The lane covers `ui-primitives`, `ui-attachment`, `ui-user-questions`, `ui-goal`
 
 **An audit reads the whole document, so it audits only what it mounted.** Suites that render without an `afterEach` cleanup leave earlier trees in the body, and those landmark-less leftovers are not the surface's defect. The approval-command audit clears them before mounting rather than excusing the `region` rule they trip.
 
-The remaining composed surfaces — chat, settings, workspace — are still unaudited. Each needs its feature suite's context to render, which is the work this note leaves open, and it is most of the client: ten of the 37 packages under `packages/client/` are audited today.
+The remaining composed surfaces — chat, settings, workspace — are still unaudited. Each needs its feature suite's context to render, which is the work this note leaves open, and it is most of the client: ten of the 43 packages under `packages/client/` are audited today.

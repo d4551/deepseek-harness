@@ -50,4 +50,4 @@ axe-core 在加载时会触碰 jsdom 的全局对象。经由 [`dsh-client-test-
 
 **审计读取的是整个文档，因此它只审计自己挂载的内容。** 未设置 `afterEach` 清理的套件会把先前的树留在 body 中，而那些不在 landmark 内的残留并非该 surface 的缺陷。approval-command 的审计在挂载前先清理它们，而不是为它们触发的 `region` 规则开脱。
 
-其余组合而成的界面——chat、settings、workspace——仍未受审。每一个都需要其功能套件的上下文才能渲染，这正是本记录留待完成的工作，而它占了 client 的大部分：`packages/client/` 下的 37 个包中，今天受审的是十个。
+其余组合而成的界面——chat、settings、workspace——仍未受审。每一个都需要其功能套件的上下文才能渲染，这正是本记录留待完成的工作，而它占了 client 的大部分：`packages/client/` 下的 43 个包中，今天受审的是十个。

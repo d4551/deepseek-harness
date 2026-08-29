@@ -52,12 +52,45 @@ The 13 unit failures reproduce identically at the manifest from before the
 workspace-resolution fix, so they are not this branch's. Their causes look
 environmental — the suite runs as root, so cases that expect a permission or
 unreadable-file error get none, and one binds IPv6, which this host lacks — but
-that has not been proven by running them as a non-root user, which is the first
-thing the upgrade phase does rather than assume.
+that is now proven rather than assumed. Running the same five files as a
+non-root user clears every permission-shaped failure — `bash-sandbox` alone goes
+from failing to 59 passing — and leaves only the IPv6 listener, which this host
+genuinely cannot bind. Running under `su` introduces its own timing failures in
+the abort and disconnect tests, so that harness is a diagnostic, not a lane.
 
-The single snapshot failure is `bash-tool`, which needs a usable sandbox
-backend. `musl-tools` is installable here, so the landlock launcher can be
-built and that failure is expected to clear.
+The single snapshot failure was `bash-tool`, which needs a usable sandbox
+backend. It is now fixed and the lane is green: 107 passed, 2 skipped, none
+failing.
+
+Calling that failure environmental was wrong twice over. `musl-tools` installs
+here, so the landlock launcher builds — but this kernel does not enforce
+Landlock, so that alone was not enough. The error names the alternative, and
+`bubblewrap` installs and works here too. CI has been provisioning it all along
+through `scripts/prepare-ci-bubblewrap.sh`; the container was missing a
+prerequisite the repository already documents, which is not the same thing as
+a test that cannot pass.
+
+## After TypeScript 7.0.2 — measured, not carried forward
+
+The table above is the pre-upgrade state. These are the same lanes re-run once
+TypeScript 7 had landed, because a lane's result is only current if it was run
+in the state being reported.
+
+| Lane | Result |
+| --- | --- |
+| `bun run typecheck` | 0 errors |
+| `bun run build` | exit 0 |
+| `bun run lint` | exit 0 |
+| `bun run test:docs` | 15 gates pass |
+| `bun run test:snapshot` | **107 passed, 2 skipped, 0 failed** |
+| `bun run test` | 14 failed, 17,461 passed, 89 skipped of 17,564 |
+
+TypeScript 7 introduced no regression. The unit suite went from 13 failures to
+14, and the one added file is `code-runtime-worker-thread`, whose OOM
+containment case times out under full-suite concurrency and passes in isolation
+with its other 57. The other 13 are the pre-existing set: four permission-shaped
+cases that only fail because the suite runs as root, one IPv6 listener this host
+cannot bind, and the subagent suites that need external binaries.
 
 ## What this container cannot tell us
 
