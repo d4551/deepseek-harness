@@ -339,6 +339,16 @@ describe('Oxlint gate', () => {
   })
 })
 
+describe('mutation ratchet', () => {
+  it('runs in the aggregates CI and a local full check execute', () => {
+    // A recorded threshold that nothing executes is a number, not a ratchet.
+    for (const mode of ['ci-primary', 'ci-linux-primary', 'check-all'] as const) {
+      const ids = withBunEntrypoint(() => gatesForMode(mode).map(gate => gate.id))
+      expect(ids, `${mode} must run the mutation gate`).toContain('mutation')
+    }
+  })
+})
+
 describe('Typert contract preparation', () => {
   it('prepares primary source consumers once before they run', () => {
     const subject = withEnv('DSH_OXLINT_THREADS', undefined, () =>

@@ -45,4 +45,6 @@ Stryker 以 Vitest runner 在 `packages/util/*/src` 上运行，配置见 [stryk
 
 新增该通道把 `docs/testing.md` 的字数上限从 1150 提到 1200：层级列表多了一条通道，且覆盖率层级现在会描述其门禁所承载的各类排除，而不再只提 `pwsh` 一项——旧表述读起来仿佛那是唯一的豁免。
 
-尚未构建：记录分数随时间变化的每夜 job，以及 PR（Pull Request）范围的增量运行。两者都要等范围扩大到该数字值得作为合并门禁为止。在此之前 `bun run mutation` 仅供本地使用。
+`bun run mutation` 在 `ci-primary`、`ci-linux-primary` 与 `check-all` 中运行，且 `run-gates.spec.ts` 断言了这一归属：无人执行的阈值只是一个数字，不是棘轮。
+
+尚未构建：记录分数随时间变化的每夜 job，以及在范围足够宽时取代全量运行的 PR（Pull Request）范围增量运行。

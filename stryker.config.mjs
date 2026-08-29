@@ -5,8 +5,9 @@
  * line executes, and mutation score proves an assertion would notice if the
  * line were wrong. The scope starts at the zero-dependency utility tier — the
  * code every other package builds on — and widens as each added tier reaches
- * the threshold. `break` equals the recorded score for the current scope, so a
- * regression fails the run rather than being averaged away.
+ * the threshold. `break` sits less than one mutant below the recorded score,
+ * so a single additional survivor fails the run rather than being averaged
+ * away.
  *
  * @type {import('@stryker-mutator/api/core').PartialStrykerOptions}
  */
@@ -33,18 +34,20 @@ export default {
   // No exclusions: a `types.ts` carries no runtime code and so yields no
   // mutants on its own, and every other file in the tier is in scope.
   mutate: ['packages/util/*/src/**/*.ts'],
-  // Recorded score for this scope: 96.08 (777 killed + 7 timeout of 816
-  // reachable mutants). `break` sits just under it so ordinary noise does not
-  // fail the run while any real regression does; it only ever moves up.
+  // Recorded score for this scope: 96.20 — 778 killed plus 7 timed out of 816
+  // reachable mutants. One mutant is worth 0.1225 points here, so `break` sits
+  // one mutant below the record: 785 detected scores 96.20 and 784 scores
+  // 96.08, which this rejects. Killed and timed-out both count as detected, so
+  // the split between them moving does not shift the score. It only moves up.
   //
-  // The 32 survivors are not missing assertions. They are mutants no output
+  // The 31 survivors are not missing assertions. They are mutants no output
   // assertion can reach: the suffix accumulator's trim is a documented memory
   // bound that `finish()` never reads past, `clearTimeout(undefined)` and a
   // second `dispose()` are no-ops, `mkdir({ mode: undefined })` is the default,
   // the UTF-8 scanner's scan-back cap bounds work rather than output, and the
   // Windows file-as-parent probe needs Windows. Raising the score means
   // removing that code or widening the scope, not weakening this number.
-  thresholds: { high: 100, low: 95, break: 95 },
+  thresholds: { high: 100, low: 96.1, break: 96.1 },
   // Agent-session state and build output are not project sources; Stryker copies
   // the working tree into its sandbox, and `.claude/skills` is a directory
   // symlink its file copier cannot follow.

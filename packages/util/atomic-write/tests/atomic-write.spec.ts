@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { withFileLock, writeFileAtomic } from '../src/index.ts'
 
 const state = vi.hoisted(() => ({
+  failLockCreateWithNull: false,
   failLockCreateWithEPERM: false,
   lockCreateErrorCode: '',
   failTempWriteWithCode: '',
@@ -16,6 +17,12 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   return {
     ...actual,
     writeFile: (async (path: unknown, ...rest: never[]) => {
+      if (state.failLockCreateWithNull && String(path).endsWith('.lock')) {
+        state.failLockCreateWithNull = false
+        // A throw site is not obliged to throw an Error; `catch` binds whatever
+        // was thrown, including null.
+        throw null
+      }
       if (state.failLockCreateWithEPERM && String(path).endsWith('.lock')) {
         state.failLockCreateWithEPERM = false
         throw Object.assign(new Error('EPERM: injected exclusive-create failure'), { code: 'EPERM' })
@@ -44,6 +51,7 @@ vi.mock('node:crypto', async (importOriginal) => {
 })
 
 afterEach(() => {
+  state.failLockCreateWithNull = false
   state.failLockCreateWithEPERM = false
   state.lockCreateErrorCode = ''
   state.failTempWriteWithCode = ''
@@ -322,6 +330,23 @@ describe('writer lock deadline and backoff', () => {
       expect(delays.every(delay => delay <= 200)).toBe(true)
     } finally {
       timer.mockRestore()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('writer lock non-Error throws', () => {
+  it('surfaces a thrown null rather than reading a code off it', async () => {
+    const root = await scratch()
+    try {
+      const target = join(root, 'settings.json')
+      state.failLockCreateWithNull = true
+
+      // The original value reaches the caller: reading `.code` off it would
+      // replace the real failure with a TypeError from this package.
+      await expect(withFileLock(target, async () => 'unreachable', { waitMs: 50 }))
+        .rejects.toBeNull()
+    } finally {
       await rm(root, { recursive: true, force: true })
     }
   })

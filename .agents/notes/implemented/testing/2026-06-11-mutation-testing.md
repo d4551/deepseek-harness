@@ -45,4 +45,6 @@ Surviving mutants are work items with a shape: pick one, write the test that kil
 
 Adding the lane moved `docs/testing.md`'s word ceiling from 1150 to 1200: the tier list gains a lane, and the coverage tier now describes every kind of exclusion its gate carries instead of naming only the `pwsh` one, which read as though it were the only exemption.
 
-Not built: the nightly job that records the score over time and the PR-scoped incremental run. Both wait on the scope widening far enough for the number to be worth gating a merge on. `bun run mutation` is local-only until then.
+`bun run mutation` runs in `ci-primary`, `ci-linux-primary`, and `check-all`, and `run-gates.spec.ts` asserts that membership: a threshold nothing executes is a number, not a ratchet.
+
+Not built: the nightly job that records the score over time, and the PR-scoped incremental run that would replace the whole-scope run once the scope is wide enough for that to matter.
