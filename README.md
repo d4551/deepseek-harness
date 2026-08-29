@@ -8,6 +8,17 @@ It is built on an **everything-is-a-plugin** architecture and powered by [Cordis
 
 Documentation: [https://deepseek-harness.github.io/deepseek-harness/](https://deepseek-harness.github.io/deepseek-harness/)
 
+## This checkout
+
+This repository is a fork of [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). Product identity, plugin architecture, Node runtime, community channels, and license stay with upstream.
+
+The fork pins a different contributor toolchain:
+
+- **bun 1.4** is the package manager and script runner (`packageManager` in `package.json`). Workspace linking uses bun's isolated linker; `dsh plugin` forwards to bun. Native addons and the single-exe build remain Node artifacts on the documented Node engines.
+- **TypeScript 7** (`typescript` ^7.0.2) compiles Host and Client programs. Scripts and the Typert generator that call the compiler API import `@typescript/typescript6`, because TypeScript 7.0 does not ship a stable programmatic API.
+
+The `npx @deepseek-ai/dsh` launch path runs the published upstream package. The source path below builds this checkout. Contributor setup, including the bun pin, is in the [development guide](docs/development.md).
+
 ## Developer preview
 
 DeepSeek Harness is in _developer preview_ and iterating rapidly. **THERE WILL BE COMPATIBILITY-BREAKING CHANGES.**
@@ -31,7 +42,7 @@ The command starts the Web UI at `http://127.0.0.1:3080` by default and opens it
 To run from a repository checkout:
 
 ```sh
-git clone https://github.com/deepseek-ai/deepseek-harness.git
+git clone https://github.com/d4551/deepseek-harness.git
 cd deepseek-harness
 bun install
 bun run build
