@@ -271,7 +271,5 @@ describe('job list accessibility', () => {
     }
     expect(audits.map(formatViolations).filter(text => text !== '').join('\n')).toBe('')
     expect(accessibilityScore(audits)).toBeGreaterThanOrEqual(MINIMUM_ACCESSIBILITY_SCORE)
-    // Two axe passes over a rendered tree outrun this file's 5s default. The
-    // budget is the work's, not a relaxed assertion.
-  }, 30_000)
+  })
 })
