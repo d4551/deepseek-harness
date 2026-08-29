@@ -16,10 +16,12 @@ import {
 } from './labels.client.ts'
 
 /**
- * Aggregate floor for the primitives lane. Raising it is always allowed;
- * lowering it would let a regression land, so it only ever moves up.
+ * Aggregate floor for the primitives lane, equal to its recorded score: every
+ * decided check passes today, so any failed check fails the run. A floor set
+ * below the record would let that many regressions land while still reading as
+ * a floor.
  */
-const MINIMUM_ACCESSIBILITY_SCORE = 99
+const MINIMUM_ACCESSIBILITY_SCORE = 100
 
 const {
   BrandWordmark, Button, CodeBlock, ConnectionBanner, DiffBlock, DisclosureRow, FishLogo, HoverCard,
