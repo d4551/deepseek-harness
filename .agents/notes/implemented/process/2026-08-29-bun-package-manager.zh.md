@@ -18,7 +18,8 @@ Status: implemented
 - **无 shell 的包管理器再入被简化。** bun 始终在 `npm_execpath` 中报告自身二进制，因此 `scripts/bun-invocation.ts` 直接 spawn 该入口，并去掉了 pnpm 的 JavaScript 入口分支。Gate 再入写作 `bun run <script>` 与 `bun x <binary>`。
 - **Python 运行时闭包改为安装而非 deploy。** bun 没有 `deploy` 动词，因此 `scripts/build-exe-for-python-sdk.ts` 把 deploy 根的 manifest（元数据清单）写入暂存目录，并将每个 `workspace:` 区间改写为绝对 `file:` 路径，随后在该目录运行 `bun install --production --linker=hoisted`。既有的链接实体化步骤保持不变，因为它本就负责把 deploy 期的链接替换为文件。
 - **测试运行器被固定到实现了 `import.meta.resolve` 的 vite 上。** vitest 声明 `vite` 为 `^6 || ^7 || ^8`，而 bun 用依赖图中已存在的最低版本满足它——即 `apps/web` 固定的 6.4.3——pnpm 则安装 8.x。vite 5 与 6 的 module runner 拒绝 `import.meta.resolve`，而产品源码用它按 `import` 导出条件解析。根级 `vite` devDependency 加上作用域化的 `overrides.vitest.vite` 恢复了该配对；该 override 只在解析结果中已存在 vite 8 时才生效，因此两者缺一不可。
-- CI、GitLab CI、lefthook、包脚本与文档中的所有 `pnpm …` 动词改写为 bun 拼法。`.gitignore` 将 `.pnpm-store/` 换成 bun 的对应项。按 Vendoring Policy，vendored README 保留其上游示例不动。
+- **GitHub CI 通过 `setup-bun` 装配 bun；GitLab 自行安装。** GitLab 原先执行 `corepack enable`，而 corepack 只为 npm、pnpm 与 yarn 提供 shim，无法提供 bun，因此两个 wheel 作业改为按 `packageManager` 中的版本从上游安装脚本装入 bun，并断言实际安装的版本与该锁定值一致。
+- CI、GitLab CI、lefthook、包脚本、发布脚本与文档中可执行的 `pnpm …` 动词改写为 bun 拼法。`.gitignore` 将 `.pnpm-store/` 换成 bun 的对应项。有三类刻意保留该词：vendored README，按 Vendoring Policy 保留其上游示例不动；已归档的 Agent Note，按归档策略冻结；以及 client 测试夹具中的示例字符串——它们描述的是产品用户在自己项目中运行的命令，而非本仓库的工具链。
 
 ## Runner isolation
 
