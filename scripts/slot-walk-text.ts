@@ -2,20 +2,31 @@
  * Source-text helpers for {@link ./slot-walk.ts}: line numbers, JSDoc slices,
  * and property-name text used when indexing SlotMap members.
  */
-import ts from '@typescript/typescript6'
+import type {
+  Expression, Node, ObjectLiteralExpression, PropertyName,
+  PropertySignatureDeclaration, SourceFile, TypeLiteralNode,
+} from 'typescript/unstable/ast'
+import {
+  isIdentifier,
+  isLiteralTypeNode,
+  isObjectLiteralExpression,
+  isPropertyAssignment,
+  isPropertySignatureDeclaration,
+  isStringLiteral,
+} from 'typescript/unstable/ast/is'
 
 /** 1-based line of a node's first character. */
-export function lineOf(sf: ts.SourceFile, node: ts.Node): number {
+export function lineOf(sf: SourceFile, node: Node): number {
   return sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1
 }
 
 /** Declaration text including leading JSDoc, with container indentation removed. */
-export function declarationText(statement: ts.Node, sf: ts.SourceFile): string {
+export function declarationText(statement: Node, sf: SourceFile): string {
   return dedent(sf.text.slice(statement.getStart(sf, true), statement.getEnd()))
 }
 
 /** One member's JSDoc comment text, '' when the member has none. */
-export function jsDocOf(member: ts.Node, sf: ts.SourceFile): string {
+export function jsDocOf(member: Node, sf: SourceFile): string {
   const withDoc = member.getStart(sf, true)
   const withoutDoc = member.getStart(sf, false)
   if (withDoc >= withoutDoc) return ''
@@ -40,65 +51,66 @@ export function collapse(text: string): string {
 }
 
 /** A type-literal member's string-literal type text, '' when absent or computed. */
-export function literalMember(entry: ts.TypeLiteralNode | undefined, name: string): string {
+export function literalMember(entry: TypeLiteralNode | undefined, name: string): string {
   const member = namedMember(entry, name)
-  if (member?.type === undefined) return ''
-  return ts.isLiteralTypeNode(member.type) && ts.isStringLiteral(member.type.literal)
+  if (member === undefined) return ''
+  return isLiteralTypeNode(member.type) && isStringLiteral(member.type.literal)
     ? member.type.literal.text
     : ''
 }
 
 /** A type-literal member's type text on one line, absent when the member is. */
 export function memberTypeText(
-  entry: ts.TypeLiteralNode | undefined,
+  entry: TypeLiteralNode | undefined,
   name: string,
-  sf: ts.SourceFile,
+  sf: SourceFile,
 ): string | undefined {
   const member = namedMember(entry, name)
-  return member?.type === undefined ? undefined : collapse(member.type.getText(sf))
+  return member === undefined ? undefined : collapse(member.type.getText(sf))
 }
 
 /** One named property signature of a type literal. */
 export function namedMember(
-  entry: ts.TypeLiteralNode | undefined,
+  entry: TypeLiteralNode | undefined,
   name: string,
-): ts.PropertySignature | undefined {
+): PropertySignatureDeclaration | undefined {
   if (entry === undefined) return undefined
   for (const member of entry.members) {
-    if (ts.isPropertySignature(member) && memberName(member.name) === name) return member
+    if (isPropertySignatureDeclaration(member) && memberName(member.name) === name) return member
   }
   return undefined
 }
 
 /** A property name's text, quotes removed. */
-export function memberName(name: ts.PropertyName): string {
-  return ts.isStringLiteral(name) || ts.isIdentifier(name) ? name.text : name.getText()
+export function memberName(name: PropertyName): string {
+  return isStringLiteral(name) || isIdentifier(name) ? name.text : name.getText()
 }
 
 /** One string-literal property of an options object literal. */
-export function stringProperty(options: ts.ObjectLiteralExpression, name: string): string | undefined {
+export function stringProperty(options: ObjectLiteralExpression, name: string): string | undefined {
   for (const property of options.properties) {
-    if (!ts.isPropertyAssignment(property)) continue
+    if (!isPropertyAssignment(property)) continue
     if (memberName(property.name) !== name) continue
-    if (ts.isStringLiteral(property.initializer)) return property.initializer.text
+    if (isStringLiteral(property.initializer)) return property.initializer.text
   }
   return undefined
 }
 
 /** The SlotMap keys a registration's `children` table declares. */
-export function childKeys(options: ts.ObjectLiteralExpression): string[] {
+export function childKeys(options: ObjectLiteralExpression): string[] {
   for (const property of options.properties) {
-    if (!ts.isPropertyAssignment(property)) continue
+    if (!isPropertyAssignment(property)) continue
     if (memberName(property.name) !== 'children') continue
-    if (!ts.isObjectLiteralExpression(property.initializer)) return []
+    if (!isObjectLiteralExpression(property.initializer)) return []
     return property.initializer.properties
-      .flatMap(child => (child.name === undefined ? [] : [memberName(child.name)]))
+      .filter(isPropertyAssignment)
+      .map(child => memberName(child.name))
   }
   return []
 }
 
 /** The component argument as written; a non-identifier expression is collapsed. */
-export function componentText(argument: ts.Expression | undefined, sf: ts.SourceFile): string {
+export function componentText(argument: Expression | undefined, sf: SourceFile): string {
   if (argument === undefined) return '(none)'
   const text = collapse(argument.getText(sf))
   return text.length > 60 ? `${text.slice(0, 57)}…` : text
