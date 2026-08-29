@@ -31,6 +31,16 @@ One bullet left this list rather than being annotated into it. The Windows file-
 
 Raising the score past this means deleting the code the survivors sit in or widening the scope — never excluding a file, loosening the threshold, or annotating a mutant the suite could have killed.
 
+### Why 99 is not reachable on this scope
+
+99 needs the survivors at or under 1% of 816 mutants — eight. There are 28, and nineteen are `TextRetainer`'s suffix trim. Killing twenty would give 99.02 without widening anything, and there is exactly one way to kill them: make the retained-byte bound observable, so a test can assert the bound instead of the output it does not change.
+
+Every consumer was read to see whether one would use such a reading. `spill-policy`, `tool-terminal`, `tool-jobs`, `tool-fs-search`, and `session-reference` all use the same one-shot shape — construct a retainer, push the complete text once, read `finish()`. None streams into one, so none would ever ask how many bytes are currently held.
+
+That closes it. `packages/AGENTS.md` requires an abstraction to have a current owner and need, and a reading whose only caller is a test has neither. Adding it to move a number is the thing this note exists to refuse, so the number stays at 96.57 and this scope stays honest about why.
+
+The streaming path the trim protects is a documented part of `push()`'s contract even though no caller exercises it today, so the code stays as well.
+
 ## What widening can and cannot buy
 
 An aggregate of 99 requires the overall survivor rate to fall below 1%, so each added tier has to arrive under that rate or it costs more than it contributes: at survivor rate `r` and `N` added mutants, `N * (0.01 - r) >= 22.84`, which no `N` satisfies once `r` reaches 1%.
