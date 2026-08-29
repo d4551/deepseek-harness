@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { accessibilityScore, auditSurface, formatViolations } from '@deepseek-ai/dsh-client-a11y'
+import type { SurfaceAudit } from '@deepseek-ai/dsh-client-a11y'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import type { GeneralSectionComponentProps } from '../src/client/GeneralSection.tsx'
 import { GeneralSection } from '../src/client/GeneralSection.tsx'
@@ -146,5 +148,35 @@ describe('SettingsDocumentAction', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Open configuration file' }))
     expect((await screen.findByRole('alert')).textContent).toBe('Could not open configuration file')
     expect(screen.getByRole('button', { name: 'Open configuration file' })).toBeTruthy()
+  })
+})
+
+/**
+ * The settings trigger is rail chrome the user reaches settings through, and
+ * it drops its visible label in the narrow state — exactly the case where an
+ * icon-only control loses its name. Audited in both states against the same
+ * fixed WCAG A/AA rule set and floor the primitives lane holds.
+ */
+describe('settings chrome accessibility', () => {
+  const MINIMUM_ACCESSIBILITY_SCORE = 100
+
+  it('renders no accessibility violations wide or in the rail', async () => {
+    const audits: SurfaceAudit[] = []
+    for (const [surface, wide] of [['TriggerContent wide', true], ['TriggerContent rail', false]] as const) {
+      cleanup()
+      // The page shell supplies the `main` landmark the page-structure rules
+      // need; without it the harness's own missing frame reads as a defect.
+      const { baseElement } = render(<main><TriggerContent {...kit} wide={wide} t={t} /></main>)
+      audits.push(await auditSurface(surface, baseElement))
+    }
+    cleanup()
+
+    // A surface that decided nothing would score 100 for free.
+    for (const audit of audits) {
+      expect(audit.passed + audit.failed, `${audit.surface} decided no checks`).toBeGreaterThan(0)
+    }
+    expect([...new Set(audits.flatMap(audit => audit.undecidedRules))]).toEqual(['color-contrast'])
+    expect(audits.map(formatViolations).filter(text => text !== '').join('\n')).toBe('')
+    expect(accessibilityScore(audits)).toBeGreaterThanOrEqual(MINIMUM_ACCESSIBILITY_SCORE)
   })
 })

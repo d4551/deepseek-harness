@@ -42,10 +42,12 @@ axe-core 在加载时会触碰 jsdom 的全局对象。经由 [`dsh-client-test-
 
 每一个导出的 primitive 在每次单元运行中都接受 WCAG A 与 AA 检验：97 个 surface（受审面）、1138 项已判定检查、零失败，且 `color-contrast` 是 jsdom 唯一无法判定的规则。新 primitive 无法在未受审的情况下交付，回归会让运行失败，而不是拉低一个平均值。
 
-该通道覆盖 `ui-primitives`、`ui-attachment`、`ui-user-questions`、`ui-goal`、`ui-workspace`、`ui-tool` 与 `ui-chat`。前者审计包所导出的内容；后者无法如此，因为它导出的是插件、其组件在内部组合，因此其 surface 以用户实际遇到的状态挂载——持有待发送图片的 rail、拖放浮层、灯箱，以及一张消息图片。第三个是用户在时间压力下作答的表单，它在已经渲染该 surface 的套件内部受审，而非另起一个文件——因为正是那套 setup 让该 surface 成其为真实形态。它们遵守同一条下限。
+该通道覆盖 `ui-primitives`、`ui-attachment`、`ui-user-questions`、`ui-goal`、`ui-workspace`、`ui-tool`、`ui-chat`、`ui-trajectory`、`ui-settings-general` 与 `ui-conversation`。前者审计包所导出的内容；后者无法如此，因为它导出的是插件、其组件在内部组合，因此其 surface 以用户实际遇到的状态挂载——持有待发送图片的 rail、拖放浮层、灯箱，以及一张消息图片。第三个是用户在时间压力下作答的表单，它在已经渲染该 surface 的套件内部受审，而非另起一个文件——因为正是那套 setup 让该 surface 成其为真实形态。它们遵守同一条下限。
 
 **每个 surface 都在 ARIA 要求于它的结构内部受审。** 会话行是 `treeitem`，必须位于 `tree` 之内；产品的 browser 提供了该容器，因此单独审计该行会针对一个并不存在的缺陷报出 `aria-required-parent`。审计挂载的正是产品所挂载的容器。改为压制该规则，则会把「该容器确实缺失」的情形一并藏起来。
 
+**未判定集合按 surface 分别记录，而非假定。** primitives 通道因 jsdom 不计算布局而留下 `color-contrast` 未判定；但一个没有给 axe 任何「文字压背景」组合的 surface，则不会留下任何未判定项——context meter 断言的是空集合。每条通道都断言自己实测到的内容，从而让新出现的不可判定规则在某处失败，而不是悄悄退出分数。
+
 **审计读取的是整个文档，因此它只审计自己挂载的内容。** 未设置 `afterEach` 清理的套件会把先前的树留在 body 中，而那些不在 landmark 内的残留并非该 surface 的缺陷。approval-command 的审计在挂载前先清理它们，而不是为它们触发的 `region` 规则开脱。
 
-其余组合而成的界面——chat、settings、workspace——仍未受审。每一个都需要其功能套件的上下文才能渲染，这正是本记录留待完成的工作，而它占了 client 的大部分：`packages/client/` 下的 37 个包中，今天受审的是七个。
+其余组合而成的界面——chat、settings、workspace——仍未受审。每一个都需要其功能套件的上下文才能渲染，这正是本记录留待完成的工作，而它占了 client 的大部分：`packages/client/` 下的 37 个包中，今天受审的是十个。
