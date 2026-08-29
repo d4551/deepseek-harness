@@ -29,6 +29,14 @@ The 31 survivors are not missing assertions; they are mutants no assertion over 
 
 Raising the score past this means deleting the code the survivors sit in or widening the scope — never excluding a file, loosening the threshold, or annotating a mutant the suite could have killed.
 
+## What widening can and cannot buy
+
+An aggregate of 99 requires the overall survivor rate to fall below 1%, so each added tier has to arrive under that rate or it costs more than it contributes: at survivor rate `r` and `N` added mutants, `N * (0.01 - r) >= 22.84`, which no `N` satisfies once `r` reaches 1%.
+
+Both measured scopes sit above it. This one runs at 3.80% (31 of 816). `tool-todo`, measured as a second scope, arrived at 12.00% and reached 4.00% after tests that pinned its whole model-facing description, its parameter and output schemas, `counts.completed`, the companion's plugin name, and the turn boundary across an unrelated event — 22 mutants, every one a contract nothing had asserted. Of its remainder, four are provably equivalent: a `typeof` guard the status-set check already subsumes, `{}` for `{ open: false }` where the field is only read for truthiness, and the trace cache, which recomputes the same trace when it is skipped.
+
+So widening is bounded by the equivalent-mutant floor, not by test effort: a tier admitted below the threshold lowers the number, and the achievable aggregate is roughly one minus that floor. Widening is worth doing for the defects it surfaces, which is what it bought here, and not as a route to a target the floor puts out of reach.
+
 ## Alternatives considered
 
 **Mutate `packages/*/src` from the start.** The whole-repo scope is what the score should eventually mean. It is not where it can start: 1590 source files under mutation, each mutant re-running a suite, is not a signal anyone waits for, and a first number nobody can act on teaches nothing.
