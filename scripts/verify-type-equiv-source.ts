@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type {
-  ClassElement, ConstructorDeclaration, GetAccessorDeclaration, InterfaceDeclaration, MethodDeclaration,
+  ClassElement, GetAccessorDeclaration, InterfaceDeclaration, MethodDeclaration,
   Node, PropertyDeclaration, SetAccessorDeclaration, SourceFile,
 } from 'typescript/unstable/ast'
 import { SyntaxKind } from 'typescript/unstable/ast'
@@ -117,11 +117,10 @@ export function augmentedInterface(sourceRel: string, moduleName: string, symbol
   return null
 }
 
-function isNamedMember(member: ClassElement): member is ConstructorDeclaration | MethodDeclaration
+function isNamedMember(member: ClassElement): member is MethodDeclaration
   | GetAccessorDeclaration | SetAccessorDeclaration | PropertyDeclaration {
-  return isConstructorDeclaration(member) || isMethodDeclaration(member)
-    || isGetAccessorDeclaration(member) || isSetAccessorDeclaration(member)
-    || isPropertyDeclaration(member)
+  return isMethodDeclaration(member) || isGetAccessorDeclaration(member)
+    || isSetAccessorDeclaration(member) || isPropertyDeclaration(member)
 }
 
 function classMemberName(member: ClassElement): Node | undefined {
@@ -130,7 +129,7 @@ function classMemberName(member: ClassElement): Node | undefined {
 }
 
 function flagsOf(member: ClassElement): readonly { kind: SyntaxKind }[] | undefined {
-  if (isNamedMember(member)) return member.modifiers
+  if (isConstructorDeclaration(member) || isNamedMember(member)) return member.modifiers
   return undefined
 }
 

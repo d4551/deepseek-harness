@@ -234,6 +234,15 @@ export function findUiI18nViolations(file: string, sourceText: string): UiI18nVi
     }
   }
 
+  const collectNamedCopy = (
+    name: PropertyName | BindingName,
+    initializer: Expression,
+    role: string,
+  ): void => {
+    const label = propertyName(name)
+    if (isCopyName(label)) collectExpression(initializer, `${label} ${role}`)
+  }
+
   const enclosingFunctionName = (node: Node): string | undefined => {
     let current = node.parent
     while (!isSourceFile(current)) {
@@ -283,20 +292,20 @@ export function findUiI18nViolations(file: string, sourceText: string): UiI18nVi
     ) collectExpression(node.expression, 'JSX child')
 
     if (file.endsWith('.tsx') && isPropertyAssignment(node)) {
-      collectNamedCopy(node, node.name, node.initializer, 'property')
+      collectNamedCopy(node.name, node.initializer, 'property')
     }
 
     if (isVariableDeclaration(node) && node.initializer !== undefined) {
-      collectNamedCopy(node, node.name, node.initializer, 'value')
+      collectNamedCopy(node.name, node.initializer, 'value')
     }
 
     if (isBindingElement(node) && node.initializer !== undefined && node.name !== undefined) {
-      collectNamedCopy(node, node.name, node.initializer, 'default value')
+      collectNamedCopy(node.name, node.initializer, 'default value')
     }
 
     if (isReturnStatement(node) && node.expression !== undefined) {
       const name = enclosingFunctionName(node)
-      if (name !== undefined && (COPY_NAME.test(name) || COPY_SUFFIX.test(name))) {
+      if (isCopyName(name)) {
         collectExpression(node.expression, `${name} return value`)
       } else if (file.endsWith('.tsx') && hasExplicitStringReturn(node)) {
         collectExpression(node.expression, 'string return value', true)
