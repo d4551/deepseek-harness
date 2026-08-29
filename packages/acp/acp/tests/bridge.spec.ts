@@ -552,6 +552,30 @@ describe('automation-only ACP bridge', () => {
     }
   })
 
+  it('announces a real option change but not a republish of what the client holds', async () => {
+    harness = await makeBridgeHarness()
+    await harness.client.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} })
+    await harness.client.newSession({ cwd: process.cwd(), mcpServers: [] })
+
+    // Adapter registration raises this for every live session, and a session
+    // created while registration is still settling would otherwise be told
+    // about the options its own `session/new` answer just carried.
+    harness.ctx.emit('llm/adapters-updated')
+    harness.registerCatalogProvider('other')
+
+    await vi.waitFor(() => {
+      expect(harness!.updates.filter(item => item.sessionUpdate === 'config_option_update')).toHaveLength(1)
+    })
+    // Exactly one: the unchanged republish said nothing, the new provider did.
+    const announced = harness.updates.filter(item => item.sessionUpdate === 'config_option_update')
+    expect(announced).toHaveLength(1)
+    const update = announced[0]
+    if (update?.sessionUpdate !== 'config_option_update') throw new Error('expected config update')
+    const model = update.configOptions.find(option => option.id === 'model')
+    if (model?.type !== 'select') throw new Error('expected model options')
+    expect(model.options.filter(option => 'group' in option).map(group => group.group)).toContain('other')
+  })
+
   it('publishes recoverable options when the selected adapter disappears', async () => {
     harness = await makeBridgeHarness()
     await harness.client.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} })
