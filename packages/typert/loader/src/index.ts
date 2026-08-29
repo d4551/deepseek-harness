@@ -284,7 +284,7 @@ function requireStrictCodec(pkgName: string, value: unknown, subject: string): v
 export async function apply(ctx: Context, config: Config): Promise<void> {
   // Resolution anchor: the config tree's baseUrl (the cordis.yml directory,
   // whose package declares every composed plugin as a dependency). This
-  // package's own URL would miss sibling packages under pnpm's isolated
+  // package's own URL would miss sibling packages under bun's isolated
   // node_modules.
   if (ctx.baseUrl === undefined) {
     throw new Error('typert-loader: ctx.baseUrl is unset — the loader needs the config-tree anchor to resolve plugin packages')

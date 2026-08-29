@@ -26,7 +26,7 @@ describe('commandOf', () => {
     expect(commandOf({ callId: 'c1', argsRaw: '{' })).toBeUndefined()
     expect(commandOf({ callId: 'c1', argsRaw: '{}' })).toBeUndefined()
     expect(commandOf({ callId: 'c1', argsRaw: '{"command":42}' })).toBeUndefined()
-    expect(commandOf({ callId: 'c1', argsRaw: '{"command":"pnpm test"}' })).toBe('pnpm test')
+    expect(commandOf({ callId: 'c1', argsRaw: '{"command":"bun run test"}' })).toBe('bun run test')
   })
 })
 
@@ -35,10 +35,10 @@ describe('ApprovalCommand', () => {
     render(<ApprovalCommand {...props([
       { kind: 'assistant-step', data: {} },
       { kind: 'tool-call', data: { root: { callId: 'other', argsRaw: '{"command":"wrong"}' } } },
-      { kind: 'tool-call', data: { root: { callId: 'call-1', argsRaw: '{"command":"pnpm test"}' } } },
+      { kind: 'tool-call', data: { root: { callId: 'call-1', argsRaw: '{"command":"bun run test"}' } } },
     ] as never)} />)
 
-    expect(screen.getByText('pnpm test')).toBeTruthy()
+    expect(screen.getByText('bun run test')).toBeTruthy()
   })
 
   it('omits absent, uncorrelated, and settled Tool calls', () => {

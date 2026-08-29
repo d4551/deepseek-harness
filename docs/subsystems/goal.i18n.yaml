@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write docs/subsystems/goal.md
-goal.md: 858d0f073f570185ff101f0d64ac701693e5e866
-goal.zh.md: 4e3687c3dddc4fda738f71fec8ded39d3b7c3e92
+goal.md: 182f2545edab8e26f9506845c5d30f7bfd4c1645
+goal.zh.md: 3653ef2f5d99d418402af49ba7353462accbc2ba

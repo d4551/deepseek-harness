@@ -346,11 +346,11 @@ describe('ApprovalPanel', () => {
       callId: 'call-1' as ToolCallId,
       reason: 'Run this exact command',
     })
-    const renderSlot = vi.fn(() => <code>pnpm test</code>)
+    const renderSlot = vi.fn(() => <code>bun run test</code>)
     render(<ApprovalPanel {...panelProps(pending, renderSlot)} />)
 
     expect(screen.getByText('Run this exact command')).toBeTruthy()
-    expect(screen.getByText('pnpm test')).toBeTruthy()
+    expect(screen.getByText('bun run test')).toBeTruthy()
     expect(renderSlot).toHaveBeenCalledWith('conversation.approval.detail', {
       callId: 'call-1',
     })

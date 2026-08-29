@@ -14,6 +14,7 @@ import { withFileLock } from '@deepseek-ai/dsh-atomic-write'
 import { describe, expect, it } from 'vitest'
 import {
   composeEntries,
+  ensureProfileInstallSettings,
   healProfilesModuleFallback,
   initProfile,
   loadProfile,
@@ -90,6 +91,18 @@ describe('resolveProfileDir', () => {
 })
 
 describe('initProfile', () => {
+  it('writes the bun install settings a profile from an older installation lacks', () => {
+    const dir = resolveProfileDir('legacy', tmp())
+    mkdirSync(dir, { recursive: true })
+    // What an installation that predates bun left behind: a manifest, so
+    // initialization is skipped, and no bunfig.toml.
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'dsh-profile-legacy', private: true }))
+
+    expect(ensureProfileInstallSettings(dir)).toBe(true)
+    expect(readFileSync(join(dir, 'bunfig.toml'), 'utf8')).toContain('linker = "hoisted"')
+    expect(ensureProfileInstallSettings(dir)).toBe(false)
+  })
+
   it('creates manifest, user patch layer, and bun install settings once, never overwriting', () => {
     const home = tmp()
     const dir = resolveProfileDir('tui', home)

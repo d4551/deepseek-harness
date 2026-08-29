@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write docs/subsystems/spill.md
-spill.md: 366cacbef06e18e79d593e946536b062d8d83d50
-spill.zh.md: 82e2ad9efe418175642c3523614c2601b17e4450
+spill.md: a1bebfaf439b0d282d6b52f40bcec187756357d1
+spill.zh.md: efd39b3f11a39c118e72c829b0e731d6fb980865

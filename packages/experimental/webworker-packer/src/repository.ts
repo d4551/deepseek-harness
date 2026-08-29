@@ -4,7 +4,7 @@
  *
  * The library half takes all of this as parameters. Keeping the lookup here is what
  * lets the same library pack a different tree, and what keeps `pack.ts` free of
- * assumptions about pnpm workspaces or the `dsh` CLI.
+ * assumptions about bun workspaces or the `dsh` CLI.
  * @module @deepseek-ai/dsh-experimental-webworker-packer/src/repository
  */
 import { execFileSync } from 'node:child_process'

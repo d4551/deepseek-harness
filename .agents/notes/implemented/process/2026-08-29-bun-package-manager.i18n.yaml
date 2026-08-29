@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/process/2026-08-29-bun-package-manager.md
-2026-08-29-bun-package-manager.md: 1dbaf66ef00f6b10536639e441a9b62306d799e8
-2026-08-29-bun-package-manager.zh.md: 0ecc09b6d69358ffd5c04bcc02445d558cfaccae
+2026-08-29-bun-package-manager.md: 3d863402c66941f65762158d4a6a3b3baf44028e
+2026-08-29-bun-package-manager.zh.md: 44b149e903d017f531d3932b0cd15645761f48dc

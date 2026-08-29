@@ -87,7 +87,7 @@ describe('Session control jobs baseline', () => {
 
   it('carries the visible set when the stream opens', async () => {
     const { ctx, session, agent, control } = await harness(true)
-    ctx.jobs.start({ ...producer('pnpm run build').spec, owner: agent })
+    ctx.jobs.start({ ...producer('bun run build').spec, owner: agent })
     const frame = await baseline(control)
     const jobs = frame.value.jobs[session.id]
     expect(jobs).toHaveLength(1)
@@ -96,7 +96,7 @@ describe('Session control jobs baseline', () => {
     expect({ ...job, startedAt: 0 }).toEqual({
       id: 'bash-1',
       kind: 'bash',
-      label: 'pnpm run build',
+      label: 'bun run build',
       status: 'running',
       startedAt: 0,
     })

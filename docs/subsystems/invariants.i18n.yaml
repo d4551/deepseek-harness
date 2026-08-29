@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write docs/subsystems/invariants.md
-invariants.md: 89835df0c9fab22aa6e23a27128f080d04dadd2d
-invariants.zh.md: aca07c720b9cd5d005610306f632da4495ce4971
+invariants.md: f4813122e44375ee87a2c1da2e81d845425f65ad
+invariants.zh.md: b977ad17b9ebc114a495ca563a17d2af71aa5ca6

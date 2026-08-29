@@ -932,7 +932,7 @@ describe('completed reminder', () => {
 
 describe('background-job mirror', () => {
   const view = (over: Partial<{ id: string; status: string; label: string }> = {}) => ({
-    id: 'bash-1', kind: 'bash', label: 'pnpm run build', status: 'running', startedAt: 5, ...over,
+    id: 'bash-1', kind: 'bash', label: 'bun run build', status: 'running', startedAt: 5, ...over,
   })
   const tasksFrame = (
     sessionId: SessionId,

@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/testing/2026-08-29-client-accessibility-lane.md
+2026-08-29-client-accessibility-lane.md: b128167a181a9f93de55e2fba02061160d3c1c1d
+2026-08-29-client-accessibility-lane.zh.md: 3cde302c562573304e3d5afecb006863e58b932e

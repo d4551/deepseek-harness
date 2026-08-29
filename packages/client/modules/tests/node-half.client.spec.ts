@@ -426,7 +426,7 @@ describe('client bundle activation', () => {
     const secondPath = writePackage(secondName)
     expect(() => construct([firstName, secondName])).toThrow([
       'client-modules: 2 client packages failed to compose:',
-      '  client bundles not found; run `pnpm run build` before launch:',
+      '  client bundles not found; run `bun run build` before launch:',
       `    - package: ${firstName}`,
       `      path: ${firstPath}`,
       `    - package: ${secondName}`,
@@ -447,7 +447,7 @@ describe('client bundle activation', () => {
     expect(String(thrown)).toContain('client-modules: 1 client package failed to compose:')
     expect(String(thrown)).toContain('  other failures:')
     expect(String(thrown)).toContain('EISDIR')
-    expect(String(thrown)).not.toContain('pnpm run build')
+    expect(String(thrown)).not.toContain('bun run build')
   })
 
   it('falls back to a generated-file map when an authored map is malformed', async () => {

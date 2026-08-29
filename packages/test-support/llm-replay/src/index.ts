@@ -598,7 +598,7 @@ export function loadReplayScript(config: ReplayConfig): ReplayEntry[] {
 /** Derive the primary script from the session JSONL, failing loud on a missing fixture. */
 function deriveScriptFromFile(file: string): ReplayEntry[] {
   if (!existsSync(file)) {
-    throw new Error(`llm-replay: fixture not found: ${file} — run \`pnpm run test:snapshot:record\` first`)
+    throw new Error(`llm-replay: fixture not found: ${file} — run \`bun run test:snapshot:record\` first`)
   }
   return deriveReplayScript(parseSessionLog(readFileSync(file, 'utf8')))
 }

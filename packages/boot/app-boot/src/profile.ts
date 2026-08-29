@@ -185,6 +185,26 @@ peer = false
 `
 
 /**
+ * Write the profile's bun install settings when they are absent.
+ *
+ * A profile initialized before this installation used bun carries the previous
+ * manager's workspace file and no `bunfig.toml`, and initialization is skipped
+ * for a directory that already has a manifest. Without this, such a profile
+ * would install out-of-tree plugins under bun's default isolated layout and
+ * silently lose the flat `node_modules` those plugins resolve their peers
+ * through.
+ * @param dir - the profile directory from {@link resolveProfileDir}.
+ * @returns true when the settings were missing and have now been written.
+ */
+export function ensureProfileInstallSettings(dir: string): boolean {
+  const bunfigPath = join(dir, 'bunfig.toml')
+  if (existsSync(bunfigPath)) return false
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(bunfigPath, PROFILE_BUNFIG)
+  return true
+}
+
+/**
  * Initialize a profile directory: manifest, empty user patch layer, and the
  * bun install settings out-of-tree plugins need. Existing files are never touched,
  * so re-running is a no-op on an initialized profile.
@@ -210,8 +230,7 @@ export function initProfile(
   }
   const patchPath = join(dir, PROFILE_PATCH_FILENAME)
   if (!existsSync(patchPath)) writeFileSync(patchPath, PROFILE_PATCH_TEMPLATE)
-  const bunfigPath = join(dir, 'bunfig.toml')
-  if (!existsSync(bunfigPath)) writeFileSync(bunfigPath, PROFILE_BUNFIG)
+  ensureProfileInstallSettings(dir)
 }
 
 function readModuleProxyRecord(link: string): ModuleProxyRecord | undefined {
