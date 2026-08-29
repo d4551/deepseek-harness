@@ -4,7 +4,7 @@ import InvariantRegistry from '@deepseek-ai/dsh-invariants'
 import type { ChatSnapshot, UseChat } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { cleanup, render, screen } from '@testing-library/react'
-import { accessibilityScore, auditSurface, formatViolations } from '@deepseek-ai/dsh-client-a11y'
+import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import type { SurfaceAudit } from '@deepseek-ai/dsh-client-a11y'
 import { describe, expect, it } from 'vitest'
 import { ApprovalCommand, commandOf } from '../src/client/chat/ApprovalCommand.tsx'
@@ -100,7 +100,6 @@ describe('approval command accessibility', () => {
       expect(audit.passed + audit.failed, `${audit.surface} decided no checks`).toBeGreaterThan(0)
     }
     expect([...new Set(audits.flatMap(audit => audit.undecidedRules))]).toEqual(['color-contrast'])
-    expect(audits.map(formatViolations).filter(text => text !== '').join('\n')).toBe('')
-    expect(accessibilityScore(audits)).toBeGreaterThanOrEqual(MINIMUM_ACCESSIBILITY_SCORE)
+    expect(accessibilityFailures(audits, MINIMUM_ACCESSIBILITY_SCORE)).toBe('')
   })
 })

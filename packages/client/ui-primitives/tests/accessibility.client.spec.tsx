@@ -2,7 +2,7 @@
 import { cleanup, render } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { afterEach, describe, expect, it } from 'vitest'
-import { accessibilityScore, auditSurface, formatViolations } from '@deepseek-ai/dsh-client-a11y'
+import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import type { SurfaceAudit } from '@deepseek-ai/dsh-client-a11y'
 import * as primitives from '../src/index.ts'
 import {
@@ -184,8 +184,6 @@ describe('ui-primitives accessibility', () => {
     // arriving here would be silently dropped from the score without this.
     expect([...new Set(audits.flatMap(audit => audit.undecidedRules))]).toEqual(['color-contrast'])
 
-    const failures = audits.map(formatViolations).filter(text => text !== '').join('\n')
-    expect(failures).toBe('')
-    expect(accessibilityScore(audits)).toBeGreaterThanOrEqual(MINIMUM_ACCESSIBILITY_SCORE)
+    expect(accessibilityFailures(audits, MINIMUM_ACCESSIBILITY_SCORE)).toBe('')
   })
 })

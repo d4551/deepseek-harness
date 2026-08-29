@@ -13,11 +13,19 @@ import axe from 'axe-core'
 import type { ElementContext, Result, RunOptions } from 'axe-core'
 
 /**
- * Rule tags every audited client surface is held to: WCAG 2.0/2.1 levels A and
- * AA plus axe's best-practice set. Narrowing this list weakens every suite at
- * once, so it is fixed here rather than passed in per call.
+ * Rule tags every audited client surface is held to: WCAG 2.0/2.1/2.2 levels A
+ * and AA plus axe's best-practice set. Narrowing this list weakens every suite
+ * at once, so it is fixed here rather than passed in per call.
  */
-export const CLIENT_AXE_TAGS: readonly string[] = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice']
+export const CLIENT_AXE_TAGS: readonly string[] = [
+  'wcag2a',
+  'wcag2aa',
+  'wcag21a',
+  'wcag21aa',
+  'wcag22a',
+  'wcag22aa',
+  'best-practice',
+]
 
 /** One rendered surface's accessibility outcome. */
 export interface SurfaceAudit {
@@ -46,13 +54,31 @@ function nodeCount(results: readonly Result[]): number {
 }
 
 /**
+ * axe-core `run` options every client audit uses. WCAG 2.2 A/AA rules ship
+ * disabled in axe-core 4.13; `rules` re-enables them so `runOnly` cannot drop
+ * 2.2 by leaving those tags on a disabled set.
+ * @returns the tag filter, result types, and WCAG 2.2 enablement map.
+ */
+export function clientAxeRunOptions(): RunOptions {
+  const rules: Record<string, { enabled: true }> = {}
+  for (const rule of axe.getRules(['wcag22a', 'wcag22aa'])) {
+    rules[rule.ruleId] = { enabled: true }
+  }
+  return {
+    runOnly: { type: 'tag', values: [...CLIENT_AXE_TAGS] },
+    resultTypes: ['violations', 'incomplete', 'passes'],
+    rules,
+  }
+}
+
+/**
  * Run axe over one rendered surface.
  * @param surface - name reported when the surface fails.
  * @param context - the element or selector axe should audit.
  * @returns the surface's passed/failed/undecided node counts and its violations.
  */
 export async function auditSurface(surface: string, context: ElementContext): Promise<SurfaceAudit> {
-  const options: RunOptions = { runOnly: { type: 'tag', values: [...CLIENT_AXE_TAGS] }, resultTypes: ['violations', 'incomplete', 'passes'] }
+  const options: RunOptions = clientAxeRunOptions()
   const results = await axe.run(context, options)
   return {
     surface,

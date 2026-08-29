@@ -18,6 +18,7 @@
     "website"
   ],
   "scripts": {
+    "ts7-probe": "tsx ts7-probe.ts",
     "build": "tsx scripts/build.ts",
     "build:official": "tsx scripts/build.ts --profile official",
     "build:lib": "bun run build:lib:host && bun run build:lib:client",

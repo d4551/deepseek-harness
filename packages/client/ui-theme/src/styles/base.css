@@ -13,3 +13,31 @@
   --ds-transition-duration-fast: 0.1s;
   --ds-transition-duration-slow: 0.3s;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ds-transition-duration: 0.01ms;
+    --ds-transition-duration-fast: 0.01ms;
+    --ds-transition-duration-slow: 0.01ms;
+  }
+}
+
+/* Element+pseudo specificity beats a class-level `outline: none`, so a
+   component that hides the UA ring still keeps a keyboard ring unless it
+   supplies a more specific `:focus-visible` of its own. */
+button:focus-visible,
+a:focus-visible,
+[role='button']:focus-visible,
+[role='tab']:focus-visible,
+[role='menuitem']:focus-visible,
+[role='option']:focus-visible,
+[role='switch']:focus-visible,
+[role='checkbox']:focus-visible,
+[role='radio']:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 2px;
+}

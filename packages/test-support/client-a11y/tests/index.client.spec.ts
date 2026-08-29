@@ -1,6 +1,14 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
+import axe from 'axe-core'
 import type { Result } from 'axe-core'
-import { accessibilityFailures, accessibilityScore, CLIENT_AXE_TAGS, formatViolations } from '../src/index.ts'
+import {
+  accessibilityFailures,
+  accessibilityScore,
+  CLIENT_AXE_TAGS,
+  clientAxeRunOptions,
+  formatViolations,
+} from '../src/index.ts'
 import type { SurfaceAudit } from '../src/index.ts'
 
 /** One violated rule over `targets`, with `impact` left off when not supplied. */
@@ -91,8 +99,24 @@ describe('accessibilityFailures', () => {
 })
 
 describe('CLIENT_AXE_TAGS', () => {
-  it('holds every audited surface to WCAG A, AA, and best practice', () => {
-    // Narrowing this list weakens every suite at once, so its contents are pinned.
-    expect([...CLIENT_AXE_TAGS]).toEqual(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'])
+  it('holds every audited surface to WCAG 2.0/2.1/2.2 A, AA, and best practice', () => {
+    expect([...CLIENT_AXE_TAGS]).toEqual([
+      'wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22a', 'wcag22aa', 'best-practice',
+    ])
+  })
+})
+
+describe('clientAxeRunOptions', () => {
+  it('cannot drop WCAG 2.2 or AA, and re-enables axe-core 2.2 rules that ship disabled', () => {
+    const options = clientAxeRunOptions()
+    expect(options.runOnly).toEqual({ type: 'tag', values: [...CLIENT_AXE_TAGS] })
+    const tags = new Set(CLIENT_AXE_TAGS)
+    expect(tags.has('wcag2aa')).toBe(true)
+    expect(tags.has('wcag21aa')).toBe(true)
+    expect(tags.has('wcag22aa')).toBe(true)
+    const wcag22 = axe.getRules(['wcag22aa'])
+    expect(wcag22.length).toBeGreaterThan(0)
+    expect(wcag22.some(rule => rule.ruleId === 'target-size')).toBe(true)
+    expect(options.rules?.['target-size']?.enabled).toBe(true)
   })
 })
