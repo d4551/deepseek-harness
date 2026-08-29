@@ -10,7 +10,7 @@
 
 import { globSync, readFileSync, existsSync } from 'node:fs'
 import { resolve, sep } from 'node:path'
-import ts from 'typescript'
+import ts from '@typescript/typescript6'
 import { markdownFences } from './markdown.ts'
 import { partitionPairedMarkdownDerivatives } from './paired-markdown-derivatives.ts'
 import { isArchivedAgentNotePath } from './repo-files.ts'

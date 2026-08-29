@@ -237,6 +237,7 @@
     "@types/mdast": "^4.0.4",
     "@types/node": "^22.20.0",
     "@types/spdx-expression-parse": "^4.0.0",
+    "@typescript/typescript6": "^6.0.2",
     "@vitest/coverage-v8": "^4.1.8",
     "@yarnpkg/cli-dist": "4.17.1",
     "eslint-plugin-sonarjs": "^4.1.0",
@@ -261,7 +262,7 @@
     "spdx-expression-parse": "^5.0.0",
     "tsdown": "^0.22.2",
     "tsx": "^4.22.4",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "vite": "^8.0.16",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^4.1.8"

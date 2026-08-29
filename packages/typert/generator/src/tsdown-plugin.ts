@@ -8,7 +8,7 @@
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import ts from 'typescript'
+import ts from '@typescript/typescript6'
 import { WorkspaceTypertGenerator } from './workspace.ts'
 import type { WorkspaceEmitResult } from './workspace.ts'
 import type { TypertFace } from './model.ts'

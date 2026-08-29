@@ -6,7 +6,7 @@
 
 import { existsSync, globSync, readFileSync } from 'node:fs'
 import { dirname, relative, resolve, sep } from 'node:path'
-import ts from 'typescript'
+import ts from '@typescript/typescript6'
 
 /** Required explanation marker for an intentionally empty installer. */
 const NO_RUNTIME_INVARIANT_MARKER = 'No runtime invariant:'

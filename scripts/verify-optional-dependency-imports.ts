@@ -27,7 +27,7 @@
 
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import ts from 'typescript'
+import ts from '@typescript/typescript6'
 import { TypeScriptProject, type CompilerFace } from './ts-project.ts'
 
 const root = resolve(import.meta.dirname, '..')

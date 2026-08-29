@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { flattenDiagnosticMessageText, parseConfigFileTextToJson } from 'typescript'
+import { flattenDiagnosticMessageText, parseConfigFileTextToJson } from '@typescript/typescript6'
 import { describe, expect, it } from 'vitest'
 
 type Rules = Record<string, unknown>

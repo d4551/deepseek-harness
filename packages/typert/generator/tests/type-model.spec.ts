@@ -1,7 +1,7 @@
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import ts from 'typescript'
+import ts from '@typescript/typescript6'
 import { afterEach, describe, expect, it } from 'vitest'
 import { TypertAnalysisError, WorkspaceAnalyzer } from '../src/analyzer.ts'
 import { FaceModelEmitter } from '../src/emitter.ts'

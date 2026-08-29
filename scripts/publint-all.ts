@@ -11,7 +11,7 @@ import { dirname, posix, relative, resolve, sep } from 'node:path'
 import { parseArgs } from 'node:util'
 import { publint, type Message, type PackFile } from 'publint'
 import { formatMessage } from 'publint/utils'
-import ts from 'typescript'
+import ts from '@typescript/typescript6'
 
 const CONCURRENCY_ENV = 'DSH_PUBLINT_CONCURRENCY'
 const repositoryRoot = resolve(import.meta.dirname, '..')

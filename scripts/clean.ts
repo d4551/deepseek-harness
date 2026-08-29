@@ -1,7 +1,7 @@
 import { lstat, readdir, realpath, rm } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import ts from 'typescript'
+import ts from '@typescript/typescript6'
 import { repositoryConfigHost } from './ts-project.ts'
 
 const knownOrphanEntries = new Set(['node_modules', 'lib', '.typecheck'])

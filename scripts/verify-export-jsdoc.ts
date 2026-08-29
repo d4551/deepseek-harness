@@ -9,7 +9,7 @@
 
 import { existsSync, globSync, readFileSync } from 'node:fs'
 import { relative, resolve, sep } from 'node:path'
-import ts from 'typescript'
+import ts from '@typescript/typescript6'
 import { checkParams, checkReturns, parseJsDoc, parseTags, pointer, rawJsDoc } from './jsdoc.ts'
 
 const root = resolve(import.meta.dirname, '..')

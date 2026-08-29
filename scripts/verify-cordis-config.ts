@@ -13,7 +13,7 @@
 import { globSync, readFileSync } from 'node:fs'
 import { dirname, relative, resolve } from 'node:path'
 import { Script } from 'node:vm'
-import ts from 'typescript'
+import ts from '@typescript/typescript6'
 import { cordisConfigFiles } from './cordis-config-files.ts'
 import { isCordisGroupEntry, isJsExpr, loadCordisYaml } from './cordis-yaml.ts'
 

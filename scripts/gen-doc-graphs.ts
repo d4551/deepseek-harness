@@ -7,7 +7,7 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, relative, resolve } from 'node:path'
-import ts from 'typescript'
+import ts from '@typescript/typescript6'
 import { projectCordisCatalog } from '@deepseek-ai/dsh-typert-generator'
 import { CORDIS_CATALOG_POLICY } from './gen-cordis-catalog.ts'
 import type { EventEntry, ServiceEntry } from '@deepseek-ai/dsh-typert-generator'

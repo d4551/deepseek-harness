@@ -9,14 +9,50 @@ import type { JsonValue, SessionId } from '@deepseek-ai/dsh-session/types'
 /** Stable identity of one dynamic plugin instance. */
 export type CordisDynamicPluginId = Branded<'CordisDynamicPluginId'>
 
+/**
+ * Brand a Host-minted Plugin ID.
+ * @param id - opaque identifier minted by the Host registry.
+ * @returns the branded Plugin identifier.
+ */
+export function CordisDynamicPluginId(id: string): CordisDynamicPluginId {
+  return id as CordisDynamicPluginId
+}
+
 /** Identity of one immutable package version belonging to a dynamic plugin. */
 export type CordisDynamicPackageId = Branded<'CordisDynamicPackageId'>
+
+/**
+ * Brand a Host-minted Package ID.
+ * @param id - opaque identifier minted by the Host registry.
+ * @returns the branded Package identifier.
+ */
+export function CordisDynamicPackageId(id: string): CordisDynamicPackageId {
+  return id as CordisDynamicPackageId
+}
 
 /** Identity of one successful activation attempt. */
 export type CordisDynamicPluginRunId = Branded<'CordisDynamicPluginRunId'>
 
+/**
+ * Brand a Host-minted Plugin Run ID.
+ * @param id - opaque identifier minted by the Host registry.
+ * @returns the branded Plugin Run identifier.
+ */
+export function CordisDynamicPluginRunId(id: string): CordisDynamicPluginRunId {
+  return id as CordisDynamicPluginRunId
+}
+
 /** Identity of one human approval request. */
 export type ApprovalRequestId = Branded<'ApprovalRequestId'>
+
+/**
+ * Brand a Host-minted approval request ID.
+ * @param id - opaque identifier minted by the Host registry.
+ * @returns the branded approval request identifier.
+ */
+export function ApprovalRequestId(id: string): ApprovalRequestId {
+  return id as ApprovalRequestId
+}
 
 /** Identity of one cross-page inspect query. */
 export type CordisInspectRequestId = Branded<'CordisInspectRequestId'>

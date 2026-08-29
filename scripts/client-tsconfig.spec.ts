@@ -3,7 +3,7 @@
 import { existsSync, readdirSync } from 'node:fs'
 import { resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import ts from 'typescript'
+import ts from '@typescript/typescript6'
 import { describe, expect, it } from 'vitest'
 
 const root = fileURLToPath(new URL('..', import.meta.url))

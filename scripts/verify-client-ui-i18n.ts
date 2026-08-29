@@ -9,7 +9,7 @@
 
 import { globSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import ts from 'typescript'
+import ts from '@typescript/typescript6'
 
 const root = resolve(import.meta.dirname, '..')
 const MINIMUM_CLIENT_UI_SOURCES = 450

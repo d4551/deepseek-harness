@@ -6,7 +6,7 @@
 import { globSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import ts from 'typescript'
+import ts from '@typescript/typescript6'
 import { TypeScriptProject } from './ts-project.ts'
 
 const GATE = 'verify-client-packages'

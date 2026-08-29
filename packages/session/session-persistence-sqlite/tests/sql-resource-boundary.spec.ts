@@ -1,6 +1,6 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
-import ts from 'typescript'
+import ts from '@typescript/typescript6'
 import { describe, expect, it } from 'vitest'
 
 const PACKAGE_ROOT = fileURLToPath(new URL('../', import.meta.url))

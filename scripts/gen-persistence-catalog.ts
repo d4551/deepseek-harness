@@ -8,7 +8,7 @@
 
 import { globSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve, sep } from 'node:path'
-import ts from 'typescript'
+import ts from '@typescript/typescript6'
 import { parseJsDoc, pointer, rawJsDoc, reportViolations } from './jsdoc.ts'
 import { githubSlug } from './verify-md-links.ts'
 

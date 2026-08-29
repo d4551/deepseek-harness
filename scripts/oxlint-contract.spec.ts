@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { flattenDiagnosticMessageText, parseConfigFileTextToJson } from 'typescript'
+import { flattenDiagnosticMessageText, parseConfigFileTextToJson } from '@typescript/typescript6'
 import { describe, expect, it } from 'vitest'
 
 const repositoryRoot = fileURLToPath(new URL('..', import.meta.url))

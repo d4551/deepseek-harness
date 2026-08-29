@@ -1,7 +1,7 @@
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import ts from 'typescript'
+import ts from '@typescript/typescript6'
 import { afterEach, describe, expect, it } from 'vitest'
 import { WorkspaceAnalyzer } from '../src/analyzer.ts'
 import type { InvocationModel } from '../src/model.ts'

@@ -26,7 +26,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   return {
     ...actual,
     realpath: async (path: Parameters<typeof actual.realpath>[0]) => {
-      if (String(path).endsWith(`${'child'}`)) {
+      if (String(path).endsWith('child')) {
         const error: NodeJS.ErrnoException = new Error('ENOENT: no such file or directory')
         error.code = 'ENOENT'
         throw error
