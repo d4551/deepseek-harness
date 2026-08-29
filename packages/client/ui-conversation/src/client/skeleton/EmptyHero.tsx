@@ -116,9 +116,9 @@ export function HeroShell({ t, renderSlot, children }: HeroShellProps) {
     <div className={css.root}>
       <div className={css.stack}>
         <div className={css.headline}>
-          <span className={css.fishHitbox}>
-            {renderSlot('conversation.hero.brand.mark', { size: 34, className: css.fish }, {
-              fallback: <CatLogo size={34} className={css.fish} />,
+          <span className={css.markHitbox}>
+            {renderSlot('conversation.hero.brand.mark', { size: 34, className: css.mark }, {
+              fallback: <CatLogo size={34} className={css.mark} />,
             })}
           </span>
           <span className={css.headlineText}>{t('hero.headline')}</span>

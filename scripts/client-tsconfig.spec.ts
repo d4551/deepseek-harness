@@ -3,8 +3,8 @@
 import { existsSync, readdirSync } from 'node:fs'
 import { resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import ts from '@typescript/typescript6'
 import { describe, expect, it } from 'vitest'
+import { parseConfigFile } from './ts7-session.ts'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 
@@ -24,11 +24,7 @@ function clientCssDeclarations(): string[] {
 describe('client TypeScript aggregate', () => {
   it('loads package CSS declarations without relying on workspace-link realpaths', () => {
     const configPath = resolve(root, 'tsconfig.client.json')
-    const read = ts.readConfigFile(configPath, file => ts.sys.readFile(file))
-    if (read.error !== undefined) {
-      throw new Error(ts.flattenDiagnosticMessageText(read.error.messageText, '\n'))
-    }
-    const parsed = ts.parseJsonConfigFileContent(read.config, ts.sys, root)
+    const parsed = parseConfigFile(configPath)
     const loaded = parsed.fileNames
       .map(file => file.replaceAll(sep, '/'))
       .filter(file => file.endsWith('/src/css-modules.d.ts'))
