@@ -329,3 +329,112 @@ describe('ask_user_question tool', () => {
     expect(ctx.tools.get('ask_user_question')).toBeUndefined()
   })
 })
+
+describe('ask_user_question model-facing surface', () => {
+  /**
+   * The description and every parameter description are what the model reads
+   * to decide how to call this tool. Pinned verbatim: a fragment check leaves
+   * the rest free to change, or empty, without a test noticing.
+   */
+  const DESCRIPTION =
+    'Ask the user a concise question when you need confirmation, a choice, or missing information before proceeding. '
+    + 'Send one or more questions, each with a stable id that will be echoed in the answer.'
+
+  it('sends the whole tool description and every parameter description', async () => {
+    const ctx = await setup()
+    const schema = ctx.tools.schemas().find(entry => entry.name === 'ask_user_question')
+    if (schema === undefined) throw new Error('ask_user_question is not registered')
+    expect(schema.description).toBe(DESCRIPTION)
+
+    const parameters = schema.parameters as {
+      properties: {
+        questions: {
+          description: string
+          items: {
+            additionalProperties: boolean
+            properties: Record<string, {
+              description?: string
+              additionalProperties?: boolean
+              items?: { additionalProperties: boolean; properties: Record<string, { description?: string }> }
+            }>
+          }
+        }
+      }
+    }
+    const questions = parameters.properties.questions
+    expect(questions.description).toBe('Questions to ask the user before continuing.')
+    expect(questions.items.additionalProperties).toBe(true)
+
+    const item = questions.items.properties
+    expect(item.id?.description).toBe('Stable id for this question; echoed in the answer.')
+    expect(item.question?.description).toBe('The specific question to ask the user.')
+    expect(item.header?.description)
+      .toBe('Optional short heading for the question, such as "Confirm" or "Choose Mode".')
+    expect(item.options?.description)
+      .toBe('Optional choices to show the user. If you recommend one, put it first and append "(Recommended)" to that label.')
+    expect(item.multi_select?.description)
+      .toBe('Whether the user may select more than one option. Defaults to false.')
+
+    const option = item.options?.items
+    expect(option?.additionalProperties).toBe(true)
+    expect(option?.properties.label?.description).toBe('Short user-facing option label.')
+    expect(option?.properties.description?.description).toBe('One sentence explaining the tradeoff or impact.')
+  })
+
+  it('forwards only the optional fields the model actually supplied', async () => {
+    const ctx = await setup()
+    const seen: AskUserQuestionRequest[] = []
+    registerQuestionAnswerer(ctx, {
+      async ask(request) {
+        seen.push(request)
+        return { answers: [{ id: 'bare', selected: [] }] }
+      },
+    })
+
+    await ctx.tools.execute({
+      signal: testToolSignal,
+      callId: ToolCallId('ask-optional-absent'),
+      name: 'ask_user_question',
+      arguments: { questions: [{ id: 'bare', question: 'Proceed?' }] },
+    })
+
+    // toEqual, not toMatchObject: forwarding `header: undefined` for a field
+    // the model omitted is the defect this covers, and only an exact
+    // comparison sees a key that should not be there.
+    expect(seen[0]?.questions).toEqual([{ id: 'bare', question: 'Proceed?' }])
+  })
+
+  it('forwards every optional field when the model supplies them', async () => {
+    const ctx = await setup()
+    const seen: AskUserQuestionRequest[] = []
+    registerQuestionAnswerer(ctx, {
+      async ask(request) {
+        seen.push(request)
+        return { answers: [{ id: 'full', selected: ['a'] }] }
+      },
+    })
+
+    await ctx.tools.execute({
+      signal: testToolSignal,
+      callId: ToolCallId('ask-optional-present'),
+      name: 'ask_user_question',
+      arguments: {
+        questions: [{
+          id: 'full',
+          question: 'Which?',
+          header: 'Choose',
+          options: [{ label: 'a' }],
+          multi_select: true,
+        }],
+      },
+    })
+
+    expect(seen[0]?.questions).toEqual([{
+      id: 'full',
+      question: 'Which?',
+      header: 'Choose',
+      options: [{ label: 'a' }],
+      multiSelect: true,
+    }])
+  })
+})
