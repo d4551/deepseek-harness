@@ -169,6 +169,12 @@ describe('ui-primitives accessibility', () => {
       cleanup()
     }
 
+    // A surface that decided nothing scores 100 for free, so every surface has
+    // to have actually been examined before the aggregate means anything.
+    for (const audit of audits) {
+      expect(audit.passed + audit.failed, `${audit.surface} decided no checks`).toBeGreaterThan(0)
+    }
+
     // Undecided checks are excluded from the score, so which rules land there
     // is itself an assertion: jsdom computes no layout and therefore cannot
     // decide contrast, and that is the browser lane's to prove. Any other rule
