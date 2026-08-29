@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
+import type { SurfaceAudit } from '@deepseek-ai/dsh-client-a11y'
 import type { ReactNode } from 'react'
 import type {
   SidebarFooterActionOwnerProps, SidebarRootComponentProps, SidebarSectionOwnerProps,
@@ -61,7 +63,7 @@ function mountShell({ collapsed = false, width = 300 }: { collapsed?: boolean; w
       }) as SidebarRootComponentProps['renderSlot']}
     />
   )
-  const view = render(root())
+  const view = render(<main>{root()}</main>)
   return {
     startSession,
     toggleSidebar,
@@ -79,7 +81,7 @@ function mountShell({ collapsed = false, width = 300 }: { collapsed?: boolean; w
     },
     rerender(next: Partial<typeof current>) {
       current = { ...current, ...next }
-      view.rerender(root())
+      view.rerender(<main>{root()}</main>)
     },
   }
 }
@@ -174,5 +176,23 @@ describe('SidebarRoot shell', () => {
     const b = mountShell({ collapsed: true })
     expect(b.regionOwner().wide).toBe(false)
     expect(screen.getByRole('button', { name: 'Open sidebar' })).toBeTruthy()
+  })
+})
+
+describe('sidebar shell accessibility', () => {
+  const MINIMUM_ACCESSIBILITY_SCORE = 100
+
+  it('renders no accessibility violations expanded or collapsed', async () => {
+    const audits: SurfaceAudit[] = []
+    for (const [surface, collapsed] of [
+      ['SidebarRoot expanded', false],
+      ['SidebarRoot collapsed', true],
+    ] as const) {
+      cleanup()
+      mountShell({ collapsed })
+      audits.push(await auditSurface(surface, document.body))
+    }
+    cleanup()
+    expect(accessibilityFailures(audits, MINIMUM_ACCESSIBILITY_SCORE)).toBe('')
   })
 })

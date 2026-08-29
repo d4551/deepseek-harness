@@ -3,6 +3,7 @@
  * bound-value arrows disable, display follows the store mirror. */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
@@ -88,5 +89,29 @@ describe('FontSizeRow', () => {
     mount(12)
     expect(arrow('Increase font size').disabled).toBe(false)
     expect(arrow('Decrease font size').disabled).toBe(true)
+  })
+})
+
+describe('font size row accessibility', () => {
+  const MINIMUM_ACCESSIBILITY_SCORE = 100
+
+  it('renders no accessibility violations for the size stepper', async () => {
+    cleanup()
+    const store = createFontSizeRowStore().create()
+    store.actions.sync(14, 0)
+    const props: FontSizeRowComponentProps = {
+      useSessions: emptySessions(),
+      useSessionPendingInteraction,
+      useWorkspaces: emptyWorkspaces(),
+      useStore: bindSnapshotSelector(store),
+      actions: store.actions,
+      t: (key: string) => COPY[key] ?? key,
+      setFontSize: vi.fn(),
+    }
+    const { baseElement } = render(<main><FontSizeRow {...props} /></main>)
+    expect(accessibilityFailures(
+      [await auditSurface('FontSizeRow', baseElement)],
+      MINIMUM_ACCESSIBILITY_SCORE,
+    )).toBe('')
   })
 })

@@ -10,6 +10,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import type { SelectOption } from '../src/client/contract.ts'
 import type { PopupSpec, TokenSegment } from '../src/client/popup.ts'
 import { PopupSelectController } from '../src/client/popup.ts'
@@ -64,7 +65,7 @@ async function mountOpen(overrides: Partial<PopupSpec<string>> = {}, consumeResu
   const consume = vi.fn((_segment: TokenSegment) => consumeResult)
   const focusComposer = vi.fn()
   const popup = new PopupSelectController<string>({ consume, focusComposer })
-  const view = render(<PopupSelectView popup={popup} t={t} />)
+  const view = render(<main><PopupSelectView popup={popup} t={t} /></main>)
   await act(async () => {
     popup.open('theme', spec(overrides), 'ctx-A', SEGMENT)
     await Promise.resolve()
@@ -146,7 +147,7 @@ describe('PopupSelectView', () => {
     expect(seen).toEqual([{ option: OPTIONS[1], context: 'ctx-A' }])
     expect(consume).toHaveBeenCalledExactlyOnceWith(SEGMENT)
     expect(focusComposer).toHaveBeenCalledTimes(1)
-    expect(view.container.childElementCount).toBe(0)
+    expect(screen.queryByRole('textbox', { name: '筛选选项' })).toBeNull()
   })
 
   it('click selects a row; mouseenter moves the highlight', async () => {
@@ -157,7 +158,7 @@ describe('PopupSelectView', () => {
     expect(screen.getAllByRole('option')[2]!.getAttribute('aria-selected')).toBe('true')
     await act(async () => { fireEvent.click(options[2]!) })
     expect(seen).toEqual([OPTIONS[2]])
-    expect(view.container.childElementCount).toBe(0)
+    expect(screen.queryByRole('textbox', { name: '筛选选项' })).toBeNull()
   })
 
   it('renders a gated option as an in-page modal and requires the checkbox before onSelect', async () => {
@@ -239,16 +240,34 @@ describe('PopupSelectView', () => {
   it('Escape dismisses and restores composer focus', async () => {
     const { view, search, focusComposer } = await mountOpen()
     act(() => { fireEvent.keyDown(search, { key: 'Escape' }) })
-    expect(view.container.childElementCount).toBe(0)
+    expect(screen.queryByRole('textbox', { name: '筛选选项' })).toBeNull()
     expect(focusComposer).toHaveBeenCalledTimes(1)
   })
 
   it('an outside pointerdown dismisses without focusComposer; an inside one does not dismiss', async () => {
     const { view, focusComposer } = await mountOpen()
     act(() => { fireEvent.pointerDown(screen.getAllByRole('option')[0]!) })
-    expect(view.container.childElementCount).not.toBe(0)
+    expect(screen.getByRole('textbox', { name: '筛选选项' })).toBeTruthy()
     act(() => { fireEvent.pointerDown(document.body) })
-    expect(view.container.childElementCount).toBe(0)
+    expect(screen.queryByRole('textbox', { name: '筛选选项' })).toBeNull()
     expect(focusComposer).not.toHaveBeenCalled()
+  })
+})
+
+describe('popup select accessibility', () => {
+  const MINIMUM_ACCESSIBILITY_SCORE = 100
+
+  it('renders no accessibility violations while open', async () => {
+    const consume = vi.fn(() => true)
+    const popup = new PopupSelectController<string>({ consume, focusComposer: vi.fn() })
+    const { baseElement } = render(<main><PopupSelectView popup={popup} t={t} /></main>)
+    await act(async () => {
+      popup.open('theme', spec(), 'ctx-A', SEGMENT)
+      await Promise.resolve()
+    })
+    expect(accessibilityFailures(
+      [await auditSurface('PopupSelectView open', baseElement)],
+      MINIMUM_ACCESSIBILITY_SCORE,
+    )).toBe('')
   })
 })

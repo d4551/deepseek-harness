@@ -16,7 +16,7 @@
  * reports for the same call.
  */
 
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -58,6 +58,7 @@ describe('canonicalizeWatchPath on a Windows-style ENOENT', () => {
 
   it('still resolves a missing path under a real directory', async () => {
     root = await mkdtemp(join(tmpdir(), 'dsh-file-parent-ok-'))
-    await expect(canonicalizeWatchPath(join(root, 'child'))).resolves.toBe(join(root, 'child'))
+    // The ancestor is realpath'd; macOS tmpdir is /var → /private/var.
+    await expect(canonicalizeWatchPath(join(root, 'child'))).resolves.toBe(join(await realpath(root), 'child'))
   })
 })

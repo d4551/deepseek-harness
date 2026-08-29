@@ -2,6 +2,8 @@
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
+import type { SurfaceAudit } from '@deepseek-ai/dsh-client-a11y'
 import type { RunningToolCall, ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
@@ -146,5 +148,18 @@ describe('SkillRow', () => {
     expect(blank.container.textContent).toContain('call-skill')
     expect(blank.container.querySelector('[role="button"]')).toBeNull()
     expect(blank.container.textContent).not.toContain('正在加载 skill')
+  })
+})
+
+describe('skill row accessibility', () => {
+  const MINIMUM_ACCESSIBILITY_SCORE = 100
+
+  it('renders no accessibility violations collapsed or disclosed', async () => {
+    const audits: SurfaceAudit[] = []
+    const collapsed = render(<main><SkillRow {...props(settled())} /></main>)
+    audits.push(await auditSurface('SkillRow collapsed', collapsed.baseElement))
+    fireEvent.click(collapsed.getByRole('button', { name: 'Skilldsh-manage-issues' }))
+    audits.push(await auditSurface('SkillRow disclosed', collapsed.baseElement))
+    expect(accessibilityFailures(audits, MINIMUM_ACCESSIBILITY_SCORE)).toBe('')
   })
 })

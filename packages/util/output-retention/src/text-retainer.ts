@@ -3,7 +3,7 @@
  * @module @deepseek-ai/dsh-output-retention/text-retainer
  */
 import { assertBudget } from './budget.ts'
-import type { Omitted, PushDecision, RetainedText, TextRetentionStrategy } from './index.ts'
+import type { PushDecision, RetainedText, TextRetentionStrategy } from './index.ts'
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder() // utf-8, non-fatal: internal malformed bytes → U+FFFD

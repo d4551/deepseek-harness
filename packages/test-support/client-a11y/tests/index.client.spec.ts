@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Result } from 'axe-core'
-import { accessibilityScore, CLIENT_AXE_TAGS, formatViolations } from '../src/index.ts'
+import { accessibilityFailures, accessibilityScore, CLIENT_AXE_TAGS, formatViolations } from '../src/index.ts'
 import type { SurfaceAudit } from '../src/index.ts'
 
 /** One violated rule over `targets`, with `impact` left off when not supplied. */
@@ -67,6 +67,26 @@ describe('formatViolations', () => {
 
   it('renders an empty string for a clean surface', () => {
     expect(formatViolations(audit('Pill', { passed: 12 }))).toBe('')
+  })
+})
+
+describe('accessibilityFailures', () => {
+  it('is empty when every surface decided checks and none failed', () => {
+    expect(accessibilityFailures([audit('a', { passed: 4 })], 100)).toBe('')
+  })
+
+  it('names a surface that decided nothing', () => {
+    expect(accessibilityFailures([audit('empty')], 100)).toBe('empty decided no checks')
+  })
+
+  it('reports violations before a score miss', () => {
+    expect(accessibilityFailures([
+      audit('Button', { passed: 1, failed: 1, violations: [violation('button-name', 'Buttons must have discernible text', [['button']])] }),
+    ], 100)).toContain('button-name')
+  })
+
+  it('reports a score below the floor when nothing was violated in the formatter', () => {
+    expect(accessibilityFailures([audit('a', { passed: 99, failed: 1 })], 100)).toBe('score 99 < 100')
   })
 })
 

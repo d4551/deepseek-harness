@@ -87,3 +87,20 @@ export function formatViolations(audit: SurfaceAudit): string {
     node => `${audit.surface}: ${violation.id} (${violation.impact ?? 'no impact'}) at ${node.target.join(' ')} — ${violation.help}`,
   )).join('\n')
 }
+
+/**
+ * Why a set of audits fails the client floor: a surface that decided nothing
+ * (which would score 100 for free), any violated node, or an aggregate below
+ * `minScore`. Empty string means the floor holds.
+ * @param audits - every surface the suite rendered.
+ * @param minScore - minimum {@link accessibilityScore}; the lane's recorded floor is 100.
+ * @returns a non-empty failure report, or `''` when the audits meet the floor.
+ */
+export function accessibilityFailures(audits: readonly SurfaceAudit[], minScore: number): string {
+  const silent = audits.filter(audit => audit.passed + audit.failed === 0).map(audit => audit.surface)
+  if (silent.length > 0) return `${silent.join(', ')} decided no checks`
+  const violations = audits.map(formatViolations).filter(text => text !== '').join('\n')
+  if (violations !== '') return violations
+  const score = accessibilityScore(audits)
+  return score < minScore ? `score ${score} < ${minScore}` : ''
+}

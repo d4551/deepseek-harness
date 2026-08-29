@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import type { ModelSelection } from '@deepseek-ai/dsh-api-remotes/client'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { ComponentProps } from 'react'
@@ -213,5 +214,27 @@ describe('ModelSelect reasoning effort', () => {
 
     expect(screen.queryByRole('button')).toBeNull()
     expect(load).not.toHaveBeenCalled()
+  })
+})
+
+describe('model select accessibility', () => {
+  const MINIMUM_ACCESSIBILITY_SCORE = 100
+
+  it('renders no accessibility violations for the closed trigger and open menu', async () => {
+    const directory = createSnapshotStore<ModelDirectoryState>(state())
+    const closed = render(<main><ModelSelect
+      locked={false}
+      available
+      directory={directory}
+      load={vi.fn()}
+      select={vi.fn().mockResolvedValue(true)}
+      t={t}
+    /></main>)
+    const audits = [await auditSurface('ModelSelect closed', closed.baseElement)]
+    fireEvent.click(screen.getByRole('button', {
+      name: '选择模型，当前 DeepSeek-V4-Flash，推理等级 High',
+    }))
+    audits.push(await auditSurface('ModelSelect open', closed.baseElement))
+    expect(accessibilityFailures(audits, MINIMUM_ACCESSIBILITY_SCORE)).toBe('')
   })
 })

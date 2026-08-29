@@ -36,22 +36,25 @@ export default {
   // No exclusions: a `types.ts` carries no runtime code and so yields no
   // mutants on its own, and every other file in the tier is in scope.
   mutate: ['packages/util/*/src/**/*.ts'],
-  // Recorded score for this scope: 96.57 — 781 killed plus 7 timed out of 816
-  // reachable mutants. One mutant is worth 0.1225 points here, so `break` sits
-  // one mutant below the record: 788 detected scores 96.57 and 787 scores
-  // 96.45, which this rejects. Killed and timed-out both count as detected, so
+  // Recorded score for this scope: 96.92 — 780 killed plus 7 timed out of 812
+  // reachable mutants. One mutant is worth 0.1232 points here, so `break` sits
+  // one mutant below the record: 787 detected scores 96.92 and 786 scores
+  // 96.80, which this rejects. Killed and timed-out both count as detected, so
   // the split between them moving does not shift the score. It only moves up.
   //
-  // The 28 survivors are not missing assertions. They are mutants no output
-  // assertion can reach: the suffix accumulator's trim is a documented memory
-  // bound that `finish()` never reads past, `clearTimeout(undefined)` and a
-  // second `dispose()` are no-ops, `mkdir({ mode: undefined })` is the default,
-  // the UTF-8 scanner's scan-back cap bounds work rather than output, an
-  // emptied `catch` returns undefined where the caller only tests falsiness,
-  // and `RegExp.exec(undefined)` matches the string "undefined" rather than
-  // throwing, so guarding it changes nothing. Raising the score means removing
-  // that code or widening the scope, not weakening this number.
-  thresholds: { high: 100, low: 96.5, break: 96.5 },
+  // The suffix retention is exact-window: push() retains only the bytes
+  // finish() reads, so the trim is load-bearing output logic and its mutants
+  // die under the behavior suite (that refactor took the scope from 96.57 to
+  // 96.92 and timeout to 100). The 25 survivors are the equivalent floor:
+  // scan-back caps and intent returns in the UTF-8 cut helpers (bounds on work,
+  // documented spec facts), guards subsumed only through undefined-arithmetic
+  // the guards exist to avoid relying on, a fast-path gate that keeps the
+  // head strategy off the suffix arithmetic, a catch whose `false` the caller
+  // reads only for falsiness, a fold direction no public surface exposes, and
+  // loop or spread boundaries whose alternate form stores or spreads an empty
+  // value. Raising the score past this means widening the scope, not weakening
+  // this number.
+  thresholds: { high: 100, low: 96.8, break: 96.8 },
   // Agent-session state and build output are not project sources; Stryker copies
   // the working tree into its sandbox, and `.claude/skills` is a directory
   // symlink its file copier cannot follow.

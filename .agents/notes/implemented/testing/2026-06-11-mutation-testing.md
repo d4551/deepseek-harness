@@ -15,31 +15,25 @@ Stryker runs over `packages/util/*/src` with the Vitest runner, configured in [s
 - **Scope is the ratchet.** The zero-dependency utility tier is the code every other package builds on, so it goes first; the scope widens tier by tier as each one reaches its threshold.
 - **The suite is scoped with the mutants.** [vitest.mutation.config.ts](../../../../vitest.mutation.config.ts) includes only the tests owned by the packages under mutation. A mutant a consumer's suite would have killed therefore survives here, so the scoping can only lower the score, never inflate it.
 - **`coverageAnalysis: 'all'`, not per-test.** These suites reach their subject through tsconfig path aliases, which Stryker's per-test coverage attribution does not follow: it reported mutants as survived that fail the suite when applied by hand.
-- **`break` sits one mutant below the recorded score, and only moves up.** The scope measures 96.57 — 781 killed plus 7 timed out of 816 reachable mutants. One mutant is worth 0.1225 points here, so the threshold is 96.5: losing a single kill scores 96.45 and fails the run.
+- **`break` sits one mutant below the recorded score, and only moves up.** The scope measures 96.92 — 780 killed plus 7 timed out of 812 reachable mutants. One mutant is worth 0.1232 points here, so the threshold is 96.8: losing a single kill scores 96.80 and stays above it; losing two scores 96.67 and fails the run.
 
 ## What the survivors are
 
-The 28 survivors are not missing assertions; they are mutants no assertion over the public result can reach, and the distinction is what keeps the number meaningful:
+The survivors are not missing assertions; they are mutants no assertion over the public result can reach, and the distinction is what keeps the number meaningful:
 
-- **Memory-bounded, output-identical.** `TextRetainer`'s suffix trim keeps the accumulator inside `suffixCap`. Its own comment records that `finish()` never reads past the last `suffixLen` bytes, so removing or inverting the trim changes allocation and nothing a caller can observe.
-- **No-ops by construction.** `clearTimeout(undefined)` does nothing, a second `[Symbol.dispose]()` does nothing, and `mkdir({ mode: undefined })` is the platform default. An emptied `catch` belongs here too: it returns `undefined` where the caller only tests falsiness, so the explicit `return false` reads as the intent rather than as behaviour.
-- **Guards subsumed by the check that follows.** The UTF-8 scanner's bounds guards are redundant with the sequence-length test after them; three such guards in `abbreviateHomePath` were genuinely redundant and were deleted rather than annotated.
-- **Bounds on work, not output.** The UTF-8 scanner's scan-back cap keeps a long continuation run from being walked end to end; how far it walks is invisible to what it returns. Where the scan-back begins is not invisible: stopping it one byte early deletes a stray leading continuation byte the decoder is supposed to replace, and understates the omission count derived from what was kept, so that guard is covered rather than explained.
+- **Memory-bounded, output-identical.** The suffix accumulator now retains exactly the window `finish()` reads, so the *old* trim survivors are gone — that refactor made the retention arithmetic load-bearing output logic and took the scope from 96.57 to 96.92. What remains in this class are bounds on work rather than output: the UTF-8 scanner's scan-back cap, and the fast-path gate that keeps the head strategy out of the suffix arithmetic.
+- **No-ops by construction.** `clearTimeout(undefined)` does nothing, and a second `[Symbol.dispose]()` on the watchdog is now guard-free and idempotent by construction (timeout measures 100.00). `mkdir({ mode: undefined })` is the platform default. An emptied `catch` belongs here too: it returns `undefined` where the caller only tests falsiness, so the explicit `return false` reads as the intent rather than as behaviour.
+- **Guards subsumed only through undefined-arithmetic.** The `i < 0` and `expected === 0` returns in the trailing-sequence trimmer could be deleted — a negative index reads `undefined`, every comparison yields `NaN`, and the code falls through to the same result — but relying on that is exactly the obscurity the guards exist to prevent, and deleting spec-stating returns to move a number is removal-chasing, not cleanup.
 - **Coerced, not thrown.** `RegExp.exec(undefined)` matches against the string `"undefined"` instead of throwing, so the LaunchServices guard that returns early on an absent block is unobservable: without it the next match simply finds nothing and the caller falls back either way.
+- **Direction no surface exposes.** Windows name-folding stores and looks up by the *same* key on both sides of `get`/`getFrom`, and the folded key never crosses the public surface — `toUpperCase` versus `toLowerCase` is indistinguishable to every caller, so the folding test proves consistency, not direction.
 
-One bullet left this list rather than being annotated into it. The Windows file-as-parent probe reads as off-platform, because POSIX `realpath` reports ENOTDIR for a path through a file and the walk rethrows anything but ENOENT. Windows reports ENOENT, so the probe is the only thing that catches it there. Answering `realpath` with ENOENT reaches that branch here and kills both of its mutants. What it pins is the harness's decision to open the ancestor and let the failure through; the errno the assertion reads is this host's, so Windows' own answer for that call is still only proven by a Windows run.
-
-Raising the score past this means deleting the code the survivors sit in or widening the scope — never excluding a file, loosening the threshold, or annotating a mutant the suite could have killed.
+Raising the score past this means widening the scope — never excluding a file, loosening the threshold, or deleting a bound the code legitimately keeps.
 
 ### Why 99 is not reachable on this scope
 
-99 needs the survivors at or under 1% of 816 mutants — eight. There are 28, and nineteen are `TextRetainer`'s suffix trim. Killing twenty would give 99.02 without widening anything, and there is exactly one way to kill them: make the retained-byte bound observable, so a test can assert the bound instead of the output it does not change.
+99 needs the survivors at or under 1% of the reachable mutants — eight of 812. There are 25, and they are the equivalent floor listed above: every remaining survivor is an alternate form of correct code (a bound, a fast path, an intent return, a falsy-versus-undefined catch, an unexposed fold direction, a loop or spread boundary whose mutant stores or spreads an empty value). Killing one means either deleting code that is correct and intentional — the thing this note exists to refuse — or widening the scope.
 
-Every consumer was read to see whether one would use such a reading. `spill-policy`, `tool-terminal`, `tool-jobs`, `tool-fs-search`, and `session-reference` all use the same one-shot shape — construct a retainer, push the complete text once, read `finish()`. None streams into one, so none would ever ask how many bytes are currently held.
-
-That closes it. `packages/AGENTS.md` requires an abstraction to have a current owner and need, and a reading whose only caller is a test has neither. Adding it to move a number is the thing this note exists to refuse, so the number stays at 96.57 and this scope stays honest about why.
-
-The streaming path the trim protects is a documented part of `push()`'s contract even though no caller exercises it today, so the code stays as well.
+The earlier claim that the suffix-trim survivors could only be killed by exposing a reading no consumer needs was wrong, and the exact-window refactor is what refuted it: making retention exact, rather than over-retaining and re-slicing, deletes the redundant re-derivation in `finish()` and turns the accumulator arithmetic into output. That bought 0.35 points and proved the honest path is exhausted when the survivors stop being alternate forms of observable behaviour.
 
 ## What widening can and cannot buy
 
@@ -61,7 +55,7 @@ So widening is bounded by the equivalent-mutant floor, not by test effort: a tie
 
 ## Consequences
 
-Surviving mutants are work items with a shape: pick one, write the test that kills it, repeat. That loop took this scope from 82.92 to 96.57 and produced tests for real behavior that had none — UTF-8 cut boundaries, LaunchServices parsing, temp-file exclusivity, name folding, the writer lock's deadline and backoff, and a thrown null reaching its caller intact — plus three code simplifications the survivors exposed, and one narrowed `try` that had been swallowing this package's own parser failures as an absent macOS record.
+Surviving mutants are work items with a shape: pick one, write the test that kills it, repeat. That loop took this scope from 82.92 to 96.57, and the exact-window suffix refactor then took it to 96.92 while driving `timeout` to 100 — producing tests for real behavior that had none — UTF-8 cut boundaries, LaunchServices parsing, temp-file exclusivity, name folding, the writer lock's deadline and backoff, and a thrown null reaching its caller intact — plus code simplifications the survivors exposed, and one narrowed `try` that had been swallowing this package's own parser failures as an absent macOS record.
 
 Adding the lane moved `docs/testing.md`'s word ceiling from 1150 to 1200: the tier list gains a lane, and the coverage tier now describes every kind of exclusion its gate carries instead of naming only the `pwsh` one, which read as though it were the only exemption.
 
