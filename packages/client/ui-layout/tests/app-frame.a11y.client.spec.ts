@@ -73,7 +73,7 @@ describe('app frame accessibility', () => {
       useSessionPendingInteraction,
       useWorkspaces: ((sel: (s: WorkspaceSnapshot) => unknown) => sel(workspace)) as AppFrameProps['useWorkspaces'],
       SessionProvider: ({ children }) => createElement(Fragment, null, children),
-      t: key => key === 'brand.localBuild' ? 'DSH Local Build' : key,
+      t: key => key === 'brand.localBuild' ? 'DeepMeow' : key,
     })
     const { baseElement } = render(createElement('main', null, frame))
     expect(accessibilityFailures(

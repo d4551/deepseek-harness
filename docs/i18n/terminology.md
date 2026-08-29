@@ -39,6 +39,7 @@
 | blob hash | blob hash | | | `git hash-object` 的结果 |
 | coding agent | coding agent | coding agent（编程智能体） | | agent 组合词，正文保留英文 |
 | Cordis | Cordis | | | |
+| DeepMeow | DeepMeow | | | 非 official 客户端构建的产品名；中英文均保留此拼写 |
 | dispose | dispose | dispose（资源释放） | | |
 | doc-sync | doc-sync | doc-sync（文档同步门禁） | | |
 | fiber | fiber | | | |

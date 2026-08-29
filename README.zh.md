@@ -15,7 +15,7 @@ DeepSeek Harness（`dsh`）是由 [DeepSeek AI](https://deepseek.com) 开发的�
 本 fork 固定了不同的贡献者工具链：
 
 - **bun 1.4** 是包管理器和脚本运行器（`package.json` 中的 `packageManager`）。workspace 链接使用 bun 的 isolated linker；`dsh plugin` 转发给 bun。原生 addon 与单文件可执行构建仍是 Node 产物，并遵循已文档化的 Node 引擎范围。
-- **TypeScript 7**（`typescript` ^7.0.2）编译 Host 与 Client program。调用 compiler API 的脚本和 Typert generator 导入 `@typescript/typescript6`，因为 TypeScript 7.0 尚未提供稳定的 programmatic API。
+- **TypeScript 7**（`typescript` ^7.0.2）编译 Host 与 Client program。该包在 `typescript/unstable/sync` 与 `typescript/unstable/ast` 导出新的 compiler API。gate 脚本和 Typert 仍导入 `@typescript/typescript6`（6.0 Strada API）；那是残留，不是第二套编译固定版本。
 
 `npx @deepseek-ai/dsh` 启动路径运行已发布的上游软件包。下方源码路径构建本检出。贡献者搭建步骤（含 bun 固定版本）见[开发指南](docs/development.zh.md)。
 

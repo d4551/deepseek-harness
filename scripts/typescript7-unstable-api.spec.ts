@@ -1,0 +1,42 @@
+/**
+ * TypeScript 7.0.2's package exports include the new compiler API under
+ * `typescript/unstable/*`. `@typescript/typescript6` is the 6.0 Strada API,
+ * not a TypeScript 7 surface. This gate fails if the mandated `typescript`
+ * pin stops exporting that API.
+ */
+import { API } from 'typescript/unstable/sync'
+import { SyntaxKind } from 'typescript/unstable/ast'
+import { version, versionMajorMinor } from 'typescript'
+import { describe, expect, it } from 'vitest'
+
+describe('mandated typescript 7 compiler API', () => {
+  it('is TypeScript 7 on the typescript package', () => {
+    expect(versionMajorMinor).toBe('7.0')
+    expect(version.startsWith('7.')).toBe(true)
+  })
+
+  it('exports the unstable sync API and AST SyntaxKind from typescript 7', () => {
+    expect(API).toBeTypeOf('function')
+    expect(SyntaxKind.ExportKeyword).toBeTypeOf('number')
+  })
+
+  it('parses a repository tsconfig through the TypeScript 7 sync API', () => {
+    const api = new API()
+    const parsed = api.parseConfigFile(`${import.meta.dirname}/../tsconfig.host.json`)
+    api.close()
+    expect(Array.isArray(parsed.fileNames)).toBe(true)
+    expect(parsed.fileNames.length).toBeGreaterThan(0)
+  })
+
+  it('loads an on-disk source file through a snapshot inferred project', () => {
+    const api = new API()
+    const file = `${import.meta.dirname}/typescript7-unstable-api.spec.ts`
+    const snapshot = api.updateSnapshot({ openFiles: [file] })
+    const project = snapshot.getDefaultProjectForFile(file)
+    const sourceFile = project?.program.getSourceFile(file)
+    api.close()
+    expect(project).not.toBeUndefined()
+    expect(sourceFile?.fileName.endsWith('typescript7-unstable-api.spec.ts')).toBe(true)
+    expect((sourceFile?.statements.length ?? 0) > 0).toBe(true)
+  })
+})

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/process/2026-08-29-typescript-7-compiler.md
-2026-08-29-typescript-7-compiler.md: fe807822275d09819d9d0a994b138e619efd85de
-2026-08-29-typescript-7-compiler.zh.md: c2cc43c2a4ac2c0bbe3d2ac6daf90877607ae745
+2026-08-29-typescript-7-compiler.md: 32a5c0e2eee72893a4da5d5413b1a3c7eae2faac
+2026-08-29-typescript-7-compiler.zh.md: 9eb99f743674eccefa6b57ee859444ba41ce5c43

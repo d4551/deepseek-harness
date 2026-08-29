@@ -1,0 +1,29 @@
+# Agent Note: DeepMeow local-build brand
+
+Status: implemented
+
+English | [中文](2026-08-30-deepmeow-local-build-brand.zh.md)
+
+## Problem
+
+A source-tree `dsh web` session identifies itself with the localized `common.brand.localBuild` string, the unfilled brand-mark slot fallback, and `apps/web/public/favicon.svg`. That chrome is the product identity of a non-official client build, and it must stay distinct from the official DeepSeek Harness wordmark that `ui-brand-official` registers only when `DSH_CLIENT_BUILD_PROFILE` is `official`.
+
+## Decision
+
+The `common.brand.localBuild` dictionary value is `DeepMeow` in both locales. The `apps/web/index.html` title placeholder and Vite `DEFAULT_CLIENT_TITLE` match that name so the first document title agrees with the hydrated locale string when `DSH_CLIENT_TITLE` is unset.
+
+Unfilled `sidebar.brand.mark` and `conversation.hero.brand.mark` slots render `CatLogo`, a square currentColor cat-face mark in `@deepseek-ai/dsh-client-ui-primitives`. `FishLogo` remains the official whale occupant. `apps/web/public/favicon.svg` uses the same cat-face path and still paints `#000` in light color scheme and `#fff` under `prefers-color-scheme: dark`.
+
+`@deepseek-ai/dsh-client-ui-brand-official` still no-ops unless the build profile is `official`, so official artifacts keep the whale mark, the DeepSeek Harness wordmark, and `DSH_CLIENT_TITLE`.
+
+## Alternatives considered
+
+**Replace `FishLogo` itself with a cat.** Rejected because official brand occupants render `FishLogo`; changing that path would recast the official whale mark.
+
+**Ship a profile-specific favicon.** Rejected because `apps/web/public/` is not split by `DSH_CLIENT_BUILD_PROFILE`. One favicon ships with the web app.
+
+**Translate `DeepMeow` in the zh dictionary.** Rejected because it is a coined product name and stays in Latin letters in both locales ([terminology](../../../../docs/i18n/terminology.md)).
+
+## Consequences
+
+Local `dsh web` chrome shows DeepMeow and the cat-face mark in the sidebar, the blank-session hero, the tab icon, and the default document title. Official builds still fill brand slots with the whale wordmark and set `DSH_CLIENT_TITLE`; they share the cat favicon until public assets are profile-split. Locale, primitive, sidebar, layout, assembled-boot, and PWA tests pin the name, mark geometry, fallback occupancy, and favicon color-scheme switch.

@@ -38,6 +38,6 @@ Vite 配置与动态 client bundle 的共享 tsdown preset 使用同一 define �
 
 ## Consequences
 
-Vite 静态壳和共享 tsdown 动态 bundle 对同一 `DSH_CLIENT_*` 构建进程变量产生相同字符串值。未设置的静态点访问得到 `undefined`，非 `DSH_CLIENT_*` 值不会通过该机制进入浏览器产物，业务代码也无法枚举构建进程环境。每次完整构建都携带可公开展示的包版本和短源码 revision；dirty 的默认构建还会标明其源码存在未提交变化。CI 构建门禁选择官方 profile，而不把其中的公开值暴露给源码测试或无关 workflow 步骤。npm 打包与 built Web 测试会校验记录中的环境及当前产物摘要，因此默认构建后请求官方打包、局部重建或修改输出都会在消费产物前失败。watch build 会保留启动时的快照，直到 `bun run dev:web` 重启。
+Vite 静态壳和共享 tsdown 动态 bundle 对同一 `DSH_CLIENT_*` 构建进程变量产生相同字符串值。未设置的静态点访问得到 `undefined`，非 `DSH_CLIENT_*` 值不会通过该机制进入浏览器产物，业务代码也无法枚举构建进程环境。每次完整构建都携带可公开展示的包版本和短源码 revision。dirty 的默认构建仍会把 `DSH_CLIENT_GIT_DIRTY=true` 写入该环境；侧栏徽标显示 `version[-commit]`，不追加 dirty。CI 构建门禁选择官方 profile，而不把其中的公开值暴露给源码测试或无关 workflow 步骤。npm 打包与 built Web 测试会校验记录中的环境及当前产物摘要，因此默认构建后请求官方打包、局部重建或修改输出都会在消费产物前失败。watch build 会保留启动时的快照，直到 `bun run dev:web` 重启。
 
 任何被业务代码引用的 `DSH_CLIENT_*` 值都会成为公开产物内容，命名错误可能泄露信息。构建选择在产物生成时固定；需要部署后变化的设置必须使用拥有校验、传输和文档的运行时配置机制。

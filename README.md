@@ -15,7 +15,7 @@ This repository is a fork of [DeepSeek Harness](https://github.com/deepseek-ai/d
 The fork pins a different contributor toolchain:
 
 - **bun 1.4** is the package manager and script runner (`packageManager` in `package.json`). Workspace linking uses bun's isolated linker; `dsh plugin` forwards to bun. Native addons and the single-exe build remain Node artifacts on the documented Node engines.
-- **TypeScript 7** (`typescript` ^7.0.2) compiles Host and Client programs. Scripts and the Typert generator that call the compiler API import `@typescript/typescript6`, because TypeScript 7.0 does not ship a stable programmatic API.
+- **TypeScript 7** (`typescript` ^7.0.2) compiles Host and Client programs. The package exports the new compiler API at `typescript/unstable/sync` and `typescript/unstable/ast`. Gate scripts and Typert still import `@typescript/typescript6` (the 6.0 Strada API); that is residual, not a second compile pin.
 
 The `npx @deepseek-ai/dsh` launch path runs the published upstream package. The source path below builds this checkout. Contributor setup, including the bun pin, is in the [development guide](docs/development.md).
 

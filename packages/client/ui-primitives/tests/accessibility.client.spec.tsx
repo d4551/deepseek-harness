@@ -24,7 +24,7 @@ import {
 const MINIMUM_ACCESSIBILITY_SCORE = 100
 
 const {
-  BrandWordmark, Button, CodeBlock, ConnectionBanner, DiffBlock, DisclosureRow, FishLogo, HoverCard,
+  BrandWordmark, Button, CatLogo, CodeBlock, ConnectionBanner, DiffBlock, DisclosureRow, FishLogo, HoverCard,
   Input, JsonBlock, JsonTree, MarkdownText, Menu, MessageText, Modal, OnboardingSurface, Pill,
   ReadBlock, ReferenceIcon, RiskConfirmation, SearchBlock, StateDot, TerminalBlock, Toast, Tooltip,
   WebBlock,
@@ -51,6 +51,7 @@ const SURFACES: Readonly<Record<string, () => ReactElement>> = {
       <p>Result body</p>
     </DisclosureRow>
   ),
+  CatLogo: () => <CatLogo size={24} />,
   FishLogo: () => <FishLogo size={24} />,
   HoverCard: () => (
     <HoverCard anchor={<button type="button">Details</button>} content={<p>More</p>} copyLabel="Copy" copiedLabel="Copied" />

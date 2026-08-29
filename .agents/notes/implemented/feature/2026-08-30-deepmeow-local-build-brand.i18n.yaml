@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-30-deepmeow-local-build-brand.md
+2026-08-30-deepmeow-local-build-brand.md: b8293292c3d55a189b98479fae2a1fbd8ed9ecc2
+2026-08-30-deepmeow-local-build-brand.zh.md: 1e10f76b3fd6b9cb88bfc33bf5f2a8b7538798c7

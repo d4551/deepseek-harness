@@ -1,0 +1,118 @@
+/**
+ * TypeScript 7 compiler session for repository gates that need a SourceFile
+ * or a parsed tsconfig. Isolated syntax walks import `is*` from
+ * `typescript/unstable/ast/is` and `SyntaxKind` from `typescript/unstable/ast`.
+ */
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { basename, join } from 'node:path'
+import { parse as parseJsonc, type ParseError } from 'jsonc-parser'
+import { API } from 'typescript/unstable/sync'
+import type { Diagnostic } from 'typescript/unstable/sync'
+import type { SourceFile } from 'typescript/unstable/ast'
+
+let api: API | undefined
+let textRoot: string | undefined
+let textSerial = 0
+
+function compiler(): API {
+  api ??= new API()
+  return api
+}
+
+/**
+ * Shut down the Go compiler session. Call once at process end after a gate
+ * that opened many files.
+ */
+export function closeCompiler(): void {
+  api?.close()
+  api = undefined
+  textRoot = undefined
+  textSerial = 0
+}
+
+/**
+ * Parse one on-disk TypeScript file through a TypeScript 7 snapshot.
+ * @param file - path that already exists.
+ * @returns the bound source file.
+ */
+export function parsePath(file: string): SourceFile {
+  const snapshot = compiler().updateSnapshot({ openFiles: [file] })
+  const project = snapshot.getDefaultProjectForFile(file)
+  if (project === undefined) throw new Error(`ts7: no project for ${file}`)
+  const sourceFile = project.program.getSourceFile(file)
+  if (sourceFile === undefined) throw new Error(`ts7: missing source file ${file}`)
+  return sourceFile
+}
+
+/**
+ * Parse source text. Matching on-disk contents reuse the real path; other
+ * text is written to a process-temp file the snapshot can open.
+ * @param fileName - path used as the source-file name.
+ * @param text - file contents.
+ * @returns the bound source file.
+ */
+export function createSourceFile(fileName: string, text: string): SourceFile {
+  if (existsSync(fileName) && readFileSync(fileName, 'utf8') === text) return parsePath(fileName)
+  textRoot ??= mkdtempSync(join(tmpdir(), 'dsh-ts7-'))
+  textSerial += 1
+  const suffix = basename(fileName) || 'input.ts'
+  const path = join(textRoot, `${String(textSerial)}-${suffix}`)
+  writeFileSync(path, text)
+  return parsePath(path)
+}
+
+/**
+ * Flatten a TypeScript 7 diagnostic or a string into one message.
+ * @param messageText - diagnostic, chain, or already-flat string.
+ * @param separator - inserted between chain entries.
+ * @returns the flattened message.
+ */
+export function flattenDiagnosticMessageText(
+  messageText: string | Diagnostic,
+  separator: string,
+): string {
+  if (typeof messageText === 'string') return messageText
+  const chain = messageText.messageChain
+  if (chain === undefined || chain.length === 0) return messageText.text
+  return [messageText.text, ...chain.map(entry => flattenDiagnosticMessageText(entry, separator))].join(separator)
+}
+
+export interface JsoncParseResult {
+  readonly config: string | number | boolean | null | object | readonly (string | number | boolean | null | object)[] | undefined
+  readonly error?: { readonly messageText: string }
+}
+
+/**
+ * Parse JSONC the way Strada `parseConfigFileTextToJson` did.
+ * @param text - JSONC document.
+ * @returns `{ config }` or `{ error }` with a flattenable message.
+ */
+export function parseConfigFileTextToJson(text: string): JsoncParseResult {
+  const errors: ParseError[] = []
+  const config = parseJsonc(text, errors, { allowTrailingComma: true }) as JsoncParseResult['config']
+  if (errors.length > 0) {
+    const first = errors[0]
+    if (first === undefined) return { config: undefined, error: { messageText: 'invalid JSONC' } }
+    return {
+      config: undefined,
+      error: { messageText: `JSONC error ${String(first.error)} at offset ${String(first.offset)}` },
+    }
+  }
+  return { config }
+}
+
+/**
+ * Read and parse one JSONC config file.
+ * @param path - file to read.
+ * @returns `{ config }` or `{ error }`.
+ */
+export function readConfigFile(path: string): JsoncParseResult {
+  if (!existsSync(path)) return { config: undefined, error: { messageText: `cannot read ${path}` } }
+  return parseConfigFileTextToJson(readFileSync(path, 'utf8'))
+}
+
+/** Parse one tsconfig through the TypeScript 7 sync API. */
+export function parseConfigFile(path: string): { readonly fileNames: string[] } {
+  return compiler().parseConfigFile(path)
+}

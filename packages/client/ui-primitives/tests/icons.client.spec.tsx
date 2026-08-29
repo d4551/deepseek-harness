@@ -67,6 +67,20 @@ describe('FishLogo', () => {
   })
 })
 
+describe('CatLogo', () => {
+  it('renders the cat-face path in currentColor as a square', () => {
+    const { container } = render(<primitives.CatLogo />)
+    const svg = container.querySelector('svg')
+    expect(svg).not.toBeNull()
+    expect(svg?.getAttribute('width')).toBe('24')
+    expect(svg?.getAttribute('height')).toBe('24')
+    expect(svg?.getAttribute('viewBox')).toBe('0 0 24 24')
+    expect(container.querySelectorAll('path')).toHaveLength(1)
+    expect(container.querySelector('path')?.getAttribute('fill')).toBe('currentColor')
+    expect(svg?.getAttribute('aria-hidden')).toBe('true')
+  })
+})
+
 describe('BrandWordmark', () => {
   it('can render the name artwork with or without its leading mark', () => {
     const view = render(<primitives.BrandWordmark />)
