@@ -3,6 +3,8 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { GoalSnapshot } from '@deepseek-ai/dsh-goal/client'
+import { accessibilityScore, auditSurface, formatViolations } from '@deepseek-ai/dsh-client-a11y'
+import type { SurfaceAudit } from '@deepseek-ai/dsh-client-a11y'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { GoalBar } from '../src/client/GoalBar.tsx'
@@ -199,5 +201,37 @@ describe('GoalBar', () => {
     expect(screen.getByText('Ship the redesign')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '清除目标' }))
     await waitFor(() => { expect(actions.onClear).toHaveBeenCalledTimes(2) })
+  })
+})
+
+/**
+ * The goal bar is persistent chrome: it is on screen for the whole session,
+ * so a control it leaves unnamed is one a screen-reader user meets on every
+ * turn. Audited in its active and completed states against the same fixed
+ * WCAG A/AA rule set and floor the primitives lane holds.
+ */
+describe('goal bar accessibility', () => {
+  const MINIMUM_ACCESSIBILITY_SCORE = 100
+
+  it('renders no accessibility violations in its active and completed states', async () => {
+    const audits: SurfaceAudit[] = []
+    for (const [surface, goal] of [
+      ['GoalBar running', makeGoal()],
+      ['GoalBar complete', makeGoal({ phase: 'complete' })],
+    ] as const) {
+      // The page shell supplies the `main` landmark; without it the harness's
+      // own missing page frame reads as a defect in the component.
+      const { baseElement } = render(<main><GoalBar goal={goal} {...makeActions()} t={t} /></main>)
+      audits.push(await auditSurface(surface, baseElement))
+      cleanup()
+    }
+
+    // A surface that decided nothing would score 100 for free.
+    for (const audit of audits) {
+      expect(audit.passed + audit.failed, `${audit.surface} decided no checks`).toBeGreaterThan(0)
+    }
+    expect([...new Set(audits.flatMap(audit => audit.undecidedRules))]).toEqual(['color-contrast'])
+    expect(audits.map(formatViolations).filter(text => text !== '').join('\n')).toBe('')
+    expect(accessibilityScore(audits)).toBeGreaterThanOrEqual(MINIMUM_ACCESSIBILITY_SCORE)
   })
 })
