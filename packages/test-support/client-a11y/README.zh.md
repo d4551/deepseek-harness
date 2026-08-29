@@ -35,7 +35,7 @@ expect(formatViolations(audit)).toBe('')
 expect(accessibilityScore([audit])).toBeGreaterThanOrEqual(99)
 ```
 
-`auditSurface(surface, context)` 返回被违反的规则，以及 `passed`、`failed`、`undecided` 三个节点计数。`accessibilityScore(audits)` 是*已判定*检查中通过的百分比；`formatViolations(audit)` 为每个违规节点渲染一行，写明规则、其影响级别与对应元素。
+`auditSurface(surface, context)` 返回被违反的规则，以及 `passed`、`failed`、`undecided` 三个节点计数，还有 `undecidedRules`——这些未判定检查所属的规则。`accessibilityScore(audits)` 是*已判定*检查中通过的百分比；`formatViolations(audit)` 为每个违规节点渲染一行，写明规则、其影响级别与对应元素。
 
 ### 在 landmark 内渲染
 
@@ -47,7 +47,7 @@ expect(accessibilityScore([audit])).toBeGreaterThanOrEqual(99)
 
 ### 可能出什么问题
 
-- **颜色对比度被报告为 undecided（未判定）**——jsdom 不计算布局，因此对比度检查什么也判定不了，且不计入分数的任何一侧。对比度回归需要浏览器通道来发现。
+- **颜色对比度被报告为 undecided（未判定）**——jsdom 不计算布局，因此对比度检查什么也判定不了，且不计入分数的任何一侧。对比度回归需要浏览器通道来发现。请断言 `undecidedRules` 而不只是分数：否则某条规则变为不可判定时，分数不会变化，也就不会失败。
 - **portal 出去的 surface（受审面）逃出了 landmark**——渲染进 `document.body` 的内容位于包裹层之外。请赋予它实际具有的 role（模态浮层就是 `dialog`），而不是排除该规则。
 
 -----

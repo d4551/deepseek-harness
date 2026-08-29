@@ -35,7 +35,7 @@ expect(formatViolations(audit)).toBe('')
 expect(accessibilityScore([audit])).toBeGreaterThanOrEqual(99)
 ```
 
-`auditSurface(surface, context)` returns the violated rules plus `passed`, `failed`, and `undecided` node counts. `accessibilityScore(audits)` is the percentage of *decided* checks that passed; `formatViolations(audit)` renders one line per offending node, naming the rule, its impact, and the element.
+`auditSurface(surface, context)` returns the violated rules plus `passed`, `failed`, and `undecided` node counts, and `undecidedRules` — the rules those undecided checks belong to. `accessibilityScore(audits)` is the percentage of *decided* checks that passed; `formatViolations(audit)` renders one line per offending node, naming the rule, its impact, and the element.
 
 ### Render inside a landmark
 
@@ -47,7 +47,7 @@ A hand-written list of audited components silently stops covering the next one. 
 
 ### What can go wrong
 
-- **Colour contrast reports as undecided** — jsdom computes no layout, so contrast checks decide nothing and count toward neither side of the score. A contrast regression needs the browser lane.
+- **Colour contrast reports as undecided** — jsdom computes no layout, so contrast checks decide nothing and count toward neither side of the score. A contrast regression needs the browser lane. Assert `undecidedRules` rather than only the score: a rule that becomes undecidable would otherwise leave the number untouched instead of failing.
 - **A portaled surface escapes the landmark** — content rendered into `document.body` sits outside the wrapper. Give it the role it actually has (a modal overlay is a `dialog`) instead of excluding the rule.
 
 -----

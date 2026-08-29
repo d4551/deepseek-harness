@@ -47,10 +47,9 @@ export interface WriteFileAtomicOptions {
  * @param options - permission bits for the replacement inode.
  */
 export async function writeFileAtomic(filename: string, content: string, options: WriteFileAtomicOptions): Promise<void> {
-  await mkdir(dirname(filename), {
-    recursive: true,
-    ...options.dirMode === undefined ? {} : { mode: options.dirMode },
-  })
+  // An undefined mode is the platform default, which is exactly what an absent
+  // dirMode asks for.
+  await mkdir(dirname(filename), { recursive: true, mode: options.dirMode })
   // TODO(settings-atomic-durability): Use a replacement that fsyncs the file
   // and parent directory and preserves owner-only permissions on Windows.
   const temp = `${filename}.${randomBytes(6).toString('hex')}.tmp`

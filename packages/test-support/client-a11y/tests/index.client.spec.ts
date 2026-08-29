@@ -14,7 +14,7 @@ function violation(id: string, help: string, targets: string[][], impact?: Resul
 }
 
 function audit(surface: string, over: Partial<SurfaceAudit> = {}): SurfaceAudit {
-  return { surface, violations: [], passed: 0, failed: 0, undecided: 0, ...over }
+  return { surface, violations: [], passed: 0, failed: 0, undecided: 0, undecidedRules: [], ...over }
 }
 
 describe('accessibilityScore', () => {
@@ -32,12 +32,17 @@ describe('accessibilityScore', () => {
   })
 
   it('ignores undecided checks, which belong to neither side', () => {
-    expect(accessibilityScore([audit('a', { passed: 1, failed: 1, undecided: 98 })])).toBe(50)
+    expect(accessibilityScore([
+      audit('a', { passed: 1, failed: 1, undecided: 98, undecidedRules: ['color-contrast'] }),
+    ])).toBe(50)
   })
 
   it('scores audits that decided nothing as 100, since nothing failed', () => {
     expect(accessibilityScore([])).toBe(100)
-    expect(accessibilityScore([audit('empty'), audit('also-empty', { undecided: 4 })])).toBe(100)
+    expect(accessibilityScore([
+      audit('empty'),
+      audit('also-empty', { undecided: 4, undecidedRules: ['color-contrast'] }),
+    ])).toBe(100)
   })
 })
 

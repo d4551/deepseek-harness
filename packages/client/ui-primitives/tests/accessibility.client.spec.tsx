@@ -169,6 +169,12 @@ describe('ui-primitives accessibility', () => {
       cleanup()
     }
 
+    // Undecided checks are excluded from the score, so which rules land there
+    // is itself an assertion: jsdom computes no layout and therefore cannot
+    // decide contrast, and that is the browser lane's to prove. Any other rule
+    // arriving here would be silently dropped from the score without this.
+    expect([...new Set(audits.flatMap(audit => audit.undecidedRules))]).toEqual(['color-contrast'])
+
     const failures = audits.map(formatViolations).filter(text => text !== '').join('\n')
     expect(failures).toBe('')
     expect(accessibilityScore(audits)).toBeGreaterThanOrEqual(MINIMUM_ACCESSIBILITY_SCORE)

@@ -30,15 +30,14 @@ export default {
   coverageAnalysis: 'all',
   reporters: ['progress', 'clear-text', 'json'],
   jsonReporter: { fileName: '.artifacts/mutation/mutation.json' },
-  mutate: [
-    'packages/util/*/src/**/*.ts',
-    '!packages/util/*/src/types.ts',
-  ],
-  // Recorded score for this scope: 95.98 (780 killed + 7 timeout of 820
+  // No exclusions: a `types.ts` carries no runtime code and so yields no
+  // mutants on its own, and every other file in the tier is in scope.
+  mutate: ['packages/util/*/src/**/*.ts'],
+  // Recorded score for this scope: 96.08 (777 killed + 7 timeout of 816
   // reachable mutants). `break` sits just under it so ordinary noise does not
   // fail the run while any real regression does; it only ever moves up.
   //
-  // The 33 survivors are not missing assertions. They are mutants no output
+  // The 32 survivors are not missing assertions. They are mutants no output
   // assertion can reach: the suffix accumulator's trim is a documented memory
   // bound that `finish()` never reads past, `clearTimeout(undefined)` and a
   // second `dispose()` are no-ops, `mkdir({ mode: undefined })` is the default,

@@ -31,6 +31,13 @@ export interface SurfaceAudit {
   readonly failed: number
   /** Rule-node checks axe could not decide in this environment. */
   readonly undecided: number
+  /**
+   * The rules those undecided checks belong to. Reported so a suite can assert
+   * WHICH rules its environment cannot decide: undecided checks are excluded
+   * from {@link accessibilityScore}, and without this a newly undecidable rule
+   * would leave the score untouched instead of failing.
+   */
+  readonly undecidedRules: readonly string[]
 }
 
 /** Total nodes across a rule result list. */
@@ -53,6 +60,7 @@ export async function auditSurface(surface: string, context: ElementContext): Pr
     passed: nodeCount(results.passes),
     failed: nodeCount(results.violations),
     undecided: nodeCount(results.incomplete),
+    undecidedRules: results.incomplete.map(result => result.id),
   }
 }
 
