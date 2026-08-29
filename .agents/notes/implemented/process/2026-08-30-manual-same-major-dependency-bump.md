@@ -10,7 +10,7 @@ Declared registry pins lag the latest same-major versions, and two file watchers
 
 ## Decision
 
-The workspace keeps latest same-major pins for the packages this change updates, and it leaves majors, vendored sources, and patched packages on the versions they already use.
+The workspace keeps latest same-major pins for the packages listed below, and it leaves majors, vendored sources, and patched packages on the versions they already use.
 
 Same-major pins:
 
@@ -38,7 +38,7 @@ Manual updates remain allowed under the [Dependabot 30-day cooldown decision](20
 
 **Leave chokidar 4 on the two watchers.** Rejected because the repository already runs chokidar 5 in `skill-filesystem` and `webworker-runtime`; keeping two majors for the same watcher API is accidental drift, not a recorded split.
 
-**Bump e2b, OpenTelemetry, and the Anthropic/Codex 0.x packages in this pass.** Rejected because those SDKs change call sites and provider contracts; they need their own tests, not a pin rewrite.
+**Bump e2b, OpenTelemetry, and the Anthropic/Codex 0.x packages with the same-major pins.** Rejected because those SDKs change call sites and provider contracts; they need their own tests, not a pin rewrite.
 
 ## Consequences
 

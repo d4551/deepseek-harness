@@ -10,7 +10,7 @@ Status: implemented
 
 ## 决策
 
-工作区为本次更新的包保持同主版本最新固定值，主版本升级、随源码纳入的包以及已打补丁的包继续使用它们现有的版本。
+工作区为下表所列包保持同主版本最新固定值，主版本升级、随源码纳入的包以及已打补丁的包继续使用它们现有的版本。
 
 同主版本固定值：
 
@@ -32,13 +32,13 @@ Status: implemented
 
 [Dependabot 30 天冷却期决策](2026-07-27-dependabot-version-updates.zh.md) 下仍允许手动更新；该冷却期适用于自动化每周路径，不适用于经明确评审的固定值调整。
 
-## 曾考虑的替代方案
+## 考虑过的替代方案
 
 **对每个工作区执行 `bun update --latest`。** 否决：这会在一次锁文件重写中带上 React 19、js-yaml 5、VitePress 上的 Vite 8 以及其他主版本，并改写随源码纳入的 manifest。
 
 **让两个监视器继续使用 chokidar 4。** 否决：仓库已在 `skill-filesystem` 与 `webworker-runtime` 中运行 chokidar 5；为同一监视 API 保留两个主版本是意外漂移，不是已记录的拆分。
 
-**在本次把 e2b、OpenTelemetry 以及 Anthropic/Codex 的 0.x 包一并升级。** 否决：这些 SDK 会改动调用点与提供方契约，需要它们自己的测试，而不是一次固定值重写。
+**把 e2b、OpenTelemetry 以及 Anthropic/Codex 的 0.x 包一并升级。** 否决：这些 SDK 会改动调用点与提供方契约，需要它们自己的测试，而不是一次固定值重写。
 
 ## 后果
 
