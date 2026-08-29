@@ -5,7 +5,7 @@
  *
  * Preconditions and their skip semantics:
  * - Non-Linux host: skips entirely (exit 0) — there is nothing to build here.
- * - Linux without the built binary: FAILS — run `pnpm build:native` first.
+ * - Linux without the built binary: FAILS — run `bun run build:native` first.
  * - Linux whose kernel does not enforce Landlock: skips the enforcement
  *   half, unless `NALR_REQUIRE_LANDLOCK=1` (set on CI, where a silent skip on
  *   the very platform that exists to prove enforcement would be a false
@@ -36,7 +36,7 @@ if (process.platform !== 'linux') {
 const launcher = launcherPath();
 assert.ok(
   fs.existsSync(launcher),
-  `launcher.test: no built launcher at ${launcher} — run \`pnpm build:native\` (apt-get install musl-tools) first`,
+  `launcher.test: no built launcher at ${launcher} — run \`bun run build:native\` (apt-get install musl-tools) first`,
 );
 
 const run = (args, options = {}) => spawnSync(launcher, args, { encoding: 'utf8', ...options });

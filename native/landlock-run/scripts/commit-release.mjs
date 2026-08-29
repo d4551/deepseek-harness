@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Bump, stage, and commit a release in one command:
- * `pnpm release:commit <major|minor|patch|x.y.z>`. The namespaced tag stays
+ * `bun run release:commit <major|minor|patch|x.y.z>`. The namespaced tag stays
  * manual — create it from the merged release commit.
  */
 
@@ -24,7 +24,7 @@ function run(command, args) {
 }
 
 if (!bump) {
-  console.error('Usage: pnpm release:commit <major|minor|patch|x.y.z>');
+  console.error('Usage: bun run release:commit <major|minor|patch|x.y.z>');
   process.exit(1);
 }
 
@@ -35,7 +35,7 @@ run('git', [
   'add',
   'package.json',
   'packages/*/package.json',
-  '../../pnpm-lock.yaml',
+  '../../bun.lock',
 ]);
 run('git', ['commit', '-m', `release(landlock-run): ${version}`]);
 

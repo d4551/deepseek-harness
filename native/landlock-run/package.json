@@ -4,9 +4,8 @@
   "private": true,
   "type": "module",
   "license": "BSD-3-Clause",
-  "packageManager": "pnpm@11.7.0",
   "scripts": {
-    "build": "pnpm build:ts",
+    "build": "bun run build:ts",
     "build:ts": "tsc -b",
     "build:native": "tsx ./scripts/build.ts",
     "typecheck": "tsc --noEmit && tsc -b --dry",

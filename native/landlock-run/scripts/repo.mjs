@@ -60,7 +60,7 @@ export function verifyPlatformBinaries(packageDir) {
   for (const binary of prebuilds.binaries) {
     const file = path.join(packageDir, binary.path);
     if (!fs.existsSync(file)) {
-      throw new Error(`${manifest.name}: missing ${binary.path} — run \`pnpm build:native\` on a ${prebuilds.platform} host (or assemble release artifacts) before packing.`);
+      throw new Error(`${manifest.name}: missing ${binary.path} — run \`bun run build:native\` on a ${prebuilds.platform} host (or assemble release artifacts) before packing.`);
     }
     try {
       fs.accessSync(file, fs.constants.X_OK);
