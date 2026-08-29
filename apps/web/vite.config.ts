@@ -16,13 +16,24 @@ function escapeHtmlText(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
-/** Project the public build title into the initial HTML document. */
+/** Project the public build title into the HTML document and the install manifest. */
 function clientDocumentTitle(): Plugin {
   const title = escapeHtmlText(process.env.DSH_CLIENT_TITLE ?? DEFAULT_CLIENT_TITLE)
   return {
     name: 'dsh-client-document-title',
     transformIndexHtml(html) {
       return html.replace('<title>DeepMeow</title>', `<title>${title}</title>`)
+    },
+    async closeBundle() {
+      const shortName = title === 'DeepSeek Harness' ? 'DSH' : title
+      const manifestPath = src('./dist/manifest.webmanifest')
+      const source = await readFile(manifestPath, 'utf8')
+      await writeFile(
+        manifestPath,
+        source
+          .replace('"name": "DeepMeow"', `"name": "${title}"`)
+          .replace('"short_name": "DeepMeow"', `"short_name": "${shortName}"`),
+      )
     },
   }
 }

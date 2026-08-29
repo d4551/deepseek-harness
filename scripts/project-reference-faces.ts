@@ -2,7 +2,7 @@
 
 import { existsSync, globSync } from 'node:fs'
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path'
-import ts from '@typescript/typescript6'
+import { readConfigFile } from './ts7-session.ts'
 
 type ProjectFace = 'host' | 'client'
 
@@ -71,12 +71,16 @@ function splitProjectRoots(root: string): string[] {
 }
 
 function projectConfig(root: string, configPath: string): ProjectReferenceConfig {
-  const read = ts.readConfigFile(configPath, path => ts.sys.readFile(path))
+  const read = readConfigFile(configPath)
   if (read.error !== undefined) {
-    const message = ts.flattenDiagnosticMessageText(read.error.messageText, '\n')
-    throw new Error(`${repoPath(root, configPath)}: ${message}`)
+    throw new Error(`${repoPath(root, configPath)}: ${read.error.messageText}`)
   }
-  return read.config as ProjectReferenceConfig
+  const config = read.config
+  if (config === null || typeof config !== 'object' || Array.isArray(config)) {
+    throw new Error(`${repoPath(root, configPath)}: expected a JSON object`)
+  }
+  const record = config as ProjectReferenceConfig
+  return record
 }
 
 function projectReferences(config: ProjectReferenceConfig): string[] {

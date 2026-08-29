@@ -6,8 +6,10 @@
  */
 import { API } from 'typescript/unstable/sync'
 import { SyntaxKind } from 'typescript/unstable/ast'
+import { isFunctionDeclaration } from 'typescript/unstable/ast/is'
 import { version, versionMajorMinor } from 'typescript'
 import { describe, expect, it } from 'vitest'
+import { closeCompiler, createSourceFile } from './ts7-session.ts'
 
 describe('mandated typescript 7 compiler API', () => {
   it('is TypeScript 7 on the typescript package', () => {
@@ -38,5 +40,12 @@ describe('mandated typescript 7 compiler API', () => {
     expect(project).not.toBeUndefined()
     expect(sourceFile?.fileName.endsWith('typescript7-unstable-api.spec.ts')).toBe(true)
     expect((sourceFile?.statements.length ?? 0) > 0).toBe(true)
+  })
+
+  it('parses in-memory TypeScript text through createSourceFile', () => {
+    const sourceFile = createSourceFile('inline.ts', 'export function hello(): string { return "ok" }\n')
+    const first = sourceFile.statements[0]
+    closeCompiler()
+    expect(first === undefined ? false : isFunctionDeclaration(first)).toBe(true)
   })
 })

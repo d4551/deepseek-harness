@@ -26,4 +26,4 @@ Status: implemented
 
 ## 后果
 
-本地 `dsh web` chrome 在侧栏、空白会话 hero、标签页图标和默认文档标题中显示 DeepMeow 与猫脸标记。official 构建仍用鲸鱼 wordmark 填充品牌 slot 并设置 `DSH_CLIENT_TITLE`；在 public 资源按 profile 拆分之前，它们共用这份猫 favicon。locale、primitive、sidebar、layout、assembled-boot 与 PWA 测试固定该名称、标记几何、回退占用以及 favicon 的 color-scheme 切换。
+本地 `dsh web` chrome 在侧栏、空白会话 hero、标签页图标、安装 manifest 和默认文档标题中显示 DeepMeow 与猫脸标记。official 构建仍用鲸鱼 wordmark 填充品牌 slot 并设置 `DSH_CLIENT_TITLE`，Vite closeBundle 会把该标题写入 `manifest.webmanifest`（`DeepSeek Harness` / `DSH`）。在 public 资源按 profile 拆分之前，它们共用这份猫 favicon。本地版本芯片使用主题的 code-block-small 字体，不追加 dirty。locale、primitive、sidebar、layout、assembled-boot 与 PWA 测试固定该名称、标记几何、回退占用以及 favicon 的 color-scheme 切换。

@@ -1,15 +1,11 @@
 /**
- * Shared TypeScript Program construction for repository gates that need real
+ * Shared TypeScript 7 project construction for repository gates that need
  * cross-file symbols and types instead of isolated syntax trees.
  */
 
 import { relative, resolve } from 'node:path'
-import ts from '@typescript/typescript6'
-
-interface ProjectGraph {
-  rootNames: string[]
-  options: ts.CompilerOptions
-}
+import { API, type Checker, type Program } from 'typescript/unstable/sync'
+import type { SourceFile } from 'typescript/unstable/ast'
 
 /**
  * A compiler face: the two aggregates a repository-wide program may seed from.
@@ -17,92 +13,43 @@ interface ProjectGraph {
  */
 export type CompilerFace = 'host' | 'client'
 
-/** TypeScript config host shared by repository scripts. */
-export const repositoryConfigHost: ts.ParseConfigFileHost = {
-  useCaseSensitiveFileNames: ts.sys.useCaseSensitiveFileNames,
-  readDirectory: (...args) => ts.sys.readDirectory(...args),
-  fileExists: fileName => ts.sys.fileExists(fileName),
-  readFile: fileName => ts.sys.readFile(fileName),
-  getCurrentDirectory: () => ts.sys.getCurrentDirectory(),
-  onUnRecoverableConfigFileDiagnostic(diagnostic) {
-    throw new Error(ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'))
-  },
-}
-
-/**
- * Parse one face aggregate tsconfig and flatten all referenced projects into one
- * semantic graph. Never seed the root solution: flattening host+client into one
- * program collides the cordis Context merges.
- */
-function loadProjectGraph(projectRoot: string, face: CompilerFace): ProjectGraph {
-  const rootConfigPath = resolve(projectRoot, `tsconfig.${face}.json`)
-  const rootConfig = parseConfig(rootConfigPath)
-  const rootNames = new Set<string>()
-  const visited = new Set<string>()
-
-  const collect = (configPath: string, parsed: ts.ParsedCommandLine): void => {
-    if (visited.has(configPath)) return
-    visited.add(configPath)
-    for (const fileName of parsed.fileNames) rootNames.add(fileName)
-    for (const reference of parsed.projectReferences ?? []) {
-      const referencePath = ts.resolveProjectReferencePath(reference)
-      collect(referencePath, parseConfig(referencePath))
-    }
-  }
-  collect(rootConfigPath, rootConfig)
-
-  return {
-    rootNames: [...rootNames],
-    options: rootConfig.options,
-  }
-}
-
-/** Parse one config file and fail loud on any config diagnostic. */
-function parseConfig(configPath: string): ts.ParsedCommandLine {
-  const parsed = ts.getParsedCommandLineOfConfigFile(configPath, {}, repositoryConfigHost)
-  if (!parsed) throw new Error(`cannot parse TypeScript config ${configPath}`)
-  if (parsed.errors.length > 0) {
-    throw new Error(parsed.errors.map(error => ts.flattenDiagnosticMessageText(error.messageText, '\n')).join('\n'))
-  }
-  return parsed
-}
-
-/** Disable emit-only options after loading the root solution config. */
-function semanticCompilerOptions(options: ts.CompilerOptions): ts.CompilerOptions {
-  return {
-    ...options,
-    noEmit: true,
-    composite: false,
-    declaration: false,
-    declarationMap: false,
-    sourceMap: false,
-    incremental: false,
-  }
-}
-
-/** A repository-scoped TypeScript Program and its shared TypeChecker. */
+/** A repository-scoped TypeScript 7 program and its shared Checker. */
 export class TypeScriptProject {
-  /** The bound cross-file TypeScript program. */
-  readonly program: ts.Program
+  private readonly api: API
+  /** The bound TypeScript 7 program for this face. */
+  readonly program: Program
   /** The checker shared by every semantic query in this project. */
-  readonly checker: ts.TypeChecker
+  readonly checker: Checker
 
   /**
    * @param projectRoot - repository root the program is seeded and reported from.
-   * @param face - which compiler face aggregate to flatten.
+   * @param face - which compiler face aggregate to open. Never open both faces
+   *   in one program: they merge cordis Context under the same keys.
    */
   constructor(readonly projectRoot: string, face: CompilerFace = 'host') {
-    const graph = loadProjectGraph(projectRoot, face)
-    this.program = ts.createProgram(graph.rootNames, semanticCompilerOptions(graph.options))
-    this.checker = this.program.getTypeChecker()
+    const configPath = resolve(projectRoot, `tsconfig.${face}.json`)
+    this.api = new API()
+    const snapshot = this.api.updateSnapshot({ openProjects: [configPath] })
+    const project = snapshot.getProject(configPath)
+    if (project === undefined) {
+      this.api.close()
+      throw new Error(`TypeScript project did not open ${configPath}`)
+    }
+    this.program = project.program
+    this.checker = project.checker
   }
 
   /**
-   * Return every source file loaded into the flattened root project graph.
+   * Return every source file loaded into the face project graph.
    * @returns program source files, including libraries and external dependencies.
    */
-  sourceFiles(): readonly ts.SourceFile[] {
-    return this.program.getSourceFiles()
+  sourceFiles(): readonly SourceFile[] {
+    const files: SourceFile[] = []
+    for (const fileName of this.program.getSourceFileNames()) {
+      const sourceFile = this.program.getSourceFile(fileName)
+      if (sourceFile !== undefined) files.push(sourceFile)
+    }
+    return files
   }
 
   /**
@@ -110,7 +57,7 @@ export class TypeScriptProject {
    * @param sourceFile - a source file from this project.
    * @returns a slash-separated repository-relative path.
    */
-  relativePath(sourceFile: ts.SourceFile): string {
+  relativePath(sourceFile: SourceFile): string {
     return relative(this.projectRoot, sourceFile.fileName).replaceAll('\\', '/')
   }
 
@@ -118,11 +65,15 @@ export class TypeScriptProject {
    * Return one program source file by repository-relative path.
    * @param relativePath - path relative to the project root.
    * @returns the source file bound into this project.
-   * @throws if a requested root or imported source was not loaded.
    */
-  sourceFile(relativePath: string): ts.SourceFile {
+  sourceFile(relativePath: string): SourceFile {
     const sourceFile = this.program.getSourceFile(resolve(this.projectRoot, relativePath))
-    if (!sourceFile) throw new Error(`TypeScript project did not load ${relativePath}`)
+    if (sourceFile === undefined) throw new Error(`TypeScript project did not load ${relativePath}`)
     return sourceFile
+  }
+
+  /** Dispose the Go compiler session this project owns. */
+  close(): void {
+    this.api.close()
   }
 }
