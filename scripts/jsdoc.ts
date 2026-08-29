@@ -177,13 +177,13 @@ export function parseTags(raw: string): { params: Map<string, string>; returns: 
  * @param isExempt - parameters whose tag is optional, such as `this` or waterfall `next`.
  * @param violations - the aggregate list violations append to.
  */
-export function checkParams(
+export function checkParams<P extends JsDocParameter>(
   where: string,
   apiKind: string,
-  parameters: readonly JsDocParameter[],
+  parameters: readonly P[],
   tags: Map<string, string>,
   sf: JsDocSourceFile,
-  isExempt: (p: JsDocParameter) => boolean,
+  isExempt: (p: P) => boolean,
   violations: string[],
 ): void {
   for (const p of parameters) {
