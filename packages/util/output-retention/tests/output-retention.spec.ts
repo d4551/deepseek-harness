@@ -159,6 +159,19 @@ describe('TextRetainer — headTail (prefix + suffix, omit the middle)', () => {
     expect(result.omittedBytes).toEqual<Omitted>({ kind: 'none' })
   })
 
+  it('keeps a stray leading continuation byte for the decoder to replace', () => {
+    // A continuation byte with nothing before it is not a truncated sequence:
+    // there is no lead byte to complete, so the scan-back walks off the front
+    // of the buffer. Stopping there and trimming would delete a byte the
+    // decoder is supposed to report as U+FFFD, and would understate what was
+    // retained — the omission count is derived from the bytes actually kept.
+    const r = new TextRetainer({ kind: 'headTail', headBytes: 1, tailBytes: 1 })
+    r.push(new Uint8Array([0x80, 0x41, 0x42])) // stray continuation, 'A', 'B'
+    const result = r.finish()
+    expect(result.text).toBe('\uFFFDB')
+    expect(result.omittedBytes).toEqual<Omitted>({ kind: 'exact', count: 1 })
+  })
+
   it('still trims boundary partials once a real middle is omitted', () => {
     // With a genuine gap the two sides ARE true cuts: '€' (3 bytes) split across
     // the omitted middle must not resurface as a replacement char on either side.

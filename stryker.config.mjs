@@ -34,21 +34,22 @@ export default {
   // No exclusions: a `types.ts` carries no runtime code and so yields no
   // mutants on its own, and every other file in the tier is in scope.
   mutate: ['packages/util/*/src/**/*.ts'],
-  // Recorded score for this scope: 96.45 — 780 killed plus 7 timed out of 816
+  // Recorded score for this scope: 96.57 — 781 killed plus 7 timed out of 816
   // reachable mutants. One mutant is worth 0.1225 points here, so `break` sits
-  // one mutant below the record: 787 detected scores 96.45 and 786 scores
-  // 96.32, which this rejects. Killed and timed-out both count as detected, so
+  // one mutant below the record: 788 detected scores 96.57 and 787 scores
+  // 96.45, which this rejects. Killed and timed-out both count as detected, so
   // the split between them moving does not shift the score. It only moves up.
   //
-  // The 29 survivors are not missing assertions. They are mutants no output
+  // The 28 survivors are not missing assertions. They are mutants no output
   // assertion can reach: the suffix accumulator's trim is a documented memory
   // bound that `finish()` never reads past, `clearTimeout(undefined)` and a
   // second `dispose()` are no-ops, `mkdir({ mode: undefined })` is the default,
-  // the UTF-8 scanner's scan-back cap bounds work rather than output, and
-  // `RegExp.exec(undefined)` matches the string "undefined" rather than
+  // the UTF-8 scanner's scan-back cap bounds work rather than output, an
+  // emptied `catch` returns undefined where the caller only tests falsiness,
+  // and `RegExp.exec(undefined)` matches the string "undefined" rather than
   // throwing, so guarding it changes nothing. Raising the score means removing
   // that code or widening the scope, not weakening this number.
-  thresholds: { high: 100, low: 96.4, break: 96.4 },
+  thresholds: { high: 100, low: 96.5, break: 96.5 },
   // Agent-session state and build output are not project sources; Stryker copies
   // the working tree into its sandbox, and `.claude/skills` is a directory
   // symlink its file copier cannot follow.
