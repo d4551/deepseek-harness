@@ -9,6 +9,7 @@
  */
 
 import { cleanup, render } from '@testing-library/react'
+import { AttachmentId } from '@deepseek-ai/dsh-attachment'
 import type { ReactElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { accessibilityScore, auditSurface, formatViolations } from '@deepseek-ai/dsh-client-a11y'
@@ -63,7 +64,16 @@ const SURFACES: Readonly<Record<string, () => ReactElement>> = {
   ),
   MessageImage: () => (
     <MessageImage
-      image={{ attachment: { id: 'att-1', name: 'history.png', mediaType: 'image/png', bytes: 4 } }}
+      image={{
+        attachment: {
+          attachmentId: AttachmentId(`sha256:${'a'.repeat(64)}`),
+          mediaType: 'image/png' as const,
+          bytes: 68,
+          width: 640,
+          height: 320,
+          name: 'history.png',
+        },
+      }}
       load={() => Promise.resolve('blob:seeded')}
       variant="single"
       labels={imageLabels}
