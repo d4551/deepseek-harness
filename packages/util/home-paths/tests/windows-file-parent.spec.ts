@@ -7,8 +7,13 @@
  * traverses a file, and the walk rethrows anything that is not ENOENT.
  * Windows reports ENOENT there instead, so the probe is the only thing that
  * catches a file-as-parent on that platform — and nothing covered it, because
- * the suite runs on POSIX. Mocking `realpath` to answer the way Windows does
- * runs the same code the Windows host runs.
+ * the suite runs on POSIX.
+ *
+ * Answering `realpath` with ENOENT reaches that branch here. What this pins is
+ * the harness's own decision — walk up, then open the ancestor and let the
+ * failure through — not Windows itself: the error the assertion reads comes
+ * from this host's `opendir`, and only a Windows run proves the errno Windows
+ * reports for the same call.
  */
 
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
