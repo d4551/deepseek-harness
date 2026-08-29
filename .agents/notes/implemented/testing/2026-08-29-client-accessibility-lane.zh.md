@@ -1,4 +1,4 @@
-# Agent Note: axe over every exported client UI component
+# Agent Note: axe over every exported client primitive
 
 Status: implemented
 
