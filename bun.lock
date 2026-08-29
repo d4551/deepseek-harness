@@ -7356,6 +7356,7 @@
     "koffi",
   ],
   "patchedDependencies": {
+    "@stryker-mutator/core@10.0.0": "patches/@stryker-mutator%2Fcore@10.0.0.patch",
     "node-pty@1.2.0-beta.15": "patches/node-pty@1.2.0-beta.15.patch",
   },
   "packages": {

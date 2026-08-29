@@ -297,27 +297,26 @@ export class TextRetainer {
       this.prefixHeld += take
     }
 
-    // Suffix: append the whole chunk, then drop whole leading chunks that have
-    // fully slid out of the last `suffixCap` bytes (bounded memory).
+    // Suffix: append the chunk, then retain exactly the bytes finish() reads —
+    // the last `suffixLenAt(total)` of the stream. The window never moves
+    // backward (prefixLen stops at its cap; suffixLen only grows), so bytes
+    // dropped here can never re-enter it. Retaining exactly the window is what
+    // bounds memory, including a single chunk larger than the window.
     if (this.suffixCap > 0) {
       this.suffixChunks.push(bytes)
       this.suffixHeld += bytes.length
+      let excess = this.suffixHeld - this.suffixLenAt(this.total)
       let head = this.suffixChunks[0]
-      while (head !== undefined && this.suffixHeld - head.length >= this.suffixCap) {
+      while (head !== undefined && excess >= head.length) {
         this.suffixChunks.shift()
         this.suffixHeld -= head.length
+        excess -= head.length
         head = this.suffixChunks[0]
       }
-      // The head chunk can still hold leading bytes beyond the last `suffixCap`
-      // — a single chunk LARGER than the window is retained whole by the loop
-      // above (dropping the only chunk would leave < cap). Trim those leading
-      // bytes so the accumulator (and finish()'s concat) stays bounded by
-      // `suffixCap` instead of allocating/copying the full chunk again;
-      // finish() only ever reads the last `suffixLen ≤ suffixCap` bytes, so this
-      // drops nothing it would return. (head.length > excess by the loop
-      // invariant `suffixHeld - head.length < suffixCap`, so the slice is non-empty.)
-      if (head !== undefined && this.suffixHeld > this.suffixCap) {
-        const excess = this.suffixHeld - this.suffixCap
+      // The head chunk now holds fewer excess bytes than its own length; slice
+      // exactly those off. (head.length > excess by the loop guard, so the
+      // slice is non-empty.)
+      if (head !== undefined && excess > 0) {
         this.suffixChunks[0] = head.subarray(excess)
         this.suffixHeld -= excess
       }
