@@ -65,6 +65,20 @@ function disposeChildLifecycle(parent: Agent): void {
 }
 
 describe('dsh-subagent-spawn-in-process', () => {
+  it('registers under the default provider name and declares a fresh context', async () => {
+    // The harness names the provider explicitly, so the config default was
+    // never exercised. `inheritsParentContext` is read by the subagent tool
+    // and the generated catalog to decide whether a child sees the parent
+    // conversation; this provider constructs a fresh child, so it must say so.
+    const ctx = new Context()
+    await ctx.plugin(SubagentRuntime)
+    await ctx.plugin(spawn)
+    expect(ctx.subagents.list()).toContain('spawn')
+    const provider = ctx.subagents.getProvider('spawn')
+    expect(provider?.name).toBe('spawn')
+    expect(provider?.inheritsParentContext).toBe(false)
+  })
+
   it('runs a fresh child to completion and returns its final assistant output', async () => {
     // One model call for the child: a plain text answer.
     const { ctx, parent } = await setup([textResponse('child answer')])
