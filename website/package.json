@@ -10,11 +10,11 @@
   },
   "devDependencies": {
     "@braintree/sanitize-url": "7.1.2",
-    "cytoscape": "3.34.0",
+    "cytoscape": "3.34.2",
     "cytoscape-cose-bilkent": "4.1.0",
-    "dayjs": "1.11.21",
+    "dayjs": "1.11.23",
     "debug": "4.4.3",
-    "mermaid": "11.16.0",
+    "mermaid": "11.17.2",
     "vite": "^5.4.14",
     "vitepress": "^1.6.4",
     "vitepress-plugin-mermaid": "^2.0.17"
