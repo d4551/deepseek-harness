@@ -116,7 +116,7 @@
   min-width: 0;
   display: inline-flex;
   align-items: center;
-  overflow: hidden;
+  overflow: visible;
   padding: 0;
   border: none;
   background: transparent;

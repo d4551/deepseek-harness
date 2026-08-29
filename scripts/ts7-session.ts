@@ -113,6 +113,14 @@ export function readConfigFile(path: string): JsoncParseResult {
 }
 
 /** Parse one tsconfig through the TypeScript 7 sync API. */
-export function parseConfigFile(path: string): { readonly fileNames: string[] } {
-  return compiler().parseConfigFile(path)
+export function parseConfigFile(path: string): {
+  readonly fileNames: string[]
+  readonly outDir: string | undefined
+} {
+  const parsed = compiler().parseConfigFile(path)
+  const outDir = parsed.options.outDir
+  return {
+    fileNames: parsed.fileNames,
+    outDir: typeof outDir === 'string' ? outDir : undefined,
+  }
 }

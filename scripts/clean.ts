@@ -1,8 +1,7 @@
 import { lstat, readdir, realpath, rm } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import ts from '@typescript/typescript6'
-import { repositoryConfigHost } from './ts-project.ts'
+import { parseConfigFile, readConfigFile } from './ts7-session.ts'
 
 const knownOrphanEntries = new Set(['node_modules', 'lib', '.typecheck'])
 
@@ -34,13 +33,21 @@ function repositoryPath(root: string, path: string): string {
   return relative(root, path).split(sep).join('/')
 }
 
-function parseConfig(configPath: string): ts.ParsedCommandLine {
-  const parsed = ts.getParsedCommandLineOfConfigFile(configPath, {}, repositoryConfigHost)
-  if (!parsed) throw new Error(`clean: cannot parse TypeScript config ${configPath}`)
-  if (parsed.errors.length > 0) {
-    throw new Error(parsed.errors.map(error => ts.flattenDiagnosticMessageText(error.messageText, '\n')).join('\n'))
-  }
-  return parsed
+function parseConfig(configPath: string): { readonly outDir: string | undefined; readonly references: readonly string[] } {
+  const parsed = parseConfigFile(configPath)
+  const read = readConfigFile(configPath)
+  if (read.error !== undefined) throw new Error(`clean: cannot parse TypeScript config ${configPath}: ${read.error.messageText}`)
+  const config = read.config
+  const references = config !== null && typeof config === 'object' && !Array.isArray(config) && 'references' in config
+    && Array.isArray(config.references)
+    ? config.references.flatMap((entry) => {
+      if (entry === null || typeof entry !== 'object' || Array.isArray(entry) || !('path' in entry) || typeof entry.path !== 'string') {
+        return []
+      }
+      return [entry.path]
+    })
+    : []
+  return { outDir: parsed.outDir, references }
 }
 
 /** Plans and removes repository-owned build output without crossing the repository boundary. */
@@ -131,8 +138,8 @@ export class RepositoryCleaner {
       visited.add(configPath)
 
       const parsed = parseConfig(configPath)
-      if (parsed.options.outDir !== undefined) {
-        const typesDirectory = resolve(parsed.options.outDir)
+      if (parsed.outDir !== undefined) {
+        const typesDirectory = resolve(dirname(configPath), parsed.outDir)
         const outputDirectory = basename(typesDirectory) === 'types'
           ? dirname(typesDirectory)
           : typesDirectory === nativeEntryOutput
@@ -145,8 +152,9 @@ export class RepositoryCleaner {
         outputs.add(outputDirectory)
       }
 
-      for (const reference of parsed.projectReferences ?? []) {
-        pending.push(ts.resolveProjectReferencePath(reference))
+      for (const reference of parsed.references) {
+        const target = resolve(dirname(configPath), reference)
+        pending.push(target.endsWith('.json') ? target : join(target, 'tsconfig.json'))
       }
     }
 
