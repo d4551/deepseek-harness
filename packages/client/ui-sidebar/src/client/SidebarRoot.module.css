@@ -24,7 +24,7 @@
 
 /* Rail geometry (figma rail spec): 36x36 control boxes centered in the 56px
    rail (10px side padding), 12px vertical rhythm, 18px from the rail top to
-   the whale's box (24px to the 24-wide whale glyph itself). */
+   the brand-mark box (24px to the 24-wide glyph itself). */
 .root.collapsed {
   padding: 18px 10px 6px;
 }
@@ -212,11 +212,21 @@
   display: none;
 }
 
-.collapsed .toggle:hover .panelIcon {
+@media (hover: hover) {
+  .collapsed .toggle:hover .panelIcon {
+    display: inline;
+  }
+
+  .collapsed .toggle:hover .railMark {
+    display: none;
+  }
+}
+
+.collapsed .toggle:focus-visible .panelIcon {
   display: inline;
 }
 
-.collapsed .toggle:hover .railMark {
+.collapsed .toggle:focus-visible .railMark {
   display: none;
 }
 
@@ -243,6 +253,7 @@
   background: var(--dsw-alias-label-primary);
   font: var(--dsw-font-markdown-code-block-small);
   font-weight: 500;
+  line-height: 1;
   white-space: nowrap;
 }
 

@@ -8,6 +8,7 @@ const DIST_ROOT = fileURLToPath(new URL('../dist', import.meta.url))
 it('ships install metadata with the built web application', async () => {
   const index = await readFile(join(DIST_ROOT, 'index.html'), 'utf8')
   expect(index).toContain('<link rel="manifest" href="./manifest.webmanifest" />')
+  expect(index).toContain('name="color-scheme"')
 
   const manifest: unknown = JSON.parse(await readFile(join(DIST_ROOT, 'manifest.webmanifest'), 'utf8'))
   expect(index).toContain('rel="apple-touch-icon"')
@@ -15,6 +16,7 @@ it('ships install metadata with the built web application', async () => {
     id: '/',
     name: 'DeepMeow',
     short_name: 'DeepMeow',
+    description: 'DeepMeow',
     start_url: '/',
     scope: '/',
     display: 'fullscreen',
@@ -51,13 +53,6 @@ it('ships install metadata with the built web application', async () => {
       },
     ],
   })
-  if (typeof manifest !== 'object' || manifest === null) {
-    throw new TypeError('install manifest must be a JSON object')
-  }
-  const themeColor = Reflect.get(manifest, 'theme_color')
-  const backgroundColor = Reflect.get(manifest, 'background_color')
-  expect(typeof themeColor).toBe('string')
-  expect(backgroundColor).toBe(themeColor)
 })
 
 it('ships Chromium and Apple raster icons at their required edges', async () => {

@@ -37,12 +37,29 @@ export function closeCompiler(): void {
  * @returns the bound source file.
  */
 export function parsePath(file: string): SourceFile {
-  const snapshot = compiler().updateSnapshot({ openFiles: [file] })
-  const project = snapshot.getDefaultProjectForFile(file)
-  if (project === undefined) throw new Error(`ts7: no project for ${file}`)
-  const sourceFile = project.program.getSourceFile(file)
+  const parsed = parsePaths([file])
+  const sourceFile = parsed.get(file)
   if (sourceFile === undefined) throw new Error(`ts7: missing source file ${file}`)
   return sourceFile
+}
+
+/**
+ * Parse many on-disk TypeScript files in one snapshot update.
+ * @param files - paths that already exist.
+ * @returns path → bound source file.
+ */
+export function parsePaths(files: readonly string[]): Map<string, SourceFile> {
+  const result = new Map<string, SourceFile>()
+  if (files.length === 0) return result
+  const snapshot = compiler().updateSnapshot({ openFiles: [...files] })
+  for (const file of files) {
+    const project = snapshot.getDefaultProjectForFile(file)
+    if (project === undefined) throw new Error(`ts7: no project for ${file}`)
+    const sourceFile = project.program.getSourceFile(file)
+    if (sourceFile === undefined) throw new Error(`ts7: missing source file ${file}`)
+    result.set(file, sourceFile)
+  }
+  return result
 }
 
 /**

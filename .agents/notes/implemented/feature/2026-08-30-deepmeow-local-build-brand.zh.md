@@ -10,7 +10,7 @@ Status: implemented
 
 ## 决策
 
-`common.brand.localBuild` 字典值在两种 locale 中均为 `DeepMeow`。`apps/web/index.html` 的 title 占位与 Vite `DEFAULT_CLIENT_TITLE` 与该名称一致，因此在未设置 `DSH_CLIENT_TITLE` 时，首份文档标题与 hydration 后的 locale 字符串相符。
+`common.brand.localBuild` 字典值在两种 locale 中均为 `DeepMeow`。`apps/web/index.html` 的 title 占位与 Vite `DEFAULT_CLIENT_TITLE` 与该名称一致，因此在未设置 `DSH_CLIENT_TITLE` 时，首份文档标题与 hydration 后的 locale 字符串相符。index 文档还声明 `color-scheme: light dark`，以便标签页图标与 UA chrome 能在主题 presenter 写入 `html { color-scheme }` 之前完成解析。
 
 未填充的 `sidebar.brand.mark` 与 `conversation.hero.brand.mark` slot 渲染 `CatLogo`，这是 `@deepseek-ai/dsh-client-ui-primitives` 中的方形 currentColor 猫脸标记。`FishLogo` 仍是官方鲸鱼填充。`apps/web/public/favicon.svg` 使用同一猫脸 path，并仍在浅色 scheme 下绘制 `#000`，在 `prefers-color-scheme: dark` 下绘制 `#fff`。Chromium 可安装性 PNG（`icon-192.png`、`icon-512.png`、带 80% 安全区的 maskable 配对，以及 `apple-touch-icon.png`）由该标记栅格化。安装 manifest 的 `theme_color` 与 `background_color` 为 `#ffffff`，与浅色 `--dsw-alias-bg-base`（`--dsw-static-neutral-bluish-00`）一致。运行时 `theme-color` 元数据仍由 presenter 持有的计算后 body 背景决定。
 

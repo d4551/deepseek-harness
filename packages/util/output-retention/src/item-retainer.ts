@@ -3,7 +3,7 @@
  * @module @deepseek-ai/dsh-output-retention/item-retainer
  */
 import { assertBudget } from './budget.ts'
-import type { ItemRetentionStrategy, Omitted, PushDecision, RetainedItems } from './index.ts'
+import type { ItemRetentionStrategy, PushDecision, RetainedItems } from './index.ts'
 
 /**
  * Bounds an ordered stream of logical units, keeping the first `maxItems`

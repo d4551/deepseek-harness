@@ -10,9 +10,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { isModuleBlock, isModuleDeclaration } from 'typescript/unstable/ast/is'
+import ts from '@typescript/typescript6'
 import { contextKeyMap, contextMergeFiles, eventNameList } from './cordis-walk.ts'
-import { closeCompiler, createSourceFile } from './ts7-session.ts'
 import { walkPartitionProblems } from './gen-cordis-catalog.ts'
 import type { WalkPartitionInput, WalkPartitionMaps } from './gen-cordis-catalog.ts'
 
@@ -189,7 +188,7 @@ describe('cordis-walk scan reach', () => {
   })
 
   it('reads string-literal and identifier member names from an Events merge', () => {
-    const sf = createSourceFile('x.ts', [
+    const sf = ts.createSourceFile('x.ts', [
       "declare module '@deepseek-ai/cordis' {",
       '  interface Events {',
       "    'scope/list'(items: string[]): void",
@@ -200,14 +199,13 @@ describe('cordis-walk scan reach', () => {
       '  }',
       '}',
       '',
-    ].join('\n'))
-    const body = sf.statements[0] && isModuleDeclaration(sf.statements[0]) && sf.statements[0].body
-      && isModuleBlock(sf.statements[0].body)
+    ].join('\n'), ts.ScriptTarget.Latest, true)
+    const body = sf.statements[0] && ts.isModuleDeclaration(sf.statements[0]) && sf.statements[0].body
+      && ts.isModuleBlock(sf.statements[0].body)
       ? sf.statements[0].body
       : null
     if (body === null) throw new Error('fixture did not parse to a module block')
     expect(eventNameList(body, sf)).toEqual(['scope/list', 'plain'])
     expect([...contextKeyMap(body, sf)]).toEqual([['thing', 'ThingService']])
-    closeCompiler()
   })
 })

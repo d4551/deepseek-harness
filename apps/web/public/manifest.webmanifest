@@ -2,6 +2,7 @@
   "id": "/",
   "name": "DeepMeow",
   "short_name": "DeepMeow",
+  "description": "DeepMeow",
   "start_url": "/",
   "scope": "/",
   "display": "fullscreen",

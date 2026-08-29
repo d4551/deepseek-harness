@@ -29,7 +29,7 @@ describe('agent preset row accessibility', () => {
       load: vi.fn(() => Promise.resolve()),
       select: vi.fn(() => Promise.resolve()),
       useAgentPreset: bindSnapshotSelector(store),
-      t: ((key: string) => (en as Record<string, string>)[key] ?? key) as AgentPresetRowProps['t'],
+      t: (key: string) => (en as Record<string, string>)[key] ?? key,
     }
     const { baseElement } = render(
       createElement('main', null, createElement(AgentPresetRow, props as AgentPresetRowProps)),
