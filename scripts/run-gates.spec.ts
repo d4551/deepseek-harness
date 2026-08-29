@@ -343,8 +343,15 @@ describe('mutation ratchet', () => {
   it('runs in the aggregates CI and a local full check execute', () => {
     // A recorded threshold that nothing executes is a number, not a ratchet.
     for (const mode of ['ci-primary', 'ci-linux-primary', 'check-all'] as const) {
-      const ids = withBunEntrypoint(() => gatesForMode(mode).map(gate => gate.id))
-      expect(ids, `${mode} must run the mutation gate`).toContain('mutation')
+      const gates = withBunEntrypoint(() => gatesForMode(mode))
+      expect(gates.map(gate => gate.id), `${mode} must run the mutation gate`).toContain('mutation')
+
+      // The gate covers packages/util only. A label reading "mutation score"
+      // in a CI aggregate reports the repository's score, which this is not,
+      // so the label has to carry the tier it measures.
+      const mutation = gates.find(gate => gate.id === 'mutation')
+      expect(mutation?.label, `${mode} must name the tier the mutation gate covers`)
+        .toBe('mutation score (util tier)')
     }
   })
 })

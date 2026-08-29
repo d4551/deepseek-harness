@@ -57,4 +57,6 @@ Adding the lane moved `docs/testing.md`'s word ceiling from 1150 to 1200: the ti
 
 `bun run mutation` runs in `ci-primary`, `ci-linux-primary`, and `check-all`, and `run-gates.spec.ts` asserts that membership: a threshold nothing executes is a number, not a ratchet.
 
+The same spec asserts the gate's label carries the tier it measures. This scope is 9 of the repository's 248 packages, so a CI line reading `mutation score` reports the repository's score to anyone scanning the run, and that is not what passed. The label reads `mutation score (util tier)`, and restoring the unscoped one fails the spec.
+
 Not built: the nightly job that records the score over time, and the PR-scoped incremental run that would replace the whole-scope run once the scope is wide enough for that to matter.

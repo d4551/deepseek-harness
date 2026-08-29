@@ -1,5 +1,7 @@
 /**
- * Mutation testing over the harness source, run with the Vitest runner.
+ * Mutation testing over the zero-dependency utility tier, run with the
+ * Vitest runner. It is 9 of the repository's 248 packages: the number this
+ * gate reports is that tier's, not the harness's.
  *
  * `mutate` is the ratchet: the per-file 100% line-coverage gate proves every
  * line executes, and mutation score proves an assertion would notice if the

@@ -57,4 +57,6 @@ Stryker 以 Vitest runner 在 `packages/util/*/src` 上运行，配置见 [stryk
 
 `bun run mutation` 在 `ci-primary`、`ci-linux-primary` 与 `check-all` 中运行，且 `run-gates.spec.ts` 断言了这一归属：无人执行的阈值只是一个数字，不是棘轮。
 
+同一份 spec 还断言该 gate 的标签必须写明它所度量的层级。本范围是仓库 248 个包中的 9 个，因此 CI 中一行 `mutation score` 会让扫过运行结果的人以为那是整个仓库的分数，而通过的并不是它。该标签写作 `mutation score (util tier)`，把未限定范围的旧标签改回去会让该 spec 失败。
+
 尚未构建：记录分数随时间变化的每夜 job，以及在范围足够宽时取代全量运行的 PR（Pull Request）范围增量运行。
