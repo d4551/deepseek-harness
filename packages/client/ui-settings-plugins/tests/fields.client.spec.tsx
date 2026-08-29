@@ -2,6 +2,7 @@
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import { SecretField, ValueField } from '../src/client/fields.tsx'
 
 afterEach(cleanup)
@@ -148,5 +149,21 @@ describe('SecretField', () => {
     )
 
     expect(screen.getByLabelText('API key')).toHaveProperty('disabled', true)
+  })
+})
+
+describe('settings fields accessibility', () => {
+  const MINIMUM_ACCESSIBILITY_SCORE = 100
+
+  it('renders no accessibility violations for a labelled value field', async () => {
+    const { baseElement } = render(
+      <main>
+        <ValueField {...frame} text="60000" onEdit={vi.fn()} onReset={vi.fn()} />
+      </main>,
+    )
+    expect(accessibilityFailures(
+      [await auditSurface('ValueField', baseElement)],
+      MINIMUM_ACCESSIBILITY_SCORE,
+    )).toBe('')
   })
 })

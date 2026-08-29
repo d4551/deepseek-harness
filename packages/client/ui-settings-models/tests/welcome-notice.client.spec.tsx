@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { Context } from '@deepseek-ai/cordis'
 import { SettingsSchemaService } from '@deepseek-ai/dsh-client-ui-settings/src/client/schema.ts'
@@ -165,5 +166,18 @@ describe('WelcomeNotice', () => {
     })
     expect((await screen.findByRole('alert')).textContent).toBe(zh.welcomeError)
     expect(h.complete).not.toHaveBeenCalled()
+  })
+})
+
+describe('welcome notice accessibility', () => {
+  const MINIMUM_ACCESSIBILITY_SCORE = 100
+
+  it('renders no accessibility violations for the welcome dialog', async () => {
+    mount()
+    const dialog = await screen.findByRole('dialog')
+    expect(accessibilityFailures(
+      [await auditSurface('WelcomeNotice', dialog)],
+      MINIMUM_ACCESSIBILITY_SCORE,
+    )).toBe('')
   })
 })

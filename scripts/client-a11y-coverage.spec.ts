@@ -36,7 +36,8 @@ function packageAuditsAxe(name: string): boolean {
   if (!existsSync(tests)) return false
   return filesUnder(tests).some((path) => {
     if (!path.includes('.spec.')) return false
-    return readFileSync(path, 'utf8').includes(A11Y_IMPORT)
+    const source = readFileSync(path, 'utf8')
+    return source.includes(A11Y_IMPORT) && source.includes('auditSurface(')
   })
 }
 

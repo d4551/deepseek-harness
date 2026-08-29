@@ -4,7 +4,7 @@ A standing adversarial auditor reviews this branch's work. It reports only that
 it found a violation, never where. Each report restarts the loop, and the
 counter below increments by one.
 
-## I'm a fucking loser: 18
+## I'm a fucking loser: 19
 
 ## Rounds
 
@@ -21,6 +21,7 @@ counter below increments by one.
 | 16 | `bun run hygiene` was recorded as "1 knip finding, pre-existing" and was in fact failing. Regenerating the lockfile moved `knip` from 6.16.1 to 6.32.3, and the newer version emits configuration hints the pinned one did not; the gate runs with `--treat-config-hints-as-errors`, so it exited 1. The same round found the note's supply-chain paragraph claimed fourteen drifted resolutions with nothing added or removed: the real drift is 111 package entries across about 74 families, including `unbash` 3 to 4 and `wsl-utils` 0.3 to 1.0. Every hint was correct and each was fixed by removing an exclusion — four `apps/web` `ignoreDependencies` and three `ignoreBinaries` that no longer matched anything — and the one unlisted dependency was a fixture parameter named `require`, which made `require('react')` read as a CommonJS import. The lane passes 15 of 15 in that fixed state. |
 | 17 | Round 16's own repair put a current measurement into a historical table: the pre-upgrade lane results were amended so `bun run hygiene` read "15 gates pass", a figure measured after both upgrades and after the knip fix. That erased the record that the lane had been failing at that commit rather than correcting it. The row now says what was recorded and that it was wrong; the passing measurement stays in the section where it was taken. The same round re-ran Stryker, which had not been executed since TypeScript 7 and bun 1.4 landed even though 96.57 was still being reported: it is 96.57 in the current state too, 788 of 816, so the figure was right and unverified, which is a claim either way. |
 | 18 | The auditor was spawned against the dirty tree and this loop restarted. `TextRetainer.finish()` still sliced the suffix after `push()` had trimmed it, so skipping the trim could not change `finish().text`. The committed file also called `suffixLenAt` without defining it. The class now lives in `text-retainer.ts` (the 400-line cap, not a mutant filter) and `finish()` reads the accumulator as-is; oversize-chunk tests assert the window. `mkdir` no longer passes `mode: undefined`. The note that "99 is not reachable" is still on disk until a measured run replaces it. Axe still does not cover every `ui-*` package that ships TSX. |
+| 19 | A push failed typecheck: unused `view` bindings after replacing childElementCount assertions, unused setup locals in the plan chip empty-state test, and an axe import in appearance-row with no `auditSurface` call. `stryker.config.mjs` recorded 96.92 / `break` 96.8 while a measured run on this tree was 96.58 of 818 with 28 survivors. The coverage spec required only an import, so a package could claim an audit without calling axe. The suffix window is now a single buffer; UTF-8 trim dropped the scan-back cap; idleWatchdog dispose is no longer an early-return no-op. The coverage spec now requires `auditSurface(` and every `ui-*` package that ships TSX has a call. |
 
 ## What the loop is for
 

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
+import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import { Context } from '@deepseek-ai/cordis'
 import { SlotTestRuntime } from '@deepseek-ai/dsh-client-test-runtime'
 import { buildRenderApp } from '../src/client/app.tsx'
@@ -27,8 +28,12 @@ describe('buildRenderApp', () => {
 
   it('renders the root slot tree', async () => {
     const b = await bench()
-    const view = render(<>{b.renderApp()}</>)
+    const view = render(<main>{b.renderApp()}</main>)
     expect(view.getByTestId('frame')).toBeTruthy()
+    expect(accessibilityFailures(
+      [await auditSurface('buildRenderApp root', view.baseElement)],
+      100,
+    )).toBe('')
   })
 
 })

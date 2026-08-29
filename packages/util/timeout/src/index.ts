@@ -166,7 +166,6 @@ export function idleWatchdog(
       arm()
     },
     [Symbol.dispose](): void {
-      if (disposed) return
       disposed = true
       clearTimeout(timer)
       timer = undefined
