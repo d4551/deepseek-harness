@@ -217,8 +217,11 @@ describe('HTML bootstrap facade', () => {
     const { target } = injectedFacade(graph)
     target.load({
       id: MODULES_ID,
-      factory: (require) => {
-        require('react')
+      // The bootstrap receives a resolver for anything it left external. Named
+      // for what it resolves rather than `require`: this file has no CommonJS,
+      // and a `require('react')` call here reads as one to static analysis.
+      factory: (resolveExternal) => {
+        resolveExternal('react')
         return modulesClient
       },
     })

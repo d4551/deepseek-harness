@@ -45,7 +45,7 @@ needs a rebuild rather than a rewrite.
 | `bun run mutation` | 788 detected of 816 = 96.57%, `break` 96.5 |
 | `bun run typecheck` | clean |
 | `bun run test:docs` | 15 gates pass |
-| `bun run hygiene` | 1 knip finding, pre-existing |
+| `bun run hygiene` | 15 gates pass |
 | axe | 10 of the 43 packages under `packages/client/` |
 
 The 13 unit failures reproduce identically at the manifest from before the
@@ -113,17 +113,46 @@ and both native addons load there — bun is the package manager and script
 runner, not the runtime. `koffi` and `node-pty` load under Node; the landlock
 launcher is built and its binary survived the `node_modules` wipe.
 
-Supply chain held. Regenerating the lockfile drifted fourteen resolutions
-inside their declared ranges — the lefthook family, `es-toolkit`,
-`json-rpc-2.0`, `pretty-ms` — with nothing added or removed. Every drifted
-version is between 25 and 31 hours old, so `minimumReleaseAge`'s 24-hour hold
-was applied rather than bypassed. `trustedDependencies` still lists the same
-five packages and their lifecycle scripts ran. `verify-vendored-links` passes
-for all nine vendored names.
+Regenerating the lockfile drifted far more than first reported. Comparing the
+pnpm lockfile's resolutions against `bun.lock` gives 111 package entries across
+about 74 families, not the fourteen an earlier draft of this file claimed, and
+two of them cross a major version: `unbash` 3.0.0 to 4.0.10 and `wsl-utils`
+0.3.1 to 1.0.0. Every declared range in the manifests is unchanged except the
+upgrades named above, so this is resolution drift inside existing ranges rather
+than a dependency change; the drifted versions sampled were 25 to 31 hours old,
+so `minimumReleaseAge`'s 24-hour hold applied rather than being bypassed.
+`trustedDependencies` still lists the same five packages and their lifecycle
+scripts ran. `verify-vendored-links` passes for all nine vendored names.
+
+One drift broke a gate. `knip` went 6.16.1 to 6.32.3, and the newer version
+emits configuration hints the pinned one did not; `bun run knip` runs with
+`--treat-config-hints-as-errors`, so the hygiene lane failed. The hints were
+correct: four `apps/web` `ignoreDependencies` entries and three `ignoreBinaries`
+entries no longer matched anything, and removing them removes three exclusions
+from the check rather than adding any. The remaining finding was a fixture in
+`node-half.client.spec.ts` whose bootstrap factory named its resolver parameter
+`require`, so `require('react')` read as a CommonJS import of a package that
+file does not use; the parameter is now named for what it resolves. `bun run
+hygiene` passes 15 of 15 in that fixed state.
 
 Both CI surfaces follow the pin without editing: the GitHub jobs read
 `bun-version-file: package.json`, and the GitLab jobs parse `packageManager`
 from the same manifest.
+
+## The application under bun 1.4, run rather than inferred
+
+| Lane | Result |
+| --- | --- |
+| `bun run dsh --help` | exit 0, no warnings |
+| `bun run dsh --profile headless --dump-config` | exit 0, full plugin tree composes |
+| `bun run dsh --profile headless "<task>"` | exit 1 at the credential check |
+| `bun run test:e2e` | 37 files, 145 passed, 72 skipped, **0 failed** |
+| `bun run hygiene` | 15 gates pass |
+
+This container holds no `DEEPSEEK_API_KEY`, so no real model turn ran. What did run is everything up to it: the CLI boots through tsx's ESM hook under Node 22.22.2, the headless profile composes its whole layer stack, and the boot fails at the credential check with the message that names both ways to supply a key — not a stack trace and not a plugin-load error. The keyless recorded-session replay covers the rest of the loop.
+
+`test:e2e` failed one file before this: `packed-install.e2e.ts` fed `npm install` the line `Packed size: 15.41KB`. It took the last line of `bun pm pack` stdout as the tarball path, which was right for the packer it replaced; bun prints the path on its own line and then a summary block. Its `beforeAll` threw, so all three of its cases had been skipped rather than failing. The parse now selects the line by its `.tgz` extension and asserts exactly one, so a future output change fails in the pack step instead of at the install.
+
 
 ## What this container cannot tell us
 
