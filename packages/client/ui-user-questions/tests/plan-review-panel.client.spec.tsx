@@ -5,6 +5,8 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import {
   PendingQuestion, planReviewOf, type QuestionComposerProps, type QuestionWait,
 } from '../src/client/contract/slots.ts'
+import { accessibilityScore, auditSurface, formatViolations } from '@deepseek-ai/dsh-client-a11y'
+import type { SurfaceAudit } from '@deepseek-ai/dsh-client-a11y'
 import { createQuestionDraftStore } from '../src/client/draft-store.ts'
 import { QuestionComposer } from '../src/client/QuestionComposer.tsx'
 import { en, zh } from '../src/client/locales.ts'
@@ -296,5 +298,32 @@ describe('PlanReviewPanel', () => {
     expect(screen.getByRole('button', { name: 'Approve' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Refuse' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Chat about it' })).toBeTruthy()
+  })
+})
+
+/**
+ * The question surfaces are a form the user answers under time pressure, so
+ * their controls carry the accessibility weight of this package. Audited in
+ * the rendered states the suite above already exercises, against the same
+ * fixed WCAG A/AA rule set and the same floor the primitives lane holds.
+ */
+describe('user-questions accessibility', () => {
+  const MINIMUM_ACCESSIBILITY_SCORE = 100
+
+  it('renders no accessibility violations across its question surfaces', async () => {
+    const { carrier } = wait()
+    // The page shell supplies the `main` landmark the page-structure rules
+    // need; without it the harness's own missing frame reads as a defect.
+    const { baseElement } = render(<main><QuestionComposer matched={carrier} {...kit} /></main>)
+    const audits: SurfaceAudit[] = [await auditSurface('QuestionComposer', baseElement)]
+    cleanup()
+
+    // A surface that decided nothing would score 100 for free.
+    for (const audit of audits) {
+      expect(audit.passed + audit.failed, `${audit.surface} decided no checks`).toBeGreaterThan(0)
+    }
+    expect([...new Set(audits.flatMap(audit => audit.undecidedRules))]).toEqual(['color-contrast'])
+    expect(audits.map(formatViolations).filter(text => text !== '').join('\n')).toBe('')
+    expect(accessibilityScore(audits)).toBeGreaterThanOrEqual(MINIMUM_ACCESSIBILITY_SCORE)
   })
 })

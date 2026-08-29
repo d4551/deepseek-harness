@@ -42,6 +42,6 @@ axe-core 在加载时会触碰 jsdom 的全局对象。经由 [`dsh-client-test-
 
 每一个导出的 primitive 在每次单元运行中都接受 WCAG A 与 AA 检验：97 个 surface（受审面）、1138 项已判定检查、零失败，且 `color-contrast` 是 jsdom 唯一无法判定的规则。新 primitive 无法在未受审的情况下交付，回归会让运行失败，而不是拉低一个平均值。
 
-该通道覆盖 `ui-primitives` 与 `ui-attachment`。前者审计包所导出的内容；后者无法如此，因为它导出的是插件、其组件在内部组合，因此其 surface 以用户实际遇到的状态挂载——持有待发送图片的 rail、拖放浮层、灯箱，以及一张消息图片。两者遵守同一条下限。
+该通道覆盖 `ui-primitives`、`ui-attachment` 与 `ui-user-questions`。前者审计包所导出的内容；后者无法如此，因为它导出的是插件、其组件在内部组合，因此其 surface 以用户实际遇到的状态挂载——持有待发送图片的 rail、拖放浮层、灯箱，以及一张消息图片。第三个是用户在时间压力下作答的表单，它在已经渲染该 surface 的套件内部受审，而非另起一个文件——因为正是那套 setup 让该 surface 成其为真实形态。三者遵守同一条下限。
 
-其余组合而成的界面——chat、settings、workspace——仍未受审。每一个都需要其功能套件的上下文才能渲染，这正是本记录留待完成的工作，而它占了 client 的大部分：`packages/client/` 下的 37 个包中，今天受审的是两个。
+其余组合而成的界面——chat、settings、workspace——仍未受审。每一个都需要其功能套件的上下文才能渲染，这正是本记录留待完成的工作，而它占了 client 的大部分：`packages/client/` 下的 37 个包中，今天受审的是三个。
