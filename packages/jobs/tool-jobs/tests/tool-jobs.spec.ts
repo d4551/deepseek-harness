@@ -354,7 +354,7 @@ describe('job_list', () => {
     expect(text(await call(ctx, 'job_list', {}))).toBe('(no background jobs)')
 
     const alice = fakeAgent(ctx, 'sess-alice')
-    ctx.jobs.start(producer({ owner: alice, label: 'pnpm test' }).spec)
+    ctx.jobs.start(producer({ owner: alice, label: 'bun run test' }).spec)
     ctx.jobs.start(producer({ kind: 'subagent', label: 'open research' }).spec)
     const p = producer({ owner: alice, label: 'build' })
     ctx.jobs.start(p.spec)
@@ -365,14 +365,14 @@ describe('job_list', () => {
     if (listed.isError) throw new Error('expected job_list success')
     const listedValue = listed.value as Array<Record<string, unknown>>
     expect(listedValue).toHaveLength(3)
-    expect(listedValue[0]).toMatchObject({ id: 'bash-1', kind: 'bash', label: 'pnpm test', status: 'running' })
+    expect(listedValue[0]).toMatchObject({ id: 'bash-1', kind: 'bash', label: 'bun run test', status: 'running' })
     expect(listedValue[2]).toMatchObject({ id: 'bash-2', kind: 'bash', label: 'build', status: 'completed', detail: 'exit code: 0' })
     for (const job of listedValue) {
       expect(job).not.toHaveProperty('ownerSession')
       expect(job).not.toHaveProperty('reported')
     }
     expect(text(listed)).toBe([
-      'bash-1 [bash] running — pnpm test',
+      'bash-1 [bash] running — bun run test',
       'subagent-1 [subagent] running — open research',
       'bash-2 [bash] completed — build',
     ].join('\n'))
@@ -541,7 +541,7 @@ describe('completion notices across scoped mounts', () => {
     try {
       // No waiter: `settle()` leaves `reported` false, which is the only path
       // that reaches the notice listeners at all.
-      const p = producer({ owner, label: 'pnpm test' })
+      const p = producer({ owner, label: 'bun run test' })
       ctx.jobs.start(p.spec)
       p.settle({ status: 'completed', detail: 'exit code: 0' })
       await tick()
@@ -559,7 +559,7 @@ describe('completion notice delivery', () => {
     const inject = vi.fn()
     const followup = vi.fn()
     const owner = fakeAgent(ctx, 'sess-1', { inject, followup, status: 'idle' })
-    const p = producer({ owner, label: 'pnpm test' })
+    const p = producer({ owner, label: 'bun run test' })
     ctx.jobs.start(p.spec)
 
     p.settle({ status: 'completed', detail: 'exit code: 0' })
@@ -686,7 +686,7 @@ describe('completion notices', () => {
     const { ctx } = await setup()
     const inject = vi.fn()
     const owner = fakeAgent(ctx, 'sess-1', { inject })
-    const p = producer({ owner, label: 'pnpm test' })
+    const p = producer({ owner, label: 'bun run test' })
     ctx.jobs.start(p.spec)
 
     p.settle({ status: 'completed', detail: 'exit code: 0' })
@@ -695,12 +695,12 @@ describe('completion notices', () => {
     expect(inject).toHaveBeenCalledWith({
       id: expect.any(String) as unknown,
       role: 'user',
-      content: [{ type: 'text', text: 'background job bash-1 (bash: pnpm test) finished [status: completed, exit code: 0]. Read its output with job_output.' }],
+      content: [{ type: 'text', text: 'background job bash-1 (bash: bun run test) finished [status: completed, exit code: 0]. Read its output with job_output.' }],
       source: {
         kind: 'plugin',
         plugin: 'tool-jobs',
         form: 'notice',
-        summary: 'bash pnpm test [status: completed, exit code: 0]',
+        summary: 'bash bun run test [status: completed, exit code: 0]',
       },
     })
   })

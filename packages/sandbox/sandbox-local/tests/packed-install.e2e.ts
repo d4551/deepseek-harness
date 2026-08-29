@@ -80,12 +80,12 @@ describe.skipIf(!packable)('sandbox-local: packed-tarball distribution (publish-
     // Pack each harness closure member with the exact bytes publish would upload.
     const tarballs: string[] = []
     for (const pkg of workspaceClosure) {
-      const pack = spawnSync('pnpm', ['pack', '--pack-destination', packDest], {
+      const pack = spawnSync('bun', ['pm', 'pack', '--destination', packDest], {
         cwd: pkg.directory,
         encoding: 'utf8',
         timeout: 120_000,
       })
-      expect(pack.status, `pnpm pack failed for ${pkg.name}:\n${pack.stdout}\n${pack.stderr}`).toBe(0)
+      expect(pack.status, `bun pm pack failed for ${pkg.name}:\n${pack.stdout}\n${pack.stderr}`).toBe(0)
       const lines = pack.stdout.trim().split('\n')
       tarballs.push(lines[lines.length - 1] as string)
     }

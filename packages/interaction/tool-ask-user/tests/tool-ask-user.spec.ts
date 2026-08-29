@@ -92,7 +92,7 @@ describe('ask_user_question tool', () => {
     registerQuestionAnswerer(ctx, {
       async ask(request) {
         seen.push(request)
-        return { answers: [{ id: 'pkg', selected: ['pnpm'] }] }
+        return { answers: [{ id: 'pkg', selected: ['bun'] }] }
       },
     })
 
@@ -104,20 +104,20 @@ describe('ask_user_question tool', () => {
         questions: [{
           id: 'pkg',
           question: 'Which package manager should I use?',
-          options: [{ label: 'pnpm', description: 'Use pnpm workspaces.' }],
+          options: [{ label: 'bun', description: 'Use bun workspaces.' }],
         }],
       },
     })
 
     expect(result).toMatchObject({
       isError: false,
-      content: [{ type: 'text', text: '{"answers":[{"id":"pkg","selected":["pnpm"]}]}' }],
+      content: [{ type: 'text', text: '{"answers":[{"id":"pkg","selected":["bun"]}]}' }],
     })
     expect(seen).toMatchObject([{
       questions: [{
         id: 'pkg',
         question: 'Which package manager should I use?',
-        options: [{ label: 'pnpm', description: 'Use pnpm workspaces.' }],
+        options: [{ label: 'bun', description: 'Use bun workspaces.' }],
       }],
     }])
   })
@@ -128,7 +128,7 @@ describe('ask_user_question tool', () => {
     registerQuestionAnswerer(ctx, {
       async ask(request) {
         seen.push(request)
-        return { answers: [{ id: 'pkg', selected: ['pnpm (Recommended)'] }] }
+        return { answers: [{ id: 'pkg', selected: ['bun (Recommended)'] }] }
       },
     })
 
@@ -141,7 +141,7 @@ describe('ask_user_question tool', () => {
           id: 'pkg',
           question: 'Which package manager should I use?',
           options: [
-            { label: 'pnpm (Recommended)' },
+            { label: 'bun (Recommended)' },
             { label: 'npm' },
           ],
         }],
@@ -149,7 +149,7 @@ describe('ask_user_question tool', () => {
     })
 
     expect(seen[0]?.questions[0]?.options).toEqual([
-      { label: 'pnpm (Recommended)' },
+      { label: 'bun (Recommended)' },
       { label: 'npm' },
     ])
   })
