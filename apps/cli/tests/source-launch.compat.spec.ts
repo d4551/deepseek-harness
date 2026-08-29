@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest'
  * vector the root `dsh` script invokes directly) and assert the
  * required-config diagnostic. The Node compatibility matrix runs this
  * WHOLE file, so a Node release changing module hooks or TypeScript handling
- * breaks this gate instead of every developer's `pnpm dsh`; the built-bin
+ * breaks this gate instead of every developer's `bun run dsh`; the built-bin
  * suite covers the published `lib/` entry, not this source chain.
  */
 

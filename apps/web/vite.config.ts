@@ -7,8 +7,8 @@ import { clientBuildEnvironmentDefines } from '../../scripts/client-build-enviro
 
 const src = (rel: string): string => fileURLToPath(new URL(rel, import.meta.url))
 const STANDALONE_ERROR = 'apps/web is not a standalone application: bare Vite cannot inject window.__DSH_BOOT__. '
-  + 'From a repository checkout, run `pnpm dsh web`; an installed package uses `dsh web`. '
-  + 'For client-plugin HMR, run `pnpm dsh web` together with `pnpm run dev:web`.'
+  + 'From a repository checkout, run `bun run dsh web`; an installed package uses `dsh web`. '
+  + 'For client-plugin HMR, run `bun run dsh web` together with `bun run dev:web`.'
 const DEFAULT_CLIENT_TITLE = 'DSH Local Build'
 
 /** Escape build-time text before placing it in the HTML title element. */
@@ -126,7 +126,8 @@ const FONT_EXTENSIONS: readonly string[] = ['.woff2', '.woff', '.ttf']
 
 /**
  * npm package name of a resolved module id: the segment after the last
- * `node_modules/`. pnpm nests the real package under an inner node_modules.
+ * `node_modules/`. The isolated linker nests the real package under an inner
+ * node_modules inside its content-addressed store.
  */
 function npmPackageOf(id: string): string | undefined {
   const parts = id.split('/node_modules/')
@@ -204,7 +205,7 @@ export default defineConfig({
     // react/jsx-runtime and react-dom/client — and resolve from this package's
     // node_modules, so react must stay a devDependency here and any watcher must
     // run vite from this directory (scripts/dev-web.ts). Workspace packages need
-    // no entry: pnpm links each of them to a single directory.
+    // no entry: the isolated linker symlinks each of them to a single directory.
     dedupe: ['react', 'react-dom'],
     // Workspace packages are consumed as built lib products: each resolves
     // through its own package.json exports from the importer's directory, and

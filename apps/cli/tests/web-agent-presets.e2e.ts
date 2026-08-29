@@ -115,7 +115,7 @@ async function bootWeb(
   const profileDir = join(home, 'profiles', 'spec')
   await mkdir(profileDir, { recursive: true })
   // Product Bundles are installed into the Profile, not the dsh app. Model
-  // pnpm's package link for only the selected products; their own production
+  // the package manager's link for only the selected products; their own production
   // dependencies resolve from the linked workspace packages, while shared
   // peers still resolve through the installation fallback above.
   for (const packageDir of profilePackages) {

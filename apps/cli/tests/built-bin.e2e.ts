@@ -821,7 +821,7 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
 
   it('anchors a relative add spec to the invoking directory, not the profile', async () => {
     // `dsh plugin --profile x add .` from a plugin checkout must install THAT
-    // checkout — pnpm's cwd is the profile directory, so an un-anchored `.`
+    // checkout — bun's cwd is the profile directory, so an un-anchored `.`
     // would self-link the profile.
     const home = mkdtempSync(join(tmpdir(), 'dsh-plugin-anchor-'))
     const checkout = mkdtempSync(join(tmpdir(), 'dsh-plugin-checkout-'))
@@ -869,10 +869,12 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
   }, SPAWN_TIMEOUT_MS * 2 + 30_000)
 
   it('activates a dependency that gained dsh.bundle in a later update', async () => {
-    // Reconcile runs against the INSTALLED state on every successful pnpm
+    // Reconcile runs against the INSTALLED state on every successful bun
     // run, so `update` (not only `add`) activates a package whose newer
     // version declares dsh.bundle. Simulated without a registry: hand-place
-    // the installed package, flip its manifest, and run a benign pnpm verb.
+    // the installed package, flip its manifest, and run a benign bun verb.
+    // `pm bin` only prints the profile's .bin path: it exits 0, mutates
+    // nothing, and needs no lockfile, which this hand-built profile has not.
     const home = mkdtempSync(join(tmpdir(), 'dsh-plugin-update-'))
     try {
       const profileDir = join(home, 'profiles', 'up')
@@ -887,7 +889,7 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
       writeFileSync(join(profileDir, 'cordis.patch.yml'), '[]\n')
       // v1: no dsh manifest — a plain dependency.
       writeFileSync(join(installed, 'package.json'), JSON.stringify({ name: 'late-bundle', version: '1.0.0' }))
-      const first = await runBuiltBin(['plugin', '--profile', 'up', 'root'], { DSH_HOME: home })
+      const first = await runBuiltBin(['plugin', '--profile', 'up', 'pm', 'bin'], { DSH_HOME: home })
       expect(first.code).toBe(0)
       let manifest = JSON.parse(readFileSync(join(profileDir, 'package.json'), 'utf8')) as { dsh: { profile: { bundles: string[] } } }
       expect(manifest.dsh.profile.bundles).toEqual(['@deepseek-ai/dsh-base'])
@@ -896,7 +898,7 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
         name: 'late-bundle', version: '2.0.0', dsh: { bundle: { patch: './cordis.patch.yml' } },
       }))
       writeFileSync(join(installed, 'cordis.patch.yml'), '[]\n')
-      const second = await runBuiltBin(['plugin', '--profile', 'up', 'root'], { DSH_HOME: home })
+      const second = await runBuiltBin(['plugin', '--profile', 'up', 'pm', 'bin'], { DSH_HOME: home })
       expect(second.code).toBe(0)
       manifest = JSON.parse(readFileSync(join(profileDir, 'package.json'), 'utf8')) as { dsh: { profile: { bundles: string[] } } }
       expect(manifest.dsh.profile.bundles).toEqual(['@deepseek-ai/dsh-base', 'late-bundle'])
