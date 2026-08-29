@@ -92,6 +92,39 @@ with its other 57. The other 13 are the pre-existing set: four permission-shaped
 cases that only fail because the suite runs as root, one IPv6 listener this host
 cannot bind, and the subagent suites that need external binaries.
 
+## After bun 1.4.0 — measured
+
+| Lane | Result |
+| --- | --- |
+| `bun install` | 1,094 packages, exit 0 |
+| `bun run typecheck` | 0 errors |
+| `bun run lint` | exit 0 |
+| `bun run test:docs` | 15 gates pass |
+| `bun run test:snapshot` | 107 passed, 2 skipped, **0 failed** |
+| `bun run test` | 13 failed, 17,462 passed, 89 skipped of 17,564 |
+
+No new failures: the nine failing files are exactly the pre-upgrade set, and
+the OOM containment case that timed out under load during the TypeScript 7 run
+did not recur.
+
+The ABI change does not reach the product. bun 1.4 reports Node 26.3.0 with
+`NODE_MODULE_VERSION` 147, but `dsh` runs under Node 22.22.2 at version 127,
+and both native addons load there — bun is the package manager and script
+runner, not the runtime. `koffi` and `node-pty` load under Node; the landlock
+launcher is built and its binary survived the `node_modules` wipe.
+
+Supply chain held. Regenerating the lockfile drifted fourteen resolutions
+inside their declared ranges — the lefthook family, `es-toolkit`,
+`json-rpc-2.0`, `pretty-ms` — with nothing added or removed. Every drifted
+version is between 25 and 31 hours old, so `minimumReleaseAge`'s 24-hour hold
+was applied rather than bypassed. `trustedDependencies` still lists the same
+five packages and their lifecycle scripts ran. `verify-vendored-links` passes
+for all nine vendored names.
+
+Both CI surfaces follow the pin without editing: the GitHub jobs read
+`bun-version-file: package.json`, and the GitLab jobs parse `packageManager`
+from the same manifest.
+
 ## What this container cannot tell us
 
 It runs as root, has no IPv6, and denies tag pushes. Several lanes therefore
