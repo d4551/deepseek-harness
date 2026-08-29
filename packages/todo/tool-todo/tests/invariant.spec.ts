@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
+import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as ToolTodo from '@deepseek-ai/dsh-tool-todo'
@@ -70,6 +71,26 @@ describe('todo snapshot invariants', () => {
 
     expect(() => session.append('todo/write', { todos: [] })).toThrow(/outside any open turn/)
     expect(session.events).toEqual(before)
+  })
+
+  it('names the companion plugin so the loader can identify it', () => {
+    expect(TodoInvariant.name).toBe('tool-todo-invariant')
+  })
+
+  it('keeps a turn closed across unrelated events after it ends', async () => {
+    // Only turn/start reopens a turn. If any other event were treated as one,
+    // a todo/write that followed ordinary traffic after turn/end would slip
+    // into the durable log outside a turn.
+    const ctx = await setup()
+    const session = ctx.sessions.create()
+    session.append('turn/start', { turn: 1 })
+    session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+    session.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: 'after the turn' }],
+      source: { kind: 'user' },
+    }), { surfaceOp: 'append' })
+
+    expect(() => session.append('todo/write', { todos: [] })).toThrow(/outside any open turn/)
   })
 
   it('rejects an existing snapshot outside an open turn on late registration', async () => {

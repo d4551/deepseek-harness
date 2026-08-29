@@ -358,6 +358,25 @@ describe('todo_write model-facing surface', () => {
     expect(todos.items.additionalProperties).toBe(false)
   })
 
+  it('refuses extra keys at every level of the structured output', async () => {
+    // The output schema is validated against the tool's own result and
+    // projected into both SDKs' generated types, so an object that silently
+    // admitted extra keys would widen both without any test noticing.
+    const ctx = await setup(true)
+    const definition = ctx.tools.get('todo_write')
+    if (definition === undefined) throw new Error('todo_write is not registered')
+    const schema = definition.output.schema as {
+      additionalProperties: boolean
+      properties: {
+        todos: { items: { additionalProperties: boolean } }
+        counts: { additionalProperties: boolean }
+      }
+    }
+    expect(schema.additionalProperties).toBe(false)
+    expect(schema.properties.todos.items.additionalProperties).toBe(false)
+    expect(schema.properties.counts.additionalProperties).toBe(false)
+  })
+
   it('counts completed todos rather than reporting a constant zero', async () => {
     const ctx = await setup(true)
     const result = await callTodo(ctx, {
