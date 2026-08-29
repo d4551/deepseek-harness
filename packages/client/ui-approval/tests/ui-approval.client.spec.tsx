@@ -5,6 +5,8 @@ import InvariantRegistry from '@deepseek-ai/dsh-invariants'
 import type { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { accessibilityScore, auditSurface, formatViolations } from '@deepseek-ai/dsh-client-a11y'
+import type { SurfaceAudit } from '@deepseek-ai/dsh-client-a11y'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApprovalPanel } from '../src/client/ApprovalPanel.tsx'
 import type { ApprovalComposerProps } from '../src/client/contract/slots.ts'
@@ -382,5 +384,31 @@ describe('package entries', () => {
     await ctx.plugin(InvariantRegistry, { enabled: true })
 
     await expect(ctx.plugin(ApprovalInvariant).await()).resolves.toBeDefined()
+  })
+})
+
+/**
+ * An approval panel is a decision that blocks work until the user answers it,
+ * so its controls have to be reachable and named. Audited against the same
+ * fixed WCAG A/AA rule set and floor the primitives lane holds.
+ */
+describe('approval panel accessibility', () => {
+  const MINIMUM_ACCESSIBILITY_SCORE = 100
+
+  it('renders no accessibility violations for a pending approval', async () => {
+    cleanup()
+    const pending = new PendingApproval(id('a11y'), { toolName: 'bash' })
+    // The page shell supplies the `main` landmark the page-structure rules
+    // need; without it the harness's own missing frame reads as a defect.
+    const { baseElement } = render(<main><ApprovalPanel {...panelProps(pending)} /></main>)
+    const audits: SurfaceAudit[] = [await auditSurface('ApprovalPanel', baseElement)]
+    cleanup()
+
+    // A surface that decided nothing would score 100 for free.
+    for (const audit of audits) {
+      expect(audit.passed + audit.failed, `${audit.surface} decided no checks`).toBeGreaterThan(0)
+    }
+    expect(audits.map(formatViolations).filter(text => text !== '').join('\n')).toBe('')
+    expect(accessibilityScore(audits)).toBeGreaterThanOrEqual(MINIMUM_ACCESSIBILITY_SCORE)
   })
 })
