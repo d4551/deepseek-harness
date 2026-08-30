@@ -40,10 +40,12 @@ class TestCdpClient {
   call(method: string, params: Record<string, unknown> = {}): Promise<CdpMessage> {
     const id = ++this.nextId
     return new Promise((resolve, reject) => {
+      // A real Worker answering over a WebSocket; 5s is under the round trip on
+      // a loaded host, while this still fails fast on a protocol hang.
       const timer = setTimeout(() => {
         this.pending.delete(id)
         reject(new Error(`CDP call timed out: ${method}`))
-      }, 5_000)
+      }, 30_000)
       this.pending.set(id, (message) => {
         clearTimeout(timer)
         this.pending.delete(id)

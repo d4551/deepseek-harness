@@ -130,7 +130,8 @@ async function availablePort(): Promise<number> {
 }
 
 function rawText(data: RawData): string {
-  if (Array.isArray(data)) return Buffer.concat(data).toString('utf8')
-  if (data instanceof ArrayBuffer) return Buffer.from(data).toString('utf8')
-  return Buffer.from(data).toString('utf8')
+  const bytes = data instanceof ArrayBuffer
+    ? Buffer.from(new Uint8Array(data))
+    : Array.isArray(data) ? Buffer.concat(data) : data
+  return bytes.toString('utf8')
 }

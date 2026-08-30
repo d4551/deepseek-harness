@@ -15,12 +15,12 @@ import {
 import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { removeFixtureSafely, unlinkFixtureLinks } from './test-fixture-cleanup.ts'
 
-// Each case spawns Git, Node, and a stub lefthook over real worktrees. A
-// `describe` timeout option does not override the lane budget; this does.
-vi.setConfig({ testTimeout: 120_000 })
+// The heavy cases carry explicit per-test budgets below: they spawn Git,
+// Node, and a stub lefthook over real worktrees, and a file-level override is
+// reset when the lane reuses a worker across files.
 
 const installer = fileURLToPath(new URL('./install-lefthook.mjs', import.meta.url))
 const pairingMergeDriver = 'scripts/merge-translation-pairing-driver.sh %O %A %B %P'
@@ -356,7 +356,7 @@ describe('worktree-local Lefthook installer', () => {
 
     for (const result of results) expect(result.status, result.stderr).toBe(0)
     expect(existsSync(lockPath)).toBe(false)
-  })
+  }, 120_000)
 
   it('repairs its owned absolute hook path after the checkout moves', async () => {
     const fixture = createFixture()
@@ -398,7 +398,7 @@ describe('worktree-local Lefthook installer', () => {
     expect(result.status).toBe(1)
     expect(result.stderr).toContain('invalid ownership marker')
     expect(readFileSync(externalMarker, 'utf8')).toBe(externalContent)
-  })
+  }, 120_000)
 
   it.skipIf(process.platform === 'win32')('refuses aliased generated hooks before Lefthook can overwrite their targets', async () => {
     for (const kind of ['symlink', 'hardlink'] as const) {
@@ -439,7 +439,7 @@ describe('worktree-local Lefthook installer', () => {
     const movedHooks = hooksPath(fixture, movedRoot)
     expect(git(fixture, movedRoot, ['config', '--worktree', '--get', 'core.hooksPath'])).toBe(oldHooks)
     expect(readFileSync(join(movedHooks, markerName), 'utf8')).toBe(previousMarker)
-  })
+  }, 120_000)
 
   it('refuses dormant repository extensions before upgrading the repository format', async () => {
     const fixture = createFixture()
@@ -457,7 +457,7 @@ describe('worktree-local Lefthook installer', () => {
     expect(gitResult(fixture, fixture.main, ['config', '--get', 'extensions.worktreeConfig']).status).toBe(1)
     expect(gitResult(fixture, fixture.main, ['status', '--porcelain']).status).toBe(0)
     expect(existsSync(hooksPath(fixture, fixture.main))).toBe(false)
-  })
+  }, 120_000)
 
   it('refuses direct core.worktree before enabling worktree config', async () => {
     const fixture = createFixture()
@@ -470,7 +470,7 @@ describe('worktree-local Lefthook installer', () => {
     expect(result.stderr).toContain('core.worktree is in the common config')
     expect(gitResult(fixture, fixture.main, ['config', '--get', 'extensions.worktreeConfig']).status).toBe(1)
     expect(existsSync(hooksPath(fixture, fixture.main))).toBe(false)
-  })
+  }, 120_000)
 
   it.skipIf(process.platform === 'win32')('refuses a symlinked common repository config before writing through it', async () => {
     const fixture = createFixture()
@@ -546,7 +546,7 @@ describe('worktree-local Lefthook installer', () => {
     expect(result.status).toBe(1)
     expect(result.stderr).toContain('installer lock ownership changed')
     expect(readFileSync(lockPath, 'utf8')).toBe(replacementRecord)
-  })
+  }, 120_000)
 
   it.skipIf(process.platform === 'win32')('preserves trailing spaces in worktree paths', async () => {
     const fixture = createFixture({ main: 'main ', linked: 'linked ' })
