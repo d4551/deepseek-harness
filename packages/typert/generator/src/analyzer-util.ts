@@ -50,7 +50,9 @@ export function compareCrossFaceLinks(left: CrossFaceLink, right: CrossFaceLink)
 
 export function isStandardLibraryFile(file: string): boolean {
   const base = file.replaceAll('\\', '/')
-  return /\/typescript\/lib\/lib\.[^/]+\.d\.ts$/.test(base)
+  // TS6 resolves lib files as .../node_modules/typescript/lib/lib.*.d.ts; TS7
+  // ships them per-platform as .../node_modules/@typescript/typescript-<plat>/lib/.
+  return /\/node_modules\/(?:typescript|@typescript\/typescript[^/]*)\/lib\/lib\.[^/]+\.d\.ts$/.test(base)
 }
 
 export function packageExportSpecifier(packageName: string, subpath: string): string {

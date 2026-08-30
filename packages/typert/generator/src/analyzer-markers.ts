@@ -13,8 +13,7 @@ import type { FaceContext } from './analyzer-context.ts'
 import { memberName } from './analyzer-docs.ts'
 import { isTypeMetaSymbol } from './analyzer-meta.ts'
 import { isRemoteSegment, stringLiteralValue } from './analyzer-names.ts'
-import { isStandardLibraryFile } from './analyzer-util.ts'
-import { decoratorsOf, preferredDeclaration, resolveDeclarations } from './ts7-syntax.ts'
+import { decoratorsOf, isDefaultLibraryDeclaration, preferredDeclaration, resolveDeclarations } from './ts7-syntax.ts'
 
 export type DirectMarker = { readonly kind: 'direct'; readonly exportName?: string; readonly mode?: 'stream' }
 export type ContextMarker = { readonly kind: 'context'; readonly context: string; readonly exportName?: string }
@@ -104,7 +103,7 @@ export function remoteResultType(face: FaceContext, method: MethodDeclaration, m
     const declaration = resolved === undefined ? undefined : preferredDeclaration(resolved, face.project.project)
     if (resolved !== undefined && wrappers.includes(resolved.name) && resultType !== undefined
       && authored.typeArguments?.length === 1 && declaration !== undefined
-      && isStandardLibraryFile(declaration.getSourceFile().fileName)) {
+      && isDefaultLibraryDeclaration(face.project.project, declaration)) {
       return resultType
     }
   }
@@ -116,5 +115,5 @@ export function isGlobalAbortSignal(face: FaceContext, type: TypeNode): boolean 
   const symbol = face.symbolAtType(type)
   if (symbol?.name !== 'AbortSignal') return false
   return resolveDeclarations(symbol, face.project.project)
-    .some(declaration => isStandardLibraryFile(declaration.getSourceFile().fileName))
+    .some(declaration => isDefaultLibraryDeclaration(face.project.project, declaration))
 }

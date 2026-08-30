@@ -22,7 +22,7 @@ import type { FaceContext, ExportRecord } from './analyzer-context.ts'
 import { ensureDeclaration } from './analyzer-decl.ts'
 import { documentationOf, memberName, typertMode, typertServiceTag } from './analyzer-docs.ts'
 import { TypertAnalysisError } from './analyzer-error.ts'
-import { packageExportTargets, sourcePathForExport } from './analyzer-exports.ts'
+import { isSourceExportTarget, packageExportTargets, sourcePathForExport } from './analyzer-exports.ts'
 import { functionSignature } from './analyzer-members.ts'
 import { collectInvocations, validateInvocationIdentity } from './analyzer-invoke.ts'
 import { moduleIdentity } from './analyzer-names.ts'
@@ -138,9 +138,7 @@ function collectExports(face: FaceContext, registration: PackageRegistration): E
     .filter(([subpath]) => registration.exportSubpaths === undefined || registration.exportSubpaths.includes(subpath))
   const records: ExportRecord[] = []
   for (const [subpath, target] of targets) {
-    if (target.includes('*') || subpath === './package.json'
-      || subpath === './typert' || subpath === './client/typert' || subpath === './remote'
-      || target.endsWith('.json') || target.endsWith('.yml') || target.endsWith('.yaml')) continue
+    if (!isSourceExportTarget(subpath, target)) continue
     const sourcePath = sourcePathForExport(registration.root, target)
     const sourceFile = face.sourceFiles.get(realPath(sourcePath))
     if (sourceFile === undefined) {
@@ -203,19 +201,23 @@ function walkReExports(
   publicSymbols: Set<ExportRecord['symbol']>,
 ) {
   const exports = statement.exportClause === undefined
-    ? moduleExports(face, statement.moduleSpecifier).map(symbol => ({
-      symbol: face.resolveSymbol(symbol),
-      requestedName: symbol.name,
-      site: statement,
-    }))
-    : statement.exportClause.elements.map((element) => {
-      const symbol = face.checker.getSymbolAtLocation(element.name)
-      return {
-        symbol: symbol === undefined ? undefined : face.resolveSymbol(symbol),
-        requestedName: element.propertyName?.text ?? element.name.text,
-        site: element,
-      }
-    })
+    ? (statement.moduleSpecifier === undefined
+      ? []
+      : moduleExports(face, statement.moduleSpecifier).map(symbol => ({
+        symbol: face.resolveSymbol(symbol),
+        requestedName: symbol.name,
+        site: statement,
+      })))
+    : isNamespaceExport(statement.exportClause)
+      ? []
+      : statement.exportClause.elements.map((element) => {
+        const symbol = face.checker.getSymbolAtLocation(element.name)
+        return {
+          symbol: symbol === undefined ? undefined : face.resolveSymbol(symbol),
+          requestedName: element.propertyName?.text ?? element.name.text,
+          site: element,
+        }
+      })
   for (const exported of exports) {
     if (exported.symbol === undefined || !publicSymbols.has(exported.symbol)) continue
     const name = face.packageExportName(module, exported.symbol, toFace, exported.requestedName)

@@ -9,10 +9,11 @@ import { SignatureKind, SymbolFlags, TypeFlags, type Type } from 'typescript/uns
 import type { FaceContext, TypeNodeInput } from './analyzer-context.ts'
 import { convertType } from './analyzer-convert.ts'
 import { emptyDocumentation } from './analyzer-docs.ts'
+import { packageExportTargets, sourcePathForExport } from './analyzer-exports.ts'
 import type { MemberModel, RemoteBoundaryModel, RemoteTypeImportModel, SymbolId, TypeNodeId } from './model.ts'
-import { isStandardLibraryFile } from './analyzer-util.ts'
+import { realPath } from './analyzer-util.ts'
+import { isDefaultLibraryDeclaration } from './ts7-syntax.ts'
 import {
-  getNullableType,
   getNumberIndexType,
   hasModifier,
   preferredDeclaration,
@@ -42,23 +43,34 @@ export function remoteBoundary(
   const type = convertType(face, authoredType)
   const declaredType = face.checker.getTypeFromTypeNode(authoredType)
   if (declaredType === undefined) face.fail(authoredType, 'Remote boundary has no checker type')
-  const resolvedType = optional ? getNullableType(face.checker, declaredType) : declaredType
-  const codecType = resolvedRemoteCodecType(face, authoredType, resolvedType, topLevelAbsence)
-  const acceptsUndefined = topLevelAbsence !== 'reject' && includesRemoteAbsence(resolvedType)
+  const codecType = resolvedRemoteCodecType(face, authoredType, declaredType, topLevelAbsence)
+  const acceptsUndefined = topLevelAbsence !== 'reject'
+    && (optional || includesRemoteAbsence(declaredType))
   const rootSymbol = namedWorkspaceType(face, authoredType)
   const imports = collectRemoteImports(face, authoredType)
   if (rootSymbol !== undefined) {
     const imported = publicRemoteType(face, rootSymbol, authoredType)
     return {
       type,
-      codecType,
+      codecType: optional ? unionWithUndefined(face, authoredType, codecType) : codecType,
       acceptsUndefined,
       typeSymbol: `${imported.specifier}#${imported.name}`,
       imports,
     }
   }
   if (requireNamed) face.fail(authoredType, 'lookup and Context wire types must be named public types')
-  return { type, codecType, acceptsUndefined, typeSymbol: fallbackTypeSymbol, imports }
+  return {
+    type,
+    codecType: optional ? unionWithUndefined(face, authoredType, codecType) : codecType,
+    acceptsUndefined,
+    typeSymbol: fallbackTypeSymbol,
+    imports,
+  }
+}
+
+function unionWithUndefined(face: FaceContext, site: TypeNode, member: TypeNodeId): TypeNodeId {
+  const undefinedId = face.addNode(site, { kind: 'keyword', name: 'undefined' })
+  return face.addNode(site, { kind: 'union', types: [member, undefinedId] })
 }
 
 export function resolvedRemoteCodecType(
@@ -259,7 +271,7 @@ function namedWorkspaceType(face: FaceContext, node: TypeNode) {
   const symbol = face.symbolAtType(node)
   if (symbol === undefined) return undefined
   const declaration = preferredDeclaration(symbol, face.project.project)
-  if (declaration === undefined || isStandardLibraryFile(declaration.getSourceFile().fileName)) return undefined
+  if (declaration === undefined || isDefaultLibraryDeclaration(face.project.project, declaration)) return undefined
   if (face.registrationForFile(declaration.getSourceFile().fileName) === undefined) return undefined
   return symbol
 }
@@ -269,7 +281,17 @@ function publicRemoteType(face: FaceContext, symbol: import('typescript/unstable
   if (declaration === undefined) face.fail(site, `remote type ${symbol.name} has no declaration`)
   const owner = face.registrationForFile(declaration.getSourceFile().fileName)
   if (owner === undefined) face.fail(site, `remote type ${symbol.name} is not a workspace export`)
-  return { symbol: face.symbolId(symbol), specifier: owner.name, name: symbol.name }
+  const file = realPath(declaration.getSourceFile().fileName)
+  const subpath = packageExportTargets(owner.manifest)
+    .filter(([, target]) => realPath(sourcePathForExport(owner.root, target)) === file)
+    .map(([candidate]) => candidate)
+    .sort((left, right) => right.length - left.length)[0]
+  if (subpath === undefined) face.fail(site, `remote type ${symbol.name} is not exported by ${owner.name}`)
+  return {
+    symbol: face.symbolId(symbol),
+    specifier: subpath === '.' ? owner.name : `${owner.name}${subpath.slice(1)}`,
+    name: symbol.name,
+  }
 }
 
 function collectRemoteImports(face: FaceContext, authoredType: TypeNode): RemoteTypeImportModel[] {
@@ -283,7 +305,7 @@ function collectRemoteImports(face: FaceContext, authoredType: TypeNode): Remote
         const resolved = face.resolveSymbol(symbol)
         const declaration = preferredDeclaration(resolved, face.project.project)
         if (declaration !== undefined
-          && !isStandardLibraryFile(declaration.getSourceFile().fileName)
+          && !isDefaultLibraryDeclaration(face.project.project, declaration)
           && face.registrationForFile(declaration.getSourceFile().fileName) !== undefined) {
           const imported = publicRemoteType(face, resolved, node)
           imports.set(imported.symbol, imported)

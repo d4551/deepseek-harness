@@ -202,4 +202,60 @@ describe('WorkspaceAnalyzer remaining cases', { timeout: 60_000 }, () => {
     expect(declaration?.typeParameters[0]).not.toHaveProperty('constraint')
     expect(declaration?.typeParameters[0]).not.toHaveProperty('default')
   })
+
+  it('retains every authored part of a merged interface', () => {
+    const root = copyFixture('typert-merged-declaration-')
+    const sourcePath = join(root, 'packages/host/src/models.ts')
+    writeFileSync(sourcePath, [
+      readFileSync(sourcePath, 'utf8'),
+      '/** @typert object */',
+      'export interface Merged<Value extends Entity = Entity> extends Entity { readonly left: Value }',
+      'export interface Merged<Value extends Entity = Entity> { readonly right: Value }',
+      '/** @typert object */',
+      'export interface MergedInput<in Value> { consume(value: Value): boolean }',
+      'export interface MergedInput<Value> { consumeAgain(value: Value): boolean }',
+      '',
+    ].join('\n'))
+    const model = new WorkspaceAnalyzer({ root }).analyze()
+    const merged = model.faces
+      .flatMap(face => face.graph.declarations)
+      .find(declaration => declaration.name === 'Merged')
+    expect(merged?.members.map(member => member.name)).toEqual(['left', 'right'])
+    expect(merged?.parts?.map(part => part.members.length)).toEqual([1, 1])
+    expect(merged?.parts?.map(part => part.typeParameters.length)).toEqual([1, 1])
+    expect(merged?.parts?.map(part => part.extends.length)).toEqual([1, 0])
+    expect(merged?.parts?.map(part => part.package)).toEqual(['@fixture/host', '@fixture/host'])
+    const mergedInput = model.faces
+      .flatMap(face => face.graph.declarations)
+      .find(declaration => declaration.name === 'MergedInput')
+    expect(mergedInput?.typeParameters[0]?.variance).toBe('in')
+  })
+
+  it('rejects merged declarations that include a part outside the registered face', () => {
+    const root = copyFixture('typert-external-merge-')
+    writeFileSync(join(root, 'external-augmentation.ts'), [
+      'export {}',
+      'declare global {',
+      '  interface ExternalMerged { readonly augmented?: string }',
+      '}',
+      '',
+    ].join('\n'))
+    const modelsPath = join(root, 'packages/host/src/models.ts')
+    writeFileSync(modelsPath, [
+      readFileSync(modelsPath, 'utf8'),
+      'declare global {',
+      '  interface ExternalMerged { readonly local?: string }',
+      '}',
+      'export interface SyntaxZoo { readonly externalMerged: ExternalMerged }',
+      '',
+    ].join('\n'))
+    const sourcePath = join(root, 'packages/host/src/index.ts')
+    writeFileSync(sourcePath, [
+      readFileSync(sourcePath, 'utf8'),
+      "import '../../../external-augmentation.ts'",
+    ].join('\n'))
+    expect(() => new WorkspaceAnalyzer({ root }).analyze()).toThrow(
+      'merged interface ExternalMerged contains a declaration outside this face',
+    )
+  })
 })

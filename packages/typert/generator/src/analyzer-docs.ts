@@ -198,16 +198,16 @@ function classShape(node: ClassDeclaration): ClassDeclaration {
 
 /**
  * Render a type declaration as TypeScript text. Classes drop private members
- * and method bodies. Isolated index uses `getText`; a printer is optional.
+ * and method bodies; factory-updated nodes carry no source text, so the caller
+ * must supply a TS7 project printer.
  * @param declaration - class, interface, alias, or enum.
- * @param print - optional printer for factory-updated class nodes.
+ * @param print - TS7 project printer.
  * @returns declaration text without CR.
  */
 export function declarationText(
   declaration: TypeDeclaration,
-  print?: (node: Node) => string,
+  print: (node: Node) => string,
 ): string {
   const projected = isClassDeclaration(declaration) ? classShape(declaration) : declaration
-  const text = print === undefined ? projected.getText() : print(projected)
-  return text.replace(/\r/g, '')
+  return print(projected).replace(/\r/g, '')
 }

@@ -3,14 +3,16 @@
  */
 
 import { afterEach, describe, expect, it } from 'vitest'
-import { readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { TypertAnalysisError } from '../src/analyzer-error.ts'
 import { WorkspaceAnalyzer } from '../src/analyzer-workspace.ts'
 import {
   addSameFacePackage,
   copyFixture,
+  readObject,
   temporaryRoots,
+  writeObject,
 } from './type-model-helpers.ts'
 
 afterEach(() => {
@@ -25,7 +27,7 @@ describe('WorkspaceAnalyzer write and import rules', { timeout: 60_000 }, () => 
       hostConfig: 'tsconfig.write.json',
       clientConfig: 'missing.client.json',
       packages: ['@fixture/write'],
-    } as const
+    }
     expect(() => new WorkspaceAnalyzer({ ...options, mode: 'check' }).analyze())
       .toThrow(TypertAnalysisError)
     const model = new WorkspaceAnalyzer({ ...options, mode: 'write' }).analyze()
@@ -61,7 +63,7 @@ describe('WorkspaceAnalyzer write and import rules', { timeout: 60_000 }, () => 
       )
       .replace(
         'export class ClientBridge extends Service {',
-        'export class ClientBridge extends Service {\n  leak(value: PrivateHost): void { void value }',
+        'export class ClientBridge extends Service {\n  leak(value: PrivateHost): boolean { return value.value.length > 0 }',
       ))
     expect(() => new WorkspaceAnalyzer({ root }).analyze()).toThrow(
       'cross-face reference PrivateHost is not exported by @fixture/host at ./private',
@@ -143,5 +145,77 @@ describe('WorkspaceAnalyzer write and import rules', { timeout: 60_000 }, () => 
     expect(() => new WorkspaceAnalyzer({ root }).analyze()).toThrow(
       /packages\/host\/src\/index\.ts:\d+:\d+: TypeScript TS2322/,
     )
+  })
+
+  it('ignores cross-face namespace exports that are not package exports', () => {
+    const root = copyFixture('typert-private-namespace-reexport-')
+    writeFileSync(
+      join(root, 'packages/client', 'src/internal.ts'),
+      "export type * as HiddenHostNamespace from '@fixture/host'\n",
+    )
+    const sourcePath = join(root, 'packages/client', 'src/index.ts')
+    writeFileSync(sourcePath, [
+      "import './internal.ts'",
+      readFileSync(sourcePath, 'utf8'),
+    ].join('\n'))
+    expect(new WorkspaceAnalyzer({ root }).analyze().faces
+      .find(face => face.face === 'client')?.packages[0]?.services.map(service => service.key))
+      .toContain('clientBridge')
+  })
+
+  it('resolves explicit same-face package re-exports to their declaration owner', () => {
+    const root = copyFixture('typert-same-face-reexport-')
+    const packageRoot = join(root, 'packages/barrel')
+    mkdirSync(join(packageRoot, 'src'), { recursive: true })
+    writeObject(join(packageRoot, 'package.json'), {
+      name: '@fixture/barrel',
+      private: true,
+      type: 'module',
+      exports: {
+        '.': {
+          types: './lib/types/index.d.ts',
+          default: './lib/index.js',
+        },
+      },
+    })
+    writeObject(join(packageRoot, 'tsconfig.json'), {
+      extends: '../../tsconfig.base.json',
+      compilerOptions: { rootDir: 'src', outDir: 'lib/types' },
+      include: ['src'],
+      references: [{ path: '../host' }],
+    })
+    writeFileSync(
+      join(packageRoot, 'src/index.ts'),
+      "export type { Payload } from '@fixture/host/models'\n",
+    )
+    const basePath = join(root, 'tsconfig.base.json')
+    const base = readObject(basePath)
+    const compilerOptions = Reflect.get(base, 'compilerOptions')
+    if (compilerOptions !== null && typeof compilerOptions === 'object' && !Array.isArray(compilerOptions)) {
+      const paths = Reflect.get(compilerOptions, 'paths')
+      if (paths !== null && typeof paths === 'object' && !Array.isArray(paths)) {
+        Reflect.set(paths, '@fixture/barrel', ['./packages/barrel/src/index.ts'])
+      }
+    }
+    writeObject(basePath, base)
+    const aggregatePath = join(root, 'tsconfig.host.json')
+    const aggregate = readObject(aggregatePath)
+    const refs = Reflect.get(aggregate, 'references')
+    if (Array.isArray(refs)) refs.push({ path: './packages/barrel' })
+    writeObject(aggregatePath, aggregate)
+    addSameFacePackage(root, '@fixture/barrel', 'Payload')
+    const consumerConfigPath = join(root, 'packages/consumer/tsconfig.json')
+    const consumerConfig = readObject(consumerConfigPath)
+    const consumerRefs = Reflect.get(consumerConfig, 'references')
+    if (Array.isArray(consumerRefs)) consumerRefs.push({ path: '../barrel' })
+    writeObject(consumerConfigPath, consumerConfig)
+    const model = new WorkspaceAnalyzer({ root }).analyze()
+    const host = model.faces.find(face => face.face === 'host')
+    const payload = host?.graph.declarations.find(declaration => declaration.name === 'Payload')
+    expect(host?.graph.nodes.some(node => node.id.includes('packages/consumer/src/index.ts')
+      && node.kind === 'reference'
+      && node.name === 'Payload'
+      && node.target.kind === 'declaration'
+      && node.target.symbol === payload?.id)).toBe(true)
   })
 })

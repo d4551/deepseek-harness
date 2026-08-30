@@ -78,13 +78,22 @@ async function scratch(): Promise<string> {
 
 /**
  * Run one test body inside a scratch directory that the `afterEach` hook
- * removes, whether the body passes or fails. The second argument is the
- * standard `settings.json` subject most tests in this file exercise.
+ * removes, whether the body passes or fails. `target` is the standard
+ * `settings.json` subject most tests in this file exercise.
  */
 async function withScratch(run: (root: string, target: string) => Promise<void>): Promise<void> {
   const root = await scratch()
   scratchRoot = root
   await run(root, join(root, 'settings.json'))
+}
+
+/**
+ * Declare one test that runs inside such a scratch directory. Destructure
+ * only what the body uses: `root` for paths the test derives itself, `target`
+ * for the standard subject.
+ */
+export function itInScratch(name: string, run: (root: string, target: string) => Promise<void>): void {
+  it(name, () => withScratch(run))
 }
 
 /**
@@ -269,6 +278,11 @@ describe('atomic write directory mode and lock lifecycle', () => {
       expect(state.mkdirCalls.filter(([path]) => String(path) === join(root, 'stated')))
         .toStrictEqual([[join(root, 'stated'), { recursive: true, mode: 0o700 }]])
     })
+  })
+
+  itInScratch('runs its body inside a fresh scratch directory', async (root, target) => {
+    expect((await stat(root)).isDirectory()).toBe(true)
+    expect(target.startsWith(root)).toBe(true)
   })
 
   it('writes the holding process id into the lock file', async () => {

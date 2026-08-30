@@ -25,10 +25,12 @@ export function moduleSpecifierOf(node: Node): string | undefined {
     first = isIdentifier(node.typeName) ? node.typeName.text : node.typeName.getText().split('.')[0]
   } else if ('expression' in node) {
     const expression = node.expression
-    if (expression === undefined || typeof expression !== 'object') return undefined
+    if (expression === undefined || expression === null || typeof expression !== 'object') return undefined
     first = 'text' in expression && typeof expression.text === 'string'
       ? expression.text
-      : (expression as Expression).getText().split('.')[0]
+      : 'getText' in expression && typeof expression.getText === 'function'
+        ? expression.getText().split('.')[0]
+        : undefined
   }
   if (first === undefined) return undefined
   const sourceFile = node.getSourceFile()

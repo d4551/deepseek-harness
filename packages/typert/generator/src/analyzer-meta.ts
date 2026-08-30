@@ -3,7 +3,6 @@
  */
 
 import type { Node } from 'typescript/unstable/ast'
-import { SyntaxKind } from 'typescript/unstable/ast'
 import { isClassDeclaration, isModuleDeclaration, isStringLiteral } from 'typescript/unstable/ast/is'
 import type { Symbol } from 'typescript/unstable/sync'
 import type { FaceContext } from './analyzer-context.ts'
@@ -44,9 +43,7 @@ export function isWorkspaceClass(face: FaceContext, symbol: Symbol): boolean {
 }
 
 export function isProtocolModule(node: Node): boolean {
-  return node.kind === SyntaxKind.ModuleDeclaration
-    && 'name' in node
-    && node.name !== undefined
+  return isModuleDeclaration(node)
     && isStringLiteral(node.name)
     && node.name.text === PROTOCOL_PACKAGE
 }

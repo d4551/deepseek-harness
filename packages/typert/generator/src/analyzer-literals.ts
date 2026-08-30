@@ -6,11 +6,13 @@ import type { LiteralTypeNode, Node } from 'typescript/unstable/ast'
 import { SyntaxKind } from 'typescript/unstable/ast'
 import {
   isBigIntLiteral,
+  isFunctionLikeDeclaration,
   isNoSubstitutionTemplateLiteral,
   isNumericLiteral,
   isPrefixUnaryExpression,
   isStringLiteral,
 } from 'typescript/unstable/ast/is'
+import { isNamedMember } from './ts7-syntax.ts'
 import { TypertAnalysisError } from './analyzer-error.ts'
 import type { TypeNodeModel, TypeOperatorName } from './model.ts'
 
@@ -54,24 +56,15 @@ export function annotationPosition(
   node: Node,
   purpose: 'property' | 'parameter' | 'return',
 ): number {
-  if (purpose === 'return' && 'parameters' in node) {
-    const parameters = node.parameters
-    if (parameters !== undefined && typeof parameters === 'object' && 'end' in parameters) {
-      const end = Reflect.get(parameters, 'end')
-      if (typeof end === 'number') return end + 1
-    }
-  }
-  if ('name' in node && node.name !== undefined && typeof node.name === 'object' && 'end' in node.name) {
-    const end = Reflect.get(node.name, 'end')
-    if (typeof end === 'number') return end
-  }
+  if (purpose === 'return' && isFunctionLikeDeclaration(node)) return node.parameters.end + 1
+  if (isNamedMember(node)) return node.name.end
   return node.end
 }
 
 export function memberText(member: Node): string {
   const sourceFile = member.getSourceFile()
   const full = member.getText(sourceFile)
-  if (!('body' in member) || member.body === undefined || typeof member.body !== 'object') {
+  if (!('body' in member) || member.body === undefined || member.body === null || typeof member.body !== 'object') {
     return full.replace(/\s*;?\s*$/, '').replace(/\s+/g, ' ').trim()
   }
   const body = member.body

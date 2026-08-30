@@ -19,7 +19,10 @@ import type {
 
 /** Failure to render or traverse an internally inconsistent TypeGraph. */
 export class TypeGraphRenderError extends Error {
-  override name = 'TypeGraphRenderError'
+  constructor(message: string) {
+    super(message)
+    this.name = 'TypeGraphRenderError'
+  }
 }
 
 /** Read and render one TypeGraph without compiler objects. */
@@ -256,7 +259,12 @@ export class TypeGraphRenderer {
   ): TypeDeclarationModel[] {
     const found = new Set<SymbolId>()
     const visiting = new Set<SymbolId>()
+    // Recursive checker types produce back-edge node ids through the codec
+    // converter's in-progress map; visited nodes terminate the walk.
+    const seenNodes = new Set<TypeNodeId>()
     const visitNode = (id: TypeNodeId): void => {
+      if (seenNodes.has(id)) return
+      seenNodes.add(id)
       const node = this.node(id)
       if (node.kind === 'reference' && node.target.kind === 'declaration') visitDeclaration(node.target.symbol)
       if (node.kind === 'import-type' && node.target?.kind === 'declaration') visitDeclaration(node.target.symbol)

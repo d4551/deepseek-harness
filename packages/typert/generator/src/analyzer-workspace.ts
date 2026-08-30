@@ -15,7 +15,7 @@ import type { Diagnostic } from 'typescript/unstable/sync'
 import { parseConfig, type ParsedConfig } from './analyzer-config.ts'
 import { declarationText } from './analyzer-docs.ts'
 import { TypertAnalysisError, type AnalysisMode, type SourceEdit } from './analyzer-error.ts'
-import { packageExportTargets, sourcePathForExport } from './analyzer-exports.ts'
+import { isSourceExportTarget, packageExportTargets, sourcePathForExport } from './analyzer-exports.ts'
 import { FaceAnalyzer } from './analyzer-face.ts'
 import { loadRegistrations, mergeWorkspaceModels } from './analyzer-register.ts'
 import { localImportTargets, sourceFileHasSurface } from './analyzer-surface.ts'
@@ -23,7 +23,7 @@ import type { DiscoveredTypertPackage, PackageRegistration } from './analyzer-ty
 import { isWithin, realPath, slash, uniqueBy } from './analyzer-util.ts'
 import type { CrossFaceLink, FaceModel, SourceDeclarationModel, TypertFace, WorkspaceModel } from './model.ts'
 import { FaceProject } from './ts7-project.ts'
-import { notifyFileChanged, parsePath } from './ts7-session.ts'
+import { notifyFileChanged, parsePath, printInFile, writeProgramConfig } from './ts7-session.ts'
 import { hasModifier, isTypeDeclaration } from './ts7-syntax.ts'
 
 /** Workspace analysis configuration. */
@@ -91,6 +91,7 @@ export class WorkspaceAnalyzer {
   private queuedEdit: SourceEdit | undefined
   private readonly crossFaceLinks = new Map<string, CrossFaceLink>()
   private readonly checkedProjects = new Set<string>()
+  private readonly faceProgramPaths = new Map<TypertFace, string>()
   private registrations: PackageRegistration[] = []
   private readonly caches: WorkspaceCaches
 
@@ -113,12 +114,7 @@ export class WorkspaceAnalyzer {
    * @returns the independent face models and their explicit cross-face links.
    */
   analyze(): WorkspaceModel {
-    this.registrations = loadRegistrations({
-      root: this.options.root,
-      hostConfig: this.options.hostConfig,
-      clientConfig: this.options.clientConfig,
-      caches: this.caches,
-    })
+    this.registrations = this.currentRegistrations()
     const selected = this.options.packages === undefined ? undefined : new Set(this.options.packages)
     const faces: FaceModel[] = []
     for (const face of this.options.faces) {
@@ -136,7 +132,7 @@ export class WorkspaceAnalyzer {
       const analyzer = new FaceAnalyzer({
         root: this.options.root,
         face,
-        project: this.caches.faceProject(aggregatePath),
+        project: this.caches.faceProject(this.faceProgramPath(face, aggregatePath, registrations)),
         registrations,
         allRegistrations: this.registrations,
         mode: this.options.mode,
@@ -169,6 +165,45 @@ export class WorkspaceAnalyzer {
   }
 
   /**
+   * Parse the workspace's package registrations for the configured faces.
+   * @returns registrations in deterministic face and name order.
+   */
+  private currentRegistrations(): PackageRegistration[] {
+    return loadRegistrations({
+      root: this.options.root,
+      hostConfig: this.options.hostConfig,
+      clientConfig: this.options.clientConfig,
+      caches: this.caches,
+    })
+  }
+
+  /**
+   * Open one program over the face's registered sources: the aggregate's own
+   * files plus every registration's fileNames. A solution-only aggregate
+   * (empty `files` with project references) contributes no sources of its own,
+   * so the face program must name the registered packages' files explicitly.
+   * @param face - face whose program is opened.
+   * @param aggregatePath - absolute aggregate tsconfig for the face.
+   * @param registrations - the face's package registrations.
+   * @returns sidecar config path opened as the face project.
+   */
+  private faceProgramPath(
+    face: TypertFace,
+    aggregatePath: string,
+    registrations: readonly PackageRegistration[],
+  ): string {
+    const cached = this.faceProgramPaths.get(face)
+    if (cached !== undefined) return cached
+    const fileNames = new Set(this.caches.config(aggregatePath).fileNames)
+    for (const registration of registrations) {
+      for (const file of registration.config.fileNames) fileNames.add(file)
+    }
+    const sidecar = writeProgramConfig(aggregatePath, [...fileNames])
+    this.faceProgramPaths.set(face, sidecar)
+    return sidecar
+  }
+
+  /**
    * Analyze an explicit package selection through bounded compiler programs.
    * @param batchSize - maximum selected packages in one face program.
    * @returns one merged workspace model.
@@ -197,12 +232,8 @@ export class WorkspaceAnalyzer {
    * @returns contributors grouped by package with deterministic face order.
    */
   discoverPackages(): DiscoveredTypertPackage[] {
-    const registrations = loadRegistrations({
-      root: this.options.root,
-      hostConfig: this.options.hostConfig,
-      clientConfig: this.options.clientConfig,
-      caches: this.caches,
-    }).filter(registration => this.options.faces.includes(registration.face)
+    const registrations = this.currentRegistrations().filter(registration =>
+      this.options.faces.includes(registration.face)
       && this.registrationHasSurface(registration))
     const packages = new Map<string, { root: string; faces: Set<TypertFace> }>()
     for (const registration of registrations) {
@@ -229,12 +260,7 @@ export class WorkspaceAnalyzer {
   indexSourceDeclarations(): SourceDeclarationModel[] {
     const selected = this.options.packages === undefined ? undefined : new Set(this.options.packages)
     const declarations: SourceDeclarationModel[] = []
-    for (const registration of loadRegistrations({
-      root: this.options.root,
-      hostConfig: this.options.hostConfig,
-      clientConfig: this.options.clientConfig,
-      caches: this.caches,
-    })) {
+    for (const registration of this.currentRegistrations()) {
       if (!this.options.faces.includes(registration.face)
         || (selected !== undefined && !selected.has(registration.name))) continue
       this.indexRegistration(registration, declarations)
@@ -274,7 +300,7 @@ export class WorkspaceAnalyzer {
             line: position.line + 1,
             column: position.character + 1,
           },
-          text: declarationText(statement),
+          text: declarationText(statement, node => printInFile(file, node)),
         })
       }
     }
@@ -285,12 +311,7 @@ export class WorkspaceAnalyzer {
     const queue = packageExportTargets(registration.manifest)
       .filter(([subpath, target]) => (registration.exportSubpaths === undefined
         || registration.exportSubpaths.includes(subpath))
-        && !target.includes('*')
-        && subpath !== './package.json'
-        && subpath !== './typert'
-        && subpath !== './client/typert'
-        && subpath !== './remote'
-        && !target.endsWith('.json'))
+        && isSourceExportTarget(subpath, target))
       .map(([, target]) => sourcePathForExport(registration.root, target))
       .filter(existsSync)
     while (queue.length > 0) {

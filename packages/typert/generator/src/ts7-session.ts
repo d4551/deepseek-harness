@@ -8,11 +8,13 @@ import { basename, join, resolve } from 'node:path'
 import { parse as parseJsonc, type ParseError } from 'jsonc-parser'
 import { API } from 'typescript/unstable/sync'
 import type { Diagnostic } from 'typescript/unstable/sync'
-import type { SourceFile } from 'typescript/unstable/ast'
+import type { Node, SourceFile } from 'typescript/unstable/ast'
 
 let api: API | undefined
 let textRoot: string | undefined
 let textSerial = 0
+let configRoot: string | undefined
+let configSerial = 0
 
 function compiler(): API {
   api ??= new API()
@@ -39,6 +41,19 @@ export function parsePath(file: string): SourceFile {
   const sourceFile = project.program.getSourceFile(file)
   if (sourceFile === undefined) throw new Error(`ts7: missing source file ${file}`)
   return sourceFile
+}
+
+/**
+ * Print one node bound to the project that owns `file`.
+ * @param file - on-disk path anchoring the owning project.
+ * @param node - node from that project's program or a factory update of one.
+ * @returns printed TypeScript text.
+ */
+export function printInFile(file: string, node: Node): string {
+  const snapshot = compiler().updateSnapshot({ openFiles: [file] })
+  const project = snapshot.getDefaultProjectForFile(file)
+  if (project === undefined) throw new Error(`ts7: no project for ${file}`)
+  return project.emitter.printNode(node)
 }
 
 /**
@@ -86,6 +101,42 @@ export function parseConfigFile(path: string): {
 } {
   const parsed = compiler().parseConfigFile(path)
   return { fileNames: parsed.fileNames, options: parsed.options }
+}
+
+/**
+ * Write one temporary tsconfig that opens a single program over explicit
+ * files, extending the given aggregate for compiler options. Session-owned
+ * temp artifacts live beside the session's text root and outlive the call.
+ * @param aggregatePath - absolute tsconfig whose options the program extends.
+ * @param fileNames - absolute source paths the program must contain.
+ * @returns written sidecar config path.
+ */
+export function writeProgramConfig(aggregatePath: string, fileNames: readonly string[]): string {
+  configRoot ??= mkdtempSync(join(tmpdir(), 'dsh-typert-ts7-'))
+  configSerial += 1
+  const path = join(configRoot, `program-${String(configSerial)}.json`)
+  writeFileSync(path, JSON.stringify({
+    extends: aggregatePath,
+    compilerOptions: {
+      noEmit: true,
+      // The sidecar lives in a temp directory, so @types discovery would walk
+      // up from tmp and find nothing; pin typeRoots where the aggregate finds them.
+      typeRoots: [discoverTypeRoot(aggregatePath)],
+    },
+    files: [...fileNames].sort(),
+  }, null, 2))
+  return path
+}
+
+function discoverTypeRoot(aggregatePath: string): string {
+  let directory = resolve(aggregatePath, '..')
+  while (true) {
+    const candidate = join(directory, 'node_modules', '@types')
+    if (existsSync(candidate)) return candidate
+    const parent = resolve(directory, '..')
+    if (parent === directory) return join(resolve(aggregatePath, '..'), 'node_modules', '@types')
+    directory = parent
+  }
 }
 
 /**

@@ -107,7 +107,7 @@ describe('WorkspaceAnalyzer', { timeout: 60_000 }, () => {
     const options = {
       root: fixtureRoot,
       packages: ['@fixture/host', '@fixture/client'],
-    } as const
+    }
     const direct = new WorkspaceAnalyzer(options).analyze()
     const batched = new WorkspaceAnalyzer(options).analyzeInBatches(1)
     expect(batched).toEqual(direct)

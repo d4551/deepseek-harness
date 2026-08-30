@@ -4,7 +4,7 @@
 
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { parse as parseJsonc } from 'jsonc-parser'
+import { parse } from 'jsonc-parser'
 import type {
   KeywordTypeName,
   MemberModel,
@@ -36,7 +36,7 @@ export const TYPE_NODE_KINDS = {
   'import-type': true,
   predicate: true,
   this: true,
-} as const satisfies Record<TypeNodeModel['kind'], true>
+} satisfies Record<TypeNodeModel['kind'], true>
 
 export const TYPE_TARGET_KINDS = {
   declaration: true,
@@ -44,7 +44,7 @@ export const TYPE_TARGET_KINDS = {
   'cross-face': true,
   external: true,
   standard: true,
-} as const satisfies Record<TypeTargetModel['kind'], true>
+} satisfies Record<TypeTargetModel['kind'], true>
 
 export const KEYWORD_TYPE_NAMES = {
   any: true,
@@ -58,20 +58,20 @@ export const KEYWORD_TYPE_NAMES = {
   undefined: true,
   unknown: true,
   void: true,
-} as const satisfies Record<KeywordTypeName, true>
+} satisfies Record<KeywordTypeName, true>
 
 export const TYPE_OPERATOR_NAMES = {
   keyof: true,
   readonly: true,
   unique: true,
-} as const satisfies Record<TypeOperatorName, true>
+} satisfies Record<TypeOperatorName, true>
 
 export const DECLARATION_KINDS = {
   interface: true,
   class: true,
   alias: true,
   enum: true,
-} as const satisfies Record<TypeDeclarationModel['kind'], true>
+} satisfies Record<TypeDeclarationModel['kind'], true>
 
 export const MEMBER_KINDS = {
   property: true,
@@ -81,7 +81,7 @@ export const MEMBER_KINDS = {
   call: true,
   construct: true,
   index: true,
-} as const satisfies Record<MemberModel['kind'], true>
+} satisfies Record<MemberModel['kind'], true>
 
 export const fixtureRoot = resolve(import.meta.dirname, 'fixtures/type-model')
 export const temporaryRoots: string[] = []
@@ -97,8 +97,16 @@ export function copyFixture(prefix: string): string {
   return root
 }
 
+export function addAggregateReference(root: string, reference: string) {
+  const aggregatePath = join(root, 'tsconfig.host.json')
+  const aggregate = readObject(aggregatePath)
+  const references = Reflect.get(aggregate, 'references')
+  if (Array.isArray(references)) references.push({ path: reference })
+  writeObject(aggregatePath, aggregate)
+}
+
 export function readObject(path: string): object {
-  const value = parseJsonc(readFileSync(path, 'utf8'))
+  const value = parse(readFileSync(path, 'utf8'))
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error(`${path} is not a JSON object`)
   }
@@ -134,20 +142,17 @@ export function configureDualRuntimeClient(root: string, splitProjects: boolean)
   if (!splitProjects) return
   const project = readObject(join(packageRoot, 'tsconfig.json'))
   Reflect.deleteProperty(project, 'include')
-  writeObject(join(packageRoot, 'tsconfig.host.json'), { ...project, files: ['src/index.ts'] })
-  writeObject(join(packageRoot, 'tsconfig.client.json'), { ...project, files: ['src/client.ts'] })
-  writeObject(join(packageRoot, 'tsconfig.json'), {
+  const writeProjectConfig = (name: string, value: object) => writeObject(join(packageRoot, name), value)
+  writeProjectConfig('tsconfig.host.json', { ...project, files: ['src/index.ts'] })
+  writeProjectConfig('tsconfig.client.json', { ...project, files: ['src/client.ts'] })
+  writeProjectConfig('tsconfig.json', {
     files: [],
     references: [
       { path: './tsconfig.host.json' },
       { path: './tsconfig.client.json' },
     ],
   })
-  const hostAggregatePath = join(root, 'tsconfig.host.json')
-  const hostAggregate = readObject(hostAggregatePath)
-  const hostRefs = Reflect.get(hostAggregate, 'references')
-  if (Array.isArray(hostRefs)) hostRefs.push({ path: './packages/client/tsconfig.host.json' })
-  writeObject(hostAggregatePath, hostAggregate)
+  addAggregateReference(root, './packages/client/tsconfig.host.json')
   const clientAggregatePath = join(root, 'tsconfig.client.json')
   writeObject(clientAggregatePath, {
     ...readObject(clientAggregatePath),
@@ -176,11 +181,7 @@ export function addSameFacePackage(root: string, specifier: string, importedName
     `export interface ConsumerSchema { readonly value: ${importedName} }`,
     '',
   ].join('\n'))
-  const aggregatePath = join(root, 'tsconfig.host.json')
-  const aggregate = readObject(aggregatePath)
-  const refs = Reflect.get(aggregate, 'references')
-  if (Array.isArray(refs)) refs.push({ path: './packages/consumer' })
-  writeObject(aggregatePath, aggregate)
+  addAggregateReference(root, './packages/consumer')
 }
 
 export function addExplicitServicePackage(root: string, annotation: string, withProtocol = false) {
@@ -223,9 +224,38 @@ export function addExplicitServicePackage(root: string, annotation: string, with
     '}',
     '',
   ].join('\n'))
-  const aggregatePath = join(root, 'tsconfig.host.json')
-  const aggregate = readObject(aggregatePath)
-  const refs = Reflect.get(aggregate, 'references')
-  if (Array.isArray(refs)) refs.push({ path: './packages/explicit-service' })
-  writeObject(aggregatePath, aggregate)
+  addAggregateReference(root, './packages/explicit-service')
+}
+
+export function setCompilerOption(
+  config: object,
+  key: string,
+  value: boolean | string | readonly string[],
+) {
+  let options = Reflect.get(config, 'compilerOptions')
+  if (options === null || typeof options !== 'object' || Array.isArray(options)) {
+    options = {}
+    Reflect.set(config, 'compilerOptions', options)
+  }
+  Reflect.set(options, key, value)
+}
+
+export function requiredObject(value: object, key: string): object {
+  const found = Reflect.get(value, key)
+  if (found === null || typeof found !== 'object') {
+    throw new Error(`generated module is missing object ${key}`)
+  }
+  return found
+}
+
+export type JsonInput = boolean | number | string | object | null | undefined
+
+export function generatedSuccess(schema: object, input: JsonInput): boolean {
+  const parseFn = Reflect.get(schema, 'safeParse')
+  if (typeof parseFn !== 'function') throw new Error('schema has no safeParse')
+  const result = Reflect.apply(parseFn, schema, [input])
+  if (result === null || typeof result !== 'object') {
+    throw new Error('safeParse did not return an object')
+  }
+  return Boolean(Reflect.get(result, 'success'))
 }

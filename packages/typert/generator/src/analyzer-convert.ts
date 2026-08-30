@@ -44,9 +44,8 @@ import {
 import { collectMembers, functionSignature, typeParametersOf } from './analyzer-members.ts'
 import { externalModuleIdentityForFile, moduleIdentity } from './analyzer-names.ts'
 import type { PackageRegistration } from './analyzer-types.ts'
-import { isStandardLibraryFile } from './analyzer-util.ts'
 import type { TypeNodeId, TypeTargetModel } from './model.ts'
-import { hasModifier, isTypeDeclaration, keywordName, preferredDeclaration } from './ts7-syntax.ts'
+import { hasModifier, isDefaultLibraryDeclaration, isTypeDeclaration, keywordName, preferredDeclaration } from './ts7-syntax.ts'
 
 /**
  * Convert one authored type node into the compiler-independent graph.
@@ -71,7 +70,7 @@ export function convertType(face: FaceContext, node: TypeNode): TypeNodeId {
       kind: 'reference',
       name: node.typeName.getText(),
       target: targetForReference(face, face.resolveSymbol(symbol), node),
-      arguments: node.typeArguments?.map(argument => convertType(face, argument)) ?? [],
+      arguments: typeArgumentsOf(face, node),
     })
   }
   if (isUnionTypeNode(node) || isIntersectionTypeNode(node)) {
@@ -142,7 +141,7 @@ export function convertType(face: FaceContext, node: TypeNode): TypeNodeId {
     return add({
       kind: 'type-query',
       expression: node.exprName.getText(),
-      arguments: node.typeArguments?.map(argument => convertType(face, argument)) ?? [],
+      arguments: typeArgumentsOf(face, node),
     })
   }
   if (isImportTypeNode(node)) return add(importTypeModel(face, node))
@@ -180,11 +179,26 @@ function importTypeModel(face: FaceContext, node: import('typescript/unstable/as
     kind: 'import-type',
     module: importTypeModule(node),
     ...node.qualifier === undefined ? {} : { qualifier: node.qualifier.getText() },
-    arguments: node.typeArguments?.map(argument => convertType(face, argument)) ?? [],
+    arguments: typeArgumentsOf(face, node),
     typeof: node.isTypeOf,
     ...node.attributes === undefined ? {} : { attributes: node.attributes.getText() },
     ...symbol === undefined ? {} : { target: targetForReference(face, face.resolveSymbol(symbol), node) },
   }
+}
+
+/**
+ * Convert a type node's type arguments to graph nodes, defaulting to none.
+ * @param face - extraction context.
+ * @param node - reference, import, or query type node carrying optional type arguments.
+ * @returns converted argument node ids.
+ */
+function typeArgumentsOf(
+  face: FaceContext,
+  node: import('typescript/unstable/ast').TypeReferenceNode
+  | import('typescript/unstable/ast').ImportTypeNode
+  | import('typescript/unstable/ast').TypeQueryNode,
+): TypeNodeId[] {
+  return node.typeArguments?.map(argument => convertType(face, argument)) ?? []
 }
 
 /**
@@ -200,7 +214,7 @@ export function targetForReference(face: FaceContext, symbol: Symbol, site: Node
   if (isTypeParameterDeclaration(declaration)) {
     return { kind: 'type-parameter', parameter: `${face.locationKey(declaration)}#${declaration.name.text}` }
   }
-  if (isStandardLibraryFile(declaration.getSourceFile().fileName)) {
+  if (isDefaultLibraryDeclaration(face.project.project, declaration)) {
     return { kind: 'standard', name: symbol.name }
   }
   const moduleSpecifier = moduleSpecifierOf(site)

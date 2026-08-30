@@ -44,7 +44,7 @@ import type {
   SignatureModel,
   TypeParameterModel,
 } from './model.ts'
-import { hasModifier, isOptionalMember, visibilityOf } from './ts7-syntax.ts'
+import { hasModifier, isNamedMember, isOptionalMember, visibilityOf } from './ts7-syntax.ts'
 
 /**
  * Public instance members of a class, interface, or type literal.
@@ -60,7 +60,7 @@ export function collectMembers(
 ): MemberModel[] {
   const result: MemberModel[] = []
   for (const member of members) {
-    if (skipMember(face, member, members)) continue
+    if (skipMember(member, members)) continue
     const visibility = visibilityOf(member)
     const isStatic = hasModifier(member, SyntaxKind.StaticKeyword)
     if (visibility !== 'public' || isStatic || isConstructorDeclaration(member)) continue
@@ -71,7 +71,6 @@ export function collectMembers(
 }
 
 function skipMember(
-  face: FaceContext,
   member: TypeElement | ClassElement,
   members: readonly (TypeElement | ClassElement)[],
 ): boolean {
@@ -113,7 +112,7 @@ function memberBase(
   visibility: MemberVisibility,
   isStatic: boolean,
 ): MemberBase {
-  const identity = 'name' in member && member.name !== undefined
+  const identity = isNamedMember(member)
     ? memberIdentity(face, member.name)
     : {
       name: isCallSignatureDeclaration(member)
@@ -159,7 +158,7 @@ function memberIdentity(face: FaceContext, name: PropertyName): Pick<MemberBase,
  * @returns the signature model.
  */
 export function functionSignature(face: FaceContext, node: Node, explicitReturn: TypeNode | undefined): SignatureModel {
-  if (!('parameters' in node)) {
+  if (!('parameters' in node) || !Array.isArray(node.parameters)) {
     return { typeParameters: [], parameters: [], returns: face.addNode(node, { kind: 'keyword', name: 'void' }) }
   }
   const parameters: ParameterModel[] = node.parameters.map(parameter => ({
@@ -176,7 +175,10 @@ export function functionSignature(face: FaceContext, node: Node, explicitReturn:
     ...parameter.initializer === undefined ? {} : { initializer: parameter.initializer.getText() },
   }))
   return {
-    typeParameters: typeParametersOf(face, 'typeParameters' in node ? node.typeParameters : undefined),
+    typeParameters: typeParametersOf(
+      face,
+      'typeParameters' in node && Array.isArray(node.typeParameters) ? node.typeParameters : undefined,
+    ),
     parameters,
     returns: isSetAccessorDeclaration(node)
       ? face.addNode(node, { kind: 'keyword', name: 'void' })
@@ -199,7 +201,7 @@ export function typeParametersOf(
     name: parameter.name.text,
     const: hasModifier(parameter, SyntaxKind.ConstKeyword),
     ...parameter.constraint === undefined ? {} : { constraint: convertType(face, parameter.constraint) },
-    ...parameter.default === undefined ? {} : { default: convertType(face, parameter.default) },
+    ...parameter.defaultType === undefined ? {} : { default: convertType(face, parameter.defaultType) },
     ...hasModifier(parameter, SyntaxKind.InKeyword) && hasModifier(parameter, SyntaxKind.OutKeyword)
       ? { variance: 'in-out' as const }
       : hasModifier(parameter, SyntaxKind.InKeyword)

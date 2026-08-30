@@ -83,7 +83,7 @@ function invocationModel(
   const wires = new Set<string>()
   let cancellation: InvocationModel['cancellation']
   for (const [parameterIndex, parameter] of method.parameters.entries()) {
-    const modeled = oneParameter(face, registration, binding, method, exportedMethod, parameter, parameterIndex, method.parameters.length)
+    const modeled = oneParameter(face, registration, binding, exportedMethod, parameter, parameterIndex, method.parameters.length)
     if (modeled === 'signal') {
       cancellation = { parameter: 'signal' }
       continue
@@ -121,7 +121,6 @@ function oneParameter(
   face: FaceContext,
   registration: PackageRegistration,
   binding: { readonly namespace: string },
-  method: MethodDeclaration,
   exportedMethod: string,
   parameter: MethodDeclaration['parameters'][number],
   parameterIndex: number,

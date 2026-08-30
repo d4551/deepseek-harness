@@ -11,6 +11,7 @@ import {
   hostExportSubpaths,
   isDualFacePackage,
   projectConfigPath,
+  validatePackageEntrySurface,
 } from './analyzer-exports.ts'
 import type { PackageRegistration } from './analyzer-types.ts'
 import { compareCrossFaceLinks, isWithin, realPath, uniqueBy } from './analyzer-util.ts'
@@ -41,6 +42,7 @@ export function loadRegistrations(input: {
       if (manifest === undefined) continue
       const name = Reflect.get(manifest, 'name')
       if (typeof name !== 'string') continue
+      validatePackageEntrySurface(manifest, name, realPath(packageRoot))
       const registration: PackageRegistration = {
         face,
         name,

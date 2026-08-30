@@ -3,24 +3,26 @@
  * NodeHandle resolution, modifiers, and checker gaps.
  */
 
-import type { Decorator, Node, SourceFile, TypeNode } from 'typescript/unstable/ast'
+import type { Decorator, Node, SourceFile } from 'typescript/unstable/ast'
 import { SyntaxKind } from 'typescript/unstable/ast'
 import {
   isClassDeclaration,
   isClassExpression,
   isDecorator,
   isEnumDeclaration,
+  isGetAccessorDeclaration,
   isIdentifier,
   isInterfaceDeclaration,
+  isMethodDeclaration,
+  isMethodSignatureDeclaration,
+  isModifierLike,
   isPrivateIdentifier,
+  isPropertyDeclaration,
+  isPropertySignatureDeclaration,
+  isSetAccessorDeclaration,
   isTypeAliasDeclaration,
 } from 'typescript/unstable/ast/is'
-import {
-  createKeywordTypeNode,
-  createUnionTypeNode,
-} from 'typescript/unstable/ast/factory'
-import type { Checker, NodeHandle, Project, Symbol, Type } from 'typescript/unstable/sync'
-import { TypeFlags } from 'typescript/unstable/sync'
+import { TypeFlags, type Checker, type NodeHandle, type Project, type Symbol, type Type } from 'typescript/unstable/sync'
 import type { KeywordTypeName, MemberVisibility } from './model.ts'
 
 /** Class, interface, alias, or enum declaration. */
@@ -28,6 +30,25 @@ export type TypeDeclaration = import('typescript/unstable/ast').ClassDeclaration
   | import('typescript/unstable/ast').InterfaceDeclaration
   | import('typescript/unstable/ast').TypeAliasDeclaration
   | import('typescript/unstable/ast').EnumDeclaration
+
+/** Property, method, accessor, or signature member carrying a `name`. */
+export type NamedMemberDeclaration = import('typescript/unstable/ast').PropertyDeclaration
+  | import('typescript/unstable/ast').MethodDeclaration
+  | import('typescript/unstable/ast').GetAccessorDeclaration
+  | import('typescript/unstable/ast').SetAccessorDeclaration
+  | import('typescript/unstable/ast').PropertySignatureDeclaration
+  | import('typescript/unstable/ast').MethodSignatureDeclaration
+
+/**
+ * Whether a node is a class or type member that carries a `name`.
+ * @param node - AST node.
+ * @returns true for named members.
+ */
+export function isNamedMember(node: Node): node is NamedMemberDeclaration {
+  return isPropertyDeclaration(node) || isMethodDeclaration(node)
+    || isGetAccessorDeclaration(node) || isSetAccessorDeclaration(node)
+    || isPropertySignatureDeclaration(node) || isMethodSignatureDeclaration(node)
+}
 
 /**
  * Resolve a NodeHandle against the project that produced it.
@@ -63,6 +84,18 @@ export function isTypeDeclaration(node: Node): node is TypeDeclaration {
 }
 
 /**
+ * Whether a resolved declaration lives in a compiler default library file,
+ * using the TypeScript 7 program's own classification instead of path
+ * patterns, which do not match the native compiler's library layout.
+ * @param project - owning TypeScript 7 project.
+ * @param declaration - resolved declaration node.
+ * @returns true when the declaring source file is a default library.
+ */
+export function isDefaultLibraryDeclaration(project: Project, declaration: Node): boolean {
+  return project.program.isSourceFileDefaultLibrary(declaration.getSourceFile())
+}
+
+/**
  * Prefer a named type declaration, then the value declaration, then the first
  * resolved handle.
  * @param symbol - checker symbol.
@@ -79,21 +112,20 @@ export function preferredDeclaration(symbol: Symbol, project: Project): Node | u
 }
 
 export function hasModifier(node: Node, kind: SyntaxKind): boolean {
-  if (!('modifiers' in node) || node.modifiers === undefined) return false
+  if (!('modifiers' in node) || !Array.isArray(node.modifiers)) return false
   for (const modifier of node.modifiers) {
-    if (modifier.kind === kind) return true
+    if (isModifierLike(modifier) && modifier.kind === kind) return true
   }
   return false
 }
 
 export function isOptionalMember(node: Node): boolean {
-  if ('questionToken' in node && node.questionToken !== undefined) return true
-  if (!('postfixToken' in node) || node.postfixToken === undefined) return false
-  return node.postfixToken.kind === SyntaxKind.QuestionToken
+  if (!isNamedMember(node)) return false
+  return node.postfixToken?.kind === SyntaxKind.QuestionToken
 }
 
 export function decoratorsOf(node: Node): readonly Decorator[] {
-  if (!('modifiers' in node) || node.modifiers === undefined) return []
+  if (!('modifiers' in node) || !Array.isArray(node.modifiers)) return []
   const result: Decorator[] = []
   for (const modifier of node.modifiers) {
     if (isDecorator(modifier)) result.push(modifier)
@@ -102,25 +134,10 @@ export function decoratorsOf(node: Node): readonly Decorator[] {
 }
 
 export function visibilityOf(node: Node): MemberVisibility {
-  if ('name' in node && node.name !== undefined && isPrivateIdentifier(node.name)) return 'private'
+  if (isNamedMember(node) && isPrivateIdentifier(node.name)) return 'private'
   if (hasModifier(node, SyntaxKind.PrivateKeyword)) return 'private'
   if (hasModifier(node, SyntaxKind.ProtectedKeyword)) return 'protected'
   return 'public'
-}
-
-/**
- * Union `type` with `undefined` the way Strada `getNullableType` did.
- * @param checker - project checker.
- * @param type - declared type that may already include undefined.
- * @returns a type that accepts undefined.
- */
-export function getNullableType(checker: Checker, type: Type): Type {
-  if ((type.flags & TypeFlags.Undefined) !== 0) return type
-  if (type.isUnionType() && type.getTypes().some(part => (part.flags & TypeFlags.Undefined) !== 0)) return type
-  const node = checker.typeToTypeNode(type)
-  if (node === undefined) return type
-  const union: TypeNode = createUnionTypeNode([node, createKeywordTypeNode(SyntaxKind.UndefinedKeyword)])
-  return checker.getTypeFromTypeNode(union) ?? type
 }
 
 /**
