@@ -42,7 +42,7 @@ export class InspectorWorkerLifecycle {
    * @returns The Worker's bound endpoint fields.
    */
   async waitForReady(timeoutMs: number): Promise<Extract<InspectorWorkerControl, { type: 'ready' }>> {
-    let timer: NodeJS.Timeout | undefined
+    let timer: ReturnType<typeof setTimeout> | undefined
     let onMessage: ((value: unknown) => void) | undefined
     const message = new Promise<Extract<InspectorWorkerControl, { type: 'ready' }>>((resolve, reject) => {
       onMessage = (value: unknown): void => {
@@ -104,7 +104,7 @@ export class InspectorWorkerLifecycle {
     this.expectExit()
     if (this.exitCodeValue !== undefined) return
     this.worker.postMessage({ type: 'shutdown' } satisfies InspectorHostControl)
-    let timer: NodeJS.Timeout | undefined
+    let timer: ReturnType<typeof setTimeout> | undefined
     const timeout = new Promise<'timeout'>((resolve) => {
       timer = setTimeout(() => { resolve('timeout') }, timeoutMs)
     })
