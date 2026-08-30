@@ -99,11 +99,11 @@ function titles(container: HTMLElement): string[] {
 describe('MenuView', () => {
   it('renders null while closed and appears when the store opens', () => {
     const { menu, view } = mount(CLOSED)
-    expect(view.container.childElementCount).toBe(0)
+    expect(view.container.querySelector('[data-trigger-menu]')).toBeNull()
     act(() => { menu.set(openState()) })
     expect(screen.queryByRole('listbox')).not.toBeNull()
     act(() => { menu.set(CLOSED) })
-    expect(view.container.childElementCount).toBe(0)
+    expect(view.container.querySelector('[data-trigger-menu]')).toBeNull()
   })
 
   it('renders ready groups as option rows and pending groups as two skeleton rows', () => {

@@ -18,7 +18,7 @@ const MARGIN = 12
  *   moves (composer growth) re-fit; resize/scroll re-fit while mounted.
  * @returns the max-height to apply inline, in px.
  */
-export function useAnchoredMaxHeight(ref: RefObject<HTMLElement>, cap: number, signal: unknown): number {
+export function useAnchoredMaxHeight<T>(ref: RefObject<HTMLElement | null>, cap: number, signal: T): number {
   const [maxHeight, setMaxHeight] = useState(cap)
   useLayoutEffect(() => {
     const el = ref.current

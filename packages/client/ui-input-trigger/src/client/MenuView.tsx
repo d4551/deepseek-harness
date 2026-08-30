@@ -98,30 +98,26 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t
           </nav>
         )
       })}
-      <div
-        className={css.viewport}
-        role="listbox"
-        aria-label={t('suggestions.aria')}
-        aria-activedescendant={highlight !== null ? optionId(highlight.source, highlight.index) : undefined}
-      >
-        {state.groups.map(group => (group.status === 'ready' && group.items.length === 0)
-          ? null
-          : (
-            <Fragment key={group.source}>
-              {/* Source names key the dictionary open-endedly: the lookup chain
+      {/* An empty listbox violates aria-required-children; with no ready
+          options the pending statuses below carry the open state alone. */}
+      {state.groups.some(group => group.status === 'ready' && group.items.length > 0) && (
+        <div
+          className={css.viewport}
+          role="listbox"
+          aria-label={t('suggestions.aria')}
+          aria-activedescendant={highlight !== null ? optionId(highlight.source, highlight.index) : undefined}
+        >
+          {state.groups.map(group => (group.status === 'ready' && group.items.length === 0) || group.status === 'pending'
+            ? null
+            : (
+              <Fragment key={group.source}>
+                {/* Source names key the dictionary open-endedly: the lookup chain
                   returns an unknown key verbatim, so an unregistered source
                   shows its raw name — hence the cast past the typed key union. */}
-              {group.showGroupTitle === false || group.items.some(item => item.section !== undefined)
-                ? null
-                : <div className={css.groupTitle} role="presentation" data-source={group.source}>{t(group.source as MenuKey)}</div>}
-              {group.status === 'pending'
-                ? (
-                  <div role="status" aria-label={t('loading')} data-source={group.source}>
-                    <div className={css.skeletonRow}><span className={css.skeletonBar} style={{ width: '32%' }} /></div>
-                    <div className={css.skeletonRow}><span className={css.skeletonBar} style={{ width: '48%' }} /></div>
-                  </div>
-                )
-                : group.items.map((item, index) => {
+                {group.showGroupTitle === false || group.items.some(item => item.section !== undefined)
+                  ? null
+                  : <div className={css.groupTitle} role="presentation" data-source={group.source}>{t(group.source as MenuKey)}</div>}
+                {group.items.map((item, index) => {
                   const active = highlight !== null && highlight.source === group.source && highlight.index === index
                   return (
                     <Fragment key={optionId(group.source, index)}>
@@ -179,9 +175,25 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t
                     </Fragment>
                   )
                 })}
-            </Fragment>
-          ))}
-      </div>
+              </Fragment>
+            ))}
+        </div>
+      )}
+      {/* Pending skeletons sit OUTSIDE the listbox: a role=status live region
+          is not an allowed listbox child (axe aria-required-children). */}
+      {state.groups.map(group => group.status !== 'pending'
+        ? null
+        : (
+          <Fragment key={group.source}>
+            {group.showGroupTitle === false
+              ? null
+              : <div className={css.groupTitle} role="presentation" data-source={group.source}>{t(group.source as MenuKey)}</div>}
+            <div role="status" aria-label={t('loading')} data-source={group.source}>
+              <div className={css.skeletonRow}><span className={css.skeletonBarShort} /></div>
+              <div className={css.skeletonRow}><span className={css.skeletonBarLong} /></div>
+            </div>
+          </Fragment>
+        ))}
     </div>
   )
 }
