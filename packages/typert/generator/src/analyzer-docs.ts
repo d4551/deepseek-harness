@@ -5,12 +5,13 @@
 import type {
   ClassDeclaration,
   ClassElement,
+  JSDoc,
   JSDocTag,
   Node,
   PropertyName,
 } from 'typescript/unstable/ast'
 import { SyntaxKind } from 'typescript/unstable/ast'
-import { getJSDocTags, getTextOfJSDocComment } from 'typescript/unstable/ast'
+import { getJSDocTags } from 'typescript/unstable/ast'
 import { getLeadingCommentRanges } from 'typescript/unstable/ast/scanner'
 import {
   updateClassDeclaration,
@@ -70,14 +71,30 @@ function rawJsDoc(node: Node): string {
     .join('\n')
 }
 
+/**
+ * Read one JSDoc comment as plain text. TS7's `getTextOfJSDocComment` formats
+ * `{@link}` parts through the node's remote source-file handle, which raises
+ * a circular-structure failure on session-backed programs; text parts and raw
+ * node text carry the same content without that traversal.
+ * @param comment - JSDoc block or tag comment value.
+ * @returns the concatenated comment text, or undefined when absent.
+ */
+function jsDocCommentText(comment: JSDoc['comment'] | JSDocTag['comment']): string | undefined {
+  if (comment === undefined) return undefined
+  if (typeof comment === 'string') return comment
+  return comment
+    .map(part => part.kind === SyntaxKind.JSDocText ? part.text : part.getText(part.getSourceFile()))
+    .join('')
+}
+
 export function documentationOf(node: Node): DocumentationModel {
   const blocks = (node.jsDoc ?? []).filter(isJSDoc)
   const block = blocks.at(-1)
   if (block === undefined) return EMPTY_DOCUMENTATION
-  const description = normalizedDocText(getTextOfJSDocComment(block.comment))
+  const description = normalizedDocText(jsDocCommentText(block.comment))
   const tags: JsDocTagModel[] = getJSDocTags(node).map((tag) => {
     const argument = tagArgument(tag)
-    const comment = normalizedDocText(getTextOfJSDocComment(tag.comment))
+    const comment = normalizedDocText(jsDocCommentText(tag.comment))
     return {
       name: tag.tagName.text,
       ...argument === undefined ? {} : { argument },
@@ -106,7 +123,7 @@ function tagArgument(tag: JSDocTag): string | undefined {
 export function typertMode(node: Node): 'object' | 'schema' | undefined {
   for (const tag of getJSDocTags(node)) {
     if (tag.tagName.text !== 'typert') continue
-    const mode = (getTextOfJSDocComment(tag.comment) ?? '').trim().split(/\s+/, 1)[0]
+    const mode = (jsDocCommentText(tag.comment) ?? '').trim().split(/\s+/, 1)[0]
     if (mode === 'object') return 'object'
     if (mode === '' || mode === 'schema' || mode === 'type') return 'schema'
   }
@@ -115,7 +132,7 @@ export function typertMode(node: Node): 'object' | 'schema' | undefined {
 
 export function typertServiceTag(node: Node): JSDocTag | undefined {
   return getJSDocTags(node).find(tag => tag.tagName.text === 'typert'
-    && (getTextOfJSDocComment(tag.comment) ?? '').trim().split(/\s+/, 1)[0] === 'service')
+    && (jsDocCommentText(tag.comment) ?? '').trim().split(/\s+/, 1)[0] === 'service')
 }
 
 export function memberName(name: PropertyName): string {
