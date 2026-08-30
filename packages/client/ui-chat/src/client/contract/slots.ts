@@ -13,7 +13,10 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { createChatStore } from '../stores.ts'
 import type { ToolCallId, SelectionTarget } from './store.ts'
 import type { ChatNode, ChatNodeKind } from './chat-nodes.ts'
-import type { ChatSnapshot, CommandNode, CompactionSummaryNode, ToolCallBlock } from './snapshot.ts'
+import type { ChatSnapshot } from './snapshot.ts'
+// The declaring package, not the local barrel: a Typert-modeled reference must
+// name the package that owns the type so the generated import can point at it.
+import type { CommandNode, CompactionSummaryNode, ToolCallBlock } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { TurnProcessSpec } from './turn-process.ts'
 import type { TranscriptViewMode } from '../../chat-settings.ts'
 
