@@ -5,7 +5,7 @@
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
-import { parse as parseJsonc, type ParseError } from 'jsonc-parser'
+import { getNodeValue, parseTree, type ParseError } from 'jsonc-parser'
 import { API } from 'typescript/unstable/sync'
 import type { Diagnostic } from 'typescript/unstable/sync'
 import type { Node, SourceFile } from 'typescript/unstable/ast'
@@ -134,24 +134,27 @@ export function writeProgramConfig(aggregatePath: string, fileNames: readonly st
 
 /** Resolve the compiler-options base config one aggregate extends. */
 function baseConfigPath(aggregatePath: string): string {
-  const config = readJsoncObject(aggregatePath)
-  const extended = config === undefined ? undefined : Reflect.get(config, 'extends')
-  const directory = resolve(aggregatePath, '..')
-  if (typeof extended === 'string' && extended.endsWith('.json')) {
-    return resolve(directory, extended)
+  return nearestAncestorFile(resolve(aggregatePath, '..'), 'tsconfig.base.json')
+}
+
+/**
+ * Walk up from a directory until a named relative path exists, falling back
+ * to that path in the starting directory when nothing matches on the way to
+ * the filesystem root.
+ */
+function nearestAncestorFile(startDirectory: string, name: string): string {
+  let directory = startDirectory
+  while (true) {
+    const candidate = join(directory, name)
+    if (existsSync(candidate)) return candidate
+    const parent = resolve(directory, '..')
+    if (parent === directory) return join(startDirectory, name)
+    directory = parent
   }
-  return join(directory, 'tsconfig.base.json')
 }
 
 function discoverTypeRoot(aggregatePath: string): string {
-  let directory = resolve(aggregatePath, '..')
-  while (true) {
-    const candidate = join(directory, 'node_modules', '@types')
-    if (existsSync(candidate)) return candidate
-    const parent = resolve(directory, '..')
-    if (parent === directory) return join(resolve(aggregatePath, '..'), 'node_modules', '@types')
-    directory = parent
-  }
+  return nearestAncestorFile(resolve(aggregatePath, '..'), join('node_modules', '@types'))
 }
 
 /**
@@ -162,12 +165,12 @@ function discoverTypeRoot(aggregatePath: string): string {
 export function readJsoncObject(path: string): object | undefined {
   if (!existsSync(path)) return undefined
   const errors: ParseError[] = []
-  const config = parseJsonc(readFileSync(path, 'utf8'), errors, { allowTrailingComma: true })
-  if (errors.length > 0) return undefined
-  if (config === null || typeof config !== 'object' || Array.isArray(config)) return undefined
-  return config
+  const root = parseTree(readFileSync(path, 'utf8'), errors)
+  if (errors.length > 0 || root === undefined) return undefined
+  const value = getNodeValue(root)
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return undefined
+  return value
 }
-
 /** Shared TypeScript 7 API for opening configured projects. */
 export function compilerApi(): API {
   return compiler()
