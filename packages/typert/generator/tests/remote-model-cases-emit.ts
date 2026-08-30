@@ -231,7 +231,7 @@ export type GenericResult = {
   editFile(root, 'packages/remote/src/index.ts', source => source
     .replace(
       '  RenameGoalResult,\n',
-      '  RenameGoalResult,\n  GenericRequest,\n  GenericResult,\n',
+      '  RenameGoalResult,\n  GenericRequest,\n  GenericResult,\n  Json,\n',
     )
     .replace(
       "  @Remote({ mode: 'stream' })\n  async *watch",
@@ -239,6 +239,11 @@ export type GenericResult = {
   dispatch(request: GenericRequest): GenericResult {
     if (request.kind === 'ship') return { kind: 'ship', value: { accepted: request.payload.count > 0 } }
     return { kind: 'cancel', value: { cancelled: request.payload.reason.length > 0 } }
+  }
+
+  @Remote
+  store(value: Json): boolean {
+    return value !== null
   }
 
   @Remote({ mode: 'stream' })
@@ -259,6 +264,14 @@ export type GenericResult = {
   expect(codecSuccess(parameterAt(dispatch, 0), { kind: 'unknown', payload: {} })).toBe(false)
   expect(resultSuccess(dispatch, { kind: 'ship', value: { accepted: true } })).toBe(true)
   expect(resultSuccess(dispatch, { kind: 'ship', value: { cancelled: true } })).toBe(false)
+  // A boundary typed as the recursive alias itself: the object arm must keep
+  // its index signature, or the emitted schema strips every key it receives.
+  const store = descriptorBySuffix(generated.descriptors, '/store')
+  expect(codecSuccess(parameterAt(store, 0), { nested: { deep: [1, 'two', null] } })).toBe(true)
+  expect(codecSuccess(parameterAt(store, 0), { id: 'acme-large' })).toBe(true)
+  expect(codecSuccess(parameterAt(store, 0), { bad: undefined })).toBe(false)
+  expect(codecSuccess(parameterAt(store, 0), [1, { two: true }])).toBe(true)
+  expect(codecSuccess(parameterAt(store, 0), 'plain')).toBe(true)
 }
 
 export function importsNestedGenericArguments(): void {
