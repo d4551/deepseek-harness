@@ -222,8 +222,10 @@ describe('DeepSeekAdapter against a mock server', () => {
     // The provider's reason has to reach the message: `cause` survives on the
     // Error, but nothing on the session path renders it, so a bare summary
     // leaves the operator with no way to tell which extension failed or why.
-    await expect(drain(failed.stream({ provider: 'deepseek-official', model: 'm', messages: [] })))
-      .rejects.toMatchObject({ code: 'REQUEST_EXTENSION', message: expect.stringContaining('metadata unavailable') })
+    const failure: unknown = await drain(failed.stream({ provider: 'deepseek-official', model: 'm', messages: [] }))
+      .then(() => undefined, (error: unknown) => error)
+    expect(failure).toMatchObject({ code: 'REQUEST_EXTENSION' })
+    expect(failure instanceof Error ? failure.message : '').toContain('metadata unavailable')
 
     const collision = new DeepSeekAdapter({
       ...base,

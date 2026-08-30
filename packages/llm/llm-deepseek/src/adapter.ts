@@ -344,13 +344,6 @@ export function httpErrorCode(status: number, error?: WireError['error']): strin
 }
 
 /**
- * The first real `LlmAdapter`. One instance serves every model name it was
- * registered under (the harness model name IS the wire model name).
- *
- * One stable signal reaches both initial fetch and body reads. Caller aborts
- * map to `ABORTED`; the configured per-read idle watchdog maps to `TIMEOUT`.
- */
-/**
  * One-line summary of a wrapped failure, for the two extension boundaries. An
  * extension provider is independently owned code, and nothing on the session
  * path renders `cause`, so its reason is otherwise invisible to the operator.
@@ -362,6 +355,13 @@ function extensionFailureText(error: unknown): string {
   return text.length === 0 ? 'no detail' : text
 }
 
+/**
+ * The first real `LlmAdapter`. One instance serves every model name it was
+ * registered under (the harness model name IS the wire model name).
+ *
+ * One stable signal reaches both initial fetch and body reads. Caller aborts
+ * map to `ABORTED`; the configured per-read idle watchdog maps to `TIMEOUT`.
+ */
 export class DeepSeekAdapter extends LlmAdapter {
   private readonly files: DeepSeekFileStore
 
