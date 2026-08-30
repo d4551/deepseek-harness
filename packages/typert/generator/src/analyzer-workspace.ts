@@ -23,7 +23,7 @@ import type { DiscoveredTypertPackage, PackageRegistration } from './analyzer-ty
 import { isWithin, realPath, slash, uniqueBy } from './analyzer-util.ts'
 import type { CrossFaceLink, FaceModel, SourceDeclarationModel, TypertFace, WorkspaceModel } from './model.ts'
 import { FaceProject } from './ts7-project.ts'
-import { notifyFileChanged, parsePath, printInFile, writeProgramConfig } from './ts7-session.ts'
+import { notifyFileChanged, writeProgramConfig } from './ts7-session.ts'
 import { hasModifier, isTypeDeclaration } from './ts7-syntax.ts'
 
 /** Workspace analysis configuration. */
@@ -326,12 +326,31 @@ export class WorkspaceAnalyzer {
   }
 
   private indexRegistration(registration: PackageRegistration, declarations: SourceDeclarationModel[]) {
+    // The package's own project answers for every file it configures. Opening
+    // each file separately instead makes the session build one project per file,
+    // which for a workspace-wide index is thousands of live compiler graphs.
+    const project = this.caches.faceProject(registration.config.path)
+    try {
+      this.indexProjectFiles(registration, project, declarations)
+    } finally {
+      this.caches.release(registration.config.path)
+    }
+  }
+
+  private indexProjectFiles(
+    registration: PackageRegistration,
+    project: FaceProject,
+    declarations: SourceDeclarationModel[],
+  ) {
     for (const file of registration.config.fileNames) {
       const relativeFile = slash(relative(this.options.root, file))
       if (!existsSync(file)
         || !isWithin(realPath(file), join(registration.root, 'src'))
         || !/\.(?:cts|mts|ts)$/.test(file)) continue
-      const sourceFile = parsePath(file)
+      const sourceFile = project.sourceFile(file)
+      if (sourceFile === undefined) {
+        throw new TypertAnalysisError(`typert: ${registration.config.path} does not load its configured file ${relativeFile}`)
+      }
       for (const statement of sourceFile.statements) {
         if (!isTypeDeclaration(statement)
           || statement.name === undefined
@@ -353,7 +372,7 @@ export class WorkspaceAnalyzer {
             line: position.line + 1,
             column: position.character + 1,
           },
-          text: declarationText(statement, node => printInFile(file, node)),
+          text: declarationText(statement, node => project.printNode(node)),
         })
       }
     }
