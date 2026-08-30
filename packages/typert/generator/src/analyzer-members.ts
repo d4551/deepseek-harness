@@ -208,6 +208,16 @@ export function typeParametersOf(
   })) ?? []
 }
 
+/**
+ * Reconcile the type parameters of a declaration-merged interface.
+ * @param face - extraction context.
+ * @param parts - one type-parameter list per merged declaration.
+ * @param site - node the failure locates at.
+ * @param name - merged interface name, used in the failure.
+ * @returns the merged list, taking the first declared constraint and default
+ *   at each position; empty when no declaration declares parameters.
+ * @throws TypertAnalysisError when two declarations declare conflicting variance.
+ */
 export function mergeTypeParameters(
   face: FaceContext,
   parts: readonly (readonly TypeParameterModel[])[],

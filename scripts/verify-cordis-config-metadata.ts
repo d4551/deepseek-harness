@@ -2,17 +2,13 @@
  * Loader-entry metadata expression checks for {@link ./verify-cordis-config.ts}.
  */
 
-import { isJsExpr } from './cordis-yaml.ts'
+import { isJsExpr, type CordisObject, type CordisValue } from './cordis-yaml.ts'
 import { createSourceFile, syntacticDiagnostics } from './ts7-session.ts'
 
 const metadataFields = ['id', 'name', 'group', 'inject', 'intercept', 'isolate'] as const
 
-function isValueObject(value: object | string | number | boolean | null | undefined): value is object {
-  return value !== null && value !== undefined && typeof value === 'object' && !Array.isArray(value)
-}
-
 function collectExpressionPaths(
-  value: object | string | number | boolean | null | undefined,
+  value: CordisValue,
   path: string,
   output: string[],
 ) {
@@ -31,7 +27,7 @@ function collectExpressionPaths(
     }
     return
   }
-  if (!isValueObject(value)) return
+  if (typeof value !== 'object' || value === null) return
   for (const [key, child] of Object.entries(value)) {
     collectExpressionPaths(
       child === undefined ? null : child,
@@ -65,24 +61,24 @@ export function disabledExpressionProblem(expression: string): string | undefine
  * @param path - the entry's diagnostic path prefix.
  * @returns one diagnostic per offending expression.
  */
-export function metadataExpressionErrors(entry: object, path: string): string[] {
+export function metadataExpressionErrors(entry: CordisObject, path: string): string[] {
   const problems: string[] = []
   for (const field of metadataFields) {
-    if (!Object.hasOwn(entry, field)) continue
+    const value = entry[field]
+    if (value === undefined) continue
     const expressionPaths: string[] = []
-    const value = Reflect.get(entry, field)
-    collectExpressionPaths(value === undefined ? null : value, `${path}.${field}`, expressionPaths)
+    collectExpressionPaths(value, `${path}.${field}`, expressionPaths)
     for (const expressionPath of expressionPaths) problems.push(`${expressionPath}: !!js is not interpolated here`)
   }
-  if (!Object.hasOwn(entry, 'disabled')) return problems
-  const disabled = Reflect.get(entry, 'disabled')
+  const disabled = entry.disabled
+  if (disabled === undefined) return problems
   if (isJsExpr(disabled)) {
     const detail = disabledExpressionProblem(disabled.__jsExpr)
     if (detail !== undefined) problems.push(`${path}.disabled${detail}`)
     return problems
   }
   const expressionPaths: string[] = []
-  collectExpressionPaths(disabled === undefined ? null : disabled, `${path}.disabled`, expressionPaths)
+  collectExpressionPaths(disabled, `${path}.disabled`, expressionPaths)
   for (const expressionPath of expressionPaths) problems.push(`${expressionPath}: !!js is not interpolated here`)
   return problems
 }

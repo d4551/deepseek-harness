@@ -9,6 +9,7 @@ import { readFile } from 'node:fs/promises'
 import { basename, dirname, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import { isCordisGroupEntry, loadCordisYaml } from './cordis-yaml.ts'
+import type { CordisValue } from './cordis-yaml.ts'
 
 interface PackageManifest {
   name?: string
@@ -161,8 +162,9 @@ function activeBarePluginPackages(entries: unknown[], processPlatform: string): 
       const packageName = barePackageName(value.name)
       if (packageName !== undefined) packages.add(packageName)
     }
-    if (isCordisGroupEntry(value)) {
-      for (const child of value.config) visit(child, disabled)
+    const entry = value as CordisValue
+    if (isCordisGroupEntry(entry)) {
+      for (const child of entry.config) visit(child, disabled)
     }
   }
   for (const entry of entries) visit(entry, false)

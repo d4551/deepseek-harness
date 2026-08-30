@@ -123,7 +123,7 @@ export function checkMemberDocs(ctx: FileCtx, decl: TypeDecl, violations: string
       const name = member.name.getText(ctx.sf)
       const where = `config field '${path}.${name}' (${pointer(ctx.rel, ctx.sf, member)})`
       if (!parseJsDoc(rawJsDoc(ctx.text, member)).doc) violations.push(`${where} has no JSDoc prose.`)
-      if (member.type) walkNested(member.type, `${path}.${name}`)
+      walkNested(member.type, `${path}.${name}`)
     }
   }
   const walkNested = (type: Node, path: string) => {

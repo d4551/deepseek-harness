@@ -90,7 +90,7 @@ function workspaceReferences(): { path: string }[] {
   const paths: { path: string }[] = []
   for (const entry of references) {
     if (entry === null || typeof entry !== 'object' || Array.isArray(entry) || !('path' in entry)) continue
-    const path = Reflect.get(entry, 'path')
+    const path: unknown = Reflect.get(entry, 'path')
     if (typeof path !== 'string') continue
     paths.push({ path: path.startsWith('./') ? `../${path.slice(2)}` : `../${path}` })
   }

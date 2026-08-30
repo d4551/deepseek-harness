@@ -192,7 +192,7 @@ describe('WorkspaceAnalyzer write and import rules', { timeout: 60_000 }, () => 
     const base = readObject(basePath)
     const compilerOptions = Reflect.get(base, 'compilerOptions')
     if (compilerOptions !== null && typeof compilerOptions === 'object' && !Array.isArray(compilerOptions)) {
-      const paths = Reflect.get(compilerOptions, 'paths')
+      const paths: unknown = Reflect.get(compilerOptions, 'paths')
       if (paths !== null && typeof paths === 'object' && !Array.isArray(paths)) {
         Reflect.set(paths, '@fixture/barrel', ['./packages/barrel/src/index.ts'])
       }

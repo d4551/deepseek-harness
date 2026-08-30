@@ -38,11 +38,15 @@ import {
   isStringLiteral,
 } from 'typescript/unstable/ast/is'
 import type { DocumentationModel, JsDocTagModel } from './model.ts'
-import { hasModifier } from './ts7-syntax.ts'
+import { asNode, hasModifier } from './ts7-syntax.ts'
 import type { TypeDeclaration } from './ts7-syntax.ts'
 
 const EMPTY_DOCUMENTATION: DocumentationModel = { tags: [] }
 
+/**
+ * The shared documentation model for an undocumented declaration.
+ * @returns a model with no description and no tags.
+ */
 export function emptyDocumentation(): DocumentationModel {
   return EMPTY_DOCUMENTATION
 }
@@ -88,6 +92,12 @@ function jsDocCommentText(comment: JSDoc['comment'] | JSDocTag['comment']): stri
     .join('')
 }
 
+/**
+ * Extract the JSDoc of a declaration. The last block wins, matching the block
+ * TypeScript itself attributes to the declaration.
+ * @param node - declaration to read.
+ * @returns the description and tags, or the empty model when undocumented.
+ */
 export function documentationOf(node: Node): DocumentationModel {
   const blocks = (node.jsDoc ?? []).filter(isJSDoc)
   const block = blocks.at(-1)
@@ -114,13 +124,15 @@ export function documentationOf(node: Node): DocumentationModel {
 }
 
 function tagArgument(tag: JSDocTag): string | undefined {
-  if (!Object.hasOwn(tag, 'name')) return undefined
-  const name = Reflect.get(tag, 'name')
-  if (name === null || name === undefined || typeof name !== 'object') return undefined
-  if (!('getText' in name) || typeof name.getText !== 'function') return undefined
-  return name.getText()
+  return asNode(Reflect.get(tag, 'name'))?.getText()
 }
 
+/**
+ * The `@typert` mode a declaration opts into.
+ * @param node - declaration to read.
+ * @returns `object` for `@typert object`, `schema` for a bare `@typert`,
+ *   `@typert schema`, or `@typert type`, undefined when the tag is absent.
+ */
 export function typertMode(node: Node): 'object' | 'schema' | undefined {
   for (const tag of getJSDocTags(node)) {
     if (tag.tagName.text !== 'typert') continue
@@ -131,6 +143,11 @@ export function typertMode(node: Node): 'object' | 'schema' | undefined {
   return undefined
 }
 
+/**
+ * The `@typert service` tag on a declaration.
+ * @param node - declaration to read.
+ * @returns the tag, or undefined when the declaration does not carry it.
+ */
 export function typertServiceTag(node: Node): JSDocTag | undefined {
   return getJSDocTags(node).find(tag => tag.tagName.text === 'typert'
     && (jsDocCommentText(tag.comment) ?? '').trim().split(/\s+/, 1)[0] === 'service')

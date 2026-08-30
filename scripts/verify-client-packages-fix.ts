@@ -139,7 +139,7 @@ function dependencyRangeCandidates(root: string): Map<string, Set<string>> {
 
 function optionalRecord(record: object, key: string): Record<string, string> {
   if (!Object.hasOwn(record, key)) return {}
-  const value = Reflect.get(record, key)
+  const value: unknown = Reflect.get(record, key)
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return {}
   const out: Record<string, string> = {}
   for (const [name, range] of Object.entries(value)) {
@@ -150,9 +150,9 @@ function optionalRecord(record: object, key: string): Record<string, string> {
 
 function mutableClientOf(record: object): MutableClient | undefined {
   if (!Object.hasOwn(record, 'dsh')) return undefined
-  const dsh = Reflect.get(record, 'dsh')
+  const dsh: unknown = Reflect.get(record, 'dsh')
   if (dsh === null || typeof dsh !== 'object' || Array.isArray(dsh) || !Object.hasOwn(dsh, 'client')) return undefined
-  const client = Reflect.get(dsh, 'client')
+  const client: unknown = Reflect.get(dsh, 'client')
   if (client === null || typeof client !== 'object' || Array.isArray(client)) return undefined
   return client
 }
@@ -203,7 +203,7 @@ export function fixClientPackageManifests(root: string, facts: ClientPackageFact
     const cached = documents.get(path)
     if (cached !== undefined) return cached
     const record = readObjectFile(resolve(root, path))
-    const rawName = Reflect.get(record, 'name')
+    const rawName: unknown = Reflect.get(record, 'name')
     const loaded: ManifestDocument = {
       path,
       record,

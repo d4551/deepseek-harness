@@ -2,7 +2,7 @@
 // bubble escape ancestor overflow clipping without a portal.
 
 import { cloneElement, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { FocusEventHandler, MouseEventHandler, MutableRefObject, ReactElement, Ref } from 'react'
+import type { FocusEventHandler, MouseEventHandler, ReactElement, Ref } from 'react'
 import css from './Tooltip.module.css'
 
 /** Bubble placement relative to the anchor. */
@@ -39,7 +39,7 @@ export function Tooltip({ label, side = 'right', delayMs = 0, disabled = false, 
   const mergedRef = useCallback((el: HTMLElement | null) => {
     anchor.current = el
     if (typeof childRef === 'function') childRef(el)
-    else if (childRef != null) (childRef as MutableRefObject<HTMLElement | null>).current = el
+    else if (childRef != null) childRef.current = el
   }, [childRef])
   // The anchor's edges rather than final coordinates: a vertical flip has to
   // re-derive the bubble's own top from the opposite edge.

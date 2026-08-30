@@ -11,10 +11,15 @@ import { compilerApi, flattenDiagnosticMessageText } from './ts7-session.ts'
 /** One opened TypeScript 7 project and its checker. */
 export class FaceProject {
   private readonly api: API
+  /** The opened project. */
   readonly project: Project
+  /** The project's program. */
   readonly program: Program
+  /** The project's checker. */
   readonly checker: Checker
+  /** The project's emitter, used to print nodes. */
   readonly emitter: Emitter
+  /** Absolute path of the tsconfig this project was opened from. */
   readonly configPath: string
 
   /**

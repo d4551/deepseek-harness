@@ -17,6 +17,13 @@ import type { PackageRegistration } from './analyzer-types.ts'
 import { compareCrossFaceLinks, isWithin, realPath, uniqueBy } from './analyzer-util.ts'
 import { readJsoncObject } from './ts7-session.ts'
 
+/**
+ * Discover every workspace package both aggregates reference, memoized per
+ * root and aggregate pair.
+ * @param input - repository root, the two aggregate configs, and the caches to
+ *   read parsed configs through and store the inventory in.
+ * @returns the registrations, ordered by face and package name.
+ */
 export function loadRegistrations(input: {
   readonly root: string
   readonly hostConfig: string
@@ -40,7 +47,7 @@ export function loadRegistrations(input: {
       if (!isWithin(realPath(packageRoot), join(input.root, 'packages'))) continue
       const manifest = readJsoncObject(join(packageRoot, 'package.json'))
       if (manifest === undefined) continue
-      const name = Reflect.get(manifest, 'name')
+      const name: unknown = Reflect.get(manifest, 'name')
       if (typeof name !== 'string') continue
       validatePackageEntrySurface(manifest, name, realPath(packageRoot))
       const registration: PackageRegistration = {
@@ -74,6 +81,12 @@ export function loadRegistrations(input: {
   return inventory
 }
 
+/**
+ * Combine per-package analyses into one workspace model, merging each face's
+ * packages, declarations, and nodes by id.
+ * @param models - models to merge; later entries win on an id collision.
+ * @returns the merged model with cross-face links deduplicated and ordered.
+ */
 export function mergeWorkspaceModels(models: readonly WorkspaceModel[]): WorkspaceModel {
   const faces = new Map<TypertFace, {
     packages: Map<string, PackageModel>

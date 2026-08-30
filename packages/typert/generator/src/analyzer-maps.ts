@@ -55,7 +55,7 @@ function addLookup(
   byKey: Map<string, StaticMapEntry>,
   byHost: Map<SymbolId, StaticMapEntry>,
 ) {
-  if (!isPropertySignatureDeclaration(declaration) || declaration.type === undefined) {
+  if (!isPropertySignatureDeclaration(declaration) || declaration.postfixToken !== undefined) {
     face.fail(declaration, 'TypertLookupMap entries must be required properties')
   }
   const key = memberName(declaration.name)
@@ -84,7 +84,7 @@ function addLookup(
 }
 
 function addContext(face: FaceContext, declaration: TypeElement, result: Map<string, StaticMapEntry>) {
-  if (!isPropertySignatureDeclaration(declaration) || declaration.type === undefined) {
+  if (!isPropertySignatureDeclaration(declaration) || declaration.postfixToken !== undefined) {
     face.fail(declaration, 'TypertContextMap entries must be required properties')
   }
   const key = memberName(declaration.name)

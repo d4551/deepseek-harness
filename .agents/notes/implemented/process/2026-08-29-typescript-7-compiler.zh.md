@@ -31,3 +31,5 @@ TypeScript 7 拒绝 6.0 曾接受的两种写法。同一个名字不能既承�
 ## 结果
 
 `bun run typecheck` 与 `bun run build` 运行 Go 版 `tsc`，整个仓库的编译与分析都通过 TypeScript 7 API 完成，不安装任何 TypeScript 6 包。`eslint-plugin-sonarjs` 已从 lint 工具链移除：它在模块加载时读取 6.0 compiler API（`cjs/helpers/type.js`）并硬性要求 `typescript <6.1`，在纯 TS7 依赖图下无法加载。其相同条件与重复组合成员的检测由 Oxlint 原生规则（`no-dupe-else-if`、`typescript/no-duplicate-type-constituents`）承担；其余重复形态规则在 Oxlint 原生移植之前由 jscpd 的 `bun run duplication` gate 兜底。
+
+Go 编译器不使用 V8 堆，因此 `build:lib:host` 与 Wine 构建 gate 调用 `tsc` 时不带 `--max-old-space-size`，`scripts/ci-workflow.spec.ts` 会在这两个文件中拒绝该 flag。兼容包禁令对整个受版本控制的树做 grep，因此根 manifest 与 `bun.lock` 都在覆盖范围内；`goal/` 被排除，因为那些 plan 记录早于本决策，且陈述了相反的验收标准。

@@ -3,7 +3,7 @@
  * NodeHandle resolution, modifiers, and checker gaps.
  */
 
-import type { Decorator, Node, SourceFile } from 'typescript/unstable/ast'
+import type { Decorator, ModifierLike, Node, SourceFile } from 'typescript/unstable/ast'
 import { SyntaxKind } from 'typescript/unstable/ast'
 import {
   isClassDeclaration,
@@ -76,6 +76,11 @@ export function resolveDeclarations(symbol: Symbol, project: Project): Node[] {
   return nodes
 }
 
+/**
+ * Whether a node declares a type Typert can extract.
+ * @param node - AST node.
+ * @returns true for a class, interface, type alias, or enum declaration.
+ */
 export function isTypeDeclaration(node: Node): node is TypeDeclaration {
   return isClassDeclaration(node)
     || isInterfaceDeclaration(node)
@@ -111,28 +116,64 @@ export function preferredDeclaration(symbol: Symbol, project: Project): Node | u
   return resolveDeclarations(symbol, project)[0]
 }
 
-export function hasModifier(node: Node, kind: SyntaxKind): boolean {
-  if (!('modifiers' in node) || !Array.isArray(node.modifiers)) return false
-  for (const modifier of node.modifiers) {
-    if (isModifierLike(modifier) && modifier.kind === kind) return true
-  }
-  return false
+/**
+ * Modifier list of any node that carries one. TS7 declares `modifiers` on
+ * `ModifiersBase` but exports no predicate for it, so the property is read
+ * through that declared type.
+ * @param node - AST node.
+ * @returns the declared modifiers, empty when the node carries none.
+ */
+function modifierList(node: Node): readonly ModifierLike[] {
+  return (node as { readonly modifiers?: readonly ModifierLike[] }).modifiers ?? []
 }
 
+/**
+ * Whether a node carries one modifier keyword.
+ * @param node - AST node.
+ * @param kind - modifier keyword to look for.
+ * @returns true when the node declares that modifier.
+ */
+export function hasModifier(node: Node, kind: SyntaxKind): boolean {
+  return modifierList(node).some(modifier => isModifierLike(modifier) && modifier.kind === kind)
+}
+
+/**
+ * Whether a named member is declared optional.
+ * @param node - AST node.
+ * @returns true for a named member whose postfix token is `?`.
+ */
 export function isOptionalMember(node: Node): boolean {
   if (!isNamedMember(node)) return false
   return node.postfixToken?.kind === SyntaxKind.QuestionToken
 }
 
+/**
+ * Decorators a node carries.
+ * @param node - AST node.
+ * @returns the decorators in declaration order, empty when the node has none.
+ */
 export function decoratorsOf(node: Node): readonly Decorator[] {
-  if (!('modifiers' in node) || !Array.isArray(node.modifiers)) return []
-  const result: Decorator[] = []
-  for (const modifier of node.modifiers) {
-    if (isDecorator(modifier)) result.push(modifier)
-  }
-  return result
+  return modifierList(node).filter(modifier => isDecorator(modifier))
 }
 
+/**
+ * Read a value taken off an AST node back as a Node. TS7 exports no
+ * "is an AST node" predicate, so the structural test is the available one.
+ * @param value - value read from a node property.
+ * @returns the value as a Node, or undefined when it is not one.
+ */
+export function asNode(value: unknown): Node | undefined {
+  return value !== null && typeof value === 'object' && 'kind' in value && 'getText' in value
+    ? value as Node
+    : undefined
+}
+
+/**
+ * Declared visibility of a class or type member.
+ * @param node - AST node.
+ * @returns `private` for a `#name` or `private` member, `protected` for a
+ *   `protected` member, `public` otherwise.
+ */
 export function visibilityOf(node: Node): MemberVisibility {
   if (isNamedMember(node) && isPrivateIdentifier(node.name)) return 'private'
   if (hasModifier(node, SyntaxKind.PrivateKeyword)) return 'private'
@@ -157,6 +198,11 @@ export function getNumberIndexType(checker: Checker, type: Type): Type | undefin
   return undefined
 }
 
+/**
+ * The model name of a keyword type.
+ * @param kind - syntax kind of a type node.
+ * @returns the keyword name, or undefined when the kind is not a keyword type.
+ */
 export function keywordName(kind: SyntaxKind): KeywordTypeName | undefined {
   switch (kind) {
     case SyntaxKind.AnyKeyword: return 'any'
@@ -174,14 +220,29 @@ export function keywordName(kind: SyntaxKind): KeywordTypeName | undefined {
   }
 }
 
+/**
+ * Whether a node introduces a class body.
+ * @param node - AST node.
+ * @returns true for a class declaration or class expression.
+ */
 export function isClassLike(node: Node): boolean {
   return isClassDeclaration(node) || isClassExpression(node)
 }
 
+/**
+ * The text of an identifier node.
+ * @param node - candidate node, or undefined.
+ * @returns the identifier text, undefined for any other node.
+ */
 export function identifierText(node: Node | undefined): string | undefined {
   return node !== undefined && isIdentifier(node) ? node.text : undefined
 }
 
+/**
+ * The file a node was parsed from.
+ * @param node - node bound in a program.
+ * @returns its source file.
+ */
 export function sourceFileOf(node: Node): SourceFile {
   return node.getSourceFile()
 }

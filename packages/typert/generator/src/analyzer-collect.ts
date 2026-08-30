@@ -267,7 +267,7 @@ function collectServices(face: FaceContext, context: InterfaceDeclaration, recor
   }
   const result: ServiceModel[] = []
   for (const member of context.members) {
-    if (!isPropertySignatureDeclaration(member) || member.type === undefined) continue
+    if (!isPropertySignatureDeclaration(member)) continue
     if (member.postfixToken !== undefined
       || (isUnionTypeNode(member.type) && member.type.types.some(node => node.kind === SyntaxKind.UndefinedKeyword))) continue
     const authoredSymbol = face.symbolAtType(member.type)
@@ -360,7 +360,7 @@ function collectEvents(face: FaceContext, events: InterfaceDeclaration): EventMo
         ...mode === undefined ? {} : { mode },
         location: face.location(member),
       })
-    } else if (isPropertySignatureDeclaration(member) && member.type !== undefined) {
+    } else if (isPropertySignatureDeclaration(member)) {
       result.push({
         ...documentation,
         name: memberName(member.name),

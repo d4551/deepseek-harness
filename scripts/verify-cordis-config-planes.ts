@@ -5,19 +5,25 @@
 
 import { globSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { isCordisGroupEntry, loadCordisYaml } from './cordis-yaml.ts'
+import { isCordisGroupEntry, loadCordisYaml, type CordisObject, type CordisValue } from './cordis-yaml.ts'
 
-function isValueObject(value: object | string | number | boolean | null | undefined): value is object {
-  return value !== null && value !== undefined && typeof value === 'object' && !Array.isArray(value)
+/** One parsed package.json surface this gate reads. */
+export interface ClientHalvesManifest {
+  exports?: { [key: string]: CordisValue }
+  dsh?: { client?: CordisValue }
+}
+
+function isCordisObject(value: CordisValue): value is CordisObject {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /** Every entry of one config file, or an empty list when it is not an entry array. */
-export function loadEntries(root: string, file: string): object[] {
+export function loadEntries(root: string, file: string): CordisValue[] {
   const document = loadCordisYaml(readFileSync(resolve(root, file), 'utf8'))
   if (!Array.isArray(document)) return []
-  const entries: object[] = []
+  const entries: CordisValue[] = []
   for (const item of document) {
-    if (isValueObject(item)) entries.push(item)
+    if (isCordisObject(item)) entries.push(item)
   }
   return entries
 }
@@ -31,14 +37,14 @@ export function loadEntries(root: string, file: string): object[] {
  */
 export function rowIds(root: string, file: string): Set<string> {
   const ids = new Set<string>()
-  const walk = (value: object | string | number | boolean | null | undefined) => {
+  const walk = (value: CordisValue) => {
     if (Array.isArray(value)) {
       for (const item of value) walk(item === undefined ? null : item)
       return
     }
-    if (!isValueObject(value)) return
-    const id = Reflect.get(value, 'id')
-    const name = Reflect.get(value, 'name')
+    if (!isCordisObject(value)) return
+    const id = value.id
+    const name = value.name
     if (typeof id === 'string' && typeof name === 'string') ids.add(id)
     for (const child of Object.values(value)) walk(child === undefined ? null : child)
   }
@@ -58,8 +64,8 @@ export function validatePresetPlaneSeparation(root: string): string[] {
   const overlay = loadEntries(root, overlayFile)
   const disabled = new Set<string>()
   for (const entry of overlay) {
-    const id = Reflect.get(entry, 'id')
-    if (Reflect.get(entry, 'disabled') === true && typeof id === 'string') disabled.add(id)
+    if (!isCordisObject(entry)) continue
+    if (entry.disabled === true && typeof entry.id === 'string') disabled.add(entry.id)
   }
   const active = new Set([...rowIds(root, hostFile), ...rowIds(root, overlayFile)].filter(id => !disabled.has(id)))
   for (const file of globSync('packages/preset/agent-presets/presets/*/agent.cordis.yml', { cwd: root })) {
@@ -83,21 +89,13 @@ export function validatePresetPlaneSeparation(root: string): string[] {
  */
 export function validateClientHalvesDeclared(
   root: string,
-  readManifest: (path: string) => object,
+  readManifest: (path: string) => ClientHalvesManifest,
 ): string[] {
   return globSync('packages/client/*/package.json', { cwd: root }).flatMap((manifestPath) => {
     const manifest = readManifest(manifestPath)
-    const exportsField = Reflect.get(manifest, 'exports')
-    const shipsClient = exportsField !== null
-      && typeof exportsField === 'object'
-      && !Array.isArray(exportsField)
-      && Object.hasOwn(exportsField, './client')
-    const dsh = Reflect.get(manifest, 'dsh')
-    const declaresClient = dsh !== null
-      && typeof dsh === 'object'
-      && !Array.isArray(dsh)
-      && Object.hasOwn(dsh, 'client')
-      && Reflect.get(dsh, 'client') !== undefined
+    const exportsField = manifest.exports
+    const shipsClient = exportsField !== undefined && Object.hasOwn(exportsField, './client')
+    const declaresClient = manifest.dsh?.client !== undefined
     if (shipsClient === declaresClient) return []
     return [shipsClient
       ? `${manifestPath}: exports "./client" but declares no dsh.client, so its browser half is never served`
@@ -107,12 +105,12 @@ export function validateClientHalvesDeclared(
 
 /** Walk nested Loader entries and include-plugin patches. */
 export function forEachLoaderEntry(
-  value: object | string | number | boolean | null | undefined,
+  value: CordisValue,
   file: string,
   path: string,
-  visit: (entry: object, file: string, path: string) => void,
+  visit: (entry: CordisObject, file: string, path: string) => void,
 ) {
-  if (!isValueObject(value)) return
+  if (!isCordisObject(value)) return
   visit(value, file, path)
   if (isCordisGroupEntry(value)) {
     for (let index = 0; index < value.config.length; index++) {
@@ -120,24 +118,24 @@ export function forEachLoaderEntry(
       forEachLoaderEntry(child === undefined ? null : child, file, `${path}.config[${index}]`, visit)
     }
   }
-  const insert = Reflect.get(value, 'insert')
+  const insert = value.insert
   if (Array.isArray(insert)) {
     for (let index = 0; index < insert.length; index++) {
       const child = insert[index]
       forEachLoaderEntry(child === undefined ? null : child, file, `${path}.insert[${index}]`, visit)
     }
   }
-  if (Reflect.get(value, 'name') !== '@deepseek-ai/cordis-plugin-include') return
-  const config = Reflect.get(value, 'config')
-  if (!isValueObject(config)) return
-  const patches = Reflect.get(config, 'patches')
+  if (value.name !== '@deepseek-ai/cordis-plugin-include') return
+  const config = value.config
+  if (config === undefined || typeof config !== 'object' || Array.isArray(config)) return
+  const patches = config.patches
   if (!Array.isArray(patches)) return
   for (let index = 0; index < patches.length; index++) {
     const patch = patches[index]
-    if (!isValueObject(patch)) continue
+    if (patch === undefined || !isCordisObject(patch)) continue
     const patchPath = `${path}.config.patches[${index}]`
     visit(patch, file, patchPath)
-    const patchInsert = Reflect.get(patch, 'insert')
+    const patchInsert = patch.insert
     if (!Array.isArray(patchInsert)) continue
     for (let insertIndex = 0; insertIndex < patchInsert.length; insertIndex++) {
       const child = patchInsert[insertIndex]

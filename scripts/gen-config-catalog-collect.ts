@@ -35,7 +35,7 @@ import {
 
 function optionalString(record: object, key: string): string | undefined {
   if (!Object.hasOwn(record, key)) return undefined
-  const value = Reflect.get(record, key)
+  const value: unknown = Reflect.get(record, key)
   return typeof value === 'string' ? value : undefined
 }
 
@@ -48,8 +48,8 @@ function readPackageName(scanRoot: string, manifestRel: string): { pkg: string; 
   }
   const pkg = optionalString(config, 'name')
   if (!pkg) return { error: `${manifestRel} has no "name".` }
-  const os = Reflect.get(config, 'os')
-  const cpu = Reflect.get(config, 'cpu')
+  const os: unknown = Reflect.get(config, 'os')
+  const cpu: unknown = Reflect.get(config, 'cpu')
   if (os !== undefined && cpu !== undefined) return { pkg, skip: true }
   return { pkg, skip: false }
 }

@@ -38,4 +38,9 @@ apps/web/dist/
 worktrees/
 .agents/worktrees/
 .typert-*/
+# Typert generator tests copy the fixture workspace into mkdtemp roots beside
+# themselves; an interrupted run leaves the copy behind and it must not commit.
+packages/typert/generator/tests/.generated-*/
+packages/typert/generator/tests/.rendered-model-*/
+packages/typert/generator/tests/.probe-*/
 /.audit-tmp

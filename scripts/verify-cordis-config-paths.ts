@@ -6,7 +6,7 @@
 
 import { existsSync, statSync } from 'node:fs'
 import { extname, resolve } from 'node:path'
-import { readConfigFile } from './ts7-session.ts'
+import { readConfigFile, type JsonValue } from './ts7-session.ts'
 
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx'])
 
@@ -22,7 +22,7 @@ function existingSourceFile(candidate: string): string | undefined {
   return undefined
 }
 
-function stringList(value: object | string | number | boolean | null | undefined): string[] {
+function stringList(value: JsonValue | undefined): string[] {
   if (!Array.isArray(value)) return []
   const targets: string[] = []
   for (const entry of value) {
@@ -31,16 +31,15 @@ function stringList(value: object | string | number | boolean | null | undefined
   return targets
 }
 
-function pathMap(config: object): Record<string, string[]> {
-  if (!Object.hasOwn(config, 'compilerOptions')) return {}
-  const options = Reflect.get(config, 'compilerOptions')
-  if (options === null || typeof options !== 'object' || Array.isArray(options)) return {}
-  if (!Object.hasOwn(options, 'paths')) return {}
-  const paths = Reflect.get(options, 'paths')
-  if (paths === null || typeof paths !== 'object' || Array.isArray(paths)) return {}
+function pathMap(config: JsonValue): Record<string, string[]> {
+  if (typeof config !== 'object' || config === null || Array.isArray(config) || !Object.hasOwn(config, 'compilerOptions')) return {}
+  const options = config.compilerOptions
+  if (options === undefined || options === null || typeof options !== 'object' || Array.isArray(options) || !Object.hasOwn(options, 'paths')) return {}
+  const paths = options.paths
+  if (paths === undefined || paths === null || typeof paths !== 'object' || Array.isArray(paths)) return {}
   const mapped: Record<string, string[]> = {}
   for (const key of Object.keys(paths)) {
-    const targets = stringList(Reflect.get(paths, key))
+    const targets = stringList(paths[key])
     if (targets.length > 0) mapped[key] = targets
   }
   return mapped

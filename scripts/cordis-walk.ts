@@ -82,7 +82,7 @@ export function contextKeyMap(body: ModuleBlock, sf: SourceFile): Map<string, st
   for (const stmt of body.statements) {
     if (!isInterfaceDeclaration(stmt) || stmt.name.text !== 'Context') continue
     for (const member of stmt.members) {
-      if (!isPropertySignatureDeclaration(member) || member.type === undefined) continue
+      if (!isPropertySignatureDeclaration(member)) continue
       keyToType.set(member.name.getText(sf), member.type.getText(sf))
     }
   }

@@ -56,13 +56,13 @@ export function readObjectFile(path: string): object {
 
 function optionalString(record: object, key: string): string | undefined {
   if (!Object.hasOwn(record, key)) return undefined
-  const value = Reflect.get(record, key)
+  const value: unknown = Reflect.get(record, key)
   return typeof value === 'string' ? value : undefined
 }
 
 function optionalStringRecord(record: object, key: string): Record<string, string> {
   if (!Object.hasOwn(record, key)) return {}
-  const value = Reflect.get(record, key)
+  const value: unknown = Reflect.get(record, key)
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return {}
   const out: Record<string, string> = {}
   for (const [name, range] of Object.entries(value)) {
@@ -82,7 +82,7 @@ function toManifest(record: object): Manifest {
 }
 
 function stringList(
-  value: object | string | number | boolean | null | undefined,
+  value: unknown,
   packageName: string,
   manifestPath: string,
   field: string,
@@ -113,12 +113,12 @@ function readDeclaration(
     runtimeSourceUses: {}, runtimeSourceSpecifiers: {},
   }
   if (!Object.hasOwn(record, 'dsh')) return blank
-  const dsh = Reflect.get(record, 'dsh')
+  const dsh: unknown = Reflect.get(record, 'dsh')
   if (dsh === undefined) return blank
   if (dsh === null || typeof dsh !== 'object' || Array.isArray(dsh) || !Object.hasOwn(dsh, 'client')) {
     return blank
   }
-  const rawClient = Reflect.get(dsh, 'client')
+  const rawClient: unknown = Reflect.get(dsh, 'client')
   if (rawClient === undefined) return blank
   if (rawClient === null || typeof rawClient !== 'object' || Array.isArray(rawClient)) {
     malformed.push(manifestPath + ': ' + name + ' dsh.client must be an object')
@@ -193,14 +193,14 @@ function readStringLiteralArray(root: string, sourcePath: string, name: string):
 
 async function readStaticLinkedRoster(root: string): Promise<Set<string>> {
   const presetUrl = pathToFileURL(resolve(import.meta.dirname, '..', STATIC_PRESET_SOURCE)).href
-  const preset: StaticLinkedPreset = await import(presetUrl)
+  const preset = await import(presetUrl) as StaticLinkedPreset
   if (typeof preset.isStaticLinkedConfig !== 'function') {
     throw new Error(GATE + ': ' + STATIC_PRESET_SOURCE + ' exports no isStaticLinkedConfig')
   }
   const predicate = preset.isStaticLinkedConfig
   const roster = new Set<string>()
   for (const configPath of globSync(CONFIG_GLOB, { cwd: root }).map(normalizePath).sort()) {
-    const loaded: TsdownConfigModule = await import(pathToFileURL(resolve(root, configPath)).href)
+    const loaded = await import(pathToFileURL(resolve(root, configPath)).href) as TsdownConfigModule
     if (typeof loaded.default !== 'function') continue
     const configs = loaded.default({ env: { DSH_BUILD_FACE: 'client' } })
     if (!Array.isArray(configs) || !predicate(configs)) continue

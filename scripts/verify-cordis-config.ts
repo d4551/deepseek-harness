@@ -13,19 +13,20 @@
 import { globSync, readFileSync } from 'node:fs'
 import { dirname, relative, resolve } from 'node:path'
 import { cordisConfigFiles } from './cordis-config-files.ts'
-import { loadCordisYaml } from './cordis-yaml.ts'
+import { loadCordisYaml, type CordisObject } from './cordis-yaml.ts'
 import { collectImportedSpecifiers } from './verify-cordis-config-imports.ts'
 import { metadataExpressionErrors as metadataErrors } from './verify-cordis-config-metadata.ts'
 import {
   forEachLoaderEntry,
   validateClientHalvesDeclared as clientHalves,
   validatePresetPlaneSeparation as presetPlanes,
+  type ClientHalvesManifest,
 } from './verify-cordis-config-planes.ts'
 import {
   loadBasePaths,
   resolveSpecifierThroughPaths,
 } from './verify-cordis-config-paths.ts'
-import { readConfigFile } from './ts7-session.ts'
+import { readConfigFile, type JsonValue } from './ts7-session.ts'
 
 export interface PackageManifest {
   name?: string
@@ -55,7 +56,7 @@ const errors: string[] = []
 const pluginReferences: PluginReference[] = []
 
 /** @see {@link ./verify-cordis-config-metadata.ts} */
-export function metadataExpressionErrors(entry: object, path: string): string[] {
+export function metadataExpressionErrors(entry: CordisObject, path: string): string[] {
   return metadataErrors(entry, path)
 }
 
@@ -77,7 +78,7 @@ if (import.meta.main) {
   errors.push(...packageTestFixtureDependencyErrors())
   errors.push(...validateSourcePlaneResolution())
   errors.push(...presetPlanes(root))
-  errors.push(...clientHalves(root, path => readManifest(path)))
+  errors.push(...clientHalves(root, path => manifestToHalves(readManifest(path))))
   if (errors.length > 0) {
     process.stderr.write('verify-cordis-config: invalid Loader metadata or plugin package resolution:\n')
     for (const error of errors) process.stderr.write(`- ${error}\n`)
@@ -87,8 +88,22 @@ if (import.meta.main) {
   }
 }
 
-function recordAndValidate(entry: object, file: string, path: string) {
-  const name = Reflect.get(entry, 'name')
+function manifestToHalves(manifest: PackageManifest): ClientHalvesManifest {
+  const manifestRecord = manifest as Record<string, JsonValue | undefined>
+  const exportsField = manifestRecord.exports
+  const dshField = manifestRecord.dsh
+  return {
+    ...exportsField === undefined || typeof exportsField !== 'object' || Array.isArray(exportsField)
+      ? {}
+      : { exports: exportsField },
+    ...dshField === undefined || typeof dshField !== 'object' || Array.isArray(dshField)
+      ? {}
+      : { dsh: dshField as { client?: JsonValue } },
+  }
+}
+
+function recordAndValidate(entry: CordisObject, file: string, path: string) {
+  const name = entry.name
   if (typeof name === 'string') pluginReferences.push({ file, name })
   for (const problem of metadataExpressionErrors(entry, path)) errors.push(`${file}${problem}`)
 }
@@ -286,16 +301,16 @@ function missingPluginDependencies(
     : `${[...locations].join(', ')}: ${packageName} must be declared in ${dependencyOwner}`)
 }
 
-function optionalString(record: object, key: string): string | undefined {
-  if (!Object.hasOwn(record, key)) return undefined
-  const value = Reflect.get(record, key)
+function optionalString(record: JsonValue, key: string): string | undefined {
+  if (typeof record !== 'object' || record === null || Array.isArray(record)) return undefined
+  const value = record[key]
   return typeof value === 'string' ? value : undefined
 }
 
-function optionalStringRecord(record: object, key: string): Record<string, string> {
-  if (!Object.hasOwn(record, key)) return {}
-  const value = Reflect.get(record, key)
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return {}
+function optionalStringRecord(record: JsonValue, key: string): Record<string, string> {
+  if (typeof record !== 'object' || record === null || Array.isArray(record)) return {}
+  const value = record[key]
+  if (value === undefined || value === null || typeof value !== 'object' || Array.isArray(value)) return {}
   const out: Record<string, string> = {}
   for (const [name, range] of Object.entries(value)) {
     if (typeof range === 'string') out[name] = range
@@ -307,16 +322,16 @@ function readManifest(path: string, repoRoot: string = root): PackageManifest {
   const result = readConfigFile(resolve(repoRoot, path))
   if (result.error !== undefined) throw new Error(result.error.messageText)
   const config = result.config
-  if (config === null || typeof config !== 'object' || Array.isArray(config)) {
+  if (config === null || config === undefined || typeof config !== 'object' || Array.isArray(config)) {
     throw new Error(`${path} is not a JSON object`)
   }
   const name = optionalString(config, 'name')
-  const dsh = Reflect.get(config, 'dsh')
-  const bundle = dsh !== null && typeof dsh === 'object' && !Array.isArray(dsh)
-    ? Reflect.get(dsh, 'bundle')
+  const dsh = config.dsh
+  const bundle = dsh !== undefined && dsh !== null && typeof dsh === 'object' && !Array.isArray(dsh)
+    ? dsh.bundle
     : undefined
-  const patch = bundle !== null && typeof bundle === 'object' && !Array.isArray(bundle)
-    ? Reflect.get(bundle, 'patch')
+  const patch = bundle !== undefined && bundle !== null && typeof bundle === 'object' && !Array.isArray(bundle)
+    ? bundle.patch
     : undefined
   return {
     ...name === undefined ? {} : { name },

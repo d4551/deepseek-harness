@@ -58,13 +58,13 @@ export function parseDeclarationMap(text: string): {
   readonly names: readonly string[]
   readonly sources: readonly string[]
 } {
-  const value = parse(text)
+  const value: unknown = parse(text)
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error('declaration map is not an object')
   }
-  const file = Reflect.get(value, 'file')
-  const names = Reflect.get(value, 'names')
-  const sources = Reflect.get(value, 'sources')
+  const file: unknown = Reflect.get(value, 'file')
+  const names: unknown = Reflect.get(value, 'names')
+  const sources: unknown = Reflect.get(value, 'sources')
   if (typeof file !== 'string' || !Array.isArray(names) || !Array.isArray(sources)) {
     throw new Error('declaration map missing file, names, or sources')
   }
@@ -87,8 +87,8 @@ export async function remoteDescriptors(js: string): Promise<{
   const generated = await loadRemoteModule(js)
   const remote = requiredObject(generated, 'TYPERT_REMOTE')
   const packageName = Reflect.get(remote, 'package')
-  const descriptors = Reflect.get(remote, 'descriptors')
-  if (typeof packageName !== 'string' || !Array.isArray(descriptors)) {
+  const descriptors: unknown = Reflect.get(remote, 'descriptors')
+  if (typeof packageName !== 'string' || !isUnknownArray(descriptors)) {
     throw new Error('TYPERT_REMOTE is missing package or descriptors')
   }
   return {
@@ -97,9 +97,14 @@ export async function remoteDescriptors(js: string): Promise<{
   }
 }
 
+/** `Array.isArray` widens `unknown` to `any[]`; this keeps the element type. */
+function isUnknownArray(value: unknown): value is readonly unknown[] {
+  return Array.isArray(value)
+}
+
 export function descriptorBySuffix(descriptors: readonly object[], suffix: string): object {
   const found = descriptors.find((descriptor) => {
-    const id = Reflect.get(descriptor, 'id')
+    const id: unknown = Reflect.get(descriptor, 'id')
     return typeof id === 'string' && id.endsWith(suffix)
   })
   if (found === undefined) throw new Error(`missing descriptor ${suffix}`)
@@ -107,9 +112,9 @@ export function descriptorBySuffix(descriptors: readonly object[], suffix: strin
 }
 
 export function parameterAt(descriptor: object, index: number): object | undefined {
-  const parameters = Reflect.get(descriptor, 'parameters')
+  const parameters: unknown = Reflect.get(descriptor, 'parameters')
   if (!Array.isArray(parameters)) return undefined
-  const parameter = parameters[index]
+  const parameter: unknown = parameters[index]
   if (parameter === null || typeof parameter !== 'object') return undefined
   return parameter
 }

@@ -15,22 +15,26 @@ import {
 } from 'typescript/unstable/ast/is'
 import { TypertAnalysisError } from './analyzer-error.ts'
 import { importTypeModule } from './analyzer-literals.ts'
+import { asNode } from './ts7-syntax.ts'
 
+/** A node that can carry a type reference: an authored type node or a heritage clause entry. */
 export type ReferenceSite = TypeNode | import('typescript/unstable/ast').ExpressionWithTypeArguments
 
+/**
+ * The module a reference site imports its root name from.
+ * @param node - reference site.
+ * @returns the import specifier, or undefined when the name is declared locally.
+ */
 export function moduleSpecifierOf(node: Node): string | undefined {
   if (isImportTypeNode(node)) return importTypeModule(node)
   let first: string | undefined
   if (isTypeReferenceNode(node)) {
     first = isIdentifier(node.typeName) ? node.typeName.text : node.typeName.getText().split('.')[0]
   } else if ('expression' in node) {
-    const expression = node.expression
-    if (expression === undefined || expression === null || typeof expression !== 'object') return undefined
-    first = 'text' in expression && typeof expression.text === 'string'
-      ? expression.text
-      : 'getText' in expression && typeof expression.getText === 'function'
-        ? expression.getText().split('.')[0]
-        : undefined
+    const expression = asNode(node.expression)
+    if (expression === undefined) return undefined
+    const text: unknown = Reflect.get(expression, 'text')
+    first = typeof text === 'string' ? text : expression.getText().split('.')[0]
   }
   if (first === undefined) return undefined
   const sourceFile = node.getSourceFile()
@@ -76,6 +80,14 @@ export function importForSymbol(site: Node, symbolName: string): { readonly spec
   return undefined
 }
 
+/**
+ * The name a module exports the reference under, recovered from the import
+ * that brought its local name in.
+ * @param node - reference site.
+ * @param moduleSpecifier - module the name was imported from.
+ * @returns the exported name, `default` for a default import.
+ * @throws TypertAnalysisError when no import in the file binds that name.
+ */
 export function authoredExportName(node: Node, moduleSpecifier: string): string {
   if (isImportTypeNode(node)) {
     return node.qualifier === undefined ? 'default' : node.qualifier.getText().split('.')[0] ?? 'default'
@@ -104,6 +116,11 @@ export function authoredExportName(node: Node, moduleSpecifier: string): string 
   throw new TypertAnalysisError(`typert: cannot recover export name for ${localName} from ${moduleSpecifier}`)
 }
 
+/**
+ * Whether an `import(...)` type argument is a literal type node.
+ * @param node - the import type's argument.
+ * @returns true for a literal type node.
+ */
 export function isLiteralTypeImportArgument(node: Node): node is import('typescript/unstable/ast').LiteralTypeNode {
   return isLiteralTypeNode(node)
 }

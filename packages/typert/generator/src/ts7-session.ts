@@ -21,8 +21,11 @@ function compiler(): API {
   return api
 }
 
-/** Shut down the Go compiler session. */
-export function closeCompiler() {
+/**
+ * Shut down the Go compiler session and kill its child process.
+ * @returns nothing.
+ */
+export function closeCompiler(): void {
   api?.close()
   api = undefined
   textRoot = undefined
@@ -167,11 +170,14 @@ export function readJsoncObject(path: string): object | undefined {
   const errors: ParseError[] = []
   const root = parseTree(readFileSync(path, 'utf8'), errors)
   if (errors.length > 0 || root === undefined) return undefined
-  const value = getNodeValue(root)
+  const value: unknown = getNodeValue(root)
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return undefined
   return value
 }
-/** Shared TypeScript 7 API for opening configured projects. */
+/**
+ * Shared TypeScript 7 API for opening configured projects.
+ * @returns the session API, created on first use.
+ */
 export function compilerApi(): API {
   return compiler()
 }
@@ -179,7 +185,8 @@ export function compilerApi(): API {
 /**
  * Tell the compiler session an on-disk source file changed.
  * @param file - absolute path of the written file.
+ * @returns nothing.
  */
-export function notifyFileChanged(file: string) {
+export function notifyFileChanged(file: string): void {
   compiler().updateSnapshot({ fileChanges: { changed: [file] } })
 }

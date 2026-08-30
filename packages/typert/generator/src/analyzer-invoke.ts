@@ -68,7 +68,6 @@ function invocationModel(
   method: MethodDeclaration,
   invocation: ReturnType<typeof remoteMarker> & object,
 ): InvocationModel {
-  if (invocation === undefined) face.fail(method, 'Remote marker missing')
   if (visibilityOf(method) !== 'public' || hasModifier(method, SyntaxKind.StaticKeyword)) {
     face.fail(method, 'Remote decorators require a public instance method')
   }
@@ -228,7 +227,15 @@ function invocationScope(
   return { context: context.key, wire: parameter.wire }
 }
 
-export function validateInvocationIdentity(face: FaceContext, packages: readonly PackageModel[]) {
+/**
+ * Reject two Remote methods that would answer to the same endpoint or id.
+ * @param face - extraction context, named in the failure.
+ * @param packages - every analyzed package of this face.
+ * @returns nothing.
+ * @throws TypertAnalysisError on a duplicate `namespace/method` endpoint or
+ *   invocation id.
+ */
+export function validateInvocationIdentity(face: FaceContext, packages: readonly PackageModel[]): void {
   const endpoints = new Map<string, InvocationModel>()
   const ids = new Map<string, InvocationModel>()
   for (const invocation of packages.flatMap(packageModel => packageModel.invocations)) {

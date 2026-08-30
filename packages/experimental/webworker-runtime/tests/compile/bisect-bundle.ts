@@ -11,7 +11,7 @@ function parses(upto: number): Promise<boolean> {
   writeFileSync(probe, lines.slice(0, upto).join('\n'))
   return import(`${pathToFileURL(probe).href}?n=${String(upto)}`).then(
     () => true,
-    (reason: object) => (reason as Error).name !== 'SyntaxError',
+    (reason: unknown) => (reason as Error).name !== 'SyntaxError',
   )
 }
 

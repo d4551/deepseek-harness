@@ -123,7 +123,7 @@ function intoMembers(
   for (const m of members) {
     if (!isPropertySignatureDeclaration(m) || m.name.getText(ctx.sf) !== step.member) continue
     if (steps.length === 1) return 'found'
-    return m.type ? lookupPath(world, ctx, m.type, steps.slice(1), seen) : 'unknown'
+    return lookupPath(world, ctx, m.type, steps.slice(1), seen)
   }
   return null
 }

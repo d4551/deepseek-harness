@@ -16,14 +16,19 @@ export interface ParsedConfig {
   readonly projectReferences: readonly { readonly path: string }[]
 }
 
+/** `Array.isArray` widens `unknown` to `any[]`; this keeps the element type. */
+function isUnknownArray(value: unknown): value is readonly unknown[] {
+  return Array.isArray(value)
+}
+
 function referencePaths(config: object, compilerPath: string): { path: string }[] {
   if (!Object.hasOwn(config, 'references')) return []
-  const refs = Reflect.get(config, 'references')
-  if (!Array.isArray(refs)) return []
+  const refs: unknown = Reflect.get(config, 'references')
+  if (!isUnknownArray(refs)) return []
   const result: { path: string }[] = []
   for (const ref of refs) {
     if (ref === null || typeof ref !== 'object' || Array.isArray(ref) || !Object.hasOwn(ref, 'path')) continue
-    const path = Reflect.get(ref, 'path')
+    const path: unknown = Reflect.get(ref, 'path')
     if (typeof path !== 'string') continue
     result.push({ path: projectConfigPath(resolve(dirname(compilerPath), path)) })
   }

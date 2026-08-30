@@ -139,7 +139,7 @@ describe('terminal-design type chain', () => {
       // Owner + store shares arrive typed on the component face. Standard-kit
       // member payloads are the owning adapters' property — not probed here
       // (their package tests cover them).
-      fp.renderSlot('chain.side', { collapsed: false, width: 280 })
+      void fp.renderSlot('chain.side', { collapsed: false, width: 280 })
       const draft: string = cp.useStore(s => s.draft)
       cp.actions.select({ id: 'm1' })
       void draft
@@ -166,8 +166,8 @@ describe('terminal-design type chain', () => {
       // renderSlotChain share: chain keys dispatch with the fallback bag;
       // non-chain keys stay on renderSlot.
       const chainSlots: PropsRenderSlots<'chain.takeover' | 'chain.conv'> = null as never
-      chainSlots.renderSlotChain('chain.takeover', { items: [] }, { fallback: null })
-      chainSlots.renderSlot('chain.conv', {})
+      void chainSlots.renderSlotChain('chain.takeover', { items: [] }, { fallback: null })
+      void chainSlots.renderSlot('chain.conv', {})
 
       // A parent registration declares the Slot inject once; every child
       // entry receives the same custom Hook, bound to official standard props
@@ -182,7 +182,7 @@ describe('terminal-design type chain', () => {
       const contextProps: ContextProps = null as never
       const tail: string | undefined = contextProps.useTurnData('tail')
       const contextSlots: PropsRenderSlots<'chain.context'> = null as never
-      contextSlots.renderSlot('chain.context', {}, {
+      void contextSlots.renderSlot('chain.context', {}, {
         hookContext: 'turn:1',
       })
       void tail
@@ -255,23 +255,23 @@ describe('terminal-design type chain', () => {
 
       // Chain keys are not renderSlot-dispatchable (and vice versa).
       // @ts-expect-error chain keys dispatch through renderSlotChain only
-      chainSlots.renderSlot('chain.takeover', { items: [] })
+      void chainSlots.renderSlot('chain.takeover', { items: [] })
       // @ts-expect-error non-chain keys have no renderSlotChain dispatch
-      chainSlots.renderSlotChain('chain.conv', {})
+      void chainSlots.renderSlotChain('chain.conv', {})
       // @ts-expect-error a children set without chain keys provides no renderSlotChain
       type _NoChainSeat = typeof fp.renderSlotChain
 
       // renderSlot owner share typed at the call site.
       // @ts-expect-error owner shape mismatch (width missing)
-      fp.renderSlot('chain.side', { collapsed: false })
+      void fp.renderSlot('chain.side', { collapsed: false })
       // @ts-expect-error key not in this render share
-      fp.renderSlot('chain.tools', {})
+      void fp.renderSlot('chain.tools', {})
 
       // Contextual hooks preserve both the business key and value type.
       // @ts-expect-error unknown Turn-data key
       contextProps.useTurnData('other')
       // @ts-expect-error a contextual slot requires its occurrence context
-      contextSlots.renderSlot('chain.context', {})
+      void contextSlots.renderSlot('chain.context', {})
       // @ts-expect-error hookContext is the slot-declared string
       const _wrongContextFactory: SlotHookFactory<'chain.context', UseTurnData> =
         (_standard, _hookContext: number) => () => undefined
@@ -283,7 +283,7 @@ describe('terminal-design type chain', () => {
       acts.setDraft(1)
 
       // SessionProvider seat: derives from a session-scope child declaration.
-      fp.SessionProvider({ empty: () => null, children: null })
+      void fp.SessionProvider({ empty: () => null, children: null })
       const sideOnly: PropsRenderSlots<'chain.side'> = null as never
       // @ts-expect-error only root-scope children declared → no SessionProvider seat
       void sideOnly.SessionProvider

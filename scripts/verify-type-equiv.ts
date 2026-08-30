@@ -86,9 +86,10 @@ function readManifestEntries(): ManifestEntry[] {
   if (config === null || typeof config !== 'object' || Array.isArray(config) || !('entries' in config)) {
     throw new Error('verify-type-equiv: manifest has no entries array')
   }
-  const entries = Reflect.get(config, 'entries')
+  const entries: unknown = Reflect.get(config, 'entries')
   if (!Array.isArray(entries)) throw new Error('verify-type-equiv: manifest has no entries array')
-  return entries
+  // The manifest is a repository-owned file; its rows are read as declared.
+  return entries as ManifestEntry[]
 }
 
 const entries = readManifestEntries()

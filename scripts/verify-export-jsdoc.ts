@@ -16,7 +16,7 @@ import { TypeScriptProject } from './ts-project.ts'
 
 const root = resolve(import.meta.dirname, '..')
 
-function exportedTargets(value: object | string | number | boolean | null | undefined): string[] {
+function exportedTargets(value: unknown): string[] {
   if (typeof value === 'string') return [value]
   if (value === null || typeof value !== 'object') return []
   return Object.values(value).flatMap(entry =>
@@ -36,7 +36,7 @@ function sourceEntry(target: string): string | undefined {
 
 function optionalExports(record: object): object | undefined {
   if (!Object.hasOwn(record, 'exports')) return undefined
-  const value = Reflect.get(record, 'exports')
+  const value: unknown = Reflect.get(record, 'exports')
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return undefined
   return value
 }

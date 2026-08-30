@@ -99,8 +99,17 @@ export function flattenDiagnosticMessageText(
   return [messageText.text, ...chain.map(entry => flattenDiagnosticMessageText(entry, separator))].join(separator)
 }
 
+/** One value a JSON/JSONC document can hold: scalars, arrays, or objects. */
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue | undefined }
+
 export interface JsoncParseResult {
-  readonly config: string | number | boolean | null | object | readonly (string | number | boolean | null | object)[] | undefined
+  readonly config: JsonValue | undefined
   readonly error?: { readonly messageText: string }
 }
 

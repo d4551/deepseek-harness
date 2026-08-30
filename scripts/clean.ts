@@ -29,6 +29,11 @@ async function childDirectories(path: string): Promise<string[]> {
   }
 }
 
+/** `Array.isArray` widens `unknown` to `any[]`; this keeps the element type. */
+function isUnknownArray(value: unknown): value is readonly unknown[] {
+  return Array.isArray(value)
+}
+
 function repositoryPath(root: string, path: string): string {
   return relative(root, path).split(sep).join('/')
 }
@@ -38,9 +43,11 @@ function parseConfig(configPath: string): { readonly outDir: string | undefined;
   const read = readConfigFile(configPath)
   if (read.error !== undefined) throw new Error(`clean: cannot parse TypeScript config ${configPath}: ${read.error.messageText}`)
   const config = read.config
-  const references = config !== null && typeof config === 'object' && !Array.isArray(config) && 'references' in config
-    && Array.isArray(config.references)
-    ? config.references.flatMap((entry) => {
+  const declared: unknown = config !== null && typeof config === 'object' && !Array.isArray(config) && 'references' in config
+    ? config.references
+    : undefined
+  const references = isUnknownArray(declared)
+    ? declared.flatMap((entry) => {
       if (entry === null || typeof entry !== 'object' || Array.isArray(entry) || !('path' in entry) || typeof entry.path !== 'string') {
         return []
       }

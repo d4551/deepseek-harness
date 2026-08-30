@@ -15,8 +15,11 @@ import { isTypeMetaSymbol } from './analyzer-meta.ts'
 import { isRemoteSegment, stringLiteralValue } from './analyzer-names.ts'
 import { decoratorsOf, isDefaultLibraryDeclaration, preferredDeclaration, resolveDeclarations } from './ts7-syntax.ts'
 
+/** A `@Remote` decorator: the method is called on the service itself. */
 export type DirectMarker = { readonly kind: 'direct'; readonly exportName?: string; readonly mode?: 'stream' }
+/** A `@RemoteScope` decorator: the method is called through a named scope. */
 export type ContextMarker = { readonly kind: 'context'; readonly context: string; readonly exportName?: string }
+/** Either Remote decorator, discriminated by `kind`. */
 export type RemoteMarker = DirectMarker | ContextMarker
 
 /**
@@ -111,6 +114,13 @@ export function remoteResultType(face: FaceContext, method: MethodDeclaration, m
   return authored
 }
 
+/**
+ * Whether a type names the standard library's `AbortSignal` rather than a
+ * same-named workspace type.
+ * @param face - extraction context.
+ * @param type - authored type node.
+ * @returns true when the symbol is declared in a compiler library file.
+ */
 export function isGlobalAbortSignal(face: FaceContext, type: TypeNode): boolean {
   const symbol = face.symbolAtType(type)
   if (symbol?.name !== 'AbortSignal') return false

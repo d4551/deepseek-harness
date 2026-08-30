@@ -72,6 +72,16 @@ function unionWithUndefined(face: FaceContext, site: TypeNode, member: TypeNodeI
   return face.addNode(site, { kind: 'union', types: [member, undefinedId] })
 }
 
+/**
+ * Convert a Remote parameter or result to the codec type graph, projecting the
+ * resolved type rather than the authored one so aliases and generics are flat.
+ * @param face - extraction context.
+ * @param authoredType - type node the value was authored with; failures locate here.
+ * @param resolvedType - checker type to project.
+ * @param topLevelAbsence - whether the top level may be absent, and in which form.
+ * @returns the id of the projected codec type node.
+ * @throws TypertAnalysisError when the resolved type is not JSON-transportable.
+ */
 export function resolvedRemoteCodecType(
   face: FaceContext,
   authoredType: TypeNode,

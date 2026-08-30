@@ -9,11 +9,11 @@ import { isWithin } from './analyzer-util.ts'
 
 function optionalString(record: object, key: string): string | undefined {
   if (!Object.hasOwn(record, key)) return undefined
-  const value = Reflect.get(record, key)
+  const value: unknown = Reflect.get(record, key)
   return typeof value === 'string' ? value : undefined
 }
 
-function exportTarget(value: object | string | number | boolean | null | undefined): string | undefined {
+function exportTarget(value: unknown): string | undefined {
   if (typeof value === 'string') return value
   if (Array.isArray(value)) {
     for (const candidate of value) {
@@ -40,7 +40,7 @@ function exportTarget(value: object | string | number | boolean | null | undefin
  * @returns sorted export subpaths with their filesystem targets.
  */
 export function packageExportTargets(manifest: object): [string, string][] {
-  const exportsField = Reflect.get(manifest, 'exports')
+  const exportsField: unknown = Reflect.get(manifest, 'exports')
   if (typeof exportsField === 'string') return [['.', exportsField]]
   if (exportsField === null || typeof exportsField !== 'object') {
     const types = optionalString(manifest, 'types')
@@ -61,6 +61,11 @@ export function packageExportTargets(manifest: object): [string, string][] {
   return result.sort(([left], [right]) => left.localeCompare(right))
 }
 
+/**
+ * Export subpaths a package serves from its Host face.
+ * @param manifest - package manifest.
+ * @returns every declared subpath except the browser halves and `./remote`.
+ */
 export function hostExportSubpaths(manifest: object): string[] {
   return packageExportTargets(manifest)
     .map(([subpath]) => subpath)
@@ -88,21 +93,38 @@ export function isSourceExportTarget(subpath: string, target: string): boolean {
     && !target.endsWith('.yaml')
 }
 
+/**
+ * Export subpaths a package serves from its Client face.
+ * @param manifest - package manifest.
+ * @returns `./client` and every subpath beneath it.
+ */
 export function clientExportSubpaths(manifest: object): string[] {
   return packageExportTargets(manifest)
     .map(([subpath]) => subpath)
     .filter(subpath => subpath === './client' || subpath.startsWith('./client/'))
 }
 
+/**
+ * Whether a package ships both faces.
+ * @param manifest - package manifest.
+ * @returns true when it declares `dsh.client` and exports at least one browser half.
+ */
 export function isDualFacePackage(manifest: object): boolean {
-  const dsh = Reflect.get(manifest, 'dsh')
+  const dsh: unknown = Reflect.get(manifest, 'dsh')
   if (dsh === null || typeof dsh !== 'object' || Array.isArray(dsh)) return false
-  const client = Reflect.get(dsh, 'client')
+  const client: unknown = Reflect.get(dsh, 'client')
   return client !== null
     && typeof client === 'object'
     && clientExportSubpaths(manifest).length > 0
 }
 
+/**
+ * The authored source file behind one built export target.
+ * @param packageRoot - package directory.
+ * @param target - export target as the manifest declares it.
+ * @returns the `src` path a `lib/` or `lib/types/` target was emitted from,
+ *   or the target resolved as written when it names no build output.
+ */
 export function sourcePathForExport(packageRoot: string, target: string): string {
   const normalized = target.replace(/^\.\//, '')
   if (normalized.startsWith('lib/types/')) {
@@ -128,7 +150,7 @@ export function sourcePathForExport(packageRoot: string, target: string): string
  * @throws TypertAnalysisError when the entry surface is malformed.
  */
 export function validatePackageEntrySurface(manifest: object, name: string, packageRoot: string): void {
-  const exportsField = Reflect.get(manifest, 'exports')
+  const exportsField: unknown = Reflect.get(manifest, 'exports')
   if (exportsField === undefined) return
   if (exportsField === null || (typeof exportsField !== 'object' && typeof exportsField !== 'string')) {
     throw new TypertAnalysisError(`${name} package.json exports must be a string, condition object, or subpath map`)
@@ -145,6 +167,11 @@ export function validatePackageEntrySurface(manifest: object, name: string, pack
   }
 }
 
+/**
+ * The tsconfig a project reference names.
+ * @param path - reference path, a config file or a directory.
+ * @returns the path itself for a `.json` file, its `tsconfig.json` otherwise.
+ */
 export function projectConfigPath(path: string): string {
   if (path.endsWith('.json')) return path
   return resolve(path, 'tsconfig.json')

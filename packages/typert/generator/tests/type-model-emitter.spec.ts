@@ -32,7 +32,7 @@ describe('FaceModelEmitter', { timeout: 60_000 }, () => {
     temporaryRoots.push(root)
     const modulePath = join(root, 'host.mjs')
     writeFileSync(modulePath, artifact.js)
-    const generated: object = await import(`${pathToFileURL(modulePath).href}?test=${String(Date.now())}`)
+    const generated = await import(`${pathToFileURL(modulePath).href}?test=${String(Date.now())}`) as object
     const payload = requiredObject(generated, 'Payload')
     expect(generatedSuccess(payload, { name: 'ready', count: 2 })).toBe(true)
     expect(generatedSuccess(payload, { name: 'ready', count: 'two' })).toBe(false)
@@ -46,15 +46,15 @@ describe('FaceModelEmitter', { timeout: 60_000 }, () => {
     const typertModel = requiredObject(typert, 'model')
     const services = Reflect.get(typertModel, 'services')
     if (!Array.isArray(services)) throw new Error('generated TYPERT has no services')
-    const demo = services.find(service =>
+    const demo: unknown = services.find(service =>
       service !== null && typeof service === 'object' && Reflect.get(service, 'key') === 'demo')
     if (demo === null || typeof demo !== 'object') throw new Error('generated TYPERT has no demo service')
     expect(demo).toMatchObject({ key: 'demo' })
-    const members = Reflect.get(demo, 'members')
+    const members: unknown = Reflect.get(demo, 'members')
     if (!Array.isArray(members)) throw new Error('demo service has no members')
     const signatures = members.flatMap((member) => {
       if (member === null || typeof member !== 'object') return []
-      const signature = Reflect.get(member, 'signature')
+      const signature: unknown = Reflect.get(member, 'signature')
       return typeof signature === 'string' ? [signature] : []
     })
     expect(signatures).toContain(

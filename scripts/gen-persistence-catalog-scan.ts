@@ -91,7 +91,7 @@ function packageNameFor(rel: string, scanRoot: string): string | null {
   if (parsed.error !== undefined || parsed.config === null || typeof parsed.config !== 'object' || Array.isArray(parsed.config)) {
     return null
   }
-  const name = Reflect.get(parsed.config, 'name')
+  const name: unknown = Reflect.get(parsed.config, 'name')
   return typeof name === 'string' ? name : null
 }
 
@@ -130,7 +130,7 @@ export function collectLogEvents(scanRoot: string = root): LogEventEntry[] {
       }
       for (const member of decl.members) {
         const src = pointer(rel, sf, member)
-        if (!isPropertySignatureDeclaration(member) || member.type === undefined) {
+        if (!isPropertySignatureDeclaration(member)) {
           const label = isPropertySignatureDeclaration(member) ? member.name.getText(sf) : member.getText(sf).replace(/\s+/g, ' ')
           violations.push(`SessionEventMap member ${label} (${src}) is not a property signature with an explicit payload type; declare every log event as 'scope/name': <payload>.`)
           continue

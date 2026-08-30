@@ -40,10 +40,17 @@ export interface WorkspaceAnalyzerOptions {
 
 /** Shared memo over one immutable workspace snapshot. */
 export class WorkspaceCaches {
+  /** Parsed tsconfigs by path. */
   readonly configs = new Map<string, ParsedConfig>()
+  /** Package registrations by aggregate config path. */
   readonly registrations = new Map<string, PackageRegistration[]>()
   private readonly projects = new Map<string, FaceProject>()
 
+  /**
+   * Parse one tsconfig, reused across analyses.
+   * @param path - absolute tsconfig path.
+   * @returns the memoized parse.
+   */
   config(path: string): ParsedConfig {
     let parsed = this.configs.get(path)
     if (parsed === undefined) {
@@ -71,8 +78,9 @@ export class WorkspaceCaches {
   /**
    * Notify the compiler session after a write-mode edit.
    * @param file - path of the edited file.
+   * @returns nothing.
    */
-  invalidate(file: string) {
+  invalidate(file: string): void {
     notifyFileChanged(file)
   }
 }

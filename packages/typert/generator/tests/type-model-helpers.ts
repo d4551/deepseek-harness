@@ -263,7 +263,7 @@ export function setCompilerOption(
 }
 
 export function requiredObject(value: object, key: string): JsonRecord {
-  const found = Reflect.get(value, key)
+  const found: unknown = Reflect.get(value, key)
   if (found === null || typeof found !== 'object') {
     throw new Error(`generated module is missing object ${key}`)
   }
