@@ -62,12 +62,18 @@ describe('injected SSOT violations', () => {
     expect(kinds.has('one-off-script')).toBe(true)
   })
 
-  it('keeps the painted-literal detector in the scanner source', async () => {
-    const source = await import('node:fs').then(fs =>
-      fs.readFileSync(new URL('./client-ui-ssot.ts', import.meta.url), 'utf8'))
-    expect(source).toContain('#[0-9a-fA-F]{3,8}')
-    expect(source).toContain('rgba?(')
-    expect(source).toContain('oklch(')
+  it('flags painted color literals in component CSS', () => {
+    const findings = scanUiSsot([
+      THEME,
+      FRAME,
+      {
+        file: 'packages/client/ui-chat/src/Painted.module.css',
+        content: '.a { fill: rgb(1, 2, 3); } .b { stroke: oklch(0.7 0.1 250); }\n',
+      },
+    ])
+    const painted = findings.filter(f => f.kind === 'token-bypass')
+    expect(painted).toHaveLength(1)
+    expect(painted[0]?.file).toBe('packages/client/ui-chat/src/Painted.module.css')
   })
 
   it('fails an interactive control whose width and height are both under 24px', () => {
