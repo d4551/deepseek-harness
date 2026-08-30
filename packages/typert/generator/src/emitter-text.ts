@@ -20,3 +20,12 @@ export function indent(value: string, spaces: number): string {
   const prefix = ' '.repeat(spaces)
   return value.split('\n').map(line => `${prefix}${line}`).join('\n')
 }
+
+/** Allocate one unused name from a base, suffixing numerically on collision. */
+export function uniqueName(base: string, used: Set<string>): string {
+  let name = base
+  let suffix = 2
+  while (used.has(name)) name = `${base}${String(suffix++)}`
+  used.add(name)
+  return name
+}

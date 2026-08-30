@@ -13,8 +13,9 @@ import type {
   TypeNodeModel,
 } from './model.ts'
 import { TypeGraphRenderer } from './renderer.ts'
+import { computedSchema } from './computed-projection.ts'
 import { TypertEmitError } from './emitter.ts'
-import { quote, safeIdentifier } from './emitter-text.ts'
+import { quote, safeIdentifier, uniqueName } from './emitter-text.ts'
 import { indexedAccessTargets } from './schema-indexed.ts'
 
 interface SchemaExport {
@@ -38,15 +39,6 @@ export interface BoundarySchemaRoot {
 
 /** Schema-expression substitution for one generic parameter id. */
 type Substitutions = ReadonlyMap<string, string>
-
-/** Allocate one unused name from a base, suffixing numerically on collision. */
-function uniqueName(base: string, used: Set<string>): string {
-  let name = base
-  let suffix = 2
-  while (used.has(name)) name = `${base}${String(suffix++)}`
-  used.add(name)
-  return name
-}
 
 /** Emit Zod definitions and codec boundaries from a rendered type graph. */
 export class SchemaEmitter {
@@ -184,15 +176,18 @@ export class SchemaEmitter {
           const computed = this.computed(node, substitutions, keys)
           return computed ?? this.unsupported(node)
         }
-        if (resolved.kind === 'single') return this.typeSchema(resolved.type, substitutions, keys)
-        if (resolved.types.length === 1) return this.typeSchema(resolved.types[0] as TypeNodeId, substitutions, keys)
-        return `z.union([${resolved.types.map(type => this.typeSchema(type, substitutions, keys)).join(', ')}])`
+        const targets = resolved.kind === 'single' ? [resolved.type] : resolved.types
+        if (targets.some(t => this.typeChain.includes(t))) return this.unsupported(node)
+        if (targets.length === 1) return this.typeSchema(targets[0] as TypeNodeId, substitutions, keys)
+        return `z.union([${targets.map(t => this.typeSchema(t, substitutions, keys)).join(', ')}])`
       }
       case 'operator':
       case 'mapped': {
         const computed = this.computed(node, substitutions, keys)
         return computed ?? this.unsupported(node)
       }
+      case 'infer':
+      case 'template-literal':
       case 'conditional':
       case 'type-query':
       case 'import-type':
@@ -383,11 +378,18 @@ export class SchemaEmitter {
     return readonly ? `${schema}.readonly()` : schema
   }
 
-  private unsupported(node: TypeNodeModel): never {
-    this.fail(node.id, `type node ${node.kind} has no Zod projection`)
+  private computed(
+    node: TypeNodeModel,
+    substitutions: Substitutions,
+    keys: ReadonlyMap<string, string>,
+  ): string | undefined {
+    return computedSchema(node, {
+      renderer: this.renderer,
+      schema: (id, sub, k) => this.typeSchema(id, sub, k),
+      fail: (subject, message) => this.fail(subject, message),
+    }, { substitutions, keys })
   }
 
-  private fail(subject: string, message: string): never {
-    throw new TypertEmitError(`typert Zod emitter: ${subject}: ${message}`)
-  }
+  private unsupported(node: TypeNodeModel): never { this.fail(node.id, `type node ${node.kind} has no Zod projection`) }
+  private fail(subject: string, message: string): never { throw new TypertEmitError(`typert Zod emitter: ${subject}: ${message}`) }
 }

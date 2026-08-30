@@ -258,13 +258,20 @@ export function ownerExportFor(
   owner: PackageRegistration,
   symbol: Symbol,
 ): { readonly module: { readonly package: string; readonly subpath: string }; readonly exportName: string } | undefined {
+  let match: { readonly module: { readonly package: string; readonly subpath: string }; readonly exportName: string } | undefined
   for (const [subpath, target] of packageExportTargets(owner.manifest)) {
     if (!isSourceExportTarget(subpath, target)) continue
     const module = { package: owner.name, subpath }
     const exportName = face.packageExportName(module, symbol, owner.face, symbol.name)
-    if (exportName !== undefined) return { module, exportName }
+    if (exportName === undefined) continue
+    // The most specific subpath wins: root entries commonly re-export what a
+    // deeper entry also names, and generated import specifiers must point at
+    // the entry that actually declares the symbol.
+    if (match === undefined || subpath.length > match.module.subpath.length) {
+      match = { module, exportName }
+    }
   }
-  return undefined
+  return match
 }
 
 function localTarget(
