@@ -2,7 +2,7 @@
  * WorkspaceAnalyzer declaration merge, typeRoots, and registration tests.
  */
 
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { TypertAnalysisError } from '../src/analyzer-error.ts'
@@ -17,6 +17,7 @@ import {
   setCompilerOption,
   temporaryRoots,
   writeObject,
+  writeUnreachablePackage,
 } from './type-model-helpers.ts'
 import { normalizedPath } from './type-model-shared.ts'
 
@@ -52,12 +53,6 @@ function enableAmbientTypeRoots(root: string) {
     setCompilerOption(config, 'types', ['unscoped-global', 'node'])
     writeObject(configPath, config)
   }
-}
-
-function writeUnreachablePackage(root: string, relative: string, withManifest: boolean) {
-  mkdirSync(join(root, relative), { recursive: true })
-  writeFileSync(join(root, relative, 'tsconfig.json'), '{}\n')
-  if (withManifest) writeFileSync(join(root, relative, 'package.json'), '{}\n')
 }
 
 describe('WorkspaceAnalyzer merges', { timeout: 60_000 }, () => {

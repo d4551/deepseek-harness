@@ -4,7 +4,7 @@
 
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { parse } from 'jsonc-parser'
+import { parse, type ParseError } from 'jsonc-parser'
 import type {
   KeywordTypeName,
   MemberModel,
@@ -105,8 +105,22 @@ export function addAggregateReference(root: string, reference: string) {
   writeObject(aggregatePath, aggregate)
 }
 
+/**
+ * Write one package-shaped directory the aggregate graph must ignore.
+ * @param root - fixture workspace root.
+ * @param relative - directory to create under the fixture root.
+ * @param withManifest - whether to write a nameless package.json.
+ */
+export function writeUnreachablePackage(root: string, relative: string, withManifest: boolean) {
+  mkdirSync(join(root, relative), { recursive: true })
+  writeFileSync(join(root, relative, 'tsconfig.json'), '{}\n')
+  if (withManifest) writeFileSync(join(root, relative, 'package.json'), '{}\n')
+}
+
 export function readObject(path: string): object {
-  const value = parse(readFileSync(path, 'utf8'))
+  const errors: ParseError[] = []
+  const value = parse(readFileSync(path, 'utf8'), errors, { allowTrailingComma: true })
+  if (errors.length > 0) throw new Error(`${path} is not valid JSON`)
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error(`${path} is not a JSON object`)
   }
@@ -142,7 +156,9 @@ export function configureDualRuntimeClient(root: string, splitProjects: boolean)
   if (!splitProjects) return
   const project = readObject(join(packageRoot, 'tsconfig.json'))
   Reflect.deleteProperty(project, 'include')
-  const writeProjectConfig = (name: string, value: object) => writeObject(join(packageRoot, name), value)
+  const writeProjectConfig = (name: string, value: object) => {
+    writeObject(join(packageRoot, name), value)
+  }
   writeProjectConfig('tsconfig.host.json', { ...project, files: ['src/index.ts'] })
   writeProjectConfig('tsconfig.client.json', { ...project, files: ['src/client.ts'] })
   writeProjectConfig('tsconfig.json', {

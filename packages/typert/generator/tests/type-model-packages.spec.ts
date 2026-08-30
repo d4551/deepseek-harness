@@ -2,7 +2,7 @@
  * WorkspaceAnalyzer package discovery and export resolution tests.
  */
 
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { WorkspaceAnalyzer } from '../src/analyzer-workspace.ts'
@@ -12,6 +12,7 @@ import {
   readObject,
   temporaryRoots,
   writeObject,
+  writeUnreachablePackage,
   type JsonInput,
 } from './type-model-helpers.ts'
 
@@ -55,12 +56,6 @@ function expectSubpathRejection(root: string) {
 function analyzeHostPackages(root: string) {
   return new WorkspaceAnalyzer({ root }).analyze().faces
     .find(face => face.face === 'host')?.packages.map(item => item.name)
-}
-
-function writeUnreachablePackage(root: string, relative: string, withManifest: boolean) {
-  mkdirSync(join(root, relative), { recursive: true })
-  writeFileSync(join(root, relative, 'tsconfig.json'), '{}\n')
-  if (withManifest) writeFileSync(join(root, relative, 'package.json'), '{}\n')
 }
 
 describe('WorkspaceAnalyzer packages', { timeout: 60_000 }, () => {
