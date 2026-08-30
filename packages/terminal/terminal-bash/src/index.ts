@@ -144,7 +144,7 @@ async function startupSession(
     signal.addEventListener('abort', onAbort, { once: true })
     races.push(aborted.promise)
   }
-  let deadlineTimer: NodeJS.Timeout | undefined
+  let deadlineTimer: ReturnType<typeof setTimeout> | undefined
   if (dialect === 'pwsh') {
     const deadline = Promise.withResolvers<never>()
     deadlineTimer = setTimeout(() => {

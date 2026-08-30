@@ -121,9 +121,20 @@ describe('bash tool through the agent loop', () => {
     await waitForIdle(ctx, agent)
 
     const result = findEvent(events(agent), 'tool/result')
-    expect(resultText(result)).toBe(`${dshHome}\n1\nsession-env-id\n${location?.path}\nunset\nabsent\n`)
+    // The write-behind may materialize the JSONL file before bash runs; both
+    // orderings are correct since DSH_SESSION_JSONL is a path hint.
+    const locationPath = location?.path ?? ''
+    const output = resultText(result)
+    const tail = output.endsWith('\n') ? output.slice(0, -1) : output
+    const rows = tail.split('\n')
+    expect(rows[0]).toBe(dshHome)
+    expect(rows[1]).toBe('1')
+    expect(rows[2]).toBe('session-env-id')
+    expect(rows[3]).toBe(locationPath)
+    expect(rows[4]).toBe('unset')
+    expect(['absent', 'present']).toContain(rows[5])
     await ctx.sessions.flush(agent.session)
-    expect(existsSync(location!.path)).toBe(true)
+    expect(existsSync(locationPath)).toBe(true)
     const header = JSON.parse(readFileSync(location!.path, 'utf8').split('\n')[0]!) as { type: string; id: string }
     expect(header).toMatchObject({ type: 'session', id: 'session-env-id' })
     await handle.dispose()

@@ -141,7 +141,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
   let clientClosed: Promise<void> | undefined
   /** Live tool registrations owned by this server; only {@link enqueueSync} and dispose swap it. */
   let disposers: ToolDisposers = new Map()
-  let reconnectTimer: NodeJS.Timeout | undefined
+  let reconnectTimer: ReturnType<typeof setTimeout> | undefined
   /** Consecutive failed connection attempts within the current outage. */
   let failedAttempts = 0
   /** When the current generation finished connect + initial sync; undefined while down. */

@@ -74,7 +74,7 @@ export async function pickWin32Directory(
 
   const worker: Win32DialogWorkerLike = spawnWorker({ title: DIALOG_TITLE })
   let dialogThreadId: number | undefined
-  let closeTimer: NodeJS.Timeout | undefined
+  let closeTimer: ReturnType<typeof setTimeout> | undefined
   let settled = false
 
   return await new Promise<string | null>((resolve, reject) => {

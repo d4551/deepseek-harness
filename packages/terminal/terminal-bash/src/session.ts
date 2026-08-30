@@ -175,8 +175,8 @@ export class LocalPtySession implements TerminalBackendSession {
   // activeWrite/pollingReady/polling and terminal-protocol work) into one send-lifecycle
   // owner; the cancellation/readiness interplay has enough pinned tests to carry that refactor safely.
   private active: LocalSendOperation | undefined
-  private activeTimer: NodeJS.Timeout | undefined
-  private activeDeadlineTimer: NodeJS.Timeout | undefined
+  private activeTimer: ReturnType<typeof setTimeout> | undefined
+  private activeDeadlineTimer: ReturnType<typeof setTimeout> | undefined
   private activeAbort: (() => void) | undefined
   private interrupting: LocalSendOperation | undefined
   private activeWrite: Promise<boolean> | undefined

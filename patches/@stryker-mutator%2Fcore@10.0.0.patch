@@ -16,7 +16,7 @@ index d17257e928054c73b1e8a041564a6515430fb418..3001f824b171ca1bc7b7f3cc12a8a522
                  if (config) {
                      await this.rewriteExtends(project, config, tsconfigFileName);
                  }
-@@ -88,9 +91,12 @@ export class TSConfigPreprocessor {
+@@ -84,8 +87,10 @@ export class TSConfigPreprocessor {
      async rewriteProjectReferences(project, config, originTSConfigFileName) {
 -        const { default: ts } = await import('typescript');
          if (Array.isArray(config.references)) {
