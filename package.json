@@ -157,6 +157,10 @@
     "postinstall": "node scripts/install-lefthook.mjs"
   },
   "devDependencies": {
+    "@babel/core": "8.0.1",
+    "@babel/plugin-proposal-decorators": "8.0.2",
+    "@babel/plugin-syntax-jsx": "8.0.1",
+    "@babel/preset-typescript": "8.0.1",
     "@deepseek-ai/dsh-acp": "workspace:*",
     "@deepseek-ai/dsh-agent-default-model": "workspace:*",
     "@deepseek-ai/dsh-agent-instructions": "workspace:*",
@@ -252,7 +256,6 @@
     "mdast-util-gfm": "^3.1.0",
     "mermaid": "11.17.2",
     "micromark-extension-gfm": "^3.0.0",
-    "oxc-transform": "0.147.0",
     "oxlint": "1.80.0",
     "oxlint-tsgolint": "7.0.2001",
     "publint": "^0.3.24",

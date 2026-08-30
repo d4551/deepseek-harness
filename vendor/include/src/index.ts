@@ -8,7 +8,14 @@ import { defineScalarTag, JSON_SCHEMA, load, dump } from 'js-yaml'
 
 const jsExprTag = defineScalarTag<{ __jsExpr: string }>('tag:yaml.org,2002:js', {
   identify: (value): value is { __jsExpr: string } => isJsExpr(value),
-  resolve: (source: string): { __jsExpr: string } => ({ __jsExpr: source }),
+  resolve: (source: string): { __jsExpr: string } => {
+    // An empty !!js scalar is a misconfiguration (the expression body is
+    // missing), not an empty expression — fail at parse, loudly.
+    if (source.trim() === '') throw new Error('!!js tag requires an expression body')
+    return { __jsExpr: source }
+  },
+  // The factory's String(data) default would print "[object Object]".
+  represent: (value): string => value.__jsExpr,
 })
 
 /**

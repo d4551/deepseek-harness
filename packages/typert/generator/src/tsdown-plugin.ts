@@ -8,7 +8,10 @@
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import { transformSync } from 'oxc-transform'
+import { transformSync } from '@babel/core'
+import decorators from '@babel/plugin-proposal-decorators'
+import syntaxJsx from '@babel/plugin-syntax-jsx'
+import presetTypescript from '@babel/preset-typescript'
 import { WorkspaceTypertGenerator } from './workspace.ts'
 import type { WorkspaceEmitResult } from './workspace.ts'
 import type { TypertFace } from './model.ts'
@@ -48,18 +51,20 @@ export function typertPlugin(pluginOptions: TypertPluginOptions = {}): TypertPlu
     transform(code, id) {
       const file = id.split('?', 1)[0] ?? id
       if (!/\.[cm]?tsx?$/.test(file) || !DECORATOR_SYNTAX.test(code)) return
-      const result = transformSync(file, code, {
-        sourcemap: true,
-        decorator: { legacy: false },
-        ...(file.endsWith('x') ? { jsx: { runtime: 'automatic' as const } } : {}),
+      // oxc-transform 0.147 cannot lower stage-3 decorators (legacy only);
+      // Babel's proposal-decorators at 2023-11 matches the semantics tsc emits.
+      const result = transformSync(code, {
+        filename: file,
+        sourceMaps: true,
+        babelrc: false,
+        configFile: false,
+        presets: [presetTypescript],
+        plugins: [[decorators, { version: '2023-11' }], syntaxJsx],
       })
-      const fatal = result.errors.filter(error => error.severity === 'Error')
-      if (fatal.length > 0) {
-        throw new Error(fatal.map(error => error.message).join('\n'))
-      }
+      if (result?.code === null || result?.code === undefined) return
       return {
-        code: result.code.replace(/\n?\/\/# sourceMappingURL=.*$/u, '\n'),
-        map: result.map === undefined ? undefined : JSON.stringify(result.map),
+        code: result.code,
+        map: result.map === null ? undefined : JSON.stringify(result.map),
       }
     },
     writeBundle(bundleOptions) {

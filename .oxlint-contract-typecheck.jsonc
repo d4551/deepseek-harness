@@ -1,0 +1,18 @@
+{
+  "options": {
+    "typeCheck": true,
+    "typeAware": true
+  },
+  "ignorePatterns": ["**/lib/**", "**/node_modules/**"],
+  "plugins": [],
+  "categories": { "correctness": "allow" },
+  "overrides": [
+    {
+      "files": ["packages/typert/generator/tests/probe-*.ts"],
+      "rules": {
+        "typescript/no-unsafe-assignment": "error"
+      },
+      "plugins": ["typescript"]
+    }
+  ]
+}

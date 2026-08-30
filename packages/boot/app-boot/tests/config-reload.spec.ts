@@ -68,10 +68,10 @@ describe('include refresh with an invalid file', () => {
       await expect(include.refresh()).rejects.toThrow('failed to parse config file')
       expect(entryConfig(ctx, 'noop')).toEqual({ value: 1 })
 
-      // An empty file parses to `undefined` without a YAML error; it must be
-      // treated exactly like a parse failure, not crash the entry walk.
+      // js-yaml 5 rejects an empty document at parse; either way the entry
+      // walk must not crash and the last good tree stays mounted.
       writeFileSync(join(dir, 'cordis.yml'), '')
-      await expect(include.refresh()).rejects.toThrow('failed to validate config file')
+      await expect(include.refresh()).rejects.toThrow('failed to parse config file')
       expect(entryConfig(ctx, 'noop')).toEqual({ value: 1 })
 
       writeFileSync(join(dir, 'cordis.yml'), '- id: noop\n  name: ./noop.mjs\n  config:\n    value: 2\n')

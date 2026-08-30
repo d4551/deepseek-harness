@@ -5,7 +5,7 @@ import { SessionId, type SessionEvent, type SessionHeader } from '@deepseek-ai/d
 import {
   eventLines, projectKey, toHeaderLine,
 } from '@deepseek-ai/dsh-session-persistence-jsonl/src/format.ts'
-import { snapshotSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
+import { snapshotSubagentDescriptor } from '@deepseek-ai/dsh-subagent/src/descriptor.ts'
 
 /** Root copied by the preview image's repository adapter. */
 export const VFS_EXAMPLE_ROOT = fileURLToPath(new URL('./fixtures/vfs-example', import.meta.url))
