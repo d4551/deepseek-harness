@@ -218,25 +218,28 @@ export function targetForReference(face: FaceContext, symbol: Symbol, site: Node
   if (isDefaultLibraryDeclaration(face.project.project, declaration)) {
     return { kind: 'standard', name: symbol.name }
   }
-  const authoredSpecifier = moduleSpecifierOf(site)
-  const recovered = authoredSpecifier === undefined ? importForSymbol(site, symbol.name) : undefined
-  const moduleSpecifier = authoredSpecifier ?? recovered?.specifier
-  const requestedName = authoredSpecifier === undefined
-    ? recovered?.exportName
-    : authoredExportName(site, authoredSpecifier)
-  const module = moduleSpecifier === undefined ? undefined : moduleIdentity(moduleSpecifier)
   const from = face.registrationForFile(site.getSourceFile().fileName)
   if (from === undefined) face.fail(site, 'reference site is outside a registered package')
   const owner = face.registrationForFile(declaration.getSourceFile().fileName)
-  if (owner !== undefined && module === undefined && owner.name !== from.name) {
-    // Codec projections surface nested references whose import lives in an
-    // intermediate file, not the boundary's authored site; locate the owner
-    // package subpath that exports the symbol instead.
+  // Import recovery is symbol-driven: codec projections anchor references
+  // whose symbol bears no relation to the authored boundary node's text, so
+  // the site's own type name is only a fallback.
+  const symbolImport = importForSymbol(site, symbol.name)
+  if (owner !== undefined && owner.name !== from.name) {
+    if (symbolImport !== undefined) {
+      return localTarget(face, symbol, site, declaration, from, owner, moduleIdentity(symbolImport.specifier), symbolImport.exportName)
+    }
     const discovered = ownerExportFor(face, owner, symbol)
     if (discovered !== undefined) {
       return localTarget(face, symbol, site, declaration, from, owner, discovered.module, discovered.exportName)
     }
   }
+  const authoredSpecifier = moduleSpecifierOf(site)
+  const moduleSpecifier = authoredSpecifier ?? symbolImport?.specifier
+  const requestedName = authoredSpecifier === undefined
+    ? symbolImport?.exportName
+    : authoredExportName(site, authoredSpecifier)
+  const module = moduleSpecifier === undefined ? undefined : moduleIdentity(moduleSpecifier)
   if (owner !== undefined) {
     return localTarget(face, symbol, site, declaration, from, owner, module, requestedName)
   }
