@@ -150,6 +150,11 @@ export default defineConfig({
   plugins: [pathsPlugin(), standardDecoratorPlugin()],
   test: {
     setupFiles: ['./scripts/test-invariants.ts'],
+    // Every other lane declares its own budget (e2e/expected/snapshot 120s, web
+    // 180s, mutation 30s); this one ran on vitest's 5s default. Specs here spawn
+    // git, node, bun, and oxlint, which exceed 5s under the fork pool's
+    // parallelism while still failing fast on a real hang.
+    testTimeout: 30_000,
     // .tsx: client component specs (jsdom via per-file @vitest-environment pragma).
     include: testIncludes,
     exclude: platformUnsupportedTests,
@@ -166,6 +171,8 @@ export default defineConfig({
           // Linux, and Windows. Forked workers avoid that shared thread path.
           pool: 'forks',
           setupFiles: ['./scripts/test-invariants.ts'],
+          // Projects do not inherit the root lane budget; see the note there.
+          testTimeout: 30_000,
           include: testIncludes,
           exclude: [
             ...platformUnsupportedTests,
@@ -181,6 +188,8 @@ export default defineConfig({
           execArgv: vitestExecArgv,
           pool: 'forks',
           setupFiles: ['./scripts/test-invariants.ts'],
+          // Projects do not inherit the root lane budget; see the note there.
+          testTimeout: 30_000,
           include: processBoundTests,
           exclude: [
             ...platformUnsupportedTests,

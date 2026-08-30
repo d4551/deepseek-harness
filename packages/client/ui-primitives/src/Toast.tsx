@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import css from './Toast.module.css'
@@ -38,10 +38,15 @@ export function Toast({ text, icon, anchor, holdMs = HOLD_MS, onDone }: {
   holdMs?: number
   onDone: () => void
 }) {
+  // One hold per show. Owners pass `onDone` inline, so depending on it would
+  // restart the countdown on every unrelated re-render and the banner would
+  // never leave; a remount under a new key is what restarts a show.
+  const done = useRef(onDone)
+  useEffect(() => { done.current = onDone }, [onDone])
   useEffect(() => {
-    const timer = setTimeout(onDone, holdMs + FADE_MS)
+    const timer = setTimeout(() => { done.current() }, holdMs + FADE_MS)
     return () => { clearTimeout(timer) }
-  }, [holdMs, onDone])
+  }, [holdMs])
   // Anchor-centered placement re-measures on window resizes; the banner lives
   // four seconds, so sub-window layout drift within that span stays out of
   // scope.
