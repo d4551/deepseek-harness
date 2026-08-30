@@ -18,7 +18,7 @@ import { TypertAnalysisError, type AnalysisMode, type SourceEdit } from './analy
 import { isSourceExportTarget, packageExportTargets, sourcePathForExport } from './analyzer-exports.ts'
 import { FaceAnalyzer } from './analyzer-face.ts'
 import { loadRegistrations, mergeWorkspaceModels } from './analyzer-register.ts'
-import { localImportTargets, sourceFileHasSurface } from './analyzer-surface.ts'
+import { localImportTargetsInText, textMayCarrySurface } from './analyzer-surface.ts'
 import type { DiscoveredTypertPackage, PackageRegistration } from './analyzer-types.ts'
 import { isWithin, realPath, slash, uniqueBy } from './analyzer-util.ts'
 import type { CrossFaceLink, FaceModel, SourceDeclarationModel, TypertFace, WorkspaceModel } from './model.ts'
@@ -320,9 +320,9 @@ export class WorkspaceAnalyzer {
       const file = realPath(next)
       if (seen.has(file) || !isWithin(file, registration.root)) continue
       seen.add(file)
-      const sourceFile = parsePath(file)
-      if (sourceFileHasSurface(sourceFile)) return true
-      for (const imported of localImportTargets(sourceFile, file)) {
+      const text = readFileSync(file, 'utf8')
+      if (textMayCarrySurface(text)) return true
+      for (const imported of localImportTargetsInText(text, file)) {
         if (isWithin(imported, registration.root)) queue.push(imported)
       }
     }
