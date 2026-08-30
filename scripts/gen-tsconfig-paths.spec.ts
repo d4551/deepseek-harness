@@ -47,7 +47,7 @@ describe('generated tsconfig package aliases', () => {
   it('replaces only the marked region', () => {
     const text = [
       '{ "before": 1,',
-      '      // BEGIN generated package aliases — pnpm run gen-tsconfig-paths',
+      '      // BEGIN generated package aliases — bun run gen-tsconfig-paths',
       '      "stale": ["gone"]',
       '      // END generated package aliases',
       '  "after": 2 }',

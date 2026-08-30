@@ -32,7 +32,7 @@ const testToolSignal = new AbortController().signal
 
 const fixtureServerPath = fileURLToPath(new URL('./fixture-server.ts', import.meta.url))
 
-// Resolve package-local .bin for pnpm-hoisted MCP server binaries.
+// Resolve package-local .bin for this package's MCP server binaries.
 const packageDir = fileURLToPath(new URL('..', import.meta.url))
 const localBin = join(packageDir, 'node_modules', '.bin')
 

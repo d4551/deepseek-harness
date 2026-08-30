@@ -52,7 +52,7 @@ Every tarball must be free of `workspace:` specifiers, and every internal depend
 
 The integration test runs after all tarballs exist and before any publish. It creates a fresh temporary project outside the monorepo, installs the declared dependency closure through local `.tgz` files from the release manifest, and executes from that installation. The test must use plain Node and package-manager-produced `node_modules`; tsx, tsconfig paths, workspace links, repository source paths, working-tree `lib/`, and the same version from the published registry are forbidden resolution inputs. The test also asserts that critical modules and bins resolve to real paths inside the temporary consumer.
 
-Installation uses the client behavior selected for this publication. Registry uploads must use the `npm` CLI because the private registry accepts only the npm client; pnpm may still orchestrate builds. Tarball tests must neither publish these packages to the real registry first nor repack after testing.
+Installation uses the client behavior selected for this publication. Registry uploads must use the `npm` CLI because the private registry accepts only the npm client; bun may still orchestrate builds. Tarball tests must neither publish these packages to the real registry first nor repack after testing.
 
 The test covers at least these execution surfaces:
 
@@ -105,7 +105,7 @@ The registry token is injected only into the publish job, which uses a protected
 
 ## Risks
 
-Full packing, installation, and startup add CI time and workflow-artifact volume. The implementation should cache external dependencies and the pnpm store, but it must not cache or reuse installed workspace output for target packages. Safe consumer probes can run in parallel to reduce latency.
+Full packing, installation, and startup add CI time and workflow-artifact volume. The implementation should cache external dependencies and the bun install cache, but it must not cache or reuse installed workspace output for target packages. Safe consumer probes can run in parallel to reduce latency.
 
 Installing every tarball as a temporary project's top-level dependency can hide an undeclared internal dependency. The test generator should install each tested application's declared recursive closure and retain existing dependency gates. For `@deepseek-ai/dsh`, whose dependency surface approaches the full set, package-manifest and static graph checks remain necessary to detect undeclared edges.
 

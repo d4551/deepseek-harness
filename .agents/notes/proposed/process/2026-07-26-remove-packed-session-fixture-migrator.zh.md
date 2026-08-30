@@ -6,7 +6,7 @@ Status: proposed
 
 ## 问题
 
-仓库的默认写入器和快照检查会使会话 fixture（测试前置数据）保持规范打包行布局。在永久强制机制之外仍保留 `pnpm run migrate:packed-session-fixtures`，唯一原因是让携带旧版 fixture 改动的在途分支可以合并当前 `master`，并在不重新录制模型输出的情况下通过机械转换收敛。
+仓库的默认写入器和快照检查会使会话 fixture（测试前置数据）保持规范打包行布局。在永久强制机制之外仍保留 `bun run migrate:packed-session-fixtures`，唯一原因是让携带旧版 fixture 改动的在途分支可以合并当前 `master`，并在不重新录制模型输出的情况下通过机械转换收敛。
 
 一旦每个此类分支均已合并、关闭或符合规范，写入命令及其分支收敛指引便不再有持续维护者。过渡结束后继续保留会修改仓库内容的命令，会在永久只读快照检查旁增加第二条看似有效的维护路径。
 
@@ -30,7 +30,7 @@ Status: proposed
 
 - 实时开放 PR 清单未发现任何仍依赖临时迁移命令处理会话格式 JSONL 改动的分支。
 - 临时 CLI、根包命令、所有分支收敛链接与仅适用于该命令的门禁诊断均不存在；永久规范布局转换器、单元测试和快照检查仍然保留。
-- `pnpm run test:snapshot`、`pnpm run doc-sync`、lint 和空白校验在没有临时命令的情况下通过。
+- `bun run test:snapshot`、`bun run doc-sync`、lint 和空白校验在没有临时命令的情况下通过。
 - 当前文档仅描述打包默认值和永久规范布局强制机制。
 
 ## 风险

@@ -10,13 +10,13 @@ Status: implemented
 
 ## 决策
 
-默认分支包含 [`.github/dependabot.yml`](../../../../.github/dependabot.yml)，其中为包含 `native/landlock-run` 的根 pnpm 工作区、`python/sdk` uv 项目和 GitHub Actions 配置了每周一次的版本更新检查。每个更新项都将 `cooldown.default-days` 设为 `30`，因此某个版本只有在发布至少 30 天后才符合更新条件，并会在下一次每周检查时生成更新提案。[仓库内 Landlock 发布决策](2026-08-06-in-repository-landlock-release.zh.md)负责共享工作区边界。
+默认分支包含 [`.github/dependabot.yml`](../../../../.github/dependabot.yml)，其中为包含 `native/landlock-run` 的根 npm 工作区、`python/sdk` uv 项目和 GitHub Actions 配置了每周一次的版本更新检查。每个更新项都将 `cooldown.default-days` 设为 `30`，因此某个版本只有在发布至少 30 天后才符合更新条件，并会在下一次每周检查时生成更新提案。[仓库内 Landlock 发布决策](2026-08-06-in-repository-landlock-release.zh.md)负责共享工作区边界。
 
-根 pnpm 工作区的版本更新扫描排除 `vendor/**`，其中的源码和 manifest（元数据清单）只能通过 [vendoring 流程](../../../../vendor/README.md)变更。GitHub 仅将 `exclude-paths` 用于版本更新；如果安全更新 PR（Pull Request）涉及随源码纳入仓库的 manifest，则改由 vendoring 流程处理，以替代自动生成的 PR，而不会将其原样合并。Dependabot PR 会获得仓库的 `kind/dependency` 类型标签和 `area/infra` 区域标签，运行常规 PR 检查，并且仍须由维护者评审；该自动化不会合并这些 PR。
+根 npm 工作区的版本更新扫描排除 `vendor/**`，其中的源码和 manifest（元数据清单）只能通过 [vendoring 流程](../../../../vendor/README.md)变更。GitHub 仅将 `exclude-paths` 用于版本更新；如果安全更新 PR（Pull Request）涉及随源码纳入仓库的 manifest，则改由 vendoring 流程处理，以替代自动生成的 PR，而不会将其原样合并。Dependabot PR 会获得仓库的 `kind/dependency` 类型标签和 `area/infra` 区域标签，运行常规 PR 检查，并且仍须由维护者评审；该自动化不会合并这些 PR。
 
-仓库设置已启用依赖项漏洞警报和 Dependabot 安全更新。GitHub 不会对这些安全更新应用版本更新冷却期，因此安全修复仍可立即进入更新流程。如果依赖解析还选中了其他刚发布的传递依赖，pnpm 安全更新 PR 仍可能无法通过仓库的锁文件发布时长校验；此类 PR 应等待隔离期结束或缩小更新范围，不得因此放宽政策。仓库为协调刚发布版本而设置的例外，不会纳入 Dependabot 的冷却期排除项：自动版本更新统一等待 30 天；经过明确评审的手动更新仍可遵循相应的发布流程。
+仓库设置已启用依赖项漏洞警报和 Dependabot 安全更新。GitHub 不会对这些安全更新应用版本更新冷却期，因此安全修复仍可立即进入更新流程。如果依赖解析还选中了其他刚发布的传递依赖，npm 安全更新 PR 仍可能无法通过仓库的锁文件发布时长校验；此类 PR 应等待隔离期结束或缩小更新范围，不得因此放宽政策。仓库为协调刚发布版本而设置的例外，不会纳入 Dependabot 的冷却期排除项：自动版本更新统一等待 30 天；经过明确评审的手动更新仍可遵循相应的发布流程。
 
-pnpm 更新项让统一工作区继续使用已固定的 pnpm 11，不会仅为了自动化而降级版本。当前 Dependabot 更新器会安装根 `packageManager` 指定的版本，并读取根锁文件的 `9.0` 格式；由提供方运行的更新任务仍作为集成检查。
+npm 更新项让统一工作区继续使用已固定的 bun，不会仅为了自动化而降级版本。当前 Dependabot 更新器会安装根 `packageManager` 指定的版本，并读取根锁文件的 `9.0` 格式；由提供方运行的更新任务仍作为集成检查。
 
 ## 考虑过的替代方案
 
@@ -31,4 +31,4 @@ pnpm 更新项让统一工作区继续使用已固定的 pnpm 11，不会仅为�
 - 隔离期结束后，常规依赖更新会以规模较小、便于评审的 PR 形式到达，无需维护者定期手动发现更新。
 - 由于每周评估一次更新资格，相应更新 PR 通常会在版本发布后 30 至 36 天出现。
 - Dependabot 不会延迟安全更新提案；仓库检查仍可阻止无关的刚发布传递依赖，评审流程也会维持 vendoring 边界。
-- 维护者仍负责决定是否合并每项更新，并诊断 pnpm 11 更新任务报告的任何提供方限制。
+- 维护者仍负责决定是否合并每项更新，并诊断 npm 更新任务报告的任何提供方限制。

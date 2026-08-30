@@ -26,7 +26,7 @@ Persistent SDK customization uses the same profile interfaces as direct CLI use.
 
 The [standalone sdk-minimal profile](2026-08-24-standalone-sdk-minimal-profile.md) lists one repository-owned bundle that inserts its complete explicit tree without `dsh-base`. Its persistent Bash and string-replace editor are present by composition; the shared JSON-RPC server exposes no root-agent tool filter. Dynamic runtime context, workspace instructions, settings, managed credentials, telemetry, compaction, and every other base row are absent. The same runtime still packages the full `sdk` and `web` profiles as separate choices.
 
-The runtime wheel installs a `dsh` console command. Ordinary profile and SDK execution remains Node-free; external package management requires a caller-installed `pnpm`.
+The runtime wheel installs a `dsh` console command. Ordinary profile and SDK execution remains Node-free; external package management requires a caller-installed `bun`.
 
 ### Executable packaging
 
@@ -48,7 +48,7 @@ This decision implements and supersedes the Python exception and deferred-migrat
 
 **Copy the virtual dependency tree into every home.** Rejected because it duplicates hundreds of megabytes and loads a second Cordis instance. Export-preserving proxies are small and retain module identity.
 
-**Bundle pnpm and Node package management into every SDK launch.** Rejected because installed plugins are deployment state, not per-turn runtime work. Only `dsh plugin` needs the external package manager.
+**Bundle bun and Node package management into every SDK launch.** Rejected because installed plugins are deployment state, not per-turn runtime work. Only `dsh plugin` needs the external package manager.
 
 ## Consequences
 

@@ -568,9 +568,9 @@ Changes to this decision use `dsh-pre-push-checks` to select commands for the fi
 - affected Host and Client TypeScript faces;
 - lint and duplication;
 - per-file 100% coverage for affected source files;
-- `DSH_SNAPSHOT=replay pnpm run test:web`, without refreshing existing presentation goldens;
+- `DSH_SNAPSHOT=replay bun run test:web`, without refreshing existing presentation goldens;
 - authored Remote type and TypeScript checks;
-- `pnpm run doc-sync`;
+- `bun run doc-sync`;
 - `git diff --check`.
 
 ## Shipped Invariants

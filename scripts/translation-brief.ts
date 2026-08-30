@@ -456,7 +456,7 @@ export function renderTranslationBrief(input: TranslationBriefInput): string {
     out.push('')
     out.push('## Mechanical update — no translation judgment involved')
     out.push('')
-    out.push(`Every change since the last confirmed state is inside fenced code blocks, which are byte-identical across the pair. Run \`pnpm run gen-translation-brief --apply ${input.sourcePath}\` to splice the updated fences into the counterpart (the result is structure-validated before writing), then record per the Finish steps.`)
+    out.push(`Every change since the last confirmed state is inside fenced code blocks, which are byte-identical across the pair. Run \`bun run gen-translation-brief --apply ${input.sourcePath}\` to splice the updated fences into the counterpart (the result is structure-validated before writing), then record per the Finish steps.`)
   }
   out.push('')
   out.push(`## ${sourceLanguage} diff (last-confirmed → current)`)
@@ -505,8 +505,8 @@ export function renderTranslationBrief(input: TranslationBriefInput): string {
   out.push('## Finish')
   out.push('')
   out.push('1. Apply the smallest counterpart edit that covers the change, then verify the changed spans clause by clause against the source.')
-  out.push(`2. \`pnpm run verify-translation-pairing --write ${input.sourcePath.replace(/\.zh\.md$/, '.md')}\``)
-  out.push(`3. \`pnpm run verify-translation-pairing ${input.sourcePath.replace(/\.zh\.md$/, '.md')}\``)
+  out.push(`2. \`bun run verify-translation-pairing --write ${input.sourcePath.replace(/\.zh\.md$/, '.md')}\``)
+  out.push(`3. \`bun run verify-translation-pairing ${input.sourcePath.replace(/\.zh\.md$/, '.md')}\``)
   out.push('')
   return out.join('\n')
 }

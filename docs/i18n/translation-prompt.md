@@ -203,9 +203,9 @@ Record actual corrections in `<review>`, then output the corrected complete docu
 Below are representative examples of common problems and their corrections. Follow the "Good" versions within the rule each example illustrates; examples do not override source context or higher-priority requirements.
 
 ### Colloquial verb → Professional verb
-- Source: `The repo pins pnpm@11.7.0 in package.json`
-- Bad: `仓库在 package.json 中钉住 pnpm@11.7.0`
-- Good: `该仓库在 package.json 中固定使用 pnpm@11.7.0`
+- Source: `The repo pins bun@1.3.11 in package.json`
+- Bad: `仓库在 package.json 中钉住 bun@1.3.11`
+- Good: `该仓库在 package.json 中固定使用 bun@1.3.11`
 
 ### Run-on sentence → Natural phrasing with pause
 - Source: `Read docs/architecture.md before changing anything under packages/.`

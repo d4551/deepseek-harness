@@ -185,6 +185,20 @@ describe('/compact human command', () => {
     expect(test.compact.calls).toEqual([{ agent: test.agent, signal: controller.signal }])
   })
 
+  it('treats trailing whitespace as no arguments rather than an argument', async () => {
+    // `/compact   ` carries no argument — the spacing is how a shell-style
+    // command line ends, not input. Rejecting it would refuse a correct
+    // invocation with a usage error the caller cannot act on.
+    const test = await harness()
+    const execution = await run(test, '   ')
+    expect(execution.result).toEqual({
+      kind: 'success',
+      text: 'Compacted 3 history items (~42 tokens).',
+      sourceEventSeq: RESULT.summarySeq,
+    })
+    expect(test.compact.calls).toHaveLength(1)
+  })
+
   it('returns direct no-history and argument-rejection results', async () => {
     const test = await harness()
     test.compact.result = null

@@ -1,5 +1,5 @@
 <!-- 英文源文件由 scripts/gen-doc-graphs.ts 生成；本中文文件是通过双语配对维护的经评审对侧。
-     更新时先运行 `pnpm run gen-doc-graphs` 更新英文，再更新本文件并运行 `pnpm run verify-translation-pairing --write docs/event-producer-consumer.md` 重新记录配对。 -->
+     更新时先运行 `bun run gen-doc-graphs` 更新英文，再更新本文件并运行 `bun run verify-translation-pairing --write docs/event-producer-consumer.md` 重新记录配对。 -->
 
 # 事件生产方与消费方矩阵
 

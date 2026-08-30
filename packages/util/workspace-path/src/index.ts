@@ -29,10 +29,13 @@ export function resolveWorkspacePath(cwd: string | undefined, path: string): str
  * @returns `~` or `~/…` for the POSIX home and its descendants, otherwise `path`.
  */
 export function abbreviateHomePath(path: string, home?: string): string {
-  if (home === undefined || home === '') return path
-  if (isWindowsStylePath(path) || isWindowsStylePath(home)) return path
+  if (home === undefined) return path
+  if (isWindowsStylePath(path)) return path
+  // Stripping every trailing slash also collapses `/` and `''` to `''`, and a
+  // path can only start with a Windows-style home by being Windows-style
+  // itself — which the guard above already returned.
   const root = home.replace(/\/+$/, '')
-  if (root === '' || root === '/') return path
+  if (root === '') return path
   if (path.replace(/\/+$/, '') === root) return '~'
   if (path.startsWith(`${root}/`)) return `~${path.slice(root.length)}`
   return path

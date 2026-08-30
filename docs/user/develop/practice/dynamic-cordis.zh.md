@@ -9,7 +9,7 @@
 使用仓库内 overlay 启动浏览器界面：
 
 ```sh
-pnpm dsh web --patch apps/cli/config/examples/cordis/cordis.yml
+bun run dsh web --patch apps/cli/config/examples/cordis/cordis.yml
 ```
 
 该命令需要模型凭据。[Cordis 工具参考](../../../../packages/extensions/tool-cordis/README.zh.md)定义了四类约定：工具参数、存续时间、清理行为和安全性。

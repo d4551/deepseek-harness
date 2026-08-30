@@ -28,7 +28,7 @@ async function freePort(): Promise<number> {
 
 describe('Web development entry', () => {
   it('rejects the package dev alias with the full-host correction', async () => {
-    const result = await execa('pnpm', ['run', 'dev'], { cwd: WEB_ROOT, reject: false })
+    const result = await execa('bun', ['run', 'dev'], { cwd: WEB_ROOT, reject: false })
     expect(result.exitCode).not.toBe(0)
     expect(result.stderr).toContain('apps/web is not a standalone application')
     expect(result.stderr).toContain('dsh web')

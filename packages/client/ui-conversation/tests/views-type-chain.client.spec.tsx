@@ -18,8 +18,8 @@ describe('view-ring type negatives (compile-time; body never runs)', () => {
         (_p: ConvViewProps) => null)
       // 3. Component props must stay within the composed contract: an
       //    undeclared member cannot be required.
-      // @ts-expect-error component demands a prop no share supplies
       slots.register(
+        // @ts-expect-error component demands a prop no share supplies
         { name: 'conversation.view', id: 'y' },
         (_p: ConvViewProps & { phantom: number }) => null)
       // 4. Views receive no renderSlot — the ring's entries declare no children.

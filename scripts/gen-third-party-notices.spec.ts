@@ -27,7 +27,7 @@ describe('THIRD_PARTY_NOTICES.md', () => {
   it('matches what the generator produces from the current manifests', () => {
     const generated = render()
     expect(generated).toContain('It depends on the third-party software listed below.')
-    expect(readFileSync(resolve(root, 'THIRD_PARTY_NOTICES.md'), 'utf8'), 'stale notices — run `pnpm run gen-third-party-notices`').toBe(generated)
+    expect(readFileSync(resolve(root, 'THIRD_PARTY_NOTICES.md'), 'utf8'), 'stale notices — run `bun run gen-third-party-notices`').toBe(generated)
   })
 })
 
@@ -96,14 +96,30 @@ describe('virtualManifest', () => {
     }
   })
 
-  it('falls back to a content scan when pnpm 11 truncates the store directory name', () => {
+  it('resolves the peer-disambiguated store directory bun writes with a trailing hash', () => {
+    const root = mkdtempSync(join(tmpdir(), 'dsh-notices-peer-hash-'))
+    try {
+      const name = '@scope/pkg'
+      const version = '3.1.0'
+      const store = join(root, 'store')
+      const manifestDir = join(store, `${name.replace('/', '+')}@${version}+68a1e3a0c4588df3`, 'node_modules', name)
+      mkdirSync(manifestDir, { recursive: true })
+      writeFileSync(join(manifestDir, 'package.json'), JSON.stringify({ name, version, license: 'BSD-3-Clause' }))
+
+      expect(virtualManifest(store, name, version)).toMatchObject({ name, version, license: 'BSD-3-Clause' })
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('falls back to a content scan when the store directory name drops the package prefix', () => {
     const root = mkdtempSync(join(tmpdir(), 'dsh-notices-truncated-'))
     try {
       const name = '@scope/pkg'
       const version = '2.0.0'
       const store = join(root, 'store')
-      // The truncated name no longer starts with `@scope+pkg@`, so only the
-      // whole-store content scan can find the package.
+      // This name no longer starts with `@scope+pkg@`, so only the whole-store
+      // content scan can find the package.
       const manifestDir = join(store, '@scope+pkg_9f1c2d3e4a5b6c7d8e9f0a1b2c3d4e5f', 'node_modules', name)
       mkdirSync(manifestDir, { recursive: true })
       writeFileSync(join(manifestDir, 'package.json'), JSON.stringify({ name, version, license: 'Apache-2.0' }))

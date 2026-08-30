@@ -1,6 +1,6 @@
 # Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
-#   pnpm run verify-translation-pairing --write docs/postmortem/0003-web-agent-gui-feedback-loop.md
-0003-web-agent-gui-feedback-loop.md: 3b836764dcf47758a6a0b472d92484f39b9ff510
-0003-web-agent-gui-feedback-loop.zh.md: 402fe05341f9ab568329c30e9db0ebde97a5753b
+#   bun run verify-translation-pairing --write docs/postmortem/0003-web-agent-gui-feedback-loop.md
+0003-web-agent-gui-feedback-loop.md: d12dc912c75ea5851bf802f68266d496f998bf5e
+0003-web-agent-gui-feedback-loop.zh.md: 6a9320fbf7ce28f36094eb95e02c24fb8d75fc8d

@@ -17,7 +17,7 @@ describe('Python runtime executable assets', () => {
     ], {
       cwd: root,
       encoding: 'utf8',
-      env: { ...process.env, npm_execpath: 'C:\\tools\\pnpm.cjs' },
+      env: { ...process.env, npm_execpath: 'C:\\tools\\bun.exe' },
     })
 
     expect(result.status).toBe(0)

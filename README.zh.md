@@ -8,6 +8,17 @@ DeepSeek Harness（`dsh`）是由 [DeepSeek AI](https://deepseek.com) 开发的�
 
 文档：[https://deepseek-harness.github.io/deepseek-harness/](https://deepseek-harness.github.io/deepseek-harness/)
 
+## 本仓库
+
+本仓库是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 fork。产品定位、插件架构、Node 运行时、社区渠道和许可证仍归上游。
+
+本 fork 固定了不同的贡献者工具链：
+
+- **bun 1.4** 是包管理器和脚本运行器（`package.json` 中的 `packageManager`）。workspace 链接使用 bun 的 isolated linker；`dsh plugin` 转发给 bun。原生 addon 与单文件可执行构建仍是 Node 产物，并遵循已文档化的 Node 引擎范围。
+- **TypeScript 7**（`typescript` ^7.0.2）编译 Host 与 Client program。该包在 `typescript/unstable/sync` 与 `typescript/unstable/ast` 导出 compiler API；所有 compiler-API 使用方都从该包导入，且由已提交的 gate 保证 6.0 Strada 兼容包不进入本仓库。
+
+`npx @deepseek-ai/dsh` 启动路径运行已发布的上游软件包。下方源码路径构建本检出。贡献者搭建步骤（含 bun 固定版本）见[开发指南](docs/development.zh.md)。
+
 ## 开发者预览
 
 DeepSeek Harness 处于 _开发者预览_ 阶段，正在快速迭代。**未来将出现破坏兼容性的变更。**
@@ -35,14 +46,14 @@ npx @deepseek-ai/dsh web
 如需从仓库源码运行：
 
 ```sh
-git clone https://github.com/deepseek-ai/deepseek-harness.git
+git clone https://github.com/d4551/deepseek-harness.git
 cd deepseek-harness
-pnpm install
-pnpm run build
-pnpm dsh web
+bun install
+bun run build
+bun run dsh web
 ```
 
-`pnpm run build` 会准备仓库产物。`pnpm dsh web` 会直接使用这些已构建产物，不会重新构建。
+`bun run build` 会准备仓库产物。`bun run dsh web` 会直接使用这些已构建产物，不会重新构建。
 
 ## 社区与支持
 

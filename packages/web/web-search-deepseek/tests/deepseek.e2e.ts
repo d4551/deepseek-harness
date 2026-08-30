@@ -14,16 +14,11 @@ import type { DeepSeekSearchProviderOptions } from '@deepseek-ai/dsh-web-search-
 const searchProvider = (options: DeepSeekSearchProviderOptions): DeepSeekSearchProvider =>
   new DeepSeekSearchProvider(() => options)
 
-/**
- * Disabled real-API probe for the DeepSeek search provider. The live endpoint
- * can complete without structured source blocks, so this is not a reliable
- * merge signal. Its body remains because mocks cannot confirm the wire shape.
- */
 const apiKey = process.env.DEEPSEEK_API_KEY
 const maybe = apiKey !== undefined && apiKey.length > 0 ? describe : describe.skip
 
 maybe('DeepSeekSearchProvider real API', () => {
-  it.skip('returns citeable sources for a live query via native web_search', async () => {
+  it('returns citeable sources for a live query via native web_search', async () => {
     const provider = searchProvider({
       apiKey: apiKey!,
       baseURL: process.env.DEEPSEEK_SEARCH_BASE_URL ?? DEEPSEEK_DEFAULT_BASE_URL,
@@ -34,6 +29,8 @@ maybe('DeepSeekSearchProvider real API', () => {
     })
     const result = await provider.search({ query: 'What is DeepSeek Harness?', maxResults: 5 })
     expect(result.sources.length).toBeGreaterThan(0)
+    expect(result.sources.length).toBeLessThanOrEqual(5)
+    expect(result.truncated).toBe(false)
     for (const source of result.sources) expect(source.url).toMatch(/^https?:\/\//)
   }, 60_000)
 })

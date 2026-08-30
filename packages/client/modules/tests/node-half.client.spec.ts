@@ -217,8 +217,11 @@ describe('HTML bootstrap facade', () => {
     const { target } = injectedFacade(graph)
     target.load({
       id: MODULES_ID,
-      factory: (require) => {
-        require('react')
+      // The bootstrap receives a resolver for anything it left external. Named
+      // for what it resolves rather than `require`: this file has no CommonJS,
+      // and a `require('react')` call here reads as one to static analysis.
+      factory: (resolveExternal) => {
+        resolveExternal('react')
         return modulesClient
       },
     })
@@ -426,7 +429,7 @@ describe('client bundle activation', () => {
     const secondPath = writePackage(secondName)
     expect(() => construct([firstName, secondName])).toThrow([
       'client-modules: 2 client packages failed to compose:',
-      '  client bundles not found; run `pnpm run build` before launch:',
+      '  client bundles not found; run `bun run build` before launch:',
       `    - package: ${firstName}`,
       `      path: ${firstPath}`,
       `    - package: ${secondName}`,
@@ -447,7 +450,7 @@ describe('client bundle activation', () => {
     expect(String(thrown)).toContain('client-modules: 1 client package failed to compose:')
     expect(String(thrown)).toContain('  other failures:')
     expect(String(thrown)).toContain('EISDIR')
-    expect(String(thrown)).not.toContain('pnpm run build')
+    expect(String(thrown)).not.toContain('bun run build')
   })
 
   it('falls back to a generated-file map when an authored map is malformed', async () => {

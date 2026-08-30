@@ -4,54 +4,55 @@ import * as yaml from 'js-yaml'
 import { describe, expect, it } from 'vitest'
 
 const root = resolve(import.meta.dirname, '..')
-const runnerPrivatePnpmDestination = /^\$\{\{ runner\.temp \}\}\/setup-pnpm-\$\{\{ github\.run_id \}\}-\$\{\{ github\.run_attempt \}\}$/
-const nativeWindowsPnpmDestination = '${{ runner.temp }}/setup-pnpm-js-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}'
+/**
+ * `oven-sh/setup-bun` installs unconditionally into `~/.bun/bin`, with no input
+ * for a per-job destination. Two halves keep concurrent jobs on one runner from
+ * contending: every job pins the SAME bun version, so concurrent installs of the
+ * binary write identical bytes; and every job points `BUN_INSTALL` at a
+ * run-private directory, so the mutable state they would otherwise contend on —
+ * bun's install cache and global directory — is not shared at all.
+ */
+const MANIFEST_PINNED_BUN_VERSION_FILE = 'package.json'
+const RUN_PRIVATE_BUN_INSTALL = '${{ runner.temp }}/bun-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}'
+
+/** Every job in `file` that sets bun up, with its job-level env. */
+function bunSetupJobs(file: string): Array<{ jobName: string; step: unknown; env: unknown }> {
+  const workflow: unknown = yaml.load(readFileSync(resolve(root, file), 'utf8'))
+  if (!isRecord(workflow) || !isRecord(workflow.jobs)) throw new TypeError(`${file} must define jobs`)
+  const found: Array<{ jobName: string; step: unknown; env: unknown }> = []
+  for (const [jobName, job] of Object.entries(workflow.jobs)) {
+    if (!isRecord(job) || !Array.isArray(job.steps)) continue
+    for (const step of job.steps) {
+      if (!isRecord(step) || typeof step.uses !== 'string' || !step.uses.startsWith('oven-sh/setup-bun@')) continue
+      found.push({ jobName, step, env: job.env })
+    }
+  }
+  return found
+}
 
 describe('CI workflow', () => {
-  it('isolates every pnpm action setup destination per runner', () => {
-    const files = ['.github/workflows/ci.yml', '.github/workflows/ci-master.yml']
-    const setups: Array<{ jobName: string; step: unknown }> = []
-    for (const file of files) {
-      const workflow: unknown = yaml.load(readFileSync(resolve(root, file), 'utf8'))
-      if (!isRecord(workflow) || !isRecord(workflow.jobs)) throw new TypeError(`${file} must define jobs`)
-      for (const [jobName, job] of Object.entries(workflow.jobs)) {
-        if (!isRecord(job) || !Array.isArray(job.steps)) continue
-        for (const step of job.steps) {
-          if (!isRecord(step) || typeof step.uses !== 'string' || !step.uses.startsWith('pnpm/action-setup@')) continue
-          setups.push({ jobName, step })
-        }
-      }
-    }
+  it('isolates every bun setup per run and pins it to the manifest version', () => {
+    const setups = ['.github/workflows/ci.yml', '.github/workflows/ci-master.yml'].flatMap(bunSetupJobs)
 
     expect(setups.length).toBeGreaterThan(0)
-    for (const { jobName, step } of setups) {
-      const stepDest = (step as { with?: { dest?: unknown } }).with?.dest
-      if (jobName.startsWith('windows-')) {
-        expect(stepDest, `${jobName} must use the native Windows pnpm destination`).toBe(nativeWindowsPnpmDestination)
-        expect(step).not.toMatchObject({ with: { standalone: true } })
-      } else {
-        expect(typeof stepDest, `${jobName} must use a runner-and-run-private pnpm destination`).toBe('string')
-        expect(stepDest as string).toMatch(runnerPrivatePnpmDestination)
-      }
+    for (const { jobName, step, env } of setups) {
+      const inputs = (step as { with?: { 'bun-version-file'?: unknown; 'bun-version'?: unknown } }).with
+      expect(inputs?.['bun-version-file'], `${jobName} must pin bun to the repository manifest`)
+        .toBe(MANIFEST_PINNED_BUN_VERSION_FILE)
+      expect(inputs?.['bun-version'], `${jobName} must not float a bun version alongside the manifest pin`)
+        .toBeUndefined()
+      expect((env as { BUN_INSTALL?: unknown } | undefined)?.BUN_INSTALL,
+        `${jobName} must keep bun's install cache private to this run`).toBe(RUN_PRIVATE_BUN_INSTALL)
     }
   })
 
-  it('isolates the python SDK exe pnpm setup destination per job', () => {
-    const workflow: unknown = yaml.load(readFileSync(resolve(root, '.github/workflows/build-exe-for-python-sdk.yml'), 'utf8'))
-    if (!isRecord(workflow) || !isRecord(workflow.jobs)) throw new TypeError('build-exe-for-python-sdk.yml must define jobs')
-    const setups: Array<{ step: unknown }> = []
-    for (const job of Object.values(workflow.jobs)) {
-      if (!isRecord(job) || !Array.isArray(job.steps)) continue
-      for (const step of job.steps) {
-        if (!isRecord(step) || typeof step.uses !== 'string' || !step.uses.startsWith('pnpm/action-setup@')) continue
-        setups.push({ step })
-      }
-    }
+  it('isolates and pins the python SDK exe bun setup', () => {
+    const setups = bunSetupJobs('.github/workflows/build-exe-for-python-sdk.yml')
+
     expect(setups.length).toBeGreaterThan(0)
-    for (const { step } of setups) {
-      expect(step).toMatchObject({
-        with: { dest: nativeWindowsPnpmDestination },
-      })
+    for (const { step, env } of setups) {
+      expect(step).toMatchObject({ with: { 'bun-version-file': MANIFEST_PINNED_BUN_VERSION_FILE } })
+      expect((env as { BUN_INSTALL?: unknown } | undefined)?.BUN_INSTALL).toBe(RUN_PRIVATE_BUN_INSTALL)
     }
   })
 
@@ -115,7 +116,7 @@ describe('CI workflow', () => {
     const buildCommands = buildSteps.filter((step): step is Record<string, unknown> & { run: string } => (
       isRecord(step) && typeof step.run === 'string'
     ))
-    expect(buildCommands.map(step => step.run)).toContain('pnpm run check:ci:windows-blocking')
+    expect(buildCommands.map(step => step.run)).toContain('bun run check:ci:windows-blocking')
 
     // windows-coverage uses the lower 4-partition profile.
     expect(windowsCoverage.name).toBe('windows node 24 / coverage')
@@ -124,7 +125,7 @@ describe('CI workflow', () => {
     const coverageCommands = coverageSteps.filter((step): step is Record<string, unknown> & { run: string } => (
       isRecord(step) && typeof step.run === 'string'
     ))
-    expect(coverageCommands.map(step => step.run)).toContain('pnpm run check:ci:coverage')
+    expect(coverageCommands.map(step => step.run)).toContain('bun run check:ci:coverage')
 
     // windows-native-tests runs the Windows-specific specs.
     expect(windowsNativeTests.name).toBe('windows node 24 / native tests')
@@ -490,9 +491,9 @@ describe('Python release workflows', () => {
     expect(manylinuxAddon).toMatchObject({ if: "runner.os == 'Linux'" })
     expect(JSON.stringify(manylinuxAddon)).toContain('manylinux_2_28_x86_64')
     expect(JSON.stringify(manylinuxAddon)).toContain('manylinux_2_28_aarch64')
-    expect(JSON.stringify(manylinuxAddon)).toContain('npm_config_build_from_source=true pnpm run install')
-    expect(JSON.stringify(manylinuxAddon)).toContain('pnpm_setup_root')
-    expect(JSON.stringify(manylinuxAddon)).toContain('$pnpm_setup_root:$pnpm_setup_root:ro')
+    expect(JSON.stringify(manylinuxAddon)).toContain('npm_config_build_from_source=true bun run install')
+    expect(JSON.stringify(manylinuxAddon)).toContain('bun_setup_root')
+    expect(JSON.stringify(manylinuxAddon)).toContain('$bun_setup_root:$bun_setup_root:ro')
     expect(JSON.stringify(manylinuxAddon)).toContain('node-pty-glibc-versions.txt')
     expect(JSON.stringify(manylinuxAddon)).toContain('le 2.28')
     expect(macosCheck).toMatchObject({ if: "runner.os == 'macOS'" })
@@ -541,6 +542,34 @@ describe('Python release workflows', () => {
 
     expect(macosCheck).toContain('scripts/check-macos-deployment-target.py')
     expect(macosCheck).toContain('"$EXE" "$EXE-spawn-helper"')
+  })
+
+  it('installs bun itself in GitLab, pinned to the manifest and verified', () => {
+    // GitLab provisions no bun: without an explicit install every `bun` step is
+    // command-not-found. corepack cannot supply it — it shims npm, pnpm and
+    // yarn only — so each job installs bun and proves the version it got.
+    const workflow = loadWorkflow('.gitlab-ci.yml')
+    for (const jobName of ['.runtime-wheel', 'runtime-windows-x64']) {
+      const job = workflow[jobName]
+      if (!isRecord(job) || !Array.isArray(job.script)) {
+        throw new TypeError(`GitLab CI must define the ${jobName} script`)
+      }
+      const script = JSON.stringify(job.script)
+      expect(script, `${jobName} must install bun`).toContain('bun.com/install')
+      // The version comes from packageManager, the same single source the
+      // GitHub jobs read through setup-bun's bun-version-file.
+      expect(script, `${jobName} must pin bun to the manifest`).toContain('packageManager')
+      expect(script, `${jobName} must verify the installed bun version`).toContain('bun --version')
+      const installIndex = job.script.findIndex(
+        step => typeof step === 'string' && step.includes('bun.com/install'),
+      )
+      const useIndex = job.script.findIndex(
+        step => typeof step === 'string' && step.includes('bun install --frozen-lockfile'),
+      )
+      expect(installIndex, `${jobName} must install bun`).toBeGreaterThanOrEqual(0)
+      expect(useIndex, `${jobName} must install dependencies`).toBeGreaterThanOrEqual(0)
+      expect(installIndex, `${jobName} must install bun before using it`).toBeLessThan(useIndex)
+    }
   })
 
   it('builds and black-box tests the Windows x64 wheel in GitLab', () => {
@@ -643,7 +672,7 @@ describe('Documentation site publication', () => {
     )
     expect(verify).toMatchObject({
       env: { RELEASE_PUBLISH: 'true' },
-      run: 'pnpm run release:verify --family dsh',
+      run: 'bun run release:verify --family dsh',
     })
     // Complete history: the release scripts read tags.
     expect(checkout).toMatchObject({ with: { 'fetch-depth': 0 } })

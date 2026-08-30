@@ -25,7 +25,7 @@ const DEFAULT_OUTPUT = 'dist/npm'
  * @returns The tarball filename.
  */
 async function packMember(family: ReleaseFamily, member: ReleaseMember, destination: string): Promise<string> {
-  await runConcurrent('pnpm', ['--dir', member.directory, 'pack', '--pack-destination', destination])
+  await runConcurrent('bun', ['pm', 'pack', '--cwd', member.directory, '--destination', destination])
 
   const filename = tarballName(member)
   const tarball = join(destination, filename)

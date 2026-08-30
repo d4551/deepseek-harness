@@ -109,13 +109,13 @@ interface PreviewAssets {
 function requirePreviewPages(): void {
   for (const page of PAGES) {
     if (existsSync(join(DIST_ROOT, page))) continue
-    throw new Error(`preview boot needs apps/web/dist/${page} — run \`pnpm run build\` from the repository root`)
+    throw new Error(`preview boot needs apps/web/dist/${page} — run \`bun run build\` from the repository root`)
   }
 }
 
 /**
  * The base image, fixture manifest, and overlays to serve, packed here when
- * `dist/` does not carry the complete set: `pnpm run build` emits the pages but
+ * `dist/` does not carry the complete set: `bun run build` emits the pages but
  * only `build:preview` packs these files, so this lane packs for itself rather
  * than skipping the deployment it accepts. A complete built set is used as it
  * stands — the worker refuses a base lowered against another wrapper contract.

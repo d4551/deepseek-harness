@@ -26,7 +26,7 @@ From a development checkout:
 
 ```sh
 export DSH_GITHUB_REVIEW_WORKSPACE=/path/to/deepseek-harness
-pnpm dsh web --patch apps/cli/config/examples/github-review/cordis.yml
+bun run dsh web --patch apps/cli/config/examples/github-review/cordis.yml
 ```
 
 An installed DSH uses the same overlay through an absolute path:

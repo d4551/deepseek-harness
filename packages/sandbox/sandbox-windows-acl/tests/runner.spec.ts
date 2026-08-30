@@ -414,7 +414,7 @@ describe.skipIf(!isWin32 || !pwshAvailable())('windows-acl runner', () => {
   it('partial boundary: a workspace hard link lets the grant reach an external file object', () => {
     // NTFS ACLs belong to the file object, not one pathname. Propagating the
     // workspace write-SID ACE through an existing hard-link alias therefore
-    // grants the external alias too. pnpm workspaces commonly contain hard
+    // grants the external alias too. bun workspaces commonly contain hard
     // links, so rejecting every multiply-linked file is not a viable profile.
     const hardlinkWorkspace = join(scratchRoot, 'hardlink-workspace')
     const hardlinkTemp = join(scratchRoot, 'hardlink-temp')

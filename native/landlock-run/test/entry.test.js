@@ -2,7 +2,7 @@
  * Keyless entry-package tests — run on every host, no kernel or binary
  * required. Cover the JavaScript API's pure surface: grant-argv construction, the
  * resolution contract (platform package → fallback), and probe verdicts over
- * fake launchers. Requires built `lib/` (`pnpm build:ts`).
+ * fake launchers. Requires built `lib/` (`bun run build:ts`).
  */
 
 import assert from 'node:assert/strict';

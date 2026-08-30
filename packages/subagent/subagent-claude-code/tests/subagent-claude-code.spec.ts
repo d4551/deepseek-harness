@@ -380,13 +380,15 @@ describe('task admission and package contracts', () => {
         CLAUDE_AGENT_SDK_VERSION,
       ]),
     ))
-    const lockfile = readFileSync(resolve(root, '../../../pnpm-lock.yaml'), 'utf8')
+    const lockfile = readFileSync(resolve(root, '../../../bun.lock'), 'utf8')
     for (const packageName of CLAUDE_PLATFORM_PACKAGES) {
+      // The resolution entry pins the platform package itself...
       expect(lockfile).toContain(
-        `  '${packageName}@${CLAUDE_AGENT_SDK_VERSION}':`,
+        `"${packageName}": ["${packageName}@${CLAUDE_AGENT_SDK_VERSION}", `,
       )
+      // ...and the SDK selects exactly that version as an optional dependency.
       expect(lockfile).toContain(
-        `      '${packageName}': ${CLAUDE_AGENT_SDK_VERSION}`,
+        `"${packageName}": "${CLAUDE_AGENT_SDK_VERSION}"`,
       )
     }
 

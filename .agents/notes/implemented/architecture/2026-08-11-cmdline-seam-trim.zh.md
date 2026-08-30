@@ -12,7 +12,7 @@ Status: implemented
 
 三者全部改用已经存在的接口表达：
 
-- **不再有条件 dev 行。** 重载链不再是条件性的：`dsh-web-app` 无条件挂载 `client-hmr` 行，`--dev` 连同 web runtime 的 `mode` 配置、按模式分叉的提示词约定和 `DSH_WEB_MODE` bash 变量一并删除。没有重建 watcher（`pnpm run dev:web`）改写客户端 bundle 时，链路轮询到的文件从不变化、保持空闲，因此常开的行只花费一个 stat 轮询间隔和一条 SSE 路由。`Entry.enableRuntime`、它的两个状态字段和 `enableRow` 删除后无任何替代物。
+- **不再有条件 dev 行。** 重载链不再是条件性的：`dsh-web-app` 无条件挂载 `client-hmr` 行，`--dev` 连同 web runtime 的 `mode` 配置、按模式分叉的提示词约定和 `DSH_WEB_MODE` bash 变量一并删除。没有重建 watcher（`bun run dev:web`）改写客户端 bundle 时，链路轮询到的文件从不变化、保持空闲，因此常开的行只花费一个 stat 轮询间隔和一条 SSE 路由。`Entry.enableRuntime`、它的两个状态字段和 `enableRow` 删除后无任何替代物。
 - **树载体配置。** Include 改为声明已有的 `EntryGroup.key` 标记，不再实现 `EntryConfigResolver`；Loader 钩子让每个树载体的配置保持字面值。Include 自己的 `path` 失去 `!!js` 支持 —— 从未有配置用过它，固定该行为的测试改为断言字面值树载体约定。
 - **启动器的应用知识。** 启动器不再识别任何应用行。SIGTERM 是监督进程的普通停止请求，在所有 surface 上以 0 退出（SIGINT 仍为 130）；启动器无从知道应用是否认为工作已完成，而之前的 143 依赖于点名 headless 行。每次启动都监视用户 patch 层 —— 一次性 surface 经由有界关闭退出，关闭会先 dispose 监视器再排空事件循环。headless runner 像任何应用一样经 `ctx.appExit` 退出；其输出流是包内 `internals` 测试接缝，`ctx.headlessIo` 删除。
 

@@ -85,6 +85,10 @@ export function DisclosureRow({
           <button
             type="button"
             className={clsx(css.leading, leadingClassName)}
+            // The button's only content is a chevron, so the row's own title is
+            // what names it; without this it reaches assistive technology as an
+            // unnamed control.
+            aria-label={title}
             aria-expanded={open}
             onClick={toggleFromLeading}
           >

@@ -12,13 +12,13 @@ That lifecycle is not required to run or develop DeepSeek Harness from a source 
 
 ## Decision
 
-The repository supports source execution through its root `pnpm` scripts. The `dsh` entry in `package.json` launches `apps/cli/src/bin.ts` directly through `node --import tsx/esm`; artifact generation is the separate `pnpm run build` operation defined by the [source-launch/build separation decision](2026-08-12-separate-source-launch-from-build.md). The package script forwards arguments and inherits the caller's environment, including `NODE_USE_ENV_PROXY=1` when a supporting Node version must honor `HTTP_PROXY` and `HTTPS_PROXY`. Users select Web with `pnpm dsh web`, headless execution with `pnpm dsh --profile headless "task"`, and ACP automation with `pnpm dsh --profile acp`.
+The repository supports source execution through its root `bun` scripts. The `dsh` entry in `package.json` launches `apps/cli/src/bin.ts` directly through `node --import tsx/esm`; artifact generation is the separate `bun run build` operation defined by the [source-launch/build separation decision](2026-08-12-separate-source-launch-from-build.md). The package script forwards arguments and inherits the caller's environment, including `NODE_USE_ENV_PROXY=1` when a supporting Node version must honor `HTTP_PROXY` and `HTTPS_PROXY`. Users select Web with `bun dsh web`, headless execution with `bun dsh --profile headless "task"`, and ACP automation with `bun dsh --profile acp`.
 
 The repository does not distribute a source installer, an installer test suite, or skills that assume a managed `current` symlink and timestamped staging worktrees. Users own source checkout placement, Git updates, and any launcher they create outside the repository.
 
 ## Alternatives considered
 
-**Keep the installer but document `pnpm run` as another path.** This retains the managed launcher and rollback capability but keeps both lifecycle contracts active, including the installer tests and staging-aware skills.
+**Keep the installer but document `bun run` as another path.** This retains the managed launcher and rollback capability but keeps both lifecycle contracts active, including the installer tests and staging-aware skills.
 
 **Keep generic customization and upstream-publication skills.** Their safety rules can apply beyond the staging layout, but the shipped workflows form one coupled maintenance system: customization discovers the installed staging checkout, upgrade performs the cutover, and upstream publication is selected from those personal changes. General Git contribution guidance already belongs to repository instructions and does not require product-bundled skills.
 

@@ -16,7 +16,7 @@
  * `.gitignore`), packed into the platform package's npm tarball behind its
  * `prepack` gate (`scripts/verify-launcher-binary.mjs`).
  *
- * Run: `pnpm run build:native` (Linux with musl-gcc on PATH:
+ * Run: `bun run build:native` (Linux with musl-gcc on PATH:
  * `apt-get install musl-tools`). Non-Linux hosts fail fast — no platform
  * package exists for them to build.
  */

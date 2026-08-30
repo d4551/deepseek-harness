@@ -80,14 +80,19 @@ describe.skipIf(!packable)('sandbox-local: packed-tarball distribution (publish-
     // Pack each harness closure member with the exact bytes publish would upload.
     const tarballs: string[] = []
     for (const pkg of workspaceClosure) {
-      const pack = spawnSync('pnpm', ['pack', '--pack-destination', packDest], {
+      const pack = spawnSync('bun', ['pm', 'pack', '--destination', packDest], {
         cwd: pkg.directory,
         encoding: 'utf8',
         timeout: 120_000,
       })
-      expect(pack.status, `pnpm pack failed for ${pkg.name}:\n${pack.stdout}\n${pack.stderr}`).toBe(0)
-      const lines = pack.stdout.trim().split('\n')
-      tarballs.push(lines[lines.length - 1] as string)
+      expect(pack.status, `bun pm pack failed for ${pkg.name}:\n${pack.stdout}\n${pack.stderr}`).toBe(0)
+      // `bun pm pack` prints the tarball path on its own line, then a summary
+      // block (`Total files`, `Shasum`, `Packed size`). Select the path by its
+      // extension rather than by position, and require exactly one so a future
+      // output change fails here instead of handing npm a summary line.
+      const paths = pack.stdout.split('\n').map(line => line.trim()).filter(line => line.endsWith('.tgz'))
+      expect(paths, `bun pm pack named no single tarball for ${pkg.name}:\n${pack.stdout}`).toHaveLength(1)
+      tarballs.push(paths[0] as string)
     }
     tarballs.push(...nativeTarballs)
 

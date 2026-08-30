@@ -41,7 +41,7 @@
   },
   "license": "MIT",
   "dependencies": {
-    "use-sync-external-store": "1.2.0"
+    "use-sync-external-store": "1.6.0"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-invariants": "workspace:^",
@@ -49,6 +49,7 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
+    "@deepseek-ai/dsh-client-a11y": "workspace:*",
     "@deepseek-ai/dsh-client-test-runtime": "workspace:^",
     "@deepseek-ai/dsh-client-ui-slots": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",

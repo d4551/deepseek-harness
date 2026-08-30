@@ -25,6 +25,6 @@ Every mechanically checkable AGENTS.md promise gets a command that exits non-zer
 
 - Conventions survive agent turnover; cheap commit/push defects fail locally and exhaustive violations fail in CI.
 - The gates themselves are code to maintain; config changes are reviewed like any change.
-- 100%-coverage pressure can produce assertion-free tests — mutation testing is the planned counterweight (see [the mutation-testing proposal](../../proposed/testing/2026-06-11-mutation-testing.md)).
+- 100%-coverage pressure can produce assertion-free tests — mutation testing is the planned counterweight (see [the mutation-testing proposal](../testing/2026-06-11-mutation-testing.md)).
 
 <!-- agent-note-format: alternatives-not-recorded (pre-format Agent Note) -->

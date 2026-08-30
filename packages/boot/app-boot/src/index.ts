@@ -32,6 +32,7 @@ export {
   DEFAULT_PROFILE_BUNDLES,
   DEFAULT_PROFILE_PATCH_RELOAD,
   healProfilesModuleFallback,
+  ensureProfileInstallSettings,
   initProfile,
   loadProfile,
   PROFILE_PATCH_FILENAME,

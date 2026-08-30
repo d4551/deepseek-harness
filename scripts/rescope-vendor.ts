@@ -22,7 +22,7 @@
  * {@link EXACT_EDITS} with an exact hit count, so an upstream change to one of
  * them fails loudly instead of being silently skipped.
  *
- * Usage: `pnpm run rescope-vendor [--apply|--check] [--reverse]`. Without a
+ * Usage: `bun run rescope-vendor [--apply|--check] [--reverse]`. Without a
  * mode it reports what would change. `--check` asserts the post-state: no
  * residue, every exact edit landed, every postcondition holds, and a second
  * `--apply` would be a no-op.
@@ -94,6 +94,13 @@ const GENERIC_SKIPS: readonly GenericSkip[] = [
   { file: 'apps/cli/tests/web-agent-presets.e2e.ts', upstream: ['cordis'] },
   { file: 'apps/web/tests/agent-preset-authoring.e2e.ts', upstream: ['cordis'] },
   { file: 'packages/preset/agent-presets/tests/session.spec.ts', upstream: ['cordis'] },
+  // `cordis/tree` is an inspector bridge TOPIC and `cordis-tree/get` a query op:
+  // both are wire identifiers the host and worker agree on, not package names,
+  // so rescoping them would rename one side of a live protocol.
+  { file: 'packages/experimental/inspector/src/shared/bridge/messages/cordis.ts', upstream: ['cordis'] },
+  { file: 'packages/experimental/inspector/tests/cordis-query.host.spec.ts', upstream: ['cordis'] },
+  { file: 'packages/experimental/inspector/tests/cordis-tree.host.spec.ts', upstream: ['cordis'] },
+  { file: 'packages/experimental/inspector/tests/plugin.client.spec.ts', upstream: ['cordis'] },
   // The preset's own composition: its header comment and its system prompt name
   // the preset a model mounts, so the scoped name would send the model after an
   // id no roster reports.
@@ -154,7 +161,7 @@ const POSTCONDITIONS: readonly PostCondition[] = [
   // The vendored README owns this required entry; reject its deletion or duplication.
   { file: 'vendor/README.md', text: '17. **`@deepseek-ai` rescope**', count: 1 },
   { file: 'knip.json', text: '@cordisjs', count: 0 },
-  { file: 'pnpm-workspace.yaml', text: 'cordis@4.0.0-rc.7', count: 0 },
+  { file: 'bunfig.toml', text: 'cordis@4.0.0-rc.7', count: 0 },
   // The preset ids in this table are product data, not package names.
   { file: 'packages/client/ui-agent-preset/tests/locales.client.spec.ts', text: '[\'cordis\', \'presetCordisName\'', count: 1 },
   // The preset id the shipped composition documents to its own model.
@@ -166,6 +173,11 @@ const POSTCONDITIONS: readonly PostCondition[] = [
  * Every exact edit, in application order. Each `find` is written against the
  * PRE-rename text because these run before the generic pass, so no `find` may
  * quote a neighbouring line the generic pass would rewrite.
+ *
+ * An edit quotes the smallest fragment that carries the rename. Quoting the
+ * surrounding sentence or a column-aligned tree row makes the record assert
+ * prose the rename does not own, and an unrelated edit to that prose then
+ * reports as a broken migration rather than as the doc change it is.
  */
 const EXACT_EDITS: readonly ExactEdit[] = [
   {
@@ -210,15 +222,15 @@ const EXACT_EDITS: readonly ExactEdit[] = [
   },
   {
     // Rescoped packages are never fetched from a registry, so the exclusion is dead config.
-    id: 'pnpm-release-age',
-    file: 'pnpm-workspace.yaml',
-    find: `minimumReleaseAgeExclude:
+    id: 'release-age-exclusions',
+    file: 'bunfig.toml',
+    find: `minimumReleaseAgeExcludes = [
   # Cordis release candidates are source-vendored and pinned in vendor/README.md
   # during the same-day sync that updates package manifests and the lockfile.
-  - '@cordisjs/plugin-loader@1.0.0-rc.5'
-  - cordis@4.0.0-rc.7
+  "@cordisjs/plugin-loader",
+  "cordis",
 `,
-    replace: 'minimumReleaseAgeExclude:\n',
+    replace: 'minimumReleaseAgeExcludes = [\n',
     expect: 1,
   },
   {
@@ -233,8 +245,8 @@ const EXACT_EDITS: readonly ExactEdit[] = [
   {
     id: 'vendor-readme-preamble',
     file: 'vendor/README.md',
-    find: 'All vendored packages keep their **original npm names** and are marked `private: true` — they are never published from this repo. `pnpm-workspace.yaml#linkWorkspacePackages` makes matching upstream semver ranges resolve these pinned workspaces, including imports from built `lib/`; disabling it substitutes npm copies behind the same names.',
-    replace: 'All vendored packages are **renamed into the `@deepseek-ai` scope** (`cordis` → `@deepseek-ai/cordis`, `@cordisjs/plugin-<x>` → `@deepseek-ai/cordis-plugin-<x>`): every harness package declares `cordis` as a peer dependency, so publishing the harness publishes this framework layer too, and a publication under the upstream names would squat them on the registry. Directory names and upstream version numbers are deliberately unchanged, so the manifest below still reads as an upstream snapshot. `pnpm-workspace.yaml#linkWorkspacePackages` makes those preserved semver ranges resolve these pinned workspaces, including imports from built `lib/`.',
+    find: 'All vendored packages keep their **original npm names** and are marked `private: true` — they are never published from this repo. The `workspaces` globs in `package.json` make matching upstream semver ranges resolve these pinned workspaces, including imports from built `lib/`; removing them substitutes npm copies behind the same names.',
+    replace: 'All vendored packages are **renamed into the `@deepseek-ai` scope** (`cordis` → `@deepseek-ai/cordis`, `@cordisjs/plugin-<x>` → `@deepseek-ai/cordis-plugin-<x>`): every harness package declares `cordis` as a peer dependency, so publishing the harness publishes this framework layer too, and a publication under the upstream names would squat them on the registry. Directory names and upstream version numbers are deliberately unchanged, so the manifest below still reads as an upstream snapshot. The `workspaces` globs in `package.json` make those preserved semver ranges resolve these pinned workspaces, including imports from built `lib/`.',
     expect: 1,
   },
   {
@@ -255,15 +267,15 @@ const EXACT_EDITS: readonly ExactEdit[] = [
     // A plain fence listing the bundle's mounted tree: a bare token, no quotes.
     id: 'agent-spine-demo-mounted-tree',
     file: 'packages/examples/agent-spine-demo/README.md',
-    find: '@cordisjs/plugin-timer            timer service',
-    replace: '@deepseek-ai/cordis-plugin-timer  timer service',
+    find: '@cordisjs/plugin-timer',
+    replace: '@deepseek-ai/cordis-plugin-timer',
     expect: 1,
   },
   {
     id: 'agent-spine-demo-mounted-tree-zh',
     file: 'packages/examples/agent-spine-demo/README.zh.md',
-    find: '@cordisjs/plugin-timer            timer service',
-    replace: '@deepseek-ai/cordis-plugin-timer  timer service',
+    find: '@cordisjs/plugin-timer',
+    replace: '@deepseek-ai/cordis-plugin-timer',
     expect: 1,
   },
   {
@@ -306,30 +318,30 @@ const VENDORED_LIBRARY = /^@deepseek-ai\\/(cosmokit|schemastery)(\\/|$)/
     // paragraph above the invariant that says to rescope it.
     id: 'vendoring-cookbook-tree-comment',
     file: 'docs/cookbook/adding-a-vendored-package.md',
-    find: '  package.json     # from upstream; set "private": true, keep name/exports/type',
-    replace: '  package.json     # from upstream; set "private": true, rescope the name, keep exports/type',
+    find: 'from upstream; keep name/exports/type',
+    replace: 'from upstream; rescope the name, keep exports/type',
     expect: 1,
   },
   {
     id: 'vendoring-cookbook-tree-comment-zh',
     file: 'docs/cookbook/adding-a-vendored-package.zh.md',
-    find: '  package.json     # from upstream; set "private": true, keep name/exports/type',
-    replace: '  package.json     # from upstream; set "private": true, rescope the name, keep exports/type',
+    find: 'from upstream; keep name/exports/type',
+    replace: 'from upstream; rescope the name, keep exports/type',
     expect: 1,
   },
   {
     // The checklist told the next vendoring to keep upstream's name.
     id: 'vendoring-cookbook-name-invariant',
     file: 'docs/cookbook/adding-a-vendored-package.md',
-    find: "keep upstream's `name`/`version`/`exports`/`type`",
-    replace: "rescope the `name` ([mapping](../rescope.md)) while keeping upstream's `version`/`exports`/`type`",
+    find: "keep upstream's `name`",
+    replace: "rescope the `name` ([mapping](../rescope.md)) while keeping upstream's",
     expect: 1,
   },
   {
     id: 'vendoring-cookbook-name-invariant-zh',
     file: 'docs/cookbook/adding-a-vendored-package.zh.md',
-    find: '保留上游的 `name`/`version`/`exports`/`type`',
-    replace: '改写 `name` 的 scope（[映射](../rescope.zh.md)），保留上游的 `version`/`exports`/`type`',
+    find: '保留上游的 `name`',
+    replace: '改写 `name` 的 scope（[映射](../rescope.zh.md)），保留上游的',
     expect: 1,
   },
   {
@@ -462,7 +474,7 @@ function excluded(file: string): boolean {
   // The mapping documents state both names on purpose.
   if (file === 'docs/rescope.md' || file === 'docs/rescope.zh.md') return true
   if (file.endsWith('.i18n.yaml')) return true // blob-hash records, re-recorded by the pairing gate
-  if (file === 'pnpm-lock.yaml') return true // regenerated by pnpm install
+  if (file === 'bun.lock') return true // regenerated by bun install
   if (/^vendor\/[^/]+\/(README\.md|LICENSE)$/.test(file)) return true // upstream files kept verbatim
   return !EXTENSIONS.some(extension => file.endsWith(extension))
 }
@@ -672,7 +684,7 @@ function main(): void {
   } else if (mode === 'check') {
     console.log('rescope-vendor: post-state verified — no residue, every exact edit landed, idempotent.')
   } else if (mode === 'apply') {
-    console.log('rescope-vendor: applied. Run `pnpm install`, `pnpm run gen-third-party-notices`, and re-record the touched bilingual pairs.')
+    console.log('rescope-vendor: applied. Run `bun install`, `bun run gen-third-party-notices`, and re-record the touched bilingual pairs.')
   }
 }
 

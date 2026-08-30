@@ -40,4 +40,4 @@ Status: implemented
 
 ## 测试
 
-`scripts/project-doc-site.spec.ts` 覆盖：placer 收到解析后的绝对路径且其返回的 URL 落进 Markdown、被安置的引用保留其 fragment、存在 placer 时已发布页面的链接仍解析到自己的路由、以及不传 placer 时不变的 GitHub raw 回退。`publishableImage` 另有直接覆盖：仓库内的普通文件被接受，而目标逃出仓库的符号链接、仓库外的路径与目录一律拒绝。`pnpm docs:check` 会带着模型提供方指南的截图构建站点，并在来源缺失时失败；被拷贝的文件及其 `./<basename>` 引用已在 `website/.generated` 与运行中的 `docs:dev` 里核实（两个 locale 均 `naturalWidth > 0`）。
+`scripts/project-doc-site.spec.ts` 覆盖：placer 收到解析后的绝对路径且其返回的 URL 落进 Markdown、被安置的引用保留其 fragment、存在 placer 时已发布页面的链接仍解析到自己的路由、以及不传 placer 时不变的 GitHub raw 回退。`publishableImage` 另有直接覆盖：仓库内的普通文件被接受，而目标逃出仓库的符号链接、仓库外的路径与目录一律拒绝。`bun run docs:check` 会带着模型提供方指南的截图构建站点，并在来源缺失时失败；被拷贝的文件及其 `./<basename>` 引用已在 `website/.generated` 与运行中的 `docs:dev` 里核实（两个 locale 均 `naturalWidth > 0`）。

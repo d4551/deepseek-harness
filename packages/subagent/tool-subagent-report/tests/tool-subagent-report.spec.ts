@@ -457,15 +457,41 @@ describe('dsh-tool-subagent-report', () => {
     const assembly = await ctx.systemPrompt.assemble(assembleContextFor(child))
     const guidance = assembly.sections.find(section => section.name === 'tool:report')
     // Pins the model-visible instruction that makes the return channel a
-    // contract rather than an option the child may quietly skip.
-    expect(guidance?.text).toContain('Deliver your result with the report tool before you finish')
-    expect(guidance?.text).toContain('reporting never ends your turn')
+    // contract rather than an option the child may quietly skip. Verbatim,
+    // because a fragment check leaves every sentence between the two probes
+    // free to change or vanish.
+    expect(guidance?.text).toBe(
+      'Deliver your result with the report tool before you finish: call it once with a self-contained '
+      + 'answer. The agent that started you shares your workspace but does not automatically receive your '
+      + 'transcript, tool output, or reasoning, so a closing remark such as "done" leaves it nothing it can '
+      + 'use. Report earlier as well whenever a partial finding changes what that agent should do next; '
+      + 'reporting never ends your turn.',
+    )
 
     expect(await sectionNames(ctx, parent)).not.toContain('tool:report')
     // A sibling installs its own copy; neither child can observe the other's.
     expect(await sectionNames(ctx, sibling)).toContain('tool:report')
     expect((await ctx.systemPrompt.assemble()).sections.map(section => section.name))
       .not.toContain('tool:report')
+  })
+
+  it('sends the whole report description and its parameter text to the child', async () => {
+    const { ctx, parent } = await setup()
+    const { child } = await startChild(ctx, parent)
+    const schema = ctx.tools.schemas(child).find(entry => entry.name === 'report')
+    if (schema === undefined) throw new Error('report is not registered for the child')
+
+    expect(schema.description).toBe(
+      'Report selected content to the agent that started you. Call this once before you finish, with a '
+      + 'self-contained final result, and earlier for progress or findings that change what that agent does '
+      + 'next. That agent shares your workspace but does not automatically receive your transcript, tool '
+      + 'output, or reasoning, so finishing your work is not itself a result. Reporting does not end your '
+      + 'turn or finish your work, and only your direct parent receives it. A failed call may still have '
+      + 'arrived, so do not blindly repeat it.',
+    )
+    const parameters = schema.parameters as { properties: { output: { description: string } } }
+    expect(parameters.properties.output.description)
+      .toBe('Actionable content for your parent; summarize conclusions and reference relevant shared paths.')
   })
 
   it('rolls back materialization when a setup contribution revokes itself', async () => {

@@ -104,12 +104,15 @@ const footer = formatRetentionNotice(
 
 | 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | `ItemRetainer`、`TextRetainer`、`describeOmitted` 与 `formatRetentionNotice` |
+| [`src/index.ts`](src/index.ts) | 公共类型、`describeOmitted`、`formatRetentionNotice` 与两个 retainer 的入口 |
+| [`src/item-retainer.ts`](src/item-retainer.ts) | `ItemRetainer` |
+| [`src/text-retainer.ts`](src/text-retainer.ts) | `TextRetainer` 与 UTF-8 切割辅助函数 |
+| [`src/budget.ts`](src/budget.ts) | 共享的预算字段校验 |
 | [`src/invariant.ts`](src/invariant.ts) | 不变式伴生插件（无运行时不变式；保留运算由单元测试覆盖） |
 
 ### 两个 retainer，两种资源模型
 
-`ItemRetainer` 限制有序逻辑单元，只保留前 `maxItems` 个；调用方持续送入每个已观察单元，因此省略计数是精确的。`TextRetainer` 用同一个前缀/后缀累加器限制字节：`head` 只留前缀，`tail` 只留后缀，`headTail` 两者都留；累加器在内存中至多持有 `headBytes + tailBytes + 一个分片`，因此大流不会无界累积。
+`ItemRetainer` 限制有序逻辑单元，只保留前 `maxItems` 个；调用方持续送入每个已观察单元，因此省略计数是精确的。`TextRetainer` 用同一个前缀/后缀累加器限制字节：`head` 只留前缀，`tail` 只留后缀，`headTail` 两者都留；两侧各自只保留 `finish()` 会读取的字节——内存中至多 `headBytes + tailBytes`——因此大流与超过窗口的单个分片都不会无界累积。
 
 ### 预算事实如何保持诚实
 

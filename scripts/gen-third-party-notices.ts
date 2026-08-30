@@ -2,7 +2,7 @@
  * Generate `THIRD_PARTY_NOTICES.md` from the workspace manifests: every
  * external dependency named by a workspace `package.json`, the vendored-package
  * manifest in `vendor/README.md`, the Python `pyproject.toml` files, and the
- * pnpm patch list. License and repository metadata come from the installed
+ * bun patch list. License and repository metadata come from the installed
  * store, so the tree must be installed. `--check` verifies the committed
  * artifact. Tier policy and ownership live in
  * `.agents/notes/implemented/process/2026-07-30-generated-third-party-notices.md`.
@@ -10,7 +10,6 @@
 
 import { existsSync, globSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
-import * as yaml from 'js-yaml'
 import { parse as parseToml, type TomlTableWithoutBigInt, type TomlValueWithoutBigInt } from 'smol-toml'
 import parseSpdx from 'spdx-expression-parse'
 
@@ -138,9 +137,9 @@ export function manifestPatterns(rootMembers: readonly string[]): string[] {
   ]
 }
 
-/** The `packages:` member globs declared by one pnpm workspace file. */
+/** The `workspaces` member globs declared by one package manifest. */
 function workspaceMembers(rel: string): string[] {
-  const declared = (yaml.load(readFileSync(resolve(root, rel), 'utf8')) as { packages?: unknown }).packages
+  const declared = (JSON.parse(readFileSync(resolve(root, rel), 'utf8')) as { workspaces?: unknown }).workspaces
   if (!Array.isArray(declared) || declared.length === 0) {
     throw new Error(`gen-third-party-notices: ${rel} declares no workspace members; the manifest set cannot be derived.`)
   }
@@ -155,7 +154,7 @@ function workspaceMembers(rel: string): string[] {
  * would silently push dev-area manifests into the runtime tier.
  */
 function loadWorkspaceManifests(): { manifests: Map<string, Manifest>; names: Set<string> } {
-  const patterns = manifestPatterns(workspaceMembers('pnpm-workspace.yaml'))
+  const patterns = manifestPatterns(workspaceMembers('package.json'))
   const manifests = new Map<string, Manifest>()
   const names = new Set<string>()
   for (const pattern of patterns) {
@@ -240,13 +239,13 @@ export function claudeDistributionFromManifest(
 }
 
 /**
- * Resolve one package's manifest inside a pnpm virtual store. The prefix scan
- * matches ordinary `@scope+name@version` directory names; pnpm 11 truncates
- * long names (a peer-suffixed name past the length limit becomes
- * `<prefix>_<hash>`), so a content scan falls back over the whole store when
- * the prefix misses.
+ * Resolve one package's manifest inside an isolated virtual store. The prefix
+ * scan matches `@scope+name@version` directory names, including the
+ * `@scope+name@version+<hash>` form bun gives a peer-disambiguated entry. A
+ * content scan falls back over the whole store for any layout that does not
+ * spell the directory with that prefix.
  *
- * @param virtual - the `.pnpm` virtual store directory to scan.
+ * @param virtual - the `.bun` virtual store directory to scan.
  * @param name - the external package name, exactly as `node_modules` spells it.
  * @param expectedVersion - exact version required when the store retains more than one.
  * @returns the parsed manifest, or `undefined` when neither the prefix match
@@ -295,7 +294,7 @@ function workspaceLinkedManifest(name: string): VirtualManifest | undefined {
   return undefined
 }
 
-/** Resolve one installed external package manifest from either pnpm store. */
+/** Resolve one installed external package manifest from either bun store. */
 function installedManifest(name: string, expectedVersion?: string): VirtualManifest | undefined {
   const linked = workspaceLinkedManifest(name)
   if (linked !== undefined && (expectedVersion === undefined || linked.version === expectedVersion)) return linked
@@ -311,7 +310,7 @@ function installedManifest(name: string, expectedVersion?: string): VirtualManif
         break
       }
     }
-    const virtual = resolve(root, store, '.pnpm')
+    const virtual = resolve(root, store, '.bun')
     if (!existsSync(virtual)) continue
     manifest = virtualManifest(virtual, name, expectedVersion)
     if (manifest !== undefined) break
@@ -319,7 +318,7 @@ function installedManifest(name: string, expectedVersion?: string): VirtualManif
   return manifest
 }
 
-/** License and repository URL for an installed external package, from the pnpm store. */
+/** License and repository URL for an installed external package, from the bun store. */
 function installedMetadata(name: string): { license: string; repo: string } {
   const override = OVERRIDES[name]
   const manifest = installedManifest(name)
@@ -327,7 +326,7 @@ function installedMetadata(name: string): { license: string; repo: string } {
   const rawRepo = typeof manifest?.repository === 'string' ? manifest.repository : manifest?.repository?.url ?? manifest?.homepage
   const repo = override?.repo ?? normalizeRepo(rawRepo)
   if (license === undefined || repo === undefined) {
-    throw new Error(`gen-third-party-notices: cannot resolve ${license === undefined ? 'license' : 'repository'} for ${name}; run \`pnpm install\`, or add an OVERRIDES entry.`)
+    throw new Error(`gen-third-party-notices: cannot resolve ${license === undefined ? 'license' : 'repository'} for ${name}; run \`bun install\`, or add an OVERRIDES entry.`)
   }
   return { license, repo }
 }
@@ -336,7 +335,7 @@ function collectClaudeDistribution(): ClaudeDistribution {
   const manifest = installedManifest(CLAUDE_AGENT_SDK_PACKAGE)
   if (manifest === undefined) {
     throw new Error(
-      `gen-third-party-notices: cannot resolve ${CLAUDE_AGENT_SDK_PACKAGE}; run \`pnpm install\`.`,
+      `gen-third-party-notices: cannot resolve ${CLAUDE_AGENT_SDK_PACKAGE}; run \`bun install\`.`,
     )
   }
   const distribution = claudeDistributionFromManifest(manifest)
@@ -595,10 +594,10 @@ function collectPython(): { name: string; license: string; repo: string; role: s
   return collectPythonDependencies(manifests.map(path => readFileSync(resolve(root, path), 'utf8')))
 }
 
-/** pnpm-patched external packages, from `pnpm-workspace.yaml`. */
+/** bun-patched external packages, from `package.json`. */
 function collectPatched(): { spec: string; patch: string }[] {
-  const workspace = yaml.load(readFileSync(resolve(root, 'pnpm-workspace.yaml'), 'utf8')) as { patchedDependencies?: Record<string, string> }
-  return Object.entries(workspace.patchedDependencies ?? {}).map(([spec, patch]) => ({ spec, patch }))
+  const manifest = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')) as { patchedDependencies?: Record<string, string> }
+  return Object.entries(manifest.patchedDependencies ?? {}).map(([spec, patch]) => ({ spec, patch }))
 }
 
 /** Verify each build-time tool pin still appears in its owning script. */
@@ -716,15 +715,15 @@ export function render(): string {
   const patchedLines = patched.map(({ spec, patch }) => `- \`${spec}\` — [\`${patch}\`](${patch})`)
 
   return `<!-- Generated by scripts/gen-third-party-notices.ts — do not edit by hand.
-     Run \`pnpm run gen-third-party-notices\` to regenerate. -->
+     Run \`bun run gen-third-party-notices\` to regenerate. -->
 
 # Third-Party Notices
 
 DeepSeek Harness is licensed under [MIT](LICENSE). It depends on the third-party software listed below. Each project remains under its own license; nothing in this file changes those terms.
 
-This file lists **direct** dependencies declared by the workspace and the explicitly disclosed official Claude Code platform payload closure. It is generated from the workspace manifests by \`scripts/gen-third-party-notices.ts\`: a pre-commit hook regenerates it whenever a staged file changes one of its inputs, and \`scripts/gen-third-party-notices.spec.ts\` asserts in the test lane that the committed bytes match. Deleting a manifest runs no hook, so that case is caught by the assertion instead. Run \`pnpm run verify-third-party-notices\` for the standalone check.
+This file lists **direct** dependencies declared by the workspace and the explicitly disclosed official Claude Code platform payload closure. It is generated from the workspace manifests by \`scripts/gen-third-party-notices.ts\`: a pre-commit hook regenerates it whenever a staged file changes one of its inputs, and \`scripts/gen-third-party-notices.spec.ts\` asserts in the test lane that the committed bytes match. Deleting a manifest runs no hook, so that case is caught by the assertion instead. Run \`bun run verify-third-party-notices\` for the standalone check.
 
-The complete npm transitive closure, including the Landlock launcher workspace, is recorded with exact pinned versions in [\`pnpm-lock.yaml\`](pnpm-lock.yaml) — inspect it with \`pnpm licenses list\`. The Python closure is recorded separately in [\`python/sdk/uv.lock\`](python/sdk/uv.lock).
+The complete npm transitive closure, including the Landlock launcher workspace, is recorded with exact pinned versions in [\`bun.lock\`](bun.lock) — inspect it with \`bun pm ls --all\`. The Python closure is recorded separately in [\`python/sdk/uv.lock\`](python/sdk/uv.lock).
 
 ## Vendored source (\`vendor/\`)
 
@@ -740,14 +739,14 @@ External packages that a workspace package resolves at runtime. The tier covers 
 
 ${renderNpmTable(runtimeDeps)}
 
-pnpm applies local patches to the following packages at install time, so shipped artifacts carry modified copies; each patch file is the complete record of the modification:
+bun applies local patches to the following packages at install time, so shipped artifacts carry modified copies; each patch file is the complete record of the modification:
 
 ${patchedLines.join('\n')}
 ${renderClaudeDistribution(claudeDistribution)}
 
 ## Development-only npm dependencies
 
-External packages **directly declared** only by repository tooling, test infrastructure, the documentation site, the demo leaves, or the native launcher's build workspace. No shipped surface names them itself. A package here may still be pulled in transitively by a runtime dependency — \`pnpm-lock.yaml\` is the authority on the full closure — so this tier records who declares a package, not what a build ultimately bundles.
+External packages **directly declared** only by repository tooling, test infrastructure, the documentation site, the demo leaves, or the native launcher's build workspace. No shipped surface names them itself. A package here may still be pulled in transitively by a runtime dependency — \`bun.lock\` is the authority on the full closure — so this tier records who declares a package, not what a build ultimately bundles.
 
 ${renderNpmTable(devDeps)}
 ${renderNonPermissiveNote(nonPermissiveDev)}
@@ -790,7 +789,7 @@ function main(): void {
       console.log(`gen-third-party-notices: ${OUT} is up to date.`)
       process.exit(0)
     }
-    console.error(`gen-third-party-notices: ${OUT} is stale. Run \`pnpm run gen-third-party-notices\` and commit ${OUT}.`)
+    console.error(`gen-third-party-notices: ${OUT} is stale. Run \`bun run gen-third-party-notices\` and commit ${OUT}.`)
     process.exit(1)
   }
 

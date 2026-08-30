@@ -2,6 +2,7 @@
 import { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import type { SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import { SettingsSchemaService } from '@deepseek-ai/dsh-client-ui-settings/src/client/schema.ts'
@@ -61,13 +62,15 @@ const runtime = {
 
 function mount(controller: PermissionPresetSettingsController) {
   return render(
-    <PermissionRow
-      {...runtime}
-      load={() => controller.load()}
-      select={preset => controller.select(preset)}
-      usePermission={bindSnapshotSelector(controller.store)}
-      t={t}
-    />,
+    <main>
+      <PermissionRow
+        {...runtime}
+        load={() => controller.load()}
+        select={preset => controller.select(preset)}
+        usePermission={bindSnapshotSelector(controller.store)}
+        t={t}
+      />
+    </main>,
   )
 }
 
@@ -166,5 +169,24 @@ describe('PermissionRow', () => {
     fireEvent.click(button)
     fireEvent.click(screen.getByRole('menuitem', { name: 'Workspace Write' }))
     expect((await screen.findByRole('alert')).textContent).toBe('changed elsewhere')
+  })
+})
+
+describe('permission row accessibility', () => {
+  const MINIMUM_ACCESSIBILITY_SCORE = 100
+
+  it('renders no accessibility violations for the loaded preset control', async () => {
+    const controller = derivedController({
+      settings: {
+        describe: () => Promise.resolve(ok({ writable: true, hasDocument: false, namespaces: [view('read-only')] })),
+        mutate: vi.fn(),
+      },
+    })
+    const { baseElement } = mount(controller)
+    await screen.findByRole('button', { name: 'Read Only' })
+    expect(accessibilityFailures(
+      [await auditSurface('PermissionRow', baseElement)],
+      MINIMUM_ACCESSIBILITY_SCORE,
+    )).toBe('')
   })
 })

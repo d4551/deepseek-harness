@@ -12,7 +12,7 @@
 2. 收集合并前带 commit 锚点的人工评审反馈（行内评论和评审提交），然后比较反馈时与最终落地的 PR patch。它不获取 PR 会话评论，因为 GitHub 当前状态无法为这些评论提供可抵抗 force-push 的反馈时基线；它也不会把只存在于目标分支的变更作为采纳证据。
 3. 两个独立配置的评审适配器先对每个条目的作者以及更改是否采纳了它进行分类，再根据当前 skill 对双方一致认定已采纳的条目分类。
 4. 主适配器起草完整修订版 `SKILL.md`；两个适配器评审同一份 diff；只要仍有阻塞性问题，循环就会继续，直到双方批准。
-5. 工具声明成功前，会针对候选版本运行 `pnpm run doc-sync` 和 `pnpm run lint`。
+5. 工具声明成功前，会针对候选版本运行 `bun run doc-sync` 和 `bun run lint`。
 
 每次运行都把产物保存在操作员的机器上。保存的 diff、候选 `SKILL.md` 和提升 manifest（元数据清单）按时间戳命名，存放在 `~/dsh-code-review-outputs/` 下。manifest 记录源 master commit 与 skill blob、源反馈 ID 和 URL、已落地证据范围、适配器裁决和门禁结果；每个适配器的原始 I/O 留在私有临时目录中，该目录路径会写入通知和 `~/Library/Logs/dsh-code-review-maintainer/` 下的每日日志。维护 worktree 在每次运行后都会恢复为干净状态，避免操作员直接在维护副本中编辑。
 

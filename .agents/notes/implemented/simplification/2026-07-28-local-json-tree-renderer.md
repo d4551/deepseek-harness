@@ -15,7 +15,7 @@ The read-only JSON inspector used by the [trajectory ledger](../feature/2026-07-
 - Each rendered row receives its value and property path directly. Object keys and array indexes extend that path during recursion, so copy actions never recover application data from rendered DOM text.
 - Expandable rows render the compact preview locally and mount child rows only while expanded. `expandTopLevel` selects between a fixed-open bracket frame and a collapsible root node without changing the public component contract.
 - The tree keeps one tabbable expander among visible nodes. Pointer activation claims that tab stop; Up and Down move it cyclically, while Left and Right collapse or expand the focused node.
-- `react-json-view-lite` is not a package dependency and has no pnpm patch. Focused component tests pin previews, expansion, keyboard focus, and array copy paths.
+- `react-json-view-lite` is not a package dependency and has no patch. Focused component tests pin previews, expansion, keyboard focus, and array copy paths.
 
 ## Alternatives considered
 

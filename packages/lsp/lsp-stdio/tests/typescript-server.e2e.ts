@@ -15,7 +15,7 @@ import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
 import Lsp, { type LspQueryRequest, type LspQueryResult } from '@deepseek-ai/dsh-lsp'
 import * as LspLocal from '@deepseek-ai/dsh-lsp-stdio'
 
-// The server binary is a dev dependency of this package; resolve its pnpm-hoisted .bin path.
+// The server binary is a dev dependency of this package; resolve its package-local .bin path.
 const serverBin = join(
   new URL('..', import.meta.url).pathname,
   'node_modules',

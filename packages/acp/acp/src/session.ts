@@ -103,6 +103,12 @@ export class AcpSession {
   private inflight: InflightPrompt | undefined
   private closing: Promise<void> | undefined
   private readonly pendingSelections = new Map<string, ModelSelection>()
+  /**
+   * Config options as last reported to the client, by `session/new` or by a
+   * previous update. `config_option_update` announces a change, so an
+   * announcement carrying the state the client already holds is suppressed.
+   */
+  private reportedConfigOptions: string | undefined
 
   private constructor(
     private readonly ctx: Context,
@@ -196,7 +202,12 @@ export class AcpSession {
    */
   configOptions(signal?: AbortSignal): Promise<SessionConfigOption[]> {
     this.assertActive()
-    return this.modelControl.options(signal)
+    // Answering with the options is itself a report of them, so a later
+    // announcement of the same state has nothing to tell this client.
+    return this.modelControl.options(signal).then((configOptions) => {
+      this.reportedConfigOptions = JSON.stringify(configOptions)
+      return configOptions
+    })
   }
 
   /**
@@ -217,6 +228,12 @@ export class AcpSession {
     void this.modelControl.options()
       .then((configOptions) => {
         if (this.closing !== undefined) return
+        // Adapter registration raises this for every live session, so a
+        // session created while registration is still settling is told about
+        // options it was just handed. Announce a change, not the state.
+        const reported = JSON.stringify(configOptions)
+        if (reported === this.reportedConfigOptions) return
+        this.reportedConfigOptions = reported
         const previous = this.outputTail
         this.outputTail = previous
           .then(() => this.notify({

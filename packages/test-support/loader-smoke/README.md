@@ -54,7 +54,7 @@ Set `expectedExitCode` when the scenario pins a designed failure surface — a o
 ### What can go wrong
 
 - **The process never exits** — the smoke enforces a deadline and reports the captured streams in the failure; a faulty fixture that spawns its own process tree can outlive the smoke and needs external cleanup.
-- **Built mode needs a prior build** — run `pnpm run build` before selecting `DSH_EXAMPLE_MODE=lib`; the owning package manifest must also declare every package named by the config.
+- **Built mode needs a prior build** — run `bun run build` before selecting `DSH_EXAMPLE_MODE=lib`; the owning package manifest must also declare every package named by the config.
 - **Captured output is bounded by execa's default 100 MB `maxBuffer`** — a runaway child is terminated at that ceiling rather than at a smoke-chosen budget.
 
 -----

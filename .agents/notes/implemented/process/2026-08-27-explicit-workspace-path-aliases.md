@@ -14,7 +14,7 @@ The cost fell hardest on the most-imported packages. `packages/util/*` sat at po
 
 ## Decision
 
-`scripts/gen-tsconfig-paths.ts` writes one explicit alias per workspace package into a marked region at the end of `paths`, and both group wildcards are deleted. `pnpm run gen-tsconfig-paths` rewrites the region; `pnpm run verify-tsconfig-paths` reports drift instead, and runs in the `ci-static` lane beside the other generated-artifact checks.
+`scripts/gen-tsconfig-paths.ts` writes one explicit alias per workspace package into a marked region at the end of `paths`, and both group wildcards are deleted. `bun run gen-tsconfig-paths` rewrites the region; `bun run verify-tsconfig-paths` reports drift instead, and runs in the `ci-static` lane beside the other generated-artifact checks.
 
 The generator emits an alias only for a package whose declared name is exactly `@deepseek-ai/dsh-<directory>`, because that is the only shape a wildcard could ever have resolved: it substituted the specifier's suffix into `packages/<group>/<suffix>/src`. Packages named after something other than their directory — `@deepseek-ai/dsh-typert-protocol` at `packages/typert/protocol`, the `dsh-client-*` and `dsh-host-*` families — already carry hand-written aliases and are left alone. A specifier claimed by two package directories throws rather than picking one, because an explicit map cannot express the group-order tiebreak the wildcard used; no such collision exists today.
 

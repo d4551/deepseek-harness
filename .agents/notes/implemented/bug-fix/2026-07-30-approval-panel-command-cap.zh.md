@@ -49,4 +49,4 @@ Status: implemented
 
 该场景只保留一份 golden——等待中的面板；回应之后的状态改为对世界作断言（决策结果、越权命令写出的那个文件、`DONE`、面板消失、输入框重新可用）。一份「已回应 transcript」的 golden 立不住：第一次被拒绝的尝试渲染的是操作系统自己的拒绝文本，而这段文本因平台而异（macOS 为 `bash: notes.txt: Operation not permitted`，Linux 为 `bash: line 1: notes.txt: Read-only file system`）。任何 transcript 中含有被沙箱拒绝命令的场景都会继承这一点，因此这类拒绝只能进断言，绝不能进 golden。
 
-该面板以客户端模块包的形式发布：单跑 `pnpm run build:web` 不会带上对 `ApprovalPanel.module.css` 的改动，也不会带上 `ApprovalPanel.tsx` 中新增的 `data-` 钩子——必须先执行包构建，否则浏览器测试通道会对着一个比工作树更旧的客户端做断言。
+该面板以客户端模块包的形式发布：单跑 `bun run build:web` 不会带上对 `ApprovalPanel.module.css` 的改动，也不会带上 `ApprovalPanel.tsx` 中新增的 `data-` 钩子——必须先执行包构建，否则浏览器测试通道会对着一个比工作树更旧的客户端做断言。

@@ -5,6 +5,8 @@
  */
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
+import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
+import type { SurfaceAudit } from '@deepseek-ai/dsh-client-a11y'
 import type {
   ConversationLocation, ConversationNode, RequestView,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -664,5 +666,35 @@ describe('durable image attachments', () => {
     const block = turns[0]?.groups[0]?.cells[0]?.sourceBlocks?.[0]
     expect(block?.attachment).toBeUndefined()
     expect(block?.content).toContain('https://example.com/a.png')
+  })
+})
+
+/**
+ * Trajectory headers are the structure a reader navigates a run by, so their
+ * heading semantics are what a screen reader announces. Audited against the
+ * same fixed WCAG A/AA rule set and floor the primitives lane holds.
+ */
+describe('trajectory layout accessibility', () => {
+  const MINIMUM_ACCESSIBILITY_SCORE = 100
+
+  it('renders no accessibility violations for its headers', async () => {
+    cleanup()
+    // The page shell supplies the `main` landmark the page-structure rules
+    // need; without it the harness's own missing frame reads as a defect.
+    const { baseElement } = render(
+      <main>
+        <TrajectoryTurnHeader turn={1} t={t} />
+        <TrajectoryGroupHeader title="Step 1" description="2.2s skill" />
+      </main>,
+    )
+    const audits: SurfaceAudit[] = [await auditSurface('TrajectoryHeaders', baseElement)]
+    cleanup()
+
+    // A surface that decided nothing would score 100 for free.
+    for (const audit of audits) {
+      expect(audit.passed + audit.failed, `${audit.surface} decided no checks`).toBeGreaterThan(0)
+    }
+    expect([...new Set(audits.flatMap(audit => audit.undecidedRules))]).toEqual(['color-contrast'])
+    expect(accessibilityFailures(audits, MINIMUM_ACCESSIBILITY_SCORE)).toBe('')
   })
 })

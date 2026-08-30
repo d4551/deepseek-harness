@@ -69,7 +69,7 @@ Status: implemented
 
 ### 两个子命令，回放在默认门禁中
 
-`pnpm run test:snapshot` 无需密钥即可回放已提交 fixture；`test:snapshot:record` 使用真实 API，并重写投影后的会话快照与接口专属预期输出。同一无密钥门禁会通过 `session` 头记录发现仓库中的 JSONL，并拒绝与共享编解码器的投影后规范打包表示不同的任何 fixture。缺少 fixture 时会明确报错。每个 ACP 场景都包含 `input.json`、`stdout.expected.jsonl` 和 `session.jsonl`；不调用模型的情况使用仅含头记录的日志。其他 profile 从 `session.jsonl` 推导普通的已受理用户输入，只在 `snapshot.yml` 中保留已受理会话无法重建的控制器输入。只有成功模型行为无法从日志推导的场景才需要 `replay.override.json`。fixture 守卫会拒绝缺失、不匹配和孤立文件。两个命令都接受场景过滤器。
+`bun run test:snapshot` 无需密钥即可回放已提交 fixture；`test:snapshot:record` 使用真实 API，并重写投影后的会话快照与接口专属预期输出。同一无密钥门禁会通过 `session` 头记录发现仓库中的 JSONL，并拒绝与共享编解码器的投影后规范打包表示不同的任何 fixture。缺少 fixture 时会明确报错。每个 ACP 场景都包含 `input.json`、`stdout.expected.jsonl` 和 `session.jsonl`；不调用模型的情况使用仅含头记录的日志。其他 profile 从 `session.jsonl` 推导普通的已受理用户输入，只在 `snapshot.yml` 中保留已受理会话无法重建的控制器输入。只有成功模型行为无法从日志推导的场景才需要 `replay.override.json`。fixture 守卫会拒绝缺失、不匹配和孤立文件。两个命令都接受场景过滤器。
 
 ## 曾考虑的替代方案
 

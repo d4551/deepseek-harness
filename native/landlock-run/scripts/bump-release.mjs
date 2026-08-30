@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Bump the launcher workspace root and packages/* to one version, refresh the
- * repository lockfile, and verify. Usage: `pnpm release:bump <major|minor|patch|x.y.z>`.
+ * repository lockfile, and verify. Usage: `bun run release:bump <major|minor|patch|x.y.z>`.
  */
 
 import fs from 'node:fs';
@@ -48,7 +48,7 @@ function nextVersion(current, release) {
   if (EXPLICIT_VERSION.test(release)) return release;
 
   if (!releaseTypes.has(release)) {
-    throw new Error('Usage: pnpm release:bump <major|minor|patch|x.y.z>');
+    throw new Error('Usage: bun run release:bump <major|minor|patch|x.y.z>');
   }
 
   const [major, minor, patch] = parseVersion(current);
@@ -70,7 +70,7 @@ function currentPublishedVersion(files) {
 }
 
 if (!bump) {
-  console.error('Usage: pnpm release:bump <major|minor|patch|x.y.z>');
+  console.error('Usage: bun run release:bump <major|minor|patch|x.y.z>');
   process.exit(1);
 }
 
@@ -85,7 +85,7 @@ for (const file of files) {
   console.log(`${file}: ${targetVersion}`);
 }
 
-run('pnpm', ['install', '--ignore-scripts', '--lockfile-only'], repositoryRoot);
+run('bun', ['install', '--ignore-scripts', '--lockfile-only'], repositoryRoot);
 run('node', ['./scripts/verify-release.mjs']);
 
 console.log(`Release version bumped to ${targetVersion}`);

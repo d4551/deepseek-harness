@@ -3,8 +3,7 @@ CLAUDE.local.md
 node_modules/
 lib/
 *.tsbuildinfo
-pnpm-debug.log
-.pnpm-store/
+bun-debug.log
 .cache/
 examples/*/*.jsonl
 .storages/

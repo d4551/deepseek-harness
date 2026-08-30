@@ -26,47 +26,39 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          dest: ${{ runner.temp }}/setup-pnpm
+          bun-version-file: package.json
 
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.PRIMARY_NODE_VERSION }}
 
-      - name: Configure pnpm store path
-        id: pnpm-store
-        run: |
-          store_root="$HOME/.local/share/pnpm/store"
-          echo "PNPM_CONFIG_STORE_DIR=$store_root" >> "$GITHUB_ENV"
-          store_path=$(PNPM_CONFIG_STORE_DIR="$store_root" pnpm store path --silent)
-          echo "path=$store_path" >> "$GITHUB_OUTPUT"
-
       - uses: actions/cache/restore@v4
         with:
-          path: ${{ steps.pnpm-store.outputs.path }}
-          key: ${{ runner.os }}-node-${{ env.PRIMARY_NODE_VERSION }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-node-${{ env.PRIMARY_NODE_VERSION }}-bun-${{ hashFiles('bun.lock') }}
           restore-keys: |
-            ${{ runner.os }}-node-${{ env.PRIMARY_NODE_VERSION }}-pnpm-
+            ${{ runner.os }}-node-${{ env.PRIMARY_NODE_VERSION }}-bun-
 
       - name: Install (immutable)
-        run: pnpm install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Verify release version
         env:
           RELEASE_PUBLISH: 'true'
-        run: pnpm run release:verify --family vendor
+        run: bun run release:verify --family vendor
 
       # The vendored packages publish their own sources and build outputs; the
       # host build produces what their manifests select.
       - name: Build
-        run: pnpm run build:lib:host
+        run: bun run build:lib:host
 
       - name: Pack release tarballs
-        run: pnpm run release:pack --family vendor --out dist/npm-vendor
+        run: bun run release:pack --family vendor --out dist/npm-vendor
 
       - name: Verify packed install
-        run: pnpm run release:verify-packed-install --family vendor --from dist/npm-vendor
+        run: bun run release:verify-packed-install --family vendor --from dist/npm-vendor
 
       - uses: actions/upload-artifact@v4
         with:
@@ -91,9 +83,9 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          dest: ${{ runner.temp }}/setup-pnpm
+          bun-version-file: package.json
 
       - uses: actions/setup-node@v6
         with:
@@ -101,7 +93,7 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       - name: Install (immutable, no package scripts)
-        run: pnpm install --frozen-lockfile --ignore-scripts
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - uses: actions/download-artifact@v4
         with:
@@ -111,4 +103,4 @@ jobs:
       - name: Publish tarballs
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: pnpm run release:publish --family vendor --from dist/npm-vendor
+        run: bun run release:publish --family vendor --from dist/npm-vendor

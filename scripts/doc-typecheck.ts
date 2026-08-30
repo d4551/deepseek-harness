@@ -8,11 +8,12 @@
 import { execFileSync } from 'node:child_process'
 import { globSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
-import ts from 'typescript'
 import { builtDeclarationPath } from './doc-typecheck-paths.ts'
 import { markdownFences } from './markdown.ts'
 import { partitionPairedMarkdownDerivatives } from './paired-markdown-derivatives.ts'
 import { isArchivedAgentNotePath } from './repo-files.ts'
+import { API } from 'typescript/unstable/sync'
+import { readConfigFile } from './ts7-session.ts'
 
 const root = resolve(import.meta.dirname, '..')
 
@@ -52,87 +53,21 @@ function extractBlocks(absPath: string): Block[] {
   })
 }
 
-const configHost: ts.ParseConfigFileHost = {
-  ...ts.sys,
-  getCurrentDirectory: () => root,
-  onUnRecoverableConfigFileDiagnostic(diagnostic) {
-    throw new Error(ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'))
-  },
-}
-
-/**
- * Load host-aggregate settings and redirect workspace aliases to declarations
- * from the coordinated build. Doc fragments speak the host vocabulary; the host
- * aggregate (never the root solution — it has no compilerOptions) carries the
- * workspace paths via tsconfig.base.json.
- */
-function builtTypeCompilerOptions(): ts.CompilerOptions {
-  const configPath = join(root, 'tsconfig.host.json')
-  const parsed = ts.getParsedCommandLineOfConfigFile(configPath, {}, configHost)
-  if (!parsed) throw new Error(`doc-typecheck: cannot parse ${configPath}`)
-  if (parsed.errors.length > 0) {
-    throw new Error(parsed.errors.map(error => ts.flattenDiagnosticMessageText(error.messageText, '\n')).join('\n'))
+function builtTypePaths(): Record<string, string[]> {
+  const api = new API()
+  const parsed = api.parseConfigFile(join(root, 'tsconfig.host.json'))
+  api.close()
+  const paths = parsed.options.paths
+  if (paths === undefined || typeof paths !== 'object' || Array.isArray(paths) || paths === null) {
+    throw new Error('doc-typecheck: host tsconfig has no workspace paths')
   }
-  if (parsed.options.paths === undefined) throw new Error('doc-typecheck: host tsconfig has no workspace paths')
-  const paths = Object.fromEntries(Object.entries(parsed.options.paths).map(([specifier, candidates]) => [
-    specifier,
-    candidates.map(builtDeclarationPath),
-  ]))
-  const options: ts.CompilerOptions = {
-    ...parsed.options,
-    paths,
-    noEmit: true,
-    composite: false,
-    incremental: false,
-    declaration: false,
-    declarationMap: false,
-    sourceMap: false,
-    noUnusedLocals: false,
-    noUnusedParameters: false,
+  const remapped: Record<string, string[]> = {}
+  for (const [specifier, candidates] of Object.entries(paths)) {
+    if (!Array.isArray(candidates)) continue
+    remapped[specifier] = candidates.filter((candidate): candidate is string => typeof candidate === 'string')
+      .map(builtDeclarationPath)
   }
-  delete options.tsBuildInfoFile
-  return options
-}
-
-/** Compile Markdown blocks as virtual files against declarations from the coordinated build. */
-function compileBlocksAgainstBuiltTypes(blocks: Block[]): readonly ts.Diagnostic[] {
-  const options = builtTypeCompilerOptions()
-  const sources = new Map<string, string>()
-  for (const [index, block] of blocks.entries()) {
-    const fileName = resolve(root, '.doc-typecheck', `block-${index}.ts`)
-    sources.set(fileName, block.code.endsWith('\n') ? block.code : `${block.code}\n`)
-  }
-
-  const baseHost = ts.createCompilerHost(options, true)
-  const host: ts.CompilerHost = {
-    ...baseHost,
-    fileExists(fileName) {
-      return sources.has(resolve(fileName)) || baseHost.fileExists(fileName)
-    },
-    readFile(fileName) {
-      return sources.get(resolve(fileName)) ?? baseHost.readFile(fileName)
-    },
-    getSourceFile(fileName, languageVersion, onError, shouldCreateNewSourceFile) {
-      const source = sources.get(resolve(fileName))
-      if (source !== undefined) return ts.createSourceFile(fileName, source, languageVersion, true)
-      return baseHost.getSourceFile(fileName, languageVersion, onError, shouldCreateNewSourceFile)
-    },
-    writeFile() {
-      throw new Error('doc-typecheck: noEmit compilation attempted to write output')
-    },
-  }
-  const program = ts.createProgram([...sources.keys()], options, host)
-  return ts.getPreEmitDiagnostics(program)
-}
-
-/** Render compiler diagnostics with virtual block paths mapped back to Markdown. */
-function formatDiagnostics(diagnostics: readonly ts.Diagnostic[], blocks: Block[]): string {
-  const formatted = ts.formatDiagnostics(diagnostics, {
-    getCanonicalFileName: fileName => fileName,
-    getCurrentDirectory: () => root,
-    getNewLine: () => ts.sys.newLine,
-  })
-  return remapBlockPaths(formatted, blocks)
+  return remapped
 }
 
 /**
@@ -142,38 +77,46 @@ function formatDiagnostics(diagnostics: readonly ts.Diagnostic[], blocks: Block[
  */
 function workspaceReferences(): { path: string }[] {
   const file = join(root, 'tsconfig.host.json')
-  // Parse with TypeScript's own JSONC reader: a regex comment stripper corrupts the `/*/` path
-  // candidate in the workspace wildcard.
-  const result = ts.readConfigFile(file, path => readFileSync(path, 'utf8'))
-  if (result.error) {
-    throw new Error(`doc-typecheck: cannot read ${file}: ${ts.flattenDiagnosticMessageText(result.error.messageText, '\n')}`)
+  const result = readConfigFile(file)
+  if (result.error !== undefined) {
+    throw new Error(`doc-typecheck: cannot read ${file}: ${result.error.messageText}`)
   }
-  // `config` is typed `any` by the TS API; narrow it to the one field read here.
-  const { references } = result.config as { references: { path: string }[] }
-  return references.map(({ path }) => ({
-    path: path.startsWith('./') ? `../${path.slice(2)}` : `../${path}`,
-  }))
+  const config = result.config
+  if (config === null || typeof config !== 'object' || Array.isArray(config) || !('references' in config)) {
+    throw new Error(`doc-typecheck: ${file} has no references`)
+  }
+  const references = Reflect.get(config, 'references')
+  if (!Array.isArray(references)) throw new Error(`doc-typecheck: ${file} has no references`)
+  const paths: { path: string }[] = []
+  for (const entry of references) {
+    if (entry === null || typeof entry !== 'object' || Array.isArray(entry) || !('path' in entry)) continue
+    const path = Reflect.get(entry, 'path')
+    if (typeof path !== 'string') continue
+    paths.push({ path: path.startsWith('./') ? `../${path.slice(2)}` : `../${path}` })
+  }
+  return paths
 }
 
 /** The standalone temp project used when no coordinated build owns declaration freshness. */
-function tempTsconfig(): string {
+function tempTsconfig(useBuiltTypes: boolean): string {
   return JSON.stringify({
     extends: '../tsconfig.host.json',
     compilerOptions: {
       noUnusedLocals: false,
       noUnusedParameters: false,
       tsBuildInfoFile: './tsconfig.tsbuildinfo',
+      ...useBuiltTypes ? { paths: builtTypePaths(), composite: false, incremental: false, declaration: false } : {},
     },
     include: ['block-*.ts'],
-    references: workspaceReferences(),
+    references: useBuiltTypes ? [] : workspaceReferences(),
   })
 }
 
 /** Compile blocks through project references for the standalone command. */
-function compileBlocksStandalone(blocks: Block[]): string | undefined {
+function compileBlocksStandalone(blocks: Block[], useBuiltTypes = false): string | undefined {
   const tmp = mkdtempSync(join(root, '.doc-typecheck-'))
   try {
-    writeFileSync(join(tmp, 'tsconfig.json'), tempTsconfig())
+    writeFileSync(join(tmp, 'tsconfig.json'), tempTsconfig(useBuiltTypes))
     for (const [index, block] of blocks.entries()) {
       writeFileSync(join(tmp, `block-${index}.ts`), block.code.endsWith('\n') ? block.code : `${block.code}\n`)
     }
@@ -194,6 +137,15 @@ function compileBlocksStandalone(blocks: Block[]): string | undefined {
 }
 
 /** Map virtual or temporary block paths back to their owning Markdown fences. */
+function compileBlocksAgainstBuiltTypes(blocks: Block[]): readonly string[] {
+  const error = compileBlocksStandalone(blocks, true)
+  return error === undefined ? [] : [error]
+}
+
+function formatDiagnostics(diagnostics: readonly string[], _blocks: Block[]): string {
+  return diagnostics.join('')
+}
+
 function remapBlockPaths(output: string, blocks: Block[]): string {
   return output.replace(/(?:[^\s:()]*[/\\])?block-(\d+)\.ts\((\d+),(\d+)\)/g, (_match, index: string, line: string, column: string) => {
     const block = blocks[Number(index)]

@@ -2,81 +2,34 @@
 
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import ts from 'typescript'
+import type {
+  ClassDeclaration, ClassElement, GetAccessorDeclaration, InterfaceDeclaration, MethodDeclaration,
+  MethodSignatureDeclaration, Node, ParameterDeclaration, PropertyDeclaration, PropertySignatureDeclaration,
+  SourceFile, TypeNode,
+} from 'typescript/unstable/ast'
+import { ModifierFlags } from 'typescript/unstable/ast'
+import {
+  isClassDeclaration, isComputedPropertyName, isConstructorDeclaration, isEnumDeclaration,
+  isFunctionDeclaration, isGetAccessorDeclaration, isIdentifier, isInterfaceDeclaration,
+  isLiteralTypeNode, isMethodDeclaration, isMethodSignatureDeclaration, isModuleDeclaration,
+  isPrivateIdentifier, isPropertyDeclaration, isPropertySignatureDeclaration, isSetAccessorDeclaration,
+  isStringLiteral, isTypeAliasDeclaration, isTypeReferenceNode, isUnionTypeNode,
+} from 'typescript/unstable/ast/is'
 import { checkParams, checkReturns, parseJsDoc, parseTags, pointer, rawJsDoc, reportViolations } from './jsdoc.ts'
 import { cordisModuleBody } from './cordis-walk.ts'
+import {
+  CORDIS_CORE_API_PAGES as PAGE_TABLE,
+  type CordisCoreApiPage as Page,
+  type CordisCoreApiSection as Section,
+} from './cordis-core-api-pages.ts'
+import { parsePath } from './ts7-session.ts'
+
+export const CORDIS_CORE_API_PAGES = PAGE_TABLE
+export type CordisCoreApiPage = Page
+export type CordisCoreApiSection = Section
 
 const root = resolve(import.meta.dirname, '..')
 const FENCE = 'ts cordis-catalog'
-
-/** One declaration group rendered on a Cordis core API page. */
-type CordisCoreApiSection =
-  | { kind: 'class'; file: string; symbol: string; prefix?: string; heading?: string }
-  | { kind: 'context-merge'; file: string; heading?: string }
-  | { kind: 'decl'; file: string; symbol: string }
-
-/** One generated Cordis core API page. */
-export interface CordisCoreApiPage {
-  out: string
-  title: string
-  intro: string
-  sections: CordisCoreApiSection[]
-}
-
-/** Explicit editorial grouping for the pinned Cordis core API. */
-export const CORDIS_CORE_API_PAGES: CordisCoreApiPage[] = [
-  {
-    out: 'docs/cordis-api/context.md',
-    title: 'Context',
-    intro: 'The context is the core Cordis object: every service, event, and lifecycle API is reached through `ctx`. Event methods are documented on [Events](events.md), effects and the current fiber on [Fiber](fiber.md), and plugin loading on [Registry](registry.md).',
-    sections: [
-      { kind: 'class', file: 'vendor/cordis/src/context.ts', symbol: 'Context', prefix: 'ctx.' },
-      { kind: 'context-merge', file: 'vendor/cordis/src/reflect.ts', heading: 'Service store and mixins' },
-    ],
-  },
-  {
-    out: 'docs/cordis-api/events.md',
-    title: 'Events',
-    intro: 'The event-dispatch API mixed into every context. Harness event declarations and their dispatch modes are generated into each owning [subsystem page](../subsystems/core.md).',
-    sections: [
-      { kind: 'context-merge', file: 'vendor/cordis/src/events.ts' },
-      { kind: 'decl', file: 'vendor/cordis/src/events.ts', symbol: 'EventOptions' },
-      { kind: 'decl', file: 'vendor/cordis/src/events.ts', symbol: 'DispatchMode' },
-    ],
-  },
-  {
-    out: 'docs/cordis-api/fiber.md',
-    title: 'Fiber',
-    intro: 'A fiber is one loaded plugin instance: its lifecycle state, validated config, and registered effects. `ctx.fiber` is the current fiber, and `ctx.effect()` delegates to it.',
-    sections: [
-      { kind: 'context-merge', file: 'vendor/cordis/src/fiber.ts' },
-      { kind: 'class', file: 'vendor/cordis/src/fiber.ts', symbol: 'Fiber', heading: 'The Fiber class' },
-      { kind: 'decl', file: 'vendor/cordis/src/fiber.ts', symbol: 'Effect' },
-      { kind: 'decl', file: 'vendor/cordis/src/fiber.ts', symbol: 'Disposable' },
-      { kind: 'decl', file: 'vendor/cordis/src/fiber.ts', symbol: 'EffectMeta' },
-      { kind: 'decl', file: 'vendor/cordis/src/fiber.ts', symbol: 'CordisError' },
-      { kind: 'decl', file: 'vendor/cordis/src/fiber.ts', symbol: 'ValidationError' },
-    ],
-  },
-  {
-    out: 'docs/cordis-api/registry.md',
-    title: 'Registry',
-    intro: 'Plugin loading and dependency injection.',
-    sections: [
-      { kind: 'context-merge', file: 'vendor/cordis/src/registry.ts' },
-      { kind: 'decl', file: 'vendor/cordis/src/registry.ts', symbol: 'Plugin' },
-      { kind: 'decl', file: 'vendor/cordis/src/registry.ts', symbol: 'Inject' },
-    ],
-  },
-  {
-    out: 'docs/cordis-api/service.md',
-    title: 'Service',
-    intro: 'The base class for context services. A subclass loaded as a plugin registers itself as `ctx.<name>`.',
-    sections: [
-      { kind: 'class', file: 'vendor/cordis/src/service.ts', symbol: 'Service' },
-    ],
-  },
-]
 
 interface MemberDoc {
   name: string
@@ -91,20 +44,23 @@ interface MemberDoc {
 
 interface RenderContext {
   scanRoot: string
-  cache: Map<string, { sf: ts.SourceFile; text: string }>
+  cache: Map<string, { sf: SourceFile; text: string }>
   violations: string[]
 }
 
-function load(ctx: RenderContext, rel: string): { sf: ts.SourceFile; text: string } {
+type Member = MethodDeclaration | MethodSignatureDeclaration | PropertyDeclaration
+  | PropertySignatureDeclaration | GetAccessorDeclaration
+
+function load(ctx: RenderContext, rel: string): { sf: SourceFile; text: string } {
   const cached = ctx.cache.get(rel)
   if (cached !== undefined) return cached
   const text = readFileSync(resolve(ctx.scanRoot, rel), 'utf8')
-  const entry = { sf: ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true), text }
+  const entry = { sf: parsePath(resolve(ctx.scanRoot, rel)), text }
   ctx.cache.set(rel, entry)
   return entry
 }
 
-function sourceJsDoc(text: string, sf: ts.SourceFile, node: ts.Node): string {
+function sourceJsDoc(text: string, sf: SourceFile, node: Node): string {
   const raw = rawJsDoc(text, node)
   if (raw === '') return ''
   const { line } = sf.getLineAndCharacterOfPosition(node.getStart(sf))
@@ -117,19 +73,20 @@ function sourceJsDoc(text: string, sf: ts.SourceFile, node: ts.Node): string {
     .join('\n')
 }
 
-function signatureOf(member: ts.Node, sf: ts.SourceFile): string {
+function signatureOf(member: Node, sf: SourceFile): string {
   const full = member.getText(sf)
-  const tail = (member as { body?: ts.Node; initializer?: ts.Node }).body
-    ?? (member as { initializer?: ts.Node }).initializer
-  const signature = tail
-    ? full.slice(0, full.length - tail.getText(sf).length).replace(/[=\s]+$/, '')
-    : full
+  let tail: Node | undefined
+  if (isMethodDeclaration(member) || isGetAccessorDeclaration(member)) tail = member.body
+  else if (isPropertyDeclaration(member)) tail = member.initializer
+  const signature = tail === undefined
+    ? full
+    : full.slice(0, full.length - tail.getText(sf).length).replace(/[=\s]+$/, '')
   return signature.replace(/\s*;?\s*$/, '').replace(/\s+/g, ' ').trim()
 }
 
-function headingParams(parameters: readonly ts.ParameterDeclaration[], sf: ts.SourceFile): string {
+function headingParams(parameters: readonly ParameterDeclaration[], sf: SourceFile): string {
   const names = parameters
-    .filter(parameter => !(ts.isIdentifier(parameter.name) && parameter.name.text === 'this'))
+    .filter(parameter => !(isIdentifier(parameter.name) && parameter.name.text === 'this'))
     .map((parameter) => {
       const rest = parameter.dotDotDotToken ? '...' : ''
       const optional = parameter.questionToken || parameter.initializer ? '?' : ''
@@ -138,26 +95,32 @@ function headingParams(parameters: readonly ts.ParameterDeclaration[], sf: ts.So
   return `(${names.join(', ')})`
 }
 
-function isPublicInstance(member: ts.ClassElement): boolean {
-  const modifiers = ts.getCombinedModifierFlags(member)
-  if (modifiers & (ts.ModifierFlags.Private | ts.ModifierFlags.Protected | ts.ModifierFlags.Static)) return false
-  if (!member.name || ts.isComputedPropertyName(member.name) || ts.isPrivateIdentifier(member.name)) return false
-  return !member.name.getText().startsWith('_')
+function flagsOf(member: ClassElement): number {
+  if (!('modifierFlags' in member)) return 0
+  const flags = member.modifierFlags
+  return typeof flags === 'number' ? flags : 0
 }
 
-function isPublicStatic(member: ts.ClassElement): boolean {
-  const modifiers = ts.getCombinedModifierFlags(member)
-  if (modifiers & (ts.ModifierFlags.Private | ts.ModifierFlags.Protected)) return false
-  if (!(modifiers & ts.ModifierFlags.Static)) return false
-  if (!member.name || ts.isComputedPropertyName(member.name) || ts.isPrivateIdentifier(member.name)) return false
-  return !member.name.getText().startsWith('_')
+function isPublicInstance(member: ClassElement): boolean {
+  const modifiers = flagsOf(member)
+  if (modifiers & (ModifierFlags.Private | ModifierFlags.Protected | ModifierFlags.Static)) return false
+  if (isMethodDeclaration(member) || isPropertyDeclaration(member) || isGetAccessorDeclaration(member)) {
+    if (isComputedPropertyName(member.name) || isPrivateIdentifier(member.name)) return false
+    return !member.name.getText().startsWith('_')
+  }
+  return false
 }
 
-type Member = ts.MethodDeclaration
-  | ts.MethodSignature
-  | ts.PropertyDeclaration
-  | ts.PropertySignature
-  | ts.GetAccessorDeclaration
+function isPublicStatic(member: ClassElement): boolean {
+  const modifiers = flagsOf(member)
+  if (modifiers & (ModifierFlags.Private | ModifierFlags.Protected)) return false
+  if (!(modifiers & ModifierFlags.Static)) return false
+  if (isMethodDeclaration(member) || isPropertyDeclaration(member)) {
+    if (isComputedPropertyName(member.name) || isPrivateIdentifier(member.name)) return false
+    return !member.name.getText().startsWith('_')
+  }
+  return false
+}
 
 function memberDoc(ctx: RenderContext, where: string, name: string, group: Member[], rel: string): MemberDoc {
   const { sf, text } = load(ctx, rel)
@@ -169,27 +132,27 @@ function memberDoc(ctx: RenderContext, where: string, name: string, group: Membe
   const doc = parseJsDoc(raw).doc
   if (doc === '') ctx.violations.push(`${where} has no JSDoc prose.`)
   const { params: tags, returns } = parseTags(raw)
-  const functionMembers = group.filter((member): member is ts.MethodDeclaration | ts.MethodSignature =>
-    ts.isMethodDeclaration(member) || ts.isMethodSignature(member))
+  const functionMembers = group.filter((member): member is MethodDeclaration | MethodSignatureDeclaration =>
+    isMethodDeclaration(member) || isMethodSignatureDeclaration(member))
   const docCarrier = functionMembers[docIndex === -1 ? 0 : docIndex]
   const params: { name: string; text: string }[] = []
   if (docCarrier !== undefined) {
     checkParams(where, 'cordis-core-api', docCarrier.parameters, tags, sf,
-      parameter => ts.isIdentifier(parameter.name) && parameter.name.text === 'this', ctx.violations)
+      parameter => isIdentifier(parameter.name) && parameter.name.text === 'this', ctx.violations)
     if (docCarrier.type !== undefined) {
       checkReturns(where, docCarrier.type, returns, sf, ctx.violations)
-    } else if (returns === null && ts.isMethodDeclaration(docCarrier)) {
+    } else if (returns === null && isMethodDeclaration(docCarrier)) {
       ctx.violations.push(`${where} has no return type annotation; document the result with @returns.`)
     }
     for (const parameter of docCarrier.parameters) {
-      if (!ts.isIdentifier(parameter.name) || parameter.name.text === 'this') continue
+      if (!isIdentifier(parameter.name) || parameter.name.text === 'this') continue
       const text = tags.get(parameter.name.text)
       if (text !== undefined) params.push({ name: parameter.name.text, text })
     }
   }
   const headingSource = docCarrier ?? functionMembers[0]
-  const signatures = ts.isMethodDeclaration(first) && functionMembers.length > 1
-    ? functionMembers.filter(member => ts.isMethodDeclaration(member) && member.body === undefined)
+  const signatures = isMethodDeclaration(first) && functionMembers.length > 1
+    ? functionMembers.filter(member => isMethodDeclaration(member) && member.body === undefined)
     : group
   return {
     name,
@@ -204,28 +167,27 @@ function memberDoc(ctx: RenderContext, where: string, name: string, group: Membe
 }
 
 function heritageMembers(
-  statement: ts.InterfaceDeclaration,
-  sf: ts.SourceFile,
-  groups: Map<string, (ts.MethodSignature | ts.PropertySignature | ts.MethodDeclaration)[]>,
-): void {
+  statement: InterfaceDeclaration,
+  sf: SourceFile,
+  groups: Map<string, (MethodSignatureDeclaration | PropertySignatureDeclaration | MethodDeclaration)[]>,
+) {
   for (const clause of statement.heritageClauses ?? []) {
     for (const type of clause.types) {
-      if (!ts.isIdentifier(type.expression) || type.expression.text !== 'Pick') continue
+      if (!isIdentifier(type.expression) || type.expression.text !== 'Pick') continue
       const [target, keys] = type.typeArguments ?? []
-      if (target === undefined || keys === undefined || !ts.isTypeReferenceNode(target)) continue
+      if (target === undefined || keys === undefined || !isTypeReferenceNode(target)) continue
       const targetName = target.typeName.getText(sf)
-      const cls = sf.statements.find(
-        (entry): entry is ts.ClassDeclaration => ts.isClassDeclaration(entry) && entry.name?.text === targetName,
-      )
+      const cls = sf.statements.find((entry): entry is ClassDeclaration =>
+        isClassDeclaration(entry) && entry.name?.text === targetName)
       if (cls === undefined) continue
       const picked = new Set<string>()
-      const collect = (node: ts.TypeNode): void => {
-        if (ts.isLiteralTypeNode(node) && ts.isStringLiteral(node.literal)) picked.add(node.literal.text)
-        if (ts.isUnionTypeNode(node)) node.types.forEach(collect)
+      const collect = (node: TypeNode) => {
+        if (isLiteralTypeNode(node) && isStringLiteral(node.literal)) picked.add(node.literal.text)
+        if (isUnionTypeNode(node)) node.types.forEach(collect)
       }
       collect(keys)
       for (const member of cls.members) {
-        if (!ts.isMethodDeclaration(member)) continue
+        if (!isMethodDeclaration(member)) continue
         const name = member.name.getText(sf)
         if (!picked.has(name)) continue
         const group = groups.get(name) ?? []
@@ -240,13 +202,13 @@ function contextMergeMembers(ctx: RenderContext, rel: string): MemberDoc[] {
   const { sf } = load(ctx, rel)
   const body = cordisModuleBody(sf)
   if (body === null) throw new Error(`cordis-core-api: ${rel} has no Context module merge.`)
-  const groups = new Map<string, (ts.MethodSignature | ts.PropertySignature | ts.MethodDeclaration)[]>()
+  const groups = new Map<string, (MethodSignatureDeclaration | PropertySignatureDeclaration | MethodDeclaration)[]>()
   for (const statement of body.statements) {
-    if (!ts.isInterfaceDeclaration(statement) || statement.name.text !== 'Context') continue
+    if (!isInterfaceDeclaration(statement) || statement.name.text !== 'Context') continue
     heritageMembers(statement, sf, groups)
     for (const member of statement.members) {
-      if (!ts.isMethodSignature(member) && !ts.isPropertySignature(member)) continue
-      if (ts.isComputedPropertyName(member.name)) continue
+      if (!isMethodSignatureDeclaration(member) && !isPropertySignatureDeclaration(member)) continue
+      if (isComputedPropertyName(member.name)) continue
       const name = member.name.getText(sf)
       const group = groups.get(name) ?? []
       group.push(member)
@@ -264,34 +226,30 @@ function classMembers(ctx: RenderContext, rel: string, className: string): {
   source: string
 } {
   const { sf, text } = load(ctx, rel)
-  const cls = sf.statements.find(
-    (statement): statement is ts.ClassDeclaration =>
-      ts.isClassDeclaration(statement) && statement.name?.text === className,
-  )
+  const cls = sf.statements.find((statement): statement is ClassDeclaration =>
+    isClassDeclaration(statement) && statement.name?.text === className)
   if (cls === undefined) throw new Error(`cordis-core-api: class ${className} not found in ${rel}.`)
   const doc = parseJsDoc(rawJsDoc(text, cls)).doc
   if (doc === '') ctx.violations.push(`class ${className} (${pointer(rel, sf, cls)}) has no JSDoc.`)
   const instance = new Map<string, Member[]>()
   const statics = new Map<string, Member[]>()
   for (const member of cls.members) {
-    if (!ts.isMethodDeclaration(member) && !ts.isPropertyDeclaration(member) && !ts.isGetAccessorDeclaration(member)) continue
+    if (!isMethodDeclaration(member) && !isPropertyDeclaration(member) && !isGetAccessorDeclaration(member)) continue
     const name = member.name.getText(sf)
     if (isPublicInstance(member)) {
       const group = instance.get(name) ?? []
       group.push(member)
       instance.set(name, group)
-    } else if (isPublicStatic(member) && !ts.isGetAccessorDeclaration(member)) {
+    } else if (isPublicStatic(member) && !isGetAccessorDeclaration(member)) {
       const group = statics.get(name) ?? []
       group.push(member)
       statics.set(name, group)
     }
   }
-  const declaration = sf.statements.find(
-    (statement): statement is ts.InterfaceDeclaration =>
-      ts.isInterfaceDeclaration(statement) && statement.name.text === className,
-  )
+  const declaration = sf.statements.find((statement): statement is InterfaceDeclaration =>
+    isInterfaceDeclaration(statement) && statement.name.text === className)
   for (const member of declaration?.members ?? []) {
-    if (!ts.isPropertySignature(member) || ts.isComputedPropertyName(member.name)) continue
+    if (!isPropertySignatureDeclaration(member) || isComputedPropertyName(member.name)) continue
     const name = member.name.getText(sf)
     const group = instance.get(name) ?? []
     group.push(member)
@@ -307,14 +265,14 @@ function classMembers(ctx: RenderContext, rel: string, className: string): {
   }
 }
 
-function stripBodies(node: ts.Node, sf: ts.SourceFile): string {
+function stripBodies(node: Node, sf: SourceFile): string {
   const cuts: { start: number; end: number }[] = []
-  const visit = (entry: ts.Node): void => {
-    const functionLike = ts.isMethodDeclaration(entry)
-      || ts.isConstructorDeclaration(entry)
-      || ts.isFunctionDeclaration(entry)
-      || ts.isGetAccessorDeclaration(entry)
-      || ts.isSetAccessorDeclaration(entry)
+  const visit = (entry: Node) => {
+    const functionLike = isMethodDeclaration(entry)
+      || isConstructorDeclaration(entry)
+      || isFunctionDeclaration(entry)
+      || isGetAccessorDeclaration(entry)
+      || isSetAccessorDeclaration(entry)
     if (functionLike && entry.body !== undefined) {
       const signatureEnd = (entry.type ?? entry.parameters.at(-1) ?? entry).getEnd()
       cuts.push({ start: signatureEnd, end: entry.body.getEnd() })
@@ -337,11 +295,11 @@ function stripBodies(node: ts.Node, sf: ts.SourceFile): string {
 function declarationPaste(ctx: RenderContext, rel: string, symbol: string): { doc: string; code: string; source: string } {
   const { sf, text } = load(ctx, rel)
   const matches = sf.statements.filter((statement) => {
-    const named = ts.isInterfaceDeclaration(statement)
-      || ts.isTypeAliasDeclaration(statement)
-      || ts.isClassDeclaration(statement)
-      || ts.isEnumDeclaration(statement)
-      || ts.isModuleDeclaration(statement)
+    const named = isInterfaceDeclaration(statement)
+      || isTypeAliasDeclaration(statement)
+      || isClassDeclaration(statement)
+      || isEnumDeclaration(statement)
+      || isModuleDeclaration(statement)
     return named && statement.name?.getText(sf) === symbol
   })
   const first = matches[0]
@@ -388,14 +346,11 @@ function renderMember(prefix: string, member: MemberDoc): string[] {
 }
 
 /** Render one detailed Cordis core API page and reject undocumented members. */
-export function renderCordisCoreApiPage(
-  page: CordisCoreApiPage,
-  scanRoot: string = root,
-): string {
+export function renderCordisCoreApiPage(page: CordisCoreApiPage, scanRoot: string = root): string {
   const ctx: RenderContext = { scanRoot, cache: new Map(), violations: [] }
   const lines = [
     '<!-- Generated by scripts/gen-cordis-catalog.ts — do not edit by hand.',
-    '     Run `pnpm run gen-cordis-catalog` to regenerate. -->',
+    '     Run `bun run gen-cordis-catalog` to regenerate. -->',
     '',
     `# ${page.title}`,
     '',

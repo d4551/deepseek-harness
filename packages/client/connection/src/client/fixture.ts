@@ -821,7 +821,7 @@ function buildAlphaLog(): SessionEvent[] {
   toolTurn(
     66,
     'bash',
-    '{"command":"pnpm run check","description":"fixture 终端样本","workdir":"/tmp/fixture/deep/nested"}',
+    '{"command":"bun run check","description":"fixture 终端样本","workdir":"/tmp/fixture/deep/nested"}',
     `${TERMINAL_OUTPUT_FIXTURE}\n[exit code: 1]`,
   )
 

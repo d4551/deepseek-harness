@@ -46,15 +46,16 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
 
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.PRIMARY_NODE_VERSION }}
-          cache: pnpm
 
       - name: Install (immutable)
-        run: pnpm install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       # One definition of "released" for the site and the npm sequence: this
       # rejects every ref that is not a dsh-v* tag naming the version this tree
@@ -62,7 +63,7 @@ jobs:
       - name: Verify release version
         env:
           RELEASE_PUBLISH: 'true'
-        run: pnpm run release:verify --family dsh
+        run: bun run release:verify --family dsh
 
       - name: Configure Pages
         id: pages
@@ -71,7 +72,7 @@ jobs:
       - name: Verify and build documentation
         env:
           DOCS_BASE: ${{ steps.pages.outputs.base_path }}/
-        run: pnpm run doc-sync
+        run: bun run doc-sync
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5

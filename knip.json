@@ -7,10 +7,7 @@
     "bwrap",
     "icacls",
     "musl-gcc",
-    "python3",
     "sandbox-exec",
-    "tar",
-    "taskkill",
     "where.exe"
   ],
   "ignoreWorkspaces": [
@@ -37,6 +34,9 @@
         "scripts/**/*.mjs",
         "scripts/**/*.cjs",
         "snapshots/**/*.mjs"
+      ],
+      "ignoreDependencies": [
+        "@deepseek-ai/.+"
       ]
     },
     "packages/host/directory-picker-auto": {
@@ -667,11 +667,7 @@
       "ignoreDependencies": [
         "@deepseek-ai/dsh-client-store",
         "@deepseek-ai/dsh-client-ui-primitives",
-        "@deepseek-ai/dsh-client-ui-slots",
-        "@types/react",
-        "@types/react-dom",
-        "react",
-        "react-dom"
+        "@deepseek-ai/dsh-client-ui-slots"
       ]
     },
     "apps/cli": {
@@ -712,16 +708,6 @@
       "entry": [
         "tests/**/*.spec.ts",
         "tests/fixtures/loader/driver.ts"
-      ],
-      "project": [
-        "src/**/*.ts",
-        "tests/**/*.ts"
-      ]
-    },
-    "packages/test-support/loader-smoke": {
-      "entry": [
-        "tests/**/*.spec.ts",
-        "tests/fixtures/*.ts"
       ],
       "project": [
         "src/**/*.ts",

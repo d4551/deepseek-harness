@@ -99,7 +99,7 @@ function entryListProblem(rows: unknown, at = ''): string | undefined {
  *
  * Node's own upward `node_modules` walk, stopping at the package directory:
  * the question is whether the package is there at all, which is what a row
- * naming a package a rename or an uninstall took away gets wrong. A pnpm
+ * naming a package a rename or an uninstall took away gets wrong. A bun
  * store link answers through the symlink, and a link left dangling by a
  * deleted checkout answers false — the shape a stale profile install leaves.
  *

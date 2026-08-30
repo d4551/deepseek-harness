@@ -12,7 +12,7 @@
  *
  * Cost: this walks the whole build output and imports every bundle serially in
  * one process, so it takes minutes on loaded runners and needs
- * `pnpm run build:lib:host` to have run. It is a heavyweight suite, not part
+ * `bun run build:lib:host` to have run. It is a heavyweight suite, not part
  * of a default aggregator run.
  *
  * Run: tsx tests/compile/transform-corpus-check.ts [files...]
@@ -97,7 +97,7 @@ const files = process.argv.slice(2).length > 0
   : discover()
 
 if (files.length === 0) {
-  process.stdout.write('transform-corpus-check: no built bundles found; run `pnpm run build:lib:host` first\n')
+  process.stdout.write('transform-corpus-check: no built bundles found; run `bun run build:lib:host` first\n')
   process.exitCode = 1
 } else {
   const verdicts = { ok: 0, exempt: 0, unexpectedBaseline: 0 }

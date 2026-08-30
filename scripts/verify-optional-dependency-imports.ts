@@ -27,7 +27,16 @@
 
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import ts from 'typescript'
+import type { ExportDeclaration, Identifier, ImportDeclaration, StringLiteral } from 'typescript/unstable/ast'
+import { SyntaxKind } from 'typescript/unstable/ast'
+import {
+  isExportDeclaration,
+  isImportDeclaration,
+  isNamespaceExport,
+  isNamespaceImport,
+  isStringLiteral,
+} from 'typescript/unstable/ast/is'
+import { SymbolFlags, type Checker } from 'typescript/unstable/sync'
 import { TypeScriptProject, type CompilerFace } from './ts-project.ts'
 
 const root = resolve(import.meta.dirname, '..')
@@ -111,11 +120,11 @@ function optionalFor(projectRoot: string, relativePath: string): Map<string, Opt
  * @returns True when the binding carries value meaning, and on an unresolved
  * symbol, so an unresolvable binding fails closed.
  */
-function bindsValue(name: ts.Identifier | ts.StringLiteral, checker: ts.TypeChecker): boolean {
+function bindsValue(name: Identifier | StringLiteral, checker: Checker): boolean {
   const symbol = checker.getSymbolAtLocation(name)
   if (symbol === undefined) return true
-  const target = (symbol.flags & ts.SymbolFlags.Alias) === 0 ? symbol : checker.getAliasedSymbol(symbol)
-  return (target.flags & ts.SymbolFlags.Value) !== 0
+  const target = (symbol.flags & SymbolFlags.Alias) === 0 ? symbol : checker.getAliasedSymbol(symbol)
+  return (target.flags & SymbolFlags.Value) !== 0
 }
 
 /**
@@ -124,17 +133,17 @@ function bindsValue(name: ts.Identifier | ts.StringLiteral, checker: ts.TypeChec
  * @param checker - the program's checker.
  * @returns True when the emitted module keeps the import.
  */
-function importLoadsModule(declaration: ts.ImportDeclaration, checker: ts.TypeChecker): boolean {
+function importLoadsModule(declaration: ImportDeclaration, checker: Checker): boolean {
   const clause = declaration.importClause
   // A bare `import 'x'` is kept for its side effects.
   if (clause === undefined) return true
   // Only the type phase erases the import. `import defer` still resolves and
   // links the module, deferring evaluation alone, so an absent package fails
   // exactly as it would without the modifier.
-  if (clause.phaseModifier === ts.SyntaxKind.TypeKeyword) return false
+  if (clause.phaseModifier === SyntaxKind.TypeKeyword) return false
   if (clause.name !== undefined) return true
   const bindings = clause.namedBindings
-  if (bindings === undefined || ts.isNamespaceImport(bindings)) return true
+  if (bindings === undefined || isNamespaceImport(bindings)) return true
   return bindings.elements.some(element => !element.isTypeOnly && bindsValue(element.name, checker))
 }
 
@@ -144,11 +153,11 @@ function importLoadsModule(declaration: ts.ImportDeclaration, checker: ts.TypeCh
  * @param checker - the program's checker.
  * @returns True when the emitted module keeps the re-export.
  */
-function exportLoadsModule(declaration: ts.ExportDeclaration, checker: ts.TypeChecker): boolean {
+function exportLoadsModule(declaration: ExportDeclaration, checker: Checker): boolean {
   if (declaration.isTypeOnly) return false
   const clause = declaration.exportClause
   // `export * from 'x'` re-exports whatever values the module has.
-  if (clause === undefined || ts.isNamespaceExport(clause)) return true
+  if (clause === undefined || isNamespaceExport(clause)) return true
   return clause.elements.some(element => !element.isTypeOnly && bindsValue(element.name, checker))
 }
 
@@ -168,10 +177,10 @@ export function collectOptionalImportViolations(project: TypeScriptProject): str
     if (optional.size === 0) continue
 
     for (const statement of sourceFile.statements) {
-      const isImport = ts.isImportDeclaration(statement)
-      if (!isImport && !ts.isExportDeclaration(statement)) continue
+      const isImport = isImportDeclaration(statement)
+      if (!isImport && !isExportDeclaration(statement)) continue
       const specifierNode = statement.moduleSpecifier
-      if (specifierNode === undefined || !ts.isStringLiteral(specifierNode)) continue
+      if (specifierNode === undefined || !isStringLiteral(specifierNode)) continue
       const kind = optional.get(packageOf(specifierNode.text))
       if (kind === undefined) continue
       const loads = isImport

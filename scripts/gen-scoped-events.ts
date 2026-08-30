@@ -15,8 +15,23 @@
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import ts from 'typescript'
-import { pointer, rawJsDoc } from './jsdoc.ts'
+import type {
+  FunctionDeclaration, MethodSignatureDeclaration, Node, ParameterDeclaration, SourceFile, TypeAliasDeclaration,
+} from 'typescript/unstable/ast'
+import {
+  isCallExpression,
+  isFunctionDeclaration,
+  isInterfaceDeclaration,
+  isMethodSignatureDeclaration,
+  isStringLiteral,
+  isTypeAliasDeclaration,
+} from 'typescript/unstable/ast/is'
+import { NodeBuilderFlags, TypeFlags, type Checker, type Symbol, type Type } from 'typescript/unstable/sync'
+import {
+  dedupeCandidates, hasNonPublicDeclaration, isCordisModuleInterface, parseScopeTag, quote,
+  type SubjectCandidate,
+} from './gen-scoped-events-scan.ts'
+import { isThisParameter, pointer, rawJsDoc } from './jsdoc.ts'
 import { TypeScriptProject } from './ts-project.ts'
 
 const root = resolve(import.meta.dirname, '..')
@@ -24,16 +39,9 @@ const OUT = 'packages/core/scope/src/scoped-events.generated.ts'
 const SCOPE_DOC_MARKER = 'Scope-filtered dispatch'
 
 interface ScopeTargetContract {
-  baseType: ts.Type
-  keyType: ts.Type
+  baseType: Type
+  keyType: Type
   source: string
-}
-
-interface SubjectCandidate {
-  path: string
-  parameter: number
-  property?: string
-  type: ts.Type
 }
 
 interface ScopedEventResolver {
@@ -41,17 +49,12 @@ interface ScopedEventResolver {
   candidate: SubjectCandidate | null
 }
 
-interface ScopeTag {
-  present: boolean
-  unsupported: boolean
-}
-
 /** Program-backed analyzer and renderer for the generated scoped-event resolvers. */
 class ScopedEventGenerator {
-  private readonly checker: ts.TypeChecker
-  private readonly packageSources: ts.SourceFile[]
-  private readonly scopeTargetDeclaration: ts.FunctionDeclaration
-  private readonly scopedSymbol: ts.Symbol
+  private readonly checker: Checker
+  private readonly packageSources: SourceFile[]
+  private readonly scopeTargetDeclaration: FunctionDeclaration
+  private readonly scopedSymbol: Symbol
   private readonly violations: string[] = []
 
   constructor(private readonly project: TypeScriptProject) {
@@ -82,7 +85,7 @@ class ScopedEventGenerator {
     return [
       '/**',
       ' * Generated scoped-event routing-subject resolvers for dsh-scope invariants.',
-      ' * Do not edit by hand; run `pnpm run gen-scoped-events`.',
+      ' * Do not edit by hand; run `bun run gen-scoped-events`.',
       ' *',
       ' * @module @deepseek-ai/dsh-scope/scoped-events.generated',
       ' */',
@@ -115,20 +118,20 @@ class ScopedEventGenerator {
   }
 
   /** Resolve one named function declaration from a known source file. */
-  private functionDeclaration(relativePath: string, name: string): ts.FunctionDeclaration {
+  private functionDeclaration(relativePath: string, name: string): FunctionDeclaration {
     const sourceFile = this.project.sourceFile(relativePath)
-    const declaration = sourceFile.statements.find((statement): statement is ts.FunctionDeclaration => {
-      return ts.isFunctionDeclaration(statement) && statement.name?.text === name
+    const declaration = sourceFile.statements.find((statement): statement is FunctionDeclaration => {
+      return isFunctionDeclaration(statement) && statement.name?.text === name
     })
     if (!declaration) throw new Error(`gen-scoped-events: cannot resolve function ${name} from ${relativePath}`)
     return declaration
   }
 
   /** Resolve one named type-alias symbol from a known source file. */
-  private typeAliasSymbol(relativePath: string, name: string): ts.Symbol {
+  private typeAliasSymbol(relativePath: string, name: string): Symbol {
     const sourceFile = this.project.sourceFile(relativePath)
-    const declaration = sourceFile.statements.find((statement): statement is ts.TypeAliasDeclaration => {
-      return ts.isTypeAliasDeclaration(statement) && statement.name.text === name
+    const declaration = sourceFile.statements.find((statement): statement is TypeAliasDeclaration => {
+      return isTypeAliasDeclaration(statement) && statement.name.text === name
     })
     const symbol = declaration && this.checker.getSymbolAtLocation(declaration.name)
     if (!symbol) throw new Error(`gen-scoped-events: cannot resolve type ${name} from ${relativePath}`)
@@ -138,23 +141,30 @@ class ScopedEventGenerator {
   /** Collect every real scopeTarget(base, key) base/key type contract. */
   private collectScopeTargetContracts(): ScopeTargetContract[] {
     const contracts: ScopeTargetContract[] = []
-    const visit = (sourceFile: ts.SourceFile, node: ts.Node): void => {
-      if (ts.isCallExpression(node)
-        && this.checker.getResolvedSignature(node)?.declaration === this.scopeTargetDeclaration) {
+    const visit = (sourceFile: SourceFile, node: Node): void => {
+      if (isCallExpression(node)
+        && this.checker.getResolvedSignature(node)?.declaration?.resolve() === this.scopeTargetDeclaration) {
         const base = node.arguments[0]
         const key = node.arguments[1]
         if (!base || !key) {
           const source = pointer(this.project.relativePath(sourceFile), sourceFile, node)
           this.violations.push(`${source} calls scopeTarget without base and key arguments`)
         } else {
-          contracts.push({
-            baseType: this.checker.getTypeAtLocation(base),
-            keyType: this.checker.getTypeAtLocation(key),
-            source: pointer(this.project.relativePath(sourceFile), sourceFile, node),
-          })
+          const baseType = this.checker.getTypeAtLocation(base)
+          const keyType = this.checker.getTypeAtLocation(key)
+          if (baseType === undefined || keyType === undefined) {
+            const source = pointer(this.project.relativePath(sourceFile), sourceFile, node)
+            this.violations.push(`${source} calls scopeTarget but the checker could not resolve argument types`)
+          } else {
+            contracts.push({
+              baseType,
+              keyType,
+              source: pointer(this.project.relativePath(sourceFile), sourceFile, node),
+            })
+          }
         }
       }
-      ts.forEachChild(node, (child) => { visit(sourceFile, child) })
+      node.forEachChild((child) => { visit(sourceFile, child) })
     }
     for (const sourceFile of this.packageSources) visit(sourceFile, sourceFile)
     return contracts
@@ -165,10 +175,10 @@ class ScopedEventGenerator {
     const resolvers: ScopedEventResolver[] = []
     for (const sourceFile of this.packageSources) {
       const rel = this.project.relativePath(sourceFile)
-      const visit = (node: ts.Node): void => {
-        if (ts.isInterfaceDeclaration(node) && node.name.text === 'Events' && isCordisModuleInterface(node)) {
+      const visit = (node: Node): void => {
+        if (isInterfaceDeclaration(node) && node.name.text === 'Events' && isCordisModuleInterface(node)) {
           for (const member of node.members) {
-            if (!ts.isMethodSignature(member) || !ts.isStringLiteral(member.name)) continue
+            if (!isMethodSignatureDeclaration(member) || !isStringLiteral(member.name)) continue
             const event = member.name.text
             const raw = rawJsDoc(sourceFile.text, member)
             const where = `event '${event}' (${pointer(rel, sourceFile, member)})`
@@ -222,7 +232,7 @@ class ScopedEventGenerator {
             resolvers.push({ event, candidate: candidates[0] ?? null })
           }
         }
-        ts.forEachChild(node, visit)
+        node.forEachChild(visit)
       }
       visit(sourceFile)
     }
@@ -230,18 +240,18 @@ class ScopedEventGenerator {
   }
 
   /** Extract the Base type from one exact this: Scoped<Base> parameter. */
-  private scopedBaseType(parameter: ts.ParameterDeclaration): ts.Type | undefined {
+  private scopedBaseType(parameter: ParameterDeclaration): Type | undefined {
     const type = this.checker.getTypeAtLocation(parameter)
-    if (type.aliasSymbol !== this.scopedSymbol) return undefined
-    return type.aliasTypeArguments?.[0]
+    if (type === undefined || type.getAliasSymbol() !== this.scopedSymbol) return undefined
+    return type.getAliasTypeArguments()[0]
   }
 
   /** Resolve one unambiguous key type for a scoped carrier base. */
   private routingKeyType(
     where: string,
-    scopedBase: ts.Type,
+    scopedBase: Type,
     contracts: readonly ScopeTargetContract[],
-  ): ts.Type | undefined {
+  ): Type | undefined {
     const matches = contracts.filter((contract) => {
       return this.checker.isTypeAssignableTo(this.normalizedType(contract.baseType), this.normalizedType(scopedBase))
     })
@@ -251,7 +261,7 @@ class ScopedEventGenerator {
       )
       return undefined
     }
-    const keyTypes: ts.Type[] = []
+    const keyTypes: Type[] = []
     for (const match of matches) {
       if (!keyTypes.some(type => this.typesEquivalent(type, match.keyType))) keyTypes.push(match.keyType)
     }
@@ -266,16 +276,20 @@ class ScopedEventGenerator {
   }
 
   /** Enumerate every payload parameter and every accessible one-level property. */
-  private subjectCandidates(member: ts.MethodSignature): SubjectCandidate[] {
+  private subjectCandidates(member: MethodSignatureDeclaration): SubjectCandidate[] {
     const candidates: SubjectCandidate[] = []
     let runtimeIndex = 0
     for (const parameter of member.parameters) {
       if (isThisParameter(parameter)) continue
       const directPath = `args[${runtimeIndex}]`
       const parameterType = this.checker.getTypeAtLocation(parameter)
+      if (parameterType === undefined) {
+        runtimeIndex += 1
+        continue
+      }
       candidates.push({ path: directPath, parameter: runtimeIndex, type: parameterType })
       for (const property of this.checker.getPropertiesOfType(this.normalizedType(parameterType))) {
-        const name = property.getName()
+        const name = property.name
         if (name.startsWith('__@') || hasNonPublicDeclaration(property)) continue
         candidates.push({
           path: `${directPath}.${name}`,
@@ -290,82 +304,23 @@ class ScopedEventGenerator {
   }
 
   /** Compare exact Program type identities after removing null and undefined. */
-  private typesEquivalent(left: ts.Type, right: ts.Type): boolean {
+  private typesEquivalent(left: Type, right: Type): boolean {
     const normalizedLeft = this.normalizedType(left)
     const normalizedRight = this.normalizedType(right)
-    if (normalizedLeft.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) return false
-    if (normalizedRight.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) return false
+    if (normalizedLeft.flags & (TypeFlags.Any | TypeFlags.Unknown)) return false
+    if (normalizedRight.flags & (TypeFlags.Any | TypeFlags.Unknown)) return false
     return normalizedLeft === normalizedRight
   }
 
   /** Remove null and undefined from a routing or candidate type. */
-  private normalizedType(type: ts.Type): ts.Type {
-    return this.checker.getNonNullableType(type)
+  private normalizedType(type: Type): Type {
+    return this.checker.getNonNullableType(type) ?? type
   }
 
   /** Render a stable diagnostic type label. */
-  private typeText(type: ts.Type): string {
-    return this.checker.typeToString(type, undefined, ts.TypeFormatFlags.NoTruncation)
+  private typeText(type: Type): string {
+    return this.checker.typeToString(type, undefined, NodeBuilderFlags.NoTruncation)
   }
-}
-
-/** Return whether an Events interface is inside declare module '@deepseek-ai/cordis'. */
-function isCordisModuleInterface(node: ts.InterfaceDeclaration): boolean {
-  const block = node.parent
-  const declaration = block.parent
-  return ts.isModuleBlock(block)
-    && ts.isModuleDeclaration(declaration)
-    && ts.isStringLiteral(declaration.name)
-    && declaration.name.text === '@deepseek-ai/cordis'
-}
-
-/** Return whether a parameter is the explicit TypeScript this receiver. */
-function isThisParameter(parameter: ts.ParameterDeclaration): boolean {
-  return ts.isIdentifier(parameter.name) && parameter.name.text === 'this'
-}
-
-/** Parse and validate the optional @dshScopeScan unsupported tag. */
-function parseScopeTag(raw: string, where: string, violations: string[]): ScopeTag {
-  const tags = raw
-    .replace(/^\/\*\*/, '')
-    .replace(/\*\/$/, '')
-    .split('\n')
-    .map(line => line.replace(/^\s*\*?\s?/, '').trim())
-    .filter(line => line.startsWith('@dshScopeScan'))
-  if (tags.length > 1) violations.push(`${where} has multiple @dshScopeScan tags`)
-  if (tags.length === 0) return { present: false, unsupported: false }
-  const unsupported = tags[0] === '@dshScopeScan unsupported'
-  if (!unsupported) {
-    violations.push(
-      `${where} has invalid scoped-event scan metadata '${tags[0]}'; expected '@dshScopeScan unsupported'`,
-    )
-  }
-  return { present: true, unsupported }
-}
-
-/** Return whether a property has a private or protected declaration. */
-function hasNonPublicDeclaration(symbol: ts.Symbol): boolean {
-  return (symbol.declarations ?? []).some((declaration) => {
-    if (!ts.canHaveModifiers(declaration)) return false
-    return ts.getModifiers(declaration)?.some((modifier) => {
-      return modifier.kind === ts.SyntaxKind.PrivateKeyword || modifier.kind === ts.SyntaxKind.ProtectedKeyword
-    }) ?? false
-  })
-}
-
-/** Deduplicate candidate paths contributed by merged/intersection types. */
-function dedupeCandidates(candidates: readonly SubjectCandidate[]): SubjectCandidate[] {
-  const seen = new Set<string>()
-  return candidates.filter((candidate) => {
-    if (seen.has(candidate.path)) return false
-    seen.add(candidate.path)
-    return true
-  })
-}
-
-/** Quote a generated property key as a single-quoted TypeScript string. */
-function quote(value: string): string {
-  return `'${value.replaceAll('\\', '\\\\').replaceAll("'", "\\'")}'`
 }
 
 /**
@@ -387,7 +342,7 @@ function main(): void {
       console.log(`gen-scoped-events: ${OUT} is up to date.`)
       return
     }
-    console.error(`gen-scoped-events: ${OUT} is stale. Run \`pnpm run gen-scoped-events\` and commit it.`)
+    console.error(`gen-scoped-events: ${OUT} is stale. Run \`bun run gen-scoped-events\` and commit it.`)
     process.exit(1)
   }
   writeFileSync(output, content)

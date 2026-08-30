@@ -4,7 +4,7 @@
  * window.__ModuleLoader__.load, resolves externals through the injected
  * require, returns the exports (apply + inject), and a mounted apply
  * registers the view tab into a real SlotRegistry ring. Skips when dist/ is
- * not built (`pnpm --filter @deepseek-ai/dsh-client-ui-trajectory bundle`).
+ * not built (`bun run --filter @deepseek-ai/dsh-client-ui-trajectory bundle`).
  */
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'

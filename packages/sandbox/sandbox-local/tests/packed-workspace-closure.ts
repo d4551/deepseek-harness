@@ -1,13 +1,7 @@
-import { spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { globSync, readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 
 const RUNTIME_SECTIONS = ['dependencies', 'optionalDependencies', 'peerDependencies'] as const
-
-interface WorkspaceListEntry {
-  name: string
-  path: string
-}
 
 /** One workspace manifest available to the packed-install rehearsal. */
 export interface WorkspacePackage {
@@ -34,38 +28,34 @@ function optionalPeer(manifest: Record<string, unknown>, name: string): boolean 
 }
 
 /**
- * Read the root pnpm workspace inventory and its package manifests.
- * @param repoRoot - repository root containing the pnpm workspace.
+ * Read the workspace inventory from the root manifest and its package manifests.
+ *
+ * The globs are read directly rather than asked of the package manager: bun
+ * exposes no workspace-inventory subcommand, and the manifest is the authority
+ * either way.
+ * @param repoRoot - repository root whose `workspaces` globs list the members.
  * @returns Workspace packages indexed by package name.
  */
 export function readWorkspacePackages(repoRoot: string): Map<string, WorkspacePackage> {
-  const listed = spawnSync('pnpm', ['list', '--recursive', '--depth', '-1', '--json'], {
-    cwd: repoRoot,
-    encoding: 'utf8',
-    timeout: 30_000,
-  })
-  if (listed.status !== 0) {
-    throw new Error(`pnpm workspace inventory failed:\n${listed.stdout}\n${listed.stderr}`)
+  const root: unknown = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'))
+  const globs = (root as { workspaces?: unknown }).workspaces
+  if (!Array.isArray(globs) || globs.length === 0) {
+    throw new Error('workspace inventory: the root manifest declares no workspaces')
   }
-  const parsed: unknown = JSON.parse(listed.stdout)
-  if (!Array.isArray(parsed)) throw new Error('pnpm workspace inventory is not an array')
   const packages = new Map<string, WorkspacePackage>()
-  for (const value of parsed) {
-    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-      throw new Error('pnpm workspace inventory contains a non-object entry')
+  for (const glob of globs) {
+    for (const found of globSync(`${String(glob)}/package.json`, { cwd: repoRoot })) {
+      const directory = join(repoRoot, dirname(found.replaceAll('\\', '/')))
+      const parsedManifest: unknown = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'))
+      if (parsedManifest === null || typeof parsedManifest !== 'object' || Array.isArray(parsedManifest)) {
+        throw new Error(`${directory}/package.json is not an object`)
+      }
+      const manifest = parsedManifest as Record<string, unknown>
+      const { name } = manifest
+      if (typeof name !== 'string') throw new Error(`${directory}/package.json declares no name`)
+      if (packages.has(name)) throw new Error(`workspace inventory repeats ${name}`)
+      packages.set(name, { name, directory, manifest })
     }
-    const { name, path } = value as Partial<WorkspaceListEntry>
-    if (typeof name !== 'string' || typeof path !== 'string') {
-      throw new Error('pnpm workspace inventory entry lacks name/path')
-    }
-    const parsedManifest: unknown = JSON.parse(readFileSync(join(path, 'package.json'), 'utf8'))
-    if (parsedManifest === null || typeof parsedManifest !== 'object' || Array.isArray(parsedManifest)) {
-      throw new Error(`${path}/package.json is not an object`)
-    }
-    const manifest = parsedManifest as Record<string, unknown>
-    if (manifest.name !== name) throw new Error(`${path}/package.json does not declare ${name}`)
-    if (packages.has(name)) throw new Error(`pnpm workspace inventory repeats ${name}`)
-    packages.set(name, { name, directory: path, manifest })
   }
   return packages
 }

@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # Run the blocking Windows gates (workspace build, production site) with real
 # win-x64 Node.js under Wine — the same script the pull-request `windows` job
-# in ci.yml executes and the optional local gate `pnpm run check:windows-wine`
+# in ci.yml executes and the optional local gate `bun run check:windows-wine`
 # wraps. Owning rationale and fidelity limits:
 # .agents/notes/implemented/process/2026-08-08-native-windows-pull-request-ci.md
 #
 # The working tree is never mutated: tracked plus untracked-unignored files
-# are snapshotted into a scratch directory, the Wine-specific pnpm overrides
-# (hoisted layout, win32-x64 platform packages) are appended to the SNAPSHOT's
-# pnpm-workspace.yaml, and the install and gates run there against the shared
-# pnpm store. The Wine prefix and the checksum-verified Windows Node zip
-# persist in .cache/wine-windows/ so reruns skip provisioning.
+# are snapshotted into a scratch directory, and the install and gates run there
+# against the shared bun cache with the Wine-specific overrides (hoisted layout,
+# win32-x64 platform packages) passed on the install command line. The Wine
+# prefix and the checksum-verified Windows Node zip persist in
+# .cache/wine-windows/ so reruns skip provisioning.
 #
 # Environment: DSH_WINE_NODE_MAJOR (default $PRIMARY_NODE_VERSION, then 24)
 # picks the Windows Node line; DSH_WINE_GATE_CACHE_DIR relocates the cache;
@@ -46,8 +46,7 @@ missing=()
 command -v curl > /dev/null || missing+=('curl')
 command -v unzip > /dev/null || missing+=('unzip')
 [ -n "$checksum_tool" ] || missing+=('sha256sum or shasum (apt: coreutils | macOS ships shasum)')
-if ! command -v pnpm > /dev/null; then corepack enable > /dev/null 2>&1 || true; fi
-command -v pnpm > /dev/null || missing+=('pnpm (corepack enable)')
+command -v bun > /dev/null || missing+=('bun (https://bun.com/docs/installation)')
 if (( ${#missing[@]} > 0 )); then
   printf 'wine-windows-gates: missing required tool: %s\n' "${missing[@]}" >&2
   exit 1
@@ -143,41 +142,19 @@ boot_wine() {
 
 snapshot_and_install() {
   # Tracked + untracked-unignored files, minus agent-session litter; the
-  # existence filter drops paths staged as deleted. Then the Wine-specific
-  # install-time overrides go on the SNAPSHOT only: hoisted because Windows
-  # Node under Wine does not realpath pnpm's isolated-layout symlinks, and
-  # win32-x64 so the Windows esbuild/rolldown/rollup binaries materialize.
-  # Neither is recorded in the lockfile, so --frozen-lockfile stays valid;
-  # --ignore-scripts skips host lifecycle scripts no gate loads.
+  # existence filter drops paths staged as deleted. The Wine-specific overrides
+  # go on the install command line so the SNAPSHOT's bunfig.toml is untouched:
+  # hoisted because Windows Node under Wine does not realpath the isolated
+  # layout's symlinks, and win32/x64 so the Windows esbuild/rolldown/rollup
+  # binaries materialize. Neither is recorded in the lockfile, so
+  # --frozen-lockfile stays valid; --ignore-scripts skips host lifecycle
+  # scripts no gate loads.
   git -C "$repo_root" ls-files -z --cached --others --exclude-standard -- . ':!:.claude' ':!:.codex' \
     | while IFS= read -r -d '' file; do [ -e "$repo_root/$file" ] && printf '%s\0' "$file"; done \
     | tar -C "$repo_root" --null --files-from=- -cf - \
     | tar -C "$scratch/tree" -xf -
-  cat >> "$scratch/tree/pnpm-workspace.yaml" << 'EOF'
-
-nodeLinker: hoisted
-supportedArchitectures:
-  os: [current, win32]
-  cpu: [current, x64]
-EOF
-  # The hoisted linker — used only by this lane — has an upstream rename
-  # race (pnpm/pnpm#12880): parallel linkers staging a nested package copy
-  # (observed on the tree's nested esbuild versions) rename their _tmp_*
-  # directory onto a path another racer already claimed, and the loser
-  # exits ERR_PNPM_ENOENT although an identical re-install succeeds.
-  # Exactly that signature earns up to two retries on a clean tree — the
-  # snapshot contains no node_modules, so wiping them restores the
-  # pre-install state; any other failure, or the race still standing after
-  # the final attempt, fails loud with the log tail.
-  local attempt
-  for attempt in 1 2 3; do
-    (cd "$scratch/tree" && pnpm install --frozen-lockfile --ignore-scripts > "$scratch/logs/install.log" 2>&1) \
-      && return 0
-    grep -q 'ERR_PNPM_ENOENT.*rename.*_tmp_' "$scratch/logs/install.log" || break
-    (( attempt < 3 )) || break
-    echo "wine-windows-gates: pnpm hoisted-linker rename race (pnpm/pnpm#12880) on install attempt $attempt; retrying on a clean tree" >&2
-    find "$scratch/tree" -name node_modules -type d -prune -exec rm -rf {} +
-  done
+  (cd "$scratch/tree" && bun install --frozen-lockfile --ignore-scripts \
+    --linker=hoisted --os win32 --cpu x64 > "$scratch/logs/install.log" 2>&1) && return 0
   tail -40 "$scratch/logs/install.log" >&2
   return 1
 }
@@ -203,7 +180,7 @@ report_provision() {
 }
 report_provision 'Windows Node provisioning' "$node_status"
 report_provision 'wineboot' "$wine_status"
-report_provision 'workspace snapshot + pnpm install' "$install_status"
+report_provision 'workspace snapshot + bun install' "$install_status"
 if (( provision_failed != 0 )); then exit "$provision_failed"; fi
 node_win="$(cat "$scratch/node-win-path")"
 echo "wine-windows-gates: provisioned in $((SECONDS - start))s (wine $("$wine_bin" --version 2> /dev/null), node $(basename "$(dirname "$node_win")"))"

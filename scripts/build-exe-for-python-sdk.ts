@@ -7,7 +7,7 @@
  */
 
 import { spawn } from 'node:child_process'
-import { existsSync, statSync } from 'node:fs'
+import { existsSync, globSync, readFileSync, statSync } from 'node:fs'
 import { chmod, copyFile, cp, lstat, mkdir, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, extname, join, resolve, sep } from 'node:path'
 import { parseArgs } from 'node:util'
@@ -15,8 +15,8 @@ import { resolveLinuxNodePtyAddon, resolveWindowsNodePtyAddons } from './build-e
 
 const root = resolve(import.meta.dirname, '..')
 
-/** The closure manifest whose dependencies define the executable. */
-const DEPLOY_ROOT_PACKAGE = 'dsh-python-runtime-closure'
+/** Repository-relative home of the closure manifest whose dependencies define the executable. */
+const DEPLOY_ROOT_DIR = 'python/sdk-runtime'
 /** The sole application launcher inside the deployed closure. */
 const ENTRY_BIN = 'node_modules/@deepseek-ai/dsh/lib/bin.js'
 /** Python-visible executable basename. */
@@ -30,7 +30,7 @@ const OUT_DIR = 'dist-exe'
 const PYTHON_RUNTIME_DIR = 'python/sdk-runtime/src/deepseek_harness_runtime/runtime'
 /** The deployed closure doubles as the node-mode carrier. */
 const PYTHON_NODE_SUBDIR = 'node'
-/** Legacy deploy may hoist peer-specialized workspace packages back here. */
+/** A hoisted install may place peer-specialized workspace packages back here. */
 const DEPLOY_SOURCE_NODE_MODULES = 'python/sdk-runtime/node_modules'
 /** Documentation excluded from the generated runtime directory. */
 const DEPLOY_ONLY_DOCS = ['README.md', 'README.zh.md', 'README.i18n.yaml']
@@ -153,7 +153,7 @@ class BuildCli {
   private constructor(
     /** Build targets; defaults to the host platform only. */
     readonly targets: readonly Target[],
-    /** Skip step 1 (`pnpm run build`); lib/ artifacts must already exist. */
+    /** Skip step 1 (`bun run build`); lib/ artifacts must already exist. */
     readonly skipBuild: boolean,
     /** Print every command and config patch instead of executing. */
     readonly dryRun: boolean,
@@ -207,11 +207,11 @@ class BuildCli {
 
   private static usage(): string {
     return [
-      'Usage: pnpm exec tsx scripts/build-exe-for-python-sdk.ts [flags]',
+      'Usage: bun x tsx scripts/build-exe-for-python-sdk.ts [flags]',
       '',
       '  --targets=<t1,t2,...>  pkg targets, e.g. node24-linux-x64,node24-linux-arm64,node24-macos-arm64,node24-win-x64.',
       '                         Default: the host platform only (on node24).',
-      '  --skip-build           skip `pnpm run build` (lib/ artifacts must already exist).',
+      '  --skip-build           skip `bun run build` (lib/ artifacts must already exist).',
       '  --dry-run              print every command and config patch without executing.',
       '  --help                 print this help.',
       '',
@@ -221,27 +221,42 @@ class BuildCli {
   }
 }
 
-function pnpmInvocation(args: string[]): [command: string, args: string[]] {
+function bunInvocation(args: string[]): [command: string, args: string[]] {
   const entrypoint = process.env.npm_execpath?.trim()
-  if (entrypoint !== undefined && entrypoint !== '') {
-    const extension = extname(entrypoint).toLowerCase()
-    if (extension === '.js' || extension === '.cjs' || extension === '.mjs') {
-      return [process.execPath, [entrypoint, ...args]]
-    }
-    if (extension !== '.cmd') return [entrypoint, args]
+  if (entrypoint !== undefined && entrypoint !== '' && extname(entrypoint).toLowerCase() !== '.cmd') {
+    return [entrypoint, args]
   }
-  const home = process.env.PNPM_HOME?.trim()
+  const home = process.env.BUN_INSTALL?.trim()
   if (home !== undefined && home !== '') {
-    const packageBin = resolve(home, '..', 'pnpm', 'bin')
-    for (const filename of ['pnpm.mjs', 'pnpm.cjs']) {
-      const candidate = resolve(packageBin, filename)
-      if (existsSync(candidate)) return [process.execPath, [candidate, ...args]]
+    for (const filename of ['bun', 'bun.exe']) {
+      const candidate = resolve(home, 'bin', filename)
+      if (existsSync(candidate)) return [candidate, args]
     }
   }
   if (process.platform === 'win32') {
-    throw new Error('build-exe-for-python-sdk: pnpm must expose a JavaScript entrypoint through npm_execpath or PNPM_HOME on Windows.')
+    throw new Error('build-exe-for-python-sdk: bun must be reachable through npm_execpath or BUN_INSTALL on Windows.')
   }
-  return ['pnpm', args]
+  return ['bun', args]
+}
+
+/**
+ * Absolute directory of every workspace package, keyed by package name.
+ * @returns the name-to-directory map derived from the root manifest's `workspaces` globs.
+ */
+function workspacePackageDirectories(): Map<string, string> {
+  const declared = (JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')) as { workspaces?: unknown }).workspaces
+  if (!Array.isArray(declared) || declared.length === 0) {
+    throw new Error('build-exe-for-python-sdk: the root manifest declares no workspaces; the closure cannot be resolved.')
+  }
+  const directories = new Map<string, string>()
+  for (const member of declared) {
+    for (const path of globSync(`${String(member)}/package.json`, { cwd: root })) {
+      const directory = resolve(root, dirname(path.replaceAll('\\', '/')))
+      const name = (JSON.parse(readFileSync(resolve(directory, 'package.json'), 'utf8')) as { name?: string }).name
+      if (name !== undefined) directories.set(name, directory)
+    }
+  }
+  return directories
 }
 
 /**
@@ -269,16 +284,16 @@ class SingleExeBuild {
 
   /** Verify the closure before compiling or packaging. */
   async verifyClosure(): Promise<void> {
-    await this.runPnpm('runtime dependency closure', ['run', 'verify-runtime-closure'])
+    await this.runBun('runtime dependency closure', ['run', 'verify-runtime-closure'])
   }
 
   /** Build all package artifacts unless `--skip-build` was passed. */
   async build(): Promise<void> {
     if (this.cli.skipBuild) {
-      console.log('build-exe-for-python-sdk: skipping pnpm run build (--skip-build)')
+      console.log('build-exe-for-python-sdk: skipping bun run build (--skip-build)')
       return
     }
-    await this.runPnpm('build', ['run', 'build'])
+    await this.runBun('build', ['run', 'build'])
   }
 
   /** Clear and deploy the runtime closure into the node carrier. */
@@ -288,16 +303,15 @@ class SingleExeBuild {
     }
     if (this.cli.dryRun) console.log(`build-exe-for-python-sdk: [dry-run] rm -rf ${this.staging}`)
     else await rm(this.staging, { recursive: true, force: true })
-    await this.runPnpm('deploy', [
-      '--filter',
-      DEPLOY_ROOT_PACKAGE,
-      'deploy',
-      '--legacy',
-      '--prod',
-      '--config.node-linker=hoisted',
-      '--config.auto-install-peers=false',
-      '--config.link-workspace-packages=true',
+    await this.writeStagingManifest()
+    await this.runBun('deploy', [
+      'install',
+      '--cwd',
       this.staging,
+      '--production',
+      '--linker=hoisted',
+      '--no-save',
+      '--ignore-scripts',
     ])
     await this.restoreLegacyHoists()
     await this.materializeStagedLinks()
@@ -309,11 +323,44 @@ class SingleExeBuild {
   }
 
   /**
-   * Restore direct packages that pnpm's legacy hoister places beside the deploy
+   * Restore direct packages that a hoisted install places beside the deploy
    * source instead of in the target. The runtime manifest supplies every peer,
    * so package-local node_modules trees are omitted to preserve one flat Cordis
    * instance and a symlink-free packaged payload.
    */
+  /**
+   * Materialize the deploy root's manifest inside the staging directory with
+   * every `workspace:` range rewritten to an absolute `file:` path. bun has no
+   * `deploy` verb, so the closure is produced by installing that manifest in
+   * place; `materializeStagedLinks` then replaces the resulting links with
+   * files exactly as it did for the legacy hoisted deploy.
+   */
+  private async writeStagingManifest(): Promise<void> {
+    const source = JSON.parse(
+      await readFile(resolve(root, DEPLOY_ROOT_DIR, 'package.json'), 'utf8'),
+    ) as { name: string; version: string; type?: string; dependencies?: Record<string, string> }
+    const directories = workspacePackageDirectories()
+    const dependencies: Record<string, string> = {}
+    for (const [name, range] of Object.entries(source.dependencies ?? {})) {
+      if (!range.startsWith('workspace:')) {
+        dependencies[name] = range
+        continue
+      }
+      const directory = directories.get(name)
+      if (directory === undefined) {
+        throw new Error(`build-exe-for-python-sdk: ${name} is declared workspace: but is not a workspace package.`)
+      }
+      dependencies[name] = `file:${directory}`
+    }
+    const manifest = { name: source.name, version: source.version, private: true, type: source.type ?? 'module', dependencies }
+    if (this.cli.dryRun) {
+      console.log(`build-exe-for-python-sdk: [dry-run] write ${join(this.staging, 'package.json')}`)
+      return
+    }
+    await mkdir(this.staging, { recursive: true })
+    await writeFile(join(this.staging, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`)
+  }
+
   private async restoreLegacyHoists(): Promise<void> {
     if (this.cli.dryRun) {
       console.log('build-exe-for-python-sdk: [dry-run] restore direct dependencies omitted by legacy deploy')
@@ -405,7 +452,7 @@ class SingleExeBuild {
       return
     }
     if (!existsSync(manifestPath)) {
-      throw new Error(`build-exe-for-python-sdk: ${manifestPath} missing — pnpm deploy did not produce a staged package.`)
+      throw new Error(`build-exe-for-python-sdk: ${manifestPath} missing — the staged install did not produce a package.`)
     }
     if (!existsSync(join(this.staging, ENTRY_BIN))) {
       throw new Error(`build-exe-for-python-sdk: ${join(this.staging, ENTRY_BIN)} missing — run without --skip-build so lib/ artifacts exist.`)
@@ -425,8 +472,8 @@ class SingleExeBuild {
     const product = target.platform === 'win' ? `${productBase}.exe` : productBase
     await this.prepareNativePty(target)
     if (!this.cli.dryRun) await mkdir(this.outDir, { recursive: true })
-    await this.runPnpm(`pkg ${target.spec}`, [
-      'dlx',
+    await this.runBun(`pkg ${target.spec}`, [
+      'x',
       PKG_SPEC,
       this.staging,
       '--sea',
@@ -600,9 +647,9 @@ class SingleExeBuild {
     })
   }
 
-  /** Run pnpm through its JavaScript entrypoint when the caller supplies one. */
-  private async runPnpm(label: string, args: string[]): Promise<void> {
-    const [command, invocationArgs] = pnpmInvocation(args)
+  /** Run bun through the entrypoint the caller supplies, or the one on PATH. */
+  private async runBun(label: string, args: string[]): Promise<void> {
+    const [command, invocationArgs] = bunInvocation(args)
     await this.run(label, command, invocationArgs)
   }
 }

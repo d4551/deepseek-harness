@@ -93,7 +93,7 @@ The first prototype should use one large catalog and one mixed subsystem page. I
 
 This sequence keeps each change independently reviewable. The first three slices improve criteria and correctness without rewriting the corpus; the generated-doc prototype supplies evidence before a broader information-architecture change.
 
-Slices 1–3 have shipped in this form: `dsh-doc` is the consolidated standard (`dsh-doc-standards` and `dsh-doc-site-sync` are folded into it, and the site workflow carries the corrected sidebar values), the `session-persistence-sqlite` README pair is the reference example, and `pnpm run test:docs` enforces the metadata, pairing, and quick documentation checks. Slices 4–5 remain open.
+Slices 1–3 have shipped in this form: `dsh-doc` is the consolidated standard (`dsh-doc-standards` and `dsh-doc-site-sync` are folded into it, and the site workflow carries the corrected sidebar values), the `session-persistence-sqlite` README pair is the reference example, and `bun run test:docs` enforces the metadata, pairing, and quick documentation checks. Slices 4–5 remain open.
 
 ### Non-goals
 
@@ -123,7 +123,7 @@ This proposal does not shorten exhaustive facts, merge audience tiers, publish i
 - The sidecar remains the single consistency record because it preserves equal authority, last-confirmed-text recovery, automatic merge safety, generated-region recording, and archive sealing without creating owner-file conflicts.
 - An accepted repository-root link form renders correctly on GitHub and the documentation site and remains locally target/anchor checked before relative links are migrated.
 - One large standalone catalog and one mixed subsystem page demonstrate a compact entry layer and lower measured lookup cost while preserving exhaustive generated truth, stable links, bilingual pairing, and deterministic freshness.
-- `pnpm run doc-sync`, `pnpm run lint`, the focused new checks, and `git diff --check` pass.
+- `bun run doc-sync`, `bun run lint`, the focused new checks, and `git diff --check` pass.
 
 ## Risks
 

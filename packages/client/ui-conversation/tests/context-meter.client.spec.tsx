@@ -2,6 +2,8 @@
 
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render } from '@testing-library/react'
+import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
+import type { SurfaceAudit } from '@deepseek-ai/dsh-client-a11y'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { en as commonEn, zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/index.ts'
 import { ContextMeter, type ContextMeterProps } from '../src/client/skeleton/ContextMeter.tsx'
@@ -23,8 +25,12 @@ function projections(values: Record<string, unknown>): ContextMeterProps['usePro
   return (key: string) => values[key]
 }
 
+function meterElement(values: Record<string, unknown>, translate: ContextMeterProps['t'] = t) {
+  return <ContextMeter useProjection={projections(values)} t={translate} />
+}
+
 function meter(values: Record<string, unknown>, translate: ContextMeterProps['t'] = t) {
-  return render(<ContextMeter useProjection={projections(values)} t={translate} />)
+  return render(meterElement(values, translate))
 }
 
 describe('ContextMeter', () => {
@@ -162,5 +168,43 @@ describe('ContextMeter', () => {
     openPanel()
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(view.container.querySelector('[role="dialog"]')).toBeNull()
+  })
+})
+
+/**
+ * The context meter is a reading the user acts on, and its detail opens in a
+ * dialog — the two places a name and a role have to be right. Audited closed
+ * and open against the same fixed WCAG A/AA rule set and floor the primitives
+ * lane holds.
+ */
+describe('context meter accessibility', () => {
+  const MINIMUM_ACCESSIBILITY_SCORE = 100
+
+  it('renders no accessibility violations closed or with its detail open', async () => {
+    const values = {
+      contextPressure: { pressureTokens: 32_000, contextWindow: 128_000 },
+      contextBreakdown: BREAKDOWN,
+    }
+    const audits: SurfaceAudit[] = []
+
+    cleanup()
+    // The page shell supplies the `main` landmark the page-structure rules
+    // need; without it the harness's own missing frame reads as a defect.
+    const closed = render(<main>{meterElement(values)}</main>)
+    audits.push(await auditSurface('ContextMeter closed', closed.baseElement))
+    closed.getByRole('button', { name: '上下文已用 25%' }).click()
+    audits.push(await auditSurface('ContextMeter open', closed.baseElement))
+    cleanup()
+
+    // A surface that decided nothing would score 100 for free.
+    for (const audit of audits) {
+      expect(audit.passed + audit.failed, `${audit.surface} decided no checks`).toBeGreaterThan(0)
+    }
+    // Empty, not `['color-contrast']` as in the primitives lane: this surface
+    // gives axe no text-on-background pair to weigh, so every check it runs
+    // decides. Asserted exactly, so a newly undecidable rule fails here rather
+    // than quietly leaving the score.
+    expect([...new Set(audits.flatMap(audit => audit.undecidedRules))]).toEqual([])
+    expect(accessibilityFailures(audits, MINIMUM_ACCESSIBILITY_SCORE)).toBe('')
   })
 })

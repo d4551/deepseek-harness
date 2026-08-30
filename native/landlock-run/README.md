@@ -50,11 +50,10 @@ linux-x64 and linux-arm64, kernel with Landlock enabled (5.13+; ABI level determ
 ## Development
 
 ```sh
-corepack enable
-pnpm install
-pnpm build:ts        # entry packages → lib/
-pnpm build:native    # this Linux architecture's binaries (apt-get install musl-tools)
-pnpm test
+bun install
+bun run build:ts        # entry packages → lib/
+bun run build:native    # this Linux architecture's binaries (apt-get install musl-tools)
+bun run test
 ```
 
 Binaries are git-ignored and built natively per architecture — locally for your own machine, by CI's per-arch runners as the builders of record. Release flow: [docs/release.md](docs/release.md).

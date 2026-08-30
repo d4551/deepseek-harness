@@ -1,0 +1,109 @@
+/**
+ * What still reads `pnpm`, held to the account the conversion note gives.
+ *
+ * The note enumerates where the word survives. A prose list is a claim about
+ * the whole tree that nothing checks, and it was wrong once: it cited a
+ * Vendoring Policy exemption covering no files while omitting most of its
+ * subject. This asserts the enumeration is exhaustive, so a new occurrence
+ * outside it fails here instead of quietly making the note untrue.
+ */
+
+import { execFileSync } from 'node:child_process'
+import { resolve } from 'node:path'
+import { describe, expect, it } from 'vitest'
+
+const root = resolve(import.meta.dirname, '..')
+
+/** Every tracked file containing the word, by repository-relative path. */
+function filesMentioningPnpm(): string[] {
+  const tracked = execFileSync('git', ['grep', '-l', '--', 'pnpm'], { cwd: root, encoding: 'utf8' })
+  return tracked.split('\n').filter(line => line !== '').sort()
+}
+
+/**
+ * Comments that state a fact about another tool rather than about this
+ * repository: what corepack provides shims for, and which values Stryker's
+ * `packageManager` option accepts. Naming them individually keeps the
+ * exemption from widening into "any source file may mention it".
+ */
+const EXTERNAL_TOOL_FACTS: readonly string[] = [
+  'scripts/ci-workflow.spec.ts',
+  'stryker.config.mjs',
+]
+
+/**
+ * Records of the conversion itself: the note that decided it, the loop record
+ * that tracks what the audit found, and this gate. They name the word because
+ * it is their subject.
+ */
+const CONVERSION_RECORDS: readonly string[] = [
+  '.agents/audit-loop.md',
+  '.agents/upgrade-baseline.md',
+  'scripts/bun-conversion-residue.spec.ts',
+]
+
+/**
+ * Implemented Agent Notes that keep the word deliberately, each as history
+ * rather than as a live instruction: a cache timing measured under the former
+ * toolchain, the Landlock workspace's own description of what it merged, the
+ * removed repository plugin's account of what it deleted, and the conversion
+ * decision itself. Listing them by name is what stops the implemented corpus
+ * from silently re-accumulating stale commands: every other note must read
+ * `bun`, so a converted note that regresses fails here.
+ */
+const HISTORICAL_MENTIONS: readonly string[] = [
+  '.agents/notes/implemented/process/2026-07-22-evidence-based-larger-hosted-runners.md',
+  '.agents/notes/implemented/process/2026-07-22-evidence-based-larger-hosted-runners.zh.md',
+  '.agents/notes/implemented/process/2026-08-06-in-repository-landlock-release.md',
+  '.agents/notes/implemented/process/2026-08-06-in-repository-landlock-release.zh.md',
+  '.agents/notes/implemented/process/2026-08-29-bun-package-manager.md',
+  '.agents/notes/implemented/process/2026-08-29-bun-package-manager.zh.md',
+  '.agents/notes/implemented/simplification/2026-08-09-remove-repository-plugin.md',
+  '.agents/notes/implemented/simplification/2026-08-09-remove-repository-plugin.zh.md',
+]
+
+describe('pnpm residue after the bun conversion', () => {
+  const files = filesMentioningPnpm()
+
+  it('finds the corpus it is auditing', () => {
+    // Were the search to return nothing, every assertion below would hold
+    // vacuously and the gate would pass on a tree it never read.
+    expect(files.length).toBeGreaterThan(100)
+  })
+
+  it('leaves the word only where the conversion note accounts for it', () => {
+    const unaccounted = files.filter(file => !(
+      file.startsWith('.agents/notes/archived/')
+      || HISTORICAL_MENTIONS.includes(file)
+      || (file.startsWith('packages/client/') && file.includes('/tests/'))
+      || EXTERNAL_TOOL_FACTS.includes(file)
+      || CONVERSION_RECORDS.includes(file)
+    ))
+    expect(unaccounted, 'every occurrence must fall in a category the bun note names').toEqual([])
+  })
+
+  it('leaves no implemented Agent Note carrying it outside the named few', () => {
+    // The implemented corpus was converted note by note; the exceptions are
+    // sentences about the past. Anything else there is a stale command.
+    const notes = files.filter(file => (
+      file.startsWith('.agents/notes/implemented/') && !HISTORICAL_MENTIONS.includes(file)
+    ))
+    expect(notes, 'an implemented Agent Note may only name pnpm as history').toEqual([])
+  })
+
+  it('holds the executable surface clear of it', () => {
+    // The conversion is about what runs. Workflows, package manifests, the
+    // lockfile and the launchers are where a stale verb stops a build rather
+    // than merely reading oddly.
+    const executable = files.filter(file => (
+      file.startsWith('.github/workflows/')
+      || file === '.gitlab-ci.yml'
+      || file === 'lefthook.yml'
+      || file.endsWith('package.json')
+      || file === 'bun.lock'
+      || file.startsWith('apps/')
+      || file.startsWith('native/')
+    ))
+    expect(executable, 'no executable path may still drive pnpm').toEqual([])
+  })
+})

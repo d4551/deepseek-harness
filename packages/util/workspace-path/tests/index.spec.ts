@@ -32,3 +32,39 @@ describe('Workspace path helpers', () => {
     expect(workspaceTitleOf('/')).toBe('')
   })
 })
+
+describe('Workspace path separator and prefix handling', () => {
+  it('treats a drive prefix as Windows only at the start of the path', () => {
+    // Mid-path drive letters are ordinary segments, so the path stays relative.
+    expect(resolveWorkspacePath('/w', 'x/C:/a.ts')).toBe('/w/x/C:/a.ts')
+    expect(resolveWorkspacePath('/w', 'C:a.ts')).toBe('/w/C:a.ts')
+  })
+
+  it('collapses every trailing workspace separator and every leading path separator', () => {
+    expect(resolveWorkspacePath('/w//', 'a.ts')).toBe('/w/a.ts')
+    expect(resolveWorkspacePath('/w\\\\', 'a.ts')).toBe('/w/a.ts')
+    expect(resolveWorkspacePath('/w', '\\/a.ts')).toBe('/w/a.ts')
+    expect(resolveWorkspacePath('/w/', '\\a.ts')).toBe('/w/a.ts')
+  })
+
+  it('keeps a workspace root that carries no trailing separator intact', () => {
+    expect(resolveWorkspacePath('/w', 'a.ts')).toBe('/w/a.ts')
+  })
+
+  it('abbreviates a home given with repeated trailing slashes', () => {
+    expect(abbreviateHomePath('/Users/u/docs', '/Users/u//')).toBe('~/docs')
+    expect(abbreviateHomePath('/Users/u//', '/Users/u')).toBe('~')
+  })
+
+  it('refuses to abbreviate against a root-only or empty home', () => {
+    expect(abbreviateHomePath('/etc/hosts', '//')).toBe('/etc/hosts')
+    expect(abbreviateHomePath('/etc/hosts', '/')).toBe('/etc/hosts')
+  })
+
+  it('reads the final segment through repeated and mixed trailing separators', () => {
+    expect(workspaceTitleOf('/work/project//')).toBe('project')
+    expect(workspaceTitleOf('/work/project/\\')).toBe('project')
+    expect(workspaceTitleOf('//')).toBe('')
+    expect(workspaceTitleOf('project')).toBe('project')
+  })
+})

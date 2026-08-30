@@ -289,3 +289,29 @@ describe('idleWatchdog', () => {
     pending.resolve({ done: true, value: undefined })
   })
 })
+
+describe('timer-delay validation boundaries', () => {
+  it('accepts the largest delay Node schedules and rejects one beyond it', () => {
+    const scope = deadline(undefined, MAX_TIMER_DELAY_MS, 'BOUNDARY')
+    expect(scope.signal.aborted).toBe(false)
+    scope[Symbol.dispose]()
+
+    expect(() => deadline(undefined, MAX_TIMER_DELAY_MS + 1, 'BOUNDARY'))
+      .toThrow(`deadline timeoutMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`)
+  })
+
+  it('names the rejected deadline argument in its own error', () => {
+    expect(() => deadline(undefined, Number.POSITIVE_INFINITY, 'X'))
+      .toThrow(/^deadline timeoutMs must be/)
+  })
+
+  it('names the rejected idle-watchdog argument in its own error', () => {
+    expect(() => idleWatchdog(undefined, Number.NaN, 'X'))
+      .toThrow(/^idleWatchdog timeoutMs must be/)
+    expect(() => idleWatchdog(undefined, MAX_TIMER_DELAY_MS + 1, 'X'))
+      .toThrow(`idleWatchdog timeoutMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`)
+    const watchdog = idleWatchdog(undefined, MAX_TIMER_DELAY_MS, 'X')
+    expect(watchdog.signal.aborted).toBe(false)
+    watchdog[Symbol.dispose]()
+  })
+})

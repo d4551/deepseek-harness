@@ -93,7 +93,7 @@ Status: proposed
 
 该顺序使每项变更都能独立评审。前三个切片在不重写语料的情况下改进标准与正确性；生成文档原型则在更广的信息架构变更前提供证据。
 
-切片 1–3 已按此形式交付：`dsh-doc` 成为合并后的标准（`dsh-doc-standards` 与 `dsh-doc-site-sync` 已并入其中，站点工作流携带修正后的侧边栏值），`session-persistence-sqlite` README 对是参考示例，`pnpm run test:docs` 强制执行元数据、配对与快速文档检查。切片 4–5 仍待完成。
+切片 1–3 已按此形式交付：`dsh-doc` 成为合并后的标准（`dsh-doc-standards` 与 `dsh-doc-site-sync` 已并入其中，站点工作流携带修正后的侧边栏值），`session-persistence-sqlite` README 对是参考示例，`bun run test:docs` 强制执行元数据、配对与快速文档检查。切片 4–5 仍待完成。
 
 ### 非目标
 
@@ -123,7 +123,7 @@ Status: proposed
 - sidecar 继续作为唯一一致性记录，因为它能保留同等权威、上次确认文本恢复、自动合并安全、生成区域记录和归档封存，同时不会在正文文件中制造冲突。
 - 一个已接受的仓库根级链接格式在迁移相对链接前能在 GitHub 与文档站正确渲染，并继续接受本地目标或锚点检查。
 - 一个大型独立生成目录页和一个混合子系统页面展示紧凑入口层与更低的实测查询成本，同时保留穷尽式生成事实、稳定链接、双语配对和确定性新鲜度。
-- `pnpm run doc-sync`、`pnpm run lint`、聚焦的新检查和 `git diff --check` 均通过。
+- `bun run doc-sync`、`bun run lint`、聚焦的新检查和 `git diff --check` 均通过。
 
 ## 风险
 

@@ -1,6 +1,6 @@
 /**
  * Generated scoped-event routing-subject resolvers for dsh-scope invariants.
- * Do not edit by hand; run `pnpm run gen-scoped-events`.
+ * Do not edit by hand; run `bun run gen-scoped-events`.
  *
  * @module @deepseek-ai/dsh-scope/scoped-events.generated
  */

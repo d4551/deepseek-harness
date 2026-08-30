@@ -4,9 +4,9 @@
  * `lib/` is missing. Entry `files` lists use globs, and a glob matching
  * nothing packs a silently JS-less tarball instead of failing — this gate
  * turns that into a loud refusal on a checkout that never ran
- * `pnpm build:ts`.
+ * `bun run build:ts`.
  *
- * Runs from each entry package's `prepack` hook (pnpm sets the script cwd
+ * Runs from each entry package's `prepack` hook (the package manager sets the script cwd
  * to the package directory).
  */
 
@@ -18,7 +18,7 @@ const manifest = JSON.parse(fs.readFileSync(path.join(packageDir, 'package.json'
 
 for (const file of ['lib/index.js', 'lib/index.d.ts']) {
   if (!fs.existsSync(path.join(packageDir, file))) {
-    console.error(`verify-entry-lib: ${manifest.name} has no ${file} — run \`pnpm build:ts\` before packing.`);
+    console.error(`verify-entry-lib: ${manifest.name} has no ${file} — run \`bun run build:ts\` before packing.`);
     process.exit(1);
   }
 }

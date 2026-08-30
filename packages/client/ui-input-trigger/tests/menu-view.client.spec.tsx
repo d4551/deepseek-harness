@@ -9,6 +9,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
@@ -67,15 +68,17 @@ function mount(state: MenuState, crumbs: ReadonlyMap<string, readonly InputTrigg
   const onHover = vi.fn()
   const onDismiss = vi.fn()
   const view = render(
-    <MenuView
-      menu={menu}
-      headers={headers}
-      onPick={onPick}
-      onCrumb={onCrumb}
-      onHover={onHover}
-      onDismiss={onDismiss}
-      t={t}
-    />,
+    <main>
+      <MenuView
+        menu={menu}
+        headers={headers}
+        onPick={onPick}
+        onCrumb={onCrumb}
+        onHover={onHover}
+        onDismiss={onDismiss}
+        t={t}
+      />
+    </main>,
   )
   return { menu, headers, onPick, onCrumb, onHover, onDismiss, view }
 }
@@ -328,5 +331,17 @@ describe('MenuView', () => {
   it('renders no header for a source that published no crumbs', () => {
     mount(openState())
     expect(screen.queryByRole('navigation')).toBeNull()
+  })
+})
+
+describe('slash menu accessibility', () => {
+  const MINIMUM_ACCESSIBILITY_SCORE = 100
+
+  it('renders no accessibility violations while the menu is open', async () => {
+    const { view } = mount(openState())
+    expect(accessibilityFailures(
+      [await auditSurface('MenuView open', view.baseElement)],
+      MINIMUM_ACCESSIBILITY_SCORE,
+    )).toBe('')
   })
 })

@@ -25,7 +25,7 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const CONFIG = join(ROOT, 'tsconfig.base.json')
-const BEGIN = '      // BEGIN generated package aliases — pnpm run gen-tsconfig-paths'
+const BEGIN = '      // BEGIN generated package aliases — bun run gen-tsconfig-paths'
 const END = '      // END generated package aliases'
 
 /** Package-name prefix the expanded aliases cover. */
@@ -239,7 +239,7 @@ if (process.argv[1] && import.meta.filename === resolve(process.argv[1])) {
   } else if (current === next) {
     console.log('gen-tsconfig-paths: tsconfig.base.json package aliases are current.')
   } else if (check) {
-    console.error('gen-tsconfig-paths: tsconfig.base.json is stale; run `pnpm run gen-tsconfig-paths`.')
+    console.error('gen-tsconfig-paths: tsconfig.base.json is stale; run `bun run gen-tsconfig-paths`.')
     process.exitCode = 1
   } else {
     writeFileSync(CONFIG, next)

@@ -43,7 +43,7 @@ Status: implemented
 
 移动以纯 `git mv` 形式落地，历史由重命名检测承载。组移动触及了：被移动包的 `tsconfig.json` 相对 `references` 及每个依赖方的对应条目（含 `apps/cli` 的 project references）；tsconfig 聚合与路径映射；各组 README；[packages/README.md](../../../../packages/README.zh.md) 的层级结构表；根 `AGENTS.md` 的布局图；重新生成的产物（`docs/module-graph.md`、内嵌路径的目录以及锁文件的 importer 键）；以及散文与门禁脚本中以仓库根为基准的 `packages/...` 引用。其余每一处组路径引用（workspace 配置、测试 glob、lint 键）都由验收门禁的响亮失败机械地找了出来——这正是本仓库自己的「配置错误必须响亮失败」规则。
 
-组移动未触及：npm 包名、import、`cordis.yml` 配置、快照 fixture（测试前置数据）、`pnpm-workspace.yaml` 与 `tsdown` 的 glob（都是 `packages/*/*`），以及 Python 运行时 manifest（元数据清单）——它们全部按 npm 包名引用包。
+组移动未触及：npm 包名、import、`cordis.yml` 配置、快照 fixture（测试前置数据）、工作区与 `tsdown` 的 glob（都是 `packages/*/*`），以及 Python 运行时 manifest（元数据清单）——它们全部按 npm 包名引用包。
 
 `client/` 与 `host/` 不在本次范围内，保持不变。
 
@@ -74,7 +74,7 @@ Status: implemented
 ## 后果
 
 - 五个仍然有效的重组家族持有所列成员；`ui/`、`telemetry/`、`timeout/`、`cordis/`、`session-persistence/`、`session-projection/`、`session-title/` 这些组不复存在。重组本身没有更改 npm 名。后续移除 SDK 工具链的决策有意改变包集合，并恢复 `sdk/` 作为运行时 SDK 三包的精确归属。两条 FIXME 标记钉住剩余的推迟改名；日后若某条 FIXME 被证明不对，必须连同理由显式移除，绝不允许无声消失。
-- 结果由以下检查钉住：`pnpm run typecheck`、每个被移动组的单元测试套件、`verify-package-paths`、`verify-md-links` 与全语料翻译配对在移动后的树上全部通过；`vitest.snapshot.config.ts` 中按组划定的测试 glob 随移动一并改写，套件收集到与移动前相同的测试文件（glob 匹配为空会无声地丢失覆盖）。
+- 结果由以下检查钉住：`bun run typecheck`、每个被移动组的单元测试套件、`verify-package-paths`、`verify-md-links` 与全语料翻译配对在移动后的树上全部通过；`vitest.snapshot.config.ts` 中按组划定的测试 glob 随移动一并改写，套件收集到与移动前相同的测试文件（glob 匹配为空会无声地丢失覆盖）。
 - 每个触碰被移动文件的开放 PR 都跨过这次移动做一次变基；重命名检测可机械化解决大多数改动块。
 - 单包组依然存在（`boot/`、`extensions/`，以及 `acp/` 等既有单包组）。这是有意接受的：每个都是角色完备的整体而非某个家族的碎片，一个名实相符的小组胜过一次徒有其名的合并。
 - `sdk/` 的角色目录在 `tsconfig.base.json` 中显式映射到各自的 npm 名；在 `dsh-sdk-jsonrpc-server` 完成改名之前，`server/` 的映射仍是过渡性的。

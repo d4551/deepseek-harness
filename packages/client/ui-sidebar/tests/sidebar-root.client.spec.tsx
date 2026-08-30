@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
+import type { SurfaceAudit } from '@deepseek-ai/dsh-client-a11y'
 import type { ReactNode } from 'react'
 import type {
   SidebarFooterActionOwnerProps, SidebarRootComponentProps, SidebarSectionOwnerProps,
@@ -61,7 +63,7 @@ function mountShell({ collapsed = false, width = 300 }: { collapsed?: boolean; w
       }) as SidebarRootComponentProps['renderSlot']}
     />
   )
-  const view = render(root())
+  const view = render(<main>{root()}</main>)
   return {
     startSession,
     toggleSidebar,
@@ -79,7 +81,7 @@ function mountShell({ collapsed = false, width = 300 }: { collapsed?: boolean; w
     },
     rerender(next: Partial<typeof current>) {
       current = { ...current, ...next }
-      view.rerender(root())
+      view.rerender(<main>{root()}</main>)
     },
   }
 }
@@ -110,14 +112,15 @@ describe('SidebarRoot shell', () => {
         options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
     />)
 
-    expect(screen.getByText('DSH Local Build')).toBeTruthy()
-    expect(screen.getByText('1.2.3-rc.4-0123456-dirty')).toBeTruthy()
+    expect(screen.getByText('DeepMeow')).toBeTruthy()
+    expect(screen.getByText('1.2.3-rc.4-0123456')).toBeTruthy()
     expect(container.querySelector('svg')).not.toBeNull()
   })
 
   it.each([
     [{ DSH_CLIENT_VERSION: '1.2.3' }, '1.2.3'],
     [{ DSH_CLIENT_COMMIT_HASH: 'abcdef0', DSH_CLIENT_VERSION: '1.2.3' }, '1.2.3-abcdef0'],
+    [{ DSH_CLIENT_GIT_DIRTY: 'true', DSH_CLIENT_VERSION: '1.2.3' }, '1.2.3'],
   ])('omits unavailable build-version suffixes from %j', (environment, expected) => {
     for (const [name, value] of Object.entries(environment)) vi.stubEnv(name, value)
     render(<SidebarRoot
@@ -128,7 +131,7 @@ describe('SidebarRoot shell', () => {
         options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
     />)
 
-    expect(screen.getByText('DSH Local Build')).toBeTruthy()
+    expect(screen.getByText('DeepMeow')).toBeTruthy()
     expect(screen.getByText(expected)).toBeTruthy()
   })
 
@@ -141,7 +144,7 @@ describe('SidebarRoot shell', () => {
         options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
     />)
 
-    expect(screen.getByText('DSH Local Build')).toBeTruthy()
+    expect(screen.getByText('DeepMeow')).toBeTruthy()
   })
 
   it('hands the region its wide flag and clamps expandSidebar to the collapsed state', () => {
@@ -174,5 +177,23 @@ describe('SidebarRoot shell', () => {
     const b = mountShell({ collapsed: true })
     expect(b.regionOwner().wide).toBe(false)
     expect(screen.getByRole('button', { name: 'Open sidebar' })).toBeTruthy()
+  })
+})
+
+describe('sidebar shell accessibility', () => {
+  const MINIMUM_ACCESSIBILITY_SCORE = 100
+
+  it('renders no accessibility violations expanded or collapsed', async () => {
+    const audits: SurfaceAudit[] = []
+    for (const [surface, collapsed] of [
+      ['SidebarRoot expanded', false],
+      ['SidebarRoot collapsed', true],
+    ] as const) {
+      cleanup()
+      mountShell({ collapsed })
+      audits.push(await auditSurface(surface, document.body))
+    }
+    cleanup()
+    expect(accessibilityFailures(audits, MINIMUM_ACCESSIBILITY_SCORE)).toBe('')
   })
 })

@@ -326,3 +326,190 @@ describe('canOpenNativePath', () => {
     expect(canOpenNativePath()).toBe(canOpenNativePath({ platform: process.platform }))
   })
 })
+
+describe('native path opener - browser handoff and platform dispatch', () => {
+  /** A runner that records calls and answers `defaults read` with `plist`. */
+  const macRunner = (plist: string | Error): ReturnType<typeof vi.fn<PathOpenerRunner>> =>
+    vi.fn<PathOpenerRunner>(async (command: string) => {
+      if (command === 'defaults') {
+        if (plist instanceof Error) throw plist
+        return { stdout: plist, stderr: '' }
+      }
+      return { stdout: '', stderr: '' }
+    })
+
+  /** A LaunchServices dump whose https handler is `bundle`. */
+  const launchServices = (bundle: string, quoted = true): string => `{
+    LSHandlers = (
+      {
+        LSHandlerPreferredVersions = { LSHandlerRoleAll = "-"; };
+        LSHandlerContentType = "public.html";
+        LSHandlerRoleAll = "com.apple.safari";
+      },
+      {
+        LSHandlerPreferredVersions = { LSHandlerRoleAll = "-"; };
+        LSHandlerURLScheme = "https";
+        LSHandlerRoleAll = ${quoted ? `"${bundle}"` : bundle};
+      }
+    );
+  }`
+
+  it('opens each browser-rendered document with the registered macOS bundle', async () => {
+    for (const extension of ['.html', '.htm', '.xhtml', '.svg']) {
+      const run = macRunner(launchServices('org.mozilla.firefox'))
+      await openNativePath(`/Users/test/page${extension}`, signal(), { platform: 'darwin', run })
+      expect(run).toHaveBeenCalledWith(
+        'open', ['-b', 'org.mozilla.firefox', `/Users/test/page${extension}`], expect.any(AbortSignal),
+      )
+    }
+  })
+
+  it('reads the https handler past the nested preferred-versions dict', async () => {
+    const run = macRunner(launchServices('com.google.chrome'))
+    await openNativePath('/Users/test/page.html', signal(), { platform: 'darwin', run })
+    expect(run).toHaveBeenCalledWith(
+      'open', ['-b', 'com.google.chrome', '/Users/test/page.html'], expect.any(AbortSignal),
+    )
+  })
+
+  it('accepts an unquoted handler bundle', async () => {
+    const run = macRunner(launchServices('com.brave.Browser', false))
+    await openNativePath('/Users/test/page.html', signal(), { platform: 'darwin', run })
+    expect(run).toHaveBeenCalledWith(
+      'open', ['-b', 'com.brave.Browser', '/Users/test/page.html'], expect.any(AbortSignal),
+    )
+  })
+
+  it('falls back to the default application when no https handler is recorded', async () => {
+    const run = macRunner('{ LSHandlers = ( { LSHandlerContentType = "public.html"; } ); }')
+    await openNativePath('/Users/test/page.html', signal(), { platform: 'darwin', run })
+    expect(run).toHaveBeenCalledWith('open', ['/Users/test/page.html'], expect.any(AbortSignal))
+  })
+
+  it('falls back when the https block names no role', async () => {
+    const run = macRunner('{ LSHandlers = ( { LSHandlerURLScheme = "https"; } ); }')
+    await openNativePath('/Users/test/page.html', signal(), { platform: 'darwin', run })
+    expect(run).toHaveBeenCalledWith('open', ['/Users/test/page.html'], expect.any(AbortSignal))
+  })
+
+  it('falls back when LaunchServices has no record at all', async () => {
+    const run = macRunner(new Error('does not exist'))
+    await openNativePath('/Users/test/page.html', signal(), { platform: 'darwin', run })
+    expect(run).toHaveBeenCalledWith('open', ['/Users/test/page.html'], expect.any(AbortSignal))
+  })
+
+  it('hands a browser document on Linux to $BROWSER', async () => {
+    const run = vi.fn<PathOpenerRunner>(async () => ({ stdout: '', stderr: '' }))
+    await openNativePath('/tmp/page.html', signal(), {
+      platform: 'linux', osRelease: '6.8.0-generic', env: { BROWSER: 'firefox' }, run,
+    })
+    expect(run).toHaveBeenCalledWith('firefox', ['/tmp/page.html'], expect.any(AbortSignal))
+  })
+
+  it('uses the desktop association when $BROWSER is unset or empty', async () => {
+    for (const env of [{}, { BROWSER: '' }]) {
+      const run = vi.fn<PathOpenerRunner>(async () => ({ stdout: '', stderr: '' }))
+      await openNativePath('/tmp/page.html', signal(), {
+        platform: 'linux', osRelease: '6.8.0-generic', env, run,
+      })
+      expect(run).toHaveBeenCalledWith('xdg-open', ['/tmp/page.html'], expect.any(AbortSignal))
+    }
+  })
+
+  it('never consults $BROWSER on Windows', async () => {
+    const run = vi.fn<PathOpenerRunner>(async () => ({ stdout: '', stderr: '' }))
+    await openNativePath('C:\\page.html', signal(), {
+      platform: 'win32', env: { BROWSER: 'firefox' }, run,
+    })
+    expect(run).toHaveBeenCalledWith('powershell.exe', expect.any(Array), expect.any(AbortSignal))
+    expect(run).not.toHaveBeenCalledWith('firefox', expect.any(Array), expect.any(AbortSignal))
+  })
+
+  it('keeps a non-rendered document on the desktop association', async () => {
+    const run = vi.fn<PathOpenerRunner>(async () => ({ stdout: '', stderr: '' }))
+    await openNativePath('/tmp/notes.txt', signal(), {
+      platform: 'linux', osRelease: '6.8.0-generic', env: { BROWSER: 'firefox' }, run,
+    })
+    expect(run).toHaveBeenCalledWith('xdg-open', ['/tmp/notes.txt'], expect.any(AbortSignal))
+  })
+
+  it('sends a WSL browser document through the Windows desktop, not $BROWSER', async () => {
+    const run = vi.fn<PathOpenerRunner>(async (command: string) =>
+      command === 'wslpath' ? { stdout: 'C:\\page.html\r\n', stderr: '' } : { stdout: '', stderr: '' })
+    await openNativePath('/mnt/c/page.html', signal(), {
+      platform: 'linux', osRelease: '5.15.0-microsoft-standard-WSL2', env: { BROWSER: 'firefox' }, run,
+    })
+    expect(run).toHaveBeenCalledWith('wslpath', ['-w', '/mnt/c/page.html'], expect.any(AbortSignal))
+    expect(run).not.toHaveBeenCalledWith('firefox', expect.any(Array), expect.any(AbortSignal))
+  })
+
+  it('trims only the trailing newline from a translated WSL path', async () => {
+    const run = vi.fn<PathOpenerRunner>(async (command: string) =>
+      command === 'wslpath' ? { stdout: 'C:\\a\nb\r\n', stderr: '' } : { stdout: '', stderr: '' })
+    await openNativePath('/mnt/c/a\nb', signal(), {
+      platform: 'linux', osRelease: '5.15.0-microsoft-standard-WSL2', env: {}, run,
+    })
+    expect(run).toHaveBeenCalledWith(
+      'powershell.exe',
+      ['-NoProfile', '-Command', "Invoke-Item -LiteralPath 'C:\\a\nb'"],
+      expect.any(AbortSignal),
+    )
+  })
+
+  it('reports no desktop opener on a platform that is neither macOS, Windows, nor Linux', () => {
+    expect(canOpenNativePath({ platform: 'freebsd', env: { DISPLAY: ':0' } })).toBe(false)
+    expect(canOpenNativePath({ platform: 'linux', osRelease: '6.8.0-generic', env: { DISPLAY: ':0' } })).toBe(true)
+  })
+})
+
+describe('native path opener - LaunchServices spacing and intent', () => {
+  /** A runner answering `defaults read` with `plist` and recording every call. */
+  const macRunner = (plist: string): ReturnType<typeof vi.fn<PathOpenerRunner>> =>
+    vi.fn<PathOpenerRunner>(async (command: string) =>
+      command === 'defaults' ? { stdout: plist, stderr: '' } : { stdout: '', stderr: '' })
+
+  it('reads a LaunchServices dump written without spaces around its assignments', () => {
+    // `defaults read` output spacing is not guaranteed, so the parser accepts
+    // none, one, or several spaces on either side of each `=`.
+    const dense = '{LSHandlers=({LSHandlerPreferredVersions={LSHandlerRoleAll="-";};'
+      + 'LSHandlerURLScheme="https";LSHandlerRoleAll="com.vivaldi.Vivaldi";});}'
+    const run = macRunner(dense)
+    return openNativePath('/Users/test/page.html', signal(), { platform: 'darwin', run }).then(() => {
+      expect(run).toHaveBeenCalledWith(
+        'open', ['-b', 'com.vivaldi.Vivaldi', '/Users/test/page.html'], expect.any(AbortSignal),
+      )
+    })
+  })
+
+  it('reads a LaunchServices dump written with wide spacing around its assignments', async () => {
+    const wide = '{ LSHandlers = ( { LSHandlerPreferredVersions   =   { LSHandlerRoleAll   =   "-"; };'
+      + ' LSHandlerURLScheme   =   "https"; LSHandlerRoleAll   =   "com.vivaldi.Vivaldi"; } ); }'
+    const run = macRunner(wide)
+    await openNativePath('/Users/test/page.html', signal(), { platform: 'darwin', run })
+    expect(run).toHaveBeenCalledWith(
+      'open', ['-b', 'com.vivaldi.Vivaldi', '/Users/test/page.html'], expect.any(AbortSignal),
+    )
+  })
+
+  it('keeps a text-editor request off the browser even for a browser document', async () => {
+    const run = vi.fn<PathOpenerRunner>(async () => ({ stdout: '', stderr: '' }))
+    await openNativeTextFile('/tmp/page.html', signal(), {
+      platform: 'linux', osRelease: '6.8.0-generic', env: { BROWSER: 'firefox' }, run,
+    })
+    expect(run).toHaveBeenCalledWith('xdg-open', ['/tmp/page.html'], expect.any(AbortSignal))
+    expect(run).not.toHaveBeenCalledWith('firefox', expect.any(Array), expect.any(AbortSignal))
+  })
+
+  it('treats WSL markers as WSL only on Linux', async () => {
+    // The same markers on macOS must not divert a browser document away from
+    // the LaunchServices handler.
+    const run = macRunner('{ LSHandlers = ( { LSHandlerURLScheme = "https"; LSHandlerRoleAll = "com.apple.Safari"; } ); }')
+    await openNativePath('/Users/test/page.html', signal(), {
+      platform: 'darwin', env: { WSL_DISTRO_NAME: 'Ubuntu' }, run,
+    })
+    expect(run).toHaveBeenCalledWith(
+      'open', ['-b', 'com.apple.Safari', '/Users/test/page.html'], expect.any(AbortSignal),
+    )
+    expect(run).not.toHaveBeenCalledWith('wslpath', expect.any(Array), expect.any(AbortSignal))
+  })
+})

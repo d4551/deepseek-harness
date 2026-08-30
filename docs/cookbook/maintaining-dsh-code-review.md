@@ -12,7 +12,7 @@ The operator invokes the wrapper manually, daily with a two-UTC-day overlap; a m
 2. It collects pre-merge human review feedback with commit anchors (inline comments and review submissions), then compares feedback-time and final landed PR patches. It does not acquire PR conversation comments because current GitHub state cannot give them a force-push-safe feedback-time baseline, and it excludes target-branch-only changes from adoption evidence.
 3. Two independently configured reviewer adapters classify who wrote each item and whether the change adopted it, then classify agreed-adopted items against the current skill.
 4. The primary adapter drafts a complete revised `SKILL.md`; both adapters review the same diff; blocking findings loop until both approve.
-5. `pnpm run doc-sync` and `pnpm run lint` run against the candidate before the tool declares success.
+5. `bun run doc-sync` and `bun run lint` run against the candidate before the tool declares success.
 
 Each run stores its artifacts on the operator's machine. The saved diff, candidate `SKILL.md`, and promotion manifest land under `~/dsh-code-review-outputs/` named by timestamp. The manifest records the source master commit and skill blob, source feedback IDs and URLs, landed evidence ranges, adapter verdicts, and gate results; raw per-adapter I/O stays in a private temp directory whose path is written to the notification and to the daily log under `~/Library/Logs/dsh-code-review-maintainer/`. The maintenance worktree itself is restored clean after every run so the operator is never tempted to edit the maintenance copy in place.
 

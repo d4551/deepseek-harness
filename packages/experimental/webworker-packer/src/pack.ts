@@ -331,7 +331,7 @@ function nameForDebugger(bytes: Uint8Array, name: string, decoder: TextDecoder, 
  * Debugger names for image entries: a workspace or vendored package file is
  * named by its repository path (`packages/<group>/<pkg>/lib/index.js`), the
  * shape a reader navigates; an external package file keeps its image key —
- * it has no repository path, and its pnpm store path would name a hash.
+ * it has no repository path, and its bun install cache path would name a hash.
  * @param workspaces - Package name → absolute repository directory.
  * @param resolveFrom - Repository root the names are relative to.
  * @returns Mapper from an image key to the entry's debugger name.

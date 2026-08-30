@@ -21,9 +21,12 @@ import type {
   DynamicCordisPluginInspection,
   DynamicCordisReference, DynamicCordisRun,
 } from './registry.ts'
+import {
+  ApprovalRequestId, CordisDynamicPackageId, CordisDynamicPluginId, CordisDynamicPluginRunId,
+} from './types.ts'
 import { createSandbox, evaluateHostCode, precheckCode } from './sandbox.ts'
 import type {
-  ApprovalRequestId, CordisDynamicPackageId, CordisDynamicPluginId, CordisDynamicPluginRunId, CordisErrorDetails,
+  CordisErrorDetails,
   CordisDynamicRunMode, CordisInspectProviderManifest, CordisInspectQueryResolution,
   CordisInspectRequestId, CordisInspectResolveAck, DynamicCordisClientSource, DynamicCordisHostHalfResult,
   DynamicCordisInventoryRow, DynamicCordisInvokeResult, DynamicCordisRenderFailure, DynamicCordisResolveAck,
@@ -32,6 +35,9 @@ import type {
 } from './types.ts'
 
 export type * from './types.ts'
+export {
+  ApprovalRequestId, CordisDynamicPackageId, CordisDynamicPluginId, CordisDynamicPluginRunId,
+} from './types.ts'
 export type {
   DynamicCordisDefineReceipt, DynamicCordisDefineRequest, DynamicCordisDefinition, DynamicCordisHandler,
   DynamicCordisPackageInspection, DynamicCordisPlugin, DynamicCordisPluginInspection,
@@ -40,42 +46,6 @@ export type {
 export { CordisInspectRegistryService } from './inspect-registry.ts'
 export type { HostCordisInspectProviderRegistration } from './inspect-registry.ts'
 export { HOST_BUILTIN_INSPECTION } from './sandbox.ts'
-
-/**
- * Brand a Host-minted Plugin ID.
- * @param id - opaque identifier minted by the Host registry.
- * @returns the branded Plugin identifier.
- */
-export function CordisDynamicPluginId(id: string): CordisDynamicPluginId {
-  return id as CordisDynamicPluginId
-}
-
-/**
- * Brand a Host-minted Package ID.
- * @param id - opaque identifier minted by the Host registry.
- * @returns the branded Package identifier.
- */
-export function CordisDynamicPackageId(id: string): CordisDynamicPackageId {
-  return id as CordisDynamicPackageId
-}
-
-/**
- * Brand a Host-minted Plugin Run ID.
- * @param id - opaque identifier minted by the Host registry.
- * @returns the branded Plugin Run identifier.
- */
-export function CordisDynamicPluginRunId(id: string): CordisDynamicPluginRunId {
-  return id as CordisDynamicPluginRunId
-}
-
-/**
- * Brand a Host-minted approval request ID.
- * @param id - opaque identifier minted by the Host registry.
- * @returns the branded approval request identifier.
- */
-export function ApprovalRequestId(id: string): ApprovalRequestId {
-  return id as ApprovalRequestId
-}
 
 declare module '@deepseek-ai/cordis' {
   interface Context {

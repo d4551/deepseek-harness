@@ -12,9 +12,9 @@ The optimization must retain every test and the merged per-file 100% thresholds.
 
 ## Decision
 
-The ordinary `pnpm run test:coverage` command remains one Vitest invocation. Linux coverage CI fixes `DSH_COVERAGE_PARTITIONS=4`; native Windows now also fixes it at 4 to reduce process-creation pressure under high self-hosted concurrency. No elapsed-time trigger changes either count while a run is in progress. The [coverage-exempt heavy suite](2026-07-31-coverage-exempt-heavy-suites.md) remains a separate uninstrumented gate beside the instrumented work.
+The ordinary `bun run test:coverage` command remains one Vitest invocation. Linux coverage CI fixes `DSH_COVERAGE_PARTITIONS=4`; native Windows now also fixes it at 4 to reduce process-creation pressure under high self-hosted concurrency. No elapsed-time trigger changes either count while a run is in progress. The [coverage-exempt heavy suite](2026-07-31-coverage-exempt-heavy-suites.md) remains a separate uninstrumented gate beside the instrumented work.
 
-When partitioning is enabled, `scripts/run-gates.ts` selects `pnpm run test:coverage:partitioned` for the instrumented gate. `scripts/coverage-partitions.ts` starts the configured Vitest children concurrently, each with one worker and one `--shard=<index>/<count>` option. Partition mode suppresses thresholds and coverage reporters in each child, gives every child a separate report directory, and writes one blob report per process.
+When partitioning is enabled, `scripts/run-gates.ts` selects `bun run test:coverage:partitioned` for the instrumented gate. `scripts/coverage-partitions.ts` starts the configured Vitest children concurrently, each with one worker and one `--shard=<index>/<count>` option. Partition mode suppresses thresholds and coverage reporters in each child, gives every child a separate report directory, and writes one blob report per process.
 
 The coordinator waits for every child, validates that the blob directory contains exactly the expected files, and then runs one `vitest --merge-reports ... --coverage` command. Only that merged command applies the repository's per-file statement, branch, function, and line thresholds, so a partition is never judged against an intentionally partial inventory.
 

@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
+import type { SurfaceAudit } from '@deepseek-ai/dsh-client-a11y'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionJob as JobView } from '@deepseek-ai/dsh-api-session-controller/types'
@@ -237,5 +239,36 @@ describe('JobListAction wire tolerance', () => {
     ])} />)
     fireEvent.click(screen.getByRole('button'))
     expect(rowCells().map(cells => cells[1])).toEqual(['later', 'earlier'])
+  })
+})
+
+/**
+ * The job list is how a user sees and reaches background work, so an unnamed
+ * control here hides running state. Audited empty and populated against the
+ * same fixed WCAG A/AA rule set and floor the primitives lane holds.
+ */
+describe('job list accessibility', () => {
+  const MINIMUM_ACCESSIBILITY_SCORE = 100
+
+  it('renders no accessibility violations empty or with jobs', async () => {
+    // This file runs on fake timers, and axe waits on real ones — under them
+    // its run never settles. The audit is the only case here that needs the
+    // real clock; the shared afterEach restores it for the rest.
+    vi.useRealTimers()
+    const audits: SurfaceAudit[] = []
+    for (const [surface, jobs] of [['JobListAction empty', undefined], ['JobListAction populated', [job()]]] as const) {
+      cleanup()
+      // The page shell supplies the `main` landmark the page-structure rules
+      // need; without it the harness's own missing frame reads as a defect.
+      const { baseElement } = render(<main><JobListAction {...props(jobs)} /></main>)
+      audits.push(await auditSurface(surface, baseElement))
+    }
+    cleanup()
+
+    // A surface that decided nothing would score 100 for free.
+    for (const audit of audits) {
+      expect(audit.passed + audit.failed, `${audit.surface} decided no checks`).toBeGreaterThan(0)
+    }
+    expect(accessibilityFailures(audits, MINIMUM_ACCESSIBILITY_SCORE)).toBe('')
   })
 })

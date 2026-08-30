@@ -12,7 +12,7 @@ Fast hooks still need to reject cheap, high-confidence defects before work leave
 
 ## Decision
 
-[lefthook.yml](../../../../lefthook.yml) keeps both hooks as bounded local checkpoints. Pre-commit runs sequentially: a project-free [Oxlint](2026-07-29-oxlint-linter.md) profile validates changed JavaScript and TypeScript, applies safe fixes with a [bounded retry](2026-08-09-oxlint-only-fix-workflow.md), and re-stages them; `git diff --cached --check` rejects staged whitespace errors, and the vendor manifest guard checks vendored-source metadata. Pre-push runs `pnpm run typecheck`, which prepares the generated Host Typert contracts before the Client incremental typecheck.
+[lefthook.yml](../../../../lefthook.yml) keeps both hooks as bounded local checkpoints. Pre-commit runs sequentially: a project-free [Oxlint](2026-07-29-oxlint-linter.md) profile validates changed JavaScript and TypeScript, applies safe fixes with a [bounded retry](2026-08-09-oxlint-only-fix-workflow.md), and re-stages them; `git diff --cached --check` rejects staged whitespace errors, and the vendor manifest guard checks vendored-source metadata. Pre-push runs `bun run typecheck`, which prepares the generated Host Typert contracts before the Client incremental typecheck.
 
 Pre-commit does not run type analysis, tests, snapshots, documentation checks, builds, hygiene, or the gate scheduler. Pre-push adds only the Host contract build required by repository typecheck. The opt-in `check:all` package script selects the `check-all` scheduler inventory in [scripts/run-gates.ts](../../../../scripts/run-gates.ts) independently of the hooks; it is a contributor command, not an agent instruction.
 

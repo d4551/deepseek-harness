@@ -26,7 +26,7 @@ Python SDK 分发一个私有 Node 应用，直接启动完整外部 `cordis.yml
 
 [独立 sdk-minimal profile](2026-08-24-standalone-sdk-minimal-profile.zh.md)只列出一个仓库自有组合包，该组合包会插入不含 `dsh-base` 的完整显式配置树。持久 Bash 与字符串替换 editor 通过组合存在；共享 JSON-RPC server 不暴露根 agent 工具筛选器。动态运行时上下文、workspace 指令、settings、托管凭据、遥测、compaction 与其他所有 base 配置项均不存在。同一运行时仍会把完整 `sdk` 与 `web` profile 作为独立选择打包。
 
-运行时 wheel 安装 `dsh` 控制台命令。普通 profile 与 SDK 运行仍不需要 Node；外部包管理要求调用方自行安装 `pnpm`。
+运行时 wheel 安装 `dsh` 控制台命令。普通 profile 与 SDK 运行仍不需要 Node；外部包管理要求调用方自行安装 `bun`。
 
 ### 可执行程序打包
 
@@ -48,7 +48,7 @@ Python SDK 分发一个私有 Node 应用，直接启动完整外部 `cordis.yml
 
 **把虚拟依赖树复制到每个 home。** 不予采用，因为这会重复数百 MB，并加载第二个 Cordis 实例。保留 exports 的代理很小，而且维持模块身份。
 
-**把 pnpm 与 Node 包管理纳入每次 SDK 启动。** 不予采用，因为已安装插件属于 deployment 状态，而不是逐轮运行时工作。只有 `dsh plugin` 需要外部包管理器。
+**把 bun 与 Node 包管理纳入每次 SDK 启动。** 不予采用，因为已安装插件属于 deployment 状态，而不是逐轮运行时工作。只有 `dsh plugin` 需要外部包管理器。
 
 ## 结果
 

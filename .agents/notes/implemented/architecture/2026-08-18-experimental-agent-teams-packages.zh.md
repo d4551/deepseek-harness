@@ -20,7 +20,7 @@ dsh pack 与 publish 集合以及本地 baseline 发布器均排除 `packages/ex
 
 私有 Host 侧 Agent Teams profile bundle 依赖 Team 包，并在 `dsh-base` 之后应用。它会插入 Team 配置行，并禁用模型可见名称与 Team 工具重叠的全局 continuable-child control。独立的私有 Web profile 在 `dsh-web-app` 与 Host profile 之后应用；它会插入 Team UI，后者挂载 Team package 生成的 Remote contribution。两个层都保持已发布 base、CLI、Web 与 Python runtime 的依赖图不变。
 
-profile 启动会先解析所选 bundle，再修复模块 fallback。共享 fallback 保留 dsh 安装的载体专用条目：普通 Node 下使用 symlink，打包 executable 中使用 ESM proxy。仅由所选 bundle 闭包携带的缺失包会链接到当前 profile 自己的 `node_modules` 下，而 pnpm 管理的 profile 条目仍具有优先权。闭包发现从每个显式外部 bundle 的真实包目录开始；即使前一个依赖具有相同包名，也会遍历所有列出的根。后续发现会排除 dsh 所有的 profile projection，避免投影后的依赖重新进入自己的闭包。link ownership 通过规范化父路径比较，使 junction 规范化后的 target 仍可删除。因此，私有 profile 层可以携带实验性 plugin 配置行，而无需把这些 plugin 加入发布 app、要求 profile 用户直接安装传递依赖、破坏 packaged-runtime 的模块身份，或改变其他 profile 的解析结果。
+profile 启动会先解析所选 bundle，再修复模块 fallback。共享 fallback 保留 dsh 安装的载体专用条目：普通 Node 下使用 symlink，打包 executable 中使用 ESM proxy。仅由所选 bundle 闭包携带的缺失包会链接到当前 profile 自己的 `node_modules` 下，而 bun 管理的 profile 条目仍具有优先权。闭包发现从每个显式外部 bundle 的真实包目录开始；即使前一个依赖具有相同包名，也会遍历所有列出的根。后续发现会排除 dsh 所有的 profile projection，避免投影后的依赖重新进入自己的闭包。link ownership 通过规范化父路径比较，使 junction 规范化后的 target 仍可删除。因此，私有 profile 层可以携带实验性 plugin 配置行，而无需把这些 plugin 加入发布 app、要求 profile 用户直接安装传递依赖、破坏 packaged-runtime 的模块身份，或改变其他 profile 的解析结果。
 
 实验性状态只改变发布与兼容性预期。这些包仍须满足仓库的一般文档、不变式、生命周期、安全、单元测试、真实组合测试和快照要求。promotion 前必须评审公开约定、限制、测试证据、发布 payload、运行时依赖方，并由一名具名 owner 接受稳定包义务。
 

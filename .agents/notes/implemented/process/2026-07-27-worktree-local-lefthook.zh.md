@@ -6,7 +6,7 @@ Status: implemented
 
 ## 问题
 
-每次运行 `pnpm install` 都会执行根目录的 [`postinstall`](../../../../package.json)，其中的 [`install-lefthook.mjs`](../../../../scripts/install-lefthook.mjs) 会调用 `lefthook install --force`。若无额外配置，关联的 Git worktree 共用同一仓库的默认钩子目录，因此在任一 worktree 中安装都可能改写其他所有 worktree 使用的钩子。
+每次运行 `bun install` 都会执行根目录的 [`postinstall`](../../../../package.json)，其中的 [`install-lefthook.mjs`](../../../../scripts/install-lefthook.mjs) 会调用 `lefthook install --force`。若无额外配置，关联的 Git worktree 共用同一仓库的默认钩子目录，因此在任一 worktree 中安装都可能改写其他所有 worktree 使用的钩子。
 
 Lefthook 生成的钩子会优先使用安装时从对应 worktree 记录的绝对二进制文件路径，之后才尝试当前 worktree 的回退路径。因此，共享钩子会一直运行另一个 worktree 固定版本的二进制文件，直到该 worktree 消失；并发安装还会写入同一组文件。
 

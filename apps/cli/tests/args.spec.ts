@@ -45,14 +45,14 @@ describe('parseDshArgs', () => {
       .toEqual({ mode: 'profile', profile: 'tui', patches: ['a.yml'], args: ['--resume', 'b', '--patch', 'late.yml'] })
   })
 
-  it('routes the plugin pnpm forwarder', () => {
+  it('routes the plugin bun forwarder', () => {
     expect(parse(['plugin', '--profile', 'tui', 'add', 'turtle-ui']))
       .toEqual({ mode: 'plugin', profile: 'tui', args: ['add', 'turtle-ui'] })
     expect(parse(['plugin', '--profile', 'tui', 'remove', 'turtle-ui']))
       .toEqual({ mode: 'plugin', profile: 'tui', args: ['remove', 'turtle-ui'] })
     expect(parse(['plugin', '--profile', 'tui', 'why', '@deepseek-ai/cordis']))
       .toEqual({ mode: 'plugin', profile: 'tui', args: ['why', '@deepseek-ai/cordis'] })
-    // Unknown pnpm flags forward verbatim.
+    // Unknown bun flags forward verbatim.
     expect(parse(['plugin', '--profile', 'tui', 'add', '--save-dev', 'x']))
       .toEqual({ mode: 'plugin', profile: 'tui', args: ['add', '--save-dev', 'x'] })
   })

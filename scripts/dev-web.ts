@@ -13,11 +13,11 @@
  * serves. A missing stage does not fail — it silently shows the previous
  * artifact, so an edit appears to do nothing.
  *
- * MUST NOT run concurrently with `pnpm run build`: both write the same
+ * MUST NOT run concurrently with `bun run build`: both write the same
  * `lib/` and `apps/web/dist/` trees.
  *
- * Usage: `pnpm exec tsx scripts/dev-web.ts [--poll[=ms]]`. Requires one prior
- * `pnpm run build`: every stage is incremental over the previous stage's output
+ * Usage: `bun x tsx scripts/dev-web.ts [--poll[=ms]]`. Requires one prior
+ * `bun run build`: every stage is incremental over the previous stage's output
  * and none of them bootstraps a missing tree. `--poll` switches the source
  * watchers to polling (default 500ms): network mounts (weka) deliver no inotify
  * events, so native watching sees the initial build only and never a source
@@ -113,7 +113,7 @@ export function discoverLibraryDirs(root = repoRoot): string[] {
 }
 
 /**
- * Start the tsdown watch build used by `pnpm run dev:web`.
+ * Start the tsdown watch build used by `bun run dev:web`.
  * @param root - repository or fixture root passed to tsdown.
  * @param pluginDirs - workspace-relative package directories to watch.
  * @param pollInterval - optional source-watcher polling interval in milliseconds.
@@ -254,7 +254,7 @@ if (isMain) {
   // working directory — `resolve.dedupe` resolves react from that root, so
   // running vite from anywhere but apps/web silently switches which react copy
   // the bundle gets.
-  spawnStage('vite build --watch', 'pnpm', ['--filter', SHELL_PACKAGE, 'run', 'watch'], false)
+  spawnStage('vite build --watch', 'bun', ['run', '--filter', SHELL_PACKAGE, 'watch'], false)
 
   console.log(
     `dev-web: watching ${String(pluginDirs.length)} dsh.client plugin packages`

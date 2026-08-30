@@ -5,8 +5,11 @@
  * @module @deepseek-ai/dsh-typert-generator
  */
 
-export { WorkspaceAnalyzer, WorkspaceCaches, TypertAnalysisError } from './analyzer.ts'
-export type { AnalysisMode, DiscoveredTypertPackage, WorkspaceAnalyzerOptions } from './analyzer.ts'
+export { TypertAnalysisError } from './analyzer-error.ts'
+export type { AnalysisMode } from './analyzer-error.ts'
+export type { DiscoveredTypertPackage, PackageRegistration } from './analyzer-types.ts'
+export { WorkspaceAnalyzer, WorkspaceCaches } from './analyzer-workspace.ts'
+export type { WorkspaceAnalyzerOptions } from './analyzer-workspace.ts'
 export { FaceModelEmitter, TypertEmitError } from './emitter.ts'
 export type { ModelEmitResult } from './emitter.ts'
 export * from './cordis-catalog.ts'

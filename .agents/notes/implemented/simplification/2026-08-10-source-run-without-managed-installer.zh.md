@@ -12,13 +12,13 @@ Status: implemented
 
 ## 决策
 
-仓库通过根目录的 `pnpm` 脚本支持从源码运行。`package.json` 中的 `dsh` 项通过 `node --import tsx/esm` 直接启动 `apps/cli/src/bin.ts`；产物生成是独立的 `pnpm run build` 操作，由[源码启动与构建分离决策](2026-08-12-separate-source-launch-from-build.zh.md)规定。该包脚本会转发参数并继承调用方环境；当支持环境代理的 Node 版本必须遵循 `HTTP_PROXY` 和 `HTTPS_PROXY` 时，调用方可设置 `NODE_USE_ENV_PROXY=1`。用户使用 `pnpm dsh web` 选择 Web，使用 `pnpm dsh --profile headless "task"` 选择无头执行，并使用 `pnpm dsh --profile acp` 运行 ACP 自动化。
+仓库通过根目录的 `bun` 脚本支持从源码运行。`package.json` 中的 `dsh` 项通过 `node --import tsx/esm` 直接启动 `apps/cli/src/bin.ts`；产物生成是独立的 `bun run build` 操作，由[源码启动与构建分离决策](2026-08-12-separate-source-launch-from-build.zh.md)规定。该包脚本会转发参数并继承调用方环境；当支持环境代理的 Node 版本必须遵循 `HTTP_PROXY` 和 `HTTPS_PROXY` 时，调用方可设置 `NODE_USE_ENV_PROXY=1`。用户使用 `bun dsh web` 选择 Web，使用 `bun dsh --profile headless "task"` 选择无头执行，并使用 `bun dsh --profile acp` 运行 ACP 自动化。
 
 仓库不分发源码安装器、安装器测试套件，也不分发依赖受管理的 `current` 符号链接和带时间戳 staging worktree 的 skill。源码检出的存放位置、Git 更新，以及用户在仓库外创建的任何启动器均由用户负责。
 
 ## 考虑过的备选方案
 
-**保留安装器，但将 `pnpm run` 记作另一条路径。**这样可以保留受管理的启动器和回滚能力，但两套生命周期约定仍会同时生效，其中包括安装器测试和依赖 staging 布局的 skill。
+**保留安装器，但将 `bun run` 记作另一条路径。**这样可以保留受管理的启动器和回滚能力，但两套生命周期约定仍会同时生效，其中包括安装器测试和依赖 staging 布局的 skill。
 
 **保留通用的定制与上游发布 skill。**其中的安全规则也能用于 staging 布局之外，但现有工作流共同构成了一套耦合的维护系统：定制工作流查找已安装的 staging 检出，升级工作流执行切换，上游发布工作流则从这些个人修改中选择发布内容。通用 Git 贡献指南已经属于仓库指令，无需以产品随附 skill 的形式提供。
 

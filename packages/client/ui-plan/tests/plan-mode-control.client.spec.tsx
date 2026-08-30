@@ -9,6 +9,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
+import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
+import type { SurfaceAudit } from '@deepseek-ai/dsh-client-a11y'
 import type { PlanProjection } from '@deepseek-ai/dsh-plan-mode/client'
 import { PlanChip, type PlanChipProps } from '../src/client/PlanModeControl.tsx'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
@@ -29,7 +31,7 @@ function setup(
   const useProjection = (_key: string, selector?: (v: unknown) => unknown) =>
     bindSnapshotSelector(store)(s => (selector ?? (v => v))(s.value))
   const props = { useProjection, locked, exitPlanMode, t } as unknown as PlanChipProps
-  const view = render(<PlanChip {...props} />)
+  const view = render(<main><PlanChip {...props} /></main>)
   return { store, exitPlanMode, view }
 }
 
@@ -37,14 +39,14 @@ const chip = () => screen.getByRole('button', { name: 'plan mode 已开启，按
 
 describe('PlanChip', () => {
   it('renders nothing for an absent capability or a default-mode target', () => {
-    const absent = setup(undefined)
-    expect(absent.view.container.innerHTML).toBe('')
+    setup(undefined)
+    expect(screen.queryByRole('button')).toBeNull()
     cleanup()
-    const inactive = setup({ active: false, pending: false })
-    expect(inactive.view.container.innerHTML).toBe('')
+    setup({ active: false, pending: false })
+    expect(screen.queryByRole('button')).toBeNull()
     cleanup()
-    const leaving = setup({ active: true, pending: true })
-    expect(leaving.view.container.innerHTML).toBe('')
+    setup({ active: true, pending: true })
+    expect(screen.queryByRole('button')).toBeNull()
   })
 
   it('renders the Plan status for active and pending-entry targets', () => {
@@ -108,5 +110,23 @@ describe('PlanChip', () => {
     fireEvent.click(chip())
     view.unmount()
     expect(() => { reject(new Error('late')) }).not.toThrow()
+  })
+})
+
+describe('plan chip accessibility', () => {
+  const MINIMUM_ACCESSIBILITY_SCORE = 100
+
+  it('renders no accessibility violations while plan mode is on', async () => {
+    const audits: SurfaceAudit[] = []
+    for (const [surface, plan] of [
+      ['PlanChip active', { active: true, pending: false }],
+      ['PlanChip pending entry', { active: false, pending: true }],
+    ] as const) {
+      cleanup()
+      const { view } = setup(plan)
+      audits.push(await auditSurface(surface, view.baseElement))
+    }
+    cleanup()
+    expect(accessibilityFailures(audits, MINIMUM_ACCESSIBILITY_SCORE)).toBe('')
   })
 })

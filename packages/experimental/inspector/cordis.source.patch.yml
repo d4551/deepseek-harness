@@ -1,4 +1,4 @@
-# Source overlay for `pnpm run demo:inspector`. The relative entry is anchored
+# Source overlay for `bun run demo:inspector`. The relative entry is anchored
 # to this file and runs through the CLI's tsx loader without a profile install.
 
 - insert:

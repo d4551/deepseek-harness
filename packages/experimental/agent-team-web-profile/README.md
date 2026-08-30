@@ -30,8 +30,8 @@ English | [中文](README.zh.md)
 From this repository checkout, add the Host and Web Agent Teams layers to an initialized `web` profile in this order:
 
 ```sh
-pnpm dsh plugin --profile web add ./packages/experimental/agent-team-profile
-pnpm dsh plugin --profile web add ./packages/experimental/agent-team-web-profile
+bun run dsh plugin --profile web add ./packages/experimental/agent-team-profile
+bun run dsh plugin --profile web add ./packages/experimental/agent-team-web-profile
 ```
 
 The first command supplies the Team domain, generated Remote methods, and model tools. The second command activates this package's declared patch and its browser presentation. Removing the package with `dsh plugin --profile web remove @deepseek-ai/dsh-experimental-agent-team-web-profile` removes the Web layer from the profile's ordered bundle list.

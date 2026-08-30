@@ -43,7 +43,7 @@ The [repository naming contract](2026-08-11-repository-naming-contract-and-renam
 
 The moves landed as pure `git mv` moves, so rename detection carries the history. A group move touched: the moved package's `tsconfig.json` relative `references` and every dependent's entry (including the `apps/cli` project references), the tsconfig aggregate and path maps, group READMEs, the [packages/README.md](../../../../packages/README.md) hierarchy table, the root `AGENTS.md` layout map, regenerated artifacts (`docs/module-graph.md`, path-embedding catalogs, and the lockfile's importer keys), and root-relative `packages/...` citations in prose and gate scripts. Remaining group-path referents (workspace configs, test globs, lint keys) were found mechanically by the acceptance gates failing loud — the repository's own misconfiguration rule.
 
-A group move did not touch: npm names, imports, `cordis.yml` configs, snapshot fixtures, the `pnpm-workspace.yaml`/`tsdown` globs (both `packages/*/*`), or the Python runtime manifest — all reference packages by npm name.
+A group move did not touch: npm names, imports, `cordis.yml` configs, snapshot fixtures, the workspace/`tsdown` globs (both `packages/*/*`), or the Python runtime manifest — all reference packages by npm name.
 
 `client/` and `host/` were out of scope and are unchanged.
 
@@ -74,7 +74,7 @@ A group move did not touch: npm names, imports, `cordis.yml` configs, snapshot f
 ## Consequences
 
 - The five still-current regrouped families hold the listed members; the groups `ui/`, `telemetry/`, `timeout/`, `cordis/`, `session-persistence/`, `session-projection/`, and `session-title/` no longer exist. The regrouping itself changed no npm names. The later SDK toolchain removal intentionally changed the package set and restored `sdk/` as the precise home of the runtime SDK trio. Two FIXME markers pin the remaining deferred renames; a FIXME that later proves wrong must be removed explicitly with rationale, never silently dropped.
-- What pins the result: `pnpm run typecheck`, the unit suites of every moved group, `verify-package-paths`, `verify-md-links`, and the corpus-wide translation pairing all pass on the moved tree; the group-scoped test globs in `vitest.snapshot.config.ts` were rewritten with the moves so the suites collect the same test files as before (a fail-open glob would silently drop coverage).
+- What pins the result: `bun run typecheck`, the unit suites of every moved group, `verify-package-paths`, `verify-md-links`, and the corpus-wide translation pairing all pass on the moved tree; the group-scoped test globs in `vitest.snapshot.config.ts` were rewritten with the moves so the suites collect the same test files as before (a fail-open glob would silently drop coverage).
 - Every open PR touching a moved file rebases across the move once; rename detection resolves most hunks mechanically.
 - Single-package groups remain (`boot/`, `extensions/`, and existing ones such as `acp/`). Accepted deliberately: each is role-complete rather than a fragment of a family, and a truthful small group beats a nominal merge.
 - The `sdk/` role folders map explicitly to their npm names in `tsconfig.base.json`; the `server/` mapping resolves to `@deepseek-ai/dsh-sdk-jsonrpc-server`.

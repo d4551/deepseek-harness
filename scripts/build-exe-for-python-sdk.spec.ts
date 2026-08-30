@@ -18,50 +18,49 @@ function run(env: NodeJS.ProcessEnv, ...args: string[]) {
   return spawnSync(process.execPath, ['--import', 'tsx/esm', script, ...args], {
     cwd: root,
     encoding: 'utf8',
-    env: isolatedPnpmEnvironment(env),
+    env: isolatedBunEnvironment(env),
   })
 }
 
 describe('Python runtime executable builder CLI', () => {
-  it('runs pnpm through its JavaScript entrypoint without a command shell', () => {
+  it('runs bun through the supplied entrypoint without a command shell', () => {
     const result = run(
-      { npm_execpath: 'C:\\tools\\pnpm.cjs' },
+      { npm_execpath: 'C:\\tools\\bun.exe' },
       '--skip-build',
       '--dry-run',
       '--targets=node24-macos-arm64',
     )
 
     expect(result.status).toBe(0)
-    expect(result.stdout).toContain(`${process.execPath} C:\\tools\\pnpm.cjs run verify-runtime-closure`)
-    expect(result.stdout).toContain(`${process.execPath} C:\\tools\\pnpm.cjs --filter dsh-python-runtime-closure deploy`)
-    expect(result.stdout).toContain(`${process.execPath} C:\\tools\\pnpm.cjs dlx @yao-pkg/pkg@6.21.0`)
-    expect(result.stdout).not.toMatch(/pnpm\.cmd/i)
+    expect(result.stdout).toContain('C:\\tools\\bun.exe run verify-runtime-closure')
+    expect(result.stdout).toContain('C:\\tools\\bun.exe install --cwd')
+    expect(result.stdout).toContain('C:\\tools\\bun.exe x @yao-pkg/pkg@6.21.0')
+    expect(result.stdout).not.toMatch(/bun\.cmd/i)
+    expect(result.stdout).not.toMatch(/\bdlx\b/)
   })
 
-  it('resolves the pnpm package behind a Windows command shim', () => {
-    const setup = mkdtempSync(join(tmpdir(), 'dsh-pnpm-home-'))
+  it('resolves the bun binary under BUN_INSTALL behind a Windows command shim', () => {
+    const setup = mkdtempSync(join(tmpdir(), 'dsh-bun-home-'))
     temporaryDirectories.push(setup)
-    const home = join(setup, 'node_modules', '.bin')
-    const entrypoint = join(setup, 'node_modules', 'pnpm', 'bin', 'pnpm.mjs')
-    mkdirSync(home, { recursive: true })
+    const entrypoint = join(setup, 'bin', 'bun')
     mkdirSync(dirname(entrypoint), { recursive: true })
     writeFileSync(entrypoint, '')
 
     const result = run(
-      { npm_execpath: 'C:\\tools\\pnpm.cmd', PNPM_HOME: home },
+      { npm_execpath: 'C:\\tools\\bun.cmd', BUN_INSTALL: setup },
       '--skip-build',
       '--dry-run',
       '--targets=node24-macos-arm64',
     )
 
     expect(result.status).toBe(0)
-    expect(result.stdout).toContain(`${process.execPath} ${entrypoint} run verify-runtime-closure`)
-    expect(result.stdout).not.toMatch(/pnpm\.cmd/i)
+    expect(result.stdout).toContain(`${entrypoint} run verify-runtime-closure`)
+    expect(result.stdout).not.toMatch(/bun\.cmd/i)
   })
 
   it('rejects a Windows arm64 product before any build step', () => {
     const result = run(
-      { npm_execpath: 'C:\\tools\\pnpm.cjs' },
+      { npm_execpath: 'C:\\tools\\bun.exe' },
       '--skip-build',
       '--dry-run',
       '--targets=node24-win-arm64',
@@ -73,9 +72,9 @@ describe('Python runtime executable builder CLI', () => {
   })
 })
 
-function isolatedPnpmEnvironment(overrides: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+function isolatedBunEnvironment(overrides: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const environment = Object.fromEntries(
-    Object.entries(process.env).filter(([key]) => !['npm_execpath', 'pnpm_home'].includes(key.toLowerCase())),
+    Object.entries(process.env).filter(([key]) => !['npm_execpath', 'bun_install'].includes(key.toLowerCase())),
   )
   return { ...environment, ...overrides }
 }

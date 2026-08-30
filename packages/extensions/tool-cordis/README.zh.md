@@ -78,7 +78,7 @@ CLI 示例 [`apps/cli/config/examples/cordis/cordis.yml`](../../../apps/cli/conf
 |---|---|
 | [`src/index.ts`](src/index.ts) | 插件入口：工具注册、系统提示词章节、`@pluginId` 上下文注入 |
 | [`src/inspect.ts`](src/inspect.ts) | 报告渲染：把生成的 API 目录与实时服务存储相交 |
-| [`src/api-catalog.ts`](src/api-catalog.ts) | 工作区 Cordis 声明的生成投影（由 `pnpm run gen-cordis-api` 重新生成，`verify-cordis-api` 守其新鲜度） |
+| [`src/api-catalog.ts`](src/api-catalog.ts) | 工作区 Cordis 声明的生成投影（由 `bun run gen-cordis-api` 重新生成，`verify-cordis-api` 守其新鲜度） |
 | [`src/prompt.ts`](src/prompt.ts) | `tool:cordis` 系统提示词章节 |
 | [`src/providers.ts`](src/providers.ts) | 第一方 host Inspect Provider：Service、Event、Builtin、Tool |
 | [`src/present.ts`](src/present.ts) | 可回放的通用卡片渲染意图 |

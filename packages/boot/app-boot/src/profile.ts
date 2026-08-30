@@ -43,7 +43,7 @@ export const PROFILES_DIR = 'profiles'
 /** The user patch layer inside a profile directory (hot-reloaded on long-lived surfaces). */
 export const PROFILE_PATCH_FILENAME = 'cordis.patch.yml'
 
-/** Profile-private package links projected into its pnpm-managed node_modules. */
+/** Profile-private package links projected into its installer-managed node_modules. */
 const PROFILE_MODULE_FALLBACK_DIR = '.dsh-module-fallback'
 
 /** The bundle half of the `dsh` manifest section: what a bundle package exports. */
@@ -177,18 +177,36 @@ const PROFILE_PATCH_TEMPLATE = `# Your patch layer for this dsh profile, applied
 // The hoisted linker gives out-of-tree plugins a flat node_modules whose
 // missing peers (cordis and friends) fall through to the healed
 // profiles/node_modules installation fallback, so every plugin shares the
-// installation's single cordis instance instead of a duplicate. pnpm ≥10
-// reads its settings from pnpm-workspace.yaml, not .npmrc.
-const PROFILE_PNPM_WORKSPACE = `packages:
-  - .
-
-nodeLinker: hoisted
-autoInstallPeers: false
+// installation's single cordis instance instead of a duplicate. bun reads
+// these install settings from bunfig.toml, not .npmrc.
+const PROFILE_BUNFIG = `[install]
+linker = "hoisted"
+peer = false
 `
 
 /**
+ * Write the profile's bun install settings when they are absent.
+ *
+ * A profile initialized before this installation used bun carries the previous
+ * manager's workspace file and no `bunfig.toml`, and initialization is skipped
+ * for a directory that already has a manifest. Without this, such a profile
+ * would install out-of-tree plugins under bun's default isolated layout and
+ * silently lose the flat `node_modules` those plugins resolve their peers
+ * through.
+ * @param dir - the profile directory from {@link resolveProfileDir}.
+ * @returns true when the settings were missing and have now been written.
+ */
+export function ensureProfileInstallSettings(dir: string): boolean {
+  const bunfigPath = join(dir, 'bunfig.toml')
+  if (existsSync(bunfigPath)) return false
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(bunfigPath, PROFILE_BUNFIG)
+  return true
+}
+
+/**
  * Initialize a profile directory: manifest, empty user patch layer, and the
- * pnpm settings out-of-tree plugins need. Existing files are never touched,
+ * bun install settings out-of-tree plugins need. Existing files are never touched,
  * so re-running is a no-op on an initialized profile.
  * @param dir - the profile directory from {@link resolveProfileDir}.
  * @param bundles - the initial `dsh.profile.bundles` layer list.
@@ -212,8 +230,7 @@ export function initProfile(
   }
   const patchPath = join(dir, PROFILE_PATCH_FILENAME)
   if (!existsSync(patchPath)) writeFileSync(patchPath, PROFILE_PATCH_TEMPLATE)
-  const workspacePath = join(dir, 'pnpm-workspace.yaml')
-  if (!existsSync(workspacePath)) writeFileSync(workspacePath, PROFILE_PNPM_WORKSPACE)
+  ensureProfileInstallSettings(dir)
 }
 
 function readModuleProxyRecord(link: string): ModuleProxyRecord | undefined {
@@ -287,7 +304,7 @@ function symlinkPointsTo(link: string, target: string): boolean {
   return canonicalActual !== undefined && canonicalActual === canonicalTarget
 }
 
-/** Add one profile-owned fallback link without replacing a pnpm-managed entry. */
+/** Add one profile-owned fallback link without replacing an installer-managed entry. */
 function ensureProfileSymlink(link: string, target: string): void {
   try {
     lstatSync(link)
@@ -571,7 +588,7 @@ export interface ProfileModuleFallbackOptions {
  * proxies under a cross-process lock because operating-system links cannot
  * enter pkg's virtual filesystem. Missing packages carried only by selected
  * bundles are linked through a profile-owned directory into that profile's
- * `node_modules`; pnpm-managed entries remain authoritative, and another
+ * `node_modules`; installer-managed entries remain authoritative, and another
  * profile's links cannot change its resolution.
  * @param options - installation anchor, optional loaded profile, and Harness home.
  * @returns settlement after the shared fallback and profile-local links are current.
@@ -748,7 +765,7 @@ function normalizeShippedProfile(name: string, dir: string, manifest: ProfileMan
  * probe the require resolution paths for a directory holding the named
  * manifest. This is Node's own node_modules lookup order, so the result
  * matches what the Loader would import from the same anchor, and
- * `existsSync` follows the symlinks pnpm's isolated layout uses.
+ * `existsSync` follows the symlinks the isolated layout uses.
  */
 function packageDirFromAnchor(
   anchor: string, packageName: string,

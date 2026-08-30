@@ -12,10 +12,20 @@
 
 import { globSync, readFileSync } from 'node:fs'
 import { dirname, relative, resolve } from 'node:path'
-import { Script } from 'node:vm'
-import ts from 'typescript'
 import { cordisConfigFiles } from './cordis-config-files.ts'
-import { isCordisGroupEntry, isJsExpr, loadCordisYaml } from './cordis-yaml.ts'
+import { loadCordisYaml } from './cordis-yaml.ts'
+import { collectImportedSpecifiers } from './verify-cordis-config-imports.ts'
+import { metadataExpressionErrors as metadataErrors } from './verify-cordis-config-metadata.ts'
+import {
+  forEachLoaderEntry,
+  validateClientHalvesDeclared as clientHalves,
+  validatePresetPlaneSeparation as presetPlanes,
+} from './verify-cordis-config-planes.ts'
+import {
+  loadBasePaths,
+  resolveSpecifierThroughPaths,
+} from './verify-cordis-config-paths.ts'
+import { readConfigFile } from './ts7-session.ts'
 
 export interface PackageManifest {
   name?: string
@@ -31,23 +41,10 @@ export interface PluginReference {
 }
 
 const root = resolve(import.meta.dirname, '..')
-// These overlays are consumed by the built dsh app, so their bare specifiers
-// resolve from apps/cli.
 const appOverlayFiles = new Set([
   ...globSync('apps/cli/config/examples/**/*.yml', { cwd: root }),
 ])
-const metadataFields = ['id', 'name', 'group', 'inject', 'intercept', 'isolate'] as const
-
-/** The adaptive directory-picker chooser package (mounts a backend row at boot). */
 const CHOOSER_PACKAGE = '@deepseek-ai/dsh-host-directory-picker-auto'
-
-/**
- * The packages the chooser mounts by runtime string (mirror of its exported
- * `BACKEND_PACKAGES` and `SURFACE_PACKAGES`), invisible to yml-row scanning: a
- * composition mounting the chooser must resolve every one, or keyless Linux CI
- * (which only ever resolves `browse`) hides a dropped `-native` dependency
- * until a macOS boot.
- */
 const CHOOSER_BACKEND_PACKAGES = [
   '@deepseek-ai/dsh-host-directory-picker-native',
   '@deepseek-ai/dsh-host-directory-picker-browse',
@@ -57,185 +54,51 @@ const CHOOSER_BACKEND_PACKAGES = [
 const errors: string[] = []
 const pluginReferences: PluginReference[] = []
 
+/** @see {@link ./verify-cordis-config-metadata.ts} */
+export function metadataExpressionErrors(entry: object, path: string): string[] {
+  return metadataErrors(entry, path)
+}
+
 if (import.meta.main) {
   const files = cordisConfigFiles(root)
-
   for (const file of files) {
     const document = loadCordisYaml(readFileSync(resolve(root, file), 'utf8'))
-    if (!isUnknownArray(document)) {
+    if (!Array.isArray(document)) {
       errors.push(`${file}: root must be a Loader entry array`)
       continue
     }
     for (let index = 0; index < document.length; index++) {
-      validateEntry(document[index], file, `[${index}]`)
+      const item = document[index]
+      forEachLoaderEntry(item === undefined ? null : item, file, `[${index}]`, recordAndValidate)
     }
   }
-
   errors.push(...validateAppResolution())
   errors.push(...validatePackageTestResolution())
   errors.push(...packageTestFixtureDependencyErrors())
   errors.push(...validateSourcePlaneResolution())
-  errors.push(...validatePresetPlaneSeparation())
-  errors.push(...validateClientHalvesDeclared())
-
+  errors.push(...presetPlanes(root))
+  errors.push(...clientHalves(root, path => readManifest(path)))
   if (errors.length > 0) {
-    console.error('verify-cordis-config: invalid Loader metadata or plugin package resolution:')
-    for (const error of errors) console.error(`- ${error}`)
+    process.stderr.write('verify-cordis-config: invalid Loader metadata or plugin package resolution:\n')
+    for (const error of errors) process.stderr.write(`- ${error}\n`)
     process.exitCode = 1
   } else {
-    console.log(`verify-cordis-config: ${files.length} config files passed.`)
+    process.stdout.write(`verify-cordis-config: ${String(files.length)} config files passed.\n`)
   }
 }
 
-/**
- * A browser plugin must declare the browser half it ships.
- *
- * The browser roster is discovered by scanning composed packages for a
- * `dsh.client` block, and the node half of a surface plugin is an empty
- * `apply`. A `packages/client` package that exports `./client` without that
- * block therefore composes, activates, and contributes nothing — its bundle is
- * never served and no error is raised anywhere. The mismatch is invisible in
- * the composition file, so it is checked against the manifests instead. Only
- * this group is checked: a Host package's `./client` export is the typed wire
- * face its browser consumers import, not a plugin the roster serves.
- * @returns one violation per client package whose `./client` export and
- * `dsh.client` declaration disagree.
- */
-function validateClientHalvesDeclared(): string[] {
-  return globSync('packages/client/*/package.json', { cwd: root }).flatMap((manifestPath) => {
-    const manifest = readManifest(manifestPath) as PackageManifest & {
-      exports?: Record<string, unknown>
-      dsh?: { client?: unknown }
-    }
-    const shipsClient = manifest.exports !== undefined && Object.hasOwn(manifest.exports, './client')
-    const declaresClient = manifest.dsh?.client !== undefined
-    if (shipsClient === declaresClient) return []
-    return [shipsClient
-      ? `${manifestPath}: exports "./client" but declares no dsh.client, so its browser half is never served`
-      : `${manifestPath}: declares dsh.client but exports no "./client" entry to serve`]
-  })
-}
-
-/**
- * No shipped agent preset may repeat a row the host composition still runs.
- *
- * A preset contributes what ONE session adds to the host's registries. A row
- * active on both planes is therefore mounted twice — once per process and once
- * per session — and what that costs depends on what the row does: a provider
- * behind an `isolate` realm shadows the host's for its own consumers, so a host
- * contributor to that service reaches nobody; a row that registers into a host
- * singleton registers once per live session, so the second one collides.
- *
- * Both have happened. `shell-env` in a preset realm left `DSH_WEB_URL` reaching
- * no shell, and `tool-subagent-report` handed every child `report` once per live
- * session until the second registration threw. Neither changes a tool catalog,
- * so no catalog assertion can see them — and the shipped presets are near-copies
- * of each other, so a fix applied to three of four is the normal failure.
- * @returns one diagnostic per preset row that is also active on the host plane.
- */
-function validatePresetPlaneSeparation(): string[] {
-  const problems: string[] = []
-  // The shipped Web surface is two bundle patch layers over an empty root.
-  const hostFile = 'packages/bundle/base/cordis.patch.yml'
-  const overlayFile = 'packages/bundle/web-app/cordis.patch.yml'
-  const hostRows = rowIds(hostFile)
-  const overlay = loadEntries(overlayFile)
-  const disabled = new Set<string>()
-  for (const entry of overlay) {
-    if (!isRecord(entry)) continue
-    if (entry.disabled === true && typeof entry.id === 'string') disabled.add(entry.id)
-  }
-  // The overlay's own inserts are host-plane too; its disables take them back out.
-  const active = new Set([...hostRows, ...rowIds(overlayFile)].filter(id => !disabled.has(id)))
-  for (const file of globSync('packages/preset/agent-presets/presets/*/agent.cordis.yml', { cwd: root })) {
-    for (const id of rowIds(file)) {
-      if (!active.has(id)) continue
-      problems.push(
-        `${file}: row "${id}" is also active in the host composition; `
-        + 'a row belongs to exactly one plane',
-      )
-    }
-  }
-  return problems
-}
-
-/** Every entry of one config file, or an empty list when it is not an entry array. */
-function loadEntries(file: string): unknown[] {
-  const document = loadCordisYaml(readFileSync(resolve(root, file), 'utf8'))
-  return isUnknownArray(document) ? document : []
-}
-
-/**
- * Row ids declared anywhere in one config file, including inside group `config`
- * lists — a preset nests most of its rows in `isolate` groups.
- * @param file - repository-relative config path.
- * @returns the declared ids.
- */
-function rowIds(file: string): Set<string> {
-  const ids = new Set<string>()
-  const walk = (value: unknown): void => {
-    if (isUnknownArray(value)) {
-      for (const item of value) walk(item)
-      return
-    }
-    if (!isRecord(value)) return
-    if (typeof value.id === 'string' && typeof value.name === 'string') ids.add(value.id)
-    for (const child of Object.values(value)) walk(child)
-  }
-  walk(loadEntries(file))
-  return ids
-}
-
-function validateEntry(value: unknown, file: string, path: string): void {
-  if (!isRecord(value)) {
-    errors.push(`${file}${path}: entry must be an object`)
-    return
-  }
-  recordPlugin(value, file)
-  validateMetadata(value, file, path)
-  if (isCordisGroupEntry(value)) {
-    for (let index = 0; index < value.config.length; index++) {
-      validateEntry(value.config[index], file, `${path}.config[${index}]`)
-    }
-  }
-  if (isUnknownArray(value.insert)) {
-    for (let index = 0; index < value.insert.length; index++) {
-      validateEntry(value.insert[index], file, `${path}.insert[${index}]`)
-    }
-  }
-  if (value.name !== '@deepseek-ai/cordis-plugin-include') return
-  const config = value.config
-  if (!isRecord(config) || !isUnknownArray(config.patches)) return
-  for (let index = 0; index < config.patches.length; index++) {
-    const patch = config.patches[index]
-    const patchPath = `${path}.config.patches[${index}]`
-    if (!isRecord(patch)) continue
-    recordPlugin(patch, file)
-    validateMetadata(patch, file, patchPath)
-    if (!isUnknownArray(patch.insert)) continue
-    for (let insertIndex = 0; insertIndex < patch.insert.length; insertIndex++) {
-      validateEntry(patch.insert[insertIndex], file, `${patchPath}.insert[${insertIndex}]`)
-    }
-  }
-}
-
-function recordPlugin(entry: Record<string, unknown>, file: string): void {
-  if (typeof entry.name === 'string') pluginReferences.push({ file, name: entry.name })
+function recordAndValidate(entry: object, file: string, path: string) {
+  const name = Reflect.get(entry, 'name')
+  if (typeof name === 'string') pluginReferences.push({ file, name })
+  for (const problem of metadataExpressionErrors(entry, path)) errors.push(`${file}${problem}`)
 }
 
 function validateAppResolution(): string[] {
   const violations: string[] = []
-  const bundleManifests = bundleManifestPaths()
-  // App overlays (and any config left under apps/cli/config) resolve from the
-  // dsh app's own dependency surface — the profile module fallback mirrors it.
   const appManifest = readManifest('apps/cli/package.json')
-  const appDependencies = {
-    ...appManifest.dependencies,
-    // The fallback also links every in-box bundle's own dependencies
-    // (healProfilesModuleFallback). Optional Profile bundles stay outside the
-    // app installation until that Profile installs them.
-    ...Object.fromEntries(globSync('packages/bundle/*/package.json', { cwd: root })
-      .flatMap(file => Object.entries(readManifest(file).dependencies ?? {}))),
+  const appDependencies: Record<string, string> = { ...appManifest.dependencies }
+  for (const file of globSync('packages/bundle/*/package.json', { cwd: root })) {
+    Object.assign(appDependencies, readManifest(file).dependencies ?? {})
   }
   const shipped = new Set(globSync('*.cordis.yml', { cwd: resolve(root, 'apps/cli/config') })
     .map(file => `apps/cli/config/${file}`))
@@ -251,9 +114,7 @@ function validateAppResolution(): string[] {
     { ...appManifest.dependencies, ...appManifest.devDependencies },
     'apps/cli/package.json dependencies or devDependencies',
   ))
-  // Each bundle's patch rows must resolve from that bundle's own dependencies:
-  // per-layer resolution anchors on the bundle package directory.
-  for (const manifestPath of bundleManifests) {
+  for (const manifestPath of bundleManifestPaths()) {
     const bundleDir = manifestPath.replace(/\/package\.json$/, '')
     const manifest = readManifest(manifestPath)
     const patch = manifest.dsh?.bundle?.patch
@@ -331,8 +192,8 @@ export function packageTestFixtureDependencyErrors(repoRoot: string = root): str
       if (manifestPath === undefined) continue
       const references = referencesByManifest.get(manifestPath) ?? []
       const source = readFileSync(resolve(repoRoot, file), 'utf8')
-      for (const imported of ts.preProcessFile(source, true, true).importedFiles) {
-        references.push({ file: file.replaceAll('\\', '/'), name: imported.fileName })
+      for (const imported of collectImportedSpecifiers(file, source)) {
+        references.push({ file: file.replaceAll('\\', '/'), name: imported })
       }
       referencesByManifest.set(manifestPath, references)
     }
@@ -341,14 +202,9 @@ export function packageTestFixtureDependencyErrors(repoRoot: string = root): str
     return ['package test fixture dependency scan found no fixture modules beside Loader configs']
   }
   return [...referencesByManifest].flatMap(([manifestPath, references]) =>
-    packageTestPluginDependencyErrors(
-      manifestPath,
-      readManifest(manifestPath, repoRoot),
-      references,
-    ))
+    packageTestPluginDependencyErrors(manifestPath, readManifest(manifestPath, repoRoot), references))
 }
 
-/** Owner manifest for a package-local test path. */
 function packageTestManifestPath(file: string): string | undefined {
   const match = /^(packages\/[^/]+\/[^/]+)\/tests(?:\/|$)/.exec(file.replaceAll('\\', '/'))
   return match?.[1] === undefined ? undefined : `${match[1]}/package.json`
@@ -379,48 +235,18 @@ export function bundlePluginDependencyErrors(
   references: readonly PluginReference[],
 ): string[] {
   return missingPluginDependencies(
-    // A Bundle may mount its own package (for example, its provider or runtime row).
     references.filter(reference => packageNameFromSpecifier(reference.name) !== manifest.name),
     manifest.dependencies ?? {},
     `${manifestPath} dependencies`,
   )
 }
 
-/**
- * Every configured specifier of a local workspace package must resolve through
- * the tsconfig `paths` facade to a `.ts`/`.tsx` source file. The `dsh` source
- * launch (tsx) and vitest resolve in the source plane; without a `paths` match
- * they fall back to package `exports`, which reach built `lib/` — present on a
- * built dev tree, absent on a clean one — so a missing mapping boots locally
- * yet breaks every clean checkout. Anything but a `.ts`/`.tsx` hit (a `.d.ts`
- * or `.js` under built `lib/`) is that artifact-plane fallback, not source.
- */
 function validateSourcePlaneResolution(): string[] {
   const violations: string[] = []
   const localPackages = localPackageDirectories()
-  const config = ts.readConfigFile(resolve(root, 'tsconfig.base.json'), path => ts.sys.readFile(path))
-  if (config.error !== undefined) {
-    throw new Error(ts.flattenDiagnosticMessageText(config.error.messageText, '\n'))
-  }
-  const { options, errors: optionErrors } = ts.convertCompilerOptionsFromJson(
-    (config.config as { compilerOptions?: unknown }).compilerOptions,
-    root,
-    'tsconfig.base.json',
-  )
-  if (optionErrors.length > 0) {
-    throw new Error(optionErrors.map(error => ts.flattenDiagnosticMessageText(error.messageText, '\n')).join('\n'))
-  }
-  // convertCompilerOptionsFromJson leaves `pathsBasePath` unset, so relative
-  // `paths` targets resolve against the host's current directory; anchor it to
-  // the repository root to keep the gate cwd-independent.
-  const host: ts.ModuleResolutionHost = {
-    fileExists: path => ts.sys.fileExists(path),
-    readFile: path => ts.sys.readFile(path),
-    directoryExists: path => ts.sys.directoryExists(path),
-    getCurrentDirectory: () => root,
-  }
-  const sourceExtensions = new Set<string>([ts.Extension.Ts, ts.Extension.Tsx])
-  const containingFile = resolve(root, 'scripts/verify-cordis-config.ts')
+  const loaded = loadBasePaths(root)
+  if ('error' in loaded) throw new Error(loaded.error)
+  const paths = loaded.paths
   const locationsBySpecifier = new Map<string, Set<string>>()
   for (const reference of pluginReferences) {
     const packageName = packageNameFromSpecifier(reference.name)
@@ -430,8 +256,7 @@ function validateSourcePlaneResolution(): string[] {
     locationsBySpecifier.set(reference.name, locations)
   }
   for (const [specifier, locations] of locationsBySpecifier) {
-    const resolved = ts.resolveModuleName(specifier, containingFile, options, host).resolvedModule
-    if (resolved !== undefined && sourceExtensions.has(resolved.extension)) continue
+    if (resolveSpecifierThroughPaths(specifier, paths, root) !== undefined) continue
     violations.push(`${[...locations].join(', ')}: ${specifier} does not resolve to workspace source through tsconfig.base.json paths (add a mapping so the tsx source launch does not depend on built lib/)`)
   }
   return violations
@@ -443,7 +268,7 @@ function missingPluginDependencies(
   dependencyOwner: string,
 ): string[] {
   const requiredPackages = new Map<string, Set<string>>()
-  const require = (packageName: string, file: string): void => {
+  const require = (packageName: string, file: string) => {
     const locations = requiredPackages.get(packageName) ?? new Set<string>()
     locations.add(file)
     requiredPackages.set(packageName, locations)
@@ -461,8 +286,45 @@ function missingPluginDependencies(
     : `${[...locations].join(', ')}: ${packageName} must be declared in ${dependencyOwner}`)
 }
 
+function optionalString(record: object, key: string): string | undefined {
+  if (!Object.hasOwn(record, key)) return undefined
+  const value = Reflect.get(record, key)
+  return typeof value === 'string' ? value : undefined
+}
+
+function optionalStringRecord(record: object, key: string): Record<string, string> {
+  if (!Object.hasOwn(record, key)) return {}
+  const value = Reflect.get(record, key)
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return {}
+  const out: Record<string, string> = {}
+  for (const [name, range] of Object.entries(value)) {
+    if (typeof range === 'string') out[name] = range
+  }
+  return out
+}
+
 function readManifest(path: string, repoRoot: string = root): PackageManifest {
-  return JSON.parse(readFileSync(resolve(repoRoot, path), 'utf8')) as PackageManifest
+  const result = readConfigFile(resolve(repoRoot, path))
+  if (result.error !== undefined) throw new Error(result.error.messageText)
+  const config = result.config
+  if (config === null || typeof config !== 'object' || Array.isArray(config)) {
+    throw new Error(`${path} is not a JSON object`)
+  }
+  const name = optionalString(config, 'name')
+  const dsh = Reflect.get(config, 'dsh')
+  const bundle = dsh !== null && typeof dsh === 'object' && !Array.isArray(dsh)
+    ? Reflect.get(dsh, 'bundle')
+    : undefined
+  const patch = bundle !== null && typeof bundle === 'object' && !Array.isArray(bundle)
+    ? Reflect.get(bundle, 'patch')
+    : undefined
+  return {
+    ...name === undefined ? {} : { name },
+    dependencies: optionalStringRecord(config, 'dependencies'),
+    devDependencies: optionalStringRecord(config, 'devDependencies'),
+    optionalDependencies: optionalStringRecord(config, 'optionalDependencies'),
+    ...typeof patch === 'string' ? { dsh: { bundle: { patch } } } : {},
+  }
 }
 
 function localPackageDirectories(): Map<string, string> {
@@ -481,83 +343,5 @@ function packageNameFromSpecifier(specifier: string): string | undefined {
   if (specifier.startsWith('@')) {
     return segments.length >= 2 ? `${segments[0]}/${segments[1]}` : undefined
   }
-  return segments[0] || undefined
-}
-
-function validateMetadata(entry: Record<string, unknown>, file: string, path: string): void {
-  for (const problem of metadataExpressionErrors(entry, path)) {
-    errors.push(`${file}${problem}`)
-  }
-}
-
-/**
- * Expression-node diagnostics for one entry. `disabled` is the single
- * interpolated metadata field: its own `!!js` expression node is allowed and
- * must parse, while expressions nested below it stay truthy data; every other
- * metadata field must stay fully static.
- * @param entry - one loader entry (or patch row).
- * @param path - the entry's diagnostic path prefix.
- * @returns one diagnostic per offending expression.
- */
-export function metadataExpressionErrors(entry: Record<string, unknown>, path: string): string[] {
-  const problems: string[] = []
-  for (const field of metadataFields) {
-    if (!(field in entry)) continue
-    const expressionPaths: string[] = []
-    collectExpressionPaths(entry[field], `${path}.${field}`, expressionPaths)
-    for (const expressionPath of expressionPaths) problems.push(`${expressionPath}: !!js is not interpolated here`)
-  }
-  const disabled = entry.disabled
-  if (disabled !== undefined) {
-    if (isJsExpr(disabled)) {
-      const detail = disabledExpressionProblem(disabled.__jsExpr)
-      if (detail !== undefined) problems.push(`${path}.disabled${detail}`)
-    } else {
-      // A non-expression value gates on Boolean() at mount; an expression
-      // nested anywhere below it never evaluates, so it must stay literal.
-      const expressionPaths: string[] = []
-      collectExpressionPaths(disabled, `${path}.disabled`, expressionPaths)
-      for (const expressionPath of expressionPaths) problems.push(`${expressionPath}: !!js is not interpolated here`)
-    }
-  }
-  return problems
-}
-
-/**
- * Parse-only validation of a `disabled` expression: the Loader evaluates it
- * at every mount decision, and a syntax error would fail the boot — rejecting
- * it here moves that failure to the earliest resolvable point.
- * @param expression - the `!!js` expression text.
- * @returns the diagnostic suffix, or `undefined` when the expression parses.
- */
-function disabledExpressionProblem(expression: string): string | undefined {
-  try {
-    // Compilation only — constructing a Script does not execute its source.
-    new Script(`(${expression})`)
-    return undefined
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error)
-    return `: disabled expression does not parse: ${detail}`
-  }
-}
-
-function collectExpressionPaths(value: unknown, path: string, output: string[]): void {
-  if (isJsExpr(value)) {
-    output.push(path)
-    return
-  }
-  if (isUnknownArray(value)) {
-    for (let index = 0; index < value.length; index++) collectExpressionPaths(value[index], `${path}[${index}]`, output)
-    return
-  }
-  if (!isRecord(value)) return
-  for (const [key, child] of Object.entries(value)) collectExpressionPaths(child, `${path}.${key}`, output)
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object'
-}
-
-function isUnknownArray(value: unknown): value is unknown[] {
-  return Array.isArray(value)
+  return segments[0] === '' ? undefined : segments[0]
 }

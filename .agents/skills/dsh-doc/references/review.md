@@ -53,10 +53,10 @@ The `session-persistence-sqlite` README pair ([English](../../../../packages/ses
 Run the smallest focused checks while iterating, then the standing documentation checks:
 
 ```sh
-pnpm run test:docs
-pnpm run verify-translation-pairing --write <pair>
-pnpm run doc-sync
-pnpm run lint
+bun run test:docs
+bun run verify-translation-pairing --write <pair>
+bun run doc-sync
+bun run lint
 git diff --check
 ```
 

@@ -9,6 +9,8 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
+import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
+import type { SurfaceAudit } from '@deepseek-ai/dsh-client-a11y'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 // Export discipline: packages/client/AGENTS.md.
@@ -243,5 +245,38 @@ describe('AskQuestionRow', () => {
       { name: 'tool.call.toolview', key: 'ask_user_question', locale: 'conversation' },
       AskQuestionRow,
     )
+  })
+})
+
+/**
+ * A tool row is how the user reads what the agent did, so its structure is
+ * what a screen reader has to convey. Audited running and answered, against
+ * the same fixed WCAG A/AA rule set and floor the primitives lane holds.
+ */
+describe('ask-question row accessibility', () => {
+  const MINIMUM_ACCESSIBILITY_SCORE = 100
+
+  it('renders no accessibility violations while running or once answered', async () => {
+    const audits: SurfaceAudit[] = []
+    const surfaces = [
+      ['AskQuestionRow running', rowProps(runningCall(READABLE_ARGS))],
+      ['AskQuestionRow answered', rowProps(resultNode(READABLE_ARGS, answers([
+        { id: 'goal', selected: ['Ship the picker'] },
+      ])))],
+    ] as const
+    for (const [surface, props] of surfaces) {
+      // The page shell supplies the `main` landmark the page-structure rules
+      // need; without it the harness's own missing frame reads as a defect.
+      const { baseElement } = render(<main><AskQuestionRow {...props} /></main>)
+      audits.push(await auditSurface(surface, baseElement))
+      cleanup()
+    }
+
+    // A surface that decided nothing would score 100 for free.
+    for (const audit of audits) {
+      expect(audit.passed + audit.failed, `${audit.surface} decided no checks`).toBeGreaterThan(0)
+    }
+    expect([...new Set(audits.flatMap(audit => audit.undecidedRules))]).toEqual(['color-contrast'])
+    expect(accessibilityFailures(audits, MINIMUM_ACCESSIBILITY_SCORE)).toBe('')
   })
 })

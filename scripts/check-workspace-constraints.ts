@@ -168,7 +168,7 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   ],
   '@deepseek-ai/dsh-skill-badge': ['assets'],
   // tsdown shares the repository/pack code between the lib entry and the bin
-  // through a hashed chunk. The committed bin.js is the link target pnpm can
+  // through a hashed chunk. The committed bin.js is the link target bun can
   // resolve at install time, before the build produces lib/bin.js.
   '@deepseek-ai/dsh-experimental-webworker-packer': ['bin.js', 'lib/repository-*.js'],
   '@deepseek-ai/dsh-subprocess-local': ['scripts/ensure-spawn-helper.mjs'],
@@ -465,7 +465,7 @@ export function checkExperimentalDependencyIsolation(manifests: readonly Workspa
  * Require the `workspace:` protocol for every reference to a workspace member.
  *
  * A hand-written range says nothing about the version the workspace actually
- * carries, and `pnpm pack` leaves it alone: `^0.0.1` published from version
+ * carries, and `bun pm pack` leaves it alone: `^0.0.1` published from version
  * `0.0.2` names a version that does not exist. The protocol makes pack
  * substitute the member's real version, so no release step rewrites ranges.
  * @param manifests - every workspace manifest.

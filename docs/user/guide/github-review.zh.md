@@ -26,7 +26,7 @@ printf '%s\n' "$DSH_GITHUB_WEBHOOK_SECRET"
 
 ```sh
 export DSH_GITHUB_REVIEW_WORKSPACE=/path/to/deepseek-harness
-pnpm dsh web --patch apps/cli/config/examples/github-review/cordis.yml
+bun run dsh web --patch apps/cli/config/examples/github-review/cordis.yml
 ```
 
 安装版 DSH 通过绝对路径使用同一 overlay：

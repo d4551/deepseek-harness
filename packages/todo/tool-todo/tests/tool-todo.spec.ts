@@ -298,3 +298,103 @@ describe('todo/write event', () => {
     expect(replayed.firstLiveSeq).toBe(original.seq)
   })
 })
+
+/**
+ * The description, parameter text, and output schema the model actually reads.
+ * Pinned verbatim because they are model-visible contract: a fragment check
+ * leaves every other sentence free to change, or vanish, unnoticed.
+ */
+const DESCRIPTION_HEAD = 'Record and update a structured task list for the current work. Send the ENTIRE '
+  + 'list every call — it REPLACES the previous list (there are no partial updates, '
+  + 'no per-item edits). Use it to plan multi-step work and show progress: add one '
+  + 'todo per concrete step before you start. '
+
+const DESCRIPTION_TAIL = 'Mark a todo '
+  + '`completed` the moment it is done (do not batch completions), and allow no '
+  + '`in_progress` item only once all work is complete. Skip the list for trivial '
+  + 'single-step tasks. Statuses: `pending` (not started), `in_progress` (being '
+  + 'worked on now), `completed` (finished).'
+
+const DESCRIPTION_PARALLEL = 'Mark every todo being actively worked '
+  + 'on `in_progress` — several at once when work genuinely runs in parallel (e.g. '
+  + 'concurrent subagents or background commands), one for sequential work; while '
+  + 'work remains, at least one task should be `in_progress`. '
+
+const DESCRIPTION_SINGLE = 'Keep AT MOST ONE todo `in_progress` at a '
+  + 'time; while work remains, exactly one active task should be `in_progress`. '
+
+describe('todo_write model-facing surface', () => {
+  const schemaOf = async (allowParallel: boolean) => {
+    const ctx = await setup(allowParallel)
+    const schema = ctx.tools.schemas().find(entry => entry.name === 'todo_write')
+    if (schema === undefined) throw new Error('todo_write is not registered')
+    return schema
+  }
+
+  it('sends the whole composed description, not just the clause that varies', async () => {
+    expect((await schemaOf(false)).description).toBe(DESCRIPTION_HEAD + DESCRIPTION_SINGLE + DESCRIPTION_TAIL)
+    expect((await schemaOf(true)).description).toBe(DESCRIPTION_HEAD + DESCRIPTION_PARALLEL + DESCRIPTION_TAIL)
+  })
+
+  it('describes every parameter the model fills in', async () => {
+    const parameters = (await schemaOf(true)).parameters as {
+      properties: {
+        todos: {
+          description: string
+          items: {
+            additionalProperties: boolean
+            properties: Record<string, { description: string; enum?: string[] }>
+          }
+        }
+      }
+    }
+    const todos = parameters.properties.todos
+    expect(todos.description).toBe('The COMPLETE task list, replacing any previous list.')
+    expect(todos.items.properties.content?.description).toBe('What the task is — a short imperative line.')
+    expect(todos.items.properties.status?.description).toBe('pending (not started) | in_progress (now) | completed (done).')
+    expect(todos.items.properties.status?.enum).toEqual(['pending', 'in_progress', 'completed'])
+    // The logged snapshot must equal what the model believes it wrote, so an
+    // extended item is refused at the schema rather than silently flattened.
+    expect(todos.items.additionalProperties).toBe(false)
+  })
+
+  it('refuses extra keys at every level of the structured output', async () => {
+    // The output schema is validated against the tool's own result and
+    // projected into both SDKs' generated types, so an object that silently
+    // admitted extra keys would widen both without any test noticing.
+    const ctx = await setup(true)
+    const definition = ctx.tools.get('todo_write')
+    if (definition === undefined) throw new Error('todo_write is not registered')
+    const schema = definition.output.schema as {
+      additionalProperties: boolean
+      properties: {
+        todos: { items: { additionalProperties: boolean } }
+        counts: { additionalProperties: boolean }
+      }
+    }
+    expect(schema.additionalProperties).toBe(false)
+    expect(schema.properties.todos.items.additionalProperties).toBe(false)
+    expect(schema.properties.counts.additionalProperties).toBe(false)
+  })
+
+  it('counts completed todos rather than reporting a constant zero', async () => {
+    const ctx = await setup(true)
+    const result = await callTodo(ctx, {
+      todos: [
+        { content: 'done one', status: 'completed' },
+        { content: 'done two', status: 'completed' },
+        { content: 'still going', status: 'in_progress' },
+      ],
+    })
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected todo_write success')
+    expect(result.value).toEqual({
+      todos: [
+        { content: 'done one', status: 'completed' },
+        { content: 'done two', status: 'completed' },
+        { content: 'still going', status: 'in_progress' },
+      ],
+      counts: { pending: 0, inProgress: 1, completed: 2 },
+    })
+  })
+})

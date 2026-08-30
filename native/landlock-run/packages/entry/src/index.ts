@@ -74,8 +74,8 @@ export function launcherPath(
     return join(dirname(resolvePackageJson(`${platformPackage}/package.json`)), 'bin', LAUNCHER_BIN)
   } catch {
     // Unresolvable platform package: no such package exists for this host, or
-    // it was not installed. Fall back to the path pnpm's layout WOULD use —
-    // absolute, inside this package's boundary (never cwd-relative: a
+    // it was not installed. Fall back to a path inside this package's own
+    // boundary — absolute (never cwd-relative: a
     // spawnable relative path here would hand cwd control over which binary
     // confines), and nonexistent exactly when the package is absent.
     return fileURLToPath(new URL(`../node_modules/${platformPackage}/bin/${LAUNCHER_BIN}`, import.meta.url))

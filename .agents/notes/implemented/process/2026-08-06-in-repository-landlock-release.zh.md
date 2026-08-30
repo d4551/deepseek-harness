@@ -16,7 +16,7 @@ Status: implemented
 
 ## 决策
 
-`native/landlock-run` 和 `native/landlock-run/packages/*` 属于仓库根 pnpm workspace，并使用根 `pnpm-lock.yaml`。Harness 消费方将 `@deepseek-ai/node-addon-landlock-run` 声明为 `workspace:*`，因此开发、类型检查、构建和 PR 测试都会从同一个 checkout 解析入口包。根 TypeScript 项目图会先构建该入口包，再构建消费方；仓库清理器负责清理其直接生成的 `lib/` 输出目录。
+`native/landlock-run` 和 `native/landlock-run/packages/*` 属于仓库根 workspace，并使用根 `bun.lock`。Harness 消费方将 `@deepseek-ai/node-addon-landlock-run` 声明为 `workspace:*`，因此开发、类型检查、构建和 PR 测试都会从同一个 checkout 解析入口包。根 TypeScript 项目图会先构建该入口包，再构建消费方；仓库清理器负责清理其直接生成的 `lib/` 输出目录。
 
 公开 npm 分发边界由 3 个归组织所有的包组成，它们共用一个启动器包家族版本：`@deepseek-ai/node-addon-landlock-run`、`@deepseek-ai/node-addon-landlock-run-linux-x64` 和 `@deepseek-ai/node-addon-landlock-run-linux-arm64`。入口包继续通过 `optionalDependencies` 声明两个平台包；它们在 manifest（元数据清单）中的 `os` 和 `cpu` 字段让 npm 只安装兼容的包。仓库约束要求这 3 个包名设置 `publishConfig.access: public`，并要求其版本与私有启动器 workspace 根包一致。原先的非 scoped 包名不属于本仓库的发布目标。这 3 个已不再是唯一的公开包：[按序列区分 access 的决策](2026-08-13-public-vendor-and-native-sequences.zh.md)让 vendored 框架九包也公开发布，而 dsh 族保持受限。
 

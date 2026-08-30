@@ -1,0 +1,122 @@
+// @vitest-environment jsdom
+import { describe, expect, it } from 'vitest'
+import axe from 'axe-core'
+import type { Result } from 'axe-core'
+import {
+  accessibilityFailures,
+  accessibilityScore,
+  CLIENT_AXE_TAGS,
+  clientAxeRunOptions,
+  formatViolations,
+} from '../src/index.ts'
+import type { SurfaceAudit } from '../src/index.ts'
+
+/** One violated rule over `targets`, with `impact` left off when not supplied. */
+function violation(id: string, help: string, targets: string[][], impact?: Result['impact']): Result {
+  return {
+    id,
+    help,
+    ...impact === undefined ? {} : { impact },
+    nodes: targets.map(target => ({ target })),
+  } as Result
+}
+
+function audit(surface: string, over: Partial<SurfaceAudit> = {}): SurfaceAudit {
+  return { surface, violations: [], passed: 0, failed: 0, undecided: 0, undecidedRules: [], ...over }
+}
+
+describe('accessibilityScore', () => {
+  it('reports the percentage of decided checks that passed', () => {
+    expect(accessibilityScore([audit('a', { passed: 99, failed: 1 })])).toBe(99)
+    expect(accessibilityScore([audit('a', { passed: 3, failed: 1 })])).toBe(75)
+  })
+
+  it('sums every surface rather than averaging their scores', () => {
+    // One clean surface must not lift a failing one to 50%.
+    expect(accessibilityScore([
+      audit('clean', { passed: 1, failed: 0 }),
+      audit('broken', { passed: 0, failed: 3 }),
+    ])).toBe(25)
+  })
+
+  it('ignores undecided checks, which belong to neither side', () => {
+    expect(accessibilityScore([
+      audit('a', { passed: 1, failed: 1, undecided: 98, undecidedRules: ['color-contrast'] }),
+    ])).toBe(50)
+  })
+
+  it('scores audits that decided nothing as 100, since nothing failed', () => {
+    expect(accessibilityScore([])).toBe(100)
+    expect(accessibilityScore([
+      audit('empty'),
+      audit('also-empty', { undecided: 4, undecidedRules: ['color-contrast'] }),
+    ])).toBe(100)
+  })
+})
+
+describe('formatViolations', () => {
+  it('renders one line per offending node, naming rule, impact, target, and help', () => {
+    const subject = audit('Button', {
+      failed: 2,
+      violations: [violation('button-name', 'Buttons must have discernible text', [['.a'], ['#b', 'span']], 'critical')],
+    })
+
+    expect(formatViolations(subject)).toBe(
+      'Button: button-name (critical) at .a — Buttons must have discernible text\n'
+      + 'Button: button-name (critical) at #b span — Buttons must have discernible text',
+    )
+  })
+
+  it('names a rule that carries no impact rather than printing nothing', () => {
+    const subject = audit('Menu', { failed: 1, violations: [violation('region', 'All content in landmarks', [['main']])] })
+
+    expect(formatViolations(subject)).toBe('Menu: region (no impact) at main — All content in landmarks')
+  })
+
+  it('renders an empty string for a clean surface', () => {
+    expect(formatViolations(audit('Pill', { passed: 12 }))).toBe('')
+  })
+})
+
+describe('accessibilityFailures', () => {
+  it('is empty when every surface decided checks and none failed', () => {
+    expect(accessibilityFailures([audit('a', { passed: 4 })], 100)).toBe('')
+  })
+
+  it('names a surface that decided nothing', () => {
+    expect(accessibilityFailures([audit('empty')], 100)).toBe('empty decided no checks')
+  })
+
+  it('reports violations before a score miss', () => {
+    expect(accessibilityFailures([
+      audit('Button', { passed: 1, failed: 1, violations: [violation('button-name', 'Buttons must have discernible text', [['button']])] }),
+    ], 100)).toContain('button-name')
+  })
+
+  it('reports a score below the floor when nothing was violated in the formatter', () => {
+    expect(accessibilityFailures([audit('a', { passed: 99, failed: 1 })], 100)).toBe('score 99 < 100')
+  })
+})
+
+describe('CLIENT_AXE_TAGS', () => {
+  it('holds every audited surface to WCAG 2.0/2.1/2.2 A, AA, and best practice', () => {
+    expect([...CLIENT_AXE_TAGS]).toEqual([
+      'wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22a', 'wcag22aa', 'best-practice',
+    ])
+  })
+})
+
+describe('clientAxeRunOptions', () => {
+  it('cannot drop WCAG 2.2 or AA, and re-enables axe-core 2.2 rules that ship disabled', () => {
+    const options = clientAxeRunOptions()
+    expect(options.runOnly).toEqual({ type: 'tag', values: [...CLIENT_AXE_TAGS] })
+    const tags = new Set(CLIENT_AXE_TAGS)
+    expect(tags.has('wcag2aa')).toBe(true)
+    expect(tags.has('wcag21aa')).toBe(true)
+    expect(tags.has('wcag22aa')).toBe(true)
+    const wcag22 = axe.getRules(['wcag22aa'])
+    expect(wcag22.length).toBeGreaterThan(0)
+    expect(wcag22.some(rule => rule.ruleId === 'target-size')).toBe(true)
+    expect(options.rules?.['target-size']?.enabled).toBe(true)
+  })
+})

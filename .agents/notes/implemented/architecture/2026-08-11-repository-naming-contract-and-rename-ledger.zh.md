@@ -377,7 +377,7 @@ PascalCase 标识符内部使用 `Ui`，不要使用 `UI`。除非清单明确�
 - 当前处于 implemented 状态的 Agent Note 使用事实名称和路径。包重新分组说明记录分组清单和包名目标，SDK 移除说明将 `SDK` 限定为运行时协议，超时策略说明记录包名理由。
 - 配对的包创建指南包含职责词约定，`packages/AGENTS.md` 链接到该约定，术语表记录选定用词和 `Typert` 拼写，根项目文案将产品称为 DeepSeek Harness，而不是 DeepSeek Harness SDK。
 - 已移除的 SDK 项目工具链继续保持不存在。
-- `pnpm run check:ci` 覆盖源代码平面的类型检查、构建、包卫生检查、生成参考资料检查、受影响的快照、翻译配对、`doc-sync` 和 lint。发布形态的 Python 运行时冒烟测试和必需 CI 覆盖打包运行时与平台路径。
+- `bun run check:ci` 覆盖源代码平面的类型检查、构建、包卫生检查、生成参考资料检查、受影响的快照、翻译配对、`doc-sync` 和 lint。发布形态的 Python 运行时冒烟测试和必需 CI 覆盖打包运行时与平台路径。
 
 ## 后果
 

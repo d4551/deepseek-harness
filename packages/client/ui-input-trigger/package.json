@@ -60,6 +60,7 @@
     "@deepseek-ai/dsh-client-ui-session": "workspace:^"
   },
   "devDependencies": {
+    "@deepseek-ai/dsh-client-a11y": "workspace:*",
     "@deepseek-ai/dsh-client-locale": "workspace:^",
     "@deepseek-ai/dsh-client-ui-conversation": "workspace:^",
     "@deepseek-ai/dsh-client-ui-renderer": "workspace:^",

@@ -2,8 +2,8 @@
 /**
  * Pack every published package into release tarballs, in publish order
  * (platform packages first, then the entries that optionally depend on
- * them), and write `publish-order.txt` next to them. `pnpm pack` produces
- * the EXACT bytes `pnpm publish` would upload and runs each package's
+ * them), and write `publish-order.txt` next to them. These tarballs are the
+ * EXACT bytes `publish-release.mjs` uploads, and packing runs each package's
  * `prepack` gate, so a missing binary or unbuilt `lib/` refuses here.
  *
  * Usage: `node scripts/pack-release.mjs [dest] [--current-platform-only]`.
@@ -26,9 +26,9 @@ function hostPlatformDirs() {
   return platformDirs().filter((dir) => readJson(path.join(root, dir, 'prebuilds.json')).platform === hostPlatform);
 }
 
-function run(command, args) {
+function run(command, args, cwd = root) {
   const result = spawnSync(command, args, {
-    cwd: root,
+    cwd,
     stdio: 'inherit',
   });
   if (result.error) throw result.error;
@@ -48,21 +48,14 @@ fs.rmSync(destination, { recursive: true, force: true });
 fs.mkdirSync(destination, { recursive: true });
 
 const dirs = [...(currentPlatformOnly ? hostPlatformDirs() : platformDirs()), ...entryDirs()];
-const platformSet = new Set(platformDirs());
 const publishOrder = [];
 for (const dir of dirs) {
   const manifest = readJson(path.join(root, dir, 'package.json'));
-  // Platform packages are packed with npm: pnpm pack (observed on 11.7.0)
-  // normalizes file modes and STRIPS the executable bit, which ships a
-  // launcher no consumer can spawn; npm pack preserves it. Platform packages
-  // have no dependencies by construction, so they need none of pnpm's
-  // workspace-protocol conversion — the entry packages do, and carry no
-  // executables, so they keep pnpm pack.
-  if (platformSet.has(dir)) {
-    run('npm', ['pack', `./${dir}`, '--pack-destination', destination]);
-  } else {
-    run('pnpm', ['--dir', dir, 'pack', '--pack-destination', destination]);
-  }
+  // `bun pm pack` packs the package in its cwd. It preserves the launcher's
+  // executable bit, which a platform package ships and a consumer must be
+  // able to spawn, and rewrites the entry package's `workspace:*` optional
+  // dependencies to the concrete version a registry consumer can resolve.
+  run('bun', ['pm', 'pack', '--destination', destination], path.join(root, dir));
 
   const tarball = tarballName(manifest);
   const tarballPath = path.join(destination, tarball);
