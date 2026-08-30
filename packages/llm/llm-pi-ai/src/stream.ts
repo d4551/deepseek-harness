@@ -30,6 +30,30 @@ export function mapUsage(usage: PiUsage): TokenUsage {
   }
 }
 
+/** Provider HTTP status pi-ai puts in front of the response body it failed on. */
+const HTTP_STATUS_PREFIX = /^\s*(?:HTTP\s+)?(\d{3})\b/i
+
+/**
+ * Classify a failure whose text opens with the provider's HTTP status.
+ *
+ * The body after the status is arbitrary: a gateway's HTML error page carries
+ * SVG path coordinates and CSS lengths that read as status codes to a
+ * word-boundary scan, which is how a 502 waiting-for-upstream page came back as
+ * a non-retryable authentication failure. A leading status therefore decides on
+ * its own, and only a rate-limit refusal consults the body for quota wording.
+ * @param status - the leading status.
+ * @param message - the whole failure text, body included.
+ * @returns the stable harness code.
+ */
+function classifyHttpStatus(status: number, message: string): string {
+  if (status === 401 || status === 403) return 'AUTH'
+  if (status >= 500) return 'SERVER'
+  if (isQuotaExceededError(message)) return QUOTA_EXCEEDED_CODE
+  if (status === 429) return 'RATE_LIMIT'
+  if (status === 400 || status === 413) return 'INVALID_REQUEST'
+  return 'PI_AI_ERROR'
+}
+
 // XXX(pi-ai upstream): pi-ai flattens the caught error to `error.message`
 // (api/anthropic-messages.js: `errorMessage = error instanceof Error ?
 // error.message : JSON.stringify(error)`), discarding the original Error and its
@@ -39,6 +63,8 @@ export function mapUsage(usage: PiUsage): TokenUsage {
 // If pi-ai ever forwards the original Error (or a fetch/dispatcher hook that lets
 // us capture the cause ourselves), classify on `code`/`cause` instead of text.
 function classifyPiAiError(message: string): string {
+  const status = HTTP_STATUS_PREFIX.exec(message)?.[1]
+  if (status !== undefined) return classifyHttpStatus(Number(status), message)
   if (/\b(?:401|403)\b/.test(message)) return 'AUTH'
   if (isQuotaExceededError(message)) return QUOTA_EXCEEDED_CODE
   if (/\b429\b|rate.?limit/i.test(message)) return 'RATE_LIMIT'
