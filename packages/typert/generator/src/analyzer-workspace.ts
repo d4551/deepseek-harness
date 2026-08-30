@@ -194,9 +194,24 @@ export class WorkspaceAnalyzer {
   ): string {
     const cached = this.faceProgramPaths.get(face)
     if (cached !== undefined) return cached
-    const fileNames = new Set(this.caches.config(aggregatePath).fileNames)
+    // The face program covers authored package source only: spec files are
+    // not product surface, and analyzing them applies Remote contracts to
+    // test fixtures that exist to break them. Files under the workspace
+    // packages tree must sit inside a registered package's src; files
+    // elsewhere (root scripts, vendor) pass through.
+    const packagesRoot = join(this.options.root, 'packages')
+    const sourceRoots = registrations.map(registration => join(registration.root, 'src'))
+    const isProgramSource = (file: string): boolean => {
+      const real = realPath(file)
+      if (!isWithin(real, packagesRoot)) return true
+      return sourceRoots.some(source => isWithin(real, source))
+    }
+    const fileNames = new Set(this.caches.config(aggregatePath).fileNames.filter(isProgramSource))
     for (const registration of registrations) {
-      for (const file of registration.config.fileNames) fileNames.add(file)
+      const sourceRoot = join(registration.root, 'src')
+      for (const file of registration.config.fileNames) {
+        if (isWithin(realPath(file), sourceRoot)) fileNames.add(file)
+      }
     }
     const sidecar = writeProgramConfig(aggregatePath, [...fileNames])
     this.faceProgramPaths.set(face, sidecar)
