@@ -28,6 +28,21 @@ import {
 } from './verify-cordis-config-paths.ts'
 import { readConfigFile, type JsonValue } from './ts7-session.ts'
 
+/** Project a parsed package.json onto the two fields the client-halves check reads. */
+export function manifestToHalves(manifest: PackageManifest): ClientHalvesManifest {
+  const record = manifest as Record<string, JsonValue | undefined>
+  const exportsField = record.exports
+  const dshField = record.dsh
+  const exportsObject = exportsField === undefined || exportsField === null
+    || typeof exportsField !== 'object' || Array.isArray(exportsField) ? undefined : exportsField
+  const dshObject = dshField === undefined || dshField === null
+    || typeof dshField !== 'object' || Array.isArray(dshField) ? undefined : dshField
+  return {
+    ...exportsObject === undefined ? {} : { exports: exportsObject },
+    ...dshObject === undefined ? {} : { dsh: dshObject },
+  }
+}
+
 export interface PackageManifest {
   name?: string
   dependencies?: Record<string, string>
@@ -85,20 +100,6 @@ if (import.meta.main) {
     process.exitCode = 1
   } else {
     process.stdout.write(`verify-cordis-config: ${String(files.length)} config files passed.\n`)
-  }
-}
-
-function manifestToHalves(manifest: PackageManifest): ClientHalvesManifest {
-  const manifestRecord = manifest as Record<string, JsonValue | undefined>
-  const exportsField = manifestRecord.exports
-  const dshField = manifestRecord.dsh
-  return {
-    ...exportsField === undefined || typeof exportsField !== 'object' || Array.isArray(exportsField)
-      ? {}
-      : { exports: exportsField },
-    ...dshField === undefined || typeof dshField !== 'object' || Array.isArray(dshField)
-      ? {}
-      : { dsh: dshField as { client?: JsonValue } },
   }
 }
 

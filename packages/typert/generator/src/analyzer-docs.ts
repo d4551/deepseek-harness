@@ -124,6 +124,9 @@ export function documentationOf(node: Node): DocumentationModel {
 }
 
 function tagArgument(tag: JSDocTag): string | undefined {
+  // Own-property only: TS7 exposes a `name` on tag kinds that do not carry an
+  // authored argument, and reading those would add tag arguments to the model.
+  if (!Object.hasOwn(tag, 'name')) return undefined
   return asNode(Reflect.get(tag, 'name'))?.getText()
 }
 

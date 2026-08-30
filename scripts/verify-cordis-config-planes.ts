@@ -6,11 +6,12 @@
 import { globSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { isCordisGroupEntry, isJsExpr, loadCordisYaml, type CordisObject, type CordisValue } from './cordis-yaml.ts'
+import type { JsonValue } from './ts7-session.ts'
 
 /** One parsed package.json surface this gate reads. */
 export interface ClientHalvesManifest {
-  exports?: { [key: string]: CordisValue }
-  dsh?: { client?: CordisValue }
+  exports?: { [key: string]: JsonValue | undefined }
+  dsh?: { [key: string]: JsonValue | undefined }
 }
 
 function isCordisObject(value: CordisValue | undefined): value is CordisObject {
