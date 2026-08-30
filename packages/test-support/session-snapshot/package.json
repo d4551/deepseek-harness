@@ -55,7 +55,6 @@
     "@deepseek-ai/dsh-subagent": "workspace:^",
     "@deepseek-ai/dsh-tools": "workspace:^",
     "@deepseek-ai/dsh-user-questions": "workspace:^",
-    "@deepseek-ai/cordis": "workspace:^",
-    "@types/js-yaml": "^4.0.9"
+    "@deepseek-ai/cordis": "workspace:^"
   }
 }

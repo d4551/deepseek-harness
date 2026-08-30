@@ -3,7 +3,7 @@
  */
 
 /** One declaration group rendered on a Cordis core API page. */
-export type CordisCoreApiSection =
+type CordisCoreApiSection =
   | { kind: 'class'; file: string; symbol: string; prefix?: string; heading?: string }
   | { kind: 'context-merge'; file: string; heading?: string }
   | { kind: 'decl'; file: string; symbol: string }

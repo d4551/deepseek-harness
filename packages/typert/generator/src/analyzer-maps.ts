@@ -57,9 +57,8 @@ function addLookup(
 ) {
   // TS7 declares PropertySignatureDeclaration.type non-optional; an unannotated member parses with none.
   // oxlint-disable-next-line typescript/no-unnecessary-condition
-  if (!isPropertySignatureDeclaration(declaration) || declaration.type === undefined
-    || declaration.postfixToken !== undefined) {
-    face.fail(declaration, 'TypertLookupMap entries must be required annotated properties')
+  if (!isPropertySignatureDeclaration(declaration) || declaration.type === undefined) {
+    face.fail(declaration, 'TypertLookupMap entries must be required properties')
   }
   const key = memberName(declaration.name)
   if (!isRemoteSegment(key)) {
@@ -89,9 +88,8 @@ function addLookup(
 function addContext(face: FaceContext, declaration: TypeElement, result: Map<string, StaticMapEntry>) {
   // TS7 declares PropertySignatureDeclaration.type non-optional; an unannotated member parses with none.
   // oxlint-disable-next-line typescript/no-unnecessary-condition
-  if (!isPropertySignatureDeclaration(declaration) || declaration.type === undefined
-    || declaration.postfixToken !== undefined) {
-    face.fail(declaration, 'TypertContextMap entries must be required annotated properties')
+  if (!isPropertySignatureDeclaration(declaration) || declaration.type === undefined) {
+    face.fail(declaration, 'TypertContextMap entries must be required properties')
   }
   const key = memberName(declaration.name)
   if (!isRemoteSegment(key)) {

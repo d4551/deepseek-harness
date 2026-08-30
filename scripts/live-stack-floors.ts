@@ -42,15 +42,15 @@ export const TYPESCRIPT_FLOOR: SemVer = { major: 7, minor: 0, patch: 2 }
 /** React product pin. */
 export const REACT_FLOOR: SemVer = { major: 19, minor: 2, patch: 8 }
 /** react-dom product pin. */
-export const REACT_DOM_FLOOR: SemVer = { major: 19, minor: 2, patch: 8 }
+const REACT_DOM_FLOOR: SemVer = { major: 19, minor: 2, patch: 8 }
 /** @types/react product pin. */
-export const TYPES_REACT_FLOOR: SemVer = { major: 19, minor: 2, patch: 18 }
+const TYPES_REACT_FLOOR: SemVer = { major: 19, minor: 2, patch: 18 }
 /** @types/react-dom product pin. */
-export const TYPES_REACT_DOM_FLOOR: SemVer = { major: 19, minor: 2, patch: 5 }
+const TYPES_REACT_DOM_FLOOR: SemVer = { major: 19, minor: 2, patch: 5 }
 /** Vite pin for the web app and the repo root (VitePress on the website is exempt). */
 export const VITE_FLOOR: SemVer = { major: 8, minor: 2, patch: 2 }
 /** @vitejs/plugin-react pin for the web app. */
-export const PLUGIN_REACT_FLOOR: SemVer = { major: 6, minor: 1, patch: 1 }
+const PLUGIN_REACT_FLOOR: SemVer = { major: 6, minor: 1, patch: 1 }
 /** axe-core pin. */
 export const AXE_FLOOR: SemVer = { major: 4, minor: 13, patch: 0 }
 /** @modelcontextprotocol/sdk v1 latest. */
@@ -77,7 +77,7 @@ export function parseRangeFloor(range: string): SemVer {
  * @param b - right.
  * @returns negative when `a < b`, zero when equal, positive when `a > b`.
  */
-export function cmpSemVer(a: SemVer, b: SemVer): number {
+function cmpSemVer(a: SemVer, b: SemVer): number {
   return (a.major - b.major) || (a.minor - b.minor) || (a.patch - b.patch)
 }
 

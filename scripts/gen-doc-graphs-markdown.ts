@@ -14,7 +14,7 @@ import { SERVICE_ROLES_TAIL } from './gen-doc-graphs-roles-rest.ts'
 
 type Pkg = PackageGraphNode
 
-export const SERVICE_ROLES: ServiceRole[] = [...SERVICE_ROLES_HEAD, ...SERVICE_ROLES_TAIL]
+const SERVICE_ROLES: ServiceRole[] = [...SERVICE_ROLES_HEAD, ...SERVICE_ROLES_TAIL]
 
 /** Emit the generated-file banner and H1. */
 export function generatedHeader(title: string): string[] {
@@ -62,7 +62,7 @@ export function pkgLink(pkg: Pkg | undefined, fallback: string, up = '..'): stri
 }
 
 /** Comma-separated package links. */
-export function pkgList(names: string[] | undefined, pkgsByShort: Map<string, Pkg>): string {
+function pkgList(names: string[] | undefined, pkgsByShort: Map<string, Pkg>): string {
   if (names === undefined || names.length === 0) return '-'
   return names.map(name => pkgLink(pkgsByShort.get(name), name)).join(', ')
 }

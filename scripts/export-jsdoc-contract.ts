@@ -9,7 +9,7 @@
 
 import type {
   CallSignatureDeclaration, ClassDeclaration, ClassElement, Expression, FunctionTypeNode, MethodDeclaration, Node,
-  ParameterDeclaration, SourceFile, Statement, TypeNode,
+  ParameterDeclaration, SourceFile, TypeNode,
 } from 'typescript/unstable/ast'
 import { ModifierFlags } from 'typescript/unstable/ast'
 import {
@@ -46,7 +46,7 @@ import {
 } from './jsdoc.ts'
 
 /** Plugin-protocol slot names exempt as statics on an exported class. */
-export const PROTOCOL_STATICS = new Set(['Config', 'inject', 'name', 'reusable'])
+const PROTOCOL_STATICS = new Set(['Config', 'inject', 'name', 'reusable'])
 
 /** Plugin-protocol slot names exempt as top-level exports (const or function). */
 export const PROTOCOL_EXPORTS = new Set(['Config', 'inject', 'name', 'reusable', 'apply'])
@@ -67,11 +67,6 @@ export function hasModifierFlag(node: Node, flag: ModifierFlags): boolean {
   return typeof flags === 'number' && (flags & flag) !== 0
 }
 
-/** Whether a top-level statement carries the `export` modifier. */
-export function isExported(stmt: Statement): boolean {
-  return hasModifierFlag(stmt, ModifierFlags.Export)
-}
-
 function classMemberName(member: ClassElement): Node | undefined {
   if (isMethodDeclaration(member) || isPropertyDeclaration(member)
     || isGetAccessorDeclaration(member) || isSetAccessorDeclaration(member)) {
@@ -81,19 +76,19 @@ function classMemberName(member: ClassElement): Node | undefined {
 }
 
 /** Whether a class member is private, protected, or `#`-named. */
-export function isNonPublic(member: ClassElement): boolean {
+function isNonPublic(member: ClassElement): boolean {
   const name = classMemberName(member)
   return hasModifierFlag(member, ModifierFlags.Private) || hasModifierFlag(member, ModifierFlags.Protected)
     || (name !== undefined && isPrivateIdentifier(name))
 }
 
 /** Whether a class member is static. */
-export function isStatic(member: ClassElement): boolean {
+function isStatic(member: ClassElement): boolean {
   return hasModifierFlag(member, ModifierFlags.Static)
 }
 
 /** Whether a resolved declaration is protected (a base member a public override replaces). */
-export function isProtectedDeclaration(d: Node): boolean {
+function isProtectedDeclaration(d: Node): boolean {
   return hasModifierFlag(d, ModifierFlags.Protected)
 }
 
@@ -189,7 +184,7 @@ export function declarationName(declaration: Node): string | undefined {
  * @param checker - the program's type checker.
  * @returns inherited parameter and return coverage, or `null` when none applies.
  */
-export function heritageExemption(
+function heritageExemption(
   cls: ClassDeclaration,
   name: string,
   staticSide: boolean,

@@ -33,7 +33,6 @@ import { formatDiagnostic } from './type-model-shared.ts'
 export {
   isInterfaceDeclaration,
   isPropertySignatureDeclaration,
-  isTypeAliasDeclaration,
 }
 
 /**
@@ -126,15 +125,6 @@ function fileList(files: readonly string[]): string {
 
 export function parseOnDisk(file: string): SourceFile {
   return parsePath(file)
-}
-
-/**
- * Open one tsconfig and return flattened file diagnostics.
- * @param configPath - absolute tsconfig path.
- * @returns diagnostic messages.
- */
-export function compileTsconfig(configPath: string): string[] {
-  return flattenedFileDiagnostics(configPath)
 }
 
 /** One file diagnostic from an opened tsconfig. */

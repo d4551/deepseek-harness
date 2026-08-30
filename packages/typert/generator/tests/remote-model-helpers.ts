@@ -20,7 +20,7 @@ import {
 export const fixtureRoot = resolve(import.meta.dirname, 'fixtures/remote-model')
 export const temporaryRoots: string[] = []
 
-export function normalizedPath(path: string): string {
+function normalizedPath(path: string): string {
   return path.replaceAll('\\', '/')
 }
 
@@ -75,7 +75,7 @@ export function parseDeclarationMap(text: string): {
   }
 }
 
-export function loadRemoteModule(js: string): Promise<object> {
+function loadRemoteModule(js: string): Promise<object> {
   const executable = js.replace("from 'zod'", `from ${JSON.stringify(import.meta.resolve('zod'))}`)
   return import(`data:text/javascript,${encodeURIComponent(executable)}`)
 }

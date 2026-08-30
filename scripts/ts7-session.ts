@@ -104,7 +104,7 @@ export function createSourceFile(fileName: string, text: string): SourceFile {
  * @param separator - inserted between chain entries.
  * @returns the flattened message.
  */
-export function flattenDiagnosticMessageText(
+function flattenDiagnosticMessageText(
   messageText: string | Diagnostic,
   separator: string,
 ): string {

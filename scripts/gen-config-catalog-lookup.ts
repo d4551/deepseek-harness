@@ -51,7 +51,7 @@ function loadRelative(world: World, from: FileCtx, specifier: string): FileCtx {
 }
 
 /** Find a type declaration exported from a file, following relative re-exports. */
-export function findExportedTypeDecl(
+function findExportedTypeDecl(
   world: World,
   ctx: FileCtx,
   name: string,
@@ -81,7 +81,7 @@ export function findExportedTypeDecl(
 }
 
 /** Resolve a referenced type NAME to its declaration or `'unknown'`. */
-export function declForTypeName(
+function declForTypeName(
   world: World,
   ctx: FileCtx,
   name: string,

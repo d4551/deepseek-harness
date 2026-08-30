@@ -14,7 +14,7 @@ export interface JsDocSourceFile {
 }
 
 /** Source text the gate renders for diagnostics. */
-export interface JsDocText {
+interface JsDocText {
   getText(sourceFile?: JsDocSourceFile): string
 }
 
@@ -25,7 +25,7 @@ export interface JsDocNode extends JsDocText {
 }
 
 /** Parameter name: an identifier has `text`; a binding pattern does not. */
-export interface JsDocName extends JsDocText {
+interface JsDocName extends JsDocText {
   readonly text?: string
 }
 

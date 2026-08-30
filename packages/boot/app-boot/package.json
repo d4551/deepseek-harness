@@ -62,7 +62,6 @@
     "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/dsh-home-paths": "workspace:^",
     "@deepseek-ai/dsh-system-prompt": "workspace:^",
-    "@types/js-yaml": "^4.0.9",
     "@deepseek-ai/cordis": "workspace:^"
   }
 }

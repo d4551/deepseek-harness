@@ -229,12 +229,8 @@ export function targetForReference(face: FaceContext, symbol: Symbol, site: Node
   // the site's own type name is only a fallback.
   const symbolImport = importForSymbol(site, symbol.name)
   if (owner !== undefined && owner.name !== from.name) {
-    // A site can name the symbol through a relative barrel that re-exports
-    // another package's type. Such a specifier carries no package identity, so
-    // the owner's own export entry supplies the module a generated import needs.
-    const importedModule = symbolImport === undefined ? undefined : moduleIdentity(symbolImport.specifier)
-    if (symbolImport !== undefined && importedModule !== undefined) {
-      return localTarget(face, symbol, site, declaration, from, owner, importedModule, symbolImport.exportName)
+    if (symbolImport !== undefined) {
+      return localTarget(face, symbol, site, declaration, from, owner, moduleIdentity(symbolImport.specifier), symbolImport.exportName)
     }
     const discovered = ownerExportFor(face, owner, symbol)
     if (discovered !== undefined) {
@@ -312,39 +308,29 @@ function externalOrCrossFace(
   module: ReturnType<typeof moduleIdentity>,
   requestedName: string | undefined,
 ): TypeTargetModel {
-  const declaration = preferredDeclaration(symbol, face.project.project)
-  // A relative barrel can re-export a name another face's package declares. That
-  // specifier carries no package identity, so the declaring package's own export
-  // entry supplies the module and name the cross-face link records.
-  const barrelOwner = module !== undefined || declaration === undefined
-    ? undefined
-    : face.registrationOwningFile(declaration.getSourceFile().fileName)
-  const discovered = barrelOwner === undefined ? undefined : ownerExportFor(face, barrelOwner, symbol)
-  const target = discovered === undefined
-    ? { module, requestedName }
-    : { module: discovered.module, requestedName: discovered.exportName }
-  const packageFaces = target.module === undefined
+  const packageFaces = module === undefined
     ? []
-    : [...new Set(face.allRegistrations.filter(candidate => candidate.name === target.module?.package).map(candidate => candidate.face))]
+    : [...new Set(face.allRegistrations.filter(candidate => candidate.name === module.package).map(candidate => candidate.face))]
   const otherFace = packageFaces.find(candidate => candidate !== face.face)
-  if (otherFace !== undefined && target.module !== undefined) {
-    const requested = target.requestedName ?? symbol.name
-    const exportName = face.packageExportName(target.module, symbol, otherFace, requested)
+  if (otherFace !== undefined && module !== undefined) {
+    const requested = requestedName ?? symbol.name
+    const exportName = face.packageExportName(module, symbol, otherFace, requested)
     if (exportName === undefined) {
-      face.fail(site, `cross-face reference ${requested} is not exported by ${target.module.package} at ${target.module.subpath}`)
+      face.fail(site, `cross-face reference ${requested} is not exported by ${module.package} at ${module.subpath}`)
     }
-    face.recordCrossFaceLink(from.name, otherFace, target.module, exportName)
+    face.recordCrossFaceLink(from.name, otherFace, module, exportName)
     return {
       kind: 'cross-face',
       face: otherFace,
-      package: target.module.package,
-      subpath: target.module.subpath,
+      package: module.package,
+      subpath: module.subpath,
       name: exportName,
     }
   }
-  if (target.module !== undefined) {
-    return { kind: 'external', module: target.module.package, subpath: target.module.subpath, name: symbol.name }
+  if (module !== undefined) {
+    return { kind: 'external', module: module.package, subpath: module.subpath, name: symbol.name }
   }
+  const declaration = preferredDeclaration(symbol, face.project.project)
   const external = declaration === undefined ? undefined : externalModuleIdentityForFile(declaration.getSourceFile().fileName)
   if (external !== undefined) {
     return { kind: 'external', module: external.package, subpath: external.subpath, name: symbol.name }

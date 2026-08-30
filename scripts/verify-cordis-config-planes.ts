@@ -19,7 +19,7 @@ function isCordisObject(value: CordisValue | undefined): value is CordisObject {
 }
 
 /** Every entry of one config file, or an empty list when it is not an entry array. */
-export function loadEntries(root: string, file: string): CordisValue[] {
+function loadEntries(root: string, file: string): CordisValue[] {
   const document = loadCordisYaml(readFileSync(resolve(root, file), 'utf8'))
   if (!Array.isArray(document)) return []
   const entries: CordisValue[] = []
@@ -36,7 +36,7 @@ export function loadEntries(root: string, file: string): CordisValue[] {
  * @param file - repository-relative config path.
  * @returns the declared ids.
  */
-export function rowIds(root: string, file: string): Set<string> {
+function rowIds(root: string, file: string): Set<string> {
   const ids = new Set<string>()
   const walk = (value: CordisValue | undefined) => {
     if (Array.isArray(value)) {

@@ -44,7 +44,7 @@ function collectExpressionPaths(
  * @param expression - the `!!js` expression text.
  * @returns the diagnostic suffix, or `undefined` when the expression parses.
  */
-export function disabledExpressionProblem(expression: string): string | undefined {
+function disabledExpressionProblem(expression: string): string | undefined {
   const sourceFile = createSourceFile('disabled-expr.ts', `const __dshDisabled = (${expression})\n`)
   const diagnostics = syntacticDiagnostics(sourceFile.fileName)
   const first = diagnostics[0]

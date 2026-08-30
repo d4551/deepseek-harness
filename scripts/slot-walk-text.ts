@@ -34,7 +34,7 @@ export function jsDocOf(member: Node, sf: SourceFile): string {
 }
 
 /** Strip the shared leading indentation of a multi-line source slice. */
-export function dedent(text: string): string {
+function dedent(text: string): string {
   const lines = text.split('\n')
   const indents = lines.slice(1).filter(line => line.trim() !== '')
     .map((line) => {
@@ -70,7 +70,7 @@ export function memberTypeText(
 }
 
 /** One named property signature of a type literal. */
-export function namedMember(
+function namedMember(
   entry: TypeLiteralNode | undefined,
   name: string,
 ): PropertySignatureDeclaration | undefined {
@@ -82,7 +82,7 @@ export function namedMember(
 }
 
 /** A property name's text, quotes removed. */
-export function memberName(name: PropertyName): string {
+function memberName(name: PropertyName): string {
   return isStringLiteral(name) || isIdentifier(name) ? name.text : name.getText()
 }
 

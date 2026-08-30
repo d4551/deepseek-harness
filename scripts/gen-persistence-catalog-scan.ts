@@ -29,8 +29,7 @@ const EVENT_ENVELOPE_TYPE_NAMES = [
   'SessionEvent',
 ] as const
 
-export type EventEnvelopeTypeName = typeof EVENT_ENVELOPE_TYPE_NAMES[number]
-export { EVENT_ENVELOPE_TYPE_NAMES, SESSION_PACKAGE }
+type EventEnvelopeTypeName = typeof EVENT_ENVELOPE_TYPE_NAMES[number]
 
 export interface LogEventEntry {
   name: string

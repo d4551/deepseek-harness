@@ -24,7 +24,8 @@
         "scripts/**/*.mjs",
         "scripts/**/*.cjs",
         "snapshots/**/*.mjs",
-        "scripts/types/client-build-environment/index.d.ts"
+        "scripts/types/client-build-environment/index.d.ts",
+        "vitest.shared.ts"
       ],
       "ignoreUnresolved": [
         "client-build-environment"

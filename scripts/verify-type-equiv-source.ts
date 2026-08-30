@@ -66,7 +66,7 @@ export function blockSymbol(code: string): string | null {
 }
 
 /** Leading JSDoc attached to one declaration or member. */
-export function sourceJSDoc(text: string, node: Node): string {
+function sourceJSDoc(text: string, node: Node): string {
   return rawJsDoc(text, node)
 }
 
@@ -89,14 +89,14 @@ export function sourceDeclaration(sourceRel: string, symbol: string): string | n
   return null
 }
 
-export interface InterfacePart {
+interface InterfacePart {
   text: string
   sourceFile: SourceFile
   declaration: InterfaceDeclaration
 }
 
 /** Find one top-level interface declaration in a source file. */
-export function sourceInterface(sourceRel: string, symbol: string): InterfacePart | null {
+function sourceInterface(sourceRel: string, symbol: string): InterfacePart | null {
   const { text, sourceFile } = loadSource(sourceRel)
   const declaration = sourceFile.statements.find((statement): statement is InterfaceDeclaration =>
     isInterfaceDeclaration(statement) && statement.name.text === symbol)
@@ -104,7 +104,7 @@ export function sourceInterface(sourceRel: string, symbol: string): InterfacePar
 }
 
 /** Find one interface declaration inside an explicit string-literal module augmentation. */
-export function augmentedInterface(sourceRel: string, moduleName: string, symbol: string): InterfacePart | null {
+function augmentedInterface(sourceRel: string, moduleName: string, symbol: string): InterfacePart | null {
   const { text, sourceFile } = loadSource(sourceRel)
   for (const statement of sourceFile.statements) {
     if (!isModuleDeclaration(statement) || !isStringLiteral(statement.name)

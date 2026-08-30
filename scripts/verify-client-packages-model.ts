@@ -10,8 +10,8 @@ export const PLATFORM_SOURCE = 'packages/client/web/src/platform.ts'
 export const PARSER_PRELOAD_SOURCE = 'packages/client/modules/src/index.ts'
 export const STATIC_PRESET_SOURCE = 'packages/client/tsdown.client.ts'
 export const CORDIS = '@deepseek-ai/cordis'
-export const DSH_PREFIX = '@deepseek-ai/dsh-'
-export const CLIENT_WEB = '@deepseek-ai/dsh-client-web'
+const DSH_PREFIX = '@deepseek-ai/dsh-'
+const CLIENT_WEB = '@deepseek-ai/dsh-client-web'
 
 /** One workspace package's browser-module declaration. */
 export interface ClientDeclaration {
@@ -53,13 +53,13 @@ export interface ClientDeclarations {
 }
 
 /** `dsh.client` fields the gate reads. */
-export interface ClientManifestClient {
+interface ClientManifestClient {
   external?: readonly string[]
   inject?: readonly string[]
 }
 
 /** Optional `dsh` object on a package manifest. */
-export interface ClientManifestDsh {
+interface ClientManifestDsh {
   client?: ClientManifestClient
 }
 

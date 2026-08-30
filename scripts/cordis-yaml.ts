@@ -33,15 +33,6 @@ export type CordisValue =
 /** One mapping node of a Cordis YAML document. */
 export type CordisObject = { [key: string]: CordisValue | undefined }
 
-/** One value a JSON/JSONC document can hold: scalars, arrays, or objects. */
-export type JsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | JsonValue[]
-  | { [key: string]: JsonValue | undefined }
-
 /**
  * Parse a Cordis config while preserving Loader `!!js` expressions as data.
  * @param source - Cordis YAML source text.
