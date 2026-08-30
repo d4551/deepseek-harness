@@ -56,15 +56,20 @@ function barePackageName(specifier: string): string | undefined {
   return first.startsWith('@') ? `${first}/${second}` : first
 }
 
-/** Read one manifest identity, optionally treating an absent name as a loose-module marker. */
-function identityFromManifest(path: string, allowAnonymous: boolean): DeepSeekPluginPackageIdentity | undefined {
+/** Read one manifest identity, optionally treating an incomplete identity as a loose-module marker. */
+function identityFromManifest(path: string, looseModule: boolean): DeepSeekPluginPackageIdentity | undefined {
   const manifest = JSON.parse(readFileSync(path, 'utf8')) as PackageManifest
-  if (allowAnonymous && manifest.name === undefined) return undefined
-  if (typeof manifest.name !== 'string' || manifest.name.length === 0
-    || typeof manifest.version !== 'string' || manifest.version.length === 0) {
-    throw new Error(`plugin-package-inventory-deepseek: ${path} must declare non-empty name and version`)
+  const { name, version } = manifest
+  if (typeof name === 'string' && name.length > 0 && typeof version === 'string' && version.length > 0) {
+    return { name, version }
   }
-  return { name: manifest.name, version: manifest.version }
+  // A relative or absolute module walks to whichever manifest owns its directory:
+  // a profile scaffold, a workspace root, or another private manifest npm never
+  // requires to carry a version. None of them names a publishable package, so the
+  // module is loose. Only a manifest reached by resolving a bare package name is
+  // held to both fields, because that package was installed with them.
+  if (looseModule) return undefined
+  throw new Error(`plugin-package-inventory-deepseek: ${path} must declare non-empty name and version`)
 }
 
 /** Resolve a bare package without requiring it to export `./package.json`. */

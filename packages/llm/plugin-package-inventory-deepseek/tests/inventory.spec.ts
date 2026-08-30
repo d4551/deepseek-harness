@@ -92,10 +92,10 @@ describe('DeepSeek plugin package inventory', () => {
     })
   })
 
-  it('fails request preparation for an active package with malformed identity metadata', async () => {
+  it('fails request preparation for an active bare package with malformed identity metadata', async () => {
     const { ctx, root } = await harness()
-    const bad = await packagePlugin(root, 'bad', { name: 'bad' })
-    await ctx.loader.create({ name: bad })
+    await packagePlugin(root, 'node_modules/bad-package', { name: 'bad-package' })
+    await ctx.loader.create({ name: 'bad-package/plugin.mjs' })
     await expect(ctx.deepseekLlmApiExtensions.prepare({ body: { messages: [] }, signal: SIGNAL }))
       .rejects.toThrow(/must declare non-empty name and version/)
   })
@@ -106,6 +106,16 @@ describe('DeepSeek plugin package inventory', () => {
     await ctx.loader.create({ name: marker })
     await expect(ctx.deepseekLlmApiExtensions.prepare({ body: { messages: [] }, signal: SIGNAL }))
       .resolves.toMatchObject({ fields: { dsh_plugin_packages: { version: 1, packages: [] } } })
+  })
+
+  it('omits a profile-local module whose owning manifest declares no version', async () => {
+    const { ctx, root } = await harness()
+    const profileModule = await packagePlugin(root, 'profile', { name: 'dsh-profile-web', private: true })
+    const versioned = await packagePlugin(root, 'present', { name: 'present', version: '1.0.0' })
+    await ctx.loader.create({ name: profileModule })
+    await ctx.loader.create({ name: versioned })
+    const prepared = await ctx.deepseekLlmApiExtensions.prepare({ body: { messages: [] }, signal: SIGNAL })
+    expect(prepared.fields.dsh_plugin_packages?.packages).toEqual([{ name: 'present', version: '1.0.0' }])
   })
 
   it('uses the host inventory when a request has no matching or joined live agent', async () => {
