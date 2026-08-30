@@ -253,7 +253,7 @@ export function targetForReference(face: FaceContext, symbol: Symbol, site: Node
  * @param symbol - referenced symbol.
  * @returns the module identity and exported name, or undefined.
  */
-function ownerExportFor(
+export function ownerExportFor(
   face: FaceContext,
   owner: PackageRegistration,
   symbol: Symbol,

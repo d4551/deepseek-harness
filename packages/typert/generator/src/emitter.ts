@@ -15,7 +15,8 @@ import type {
   TypeDeclarationModel,
 } from './model.ts'
 import { TypeGraphRenderer } from './renderer.ts'
-import { SchemaEmitter, type SchemaArtifact, indent, quote } from './schema-emitter.ts'
+import { SchemaEmitter, type SchemaArtifact } from './schema-emitter.ts'
+import { indent, quote } from './emitter-text.ts'
 import { RemoteModelEmitter, invocationBoundaryRoots, pushInvocationDescriptorList, pushSchemaDefinitions } from './remote-emitter.ts'
 
 /** Failure to project a modeled construct into an emitted artifact. */

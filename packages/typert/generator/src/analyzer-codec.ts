@@ -7,11 +7,9 @@ import { SyntaxKind } from 'typescript/unstable/ast'
 import { isImportTypeNode, isTypeReferenceNode } from 'typescript/unstable/ast/is'
 import { SignatureKind, SymbolFlags, TypeFlags, isTypeReference, type Type } from 'typescript/unstable/sync'
 import type { FaceContext, TypeNodeInput } from './analyzer-context.ts'
-import { convertType, targetForReference } from './analyzer-convert.ts'
+import { convertType, ownerExportFor, targetForReference } from './analyzer-convert.ts'
 import { emptyDocumentation } from './analyzer-docs.ts'
-import { isSourceExportTarget, packageExportTargets, sourcePathForExport } from './analyzer-exports.ts'
 import type { MemberModel, RemoteBoundaryModel, RemoteTypeImportModel, SymbolId, TypeNodeId } from './model.ts'
-import { realPath } from './analyzer-util.ts'
 import { assertRemoteJsonType, includesRemoteAbsence } from './codec-json.ts'
 import { isDefaultLibraryDeclaration, isTypeDeclaration } from './ts7-syntax.ts'
 import {
@@ -271,45 +269,13 @@ function publicRemoteType(face: FaceContext, symbol: import('typescript/unstable
   if (declaration === undefined) face.fail(site, `remote type ${symbol.name} has no declaration`)
   const owner = face.registrationForFile(declaration.getSourceFile().fileName)
   if (owner === undefined) face.fail(site, `remote type ${symbol.name} is not a workspace export`)
-  const subpath = exportedSubpathFor(face, owner, symbol)
+  const subpath = ownerExportFor(face, owner, symbol)?.module.subpath
   if (subpath === undefined) face.fail(site, `remote type ${symbol.name} is not exported by ${owner.name}`)
   return {
     symbol: face.symbolId(symbol),
     specifier: subpath === '.' ? owner.name : `${owner.name}${subpath.slice(1)}`,
     name: symbol.name,
   }
-}
-
-/**
- * Find the most specific package export subpath whose entry module exports
- * the symbol, directly or through a re-export chain: a declaration file need
- * not be an export target itself, only reachable from one.
- * @param face - extraction context.
- * @param owner - package owning the declaration.
- * @param symbol - resolved declaration symbol.
- * @returns the longest matching subpath, or undefined when no entry exports it.
- */
-function exportedSubpathFor(
-  face: FaceContext,
-  owner: import('./analyzer-types.ts').PackageRegistration,
-  symbol: import('typescript/unstable/sync').Symbol,
-): string | undefined {
-  const wanted = face.symbolId(symbol)
-  const matches: string[] = []
-  for (const [subpath, target] of packageExportTargets(owner.manifest)) {
-    if (!isSourceExportTarget(subpath, target)) continue
-    const sourceFile = face.sourceFiles.get(realPath(sourcePathForExport(owner.root, target)))
-    if (sourceFile === undefined) continue
-    const moduleSymbol = face.checker.getSymbolAtLocation(sourceFile)
-    if (moduleSymbol === undefined) continue
-    for (const exported of face.checker.getExportsOfModule(moduleSymbol)) {
-      if (face.symbolId(face.resolveSymbol(exported)) === wanted) {
-        matches.push(subpath)
-        break
-      }
-    }
-  }
-  return matches.sort((left, right) => right.length - left.length)[0]
 }
 
 function collectRemoteImports(face: FaceContext, authoredType: TypeNode): RemoteTypeImportModel[] {

@@ -9,7 +9,8 @@ import { GenMapping, addMapping, toEncodedMap } from '@jridgewell/gen-mapping'
 import type { InvocationModel, PackageModel, RemoteBoundaryModel, RemoteTypeImportModel, SymbolId } from './model.ts'
 import { TypertEmitError, type RemoteModelEmitResult } from './emitter.ts'
 import { TypeGraphRenderer } from './renderer.ts'
-import { SchemaArtifact, SchemaEmitter, safeIdentifier, quote, indent, type BoundarySchemaRoot } from './schema-emitter.ts'
+import { SchemaArtifact, SchemaEmitter, type BoundarySchemaRoot } from './schema-emitter.ts'
+import { safeIdentifier, quote, indent } from './emitter-text.ts'
 
 /** Emitted local names for imported Remote wire types, keyed by symbol id. */
 type ReferenceNames = ReadonlyMap<SymbolId, string>

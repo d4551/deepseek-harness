@@ -1,7 +1,6 @@
 /**
  * Zod schema emission for one modeled package: declaration definitions,
- * schema exports, and Remote codec boundary schemas, plus the shared text
- * helpers every Typert emitter module uses.
+ * schema exports, and Remote codec boundary schemas.
  */
 
 import type {
@@ -15,6 +14,8 @@ import type {
 } from './model.ts'
 import { TypeGraphRenderer } from './renderer.ts'
 import { TypertEmitError } from './emitter.ts'
+import { quote, safeIdentifier } from './emitter-text.ts'
+import { indexedAccessTargets } from './schema-indexed.ts'
 
 interface SchemaExport {
   readonly model: SchemaModel
@@ -128,19 +129,28 @@ export class SchemaEmitter {
 
   private readonly typeChain: TypeNodeId[] = []
 
-  private typeSchema(id: TypeNodeId, substitutions: Substitutions = new Map()): string {
+  private typeSchema(
+    id: TypeNodeId,
+    substitutions: Substitutions = new Map(),
+    keys: ReadonlyMap<string, string> = new Map(),
+  ): string {
     const node = this.renderer.node(id)
     const chainIndex = this.typeChain.indexOf(id)
     if (chainIndex >= 0) {
       this.fail(node.kind === 'reference' ? node.name : node.kind, `cyclic type node ${id} via ${[...this.typeChain.slice(chainIndex), id].join(' > ')}`)
     }
     this.typeChain.push(id)
-    const schema = this.typeSchemaBody(node, substitutions, id)
+    const schema = this.typeSchemaBody(node, substitutions, id, keys)
     this.typeChain.pop()
     return schema
   }
 
-  private typeSchemaBody(node: TypeNodeModel, substitutions: Substitutions, id: TypeNodeId): string {
+  private typeSchemaBody(
+    node: TypeNodeModel,
+    substitutions: Substitutions,
+    id: TypeNodeId,
+    keys: ReadonlyMap<string, string>,
+  ): string {
     switch (node.kind) {
       case 'keyword': return this.keywordSchema(node.name)
       case 'literal': return `z.literal(${node.text})`
@@ -168,12 +178,22 @@ export class SchemaEmitter {
         return schema
       }
       case 'object': return this.objectSchema(node.members, id, substitutions)
+      case 'indexed-access': {
+        const resolved = indexedAccessTargets(this.renderer, node)
+        if (resolved === undefined) {
+          const computed = this.computed(node, substitutions, keys)
+          return computed ?? this.unsupported(node)
+        }
+        if (resolved.kind === 'single') return this.typeSchema(resolved.type, substitutions, keys)
+        if (resolved.types.length === 1) return this.typeSchema(resolved.types[0] as TypeNodeId, substitutions, keys)
+        return `z.union([${resolved.types.map(type => this.typeSchema(type, substitutions, keys)).join(', ')}])`
+      }
       case 'operator':
-      case 'indexed-access':
+      case 'mapped': {
+        const computed = this.computed(node, substitutions, keys)
+        return computed ?? this.unsupported(node)
+      }
       case 'conditional':
-      case 'infer':
-      case 'mapped':
-      case 'template-literal':
       case 'type-query':
       case 'import-type':
       case 'predicate':
@@ -370,22 +390,4 @@ export class SchemaEmitter {
   private fail(subject: string, message: string): never {
     throw new TypertEmitError(`typert Zod emitter: ${subject}: ${message}`)
   }
-}
-
-/** Turn one exported or wire name into a valid JavaScript identifier. */
-export function safeIdentifier(name: string): string {
-  const normalized = name.replace(/[^$\w]/gu, '_')
-  if (/^[$A-Z_a-z]/u.test(normalized)) return normalized
-  return `_${normalized}`
-}
-
-/** Quote one value as a single-quoted JavaScript string literal. */
-export function quote(value: string): string {
-  return `'${value.replaceAll('\\', '\\\\').replaceAll("'", "\\'").replaceAll('\n', '\\n').replaceAll('\r', '\\r')}'`
-}
-
-/** Indent every physical line of a multi-line artifact. */
-export function indent(value: string, spaces: number): string {
-  const prefix = ' '.repeat(spaces)
-  return value.split('\n').map(line => `${prefix}${line}`).join('\n')
 }
