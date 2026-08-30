@@ -47,7 +47,7 @@ bun run typecheck
 
 ### TypeScript 项目布局
 
-Host 与 Client program 使用 TypeScript 7（`typescript` ^7.0.2）编译。该包在 `typescript/unstable/sync` 与 `typescript/unstable/ast` 导出新的 compiler API。Typert 和各 gate 脚本仍导入 `@typescript/typescript6`（6.0 Strada）。见 [TypeScript 7 Agent Note](../.agents/notes/implemented/process/2026-08-29-typescript-7-compiler.zh.md)。
+Host 与 Client program 使用 TypeScript 7（`typescript` ^7.0.2）编译。该包在 `typescript/unstable/sync` 与 `typescript/unstable/ast` 导出 compiler API；Typert 与各 gate 脚本都从该包导入，且 `scripts/typescript7-unstable-api.spec.ts` 会在 6.0 Strada 兼容包重新进入仓库时失败。见 [TypeScript 7 Agent Note](../.agents/notes/implemented/process/2026-08-29-typescript-7-compiler.zh.md)。
 
 仓库使用相互隔离的 Host 与 Client aggregate。普通包只登记进其中一个 aggregate；Host 包进入 `tsconfig.host.json`，Client 包进入 `tsconfig.client.json`；`host/webserver`、`compaction/compaction` 与 `typert/registry` 三个包被两个 aggregate 同时引用，作为共享 leaf，让两侧对同一份源码做类型检查。
 

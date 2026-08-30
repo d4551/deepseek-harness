@@ -2,16 +2,17 @@ diff --git a/dist/src/sandbox/ts-config-preprocessor.js b/dist/src/sandbox/ts-co
 index d17257e928054c73b1e8a041564a6515430fb418..3001f824b171ca1bc7b7f3cc12a8a5229d285d36 100644
 --- a/dist/src/sandbox/ts-config-preprocessor.js
 +++ b/dist/src/sandbox/ts-config-preprocessor.js
-@@ -42,7 +42,11 @@ export class TSConfigPreprocessor {
+@@ -42,8 +42,11 @@ export class TSConfigPreprocessor {
              const tsconfigFile = project.files.get(tsconfigFileName);
              if (tsconfigFile) {
                  this.log.debug('Rewriting file %s', tsconfigFile);
 -                const { default: ts } = await import('typescript');
-+                // This workspace compiles with typescript@7, whose "." export
-+                // is a version stub without the classic compiler API; the 6.0
-+                // API package ships in this workspace for exactly these
-+                // consumers.
-+                const { default: ts } = await import('@typescript/typescript6');
-                 const { config } = ts.parseConfigFileTextToJson(tsconfigFileName, await tsconfigFile.readContent());
+-                const { config } = ts.parseConfigFileTextToJson(tsconfigFileName, await tsconfigFile.readContent());
++                // This workspace compiles with typescript@7, whose "."
++                // export is a version stub without the classic compiler
++                // API; parse tsconfig JSONC with jsonc-parser instead.
++                const { parse: parseJsonc } = await import('jsonc-parser');
++                const config = parseJsonc(await tsconfigFile.readContent());
                  if (config) {
                      await this.rewriteExtends(project, config, tsconfigFileName);
+                 }

@@ -1,4 +1,4 @@
-# Agent Note: Compile with TypeScript 7; Strada compiler-API imports remain residual
+# Agent Note: Compile with TypeScript 7; every compiler-API import is TS7-native
 
 Status: implemented
 
@@ -12,7 +12,7 @@ TypeScript 7.0 ships the Go-based `tsc`. The `typescript` package's default expo
 
 Compile Host and Client programs with TypeScript 7.0.2 (`typescript` ^7.0.2). That package already exports the new compiler API under `typescript/unstable/sync` (Snapshot / Project / Program / Checker) and `typescript/unstable/ast` (`SyntaxKind`, visitor, factory). `scripts/typescript7-unstable-api.spec.ts` loads those exports from the mandated pin and parses `tsconfig.host.json` through `API.parseConfigFile`.
 
-Gate scripts and Typert still import `@typescript/typescript6`, the 6.0 Strada API plus `tsc6`. That is residual TypeScript 6 usage on a TypeScript 7 compile pin, not a second compile toolchain. Replacing those imports is a rewrite onto `typescript/unstable/*`, not an import rename: the 6.0 `createProgram` surface is not on `import 'typescript'`.
+Every compiler-API consumer — Typert, the gate scripts, and the Stryker tsconfig patch (which parses JSONC through `jsonc-parser`) — uses `typescript/unstable/*`; the `@typescript/typescript6` compatibility package is absent from the dependency graph, and `scripts/typescript7-unstable-api.spec.ts` fails if any manifest or source imports it again. The rewrite off the 6.0 API was not an import rename: the 6.0 `createProgram` surface is not on `import 'typescript'`, so isolated parses, configured projects, and printing moved to `API`/`Project`/`Emitter` sessions owned by `ts7-session.ts`.
 
 TypeScript 7 rejects two patterns 6.0 accepted. A name cannot carry an imported type meaning and a locally declared value meaning; `cordis-host-runner` keeps the factories next to their type aliases in `types.ts`. `@ts-expect-error` must sit on the line TypeScript 7 reports, not the line before a multi-line call.
 
@@ -30,4 +30,4 @@ The root README names this compile pin as part of this checkout's toolchain. Con
 
 ## Consequences
 
-`bun run typecheck` and `bun run build` run the Go `tsc`. Thirty-one files still import `@typescript/typescript6`. They keep working against the 6.0 API until they are rewritten to `typescript/unstable/sync` and `typescript/unstable/ast`. Bumping `@typescript/typescript6` is independent of bumping `typescript`.
+`bun run typecheck` and `bun run build` run the Go `tsc`, and the whole repository compiles and analyzes through the TypeScript 7 API with no TypeScript 6 package installed. `eslint-plugin-sonarjs`'s bundled `typescript` dependency is overridden to the 7.0.2 pin so no Strada compiler enters the tree through the lint toolchain either.

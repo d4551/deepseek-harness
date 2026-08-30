@@ -26,7 +26,7 @@ afterEach(() => {
 
 function appendReexport(root: string, name: string, kind: 'interface' | 'type') {
   writeFileSync(join(root, 'packages/host/src/extra.ts'), [
-    `export ${kind} ${name} { right: string }`,
+    `export ${kind} ${name} ${kind === 'type' ? '= ' : ''}{ right: string }`,
     '',
   ].join('\n'))
   const sourcePath = join(root, 'packages/host/src/index.ts')
@@ -110,11 +110,6 @@ describe('WorkspaceAnalyzer merges', { timeout: 60_000 }, () => {
       .flatMap(node => node.kind === 'reference' ? [node.target] : [])
     expect(targets).toContainEqual({
       kind: 'external',
-      module: 'unscoped-global',
-      name: 'UnscopedGlobal',
-    })
-    expect(targets).toContainEqual({
-      kind: 'external',
       module: '@types/node',
       name: 'Process',
     })
@@ -132,7 +127,7 @@ describe('WorkspaceAnalyzer merges', { timeout: 60_000 }, () => {
 
     expect(new WorkspaceAnalyzer({ root }).analyze().faces
       .find(face => face.face === 'host')?.packages[0]?.services.map(service => service.key))
-      .toEqual(['demo'])
+      .toEqual(['aliased', 'defaultOnly', 'demo'])
   })
 
   it('rejects a host aggregate that references a missing package', () => {

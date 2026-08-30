@@ -43,7 +43,7 @@ Setup is complete when `bun run typecheck` exits successfully.
 
 ### TypeScript project layout
 
-Host and Client programs compile with TypeScript 7 (`typescript` ^7.0.2). That package exports the new compiler API at `typescript/unstable/sync` and `typescript/unstable/ast`. Typert and the gate scripts still import `@typescript/typescript6` (6.0 Strada). See [the TypeScript 7 Agent Note](../.agents/notes/implemented/process/2026-08-29-typescript-7-compiler.md).
+Host and Client programs compile with TypeScript 7 (`typescript` ^7.0.2). That package exports the compiler API at `typescript/unstable/sync` and `typescript/unstable/ast`; Typert and the gate scripts import it from there, and `scripts/typescript7-unstable-api.spec.ts` fails if the 6.0 Strada compatibility package re-enters the tree. See [the TypeScript 7 Agent Note](../.agents/notes/implemented/process/2026-08-29-typescript-7-compiler.md).
 
 The repository uses isolated Host and Client aggregates. An ordinary package is registered in exactly one aggregate: Host packages in `tsconfig.host.json` and Client packages in `tsconfig.client.json`; three packages (`host/webserver`, `compaction/compaction`, `typert/registry`) are referenced by both aggregates as shared leaves so each side type-checks the same source.
 

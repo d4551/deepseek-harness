@@ -1,15 +1,19 @@
 /**
  * TypeScript 7.0.2's package exports include the new compiler API under
- * `typescript/unstable/*`. `@typescript/typescript6` is the 6.0 Strada API,
- * not a TypeScript 7 surface. This gate fails if the mandated `typescript`
- * pin stops exporting that API.
+ * `typescript/unstable/*`. This gate fails if the mandated `typescript`
+ * pin stops exporting that API, and if the 6.0 Strada compatibility
+ * package (`@typescript/typescript6`) re-enters any manifest or source.
  */
+import { spawnSync } from 'node:child_process'
+import { resolve } from 'node:path'
 import { API } from 'typescript/unstable/sync'
 import { SyntaxKind } from 'typescript/unstable/ast'
 import { isFunctionDeclaration } from 'typescript/unstable/ast/is'
 import { version, versionMajorMinor } from 'typescript'
 import { describe, expect, it } from 'vitest'
 import { closeCompiler, createSourceFile } from './ts7-session.ts'
+
+const root = resolve(import.meta.dirname, '..')
 
 describe('mandated typescript 7 compiler API', () => {
   it('is TypeScript 7 on the typescript package', () => {
@@ -47,5 +51,27 @@ describe('mandated typescript 7 compiler API', () => {
     const first = sourceFile.statements[0]
     closeCompiler()
     expect(first === undefined ? false : isFunctionDeclaration(first)).toBe(true)
+  })
+
+  it('keeps the 6.0 Strada compatibility package out of the tree', () => {
+    const result = spawnSync('git', [
+      'grep',
+      '-l',
+      '-e', 'from \'@typescript/typescript6\'',
+      '-e', 'import(\'@typescript/typescript6\')',
+      '-e', '"@typescript/typescript6":',
+      '--',
+      'packages',
+      'apps',
+      'scripts',
+      'vendor',
+      'patches',
+      'native',
+      'python',
+      'website',
+    ], { cwd: root, encoding: 'utf8' })
+    // git grep exits 1 when nothing matches: exactly the passing case.
+    expect(result.status).toBe(1)
+    expect(result.stdout).toBe('')
   })
 })

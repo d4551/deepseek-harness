@@ -116,10 +116,11 @@ export function sourcePathForExport(packageRoot: string, target: string): string
 
 /**
  * Validate one admitted package's entry surface. `exports` must be a
- * non-empty subpath-to-conditions map whose source targets exist inside the
- * package; a package without `exports` must declare `types`. Generated
- * artifact and data entries (`./typert`, `.json`, `.yml`, wildcards) carry
- * no source and are exempt from target checks.
+ * non-empty subpath-keyed map (Node-legal string or condition targets)
+ * whose source targets exist inside the package; a package without
+ * `exports` must declare `types`. Generated artifact and data entries
+ * (`./typert`, `.json`, `.yml`, wildcards) carry no source and are exempt
+ * from target checks.
  * @param manifest - parsed package.json object.
  * @param name - package name for diagnostics.
  * @param packageRoot - absolute package root.

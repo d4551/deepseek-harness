@@ -1,4 +1,4 @@
-# Agent Note: 用 TypeScript 7 编译；Strada compiler API 导入仍是残留
+# Agent Note: 用 TypeScript 7 编译；所有 compiler API 导入均为 TS7 原生
 
 Status: implemented
 
@@ -12,7 +12,7 @@ TypeScript 7.0 提供基于 Go 的 `tsc`。`typescript` 包的默认导出是版
 
 使用 TypeScript 7.0.2（`typescript` ^7.0.2）编译 Host 与 Client program。该包已经在 `typescript/unstable/sync`（Snapshot / Project / Program / Checker）和 `typescript/unstable/ast`（`SyntaxKind`、visitor、factory）导出新的 compiler API。`scripts/typescript7-unstable-api.spec.ts` 从这一强制固定版本加载这些导出，并用 `API.parseConfigFile` 解析 `tsconfig.host.json`。
 
-gate 脚本和 Typert 仍导入 `@typescript/typescript6`，即 6.0 Strada API 加上 `tsc6`。那是 TypeScript 7 编译固定版本上的 TypeScript 6 残留，不是第二套编译工具链。替换这些导入是改写到 `typescript/unstable/*`，不是改 import 名：6.0 的 `createProgram` 面不在 `import 'typescript'` 上。
+所有 compiler-API 使用方——Typert、各 gate 脚本，以及通过 `jsonc-parser` 解析 JSONC 的 Stryker tsconfig 补丁——都使用 `typescript/unstable/*`；依赖图中不存在 `@typescript/typescript6` 兼容包，且任何 manifest 或源码重新导入它时 `scripts/typescript7-unstable-api.spec.ts` 会失败。脱离 6.0 API 的改写不是改 import 名：6.0 的 `createProgram` 面不在 `import 'typescript'` 上，因此隔离解析、按配置打开 project 与打印都迁移到由 `ts7-session.ts` 持有的 `API`/`Project`/`Emitter` 会话。
 
 TypeScript 7 拒绝 6.0 曾接受的两种写法。同一个名字不能既承载导入的类型含义，又承载本地声明的值含义；`cordis-host-runner` 把工厂函数放在 `types.ts` 里，与类型别名放在一起。`@ts-expect-error` 必须写在 TypeScript 7 报告错误的那一行，而不能写在多行调用的前一行。
 
@@ -30,4 +30,4 @@ TypeScript 7 拒绝 6.0 曾接受的两种写法。同一个名字不能既承�
 
 ## 结果
 
-`bun run typecheck` 与 `bun run build` 运行 Go 版 `tsc`。仍有 31 个文件导入 `@typescript/typescript6`。在改写到 `typescript/unstable/sync` 与 `typescript/unstable/ast` 之前，它们继续对着 6.0 API 工作。升级 `@typescript/typescript6` 与升级 `typescript` 相互独立。
+`bun run typecheck` 与 `bun run build` 运行 Go 版 `tsc`，整个仓库的编译与分析都通过 TypeScript 7 API 完成，不安装任何 TypeScript 6 包。`eslint-plugin-sonarjs` 自带的 `typescript` 依赖被覆盖（override）到 7.0.2 固定版本，因此 lint 工具链也不会把 Strada 编译器带进仓库。
