@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write packages/typert/generator/README.md
-README.md: c6a419467f8f9da71c789dee2b969f69841b57cc
-README.zh.md: 196af16d97c9c6eb2774e615840bfaed2454e7f2
+README.md: 1e2ad2a8751ca402f4e48c7181586a2b9b154303
+README.zh.md: e48520e1f7aaed447102a75574f5093a0c10f67b

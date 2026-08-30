@@ -150,6 +150,17 @@ export class FaceContext {
   }
 
   /**
+   * Package that owns a file in any registered face.
+   * @param file - path inside a package.
+   * @returns the owning registration, or undefined when no package contains the file.
+   */
+  registrationOwningFile(file: string): PackageRegistration | undefined {
+    const path = realPath(file)
+    return this.registrationForFile(file)
+      ?? this.allRegistrations.find(registration => path === registration.root || path.startsWith(`${registration.root}/`))
+  }
+
+  /**
    * Repository-relative position of a node.
    * @param node - node in this project.
    * @returns file, 1-based line, and 1-based column.

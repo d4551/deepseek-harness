@@ -70,7 +70,7 @@ The generator is built on one separation: extraction and emission are decoupled 
 | File | Role |
 |---|---|
 | [`src/index.ts`](src/index.ts) | Public API: analyzer, emitter, workspace generator, renderer, catalog projection |
-| [`src/analyzer.ts`](src/analyzer.ts) | `WorkspaceAnalyzer`: face programs, check/write modes, batching, discovery, source index |
+| [`src/analyzer-workspace.ts`](src/analyzer-workspace.ts) | `WorkspaceAnalyzer`: face programs, check/write modes, batching, discovery, source index |
 | [`src/model.ts`](src/model.ts) | Compiler-independent model types |
 | [`src/emitter.ts`](src/emitter.ts) | `FaceModelEmitter`: Zod schema and declaration emission, Remote declarations |
 | [`src/workspace.ts`](src/workspace.ts) | `WorkspaceTypertGenerator`: discovery, generation, export and files validation |

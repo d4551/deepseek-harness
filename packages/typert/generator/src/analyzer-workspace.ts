@@ -76,6 +76,15 @@ export class WorkspaceCaches {
   }
 
   /**
+   * Drop one memoized project so its program graph becomes collectable.
+   * @param configPath - absolute tsconfig path previously passed to {@link WorkspaceCaches.faceProject}.
+   * @returns nothing.
+   */
+  release(configPath: string): void {
+    this.projects.delete(realPath(configPath))
+  }
+
+  /**
    * Notify the compiler session after a write-mode edit.
    * @param file - path of the edited file.
    * @returns nothing.
@@ -230,6 +239,20 @@ export class WorkspaceAnalyzer {
   }
 
   /**
+   * Drop the face programs this analysis opened from the shared cache.
+   *
+   * A face program covers every package registered for its face, so one is
+   * large; the memo keys on the generated sidecar path, which is fresh per
+   * analysis. Callers running many analyses over one cache release each in
+   * turn, otherwise every program stays reachable for the whole process.
+   * @returns nothing.
+   */
+  releaseFacePrograms(): void {
+    for (const path of this.faceProgramPaths.values()) this.caches.release(path)
+    this.faceProgramPaths.clear()
+  }
+
+  /**
    * Analyze an explicit package selection through bounded compiler programs.
    * @param batchSize - maximum selected packages in one face program.
    * @returns one merged workspace model.
@@ -243,11 +266,15 @@ export class WorkspaceAnalyzer {
     }
     const batches: WorkspaceModel[] = []
     for (let index = 0; index < this.options.packages.length; index += batchSize) {
-      batches.push(new WorkspaceAnalyzer({
+      const batch = new WorkspaceAnalyzer({
         ...this.options,
         caches: this.caches,
         packages: this.options.packages.slice(index, index + batchSize),
-      }).analyze())
+      })
+      batches.push(batch.analyze())
+      // Each batch opens its own face program. Retaining every one holds a
+      // full-workspace compiler graph per batch, the cost this batching bounds.
+      batch.releaseFacePrograms()
     }
     return mergeWorkspaceModels(batches)
   }
@@ -359,12 +386,19 @@ export class WorkspaceAnalyzer {
     if (this.checkedProjects.has(registration.config.path)) return
     this.checkedProjects.add(registration.config.path)
     const project = this.caches.faceProject(registration.config.path)
-    const diagnostics = project.fileDiagnostics().filter(diagnostic =>
-      diagnostic.fileName !== undefined && isWithin(diagnostic.fileName, registration.root))
-    if (diagnostics.length === 0) return
-    throw new TypertAnalysisError(
-      diagnostics.map(diagnostic => formatProgramDiagnostic(this.options.root, registration.face, project, diagnostic)).join('\n'),
-    )
+    try {
+      const diagnostics = project.fileDiagnostics().filter(diagnostic =>
+        diagnostic.fileName !== undefined && isWithin(diagnostic.fileName, registration.root))
+      if (diagnostics.length === 0) return
+      throw new TypertAnalysisError(
+        diagnostics.map(diagnostic => formatProgramDiagnostic(this.options.root, registration.face, project, diagnostic)).join('\n'),
+      )
+    } finally {
+      // Each package program answers its own diagnostics once. Face analysis
+      // opens the aggregate configs instead, so holding every package graph for
+      // the rest of the run costs gigabytes and serves no later reader.
+      this.caches.release(registration.config.path)
+    }
   }
 
   private applyEdit(edit: SourceEdit) {

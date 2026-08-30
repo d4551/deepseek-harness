@@ -151,6 +151,24 @@ describe('Remote analysis rejections', { timeout: 60_000 }, () => {
     expect(() => analyzeRemote(root, false)).toThrow(/non-JSON class parameter Agent requires a TypertLookupMap entry/)
   })
 
+  it('rejects an optional TypertLookupMap entry', () => {
+    const root = copyFixture()
+    editFile(root, 'packages/domain/src/index.ts', source => source.replace(
+      'agent: TypertLookup<Agent, AgentId>',
+      'agent?: TypertLookup<Agent, AgentId>',
+    ))
+    expect(() => analyzeRemote(root, false)).toThrow(/TypertLookupMap entries must be required annotated properties/)
+  })
+
+  it('rejects an optional TypertContextMap entry', () => {
+    const root = copyFixture()
+    editFile(root, 'packages/domain/src/index.ts', source => source.replace(
+      'agent: TypertContext<AgentId>',
+      'agent?: TypertContext<AgentId>',
+    ))
+    expect(() => analyzeRemote(root, false)).toThrow(/TypertContextMap entries must be required annotated properties/)
+  })
+
   it.each([
     ['bigint', 'bigint'],
     ['symbol', 'symbol'],

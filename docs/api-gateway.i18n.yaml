@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write docs/api-gateway.md
-api-gateway.md: f4320a003693b85680c2600fe9542fddcf0463b0
-api-gateway.zh.md: bd2e66a7f1a0f7d9404ececd915e647e4c4f5773
+api-gateway.md: 86adca1744b8e79880619f13818639d57e07d237
+api-gateway.zh.md: f905371f75eed46a4b2ff74c66bdf291c95f2ec9
