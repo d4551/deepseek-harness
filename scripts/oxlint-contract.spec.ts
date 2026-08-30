@@ -127,6 +127,12 @@ export function hasValue(value: string): boolean {
   return value !== undefined
 }
 
+export function branchProbe(value: number): number {
+  if (value > 0) return 1
+  else if (value > 0) return 2
+  return 0
+}
+
 export const longProbe = 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1
 `
 
@@ -144,7 +150,7 @@ export const longProbe = 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 +
       expect(result.error).toBeUndefined()
       expect(result.status, output).toBe(1)
       expect(output).toContain('@stylistic(max-len)')
-      expect(output).toContain('sonarjs(no-identical-functions)')
+      expect(output).toContain('no-dupe-else-if')
       expect(output).toContain('typescript(no-unnecessary-condition)')
     } finally {
       await Promise.all([

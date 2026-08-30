@@ -30,4 +30,4 @@ The root README names this compile pin as part of this checkout's toolchain. Con
 
 ## Consequences
 
-`bun run typecheck` and `bun run build` run the Go `tsc`, and the whole repository compiles and analyzes through the TypeScript 7 API with no TypeScript 6 package installed. `eslint-plugin-sonarjs`'s bundled `typescript` dependency is overridden to the 7.0.2 pin so no Strada compiler enters the tree through the lint toolchain either.
+`bun run typecheck` and `bun run build` run the Go `tsc`, and the whole repository compiles and analyzes through the TypeScript 7 API with no TypeScript 6 package installed. `eslint-plugin-sonarjs` is removed from the lint toolchain: it reads the 6.0 compiler API at module load (`cjs/helpers/type.js`) and hard-requires `typescript <6.1`, so it cannot load under the TS7-only graph. Its identical-conditions and duplicate-composite coverage is kept through native Oxlint rules (`no-dupe-else-if`, `typescript/no-duplicate-type-constituents`); the remaining duplicate-shape rules rely on the jscpd `bun run duplication` gate until Oxlint ports them natively.

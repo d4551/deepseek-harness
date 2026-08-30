@@ -30,4 +30,4 @@ TypeScript 7 拒绝 6.0 曾接受的两种写法。同一个名字不能既承�
 
 ## 结果
 
-`bun run typecheck` 与 `bun run build` 运行 Go 版 `tsc`，整个仓库的编译与分析都通过 TypeScript 7 API 完成，不安装任何 TypeScript 6 包。`eslint-plugin-sonarjs` 自带的 `typescript` 依赖被覆盖（override）到 7.0.2 固定版本，因此 lint 工具链也不会把 Strada 编译器带进仓库。
+`bun run typecheck` 与 `bun run build` 运行 Go 版 `tsc`，整个仓库的编译与分析都通过 TypeScript 7 API 完成，不安装任何 TypeScript 6 包。`eslint-plugin-sonarjs` 已从 lint 工具链移除：它在模块加载时读取 6.0 compiler API（`cjs/helpers/type.js`）并硬性要求 `typescript <6.1`，在纯 TS7 依赖图下无法加载。其相同条件与重复组合成员的检测由 Oxlint 原生规则（`no-dupe-else-if`、`typescript/no-duplicate-type-constituents`）承担；其余重复形态规则在 Oxlint 原生移植之前由 jscpd 的 `bun run duplication` gate 兜底。
