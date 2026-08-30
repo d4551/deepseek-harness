@@ -15,12 +15,20 @@ import {
   copyFixture,
   fixtureRoot,
   generatedSuccess,
+  type JsonInput,
+  type JsonRecord,
   readObject,
   requiredObject,
   temporaryRoots,
   writeObject,
 } from './type-model-helpers.ts'
 import { compileFiles } from './ts7-harness.ts'
+
+function expectClientTypertExportRejection(root: string): void {
+  expect(() => new WorkspaceTypertGenerator(root).generate()).toThrow(
+    '@fixture/client must export ./client/typert as',
+  )
+}
 
 export function emitsExactRootLevelArtifacts(): void {
   const artifacts = new WorkspaceTypertGenerator(fixtureRoot).generate()
@@ -35,31 +43,27 @@ export function rejectsMisplacedTypertSubpaths(): void {
   const root = copyFixture('typert-artifact-path-')
   const manifestPath = join(root, 'packages/client', 'package.json')
   const manifest = readObject(manifestPath)
-  const exportsField = Reflect.get(manifest, 'exports')
+  const exportsField = manifest['exports']
   if (exportsField === null || typeof exportsField !== 'object' || Array.isArray(exportsField)) {
     throw new Error('fixture has no client Typert export')
   }
-  const clientExport = Reflect.get(exportsField, './client/typert')
+  const clientExport = (exportsField as JsonRecord)['./client/typert']
   if (clientExport === null || typeof clientExport !== 'object' || Array.isArray(clientExport)) {
     throw new Error('fixture has no client Typert export')
   }
   Reflect.set(clientExport, 'types', './lib/types/typert.client.d.ts')
   writeObject(manifestPath, manifest)
 
-  expect(() => new WorkspaceTypertGenerator(root).generate()).toThrow(
-    '@fixture/client must export ./client/typert as',
-  )
+  expectClientTypertExportRejection(root)
 }
 
 export function rejectsAbsentTypertExportsAndFiles(): void {
   const noSubpathRoot = copyFixture('typert-missing-artifact-export-')
   const noSubpathManifest = join(noSubpathRoot, 'packages/client', 'package.json')
   const noSubpath = readObject(noSubpathManifest)
-  Reflect.set(noSubpath, 'exports', './lib/index.js')
+  noSubpath['exports'] = './lib/index.js'
   writeObject(noSubpathManifest, noSubpath)
-  expect(() => new WorkspaceTypertGenerator(noSubpathRoot).generate()).toThrow(
-    '@fixture/client must export ./client/typert as',
-  )
+  expectClientTypertExportRejection(noSubpathRoot)
 
   const invalidSubpathRoot = copyFixture('typert-invalid-artifact-export-')
   const invalidSubpathManifest = join(invalidSubpathRoot, 'packages/client', 'package.json')
@@ -69,9 +73,7 @@ export function rejectsAbsentTypertExportsAndFiles(): void {
     Reflect.set(invalidExports, './client/typert', null)
   }
   writeObject(invalidSubpathManifest, invalidSubpath)
-  expect(() => new WorkspaceTypertGenerator(invalidSubpathRoot).generate()).toThrow(
-    '@fixture/client must export ./client/typert as',
-  )
+  expectClientTypertExportRejection(invalidSubpathRoot)
 
   const noFilesRoot = copyFixture('typert-missing-artifact-files-')
   const noFilesManifest = join(noFilesRoot, 'packages/client', 'package.json')
@@ -96,7 +98,7 @@ export async function emitsRunnableZodArtifacts(): Promise<void> {
   temporaryRoots.push(root)
   const modulePath = join(root, 'host.mjs')
   writeFileSync(modulePath, artifact.js)
-  const generated: object = await import(`${pathToFileURL(modulePath).href}?test=${String(Date.now())}`)
+  const generated = (await import(`${pathToFileURL(modulePath).href}?test=${String(Date.now())}`)) as JsonRecord
   const payload = requiredObject(generated, 'Payload')
   expect(generatedSuccess(payload, { name: 'ready', count: 2 })).toBe(true)
   expect(generatedSuccess(payload, { name: 'ready', count: 'two' })).toBe(false)
@@ -108,17 +110,18 @@ export async function emitsRunnableZodArtifacts(): Promise<void> {
   }
   expect(Reflect.get(schemas[0], 'schema')).toBe(payload)
   const typertModel = requiredObject(typert, 'model')
-  const services = Reflect.get(typertModel, 'services')
+  const services = typertModel['services']
   if (!Array.isArray(services)) throw new Error('generated TYPERT has no services')
-  const demo = services.find(service =>
-    service !== null && typeof service === 'object' && Reflect.get(service, 'key') === 'demo')
+  const demo = (services as JsonInput[]).find(service =>
+    service !== null && typeof service === 'object' && (service as JsonRecord)['key'] === 'demo')
   if (demo === null || typeof demo !== 'object') throw new Error('generated TYPERT has no demo service')
-  expect(demo).toMatchObject({ key: 'demo' })
-  const members = Reflect.get(demo, 'members')
+  const demoRecord = demo as JsonRecord
+  expect(demoRecord).toMatchObject({ key: 'demo' })
+  const members = demoRecord['members']
   if (!Array.isArray(members)) throw new Error('demo service has no members')
-  const signatures = members.flatMap((member) => {
+  const signatures = (members as JsonInput[]).flatMap((member) => {
     if (member === null || typeof member !== 'object') return []
-    const signature = Reflect.get(member, 'signature')
+    const signature = (member as JsonRecord)['signature']
     return typeof signature === 'string' ? [signature] : []
   })
   expect(signatures).toContain(

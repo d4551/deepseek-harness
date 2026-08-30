@@ -27,6 +27,7 @@ import { SymbolFlags } from 'typescript/unstable/sync'
 import { FaceProject } from '../src/ts7-project.ts'
 import { isTypeDeclaration, preferredDeclaration } from '../src/ts7-syntax.ts'
 import { createSourceFile, parsePath } from '../src/ts7-session.ts'
+import type { JsonInput, JsonRecord } from './type-model-helpers.ts'
 import { formatDiagnostic } from './type-model-shared.ts'
 
 export {
@@ -65,7 +66,13 @@ export function canonicalType(text: string): string {
   if (declaration === undefined || !isTypeAliasDeclaration(declaration)) {
     throw new Error(`cannot parse rendered type ${text}`)
   }
+  // TS7 printer differs in whitespace, newlines, member separators, and paren spacing; normalize
   return printType(declaration.type)
+    .replace(/\s+/g, ' ')
+    .replace(/;/g, '')
+    .replace(/\(\s+/g, '(')
+    .replace(/\s+\)/g, ')')
+    .trim()
 }
 
 /**
@@ -237,13 +244,14 @@ export function originalPositionFor(
   generatedLine: number,
   generatedColumn: number,
 ): { source: string; line: number; column: number; name?: string } | undefined {
-  const map = parse(mapText)
-  if (map === null || typeof map !== 'object' || Array.isArray(map)) {
+  const parsed = parse(mapText) as JsonInput
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new Error('source map is not an object')
   }
-  const mappings = Reflect.get(map, 'mappings')
-  const sources = Reflect.get(map, 'sources')
-  const names = Reflect.get(map, 'names')
+  const map = parsed as JsonRecord
+  const mappings = map['mappings']
+  const sources = map['sources']
+  const names = map['names']
   if (typeof mappings !== 'string' || !Array.isArray(sources)) {
     throw new Error('source map missing mappings or sources')
   }
@@ -270,9 +278,9 @@ export function originalPositionFor(
           if (mappedName !== undefined) nameIndex += mappedName
         }
         if (lineIndex + 1 === generatedLine && generatedColumnCursor <= generatedColumn) {
-          const source = sources[sourceIndex]
+          const source = sources[sourceIndex] as JsonInput
           if (typeof source === 'string') {
-            const name = Array.isArray(names) ? names[nameIndex] : undefined
+            const name = Array.isArray(names) ? names[nameIndex] as JsonInput : undefined
             match = {
               source,
               line: originalLine + 1,

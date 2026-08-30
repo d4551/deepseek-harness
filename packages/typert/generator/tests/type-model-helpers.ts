@@ -86,6 +86,12 @@ export const MEMBER_KINDS = {
 export const fixtureRoot = resolve(import.meta.dirname, 'fixtures/type-model')
 export const temporaryRoots: string[] = []
 
+/** One JSON value as stored in fixture manifests, tsconfigs, and generated artifacts. */
+export type JsonInput = boolean | number | string | object | null | undefined
+
+/** A JSON object whose every member is a JSON value. */
+export type JsonRecord = { [key: string]: JsonInput }
+
 export function distinct(values: readonly string[]): string[] {
   return [...new Set(values)].sort()
 }
@@ -100,7 +106,7 @@ export function copyFixture(prefix: string): string {
 export function addAggregateReference(root: string, reference: string) {
   const aggregatePath = join(root, 'tsconfig.host.json')
   const aggregate = readObject(aggregatePath)
-  const references = Reflect.get(aggregate, 'references')
+  const references = aggregate['references']
   if (Array.isArray(references)) references.push({ path: reference })
   writeObject(aggregatePath, aggregate)
 }
@@ -117,14 +123,14 @@ export function writeUnreachablePackage(root: string, relative: string, withMani
   if (withManifest) writeFileSync(join(root, relative, 'package.json'), '{}\n')
 }
 
-export function readObject(path: string): object {
+export function readObject(path: string): JsonRecord {
   const errors: ParseError[] = []
-  const value = parse(readFileSync(path, 'utf8'), errors, { allowTrailingComma: true })
+  const value = parse(readFileSync(path, 'utf8'), errors, { allowTrailingComma: true }) as JsonInput
   if (errors.length > 0) throw new Error(`${path} is not valid JSON`)
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error(`${path} is not a JSON object`)
   }
-  return value
+  return value as JsonRecord
 }
 
 export function writeObject(path: string, value: object) {
@@ -135,8 +141,8 @@ export function configureDualRuntimeClient(root: string, splitProjects: boolean)
   const packageRoot = join(root, 'packages/client')
   const manifestPath = join(packageRoot, 'package.json')
   const manifest = readObject(manifestPath)
-  Reflect.set(manifest, 'dsh', { client: {} })
-  const exportsField = Reflect.get(manifest, 'exports')
+  manifest['dsh'] = { client: {} }
+  const exportsField = manifest['exports']
   if (exportsField !== null && typeof exportsField === 'object' && !Array.isArray(exportsField)) {
     Reflect.set(exportsField, './client', {
       types: './lib/types/client.d.ts',
@@ -244,34 +250,32 @@ export function addExplicitServicePackage(root: string, annotation: string, with
 }
 
 export function setCompilerOption(
-  config: object,
+  config: JsonRecord,
   key: string,
   value: boolean | string | readonly string[],
 ) {
-  let options = Reflect.get(config, 'compilerOptions')
+  let options = config['compilerOptions']
   if (options === null || typeof options !== 'object' || Array.isArray(options)) {
     options = {}
-    Reflect.set(config, 'compilerOptions', options)
+    config['compilerOptions'] = options
   }
   Reflect.set(options, key, value)
 }
 
-export function requiredObject(value: object, key: string): object {
+export function requiredObject(value: object, key: string): JsonRecord {
   const found = Reflect.get(value, key)
   if (found === null || typeof found !== 'object') {
     throw new Error(`generated module is missing object ${key}`)
   }
-  return found
+  return found as JsonRecord
 }
 
-export type JsonInput = boolean | number | string | object | null | undefined
-
-export function generatedSuccess(schema: object, input: JsonInput): boolean {
-  const parseFn = Reflect.get(schema, 'safeParse')
+export function generatedSuccess(schema: JsonRecord, input: JsonInput): boolean {
+  const parseFn = schema['safeParse']
   if (typeof parseFn !== 'function') throw new Error('schema has no safeParse')
-  const result = Reflect.apply(parseFn, schema, [input])
+  const result = parseFn.call(schema, input) as JsonRecord
   if (result === null || typeof result !== 'object') {
     throw new Error('safeParse did not return an object')
   }
-  return Boolean(Reflect.get(result, 'success'))
+  return Boolean(result['success'])
 }

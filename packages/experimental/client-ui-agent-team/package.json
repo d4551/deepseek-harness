@@ -45,7 +45,7 @@
   },
   "license": "MIT",
   "dependencies": {
-    "react": "^18.2.0"
+    "react": "^19.2.8"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-api-remotes": "workspace:^",
@@ -77,9 +77,9 @@
     "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/dsh-typert-protocol": "workspace:^",
     "@testing-library/react": "^16.1.0",
-    "@types/react": "~18.3.1",
+    "@types/react": "~19.2.18",
     "@deepseek-ai/cordis": "workspace:^",
-    "react-dom": "^18.2.0"
+    "react-dom": "^19.2.8"
   },
   "files": [
     "lib/index.js",

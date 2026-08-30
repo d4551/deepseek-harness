@@ -118,7 +118,8 @@ export function sourcePathForExport(packageRoot: string, target: string): string
  * Validate one admitted package's entry surface. `exports` must be a
  * non-empty subpath-keyed map (Node-legal string or condition targets)
  * whose source targets exist inside the package; a package without
- * `exports` must declare `types`. Generated artifact and data entries
+ * `exports` is admitted as-is and its source exports are discovered
+ * directly. Generated artifact and data entries
  * (`./typert`, `.json`, `.yml`, wildcards) carry no source and are exempt
  * from target checks.
  * @param manifest - parsed package.json object.
@@ -128,16 +129,9 @@ export function sourcePathForExport(packageRoot: string, target: string): string
  */
 export function validatePackageEntrySurface(manifest: object, name: string, packageRoot: string): void {
   const exportsField = Reflect.get(manifest, 'exports')
-  if (exportsField === undefined) {
-    if (optionalString(manifest, 'types') === undefined) {
-      throw new TypertAnalysisError(`${name} package.json must declare exports or types`)
-    }
-    return
-  }
-  if (exportsField === null || typeof exportsField !== 'object' || Array.isArray(exportsField)
-    || Object.keys(exportsField).length === 0
-    || !Object.keys(exportsField).every(key => key.startsWith('.'))) {
-    throw new TypertAnalysisError(`${name} package.json exports must map subpaths to conditions`)
+  if (exportsField === undefined) return
+  if (exportsField === null || (typeof exportsField !== 'object' && typeof exportsField !== 'string')) {
+    throw new TypertAnalysisError(`${name} package.json exports must be a string, condition object, or subpath map`)
   }
   for (const [subpath, target] of packageExportTargets(manifest)) {
     if (!isSourceExportTarget(subpath, target)) continue

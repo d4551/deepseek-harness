@@ -25,7 +25,7 @@ describe('temporary typert bisect', () => {
   for (const name of packages) {
     it(`generates ${name}`, () => {
       const generator = new WorkspaceTypertGenerator(process.cwd(), { checkDiagnostics: false })
-      expect(generator.generate([name], ['host'])).resolves.toBeTruthy()
+      expect(generator.generate([name], ['host'])).toBeTruthy()
     })
   }
 })

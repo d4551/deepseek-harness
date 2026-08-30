@@ -3,22 +3,18 @@
  * @module scripts/cordis-yaml
  */
 
-import * as yaml from 'js-yaml'
+import { defineScalarTag, JSON_SCHEMA, load } from 'js-yaml'
 
 /** A Loader `!!js` expression preserved as data instead of executed. */
 export interface JsExpr {
   __jsExpr: string
 }
 
-const jsExprType = new yaml.Type('tag:yaml.org,2002:js', {
-  kind: 'scalar',
-  resolve: data => typeof data === 'string',
-  construct: (data: unknown): JsExpr => {
-    if (typeof data !== 'string') throw new TypeError('!!js requires a scalar string')
-    return { __jsExpr: data }
-  },
+const jsExprTag = defineScalarTag<JsExpr>('tag:yaml.org,2002:js', {
+  identify: (value): value is JsExpr => typeof value === 'object' && value !== null && '__jsExpr' in value,
+  resolve: (source: string): JsExpr => ({ __jsExpr: source }),
 })
-const schema = yaml.JSON_SCHEMA.extend(jsExprType)
+const schema = JSON_SCHEMA.withTags(jsExprTag)
 
 /**
  * Parse a Cordis config while preserving Loader `!!js` expressions as data.
@@ -26,7 +22,7 @@ const schema = yaml.JSON_SCHEMA.extend(jsExprType)
  * @returns the parsed YAML value.
  */
 export function loadCordisYaml(source: string): unknown {
-  return yaml.load(source, { schema })
+  return load(source, { schema })
 }
 
 /**

@@ -408,23 +408,23 @@ export function JsonTree({
       : pathId([Array.isArray(data) ? firstExpandableIndex : firstExpandableEntry[0]])
     : isExpandableValue(data) && rootEntries.length > 0 ? pathId([]) : null
   const rootRef = useRef<HTMLDivElement>(null)
-  const activeRowRef = useRef<HTMLElement>()
+  const activeRowRef = useRef<HTMLElement>(null)
   const copyButtonRef = useRef<HTMLButtonElement>(null)
   const copyMenuOpenRef = useRef(false)
-  const resetTimer = useRef<ReturnType<typeof setTimeout>>()
+  const resetTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const [copyTarget, setCopyTarget] = useState<CopyTarget>()
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
   const [copyMenuOpen, setCopyMenuOpen] = useState(false)
   const [tabStopId, setTabStopId] = useState<string | null>(initialTabStopId)
 
-  const setActiveRow = (row: HTMLElement | undefined) => {
+  const setActiveRow = (row: HTMLElement | null) => {
     activeRowRef.current?.removeAttribute('data-json-copy-active')
     activeRowRef.current = row
     row?.setAttribute('data-json-copy-active', '')
   }
 
   const clearCopyTarget = () => {
-    setActiveRow(undefined)
+    setActiveRow(null)
     setCopyTarget(undefined)
     setCopyState('idle')
     copyMenuOpenRef.current = false
@@ -465,7 +465,7 @@ export function JsonTree({
 
   useEffect(() => {
     activeRowRef.current?.removeAttribute('data-json-copy-active')
-    activeRowRef.current = undefined
+    activeRowRef.current = null
     copyMenuOpenRef.current = false
     setCopyTarget(undefined)
     setCopyState('idle')
@@ -476,7 +476,7 @@ export function JsonTree({
   useEffect(() => {
     const reposition = () => {
       const row = activeRowRef.current
-      if (row !== undefined) repositionCopyButton(row)
+      if (row !== null) repositionCopyButton(row)
     }
     window.addEventListener('scroll', reposition, true)
     window.addEventListener('resize', reposition)
@@ -505,7 +505,7 @@ export function JsonTree({
 
   const handleScroll = (_event: ReactUIEvent<HTMLDivElement>) => {
     const row = activeRowRef.current
-    if (row !== undefined) repositionCopyButton(row)
+    if (row !== null) repositionCopyButton(row)
   }
 
   const copy = async (mode: 'json' | 'path' | 'prettyJson' | 'value') => {

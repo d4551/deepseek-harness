@@ -4013,7 +4013,7 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
             "arguments": [
               "packages/host/src/models.ts:147:82#0",
             ],
-            "attributes": "{ 'resolution-mode': 'import' }",
+            "attributes": "{ with: { 'resolution-mode': 'import' } }",
             "id": "packages/host/src/models.ts:147:17#0",
             "kind": "import-type",
             "module": "zod",

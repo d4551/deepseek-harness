@@ -4,14 +4,11 @@ import { extname } from 'node:path'
 import { access, constants, readFile, rename, writeFile } from 'node:fs/promises'
 import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import * as yaml from 'js-yaml'
+import { defineScalarTag, JSON_SCHEMA, load, dump } from 'js-yaml'
 
-const JsExpr = new yaml.Type('tag:yaml.org,2002:js', {
-  kind: 'scalar',
-  resolve: (data) => typeof data === 'string',
-  construct: (data) => ({ __jsExpr: data }),
-  predicate: isJsExpr,
-  represent: (data) => data['__jsExpr'],
+const jsExprTag = defineScalarTag<{ __jsExpr: string }>('tag:yaml.org,2002:js', {
+  identify: (value): value is { __jsExpr: string } => isJsExpr(value),
+  resolve: (source: string): { __jsExpr: string } => ({ __jsExpr: source }),
 })
 
 /**
@@ -20,7 +17,7 @@ const JsExpr = new yaml.Type('tag:yaml.org,2002:js', {
  * (`dsh --dump-config`) parses and prints exactly the dialect this include
  * mounts.
  */
-export const entryListSchema = yaml.JSON_SCHEMA.extend(JsExpr)
+export const entryListSchema = JSON_SCHEMA.withTags(jsExprTag)
 
 const schema = entryListSchema
 
@@ -248,7 +245,7 @@ export class Include extends EntryTree {
     let data: any
     try {
       if (this.type === 'application/yaml') {
-        data = yaml.load(content, { schema })
+        data = load(content, { schema })
       } else if (this.type === 'application/json') {
         data = JSON.parse(content)
       } else {
@@ -325,7 +322,7 @@ export class Include extends EntryTree {
       throw new Error(`cannot overwrite readonly config`)
     }
     if (this.type === 'application/yaml') {
-      this.content = yaml.dump(config, { schema })
+      this.content = dump(config, { schema })
     } else if (this.type === 'application/json') {
       this.content = JSON.stringify(config, null, 2)
     }

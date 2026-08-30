@@ -9,7 +9,7 @@ import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react'
 export function useSearchableHidden(
   hidden: boolean,
   reveal: () => void,
-): RefObject<HTMLDivElement> {
+): RefObject<HTMLDivElement | null> {
   const ref = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
     const element = ref.current

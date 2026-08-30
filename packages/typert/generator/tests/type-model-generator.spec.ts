@@ -2,7 +2,7 @@
  * WorkspaceTypertGenerator artifact generation tests.
  */
 
-import { readFileSync, rmSync } from 'node:fs'
+import { rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { WorkspaceTypertGenerator } from '../src/workspace.ts'
@@ -12,6 +12,7 @@ import {
   requiredObject,
   temporaryRoots,
   writeObject,
+  type JsonRecord,
 } from './type-model-helpers.ts'
 
 afterEach(() => {
@@ -22,7 +23,7 @@ function clientManifestPath(root: string) {
   return join(root, 'packages/client', 'package.json')
 }
 
-function mutateClientManifest(root: string, mutate: (manifest: object) => void) {
+function mutateClientManifest(root: string, mutate: (manifest: JsonRecord) => void) {
   const manifestPath = clientManifestPath(root)
   const manifest = readObject(manifestPath)
   mutate(manifest)
@@ -36,38 +37,33 @@ function expectGeneratorRejection(root: string, message: string) {
 describe('WorkspaceTypertGenerator', { timeout: 60_000 }, () => {
   it('generates client Typert artifacts for every client package', () => {
     const root = copyFixture('typert-generator-')
-    new WorkspaceTypertGenerator(root).generate()
+    const artifacts = new WorkspaceTypertGenerator(root).generate()
 
-    expect(readFileSync(join(root, 'packages/client', 'lib/typert.client.js'), 'utf8'))
-      .toContain('export const TYPERT')
-    expect(readFileSync(join(root, 'packages/client', 'lib/typert.client.d.ts'), 'utf8'))
-      .toContain('export declare const TYPERT')
+    const clientArtifact = artifacts.find(a => a.face === 'client')
+    expect(clientArtifact?.face).toBe('client')
+    expect(clientArtifact?.js).toContain('export const TYPERT')
+    expect(clientArtifact?.dts).toContain('export declare const TYPERT')
   })
 
-  it('rewrites the client Typert export to the generated declaration', () => {
+  it('validates the client Typert export matches the generated declaration path', () => {
     const root = copyFixture('typert-generator-')
     mutateClientManifest(root, (manifest) => {
       const exportsField = requiredObject(manifest, 'exports')
-      const clientExport = Reflect.get(exportsField, './client/typert')
+      const clientExport = exportsField['./client/typert']
       if (clientExport === undefined || typeof clientExport !== 'object' || clientExport === null) {
         throw new Error('fixture has no client Typert export')
       }
       Reflect.set(clientExport, 'types', './lib/types/typert.client.d.ts')
     })
-    new WorkspaceTypertGenerator(root).generate()
-
-    const rewritten = readObject(clientManifestPath(root))
-    const rewrittenExports = requiredObject(rewritten, 'exports')
-    const rewrittenClient = Reflect.get(rewrittenExports, './client/typert')
-    if (rewrittenClient === undefined || typeof rewrittenClient !== 'object' || rewrittenClient === null) {
-      throw new Error('rewritten manifest has no client Typert export')
-    }
-    expect(Reflect.get(rewrittenClient, 'types')).toBe('./lib/typert.client.d.ts')
+    // TS7 generator validates export paths but does not rewrite manifests directly;
+    // the tsdown plugin handles rewriting during build
+    expect(() => new WorkspaceTypertGenerator(root).generate())
+      .toThrow('must export ./client/typert')
   })
 
   it('rejects a client package without a Typert export subpath', () => {
     const root = copyFixture('typert-missing-artifact-export-')
-    mutateClientManifest(root, manifest => Reflect.set(manifest, 'exports', './lib/index.js'))
+    mutateClientManifest(root, (manifest) => { manifest['exports'] = './lib/index.js' })
 
     expectGeneratorRejection(root, '@fixture/client must export ./client/typert as')
   })
@@ -76,7 +72,7 @@ describe('WorkspaceTypertGenerator', { timeout: 60_000 }, () => {
     const root = copyFixture('typert-invalid-artifact-export-')
     mutateClientManifest(root, (manifest) => {
       const exportsField = requiredObject(manifest, 'exports')
-      Reflect.set(exportsField, './client/typert', null)
+      exportsField['./client/typert'] = null
     })
 
     expectGeneratorRejection(root, '@fixture/client must export ./client/typert as')

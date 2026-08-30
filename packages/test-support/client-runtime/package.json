@@ -47,8 +47,8 @@
     "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/dsh-subagent": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-api-session-controller": "workspace:^",
@@ -65,11 +65,11 @@
     "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/dsh-subagent": "workspace:^",
-    "@types/react": "~18.3.1",
-    "@types/react-dom": "~18.3.0",
+    "@types/react": "~19.2.18",
+    "@types/react-dom": "~19.2.5",
     "@deepseek-ai/cordis": "workspace:^",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "files": [
     "lib/index.js",

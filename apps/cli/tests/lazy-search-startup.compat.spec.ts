@@ -15,7 +15,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import yaml from 'js-yaml'
+import { defineScalarTag, JSON_SCHEMA, load as yamlLoad } from 'js-yaml'
 import { describe, expect, it } from 'vitest'
 
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url))
@@ -37,11 +37,11 @@ interface PatchEntry extends ConfigRow {
   insert?: ConfigRow[]
 }
 
-const jsExprType = new yaml.Type('tag:yaml.org,2002:js', {
-  kind: 'scalar',
-  construct: value => String(value),
+const jsExprTag = defineScalarTag<string>('tag:yaml.org,2002:js', {
+  identify: (value): value is string => typeof value === 'string',
+  resolve: (source: string): string => source,
 })
-const configSchema = yaml.JSON_SCHEMA.extend(jsExprType)
+const configSchema = JSON_SCHEMA.withTags(jsExprTag)
 
 /** Boot the built Web CLI, wait for its settled URL, then dispose through SIGTERM. */
 function runBuiltWeb(cwd: string): Promise<{ stdout: string; stderr: string; code: number }> {
@@ -103,9 +103,9 @@ describe.skipIf(!requireBuiltArtifacts)('built CLI lazy-search startup', () => {
   it('boots and disposes the shipped composition with full-text search off by default', async () => {
     expect(existsSync(builtBin), `missing built CLI ${resolve(builtBin)}; run bun run build`).toBe(true)
     expect(existsSync(webDist), `missing Web dist ${resolve(webDist)}; run bun run build:web`).toBe(true)
-    const baseRows = (yaml.load(await readFile(baseConfigPath, 'utf8'), { schema: configSchema }) as PatchEntry[])
+    const baseRows = (yamlLoad(await readFile(baseConfigPath, 'utf8'), { schema: configSchema }) as PatchEntry[])
       .flatMap(entry => entry.insert ?? [entry])
-    const webRows = (yaml.load(await readFile(webConfigPath, 'utf8'), { schema: configSchema }) as PatchEntry[])
+    const webRows = (yamlLoad(await readFile(webConfigPath, 'utf8'), { schema: configSchema }) as PatchEntry[])
       .flatMap(entry => entry.insert ?? [entry])
     const baseRow = baseRows.find(row => row.id === 'session-query-sqlite')
     const webRow = webRows.find(row => row.id === 'session-query-sqlite')

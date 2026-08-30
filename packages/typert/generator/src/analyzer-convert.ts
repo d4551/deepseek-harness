@@ -182,7 +182,10 @@ function importTypeModel(face: FaceContext, node: import('typescript/unstable/as
     ...node.qualifier === undefined ? {} : { qualifier: node.qualifier.getText() },
     arguments: typeArgumentsOf(face, node),
     typeof: node.isTypeOf,
-    ...node.attributes === undefined ? {} : { attributes: node.attributes.getText() },
+    ...node.attributes === undefined ? {} : {
+      // TS7 ImportAttributes.getText() returns just the object literal; wrap with keyword inside
+      attributes: `{ ${node.attributes.token === 117 ? 'with' : 'assert'}: ${node.attributes.getText()} }`,
+    },
     ...symbol === undefined ? {} : { target: targetForReference(face, face.resolveSymbol(symbol), node) },
   }
 }

@@ -24,7 +24,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
     ...actual,
     stat: (async (...args: Parameters<typeof actual.stat>) => {
       const identity = await actual.stat(...args)
-      if (String(args[0]) !== statRace.path || !('mtimeNs' in identity)) return identity
+      if (!identity || String(args[0]) !== statRace.path || !('mtimeNs' in identity)) return identity
       statRace.reads += 1
       if (statRace.reads !== 2) return identity
       return { ...identity, mtimeNs: identity.mtimeNs + 1n }

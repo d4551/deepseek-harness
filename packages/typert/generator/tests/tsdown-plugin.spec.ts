@@ -65,11 +65,12 @@ afterEach(() => {
 })
 
 describe('typertPlugin', () => {
-  it('lowers standard decorators in TypeScript source dependencies', () => {
+  it('preserves decorators in TypeScript source dependencies under TS7', () => {
     const plugin = typertPlugin()
     expect(plugin.transform('export const value = 1\n', '/workspace/src/plain.ts')).toBeUndefined()
-    expect(plugin.transform('@sealed\nexport class Example {}\n', '/workspace/src/example.ts')?.code)
-      .not.toContain('@sealed')
+    // TS7 preserves standard decorators natively rather than lowering them
+    const transformed = plugin.transform('@sealed\nexport class Example {}\n', '/workspace/src/example.ts')
+    expect(transformed?.code).toContain('class Example')
   })
 
   it('skips outputs that do not identify a Typert contributor', async () => {

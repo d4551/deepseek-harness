@@ -56,7 +56,7 @@ export const AXE_FLOOR: SemVer = { major: 4, minor: 13, patch: 0 }
 /** @modelcontextprotocol/sdk v1 latest. */
 export const MCP_SDK_FLOOR: SemVer = { major: 1, minor: 30, patch: 0 }
 
-const FORBIDDEN_STACK = /\b(daisyui|tailwindcss|htmx\.org|@tailwind|hx-(?:get|post|put|patch|delete|swap|trigger|boost|target))\b/g
+const FORBIDDEN_STACK = /(\b(?:daisyui|tailwindcss|htmx\.org|hx-(?:get|post|put|patch|delete|swap|trigger|boost|target))\b|@tailwind\b)/g
 
 /**
  * Parse the first `major.minor.patch` in a declared range (`^7.0.2`, `~18.3.1`).

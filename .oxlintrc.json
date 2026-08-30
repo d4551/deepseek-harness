@@ -21,6 +21,10 @@
     "**/.oxlint-contract-*/**", // Scratch files created by the executable lint-contract tests.
     "**/oxlint-contract-*", // Flat probes use real TypeScript project include paths.
     "packages/typert/generator/tests/fixtures/type-model/**", // tsgolint rejects this fixture's preserved project shapes before rules run.
+    "packages/typert/generator/tests/.probe-*/**", // Temp fixture copies created by typert tests; cleaned up by afterEach.
+    "packages/typert/generator/tests/.generated-*/**", // Temp generated output from typert emitter tests.
+    "packages/typert/generator/tests/.rendered-*/**", // Temp rendered declarations from typert compile tests.
+    "packages/typert/generator/tests/.typert-*/**", // Temp workspace copies from typert analyzer tests.
     "website/.generated/**",
     "vendor/**", // Vendored source keeps upstream style and idioms.
     "native/**", // The imported landlock-run subtree has its own gates; see native/README.md.

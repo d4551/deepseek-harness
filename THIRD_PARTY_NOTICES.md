@@ -95,8 +95,8 @@ External packages that a workspace package resolves at runtime. The tier covers 
 | [`open`](https://github.com/sindresorhus/open) | MIT |
 | [`oxc-transform`](https://github.com/oxc-project/oxc) | MIT |
 | [`picomatch`](https://github.com/micromatch/picomatch) | MIT |
-| [`react`](https://github.com/facebook/react) | MIT |
-| [`react-dom`](https://github.com/facebook/react) | MIT |
+| [`react`](https://github.com/react/react) | MIT |
+| [`react-dom`](https://github.com/react/react) | MIT |
 | [`readable-stream`](https://github.com/nodejs/readable-stream) | MIT |
 | [`resolve.exports`](https://github.com/lukeed/resolve.exports) | MIT |
 | [`sharp`](https://github.com/lovell/sharp) | Apache-2.0 |

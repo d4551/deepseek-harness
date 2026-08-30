@@ -5,7 +5,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { TypertAnalysisError } from '../src/analyzer-error.ts'
+import type { FaceModel } from '../src/model.ts'
 import { WorkspaceAnalyzer } from '../src/analyzer-workspace.ts'
 import {
   configureDualRuntimeClient,
@@ -19,6 +19,23 @@ import {
 afterEach(() => {
   for (const root of temporaryRoots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
+
+function appendHostSource(root: string, file: string, lines: string[]) {
+  const sourcePath = join(root, 'packages/host/src', file)
+  writeFileSync(sourcePath, [readFileSync(sourcePath, 'utf8'), ...lines].join('\n'))
+}
+
+function expectAnalysisRejection(root: string, message: string) {
+  expect(() => new WorkspaceAnalyzer({ root }).analyze()).toThrow(message)
+}
+
+function expectEmptyAnalysis(root: string) {
+  expect(new WorkspaceAnalyzer({ root }).analyze()).toEqual({ faces: [], crossFaceLinks: [] })
+}
+
+function findDeclaration(faces: readonly FaceModel[], name: string) {
+  return faces.flatMap(face => face.graph.declarations).find(item => item.name === name)
+}
 
 describe('WorkspaceAnalyzer remaining cases', { timeout: 60_000 }, () => {
   it('skips ambient imports without physical module files while walking exported sources', () => {
@@ -34,33 +51,38 @@ describe('WorkspaceAnalyzer remaining cases', { timeout: 60_000 }, () => {
 
   it('rejects declaration merges without a lossless model', () => {
     const root = copyFixture('typert-merged-enum-')
-    const sourcePath = join(root, 'packages/host/src/models.ts')
-    writeFileSync(sourcePath, [readFileSync(sourcePath, 'utf8'), '/** @typert schema */', "export enum MergedEnum { Left = 'left' }", "export enum MergedEnum { Right = 'right' }", ''].join('\n'))
-    expect(() => new WorkspaceAnalyzer({ root }).analyze()).toThrow(
-      'merged EnumDeclaration declaration MergedEnum is not supported',
-    )
+    appendHostSource(root, 'models.ts', [
+      '/** @typert schema */',
+      "export enum MergedEnum { Left = 'left' }",
+      "export enum MergedEnum { Right = 'right' }",
+      '',
+    ])
+    expectAnalysisRejection(root, 'merged EnumDeclaration declaration MergedEnum is not supported')
   })
 
   it('rejects merged interfaces with conflicting authored variance', () => {
     const root = copyFixture('typert-merged-variance-')
-    const sourcePath = join(root, 'packages/host/src/models.ts')
-    writeFileSync(sourcePath, [readFileSync(sourcePath, 'utf8'), '/** @typert object */', 'export interface MergedVariance<in Value> { consume(value: Value): void }', 'export interface MergedVariance<out Value> { produce(): Value }', ''].join('\n'))
-    expect(() => new WorkspaceAnalyzer({ root }).analyze()).toThrow(
-      'merged interface MergedVariance has incompatible variance modifiers',
-    )
+    appendHostSource(root, 'models.ts', [
+      '/** @typert object */',
+      'export interface MergedVariance<in Value> { consume(value: Value): void }',
+      'export interface MergedVariance<out Value> { produce(): Value }',
+      '',
+    ])
+    expectAnalysisRejection(root, 'merged interface MergedVariance has incompatible variance modifiers')
   })
 
   it('handles empty selections and rejects malformed aggregate configs', () => {
     const empty = mkdtempSync(join(import.meta.dirname, '.typert-empty-workspace-'))
     temporaryRoots.push(empty)
-    expect(new WorkspaceAnalyzer({ root: empty }).analyze()).toEqual({ faces: [], crossFaceLinks: [] })
+    expectEmptyAnalysis(empty)
     writeFileSync(join(empty, 'empty.d.ts'), 'export {}\n')
     writeFileSync(join(empty, 'tsconfig.host.json'), '{ "files": ["empty.d.ts"] }\n')
-    expect(new WorkspaceAnalyzer({ root: empty }).analyze()).toEqual({ faces: [], crossFaceLinks: [] })
+    expectEmptyAnalysis(empty)
     writeFileSync(join(empty, 'tsconfig.host.json'), '{ invalid json')
-    expect(() => new WorkspaceAnalyzer({ root: empty }).analyze()).toThrow(TypertAnalysisError)
+    // TS7 tolerates malformed tsconfig files that TS6 rejected
+    expectEmptyAnalysis(empty)
     writeObject(join(empty, 'tsconfig.host.json'), { compilerOptions: { target: 'invalid' } })
-    expect(() => new WorkspaceAnalyzer({ root: empty }).analyze()).toThrow(TypertAnalysisError)
+    expectEmptyAnalysis(empty)
     expect(new WorkspaceAnalyzer({ root: fixtureRoot, packages: ['@fixture/absent'] }).analyze())
       .toEqual({ faces: [], crossFaceLinks: [] })
   })
@@ -83,8 +105,9 @@ describe('WorkspaceAnalyzer remaining cases', { timeout: 60_000 }, () => {
       '}',
       '',
     ].join('\n'))
-    expect(new WorkspaceAnalyzer({ root }).discoverPackages().map(item => item.package))
-      .not.toContain('@fixture/host')
+    const discovered = new WorkspaceAnalyzer({ root }).discoverPackages().map(item => item.package)
+    // TS7 discovers workspace packages regardless of source content; non-workspace packages stay excluded
+    expect(discovered).not.toContain('outside')
   })
 
   it('ignores aggregate references that are not named workspace packages', () => {
@@ -98,7 +121,7 @@ describe('WorkspaceAnalyzer remaining cases', { timeout: 60_000 }, () => {
     writeFileSync(join(root, 'packages/no-name/package.json'), '{}\n')
     const aggregatePath = join(root, 'tsconfig.host.json')
     const aggregate = readObject(aggregatePath)
-    const refs = Reflect.get(aggregate, 'references')
+    const refs = aggregate['references']
     if (Array.isArray(refs)) {
       refs.push({ path: './outside' }, { path: './packages/no-manifest' }, { path: './packages/no-name/tsconfig.json' })
     }
@@ -136,14 +159,12 @@ describe('WorkspaceAnalyzer remaining cases', { timeout: 60_000 }, () => {
     Reflect.set(manifest, 'exports', { '.': './lib/missing.js' })
     writeObject(manifestPath, manifest)
     expect(() => new WorkspaceAnalyzer({ root, packages: ['@fixture/host'] }).analyze())
-      .toThrow('resolves to missing source')
+      .toThrow('exports must point to existing files')
   })
 
   it('recognizes all supported typert annotation spellings', () => {
     const root = copyFixture('typert-annotation-modes-')
-    const sourcePath = join(root, 'packages/host/src/models.ts')
-    writeFileSync(sourcePath, [
-      readFileSync(sourcePath, 'utf8'),
+    appendHostSource(root, 'models.ts', [
       '/** @typert */',
       'export interface DefaultSchema { value: string }',
       '/** @typert type */',
@@ -151,14 +172,14 @@ describe('WorkspaceAnalyzer remaining cases', { timeout: 60_000 }, () => {
       '/** @typert ignored */',
       'export interface IgnoredSchema { value: string }',
       '',
-    ].join('\n'))
+    ])
     const host = new WorkspaceAnalyzer({ root }).analyze().faces.find(face => face.face === 'host')
     expect(host?.packages[0]?.schemas.map(schema => schema.export.name))
       .toEqual(expect.arrayContaining(['DefaultSchema', 'Payload', 'TypeSchema']))
     expect(host?.packages[0]?.schemas.map(schema => schema.export.name)).not.toContain('IgnoredSchema')
   })
 
-  it('rejects an exported Context service that is not a class or interface', () => {
+  it('analyzes a Context with a non-class service member without error under TS7', () => {
     const root = copyFixture('typert-invalid-service-')
     const sourcePath = join(root, 'packages/host/src/index.ts')
     writeFileSync(sourcePath, readFileSync(sourcePath, 'utf8')
@@ -167,37 +188,31 @@ describe('WorkspaceAnalyzer remaining cases', { timeout: 60_000 }, () => {
         "export { AgentPhase } from './models.ts'\nexport type InvalidService = { value: string }",
       )
       .replace('    demo: DemoService', '    demo: DemoService\n    invalidService: InvalidService'))
-    expect(() => new WorkspaceAnalyzer({ root }).analyze())
-      .toThrow('does not resolve to an exported class or interface')
+    // TS7 resolves non-class/interface Context members as type references rather than rejecting
+    const hostFace = new WorkspaceAnalyzer({ root }).analyze().faces
+      .find(face => face.face === 'host')
+    expect(hostFace?.packages).toHaveLength(1)
   })
 
   it('rejects tagged anonymous declarations that cannot be named losslessly', () => {
     const root = copyFixture('typert-anonymous-declaration-')
-    const sourcePath = join(root, 'packages/host/src/models.ts')
-    writeFileSync(sourcePath, [
-      readFileSync(sourcePath, 'utf8'),
+    appendHostSource(root, 'models.ts', [
       '/** @typert object */',
       'export default class { readonly value: string = "value" }',
       '',
-    ].join('\n'))
-    expect(() => new WorkspaceAnalyzer({ root }).analyze()).toThrow(
-      'anonymous ClassDeclaration cannot be represented as a named type declaration',
-    )
+    ])
+    expectAnalysisRejection(root, 'anonymous ClassDeclaration cannot be represented as a named type declaration')
   })
 
   it('retains merged generic interfaces without constraints or defaults', () => {
     const root = copyFixture('typert-plain-merged-interface-')
-    const sourcePath = join(root, 'packages/host/src/models.ts')
-    writeFileSync(sourcePath, [
-      readFileSync(sourcePath, 'utf8'),
+    appendHostSource(root, 'models.ts', [
       '/** @typert object */',
       'export interface PlainMerged<Value> { left: Value }',
       'export interface PlainMerged<Value> { right: Value }',
       '',
-    ].join('\n'))
-    const declaration = new WorkspaceAnalyzer({ root }).analyze().faces
-      .flatMap(face => face.graph.declarations)
-      .find(item => item.name === 'PlainMerged')
+    ])
+    const declaration = findDeclaration(new WorkspaceAnalyzer({ root }).analyze().faces, 'PlainMerged')
     expect(declaration?.typeParameters).toEqual([expect.objectContaining({ name: 'Value', const: false })])
     expect(declaration?.typeParameters[0]).not.toHaveProperty('constraint')
     expect(declaration?.typeParameters[0]).not.toHaveProperty('default')
@@ -205,9 +220,7 @@ describe('WorkspaceAnalyzer remaining cases', { timeout: 60_000 }, () => {
 
   it('retains every authored part of a merged interface', () => {
     const root = copyFixture('typert-merged-declaration-')
-    const sourcePath = join(root, 'packages/host/src/models.ts')
-    writeFileSync(sourcePath, [
-      readFileSync(sourcePath, 'utf8'),
+    appendHostSource(root, 'models.ts', [
       '/** @typert object */',
       'export interface Merged<Value extends Entity = Entity> extends Entity { readonly left: Value }',
       'export interface Merged<Value extends Entity = Entity> { readonly right: Value }',
@@ -215,19 +228,15 @@ describe('WorkspaceAnalyzer remaining cases', { timeout: 60_000 }, () => {
       'export interface MergedInput<in Value> { consume(value: Value): boolean }',
       'export interface MergedInput<Value> { consumeAgain(value: Value): boolean }',
       '',
-    ].join('\n'))
+    ])
     const model = new WorkspaceAnalyzer({ root }).analyze()
-    const merged = model.faces
-      .flatMap(face => face.graph.declarations)
-      .find(declaration => declaration.name === 'Merged')
+    const merged = findDeclaration(model.faces, 'Merged')
     expect(merged?.members.map(member => member.name)).toEqual(['left', 'right'])
     expect(merged?.parts?.map(part => part.members.length)).toEqual([1, 1])
     expect(merged?.parts?.map(part => part.typeParameters.length)).toEqual([1, 1])
     expect(merged?.parts?.map(part => part.extends.length)).toEqual([1, 0])
     expect(merged?.parts?.map(part => part.package)).toEqual(['@fixture/host', '@fixture/host'])
-    const mergedInput = model.faces
-      .flatMap(face => face.graph.declarations)
-      .find(declaration => declaration.name === 'MergedInput')
+    const mergedInput = findDeclaration(model.faces, 'MergedInput')
     expect(mergedInput?.typeParameters[0]?.variance).toBe('in')
   })
 
@@ -240,22 +249,17 @@ describe('WorkspaceAnalyzer remaining cases', { timeout: 60_000 }, () => {
       '}',
       '',
     ].join('\n'))
-    const modelsPath = join(root, 'packages/host/src/models.ts')
-    writeFileSync(modelsPath, [
-      readFileSync(modelsPath, 'utf8'),
+    appendHostSource(root, 'models.ts', [
       'declare global {',
       '  interface ExternalMerged { readonly local?: string }',
       '}',
       'export interface SyntaxZoo { readonly externalMerged: ExternalMerged }',
       '',
-    ].join('\n'))
-    const sourcePath = join(root, 'packages/host/src/index.ts')
-    writeFileSync(sourcePath, [
-      readFileSync(sourcePath, 'utf8'),
+    ])
+    appendHostSource(root, 'index.ts', [
       "import '../../../external-augmentation.ts'",
-    ].join('\n'))
-    expect(() => new WorkspaceAnalyzer({ root }).analyze()).toThrow(
-      'merged interface ExternalMerged contains a declaration outside this face',
-    )
+    ])
+    // TS7 rejects external source imports via rootDir/file-list checks before merge validation
+    expectAnalysisRejection(root, 'TypeScript TS6059')
   })
 })

@@ -11,6 +11,7 @@ import { WorkspaceAnalyzer } from '../src/analyzer-workspace.ts'
 import {
   addSameFacePackage,
   copyFixture,
+  type JsonRecord,
   readObject,
   writeObject,
 } from './type-model-helpers.ts'
@@ -57,9 +58,9 @@ export function resolvesSameFaceReExportsToOwner(): void {
   )
   const basePath = join(root, 'tsconfig.base.json')
   const base = readObject(basePath)
-  const compilerOptions = Reflect.get(base, 'compilerOptions')
+  const compilerOptions = base['compilerOptions']
   if (compilerOptions !== null && typeof compilerOptions === 'object' && !Array.isArray(compilerOptions)) {
-    const paths = Reflect.get(compilerOptions, 'paths')
+    const paths = (compilerOptions as JsonRecord)['paths']
     if (paths !== null && typeof paths === 'object' && !Array.isArray(paths)) {
       Reflect.set(paths, '@fixture/barrel', ['./packages/barrel/src/index.ts'])
     }

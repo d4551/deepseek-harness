@@ -39,7 +39,7 @@ export class InspectorClientFixture {
     this.worker = worker
     this.fiberUid = fiberUid
     worker.on('message', (message: unknown) => { this.receive(message) })
-    worker.on('error', (error) => { this.fail(error) })
+    worker.on('error', (error: Error) => { this.fail(error) })
     worker.on('exit', (code) => {
       if (!this.closed && code !== 0) this.fail(new Error(`Inspector Client fixture exited with code ${String(code)}`))
     })

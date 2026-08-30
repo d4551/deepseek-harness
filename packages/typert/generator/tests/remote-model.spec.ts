@@ -39,23 +39,23 @@ describe('Remote model generation', { timeout: 60_000 }, () => {
 
   it('evaluates declaration-merged mapped and conditional boundaries for codecs without widening consumer types', () => evaluatesMergedBoundaries())
 
-  it('imports public type arguments nested under a named generic boundary', () => importsNestedGenericArguments())
+  it('imports public type arguments nested under a named generic boundary', importsNestedGenericArguments)
 
-  it('quotes aliased methods in generated namespace interfaces', () => quotesAliasedMethods())
+  it('quotes aliased methods in generated namespace interfaces', quotesAliasedMethods)
 
   it.each(['create#v2', 'create goal', '.', '..'])('rejects untransportable Remote alias %s', (alias) => {
     rejectsUntransportableAlias(alias)
   })
 
-  it('rejects a Remote export after its last Remote method is removed', () => rejectsRemoteExportWithoutMethods())
+  it('rejects a Remote export after its last Remote method is removed', rejectsRemoteExportWithoutMethods)
 
-  it('validates Remote artifacts only on the host face of a dual-face package', () => validatesRemoteArtifactsOnHostFaceOnly())
+  it('validates Remote artifacts only on the host face of a dual-face package', validatesRemoteArtifactsOnHostFaceOnly)
 
   it.each(methodShapeRejections)('rejects $name', ({ edit, message }) => {
     rejectsMethodShape(edit, message)
   })
 
-  it('rejects a workspace class parameter without a lookup declaration', () => rejectsWorkspaceClassWithoutLookup())
+  it('rejects a workspace class parameter without a lookup declaration', rejectsWorkspaceClassWithoutLookup)
 
   it.each([
     ['bigint', 'bigint'],
@@ -67,11 +67,11 @@ describe('Remote model generation', { timeout: 60_000 }, () => {
     rejectsNonJsonBoundary(type, message)
   })
 
-  it('keeps optional JSON object fields valid', () => keepsOptionalJsonFieldsValid())
+  it('keeps optional JSON object fields valid', keepsOptionalJsonFieldsValid)
 
-  it('rejects a Remote Scope without a static Context declaration', () => rejectsScopeWithoutContext())
+  it('rejects a Remote Scope without a static Context declaration', rejectsScopeWithoutContext)
 
-  it('rejects a direct scoped projection whose Context and lookup wire symbols differ', () => rejectsScopedWireMismatch())
+  it('rejects a direct scoped projection whose Context and lookup wire symbols differ', rejectsScopedWireMismatch)
 
-  it('rejects duplicate endpoints across Remote services', () => rejectsDuplicateEndpoints())
+  it('rejects duplicate endpoints across Remote services', rejectsDuplicateEndpoints)
 })

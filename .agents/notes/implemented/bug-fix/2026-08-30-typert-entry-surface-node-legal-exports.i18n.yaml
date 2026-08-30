@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-30-typert-entry-surface-node-legal-exports.md
+2026-08-30-typert-entry-surface-node-legal-exports.md: a468f934bc56257483e79eb422f94153648f0903
+2026-08-30-typert-entry-surface-node-legal-exports.zh.md: 926293123609b2742bdfba236e9ae49836e4678c

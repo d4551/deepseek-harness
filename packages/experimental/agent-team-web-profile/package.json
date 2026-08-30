@@ -47,6 +47,6 @@
     "@deepseek-ai/cordis-plugin-include": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^",
-    "js-yaml": "^4.2.0"
+    "js-yaml": "^5.4.1"
   }
 }

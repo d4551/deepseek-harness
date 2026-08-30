@@ -36,7 +36,7 @@ export function workspaceLabel(cwd: string): string {
  * @returns the chip button element.
  */
 export function WorkspaceChip({ buttonRef, label, menuOpen = false, onClick, t }: {
-  buttonRef?: RefObject<HTMLButtonElement>
+  buttonRef?: RefObject<HTMLButtonElement | null>
   label?: string | undefined
   menuOpen?: boolean
   onClick?: () => void
