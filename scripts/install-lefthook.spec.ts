@@ -16,11 +16,11 @@ import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { removeFixtureSafely, unlinkFixtureLinks } from './test-fixture-cleanup.ts'
 
 // These spawn git, node, and a stub lefthook per test. A `describe` timeout
 // option does not override the lane budget; `vi.setConfig` is what does.
-vi.setConfig({ testTimeout: 120_000 })
-import { removeFixtureSafely, unlinkFixtureLinks } from './test-fixture-cleanup.ts'
+vi.setConfig({ testTimeout: 50 })
 
 const installer = fileURLToPath(new URL('./install-lefthook.mjs', import.meta.url))
 const pairingMergeDriver = 'scripts/merge-translation-pairing-driver.sh %O %A %B %P'
