@@ -2,7 +2,8 @@
  * TypeScript 7.0.2's package exports include the new compiler API under
  * `typescript/unstable/*`. This gate fails if the mandated `typescript`
  * pin stops exporting that API, and if the 6.0 Strada compatibility
- * package (`@typescript/typescript6`) re-enters any manifest or source.
+ * package (`@typescript/typescript6`) re-enters any tracked manifest,
+ * lockfile, or source.
  */
 import { spawnSync } from 'node:child_process'
 import { resolve } from 'node:path'
@@ -61,15 +62,13 @@ describe('mandated typescript 7 compiler API', () => {
       '-e', 'import(\'@typescript/typescript6\')',
       '-e', '"@typescript/typescript6":',
       '--',
-      'packages',
-      'apps',
-      'scripts',
-      'vendor',
-      'patches',
-      'native',
-      'python',
-      'website',
+      // The whole tracked tree, so the root manifest and `bun.lock` — where the
+      // package would re-enter first — are covered. `goal/` holds plan records
+      // of past runs, frozen like archived notes: one predates this decision and
+      // states the opposite acceptance criterion.
+      '.',
       ':(exclude)scripts/typescript7-unstable-api.spec.ts',
+      ':(exclude)goal/',
     ], { cwd: root, encoding: 'utf8' })
     // git grep exits 1 when nothing matches: exactly the passing case.
     expect(result.status).toBe(1)

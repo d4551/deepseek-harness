@@ -176,12 +176,20 @@ describe('CI workflow', () => {
     expect(aggregate['runs-on']).toContain('vm-backup')
   })
 
-  it('gives the Wine Host TypeScript compile the repository heap budget', () => {
+  it('compiles both Wine faces through the TypeScript 7 launcher with no Node heap flag', () => {
+    // `typescript`'s `bin/tsc` is a Node shim that hands the argv to the Go
+    // compiler and exits; a V8 heap flag sizes a heap the compile never uses.
     const wineGates = readFileSync(resolve(root, 'scripts/wine-windows-gates.sh'), 'utf8')
+    const manifest = readFileSync(resolve(root, 'package.json'), 'utf8')
 
     expect(wineGates).toContain(
-      'wine_node "$scratch/logs/host-tsc.log" --max-old-space-size=4096 "$tsc_js" -b tsconfig.host.json --pretty false',
+      'wine_node "$scratch/logs/host-tsc.log" "$tsc_js" -b tsconfig.host.json --pretty false',
     )
+    expect(wineGates).toContain(
+      'wine_node "$scratch/logs/client-tsc.log" "$tsc_js" -b tsconfig.client.json --pretty false',
+    )
+    expect(wineGates).not.toContain('--max-old-space-size')
+    expect(manifest).not.toContain('--max-old-space-size')
   })
 
   it('exempts push from cancellation in ci-master, so one master merge does not cancel the running drill', () => {

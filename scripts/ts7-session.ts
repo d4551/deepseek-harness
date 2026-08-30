@@ -21,8 +21,9 @@ function compiler(): API {
 }
 
 /**
- * Shut down the Go compiler session. Call once at process end after a gate
- * that opened many files.
+ * Shut down the Go compiler session and kill its child process. The channel
+ * unrefs the child and kills it at process exit, so a short-lived gate need
+ * not call this; a long-lived process that opened a session frees it here.
  */
 export function closeCompiler(): void {
   api?.close()

@@ -22,10 +22,6 @@ export default defineConfig(({ env }) => {
     format: ['esm'],
     platform: 'node',
     target: 'es2024',
-    // Artifact plane: never resolve workspace deps through tsconfig paths into
-    // package SOURCE — the tsc emit (lib/types) is the input, and src inlining
-    // would reintroduce unlowered stage-3 decorators oxc cannot transform.
-    tsconfig: false,
     fixedExtension: false,
     dts: false,
     clean: false,

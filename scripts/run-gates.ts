@@ -152,7 +152,7 @@ export function defaultConcurrency(
   available = availableParallelism(),
 ): ConcurrencyDefault {
   if (selectedMode === 'ci-consumers') return { workers: total, source: 'ci-consumers gate count' }
-  // Local modes cap workers: several doc gates each build a full ts.Program,
+  // Local modes cap workers: several doc gates each open a full TypeScript program,
   // so an uncapped default on a large host trades wall clock for memory blowups.
   const localCap = selectedMode === 'check-all'
     || selectedMode === 'hygiene'

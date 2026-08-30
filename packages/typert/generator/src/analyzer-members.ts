@@ -6,6 +6,7 @@ import type {
   ClassElement,
   Node,
   PropertyName,
+  SignatureDeclaration,
   TypeElement,
   TypeNode,
   TypeParameterDeclaration,
@@ -82,7 +83,6 @@ function skipMember(
   if (!isMethodDeclaration(member) || member.body === undefined) return false
   return members.some(candidate => candidate !== member
     && (isMethodDeclaration(candidate) || isMethodSignatureDeclaration(candidate))
-    && 'name' in candidate && candidate.name !== undefined
     && memberName(candidate.name) === memberName(member.name)
     && (!isMethodDeclaration(candidate) || candidate.body === undefined))
 }
@@ -157,12 +157,11 @@ function memberIdentity(face: FaceContext, name: PropertyName): Pick<MemberBase,
  * @param explicitReturn - authored return type, if any.
  * @returns the signature model.
  */
-export function functionSignature(face: FaceContext, node: Node, explicitReturn: TypeNode | undefined): SignatureModel {
-  if (!('parameters' in node) || !Array.isArray(node.parameters)) {
-    return { typeParameters: [], parameters: [], returns: face.addNode(node, { kind: 'keyword', name: 'void' }) }
-  }
+export function functionSignature(face: FaceContext, node: SignatureDeclaration, explicitReturn: TypeNode | undefined): SignatureModel {
   const parameters: ParameterModel[] = node.parameters.map(parameter => ({
-    name: memberName(parameter.name),
+    // A parameter carries a BindingName, not the PropertyName `memberName`
+    // reads: an identifier keeps its text, a binding pattern prints itself.
+    name: isIdentifier(parameter.name) ? parameter.name.text : parameter.name.getText(),
     binding: isIdentifier(parameter.name)
       ? 'identifier'
       : isObjectBindingPattern(parameter.name)
@@ -175,10 +174,7 @@ export function functionSignature(face: FaceContext, node: Node, explicitReturn:
     ...parameter.initializer === undefined ? {} : { initializer: parameter.initializer.getText() },
   }))
   return {
-    typeParameters: typeParametersOf(
-      face,
-      'typeParameters' in node && Array.isArray(node.typeParameters) ? node.typeParameters : undefined,
-    ),
+    typeParameters: typeParametersOf(face, node.typeParameters),
     parameters,
     returns: isSetAccessorDeclaration(node)
       ? face.addNode(node, { kind: 'keyword', name: 'void' })

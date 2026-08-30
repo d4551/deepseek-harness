@@ -3,6 +3,7 @@
  */
 
 import type {
+  BindingName,
   ClassDeclaration,
   ClassElement,
   JSDoc,
@@ -135,7 +136,13 @@ export function typertServiceTag(node: Node): JSDocTag | undefined {
     && (jsDocCommentText(tag.comment) ?? '').trim().split(/\s+/, 1)[0] === 'service')
 }
 
-export function memberName(name: PropertyName): string {
+/**
+ * Display text for a member or parameter name. Property names keep their
+ * literal or computed form; destructured parameter patterns print verbatim.
+ * @param name - member property name or parameter binding name.
+ * @returns the rendered name.
+ */
+export function memberName(name: PropertyName | BindingName): string {
   if (isIdentifier(name) || isPrivateIdentifier(name) || isStringLiteral(name)
     || isNumericLiteral(name) || isNoSubstitutionTemplateLiteral(name)) return name.text
   if (isComputedPropertyName(name)) return `[${name.expression.getText()}]`
