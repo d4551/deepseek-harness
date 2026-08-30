@@ -113,6 +113,8 @@ if (files.length === 0) {
         // fails rather than joining a tolerated total.
         fail(`- UNEXPECTED BASELINE FAILURE ${key}: ${(reason as Error).message.split('\n')[0]}`)
         verdicts.unexpectedBaseline += 1
+        const stack = (reason as Error).stack
+        if (stack !== undefined) log(`  ${stack.split('\n').slice(1, 4).join('\n  ')}`)
       } else {
         verdicts.exempt += 1
       }
