@@ -2,7 +2,11 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+// These spawn git, node, and a stub lefthook per test. A `describe` timeout
+// option does not override the lane budget; `vi.setConfig` is what does.
+vi.setConfig({ testTimeout: 120_000 })
 
 import { renderChangeScope } from './change-scope.ts'
 
@@ -96,7 +100,7 @@ function repositoryState(root: string): Record<string, string> {
   }
 }
 
-describe('change-scope', { timeout: 60_000 }, () => {
+describe('change-scope', () => {
   it('uses an explicit base on a fresh branch without a same-name remote and after its first push', { timeout: 20_000 }, () => {
     const { root } = fixture()
     git(root, ['switch', '-c', 'feature'])

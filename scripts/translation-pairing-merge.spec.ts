@@ -13,7 +13,11 @@ import {
 import { tmpdir } from 'node:os'
 import { delimiter, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+// These spawn git, node, and a stub lefthook per test. A `describe` timeout
+// option does not override the lane budget; `vi.setConfig` is what does.
+vi.setConfig({ testTimeout: 120_000 })
 import { gitBlobHash, storeGitBlob } from './translation-pairing-git.ts'
 import {
   mergeTranslationPairingRecords as mergeTranslationPairingRecordsWithScope,
@@ -261,7 +265,7 @@ function expectMergedPair(fixture: Fixture): void {
   )
 }
 
-describe('translation pairing merge composition', { timeout: 60_000 }, () => {
+describe('translation pairing merge composition', () => {
   it('rejects a pairing-record path outside the repository', () => {
     const fixture = createFixture(false)
 

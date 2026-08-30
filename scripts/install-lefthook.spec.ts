@@ -15,7 +15,11 @@ import {
 import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+// These spawn git, node, and a stub lefthook per test. A `describe` timeout
+// option does not override the lane budget; `vi.setConfig` is what does.
+vi.setConfig({ testTimeout: 120_000 })
 import { removeFixtureSafely, unlinkFixtureLinks } from './test-fixture-cleanup.ts'
 
 const installer = fileURLToPath(new URL('./install-lefthook.mjs', import.meta.url))
@@ -211,7 +215,7 @@ function runInstaller(
   })
 }
 
-describe('worktree-local Lefthook installer', { timeout: 60_000 }, () => {
+describe('worktree-local Lefthook installer', () => {
   for (const [label, extraEnv] of [
     ['CI', { CI: 'true' }],
     ['GitHub Actions', { GITHUB_ACTIONS: 'true' }],

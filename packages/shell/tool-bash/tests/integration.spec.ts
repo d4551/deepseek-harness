@@ -1,5 +1,8 @@
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+// Real bash subprocesses per case; `vi.setConfig` is what overrides the lane budget.
+vi.setConfig({ testTimeout: 120_000 })
 import { Context } from '@deepseek-ai/cordis'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'

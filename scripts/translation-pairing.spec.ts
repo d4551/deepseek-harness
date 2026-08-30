@@ -4,7 +4,11 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+// These spawn git, node, and a stub lefthook per test. A `describe` timeout
+// option does not override the lane budget; `vi.setConfig` is what does.
+vi.setConfig({ testTimeout: 120_000 })
 import {
   gitBlobHash,
   gitIndexPaths,
@@ -71,7 +75,7 @@ function gitSupportsObjectFormat(format: 'sha256'): boolean {
 
 const supportsSha256ObjectFormat = gitSupportsObjectFormat('sha256')
 
-describe('translation pairing snapshots', { timeout: 60_000 }, () => {
+describe('translation pairing snapshots', () => {
   it('stores exact uncommitted bytes for later recovery by object ID', () => {
     const root = mkdtempSync(join(tmpdir(), 'dsh-translation-pairing-'))
     try {
