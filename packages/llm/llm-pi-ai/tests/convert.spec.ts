@@ -856,6 +856,26 @@ describe('mapStopReason / mapUsage', () => {
       .toMatchObject({ kind: 'error', failure: { code: 'INVALID_REQUEST' } })
   })
 
+  it('classifies a status-prefixed failure on the status, not on digits in the body', () => {
+    // A gateway's HTML waiting page: the inline logo's SVG path coordinates
+    // contain 403, which a word-boundary scan of the body reads as a status.
+    const gatewayPage = '502 <!DOCTYPE html>\n<html lang="en"><title>Waiting for service to respond</title>'
+      + '<svg><path d="M402.41 145.5V130.09C402.41 126.33 402.95 121.52 403.66 117.89C403.69 117.78 403.6 117.68 401.2 117.6Z"/></svg>'
+      + '<style>.card{max-width:401px}</style></html>'
+    expect(mapStopReason(assistant({ stopReason: 'error', errorMessage: gatewayPage })))
+      .toMatchObject({ kind: 'error', failure: { code: 'SERVER' } })
+    expect(mapStopReason(assistant({ stopReason: 'error', errorMessage: '403 {"error":"forbidden"}' })))
+      .toMatchObject({ kind: 'error', failure: { code: 'AUTH' } })
+    expect(mapStopReason(assistant({ stopReason: 'error', errorMessage: '404 {"error":"no such model"}' })))
+      .toMatchObject({ kind: 'error', failure: { code: 'PI_AI_ERROR' } })
+    expect(mapStopReason(assistant({ stopReason: 'error', errorMessage: '429 insufficient_quota' })))
+      .toMatchObject({ kind: 'error', failure: { code: 'QUOTA' } })
+    expect(mapStopReason(assistant({ stopReason: 'error', errorMessage: '429 slow down' })))
+      .toMatchObject({ kind: 'error', failure: { code: 'RATE_LIMIT' } })
+    expect(mapStopReason(assistant({ stopReason: 'error', errorMessage: '413 body too big' })))
+      .toMatchObject({ kind: 'error', failure: { code: 'INVALID_REQUEST' } })
+  })
+
   it.each([
     'other side closed',
     'HTTP2 request did not get a response',
