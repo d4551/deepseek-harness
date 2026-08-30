@@ -126,8 +126,21 @@ export class SchemaEmitter {
     return this.describe(result, declaration)
   }
 
+  private readonly typeChain: TypeNodeId[] = []
+
   private typeSchema(id: TypeNodeId, substitutions: Substitutions = new Map()): string {
     const node = this.renderer.node(id)
+    const chainIndex = this.typeChain.indexOf(id)
+    if (chainIndex >= 0) {
+      this.fail(node.kind === 'reference' ? node.name : node.kind, `cyclic type node ${id} via ${[...this.typeChain.slice(chainIndex), id].join(' > ')}`)
+    }
+    this.typeChain.push(id)
+    const schema = this.typeSchemaBody(node, substitutions, id)
+    this.typeChain.pop()
+    return schema
+  }
+
+  private typeSchemaBody(node: TypeNodeModel, substitutions: Substitutions, id: TypeNodeId): string {
     switch (node.kind) {
       case 'keyword': return this.keywordSchema(node.name)
       case 'literal': return `z.literal(${node.text})`

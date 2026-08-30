@@ -42,6 +42,21 @@ describe('temporary schema cycle hunt', () => {
       root: process.cwd(),
       faces: ['host'],
       checkDiagnostics: false,
+      packages: [
+        '@deepseek-ai/dsh-api-session-controller',
+        '@deepseek-ai/dsh-api-settings-controller',
+        '@deepseek-ai/dsh-api-workspace-controller',
+        '@deepseek-ai/dsh-session-reference',
+        '@deepseek-ai/dsh-experimental-agent-team',
+        '@deepseek-ai/dsh-cordis-host-runner',
+        '@deepseek-ai/dsh-message-feedback',
+        '@deepseek-ai/dsh-goal',
+        '@deepseek-ai/dsh-plugin-inventory',
+        '@deepseek-ai/dsh-commands',
+        '@deepseek-ai/dsh-llm',
+        '@deepseek-ai/dsh-agent-presets',
+        '@deepseek-ai/dsh-subagent',
+      ],
     })
     const model = analyzer.analyze()
     const host = model.faces.find(face => face.face === 'host')
@@ -86,7 +101,7 @@ describe('temporary schema cycle hunt', () => {
       const roots: Id[] = []
       for (const schema of pkg.schemas) roots.push(schema.type)
       for (const invocation of pkg.invocations) {
-        roots.push(invocation.result.boundary.codecType)
+        roots.push(invocation.result.codecType)
         if (invocation.invocation.kind === 'context') roots.push(invocation.invocation.boundary.codecType)
         for (const parameter of invocation.parameters) roots.push(parameter.boundary.codecType)
       }
