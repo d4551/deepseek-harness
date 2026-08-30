@@ -132,7 +132,7 @@ export class WorkspaceAnalyzer {
       const analyzer = new FaceAnalyzer({
         root: this.options.root,
         face,
-        project: this.caches.faceProject(this.faceProgramPath(face, aggregatePath, registrations)),
+        project: this.caches.faceProject(this.faceProgramPath(face, aggregatePath)),
         registrations,
         allRegistrations: this.registrations,
         mode: this.options.mode,
@@ -184,13 +184,11 @@ export class WorkspaceAnalyzer {
    * so the face program must name the registered packages' files explicitly.
    * @param face - face whose program is opened.
    * @param aggregatePath - absolute aggregate tsconfig for the face.
-   * @param registrations - the face's package registrations.
    * @returns sidecar config path opened as the face project.
    */
   private faceProgramPath(
     face: TypertFace,
     aggregatePath: string,
-    registrations: readonly PackageRegistration[],
   ): string {
     const cached = this.faceProgramPaths.get(face)
     if (cached !== undefined) return cached
@@ -199,8 +197,12 @@ export class WorkspaceAnalyzer {
     // test fixtures that exist to break them. Inside the workspace package
     // trees (packages, apps, vendor, native) a file must sit in a registered
     // package's src for this face; files in root-level trees (scripts) pass.
+    // The program covers EVERY package registered for the face, not only the
+    // selected emission set: cross-package references resolve symbols and
+    // export membership in packages that never emit a Typert artifact.
+    const faceRegistrations = this.registrations.filter(registration => registration.face === face)
     const workspaceTrees = ['packages', 'apps', 'vendor', 'native'].map(tree => join(this.options.root, tree))
-    const sourceRoots = registrations.map(registration => join(registration.root, 'src'))
+    const sourceRoots = faceRegistrations.map(registration => join(registration.root, 'src'))
     const isProgramSource = (file: string): boolean => {
       const real = realPath(file)
       const inWorkspaceTree = workspaceTrees.some(tree => isWithin(real, tree))
@@ -208,7 +210,7 @@ export class WorkspaceAnalyzer {
       return sourceRoots.some(source => isWithin(real, source))
     }
     const fileNames = new Set(this.caches.config(aggregatePath).fileNames.filter(isProgramSource))
-    for (const registration of registrations) {
+    for (const registration of faceRegistrations) {
       const sourceRoot = join(registration.root, 'src')
       for (const file of registration.config.fileNames) {
         if (isWithin(realPath(file), sourceRoot)) fileNames.add(file)
