@@ -62,6 +62,13 @@ const HISTORICAL_MENTIONS: readonly string[] = [
   '.agents/notes/implemented/simplification/2026-08-09-remove-repository-plugin.zh.md',
 ]
 
+/**
+ * Plan records of past agent runs, held like archived notes: each states what
+ * one run was told at the time, and the oldest quotes the pnpm commands the
+ * conversion replaced. They are records of a run, never re-executed.
+ */
+const PLAN_RECORDS = 'goal/'
+
 describe('pnpm residue after the bun conversion', () => {
   const files = filesMentioningPnpm()
 
@@ -74,6 +81,7 @@ describe('pnpm residue after the bun conversion', () => {
   it('leaves the word only where the conversion note accounts for it', () => {
     const unaccounted = files.filter(file => !(
       file.startsWith('.agents/notes/archived/')
+      || file.startsWith(PLAN_RECORDS)
       || HISTORICAL_MENTIONS.includes(file)
       || (file.startsWith('packages/client/') && file.includes('/tests/'))
       || EXTERNAL_TOOL_FACTS.includes(file)

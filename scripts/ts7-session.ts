@@ -9,7 +9,7 @@ import { basename, join, resolve } from 'node:path'
 import { parse as parseJsonc, type ParseError } from 'jsonc-parser'
 import { API } from 'typescript/unstable/sync'
 import type { Diagnostic } from 'typescript/unstable/sync'
-import type { SourceFile } from 'typescript/unstable/ast'
+import type { Node, SourceFile } from 'typescript/unstable/ast'
 
 let api: API | undefined
 let textRoot: string | undefined
@@ -42,6 +42,21 @@ export function parsePath(file: string): SourceFile {
   const sourceFile = parsed.get(file)
   if (sourceFile === undefined) throw new Error(`ts7: missing source file ${file}`)
   return sourceFile
+}
+
+/**
+ * Print one node through the emitter of the project that owns `file`.
+ * The emitter re-prints from the AST, so an authored type literal comes back
+ * normalized: members separated by `;`, without their inner comments.
+ * @param file - on-disk path anchoring the owning project.
+ * @param node - node from that project's program.
+ * @returns printed TypeScript text.
+ */
+export function printInFile(file: string, node: Node): string {
+  const snapshot = compiler().updateSnapshot({ openFiles: [file] })
+  const project = snapshot.getDefaultProjectForFile(file)
+  if (project === undefined) throw new Error(`ts7: no project for ${file}`)
+  return project.emitter.printNode(node)
 }
 
 /**

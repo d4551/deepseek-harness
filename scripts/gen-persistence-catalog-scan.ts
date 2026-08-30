@@ -17,7 +17,7 @@ import {
   isUnionTypeNode,
 } from 'typescript/unstable/ast/is'
 import { parseJsDoc, pointer, rawJsDoc, reportViolations } from './jsdoc.ts'
-import { parsePath, readConfigFile } from './ts7-session.ts'
+import { parsePath, printInFile, readConfigFile } from './ts7-session.ts'
 
 const root = resolve(import.meta.dirname, '..')
 const SESSION_PACKAGE = '@deepseek-ai/dsh-session'
@@ -52,7 +52,9 @@ export interface EventEnvelopeTypeEntry {
 }
 
 function payloadText(type: TypeNode, sf: SourceFile): string {
-  return type.getText(sf).replace(/\s+/g, ' ').replace(/;\s*\}/g, ' }').trim()
+  // Printed, not read from source: the catalog fragment is one normalized line,
+  // and only the emitter separates members with `;` and drops their JSDoc.
+  return printInFile(sf.fileName, type).replace(/\s+/g, ' ').replace(/;\s*\}/g, ' }').trim()
 }
 
 function declarationText(text: string, sf: SourceFile, node: Node): string {
@@ -130,7 +132,9 @@ export function collectLogEvents(scanRoot: string = root): LogEventEntry[] {
       }
       for (const member of decl.members) {
         const src = pointer(rel, sf, member)
-        if (!isPropertySignatureDeclaration(member)) {
+        // TS7 declares PropertySignatureDeclaration.type non-optional; an unannotated member parses with none.
+        // oxlint-disable-next-line typescript/no-unnecessary-condition
+        if (!isPropertySignatureDeclaration(member) || member.type === undefined) {
           const label = isPropertySignatureDeclaration(member) ? member.name.getText(sf) : member.getText(sf).replace(/\s+/g, ' ')
           violations.push(`SessionEventMap member ${label} (${src}) is not a property signature with an explicit payload type; declare every log event as 'scope/name': <payload>.`)
           continue

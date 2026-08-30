@@ -16,21 +16,23 @@ interface Profile {
 // mapped @typescript-eslint/* to typescript/* and four extension rules to their
 // Oxlint core equivalents. These fingerprints pin the resulting repository
 // snapshot; they do not re-evaluate that deleted baseline or track its preset.
+// The counts dropped by the eight `sonarjs/*` rules the TypeScript 7 lint
+// toolchain cannot load; the Agent Note names their replacement coverage.
 const profiles = {
   source: {
-    count: 89,
+    count: 82,
     indexes: [0, 1, 4, 5],
-    sha256: '3e8b8455827254d6da59afb803d30f062b9fe1264b4df75ce4c8cd6e742b93dd',
+    sha256: 'f59d2370e435fb25505fec7da1dfccb5d8f2e5bf9815d154a07ad3ac4c7ebd7a',
   },
   example: {
-    count: 88,
+    count: 81,
     indexes: [0, 1, 2, 4, 5],
-    sha256: 'e2b944c028ef1971302d47b2eb0e95c05e740623c7cbaebb4b1312dbf73bf156',
+    sha256: 'b0362beaa44c013a61dd1a4a5f338eb09a4b21ec729de95de7bb39b1fa8f1d48',
   },
   test: {
-    count: 84,
+    count: 77,
     indexes: [0, 3, 4, 5],
-    sha256: '7800bf57f0d689a5623e4ad60315b10173158fb9cf988d3f005cb115f2245691',
+    sha256: 'cdbebccc854b31a1ef96816597bf8e829a0fb8c7b54e73e0f5e5e853de03943d',
   },
 } as const satisfies Record<string, Profile>
 

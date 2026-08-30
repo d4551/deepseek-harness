@@ -7,9 +7,8 @@
  * line executes, and mutation score proves an assertion would notice if the
  * line were wrong. The scope starts at the zero-dependency utility tier — the
  * code every other package builds on — and widens as each added tier reaches
- * the threshold. `break` sits less than one mutant below the recorded score,
- * so a single additional survivor fails the run rather than being averaged
- * away.
+ * the threshold. `break` sits at the 99 floor under the recorded 99.08, so a
+ * single additional survivor fails the run rather than being averaged away.
  *
  * @type {import('@stryker-mutator/api/core').PartialStrykerOptions}
  */
@@ -44,12 +43,12 @@ export default {
   // missing-block early return whose subsequent match returns the same
   // undefined, an out-of-bounds walk exit, and a lead byte the walk cannot
   // stop on).
-  // One mutant is 0.131%, so break 98.9 fails on the second new survivor.
-  thresholds: { high: 100, low: 98.9, break: 98.9 },
+  // break 99 holds the measured 99.08 to that floor: any new survivor fails.
+  thresholds: { high: 100, low: 99, break: 99 },
   // Agent-session state and build output are not project sources; Stryker copies
   // the working tree into its sandbox, and `.claude/skills` is a directory
   // symlink its file copier cannot follow.
-  ignorePatterns: ['.claude', '.agents/worktrees', 'coverage', '.artifacts', 'dist-exe', '.dsh-build'],
+  ignorePatterns: ['.claude', '.agents/worktrees', 'coverage', '.artifacts', 'dist-exe', '.dsh-build', '.audit-tmp'],
   timeoutMS: 60000,
   concurrency: 4,
   tempDirName: 'node_modules/.stryker-tmp',

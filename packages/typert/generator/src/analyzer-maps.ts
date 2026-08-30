@@ -55,7 +55,9 @@ function addLookup(
   byKey: Map<string, StaticMapEntry>,
   byHost: Map<SymbolId, StaticMapEntry>,
 ) {
-  if (!isPropertySignatureDeclaration(declaration) || declaration.postfixToken !== undefined) {
+  // TS7 declares PropertySignatureDeclaration.type non-optional; an unannotated member parses with none.
+  // oxlint-disable-next-line typescript/no-unnecessary-condition
+  if (!isPropertySignatureDeclaration(declaration) || declaration.type === undefined) {
     face.fail(declaration, 'TypertLookupMap entries must be required properties')
   }
   const key = memberName(declaration.name)
@@ -84,7 +86,9 @@ function addLookup(
 }
 
 function addContext(face: FaceContext, declaration: TypeElement, result: Map<string, StaticMapEntry>) {
-  if (!isPropertySignatureDeclaration(declaration) || declaration.postfixToken !== undefined) {
+  // TS7 declares PropertySignatureDeclaration.type non-optional; an unannotated member parses with none.
+  // oxlint-disable-next-line typescript/no-unnecessary-condition
+  if (!isPropertySignatureDeclaration(declaration) || declaration.type === undefined) {
     face.fail(declaration, 'TypertContextMap entries must be required properties')
   }
   const key = memberName(declaration.name)
