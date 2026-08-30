@@ -22,8 +22,11 @@ export class InspectorWorkerLifecycle {
 
   constructor(private readonly worker: Worker) {
     worker.on('error', (error) => {
-      this.failure ??= error
-      this.failureResolution.resolve(error)
+      // @types/node 26 widened the Worker 'error' payload to unknown; the
+      // runtime still delivers Error instances, normalized here at the boundary.
+      const failure = error instanceof Error ? error : new Error(String(error))
+      this.failure ??= failure
+      this.failureResolution.resolve(failure)
       this.notifyUnexpectedExit()
     })
     worker.once('exit', (code) => {

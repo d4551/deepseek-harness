@@ -308,7 +308,7 @@ export function extname(path: string): string {
  * @param pathObject - dir/root/base/name/ext parts.
  * @returns the assembled path.
  */
-export function format(pathObject: Partial<ParsedPath>): string {
+export function format(pathObject: import('node:path').FormatInputPathObject): string {
   const dir = pathObject.dir ?? pathObject.root ?? ''
   const base = pathObject.base ?? `${pathObject.name ?? ''}${pathObject.ext ?? ''}`
   if (dir === '') return base

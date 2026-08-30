@@ -19,7 +19,7 @@
 
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import yaml from 'js-yaml'
+import * as yaml from 'js-yaml'
 
 /** The optional display-metadata file beside a preset's composition. */
 export const METADATA_FILE = 'preset.yml'
