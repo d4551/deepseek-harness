@@ -258,6 +258,38 @@ function codecProperties(
       type: convert(owned),
     })
   }
+  // A checker-resolved object carries its index signatures off the property
+  // list, so a `Record<string, T>`-shaped arm (JsonValue's object case) has no
+  // properties at all; without this member the emitted `z.object({})` strips
+  // every key the wire delivers.
+  for (const info of face.checker.getIndexInfosOfType(type)) {
+    members.push({
+      ...emptyDocumentation(),
+      id: `${id}#(index)`,
+      name: '(index)',
+      optional: false,
+      readonly: false,
+      async: false,
+      abstract: false,
+      static: false,
+      visibility: 'public',
+      location: face.location(authoredType),
+      text: '',
+      kind: 'index',
+      signature: {
+        typeParameters: [],
+        parameters: [{
+          name: 'key',
+          binding: 'identifier',
+          type: convert(info.keyType),
+          optional: false,
+          rest: false,
+          receiver: false,
+        }],
+        returns: convert(info.valueType),
+      },
+    })
+  }
   return members
 }
 
