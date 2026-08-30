@@ -29,7 +29,10 @@ const tsxPackageDirectory = dirname(fileURLToPath(import.meta.resolve('tsx/packa
 const fixtures: string[] = []
 // Multi-worktree cases spawn several Git and Node subprocesses; native Windows
 // coverage concurrency can delay them without changing installer behavior.
-const MULTI_PROCESS_TEST_TIMEOUT_MS = 30_000
+// Each of these drives several real Git and Node processes at once. 30s is
+// under the wall clock on a loaded host, and the lane budget cannot raise a
+// per-test value, so this is the one knob these cases answer to.
+const MULTI_PROCESS_TEST_TIMEOUT_MS = 120_000
 
 interface Fixture {
   container: string
@@ -188,7 +191,9 @@ function installLockPath(fixture: Fixture): string {
 }
 
 async function waitForPath(path: string): Promise<void> {
-  const deadline = Date.now() + 10_000
+  // The path is published by a spawned installer, so this waits on process
+  // scheduling; it shares the multi-process budget rather than a tighter one.
+  const deadline = Date.now() + MULTI_PROCESS_TEST_TIMEOUT_MS
   while (!existsSync(path)) {
     if (Date.now() >= deadline) throw new Error(`timed out waiting for ${path}`)
     await new Promise(resolveWait => setTimeout(resolveWait, 10))
@@ -356,7 +361,7 @@ describe('worktree-local Lefthook installer', () => {
 
     for (const result of results) expect(result.status, result.stderr).toBe(0)
     expect(existsSync(lockPath)).toBe(false)
-  }, 120_000)
+  })
 
   it('repairs its owned absolute hook path after the checkout moves', async () => {
     const fixture = createFixture()
@@ -398,7 +403,7 @@ describe('worktree-local Lefthook installer', () => {
     expect(result.status).toBe(1)
     expect(result.stderr).toContain('invalid ownership marker')
     expect(readFileSync(externalMarker, 'utf8')).toBe(externalContent)
-  }, 120_000)
+  })
 
   it.skipIf(process.platform === 'win32')('refuses aliased generated hooks before Lefthook can overwrite their targets', async () => {
     for (const kind of ['symlink', 'hardlink'] as const) {
@@ -439,7 +444,7 @@ describe('worktree-local Lefthook installer', () => {
     const movedHooks = hooksPath(fixture, movedRoot)
     expect(git(fixture, movedRoot, ['config', '--worktree', '--get', 'core.hooksPath'])).toBe(oldHooks)
     expect(readFileSync(join(movedHooks, markerName), 'utf8')).toBe(previousMarker)
-  }, 120_000)
+  })
 
   it('refuses dormant repository extensions before upgrading the repository format', async () => {
     const fixture = createFixture()
@@ -457,7 +462,7 @@ describe('worktree-local Lefthook installer', () => {
     expect(gitResult(fixture, fixture.main, ['config', '--get', 'extensions.worktreeConfig']).status).toBe(1)
     expect(gitResult(fixture, fixture.main, ['status', '--porcelain']).status).toBe(0)
     expect(existsSync(hooksPath(fixture, fixture.main))).toBe(false)
-  }, 120_000)
+  })
 
   it('refuses direct core.worktree before enabling worktree config', async () => {
     const fixture = createFixture()
@@ -470,7 +475,7 @@ describe('worktree-local Lefthook installer', () => {
     expect(result.stderr).toContain('core.worktree is in the common config')
     expect(gitResult(fixture, fixture.main, ['config', '--get', 'extensions.worktreeConfig']).status).toBe(1)
     expect(existsSync(hooksPath(fixture, fixture.main))).toBe(false)
-  }, 120_000)
+  })
 
   it.skipIf(process.platform === 'win32')('refuses a symlinked common repository config before writing through it', async () => {
     const fixture = createFixture()
@@ -546,7 +551,7 @@ describe('worktree-local Lefthook installer', () => {
     expect(result.status).toBe(1)
     expect(result.stderr).toContain('installer lock ownership changed')
     expect(readFileSync(lockPath, 'utf8')).toBe(replacementRecord)
-  }, 120_000)
+  }, MULTI_PROCESS_TEST_TIMEOUT_MS)
 
   it.skipIf(process.platform === 'win32')('preserves trailing spaces in worktree paths', async () => {
     const fixture = createFixture({ main: 'main ', linked: 'linked ' })
