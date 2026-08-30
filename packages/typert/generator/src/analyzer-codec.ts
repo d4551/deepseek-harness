@@ -102,6 +102,18 @@ function codecConvert(
     // re-entering the in-progress structural node.
     const anchored = anchoredReferenceNode(face, type, authoredType, convert)
     if (anchored !== undefined) return anchored
+    // Anonymous containers (the `ContentBlock[]` of a recursive block's
+    // children) carry no declaration of their own: anchor the element and
+    // wrap it in a fresh array node.
+    if (face.checker.isArrayType(type) || face.checker.isArrayLikeType(type)) {
+      const element = getNumberIndexType(face.checker, type)
+      const elementAnchored = element === undefined
+        ? undefined
+        : anchoredReferenceNode(face, element, authoredType, convert)
+      if (elementAnchored !== undefined) {
+        return face.addNode(authoredType, { kind: 'array', element: elementAnchored })
+      }
+    }
     return activeId
   }
   const id = face.allocateNodeId(authoredType)
