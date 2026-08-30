@@ -122,17 +122,30 @@ export function writeProgramConfig(aggregatePath: string, fileNames: readonly st
   configRoot ??= mkdtempSync(join(tmpdir(), 'dsh-typert-ts7-'))
   configSerial += 1
   const path = join(configRoot, `program-${String(configSerial)}.json`)
+  // Ambient declarations reach a program through `types`/`typeRoots`, never
+  // through a config's `fileNames`, so the sidecar carries the aggregate's own
+  // resolved values. Without them the globals an aggregate resolves have no
+  // declaration in the face program. The sidecar lives in a temp directory, so
+  // default @types discovery would walk up from tmp and find nothing.
+  const aggregate = parseConfigFile(aggregatePath).options
+  const types = configStringArray(aggregate, 'types')
   writeFileSync(path, JSON.stringify({
     extends: baseConfigPath(aggregatePath),
     compilerOptions: {
       noEmit: true,
-      // The sidecar lives in a temp directory, so @types discovery would walk
-      // up from tmp and find nothing; pin typeRoots where the aggregate finds them.
-      typeRoots: [discoverTypeRoot(aggregatePath)],
+      typeRoots: configStringArray(aggregate, 'typeRoots') ?? [discoverTypeRoot(aggregatePath)],
+      ...types === undefined ? {} : { types },
     },
     files: [...fileNames].sort(),
   }, null, 2))
   return path
+}
+
+/** Read one resolved compiler option that must be a string array. */
+function configStringArray(options: object, key: string): string[] | undefined {
+  const value: unknown = Reflect.get(options, key)
+  if (!Array.isArray(value) || value.some(entry => typeof entry !== 'string')) return undefined
+  return value as string[]
 }
 
 /** Resolve the compiler-options base config one aggregate extends. */
@@ -193,8 +206,11 @@ export function compilerApi(): API {
  */
 export function configFileDiagnostics(path: string): string[] {
   // The session caches what it already read for this path, and a caller can
-  // validate a config the process wrote or replaced since then.
-  const snapshot = compiler().updateSnapshot({ openProjects: [path], fileChanges: { changed: [path] } })
+  // validate a config the process wrote or replaced since then. The change is
+  // announced in its own snapshot: a project opened in the same update is still
+  // built from the content the session held before it.
+  compiler().updateSnapshot({ fileChanges: { changed: [path] } })
+  const snapshot = compiler().updateSnapshot({ openProjects: [path] })
   const project = snapshot.getProject(path)
   const messages = project === undefined
     ? [`TypeScript did not open ${path}`]

@@ -133,7 +133,11 @@ export class FaceContext {
   symbolId(symbol: Symbol): SymbolId {
     const resolved = this.resolveSymbol(symbol)
     const declaration = preferredDeclaration(resolved, this.project.project)
-    const file = declaration === undefined ? resolved.name : declaration.getSourceFile().fileName
+    // Repository-relative, like every other recorded path: an absolute id binds
+    // the model to one checkout and cannot be compared across machines.
+    const file = declaration === undefined
+      ? resolved.name
+      : relative(this.root, declaration.getSourceFile().fileName)
     return `${slash(file)}#${resolved.name}`
   }
 

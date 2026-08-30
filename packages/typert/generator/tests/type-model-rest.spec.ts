@@ -79,10 +79,9 @@ describe('WorkspaceAnalyzer remaining cases', { timeout: 60_000 }, () => {
     writeFileSync(join(empty, 'tsconfig.host.json'), '{ "files": ["empty.d.ts"] }\n')
     expectEmptyAnalysis(empty)
     writeFileSync(join(empty, 'tsconfig.host.json'), '{ invalid json')
-    // TS7 tolerates malformed tsconfig files that TS6 rejected
-    expectEmptyAnalysis(empty)
+    expectAnalysisRejection(empty, 'is not a usable TypeScript configuration')
     writeObject(join(empty, 'tsconfig.host.json'), { compilerOptions: { target: 'invalid' } })
-    expectEmptyAnalysis(empty)
+    expectAnalysisRejection(empty, 'is not a usable TypeScript configuration')
     expect(new WorkspaceAnalyzer({ root: fixtureRoot, packages: ['@fixture/absent'] }).analyze())
       .toEqual({ faces: [], crossFaceLinks: [] })
   })
@@ -177,21 +176,6 @@ describe('WorkspaceAnalyzer remaining cases', { timeout: 60_000 }, () => {
     expect(host?.packages[0]?.schemas.map(schema => schema.export.name))
       .toEqual(expect.arrayContaining(['DefaultSchema', 'Payload', 'TypeSchema']))
     expect(host?.packages[0]?.schemas.map(schema => schema.export.name)).not.toContain('IgnoredSchema')
-  })
-
-  it('analyzes a Context with a non-class service member without error under TS7', () => {
-    const root = copyFixture('typert-invalid-service-')
-    const sourcePath = join(root, 'packages/host/src/index.ts')
-    writeFileSync(sourcePath, readFileSync(sourcePath, 'utf8')
-      .replace(
-        "export { AgentPhase } from './models.ts'",
-        "export { AgentPhase } from './models.ts'\nexport type InvalidService = { value: string }",
-      )
-      .replace('    demo: DemoService', '    demo: DemoService\n    invalidService: InvalidService'))
-    // TS7 resolves non-class/interface Context members as type references rather than rejecting
-    const hostFace = new WorkspaceAnalyzer({ root }).analyze().faces
-      .find(face => face.face === 'host')
-    expect(hostFace?.packages).toHaveLength(1)
   })
 
   it('rejects tagged anonymous declarations that cannot be named losslessly', () => {

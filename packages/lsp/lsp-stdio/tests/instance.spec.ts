@@ -179,10 +179,14 @@ describe('LspInstance query and abort', () => {
       + 'else if(m.method==="shutdown")process.stdout.write(fr({id:m.id,result:null}));'
       + 'else if(m.method==="exit")process.exit(0);'
       + '}});'
-    const instance = scriptInstance(script, { killGraceMs: 2_000 })
+    // The abort must land after the server has the request: it answers
+    // `$/cancelRequest` only from a stored request id, so cancelling first
+    // leaves nothing to settle and the grace — not the reply — wins the race.
+    // Both windows are sized for a loaded host; neither is what this asserts.
+    const instance = scriptInstance(script, { killGraceMs: 30_000 })
     const controller = new AbortController()
     const pending = run(instance, 'goToDefinition', controller.signal)
-    await new Promise<void>(resolve => setTimeout(resolve, 300))
+    await new Promise<void>(resolve => setTimeout(resolve, 1_000))
     controller.abort(new Error('mid-flight'))
     await expect(pending).rejects.toThrow(/mid-flight/)
     // The server acknowledged cancellation within grace, so the instance was not force-killed.

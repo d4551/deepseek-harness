@@ -212,11 +212,13 @@ export const TYPERT = {
         "tags": [
           {
             "name": "param",
+            "argument": "agent",
             "comment": "- emitting agent.",
             "text": "@param agent - emitting agent.\\n     *"
           },
           {
             "name": "param",
+            "argument": "payload",
             "comment": "- event payload.",
             "text": "@param payload - event payload.\\n     *"
           },
