@@ -69,6 +69,7 @@ describe('mandated typescript 7 compiler API', () => {
       'native',
       'python',
       'website',
+      ':(exclude)scripts/typescript7-unstable-api.spec.ts',
     ], { cwd: root, encoding: 'utf8' })
     // git grep exits 1 when nothing matches: exactly the passing case.
     expect(result.status).toBe(1)
