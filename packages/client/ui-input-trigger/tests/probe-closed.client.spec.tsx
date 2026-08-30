@@ -6,7 +6,7 @@
  * listbox violates aria-required-children).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render as mountIntoDom, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
@@ -31,7 +31,7 @@ function openWith(groups: MenuState['groups']): MenuState {
 function mountView(state: MenuState) {
   const menu = createSnapshotStore<MenuState>(state)
   const headers = createSnapshotStore<ReadonlyMap<string, readonly never[]>>(new Map())
-  return mountIntoDom(
+  return render(
     <MenuView
       menu={menu}
       headers={headers}

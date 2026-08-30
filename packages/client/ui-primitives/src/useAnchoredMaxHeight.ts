@@ -15,10 +15,11 @@ const MARGIN = 12
  * @param ref - the overlay element; a null current (overlay closed) skips measuring.
  * @param cap - design max-height in px (the clamp never exceeds it).
  * @param signal - re-measure trigger: pass the overlay's render state so anchor
- *   moves (composer growth) re-fit; resize/scroll re-fit while mounted.
+ *   moves (composer growth) re-fit; resize/scroll re-fit while mounted. The
+ *   value itself is never read — only its identity change re-runs the effect.
  * @returns the max-height to apply inline, in px.
  */
-export function useAnchoredMaxHeight<T>(ref: RefObject<HTMLElement | null>, cap: number, signal: T): number {
+export function useAnchoredMaxHeight(ref: RefObject<HTMLElement | null>, cap: number, signal: object): number {
   const [maxHeight, setMaxHeight] = useState(cap)
   useLayoutEffect(() => {
     const el = ref.current

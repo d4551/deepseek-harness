@@ -99,11 +99,13 @@ function titles(container: HTMLElement): string[] {
 describe('MenuView', () => {
   it('renders null while closed and appears when the store opens', () => {
     const { menu, view } = mount(CLOSED)
+    // The mount wrapper is <main>; "renders null" means it stays childless.
+    expect(view.container.firstElementChild?.childElementCount).toBe(0)
     expect(view.container.querySelector('[data-trigger-menu]')).toBeNull()
     act(() => { menu.set(openState()) })
     expect(screen.queryByRole('listbox')).not.toBeNull()
     act(() => { menu.set(CLOSED) })
-    expect(view.container.querySelector('[data-trigger-menu]')).toBeNull()
+    expect(view.container.firstElementChild?.childElementCount).toBe(0)
   })
 
   it('renders ready groups as option rows and pending groups as two skeleton rows', () => {

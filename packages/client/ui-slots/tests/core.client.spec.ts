@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { FC } from 'react'
 import type { SlotComponent, StoreHandle } from '@deepseek-ai/dsh-client-ui-slots'
 import { SlotCore } from '@deepseek-ai/dsh-client-ui-slots'
 
@@ -19,6 +20,10 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 // object type (children-declaring fixtures erase via `as never` instead —
 // RendersCheck would demand a renderSlot consumer).
 const Comp: SlotComponent<object> = () => null
+
+// React 19 types: FunctionComponent returns ReactNode | Promise<ReactNode>;
+// SlotComponent must keep FC-annotated registrants assignable.
+const FcComp: FC<object> = () => null
 
 function fakeHandle(): StoreHandle<{ n: number }, Record<string, (d: { n: number }) => void>> {
   return {
@@ -66,6 +71,12 @@ describe('a-priori root and declaration gate', () => {
     mountFrame(core)
     expect(core.specDynamic('test.session')).toEqual({ kind: 'single', scope: 'session' })
     expect(() => core.register({ name: 'test.single' }, Comp)).not.toThrow()
+  })
+
+  it('accepts an FC-annotated component at the typed register face', () => {
+    const core = new SlotCore()
+    mountFrame(core)
+    expect(() => core.register({ name: 'test.single' }, FcComp)).not.toThrow()
   })
 
   it('duplicate child declaration throws naming the first declarer', () => {
