@@ -230,7 +230,15 @@ export class WorkspaceAnalyzer {
     for (const registration of faceRegistrations) {
       const sourceRoot = join(registration.root, 'src')
       for (const file of registration.config.fileNames) {
-        if (isWithin(realPath(file), sourceRoot)) fileNames.add(file)
+        const real = realPath(file)
+        if (isWithin(real, sourceRoot)) {
+          fileNames.add(file)
+          continue
+        }
+        // Ambient declarations a package pulls in through `types` or `typeRoots`
+        // are installed packages, never authored source. The face program needs
+        // them, or the globals they declare resolve to no declaration at all.
+        if (real.includes('/node_modules/')) fileNames.add(file)
       }
     }
     const sidecar = writeProgramConfig(aggregatePath, [...fileNames])
