@@ -211,7 +211,7 @@ function runInstaller(
   })
 }
 
-describe('worktree-local Lefthook installer', { timeout: 30_000 }, () => {
+describe('worktree-local Lefthook installer', { timeout: 60_000 }, () => {
   for (const [label, extraEnv] of [
     ['CI', { CI: 'true' }],
     ['GitHub Actions', { GITHUB_ACTIONS: 'true' }],

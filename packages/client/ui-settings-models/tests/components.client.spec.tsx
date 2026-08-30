@@ -312,10 +312,14 @@ describe('ModelsSection', () => {
       { provider: 'openai', displayName: 'openai', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'openai'], active: true },
     ].map(({ active: _active, ...entry }) => entry)
     face.llm.listConfigurableProviders.mockImplementation(() => Promise.resolve(remoteOk(directory)))
-    renderSlot.mockClear()
     await act(async () => { await controller.load() })
     // The draft card is still open while its row is gone from the directory.
     expect(screen.getByLabelText(en.keyInput)).toBeTruthy()
+    // Assert on a settled refresh: `load` marks the snapshot loading while
+    // holding the last good rows, so the first pass after the drop still
+    // renders them once. This second refresh starts from the dropped set.
+    renderSlot.mockClear()
+    await act(async () => { await controller.load() })
     expect(cardSeatCalls(renderSlot).some(([provider]) => provider === 'anthropic')).toBe(false)
   })
   it('renders the unkeyed whole-section provider as an open setup card in the first-run posture', async () => {

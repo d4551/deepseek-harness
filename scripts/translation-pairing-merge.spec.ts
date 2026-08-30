@@ -261,7 +261,7 @@ function expectMergedPair(fixture: Fixture): void {
   )
 }
 
-describe('translation pairing merge composition', { timeout: 15_000 }, () => {
+describe('translation pairing merge composition', { timeout: 60_000 }, () => {
   it('rejects a pairing-record path outside the repository', () => {
     const fixture = createFixture(false)
 

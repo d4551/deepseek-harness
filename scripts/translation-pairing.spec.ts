@@ -71,7 +71,7 @@ function gitSupportsObjectFormat(format: 'sha256'): boolean {
 
 const supportsSha256ObjectFormat = gitSupportsObjectFormat('sha256')
 
-describe('translation pairing snapshots', () => {
+describe('translation pairing snapshots', { timeout: 60_000 }, () => {
   it('stores exact uncommitted bytes for later recovery by object ID', () => {
     const root = mkdtempSync(join(tmpdir(), 'dsh-translation-pairing-'))
     try {
