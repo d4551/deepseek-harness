@@ -17,7 +17,7 @@ import {
   isPropertySignatureDeclaration,
   isStringLiteral,
 } from 'typescript/unstable/ast/is'
-import { parsePath } from './ts7-session.ts'
+import { parsePaths } from './ts7-session.ts'
 
 /** Cheap textual prefilter for a cordis module merge, quote-style agnostic
  * (the AST match below reads `stmt.name.text` and never sees the quotes). */
@@ -40,11 +40,20 @@ export function contextMergeFiles(
   const out: { rel: string; sf: SourceFile; text: string; body: ModuleBlock }[] = []
   const list = typeof patterns === 'string' ? [patterns] : [...patterns]
   const rels = [...new Set(list.flatMap(pattern => globSync(pattern, { cwd: scanRoot }).map(s => s.split(sep).join('/'))))].sort()
+  const wanted: { rel: string; abs: string; text: string }[] = []
   for (const rel of rels) {
     const abs = resolve(scanRoot, rel)
     const text = readFileSync(abs, 'utf8')
     if (!MERGE_HEAD.test(text)) continue
-    const sf = parsePath(abs)
+    wanted.push({ rel, abs, text })
+  }
+  // One snapshot for the whole set. A per-file `parsePath` makes the session
+  // build and retain a program per file, which exhausted the default V8 heap
+  // on this corpus (4 GB) before the walk finished.
+  const parsed = parsePaths(wanted.map(entry => entry.abs))
+  for (const { rel, abs, text } of wanted) {
+    const sf = parsed.get(abs)
+    if (sf === undefined) throw new Error(`cordis-walk: missing source file ${abs}`)
     for (const body of cordisModuleBodies(sf)) out.push({ rel, sf, text, body })
   }
   return out

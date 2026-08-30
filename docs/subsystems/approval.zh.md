@@ -161,7 +161,11 @@ Ask composed answerers for one decision. Return an outcome to claim the request 
  * @param req - pending approval request.
  * @mode waterfall
  */
-'approval/request'( this: Scoped<Agent>, req: ApprovalRequestEvent, next: () => Promise<ApprovalOutcome>, ): Promise<ApprovalOutcome>
+'approval/request'(
+      this: Scoped<Agent>,
+      req: ApprovalRequestEvent,
+      next: () => Promise<ApprovalOutcome>,
+    ): Promise<ApprovalOutcome>
 ```
 
 Types: [Agent](core.zh.md) · [Scoped](scope.zh.md)

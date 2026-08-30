@@ -308,33 +308,38 @@ export class WorkspaceAnalyzer {
 
   /**
    * Index top-level exported type declarations without promoting them to graph roots.
-   * @returns declarations from the selected faces and package projects.
+   *
+   * One face program answers for every package registered to that face, so the
+   * whole index runs on one compiler graph per face. Opening each package
+   * project, or each file, instead leaves the session holding one graph per
+   * package or per file, which is gigabytes on a workspace-wide index.
+   * @returns declarations from the selected faces, in face/file/line order.
    */
   indexSourceDeclarations(): SourceDeclarationModel[] {
+    this.registrations = this.currentRegistrations()
     const selected = this.options.packages === undefined ? undefined : new Set(this.options.packages)
     const declarations: SourceDeclarationModel[] = []
-    for (const registration of this.currentRegistrations()) {
-      if (!this.options.faces.includes(registration.face)
-        || (selected !== undefined && !selected.has(registration.name))) continue
-      this.indexRegistration(registration, declarations)
+    for (const face of this.options.faces) {
+      const registrations = this.registrations.filter(registration => registration.face === face
+        && (selected === undefined || selected.has(registration.name)))
+      if (registrations.length === 0) continue
+      const aggregatePath = resolve(
+        this.options.root,
+        face === 'host' ? this.options.hostConfig : this.options.clientConfig,
+      )
+      if (!existsSync(aggregatePath)) continue
+      const project = this.caches.faceProject(this.faceProgramPath(face, aggregatePath))
+      try {
+        for (const registration of registrations) this.indexProjectFiles(registration, project, declarations)
+      } finally {
+        this.releaseFacePrograms()
+      }
     }
     return uniqueBy(declarations, declaration =>
       `${declaration.face}\0${declaration.location.file}\0${String(declaration.location.line)}\0${declaration.name}`)
       .sort((left, right) => left.face.localeCompare(right.face)
         || left.location.file.localeCompare(right.location.file)
         || left.location.line - right.location.line)
-  }
-
-  private indexRegistration(registration: PackageRegistration, declarations: SourceDeclarationModel[]) {
-    // The package's own project answers for every file it configures. Opening
-    // each file separately instead makes the session build one project per file,
-    // which for a workspace-wide index is thousands of live compiler graphs.
-    const project = this.caches.faceProject(registration.config.path)
-    try {
-      this.indexProjectFiles(registration, project, declarations)
-    } finally {
-      this.caches.release(registration.config.path)
-    }
   }
 
   private indexProjectFiles(
@@ -349,7 +354,7 @@ export class WorkspaceAnalyzer {
         || !/\.(?:cts|mts|ts)$/.test(file)) continue
       const sourceFile = project.sourceFile(file)
       if (sourceFile === undefined) {
-        throw new TypertAnalysisError(`typert: ${registration.config.path} does not load its configured file ${relativeFile}`)
+        throw new TypertAnalysisError(`typert: the ${registration.face} face program does not load ${relativeFile}`)
       }
       for (const statement of sourceFile.statements) {
         if (!isTypeDeclaration(statement)

@@ -169,7 +169,11 @@ Ask composed answerers for structured user input. Return an answer to claim the 
  * @param request - pending user-question request.
  * @mode waterfall
  */
-'user-questions/request'( this: Scoped<Agent>, request: AskUserQuestionRequestEvent, next: () => Promise<AskUserQuestionAnswer>, ): Promise<AskUserQuestionAnswer>
+'user-questions/request'(
+      this: Scoped<Agent>,
+      request: AskUserQuestionRequestEvent,
+      next: () => Promise<AskUserQuestionAnswer>,
+    ): Promise<AskUserQuestionAnswer>
 ```
 
 Types: [Agent](core.zh.md) · [Scoped](scope.zh.md)
