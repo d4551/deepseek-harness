@@ -23,7 +23,7 @@ import type { DiscoveredTypertPackage, PackageRegistration } from './analyzer-ty
 import { isWithin, realPath, slash, uniqueBy } from './analyzer-util.ts'
 import type { CrossFaceLink, FaceModel, SourceDeclarationModel, TypertFace, WorkspaceModel } from './model.ts'
 import { FaceProject } from './ts7-project.ts'
-import { notifyFileChanged, parsePath, printInFile, writeProgramConfig } from './ts7-session.ts'
+import { notifyFileChanged, writeProgramConfig } from './ts7-session.ts'
 import { hasModifier, isTypeDeclaration } from './ts7-syntax.ts'
 
 /** Workspace analysis configuration. */
@@ -73,6 +73,15 @@ export class WorkspaceCaches {
       this.projects.set(key, project)
     }
     return project
+  }
+
+  /**
+   * Drop one memoized project so its program graph becomes collectable.
+   * @param configPath - absolute tsconfig path previously passed to {@link WorkspaceCaches.faceProject}.
+   * @returns nothing.
+   */
+  release(configPath: string): void {
+    this.projects.delete(realPath(configPath))
   }
 
   /**
@@ -230,6 +239,20 @@ export class WorkspaceAnalyzer {
   }
 
   /**
+   * Drop the face programs this analysis opened from the shared cache.
+   *
+   * A face program covers every package registered for its face, so one is
+   * large; the memo keys on the generated sidecar path, which is fresh per
+   * analysis. Callers running many analyses over one cache release each in
+   * turn, otherwise every program stays reachable for the whole process.
+   * @returns nothing.
+   */
+  releaseFacePrograms(): void {
+    for (const path of this.faceProgramPaths.values()) this.caches.release(path)
+    this.faceProgramPaths.clear()
+  }
+
+  /**
    * Analyze an explicit package selection through bounded compiler programs.
    * @param batchSize - maximum selected packages in one face program.
    * @returns one merged workspace model.
@@ -243,11 +266,15 @@ export class WorkspaceAnalyzer {
     }
     const batches: WorkspaceModel[] = []
     for (let index = 0; index < this.options.packages.length; index += batchSize) {
-      batches.push(new WorkspaceAnalyzer({
+      const batch = new WorkspaceAnalyzer({
         ...this.options,
         caches: this.caches,
         packages: this.options.packages.slice(index, index + batchSize),
-      }).analyze())
+      })
+      batches.push(batch.analyze())
+      // Each batch opens its own face program. Retaining every one holds a
+      // full-workspace compiler graph per batch, the cost this batching bounds.
+      batch.releaseFacePrograms()
     }
     return mergeWorkspaceModels(batches)
   }
@@ -281,15 +308,32 @@ export class WorkspaceAnalyzer {
 
   /**
    * Index top-level exported type declarations without promoting them to graph roots.
-   * @returns declarations from the selected faces and package projects.
+   *
+   * One face program answers for every package registered to that face, so the
+   * whole index runs on one compiler graph per face. Opening each package
+   * project, or each file, instead leaves the session holding one graph per
+   * package or per file, which is gigabytes on a workspace-wide index.
+   * @returns declarations from the selected faces, in face/file/line order.
    */
   indexSourceDeclarations(): SourceDeclarationModel[] {
+    this.registrations = this.currentRegistrations()
     const selected = this.options.packages === undefined ? undefined : new Set(this.options.packages)
     const declarations: SourceDeclarationModel[] = []
-    for (const registration of this.currentRegistrations()) {
-      if (!this.options.faces.includes(registration.face)
-        || (selected !== undefined && !selected.has(registration.name))) continue
-      this.indexRegistration(registration, declarations)
+    for (const face of this.options.faces) {
+      const registrations = this.registrations.filter(registration => registration.face === face
+        && (selected === undefined || selected.has(registration.name)))
+      if (registrations.length === 0) continue
+      const aggregatePath = resolve(
+        this.options.root,
+        face === 'host' ? this.options.hostConfig : this.options.clientConfig,
+      )
+      if (!existsSync(aggregatePath)) continue
+      const project = this.caches.faceProject(this.faceProgramPath(face, aggregatePath))
+      try {
+        for (const registration of registrations) this.indexProjectFiles(registration, project, declarations)
+      } finally {
+        this.releaseFacePrograms()
+      }
     }
     return uniqueBy(declarations, declaration =>
       `${declaration.face}\0${declaration.location.file}\0${String(declaration.location.line)}\0${declaration.name}`)
@@ -298,13 +342,20 @@ export class WorkspaceAnalyzer {
         || left.location.line - right.location.line)
   }
 
-  private indexRegistration(registration: PackageRegistration, declarations: SourceDeclarationModel[]) {
+  private indexProjectFiles(
+    registration: PackageRegistration,
+    project: FaceProject,
+    declarations: SourceDeclarationModel[],
+  ) {
     for (const file of registration.config.fileNames) {
       const relativeFile = slash(relative(this.options.root, file))
       if (!existsSync(file)
         || !isWithin(realPath(file), join(registration.root, 'src'))
         || !/\.(?:cts|mts|ts)$/.test(file)) continue
-      const sourceFile = parsePath(file)
+      const sourceFile = project.sourceFile(file)
+      if (sourceFile === undefined) {
+        throw new TypertAnalysisError(`typert: the ${registration.face} face program does not load ${relativeFile}`)
+      }
       for (const statement of sourceFile.statements) {
         if (!isTypeDeclaration(statement)
           || statement.name === undefined
@@ -326,7 +377,7 @@ export class WorkspaceAnalyzer {
             line: position.line + 1,
             column: position.character + 1,
           },
-          text: declarationText(statement, node => printInFile(file, node)),
+          text: declarationText(statement, node => project.printNode(node)),
         })
       }
     }
@@ -359,12 +410,19 @@ export class WorkspaceAnalyzer {
     if (this.checkedProjects.has(registration.config.path)) return
     this.checkedProjects.add(registration.config.path)
     const project = this.caches.faceProject(registration.config.path)
-    const diagnostics = project.fileDiagnostics().filter(diagnostic =>
-      diagnostic.fileName !== undefined && isWithin(diagnostic.fileName, registration.root))
-    if (diagnostics.length === 0) return
-    throw new TypertAnalysisError(
-      diagnostics.map(diagnostic => formatProgramDiagnostic(this.options.root, registration.face, project, diagnostic)).join('\n'),
-    )
+    try {
+      const diagnostics = project.fileDiagnostics().filter(diagnostic =>
+        diagnostic.fileName !== undefined && isWithin(diagnostic.fileName, registration.root))
+      if (diagnostics.length === 0) return
+      throw new TypertAnalysisError(
+        diagnostics.map(diagnostic => formatProgramDiagnostic(this.options.root, registration.face, project, diagnostic)).join('\n'),
+      )
+    } finally {
+      // Each package program answers its own diagnostics once. Face analysis
+      // opens the aggregate configs instead, so holding every package graph for
+      // the rest of the run costs gigabytes and serves no later reader.
+      this.caches.release(registration.config.path)
+    }
   }
 
   private applyEdit(edit: SourceEdit) {

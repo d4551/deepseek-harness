@@ -7,7 +7,9 @@ import type {} from '@deepseek-ai/dsh-compaction/types'
 import type {} from '@deepseek-ai/dsh-commands/types'
 import { isReplacementSurfaceEvent } from '@deepseek-ai/dsh-session/surface'
 import type { ManualCompactionChatData } from '../contract/chat-nodes.ts'
-import type { CommandNode, CompactionSummaryNode } from '../contract/snapshot.ts'
+// The declaring package, not the local barrel: a Typert-modeled reference must
+// name the package that owns the type so the generated import can point at it.
+import type { CommandNode, CompactionSummaryNode } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { chatNode } from './common.ts'
 
 declare module '../contract/chat-nodes.ts' {

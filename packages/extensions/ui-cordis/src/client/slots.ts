@@ -9,9 +9,11 @@ import type {
 import type { CordisActionResult } from './dynamic-port.ts'
 import type { CordisInventory } from './inventory.ts'
 import type { CordisRunCardPointer, CordisRunCardStore } from './run-card-index.ts'
+// The declaring package, not the local barrel: a Typert-modeled reference must
+// name the package that owns the type so the generated import can point at it.
 import type {
   ApprovalRequestId, CordisDynamicPackageId, CordisDynamicPluginId, CordisDynamicPluginRunId,
-} from './events.ts'
+} from '@deepseek-ai/dsh-api-remotes/client'
 
 /** Owner currency delivered to a dynamic Package's business view. */
 export interface CordisToolViewOwnerProps {
