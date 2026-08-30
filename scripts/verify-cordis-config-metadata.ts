@@ -64,21 +64,21 @@ export function disabledExpressionProblem(expression: string): string | undefine
 export function metadataExpressionErrors(entry: CordisObject, path: string): string[] {
   const problems: string[] = []
   for (const field of metadataFields) {
+    if (!Object.hasOwn(entry, field)) continue
     const value = entry[field]
-    if (value === undefined) continue
     const expressionPaths: string[] = []
-    collectExpressionPaths(value, `${path}.${field}`, expressionPaths)
+    collectExpressionPaths(value ?? null, `${path}.${field}`, expressionPaths)
     for (const expressionPath of expressionPaths) problems.push(`${expressionPath}: !!js is not interpolated here`)
   }
+  if (!Object.hasOwn(entry, 'disabled')) return problems
   const disabled = entry.disabled
-  if (disabled === undefined) return problems
   if (isJsExpr(disabled)) {
     const detail = disabledExpressionProblem(disabled.__jsExpr)
     if (detail !== undefined) problems.push(`${path}.disabled${detail}`)
     return problems
   }
   const expressionPaths: string[] = []
-  collectExpressionPaths(disabled, `${path}.disabled`, expressionPaths)
+  collectExpressionPaths(disabled ?? null, `${path}.disabled`, expressionPaths)
   for (const expressionPath of expressionPaths) problems.push(`${expressionPath}: !!js is not interpolated here`)
   return problems
 }

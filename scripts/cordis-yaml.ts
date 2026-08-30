@@ -53,10 +53,10 @@ export function loadCordisYaml(source: string): CordisValue {
 
 /**
  * Test whether a value is a preserved Loader `!!js` expression.
- * @param value - parsed YAML value.
+ * @param value - parsed YAML value, possibly a sparse slot.
  * @returns whether the value is one preserved expression node.
  */
-export function isJsExpr(value: CordisValue): value is JsExpr {
+export function isJsExpr(value: CordisValue | undefined): value is JsExpr {
   return typeof value === 'object'
     && value !== null
     && '__jsExpr' in value

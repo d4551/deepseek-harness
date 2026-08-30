@@ -53,6 +53,11 @@ export function pushInvocationDescriptorList(
 export class RemoteModelEmitter {
   constructor(private readonly renderer: TypeGraphRenderer) {}
 
+  /**
+   * Emit one package's Remote client contribution.
+   * @param packageModel - analyzed Host package.
+   * @returns the generated module text and the declarations it referenced.
+   */
   emit(packageModel: PackageModel): RemoteModelEmitResult {
     const schemas = new SchemaEmitter(
       this.renderer,
@@ -288,7 +293,11 @@ export function invocationLiteral(invocation: InvocationModel, schemas: SchemaAr
   return lines.join('\n')
 }
 
-/** Boundary schema roots for every codec an invocation set carries. */
+/**
+ * Boundary schema roots for every codec an invocation set carries.
+ * @param invocations - analyzed Remote invocations.
+ * @returns one root per scope, parameter, and result codec.
+ */
 export function invocationBoundaryRoots(invocations: readonly InvocationModel[]): BoundarySchemaRoot[] {
   const result: BoundarySchemaRoot[] = []
   for (const invocation of invocations) {

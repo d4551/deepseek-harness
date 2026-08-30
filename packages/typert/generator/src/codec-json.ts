@@ -18,6 +18,8 @@ import { getNumberIndexType, preferredDeclaration, resolveHandle } from './ts7-s
  * @param active - types on the current walk path, guarding recursion.
  * @param allowUndefined - whether the boundary admits `undefined`.
  * @param allowVoid - whether the boundary admits `void`.
+ * @returns nothing.
+ * @throws TypertAnalysisError when the type is not JSON-transportable.
  */
 export function assertRemoteJsonType(
   face: FaceContext,
@@ -26,7 +28,7 @@ export function assertRemoteJsonType(
   active: Set<Type>,
   allowUndefined: boolean,
   allowVoid: boolean,
-) {
+): void {
   const flags = type.flags
   if ((flags & TypeFlags.Undefined) !== 0 && allowUndefined) return
   if ((flags & TypeFlags.Void) !== 0 && allowVoid) return
@@ -93,7 +95,11 @@ function walkObjectJson(face: FaceContext, type: Type, site: TypeNode, active: S
   active.delete(type)
 }
 
-/** Whether one checker type admits `undefined` or `void` at a boundary. */
+/**
+ * Whether one checker type admits `undefined` or `void` at a boundary.
+ * @param type - checker type to test, unions included.
+ * @returns true when the type or any union member is `undefined` or `void`.
+ */
 export function includesRemoteAbsence(type: Type): boolean {
   if ((type.flags & (TypeFlags.Undefined | TypeFlags.Void)) !== 0) return true
   if (type.isUnionType()) return type.getTypes().some(member => includesRemoteAbsence(member))

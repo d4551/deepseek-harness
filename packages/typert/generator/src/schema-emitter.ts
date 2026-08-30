@@ -72,6 +72,12 @@ export class SchemaEmitter {
     }
   }
 
+  /**
+   * Emit the schema module for the declarations and boundaries this emitter
+   * was constructed with.
+   * @returns the definitions, the exported schema names, and a lookup from
+   *   boundary key to its generated name.
+   */
   emit(): SchemaArtifact {
     const definitions = this.declarations.map(declaration => this.declarationDefinition(declaration))
     for (const boundary of this.boundaries) {

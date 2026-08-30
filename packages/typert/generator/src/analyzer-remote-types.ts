@@ -5,9 +5,13 @@
 import type { Node, TypeNode } from 'typescript/unstable/ast'
 import type { SymbolId } from './model.ts'
 
+/** One service bound into the Remote gateway, and where the binding was declared. */
 export interface GatewayBinding {
+  /** Bound service name. */
   readonly service: string
+  /** RPC namespace the service answers on. */
   readonly namespace: string
+  /** Node the binding was declared at; diagnostics locate here. */
   readonly site: Node
 }
 

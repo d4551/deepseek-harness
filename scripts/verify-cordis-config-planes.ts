@@ -5,7 +5,7 @@
 
 import { globSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { isCordisGroupEntry, loadCordisYaml, type CordisObject, type CordisValue } from './cordis-yaml.ts'
+import { isCordisGroupEntry, isJsExpr, loadCordisYaml, type CordisObject, type CordisValue } from './cordis-yaml.ts'
 
 /** One parsed package.json surface this gate reads. */
 export interface ClientHalvesManifest {
@@ -13,7 +13,7 @@ export interface ClientHalvesManifest {
   dsh?: { client?: CordisValue }
 }
 
-function isCordisObject(value: CordisValue): value is CordisObject {
+function isCordisObject(value: CordisValue | undefined): value is CordisObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -37,16 +37,16 @@ export function loadEntries(root: string, file: string): CordisValue[] {
  */
 export function rowIds(root: string, file: string): Set<string> {
   const ids = new Set<string>()
-  const walk = (value: CordisValue) => {
+  const walk = (value: CordisValue | undefined) => {
     if (Array.isArray(value)) {
-      for (const item of value) walk(item === undefined ? null : item)
+      for (const item of value) walk(item ?? null)
       return
     }
     if (!isCordisObject(value)) return
     const id = value.id
     const name = value.name
     if (typeof id === 'string' && typeof name === 'string') ids.add(id)
-    for (const child of Object.values(value)) walk(child === undefined ? null : child)
+    for (const child of Object.values(value)) walk(child ?? null)
   }
   for (const entry of loadEntries(root, file)) walk(entry)
   return ids
@@ -103,31 +103,36 @@ export function validateClientHalvesDeclared(
   })
 }
 
+/** Descend every row of an optional entry list field. */
+function walkRowList(
+  rows: Array<CordisValue | undefined> | undefined,
+  file: string,
+  path: string,
+  field: string,
+  visit: (entry: CordisObject, file: string, path: string) => void,
+) {
+  if (rows === undefined) return
+  for (let index = 0; index < rows.length; index++) {
+    forEachLoaderEntry(rows[index], file, `${path}.${field}[${index}]`, visit)
+  }
+}
+
 /** Walk nested Loader entries and include-plugin patches. */
 export function forEachLoaderEntry(
-  value: CordisValue,
+  value: CordisValue | undefined,
   file: string,
   path: string,
   visit: (entry: CordisObject, file: string, path: string) => void,
 ) {
   if (!isCordisObject(value)) return
   visit(value, file, path)
-  if (isCordisGroupEntry(value)) {
-    for (let index = 0; index < value.config.length; index++) {
-      const child = value.config[index]
-      forEachLoaderEntry(child === undefined ? null : child, file, `${path}.config[${index}]`, visit)
-    }
-  }
-  const insert = value.insert
-  if (Array.isArray(insert)) {
-    for (let index = 0; index < insert.length; index++) {
-      const child = insert[index]
-      forEachLoaderEntry(child === undefined ? null : child, file, `${path}.insert[${index}]`, visit)
-    }
-  }
+  const groupRows = isCordisGroupEntry(value) ? value.config : undefined
+  walkRowList(groupRows, file, path, 'config', visit)
+  walkRowList(Array.isArray(value.insert) ? value.insert : undefined, file, path, 'insert', visit)
   if (value.name !== '@deepseek-ai/cordis-plugin-include') return
   const config = value.config
-  if (config === undefined || typeof config !== 'object' || Array.isArray(config)) return
+  if (config === undefined || config === null || typeof config !== 'object' || Array.isArray(config)) return
+  if (isJsExpr(config)) return
   const patches = config.patches
   if (!Array.isArray(patches)) return
   for (let index = 0; index < patches.length; index++) {
@@ -135,11 +140,6 @@ export function forEachLoaderEntry(
     if (patch === undefined || !isCordisObject(patch)) continue
     const patchPath = `${path}.config.patches[${index}]`
     visit(patch, file, patchPath)
-    const patchInsert = patch.insert
-    if (!Array.isArray(patchInsert)) continue
-    for (let insertIndex = 0; insertIndex < patchInsert.length; insertIndex++) {
-      const child = patchInsert[insertIndex]
-      forEachLoaderEntry(child === undefined ? null : child, file, `${patchPath}.insert[${insertIndex}]`, visit)
-    }
+    walkRowList(Array.isArray(patch.insert) ? patch.insert : undefined, file, patchPath, 'insert', visit)
   }
 }
