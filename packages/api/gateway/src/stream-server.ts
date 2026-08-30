@@ -23,7 +23,7 @@ export type RemoteStreamFailureMapper = (error: unknown) => RemoteStreamFailure
 export class RemoteStreamMuxServer {
   private readonly server = new WebSocketServer({ noServer: true })
   private readonly connections = new Set<Promise<void>>()
-  private heartbeatTimer: NodeJS.Timeout | undefined
+  private heartbeatTimer: ReturnType<typeof setTimeout> | undefined
 
   /**
    * @param open - Gateway stream dispatcher.

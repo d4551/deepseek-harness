@@ -109,7 +109,7 @@ export class WorkerRun implements WorkflowRun {
   /** The first death signal closes worker-message admission and owns failure-time cleanup. */
   private workerDeathObserved = false
   private cancelReason: string | undefined
-  private graceTimer: NodeJS.Timeout | undefined
+  private graceTimer: ReturnType<typeof setTimeout> | undefined
   private readonly worker: Worker
   /** Set on `exit`: the thread is gone, so posting has nowhere to go. */
   private workerGone = false
