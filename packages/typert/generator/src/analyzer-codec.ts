@@ -9,7 +9,7 @@ import { SignatureKind, SymbolFlags, TypeFlags, type Type } from 'typescript/uns
 import type { FaceContext, TypeNodeInput } from './analyzer-context.ts'
 import { convertType } from './analyzer-convert.ts'
 import { emptyDocumentation } from './analyzer-docs.ts'
-import { packageExportTargets, sourcePathForExport } from './analyzer-exports.ts'
+import { isSourceExportTarget, packageExportTargets, sourcePathForExport } from './analyzer-exports.ts'
 import type { MemberModel, RemoteBoundaryModel, RemoteTypeImportModel, SymbolId, TypeNodeId } from './model.ts'
 import { realPath } from './analyzer-util.ts'
 import { isDefaultLibraryDeclaration } from './ts7-syntax.ts'
@@ -244,7 +244,17 @@ function walkObjectJson(face: FaceContext, type: Type, site: TypeNode, active: S
     return
   }
   for (const property of face.checker.getPropertiesOfType(type)) {
-    if (property.name.startsWith('__@')) face.fail(site, 'Remote boundary contains a symbol-keyed property')
+    if (property.name.startsWith('__@')) {
+      // `Branded<B>` ids carry their brand as a symbol-keyed property whose
+      // type is the brand literal itself: a compile-time-only marker that
+      // serializes as the underlying string. Symbol-keyed properties holding
+      // real runtime values stay rejected.
+      const marker = face.checker.getTypeOfSymbolAtLocation(property, site)
+      if ((marker.flags & TypeFlags.StringLiteral) === 0) {
+        face.fail(site, 'Remote boundary contains a symbol-keyed property')
+      }
+      continue
+    }
     const siteNode = resolveHandle(property.valueDeclaration, face.project.project)
       ?? resolveHandle(property.declarations[0], face.project.project)
     const owned = face.checker.getTypeOfSymbolAtLocation(property, siteNode ?? site)
@@ -281,17 +291,45 @@ function publicRemoteType(face: FaceContext, symbol: import('typescript/unstable
   if (declaration === undefined) face.fail(site, `remote type ${symbol.name} has no declaration`)
   const owner = face.registrationForFile(declaration.getSourceFile().fileName)
   if (owner === undefined) face.fail(site, `remote type ${symbol.name} is not a workspace export`)
-  const file = realPath(declaration.getSourceFile().fileName)
-  const subpath = packageExportTargets(owner.manifest)
-    .filter(([, target]) => realPath(sourcePathForExport(owner.root, target)) === file)
-    .map(([candidate]) => candidate)
-    .sort((left, right) => right.length - left.length)[0]
+  const subpath = exportedSubpathFor(face, owner, symbol)
   if (subpath === undefined) face.fail(site, `remote type ${symbol.name} is not exported by ${owner.name}`)
   return {
     symbol: face.symbolId(symbol),
     specifier: subpath === '.' ? owner.name : `${owner.name}${subpath.slice(1)}`,
     name: symbol.name,
   }
+}
+
+/**
+ * Find the most specific package export subpath whose entry module exports
+ * the symbol, directly or through a re-export chain: a declaration file need
+ * not be an export target itself, only reachable from one.
+ * @param face - extraction context.
+ * @param owner - package owning the declaration.
+ * @param symbol - resolved declaration symbol.
+ * @returns the longest matching subpath, or undefined when no entry exports it.
+ */
+function exportedSubpathFor(
+  face: FaceContext,
+  owner: import('./analyzer-types.ts').PackageRegistration,
+  symbol: import('typescript/unstable/sync').Symbol,
+): string | undefined {
+  const wanted = face.symbolId(symbol)
+  const matches: string[] = []
+  for (const [subpath, target] of packageExportTargets(owner.manifest)) {
+    if (!isSourceExportTarget(subpath, target)) continue
+    const sourceFile = face.sourceFiles.get(realPath(sourcePathForExport(owner.root, target)))
+    if (sourceFile === undefined) continue
+    const moduleSymbol = face.checker.getSymbolAtLocation(sourceFile)
+    if (moduleSymbol === undefined) continue
+    for (const exported of face.checker.getExportsOfModule(moduleSymbol)) {
+      if (face.symbolId(face.resolveSymbol(exported)) === wanted) {
+        matches.push(subpath)
+        break
+      }
+    }
+  }
+  return matches.sort((left, right) => right.length - left.length)[0]
 }
 
 function collectRemoteImports(face: FaceContext, authoredType: TypeNode): RemoteTypeImportModel[] {

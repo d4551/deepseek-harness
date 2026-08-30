@@ -105,9 +105,13 @@ export function parseConfigFile(path: string): {
 
 /**
  * Write one temporary tsconfig that opens a single program over explicit
- * files, extending the given aggregate for compiler options. Session-owned
- * temp artifacts live beside the session's text root and outlive the call.
- * @param aggregatePath - absolute tsconfig whose options the program extends.
+ * files, extending the aggregate's base compiler-options config. The
+ * aggregate itself is a solution config: extending it would make the
+ * compiler follow its project references and pull every referenced project
+ * — spec files included — into the program. Session-owned temp artifacts
+ * live beside the session's text root and outlive the call.
+ * @param aggregatePath - absolute face-aggregate tsconfig; its `extends`
+ * target supplies the program's compiler options.
  * @param fileNames - absolute source paths the program must contain.
  * @returns written sidecar config path.
  */
@@ -116,7 +120,7 @@ export function writeProgramConfig(aggregatePath: string, fileNames: readonly st
   configSerial += 1
   const path = join(configRoot, `program-${String(configSerial)}.json`)
   writeFileSync(path, JSON.stringify({
-    extends: aggregatePath,
+    extends: baseConfigPath(aggregatePath),
     compilerOptions: {
       noEmit: true,
       // The sidecar lives in a temp directory, so @types discovery would walk
@@ -126,6 +130,17 @@ export function writeProgramConfig(aggregatePath: string, fileNames: readonly st
     files: [...fileNames].sort(),
   }, null, 2))
   return path
+}
+
+/** Resolve the compiler-options base config one aggregate extends. */
+function baseConfigPath(aggregatePath: string): string {
+  const config = readJsoncObject(aggregatePath)
+  const extended = config === undefined ? undefined : Reflect.get(config, 'extends')
+  const directory = resolve(aggregatePath, '..')
+  if (typeof extended === 'string' && extended.endsWith('.json')) {
+    return resolve(directory, extended)
+  }
+  return join(directory, 'tsconfig.base.json')
 }
 
 function discoverTypeRoot(aggregatePath: string): string {
