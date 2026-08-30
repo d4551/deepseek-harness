@@ -1,7 +1,9 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConversationNodeDefinition } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { isAppendSurfaceEvent } from '@deepseek-ai/dsh-session/surface'
-import type { UnknownSurfaceNode } from '../contract/snapshot.ts'
+// The declaring package, not the local barrel: a Typert-modeled reference must
+// name the package that owns the type so the generated import can point at it.
+import type { UnknownSurfaceNode } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { chatNode } from './common.ts'
 
 declare module '../contract/chat-nodes.ts' {

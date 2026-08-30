@@ -124,9 +124,9 @@ export function documentationOf(node: Node): DocumentationModel {
 }
 
 function tagArgument(tag: JSDocTag): string | undefined {
-  // Own-property only: TS7 exposes a `name` on tag kinds that do not carry an
-  // authored argument, and reading those would add tag arguments to the model.
-  if (!Object.hasOwn(tag, 'name')) return undefined
+  // TS7 serves `name` from the node prototype, so `Object.hasOwn` reports it on
+  // no tag kind. The accessor yields undefined for every tag without an
+  // authored argument, which is the discriminator this needs.
   return asNode(Reflect.get(tag, 'name'))?.getText()
 }
 
@@ -253,5 +253,16 @@ export function declarationText(
   print: (node: Node) => string,
 ): string {
   const projected = isClassDeclaration(declaration) ? classShape(declaration) : declaration
-  return print(projected).replace(/\r/g, '')
+  try {
+    return print(projected).replace(/\r/g, '')
+  } catch (error) {
+    // TypeScript 7's printer nil-dereferences on a mapped type whose value is
+    // omitted (`{ [K in keyof V] }`), which `noImplicitAny: false` admits:
+    // `emitMappedType` hands `emitTypeNode` a nil node. A declaration this
+    // function did not reshape prints as its authored text, so fall back to it
+    // rather than fail the whole analysis on the compiler crash. A class is
+    // reshaped, so its authored text would be wrong — that still fails.
+    if (isClassDeclaration(declaration)) throw error
+    return declaration.getText().replace(/\r/g, '')
+  }
 }

@@ -6,7 +6,9 @@ import type {
 import type {} from '@deepseek-ai/dsh-llm-retry/types'
 import { isAppendSurfaceEvent } from '@deepseek-ai/dsh-session/surface'
 import type { AssistantChatData } from '../contract/chat-nodes.ts'
-import type { AssistantBlock, AssistantMessageNode } from '../contract/snapshot.ts'
+// The declaring package, not the local barrel: a Typert-modeled reference must
+// name the package that owns the type so the generated import can point at it.
+import type { AssistantBlock, AssistantMessageNode } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { CHAT_SYNTHETIC_SEQ_OFFSETS, chatNode } from './common.ts'
 import {
   emptyAssistantBlock, isTokenDelta, toAssistantBlock, toAssistantBlocks,

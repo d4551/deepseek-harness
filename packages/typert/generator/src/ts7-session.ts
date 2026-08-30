@@ -183,6 +183,28 @@ export function compilerApi(): API {
 }
 
 /**
+ * Diagnostics the compiler reports for one tsconfig itself.
+ *
+ * `parseConfigFile` answers with file names alone, so a malformed config or a
+ * rejected option value is silent until a project is opened over it. The
+ * project is closed again: this validates configs the analysis may never open.
+ * @param path - absolute tsconfig path.
+ * @returns one message per diagnostic, empty when the compiler accepts it.
+ */
+export function configFileDiagnostics(path: string): string[] {
+  // The session caches what it already read for this path, and a caller can
+  // validate a config the process wrote or replaced since then.
+  const snapshot = compiler().updateSnapshot({ openProjects: [path], fileChanges: { changed: [path] } })
+  const project = snapshot.getProject(path)
+  const messages = project === undefined
+    ? [`TypeScript did not open ${path}`]
+    : project.program.getConfigFileParsingDiagnostics()
+      .map(diagnostic => flattenDiagnosticMessageText(diagnostic, '\n'))
+  compiler().updateSnapshot({ closeProjects: [path] })
+  return messages
+}
+
+/**
  * Tell the compiler session an on-disk source file changed.
  * @param file - absolute path of the written file.
  * @returns nothing.

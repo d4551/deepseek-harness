@@ -5,6 +5,9 @@
 import { dirname, resolve } from 'node:path'
 import { existsSync } from 'node:fs'
 
+/** A cordis module augmentation header, the one marker an empty body can carry. */
+const CORDIS_AUGMENTATION = /declare\s+module\s+['"]@deepseek-ai\/cordis['"]/u
+
 /**
  * Lexical markers a file must contain before it can carry a Typert or Cordis
  * surface: `@typert` documentation tags, a Cordis module augmentation, a
@@ -12,7 +15,7 @@ import { existsSync } from 'node:fs'
  */
 const SURFACE_MARKERS: readonly RegExp[] = [
   /@typert\b/u,
-  /declare\s+module\s+['"]@deepseek-ai\/cordis['"]/u,
+  CORDIS_AUGMENTATION,
   /\btypertRemote\b/u,
   /@(?:Remote|RemoteScope)\b/u,
 ]
@@ -27,6 +30,23 @@ const SURFACE_MARKERS: readonly RegExp[] = [
  */
 export function textMayCarrySurface(text: string): boolean {
   return SURFACE_MARKERS.some(marker => marker.test(text))
+}
+
+
+/**
+ * Whether a cordis augmentation is the only marker in this text, and every
+ * interface it declares is empty.
+ *
+ * An empty augmentation contributes no service, event, or root, so a package
+ * whose whole surface is one is not a Typert package. Every other marker
+ * admits the file, because only full analysis can judge those.
+ * @param text - source file contents.
+ * @returns true when the text's sole marker is an augmentation with no members.
+ */
+export function onlyEmptyCordisAugmentation(text: string): boolean {
+  if (SURFACE_MARKERS.some(marker => marker !== CORDIS_AUGMENTATION && marker.test(text))) return false
+  if (!CORDIS_AUGMENTATION.test(text)) return false
+  return !/\binterface\s+[A-Za-z_$][\w$]*\s*(?:<[^>]*>\s*)?\{\s*[^\s}]/u.test(text)
 }
 
 /**

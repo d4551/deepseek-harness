@@ -279,11 +279,12 @@ function collectServices(face: FaceContext, context: InterfaceDeclaration, recor
       ?? bySymbol.get(authoredSymbolId)?.find(record => record.model.name !== 'default')
       ?? bySymbol.get(authoredSymbolId)?.[0]
     if (exported === undefined) continue
-    const resolved = resolveServiceDeclaration(face, member, authoredSymbol)
+    const key = memberName(member.name)
+    const resolved = resolveServiceDeclaration(face, member, key, authoredSymbol)
     if (resolved === undefined) continue
     result.push({
       ...documentationOf(resolved.declaration),
-      key: memberName(member.name),
+      key,
       symbol: resolved.symbolId,
       export: exported.model,
       members: resolved.declarationModel.members.filter(memberModel => memberModel.visibility === 'public' && !memberModel.static).map(memberModel => memberModel.id),
@@ -293,7 +294,12 @@ function collectServices(face: FaceContext, context: InterfaceDeclaration, recor
   return result
 }
 
-function resolveServiceDeclaration(face: FaceContext, member: import('typescript/unstable/ast').TypeElement, authoredSymbol: ExportRecord['symbol']) {
+function resolveServiceDeclaration(
+  face: FaceContext,
+  member: import('typescript/unstable/ast').TypeElement,
+  key: string,
+  authoredSymbol: ExportRecord['symbol'],
+) {
   let symbol = authoredSymbol
   let declaration = preferredDeclaration(symbol, face.project.project)
   const aliases = new Set<ExportRecord['symbol']>()
@@ -309,8 +315,14 @@ function resolveServiceDeclaration(face: FaceContext, member: import('typescript
   if (!('name' in declaration)) return undefined
   const memberOwner = face.registrationForFile(member.getSourceFile().fileName)
   const declarationOwner = face.registrationForFile(declaration.getSourceFile().fileName)
+  // A member may name a service another package declares; that package models it.
   if (memberOwner?.name !== declarationOwner?.name) return undefined
-  if (!isTypeDeclaration(declaration)) return undefined
+  // Within the declaring package the member is this face's own contribution, so
+  // a type it cannot model is a broken declaration rather than one to pass over:
+  // skipping it would drop the service from the catalog with no diagnostic.
+  if (!isClassDeclaration(declaration) && !isInterfaceDeclaration(declaration)) {
+    face.fail(member, `Cordis service ${key} does not resolve to an exported class or interface`)
+  }
   return {
     symbolId: face.symbolId(symbol),
     declaration,

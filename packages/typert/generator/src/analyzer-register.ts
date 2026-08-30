@@ -15,7 +15,8 @@ import {
 } from './analyzer-exports.ts'
 import type { PackageRegistration } from './analyzer-types.ts'
 import { compareCrossFaceLinks, isWithin, realPath, uniqueBy } from './analyzer-util.ts'
-import { readJsoncObject } from './ts7-session.ts'
+import { configFileDiagnostics, readJsoncObject } from './ts7-session.ts'
+import { TypertAnalysisError } from './analyzer-error.ts'
 
 /**
  * Discover every workspace package both aggregates reference, memoized per
@@ -40,6 +41,12 @@ export function loadRegistrations(input: {
   for (const face of ['host', 'client'] as const) {
     const aggregatePath = resolve(input.root, face === 'host' ? input.hostConfig : input.clientConfig)
     if (!existsSync(aggregatePath)) continue
+    // The aggregate decides which packages exist, so a config the compiler
+    // rejects has to fail here rather than silently discover nothing.
+    const configErrors = configFileDiagnostics(aggregatePath)
+    if (configErrors.length > 0) {
+      throw new TypertAnalysisError(`typert: ${aggregatePath} is not a usable TypeScript configuration:\n${configErrors.join('\n')}`)
+    }
     const aggregate = input.caches.config(aggregatePath)
     for (const reference of aggregate.projectReferences) {
       const configPath = projectConfigPath(reference.path)

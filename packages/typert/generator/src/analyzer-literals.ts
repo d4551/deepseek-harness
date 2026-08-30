@@ -9,6 +9,7 @@ import {
   isFunctionLikeDeclaration,
   isNoSubstitutionTemplateLiteral,
   isNumericLiteral,
+  isParameterDeclaration,
   isPrefixUnaryExpression,
   isStringLiteral,
 } from 'typescript/unstable/ast/is'
@@ -80,6 +81,10 @@ export function annotationPosition(
   purpose: 'property' | 'parameter' | 'return',
 ): number {
   if (purpose === 'return' && isFunctionLikeDeclaration(node)) return node.parameters.end + 1
+  // A parameter's annotation belongs between its name and any initializer, so
+  // the name's end is the insertion point; the parameter's own end sits after
+  // the initializer, where a type annotation is a syntax error.
+  if (purpose === 'parameter' && isParameterDeclaration(node)) return node.name.end
   if (isNamedMember(node)) return node.name.end
   return node.end
 }

@@ -124,8 +124,11 @@ export function rejectsMissingExportSources(): void {
   Reflect.set(manifest, 'exports', { '.': './lib/missing.js' })
   writeObject(manifestPath, manifest)
 
+  // An export target absent from disk is refused while registrations load, before
+  // any program opens. The collect-time `resolves to missing source` rejection
+  // covers the other case: a target that exists but is outside the face program.
   expect(() => new WorkspaceAnalyzer({ root, packages: ['@fixture/host'] }).analyze())
-    .toThrow('resolves to missing source')
+    .toThrow('package.json exports must point to existing files')
 }
 
 export function recognizesAllAnnotationSpellings(): void {

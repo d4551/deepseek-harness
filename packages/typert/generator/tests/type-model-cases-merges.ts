@@ -63,7 +63,10 @@ export function rejectsMergedDeclarationsOutsideFace(): void {
     "import '../../../external-augmentation.ts'",
   ].join('\n'))
 
-  expect(() => new WorkspaceAnalyzer({ root }).analyze()).toThrow(
+  // The out-of-package augmentation this fixture needs also breaks the package
+  // project's own rootDir and file-list rules, and those compiler diagnostics
+  // would answer first. Program checking is off so the merge rule is what runs.
+  expect(() => new WorkspaceAnalyzer({ root, checkDiagnostics: false }).analyze()).toThrow(
     'merged interface ExternalMerged contains a declaration outside this face',
   )
 }
