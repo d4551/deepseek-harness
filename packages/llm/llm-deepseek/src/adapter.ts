@@ -350,6 +350,18 @@ export function httpErrorCode(status: number, error?: WireError['error']): strin
  * One stable signal reaches both initial fetch and body reads. Caller aborts
  * map to `ABORTED`; the configured per-read idle watchdog maps to `TIMEOUT`.
  */
+/**
+ * One-line summary of a wrapped failure, for the two extension boundaries. An
+ * extension provider is independently owned code, and nothing on the session
+ * path renders `cause`, so its reason is otherwise invisible to the operator.
+ * @param error - the thrown value.
+ * @returns the failure text, or `no detail` when it carries none.
+ */
+function extensionFailureText(error: unknown): string {
+  const text = error instanceof Error ? error.message : String(error)
+  return text.length === 0 ? 'no detail' : text
+}
+
 export class DeepSeekAdapter extends LlmAdapter {
   private readonly files: DeepSeekFileStore
 
@@ -625,7 +637,7 @@ export class DeepSeekAdapter extends LlmAdapter {
           ...options.purpose === undefined ? {} : { purpose: options.purpose },
         })
       } catch (error) {
-        throw new LlmError('DeepSeek request extension preparation failed', 'REQUEST_EXTENSION', { cause: error })
+        throw new LlmError(`DeepSeek request extension preparation failed: ${extensionFailureText(error)}`, 'REQUEST_EXTENSION', { cause: error })
       }
       for (const field of Object.keys(extensions.fields)) {
         if (Object.hasOwn(body, field)) {
@@ -694,7 +706,7 @@ export class DeepSeekAdapter extends LlmAdapter {
       try {
         await extensions.accept()
       } catch (error) {
-        throw new LlmError('DeepSeek request extension acceptance failed', 'REQUEST_EXTENSION', { cause: error })
+        throw new LlmError(`DeepSeek request extension acceptance failed: ${extensionFailureText(error)}`, 'REQUEST_EXTENSION', { cause: error })
       }
       if (!response.body) {
         throw new LlmError('DeepSeek API returned no response body', 'EMPTY_RESPONSE')

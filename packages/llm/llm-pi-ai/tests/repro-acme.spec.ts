@@ -1,4 +1,12 @@
-/** Temporary repro: the e2e declare-route sequence through the real settings service. */
+/**
+ * Regression: the web Models page's custom-provider create writes one
+ * `settings.mutate` whose value is a plain object carrying the route's models.
+ * The Typert wire codec once dropped index-signature object arms (`z.object({})`
+ * for JsonValue's record case), gutting the profile to `{}` before it reached
+ * this namespace's validator — which then refused the write with "resolves no
+ * models". This replays the e2e declare sequence through the real settings
+ * service so the host-side acceptance path is pinned independently of the wire.
+ */
 import { Context } from '@deepseek-ai/cordis'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { describe, expect, it } from 'vitest'
@@ -14,8 +22,8 @@ async function boot(): Promise<Context> {
   return ctx
 }
 
-describe('repro: e2e declare sequence', () => {
-  it('accepts the custom provider after earlier profile writes', async () => {
+describe('the Models page declare-route write sequence', () => {
+  it('accepts a custom provider profile carrying its models list', async () => {
     const ctx = await boot()
     // Earlier e2e steps: blank-key minimax-cn profile, then key ref, then baseURL patch.
     await ctx.settings.mutate(NS, [
