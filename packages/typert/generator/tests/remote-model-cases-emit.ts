@@ -5,6 +5,7 @@
  */
 
 import { expect } from 'vitest'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { readObject, writeObject } from './type-model-helpers.ts'
 import { WorkspaceTypertGenerator } from '../src/workspace.ts'
@@ -335,6 +336,11 @@ export function validatesRemoteArtifactsOnHostFaceOnly(): void {
     files: [],
     references: [{ path: './packages/remote' }],
   })
+  writeFileSync(join(root, 'packages/remote/src/client.ts'), `/** @typert schema */
+export interface ClientMarker {
+  readonly ready: boolean
+}
+`)
   const artifacts = new WorkspaceTypertGenerator(root).generate()
   expect(artifacts.map(artifact => artifact.face)).toEqual(['host', 'client'])
   expect(artifacts.find(artifact => artifact.face === 'host')?.dts.includes('ClientMarker')).toBe(false)

@@ -213,7 +213,8 @@ export class FaceContext {
     const moduleSymbol = this.checker.getSymbolAtLocation(sourceFile)
     if (moduleSymbol === undefined) return undefined
     const exported = this.checker.getExportsOfModule(moduleSymbol)
-      .find(candidate => candidate.name === requestedName && this.resolveSymbol(candidate) === symbol)
+      .find(candidate => candidate.name === requestedName
+        && this.symbolId(this.resolveSymbol(candidate)) === this.symbolId(this.resolveSymbol(symbol)))
     return exported?.name
   }
 

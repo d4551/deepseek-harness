@@ -48,6 +48,34 @@ export function moduleSpecifierOf(node: Node): string | undefined {
   return undefined
 }
 
+/**
+ * Recover the import that brings `symbolName` into the site's file when the
+ * authored node names a different identifier — codec projections evaluate
+ * nested references against the outermost authored type node, so the site's
+ * own text (e.g. `Promise<…>`) does not name the referenced symbol.
+ * @param site - reference site whose source file holds the import.
+ * @param symbolName - resolved symbol name to locate among imports.
+ * @returns the module specifier and exported name, or undefined.
+ */
+export function importForSymbol(site: Node, symbolName: string): { readonly specifier: string; readonly exportName: string } | undefined {
+  for (const statement of site.getSourceFile().statements) {
+    if (!isImportDeclaration(statement) || statement.importClause === undefined
+      || !isStringLiteral(statement.moduleSpecifier)) continue
+    if (statement.importClause.name?.text === symbolName) {
+      return { specifier: statement.moduleSpecifier.text, exportName: 'default' }
+    }
+    const bindings = statement.importClause.namedBindings
+    if (bindings !== undefined && isNamedImports(bindings)) {
+      const element = bindings.elements.find(candidate =>
+        candidate.name.text === symbolName || candidate.propertyName?.text === symbolName)
+      if (element !== undefined) {
+        return { specifier: statement.moduleSpecifier.text, exportName: element.propertyName?.text ?? element.name.text }
+      }
+    }
+  }
+  return undefined
+}
+
 export function authoredExportName(node: Node, moduleSpecifier: string): string {
   if (isImportTypeNode(node)) {
     return node.qualifier === undefined ? 'default' : node.qualifier.getText().split('.')[0] ?? 'default'

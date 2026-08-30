@@ -5,7 +5,7 @@
 import type { Node, TypeNode } from 'typescript/unstable/ast'
 import { SyntaxKind } from 'typescript/unstable/ast'
 import { isImportTypeNode, isTypeReferenceNode } from 'typescript/unstable/ast/is'
-import { SignatureKind, SymbolFlags, TypeFlags, type Type } from 'typescript/unstable/sync'
+import { SignatureKind, SymbolFlags, TypeFlags, isTypeReference, type Type } from 'typescript/unstable/sync'
 import type { FaceContext, TypeNodeInput } from './analyzer-context.ts'
 import { convertType, targetForReference } from './analyzer-convert.ts'
 import { emptyDocumentation } from './analyzer-docs.ts'
@@ -98,7 +98,14 @@ function codecConvert(
   const cached = completed.get(type)
   if (cached !== undefined) return cached
   const activeId = active.get(type)
-  if (activeId !== undefined) return activeId
+  if (activeId !== undefined) {
+    // Recursive wire type: anchor the back-edge to the declaring type so the
+    // schema emitter terminates through a lazy reference instead of
+    // re-entering the in-progress structural node.
+    const anchored = anchoredReferenceNode(face, type, authoredType, convert)
+    if (anchored !== undefined) return anchored
+    return activeId
+  }
   const id = face.allocateNodeId(authoredType)
   active.set(type, id)
   const model = codecModel(face, type, authoredType, convert, id)
@@ -142,8 +149,6 @@ function codecModel(
   if (type.isUnionType() || type.isIntersectionType()) {
     return { kind: type.isUnionType() ? 'union' : 'intersection', types: type.getTypes().map(convert) }
   }
-  const anchored = codecReferenceModel(face, type, authoredType, convert)
-  if (anchored !== undefined) return anchored
   if ((flags & TypeFlags.TypeParameter) !== 0) face.fail(authoredType, 'Remote codec contains an unresolved type parameter')
   if ((flags & TypeFlags.Object) === 0) {
     face.fail(authoredType, `Remote codec type ${face.checker.typeToString(type)} has no concrete Zod projection`)
@@ -161,29 +166,47 @@ function codecModel(
 }
 
 /**
- * Anchor one codec-evaluated type to its declaring workspace type as a
- * reference node instead of expanding it structurally. Recursive wire types
- * (a JSON value tree that contains arrays of itself) terminate through the
- * reference: the schema emitter renders it lazily against the declaration's
- * own definition. Default-library symbols keep the structural path so arrays
- * and records retain their element-checked codecs.
+ * Anchor one recursive codec type to its declaring workspace type as a
+ * reference node so the schema emitter terminates through a lazy reference
+ * against the declaration's own definition. Alias-resolved types anchor on
+ * the alias symbol — a recursive alias resolves to a union that carries no
+ * symbol of its own. Default-library symbols stay structural.
+ * @param face - extraction context.
+ * @param type - recursive checker type on the active path.
+ * @param authoredType - authored boundary node used as the id site.
+ * @param convert - sibling-type conversion into graph node ids.
+ * @returns the reference node id, or undefined when no workspace declaration anchors it.
  */
-function codecReferenceModel(
+function anchoredReferenceNode(
   face: FaceContext,
   type: Type,
   authoredType: TypeNode,
   convert: (type: Type) => TypeNodeId,
-): TypeNodeInput | undefined {
-  const symbol = type.getSymbol()
+): TypeNodeId | undefined {
+  const symbol = type.getAliasSymbol() ?? type.getSymbol()
   if (symbol === undefined) return undefined
   const declaration = workspaceTypeDeclaration(face, symbol)
   if (declaration === undefined || !isTypeDeclaration(declaration)) return undefined
-  return {
+  const aliasArguments = type.getAliasTypeArguments()
+  const referenceArguments = aliasArguments.length > 0 ? aliasArguments : typeArgumentsOf(face, type)
+  return face.addNode(authoredType, {
     kind: 'reference',
     name: symbol.name,
     target: targetForReference(face, symbol, authoredType),
-    arguments: type.getAliasTypeArguments().map(convert),
-  }
+    arguments: referenceArguments.map(convert),
+  })
+}
+
+/**
+ * Type arguments of one instantiated generic reference, empty for alias
+ * instantiations and non-reference types.
+ * @param face - extraction context.
+ * @param type - possibly instantiated type.
+ * @returns the instantiated argument types.
+ */
+function typeArgumentsOf(face: FaceContext, type: Type): readonly Type[] {
+  if (!isTypeReference(type)) return []
+  return face.checker.getTypeArguments(type)
 }
 
 function codecProperties(

@@ -12,6 +12,7 @@ import {
   isEnumMember,
   isFunctionDeclaration,
   isMethodDeclaration,
+  isMethodSignatureDeclaration,
   isModuleDeclaration,
   isParameterDeclaration,
   isPropertyAccessExpression,
@@ -208,7 +209,9 @@ function identifierOf(node: Node): Node {
   if (isTypeDeclaration(node)
     || isFunctionDeclaration(node)
     || isMethodDeclaration(node)
+    || isMethodSignatureDeclaration(node)
     || isPropertyDeclaration(node)
+    || isPropertySignatureDeclaration(node)
     || isParameterDeclaration(node)
     || isVariableDeclaration(node)
     || isEnumMember(node)

@@ -34,7 +34,8 @@ import {
 import type { Symbol } from 'typescript/unstable/sync'
 import type { FaceContext, TypeNodeInput } from './analyzer-context.ts'
 import { ensureDeclaration } from './analyzer-decl.ts'
-import { authoredExportName, moduleSpecifierOf } from './analyzer-imports.ts'
+import { isSourceExportTarget, packageExportTargets } from './analyzer-exports.ts'
+import { authoredExportName, importForSymbol, moduleSpecifierOf } from './analyzer-imports.ts'
 import {
   importTypeModule,
   literalModel,
@@ -217,15 +218,50 @@ export function targetForReference(face: FaceContext, symbol: Symbol, site: Node
   if (isDefaultLibraryDeclaration(face.project.project, declaration)) {
     return { kind: 'standard', name: symbol.name }
   }
-  const moduleSpecifier = moduleSpecifierOf(site)
+  const authoredSpecifier = moduleSpecifierOf(site)
+  const recovered = authoredSpecifier === undefined ? importForSymbol(site, symbol.name) : undefined
+  const moduleSpecifier = authoredSpecifier ?? recovered?.specifier
+  const requestedName = authoredSpecifier === undefined
+    ? recovered?.exportName
+    : authoredExportName(site, authoredSpecifier)
   const module = moduleSpecifier === undefined ? undefined : moduleIdentity(moduleSpecifier)
   const from = face.registrationForFile(site.getSourceFile().fileName)
   if (from === undefined) face.fail(site, 'reference site is outside a registered package')
   const owner = face.registrationForFile(declaration.getSourceFile().fileName)
-  if (owner !== undefined) {
-    return localTarget(face, symbol, site, declaration, from, owner, module, moduleSpecifier)
+  if (owner !== undefined && module === undefined && owner.name !== from.name) {
+    // Codec projections surface nested references whose import lives in an
+    // intermediate file, not the boundary's authored site; locate the owner
+    // package subpath that exports the symbol instead.
+    const discovered = ownerExportFor(face, owner, symbol)
+    if (discovered !== undefined) {
+      return localTarget(face, symbol, site, declaration, from, owner, discovered.module, discovered.exportName)
+    }
   }
-  return externalOrCrossFace(face, symbol, site, from, module, moduleSpecifier)
+  if (owner !== undefined) {
+    return localTarget(face, symbol, site, declaration, from, owner, module, requestedName)
+  }
+  return externalOrCrossFace(face, symbol, site, from, module, requestedName)
+}
+
+/**
+ * Find the owner package export subpath that publicly exports one symbol.
+ * @param face - extraction context.
+ * @param owner - package owning the declaration.
+ * @param symbol - referenced symbol.
+ * @returns the module identity and exported name, or undefined.
+ */
+function ownerExportFor(
+  face: FaceContext,
+  owner: PackageRegistration,
+  symbol: Symbol,
+): { readonly module: { readonly package: string; readonly subpath: string }; readonly exportName: string } | undefined {
+  for (const [subpath, target] of packageExportTargets(owner.manifest)) {
+    if (!isSourceExportTarget(subpath, target)) continue
+    const module = { package: owner.name, subpath }
+    const exportName = face.packageExportName(module, symbol, owner.face, symbol.name)
+    if (exportName !== undefined) return { module, exportName }
+  }
+  return undefined
 }
 
 function localTarget(
@@ -236,15 +272,14 @@ function localTarget(
   from: PackageRegistration,
   owner: PackageRegistration,
   module: ReturnType<typeof moduleIdentity>,
-  moduleSpecifier: string | undefined,
+  requestedName: string | undefined,
 ): TypeTargetModel {
   if (owner.name !== from.name) {
-    if (module === undefined) {
+    if (module === undefined || requestedName === undefined) {
       face.fail(site, `reference to ${symbol.name} crosses a package without an explicit package import`)
     }
-    const exportName = authoredExportName(site, moduleSpecifier ?? '')
-    if (face.packageExportName(module, symbol, owner.face, exportName) === undefined) {
-      face.fail(site, `package reference ${exportName} is not exported by ${module.package} at ${module.subpath}`)
+    if (face.packageExportName(module, symbol, owner.face, requestedName) === undefined) {
+      face.fail(site, `package reference ${requestedName} is not exported by ${module.package} at ${module.subpath}`)
     }
   }
   if (!isTypeDeclaration(declaration)) face.fail(site, `reference ${symbol.name} is not a type declaration`)
@@ -258,17 +293,17 @@ function externalOrCrossFace(
   site: Node,
   from: PackageRegistration,
   module: ReturnType<typeof moduleIdentity>,
-  moduleSpecifier: string | undefined,
+  requestedName: string | undefined,
 ): TypeTargetModel {
   const packageFaces = module === undefined
     ? []
     : [...new Set(face.allRegistrations.filter(candidate => candidate.name === module.package).map(candidate => candidate.face))]
   const otherFace = packageFaces.find(candidate => candidate !== face.face)
   if (otherFace !== undefined && module !== undefined) {
-    const requestedName = authoredExportName(site, moduleSpecifier ?? '')
-    const exportName = face.packageExportName(module, symbol, otherFace, requestedName)
+    const requested = requestedName ?? symbol.name
+    const exportName = face.packageExportName(module, symbol, otherFace, requested)
     if (exportName === undefined) {
-      face.fail(site, `cross-face reference ${requestedName} is not exported by ${module.package} at ${module.subpath}`)
+      face.fail(site, `cross-face reference ${requested} is not exported by ${module.package} at ${module.subpath}`)
     }
     face.recordCrossFaceLink(from.name, otherFace, module, exportName)
     return {
