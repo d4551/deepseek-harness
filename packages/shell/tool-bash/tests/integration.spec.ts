@@ -1,8 +1,5 @@
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-
-// Real bash subprocesses per case; `vi.setConfig` is what overrides the lane budget.
-vi.setConfig({ testTimeout: 120_000 })
 import { Context } from '@deepseek-ai/cordis'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -19,6 +16,9 @@ import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import * as ToolBash from '@deepseek-ai/dsh-tool-bash'
 import * as BashEnvPlugin from '@deepseek-ai/dsh-shell-env'
 import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
+
+// Real bash subprocesses per case; `vi.setConfig` is what overrides the lane budget.
+vi.setConfig({ testTimeout: 120_000 })
 
 /**
  * Full-loop integration: a scripted mock model drives the REAL bash tool

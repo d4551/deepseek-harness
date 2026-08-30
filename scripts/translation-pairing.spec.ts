@@ -5,10 +5,6 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-
-// These spawn git, node, and a stub lefthook per test. A `describe` timeout
-// option does not override the lane budget; `vi.setConfig` is what does.
-vi.setConfig({ testTimeout: 120_000 })
 import {
   gitBlobHash,
   gitIndexPaths,
@@ -35,6 +31,10 @@ import {
   translationStructureDiff,
   translationStructureSignature,
 } from './translation-pairing.ts'
+
+// Snapshot cases stage real Git objects. A `describe` timeout option does
+// not override the lane budget; this does.
+vi.setConfig({ testTimeout: 120_000 })
 
 const fixturePairSource = (): boolean => true
 

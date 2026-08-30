@@ -14,10 +14,6 @@ import { tmpdir } from 'node:os'
 import { delimiter, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-
-// These spawn git, node, and a stub lefthook per test. A `describe` timeout
-// option does not override the lane budget; `vi.setConfig` is what does.
-vi.setConfig({ testTimeout: 120_000 })
 import { gitBlobHash, storeGitBlob } from './translation-pairing-git.ts'
 import {
   mergeTranslationPairingRecords as mergeTranslationPairingRecordsWithScope,
@@ -28,6 +24,10 @@ import {
   translationPairPaths,
 } from './translation-pairing-record.ts'
 import { removeFixtureSafely } from './test-fixture-cleanup.ts'
+
+// Each case drives Git merges over real repositories. A `describe` timeout
+// option does not override the lane budget; this does.
+vi.setConfig({ testTimeout: 120_000 })
 
 const driver = fileURLToPath(new URL('./merge-translation-pairing.ts', import.meta.url))
 const driverLauncher = fileURLToPath(new URL('./merge-translation-pairing-driver.sh', import.meta.url))

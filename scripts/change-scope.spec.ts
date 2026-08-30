@@ -4,11 +4,11 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-// These spawn git, node, and a stub lefthook per test. A `describe` timeout
-// option does not override the lane budget; `vi.setConfig` is what does.
-vi.setConfig({ testTimeout: 120_000 })
-
 import { renderChangeScope } from './change-scope.ts'
+
+// Each case builds a real Git repository and runs the tool over it. A
+// `describe` timeout option does not override the lane budget; this does.
+vi.setConfig({ testTimeout: 120_000 })
 
 interface Report {
   formatVersion: number
