@@ -356,7 +356,7 @@ describe('task admission and package contracts', () => {
     )
     expect(manifest.dependencies).toHaveProperty(
       '@modelcontextprotocol/sdk',
-      '^1.29.0',
+      '^1.30.0',
     )
     expect(manifest.dependencies).toHaveProperty('zod', '^4.4.3')
     expect(manifest.dependencies).not.toHaveProperty('@deepseek-ai/dsh-subagent-codex')
