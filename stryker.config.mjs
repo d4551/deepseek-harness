@@ -48,7 +48,7 @@ export default {
   // Agent-session state and build output are not project sources; Stryker copies
   // the working tree into its sandbox, and `.claude/skills` is a directory
   // symlink its file copier cannot follow.
-  ignorePatterns: ['.claude', '.agents/worktrees', 'coverage', '.artifacts', 'dist-exe', '.dsh-build', '.audit-tmp'],
+  ignorePatterns: ['.claude', '.agents/worktrees', 'coverage', '.artifacts', 'dist-exe', '.dsh-build'],
   timeoutMS: 60000,
   concurrency: 4,
   tempDirName: 'node_modules/.stryker-tmp',
