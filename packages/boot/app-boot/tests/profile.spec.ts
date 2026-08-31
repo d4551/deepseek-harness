@@ -364,7 +364,7 @@ describe('healProfilesModuleFallback', () => {
     }))
     writeFileSync(join(toolsReal, 'package.json'), JSON.stringify({ name: 'dsh-tools', version: '0.0.0', type: 'module' }))
     symlinkSync(holderReal, join(appDir, 'node_modules', 'linked-holder'), 'junction')
-    symlinkSync('../../../tools', join(holderReal, 'node_modules', 'dsh-tools'))
+    symlinkSync('../../tools', join(holderReal, 'node_modules', 'dsh-tools'))
 
     const home = tmp()
     await healProfilesModuleFallback({ installAnchor: join(appDir, 'package.json'), home })

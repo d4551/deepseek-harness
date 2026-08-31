@@ -930,6 +930,39 @@ describe('workspace rows keyboard', () => {
     expect(onToggle).toHaveBeenCalledOnce()
   })
 
+  it('leaves a keystroke inside the row to the control that owns it', () => {
+    const selection = account()
+    const onOpen = vi.fn()
+    sessionRow(selection, onOpen)
+    const trailing = screen.getByRole('button', { name: '会话“One”的操作' })
+    // The ... button answers Enter and Space itself, and the menu it opens is a
+    // React child of the row, so both would otherwise reach the row's handler.
+    for (const key of ['Enter', ' ', 'ArrowDown', 'ArrowLeft']) {
+      fireEvent.keyDown(trailing, { key })
+    }
+    expect(selection.move).not.toHaveBeenCalled()
+    expect(selection.toggle).not.toHaveBeenCalled()
+    expect(selection.anchor).not.toHaveBeenCalled()
+    expect(onOpen).not.toHaveBeenCalled()
+
+    fireEvent.click(trailing)
+    fireEvent.keyDown(screen.getAllByRole('menuitem')[0]!, { key: 'ArrowDown' })
+    expect(selection.move).not.toHaveBeenCalled()
+  })
+
+  it("leaves a project row's keystrokes to the controls inside it too", () => {
+    const selection = account({ rowKey: 'workspace:project' })
+    const onToggle = vi.fn()
+    render(<ProjectRowItem group={project} onToggle={onToggle} onCreate={vi.fn()}
+      actions={{ rename: vi.fn(), delete: vi.fn() }} selection={selection} t={t} />)
+    const create = screen.getByRole('button', { name: '在“Project”中新建会话' })
+    for (const key of ['ArrowRight', 'ArrowLeft', 'Enter']) {
+      fireEvent.keyDown(create, { key })
+    }
+    expect(onToggle).not.toHaveBeenCalled()
+    expect(selection.anchor).not.toHaveBeenCalled()
+  })
+
   it('opens the row menu against the row on the platform menu keys and hands it the focus', () => {
     const selection = account()
     const row = sessionRow(selection)
@@ -959,6 +992,16 @@ describe('workspace rows keyboard', () => {
     fireEvent.contextMenu(row)
     expect(screen.getByRole('menuitem').hasAttribute('disabled')).toBe(true)
     expect(document.activeElement).toBe(row)
+  })
+
+  it('opens against the row but keeps the focus when the row did not hold it', () => {
+    // A touch long-press reaches the row as the same buttonless contextmenu the
+    // keyboard sends, but its operator is not inside the list.
+    const row = sessionRow(account())
+    expect(document.activeElement).not.toBe(row)
+    fireEvent.contextMenu(row)
+    expect(screen.getByRole('menu').style.top).toBe('4px')
+    expect(document.activeElement).toBe(document.body)
   })
 
   it('leaves the focus alone when the pointer opened the list', () => {

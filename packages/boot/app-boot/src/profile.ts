@@ -511,28 +511,38 @@ function profileDependencyNames(manifest: ProfileManifest): string[] {
 }
 
 /**
- * Resolve one package directory to its physical location. A probe path can
- * traverse a symlinked layout (a nested node_modules entry reached through a
- * symlinked parent package) whose later relative hops resolve only from the
- * physical parent, so a stored fallback target must be the canonical
- * directory, not the probe path.
+ * One resolved dependency, in the two spellings the fallback needs.
  */
-function canonicalPackageDir(dir: string | undefined): string | undefined {
-  return dir === undefined ? undefined : realpathSync.native(dir)
+interface ResolvedPackage {
+  /** Where the installation resolves the package, through whatever links its layout uses. */
+  readonly dir: string
+  /** The same directory with every link resolved. */
+  readonly real: string
+}
+
+/**
+ * Resolve one package directory into both spellings.
+ * @param dir - the directory the installation resolved.
+ * @returns the resolved directory and its physical location.
+ */
+function resolvedPackage(dir: string): ResolvedPackage {
+  return { dir, real: realpathSync.native(dir) }
 }
 
 /** Resolve the installation generation that every profile must find through the fallback directory. */
 function resolveModuleFallbackEntries(
   installAnchor: string,
 ): { entries: ModuleFallbackEntry[]; packageNames: ReadonlySet<string> } {
-  const appAnchor = realpathSync.native(installAnchor)
-  const appManifest = readModuleFallbackManifest(appAnchor)
-  const links = new Map<string, string>()
+  const appManifest = readModuleFallbackManifest(installAnchor)
+  const appPackage = resolvedPackage(dirname(installAnchor))
+  const links = new Map<string, ResolvedPackage>()
   /* v8 ignore next -- a real app manifest always declares its name */
-  if (appManifest.name !== undefined) links.set(appManifest.name, dirname(appAnchor))
+  if (appManifest.name !== undefined) links.set(appManifest.name, appPackage)
   // BFS over the resolvable dependency graph; the visited set is the link
   // map itself (first resolution wins, matching Node's own nearest-wins).
-  const queue: { anchor: string; manifest: ProfileManifest }[] = [{ anchor: appAnchor, manifest: appManifest }]
+  const queue: { anchor: string; manifest: ProfileManifest }[] = [
+    { anchor: join(appPackage.real, 'package.json'), manifest: appManifest },
+  ]
   for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
     // Peer dependencies participate: Service Definition packages (dsh-subprocess,
     // dsh-compaction, ...) are peers of their implementations, never plain
@@ -542,17 +552,28 @@ function resolveModuleFallbackEntries(
       if (links.has(dep)) continue
       // A declared-but-uninstalled dependency cannot be a loader-visible
       // plugin; skip it rather than fail the whole boot.
-      const dir = canonicalPackageDir(packageDirFromAnchor(next.anchor, dep))
+      const dir = packageDirFromAnchor(next.anchor, dep)
       if (dir === undefined) continue
-      links.set(dep, dir)
-      const manifestPath = join(dir, 'package.json')
+      const resolved = resolvedPackage(dir)
+      links.set(dep, resolved)
+      // The next hop anchors on the physical directory: a bun-workspace package
+      // is a symlink whose nested node_modules entries are relative links that
+      // resolve only from the physical parent.
+      const manifestPath = join(resolved.real, 'package.json')
       queue.push({ anchor: manifestPath, manifest: readModuleFallbackManifest(manifestPath) })
     }
   }
+  // A symlink target is walked by consumers that do not follow links themselves
+  // (the web profile's single-dsh-tools detector), and `bun install` reshuffles
+  // nested probe paths between runs, so a link stores the physical directory. A
+  // proxy target is a file URL the packaged executable imports, and the
+  // installation's own resolution is the path that survives there.
   const entries = !isPackagedExecutable()
-    ? [...links].map(([packageName, packageDir]) => ({ kind: 'symlink' as const, packageName, packageDir }))
-    : [...links].flatMap(([packageName, packageDir]) => {
-      const source = packageProxySource(packageName, packageDir)
+    ? [...links].map(([packageName, resolved]) => ({
+      kind: 'symlink' as const, packageName, packageDir: resolved.real,
+    }))
+    : [...links].flatMap(([packageName, resolved]) => {
+      const source = packageProxySource(packageName, resolved.dir)
       return Object.keys(source.targets).length === 0
         ? []
         : [{ kind: 'proxy' as const, packageName, version: source.version, targets: source.targets }]

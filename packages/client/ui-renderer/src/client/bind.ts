@@ -4,10 +4,11 @@
  * This is the ONE hook constructor in the client stack — engines and hosts
  * traffic in bare sources; binding happens on the React side.
  */
-// Extensionless on purpose: the runtime package has no exports map, so both
-// bundler and NodeNext resolution accept this form, while `@types/…` exposes
-// only the extensionless subpath under its exports.
-import { useSyncExternalStoreWithSelector } from 'use-sync-external-store/shim/with-selector'
+// The non-shim entry, which reads `useSyncExternalStore` off React and adds
+// only the selector layer React itself does not ship. The package's `shim/`
+// entries carry a React 17 backport of the hook behind a version detect that
+// this stack, on React 19, always resolves to React's own.
+import { useSyncExternalStoreWithSelector } from 'use-sync-external-store/with-selector'
 import type { HostObservable, SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
 
 /**

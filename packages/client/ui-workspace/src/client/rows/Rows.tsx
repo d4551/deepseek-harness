@@ -117,23 +117,26 @@ interface RowMenu {
   close: () => void
 }
 
-/** Where a row menu was asked to open, and whether the asking was keyboard work. */
+/** Where a row menu was asked to open, and whether the asking held the focus. */
 interface MenuOrigin {
   /** The rect `Menu` places the list against. */
   rect: DOMRect
-  /** The list must take the focus, because the gesture that opened it had it. */
-  keyboard: boolean
+  /** The list must take the focus, because the gesture that asked for it had it. */
+  seated: boolean
 }
 
 /**
  * Row menu state shared by both row kinds. The trailing `...` button, a
  * right-click anywhere on the row, and the keyboard's own menu request open the
- * same list. A right-click carries its pointer position so the list opens there
- * instead of at a button the row only reveals on hover. Shift+F10 and the
- * ContextMenu key reach the row as that same `contextmenu` event with no
- * pointer button behind them and no position worth honouring, so their list
- * opens against the row itself and takes the focus with it.
- * @returns the open flag, the placement override, and the three gestures.
+ * same list. Only a secondary press reports pointer button 2, and only it has a
+ * position worth honouring, so its list opens under the cursor instead of at a
+ * button the row reveals on hover; every other `contextmenu` — Shift+F10, the
+ * ContextMenu key, a touch long-press — opens against the row. The list takes
+ * the focus only when the row already held it, which is what separates a
+ * keyboard request, whose operator is inside the list, from a press whose
+ * operator is not.
+ * @returns the open flag, the placement override, the focus claim, and the
+ * three gestures.
  */
 function useRowMenu(): RowMenu {
   const [origin, setOrigin] = useState<MenuOrigin | null>(null)
@@ -145,19 +148,15 @@ function useRowMenu(): RowMenu {
   return {
     open,
     anchorProps,
-    autoFocus: open && origin?.keyboard === true,
+    autoFocus: open && origin?.seated === true,
     openFrom: (event) => {
       event.preventDefault()
       event.stopPropagation()
-      // A secondary press reports button 2. A keyboard request reports no
-      // button, and its coordinates are the viewport origin rather than a place
-      // the operator pointed at.
-      const keyboard = event.button !== 2
+      const row = event.currentTarget
+      const pointed = event.button === 2
       setOrigin({
-        rect: keyboard
-          ? event.currentTarget.getBoundingClientRect()
-          : new DOMRect(event.clientX, event.clientY, 0, 0),
-        keyboard,
+        rect: pointed ? new DOMRect(event.clientX, event.clientY, 0, 0) : row.getBoundingClientRect(),
+        seated: !pointed && document.activeElement === row,
       })
       setOpen(true)
     },
@@ -214,6 +213,7 @@ export interface RowMultiSelection {
  * arrows and Home/End move the focus, Shift takes the range along with the
  * move, Space edits the selection where a click's modifier would, and Enter
  * does what a plain click does. Every other key keeps its browser meaning.
+ * The caller has already established that the keystroke is the row's own.
  * @param selection - the row's account slice.
  * @param activate - what a plain click on this row does.
  * @param event - the keystroke being routed.
@@ -260,6 +260,19 @@ function selectionTookClick(
   if (event.metaKey || event.ctrlKey) { selection.toggle(); return true }
   selection.anchor()
   return false
+}
+
+/**
+ * Whether a keystroke belongs to the row itself rather than to a control inside
+ * it. The trailing `...` button answers Enter and Space on its own, and the row
+ * menu it opens is a React child of the row, so its portaled list bubbles
+ * through the React tree — without this the arrows would walk the menu and the
+ * list underneath it at the same time.
+ * @param event - the keystroke reaching the row.
+ * @returns whether the row is the keystroke's own target.
+ */
+function ownKeystroke(event: ReactKeyboardEvent): boolean {
+  return event.target === event.currentTarget
 }
 
 /**
@@ -369,6 +382,7 @@ export function ProjectRowItem({ group, onToggle, onCreate, actions, selection, 
       onKeyDown={selection === undefined
         ? undefined
         : (e) => {
+          if (!ownKeystroke(e)) return
           // The horizontal arrows work the disclosure the tree pattern gives a
           // parent node: open a folded group, fold an open one, and step into
           // the first child of a group already open.
@@ -685,6 +699,7 @@ export function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork
       onKeyDown={selection === undefined
         ? undefined
         : (e) => {
+          if (!ownKeystroke(e)) return
           // A leaf's collapse key steps out to the header it sits under; the
           // flat list has none and holds.
           if (e.key === 'ArrowLeft') {
