@@ -15,8 +15,9 @@ kind: "package-library"
 
 - [使用本包](#use-this-package)
 - [理解实现](#understand-the-implementation)
-- [已知限制与待办](#known-limitations-and-deferred-work)
 - [进一步探索](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与待办](#known-limitations-and-deferred-work)
 - [开发备注](#dev-note)
 
 -----
@@ -62,13 +63,6 @@ const rendered = flattenDiagnosticMessage(message, '\n')
 
 -----
 
-<a id="known-limitations-and-deferred-work"></a>
-## 已知限制与待办
-
-该遍历只读取 `text` 与 `messageChain`。诊断的类别、编号与文件位置属于报告它们的界面，由该界面与这句话并列地格式化，而不是放进这句话里。
-
------
-
 <a id="further-exploration"></a>
 ## 进一步探索
 
@@ -76,8 +70,24 @@ const rendered = flattenDiagnosticMessage(message, '\n')
 
 -----
 
+<a id="model-experience"></a>
+## 模型体验
+
+None, as the package is a zero-dependency string utility that registers nothing model-facing.
+
+#### KV Cache effect
+
+None; this package neither assembles nor sends a provider request.
+
+## 已知限制与待办
+
+<a id="known-limitations-and-deferred-work"></a>
+
+- **只读取 `text` 与 `messageChain`** —— 诊断的类别、编号与文件位置属于报告它们的界面，由该界面与这句话并列地格式化，而不是放进这句话里。
+- **分隔符由调用方决定** —— 该遍历用调用方给出的字符串拼接，既不为嵌套层级缩进，也不裁剪结果；想要编译器那种缩进链式排版的界面自行格式化。
+
 <a id="dev-note"></a>
-## 开发备注
+### 开发备注
 
 <details>
 <summary>维护者的工作背景 —— 点击展开</summary>

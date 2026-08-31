@@ -15,8 +15,9 @@ English | [中文](README.zh.md)
 
 - [Use this package](#use-this-package)
 - [Understand the implementation](#understand-the-implementation)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 - [Further Exploration](#further-exploration)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 - [Dev Note](#dev-note)
 
 -----
@@ -62,13 +63,6 @@ Joining a single-element list returns that element, so an absent or empty chain 
 
 -----
 
-<a id="known-limitations-and-deferred-work"></a>
-## Known Limitations and Deferred Work
-
-The walk reads `text` and `messageChain` only. Diagnostic category, code, and file position belong to the surface that reports them, which formats those alongside this sentence rather than inside it.
-
------
-
 <a id="further-exploration"></a>
 ## Further Exploration
 
@@ -76,8 +70,24 @@ The walk reads `text` and `messageChain` only. Diagnostic category, code, and fi
 
 -----
 
+<a id="model-experience"></a>
+## Model Experience
+
+None, as the package is a zero-dependency string utility that registers nothing model-facing.
+
+#### KV Cache effect
+
+None; this package neither assembles nor sends a provider request.
+
+## Known Limitations and Deferred Work
+
+<a id="known-limitations-and-deferred-work"></a>
+
+- **Only `text` and `messageChain` are read** — diagnostic category, code, and file position belong to the surface that reports them, which formats those alongside this sentence rather than inside it.
+- **The separator is the caller's** — the walk joins with whatever string it is handed and neither indents nested levels nor trims the result, so a surface wanting the compiler's indented chain layout formats it itself.
+
 <a id="dev-note"></a>
-## Dev Note
+### Dev Note
 
 <details>
 <summary>Working context for maintainers — click to expand</summary>

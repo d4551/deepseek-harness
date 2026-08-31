@@ -6615,12 +6615,14 @@
         "@babel/plugin-proposal-decorators": "^8.0.2",
         "@babel/plugin-syntax-jsx": "^8.0.1",
         "@babel/preset-typescript": "^8.0.1",
+        "@deepseek-ai/dsh-diagnostic-text": "workspace:^",
         "@jridgewell/gen-mapping": "^0.3.13",
         "jsonc-parser": "^3.3.1",
         "typescript": "^7.0.2",
       },
       "devDependencies": {
         "@deepseek-ai/cordis": "workspace:^",
+        "@deepseek-ai/dsh-diagnostic-text": "workspace:^",
         "@deepseek-ai/dsh-invariants": "workspace:^",
         "@deepseek-ai/dsh-tool-cordis": "workspace:^",
         "@deepseek-ai/dsh-typert-registry": "workspace:^",
@@ -6717,6 +6719,18 @@
     },
     "packages/util/crypto": {
       "name": "@deepseek-ai/dsh-util-crypto",
+      "version": "0.1.2-alpha.1",
+      "devDependencies": {
+        "@deepseek-ai/cordis": "workspace:^",
+        "@deepseek-ai/dsh-invariants": "workspace:^",
+      },
+      "peerDependencies": {
+        "@deepseek-ai/cordis": "workspace:^",
+        "@deepseek-ai/dsh-invariants": "workspace:^",
+      },
+    },
+    "packages/util/diagnostic-text": {
+      "name": "@deepseek-ai/dsh-diagnostic-text",
       "version": "0.1.2-alpha.1",
       "devDependencies": {
         "@deepseek-ai/cordis": "workspace:^",
@@ -7806,6 +7820,8 @@
     "@deepseek-ai/dsh-credentials-local": ["@deepseek-ai/dsh-credentials-local@workspace:packages/credentials/credentials-local"],
 
     "@deepseek-ai/dsh-deepseek-llm-api-extensions": ["@deepseek-ai/dsh-deepseek-llm-api-extensions@workspace:packages/llm/deepseek-llm-api-extensions"],
+
+    "@deepseek-ai/dsh-diagnostic-text": ["@deepseek-ai/dsh-diagnostic-text@workspace:packages/util/diagnostic-text"],
 
     "@deepseek-ai/dsh-e2b": ["@deepseek-ai/dsh-e2b@workspace:packages/e2b/e2b"],
 
