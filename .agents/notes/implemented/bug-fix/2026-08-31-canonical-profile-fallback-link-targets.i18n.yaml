@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-31-canonical-profile-fallback-link-targets.md
-2026-08-31-canonical-profile-fallback-link-targets.md: a0679d6a4328ed68fdbaec5ac09e230ef1742034
-2026-08-31-canonical-profile-fallback-link-targets.zh.md: 6d928a0e418f82f89f707fa7376b3faa68198a44
+2026-08-31-canonical-profile-fallback-link-targets.md: a7bc7a7e074827f5650971b8002f942c701afc54
+2026-08-31-canonical-profile-fallback-link-targets.zh.md: 1c1ad4d943f4d193c2226d8d8f5d62b7e8aee43f

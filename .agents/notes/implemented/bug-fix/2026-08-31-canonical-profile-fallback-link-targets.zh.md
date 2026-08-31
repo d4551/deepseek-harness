@@ -10,7 +10,7 @@ Status: implemented
 
 ## 决策
 
-`resolveModuleFallbackEntries` 在把安装锚点和每个探测到的依赖目录存为回退符号链接目标与 BFS 锚点之前，先用 `realpathSync.native`（`canonicalPackageDir`）规范化，打包可执行体的代理目标因此同样记录规范 file URL。这与 `dependencyClosure` 一致——后者已经为 profile 自有链接规范化锚点。[profile-plugin-bundles 决策](../architecture/2026-08-05-profile-plugin-bundles.zh.md)继续拥有回退目录的双锚点解析，[unlink 决策](2026-08-12-unlink-stale-profile-fallback-links.zh.md)拥有删除原语；本 note 拥有"存储目标取什么形式"这一决定。
+`resolveModuleFallbackEntries` 为每个依赖同时保留两种写法（`ResolvedPackage`）：安装解析出的目录，以及用 `realpathSync.native` 把每一层链接都解开之后的同一目录。物理写法用作存储的符号链接目标和下一跳 BFS 的锚点——符号链接工作区布局中嵌套的相对链接需要它，按词法回溯的消费者也只能跟随它。安装写法则继续作为打包可执行体代理目标的来源，那些 file URL 是从启动器自身所在的安装里导入的；若改用规范化写法，只要某个依赖是被链接进安装的，代理就会指向安装之外的物理目录。这与 `dependencyClosure` 一致——后者已经为 profile 自有链接规范化锚点。[profile-plugin-bundles 决策](../architecture/2026-08-05-profile-plugin-bundles.zh.md)继续拥有回退目录的双锚点解析，[unlink 决策](2026-08-12-unlink-stale-profile-fallback-links.zh.md)拥有删除原语；本 note 拥有"存储目标取什么形式"这一决定。
 
 ## 考虑过的替代方案
 
@@ -20,6 +20,8 @@ Status: implemented
 
 **在 `packageDirFromAnchor` 内部规范化。** 会一并改变 `resolveBundleDir` 的结果，而其层目录供给补丁加载与 loader 导入；存储回退目标的契约属于 heal，规范化因此放在 heal 一侧。
 
+**只规范化一次并用于所有条目种类。** 已否决：代理目标是打包可执行体导入的 file URL，用物理目录取代安装自身的解析，会让任何被链接进安装的依赖把代理送出安装之外，`preserves the installation path while resolving packaged exports` 测试正是拒绝这一点。只有存储的符号链接与下一跳 BFS 锚点需要物理写法。
+
 ## 后果
 
-回退链接为安装的每个依赖持有唯一的规范绝对路径，在 `bun install` 重排布局时保持稳定；本变更后的首次启动会把既存字面链接一次性重新指向，`moduleFallbackEntryCurrent` 的字符串比较此后比较的是规范路径。在临时目录本身被符号链接的平台（macOS `/var` → `/private/var`）上，存储的链接内容会变化，解析结果不变。`links canonical realpaths when a dependency resolves through a symlinked workspace layout` 测试固定了"符号链接父包加相对跳"的夹具。
+回退链接为安装的每个依赖持有唯一的规范绝对路径，在 `bun install` 重排布局时保持稳定；本变更后的首次启动会把既存字面链接一次性重新指向，`moduleFallbackEntryCurrent` 的字符串比较此后比较的是规范路径。在临时目录本身被符号链接的平台（macOS `/var` → `/private/var`）上，存储的链接内容会变化，解析结果不变。`links canonical realpaths when a dependency resolves through a symlinked workspace layout` 测试固定了"符号链接父包加相对跳"的夹具，`preserves the installation path while resolving packaged exports` 则固定了代理一侧仍然保留安装自身解析这一点。
