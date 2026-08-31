@@ -80,6 +80,7 @@ const PACKAGE_LIBRARIES: Readonly<Record<string, string>> = {
   'packages/util/brand': 'Type-only branding primitive erased at compile time.',
   'packages/util/browser-locale': 'Zero-dependency browser locale preference resolver.',
   'packages/util/crypto': 'Zero-dependency identifier minting utility.',
+  'packages/util/diagnostic-text': 'Zero-dependency diagnostic message-chain formatter.',
   'packages/util/home-paths': 'Zero-dependency harness-home path resolver.',
   'packages/util/launch-environment': 'Zero-dependency environment resolver.',
   'packages/util/native-command': 'Host-side subprocess runner utility.',
