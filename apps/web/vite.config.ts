@@ -4,36 +4,29 @@ import { defineConfig } from 'vite'
 import type { Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { clientBuildEnvironmentDefines } from '../../scripts/client-build-environment.ts'
+import {
+  DEFAULT_CLIENT_TITLE,
+  projectDocumentTitle,
+  projectManifestTitle,
+} from '../../scripts/client-document-title.ts'
 
 const src = (rel: string): string => fileURLToPath(new URL(rel, import.meta.url))
 const STANDALONE_ERROR = 'apps/web is not a standalone application: bare Vite cannot inject window.__DSH_BOOT__. '
   + 'From a repository checkout, run `bun run dsh web`; an installed package uses `dsh web`. '
   + 'For client-plugin HMR, run `bun run dsh web` together with `bun run dev:web`.'
-const DEFAULT_CLIENT_TITLE = 'DeepMeow'
-
-/** Escape build-time text before placing it in the HTML title element. */
-function escapeHtmlText(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
 
 /** Project the public build title into the HTML document and the install manifest. */
 function clientDocumentTitle(): Plugin {
-  const title = escapeHtmlText(process.env.DSH_CLIENT_TITLE ?? DEFAULT_CLIENT_TITLE)
+  const title = process.env.DSH_CLIENT_TITLE ?? DEFAULT_CLIENT_TITLE
   return {
     name: 'dsh-client-document-title',
     transformIndexHtml(html) {
-      return html.replace('<title>DeepMeow</title>', `<title>${title}</title>`)
+      return projectDocumentTitle(html, title)
     },
     async closeBundle() {
-      const shortName = title === 'DeepSeek Harness' ? 'DSH' : title
       const manifestPath = src('./dist/manifest.webmanifest')
       const source = await readFile(manifestPath, 'utf8')
-      await writeFile(
-        manifestPath,
-        source
-          .replace('"name": "DeepMeow"', `"name": "${title}"`)
-          .replace('"short_name": "DeepMeow"', `"short_name": "${shortName}"`),
-      )
+      await writeFile(manifestPath, projectManifestTitle(source, title))
     },
   }
 }
