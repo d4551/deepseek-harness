@@ -19,6 +19,14 @@
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
+/* Range multi-selection: the hover fill plus a leading accent rule, so a run
+   of selected rows reads as one block and stays distinct from the single
+   current-session highlight it can overlap. */
+.sessionRow.multiSelected {
+  background: var(--dsw-alias-interactive-bg-hover);
+  box-shadow: inset 2px 0 0 var(--dsw-alias-state-business-primary);
+}
+
 .searchResultRow {
   display: flex;
   flex-direction: column;

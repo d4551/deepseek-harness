@@ -303,6 +303,8 @@
       "@deepseek-ai/dsh-credentials-local/invariant": ["./packages/credentials/credentials-local/src/invariant.ts"],
       "@deepseek-ai/dsh-deepseek-llm-api-extensions": ["./packages/llm/deepseek-llm-api-extensions/src"],
       "@deepseek-ai/dsh-deepseek-llm-api-extensions/invariant": ["./packages/llm/deepseek-llm-api-extensions/src/invariant.ts"],
+      "@deepseek-ai/dsh-diagnostic-text": ["./packages/util/diagnostic-text/src"],
+      "@deepseek-ai/dsh-diagnostic-text/invariant": ["./packages/util/diagnostic-text/src/invariant.ts"],
       "@deepseek-ai/dsh-e2b": ["./packages/e2b/e2b/src"],
       "@deepseek-ai/dsh-e2b/invariant": ["./packages/e2b/e2b/src/invariant.ts"],
       "@deepseek-ai/dsh-file-reference": ["./packages/context/file-reference/src"],

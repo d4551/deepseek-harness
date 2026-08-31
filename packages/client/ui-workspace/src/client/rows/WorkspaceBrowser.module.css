@@ -499,3 +499,14 @@
     transition: none;
   }
 }
+
+/* Screen-reader-only account of the live range selection (the row fill is the
+   visual channel); kept out of layout so it cannot shift the list. */
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

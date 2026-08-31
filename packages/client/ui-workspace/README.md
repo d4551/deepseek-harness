@@ -39,6 +39,10 @@ Collapsed search is one header action beside the view and add actions: activatin
 
 The Session row's Rename action opens a dialog prefilled with the row's display title; confirming an unchanged title is deliberately allowed — it pins the current automatic title against regeneration. Archive commits without a confirmation dialog and the row disappears from every grouping surface when the archive-set echo lands. Fork forks at the source's last completed turn, increments the inherited persisted title on the client, and then opens the child. Workspace Delete opens a confirmation that states the retention boundary; success removes the group while its Sessions remain under Ungrouped.
 
+Every row menu answers two gestures: the hover-revealed **...** button, and a right-click anywhere on the row, which opens the same list under the pointer. The provisional blank **New Session** and the Ungrouped bucket header have no verbs, so both keep the platform menu.
+
+Session rows also take a range selection for archiving several at once. Clicking a row anchors the range; shift-clicking a lower row selects every rendered row between the two, and because the account is the visible reading order, a range crosses Workspace groups. Ctrl/Cmd-click adds or removes single rows, a plain click or Escape withdraws the selection, and a right-click outside it narrows the selection to the row under the pointer. With two or more rows selected, the row menu replaces the per-row verbs with **Archive N sessions**, which commits one archive per selected Session.
+
 ### Pending interactions
 
 Session rows render the runtime's live `pendingInteraction` classification: approvals report **Waiting for approval**, plan reviews report **Plan awaiting review**, and ordinary questions report **Waiting for answer**. Every pending interaction uses an amber warning dot that takes precedence over the running indicator.

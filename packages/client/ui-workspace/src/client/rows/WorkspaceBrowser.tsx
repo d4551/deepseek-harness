@@ -24,6 +24,9 @@ import type { WorkspaceBrowserProps } from '../contract/slots.ts'
 import type { SessionNode, SessionOrderBy } from '../tree.ts'
 import { deriveFlat, deriveGroups, deriveSearchResults, UNGROUPED_KEY } from '../tree.ts'
 import { ProjectRowItem, SearchResultItem, SessionNodeItem } from './Rows.tsx'
+import type { SessionRowSelection } from './Rows.tsx'
+import { useRowSelection } from '../selection.ts'
+import type { RowSelection } from '../selection.ts'
 import { FLAT_SESSION_ORDER_KEY } from '../stores.ts'
 import { WorkspacePickFlow } from '../WorkspacePicker.tsx'
 import css from './WorkspaceBrowser.module.css'
@@ -209,6 +212,75 @@ function ViewOptionsMenu({ groupBy, orderBy, onGroupPick, onOrderPick, t }: {
   )
 }
 
+/**
+ * One row's slice of a list selection. Committing the bulk archive drops the
+ * selection immediately: the rows themselves leave on the archive-set echo,
+ * and a selection outliving them would still count them in the next gesture.
+ * @param selection - the list's live selection.
+ * @param id - the row this slice belongs to.
+ * @param archiveSessions - commit an archive for every selected row.
+ * @returns the row-facing selection wiring.
+ */
+function rowSelection(
+  selection: RowSelection,
+  id: SessionNode['id'],
+  archiveSessions: (sessionIds: readonly SessionNode['id'][]) => void,
+): SessionRowSelection {
+  return {
+    active: selection.has(id),
+    count: selection.ids.length,
+    extend: () => { selection.extendTo(id) },
+    toggle: () => { selection.toggle(id) },
+    anchor: () => { selection.anchorAt(id) },
+    archiveSelected: () => {
+      archiveSessions(selection.ids)
+      selection.clear()
+    },
+  }
+}
+
+/** The list-invariant half of every session row's props. */
+interface SessionRowWiring {
+  currentId: string | undefined
+  now: number
+  onOpen: (sessionId: SessionNode['id']) => void
+  onRename: (sessionId: SessionNode['id'], currentTitle: string) => void
+  onFork: (sessionId: SessionNode['id']) => void
+  onArchive: (sessionId: SessionNode['id']) => void
+  t: WorkspaceBrowserProps['t']
+}
+
+/**
+ * Bind the row wiring one list shares. Both presentations offer the same row
+ * verbs; only identity, selection slice, drag, and layout differ per row.
+ * @param source - the owning list's current selection, clock, and callbacks.
+ * @returns props spread into every `SessionNodeItem` the list renders.
+ */
+function sessionRowWiring(source: Pick<
+  SessionTreeProps,
+  'open' | 'onSessionRename' | 'forkSession' | 'onSessionsArchive' | 't'
+> & { currentId: string | undefined; now: number }): SessionRowWiring {
+  return {
+    currentId: source.currentId,
+    now: source.now,
+    onOpen: source.open,
+    onRename: source.onSessionRename,
+    onFork: source.forkSession,
+    onArchive: (sessionId) => { source.onSessionsArchive([sessionId]) },
+    t: source.t,
+  }
+}
+
+/** Screen-reader account of a live range selection; the row fill carries it visually. */
+function SelectionStatus({ count, t }: { count: number; t: WorkspaceBrowserProps['t'] }) {
+  if (count === 0) return null
+  return (
+    <span className={css.visuallyHidden} role="status">
+      {t(count === 1 ? 'selection.count.one' : 'selection.count.other', { n: count })}
+    </span>
+  )
+}
+
 /** In-flight root-row drag: source identity plus the current insert marker. */
 interface DragState {
   /** Workspace id, or {@link UNGROUPED_KEY} for the browser-local loose-session account. */
@@ -258,8 +330,8 @@ type SessionTreeProps = Pick<
   onDeleteRequest: (workspaceId: WorkspaceId, currentTitle: string) => void
   /** Open the browser-owned session rename dialog. */
   onSessionRename: (sessionId: SessionNode['id'], currentTitle: string) => void
-  /** Archive a session (row menu action; the row disappears on the state echo). */
-  onSessionArchive: (sessionId: SessionNode['id']) => void
+  /** Archive one row or a whole range (the rows disappear on the state echo). */
+  onSessionsArchive: (sessionIds: readonly SessionNode['id'][]) => void
   /** Session order behavior: fixed after edits, or additionally promoted by user activity. */
   orderBy: SessionOrderBy
 }
@@ -267,7 +339,7 @@ type SessionTreeProps = Pick<
 /** The scrolling session tree; unmounting drops the sessions subscription and expand-all state. */
 function SessionTree({
   useSessions, useSessionPendingInteraction, startSession, open, forkSession, workspaces, archivedSessionIds,
-  onRenameRequest, onDeleteRequest, onSessionRename, onSessionArchive,
+  onRenameRequest, onDeleteRequest, onSessionRename, onSessionsArchive,
   insertWorkspaceBefore, insertSessionBefore, orderBy,
   groupExpansion, setGroupExpanded,
   sessionOrderByAccount, sessionUpdatedAtByAccount, syncSessionOrderAccount, setSessionOrder, home, t,
@@ -347,7 +419,21 @@ function SessionTree({
     }),
     [list, orderedWorkspaces, archivedSessionIds, pendingInteractions, expandedGroups, sessionOrderByAccount],
   )
+  // The range account is the rendered reading order across every open group,
+  // so a shift-click spans Workspace boundaries the way the operator sees them.
+  // Folded groups contribute no rows, and a provisional blank New Session has
+  // no verbs to bulk-apply.
+  const selectableIds = useMemo(
+    () => groups.flatMap(group => (
+      expandedSessionGroups.includes(group.key) ? group.sessions : collapsedSessionRows(group.sessions).rows
+    ).filter(node => !node.blank).map(node => node.id)),
+    [groups, expandedSessionGroups],
+  )
+  const selection = useRowSelection(selectableIds)
   const now = Date.now()
+  const wiring = sessionRowWiring({
+    currentId: current, now, open, onSessionRename, forkSession, onSessionsArchive, t,
+  })
   const commitSessionDrag = (activeDrag: DragState, over: NonNullable<DragState['over']>): void => {
     if (sessionDropCommitted.current) return
     sessionDropCommitted.current = true
@@ -428,10 +514,12 @@ function SessionTree({
   return (
     <div className={clsx(css.treeBody, css.wide)}>
       {workspaceDropAtListStart && <span className={css.listTopDropIndicator} aria-hidden="true" />}
+      <SelectionStatus count={selection.ids.length} t={t} />
       <div
         className={clsx(css.list, workspaceDropAtListStart && css.listTopDropActive)}
         role="tree"
         aria-label={t('section.sessions')}
+        aria-multiselectable="true"
       >
         {groups.length === 0 && (
           <div className={css.empty}>{t('empty.none')}</div>
@@ -556,16 +644,8 @@ function SessionTree({
                 }
                 return (
                   <SessionNodeItem
-                    key={node.id}
-                    node={node}
-                    currentId={current}
-                    now={now}
-                    onOpen={open}
-                    onRename={onSessionRename}
-                    onFork={forkSession}
-                    onArchive={onSessionArchive}
-                    drag={dragProps}
-                    t={t}
+                    key={node.id} {...wiring} node={node} drag={dragProps}
+                    {...node.blank ? {} : { selection: rowSelection(selection, node.id, onSessionsArchive) }}
                   />
                 )
               })}
@@ -592,7 +672,7 @@ function SessionTree({
 
 /** The flat "In one list" body: every session is one draggable top-level row. */
 function FlatList({
-  useSessions, useSessionPendingInteraction, open, forkSession, onSessionRename, onSessionArchive,
+  useSessions, useSessionPendingInteraction, open, forkSession, onSessionRename, onSessionsArchive,
   archivedSessionIds,
   orderBy, sessionOrderByAccount, sessionUpdatedAtByAccount, syncSessionOrderAccount, setSessionOrder, t,
 }: Pick<
@@ -602,7 +682,7 @@ function FlatList({
   | 'open'
   | 'forkSession'
   | 'onSessionRename'
-  | 'onSessionArchive'
+  | 'onSessionsArchive'
   | 'archivedSessionIds'
   | 'orderBy'
   | 'sessionOrderByAccount'
@@ -645,6 +725,10 @@ function FlatList({
         return row === undefined ? [] : [row]
       })
   }, [baseRows, sessionOrderByAccount, sessionIds])
+  const selection = useRowSelection(useMemo(
+    () => rows.filter(row => !row.blank).map(row => row.id),
+    [rows],
+  ))
   const [drag, setDrag] = useState<DragState | null>(null)
   const dropCommitted = useRef(false)
   useNativeDragAcceptance(drag !== null)
@@ -665,9 +749,18 @@ function FlatList({
     setSessionOrder(FLAT_SESSION_ORDER_KEY, nextOrder.map(id => id as string))
   }
   const now = Date.now()
+  const wiring = sessionRowWiring({
+    currentId: list.current, now, open, onSessionRename, forkSession, onSessionsArchive, t,
+  })
   return (
     <div className={clsx(css.treeBody, css.wide)}>
-      <div className={clsx(css.list, css.flatList)} role="tree" aria-label={t('section.sessions')}>
+      <SelectionStatus count={selection.ids.length} t={t} />
+      <div
+        className={clsx(css.list, css.flatList)}
+        role="tree"
+        aria-label={t('section.sessions')}
+        aria-multiselectable="true"
+      >
         {rows.length === 0 && (
           <div className={css.empty}>{t('empty.none')}</div>
         )}
@@ -675,15 +768,8 @@ function FlatList({
           const active = drag !== null
           return (
             <SessionNodeItem
-              key={node.id}
-              node={node}
-              currentId={list.current}
-              now={now}
-              onOpen={open}
-              onRename={onSessionRename}
-              onFork={forkSession}
-              onArchive={onSessionArchive}
-              flat
+              key={node.id} {...wiring} node={node} flat
+              {...node.blank ? {} : { selection: rowSelection(selection, node.id, onSessionsArchive) }}
               drag={{
                 start: () => {
                   dropCommitted.current = false
@@ -703,7 +789,6 @@ function FlatList({
                   dropCommitted.current = false
                 },
               }}
-              t={t}
             />
           )
         })}
@@ -1023,13 +1108,17 @@ export function WorkspaceBrowser({
   }
 
   // Archive is dialog-free: not destructive (the log and the accounting slot
-  // remain), so the menu action commits directly; the row disappears when the
-  // archive-set echo lands. Failures are non-fatal console diagnostics, the
-  // same posture as reorder rejections.
-  const onSessionArchive = (sessionId: SessionNode['id']) => {
-    archiveSession(sessionId).catch((reason: unknown) => {
-      console.warn('session archive rejected:', reason)
-    })
+  // remain), so the menu action commits directly; the rows disappear when the
+  // archive-set echo lands. A range commits one call per session — the Host
+  // serializes registry writes, and each reply carries the whole archive set,
+  // so the last echo to land is complete either way. Failures are non-fatal
+  // console diagnostics, the same posture as reorder rejections.
+  const onSessionsArchive = (sessionIds: readonly SessionNode['id'][]) => {
+    for (const sessionId of sessionIds) {
+      archiveSession(sessionId).catch((reason: unknown) => {
+        console.warn('session archive rejected:', reason)
+      })
+    }
   }
 
   // Delete dialog is separate from the row so a successful removal can
@@ -1220,7 +1309,7 @@ export function WorkspaceBrowser({
               <FlatList
                 useSessions={useSessions} useSessionPendingInteraction={useSessionPendingInteraction}
                 open={open} forkSession={forkSession}
-                onSessionRename={onSessionRename} onSessionArchive={onSessionArchive}
+                onSessionRename={onSessionRename} onSessionsArchive={onSessionsArchive}
                 archivedSessionIds={archivedSessionIds}
                 orderBy={orderBy}
                 sessionOrderByAccount={sessionOrderByAccount}
@@ -1235,7 +1324,7 @@ export function WorkspaceBrowser({
                 useSessions={useSessions}
                 useSessionPendingInteraction={useSessionPendingInteraction}
                 onSessionRename={onSessionRename}
-                onSessionArchive={onSessionArchive}
+                onSessionsArchive={onSessionsArchive}
                 forkSession={forkSession}
                 workspaces={workspaces}
                 groupExpansion={groupExpansion}

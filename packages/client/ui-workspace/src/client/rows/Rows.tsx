@@ -2,10 +2,12 @@
  * Workspace browser tree row components (figma Cell set 14:3080): pure presentational —
  * all data and callbacks arrive via props. Hover swaps (folder->chevron,
  * time->ellipsis, action buttons) are CSS-only. Row ... menus are visual-only
- * except workspace Rename/Delete and session Rename/Fork/Archive; the session
- * and workspace hover cards are suppressed while a menu is open.
+ * except workspace Rename/Delete and session Rename/Fork/Archive; the same
+ * list also answers a right-click anywhere on the row, and the session and
+ * workspace hover cards are suppressed while a menu is open.
  */
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import type { MouseEvent as ReactMouseEvent } from 'react'
 import clsx from 'clsx'
 import {
   HoverCard, IconArchiveOutline20, IconBranchOutline16, IconEditOutline16,
@@ -95,6 +97,52 @@ function rowHalf(e: { clientY: number; currentTarget: HTMLElement }): 'before' |
   return e.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
 }
 
+/** One row's menu state; the two row kinds differ only in the entries they supply. */
+interface RowMenu {
+  /** The list is showing; the row pins its hover affordances meanwhile. */
+  open: boolean
+  /** `Menu` placement override, spread in; empty while the trailing button anchors the list. */
+  anchorProps: { getAnchorRect?: () => DOMRect }
+  /** Row `onContextMenu`: replace the platform menu with this row's list, under the pointer. */
+  openAtPointer: (event: ReactMouseEvent) => void
+  /** Trailing `...` button click. */
+  toggle: (event: ReactMouseEvent) => void
+  /** A selection, Escape, or an outside press closed the list. */
+  close: () => void
+}
+
+/**
+ * Row menu state shared by both row kinds. The trailing `...` button and a
+ * right-click anywhere on the row open the same list; the right-click carries
+ * its pointer position so the list opens there instead of at a button the row
+ * only reveals on hover.
+ * @returns the open flag, the placement override, and the three gestures.
+ */
+function useRowMenu(): RowMenu {
+  const [point, setPoint] = useState<{ x: number; y: number } | null>(null)
+  const [open, setOpen] = useState(false)
+  const anchorProps = useMemo(
+    () => (point === null ? {} : { getAnchorRect: () => new DOMRect(point.x, point.y, 0, 0) }),
+    [point],
+  )
+  return {
+    open,
+    anchorProps,
+    openAtPointer: (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      setPoint({ x: event.clientX, y: event.clientY })
+      setOpen(true)
+    },
+    toggle: (event) => {
+      event.stopPropagation()
+      setPoint(null)
+      setOpen(showing => !showing)
+    },
+    close: () => { setOpen(false) },
+  }
+}
+
 /**
  * Project (workspace) header row: folder + title;
  * hover reveals the chevron and create button, and dwelling on a real
@@ -124,7 +172,8 @@ export function ProjectRowItem({ group, onToggle, onCreate, actions, drag, home,
   // The ungrouped bucket has no workspace title: its label is dictionary copy.
   const label = row.workspaceId === undefined ? t('group.ungrouped') : row.label
   const active = group.expanded && group.containsCurrent
-  const [menuOpen, setMenuOpen] = useState(false)
+  const menu = useRowMenu()
+  const menuOpen = menu.open
   const workspaceMenuItems = [
     { id: 'rename', label: t('rename'), icon: <IconEditOutline16 /> },
     { id: 'delete', label: t('delete.workspace'), icon: <IconTrashOutline16 />, danger: true },
@@ -135,6 +184,8 @@ export function ProjectRowItem({ group, onToggle, onCreate, actions, drag, home,
       role="treeitem"
       aria-expanded={row.expanded}
       onClick={onToggle}
+      // The ungrouped bucket has no Workspace verbs, so it keeps the platform menu.
+      onContextMenu={actions === undefined ? undefined : menu.openAtPointer}
       draggable={drag !== undefined}
       onDragStart={drag === undefined
         ? undefined
@@ -158,10 +209,10 @@ export function ProjectRowItem({ group, onToggle, onCreate, actions, drag, home,
         {actions !== undefined && (
           <Menu
             open={menuOpen}
-            onClose={() => { setMenuOpen(false) }}
+            onClose={menu.close}
             items={workspaceMenuItems}
             onSelect={(id) => {
-              setMenuOpen(false)
+              menu.close()
               // Unknown ids leave before the dispatch: a future menu row must
               // not inherit the destructive branch as an else fallback.
               /* v8 ignore next -- Menu can emit only the rename and delete rows supplied above. */
@@ -171,12 +222,13 @@ export function ProjectRowItem({ group, onToggle, onCreate, actions, drag, home,
             }}
             portal
             closeOnPointerLeave
+            {...menu.anchorProps}
             anchor={(
               <button
                 type="button"
                 className={css.iconButton}
                 aria-label={t('actions.workspace.aria', { name: label })}
-                onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v) }}
+                onClick={menu.toggle}
               >
                 <IconEllipsisOutline16 />
               </button>
@@ -344,6 +396,25 @@ export function SearchResultItem({ result, currentId, onOpen, t }: {
 }
 
 /**
+ * One row's view of its list's multi-selection. The list owns the set; the row
+ * reports gestures and reads back only what it renders.
+ */
+export interface SessionRowSelection {
+  /** This row is in the selection (distinct fill and `aria-selected`). */
+  active: boolean
+  /** Rows currently selected across the list; the bulk menu row labels itself with it. */
+  count: number
+  /** Shift-click: select every rendered row between the anchor and this one. */
+  extend: () => void
+  /** Ctrl/Cmd-click: add or remove this row. */
+  toggle: () => void
+  /** Plain click: this row becomes the anchor and any previous selection drops. */
+  anchor: () => void
+  /** Archive every selected row at once (the bulk menu row). */
+  archiveSelected: () => void
+}
+
+/**
  * One top-level 34px session row: status dot (pending user interaction outranks
  * own or descendant activity), title, relative time, and the row actions menu.
  * @param props.node - derived session node.
@@ -353,12 +424,13 @@ export function SearchResultItem({ result, currentId, onOpen, t }: {
  * @param props.onRename - open the session rename dialog (id + current title).
  * @param props.onFork - fork a session at its last completed turn.
  * @param props.onArchive - archive a session by id.
+ * @param props.selection - multi-selection wiring; absent where range selection does not apply.
  * @param props.drag - optional draggable-row wiring.
  * @param props.flat - omit the empty status slot in the hierarchy-free flat list.
  * @param props.t - the browser root's locale seat.
  * @returns the session row.
  */
-export function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork, onArchive, drag, flat = false, t }: {
+export function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork, onArchive, selection, drag, flat = false, t }: {
   node: SessionNode
   currentId: string | undefined
   now: number
@@ -369,6 +441,12 @@ export function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork
   onFork: (id: SessionNode['id']) => void
   /** Archive this session (row menu action; commits without a dialog). */
   onArchive: (id: SessionNode['id']) => void
+  /**
+   * Multi-selection wiring. Absent on rows a range cannot address: the
+   * provisional blank New Session, which has no row verbs at all, and search
+   * results, whose list is a filtered projection rather than an account.
+   */
+  selection?: SessionRowSelection | undefined
   /** Present only on draggable rows (workspace-group sessions outside search). */
   drag?: RowDragProps | undefined
   /** The row is rendered without a parent Workspace header. */
@@ -381,27 +459,58 @@ export function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork
   const statuses = sessionStatuses(node, t)
   const primaryStatus = statuses[0]
   const showStatus = primaryStatus.state !== 'done' || row.completed
-  const [menuOpen, setMenuOpen] = useState(false)
+  const menu = useRowMenu()
+  const menuOpen = menu.open
+  const inSelection = selection?.active === true
+  // A range of two or more rows replaces the per-row verbs: rename and fork
+  // address one session, so only the bulk archive survives the widening.
+  const bulk = selection !== undefined && selection.active && selection.count > 1
+    ? selection
+    : undefined
   // Archive hides the row through the registry-global archive set and never
   // touches the session log, so it is not styled as destructive and needs no
   // confirmation dialog.
-  const sessionMenuItems = [
-    { id: 'rename', label: t('rename'), icon: <IconEditOutline16 /> },
-    { id: 'fork', label: t('menu.fork'), icon: <IconBranchOutline16 /> },
-    // 20-native glyph in the menu's 16px icon slot (Menu.module.css .itemIcon).
-    { id: 'archive', label: t('menu.archiveSession'), icon: <IconArchiveOutline20 size={16} /> },
-  ]
+  const sessionMenuItems = bulk === undefined
+    ? [
+      { id: 'rename', label: t('rename'), icon: <IconEditOutline16 /> },
+      { id: 'fork', label: t('menu.fork'), icon: <IconBranchOutline16 /> },
+      // 20-native glyph in the menu's 16px icon slot (Menu.module.css .itemIcon).
+      { id: 'archive', label: t('menu.archiveSession'), icon: <IconArchiveOutline20 size={16} /> },
+    ]
+    : [
+      {
+        id: 'archive-selected',
+        label: t('menu.archiveSelected', { n: bulk.count }),
+        icon: <IconArchiveOutline20 size={16} />,
+      },
+    ]
   // Figma session cell: pad 8, status slot 16, then a 4px title gap.
   const ownRow = (
     <div
       className={clsx(
         css.sessionRow, selected && css.selected, menuOpen && css.menuOpen,
+        inSelection && css.multiSelected,
         flat && !showStatus && css.flatSessionRowWithoutStatus,
         drag?.marker === 'before' && css.dropBefore, drag?.marker === 'after' && css.dropAfter,
       )}
       role="treeitem"
-      aria-selected={selected}
-      onClick={() => { onOpen(node.id) }}
+      aria-selected={selected || inSelection}
+      onClick={(e) => {
+        if (selection !== undefined) {
+          if (e.shiftKey) { selection.extend(); return }
+          if (e.metaKey || e.ctrlKey) { selection.toggle(); return }
+          selection.anchor()
+        }
+        onOpen(node.id)
+      }}
+      // A right-click outside the current range acts on this row alone, the
+      // platform rule; the row menu is absent on a blank row, so is this.
+      onContextMenu={row.blank
+        ? undefined
+        : (e) => {
+          if (selection !== undefined && !selection.active) selection.anchor()
+          menu.openAtPointer(e)
+        }}
       draggable={drag !== undefined}
       onDragStart={drag === undefined
         ? undefined
@@ -445,22 +554,25 @@ export function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork
         <span className={css.rowActions}>
           <Menu
             open={menuOpen}
-            onClose={() => { setMenuOpen(false) }}
+            onClose={menu.close}
             items={sessionMenuItems}
             onSelect={(id) => {
-              setMenuOpen(false)
+              menu.close()
+              // The widened list carries the bulk row alone, so it needs no id test.
+              if (bulk !== undefined) { bulk.archiveSelected(); return }
               if (id === 'rename') onRename(node.id, row.title)
               if (id === 'fork') onFork(node.id)
               if (id === 'archive') onArchive(node.id)
             }}
             portal
             closeOnPointerLeave
+            {...menu.anchorProps}
             anchor={(
               <button
                 type="button"
                 className={css.iconButton}
                 aria-label={t('actions.session.aria', { name: title })}
-                onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v) }}
+                onClick={menu.toggle}
               >
                 <IconEllipsisOutline16 />
               </button>

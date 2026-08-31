@@ -3,7 +3,7 @@
  */
 
 import type { Diagnostic } from 'typescript/unstable/sync'
-import { flattenDiagnosticMessageText } from '../src/ts7-session.ts'
+import { flattenDiagnosticMessage } from '@deepseek-ai/dsh-diagnostic-text'
 
 /**
  * Normalize a repository path for cross-platform comparison.
@@ -20,5 +20,5 @@ export function normalizedPath(path: string): string {
  * @returns flattened message text.
  */
 export function formatDiagnostic(diagnostic: Diagnostic): string {
-  return flattenDiagnosticMessageText(diagnostic, '\n')
+  return flattenDiagnosticMessage(diagnostic, '\n')
 }

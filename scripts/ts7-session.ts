@@ -7,8 +7,8 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 import { parse as parseJsonc, type ParseError } from 'jsonc-parser'
+import { flattenDiagnosticMessage } from '@deepseek-ai/dsh-diagnostic-text'
 import { API } from 'typescript/unstable/sync'
-import type { Diagnostic } from 'typescript/unstable/sync'
 import type { Node, SourceFile } from 'typescript/unstable/ast'
 
 let api: API | undefined
@@ -98,22 +98,6 @@ export function createSourceFile(fileName: string, text: string): SourceFile {
   return parsePath(path)
 }
 
-/**
- * Flatten a TypeScript 7 diagnostic or a string into one message.
- * @param messageText - diagnostic, chain, or already-flat string.
- * @param separator - inserted between chain entries.
- * @returns the flattened message.
- */
-function flattenDiagnosticMessageText(
-  messageText: string | Diagnostic,
-  separator: string,
-): string {
-  if (typeof messageText === 'string') return messageText
-  // Joining a lone text is that text, so an absent or empty chain needs no branch.
-  const chain = messageText.messageChain ?? []
-  return [messageText.text, ...chain.map(entry => flattenDiagnosticMessageText(entry, separator))].join(separator)
-}
-
 /** One value a JSON/JSONC document can hold: scalars, arrays, or objects. */
 export type JsonValue =
   | string
@@ -180,5 +164,5 @@ export function syntacticDiagnostics(file: string): string[] {
   const project = snapshot.getDefaultProjectForFile(file)
   if (project === undefined) return [`ts7: no project for ${file}`]
   return project.program.getSyntacticDiagnostics(file).map(diagnostic =>
-    flattenDiagnosticMessageText(diagnostic, '\n'))
+    flattenDiagnosticMessage(diagnostic, '\n'))
 }

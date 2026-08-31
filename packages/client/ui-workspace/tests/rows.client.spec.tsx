@@ -586,8 +586,17 @@ describe('workspace rows accessibility', () => {
       id: sid('a11y'), title: 'Audited Session', blank: false, running: false,
       runningSubagentCount: 0, completed: false, updatedAt: 0,
     }
+    const ranged = {
+      active: true, count: 2,
+      extend: vi.fn(), toggle: vi.fn(), anchor: vi.fn(), archiveSelected: vi.fn(),
+    }
+    const surfaces = [
+      ['SessionNodeItem idle', false, false],
+      ['SessionNodeItem running', true, false],
+      ['SessionNodeItem multi-selected', false, true],
+    ] as const
     const audits: SurfaceAudit[] = []
-    for (const [surface, running] of [['SessionNodeItem idle', false], ['SessionNodeItem running', true]] as const) {
+    for (const [surface, running, selected] of surfaces) {
       // A row is `role="treeitem"`, which ARIA requires to sit inside a
       // `tree`; WorkspaceBrowser provides that container in the product, so
       // auditing the row without one reports the harness's omission rather
@@ -595,10 +604,12 @@ describe('workspace rows accessibility', () => {
       // reason.
       const { baseElement } = render(
         <main>
-          <div role="tree" aria-label="Sessions">
+          <div role="tree" aria-label="Sessions" aria-multiselectable="true">
             <SessionNodeItem
               node={{ ...node, running }} currentId={undefined} now={0} onOpen={vi.fn()}
-              onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} flat t={t}
+              onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()}
+              {...selected ? { selection: ranged } : {}}
+              flat t={t}
             />
           </div>
         </main>,
@@ -613,5 +624,103 @@ describe('workspace rows accessibility', () => {
     }
     expect([...new Set(audits.flatMap(audit => audit.undecidedRules))]).toEqual(['color-contrast'])
     expect(accessibilityFailures(audits, MINIMUM_ACCESSIBILITY_SCORE)).toBe('')
+  })
+  it('opens the workspace row menu under the pointer on right-click and leaves the bucket alone', () => {
+    const onRename = vi.fn()
+    const onToggle = vi.fn()
+    const group: GroupNode = {
+      key: 'project', workspaceId: wid('project'), cwd: '/projects/project', createdAt: 0, label: 'Project',
+      sessionCount: 0, expanded: false, containsCurrent: false, sessions: [],
+    }
+    const view = render(<ProjectRowItem
+      group={group} onToggle={onToggle} onCreate={vi.fn()}
+      actions={{ rename: onRename, delete: vi.fn() }} t={t}
+    />)
+    fireEvent.contextMenu(screen.getByText('Project'), { clientX: 120, clientY: 240 })
+    // Right-click opens the same list the ... button does, without toggling the group.
+    expect(onToggle).not.toHaveBeenCalled()
+    const list = screen.getByRole('menu')
+    expect(list.style.left).toBe('120px')
+    expect(list.style.top).toBe('244px')
+    fireEvent.click(screen.getByRole('menuitem', { name: '重命名' }))
+    expect(onRename).toHaveBeenCalledOnce()
+
+    // The ungrouped bucket has no workspace verbs, so it keeps the platform menu.
+    view.rerender(<ProjectRowItem
+      group={{ ...group, key: 'ungrouped', workspaceId: undefined, createdAt: undefined }}
+      onToggle={onToggle} onCreate={vi.fn()} t={t}
+    />)
+    fireEvent.contextMenu(screen.getByRole('treeitem'), { clientX: 10, clientY: 10 })
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  it('opens the session row menu under the pointer and keeps a blank row menuless', () => {
+    const onArchive = vi.fn()
+    const node: SessionNode = {
+      id: sid('one'), title: 'One', blank: false, running: false,
+      runningSubagentCount: 0, completed: false, updatedAt: 0,
+    }
+    const view = render(<SessionNodeItem node={node} currentId={undefined} now={0} onOpen={vi.fn()}
+      onRename={vi.fn()} onFork={vi.fn()} onArchive={onArchive} t={t} />)
+    fireEvent.contextMenu(screen.getByText('One'), { clientX: 40, clientY: 60 })
+    const list = screen.getByRole('menu')
+    expect(list.style.left).toBe('40px')
+    fireEvent.click(screen.getByRole('menuitem', { name: '归档会话' }))
+    expect(onArchive).toHaveBeenCalledWith(sid('one'))
+
+    // Reopening from the ... button drops the pointer anchor for the wrapper rect.
+    fireEvent.click(screen.getByRole('button', { name: '会话“One”的操作' }))
+    expect(screen.getByRole('menu').style.left).toBe('0px')
+
+    view.rerender(<SessionNodeItem node={{ ...node, blank: true }} currentId={undefined} now={0}
+      onOpen={vi.fn()} onRename={vi.fn()} onFork={vi.fn()} onArchive={onArchive} t={t} />)
+    fireEvent.contextMenu(screen.getByText('新会话'), { clientX: 40, clientY: 60 })
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  it('routes modified clicks to the selection and widens the menu to one bulk archive', () => {
+    const onOpen = vi.fn()
+    const onOne = vi.fn()
+    const selection = {
+      active: false, count: 0,
+      extend: vi.fn(), toggle: vi.fn(), anchor: vi.fn(), archiveSelected: vi.fn(),
+    }
+    const node: SessionNode = {
+      id: sid('one'), title: 'One', blank: false, running: false,
+      runningSubagentCount: 0, completed: false, updatedAt: 0,
+    }
+    const view = render(<SessionNodeItem node={node} currentId={undefined} now={0} onOpen={onOpen}
+      onRename={vi.fn()} onFork={vi.fn()} onArchive={onOne} selection={selection} t={t} />)
+    const row = screen.getByText('One')
+    fireEvent.click(row, { shiftKey: true })
+    fireEvent.click(row, { metaKey: true })
+    fireEvent.click(row, { ctrlKey: true })
+    expect(selection.extend).toHaveBeenCalledOnce()
+    expect(selection.toggle).toHaveBeenCalledTimes(2)
+    expect(onOpen).not.toHaveBeenCalled()
+
+    // A plain click anchors the range and still opens the session.
+    fireEvent.click(row)
+    expect(selection.anchor).toHaveBeenCalledOnce()
+    expect(onOpen).toHaveBeenCalledWith(sid('one'))
+
+    // Right-clicking outside the range narrows it to this row before opening.
+    fireEvent.contextMenu(row, { clientX: 8, clientY: 8 })
+    expect(selection.anchor).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('menuitem', { name: '归档会话' })).toBeTruthy()
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    // Inside a range of two or more, the per-row verbs give way to the bulk row.
+    const ranged = { ...selection, active: true, count: 3 }
+    view.rerender(<SessionNodeItem node={node} currentId={undefined} now={0} onOpen={onOpen}
+      onRename={vi.fn()} onFork={vi.fn()} onArchive={onOne} selection={ranged} t={t} />)
+    expect(screen.getByRole('treeitem').getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByRole('treeitem').className).toMatch(/multiSelected/)
+    fireEvent.contextMenu(screen.getByText('One'), { clientX: 8, clientY: 8 })
+    expect(ranged.anchor).toHaveBeenCalledTimes(2)
+    expect(screen.queryByRole('menuitem', { name: '重命名' })).toBeNull()
+    fireEvent.click(screen.getByRole('menuitem', { name: '归档选中的 3 个会话' }))
+    expect(ranged.archiveSelected).toHaveBeenCalledOnce()
+    expect(onOne).not.toHaveBeenCalled()
   })
 })

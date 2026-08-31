@@ -12,7 +12,7 @@ export interface DiagnosticMessage {
   /** This link's own text. */
   readonly text: string
   /** Nested explanations, outermost first; absent when the message stands alone. */
-  readonly messageChain?: readonly DiagnosticMessage[]
+  readonly messageChain?: readonly DiagnosticMessage[] | undefined
 }
 
 /**

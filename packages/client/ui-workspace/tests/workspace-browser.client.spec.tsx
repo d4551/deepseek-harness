@@ -432,6 +432,58 @@ describe('WorkspaceBrowser', () => {
     expect(screen.queryByText('gone-s')).toBeNull()
   })
 
+  it('archives a shift-selected range that spans two workspace groups', () => {
+    const archiveSession = vi.fn(async () => {})
+    mount({
+      useSessions: hook(sessionState([
+        summary('a1', 4), summary('a2', 3), summary('b1', 2), summary('b2', 1),
+      ])),
+      useWorkspaces: hook(workspaceState([
+        workspace('alpha', ['a1', 'a2']),
+        workspace('beta', ['b1', 'b2']),
+      ])),
+      archiveSession,
+    })
+    fireEvent.click(screen.getByText('alpha'))
+    fireEvent.click(screen.getByText('beta'))
+
+    // The range account is the rendered reading order, so it crosses the group header.
+    fireEvent.click(screen.getByText('a2'))
+    fireEvent.click(screen.getByText('b1'), { shiftKey: true })
+    expect(screen.getByRole('status').textContent).toBe('已选择 2 个会话')
+    const rows = screen.getAllByRole('treeitem').filter(row => row.className.includes('multiSelected'))
+    expect(rows.map(row => row.textContent?.slice(0, 2))).toEqual(['a2', 'b1'])
+
+    fireEvent.contextMenu(screen.getByText('b1'), { clientX: 30, clientY: 40 })
+    fireEvent.click(screen.getByRole('menuitem', { name: '归档选中的 2 个会话' }))
+    expect(archiveSession.mock.calls).toEqual([[sid('a2')], [sid('b1')]])
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+
+  it('archives a ctrl-picked selection in the flat list and withdraws it on Escape', () => {
+    const archiveSession = vi.fn(async () => {})
+    mount({
+      useSessions: hook(sessionState([summary('one', 3), summary('two', 2), summary('three', 1)])),
+      useWorkspaces: hook(workspaceState([workspace('alpha', ['one', 'two', 'three'])])),
+      archiveSession,
+    })
+    fireEvent.click(screen.getByRole('button', { name: '视图选项' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '单列表' }))
+    fireEvent.click(screen.getByText('one'), { ctrlKey: true })
+    fireEvent.click(screen.getByText('three'), { ctrlKey: true })
+    expect(screen.getByRole('status').textContent).toBe('已选择 2 个会话')
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('status')).toBeNull()
+
+    fireEvent.click(screen.getByText('two'), { ctrlKey: true })
+    expect(screen.getByRole('status').textContent).toBe('已选择 1 个会话')
+    // One picked row keeps the per-row verbs: nothing to widen the menu for.
+    fireEvent.contextMenu(screen.getByText('two'), { clientX: 5, clientY: 5 })
+    fireEvent.click(screen.getByRole('menuitem', { name: '归档会话' }))
+    expect(archiveSession.mock.calls).toEqual([[sid('two')]])
+  })
+
   it('logs and keeps the tree when the archive call rejects', async () => {
     const rejection = new Error('archive exploded')
     const archiveSession = vi.fn(async () => { throw rejection })
