@@ -170,19 +170,19 @@ describe('LspInstance query and abort', () => {
   it('resolves the cancel grace when the server honors $/cancelRequest', async () => {
     // A server that answers $/cancelRequest by settling the pending request lets the grace race
     // resolve via the request rather than the timeout, so the instance is NOT force-terminated.
-    const script = 'let b=Buffer.alloc(0),reqId=null;'
+    const script = 'let b=Buffer.alloc(0),reqId=null,cancelled=false;'
       + 'const fr=(o)=>{const x=Buffer.from(JSON.stringify({jsonrpc:"2.0",...o}));return Buffer.concat([Buffer.from(`Content-Length: ${x.length}\\r\\n\\r\\n`),x]);};'
       + 'process.stdin.on("data",c=>{b=Buffer.concat([b,c]);for(;;){const s=b.indexOf("\\r\\n\\r\\n");if(s<0)break;const len=Number(/(\\d+)/.exec(b.toString("ascii",0,s))[1]);if(b.length<s+4+len)break;const m=JSON.parse(b.toString("utf8",s+4,s+4+len));b=b.subarray(s+4+len);'
       + 'if(m.method==="initialize")process.stdout.write(fr({id:m.id,result:{capabilities:{positionEncoding:"utf-16",textDocumentSync:1,definitionProvider:true}}}));'
-      + 'else if(m.method==="textDocument/definition")reqId=m.id;'
-      + 'else if(m.method==="$/cancelRequest"&&reqId!==null)process.stdout.write(fr({id:reqId,error:{code:-32800,message:"request cancelled"}}));'
+      // Order-independent, as a real server is: a cancel that arrives before the
+      // request is remembered and settles it on arrival. Keying only off a stored
+      // id drops an early cancel forever, so the grace — not the reply — wins.
+      + 'else if(m.method==="textDocument/definition"){reqId=m.id;if(cancelled)process.stdout.write(fr({id:reqId,error:{code:-32800,message:"request cancelled"}}));}'
+      + 'else if(m.method==="$/cancelRequest"){if(reqId!==null)process.stdout.write(fr({id:reqId,error:{code:-32800,message:"request cancelled"}}));else cancelled=true;}'
       + 'else if(m.method==="shutdown")process.stdout.write(fr({id:m.id,result:null}));'
       + 'else if(m.method==="exit")process.exit(0);'
       + '}});'
-    // The abort must land after the server has the request: it answers
-    // `$/cancelRequest` only from a stored request id, so cancelling first
-    // leaves nothing to settle and the grace — not the reply — wins the race.
-    // Both windows are sized for a loaded host; neither is what this asserts.
+    // The grace is sized for a loaded host; its duration is not what this asserts.
     const instance = scriptInstance(script, { killGraceMs: 30_000 })
     const controller = new AbortController()
     const pending = run(instance, 'goToDefinition', controller.signal)

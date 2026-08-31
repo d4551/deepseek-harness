@@ -134,7 +134,11 @@ suite('persistent Bash through a real cordis.yml Loader composition', () => {
     })
 
     expect(context.tools.schemas().map(schema => schema.name)).toEqual(['bash'])
-    await execute('state', 'export KEEP=loader; mkdir -p nested; cd nested')
+    // Assert the setup call itself: an unchecked failure here (a torn-down
+    // session under load) surfaces later as a confusing cwd mismatch instead of
+    // the command that actually failed.
+    const staged = text(await execute('state', 'export KEEP=loader; mkdir -p nested; cd nested'))
+    expect(staged, `state command did not succeed: ${staged}`).not.toMatch(/error|not found|No such file/i)
     const observed = text(await execute('observe', 'printf "cwd=%s keep=%s\\n" "$PWD" "$KEEP"'))
     expect(observed).toContain(`cwd=${join(root, 'nested')} keep=loader`)
     expect(observed).not.toContain('DSH_PERSISTENT_BASH')

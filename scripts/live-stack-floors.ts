@@ -55,6 +55,20 @@ const PLUGIN_REACT_FLOOR: SemVer = { major: 6, minor: 1, patch: 1 }
 export const AXE_FLOOR: SemVer = { major: 4, minor: 13, patch: 0 }
 /** @modelcontextprotocol/sdk v1 latest. */
 export const MCP_SDK_FLOOR: SemVer = { major: 1, minor: 30, patch: 0 }
+/** Oxlint pin: the repository's only linter. */
+export const OXLINT_FLOOR: SemVer = { major: 1, minor: 80, patch: 0 }
+/**
+ * `oxlint-tsgolint` pin. This is the type-aware half of the lint gate — the
+ * `no-unsafe-*` and `no-unnecessary-condition` rules that hold the TypeScript 7
+ * conversion honest all come from it. An older build still lints and still
+ * exits zero while checking less, so the floor is what keeps the gate from
+ * silently weakening.
+ */
+export const OXLINT_TSGOLINT_FLOOR: SemVer = { major: 7, minor: 0, patch: 2001 }
+/** Vitest pin: the runner every lane configures. */
+export const VITEST_FLOOR: SemVer = { major: 4, minor: 1, patch: 11 }
+/** `@types/node` pin: the ambient surface every Host package compiles against. */
+export const TYPES_NODE_FLOOR: SemVer = { major: 26, minor: 4, patch: 0 }
 
 const FORBIDDEN_STACK = /(\b(?:daisyui|tailwindcss|htmx\.org|hx-(?:get|post|put|patch|delete|swap|trigger|boost|target))\b|@tailwind\b)/g
 
@@ -198,6 +212,22 @@ export function auditStackMisses(manifests: readonly { file: string; source: str
   return manifests.flatMap(({ file, source }) => rangeMisses(file, source, {
     'axe-core': AXE_FLOOR,
     '@modelcontextprotocol/sdk': MCP_SDK_FLOOR,
+  }))
+}
+
+/**
+ * Toolchain misses: the linter, its type-aware plugin, the test runner, and the
+ * ambient Node types. These never reach a user, but every other gate's strength
+ * is measured by them, so a regression here is a silent loss of coverage.
+ * @param manifests - workspace manifests.
+ * @returns misses below the toolchain floors.
+ */
+export function toolchainMisses(manifests: readonly { file: string; source: string }[]): RangeMiss[] {
+  return manifests.flatMap(({ file, source }) => rangeMisses(file, source, {
+    oxlint: OXLINT_FLOOR,
+    'oxlint-tsgolint': OXLINT_TSGOLINT_FLOOR,
+    vitest: VITEST_FLOOR,
+    '@types/node': TYPES_NODE_FLOOR,
   }))
 }
 

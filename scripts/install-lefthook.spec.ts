@@ -592,7 +592,7 @@ describe('worktree-local Lefthook installer', () => {
     })
     expect(explicitWorktreePath.status).toBe(1)
     expect(git(fixture, fixture.linked, ['config', '--worktree', '--get', 'core.hooksPath'])).toBe('linked-custom-hooks')
-  })
+  }, MULTI_PROCESS_TEST_TIMEOUT_MS)
 
   it('does not trust an ownership marker outside a registered worktree hook path', async () => {
     const fixture = createFixture()

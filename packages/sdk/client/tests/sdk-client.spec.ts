@@ -387,7 +387,9 @@ describe('HarnessClient', () => {
   it('fails when the configured dsh CLI module does not exist', async () => {
     const client = new HarnessClient({ dshBin: join(tmpdir(), 'dsh-no-such-runtime-bin') })
     cleanups.push(() => client.close())
-    await expect(client.request('initialize', {}, 1_000)).rejects.toThrow(TransportClosedError)
+    // The budget must outlast the spawn failure it is racing: this asserts which
+    // error a missing CLI module raises, not how quickly the request gives up.
+    await expect(client.request('initialize', {}, 30_000)).rejects.toThrow(TransportClosedError)
   })
 
   it('reports a generic process spawn failure to internal transports', async () => {
@@ -396,7 +398,8 @@ describe('HarnessClient', () => {
       args: [],
     }))
     cleanups.push(() => client.close())
-    await expect(client.request('initialize', {}, 1_000))
+    // Same race as above: the spawn error, not the request budget, is the subject.
+    await expect(client.request('initialize', {}, 30_000))
       .rejects.toThrow(/spawn error:.*ENOENT/s)
   })
 

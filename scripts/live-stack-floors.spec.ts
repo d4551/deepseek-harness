@@ -18,6 +18,7 @@ import {
   reactMisses,
   REACT_FLOOR,
   TYPESCRIPT_FLOOR,
+  toolchainMisses,
   typescriptCompileMisses,
   viteMisses,
   VITE_FLOOR,
@@ -46,6 +47,19 @@ describe('injected floor misses', () => {
       range: '^6.0.2',
       floor: TYPESCRIPT_FLOOR,
     }])
+  })
+
+  it('fails an older oxlint-tsgolint, oxlint, vitest, or @types/node', () => {
+    const source = JSON.stringify({
+      devDependencies: {
+        'oxlint-tsgolint': '^7.0.1000',
+        oxlint: '^1.79.0',
+        vitest: '^3.2.0',
+        '@types/node': '^24.0.0',
+      },
+    })
+    expect(toolchainMisses([{ file: 'package.json', source }]).map(miss => miss.name).sort())
+      .toEqual(['@types/node', 'oxlint', 'oxlint-tsgolint', 'vitest'])
   })
 
   it('fails React 18 and axe below 4.13 and MCP SDK below 1.30', () => {
@@ -106,6 +120,13 @@ describe('live workspace floors', () => {
     expect(reactMisses(manifests)).toEqual([])
     expect(viteMisses(manifests)).toEqual([])
     expect(auditStackMisses(manifests)).toEqual([])
+  })
+
+  it('holds the lint and test toolchain at its pins', () => {
+    // The type-aware half of the lint gate lives in `oxlint-tsgolint`; an older
+    // build still exits zero while checking less, so this is the floor that
+    // keeps every other gate's strength from drifting down unnoticed.
+    expect(toolchainMisses(manifests)).toEqual([])
   })
 
   it('leaves no Tailwind, daisyUI, or htmx in product UI source', () => {

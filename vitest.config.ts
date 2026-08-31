@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process'
+import { availableParallelism } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import tsconfigPaths from 'vite-tsconfig-paths'
 import { resolvePwshPath } from './packages/shell/pwsh-local/src/resolve.ts'
@@ -144,7 +145,23 @@ const processBoundTests = [
   'packages/llm/llm-pi-ai/tests/adapter.spec.ts',
   'packages/boot/app-boot/tests/app-boot.spec.ts',
   'packages/workflow/workflow-worker-thread/tests/session.spec.ts',
+  // Real shells, process trees, and repository git state: each drives a live
+  // bash session or subprocess tree against a per-command budget, so two of
+  // them in flight at once exhaust the budget rather than the work.
+  'packages/boot/app-boot/tests/user-patches.spec.ts',
+  'packages/shell/tool-bash-persistent/tests/loader-composition.spec.ts',
+  'packages/terminal/terminal-bash/tests/local.spec.ts',
+  'scripts/client-build-environment.client.spec.ts',
 ]
+
+/**
+ * Fork-pool ceiling. Every worker is a full Node process that loads the
+ * workspace graph, so an uncapped default on a many-core host spawns more
+ * heavyweight forks than the machine has memory for and they are killed
+ * mid-run — the same trade `run-gates.ts` caps for the doc gates. Small hosts
+ * and CI runners stay uncapped; only large ones bind.
+ */
+const MAX_TEST_FORKS = Math.max(2, Math.min(availableParallelism(), 8))
 
 export default defineConfig({
   plugins: [pathsPlugin(), standardDecoratorPlugin()],
@@ -155,6 +172,7 @@ export default defineConfig({
     // git, node, bun, and oxlint, which exceed 5s under the fork pool's
     // parallelism while still failing fast on a real hang.
     testTimeout: 30_000,
+    maxWorkers: MAX_TEST_FORKS,
     // .tsx: client component specs (jsdom via per-file @vitest-environment pragma).
     include: testIncludes,
     exclude: platformUnsupportedTests,
@@ -173,6 +191,8 @@ export default defineConfig({
           setupFiles: ['./scripts/test-invariants.ts'],
           // Projects do not inherit the root lane budget; see the note there.
           testTimeout: 30_000,
+          maxWorkers: MAX_TEST_FORKS,
+          poolOptions: { forks: { maxForks: MAX_TEST_FORKS } },
           include: testIncludes,
           exclude: [
             ...platformUnsupportedTests,
@@ -190,6 +210,12 @@ export default defineConfig({
           setupFiles: ['./scripts/test-invariants.ts'],
           // Projects do not inherit the root lane budget; see the note there.
           testTimeout: 30_000,
+          // One fork at a time. These suites hold process-global state and
+          // measure live shells and process trees against per-command budgets;
+          // running two of them together spends the budget on contention, which
+          // reports as a timeout in whichever suite lost the race.
+          maxWorkers: 1,
+          poolOptions: { forks: { maxForks: 1 } },
           include: processBoundTests,
           exclude: [
             ...platformUnsupportedTests,

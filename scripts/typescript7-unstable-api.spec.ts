@@ -54,6 +54,36 @@ describe('mandated typescript 7 compiler API', () => {
     expect(first === undefined ? false : isFunctionDeclaration(first)).toBe(true)
   })
 
+  it('keeps the 6.0 Strada compiler API out of the tree', () => {
+    // TypeScript 7's `.` export is version metadata, not the Strada compiler, so
+    // a default or namespace import of `typescript` binds no compiler API at
+    // runtime and the classic free functions are gone. This is not theoretical
+    // here: the shipped `@stryker-mutator/core` patch exists because
+    // `resolveProjectReferencePath` and `parseConfigFileTextToJson` disappeared.
+    // Named imports stay legal — `version` and `versionMajorMinor` are exactly
+    // what that export provides, and the pin assertions above read them.
+    const result = spawnSync('git', [
+      'grep',
+      '-nE',
+      '(^|[^.[:alnum:]_])import[[:space:]]+(ts|\\*[[:space:]]+as[[:space:]]+ts)[[:space:]]+from[[:space:]]+.typescript.'
+      + '|require\\(.typescript.\\)'
+      + '|import\\(.typescript.\\)'
+      // `git grep -E` is POSIX ERE: `\\b` is not a word boundary there, so the
+      // bracket classes are what actually anchor these names.
+      + '|(^|[^[:alnum:]_])ts\\.(createProgram|createSourceFile|sys|factory|forEachChild'
+      + '|getPreEmitDiagnostics|parseConfigFileTextToJson|resolveProjectReferencePath'
+      + '|createPrinter|createCompilerHost)([^[:alnum:]_]|$)',
+      '--',
+      '*.ts', '*.tsx', '*.mts', '*.cts', '*.mjs', '*.js',
+      // The stryker patchfile quotes the removed Strada calls as context.
+      ':(exclude)patches/*',
+      ':(exclude)scripts/typescript7-unstable-api.spec.ts',
+    ], { cwd: root, encoding: 'utf8' })
+    expect(result.stdout).toBe('')
+    // git grep exits 1 when nothing matches: exactly the passing case.
+    expect(result.status).toBe(1)
+  })
+
   it('keeps the 6.0 Strada compatibility package out of the tree', () => {
     const result = spawnSync('git', [
       'grep',
