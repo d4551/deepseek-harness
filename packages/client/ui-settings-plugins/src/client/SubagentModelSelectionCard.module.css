@@ -110,6 +110,11 @@
   overflow: auto;
   border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
+  /* The rows inside reach the l2 elevation on hover and this list is what
+   * scrolls, so rebind the scrollbar indirection to the elevation pair here
+   * (the rebinding contract in ui-theme styles/scrollbar.css). */
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
 }
 
 .models legend {
@@ -148,7 +153,9 @@
 }
 
 .model:hover {
-  background: var(--dsw-alias-bg-layer-4);
+  /* A row hover is an interactive state, not a raised surface: the elevation
+     tokens are for containers, and every sibling row uses this one. */
+  background: var(--dsw-alias-interactive-bg-hover);
 }
 
 .modelName,

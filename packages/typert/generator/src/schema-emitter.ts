@@ -40,11 +40,43 @@ export interface BoundarySchemaRoot {
 /** Schema-expression substitution for one generic parameter id. */
 type Substitutions = ReadonlyMap<string, string>
 
+/** Generated name of the parameterized-schema memo; `$schema` suffixes keep declaration names clear of it. */
+const MEMOIZE_NAME = 'memoize$'
+
+/**
+ * Definition of the generated memo: one instance per argument-schema tuple,
+ * looked up through a Map chain so argument identity, not order of arrival,
+ * decides reuse.
+ */
+const MEMOIZE_DEFINITION = `const ${MEMOIZE_NAME} = (build) => {
+  const root = new Map()
+  const held = Symbol('held')
+  return (...args) => {
+    let node = root
+    for (const argument of args) {
+      let next = node.get(argument)
+      if (next === undefined) {
+        next = new Map()
+        node.set(argument, next)
+      }
+      node = next
+    }
+    if (!node.has(held)) node.set(held, build(...args))
+    return node.get(held)
+  }
+}`
+
 /** Emit Zod definitions and codec boundaries from a rendered type graph. */
 export class SchemaEmitter {
   private readonly names = new Map<SymbolId, string>()
   private readonly boundaryNames = new Map<string, string>()
   private readonly declarations: TypeDeclarationModel[]
+  private readonly hoistedArguments = new Map<string, string>()
+  private readonly identifiers = new Set<string>()
+  /** Parameter bindings of the declaration currently being emitted. */
+  private parameterNames: readonly string[] = []
+  /** Declaration currently being emitted, whose self-references are cycles. */
+  private emitting: SymbolId | undefined
 
   constructor(
     private readonly renderer: TypeGraphRenderer,
@@ -63,7 +95,7 @@ export class SchemaEmitter {
       }
     }
     this.declarations = renderer.graph.declarations.filter(declaration => declarations.has(declaration.id))
-    const identifiers = new Set<string>()
+    const identifiers = this.identifiers
     for (const declaration of this.declarations) {
       this.names.set(declaration.id, uniqueName(`${safeIdentifier(declaration.name)}$schema`, identifiers))
     }
@@ -80,8 +112,17 @@ export class SchemaEmitter {
    */
   emit(): SchemaArtifact {
     const definitions = this.declarations.map(declaration => this.declarationDefinition(declaration))
+    if (this.declarations.some(declaration => declaration.typeParameters.length > 0)) {
+      definitions.unshift(MEMOIZE_DEFINITION)
+    }
     for (const boundary of this.boundaries) {
       definitions.push(`const ${this.boundaryName(boundary.key)} = ${this.typeSchema(boundary.type)}`)
+    }
+    // Emitted last, and after every declaration that names one: each is only
+    // ever read inside a `z.lazy` body, so a binding declared below its use is
+    // still initialized by the time anything evaluates it.
+    for (const [argument, name] of this.hoistedArguments) {
+      definitions.push(`const ${name} = ${argument}`)
     }
     const exports = this.schemas.map((model): SchemaExport => ({
       model,
@@ -100,10 +141,21 @@ export class SchemaEmitter {
     if (declaration.typeParameters.length === 0) {
       return `const ${name} = ${this.declarationSchema(declaration, new Map())}`
     }
+    // Allocated from the same set as every other generated name: a declaration
+    // called `type0` would otherwise be given `type0$schema` too, and the
+    // parameter would silently shadow it inside this factory.
     const parameters = declaration.typeParameters.map((parameter, index) =>
-      [`type${String(index)}$schema`, parameter.id] as const)
+      [uniqueName(`type${String(index)}$schema`, this.identifiers), parameter.id] as const)
     const substitutions = new Map(parameters.map(([schema, id]) => [id, schema]))
-    return `const ${name} = (${parameters.map(([schema]) => schema).join(', ')}) => ${this.declarationSchema(declaration, substitutions)}`
+    this.parameterNames = parameters.map(([schema]) => schema)
+    this.emitting = declaration.id
+    // Memoized on the argument schemas: a recursive generic reaches itself
+    // through `z.lazy`, and rebuilding a distinct instance per dereference
+    // gives Zod's recursion check nothing to recognize, so it descends forever.
+    const body = this.declarationSchema(declaration, substitutions)
+    this.parameterNames = []
+    this.emitting = undefined
+    return `const ${name} = ${MEMOIZE_NAME}((${parameters.map(([schema]) => schema).join(', ')}) => ${body})`
   }
 
   private declarationSchema(
@@ -217,7 +269,21 @@ export class SchemaEmitter {
         }
         return `z.lazy(() => ${name})`
       }
-      const arguments_ = this.declarationArguments(node, declaration, substitutions)
+      const rendered = this.declarationArguments(node, declaration, substitutions)
+      // A declaration referring to itself with an argument BUILT from its own
+      // parameter — `Rec<V>` whose member is `Rec<V[]>` — names a different
+      // instantiation at every level, so the chain has no fixed point and no
+      // memo can close it. TypeScript admits the type; a finite schema for it
+      // does not exist, and emitting one that overflows at parse would hide
+      // that.
+      if (node.target.symbol === this.emitting) {
+        for (const argument of rendered) {
+          if (this.readsParameter(argument) && !this.parameterNames.includes(argument)) {
+            this.fail(node.name, `recursive reference instantiates itself with ${argument}, which has no finite schema`)
+          }
+        }
+      }
+      const arguments_ = rendered.map(argument => this.stableArgument(argument))
       return `z.lazy(() => ${name}(${arguments_.join(', ')}))`
     }
     if (node.target.kind === 'type-parameter') {
@@ -248,6 +314,44 @@ export class SchemaEmitter {
       }
     }
     this.fail(node.name, `${node.target.kind} reference has no Zod projection`)
+  }
+
+  /**
+   * Name one instantiation argument so the same argument is the same object.
+   *
+   * The memo recognizes an instantiation by the identity of its arguments, and
+   * a self-reference carrying a written-out argument (`Self<string>` inside
+   * `Self<T>`) evaluates that expression again on every dereference, producing
+   * a new schema each time and a tower the memo never closes. An argument that
+   * does not read a type parameter is constant, so it is emitted once as a
+   * module binding and referred to by name. A bare parameter reference is
+   * already stable, being whatever schema the caller passed in; an argument
+   * built from a parameter is rejected before reaching here when it makes a
+   * self-reference expand forever.
+   * @param argument - rendered argument expression.
+   * @returns an expression whose value is stable across evaluations.
+   */
+  /**
+   * Whether an argument expression reads a parameter of the enclosing factory.
+   *
+   * The names are the ones allocated for this declaration, matched whole, so a
+   * declaration whose own schema is called `type0$schema` cannot be mistaken
+   * for a parameter and a parameter cannot be missed.
+   * @param argument - rendered argument expression.
+   * @returns true when a parameter binding appears in it.
+   */
+  private readsParameter(argument: string): boolean {
+    return this.parameterNames.some(name =>
+      new RegExp(`(?<![\\w$])${name.replace('$', '\\$')}(?![\\w$])`).test(argument))
+  }
+
+  private stableArgument(argument: string): string {
+    if (this.readsParameter(argument)) return argument
+    const existing = this.hoistedArguments.get(argument)
+    if (existing !== undefined) return existing
+    const name = uniqueName(`argument${String(this.hoistedArguments.size)}$schema`, this.identifiers)
+    this.hoistedArguments.set(argument, name)
+    return name
   }
 
   private declarationArguments(

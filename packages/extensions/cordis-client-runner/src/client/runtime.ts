@@ -88,6 +88,19 @@ export interface DynamicCordisRenderFailure {
 }
 
 /**
+ * A render failure as this page shows it.
+ *
+ * The wire record's `message` is written for the model and pinned verbatim, so
+ * it cannot be translated. The panel already names the slot in the reader's own
+ * language, so it needs only what the model line adds to that: the crash text
+ * and any redirect. Same observation, two outlets, two shapes.
+ */
+export interface DynamicCordisRenderFailureView extends DynamicCordisRenderFailure {
+  /** Crash text plus any redirect, without the English framing around it. */
+  cause: string
+}
+
+/**
  * What this page ended up with. A parked package is a success — the browser half
  * settled and waits on declared services this page has not got.
  */
@@ -205,10 +218,10 @@ export class DynamicCordisPackageRunner {
     agentId: SessionId
   }>()
   /** This page's last render crash per package: what a run surface shows on the row. */
-  private readonly failures = new Map<CordisDynamicPluginId, DynamicCordisRenderFailure>()
+  private readonly failures = new Map<CordisDynamicPluginId, DynamicCordisRenderFailureView>()
   private readonly unwatch: () => void
   private snapshotCache: readonly DynamicCordisLivePackage[] | undefined
-  private failureCache: ReadonlyMap<CordisDynamicPluginId, DynamicCordisRenderFailure> | undefined
+  private failureCache: ReadonlyMap<CordisDynamicPluginId, DynamicCordisRenderFailureView> | undefined
 
   /** @param env - loader/module/slot wiring plus the two host verbs this engine uses. */
   constructor(private readonly env: DynamicCordisRunnerEnv) {
@@ -219,9 +232,10 @@ export class DynamicCordisPackageRunner {
       const owner = indexable(component) ? this.owners.get(component) : undefined
       if (owner === undefined) return
       const details = errorDetails(error)
+      const cause = renderFailureCause(details.message)
       const failure: DynamicCordisRenderFailure = {
         slot,
-        message: renderFailureMessage(slot, details.message),
+        message: renderFailureMessage(slot, cause),
         ...details.stack === undefined ? {} : { stack: details.stack },
         abdicated: info.abdicated,
       }
@@ -229,7 +243,7 @@ export class DynamicCordisPackageRunner {
       // keeps the last crash ACROSS pages for the model, this map is what THIS page
       // currently shows. Neither is derived from the other.
       env.reportRenderFailure(owner.agentId, owner.pluginId, owner.pluginRunId, failure)
-      this.failures.set(owner.pluginId, failure)
+      this.failures.set(owner.pluginId, { ...failure, cause })
       this.notify()
     })
   }
@@ -249,7 +263,7 @@ export class DynamicCordisPackageRunner {
    * the live set — a surface that already subscribed learns about a crash without
    * a second mechanism to wire.
    */
-  readonly renderFailures: CordisObservable<ReadonlyMap<CordisDynamicPluginId, DynamicCordisRenderFailure>> = {
+  readonly renderFailures: CordisObservable<ReadonlyMap<CordisDynamicPluginId, DynamicCordisRenderFailureView>> = {
     getSnapshot: () => this.failureCache ??= new Map(this.failures),
     subscribe: fn => this.subscribe(fn),
   }
@@ -499,9 +513,17 @@ export function errorDetails(error: unknown): CordisErrorDetails {
  * text pulls in its redirect — a package that reached `window.setInterval` around
  * the closure trap crashes with the engine's bare message, which teaches nothing.
  */
-function renderFailureMessage(slot: string, message: string): string {
+function renderFailureMessage(slot: string, cause: string): string {
+  return `your entry in slot "${slot}" crashed while React rendered it: ${cause}`
+}
+
+/**
+ * The crash text an author has to read, with the redirect a withheld global earns.
+ * @param message - engine crash text.
+ * @returns the crash text, followed by its redirect when one applies.
+ */
+function renderFailureCause(message: string): string {
   const redirect = Object.entries(DYNAMIC_CLIENT_REDIRECTS)
     .find(([name, text]) => message.includes(name) && !message.includes(text))?.[1]
-  return `your entry in slot "${slot}" crashed while React rendered it: ${message}`
-    + (redirect === undefined ? '' : `\n${redirect}`)
+  return message + (redirect === undefined ? '' : `\n${redirect}`)
 }

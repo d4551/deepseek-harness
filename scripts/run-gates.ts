@@ -318,6 +318,7 @@ function ciPrimaryGates(): Gate[] {
       needs: ['build'],
     }),
     builtPackageInvariantsGate(['build']),
+    builtArtifactSpecsGate(['build']),
     builtBinSmokeGate(),
   ]
 }
@@ -419,6 +420,7 @@ function ciArtifactGates(): Gate[] {
       needs: ['build'],
     }),
     builtPackageInvariantsGate(['build']),
+    builtArtifactSpecsGate(['build']),
     builtBinSmokeGate(),
   ]
 }
@@ -637,6 +639,27 @@ function snapshotGate(needs: string[] = ['build']): Gate {
 function expectedOutputGate(needs: string[] = ['build']): Gate {
   return bunScript('expected-output', 'test:expected', {
     env: { DSH_EXAMPLE_MODE: 'lib' },
+    needs,
+  })
+}
+
+/**
+ * Run the suites that exercise emitted `lib/` bundles with the artifact
+ * requirement switched on. Without the env they skip on an unbuilt tree, which
+ * is right locally and wrong in a lane that just built: this is what turns
+ * "the bundle was never emitted" into a failure instead of a green skip.
+ * @param needs - gate ids that must finish first.
+ * @returns the gate.
+ */
+function builtArtifactSpecsGate(needs: string[]): Gate {
+  return bunExec('built-artifact-specs', [
+    'vitest',
+    'run',
+    'packages/client/ui-trajectory/tests/client-bundle.client.spec.ts',
+    'packages/session/session-persistence-sqlite/tests/built-package.spec.ts',
+  ], {
+    label: 'built artifact suites',
+    env: { DSH_REQUIRE_BUILT_PACKAGES: '1' },
     needs,
   })
 }

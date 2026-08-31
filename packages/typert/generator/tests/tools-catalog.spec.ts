@@ -17,7 +17,10 @@ afterEach(() => {
 })
 
 describe('model-driven dsh-tools generation', () => {
-  it('round-trips the complete service and event structure through the runtime registry', { timeout: 30_000 }, async () => {
+  // Opens the real host face program over the whole workspace and emits the
+  // registry from it, so the budget is sized for that analysis rather than for
+  // an ordinary unit test.
+  it('round-trips the complete service and event structure through the runtime registry', { timeout: 180_000 }, async () => {
     const workspace = new WorkspaceAnalyzer({
       root: workspaceRoot,
       faces: ['host'],

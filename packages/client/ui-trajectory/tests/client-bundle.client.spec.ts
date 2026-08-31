@@ -34,16 +34,27 @@ afterEach(() => {
   for (const el of document.querySelectorAll('style')) el.remove()
 })
 
+// Absent artifacts skip a local run, but `DSH_REQUIRE_BUILT_PACKAGES=1` makes
+// the suite mandatory: a lane that builds first must fail here rather than
+// report green because the bundle it was meant to exercise was never emitted.
+const requireBuiltPackages = process.env.DSH_REQUIRE_BUILT_PACKAGES === '1'
+
 describe('tsdown client artifact', () => {
   const code = readBundle()
 
   async function loadArtifact() {
+    if (code === undefined) {
+      throw new Error(
+        'packages/client/ui-trajectory/lib/client.js is missing; run `bun run build:lib:client` first '
+        + '(DSH_REQUIRE_BUILT_PACKAGES=1 makes this suite mandatory instead of skipped).',
+      )
+    }
     let handoff: Handoff | undefined
     ;(window as Win).__ModuleLoader__ = { load: (h) => { handoff = h } }
     // The implied-eval ban targets accidental string execution, not this
     // deliberate built-bundle fixture running in the window scope.
     // oxlint-disable-next-line typescript/no-implied-eval, typescript/no-unsafe-call
-    new Function(code!)()
+    new Function(code)()
     expect(handoff).toBeDefined()
     const modules = new Map<string, unknown>([
       ['react', await import('react')],
@@ -60,7 +71,7 @@ describe('tsdown client artifact', () => {
     return { handoff: handoff!, exports }
   }
 
-  it.skipIf(code === undefined)('hands off with the manifest id and a DI-require factory', async () => {
+  it.skipIf(!requireBuiltPackages && code === undefined)('hands off with the manifest id and a DI-require factory', async () => {
     const { handoff, exports } = await loadArtifact()
     expect(handoff.id).toBe(PLUGIN_ID)
     expect(exports.apply).toBeTypeOf('function')
@@ -69,7 +80,7 @@ describe('tsdown client artifact', () => {
     ])
   })
 
-  it.skipIf(code === undefined)('mounted as an object plugin, apply registers the view tab on the real ring', async () => {
+  it.skipIf(!requireBuiltPackages && code === undefined)('mounted as an object plugin, apply registers the view tab on the real ring', async () => {
     const { exports } = await loadArtifact()
     const ctx = new Context()
     const slots = new SlotRegistry(ctx)
@@ -103,7 +114,7 @@ describe('tsdown client artifact', () => {
     expect(views.entries()).toEqual([])
   })
 
-  it.skipIf(code === undefined)('injects plugin-tagged module CSS during factory execution', async () => {
+  it.skipIf(!requireBuiltPackages && code === undefined)('injects plugin-tagged module CSS during factory execution', async () => {
     await loadArtifact()
     const tags = document.querySelectorAll(`style[data-plugin=${JSON.stringify(PLUGIN_ID)}]`)
     expect(tags.length).toBeGreaterThan(0)

@@ -21,6 +21,8 @@
 }
 
 .sep {
-  color: var(--dsw-alias-separator-primary);
+  /* No colour of its own: the separator has always inherited `.root`'s
+     `--dsw-alias-label-tertiary` — 3.71:1 light, 8.54:1 dark. A border token
+     here would render the glyph at 1.25:1 light and 1.41:1 dark. */
   margin: 0 10px; /* carries the former flex gap */
 }

@@ -20,7 +20,7 @@ import { FaceAnalyzer } from './analyzer-face.ts'
 import { loadRegistrations, mergeWorkspaceModels } from './analyzer-register.ts'
 import { localImportTargetsInText, onlyEmptyCordisAugmentation, textMayCarrySurface } from './analyzer-surface.ts'
 import type { DiscoveredTypertPackage, PackageRegistration } from './analyzer-types.ts'
-import { isWithin, realPath, slash, uniqueBy } from './analyzer-util.ts'
+import { compareCrossFaceLinks, isWithin, realPath, slash, uniqueBy } from './analyzer-util.ts'
 import type { CrossFaceLink, FaceModel, SourceDeclarationModel, TypertFace, WorkspaceModel } from './model.ts'
 import { FaceProject } from './ts7-project.ts'
 import { notifyFileChanged, writeProgramConfig } from './ts7-session.ts'
@@ -171,13 +171,7 @@ export class WorkspaceAnalyzer {
     }
     return {
       faces,
-      crossFaceLinks: [...this.crossFaceLinks.values()].sort((left, right) =>
-        left.fromFace.localeCompare(right.fromFace)
-        || left.fromPackage.localeCompare(right.fromPackage)
-        || left.toFace.localeCompare(right.toFace)
-        || left.toPackage.localeCompare(right.toPackage)
-        || left.subpath.localeCompare(right.subpath)
-        || left.name.localeCompare(right.name)),
+      crossFaceLinks: [...this.crossFaceLinks.values()].sort(compareCrossFaceLinks),
     }
   }
 

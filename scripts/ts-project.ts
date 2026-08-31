@@ -44,12 +44,9 @@ export class TypeScriptProject {
    * @returns program source files, including libraries and external dependencies.
    */
   sourceFiles(): readonly SourceFile[] {
-    const files: SourceFile[] = []
-    for (const fileName of this.program.getSourceFileNames()) {
-      const sourceFile = this.program.getSourceFile(fileName)
-      if (sourceFile !== undefined) files.push(sourceFile)
-    }
-    return files
+    return this.program.getSourceFileNames()
+      .map(fileName => this.program.getSourceFile(fileName))
+      .filter(sourceFile => sourceFile !== undefined)
   }
 
   /**

@@ -140,7 +140,7 @@
     "@deepseek-ai/dsh-tool-subagent-report": "workspace:^",
     "@deepseek-ai/dsh-user-approval": "workspace:^",
     "@types/ws": "8.18.1",
-    "execa": "^10.0.0",
+    "execa": "^10.0.1",
     "ws": "8.21.3"
   }
 }

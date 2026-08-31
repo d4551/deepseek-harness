@@ -84,7 +84,7 @@
     "watch": "tsdown --watch"
   },
   "dependencies": {
-    "clsx": "^2.0.0",
+    "clsx": "^2.1.1",
     "@deepseek-ai/schemastery": "workspace:^"
   }
 }

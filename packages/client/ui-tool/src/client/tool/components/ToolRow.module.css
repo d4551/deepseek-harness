@@ -120,7 +120,10 @@
   line-height: calc(24px + var(--dsh-content-font-delta, 0px));
   color: var(--dsw-alias-label-secondary);
   text-decoration: underline;
-  text-decoration-color: var(--dsw-alias-label-quaternary);
+  /* The underline tracks the link's own colour. `--dsw-alias-label-quaternary`
+     is the disabled-control rung, and an enabled link is not exempt from the
+     contrast minimum the way a disabled control is. */
+  text-decoration-color: currentColor;
   text-underline-offset: 3px;
   cursor: pointer;
 }
@@ -310,4 +313,14 @@
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+/* An `animation` shorthand carries its own literal duration, so the theme's
+   reduced-motion collapse of `--ds-transition-duration*` never reaches it. An
+   indefinite loop is exactly the motion that setting asks to stop. */
+@media (prefers-reduced-motion: reduce) {
+  .root[data-state='running'] .row::after {
+    animation: none;
+    display: none;
+  }
 }

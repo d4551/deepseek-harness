@@ -55,11 +55,24 @@ describe('injected floor misses', () => {
         'oxlint-tsgolint': '^7.0.1000',
         oxlint: '^1.79.0',
         vitest: '^3.2.0',
+        '@vitest/coverage-v8': '^3.2.0',
         '@types/node': '^24.0.0',
+        tsx: '^4.19.2',
+        '@testing-library/react': '^16.1.0',
+        execa: '^10.0.0',
+        zod: '^4.4.3',
+        clsx: '^2.0.0',
+        yaml: '^2.4.2',
+        fflate: '^0.8.2',
+        playwright: '^1.49.0',
       },
     })
     expect(toolchainMisses([{ file: 'package.json', source }]).map(miss => miss.name).sort())
-      .toEqual(['@types/node', 'oxlint', 'oxlint-tsgolint', 'vitest'])
+      .toEqual([
+        '@testing-library/react', '@types/node', '@vitest/coverage-v8', 'clsx',
+        'execa', 'fflate', 'oxlint', 'oxlint-tsgolint', 'playwright', 'tsx',
+        'vitest', 'yaml', 'zod',
+      ])
   })
 
   it('fails React 18 and axe below 4.13 and MCP SDK below 1.30', () => {
@@ -132,6 +145,12 @@ describe('live workspace floors', () => {
   it('leaves no Tailwind, daisyUI, or htmx in product UI source', () => {
     const files = productUiFiles()
     expect(files.length).toBeGreaterThan(50)
+    // Every browser half is in scope, not only `packages/client`: the scan once
+    // reached that tree alone, so a forbidden stack in an extension or a
+    // prototype would have shipped unseen.
+    for (const tree of ['packages/client/', 'packages/extensions/', 'packages/experimental/', 'apps/web/']) {
+      expect(files.some(entry => entry.file.startsWith(tree)), tree).toBe(true)
+    }
     expect(forbiddenStackHits(files)).toEqual([])
   })
 

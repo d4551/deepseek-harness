@@ -2,6 +2,7 @@
 
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { DefaultTheme, PageData, SiteConfig } from 'vitepress'
 import type { ViteDevServer } from 'vite'
 import { withMermaid } from 'vitepress-plugin-mermaid'
@@ -370,6 +371,18 @@ export default withMermaid({
     // `srcDir` puts the Vite root inside the disposable generated tree, whose
     // own `public/` no tracked asset can live in.
     publicDir: resolve(import.meta.dirname, '../public'),
+    resolve: {
+      alias: {
+        // VitePress's client entry imports this component by bare specifier
+        // once the Mermaid plugin has extended the theme. Under an isolated
+        // install the plugin is not a sibling of VitePress, so the bundler
+        // resolving from VitePress's own directory cannot find it. Resolving
+        // it here, from the config that already depends on the plugin, points
+        // the bundler at the copy this site actually installed.
+        'vitepress-plugin-mermaid/Mermaid.vue':
+          fileURLToPath(import.meta.resolve('vitepress-plugin-mermaid/Mermaid.vue')),
+      },
+    },
     plugins: [
       {
         name: 'deepseek-harness-doc-projector',

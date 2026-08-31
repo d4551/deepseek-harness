@@ -102,3 +102,12 @@
   color: var(--dsw-alias-label-secondary, var(--dsh-boot-label-secondary));
   white-space: pre-wrap;
 }
+
+/* The spinner turns until the plugin tree resolves, which is exactly the
+   indefinite motion this setting asks to stop. The ring stays visible so the
+   boot state still reads as "working", it simply stops rotating. */
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}

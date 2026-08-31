@@ -24,18 +24,20 @@ async function bench(isLoopback = true, settings?: object, services: object = {}
   const locale = new LocaleRuntime(ctx)
   locale.setLocale('zh')
   ctx.provide('locale', locale)
+  // Held rather than inlined so a spec can assert what was never fetched.
+  const llm = {
+    listProviders: vi.fn(() => Promise.resolve({ ok: true, value: [] })),
+    listConfigurableProviders: vi.fn(() => Promise.resolve({ ok: true, value: [] })),
+    discoverModels: vi.fn(() => Promise.resolve({ ok: true, value: [] })),
+    ...services,
+  }
   const remote = new TestRemote(ctx, {
     credentials: {
       describe: vi.fn(() => Promise.resolve({ ok: true, value: {} })),
       set: vi.fn(),
       unset: vi.fn(),
     },
-    llm: {
-      listProviders: vi.fn(() => Promise.resolve({ ok: true, value: [] })),
-      listConfigurableProviders: vi.fn(() => Promise.resolve({ ok: true, value: [] })),
-      discoverModels: vi.fn(() => Promise.resolve({ ok: true, value: [] })),
-      ...services,
-    },
+    llm,
     // Without a settings face the mirror's reads fail and stay contained; the
     // Models join itself never fetches until a section actually loads. The real
     // ui-settings apply also provides the settingsSchema service.
@@ -43,7 +45,7 @@ async function bench(isLoopback = true, settings?: object, services: object = {}
   })
   ctx.provide('connection', { api: services, isLoopback } as never)
   await ctx.plugin({ inject: [...settingsInject], apply: settingsApply }).await()
-  return { ctx, slots: ctx.get('slots') as SlotRegistry, locale, remote }
+  return { ctx, slots: ctx.get('slots') as SlotRegistry, locale, remote, llm }
 }
 
 function declare(slots: SlotRegistry): () => void {
@@ -216,6 +218,12 @@ describe('pushed invalidations', () => {
     b.remote.emit('credentials/reference-updated', ['OPENAI_API_KEY'])
     b.remote.emit('llm/adapters-updated', [])
     b.ctx.emit('connection/reset')
+
+    // Being ignored is the behaviour, so it is asserted: without this the test
+    // passes just as well when every invalidation is honoured, as long as
+    // nothing happens to throw on the way.
+    expect(b.llm.listProviders).not.toHaveBeenCalled()
+    expect(b.llm.discoverModels).not.toHaveBeenCalled()
   })
 
   it('refreshes a loaded page and skips an idle one', () => {

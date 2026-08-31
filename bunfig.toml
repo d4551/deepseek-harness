@@ -2,9 +2,14 @@
 # manifest (workspaces, trustedDependencies, patchedDependencies, overrides)
 # live in package.json; only installer behaviour is configured here.
 [install]
-# Every workspace package declares what it imports, so dependencies stay
-# unhoisted and an undeclared import fails at resolution instead of silently
-# borrowing a sibling's tree.
+# Every workspace package declares what it imports, so a package resolves its
+# own tree rather than a sibling's.
+#
+# Bun's fallback hoist directory (node_modules/.bun/node_modules) stays, so an
+# undeclared import still resolves rather than failing. `hoist = false` removes
+# it, and the Cordis loader needs it: the loader resolves a bare plugin name
+# from the harness at runtime, which no manifest declares, so the strict layout
+# breaks boot whenever a config project shadows a plugin's package name.
 linker = "isolated"
 
 # Supply-chain hold: a newly published version is not installable until it has

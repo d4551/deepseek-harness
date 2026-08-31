@@ -485,6 +485,55 @@ function checkWorkspaceProtocol(manifests: readonly WorkspaceManifest[]): string
   return errors
 }
 
+/**
+ * Base version a range names, with its comparator removed.
+ * @param range - dependency range as declared.
+ * @returns the version the range is built on.
+ */
+function baseVersion(range: string): string {
+  return range.replace(/^[\^~><=\s]+/, '')
+}
+
+/**
+ * Hold every workspace manifest to one version of each external dependency.
+ *
+ * Two versions of the same package in one install is two copies of its types,
+ * its singletons, and its validators, and the bundles that carry both are the
+ * ones where that stops being theoretical. An exact pin and a caret on the same
+ * base version are the same choice written twice, so only the base version is
+ * compared. `vendor/` is exempt: those manifests are pinned copies of upstream
+ * and move only through the sync procedure in `vendor/README.md`.
+ * @param manifests - every workspace manifest.
+ * @returns one error per dependency declared at more than one version.
+ */
+export function checkSingleExternalVersion(manifests: readonly WorkspaceManifest[]): string[] {
+  const members = new Set(manifests.map(entry => entry.manifest.name).filter(name => name !== undefined))
+  const declared = new Map<string, Map<string, string[]>>()
+  for (const { dir, manifest } of manifests) {
+    if (dir === 'vendor' || dir.startsWith('vendor/')) continue
+    for (const section of dependencySections) {
+      for (const [name, range] of Object.entries(manifest[section] ?? {})) {
+        if (members.has(name) || /^(?:workspace|catalog|file|link|npm|portal):/.test(range)) continue
+        const versions = declared.get(name) ?? new Map<string, string[]>()
+        const holders = versions.get(baseVersion(range)) ?? []
+        holders.push(manifest.name ?? dir)
+        versions.set(baseVersion(range), holders)
+        declared.set(name, versions)
+      }
+    }
+  }
+  const errors: string[] = []
+  for (const [name, versions] of [...declared].sort(([left], [right]) => left.localeCompare(right))) {
+    if (versions.size < 2) continue
+    const spread = [...versions]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([version, holders]) => `${version} (${[...new Set(holders)].sort().join(', ')})`)
+      .join(' vs ')
+    errors.push(`${name}: one workspace version only, got ${spread}`)
+  }
+  return errors
+}
+
 /** Run the repository constraint gate. */
 export function main(): void {
   const manifests = workspaceManifests()
@@ -496,6 +545,7 @@ export function main(): void {
     ...checkRepositoryVersion(),
     ...manifests.flatMap(checkWorkspaceManifest),
     ...checkWorkspaceProtocol(manifests),
+    ...checkSingleExternalVersion(manifests),
     ...checkExperimentalDependencyIsolation(dependencyManifests),
     ...checkHierarchyShape(),
     ...collectProjectReferenceFaceViolations(root),

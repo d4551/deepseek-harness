@@ -357,6 +357,161 @@ describe('SchemaEmitter supported projection matrix', () => {
     expect(inheritedSchema.safeParse({ current: 1 }).success).toBe(false)
   })
 
+  it('keeps generated bindings apart from declarations that share their names', async () => {
+    // `argument0$schema` and `type0$schema` are generated names. A declaration
+    // may legitimately be called `argument0` or `type0`, and before these were
+    // allocated from the shared identifier set one produced a duplicate `const`
+    // and the other shadowed the factory's own parameter.
+    const collide = (name: string) => declaration(name, 'interface', {
+      members: [property('flag', 'boolean')],
+    })
+    const holder = declaration('Holder', 'interface', {
+      typeParameters: [{ id: 'holder:value', name: 'Value', const: false }],
+      members: [
+        property('value', 'holder:value-reference'),
+        property('next', 'holder:self-reference', { optional: true }),
+      ],
+    })
+    for (const name of ['argument0', 'type0']) {
+      const schema = await loadSchema(emit([
+        {
+          id: 'root',
+          kind: 'object',
+          members: [property('held', 'root:holder-reference'), property('other', 'root:collide-reference')],
+        },
+        {
+          id: 'root:holder-reference',
+          kind: 'reference',
+          name: 'Holder',
+          target: { kind: 'declaration', symbol: 'Holder' },
+          arguments: ['string'],
+        },
+        {
+          id: 'root:collide-reference',
+          kind: 'reference',
+          name,
+          target: { kind: 'declaration', symbol: name },
+          arguments: [],
+        },
+        {
+          id: 'holder:value-reference',
+          kind: 'reference',
+          name: 'Value',
+          target: { kind: 'type-parameter', parameter: 'holder:value' },
+          arguments: [],
+        },
+        {
+          id: 'holder:self-reference',
+          kind: 'reference',
+          name: 'Holder',
+          target: { kind: 'declaration', symbol: 'Holder' },
+          arguments: ['string'],
+        },
+        keyword('string', 'string'),
+        keyword('boolean', 'boolean'),
+      ], undefined, [collide(name), holder]))
+
+      expect(schema.safeParse({
+        held: { value: 'one', next: { value: 'two' } },
+        other: { flag: true },
+      }).success, name).toBe(true)
+      expect(schema.safeParse({ held: { value: 1 }, other: { flag: true } }).success, name).toBe(false)
+    }
+  })
+
+  it('refuses a self-reference that instantiates itself with its own parameter', () => {
+    // `Grow<V>` whose `next` is `Grow<V[]>` names a new type at every level, so
+    // no finite schema exists. Emitting one that overflows at parse would hide
+    // that; the generator says so instead.
+    const grow = declaration('Grow', 'interface', {
+      typeParameters: [{ id: 'grow:value', name: 'Value', const: false }],
+      members: [
+        property('value', 'grow:value-reference'),
+        property('next', 'grow:self-reference', { optional: true }),
+      ],
+    })
+    expect(() => emit([
+      { id: 'root', kind: 'object', members: [property('grown', 'root:grow-reference')] },
+      {
+        id: 'root:grow-reference',
+        kind: 'reference',
+        name: 'Grow',
+        target: { kind: 'declaration', symbol: 'Grow' },
+        arguments: ['string'],
+      },
+      {
+        id: 'grow:value-reference',
+        kind: 'reference',
+        name: 'Value',
+        target: { kind: 'type-parameter', parameter: 'grow:value' },
+        arguments: [],
+      },
+      {
+        id: 'grow:value-array',
+        kind: 'reference',
+        name: 'Array',
+        target: { kind: 'standard', name: 'Array' },
+        arguments: ['grow:value-reference'],
+      },
+      {
+        id: 'grow:self-reference',
+        kind: 'reference',
+        name: 'Grow',
+        target: { kind: 'declaration', symbol: 'Grow' },
+        arguments: ['grow:value-array'],
+      },
+      keyword('string', 'string'),
+    ], undefined, [grow])).toThrow(/has no finite schema/)
+  })
+
+  it('closes a recursion that names its own type argument', async () => {
+    // `Fixed<Value>` whose `next` is `Fixed<string>`: the self-reference writes
+    // its argument out instead of passing the parameter through. Evaluating
+    // that argument afresh on every dereference builds a new instantiation each
+    // time, and Zod walks the chain transitively the first time it parses, so
+    // an unshared argument is an endless tower rather than a cycle.
+    const fixed = declaration('Fixed', 'interface', {
+      typeParameters: [{ id: 'fixed:value', name: 'Value', const: false }],
+      members: [
+        property('value', 'fixed:value-reference'),
+        property('next', 'fixed:self-reference', { optional: true }),
+      ],
+    })
+    const schema = await loadSchema(emit([
+      { id: 'root', kind: 'object', members: [property('chain', 'root:fixed-reference')] },
+      {
+        id: 'root:fixed-reference',
+        kind: 'reference',
+        name: 'Fixed',
+        target: { kind: 'declaration', symbol: 'Fixed' },
+        arguments: ['string'],
+      },
+      {
+        id: 'fixed:value-reference',
+        kind: 'reference',
+        name: 'Value',
+        target: { kind: 'type-parameter', parameter: 'fixed:value' },
+        arguments: [],
+      },
+      {
+        id: 'fixed:self-reference',
+        kind: 'reference',
+        name: 'Fixed',
+        target: { kind: 'declaration', symbol: 'Fixed' },
+        arguments: ['string'],
+      },
+      keyword('string', 'string'),
+    ], undefined, [fixed]))
+
+    expect(schema.safeParse({ chain: { value: 'one' } }).success).toBe(true)
+    expect(schema.safeParse({
+      chain: { value: 'one', next: { value: 'two', next: { value: 'three' } } },
+    }).success).toBe(true)
+    // Depth is not the only thing that has to survive sharing: the shared
+    // instantiation must still reject.
+    expect(schema.safeParse({ chain: { value: 'one', next: { value: 4 } } }).success).toBe(false)
+  })
+
   it('instantiates generic aliases, nested references, defaults, and recursive declarations', async () => {
     const box = declaration('Box', 'interface', {
       typeParameters: [{ id: 'box:value', name: 'Value', const: false }],

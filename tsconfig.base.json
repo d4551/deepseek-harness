@@ -270,6 +270,8 @@
       "@deepseek-ai/dsh-bash-sandbox/invariant": ["./packages/shell/bash-sandbox/src/invariant.ts"],
       "@deepseek-ai/dsh-brand": ["./packages/util/brand/src"],
       "@deepseek-ai/dsh-brand/invariant": ["./packages/util/brand/src/invariant.ts"],
+      "@deepseek-ai/dsh-browser-locale": ["./packages/util/browser-locale/src"],
+      "@deepseek-ai/dsh-browser-locale/invariant": ["./packages/util/browser-locale/src/invariant.ts"],
       "@deepseek-ai/dsh-client-a11y": ["./packages/test-support/client-a11y/src"],
       "@deepseek-ai/dsh-client-a11y/invariant": ["./packages/test-support/client-a11y/src/invariant.ts"],
       "@deepseek-ai/dsh-cmdline": ["./packages/boot/cmdline/src"],

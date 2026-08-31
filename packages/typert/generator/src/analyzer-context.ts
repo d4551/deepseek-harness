@@ -63,6 +63,35 @@ type WithoutId<T> = T extends { readonly id: TypeNodeId } ? Omit<T, 'id'> : neve
 export type TypeNodeInput = WithoutId<TypeNodeModel>
 
 /** One face's TypeScript 7 project plus extraction tables. */
+/**
+ * Path an id records for a declaration file.
+ *
+ * An installed dependency is named by the path inside its own package. The
+ * directories above that carry the installer's store layout and the resolved
+ * version, which differ between checkouts and move on every upgrade; an
+ * absolute path binds the id to one machine as well.
+ * @param root - analyzer root that repository paths are relative to.
+ * @param file - declaration file path.
+ * @returns the package-internal path for an installed file, otherwise the repository-relative path.
+ */
+function recordedDeclarationPath(root: string, file: string): string {
+  const normalized = slash(file)
+  const marker = '/node_modules/'
+  const index = normalized.lastIndexOf(marker)
+  if (index >= 0) return normalized.slice(index + marker.length)
+  return slash(relative(root, file))
+}
+
+/**
+ * Everything one analysis pass over a single Typert face reads and writes.
+ *
+ * The two faces are analyzed separately but resolve against each other, so the
+ * per-face project, checker and registrations sit beside the collections both
+ * faces share: `allRegistrations` and `crossFaceLinks` are how a declaration in
+ * one face is recognized as the target of a reference in the other. The
+ * collections are mutable and accumulate as the pass walks; `mode` decides
+ * whether a missing annotation stops the pass or is inferred and queued.
+ */
 export class FaceContext {
   /** Repository root; source locations are recorded relative to it. */
   readonly root: string
@@ -133,11 +162,9 @@ export class FaceContext {
   symbolId(symbol: Symbol): SymbolId {
     const resolved = this.resolveSymbol(symbol)
     const declaration = preferredDeclaration(resolved, this.project.project)
-    // Repository-relative, like every other recorded path: an absolute id binds
-    // the model to one checkout and cannot be compared across machines.
     const file = declaration === undefined
       ? resolved.name
-      : relative(this.root, declaration.getSourceFile().fileName)
+      : recordedDeclarationPath(this.root, declaration.getSourceFile().fileName)
     return `${slash(file)}#${resolved.name}`
   }
 

@@ -64,8 +64,11 @@ function builtTypePaths(): Record<string, string[]> {
   const remapped: Record<string, string[]> = {}
   for (const [specifier, candidates] of Object.entries(paths)) {
     if (!Array.isArray(candidates)) continue
+    // Absolute: this map is written into a temp directory's config, and TS7
+    // removed `baseUrl`, so a repository-relative entry would resolve beside
+    // that config instead of beside the repository.
     remapped[specifier] = candidates.filter((candidate): candidate is string => typeof candidate === 'string')
-      .map(builtDeclarationPath)
+      .map(candidate => resolve(root, builtDeclarationPath(candidate)))
   }
   return remapped
 }
@@ -105,7 +108,11 @@ function tempTsconfig(useBuiltTypes: boolean): string {
       noUnusedLocals: false,
       noUnusedParameters: false,
       tsBuildInfoFile: './tsconfig.tsbuildinfo',
-      ...useBuiltTypes ? { paths: builtTypePaths(), composite: false, incremental: false, declaration: false } : {},
+      // declarationMap comes from the base config and TS7 rejects it without
+      // declaration or composite, both of which this branch turns off.
+      ...useBuiltTypes
+        ? { paths: builtTypePaths(), composite: false, incremental: false, declaration: false, declarationMap: false }
+        : {},
     },
     include: ['block-*.ts'],
     references: useBuiltTypes ? [] : workspaceReferences(),

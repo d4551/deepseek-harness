@@ -189,7 +189,7 @@ export function CordisPanel({
     try {
       const result = await action()
       if (result !== undefined && !result.ok) {
-        setActionErrors(currentErrors => new Map(currentErrors).set(pluginId, result.message ?? 'operation failed'))
+        setActionErrors(currentErrors => new Map(currentErrors).set(pluginId, result.message ?? t('action.failed')))
       }
     } catch (error) {
       setActionErrors(currentErrors => new Map(currentErrors).set(
@@ -428,7 +428,7 @@ export function CordisPanel({
           >
             {`${t(RENDER_FAILURE_LABELS[renderFailure.abdicated ? 'abdicated' : 'held'], {
               slot: renderFailure.slot,
-            })} ${renderFailure.message}`}
+            })} ${renderFailure.cause}`}
           </div>
         )}
         {activePackage !== undefined && activePackage.packageId !== selectedPackageId && (

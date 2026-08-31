@@ -15,6 +15,24 @@ interface CdpMessage {
   readonly error?: { message: string }
 }
 
+/**
+ * How long a condition driven by the real Worker is given to become true.
+ *
+ * Every wait in this file is on a dedicated Worker, its inspector sessions, and
+ * a CDP round trip over a socket. Vitest's one-second default is the wall clock
+ * of an idle host, not of a loaded one, and the budget belongs to the file so a
+ * new case cannot be written without it.
+ */
+const WORKER_ROUND_TRIP_MS = 15_000
+
+/**
+ * Wait for a Worker-driven condition on this file's budget.
+ * @param check - assertion re-run until it stops throwing.
+ * @returns the check's result once it passes.
+ */
+const waitForWorker = <T>(check: () => T | Promise<T>): Promise<T> =>
+  vi.waitFor(check, { timeout: WORKER_ROUND_TRIP_MS })
+
 class TestCdpClient {
   private nextId = 0
   private readonly pending = new Map<number, (message: CdpMessage) => void>()
@@ -90,7 +108,7 @@ describe('experimental Inspector real Worker', () => {
     client = await InspectorClientFixture.start(inspector.endpoint.client, { label: 'Test Client' })
     await client.publish('client/probe', { value: 2 })
 
-    await vi.waitFor(async () => {
+    await waitForWorker(async () => {
       const response = await cdp!.call('DSHInspector.getSources')
       const sources = response.result?.sources as Array<{ kind: string; topics: Record<string, number> }>
       expect(sources.find(source => source.kind === 'host')?.topics).toEqual({ 'host/probe': 1 })
@@ -101,7 +119,7 @@ describe('experimental Inspector real Worker', () => {
     expect((await cdp.call('Runtime.enable')).error).toBeUndefined()
     let clientContextId: number | undefined
     let clientUniqueContextId: string | undefined
-    await vi.waitFor(() => {
+    await waitForWorker(() => {
       expect(runtimeContexts(cdp!).some(context => context.name === 'Host')).toBe(true)
       const clientContext = cdp!.events
         .filter(event => event.method === 'Runtime.executionContextCreated')
@@ -201,7 +219,7 @@ describe('experimental Inspector real Worker', () => {
     await client.close()
     client = undefined
     expect((await pendingEvaluation).error).toBeDefined()
-    await vi.waitFor(() => {
+    await waitForWorker(() => {
       expect(cdp!.events.some(event =>
         event.method === 'Runtime.executionContextDestroyed'
         && event.params?.executionContextId === clientContextId)).toBe(true)
@@ -215,8 +233,8 @@ describe('experimental Inspector real Worker', () => {
     secondCdp = await TestCdpClient.connect(inspector.endpoint.webSocketDebuggerUrl)
     await Promise.all([cdp.call('Runtime.enable'), secondCdp.call('Runtime.enable')])
 
-    const firstContext = await clientContext(cdp)
-    const secondContext = await clientContext(secondCdp)
+    const firstContext = await clientContext(cdp, 'Shared Client')
+    const secondContext = await clientContext(secondCdp, 'Shared Client')
     const first = await cdp.call('Runtime.evaluate', {
       expression: '({ owner: "first" })',
       contextId: firstContext,
@@ -258,7 +276,7 @@ describe('experimental Inspector real Worker', () => {
     client = await InspectorClientFixture.start(inspector.endpoint.client, { label: 'Timeout Client' })
     cdp = await TestCdpClient.connect(inspector.endpoint.webSocketDebuggerUrl)
     await cdp.call('Runtime.enable')
-    const contextId = await clientContext(cdp)
+    const contextId = await clientContext(cdp, 'Timeout Client')
 
     const timedOut = await cdp.call('Runtime.evaluate', {
       expression: 'new Promise(() => {})',
@@ -282,7 +300,7 @@ describe('experimental Inspector real Worker', () => {
 
     let contextId: number | undefined
     let uniqueContextId: string | undefined
-    await vi.waitFor(() => {
+    await waitForWorker(() => {
       const created = runtimeContexts(cdp!).find(candidate => candidate.name === 'Inspector VM Context')
       contextId = created?.id as number | undefined
       uniqueContextId = created?.uniqueId as string | undefined
@@ -314,7 +332,7 @@ describe('experimental Inspector real Worker', () => {
     client = await InspectorClientFixture.start(inspector.endpoint.client, { label: 'Compatibility Client' })
     cdp = await TestCdpClient.connect(inspector.endpoint.webSocketDebuggerUrl)
     await cdp.call('Runtime.enable')
-    const clientContextId = await clientContext(cdp)
+    const clientContextId = await clientContext(cdp, 'Compatibility Client')
 
     for (const [name, contextId] of [['Host', undefined], ['Client', clientContextId]] as const) {
       const select = contextId === undefined ? {} : { contextId }
@@ -370,14 +388,14 @@ describe('experimental Inspector real Worker', () => {
     cdp = await TestCdpClient.connect(inspector.endpoint.webSocketDebuggerUrl)
     secondCdp = await TestCdpClient.connect(inspector.endpoint.webSocketDebuggerUrl)
     await Promise.all([cdp.call('Runtime.enable'), secondCdp.call('Runtime.enable')])
-    const firstContext = await clientContext(cdp)
-    const secondContext = await clientContext(secondCdp)
+    const firstContext = await clientContext(cdp, 'Console Client')
+    const secondContext = await clientContext(secondCdp, 'Console Client')
     const value = { owner: 'client-console' }
     const marker = 'client-console-event'
     await client.log(value, marker)
     let firstEvent: CdpMessage | undefined
     let secondEvent: CdpMessage | undefined
-    await vi.waitFor(() => {
+    await waitForWorker(() => {
       firstEvent = consoleEvent(cdp!, firstContext, marker)
       secondEvent = consoleEvent(secondCdp!, secondContext, marker)
       expect(firstEvent).toBeDefined()
@@ -414,11 +432,11 @@ describe('experimental Inspector real Worker', () => {
     })
     cdp = await TestCdpClient.connect(inspector.endpoint.webSocketDebuggerUrl)
     await cdp.call('Runtime.enable')
-    const contextId = await clientContext(cdp)
+    const contextId = await clientContext(cdp, 'Source Client')
     expect((await cdp.call('Debugger.enable')).error).toBeUndefined()
 
     let script: CdpMessage | undefined
-    await vi.waitFor(() => {
+    await waitForWorker(() => {
       script = cdp!.events.find(event => event.method === 'Debugger.scriptParsed'
         && event.params?.url === sourceUrl)
       expect(script).toBeDefined()
@@ -482,7 +500,7 @@ describe('experimental Inspector real Worker', () => {
     expect(await response.json()).toEqual({ body: 'request-body' })
 
     let started: CdpMessage | undefined
-    await vi.waitFor(() => {
+    await waitForWorker(() => {
       started = cdp!.events.find(event =>
         event.method === 'Network.requestWillBeSent'
         && String((event.params?.request as Record<string, unknown> | undefined)?.url).includes('/capture'))
@@ -519,7 +537,7 @@ describe('experimental Inspector real Worker', () => {
     try {
       const response = await fetch(`http://127.0.0.1:${String(port)}/events`)
       let requestId: string | undefined
-      await vi.waitFor(() => {
+      await waitForWorker(() => {
         const received = cdp!.events.find(event =>
           event.method === 'Network.responseReceived'
           && (event.params?.response as Record<string, unknown> | undefined)?.mimeType === 'text/event-stream')
@@ -551,7 +569,7 @@ describe('experimental Inspector real Worker', () => {
       continueResponse.resolve(true)
       expect(await response.text()).toBe(firstChunk + laterChunk)
 
-      await vi.waitFor(() => {
+      await waitForWorker(() => {
         expect(cdp!.events.some(event =>
           event.method === 'Network.loadingFinished'
           && event.params?.requestId === requestId)).toBe(true)
@@ -596,7 +614,7 @@ describe('experimental Inspector real Worker', () => {
     expect(Buffer.from((await reader.read()).value ?? []).toString('utf8')).toBe(eventStream)
 
     let requestId: string | undefined
-    await vi.waitFor(() => {
+    await waitForWorker(() => {
       const received = cdp!.events.find(event =>
         event.method === 'Network.responseReceived'
         && String((event.params?.response as Record<string, unknown> | undefined)?.url).includes('/aborted-events'))
@@ -608,7 +626,7 @@ describe('experimental Inspector real Worker', () => {
     })
     abort.abort()
 
-    await vi.waitFor(() => {
+    await waitForWorker(() => {
       expect(cdp!.events.some(event =>
         event.method === 'Network.loadingFinished'
         && event.params?.requestId === requestId)).toBe(true)
@@ -623,14 +641,18 @@ describe('experimental Inspector real Worker', () => {
   })
 })
 
-async function clientContext(client: TestCdpClient): Promise<number> {
+async function clientContext(client: TestCdpClient, label: string): Promise<number> {
   let contextId: number | undefined
-  await vi.waitFor(() => {
-    const context = runtimeContexts(client).find(candidate => String(candidate.name).startsWith('Client —'))
-    expect(context).toBeDefined()
+  // Named, not merely prefixed: `Runtime.enable` replays every live realm, so a
+  // Client another case left connected is announced here too, and taking the
+  // first `Client —` context makes this wait on a realm that will never log.
+  const expected = `Client — ${label}`
+  await waitForWorker(() => {
+    const context = runtimeContexts(client).find(candidate => candidate.name === expected)
+    expect(context, `no execution context named ${expected}`).toBeDefined()
     contextId = context?.id as number
   })
-  if (contextId === undefined) throw new Error('Client execution context was not announced')
+  if (contextId === undefined) throw new Error(`Client execution context ${expected} was not announced`)
   return contextId
 }
 

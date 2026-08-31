@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 import { getNodeValue, parseTree, type ParseError } from 'jsonc-parser'
 import { API } from 'typescript/unstable/sync'
-import type { Diagnostic } from 'typescript/unstable/sync'
+import type { Diagnostic, Project } from 'typescript/unstable/sync'
 import type { Node, SourceFile } from 'typescript/unstable/ast'
 
 let api: API | undefined
@@ -38,10 +38,7 @@ export function closeCompiler(): void {
  * @returns the bound source file.
  */
 export function parsePath(file: string): SourceFile {
-  const snapshot = compiler().updateSnapshot({ openFiles: [file] })
-  const project = snapshot.getDefaultProjectForFile(file)
-  if (project === undefined) throw new Error(`ts7: no project for ${file}`)
-  const sourceFile = project.program.getSourceFile(file)
+  const sourceFile = projectFor(file).program.getSourceFile(file)
   if (sourceFile === undefined) throw new Error(`ts7: missing source file ${file}`)
   return sourceFile
 }
@@ -53,10 +50,19 @@ export function parsePath(file: string): SourceFile {
  * @returns printed TypeScript text.
  */
 export function printInFile(file: string, node: Node): string {
+  return projectFor(file).emitter.printNode(node)
+}
+
+/**
+ * Open the snapshot project that owns one on-disk file.
+ * @param file - path that already exists.
+ * @returns the project the snapshot resolves for it.
+ */
+function projectFor(file: string): Project {
   const snapshot = compiler().updateSnapshot({ openFiles: [file] })
   const project = snapshot.getDefaultProjectForFile(file)
   if (project === undefined) throw new Error(`ts7: no project for ${file}`)
-  return project.emitter.printNode(node)
+  return project
 }
 
 /**
@@ -88,8 +94,8 @@ export function flattenDiagnosticMessageText(
   separator: string,
 ): string {
   if (typeof messageText === 'string') return messageText
-  const chain = messageText.messageChain
-  if (chain === undefined || chain.length === 0) return messageText.text
+  // Joining a lone text is that text, so an absent or empty chain needs no branch.
+  const chain = messageText.messageChain ?? []
   return [messageText.text, ...chain.map(entry => flattenDiagnosticMessageText(entry, separator))].join(separator)
 }
 

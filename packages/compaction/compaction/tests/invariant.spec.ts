@@ -40,26 +40,34 @@ describe('compaction invariants', () => {
     const ctx = await setup()
     const success = ctx.sessions.create()
     startTurn(success)
-    success.append('compaction/start', { compactionId: TEST_COMPACTION_ID, turn: 1 })
-    success.append('compaction/summary', summary())
-    success.append('compaction/end', { compactionId: TEST_COMPACTION_ID, turn: 1 })
-
     const failed = ctx.sessions.create()
     startTurn(failed, 2)
-    failed.append('compaction/start', { compactionId: TEST_COMPACTION_ID, turn: 2 })
-    failed.append('compaction/end', { compactionId: TEST_COMPACTION_ID, turn: 2, error: 'provider failed' })
+
+    // Acceptance is what this asserts, so it says so: appending without an
+    // assertion passes just as well when the invariant stops being installed.
+    expect(() => {
+      success.append('compaction/start', { compactionId: TEST_COMPACTION_ID, turn: 1 })
+      success.append('compaction/summary', summary())
+      success.append('compaction/end', { compactionId: TEST_COMPACTION_ID, turn: 1 })
+
+      failed.append('compaction/start', { compactionId: TEST_COMPACTION_ID, turn: 2 })
+      failed.append('compaction/end', { compactionId: TEST_COMPACTION_ID, turn: 2, error: 'provider failed' })
+    }).not.toThrow()
   })
 
   it('accepts standalone successful and failed compaction lifecycles between turns', async () => {
     const ctx = await setup()
     const success = ctx.sessions.create()
-    success.append('compaction/start', { compactionId: TEST_COMPACTION_ID, turn: null })
-    success.append('compaction/summary', summary())
-    success.append('compaction/end', { compactionId: TEST_COMPACTION_ID, turn: null })
-
     const failed = ctx.sessions.create()
-    failed.append('compaction/start', { compactionId: TEST_COMPACTION_ID, turn: null })
-    failed.append('compaction/end', { compactionId: TEST_COMPACTION_ID, turn: null, error: 'provider failed' })
+
+    expect(() => {
+      success.append('compaction/start', { compactionId: TEST_COMPACTION_ID, turn: null })
+      success.append('compaction/summary', summary())
+      success.append('compaction/end', { compactionId: TEST_COMPACTION_ID, turn: null })
+
+      failed.append('compaction/start', { compactionId: TEST_COMPACTION_ID, turn: null })
+      failed.append('compaction/end', { compactionId: TEST_COMPACTION_ID, turn: null, error: 'provider failed' })
+    }).not.toThrow()
   })
 
   it('clears an inherited open compaction trace at end-seed during replay', async () => {

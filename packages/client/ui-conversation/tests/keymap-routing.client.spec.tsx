@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { fireEvent } from '@testing-library/react'
 import { createEditor } from 'lexical'
 import { registerPlainText } from '@lexical/plain-text'
-import { registerComposerKeymap } from '../src/client/input/editor/keymap.ts'
+import { registerComposerKeymap } from '../src/client/skeleton/editor/keymap.ts'
 
 describe('keymap keydown routing', () => {
   it('routes Enter to the keymap submit handler', () => {

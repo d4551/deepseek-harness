@@ -307,8 +307,13 @@ describe('browser half', () => {
       },
     }])
     // The same observation also reaches the page's own surface, so a row can show
-    // it without reading the host back.
-    expect(bench.ctx.dynamicCordisRunner.renderFailures.getSnapshot().get(PLUGIN)).toEqual(bench.renderFailures[0]?.failure)
+    // it without reading the host back — in its own shape: the host is sent the
+    // model-facing line, and the page keeps the crash text on its own so the
+    // panel can put a translated label in front of it instead of that framing.
+    expect(bench.ctx.dynamicCordisRunner.renderFailures.getSnapshot().get(PLUGIN)).toEqual({
+      ...bench.renderFailures[0]?.failure ?? {},
+      cause: 'Cannot read properties of undefined',
+    })
     // A report the host refuses is logged and dropped: one crash must not become
     // two, and nothing waits on this answer.
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {})

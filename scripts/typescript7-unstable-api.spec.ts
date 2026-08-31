@@ -13,6 +13,7 @@ import { isFunctionDeclaration } from 'typescript/unstable/ast/is'
 import { version, versionMajorMinor } from 'typescript'
 import { describe, expect, it } from 'vitest'
 import { closeCompiler, createSourceFile } from './ts7-session.ts'
+import { typescriptImportViolations, typescriptImportViolationsForPaths } from './typescript-module-imports.ts'
 
 const root = resolve(import.meta.dirname, '..')
 
@@ -54,34 +55,46 @@ describe('mandated typescript 7 compiler API', () => {
     expect(first === undefined ? false : isFunctionDeclaration(first)).toBe(true)
   })
 
-  it('keeps the 6.0 Strada compiler API out of the tree', () => {
-    // TypeScript 7's `.` export is version metadata, not the Strada compiler, so
-    // a default or namespace import of `typescript` binds no compiler API at
-    // runtime and the classic free functions are gone. This is not theoretical
-    // here: the shipped `@stryker-mutator/core` patch exists because
-    // `resolveProjectReferencePath` and `parseConfigFileTextToJson` disappeared.
-    // Named imports stay legal — `version` and `versionMajorMinor` are exactly
-    // what that export provides, and the pin assertions above read them.
-    const result = spawnSync('git', [
-      'grep',
-      '-nE',
-      '(^|[^.[:alnum:]_])import[[:space:]]+(ts|\\*[[:space:]]+as[[:space:]]+ts)[[:space:]]+from[[:space:]]+.typescript.'
-      + '|require\\(.typescript.\\)'
-      + '|import\\(.typescript.\\)'
-      // `git grep -E` is POSIX ERE: `\\b` is not a word boundary there, so the
-      // bracket classes are what actually anchor these names.
-      + '|(^|[^[:alnum:]_])ts\\.(createProgram|createSourceFile|sys|factory|forEachChild'
-      + '|getPreEmitDiagnostics|parseConfigFileTextToJson|resolveProjectReferencePath'
-      + '|createPrinter|createCompilerHost)([^[:alnum:]_]|$)',
-      '--',
-      '*.ts', '*.tsx', '*.mts', '*.cts', '*.mjs', '*.js',
-      // The stryker patchfile quotes the removed Strada calls as context.
+  it.each([
+    ["import { version, versionMajorMinor } from 'typescript'", 0],
+    ["import { API } from 'typescript/unstable/sync'", 0],
+    ["export { version } from 'typescript'", 0],
+    ["import ts from 'typescript'", 1],
+    ["import typescript from 'typescript'", 1],
+    ["import ts, { version } from 'typescript'", 1],
+    ["import * as TS from 'typescript'", 1],
+    ["import { createProgram, sys } from 'typescript'", 1],
+    ["import { createProgram as cp } from 'typescript'", 1],
+    ["import {\n  createSourceFile,\n} from 'typescript'", 1],
+    ["const ts = require('typescript')", 1],
+    ["const ts = require('typescript/lib/typescript.js')", 1],
+    ["const ts = await import('typescript')", 1],
+    ["import 'typescript'", 1],
+    ["export * from 'typescript'", 1],
+    ['const ts = await import(`typescript`)', 1],
+    ['const ts = require(`typescript`)', 1],
+    ["const ts = createRequire(import.meta.url)('typescript')", 1],
+    ["import { x } from 'typescript/unstable/../lib/typescript.js'", 1],
+    // `'typescript'` is also an LSP languageId; a value is not a module load.
+    ["expect(runtime.language).toBe('typescript')", 0],
+  ])('classifies %j as %i violation(s)', (text, expected) => {
+    expect(typescriptImportViolations([{ file: 'probe.ts', text }])).toHaveLength(expected)
+  })
+
+  it('keeps the 6.0 Strada compiler API out of every tracked source file', () => {
+    // Parsed, not grepped: the receiver is an arbitrary alias, a clause may span
+    // lines, and the specifier may carry a subpath, so no pattern over the text
+    // can be complete. `.cjs` and `.jsx` are in scope because no tsconfig sets
+    // `allowJs`, which leaves this the only check those files get.
+    const listed = spawnSync('git', [
+      'ls-files', '--',
+      '*.ts', '*.tsx', '*.mts', '*.cts', '*.js', '*.mjs', '*.cjs', '*.jsx',
       ':(exclude)patches/*',
       ':(exclude)scripts/typescript7-unstable-api.spec.ts',
     ], { cwd: root, encoding: 'utf8' })
-    expect(result.stdout).toBe('')
-    // git grep exits 1 when nothing matches: exactly the passing case.
-    expect(result.status).toBe(1)
+    const files = listed.stdout.split('\n').filter(entry => entry !== '')
+    expect(files.length).toBeGreaterThan(2000)
+    expect(typescriptImportViolationsForPaths(root, files)).toEqual([])
   })
 
   it('keeps the 6.0 Strada compatibility package out of the tree', () => {

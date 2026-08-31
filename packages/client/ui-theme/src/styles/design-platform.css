@@ -70,14 +70,31 @@ body {
   --dsw-static-neutral-bluish-900: rgb(27, 27, 28);
   --dsw-static-neutral-bluish-950: rgb(21, 21, 23);
   --dsw-static-red-100: rgb(254, 226, 226);
+  --dsw-static-red-300: rgb(250, 150, 150);
   --dsw-static-red-400: rgb(242, 90, 90);
   --dsw-static-red-500: rgb(239, 68, 68);
   --dsw-static-red-50: rgb(254, 242, 242);
   --dsw-static-red-600: rgb(236, 19, 19);
+  --dsw-static-red-700: rgb(198, 16, 16);
   --dsw-static-red-900: rgb(87, 12, 12);
 }
 
 body[data-ds-dark-theme] {
+  /* Chip fills, dark counterpart of the light block's pair. The light rung
+     sits one step darker than its white surface, so the dark rung sits one
+     step lighter than the menu it is drawn on: `bluish-800` is exactly
+     `--dsw-alias-bg-layer-3`, which is that menu, and a chip the colour of its
+     own background is no chip at all. `bluish-750` separates at 1.26:1 (the
+     light pair separates at 1.16:1) and carries `--dsw-alias-label-secondary`
+     at 6.37:1. */
+  --dsw-alias-fill-l2: var(--dsw-static-neutral-bluish-750);
+  --dsw-alias-fill-tsp-secondary: var(--dsw-static-neutral-bluish-750);
+  /* Error copy is the one label that cannot follow `state-error-primary` here:
+     that rung is `red-400`, which reads 4.24:1 on `bg-layer-2` and 3.68:1 on
+     `bg-layer-3` — below the 4.5:1 WCAG 1.4.3 minimum on both. `red-300`
+     clears it at 6.55:1 and 5.68:1. `state-error-primary` keeps `red-400` for
+     borders and fills, which answer to the 3:1 non-text minimum instead. */
+  --dsw-alias-label-error: var(--dsw-static-red-300);
   --dsw-static-amber-100: rgb(254, 245, 231);
   --dsw-static-amber-400: rgb(247, 173, 49);
   --dsw-static-amber-500: rgb(245, 158, 11);
@@ -146,10 +163,12 @@ body[data-ds-dark-theme] {
   --dsw-static-neutral-bluish-900: rgb(27, 27, 28);
   --dsw-static-neutral-bluish-950: rgb(21, 21, 23);
   --dsw-static-red-100: rgb(254, 226, 226);
+  --dsw-static-red-300: rgb(250, 150, 150);
   --dsw-static-red-400: rgb(242, 90, 90);
   --dsw-static-red-500: rgb(239, 68, 68);
   --dsw-static-red-50: rgb(254, 242, 242);
   --dsw-static-red-600: rgb(236, 19, 19);
+  --dsw-static-red-700: rgb(198, 16, 16);
   --dsw-static-red-900: rgb(87, 12, 12);
 }
 
@@ -243,6 +262,30 @@ body {
   --dsw-specific-sidebar-nav-item-active: var(--dsw-static-neutral-bluish-100);
   --dsw-specific-sidebar-nav-item-hover: var(--dsw-static-neutral-bluish-75);
   --dsw-specific-tip: var(--dsw-static-neutral-bluish-60);
+
+  /* Names the vendored platform sheet references but never defines. Without
+     them the `var()` resolved to nothing and the whole declaration dropped:
+     error copy lost its colour, `1px solid var(--dsw-alias-separator-primary)`
+     lost its rule. Most derive from an alias the dark block redefines, so one
+     definition tracks both themes — the shape `--dsw-specific-menu` uses above.
+     The chip fills cannot: their light rung is plain white, so they carry an
+     explicit value in each block. `--dsw-font-mono` is theme-invariant. */
+  /* Chip fills carry `--dsw-alias-label-secondary` text and must read as a chip
+     against the surface behind them, so they take a real tint per theme rather
+     than an elevation alias (which is plain white in this one). */
+  --dsw-alias-fill-l2: var(--dsw-static-neutral-bluish-100);
+  --dsw-alias-fill-tsp-secondary: var(--dsw-static-neutral-bluish-100);
+  /* `state-error-primary` is `red-600`, which reads 4.4976:1 on white — under
+     the 4.5:1 WCAG 1.4.3 minimum by a hundredth. `red-700` clears it at 6.03:1
+     and stays in the same ramp. */
+  --dsw-alias-label-error: var(--dsw-static-red-700);
+  /* Its consumer is a disabled control, which WCAG 1.4.3 exempts from the
+     contrast minimum; tertiary still reads at 3.71:1 light and 8.54:1 dark,
+     rather than caption's 2.13:1 light. */
+  --dsw-alias-label-quaternary: var(--dsw-alias-label-tertiary);
+  --dsw-alias-line-secondary: var(--dsw-alias-border-l2);
+  --dsw-alias-separator-primary: var(--dsw-alias-border-l2);
+  --dsw-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 body[data-ds-dark-theme] {

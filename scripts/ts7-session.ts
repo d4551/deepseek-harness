@@ -109,8 +109,8 @@ function flattenDiagnosticMessageText(
   separator: string,
 ): string {
   if (typeof messageText === 'string') return messageText
-  const chain = messageText.messageChain
-  if (chain === undefined || chain.length === 0) return messageText.text
+  // Joining a lone text is that text, so an absent or empty chain needs no branch.
+  const chain = messageText.messageChain ?? []
   return [messageText.text, ...chain.map(entry => flattenDiagnosticMessageText(entry, separator))].join(separator)
 }
 

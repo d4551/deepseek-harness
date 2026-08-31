@@ -15,7 +15,7 @@ import {
 import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { removeFixtureSafely, unlinkFixtureLinks } from './test-fixture-cleanup.ts'
 
 // The heavy cases carry explicit per-test budgets below: they spawn Git,
@@ -33,6 +33,13 @@ const fixtures: string[] = []
 // under the wall clock on a loaded host, and the lane budget cannot raise a
 // per-test value, so this is the one knob these cases answer to.
 const MULTI_PROCESS_TEST_TIMEOUT_MS = 120_000
+
+// Every case here spawns real Git and Node processes, so the budget belongs to
+// the file rather than to whichever cases remembered to ask for it: the lane's
+// 30s default is under the wall clock on a loaded host, a `describe` option
+// does not override a lane budget in Vitest 4, and a per-test argument is one
+// a new case can silently omit.
+vi.setConfig({ testTimeout: MULTI_PROCESS_TEST_TIMEOUT_MS })
 
 interface Fixture {
   container: string
@@ -403,7 +410,7 @@ describe('worktree-local Lefthook installer', () => {
     expect(result.status).toBe(1)
     expect(result.stderr).toContain('invalid ownership marker')
     expect(readFileSync(externalMarker, 'utf8')).toBe(externalContent)
-  })
+  }, MULTI_PROCESS_TEST_TIMEOUT_MS)
 
   it.skipIf(process.platform === 'win32')('refuses aliased generated hooks before Lefthook can overwrite their targets', async () => {
     for (const kind of ['symlink', 'hardlink'] as const) {
@@ -444,7 +451,7 @@ describe('worktree-local Lefthook installer', () => {
     const movedHooks = hooksPath(fixture, movedRoot)
     expect(git(fixture, movedRoot, ['config', '--worktree', '--get', 'core.hooksPath'])).toBe(oldHooks)
     expect(readFileSync(join(movedHooks, markerName), 'utf8')).toBe(previousMarker)
-  })
+  }, MULTI_PROCESS_TEST_TIMEOUT_MS)
 
   it('refuses dormant repository extensions before upgrading the repository format', async () => {
     const fixture = createFixture()
@@ -561,7 +568,7 @@ describe('worktree-local Lefthook installer', () => {
       expect(result.status, result.stderr).toBe(0)
       expect(git(fixture, root, ['config', '--worktree', '--get', 'core.hooksPath'])).toBe(hooksPath(fixture, root))
     }
-  })
+  }, MULTI_PROCESS_TEST_TIMEOUT_MS)
 
   it('preserves user-owned hook paths unless an inherited value is explicitly overridden', async () => {
     const fixture = createFixture()

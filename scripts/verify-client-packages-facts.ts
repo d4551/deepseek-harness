@@ -3,6 +3,7 @@
  * static-linked roster, and TypeScript 7 client-face uses.
  */
 
+import { optionalStringRecord } from './manifest-fields.ts'
 import { globSync } from 'node:fs'
 import { dirname, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -58,17 +59,6 @@ function optionalString(record: object, key: string): string | undefined {
   if (!Object.hasOwn(record, key)) return undefined
   const value: unknown = Reflect.get(record, key)
   return typeof value === 'string' ? value : undefined
-}
-
-function optionalStringRecord(record: object, key: string): Record<string, string> {
-  if (!Object.hasOwn(record, key)) return {}
-  const value: unknown = Reflect.get(record, key)
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return {}
-  const out: Record<string, string> = {}
-  for (const [name, range] of Object.entries(value)) {
-    if (typeof range === 'string') out[name] = range
-  }
-  return out
 }
 
 function toManifest(record: object): Manifest {

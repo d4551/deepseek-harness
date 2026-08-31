@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { mkdtemp, mkdir, readFile, rm, writeFile, realpath } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -177,16 +177,27 @@ describe('LspInstance query and abort', () => {
       // Order-independent, as a real server is: a cancel that arrives before the
       // request is remembered and settles it on arrival. Keying only off a stored
       // id drops an early cancel forever, so the grace — not the reply — wins.
-      + 'else if(m.method==="textDocument/definition"){reqId=m.id;if(cancelled)process.stdout.write(fr({id:reqId,error:{code:-32800,message:"request cancelled"}}));}'
+      + 'else if(m.method==="textDocument/definition"){reqId=m.id;require("fs").writeFileSync(process.env.DSH_TEST_REQUEST_MARKER,"1");if(cancelled)process.stdout.write(fr({id:reqId,error:{code:-32800,message:"request cancelled"}}));}'
       + 'else if(m.method==="$/cancelRequest"){if(reqId!==null)process.stdout.write(fr({id:reqId,error:{code:-32800,message:"request cancelled"}}));else cancelled=true;}'
       + 'else if(m.method==="shutdown")process.stdout.write(fr({id:m.id,result:null}));'
       + 'else if(m.method==="exit")process.exit(0);'
       + '}});'
     // The grace is sized for a loaded host; its duration is not what this asserts.
-    const instance = scriptInstance(script, { killGraceMs: 30_000 })
+    const marker = join(root, 'definition-received')
+    const instance = scriptInstance(script, {
+      killGraceMs: 30_000,
+      env: { ...scrubbedParentEnv(), DSH_TEST_REQUEST_MARKER: marker },
+    })
     const controller = new AbortController()
     const pending = run(instance, 'goToDefinition', controller.signal)
-    await new Promise<void>(resolve => setTimeout(resolve, 1_000))
+    // Abort once the server actually holds the request. A fixed sleep races the
+    // handshake instead: on a loaded host the cancel can precede the request,
+    // which is a different path than the one under test.
+    const deadline = Date.now() + 20_000
+    while (!existsSync(marker)) {
+      if (Date.now() > deadline) throw new Error('scripted server never received the definition request')
+      await new Promise<void>(resolve => setTimeout(resolve, 10))
+    }
     controller.abort(new Error('mid-flight'))
     await expect(pending).rejects.toThrow(/mid-flight/)
     // The server acknowledged cancellation within grace, so the instance was not force-killed.

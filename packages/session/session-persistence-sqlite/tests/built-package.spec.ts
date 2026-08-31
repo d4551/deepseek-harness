@@ -24,7 +24,12 @@ console.log(JSON.stringify(await ctx.sessionPersistence.list()));
 await ctx.fiber.dispose();
 `
 
-describe.skipIf(!existsSync(builtBundle))('SQLite built package', () => {
+// Absent artifacts skip a local run, but `DSH_REQUIRE_BUILT_PACKAGES=1` makes
+// the suite mandatory: a lane that builds first must fail here rather than
+// report green because the bundle it was meant to exercise was never emitted.
+const requireBuiltPackages = process.env.DSH_REQUIRE_BUILT_PACKAGES === '1'
+
+describe.skipIf(!requireBuiltPackages && !existsSync(builtBundle))('SQLite built package', () => {
   it('loads packaged SQL resources from the published entry', async () => {
     const { stdout, stderr } = await execFileAsync(process.execPath, ['--input-type=module', '-e', probe], {
       cwd: repoRoot,

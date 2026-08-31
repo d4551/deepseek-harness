@@ -139,3 +139,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* An `animation` shorthand carries its own literal duration, so the theme's
+   reduced-motion collapse of `--ds-transition-duration*` never reaches it. An
+   indefinite loop is exactly the motion that setting asks to stop. */
+@media (prefers-reduced-motion: reduce) {
+  .glyphProgress {
+    animation: none;
+  }
+}

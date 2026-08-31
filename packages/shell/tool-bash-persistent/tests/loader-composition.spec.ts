@@ -94,7 +94,9 @@ suite('persistent Bash through a real cordis.yml Loader composition', () => {
       '    disposeGraceMs: 500',
       "- name: '@deepseek-ai/dsh-tool-bash-persistent'",
       '  config:',
-      '    timeoutMs: 5000',
+      // A per-call ceiling that only a hung shell can reach. A tight one instead
+      // measures how loaded the machine is: every command here is one printf.
+      '    timeoutMs: 60000',
       '',
     ].join('\n'))
 
@@ -176,5 +178,5 @@ suite('persistent Bash through a real cordis.yml Loader composition', () => {
     const exited = text(await execute('exit', 'exit'))
     expect(exited).toContain('next bash call starts from the workspace')
     expect(text(await execute('after-exit', 'printf "%s\\n" "$PWD"'))).toBe(root)
-  }, 20_000)
+  }, 120_000)
 })

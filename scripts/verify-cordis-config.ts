@@ -10,6 +10,7 @@
  * Loader fixtures resolve from their package manifest.
  */
 
+import { optionalStringRecord as readStringRecord } from './manifest-fields.ts'
 import { globSync, readFileSync } from 'node:fs'
 import { dirname, relative, resolve } from 'node:path'
 import { cordisConfigFiles } from './cordis-config-files.ts'
@@ -310,13 +311,7 @@ function optionalString(record: JsonValue, key: string): string | undefined {
 
 function optionalStringRecord(record: JsonValue, key: string): Record<string, string> {
   if (typeof record !== 'object' || record === null || Array.isArray(record)) return {}
-  const value = record[key]
-  if (value === undefined || value === null || typeof value !== 'object' || Array.isArray(value)) return {}
-  const out: Record<string, string> = {}
-  for (const [name, range] of Object.entries(value)) {
-    if (typeof range === 'string') out[name] = range
-  }
-  return out
+  return readStringRecord(record, key)
 }
 
 function readManifest(path: string, repoRoot: string = root): PackageManifest {

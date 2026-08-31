@@ -5,6 +5,7 @@
  */
 import type { LoaderEntryState } from './loader-status.ts'
 import css from './boot-page.module.css'
+import { bootCopy } from './locale.ts'
 
 /** Create a div with one module class and optional text. */
 function div(className: string | undefined, text?: string): HTMLDivElement {
@@ -30,6 +31,9 @@ export class BootPage {
    * Build and attach the boot page.
    * @param container - Application mount point.
    */
+  /** Boot copy for the browser's locale, resolved before the first paint. */
+  private readonly copy = bootCopy()
+
   constructor(container: HTMLElement) {
     this.root = div(css.boot)
     this.root.dataset.dshBoot = ''
@@ -37,7 +41,7 @@ export class BootPage {
     this.wordmark = div(css.wordmark, 'HARNESS')
     this.spinner = div(css.spinner)
     this.spinner.dataset.dshBootSpinner = ''
-    this.hint = div(css.hint, 'Loading plugins…')
+    this.hint = div(css.hint, this.copy.loading)
     this.card.append(this.wordmark, this.spinner, this.hint)
     this.root.append(this.card)
     container.append(this.root)
@@ -89,7 +93,7 @@ export class BootPage {
       return
     }
     const report = div(css.failed)
-    report.append(div(css.failedTitle, 'Failed to load plugins'))
+    report.append(div(css.failedTitle, this.copy.failed))
     for (const id of failed) report.append(div(css.failedItem, id))
     if (this.failure !== undefined) report.append(div(css.failedItem, this.failure))
     this.card.replaceChildren(this.wordmark, report)

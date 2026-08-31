@@ -152,6 +152,17 @@ const processBoundTests = [
   'packages/shell/tool-bash-persistent/tests/loader-composition.spec.ts',
   'packages/terminal/terminal-bash/tests/local.spec.ts',
   'scripts/client-build-environment.client.spec.ts',
+  // Repository-global git state: the installer rewrites the real hook path and
+  // its include chain, which no two workers can hold at once.
+  'scripts/install-lefthook.spec.ts',
+  // Filesystem watchers and disposal ordering: both assert what happened inside
+  // a timing window, which a loaded fork pool widens past the assertion.
+  'packages/boot/app-boot/tests/hmr-config.spec.ts',
+  'packages/session/session-projection-cache/tests/cache.spec.ts',
+  // A real dedicated Worker with its own inspector sessions: the realm and
+  // console round trips are timing-sensitive process I/O, and a loaded fork
+  // pool widens them past the assertion in whichever test lost the race.
+  'packages/experimental/inspector/tests/integration.host.spec.ts',
 ]
 
 /**
@@ -184,6 +195,10 @@ export default defineConfig({
         test: {
           name: 'thread-safe',
           execArgv: vitestExecArgv,
+          // Runs before the process-bound group, never beside it: those suites
+          // measure live shells, watchers, and Workers against per-command
+          // budgets, which this pool's forks exhaust when both run at once.
+          sequence: { groupOrder: 0 },
           // Node 24 has aborted in its CJS lexer (v8::ToLocalChecked Empty
           // MaybeLocal in cjs_lexer::Parse) from worker threads on macOS,
           // Linux, and Windows. Forked workers avoid that shared thread path.
@@ -192,7 +207,6 @@ export default defineConfig({
           // Projects do not inherit the root lane budget; see the note there.
           testTimeout: 30_000,
           maxWorkers: MAX_TEST_FORKS,
-          poolOptions: { forks: { maxForks: MAX_TEST_FORKS } },
           include: testIncludes,
           exclude: [
             ...platformUnsupportedTests,
@@ -206,6 +220,7 @@ export default defineConfig({
         test: {
           name: 'process-bound',
           execArgv: vitestExecArgv,
+          sequence: { groupOrder: 1 },
           pool: 'forks',
           setupFiles: ['./scripts/test-invariants.ts'],
           // Projects do not inherit the root lane budget; see the note there.
@@ -215,7 +230,6 @@ export default defineConfig({
           // running two of them together spends the budget on contention, which
           // reports as a timeout in whichever suite lost the race.
           maxWorkers: 1,
-          poolOptions: { forks: { maxForks: 1 } },
           include: processBoundTests,
           exclude: [
             ...platformUnsupportedTests,

@@ -54,6 +54,6 @@
     "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/dsh-tool-cordis": "workspace:^",
     "@deepseek-ai/dsh-typert-registry": "workspace:^",
-    "zod": "^4.4.3"
+    "zod": "^4.5.4"
   }
 }

@@ -4,6 +4,7 @@
 
 import { globSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { optionalStringRecord } from './manifest-fields.ts'
 import { readObjectFile } from './verify-client-packages-facts.ts'
 import {
   CORDIS,
@@ -123,9 +124,9 @@ function dependencyRangeCandidates(root: string): Map<string, Set<string>> {
       devDependencies: {},
     }
     const record = readObjectFile(resolve(root, path))
-    manifest.dependencies = optionalRecord(record, 'dependencies')
-    manifest.peerDependencies = optionalRecord(record, 'peerDependencies')
-    manifest.devDependencies = optionalRecord(record, 'devDependencies')
+    manifest.dependencies = optionalStringRecord(record, 'dependencies')
+    manifest.peerDependencies = optionalStringRecord(record, 'peerDependencies')
+    manifest.devDependencies = optionalStringRecord(record, 'devDependencies')
     for (const field of ['dependencies', 'peerDependencies', 'devDependencies'] as const) {
       for (const [name, range] of Object.entries(section(manifest, field))) {
         const ranges = candidates.get(name) ?? new Set<string>()
@@ -135,17 +136,6 @@ function dependencyRangeCandidates(root: string): Map<string, Set<string>> {
     }
   }
   return candidates
-}
-
-function optionalRecord(record: object, key: string): Record<string, string> {
-  if (!Object.hasOwn(record, key)) return {}
-  const value: unknown = Reflect.get(record, key)
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return {}
-  const out: Record<string, string> = {}
-  for (const [name, range] of Object.entries(value)) {
-    if (typeof range === 'string') out[name] = range
-  }
-  return out
 }
 
 function mutableClientOf(record: object): MutableClient | undefined {
@@ -209,9 +199,9 @@ export function fixClientPackageManifests(root: string, facts: ClientPackageFact
       record,
       manifest: {
         ...typeof rawName === 'string' ? { name: rawName } : {},
-        dependencies: optionalRecord(record, 'dependencies'),
-        peerDependencies: optionalRecord(record, 'peerDependencies'),
-        devDependencies: optionalRecord(record, 'devDependencies'),
+        dependencies: optionalStringRecord(record, 'dependencies'),
+        peerDependencies: optionalStringRecord(record, 'peerDependencies'),
+        devDependencies: optionalStringRecord(record, 'devDependencies'),
       },
       client: mutableClientOf(record),
       changed: false,

@@ -54,7 +54,7 @@
   "license": "MIT",
   "dependencies": {
     "@deepseek-ai/dsh-typert-protocol": "workspace:^",
-    "zod": "^4.4.3"
+    "zod": "^4.5.4"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-invariants": "workspace:^",

@@ -27,7 +27,7 @@ import { ClientCordisInspectRegistry, provideClientCordisInspect } from './inspe
 import { clientInspectProviders } from './providers.ts'
 import { provideClientTimer } from './timer.ts'
 import type { CordisRunActivity, CordisRunFailure, CordisUserRunRequest } from './orchestrator.ts'
-import type { CordisObservable, DynamicCordisRenderFailure } from './runtime.ts'
+import type { CordisObservable, DynamicCordisRenderFailureView } from './runtime.ts'
 
 export { CordisRunOrchestrator } from './orchestrator.ts'
 export { ClientCordisInspectRegistry } from './inspect-registry.ts'
@@ -41,7 +41,7 @@ export type {
 export { DynamicCordisPackageRunner } from './runtime.ts'
 export type {
   CordisObservable, DynamicCordisClientHalf, DynamicCordisLivePackage, DynamicCordisLoadErrorCause,
-  DynamicCordisLoadResult, DynamicCordisRenderFailure, DynamicCordisRunnerEnv,
+  DynamicCordisLoadResult, DynamicCordisRenderFailure, DynamicCordisRenderFailureView, DynamicCordisRunnerEnv,
 } from './runtime.ts'
 
 export { DynamicCordisStyles, evaluateClientHalf, isDynamicCordisPlugin } from './evaluator.ts'
@@ -75,7 +75,7 @@ export interface CordisRunnerFace {
    * own last-across-pages copy for the model; the two have different owners and
    * lifetimes and neither is derived from the other.
    */
-  readonly renderFailures: CordisObservable<ReadonlyMap<CordisDynamicPluginId, DynamicCordisRenderFailure>>
+  readonly renderFailures: CordisObservable<ReadonlyMap<CordisDynamicPluginId, DynamicCordisRenderFailureView>>
   /**
    * Restore pending approvals after a page reconnect or missed event.
    * @param rows - current dynamic Plugin inventory.

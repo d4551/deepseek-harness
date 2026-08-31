@@ -176,7 +176,7 @@
 .rowId {
   flex: none;
   color: var(--dsw-alias-label-tertiary);
-  font-family: var(--dsh-font-mono, monospace);
+  font-family: var(--dsw-font-mono, monospace);
   font-size: 11px;
   line-height: 20px;
 }

@@ -4,7 +4,7 @@ import type { SessionId } from '@deepseek-ai/dsh-client-connection/client'
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
   CordisRunActivity, CordisRunFailure, CordisUserRunRequest, DynamicCordisLivePackage,
-  DynamicCordisRenderFailure,
+  DynamicCordisRenderFailureView,
 } from '@deepseek-ai/dsh-cordis-client-runner/client'
 import type { CordisActionResult } from './dynamic-port.ts'
 import type { CordisInventory } from './inventory.ts'
@@ -62,7 +62,7 @@ export interface CordisPanelFace {
     inventory: CordisInventory
     activeRuns: HostObservable<ReadonlyMap<CordisDynamicPluginId, CordisRunActivity>>
     runErrors: HostObservable<ReadonlyMap<CordisDynamicPluginId, CordisRunFailure>>
-    renderFailures: HostObservable<ReadonlyMap<CordisDynamicPluginId, DynamicCordisRenderFailure>>
+    renderFailures: HostObservable<ReadonlyMap<CordisDynamicPluginId, DynamicCordisRenderFailureView>>
     loaded: HostObservable<readonly DynamicCordisLivePackage[]>
   }
   onApprove(requestId: ApprovalRequestId, approveFutureVersions: boolean): Promise<void>

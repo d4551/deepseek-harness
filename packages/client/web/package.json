@@ -39,11 +39,13 @@
     "@types/react-dom": "~19.2.5",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "@deepseek-ai/dsh-browser-locale": "workspace:^"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
-    "@deepseek-ai/dsh-invariants": "workspace:^"
+    "@deepseek-ai/dsh-invariants": "workspace:^",
+    "@deepseek-ai/dsh-browser-locale": "workspace:^"
   },
   "files": [
     "lib/index.js",

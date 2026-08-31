@@ -3,8 +3,10 @@
 import {
   parsePreviewFixtureManifest, type PreviewFixtureManifestEntry,
 } from '../fixture-manifest.ts'
+import { chooserCopy } from './locale.ts'
 
-const EMPTY_SOURCE = 'none'
+/** Option value standing for "no filesystem source": a form value, not copy. */
+const NO_SOURCE_ID = 'none'
 const WEBFS_SOURCE = 'webfs'
 const PREVIEW_FIXTURE_QUERY = 'preview-fixture'
 
@@ -195,25 +197,26 @@ function fixtureChoices(entries: readonly PreviewFixtureManifestEntry[], manifes
  */
 export async function choosePreviewSource(manifestUrl: URL): Promise<readonly URL[]> {
   const requested = new URL(location.href).searchParams.get(PREVIEW_FIXTURE_QUERY)
-  if (requested === EMPTY_SOURCE) return []
+  if (requested === NO_SOURCE_ID) return []
 
   const response = await fetch(manifestUrl)
   if (!response.ok) {
     throw new Error(`preview source chooser: fixture manifest returned ${String(response.status)}`)
   }
   const manifest = parsePreviewFixtureManifest(await response.json())
+  const copy = chooserCopy()
   const choices: PreviewSourceChoice[] = [
     {
-      id: EMPTY_SOURCE,
-      label: 'Empty environment',
-      description: 'Load only the base runtime to verify first launch and workspace creation.',
+      id: NO_SOURCE_ID,
+      label: copy.emptyLabel,
+      description: copy.emptyDescription,
       overlays: [],
     },
     ...fixtureChoices(manifest.fixtures, manifestUrl),
     {
       id: WEBFS_SOURCE,
-      label: 'WebFS directory',
-      description: 'Requires directory access and will be available after the WebFS provider lands.',
+      label: copy.webfsLabel,
+      description: copy.webfsDescription,
       overlays: [],
       disabled: true,
     },
@@ -228,7 +231,7 @@ export async function choosePreviewSource(manifestUrl: URL): Promise<readonly UR
 
   const root = document.getElementById('root')
   if (root === null) throw new Error('preview source chooser: missing #root')
-  const selected = manifest.defaultFixture ?? EMPTY_SOURCE
+  const selected = manifest.defaultFixture ?? NO_SOURCE_ID
   const style = document.createElement('style')
   style.dataset.previewSourceStyle = ''
   style.textContent = CHOOSER_STYLE
@@ -237,13 +240,13 @@ export async function choosePreviewSource(manifestUrl: URL): Promise<readonly UR
   const chooser = document.createElement('main')
   chooser.dataset.previewSourceChooser = ''
   chooser.innerHTML = `<form data-preview-source-card aria-labelledby="preview-source-title">
-      <h1 id="preview-source-title">Choose Preview data</h1>
-      <p>Data mounts before the Worker and application start. Refresh to choose again.</p>
+      <h1 id="preview-source-title">${escapeMarkup(copy.heading)}</h1>
+      <p>${escapeMarkup(copy.intro)}</p>
       <fieldset>
-        <legend>Filesystem source</legend>
+        <legend>${escapeMarkup(copy.legend)}</legend>
         ${choices.map(choice => optionMarkup(choice, selected)).join('')}
       </fieldset>
-      <button data-preview-source-submit type="submit">Start Preview</button>
+      <button data-preview-source-submit type="submit">${escapeMarkup(copy.submit)}</button>
     </form>`
   root.prepend(chooser)
   const form = chooser.querySelector<HTMLFormElement>('[data-preview-source-card]')
