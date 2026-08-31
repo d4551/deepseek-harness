@@ -4,6 +4,10 @@ English | [中文](index.zh.md)
 
 Start the Web UI through the [root README](../../../README.md#run); the command prints its URL. This guide begins after that server is running. The `dsh` process uses its invoking directory as the default filesystem location, but a fresh Web UI has no selected workspace until you add one.
 
+## Local build identity
+
+A source build is not an official artifact, and the client chrome says so: the browser tab, the sidebar header, the blank-session hero, and the install prompt all read **DeepMeow** over a cat-face mark. Building the client with `DSH_CLIENT_BUILD_PROFILE=official` is what restores the DeepSeek Harness wordmark and the whale mark, and that profile also fixes the document title through `DSH_CLIENT_TITLE`.
+
 ## Configure a model
 
 Open **Settings → Models**, enter a [DeepSeek API key](https://platform.deepseek.com/), and save it. The model route becomes usable immediately without restarting the server.

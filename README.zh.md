@@ -17,7 +17,9 @@ DeepSeek Harness（`dsh`）是由 [DeepSeek AI](https://deepseek.com) 开发的�
 - **bun 1.4** 是包管理器和脚本运行器（`package.json` 中的 `packageManager`）。workspace 链接使用 bun 的 isolated linker；`dsh plugin` 转发给 bun。原生 addon 与单文件可执行构建仍是 Node 产物，并遵循已文档化的 Node 引擎范围。
 - **TypeScript 7**（`typescript` ^7.0.2）编译 Host 与 Client program。该包在 `typescript/unstable/sync` 与 `typescript/unstable/ast` 导出 compiler API；所有 compiler-API 使用方都从该包导入，且由已提交的 gate 保证 6.0 Strada 兼容包不进入本仓库。
 
-`npx @deepseek-ai/dsh` 启动路径运行已发布的上游软件包。下方源码路径构建本检出。贡献者搭建步骤（含 bun 固定版本）见[开发指南](docs/development.zh.md)。
+本 fork 不发布自己的软件包：`npx @deepseek-ai/dsh` 拉取的是上游发行版而非本检出，因此下方的源码路径是运行本仓库的唯一方式。贡献者搭建步骤（含 bun 固定版本）见[开发指南](docs/development.zh.md)。
+
+源码构建不是 official 产物，界面也据实呈现：Web UI 以 **DeepMeow** 之名搭配猫脸标记。该名称出现在哪些位置、以及哪个构建 profile 会恢复 official wordmark，记录在 [Web UI 指南](docs/user/guide/index.zh.md#local-build-identity)。
 
 ## 开发者预览
 
@@ -29,21 +31,11 @@ DeepSeek Harness 处于 _开发者预览_ 阶段，正在快速迭代。**未来
 
 ## 运行
 
-### 通过 `npm` 运行
-
-安装 `Node.js`，然后运行：
-
-```sh
-npx @deepseek-ai/dsh web
-```
-
-该命令默认会在 `http://127.0.0.1:3080` 启动 Web UI，本机启动时还会用默认浏览器打开页面。通过 SSH 启动时只打印宿主机 URL，因为本地转发地址由 SSH 客户端或编辑器持有。传入 `--no-open` 可仅运行服务器而不打开浏览器。详见 [Web UI 指南](docs/user/guide/index.zh.md)。
-
 <a id="run-from-source"></a>
 
 ### 从源码运行
 
-如需从仓库源码运行：
+安装 `Node.js`，然后运行：
 
 ```sh
 git clone https://github.com/d4551/deepseek-harness.git
@@ -54,6 +46,8 @@ bun run dsh web
 ```
 
 `bun run build` 会准备仓库产物。`bun run dsh web` 会直接使用这些已构建产物，不会重新构建。
+
+最后一条命令默认会在 `http://127.0.0.1:3080` 启动 Web UI，本机启动时还会用默认浏览器打开页面。通过 SSH 启动时只打印宿主机 URL，因为本地转发地址由 SSH 客户端或编辑器持有。传入 `--no-open` 可仅运行服务器而不打开浏览器。详见 [Web UI 指南](docs/user/guide/index.zh.md)。
 
 ## 社区与支持
 
