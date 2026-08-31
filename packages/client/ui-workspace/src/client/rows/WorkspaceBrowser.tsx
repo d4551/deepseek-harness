@@ -25,6 +25,8 @@ import type { GroupNode, SessionNode, SessionOrderBy } from '../tree.ts'
 import { deriveFlat, deriveGroups, deriveSearchResults, UNGROUPED_KEY } from '../tree.ts'
 import { ProjectRowItem, SearchResultItem, SessionNodeItem } from './Rows.tsx'
 import type { RowMultiSelection } from './Rows.tsx'
+import { useRowFocus } from '../row-focus.ts'
+import type { RowFocus } from '../row-focus.ts'
 import { sessionRowKey, useRowSelection, workspaceRowKey } from '../selection.ts'
 import type { RowKey, RowSelection } from '../selection.ts'
 import { FLAT_SESSION_ORDER_KEY } from '../stores.ts'
@@ -257,27 +259,36 @@ function reachedSessionIds(
  * One row's slice of a list selection. Committing the bulk archive drops the
  * selection immediately: the rows themselves leave on the archive-set echo,
  * and a selection outliving them would still count them in the next gesture.
- * @param selection - the list's live selection.
+ * @param account - the list's live selection and tab stop.
  * @param key - the row this slice belongs to.
  * @param active - whether the row shows as selected; for a session row this is
  *   its presence in the reach, so a selected project highlights the members it
  *   would archive rather than leaving them to disappear unannounced.
  * @param reached - sessions the whole selection archives.
  * @param archiveSessions - commit an archive for every reached session.
- * @returns the row-facing selection wiring.
+ * @returns the row-facing account slice.
  */
 function rowSelection(
-  selection: RowSelection,
+  account: { selection: RowSelection; focus: RowFocus },
   key: RowKey,
   active: boolean,
   reached: readonly SessionId[],
   archiveSessions: (sessionIds: readonly SessionId[]) => void,
 ): RowMultiSelection {
+  const { selection, focus } = account
   return {
     active,
     count: selection.keys.length,
     archivableCount: reached.length,
-    extend: () => { selection.extendTo(key) },
+    rowKey: key,
+    seated: focus.seat === key,
+    // Shift with an arrow is the keyboard's shift-click: the focus lands on the
+    // new row and the range follows it there, anchored where it left.
+    move: (target, extend) => {
+      const landed = focus.moveFrom(key, target)
+      if (landed !== undefined && extend) selection.extendTo(landed, key)
+    },
+    extend: () => { selection.extendTo(key, key) },
     toggle: () => { selection.toggle(key) },
     anchor: () => { selection.anchorAt(key) },
     archiveSelected: () => {
@@ -491,7 +502,10 @@ function SessionTree({
     ]),
     [groups, expandedSessionGroups],
   )
+  const listRef = useRef<HTMLDivElement>(null)
   const selection = useRowSelection(selectableKeys)
+  const focus = useRowFocus(selectableKeys, listRef)
+  const account = { selection, focus }
   const selectionReach = useMemo(() => groupedSelectionReach(groups), [groups])
   const reached = reachedSessionIds(selection.keys, selectionReach)
   // Highlight equals reach: a selected project marks the member rows it would
@@ -583,6 +597,7 @@ function SessionTree({
       {workspaceDropAtListStart && <span className={css.listTopDropIndicator} aria-hidden="true" />}
       <SelectionStatus count={selection.keys.length} reached={reached.length} t={t} />
       <div
+        ref={listRef}
         className={clsx(css.list, workspaceDropAtListStart && css.listTopDropActive)}
         role="tree"
         aria-label={t('section.sessions')}
@@ -671,7 +686,7 @@ function SessionTree({
                   ? {}
                   : {
                     selection: rowSelection(
-                      selection,
+                      account,
                       workspaceRowKey(group.workspaceId),
                       selection.has(workspaceRowKey(group.workspaceId)),
                       reached,
@@ -727,7 +742,7 @@ function SessionTree({
                       ? {}
                       : {
                         selection: rowSelection(
-                          selection, sessionRowKey(node.id), reachedSet.has(node.id), reached, onSessionsArchive,
+                          account, sessionRowKey(node.id), reachedSet.has(node.id), reached, onSessionsArchive,
                         ),
                       }}
                   />
@@ -818,7 +833,11 @@ function FlatList({
     }
     return reach
   }, [rows])
-  const selection = useRowSelection(useMemo(() => [...selectionReach.keys()], [selectionReach]))
+  const listRef = useRef<HTMLDivElement>(null)
+  const flatKeys = useMemo(() => [...selectionReach.keys()], [selectionReach])
+  const selection = useRowSelection(flatKeys)
+  const focus = useRowFocus(flatKeys, listRef)
+  const account = { selection, focus }
   const reached = reachedSessionIds(selection.keys, selectionReach)
   const reachedSet = new Set(reached)
   const [drag, setDrag] = useState<DragState | null>(null)
@@ -848,6 +867,7 @@ function FlatList({
     <div className={clsx(css.treeBody, css.wide)}>
       <SelectionStatus count={selection.keys.length} reached={reached.length} t={t} />
       <div
+        ref={listRef}
         className={clsx(css.list, css.flatList)}
         role="tree"
         aria-label={t('section.sessions')}
@@ -865,7 +885,7 @@ function FlatList({
                 ? {}
                 : {
                   selection: rowSelection(
-                    selection, sessionRowKey(node.id), reachedSet.has(node.id), reached, onSessionsArchive,
+                    account, sessionRowKey(node.id), reachedSet.has(node.id), reached, onSessionsArchive,
                   ),
                 }}
               drag={{

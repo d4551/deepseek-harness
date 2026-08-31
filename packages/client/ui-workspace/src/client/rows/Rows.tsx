@@ -1,13 +1,15 @@
 /**
  * Workspace browser tree row components (figma Cell set 14:3080): pure presentational —
  * all data and callbacks arrive via props. Hover swaps (folder->chevron,
- * time->ellipsis, action buttons) are CSS-only. Row ... menus are visual-only
- * except workspace Rename/Delete and session Rename/Fork/Archive; the same
- * list also answers a right-click anywhere on the row, and the session and
- * workspace hover cards are suppressed while a menu is open.
+ * time->ellipsis, action buttons) are revealed by hover or by focus inside the
+ * row, so the trailing verbs are reachable from the keyboard. Row ... menus are
+ * visual-only except workspace Rename/Delete and session Rename/Fork/Archive;
+ * the same list also answers a right-click anywhere on the row and the
+ * keyboard's own menu request, and the session and workspace hover cards are
+ * suppressed while a menu is open.
  */
 import { useMemo, useState } from 'react'
-import type { MouseEvent as ReactMouseEvent } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react'
 import clsx from 'clsx'
 import {
   HoverCard, IconArchiveOutline20, IconBranchOutline16, IconEditOutline16,
@@ -17,6 +19,8 @@ import {
 import type { MenuItem, StateDotState } from '@deepseek-ai/dsh-client-ui-primitives'
 import { abbreviateHomePath } from '@deepseek-ai/dsh-util-workspace-path'
 import type { WorkspaceBrowserProps } from '../contract/slots.ts'
+import type { FocusTarget } from '../row-focus.ts'
+import type { RowKey } from '../selection.ts'
 import type { GroupNode, SearchResultNode, SessionNode } from '../tree.ts'
 import css from './Rows.module.css'
 
@@ -103,40 +107,63 @@ interface RowMenu {
   open: boolean
   /** `Menu` placement override, spread in; empty while the trailing button anchors the list. */
   anchorProps: { getAnchorRect?: () => DOMRect }
-  /** Row `onContextMenu`: replace the platform menu with this row's list, under the pointer. */
-  openAtPointer: (event: ReactMouseEvent) => void
+  /** The list was asked for from the keyboard, so it owes its first row the focus. */
+  autoFocus: boolean
+  /** Row `onContextMenu`: replace the platform menu with this row's list. */
+  openFrom: (event: ReactMouseEvent) => void
   /** Trailing `...` button click. */
   toggle: (event: ReactMouseEvent) => void
   /** A selection, Escape, or an outside press closed the list. */
   close: () => void
 }
 
+/** Where a row menu was asked to open, and whether the asking was keyboard work. */
+interface MenuOrigin {
+  /** The rect `Menu` places the list against. */
+  rect: DOMRect
+  /** The list must take the focus, because the gesture that opened it had it. */
+  keyboard: boolean
+}
+
 /**
- * Row menu state shared by both row kinds. The trailing `...` button and a
- * right-click anywhere on the row open the same list; the right-click carries
- * its pointer position so the list opens there instead of at a button the row
- * only reveals on hover.
+ * Row menu state shared by both row kinds. The trailing `...` button, a
+ * right-click anywhere on the row, and the keyboard's own menu request open the
+ * same list. A right-click carries its pointer position so the list opens there
+ * instead of at a button the row only reveals on hover. Shift+F10 and the
+ * ContextMenu key reach the row as that same `contextmenu` event with no
+ * pointer button behind them and no position worth honouring, so their list
+ * opens against the row itself and takes the focus with it.
  * @returns the open flag, the placement override, and the three gestures.
  */
 function useRowMenu(): RowMenu {
-  const [point, setPoint] = useState<{ x: number; y: number } | null>(null)
+  const [origin, setOrigin] = useState<MenuOrigin | null>(null)
   const [open, setOpen] = useState(false)
   const anchorProps = useMemo(
-    () => (point === null ? {} : { getAnchorRect: () => new DOMRect(point.x, point.y, 0, 0) }),
-    [point],
+    () => (origin === null ? {} : { getAnchorRect: () => origin.rect }),
+    [origin],
   )
   return {
     open,
     anchorProps,
-    openAtPointer: (event) => {
+    autoFocus: open && origin?.keyboard === true,
+    openFrom: (event) => {
       event.preventDefault()
       event.stopPropagation()
-      setPoint({ x: event.clientX, y: event.clientY })
+      // A secondary press reports button 2. A keyboard request reports no
+      // button, and its coordinates are the viewport origin rather than a place
+      // the operator pointed at.
+      const keyboard = event.button !== 2
+      setOrigin({
+        rect: keyboard
+          ? event.currentTarget.getBoundingClientRect()
+          : new DOMRect(event.clientX, event.clientY, 0, 0),
+        keyboard,
+      })
       setOpen(true)
     },
     toggle: (event) => {
       event.stopPropagation()
-      setPoint(null)
+      setOrigin(null)
       setOpen(showing => !showing)
     },
     close: () => { setOpen(false) },
@@ -144,9 +171,11 @@ function useRowMenu(): RowMenu {
 }
 
 /**
- * One row's view of its list's multi-selection. Both row kinds carry the same
- * contract: the list owns the set and resolves what a bulk action reaches, and
- * the row reports gestures and renders only what it is told.
+ * One row's slice of its list's ordered account: what the row shows, what a
+ * gesture on it means, and whether it currently holds the list's tab stop. Both
+ * row kinds carry the same contract: the list owns the set, the order, and the
+ * focus, and the row reports gestures and renders only what it is told. The
+ * pointer and the keyboard edit one selection through the same three verbs.
  */
 export interface RowMultiSelection {
   /** This row is in the selection (distinct fill and `aria-selected`). */
@@ -158,14 +187,60 @@ export interface RowMultiSelection {
    * its members, so this is not the row count.
    */
   archivableCount: number
-  /** Shift-click: select every rendered row between the anchor and this one. */
+  /**
+   * The row's key in the account, published to the DOM so the list can hand it
+   * the focus without the moving row having to reach its siblings.
+   */
+  rowKey: RowKey
+  /** This row holds the list's single tab stop (the tree pattern's roving tabindex). */
+  seated: boolean
+  /**
+   * Move the tab stop and the focus to another row of the account; `extend`
+   * takes the range along, the keyboard's Shift-click.
+   */
+  move: (target: FocusTarget, extend: boolean) => void
+  /** Shift-click or Shift+Space: select every rendered row between the anchor and this one. */
   extend: () => void
-  /** Ctrl/Cmd-click: add or remove this row. */
+  /** Ctrl/Cmd-click or Space: add or remove this row. */
   toggle: () => void
-  /** Plain click: this row becomes the anchor and any previous selection drops. */
+  /** Plain click or Enter: this row becomes the anchor and any previous selection drops. */
   anchor: () => void
   /** Archive every session the selection reaches. */
   archiveSelected: () => void
+}
+
+/**
+ * Route a row keystroke through the list's tab stop and its selection. The
+ * arrows and Home/End move the focus, Shift takes the range along with the
+ * move, Space edits the selection where a click's modifier would, and Enter
+ * does what a plain click does. Every other key keeps its browser meaning.
+ * @param selection - the row's account slice.
+ * @param activate - what a plain click on this row does.
+ * @param event - the keystroke being routed.
+ */
+function rowKeyDown(
+  selection: RowMultiSelection,
+  activate: () => void,
+  event: ReactKeyboardEvent,
+): void {
+  switch (event.key) {
+    case 'ArrowDown': selection.move('next', event.shiftKey); break
+    case 'ArrowUp': selection.move('previous', event.shiftKey); break
+    case 'Home': selection.move('first', event.shiftKey); break
+    case 'End': selection.move('last', event.shiftKey); break
+    case ' ':
+      if (event.shiftKey) selection.extend()
+      else selection.toggle()
+      break
+    case 'Enter':
+      selection.anchor()
+      activate()
+      break
+    // An unanswered key keeps its own meaning, so the guard below is the only
+    // place that takes one away.
+    default: return
+  }
+  event.preventDefault()
 }
 
 /**
@@ -188,19 +263,20 @@ function selectionTookClick(
 }
 
 /**
- * Open a row's menu under the pointer. A right-click outside the current range
- * narrows the selection to this row first, the platform rule.
+ * Answer a row's menu request, from the pointer or from the keyboard. A request
+ * from outside the current range narrows the selection to this row first, the
+ * platform rule.
  * @param menu - the row's menu state.
- * @param selection - the row's selection wiring, absent on unselectable rows.
+ * @param selection - the row's account slice, absent on unselectable rows.
  * @param event - the contextmenu event being answered.
  */
-function openRowMenuAtPointer(
+function openRowMenu(
   menu: RowMenu,
   selection: RowMultiSelection | undefined,
   event: ReactMouseEvent,
 ): void {
   if (selection !== undefined && !selection.active) selection.anchor()
-  menu.openAtPointer(event)
+  menu.openFrom(event)
 }
 
 /** A selection of two or more rows, whose bulk row replaces the per-row verbs. */
@@ -280,15 +356,39 @@ export function ProjectRowItem({ group, onToggle, onCreate, actions, selection, 
       role="treeitem"
       aria-expanded={row.expanded}
       aria-selected={inSelection}
+      // Rows outside an account (the ungrouped bucket) stay out of the tab
+      // order: they carry no verb the keyboard could reach.
+      {...selection === undefined
+        ? {}
+        : { tabIndex: selection.seated ? 0 : -1, 'data-row-key': selection.rowKey }}
       onClick={(e) => {
         // A modified click edits the range instead of folding the group.
         if (selectionTookClick(selection, e)) return
         onToggle()
       }}
+      onKeyDown={selection === undefined
+        ? undefined
+        : (e) => {
+          // The horizontal arrows work the disclosure the tree pattern gives a
+          // parent node: open a folded group, fold an open one, and step into
+          // the first child of a group already open.
+          if (e.key === 'ArrowRight') {
+            if (row.expanded) selection.move('next', false)
+            else onToggle()
+            e.preventDefault()
+            return
+          }
+          if (e.key === 'ArrowLeft') {
+            if (row.expanded) onToggle()
+            e.preventDefault()
+            return
+          }
+          rowKeyDown(selection, onToggle, e)
+        }}
       // The ungrouped bucket has no Workspace verbs, so it keeps the platform menu.
       onContextMenu={actions === undefined
         ? undefined
-        : (e) => { openRowMenuAtPointer(menu, selection, e) }}
+        : (e) => { openRowMenu(menu, selection, e) }}
       draggable={drag !== undefined}
       onDragStart={drag === undefined
         ? undefined
@@ -327,6 +427,7 @@ export function ProjectRowItem({ group, onToggle, onCreate, actions, selection, 
             }}
             portal
             closeOnPointerLeave
+            autoFocus={menu.autoFocus}
             {...menu.anchorProps}
             anchor={(
               <button
@@ -571,15 +672,32 @@ export function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork
       )}
       role="treeitem"
       aria-selected={selected || inSelection}
+      // A provisional blank row has no verbs and no place in an account, so it
+      // stays out of the tab order too.
+      {...selection === undefined
+        ? {}
+        : { tabIndex: selection.seated ? 0 : -1, 'data-row-key': selection.rowKey }}
       onClick={(e) => {
         // A modified click edits the range instead of opening the Session.
         if (selectionTookClick(selection, e)) return
         onOpen(node.id)
       }}
+      onKeyDown={selection === undefined
+        ? undefined
+        : (e) => {
+          // A leaf's collapse key steps out to the header it sits under; the
+          // flat list has none and holds.
+          if (e.key === 'ArrowLeft') {
+            selection.move('parent', false)
+            e.preventDefault()
+            return
+          }
+          rowKeyDown(selection, () => { onOpen(node.id) }, e)
+        }}
       // The row menu is absent on a blank row, so its right-click answer is too.
       onContextMenu={row.blank
         ? undefined
-        : (e) => { openRowMenuAtPointer(menu, selection, e) }}
+        : (e) => { openRowMenu(menu, selection, e) }}
       draggable={drag !== undefined}
       onDragStart={drag === undefined
         ? undefined
@@ -635,6 +753,7 @@ export function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork
             }}
             portal
             closeOnPointerLeave
+            autoFocus={menu.autoFocus}
             {...menu.anchorProps}
             anchor={(
               <button

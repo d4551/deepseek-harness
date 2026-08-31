@@ -35,6 +35,15 @@ export function workspaceRowKey(workspaceId: WorkspaceId): RowKey {
 }
 
 /**
+ * Whether a key addresses a Workspace (project) header row.
+ * @param key - one row's key in the shared account.
+ * @returns whether the key came from {@link workspaceRowKey}.
+ */
+export function isWorkspaceRowKey(key: RowKey): boolean {
+  return key.startsWith('workspace:')
+}
+
+/**
  * The contiguous rendered slice between two rows, inclusive.
  * @param keys - every selectable row in rendered order.
  * @param from - one endpoint (the anchor).
@@ -56,8 +65,12 @@ export interface RowSelection {
   readonly has: (key: RowKey) => boolean
   /** Plain activation: this row becomes the range anchor and the selection empties. */
   readonly anchorAt: (key: RowKey) => void
-  /** Shift activation: select every rendered row between the anchor and this one. */
-  readonly extendTo: (key: RowKey) => void
+  /**
+   * Shift activation: select every rendered row between the open range's anchor
+   * and this one. With no range open yet the gesture's own origin becomes the
+   * anchor — the row a shift-click landed on, or the row a Shift+arrow left.
+   */
+  readonly extendTo: (to: RowKey, origin: RowKey) => void
   /** Ctrl/Cmd activation: add or remove this row, which also becomes the anchor. */
   readonly toggle: (key: RowKey) => void
   /** Drop the selection — a bulk action committed, or Escape withdrew it. */
@@ -83,9 +96,9 @@ export function useRowSelection(renderedKeys: readonly RowKey[]): RowSelection {
   // search, or folded away leaves the selection without a reconciliation pass.
   const keys = renderedKeys.filter(key => state.keys.includes(key))
   const active = keys.length > 0
-  // Escape is the only exit that neither navigates nor commits, so it is worth
-  // a document listener: the rows are not focusable, and the list has no
-  // keyboard seat of its own to hang it on.
+  // Escape withdraws a selection from anywhere, not only from the row that
+  // holds the list's tab seat: the gesture that made the selection was a
+  // pointer press, which leaves focus wherever it already was.
   useEffect(() => {
     if (!active) return
     const onKeyDown = (event: KeyboardEvent): void => {
@@ -103,10 +116,12 @@ export function useRowSelection(renderedKeys: readonly RowKey[]): RowSelection {
       if (state.anchor === key && state.keys.length === 0) return
       setState({ anchor: key, keys: [] })
     },
-    extendTo: (key) => {
-      // A shift-click with no prior anchor anchors itself, selecting one row.
-      const anchor = state.anchor ?? key
-      setState({ anchor, keys: rowRange(renderedKeys, anchor, key) })
+    extendTo: (to, origin) => {
+      // An open range keeps its anchor across successive extends, so a run of
+      // Shift+arrows grows from where the range began rather than from the row
+      // each keystroke left.
+      const anchor = state.anchor ?? origin
+      setState({ anchor, keys: rowRange(renderedKeys, anchor, to) })
     },
     toggle: (key) => {
       setState({

@@ -47,6 +47,17 @@ function isLabel(entry: MenuEntry): entry is MenuLabel {
 const MEASURE_STYLE: CSSProperties = { visibility: 'hidden', left: 0, top: 0 }
 
 /**
+ * The rows a keyboard can land on, in list order.
+ * @param list - the open list element, or nothing before it renders.
+ * @returns every enabled row, including the pinned footer's.
+ */
+function enabledItems(list: HTMLElement | null): HTMLButtonElement[] {
+  /* v8 ignore next -- the ref is attached in the same commit that opens the list. */
+  if (list === null) return []
+  return [...list.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]:not([disabled])')]
+}
+
+/**
  * Render an anchored dropdown menu.
  * @param props.open - whether the list is showing (owner-controlled).
  * @param props.anchor - the trigger element (rendered in place).
@@ -75,9 +86,14 @@ const MEASURE_STYLE: CSSProperties = { visibility: 'hidden', left: 0, top: 0 }
  * scroll/resize; return null to skip placement for that frame.
  * @param props.footer - rows pinned below the scrolling items area, separated
  * by a hairline; they stay visible while the items above scroll.
+ * @param props.autoFocus - take the focus into the list when it opens and give
+ * it back to whatever held it when the list closes. Set it when the gesture
+ * that opened the list was keyboard work, which would otherwise be stranded
+ * outside a portaled list that follows the whole document in tab order; leave
+ * it off for pointer-opened lists, which must not move the focus at all.
  * @returns anchor wrapper with the conditional list.
  */
-export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, onClose, align = 'start', side = 'bottom', portal = false, closeOnPointerLeave = false, dense = false, compact = false, getAnchorRect, footer, className }: {
+export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, onClose, align = 'start', side = 'bottom', portal = false, closeOnPointerLeave = false, dense = false, compact = false, autoFocus = false, getAnchorRect, footer, className }: {
   open: boolean
   anchor: ReactNode
   items: readonly MenuEntry[]
@@ -92,6 +108,7 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
   closeOnPointerLeave?: boolean
   dense?: boolean
   compact?: boolean
+  autoFocus?: boolean
   getAnchorRect?: () => DOMRect | null
   className?: string
 }) {
@@ -176,6 +193,45 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
       document.removeEventListener('keydown', onKeyDown)
     }
   }, [open, onClose])
+
+  // Keyboard-opened lists take the focus and hand it back. The list is a
+  // portal at the end of the document, so leaving the focus on the anchor would
+  // put every other focusable element between the operator and these rows.
+  useEffect(() => {
+    if (!open || !autoFocus) return
+    const restore = document.activeElement
+    enabledItems(listRef.current)[0]?.focus()
+    return () => {
+      /* v8 ignore next -- the keyboard gesture that opened the list left the focus on an element of this document. */
+      if (!(restore instanceof HTMLElement)) return
+      restore.focus()
+    }
+  }, [open, autoFocus])
+
+  // The arrows walk the rows once the focus is on one of them — the menu
+  // pattern's own navigation. A list the pointer opened keeps the arrows for
+  // the page until the operator actually enters it. Escape and outside presses
+  // close the list; that is the effect above.
+  useEffect(() => {
+    if (!open) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      const rows = enabledItems(listRef.current)
+      const at = rows.findIndex(row => row === document.activeElement)
+      if (at === -1) return
+      let next: number
+      switch (e.key) {
+        case 'ArrowDown': next = at + 1 === rows.length ? 0 : at + 1; break
+        case 'ArrowUp': next = at === 0 ? rows.length - 1 : at - 1; break
+        case 'Home': next = 0; break
+        case 'End': next = rows.length - 1; break
+        default: return
+      }
+      rows[next]?.focus()
+      e.preventDefault()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => { document.removeEventListener('keydown', onKeyDown) }
+  }, [open])
 
   // A close from selection/Escape/outside click outruns a pending grace close;
   // left armed it would shut a list reopened inside the grace window. Its own

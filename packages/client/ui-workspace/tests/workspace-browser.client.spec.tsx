@@ -449,7 +449,7 @@ describe('WorkspaceBrowser', () => {
     fireEvent.click(screen.getByText('a3'), { shiftKey: true })
     expect(screen.getByRole('status').textContent).toBe('已选择 3 个会话')
 
-    fireEvent.contextMenu(screen.getByText('a3'), { clientX: 30, clientY: 40 })
+    fireEvent.contextMenu(screen.getByText('a3'), { button: 2, clientX: 30, clientY: 40 })
     fireEvent.click(screen.getByRole('menuitem', { name: '归档选中的 3 个会话' }))
     expect(archiveSession.mock.calls).toEqual([[sid('a1')], [sid('a2')], [sid('a3')]])
     expect(screen.queryByRole('status')).toBeNull()
@@ -476,10 +476,113 @@ describe('WorkspaceBrowser', () => {
     // The plain click also unfolded alpha, so its member row marks with it.
     expect(['alpha', 'a1', 'beta', 'gamma'].map(marked)).toEqual([true, true, true, true])
 
-    fireEvent.contextMenu(screen.getByText('beta'), { clientX: 12, clientY: 20 })
+    fireEvent.contextMenu(screen.getByText('beta'), { button: 2, clientX: 12, clientY: 20 })
     fireEvent.click(screen.getByRole('menuitem', { name: '归档选中的 4 个会话' }))
     expect(archiveSession.mock.calls).toEqual([[sid('a1')], [sid('b1')], [sid('c1')], [sid('c2')]])
     expect(screen.queryByRole('status')).toBeNull()
+  })
+
+  it('archives a keyboard-selected project range without a pointer at any step', () => {
+    const archiveSession = vi.fn(async () => {})
+    mount({
+      useSessions: hook(sessionState([
+        summary('a1', 4), summary('b1', 3), summary('c1', 2), summary('c2', 1),
+      ])),
+      useWorkspaces: hook(workspaceState([
+        workspace('alpha', ['a1']),
+        workspace('beta', ['b1']),
+        workspace('gamma', ['c1', 'c2']),
+      ])),
+      archiveSession,
+    })
+    // One Tab lands on the head of the list; the arrows move inside it.
+    const rows = () => screen.getAllByRole('treeitem')
+    const seated = () => rows().find(node => node.tabIndex === 0)
+    expect(seated()?.textContent).toContain('alpha')
+    seated()!.focus()
+
+    // Shift with an arrow is the keyboard's shift-click, anchored on the row it
+    // left: three folded project headers, and every session they hold.
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown', shiftKey: true })
+    expect(screen.getByRole('status').textContent).toBe('已选择 2 个会话')
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown', shiftKey: true })
+    expect(screen.getByRole('status').textContent).toBe('已选择 4 个会话')
+    expect(['alpha', 'beta', 'gamma'].map(marked)).toEqual([true, true, true])
+    expect(document.activeElement).toBe(screen.getByText('gamma').closest('[role="treeitem"]'))
+
+    // Shift+F10 reaches the row as a contextmenu event with no pointer button.
+    fireEvent.contextMenu(document.activeElement!)
+    const bulk = screen.getByRole('menuitem', { name: '归档选中的 4 个会话' })
+    expect(document.activeElement).toBe(bulk)
+    fireEvent.click(bulk)
+    expect(archiveSession.mock.calls).toEqual([[sid('a1')], [sid('b1')], [sid('c1')], [sid('c2')]])
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+
+  it('walks the grouped tree with the arrows and opens a session on Enter', () => {
+    const open = vi.fn()
+    mount({
+      useSessions: hook(sessionState([summary('a1', 3), summary('a2', 2), summary('b1', 1)])),
+      useWorkspaces: hook(workspaceState([
+        workspace('alpha', ['a1', 'a2']),
+        workspace('beta', ['b1']),
+      ])),
+      open,
+    })
+    const rowOf = (label: string) => screen.getByText(label).closest('[role="treeitem"]')
+    const seated = () => screen.getAllByRole('treeitem').find(node => node.tabIndex === 0)!
+    expect(seated()).toBe(rowOf('alpha'))
+    seated().focus()
+
+    // A folded project opens on the disclosure arrow, which puts its sessions
+    // in the account the next arrow walks into.
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowRight' })
+    expect(screen.getByText('a1')).toBeTruthy()
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowRight' })
+    expect(document.activeElement).toBe(rowOf('a1'))
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(rowOf('a2'))
+
+    // The collapse arrow steps a session row back out to its header.
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowLeft' })
+    expect(document.activeElement).toBe(rowOf('alpha'))
+
+    // End reaches the last row of the list; Home comes back to the first.
+    fireEvent.keyDown(document.activeElement!, { key: 'End' })
+    expect(document.activeElement).toBe(rowOf('beta'))
+    fireEvent.keyDown(document.activeElement!, { key: 'Home' })
+    expect(document.activeElement).toBe(rowOf('alpha'))
+
+    // Enter does what a plain click does on the row it lands on.
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' })
+    fireEvent.keyDown(document.activeElement!, { key: 'Enter' })
+    expect(open).toHaveBeenCalledWith(sid('a1'))
+  })
+
+  it('picks rows with Space and takes the range with Shift+Space in the flat list', () => {
+    const archiveSession = vi.fn(async () => {})
+    mount({
+      useSessions: hook(sessionState([summary('one', 3), summary('two', 2), summary('three', 1)])),
+      useWorkspaces: hook(workspaceState([workspace('alpha', ['one', 'two', 'three'])])),
+      archiveSession,
+    })
+    fireEvent.click(screen.getByRole('button', { name: '视图选项' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '单列表' }))
+    const seated = () => screen.getAllByRole('treeitem').find(node => node.tabIndex === 0)!
+    seated().focus()
+    fireEvent.keyDown(document.activeElement!, { key: ' ' })
+    expect(screen.getByRole('status').textContent).toBe('已选择 1 个会话')
+    // Space is the keyboard's Ctrl-click, so pressing it again withdraws the row.
+    fireEvent.keyDown(document.activeElement!, { key: ' ' })
+    expect(screen.queryByRole('status')).toBeNull()
+
+    fireEvent.keyDown(document.activeElement!, { key: ' ' })
+    fireEvent.keyDown(document.activeElement!, { key: 'End' })
+    fireEvent.keyDown(document.activeElement!, { key: ' ', shiftKey: true })
+    expect(screen.getByRole('status').textContent).toBe('已选择 3 个会话')
+    fireEvent.contextMenu(document.activeElement!)
+    fireEvent.click(screen.getByRole('menuitem', { name: '归档选中的 3 个会话' }))
+    expect(archiveSession.mock.calls).toEqual([[sid('one')], [sid('two')], [sid('three')]])
   })
 
   it('marks the member rows a selected project would archive', () => {
@@ -496,7 +599,7 @@ describe('WorkspaceBrowser', () => {
     expect(['alpha', 'a1', 'a2', 'beta'].map(marked)).toEqual([true, true, true, false])
     expect(screen.getByRole('status').textContent).toBe('已选择 2 个会话')
     // One picked row keeps the per-row Workspace verbs.
-    fireEvent.contextMenu(screen.getByText('alpha'), { clientX: 6, clientY: 6 })
+    fireEvent.contextMenu(screen.getByText('alpha'), { button: 2, clientX: 6, clientY: 6 })
     expect(screen.getByRole('menuitem', { name: '删除工作区' })).toBeTruthy()
   })
 
@@ -519,7 +622,7 @@ describe('WorkspaceBrowser', () => {
     fireEvent.click(screen.getByText('two'), { ctrlKey: true })
     expect(screen.getByRole('status').textContent).toBe('已选择 1 个会话')
     // One picked row keeps the per-row verbs: nothing to widen the menu for.
-    fireEvent.contextMenu(screen.getByText('two'), { clientX: 5, clientY: 5 })
+    fireEvent.contextMenu(screen.getByText('two'), { button: 2, clientX: 5, clientY: 5 })
     fireEvent.click(screen.getByRole('menuitem', { name: '归档会话' }))
     expect(archiveSession.mock.calls).toEqual([[sid('two')]])
   })

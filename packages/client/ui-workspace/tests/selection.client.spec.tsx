@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { WorkspaceId } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import { rowRange, sessionRowKey, useRowSelection, workspaceRowKey } from '../src/client/selection.ts'
+import { isWorkspaceRowKey, rowRange, sessionRowKey, useRowSelection, workspaceRowKey } from '../src/client/selection.ts'
 
 afterEach(cleanup)
 
@@ -24,7 +24,7 @@ function Harness({ rows, onRender }: { rows: readonly string[]; onRender?: () =>
           type="button"
           aria-pressed={selection.has(row)}
           onClick={(event) => {
-            if (event.shiftKey) selection.extendTo(row)
+            if (event.shiftKey) selection.extendTo(row, row)
             else if (event.ctrlKey) selection.toggle(row)
             else selection.anchorAt(row)
           }}
@@ -56,6 +56,11 @@ describe('rowRange', () => {
 })
 
 describe('row keys', () => {
+  it('reads back the kind that produced a key, so a leaf can find its header', () => {
+    expect(isWorkspaceRowKey(workspaceRowKey(wid('x')))).toBe(true)
+    expect(isWorkspaceRowKey(sessionRowKey(sid('x')))).toBe(false)
+  })
+
   it('separates the two row kinds so an id collision cannot cross them', () => {
     expect(sessionRowKey(sid('x'))).not.toBe(workspaceRowKey(wid('x')))
     expect(sessionRowKey(sid('x'))).toBe('session:x')

@@ -89,6 +89,51 @@ describe('Menu', () => {
     expect(onClose).toHaveBeenCalledTimes(2)
   })
 
+  it('takes the focus on a keyboard open and hands it back on close', () => {
+    const three = [
+      { id: 'a', label: 'Alpha' },
+      { id: 'b', label: 'Beta', disabled: true },
+      { id: 'c', label: 'Gamma' },
+    ]
+    render(<button type="button">trigger seat</button>)
+    const seat = screen.getByRole('button', { name: 'trigger seat' })
+    seat.focus()
+    const { rerender } = render(
+      <Menu open autoFocus anchor={<span>trigger</span>} items={three} onSelect={() => {}} onClose={() => {}} />)
+    // The list is a portal at the end of the document, so it must come to the
+    // operator rather than wait for a Tab through everything before it.
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Alpha' }))
+
+    // The arrows walk the enabled rows and wrap; the disabled row is skipped.
+    fireEvent.keyDown(document, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Gamma' }))
+    fireEvent.keyDown(document, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Alpha' }))
+    fireEvent.keyDown(document, { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Gamma' }))
+    fireEvent.keyDown(document, { key: 'Home' })
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Alpha' }))
+    fireEvent.keyDown(document, { key: 'End' })
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Gamma' }))
+    // An unhandled key inside the list keeps its own meaning.
+    fireEvent.keyDown(document, { key: 'x' })
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Gamma' }))
+
+    rerender(
+      <Menu open={false} autoFocus anchor={<span>trigger</span>} items={three} onSelect={() => {}} onClose={() => {}} />)
+    expect(document.activeElement).toBe(seat)
+  })
+
+  it('leaves the focus and the arrows alone for a pointer-opened list', () => {
+    render(<button type="button">trigger seat</button>)
+    const seat = screen.getByRole('button', { name: 'trigger seat' })
+    seat.focus()
+    render(<Menu open anchor={<span>trigger</span>} items={items} onSelect={() => {}} onClose={() => {}} />)
+    expect(document.activeElement).toBe(seat)
+    fireEvent.keyDown(document, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(seat)
+  })
+
   it('inside pointerdown does not close', () => {
     const onClose = vi.fn()
     render(

@@ -114,3 +114,37 @@ describe('WorkspaceBrowser.module.css list', () => {
     expect(declarations('.rail .search')?.get('width')).toBe('36px')
   })
 })
+
+/**
+ * The range gestures and the keyboard both need a visible answer: a selected
+ * row of either kind carries the same marking, and focus reveals the trailing
+ * verbs the pointer gets on hover.
+ */
+describe('Rows.module.css range selection and focus', () => {
+  const marking = ['.projectRow.multiSelected', '.sessionRow.multiSelected'] as const
+
+  it('marks both row kinds a range can hold', () => {
+    for (const selector of marking) {
+      const rule = rowDeclarations(selector)
+      expect(rule, selector).toBeDefined()
+      expect(rule!.get('background')).toBe('var(--dsw-alias-interactive-bg-hover)')
+      expect(rule!.get('box-shadow')).toBe('inset 2px 0 0 var(--dsw-alias-state-business-primary)')
+    }
+  })
+
+  it('draws the tab stop where a selection fill can already cover the row', () => {
+    for (const selector of ['.projectRow:focus-visible', '.sessionRow:focus-visible'] as const) {
+      expect(rowDeclarations(selector)?.get('outline'), selector)
+        .toBe('2px solid var(--dsw-alias-state-business-primary)')
+    }
+  })
+
+  it('reveals the trailing verbs to focus, not only to the pointer', () => {
+    // display:none keeps the ... button out of the tab order, so the keyboard
+    // reaches the row menu only if focus inside the row reveals it.
+    for (const selector of ['.projectRow:focus-within .rowActions', '.sessionRow:focus-within .rowActions'] as const) {
+      expect(rowDeclarations(selector)?.get('display'), selector).toBe('inline-flex')
+    }
+    expect(rowDeclarations('.sessionRow:focus-within .time')?.get('display')).toBe('none')
+  })
+})

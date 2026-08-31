@@ -7,7 +7,7 @@ import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11
 import type { SurfaceAudit } from '@deepseek-ai/dsh-client-a11y'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
-import type { RowDragProps } from '../src/client/rows/Rows.tsx'
+import type { RowDragProps, RowMultiSelection } from '../src/client/rows/Rows.tsx'
 import { ProjectRowItem, SearchResultItem, SessionNodeItem } from '../src/client/rows/Rows.tsx'
 import type { GroupNode, SearchResultNode, SessionNode } from '../src/client/tree.ts'
 import { zh } from '../src/client/locales.ts'
@@ -588,6 +588,7 @@ describe('workspace rows accessibility', () => {
     }
     const ranged = {
       active: true, count: 2, archivableCount: 2,
+      rowKey: 'session:row', seated: true, move: vi.fn(),
       extend: vi.fn(), toggle: vi.fn(), anchor: vi.fn(), archiveSelected: vi.fn(),
     }
     const surfaces = [
@@ -636,7 +637,7 @@ describe('workspace rows accessibility', () => {
       group={group} onToggle={onToggle} onCreate={vi.fn()}
       actions={{ rename: onRename, delete: vi.fn() }} t={t}
     />)
-    fireEvent.contextMenu(screen.getByText('Project'), { clientX: 120, clientY: 240 })
+    fireEvent.contextMenu(screen.getByText('Project'), { button: 2, clientX: 120, clientY: 240 })
     // Right-click opens the same list the ... button does, without toggling the group.
     expect(onToggle).not.toHaveBeenCalled()
     const list = screen.getByRole('menu')
@@ -650,7 +651,7 @@ describe('workspace rows accessibility', () => {
       group={{ ...group, key: 'ungrouped', workspaceId: undefined, createdAt: undefined }}
       onToggle={onToggle} onCreate={vi.fn()} t={t}
     />)
-    fireEvent.contextMenu(screen.getByRole('treeitem'), { clientX: 10, clientY: 10 })
+    fireEvent.contextMenu(screen.getByRole('treeitem'), { button: 2, clientX: 10, clientY: 10 })
     expect(screen.queryByRole('menu')).toBeNull()
   })
 
@@ -662,7 +663,7 @@ describe('workspace rows accessibility', () => {
     }
     const view = render(<SessionNodeItem node={node} currentId={undefined} now={0} onOpen={vi.fn()}
       onRename={vi.fn()} onFork={vi.fn()} onArchive={onArchive} t={t} />)
-    fireEvent.contextMenu(screen.getByText('One'), { clientX: 40, clientY: 60 })
+    fireEvent.contextMenu(screen.getByText('One'), { button: 2, clientX: 40, clientY: 60 })
     const list = screen.getByRole('menu')
     expect(list.style.left).toBe('40px')
     fireEvent.click(screen.getByRole('menuitem', { name: '归档会话' }))
@@ -674,7 +675,7 @@ describe('workspace rows accessibility', () => {
 
     view.rerender(<SessionNodeItem node={{ ...node, blank: true }} currentId={undefined} now={0}
       onOpen={vi.fn()} onRename={vi.fn()} onFork={vi.fn()} onArchive={onArchive} t={t} />)
-    fireEvent.contextMenu(screen.getByText('新会话'), { clientX: 40, clientY: 60 })
+    fireEvent.contextMenu(screen.getByText('新会话'), { button: 2, clientX: 40, clientY: 60 })
     expect(screen.queryByRole('menu')).toBeNull()
   })
 
@@ -683,6 +684,7 @@ describe('workspace rows accessibility', () => {
     const onOne = vi.fn()
     const selection = {
       active: false, count: 0, archivableCount: 0,
+      rowKey: 'session:row', seated: true, move: vi.fn(),
       extend: vi.fn(), toggle: vi.fn(), anchor: vi.fn(), archiveSelected: vi.fn(),
     }
     const node: SessionNode = {
@@ -705,7 +707,7 @@ describe('workspace rows accessibility', () => {
     expect(onOpen).toHaveBeenCalledWith(sid('one'))
 
     // Right-clicking outside the range narrows it to this row before opening.
-    fireEvent.contextMenu(row, { clientX: 8, clientY: 8 })
+    fireEvent.contextMenu(row, { button: 2, clientX: 8, clientY: 8 })
     expect(selection.anchor).toHaveBeenCalledTimes(2)
     expect(screen.getByRole('menuitem', { name: '归档会话' })).toBeTruthy()
     fireEvent.keyDown(document, { key: 'Escape' })
@@ -716,7 +718,7 @@ describe('workspace rows accessibility', () => {
       onRename={vi.fn()} onFork={vi.fn()} onArchive={onOne} selection={ranged} t={t} />)
     expect(screen.getByRole('treeitem').getAttribute('aria-selected')).toBe('true')
     expect(screen.getByRole('treeitem').className).toMatch(/multiSelected/)
-    fireEvent.contextMenu(screen.getByText('One'), { clientX: 8, clientY: 8 })
+    fireEvent.contextMenu(screen.getByText('One'), { button: 2, clientX: 8, clientY: 8 })
     expect(ranged.anchor).toHaveBeenCalledTimes(2)
     expect(screen.queryByRole('menuitem', { name: '重命名' })).toBeNull()
     fireEvent.click(screen.getByRole('menuitem', { name: '归档选中的 3 个会话' }))
@@ -728,6 +730,7 @@ describe('workspace rows accessibility', () => {
     const onRename = vi.fn()
     const selection = {
       active: false, count: 0, archivableCount: 0,
+      rowKey: 'session:row', seated: true, move: vi.fn(),
       extend: vi.fn(), toggle: vi.fn(), anchor: vi.fn(), archiveSelected: vi.fn(),
     }
     const group: GroupNode = {
@@ -758,7 +761,7 @@ describe('workspace rows accessibility', () => {
     />)
     expect(screen.getByRole('treeitem').getAttribute('aria-selected')).toBe('true')
     expect(screen.getByRole('treeitem').className).toMatch(/multiSelected/)
-    fireEvent.contextMenu(screen.getByText('Project'), { clientX: 4, clientY: 4 })
+    fireEvent.contextMenu(screen.getByText('Project'), { button: 2, clientX: 4, clientY: 4 })
     expect(screen.queryByRole('menuitem', { name: '删除工作区' })).toBeNull()
     fireEvent.click(screen.getByRole('menuitem', { name: '归档选中的 5 个会话' }))
     expect(ranged.archiveSelected).toHaveBeenCalledOnce()
@@ -768,6 +771,7 @@ describe('workspace rows accessibility', () => {
   it('leaves the bulk row inert when a project range reaches no session', () => {
     const empty = {
       active: true, count: 2, archivableCount: 0,
+      rowKey: 'session:row', seated: true, move: vi.fn(),
       extend: vi.fn(), toggle: vi.fn(), anchor: vi.fn(), archiveSelected: vi.fn(),
     }
     const group: GroupNode = {
@@ -778,7 +782,7 @@ describe('workspace rows accessibility', () => {
       group={group} onToggle={vi.fn()} onCreate={vi.fn()}
       actions={{ rename: vi.fn(), delete: vi.fn() }} selection={empty} t={t}
     />)
-    fireEvent.contextMenu(screen.getByText('Empty'), { clientX: 4, clientY: 4 })
+    fireEvent.contextMenu(screen.getByText('Empty'), { button: 2, clientX: 4, clientY: 4 })
     const item = screen.getByRole('menuitem', { name: '归档选中的 0 个会话' })
     expect(item.hasAttribute('disabled')).toBe(true)
     fireEvent.click(item)
@@ -789,7 +793,179 @@ describe('workspace rows accessibility', () => {
       group={{ ...group, memberIds: [sid('only')] }} onToggle={vi.fn()} onCreate={vi.fn()}
       actions={{ rename: vi.fn(), delete: vi.fn() }} selection={{ ...empty, archivableCount: 1 }} t={t}
     />)
-    fireEvent.contextMenu(screen.getByText('Empty'), { clientX: 4, clientY: 4 })
+    fireEvent.contextMenu(screen.getByText('Empty'), { button: 2, clientX: 4, clientY: 4 })
     expect(screen.getByRole('menuitem', { name: '归档选中的 1 个会话' }).hasAttribute('disabled')).toBe(false)
+  })
+})
+
+/**
+ * The keyboard reaches everything the pointer does: one tab stop per list, the
+ * arrows inside it, the range gestures on Shift and Space, and the row menu on
+ * the platform's own menu keys.
+ */
+describe('workspace rows keyboard', () => {
+  /** A row's account slice with every gesture recorded. */
+  function account(overrides: Partial<RowMultiSelection> = {}): RowMultiSelection {
+    return {
+      active: false, count: 0, archivableCount: 0, rowKey: 'session:one', seated: true,
+      move: vi.fn(), extend: vi.fn(), toggle: vi.fn(), anchor: vi.fn(), archiveSelected: vi.fn(),
+      ...overrides,
+    }
+  }
+
+  const session: SessionNode = {
+    id: sid('one'), title: 'One', blank: false, running: false,
+    runningSubagentCount: 0, completed: false, updatedAt: 0,
+  }
+
+  const project: GroupNode = {
+    key: 'project', workspaceId: wid('project'), cwd: '/p', createdAt: 0, label: 'Project',
+    sessionCount: 1, expanded: false, containsCurrent: false, sessions: [], memberIds: [sid('one')],
+  }
+
+  /** Render one session row over an account slice and hand back the row element. */
+  function sessionRow(selection: RowMultiSelection, onOpen = vi.fn()): HTMLElement {
+    render(<SessionNodeItem node={session} currentId={undefined} now={0} onOpen={onOpen}
+      onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} selection={selection} t={t} />)
+    return screen.getByRole('treeitem')
+  }
+
+  it("keeps one tab stop per list and publishes each row's key to the list", () => {
+    const seated = sessionRow(account())
+    expect(seated.tabIndex).toBe(0)
+    expect(seated.dataset['rowKey']).toBe('session:one')
+    cleanup()
+    expect(sessionRow(account({ seated: false })).tabIndex).toBe(-1)
+  })
+
+  it('leaves a row outside any account out of the tab order', () => {
+    render(<SessionNodeItem node={{ ...session, blank: true }} currentId={undefined} now={0}
+      onOpen={vi.fn()} onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} t={t} />)
+    const blank = screen.getByRole('treeitem')
+    expect(blank.hasAttribute('tabindex')).toBe(false)
+    // Nothing answers a keystroke there, so the browser keeps every key.
+    const event = createEvent.keyDown(blank, { key: 'ArrowDown' })
+    fireEvent(blank, event)
+    expect(event.defaultPrevented).toBe(false)
+  })
+
+  it('moves the tab stop with the arrows and takes the range along on Shift', () => {
+    const selection = account()
+    const row = sessionRow(selection)
+    fireEvent.keyDown(row, { key: 'ArrowDown' })
+    fireEvent.keyDown(row, { key: 'ArrowUp', shiftKey: true })
+    fireEvent.keyDown(row, { key: 'Home' })
+    fireEvent.keyDown(row, { key: 'End', shiftKey: true })
+    expect(selection.move).toHaveBeenCalledTimes(4)
+    expect(vi.mocked(selection.move).mock.calls).toEqual([
+      ['next', false], ['previous', true], ['first', false], ['last', true],
+    ])
+  })
+
+  it('edits the selection on Space the way a modified click does', () => {
+    const selection = account()
+    const row = sessionRow(selection)
+    fireEvent.keyDown(row, { key: ' ' })
+    expect(selection.toggle).toHaveBeenCalledOnce()
+    fireEvent.keyDown(row, { key: ' ', shiftKey: true })
+    expect(selection.extend).toHaveBeenCalledOnce()
+  })
+
+  it('opens the session on Enter and anchors the range there, as a plain click does', () => {
+    const selection = account()
+    const onOpen = vi.fn()
+    fireEvent.keyDown(sessionRow(selection, onOpen), { key: 'Enter' })
+    expect(selection.anchor).toHaveBeenCalledOnce()
+    expect(onOpen).toHaveBeenCalledWith(sid('one'))
+  })
+
+  it('leaves every other key to the browser', () => {
+    const selection = account()
+    const row = sessionRow(selection)
+    const event = createEvent.keyDown(row, { key: 'a' })
+    fireEvent(row, event)
+    expect(event.defaultPrevented).toBe(false)
+    expect(selection.move).not.toHaveBeenCalled()
+    expect(selection.toggle).not.toHaveBeenCalled()
+  })
+
+  it('steps a session row out to the header it sits under', () => {
+    const selection = account()
+    fireEvent.keyDown(sessionRow(selection), { key: 'ArrowLeft' })
+    expect(selection.move).toHaveBeenCalledWith('parent', false)
+  })
+
+  it("works a project row's disclosure with the horizontal arrows", () => {
+    const selection = account({ rowKey: 'workspace:project' })
+    const onToggle = vi.fn()
+    const view = render(<ProjectRowItem group={project} onToggle={onToggle} onCreate={vi.fn()}
+      actions={{ rename: vi.fn(), delete: vi.fn() }} selection={selection} t={t} />)
+    const row = screen.getByRole('treeitem')
+    // Folded: the opening arrow opens it and the closing arrow has nothing to do.
+    fireEvent.keyDown(row, { key: 'ArrowRight' })
+    expect(onToggle).toHaveBeenCalledOnce()
+    fireEvent.keyDown(row, { key: 'ArrowLeft' })
+    expect(onToggle).toHaveBeenCalledOnce()
+
+    // Open: the opening arrow steps into the first child, the closing one folds.
+    view.rerender(<ProjectRowItem group={{ ...project, expanded: true }} onToggle={onToggle}
+      onCreate={vi.fn()} actions={{ rename: vi.fn(), delete: vi.fn() }} selection={selection} t={t} />)
+    const open = screen.getByRole('treeitem')
+    fireEvent.keyDown(open, { key: 'ArrowRight' })
+    expect(selection.move).toHaveBeenCalledWith('next', false)
+    fireEvent.keyDown(open, { key: 'ArrowLeft' })
+    expect(onToggle).toHaveBeenCalledTimes(2)
+  })
+
+  it("routes a project row's remaining keys through the same account gestures", () => {
+    const selection = account({ rowKey: 'workspace:project' })
+    const onToggle = vi.fn()
+    render(<ProjectRowItem group={project} onToggle={onToggle} onCreate={vi.fn()}
+      actions={{ rename: vi.fn(), delete: vi.fn() }} selection={selection} t={t} />)
+    const row = screen.getByRole('treeitem')
+    fireEvent.keyDown(row, { key: 'ArrowDown', shiftKey: true })
+    expect(selection.move).toHaveBeenCalledWith('next', true)
+    fireEvent.keyDown(row, { key: 'Enter' })
+    expect(selection.anchor).toHaveBeenCalledOnce()
+    expect(onToggle).toHaveBeenCalledOnce()
+  })
+
+  it('opens the row menu against the row on the platform menu keys and hands it the focus', () => {
+    const selection = account()
+    const row = sessionRow(selection)
+    row.focus()
+    // Shift+F10 and the ContextMenu key reach the row as a contextmenu event
+    // with no pointer button behind it.
+    fireEvent.contextMenu(row)
+    const list = screen.getByRole('menu')
+    expect(list.style.left).toBe('0px')
+    expect(list.style.top).toBe('4px')
+    const first = screen.getAllByRole('menuitem')[0]
+    expect(document.activeElement).toBe(first)
+
+    // The arrows walk the list once the focus is inside it.
+    fireEvent.keyDown(document, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(screen.getAllByRole('menuitem')[1])
+
+    // Closing gives the focus back to the row it came from.
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(document.activeElement).toBe(row)
+  })
+
+  it('has no row to hand the focus to when the whole list is inert', () => {
+    const row = sessionRow(account({ active: true, count: 2, archivableCount: 0 }))
+    row.focus()
+    fireEvent.contextMenu(row)
+    expect(screen.getByRole('menuitem').hasAttribute('disabled')).toBe(true)
+    expect(document.activeElement).toBe(row)
+  })
+
+  it('leaves the focus alone when the pointer opened the list', () => {
+    const row = sessionRow(account())
+    row.focus()
+    fireEvent.contextMenu(row, { button: 2, clientX: 40, clientY: 60 })
+    expect(screen.getByRole('menu').style.left).toBe('40px')
+    expect(document.activeElement).toBe(row)
   })
 })
