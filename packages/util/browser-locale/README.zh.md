@@ -15,9 +15,9 @@ kind: "package-library"
 
 - [使用本包](#use-this-package)
 - [理解实现](#understand-the-implementation)
-- [已知限制与待办](#known-limitations-and-deferred-work)
 - [进一步探索](#further-exploration)
 - [开发备注](#dev-note)
+- [已知限制与待办](#known-limitations-and-deferred-work)
 
 -----
 
@@ -81,13 +81,6 @@ const locale = resolveBrowserLocale(['fr', 'zh-CN', 'en'])
 
 -----
 
-<a id="known-limitations-and-deferred-work"></a>
-## 已知限制与待办
-
-所提供的语言集合固定为 `en` 与 `zh`，与产品提供的文案一致。新增第三种语言会改变本模块的类型以及每一个以它为键的词典，因此该集合只会被有意地变更，而不通过配置调整。
-
------
-
 <a id="further-exploration"></a>
 ## 进一步探索
 
@@ -105,3 +98,11 @@ const locale = resolveBrowserLocale(['fr', 'zh-CN', 'en'])
 无。
 
 </details>
+
+-----
+
+<a id="known-limitations-and-deferred-work"></a>
+## 已知限制与待办
+
+- 所提供的语言集合固定为 `en` 与 `zh`，与产品提供的文案一致。新增第三种语言会改变本模块的类型以及每一个以它为键的词典，因此该集合只会被有意地变更，而不通过配置调整。
+- 只有语言子标签起作用。`zh-Hant` 与 `zh-Hans` 都会选中简体中文词典，因为产品只提供一套中文文案；要按书写系统区分，先要有第二套词典，然后才谈得上在这里加规则。

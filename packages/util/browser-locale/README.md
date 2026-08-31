@@ -15,9 +15,9 @@ English | [中文](README.zh.md)
 
 - [Use this package](#use-this-package)
 - [Understand the implementation](#understand-the-implementation)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 - [Further Exploration](#further-exploration)
 - [Dev Note](#dev-note)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 
 -----
 
@@ -81,13 +81,6 @@ A boot shell paints before any plugin loads, so it cannot depend on the locale s
 
 -----
 
-<a id="known-limitations-and-deferred-work"></a>
-## Known Limitations and Deferred Work
-
-The shipped locale set is fixed at `en` and `zh`, matching the copy the product ships. A third locale changes this module's type and every dictionary that keys on it, so the set moves deliberately rather than by configuration.
-
------
-
 <a id="further-exploration"></a>
 ## Further Exploration
 
@@ -105,3 +98,11 @@ The shipped locale set is fixed at `en` and `zh`, matching the copy the product 
 None.
 
 </details>
+
+-----
+
+<a id="known-limitations-and-deferred-work"></a>
+## Known Limitations and Deferred Work
+
+- The shipped locale set is fixed at `en` and `zh`, matching the copy the product ships. A third locale changes this module's type and every dictionary that keys on it, so the set moves deliberately rather than by configuration.
+- Only the language subtag decides. `zh-Hant` and `zh-Hans` both select the Simplified Chinese dictionary, because the product ships one Chinese copy set; a script-aware choice needs a second dictionary before it needs a rule here.
