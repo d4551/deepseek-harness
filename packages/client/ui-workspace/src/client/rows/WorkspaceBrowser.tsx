@@ -21,12 +21,12 @@ import type {
 import type { WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { WorkspaceBrowserProps } from '../contract/slots.ts'
-import type { SessionNode, SessionOrderBy } from '../tree.ts'
+import type { GroupNode, SessionNode, SessionOrderBy } from '../tree.ts'
 import { deriveFlat, deriveGroups, deriveSearchResults, UNGROUPED_KEY } from '../tree.ts'
 import { ProjectRowItem, SearchResultItem, SessionNodeItem } from './Rows.tsx'
-import type { SessionRowSelection } from './Rows.tsx'
-import { useRowSelection } from '../selection.ts'
-import type { RowSelection } from '../selection.ts'
+import type { RowMultiSelection } from './Rows.tsx'
+import { sessionRowKey, useRowSelection, workspaceRowKey } from '../selection.ts'
+import type { RowKey, RowSelection } from '../selection.ts'
 import { FLAT_SESSION_ORDER_KEY } from '../stores.ts'
 import { WorkspacePickFlow } from '../WorkspacePicker.tsx'
 import css from './WorkspaceBrowser.module.css'
@@ -213,27 +213,75 @@ function ViewOptionsMenu({ groupBy, orderBy, onGroupPick, onOrderPick, t }: {
 }
 
 /**
+ * Sessions each selectable row stands for. A session row stands for itself; a
+ * Workspace header stands for every member of its group, folded or not, so a
+ * range that crosses projects reaches the sessions inside them.
+ * @param groups - the rendered groups.
+ * @returns the reach of every selectable row in the grouped tree.
+ */
+function groupedSelectionReach(groups: readonly GroupNode[]): ReadonlyMap<RowKey, readonly SessionId[]> {
+  const reach = new Map<RowKey, readonly SessionId[]>()
+  for (const group of groups) {
+    if (group.workspaceId !== undefined) reach.set(workspaceRowKey(group.workspaceId), group.memberIds)
+    for (const node of group.sessions) {
+      if (!node.blank) reach.set(sessionRowKey(node.id), [node.id])
+    }
+  }
+  return reach
+}
+
+/**
+ * The sessions one selection reaches, each once, in rendered order. A session
+ * selected both directly and through its project counts once.
+ * @param keys - the live selection in rendered order.
+ * @param reach - sessions each selectable row stands for.
+ * @returns the sessions a bulk archive would commit.
+ */
+function reachedSessionIds(
+  keys: readonly RowKey[],
+  reach: ReadonlyMap<RowKey, readonly SessionId[]>,
+): readonly SessionId[] {
+  const seen = new Set<SessionId>()
+  const reached: SessionId[] = []
+  for (const key of keys) {
+    for (const sessionId of reach.get(key) ?? []) {
+      if (seen.has(sessionId)) continue
+      seen.add(sessionId)
+      reached.push(sessionId)
+    }
+  }
+  return reached
+}
+
+/**
  * One row's slice of a list selection. Committing the bulk archive drops the
  * selection immediately: the rows themselves leave on the archive-set echo,
  * and a selection outliving them would still count them in the next gesture.
  * @param selection - the list's live selection.
- * @param id - the row this slice belongs to.
- * @param archiveSessions - commit an archive for every selected row.
+ * @param key - the row this slice belongs to.
+ * @param active - whether the row shows as selected; for a session row this is
+ *   its presence in the reach, so a selected project highlights the members it
+ *   would archive rather than leaving them to disappear unannounced.
+ * @param reached - sessions the whole selection archives.
+ * @param archiveSessions - commit an archive for every reached session.
  * @returns the row-facing selection wiring.
  */
 function rowSelection(
   selection: RowSelection,
-  id: SessionNode['id'],
-  archiveSessions: (sessionIds: readonly SessionNode['id'][]) => void,
-): SessionRowSelection {
+  key: RowKey,
+  active: boolean,
+  reached: readonly SessionId[],
+  archiveSessions: (sessionIds: readonly SessionId[]) => void,
+): RowMultiSelection {
   return {
-    active: selection.has(id),
-    count: selection.ids.length,
-    extend: () => { selection.extendTo(id) },
-    toggle: () => { selection.toggle(id) },
-    anchor: () => { selection.anchorAt(id) },
+    active,
+    count: selection.keys.length,
+    archivableCount: reached.length,
+    extend: () => { selection.extendTo(key) },
+    toggle: () => { selection.toggle(key) },
+    anchor: () => { selection.anchorAt(key) },
     archiveSelected: () => {
-      archiveSessions(selection.ids)
+      archiveSessions(reached)
       selection.clear()
     },
   }
@@ -271,12 +319,21 @@ function sessionRowWiring(source: Pick<
   }
 }
 
-/** Screen-reader account of a live range selection; the row fill carries it visually. */
-function SelectionStatus({ count, t }: { count: number; t: WorkspaceBrowserProps['t'] }) {
+/**
+ * Screen-reader account of a live range selection; the row fill is its only
+ * other channel. It reports the sessions the selection reaches — the rows
+ * marked and the sessions a bulk archive would commit — not the row count,
+ * which would overstate a range that crossed a project header.
+ */
+function SelectionStatus({ count, reached, t }: {
+  count: number
+  reached: number
+  t: WorkspaceBrowserProps['t']
+}) {
   if (count === 0) return null
   return (
     <span className={css.visuallyHidden} role="status">
-      {t(count === 1 ? 'selection.count.one' : 'selection.count.other', { n: count })}
+      {t(reached === 1 ? 'selection.count.one' : 'selection.count.other', { n: reached })}
     </span>
   )
 }
@@ -419,17 +476,27 @@ function SessionTree({
     }),
     [list, orderedWorkspaces, archivedSessionIds, pendingInteractions, expandedGroups, sessionOrderByAccount],
   )
-  // The range account is the rendered reading order across every open group,
-  // so a shift-click spans Workspace boundaries the way the operator sees them.
-  // Folded groups contribute no rows, and a provisional blank New Session has
-  // no verbs to bulk-apply.
-  const selectableIds = useMemo(
-    () => groups.flatMap(group => (
-      expandedSessionGroups.includes(group.key) ? group.sessions : collapsedSessionRows(group.sessions).rows
-    ).filter(node => !node.blank).map(node => node.id)),
+  // The range account is the rendered reading order: each real Workspace
+  // header followed by the session rows under it. Clicking a project and
+  // shift-clicking a lower one therefore selects everything between, headers
+  // included. The ungrouped bucket has no Workspace verbs and stays out; so
+  // does a provisional blank New Session.
+  const selectableKeys = useMemo(
+    () => groups.flatMap(group => [
+      ...group.workspaceId === undefined ? [] : [workspaceRowKey(group.workspaceId)],
+      ...(expandedSessionGroups.includes(group.key)
+        ? group.sessions
+        : collapsedSessionRows(group.sessions).rows
+      ).filter(node => !node.blank).map(node => sessionRowKey(node.id)),
+    ]),
     [groups, expandedSessionGroups],
   )
-  const selection = useRowSelection(selectableIds)
+  const selection = useRowSelection(selectableKeys)
+  const selectionReach = useMemo(() => groupedSelectionReach(groups), [groups])
+  const reached = reachedSessionIds(selection.keys, selectionReach)
+  // Highlight equals reach: a selected project marks the member rows it would
+  // archive, so nothing outside the visible marking disappears on commit.
+  const reachedSet = new Set(reached)
   const now = Date.now()
   const wiring = sessionRowWiring({
     currentId: current, now, open, onSessionRename, forkSession, onSessionsArchive, t,
@@ -514,7 +581,7 @@ function SessionTree({
   return (
     <div className={clsx(css.treeBody, css.wide)}>
       {workspaceDropAtListStart && <span className={css.listTopDropIndicator} aria-hidden="true" />}
-      <SelectionStatus count={selection.ids.length} t={t} />
+      <SelectionStatus count={selection.keys.length} reached={reached.length} t={t} />
       <div
         className={clsx(css.list, workspaceDropAtListStart && css.listTopDropActive)}
         role="tree"
@@ -600,6 +667,17 @@ function SessionTree({
                   }
                 }}
                 drag={workspaceDragProps}
+                {...group.workspaceId === undefined
+                  ? {}
+                  : {
+                    selection: rowSelection(
+                      selection,
+                      workspaceRowKey(group.workspaceId),
+                      selection.has(workspaceRowKey(group.workspaceId)),
+                      reached,
+                      onSessionsArchive,
+                    ),
+                  }}
                 actions={group.workspaceId === undefined
                   ? undefined
                   : {
@@ -645,7 +723,13 @@ function SessionTree({
                 return (
                   <SessionNodeItem
                     key={node.id} {...wiring} node={node} drag={dragProps}
-                    {...node.blank ? {} : { selection: rowSelection(selection, node.id, onSessionsArchive) }}
+                    {...node.blank
+                      ? {}
+                      : {
+                        selection: rowSelection(
+                          selection, sessionRowKey(node.id), reachedSet.has(node.id), reached, onSessionsArchive,
+                        ),
+                      }}
                   />
                 )
               })}
@@ -725,10 +809,18 @@ function FlatList({
         return row === undefined ? [] : [row]
       })
   }, [baseRows, sessionOrderByAccount, sessionIds])
-  const selection = useRowSelection(useMemo(
-    () => rows.filter(row => !row.blank).map(row => row.id),
-    [rows],
-  ))
+  // The flat list has no Workspace headers: every selectable row is a session
+  // standing only for itself.
+  const selectionReach = useMemo(() => {
+    const reach = new Map<RowKey, readonly SessionId[]>()
+    for (const row of rows) {
+      if (!row.blank) reach.set(sessionRowKey(row.id), [row.id])
+    }
+    return reach
+  }, [rows])
+  const selection = useRowSelection(useMemo(() => [...selectionReach.keys()], [selectionReach]))
+  const reached = reachedSessionIds(selection.keys, selectionReach)
+  const reachedSet = new Set(reached)
   const [drag, setDrag] = useState<DragState | null>(null)
   const dropCommitted = useRef(false)
   useNativeDragAcceptance(drag !== null)
@@ -754,7 +846,7 @@ function FlatList({
   })
   return (
     <div className={clsx(css.treeBody, css.wide)}>
-      <SelectionStatus count={selection.ids.length} t={t} />
+      <SelectionStatus count={selection.keys.length} reached={reached.length} t={t} />
       <div
         className={clsx(css.list, css.flatList)}
         role="tree"
@@ -769,7 +861,13 @@ function FlatList({
           return (
             <SessionNodeItem
               key={node.id} {...wiring} node={node} flat
-              {...node.blank ? {} : { selection: rowSelection(selection, node.id, onSessionsArchive) }}
+              {...node.blank
+                ? {}
+                : {
+                  selection: rowSelection(
+                    selection, sessionRowKey(node.id), reachedSet.has(node.id), reached, onSessionsArchive,
+                  ),
+                }}
               drag={{
                 start: () => {
                   dropCommitted.current = false

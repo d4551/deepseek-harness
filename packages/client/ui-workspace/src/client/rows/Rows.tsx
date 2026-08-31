@@ -14,7 +14,7 @@ import {
   IconEllipsisOutline16, IconFolderClose16, IconFolderOpen16, IconPlusOutline16,
   IconTrashOutline16, IconTriangleRightFill14, Menu, relativeTime, StateDot,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { StateDotState } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { MenuItem, StateDotState } from '@deepseek-ai/dsh-client-ui-primitives'
 import { abbreviateHomePath } from '@deepseek-ai/dsh-util-workspace-path'
 import type { WorkspaceBrowserProps } from '../contract/slots.ts'
 import type { GroupNode, SearchResultNode, SessionNode } from '../tree.ts'
@@ -144,6 +144,92 @@ function useRowMenu(): RowMenu {
 }
 
 /**
+ * One row's view of its list's multi-selection. Both row kinds carry the same
+ * contract: the list owns the set and resolves what a bulk action reaches, and
+ * the row reports gestures and renders only what it is told.
+ */
+export interface RowMultiSelection {
+  /** This row is in the selection (distinct fill and `aria-selected`). */
+  active: boolean
+  /** Rows selected across the list; two or more widen every row menu in it. */
+  count: number
+  /**
+   * Sessions the bulk archive reaches. A selected Workspace row answers for
+   * its members, so this is not the row count.
+   */
+  archivableCount: number
+  /** Shift-click: select every rendered row between the anchor and this one. */
+  extend: () => void
+  /** Ctrl/Cmd-click: add or remove this row. */
+  toggle: () => void
+  /** Plain click: this row becomes the anchor and any previous selection drops. */
+  anchor: () => void
+  /** Archive every session the selection reaches. */
+  archiveSelected: () => void
+}
+
+/**
+ * Route a row click through the multi-selection. Shift extends the range and
+ * Ctrl/Cmd adds or removes one row; either replaces the row's own activation.
+ * A plain click re-anchors the range and lets the row act as it always did.
+ * @param selection - the row's selection wiring, absent on unselectable rows.
+ * @param event - the click being routed.
+ * @returns whether the selection consumed the click.
+ */
+function selectionTookClick(
+  selection: RowMultiSelection | undefined,
+  event: ReactMouseEvent,
+): boolean {
+  if (selection === undefined) return false
+  if (event.shiftKey) { selection.extend(); return true }
+  if (event.metaKey || event.ctrlKey) { selection.toggle(); return true }
+  selection.anchor()
+  return false
+}
+
+/**
+ * Open a row's menu under the pointer. A right-click outside the current range
+ * narrows the selection to this row first, the platform rule.
+ * @param menu - the row's menu state.
+ * @param selection - the row's selection wiring, absent on unselectable rows.
+ * @param event - the contextmenu event being answered.
+ */
+function openRowMenuAtPointer(
+  menu: RowMenu,
+  selection: RowMultiSelection | undefined,
+  event: ReactMouseEvent,
+): void {
+  if (selection !== undefined && !selection.active) selection.anchor()
+  menu.openAtPointer(event)
+}
+
+/** A selection of two or more rows, whose bulk row replaces the per-row verbs. */
+function widenedSelection(selection: RowMultiSelection | undefined): RowMultiSelection | undefined {
+  return selection !== undefined && selection.active && selection.count > 1 ? selection : undefined
+}
+
+/**
+ * The one action a multi-row selection defines. Rename, Fork, and Delete all
+ * address a single row, so the widened list carries this row alone; a range of
+ * empty projects reaches no Session and leaves it inert rather than absent.
+ * @param selection - the widened selection.
+ * @param t - the browser root's locale seat.
+ * @returns the sole menu row.
+ */
+function bulkArchiveItems(selection: RowMultiSelection, t: RowTranslate): MenuItem[] {
+  return [{
+    id: 'archive-selected',
+    label: t(
+      selection.archivableCount === 1 ? 'menu.archiveSelected.one' : 'menu.archiveSelected.other',
+      { n: selection.archivableCount },
+    ),
+    // 20-native glyph in the menu's 16px icon slot (Menu.module.css .itemIcon).
+    icon: <IconArchiveOutline20 size={16} />,
+    disabled: selection.archivableCount === 0,
+  }]
+}
+
+/**
  * Project (workspace) header row: folder + title;
  * hover reveals the chevron and create button, and dwelling on a real
  * Workspace shows its hover card (the ungrouped bucket has none).
@@ -151,17 +237,23 @@ function useRowMenu(): RowMenu {
  * @param props.group - derived group node.
  * @param props.onToggle - expand/collapse the group.
  * @param props.onCreate - start a frontend Session inside this Workspace.
+ * @param props.selection - multi-selection wiring; absent on the ungrouped bucket.
  * @param props.drag - optional workspace-row drag wiring.
  * @param props.home - host account home for POSIX hover-path abbreviation.
  * @param props.t - the browser root's locale seat.
  * @returns the row element.
  */
-export function ProjectRowItem({ group, onToggle, onCreate, actions, drag, home, t }: {
+export function ProjectRowItem({ group, onToggle, onCreate, actions, selection, drag, home, t }: {
   group: GroupNode
   onToggle: () => void
   onCreate: () => void
   /** Real-Workspace actions; absent for the ungrouped bucket (no menu shown). */
   actions?: { rename: () => void; delete: () => void } | undefined
+  /**
+   * Multi-selection wiring. Absent on the ungrouped bucket, which has no
+   * backing Workspace and therefore no row verbs to apply to a range.
+   */
+  selection?: RowMultiSelection | undefined
   /** Present only for real Workspace rows in the grouped view. */
   drag?: WorkspaceRowDragProps | undefined
   /** Host account home; POSIX home-rooted hover paths display as `~`. */
@@ -174,18 +266,29 @@ export function ProjectRowItem({ group, onToggle, onCreate, actions, drag, home,
   const active = group.expanded && group.containsCurrent
   const menu = useRowMenu()
   const menuOpen = menu.open
-  const workspaceMenuItems = [
-    { id: 'rename', label: t('rename'), icon: <IconEditOutline16 /> },
-    { id: 'delete', label: t('delete.workspace'), icon: <IconTrashOutline16 />, danger: true },
-  ]
+  const inSelection = selection?.active === true
+  const bulk = widenedSelection(selection)
+  const workspaceMenuItems = bulk === undefined
+    ? [
+      { id: 'rename', label: t('rename'), icon: <IconEditOutline16 /> },
+      { id: 'delete', label: t('delete.workspace'), icon: <IconTrashOutline16 />, danger: true },
+    ]
+    : bulkArchiveItems(bulk, t)
   const ownRow = (
     <div
-      className={clsx(css.projectRow, menuOpen && css.menuOpen)}
+      className={clsx(css.projectRow, menuOpen && css.menuOpen, inSelection && css.multiSelected)}
       role="treeitem"
       aria-expanded={row.expanded}
-      onClick={onToggle}
+      aria-selected={inSelection}
+      onClick={(e) => {
+        // A modified click edits the range instead of folding the group.
+        if (selectionTookClick(selection, e)) return
+        onToggle()
+      }}
       // The ungrouped bucket has no Workspace verbs, so it keeps the platform menu.
-      onContextMenu={actions === undefined ? undefined : menu.openAtPointer}
+      onContextMenu={actions === undefined
+        ? undefined
+        : (e) => { openRowMenuAtPointer(menu, selection, e) }}
       draggable={drag !== undefined}
       onDragStart={drag === undefined
         ? undefined
@@ -213,6 +316,8 @@ export function ProjectRowItem({ group, onToggle, onCreate, actions, drag, home,
             items={workspaceMenuItems}
             onSelect={(id) => {
               menu.close()
+              // The widened list carries the bulk row alone, so it needs no id test.
+              if (bulk !== undefined) { bulk.archiveSelected(); return }
               // Unknown ids leave before the dispatch: a future menu row must
               // not inherit the destructive branch as an else fallback.
               /* v8 ignore next -- Menu can emit only the rename and delete rows supplied above. */
@@ -396,25 +501,6 @@ export function SearchResultItem({ result, currentId, onOpen, t }: {
 }
 
 /**
- * One row's view of its list's multi-selection. The list owns the set; the row
- * reports gestures and reads back only what it renders.
- */
-export interface SessionRowSelection {
-  /** This row is in the selection (distinct fill and `aria-selected`). */
-  active: boolean
-  /** Rows currently selected across the list; the bulk menu row labels itself with it. */
-  count: number
-  /** Shift-click: select every rendered row between the anchor and this one. */
-  extend: () => void
-  /** Ctrl/Cmd-click: add or remove this row. */
-  toggle: () => void
-  /** Plain click: this row becomes the anchor and any previous selection drops. */
-  anchor: () => void
-  /** Archive every selected row at once (the bulk menu row). */
-  archiveSelected: () => void
-}
-
-/**
  * One top-level 34px session row: status dot (pending user interaction outranks
  * own or descendant activity), title, relative time, and the row actions menu.
  * @param props.node - derived session node.
@@ -446,7 +532,7 @@ export function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork
    * provisional blank New Session, which has no row verbs at all, and search
    * results, whose list is a filtered projection rather than an account.
    */
-  selection?: SessionRowSelection | undefined
+  selection?: RowMultiSelection | undefined
   /** Present only on draggable rows (workspace-group sessions outside search). */
   drag?: RowDragProps | undefined
   /** The row is rendered without a parent Workspace header. */
@@ -462,11 +548,7 @@ export function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork
   const menu = useRowMenu()
   const menuOpen = menu.open
   const inSelection = selection?.active === true
-  // A range of two or more rows replaces the per-row verbs: rename and fork
-  // address one session, so only the bulk archive survives the widening.
-  const bulk = selection !== undefined && selection.active && selection.count > 1
-    ? selection
-    : undefined
+  const bulk = widenedSelection(selection)
   // Archive hides the row through the registry-global archive set and never
   // touches the session log, so it is not styled as destructive and needs no
   // confirmation dialog.
@@ -477,13 +559,7 @@ export function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork
       // 20-native glyph in the menu's 16px icon slot (Menu.module.css .itemIcon).
       { id: 'archive', label: t('menu.archiveSession'), icon: <IconArchiveOutline20 size={16} /> },
     ]
-    : [
-      {
-        id: 'archive-selected',
-        label: t('menu.archiveSelected', { n: bulk.count }),
-        icon: <IconArchiveOutline20 size={16} />,
-      },
-    ]
+    : bulkArchiveItems(bulk, t)
   // Figma session cell: pad 8, status slot 16, then a 4px title gap.
   const ownRow = (
     <div
@@ -496,21 +572,14 @@ export function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork
       role="treeitem"
       aria-selected={selected || inSelection}
       onClick={(e) => {
-        if (selection !== undefined) {
-          if (e.shiftKey) { selection.extend(); return }
-          if (e.metaKey || e.ctrlKey) { selection.toggle(); return }
-          selection.anchor()
-        }
+        // A modified click edits the range instead of opening the Session.
+        if (selectionTookClick(selection, e)) return
         onOpen(node.id)
       }}
-      // A right-click outside the current range acts on this row alone, the
-      // platform rule; the row menu is absent on a blank row, so is this.
+      // The row menu is absent on a blank row, so its right-click answer is too.
       onContextMenu={row.blank
         ? undefined
-        : (e) => {
-          if (selection !== undefined && !selection.active) selection.anchor()
-          menu.openAtPointer(e)
-        }}
+        : (e) => { openRowMenuAtPointer(menu, selection, e) }}
       draggable={drag !== undefined}
       onDragStart={drag === undefined
         ? undefined

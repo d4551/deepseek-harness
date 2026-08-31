@@ -60,6 +60,12 @@ export interface GroupNode {
   containsCurrent: boolean
   /** Visible session rows (empty while the group is folded). */
   sessions: readonly SessionNode[]
+  /**
+   * Every session a group-wide row action reaches, in local order and
+   * independent of expansion — a folded group still answers for its members.
+   * The provisional blank New Session is excluded: it carries no row verbs.
+   */
+  memberIds: readonly SessionId[]
 }
 
 /** One flat search row combining list metadata with an optional content match. */
@@ -293,6 +299,7 @@ export function deriveGroups(
       sessions: expanded
         ? g.sessions.map(session => sessionNode(session, descendants, pendingInteractions))
         : [],
+      memberIds: g.sessions.filter(session => !session.blank).map(session => session.id),
     })
   }
   return groups

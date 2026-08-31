@@ -34,6 +34,20 @@ const noAttention: ReadonlyMap<SessionId, SessionPendingInteractionBase> = new M
 const archived = (...ids: string[]): readonly SessionId[] => ids.map(sid)
 
 describe('deriveGroups', () => {
+  it('answers for a folded group\u2019s members and leaves the provisional blank row out', () => {
+    const blank = { ...summary('draft', 5), blank: true }
+    const sessions = { ...list(summary('kept', 20), blank, summary('gone', 1)), current: sid('draft') }
+    const workspaces = [workspace('first', ['kept', 'draft', 'gone'])]
+    const [folded] = deriveGroups(sessions, workspaces, archived('gone'), noAttention, view())
+    // Folded groups render no session rows, yet a group-wide action still
+    // reaches their members; archived rows and the blank draft never do.
+    expect(folded?.sessions).toEqual([])
+    expect(folded?.memberIds).toEqual([sid('kept')])
+    const [open] = deriveGroups(sessions, workspaces, archived('gone'), noAttention, view(['first']))
+    expect(open?.sessions.map(node => node.id)).toEqual([sid('kept'), sid('draft')])
+    expect(open?.memberIds).toEqual([sid('kept')])
+  })
+
   it('keeps Host Workspace and sessionIds order without Client recency sorting', () => {
     const sessions = list(summary('newer', 20), summary('older', 10))
     const workspaces = [workspace('first', ['older', 'newer']), workspace('empty', [])]

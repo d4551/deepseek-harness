@@ -58,6 +58,11 @@ function fireDrag(row: HTMLElement, kind: 'dragOver' | 'drop', clientY: number):
   fireEvent(row, event)
 }
 
+/** Whether the row carrying this label renders as part of the range selection. */
+function marked(label: string): boolean {
+  return screen.getByText(label).closest('[role="treeitem"]')?.className.includes('multiSelected') === true
+}
+
 function dragData(): Pick<DataTransfer, 'effectAllowed' | 'dropEffect' | 'setData'> {
   return { effectAllowed: 'uninitialized', dropEffect: 'none', setData: vi.fn() }
 }
@@ -432,32 +437,67 @@ describe('WorkspaceBrowser', () => {
     expect(screen.queryByText('gone-s')).toBeNull()
   })
 
-  it('archives a shift-selected range that spans two workspace groups', () => {
+  it('archives a shift-selected session range inside one workspace group', () => {
     const archiveSession = vi.fn(async () => {})
     mount({
-      useSessions: hook(sessionState([
-        summary('a1', 4), summary('a2', 3), summary('b1', 2), summary('b2', 1),
-      ])),
-      useWorkspaces: hook(workspaceState([
-        workspace('alpha', ['a1', 'a2']),
-        workspace('beta', ['b1', 'b2']),
-      ])),
+      useSessions: hook(sessionState([summary('a1', 3), summary('a2', 2), summary('a3', 1)])),
+      useWorkspaces: hook(workspaceState([workspace('alpha', ['a1', 'a2', 'a3'])])),
       archiveSession,
     })
     fireEvent.click(screen.getByText('alpha'))
-    fireEvent.click(screen.getByText('beta'))
+    fireEvent.click(screen.getByText('a1'))
+    fireEvent.click(screen.getByText('a3'), { shiftKey: true })
+    expect(screen.getByRole('status').textContent).toBe('已选择 3 个会话')
 
-    // The range account is the rendered reading order, so it crosses the group header.
-    fireEvent.click(screen.getByText('a2'))
-    fireEvent.click(screen.getByText('b1'), { shiftKey: true })
-    expect(screen.getByRole('status').textContent).toBe('已选择 2 个会话')
-    const rows = screen.getAllByRole('treeitem').filter(row => row.className.includes('multiSelected'))
-    expect(rows.map(row => row.textContent?.slice(0, 2))).toEqual(['a2', 'b1'])
-
-    fireEvent.contextMenu(screen.getByText('b1'), { clientX: 30, clientY: 40 })
-    fireEvent.click(screen.getByRole('menuitem', { name: '归档选中的 2 个会话' }))
-    expect(archiveSession.mock.calls).toEqual([[sid('a2')], [sid('b1')]])
+    fireEvent.contextMenu(screen.getByText('a3'), { clientX: 30, clientY: 40 })
+    fireEvent.click(screen.getByRole('menuitem', { name: '归档选中的 3 个会话' }))
+    expect(archiveSession.mock.calls).toEqual([[sid('a1')], [sid('a2')], [sid('a3')]])
     expect(screen.queryByRole('status')).toBeNull()
+  })
+
+  it('archives every session between a clicked project and a lower shift-clicked project', () => {
+    const archiveSession = vi.fn(async () => {})
+    mount({
+      useSessions: hook(sessionState([
+        summary('a1', 4), summary('b1', 3), summary('c1', 2), summary('c2', 1),
+      ])),
+      useWorkspaces: hook(workspaceState([
+        workspace('alpha', ['a1']),
+        workspace('beta', ['b1']),
+        workspace('gamma', ['c1', 'c2']),
+      ])),
+      archiveSession,
+    })
+    // Every project stays folded: a range over headers must still answer for
+    // the sessions inside them.
+    fireEvent.click(screen.getByText('alpha'))
+    fireEvent.click(screen.getByText('gamma'), { shiftKey: true })
+    expect(screen.getByRole('status').textContent).toBe('已选择 4 个会话')
+    // The plain click also unfolded alpha, so its member row marks with it.
+    expect(['alpha', 'a1', 'beta', 'gamma'].map(marked)).toEqual([true, true, true, true])
+
+    fireEvent.contextMenu(screen.getByText('beta'), { clientX: 12, clientY: 20 })
+    fireEvent.click(screen.getByRole('menuitem', { name: '归档选中的 4 个会话' }))
+    expect(archiveSession.mock.calls).toEqual([[sid('a1')], [sid('b1')], [sid('c1')], [sid('c2')]])
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+
+  it('marks the member rows a selected project would archive', () => {
+    mount({
+      useSessions: hook(sessionState([summary('a1', 3), summary('a2', 2), summary('b1', 1)])),
+      useWorkspaces: hook(workspaceState([
+        workspace('alpha', ['a1', 'a2']),
+        workspace('beta', ['b1']),
+      ])),
+    })
+    fireEvent.click(screen.getByText('alpha'))
+    // Ctrl-picking the open project marks the rows its bulk archive reaches.
+    fireEvent.click(screen.getByText('alpha'), { ctrlKey: true })
+    expect(['alpha', 'a1', 'a2', 'beta'].map(marked)).toEqual([true, true, true, false])
+    expect(screen.getByRole('status').textContent).toBe('已选择 2 个会话')
+    // One picked row keeps the per-row Workspace verbs.
+    fireEvent.contextMenu(screen.getByText('alpha'), { clientX: 6, clientY: 6 })
+    expect(screen.getByRole('menuitem', { name: '删除工作区' })).toBeTruthy()
   })
 
   it('archives a ctrl-picked selection in the flat list and withdraws it on Escape', () => {

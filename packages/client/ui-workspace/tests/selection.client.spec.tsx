@@ -1,21 +1,23 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import type { WorkspaceId } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import { rowRange, useRowSelection } from '../src/client/selection.ts'
+import { rowRange, sessionRowKey, useRowSelection, workspaceRowKey } from '../src/client/selection.ts'
 
 afterEach(cleanup)
 
 const sid = (id: string) => id as SessionId
+const wid = (id: string) => id as WorkspaceId
 const ids = (...values: string[]) => values.map(sid)
 
 /** Minimal list harness: one button per row plus a read-out of the live selection. */
-function Harness({ rows, onRender }: { rows: readonly SessionId[]; onRender?: () => void }) {
+function Harness({ rows, onRender }: { rows: readonly string[]; onRender?: () => void }) {
   const selection = useRowSelection(rows)
   onRender?.()
   return (
     <div>
-      <span data-testid="selected">{selection.ids.join(',')}</span>
+      <span data-testid="selected">{selection.keys.join(',')}</span>
       {rows.map(row => (
         <button
           key={row}
@@ -41,15 +43,28 @@ const row = (id: string) => screen.getByRole('button', { name: id })
 describe('rowRange', () => {
   it('reads a slice in rendered order from either endpoint', () => {
     const rows = ids('a', 'b', 'c', 'd')
-    expect(rowRange(rows, sid('b'), sid('d'))).toEqual(ids('b', 'c', 'd'))
-    expect(rowRange(rows, sid('d'), sid('b'))).toEqual(ids('b', 'c', 'd'))
-    expect(rowRange(rows, sid('c'), sid('c'))).toEqual(ids('c'))
+    expect(rowRange(rows, 'b', 'd')).toEqual(ids('b', 'c', 'd'))
+    expect(rowRange(rows, 'd', 'b')).toEqual(ids('b', 'c', 'd'))
+    expect(rowRange(rows, 'c', 'c')).toEqual(ids('c'))
   })
 
   it('selects nothing when either endpoint is no longer rendered', () => {
     const rows = ids('a', 'b')
-    expect(rowRange(rows, sid('gone'), sid('b'))).toEqual([])
-    expect(rowRange(rows, sid('a'), sid('gone'))).toEqual([])
+    expect(rowRange(rows, 'gone', 'b')).toEqual([])
+    expect(rowRange(rows, 'a', 'gone')).toEqual([])
+  })
+})
+
+describe('row keys', () => {
+  it('separates the two row kinds so an id collision cannot cross them', () => {
+    expect(sessionRowKey(sid('x'))).not.toBe(workspaceRowKey(wid('x')))
+    expect(sessionRowKey(sid('x'))).toBe('session:x')
+    expect(workspaceRowKey(wid('x'))).toBe('workspace:x')
+  })
+
+  it('spans both kinds in one rendered account', () => {
+    const account = [workspaceRowKey(wid('alpha')), sessionRowKey(sid('a1')), workspaceRowKey(wid('beta'))]
+    expect(rowRange(account, workspaceRowKey(wid('alpha')), workspaceRowKey(wid('beta')))).toEqual(account)
   })
 })
 

@@ -1,65 +1,88 @@
 /**
- * Range multi-selection over one session list's rendered rows. Each list owns
- * its own selection and addresses rows in the order it renders them, so a
- * shift-click spans Workspace group boundaries exactly as the operator sees
- * them. Selection is transient view state: it lives with the mounted list and
- * is never persisted.
+ * Range multi-selection over one list's rendered rows. Each list owns its own
+ * selection and addresses rows in the order it renders them, so a shift-click
+ * spans Workspace group boundaries — and the Workspace header rows themselves —
+ * exactly as the operator sees them. Selection is transient view state: it
+ * lives with the mounted list and is never persisted.
  */
 import { useEffect, useState } from 'react'
-import type { SessionNode } from './tree.ts'
+import type { WorkspaceId } from '@deepseek-ai/dsh-api-workspace-controller/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 
-/** Session identity as the rows carry it. */
-type RowId = SessionNode['id']
+/**
+ * One selectable row's key. The two row kinds share one ordered account, so
+ * their keys share one namespace and carry the kind that produced them.
+ */
+export type RowKey = string
+
+/**
+ * Selection key for a session row.
+ * @param sessionId - the row's Session.
+ * @returns the row's key in the shared account.
+ */
+export function sessionRowKey(sessionId: SessionId): RowKey {
+  return `session:${sessionId}`
+}
+
+/**
+ * Selection key for a Workspace (project) header row. The Ungrouped bucket has
+ * no backing Workspace and no row verbs, so it never enters an account.
+ * @param workspaceId - the row's Workspace.
+ * @returns the row's key in the shared account.
+ */
+export function workspaceRowKey(workspaceId: WorkspaceId): RowKey {
+  return `workspace:${workspaceId}`
+}
 
 /**
  * The contiguous rendered slice between two rows, inclusive.
- * @param ids - every selectable row in rendered order.
+ * @param keys - every selectable row in rendered order.
  * @param from - one endpoint (the anchor).
  * @param to - the other endpoint (the row just clicked).
  * @returns the slice in rendered order, or nothing when an endpoint is no longer rendered.
  */
-export function rowRange(ids: readonly RowId[], from: RowId, to: RowId): readonly RowId[] {
-  const start = ids.indexOf(from)
-  const end = ids.indexOf(to)
+export function rowRange(keys: readonly RowKey[], from: RowKey, to: RowKey): readonly RowKey[] {
+  const start = keys.indexOf(from)
+  const end = keys.indexOf(to)
   if (start === -1 || end === -1) return []
-  return start <= end ? ids.slice(start, end + 1) : ids.slice(end, start + 1)
+  return start <= end ? keys.slice(start, end + 1) : keys.slice(end, start + 1)
 }
 
 /** One list's live multi-selection and the gestures that edit it. */
 export interface RowSelection {
   /** Selected rows in rendered order; a row that stopped rendering has already left. */
-  readonly ids: readonly RowId[]
+  readonly keys: readonly RowKey[]
   /** Whether one row is in the selection. */
-  readonly has: (id: RowId) => boolean
+  readonly has: (key: RowKey) => boolean
   /** Plain activation: this row becomes the range anchor and the selection empties. */
-  readonly anchorAt: (id: RowId) => void
+  readonly anchorAt: (key: RowKey) => void
   /** Shift activation: select every rendered row between the anchor and this one. */
-  readonly extendTo: (id: RowId) => void
+  readonly extendTo: (key: RowKey) => void
   /** Ctrl/Cmd activation: add or remove this row, which also becomes the anchor. */
-  readonly toggle: (id: RowId) => void
+  readonly toggle: (key: RowKey) => void
   /** Drop the selection — a bulk action committed, or Escape withdrew it. */
   readonly clear: () => void
 }
 
 /** Anchor plus raw membership; membership is reconciled against rendered rows on read. */
 interface SelectionState {
-  anchor: RowId | undefined
-  ids: readonly RowId[]
+  anchor: RowKey | undefined
+  keys: readonly RowKey[]
 }
 
-const EMPTY: SelectionState = { anchor: undefined, ids: [] }
+const EMPTY: SelectionState = { anchor: undefined, keys: [] }
 
 /**
  * Track a multi-selection over one list's rendered rows.
- * @param renderedIds - every selectable row the list renders, in rendered order.
+ * @param renderedKeys - every selectable row the list renders, in rendered order.
  * @returns the reconciled selection and its gestures.
  */
-export function useRowSelection(renderedIds: readonly RowId[]): RowSelection {
+export function useRowSelection(renderedKeys: readonly RowKey[]): RowSelection {
   const [state, setState] = useState<SelectionState>(EMPTY)
   // Rendered order is the account: a row that was archived, filtered out by a
   // search, or folded away leaves the selection without a reconciliation pass.
-  const ids = renderedIds.filter(id => state.ids.includes(id))
-  const active = ids.length > 0
+  const keys = renderedKeys.filter(key => state.keys.includes(key))
+  const active = keys.length > 0
   // Escape is the only exit that neither navigates nor commits, so it is worth
   // a document listener: the rows are not focusable, and the list has no
   // keyboard seat of its own to hang it on.
@@ -72,23 +95,23 @@ export function useRowSelection(renderedIds: readonly RowId[]): RowSelection {
     return () => { document.removeEventListener('keydown', onKeyDown) }
   }, [active])
   return {
-    ids,
-    has: id => ids.includes(id),
-    anchorAt: (id) => {
+    keys,
+    has: key => keys.includes(key),
+    anchorAt: (key) => {
       // Every navigating click lands here, so an already-anchored row with
       // nothing selected writes no state and costs the list no render.
-      if (state.anchor === id && state.ids.length === 0) return
-      setState({ anchor: id, ids: [] })
+      if (state.anchor === key && state.keys.length === 0) return
+      setState({ anchor: key, keys: [] })
     },
-    extendTo: (id) => {
+    extendTo: (key) => {
       // A shift-click with no prior anchor anchors itself, selecting one row.
-      const anchor = state.anchor ?? id
-      setState({ anchor, ids: rowRange(renderedIds, anchor, id) })
+      const anchor = state.anchor ?? key
+      setState({ anchor, keys: rowRange(renderedKeys, anchor, key) })
     },
-    toggle: (id) => {
+    toggle: (key) => {
       setState({
-        anchor: id,
-        ids: ids.includes(id) ? ids.filter(selected => selected !== id) : [...ids, id],
+        anchor: key,
+        keys: keys.includes(key) ? keys.filter(selected => selected !== key) : [...keys, key],
       })
     },
     clear: () => { setState(EMPTY) },
