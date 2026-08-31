@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-01-workspace-row-keyboard-account.md
+2026-09-01-workspace-row-keyboard-account.md: c2b5f75df7e7fbe2efa9469fb5a93c0fce464d16
+2026-09-01-workspace-row-keyboard-account.zh.md: 09e94ca174e82123f977f25f509faa82ead1e714

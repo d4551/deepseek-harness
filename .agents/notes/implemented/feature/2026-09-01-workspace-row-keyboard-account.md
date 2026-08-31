@@ -1,0 +1,37 @@
+# Agent Note: Keyboard reach for the workspace row account
+
+Status: implemented
+
+English | [中文](2026-09-01-workspace-row-keyboard-account.zh.md)
+
+## Problem
+
+The row context menu and the range archive ([the gesture note](2026-08-31-workspace-row-context-menu-and-range-archive.md)) shipped as pointer work only. The rows are `role="treeitem"` elements with no tab stop, and a row's trailing verbs — the **...** button among them — are `display: none` until the pointer hovers the row, which also keeps them out of the tab order. An operator without a pointer could therefore reach neither the row menu nor the range selection: the sidebar's whole browsing region was one Tab-through of hidden buttons. The marking a range applies to a project header had no rule behind it either, so a project caught in a range carried `aria-selected` and a class that painted nothing.
+
+## Decision
+
+Each list owns one roving tab stop over the same ordered account its range selection already uses, held by `useRowFocus` in `packages/client/ui-workspace/src/client/row-focus.ts`. The seat reconciles on read against the rendered keys exactly as the selection does, so a row that is archived, folded away, or filtered out gives the seat back to the head of the account without a separate pass. Rows publish their key as `data-row-key` and the list moves the focus by that attribute: the seat travels between siblings the moving row cannot reach, and the list already owns the element they render into. Rows outside an account — the Ungrouped bucket header, the provisional blank **New Session**, and the search results — stay out of the tab order, because they carry no verb a keystroke could reach.
+
+`RowMultiSelection` carries the seat alongside the selection, so one prop describes a row's whole slice of its list and the pointer and the keyboard edit the same set through the same verbs. `rowKeyDown` in `Rows.tsx` routes the keystrokes both row kinds share: the arrows and Home/End move the seat, Shift carries the range with the move, Space adds or removes the focused row where Ctrl/Cmd-click would, Shift+Space takes the range, and Enter anchors and does what a plain click does. Each row kind answers the horizontal arrows itself, because they mean different things to a parent and to a leaf: on a project header the opening arrow unfolds a folded group and steps into the first child of an open one while the closing arrow folds it, and on a session row the closing arrow steps out to the header it sits under. Every other key keeps its browser meaning, and only an answered keystroke has its default taken away.
+
+A keyboard range needs an anchor the pointer gets for free, since a shift-click is always preceded by the plain click that set one. `RowSelection.extendTo` therefore names the gesture's origin as well as its destination: a shift-click passes the row under the pointer, a Shift+arrow passes the row the focus left, and an open range keeps the anchor it already has, so a run of Shift+arrows grows from where the range began rather than from the row each keystroke leaves.
+
+Shift+F10 and the ContextMenu key reach the row as the same `contextmenu` event a right-click does, with no pointer button behind it, so `useRowMenu` discriminates on the button rather than adding a second path: a secondary press anchors the list at the cursor, and a keyboard request anchors it against the row and takes the focus into it through `Menu`'s new `autoFocus` prop. `Menu` needs that prop because its list is a portal at the end of the document — leaving the focus on the row would put every other focusable element on the page between the operator and the menu — and it walks its own rows with the arrows once the focus is on one of them. Focus inside a row now reveals the trailing verbs on the same terms hover does, which is what puts the **...** button in the tab order at all, and both row kinds carry the range marking and a focus ring that survives the selection fill beneath it.
+
+## Alternatives considered
+
+**Leave the rows unfocusable and hang the keyboard off the ... button.** Rejected: the button is `display: none` until hover, so it is not in the tab order to hang anything on, and revealing it permanently would cost every row its resting layout. It also gives no seat for the arrows, which is what a range gesture needs.
+
+**Give the rows `tabIndex={0}` instead of a roving seat.** Rejected: a sidebar of fifty sessions would then cost fifty Tab presses to pass, and the tree pattern exists precisely to make a list one tab stop. The roving seat is also what the range extension addresses — Shift+arrow has to know which row it left.
+
+**Model the keyboard as a separate row prop beside the selection.** Rejected: the two have identical presence conditions — every row in an account has both, every row outside one has neither — so two props would let a caller express a state that cannot exist, and every gesture would have to test both.
+
+**Focus the first row of every opened `Menu`.** Rejected: a list the pointer opened must not move the focus, and the hover-dismissed row menus would steal it from whatever the operator was typing in. The caller knows which gesture opened its list, so the prop is opt-in and the primitive stays honest for pointer callers.
+
+**Add `role="group"` wrappers and `aria-level` to the tree.** Rejected here: the flat group section is how the tree was already built, it is not part of either gesture this note covers, and restructuring the rendered elements to satisfy it would move CSS that the drag markers and the group rhythm depend on. It stays a known gap rather than a silent one.
+
+## Consequences
+
+The browsing region is one Tab to enter and one to leave, and everything the pointer can do inside it the keyboard can do: walk the tree, work a project's disclosure, open a session, build a range across projects, and commit the bulk archive from the row menu. Screen-reader users get the seat and the `aria-selected` marking they were already promised, plus a visible focus ring where the selection fill would otherwise hide the caret. `Menu` gained one opt-in prop and arrow navigation among its rows, which every existing caller inherits without changing behavior, since the arrows only act once the focus is already on a row.
+
+Coverage: `tests/row-focus.client.spec.tsx` pins the seat, the clamped moves, the step out to a header, and the fallback when the seated row stops rendering; `tests/rows.client.spec.tsx` pins the keystroke routing on both row kinds, the tab-stop attributes, the rows left out of the account, and the two menu origins with their focus behavior; `tests/workspace-browser.client.spec.tsx` archives a project range built entirely from the keyboard and walks the assembled tree; `tests/browser-styles.client.spec.ts` pins that both row kinds carry the marking, that focus reveals the trailing verbs, and that the tab stop is drawn; and `packages/client/ui-primitives/tests/atoms.client.spec.tsx` pins `autoFocus`, the focus return, and that a pointer-opened list leaves both alone. The tree's flat group structure and its missing `aria-level` remain uncovered, because they remain unchanged.
