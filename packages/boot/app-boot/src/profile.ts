@@ -510,17 +510,29 @@ function profileDependencyNames(manifest: ProfileManifest): string[] {
   return [...Object.keys(manifest.dependencies ?? {}), ...Object.keys(manifest.peerDependencies ?? {})]
 }
 
+/**
+ * Resolve one package directory to its physical location. A probe path can
+ * traverse a symlinked layout (a nested node_modules entry reached through a
+ * symlinked parent package) whose later relative hops resolve only from the
+ * physical parent, so a stored fallback target must be the canonical
+ * directory, not the probe path.
+ */
+function canonicalPackageDir(dir: string | undefined): string | undefined {
+  return dir === undefined ? undefined : realpathSync.native(dir)
+}
+
 /** Resolve the installation generation that every profile must find through the fallback directory. */
 function resolveModuleFallbackEntries(
   installAnchor: string,
 ): { entries: ModuleFallbackEntry[]; packageNames: ReadonlySet<string> } {
-  const appManifest = readModuleFallbackManifest(installAnchor)
+  const appAnchor = realpathSync.native(installAnchor)
+  const appManifest = readModuleFallbackManifest(appAnchor)
   const links = new Map<string, string>()
   /* v8 ignore next -- a real app manifest always declares its name */
-  if (appManifest.name !== undefined) links.set(appManifest.name, dirname(installAnchor))
+  if (appManifest.name !== undefined) links.set(appManifest.name, dirname(appAnchor))
   // BFS over the resolvable dependency graph; the visited set is the link
   // map itself (first resolution wins, matching Node's own nearest-wins).
-  const queue: { anchor: string; manifest: ProfileManifest }[] = [{ anchor: installAnchor, manifest: appManifest }]
+  const queue: { anchor: string; manifest: ProfileManifest }[] = [{ anchor: appAnchor, manifest: appManifest }]
   for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
     // Peer dependencies participate: Service Definition packages (dsh-subprocess,
     // dsh-compaction, ...) are peers of their implementations, never plain
@@ -528,9 +540,9 @@ function resolveModuleFallbackEntries(
     /* v8 ignore next -- a real app manifest always declares dependencies */
     for (const dep of profileDependencyNames(next.manifest)) {
       if (links.has(dep)) continue
-      const dir = packageDirFromAnchor(next.anchor, dep)
       // A declared-but-uninstalled dependency cannot be a loader-visible
       // plugin; skip it rather than fail the whole boot.
+      const dir = canonicalPackageDir(packageDirFromAnchor(next.anchor, dep))
       if (dir === undefined) continue
       links.set(dep, dir)
       const manifestPath = join(dir, 'package.json')

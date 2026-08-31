@@ -343,6 +343,36 @@ describe('healProfilesModuleFallback', () => {
     expect(before).toContain('dep-of-a')
   })
 
+  it('links canonical realpaths when a dependency resolves through a symlinked workspace layout', async () => {
+    // bun workspaces link packages as symlinks whose nested node_modules
+    // entries are relative links resolving only from the physical parent;
+    // a probe path through such a layout must not become the link target.
+    const root = tmp()
+    const appDir = join(root, 'app')
+    const holderReal = join(root, 'pkgs', 'holder')
+    const toolsReal = join(root, 'pkgs', 'tools')
+    for (const dir of [join(appDir, 'node_modules'), join(holderReal, 'node_modules'), toolsReal]) {
+      mkdirSync(dir, { recursive: true })
+    }
+    writeFileSync(join(appDir, 'package.json'), JSON.stringify({
+      name: 'dsh-app', version: '0.0.0', type: 'module',
+      dependencies: { 'linked-holder': '0.0.0' },
+    }))
+    writeFileSync(join(holderReal, 'package.json'), JSON.stringify({
+      name: 'linked-holder', version: '0.0.0', type: 'module',
+      dependencies: { 'dsh-tools': '0.0.0' },
+    }))
+    writeFileSync(join(toolsReal, 'package.json'), JSON.stringify({ name: 'dsh-tools', version: '0.0.0', type: 'module' }))
+    symlinkSync(holderReal, join(appDir, 'node_modules', 'linked-holder'), 'junction')
+    symlinkSync('../../../tools', join(holderReal, 'node_modules', 'dsh-tools'))
+
+    const home = tmp()
+    await healProfilesModuleFallback({ installAnchor: join(appDir, 'package.json'), home })
+    const fallback = join(home, 'profiles', 'node_modules')
+    expect(readlinkSync(join(fallback, 'linked-holder'))).toBe(realpathSync.native(holderReal))
+    expect(readlinkSync(join(fallback, 'dsh-tools'))).toBe(realpathSync.native(toolsReal))
+  })
+
   it('throws when a fallback entry is a foreign file or directory', async () => {
     const anchor = stageInstallation({})
     for (const kind of ['file', 'directory']) {
