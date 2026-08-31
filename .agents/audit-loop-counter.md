@@ -2,7 +2,7 @@
 
 Adversarial audit loop counter (user-mandated). +1 each time the audit loop restarts.
 
-Count: **3**
+Count: **4**
 
 | # | when | reason |
 | --- | --- | --- |
