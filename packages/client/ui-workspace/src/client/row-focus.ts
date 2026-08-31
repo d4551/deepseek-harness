@@ -1,14 +1,15 @@
 /**
  * Roving tab seat over one list's rendered rows. The list keeps a single tab
  * stop so the browsing region costs one Tab to enter and one to leave, and the
- * arrow keys move inside it — the tree pattern's focus rule. The seat rides the
- * same ordered account the range selection uses, so the keyboard reaches
- * exactly the rows a pointer can select. Like the selection, the seat is
+ * arrow keys move inside it — the tree pattern's focus rule. Every rendered row
+ * takes a seat, including the ones a range cannot select: a node of a tree the
+ * arrows can never reach is a node with no keyboard at all, and the rows a
+ * range skips still carry verbs of their own. Like the selection, the seat is
  * transient view state and dies with the mounted list.
  */
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
-import { isWorkspaceRowKey } from './selection.ts'
+import { isHeaderRowKey } from './selection.ts'
 import type { RowKey } from './selection.ts'
 
 /**
@@ -47,10 +48,10 @@ function landingIndex(index: number, target: FocusTarget, keys: readonly RowKey[
     case 'first': return 0
     case 'last': return keys.length - 1
     case 'parent': {
-      // The header this row sits under is the nearest preceding Workspace row.
+      // The header this row sits under is the nearest preceding header row.
       // A row already at the top level, and every row of the flat list, finds
       // none and holds.
-      const header = keys.slice(0, index).findLastIndex(isWorkspaceRowKey)
+      const header = keys.slice(0, index).findLastIndex(isHeaderRowKey)
       return header === -1 ? index : header
     }
   }
@@ -76,7 +77,7 @@ function focusRow(list: HTMLElement | null, key: RowKey): void {
 
 /**
  * Track one list's tab seat over its rendered rows.
- * @param renderedKeys - every selectable row the list renders, in rendered order.
+ * @param renderedKeys - every row the list renders, in rendered order.
  * @param listRef - the element the rows render into, for moving focus between them.
  * @returns the reconciled seat and the move its rows ask for.
  */
@@ -88,6 +89,18 @@ export function useRowFocus(
   // A seat whose row stopped rendering falls back to the head of the account,
   // on the same reconcile-on-read terms the selection uses.
   const seat = seated !== undefined && renderedKeys.includes(seated) ? seated : renderedKeys[0]
+  // Whether the keyboard has driven this list, which is what makes a lost focus
+  // this list's to recover rather than a page state to leave alone.
+  const driven = useRef(false)
+  // A row that leaves — archived, folded away, filtered out by a search — takes
+  // the focus out of the document with it, and the browser drops it on the body.
+  // The seat has already fallen back to a rendered row, so hand it the focus
+  // instead of stranding the operator at the top of the page.
+  useEffect(() => {
+    if (!driven.current || seat === undefined) return
+    if (document.activeElement !== document.body) return
+    focusRow(listRef.current, seat)
+  }, [seat, listRef])
   return {
     seat,
     moveFrom: (from, target) => {
@@ -95,6 +108,7 @@ export function useRowFocus(
       /* v8 ignore next -- the row asking is the row rendered, so it is in the account. */
       if (index === -1) return undefined
       const landed = renderedKeys[landingIndex(index, target, renderedKeys)]
+      driven.current = true
       if (landed === undefined || landed === from) return undefined
       setSeated(landed)
       focusRow(listRef.current, landed)

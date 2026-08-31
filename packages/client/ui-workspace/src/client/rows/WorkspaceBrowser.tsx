@@ -24,10 +24,10 @@ import type { WorkspaceBrowserProps } from '../contract/slots.ts'
 import type { GroupNode, SessionNode, SessionOrderBy } from '../tree.ts'
 import { deriveFlat, deriveGroups, deriveSearchResults, UNGROUPED_KEY } from '../tree.ts'
 import { ProjectRowItem, SearchResultItem, SessionNodeItem } from './Rows.tsx'
-import type { RowMultiSelection } from './Rows.tsx'
+import type { RowMultiSelection, RowSeat } from './Rows.tsx'
 import { useRowFocus } from '../row-focus.ts'
 import type { RowFocus } from '../row-focus.ts'
-import { sessionRowKey, useRowSelection, workspaceRowKey } from '../selection.ts'
+import { sessionRowKey, UNGROUPED_ROW_KEY, useRowSelection, workspaceRowKey } from '../selection.ts'
 import type { RowKey, RowSelection } from '../selection.ts'
 import { FLAT_SESSION_ORDER_KEY } from '../stores.ts'
 import { WorkspacePickFlow } from '../WorkspacePicker.tsx'
@@ -275,25 +275,47 @@ function rowSelection(
   reached: readonly SessionId[],
   archiveSessions: (sessionIds: readonly SessionId[]) => void,
 ): RowMultiSelection {
-  const { selection, focus } = account
+  const { selection } = account
   return {
     active,
     count: selection.keys.length,
     archivableCount: reached.length,
-    rowKey: key,
-    seated: focus.seat === key,
-    // Shift with an arrow is the keyboard's shift-click: the focus lands on the
-    // new row and the range follows it there, anchored where it left.
-    move: (target, extend) => {
-      const landed = focus.moveFrom(key, target)
-      if (landed !== undefined && extend) selection.extendTo(landed, key)
-    },
     extend: () => { selection.extendTo(key, key) },
     toggle: () => { selection.toggle(key) },
     anchor: () => { selection.anchorAt(key) },
     archiveSelected: () => {
       archiveSessions(reached)
       selection.clear()
+    },
+  }
+}
+
+/**
+ * One row's place in its list's tab order. Every rendered row takes a seat,
+ * whether or not a range can select it, so the arrows walk the whole tree.
+ * @param account - the list's live selection and tab stop.
+ * @param key - the row this seat belongs to.
+ * @param level - the row's depth in the tree, reported as `aria-level`.
+ * @param selectable - whether a range reaches this row, so Shift can carry it.
+ * @returns the row-facing seat.
+ */
+function rowSeat(
+  account: { selection: RowSelection; focus: RowFocus },
+  key: RowKey,
+  level: number,
+  selectable: boolean,
+): RowSeat {
+  const { selection, focus } = account
+  return {
+    rowKey: key,
+    seated: focus.seat === key,
+    level,
+    // Shift with an arrow is the keyboard's shift-click: the focus lands on the
+    // new row and the range follows it there, anchored where it left. A row no
+    // range reaches still moves the focus; it just takes nothing with it.
+    move: (target, extend) => {
+      const landed = focus.moveFrom(key, target)
+      if (landed !== undefined && extend && selectable) selection.extendTo(landed, key)
     },
   }
 }
@@ -487,24 +509,35 @@ function SessionTree({
     }),
     [list, orderedWorkspaces, archivedSessionIds, pendingInteractions, expandedGroups, sessionOrderByAccount],
   )
-  // The range account is the rendered reading order: each real Workspace
-  // header followed by the session rows under it. Clicking a project and
-  // shift-clicking a lower one therefore selects everything between, headers
-  // included. The ungrouped bucket has no Workspace verbs and stays out; so
-  // does a provisional blank New Session.
-  const selectableKeys = useMemo(
+  // Rendered rows of the grouped tree, in reading order: each header followed
+  // by the session rows under it.
+  const renderedRows: readonly { key: RowKey; blank: boolean }[] = useMemo(
     () => groups.flatMap(group => [
-      ...group.workspaceId === undefined ? [] : [workspaceRowKey(group.workspaceId)],
+      {
+        key: group.workspaceId === undefined ? UNGROUPED_ROW_KEY : workspaceRowKey(group.workspaceId),
+        blank: false,
+      },
       ...(expandedSessionGroups.includes(group.key)
         ? group.sessions
         : collapsedSessionRows(group.sessions).rows
-      ).filter(node => !node.blank).map(node => sessionRowKey(node.id)),
+      ).map(node => ({ key: sessionRowKey(node.id), blank: node.blank })),
     ]),
     [groups, expandedSessionGroups],
   )
+  // The tab order is every rendered row: a node the arrows can never reach is a
+  // node with no keyboard at all, and the rows a range skips carry verbs of
+  // their own — the bucket's create button, the blank draft's own activation.
+  const focusKeys = useMemo(() => renderedRows.map(row => row.key), [renderedRows])
+  // The range account is the subset a bulk action can address. The ungrouped
+  // bucket has no Workspace verbs and stays out; so does a provisional blank
+  // New Session, which has no row verbs at all.
+  const selectableKeys = useMemo(
+    () => renderedRows.filter(row => row.key !== UNGROUPED_ROW_KEY && !row.blank).map(row => row.key),
+    [renderedRows],
+  )
   const listRef = useRef<HTMLDivElement>(null)
   const selection = useRowSelection(selectableKeys)
-  const focus = useRowFocus(selectableKeys, listRef)
+  const focus = useRowFocus(focusKeys, listRef)
   const account = { selection, focus }
   const selectionReach = useMemo(() => groupedSelectionReach(groups), [groups])
   const reached = reachedSessionIds(selection.keys, selectionReach)
@@ -646,6 +679,10 @@ function SessionTree({
           // (WorkspaceBrowser.module.css).
             <div
               key={group.key}
+              // The tree owns its treeitems directly; this section is layout and
+              // the drag target, so it must not sit in the accessibility tree
+              // between them. Depth travels on each row's `aria-level` instead.
+              role="presentation"
               className={clsx(
                 css.groupSection,
                 workspaceMarker === 'before' && css.workspaceDropBefore,
@@ -669,6 +706,12 @@ function SessionTree({
                 group={group}
                 home={home}
                 t={t}
+                seat={rowSeat(
+                  account,
+                  group.workspaceId === undefined ? UNGROUPED_ROW_KEY : workspaceRowKey(group.workspaceId),
+                  1,
+                  group.workspaceId !== undefined,
+                )}
                 onToggle={() => {
                   if (group.expanded) {
                     setExpandedSessionGroups(keys => keys.filter(key => key !== group.key))
@@ -738,6 +781,7 @@ function SessionTree({
                 return (
                   <SessionNodeItem
                     key={node.id} {...wiring} node={node} drag={dragProps}
+                    seat={rowSeat(account, sessionRowKey(node.id), 2, !node.blank)}
                     {...node.blank
                       ? {}
                       : {
@@ -834,9 +878,12 @@ function FlatList({
     return reach
   }, [rows])
   const listRef = useRef<HTMLDivElement>(null)
+  // The flat list renders one row per session, so its tab order is every row
+  // and its range account is every row but a provisional blank draft.
+  const flatFocusKeys = useMemo(() => rows.map(node => sessionRowKey(node.id)), [rows])
   const flatKeys = useMemo(() => [...selectionReach.keys()], [selectionReach])
   const selection = useRowSelection(flatKeys)
-  const focus = useRowFocus(flatKeys, listRef)
+  const focus = useRowFocus(flatFocusKeys, listRef)
   const account = { selection, focus }
   const reached = reachedSessionIds(selection.keys, selectionReach)
   const reachedSet = new Set(reached)
@@ -881,6 +928,7 @@ function FlatList({
           return (
             <SessionNodeItem
               key={node.id} {...wiring} node={node} flat
+              seat={rowSeat(account, sessionRowKey(node.id), 1, !node.blank)}
               {...node.blank
                 ? {}
                 : {

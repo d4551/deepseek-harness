@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write packages/client/ui-workspace/README.md
-README.md: 78090e70726cdcacb89ea2d3fc3251b0df41fafb
-README.zh.md: 3d3ee69172719cea84a675d488e0cc26ac597c17
+README.md: 9ec343a27cd0a5b4c6f7ef282c11f67628df68d4
+README.zh.md: 97933a509703ddc8b66289a1e18522cfa81f9569

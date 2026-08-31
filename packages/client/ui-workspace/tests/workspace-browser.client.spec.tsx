@@ -424,7 +424,7 @@ describe('WorkspaceBrowser', () => {
       archiveSession,
     })
     fireEvent.click(screen.getByText('alpha'))
-    fireEvent.click(screen.getByRole('button', { name: '会话“gone-s”的操作' }))
+    fireEvent.click(screen.getByRole('button', { name: '会话“gone-s”的操作' }), { detail: 1 })
     fireEvent.click(screen.getByRole('menuitem', { name: '归档会话' }))
     expect(archiveSession).toHaveBeenCalledWith(sid('gone-s'))
 
@@ -585,6 +585,71 @@ describe('WorkspaceBrowser', () => {
     expect(archiveSession.mock.calls).toEqual([[sid('one')], [sid('two')], [sid('three')]])
   })
 
+  it('walks every rendered row, including the ones no range can select', () => {
+    mount({
+      useSessions: hook(sessionState([summary('loose', 2), summary('a1', 1)], { current: sid('loose') })),
+      useWorkspaces: hook(workspaceState([workspace('alpha', ['a1'])])),
+    })
+    const rowOf = (label: string): HTMLElement =>
+      screen.getByText(label).closest<HTMLElement>('[role="treeitem"]')!
+    const rows = () => screen.getAllByRole('treeitem')
+    // Every treeitem is reachable: a node the arrows can never enter is a node
+    // with no keyboard at all.
+    expect(rows().every(node => node.hasAttribute('tabindex'))).toBe(true)
+    expect(rows().filter(node => node.tabIndex === 0)).toHaveLength(1)
+
+    // The Ungrouped bucket takes no selection state, because no range reaches it.
+    const bucket = rowOf('未分组')
+    expect(bucket.hasAttribute('aria-selected')).toBe(false)
+    expect(bucket.getAttribute('aria-level')).toBe('1')
+    expect(rowOf('loose').getAttribute('aria-level')).toBe('2')
+
+    // The tree owns its treeitems directly; the group section is layout.
+    expect(bucket.parentElement?.getAttribute('role')).toBe('presentation')
+
+    // The arrows walk into and out of the bucket all the same.
+    rows().find(node => node.tabIndex === 0)!.focus()
+    fireEvent.keyDown(document.activeElement!, { key: 'End' })
+    expect(document.activeElement).toBe(rowOf('loose'))
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(bucket)
+    expect(bucket.tabIndex).toBe(0)
+
+    // Shift across it carries the range without ever selecting the bucket.
+    fireEvent.keyDown(document.activeElement!, { key: 'End', shiftKey: true })
+    expect(marked('未分组')).toBe(false)
+  })
+
+  it('hands the focus to the surviving row when the archived rows leave', () => {
+    const archiveSession = vi.fn(async () => {})
+    const b = mount({
+      useSessions: hook(sessionState([summary('a1', 3), summary('a2', 2), summary('a3', 1)])),
+      useWorkspaces: hook(workspaceState([workspace('alpha', ['a1', 'a2', 'a3'])])),
+      archiveSession,
+    })
+    fireEvent.click(screen.getByText('alpha'))
+    fireEvent.click(screen.getByText('a1'))
+    fireEvent.click(screen.getByText('a2'), { shiftKey: true })
+    const rowOf = (label: string): HTMLElement =>
+      screen.getByText(label).closest<HTMLElement>('[role="treeitem"]')!
+    rowOf('a3').focus()
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(rowOf('a2'))
+
+    fireEvent.contextMenu(document.activeElement!)
+    fireEvent.click(screen.getByRole('menuitem', { name: '归档选中的 2 个会话' }))
+    expect(archiveSession.mock.calls).toEqual([[sid('a1')], [sid('a2')]])
+
+    // The archive-set echo removes the rows the focus was standing on; the seat
+    // has already fallen back, so the focus follows it instead of the body.
+    rerender(b, {
+      useSessions: hook(sessionState([summary('a3', 1)])),
+      useWorkspaces: hook(workspaceState([workspace('alpha', ['a1', 'a2', 'a3'])], [sid('a1'), sid('a2')])),
+    })
+    expect(screen.queryByText('a1')).toBeNull()
+    expect(document.activeElement).toBe(rowOf('alpha'))
+  })
+
   it('marks the member rows a selected project would archive', () => {
     mount({
       useSessions: hook(sessionState([summary('a1', 3), summary('a2', 2), summary('b1', 1)])),
@@ -638,7 +703,7 @@ describe('WorkspaceBrowser', () => {
         archiveSession,
       })
       fireEvent.click(screen.getByText('alpha'))
-      fireEvent.click(screen.getByRole('button', { name: '会话“alpha-s”的操作' }))
+      fireEvent.click(screen.getByRole('button', { name: '会话“alpha-s”的操作' }), { detail: 1 })
       fireEvent.click(screen.getByRole('menuitem', { name: '归档会话' }))
       await Promise.resolve()
       await Promise.resolve()
@@ -1368,7 +1433,7 @@ describe('WorkspaceBrowser', () => {
       useWorkspaces: hook(workspaceState([workspace('alpha', [], 'Alpha'), workspace('beta', [], 'Beta')])),
       renameWorkspace,
     })
-    fireEvent.click(screen.getByRole('button', { name: '工作区“Alpha”的操作' }))
+    fireEvent.click(screen.getByRole('button', { name: '工作区“Alpha”的操作' }), { detail: 1 })
     fireEvent.click(screen.getByRole('menuitem', { name: '重命名' }))
     const input = screen.getByLabelText<HTMLInputElement>('工作区名称')
     expect(input.value).toBe('Alpha')
@@ -1397,7 +1462,7 @@ describe('WorkspaceBrowser', () => {
       useWorkspaces: hook(workspaceState([workspace('alpha', [], 'Alpha')])),
       renameWorkspace,
     })
-    fireEvent.click(screen.getByRole('button', { name: '工作区“Alpha”的操作' }))
+    fireEvent.click(screen.getByRole('button', { name: '工作区“Alpha”的操作' }), { detail: 1 })
     fireEvent.click(screen.getByRole('menuitem', { name: '重命名' }))
     const input = screen.getByLabelText<HTMLInputElement>('工作区名称')
     // Enter with a blocked draft (unchanged) does nothing.
@@ -1421,7 +1486,7 @@ describe('WorkspaceBrowser', () => {
       useWorkspaces: hook(workspaceState([workspace('alpha', [], 'Alpha')])),
       renameWorkspace,
     })
-    fireEvent.click(screen.getByRole('button', { name: '工作区“Alpha”的操作' }))
+    fireEvent.click(screen.getByRole('button', { name: '工作区“Alpha”的操作' }), { detail: 1 })
     fireEvent.click(screen.getByRole('menuitem', { name: '重命名' }))
     fireEvent.change(screen.getByLabelText('工作区名称'), { target: { value: 'Other' } })
     fireEvent.click(screen.getByRole('button', { name: '重命名' }))
@@ -1435,7 +1500,7 @@ describe('WorkspaceBrowser', () => {
       useWorkspaces: hook(workspaceState([workspace('alpha', ['session'], 'Alpha')])),
       deleteWorkspace,
     })
-    fireEvent.click(screen.getByRole('button', { name: '工作区“Alpha”的操作' }))
+    fireEvent.click(screen.getByRole('button', { name: '工作区“Alpha”的操作' }), { detail: 1 })
     fireEvent.click(screen.getByRole('menuitem', { name: '删除工作区' }))
     const dialog = screen.getByRole('dialog', { name: '删除工作区' })
     expect(dialog.textContent).toContain('将把“Alpha”从工作区列表中移除')
@@ -1470,7 +1535,7 @@ describe('WorkspaceBrowser', () => {
       useWorkspaces: hook(workspaceState([workspace('alpha', [], 'Alpha')])),
       deleteWorkspace,
     })
-    fireEvent.click(screen.getByRole('button', { name: '工作区“Alpha”的操作' }))
+    fireEvent.click(screen.getByRole('button', { name: '工作区“Alpha”的操作' }), { detail: 1 })
     fireEvent.click(screen.getByRole('menuitem', { name: '删除工作区' }))
     fireEvent.click(screen.getByRole('button', { name: '删除工作区' }))
     await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('storage unavailable') })
@@ -1488,7 +1553,7 @@ describe('WorkspaceBrowser', () => {
       deleteWorkspace,
     })
     const open = () => {
-      fireEvent.click(screen.getByRole('button', { name: '工作区“Alpha”的操作' }))
+      fireEvent.click(screen.getByRole('button', { name: '工作区“Alpha”的操作' }), { detail: 1 })
       fireEvent.click(screen.getByRole('menuitem', { name: '删除工作区' }))
     }
     open()

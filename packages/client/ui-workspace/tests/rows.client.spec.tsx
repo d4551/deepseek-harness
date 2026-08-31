@@ -7,7 +7,7 @@ import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11
 import type { SurfaceAudit } from '@deepseek-ai/dsh-client-a11y'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
-import type { RowDragProps, RowMultiSelection } from '../src/client/rows/Rows.tsx'
+import type { RowDragProps, RowMultiSelection, RowSeat } from '../src/client/rows/Rows.tsx'
 import { ProjectRowItem, SearchResultItem, SessionNodeItem } from '../src/client/rows/Rows.tsx'
 import type { GroupNode, SearchResultNode, SessionNode } from '../src/client/tree.ts'
 import { zh } from '../src/client/locales.ts'
@@ -15,6 +15,11 @@ import { zh } from '../src/client/locales.ts'
 afterEach(cleanup)
 
 const t = makeTranslate(zh, commonZh) as never
+
+/** Default tab-order seat: the row under test holds its list's tab stop. */
+function seatOf(rowKey = 'session:row', level = 1): RowSeat {
+  return { rowKey, seated: true, level, move: vi.fn() }
+}
 
 const sid = (id: string) => id as SessionId
 const wid = (id: string) => id as WorkspaceId
@@ -64,12 +69,12 @@ describe('workspace browser rows', () => {
       id: sid('flat'), title: 'Flat Session', blank: false, running: false,
       runningSubagentCount: 0, completed: false, updatedAt: 0,
     }
-    const view = render(<SessionNodeItem node={idle} currentId={undefined} now={0} onOpen={vi.fn()}
+    const view = render(<SessionNodeItem seat={seatOf()} node={idle} currentId={undefined} now={0} onOpen={vi.fn()}
       onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} flat t={t} />)
     const title = screen.getByText('Flat Session')
     expect(title.previousElementSibling).toBeNull()
 
-    view.rerender(<SessionNodeItem node={{ ...idle, running: true }} currentId={undefined} now={0}
+    view.rerender(<SessionNodeItem seat={seatOf()} node={{ ...idle, running: true }} currentId={undefined} now={0}
       onOpen={vi.fn()} onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} flat t={t} />)
     expect(screen.getByText('Flat Session').previousElementSibling?.querySelector('[data-state="ongoing"]')).toBeTruthy()
   })
@@ -120,7 +125,7 @@ describe('workspace browser rows', () => {
       key: 'project', workspaceId: wid('project'), cwd: '/projects/project', createdAt: 0, label: 'Project',
       sessionCount: 1, expanded: true, containsCurrent: true, sessions: [], memberIds: [],
     }
-    render(<ProjectRowItem group={group} onToggle={onToggle} onCreate={onCreate} t={t} />)
+    render(<ProjectRowItem seat={seatOf()} group={group} onToggle={onToggle} onCreate={onCreate} t={t} />)
 
     expect(screen.getByRole('treeitem').getAttribute('aria-expanded')).toBe('true')
     fireEvent.click(screen.getByRole('button', { name: '在“Project”中新建会话' }))
@@ -137,7 +142,7 @@ describe('workspace browser rows', () => {
     }
     const onOpen = vi.fn()
     render(
-      <SessionNodeItem node={node} currentId={node.id} now={0} onOpen={onOpen}
+      <SessionNodeItem seat={seatOf()} node={node} currentId={node.id} now={0} onOpen={onOpen}
         onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} t={t} />,
     )
 
@@ -151,7 +156,7 @@ describe('workspace browser rows', () => {
 
   it('shows the green done dot only on a finished, unviewed session (live activity wins the slot)', () => {
     const renderRow = (over: Partial<SessionNode>) => render(
-      <SessionNodeItem
+      <SessionNodeItem seat={seatOf()}
         node={{
           id: sid('s1'), title: 'One', blank: false, running: false,
           runningSubagentCount: 0, completed: false, updatedAt: 0, ...over,
@@ -188,7 +193,7 @@ describe('workspace browser rows', () => {
         id: sid('owner'), title: 'Delegating', blank: false, running: false,
         runningSubagentCount: 2, completed: false, updatedAt: 0,
       }
-      render(<SessionNodeItem node={node} currentId={undefined} now={0} onOpen={vi.fn()}
+      render(<SessionNodeItem seat={seatOf()} node={node} currentId={undefined} now={0} onOpen={vi.fn()}
         onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} t={t} />)
       const row = screen.getByRole('treeitem')
       expect(row.querySelector('[data-state="ongoing"]')).not.toBeNull()
@@ -210,7 +215,7 @@ describe('workspace browser rows', () => {
         id: sid('owner'), title: 'Delegating', blank: false, running: true,
         runningSubagentCount: 1, completed: false, updatedAt: 0,
       }
-      render(<SessionNodeItem node={node} currentId={undefined} now={0} onOpen={vi.fn()}
+      render(<SessionNodeItem seat={seatOf()} node={node} currentId={undefined} now={0} onOpen={vi.fn()}
         onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} t={t} />)
       const row = screen.getByRole('treeitem')
       expect(row.querySelectorAll('[data-state="ongoing"]')).toHaveLength(1)
@@ -231,7 +236,7 @@ describe('workspace browser rows', () => {
       id: sid('owner'), title: 'Needs input', blank: false, pendingInteraction: 'question',
       running: false, runningSubagentCount: 1, completed: false, updatedAt: 0,
     }
-    render(<SessionNodeItem node={node} currentId={undefined} now={0} onOpen={vi.fn()}
+    render(<SessionNodeItem seat={seatOf()} node={node} currentId={undefined} now={0} onOpen={vi.fn()}
       onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} t={t} />)
     const row = screen.getByRole('treeitem')
     expect(row.querySelector('[data-state="warning"]')).not.toBeNull()
@@ -259,24 +264,24 @@ describe('workspace browser rows', () => {
       key: 'project', workspaceId: wid('project'), cwd: '/projects/project', createdAt: 0, label: 'Project',
       sessionCount: 0, expanded: false, containsCurrent: false, sessions: [], memberIds: [],
     }
-    render(<ProjectRowItem
+    render(<ProjectRowItem seat={seatOf()}
       group={group} onToggle={onToggle} onCreate={vi.fn()}
       actions={{ rename: onRename, delete: onDelete }} t={t}
     />)
-    fireEvent.click(screen.getByRole('button', { name: '工作区“Project”的操作' }))
+    fireEvent.click(screen.getByRole('button', { name: '工作区“Project”的操作' }), { detail: 1 })
     // Opening the menu neither toggles the group nor renames yet.
     expect(onToggle).not.toHaveBeenCalled()
     expect(screen.getByRole('menuitem', { name: '删除工作区' }).className).toMatch(/danger/)
     fireEvent.click(screen.getByRole('menuitem', { name: '重命名' }))
     expect(onRename).toHaveBeenCalledOnce()
     expect(screen.queryByRole('menu')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: '工作区“Project”的操作' }))
+    fireEvent.click(screen.getByRole('button', { name: '工作区“Project”的操作' }), { detail: 1 })
     fireEvent.click(screen.getByRole('menuitem', { name: '删除工作区' }))
     expect(screen.queryByRole('menu')).toBeNull()
     expect(onRename).toHaveBeenCalledOnce()
     expect(onDelete).toHaveBeenCalledOnce()
     // Escape closes without selecting (Menu onClose path).
-    fireEvent.click(screen.getByRole('button', { name: '工作区“Project”的操作' }))
+    fireEvent.click(screen.getByRole('button', { name: '工作区“Project”的操作' }), { detail: 1 })
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('menu')).toBeNull()
   })
@@ -290,7 +295,7 @@ describe('workspace browser rows', () => {
         key: 'project', workspaceId: wid('project'), cwd: '/projects/project', createdAt: 0, label: 'Project',
         sessionCount: 0, expanded: false, containsCurrent: false, sessions: [], memberIds: [],
       }
-      render(<ProjectRowItem group={group} onToggle={vi.fn()} onCreate={vi.fn()} t={t} />)
+      render(<ProjectRowItem seat={seatOf()} group={group} onToggle={vi.fn()} onCreate={vi.fn()} t={t} />)
       fireEvent.pointerEnter(screen.getByRole('treeitem').parentElement as HTMLElement)
       act(() => { vi.advanceTimersByTime(500) })
       // Card body: full title + cwd + absolute creation time.
@@ -315,7 +320,7 @@ describe('workspace browser rows', () => {
         key: 'project', workspaceId: wid('project'), cwd: '/home/u/Documents/project', createdAt: 0, label: 'Project',
         sessionCount: 0, expanded: false, containsCurrent: false, sessions: [], memberIds: [],
       }
-      render(<ProjectRowItem group={group} home="/home/u" onToggle={vi.fn()} onCreate={vi.fn()} t={t} />)
+      render(<ProjectRowItem seat={seatOf()} group={group} home="/home/u" onToggle={vi.fn()} onCreate={vi.fn()} t={t} />)
       fireEvent.pointerEnter(screen.getByRole('treeitem').parentElement as HTMLElement)
       act(() => { vi.advanceTimersByTime(500) })
       expect(screen.getByText('~/Documents/project')).toBeTruthy()
@@ -335,7 +340,7 @@ describe('workspace browser rows', () => {
         key: 'project', workspaceId: wid('project'), cwd: undefined, createdAt: 0, label: 'Project',
         sessionCount: 0, expanded: false, containsCurrent: false, sessions: [], memberIds: [],
       }
-      render(<ProjectRowItem group={group} home="/home/u" onToggle={vi.fn()} onCreate={vi.fn()} t={t} />)
+      render(<ProjectRowItem seat={seatOf()} group={group} home="/home/u" onToggle={vi.fn()} onCreate={vi.fn()} t={t} />)
       fireEvent.pointerEnter(screen.getByRole('treeitem').parentElement as HTMLElement)
       act(() => { vi.advanceTimersByTime(500) })
       expect(screen.getAllByText('Project')).toHaveLength(2)
@@ -353,7 +358,7 @@ describe('workspace browser rows', () => {
         key: 'project', workspaceId: wid('project'), cwd: 'C:\\Users\\u\\project', createdAt: 0, label: 'Project',
         sessionCount: 0, expanded: false, containsCurrent: false, sessions: [], memberIds: [],
       }
-      render(<ProjectRowItem group={group} home="C:\\Users\\u" onToggle={vi.fn()} onCreate={vi.fn()} t={t} />)
+      render(<ProjectRowItem seat={seatOf()} group={group} home="C:\\Users\\u" onToggle={vi.fn()} onCreate={vi.fn()} t={t} />)
       fireEvent.pointerEnter(screen.getByRole('treeitem').parentElement as HTMLElement)
       act(() => { vi.advanceTimersByTime(500) })
       expect(screen.getByText('C:\\Users\\u\\project')).toBeTruthy()
@@ -367,7 +372,7 @@ describe('workspace browser rows', () => {
       key: '', workspaceId: undefined, cwd: undefined, createdAt: undefined, label: 'Ungrouped',
       sessionCount: 0, expanded: false, containsCurrent: false, sessions: [], memberIds: [],
     }
-    render(<ProjectRowItem group={group} onToggle={vi.fn()} onCreate={vi.fn()} t={t} />)
+    render(<ProjectRowItem seat={seatOf()} group={group} onToggle={vi.fn()} onCreate={vi.fn()} t={t} />)
     expect(screen.queryByRole('button', { name: /工作区/ })).toBeNull()
   })
 
@@ -378,7 +383,7 @@ describe('workspace browser rows', () => {
         id: sid('s-blank'), title: 'ignored', blank: true, running: false,
         runningSubagentCount: 0, completed: false, updatedAt: 0,
       }
-      render(<SessionNodeItem node={node} currentId={node.id} now={0} onOpen={vi.fn()}
+      render(<SessionNodeItem seat={seatOf()} node={node} currentId={node.id} now={0} onOpen={vi.fn()}
         onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} t={t} />)
       // The placeholder has no content yet: no row verbs, no "now" stamp.
       expect(screen.queryByRole('button', { name: /会话.*的操作/ })).toBeNull()
@@ -405,9 +410,9 @@ describe('workspace browser rows', () => {
       id: sid('s1'), title: 'One', blank: false, running: false,
       runningSubagentCount: 0, completed: false, updatedAt: 0,
     }
-    render(<SessionNodeItem node={node} currentId={undefined} now={0} onOpen={onOpen}
+    render(<SessionNodeItem seat={seatOf()} node={node} currentId={undefined} now={0} onOpen={onOpen}
       onRename={onRename} onFork={onFork} onArchive={onArchive} t={t} />)
-    fireEvent.click(screen.getByRole('button', { name: '会话“One”的操作' }))
+    fireEvent.click(screen.getByRole('button', { name: '会话“One”的操作' }), { detail: 1 })
     expect(onOpen).not.toHaveBeenCalled()
     // Archive is not destructive (log and accounting slot remain): no danger styling.
     expect(screen.getByRole('menuitem', { name: '归档会话' }).className).not.toMatch(/danger/)
@@ -416,17 +421,17 @@ describe('workspace browser rows', () => {
     expect(screen.queryByRole('menu')).toBeNull()
     expect(onRename).toHaveBeenCalledWith(node.id, 'One')
     expect(onOpen).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: '会话“One”的操作' }))
+    fireEvent.click(screen.getByRole('button', { name: '会话“One”的操作' }), { detail: 1 })
     fireEvent.click(screen.getByRole('menuitem', { name: '分叉会话' }))
     expect(onFork).toHaveBeenCalledWith(node.id)
     // Archive dispatches without opening the session.
-    fireEvent.click(screen.getByRole('button', { name: '会话“One”的操作' }))
+    fireEvent.click(screen.getByRole('button', { name: '会话“One”的操作' }), { detail: 1 })
     fireEvent.click(screen.getByRole('menuitem', { name: '归档会话' }))
     expect(onArchive).toHaveBeenCalledWith(node.id)
     expect(onRename).toHaveBeenCalledOnce()
     expect(onOpen).not.toHaveBeenCalled()
     // Escape closes without selecting (Menu onClose path).
-    fireEvent.click(screen.getByRole('button', { name: '会话“One”的操作' }))
+    fireEvent.click(screen.getByRole('button', { name: '会话“One”的操作' }), { detail: 1 })
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('menu')).toBeNull()
   })
@@ -439,7 +444,7 @@ describe('workspace browser rows', () => {
         id: sid('s1'), title: 'Hovered', blank: false, running: true,
         runningSubagentCount: 0, completed: false, updatedAt: 0,
       }
-      render(<SessionNodeItem node={node} currentId={undefined} now={60_000} onOpen={vi.fn()}
+      render(<SessionNodeItem seat={seatOf()} node={node} currentId={undefined} now={60_000} onOpen={vi.fn()}
         onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} t={t} />)
       const wrapper = screen.getByRole('treeitem').parentElement as HTMLElement
       fireEvent.pointerEnter(wrapper)
@@ -450,7 +455,7 @@ describe('workspace browser rows', () => {
       expect(screen.getAllByText('进行中')).toHaveLength(2)
       fireEvent.pointerLeave(wrapper)
       // Menu open (disabled=true) suppresses the card for the same hover.
-      fireEvent.click(screen.getByRole('button', { name: '会话“Hovered”的操作' }))
+      fireEvent.click(screen.getByRole('button', { name: '会话“Hovered”的操作' }), { detail: 1 })
       fireEvent.pointerEnter(wrapper)
       act(() => { vi.advanceTimersByTime(1000) })
       expect(screen.queryByText('1分钟前')).toBeNull()
@@ -470,14 +475,14 @@ describe('workspace browser rows', () => {
         id: sid(pendingInteraction), title: 'Needs input', blank: false,
         pendingInteraction, running: true, runningSubagentCount: 0, completed: false, updatedAt: 0,
       }
-      const view = render(<SessionNodeItem node={node} currentId={undefined} now={0} onOpen={vi.fn()}
+      const view = render(<SessionNodeItem seat={seatOf()} node={node} currentId={undefined} now={0} onOpen={vi.fn()}
         onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} t={t} />)
       const row = screen.getByRole('treeitem')
       expect(row.querySelector('[data-state="warning"]')).toBeTruthy()
       expect(row.querySelector('[data-state="ongoing"]')).toBeNull()
       expect(screen.getByText(label)).toBeTruthy()
 
-      view.rerender(<SessionNodeItem node={{ ...node, running: false }} currentId={undefined} now={0}
+      view.rerender(<SessionNodeItem seat={seatOf()} node={{ ...node, running: false }} currentId={undefined} now={0}
         onOpen={vi.fn()} onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} t={t} />)
       expect(screen.getByRole('treeitem').querySelector('[data-state="warning"]')).toBeTruthy()
 
@@ -497,7 +502,7 @@ describe('workspace browser rows', () => {
         id: sid('s1'), title: 'Quiet', blank: false, running: false,
         runningSubagentCount: 0, completed: false, updatedAt: 0,
       }
-      render(<SessionNodeItem node={node} currentId={undefined} now={0} onOpen={vi.fn()}
+      render(<SessionNodeItem seat={seatOf()} node={node} currentId={undefined} now={0} onOpen={vi.fn()}
         onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} t={t} />)
       fireEvent.pointerEnter(screen.getByRole('treeitem').parentElement as HTMLElement)
       act(() => { vi.advanceTimersByTime(500) })
@@ -515,7 +520,7 @@ describe('workspace browser rows', () => {
         id: sid('s1'), title: 'Done', blank: false, running: false,
         runningSubagentCount: 0, completed: true, updatedAt: 0,
       }
-      render(<SessionNodeItem node={node} currentId={undefined} now={0} onOpen={vi.fn()}
+      render(<SessionNodeItem seat={seatOf()} node={node} currentId={undefined} now={0} onOpen={vi.fn()}
         onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} t={t} />)
       fireEvent.pointerEnter(screen.getByRole('treeitem').parentElement as HTMLElement)
       act(() => { vi.advanceTimersByTime(500) })
@@ -533,7 +538,7 @@ describe('workspace browser rows', () => {
     }
     const inactive = dragProps()
     const { rerender } = render(
-      <SessionNodeItem node={node} currentId={undefined} now={0} onOpen={vi.fn()}
+      <SessionNodeItem seat={seatOf()} node={node} currentId={undefined} now={0} onOpen={vi.fn()}
         onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} drag={inactive} t={t} />,
     )
     const row = screen.getByRole('treeitem')
@@ -551,7 +556,7 @@ describe('workspace browser rows', () => {
 
     const active = dragProps({ active: true, marker: 'before' })
     rerender(
-      <SessionNodeItem node={node} currentId={undefined} now={0} onOpen={vi.fn()}
+      <SessionNodeItem seat={seatOf()} node={node} currentId={undefined} now={0} onOpen={vi.fn()}
         onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} drag={active} t={t} />,
     )
     stubRect(screen.getByRole('treeitem'))
@@ -565,7 +570,7 @@ describe('workspace browser rows', () => {
 
     const after = dragProps({ active: true, marker: 'after' })
     rerender(
-      <SessionNodeItem node={node} currentId={undefined} now={0} onOpen={vi.fn()}
+      <SessionNodeItem seat={seatOf()} node={node} currentId={undefined} now={0} onOpen={vi.fn()}
         onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} drag={after} t={t} />,
     )
     expect(screen.getByRole('treeitem').className).toMatch(/dropAfter/)
@@ -606,7 +611,7 @@ describe('workspace rows accessibility', () => {
       const { baseElement } = render(
         <main>
           <div role="tree" aria-label="Sessions" aria-multiselectable="true">
-            <SessionNodeItem
+            <SessionNodeItem seat={seatOf()}
               node={{ ...node, running }} currentId={undefined} now={0} onOpen={vi.fn()}
               onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()}
               {...selected ? { selection: ranged } : {}}
@@ -633,7 +638,7 @@ describe('workspace rows accessibility', () => {
       key: 'project', workspaceId: wid('project'), cwd: '/projects/project', createdAt: 0, label: 'Project',
       sessionCount: 0, expanded: false, containsCurrent: false, sessions: [], memberIds: [],
     }
-    const view = render(<ProjectRowItem
+    const view = render(<ProjectRowItem seat={seatOf()}
       group={group} onToggle={onToggle} onCreate={vi.fn()}
       actions={{ rename: onRename, delete: vi.fn() }} t={t}
     />)
@@ -647,7 +652,7 @@ describe('workspace rows accessibility', () => {
     expect(onRename).toHaveBeenCalledOnce()
 
     // The ungrouped bucket has no workspace verbs, so it keeps the platform menu.
-    view.rerender(<ProjectRowItem
+    view.rerender(<ProjectRowItem seat={seatOf()}
       group={{ ...group, key: 'ungrouped', workspaceId: undefined, createdAt: undefined }}
       onToggle={onToggle} onCreate={vi.fn()} t={t}
     />)
@@ -661,7 +666,7 @@ describe('workspace rows accessibility', () => {
       id: sid('one'), title: 'One', blank: false, running: false,
       runningSubagentCount: 0, completed: false, updatedAt: 0,
     }
-    const view = render(<SessionNodeItem node={node} currentId={undefined} now={0} onOpen={vi.fn()}
+    const view = render(<SessionNodeItem seat={seatOf()} node={node} currentId={undefined} now={0} onOpen={vi.fn()}
       onRename={vi.fn()} onFork={vi.fn()} onArchive={onArchive} t={t} />)
     fireEvent.contextMenu(screen.getByText('One'), { button: 2, clientX: 40, clientY: 60 })
     const list = screen.getByRole('menu')
@@ -670,10 +675,10 @@ describe('workspace rows accessibility', () => {
     expect(onArchive).toHaveBeenCalledWith(sid('one'))
 
     // Reopening from the ... button drops the pointer anchor for the wrapper rect.
-    fireEvent.click(screen.getByRole('button', { name: '会话“One”的操作' }))
+    fireEvent.click(screen.getByRole('button', { name: '会话“One”的操作' }), { detail: 1 })
     expect(screen.getByRole('menu').style.left).toBe('0px')
 
-    view.rerender(<SessionNodeItem node={{ ...node, blank: true }} currentId={undefined} now={0}
+    view.rerender(<SessionNodeItem seat={seatOf()} node={{ ...node, blank: true }} currentId={undefined} now={0}
       onOpen={vi.fn()} onRename={vi.fn()} onFork={vi.fn()} onArchive={onArchive} t={t} />)
     fireEvent.contextMenu(screen.getByText('新会话'), { button: 2, clientX: 40, clientY: 60 })
     expect(screen.queryByRole('menu')).toBeNull()
@@ -691,7 +696,7 @@ describe('workspace rows accessibility', () => {
       id: sid('one'), title: 'One', blank: false, running: false,
       runningSubagentCount: 0, completed: false, updatedAt: 0,
     }
-    const view = render(<SessionNodeItem node={node} currentId={undefined} now={0} onOpen={onOpen}
+    const view = render(<SessionNodeItem seat={seatOf()} node={node} currentId={undefined} now={0} onOpen={onOpen}
       onRename={vi.fn()} onFork={vi.fn()} onArchive={onOne} selection={selection} t={t} />)
     const row = screen.getByText('One')
     fireEvent.click(row, { shiftKey: true })
@@ -714,7 +719,7 @@ describe('workspace rows accessibility', () => {
 
     // Inside a range of two or more, the per-row verbs give way to the bulk row.
     const ranged = { ...selection, active: true, count: 3, archivableCount: 3 }
-    view.rerender(<SessionNodeItem node={node} currentId={undefined} now={0} onOpen={onOpen}
+    view.rerender(<SessionNodeItem seat={seatOf()} node={node} currentId={undefined} now={0} onOpen={onOpen}
       onRename={vi.fn()} onFork={vi.fn()} onArchive={onOne} selection={ranged} t={t} />)
     expect(screen.getByRole('treeitem').getAttribute('aria-selected')).toBe('true')
     expect(screen.getByRole('treeitem').className).toMatch(/multiSelected/)
@@ -738,7 +743,7 @@ describe('workspace rows accessibility', () => {
       sessionCount: 2, expanded: false, containsCurrent: false, sessions: [],
       memberIds: [sid('one'), sid('two')],
     }
-    const view = render(<ProjectRowItem
+    const view = render(<ProjectRowItem seat={seatOf()}
       group={group} onToggle={onToggle} onCreate={vi.fn()}
       actions={{ rename: onRename, delete: vi.fn() }} selection={selection} t={t}
     />)
@@ -755,7 +760,7 @@ describe('workspace rows accessibility', () => {
 
     // A project range archives the sessions its projects hold, not the rows.
     const ranged = { ...selection, active: true, count: 2, archivableCount: 5 }
-    view.rerender(<ProjectRowItem
+    view.rerender(<ProjectRowItem seat={seatOf()}
       group={group} onToggle={onToggle} onCreate={vi.fn()}
       actions={{ rename: onRename, delete: vi.fn() }} selection={ranged} t={t}
     />)
@@ -778,7 +783,7 @@ describe('workspace rows accessibility', () => {
       key: 'project', workspaceId: wid('project'), cwd: '/projects/project', createdAt: 0, label: 'Empty',
       sessionCount: 0, expanded: false, containsCurrent: false, sessions: [], memberIds: [],
     }
-    const view = render(<ProjectRowItem
+    const view = render(<ProjectRowItem seat={seatOf()}
       group={group} onToggle={vi.fn()} onCreate={vi.fn()}
       actions={{ rename: vi.fn(), delete: vi.fn() }} selection={empty} t={t}
     />)
@@ -789,7 +794,7 @@ describe('workspace rows accessibility', () => {
     expect(empty.archiveSelected).not.toHaveBeenCalled()
 
     // Two rows can still reach one session — the label counts sessions, not rows.
-    view.rerender(<ProjectRowItem
+    view.rerender(<ProjectRowItem seat={seatOf()}
       group={{ ...group, memberIds: [sid('only')] }} onToggle={vi.fn()} onCreate={vi.fn()}
       actions={{ rename: vi.fn(), delete: vi.fn() }} selection={{ ...empty, archivableCount: 1 }} t={t}
     />)
@@ -801,16 +806,22 @@ describe('workspace rows accessibility', () => {
 /**
  * The keyboard reaches everything the pointer does: one tab stop per list, the
  * arrows inside it, the range gestures on Shift and Space, and the row menu on
- * the platform's own menu keys.
+ * the platform's own menu keys. Rows a range cannot select still walk and still
+ * activate — they carry verbs of their own.
  */
 describe('workspace rows keyboard', () => {
-  /** A row's account slice with every gesture recorded. */
+  /** A row's selection slice with every gesture recorded. */
   function account(overrides: Partial<RowMultiSelection> = {}): RowMultiSelection {
     return {
-      active: false, count: 0, archivableCount: 0, rowKey: 'session:one', seated: true,
-      move: vi.fn(), extend: vi.fn(), toggle: vi.fn(), anchor: vi.fn(), archiveSelected: vi.fn(),
+      active: false, count: 0, archivableCount: 0,
+      extend: vi.fn(), toggle: vi.fn(), anchor: vi.fn(), archiveSelected: vi.fn(),
       ...overrides,
     }
+  }
+
+  /** A seat whose move is recorded. */
+  function spiedSeat(overrides: Partial<RowSeat> = {}): RowSeat {
+    return { rowKey: 'session:one', seated: true, level: 2, move: vi.fn(), ...overrides }
   }
 
   const session: SessionNode = {
@@ -823,48 +834,92 @@ describe('workspace rows keyboard', () => {
     sessionCount: 1, expanded: false, containsCurrent: false, sessions: [], memberIds: [sid('one')],
   }
 
-  /** Render one session row over an account slice and hand back the row element. */
-  function sessionRow(selection: RowMultiSelection, onOpen = vi.fn()): HTMLElement {
-    render(<SessionNodeItem node={session} currentId={undefined} now={0} onOpen={onOpen}
-      onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} selection={selection} t={t} />)
+  /** Render one session row over a seat and a selection slice; hand back the row. */
+  function sessionRow(
+    seat: RowSeat,
+    selection: RowMultiSelection | undefined,
+    onOpen = vi.fn(),
+  ): HTMLElement {
+    render(<SessionNodeItem seat={seat} node={session} currentId={undefined} now={0} onOpen={onOpen}
+      onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()}
+      {...selection === undefined ? {} : { selection }} t={t} />)
     return screen.getByRole('treeitem')
   }
 
-  it("keeps one tab stop per list and publishes each row's key to the list", () => {
-    const seated = sessionRow(account())
+  it("keeps one tab stop per list and reports each row's depth and key", () => {
+    const seated = sessionRow(spiedSeat(), account())
     expect(seated.tabIndex).toBe(0)
     expect(seated.dataset['rowKey']).toBe('session:one')
+    expect(seated.getAttribute('aria-level')).toBe('2')
     cleanup()
-    expect(sessionRow(account({ seated: false })).tabIndex).toBe(-1)
+    expect(sessionRow(spiedSeat({ seated: false }), account()).tabIndex).toBe(-1)
   })
 
-  it('leaves a row outside any account out of the tab order', () => {
-    render(<SessionNodeItem node={{ ...session, blank: true }} currentId={undefined} now={0}
-      onOpen={vi.fn()} onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} t={t} />)
+  it('walks a row no range can select and reports no selection state on it', () => {
+    // The provisional blank draft has no row verbs, so no range reaches it; it
+    // is still a node of the tree the arrows must walk and Enter must open.
+    const seat = spiedSeat()
+    const onOpen = vi.fn()
+    render(<SessionNodeItem seat={seat} node={{ ...session, blank: true }} currentId={undefined} now={0}
+      onOpen={onOpen} onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} t={t} />)
     const blank = screen.getByRole('treeitem')
-    expect(blank.hasAttribute('tabindex')).toBe(false)
-    // Nothing answers a keystroke there, so the browser keeps every key.
-    const event = createEvent.keyDown(blank, { key: 'ArrowDown' })
-    fireEvent(blank, event)
-    expect(event.defaultPrevented).toBe(false)
+    expect(blank.tabIndex).toBe(0)
+    expect(blank.getAttribute('aria-selected')).toBe('false')
+    fireEvent.keyDown(blank, { key: 'ArrowDown' })
+    expect(seat.move).toHaveBeenCalledWith('next', false)
+    fireEvent.keyDown(blank, { key: 'Enter' })
+    expect(onOpen).toHaveBeenCalledWith(sid('one'))
+    // The two selection keys go unanswered rather than acting on nothing.
+    const space = createEvent.keyDown(blank, { key: ' ' })
+    fireEvent(blank, space)
+    expect(space.defaultPrevented).toBe(false)
+    const shiftSpace = createEvent.keyDown(blank, { key: ' ', shiftKey: true })
+    fireEvent(blank, shiftSpace)
+    expect(shiftSpace.defaultPrevented).toBe(false)
+  })
+
+  it('omits selection state on a header no range can reach', () => {
+    // `aria-selected="false"` on the Ungrouped bucket would promise a selection
+    // it never takes; the row is still in the tab order for its own verbs.
+    render(<ProjectRowItem seat={spiedSeat({ rowKey: 'bucket:ungrouped', level: 1 })}
+      group={{ ...project, key: 'ungrouped', workspaceId: undefined, createdAt: undefined }}
+      onToggle={vi.fn()} onCreate={vi.fn()} t={t} />)
+    const bucket = screen.getByRole('treeitem')
+    expect(bucket.hasAttribute('aria-selected')).toBe(false)
+    expect(bucket.tabIndex).toBe(0)
+    expect(bucket.getAttribute('aria-level')).toBe('1')
+  })
+
+  it("reaches the Ungrouped bucket's own verbs from the keyboard", () => {
+    const onToggle = vi.fn()
+    const seat = spiedSeat({ rowKey: 'bucket:ungrouped', level: 1 })
+    render(<ProjectRowItem seat={seat}
+      group={{ ...project, key: 'ungrouped', workspaceId: undefined, createdAt: undefined }}
+      onToggle={onToggle} onCreate={vi.fn()} t={t} />)
+    const bucket = screen.getByRole('treeitem')
+    fireEvent.keyDown(bucket, { key: 'ArrowRight' })
+    expect(onToggle).toHaveBeenCalledOnce()
+    fireEvent.keyDown(bucket, { key: 'Enter' })
+    expect(onToggle).toHaveBeenCalledTimes(2)
+    fireEvent.keyDown(bucket, { key: 'End' })
+    expect(seat.move).toHaveBeenCalledWith('last', false)
   })
 
   it('moves the tab stop with the arrows and takes the range along on Shift', () => {
-    const selection = account()
-    const row = sessionRow(selection)
+    const seat = spiedSeat()
+    const row = sessionRow(seat, account())
     fireEvent.keyDown(row, { key: 'ArrowDown' })
     fireEvent.keyDown(row, { key: 'ArrowUp', shiftKey: true })
     fireEvent.keyDown(row, { key: 'Home' })
     fireEvent.keyDown(row, { key: 'End', shiftKey: true })
-    expect(selection.move).toHaveBeenCalledTimes(4)
-    expect(vi.mocked(selection.move).mock.calls).toEqual([
+    expect(vi.mocked(seat.move).mock.calls).toEqual([
       ['next', false], ['previous', true], ['first', false], ['last', true],
     ])
   })
 
   it('edits the selection on Space the way a modified click does', () => {
     const selection = account()
-    const row = sessionRow(selection)
+    const row = sessionRow(spiedSeat(), selection)
     fireEvent.keyDown(row, { key: ' ' })
     expect(selection.toggle).toHaveBeenCalledOnce()
     fireEvent.keyDown(row, { key: ' ', shiftKey: true })
@@ -874,32 +929,33 @@ describe('workspace rows keyboard', () => {
   it('opens the session on Enter and anchors the range there, as a plain click does', () => {
     const selection = account()
     const onOpen = vi.fn()
-    fireEvent.keyDown(sessionRow(selection, onOpen), { key: 'Enter' })
+    fireEvent.keyDown(sessionRow(spiedSeat(), selection, onOpen), { key: 'Enter' })
     expect(selection.anchor).toHaveBeenCalledOnce()
     expect(onOpen).toHaveBeenCalledWith(sid('one'))
   })
 
   it('leaves every other key to the browser', () => {
+    const seat = spiedSeat()
     const selection = account()
-    const row = sessionRow(selection)
+    const row = sessionRow(seat, selection)
     const event = createEvent.keyDown(row, { key: 'a' })
     fireEvent(row, event)
     expect(event.defaultPrevented).toBe(false)
-    expect(selection.move).not.toHaveBeenCalled()
+    expect(seat.move).not.toHaveBeenCalled()
     expect(selection.toggle).not.toHaveBeenCalled()
   })
 
   it('steps a session row out to the header it sits under', () => {
-    const selection = account()
-    fireEvent.keyDown(sessionRow(selection), { key: 'ArrowLeft' })
-    expect(selection.move).toHaveBeenCalledWith('parent', false)
+    const seat = spiedSeat()
+    fireEvent.keyDown(sessionRow(seat, account()), { key: 'ArrowLeft' })
+    expect(seat.move).toHaveBeenCalledWith('parent', false)
   })
 
   it("works a project row's disclosure with the horizontal arrows", () => {
-    const selection = account({ rowKey: 'workspace:project' })
+    const seat = spiedSeat({ rowKey: 'workspace:project', level: 1 })
     const onToggle = vi.fn()
-    const view = render(<ProjectRowItem group={project} onToggle={onToggle} onCreate={vi.fn()}
-      actions={{ rename: vi.fn(), delete: vi.fn() }} selection={selection} t={t} />)
+    const view = render(<ProjectRowItem seat={seat} group={project} onToggle={onToggle} onCreate={vi.fn()}
+      actions={{ rename: vi.fn(), delete: vi.fn() }} selection={account()} t={t} />)
     const row = screen.getByRole('treeitem')
     // Folded: the opening arrow opens it and the closing arrow has nothing to do.
     fireEvent.keyDown(row, { key: 'ArrowRight' })
@@ -908,52 +964,55 @@ describe('workspace rows keyboard', () => {
     expect(onToggle).toHaveBeenCalledOnce()
 
     // Open: the opening arrow steps into the first child, the closing one folds.
-    view.rerender(<ProjectRowItem group={{ ...project, expanded: true }} onToggle={onToggle}
-      onCreate={vi.fn()} actions={{ rename: vi.fn(), delete: vi.fn() }} selection={selection} t={t} />)
+    view.rerender(<ProjectRowItem seat={seat} group={{ ...project, expanded: true }} onToggle={onToggle}
+      onCreate={vi.fn()} actions={{ rename: vi.fn(), delete: vi.fn() }} selection={account()} t={t} />)
     const open = screen.getByRole('treeitem')
     fireEvent.keyDown(open, { key: 'ArrowRight' })
-    expect(selection.move).toHaveBeenCalledWith('next', false)
+    expect(seat.move).toHaveBeenCalledWith('next', false)
     fireEvent.keyDown(open, { key: 'ArrowLeft' })
     expect(onToggle).toHaveBeenCalledTimes(2)
   })
 
   it("routes a project row's remaining keys through the same account gestures", () => {
-    const selection = account({ rowKey: 'workspace:project' })
+    const seat = spiedSeat({ rowKey: 'workspace:project', level: 1 })
+    const selection = account()
     const onToggle = vi.fn()
-    render(<ProjectRowItem group={project} onToggle={onToggle} onCreate={vi.fn()}
+    render(<ProjectRowItem seat={seat} group={project} onToggle={onToggle} onCreate={vi.fn()}
       actions={{ rename: vi.fn(), delete: vi.fn() }} selection={selection} t={t} />)
     const row = screen.getByRole('treeitem')
     fireEvent.keyDown(row, { key: 'ArrowDown', shiftKey: true })
-    expect(selection.move).toHaveBeenCalledWith('next', true)
+    expect(seat.move).toHaveBeenCalledWith('next', true)
     fireEvent.keyDown(row, { key: 'Enter' })
     expect(selection.anchor).toHaveBeenCalledOnce()
     expect(onToggle).toHaveBeenCalledOnce()
   })
 
   it('leaves a keystroke inside the row to the control that owns it', () => {
+    const seat = spiedSeat()
     const selection = account()
     const onOpen = vi.fn()
-    sessionRow(selection, onOpen)
+    sessionRow(seat, selection, onOpen)
     const trailing = screen.getByRole('button', { name: '会话“One”的操作' })
     // The ... button answers Enter and Space itself, and the menu it opens is a
     // React child of the row, so both would otherwise reach the row's handler.
     for (const key of ['Enter', ' ', 'ArrowDown', 'ArrowLeft']) {
       fireEvent.keyDown(trailing, { key })
     }
-    expect(selection.move).not.toHaveBeenCalled()
+    expect(seat.move).not.toHaveBeenCalled()
     expect(selection.toggle).not.toHaveBeenCalled()
     expect(selection.anchor).not.toHaveBeenCalled()
     expect(onOpen).not.toHaveBeenCalled()
 
     fireEvent.click(trailing)
     fireEvent.keyDown(screen.getAllByRole('menuitem')[0]!, { key: 'ArrowDown' })
-    expect(selection.move).not.toHaveBeenCalled()
+    expect(seat.move).not.toHaveBeenCalled()
   })
 
   it("leaves a project row's keystrokes to the controls inside it too", () => {
-    const selection = account({ rowKey: 'workspace:project' })
+    const selection = account()
     const onToggle = vi.fn()
-    render(<ProjectRowItem group={project} onToggle={onToggle} onCreate={vi.fn()}
+    render(<ProjectRowItem seat={spiedSeat({ rowKey: 'workspace:project', level: 1 })} group={project}
+      onToggle={onToggle} onCreate={vi.fn()}
       actions={{ rename: vi.fn(), delete: vi.fn() }} selection={selection} t={t} />)
     const create = screen.getByRole('button', { name: '在“Project”中新建会话' })
     for (const key of ['ArrowRight', 'ArrowLeft', 'Enter']) {
@@ -964,8 +1023,7 @@ describe('workspace rows keyboard', () => {
   })
 
   it('opens the row menu against the row on the platform menu keys and hands it the focus', () => {
-    const selection = account()
-    const row = sessionRow(selection)
+    const row = sessionRow(spiedSeat(), account())
     row.focus()
     // Shift+F10 and the ContextMenu key reach the row as a contextmenu event
     // with no pointer button behind it.
@@ -973,8 +1031,7 @@ describe('workspace rows keyboard', () => {
     const list = screen.getByRole('menu')
     expect(list.style.left).toBe('0px')
     expect(list.style.top).toBe('4px')
-    const first = screen.getAllByRole('menuitem')[0]
-    expect(document.activeElement).toBe(first)
+    expect(document.activeElement).toBe(screen.getAllByRole('menuitem')[0])
 
     // The arrows walk the list once the focus is inside it.
     fireEvent.keyDown(document, { key: 'ArrowDown' })
@@ -987,7 +1044,7 @@ describe('workspace rows keyboard', () => {
   })
 
   it('has no row to hand the focus to when the whole list is inert', () => {
-    const row = sessionRow(account({ active: true, count: 2, archivableCount: 0 }))
+    const row = sessionRow(spiedSeat(), account({ active: true, count: 2, archivableCount: 0 }))
     row.focus()
     fireEvent.contextMenu(row)
     expect(screen.getByRole('menuitem').hasAttribute('disabled')).toBe(true)
@@ -997,7 +1054,7 @@ describe('workspace rows keyboard', () => {
   it('opens against the row but keeps the focus when the row did not hold it', () => {
     // A touch long-press reaches the row as the same buttonless contextmenu the
     // keyboard sends, but its operator is not inside the list.
-    const row = sessionRow(account())
+    const row = sessionRow(spiedSeat(), account())
     expect(document.activeElement).not.toBe(row)
     fireEvent.contextMenu(row)
     expect(screen.getByRole('menu').style.top).toBe('4px')
@@ -1005,7 +1062,7 @@ describe('workspace rows keyboard', () => {
   })
 
   it('leaves the focus alone when the pointer opened the list', () => {
-    const row = sessionRow(account())
+    const row = sessionRow(spiedSeat(), account())
     row.focus()
     fireEvent.contextMenu(row, { button: 2, clientX: 40, clientY: 60 })
     expect(screen.getByRole('menu').style.left).toBe('40px')

@@ -35,12 +35,20 @@ export function workspaceRowKey(workspaceId: WorkspaceId): RowKey {
 }
 
 /**
- * Whether a key addresses a Workspace (project) header row.
- * @param key - one row's key in the shared account.
- * @returns whether the key came from {@link workspaceRowKey}.
+ * Row key of the Ungrouped bucket header. The bucket has no backing Workspace,
+ * so it takes no Workspace key and never enters a selection; it is still a row
+ * the keyboard walks, so it needs a key of its own. Its namespace is distinct
+ * from {@link workspaceRowKey}'s, which a Workspace id cannot reach.
  */
-export function isWorkspaceRowKey(key: RowKey): boolean {
-  return key.startsWith('workspace:')
+export const UNGROUPED_ROW_KEY: RowKey = 'bucket:ungrouped'
+
+/**
+ * Whether a key addresses a header row — a Workspace or the Ungrouped bucket.
+ * @param key - one row's key in the shared account.
+ * @returns whether the row heads a group rather than sitting inside one.
+ */
+export function isHeaderRowKey(key: RowKey): boolean {
+  return key.startsWith('workspace:') || key === UNGROUPED_ROW_KEY
 }
 
 /**

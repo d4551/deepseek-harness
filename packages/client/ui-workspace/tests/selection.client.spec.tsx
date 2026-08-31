@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { WorkspaceId } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import { isWorkspaceRowKey, rowRange, sessionRowKey, useRowSelection, workspaceRowKey } from '../src/client/selection.ts'
+import { isHeaderRowKey, rowRange, sessionRowKey, UNGROUPED_ROW_KEY, useRowSelection, workspaceRowKey } from '../src/client/selection.ts'
 
 afterEach(cleanup)
 
@@ -57,8 +57,9 @@ describe('rowRange', () => {
 
 describe('row keys', () => {
   it('reads back the kind that produced a key, so a leaf can find its header', () => {
-    expect(isWorkspaceRowKey(workspaceRowKey(wid('x')))).toBe(true)
-    expect(isWorkspaceRowKey(sessionRowKey(sid('x')))).toBe(false)
+    expect(isHeaderRowKey(workspaceRowKey(wid('x')))).toBe(true)
+    expect(isHeaderRowKey(UNGROUPED_ROW_KEY)).toBe(true)
+    expect(isHeaderRowKey(sessionRowKey(sid('x')))).toBe(false)
   })
 
   it('separates the two row kinds so an id collision cannot cross them', () => {
