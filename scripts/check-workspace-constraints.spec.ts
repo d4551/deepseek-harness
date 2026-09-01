@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from 'vitest'
 import {
+  checkBuildToolingClosure,
   checkSingleExternalVersion,
   checkExperimentalDependencyIsolation,
   checkExperimentalManifest,
@@ -121,5 +122,54 @@ describe('package payload constraints', () => {
       'cordis.patch.yml',
       'lib/types/**/*.d.ts',
     ])
+  })
+})
+
+describe('build tooling dependency closure', () => {
+  const config = "import { typertPlugin } from './packages/typert/generator/lib/types/tsdown-plugin.js'\n"
+  const workspace: readonly WorkspaceManifest[] = [
+    {
+      dir: 'packages/typert/generator',
+      manifest: {
+        name: '@deepseek-ai/dsh-typert-generator',
+        dependencies: { typescript: '^7.0.2' },
+        peerDependencies: { '@deepseek-ai/cordis': 'workspace:^' },
+      },
+    },
+    { dir: 'packages/util/diagnostic-text', manifest: { name: '@deepseek-ai/dsh-diagnostic-text' } },
+    { dir: 'vendor/cordis', manifest: { name: '@deepseek-ai/cordis' } },
+  ]
+
+  it('accepts an imported package that depends only on published packages', () => {
+    expect(checkBuildToolingClosure(config, workspace)).toEqual([])
+  })
+
+  it('rejects a workspace runtime dependency on a package the same build bundles', () => {
+    expect(checkBuildToolingClosure(config, [
+      {
+        dir: 'packages/typert/generator',
+        manifest: {
+          name: '@deepseek-ai/dsh-typert-generator',
+          dependencies: { typescript: '^7.0.2', '@deepseek-ai/dsh-diagnostic-text': 'workspace:^' },
+          peerDependencies: { '@deepseek-ai/cordis': 'workspace:^' },
+        },
+      },
+      ...workspace.slice(1),
+    ])).toEqual([
+      '@deepseek-ai/dsh-typert-generator: tsdown.config.ts imports this package\'s emit, so dependencies.@deepseek-ai/dsh-diagnostic-text must not be a workspace package whose entry the same build writes',
+    ])
+  })
+
+  it('leaves packages the config never imports to the other constraints', () => {
+    expect(checkBuildToolingClosure("import { defineConfig } from 'tsdown'\n", [
+      {
+        dir: 'packages/typert/generator',
+        manifest: {
+          name: '@deepseek-ai/dsh-typert-generator',
+          dependencies: { '@deepseek-ai/dsh-diagnostic-text': 'workspace:^' },
+        },
+      },
+      ...workspace.slice(1),
+    ])).toEqual([])
   })
 })

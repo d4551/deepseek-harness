@@ -6,8 +6,7 @@ import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type { SourceFile } from 'typescript/unstable/ast'
 import { API, type Checker, type Diagnostic, type Emitter, type Program, type Project } from 'typescript/unstable/sync'
-import { flattenDiagnosticMessage } from '@deepseek-ai/dsh-diagnostic-text'
-import { compilerApi } from './ts7-session.ts'
+import { compilerApi, flattenDiagnosticMessageText } from './ts7-session.ts'
 
 /** One opened TypeScript 7 project and its checker. */
 export class FaceProject {
@@ -85,6 +84,6 @@ export class FaceProject {
    * @returns message text.
    */
   formatDiagnostic(diagnostic: Diagnostic): string {
-    return flattenDiagnosticMessage(diagnostic, '\n')
+    return flattenDiagnosticMessageText(diagnostic, '\n')
   }
 }

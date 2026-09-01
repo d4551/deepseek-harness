@@ -245,7 +245,7 @@ function recordingCausality(): {
   const als = createAlsRuntime(recordingCausality().causality)
   // A non-iterable is a programming error in the transformed source, and must be
   // a loud TypeError rather than a silent empty loop.
-  const rejects = <T>(label: string, value: T): void => {
+  const rejects = (label: string, value: object | number | null | undefined): void => {
     test(label, () => { expect(() => { als.iterator(value) }).toThrow(TypeError) })
   }
   rejects('a plain object is not iterable', {})

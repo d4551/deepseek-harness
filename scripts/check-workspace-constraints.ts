@@ -534,6 +534,46 @@ export function checkSingleExternalVersion(manifests: readonly WorkspaceManifest
   return errors
 }
 
+/** Dependency sections the build's own config resolves when it imports a package's emit. */
+const buildToolingDependencySections = ['dependencies', 'optionalDependencies'] as const
+
+/**
+ * Keep every package `tsdown.config.ts` imports closed over published dependencies.
+ *
+ * The config loads its plugins from a package's `lib/types` emit before the
+ * build it configures has bundled anything, so a workspace runtime dependency
+ * there resolves to a `lib/index.js` the same build still has to write and
+ * tsdown fails while loading its config. `peerDependencies` are excluded: a dsh
+ * package declares Cordis and the invariant service for its companion plugin,
+ * which the build config never loads.
+ * @param configSource - contents of the root `tsdown.config.ts`.
+ * @param manifests - every workspace manifest.
+ * @returns one error per workspace runtime dependency declared by an imported package.
+ */
+export function checkBuildToolingClosure(
+  configSource: string,
+  manifests: readonly WorkspaceManifest[],
+): string[] {
+  const members = new Set(manifests.map(entry => entry.manifest.name).filter(name => name !== undefined))
+  const imported = new Set<string>()
+  for (const { dir } of manifests) {
+    if (dir !== '.' && configSource.includes(`'./${dir}/`)) imported.add(dir)
+  }
+  const errors: string[] = []
+  for (const { dir, manifest } of manifests) {
+    if (!imported.has(dir)) continue
+    for (const section of buildToolingDependencySections) {
+      for (const name of Object.keys(manifest[section] ?? {})) {
+        if (!members.has(name)) continue
+        errors.push(
+          `${manifest.name ?? dir}: tsdown.config.ts imports this package's emit, so ${section}.${name} must not be a workspace package whose entry the same build writes`,
+        )
+      }
+    }
+  }
+  return errors
+}
+
 /** Run the repository constraint gate. */
 export function main(): void {
   const manifests = workspaceManifests()
@@ -549,6 +589,7 @@ export function main(): void {
     ...checkExperimentalDependencyIsolation(dependencyManifests),
     ...checkHierarchyShape(),
     ...collectProjectReferenceFaceViolations(root),
+    ...checkBuildToolingClosure(readFileSync(join(root, 'tsdown.config.ts'), 'utf8'), manifests),
   ]
   if (errors.length > 0) {
     console.error(errors.join('\n'))
