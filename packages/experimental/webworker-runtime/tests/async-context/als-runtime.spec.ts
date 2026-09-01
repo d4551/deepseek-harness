@@ -1,13 +1,13 @@
 /**
- * Semantic check of the suspension runtime (`src/polyfill/async-context/als-runtime.ts`): the object the
+ * Semantic check of the suspension runtime (`src/async-context/als-runtime.ts`): the object the
  * transformed modules call at every suspension point.
  *
  * Scope boundary, and why this file does not need the Node-compatibility layer:
  * `als-runtime.ts` owns no state. It moves snapshots through an injected
- * {@link AlsCausality} face, and the state itself lives in the
- * `node:async_hooks` proxy. So the causality face is stubbed here with a
- * recording double, which makes the *ordering* contract — the part transformed
- * code depends on — directly observable:
+ * AlsCausality face, and the state itself lives in the `node:async_hooks`
+ * proxy. So the causality face is stubbed here with a recording double, which
+ * makes the *ordering* contract — the part transformed code depends on —
+ * directly observable:
  *
  *   - `pause` captures BEFORE suspending (not after), so the snapshot belongs to
  *     the frame that suspended;
@@ -15,14 +15,15 @@
  *     first observable act is already in the right context;
  *   - both completion paths do this, which is why the token always fulfills.
  *
- * The shim-backed end of the same contract (does a real AsyncLocalStorage
- * actually fold, do the hooks cover timers) is `als-shim.spec.ts`. This file is
- * the middle layer: the protocol, in isolation.
+ * The AsyncLocalStorage-backed end of the same contract (does a real
+ * AsyncLocalStorage actually fold, do the hooks cover timers) is
+ * `als-hooks.spec.ts`. This file is the middle layer: the protocol, in
+ * isolation.
  */
 import { expect, test } from 'vitest'
-import { createAlsRuntime, type AlsCausality, type AlsToken } from '../../src/polyfill/async-context/als-runtime.ts'
+import { createAlsRuntime, type AlsCausality, type AlsToken } from '../../src/async-context/als-runtime.ts'
 
-const check = (label: string, actual: unknown, expected: unknown): void => {
+const check = <T>(label: string, actual: T, expected: T): void => {
   const [seen, wanted] = [JSON.stringify(actual), JSON.stringify(expected)]
   test(label, () => { expect(seen).toBe(wanted) })
 }
@@ -36,21 +37,19 @@ function recordingCausality(): {
   readonly log: string[]
   current: string
 } {
-  const state = {
-    current: 'root',
-    log: [] as string[],
-    causality: {
-      snapshot: (): unknown => {
-        state.log.push(`snapshot:${state.current}`)
-        return state.current
-      },
-      restore: (snapshot: unknown): void => {
-        state.current = snapshot as string
-        state.log.push(`restore:${state.current}`)
-      },
+  const log: string[] = []
+  const current = { value: 'root' }
+  const causality: AlsCausality = {
+    snapshot: () => {
+      log.push(`snapshot:${current.value}`)
+      return current.value
+    },
+    restore: (received) => {
+      current.value = received as string
+      log.push(`restore:${current.value}`)
     },
   }
-  return state
+  return { causality, log, get current() { return current.value }, set current(next: string) { current.value = next } }
 }
 
 // ---------------------------------------------------------------------------
@@ -95,7 +94,7 @@ function recordingCausality(): {
   // operand, most of which are not promises.
   const als = createAlsRuntime(recordingCausality().causality)
   check('pause accepts a plain value', (await als.pause(7)).value, 7)
-  check('pause accepts a thenable', (await als.pause({ then: (resolve: (v: unknown) => void) => { resolve('t') } })).value, 't')
+  check('pause accepts a thenable', (await als.pause(Promise.resolve({ then: (resolve: (v: string) => void) => { resolve('t') } }))).value, 't')
   const nested = await als.pause(Promise.resolve(Promise.resolve('deep')))
   check('pause unwraps a nested promise', nested.value, 'deep')
 }
@@ -129,14 +128,10 @@ function recordingCausality(): {
   const token = await als.pause(Promise.reject(failure))
   state.current = 'someone-else'
 
-  let caught: unknown
-  try {
-    als.resume(token)
-  } catch (reason) {
-    caught = reason
-  }
-  check('resume rethrows the original error', caught, failure)
-  check('resume restored the context before rethrowing', state.current, 'session-C')
+  test('resume rethrows the original error after restoring', () => {
+    expect(() => { als.resume(token) }).toThrow(failure)
+    expect(state.current).toBe('session-C')
+  })
 }
 
 {
@@ -191,7 +186,7 @@ function recordingCausality(): {
 }
 
 // ---------------------------------------------------------------------------
-// 4. iterator: async sources pass through, sync sources are adapted.
+// 4. iterator: async sources pass through, sync sources are converted.
 // ---------------------------------------------------------------------------
 
 {
@@ -219,13 +214,13 @@ function recordingCausality(): {
 
 {
   const als = createAlsRuntime(recordingCausality().causality)
-  // `return()` on the adapter must reach the sync iterator's own `return`,
-  // because that is where a generator's `finally` runs.
+  // `return()` on the converted iterator must reach the sync iterator's own
+  // `return`, because that is where a generator's `finally` runs.
   let closed = 0
   const source = {
     [Symbol.iterator]: () => ({
       next: () => ({ done: false, value: 1 }),
-      return: (sent?: unknown) => {
+      return: (sent?: string) => {
         closed += 1
         return { done: true, value: sent }
       },
@@ -234,31 +229,24 @@ function recordingCausality(): {
   const iterator = als.iterator(source)
   await iterator.next()
   const result = await iterator.return?.('bye')
-  check('adapter forwards return to the sync iterator', closed, 1)
-  check('adapter reports the forwarded return result', result, { done: true, value: 'bye' })
+  check('converted iterator forwards return to the sync iterator', closed, 1)
+  check('converted iterator reports the forwarded return result', result, { done: true, value: 'bye' })
 }
 
 {
   const als = createAlsRuntime(recordingCausality().causality)
-  // A sync iterator with no `return` must not crash the adapter: plain array
+  // A sync iterator with no `return` must not crash the conversion: plain array
   // iterators have one, but hand-rolled ones often do not.
   const iterator = als.iterator({ [Symbol.iterator]: () => ({ next: () => ({ done: true, value: undefined }) }) })
-  check('adapter tolerates a sync iterator without return', await iterator.return?.(undefined), { done: true, value: undefined })
+  check('conversion tolerates a sync iterator without return', await iterator.return?.(undefined), { done: true, value: undefined })
 }
 
 {
   const als = createAlsRuntime(recordingCausality().causality)
   // A non-iterable is a programming error in the transformed source, and must be
   // a loud TypeError rather than a silent empty loop.
-  const rejects = (label: string, value: unknown): void => {
-    let outcome: string
-    try {
-      als.iterator(value)
-      outcome = 'no TypeError'
-    } catch (reason) {
-      outcome = reason instanceof TypeError ? 'TypeError' : `no TypeError: ${String(reason)}`
-    }
-    test(label, () => { expect(outcome).toBe('TypeError') })
+  const rejects = <T>(label: string, value: T): void => {
+    test(label, () => { expect(() => { als.iterator(value) }).toThrow(TypeError) })
   }
   rejects('a plain object is not iterable', {})
   rejects('a number is not iterable', 7)
@@ -274,10 +262,10 @@ function recordingCausality(): {
   const als = createAlsRuntime(recordingCausality().causality)
   let closed = 0
   const iterator = {
-    next: () => Promise.resolve({ done: true, value: undefined }),
-    return: (): Promise<IteratorResult<unknown>> => {
+    next: () => Promise.resolve<IteratorResult<string>>({ done: true, value: undefined }),
+    return: () => {
       closed += 1
-      return Promise.resolve({ done: true, value: 'closed' })
+      return Promise.resolve<IteratorResult<string>>({ done: true, value: 'closed' })
     },
   }
   check('close forwards the iterator result', await als.close(iterator), { done: true, value: 'closed' })
@@ -290,14 +278,14 @@ function recordingCausality(): {
   // loop is already leaving: swallowing keeps the original failure (or the
   // `break`) as the observable outcome instead of masking it with a teardown error.
   const throwing = {
-    next: () => Promise.resolve({ done: true, value: undefined }),
-    return: (): Promise<IteratorResult<unknown>> => Promise.reject(new Error('teardown exploded')),
+    next: () => Promise.resolve<IteratorResult<string>>({ done: true, value: undefined }),
+    return: () => Promise.reject(new Error('teardown exploded')),
   }
   check('close swallows a failing return', await als.close(throwing), undefined)
 
   const synchronouslyThrowing = {
-    next: () => Promise.resolve({ done: true, value: undefined }),
-    return: (): Promise<IteratorResult<unknown>> => { throw new Error('teardown exploded synchronously') },
+    next: () => Promise.resolve<IteratorResult<string>>({ done: true, value: undefined }),
+    return: (): Promise<IteratorResult<string>> => { throw new Error('teardown exploded synchronously') },
   }
   check('close swallows a synchronously throwing return', await als.close(synchronouslyThrowing), undefined)
 }
@@ -305,7 +293,7 @@ function recordingCausality(): {
 {
   const als = createAlsRuntime(recordingCausality().causality)
   // No `return` at all: nothing to do, and no crash.
-  check('close tolerates an iterator without return', await als.close({ next: () => Promise.resolve({ done: true, value: undefined }) }), undefined)
+  check('close tolerates an iterator without return', await als.close({ next: () => Promise.resolve<IteratorResult<string>>({ done: true, value: undefined }) }), undefined)
 }
 
 // ---------------------------------------------------------------------------
@@ -330,20 +318,16 @@ function recordingCausality(): {
   const failure = new Error('inert boom')
   const rejected = await inert.pause(Promise.reject(failure))
   check('inert pause reports rejection in the token', rejected.ok, false)
-  let caught: unknown
-  try {
-    inert.resume(rejected)
-  } catch (reason) {
-    caught = reason
-  }
-  check('inert resume still rethrows', caught, failure)
+  test('inert resume still rethrows', () => {
+    expect(() => { inert.resume(rejected) }).toThrow(failure)
+  })
 
   check('inert afterYield is still transparent', inert.afterYield(undefined, 'sent'), 'sent')
 
   // The iterator and close verbs are pure plumbing and must work identically.
   const iterator = inert.iterator({ [Symbol.iterator]: () => ['x'][Symbol.iterator]() })
-  check('inert iterator still adapts a sync source', await iterator.next(), { done: false, value: 'x' })
-  check('inert close still resolves', await inert.close({ next: () => Promise.resolve({ done: true, value: undefined }) }), undefined)
+  check('inert iterator still converts a sync source', await iterator.next(), { done: false, value: 'x' })
+  check('inert close still resolves', await inert.close({ next: () => Promise.resolve<IteratorResult<string>>({ done: true, value: undefined }) }), undefined)
 }
 
 {

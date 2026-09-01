@@ -1,47 +1,43 @@
 /**
  * `node:async_hooks` for the worker: `AsyncLocalStorage` over an EXPLICIT-SWITCH
- * model with two fallbacks. A browser has no async-context tracking, so the store
- * a read answers is decided by three slots, in this order:
+ * model. A browser has no async-context tracking, so the store a read answers is
+ * decided by three slots, in this order:
  *
- * 1. HOOK OVERLAY — set for the duration of one callback by the hook layer
- *    (`./async-context-hooks.ts`), which captures the context where a callback was
- *    REGISTERED (`.then`, `queueMicrotask`, timers, `fetch`) and restores it where
- *    the callback RUNS.
- * 2. RESUMED CONTEXT — the explicit-switch slot. {@link __snapshotAll} copies every
- *    live instance's effective store and {@link __restoreAll} publishes a copy; the
- *    module loader's `await` rewriting pauses with the first and resumes with the
- *    second, which is what makes attribution causally correct across an `await`
- *    even while another chain interleaves. The rewriter's `restore` returns nothing,
- *    so this slot holds ONE value per instance and a resume REPLACES it rather than
- *    stacking: a frame that resumes again at its next await re-publishes its own
- *    context anyway, and a new `run()` boundary shadows the slot for its extent.
- *    (Callers that want scoping get a disposer back from {@link __restoreAll}.)
- * 2b. BOUNDARY AMBIENT — `run()` also publishes its own store here, so rewritten and
- *    un-rewritten code agree on what the innermost boundary is.
+ * 1. HOOK OVERLAY — set for one callback's duration by the hook layer
+ *    (`./async-context-hooks.ts`), which captures the context where a callback
+ *    was REGISTERED (`.then`, `queueMicrotask`, timers, `fetch`) and restores it
+ *    where the callback RUNS.
+ * 2. RESUMED CONTEXT — the explicit-switch slot. {@link __snapshotAll} copies
+ *    every live instance's effective store and {@link __restoreAll} publishes a
+ *    copy; the module loader's `await` rewriting pauses with the first and
+ *    resumes with the second, so attribution stays causally correct across an
+ *    `await` while other chains interleave. `restore` returns nothing, so this
+ *    slot holds ONE value per instance and a resume REPLACES it rather than
+ *    stacking; a `run()` boundary shadows the slot for its extent. Scoped
+ *    callers get a disposer back from {@link __restoreAll}.
+ * 2b. BOUNDARY AMBIENT — `run()` also publishes its own store here, so rewritten
+ *    and un-rewritten code agree on what the innermost boundary is; the slot
+ *    goes away when the boundary's entry does.
  * 3. FOLDING STACK — the fallback for code the rewriter has not touched: `run()`
  *    pushes an entry that is removed synchronously for a synchronous operation, or
  *    when the returned promise settles for an asynchronous one, so a store stays
  *    visible across `await` inside that operation.
  *
  * Every slot is removed by IDENTITY, never blindly: boundaries settle and frames
- * resume out of order, so a blind pop would drop somebody else's context — and a
- * slot that is released while shadowed must leave the chain without promoting
- * itself back over whoever came after it. The three slots are separate for the same reason — a restored
- * copy pushed onto the folding stack could unwind another boundary's entry.
+ * resume out of order, so a blind pop would drop somebody else's context, and a
+ * slot released while shadowed must leave the chain without promoting itself
+ * over whoever came after it.
  *
- * A snapshot with no stores at all is `undefined`, and the hook layer then wraps
- * nothing: a callback registered outside every boundary keeps inheriting the
- * enclosing boundary rather than being masked to `undefined`. `__snapshotAll` is
- * the transformer-facing counterpart and always captures every instance, including
- * the ones reading `undefined`, because a resumed frame must see exactly what it
- * saw at its pause point.
+ * A snapshot with no stores is `undefined`; the hook layer then wraps nothing,
+ * and a callback registered outside every boundary keeps inheriting the
+ * enclosing boundary. `__snapshotAll` always captures every instance, including
+ * ones reading `undefined`, so a resumed frame sees exactly its pause point.
  *
  * BOUNDARY (structural, documented rather than worked around): native
- * `async`/`await` resumption inside code the rewriter has NOT transformed is
- * invisible to user code. Such a frame falls back to the folding stack, which is
- * ordered by nesting rather than by causal chain, so two boundaries overlapping
- * there can attribute to the wrong one. Nothing crashes, the stacks still unwind by
- * identity, and everything the hook layer or the rewriter covers is exact.
+ * `async`/`await` resumption in un-transformed code falls back to the folding
+ * stack, which is ordered by nesting rather than causal chain; two boundaries
+ * overlapping there can attribute to the wrong one. Everything the hook layer or
+ * the rewriter covers is exact.
  */
 import { notImplementedFail } from '../../notImplementedFail.ts'
 
@@ -54,7 +50,6 @@ interface Overlay<T> {
 }
 
 /** Pristine `then`, so this module's own bookkeeping never re-enters the hook layer. */
-// eslint-disable-next-line @typescript-eslint/unbound-method -- taking `then` unbound is the point; it is `.call`ed on its own promise
 const nativeThen = Promise.prototype.then
 
 /** Every live instance, so one snapshot can capture all of their stores at once. */
@@ -89,7 +84,7 @@ export class AsyncLocalStorage<T> {
     this.entries.push(entry)
     // Removal is by entry identity: overlapping boundaries settle out of order,
     // and a blind pop would drop somebody else's entry.
-    const remove = (): void => {
+    const removeEntry = (): void => {
       const at = this.entries.lastIndexOf(entry)
       if (at !== -1) this.entries.splice(at, 1)
     }
@@ -102,11 +97,11 @@ export class AsyncLocalStorage<T> {
       const at = this.ambients.lastIndexOf(ambient)
       if (at !== -1) this.ambients.splice(at, 1)
       if (this.resumed === undefined) this.resumed = restoreResumed
-      remove()
+      removeEntry()
     }
     // A boundary opened under an overlay or a resumed context (a hook-restored
-    // callback, or a rewritten frame, that starts a new run) must not keep reading
-    // them: its own entry is the truth.
+    // callback, or a rewritten frame) must not keep reading them: its own entry
+    // is the truth.
     const restoreOverlay = this.overlay
     const restoreResumed = this.resumed
     this.overlay = undefined
@@ -137,12 +132,7 @@ export class AsyncLocalStorage<T> {
     return result
   }
 
-  /**
-   * Current store, resolved through the slot order this module documents: the
-   * hook-restored overlay, then the ambient context a resume installed (or a
-   * boundary owns), then the folding stack's innermost entry.
-   * @returns the store, or undefined outside every boundary.
-   */
+  /** Current store, resolved through the documented slot order: overlay, resumed, ambient, folding entry. */
   getStore(): T | undefined {
     if (this.overlay !== undefined) return this.overlay.store
     if (this.resumed !== undefined) return this.resumed.store
@@ -151,12 +141,7 @@ export class AsyncLocalStorage<T> {
     return this.entries.at(-1)?.store
   }
 
-  /**
-   * Run a callback with no store, folding over its lifetime like {@link run}.
-   * @param callback - the operation.
-   * @param args - callback arguments.
-   * @returns the exact value the callback returned.
-   */
+  /** Run a callback with no store, folding over its lifetime like {@link run}. */
   exit<R>(callback: (...args: never[]) => R, ...args: never[]): R {
     return this.run(undefined, callback, ...args)
   }
@@ -208,7 +193,7 @@ export class AsyncLocalStorage<T> {
 
   /**
    * Copy every live instance's current store. Not part of the Node face: this is
-   * the shim's own mechanism, kept in the class so the overlay stays private.
+   * the runtime's own mechanism, kept in the class so the overlay stays private.
    * @returns the snapshot, or undefined when no instance has a store.
    */
   static captureContext(): AsyncContextSnapshot | undefined {

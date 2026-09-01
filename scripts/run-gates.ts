@@ -287,6 +287,7 @@ function ciSharedStaticGates(): Gate[] {
     }),
     bunScript('client-packages', 'verify-client-packages', { label: 'client packages' }),
     bunScript('client-ui-i18n', 'verify-client-ui-i18n', { label: 'client UI i18n' }),
+    bunScript('toolchain-floors', 'verify-toolchain-floors', { label: 'toolchain floors' }),
     bunScript('issue-management', 'test:issue-management', { label: 'Issue management policy' }),
   ]
 }

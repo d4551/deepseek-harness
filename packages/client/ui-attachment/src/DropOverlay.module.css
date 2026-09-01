@@ -50,3 +50,27 @@
   color: var(--dsw-alias-label-tertiary);
   white-space: pre-wrap;
 }
+
+.illustrationFillHero {
+  fill: var(--dsw-static-illustration-hero);
+}
+
+.fillTeal {
+  fill: var(--dsw-static-illustration-teal);
+}
+
+.fillBlue {
+  fill: var(--dsw-static-deepseek-400);
+}
+
+.fillCard {
+  fill: var(--dsw-static-blue-600);
+}
+
+.fillGrey {
+  fill: var(--dsw-static-neutral-bluish-500);
+}
+
+.fillAmber {
+  fill: var(--dsw-static-illustration-amber);
+}

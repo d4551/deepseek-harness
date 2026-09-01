@@ -433,6 +433,10 @@
   pointer-events: none;
 }
 
+.heroGlowEllipse {
+  fill: var(--dsw-static-illustration-hero);
+}
+
 .heroWorkspaceRow {
   display: flex;
   align-items: center;

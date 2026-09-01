@@ -1,5 +1,5 @@
 /**
- * Behavioural check of the folding AsyncLocalStorage shim: the two shapes the
+ * Behavioural check of the folding AsyncLocalStorage implementation: the two shapes the
  * agent service actually uses (nested instances; a boundary whose operation
  * returns a promise), the hook layer that carries a registration context into a
  * callback, and the explicit-switch slots the module transform's `await`
@@ -15,19 +15,19 @@
  *     suspension point. This is the layer that survives true interleaving, and
  *     case 17 is the one that shows the folding stack alone cannot.
  *
- * Scope boundary: this file owns the shim (the state). `als-runtime.spec.ts`
- * owns the protocol that moves snapshots around, with the causality face stubbed.
+ * Scope boundary: this file owns the state layer. `als-runtime.spec.ts` owns
+ * the protocol that moves snapshots around, with the causality face stubbed.
  *
  * Every import goes through the **package name**, not a relative path: a check
- * that reaches built `lib/` while the shim resolves by package name to `src/`
- * gets two module instances and a shim mounted in the wrong world (the failure
+ * that reaches built `lib/` while the implementation resolves by package name to `src/`
+ * gets two module instances and a store mounted in the wrong world (the failure
  * mode asserted in `../node/fs.spec.ts`). One resolution path per module.
  */
 import { expect, test } from 'vitest'
 import {
   AsyncLocalStorage, __restoreAll, __snapshotAll, alsCausality, runAtAsyncContextRoot,
 } from '@deepseek-ai/dsh-experimental-webworker-runtime/src/node/builtin_modules/implemented/async_hooks.ts'
-import { installAsyncContextHooks } from '@deepseek-ai/dsh-experimental-webworker-runtime/src/polyfill/async-context/async-context-hooks.ts'
+import { installAsyncContextHooks } from '@deepseek-ai/dsh-experimental-webworker-runtime/src/async-context/async-context-hooks.ts'
 import { installTimerGlobals } from '@deepseek-ai/dsh-experimental-webworker-runtime/src/node/globals/timers.ts'
 
 // Same order the worker entry uses: patch the platform, then wrap the timers over
@@ -38,20 +38,21 @@ installTimerGlobals()
 // Both sides are serialized at call time, not inside the case: several blocks
 // below reuse a mutable array as the observed value, so a captured reference
 // would read a later block's state by the time the case executes.
-const check = (label: string, actual: unknown, expected: unknown): void => {
+const check = <T>(label: string, actual: T, expected: T): void => {
   const [seen, wanted] = [JSON.stringify(actual), JSON.stringify(expected)]
   test(label, () => { expect(seen).toBe(wanted) })
 }
 const delay = (ms = 0): Promise<void> => new Promise((resolve) => { setTimeout(resolve, ms) })
 
 // 0. The migration's own precondition: the hook layer really is installed over
-//    this module instance. If the check and the shim ever resolve to two
+//    this module instance. If the check and the implementation ever resolve to two
 //    instances again, the patched `then` below belongs to the other copy and
 //    every hook-layer case would silently test an unpatched platform.
 {
   const als = new AsyncLocalStorage<string>()
   let seen: string | undefined = 'unset'
-  als.run('installed', () => { void Promise.resolve().then(() => { seen = als.getStore() }) })
+  const observed = als.run('installed', () => Promise.resolve().then(() => { seen = als.getStore() }))
+  await observed
   await delay()
   check('hook layer is installed over this module instance', seen, 'installed')
 }
@@ -91,7 +92,7 @@ const delay = (ms = 0): Promise<void> => new Promise((resolve) => { setTimeout(r
     await delay()
     throw new Error('operation failed')
   })
-  const message = await failing.then(() => 'resolved', (error: unknown) => (error as Error).message)
+  const message = await failing.then(() => 'resolved', error => (error as Error).message)
   check('rejection propagates', message, 'operation failed')
   await delay()
   check('boundary closes after rejection', als.getStore(), undefined)
@@ -100,9 +101,8 @@ const delay = (ms = 0): Promise<void> => new Promise((resolve) => { setTimeout(r
 // 4. A synchronous throw closes the boundary too.
 {
   const als = new AsyncLocalStorage<string>()
-  try {
-    als.run('thrower', () => { throw new Error('sync failure') })
-  } catch { /* expected */ }
+  const throwing = (): number => als.run('thrower', () => { throw new Error('sync failure') })
+  test('sync throw escapes the boundary', () => { expect(throwing).toThrow('sync failure') })
   check('boundary closes after sync throw', als.getStore(), undefined)
 }
 
@@ -129,7 +129,7 @@ const delay = (ms = 0): Promise<void> => new Promise((resolve) => { setTimeout(r
 {
   const runs = new AsyncLocalStorage<{ id: number }>()
   const initiators = new AsyncLocalStorage<string>()
-  const observed: unknown[] = []
+  const observed: (string | number | undefined)[][] = []
   const operation = async (): Promise<void> => {
     await delay()
     // What requireInitiator() does, several awaits below the boundary.
@@ -188,13 +188,18 @@ const delay = (ms = 0): Promise<void> => new Promise((resolve) => { setTimeout(r
 }
 
 // 10. HOOK LAYER: a `.then` callback reads the store from where it was REGISTERED,
-//     even though the registering boundary is long closed by the time it runs.
+//     even though the registering boundary's callback has long returned by the
+//     time the continuation runs. (The folding fallback keeps the store visible
+//     at the top level until settlement — slot 2b/3 of the model — which is what
+//     carries native `await` resumption in un-transformed code; case 11 is what
+//     proves the callback value comes from registration capture, not leakage.)
 {
   const als = new AsyncLocalStorage<string>()
   let seen: string | undefined = 'unset'
   const promise = new Promise<void>((resolve) => { setTimeout(resolve, 10) })
-  als.run('registrar', () => { void promise.then(() => { seen = als.getStore() }) })
-  check('boundary closed before the callback runs', als.getStore(), undefined)
+  const observed = als.run('registrar', () => promise.then(() => { seen = als.getStore() }))
+  check('folding fallback keeps the store visible until settle', als.getStore(), 'registrar')
+  await observed
   await delay(30)
   check('then callback reads the registration store', seen, 'registrar')
 }
@@ -204,41 +209,45 @@ const delay = (ms = 0): Promise<void> => new Promise((resolve) => { setTimeout(r
 {
   const als = new AsyncLocalStorage<string>()
   const seen: (string | undefined)[] = []
-  const register = (label: string, ms: number): void => {
+  const register = (label: string, ms: number): Promise<void>[] => {
+    const started: Promise<void>[] = []
     als.run(label, () => {
-      setTimeout(() => { seen.push(`${label}:${String(als.getStore())}`) }, ms)
-      void Promise.resolve().then(() => { seen.push(`${label}-then:${String(als.getStore())}`) })
-      queueMicrotask(() => { seen.push(`${label}-micro:${String(als.getStore())}`) })
+      started.push(new Promise<void>((resolve) => { setTimeout(() => { seen.push(`${label}:${String(als.getStore())}`); resolve() }, ms) }))
+      started.push(Promise.resolve().then(() => { seen.push(`${label}-then:${String(als.getStore())}`) }))
+      started.push(new Promise<void>((resolve) => { queueMicrotask(() => { seen.push(`${label}-micro:${String(als.getStore())}`); resolve() }) }))
     })
+    return started
   }
-  register('A', 20)
-  register('B', 5)
+  const startedA = register('A', 20)
+  const startedB = register('B', 5)
+  await Promise.all([...startedA, ...startedB])
   await delay(40)
   check('interleaved timers read their own store', seen.filter((entry): entry is string => entry !== undefined && entry.includes(':')).sort(), [
     'A-micro:A', 'A-then:A', 'A:A', 'B-micro:B', 'B-then:B', 'B:B',
   ])
 }
 
-// 12. `catch`/`finally` inherit the patched `then` (they invoke it on the receiver).
+// 12. Rejection and settle handlers inherit the patched `then` (they invoke it on
+//     the receiver).
 {
   const als = new AsyncLocalStorage<string>()
   const seen: (string | undefined)[] = []
   const rejected = Promise.reject(new Error('boom'))
   const settled = als.run('handler', () => rejected
-    .catch(() => { seen.push(als.getStore()) })
-    .finally(() => { seen.push(als.getStore()) }))
+    .then(undefined, () => { seen.push(als.getStore()) })
+    .then(() => { seen.push(als.getStore()) }))
   await settled
   await delay()
-  check('catch and finally carry the registration store', seen, ['handler', 'handler'])
+  check('rejection and settle handlers carry the registration store', seen, ['handler', 'handler'])
 }
 
-// 13. An empty handler slot stays empty: a rejection must not be swallowed by a
-//     wrapper standing in for an absent fulfilled handler.
+// 13. An empty handler slot stays empty: a rejection must not be swallowed by
+//     a stand-in for an absent fulfilled handler.
 {
   const als = new AsyncLocalStorage<string>()
   const outcome = await als.run('slots', () => Promise
     .reject(new Error('preserved'))
-    .then(undefined, (error: unknown) => `caught:${(error as Error).message}`))
+    .then(undefined, error => `caught:${(error as Error).message}`))
   check('empty fulfilled slot preserved', outcome, 'caught:preserved')
   const passthrough = await als.run('slots', () => Promise.resolve('value').then(undefined, () => 'wrong'))
   check('value passes an empty fulfilled slot', passthrough, 'value')

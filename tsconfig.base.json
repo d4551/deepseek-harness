@@ -256,6 +256,8 @@
       "@deepseek-ai/dsh-anonymous-user-id/invariant": ["./packages/identity/anonymous-user-id/src/invariant.ts"],
       "@deepseek-ai/dsh-app-boot": ["./packages/boot/app-boot/src"],
       "@deepseek-ai/dsh-app-boot/invariant": ["./packages/boot/app-boot/src/invariant.ts"],
+      "@deepseek-ai/dsh-approval-assessor": ["./packages/guard/approval-assessor/src"],
+      "@deepseek-ai/dsh-approval-assessor/invariant": ["./packages/guard/approval-assessor/src/invariant.ts"],
       "@deepseek-ai/dsh-atomic-write": ["./packages/util/atomic-write/src"],
       "@deepseek-ai/dsh-atomic-write/invariant": ["./packages/util/atomic-write/src/invariant.ts"],
       "@deepseek-ai/dsh-attachment": ["./packages/attachment/attachment/src"],

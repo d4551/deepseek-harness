@@ -60,13 +60,14 @@ function mountPackage(name: string, directory: string, files: readonly string[])
 }
 
 /** Load one consumer's exact Chokidar and readdirp versions through the Worker loader. */
-function loadChokidar(fixture: ChokidarFixture): typeof import('chokidar') {
+async function loadChokidar(fixture: ChokidarFixture): Promise<typeof import('chokidar')> {
   const consumerManifest = join(process.cwd(), fixture.consumerManifest)
   const chokidarEntry = createRequire(consumerManifest).resolve('chokidar')
   const readdirpEntry = createRequire(chokidarEntry).resolve('readdirp')
   mountPackage('chokidar', packageRoot('chokidar', chokidarEntry), fixture.chokidarFiles)
   mountPackage('readdirp', packageRoot('readdirp', readdirpEntry), fixture.readdirpFiles)
   const loader = new WorkerModuleLoader({ vfs, staticModules: createNodeBuiltins() })
+  await loader.precompile()
   return loader.createRequire('/dsh/')('chokidar') as typeof import('chokidar')
 }
 
@@ -112,8 +113,8 @@ function watchPath(path: string, options: import('chokidar').ChokidarOptions = {
 }
 
 describe.each(CHOKIDAR_FIXTURES)('$label running unchanged', (fixture) => {
-  beforeEach(() => {
-    chokidar = loadChokidar(fixture)
+  beforeEach(async () => {
+    chokidar = await loadChokidar(fixture)
   })
 
   it('reaches ready and reports a file lifecycle through fs.watch', async () => {

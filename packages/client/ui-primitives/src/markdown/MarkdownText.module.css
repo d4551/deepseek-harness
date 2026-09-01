@@ -166,6 +166,10 @@
   overflow-y: hidden;
 }
 
+.markdown :global(.katex-error) {
+  color: var(--dsw-static-red-500);
+}
+
 .markdown input[type='checkbox'] {
   margin: 0 8px 0 0;
   accent-color: var(--dsw-alias-label-secondary);

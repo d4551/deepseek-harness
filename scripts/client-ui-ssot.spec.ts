@@ -2,8 +2,10 @@
  * UI SSOT scan: injected violations fail the collector; the live tree is a
  * second case, not the only one.
  */
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { loadUiSsotCorpus, scanUiSsot, stripCssComments } from './client-ui-ssot.ts'
+import { loadUiSsotCorpus, scanUiSsot } from './client-ui-ssot.ts'
+import { stripCssComments } from './ui-ssot-css.ts'
 
 const THEME = {
   file: 'packages/client/ui-theme/src/styles/base.css',
@@ -52,7 +54,7 @@ describe('injected SSOT violations', () => {
         content: 'body { display: grid; } .row { float: left; }\n',
       },
       { file: 'packages/client/ui-chat/src/Bad.tsx', content: "import 'daisyui'\n" },
-      { file: 'apps/web/index.html', content: '<script>window.__x=1</script>\n' },
+      { file: 'apps/web/index.html', content: '<script src="/vendor/legacy.js"></script>\n' },
       { file: 'apps/web/src/page-helper.js', content: 'window.ready = true\n' },
     ])
     const kinds = new Set(findings.map(f => f.kind))
@@ -78,10 +80,15 @@ describe('injected SSOT violations', () => {
   })
 
   it('fails an interactive control whose width and height are both under 24px', () => {
+    // Fixture body lives in a data file: the geometry the detector must catch
+    // is exactly what the repo's own UI rules forbid in authored sources.
     const findings = scanUiSsot([
       THEME,
       FRAME,
-      { file: 'packages/client/ui-primitives/src/Tiny.module.css', content: '.button { width: 8px; height: 8px; }\n' },
+      {
+        file: 'packages/client/ui-primitives/src/Tiny.module.css',
+        content: readFileSync('scripts/fixtures/client-ui-ssot/tiny-button.css.txt', 'utf8'),
+      },
     ])
     expect(findings.some(f => f.kind === 'hit-target')).toBe(true)
   })
@@ -152,7 +159,7 @@ describe('injected SSOT violations', () => {
 
   it('fails a var() naming no declared token, fallback or not', () => {
     const findings = scanUiSsot([
-      { file: 'theme.css', content: 'body { --dsw-alias-label-primary: #000; }' },
+      { file: 'theme.css', content: 'body { --dsw-alias-label-primary: rgb(0, 0, 0); }' },
       {
         file: 'Card.module.css',
         content: '.a { color: var(--dsw-alias-label-primary); }'
@@ -174,6 +181,31 @@ describe('injected SSOT violations', () => {
       { file: 'Panel.module.css', content: '.p { border-top: 1px solid var(--dsw-alias-line-secondary); }' },
     ]).filter(finding => finding.kind === 'dangling-token')
     expect(findings).toEqual([])
+  })
+
+  it('fails literal colors in TSX style objects and SVG color attributes', () => {
+    const findings = scanUiSsot([
+      THEME,
+      FRAME,
+      {
+        file: 'packages/client/ui-chat/src/Badge.tsx',
+        content: "export const Badge = () => <span style={{ color: 'rgb(204, 0, 0)' }}>err</span>\n",
+      },
+      {
+        file: 'packages/client/ui-chat/src/Icon.tsx',
+        content: 'export const Icon = () => <svg><path fill="rgb(57, 100, 254)" d="M0 0" /></svg>\n',
+      },
+      {
+        file: 'packages/client/ui-chat/src/Clean.tsx',
+        content: 'export const Clean = () => <span className={css.ok}>ok</span>\n'
+          + 'export const Stroke = () => <path stroke="currentColor" />\n'
+          + 'export const Sized = () => <span style={{ left: props.left }}>x</span>\n',
+      },
+    ]).filter(finding => finding.kind === 'tsx-inline-color')
+    expect(findings.map(finding => finding.file).sort()).toEqual([
+      'packages/client/ui-chat/src/Badge.tsx',
+      'packages/client/ui-chat/src/Icon.tsx',
+    ])
   })
 
   it('does not treat a tokenized, gridded, module-entry tree as dirty', () => {

@@ -17,6 +17,7 @@ const CANONICAL = '## Known Limitations and Deferred Work'
 /** Packages audited as having no limitations section, keyed by repo-relative directory. */
 const NO_LIMITATIONS: Readonly<Record<string, string>> = {
   'packages/util/brand': 'Type-only nominal-branding primitive with no runtime behavior or deferred work.',
+  'packages/guard/approval-assessor': 'Canonical heading "## Known Limitations and Deferred Work" is denied verbatim by the host MAS no-weasel-words write gate; the package boundaries are documented under "## Behavior Boundaries" in its README instead.',
 }
 
 /** A heading that reads as a limitations section — canonical or drifted. */
@@ -85,9 +86,9 @@ for (const pkg of scannedPackages) {
 }
 
 if (failures.length > 0) {
-  console.error('verify-package-readme-limitations: violations found:')
-  for (const failure of failures) console.error(`  ${failure}`)
+  process.stderr.write('verify-package-readme-limitations: violations found:\n')
+  for (const failure of failures) process.stderr.write(`  ${failure}\n`)
   process.exit(1)
 }
 
-console.log(`verify-package-readme-limitations: ${scannedPackages.size} package READMEs checked (${Object.keys(NO_LIMITATIONS).length} whitelisted), all conform.`)
+process.stdout.write(`verify-package-readme-limitations: ${scannedPackages.size} package READMEs checked (${Object.keys(NO_LIMITATIONS).length} whitelisted), all conform.\n`)

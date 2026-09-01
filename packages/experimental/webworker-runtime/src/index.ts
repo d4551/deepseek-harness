@@ -5,7 +5,7 @@
 export {
   createAlsRuntime,
   type AlsCausality, type AlsRuntime, type AlsSnapshot, type AlsToken,
-} from './polyfill/async-context/als-runtime.ts'
+} from './async-context/als-runtime.ts'
 export {
   parseInboundFrame,
   type TunnelAbortFrame, type TunnelInboundFrame, type TunnelOutboundFrame, type TunnelRequestFrame,

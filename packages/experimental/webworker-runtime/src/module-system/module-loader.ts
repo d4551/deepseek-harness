@@ -6,29 +6,38 @@
  *
  * Resolution is a narrowed Node `require` algorithm: `exports` walk with a
  * fixed condition order, extension probing, and one cache keyed by resolved
- * absolute path. Module bodies are wrapped as the image holds them: lowering is
- * the packer's job, so nothing here parses JavaScript.
+ * absolute path. Module bodies arrive exactly as the image holds them: lowering
+ * is the packer's job, and {@link WorkerModuleLoader.precompile} wraps them by
+ * importing generated `data:` modules, so no `Function` constructor and no
+ * JavaScript parser live in this file.
  * @module @deepseek-ai/dsh-experimental-webworker-runtime/src/module-system/module-loader
  */
-import { createAlsRuntime, type AlsCausality, type AlsRuntime } from '../polyfill/async-context/als-runtime.ts'
-import { dirname, fileUrlToPath, isAbsolute, join, pathToFileUrl, resolve as resolvePath } from './posix-path.ts'
-import { WRAPPER_PARAMS } from '../image-layout.ts'
+import { createAlsRuntime, type AlsCausality, type AlsRuntime } from '../async-context/als-runtime.ts'
 import { settled } from '../settled.ts'
+import { dirname, fileUrlToPath, isAbsolute, join, pathToFileUrl, resolve as resolvePath } from './posix-path.ts'
+import { precompileImage } from './module-compiler.ts'
+import { probe, selectExport, type PackageManifest } from './package-resolution.ts'
 import type { MemoryVfs } from '../storage/memory.ts'
+
+/** The `__dsh$meta` value each lowered body receives for its own path. */
+interface ModuleMeta {
+  readonly url: string
+  readonly resolve: (specifier: string) => string
+}
+
+/** A lowered image body compiled to the exact parameter list {@link MODULE_PARAMS} names. */
+export type ModuleBody = (
+  exports: ModuleRecord['module']['exports'],
+  require: WorkerRequire,
+  module: ModuleRecord['module'],
+  filename: string,
+  directory: string,
+  meta: ModuleMeta,
+  als: AlsRuntime,
+) => void
 
 /** Condition keys honoured in `exports`, in order; `node` is deliberately absent. */
 export const DEFAULT_CONDITIONS = ['browser', 'require', 'import', 'default'] as const
-
-/** Extensions probed when a specifier has no usable one. */
-const EXTENSIONS = ['.js', '.json', '.mjs', '.cjs'] as const
-
-type ExportsField = string | null | readonly ExportsField[] | { readonly [key: string]: ExportsField }
-
-interface PackageManifest {
-  readonly name?: string
-  readonly main?: string
-  readonly exports?: ExportsField
-}
 
 /**
  * One entry of the static-module table. The loader calls it when a `require`
@@ -121,6 +130,8 @@ export class WorkerModuleLoader {
   private readonly modules = new Map<string, ModuleRecord>()
   private readonly manifests = new Map<string, PackageManifest>()
   private readonly stack: string[] = []
+  private factories = new Map<string, ModuleBody>()
+  private precompiled = false
 
   /**
    * The Cordis module seam. `parentURL` positions relative specifiers;
@@ -194,76 +205,6 @@ export class WorkerModuleLoader {
     return manifest
   }
 
-  /** Walk one `exports` value against the condition set and requested subpath. */
-  private selectExport(field: ExportsField, subpath: string, packageName: string): string | undefined {
-    if (field === null) return undefined
-    if (typeof field === 'string') return subpath === '.' ? field : undefined
-    if (Array.isArray(field)) {
-      for (const candidate of field as readonly ExportsField[]) {
-        const picked = this.selectExport(candidate, subpath, packageName)
-        if (picked !== undefined) return picked
-      }
-      return undefined
-    }
-    const entries = Object.entries(field as { [key: string]: ExportsField })
-    const isSubpathMap = entries.some(([key]) => key === '.' || key.startsWith('./'))
-    if (!isSubpathMap) {
-      if (subpath !== '.') return undefined
-      return this.selectCondition(field, packageName)
-    }
-    for (const [key, value] of entries) {
-      if (key === subpath) {
-        return typeof value === 'string' ? value : this.selectCondition(value, packageName, subpath)
-      }
-    }
-    for (const [key, value] of entries) {
-      const star = key.indexOf('*')
-      if (star < 0) continue
-      const prefix = key.slice(0, star)
-      const suffix = key.slice(star + 1)
-      if (!subpath.startsWith(prefix) || !subpath.endsWith(suffix)) continue
-      const captured = subpath.slice(prefix.length, subpath.length - suffix.length)
-      const target = typeof value === 'string' ? value : this.selectCondition(value, packageName, subpath)
-      if (target !== undefined) return target.replaceAll('*', captured)
-    }
-    return undefined
-  }
-
-  /** Pick the first condition branch this runtime satisfies. */
-  private selectCondition(field: ExportsField, packageName: string, subpath = '.'): string | undefined {
-    if (field === null) return undefined
-    if (typeof field === 'string') return field
-    if (Array.isArray(field)) {
-      for (const candidate of field as readonly ExportsField[]) {
-        const picked = this.selectCondition(candidate, packageName, subpath)
-        if (picked !== undefined) return picked
-      }
-      return undefined
-    }
-    for (const [key, value] of Object.entries(field as { [key: string]: ExportsField })) {
-      if (!this.conditions.has(key)) continue
-      const picked = this.selectCondition(value, packageName, subpath)
-      if (picked !== undefined) return picked
-    }
-    return undefined
-  }
-
-  /** Extension and directory probing for a concrete path. */
-  private probe(path: string, specifier: string): string {
-    const candidates: string[] = [path, ...EXTENSIONS.map(extension => path + extension)]
-    for (const candidate of candidates) {
-      if (this.vfs.existsSync(candidate) && this.vfs.statSync(candidate).isFile()) return candidate
-    }
-    if (this.vfs.existsSync(path) && this.vfs.statSync(path).isDirectory()) {
-      if (this.vfs.existsSync(join(path, 'package.json'))) {
-        const main = this.manifestOf(path).main
-        if (main !== undefined) return this.probe(join(path, main), specifier)
-      }
-      return this.probe(join(path, 'index'), specifier)
-    }
-    return this.fail(`cannot resolve "${specifier}": no file at ${candidates.join(', ')}`)
-  }
-
   /** @returns The Worker-provided implementation of a static specifier. */
   private staticModule(specifier: string): StaticModuleFactory | undefined {
     const exact = this.staticModules.get(specifier)
@@ -287,13 +228,13 @@ export class WorkerModuleLoader {
       return this.fail(`no static module is registered for "${specifier}"`)
     }
     if (specifier.startsWith('file://')) {
-      return { kind: 'file', path: this.probe(fileUrlToPath(specifier), specifier) }
+      return { kind: 'file', path: this.probePath(fileUrlToPath(specifier), specifier) }
     }
     if (specifier.startsWith('.')) {
-      return { kind: 'file', path: this.probe(join(fromDirectory, specifier), specifier) }
+      return { kind: 'file', path: this.probePath(join(fromDirectory, specifier), specifier) }
     }
     if (isAbsolute(specifier)) {
-      return { kind: 'file', path: this.probe(specifier, specifier) }
+      return { kind: 'file', path: this.probePath(specifier, specifier) }
     }
     const segments = specifier.split('/')
     const packageName = specifier.startsWith('@') ? segments.slice(0, 2).join('/') : segments[0] ?? specifier
@@ -305,14 +246,30 @@ export class WorkerModuleLoader {
     const manifest = this.manifestOf(packageDirectory)
     const subpath = rest === '' ? '.' : `./${rest}`
     if (manifest.exports !== undefined) {
-      const target = this.selectExport(manifest.exports, subpath, packageName)
+      const target = selectExport(manifest.exports, subpath, packageName, this.conditions)
       if (target === undefined) {
         return this.fail(`"${packageName}" does not export "${subpath}" under conditions [${[...this.conditions].join(', ')}]`)
       }
-      return { kind: 'file', path: this.probe(join(packageDirectory, target), specifier) }
+      return { kind: 'file', path: this.probePath(join(packageDirectory, target), specifier) }
     }
     const legacy = subpath === '.' ? manifest.main ?? 'index.js' : rest
-    return { kind: 'file', path: this.probe(join(packageDirectory, legacy), specifier) }
+    return { kind: 'file', path: this.probePath(join(packageDirectory, legacy), specifier) }
+  }
+
+  /** Probe one candidate path through the shared resolution rules. */
+  private probePath(path: string, specifier: string): string {
+    return probe(this.vfs, directory => this.manifestOf(directory), path, specifier, message => this.fail(message))
+  }
+
+  /**
+   * Compile every lowered body in the image ahead of the first require, so
+   * module evaluation never builds code from strings at run time.
+   * @returns Promise that settles once every body has a compiled factory.
+   */
+  async precompile(): Promise<void> {
+    if (this.precompiled) return
+    this.precompiled = true
+    this.factories = await precompileImage(this.vfs, this.root, message => this.fail(message))
   }
 
   /**
@@ -336,8 +293,10 @@ export class WorkerModuleLoader {
     this.modules.set(path, record)
     this.stack.push(path)
     try {
-      const source = this.vfs.readFileSync(path, 'utf8') as string
-      const factory = this.compile(source, path)
+      const factory = this.factories.get(path)
+      if (factory === undefined) {
+        this.fail(`${path} has no compiled body; precompile() must run before the first require`)
+      }
       const directory = dirname(path)
       factory(
         record.module.exports,
@@ -363,32 +322,6 @@ export class WorkerModuleLoader {
       throw reason
     } finally {
       this.stack.pop()
-    }
-  }
-
-  /**
-   * Compile a body the image already lowered.
-   *
-   * Module syntax reaching here means the image was packed by something other
-   * than the packer, or its collector missed the entry. The worker carries no
-   * transform to recover with, so it names the image as the thing to rebuild.
-   * @param code - Module body as the image holds it.
-   * @param path - Resolved VFS path.
-   * @returns The wrapper factory.
-   */
-  private compile(code: string, path: string): (...args: unknown[]) => void {
-    try {
-      // Wrapping an image body is this loader's job.
-      return new Function(...WRAPPER_PARAMS, code) as (...args: unknown[]) => void
-    } catch (reason) {
-      if (reason instanceof SyntaxError && /await/i.test(reason.message)) {
-        this.fail(`${path} uses top-level await, which cannot run as CommonJS in the worker: ${reason.message}`)
-      }
-      if (reason instanceof SyntaxError && /import|export/i.test(reason.message)) {
-        this.fail(`${path} still carries module syntax, so the image was not lowered by the packer `
-          + `(${reason.message}); rebuild the image`)
-      }
-      this.fail(`${path} failed to compile: ${(reason as Error).message}`)
     }
   }
 

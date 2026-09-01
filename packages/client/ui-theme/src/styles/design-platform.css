@@ -34,6 +34,11 @@ body {
   --dsw-static-green-400: rgb(78, 209, 126);
   --dsw-static-green-500: rgb(34, 197, 94);
   --dsw-static-green-900: rgb(35, 60, 44);
+  --dsw-static-illustration-hero: rgb(97, 135, 216);
+  --dsw-static-illustration-teal: rgb(156, 229, 237);
+  --dsw-static-illustration-blue: rgb(57, 100, 254);
+  --dsw-static-illustration-card: rgb(151, 157, 166);
+  --dsw-static-illustration-amber: rgb(245, 158, 11);
   --dsw-static-neutral-00: rgb(255, 255, 255);
   --dsw-static-neutral-1000: rgb(0, 0, 0);
   --dsw-static-neutral-100: rgb(245, 245, 245);
@@ -127,6 +132,11 @@ body[data-ds-dark-theme] {
   --dsw-static-green-400: rgb(78, 209, 126);
   --dsw-static-green-500: rgb(34, 197, 94);
   --dsw-static-green-900: rgb(35, 60, 44);
+  --dsw-static-illustration-hero: rgb(97, 135, 216);
+  --dsw-static-illustration-teal: rgb(156, 229, 237);
+  --dsw-static-illustration-blue: rgb(57, 100, 254);
+  --dsw-static-illustration-card: rgb(151, 157, 166);
+  --dsw-static-illustration-amber: rgb(245, 158, 11);
   --dsw-static-neutral-00: rgb(255, 255, 255);
   --dsw-static-neutral-1000: rgb(0, 0, 0);
   --dsw-static-neutral-100: rgb(245, 245, 245);

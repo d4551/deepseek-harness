@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-01-tsx-inline-color-gate.md
+2026-09-01-tsx-inline-color-gate.md: 08e4875b41ce21503e29930c0ec31b2cb95de08b
+2026-09-01-tsx-inline-color-gate.zh.md: 8981a1c27a24836fb7fa74eab478d405bb2cd05c

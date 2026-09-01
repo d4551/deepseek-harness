@@ -24,7 +24,7 @@
 import { setActiveModuleLoader, WorkerModuleLoader, type StaticModuleFactory } from './module-system/module-loader.ts'
 import type { TypertGateway } from '@deepseek-ai/dsh-api-gateway'
 import type { HostConnectionHandle } from '@deepseek-ai/dsh-client-connection'
-import type { AlsCausality } from './polyfill/async-context/als-runtime.ts'
+import type { AlsCausality } from './async-context/als-runtime.ts'
 import { dirname, join } from './module-system/posix-path.ts'
 import { installProcessGlobal } from './node/globals/process.ts'
 import type { RequestListener } from './transport/synthetic-http.ts'
@@ -102,11 +102,11 @@ export interface WorkerHostOptions {
   readonly cmdlineArgs?: readonly string[]
   /** Port named on the default command line; defaults to {@link DEFAULT_PORT}. */
   readonly port?: number
-  /** Environment for the process shim; `DSH_HOME` defaults to `<root>/home`. */
+  /** Environment for the `node:process` stand-in; `DSH_HOME` defaults to `<root>/home`. */
   readonly env?: Readonly<Record<string, string>>
   /**
    * Image manifest path; defaults to `<root>/config/vfs-manifest.json`. Its
-   * `lowered` field must name this build's wrapper contract.
+   * `lowered` field must name this build's module-body factory contract.
    */
   readonly manifestPath?: string
   /**
@@ -216,6 +216,9 @@ export function createWorkerHost(options: WorkerHostOptions): WorkerHost {
       })
       setActiveModuleLoader(loader)
       modules = loader
+      // Ahead of the first require: every lowered body becomes a compiled
+      // factory here, so evaluation never builds code from strings.
+      await loader.precompile()
 
       const require = loader.requireFrom(dirname(configPath))
       const appBoot = require('@deepseek-ai/dsh-app-boot') as {
@@ -323,11 +326,11 @@ export function installLogSink(ctx: HostContext, require: (specifier: string) =>
 }
 
 /**
- * Require the mounted image to carry bodies this build can wrap.
+ * Require the mounted image to carry bodies this build can compile.
  *
  * The manifest the packer writes is the single source of truth: the worker holds
  * no transform, so an image that was never lowered — or was lowered against
- * different wrapper semantics — cannot be recovered at load and must be rebuilt.
+ * different lowering semantics — cannot be recovered at load and must be rebuilt.
  * @param vfs - Mounted filesystem.
  * @param path - Manifest path inside the image.
  * @throws When the manifest is missing, unreadable, or names another contract.

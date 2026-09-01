@@ -8,6 +8,7 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { workspaceTitleOf } from '@deepseek-ai/dsh-util-workspace-path'
 import type { ConversationSlotProps } from '../contract/slots.ts'
+import heroCss from './ConversationRoot.module.css'
 import css from './HeroShell.module.css'
 
 /** The owner's locale seat type, passed to hero chrome as a plain prop. */
@@ -89,7 +90,7 @@ export function HeroGlow({ className }: { className?: string | undefined }) {
         </filter>
       </defs>
       <g filter={`url(#${glowFilterId})`}>
-        <ellipse cx="525.5" cy="234" rx="425.5" ry="134" fill="#6187D8" fillOpacity="0.08" />
+        <ellipse cx="525.5" cy="234" rx="425.5" ry="134" className={heroCss.heroGlowEllipse} fillOpacity="0.08" />
       </g>
     </svg>
   )

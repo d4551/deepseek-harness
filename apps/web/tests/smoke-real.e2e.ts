@@ -231,9 +231,10 @@ async function history(baseUrl: string, sessionId: string): Promise<HistoryPage>
 async function waitForProviderTitle(baseUrl: string, sessionId: string): Promise<string> {
   let observed: string | undefined
   await expect.poll(async () => {
-    observed = providerTitle(await history(baseUrl, sessionId))
+    const title = providerTitle(await history(baseUrl, sessionId))
+    observed = typeof title === 'string' && title.trim() !== '' ? title : undefined
     return observed
-  }, { timeout: 90_000 }).toEqual(expect.any(String))
+  }, { timeout: 90_000 }).toBeDefined()
   if (observed === undefined) throw new Error('provider-backed session title was not observed')
   return observed
 }
@@ -292,7 +293,12 @@ const notReady = UI_PLUGIN_DIRS.filter((dir) => {
   const bundle = join(REPO_ROOT, 'packages/client', dir, 'lib/client.js')
   return !existsSync(bundle) || !readFileSync(bundle, 'utf8').includes('exports.apply')
 })
-if (notReady.length > 0) console.warn(`[smoke-real] skipped — client bundles not ready: ${notReady.join(', ')}`)
+if (!process.env.DEEPSEEK_API_KEY && notReady.length > 0) {
+  console.warn(`[smoke-real] client bundles not ready: ${notReady.join(', ')}`)
+}
+if (process.env.DEEPSEEK_API_KEY && notReady.length > 0) {
+  throw new Error(`[smoke-real] refusing to run with stale client bundles: ${notReady.join(', ')} — rebuild (bun run build) before the real-host lane`)
+}
 
 describe('dsh web keyless CLI smoke', () => {
   it('serves a usable app from two immutable plugin batches', async () => {
@@ -670,7 +676,7 @@ describe('dsh web keyless CLI smoke', () => {
   })
 })
 
-describe.skipIf(!process.env.DEEPSEEK_API_KEY || notReady.length > 0)('web smoke (real host, real key)', () => {
+describe.skipIf(!process.env.DEEPSEEK_API_KEY)('web smoke (real host, real key)', () => {
   let child: ChildProcess
   let sessionsDir: string
   let baseUrl: string

@@ -18,10 +18,10 @@ export const IMAGE_FILE_NAME = 'vfs-image.tar.gz'
 /** Image path the composed profile is written to; the runtime's Loader reads it. */
 export const IMAGE_CONFIG_PATH = 'config/cordis.yml'
 
-/** Image path of the manifest the runtime reads before it wraps a single module. */
+/** Image path of the manifest the runtime reads before it lowers a single module. */
 export const IMAGE_MANIFEST_PATH = 'config/vfs-manifest.json'
 
-/** Home directory under the root; the process shim's `DSH_HOME`/`HOME` default. */
+/** Home directory under the root; default of `DSH_HOME`/`HOME` in the worker. */
 export const IMAGE_HOME_DIRECTORY = 'home'
 
 /** Working directories the host tree expects to exist, empty. */
@@ -36,18 +36,25 @@ export const IMAGE_OVERLAY_DIRECTORIES: readonly string[] = ['home', 'workspace'
 /**
  * Identity of the lowered code shape, recorded in the image manifest by the
  * packer and required by the worker host: an image lowered by an older transform
- * would otherwise run against newer wrapper semantics. Bump on any change to
- * emitted code or to {@link WRAPPER_PARAMS}.
+ * would otherwise run against newer lowering semantics. Bump on any change to
+ * emitted code or to {@link MODULE_PARAMS}.
  */
 export const LOWERING_VERSION = 'dsh-worker-transform/1'
 
 /**
- * Free variables a lowered body expects from its wrapper, in order.
+ * Free variables a lowered body expects from its loader, in order.
  *
  * Part of the image layout rather than of the transform, because the loader
- * wraps bodies it never parses: the packer emits against these names and the
+ * binds bodies it never parses: the packer emits against these names and the
  * worker binds them, with no compiler in the worker bundle to agree with.
  */
-export const WRAPPER_PARAMS = [
+export const MODULE_PARAMS = [
   'exports', 'require', 'module', '__filename', '__dirname', '__dsh$meta', '__als',
 ] as const
+
+/**
+ * The lowered-code parameter list, under the name the transform and the loader
+ * imported before the layout module was rewritten. Kept as the same constant so
+ * existing imports stay exact; new code names {@link MODULE_PARAMS}.
+ */
+export const WRAPPER_PARAMS: readonly string[] = MODULE_PARAMS

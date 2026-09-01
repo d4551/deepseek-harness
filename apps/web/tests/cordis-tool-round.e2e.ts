@@ -69,8 +69,6 @@ describe('web e2e: Cordis tools use their owned cards', () => {
   let page: Page
   let tripwire: ReturnType<typeof watchConsole>
   const sessionEvents: SessionEvent[] = []
-  const modelFrames: string[] = []
-  const modelChanges: string[] = []
 
   beforeAll(async () => {
     scaffold = await launchWebScaffold({
@@ -79,17 +77,8 @@ describe('web e2e: Cordis tools use their owned cards', () => {
       ...(MODE === 'record' ? {} : { replayFixture: FIXTURE, paceMs: 15 }),
     })
     scaffold.ctx.on('session/event', (_session, event: SessionEvent) => { sessionEvents.push(event) })
-    scaffold.ctx.sessionProjections.onChanged((_session, key, value, seq) => {
-      if (key === 'modelSelection') modelChanges.push(`${String(seq)}:${JSON.stringify(value)}`)
-    })
     browser = await chromium.launch()
     page = await newEnglishPage(browser)
-    page.on('websocket', (socket) => {
-      socket.on('framereceived', (frame) => {
-        const payload = String(frame.payload)
-        if (payload.includes('modelSelection')) modelFrames.push(payload)
-      })
-    })
     tripwire = watchConsole(page)
     await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
     await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
@@ -194,7 +183,6 @@ describe('web e2e: Cordis tools use their owned cards', () => {
 
   it.skipIf(MODE === 'record')('matches the conversation aria golden', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-cordis-aria'))
-    console.log('MODEL_TRACE', { modelChanges, frameCount: modelFrames.length, modelFrames })
     // Final Assistant text precedes turn/end. Three footers prove every turn
     // reached the render state covered by the ARIA golden.
     await expect.poll(
