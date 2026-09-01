@@ -6,8 +6,9 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 import { getNodeValue, parseTree, type ParseError } from 'jsonc-parser'
+import { flattenDiagnosticMessage } from '@deepseek-ai/dsh-diagnostic-text'
 import { API } from 'typescript/unstable/sync'
-import type { Diagnostic, Project } from 'typescript/unstable/sync'
+import type { Project } from 'typescript/unstable/sync'
 import type { Node, SourceFile } from 'typescript/unstable/ast'
 
 let api: API | undefined
@@ -81,28 +82,6 @@ export function createSourceFile(fileName: string, text: string): SourceFile {
   const path = join(textRoot, `${String(textSerial)}-${suffix}`)
   writeFileSync(path, text)
   return parsePath(path)
-}
-
-/**
- * Flatten a TypeScript 7 diagnostic or a string into one message.
- *
- * `tsdown.config.ts` imports the Typert plugin from this package's `lib/types`
- * emit, so every specifier this module resolves at load must exist before the
- * build runs. That rules out `@deepseek-ai/dsh-diagnostic-text`, whose entry is
- * a bundle the same build produces
- * ([build-tooling dependency closure](../../../../.agents/notes/implemented/process/2026-09-02-build-tooling-dependency-closure.md)).
- * @param messageText - diagnostic, chain, or already-flat string.
- * @param separator - inserted between chain entries.
- * @returns the flattened message.
- */
-export function flattenDiagnosticMessageText(
-  messageText: string | Diagnostic,
-  separator: string,
-): string {
-  if (typeof messageText === 'string') return messageText
-  // Joining a lone text is that text, so an absent or empty chain needs no branch.
-  const chain = messageText.messageChain ?? []
-  return [messageText.text, ...chain.map(entry => flattenDiagnosticMessageText(entry, separator))].join(separator)
 }
 
 /**
@@ -227,7 +206,7 @@ export function configFileDiagnostics(path: string): string[] {
   const messages = project === undefined
     ? [`TypeScript did not open ${path}`]
     : project.program.getConfigFileParsingDiagnostics()
-      .map(diagnostic => flattenDiagnosticMessageText(diagnostic, '\n'))
+      .map(diagnostic => flattenDiagnosticMessage(diagnostic, '\n'))
   compiler().updateSnapshot({ closeProjects: [path] })
   return messages
 }

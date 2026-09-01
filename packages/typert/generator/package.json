@@ -43,7 +43,8 @@
     "@babel/preset-typescript": "^8.0.1",
     "@jridgewell/gen-mapping": "^0.3.13",
     "jsonc-parser": "^3.3.1",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "@deepseek-ai/dsh-diagnostic-text": "workspace:^"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
@@ -54,6 +55,7 @@
     "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/dsh-tool-cordis": "workspace:^",
     "@deepseek-ai/dsh-typert-registry": "workspace:^",
-    "zod": "^4.5.4"
+    "zod": "^4.5.4",
+    "@deepseek-ai/dsh-diagnostic-text": "workspace:^"
   }
 }
