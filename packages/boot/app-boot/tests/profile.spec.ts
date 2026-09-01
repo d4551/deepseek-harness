@@ -17,9 +17,12 @@ import {
   ensureProfileInstallSettings,
   healProfilesModuleFallback,
   initProfile,
+  listProfileNames,
   loadProfile,
+  missingProfileMessage,
   PROFILE_PATCH_FILENAME,
   PROFILE_TEMPLATES,
+  PROFILES_DIR,
   readProfileManifest,
   resolveBundleDir,
   resolveProfileDir,
@@ -192,6 +195,23 @@ describe('loadProfile', () => {
     const bare = loadProfile('t', 'demo', anchor, home)
     expect(bare.layers).toEqual([])
     expect(bare.patchReload).toBe('live')
+  })
+
+  it('names the bootable profiles and the generator when one is missing', () => {
+    const anchor = stageInstallation({})
+    const home = tmp()
+    expect(listProfileNames(home)).toEqual([])
+    const bare = () => loadProfile('t', 'custom', anchor, home)
+    // A misspelled shipped name is visible against the list rather than
+    // becoming an empty profile that boots and does nothing.
+    expect(bare).toThrow('shipped profiles (created on first use): acp, headless, sdk, sdk-minimal, web')
+    expect(bare).toThrow('create it with: t init --profile custom')
+    expect(bare).not.toThrow(/profiles in /)
+    initProfile(join(home, PROFILES_DIR, 'mine'), ['@deepseek-ai/dsh-base'])
+    mkdirSync(join(home, PROFILES_DIR, 'half-written'), { recursive: true })
+    expect(listProfileNames(home)).toEqual(['mine'])
+    expect(bare).toThrow(`profiles in ${join(home, PROFILES_DIR)}: mine`)
+    expect(missingProfileMessage('t', 'custom', home).split('\n')).toHaveLength(4)
   })
 
   it('auto-initializes only shipped templates and fails loud otherwise', () => {

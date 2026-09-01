@@ -45,6 +45,15 @@ describe('parseDshArgs', () => {
       .toEqual({ mode: 'profile', profile: 'tui', patches: ['a.yml'], args: ['--resume', 'b', '--patch', 'late.yml'] })
   })
 
+  it('routes the profile generator', () => {
+    expect(parse(['init', '--profile', 'tui'])).toEqual({ mode: 'init', profile: 'tui', bundles: [] })
+    expect(parse(['init', '--profile', 'tui', '--bundle', '@deepseek-ai/dsh-base']))
+      .toEqual({ mode: 'init', profile: 'tui', bundles: ['@deepseek-ai/dsh-base'] })
+    // Repeatable and order-preserving: the layer list is ordered.
+    expect(parse(['init', '--profile', 'tui', '--bundle', 'a', '--bundle', 'b']))
+      .toEqual({ mode: 'init', profile: 'tui', bundles: ['a', 'b'] })
+  })
+
   it('routes the plugin bun forwarder', () => {
     expect(parse(['plugin', '--profile', 'tui', 'add', 'turtle-ui']))
       .toEqual({ mode: 'plugin', profile: 'tui', args: ['add', 'turtle-ui'] })
@@ -92,6 +101,11 @@ describe('parseDshArgs', () => {
     // invocation's boot would mislead.
     expect(exitCode(['web', '--dump-config', '--port', '8080'])).toBe(1)
     expect(exitCode(['--profile', 'web', '--dump-config', '-h'])).toBe(1)
+    expect(exitCode(['init'])).toBe(1) // --profile required
+    expect(exitCode(['init', '--profile', ''])).toBe(1)
+    expect(exitCode(['init', '--profile', 'x', '--bundle='])).toBe(1)
+    expect(exitCode(['init', 'x'])).toBe(1) // the profile is a flag, not a positional
+    expect(exitCode(['--profile', 'x', 'init'])).toBe(1)
     expect(exitCode(['plugin', 'add', 'x'])).toBe(1) // --profile required
     expect(exitCode(['plugin', '--profile', 'tui'])).toBe(1) // nothing to forward
     expect(exitCode(['plugin', '--profile', ''])).toBe(1)
