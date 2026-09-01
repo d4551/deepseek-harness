@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from 'vitest'
 import {
-  checkBuildToolingClosure,
+  checkBuildToolingBootstrap,
   checkSingleExternalVersion,
   checkExperimentalDependencyIsolation,
   checkExperimentalManifest,
@@ -126,52 +126,30 @@ describe('package payload constraints', () => {
   })
 })
 
-describe('build tooling dependency closure', () => {
-  const config = "import { typertPlugin } from './packages/typert/generator/lib/types/tsdown-plugin.js'\n"
-  const workspace: readonly WorkspaceManifest[] = [
-    {
-      dir: 'packages/typert/generator',
-      manifest: {
-        name: '@deepseek-ai/dsh-typert-generator',
-        dependencies: { typescript: '^7.0.2' },
-        peerDependencies: { '@deepseek-ai/cordis': 'workspace:^' },
-      },
-    },
-    { dir: 'packages/util/diagnostic-text', manifest: { name: '@deepseek-ai/dsh-diagnostic-text' } },
-    { dir: 'vendor/cordis', manifest: { name: '@deepseek-ai/cordis' } },
-  ]
+describe('build tooling bootstrap ordering', () => {
+  const host = 'tsc -b tsconfig.host.json && tsdown --config tsdown.bootstrap.config.ts && tsdown --env.DSH_BUILD_FACE host'
 
-  it('accepts an imported package that depends only on published packages', () => {
-    expect(checkBuildToolingClosure(config, workspace)).toEqual([])
+  it('accepts the bootstrap pass ahead of the Host pass', () => {
+    expect(checkBuildToolingBootstrap({ 'build:lib:host': host })).toEqual([])
   })
 
-  it('rejects a workspace runtime dependency on a package the same build bundles', () => {
-    expect(checkBuildToolingClosure(config, [
-      {
-        dir: 'packages/typert/generator',
-        manifest: {
-          name: '@deepseek-ai/dsh-typert-generator',
-          dependencies: { typescript: '^7.0.2', '@deepseek-ai/dsh-diagnostic-text': 'workspace:^' },
-          peerDependencies: { '@deepseek-ai/cordis': 'workspace:^' },
-        },
-      },
-      ...workspace.slice(1),
-    ])).toEqual([
-      '@deepseek-ai/dsh-typert-generator: tsdown.config.ts imports this package\'s emit, so dependencies.@deepseek-ai/dsh-diagnostic-text must not be a workspace package whose entry the same build writes',
+  it('rejects a Host pass that loads its config before the tooling is bundled', () => {
+    expect(checkBuildToolingBootstrap({
+      'build:lib:host': 'tsc -b tsconfig.host.json && tsdown --env.DSH_BUILD_FACE host',
+    })).toEqual([
+      'package.json: scripts["build:lib:host"] must run `tsdown --config tsdown.bootstrap.config.ts` first: '
+      + "the Host pass cannot load its config until the build tooling's workspace dependencies carry their bundles",
     ])
   })
 
-  it('leaves packages the config never imports to the other constraints', () => {
-    expect(checkBuildToolingClosure("import { defineConfig } from 'tsdown'\n", [
-      {
-        dir: 'packages/typert/generator',
-        manifest: {
-          name: '@deepseek-ai/dsh-typert-generator',
-          dependencies: { '@deepseek-ai/dsh-diagnostic-text': 'workspace:^' },
-        },
-      },
-      ...workspace.slice(1),
-    ])).toEqual([])
+  it('rejects the bootstrap pass running after the Host pass', () => {
+    expect(checkBuildToolingBootstrap({
+      'build:lib:host': 'tsdown --env.DSH_BUILD_FACE host && tsdown --config tsdown.bootstrap.config.ts',
+    })).toEqual(['package.json: scripts["build:lib:host"] must run the bootstrap pass before the Host pass'])
+  })
+
+  it('rejects a missing Host lib script', () => {
+    expect(checkBuildToolingBootstrap(undefined)).toEqual(['package.json: scripts["build:lib:host"] is missing'])
   })
 })
 

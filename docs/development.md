@@ -67,13 +67,16 @@ The root build follows the generated dependency order:
 
 ```sh
 tsc -b tsconfig.host.json
+tsdown --config tsdown.bootstrap.config.ts
 tsdown --env.DSH_BUILD_FACE host
 tsc -b tsconfig.client.json
 tsdown --env.DSH_BUILD_FACE client
 bun run build:web
 ```
 
-Both tsdown passes use the same complete workspace match. They neither scan build artifacts to discover Client packages nor maintain a Host/Client package filter list. Package-local tsdown configs select entries for the current phase through `DSH_BUILD_FACE`: an ordinary Client plugin produces both its Node loader and browser bundle during the Client phase; `api-remotes` uses `hostPhase: true` to produce its Host entry early and only its browser bundle during the Client phase. Tsdown consumes only the JavaScript emitted to `lib/types` by the preceding tsc phase.
+The bootstrap pass exists because Node resolves the Typert plugin's whole import graph while `tsdown.config.ts` loads, before the Host pass writes anything: a workspace package that graph reaches resolves to a `lib/index.js` bundle only a tsdown pass produces. `tsdown.bootstrap.config.ts` loads no plugin and bundles the packages the Host config imports plus the workspace dependencies behind them, derived by [`scripts/build-tooling-closure.ts`](../scripts/build-tooling-closure.ts) from the config's own imports; both passes bundle under the options in [`scripts/tsdown-workspace-options.ts`](../scripts/tsdown-workspace-options.ts), so a package's output does not depend on which pass wrote it. The `constraints` gate keeps the bootstrap pass ahead of the Host pass, and the [build-tooling closure Agent Note](../.agents/notes/implemented/process/2026-09-02-build-tooling-dependency-closure.md) records the decision.
+
+Both face passes use the same complete workspace match. They neither scan build artifacts to discover Client packages nor maintain a Host/Client package filter list. Package-local tsdown configs select entries for the current phase through `DSH_BUILD_FACE`: an ordinary Client plugin produces both its Node loader and browser bundle during the Client phase; `api-remotes` uses `hostPhase: true` to produce its Host entry early and only its browser bundle during the Client phase. Tsdown consumes only the JavaScript emitted to `lib/types` by the preceding tsc phase.
 
 Typert runs only during Host tsdown, seeded by `tsconfig.host.json`. It analyzes Host types and generates both Host reflection artifacts and the Host-for-Client Remote projection; Client tsdown does not start Typert. Consequently, `bun run typecheck` runs the complete Host lib phase before Client tsc, while `bun run build` continues through Client tsdown and the Web build. The [API Remotes generated-contract build note](../.agents/notes/implemented/process/2026-08-08-api-remotes-generated-contract-build.md) records this ordering decision.
 

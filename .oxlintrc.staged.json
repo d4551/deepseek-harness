@@ -2,7 +2,12 @@
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "extends": ["./.oxlintrc.json"],
   "options": {
-    "typeAware": false
+    "typeAware": false,
+    // This pass does not run type-aware rules, so it cannot tell whether a
+    // type-aware suppression is used: every `typescript/unbound-method`
+    // directive in a staged file would be reported as unused. The root config
+    // keeps this an error, where the rules that consume those directives run.
+    "reportUnusedDisableDirectives": "allow"
   },
   "ignorePatterns": [
     "**/lib/**",

@@ -50,6 +50,7 @@ interface Overlay<T> {
 }
 
 /** Pristine `then`, so this module's own bookkeeping never re-enters the hook layer. */
+// oxlint-disable-next-line typescript/unbound-method -- capturing it unbound is the point; `nativeThen.call` names the promise.
 const nativeThen = Promise.prototype.then
 
 /** Every live instance, so one snapshot can capture all of their stores at once. */

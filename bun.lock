@@ -3785,7 +3785,7 @@
     },
     "packages/guard/approval-assessor": {
       "name": "@deepseek-ai/dsh-approval-assessor",
-      "version": "0.1.0-alpha.1",
+      "version": "0.1.2-alpha.1",
       "dependencies": {
         "@deepseek-ai/schemastery": "workspace:^",
       },

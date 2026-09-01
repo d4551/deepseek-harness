@@ -71,13 +71,16 @@ Host 与 Client 保持两个 aggregate program，是因为两侧在相同键下�
 
 ```sh
 tsc -b tsconfig.host.json
+tsdown --config tsdown.bootstrap.config.ts
 tsdown --env.DSH_BUILD_FACE host
 tsc -b tsconfig.client.json
 tsdown --env.DSH_BUILD_FACE client
 bun run build:web
 ```
 
-两次 tsdown 都使用同一组完整 workspace 匹配，不扫描构建产物来发现 Client 包，也不维护 Host/Client 包过滤表。包内 tsdown 配置根据 `DSH_BUILD_FACE` 决定当前阶段的入口：普通 Client 插件在 Client 阶段同时生成 Node loader 与 browser bundle；`api-remotes` 通过 `hostPhase: true` 提前生成 Host 入口，再在 Client 阶段只生成 browser bundle。tsdown 只消费 `lib/types` 中由前置 tsc 发射的 JavaScript。
+引导趟之所以存在，是因为 `tsdown.config.ts` 加载时 Node 会解析 Typert 插件的整个导入图，而此刻 Host 趟还没写出任何东西：该图触及的 workspace 包会解析到 `lib/index.js`，而这个 bundle 只有 tsdown 趟才会产出。`tsdown.bootstrap.config.ts` 自身不加载任何插件，只打包 Host 配置导入的那些包及其背后的 workspace 依赖，包清单由 [`scripts/build-tooling-closure.ts`](../scripts/build-tooling-closure.ts) 从配置自身的导入推导；两趟都使用 [`scripts/tsdown-workspace-options.ts`](../scripts/tsdown-workspace-options.ts) 中的选项打包，因此一个包的产出不取决于是哪一趟写的。`constraints` 门禁保证引导趟排在 Host 趟之前，决策记录见[构建工具闭合 Agent Note](../.agents/notes/implemented/process/2026-09-02-build-tooling-dependency-closure.zh.md)。
+
+两次 face 趟都使用同一组完整 workspace 匹配，不扫描构建产物来发现 Client 包，也不维护 Host/Client 包过滤表。包内 tsdown 配置根据 `DSH_BUILD_FACE` 决定当前阶段的入口：普通 Client 插件在 Client 阶段同时生成 Node loader 与 browser bundle；`api-remotes` 通过 `hostPhase: true` 提前生成 Host 入口，再在 Client 阶段只生成 browser bundle。tsdown 只消费 `lib/types` 中由前置 tsc 发射的 JavaScript。
 
 Typert 只在 Host tsdown 中以 `tsconfig.host.json` 为种子运行。它分析 Host 类型并生成 Host 反射产物及 Host-for-Client Remote 投影；Client tsdown 不启动 Typert。`bun run typecheck` 因此先执行完整 Host lib 阶段，再运行 Client tsc；`bun run build` 继续执行 Client tsdown 和 Web 构建。该顺序的决策记录见 [API Remotes 生成约定构建 Note](../.agents/notes/implemented/process/2026-08-08-api-remotes-generated-contract-build.zh.md)。
 

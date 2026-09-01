@@ -129,7 +129,7 @@ async function compileIndividually(
     if (path === undefined || source === undefined) fail(`module ${String(path)} was not read`)
     const body = await importBodies([source]).then(
       compiled => compiled[0],
-      (reason) => {
+      (reason: unknown) => {
         const detail = reason instanceof Error ? reason.message : String(reason)
         throw new Error(`${path} still carries module syntax, so the image was not lowered by the packer `
           + `(${detail}); rebuild the image`)

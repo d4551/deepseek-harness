@@ -42,6 +42,7 @@ export function installAsyncContextHooks(): void {
   if (installed) return
   installed = true
 
+  // oxlint-disable-next-line typescript/unbound-method -- capturing it unbound is the point; `nativeThen.call` names the promise.
   const nativeThen = Promise.prototype.then
   // A browser has no async-context tracking, so registration points are where a
   // store can be captured at all — patching them is the point of this module.
