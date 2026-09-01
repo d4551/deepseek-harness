@@ -183,7 +183,12 @@ class RemoteStreamMuxConnection {
   }
 }
 
-function rawText(data: RawData): string {
+/**
+ * Decode one WebSocket frame payload as UTF-8 text.
+ * @param data - frame payload as ws delivers it.
+ * @returns the decoded text.
+ */
+export function rawText(data: RawData): string {
   if (Array.isArray(data)) return Buffer.concat(data).toString('utf8')
   if (data instanceof ArrayBuffer) return Buffer.from(data).toString('utf8')
   return Buffer.from(data).toString('utf8')

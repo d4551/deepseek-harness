@@ -74,7 +74,7 @@ describe('gate graph validation', () => {
     'doc-quick',
   ] as const)('constructs and executes preflight for a valid non-empty %s graph', async (mode) => {
     const subject = withBunEntrypoint(() => gatesForMode(mode))
-    const execute = vi.fn(async (item: Gate) => resultFor(item))
+    const execute = vi.fn((item: Gate) => Promise.resolve(resultFor(item)))
 
     await expect(runGates(subject, subject.length, execute)).resolves.toHaveLength(subject.length)
   })
@@ -264,14 +264,14 @@ describe('gate graph validation', () => {
     ['cycles', [gate('first', { needs: ['second'] }), gate('second', { needs: ['first'] })], /dependency cycle: first -> second -> first/],
     ['mixed cycles', [gate('first', { after: ['second'] }), gate('second', { needs: ['first'] })], /dependency cycle: first -> second -> first/],
   ] as const)('rejects %s before starting a child', async (_label, invalid, message) => {
-    const execute = vi.fn(async (subject: Gate) => resultFor(subject))
+    const execute = vi.fn((subject: Gate) => Promise.resolve(resultFor(subject)))
 
     await expect(runGates([...invalid], 1, execute)).rejects.toThrow(message)
     expect(execute).not.toHaveBeenCalled()
   })
 
   it('rejects an invalid worker count before starting a child', async () => {
-    const execute = vi.fn(async (subject: Gate) => resultFor(subject))
+    const execute = vi.fn((subject: Gate) => Promise.resolve(resultFor(subject)))
 
     await expect(runGates([gate('subject')], 0, execute)).rejects.toThrow('max concurrency must be a positive integer')
     expect(execute).not.toHaveBeenCalled()
@@ -280,7 +280,7 @@ describe('gate graph validation', () => {
   it('skips dependents after their prerequisite fails', async () => {
     const dependent = gate('dependent', { needs: ['root'] })
     const root = gate('root')
-    const execute = vi.fn(async (subject: Gate) => resultFor(subject, 'failed'))
+    const execute = vi.fn((subject: Gate) => Promise.resolve(resultFor(subject, 'failed')))
 
     const results = await runGates([dependent, root], 1, execute)
 
@@ -292,7 +292,7 @@ describe('gate graph validation', () => {
   it('runs an ordered follower after its predecessor fails', async () => {
     const follower = gate('follower', { after: ['root'] })
     const root = gate('root')
-    const execute = vi.fn(async (subject: Gate) => resultFor(subject, subject === root ? 'failed' : 'passed'))
+    const execute = vi.fn((subject: Gate) => Promise.resolve(resultFor(subject, subject === root ? 'failed' : 'passed')))
 
     const results = await runGates([follower, root], 2, execute)
 
@@ -304,7 +304,7 @@ describe('gate graph validation', () => {
     const follower = gate('follower', { after: ['dependent'] })
     const dependent = gate('dependent', { needs: ['root'] })
     const root = gate('root')
-    const execute = vi.fn(async (subject: Gate) => resultFor(subject, subject === root ? 'failed' : 'passed'))
+    const execute = vi.fn((subject: Gate) => Promise.resolve(resultFor(subject, subject === root ? 'failed' : 'passed')))
 
     const results = await runGates([follower, dependent, root], 2, execute)
 

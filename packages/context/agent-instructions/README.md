@@ -49,6 +49,7 @@ export interface Config {
   projectRootMarkers?: string[]
   maxBytes: number
   maxSourceBytes?: number
+  maxTotalSourceBytes?: number
   instructionFileCandidates?: string[]
   localInstructionFileCandidates?: string[]
 }
@@ -58,6 +59,7 @@ export interface Config {
 |---|---|---|
 | `maxBytes` | required | Cap on the complete rendered baseline message, in bytes |
 | `maxSourceBytes` | `1048576` | Cap on one source instruction file before rendering |
+| `maxTotalSourceBytes` | `8388608` | Cap on the total source bytes read across one baseline or reconciliation batch |
 | `projectRootMarkers` | `['.git']` | Directory names that mark the project root |
 | `instructionFileCandidates` | `['AGENTS.md', 'CLAUDE.md']` | Base file names loaded in each project directory |
 | `localInstructionFileCandidates` | `['AGENTS.local.md', 'CLAUDE.local.md']` | Local overlay file names loaded after the base files |

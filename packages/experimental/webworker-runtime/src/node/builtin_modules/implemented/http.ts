@@ -116,8 +116,9 @@ class FakeServer {
 }
 
 /**
- * Constructor marker read by middleware during feature detection. Tunnel
- * responses are synthesized objects and are never instances of this class.
+ * Constructor marker read by middleware during feature detection. Its prototype
+ * carries none of Node's response methods, and tunnel responses are synthesized
+ * objects that are never instances of it.
  */
 export class ServerResponse {}
 

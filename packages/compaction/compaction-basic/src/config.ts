@@ -19,12 +19,16 @@ import type {
 /** Default request-pressure fraction for every routed model. */
 const DEFAULT_THRESHOLD_RATIO = 0.8
 
+/** Default hysteresis watermark as a fraction of the resolved threshold. */
+const DEFAULT_TARGET_RATIO = 0.85
+
 /** Default verbatim-tail fraction for every routed model. */
 const DEFAULT_RETAIN_RATIO = 0.16
 
 /** Fields shared by top-level defaults and exact-target overrides. */
 const POLICY_CONFIG_KEYS = [
   'thresholdRatio',
+  'targetRatio',
   'retainRatio',
   'retainTokens',
   'summarizationProvider',
@@ -72,12 +76,14 @@ export function resolveConfig(config: BasicCompactionConfig = {}): ResolvedConfi
   }
 
   const thresholdRatio = config.thresholdRatio ?? DEFAULT_THRESHOLD_RATIO
+  const targetRatio = config.targetRatio ?? DEFAULT_TARGET_RATIO
   const retention = resolveRetention(config, { retainRatio: DEFAULT_RETAIN_RATIO })
-  validateRatioRetention(thresholdRatio, retention, 'BasicCompactionConfig')
+  validateRatioRetention(thresholdRatio, targetRatio, retention, 'BasicCompactionConfig')
   const modelPolicies = resolveModelPolicies(config.modelPolicies)
   for (const [index, policy] of modelPolicies.entries()) {
     validateRatioRetention(
       policy.thresholdRatio ?? thresholdRatio,
+      policy.targetRatio ?? targetRatio,
       resolveRetention(policy, retention),
       `BasicCompactionConfig: modelPolicies[${index}]`,
     )
@@ -85,6 +91,7 @@ export function resolveConfig(config: BasicCompactionConfig = {}): ResolvedConfi
 
   return deepFreeze({
     thresholdRatio,
+    targetRatio,
     ...retention,
     summarizationProvider: config.summarizationProvider ?? '',
     summarizationModel: config.summarizationModel ?? '',
@@ -115,6 +122,7 @@ export function resolveTargetPolicy(
   return deepFreeze({
     target: { provider: target.provider, model: target.model },
     thresholdRatio: override?.thresholdRatio ?? config.thresholdRatio,
+    targetRatio: override?.targetRatio ?? config.targetRatio,
     ...resolveRetention(override ?? {}, inheritedRetention),
     summarizationProvider: override?.summarizationProvider ?? config.summarizationProvider,
     summarizationModel: override?.summarizationModel ?? config.summarizationModel,
@@ -142,6 +150,7 @@ export function resolveCompactSpec(
     )
   }
   const thresholdTokens = Math.floor(contextWindow * policy.thresholdRatio)
+  const targetTokens = Math.floor(thresholdTokens * policy.targetRatio)
   const retainTokens = policy.retainTokens === undefined
     ? Math.floor(contextWindow * policy.retainRatio)
     : policy.retainTokens
@@ -152,11 +161,21 @@ export function resolveCompactSpec(
       + `(${retainTokens}) must be less than threshold tokens ${thresholdTokens}`,
     )
   }
+  if (retainTokens >= targetTokens) {
+    throw new TargetPressureConfigError(
+      targetKey,
+      `BasicCompactionConfig: ${policy.target.provider}/${policy.target.model} retainTokens `
+      + `(${retainTokens}) must be less than target tokens ${targetTokens} `
+      + '(retention must not exceed the hysteresis watermark)',
+    )
+  }
   return deepFreeze({
     target: { ...policy.target },
     contextWindow,
     thresholdRatio: policy.thresholdRatio,
+    targetRatio: policy.targetRatio,
     thresholdTokens,
+    targetTokens,
     retainTokens,
     summarizationProvider: policy.summarizationProvider,
     summarizationModel: policy.summarizationModel,
@@ -179,6 +198,7 @@ function resolveRetention(
 /** Reject a capacity-independent retention conflict at plugin load. */
 function validateRatioRetention(
   thresholdRatio: number,
+  targetRatio: number,
   retention: ResolvedRetention,
   name: string,
 ): void {
@@ -186,6 +206,13 @@ function validateRatioRetention(
     throw new Error(
       `${name}: retainRatio (${retention.retainRatio}) must be less than `
       + `the resolved thresholdRatio (${thresholdRatio})`,
+    )
+  }
+  const targetFraction = thresholdRatio * targetRatio
+  if (retention.retainRatio !== undefined && retention.retainRatio >= targetFraction) {
+    throw new Error(
+      `${name}: retainRatio (${retention.retainRatio}) must be less than the resolved `
+      + `target fraction thresholdRatio × targetRatio (${targetFraction})`,
     )
   }
 }

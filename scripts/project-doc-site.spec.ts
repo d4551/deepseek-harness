@@ -405,12 +405,12 @@ describe('docsPages locale routes', () => {
         const source = locale === 'root' ? englishSource.replace(/\.md$/, '.zh.md') : englishSource
         const target = locale === 'root' ? englishTarget.replace(/\.md$/, '.zh.md') : englishTarget
         const page = docsPages.find(candidate => candidate.locale === locale && candidate.source === source)
-        expect(page, `${locale}:${source}`).toBeDefined()
+        if (page === undefined) throw new Error(`${locale}:${source} has no docs page`)
         expect(readFileSync(resolve(repositoryRoot, source), 'utf8')).toContain(`](${target})`)
         expect(rewriteMarkdown(`[Entry](${target})\n`, {
           locale,
           sourcePath: source,
-          route: page!.route,
+          route: page.route,
           pages: docsPages,
           repoRoot: repositoryRoot,
           repositoryRef: 'abc123',

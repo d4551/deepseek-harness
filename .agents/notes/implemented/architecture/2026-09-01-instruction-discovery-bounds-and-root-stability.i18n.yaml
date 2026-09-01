@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-01-instruction-discovery-bounds-and-root-stability.md
+2026-09-01-instruction-discovery-bounds-and-root-stability.md: a90b5d30b8313d476623a9a51c332cf1782e71ce
+2026-09-01-instruction-discovery-bounds-and-root-stability.zh.md: 54728e7e1e0a65a298261394927900f9166112c1

@@ -6,7 +6,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { withFileLock, writeFileAtomic } from '../src/index.ts'
 
 const state = vi.hoisted(() => ({
-  failLockCreateWithNull: false,
   failLockCreateWithEPERM: false,
   lockCreateErrorCode: '',
   failTempWriteWithCode: '',
@@ -14,34 +13,47 @@ const state = vi.hoisted(() => ({
   mkdirCalls: [] as Array<[PathLike, MakeDirectoryOptions | undefined]>,
 }))
 
-vi.mock('node:fs/promises', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:fs/promises')>()
+/** Completion callback shape every mocked `node:fs` call answers on. */
+type FsCallback = (error: NodeJS.ErrnoException | null) => void
+
+/**
+ * Injected errno for one exclusive create, or `null` when the real call runs.
+ * @param path - path the call targets.
+ * @returns the failure to report, otherwise `null`.
+ */
+function injectedFailure(path: PathLike): NodeJS.ErrnoException | null {
+  const name = String(path)
+  if (state.failLockCreateWithEPERM && name.endsWith('.lock')) {
+    state.failLockCreateWithEPERM = false
+    return Object.assign(new Error('EPERM: injected exclusive-create failure'), { code: 'EPERM' })
+  }
+  if (state.lockCreateErrorCode !== '' && name.endsWith('.lock')) {
+    const code = state.lockCreateErrorCode
+    return Object.assign(new Error(`${code}: injected exclusive-create failure`), { code })
+  }
+  if (state.failTempWriteWithCode !== '' && name.endsWith('.tmp')) {
+    const code = state.failTempWriteWithCode
+    return Object.assign(new Error(`${code}: injected temp-create failure`), { code })
+  }
+  return null
+}
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>()
   return {
     ...actual,
-    writeFile: (async (path: PathLike, ...rest: never[]) => {
-      if (state.failLockCreateWithNull && String(path).endsWith('.lock')) {
-        state.failLockCreateWithNull = false
-        // A throw site is not obliged to throw an Error; `catch` binds whatever
-        // was thrown, including null.
-        throw null
+    writeFile: ((path: PathLike, ...rest: never[]) => {
+      const failure = injectedFailure(path)
+      if (failure !== null) {
+        const done = rest[rest.length - 1] as unknown as FsCallback
+        done(failure)
+        return
       }
-      if (state.failLockCreateWithEPERM && String(path).endsWith('.lock')) {
-        state.failLockCreateWithEPERM = false
-        throw Object.assign(new Error('EPERM: injected exclusive-create failure'), { code: 'EPERM' })
-      }
-      if (state.lockCreateErrorCode !== '' && String(path).endsWith('.lock')) {
-        const code = state.lockCreateErrorCode
-        throw Object.assign(new Error(`${code}: injected exclusive-create failure`), { code })
-      }
-      if (state.failTempWriteWithCode !== '' && String(path).endsWith('.tmp')) {
-        const code = state.failTempWriteWithCode
-        throw Object.assign(new Error(`${code}: injected temp-create failure`), { code })
-      }
-      return (actual.writeFile as (path: PathLike, ...args: never[]) => Promise<void>)(path, ...rest)
+      ;(actual.writeFile as (path: PathLike, ...args: never[]) => void)(path, ...rest)
     }) as typeof actual.writeFile,
-    mkdir: (async (path: PathLike, options?: MakeDirectoryOptions) => {
+    mkdir: ((path: PathLike, options: MakeDirectoryOptions | undefined, done: FsCallback) => {
       state.mkdirCalls.push([path, options])
-      return (actual.mkdir as (path: PathLike, options: MakeDirectoryOptions | undefined) => Promise<string | undefined>)(path, options)
+      ;(actual.mkdir as (path: PathLike, options: MakeDirectoryOptions | undefined, callback: FsCallback) => void)(path, options, done)
     }) as typeof actual.mkdir,
   }
 })
@@ -57,7 +69,6 @@ vi.mock('node:crypto', async (importOriginal) => {
 })
 
 afterEach(() => {
-  state.failLockCreateWithNull = false
   state.failLockCreateWithEPERM = false
   state.lockCreateErrorCode = ''
   state.failTempWriteWithCode = ''
@@ -379,18 +390,6 @@ describe('writer lock deadline and backoff', () => {
       await expectLockTimeout(withFileLock(target, async () => 'unreachable', { waitMs: 700 }))
       expect(delays.slice(0, 5)).toEqual([20, 40, 80, 160, 200])
       expect(delays.every(delay => delay <= 200)).toBe(true)
-    })
-  })
-})
-
-describe('writer lock non-Error throws', () => {
-  it('surfaces a thrown null rather than reading a code off it', async () => {
-    await withScratch(async (_root, target) => {
-      state.failLockCreateWithNull = true
-
-      // The original value reaches the caller: reading `.code` off it would
-      // replace the real failure with a TypeError from this package.
-      await expect(attemptLockedWrite(target)).rejects.toBeNull()
     })
   })
 })

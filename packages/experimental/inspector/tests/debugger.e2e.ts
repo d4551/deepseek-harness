@@ -1,8 +1,9 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import WebSocket, { type RawData } from 'ws'
+import WebSocket from 'ws'
 import { afterEach, describe, expect, it } from 'vitest'
 import { isPlainObject } from '../src/shared/json.ts'
+import { rawText } from '../src/worker/bridge/endpoint.ts'
 
 interface CdpMessage {
   readonly id?: number
@@ -76,13 +77,6 @@ class CdpClient {
     this.socket.close()
     await closed
   }
-}
-
-function rawText(data: RawData): string {
-  const bytes = data instanceof ArrayBuffer
-    ? Buffer.from(new Uint8Array(data))
-    : Array.isArray(data) ? Buffer.concat(data) : data
-  return bytes.toString('utf8')
 }
 
 describe('Host debugger through the Inspector Worker', () => {

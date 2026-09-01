@@ -2,10 +2,11 @@ import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { Context } from '@deepseek-ai/cordis'
 import type { IndexInjection, WebServer } from '@deepseek-ai/dsh-host-webserver'
-import WebSocket, { type RawData } from 'ws'
+import WebSocket from 'ws'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { apply, Config, inject, name, startInspector } from '../src/index.ts'
 import { isPlainObject } from '../src/shared/json.ts'
+import { rawText } from '../src/worker/bridge/endpoint.ts'
 
 interface CdpResponse {
   readonly id: number
@@ -127,11 +128,4 @@ async function availablePort(): Promise<number> {
     server.close((error) => { if (error === undefined) resolve(); else reject(error) })
   })
   return port
-}
-
-function rawText(data: RawData): string {
-  const bytes = data instanceof ArrayBuffer
-    ? Buffer.from(new Uint8Array(data))
-    : Array.isArray(data) ? Buffer.concat(data) : data
-  return bytes.toString('utf8')
 }

@@ -16,6 +16,7 @@ import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
 
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { MockAdapter, textResponse, toolCallResponse } from './mock-adapter.ts'
+import { send } from './harness.ts'
 
 async function harness(adapter: MockAdapter, persona = 'stable base') {
   return harnessRoutes([['mock', adapter]], persona)
@@ -45,10 +46,6 @@ function waitForIdle(ctx: Context, agent: Agent): Promise<void> {
       }
     })
   })
-}
-
-function send(agent: Agent, text: string) {
-  agent.followup(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }))
 }
 
 /** Assert `previous` is a strict value-prefix of `current`. */

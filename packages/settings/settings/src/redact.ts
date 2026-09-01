@@ -18,8 +18,10 @@ interface SchemaNode {
   meta?: { role?: unknown }
   /** `object` properties, keyed by property name. */
   dict?: Record<string, SchemaNode>
-  /** `dict`/`array` element schema. */
+  /** `dict`/`array`/`transform` element schema. */
   inner?: SchemaNode
+  /** `union`/`intersect`/`tuple` member schemas, in declaration order. */
+  list?: SchemaNode[]
 }
 
 /** One schema-declared secret position inside a redacted value. */
@@ -37,7 +39,8 @@ export interface RedactedValue {
   /**
    * Every reachable secret position: object properties always (even unset, so
    * a form knows the slot exists), dict entries and array items only where the
-   * value has them.
+   * value has them, and the root of any subtree removed whole because its node
+   * kind cannot be mapped onto the stored value.
    */
   secrets: RedactedSecret[]
 }
@@ -45,6 +48,25 @@ export interface RedactedValue {
 /** Whether a value is a plain data object the walker may recurse into. */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * Whether any `role('secret')` is declared at or beneath a node, following
+ * every relation the structural view names. Cycles terminate on the seen set,
+ * which recursive schemas reach through a shared node instance.
+ */
+function declaresSecret(node: SchemaNode | undefined, seen: WeakSet<SchemaNode>): boolean {
+  if (node === undefined || seen.has(node)) return false
+  seen.add(node)
+  if (node.meta?.role === 'secret') return true
+  if (declaresSecret(node.inner, seen)) return true
+  for (const child of Object.values(node.dict ?? {})) {
+    if (declaresSecret(child, seen)) return true
+  }
+  for (const child of node.list ?? []) {
+    if (declaresSecret(child, seen)) return true
+  }
+  return false
 }
 
 function walk(node: SchemaNode | undefined, value: unknown, path: string[], secrets: RedactedSecret[]): unknown {
@@ -83,20 +105,42 @@ function walk(node: SchemaNode | undefined, value: unknown, path: string[], secr
       if (!Array.isArray(value)) return value
       return value.map((entry, index) => walk(node.inner, entry, [...path, String(index)], secrets))
     }
-    default:
-      // TODO(settings-wire-redaction): Fail closed instead — a secret reachable
-      // only through a union, intersection, or transform is returned verbatim
-      // here, with nothing recording that it was missed.
-      return value
+    case 'tuple': {
+      if (!Array.isArray(value)) return value
+      const members = node.list ?? []
+      return value.map((entry, index) => walk(members[index], entry, [...path, String(index)], secrets))
+    }
+    case 'union':
+    case 'intersect': {
+      // Members describe one position. Each pass removes the secrets its
+      // member declares and carries the keys it does not describe; a member
+      // the value does not match contributes its unset object slots.
+      let carried = value
+      for (const member of node.list ?? []) {
+        carried = walk(member, carried, path, secrets)
+        if (carried === undefined) return undefined
+      }
+      return carried
+    }
+    default: {
+      // `transform` describes its input, not the stored result; `lazy`
+      // resolves members only during validation; a `Schema.extend` type names
+      // relations this view does not model. None maps onto the value, so a
+      // secret declared beneath one removes the subtree.
+      if (!declaresSecret(node, new WeakSet())) return value
+      secrets.push({ path, set: value !== undefined })
+      return undefined
+    }
   }
 }
 
 /**
  * Remove every `role('secret')` field a schema declares from a value. The
- * walker follows `object`, `dict`, and `array` containers; a secret must be
- * declared directly on a field reachable through those containers (a secret
- * buried inside a union branch or transform is not reachable and must not be
- * modeled that way). The input is never mutated.
+ * walker maps `object`, `dict`, `array`, `tuple`, `union`, and `intersect`
+ * onto the value position by position. A `transform`, a `lazy`, or a type
+ * registered through `Schema.extend` cannot be mapped that way, so a secret
+ * declared beneath one removes that entire subtree and records its root. The
+ * input is never mutated.
  * @param schema - live schemastery schema describing the value.
  * @param value - the value to strip; `undefined` yields an empty record with
  *   object-property secret slots still enumerated.

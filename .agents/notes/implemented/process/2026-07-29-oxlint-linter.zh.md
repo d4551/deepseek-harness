@@ -16,7 +16,7 @@ Status: implemented
 
 `options.typeAware` 启用 `oxlint-tsgolint`。其后端按文件发现 TypeScript 项目：包源码使用各自的包项目，host 测试与网站源码使用 `tsconfig.host.json`，client 测试及 `scripts/client-bundle-purity.spec.ts` 使用 `tsconfig.client.json`。不含程序的根解决方案绝不会被扁平化。Oxlint 的 `--tsconfig` 覆盖项会影响导入解析，但类型感知 lint 会忽略它，因此本仓库不设置该选项。该配置显式载入迁移后的严格类型检查规则和仓库覆盖配置，而不启用内容可能发生变化的 Oxlint 宽泛类别。`typescript/no-unnecessary-condition` 仍从 Oxlint 的 nursery 规则集中启用，因为它在迁移前就是仓库强制执行的规则。
 
-Oxlint 的 JavaScript 插件兼容层运行 `@stylistic/eslint-plugin` 和 `eslint-plugin-sonarjs`，从而继续强制执行现有的格式和文件内重复逻辑规则。兼容层会报告 `@stylistic` 违规并执行其安全修复；`max-len` 仍仅用于验证。自有源码中的抑制指令使用 `oxlint-*` 指令和 `typescript/*` 命名空间，未使用的指令仍作为警告报告；vendor 源码保留其上游指令，因为 Oxlint 会排除 `vendor/**`。
+Oxlint 的 JavaScript 插件兼容层运行 `@stylistic/eslint-plugin`，从而继续强制执行现有的格式规则。`eslint-plugin-sonarjs` 随[TypeScript 7 编译固定版本](2026-08-29-typescript-7-compiler.zh.md)一并离开该兼容层，其重复形态覆盖由[语法级重复检测门](../testing/2026-08-31-syntax-duplication-gate.zh.md)承担。兼容层会报告 `@stylistic` 违规并执行其安全修复；`max-len` 仍仅用于验证。自有源码中的抑制指令使用 `oxlint-*` 指令和 `typescript/*` 命名空间，[未使用的指令按 error 报告](2026-09-01-no-tolerated-lint-suppressions-or-gate-carveouts.zh.md)；vendor 源码保留其上游指令，因为 Oxlint 会排除 `vendor/**`。
 
 CI 不恢复或保存 lint 结果缓存。`DSH_OXLINT_THREADS` 使共享运行器将同一上限传给 Oxlint 的 `--threads` 选项和类型感知后端的 `GOMAXPROCS` 环境变量；普通本地运行对两者均采用默认值。Pre-commit 运行不加载项目的 Oxlint 验证，应用带一次有界重试的安全修复，接受仅含已忽略文件的文件选择，并通过 lefthook 重新暂存结果。公共 `lint` 和 CI 会先准备生成的声明，并保留完整的类型感知规则。
 
@@ -24,7 +24,7 @@ CI 不恢复或保存 lint 结果缓存。`DSH_OXLINT_THREADS` 使共享运行�
 
 解决两处分析器差异后，迁移后的配置报告与迁移前一致的自有源码无问题基线：移除了一项冗余测试断言，而 `tsc` 要求的一处结构性类型转换使用了窄范围的 Oxlint 抑制指令。以已删除 ESLint 配置的精确 blob 为基准进行的一次性审核在完成规则名映射后确认：源码为 88 项对 88 项，示例为 87 项对 87 项，测试为 83 项对 83 项。已提交的指纹锁定这些经审核的 Oxlint 规则配置及完整的覆盖结构；它既不执行已删除的配置，也不纳入后续的上游预设变更。对 `typescript-eslint@8.61.0` 的评估还确认，`strictTypeChecked` 并未启用 `@typescript-eslint/no-empty-function`；已删除、仅用于测试的 `off` 条目不起作用。
 
-可执行约定测试要求包、host 和 client 项目产生类型感知诊断，断言 client 专用脚本所用的项目，拒绝未匹配的回退分析，并检验 Stylistic、SonarJS 和 nursery 兼容路径。它们还锁定暂存配置不加载项目的继承行为与 TypeGraph fixture 覆盖、未使用抑制指令的报告行为、仅选择已忽略暂存文件的情况、完整的 Stylistic 规则集，以及收敛后最终格式化的字节。运行器测试锁定两项工作线程控制，类型检查则确认迁移引发的源码改动没有破坏 TypeScript 程序。
+可执行约定测试要求包、host 和 client 项目产生类型感知诊断，断言 client 专用脚本所用的项目，拒绝未匹配的回退分析，并检验 Stylistic 和 nursery 兼容路径。它们还锁定暂存配置不加载项目的继承行为与 TypeGraph fixture 覆盖、未使用抑制指令的报告行为、仅选择已忽略暂存文件的情况、完整的 Stylistic 规则集，以及收敛后最终格式化的字节。运行器测试锁定两项工作线程控制，类型检查则确认迁移引发的源码改动没有破坏 TypeScript 程序。
 
 ## 考虑过的替代方案
 

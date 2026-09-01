@@ -28,6 +28,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { load } from 'js-yaml'
 import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
+import { isJsExpr } from '@deepseek-ai/cordis-plugin-loader'
 import { expandHomePath } from '@deepseek-ai/dsh-home-paths'
 import { readPresetMetadata } from './metadata.ts'
 import { PRESET_ID, type AgentPreset, type PresetRoot } from './preset.ts'
@@ -67,6 +68,12 @@ export const SHIPPED_PRESET_ROOT = fileURLToPath(new URL('../presets/', import.m
  * that produces a file the loader cannot even begin with — and it must accept
  * everything the loader accepts, which is why rows are only required to be
  * maps carrying a plugin `name` (groups recurse into their own lists).
+ *
+ * A `!!js` `name` gets its own reason. The Loader evaluates that tag in a
+ * plugin's `config` and an entry's `disabled` and nowhere else, so it reaches
+ * the resolver as the expression node the parse produced and can never name a
+ * module. The absent-`name` reason states what the row lacks and not what it
+ * wrote, which points an author at the one row that does carry a name.
  * @param rows - the parsed composition document.
  * @param at - row-path prefix for nested diagnostics, empty at the top level.
  * @returns one human-readable reason, or undefined when the shape holds.
@@ -84,7 +91,10 @@ function entryListProblem(rows: unknown, at = ''): string | undefined {
     }
     const { name, group, config } = row as { name?: unknown; group?: unknown; config?: unknown }
     if (typeof name !== 'string' || name === '') {
-      return `${label} names no plugin (a "name" string is required)`
+      return isJsExpr(name)
+        ? `${label} names its plugin with a !!js expression; the Loader evaluates that tag only in`
+          + ' a plugin\'s "config" and an entry\'s "disabled", so a "name" must be a literal specifier'
+        : `${label} names no plugin (a "name" string is required)`
     }
     if (group === true) {
       const nested = entryListProblem(config, label)

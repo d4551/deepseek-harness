@@ -290,7 +290,12 @@ function isAddressInUse(error: unknown): boolean {
   return error instanceof Error && (error as NodeJS.ErrnoException).code === 'EADDRINUSE'
 }
 
-function rawText(data: RawData): string {
+/**
+ * Decode one WebSocket frame payload as UTF-8 text.
+ * @param data - frame payload as ws delivers it.
+ * @returns the decoded text.
+ */
+export function rawText(data: RawData): string {
   const bytes = data instanceof ArrayBuffer
     ? Buffer.from(new Uint8Array(data))
     : Array.isArray(data) ? Buffer.concat(data) : data

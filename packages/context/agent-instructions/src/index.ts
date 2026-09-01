@@ -84,6 +84,11 @@ export function apply(ctx: Context, config: Config): void {
     identity: string
     excludedScopes: ReadonlySet<string>
   }>()
+  // Scope keys are stored relative to the project root, so one session keeps
+  // the root it first discovered. Recomputing it after a root marker is added
+  // or removed would reinterpret every key already recorded against the old
+  // root, leaving stale entries that never match and files re-announced.
+  const sessionProjectRoots = new WeakMap<Session, string>()
   const projectionLifecycle = new AbortController()
   type ProjectionTouch = { agent: Agent; path: string }
   const executionTouches = new Map<ToolExecutionToken, ProjectionTouch[]>()
@@ -122,7 +127,11 @@ export function apply(ctx: Context, config: Config): void {
     const authorityMessages = [...claimed]
     /* v8 ignore next -- normal agents carry an absolute session cwd. */
     const cwd = agent.session.header.cwd ?? process.cwd()
-    const projectRoot = await findProjectRoot(cwd, resolved.projectRootMarkers, fileSystem, signal)
+    const projectRoot = sessionProjectRoots.get(agent.session)
+      ?? await findProjectRoot(cwd, resolved.projectRootMarkers, fileSystem, signal)
+    // Re-storing a retained root writes back the same value, so this needs no
+    // guard: the first pass records what discovery found, later ones re-record it.
+    sessionProjectRoots.set(agent.session, projectRoot)
     const identity = workspaceBaselineIdentity(resolved, cwd, projectRoot)
     const visibleBaseline = visibleBaselineSource(agent, authorityMessages)
     const baselinePresent = visibleBaseline !== undefined
@@ -140,6 +149,7 @@ export function apply(ctx: Context, config: Config): void {
         projectRootMarkers: resolved.projectRootMarkers,
         maxBytes: resolved.maxBytes,
         maxSourceBytes: resolved.maxSourceBytes,
+        maxTotalSourceBytes: resolved.maxTotalSourceBytes,
         instructionFileCandidates: resolved.instructionFileCandidates,
         localInstructionFileCandidates: resolved.localInstructionFileCandidates,
         projectRoot,

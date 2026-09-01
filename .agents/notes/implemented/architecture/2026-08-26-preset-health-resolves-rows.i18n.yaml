@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-26-preset-health-resolves-rows.md
-2026-08-26-preset-health-resolves-rows.md: 909423e373bc2368b5fb1e81b1172275920282aa
-2026-08-26-preset-health-resolves-rows.zh.md: d2cffae66f7bd7fb78e068bd4242d009b95d3c5c
+2026-08-26-preset-health-resolves-rows.md: 8d7b1db286aaa84ef08c9786dfe64c6a17922e6b
+2026-08-26-preset-health-resolves-rows.zh.md: 8b26afd1ff7bd19ec68e66264ac400cdcffe1ac3

@@ -149,7 +149,7 @@ scope.update({ density: 'compact' })   // merges into the user section and persi
 这些限制说明本服务何时不合适或需要特别注意。它们是当前包约束，不是任务积压。
 
 - **单一用户层**——解析只认识 schema 默认值、一个组合 `base` 与一个用户文档；它不记录每个解析值由哪一层提供。
-- **`redactSecrets` 并非一条可被证明的协议边界**——遍历器只跟随 `object`/`dict`/`array` 容器，因此只能经由 union、intersection 或 transform 抵达的 `role('secret')` 字段会被原样返回，且 `secrets` 列表为空；序列化 schema 还会把 secret 字段的默认值带给每个客户端。两种情况都不会被拒绝；机密无法经由被遍历的容器抵达的 schema，绝不可注册到暴露于协议的 namespace 上。fail-closed 的 `describeForWire()`——拒绝自己无法证明安全的 schema，并对序列化封装与错误文本做净化——是暂缓的答案。
+- **序列化 schema 带出 secret 的默认值**——`redactSecrets` 会把 `object`、`dict`、`array`、`tuple`、`union` 与 `intersect` 逐位置映射到值上，并移除任何它无法映射的节点类别所对应的子树，因此 `role('secret')` 的值不会随响应外传。外层封装是另一回事：`schema.toJSON()` 会把 secret 字段的 `.default(...)` 带给每个客户端，而写入被拒时返回的 schema 文本可能引用提交的值。
 - **跨进程并发由提供方定义**——服务仅在进程内按 namespace 串行写入；跨进程并发按提供方行为收敛（文件提供方在写锁下读-改-写，因此并发写入者不会丢掉彼此的 namespace，同 namespace 冲突按后写胜出解决）。
 
 <a id="dev-note"></a>

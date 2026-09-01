@@ -6,15 +6,43 @@
 
 import { toNamespacedPath } from 'node:path'
 
-type GetFileSecurityW = (
+/**
+ * `advapi32!GetFileSecurityW`: copy a path's security descriptor into a buffer.
+ * @param path - namespaced path to read.
+ * @param requestedInformation - security-information bits to copy.
+ * @param descriptor - receiving buffer, or `null` to size the descriptor.
+ * @param length - byte capacity of `descriptor`.
+ * @param needed - single-element out parameter receiving the required size.
+ * @returns non-zero on success.
+ */
+export type GetFileSecurityW = (
   path: string,
   requestedInformation: number,
   descriptor: Buffer | null,
   length: number,
   needed: [number],
 ) => number
-type SetFileSecurityW = (path: string, securityInformation: number, descriptor: Buffer) => number
-type ReplaceFileW = (
+
+/**
+ * `advapi32!SetFileSecurityW`: apply a security descriptor to a path.
+ * @param path - namespaced path to write.
+ * @param securityInformation - security-information bits to apply.
+ * @param descriptor - descriptor bytes to install.
+ * @returns non-zero on success.
+ */
+export type SetFileSecurityW = (path: string, securityInformation: number, descriptor: Buffer) => number
+
+/**
+ * `kernel32!ReplaceFileW`: replace one file with another, keeping the target's attributes.
+ * @param replaced - namespaced path being replaced.
+ * @param replacement - namespaced path supplying the new content.
+ * @param backup - backup path; this package keeps no backup.
+ * @param flags - replacement flags.
+ * @param exclude - reserved by Win32.
+ * @param reserved - reserved by Win32.
+ * @returns non-zero on success.
+ */
+export type ReplaceFileW = (
   replaced: string,
   replacement: string,
   backup: null,
@@ -22,9 +50,15 @@ type ReplaceFileW = (
   exclude: null,
   reserved: null,
 ) => number
-type GetLastError = () => number
 
-interface Win32Bindings {
+/**
+ * `kernel32!GetLastError`: read the calling thread's last Win32 error code.
+ * @returns the Win32 error code.
+ */
+export type GetLastError = () => number
+
+/** The four Win32 entry points this module binds through Koffi. */
+export interface Win32Bindings {
   getFileSecurityW: GetFileSecurityW
   setFileSecurityW: SetFileSecurityW
   replaceFileW: ReplaceFileW

@@ -21,6 +21,7 @@ import { createRestrictedToken } from '../src/token.ts'
 import { allocOverlapped, allocPtrSlot, decodePtr, isInvalidHandle, isNullPtr, win32 } from '../src/ffi.ts'
 import type { NativePtr, Win32Bindings } from '../src/ffi.ts'
 import * as abi from '../src/win32-abi.ts'
+import { readNamedSecurityInfo } from '../src/acl.ts'
 
 const isWin32 = process.platform === 'win32'
 
@@ -74,18 +75,10 @@ function sidString(sid: SidLayout): string {
  * inside the descriptor allocation — only the descriptor is LocalFree'd.
  */
 function readDirectAces(api: Win32Bindings, path: string): DirectAce[] {
-  const ownerSlot = allocPtrSlot()
-  const groupSlot = allocPtrSlot()
-  const daclSlot = allocPtrSlot()
-  const saclSlot = allocPtrSlot()
-  const descriptorSlot = allocPtrSlot()
-  const readResult = api.getNamedSecurityInfoW(
-    path, abi.SE_FILE_OBJECT, abi.DACL_SECURITY_INFORMATION,
-    ownerSlot, groupSlot, daclSlot, saclSlot, descriptorSlot,
-  )
-  if (readResult !== abi.ERROR_SUCCESS) throw new Error(`GetNamedSecurityInfoW failed (${readResult}) for ${path}`)
-  const acl = decodePtr(daclSlot)
-  const descriptor = decodePtr(descriptorSlot)
+  const read = readNamedSecurityInfo(api, path)
+  if (read.status !== abi.ERROR_SUCCESS) throw new Error(`GetNamedSecurityInfoW failed (${read.status}) for ${path}`)
+  const acl = read.acl
+  const descriptor = read.descriptor
   try {
     if (acl === null) return []
     const aclSize = koffi.decode(acl, 2, 'uint16') as number

@@ -190,6 +190,18 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 /**
+ * Store one document key as an own data property. Plain assignment routes the
+ * key `__proto__` through the inherited setter, which changes the prototype
+ * instead of recording data; `__proto__` is an ordinary JSON key here.
+ * @param target - object receiving the property.
+ * @param key - document key, trusted only as a string.
+ * @param value - value to record under the key.
+ */
+function defineOwn(target: Record<string, unknown>, key: string, value: unknown): void {
+  Object.defineProperty(target, key, { value, writable: true, enumerable: true, configurable: true })
+}
+
+/**
  * One path-addressed edit to a namespace's user section. Path mutation exists
  * for a caller holding an INCOMPLETE view of the section — a configuration UI
  * reads the redacted descriptor, which by construction never received the
@@ -272,12 +284,10 @@ function cloneJsonShaped(
     if (isPlainObject(value)) {
       if (visiting.has(value)) throw reject('a circular reference', path)
       visiting.add(value)
-      // TODO(settings-json-properties): Use property-safe construction here and
-      // in mergeLayers so valid JSON keys such as "__proto__" remain own data.
       const out: Record<string, unknown> = {}
       for (const [key, entry] of Object.entries(value)) {
         if (entry === undefined) continue
-        out[key] = clone(entry, `${path}.${key}`)
+        defineOwn(out, key, clone(entry, `${path}.${key}`))
       }
       visiting.delete(value)
       return out
@@ -299,7 +309,7 @@ function mergeLayers(under: unknown, over: unknown): unknown {
   if (!isPlainObject(under) || !isPlainObject(over)) return over
   const merged: Record<string, unknown> = { ...under }
   for (const [key, value] of Object.entries(over)) {
-    merged[key] = key in merged ? mergeLayers(merged[key], value) : value
+    defineOwn(merged, key, Object.hasOwn(merged, key) ? mergeLayers(merged[key], value) : value)
   }
   return merged
 }
@@ -450,9 +460,20 @@ export abstract class SettingsProvider extends Service {
     }
     this.ctx.effect(() => {
       this.registrations.set(ns, registration)
-      // TODO(settings-registration-quiescence): Deactivate every watcher and await
-      // its tail on disposal so callbacks cannot outlive the registrant fiber.
-      return () => this.registrations.delete(ns)
+      return async () => {
+        this.registrations.delete(ns)
+        // Deactivate before awaiting: a queued invocation that has not started
+        // reads `active` when it would start, so closing the registry first
+        // keeps late completions silent. Awaiting the tails then holds the
+        // disposal open until the started ones finish, so no callback runs
+        // after the registrant fiber is gone.
+        const tails = [...registration.watchers].map((watcher) => {
+          watcher.active = false
+          return watcher.tail
+        })
+        registration.watchers.clear()
+        await Promise.all(tails)
+      }
     }, `settings.register(${JSON.stringify(String(ns))})`)
     return {
       get: () => registration.resolved as T,
@@ -636,12 +657,26 @@ export abstract class SettingsProvider extends Service {
       // only when this registration is still the namespace owner — a fiber
       // disposed (or replaced) mid-persist must not receive the notification.
       this.document[ns] = section
-      // TODO(settings-replacement-resync): Re-resolve any replacement registration
-      // from this persisted section so an old in-flight write cannot leave it stale.
-      if (this.registrations.get(ns) === registration && !this.isStopped()) {
+      const owner = this.registrations.get(ns)
+      if (owner === undefined || this.isStopped()) return
+      if (owner === registration) {
         this.bumpRevision(registration, current, section)
         this.commit(registration, next, 'update')
+        return
       }
+      // A replacement took the namespace while this write was in flight. It
+      // resolved from the section as it stood before the write landed, so it
+      // re-resolves against its own schema from what actually reached storage.
+      let replaced: unknown
+      try {
+        replaced = deepFreeze(this.resolve(owner.schema, owner.base, section, owner.validate))
+      } catch (error) {
+        this.ctx.logger.warn('settings: keeping last good "%s" after invalid stored section', ns)
+        this.ctx.logger.warn(error)
+        return
+      }
+      this.bumpRevision(owner, current, section)
+      this.commit(owner, replaced, 'update')
     })
     this.writeQueues.set(ns, run)
     return run

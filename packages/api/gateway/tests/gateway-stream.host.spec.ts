@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { once } from 'node:events'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import WebSocket, { type RawData } from 'ws'
+import WebSocket from 'ws'
 import { Context, Service, symbols } from '@deepseek-ai/cordis'
 import { apply as applyConnection, inject as connectionInject } from '@deepseek-ai/dsh-client-connection'
 import WebServer from '@deepseek-ai/dsh-host-webserver'
@@ -28,6 +28,7 @@ import type {
   RemoteEventClientId,
   RemoteEventInvocationFrame,
 } from '../src/stream-protocol.ts'
+import { rawText } from '../src/stream-server.ts'
 
 vi.mock('node:crypto', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:crypto')>()
@@ -1136,12 +1137,6 @@ async function sendEventResult(
 
 function sendOpen(socket: WebSocket, streamId: string, endpoint: string, args: object): void {
   socket.send(JSON.stringify({ type: 'open', streamId, endpoint, payload: { args } }))
-}
-
-function rawText(data: RawData): string {
-  if (Array.isArray(data)) return Buffer.concat(data).toString('utf8')
-  if (data instanceof ArrayBuffer) return Buffer.from(data).toString('utf8')
-  return Buffer.from(data).toString('utf8')
 }
 
 function streamErrorMessage(frames: readonly Record<string, unknown>[], streamId: string): string | undefined {

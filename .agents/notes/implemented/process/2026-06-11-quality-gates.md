@@ -15,7 +15,7 @@ This codebase is developed primarily by coding agents. Agents follow enforced ga
 Every mechanically checkable AGENTS.md promise gets a command that exits non-zero. CI invokes the exhaustive set, while Git hooks reserve their latency budget for cheap local defects:
 
 - Max-strict TypeScript (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, …); examples, tests, and scripts typecheck in CI via the root no-emit `tsconfig.json` while package/vendor code stays behind its own project-reference boundary.
-- [Oxlint](2026-07-29-oxlint-linter.md) with type-aware TypeScript rules plus the @stylistic and SonarJS compatibility plugins, enforcing the house style and file-local duplicated-logic checks; vendored code excluded.
+- [Oxlint](2026-07-29-oxlint-linter.md) with type-aware TypeScript rules plus the @stylistic compatibility plugin, enforcing the house style; vendored code excluded. File-local duplicated-logic checks moved to the [syntax-duplication gate](../testing/2026-08-31-syntax-duplication-gate.md).
 - jscpd detects cross-file clones in package production TypeScript and repository scripts; narrow source-range exceptions document deliberately parallel implementations.
 - Per-file 100% coverage on `packages/*/*/src` (v8); unreachable defensive guards carry `/* v8 ignore */ ` with stated reasons instead of deletion.
 - knip (dead code/deps), publint (package correctness), workspace constraints (workspace rules: private, cordis peer+dev, uniform version, ESM), and a NodeNext consumer typecheck for built package declarations.

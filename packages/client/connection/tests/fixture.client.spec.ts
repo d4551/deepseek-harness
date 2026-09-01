@@ -12,6 +12,10 @@ import type { ChunkRow } from '@deepseek-ai/dsh-session/chunk-rows'
 import {
   createFixtureConnectionRpc,
   createFixtureFaces,
+  type FixtureChunkRowEvent,
+  type FixtureHistoryEntry,
+  type FixtureRemoteEventResult,
+  type FixtureHistoryRecord,
   type FixtureOptions,
 } from '../src/client/fixture.ts'
 import type {
@@ -36,27 +40,6 @@ interface FixtureSessionSummary {
   cwd?: string
   agentPreset?: string
 }
-
-interface FixtureHistoryEntry {
-  readonly type: 'event'
-  readonly event: SessionEvent
-}
-
-type FixtureChunkRowEvent = {
-  [Kind in ChunkRow['type']]: {
-    readonly type: `chunkrow/${Kind}`
-    readonly seq: number
-    readonly time: number
-    readonly data: Extract<ChunkRow, { readonly type: Kind }>['data']
-  }
-}[ChunkRow['type']]
-
-interface FixtureHistoryChunkRun {
-  readonly type: 'chunks'
-  readonly event: FixtureChunkRowEvent
-}
-
-type FixtureHistoryRecord = FixtureHistoryEntry | FixtureHistoryChunkRun
 
 interface FixturePage {
   readonly records: readonly FixtureHistoryRecord[]
@@ -265,23 +248,6 @@ type FixtureRemoteEventFrame =
   | FixtureRemoteEventNotificationFrame
   | FixtureRemoteEventRequestFrame
   | FixtureRemoteEventCancellationFrame
-
-interface FixtureRemoteEventResult {
-  readonly clientId: string
-  readonly eventId: string
-  readonly outcome:
-    | { readonly kind: 'next' }
-    | { readonly kind: 'result'; readonly value?: unknown }
-    | {
-      readonly kind: 'rejected'
-      readonly error: {
-        readonly name: string
-        readonly message: string
-        readonly code?: string
-        readonly details?: unknown
-      }
-    }
-}
 
 interface FixtureRemoteEventStream extends AsyncIterable<FixtureRemoteEventFrame> {
   readonly clientId: Promise<string>

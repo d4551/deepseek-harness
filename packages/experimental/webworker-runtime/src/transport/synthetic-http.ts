@@ -65,9 +65,18 @@ export function createSyntheticExchange(frame: TunnelRequestFrame, sink: Respons
     method: frame.method,
     headers: frame.headers,
     destroy: (): void => { aborted = true },
-    async *[Symbol.asyncIterator](): AsyncGenerator<Uint8Array> {
-      if (frame.body === undefined || frame.body.byteLength === 0) return
-      yield new Uint8Array(frame.body)
+    [Symbol.asyncIterator](): AsyncIterableIterator<Uint8Array> {
+      const body = frame.body
+      let sent = body === undefined || body.byteLength === 0
+      const iterator: AsyncIterableIterator<Uint8Array> = {
+        next: (): Promise<IteratorResult<Uint8Array, undefined>> => {
+          if (sent || body === undefined) return Promise.resolve({ done: true, value: undefined })
+          sent = true
+          return Promise.resolve({ done: false, value: new Uint8Array(body) })
+        },
+        [Symbol.asyncIterator]: () => iterator,
+      }
+      return iterator
     },
   }
 

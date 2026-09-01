@@ -12,6 +12,7 @@ import * as SessionInvariant from '@deepseek-ai/dsh-session/invariant'
 import * as AgentInvariant from '@deepseek-ai/dsh-agent/invariant'
 import * as AgentLoopInvariant from '@deepseek-ai/dsh-agent-loop/invariant'
 import { MockAdapter, textResponse, toolCallResponse } from './mock-adapter.ts'
+import { driverDone, harness, send } from './harness.ts'
 
 async function mountInvariants(ctx: Context): Promise<void> {
   await ctx.plugin(InvariantRegistry)
@@ -20,23 +21,7 @@ async function mountInvariants(ctx: Context): Promise<void> {
   await ctx.plugin(AgentLoopInvariant)
 }
 
-function driverDone(agent: Agent): Promise<void> {
-  return (agent as Agent & { done: Promise<void> }).done
-}
-
 /** Regression tests for agent-loop boundary, identity, and lifecycle contracts. */
-
-async function harness(adapter: MockAdapter) {
-  const ctx = new Context()
-  await ctx.plugin(LlmRuntime)
-  await ctx.plugin(SessionStore)
-  await ctx.plugin(SystemPrompt)
-  await ctx.plugin(ToolRuntime)
-  await ctx.plugin(AgentRegistry)
-  await ctx.plugin(AgentLoop, { agents: [] })
-  ctx.llm.registerAdapter(['mock'], adapter)
-  return ctx
-}
 
 function waitForIdle(ctx: Context, agent: Agent): Promise<void> {
   return new Promise((resolve) => {
@@ -47,10 +32,6 @@ function waitForIdle(ctx: Context, agent: Agent): Promise<void> {
       }
     })
   })
-}
-
-function send(agent: Agent, text: string) {
-  agent.followup(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }))
 }
 
 function inboxText(message: UserMessage): string {

@@ -2,10 +2,11 @@
 
 import { createServer, type Server } from 'node:http'
 import { createContext, runInContext } from 'node:vm'
-import WebSocket, { type RawData } from 'ws'
+import WebSocket from 'ws'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { startInspector, type InspectorHandle } from '../src/host/bridge/controller.ts'
 import { InspectorClientFixture } from './fixtures/client-source.host.ts'
+import { rawText } from '../src/worker/bridge/endpoint.ts'
 
 interface CdpMessage {
   readonly id?: number
@@ -678,10 +679,4 @@ function recordArray(value: unknown): Readonly<Record<string, unknown>>[] {
 function asRecord(value: unknown): Readonly<Record<string, unknown>> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error('expected a record')
   return value as Readonly<Record<string, unknown>>
-}
-
-function rawText(data: RawData): string {
-  if (Array.isArray(data)) return Buffer.concat(data).toString('utf8')
-  if (data instanceof ArrayBuffer) return Buffer.from(data).toString('utf8')
-  return Buffer.from(data).toString('utf8')
 }

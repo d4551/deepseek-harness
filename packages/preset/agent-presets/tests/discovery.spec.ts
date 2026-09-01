@@ -191,6 +191,21 @@ describe('composition health', () => {
     expect(await scanned('- just-a-string\n')).toMatch(/row 1 is not a plugin row/)
   })
 
+  it('names the !!js tag when a row spells its plugin name as an expression', async () => {
+    // The tag parses, so the row carries a `name` key; what it cannot do is
+    // reach the resolver, because only `config` and `disabled` are evaluated.
+    const composition = '- id: computed\n  name: !!js "String(1)"\n'
+
+    const reason = await scanned(composition)
+
+    // Pinned whole: the reason is read off a roster card, and a fragment match
+    // would let the part that names which fields DO take the tag drift away.
+    expect(reason).toBe(
+      'row 1 names its plugin with a !!js expression; the Loader evaluates that tag only in'
+      + ' a plugin\'s "config" and an entry\'s "disabled", so a "name" must be a literal specifier',
+    )
+  })
+
   it('descends into a group\'s own row list', async () => {
     const composition = '- id: grp\n  name: cordis:group\n  group: true\n  config:\n    - id: inner\n'
     expect(await scanned(composition)).toMatch(/row 1 row 1 names no plugin/)

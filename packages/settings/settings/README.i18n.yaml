@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write packages/settings/settings/README.md
-README.md: 85495628b1ade7475b14bd7f2c65316160728dd5
-README.zh.md: 859607206e72798dcc0333d57f693338c9281326
+README.md: 1b5235496f4538fbbcbcf355989bb6c5d4fc1be4
+README.zh.md: b45816b0111ff6d9ac2c487fa93ecdb6e1c776a7

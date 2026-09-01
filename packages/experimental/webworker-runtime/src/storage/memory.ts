@@ -6,6 +6,7 @@
  */
 import { dirname, join, normalize, resolve, SEP } from '../module-system/posix-path.ts'
 import { IMAGE_OVERLAY_DIRECTORIES } from '../image-layout.ts'
+import { settled } from '../settled.ts'
 import { parseTar } from './tar.ts'
 import type {
   Vfs, VfsBigIntStats, VfsDir, VfsDirent, VfsEncoding, VfsError, VfsFileHandle, VfsMutation, VfsOpenFile,
@@ -235,32 +236,37 @@ export class MemoryVfs implements Vfs {
 
   /** Promise face mirroring `node:fs/promises` for the methods the roster uses. */
   readonly promises = {
-    readFile: async (path: string, options?: VfsReadOptions): Promise<string | Uint8Array> => this.readFileSync(path, options),
-    writeFile: async (path: string, data: string | Uint8Array, options?: VfsWriteOptions): Promise<void> => {
-      this.writeFileSync(path, data, options)
-    },
-    appendFile: async (path: string, data: string | Uint8Array): Promise<void> => { this.appendFileSync(path, data) },
-    mkdir: async (path: string, options?: { recursive?: boolean; mode?: number }): Promise<string | undefined> =>
-      this.mkdirSync(path, options),
-    readdir: async (path: string, options?: { withFileTypes?: boolean }): Promise<string[] & VfsDirent[]> =>
-      this.readdirSync(path, options),
-    stat: async (path: string, options?: VfsStatOptions): Promise<VfsStats | VfsBigIntStats> => this.statSync(path, options),
-    lstat: async (path: string, options?: VfsStatOptions): Promise<VfsStats | VfsBigIntStats> => this.statSync(path, options),
-    realpath: async (path: string): Promise<string> => this.realpathSync(path),
-    rename: async (from: string, to: string): Promise<void> => { this.renameSync(from, to) },
-    unlink: async (path: string): Promise<void> => { this.unlinkSync(path) },
-    rm: async (path: string, options?: { recursive?: boolean; force?: boolean }): Promise<void> => { this.rmSync(path, options) },
-    mkdtemp: async (prefix: string): Promise<string> => this.mkdtempSync(prefix),
-    link: async (existing: string, next: string): Promise<void> => { this.linkSync(existing, next) },
-    truncate: async (path: string, length?: number): Promise<void> => { this.truncateSync(path, length) },
-    chmod: async (path: string, mode: number): Promise<void> => { this.chmodSync(path, mode) },
-    opendir: async (path: string): Promise<VfsDir> => this.opendir(path),
-    open: async (path: string, flags?: string, mode?: number): Promise<VfsFileHandle> => this.open(path, flags, mode),
+    readFile: (path: string, options?: VfsReadOptions): Promise<string | Uint8Array> =>
+      settled(() => this.readFileSync(path, options)),
+    writeFile: (path: string, data: string | Uint8Array, options?: VfsWriteOptions): Promise<void> =>
+      settled(() => { this.writeFileSync(path, data, options) }),
+    appendFile: (path: string, data: string | Uint8Array): Promise<void> =>
+      settled(() => { this.appendFileSync(path, data) }),
+    mkdir: (path: string, options?: { recursive?: boolean; mode?: number }): Promise<string | undefined> =>
+      settled(() => this.mkdirSync(path, options)),
+    readdir: (path: string, options?: { withFileTypes?: boolean }): Promise<string[] & VfsDirent[]> =>
+      settled(() => this.readdirSync(path, options)),
+    stat: (path: string, options?: VfsStatOptions): Promise<VfsStats | VfsBigIntStats> =>
+      settled(() => this.statSync(path, options)),
+    lstat: (path: string, options?: VfsStatOptions): Promise<VfsStats | VfsBigIntStats> =>
+      settled(() => this.statSync(path, options)),
+    realpath: (path: string): Promise<string> => settled(() => this.realpathSync(path)),
+    rename: (from: string, to: string): Promise<void> => settled(() => { this.renameSync(from, to) }),
+    unlink: (path: string): Promise<void> => settled(() => { this.unlinkSync(path) }),
+    rm: (path: string, options?: { recursive?: boolean; force?: boolean }): Promise<void> =>
+      settled(() => { this.rmSync(path, options) }),
+    mkdtemp: (prefix: string): Promise<string> => settled(() => this.mkdtempSync(prefix)),
+    link: (existing: string, next: string): Promise<void> => settled(() => { this.linkSync(existing, next) }),
+    truncate: (path: string, length?: number): Promise<void> => settled(() => { this.truncateSync(path, length) }),
+    chmod: (path: string, mode: number): Promise<void> => settled(() => { this.chmodSync(path, mode) }),
+    opendir: (path: string): Promise<VfsDir> => settled(() => this.opendir(path)),
+    open: (path: string, flags?: string, mode?: number): Promise<VfsFileHandle> =>
+      settled(() => this.open(path, flags, mode)),
     /** Resolves for any existing path: the VFS grants read and write to everything it holds. */
-    access: async (path: string): Promise<void> => {
+    access: (path: string): Promise<void> => settled(() => {
       const target = normalize(resolve(path))
       if (!this.files.has(target) && !this.directories.has(target)) fail('ENOENT', 'access', target)
-    },
+    }),
   }
 
   /** @returns Absolute path with no trailing separator. */
@@ -584,14 +590,25 @@ export class MemoryVfs implements Vfs {
     const direntOf = (name: string): VfsDirent => this.direntOf(target, name)
     return {
       path: target,
-      close: async (): Promise<void> => {},
-      read: async (): Promise<{ name: string } | null> => {
+      close: (): Promise<void> => Promise.resolve(),
+      read: (): Promise<{ name: string } | null> => settled(() => {
         const name = names[cursor]
         cursor += 1
         return name === undefined ? null : direntOf(name)
-      },
-      async *[Symbol.asyncIterator]() {
-        for (const name of names) yield direntOf(name)
+      }),
+      [Symbol.asyncIterator](): AsyncIterableIterator<VfsDirent> {
+        let index = 0
+        const iterator: AsyncIterableIterator<VfsDirent> = {
+          next: (): Promise<IteratorResult<VfsDirent, undefined>> => settled(() => {
+            const name = names[index]
+            index += 1
+            return name === undefined
+              ? { done: true, value: undefined }
+              : { done: false, value: direntOf(name) }
+          }),
+          [Symbol.asyncIterator]: () => iterator,
+        }
+        return iterator
       },
     }
   }
@@ -609,10 +626,10 @@ export class MemoryVfs implements Vfs {
     if (this.directories.has(target)) {
       if (!flags.startsWith('r')) fail('EISDIR', 'open', target)
       return {
-        write: async (): Promise<{ bytesWritten: number }> => fail('EISDIR', 'write', target),
-        writeFile: async (): Promise<void> => fail('EISDIR', 'write', target),
-        readFile: async (): Promise<string | Uint8Array> => fail('EISDIR', 'read', target),
-        truncate: async (): Promise<void> => fail('EISDIR', 'ftruncate', target),
+        write: (): Promise<{ bytesWritten: number }> => settled(() => fail('EISDIR', 'write', target)),
+        writeFile: (): Promise<void> => settled(() => fail('EISDIR', 'write', target)),
+        readFile: (): Promise<string | Uint8Array> => settled(() => fail('EISDIR', 'read', target)),
+        truncate: (): Promise<void> => settled(() => fail('EISDIR', 'ftruncate', target)),
         ...this.handleTail(target),
       }
     }
@@ -624,33 +641,33 @@ export class MemoryVfs implements Vfs {
       return file
     }
     return {
-      write: async (data: string | Uint8Array): Promise<{ bytesWritten: number }> => {
+      write: (data: string | Uint8Array): Promise<{ bytesWritten: number }> => settled(() => {
         const bytes = typeof data === 'string' ? encoder.encode(data) : data
         const descriptor = current('write')
         const offset = descriptor.append ? descriptor.stat().size : position
         const bytesWritten = descriptor.write(offset, bytes)
         position = offset + bytesWritten
         return { bytesWritten }
-      },
-      writeFile: async (data: string | Uint8Array): Promise<void> => {
+      }),
+      writeFile: (data: string | Uint8Array): Promise<void> => settled(() => {
         const bytes = typeof data === 'string' ? encoder.encode(data) : data
         const descriptor = current('write')
         const offset = descriptor.append ? descriptor.stat().size : position
         position = offset + descriptor.write(offset, bytes)
-      },
-      readFile: async (options?: VfsReadOptions): Promise<string | Uint8Array> => {
+      }),
+      readFile: (options?: VfsReadOptions): Promise<string | Uint8Array> => settled(() => {
         const descriptor = current('read')
         const bytes = descriptor.read(position, Math.max(0, descriptor.stat().size - position))
         position += bytes.length
         return encodingOf(options) === undefined ? bytes : decoder.decode(bytes)
-      },
-      truncate: async (length = 0): Promise<void> => {
+      }),
+      truncate: (length = 0): Promise<void> => settled(() => {
         current('ftruncate').truncate(length)
-      },
-      stat: async (): Promise<VfsStats> => current('fstat').stat(),
+      }),
+      stat: (): Promise<VfsStats> => settled(() => current('fstat').stat()),
       sync: async (): Promise<void> => { current('fsync'); await this.flush() },
       datasync: async (): Promise<void> => { current('fdatasync'); await this.flush() },
-      close: async (): Promise<void> => { closed = true },
+      close: (): Promise<void> => settled(() => { closed = true }),
     }
   }
 
@@ -704,10 +721,10 @@ export class MemoryVfs implements Vfs {
    */
   private handleTail(target: string): Pick<VfsFileHandle, 'stat' | 'sync' | 'datasync' | 'close'> {
     return {
-      stat: async (): Promise<VfsStats> => this.plainStats(target),
+      stat: (): Promise<VfsStats> => settled(() => this.plainStats(target)),
       sync: async (): Promise<void> => { await this.flush() },
       datasync: async (): Promise<void> => { await this.flush() },
-      close: async (): Promise<void> => {},
+      close: (): Promise<void> => Promise.resolve(),
     }
   }
 

@@ -2,30 +2,9 @@
 
 import { toNamespacedPath } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { Win32Bindings } from '../src/win32.ts'
 
-type GetFileSecurityW = (
-  path: string,
-  requestedInformation: number,
-  descriptor: Buffer | null,
-  length: number,
-  needed: [number],
-) => number
-type SetFileSecurityW = (path: string, securityInformation: number, descriptor: Buffer) => number
-type ReplaceFileW = (
-  replaced: string,
-  replacement: string,
-  backup: null,
-  flags: number,
-  exclude: null,
-  reserved: null,
-) => number
-
-interface NativeMock {
-  getFileSecurityW: GetFileSecurityW
-  setFileSecurityW: SetFileSecurityW
-  replaceFileW: ReplaceFileW
-  getLastError: () => number
-}
+type NativeMock = Win32Bindings
 
 async function importWithNative(native: NativeMock): Promise<typeof import('../src/win32.ts')> {
   vi.resetModules()

@@ -48,6 +48,7 @@
     }
   },
   "dependencies": {
+    "@deepseek-ai/dsh-util-crypto": "workspace:^",
     "@deepseek-ai/schemastery": "workspace:^"
   },
   "devDependencies": {

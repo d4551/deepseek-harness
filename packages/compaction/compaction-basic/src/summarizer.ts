@@ -7,9 +7,14 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { contentHasImage, createUserMessage, BlockAssembler, LlmError } from '@deepseek-ai/dsh-llm'
 import type {
-  ContentBlock, FinishReason, GenerateOptions, Message, TokenUsage, ToolSchema,
+  ContentBlock, FinishReason, GenerateOptions, Message, TokenUsage, ToolSchema, UserMessage,
 } from '@deepseek-ai/dsh-llm'
+import { compactCheckpointSource } from '@deepseek-ai/dsh-compaction'
+import type { CompactionResult } from '@deepseek-ai/dsh-compaction'
+import type { CommandId } from '@deepseek-ai/dsh-commands/brand'
+import type { TokenMeter } from '@deepseek-ai/dsh-token-meter'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import type { PreparedCompaction } from './selection.ts'
 
 interface SummaryConfig {
   readonly summarizationProvider: string
@@ -114,8 +119,8 @@ export type SummaryResult = {
  * @param ctx - context providing the LLM service.
  * @param config - resolved backend configuration.
  * @param input - replayed conversation prefix (system, tools, and leading messages) to condense.
- * @param agent - supplies routed-model history, fallback model, and session id.
- * @param signal - optional cancellation forwarded to the adapter.
+ * @param agent - supplies routed-model history, agent option models, and session id.
+ * @param signal - optional cancellation forwarded to the LLM service.
  * @returns safe text-only summary blocks and the exact call envelope and output.
  */
 export async function summarizeWithLlm(
@@ -221,4 +226,65 @@ function summaryText(
     throw new LlmError('compaction summary cannot contain image output', 'UNSUPPORTED_CONTENT')
   }
   return blocks.filter((block): block is Extract<ContentBlock, { type: 'text' }> => block.type === 'text')
+}
+
+/**
+ * Signals that a summary would not shrink its shadowed span, so the automatic
+ * retry loop can consolidate instead of aborting the whole pass. Explicit
+ * callers surface it as an ordinary failure.
+ */
+export class SummaryShrinkError extends Error {
+  override readonly name = 'SummaryShrinkError'
+}
+
+/** A priced snapshot combined with its safe summary and framed replacement. */
+export type SummarizedCompaction = PreparedCompaction & SummaryResult & {
+  readonly checkpointMessage: UserMessage
+}
+
+/**
+ * Run the summarize hook and frame its replacement checkpoint, rejecting a
+ * summary whose framed replacement would not lower the next request's
+ * route-priced pressure.
+ * @param meter - conversation meter pricing the framed replacement.
+ * @param summarize - dynamically dispatched summarize hook.
+ * @param prepared - priced snapshot and replay input for the shadowed span.
+ * @param agent - agent used by the summarizer.
+ * @param compactionId - owning compaction identity for the checkpoint source.
+ * @param sourceCommandId - initiating manual command, when present.
+ * @param signal - optional cancellation forwarded to the summarize hook.
+ * @returns the safe summary, exact call envelope, and framed checkpoint message.
+ */
+export async function summarizeCompaction(
+  meter: TokenMeter,
+  summarize: (
+    input: SummarizationInput,
+    agent: Agent,
+    signal?: AbortSignal,
+  ) => Promise<SummaryResult>,
+  prepared: PreparedCompaction,
+  agent: Agent,
+  compactionId: CompactionResult['compactionId'],
+  sourceCommandId: CommandId | undefined,
+  signal?: AbortSignal,
+): Promise<SummarizedCompaction> {
+  const summaryResult = await summarize(prepared.input, agent, signal)
+  const checkpointMessage = createUserMessage({
+    content: frameSummary(summaryResult.summary),
+    source: compactCheckpointSource(compactionId, sourceCommandId),
+  })
+  // The checkpoint is text-only, so its fixed-heuristic price IS its route
+  // price; comparing it against the span's route price asks the real
+  // question — does the replacement lower the next request's pressure.
+  const framedSummaryTokenCount = meter.estimateMessage(checkpointMessage)
+  if (framedSummaryTokenCount >= prepared.shadowedRouteTokenCount) {
+    throw new SummaryShrinkError(
+      `summary is not smaller than the shadowed content (${framedSummaryTokenCount} estimated framed tokens >= ${prepared.shadowedRouteTokenCount})`,
+    )
+  }
+  return {
+    ...prepared,
+    ...summaryResult,
+    checkpointMessage,
+  }
 }

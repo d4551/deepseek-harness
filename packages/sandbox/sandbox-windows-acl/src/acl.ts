@@ -120,17 +120,39 @@ export function withPathLock<T>(api: Win32Bindings, path: string, action: () => 
  * @returns the current explicit DACL (null when the directory carries none) and its owning descriptor.
  */
 function readCurrentDacl(api: Win32Bindings, path: string): { oldAcl: NativePtr | null; descriptor: NativePtr | null } {
+  const read = readNamedSecurityInfo(api, path)
+  if (read.status !== abi.ERROR_SUCCESS) throwWin32(api, 'GetNamedSecurityInfoW', read.status, path)
+  return { oldAcl: read.acl, descriptor: read.descriptor }
+}
+
+/** One `GetNamedSecurityInfoW` DACL read: its status and the pointers it produced. */
+export interface NamedSecurityInfo {
+  /** Explicit DACL pointer, or `null` when the object carries none. */
+  readonly acl: NativePtr | null
+  /** Owning security descriptor; the caller `LocalFree`s exactly this pointer. */
+  readonly descriptor: NativePtr | null
+  /** Win32 status the call returned. */
+  readonly status: number
+}
+
+/**
+ * Read one object's DACL through `GetNamedSecurityInfoW` without interpreting
+ * the result, so a caller decides for itself what a status or an absent ACL means.
+ * @param api - the binding table.
+ * @param path - the object whose DACL is read.
+ * @returns the ACL and descriptor pointers with the call's status.
+ */
+export function readNamedSecurityInfo(api: Win32Bindings, path: string): NamedSecurityInfo {
   const ownerSlot = allocPtrSlot()
   const groupSlot = allocPtrSlot()
   const daclSlot = allocPtrSlot()
   const saclSlot = allocPtrSlot()
   const descriptorSlot = allocPtrSlot()
-  const readResult = api.getNamedSecurityInfoW(
+  const status = api.getNamedSecurityInfoW(
     path, abi.SE_FILE_OBJECT, abi.DACL_SECURITY_INFORMATION,
     ownerSlot, groupSlot, daclSlot, saclSlot, descriptorSlot,
   )
-  if (readResult !== abi.ERROR_SUCCESS) throwWin32(api, 'GetNamedSecurityInfoW', readResult, path)
-  return { oldAcl: decodePtr(daclSlot), descriptor: decodePtr(descriptorSlot) }
+  return { acl: decodePtr(daclSlot), descriptor: decodePtr(descriptorSlot), status }
 }
 
 /**

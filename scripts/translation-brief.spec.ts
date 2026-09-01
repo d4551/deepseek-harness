@@ -71,9 +71,9 @@ describe('markdown spans', () => {
 
   it('labels units by their node type', () => {
     const units = markdownUnits(DOC)
-    expect(units[0]!.label).toBe('paragraph')
-    expect(units[1]!.label).toBe('heading')
-    expect(units[7]!.label).toBe('tableRow')
+    expect(units[0]).toMatchObject({ label: 'paragraph' })
+    expect(units[1]).toMatchObject({ label: 'heading' })
+    expect(units[7]).toMatchObject({ label: 'tableRow' })
   })
 
   it('aligns sections by depth only, so translated heading text still maps', () => {

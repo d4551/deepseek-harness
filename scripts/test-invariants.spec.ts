@@ -79,7 +79,7 @@ async function withDelayedFirstCompanion(
   const started = deferred()
   const release = deferred()
   await withFakeCompanions(
-    (_path, index) => async () => ({
+    (_path, index) => () => Promise.resolve({
       name: `test-invariant-${index}`,
       inject: ['invariants'],
       async apply() {
@@ -238,7 +238,7 @@ describe('global test invariant host', () => {
     const companionNestedApply = vi.fn(function companionNestedApply() {})
 
     await withFakeCompanions(
-      (path, index) => async () => {
+      (path, index) => () => {
         const companion: TestInvariantCompanion = {
           name: `test-invariant-${index}`,
           inject: ['invariants'],
@@ -254,7 +254,7 @@ describe('global test invariant host', () => {
           },
         }
         if (index === 0) delayedCompanion = companion
-        return companion
+        return Promise.resolve(companion)
       },
       async () => {
         const ctx = new Context()
@@ -374,13 +374,14 @@ describe('global test invariant host', () => {
       const failure = new Error(`test invariant companion ${phase} failed`)
       await withFakeCompanions(
         (_path, index) => phase === 'load' && index === 0
-          ? async () => { throw failure }
-          : async () => ({
+          ? () => Promise.reject(failure)
+          : () => Promise.resolve({
             name: `test-invariant-${index}`,
             inject: ['invariants'],
-            async apply() {
-              if (phase === 'startup' && index === 0) throw failure
-              return () => {}
+            apply() {
+              return phase === 'startup' && index === 0
+                ? Promise.reject(failure)
+                : Promise.resolve(() => {})
             },
           }),
         async () => {

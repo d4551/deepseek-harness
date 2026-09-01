@@ -5,6 +5,7 @@
  * file descriptors, `mkdtemp`, access checks, watchers, streams, and the promise face.
  */
 import { requireActiveVfs } from '../../../storage/active.ts'
+import { settled } from '../../../settled.ts'
 import type {
   Vfs, VfsBigIntStats, VfsOpenFile, VfsStatOptions, VfsStats, VfsWriteOptions,
 } from '../../../storage/types.ts'
@@ -422,7 +423,7 @@ export function openHandleSync(path: PathArg, flags = 'r', mode?: number): FileH
   const descriptor = (syscall: string): OpenFile => fileOf(fd, syscall)
   return {
     fd,
-    readFile: async (options?: EncodingOption) => {
+    readFile: (options?: EncodingOption) => settled(() => {
       if (directory) return readFileSync(target, options)
       const open = descriptor('read')
       const bytes = open.file.read(open.position, Math.max(0, open.file.stat().size - open.position))
@@ -431,28 +432,29 @@ export function openHandleSync(path: PathArg, flags = 'r', mode?: number): FileH
       return encoding === undefined || encoding === 'utf8' || encoding === 'utf-8'
         ? (encoding === undefined ? asBuffer(bytes) : new TextDecoder().decode(bytes))
         : asBuffer(bytes).toString(encoding)
-    },
-    writeFile: async (data: string | Uint8Array) => {
+    }),
+    writeFile: (data: string | Uint8Array) => settled(() => {
       if (directory) writeFileSync(target, data)
       else writeSync(fd, data)
-    },
-    write: async (data: string | Uint8Array) => ({ bytesWritten: writeSync(fd, data) }),
-    read: async (buffer: Uint8Array, offset = 0, length = buffer.byteLength, position: number | null = null) => ({
-      bytesRead: readSync(fd, buffer, offset, length, position),
-      buffer,
     }),
-    stat: async () => directory ? statSync(target) as VfsStats : descriptor('fstat').file.stat(),
-    truncate: async (length = 0) => {
+    write: (data: string | Uint8Array) => settled(() => ({ bytesWritten: writeSync(fd, data) })),
+    read: (buffer: Uint8Array, offset = 0, length = buffer.byteLength, position: number | null = null) =>
+      settled(() => ({
+        bytesRead: readSync(fd, buffer, offset, length, position),
+        buffer,
+      })),
+    stat: () => settled(() => directory ? statSync(target) as VfsStats : descriptor('fstat').file.stat()),
+    truncate: (length = 0) => settled(() => {
       if (directory) writeFileSync(target, new Uint8Array(length))
       else descriptor('ftruncate').file.truncate(length)
-    },
+    }),
     sync: async () => { await vfs().flush() },
     datasync: async () => { await vfs().flush() },
-    close: async () => {
+    close: () => settled(() => {
       if (closed) return
       closed = true
       if (fd !== -1) closeSync(fd)
-    },
+    }),
   }
 }
 
@@ -740,11 +742,18 @@ export function opendirSync(path: PathArg): Dir {
   const next = (): Dirent | null => entries[index++] ?? null
   return {
     path: target,
-    read: async () => next(),
-    close: async () => { index = entries.length },
+    read: (): Promise<Dirent | null> => settled(next),
+    close: (): Promise<void> => settled(() => { index = entries.length }),
     closeSync: () => { index = entries.length },
-    async *[Symbol.asyncIterator]() {
-      for (let entry = next(); entry !== null; entry = next()) yield entry
+    [Symbol.asyncIterator](): AsyncIterableIterator<Dirent> {
+      const iterator: AsyncIterableIterator<Dirent> = {
+        next: (): Promise<IteratorResult<Dirent, undefined>> => settled(() => {
+          const entry = next()
+          return entry === null ? { done: true, value: undefined } : { done: false, value: entry }
+        }),
+        [Symbol.asyncIterator]: () => iterator,
+      }
+      return iterator
     },
   }
 }
@@ -755,12 +764,13 @@ export function opendirSync(path: PathArg): Dir {
  * check here is that every name is a real `node:fs/promises` export.
  */
 export const promises = {
-  readFile: async (path: PathArg, options?: EncodingOption): Promise<Buffer | string> => readFileSync(path, options),
-  writeFile: async (
+  readFile: (path: PathArg, options?: EncodingOption): Promise<Buffer | string> =>
+    settled(() => readFileSync(path, options)),
+  writeFile: (
     path: PathArg,
     data: string | Uint8Array,
     options?: { flag?: string; mode?: number } | BufferEncoding | null,
-  ): Promise<void> => {
+  ): Promise<void> => settled(() => {
     const flag = typeof options === 'object' && options !== null ? options.flag : undefined
     const mode = typeof options === 'object' && options !== null ? options.mode : undefined
     if (flag !== undefined && flag.includes('x') && existsSync(path)) {
@@ -770,22 +780,27 @@ export const promises = {
     }
     if (flag !== undefined && flag.startsWith('a')) appendFileSync(path, data)
     else writeFileSync(path, data, { ...flag === undefined ? {} : { flag }, ...mode === undefined ? {} : { mode } })
-  },
-  appendFile: async (path: PathArg, data: string | Uint8Array): Promise<void> => { appendFileSync(path, data) },
-  mkdir: async (path: PathArg, options?: { recursive?: boolean; mode?: number }): Promise<string | undefined> => mkdirSync(path, options),
-  mkdtemp: async (prefix: string): Promise<string> => mkdtempSync(prefix),
-  readdir: async (
+  }),
+  appendFile: (path: PathArg, data: string | Uint8Array): Promise<void> =>
+    settled(() => { appendFileSync(path, data) }),
+  mkdir: (path: PathArg, options?: { recursive?: boolean; mode?: number }): Promise<string | undefined> =>
+    settled(() => mkdirSync(path, options)),
+  mkdtemp: (prefix: string): Promise<string> => settled(() => mkdtempSync(prefix)),
+  readdir: (
     path: PathArg,
     options?: { withFileTypes?: boolean } | BufferEncoding,
-  ): Promise<string[] | Dirent[]> => readdirSync(path, options),
-  stat: async (path: PathArg, options?: VfsStatOptions): Promise<VfsStats | VfsBigIntStats> => statSync(path, options),
-  lstat: async (path: PathArg, options?: VfsStatOptions): Promise<VfsStats | VfsBigIntStats> => lstatSync(path, options),
-  realpath: async (path: PathArg): Promise<string> => realpathSync(path),
-  rm: async (path: PathArg, options?: { recursive?: boolean; force?: boolean }): Promise<void> => { rmSync(path, options) },
-  unlink: async (path: PathArg): Promise<void> => { unlinkSync(path) },
-  rename: async (from: PathArg, to: PathArg): Promise<void> => { renameSync(from, to) },
-  access: async (path: PathArg): Promise<void> => { accessSync(path) },
-  chmod: async (path: PathArg, mode: number | string): Promise<void> => { chmodSync(path, mode) },
+  ): Promise<string[] | Dirent[]> => settled(() => readdirSync(path, options)),
+  stat: (path: PathArg, options?: VfsStatOptions): Promise<VfsStats | VfsBigIntStats> =>
+    settled(() => statSync(path, options)),
+  lstat: (path: PathArg, options?: VfsStatOptions): Promise<VfsStats | VfsBigIntStats> =>
+    settled(() => lstatSync(path, options)),
+  realpath: (path: PathArg): Promise<string> => settled(() => realpathSync(path)),
+  rm: (path: PathArg, options?: { recursive?: boolean; force?: boolean }): Promise<void> =>
+    settled(() => { rmSync(path, options) }),
+  unlink: (path: PathArg): Promise<void> => settled(() => { unlinkSync(path) }),
+  rename: (from: PathArg, to: PathArg): Promise<void> => settled(() => { renameSync(from, to) }),
+  access: (path: PathArg): Promise<void> => settled(() => { accessSync(path) }),
+  chmod: (path: PathArg, mode: number | string): Promise<void> => settled(() => { chmodSync(path, mode) }),
   cp: async (from: PathArg, to: PathArg): Promise<void> => {
     const source = asPath(from)
     const target = asPath(to)
@@ -798,12 +813,13 @@ export const promises = {
     writeFileSync(target, bytesOf(source))
   },
   // The VFS keeps both names attached to one file identity until either name is removed.
-  link: async (from: PathArg, to: PathArg): Promise<void> => { linkSync(from, to) },
-  open: async (path: PathArg, flags?: string, mode?: number): Promise<FileHandle> => openHandleSync(path, flags, mode),
-  opendir: async (path: PathArg): Promise<Dir> => opendirSync(path),
-  truncate: async (path: PathArg, length = 0): Promise<void> => {
+  link: (from: PathArg, to: PathArg): Promise<void> => settled(() => { linkSync(from, to) }),
+  open: (path: PathArg, flags?: string, mode?: number): Promise<FileHandle> =>
+    settled(() => openHandleSync(path, flags, mode)),
+  opendir: (path: PathArg): Promise<Dir> => settled(() => opendirSync(path)),
+  truncate: (path: PathArg, length = 0): Promise<void> => settled(() => {
     vfs().truncateSync(asPath(path), length)
-  },
+  }),
   watch: watchAsync,
   constants,
 } satisfies Partial<Record<keyof typeof import('node:fs/promises'), unknown>>

@@ -149,6 +149,26 @@ export function resolveDshLaunch(
     }),
     description: `dsh profile ${JSON.stringify(profile)}`,
     initializeTimeoutMs: options.initializeTimeoutMs ?? DEFAULT_INITIALIZE_TIMEOUT_MS,
+    ...statedRuntimeTimeouts(options),
+  }
+}
+
+/** Runtime timeouts a caller may leave unstated, so the runtime keeps its own default. */
+export interface StatedRuntimeTimeouts {
+  requestTimeoutMs?: number
+  shutdownTimeoutMs?: number
+  disposeEofGraceMs?: number
+  disposeGraceMs?: number
+}
+
+/**
+ * Forward only the timeouts the caller actually stated, so an omitted one
+ * reaches the runtime as absent rather than as `undefined`.
+ * @param options - caller options carrying the optional timeouts.
+ * @returns the stated timeouts, ready to spread into runtime options.
+ */
+export function statedRuntimeTimeouts(options: StatedRuntimeTimeouts): StatedRuntimeTimeouts {
+  return {
     ...options.requestTimeoutMs === undefined ? {} : { requestTimeoutMs: options.requestTimeoutMs },
     ...options.shutdownTimeoutMs === undefined ? {} : { shutdownTimeoutMs: options.shutdownTimeoutMs },
     ...options.disposeEofGraceMs === undefined ? {} : { disposeEofGraceMs: options.disposeEofGraceMs },

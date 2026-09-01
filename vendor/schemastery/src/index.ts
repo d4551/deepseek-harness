@@ -695,13 +695,23 @@ Schema.extend('is', (data, { constructor }, options) => {
   }
 })
 
+/**
+ * Store one resolved key as an own data property. Plain assignment routes the
+ * key `__proto__` through the inherited `Object.prototype.__proto__` setter, so
+ * a document key with that name would change the prototype instead of becoming
+ * data, and the key would vanish from the validated result.
+ */
+function defineOwn(target: any, key: keyof any, value: any) {
+  Object.defineProperty(target, key, { value, writable: true, enumerable: true, configurable: true })
+}
+
 function property(data: any, key: keyof any, schema: Schema, options: Schemastery.Options) {
   try {
     const [value, adapted] = Schema.resolve(data[key], schema, {
       ...options,
       path: [...options.path || [], key],
     })
-    if (adapted !== undefined) data[key] = adapted
+    if (adapted !== undefined) defineOwn(data, key, adapted)
     return value
   } catch (e) {
     if (!options?.autofix) throw e
@@ -727,8 +737,8 @@ Schema.extend('dict', (data, { inner, sKey }, options, strict) => {
       if (strict) continue
       throw error
     }
-    result[rKey] = property(data, key, inner!, options)
-    data[rKey] = data[key]
+    defineOwn(result, rKey, property(data, key, inner!, options))
+    defineOwn(data, rKey, data[key])
     if (key !== rKey) delete data[key]
   }
   return [result]
@@ -744,8 +754,10 @@ Schema.extend('tuple', (data, { list }, options, strict) => {
 
 function merge(result: any, data: any) {
   for (const key in data) {
-    if (key in result) continue
-    result[key] = data[key]
+    // Object.hasOwn, not `in`: `in` consults the prototype chain, so a real
+    // key named `toString` or `constructor` would read as already present.
+    if (Object.hasOwn(result, key)) continue
+    defineOwn(result, key, data[key])
   }
 }
 
@@ -754,8 +766,8 @@ Schema.extend('object', (data, { dict }, options, strict) => {
   const result: any = {}
   for (const key in dict) {
     const value = property(data, key, dict![key]!, options)
-    if (!isNullable(value) || key in data) {
-      result[key] = value
+    if (!isNullable(value) || Object.hasOwn(data, key)) {
+      defineOwn(result, key, value)
     }
   }
   if (!strict) merge(result, data)

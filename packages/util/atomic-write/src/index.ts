@@ -1,17 +1,19 @@
 /**
  * Zero-dependency atomic file replacement and writer coordination.
  * `writeFileAtomic` writes a random-suffix sibling with exclusive create and
- * the caller's permission bits, then renames it over the target, so readers
- * observe either the old or the new complete content and a replaced file ends
- * up with exactly the stated mode. `withFileLock` serializes cross-process
- * writers of one file through a `wx`-created `<file>.lock` sibling, so a
- * read-modify-write cycle can never resurrect a state another writer just
- * replaced; readers stay lock-free because the rename commit is atomic.
+ * the caller's permission bits, fsyncs it, renames it over the target, and
+ * fsyncs the parent directory, so readers observe either the old or the new
+ * complete content, a replaced file ends up with exactly the stated mode, and
+ * a crash after the call resolves leaves the committed name durable on disk.
+ * `withFileLock` serializes cross-process writers of one file through a
+ * `wx`-created `<file>.lock` sibling, so a read-modify-write cycle can never
+ * resurrect a state another writer just replaced; readers stay lock-free
+ * because the rename commit is atomic.
  * @module @deepseek-ai/dsh-atomic-write
  */
 
 import { randomBytes } from 'node:crypto'
-import { lstat, mkdir, rename, rm, writeFile } from 'node:fs/promises'
+import { close, fsync, lstat, mkdir, open, rename, rm, rmSync, writeFile } from 'node:fs'
 import { dirname } from 'node:path'
 
 /**
@@ -33,6 +35,49 @@ export interface WriteFileAtomicOptions {
 }
 
 /**
+ * Run one callback-style filesystem call and report the errno it produced.
+ * Node hands the completion callback a typed `NodeJS.ErrnoException`, so the
+ * failure stays a value the caller inspects rather than a thrown one.
+ * @param call - filesystem call, invoked with the completion callback.
+ * @returns the errno the call reported, or `null` when it succeeded.
+ */
+function attempt(
+  call: (done: (error: NodeJS.ErrnoException | null) => void) => void,
+): Promise<NodeJS.ErrnoException | null> {
+  return new Promise((resolve) => { call(resolve) })
+}
+
+/** One opened descriptor, or the errno the open produced. */
+interface OpenedFile {
+  readonly error: NodeJS.ErrnoException | null
+  readonly fd: number
+}
+
+/**
+ * Open one path for the fsync that follows.
+ * @param path - file or directory to open.
+ * @returns the descriptor, or the errno the open reported.
+ */
+function attemptOpen(path: string): Promise<OpenedFile> {
+  return new Promise((resolve) => {
+    open(path, 'r', (error, fd) => { resolve({ error, fd }) })
+  })
+}
+
+/**
+ * fsync one already-written path and release its descriptor.
+ * @param path - file or directory to sync.
+ * @returns the first errno the sync or the close reported, otherwise `null`.
+ */
+async function syncPath(path: string): Promise<NodeJS.ErrnoException | null> {
+  const opened = await attemptOpen(path)
+  if (opened.error !== null) return opened.error
+  const synced = await attempt((done) => { fsync(opened.fd, done) })
+  const closed = await attempt((done) => { close(opened.fd, done) })
+  return synced ?? closed
+}
+
+/**
  * Replace `filename` with `content` in one atomic step, creating parent
  * directories. The content is first written to a random-suffix sibling opened
  * with exclusive create (`wx`): the open refuses to follow a symlink planted
@@ -40,43 +85,76 @@ export interface WriteFileAtomicOptions {
  * rename, so replacing a wider-permission file narrows it without a chmod
  * race. The rename also replaces a symlinked target itself instead of writing
  * through to its referent, and the same-directory sibling keeps the rename on
- * one filesystem. On any failure the temp file is removed and the failure
- * rethrown. Crash durability (fsync) is out of scope.
+ * one filesystem. The temp file is fsynced before the rename and the parent
+ * directory after it, so the committed name survives a crash; Windows offers
+ * no directory fsync, so only the file sync runs there. On any failure the
+ * temp file is removed and the original failure rethrown.
  * @param filename - final path receiving the content.
  * @param content - complete next file content.
  * @param options - permission bits for the replacement inode.
  */
 export async function writeFileAtomic(filename: string, content: string, options: WriteFileAtomicOptions): Promise<void> {
-  await mkdir(
-    dirname(filename),
-    options.dirMode === undefined
-      ? { recursive: true }
-      : { recursive: true, mode: options.dirMode },
-  )
-  // TODO(settings-atomic-durability): Use a replacement that fsyncs the file
-  // and parent directory and preserves owner-only permissions on Windows.
+  const prepared = await attempt((done) => {
+    mkdir(
+      dirname(filename),
+      options.dirMode === undefined
+        ? { recursive: true }
+        : { recursive: true, mode: options.dirMode },
+      done,
+    )
+  })
+  if (prepared !== null) throw prepared
   const temp = `${filename}.${randomBytes(6).toString('hex')}.tmp`
-  try {
-    await writeFile(temp, content, { mode: options.mode, flag: 'wx' })
-    await rename(temp, filename)
-  } catch (error) {
-    await rm(temp, { force: true })
-    throw error
-  }
+  // Cleanup runs before the rethrow, so the caller observes exactly the write
+  // error; cleanup cannot mask it.
+  const failure = await writeTempAndCommit(temp, filename, content, options.mode)
+  if (failure === null) return
+  await attempt((done) => { rm(temp, { force: true }, done) })
+  throw failure
+}
+
+/**
+ * Write `content` to `temp`, fsync it, rename over `filename`, fsync the parent.
+ * @param temp - random-suffix sibling receiving the content first.
+ * @param filename - final path the rename commits to.
+ * @param content - complete next file content.
+ * @param mode - permission bits stamped on the fresh temp inode.
+ * @returns the first errno a step reported, otherwise `null`.
+ */
+async function writeTempAndCommit(
+  temp: string,
+  filename: string,
+  content: string,
+  mode: number,
+): Promise<NodeJS.ErrnoException | null> {
+  const written = await attempt((done) => { writeFile(temp, content, { mode, flag: 'wx' }, done) })
+  if (written !== null) return written
+  const synced = await syncPath(temp)
+  if (synced !== null) return synced
+  const renamed = await attempt((done) => { rename(temp, filename, done) })
+  if (renamed !== null) return renamed
+  return fsyncDirectory(dirname(filename))
+}
+
+/**
+ * fsync the directory entry the rename just changed, making the new name
+ * durable. Windows offers no directory fsync, so the file-level sync above is
+ * the whole durability story there.
+ * @param dir - parent directory of the renamed file.
+ * @returns the errno the sync reported, otherwise `null`.
+ */
+function fsyncDirectory(dir: string): Promise<NodeJS.ErrnoException | null> {
+  if (process.platform === 'win32') return Promise.resolve(null)
+  return syncPath(dir)
 }
 
 /** Whether an exclusive create found an existing lock. */
-async function isLockContention(error: unknown, lockPath: string): Promise<boolean> {
-  const code = (error as NodeJS.ErrnoException | null)?.code
-  if (code === 'EEXIST') return true
-  if (code !== 'EPERM') return false
-  try {
-    await lstat(lockPath)
-    return true
-  } catch {
-    // Keep the original EPERM authoritative when lock existence is unproven.
-    return false
-  }
+async function isLockContention(error: NodeJS.ErrnoException, lockPath: string): Promise<boolean> {
+  if (error.code === 'EEXIST') return true
+  if (error.code !== 'EPERM') return false
+  // A failing lstat proves nothing about the lock, and the original EPERM
+  // stays authoritative.
+  return attempt((done) => { lstat(lockPath, done) }).then(failure => failure === null)
 }
 
 /**
@@ -121,11 +199,12 @@ export interface FileLockOptions {
  * failure. Contention backs off exponentially and fails with a timed-out error
  * after the deadline. The contender never removes an existing lock because
  * file age cannot prove that its owner stopped; orphan recovery is an operator
- * action. The parent directory must exist.
+ * action. The parent directory must exist. The lock releases on both outcomes
+ * of the operation.
  * @param filename - the file whose writers this lock serializes.
  * @param operation - the read-render-commit cycle to run while holding the lock.
  * @param options - acquisition options; omitted waits {@link DEFAULT_LOCK_WAIT_MS}.
- * @returns the operation's result; the lock releases on both outcomes.
+ * @returns the operation's result.
  */
 export async function withFileLock<T>(
   filename: string,
@@ -136,21 +215,20 @@ export async function withFileLock<T>(
   const deadline = Date.now() + (options?.waitMs ?? DEFAULT_LOCK_WAIT_MS)
   let delay = LOCK_RETRY_INITIAL_MS
   for (;;) {
-    try {
-      await writeFile(lockPath, `${process.pid}\n`, { mode: 0o600, flag: 'wx' })
-      break
-    } catch (error) {
-      if (!await isLockContention(error, lockPath)) throw error
-    }
+    // A non-contention failure rethrows the original error after the EPERM
+    // existence check rules contention out.
+    const created = await attempt((done) => {
+      writeFile(lockPath, `${process.pid}\n`, { mode: 0o600, flag: 'wx' }, done)
+    })
+    if (created === null) break
+    if (!await isLockContention(created, lockPath)) throw created
     if (Date.now() >= deadline) {
       throw new Error(`atomic-write: timed out waiting for the writer lock at ${lockPath}`)
     }
     await new Promise(resolve => setTimeout(resolve, delay))
     delay = Math.min(delay * 2, LOCK_RETRY_MAX_MS)
   }
-  try {
-    return await operation()
-  } finally {
-    await rm(lockPath, { force: true })
-  }
+  // Synchronous release: the lock must be gone on both outcomes, and a
+  // completion callback here would observe an outcome this function forwards.
+  return operation().finally(() => { rmSync(lockPath, { force: true }) })
 }

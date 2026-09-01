@@ -4,9 +4,10 @@ import { createServer, type Server } from 'node:http'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium, type Browser, type Page } from 'playwright'
-import WebSocket, { type RawData } from 'ws'
+import WebSocket from 'ws'
 import { afterEach, describe, expect, it } from 'vitest'
 import { startInspector, type InspectorHandle } from '../src/host/bridge/controller.ts'
+import { rawText } from '../src/worker/bridge/endpoint.ts'
 
 const packageDirectory = fileURLToPath(new URL('..', import.meta.url))
 const clientBundlePath = join(packageDirectory, 'lib/client.js')
@@ -292,11 +293,4 @@ function propertyValue(response: CdpMessage, name: string): unknown {
 function asRecord(value: unknown): Readonly<Record<string, unknown>> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error('expected a record')
   return value as Readonly<Record<string, unknown>>
-}
-
-function rawText(data: RawData): string {
-  const bytes = data instanceof ArrayBuffer
-    ? Buffer.from(new Uint8Array(data))
-    : Array.isArray(data) ? Buffer.concat(data) : data
-  return bytes.toString('utf8')
 }

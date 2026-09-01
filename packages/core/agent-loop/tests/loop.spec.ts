@@ -8,10 +8,7 @@ import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
 
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { MockAdapter, maxTokensResponse, textResponse, toolCallResponse } from './mock-adapter.ts'
-
-function driverDone(agent: Agent): Promise<void> {
-  return (agent as Agent & { done: Promise<void> }).done
-}
+import { driverDone, send } from './harness.ts'
 
 async function harness(adapter: MockAdapter, persona = '') {
   const ctx = new Context()
@@ -35,10 +32,6 @@ function waitForIdle(ctx: Context, agent: Agent): Promise<void> {
       }
     })
   })
-}
-
-function send(agent: Agent, text: string) {
-  agent.followup(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }))
 }
 
 /** All user-message texts recorded in the log (to assert what actually ran). */

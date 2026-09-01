@@ -89,7 +89,6 @@ describe('mandated typescript 7 compiler API', () => {
     const listed = spawnSync('git', [
       'ls-files', '--',
       '*.ts', '*.tsx', '*.mts', '*.cts', '*.js', '*.mjs', '*.cjs', '*.jsx',
-      ':(exclude)patches/*',
       ':(exclude)scripts/typescript7-unstable-api.spec.ts',
     ], { cwd: root, encoding: 'utf8' })
     const files = listed.stdout.split('\n').filter(entry => entry !== '')
@@ -106,12 +105,9 @@ describe('mandated typescript 7 compiler API', () => {
       '-e', '"@typescript/typescript6":',
       '--',
       // The whole tracked tree, so the root manifest and `bun.lock` — where the
-      // package would re-enter first — are covered. `goal/` holds plan records
-      // of past runs, frozen like archived notes: one predates this decision and
-      // states the opposite acceptance criterion.
+      // package would re-enter first — are covered.
       '.',
       ':(exclude)scripts/typescript7-unstable-api.spec.ts',
-      ':(exclude)goal/',
     ], { cwd: root, encoding: 'utf8' })
     // git grep exits 1 when nothing matches: exactly the passing case.
     expect(result.status).toBe(1)

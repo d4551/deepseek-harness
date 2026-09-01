@@ -208,6 +208,159 @@ describe('registration', () => {
   })
 })
 
+describe('replacement registration resync', () => {
+  /** A provider whose persist can be held open so a replacement can register mid-write. */
+  class GatedProvider extends SettingsProvider {
+    doc: Record<string, unknown> = {}
+    held: Array<() => void> = []
+    hold = false
+
+    get writable(): boolean {
+      return true
+    }
+
+    protected load(): Promise<Record<string, unknown>> {
+      return Promise.resolve(structuredClone(this.doc))
+    }
+
+    protected async persist(ns: SettingsNamespace, section: Record<string, unknown>): Promise<void> {
+      if (this.hold) await new Promise<void>((resolve) => { this.held.push(resolve) })
+      this.doc[ns] = structuredClone(section)
+    }
+  }
+
+  it('re-resolves the replacement owner from the section the in-flight write persisted', async () => {
+    const ctx = new Context()
+    await ctx.plugin(GatedProvider)
+    const provider = ctx.get('settings') as GatedProvider
+    const NS = settingsNamespace('ui-theme')
+
+    const first = ctx.plugin({
+      inject: ['settings'],
+      apply: (child: Context) => {
+        const scope = child.settings.register(NS, ThemeSchema)
+        provider.hold = true
+        void scope.update({ theme: 'light' })
+      },
+    })
+    await first
+    // The write is parked inside persist; hand the namespace to a replacement.
+    await first.dispose()
+    const replacement = ctx.settings.register(NS, ThemeSchema)
+    expect(replacement.get()).toEqual({ theme: 'dark', fontSize: 14 })
+
+    provider.hold = false
+    for (const release of provider.held.splice(0)) release()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(replacement.get()).toEqual({ theme: 'light', fontSize: 14 })
+  })
+
+  it('keeps the replacement last good value when the persisted section fails its schema', async () => {
+    const ctx = new Context()
+    await ctx.plugin(GatedProvider)
+    const provider = ctx.get('settings') as GatedProvider
+    const NS = settingsNamespace('ui-theme')
+    const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => undefined)
+
+    const first = ctx.plugin({
+      inject: ['settings'],
+      apply: (child: Context) => {
+        const scope = child.settings.register(NS, ThemeSchema)
+        provider.hold = true
+        void scope.update({ theme: 'light' })
+      },
+    })
+    await first
+    await first.dispose()
+    // The replacement reads the same namespace through an incompatible schema.
+    const StrictSchema: z<{ theme: number }> = z.object({ theme: z.number().default(0) })
+    const replacement = ctx.settings.register(NS, StrictSchema)
+    expect(replacement.get()).toEqual({ theme: 0 })
+
+    provider.hold = false
+    for (const release of provider.held.splice(0)) release()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(replacement.get()).toEqual({ theme: 0 })
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
+  })
+})
+
+describe('registration disposal quiescence', () => {
+  function gate(): { entered: Promise<void>; open: Promise<void>; enter: () => void; release: () => void } {
+    let enter!: () => void
+    let release!: () => void
+    const entered = new Promise<void>((resolve) => { enter = resolve })
+    const open = new Promise<void>((resolve) => { release = resolve })
+    return { entered, open, enter, release }
+  }
+
+  it('holds the registrant fiber open until a started watcher callback finishes', async () => {
+    const { ctx, provider } = await boot()
+    const g = gate()
+    let finished = false
+
+    const fiber = ctx.plugin({
+      inject: ['settings'],
+      apply: (child: Context) => {
+        const scope = child.settings.register(settingsNamespace('ui-theme'), ThemeSchema)
+        scope.watch(async () => {
+          g.enter()
+          await g.open
+          finished = true
+        })
+      },
+    })
+    await fiber
+
+    provider.pushExternal({ 'ui-theme': { theme: 'light' } })
+    await g.entered
+
+    let disposed = false
+    const disposal = fiber.dispose().then(() => { disposed = true })
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(disposed).toBe(false)
+    expect(finished).toBe(false)
+
+    g.release()
+    await disposal
+    expect(finished).toBe(true)
+  })
+
+  it('never starts a watcher callback that was still queued when disposal began', async () => {
+    const { ctx, provider } = await boot()
+    const g = gate()
+    let calls = 0
+
+    const fiber = ctx.plugin({
+      inject: ['settings'],
+      apply: (child: Context) => {
+        const scope = child.settings.register(settingsNamespace('ui-theme'), ThemeSchema)
+        scope.watch(async () => {
+          calls += 1
+          if (calls === 1) {
+            g.enter()
+            await g.open
+          }
+        })
+      },
+    })
+    await fiber
+
+    provider.pushExternal({ 'ui-theme': { theme: 'light' } })
+    await g.entered
+    // Queues a second invocation behind the one now blocked inside the callback.
+    provider.pushExternal({ 'ui-theme': { theme: 'dark' } })
+
+    const disposal = fiber.dispose()
+    g.release()
+    await disposal
+    expect(calls).toBe(1)
+  })
+})
+
 describe('update', () => {
   it('persists the merged user section without baking in the base layer', async () => {
     const { ctx, provider } = await boot({ doc: { 'ui-theme': { theme: 'light' } } })
@@ -302,6 +455,45 @@ describe('update', () => {
     const scope = ctx.settings.register(settingsNamespace('ui-theme'), ThemeSchema)
     await expect(scope.update({ theme: 'light' })).rejects.toThrow(/read-only/)
     expect(provider.persisted).toEqual([])
+  })
+})
+
+describe('document keys that collide with Object.prototype', () => {
+  const DictSchema: z<{ entries: Record<string, string> }> = z.object({
+    entries: z.dict(z.string()).default({}),
+  })
+
+  it('records "__proto__" from a write as own data without touching the prototype', async () => {
+    const { ctx, provider } = await boot()
+    const scope = ctx.settings.register(settingsNamespace('protokeys'), DictSchema)
+    await scope.update({ entries: { ['__proto__']: 'data', keep: 'yes' } })
+    const persisted = provider.persisted[0]!.section.entries as Record<string, unknown>
+    expect(Object.hasOwn(persisted, '__proto__')).toBe(true)
+    expect(persisted['__proto__']).toBe('data')
+    expect(Object.getPrototypeOf(persisted)).toBe(Object.prototype)
+    expect(({} as Record<string, unknown>)['keep']).toBeUndefined()
+  })
+
+  it('merges a "__proto__" entry from the document over the base layer', async () => {
+    const { ctx } = await boot({ doc: { protokeys: { entries: { ['__proto__']: 'from-doc' } } } })
+    const scope = ctx.settings.register(settingsNamespace('protokeys'), DictSchema, {
+      base: { entries: { ['__proto__']: 'from-base', other: 'kept' } },
+    })
+    const entries = scope.get().entries
+    expect(Object.hasOwn(entries, '__proto__')).toBe(true)
+    expect(entries['__proto__']).toBe('from-doc')
+    expect(entries['other']).toBe('kept')
+    expect(Object.getPrototypeOf(entries)).toBe(Object.prototype)
+  })
+
+  it('treats an inherited method name as an absent key rather than a merge target', async () => {
+    const { ctx } = await boot({ doc: { protokeys: { entries: { toString: 'from-doc' } } } })
+    const scope = ctx.settings.register(settingsNamespace('protokeys'), DictSchema, {
+      base: { entries: { keep: 'yes' } },
+    })
+    const entries = scope.get().entries
+    expect(entries['toString']).toBe('from-doc')
+    expect(entries['keep']).toBe('yes')
   })
 })
 

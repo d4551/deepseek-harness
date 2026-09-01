@@ -1,7 +1,7 @@
 /** Host-driven Cordis tree integration. */
 
 import { Context } from '@deepseek-ai/cordis'
-import WebSocket, { type RawData } from 'ws'
+import WebSocket from 'ws'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CordisTreeCollector } from '../src/shared/cordis/collector.ts'
 import { observeCordisTree } from '../src/shared/cordis/observer.ts'
@@ -15,6 +15,7 @@ import type { InspectorSourceDescriptor } from '../src/shared/bridge/messages/ob
 import { CordisTreeStore } from '../src/worker/inspection/cordis-store.ts'
 import { CordisDomBackend, type CordisDomChange } from '../src/worker/cdp/domains/dom/model.ts'
 import { InspectorClientFixture } from './fixtures/client-source.host.ts'
+import { rawText } from '../src/worker/bridge/endpoint.ts'
 
 interface CdpMessage {
   readonly id?: number
@@ -754,12 +755,6 @@ function walk(root: CdpNode): CdpNode[] {
 
 function treeNodes(root: CordisTreeNode): CordisTreeNode[] {
   return [root, ...root.children.flatMap(treeNodes)]
-}
-
-function rawText(data: RawData): string {
-  if (Array.isArray(data)) return Buffer.concat(data).toString('utf8')
-  if (data instanceof ArrayBuffer) return Buffer.from(data).toString('utf8')
-  return Buffer.from(data).toString('utf8')
 }
 
 function asJson(value: object): InspectorJsonValue {

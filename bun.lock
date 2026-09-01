@@ -373,6 +373,7 @@
       },
       "devDependencies": {
         "@deepseek-ai/cordis": "workspace:^",
+        "@deepseek-ai/dsh-agent-default-model": "workspace:^",
         "@deepseek-ai/dsh-agent-presets": "workspace:^",
         "@deepseek-ai/dsh-api-gateway": "workspace:^",
         "@deepseek-ai/dsh-api-session-controller": "workspace:^",
@@ -391,11 +392,13 @@
         "@deepseek-ai/dsh-session-reference": "workspace:^",
         "@deepseek-ai/dsh-settings": "workspace:^",
         "@deepseek-ai/dsh-subagent": "workspace:^",
+        "@deepseek-ai/dsh-tool-subagent": "workspace:^",
         "@deepseek-ai/dsh-user-approval": "workspace:^",
         "@deepseek-ai/dsh-user-questions": "workspace:^",
       },
       "peerDependencies": {
         "@deepseek-ai/cordis": "workspace:^",
+        "@deepseek-ai/dsh-agent-default-model": "workspace:^",
         "@deepseek-ai/dsh-agent-presets": "workspace:^",
         "@deepseek-ai/dsh-api-gateway": "workspace:^",
         "@deepseek-ai/dsh-api-session-controller": "workspace:^",
@@ -414,6 +417,7 @@
         "@deepseek-ai/dsh-session-reference": "workspace:^",
         "@deepseek-ai/dsh-settings": "workspace:^",
         "@deepseek-ai/dsh-subagent": "workspace:^",
+        "@deepseek-ai/dsh-tool-subagent": "workspace:^",
         "@deepseek-ai/dsh-user-approval": "workspace:^",
         "@deepseek-ai/dsh-user-questions": "workspace:^",
       },
@@ -2486,6 +2490,7 @@
       "name": "@deepseek-ai/dsh-compaction-basic",
       "version": "0.1.2-alpha.1",
       "dependencies": {
+        "@deepseek-ai/dsh-util-crypto": "workspace:^",
         "@deepseek-ai/schemastery": "workspace:^",
       },
       "devDependencies": {

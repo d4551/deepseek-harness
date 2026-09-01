@@ -16,6 +16,7 @@ import {
   descendantDirsBetween,
   findProjectRoot,
   probeScopeInstruction,
+  openSourceBudget,
   readScopeInstruction,
   relativeDisplay,
   type LoadedInstructionFile,
@@ -262,8 +263,12 @@ export async function reconcileInstructionContext(
   const effective = visibleInstructionChanges(agent, options.authorityMessages)
   /* v8 ignore next -- normal agents carry an absolute session cwd. */
   const cwd = session.header.cwd ?? process.cwd()
-  // TODO(frozen-project-root): retain the baseline root for the loop instance;
-  // recomputing it after marker edits reinterprets the existing relative scope keys.
+  // One budget spans the whole reconciliation batch, so its reads are bounded
+  // in aggregate exactly like a baseline load.
+  const sourceBudget = openSourceBudget(resolved.maxTotalSourceBytes)
+  // `options.projectRoot` is the root the loop retained for this session. The
+  // discovery fallback serves callers that hold no such root; within one
+  // session the retained value keeps every relative scope key comparable.
   const projectRoot = options.projectRoot
     ?? await findProjectRoot(cwd, resolved.projectRootMarkers, fileSystem, options.signal)
   const scopes = new Set<string>()
@@ -388,7 +393,7 @@ export async function reconcileInstructionContext(
         continue
       }
 
-      const file = await readScopeInstruction(probedFile, resolved.maxSourceBytes, fileSystem, options.signal)
+      const file = await readScopeInstruction(probedFile, resolved.maxSourceBytes, sourceBudget, fileSystem, options.signal)
       if (file === undefined) continue
       const currentDigest = instructionContentSha1(file.content)
       const trimmedDigest = trimmedInstructionDigest(file.content)

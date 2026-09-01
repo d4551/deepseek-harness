@@ -1,9 +1,13 @@
-// A temp-file write failure cannot be timed from outside. The `fs/promises` API
-// injects it once so the test can prove that the writer lock still releases.
+// A temp-file write failure cannot be timed from outside. The filesystem APIs
+// inject it once so the test can prove that the writer lock still releases.
+// `settings.yaml` is created through `node:fs/promises`; the atomic temp
+// sibling is written through callback-style `node:fs`, so each injection sits
+// on the API its own write actually calls.
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import type { WriteFileOptions } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
@@ -31,11 +35,32 @@ vi.mock('node:fs/promises', async (importOriginal) => {
         state.failDocumentCreate = false
         throw Object.assign(new Error('ENOSPC: injected document create failure'), { code: 'ENOSPC' })
       }
+      return (actual.writeFile as (path: unknown, ...args: never[]) => Promise<void>)(path, ...rest)
+    }) as typeof actual.writeFile,
+  }
+})
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>()
+  return {
+    ...actual,
+    writeFile: ((
+      path: unknown,
+      data: string | NodeJS.ArrayBufferView,
+      options: WriteFileOptions,
+      done: (error: NodeJS.ErrnoException | null) => void,
+    ) => {
       if (state.failTempWrite && String(path).endsWith('.tmp')) {
         state.failTempWrite = false
-        throw Object.assign(new Error('ENOSPC: injected writeFile failure'), { code: 'ENOSPC' })
+        done(Object.assign(new Error('ENOSPC: injected writeFile failure'), { code: 'ENOSPC' }))
+        return
       }
-      return (actual.writeFile as (path: unknown, ...args: never[]) => Promise<void>)(path, ...rest)
+      ;(actual.writeFile as unknown as (
+        target: unknown,
+        contents: string | NodeJS.ArrayBufferView,
+        settings: WriteFileOptions,
+        callback: (error: NodeJS.ErrnoException | null) => void,
+      ) => void)(path, data, options, done)
     }) as typeof actual.writeFile,
   }
 })

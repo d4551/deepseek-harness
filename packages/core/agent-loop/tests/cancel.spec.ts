@@ -16,26 +16,7 @@ import ToolRuntime, { defineContentToolFixture, TOOL_ABORTED_BEFORE_DISPATCH } f
 import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { MockAdapter, textResponse, toolCallResponse } from './mock-adapter.ts'
-
-function driverDone(agent: Agent): Promise<void> {
-  return (agent as Agent & { done: Promise<void> }).done
-}
-
-async function harness(adapter: MockAdapter) {
-  const ctx = new Context()
-  await ctx.plugin(LlmRuntime)
-  await ctx.plugin(SessionStore)
-  await ctx.plugin(SystemPrompt)
-  await ctx.plugin(ToolRuntime)
-  await ctx.plugin(AgentRegistry)
-  await ctx.plugin(AgentLoop, { agents: [] })
-  ctx.llm.registerAdapter(['mock'], adapter)
-  return ctx
-}
-
-function send(agent: Agent, text: string) {
-  agent.followup(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }))
-}
+import { driverDone, harness, send } from './harness.ts'
 
 /** Resolve on the agent's next idle transition (event-based, not status poll). */
 function waitForIdle(ctx: Context, agent: Agent): Promise<void> {

@@ -110,7 +110,7 @@ export interface VfsDir {
   readonly path: string
   close(): Promise<void>
   read(): Promise<{ name: string } | null>
-  [Symbol.asyncIterator](): AsyncGenerator<{ name: string; isFile(): boolean; isDirectory(): boolean }>
+  [Symbol.asyncIterator](): AsyncIterableIterator<{ name: string; isFile(): boolean; isDirectory(): boolean }>
 }
 
 /** File handle returned by `open`; the roster writes, syncs, and closes. */

@@ -62,6 +62,16 @@ export const inject = ['slots', 'locale', 'connection', 'remote', 'remote.settin
  * section, each once its slot declaration is on the ledger.
  * @param ctx - client root context.
  */
+/** The settings shell's child slots: chrome, actions, sections, and onboarding overlays. */
+export const SETTINGS_CHILD_SLOTS = {
+  'settings.trigger': { kind: 'single', scope: 'root' },
+  'settings.header': { kind: 'single', scope: 'root' },
+  'settings.action': { kind: 'list', scope: 'root' },
+  'settings.close': { kind: 'single', scope: 'root' },
+  'settings.section': { kind: 'list', scope: 'root' },
+  'settings.onboarding': { kind: 'list', scope: 'root' },
+} as const
+
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-settings-general: dictionaries')
 
@@ -141,14 +151,7 @@ export function apply(ctx: ClientContext): void {
   })
   ctx.slots.inject('sidebar.settings', () => ctx.slots.register({
     name: 'sidebar.settings',
-    children: {
-      'settings.trigger': { kind: 'single', scope: 'root' },
-      'settings.header': { kind: 'single', scope: 'root' },
-      'settings.action': { kind: 'list', scope: 'root' },
-      'settings.close': { kind: 'single', scope: 'root' },
-      'settings.section': { kind: 'list', scope: 'root' },
-      'settings.onboarding': { kind: 'list', scope: 'root' },
-    },
+    children: SETTINGS_CHILD_SLOTS,
     inject: shellInjected,
   }, SettingsRoot))
 

@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-01-checkpoint-aware-auto-compaction.md
+2026-09-01-checkpoint-aware-auto-compaction.md: b111df31716f766ebacfc9da030d6e590b41663c
+2026-09-01-checkpoint-aware-auto-compaction.zh.md: 290fca0f46e36377bd3bf3ba2a26fed7efd350d4

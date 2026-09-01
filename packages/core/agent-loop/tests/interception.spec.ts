@@ -1,22 +1,21 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import LlmRuntime, { createUserMessage, ToolCallId  } from '@deepseek-ai/dsh-llm'
-import SessionStore, {
+import { createUserMessage, ToolCallId  } from '@deepseek-ai/dsh-llm'
+import {
   SessionId,
   type SessionEvent,
   type TurnEndReason,
   type UserMessage,
 } from '@deepseek-ai/dsh-session'
-import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
-import ToolRuntime, { defineContentToolFixture, type PostToolDecision, type PreToolDecision } from '@deepseek-ai/dsh-tools'
-import AgentRegistry, {
+import { defineContentToolFixture, type PostToolDecision, type PreToolDecision } from '@deepseek-ai/dsh-tools'
+import {
   type Agent,
   type PreStepDecision,
   type SessionStartSource,
 } from '@deepseek-ai/dsh-agent'
 
-import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { MockAdapter, textResponse, toolCallResponse } from './mock-adapter.ts'
+import { harness, send } from './harness.ts'
 
 /**
  * The interception points introduced by the hooks taxonomy: `agent/pre-step`,
@@ -27,18 +26,6 @@ import { MockAdapter, textResponse, toolCallResponse } from './mock-adapter.ts'
  * external protocol — a native plugin uses the typed decisions directly.
  */
 
-async function harness(adapter: MockAdapter) {
-  const ctx = new Context()
-  await ctx.plugin(LlmRuntime)
-  await ctx.plugin(SessionStore)
-  await ctx.plugin(SystemPrompt)
-  await ctx.plugin(ToolRuntime)
-  await ctx.plugin(AgentRegistry)
-  await ctx.plugin(AgentLoop, { agents: [] })
-  ctx.llm.registerAdapter(['mock'], adapter)
-  return ctx
-}
-
 function waitForIdle(ctx: Context, agent: Agent): Promise<void> {
   return new Promise((resolve) => {
     const dispose = ctx.on('agent/status', ({ agent: subject, status }) => {
@@ -48,10 +35,6 @@ function waitForIdle(ctx: Context, agent: Agent): Promise<void> {
       }
     })
   })
-}
-
-function send(agent: Agent, text: string) {
-  agent.followup(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }))
 }
 
 function events(agent: Agent): SessionEvent[] {

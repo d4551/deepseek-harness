@@ -31,6 +31,17 @@ function clientConfigs(id = REQUESTING_PACKAGE) {
   ).filter(config => config.platform === 'browser')
 }
 
+/**
+ * Narrow one optional build-config member the assertions below invoke.
+ * @param value - member read off the resolved client configuration.
+ * @param what - member name reported when the configuration omits it.
+ * @returns the member, once its presence is established.
+ */
+function required<T>(value: T | undefined, what: string): T {
+  if (value === undefined) throw new Error(`client bundle purity: ${what} missing`)
+  return value
+}
+
 describe('client bundle build faces', () => {
   it('watches source in development and consumes emitted JavaScript in the Client build', () => {
     const bundle = clientBundle('@deepseek-ai/dsh-client-test', ['lib/types/index.js'])
@@ -176,7 +187,9 @@ describe('client bundle debug artifacts', () => {
       writeFileSync(`${entry}.map`, JSON.stringify(map))
       writeFileSync(source, 'export const marker: true = true\n')
 
-      await expect(sourceMapPlugin().load!(entry)).resolves.toEqual({
+      const load = sourceMapPlugin().load
+      if (load === undefined) throw new Error('source-map plugin declares no load hook')
+      await expect(load(entry)).resolves.toEqual({
         code: 'export const marker = true',
         map: { ...map, sourcesContent: ['export const marker: true = true\n'] },
       })
@@ -188,9 +201,8 @@ describe('client bundle debug artifacts', () => {
   it('maps first-party sources to their repository package paths', () => {
     const configs = clientConfigs('@deepseek-ai/dsh-client-ui-goal')
     const outputOptions = configs[0]?.outputOptions
-    if (typeof outputOptions !== 'object' || outputOptions === null) throw new Error('client output options missing')
-    const transform = outputOptions.sourcemapPathTransform
-    if (transform === undefined) throw new Error('client sourcemap path transform missing')
+    if (typeof outputOptions !== 'object') throw new Error('client output options missing')
+    const transform = required(outputOptions.sourcemapPathTransform, 'sourcemap path transform')
 
     const source = transform('../src/client/GoalBar.tsx', clientSourceMapPath('client/ui-goal'))
     expect(source).toBe('../../../packages/client/ui-goal/src/client/GoalBar.tsx')
@@ -201,9 +213,8 @@ describe('client bundle debug artifacts', () => {
   it('maps dual-face host sources to the host package group', () => {
     const configs = clientConfigs('@deepseek-ai/dsh-host-directory-picker-native')
     const outputOptions = configs[0]?.outputOptions
-    if (typeof outputOptions !== 'object' || outputOptions === null) throw new Error('client output options missing')
-    const transform = outputOptions.sourcemapPathTransform
-    if (transform === undefined) throw new Error('client sourcemap path transform missing')
+    if (typeof outputOptions !== 'object') throw new Error('client output options missing')
+    const transform = required(outputOptions.sourcemapPathTransform, 'sourcemap path transform')
 
     const source = transform('../src/client/index.ts', clientSourceMapPath('host/directory-picker-native'))
     expect(source).toBe('../../../packages/host/directory-picker-native/src/client/index.ts')
@@ -212,9 +223,8 @@ describe('client bundle debug artifacts', () => {
   it('maps inlined workspace sources to packages and leaves dependencies outside it unchanged', () => {
     const configs = clientConfigs('@deepseek-ai/dsh-client-connection')
     const outputOptions = configs[0]?.outputOptions
-    if (typeof outputOptions !== 'object' || outputOptions === null) throw new Error('client output options missing')
-    const transform = outputOptions.sourcemapPathTransform
-    if (transform === undefined) throw new Error('client sourcemap path transform missing')
+    if (typeof outputOptions !== 'object') throw new Error('client output options missing')
+    const transform = required(outputOptions.sourcemapPathTransform, 'sourcemap path transform')
 
     const sourceMapPath = clientSourceMapPath('client/connection')
     const workspaceSource = transform('../src/rpc.ts', sourceMapPath)

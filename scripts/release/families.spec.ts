@@ -85,8 +85,10 @@ describe('release families', () => {
     const dsh = releaseFamily('dsh')
     const members = [member('apps/cli', '@deepseek-ai/dsh'), { ...member('apps/web', '@deepseek-ai/dsh-web-frontend'), version: '0.0.2' }]
 
+    const [cli] = members
+    if (cli === undefined) throw new Error('dsh family fixture has no members')
     expect(() => { dsh.verifyVersions(members) }).toThrow(/must share one version/)
-    expect(() => { dsh.verifyVersions([members[0]!]) }).not.toThrow()
+    expect(() => { dsh.verifyVersions([cli]) }).not.toThrow()
   })
 
   it('accepts independent vendored versions and rejects an unpublishable one', () => {
@@ -96,8 +98,10 @@ describe('release families', () => {
       { ...member('vendor/cosmokit', '@deepseek-ai/cosmokit'), version: '1.8.2' },
     ]
 
+    const [cordis] = members
+    if (cordis === undefined) throw new Error('vendor family fixture has no members')
     expect(() => { vendor.verifyVersions(members) }).not.toThrow()
-    expect(() => { vendor.verifyVersions([{ ...members[0]!, version: 'latest' }]) }).toThrow(/unpublishable version/)
+    expect(() => { vendor.verifyVersions([{ ...cordis, version: 'latest' }]) }).toThrow(/unpublishable version/)
   })
 
   it('requires a current official client build only for dsh artifacts', () => {

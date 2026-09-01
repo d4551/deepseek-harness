@@ -28,6 +28,8 @@ Status: implemented
 
 **可能永远不会启动的行被跳过。** `disabled` 是[加载器唯一会插值](2026-08-11-loader-entry-disabled-interpolation.zh.md)的条目字段：`!!js` 表达式在挂载时对加载器上下文求值，而发现过程无法仅凭文件做到。凡该字段不是缺失、null 或 `false` 的行都不做检查，被禁用的 group 连同其子行一起跳过。每个随附 preset 都用这种方式为 shell 行设门，所以这是常见形状，不是边角。
 
+**`name` 上的 `!!js` 按其本来的标签报告。** 加载器只在 `disabled` 与插件 `config` 两处插值，因此写在 `name` 上的表达式会以解析产生的节点原样抵达 `tree.import`，永远无法解析。形状检查本就拒绝它，用的却是 `name` 缺失那条原因：那条原因讲的是该行缺什么，而不是它写了什么，读到它的作者会转去看唯一写了名字的那一行。
+
 **harness base 是必填参数。** `discoverPresets(roots, harnessBase)` 与 `scanRoot(root, harnessBase)` 都接收它；`AgentPresets` 在构造函数里读一次 `ctx.baseUrl`，缺失就抛。基准正是让这个问题可回答的前提——同一个包名从 preset 自己的目录解析会失败、从已安装的 harness 解析会成功——所以做成可选就等于悄悄恢复这项检查要终结的那个状态。
 
 **挂载诊断跟随携带信息多于自身 message 的 cause。** `mountDetail` 从 `AggregateError.errors` 取分支，或在 cause 是 `AggregateError` 时从 `error.cause.errors` 取；普通的 cause 链已被展平进 message，不再跟随，否则每一行都会打印两遍。嵌套分支在拥有它的那一行下缩进。

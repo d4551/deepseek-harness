@@ -34,6 +34,28 @@ export type {
   DshEnvironment,
   DshEnvironmentKey,
 } from './types.ts'
+/**
+ * Exec-request fields an executor carries onto its spec verbatim, present only
+ * when the caller stated them.
+ */
+export type CarriedShellFields = Pick<ShellExecSpec, 'signal' | 'stdin' | 'env' | 'dshEnv'>
+
+/**
+ * Carry the caller-stated pass-through fields of one exec request onto a spec.
+ * An omitted field stays absent rather than becoming `undefined`, so the
+ * subprocess service keeps ownership of the scrub and merge order.
+ * @param request - exec request the executor is resolving.
+ * @returns the stated pass-through fields, ready to spread into a spec.
+ */
+export function carriedShellFields(request: ShellExecRequest): CarriedShellFields {
+  return {
+    ...request.signal ? { signal: request.signal } : {},
+    ...request.stdin !== undefined ? { stdin: request.stdin } : {},
+    ...request.env !== undefined ? { env: request.env } : {},
+    ...request.dshEnv !== undefined ? { dshEnv: request.dshEnv } : {},
+  }
+}
+
 export { parseExitStatus } from './render.ts'
 export type { ParsedExitStatus } from './render.ts'
 

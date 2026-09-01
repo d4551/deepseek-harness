@@ -45,6 +45,38 @@ async function writeContractConfig(suffix: string): Promise<string> {
   return path
 }
 
+/**
+ * Lint one temporary probe module under a contract config that ignores nothing.
+ * @param source - probe module text written beside the repository's own scripts.
+ * @returns oxlint's normalized output for the probe, once it reported diagnostics.
+ */
+async function lintContractProbe(source: string): Promise<string> {
+  const suffix = randomUUID()
+  const configPath = await writeContractConfig(suffix)
+  const path = join(repositoryRoot, 'scripts', `oxlint-contract-${suffix}.ts`)
+
+  try {
+    await writeFile(path, source)
+    const result = runOxlint([
+      '--config',
+      relative(repositoryRoot, configPath),
+      '--format',
+      'unix',
+      relative(repositoryRoot, path),
+    ])
+    const output = normalizedOutput(result)
+
+    expect(result.error).toBeUndefined()
+    expect(result.status, output).toBe(1)
+    return output
+  } finally {
+    await Promise.all([
+      rm(path, { force: true }),
+      rm(configPath, { force: true }),
+    ])
+  }
+}
+
 describe('Oxlint executable contract', () => {
   it('discovers the owning TypeScript project for every file class', async () => {
     const suffix = randomUUID()
@@ -108,9 +140,6 @@ probePromise()
   }, 90_000)
 
   it('runs JavaScript compatibility and nursery rules', async () => {
-    const suffix = randomUUID()
-    const configPath = await writeContractConfig(suffix)
-    const path = join(repositoryRoot, 'scripts', `oxlint-contract-${suffix}.ts`)
     const source = `export function firstProbe(): number {
   const first = 1
   const second = 2
@@ -136,28 +165,11 @@ export function branchProbe(value: number): number {
 export const longProbe = 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1
 `
 
-    try {
-      await writeFile(path, source)
-      const result = runOxlint([
-        '--config',
-        relative(repositoryRoot, configPath),
-        '--format',
-        'unix',
-        relative(repositoryRoot, path),
-      ])
-      const output = normalizedOutput(result)
+    const output = await lintContractProbe(source)
 
-      expect(result.error).toBeUndefined()
-      expect(result.status, output).toBe(1)
-      expect(output).toContain('@stylistic(max-len)')
-      expect(output).toContain('no-dupe-else-if')
-      expect(output).toContain('typescript(no-unnecessary-condition)')
-    } finally {
-      await Promise.all([
-        rm(path, { force: true }),
-        rm(configPath, { force: true }),
-      ])
-    }
+    expect(output).toContain('@stylistic(max-len)')
+    expect(output).toContain('no-dupe-else-if')
+    expect(output).toContain('typescript(no-unnecessary-condition)')
   }, 90_000)
 
   it('keeps the complete stylistic contract in Oxlint', async () => {
@@ -233,31 +245,12 @@ export const longProbe = 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 +
     expect(lefthook).not.toContain('eslint.format.config.mjs')
   })
 
-  it('reports an unused suppression', async () => {
-    const suffix = randomUUID()
-    const configPath = await writeContractConfig(suffix)
-    const path = join(repositoryRoot, 'scripts', `oxlint-contract-${suffix}.ts`)
+  it('fails on an unused suppression', async () => {
+    const output = await lintContractProbe(
+      '// oxlint-disable-next-line no-console\nexport const value = 1\n',
+    )
 
-    try {
-      await writeFile(path, '// oxlint-disable-next-line no-console\nexport const value = 1\n')
-      const result = runOxlint([
-        '--config',
-        relative(repositoryRoot, configPath),
-        '--format',
-        'unix',
-        relative(repositoryRoot, path),
-      ])
-      const output = normalizedOutput(result)
-
-      expect(result.error).toBeUndefined()
-      expect(result.status, output).toBe(0)
-      expect(output).toContain('Unused oxlint-disable directive')
-    } finally {
-      await Promise.all([
-        rm(path, { force: true }),
-        rm(configPath, { force: true }),
-      ])
-    }
+    expect(output).toContain('Unused oxlint-disable directive')
   }, 90_000)
 
   it('accepts an ignored-only staged selection', () => {

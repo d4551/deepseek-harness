@@ -13,6 +13,7 @@
 import { createAlsRuntime, type AlsCausality, type AlsRuntime } from '../polyfill/async-context/als-runtime.ts'
 import { dirname, fileUrlToPath, isAbsolute, join, pathToFileUrl, resolve as resolvePath } from './posix-path.ts'
 import { WRAPPER_PARAMS } from '../image-layout.ts'
+import { settled } from '../settled.ts'
 import type { MemoryVfs } from '../storage/memory.ts'
 
 /** Condition keys honoured in `exports`, in order; `node` is deliberately absent. */
@@ -153,11 +154,12 @@ export class WorkerModuleLoader {
     }
     this.internal = {
       version: 'worker',
-      import: async (specifier: string, parentURL?: string): Promise<unknown> => {
+      import: (specifier: string, parentURL?: string): Promise<unknown> => {
         const from = parentURL === undefined ? this.root : this.baseDirectoryOf(parentURL)
-        return this.load(this.resolve(specifier, from))
+        return settled(() => this.load(this.resolve(specifier, from)))
       },
-      resolve: async (specifier: string, parentURL?: string) => resolveInternal(specifier, parentURL),
+      resolve: (specifier: string, parentURL?: string) =>
+        Promise.resolve(resolveInternal(specifier, parentURL)),
       resolveSync: resolveInternal,
     }
   }
@@ -376,7 +378,7 @@ export class WorkerModuleLoader {
    */
   private compile(code: string, path: string): (...args: unknown[]) => void {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-implied-eval -- wrapping an image body is this loader's job
+      // Wrapping an image body is this loader's job.
       return new Function(...WRAPPER_PARAMS, code) as (...args: unknown[]) => void
     } catch (reason) {
       if (reason instanceof SyntaxError && /await/i.test(reason.message)) {

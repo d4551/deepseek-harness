@@ -21,6 +21,7 @@ import {
   SdkProtocolError,
 } from '@deepseek-ai/dsh-sdk-client'
 import { createProcessDeepSeekHarness } from '../../../sdk/client/src/api.ts'
+import { statedRuntimeTimeouts } from '../../../sdk/client/src/launch.ts'
 import type { RuntimeProcessOptions } from '../../../sdk/client/src/launch.ts'
 import type { DeepSeekHarnessOptions } from '@deepseek-ai/dsh-sdk-client'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
@@ -54,10 +55,7 @@ beforeEach(() => {
       environment: () => options.env ?? process.env,
       description: 'scripted SDK subagent runtime',
       initializeTimeoutMs: options.initializeTimeoutMs ?? 5_000,
-      ...options.requestTimeoutMs === undefined ? {} : { requestTimeoutMs: options.requestTimeoutMs },
-      ...options.shutdownTimeoutMs === undefined ? {} : { shutdownTimeoutMs: options.shutdownTimeoutMs },
-      ...options.disposeEofGraceMs === undefined ? {} : { disposeEofGraceMs: options.disposeEofGraceMs },
-      ...options.disposeGraceMs === undefined ? {} : { disposeGraceMs: options.disposeGraceMs },
+      ...statedRuntimeTimeouts(options),
     }
     return createProcessDeepSeekHarness(runtime, options)
   }

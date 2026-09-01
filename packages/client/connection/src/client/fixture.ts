@@ -92,12 +92,14 @@ interface FixtureProjectionsBlock {
   readonly values: Readonly<Record<string, unknown>>
 }
 
-interface FixtureHistoryEntry {
+/** One recorded session event replayed verbatim from a fixture page. */
+export interface FixtureHistoryEntry {
   readonly type: 'event'
   readonly event: SessionEvent
 }
 
-type FixtureChunkRowEvent = {
+/** A chunk row carried as its own `chunkrow/<kind>` fixture event. */
+export type FixtureChunkRowEvent = {
   [Kind in ChunkRow['type']]: {
     readonly type: `chunkrow/${Kind}`
     readonly seq: number
@@ -106,12 +108,14 @@ type FixtureChunkRowEvent = {
   }
 }[ChunkRow['type']]
 
-interface FixtureHistoryChunkRun {
+/** One recorded run of chunk rows replayed from a fixture page. */
+export interface FixtureHistoryChunkRun {
   readonly type: 'chunks'
   readonly event: FixtureChunkRowEvent
 }
 
-type FixtureHistoryRecord = FixtureHistoryEntry | FixtureHistoryChunkRun
+/** One record on a fixture history page: a session event or a chunk run. */
+export type FixtureHistoryRecord = FixtureHistoryEntry | FixtureHistoryChunkRun
 
 type FixtureSessionAddress =
   | { readonly kind: 'session'; readonly sessionId: SessionId }
@@ -171,7 +175,8 @@ type FixtureRemoteEventFrame =
   | FixtureRemoteEventInvocationFrame
   | FixtureRemoteEventCancellationFrame
 
-interface FixtureRemoteEventResult {
+/** One remote-event outcome a fixture replays back to the client. */
+export interface FixtureRemoteEventResult {
   readonly clientId: string
   readonly eventId: string
   readonly outcome:

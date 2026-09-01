@@ -103,6 +103,101 @@ describe('redactSecrets', () => {
   })
 })
 
+describe('redactSecrets over composite node kinds', () => {
+  it('strips a tuple member by position and leaves later members to their own schema', () => {
+    const Pair = z.object({ pair: z.tuple([z.string(), z.string().role('secret')]) })
+    const { value, secrets } = redactSecrets(Pair as z<never>, { pair: ['keep', 'sk-live', 'extra'] })
+    expect(value).toEqual({ pair: ['keep', undefined, 'extra'] })
+    expect(secrets).toEqual([{ path: ['pair', '1'], set: true }])
+  })
+
+  it('passes a non-array tuple value through untouched', () => {
+    const Pair = z.object({ pair: z.tuple([z.string().role('secret')]) })
+    const { value, secrets } = redactSecrets(Pair as z<never>, { pair: 'not-a-tuple' })
+    expect(value).toEqual({ pair: 'not-a-tuple' })
+    expect(secrets).toEqual([])
+  })
+
+  it('strips a secret declared in a union member', () => {
+    const Either = z.object({ field: z.union([z.string().role('secret'), z.const(null)]) })
+    const { value, secrets } = redactSecrets(Either as z<never>, { field: 'sk-live' })
+    expect(value).toEqual({})
+    expect(secrets).toEqual([{ path: ['field'], set: true }])
+  })
+
+  it('carries a value through a union whose members declare no secret', () => {
+    const Either = z.object({ field: z.union([z.string(), z.number()]) })
+    const { value, secrets } = redactSecrets(Either as z<never>, { field: 'plain' })
+    expect(value).toEqual({ field: 'plain' })
+    expect(secrets).toEqual([])
+  })
+
+  it('returns the value for a union node carrying no member list', () => {
+    expect(redactSecrets({ type: 'union' } as never, 'v')).toEqual({ value: 'v', secrets: [] })
+  })
+
+  it('strips a secret contributed by one intersect member and keeps the others', () => {
+    const Both = z.intersect([
+      z.object({ keep: z.string() }),
+      z.object({ token: z.string().role('secret') }),
+    ])
+    const { value, secrets } = redactSecrets(Both as z<never>, { keep: 'k', token: 'sk-live' })
+    expect(value).toEqual({ keep: 'k' })
+    expect(secrets).toEqual([{ path: ['token'], set: true }])
+  })
+
+  it('removes a transform subtree that declares a secret beneath it', () => {
+    const Wrapped = z.object({
+      creds: z.transform(z.object({ token: z.string().role('secret') }), entry => entry),
+    })
+    const { value, secrets } = redactSecrets(Wrapped as z<never>, { creds: { token: 'sk-live' } })
+    expect(value).toEqual({})
+    expect(secrets).toEqual([{ path: ['creds'], set: true }])
+  })
+
+  it('passes a transform declaring no secret through untouched', () => {
+    const Wrapped = z.object({ when: z.transform(z.string(), entry => entry) })
+    const { value, secrets } = redactSecrets(Wrapped as z<never>, { when: '2026-01-01' })
+    expect(value).toEqual({ when: '2026-01-01' })
+    expect(secrets).toEqual([])
+  })
+
+  it('terminates on a self-referential node that declares no secret', () => {
+    const node: Record<string, unknown> = { type: 'recursive' }
+    node.inner = node
+    expect(redactSecrets(node as never, 'v')).toEqual({ value: 'v', secrets: [] })
+  })
+
+  it('returns the value for a tuple node carrying no member list', () => {
+    expect(redactSecrets({ type: 'tuple' } as never, ['v'])).toEqual({ value: ['v'], secrets: [] })
+  })
+
+  it('scans past a secret-free member to find a secret in an unmodelled node list', () => {
+    const node = {
+      type: 'extension',
+      list: [{ type: 'string' }, { type: 'string', meta: { role: 'secret' } }],
+    }
+    expect(redactSecrets(node as never, 'v')).toEqual({ value: undefined, secrets: [{ path: [], set: true }] })
+  })
+
+  it('scans past a secret-free property to find a secret in an unmodelled node property map', () => {
+    const node = {
+      type: 'extension',
+      dict: { plain: { type: 'string' }, token: { type: 'string', meta: { role: 'secret' } } },
+    }
+    expect(redactSecrets(node as never, undefined)).toEqual({ value: undefined, secrets: [{ path: [], set: false }] })
+  })
+
+  it('keeps a value whose unmodelled node declares no secret in any relation', () => {
+    const node = {
+      type: 'extension',
+      dict: { plain: { type: 'string' } },
+      list: [{ type: 'number' }],
+    }
+    expect(redactSecrets(node as never, 'v')).toEqual({ value: 'v', secrets: [] })
+  })
+})
+
 describe('describe() layers and redaction', () => {
   const NS = settingsNamespace('adapter')
 

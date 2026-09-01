@@ -40,6 +40,7 @@ import {
   type InstructionVersionCache,
 } from '../src/state.ts'
 import { resolveConfig } from '../src/config.ts'
+import { findProjectRoot } from '../src/files.ts'
 import { candidateScopeKey, renderInstructionChanges, renderWorkspaceInstructionSet, USER_GLOBAL_DIRECTORY, USER_GLOBAL_FILE } from '../src/render.ts'
 import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 
@@ -4645,5 +4646,144 @@ describe('workspace context plugin export shape', () => {
     expect(unwrapped.name).toBe('agent-instructions')
     expect(unwrapped.Config).toBeDefined()
     expect(typeof unwrapped.apply).toBe('function')
+  })
+})
+
+describe('findProjectRoot probe outcomes', () => {
+  it('walks past a directory whose marker is merely absent', async () => {
+    const ctx = new Context()
+    await ctx.plugin(RecordingFileSystem)
+    const fs = ctx.fs as RecordingFileSystem
+    const root = resolve('/outer')
+    const nested = resolve('/outer/inner')
+    fs.entries.set(join(root, '.git'), { type: 'directory' })
+
+    await expect(findProjectRoot(nested, ['.git'], fs)).resolves.toBe(root)
+  })
+
+  it('stops at the session directory when a provider probe fails, instead of adopting an ancestor root', async () => {
+    const ctx = new Context()
+    await ctx.plugin(RecordingFileSystem)
+    const fs = ctx.fs as RecordingFileSystem
+    const root = resolve('/outer')
+    const nested = resolve('/outer/inner')
+    fs.entries.set(join(root, '.git'), { type: 'directory' })
+    // The nearer directory cannot be probed, so its status is unknown.
+    fs.throwOnStat.add(join(nested, '.git'))
+
+    await expect(findProjectRoot(nested, ['.git'], fs)).resolves.toBe(nested)
+  })
+
+  it('stops at the session directory when a host probe fails for a reason other than absence', async () => {
+    const outer = await tempRepo()
+    try {
+      await mkdir(join(outer, '.git'), { recursive: true })
+      const nested = join(outer, 'inner')
+      await mkdir(nested, { recursive: true })
+      await chmod(nested, 0)
+      try {
+        // stat() inside an unsearchable directory reports EACCES, not ENOENT.
+        await expect(findProjectRoot(nested, ['.git'])).resolves.toBe(resolve(nested))
+      } finally {
+        await chmod(nested, 0o700)
+      }
+    } finally {
+      await rm(outer, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('project root retained per session', () => {
+  it('keeps the root it first discovered when a nearer marker appears mid-session', async () => {
+    const outer = resolve('/virtual/frozen-outer')
+    const inner = join(outer, 'inner')
+    const home = resolve('/virtual/frozen-home')
+    const ctx = new Context()
+    try {
+      await ctx.plugin(RecordingFileSystem)
+      const fs = ctx.fs as RecordingFileSystem
+      fs.entries.set(join(outer, '.git'), { type: 'directory' })
+      fs.entries.set(join(outer, 'AGENTS.md'), { type: 'file', content: 'outer rule' })
+      fs.entries.set(join(inner, 'AGENTS.md'), { type: 'file', content: 'inner rule' })
+      await ctx.plugin(workspaceContext, { dshHome: home, maxBytes: 65536 })
+      const agent = stubAgent(inner)
+
+      const first = await composeBaselinePrefix(ctx, agent)
+      expect(blocksText(first.at(-1)!.content)).toContain('outer rule')
+      expect(blocksText(first.at(-1)!.content)).toContain('inner rule')
+
+      // A nearer root marker appears after the session settled on `outer`.
+      fs.entries.set(join(inner, '.git'), { type: 'directory' })
+      const second = await composeBaselinePrefix(ctx, agent)
+
+      // The retained root keeps the baseline identity stable, so nothing is
+      // replaced and the outer scope stays in the newest baseline.
+      expect(second).toHaveLength(first.length)
+      expect(blocksText(second.at(-1)!.content)).toContain('outer rule')
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+})
+
+describe('aggregate source budget', () => {
+  async function seedTwoFiles(): Promise<{ root: string; home: string }> {
+    const root = await tempRepo()
+    const home = await tempRepo()
+    await mkdir(join(root, '.git'), { recursive: true })
+    await write(join(root, 'AGENTS.md'), 'AAAA')
+    await mkdir(join(root, 'nested'), { recursive: true })
+    await write(join(root, 'nested', 'AGENTS.md'), 'BBBB')
+    return { root, home }
+  }
+
+  it('reads every file when the aggregate budget covers the batch', async () => {
+    const { root, home } = await seedTwoFiles()
+    try {
+      const rendered = await loadBaselineInstructions({
+        cwd: join(root, 'nested'),
+        dshHome: home,
+        maxBytes: 65536,
+        maxTotalSourceBytes: 8,
+      })
+      expect(rendered?.text).toContain('AAAA')
+      expect(rendered?.text).toContain('BBBB')
+    } finally {
+      await rm(root, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('stops accepting files once the batch has spent its aggregate budget', async () => {
+    const { root, home } = await seedTwoFiles()
+    try {
+      // Enough for the first file only; the second cannot fit the remainder.
+      const rendered = await loadBaselineInstructions({
+        cwd: join(root, 'nested'),
+        dshHome: home,
+        maxBytes: 65536,
+        maxTotalSourceBytes: 4,
+      })
+      expect(rendered?.text).toContain('AAAA')
+      expect(rendered?.text).not.toContain('BBBB')
+    } finally {
+      await rm(root, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('loads nothing when the aggregate budget is disabled', async () => {
+    const { root, home } = await seedTwoFiles()
+    try {
+      await expect(loadBaselineInstructions({
+        cwd: join(root, 'nested'),
+        dshHome: home,
+        maxBytes: 65536,
+        maxTotalSourceBytes: 0,
+      })).resolves.toBeUndefined()
+    } finally {
+      await rm(root, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
   })
 })

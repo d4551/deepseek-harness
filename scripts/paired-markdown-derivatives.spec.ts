@@ -42,7 +42,9 @@ describe('partitionPairedMarkdownDerivatives', () => {
     const reorderedEnglish = sequence('docs/reordered.md')
     const reordered = [...reorderedEnglish].reverse().map(block => ({ ...block, doc: 'docs/reordered.zh.md' }))
     const partialEnglish = sequence('docs/partial.md')
-    const partial = [{ ...partialEnglish[0]!, doc: 'docs/partial.zh.md' }]
+    const [partialFirst] = partialEnglish
+    if (partialFirst === undefined) throw new Error('partial fixture has no blocks')
+    const partial = [{ ...partialFirst, doc: 'docs/partial.zh.md' }]
     const orphan = [{ doc: 'docs/orphan.zh.md', kind: 'ts', code: 'const orphan = true' }]
     const blocks = [
       ...english,

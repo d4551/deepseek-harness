@@ -130,6 +130,6 @@ kind: "package-reference"
 
 本开发备注是维护者的工作上下文：开放问题与尚未决定的探索方向。它明确不具权威性——已交付的行为、限制与既定理由以上文、包代码和相关 Agent Note 为准。
 
-`src/index.ts` 中的 FIXME 要求确定 `@deepseek-ai/dsh-timeout-guard` 改名；[改名台账](../../../.agents/notes/implemented/architecture/2026-08-11-repository-naming-contract-and-rename-ledger.zh.md) 已把 `@deepseek-ai/dsh-tool-call-timeout-policy` 记录为既定名称，因此该 FIXME 已陈旧，待代码清理。
+包名已定。[改名台账](../../../.agents/notes/implemented/architecture/2026-08-11-repository-naming-contract-and-rename-ledger.zh.md) 记录的名称为 `@deepseek-ai/dsh-tool-call-timeout-policy`，并保留 `guard/timeout-policy/` 目录与 `timeout-policy` 插件 id；它取代了[包重新分组决策](../../../.agents/notes/implemented/architecture/2026-07-29-package-regrouping.zh.md)所暂缓的 `@deepseek-ai/dsh-timeout-guard` 目标。
 
 </details>
