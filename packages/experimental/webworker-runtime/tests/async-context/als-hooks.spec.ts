@@ -92,7 +92,7 @@ const delay = (ms = 0): Promise<void> => new Promise((resolve) => { setTimeout(r
     await delay()
     throw new Error('operation failed')
   })
-  const message = await failing.then(() => 'resolved', error => (error as Error).message)
+  const message = await failing.then(() => 'resolved', error => error instanceof Error ? error.message : String(error))
   check('rejection propagates', message, 'operation failed')
   await delay()
   check('boundary closes after rejection', als.getStore(), undefined)
@@ -247,7 +247,7 @@ const delay = (ms = 0): Promise<void> => new Promise((resolve) => { setTimeout(r
   const als = new AsyncLocalStorage<string>()
   const outcome = await als.run('slots', () => Promise
     .reject(new Error('preserved'))
-    .then(undefined, error => `caught:${(error as Error).message}`))
+    .then(undefined, error => `caught:${error instanceof Error ? error.message : String(error)}`))
   check('empty fulfilled slot preserved', outcome, 'caught:preserved')
   const passthrough = await als.run('slots', () => Promise.resolve('value').then(undefined, () => 'wrong'))
   check('value passes an empty fulfilled slot', passthrough, 'value')
