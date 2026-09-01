@@ -162,11 +162,52 @@ const INSTALLATION_OWNED_PROFILE_TUPLES: Record<string, readonly string[]> = {
   headless: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-headless'],
 }
 
-/** The bundle list a `dsh plugin` init uses for a name with no shipped template. */
+/** The bundle list `dsh init` and `dsh plugin` use for a name with no shipped template. */
 export const DEFAULT_PROFILE_BUNDLES: readonly string[] = ['@deepseek-ai/dsh-base']
 
 /** Custom profiles retain the historical live patch-file behavior. */
 export const DEFAULT_PROFILE_PATCH_RELOAD: ProfilePatchReload = 'live'
+
+/**
+ * The initialized profile names under a Harness home, ascending. A directory
+ * counts once it holds a manifest, so a half-written tree is not offered as a
+ * bootable choice, and the launcher's flat module fallback sibling is skipped
+ * for the same reason {@link resolveProfileDir} rejects that name.
+ * @param home - the Harness home; defaults to {@link resolveDshHome}.
+ * @returns the profile names, ascending.
+ */
+export function listProfileNames(home: string = resolveDshHome()): string[] {
+  const root = join(home, PROFILES_DIR)
+  if (!existsSync(root)) return []
+  return readdirSync(root, { withFileTypes: true })
+    .filter(entry => entry.isDirectory() && entry.name !== 'node_modules'
+      && existsSync(join(root, entry.name, 'package.json')))
+    .map(entry => entry.name)
+    .sort()
+}
+
+/**
+ * The diagnostic for a boot that names a profile no directory backs. It lists
+ * what this home can actually boot, so a misspelled name is visible against
+ * the real ones, and names the generator that creates the missing profile.
+ * Generating it here instead would turn a misspelled shipped profile into an
+ * empty tree that boots and does nothing.
+ * @param binName - the diagnostic prefix on the message.
+ * @param name - the requested profile name.
+ * @param home - the Harness home whose profiles are listed.
+ * @returns the multi-line message.
+ */
+export function missingProfileMessage(binName: string, name: string, home: string): string {
+  const shipped = Object.keys(PROFILE_TEMPLATES).sort()
+  const existing = listProfileNames(home).filter(profile => !shipped.includes(profile))
+  const lines = [
+    `${binName}: profile ${JSON.stringify(name)} does not exist`,
+    `  shipped profiles (created on first use): ${shipped.join(', ')}`,
+  ]
+  if (existing.length > 0) lines.push(`  profiles in ${join(home, PROFILES_DIR)}: ${existing.join(', ')}`)
+  lines.push(`  create it with: ${binName} init --profile ${name}`)
+  return lines.join('\n')
+}
 
 const PROFILE_PATCH_TEMPLATE = `# Your patch layer for this dsh profile, applied after every bundle layer:
 # a top-level YAML array of loader patch entries (id-targeted config
@@ -859,11 +900,7 @@ export function loadProfile(
   const dir = resolveProfileDir(name, home)
   if (!existsSync(join(dir, 'package.json'))) {
     const template = PROFILE_TEMPLATES[name]
-    if (template === undefined) {
-      throw new Error(
-        `${binName}: profile ${JSON.stringify(name)} does not exist; create it with 'dsh plugin --profile ${name} add <package>'`,
-      )
-    }
+    if (template === undefined) throw new Error(missingProfileMessage(binName, name, home))
     initProfile(dir, template.bundles, template.patchReload)
   }
   const manifest = normalizeShippedProfile(name, dir, readProfileManifest(binName, dir))

@@ -9,7 +9,7 @@
   justify-content: center;
   pointer-events: none;
   background-color: var(--dsw-alias-bg-mask-drop);
-  backdrop-filter: var(--dsw-alias-blur-mask-drop);
+  backdrop-filter: var(--dsw-mask-blur);
   animation: fade-in 160ms ease-out;
 }
 

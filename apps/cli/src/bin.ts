@@ -34,6 +34,11 @@ switch (invocation.mode) {
     })
     break
   }
+  case 'init': {
+    const { runInit } = await import('./init.ts')
+    process.exit(runInit(invocation.profile, invocation.bundles))
+    break
+  }
   case 'plugin': {
     const { runPlugin } = await import('./plugin.ts')
     process.exit(runPlugin(invocation.profile, invocation.args))

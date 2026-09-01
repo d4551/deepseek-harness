@@ -10,8 +10,9 @@
  * `dsh --profile tui --resume abc` boots the tui profile with `--resume abc`,
  * and `dsh --profile web -h` prints the web app's help, not this one's.
  *
- * `web` is a hardcoded alias for `--profile web`; `plugin` manages a profile's
- * plugin dependencies by forwarding to bun.
+ * `web` is a hardcoded alias for `--profile web`; `init` writes a profile's
+ * config files without booting it; `plugin` manages a profile's plugin
+ * dependencies by forwarding to bun.
  * @module @deepseek-ai/dsh/args
  */
 
@@ -36,6 +37,14 @@ interface DumpConfigInvocation {
   patches: string[]
 }
 
+/** Create a profile's config files without booting it. */
+interface InitInvocation {
+  mode: 'init'
+  profile: string
+  /** Bundle layers seeded into the new manifest; empty selects the shipped template or the default. */
+  bundles: string[]
+}
+
 /** Manage a profile's plugins: forward `args` to bun inside the profile directory. */
 interface PluginInvocation {
   mode: 'plugin'
@@ -45,7 +54,7 @@ interface PluginInvocation {
 }
 
 /** The resolved `dsh` invocation. Help, version, and errors exit inside {@link parseDshArgs}. */
-export type DshInvocation = ProfileInvocation | DumpConfigInvocation | PluginInvocation
+export type DshInvocation = ProfileInvocation | DumpConfigInvocation | InitInvocation | PluginInvocation
 
 /** Launcher flags shared by the default command and the `web` alias. */
 interface BootOptions {
@@ -68,6 +77,7 @@ Examples:
   dsh --profile tui --patch ./extra.yml      boot a custom profile with one extra overlay
   dsh --profile tui --resume <session>       arguments after the launcher flags reach the app
   dsh --profile web --help                   the web app's own flags and help
+  dsh init --profile tui                     create the tui profile's config files
   dsh plugin --profile tui add <package>     install a plugin into the tui profile
 `
 
@@ -166,6 +176,21 @@ export function parseDshArgs(argv: readonly string[], version: string): DshInvoc
     .action((args: string[], options: BootOptions) => {
       rejectParentOptions('web')
       resolved = resolveBoot(web, 'web', options, args)
+    })
+
+  const init = program.command('init').description('write a profile\'s config files (package.json, cordis.patch.yml, bunfig.toml) without booting it')
+  init
+    .requiredOption('--profile <name>', 'the profile to create under $DSH_HOME/profiles')
+    .option(
+      '--bundle <package>', 'bundle layer for a new profile, in order (repeatable); '
+      + 'defaults to the shipped template for a shipped name, otherwise @deepseek-ai/dsh-base', collect,
+    )
+    .action((options: { profile: string; bundle?: string[] }) => {
+      rejectParentOptions('init')
+      if (options.profile === '') program.error('error: --profile needs a name')
+      const bundles = options.bundle ?? []
+      if (bundles.includes('')) program.error('error: --bundle needs a package name')
+      resolved = { mode: 'init', profile: options.profile, bundles }
     })
 
   const plugin = program.command('plugin').description('manage a profile\'s plugins by forwarding the remaining arguments to bun in the profile directory')
