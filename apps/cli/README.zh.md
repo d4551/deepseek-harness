@@ -14,9 +14,10 @@
 | `dsh --profile sdk` | 通过 JSON-RPC stdio 为 SDK client 提供服务，直至关闭或断开连接。 |
 | `dsh --profile sdk-minimal` | 以独立极简 agent 配置树为 SDK client 提供服务。 |
 | `dsh web` | `--profile web` 的别名。 |
+| `dsh init --profile <name>` | 在 `$DSH_HOME/profiles/<name>` 下写出该 profile 的配置文件，不启动它。 |
 | `dsh plugin --profile <name> <bun args>` | 通过在 profile 目录中转发给 bun 来管理该 profile 的插件。 |
 
-运行命令时所在的目录将作为默认 workspace 根目录。`web`、`headless`、`sdk`、`sdk-minimal` 和 `acp` profile 在首次使用时会从随附模板自动初始化；其他任何 profile 都必须通过 `dsh plugin` 创建。
+运行命令时所在的目录将作为默认 workspace 根目录。`web`、`headless`、`sdk`、`sdk-minimal` 和 `acp` profile 在首次使用时会从随附模板自动初始化；其他 profile 由 `dsh init --profile <name>` 创建，`dsh plugin` 在首次使用时同样会创建。启动时若指定的 profile 没有对应目录，命令会列出该 home 可启动的名称以及创建缺失 profile 的 `dsh init` 命令，而不是生成一棵拼错名称也会照常启动的空配置树。
 
 ## 应用参数
 

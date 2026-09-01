@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-This reference defines the profile, web-alias, plugin-management, and config-dump command modes. Argv is parsed once through [`src/args.ts`](../src/args.ts), and [`src/bin.ts`](../src/bin.ts) dynamically imports only the selected runner.
+This reference defines the profile, web-alias, profile-initialization, plugin-management, and config-dump command modes. Argv is parsed once through [`src/args.ts`](../src/args.ts), and [`src/bin.ts`](../src/bin.ts) dynamically imports only the selected runner.
 
 ## Profile boot
 
@@ -10,7 +10,7 @@ This reference defines the profile, web-alias, plugin-management, and config-dum
 
 Bundle names resolve from the dsh installation first, then from the profile directory. In-box bundles (`@deepseek-ai/dsh-base`, `@deepseek-ai/dsh-web-app`, `@deepseek-ai/dsh-headless`, `@deepseek-ai/dsh-sdk-app`, `@deepseek-ai/dsh-sdk-minimal`, `@deepseek-ai/dsh-acp-app`) therefore always come from the same installation as the running `dsh`; out-of-tree bundles come from the profile's bun-managed `node_modules`. A bare plugin `name` in any patch row resolves through the profile directory's Node parent walk, which reaches the maintained installation fallback `$DSH_HOME/profiles/node_modules`. Plain Node installations place one healed symlink there per dependency-closure package. A pkg executable instead places a real ESM proxy that mirrors explicit exports and re-exports the virtual package URL, because operating-system symlinks cannot enter pkg's `/snapshot` filesystem. Every launch also links packages carried only by selected external bundles through a dsh-owned directory into the current profile's `node_modules`; existing bun entries win, and each profile owns its links independently.
 
-The `web`, `headless`, `sdk`, `sdk-minimal`, and `acp` profiles auto-initialize from shipped templates on first use (`web`: base + web-app with live patches; `headless`: base + headless with startup-only patches; `sdk`: base + sdk-app with startup-only patches; `sdk-minimal`: its standalone bundle with startup-only patches; `acp`: base + acp-app with startup-only patches). Any other missing profile fails loud with a hint to run `dsh plugin --profile <name> add <package>`.
+The `web`, `headless`, `sdk`, `sdk-minimal`, and `acp` profiles auto-initialize from shipped templates on first use (`web`: base + web-app with live patches; `headless`: base + headless with startup-only patches; `sdk`: base + sdk-app with startup-only patches; `sdk-minimal`: its standalone bundle with startup-only patches; `acp`: base + acp-app with startup-only patches). Any other missing profile fails loud: the diagnostic lists the shipped names, the profiles already initialized under `$DSH_HOME/profiles`, and the `dsh init --profile <name>` command that creates the missing one. Generating it here instead would turn a misspelled shipped name into an empty tree that boots and does nothing.
 
 ### App arguments
 
@@ -18,7 +18,7 @@ The launcher's flags come first and end at the first token it does not recognize
 
 A composition mounts once. An ordinary plugin injects `cmdlineArgs`, parses this app's arguments, and provides what it resolved as a service; each row configured from flags injects that service, and Loader waits for it before evaluating the row's config (`port: !!js ctx.webStartup.port ?? 3080`). A flag therefore beats the value written beside it. This precedence requires the row to retain that expression; a user patch that replaces the whole `config` with literals removes the runtime read. Help and rejected arguments request exit — nonzero for a rejection, 0 for help — without activating rows that depend on the provider's service. In a `patchReload: live` profile, a patch-file edit re-evaluates expressions against services that are still up, so it cannot reset a served port.
 
-Launcher flags must come before app arguments, and the launcher's parser consumes one `--`: an app argument that must arrive as a literal `--` needs `-- --`. A first app argument equal to `web` or `plugin` selects that subcommand instead. `ctx.cmdlineArgs.get()` is a shared immutable read: multiple plugins may parse the same snapshot, while a profile with no reader ignores its app arguments.
+Launcher flags must come before app arguments, and the launcher's parser consumes one `--`: an app argument that must arrive as a literal `--` needs `-- --`. A first app argument equal to `web`, `init`, or `plugin` selects that subcommand instead. `ctx.cmdlineArgs.get()` is a shared immutable read: multiple plugins may parse the same snapshot, while a profile with no reader ignores its app arguments.
 
 The shipped apps own these command lines:
 
@@ -40,6 +40,10 @@ dsh --profile web --patch ./extra.yml --dump-config
 ```
 
 `--dump-default-config` prints only the bundle layers; `--dump-config` adds the profile's `cordis.patch.yml`, the home-level `$DSH_HOME/cordis.patch.yml`, and `--patch` overlays. Both print comments naming the file that supplied each row and every overlay that changed it; `!!js` expressions remain unevaluated, relative plugin names in inserted rows resolve beside their patch file, and unmatched patch targets are reported on stderr. A dump initializes missing profile files but does not prepare the runtime module fallback under `$DSH_HOME/profiles/node_modules`. It never runs app command-line providers, so it shows the composed tree before any app argument is resolved and rejects an invocation that carries app arguments.
+
+## Profile initialization
+
+`dsh init --profile <name>` writes a profile's config files under `$DSH_HOME/profiles/<name>` and exits without booting: the manifest `package.json` carrying the `dsh.profile.bundles` layer list and `patchReload` lifecycle, the empty `cordis.patch.yml` user layer, and the `bunfig.toml` install settings out-of-tree plugins resolve their peers through. A shipped name reproduces exactly what its first boot would have created; any other name starts from `@deepseek-ai/dsh-base` with `patchReload: live`. Repeatable `--bundle <package>` replaces that layer list in argv order, and each named package must resolve and declare `dsh.bundle`, so a manifest whose next boot could not resolve its own layers is rejected before any file is written. Every file is written only when absent: a rerun reports the existing profile, keeps its edits, restores a missing `bunfig.toml`, and reports `--bundle` as ignored rather than rewriting the layer list. The command prints the profile directory, its layer list, and the follow-on `dsh plugin` and `dsh --profile` commands, then exits 0.
 
 ## Plugin management
 

@@ -5,11 +5,12 @@
  * Run: `tsx scripts/check-workspace-constraints.ts`.
  */
 
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, globSync, readdirSync, readFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { hasTypertRemoteNavigation, isForbiddenPublicationFile } from './publication-payload.ts'
 import { collectProjectReferenceFaceViolations } from './project-reference-faces.ts'
+import { readConfigFile } from './ts7-session.ts'
 
 const root = resolve(import.meta.dirname, '..')
 // vendor/* is single-level; packages/<group>/<pkg> nests one level deeper
@@ -426,6 +427,34 @@ function checkHierarchyShape(): string[] {
   return errors
 }
 
+/** Config file names a package may compile its own sources under. */
+const projectConfigGlobs = [
+  'packages/*/*/tsconfig*.json',
+  'apps/*/tsconfig*.json',
+  'vendor/*/tsconfig*.json',
+] as const
+
+/**
+ * Require an explicit `rootDir` on every project that emits.
+ *
+ * Without it TypeScript derives the output layout from the common source
+ * directory of the program's inputs, so adding one file outside `src` — a
+ * spec, a fixture — silently moves the whole emit down a level and the
+ * bundler's `lib/types/*.js` entries stop resolving. A stale `lib/` hides
+ * that locally; a clean checkout fails the build.
+ *
+ * @param root - Repository root the configs are resolved and reported against.
+ * @returns One diagnostic per emitting config that leaves `rootDir` inferred.
+ */
+export function checkEmittingProjectRootDir(root: string): string[] {
+  return globSync(projectConfigGlobs, { cwd: root }).flatMap((configPath) => {
+    const { config } = readConfigFile(join(root, configPath))
+    const options = (config as { compilerOptions?: Record<string, unknown> } | undefined)?.compilerOptions
+    if (typeof options?.outDir !== 'string' || typeof options.rootDir === 'string') return []
+    return [`${configPath}: a project with "outDir" must pin "rootDir" — an inferred root moves the emit whenever an input lands outside it`]
+  }).sort()
+}
+
 function checkRepositoryVersion(): string[] {
   // The root carries the dsh release family's version, so a prerelease such as
   // 0.0.1-rc.1 is a valid state between `release:dsh` and its publication.
@@ -589,6 +618,7 @@ export function main(): void {
     ...checkExperimentalDependencyIsolation(dependencyManifests),
     ...checkHierarchyShape(),
     ...collectProjectReferenceFaceViolations(root),
+    ...checkEmittingProjectRootDir(root),
     ...checkBuildToolingClosure(readFileSync(join(root, 'tsdown.config.ts'), 'utf8'), manifests),
   ]
   if (errors.length > 0) {

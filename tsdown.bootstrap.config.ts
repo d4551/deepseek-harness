@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { defineConfig } from 'tsdown'
-import { buildToolingBootstrapClosure } from './scripts/build-tooling-closure.ts'
+import { buildToolingWorkspace } from './scripts/build-tooling-closure.ts'
 import { WORKSPACE_BUNDLE_OPTIONS } from './scripts/tsdown-workspace-options.ts'
 
 /**
@@ -19,7 +19,7 @@ import { WORKSPACE_BUNDLE_OPTIONS } from './scripts/tsdown-workspace-options.ts'
  */
 export default defineConfig({
   ...WORKSPACE_BUNDLE_OPTIONS,
-  workspace: buildToolingBootstrapClosure(
+  workspace: buildToolingWorkspace(
     import.meta.dirname,
     readFileSync(new URL('tsdown.config.ts', import.meta.url), 'utf8'),
   ),

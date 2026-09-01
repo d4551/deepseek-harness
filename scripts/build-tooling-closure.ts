@@ -74,27 +74,33 @@ function workspaceDependencyDirectories(packageDir: string): string[] {
 }
 
 /**
- * Every workspace package that must carry its bundle before a config loads.
+ * The build tooling a config imports, plus every workspace package behind it.
  *
- * The packages the config imports from are excluded: the config reaches their
- * `lib/types` emit by path, which the preceding `tsc -b` wrote.
+ * The tooling packages themselves are included so the set is never empty while
+ * the config imports one: bundling a package the Host pass rebuilds anyway
+ * costs milliseconds, and an empty `workspace` is a tsdown error.
  * @param root - repository root.
  * @param configSource - contents of the config whose load must succeed.
  * @returns repository-relative directories, sorted, with `/` separators for tsdown's workspace match.
+ * @throws when the config imports no workspace package, leaving the pass nothing to bundle.
  */
-export function buildToolingBootstrapClosure(root: string, configSource: string): string[] {
+export function buildToolingWorkspace(root: string, configSource: string): string[] {
   const seeds = configToolingPackages(root, configSource)
-  const visited = new Set(seeds)
-  const closure = new Set<string>()
+  if (seeds.length === 0) {
+    throw new Error(
+      'build-tooling closure: the configured tsdown config imports no workspace package, so the bootstrap '
+      + 'pass has nothing to bundle. Remove it from the build:lib:host script.',
+    )
+  }
+  const workspace = new Set(seeds)
   const pending = [...seeds]
   while (pending.length > 0) {
     const dir = pending.pop() as string
     for (const dependency of workspaceDependencyDirectories(dir)) {
-      if (visited.has(dependency)) continue
-      visited.add(dependency)
-      closure.add(dependency)
+      if (workspace.has(dependency)) continue
+      workspace.add(dependency)
       pending.push(dependency)
     }
   }
-  return [...closure].map(dir => relative(root, dir).split(sep).join('/')).sort()
+  return [...workspace].map(dir => relative(root, dir).split(sep).join('/')).sort()
 }

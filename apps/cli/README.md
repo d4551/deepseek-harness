@@ -14,9 +14,10 @@ The `dsh` command is the sole supported Node application launcher: profiles are 
 | `dsh --profile sdk` | Serve SDK clients over JSON-RPC stdio until shutdown or disconnect. |
 | `dsh --profile sdk-minimal` | Serve SDK clients with the standalone minimal agent tree. |
 | `dsh web` | Alias of `--profile web`. |
+| `dsh init --profile <name>` | Write the profile's config files under `$DSH_HOME/profiles/<name>` without booting it. |
 | `dsh plugin --profile <name> <bun args>` | Manage a profile's plugins by forwarding to bun in the profile directory. |
 
-The invoking directory is the default workspace root. The `web`, `headless`, `sdk`, `sdk-minimal`, and `acp` profiles auto-initialize on first use from shipped templates; any other profile must be created through `dsh plugin`.
+The invoking directory is the default workspace root. The `web`, `headless`, `sdk`, `sdk-minimal`, and `acp` profiles auto-initialize on first use from shipped templates; `dsh init --profile <name>` creates any other, as does `dsh plugin` on first use. A boot that names a profile no directory backs lists the names this home can boot and the `dsh init` command that creates the missing one, rather than generating an empty tree a misspelled name would silently boot.
 
 ## App arguments
 
