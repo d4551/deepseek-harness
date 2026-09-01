@@ -434,25 +434,37 @@ const projectConfigGlobs = [
   'vendor/*/tsconfig*.json',
 ] as const
 
+/** The `compilerOptions` a project config declares for itself, before `extends` resolution. */
+interface ProjectCompilerOptions {
+  readonly compilerOptions?: {
+    readonly outDir?: unknown
+    readonly rootDir?: unknown
+  }
+}
+
 /**
- * Require an explicit `rootDir` on every project that emits.
+ * Reject one project that emits without pinning its output root.
  *
- * Without it TypeScript derives the output layout from the common source
- * directory of the program's inputs, so adding one file outside `src` — a
- * spec, a fixture — silently moves the whole emit down a level and the
- * bundler's `lib/types/*.js` entries stop resolving. A stale `lib/` hides
- * that locally; a clean checkout fails the build.
+ * Left inferred, TypeScript derives the layout from the common source
+ * directory of the program's inputs, so one file outside `src` — a spec, a
+ * fixture — moves the whole emit down a level and the bundler's
+ * `lib/types/*.js` entries stop resolving. A stale `lib/` hides that
+ * locally; a clean checkout fails the build.
  *
- * @param root - Repository root the configs are resolved and reported against.
- * @returns One diagnostic per emitting config that leaves `rootDir` inferred.
+ * @param configPath - Repo-relative config path the diagnostic names.
+ * @param config - Parsed config, read as written rather than through `extends`.
+ * @returns One diagnostic, or none when the project does not emit or pins `rootDir`.
  */
-export function checkEmittingProjectRootDir(root: string): string[] {
-  return globSync(projectConfigGlobs, { cwd: root }).flatMap((configPath) => {
-    const { config } = readConfigFile(join(root, configPath))
-    const options = (config as { compilerOptions?: Record<string, unknown> } | undefined)?.compilerOptions
-    if (typeof options?.outDir !== 'string' || typeof options.rootDir === 'string') return []
-    return [`${configPath}: a project with "outDir" must pin "rootDir" — an inferred root moves the emit whenever an input lands outside it`]
-  }).sort()
+export function checkProjectRootDir(configPath: string, config: ProjectCompilerOptions): string[] {
+  const options = config.compilerOptions
+  if (typeof options?.outDir !== 'string' || typeof options.rootDir === 'string') return []
+  return [`${configPath}: a project with "outDir" must pin "rootDir" — an inferred root moves the emit whenever an input lands outside it`]
+}
+
+/** Apply {@link checkProjectRootDir} to every workspace project config. */
+function checkEmittingProjectRootDirs(): string[] {
+  return globSync(projectConfigGlobs, { cwd: root }).flatMap(configPath =>
+    checkProjectRootDir(configPath, (readConfigFile(join(root, configPath)).config ?? {}) as ProjectCompilerOptions)).sort()
 }
 
 function checkRepositoryVersion(): string[] {
@@ -618,7 +630,7 @@ export function main(): void {
     ...checkExperimentalDependencyIsolation(dependencyManifests),
     ...checkHierarchyShape(),
     ...collectProjectReferenceFaceViolations(root),
-    ...checkEmittingProjectRootDir(root),
+    ...checkEmittingProjectRootDirs(),
     ...checkBuildToolingClosure(readFileSync(join(root, 'tsdown.config.ts'), 'utf8'), manifests),
   ]
   if (errors.length > 0) {

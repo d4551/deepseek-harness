@@ -6,6 +6,7 @@ import {
   checkSingleExternalVersion,
   checkExperimentalDependencyIsolation,
   checkExperimentalManifest,
+  checkProjectRootDir,
   expectedDshPackageFiles,
   type WorkspaceManifest,
 } from './check-workspace-constraints.ts'
@@ -171,5 +172,22 @@ describe('build tooling dependency closure', () => {
       },
       ...workspace.slice(1),
     ])).toEqual([])
+  })
+})
+
+describe('emitting project root directories', () => {
+  it('rejects a project that emits without pinning rootDir', () => {
+    expect(checkProjectRootDir('packages/guard/example/tsconfig.json', {
+      compilerOptions: { outDir: 'lib/types' },
+    })).toEqual([
+      'packages/guard/example/tsconfig.json: a project with "outDir" must pin "rootDir" — an inferred root moves the emit whenever an input lands outside it',
+    ])
+  })
+
+  it('accepts a pinned emit and a solution-only root', () => {
+    expect(checkProjectRootDir('packages/guard/example/tsconfig.json', {
+      compilerOptions: { outDir: 'lib/types', rootDir: 'src' },
+    })).toEqual([])
+    expect(checkProjectRootDir('packages/api/example/tsconfig.json', {})).toEqual([])
   })
 })
