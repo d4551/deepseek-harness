@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { execFileSync, spawnSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import {
   existsSync,
   globSync,
@@ -42,6 +42,35 @@ const CLIENT_ARTIFACT_PATTERNS = [
 export type ClientBuildEnvironment = Readonly<Record<string, string>>
 
 /**
+ * Read HEAD's commit from the checkout at `root`.
+ *
+ * Git's own stderr carries the reason a source tree has no readable HEAD —
+ * an extracted archive has no `.git`, a freshly initialized repository has no
+ * commit — so the failure repeats it rather than reporting only the exit
+ * status. A tree without repository metadata builds by supplying the commit
+ * explicitly; the message names that variable because the commit is embedded
+ * in client artifacts and cannot be invented here.
+ * @param root - repository root whose HEAD is read.
+ * @returns the full commit hash.
+ * @throws when Git cannot resolve HEAD in `root`.
+ */
+function headCommit(root: string): string {
+  const head = spawnSync('git', ['rev-parse', 'HEAD'], {
+    cwd: root,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  if (head.error === undefined && head.status === 0) return head.stdout.trim()
+  // Git prints its reason on the first stderr line and follows a fatal with
+  // usage hints; the reason is what names the source tree's actual state.
+  const detail = head.error?.message ?? head.stderr.trim().split('\n', 1)[0] ?? ''
+  throw new Error(
+    `cannot read the source commit from ${root}: ${detail || `git rev-parse HEAD exited with ${String(head.status)}`}; `
+    + `build a source tree without Git metadata by setting ${CLIENT_COMMIT_HASH_VARIABLE} to the commit it was produced from`,
+  )
+}
+
+/**
  * Resolve the short source commit used by browser build metadata.
  * @param root - repository root used when no explicit value is supplied.
  * @param environment - environment that may already carry a commit value.
@@ -49,11 +78,7 @@ export type ClientBuildEnvironment = Readonly<Record<string, string>>
  */
 export function repositoryCommitHash(root: string, environment: NodeJS.ProcessEnv = process.env): string {
   const explicit = environment[CLIENT_COMMIT_HASH_VARIABLE]
-  const value = explicit ?? execFileSync('git', ['rev-parse', 'HEAD'], {
-    cwd: root,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'ignore'],
-  }).trim()
+  const value = explicit ?? headCommit(root)
   if (!/^[0-9a-f]{7,40}$/iu.test(value)) {
     throw new Error(`${CLIENT_COMMIT_HASH_VARIABLE} must be a Git commit hash; got ${JSON.stringify(value)}`)
   }

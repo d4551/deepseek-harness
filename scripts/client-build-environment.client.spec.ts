@@ -140,6 +140,33 @@ describe('client build environment', () => {
     expect(repositoryCommitHash('/unused', { DSH_CLIENT_COMMIT_HASH: COMMIT_HASH })).toBe(COMMIT_HASH.slice(0, 7))
   })
 
+  it('names why a source tree has no readable HEAD and how to build it anyway', () => {
+    // An extracted archive carries no .git; `git status` is tolerated here
+    // (repositoryGitDirty returns undefined), so the commit read is the only
+    // thing that fails and it must say what happened.
+    const extracted = mkdtempSync(join(tmpdir(), 'dsh-client-build-extracted-'))
+    roots.push(extracted)
+    write(join(extracted, 'package.json'), '{"version":"1.2.3"}\n')
+    expect(repositoryGitDirty(extracted)).toBeUndefined()
+    expect(() => repositoryCommitHash(extracted, {})).toThrow(/not a git repository/)
+    expect(() => repositoryCommitHash(extracted, {})).toThrow(/DSH_CLIENT_COMMIT_HASH/)
+
+    // A freshly initialized repository has a worktree but no commit, so the
+    // dirty probe succeeds and only HEAD is unresolvable.
+    const initialized = mkdtempSync(join(tmpdir(), 'dsh-client-build-initialized-'))
+    roots.push(initialized)
+    write(join(initialized, 'package.json'), '{"version":"1.2.3"}\n')
+    git(initialized, ['init'])
+    expect(repositoryGitDirty(initialized)).toBe(true)
+    expect(() => repositoryCommitHash(initialized, {})).toThrow(/ambiguous argument 'HEAD'/)
+
+    // The remedy the message names is the one the build path accepts.
+    expect(repositoryClientBuildEnvironment(extracted, { DSH_CLIENT_COMMIT_HASH: COMMIT_HASH })).toEqual({
+      DSH_CLIENT_COMMIT_HASH: COMMIT_HASH.slice(0, 7),
+      DSH_CLIENT_VERSION: '1.2.3',
+    })
+  })
+
   it('owns repository version, commit, and dirty metadata for complete builds', () => {
     const fixtureRoot = repositoryFixture()
     const commit = git(fixtureRoot, ['rev-parse', '--short=7', 'HEAD'])

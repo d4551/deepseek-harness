@@ -12,7 +12,7 @@ TypeScript 7 转换遗留了两处容忍，每一处都让工作从通过的 gat
 
 `.oxlintrc.json` 中不再有任何设为 `"off"` 的规则。按文件类别划分的豁免全部移除：共享源码块不再静默 `no-empty-object-type`、`no-invalid-void-type`、`no-namespace` 或 `no-void`；`examples/**` 与 webworker Node 桩块不再静默 `require-await` 或 `no-extraneous-class`；TypeGraph fixture 块不再静默 `no-explicit-any` 或 `@stylistic/quotes`；测试块不再静默 `no-non-null-assertion`、`no-unnecessary-condition`、`only-throw-error`、`require-await` 或 `restrict-template-expressions`。改动的是代码，用以满足规则。
 
-未使用的 disable 指令同样会让 gate 失败：`reportUnusedDisableDirectives` 为 `error`，`scripts/oxlint-contract.spec.ts` 中的可执行约定锁定失败的退出状态。
+未使用的 disable 指令同样会让 gate 失败：根配置中的 `reportUnusedDisableDirectives` 为 `error`，`scripts/oxlint-contract.spec.ts` 中的可执行约定锁定失败的退出状态。不加载项目的 staged 配置将其覆盖为 `allow`，因为一个并未加载某条规则的检查无从判断该规则的抑制指令是否被使用。
 
 在不使用抑制指令的前提下满足 `require-await` 与 `use-unknown-in-catch-callback-variable`，改动了三处异步接缝。webworker 运行时的 `node:fs`、`node:fs/promises` 与模块接缝面通过 `settled`（`packages/experimental/webworker-runtime/src/settled.ts`）执行其同步工作，使同步 throw 仍以 rejection 抵达；其目录迭代器改为显式异步迭代器，而非从不 await 的 `async *` 生成器。`dsh-atomic-write` 改用回调式 `node:fs` 读写，其完成回调携带带类型的 `NodeJS.ErrnoException`，因此不再出现 rejection 回调与 `catch` 变量；其写者锁通过 `rmSync` 同步释放。
 
@@ -32,4 +32,4 @@ TypeScript 7 转换遗留了两处容忍，每一处都让工作从通过的 gat
 
 ## Consequences
 
-`bun run lint` 对每一个自有文件运行每一条规则，不存在按路径的豁免，并且会因一条不抑制任何东西的指令而失败，因此规则豁免与陈旧抑制指令都无法越过评审存活。随代码改变的行为有两处：`dsh-atomic-write` 将非 Error 的 rejection 捕获为 `Error`，而不再原样重新抛出；其锁释放不再等待异步删除。pre-commit 钩子不受影响：staged 配置扫描全树零发现。两次 TypeScript 7 扫描分别覆盖每一个受版本控制的源文件与每一个受版本控制的文件，因此根 manifest、`bun.lock` 与 `goal/` plan 记录都处于兼容包禁令之内。[Oxlint 决策](2026-07-29-oxlint-linter.zh.md)记录了本 note 所推翻的 warning 级别；[TypeScript 7 编译固定版本](2026-08-29-typescript-7-compiler.zh.md)拥有该禁令本身。
+`bun run lint` 对每一个自有文件运行每一条规则，不存在按路径的豁免，并且会因一条不抑制任何东西的指令而失败，因此规则豁免与陈旧抑制指令都无法越过评审存活。随代码改变的行为有两处：`dsh-atomic-write` 将非 Error 的 rejection 捕获为 `Error`，而不再原样重新抛出；其锁释放不再等待异步删除。pre-commit 钩子之所以不会对这些指令报错，是因为 staged 配置在自己的 `options` 块中把 `reportUnusedDisableDirectives` 设为 `allow`；否则 `extends` 会把根配置的 `error` 带入一个不加载任何类型感知规则的检查，而那正是上文测量到的误判，而非真实发现。两次 TypeScript 7 扫描分别覆盖每一个受版本控制的源文件与每一个受版本控制的文件，因此根 manifest、`bun.lock` 与 `goal/` plan 记录都处于兼容包禁令之内。[Oxlint 决策](2026-07-29-oxlint-linter.zh.md)记录了本 note 所推翻的 warning 级别；[TypeScript 7 编译固定版本](2026-08-29-typescript-7-compiler.zh.md)拥有该禁令本身。

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-01-no-tolerated-lint-suppressions-or-gate-carveouts.md
-2026-09-01-no-tolerated-lint-suppressions-or-gate-carveouts.md: 52b43859e6ec86eb0e5324ce2a8c2184a4e7630b
-2026-09-01-no-tolerated-lint-suppressions-or-gate-carveouts.zh.md: d090c2e1f4ed1b6a76b774d70c2e0cf25cdb185b
+2026-09-01-no-tolerated-lint-suppressions-or-gate-carveouts.md: 1dcd44406c61cb44a70434c5a3e81ff8cbaf21fa
+2026-09-01-no-tolerated-lint-suppressions-or-gate-carveouts.zh.md: fdff96e223c0c60b92c7cf3264f1f878827d6334
