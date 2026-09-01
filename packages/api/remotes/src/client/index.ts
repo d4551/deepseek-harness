@@ -17,6 +17,12 @@ import type { ClientRemote } from '@deepseek-ai/dsh-api-gateway/client'
 
 export type { ClientRemote } from '@deepseek-ai/dsh-api-gateway/client'
 export type { PluginInventorySnapshot } from '@deepseek-ai/dsh-host-plugin-inventory/types'
+// The settings sections a Client card edits: the card binds its scope to the
+// owning Host package's own declaration rather than restating its fields.
+export type { AgentDefaultModelSettings } from '@deepseek-ai/dsh-agent-default-model/types'
+export type {
+  AllowedModelRoute, SubagentModelSelectionSettings,
+} from '@deepseek-ai/dsh-tool-subagent/types'
 export type {} from '@deepseek-ai/dsh-agent-presets/remote'
 export type {} from '@deepseek-ai/dsh-commands/remote'
 export type {} from '@deepseek-ai/dsh-api-settings-controller/remote'

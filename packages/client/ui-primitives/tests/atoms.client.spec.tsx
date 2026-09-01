@@ -95,16 +95,26 @@ describe('Menu', () => {
       { id: 'b', label: 'Beta', disabled: true },
       { id: 'c', label: 'Gamma' },
     ]
+    const onSelect = vi.fn()
     render(<button type="button">trigger seat</button>)
     const seat = screen.getByRole('button', { name: 'trigger seat' })
     seat.focus()
     const { rerender } = render(
-      <Menu open autoFocus anchor={<span>trigger</span>} items={three} onSelect={() => {}} onClose={() => {}} />)
+      <Menu open autoFocus anchor={<span>trigger</span>} items={three} onSelect={onSelect} onClose={() => {}} />)
     // The list is a portal at the end of the document, so it must come to the
     // operator rather than wait for a Tab through everything before it.
     expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Alpha' }))
 
-    // The arrows walk the enabled rows and wrap; the disabled row is skipped.
+    // The arrows walk every row and wrap. The menu pattern keeps an inert row
+    // focusable — the operator has to be able to read what the list holds —
+    // and refuses the activation instead of hiding the row from the arrows.
+    const beta = screen.getByRole('menuitem', { name: 'Beta' })
+    expect(beta.getAttribute('aria-disabled')).toBe('true')
+    expect(beta.hasAttribute('disabled')).toBe(false)
+    fireEvent.keyDown(document, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(beta)
+    fireEvent.click(beta)
+    expect(onSelect).not.toHaveBeenCalled()
     fireEvent.keyDown(document, { key: 'ArrowDown' })
     expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Gamma' }))
     fireEvent.keyDown(document, { key: 'ArrowDown' })
@@ -120,7 +130,7 @@ describe('Menu', () => {
     expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Gamma' }))
 
     rerender(
-      <Menu open={false} autoFocus anchor={<span>trigger</span>} items={three} onSelect={() => {}} onClose={() => {}} />)
+      <Menu open={false} autoFocus anchor={<span>trigger</span>} items={three} onSelect={onSelect} onClose={() => {}} />)
     expect(document.activeElement).toBe(seat)
   })
 
@@ -421,6 +431,45 @@ describe('Menu', () => {
         onClose={() => {}}
       />)
     expect(screen.getByRole('menu').className).not.toMatch(/scrollable/)
+
+    // An unavailable parent opens nothing, so the cap applies as it would
+    // without the nested card the row can never show.
+    rerender(
+      <Menu
+        open
+        anchor={<span>trigger</span>}
+        items={[{ id: 'p', label: 'Parent', disabled: true, submenu: [{ id: 's', label: 'Sub' }] }]}
+        onSelect={() => {}}
+        onClose={() => {}}
+      />)
+    expect(screen.getByRole('menu').className).toMatch(/scrollable/)
+  })
+
+  it('opens no submenu from a row the list has made unavailable', () => {
+    const onSelect = vi.fn()
+    render(
+      <Menu
+        open
+        anchor={<span>trigger</span>}
+        items={[{
+          id: 'new',
+          label: 'New Workspace',
+          disabled: true,
+          submenu: [{ id: 'ok', label: 'Create ok' }],
+        }]}
+        onSelect={onSelect}
+        onClose={() => {}}
+      />)
+    const parent = screen.getByRole('menuitem', { name: 'New Workspace' })
+    expect(parent.getAttribute('aria-disabled')).toBe('true')
+    // The row announces no popup it cannot show, and neither gesture opens one.
+    expect(parent.hasAttribute('aria-haspopup')).toBe(false)
+    fireEvent.focus(parent)
+    fireEvent.mouseEnter(parent.parentElement as HTMLElement)
+    expect(screen.queryByRole('menuitem', { name: 'Create ok' })).toBeNull()
+    fireEvent.click(parent)
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(screen.queryByRole('menuitem', { name: 'Create ok' })).toBeNull()
   })
 })
 

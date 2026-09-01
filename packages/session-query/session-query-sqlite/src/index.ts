@@ -147,20 +147,20 @@ interface Observation {
   live: Map<SessionId, ObservedSession>
 }
 
-interface IndexedPersistedRow {
+type IndexedPersistedRow = {
   id: string
   revision: string
   generation: number
 }
 
-interface IndexedLiveRow {
+type IndexedLiveRow = {
   id: string
   fingerprint: string
   persisted: number
   generation: number
 }
 
-interface SessionHeaderRow {
+type SessionHeaderRow = {
   session_id: string
   version: number
   created_at: number
@@ -171,7 +171,7 @@ interface SessionHeaderRow {
   agent_preset: string | null
 }
 
-interface SearchRow extends SessionHeaderRow {
+type SearchRow = SessionHeaderRow & {
   live: number
   persisted: number
   seq: number
@@ -395,12 +395,14 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
   private async _reconcile(signal: AbortSignal | undefined): Promise<PersistenceBinding> {
     assertNotAborted(signal)
     const db = this._requireDb()
+    // The SELECT names the columns this row type declares, and the schema they
+    // come from is owned here under a monotonic SCHEMA_VERSION.
     const persistedRows = db.prepare(
       'SELECT id, revision, generation FROM persisted_sessions',
-    ).all() as unknown as IndexedPersistedRow[]
+    ).all() as IndexedPersistedRow[]
     const liveRows = db.prepare(
       'SELECT id, fingerprint, persisted, generation FROM temp.live_sessions',
-    ).all() as unknown as IndexedLiveRow[]
+    ).all() as IndexedLiveRow[]
     const persistedById = new Map(persistedRows.map(row => [row.id as SessionId, row]))
     const liveById = new Map(liveRows.map(row => [row.id as SessionId, row]))
     const observation = await this._observeStable(persistedById, signal)
@@ -666,7 +668,7 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
       WHERE event_rank = 1
       ORDER BY match_count DESC, document_length ASC, time DESC, session_id ASC, seq DESC
       LIMIT ? OFFSET ?
-    `).all(...bindings) as unknown as SearchRow[]
+    `).all(...bindings) as SearchRow[]
   }
 
   private _queryEvents(
@@ -692,7 +694,7 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
       WHERE ${where}
       ORDER BY match_count DESC, document_length ASC, time DESC, seq DESC
       LIMIT ? OFFSET ?
-    `).all(...bindings) as unknown as SearchRow[]
+    `).all(...bindings) as SearchRow[]
   }
 
   private _targetObservation(

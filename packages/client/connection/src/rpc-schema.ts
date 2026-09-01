@@ -1,10 +1,11 @@
 /** Runtime validation for Connection RPC envelopes. */
 
 import { z } from 'zod'
-import type { ClientRequest, RpcId, RpcMessage, ServerResponse } from './rpc.ts'
+import { RpcId } from './rpc.ts'
+import type { ClientRequest, RpcMessage, ServerResponse } from './rpc.ts'
 
-/** Correlation id after wire validation. */
-export const rpcIdSchema = z.string() as unknown as z.ZodType<RpcId>
+/** Correlation id after wire validation; the parse produces the brand. */
+export const rpcIdSchema: z.ZodType<RpcId> = z.string().transform(RpcId)
 
 /** Generic endpoint failure carried in a response envelope. */
 export const rpcErrorSchema = z.object({
@@ -48,6 +49,9 @@ export const serverResponseSchema = z.object({
 
 /** Either Connection RPC envelope direction. */
 export const rpcMessageSchema = z.discriminatedUnion('type', [
+  // `discriminatedUnion` takes raw-shape objects, and a schema already typed to
+  // its parsed envelope does not overlap that shape, so TS refuses the direct
+  // conversion (TS2352). The union's own members are what validate the wire.
   clientRequestSchema as unknown as z.ZodObject<z.ZodRawShape>,
   serverResponseSchema as unknown as z.ZodObject<z.ZodRawShape>,
 ]) as unknown as z.ZodType<RpcMessage>

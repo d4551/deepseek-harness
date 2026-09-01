@@ -19,13 +19,13 @@ export interface WireRange {
 }
 
 /** A `Location`: a document URI plus a range. */
-export interface WireLocation {
+export type WireLocation = {
   readonly uri: string
   readonly range: WireRange
 }
 
 /** A `LocationLink`: the target uri plus the selection range to focus. */
-export interface WireLocationLink {
+export type WireLocationLink = {
   readonly targetUri: string
   readonly targetSelectionRange: WireRange
   readonly targetRange?: WireRange

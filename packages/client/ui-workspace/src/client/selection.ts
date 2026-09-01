@@ -35,6 +35,17 @@ export function workspaceRowKey(workspaceId: WorkspaceId): RowKey {
 }
 
 /**
+ * Selection key for a group's overflow row — the one that reveals the members a
+ * collapsed group holds back. It carries verbs of its own and no Session, so it
+ * walks the tree without ever entering a range.
+ * @param groupKey - the group whose members the row reveals.
+ * @returns the row's key in the shared account.
+ */
+export function overflowRowKey(groupKey: string): RowKey {
+  return `overflow:${groupKey}`
+}
+
+/**
  * Row key of the Ungrouped bucket header. The bucket has no backing Workspace,
  * so it takes no Workspace key and never enters a selection; it is still a row
  * the keyboard walks, so it needs a key of its own. Its namespace is distinct
@@ -75,17 +86,24 @@ export interface RowSelection {
   readonly anchorAt: (key: RowKey) => void
   /**
    * Shift activation: select every rendered row between the open range's anchor
-   * and this one. With no range open yet the gesture's own origin becomes the
-   * anchor — the row a shift-click landed on, or the row a Shift+arrow left.
+   * and this one. With no range open yet — or once the anchor's row stopped
+   * rendering — the gesture's own origin becomes the anchor: the row a
+   * shift-click landed on, or the row a Shift+arrow left. A destination outside
+   * the account leaves the open range untouched.
    */
   readonly extendTo: (to: RowKey, origin: RowKey) => void
-  /** Ctrl/Cmd activation: add or remove this row, which also becomes the anchor. */
+  /**
+   * Select-all: take every rendered row of the account, anchored at its head so
+   * a following Shift move narrows the range from there.
+   */
+  readonly selectAll: () => void
+  /** Additive activation: add or remove this row, which also becomes the anchor. */
   readonly toggle: (key: RowKey) => void
   /** Drop the selection — a bulk action committed, or Escape withdrew it. */
   readonly clear: () => void
 }
 
-/** Anchor plus raw membership; membership is reconciled against rendered rows on read. */
+/** Anchor plus raw membership; both are reconciled against rendered rows on read. */
 interface SelectionState {
   anchor: RowKey | undefined
   keys: readonly RowKey[]
@@ -110,7 +128,10 @@ export function useRowSelection(renderedKeys: readonly RowKey[]): RowSelection {
   useEffect(() => {
     if (!active) return
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setState(EMPTY)
+      // Dismissal is layered: an open menu or a dialog consumes its own Escape
+      // and marks it handled, so one keystroke cannot both back out of the list
+      // and destroy the selection that list was acting on.
+      if (event.key === 'Escape' && !event.defaultPrevented) setState(EMPTY)
     }
     document.addEventListener('keydown', onKeyDown)
     return () => { document.removeEventListener('keydown', onKeyDown) }
@@ -127,10 +148,20 @@ export function useRowSelection(renderedKeys: readonly RowKey[]): RowSelection {
     extendTo: (to, origin) => {
       // An open range keeps its anchor across successive extends, so a run of
       // Shift+arrows grows from where the range began rather than from the row
-      // each keystroke left.
-      const anchor = state.anchor ?? origin
-      setState({ anchor, keys: rowRange(renderedKeys, anchor, to) })
+      // each keystroke left. The anchor reconciles on read exactly as
+      // membership does: once its row stops rendering the range restarts from
+      // this gesture's own origin, rather than resolving against a row the
+      // account no longer holds.
+      const held = state.anchor
+      const anchor = held !== undefined && renderedKeys.includes(held) ? held : origin
+      const slice = rowRange(renderedKeys, anchor, to)
+      // A destination outside the account — the ungrouped header, a blank
+      // draft — has no slice to take. The open range holds instead of emptying
+      // itself on a keystroke that reached past its last selectable row.
+      if (slice.length === 0) return
+      setState({ anchor, keys: slice })
     },
+    selectAll: () => { setState({ anchor: renderedKeys[0], keys: renderedKeys }) },
     toggle: (key) => {
       setState({
         anchor: key,

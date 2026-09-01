@@ -116,19 +116,19 @@ describe('renderToolsSdkPy', () => {
   const bash: ToolSdkSchema = {
     name: 'bash',
     description: 'Run a shell command.',
-    parameters: parameterSchemaSpecToJsonSchema({ command: { type: 'string', required: true } }) as unknown as Record<string, unknown>,
+    parameters: parameterSchemaSpecToJsonSchema({ command: { type: 'string', required: true } }),
     output: { type: 'string' },
   }
   const exotic: ToolSdkSchema = {
     name: 'my-mcp.tool',
     description: 'Exotic name.',
-    parameters: parameterSchemaSpecToJsonSchema({}) as unknown as Record<string, unknown>,
+    parameters: parameterSchemaSpecToJsonSchema({}),
     output: { type: 'string' },
   }
   const reserved: ToolSdkSchema = {
     name: 'class',
     description: 'Uses a reserved Python word.',
-    parameters: parameterSchemaSpecToJsonSchema({}) as unknown as Record<string, unknown>,
+    parameters: parameterSchemaSpecToJsonSchema({}),
     output: { type: 'string' },
   }
   /** One tool carrying `description` at both emission sites: the method docstring and the field comment. */
@@ -137,7 +137,7 @@ describe('renderToolsSdkPy', () => {
     description,
     parameters: parameterSchemaSpecToJsonSchema({
       field: { type: 'string', required: true, description },
-    }) as unknown as Record<string, unknown>,
+    }),
     output: { type: 'string' },
   })
 
@@ -182,7 +182,7 @@ describe('renderToolsSdkPy', () => {
       parameters: parameterSchemaSpecToJsonSchema({
         query: { type: 'string', required: true, description: 'What to search for.' },
         limit: { type: 'number', description: 'Max results.' },
-      }) as unknown as Record<string, unknown>,
+      }),
       output: { type: 'string' },
     }
     const text = renderToolsSdkPy([tool])
@@ -230,7 +230,7 @@ describe('renderToolsSdkPy', () => {
       description: 'Pick a mode.',
       parameters: parameterSchemaSpecToJsonSchema({
         mode: { type: 'string', required: true, enum: ['fast', 'slow'] },
-      }) as unknown as Record<string, unknown>,
+      }),
       output: { type: 'string' },
     }
     const text = renderToolsSdkPy([tool])
@@ -261,7 +261,7 @@ describe('renderToolsSdkPy', () => {
             },
           },
         },
-      }) as unknown as Record<string, unknown>,
+      }),
       output: { type: 'string' },
     }
     const text = renderToolsSdkPy([tool])
@@ -323,13 +323,13 @@ describe('renderToolsSdkPy', () => {
     const a: ToolSdkSchema = {
       name: 'my-tool',
       description: 'Dash form.',
-      parameters: parameterSchemaSpecToJsonSchema({ x: { type: 'string', required: true } }) as unknown as Record<string, unknown>,
+      parameters: parameterSchemaSpecToJsonSchema({ x: { type: 'string', required: true } }),
       output: { type: 'string' },
     }
     const b: ToolSdkSchema = {
       name: 'my.tool',
       description: 'Dot form.',
-      parameters: parameterSchemaSpecToJsonSchema({ y: { type: 'string', required: true } }) as unknown as Record<string, unknown>,
+      parameters: parameterSchemaSpecToJsonSchema({ y: { type: 'string', required: true } }),
       output: { type: 'string' },
     }
     const text = renderToolsSdkPy([a, b])
@@ -379,7 +379,7 @@ describe('renderToolsSdkPy', () => {
     const tool: ToolSdkSchema = {
       name: 'class',
       description: 'Reserved word tool.',
-      parameters: parameterSchemaSpecToJsonSchema({ value: { type: 'string', required: true } }) as unknown as Record<string, unknown>,
+      parameters: parameterSchemaSpecToJsonSchema({ value: { type: 'string', required: true } }),
       output: { type: 'string' },
     }
     const text = renderToolsSdkPy([tool])
@@ -753,7 +753,7 @@ describe('renderToolsSdkPy', () => {
     const second: ToolSdkSchema = {
       name: 'zzz',
       description: 'Second by name.',
-      parameters: parameterSchemaSpecToJsonSchema({}) as unknown as Record<string, unknown>,
+      parameters: parameterSchemaSpecToJsonSchema({}),
       output: { type: 'string' },
     }
     const lines = renderToolsSdkPy([bash, second]).split('\n')
@@ -771,7 +771,7 @@ describe('renderToolsSdkPy', () => {
   it('orders subscript entries against methods by name, not by member kind', () => {
     // `a-tool` sorts before `z`, so the subscript comment must precede the
     // method: one ordered stream, not methods-then-comments.
-    const noArgs = parameterSchemaSpecToJsonSchema({}) as unknown as Record<string, unknown>
+    const noArgs = parameterSchemaSpecToJsonSchema({})
     const text = renderToolsSdkPy([
       { name: 'z', description: 'Last by name.', parameters: noArgs, output: { type: 'string' } },
       { name: 'a-tool', description: 'First by name.', parameters: noArgs, output: { type: 'string' } },
@@ -799,13 +799,13 @@ describe('renderToolsSdkPy', () => {
     const undescribedIdentifier: ToolSdkSchema = {
       name: 'plain',
       description: '',
-      parameters: parameterSchemaSpecToJsonSchema({}) as unknown as Record<string, unknown>,
+      parameters: parameterSchemaSpecToJsonSchema({}),
       output: { type: 'string' },
     }
     const undescribedExotic: ToolSdkSchema = {
       name: 'weird-name',
       description: '',
-      parameters: parameterSchemaSpecToJsonSchema({}) as unknown as Record<string, unknown>,
+      parameters: parameterSchemaSpecToJsonSchema({}),
       output: { type: 'string' },
     }
     const text = renderToolsSdkPy([undescribedIdentifier, undescribedExotic])
@@ -993,7 +993,7 @@ describe('renderToolsSdkPy', () => {
     const t: ToolSdkSchema = {
       name: 'my-exotic.tool',
       description: '',
-      parameters: parameterSchemaSpecToJsonSchema({}) as unknown as Record<string, unknown>,
+      parameters: parameterSchemaSpecToJsonSchema({}),
       output: { type: 'string' },
     }
     const text = renderToolsSdkPy([t])
@@ -1065,7 +1065,7 @@ describe('renderToolsSdkPy', () => {
     const make = (name: string): ToolSdkSchema => ({
       name,
       description: 'Leading underscore.',
-      parameters: parameterSchemaSpecToJsonSchema({}) as unknown as Record<string, unknown>,
+      parameters: parameterSchemaSpecToJsonSchema({}),
       output: { type: 'string' },
     })
     const text = renderToolsSdkPy([make('_foo'), make('__meta__'), make('__token')])
@@ -1087,7 +1087,7 @@ describe('renderToolsSdkPy', () => {
       {
         name: 'a\ud800b',
         description: 'Lone surrogate in the name.',
-        parameters: parameterSchemaSpecToJsonSchema({}) as unknown as Record<string, unknown>,
+        parameters: parameterSchemaSpecToJsonSchema({}),
         output: { type: 'string' },
       },
     ])

@@ -787,6 +787,57 @@ describe('tool execution', () => {
     expect(result.value).toEqual({ content: blocks })
   })
 
+  it('marks a block whose declared field is not a string, rather than reading it as one', async () => {
+    const client = createMockClient(
+      [{ name: 'wrong-field', inputSchema: { type: 'object' } }],
+      { content: [{ type: 'text', text: 42 }] },
+    )
+
+    await syncTools(client as never, ctx, defaultOpts, new Map())
+    const result = await ctx.tools.execute({
+      signal: testToolSignal, callId: ToolCallId('c-field'), name: 'mcp__srv__wrong-field', arguments: {},
+    })
+
+    expect(result.content[0]).toEqual({
+      type: 'text',
+      text: '(wrong-field returned no model-visible content)',
+    })
+  })
+
+  it('marks a block whose type is not a string', async () => {
+    const client = createMockClient(
+      [{ name: 'wrong-type', inputSchema: { type: 'object' } }],
+      { content: [{ type: 7 }] },
+    )
+
+    await syncTools(client as never, ctx, defaultOpts, new Map())
+    const result = await ctx.tools.execute({
+      signal: testToolSignal, callId: ToolCallId('c-type'), name: 'mcp__srv__wrong-type', arguments: {},
+    })
+
+    expect(result.content[0]).toEqual({
+      type: 'text',
+      text: '[unsupported MCP content block: its type is not a string]',
+    })
+  })
+
+  it('reports an image block whose declared field is not a string', async () => {
+    const client = createMockClient(
+      [{ name: 'wrong-image', inputSchema: { type: 'object' } }],
+      { content: [{ type: 'image', mimeType: 'image/png', data: 42 }] },
+    )
+
+    await syncTools(client as never, ctx, defaultOpts, new Map())
+    const result = await ctx.tools.execute({
+      signal: testToolSignal, callId: ToolCallId('c-image'), name: 'mcp__srv__wrong-image', arguments: {},
+    })
+
+    expect(result.content[0]).toEqual({
+      type: 'text',
+      text: '[image unavailable: image/png; the image data is not canonical base64; raw image data remains available to programmatic callers]',
+    })
+  })
+
   it('validates structuredContent when the advertised output schema is supported', async () => {
     const outputSchema = {
       type: 'object',

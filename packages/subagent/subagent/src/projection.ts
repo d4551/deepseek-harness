@@ -126,6 +126,9 @@ const identityValueSchema = z.discriminatedUnion('mode', [
     label: z.string(),
     seq: z.number().int().nonnegative(),
   }).strict(),
+// `discriminatedUnion` reports its members' raw shapes, which do not overlap
+// the projected readonly envelope, so TS refuses a direct conversion (TS2352).
+// The union's own members are what validate each stored identity.
 ]) as unknown as z.ZodType<SubagentIdentityProjection>
 
 const identitySchema = identityValueSchema.nullable()

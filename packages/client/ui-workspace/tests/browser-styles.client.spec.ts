@@ -139,6 +139,20 @@ describe('Rows.module.css range selection and focus', () => {
     }
   })
 
+  it('insets every seat ring, because the list clips on both axes', () => {
+    // A scrolling box is never `overflow: visible` across, so an outward ring
+    // on a full-width row would be cut off at the list's edges. Every row the
+    // seat can land on draws its ring inside itself.
+    for (const selector of [
+      '.projectRow:focus-visible', '.sessionRow:focus-visible', '.searchResultRow:focus-visible',
+    ] as const) {
+      expect(rowDeclarations(selector)?.get('outline-offset'), selector).toBe('-2px')
+    }
+    expect(declarations('.sessionOverflowButton:focus-visible')?.get('outline'))
+      .toBe('2px solid var(--dsw-alias-state-business-primary)')
+    expect(declarations('.sessionOverflowButton:focus-visible')?.get('outline-offset')).toBe('-2px')
+  })
+
   it('reveals the trailing verbs to focus, not only to the pointer', () => {
     // display:none keeps the ... button out of the tab order, so the keyboard
     // reaches the row menu only if focus inside the row reveals it.

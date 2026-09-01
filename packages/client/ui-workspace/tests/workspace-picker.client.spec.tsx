@@ -183,12 +183,16 @@ describe('WorkspacePicker', () => {
     chooseAdd()
     // The flow is open but nothing is picked yet: a chooser pending on the
     // host display must already block concurrent workspace actions.
-    expect(screen.getByRole<HTMLButtonElement>('menuitem', { name: 'Alpha' }).disabled).toBe(true)
-    expect(screen.getByRole<HTMLButtonElement>('menuitem', { name: '添加工作区…' }).disabled).toBe(true)
+    expect(screen.getByRole('menuitem', { name: 'Alpha' })
+      .getAttribute('aria-disabled')).toBe('true')
+    expect(screen.getByRole('menuitem', { name: '添加工作区…' })
+      .getAttribute('aria-disabled')).toBe('true')
     act(() => { b.probe.owner!.onPicked('/tmp/project') })
     expect(b.probe.owner!.busy).toBe(true)
-    expect(screen.getByRole<HTMLButtonElement>('menuitem', { name: 'Alpha' }).disabled).toBe(true)
-    expect(screen.getByRole<HTMLButtonElement>('menuitem', { name: '添加工作区…' }).disabled).toBe(true)
+    expect(screen.getByRole('menuitem', { name: 'Alpha' })
+      .getAttribute('aria-disabled')).toBe('true')
+    expect(screen.getByRole('menuitem', { name: '添加工作区…' })
+      .getAttribute('aria-disabled')).toBe('true')
     await act(async () => { resolve(created); await pending })
     expect(b.probe.owner!.busy).toBe(false)
   })
@@ -296,7 +300,8 @@ describe('WorkspacePicker', () => {
     expect(screen.getByRole<HTMLButtonElement>('button', { name: '重新选择' }).disabled).toBe(true)
     // Cancel stays the way out, and the menu actions are usable again.
     fireEvent.click(screen.getByRole('button', { name: '取消' }))
-    expect(screen.getByRole<HTMLButtonElement>('menuitem', { name: 'Alpha' }).disabled).toBe(false)
+    expect(screen.getByRole('menuitem', { name: 'Alpha' })
+      .getAttribute('aria-disabled')).toBe(null)
   })
 
   it('withdraws an open flow when its occupant unloads, re-enabling the menu actions', () => {
@@ -307,7 +312,8 @@ describe('WorkspacePicker', () => {
     // cancel, so the owner withdraws and the actions come back.
     act(() => { b.occupancy.flip(false) })
     expect(b.probe.owner!.open).toBe(false)
-    expect(screen.getByRole<HTMLButtonElement>('menuitem', { name: 'Alpha' }).disabled).toBe(false)
+    expect(screen.getByRole('menuitem', { name: 'Alpha' })
+      .getAttribute('aria-disabled')).toBe(null)
     expect(screen.queryByRole('menuitem', { name: '添加工作区…' })).toBeNull()
   })
 })

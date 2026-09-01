@@ -48,7 +48,7 @@ interface SessionLocation {
 /**
  * Immutable validated storage metadata, kept outside the conversation event log.
  */
-interface SessionHeader {
+type SessionHeader = {
   /**
    * On-disk format version, stamped from {@link SESSION_FORMAT_VERSION} when the
    * session is created. A persistence backend rejects any other version on load

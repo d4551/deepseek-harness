@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-01-workspace-row-keyboard-account.md
-2026-09-01-workspace-row-keyboard-account.md: 78c12d1add07841f6a578c908a64d576e48fc2ad
-2026-09-01-workspace-row-keyboard-account.zh.md: 62ae1340fae044cdb8515da7e92d8c406bbf4323
+2026-09-01-workspace-row-keyboard-account.md: 1febdec3a9948f2fc5c45efa5ddc4f26c754e5b4
+2026-09-01-workspace-row-keyboard-account.zh.md: 794e04ed8b4ac7a9a8b422332d602b0c8d736339

@@ -108,12 +108,12 @@ function toRange(range: WireRange): LspRange {
 }
 
 /** Whether a record is a `LocationLink` (has `targetUri` + `targetSelectionRange`). */
-function isLocationLink(value: Record<string, unknown>): boolean {
+function isLocationLink(value: Record<string, unknown>): value is WireLocationLink {
   return typeof value.targetUri === 'string' && isRange(value.targetSelectionRange)
 }
 
 /** Whether a record is a `Location` (has string `uri` + a range). */
-function isLocation(value: Record<string, unknown>): boolean {
+function isLocation(value: Record<string, unknown>): value is WireLocation {
   return typeof value.uri === 'string' && isRange(value.range)
 }
 
@@ -154,10 +154,9 @@ export function normalizeLocations(payload: unknown): LspLocation[] {
     }
     const record = element as Record<string, unknown>
     if (isLocationLink(record)) {
-      const link = record as unknown as WireLocationLink
-      locations.push({ uri: link.targetUri, range: toRange(link.targetSelectionRange) })
+      locations.push({ uri: record.targetUri, range: toRange(record.targetSelectionRange) })
     } else if (isLocation(record)) {
-      const location = record as unknown as WireLocation
+      const location = record
       locations.push({ uri: location.uri, range: toRange(location.range) })
     } else {
       throw malformedResponse('LSP navigation result contained neither a Location nor a LocationLink')

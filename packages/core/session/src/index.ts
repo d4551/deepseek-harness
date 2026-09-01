@@ -132,7 +132,9 @@ function validateSessionHeader(id: SessionId, input: unknown): SessionHeader {
   if (record.agentPreset !== undefined && typeof record.agentPreset !== 'string') {
     throw new Error('session header agentPreset must be a string')
   }
-  return deepFreeze(record as unknown as SessionHeader)
+  // Every field above is checked, so the narrowing states what the checks
+  // proved rather than standing in for them.
+  return deepFreeze(record as SessionHeader)
 }
 
 /** Validate and freeze one exclusively owned persistence header in place. */

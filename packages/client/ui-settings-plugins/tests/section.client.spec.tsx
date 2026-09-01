@@ -2,6 +2,7 @@
 
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { AgentLoopCard } from '../src/client/AgentLoopCard.tsx'
@@ -12,6 +13,8 @@ import { ConfigurablePluginsTab } from '../src/client/ConfigurablePluginsTab.tsx
 import type { ConfigurablePluginsTabProps } from '../src/client/ConfigurablePluginsTab.tsx'
 import { PluginsSettingsSection } from '../src/client/PluginsSettingsSection.tsx'
 import type { PluginsSettingsSectionProps, PluginsSettingsTabEntry } from '../src/client/PluginsSettingsSection.tsx'
+import { AgentDefaultModelCard } from '../src/client/AgentDefaultModelCard.tsx'
+import type { AgentDefaultModelCardProps } from '../src/client/AgentDefaultModelCard.tsx'
 import { SubagentModelSelectionCard } from '../src/client/SubagentModelSelectionCard.tsx'
 import type { SubagentModelSelectionCardProps } from '../src/client/SubagentModelSelectionCard.tsx'
 import { WebSearchCard } from '../src/client/WebSearchCard.tsx'
@@ -22,6 +25,8 @@ import type { CardFieldState, CardShell } from '../src/client/card-form.ts'
 import type { ConfigurablePluginsTabState } from '../src/client/tab-store.ts'
 import type { WebSearchCardState } from '../src/client/web-search-card-controller.ts'
 import type { SubagentModelSelectionCardState } from '../src/client/subagent-model-selection-card-controller.ts'
+import type { AgentDefaultModelCardState } from '../src/client/agent-default-model-card-controller.ts'
+import type { ModelRouteCandidate } from '../src/client/model-route.ts'
 import { en } from '../src/client/locales.ts'
 
 afterEach(cleanup)
@@ -86,6 +91,48 @@ function renderBash(state: Partial<BashCardState> = {}) {
   return renderBashCard(state).actions
 }
 
+
+function candidate(
+  provider: string,
+  model: string,
+  rest: Partial<ModelRouteCandidate> = {},
+): ModelRouteCandidate {
+  return {
+    key: `${provider}\0${model}`,
+    provider,
+    model,
+    providerName: `${provider} API`,
+    modelName: model,
+    available: true,
+    selected: false,
+    ...rest,
+  }
+}
+
+function renderAgentDefaultModel(state: Partial<AgentDefaultModelCardState> = {}) {
+  const store = createSnapshotStore<AgentDefaultModelCardState>({
+    ...settled,
+    candidates: [],
+    catalogStatus: 'idle',
+    catalogPartial: false,
+    conflicted: false,
+    ...state,
+  })
+  const actions = {
+    selectModel: vi.fn(),
+    retryCatalog: vi.fn(),
+    save: vi.fn(),
+    discard: vi.fn(),
+  }
+  const props = {
+    ...actions,
+    t,
+    useAgentDefaultModelCard: bindSnapshotSelector(store),
+  } as unknown as AgentDefaultModelCardProps
+  render(<main><ul>{<AgentDefaultModelCard {...props} />}</ul></main>)
+  return actions
+}
+
 function renderSubagentModelSelection(state: Partial<SubagentModelSelectionCardState> = {}) {
   const store = createSnapshotStore<SubagentModelSelectionCardState>({
     ...settled,
@@ -108,7 +155,7 @@ function renderSubagentModelSelection(state: Partial<SubagentModelSelectionCardS
     t,
     useSubagentModelSelectionCard: bindSnapshotSelector(store),
   } as unknown as SubagentModelSelectionCardProps
-  render(<SubagentModelSelectionCard {...props} />)
+  render(<main><ul>{<SubagentModelSelectionCard {...props} />}</ul></main>)
   return actions
 }
 
@@ -567,5 +614,126 @@ describe('WebSearchCard', () => {
       ['maxUses', '4'],
     ])
     expect(actions.resetField.mock.calls).toEqual([['baseURL'], ['maxUses']])
+  })
+})
+
+describe('AgentDefaultModelCard', () => {
+  it('offers the routes as one choice, so picking a second replaces the first', () => {
+    const actions = renderAgentDefaultModel({
+      catalogStatus: 'ready',
+      candidates: [
+        candidate('alpha', 'fast', { modelName: 'Fast', selected: true }),
+        candidate('alpha', 'deep', { modelName: 'Deep' }),
+        candidate('beta', 'fast', { modelName: 'Beta Fast' }),
+      ],
+    })
+    fireEvent.click(screen.getByText(en.agentDefaultModelTitle))
+
+    const radios = screen.getAllByRole('radio')
+    expect(radios).toHaveLength(3)
+    expect(new Set(radios.map(radio => radio.getAttribute('name'))).size).toBe(1)
+    expect(screen.getByRole('radio', { name: /Fast/, checked: true })).toBeTruthy()
+    expect(screen.getByText('alpha API', { exact: true })).toBeTruthy()
+    expect(screen.getByText('beta API', { exact: true })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('radio', { name: /Deep/ }))
+    expect(actions.selectModel).toHaveBeenCalledWith('alpha\0deep')
+  })
+
+  it('lets the user reopen a failed directory request instead of stranding the card', () => {
+    const actions = renderAgentDefaultModel({ catalogStatus: 'error' })
+    fireEvent.click(screen.getByText(en.agentDefaultModelTitle))
+
+    expect(screen.getByText(en.agentDefaultModelLoadFailed)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: en.agentDefaultModelRetry }))
+
+    expect(actions.retryCatalog).toHaveBeenCalledOnce()
+  })
+
+  it('reports directory progress, partial results, and an empty catalog', () => {
+    renderAgentDefaultModel({ catalogStatus: 'loading' })
+    fireEvent.click(screen.getByText(en.agentDefaultModelTitle))
+    expect(screen.getByText(en.agentDefaultModelLoading)).toBeTruthy()
+
+    cleanup()
+    renderAgentDefaultModel({
+      catalogStatus: 'ready',
+      catalogPartial: true,
+      candidates: [candidate('legacy', 'old', { available: false, selected: true })],
+    })
+    fireEvent.click(screen.getByText(en.agentDefaultModelTitle))
+    expect(screen.getByText(en.agentDefaultModelPartial)).toBeTruthy()
+    expect(screen.getByText(en.agentDefaultModelUnavailable)).toBeTruthy()
+    expect(screen.getByText(en.agentDefaultModelUnavailableGroup)).toBeTruthy()
+
+    cleanup()
+    renderAgentDefaultModel({ catalogStatus: 'ready' })
+    fireEvent.click(screen.getByText(en.agentDefaultModelTitle))
+    expect(screen.getByText(en.agentDefaultModelEmpty)).toBeTruthy()
+  })
+
+  it('writes the staged route on save and drops it on discard', () => {
+    const actions = renderAgentDefaultModel({
+      dirty: true,
+      catalogStatus: 'ready',
+      candidates: [candidate('alpha', 'fast', { modelName: 'Fast', selected: true })],
+    })
+    fireEvent.click(screen.getByText(en.agentDefaultModelTitle))
+
+    fireEvent.click(screen.getByRole('button', { name: en.save }))
+    expect(actions.save).toHaveBeenCalledOnce()
+
+    fireEvent.click(screen.getByRole('button', { name: en.discard }))
+    expect(actions.discard).toHaveBeenCalledOnce()
+  })
+
+  it('distinguishes a stale draft from a rejected save', () => {
+    renderAgentDefaultModel({ dirty: true, conflicted: true })
+    fireEvent.click(screen.getByText(en.agentDefaultModelTitle))
+
+    expect(screen.getByText(en.agentDefaultModelConflict)).toBeTruthy()
+    expect(screen.queryByText(en.saveFailed)).toBeNull()
+  })
+
+  it('stays hidden when unavailable and offers no writable control while read-only', () => {
+    renderAgentDefaultModel({ available: false })
+    expect(screen.queryByText(en.agentDefaultModelTitle)).toBeNull()
+
+    cleanup()
+    renderAgentDefaultModel({
+      writable: false,
+      catalogStatus: 'ready',
+      candidates: [candidate('alpha', 'fast', { modelName: 'Fast' })],
+    })
+    fireEvent.click(screen.getByText(en.agentDefaultModelTitle))
+
+    expect(screen.getByRole('radio', { name: /Fast/ })).toHaveProperty('disabled', true)
+  })
+})
+
+describe('model-selection card accessibility', () => {
+  const MINIMUM_ACCESSIBILITY_SCORE = 100
+
+  it('renders the route list with no violations under either selection arity', async () => {
+    renderAgentDefaultModel({
+      catalogStatus: 'error',
+      candidates: [
+        candidate('alpha', 'fast', { modelName: 'Fast', selected: true }),
+        candidate('legacy', 'old', { available: false }),
+      ],
+    })
+    fireEvent.click(screen.getByText(en.agentDefaultModelTitle))
+    const single = await auditSurface('AgentDefaultModelCard', document.body)
+
+    cleanup()
+    renderSubagentModelSelection({
+      enabled: true,
+      catalogStatus: 'error',
+      candidates: [candidate('alpha', 'fast', { modelName: 'Fast', selected: true })],
+    })
+    fireEvent.click(screen.getByText(en.subagentModelSelectionTitle))
+    const multiple = await auditSurface('SubagentModelSelectionCard', document.body)
+
+    expect(accessibilityFailures([single, multiple], MINIMUM_ACCESSIBILITY_SCORE)).toBe('')
   })
 })

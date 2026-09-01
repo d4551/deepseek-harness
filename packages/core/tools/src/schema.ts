@@ -106,7 +106,7 @@ export type ParameterSchemaSpec = {
 }
 
 /** Raw JSON Schema projection of the implicit parameter object. */
-export interface ParameterJsonSchema extends ObjectJsonSchema {
+export type ParameterJsonSchema = ObjectJsonSchema & {
   properties: Record<string, JsonSchemaNode>
 }
 
@@ -569,7 +569,7 @@ export function defineTool<const S extends ParameterSchemaSpec, const O extends 
   const tool: ToolDefinition = {
     name: options.name,
     description: options.description,
-    parameters: parameters as unknown as Record<string, unknown>,
+    parameters,
     output: {
       schema: outputSchema,
       render(args: unknown, value: JsonValue): ContentBlock[] {

@@ -39,7 +39,7 @@ const imageLimitsSchema = z.object({
   maxImagePixels: z.number().int().positive(),
   maxImageDimension: z.number().int().positive(),
   mediaTypes: z.array(z.string()),
-}) as unknown as z.ZodType<ImageAttachmentLimits>
+}).readonly() as z.ZodType<ImageAttachmentLimits>
 
 /**
  * Advance the Session-list metadata projection by one committed event.

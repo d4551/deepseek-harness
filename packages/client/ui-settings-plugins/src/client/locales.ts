@@ -17,6 +17,10 @@ export type PluginsSettingsLocaleKey =
   | 'subagentModelSelectionPartial' | 'subagentModelSelectionUnavailable'
   | 'subagentModelSelectionUnavailableGroup' | 'subagentModelSelectionEmpty'
   | 'subagentModelSelectionRequired' | 'subagentModelSelectionConflict' | 'subagentModelSelectionOff'
+  | 'agentDefaultModelTitle' | 'agentDefaultModelDescription'
+  | 'agentDefaultModelChoose' | 'agentDefaultModelLoading' | 'agentDefaultModelLoadFailed'
+  | 'agentDefaultModelPartial' | 'agentDefaultModelRetry' | 'agentDefaultModelUnavailable'
+  | 'agentDefaultModelUnavailableGroup' | 'agentDefaultModelEmpty' | 'agentDefaultModelConflict'
 
 /** English copy. */
 export const en: Record<PluginsSettingsLocaleKey, string> = {
@@ -72,6 +76,17 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
   subagentModelSelectionRequired: 'Select at least one model before saving.',
   subagentModelSelectionConflict: 'Settings changed elsewhere. Discard your draft and try again.',
   subagentModelSelectionOff: 'Subagents use configured defaults or inherit the parent agent\'s model. Saved model choices are retained.',
+  agentDefaultModelTitle: 'Default model',
+  agentDefaultModelDescription: 'The model used when a new session never chooses one.',
+  agentDefaultModelChoose: 'Default model route. Applies to sessions created after saving.',
+  agentDefaultModelLoading: 'Loading models…',
+  agentDefaultModelLoadFailed: 'Models could not be loaded.',
+  agentDefaultModelPartial: 'Some model providers could not be loaded; the saved choice remains selectable.',
+  agentDefaultModelRetry: 'Retry',
+  agentDefaultModelUnavailable: 'Currently unavailable',
+  agentDefaultModelUnavailableGroup: 'Saved but currently unavailable',
+  agentDefaultModelEmpty: 'No model provider currently advertises a model.',
+  agentDefaultModelConflict: 'Settings changed elsewhere. Discard your draft and try again.',
 }
 
 /** Simplified Chinese copy. */
@@ -128,4 +143,15 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
   subagentModelSelectionRequired: '保存前请至少选择一个模型。',
   subagentModelSelectionConflict: '设置已在其他位置更新。请放弃修改后重试。',
   subagentModelSelectionOff: '关闭后，Subagent 使用配置的默认模型或继承父 Agent 的模型；已选模型会保留。',
+  agentDefaultModelTitle: '默认模型',
+  agentDefaultModelDescription: '新会话未显式选择模型时使用的模型。',
+  agentDefaultModelChoose: '默认模型路由。保存后仅影响之后创建的会话。',
+  agentDefaultModelLoading: '正在加载模型…',
+  agentDefaultModelLoadFailed: '无法加载模型。',
+  agentDefaultModelPartial: '部分模型提供方暂时无法加载；已保存的选择仍可选择。',
+  agentDefaultModelRetry: '重试',
+  agentDefaultModelUnavailable: '当前不可用',
+  agentDefaultModelUnavailableGroup: '已保存但当前不可用',
+  agentDefaultModelEmpty: '当前没有模型提供方公布模型。',
+  agentDefaultModelConflict: '设置已在其他位置更新。请放弃修改后重试。',
 }

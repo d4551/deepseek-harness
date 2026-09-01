@@ -4,7 +4,9 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import type { SettingsPathOpView } from '@deepseek-ai/dsh-api-remotes/client'
+import type {
+  SettingsPathOpView, SubagentModelSelectionSettings,
+} from '@deepseek-ai/dsh-api-remotes/client'
 import { stubSettingsScope, type StubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
 import { CardForm, numberField, textField } from '../src/client/card-form.ts'
 import { AgentLoopCardController, type AgentLoopSettings } from '../src/client/agent-loop-card-controller.ts'
@@ -15,10 +17,9 @@ import {
 import { ConfigurablePluginsTabController } from '../src/client/tab-store.ts'
 import {
   SubagentModelSelectionCardController,
-  subagentModelCandidates,
-  type SubagentModelSelectionSettings,
 } from '../src/client/subagent-model-selection-card-controller.ts'
 import { WebSearchCardController, type WebSearchSettings } from '../src/client/web-search-card-controller.ts'
+import { modelCatalogStub } from './model-catalog-stub.client.ts'
 
 /** Make the stub behave like a Host that accepts every write. */
 function acceptWrites<T>(host: StubSettingsScope<T>): void {
@@ -53,23 +54,6 @@ function credentialsApi(configured: boolean) {
   }))
   const set = vi.fn(() => Promise.resolve({ ok: true as const, value: undefined }))
   return { api: { describe, set } as never, describe, set }
-}
-
-function modelsApi(options: {
-  groups?: readonly {
-    id: string
-    name: string
-    models: readonly { id: string; name: string }[]
-  }[]
-  failures?: readonly { id: string; name: string; message: string }[]
-  error?: string
-} = {}) {
-  const models = vi.fn(() => Promise.resolve({
-    ...(options.error === undefined
-      ? { ok: true as const, value: { groups: options.groups ?? [], failures: options.failures ?? [] } }
-      : { ok: false as const, error: { code: 'internal' as const, message: options.error, details: {} } }),
-  }))
-  return { api: { modelCatalog: models } as never, models }
 }
 
 function deferred<T>() {
@@ -429,29 +413,10 @@ describe('AgentLoopCardController', () => {
 })
 
 describe('SubagentModelSelectionCardController', () => {
-  it('joins stored routes with the live catalog without dropping unavailable choices', () => {
-    const candidates = subagentModelCandidates(
-      [{ id: 'alpha', name: 'Alpha API', models: [{ id: 'fast', name: 'Fast' }] }],
-      [{ provider: 'legacy', model: 'old' }],
-      new Set(['legacy\0old']),
-    )
-
-    expect(candidates).toEqual([
-      {
-        key: 'alpha\0fast', provider: 'alpha', model: 'fast', providerName: 'Alpha API',
-        modelName: 'Fast', available: true, selected: false,
-      },
-      {
-        key: 'legacy\0old', provider: 'legacy', model: 'old', providerName: 'legacy',
-        modelName: 'old', available: false, selected: true,
-      },
-    ])
-  })
-
   it('loads adapter models and saves the switch and routes atomically', async () => {
     const host = stubSettingsScope<SubagentModelSelectionSettings>()
     acceptWrites(host)
-    const models = modelsApi({
+    const models = modelCatalogStub({
       groups: [{ id: 'alpha', name: 'Alpha API', models: [{ id: 'fast', name: 'Fast' }] }],
     })
     const controller = new SubagentModelSelectionCardController(host.scope, models.api)
@@ -485,7 +450,7 @@ describe('SubagentModelSelectionCardController', () => {
 
   it('starts an empty draft when a ready test scope has no decoded value', () => {
     const host = stubSettingsScope<SubagentModelSelectionSettings>()
-    const controller = new SubagentModelSelectionCardController(host.scope, modelsApi().api)
+    const controller = new SubagentModelSelectionCardController(host.scope, modelCatalogStub().api)
     host.publish({ status: 'ready', writable: true, revision: 0, value: undefined })
     const face = controller.inject()
 
@@ -498,7 +463,7 @@ describe('SubagentModelSelectionCardController', () => {
 
   it('keeps the Host value and reports a rejected write', async () => {
     const host = stubSettingsScope<SubagentModelSelectionSettings>()
-    const models = modelsApi({
+    const models = modelCatalogStub({
       groups: [{ id: 'alpha', name: 'Alpha API', models: [{ id: 'fast', name: 'Fast' }] }],
     })
     const controller = new SubagentModelSelectionCardController(host.scope, models.api)
@@ -524,7 +489,7 @@ describe('SubagentModelSelectionCardController', () => {
 
   it('loads stored routes, stages removal and disablement, and discards both', async () => {
     const host = stubSettingsScope<SubagentModelSelectionSettings>()
-    const models = modelsApi({
+    const models = modelCatalogStub({
       groups: [{ id: 'alpha', name: 'Alpha API', models: [{ id: 'fast', name: 'Fast' }] }],
       failures: [{ id: 'beta', name: 'Beta', message: 'offline' }],
     })
@@ -558,7 +523,7 @@ describe('SubagentModelSelectionCardController', () => {
       status: 'ready', writable: true, revision: 5,
       value: { enabled: true, allowedModels: [{ provider: 'alpha', model: 'fast' }] }, user: {},
     })
-    const models = modelsApi({
+    const models = modelCatalogStub({
       groups: [{ id: 'alpha', name: 'Alpha API', models: [{ id: 'fast', name: 'Fast' }] }],
     })
     const controller = new SubagentModelSelectionCardController(host.scope, models.api)
@@ -580,7 +545,7 @@ describe('SubagentModelSelectionCardController', () => {
 
   it('reports a directory error and retries it', async () => {
     const host = stubSettingsScope<SubagentModelSelectionSettings>()
-    const models = modelsApi({ error: 'offline' })
+    const models = modelCatalogStub({ error: 'offline' })
     const controller = new SubagentModelSelectionCardController(host.scope, models.api)
     host.publish({ status: 'ready', writable: true, value: { enabled: false, allowedModels: [] }, user: {} })
     const face = controller.inject()
@@ -594,7 +559,7 @@ describe('SubagentModelSelectionCardController', () => {
 
   it('rejects a draft after the Host revision changes', async () => {
     const host = stubSettingsScope<SubagentModelSelectionSettings>()
-    const models = modelsApi({
+    const models = modelCatalogStub({
       groups: [{ id: 'alpha', name: 'Alpha API', models: [{ id: 'fast', name: 'Fast' }] }],
     })
     const controller = new SubagentModelSelectionCardController(host.scope, models.api)
@@ -628,7 +593,7 @@ describe('SubagentModelSelectionCardController', () => {
 
   it('settles a draft when a newer Host revision already contains it', async () => {
     const host = stubSettingsScope<SubagentModelSelectionSettings>()
-    const models = modelsApi({
+    const models = modelCatalogStub({
       groups: [{ id: 'alpha', name: 'Alpha', models: [{ id: 'fast', name: 'Fast' }] }],
     })
     const controller = new SubagentModelSelectionCardController(host.scope, models.api)
@@ -700,7 +665,7 @@ describe('SubagentModelSelectionCardController', () => {
 
   it('drops a draft when the connection generation changes', async () => {
     const host = stubSettingsScope<SubagentModelSelectionSettings>()
-    const models = modelsApi({
+    const models = modelCatalogStub({
       groups: [{ id: 'alpha', name: 'Alpha', models: [{ id: 'fast', name: 'Fast' }] }],
     })
     host.publish({
@@ -760,7 +725,7 @@ describe('SubagentModelSelectionCardController', () => {
 
   it('suppresses duplicate actions and late save settlements', async () => {
     const host = stubSettingsScope<SubagentModelSelectionSettings>()
-    const catalog = modelsApi({
+    const catalog = modelCatalogStub({
       groups: [{ id: 'alpha', name: 'Alpha API', models: [{ id: 'fast', name: 'Fast' }] }],
     })
     const write = deferred<undefined>()
@@ -796,6 +761,25 @@ describe('SubagentModelSelectionCardController', () => {
     expect(mutate).toHaveBeenCalledOnce()
   })
 
+  it('reports a directory carrier fault as a failed read rather than an unhandled rejection', async () => {
+    const host = stubSettingsScope<SubagentModelSelectionSettings>()
+    host.publish({ status: 'ready', writable: true, value: { enabled: true, allowedModels: [] }, user: {} })
+    const pending = deferred<never>()
+    const controller = new SubagentModelSelectionCardController(
+      host.scope,
+      { modelCatalog: () => pending.promise },
+    )
+    const face = controller.inject()
+    await vi.waitFor(() => {
+      expect(face.hooks.subagentModelSelectionCard.getSnapshot().catalogStatus).toBe('loading')
+    })
+
+    pending.reject(new Error('no gateway adapter mounted'))
+    await expect(controller.background).resolves.toBeUndefined()
+
+    expect(face.hooks.subagentModelSelectionCard.getSnapshot().catalogStatus).toBe('error')
+  })
+
   it('suppresses duplicate directory loads and late resolve or reject settlements', async () => {
     const host = stubSettingsScope<SubagentModelSelectionSettings>()
     host.publish({ status: 'ready', writable: true, value: { enabled: false, allowedModels: [] }, user: {} })
@@ -808,8 +792,9 @@ describe('SubagentModelSelectionCardController', () => {
     face.retryCatalog()
     expect(models).toHaveBeenCalledOnce()
     controller.dispose()
+    const settled = controller.background
     pending.reject(new Error('late failure'))
-    await pending.promise.catch(() => undefined)
+    await expect(settled).resolves.toBeUndefined()
 
     const pendingResolve = deferred<never>()
     const resolving = new SubagentModelSelectionCardController(
@@ -827,7 +812,7 @@ describe('SubagentModelSelectionCardController', () => {
 
   it('ignores writes while read-only and scope notifications after disposal', () => {
     const host = stubSettingsScope<SubagentModelSelectionSettings>()
-    const controller = new SubagentModelSelectionCardController(host.scope, modelsApi().api)
+    const controller = new SubagentModelSelectionCardController(host.scope, modelCatalogStub().api)
     host.publish({ status: 'ready', writable: false, value: { enabled: false, allowedModels: [] }, user: {} })
     const face = controller.inject()
 

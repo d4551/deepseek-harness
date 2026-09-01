@@ -20,8 +20,21 @@ const DEFAULT_CAPABILITIES: SubagentCapabilities = {
   persona: true,
 }
 
+declare module '@deepseek-ai/dsh-llm' {
+  interface ContentBlockMap {
+    /**
+     * A block whose payload is not lossless JSON, standing in for one a plugin
+     * contributes through the same merge-extensible map. No static type can
+     * reject it, so only a runtime walk can.
+     */
+    'scripted-unserializable': { type: 'scripted-unserializable'; render: () => string }
+  }
+}
+
 /** Options for one scripted provider fixture. */
 export interface Config {
+  /** Emit a block whose payload cannot survive a JSON round trip. */
+  unserializableOutput?: boolean
   /** Registry name to register under. */
   name: string
   /** Final text returned by the scripted child. */
@@ -58,7 +71,9 @@ class ScriptedSubagentProvider implements SubagentProvider {
   async start(request: SubagentStartRequest): Promise<SubagentRun> {
     if (request.signal.aborted) throw new Error('scripted subagent start aborted before publication')
     const reply = this.config.reply ?? 'scripted subagent reply'
-    const output: ContentBlock[] = [{ type: 'text', text: reply }]
+    const output: ContentBlock[] = this.config.unserializableOutput === true
+      ? [{ type: 'scripted-unserializable', render: () => reply }]
+      : [{ type: 'text', text: reply }]
     const wantsStructured = request.outputSchema !== undefined && this.capabilities.outputSchema
     const stopReason = this.config.stopReason ?? 'completed'
     const state = { cancelled: false }

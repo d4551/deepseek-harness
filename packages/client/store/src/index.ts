@@ -165,9 +165,19 @@ function attachPersistence<T>(api: StoreApi<T>, name: string): void {
   })
 }
 
-/** Deep-freeze draftable wholesale-set state outside production: set() bypasses immer's freeze. */
+/**
+ * Deep-freeze draftable wholesale-set state outside official artifacts:
+ * `set()` bypasses immer's freeze, so a caller mutating the value afterwards
+ * would corrupt the store silently.
+ *
+ * The gate reads the build profile rather than `NODE_ENV`, which the client
+ * bundler cannot supply: it replaces `process.env` with `{}`, so every name
+ * outside the `DSH_CLIENT_` define set reads as `undefined` in the browser and
+ * a `NODE_ENV` comparison can never hold there. Tests, the dev server, and
+ * unbundled consumers keep the guard.
+ */
 function devFreeze<T>(value: T): T {
-  if (process.env.NODE_ENV === 'production') return value
+  if (process.env.DSH_CLIENT_BUILD_PROFILE === 'official') return value
   return freeze(value, true)
 }
 

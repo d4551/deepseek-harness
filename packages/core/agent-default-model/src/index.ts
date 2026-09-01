@@ -9,6 +9,7 @@ import z from '@deepseek-ai/schemastery'
 import type { ModelSelection } from '@deepseek-ai/dsh-agent'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+import type { AgentDefaultModelSettings } from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -20,15 +21,7 @@ declare module '@deepseek-ai/cordis' {
 /** Settings namespace carrying the default model selection for future Agents. */
 export const AGENT_DEFAULT_MODEL_SETTINGS_NAMESPACE = settingsNamespace('agent-default-model')
 
-/** Stored and composed default model selection. */
-export interface AgentDefaultModelSettings {
-  /** Registered provider route. */
-  provider: string
-  /** Provider-owned model id. */
-  model: string
-  /** Adapter-owned reasoning effort, or provider/default behavior when absent. */
-  reasoningEffort?: string
-}
+export type { AgentDefaultModelSettings } from './types.ts'
 
 /** Schema of the default Agent model settings section. */
 export const AGENT_DEFAULT_MODEL_SETTINGS_SCHEMA: z<AgentDefaultModelSettings> = z.object({

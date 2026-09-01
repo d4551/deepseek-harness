@@ -443,6 +443,14 @@
   color: var(--dsw-alias-label-secondary);
 }
 
+/* A row of the tree takes the same inset seat ring its siblings do: the list
+   clips on both axes, so a full-width row's outward ring would be cut off. */
+.sessionOverflowButton:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: -2px;
+  border-radius: 8px;
+}
+
 .empty {
   padding: 16px 12px;
   color: var(--dsw-alias-label-tertiary);

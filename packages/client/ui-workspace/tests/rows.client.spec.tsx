@@ -16,9 +16,22 @@ afterEach(cleanup)
 
 const t = makeTranslate(zh, commonZh) as never
 
+const HOST_PLATFORM = navigator.platform
+
+/**
+ * Answer `navigator.platform` with one host's reading, which decides whether
+ * Ctrl+click edits the range or asks for the secondary menu.
+ * @param platform - the reading the browser reports.
+ */
+function onPlatform(platform: string): void {
+  Object.defineProperty(navigator, 'platform', { value: platform, configurable: true })
+}
+
+afterEach(() => { onPlatform(HOST_PLATFORM) })
+
 /** Default tab-order seat: the row under test holds its list's tab stop. */
 function seatOf(rowKey = 'session:row', level = 1): RowSeat {
-  return { rowKey, seated: true, level, move: vi.fn() }
+  return { rowKey, seated: true, level, move: vi.fn(), typeAhead: vi.fn() }
 }
 
 const sid = (id: string) => id as SessionId
@@ -90,9 +103,13 @@ describe('workspace browser rows', () => {
       completed: false,
       snippet: 'matching message excerpt',
     }
-    render(<SearchResultItem result={result} currentId={result.id} onOpen={onOpen} t={t} />)
+    render(<SearchResultItem seat={seatOf('session:result')} result={result} currentId={result.id}
+      onOpen={onOpen} t={t} />)
     const row = screen.getByRole('treeitem')
-    expect(row.getAttribute('aria-selected')).toBe('true')
+    // The open Session is the list's current row; no range reaches a result,
+    // so the row promises no selection state.
+    expect(row.getAttribute('aria-current')).toBe('true')
+    expect(row.hasAttribute('aria-selected')).toBe(false)
     expect(screen.getByText('Workspace context')).toBeTruthy()
     expect(screen.getByText('matching message excerpt')).toBeTruthy()
     expect(row.querySelector('[data-state="ongoing"]')).toBeTruthy()
@@ -111,11 +128,46 @@ describe('workspace browser rows', () => {
       id: sid(pendingInteraction), title: 'Needs input', workspace: 'Project',
       pendingInteraction, running: true, runningSubagentCount: 0, completed: false,
     }
-    render(<SearchResultItem result={result} currentId={undefined} onOpen={vi.fn()} t={t} />)
+    render(<SearchResultItem seat={seatOf('session:result')} result={result} currentId={undefined}
+      onOpen={vi.fn()} t={t} />)
     const row = screen.getByRole('treeitem')
     expect(row.querySelector('[data-state="warning"]')).toBeTruthy()
     expect(row.querySelector('[data-state="ongoing"]')).toBeNull()
     expect(screen.getByText(label)).toBeTruthy()
+  })
+
+  it('keeps one tab stop among the search results and walks them with the arrows', () => {
+    const move = vi.fn()
+    const typeAhead = vi.fn()
+    const onOpen = vi.fn()
+    const result: SearchResultNode = {
+      id: sid('result'), title: 'Hit', workspace: 'Workspace', running: false,
+      runningSubagentCount: 0, completed: false,
+    }
+    const seated = { rowKey: 'session:result', seated: true, level: 1, move, typeAhead }
+    const view = render(<SearchResultItem seat={seated} result={result} currentId={undefined}
+      onOpen={onOpen} t={t} />)
+    const row = screen.getByRole('treeitem')
+    expect(row.tabIndex).toBe(0)
+    expect(row.getAttribute('aria-level')).toBe('1')
+    expect(row.dataset['rowKey']).toBe('session:result')
+
+    fireEvent.keyDown(row, { key: 'ArrowDown' })
+    expect(move).toHaveBeenCalledWith('next', false)
+    fireEvent.keyDown(row, { key: 'End' })
+    expect(move).toHaveBeenCalledWith('last', false)
+    fireEvent.keyDown(row, { key: 'Enter' })
+    expect(onOpen).toHaveBeenCalledWith(result.id)
+
+    // No range reaches a result, so Space moves nothing and is left to the
+    // button underneath, whose activation opens the result.
+    fireEvent.keyDown(row, { key: ' ' })
+    expect(move).toHaveBeenCalledTimes(2)
+    expect(typeAhead).not.toHaveBeenCalled()
+
+    view.rerender(<SearchResultItem seat={{ ...seated, seated: false }} result={result}
+      currentId={undefined} onOpen={onOpen} t={t} />)
+    expect(screen.getByRole('treeitem').tabIndex).toBe(-1)
   })
 
   it('renders an active Workspace and keeps its create action separate from toggling', () => {
@@ -147,7 +199,10 @@ describe('workspace browser rows', () => {
     )
 
     const row = screen.getByRole('treeitem')
-    expect(row.getAttribute('aria-selected')).toBe('true')
+    // The open Session is the list's current row; `aria-selected` belongs to the
+    // range, and this row is in no range.
+    expect(row.getAttribute('aria-current')).toBe('true')
+    expect(row.hasAttribute('aria-selected')).toBe(false)
     expect(row.hasAttribute('aria-expanded')).toBe(false)
     expect(screen.queryByRole('button', { name: /展开|收起/ })).toBeNull()
     fireEvent.click(row)
@@ -251,7 +306,7 @@ describe('workspace browser rows', () => {
         id: sid('result'), title: 'Done', workspace: 'Workspace', running: false,
         runningSubagentCount: 0, completed: true,
       }}
-      currentId={undefined} onOpen={vi.fn()} t={t}
+      seat={seatOf('session:result')} currentId={undefined} onOpen={vi.fn()} t={t}
     />)
     expect(screen.getByRole('treeitem').querySelector('[data-state="done"]')).not.toBeNull()
   })
@@ -593,8 +648,7 @@ describe('workspace rows accessibility', () => {
     }
     const ranged = {
       active: true, count: 2, archivableCount: 2,
-      rowKey: 'session:row', seated: true, move: vi.fn(),
-      extend: vi.fn(), toggle: vi.fn(), anchor: vi.fn(), archiveSelected: vi.fn(),
+      extend: vi.fn(), toggle: vi.fn(), selectAll: vi.fn(), anchor: vi.fn(), archiveSelected: vi.fn(),
     }
     const surfaces = [
       ['SessionNodeItem idle', false, false],
@@ -684,13 +738,74 @@ describe('workspace rows accessibility', () => {
     expect(screen.queryByRole('menu')).toBeNull()
   })
 
+  it('leaves an Apple Ctrl+click to the secondary menu instead of editing the range', () => {
+    // The press reports the primary button there, so only the platform tells
+    // the row that a cursor asked; WebKit then dispatches a `click` for the
+    // same press, which the list has already answered.
+    onPlatform('MacIntel')
+    const onOpen = vi.fn()
+    const selection = {
+      active: false, count: 0, archivableCount: 0,
+      extend: vi.fn(), toggle: vi.fn(), selectAll: vi.fn(), anchor: vi.fn(), archiveSelected: vi.fn(),
+    }
+    const node: SessionNode = {
+      id: sid('one'), title: 'One', blank: false, running: false,
+      runningSubagentCount: 0, completed: false, updatedAt: 0,
+    }
+    render(<SessionNodeItem seat={seatOf()} node={node} currentId={undefined} now={0} onOpen={onOpen}
+      onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} selection={selection} t={t} />)
+    const row = screen.getByRole('treeitem')
+    row.focus()
+    fireEvent.contextMenu(row, { button: 0, ctrlKey: true, clientX: 40, clientY: 60 })
+    expect(screen.getByRole('menu').style.left).toBe('40px')
+    expect(document.activeElement).toBe(row)
+
+    fireEvent.click(row, { ctrlKey: true })
+    expect(selection.toggle).not.toHaveBeenCalled()
+    expect(onOpen).not.toHaveBeenCalled()
+
+    // Cmd is the additive modifier the Apple platforms leave free, once the
+    // list that press asked for is gone.
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('menu')).toBeNull()
+    fireEvent.click(row, { metaKey: true })
+    expect(selection.toggle).toHaveBeenCalledOnce()
+  })
+
+  it('swallows the click that dismisses a row menu instead of acting on the row', () => {
+    // Whatever opened the list, the press that closes it is not a press on the
+    // row underneath — and on Apple hosts it is the same press that opened it.
+    const onOpen = vi.fn()
+    const selection = {
+      active: false, count: 0, archivableCount: 0,
+      extend: vi.fn(), toggle: vi.fn(), selectAll: vi.fn(), anchor: vi.fn(), archiveSelected: vi.fn(),
+    }
+    const node: SessionNode = {
+      id: sid('one'), title: 'One', blank: false, running: false,
+      runningSubagentCount: 0, completed: false, updatedAt: 0,
+    }
+    render(<SessionNodeItem seat={seatOf()} node={node} currentId={undefined} now={0} onOpen={onOpen}
+      onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} selection={selection} t={t} />)
+    const row = screen.getByRole('treeitem')
+    fireEvent.contextMenu(row, { button: 2, clientX: 4, clientY: 4 })
+    expect(screen.getByRole('menu')).toBeTruthy()
+
+    fireEvent.click(row)
+    expect(onOpen).not.toHaveBeenCalled()
+    fireEvent.click(row, { shiftKey: true })
+    expect(selection.extend).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    fireEvent.click(row)
+    expect(onOpen).toHaveBeenCalledWith(sid('one'))
+  })
+
   it('routes modified clicks to the selection and widens the menu to one bulk archive', () => {
     const onOpen = vi.fn()
     const onOne = vi.fn()
     const selection = {
       active: false, count: 0, archivableCount: 0,
-      rowKey: 'session:row', seated: true, move: vi.fn(),
-      extend: vi.fn(), toggle: vi.fn(), anchor: vi.fn(), archiveSelected: vi.fn(),
+      extend: vi.fn(), toggle: vi.fn(), selectAll: vi.fn(), anchor: vi.fn(), archiveSelected: vi.fn(),
     }
     const node: SessionNode = {
       id: sid('one'), title: 'One', blank: false, running: false,
@@ -700,10 +815,9 @@ describe('workspace rows accessibility', () => {
       onRename={vi.fn()} onFork={vi.fn()} onArchive={onOne} selection={selection} t={t} />)
     const row = screen.getByText('One')
     fireEvent.click(row, { shiftKey: true })
-    fireEvent.click(row, { metaKey: true })
     fireEvent.click(row, { ctrlKey: true })
     expect(selection.extend).toHaveBeenCalledOnce()
-    expect(selection.toggle).toHaveBeenCalledTimes(2)
+    expect(selection.toggle).toHaveBeenCalledOnce()
     expect(onOpen).not.toHaveBeenCalled()
 
     // A plain click anchors the range and still opens the session.
@@ -735,8 +849,7 @@ describe('workspace rows accessibility', () => {
     const onRename = vi.fn()
     const selection = {
       active: false, count: 0, archivableCount: 0,
-      rowKey: 'session:row', seated: true, move: vi.fn(),
-      extend: vi.fn(), toggle: vi.fn(), anchor: vi.fn(), archiveSelected: vi.fn(),
+      extend: vi.fn(), toggle: vi.fn(), selectAll: vi.fn(), anchor: vi.fn(), archiveSelected: vi.fn(),
     }
     const group: GroupNode = {
       key: 'project', workspaceId: wid('project'), cwd: '/projects/project', createdAt: 0, label: 'Project',
@@ -749,7 +862,7 @@ describe('workspace rows accessibility', () => {
     />)
     const row = screen.getByText('Project')
     fireEvent.click(row, { shiftKey: true })
-    fireEvent.click(row, { metaKey: true })
+    fireEvent.click(row, { ctrlKey: true })
     expect(selection.extend).toHaveBeenCalledOnce()
     expect(selection.toggle).toHaveBeenCalledOnce()
     // A modified click edits the range instead of folding the group.
@@ -776,8 +889,7 @@ describe('workspace rows accessibility', () => {
   it('leaves the bulk row inert when a project range reaches no session', () => {
     const empty = {
       active: true, count: 2, archivableCount: 0,
-      rowKey: 'session:row', seated: true, move: vi.fn(),
-      extend: vi.fn(), toggle: vi.fn(), anchor: vi.fn(), archiveSelected: vi.fn(),
+      extend: vi.fn(), toggle: vi.fn(), selectAll: vi.fn(), anchor: vi.fn(), archiveSelected: vi.fn(),
     }
     const group: GroupNode = {
       key: 'project', workspaceId: wid('project'), cwd: '/projects/project', createdAt: 0, label: 'Empty',
@@ -789,7 +901,7 @@ describe('workspace rows accessibility', () => {
     />)
     fireEvent.contextMenu(screen.getByText('Empty'), { button: 2, clientX: 4, clientY: 4 })
     const item = screen.getByRole('menuitem', { name: '归档选中的 0 个会话' })
-    expect(item.hasAttribute('disabled')).toBe(true)
+    expect(item.getAttribute('aria-disabled')).toBe('true')
     fireEvent.click(item)
     expect(empty.archiveSelected).not.toHaveBeenCalled()
 
@@ -814,14 +926,14 @@ describe('workspace rows keyboard', () => {
   function account(overrides: Partial<RowMultiSelection> = {}): RowMultiSelection {
     return {
       active: false, count: 0, archivableCount: 0,
-      extend: vi.fn(), toggle: vi.fn(), anchor: vi.fn(), archiveSelected: vi.fn(),
+      extend: vi.fn(), toggle: vi.fn(), selectAll: vi.fn(), anchor: vi.fn(), archiveSelected: vi.fn(),
       ...overrides,
     }
   }
 
   /** A seat whose move is recorded. */
   function spiedSeat(overrides: Partial<RowSeat> = {}): RowSeat {
-    return { rowKey: 'session:one', seated: true, level: 2, move: vi.fn(), ...overrides }
+    return { rowKey: 'session:one', seated: true, level: 2, move: vi.fn(), typeAhead: vi.fn(), ...overrides }
   }
 
   const session: SessionNode = {
@@ -864,7 +976,9 @@ describe('workspace rows keyboard', () => {
       onOpen={onOpen} onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} t={t} />)
     const blank = screen.getByRole('treeitem')
     expect(blank.tabIndex).toBe(0)
-    expect(blank.getAttribute('aria-selected')).toBe('false')
+    // No range reaches it, so it promises no selection at all — the same rule
+    // the Ungrouped bucket follows.
+    expect(blank.hasAttribute('aria-selected')).toBe(false)
     fireEvent.keyDown(blank, { key: 'ArrowDown' })
     expect(seat.move).toHaveBeenCalledWith('next', false)
     fireEvent.keyDown(blank, { key: 'Enter' })
@@ -934,13 +1048,54 @@ describe('workspace rows keyboard', () => {
     expect(onOpen).toHaveBeenCalledWith(sid('one'))
   })
 
+  it('takes the whole range on the additive modifier with A', () => {
+    const seat = spiedSeat()
+    const selection = account()
+    const row = sessionRow(seat, selection)
+    const event = createEvent.keyDown(row, { key: 'a', ctrlKey: true })
+    fireEvent(row, event)
+    expect(selection.selectAll).toHaveBeenCalledOnce()
+    // The browser's own select-all would otherwise take the whole page with it.
+    expect(event.defaultPrevented).toBe(true)
+    expect(seat.typeAhead).not.toHaveBeenCalled()
+
+    // Shift+A is a different keystroke and still reaches the range.
+    fireEvent.keyDown(row, { key: 'A', ctrlKey: true })
+    expect(selection.selectAll).toHaveBeenCalledTimes(2)
+  })
+
+  it('leaves the additive A alone on a row no range reaches', () => {
+    const seat = spiedSeat()
+    const row = sessionRow(seat, undefined)
+    const event = createEvent.keyDown(row, { key: 'a', ctrlKey: true })
+    fireEvent(row, event)
+    expect(event.defaultPrevented).toBe(false)
+    expect(seat.typeAhead).not.toHaveBeenCalled()
+  })
+
+  it('searches the list by label on a printable character', () => {
+    const seat = spiedSeat()
+    const selection = account()
+    const row = sessionRow(seat, selection)
+    expect(row.dataset['rowLabel']).toBe('One')
+    const event = createEvent.keyDown(row, { key: 'a' })
+    fireEvent(row, event)
+    expect(seat.typeAhead).toHaveBeenCalledWith('a')
+    expect(event.defaultPrevented).toBe(true)
+    expect(seat.move).not.toHaveBeenCalled()
+    expect(selection.toggle).not.toHaveBeenCalled()
+  })
+
   it('leaves every other key to the browser', () => {
     const seat = spiedSeat()
     const selection = account()
     const row = sessionRow(seat, selection)
-    const event = createEvent.keyDown(row, { key: 'a' })
-    fireEvent(row, event)
-    expect(event.defaultPrevented).toBe(false)
+    for (const key of [{ key: 'F5' }, { key: 'a', metaKey: true }, { key: 'a', altKey: true }]) {
+      const event = createEvent.keyDown(row, key)
+      fireEvent(row, event)
+      expect(event.defaultPrevented).toBe(false)
+    }
+    expect(seat.typeAhead).not.toHaveBeenCalled()
     expect(seat.move).not.toHaveBeenCalled()
     expect(selection.toggle).not.toHaveBeenCalled()
   })
@@ -1043,12 +1198,15 @@ describe('workspace rows keyboard', () => {
     expect(document.activeElement).toBe(row)
   })
 
-  it('has no row to hand the focus to when the whole list is inert', () => {
+  it('hands the focus to an inert row rather than stranding the keyboard outside the list', () => {
+    // The menu pattern keeps an unavailable row focusable, so the operator who
+    // opened the list can read what it says instead of finding nothing there.
     const row = sessionRow(spiedSeat(), account({ active: true, count: 2, archivableCount: 0 }))
     row.focus()
     fireEvent.contextMenu(row)
-    expect(screen.getByRole('menuitem').hasAttribute('disabled')).toBe(true)
-    expect(document.activeElement).toBe(row)
+    const item = screen.getByRole('menuitem')
+    expect(item.getAttribute('aria-disabled')).toBe('true')
+    expect(document.activeElement).toBe(item)
   })
 
   it('opens against the row but keeps the focus when the row did not hold it', () => {
@@ -1067,5 +1225,83 @@ describe('workspace rows keyboard', () => {
     fireEvent.contextMenu(row, { button: 2, clientX: 40, clientY: 60 })
     expect(screen.getByRole('menu').style.left).toBe('40px')
     expect(document.activeElement).toBe(row)
+  })
+
+  it('yields the keyboard to its own open menu instead of walking the tree behind it', () => {
+    const seat = spiedSeat()
+    const selection = account()
+    const row = sessionRow(seat, selection)
+    row.focus()
+    fireEvent.contextMenu(row)
+    expect(screen.getByRole('menu')).toBeTruthy()
+    expect(screen.getByRole('button', { name: '会话“One”的操作' }).getAttribute('aria-expanded')).toBe('true')
+
+    // The list is a portal anchored where it opened; moving the seat under it
+    // would leave the two pointing at different rows.
+    // Opening the list narrows the range to this row, the platform rule; that
+    // is the only selection call the gesture makes.
+    expect(selection.anchor).toHaveBeenCalledOnce()
+
+    fireEvent.keyDown(row, { key: 'ArrowDown' })
+    fireEvent.keyDown(row, { key: 'Enter' })
+    expect(seat.move).not.toHaveBeenCalled()
+    expect(selection.anchor).toHaveBeenCalledOnce()
+  })
+
+  it('hands the list its first row when the menu keys arrive from the trailing button', () => {
+    const row = sessionRow(spiedSeat(), account())
+    const trailing = screen.getByRole('button', { name: '会话“One”的操作' })
+    // The button is itself a tab stop, so Shift+F10 routinely arrives while the
+    // focus sits on it rather than on the row.
+    trailing.focus()
+    fireEvent.contextMenu(row)
+    expect(document.activeElement).toBe(screen.getAllByRole('menuitem')[0])
+  })
+
+  it('names the open list and keeps its rows out of the tab sequence', () => {
+    sessionRow(spiedSeat(), account())
+    const trailing = screen.getByRole('button', { name: '会话“One”的操作' })
+    trailing.focus()
+    fireEvent.click(trailing, { detail: 0 })
+
+    // A portaled list sits outside its trigger, so nothing else would name it.
+    expect(screen.getByRole('menu').getAttribute('aria-label')).toBe('会话“One”的操作')
+    // The arrows move between rows; Tab leaves the menu rather than walking out
+    // of the portal past the whole document.
+    for (const item of screen.getAllByRole('menuitem')) expect(item.tabIndex).toBe(-1)
+    fireEvent.keyDown(document, { key: 'Tab' })
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(document.activeElement).toBe(trailing)
+  })
+
+  it('announces the trailing button as a menu trigger and reflects its open state', () => {
+    sessionRow(spiedSeat(), account())
+    const trailing = screen.getByRole('button', { name: '会话“One”的操作' })
+    // The menu-button pattern: without these a screen reader announces only a
+    // button, never that a menu exists or that it opened.
+    expect(trailing.getAttribute('aria-haspopup')).toBe('menu')
+    expect(trailing.getAttribute('aria-expanded')).toBe('false')
+
+    fireEvent.click(trailing, { detail: 1 })
+    expect(trailing.getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('hands the list its first row when the trailing button is activated from the keyboard', () => {
+    sessionRow(spiedSeat(), account())
+    const trailing = screen.getByRole('button', { name: '会话“One”的操作' })
+    trailing.focus()
+    // Enter and Space on a focused button synthesize a click carrying no pointer
+    // detail. The list is a portal at the end of the document, so an operator
+    // left on the button could reach its rows with neither the arrows nor Tab.
+    fireEvent.click(trailing, { detail: 0 })
+    expect(document.activeElement).toBe(screen.getAllByRole('menuitem')[0])
+  })
+
+  it('leaves the focus on the trailing button when a pointer opened its list', () => {
+    sessionRow(spiedSeat(), account())
+    const trailing = screen.getByRole('button', { name: '会话“One”的操作' })
+    trailing.focus()
+    fireEvent.click(trailing, { detail: 1 })
+    expect(document.activeElement).toBe(trailing)
   })
 })

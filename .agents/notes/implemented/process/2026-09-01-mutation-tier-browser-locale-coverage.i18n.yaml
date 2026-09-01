@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-01-mutation-tier-browser-locale-coverage.md
+2026-09-01-mutation-tier-browser-locale-coverage.md: afe1679056290127008408431ef4b53b06f85dc7
+2026-09-01-mutation-tier-browser-locale-coverage.zh.md: 332e8f310813a3d93b679d3e1bae10c178d47fd8

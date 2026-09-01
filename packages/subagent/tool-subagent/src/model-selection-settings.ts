@@ -3,11 +3,8 @@
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
-import {
-  AllowedModelRouteSchema,
-  assertAllowedModelRoutes,
-  type AllowedModelRoute,
-} from './model-selection.ts'
+import { AllowedModelRouteSchema, assertAllowedModelRoutes } from './model-selection.ts'
+import type { AllowedModelRoute, SubagentModelSelectionSettings } from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -19,13 +16,7 @@ declare module '@deepseek-ai/cordis' {
 /** User-settings section for model-selectable subagent delegation. */
 export const SUBAGENT_MODEL_SELECTION_SETTINGS_NAMESPACE = settingsNamespace('subagent-model-selection')
 
-/** Stored user preference; the shipped composition defaults it off. */
-export interface SubagentModelSelectionSettings {
-  /** Whether newly composed top-level Sessions receive model selection. */
-  enabled: boolean
-  /** Exact child LLM routes offered to newly composed top-level Sessions. */
-  allowedModels: AllowedModelRoute[]
-}
+export type { SubagentModelSelectionSettings } from './types.ts'
 
 /** Schema served to settings clients for the opt-in preference. */
 export const SUBAGENT_MODEL_SELECTION_SETTINGS_SCHEMA: z<SubagentModelSelectionSettings> = z.object({

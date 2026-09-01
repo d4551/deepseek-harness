@@ -28,7 +28,7 @@ type JsonSchemaScalarType = Exclude<JsonSchemaType, 'object' | 'array'>
  * the external wire schema; {@link assertSupportedJsonSchema} rejects invalid
  * combinations before a caller treats the node as trusted.
  */
-export interface JsonSchemaNode {
+export type JsonSchemaNode = {
   /** Omit with no constraints for any JSON value, or use `oneOf`. */
   type?: JsonSchemaType
   /** Exactly one branch must validate; at least two branches are required. */

@@ -1296,6 +1296,24 @@ describe('TrajectoryView state', () => {
 
 
 
+  it('offers the wall-clock timing switch, so both timeline modes are reachable', () => {
+    const duration = createTrajectoryDurationStore()
+    render(
+      <TrajectoryView
+        {...standaloneProps(NODES)}
+        {...standaloneHistory(historySnapshot(NODES))}
+        useDuration={bindSnapshotSelector(duration)}
+        setActualDuration={(value) => { duration.set(value) }}
+      />,
+    )
+
+    const timing = screen.getByRole('switch', { name: '实际时间' })
+    expect(timing.getAttribute('aria-checked')).toBe('false')
+    fireEvent.click(timing)
+
+    expect(screen.getByRole('switch', { name: '实际时间' }).getAttribute('aria-checked')).toBe('true')
+  })
+
   it('keeps ledger and timeline selection on the same event after prepend', () => {
     const older: LegacyConversationSlice['nodes'][number] = {
       kind: 'user', seq: 1, time: 1_000,

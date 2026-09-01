@@ -3,50 +3,27 @@
 import type {
   ClientRemote,
   ModelProviderGroup,
+  SubagentModelSelectionSettings,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { CardShell } from './card-form.ts'
+import {
+  modelRouteCandidates, modelRouteKey,
+  type ModelCatalogStatus, type ModelRoute, type ModelRouteCandidate,
+} from './model-route.ts'
 
 /** Namespace of the Host-owned subagent model-selection preference. */
 export const SUBAGENT_MODEL_SELECTION_NS = 'subagent-model-selection'
-
-/** One exact provider/model route stored as user authorization. */
-export interface AllowedSubagentModel {
-  provider: string
-  model: string
-}
-
-/** Settings fields stored for subagent model selection. */
-export interface SubagentModelSelectionSettings {
-  /** Whether model-facing child route selection applies to new Sessions. */
-  enabled: boolean
-  /** Exact child routes offered to newly composed top-level Sessions. */
-  allowedModels: AllowedSubagentModel[]
-}
-
-/** One catalog row joined with a stored route that may no longer be advertised. */
-export interface SubagentModelCandidate extends AllowedSubagentModel {
-  /** Stable opaque identity used only for lookup. */
-  key: string
-  /** Adapter-owned provider display name. */
-  providerName: string
-  /** Adapter-owned model display name. */
-  modelName: string
-  /** Whether the current adapter catalog advertises this exact route. */
-  available: boolean
-  /** Whether the current draft authorizes this route. */
-  selected: boolean
-}
 
 /** State rendered by the staged allowlist card. */
 export interface SubagentModelSelectionCardState extends CardShell {
   /** Whether the draft enables model-facing child route selection. */
   enabled: boolean
   /** Live catalog joined with stored routes. */
-  candidates: readonly SubagentModelCandidate[]
+  candidates: readonly ModelRouteCandidate[]
   /** Adapter-directory request state. */
-  catalogStatus: 'idle' | 'loading' | 'ready' | 'error'
+  catalogStatus: ModelCatalogStatus
   /** Whether any provider-local catalog request failed. */
   catalogPartial: boolean
   /** Whether a newer Host revision invalidated the current draft. */
@@ -71,68 +48,19 @@ export interface SubagentModelSelectionCardFace {
   discard: () => void
 }
 
-/**
- * Stable identity for one exact route; callers resolve it by lookup and never parse it.
- * @param route - Provider/model route to identify.
- * @returns Opaque key for lookup within the card.
- */
-export function subagentModelKey(route: AllowedSubagentModel): string {
-  return `${route.provider}\0${route.model}`
-}
-
-/**
- * Join live adapter metadata with stored routes that remain removable after disappearance.
- * @param groups - Current model directory grouped by provider.
- * @param stored - Routes in the effective settings value.
- * @param selected - Opaque route keys selected in the current draft.
- * @returns Candidate rows for the card.
- */
-export function subagentModelCandidates(
-  groups: readonly ModelProviderGroup[],
-  stored: readonly AllowedSubagentModel[],
-  selected: ReadonlySet<string>,
-): SubagentModelCandidate[] {
-  const storedByKey = new Map(stored.map(route => [subagentModelKey(route), route]))
-  const candidates = groups.flatMap(group => group.models.map((model): SubagentModelCandidate => {
-    const route = { provider: group.id, model: model.id }
-    const key = subagentModelKey(route)
-    storedByKey.delete(key)
-    return {
-      ...route,
-      key,
-      providerName: group.name,
-      modelName: model.name,
-      available: true,
-      selected: selected.has(key),
-    }
-  }))
-  for (const route of storedByKey.values()) {
-    const key = subagentModelKey(route)
-    candidates.push({
-      ...route,
-      key,
-      providerName: route.provider,
-      modelName: route.model,
-      available: false,
-      selected: selected.has(key),
-    })
-  }
-  return candidates
-}
-
-function sameRoutes(left: readonly AllowedSubagentModel[], right: readonly AllowedSubagentModel[]): boolean {
+function sameRoutes(left: readonly ModelRoute[], right: readonly ModelRoute[]): boolean {
   if (left.length !== right.length) return false
-  const rightKeys = new Set(right.map(subagentModelKey))
-  return left.every(route => rightKeys.has(subagentModelKey(route)))
+  const rightKeys = new Set(right.map(modelRouteKey))
+  return left.every(route => rightKeys.has(modelRouteKey(route)))
 }
 
 /** Bridges one settings scope and the live adapter directory onto a staged card. */
 export class SubagentModelSelectionCardController {
   private catalogGroups: readonly ModelProviderGroup[] = []
   private catalogPartial = false
-  private catalogStatus: SubagentModelSelectionCardState['catalogStatus'] = 'idle'
+  private catalogStatus: ModelCatalogStatus = 'idle'
   private draftEnabled: boolean | undefined
-  private draftRoutes: Map<string, AllowedSubagentModel> | undefined
+  private draftRoutes: Map<string, ModelRoute> | undefined
   private draftRevision: number | undefined
   private saving = false
   private failed = false
@@ -140,6 +68,8 @@ export class SubagentModelSelectionCardController {
   private disposed = false
   private saveGeneration = 0
   private catalogGeneration = 0
+  /** Settlement chain for the latest backgrounded catalog run. */
+  background: Promise<void> = Promise.resolve()
   private readonly store: SnapshotStore<SubagentModelSelectionCardState>
   private readonly unsubscribe: () => void
 
@@ -159,10 +89,10 @@ export class SubagentModelSelectionCardController {
           && sameRoutes(this.currentRoutes(), this.desiredRoutes())) this.clearDraft()
         else this.conflicted = true
       }
-      if (this.enabled() && this.catalogStatus === 'idle') void this.loadCatalog()
+      if (this.enabled() && this.catalogStatus === 'idle') this.startCatalog()
       this.publish()
     })
-    if (this.enabled() && this.catalogStatus === 'idle') void this.loadCatalog()
+    if (this.enabled() && this.catalogStatus === 'idle') this.startCatalog()
   }
 
   /** Stop observing settings and suppress late directory/write settlements. */
@@ -182,13 +112,13 @@ export class SubagentModelSelectionCardController {
       hooks: { subagentModelSelectionCard: this.store },
       toggleEnabled: () => { this.toggleEnabled() },
       toggleModel: (key) => { this.toggleModel(key) },
-      retryCatalog: () => { void this.loadCatalog() },
+      retryCatalog: () => { this.startCatalog() },
       save: () => { void this.save() },
       discard: () => { this.discard() },
     }
   }
 
-  private currentRoutes(): AllowedSubagentModel[] {
+  private currentRoutes(): ModelRoute[] {
     return this.scope.getSnapshot().value?.allowedModels.map(route => ({ ...route })) ?? []
   }
 
@@ -197,19 +127,19 @@ export class SubagentModelSelectionCardController {
   }
 
   private selected(): Set<string> {
-    return new Set(this.draftRoutes?.keys() ?? this.currentRoutes().map(subagentModelKey))
+    return new Set(this.draftRoutes?.keys() ?? this.currentRoutes().map(modelRouteKey))
   }
 
   private enabled(): boolean {
     return this.draftEnabled ?? this.currentEnabled()
   }
 
-  private beginDraft(): Map<string, AllowedSubagentModel> {
+  private beginDraft(): Map<string, ModelRoute> {
     if (this.draftRoutes === undefined) {
       const snapshot = this.scope.getSnapshot()
       this.draftEnabled = snapshot.value?.enabled ?? false
       this.draftRoutes = new Map(
-        snapshot.value?.allowedModels.map(route => [subagentModelKey(route), { ...route }]) ?? [],
+        snapshot.value?.allowedModels.map(route => [modelRouteKey(route), { ...route }]) ?? [],
       )
       this.draftRevision = snapshot.revision
     }
@@ -222,7 +152,7 @@ export class SubagentModelSelectionCardController {
     this.beginDraft()
     this.draftEnabled = !this.draftEnabled
     this.failed = false
-    if (this.draftEnabled && this.catalogStatus === 'idle') void this.loadCatalog()
+    if (this.draftEnabled && this.catalogStatus === 'idle') this.startCatalog()
     this.publish()
   }
 
@@ -251,13 +181,13 @@ export class SubagentModelSelectionCardController {
     this.publish()
   }
 
-  private candidates(): SubagentModelCandidate[] {
-    const retained = new Map(this.currentRoutes().map(route => [subagentModelKey(route), route]))
+  private candidates(): ModelRouteCandidate[] {
+    const retained = new Map(this.currentRoutes().map(route => [modelRouteKey(route), route]))
     for (const [key, route] of this.draftRoutes ?? []) retained.set(key, route)
-    return subagentModelCandidates(this.catalogGroups, [...retained.values()], this.selected())
+    return modelRouteCandidates(this.catalogGroups, [...retained.values()], this.selected())
   }
 
-  private desiredRoutes(): AllowedSubagentModel[] {
+  private desiredRoutes(): ModelRoute[] {
     return [...this.draftRoutes?.values() ?? this.currentRoutes()].map(route => ({ ...route }))
   }
 
@@ -300,7 +230,7 @@ export class SubagentModelSelectionCardController {
     this.catalogGeneration += 1
     this.catalogStatus = 'idle'
     this.catalogPartial = false
-    if (this.enabled()) void this.loadCatalog()
+    if (this.enabled()) this.startCatalog()
     else this.publish()
   }
 
@@ -314,21 +244,41 @@ export class SubagentModelSelectionCardController {
     this.refreshCatalog()
   }
 
-  private async loadCatalog(): Promise<void> {
+  /**
+   * Open a directory request unless one is already open, so a duplicate call
+   * leaves the in-flight settlement on {@link background} rather than
+   * replacing it with an immediate return.
+   */
+  private startCatalog(): void {
     if (this.disposed || this.catalogStatus === 'loading') return
+    this.background = this.loadCatalog()
+  }
+
+  private async loadCatalog(): Promise<void> {
     const generation = this.catalogGeneration
     this.catalogStatus = 'loading'
     this.catalogPartial = false
     this.publish()
+    // The Remote folds a Host-reported failure into `ok: false`; only an
+    // assembly fault rejects. The card reports that as a failed directory
+    // rather than letting it reach the browser as an unhandled rejection,
+    // which no page-level handler would catch.
+    let response: Awaited<ReturnType<ClientRemote['session']['modelCatalog']>>
     try {
-      const response = await this.session.modelCatalog()
-      if (generation !== this.catalogGeneration) return
-      if (!response.ok) throw new Error(response.error.message)
+      response = await this.session.modelCatalog()
+    } catch (_catalogCarrierFault) {
+      if (generation === this.catalogGeneration) {
+        this.catalogStatus = 'error'
+        this.publish()
+      }
+      return
+    }
+    if (generation !== this.catalogGeneration) return
+    if (response.ok) {
       this.catalogGroups = response.value.groups
       this.catalogPartial = response.value.failures.length > 0
       this.catalogStatus = 'ready'
-    } catch {
-      if (generation !== this.catalogGeneration) return
+    } else {
       this.catalogStatus = 'error'
     }
     this.publish()

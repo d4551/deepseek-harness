@@ -198,13 +198,34 @@ export async function syncTools(
  * from an external MCP server process via JSON-RPC), so fields that the SDK
  * declares required may be absent at runtime if the server is buggy.
  */
-interface McpContentBlock {
+type McpContentBlock = {
   type: string
   text?: string
   mimeType?: string
   data?: string
   name?: string
   uri?: string
+}
+
+/**
+ * Read one decoded object as a content block, keeping only the fields the
+ * server declared as strings. The server is remote, so its own declaration
+ * guarantees nothing: a `data` that arrives as a number is absent here, and
+ * each branch reports the field it needs as missing rather than reading a
+ * number through a string seat.
+ * @param value - One decoded element of an MCP content array.
+ * @param type - The block's already-validated `type` discriminant.
+ * @returns The block with every string-declared field this client reads.
+ */
+function toMcpContentBlock(value: { [key: string]: JsonValue }, type: string): McpContentBlock {
+  return {
+    type,
+    ...typeof value.text === 'string' ? { text: value.text } : {},
+    ...typeof value.mimeType === 'string' ? { mimeType: value.mimeType } : {},
+    ...typeof value.data === 'string' ? { data: value.data } : {},
+    ...typeof value.name === 'string' ? { name: value.name } : {},
+    ...typeof value.uri === 'string' ? { uri: value.uri } : {},
+  }
 }
 
 /** Async rich projection staged for one exact ToolRuntime execution. */
@@ -443,7 +464,7 @@ async function prepareImageProjection(
     if (!isRecord(value) || value.type !== 'image') continue
     imageIndexes.push(index)
     try {
-      decoded.push(decodeImage(value as unknown as McpContentBlock))
+      decoded.push(decodeImage(toMcpContentBlock(value, 'image')))
     } catch (error: unknown) {
       // decodeImage owns every throw above and always produces Error.
       validationErrors.set(index, (error as Error).message)
@@ -526,7 +547,12 @@ function projectContent(
       text.push('[unsupported MCP content block: expected an object]')
       continue
     }
-    const block = value as unknown as McpContentBlock
+    const declaredType = value.type
+    if (typeof declaredType !== 'string') {
+      text.push('[unsupported MCP content block: its type is not a string]')
+      continue
+    }
+    const block = toMcpContentBlock(value, declaredType)
     switch (block.type) {
       case 'text':
         if (block.text !== undefined) text.push(block.text)

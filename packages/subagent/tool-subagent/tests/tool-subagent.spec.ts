@@ -80,6 +80,20 @@ describe('dsh-tool-subagent', () => {
     expect(text(result)).toBe('child says hi')
   })
 
+  it('refuses foreground output a plugin block made unserializable, naming the run', async () => {
+    const ctx = await setup({ provider: 'mock' }, { unserializableOutput: true })
+
+    const result = await callSubagent(ctx, {
+      description: 'do a thing',
+      prompt: 'go research X',
+      run_in_background: false,
+    })
+
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('is not lossless JSON')
+    expect(text(result)).toContain('scripted-subagent:mock:parent-1')
+  })
+
   it('omits run_in_background entirely when the instance disables it (schema and capability never disagree)', async () => {
     const ctx = await setup({ provider: 'mock', enableRunInBackground: false })
     const schema = ctx.tools.schemas().find(s => s.name === 'subagent')

@@ -111,7 +111,7 @@
   text-align: left;
 }
 
-.item:hover:not(:disabled) {
+.item:hover:not([aria-disabled='true']) {
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
@@ -155,7 +155,7 @@
   line-height: 16px;
 }
 
-.item:disabled {
+.item[aria-disabled='true'] {
   opacity: 0.4;
   cursor: not-allowed;
 }
@@ -198,7 +198,7 @@
   color: var(--dsw-alias-state-error-primary);
 }
 
-.danger:hover:not(:disabled) {
+.danger:hover:not([aria-disabled='true']) {
   background: var(--dsw-alias-interactive-bg-hover-danger);
 }
 

@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-01-suppression-justification-gate.md
+2026-09-01-suppression-justification-gate.md: d3588360a688d7db35b44a7a19b0dd4f8a200c55
+2026-09-01-suppression-justification-gate.zh.md: 013a23c3b512ee566359525b2a0ce34675f276a1

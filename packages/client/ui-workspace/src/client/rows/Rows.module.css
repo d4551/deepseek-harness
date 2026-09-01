@@ -30,9 +30,13 @@
 }
 
 /* Roving tab seat: the focused row is the keyboard's position in the list, so
-   it reads even where a selection fill already covers the row. */
+   it reads even where a selection fill already covers the row. The ring is
+   drawn inside the row because the list clips on both axes — a scrolling box
+   is never `overflow: visible` across — and a full-width row's outward ring
+   would be cut off at the edges. */
 .projectRow:focus-visible,
-.sessionRow:focus-visible {
+.sessionRow:focus-visible,
+.searchResultRow:focus-visible {
   outline: 2px solid var(--dsw-alias-state-business-primary);
   outline-offset: -2px;
 }

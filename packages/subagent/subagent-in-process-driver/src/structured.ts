@@ -67,9 +67,7 @@ export function attachStructuredRuntime(childCtx: Context, schema: ObjectJsonSch
     description:
       'Report your final structured result. Call this exactly once, when your answer is complete; '
       + 'the arguments must match this tool\'s parameter schema exactly.',
-    // ToolSchema.parameters is the wire-level JSON Schema object; the
-    // asserted subset type is structurally exactly that.
-    parameters: schema as unknown as Record<string, unknown>,
+    parameters: schema,
   }
 
   childCtx.tools.register({

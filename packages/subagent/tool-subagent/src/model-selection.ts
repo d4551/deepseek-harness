@@ -4,14 +4,9 @@ import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { LlmRuntime } from '@deepseek-ai/dsh-llm'
 import type { AgentOptions } from '@deepseek-ai/dsh-agent'
 import z from '@deepseek-ai/schemastery'
+import type { AllowedModelRoute } from './types.ts'
 
-/** One exact child LLM route authorized by a user setting. */
-export interface AllowedModelRoute {
-  /** Registered LLM provider id. */
-  readonly provider: string
-  /** Provider-owned exact model id. */
-  readonly model: string
-}
+export type { AllowedModelRoute } from './types.ts'
 
 /** Schema shared by the Host setting and its deployment base. */
 export const AllowedModelRouteSchema: z<AllowedModelRoute> = z.object({

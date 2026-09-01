@@ -58,7 +58,7 @@ export const SESSION_FORMAT_VERSION = 0
 /**
  * Immutable validated storage metadata, kept outside the conversation event log.
  */
-export interface SessionHeader {
+export type SessionHeader = {
   /**
    * On-disk format version, stamped from {@link SESSION_FORMAT_VERSION} when the
    * session is created. A persistence backend rejects any other version on load

@@ -35,20 +35,20 @@ export default {
   // No exclusions: a `types.ts` carries no runtime code and so yields no
   // mutants on its own, and every other file in the tier is in scope.
   mutate: ['packages/util/*/src/**/*.ts'],
-  // Recorded score from the 2026-08-30 measured run: 99.08 (757 detected of
-  // 764; 7 survivors, each verified equivalent in context — a lock-contention
+  // Recorded score from the 2026-09-01 measured run: 99.13 (800 mutants; the
+  // seven survivors are each verified equivalent in context — a lock-contention
   // catch arm whose sole call site reads truthiness, a loop bound whose extra
   // iteration slices an empty range, a symmetric case-fold, a regex
   // replacement whose block is extracted by a later regex regardless, a
   // missing-block early return whose subsequent match returns the same
   // undefined, an out-of-bounds walk exit, and a lead byte the walk cannot
   // stop on).
-  // break 99 holds the measured 99.08 to that floor: any new survivor fails.
+  // break 99 holds the measured 99.13 to that floor: any new survivor fails.
   thresholds: { high: 100, low: 99, break: 99 },
   // Agent-session state and build output are not project sources; Stryker copies
   // the working tree into its sandbox, and `.claude/skills` is a directory
   // symlink its file copier cannot follow.
-  ignorePatterns: ['.claude', '.agents/worktrees', 'coverage', '.artifacts', 'dist-exe', '.dsh-build'],
+  ignorePatterns: ['.claude', '.agents/worktrees', 'coverage', '.artifacts', 'dist-exe', '.dsh-build', '.audit-tmp'],
   timeoutMS: 60000,
   concurrency: 4,
   tempDirName: 'node_modules/.stryker-tmp',

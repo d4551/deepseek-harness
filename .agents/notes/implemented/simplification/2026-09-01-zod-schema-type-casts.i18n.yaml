@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-01-zod-schema-type-casts.md
+2026-09-01-zod-schema-type-casts.md: dd721cc77e665c2e03a10a60ddd442a198be63f6
+2026-09-01-zod-schema-type-casts.zh.md: aabe6466f9134f2ef2513f7fe5fdbe608bb4790f

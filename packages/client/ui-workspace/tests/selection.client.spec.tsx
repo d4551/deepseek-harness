@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { WorkspaceId } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import { isHeaderRowKey, rowRange, sessionRowKey, UNGROUPED_ROW_KEY, useRowSelection, workspaceRowKey } from '../src/client/selection.ts'
+import { isHeaderRowKey, overflowRowKey, rowRange, sessionRowKey, UNGROUPED_ROW_KEY, useRowSelection, workspaceRowKey } from '../src/client/selection.ts'
 
 afterEach(cleanup)
 
@@ -12,12 +12,25 @@ const wid = (id: string) => id as WorkspaceId
 const ids = (...values: string[]) => values.map(sid)
 
 /** Minimal list harness: one button per row plus a read-out of the live selection. */
-function Harness({ rows, onRender }: { rows: readonly string[]; onRender?: () => void }) {
+function Harness({ rows, onRender, outsider }: {
+  rows: readonly string[]
+  onRender?: () => void
+  /** A key the account never holds, reached from the last rendered row. */
+  outsider?: string
+}) {
   const selection = useRowSelection(rows)
   onRender?.()
   return (
     <div>
       <span data-testid="selected">{selection.keys.join(',')}</span>
+      {outsider !== undefined && (
+        <button
+          type="button"
+          onClick={() => { selection.extendTo(outsider, rows[rows.length - 1]!) }}
+        >
+          {outsider}
+        </button>
+      )}
       {rows.map(row => (
         <button
           key={row}
@@ -33,6 +46,7 @@ function Harness({ rows, onRender }: { rows: readonly string[]; onRender?: () =>
         </button>
       ))}
       <button type="button" onClick={selection.clear}>clear</button>
+      <button type="button" onClick={selection.selectAll}>all</button>
     </div>
   )
 }
@@ -60,12 +74,27 @@ describe('row keys', () => {
     expect(isHeaderRowKey(workspaceRowKey(wid('x')))).toBe(true)
     expect(isHeaderRowKey(UNGROUPED_ROW_KEY)).toBe(true)
     expect(isHeaderRowKey(sessionRowKey(sid('x')))).toBe(false)
+    // An overflow row sits under a header rather than heading anything, so a
+    // leaf's step to its parent walks past it.
+    expect(isHeaderRowKey(overflowRowKey('x'))).toBe(false)
   })
 
-  it('separates the two row kinds so an id collision cannot cross them', () => {
-    expect(sessionRowKey(sid('x'))).not.toBe(workspaceRowKey(wid('x')))
+  it('separates the row kinds so an id collision cannot cross them', () => {
+    expect(new Set([sessionRowKey(sid('x')), workspaceRowKey(wid('x')), overflowRowKey('x')]).size).toBe(3)
     expect(sessionRowKey(sid('x'))).toBe('session:x')
     expect(workspaceRowKey(wid('x'))).toBe('workspace:x')
+    expect(overflowRowKey('x')).toBe('overflow:x')
+  })
+
+  it('takes every rendered row and anchors at the head', () => {
+    const rows = ['a', 'b', 'c']
+    render(<Harness rows={rows} />)
+    fireEvent.click(row('b'))
+    fireEvent.click(row('all'))
+    expect(selected()).toBe('a,b,c')
+    // Anchored at the head, so a Shift move narrows the range from there.
+    fireEvent.click(row('b'), { shiftKey: true })
+    expect(selected()).toBe('a,b')
   })
 
   it('spans both kinds in one rendered account', () => {
@@ -118,6 +147,33 @@ describe('useRowSelection', () => {
     expect(selected()).toBe('a,c')
     fireEvent.click(row('c'), { ctrlKey: true })
     expect(selected()).toBe('a')
+  })
+
+  it('holds an open range when a shift reaches a row the account does not hold', () => {
+    // The ungrouped header and a blank draft render between selectable rows but
+    // carry no verbs, so a Shift+arrow can land on one. Reaching past the last
+    // selectable row must not empty the range the operator already built.
+    render(<Harness rows={ids('a', 'b', 'c')} outsider="ungrouped" />)
+    fireEvent.click(row('a'))
+    fireEvent.click(row('c'), { shiftKey: true })
+    expect(selected()).toBe('a,b,c')
+
+    fireEvent.click(row('ungrouped'))
+    expect(selected()).toBe('a,b,c')
+  })
+
+  it('restarts the range from the gesture when the anchor stopped rendering', () => {
+    // Archiving the anchored row retires it from the account. A later shift
+    // must not resolve against the row that left, which would select nothing
+    // and keep doing so for every shift after it.
+    const view = render(<Harness rows={ids('a', 'b', 'c')} />)
+    fireEvent.click(row('a'))
+    view.rerender(<Harness rows={ids('b', 'c')} />)
+
+    fireEvent.click(row('c'), { shiftKey: true })
+    expect(selected()).toBe('c')
+    fireEvent.click(row('b'), { shiftKey: true })
+    expect(selected()).toBe('b,c')
   })
 
   it('drops rows that stopped rendering and clears on Escape or an explicit clear', () => {

@@ -36,7 +36,7 @@ export const messageFeedbackItemSchema = z.object({
 }).refine(item => item.updatedAt >= item.createdAt, {
   path: ['updatedAt'],
   message: 'message feedback updatedAt must not precede createdAt',
-}) as unknown as z.ZodType<MessageFeedbackItem>
+}).readonly() as z.ZodType<MessageFeedbackItem>
 
 /** Persisted Session fields that fence a sidecar row to one log lifecycle. */
 export const messageFeedbackSessionIdentitySchema = z.object({

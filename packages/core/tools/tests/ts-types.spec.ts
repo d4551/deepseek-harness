@@ -114,7 +114,7 @@ describe('renderToolsSdk', () => {
     parameters: parameterSchemaSpecToJsonSchema({
       command: { type: 'string', required: true },
       description: { type: 'string', required: true },
-    }) as unknown as Record<string, unknown>,
+    }),
     output: {
       type: 'object',
       additionalProperties: false,
@@ -125,7 +125,7 @@ describe('renderToolsSdk', () => {
   const exotic: ToolSdkSchema = {
     name: 'my-mcp.tool',
     description: 'Exotic name.',
-    parameters: parameterSchemaSpecToJsonSchema({}) as unknown as Record<string, unknown>,
+    parameters: parameterSchemaSpecToJsonSchema({}),
     output: { type: 'array', items: { type: 'string' } },
   }
 
@@ -177,7 +177,7 @@ describe('renderToolsSdk', () => {
       ...bash,
       parameters: parameterSchemaSpecToJsonSchema({
         command: { type: 'string', required: true },
-      }) as unknown as Record<string, unknown>,
+      }),
     }
     expect(renderToolsSdk([commandOnly]))
       .toContain('tools.bash({ command: \'pwd\' })')
@@ -187,13 +187,13 @@ describe('renderToolsSdk', () => {
       parameters: parameterSchemaSpecToJsonSchema({
         command: { type: 'string', required: true },
         cwd: { type: 'string', required: true },
-      }) as unknown as Record<string, unknown>,
+      }),
     }
     expect(renderToolsSdk([incompatible])).not.toContain('tools.bash(')
 
     const parameters = (value: JsonSchemaNode): ToolSdkSchema => ({
       ...bash,
-      parameters: value as Record<string, unknown>,
+      parameters: value,
     })
     const rejected: JsonSchemaNode[] = [
       { type: 'string' },

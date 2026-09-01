@@ -15,7 +15,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Agent, AgentOptions } from '@deepseek-ai/dsh-agent'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-import type { JsonValue } from '@deepseek-ai/dsh-session'
+import { isJsonValue, type JsonValue } from '@deepseek-ai/dsh-session'
 import {
   assertSubagentMaxDepth,
   parentAgentOptionsForDelegation,
@@ -202,6 +202,17 @@ type ForegroundToolResult = {
 }
 
 /**
+ * Whether the blocks survive the lossless JSON boundary this tool's declared
+ * output requires. `ContentBlock` is merge-extensible, so a plugin can add a
+ * block no static type promises is serializable; the walk decides instead.
+ * @param blocks - Content blocks a finished run produced.
+ * @returns Whether every block is lossless JSON.
+ */
+function isJsonBlocks(blocks: readonly unknown[]): blocks is JsonValue[] {
+  return isJsonValue(blocks)
+}
+
+/**
  * Collect and release one foreground run without letting disposal replace an
  * independent result failure.
  */
@@ -214,13 +225,12 @@ async function settleForegroundRun(run: SubagentRun): Promise<ForegroundToolResu
         // success, but the preserved partial answer still reaches the parent.
         throw new Error(withDiagnosticAndPartialText(error, result))
       }
-      return {
-        kind: 'foreground',
-        runId: run.id,
-        // Content blocks already cross durable JSON boundaries elsewhere;
-        // the registry performs the authoritative lossless snapshot here.
-        output: result.output as unknown as JsonValue[],
+      if (!isJsonBlocks(result.output)) {
+        // The registry would raise its own invalid-output failure a layer
+        // later; naming the run here says which subagent produced the block.
+        throw new Error(`subagent run ${run.id} produced output that is not lossless JSON`)
       }
+      return { kind: 'foreground', runId: run.id, output: result.output }
     }),
   ])
   const [disposal] = await Promise.allSettled([Promise.resolve().then(() => run.dispose())])

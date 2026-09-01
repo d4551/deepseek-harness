@@ -21,6 +21,7 @@ import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: the ctx.remote Context merge and the forwarded-event key face.
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { AgentLoopCard } from './AgentLoopCard.tsx'
+import { AgentDefaultModelCard } from './AgentDefaultModelCard.tsx'
 import { BashCard } from './BashCard.tsx'
 import { ConfigurablePluginsTab } from './ConfigurablePluginsTab.tsx'
 import { PluginsSettingsSection } from './PluginsSettingsSection.tsx'
@@ -28,6 +29,9 @@ import type { PluginsSettingsSectionInjected, PluginsSettingsTabEntry } from './
 import { SubagentModelSelectionCard } from './SubagentModelSelectionCard.tsx'
 import { WebSearchCard } from './WebSearchCard.tsx'
 import { AGENT_LOOP_NS, AgentLoopCardController } from './agent-loop-card-controller.ts'
+import {
+  AGENT_DEFAULT_MODEL_NS, AgentDefaultModelCardController,
+} from './agent-default-model-card-controller.ts'
 import { SHELL_NS, BashCardController } from './bash-card-controller.ts'
 import { ConfigurablePluginsTabController } from './tab-store.ts'
 import {
@@ -46,6 +50,17 @@ export type {
   CardActions, CardFieldSpec, CardFieldState, CardSecretSpec, CardShell,
 } from './card-form.ts'
 export type { AgentLoopCardFace, AgentLoopCardState } from './agent-loop-card-controller.ts'
+export type {
+  AgentDefaultModelCardFace, AgentDefaultModelCardState,
+} from './agent-default-model-card-controller.ts'
+export type {
+  SubagentModelSelectionCardFace, SubagentModelSelectionCardState,
+} from './subagent-model-selection-card-controller.ts'
+export type {
+  ModelCatalogStatus, ModelRoute, ModelRouteCandidate, ModelRouteGroup,
+} from './model-route.ts'
+export type { ModelCatalogStatusNoticesProps } from './ModelCatalogStatusNotices.tsx'
+export type { ModelRouteChoicesProps, ModelRouteSelection } from './ModelRouteChoices.tsx'
 export type { BashCardFace, BashCardState } from './bash-card-controller.ts'
 export type { WebSearchCardFace, WebSearchCardState } from './web-search-card-controller.ts'
 
@@ -73,6 +88,10 @@ export function apply(ctx: ClientContext): void {
     ctx.settingsScope.bind({ namespace: SUBAGENT_MODEL_SELECTION_NS }),
     ctx.remote.session,
   )
+  const agentDefaultModel = new AgentDefaultModelCardController(
+    ctx.settingsScope.bind({ namespace: AGENT_DEFAULT_MODEL_NS }),
+    ctx.remote.session,
+  )
 
   // The credential a card reports is not part of any settings section, so its
   // scope publishes nothing when one is written. This is the only signal that
@@ -86,14 +105,23 @@ export function apply(ctx: ClientContext): void {
     'ui-settings-plugins: subagent adapter invalidations',
   )
   ctx.effect(
-    () => ctx.remote.$on('settings/document-updated', () => { subagentModelSelection.refreshCatalog() }),
-    'ui-settings-plugins: subagent settings invalidations',
+    () => ctx.remote.$on('settings/document-updated', () => {
+      subagentModelSelection.refreshCatalog()
+      agentDefaultModel.refreshCatalog()
+    }),
+    'ui-settings-plugins: settings invalidations',
   )
   ctx.effect(
-    () => ctx.on('connection/reset', () => { subagentModelSelection.resetConnection() }),
-    'ui-settings-plugins: subagent connection generation',
+    () => ctx.on('connection/reset', () => {
+      subagentModelSelection.resetConnection()
+      agentDefaultModel.resetConnection()
+    }),
+    'ui-settings-plugins: connection generation',
   )
-  ctx.effect(() => () => { subagentModelSelection.dispose() }, 'ui-settings-plugins: subagent preference')
+  ctx.effect(() => () => {
+    subagentModelSelection.dispose()
+    agentDefaultModel.dispose()
+  }, 'ui-settings-plugins: preference')
 
   // The shared SettingsScope mirror updates after document commits and reconnects.
   const configurable = new ConfigurablePluginsTabController(
@@ -183,6 +211,12 @@ export function apply(ctx: ClientContext): void {
       locale: NS,
       inject: () => subagentModelSelection.inject(),
     }, SubagentModelSelectionCard)
+    yield ctx.slots.register({
+      name: 'settings.plugin.item',
+      key: AGENT_DEFAULT_MODEL_NS,
+      locale: NS,
+      inject: () => agentDefaultModel.inject(),
+    }, AgentDefaultModelCard)
     yield ctx.slots.register({
       name: 'settings.plugin.item',
       key: WEB_SEARCH_NS,

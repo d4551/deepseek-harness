@@ -23,11 +23,11 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { WorkspaceBrowserProps } from '../contract/slots.ts'
 import type { GroupNode, SessionNode, SessionOrderBy } from '../tree.ts'
 import { deriveFlat, deriveGroups, deriveSearchResults, UNGROUPED_KEY } from '../tree.ts'
-import { ProjectRowItem, SearchResultItem, SessionNodeItem } from './Rows.tsx'
+import { ProjectRowItem, rowKeyDown, SearchResultItem, SessionNodeItem } from './Rows.tsx'
 import type { RowMultiSelection, RowSeat } from './Rows.tsx'
 import { useRowFocus } from '../row-focus.ts'
 import type { RowFocus } from '../row-focus.ts'
-import { sessionRowKey, UNGROUPED_ROW_KEY, useRowSelection, workspaceRowKey } from '../selection.ts'
+import { overflowRowKey, sessionRowKey, UNGROUPED_ROW_KEY, useRowSelection, workspaceRowKey } from '../selection.ts'
 import type { RowKey, RowSelection } from '../selection.ts'
 import { FLAT_SESSION_ORDER_KEY } from '../stores.ts'
 import { WorkspacePickFlow } from '../WorkspacePicker.tsx'
@@ -259,7 +259,7 @@ function reachedSessionIds(
  * One row's slice of a list selection. Committing the bulk archive drops the
  * selection immediately: the rows themselves leave on the archive-set echo,
  * and a selection outliving them would still count them in the next gesture.
- * @param account - the list's live selection and tab stop.
+ * @param selection - the list's live range selection.
  * @param key - the row this slice belongs to.
  * @param active - whether the row shows as selected; for a session row this is
  *   its presence in the reach, so a selected project highlights the members it
@@ -269,19 +269,19 @@ function reachedSessionIds(
  * @returns the row-facing account slice.
  */
 function rowSelection(
-  account: { selection: RowSelection; focus: RowFocus },
+  selection: RowSelection,
   key: RowKey,
   active: boolean,
   reached: readonly SessionId[],
   archiveSessions: (sessionIds: readonly SessionId[]) => void,
 ): RowMultiSelection {
-  const { selection } = account
   return {
     active,
     count: selection.keys.length,
     archivableCount: reached.length,
     extend: () => { selection.extendTo(key, key) },
     toggle: () => { selection.toggle(key) },
+    selectAll: () => { selection.selectAll() },
     anchor: () => { selection.anchorAt(key) },
     archiveSelected: () => {
       archiveSessions(reached)
@@ -292,20 +292,21 @@ function rowSelection(
 
 /**
  * One row's place in its list's tab order. Every rendered row takes a seat,
- * whether or not a range can select it, so the arrows walk the whole tree.
- * @param account - the list's live selection and tab stop.
+ * whether or not a range can select it, so the arrows walk the whole tree; the
+ * range a Shift move carries is what tells the two apart, and a list with no
+ * range over it — the search results — passes none for any of its rows.
+ * @param focus - the list's live tab stop.
  * @param key - the row this seat belongs to.
  * @param level - the row's depth in the tree, reported as `aria-level`.
- * @param selectable - whether a range reaches this row, so Shift can carry it.
+ * @param range - the range this row can carry, absent where none reaches it.
  * @returns the row-facing seat.
  */
 function rowSeat(
-  account: { selection: RowSelection; focus: RowFocus },
+  focus: RowFocus,
   key: RowKey,
   level: number,
-  selectable: boolean,
+  range?: RowSelection,
 ): RowSeat {
-  const { selection, focus } = account
   return {
     rowKey: key,
     seated: focus.seat === key,
@@ -315,8 +316,11 @@ function rowSeat(
     // range reaches still moves the focus; it just takes nothing with it.
     move: (target, extend) => {
       const landed = focus.moveFrom(key, target)
-      if (landed !== undefined && extend && selectable) selection.extendTo(landed, key)
+      if (landed !== undefined && extend) range?.extendTo(landed, key)
     },
+    // A type-ahead moves the focus alone: it names a row rather than sweeping
+    // the rows between, so it has no range to carry.
+    typeAhead: (character) => { focus.typeAheadFrom(key, character) },
   }
 }
 
@@ -363,10 +367,14 @@ function SelectionStatus({ count, reached, t }: {
   reached: number
   t: WorkspaceBrowserProps['t']
 }) {
-  if (count === 0) return null
+  // The region stays mounted and empties instead of unmounting: a live region
+  // that appears already carrying its text is commonly missed, because assistive
+  // technology watches an existing region for changes.
   return (
     <span className={css.visuallyHidden} role="status">
-      {t(reached === 1 ? 'selection.count.one' : 'selection.count.other', { n: reached })}
+      {count === 0
+        ? ''
+        : t(reached === 1 ? 'selection.count.one' : 'selection.count.other', { n: reached })}
     </span>
   )
 }
@@ -511,17 +519,24 @@ function SessionTree({
   )
   // Rendered rows of the grouped tree, in reading order: each header followed
   // by the session rows under it.
-  const renderedRows: readonly { key: RowKey; blank: boolean }[] = useMemo(
-    () => groups.flatMap(group => [
-      {
-        key: group.workspaceId === undefined ? UNGROUPED_ROW_KEY : workspaceRowKey(group.workspaceId),
-        blank: false,
-      },
-      ...(expandedSessionGroups.includes(group.key)
-        ? group.sessions
-        : collapsedSessionRows(group.sessions).rows
-      ).map(node => ({ key: sessionRowKey(node.id), blank: node.blank })),
-    ]),
+  const renderedRows: readonly { key: RowKey; reachable: boolean }[] = useMemo(
+    () => groups.flatMap((group) => {
+      const collapsed = collapsedSessionRows(group.sessions)
+      const shown = expandedSessionGroups.includes(group.key) ? group.sessions : collapsed.rows
+      return [
+        {
+          key: group.workspaceId === undefined ? UNGROUPED_ROW_KEY : workspaceRowKey(group.workspaceId),
+          reachable: group.workspaceId !== undefined,
+        },
+        ...shown.map(node => ({ key: sessionRowKey(node.id), reachable: !node.blank })),
+        // The overflow row is a row of the tree like any other: it sits inside
+        // the list, carries a verb, and would otherwise be a second tab stop in
+        // a list that promises one.
+        ...collapsed.hiddenCount > 0
+          ? [{ key: overflowRowKey(group.key), reachable: false }]
+          : [],
+      ]
+    }),
     [groups, expandedSessionGroups],
   )
   // The tab order is every rendered row: a node the arrows can never reach is a
@@ -529,16 +544,16 @@ function SessionTree({
   // their own — the bucket's create button, the blank draft's own activation.
   const focusKeys = useMemo(() => renderedRows.map(row => row.key), [renderedRows])
   // The range account is the subset a bulk action can address. The ungrouped
-  // bucket has no Workspace verbs and stays out; so does a provisional blank
-  // New Session, which has no row verbs at all.
+  // bucket has no Workspace verbs and stays out; so do a provisional blank New
+  // Session and a folded group's overflow row, neither of which stands for a
+  // Session a bulk archive could reach.
   const selectableKeys = useMemo(
-    () => renderedRows.filter(row => row.key !== UNGROUPED_ROW_KEY && !row.blank).map(row => row.key),
+    () => renderedRows.filter(row => row.reachable).map(row => row.key),
     [renderedRows],
   )
   const listRef = useRef<HTMLDivElement>(null)
   const selection = useRowSelection(selectableKeys)
   const focus = useRowFocus(focusKeys, listRef)
-  const account = { selection, focus }
   const selectionReach = useMemo(() => groupedSelectionReach(groups), [groups])
   const reached = reachedSessionIds(selection.keys, selectionReach)
   // Highlight equals reach: a selected project marks the member rows it would
@@ -628,7 +643,6 @@ function SessionTree({
   return (
     <div className={clsx(css.treeBody, css.wide)}>
       {workspaceDropAtListStart && <span className={css.listTopDropIndicator} aria-hidden="true" />}
-      <SelectionStatus count={selection.keys.length} reached={reached.length} t={t} />
       <div
         ref={listRef}
         className={clsx(css.list, workspaceDropAtListStart && css.listTopDropActive)}
@@ -707,10 +721,10 @@ function SessionTree({
                 home={home}
                 t={t}
                 seat={rowSeat(
-                  account,
+                  focus,
                   group.workspaceId === undefined ? UNGROUPED_ROW_KEY : workspaceRowKey(group.workspaceId),
                   1,
-                  group.workspaceId !== undefined,
+                  group.workspaceId === undefined ? undefined : selection,
                 )}
                 onToggle={() => {
                   if (group.expanded) {
@@ -729,7 +743,7 @@ function SessionTree({
                   ? {}
                   : {
                     selection: rowSelection(
-                      account,
+                      selection,
                       workspaceRowKey(group.workspaceId),
                       selection.has(workspaceRowKey(group.workspaceId)),
                       reached,
@@ -781,33 +795,62 @@ function SessionTree({
                 return (
                   <SessionNodeItem
                     key={node.id} {...wiring} node={node} drag={dragProps}
-                    seat={rowSeat(account, sessionRowKey(node.id), 2, !node.blank)}
+                    seat={rowSeat(focus, sessionRowKey(node.id), 2, node.blank ? undefined : selection)}
                     {...node.blank
                       ? {}
                       : {
                         selection: rowSelection(
-                          account, sessionRowKey(node.id), reachedSet.has(node.id), reached, onSessionsArchive,
+                          selection, sessionRowKey(node.id), reachedSet.has(node.id), reached, onSessionsArchive,
                         ),
                       }}
                   />
                 )
               })}
-              {collapsed.hiddenCount > 0 && (
-                <button
-                  type="button"
-                  className={css.sessionOverflowButton}
-                  aria-expanded={sessionsExpanded}
-                  onClick={() => { setExpandedSessionGroups(keys => toggled(keys, group.key)) }}
-                >
-                  {sessionsExpanded
-                    ? t('sessions.collapse')
-                    : t('sessions.expand', { n: collapsed.hiddenCount })}
-                </button>
-              )}
+              {collapsed.hiddenCount > 0 && (() => {
+                const overflowLabel = sessionsExpanded
+                  ? t('sessions.collapse')
+                  : t('sessions.expand', { n: collapsed.hiddenCount })
+                const seat = rowSeat(focus, overflowRowKey(group.key), 2)
+                const reveal = (): void => {
+                  setExpandedSessionGroups(keys => toggled(keys, group.key))
+                }
+                return (
+                  <button
+                    type="button"
+                    className={css.sessionOverflowButton}
+                    // A row of the tree, not a control beside it: it sits
+                    // inside the list, so it takes the list's seat rather than
+                    // a tab stop of its own. It carries no `aria-expanded`,
+                    // which on a tree row promises child nodes of its own: the
+                    // rows this one reveals are its siblings, and its label
+                    // already says which way the next activation goes.
+                    role="treeitem"
+                    aria-level={seat.level}
+                    tabIndex={seat.seated ? 0 : -1}
+                    data-row-key={seat.rowKey}
+                    data-row-label={overflowLabel}
+                    onClick={reveal}
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowLeft') {
+                        seat.move('parent', false)
+                        e.preventDefault()
+                        return
+                      }
+                      // Enter reaches `reveal` here and the browser's own
+                      // button activation is taken away with it, so the row
+                      // opens once; Space goes unanswered and keeps it.
+                      rowKeyDown(seat, undefined, reveal, e)
+                    }}
+                  >
+                    {overflowLabel}
+                  </button>
+                )
+              })()}
             </div>
           )
         })}
       </div>
+      <SelectionStatus count={selection.keys.length} reached={reached.length} t={t} />
       <span className={css.fade} />
     </div>
   )
@@ -884,7 +927,6 @@ function FlatList({
   const flatKeys = useMemo(() => [...selectionReach.keys()], [selectionReach])
   const selection = useRowSelection(flatKeys)
   const focus = useRowFocus(flatFocusKeys, listRef)
-  const account = { selection, focus }
   const reached = reachedSessionIds(selection.keys, selectionReach)
   const reachedSet = new Set(reached)
   const [drag, setDrag] = useState<DragState | null>(null)
@@ -912,7 +954,6 @@ function FlatList({
   })
   return (
     <div className={clsx(css.treeBody, css.wide)}>
-      <SelectionStatus count={selection.keys.length} reached={reached.length} t={t} />
       <div
         ref={listRef}
         className={clsx(css.list, css.flatList)}
@@ -928,12 +969,12 @@ function FlatList({
           return (
             <SessionNodeItem
               key={node.id} {...wiring} node={node} flat
-              seat={rowSeat(account, sessionRowKey(node.id), 1, !node.blank)}
+              seat={rowSeat(focus, sessionRowKey(node.id), 1, node.blank ? undefined : selection)}
               {...node.blank
                 ? {}
                 : {
                   selection: rowSelection(
-                    account, sessionRowKey(node.id), reachedSet.has(node.id), reached, onSessionsArchive,
+                    selection, sessionRowKey(node.id), reachedSet.has(node.id), reached, onSessionsArchive,
                   ),
                 }}
               drag={{
@@ -959,6 +1000,7 @@ function FlatList({
           )
         })}
       </div>
+      <SelectionStatus count={selection.keys.length} reached={reached.length} t={t} />
       <span className={css.fade} />
     </div>
   )
@@ -1008,20 +1050,37 @@ function SearchResults({
   )
   const pending = currentRemote.status === 'loading'
   const failed = currentRemote.status === 'error'
+  const listRef = useRef<HTMLDivElement>(null)
+  // The results are one level of a tree with no range over it: the seat is all
+  // the account they need, and Shift with an arrow carries nothing.
+  const focusKeys = useMemo(
+    () => results.items.map(result => sessionRowKey(result.id)),
+    [results],
+  )
+  const focus = useRowFocus(focusKeys, listRef)
 
   return (
     <div className={clsx(css.treeBody, css.wide)}>
       <div className={css.list}>
-        <div className={css.searchTree} role="tree" aria-label={t('search.results.aria')}>
-          {results.items.map(result => (
-            <SearchResultItem
-              key={result.id}
-              result={result}
-              currentId={list.current}
-              onOpen={open}
-              t={t}
-            />
-          ))}
+        <div
+          ref={listRef}
+          className={css.searchTree}
+          role="tree"
+          aria-label={t('search.results.aria')}
+        >
+          {results.items.map((result) => {
+            const key = sessionRowKey(result.id)
+            return (
+              <SearchResultItem
+                key={result.id}
+                result={result}
+                currentId={list.current}
+                onOpen={open}
+                seat={rowSeat(focus, key, 1)}
+                t={t}
+              />
+            )
+          })}
         </div>
         {pending && (
           <div className={css.searchStatus} role="status">{t('search.pending')}</div>

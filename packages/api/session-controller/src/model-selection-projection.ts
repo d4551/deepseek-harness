@@ -10,21 +10,26 @@ import type {
   ModelSelectionProjectionState,
 } from './types.ts'
 
+// `.readonly()` states the readonly half these projected types declare, the
+// same shape `schema-emitter.ts` emits for one. The remaining narrowing is the
+// optional-field gap: Zod infers `reasoningEffort?: string | undefined`, which
+// `exactOptionalPropertyTypes` refuses against `reasoningEffort?: string`, and
+// Zod has no exact-optional form to express it.
 const modelSelectionSchema = z.object({
   provider: z.string().min(1),
   model: z.string().min(1),
   reasoningEffort: z.string().min(1).optional(),
-}) as unknown as z.ZodType<ModelSelection>
+}).readonly() as z.ZodType<ModelSelection>
 
-const modelSelectionProjectionStateSchema = z.object({
+const modelSelectionProjectionStateSchema: z.ZodType<ModelSelectionProjectionState> = z.object({
   lastUsed: modelSelectionSchema.nullable(),
   pending: modelSelectionSchema.nullable(),
-}) as unknown as z.ZodType<ModelSelectionProjectionState>
+}).readonly()
 
-const modelSelectionProjectionSchema = z.object({
+const modelSelectionProjectionSchema: z.ZodType<ModelSelectionProjection> = z.object({
   lastUsed: modelSelectionSchema.nullable(),
   next: modelSelectionSchema.nullable(),
-}) as unknown as z.ZodType<ModelSelectionProjection>
+}).readonly()
 
 /**
  * Advance durable model-selection state by one Session event.

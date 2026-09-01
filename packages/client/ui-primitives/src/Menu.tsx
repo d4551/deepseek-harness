@@ -10,6 +10,11 @@ import css from './Menu.module.css'
 export interface MenuItem {
   id: string
   label: ReactNode
+  /**
+   * The row is unavailable. It stays in the arrow ring and keeps its place in
+   * the list — the menu pattern's inert rows are readable, not hidden — and
+   * refuses activation and any submenu of its own.
+   */
   disabled?: boolean
   /** Leading icon (figma .Menu_cell gap 8). */
   icon?: ReactNode
@@ -43,18 +48,32 @@ function isLabel(entry: MenuEntry): entry is MenuLabel {
   return 'type' in entry && entry.type === 'label'
 }
 
+/**
+ * Whether this row opens a nested card. An unavailable row opens nothing, so it
+ * neither announces a submenu nor keeps the list from capping its own height.
+ * @param entry - one primary-menu entry.
+ * @returns whether a submenu can open from it.
+ */
+function opensSubmenu(entry: MenuEntry): boolean {
+  if (isSeparator(entry) || isLabel(entry)) return false
+  return entry.disabled !== true && entry.submenu !== undefined && entry.submenu.length > 0
+}
+
 /** Unplaced portal list: hidden but laid out at a fixed origin so offsetWidth/offsetHeight are real. */
 const MEASURE_STYLE: CSSProperties = { visibility: 'hidden', left: 0, top: 0 }
 
 /**
- * The rows a keyboard can land on, in list order.
+ * The rows a keyboard can land on, in list order. A disabled row is one of
+ * them: the menu pattern keeps its inert rows focusable so the operator can
+ * read what the list holds and why it is unavailable, and refuses the
+ * activation instead of hiding the row from the arrows.
  * @param list - the open list element, or nothing before it renders.
- * @returns every enabled row, including the pinned footer's.
+ * @returns every row, including the pinned footer's.
  */
-function enabledItems(list: HTMLElement | null): HTMLButtonElement[] {
+function menuItems(list: HTMLElement | null): HTMLButtonElement[] {
   /* v8 ignore next -- the ref is attached in the same commit that opens the list. */
   if (list === null) return []
-  return [...list.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]:not([disabled])')]
+  return [...list.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]')]
 }
 
 /**
@@ -91,9 +110,12 @@ function enabledItems(list: HTMLElement | null): HTMLButtonElement[] {
  * that opened the list was keyboard work, which would otherwise be stranded
  * outside a portaled list that follows the whole document in tab order; leave
  * it off for pointer-opened lists, which must not move the focus at all.
+ * @param props.ariaLabel - accessible name for the list. A portaled menu is
+ * not inside its trigger, so nothing else names it; without this a reader
+ * announces an unlabelled menu.
  * @returns anchor wrapper with the conditional list.
  */
-export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, onClose, align = 'start', side = 'bottom', portal = false, closeOnPointerLeave = false, dense = false, compact = false, autoFocus = false, getAnchorRect, footer, className }: {
+export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, onClose, align = 'start', side = 'bottom', portal = false, closeOnPointerLeave = false, dense = false, compact = false, autoFocus = false, ariaLabel, getAnchorRect, footer, className }: {
   open: boolean
   anchor: ReactNode
   items: readonly MenuEntry[]
@@ -109,6 +131,7 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
   dense?: boolean
   compact?: boolean
   autoFocus?: boolean
+  ariaLabel?: string
   getAnchorRect?: () => DOMRect | null
   className?: string
 }) {
@@ -184,7 +207,12 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
       onClose()
     }
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') {
+        // Mark it handled so an outer dismissal — a list selection, a dialog —
+        // does not act on the same keystroke that only closed this menu.
+        e.preventDefault()
+        onClose()
+      }
     }
     document.addEventListener('pointerdown', onPointerDown)
     document.addEventListener('keydown', onKeyDown)
@@ -200,7 +228,7 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
   useEffect(() => {
     if (!open || !autoFocus) return
     const restore = document.activeElement
-    enabledItems(listRef.current)[0]?.focus()
+    menuItems(listRef.current)[0]?.focus()
     return () => {
       /* v8 ignore next -- the keyboard gesture that opened the list left the focus on an element of this document. */
       if (!(restore instanceof HTMLElement)) return
@@ -215,9 +243,17 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
   useEffect(() => {
     if (!open) return
     const onKeyDown = (e: KeyboardEvent) => {
-      const rows = enabledItems(listRef.current)
+      const rows = menuItems(listRef.current)
       const at = rows.findIndex(row => row === document.activeElement)
       if (at === -1) return
+      // The list is a portal at the end of the document, so Tab out of a row
+      // would strand the operator past every other focusable element. Closing
+      // hands the focus back to whatever opened the list.
+      if (e.key === 'Tab') {
+        e.preventDefault()
+        onClose()
+        return
+      }
       let next: number
       switch (e.key) {
         case 'ArrowDown': next = at + 1 === rows.length ? 0 : at + 1; break
@@ -231,7 +267,7 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
     }
     document.addEventListener('keydown', onKeyDown)
     return () => { document.removeEventListener('keydown', onKeyDown) }
-  }, [open])
+  }, [open, onClose])
 
   // A close from selection/Escape/outside click outruns a pending grace close;
   // left armed it would shut a list reopened inside the grace window. Its own
@@ -243,7 +279,7 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
 
   // The submenu card is absolutely positioned outside the list box; the
   // scroll clip would crop it, so only submenu-free menus get the height cap.
-  const scrollable = !items.some(entry => !isSeparator(entry) && !isLabel(entry) && entry.submenu !== undefined && entry.submenu.length > 0)
+  const scrollable = !items.some(opensSubmenu)
 
   const renderEntry = (entry: MenuEntry) => {
     if (isSeparator(entry)) {
@@ -252,7 +288,7 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
     if (isLabel(entry)) {
       return <div key={entry.id} className={css.label} role="presentation">{entry.text}</div>
     }
-    const hasSub = entry.submenu !== undefined && entry.submenu.length > 0
+    const hasSub = opensSubmenu(entry)
     const subOpen = hasSub && openSubmenuId === entry.id
     const selected = entry.id === selectedId || selectedIds?.includes(entry.id) === true
     return (
@@ -265,12 +301,19 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
         <button
           type="button"
           role="menuitem"
+          // The menu pattern keeps its rows out of the tab sequence: the arrows
+          // move between them and Tab leaves the menu entirely.
+          tabIndex={-1}
           className={clsx(css.item, selected && css.selected, entry.danger === true && css.danger)}
-          disabled={entry.disabled}
+          // `aria-disabled` rather than the native attribute: a row the
+          // browser disables takes no focus, and the menu pattern keeps its
+          // inert rows in the arrow ring. The refusal is below.
+          {...entry.disabled === true ? { 'aria-disabled': true } : {}}
           aria-haspopup={hasSub ? 'menu' : undefined}
           aria-expanded={hasSub ? subOpen : undefined}
           onFocus={() => { setOpenSubmenuId(hasSub ? entry.id : null) }}
           onClick={() => {
+            if (entry.disabled === true) return
             if (hasSub) {
               setOpenSubmenuId(entry.id)
               return
@@ -290,9 +333,10 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
                 key={sub.id}
                 type="button"
                 role="menuitem"
+                tabIndex={-1}
                 className={css.item}
-                disabled={sub.disabled}
-                onClick={() => { onSelect(sub.id) }}
+                {...sub.disabled === true ? { 'aria-disabled': true } : {}}
+                onClick={() => { if (sub.disabled !== true) onSelect(sub.id) }}
               >
                 {sub.icon !== undefined && <span className={css.itemIcon}>{sub.icon}</span>}
                 <span className={css.itemLabel}>{sub.label}</span>
@@ -314,6 +358,7 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
       className={clsx(css.list, dense && css.denseList, compact && css.compactList, scrollable && css.scrollable, portal && css.portal, side === 'top' && !portal && css.sideTop, align === 'end' && !portal && css.alignEnd)}
       style={portal ? fixedPos ?? MEASURE_STYLE : undefined}
       role="menu"
+      {...ariaLabel === undefined ? {} : { 'aria-label': ariaLabel }}
       // React portals bubble synthetic events through the REACT tree: without
       // this stop, an item click re-fires the anchor row's own onClick
       // (open/toggle) after onSelect.

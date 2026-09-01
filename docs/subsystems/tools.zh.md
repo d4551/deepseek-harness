@@ -423,7 +423,7 @@ type JsonSchemaType = 'object' | 'array' | 'string' | 'number' | 'integer' | 'bo
  * the external wire schema; {@link assertSupportedJsonSchema} rejects invalid
  * combinations before a caller treats the node as trusted.
  */
-interface JsonSchemaNode {
+type JsonSchemaNode = {
   /** Omit with no constraints for any JSON value, or use `oneOf`. */
   type?: JsonSchemaType
   /** Exactly one branch must validate; at least two branches are required. */

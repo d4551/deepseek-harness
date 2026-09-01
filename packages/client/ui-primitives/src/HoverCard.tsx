@@ -16,11 +16,15 @@ import css from './HoverCard.module.css'
  * included in the card's accessible name.
  * @param props.copyLabel - localized accessible activation-label prefix.
  * @param props.copiedLabel - localized visible success label.
+ * @param props.presentational - hide the wrapper span from the accessibility
+ * tree. Set it where the anchor is an owned child — a `treeitem` under a
+ * `tree`, an `option` under a `listbox` — because a generic element between
+ * the two ends the owner's claim on it.
  * @returns anchor wrapper with the conditional portaled card.
  */
 export function HoverCard({
   anchor, content, openDelayMs = 500, disabled = false,
-  copyText, copyLabel, copiedLabel,
+  copyText, copyLabel, copiedLabel, presentational = false,
 }: {
   anchor: ReactNode
   content: ReactNode
@@ -29,6 +33,7 @@ export function HoverCard({
   copyText?: string | undefined
   copyLabel: string
   copiedLabel: string
+  presentational?: boolean
 }) {
   const rootRef = useRef<HTMLSpanElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
@@ -171,6 +176,7 @@ export function HoverCard({
     <span
       ref={rootRef}
       className={css.root}
+      {...presentational ? { role: 'none' } : {}}
       onPointerEnter={() => {
         if (disabled) return
         // Coming back inside during the grace (the gap, or the card itself)

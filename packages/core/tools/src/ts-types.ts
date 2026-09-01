@@ -191,7 +191,7 @@ function renderSupportedSchema(schema: JsonSchemaNode, indent: number): TypeDocu
       case 'integer':
       case 'boolean':
       case 'null':
-        finish(typeDocument(renderConstrainedScalar(node as Record<string, unknown>, node.type)))
+        finish(typeDocument(renderConstrainedScalar(node, node.type)))
         break
       case 'array':
         if (node.items === undefined) {

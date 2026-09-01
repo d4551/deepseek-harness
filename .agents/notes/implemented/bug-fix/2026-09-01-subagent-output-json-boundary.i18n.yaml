@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-01-subagent-output-json-boundary.md
+2026-09-01-subagent-output-json-boundary.md: fd6248a12b941e87ed47e47c8bb582cbd0da23ff
+2026-09-01-subagent-output-json-boundary.zh.md: a95313edb5b7944cae8107b0650e72e3cb94cfc8

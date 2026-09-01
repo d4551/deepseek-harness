@@ -84,7 +84,7 @@ describe('createSnapshotStore', () => {
     expect(spy).not.toHaveBeenCalled()
   })
 
-  it('replaces state wholesale via set and freezes it outside production', () => {
+  it('replaces state wholesale via set and freezes it outside an official artifact', () => {
     const store = createSnapshotStore(init())
     const next = init()
     store.set(next)
@@ -113,14 +113,23 @@ describe('createSnapshotStore', () => {
     expect(() => { (store.getSnapshot().a).n = 9 }).toThrow()
   })
 
-  it('does not deep-freeze wholesale state in production', () => {
+  it('skips the wholesale-set freeze only for an official client artifact', () => {
+    // `NODE_ENV` cannot reach a browser bundle: the client bundler replaces
+    // `process.env` with `{}`, so a guard reading it would freeze in every
+    // shipped artifact. The build profile is a name that define set carries.
     vi.stubEnv('NODE_ENV', 'production')
-    const store = createSnapshotStore(init())
+    const frozen = createSnapshotStore(init())
+    const stillGuarded = init()
+    frozen.set(stillGuarded)
+    expect(() => { stillGuarded.a.n = 9 }).toThrow()
+
+    vi.stubEnv('DSH_CLIENT_BUILD_PROFILE', 'official')
+    const official = createSnapshotStore(init())
     const next = init()
-    store.set(next)
+    official.set(next)
 
     next.a.n = 9
-    expect(store.getSnapshot().a.n).toBe(9)
+    expect(official.getSnapshot().a.n).toBe(9)
   })
 
   it('rehydrates primitive state whole, not spread into index keys', () => {

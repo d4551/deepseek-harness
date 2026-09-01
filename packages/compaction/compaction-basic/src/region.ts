@@ -114,6 +114,7 @@ export function selectCompactableRange(
   let accumulated = 0
   let keepFromIdx = pricedNodes.length
   for (let index = pricedNodes.length - 1; index >= 0; index -= 1) {
+    // `index` walks down from `length - 1`, so it always addresses a row.
     // oxlint-disable-next-line typescript/no-non-null-assertion
     accumulated += pricedNodes[index]!.tokens
     keepFromIdx = index
@@ -122,12 +123,16 @@ export function selectCompactableRange(
   if (keepFromIdx === 0) return null
 
   while (keepFromIdx > 0) {
+    // The loop condition keeps `keepFromIdx` above zero, and it entered at a
+    // position this surface holds, so it addresses a node on every pass.
     // oxlint-disable-next-line typescript/no-non-null-assertion
     if (toolPairingBalancedBefore(session, surfaceNodes[keepFromIdx]!)) break
     keepFromIdx -= 1
   }
   if (keepFromIdx === 0) return null
 
+  // `keepFromIdx` is at least one here, so the surface holds both a first node
+  // and the node before the cut.
   // oxlint-disable-next-line typescript/no-non-null-assertion
   const first = surfaceNodes[0]!
   // oxlint-disable-next-line typescript/no-non-null-assertion
@@ -325,12 +330,10 @@ function validateSurfaceRegion(session: Session, start: number, end: number): Su
       `compactRegion: start seq ${start} (position ${startIdx}) is after end seq ${end} (position ${endIdx}) on the surface`,
     )
   }
-  // oxlint-disable-next-line typescript/no-non-null-assertion
-  if (!toolPairingBalancedBefore(session, nodes[startIdx]!)) {
+  if (!toolPairingBalancedBefore(session, start)) {
     throw new Error(`compactRegion: start seq ${start} is not a balanced boundary (would split a step's tool-call/result pair)`)
   }
-  // oxlint-disable-next-line typescript/no-non-null-assertion
-  if (!toolPairingBalancedAfter(session, nodes[endIdx]!)) {
+  if (!toolPairingBalancedAfter(session, end)) {
     throw new Error(`compactRegion: end seq ${end} is not a balanced boundary (would split a step, or the step is still open)`)
   }
 
@@ -531,6 +534,7 @@ function inspectCompactionEntryState(events: readonly SessionEvent[]): Compactio
   let compactionEntryStateKnown = false
   let latestEndSeedSeq: number | undefined
   for (let index = events.length - 1; index >= 0; index -= 1) {
+    // `index` walks down from `length - 1`, so it always addresses an event.
     // oxlint-disable-next-line typescript/no-non-null-assertion
     const event = events[index]!
     if (latestEndSeedSeq === undefined && event.type === 'session/end-seed') {

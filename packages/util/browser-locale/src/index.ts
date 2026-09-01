@@ -17,14 +17,15 @@ export type BrowserLocaleId = 'en' | 'zh'
  * `navigator` exists on the host global in non-browser runs and reports the
  * machine's language, which must not decide a page's locale; only a real
  * `window` admits it. `languages` is ordered by preference and absent on some
- * embedders, so `language` is the documented fallback.
+ * embedders, so `language` is the documented fallback for the whole list.
  * @param tags - override for the browser's tags; omitted, the browser is read.
  * @returns the matching locale id, defaulting to English.
  */
 export function resolveBrowserLocale(tags?: readonly string[]): BrowserLocaleId {
-  const requested = tags ?? (typeof window === 'undefined'
-    ? []
-    : [...(navigator as { readonly languages?: readonly string[] }).languages ?? [], navigator.language])
+  // Stryker disable next-line ArrayDeclaration : a junk array holds no `zh` tag, so the locale is unchanged; the no-window test pins it
+  const requested = tags ?? (typeof window === 'undefined' ? []
+    : (navigator as { readonly languages?: readonly string[]; readonly language: string })
+      .languages ?? [navigator.language])
   for (const tag of requested) {
     // A regional tag still selects its language: `zh-CN`, `zh-Hant`, and `zh`
     // all take the Chinese dictionary.

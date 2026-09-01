@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveBrowserLocale } from '../src/index.ts'
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 describe('resolveBrowserLocale', () => {
   it('takes the Chinese dictionary for any Chinese tag, regional or not', () => {
@@ -20,6 +24,28 @@ describe('resolveBrowserLocale', () => {
   })
 
   it('reads no host global when the run has no window', () => {
+    vi.stubGlobal('navigator', { language: 'zh' })
     expect(resolveBrowserLocale()).toBe('en')
+  })
+
+  it('reads the browser tag list, preference-ordered with language as the fallback', () => {
+    vi.stubGlobal('window', {})
+    vi.stubGlobal('navigator', { language: 'zh-CN', languages: ['en-US', 'zh-Hans'] })
+    expect(resolveBrowserLocale()).toBe('zh')
+
+    vi.stubGlobal('navigator', { language: 'fr' })
+    expect(resolveBrowserLocale()).toBe('en')
+  })
+
+  it('resolves from languages alone when the embedder reports no language fallback', () => {
+    vi.stubGlobal('window', {})
+    vi.stubGlobal('navigator', { languages: ['zh-Hans'] })
+    expect(resolveBrowserLocale()).toBe('zh')
+  })
+
+  it('falls back to language when the embedder reports no languages list', () => {
+    vi.stubGlobal('window', {})
+    vi.stubGlobal('navigator', { language: 'zh-TW' })
+    expect(resolveBrowserLocale()).toBe('zh')
   })
 })

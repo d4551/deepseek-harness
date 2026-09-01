@@ -25,6 +25,9 @@
 
     },
     {
+      "path": "../../core/agent-default-model"
+    },
+    {
       "path": "../../context/file-reference"
     },
     {
@@ -56,6 +59,9 @@
     },
     {
       "path": "../../subagent/subagent"
+    },
+    {
+      "path": "../../subagent/tool-subagent"
     },
     {
       "path": "../../interaction/user-approval"

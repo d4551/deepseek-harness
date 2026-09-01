@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-31-workspace-row-context-menu-and-range-archive.md
-2026-08-31-workspace-row-context-menu-and-range-archive.md: 0b536b41a5b30a004e0a95c12614ae2b5e8421b9
-2026-08-31-workspace-row-context-menu-and-range-archive.zh.md: 830b53573789935819154ec096a8b11b7d9e72db
+2026-08-31-workspace-row-context-menu-and-range-archive.md: 59feacd561cf03716320cd4a16c2c4ff78beefd7
+2026-08-31-workspace-row-context-menu-and-range-archive.zh.md: 7f19d9a4925f1b428990e382083b770a64a1dd84

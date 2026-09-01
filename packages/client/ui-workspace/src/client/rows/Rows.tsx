@@ -2,10 +2,11 @@
  * Workspace browser tree row components (figma Cell set 14:3080): pure presentational —
  * all data and callbacks arrive via props. Hover swaps (folder->chevron,
  * time->ellipsis, action buttons) are revealed by hover or by focus inside the
- * row, so the trailing verbs are reachable from the keyboard. Row ... menus are
- * visual-only except workspace Rename/Delete and session Rename/Fork/Archive;
- * the same list also answers a right-click anywhere on the row and the
- * keyboard's own menu request, and the session and workspace hover cards are
+ * row, so the trailing verbs are reachable from the keyboard. Every row-menu
+ * entry acts: workspace Rename/Delete, session Rename/Fork/Archive, and the one
+ * bulk Archive row that replaces them while a range holds two or more rows. The
+ * same list answers the trailing button, a right-click anywhere on the row, and
+ * the keyboard's own menu request, and the session and workspace hover cards are
  * suppressed while a menu is open.
  */
 import { useMemo, useState } from 'react'
@@ -19,6 +20,7 @@ import {
 import type { MenuItem, StateDotState } from '@deepseek-ai/dsh-client-ui-primitives'
 import { abbreviateHomePath } from '@deepseek-ai/dsh-util-workspace-path'
 import type { WorkspaceBrowserProps } from '../contract/slots.ts'
+import { additiveModifier, secondaryPress } from '../pointer-platform.ts'
 import type { FocusTarget } from '../row-focus.ts'
 import type { RowKey } from '../selection.ts'
 import type { GroupNode, SearchResultNode, SessionNode } from '../tree.ts'
@@ -128,13 +130,13 @@ interface MenuOrigin {
 /**
  * Row menu state shared by both row kinds. The trailing `...` button, a
  * right-click anywhere on the row, and the keyboard's own menu request open the
- * same list. Only a secondary press reports pointer button 2, and only it has a
- * position worth honouring, so its list opens under the cursor instead of at a
- * button the row reveals on hover; every other `contextmenu` — Shift+F10, the
- * ContextMenu key, a touch long-press — opens against the row. The list takes
- * the focus whenever the keyboard asked for it — the row held the focus when
- * the request arrived, or the button's click carried no pointer detail — and
- * never when a press asked, whose operator is not inside the list.
+ * same list. Only a secondary press carries a cursor worth honouring, so its
+ * list opens under that cursor instead of at a button the row reveals on hover;
+ * every other `contextmenu` — Shift+F10, the ContextMenu key, a touch
+ * long-press — opens against the row. The list takes the focus whenever the
+ * keyboard asked for it — the row held the focus when the request arrived, or
+ * the button's click carried no pointer detail — and never when a press asked,
+ * whose operator is not inside the list.
  * @returns the open flag, the placement override, the focus claim, and the
  * three gestures.
  */
@@ -153,10 +155,13 @@ function useRowMenu(): RowMenu {
       event.preventDefault()
       event.stopPropagation()
       const row = event.currentTarget
-      const pointed = event.button === 2
+      const pointed = secondaryPress(event)
       setOrigin({
         rect: pointed ? new DOMRect(event.clientX, event.clientY, 0, 0) : row.getBoundingClientRect(),
-        seated: !pointed && document.activeElement === row,
+        // Every `contextmenu` no press asked for came from the keyboard,
+        // wherever inside the row the focus sat — the row itself or its
+        // trailing button. A press never claims the focus.
+        seated: !pointed && row.contains(document.activeElement),
       })
       setOpen(true)
     },
@@ -192,8 +197,10 @@ export interface RowMultiSelection {
   archivableCount: number
   /** Shift-click or Shift+Space: select every rendered row between the anchor and this one. */
   extend: () => void
-  /** Ctrl/Cmd-click or Space: add or remove this row. */
+  /** Cmd-click on Apple platforms, Ctrl-click elsewhere, or Space: add or remove this row. */
   toggle: () => void
+  /** The same modifier with A: take every row the list's range can reach. */
+  selectAll: () => void
   /** Plain click or Enter: this row becomes the anchor and any previous selection drops. */
   anchor: () => void
   /** Archive every session the selection reaches. */
@@ -221,14 +228,21 @@ export interface RowSeat {
    * row no range can reach.
    */
   move: (target: FocusTarget, extend: boolean) => void
+  /**
+   * Move the tab stop and the focus to the next row whose label starts with
+   * what has been typed — the tree pattern's type-ahead.
+   */
+  typeAhead: (character: string) => void
 }
 
 /**
  * Route a row keystroke through the list's tab stop and its selection. The
  * arrows and Home/End move the focus, Shift takes the range along with the
- * move, Space edits the selection where a click's modifier would, and Enter
- * does what a plain click does. A row outside every range still walks and still
- * activates; only the two selection keys go unanswered there. Every other key
+ * move, Space edits the selection where a click's modifier would, Enter does
+ * what a plain click does, the additive modifier with A takes the whole range,
+ * and a printable character searches the list by row label. A row outside every
+ * range still walks, still searches, and still activates; only the selection
+ * keys go unanswered there. Every other key
  * keeps its browser meaning. The caller has already established that the
  * keystroke is the row's own.
  * @param seat - the row's place in the tab order.
@@ -236,12 +250,21 @@ export interface RowSeat {
  * @param activate - what a plain click on this row does.
  * @param event - the keystroke being routed.
  */
-function rowKeyDown(
+export function rowKeyDown(
   seat: RowSeat,
   selection: RowMultiSelection | undefined,
   activate: () => void,
   event: ReactKeyboardEvent,
 ): void {
+  // Select-all is answered before the switch, because the type-ahead below
+  // refuses every key carrying a command modifier and would otherwise be the
+  // last word on this one. A row no range reaches has no account to take.
+  if (additiveModifier(event) && event.key.toLowerCase() === 'a') {
+    if (selection === undefined) return
+    selection.selectAll()
+    event.preventDefault()
+    return
+  }
   switch (event.key) {
     case 'ArrowDown': seat.move('next', event.shiftKey); break
     case 'ArrowUp': seat.move('previous', event.shiftKey); break
@@ -258,43 +281,62 @@ function rowKeyDown(
       selection?.anchor()
       activate()
       break
-    // An unanswered key keeps its own meaning, so the guard below is the only
-    // place that takes one away.
-    default: return
+    default:
+      // A key the browser names with one character, and no command modifier
+      // on it, searches the list by label; every other key keeps its own
+      // meaning, so the guard below is the only place that takes one away.
+      if (event.key.length !== 1 || event.ctrlKey || event.metaKey || event.altKey) return
+      seat.typeAhead(event.key)
+      break
   }
   event.preventDefault()
 }
 
 /**
  * Route a row click through the multi-selection. Shift extends the range and
- * Ctrl/Cmd adds or removes one row; either replaces the row's own activation.
- * A plain click re-anchors the range and lets the row act as it always did.
+ * the platform's additive modifier adds or removes one row; either replaces the
+ * row's own activation.
+ * A plain click re-anchors the range and lets the row act as it always did. A
+ * click that arrives while this row's menu is up is swallowed whole, whatever
+ * opened it: WebKit dispatches a `click` for an Apple Ctrl+click as well as
+ * the `contextmenu` that press asked for, and a click reaching the row from
+ * under any open list is the press that dismisses the list. Reading the row's
+ * own menu rather than the platform keeps that true on a host whose
+ * `navigator.platform` says otherwise.
  * @param selection - the row's selection wiring, absent on unselectable rows.
+ * @param menuOpen - whether this row's menu is showing.
  * @param event - the click being routed.
- * @returns whether the selection consumed the click.
+ * @returns whether the click was answered before the row's own activation.
  */
 function selectionTookClick(
   selection: RowMultiSelection | undefined,
+  menuOpen: boolean,
   event: ReactMouseEvent,
 ): boolean {
+  if (menuOpen) return true
   if (selection === undefined) return false
   if (event.shiftKey) { selection.extend(); return true }
-  if (event.metaKey || event.ctrlKey) { selection.toggle(); return true }
+  if (additiveModifier(event)) { selection.toggle(); return true }
   selection.anchor()
   return false
 }
 
 /**
- * Whether a keystroke belongs to the row itself rather than to a control inside
- * it. The trailing `...` button answers Enter and Space on its own, and the row
- * menu it opens is a React child of the row, so its portaled list bubbles
- * through the React tree — without this the arrows would walk the menu and the
- * list underneath it at the same time.
- * @param event - the keystroke reaching the row.
- * @returns whether the row is the keystroke's own target.
+ * Whether a row should answer this keystroke at all. Two things take it away.
+ * A control inside the row answers its own keys: the trailing `...` button
+ * handles Enter and Space, and the row menu it opens is a React child of the
+ * row, so its portaled list bubbles back through the React tree — without the
+ * target test the arrows would walk the menu and the list underneath it at
+ * once. An open row menu then owns the keyboard outright while it is up, since
+ * its list's own arrow handler sees nothing until the focus is inside it, and
+ * the row would otherwise walk a tree beneath a list still anchored where it
+ * opened.
+ * @param event - the keystroke the row received.
+ * @param menuOpen - whether this row's menu is showing.
+ * @returns whether the row owns the keystroke.
  */
-function ownKeystroke(event: ReactKeyboardEvent): boolean {
-  return event.target === event.currentTarget
+function rowOwnsKey(event: ReactKeyboardEvent, menuOpen: boolean): boolean {
+  return !menuOpen && event.target === event.currentTarget
 }
 
 /**
@@ -399,13 +441,14 @@ export function ProjectRowItem({ group, onToggle, onCreate, actions, seat, selec
       {...selection === undefined ? {} : { 'aria-selected': selection.active }}
       tabIndex={seat.seated ? 0 : -1}
       data-row-key={seat.rowKey}
+      data-row-label={label}
       onClick={(e) => {
         // A modified click edits the range instead of folding the group.
-        if (selectionTookClick(selection, e)) return
+        if (selectionTookClick(selection, menuOpen, e)) return
         onToggle()
       }}
       onKeyDown={(e) => {
-        if (!ownKeystroke(e)) return
+        if (!rowOwnsKey(e, menuOpen)) return
         // The horizontal arrows work the disclosure the tree pattern gives a
         // parent node: open a folded group, fold an open one, and step into
         // the first child of a group already open.
@@ -465,12 +508,15 @@ export function ProjectRowItem({ group, onToggle, onCreate, actions, seat, selec
             portal
             closeOnPointerLeave
             autoFocus={menu.autoFocus}
+            ariaLabel={t('actions.workspace.aria', { name: label })}
             {...menu.anchorProps}
             anchor={(
               <button
                 type="button"
                 className={css.iconButton}
                 aria-label={t('actions.workspace.aria', { name: label })}
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
                 onClick={menu.toggle}
               >
                 <IconEllipsisOutline16 />
@@ -493,6 +539,9 @@ export function ProjectRowItem({ group, onToggle, onCreate, actions, seat, selec
   if (row.createdAt === undefined) return ownRow
   return (
     <HoverCard
+      // The row is a treeitem its tree owns; a generic wrapper between the two
+      // would break that ownership.
+      presentational
       anchor={ownRow}
       content={<WorkspaceHoverContent
         label={row.label}
@@ -596,17 +645,22 @@ function SessionHoverContent({ node, now, t }: { node: SessionNode; now: number;
 /**
  * One flat search result: title, Workspace context, and optional content
  * excerpt. Search navigation opens the session only; it does not address an
- * event inside the conversation.
+ * event inside the conversation. The results are a tree of one level, so they
+ * hold one tab stop between them and the arrows move it, exactly as the two
+ * session lists do; no range reaches them, so Shift carries nothing and no row
+ * reports selection state.
  * @param props.result - merged local/content search row.
  * @param props.currentId - selected session id.
  * @param props.onOpen - open the selected session.
+ * @param props.seat - the row's place in the result list's tab order.
  * @param props.t - Workspace-browser translation seat.
  * @returns the result button.
  */
-export function SearchResultItem({ result, currentId, onOpen, t }: {
+export function SearchResultItem({ result, currentId, onOpen, seat, t }: {
   result: SearchResultNode
   currentId: string | undefined
   onOpen: (id: SearchResultNode['id']) => void
+  seat: RowSeat
   t: RowTranslate
 }) {
   const selected = result.id === currentId
@@ -617,8 +671,18 @@ export function SearchResultItem({ result, currentId, onOpen, t }: {
       type="button"
       className={clsx(css.searchResultRow, selected && css.selected)}
       role="treeitem"
-      aria-selected={selected}
+      aria-level={seat.level}
+      // The open Session is the list's current row. No range reaches a result,
+      // so the row promises no selection state either — the same rule the
+      // session rows keep for the rows a range cannot select.
+      {...selected ? { 'aria-current': true } : {}}
+      tabIndex={seat.seated ? 0 : -1}
+      data-row-key={seat.rowKey}
+      data-row-label={result.title}
       onClick={() => { onOpen(result.id) }}
+      // A result row holds no control of its own, so every keystroke reaching
+      // it is the row's own; the project and session rows guard for theirs.
+      onKeyDown={(e) => { rowKeyDown(seat, undefined, () => { onOpen(result.id) }, e) }}
     >
       <span className={css.searchResultHeading}>
         <span className={css.slot}>
@@ -712,18 +776,23 @@ export function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork
       )}
       role="treeitem"
       aria-level={seat.level}
-      // The current-Session highlight and a range both report through
-      // `aria-selected`; a row no range can reach reports only the first.
-      aria-selected={selected || selection?.active === true}
+      // The open Session is the list's current row, not a range member. A tree
+      // that declares `aria-multiselectable` has to keep the two apart, or the
+      // set a reader hears as selected is not the set a bulk archive commits.
+      {...selected ? { 'aria-current': true } : {}}
+      // Only a row a range can reach reports selection state, on the same terms
+      // the Ungrouped bucket does: a blank draft promises no selection either.
+      {...selection === undefined ? {} : { 'aria-selected': selection.active }}
       tabIndex={seat.seated ? 0 : -1}
       data-row-key={seat.rowKey}
+      data-row-label={title}
       onClick={(e) => {
         // A modified click edits the range instead of opening the Session.
-        if (selectionTookClick(selection, e)) return
+        if (selectionTookClick(selection, menuOpen, e)) return
         onOpen(node.id)
       }}
       onKeyDown={(e) => {
-        if (!ownKeystroke(e)) return
+        if (!rowOwnsKey(e, menuOpen)) return
         // A leaf's collapse key steps out to the header it sits under; the
         // flat list has none and holds.
         if (e.key === 'ArrowLeft') {
@@ -793,12 +862,15 @@ export function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork
             portal
             closeOnPointerLeave
             autoFocus={menu.autoFocus}
+            ariaLabel={t('actions.session.aria', { name: title })}
             {...menu.anchorProps}
             anchor={(
               <button
                 type="button"
                 className={css.iconButton}
                 aria-label={t('actions.session.aria', { name: title })}
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
                 onClick={menu.toggle}
               >
                 <IconEllipsisOutline16 />
@@ -811,6 +883,9 @@ export function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork
   )
   return (
     <HoverCard
+      // The row is a treeitem its tree owns; a generic wrapper between the two
+      // would break that ownership.
+      presentational
       anchor={ownRow}
       content={<SessionHoverContent node={node} now={now} t={t} />}
       disabled={menuOpen || drag?.active === true}
