@@ -84,6 +84,7 @@ export interface PackageManifest {
     | undefined
   >
   files?: string[]
+  scripts?: Record<string, string>
   publishConfig?: { access?: string }
   repository?: { type?: string; url?: string; directory?: string }
   peerDependencies?: Record<string, string>
@@ -575,44 +576,33 @@ export function checkSingleExternalVersion(manifests: readonly WorkspaceManifest
   return errors
 }
 
-/** Dependency sections the build's own config resolves when it imports a package's emit. */
-const buildToolingDependencySections = ['dependencies', 'optionalDependencies'] as const
-
 /**
- * Keep every package `tsdown.config.ts` imports closed over published dependencies.
+ * Keep the build-tooling bootstrap pass ahead of the plugin-bearing Host pass.
  *
- * The config loads its plugins from a package's `lib/types` emit before the
- * build it configures has bundled anything, so a workspace runtime dependency
- * there resolves to a `lib/index.js` the same build still has to write and
- * tsdown fails while loading its config. `peerDependencies` are excluded: a dsh
- * package declares Cordis and the invariant service for its companion plugin,
- * which the build config never loads.
- * @param configSource - contents of the root `tsdown.config.ts`.
- * @param manifests - every workspace manifest.
- * @returns one error per workspace runtime dependency declared by an imported package.
+ * Node resolves the Typert plugin's whole import graph while `tsdown.config.ts`
+ * loads, before that build writes anything, so every workspace package the
+ * graph reaches must already carry its `lib/index.js` bundle.
+ * `tsdown.bootstrap.config.ts` writes exactly those bundles; dropping it from
+ * the script, or running it second, fails the build on any tree that has no
+ * output from an earlier build.
+ * @param scripts - the root manifest's `scripts` map.
+ * @returns one error when the Host lib script omits either pass or orders them wrongly.
  */
-export function checkBuildToolingClosure(
-  configSource: string,
-  manifests: readonly WorkspaceManifest[],
-): string[] {
-  const members = new Set(manifests.map(entry => entry.manifest.name).filter(name => name !== undefined))
-  const imported = new Set<string>()
-  for (const { dir } of manifests) {
-    if (dir !== '.' && configSource.includes(`'./${dir}/`)) imported.add(dir)
+export function checkBuildToolingBootstrap(scripts: Record<string, string> | undefined): string[] {
+  const label = 'package.json: scripts["build:lib:host"]'
+  const script = scripts?.['build:lib:host']
+  if (script === undefined) return [`${label} is missing`]
+  const bootstrap = script.indexOf('tsdown --config tsdown.bootstrap.config.ts')
+  const host = script.indexOf('tsdown --env.DSH_BUILD_FACE host')
+  if (host === -1) return [`${label} must run \`tsdown --env.DSH_BUILD_FACE host\``]
+  if (bootstrap === -1) {
+    return [
+      `${label} must run \`tsdown --config tsdown.bootstrap.config.ts\` first: the Host pass cannot load its `
+      + 'config until the build tooling\'s workspace dependencies carry their bundles',
+    ]
   }
-  const errors: string[] = []
-  for (const { dir, manifest } of manifests) {
-    if (!imported.has(dir)) continue
-    for (const section of buildToolingDependencySections) {
-      for (const name of Object.keys(manifest[section] ?? {})) {
-        if (!members.has(name)) continue
-        errors.push(
-          `${manifest.name ?? dir}: tsdown.config.ts imports this package's emit, so ${section}.${name} must not be a workspace package whose entry the same build writes`,
-        )
-      }
-    }
-  }
-  return errors
+  if (bootstrap > host) return [`${label} must run the bootstrap pass before the Host pass`]
+  return []
 }
 
 /** Run the repository constraint gate. */
@@ -631,7 +621,7 @@ export function main(): void {
     ...checkHierarchyShape(),
     ...collectProjectReferenceFaceViolations(root),
     ...checkEmittingProjectRootDirs(),
-    ...checkBuildToolingClosure(readFileSync(join(root, 'tsdown.config.ts'), 'utf8'), manifests),
+    ...checkBuildToolingBootstrap(rootManifest.scripts),
   ]
   if (errors.length > 0) {
     console.error(errors.join('\n'))
