@@ -2,11 +2,56 @@
 
 [English](README.md) | 中文
 
+[![TypeScript 7.0.2](https://img.shields.io/badge/TypeScript-7.0.2-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/) [![bun 1.4](https://img.shields.io/badge/bun-1.4-000000?logo=bun&logoColor=white)](https://bun.sh/) [![Node ^22.19 || >=24](https://img.shields.io/badge/Node-%5E22.19%20%7C%7C%20%3E%3D24-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/) [![Cordis](https://img.shields.io/badge/Cordis-everything%20is%20a%20plugin-4338CA)](https://github.com/cordiverse/cordis) [![Vitest 4](https://img.shields.io/badge/Vitest-4-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev/) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 DeepSeek Harness（`dsh`）是由 [DeepSeek AI](https://deepseek.com) 开发的开源 agent harness（智能体框架）。
 
 它构建于**一切皆插件**的架构之上，由 [Cordis](https://github.com/cordiverse/cordis) 驱动，其设计参见论文 [_A Programming Paradigm for Spatiotemporal Composability_](https://arxiv.org/abs/2608.25512)。
 
 文档：[https://deepseek-harness.github.io/deepseek-harness/](https://deepseek-harness.github.io/deepseek-harness/)
+
+## 像给五岁小孩解释
+
+harness 就是坐在你和语言模型之间、真正把活干完的那一层：它记住对话、决定告诉模型什么、把工具交给模型、执行模型点名的那个工具，并把发生过的一切都写下来。
+
+在 `dsh` 里，上面每一项职责都是一个插件。提示词组装是插件，工具注册表是插件，执行 shell 命令是插件，与模型对话也是插件。没有任何一项焊死在循环里，所以新增一项能力靠的是在其它插件旁边挂载一个插件，而不是改动 harness 本身。
+
+有两条规则把整套东西撑住：
+
+- **模型能看到的，一定被写下来。** 凡是进入模型请求的内容，都能从 session 日志中重建出来；这正是一段会话日后可以重放、以及一次录制的运行可以当测试用的原因。
+- **一项能力由三部分构成。** 一处声明这项能力是什么，一处提供它，一处消费它。更换提供方——换一个 shell、换一个搜索——对消费方毫无影响。
+
+## 工作原理
+
+```mermaid
+flowchart TB
+  you["You<br/>Web UI · CLI · SDK"] --> loop
+
+  subgraph ctx["One Cordis context — every box in it is a plugin"]
+    direction TB
+    loop["agent-loop<br/>runs one turn, one step at a time"]
+    prompt["system-prompt<br/>assembles what the model sees"]
+    tools["tools<br/>the registry the model may call"]
+    llm["llm<br/>Service Definition + provider"]
+    loop --> prompt
+    loop --> tools
+    loop --> llm
+  end
+
+  tools --> seams["Capability seams<br/>shell · fs · web · subagent · lsp · skill · workflow · …<br/><i>swap the provider, the consumer does not notice</i>"]
+  llm -->|"request"| model["DeepSeek model"]
+  loop ==>|"writes what the model saw"| log[("Session log<br/>durable · replayable")]
+  log -.->|"keyless replay"| loop
+
+  classDef core fill:#eef2ff,stroke:#4338ca,color:#1e1b4b
+  classDef seam fill:#ecfdf5,stroke:#047857,color:#064e3b
+  classDef out fill:#fef3c7,stroke:#b45309,color:#451a03
+  class loop,prompt,tools,llm core
+  class seams seam
+  class model,log,you out
+```
+
+那条粗箭头就是让其余部分成立的规则：一个轮次只有在模型所见都落到日志上之后才算结束，所以同一次运行无需密钥即可重放，一段录制的会话就是一条回归测试。
 
 ## 本仓库
 

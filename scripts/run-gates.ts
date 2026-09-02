@@ -777,7 +777,7 @@ function docSyncLeafGates(options: {
     bunScript('skill-invocation-metadata', 'verify-skill-invocation-metadata', { label: 'skill invocation metadata', quick: true }),
     bunScript('translation-prompt', 'verify-translation-prompt', { label: 'translation prompt', quick: true }),
     bunScript('doc-budgets', 'verify-doc-budgets', { label: 'doc budgets', quick: true }),
-    bunExec('doc-standard-tests', ['vitest', 'run', 'scripts/doc-standard.spec.ts'], {
+    bunExec('doc-standard-tests', ['vitest', 'run', 'scripts/doc-standard.spec.ts', 'scripts/root-readme-badges.spec.ts'], {
       label: 'documentation standard tests',
       quick: true,
     }),
