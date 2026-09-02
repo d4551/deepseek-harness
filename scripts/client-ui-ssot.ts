@@ -75,7 +75,7 @@ const STYLE_SET_PROPERTY = /\.style\.(?:set|remove)Property\(\s*(['"`])([^'"`]+)
  * @param content - the file's source.
  * @returns each offending property name, in source order.
  */
-export function inlineStyleProperties(content: string): string[] {
+function inlineStyleProperties(content: string): string[] {
   const found: string[] = []
   for (const object of content.matchAll(STYLE_OBJECT)) {
     const body = object[1] ?? ''
