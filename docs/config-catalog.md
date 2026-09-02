@@ -850,9 +850,8 @@ export interface Config {
   /**
    * Path to a `hooks.json` or a settings file whose `hooks` key holds the config.
    * Process-level: read once at load, a relative path resolves against the process
-   * launch cwd, so one config applies to the whole process.
-   * TODO(per-session-hook-config): per-session discovery of a project-local
-   * `hooks.json` from each `session/new.cwd`.
+   * launch cwd, so one config applies to the whole process. The bridge mounts at
+   * process scope; each session shares this one path.
    */
   configPath: string
   /**
@@ -887,9 +886,8 @@ Requires: `shell`
 export interface Config {
   /**
    * Path to a Codex `hooks.json`. Process-level: read once at load, a relative
-   * path resolves against the process launch cwd.
-   * TODO(per-session-hook-config): per-session project-local discovery from each
-   * `session/new.cwd`.
+   * path resolves against the process launch cwd. The bridge mounts at process
+   * scope; each session shares this one path.
    */
   configPath: string
   /** The model name stamped on every payload (Codex includes `model` on each event). */
@@ -1450,10 +1448,10 @@ export interface LspLocalServerConfig {
   args?: string[]
   /** Extra env vars merged on top of the scrubbed ambient env. Default `{}`. */
   env?: Record<string, string>
-  /** Static `initialize` options forwarded to the server. Default `null`. */
-  initializationOptions?: unknown
+  /** Static `initialize` options forwarded verbatim to the server. Default `null`. */
+  initializationOptions?: LspConfigJson
   /** Static answer to every `workspace/configuration` item. Default `null`. */
-  configuration?: unknown
+  configuration?: LspConfigJson
   /** Largest single framed message accepted from the server (bytes). Default 16000000. */
   maxMessageBytes?: number
   /** Largest stderr tail retained for diagnostics (bytes). Default 1000000. */
@@ -1465,9 +1463,12 @@ export interface LspLocalServerConfig {
   /** Request-cancel and SIGTERM→SIGKILL grace (ms). Default 2000. */
   killGraceMs?: number
 }
+
+/** JSON value a settings file may supply for verbatim forwarding over the LSP wire. */
+export type LspConfigJson = null | boolean | number | string | LspConfigJson[] | { [key: string]: LspConfigJson }
 ```
 
-Source: [`packages/lsp/lsp-stdio/src/index.ts:82`](../packages/lsp/lsp-stdio/src/index.ts)
+Source: [`packages/lsp/lsp-stdio/src/index.ts:85`](../packages/lsp/lsp-stdio/src/index.ts)
 
 <a id="deepseek-aidsh-mcp-client"></a>
 

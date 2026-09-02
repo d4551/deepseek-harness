@@ -44,9 +44,8 @@ export const inject = ['shell']
 export interface Config {
   /**
    * Path to a Codex `hooks.json`. Process-level: read once at load, a relative
-   * path resolves against the process launch cwd.
-   * TODO(per-session-hook-config): per-session project-local discovery from each
-   * `session/new.cwd`.
+   * path resolves against the process launch cwd. The bridge mounts at process
+   * scope; each session shares this one path.
    */
   configPath: string
   /** The model name stamped on every payload (Codex includes `model` on each event). */

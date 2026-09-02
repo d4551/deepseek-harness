@@ -52,6 +52,9 @@ const DEFAULT_MAX_DOCUMENT_BYTES = 4_000_000
 const DEFAULT_SHUTDOWN_TIMEOUT_MS = 5_000
 const DEFAULT_KILL_GRACE_MS = 2_000
 
+/** JSON value a settings file may supply for verbatim forwarding over the LSP wire. */
+export type LspConfigJson = null | boolean | number | string | LspConfigJson[] | { [key: string]: LspConfigJson }
+
 /** One configured local language server and its host bounds. */
 export interface LspLocalServerConfig {
   /** Executable to spawn (absolute, or resolved on PATH at load). */
@@ -62,10 +65,10 @@ export interface LspLocalServerConfig {
   args?: string[]
   /** Extra env vars merged on top of the scrubbed ambient env. Default `{}`. */
   env?: Record<string, string>
-  /** Static `initialize` options forwarded to the server. Default `null`. */
-  initializationOptions?: unknown
+  /** Static `initialize` options forwarded verbatim to the server. Default `null`. */
+  initializationOptions?: LspConfigJson
   /** Static answer to every `workspace/configuration` item. Default `null`. */
-  configuration?: unknown
+  configuration?: LspConfigJson
   /** Largest single framed message accepted from the server (bytes). Default 16000000. */
   maxMessageBytes?: number
   /** Largest stderr tail retained for diagnostics (bytes). Default 1000000. */
