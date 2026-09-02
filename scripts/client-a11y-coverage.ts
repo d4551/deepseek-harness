@@ -31,7 +31,7 @@ const FAILURES_CALL = 'accessibilityFailures'
 const EXPECT_CALL = 'expect'
 
 /** Every file under one directory, recursively. */
-export function filesUnder(dir: string): string[] {
+function filesUnder(dir: string): string[] {
   const out: string[] = []
   for (const name of readdirSync(dir)) {
     const path = join(dir, name)
@@ -100,7 +100,7 @@ export function specHoldsAxeFloor(source: SourceFile): boolean {
 }
 
 /** Every `ui-*` package under `clientRoot` whose `src` ships TSX. */
-export function uiPackagesWithTsx(clientRoot: string): string[] {
+function uiPackagesWithTsx(clientRoot: string): string[] {
   return readdirSync(clientRoot)
     .filter((name) => {
       if (!name.startsWith('ui-')) return false
@@ -120,7 +120,7 @@ export function uiPackagesWithTsx(clientRoot: string): string[] {
  * @param name - the package directory name.
  * @returns candidate spec paths.
  */
-export function auditCandidates(clientRoot: string, name: string): string[] {
+function auditCandidates(clientRoot: string, name: string): string[] {
   const tests = join(clientRoot, name, 'tests')
   if (!existsSync(tests)) return []
   return filesUnder(tests).filter(path => path.includes('.spec.') && readFileSync(path, 'utf8').includes(A11Y_MODULE))

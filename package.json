@@ -155,7 +155,8 @@
     "demo:inspector": "node --import tsx/esm apps/cli/src/bin.ts web --patch ./packages/experimental/inspector/cordis.source.patch.yml",
     "mock:llm": "node --import tsx packages/test-support/llm-mock-server/src/bin.ts",
     "dev:web": "tsx scripts/dev-web.ts --poll",
-    "postinstall": "node scripts/install-lefthook.mjs"
+    "postinstall": "node scripts/install-lefthook.mjs",
+    "verify-installable-versions": "tsx scripts/verify-installable-versions.ts"
   },
   "devDependencies": {
     "@babel/core": "8.0.1",
@@ -247,10 +248,10 @@
     "fast-check": "^4.9.0",
     "istanbul-lib-report": "^3.0.1",
     "js-yaml": "^5.4.1",
-    "jscpd": "^5.0.16",
+    "jscpd": "5.1.1",
     "jsdom": "30.0.1",
     "jsonc-parser": "^3.3.1",
-    "knip": "^6.33.0",
+    "knip": "6.34.0",
     "lefthook": "^2.1.12",
     "lightningcss": "^1.33.0",
     "mdast-util-from-markdown": "^2.0.3",

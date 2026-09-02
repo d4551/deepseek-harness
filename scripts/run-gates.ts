@@ -288,6 +288,7 @@ function ciSharedStaticGates(): Gate[] {
     bunScript('client-packages', 'verify-client-packages', { label: 'client packages' }),
     bunScript('client-ui-i18n', 'verify-client-ui-i18n', { label: 'client UI i18n' }),
     bunScript('toolchain-floors', 'verify-toolchain-floors', { label: 'toolchain floors' }),
+    bunScript('installable-versions', 'verify-installable-versions', { label: 'installable versions' }),
     bunScript('issue-management', 'test:issue-management', { label: 'Issue management policy' }),
   ]
 }
@@ -313,15 +314,7 @@ function ciPrimaryGates(): Gate[] {
     // repeats the Host contract pass. Wait for all three consumers so build
     // neither races tsbuildinfo nor replaces declarations while they are read.
     ciBuildGate('build', { needs: ['typecheck', 'lint', 'doc-typecheck'] }),
-    bunScript('publint', 'publint', { needs: ['build'] }),
-    bunScript('node-next-types', 'verify-node-next-types', {
-      label: 'node-next types',
-      needs: ['build'],
-    }),
-    builtPackageInvariantsGate(['build']),
-    builtArtifactSpecsGate(['build']),
-    builtImageSpecsGate(['build']),
-    builtBinSmokeGate(),
+    ...builtTreeConsumerGates(),
   ]
 }
 
@@ -413,9 +406,16 @@ function ciStaticGates(options: { ownsBuild: boolean }): Gate[] {
   ]
 }
 
-function ciArtifactGates(): Gate[] {
+/**
+ * Every gate that reads the built tree, in the order they may start.
+ *
+ * The list appeared twice — once in `check-all` and once in the artifact lane —
+ * so a gate added to one lane and not the other would run in CI and not
+ * locally, or the reverse.
+ * @returns the gates, each already declaring its dependency on the build.
+ */
+function builtTreeConsumerGates(): Gate[] {
   return [
-    ciBuildGate(),
     bunScript('publint', 'publint', { needs: ['build'] }),
     bunScript('node-next-types', 'verify-node-next-types', {
       label: 'node-next types',
@@ -425,6 +425,13 @@ function ciArtifactGates(): Gate[] {
     builtArtifactSpecsGate(['build']),
     builtImageSpecsGate(['build']),
     builtBinSmokeGate(),
+  ]
+}
+
+function ciArtifactGates(): Gate[] {
+  return [
+    ciBuildGate(),
+    ...builtTreeConsumerGates(),
   ]
 }
 
