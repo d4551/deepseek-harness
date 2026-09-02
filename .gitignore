@@ -44,3 +44,6 @@ packages/typert/generator/tests/.generated-*/
 packages/typert/generator/tests/.rendered-model-*/
 packages/typert/generator/tests/.probe-*/
 /.audit-tmp
+
+# Generated audit plans; scratch, never part of the tree.
+/goal/

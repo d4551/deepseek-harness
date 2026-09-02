@@ -87,7 +87,7 @@ None, as the package is a browser-side settings surface that registers no model 
 
 None; this package neither assembles nor sends a provider request.
 
-## Behavior Boundaries
+## Known Limitations and Deferred Work
 
 <a id="known-limitations-and-deferred-work"></a>
 
