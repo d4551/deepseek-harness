@@ -7,6 +7,7 @@ import {
   mappedSpecifiers,
   renderAliases,
   uncoveredPackages,
+  uncoveredSubpaths,
   writeRegion,
 } from './gen-tsconfig-paths.ts'
 
@@ -21,6 +22,11 @@ describe('generated tsconfig package aliases', () => {
       specifier: '@deepseek-ai/dsh-session',
       source: './packages/core/session/src',
       hasInvariant: true,
+      subpaths: [
+        { name: 'chunk-rows', entry: './packages/core/session/src/chunk-rows.ts' },
+        { name: 'surface', entry: './packages/core/session/src/surface.ts' },
+        { name: 'types', entry: './packages/core/session/src/types.ts' },
+      ],
     })
     // Sorted, so a package added anywhere lands in a stable spot in the diff.
     expect([...aliases].sort((a, b) => a.specifier.localeCompare(b.specifier))).toEqual(aliases)
@@ -31,14 +37,24 @@ describe('generated tsconfig package aliases', () => {
 
   it('yields to a hand-written alias and closes without a trailing comma', () => {
     const aliases = [
-      { specifier: '@deepseek-ai/dsh-a', source: './packages/g/a/src', hasInvariant: true },
-      { specifier: '@deepseek-ai/dsh-b', source: './packages/g/b/src', hasInvariant: false },
+      {
+        specifier: '@deepseek-ai/dsh-a',
+        source: './packages/g/a/src',
+        hasInvariant: true,
+        subpaths: [
+          { name: 'policy', entry: './packages/g/a/src/policy/index.ts' },
+          { name: 'types', entry: './packages/g/a/src/types.ts' },
+        ],
+      },
+      { specifier: '@deepseek-ai/dsh-b', source: './packages/g/b/src', hasInvariant: false, subpaths: [] },
     ]
-    const body = renderAliases(aliases, new Set(['@deepseek-ai/dsh-a']))
+    const body = renderAliases(aliases, new Set(['@deepseek-ai/dsh-a', '@deepseek-ai/dsh-a/policy']))
 
     // The hand-written bare alias is skipped; its /invariant sibling is not.
+    // A hand-written subpath is skipped too; generated subpaths follow the invariant.
     expect(body).toBe([
       '      "@deepseek-ai/dsh-a/invariant": ["./packages/g/a/src/invariant.ts"]',
+      '      "@deepseek-ai/dsh-a/types": ["./packages/g/a/src/types.ts"]',
       '      "@deepseek-ai/dsh-b": ["./packages/g/b/src"]',
     ].join(',\n'))
     expect(body.endsWith(',')).toBe(false)
@@ -85,6 +101,19 @@ describe('generated tsconfig package aliases', () => {
     const names = collectPackageNames()
     expect(names).toContain('@deepseek-ai/dsh-typert-protocol')
     expect(uncoveredPackages(names, mappedSpecifiers(config))).toEqual([])
+  })
+
+  it('maps published subpath exports to their source counterpart', () => {
+    const aliases = collectPackageAliases()
+    const fetchHttp = aliases.find(alias => alias.specifier === '@deepseek-ai/dsh-web-fetch-http')
+    expect(fetchHttp?.subpaths).toEqual([
+      { name: 'policy', entry: './packages/web/web-fetch-http/src/policy.ts' },
+    ])
+  })
+
+  it('maps every published subpath export in the committed config', () => {
+    const config = readFileSync(resolve(root, 'tsconfig.base.json'), 'utf8')
+    expect(uncoveredSubpaths(collectPackageAliases(), mappedSpecifiers(config))).toEqual([])
   })
 
   it('leaves no wildcard that probes every package group', () => {

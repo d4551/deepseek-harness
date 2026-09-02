@@ -3304,6 +3304,24 @@ export interface Config {
 
 Source: [`packages/web/web-fetch-http/src/index.ts:32`](../packages/web/web-fetch-http/src/index.ts)
 
+<a id="deepseek-aidsh-web-fetch-playwright"></a>
+
+## `@deepseek-ai/dsh-web-fetch-playwright`
+
+Requires: `web`
+
+```ts config-catalog
+/** Plugin config: the provider's render and time limits (all defaulted). */
+export interface Config {
+  /** Maximum rendered body length in characters. */
+  maxBodyChars?: number
+  /** Per-fetch budget in milliseconds, within Node's timer range. */
+  timeoutMs?: number
+}
+```
+
+Source: [`packages/web/web-fetch-playwright/src/index.ts:34`](../packages/web/web-fetch-playwright/src/index.ts)
+
 <a id="deepseek-aidsh-web-search-deepseek"></a>
 
 ## `@deepseek-ai/dsh-web-search-deepseek`

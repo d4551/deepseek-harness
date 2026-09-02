@@ -17,7 +17,6 @@ English | [中文](README.zh.md)
 - [Understand the implementation](#understand-the-implementation)
 - [Further Exploration](#further-exploration)
 - [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 - [Dev Note](#dev-note)
 
 -----
@@ -78,15 +77,6 @@ These pages cover the settings base, the inventory tab, and the durable seams be
 
 -----
 
-<a id="model-experience"></a>
-## Model Experience
-
-None, as the package is a browser-side settings surface that registers no model surface.
-
-#### KV Cache effect
-
-None; this package neither assembles nor sends a provider request.
-
 ## Behavior Boundaries
 
 <a id="known-limitations-and-deferred-work"></a>
@@ -108,3 +98,14 @@ These boundaries define which plugins appear and how fresh the list is; they are
 None.
 
 </details>
+
+-----
+
+<a id="model-experience"></a>
+## Model Experience
+
+None, as the package is a browser-side settings surface that registers no model surface.
+
+#### KV Cache effect
+
+None; this package neither assembles nor sends a provider request.

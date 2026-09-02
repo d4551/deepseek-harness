@@ -44,3 +44,5 @@ packages/typert/generator/tests/.generated-*/
 packages/typert/generator/tests/.rendered-model-*/
 packages/typert/generator/tests/.probe-*/
 /.audit-tmp
+/.tmp-bun
+/.tmp-dsh

@@ -31,6 +31,20 @@ const END = '      // END generated package aliases'
 /** Package-name prefix the expanded aliases cover. */
 const PREFIX = '@deepseek-ai/dsh-'
 
+/** One published subpath export mapped to its source entry file. */
+export interface PackageSubpath {
+  /** Export key without the `./` prefix, e.g. `policy`. */
+  readonly name: string
+  /** Repository-relative source entry, e.g. `./packages/web/web-fetch-http/src/policy.ts`. */
+  readonly entry: string
+}
+
+/** Manifest fields the alias generator reads. */
+interface ManifestShape {
+  readonly name?: string
+  readonly exports?: object
+}
+
 /** One workspace package the generated region maps. */
 interface PackageAlias {
   /** Bare specifier, e.g. `@deepseek-ai/dsh-session`. */
@@ -39,31 +53,56 @@ interface PackageAlias {
   readonly source: string
   /** Whether the package carries `src/invariant.ts`, which earns a second alias. */
   readonly hasInvariant: boolean
+  /** Published non-root subpath exports with a matching `src/<name>.ts` or `src/<name>/index.ts`. */
+  readonly subpaths: readonly PackageSubpath[]
 }
 
 /**
- * Read a workspace manifest's declared name.
- * @param manifest - absolute path to a `package.json`.
- * @returns The declared name, or undefined when the file is absent or nameless.
+ * Read a workspace manifest.
+ * @param path - absolute path to a `package.json`.
+ * @returns The parsed manifest fields the generator reads.
  */
-function packageName(manifest: string): string | undefined {
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(readFileSync(manifest, 'utf8'))
-  } catch (_absentOrUnreadableManifest) {
-    return undefined
-  }
-  if (typeof parsed !== 'object' || parsed === null) return undefined
-  const name: unknown = (parsed as { name?: unknown }).name
-  return typeof name === 'string' ? name : undefined
+function readManifest(path: string): ManifestShape {
+  return JSON.parse(readFileSync(path, 'utf8')) as ManifestShape
 }
 
-/** One workspace package directory and the name its manifest declares. */
+/**
+ * Read a manifest's published non-root subpath exports that carry a source
+ * counterpart, so the generated region maps them to source instead of letting
+ * them resolve through the package `exports` map to built `lib/` output.
+ * @param manifest - parsed package manifest.
+ * @param packageDir - absolute package directory.
+ * @param source - repository-relative source directory the bare alias uses.
+ * @returns Subpaths sorted by name.
+ */
+export function collectSubpaths(
+  manifest: ManifestShape,
+  packageDir: string,
+  source: string,
+): PackageSubpath[] {
+  const exportsMap = manifest.exports
+  if (exportsMap === undefined) return []
+  const subpaths: PackageSubpath[] = []
+  for (const key of Object.keys(exportsMap)) {
+    if (!key.startsWith('./') || key.includes('*')) continue
+    const name = key.slice(2)
+    if (name === '' || name === 'package.json' || name === 'invariant' || name.endsWith('/')) continue
+    if (existsSync(join(packageDir, 'src', `${name}.ts`))) {
+      subpaths.push({ name, entry: `${source}/${name}.ts` })
+    } else if (existsSync(join(packageDir, 'src', name, 'index.ts'))) {
+      subpaths.push({ name, entry: `${source}/${name}/index.ts` })
+    }
+  }
+  return subpaths.sort((left, right) => left.name.localeCompare(right.name))
+}
+
+/** One workspace package directory, its declared name, and parsed manifest. */
 interface WorkspacePackage {
   readonly group: string
   readonly directory: string
   readonly packageDir: string
   readonly name: string
+  readonly manifest: ManifestShape
 }
 
 /**
@@ -78,9 +117,11 @@ function workspacePackages(): WorkspacePackage[] {
     if (!statSync(groupDir).isDirectory()) continue
     for (const directory of readdirSync(groupDir).sort()) {
       const packageDir = join(groupDir, directory)
-      const name = packageName(join(packageDir, 'package.json'))
+      if (!statSync(packageDir).isDirectory()) continue
+      const manifest = readManifest(join(packageDir, 'package.json'))
+      const name = manifest.name
       if (name === undefined || !name.startsWith(PREFIX)) continue
-      if (existsSync(join(packageDir, 'src'))) found.push({ group, directory, packageDir, name })
+      if (existsSync(join(packageDir, 'src'))) found.push({ group, directory, packageDir, name, manifest })
     }
   }
   return found
@@ -100,7 +141,7 @@ function workspacePackages(): WorkspacePackage[] {
  */
 export function collectPackageAliases(): PackageAlias[] {
   const bySpecifier = new Map<string, PackageAlias & { directory: string }>()
-  for (const { group, directory, packageDir, name } of workspacePackages()) {
+  for (const { group, directory, packageDir, name, manifest } of workspacePackages()) {
     if (name !== `${PREFIX}${directory}`) continue
     const previous = bySpecifier.get(name)
     if (previous !== undefined) {
@@ -109,15 +150,17 @@ export function collectPackageAliases(): PackageAlias[] {
         + 'an explicit alias cannot express the group-order tiebreak the wildcard used.',
       )
     }
+    const source = `./packages/${group}/${directory}/src`
     bySpecifier.set(name, {
       specifier: name,
-      source: `./packages/${group}/${directory}/src`,
+      source,
       hasInvariant: existsSync(join(packageDir, 'src', 'invariant.ts')),
+      subpaths: collectSubpaths(manifest, packageDir, source),
       directory: `${group}/${directory}`,
     })
   }
   return [...bySpecifier.values()]
-    .map(({ specifier, source, hasInvariant }) => ({ specifier, source, hasInvariant }))
+    .map(({ specifier, source, hasInvariant, subpaths }) => ({ specifier, source, hasInvariant, subpaths }))
     .sort((left, right) => left.specifier.localeCompare(right.specifier))
 }
 
@@ -138,13 +181,14 @@ export function collectPackageNames(): string[] {
 }
 
 /**
- * Read the bare package specifiers a config maps, generated region included.
+ * Read the package specifiers a config maps, generated region included:
+ * bare names and `name/subpath` keys alike.
  * @param text - `tsconfig.base.json` contents.
- * @returns Specifiers mapped without a subpath.
+ * @returns Specifiers the config maps.
  */
 export function mappedSpecifiers(text: string): Set<string> {
   const keys = new Set<string>()
-  for (const match of text.matchAll(/^\s*"(@deepseek-ai\/dsh-[^"/]+)":/gm)) {
+  for (const match of text.matchAll(/^\s*"(@deepseek-ai\/dsh-[^"]+)":/gm)) {
     const key = match[1]
     if (key !== undefined) keys.add(key)
   }
@@ -171,6 +215,30 @@ export function uncoveredPackages(
 }
 
 /**
+ * Report published subpath exports no alias maps.
+ *
+ * A subpath export whose source counterpart exists must resolve to that source
+ * like the bare specifier does; unmapped, it falls through the package
+ * `exports` map to built `lib/` output.
+ * @param aliases - generated aliases with their published subpaths.
+ * @param mapped - bare and subpath specifiers the config maps.
+ * @returns Unmapped subpath specifiers, in emission order.
+ */
+export function uncoveredSubpaths(
+  aliases: readonly PackageAlias[],
+  mapped: ReadonlySet<string>,
+): string[] {
+  const uncovered: string[] = []
+  for (const alias of aliases) {
+    for (const subpath of alias.subpaths) {
+      const key = `${alias.specifier}/${subpath.name}`
+      if (!mapped.has(key)) uncovered.push(key)
+    }
+  }
+  return uncovered
+}
+
+/**
  * Render the generated region's alias lines.
  * @param aliases - packages to map, in emission order.
  * @param handWritten - specifiers already mapped outside the region; a duplicate key would shadow one silently.
@@ -185,6 +253,12 @@ export function renderAliases(aliases: readonly PackageAlias[], handWritten: Rea
     const invariant = `${alias.specifier}/invariant`
     if (alias.hasInvariant && !handWritten.has(invariant)) {
       lines.push(`      ${JSON.stringify(invariant)}: [${JSON.stringify(`${alias.source}/invariant.ts`)}]`)
+    }
+    for (const subpath of alias.subpaths) {
+      const key = `${alias.specifier}/${subpath.name}`
+      if (!handWritten.has(key)) {
+        lines.push(`      ${JSON.stringify(key)}: [${JSON.stringify(subpath.entry)}]`)
+      }
     }
   }
   // The region closes `paths`, so the last member carries no trailing comma.
@@ -227,22 +301,34 @@ function handWrittenSpecifiers(text: string): Set<string> {
 if (process.argv[1] && import.meta.filename === resolve(process.argv[1])) {
   const check = process.argv.includes('--check')
   const current = readFileSync(CONFIG, 'utf8')
-  const next = writeRegion(current, renderAliases(collectPackageAliases(), handWrittenSpecifiers(current)))
+  const aliases = collectPackageAliases()
+  const next = writeRegion(current, renderAliases(aliases, handWrittenSpecifiers(current)))
   const uncovered = uncoveredPackages(collectPackageNames(), mappedSpecifiers(next))
+  const uncoveredSub = uncoveredSubpaths(aliases, mappedSpecifiers(next))
   if (uncovered.length > 0) {
-    console.error(
+    process.stderr.write(
       'gen-tsconfig-paths: no alias maps '
       + `${uncovered.join(', ')}; add a hand-written entry, because a package named after `
-      + 'something other than its directory cannot be generated.',
+      + 'something other than its directory cannot be generated.\n',
     )
-    process.exitCode = 1
-  } else if (current === next) {
-    console.log('gen-tsconfig-paths: tsconfig.base.json package aliases are current.')
-  } else if (check) {
-    console.error('gen-tsconfig-paths: tsconfig.base.json is stale; run `bun run gen-tsconfig-paths`.')
-    process.exitCode = 1
+  }
+  if (uncoveredSub.length > 0) {
+    process.stderr.write(
+      'gen-tsconfig-paths: no alias maps these published subpath exports: '
+      + `${uncoveredSub.join(', ')}; give each a source counterpart or a hand-written alias.\n`,
+    )
+  }
+  if (uncovered.length === 0 && uncoveredSub.length === 0) {
+    if (current === next) {
+      process.stdout.write('gen-tsconfig-paths: tsconfig.base.json package aliases are current.\n')
+    } else if (check) {
+      process.stderr.write('gen-tsconfig-paths: tsconfig.base.json is stale; run `bun run gen-tsconfig-paths`.\n')
+      process.exitCode = 1
+    } else {
+      writeFileSync(CONFIG, next)
+      process.stdout.write('gen-tsconfig-paths: rewrote tsconfig.base.json package aliases.\n')
+    }
   } else {
-    writeFileSync(CONFIG, next)
-    console.log('gen-tsconfig-paths: rewrote tsconfig.base.json package aliases.')
+    process.exitCode = 1
   }
 }
