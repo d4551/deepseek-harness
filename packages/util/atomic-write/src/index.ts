@@ -1,10 +1,12 @@
 /**
- * Zero-dependency atomic file replacement and writer coordination.
+ * Atomic file replacement and writer coordination.
  * `writeFileAtomic` writes a random-suffix sibling with exclusive create and
- * the caller's permission bits, fsyncs it, renames it over the target, and
- * fsyncs the parent directory, so readers observe either the old or the new
- * complete content, a replaced file ends up with exactly the stated mode, and
- * a crash after the call resolves leaves the committed name durable on disk.
+ * the caller's permission bits, fsyncs it, and commits it over the target
+ * durably — POSIX renames and then fsyncs the parent directory, Windows uses
+ * the write-through move in `./win32.ts` — so readers observe either the old
+ * or the new complete content, a replaced file ends up with exactly the stated
+ * mode, and a crash after the call resolves leaves the committed name durable
+ * on disk.
  * `withFileLock` serializes cross-process writers of one file through a
  * `wx`-created `<file>.lock` sibling, so a read-modify-write cycle can never
  * resurrect a state another writer just replaced; readers stay lock-free
@@ -15,6 +17,7 @@
 import { randomBytes } from 'node:crypto'
 import { close, fsync, lstat, mkdir, open, rename, rm, rmSync, writeFile } from 'node:fs'
 import { dirname } from 'node:path'
+import { replaceFileDurablyWin32 } from './win32.ts'
 
 /**
  * Filesystem options for {@link writeFileAtomic}; `mode` is required so the
@@ -131,21 +134,31 @@ async function writeTempAndCommit(
   if (written !== null) return written
   const synced = await syncPath(temp)
   if (synced !== null) return synced
-  const renamed = await attempt((done) => { rename(temp, filename, done) })
-  if (renamed !== null) return renamed
-  return fsyncDirectory(dirname(filename))
+  return commitDurably(temp, filename)
 }
 
 /**
- * fsync the directory entry the rename just changed, making the new name
- * durable. Windows offers no directory fsync, so the file-level sync above is
- * the whole durability story there.
- * @param dir - parent directory of the renamed file.
- * @returns the errno the sync reported, otherwise `null`.
+ * Publish the staged content at `filename` so the new directory entry survives
+ * a crash. POSIX renames and fsyncs the parent directory. Windows offers no
+ * directory fsync, so the rename ITSELF must carry the durability: the
+ * write-through move both replaces the target and flushes the namespace change
+ * before it returns.
+ * @param temp - the synced staging file.
+ * @param filename - the committed path.
+ * @returns the errno a step reported, otherwise `null`.
  */
-function fsyncDirectory(dir: string): Promise<NodeJS.ErrnoException | null> {
-  if (process.platform === 'win32') return Promise.resolve(null)
-  return syncPath(dir)
+async function commitDurably(temp: string, filename: string): Promise<NodeJS.ErrnoException | null> {
+  if (process.platform === 'win32') {
+    try {
+      await replaceFileDurablyWin32(temp, filename)
+      return null
+    } catch (error) {
+      return error as NodeJS.ErrnoException
+    }
+  }
+  const renamed = await attempt((done) => { rename(temp, filename, done) })
+  if (renamed !== null) return renamed
+  return syncPath(dirname(filename))
 }
 
 /** Whether an exclusive create found an existing lock. */

@@ -5,7 +5,7 @@ import type { InspectorSourceDescriptor } from '../../../../shared/bridge/messag
 import type { InspectorObjectReference } from '../../../../shared/cordis/object-reference.ts'
 import { respondToCdpRequest, type CdpRequest, type CdpTransport } from '../../protocol.ts'
 import type { InspectorRealmDescriptor } from '../../../inspection/realm.ts'
-import type { RuntimeDomainSession } from '../runtime/index.ts'
+import type { RuntimeDomainSession } from '../runtime/session.ts'
 import type { RuntimeObjectPresentation } from '../runtime/object-table.ts'
 import type { CordisDomBackend, CordisDomChange, CordisDomMutation, CordisDomNode } from './model.ts'
 import {

@@ -378,7 +378,7 @@
 .workspaceDropAfter::after {
   content: '';
   position: absolute;
-  z-index: 1;
+  z-index: var(--dsw-z-raised);
   left: 0;
   right: 0;
   height: 12px;
@@ -506,15 +506,4 @@
   .headerActions {
     transition: none;
   }
-}
-
-/* Screen-reader-only account of the live range selection (the row fill is the
-   visual channel); kept out of layout so it cannot shift the list. */
-.visuallyHidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
 }

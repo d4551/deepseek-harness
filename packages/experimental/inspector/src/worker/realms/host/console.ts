@@ -1,10 +1,7 @@
 /** ConsoleBackend implementation over native Node Runtime notifications. */
 
 import type { RuntimeBackendObjectHandle } from '../../../shared/cdp/ids.ts'
-import type {
-  RuntimeConsoleBackendEvent,
-  RuntimeConsoleType,
-} from '../../../shared/cdp/index.ts'
+import type { RuntimeConsoleBackendEvent, RuntimeConsoleType } from '../../../shared/cdp/console.ts'
 import type { HostInspectorSession } from './bridge.ts'
 import type { ConsoleBackend } from '../../../shared/cdp/realm.ts'
 import { isNativeRecord } from './values.ts'

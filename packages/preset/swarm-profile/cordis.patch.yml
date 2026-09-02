@@ -1,0 +1,49 @@
+# Swarm profile layer. Apply after dsh-base so these replacements remove the
+# global continuable-child controls before the scoped Team tools register the
+# overlapping list_agents, send_message, and interrupt_agent names.
+#
+# A swarm's teammates are continuable children and stay outside the one-shot run
+# ceiling; the ceiling bounds the foreground `subagent`/`subagent_fork`
+# delegations several teammates may fan out at the same time.
+
+- id: subagent
+  config:
+    maxConcurrentRuns: 8
+
+- id: tool-subagent-control
+  disabled: true
+
+- id: tool-subagent-list-agents
+  disabled: true
+
+- id: tool-subagent-report
+  disabled: true
+
+- id: tool-subagent
+  config:
+    provider: spawn
+    toolName: subagent
+    backgroundMode: one-shot
+
+- id: tool-subagent-fork
+  config:
+    provider: fork
+    toolName: subagent_fork
+    backgroundMode: one-shot
+
+- insert:
+    - id: agent-team
+      name: '@deepseek-ai/dsh-agent-team'
+      config:
+        maxMembers: 16
+        maxTasks: 256
+        maxPendingMessagesPerMember: 64
+        maxMessageBytes: 65536
+        disposalTimeoutMs: 5000
+
+    - id: tool-agent-team
+      name: '@deepseek-ai/dsh-tool-agent-team'
+      config:
+        freshProvider: spawn
+        forkProvider: fork
+        coordination: swarm

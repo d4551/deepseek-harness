@@ -1,0 +1,31 @@
+# One-world invariant for the hosted network-drive composition:
+# fs-network-drive.materializationRoot and sandbox-policy.workspaceRoot must name
+# the same local directory, which is also the working directory every spawned
+# process sees. The composition spec provides both rows' inputs through the
+# `driveFixture` service, read through the same `!!js` expression the hosted
+# config path evaluates. The composition spec registers every module as a
+# loader builtin, so the entries below use `cordis:` names resolved through the
+# loader's normal path.
+- id: invariants
+  name: 'cordis:invariants'
+  config:
+    enabled: true
+
+- id: sandbox-policy
+  name: 'cordis:sandbox-policy'
+  config:
+    mode: danger-full-access
+    workspaceRoot: !!js driveFixture.workspace
+
+- id: network-drive
+  name: 'cordis:network-drive-webdav'
+  config:
+    url: !!js driveFixture.url
+    authType: none
+    requestTimeoutMs: 5000
+
+- id: fs-network-drive
+  name: 'cordis:fs-network-drive'
+  config:
+    materializationRoot: !!js driveFixture.workspace
+    maxFileBytes: 1048576

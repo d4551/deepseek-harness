@@ -3,7 +3,9 @@ import AgentRegistry from '@deepseek-ai/dsh-agent'
 import type { Agent, AgentHandle, CreateAgentOptions } from '@deepseek-ai/dsh-agent'
 import { PresetMountError } from '@deepseek-ai/dsh-agent-presets'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import { resolve } from 'node:path'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
+import { effectiveWorkspaceRoots } from '@deepseek-ai/dsh-session/workspace-roots'
 import type { Workspace, WorkspaceId } from '@deepseek-ai/dsh-workspace'
 import { describe, expect, it, vi } from 'vitest'
 import {
@@ -141,6 +143,45 @@ describe('Session creation failures', () => {
       workspaceId: 'workspace-1' as WorkspaceId,
       cwd: '/workspace',
     }), 'bad-request')
+    await ctx.fiber.dispose()
+  })
+
+  it('records the requested additional directories as the Session\'s durable workspace roots', async () => {
+    const ctx = await baseContext()
+    ctx.provide('workspaceRegistry', { get: () => undefined, list: () => [] } as never)
+    const controller = new SessionCommandController(
+      ctx,
+      controllerAgents({
+        ensureSession: (sessionId: SessionId, cwd: string) => {
+          const session = ctx.sessions.create(sessionId, { meta: { cwd } })
+          return Promise.resolve({ id: sessionId, session } as Agent)
+        },
+      }),
+      '/default',
+    )
+
+    const created = await controller.create({
+      sessionId: SessionId('multi-root'),
+      cwd: resolve('/workspace'),
+      additionalDirectories: [resolve('/second'), resolve('/workspace')],
+    })
+
+    const session = ctx.sessions.get(created.sessionId)
+    expect(session?.header.cwd).toBe(resolve('/workspace'))
+    expect(effectiveWorkspaceRoots(session?.events ?? [])).toEqual([resolve('/second')])
+  })
+
+  it('rejects a relative additional directory before any Session exists', async () => {
+    const ctx = await baseContext()
+    ctx.provide('workspaceRegistry', { get: () => undefined, list: () => [] } as never)
+    const ensureSession = vi.fn()
+    const controller = new SessionCommandController(ctx, controllerAgents({ ensureSession }), '/default')
+
+    await expectFailure(controller.create({
+      cwd: resolve('/workspace'),
+      additionalDirectories: ['relative/dir'],
+    }), 'bad-request')
+    expect(ensureSession).not.toHaveBeenCalled()
     await ctx.fiber.dispose()
   })
 

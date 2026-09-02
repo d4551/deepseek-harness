@@ -51,11 +51,13 @@ vi.mock('@deepseek-ai/dsh-sandbox-windows-acl', () => {
   }
   return {
     AclWriteGrant: MockAclWriteGrant,
-    assertTempRootOutsideWorkspace: (workspaceRoot: string, tempRoot: string) => {
-      const workspace = realpathSync.native(workspaceRoot)
+    assertTempRootOutsideWorkspace: (workspaceRoots: readonly string[], tempRoot: string) => {
       const temp = realpathSync.native(tempRoot)
-      if (temp === workspace || temp.startsWith(`${workspace}${process.platform === 'win32' ? '\\' : '/'}`)) {
-        throw new Error(`Windows ACL temp root must be outside the workspace: workspace=${workspaceRoot}; temp=${tempRoot}`)
+      for (const workspaceRoot of workspaceRoots) {
+        const workspace = realpathSync.native(workspaceRoot)
+        if (temp === workspace || temp.startsWith(`${workspace}${process.platform === 'win32' ? '\\' : '/'}`)) {
+          throw new Error(`Windows ACL temp root must be outside the workspace: workspace=${workspaceRoot}; temp=${tempRoot}`)
+        }
       }
     },
     workspaceWriteSid: () => 'S-1-4-42-42',

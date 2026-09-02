@@ -371,7 +371,7 @@ function SelectionStatus({ count, reached, t }: {
   // that appears already carrying its text is commonly missed, because assistive
   // technology watches an existing region for changes.
   return (
-    <span className={css.visuallyHidden} role="status">
+    <span className="dsw-visually-hidden" role="status">
       {count === 0
         ? ''
         : t(reached === 1 ? 'selection.count.one' : 'selection.count.other', { n: reached })}

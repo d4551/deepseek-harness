@@ -6,8 +6,8 @@ import type {
   ClientSourceCommand,
   ClientSourceError,
   ClientSourceResult,
-  ClientSourcesCapability,
-} from '../../shared/bridge/messages/sources/index.ts'
+} from '../../shared/bridge/messages/sources/commands.ts'
+import type { ClientSourcesCapability } from '../../shared/bridge/messages/sources/frames.ts'
 import { inspectorId } from '../../shared/identity.ts'
 import type { RuntimeScriptKey } from '../../shared/cdp/ids.ts'
 

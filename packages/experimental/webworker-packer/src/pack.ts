@@ -21,12 +21,12 @@ import {
   DEFAULT_ROOT, IMAGE_CONFIG_PATH, IMAGE_EMPTY_DIRECTORIES, IMAGE_MANIFEST_PATH,
   IMAGE_OVERLAY_DIRECTORIES,
 } from '@deepseek-ai/dsh-experimental-webworker-runtime'
+import { MODULE_PROXIES, MODULE_PROXY_PREFIXES } from '@deepseek-ai/dsh-experimental-webworker-runtime/src/module-proxies.ts'
 import picomatch from 'picomatch'
 import * as yaml from 'js-yaml'
 import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
 import { REPLACED_EXTERNAL_PACKAGES } from '@deepseek-ai/dsh-experimental-webworker-runtime/src/node/external_packages/replaced-externals.ts'
-import { MODULE_PROXIES, MODULE_PROXY_PREFIXES } from '@deepseek-ai/dsh-experimental-webworker-runtime/src/module-proxies.ts'
-import { WRAPPER_CONTRACT, type ImageFiles, type TransformOutcome } from './transform-image.ts'
+import { WRAPPER_CONTRACT, type ImageFiles, type TransformOutcome } from './index.ts'
 import { EXCLUDE, EXCLUDE_WORKSPACE, IMAGE_ENTRY_SEEDS, PAGE_ASSETS } from './rules.ts'
 
 export { DEFAULT_ROOT } from '@deepseek-ai/dsh-experimental-webworker-runtime'

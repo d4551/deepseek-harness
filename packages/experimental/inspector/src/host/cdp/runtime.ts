@@ -1,6 +1,6 @@
 /** Host Runtime is served directly by the Worker-side Node inspector adapter. */
 
-import type { ClientRuntimeCommand } from '../../shared/bridge/messages/runtime/index.ts'
+import type { ClientRuntimeCommand } from '../../shared/bridge/messages/runtime/commands.ts'
 import type { InspectorSourceCapability } from '../../shared/bridge/messages/observation.ts'
 import { HostCdpBridgeUnavailableError } from './errors.ts'
 import { rejectObjectBridgeOperation } from './objects.ts'

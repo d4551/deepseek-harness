@@ -1,6 +1,7 @@
 /** Versioned source lifecycle, observation, and extension frames shared by both carriers. */
 
-import { inspectorId, type InspectorSourceGeneration, type InspectorSourceId } from '../ids.ts'
+import type { InspectorSourceGeneration, InspectorSourceId } from '../ids.ts'
+import { inspectorId } from '../../identity.ts'
 import { isJsonValue, isPlainObject, type InspectorJsonValue } from '../../json.ts'
 import { exactKeys } from '../../validation.ts'
 import { INSPECTOR_PROTOCOL_VERSION } from '../version.ts'
@@ -8,23 +9,25 @@ import {
   parseClientConsoleCapability,
   parseClientConsoleControlFrame,
   parseClientConsoleEventFrame,
+  type ClientConsoleCapability,
+  type ClientConsoleDisableFrame,
+  type ClientConsoleEnableFrame,
+  type ClientConsoleEventFrame,
+} from './runtime/console-frames.ts'
+import {
   parseClientRuntimeCapability,
   parseClientRuntimeCancelFrame,
   parseClientRuntimeRequestFrame,
   parseClientRuntimeResponseAcknowledgedFrame,
   parseClientRuntimeResponseFrame,
   parseClientRuntimeSessionClosedFrame,
-  type ClientConsoleCapability,
-  type ClientConsoleDisableFrame,
-  type ClientConsoleEnableFrame,
-  type ClientConsoleEventFrame,
   type ClientRuntimeCapability,
   type ClientRuntimeCancelFrame,
   type ClientRuntimeRequestFrame,
   type ClientRuntimeResponseAcknowledgedFrame,
   type ClientRuntimeResponseFrame,
   type ClientRuntimeSessionClosedFrame,
-} from './runtime/index.ts'
+} from './runtime/frames.ts'
 import {
   parseClientSourceRequestFrame,
   parseClientSourceResponseFrame,
@@ -34,7 +37,7 @@ import {
   type ClientSourceResponseFrame,
   type ClientSourceSessionClosedFrame,
   type ClientSourcesCapability,
-} from './sources/index.ts'
+} from './sources/frames.ts'
 
 export { INSPECTOR_PROTOCOL_VERSION } from '../version.ts'
 

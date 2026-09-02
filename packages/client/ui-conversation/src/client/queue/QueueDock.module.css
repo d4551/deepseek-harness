@@ -1,5 +1,5 @@
-/* Figma .FileContainerText 1:791: the wrapper uses the shared dock inset
-   inside the composer card around the inset panel. */
+/* Figma .FileContainerText 1:791: the dock container uses the shared dock
+   inset inside the composer card around the inset panel. */
 
 .dock {
   box-sizing: border-box;
@@ -19,7 +19,7 @@
   /* Cancel the stack gap after this item and tuck 3px under the input card
      (square bottom), reading as one attached surface. */
   margin: 0 auto calc(0px - var(--dsh-composer-stack-gap) - 3px);
-  /* Horizontal padding completes the shared dock inset (this wrapper only
+  /* Horizontal padding completes the shared dock inset (this rule only
      subtracts two insets from its width); no vertical padding, so the visual
      gap above the panel stays the uniform stack gap. */
   padding: 0 var(--dsh-composer-dock-inset);
@@ -53,7 +53,7 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  height: 36px;
+  height: calc(36px + var(--dsh-content-font-delta, 0px));
   /* Right inset 12px puts the chevron on the same vertical line as the Todo
      header's chevron (12px body padding there). */
   padding: 4px 12px;
@@ -61,7 +61,7 @@
   border-radius: 8px;
   background: transparent;
   color: var(--dsw-alias-label-primary);
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -74,6 +74,9 @@
   cursor: default;
 }
 
+/* Icon lead slot: a block-level grid that centers its glyph. Kept inline
+   with TodoPanel's — the client css pipeline compiles `composes from` to an
+   empty class, so the shared slot cannot live in one module here. */
 .lead {
   display: grid;
   flex: none;
@@ -84,7 +87,7 @@
 .count {
   flex: 1 1 auto;
   min-width: 0;
-  font-family: Inter, var(--dsw-font-family);
+  font-family: var(--dsw-font-family);
   font-size: 13px;
   font-weight: 500;
   line-height: 24px;
@@ -94,8 +97,8 @@
   display: grid;
   flex: none;
   place-items: center;
-  width: 14px;
-  height: 14px;
+  width: calc(14px + var(--dsh-content-font-delta, 0px));
+  height: calc(14px + var(--dsh-content-font-delta, 0px));
   color: var(--dsw-alias-label-tertiary);
 }
 
@@ -113,7 +116,7 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  height: 36px;
+  height: calc(36px + var(--dsh-content-font-delta, 0px));
   padding: 4px 5px 4px 12px;
   border-radius: 8px;
 }
@@ -127,7 +130,6 @@
   flex: 1 1 auto;
   min-width: 0;
   font: var(--dsw-font-xs-13);
-  font-family: Inter, var(--dsw-font-family);
 }
 
 .preview {
@@ -140,7 +142,7 @@
 
 .editor {
   box-sizing: border-box;
-  height: 28px;
+  height: calc(28px + var(--dsh-content-font-delta, 0px));
   padding: 0 8px;
   border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 6px;
@@ -164,8 +166,8 @@
   display: grid;
   flex: none;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: calc(28px + var(--dsh-content-font-delta, 0px));
+  height: calc(28px + var(--dsh-content-font-delta, 0px));
   padding: 0;
   border: none;
   border-radius: 999px;

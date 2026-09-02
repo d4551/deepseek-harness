@@ -2,7 +2,8 @@
 
 import type { InspectorSourceDescriptor } from '../../../../shared/bridge/messages/observation.ts'
 import type { InspectorRealmId, RuntimeBackendObjectHandle } from '../../../../shared/cdp/ids.ts'
-import type { RuntimeCallArgument, RuntimeCompletion, RuntimeRemoteObject } from '../../../../shared/cdp/index.ts'
+import type { RuntimeCallArgument, RuntimeCompletion } from '../../../../shared/cdp/operations.ts'
+import type { RuntimeRemoteObject } from '../../../../shared/cdp/remote-object.ts'
 import type { RuntimeExecutionContext } from '../../../../shared/cdp/operations.ts'
 import type { RuntimeBackend } from '../../../../shared/cdp/realm.ts'
 import { cdpError, respondToCdpRequest, type CdpRequest, type CdpTransport } from '../../protocol.ts'

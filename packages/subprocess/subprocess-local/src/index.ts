@@ -28,6 +28,59 @@ import type { ProcessInspector } from './process-inspector.ts'
 import { LocalTerminalHandle } from './terminal.ts'
 
 /**
+ * The extension list Windows treats as directly executable when a command
+ * carries no extension of its own. Windows ships `.COM;.EXE;.BAT;.CMD;…`; this
+ * fallback keeps the four every supported host defines when `PATHEXT` is absent
+ * from the child environment.
+ */
+const DEFAULT_PATHEXT = '.COM;.EXE;.BAT;.CMD'
+
+/**
+ * Read the child environment's `PATHEXT` as a list, dropping the empty entries
+ * a trailing or doubled `;` produces.
+ * @param env - the child environment whose `PATHEXT` decides executability.
+ * @returns the configured extensions, each including its leading dot.
+ */
+function windowsExecutableExtensions(env: NodeJS.ProcessEnv): string[] {
+  return (environmentValue(env, 'PATHEXT') ?? DEFAULT_PATHEXT)
+    .split(';')
+    .filter(extension => extension.length > 0)
+}
+
+/**
+ * Whether a Windows path names a file the operating system will start
+ * directly. Windows carries no execute permission bit, so membership in
+ * `PATHEXT` — the same rule {@link LocalSubprocessRuntime.executableCandidates}
+ * applies when expanding a bare name — is what "executable" means there.
+ * @param candidate - the candidate path, absolute or PATH-expanded.
+ * @param extensions - the environment's `PATHEXT` entries, each with its leading dot.
+ * @returns whether the candidate's extension is one of them.
+ */
+export function hasWindowsExecutableExtension(candidate: string, extensions: readonly string[]): boolean {
+  const extension = extname(candidate).toLowerCase()
+  if (extension.length === 0) return false
+  return extensions.some(entry => entry.toLowerCase() === extension)
+}
+
+/**
+ * Reject a candidate this host cannot start. POSIX asks the filesystem for the
+ * execute bit; Windows has none — Node maps `X_OK` to `F_OK` there, so the
+ * POSIX probe would accept every readable file, including an absolute
+ * `notes.txt` — and the `PATHEXT` rule takes its place.
+ * @param candidate - the existing regular file being considered.
+ * @param env - the child environment supplying `PATHEXT` on Windows.
+ * @throws when the candidate is not executable on this host.
+ */
+async function assertExecutable(candidate: string, env: NodeJS.ProcessEnv): Promise<void> {
+  if (process.platform !== 'win32') {
+    await access(candidate, constants.X_OK)
+    return
+  }
+  if (hasWindowsExecutableExtension(candidate, windowsExecutableExtensions(env))) return
+  throw new Error(`subprocess-local: ${JSON.stringify(candidate)} is not one of the PATHEXT executable kinds`)
+}
+
+/**
  * Local subprocess service: detached process trees, Node-shaped stdio
  * dispositions (raw pipes, inherit, bounded tail-keep collection with spill
  * files), credential-scrubbed environment, and tree-scoped signalling with
@@ -121,7 +174,7 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
       try {
         const info = await stat(candidate)
         if (!info.isFile()) continue
-        await access(candidate, constants.X_OK)
+        await assertExecutable(candidate, environment)
         signal?.throwIfAborted()
         return candidate
       } catch {
@@ -137,14 +190,19 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
   private executableCandidates(command: string, env: NodeJS.ProcessEnv): string[] {
     const path = environmentValue(env, 'PATH') ?? ''
     const extensions = process.platform === 'win32' && extname(command) === ''
-      ? (environmentValue(env, 'PATHEXT') ?? '.COM;.EXE;.BAT;.CMD').split(';')
+      ? windowsExecutableExtensions(env)
       : ['']
     return path.split(delimiter).flatMap(directory =>
       extensions.map(extension => resolve(process.cwd(), directory, command + extension)))
   }
 
   spawn(spec: SubprocessSpawnSpec): SubprocessHandle {
-    const handle = spawnSubprocess(spec, this.internals)
+    // The warning sink is a default the test hook may replace: a contained
+    // teardown failure belongs in the host's log, not in an unread return value.
+    const handle = spawnSubprocess(spec, {
+      warn: (message: string) => { this.ctx.logger.warn(message) },
+      ...this.internals,
+    })
     this.live.add(handle)
     // Release ownership only once the whole TREE is gone, not at direct-child
     // settlement — a TERM-trapping helper that outlives the leader must stay

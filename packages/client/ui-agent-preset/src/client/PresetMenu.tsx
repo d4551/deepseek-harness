@@ -1,12 +1,10 @@
 /**
- * The preset picker both surfaces render: a menu of presets over a button
- * naming the current one.
+ * The Settings-row preset picker: a menu of presets over the shared Settings
+ * selector pill naming the current one.
  *
- * The settings row and the composer seat differ in where they sit, what they
- * call the current value, and when they refuse a pick — not in how the picker
- * itself behaves. Trust is the one thing the list always says: a locally
- * authored preset is exactly as privileged as the plugins it names, so the
- * label marks it rather than presenting every preset as shipped and vetted.
+ * Trust is the one thing the list always says: a locally authored preset is
+ * exactly as privileged as the plugins it names, so the label marks it rather
+ * than presenting every preset as shipped and vetted.
  */
 
 import { IconChevronDownOutline14, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -23,10 +21,6 @@ export interface PresetMenuProps {
   label: string
   /** Active Web locale lookup. */
   t: (key: AgentPresetSettingsKey) => string
-  /** Class for the trigger button, owned by the calling surface. */
-  buttonClassName: string | undefined
-  /** Class for the chevron, owned by the calling surface. */
-  chevronClassName: string | undefined
   /** Whether the trigger refuses interaction. */
   disabled: boolean
   /** Whether the menu is open — the surface owns this so it can force it shut. */
@@ -43,8 +37,7 @@ export interface PresetMenuProps {
  * @returns the menu and its trigger.
  */
 export function PresetMenu({
-  options, selectedId, label, t, buttonClassName, chevronClassName,
-  disabled, open, onOpenChange, onSelect,
+  options, selectedId, label, t, disabled, open, onOpenChange, onSelect,
 }: PresetMenuProps) {
   return (
     <Menu
@@ -69,14 +62,14 @@ export function PresetMenu({
       anchor={(
         <button
           type="button"
-          className={buttonClassName}
+          className="dsw-settings-selector"
           aria-haspopup="menu"
           aria-expanded={open}
           disabled={disabled}
           onClick={() => { onOpenChange(!open) }}
         >
           {label}
-          <IconChevronDownOutline14 className={chevronClassName} />
+          <IconChevronDownOutline14 className="dsw-settings-selector-chevron" />
         </button>
       )}
     />

@@ -82,7 +82,7 @@
    left/bottom offsets are measured from the trigger before paint. */
 .panel {
   position: fixed;
-  z-index: 30;
+  z-index: var(--dsw-z-popover);
   display: flex;
   flex-direction: column;
   width: 420px;

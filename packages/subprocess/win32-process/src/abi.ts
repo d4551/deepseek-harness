@@ -32,6 +32,23 @@ export const JobObjectExtendedLimitInformation = 9
 export const JOBOBJECT_EXTENDED_LIMIT_SIZE = 144
 /** Byte offset of BasicLimitInformation.LimitFlags in the extended Job record. */
 export const JOBOBJECT_EXTENDED_LIMIT_FLAGS_OFFSET = 16
+/** QueryInformationJobObject class for JOBOBJECT_BASIC_PROCESS_ID_LIST. */
+export const JobObjectBasicProcessIdList = 3
+/** Byte offset of NumberOfAssignedProcesses in JOBOBJECT_BASIC_PROCESS_ID_LIST. */
+export const JOBOBJECT_ASSIGNED_PROCESSES_OFFSET = 0
+/** Byte offset of NumberOfProcessIdsInList in JOBOBJECT_BASIC_PROCESS_ID_LIST. */
+export const JOBOBJECT_ID_COUNT_OFFSET = 4
+/** Byte offset of the first ULONG_PTR entry of JOBOBJECT_BASIC_PROCESS_ID_LIST.ProcessIdList (x64). */
+export const JOBOBJECT_ID_LIST_OFFSET = 8
+/** Byte size of one ULONG_PTR process id in that list (x64). */
+export const JOBOBJECT_ID_SIZE = 8
+/** OpenProcess right required to assign a process to a Job object. */
+export const PROCESS_SET_QUOTA = 0x0100
+/** OpenProcess right required to terminate a process. */
+export const PROCESS_TERMINATE = 0x0001
+/** Win32 code reporting that a query filled the buffer it was given and had more to say. */
+export const ERROR_MORE_DATA = 234
+
 /** x64 STARTUPINFOW byte size verified by the native probe. */
 export const STARTUPINFOW_SIZE = 104
 /** x64 PROCESS_INFORMATION byte size verified by the native probe. */

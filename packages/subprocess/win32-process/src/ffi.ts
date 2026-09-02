@@ -95,13 +95,45 @@ export interface Win32ProcessBindings {
   createJobObjectW(attributes: null, name: null): NativePtr
   setInformationJobObject(job: NativePtr, cls: number, information: Buffer, length: number): number
   assignProcessToJobObject(job: NativePtr, process: NativePtr): number
+  terminateJobObject(job: NativePtr, exitCode: number): number
+  queryInformationJobObject(
+    job: NativePtr,
+    cls: number,
+    information: Buffer,
+    length: number,
+    returned: NativePtr,
+  ): number
+  openProcess(desiredAccess: number, inheritHandle: number, pid: number): NativePtr
   resumeThread(thread: NativePtr): number
   terminateProcess(process: NativePtr, exitCode: number): number
   getStdHandle(stdHandle: number): NativePtr
 }
 
+/**
+ * Register one named Koffi struct idempotently. Koffi's type registry is
+ * global per process, so a test runner that re-evaluates this module — a
+ * `vi.resetModules()` re-import from a consumer's suite — would otherwise fail
+ * with `Duplicate type name`. The re-registration resolves to the layout the
+ * first evaluation installed, which the size assertions below re-verify.
+ * @param name - the registry name for the struct.
+ * @param fields - the struct's field layout.
+ * @returns the registered type.
+ */
+function registerStruct(
+  name: string,
+  fields: Record<string, Ptr | string>,
+): ReturnType<typeof koffi.struct> {
+  try {
+    return koffi.struct(name, fields)
+  } catch {
+    // Swallows only koffi's duplicate-name rejection: these names are
+    // module-private constants, so nothing outside this module can register them.
+    return koffi.type(name)
+  }
+}
+
 /** Koffi STARTUPINFOW layout. */
-export const STARTUPINFOW = koffi.struct('DSH_STARTUPINFOW', {
+export const STARTUPINFOW = registerStruct('DSH_STARTUPINFOW', {
   cb: 'uint32',
   lpReserved: 'str16',
   lpDesktop: 'str16',
@@ -123,7 +155,7 @@ export const STARTUPINFOW = koffi.struct('DSH_STARTUPINFOW', {
 })
 
 /** Koffi PROCESS_INFORMATION layout. */
-export const PROCESS_INFORMATION = koffi.struct('DSH_PROCESS_INFORMATION', {
+export const PROCESS_INFORMATION = registerStruct('DSH_PROCESS_INFORMATION', {
   hProcess: PVOID,
   hThread: PVOID,
   dwProcessId: 'uint32',
@@ -250,6 +282,11 @@ function bindings(): Win32ProcessBindings {
     createJobObjectW: bind(kernel32, 'CreateJobObjectW', PVOID, [PVOID, 'str16']),
     setInformationJobObject: bind(kernel32, 'SetInformationJobObject', 'int', [PVOID, 'int', PVOID, 'uint32']),
     assignProcessToJobObject: bind(kernel32, 'AssignProcessToJobObject', 'int', [PVOID, PVOID]),
+    terminateJobObject: bind(kernel32, 'TerminateJobObject', 'int', [PVOID, 'uint32']),
+    queryInformationJobObject: bind(kernel32, 'QueryInformationJobObject', 'int', [
+      PVOID, 'int', PVOID, 'uint32', koffi.pointer('uint32'),
+    ]),
+    openProcess: bind(kernel32, 'OpenProcess', PVOID, ['uint32', 'int', 'uint32']),
     resumeThread: bind(kernel32, 'ResumeThread', 'uint32', [PVOID]),
     terminateProcess: bind(kernel32, 'TerminateProcess', 'int', [PVOID, 'uint32']),
     getStdHandle: bind(kernel32, 'GetStdHandle', PVOID, ['int']),

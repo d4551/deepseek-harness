@@ -3,7 +3,7 @@
 import type { SessionId } from '@deepseek-ai/dsh-client-connection/client'
 import type {
   CordisDynamicPluginId, DynamicCordisInventoryRow,
-} from './events.ts'
+} from '@deepseek-ai/dsh-api-remotes/client'
 
 /** Result of a panel lifecycle gesture. */
 export type CordisActionResult =

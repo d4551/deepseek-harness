@@ -106,6 +106,18 @@ interface SessionEventMap {
    */
   'request/context': RequestContext
   /**
+   * The session's ADDITIONAL workspace roots — the directories it may work in
+   * beside the immutable primary root {@link SessionHeader.cwd}. Log-only
+   * (like `sandbox/mode`; NOT a surface event, carries no `surfaceOp`):
+   * durable and replayable, never in the model transcript, though the roots
+   * do reach the model through the sandbox policy's prompt section, which is
+   * why they are a durable record rather than runtime state. `roots` is the
+   * COMPLETE replacement set of absolute paths, so the LAST such event is the
+   * session's current set; an empty array records that the session works in
+   * its primary root alone.
+   */
+  'workspace/roots': { roots: string[] }
+  /**
    * Marks the end of a constructor seed. Events before it have smaller seq
    * values and came from the seed (resume, fork, or replay); this lifecycle
    * produced none of them. This log-only event is the durable projection of

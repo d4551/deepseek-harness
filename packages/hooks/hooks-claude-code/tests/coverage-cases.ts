@@ -1,6 +1,6 @@
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync, chmodSync, existsSync, readFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -10,12 +10,12 @@ import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
-import { LocalBashExecutor } from '@deepseek-ai/dsh-bash-local'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import { scopeTarget } from '@deepseek-ai/dsh-scope'
 import SubagentRuntime, { SubagentRunId } from '@deepseek-ai/dsh-subagent'
 import * as HooksClaude from '@deepseek-ai/dsh-hooks-claude-code'
 import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
+import { hookProgram, plugHostShell } from '../../hook-protocol/tests/hook-program.ts'
 
 const testToolSignal = new AbortController().signal
 
@@ -30,9 +30,6 @@ function subagentCarrier(ctx: Context) {
 }
 
 function dir(): string { const d = mkdtempSync(join(tmpdir(), 'dsh-hc-cov-')); dirs.push(d); return d }
-function sh(d: string, name: string, body: string): string {
-  const p = join(d, name); writeFileSync(p, body); chmodSync(p, 0o755); return p
-}
 function hooks(d: string, h: unknown): string {
   writeFileSync(join(d, 'hooks.json'), JSON.stringify({ hooks: h })); return join(d, 'hooks.json')
 }
@@ -44,7 +41,7 @@ async function harness(configPath: string, adapter: MockAdapter, opts: HarnessOp
   if (opts.sessionRoot !== undefined) await ctx.plugin(JsonlSessionPersistence, { root: opts.sessionRoot })
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(LocalSubprocessRuntime)
-  await ctx.plugin(LocalBashExecutor, { timeoutMs: 10_000 })
+  await plugHostShell(ctx, { timeoutMs: 10_000 })
   await ctx.plugin(HooksClaude, { configPath, ...opts })
   ctx.llm.registerAdapter(['mock'], adapter)
   return ctx
@@ -72,7 +69,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
       async function capture(sessionRoot?: string): Promise<{ payload: { transcript_path: string }; expected: string | undefined }> {
         const d = dir()
         const cap = join(d, 'payload')
-        const path = hooks(d, { PreToolUse: [{ hooks: [{ type: 'command', command: sh(d, 'capture.sh', `#!/usr/bin/env bash\ncat > "${cap}"\n`) }] }] })
+        const path = hooks(d, { PreToolUse: [{ hooks: [{ type: 'command', command: hookProgram(d, 'capture', `capture(${JSON.stringify(cap)})\n`) }] }] })
         const adapter = new MockAdapter([toolCallResponse('c1', 'echo', {}), textResponse('done')])
         const ctx = await harness(path, adapter, { ...sessionRoot !== undefined ? { sessionRoot } : {} })
         ctx.tools.register(defineContentToolFixture({ name: 'echo', description: 'e', parameters: {}, async execute() { return [{ type: 'text', text: 'ok' }] } }))
@@ -94,11 +91,11 @@ export function defineCoverageCases(group: CoverageGroup): void {
       const d = dir()
       // ${CLAUDE_PLUGIN_ROOT} resolves to d; the script writes its own cwd-independent marker.
       const marker = join(d, 'ran')
-      sh(d, 'h.sh', `#!/usr/bin/env bash\ntouch "${marker}"\n`)
+      hookProgram(d, 'h', `touch(${JSON.stringify(marker)})\n`)
       const path = hooks(d, {
         PreToolUse: [{ hooks: [
           { type: 'prompt', prompt: 'skipme' }, // skipped → warn loop
-          { type: 'command', command: '${CLAUDE_PLUGIN_ROOT}/h.sh' }, // substituted
+          { type: 'command', command: 'node "${CLAUDE_PLUGIN_ROOT}/h.mjs"' }, // substituted
         ] }],
       })
       const warn = vi.fn()
@@ -114,7 +111,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
 
     it('warns and honors updatedInput as a no-op (input rewrite deferred)', async () => {
       const d = dir()
-      const s = sh(d, 'u.sh', '#!/usr/bin/env bash\necho \'{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","updatedInput":{"command":"rewritten"}}}\'\n')
+      const s = hookProgram(d, 'u', 'out(\'{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","updatedInput":{"command":"rewritten"}}}\')\n')
       const path = hooks(d, { PreToolUse: [{ hooks: [{ type: 'command', command: s }] }] })
       const warn = vi.fn()
       const adapter = new MockAdapter([toolCallResponse('c1', 'echo', { command: 'original' }), textResponse('done')])
@@ -134,7 +131,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
   if (group === 'config') describe('hooks-claude-code coverage — empty/no-op outcomes and no-agent paths', () => {
     it('a clean exit-0 hook with no output is a no-op (contextFrom empty → next())', async () => {
       const d = dir()
-      const s = sh(d, 'noop.sh', '#!/usr/bin/env bash\nexit 0\n')
+      const s = hookProgram(d, 'noop', 'process.exit(0)\n')
       const path = hooks(d, { UserPromptSubmit: [{ hooks: [{ type: 'command', command: s }] }] })
       const adapter = new MockAdapter([textResponse('ran')])
       const ctx = await harness(path, adapter)
@@ -148,7 +145,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
 
     it('a PreToolUse hook fires for a no-agent direct tool call (no session/turn to record into)', async () => {
       const d = dir()
-      const s = sh(d, 'deny.sh', '#!/usr/bin/env bash\necho "no" >&2\nexit 2\n')
+      const s = hookProgram(d, 'deny', 'err(\'no\')\nprocess.exit(2)\n')
       const path = hooks(d, { PreToolUse: [{ hooks: [{ type: 'command', command: s }] }] })
       const ctx = await harness(path, new MockAdapter([]))
       let ran = false
@@ -161,7 +158,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
 
     it('a long stderr is truncated in the hook/result summary', async () => {
       const d = dir()
-      const s = sh(d, 'long.sh', '#!/usr/bin/env bash\nprintf "x%.0s" {1..600} >&2\nexit 2\n')
+      const s = hookProgram(d, 'long', 'errRaw(\'x\'.repeat(600))\nprocess.exit(2)\n')
       const path = hooks(d, { PreToolUse: [{ hooks: [{ type: 'command', command: s }] }] })
       const adapter = new MockAdapter([toolCallResponse('c1', 'echo', {}), textResponse('done')])
       const ctx = await harness(path, adapter)
@@ -186,7 +183,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
 
     it('the stderr summary cap is plugin config (stderrSummaryMaxChars)', async () => {
       const d = dir()
-      const s = sh(d, 'long.sh', '#!/usr/bin/env bash\nprintf "x%.0s" {1..600} >&2\nexit 2\n')
+      const s = hookProgram(d, 'long', 'errRaw(\'x\'.repeat(600))\nprocess.exit(2)\n')
       const path = hooks(d, { PreToolUse: [{ hooks: [{ type: 'command', command: s }] }] })
       const adapter = new MockAdapter([toolCallResponse('c1', 'echo', {}), textResponse('done')])
       const ctx = await harness(path, adapter, { stderrSummaryMaxChars: 40 })
@@ -203,7 +200,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
     it('a Stop hook that blocks (exit 2) forces the turn to continue (CC dialect)', async () => {
       const d = dir()
       const marker = join(d, 'fired')
-      const s = sh(d, 'stop.sh', `#!/usr/bin/env bash\nif [ -e "${marker}" ]; then exit 0; fi\ntouch "${marker}"\necho "continue please" >&2\nexit 2\n`)
+      const s = hookProgram(d, 'stop', `if (exists(${JSON.stringify(marker)})) process.exit(0)\ntouch(${JSON.stringify(marker)})\nerr('continue please')\nprocess.exit(2)\n`)
       const path = hooks(d, { Stop: [{ hooks: [{ type: 'command', command: s }] }] })
       const adapter = new MockAdapter([textResponse('one'), textResponse('two')])
       const ctx = await harness(path, adapter)
@@ -219,7 +216,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
     // continuation; the script self-limits to one block to avoid a loop.
       const d = dir()
       const marker = join(d, 'fired')
-      const s = sh(d, 'stop.sh', `#!/usr/bin/env bash\nif [ -e "${marker}" ]; then exit 0; fi\ntouch "${marker}"\nexit 2\n`)
+      const s = hookProgram(d, 'stop', `if (exists(${JSON.stringify(marker)})) process.exit(0)\ntouch(${JSON.stringify(marker)})\nprocess.exit(2)\n`)
       const path = hooks(d, { Stop: [{ hooks: [{ type: 'command', command: s }] }] })
       const adapter = new MockAdapter([textResponse('one'), textResponse('two')])
       const ctx = await harness(path, adapter)
@@ -234,7 +231,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
 
     it('SubagentStart additionalContext is injected into a REGISTERED live child', async () => {
       const d = dir()
-      const s = sh(d, 'sa.sh', '#!/usr/bin/env bash\necho \'{"hookSpecificOutput":{"hookEventName":"SubagentStart","additionalContext":"child guidance"}}\'\n')
+      const s = hookProgram(d, 'sa', 'out(\'{"hookSpecificOutput":{"hookEventName":"SubagentStart","additionalContext":"child guidance"}}\')\n')
       const path = hooks(d, { SubagentStart: [{ hooks: [{ type: 'command', command: s }] }] })
       const ctx = await harness(path, new MockAdapter([]))
       const injected: string[] = []
@@ -256,7 +253,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
       // A hook command that does not exist makes runHook resolve a non-blocking
       // error (not a throw), so to hit the .catch we make the .then throw: register
       // a child whose inject throws for SubagentStart.
-      const s = sh(d, 'sa.sh', '#!/usr/bin/env bash\necho \'{"hookSpecificOutput":{"hookEventName":"SubagentStart","additionalContext":"x"}}\'\n')
+      const s = hookProgram(d, 'sa', 'out(\'{"hookSpecificOutput":{"hookEventName":"SubagentStart","additionalContext":"x"}}\')\n')
       const path = hooks(d, { SubagentStart: [{ hooks: [{ type: 'command', command: s }] }] })
       const ctx = await harness(path, new MockAdapter([]))
       const warn = vi.fn(); ctx.logger.warn = warn as never
@@ -271,7 +268,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
   if (group === 'stop') describe('hooks-claude-code coverage — default reasons + sparse payloads', () => {
     it('PreToolUse deny with EMPTY stderr uses the default reason', async () => {
       const d = dir()
-      const s = sh(d, 'deny.sh', '#!/usr/bin/env bash\nexit 2\n') // exit 2, no stderr
+      const s = hookProgram(d, 'deny', 'process.exit(2)\n') // exit 2, no stderr
       const path = hooks(d, { PreToolUse: [{ hooks: [{ type: 'command', command: s }] }] })
       const adapter = new MockAdapter([toolCallResponse('c1', 'echo', {}), textResponse('done')])
       const ctx = await harness(path, adapter)
@@ -285,7 +282,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
 
     it('PostToolUse deny with EMPTY stderr + no context uses the default feedback', async () => {
       const d = dir()
-      const s = sh(d, 'block.sh', '#!/usr/bin/env bash\nexit 2\n')
+      const s = hookProgram(d, 'block', 'process.exit(2)\n')
       const path = hooks(d, { PostToolUse: [{ hooks: [{ type: 'command', command: s }] }] })
       const adapter = new MockAdapter([toolCallResponse('c1', 'echo', {}), textResponse('done')])
       const ctx = await harness(path, adapter)
@@ -303,7 +300,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
       // undefined and the payload falls back to base(undefined) — assert the
       // observe-only SubagentStop run still executes the hook without crashing.
       const marker = join(d, 'stopran')
-      const s = sh(d, 'stop.sh', `#!/usr/bin/env bash\ntouch "${marker}"\n`)
+      const s = hookProgram(d, 'stop', `touch(${JSON.stringify(marker)})\n`)
       const path = hooks(d, { SubagentStop: [{ hooks: [{ type: 'command', command: s }] }] })
       const ctx = await harness(path, new MockAdapter([]))
       ctx.emit(subagentCarrier(ctx), 'subagent/end', { runId: SubagentRunId('run-z'), provider: 'p', id: SessionId('child-z'), local: false, stopReason: 'completed' })
@@ -315,7 +312,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
   if (group === 'edge-paths') describe('hooks-claude-code coverage — more default/sparse arms', () => {
     it('UserPromptSubmit deny with EMPTY stderr uses the default block reason', async () => {
       const d = dir()
-      const s = sh(d, 'block.sh', '#!/usr/bin/env bash\nexit 2\n')
+      const s = hookProgram(d, 'block', 'process.exit(2)\n')
       const path = hooks(d, { UserPromptSubmit: [{ hooks: [{ type: 'command', command: s }] }] })
       const adapter = new MockAdapter([textResponse('no')])
       const ctx = await harness(path, adapter)
@@ -329,7 +326,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
 
     it('a PreToolUse ask with NO reason omits the reason (false arm)', async () => {
       const d = dir()
-      const s = sh(d, 'ask.sh', '#!/usr/bin/env bash\necho \'{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask"}}\'\n')
+      const s = hookProgram(d, 'ask', 'out(\'{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask"}}\')\n')
       const path = hooks(d, { PreToolUse: [{ hooks: [{ type: 'command', command: s }] }] })
       const adapter = new MockAdapter([toolCallResponse('c1', 'echo', {}), textResponse('done')])
       const ctx = await harness(path, adapter)
@@ -345,7 +342,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
 
     it('a recorded clean exit-0 hook with no stderr omits exitCode-extra/stderrSummary fields', async () => {
       const d = dir()
-      const s = sh(d, 'noop.sh', '#!/usr/bin/env bash\nexit 0\n')
+      const s = hookProgram(d, 'noop', 'process.exit(0)\n')
       const path = hooks(d, { PreToolUse: [{ hooks: [{ type: 'command', command: s }] }] })
       const adapter = new MockAdapter([toolCallResponse('c1', 'echo', {}), textResponse('done')])
       const ctx = await harness(path, adapter)
@@ -363,14 +360,14 @@ export function defineCoverageCases(group: CoverageGroup): void {
     it('a direct apply() (schema bypass) with only configPath runs', async () => {
       const d = dir()
       const marker = join(d, 'ran')
-      const s = sh(d, 'h.sh', `#!/usr/bin/env bash\ntouch "${marker}"\n`)
+      const s = hookProgram(d, 'h', `touch(${JSON.stringify(marker)})\n`)
       hooks(d, { UserPromptSubmit: [{ hooks: [{ type: 'command', command: s }] }] })
       const adapter = new MockAdapter([textResponse('ok')])
       const ctx = new Context()
       await mountAgentLoopTestDependencies(ctx)
       await ctx.plugin(AgentLoop, { agents: [] })
       await ctx.plugin(LocalSubprocessRuntime)
-      await ctx.plugin(LocalBashExecutor, { timeoutMs: 10_000 })
+      await plugHostShell(ctx, { timeoutMs: 10_000 })
       // Direct apply with only configPath — bypasses schemastery's defaults, so
       // the bridge must run on the raw minimal config (the per-hook timeout is
       // the protocol lib's reference default, not a config knob).
@@ -401,7 +398,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
 
     it('a PostToolUse deny with empty stderr + no context uses the default feedback (no context arm)', async () => {
       const d = dir()
-      const s = sh(d, 'block.sh', '#!/usr/bin/env bash\nexit 2\n')
+      const s = hookProgram(d, 'block', 'process.exit(2)\n')
       const path = hooks(d, { PostToolUse: [{ hooks: [{ type: 'command', command: s }] }] })
       const adapter = new MockAdapter([toolCallResponse('c1', 'echo', {}), textResponse('done')])
       const ctx = await harness(path, adapter)
@@ -419,7 +416,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
     // The extension points cannot yet honor `continue:false` as a hard halt. The log must still record the
     // stop decision while execution and the turn continue normally.
       const d = dir()
-      const s = sh(d, 'stop.sh', '#!/usr/bin/env bash\necho \'{"continue":false,"stopReason":"halt"}\'\n')
+      const s = hookProgram(d, 'stop', 'out(\'{"continue":false,"stopReason":"halt"}\')\n')
       const path = hooks(d, { PreToolUse: [{ hooks: [{ type: 'command', command: s }] }] })
       const adapter = new MockAdapter([toolCallResponse('c1', 'echo', {}), textResponse('done')])
       const ctx = await harness(path, adapter)
@@ -437,7 +434,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
 
     it('a PostToolUse hook that BOTH blocks AND attaches additionalContext', async () => {
       const d = dir()
-      const s = sh(d, 'b.sh', '#!/usr/bin/env bash\necho \'{"decision":"block","reason":"bad","hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"context too"}}\'\n')
+      const s = hookProgram(d, 'b', 'out(\'{"decision":"block","reason":"bad","hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"context too"}}\')\n')
       const path = hooks(d, { PostToolUse: [{ hooks: [{ type: 'command', command: s }] }] })
       const adapter = new MockAdapter([toolCallResponse('c1', 'echo', {}), textResponse('done')])
       const ctx = await harness(path, adapter)
@@ -456,7 +453,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
     // The block's hookEventName (UserPromptSubmit) mismatches the firing event
     // (PreToolUse), so its permissionDecision:"deny" is discarded — the tool runs.
       const d = dir()
-      const s = sh(d, 'x.sh', '#!/usr/bin/env bash\necho \'{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","permissionDecision":"deny"}}\'\n')
+      const s = hookProgram(d, 'x', 'out(\'{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","permissionDecision":"deny"}}\')\n')
       const path = hooks(d, { PreToolUse: [{ hooks: [{ type: 'command', command: s }] }] })
       const adapter = new MockAdapter([toolCallResponse('c1', 'echo', {}), textResponse('done')])
       const ctx = await harness(path, adapter)
@@ -474,7 +471,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
     // not an empty string. The hook echoes the var as additionalContext.
       const d = dir()
       const workspace = dir()
-      const s = sh(d, 'ctx.sh', '#!/usr/bin/env bash\nprintf \'{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"dir=%s"}}\' "$CLAUDE_PROJECT_DIR"\n')
+      const s = hookProgram(d, 'ctx', 'out(\'{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"dir=\' + process.env.CLAUDE_PROJECT_DIR + \'"}}\')\n')
       const path = hooks(d, { UserPromptSubmit: [{ hooks: [{ type: 'command', command: s }] }] })
       const adapter = new MockAdapter([textResponse('ran')])
       const ctx = await harness(path, adapter) // NB: no projectDir
@@ -492,7 +489,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
     // A context-only hook delegates with `next()` and folds its context, so a downstream policy
     // listener can still veto the prompt.
       const d = dir()
-      const s = sh(d, 'ctx.sh', '#!/usr/bin/env bash\necho \'{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"bridge ctx"}}\'\n')
+      const s = hookProgram(d, 'ctx', 'out(\'{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"bridge ctx"}}\')\n')
       const path = hooks(d, { UserPromptSubmit: [{ hooks: [{ type: 'command', command: s }] }] })
       const adapter = new MockAdapter([textResponse('should not run')])
       const ctx = await harness(path, adapter)
@@ -516,7 +513,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
     // Both the bridge hook and a later pre-step listener attach context; the
     // request must see both as separately sourced durable events.
       const d = dir()
-      const s = sh(d, 'ctx.sh', '#!/usr/bin/env bash\necho \'{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"from-bridge"}}\'\n')
+      const s = hookProgram(d, 'ctx', 'out(\'{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"from-bridge"}}\')\n')
       const path = hooks(d, { UserPromptSubmit: [{ hooks: [{ type: 'command', command: s }] }] })
       const adapter = new MockAdapter([textResponse('ok')])
       const ctx = await harness(path, adapter)
@@ -551,7 +548,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
     // The bridge hook adds context; a later post-execute listener accepts with a
     // canonical replacement. Both the replacement and the bridge context survive.
       const d = dir()
-      const s = sh(d, 'ctx.sh', '#!/usr/bin/env bash\necho \'{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"bridge-note"}}\'\n')
+      const s = hookProgram(d, 'ctx', 'out(\'{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"bridge-note"}}\')\n')
       const path = hooks(d, { PostToolUse: [{ hooks: [{ type: 'command', command: s }] }] })
       const adapter = new MockAdapter([toolCallResponse('c1', 'echo', {}), textResponse('done')])
       const ctx = await harness(path, adapter)
@@ -567,7 +564,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
 
     it('keeps bridge and downstream PostToolUse contexts as separate sourced events', async () => {
       const d = dir()
-      const s = sh(d, 'ctx.sh', '#!/usr/bin/env bash\necho \'{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"bridge-note"}}\'\n')
+      const s = hookProgram(d, 'ctx', 'out(\'{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"bridge-note"}}\')\n')
       const path = hooks(d, { PostToolUse: [{ hooks: [{ type: 'command', command: s }] }] })
       const adapter = new MockAdapter([toolCallResponse('c1', 'echo', {}), textResponse('done')])
       const ctx = await harness(path, adapter)
@@ -595,7 +592,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
     // result. The block wins AND carries the bridge context (concatContext on the
     // block arm).
       const d = dir()
-      const s = sh(d, 'ctx.sh', '#!/usr/bin/env bash\necho \'{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"bridge-note"}}\'\n')
+      const s = hookProgram(d, 'ctx', 'out(\'{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"bridge-note"}}\')\n')
       const path = hooks(d, { PostToolUse: [{ hooks: [{ type: 'command', command: s }] }] })
       const adapter = new MockAdapter([toolCallResponse('c1', 'echo', {}), textResponse('done')])
       const ctx = await harness(path, adapter)
@@ -616,7 +613,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
   if (group === 'edge-paths') describe('hooks-claude-code coverage — executor reject + no-open-turn', () => {
     it('when the bash executor REJECTS a hook run, the hook/result omits exitCode (non-blocking)', async () => {
       const d = dir()
-      const s = sh(d, 'h.sh', '#!/usr/bin/env bash\nexit 0\n')
+      const s = hookProgram(d, 'h', 'process.exit(0)\n')
       const path = hooks(d, { PreToolUse: [{ hooks: [{ type: 'command', command: s }] }] })
       const adapter = new MockAdapter([toolCallResponse('c1', 'echo', {}), textResponse('done')])
       const ctx = await harness(path, adapter)
@@ -637,7 +634,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
   if (group === 'edge-paths') describe('hooks-claude-code coverage — detached-listener catch handlers', () => {
     it('a throwing SessionStart inject is contained (logged, agent still runs)', async () => {
       const d = dir()
-      const s = sh(d, 'start.sh', '#!/usr/bin/env bash\necho \'{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"x"}}\'\n')
+      const s = hookProgram(d, 'start', 'out(\'{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"x"}}\')\n')
       const path = hooks(d, { SessionStart: [{ hooks: [{ type: 'command', command: s }] }] })
       const adapter = new MockAdapter([textResponse('ok')])
       const ctx = await harness(path, adapter)
@@ -670,7 +667,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
       await ctx.plugin(AgentLoop, { agents: [] })
       // Executor default cwd = serverDir (deliberately NOT the session cwd).
       await ctx.plugin(LocalSubprocessRuntime)
-      await ctx.plugin(LocalBashExecutor, { timeoutMs: 10_000, cwd: serverDir })
+      await plugHostShell(ctx, { timeoutMs: 10_000, cwd: serverDir })
       await ctx.plugin(HooksClaude, { configPath: join(serverDir, 'hooks.json') })
       ctx.llm.registerAdapter(['mock'], adapter)
       ctx.tools.register(defineContentToolFixture({ name: 'echo', description: 'e', parameters: {}, async execute() { return [{ type: 'text', text: 'ok' }] } }))
@@ -699,7 +696,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
       await ctx.plugin(AgentLoop, { agents: [] })
       // Executor default cwd = serverDir (deliberately NOT the child session cwd).
       await ctx.plugin(LocalSubprocessRuntime)
-      await ctx.plugin(LocalBashExecutor, { timeoutMs: 10_000, cwd: serverDir })
+      await plugHostShell(ctx, { timeoutMs: 10_000, cwd: serverDir })
       await ctx.plugin(HooksClaude, { configPath: join(serverDir, 'hooks.json') })
       ctx.llm.registerAdapter(['mock'], new MockAdapter([]))
 
@@ -727,7 +724,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
   if (group === 'config') describe('hooks-claude-code coverage — systemMessage is warned, not surfaced', () => {
     it('a hook emitting a systemMessage is logged as not-yet-surfaced', async () => {
       const d = dir()
-      const s = sh(d, 'sm.sh', '#!/usr/bin/env bash\necho \'{"systemMessage":"heads up"}\'\n')
+      const s = hookProgram(d, 'sm', 'out(\'{"systemMessage":"heads up"}\')\n')
       const path = hooks(d, { UserPromptSubmit: [{ hooks: [{ type: 'command', command: s }] }] })
       const adapter = new MockAdapter([textResponse('ok')])
       const ctx = await harness(path, adapter)
@@ -746,7 +743,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
     // Session-start injection is detached, so an immediate prompt need not observe it. Assert only
     // the guaranteed behavior—no crash and a completed turn—without pre-waiting away the race.
       const d = dir()
-      const s = sh(d, 'start.sh', '#!/usr/bin/env bash\necho \'{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"late ctx"}}\'\n')
+      const s = hookProgram(d, 'start', 'out(\'{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"late ctx"}}\')\n')
       const path = hooks(d, { SessionStart: [{ hooks: [{ type: 'command', command: s }] }] })
       const adapter = new MockAdapter([textResponse('ok')])
       const ctx = await harness(path, adapter)

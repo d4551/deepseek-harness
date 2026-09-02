@@ -1,8 +1,10 @@
 import { PassThrough } from 'node:stream'
-import { describe, expect, it, vi } from 'vitest'
-import { basename, dirname, relative, resolve } from 'node:path'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { basename, dirname, join, relative, resolve } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
-import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
+import LocalSubprocessRuntime, { hasWindowsExecutableExtension } from '@deepseek-ai/dsh-subprocess-local'
 import type { SubprocessSpawnSpec, SubprocessTerminalHandle, SubprocessTerminalSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { childEnv } from '../src/spawn.ts'
 
@@ -27,6 +29,9 @@ function spec(command: string, overrides: Partial<SubprocessSpawnSpec> = {}): Su
     ...overrides,
   }
 }
+
+const tempDirs: string[] = []
+afterEach(() => { for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true }) })
 
 describe('LocalSubprocessRuntime', () => {
   it('places the host-exit finalizer before listeners that predate the service', async () => {
@@ -141,6 +146,53 @@ describe('LocalSubprocessRuntime', () => {
     await expect(ctx.subprocess.resolveExecutable(process.execPath, {}, AbortSignal.abort('stop')))
       .rejects.toBe('stop')
     await fiber.dispose()
+  })
+
+  it('reads executability from PATHEXT, not from a POSIX execute bit', () => {
+    const pathext = ['.COM', '.EXE', '.BAT', '.CMD']
+    expect(hasWindowsExecutableExtension(String.raw`C:\tools\server.EXE`, pathext)).toBe(true)
+    expect(hasWindowsExecutableExtension(String.raw`C:\tools\server.exe`, pathext)).toBe(true)
+    expect(hasWindowsExecutableExtension(String.raw`C:\notes\secrets.txt`, pathext)).toBe(false)
+    expect(hasWindowsExecutableExtension(String.raw`C:\tools\server`, pathext)).toBe(false)
+    expect(hasWindowsExecutableExtension(String.raw`C:\tools\server.ps1`, ['.PS1'])).toBe(true)
+  })
+
+  it('refuses a non-PATHEXT absolute command on Windows, where X_OK proves nothing', async () => {
+    // Node maps X_OK to F_OK on Windows, so the POSIX probe accepts any
+    // readable file: without the PATHEXT rule this data file resolves as an
+    // executable and the failure only appears when the spawn fails.
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-exec-check-'))
+    tempDirs.push(dir)
+    const data = join(dir, 'notes.txt')
+    const program = join(dir, 'tool.exe')
+    writeFileSync(data, 'not a program')
+    writeFileSync(program, 'MZ')
+    const ctx = new Context()
+    const fiber = await ctx.plugin(LocalSubprocessRuntime)
+    const platform = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    try {
+      await expect(ctx.subprocess.resolveExecutable(data)).rejects.toThrow('is not an executable file')
+      expect(await ctx.subprocess.resolveExecutable(program)).toBe(program)
+      await expect(ctx.subprocess.resolveExecutable(program, { PATHEXT: '.COM;.BAT' }))
+        .rejects.toThrow('is not an executable file')
+    } finally {
+      platform.mockRestore()
+      await fiber.dispose()
+    }
+  })
+
+  it.skipIf(process.platform === 'win32')('refuses a POSIX file without the execute bit', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-exec-check-'))
+    tempDirs.push(dir)
+    const data = join(dir, 'notes.txt')
+    writeFileSync(data, 'not a program', { mode: 0o600 })
+    const ctx = new Context()
+    const fiber = await ctx.plugin(LocalSubprocessRuntime)
+    try {
+      await expect(ctx.subprocess.resolveExecutable(data)).rejects.toThrow('is not an executable file')
+    } finally {
+      await fiber.dispose()
+    }
   })
 
   it('builds Windows executable candidates with case-insensitive overrides', async () => {

@@ -7,7 +7,7 @@ import type {
   RuntimeDebuggerEvent,
   RuntimeDebuggerLocation,
   RuntimeDebuggerScope,
-} from '../../../shared/cdp/index.ts'
+} from '../../../shared/cdp/debugger.ts'
 import type { DebuggerBackend } from '../../../shared/cdp/realm.ts'
 import type { HostInspectorSession } from './bridge.ts'
 import { optionalNativeField, requireNativeRecord } from './values.ts'

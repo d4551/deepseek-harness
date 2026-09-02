@@ -6,7 +6,7 @@ import type { WorkerToSourceFrame } from '../shared/bridge/messages/observation.
 import { createCordisRuntimeTreeReader } from '../shared/cordis/reader.ts'
 import { NetworkDomain } from './cdp/domains/network/session.ts'
 import { NetworkStore } from './inspection/network-store.ts'
-import { CordisDomBackend } from './cdp/domains/dom/index.ts'
+import { CordisDomBackend } from './cdp/domains/dom/model.ts'
 import { ClientRuntimeRouter } from './bridge/runtime-rpc.ts'
 import { ClientSourceRouter } from './bridge/source-rpc.ts'
 import { CordisTreeStore } from './inspection/cordis-store.ts'

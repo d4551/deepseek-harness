@@ -56,7 +56,7 @@ export const AXE_FLOOR: SemVer = { major: 4, minor: 13, patch: 0 }
 /** @modelcontextprotocol/sdk v1 latest. */
 export const MCP_SDK_FLOOR: SemVer = { major: 1, minor: 30, patch: 0 }
 /** Oxlint pin: the repository's only linter. */
-const OXLINT_FLOOR: SemVer = { major: 1, minor: 80, patch: 0 }
+const OXLINT_FLOOR: SemVer = { major: 1, minor: 81, patch: 0 }
 /**
  * `oxlint-tsgolint` pin. This is the type-aware half of the lint gate — the
  * `no-unsafe-*` and `no-unnecessary-condition` rules that hold the TypeScript 7
@@ -90,6 +90,63 @@ const YAML_FLOOR: SemVer = { major: 2, minor: 9, patch: 0 }
 const FFLATE_FLOOR: SemVer = { major: 0, minor: 8, patch: 3 }
 /** `playwright` pin: the browser the Web snapshot and e2e lanes drive. */
 const PLAYWRIGHT_FLOOR: SemVer = { major: 1, minor: 62, patch: 1 }
+
+/**
+ * Every non-workspace dependency the root manifest declares, mapped to the
+ * version the repository ships. The root manifest is the toolchain single
+ * source of truth: the compiler, bundler, test runner, linter, mutation
+ * runner, and documentation tooling all resolve from here, so a stale
+ * declaration here weakens every gate below it.
+ *
+ * This map is complete by construction rather than by memory:
+ * {@link unflooredRootDependencies} fails when the manifest declares a
+ * dependency this map does not, so adding one forces stating the version it
+ * may never fall below. Families that also appear in workspace manifests
+ * reuse the exported floor constant rather than repeating the number.
+ */
+export const ROOT_DEPENDENCY_FLOORS: Readonly<Record<string, SemVer>> = Object.freeze({
+  '@babel/core': { major: 8, minor: 0, patch: 1 },
+  '@babel/plugin-proposal-decorators': { major: 8, minor: 0, patch: 2 },
+  '@babel/plugin-syntax-jsx': { major: 8, minor: 0, patch: 1 },
+  '@babel/preset-typescript': { major: 8, minor: 0, patch: 1 },
+  '@stryker-mutator/api': { major: 10, minor: 0, patch: 0 },
+  '@stryker-mutator/core': { major: 10, minor: 0, patch: 0 },
+  '@stryker-mutator/vitest-runner': { major: 10, minor: 0, patch: 0 },
+  '@stylistic/eslint-plugin': { major: 5, minor: 10, patch: 0 },
+  '@testing-library/dom': { major: 10, minor: 4, patch: 1 },
+  '@testing-library/react': TESTING_LIBRARY_REACT_FLOOR,
+  '@types/jsdom': { major: 30, minor: 0, patch: 0 },
+  '@types/mdast': { major: 4, minor: 0, patch: 4 },
+  '@types/node': TYPES_NODE_FLOOR,
+  '@types/spdx-expression-parse': { major: 4, minor: 0, patch: 0 },
+  '@vitest/coverage-v8': COVERAGE_V8_FLOOR,
+  '@yarnpkg/cli-dist': { major: 4, minor: 18, patch: 0 },
+  execa: EXECA_FLOOR,
+  'fast-check': { major: 4, minor: 9, patch: 0 },
+  'istanbul-lib-report': { major: 3, minor: 0, patch: 1 },
+  'js-yaml': { major: 5, minor: 4, patch: 1 },
+  jscpd: { major: 5, minor: 1, patch: 1 },
+  jsdom: { major: 30, minor: 0, patch: 1 },
+  'jsonc-parser': { major: 3, minor: 3, patch: 1 },
+  knip: { major: 6, minor: 34, patch: 0 },
+  lefthook: { major: 2, minor: 1, patch: 12 },
+  lightningcss: { major: 1, minor: 33, patch: 0 },
+  'mdast-util-from-markdown': { major: 2, minor: 0, patch: 3 },
+  'mdast-util-gfm': { major: 3, minor: 1, patch: 0 },
+  mermaid: { major: 11, minor: 17, patch: 2 },
+  'micromark-extension-gfm': { major: 3, minor: 0, patch: 0 },
+  oxlint: OXLINT_FLOOR,
+  'oxlint-tsgolint': OXLINT_TSGOLINT_FLOOR,
+  publint: { major: 0, minor: 3, patch: 24 },
+  'smol-toml': { major: 1, minor: 8, patch: 0 },
+  'spdx-expression-parse': { major: 5, minor: 0, patch: 0 },
+  tsdown: { major: 0, minor: 22, patch: 14 },
+  tsx: TSX_FLOOR,
+  typescript: TYPESCRIPT_FLOOR,
+  vite: VITE_FLOOR,
+  vitest: VITEST_FLOOR,
+  'vite-tsconfig-paths': { major: 6, minor: 1, patch: 1 },
+})
 
 const FORBIDDEN_STACK = /(\b(?:daisyui|tailwindcss|htmx\.org|hx-(?:get|post|put|patch|delete|swap|trigger|boost|target))\b|@tailwind\b)/g
 
@@ -126,16 +183,54 @@ export function rangeMeetsFloor(range: string, floor: SemVer): boolean {
   return cmpSemVer(parseRangeFloor(range), floor) >= 0
 }
 
+/** Manifest fields whose entries declare a dependency range. */
+const DEPENDENCY_GROUPS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const
+
 /**
- * Read the first declared range for `name` from a package.json document.
+ * Read a declared dependency range from a package.json document.
+ *
+ * The lookup reads the dependency groups rather than scanning the raw text:
+ * a scan matches the first `"name": "value"` pair anywhere in the file, so a
+ * script sharing a dependency's name (`"knip": "knip --treat-config-hints-as-errors"`)
+ * is returned as that dependency's version range.
  * @param source - raw package.json text.
  * @param name - dependency name.
- * @returns the range string, or undefined when the name is absent.
+ * @returns the range string, or undefined when no group declares the name.
  */
 export function declaredRange(source: string, name: string): string | undefined {
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const match = new RegExp(`"${escaped}"\\s*:\\s*"([^"]+)"`).exec(source)
-  return match?.[1]
+  for (const group of dependencyGroups(source)) {
+    const range = group[name]
+    if (range !== undefined) return range
+  }
+  return undefined
+}
+
+/**
+ * Read a manifest's dependency groups as name-to-range records.
+ * @param source - raw package.json text.
+ * @returns one record per present group, in {@link DEPENDENCY_GROUPS} order.
+ */
+function dependencyGroups(source: string): Record<string, string>[] {
+  const manifest: unknown = JSON.parse(source)
+  if (typeof manifest !== 'object' || manifest === null || Array.isArray(manifest)) {
+    throw new Error('package.json is not an object')
+  }
+  const record = manifest as Record<string, unknown>
+  const groups: Record<string, string>[] = []
+  for (const field of DEPENDENCY_GROUPS) {
+    const group = record[field]
+    if (group === undefined) continue
+    if (typeof group !== 'object' || group === null || Array.isArray(group)) {
+      throw new Error(`package.json ${field} is not an object`)
+    }
+    const ranges: Record<string, string> = {}
+    for (const [name, range] of Object.entries(group as Record<string, unknown>)) {
+      if (typeof range !== 'string') throw new Error(`package.json ${field}.${name} is not a string`)
+      ranges[name] = range
+    }
+    groups.push(ranges)
+  }
+  return groups
 }
 
 /**
@@ -259,6 +354,55 @@ export function toolchainMisses(manifests: readonly { file: string; source: stri
     fflate: FFLATE_FLOOR,
     playwright: PLAYWRIGHT_FLOOR,
   }))
+}
+
+/**
+ * Root-manifest dependency names that declare no floor. A dependency added
+ * without one would otherwise ship at whatever version its author happened to
+ * install and never be checked again.
+ * @param source - raw root package.json text.
+ * @returns every non-workspace dependency name missing from
+ *   {@link ROOT_DEPENDENCY_FLOORS}, in declaration order.
+ */
+export function unflooredRootDependencies(source: string): string[] {
+  return rootDeclaredDependencies(source).filter(name => !(name in ROOT_DEPENDENCY_FLOORS))
+}
+
+/**
+ * Root-manifest declarations that sit below the version the repository ships.
+ * @param source - raw root package.json text.
+ * @returns every miss against {@link ROOT_DEPENDENCY_FLOORS}.
+ */
+export function rootDependencyMisses(source: string): RangeMiss[] {
+  return rangeMisses('package.json', source, ROOT_DEPENDENCY_FLOORS)
+}
+
+/**
+ * Read the root manifest's non-workspace dependency names.
+ *
+ * `workspace:` ranges name packages in this repository, whose versions move
+ * with the release, so a registry floor would describe nothing.
+ * @param source - raw root package.json text.
+ * @returns dependency names in declaration order.
+ */
+function rootDeclaredDependencies(source: string): string[] {
+  const names: string[] = []
+  for (const group of dependencyGroups(source)) {
+    for (const [name, range] of Object.entries(group)) {
+      if (range.startsWith('workspace:')) continue
+      names.push(name)
+    }
+  }
+  return names
+}
+
+/**
+ * Read the live root manifest.
+ * @param root - repository root.
+ * @returns raw root package.json text.
+ */
+export function rootManifestSource(root: string = ROOT): string {
+  return readFileSync(resolve(root, 'package.json'), 'utf8')
 }
 
 function isProductUiPath(relativePath: string): boolean {

@@ -4,12 +4,18 @@ import designPlatform from '../styles/design-platform.css?inline'
 import scrollbar from '../styles/scrollbar.css?inline'
 import gradientShadowText from '../styles/gradient-shadow-text.css?inline'
 import shiki from '../styles/shiki.css?inline'
+import zScale from '../styles/z-scale.css?inline'
+import visuallyHidden from '../styles/visually-hidden.css?inline'
+import settingsCell from '../styles/settings-cell.css?inline'
 
 const PLUGIN_ID = '@deepseek-ai/dsh-client-ui-theme'
 
 const STYLES = [
   ['base.css', base],
   ['design-platform.css', designPlatform],
+  ['z-scale.css', zScale],
+  ['visually-hidden.css', visuallyHidden],
+  ['settings-cell.css', settingsCell],
   ['scrollbar.css', scrollbar],
   ['gradient-shadow-text.css', gradientShadowText],
   ['shiki.css', shiki],

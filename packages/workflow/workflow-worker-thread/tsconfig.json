@@ -24,6 +24,9 @@
       "path": "../../util/brand"
     },
     {
+      "path": "../../util/capacity-gate"
+    },
+    {
       "path": "../../llm/llm"
     },
     {

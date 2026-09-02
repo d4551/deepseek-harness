@@ -1,7 +1,9 @@
 /**
  * Fail-capable scan of the CSS-Modules / `--dsw-*` styling SSOT: forbidden
- * stacks, token bypass, a second page shell, float layout, inline scripts,
- * missing theme focus/motion, and undersized interactive geometry.
+ * stacks, token bypass, raw stacking numbers, a second page shell, float and
+ * dead inline alignment, inline scripts, missing theme focus/motion,
+ * undersized interactive geometry, rule bodies copied between CSS Modules,
+ * and nested selector blocks.
  */
 
 import { readFileSync } from 'node:fs'
@@ -19,6 +21,7 @@ export interface SsotFinding {
   kind:
     | 'forbidden-stack'
     | 'token-bypass'
+    | 'z-index'
     | 'inline-script'
     | 'one-off-script'
     | 'shell-drift'
@@ -28,6 +31,9 @@ export interface SsotFinding {
     | 'hit-target'
     | 'dangling-token'
     | 'tsx-inline-color'
+    | 'duplicated-shell'
+    | 'duplicated-rule'
+    | 'deep-nesting'
   /** Why it fired. */
   detail: string
 }
@@ -42,9 +48,43 @@ const COLOR_PROP = new RegExp(
   String.raw`(?:^|[;{\s])${COLOR_NAME}\s*:\s*(#[0-9a-f]{3,8}|rgba?\(|hsla?\(|oklch\()`,
   'i',
 )
+// A stacking number a component picked for itself. `--dsw-z-*` names the
+// plane and its order; a literal drifts against every other literal, and
+// ui-theme styles/z-scale.css is the only sheet allowed to hold one.
+const RAW_Z_INDEX = /z-index\s*:\s*(?!\s*var\(\s*--dsw-z-)([^;}]+)/gi
 const PAGE_SHELL = /(?:html|body|#root)\s*\{[^}]*display\s*:\s*grid/i
 const FRAME_GRID = /\.frame\s*\{[^}]*display\s*:\s*grid/i
 const FLOAT_LAYOUT = /float\s*:\s*(?:left|right)/i
+// `vertical-align` paints only inline-level and table-cell boxes. An
+// `inline-flex` chip in a text flow is inline-level, so it may align itself
+// vertically; a block-level flex or grid container is not, and aligning it
+// with `vertical-align` is dead code.
+const VERTICAL_ALIGN = /vertical-align\s*:/i
+const FLEX_GRID_DISPLAY = /display\s*:\s*(?:flex|grid)\b/i
+const GRID_SHELL = /display\s*:\s*grid\b/i
+/** Row shells carry inter-child spacing; a grid that only centers a glyph is
+ * component-internal and may repeat across modules. */
+const ROW_SPACING = /(?:column-gap|row-gap|gap|padding)\s*:/i
+/**
+ * Declarations at which one rule body repeated in a second module stops being
+ * a shared idiom and becomes a copied component.
+ *
+ * Measured on this repository's `.module.css` corpus: of the bodies duplicated
+ * across files, every one below six declarations is a generic layout or
+ * typography idiom two unrelated components arrive at independently — a flex
+ * column with one gap, the three-property ellipsis clamp, a
+ * colour/size/line-height text tier — while every one at six or more is a
+ * single named component written twice (the Settings cell, the
+ * screen-reader-only box, the meta separator dot, a 28px icon button, the
+ * details code panel, the inspect pill). Five is inside the idiom band: the
+ * ellipsis clamp appears there at three, four, and five declarations, so no
+ * lower threshold separates copies from convergence.
+ *
+ * What six lets through: any duplicated body of three to five declarations,
+ * including a genuinely copied five-declaration component. The narrower
+ * `duplicated-shell` rule below still answers the grid-row case at three.
+ */
+const DUPLICATE_RULE_DECLARATIONS = 6
 // A literal color inside a TSX style object (painted property in camelCase)
 // or an SVG presentation attribute. Theme-dir sheets declare tokens; TSX
 // never does, so the whole extension family is one bypass channel.
@@ -140,6 +180,18 @@ export function scanUiSsot(files: readonly { file: string; content: string }[]):
       findings.push({ file: path, kind: 'token-bypass', detail: 'literal color on a painted property; use --dsw-* tokens' })
     }
 
+    if (path.endsWith('.module.css') && !path.startsWith(THEME_STYLES_DIR)) {
+      RAW_Z_INDEX.lastIndex = 0
+      let stack: RegExpExecArray | null
+      while ((stack = RAW_Z_INDEX.exec(css)) !== null) {
+        findings.push({
+          file: path,
+          kind: 'z-index',
+          detail: `z-index: ${(stack[1] ?? '').trim()} is a raw stacking number; use a --dsw-z-* token`,
+        })
+      }
+    }
+
     if (path.endsWith('.css') && !path.includes('ui-layout/') && PAGE_SHELL.test(css)) {
       findings.push({ file: path, kind: 'shell-drift', detail: 'second page shell (html/body/#root grid) outside ui-layout' })
     }
@@ -183,6 +235,29 @@ export function scanUiSsot(files: readonly { file: string; content: string }[]):
             file: path,
             kind: 'hit-target',
             detail: `interactive geometry ${sizes.join('x')}px is below WCAG 2.5.8 24px`,
+          })
+        }
+      }
+    }
+
+    if (path.endsWith('.css')) {
+      // The rule splitter descends at-rules and takes style rules as leaves,
+      // so a brace inside a rule body is selector nesting inside that rule.
+      // One level of at-rule wrapping is normal; nested selectors are a
+      // one-off cascade the SSOT scan cannot reason about.
+      for (const rule of cssRules(css)) {
+        if (rule.body.includes('{')) {
+          findings.push({
+            file: path,
+            kind: 'deep-nesting',
+            detail: `\`${rule.selector}\` nests selector blocks; flatten to one rule per selector`,
+          })
+        }
+        if (VERTICAL_ALIGN.test(rule.body) && FLEX_GRID_DISPLAY.test(rule.body)) {
+          findings.push({
+            file: path,
+            kind: 'alignment',
+            detail: `\`${rule.selector}\` aligns with vertical-align inside a flex/grid box; align with the box, not inline layout`,
           })
         }
       }
@@ -238,6 +313,58 @@ export function scanUiSsot(files: readonly { file: string; content: string }[]):
         kind: 'dangling-token',
         detail: `var(${token}) names no declared token; a fallback only hides the missing SSOT entry`,
       })
+    }
+  }
+
+  // Corpus-level, like dangling tokens: one component's rule body written into
+  // a second CSS Module is a copy, not a coincidence — the second copy drifts
+  // alone, and no single-file rule can see the first. Two bands read the same
+  // owner map:
+  //
+  // `duplicated-rule` from DUPLICATE_RULE_DECLARATIONS declarations up. Large
+  // bodies are components, whatever they lay out with.
+  //
+  // `duplicated-shell` from three, for grid rows carrying inter-child spacing
+  // (gap/padding). A row shell is a layout decision small enough to look
+  // incidental; a bare grid display or a glyph-centering grid is
+  // component-internal styling any rule may share, so it stays out.
+  //
+  // Declaration order is not identity: the same six declarations written in
+  // two orders are the same rule, and a copy reordered by a formatter is still
+  // a copy. `var()`-driven values are tokened, so identical bodies across files
+  // still copy the non-token parts and count.
+  const ruleOwners = new Map<string, string>()
+  for (const { file: path, content } of files) {
+    if (!path.endsWith('.module.css') || path.startsWith(THEME_STYLES_DIR)) continue
+    for (const rule of cssRules(stripCssComments(content))) {
+      const declarations = rule.body.trim().replace(/\s+/g, ' ').split(';')
+        .map(part => part.trim())
+        .filter(part => part !== '')
+      if (declarations.length < 3) continue
+      const shell = GRID_SHELL.test(rule.body) && ROW_SPACING.test(rule.body)
+      const large = declarations.length >= DUPLICATE_RULE_DECLARATIONS
+      if (!shell && !large) continue
+      const key = [...declarations].sort().join('; ')
+      const first = ruleOwners.get(key)
+      if (first === undefined) {
+        ruleOwners.set(key, path)
+        continue
+      }
+      // Two names for one body inside a single module are that module's own
+      // business: its author sees both, and neither can drift without the
+      // other in view. The miss is a body that escaped its owning file.
+      if (first === path) continue
+      findings.push(large
+        ? {
+          file: path,
+          kind: 'duplicated-rule',
+          detail: `\`${rule.selector}\` repeats a ${declarations.length}-declaration rule body first declared in ${first}`,
+        }
+        : {
+          file: path,
+          kind: 'duplicated-shell',
+          detail: `\`${rule.selector}\` copies a grid shell first declared in ${first}`,
+        })
     }
   }
 

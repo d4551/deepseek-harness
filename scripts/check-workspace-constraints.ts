@@ -173,6 +173,10 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   // through a hashed chunk. The committed bin.js is the link target bun can
   // resolve at install time, before the build produces lib/bin.js.
   '@deepseek-ai/dsh-experimental-webworker-packer': ['bin.js', 'lib/repository-*.js'],
+  // The pi-ai config resolver and credential-plane adapters ship as their own
+  // bundles beside the lib: `dsh-llm-litert` reaches them through this package's
+  // ./config and ./auth subpaths rather than through a re-export on its entry.
+  '@deepseek-ai/dsh-llm-pi-ai': ['lib/auth.js', 'lib/config.js'],
   '@deepseek-ai/dsh-subprocess-local': ['scripts/ensure-spawn-helper.mjs'],
 }
 

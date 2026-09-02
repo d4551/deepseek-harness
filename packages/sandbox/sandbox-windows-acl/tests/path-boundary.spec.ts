@@ -26,10 +26,10 @@ describe('Windows ACL temp path boundary', () => {
     mkdirSync(nested)
 
     expect(() => {
-      assertTempRootOutsideWorkspace(workspace, workspace)
+      assertTempRootOutsideWorkspace([workspace], workspace)
     }).toThrow(/temp root must be outside the workspace/u)
     expect(() => {
-      assertTempRootOutsideWorkspace(workspace, nested)
+      assertTempRootOutsideWorkspace([workspace], nested)
     }).toThrow(/temp root must be outside the workspace/u)
   })
 
@@ -39,7 +39,7 @@ describe('Windows ACL temp path boundary', () => {
     mkdirSync(workspace)
 
     expect(() => {
-      assertTempRootOutsideWorkspace(workspace, tempRoot)
+      assertTempRootOutsideWorkspace([workspace], tempRoot)
     }).not.toThrow()
   })
 

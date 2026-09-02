@@ -14,6 +14,7 @@ import { isDeepStrictEqual } from 'node:util'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { Session, UserMessage } from '@deepseek-ai/dsh-session'
+import { effectiveWorkspaceRoots } from '@deepseek-ai/dsh-session/workspace-roots'
 import type { ToolExecution, ToolExecutionResult, ToolExecutionToken } from '@deepseek-ai/dsh-tools'
 import { Config, resolveConfig, workspaceBaselineIdentity, type ResolvedConfig } from './config.ts'
 import { findProjectRoot, loadBaselineInstructionSet } from './files.ts'
@@ -127,12 +128,15 @@ export function apply(ctx: Context, config: Config): void {
     const authorityMessages = [...claimed]
     /* v8 ignore next -- normal agents carry an absolute session cwd. */
     const cwd = agent.session.header.cwd ?? process.cwd()
+    // The primary root is memoized; the additional roots are folded per pass
+    // because the session can record a new set between requests.
+    const additionalRoots = effectiveWorkspaceRoots(agent.session.events).filter(root => root !== cwd)
     const projectRoot = sessionProjectRoots.get(agent.session)
       ?? await findProjectRoot(cwd, resolved.projectRootMarkers, fileSystem, signal)
     // Re-storing a retained root writes back the same value, so this needs no
     // guard: the first pass records what discovery found, later ones re-record it.
     sessionProjectRoots.set(agent.session, projectRoot)
-    const identity = workspaceBaselineIdentity(resolved, cwd, projectRoot)
+    const identity = workspaceBaselineIdentity(resolved, cwd, projectRoot, additionalRoots)
     const visibleBaseline = visibleBaselineSource(agent, authorityMessages)
     const baselinePresent = visibleBaseline !== undefined
     const keepVisibleBaseline = visibleBaseline?.baselineIdentity === identity
@@ -145,6 +149,7 @@ export function apply(ctx: Context, config: Config): void {
       const replacePreviousBaseline = baselinePresent && !keepVisibleBaseline
       const instructions = await loadBaselineInstructionSet({
         cwd,
+        additionalRoots,
         dshHome: resolved.dshHome,
         projectRootMarkers: resolved.projectRootMarkers,
         maxBytes: resolved.maxBytes,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseClientStack } from '../src/client/cdp/stack.ts'
-import { inspectorId } from '../src/shared/bridge/ids.ts'
+import { inspectorId } from '../src/shared/identity.ts'
 
 describe('Client stack projection', () => {
   it('normalizes browser line numbers and associates known source URLs', () => {

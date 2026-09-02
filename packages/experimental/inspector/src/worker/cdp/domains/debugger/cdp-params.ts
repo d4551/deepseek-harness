@@ -1,6 +1,6 @@
 /** Validation for CDP Debugger requests handled by the shared domain. */
 
-import type { RuntimeCallFrameEvaluationRequest } from '../../../../shared/cdp/index.ts'
+import type { RuntimeCallFrameEvaluationRequest } from '../../../../shared/cdp/debugger.ts'
 import { exactKeys, optionalBoolean, optionalString } from '../../../../shared/validation.ts'
 
 /**

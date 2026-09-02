@@ -1,17 +1,10 @@
 /** Worker-owned request routing for Client read-only source catalogs. */
 
 import { randomUUID } from 'node:crypto'
-import type {
-  ClientSourceCommand,
-  ClientSourceError,
-  ClientSourceResponseFrame,
-  ClientSourceResult,
-} from '../../shared/bridge/messages/sources/index.ts'
-import {
-  inspectorId,
-  type ClientSourceRequestId,
-  type ClientSourceSessionId,
-} from '../../shared/bridge/ids.ts'
+import type { ClientSourceCommand, ClientSourceError, ClientSourceResult } from '../../shared/bridge/messages/sources/commands.ts'
+import type { ClientSourceResponseFrame } from '../../shared/bridge/messages/sources/frames.ts'
+import { inspectorId } from '../../shared/identity.ts'
+import type { ClientSourceRequestId, ClientSourceSessionId } from '../../shared/bridge/ids.ts'
 import { INSPECTOR_PROTOCOL_VERSION, type InspectorSourceDescriptor } from '../../shared/bridge/messages/observation.ts'
 import { sendClientSessionClosed } from './session.ts'
 import type { InspectorSourceEvent, InspectorSourceRegistry } from './hub.ts'

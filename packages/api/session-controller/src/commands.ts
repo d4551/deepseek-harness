@@ -1,6 +1,7 @@
 /** Session commands whose activation policy is explicit at each Remote method. */
 
 import { randomUUID } from 'node:crypto'
+import { isAbsolute } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, ModelSelection as AgentModelSelection } from '@deepseek-ai/dsh-agent'
 import { PresetMountError, UnknownPresetError } from '@deepseek-ai/dsh-agent-presets'
@@ -11,6 +12,7 @@ import {
 } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, MessageSource } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
+import { setAdditionalWorkspaceRoots } from '@deepseek-ai/dsh-session/workspace-roots'
 import type { SessionEvent, SessionHeader, UserMessage } from '@deepseek-ai/dsh-session'
 import { SessionQueryError, type SessionObservation } from '@deepseek-ai/dsh-session-query'
 import { SessionTitleInvalidError } from '@deepseek-ai/dsh-session-title'
@@ -73,6 +75,14 @@ export class SessionCommandController {
     if (request.workspaceId !== undefined && request.cwd !== undefined) {
       reject('bad-request', 'session.create accepts workspaceId or cwd, not both', {})
     }
+    // Rejected before any Session exists: a root the enforcement layers cannot
+    // match must never reach the durable record.
+    const additionalDirectories = request.additionalDirectories ?? []
+    for (const directory of additionalDirectories) {
+      if (!isAbsolute(directory)) {
+        reject('bad-request', `session.create additionalDirectories entries must be absolute paths: ${directory}`, { directory })
+      }
+    }
     const sessionId = request.sessionId ?? SessionId(`session-${randomUUID()}`)
     let workspace: Workspace | undefined
     if (request.workspaceId !== undefined) {
@@ -106,6 +116,7 @@ export class SessionCommandController {
         )
       }
     }
+    setAdditionalWorkspaceRoots(adopted.session, additionalDirectories)
     const agentPreset = this.agents.presetForSession(adopted.session)
     return { sessionId, ...(agentPreset === undefined ? {} : { agentPreset }) }
   }

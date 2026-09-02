@@ -12,10 +12,12 @@
 
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { join, sep } from 'node:path'
+import { join, resolve, sep } from 'node:path'
 import { createUserMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt, { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { TOOL_ABORTED_BEFORE_DISPATCH, type ToolExecution, type ToolExecutionToken } from '@deepseek-ai/dsh-tools'
+import { Session, SessionId } from '@deepseek-ai/dsh-session'
+import { setAdditionalWorkspaceRoots } from '@deepseek-ai/dsh-session/workspace-roots'
 import { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
 import type { SubprocessCollectedOutputs, SubprocessHandle, SubprocessOutcome, SubprocessOutputRead, SubprocessOutputReader, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
@@ -38,6 +40,7 @@ import {
   sampleAcrossTopLevel,
   toWorkdirRelative,
 } from '@deepseek-ai/dsh-tool-fs-search'
+import { searchRoots } from '../src/search-core.ts'
 
 const testToolSignal = new AbortController().signal
 
@@ -202,7 +205,7 @@ async function setup(options: SetupOptions = {}) {
 }
 
 /** A stand-in agent whose session header carries the given cwd (and a stable id). */
-const agent = (cwd?: string) => ({ session: { header: { id: 'session-1', ...cwd !== undefined ? { cwd } : {} } } })
+const agent = (cwd?: string) => ({ session: { header: { id: 'session-1', ...cwd !== undefined ? { cwd } : {} }, events: [] } })
 
 let callCounter = 0
 function call(
@@ -327,7 +330,7 @@ describe('config validation', () => {
 
 describe('command construction (plain argv)', () => {
   it('glob: fixed rg --files argv with the pattern and paired VCS excludes', () => {
-    expect(buildGlobCommand({ pattern: '**/*.ts' })).toEqual([
+    expect(buildGlobCommand({ pattern: '**/*.ts' }, [])).toEqual([
       '--files',
       '--glob=**/*.ts',
       '--sort=modified',
@@ -343,7 +346,7 @@ describe('command construction (plain argv)', () => {
   })
 
   it('glob: the search root rides behind -- as a plain element', () => {
-    expect(buildGlobCommand({ pattern: '*.md', path: 'docs dir' })).toEqual(['--files', '--glob=*.md', '--sort=modified', '--no-ignore', '--hidden',
+    expect(buildGlobCommand({ pattern: '*.md', path: 'docs dir' }, [])).toEqual(['--files', '--glob=*.md', '--sort=modified', '--no-ignore', '--hidden',
       '--glob=!**/.git', '--glob=!**/.git/**',
       '--glob=!**/.svn', '--glob=!**/.svn/**',
       '--glob=!**/.hg', '--glob=!**/.hg/**',
@@ -354,11 +357,11 @@ describe('command construction (plain argv)', () => {
   })
 
   it('grep: fixed rg --json argv with the pattern in --regexp= form', () => {
-    expect(buildGrepCommand({ pattern: 'foo.*bar' })).toEqual(['--json', '--regexp=foo.*bar'])
+    expect(buildGrepCommand({ pattern: 'foo.*bar' }, [])).toEqual(['--json', '--regexp=foo.*bar'])
   })
 
   it('grep: include in --glob= form, path behind --, both plain elements', () => {
-    expect(buildGrepCommand({ pattern: 'x', path: '-leading-dash', include: '*.{ts,tsx}' }))
+    expect(buildGrepCommand({ pattern: 'x', path: '-leading-dash', include: '*.{ts,tsx}' }, []))
       .toEqual(['--json', '--regexp=x', '--glob=*.{ts,tsx}', '--', '-leading-dash'])
   })
 
@@ -373,8 +376,51 @@ describe('command construction (plain argv)', () => {
   ])('keeps %s as ONE inert argv element (no shell layer to escape)', (_label, raw) => {
     // The argv vector is handed to rg verbatim: hostile text cannot break out
     // of its argument because there is no shell between the vector and rg.
-    expect(buildGrepCommand({ pattern: raw })).toEqual(['--json', `--regexp=${raw}`])
-    expect(buildGlobCommand({ pattern: raw })[1]).toBe(`--glob=${raw}`)
+    expect(buildGrepCommand({ pattern: raw }, [])).toEqual(['--json', `--regexp=${raw}`])
+    expect(buildGlobCommand({ pattern: raw }, [])[1]).toBe(`--glob=${raw}`)
+  })
+
+  it('names every workspace root behind -- when the session works in more than one', () => {
+    expect(buildGrepCommand({ pattern: 'x' }, ['/primary', '/second']))
+      .toEqual(['--json', '--regexp=x', '--', '/primary', '/second'])
+    expect(buildGlobCommand({ pattern: '*.ts' }, ['/primary', '/second']).slice(-3))
+      .toEqual(['--', '/primary', '/second'])
+  })
+
+  it('a model-supplied path is an explicit scope: the roots never widen it', () => {
+    expect(buildGrepCommand({ pattern: 'x', path: 'sub' }, ['/primary', '/second']))
+      .toEqual(['--json', '--regexp=x', '--', 'sub'])
+    expect(buildGlobCommand({ pattern: '*.ts', path: 'sub' }, ['/primary', '/second']).slice(-2))
+      .toEqual(['--', 'sub'])
+  })
+})
+
+describe('searchRoots', () => {
+  /** A tool execution for one session's agent. */
+  function execFor(active: Session | undefined): ToolExecution {
+    return { agent: active === undefined ? undefined : { session: active } } as unknown as ToolExecution
+  }
+
+  function sessionAt(id: string, cwd: string): Session {
+    const sessionId = SessionId(id)
+    return Session.create(sessionId, undefined, { version: 0, id: sessionId, createdAt: 0, cwd })
+  }
+
+  it('names no root for a single-root session: ripgrep already walks its spawn cwd', () => {
+    expect(searchRoots(execFor(sessionAt('sess-single', resolve('/primary'))), undefined)).toEqual([])
+  })
+
+  it('names every root, primary first, once the session records an additional one', () => {
+    const active = sessionAt('sess-multi', resolve('/primary'))
+    setAdditionalWorkspaceRoots(active, [resolve('/second')])
+    expect(searchRoots(execFor(active), undefined)).toEqual([resolve('/primary'), resolve('/second')])
+  })
+
+  it('names no root for an explicit path or a non-agent caller', () => {
+    const active = sessionAt('sess-scoped', resolve('/primary'))
+    setAdditionalWorkspaceRoots(active, [resolve('/second')])
+    expect(searchRoots(execFor(active), 'sub')).toEqual([])
+    expect(searchRoots(execFor(undefined), undefined)).toEqual([])
   })
 })
 

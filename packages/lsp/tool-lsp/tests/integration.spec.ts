@@ -77,7 +77,7 @@ function call(ctx: Context, args: unknown) {
     callId: `int-${++seq}` as never,
     name: 'lsp',
     arguments: args,
-    agent: { session: { header: { cwd: ws } } } as never,
+    agent: { session: { header: { cwd: ws }, events: [] } } as never,
   })
 }
 

@@ -2,14 +2,9 @@
 
 import { afterEach, describe, expect, it } from 'vitest'
 import { ClientRuntimeExecutor } from '../src/client/cdp/runtime.ts'
-import type {
-  ClientRuntimeCommand,
-  ClientRuntimeRequestFrame,
-  ClientRuntimeResult,
-} from '../src/shared/bridge/messages/runtime/index.ts'
-import {
-  inspectorId,
-} from '../src/shared/bridge/ids.ts'
+import type { ClientRuntimeCommand, ClientRuntimeResult } from '../src/shared/bridge/messages/runtime/commands.ts'
+import type { ClientRuntimeRequestFrame } from '../src/shared/bridge/messages/runtime/frames.ts'
+import { inspectorId } from '../src/shared/identity.ts'
 
 const sourceId = inspectorId<'InspectorSourceId'>('client-test', 'sourceId')
 const generation = inspectorId<'InspectorSourceGeneration'>('generation-test', 'generation')

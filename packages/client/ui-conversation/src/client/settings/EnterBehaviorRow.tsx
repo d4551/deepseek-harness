@@ -5,7 +5,6 @@ import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-cli
 import { IconChevronDownOutline14, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { BusyEnterBehavior } from '../contract/composer-submission.ts'
 import type { ConversationKey } from '../locales.ts'
-import css from './EnterBehaviorRow.module.css'
 
 /** Registration-side preference face. */
 export interface EnterBehaviorRowInjected {
@@ -42,10 +41,10 @@ export function EnterBehaviorRow({ useBusyEnter, setBusyEnter, t }: EnterBehavio
   const selectedLabel = behavior === 'queue' ? 'settings.enter.queue' : 'settings.enter.steer'
 
   return (
-    <div className={css.row}>
-      <div className={css.rowText}>
-        <div className={css.title}>{t('settings.enter.title')}</div>
-        <div className={css.desc}>{t('settings.enter.description')}</div>
+    <div className="dsw-settings-cell">
+      <div className="dsw-settings-cell-text">
+        <div className="dsw-settings-cell-title">{t('settings.enter.title')}</div>
+        <div className="dsw-settings-cell-desc">{t('settings.enter.description')}</div>
       </div>
       <Menu
         open={open}
@@ -61,13 +60,13 @@ export function EnterBehaviorRow({ useBusyEnter, setBusyEnter, t }: EnterBehavio
         anchor={(
           <button
             type="button"
-            className={css.selector}
+            className="dsw-settings-selector"
             aria-haspopup="menu"
             aria-expanded={open}
             onClick={() => { setOpen(value => !value) }}
           >
             {t(selectedLabel)}
-            <IconChevronDownOutline14 className={css.chevron} />
+            <IconChevronDownOutline14 className="dsw-settings-selector-chevron" />
           </button>
         )}
       />

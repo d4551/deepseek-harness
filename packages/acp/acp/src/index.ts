@@ -46,6 +46,7 @@ import {
 } from '@agentclientprotocol/sdk'
 import type { ModelSelection } from '@deepseek-ai/dsh-agent'
 import { SessionId } from '@deepseek-ai/dsh-session'
+import { setAdditionalWorkspaceRoots } from '@deepseek-ai/dsh-session/workspace-roots'
 import type {} from '@deepseek-ai/dsh-session-persistence'
 // Side-effect type import: declaration-merges the approval waterfall answered below.
 import type {} from '@deepseek-ai/dsh-user-approval'
@@ -194,7 +195,7 @@ export function apply(ctx: Context, config: AcpConfig): void {
 
     async newSession(params: NewSessionRequest, signal: AbortSignal): Promise<NewSessionResponse> {
       assertOpen()
-      validateWorkspaceParams(params)
+      const additionalRoots = workspaceRootsOf(params)
       const sessionId = SessionId(randomUUID())
       // No preset composition: the ACP bundle keeps the model-facing rows in
       // the host plane, so this agent reads them from the global layer. A
@@ -222,6 +223,7 @@ export function apply(ctx: Context, config: AcpConfig): void {
       }
       sessions.set(sessionId, record)
       try {
+        setAdditionalWorkspaceRoots(record.agent.session, additionalRoots)
         const configOptions = await record.configOptions(signal)
         assertOpen()
         await persistence.ensureMaterialized(record.agent.session)
@@ -236,7 +238,7 @@ export function apply(ctx: Context, config: AcpConfig): void {
 
     async resumeSession(params: ResumeSessionRequest, signal: AbortSignal): Promise<ResumeSessionResponse> {
       assertOpen()
-      validateWorkspaceParams(params)
+      const additionalRoots = workspaceRootsOf(params)
       const sessionId = SessionId(params.sessionId)
       if (sessions.has(sessionId) || activating.has(sessionId) || ctx.sessions.get(sessionId) !== undefined) {
         throw invalidParams(`session is already active: ${sessionId}`)
@@ -278,6 +280,9 @@ export function apply(ctx: Context, config: AcpConfig): void {
         }
         sessions.set(sessionId, record)
         try {
+          // The client restates its complete workspace on every resume, so the
+          // request — not the stored log — decides the session's current roots.
+          setAdditionalWorkspaceRoots(record.agent.session, additionalRoots)
           return { configOptions: await record.configOptions(signal) }
         } catch (error: unknown) {
           sessions.delete(sessionId)
@@ -510,16 +515,22 @@ function compareSessionIds(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left), Buffer.from(right))
 }
 
-/** Reject workspace features outside the automation contract. */
-function validateWorkspaceParams(params: { cwd: string; additionalDirectories?: string[] | null }): void {
+/**
+ * Validate the request's workspace and return the additional roots it names.
+ * The ACP model is one primary `cwd` plus additional directories, so both are
+ * checked here: a relative path never reaches the session record, where an
+ * enforcement layer could only fail to match it.
+ * @param params - the `session/new` or `session/resume` workspace fields.
+ * @returns the additional absolute roots, empty when the client named none.
+ * @throws the JSON-RPC invalid-params error for a non-absolute path.
+ */
+function workspaceRootsOf(params: { cwd: string; additionalDirectories?: string[] | null }): string[] {
   if (!isAbsolute(params.cwd)) throw invalidParams(`cwd must be an absolute path: ${params.cwd}`)
-  if (
-    params.additionalDirectories !== undefined
-    && params.additionalDirectories !== null
-    && params.additionalDirectories.length > 0
-  ) {
-    throw invalidParams('additionalDirectories is not supported')
+  const roots = params.additionalDirectories ?? []
+  for (const root of roots) {
+    if (!isAbsolute(root)) throw invalidParams(`additionalDirectories entries must be absolute paths: ${root}`)
   }
+  return [...roots]
 }
 
 /** Compare existing directories by physical identity and missing paths lexically. */

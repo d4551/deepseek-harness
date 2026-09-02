@@ -1,7 +1,7 @@
 .root {
   position: sticky;
   top: 0;
-  z-index: 4;
+  z-index: var(--dsw-z-raised-2);
   box-sizing: border-box;
   width: 100%;
   height: var(--dsh-trajectory-toolbar-height);

@@ -6,8 +6,7 @@
     "lib": [
       "ES2024",
       "DOM",
-      "DOM.Iterable",
-      "WebWorker"
+      "DOM.Iterable"
     ],
     "types": [
       "node"

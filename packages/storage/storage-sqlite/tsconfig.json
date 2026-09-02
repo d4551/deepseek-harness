@@ -21,6 +21,9 @@
       "path": "../storage"
     },
     {
+      "path": "../../util/sqlite-connection"
+    },
+    {
       "path": "../../runtime-diagnostics/invariants"
     }
   ]

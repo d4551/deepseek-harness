@@ -315,7 +315,12 @@ const hasPwsh = spawnSync(
   { encoding: 'utf8' },
 ).status === 0
 
-describe.skipIf(!hasPwsh)('terminal-bash pwsh real shell', () => {
+// The pwsh dialect is what the shipped Windows presets mount, so Windows never
+// skips this suite: PowerShell ships with the operating system, and a failing
+// probe there is a broken host, which the first spawn below reports. A POSIX
+// host that happens to have pwsh runs it as a portability check; one that does
+// not has no pwsh dialect to exercise.
+describe.skipIf(!hasPwsh && process.platform !== 'win32')('terminal-bash pwsh real shell', () => {
   it('bootstraps a persistent pwsh, persists state, and scrubs secrets', async () => {
     const previous = process.env.DSH_TEST_SECRET
     process.env.DSH_TEST_SECRET = 'must-not-leak'

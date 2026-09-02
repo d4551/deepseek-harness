@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import type { ChatViewSlotProps, CommandRowOwnerProps } from '../contract/slots.ts'
 import { DisclosureRow, IconApiOutline14, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
-import a11yCss from './accessibility.module.css'
 import css from './GenericCommandCard.module.css'
 
 type CommandRowState = 'running' | 'ok' | 'error'
@@ -37,8 +36,8 @@ export function GenericCommandCard({ node, t, runningSummary }: GenericCommandCa
   const open = expanded && body !== null
   return (
     <div className={css.root} data-variant="others" data-state={state}>
-      {state === 'running' && <span className={a11yCss.visuallyHidden}>{t('row.running')}</span>}
-      {state === 'error' && <span className={a11yCss.visuallyHidden}>{t('row.failed')}</span>}
+      {state === 'running' && <span className="dsw-visually-hidden">{t('row.running')}</span>}
+      {state === 'error' && <span className="dsw-visually-hidden">{t('row.failed')}</span>}
       <DisclosureRow
         rowClassName={css.row}
         leadingClassName={css.leading}

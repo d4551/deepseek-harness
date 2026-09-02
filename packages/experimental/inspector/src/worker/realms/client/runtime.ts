@@ -4,10 +4,10 @@ import type {
   ClientCallArgument,
   ClientRuntimeCommand,
   ClientRuntimeResult,
-} from '../../../shared/bridge/messages/runtime/index.ts'
+} from '../../../shared/bridge/messages/runtime/commands.ts'
 import type { ClientRuntimeSessionId } from '../../../shared/bridge/ids.ts'
 import type { RuntimeBackendObjectHandle } from '../../../shared/cdp/ids.ts'
-import type { RuntimeCallArgument } from '../../../shared/cdp/index.ts'
+import type { RuntimeCallArgument } from '../../../shared/cdp/operations.ts'
 import type { ClientRuntimeRouter, ClientRuntimeTarget } from '../../bridge/runtime-rpc.ts'
 import type { RuntimeBackend } from '../../../shared/cdp/realm.ts'
 import {

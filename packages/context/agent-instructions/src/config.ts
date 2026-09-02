@@ -73,18 +73,24 @@ export interface ResolvedConfig extends ResolvedDiscoveryConfig {
 
 /**
  * Identify the discovery, precedence, and budget semantics of one baseline.
+ * The additional workspace roots join the identity because they widen
+ * discovery: a session that gains or loses a root must rebuild its baseline
+ * rather than keep one loaded from a different set of directories.
  * @param config - normalized plugin configuration.
  * @param cwd - absolute session working directory.
  * @param projectRoot - project root selected for the current baseline.
+ * @param additionalRoots - the session's additional workspace roots, in order.
  * @returns stable serialized identity for compatibility checks on resume.
  */
 export function workspaceBaselineIdentity(
   config: ResolvedConfig,
   cwd: string,
   projectRoot: string,
+  additionalRoots: readonly string[],
 ): string {
   return JSON.stringify({
     projectRoot: relative(cwd, projectRoot),
+    additionalRoots: additionalRoots.map(root => relative(cwd, root)),
     projectRootMarkers: config.projectRootMarkers,
     maxBytes: config.maxBytes,
     maxSourceBytes: config.maxSourceBytes,

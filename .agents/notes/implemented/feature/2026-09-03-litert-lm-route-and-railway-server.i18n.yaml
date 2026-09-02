@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-03-litert-lm-route-and-railway-server.md
+2026-09-03-litert-lm-route-and-railway-server.md: 006a3a3f8e4522cb4fc3bd15967baaa7f7a6afa2
+2026-09-03-litert-lm-route-and-railway-server.zh.md: ff7a751a18ef4aa43b9fd9a0fc9d41ca0b078e02

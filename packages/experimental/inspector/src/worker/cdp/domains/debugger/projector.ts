@@ -1,10 +1,12 @@
 /** CDP projection for realm-neutral scripts and debugger events. */
 
-import type { RuntimeDebuggerEvent, RuntimeDebuggerLocation, RuntimeScript, RuntimeStackTrace } from '../../../../shared/cdp/index.ts'
+import type { RuntimeDebuggerEvent, RuntimeDebuggerLocation } from '../../../../shared/cdp/debugger.ts'
+import type { RuntimeStackTrace } from '../../../../shared/cdp/errors.ts'
+import type { RuntimeScript } from '../../../../shared/cdp/sources.ts'
 import type { RuntimeBackendObjectHandle } from '../../../../shared/cdp/ids.ts'
 import type { CdpNotification } from '../../protocol.ts'
 import type { InspectorRealmSession } from '../../../inspection/realm.ts'
-import type { RuntimeDomainSession } from '../runtime/index.ts'
+import type { RuntimeDomainSession } from '../runtime/session.ts'
 import { cdpScriptId } from './script-registry.ts'
 
 /**

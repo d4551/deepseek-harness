@@ -15,7 +15,7 @@
 
 .ledger {
   position: relative;
-  z-index: 0;
+  z-index: var(--dsw-z-base);
   isolation: isolate;
   display: flex;
   flex: 1;

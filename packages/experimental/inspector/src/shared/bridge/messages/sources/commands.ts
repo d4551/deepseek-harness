@@ -1,7 +1,7 @@
 /** Operations and values exchanged with a Client realm's read-only source catalog. */
 
 import type { RuntimeScriptKey } from '../../../cdp/ids.ts'
-import type { RuntimeScript } from '../../../cdp/index.ts'
+import type { RuntimeScript } from '../../../cdp/sources.ts'
 
 /** Script metadata that excludes the Worker-owned execution-context id. */
 export type ClientScriptDescriptor = Omit<RuntimeScript, 'executionContextId'>

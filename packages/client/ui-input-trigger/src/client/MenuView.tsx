@@ -189,8 +189,8 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t
               ? null
               : <div className={css.groupTitle} role="presentation" data-source={group.source}>{t(group.source as MenuKey)}</div>}
             <div role="status" aria-label={t('loading')} data-source={group.source}>
-              <div className={css.skeletonRow}><span className={css.skeletonBarShort} /></div>
-              <div className={css.skeletonRow}><span className={css.skeletonBarLong} /></div>
+              <div className={css.skeletonRow}><span className={clsx(css.skeletonBar, css.skeletonBarShort)} /></div>
+              <div className={css.skeletonRow}><span className={clsx(css.skeletonBar, css.skeletonBarLong)} /></div>
             </div>
           </Fragment>
         ))}

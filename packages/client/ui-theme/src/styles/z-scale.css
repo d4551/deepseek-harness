@@ -1,0 +1,66 @@
+/* ---------- stacking scale ----------
+ * The z-index SSOT. Raw z-index numbers in components drift and collide, so
+ * every `z-index` outside this sheet reads a token declared here and
+ * scripts/client-ui-ssot.ts fails a CSS Module that writes a number instead.
+ * Declared on body so light and dark themes share one plane set.
+ *
+ * Two bands. The local ladder (--dsw-z-behind through --dsw-z-raised-5) orders
+ * boxes inside one component's own stacking context and never competes with a
+ * plane. The planes (--dsw-z-transcript-sticky and up) are shared: a box
+ * carrying one competes with every other plane box in the same stacking
+ * context, across packages. */
+body {
+  /* Behind the in-flow content of its own stacking context: decorative fill a
+     component paints under itself (ConversationRoot .heroGlow). */
+  --dsw-z-behind: -1;
+  /* The context's own level. Seals a subtree into its own stacking context
+     alongside `isolation: isolate` (trajectory .ledger), or paints a
+     background pseudo-element under the --dsw-z-raised siblings above it. */
+  --dsw-z-base: 0;
+  /* One step above sibling content: content above its mask sibling, a control
+     above a thumbnail, a sticky group title above the rows it labels. */
+  --dsw-z-raised: 1;
+  /* Each step above the previous one in the same stacking context. Steps 2
+     through 5 serve the components that stack more than two layers of their
+     own — JsonTree rows, the trajectory table and timeline; a local raise
+     never goes above 5, which keeps it under every plane. */
+  --dsw-z-raised-2: 2;
+  --dsw-z-raised-3: 3;
+  --dsw-z-raised-4: 4;
+  --dsw-z-raised-5: 5;
+
+  /* Conversation-column planes: the transcript, the composer, and the column
+     header come from different packages but share one ConversationRoot
+     stacking context, so their order is a contract between packages. */
+  /* Sticky chrome that rides the transcript scrollport: markdown code-block
+     banners and the turn-navigator rail, above the rows they cover. */
+  --dsw-z-transcript-sticky: 6;
+  /* The sticky composer seat, above --dsw-z-transcript-sticky so the input
+     card never paints under a sticking code-block banner. */
+  --dsw-z-composer: 7;
+  /* Controls that stay clickable over the composer seat: the back-to-bottom
+     button and the transcript width handles. */
+  --dsw-z-above-composer: 8;
+  /* The conversation header, above the width handles (which start at top: 0)
+     so the breadcrumb row and header buttons stay clickable. */
+  --dsw-z-conversation-header: 9;
+
+  /* The AppFrame `shell.overlay` seat: above the frame columns and their drag
+     handles, below every popover. */
+  --dsw-z-shell-overlay: 20;
+
+  /* Popover plane: a surface anchored to a trigger — menus, tooltips, hover
+     cards, the connection banner, anchored panels. Above content and shell
+     chrome, below the modal plane. */
+  --dsw-z-popover: 100;
+  /* A popover that paints above a sibling popover anchored in the same row:
+     the agent-team panel above the job-list menu in the session header. */
+  --dsw-z-popover-2: 110;
+
+  /* Modal plane: a full-viewport mask plus the card it dims for. Above every
+     popover. */
+  --dsw-z-modal: 1000;
+  /* Above the modal plane: portaled menus and panels whose anchor may sit
+     inside a dialog, toasts, and the first-run onboarding surface. */
+  --dsw-z-above-modal: 1100;
+}

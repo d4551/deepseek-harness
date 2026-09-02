@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write docs/capability-seams.md
-capability-seams.md: 578cfd235f910de96c54590fdea25f9952f6626a
-capability-seams.zh.md: 88e4b77e9cdedc9c571cf44ad028e05aaf5551ef
+capability-seams.md: 02240862aa1deff2543fdc8715b95ad2111f1e3f
+capability-seams.zh.md: 46d158550a287cd6132d12c9f2c6ebe1b5a4c14b

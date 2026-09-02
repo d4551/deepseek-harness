@@ -9,6 +9,9 @@
   ],
   "references": [
     {
+      "path": "../../util/atomic-write"
+    },
+    {
       "path": "../../../vendor/cosmokit"
     },
     {

@@ -18,7 +18,7 @@ Teammate navigation uses the existing `{ parentSessionId, childSessionId, mode: 
 
 `@deepseek-ai/dsh-experimental-agent-team-web-profile` inserts only the UI after the stable Web bundle. It is applied alongside the Host-side `@deepseek-ai/dsh-experimental-agent-team-profile`, which already inserts `ctx.agentTeams` and the model tools. Neither stable bundle contains disabled Team rows or dependencies.
 
-Stable Web presets still register continuable Subagent controls inside their preset scope. Top-level Agent Teams profile overrides cannot replace those registrations, so this experimental composition may expose both the Team roster and legacy child controls. A Team-aware Web preset is deferred; the [Web profile README](../../../../packages/experimental/agent-team-web-profile/README.md#known-limitations-and-deferred-work) owns the current limitation.
+Stable Web presets still register continuable Subagent controls inside their preset scope. Top-level Agent Teams profile overrides cannot replace those registrations, so this experimental composition may expose both the Team roster and legacy child controls. A Team-aware Web preset is deferred; the [Web profile README](../../../../packages/preset/agent-team-web-profile/README.md#known-limitations-and-deferred-work) owns the current limitation.
 
 ## Boundaries
 

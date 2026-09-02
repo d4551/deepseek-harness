@@ -1163,7 +1163,7 @@ describe('runScenario', () => {
     expect((failure as AggregateError).errors as unknown[]).toEqual([cleanupFailure])
   })
 
-  it('newSessionExpectError swallows the rejection, with and without extra dirs', { timeout: 20_000 }, async () => {
+  it('newSessionExpectError swallows an external agent\'s rejection, with and without extra dirs', { timeout: 20_000 }, async () => {
     const { fixtureFile } = await scenario({ rejectExtraDirs: true })
     const result = await runScenario(
       { steps: [{ op: 'initialize' }, { op: 'newSessionExpectError', additionalDirectories: ['/elsewhere'] }] },

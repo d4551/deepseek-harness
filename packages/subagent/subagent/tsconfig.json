@@ -15,6 +15,12 @@
       "path": "../../../vendor/cordis"
     },
     {
+      "path": "../../../vendor/schemastery"
+    },
+    {
+      "path": "../../util/capacity-gate"
+    },
+    {
       "path": "../../core/agent"
     },
     {

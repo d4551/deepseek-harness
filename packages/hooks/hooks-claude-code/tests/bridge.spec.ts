@@ -1,6 +1,6 @@
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context, type Fiber } from '@deepseek-ai/cordis'
@@ -10,12 +10,12 @@ import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
-import { LocalBashExecutor } from '@deepseek-ai/dsh-bash-local'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import { scopeTarget } from '@deepseek-ai/dsh-scope'
 import SubagentRuntime, { SubagentRunId } from '@deepseek-ai/dsh-subagent'
 import * as HooksClaude from '@deepseek-ai/dsh-hooks-claude-code'
 import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
+import { hookProgram, plugHostShell } from '../../hook-protocol/tests/hook-program.ts'
 
 /**
  * Full-loop bridge tests: a scripted mock MODEL drives the REAL agent loop + REAL
@@ -32,16 +32,11 @@ function subagentCarrier(ctx: Context) {
   return scopeTarget(ctx as unknown as SubagentRuntime, undefined)
 }
 
-/** Write a hooks.json + named executable scripts into a fresh temp dir. */
-function writeConfig(hooks: unknown, scripts: Record<string, string> = {}): string {
+/** Write a hooks.json into a fresh temp dir. */
+function writeConfig(hooks: unknown): string {
   const dir = mkdtempSync(join(tmpdir(), 'dsh-hooks-claude-'))
   dirs.push(dir)
   writeFileSync(join(dir, 'hooks.json'), JSON.stringify({ hooks }))
-  for (const [name, body] of Object.entries(scripts)) {
-    const path = join(dir, name)
-    writeFileSync(path, body)
-    chmodSync(path, 0o755)
-  }
   return dir
 }
 
@@ -59,7 +54,7 @@ async function harnessWithFiber(
   await mountAgentLoopTestDependencies(ctx)
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(LocalSubprocessRuntime)
-  await ctx.plugin(LocalBashExecutor, { timeoutMs: 10_000 })
+  await plugHostShell(ctx, { timeoutMs: 10_000 })
   beforeHooks?.(ctx)
   const hooks = await ctx.plugin(HooksClaude, { configPath: join(configDir, 'hooks.json') })
   ctx.llm.registerAdapter(['mock'], adapter)
@@ -94,9 +89,7 @@ describe('hooks-claude-code bridge — UserPromptSubmit', () => {
     // with the reason on stderr.
     const dir = mkdtempSync(join(tmpdir(), 'dsh-hooks-claude-'))
     dirs.push(dir)
-    const block = join(dir, 'block.sh')
-    writeFileSync(block, '#!/usr/bin/env bash\necho "prompt denied by policy" >&2\nexit 2\n')
-    chmodSync(block, 0o755)
+    const block = hookProgram(dir, 'block', 'err(\'prompt denied by policy\')\nprocess.exit(2)\n')
     writeFileSync(join(dir, 'hooks.json'), JSON.stringify({ hooks: { UserPromptSubmit: [{ matcher: '[', hooks: [{ type: 'command', command: block }] }] } }))
 
     const adapter = new MockAdapter([textResponse('should not run')])
@@ -115,9 +108,7 @@ describe('hooks-claude-code bridge — UserPromptSubmit', () => {
   it('a UserPromptSubmit hook printing additionalContext injects it for the model', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-hooks-claude-'))
     dirs.push(dir)
-    const ctxScript = join(dir, 'ctx.sh')
-    writeFileSync(ctxScript, '#!/usr/bin/env bash\necho \'{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"remember: be brief"}}\'\n')
-    chmodSync(ctxScript, 0o755)
+    const ctxScript = hookProgram(dir, 'ctx', 'out(\'{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"remember: be brief"}}\')\n')
     writeFileSync(join(dir, 'hooks.json'), JSON.stringify({ hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: ctxScript }] }] } }))
 
     const adapter = new MockAdapter([textResponse('ok')])
@@ -137,9 +128,7 @@ describe('hooks-claude-code bridge — PreToolUse', () => {
   it('a matching PreToolUse hook that exits 2 denies the tool (isError result), tool never runs', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-hooks-claude-'))
     dirs.push(dir)
-    const deny = join(dir, 'deny.sh')
-    writeFileSync(deny, '#!/usr/bin/env bash\necho "danger tool blocked" >&2\nexit 2\n')
-    chmodSync(deny, 0o755)
+    const deny = hookProgram(dir, 'deny', 'err(\'danger tool blocked\')\nprocess.exit(2)\n')
     // Matcher "danger" (literal) selects only the danger tool.
     writeFileSync(join(dir, 'hooks.json'), JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'danger', hooks: [{ type: 'command', command: deny }] }] } }))
 
@@ -160,9 +149,7 @@ describe('hooks-claude-code bridge — PreToolUse', () => {
   it('a PreToolUse hook whose matcher does NOT match leaves the tool alone', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-hooks-claude-'))
     dirs.push(dir)
-    const deny = join(dir, 'deny.sh')
-    writeFileSync(deny, '#!/usr/bin/env bash\nexit 2\n')
-    chmodSync(deny, 0o755)
+    const deny = hookProgram(dir, 'deny', 'process.exit(2)\n')
     // Matcher only targets "danger" — the "safe" tool is untouched.
     writeFileSync(join(dir, 'hooks.json'), JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'danger', hooks: [{ type: 'command', command: deny }] }] } }))
 
@@ -184,9 +171,7 @@ describe('hooks-claude-code bridge — PostToolUse', () => {
   it('a PostToolUse hook that blocks (exit 2) turns the result into an isError with feedback', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-hooks-claude-'))
     dirs.push(dir)
-    const block = join(dir, 'block.sh')
-    writeFileSync(block, '#!/usr/bin/env bash\necho "output rejected, retry" >&2\nexit 2\n')
-    chmodSync(block, 0o755)
+    const block = hookProgram(dir, 'block', 'err(\'output rejected, retry\')\nprocess.exit(2)\n')
     writeFileSync(join(dir, 'hooks.json'), JSON.stringify({ hooks: { PostToolUse: [{ hooks: [{ type: 'command', command: block }] }] } }))
 
     const adapter = new MockAdapter([toolCallResponse('c1', 'echo', {}), textResponse('done')])
@@ -205,9 +190,7 @@ describe('hooks-claude-code bridge — PostToolUse', () => {
   it('a PostToolUse hook printing additionalContext attaches it after the tool result', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-hooks-claude-'))
     dirs.push(dir)
-    const s = join(dir, 'ctx.sh')
-    writeFileSync(s, '#!/usr/bin/env bash\necho \'{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"note: tool was slow"}}\'\n')
-    chmodSync(s, 0o755)
+    const s = hookProgram(dir, 'ctx', 'out(\'{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"note: tool was slow"}}\')\n')
     writeFileSync(join(dir, 'hooks.json'), JSON.stringify({ hooks: { PostToolUse: [{ hooks: [{ type: 'command', command: s }] }] } }))
 
     const adapter = new MockAdapter([toolCallResponse('c1', 'echo', {}), textResponse('done')])
@@ -228,9 +211,7 @@ describe('hooks-claude-code bridge — PostToolUse', () => {
   it('a PreToolUse permissionDecision:ask fails closed without an approval service', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-hooks-claude-'))
     dirs.push(dir)
-    const s = join(dir, 'ask.sh')
-    writeFileSync(s, '#!/usr/bin/env bash\necho \'{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"needs approval"}}\'\n')
-    chmodSync(s, 0o755)
+    const s = hookProgram(dir, 'ask', 'out(\'{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"needs approval"}}\')\n')
     writeFileSync(join(dir, 'hooks.json'), JSON.stringify({ hooks: { PreToolUse: [{ hooks: [{ type: 'command', command: s }] }] } }))
 
     const adapter = new MockAdapter([toolCallResponse('c1', 'echo', {}), textResponse('done')])
@@ -253,9 +234,7 @@ describe('hooks-claude-code bridge — SessionStart', () => {
   it('a SessionStart hook injects additionalContext the first request sees', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-hooks-claude-'))
     dirs.push(dir)
-    const s = join(dir, 'start.sh')
-    writeFileSync(s, '#!/usr/bin/env bash\necho \'{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"project uses tabs"}}\'\n')
-    chmodSync(s, 0o755)
+    const s = hookProgram(dir, 'start', 'out(\'{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"project uses tabs"}}\')\n')
     // matcher 'startup' selects the startup source.
     writeFileSync(join(dir, 'hooks.json'), JSON.stringify({ hooks: { SessionStart: [{ matcher: 'startup', hooks: [{ type: 'command', command: s }] }] } }))
 
@@ -282,12 +261,8 @@ describe('hooks-claude-code bridge — SubagentStart / SubagentStop (observe)', 
     // observe-only — there is no decision to assert, only the side effect).
     const startMarker = join(dir, 'start-ran')
     const stopMarker = join(dir, 'stop-ran')
-    const startHook = join(dir, 'start.sh')
-    const stopHook = join(dir, 'stop.sh')
-    writeFileSync(startHook, `#!/usr/bin/env bash\ntouch "${startMarker}"\n`)
-    writeFileSync(stopHook, `#!/usr/bin/env bash\ntouch "${stopMarker}"\n`)
-    chmodSync(startHook, 0o755)
-    chmodSync(stopHook, 0o755)
+    const startHook = hookProgram(dir, 'start', `touch(${JSON.stringify(startMarker)})\n`)
+    const stopHook = hookProgram(dir, 'stop', `touch(${JSON.stringify(stopMarker)})\n`)
     writeFileSync(join(dir, 'hooks.json'), JSON.stringify({ hooks: {
       SubagentStart: [{ hooks: [{ type: 'command', command: startHook }] }],
       SubagentStop: [{ hooks: [{ type: 'command', command: stopHook }] }],
@@ -319,13 +294,11 @@ describe('hooks-claude-code bridge — SubagentStart / SubagentStop (observe)', 
     dirs.push(dir)
     const pidFile = join(dir, 'pid')
     const marker = join(dir, 'started')
-    const slowHook = join(dir, 'slow.sh')
+    const slowHook = hookProgram(dir, 'slow', `write(${JSON.stringify(pidFile)}, String(process.pid))\ntouch(${JSON.stringify(marker)})\nsleep(30)\n`)
     // Record the hook shell's PID and touch the marker FIRST so the test can
     // tell "the hook is genuinely mid-run", then sleep far past the suite
     // timeout. Dispose must KILL the process (the tracker's abort signal), not
     // await its exit or its 10-minute default hook timeout.
-    writeFileSync(slowHook, `#!/usr/bin/env bash\necho $$ > "${pidFile}"\ntouch "${marker}"\nsleep 30\n`)
-    chmodSync(slowHook, 0o755)
     writeFileSync(join(dir, 'hooks.json'), JSON.stringify({ hooks: {
       SubagentStart: [{ hooks: [{ type: 'command', command: slowHook }] }],
     } }))
@@ -356,7 +329,7 @@ describe('hooks-claude-code bridge — load resilience', () => {
     await mountAgentLoopTestDependencies(ctx)
     await ctx.plugin(AgentLoop, { agents: [] })
     await ctx.plugin(LocalSubprocessRuntime)
-    await ctx.plugin(LocalBashExecutor, { timeoutMs: 10_000 })
+    await plugHostShell(ctx, { timeoutMs: 10_000 })
     await ctx.plugin(HooksClaude, { configPath: '/nonexistent/hooks.json' })
     ctx.llm.registerAdapter(['mock'], adapter)
     const agent = ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
@@ -416,7 +389,7 @@ describe('hooks-claude-code bridge — load resilience', () => {
     await mountAgentLoopTestDependencies(ctx)
     await ctx.plugin(AgentLoop, { agents: [] })
     await ctx.plugin(LocalSubprocessRuntime)
-    await ctx.plugin(LocalBashExecutor, { timeoutMs: 10_000 })
+    await plugHostShell(ctx, { timeoutMs: 10_000 })
     const fiber = await ctx.plugin(HooksClaude, { configPath: join(dir, 'hooks.json') })
     await fiber.dispose()
     ctx.llm.registerAdapter(['mock'], adapter)

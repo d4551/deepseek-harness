@@ -4,7 +4,7 @@ import type { SessionId } from '@deepseek-ai/dsh-client-connection/client'
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
   CordisDynamicPackageId, CordisDynamicPluginId, CordisDynamicPluginRunId,
-} from './events.ts'
+} from '@deepseek-ai/dsh-api-remotes/client'
 
 /** Stable keyed-slot identity of one Package-owned business view. */
 export type CordisToolViewKey = `${CordisDynamicPluginId}.${CordisDynamicPackageId}`

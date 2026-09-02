@@ -7,7 +7,8 @@
  */
 
 import picomatch from 'picomatch'
-import type { ArgumentSegment, ArithmeticExpression, ShellLine, ValueArgument } from './ast.ts'
+import type { ArgumentSegment, ArithmeticExpression, ShellLine } from '@yarnpkg/parsers'
+import type { ValueArgument } from './ast.ts'
 import { resolve } from '../module-system/posix-path.ts'
 import type { ShellFileSystem, ShellState } from './types.ts'
 

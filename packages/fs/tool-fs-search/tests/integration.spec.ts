@@ -42,7 +42,7 @@ function text(result: { content: { type: string; text?: string }[] }): string {
 }
 
 /** The fixture workspace as a session cwd, so relative paths resolve inside `dir`. */
-const agent = () => ({ session: { header: { id: 'session-int', cwd: dir } } })
+const agent = () => ({ session: { header: { id: 'session-int', cwd: dir }, events: [] } })
 
 describe('search tools over the real subprocess service + the packaged rg', () => {
   beforeEach(async () => {
@@ -164,13 +164,42 @@ describe('search tools over the real subprocess service + the packaged rg', () =
       const sessionDir = await mkdtemp(join(tmpdir(), 'dsh-search-session-'))
       try {
         await writeFile(join(sessionDir, 'only-here.ts'), 'const sessionFile = true\n')
-        const agentObj = { session: { header: { id: 'session-int', cwd: sessionDir } } }
+        const agentObj = { session: { header: { id: 'session-int', cwd: sessionDir }, events: [] } }
         const globbed = await call('glob', { pattern: '*.ts' }, agentObj)
         expect(text(globbed)).toBe('only-here.ts')
         const grepped = await call('grep', { pattern: 'sessionFile' }, agentObj)
         expect(text(grepped)).toContain('only-here.ts\nLine 1: const sessionFile = true')
       } finally {
         await rm(sessionDir, { recursive: true, force: true })
+      }
+    })
+
+    it('covers every workspace root, rendering primary hits relative and other roots absolute', async () => {
+      const secondRoot = await mkdtemp(join(tmpdir(), 'dsh-search-second-'))
+      try {
+        await writeFile(join(secondRoot, 'second.ts'), 'const shared = true\n')
+        await writeFile(join(dir, 'primary-only.ts'), 'const shared = true\n')
+        const multiRoot = {
+          session: {
+            header: { id: 'session-int', cwd: dir },
+            events: [{ type: 'workspace/roots', seq: 0, time: 0, data: { roots: [secondRoot] } }],
+          },
+        }
+
+        const globbed = text(await call('glob', { pattern: '*.ts' }, multiRoot)).split('\n')
+        expect(globbed).toContain('primary-only.ts')
+        expect(globbed).toContain(join(secondRoot, 'second.ts'))
+
+        const grepped = text(await call('grep', { pattern: 'shared' }, multiRoot))
+        expect(grepped).toContain('primary-only.ts\nLine 1: const shared = true')
+        expect(grepped).toContain(`${join(secondRoot, 'second.ts')}\nLine 1: const shared = true`)
+
+        // A single-root session sees only its own root through the same tools.
+        const single = text(await call('grep', { pattern: 'shared' }, agent()))
+        expect(single).toContain('primary-only.ts')
+        expect(single).not.toContain(secondRoot)
+      } finally {
+        await rm(secondRoot, { recursive: true, force: true })
       }
     })
   })
@@ -191,7 +220,7 @@ describe('search tools over the real subprocess service + the packaged rg', () =
 
     it('an unusable session cwd (spawn failure) is SEARCH_FAILED', async () => {
       const gone = join(dir, 'deleted-session-dir')
-      const result = await call('glob', { pattern: '*' }, { session: { header: { id: 'session-int', cwd: gone } } })
+      const result = await call('glob', { pattern: '*' }, { session: { header: { id: 'session-int', cwd: gone }, events: [] } })
       expect(result.isError).toBe(true)
       expect(result.error).toMatchObject({ info: { name: 'SearchError', code: 'SEARCH_FAILED' } })
       expect(text(result)).toContain('could not start')

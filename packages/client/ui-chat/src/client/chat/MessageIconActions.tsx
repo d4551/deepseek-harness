@@ -133,7 +133,7 @@ export function MessageIconActions({
         </Tooltip>
       )}
       {onBranch !== undefined && branchUnavailable && (
-        <span id={reasonId} className={css.visuallyHidden}>{t('message.branchUnavailable')}</span>
+        <span id={reasonId} className="dsw-visually-hidden">{t('message.branchUnavailable')}</span>
       )}
       {clock === 'end' ? clockEl : null}
     </div>

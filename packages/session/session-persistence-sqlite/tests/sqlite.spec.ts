@@ -11,10 +11,8 @@ import { DatabaseSync } from 'node:sqlite'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
 import SessionStore, { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
-import SessionPersistenceSqlite, {
-  DEFAULT_BUSY_TIMEOUT_MS,
-  SCHEMA_VERSION,
-} from '@deepseek-ai/dsh-session-persistence-sqlite'
+import SessionPersistenceSqlite, { SCHEMA_VERSION } from '@deepseek-ai/dsh-session-persistence-sqlite'
+import { DEFAULT_BUSY_TIMEOUT_MS, readConnectionSettings } from '@deepseek-ai/dsh-sqlite-connection'
 import {
   runCoordinatorContract,
   type CoordinatorFixture,
@@ -456,9 +454,7 @@ describe('SessionPersistenceSqlite schema ownership', () => {
       const path = await freshDbPath(`dsh-sqlite-journal-${mode}-`)
       const db = await openDatabase(DatabaseSync, path, mode, DEFAULT_BUSY_TIMEOUT_MS)
       expect(db.prepare(sql(resources[mode])).get()).toEqual({ journal_mode: mode })
-      expect(db.prepare(sql('select-trusted-schema')).get()).toEqual({ trusted_schema: 0 })
-      expect(db.prepare(sql('select-mmap-size')).get()).toEqual({ mmap_size: 0 })
-      expect(db.prepare(sql('select-synchronous')).get()).toEqual({ synchronous: 2 })
+      expect(readConnectionSettings(db)).toEqual({ trustedSchema: 0, mmapSize: 0, synchronous: 2 })
       db.close()
     }
   })
@@ -480,9 +476,7 @@ describe('SessionPersistenceSqlite schema ownership', () => {
     const db = await openDatabase(BusyOnceDatabase, path, 'wal', 100)
     expect(attempts).toBe(2)
     expect(db.prepare(sql('journal-mode-wal')).get()).toEqual({ journal_mode: 'wal' })
-    expect(db.prepare(sql('select-trusted-schema')).get()).toEqual({ trusted_schema: 0 })
-    expect(db.prepare(sql('select-mmap-size')).get()).toEqual({ mmap_size: 0 })
-    expect(db.prepare(sql('select-synchronous')).get()).toEqual({ synchronous: 2 })
+    expect(readConnectionSettings(db)).toEqual({ trustedSchema: 0, mmapSize: 0, synchronous: 2 })
     db.close()
   })
 

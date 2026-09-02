@@ -9,7 +9,6 @@ import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-cli
 import { IconChevronDownOutline14, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { createLanguageRowStore } from './settings-store.ts'
-import css from './LanguageRow.module.css'
 
 /** Injected business face: the preference write (t rides the standard locale seat). */
 export interface LanguageRowInjected {
@@ -34,9 +33,9 @@ export function LanguageRow({ t, setLocale, useStore }: LanguageRowComponentProp
   const activeLabel = options.find(o => o.id === active)?.label ?? active
 
   return (
-    <div className={css.row}>
-      <div className={css.rowText}>
-        <div className={css.title}>{t('language.title')}</div>
+    <div className="dsw-settings-cell">
+      <div className="dsw-settings-cell-text">
+        <div className="dsw-settings-cell-title">{t('language.title')}</div>
       </div>
       <Menu
         open={open}
@@ -52,13 +51,13 @@ export function LanguageRow({ t, setLocale, useStore }: LanguageRowComponentProp
         anchor={(
           <button
             type="button"
-            className={css.selector}
+            className="dsw-settings-selector"
             aria-haspopup="menu"
             aria-expanded={open}
             onClick={() => { setOpen(v => !v) }}
           >
             {activeLabel}
-            <IconChevronDownOutline14 className={css.chevron} />
+            <IconChevronDownOutline14 className="dsw-settings-selector-chevron" />
           </button>
         )}
       />

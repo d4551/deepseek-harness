@@ -17,6 +17,17 @@ describe('shared Win32 process ABI', () => {
     expect(PROCESS_INFORMATION.size).toBe(PROCESS_INFORMATION_SIZE)
   })
 
+  it('re-evaluates without colliding with its own global Koffi type registrations', async () => {
+    // Koffi's type registry is process-global. A consumer suite that resets the
+    // module graph re-imports this module, and a plain koffi.struct() call
+    // would reject the second registration outright.
+    vi.resetModules()
+    const reimported = await import('../src/ffi.ts')
+    expect(reimported.STARTUPINFOW.size).toBe(STARTUPINFOW_SIZE)
+    expect(reimported.PROCESS_INFORMATION.size).toBe(PROCESS_INFORMATION_SIZE)
+    vi.resetModules()
+  })
+
   it('handles NULL pointer out-parameters', () => {
     const slot = allocPtrSlot()
     expect(decodePtr(slot)).toBeNull()

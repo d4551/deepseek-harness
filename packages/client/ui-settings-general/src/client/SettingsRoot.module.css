@@ -44,7 +44,7 @@
 .overlay {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: var(--dsw-z-modal);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -65,7 +65,7 @@
    pointer on every nav click. Whatever does not fit scrolls in `.options`. */
 .panel {
   position: relative;
-  z-index: 1;
+  z-index: var(--dsw-z-raised);
   display: flex;
   width: 800px;
   height: min(800px, calc(100vh - 48px));
@@ -129,7 +129,7 @@
   line-height: 22px;
   font-weight: 400;
   color: var(--dsw-alias-label-primary);
-  text-align: left;
+  text-align: start;
 }
 
 .navCell:hover {
@@ -178,7 +178,7 @@
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 /* Close button (figma .Icon_container 501:29982): 28x28, r28, 14px glyph. */
@@ -206,14 +206,4 @@
   min-height: 0;
   padding: 0 24px 24px;
   overflow-y: auto;
-}
-
-/* Visually-hidden text seat (close button accessible name from slot content). */
-.hiddenLabel {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
 }

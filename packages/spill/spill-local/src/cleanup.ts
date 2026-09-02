@@ -43,15 +43,38 @@ function warnSafely(warn: WarnFn, message: string): void {
   }
 }
 
+/**
+ * One directory audit against the Windows DACL vocabulary, resolved once per
+ * process. POSIX ownership and mode bits do not exist on Windows, so the same
+ * questions — "can another account write here" and "can another account
+ * replace this entry" — are put to the object's access-control list instead of
+ * being answered `true` unasked.
+ */
+type WindowsDirectoryAudit = (path: string, accessMask: number) => string | undefined
+
+let windowsDirectoryAudit: Promise<WindowsDirectoryAudit> | undefined
+
+/* v8 ignore start -- loads a Windows library; the win32-only spill suite proves it there. */
+function loadWindowsDirectoryAudit(): Promise<WindowsDirectoryAudit> {
+  windowsDirectoryAudit ??= import('@deepseek-ai/dsh-win32-process/file-security').then(
+    ({ auditPathAccessWin32, describeWin32Exposure }) =>
+      (path: string, accessMask: number) => describeWin32Exposure(auditPathAccessWin32(path, accessMask)),
+  )
+  return windowsDirectoryAudit
+}
+/* v8 ignore stop */
+
 /** Whether another local OS user cannot replace children of this directory. */
-function isTrustedDirectory(stats: Stats): boolean {
+async function isTrustedDirectory(path: string, stats: Stats): Promise<boolean> {
   if (!stats.isDirectory()) return false
-  /* v8 ignore next -- POSIX ownership and mode bits have no Windows equivalent. */
-  if (process.platform === 'win32' || process.geteuid === undefined) return true
-  /* v8 ignore start -- Windows takes the return above; POSIX tests exercise
-     owner and mode rejection. */
+  /* v8 ignore next 4 -- native Windows coverage takes this arm; POSIX coverage takes the peer below. */
+  if (process.platform === 'win32') {
+    const { DIRECTORY_WRITE_ACCESS } = await import('@deepseek-ai/dsh-win32-process/file-security')
+    return (await loadWindowsDirectoryAudit())(path, DIRECTORY_WRITE_ACCESS) === undefined
+  }
+  /* v8 ignore next -- every supported POSIX host exposes geteuid; the guard answers its optional type. */
+  if (process.geteuid === undefined) return true
   return stats.uid === process.geteuid() && (stats.mode & 0o022) === 0
-  /* v8 ignore stop */
 }
 
 /** Stable identity for de-duplicating aliases of one root. */
@@ -70,10 +93,10 @@ function rootIdentity(path: string, stats: Stats): string {
  * current user; this admits normal per-process roots below `/tmp`.
  */
 async function hasProtectedAncestors(path: string): Promise<boolean> {
-  /* v8 ignore next -- POSIX ancestry checks have no Windows ACL equivalent. */
-  if (process.platform === 'win32' || process.geteuid === undefined) return true
-  /* v8 ignore start -- Windows takes the return above; POSIX tests exercise
-     the ancestor ownership and mode policy. */
+  /* v8 ignore next 3 -- native Windows coverage takes this arm; POSIX coverage takes the peer below. */
+  if (process.platform === 'win32') return hasProtectedAncestorsWin32(path)
+  /* v8 ignore next -- every supported POSIX host exposes geteuid; the guard answers its optional type. */
+  if (process.geteuid === undefined) return true
   const currentUid = process.geteuid()
   let child = path
   let childStats = await lstat(child)
@@ -92,8 +115,30 @@ async function hasProtectedAncestors(path: string): Promise<boolean> {
     child = parent
     childStats = stats
   }
-  /* v8 ignore stop */
 }
+
+/**
+ * The Windows half of {@link hasProtectedAncestors}: no ancestor may let
+ * another account replace the entry below it. Creation rights are ignored
+ * because the volume root grants them to everyone while still refusing to let
+ * one account delete another's entry — the Windows equivalent of the sticky
+ * `/tmp` the POSIX walk admits.
+ * @param path - the canonical root whose ancestry is inspected.
+ * @returns whether every ancestor withholds replace access from other accounts.
+ */
+/* v8 ignore start -- runs only on win32; the win32-only spill suite proves it there. */
+async function hasProtectedAncestorsWin32(path: string): Promise<boolean> {
+  const { DIRECTORY_REPLACE_ACCESS } = await import('@deepseek-ai/dsh-win32-process/file-security')
+  const audit = await loadWindowsDirectoryAudit()
+  let child = path
+  for (;;) {
+    const parent = dirname(child)
+    if (parent === child) return true
+    if (audit(parent, DIRECTORY_REPLACE_ACCESS) !== undefined) return false
+    child = parent
+  }
+}
+/* v8 ignore stop */
 
 /**
  * Resolve one existing root without admitting a directory another local user
@@ -118,7 +163,7 @@ async function resolveRoot(path: string, allowSymlink: boolean, warn: WarnFn): P
   }
   if (initial.isSymbolicLink()) {
     if (!allowSymlink) return undefined
-  } else if (!isTrustedDirectory(initial)) {
+  } else if (!await isTrustedDirectory(path, initial)) {
     warnSafely(warn, `spill-local: skipped unsafe root ${path}: expected a directory owned by the current user and not writable by group or others`)
     return undefined
   }
@@ -147,7 +192,7 @@ async function resolveRoot(path: string, allowSymlink: boolean, warn: WarnFn): P
   }
   /* v8 ignore start -- Windows has no POSIX ownership or mode rejection path;
      POSIX tests exercise both unsafe-directory conditions. */
-  if (!isTrustedDirectory(stats) || !protectedAncestors) {
+  if (!await isTrustedDirectory(canonical, stats) || !protectedAncestors) {
     warnSafely(warn, `spill-local: skipped unsafe root ${canonical}: expected a current-user-owned directory with protected write and ancestor permissions`)
     return undefined
   }
@@ -319,7 +364,7 @@ export async function sweepSpillRoots(options: SweepOptions): Promise<void> {
         continue
         /* v8 ignore stop */
       }
-      if (!isTrustedDirectory(stats)) {
+      if (!await isTrustedDirectory(dir, stats)) {
         warnSafely(warn, `spill-local: skipped unsafe session directory ${dir}`)
         rootEmptiable = false
         continue

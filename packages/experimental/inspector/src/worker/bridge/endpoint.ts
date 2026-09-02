@@ -9,7 +9,7 @@ import type { WorkerToSourceFrame } from '../../shared/bridge/messages/observati
 import { CdpSession } from '../cdp/session.ts'
 import type { CdpTransport } from '../cdp/protocol.ts'
 import type { NetworkDomain } from '../cdp/domains/network/session.ts'
-import type { CordisDomBackend } from '../cdp/domains/dom/index.ts'
+import type { CordisDomBackend } from '../cdp/domains/dom/model.ts'
 import type { CordisRuntimeTreeReader } from '../../shared/cordis/reader.ts'
 import type { InspectorQueryRouter } from '../inspection/query-router.ts'
 import type { InspectorRealmRegistry } from '../inspection/realm-store.ts'

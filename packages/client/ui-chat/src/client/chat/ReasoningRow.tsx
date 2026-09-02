@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'react'
 import { DisclosureRow, IconThinkOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ChatViewSlotProps } from '../contract/slots.ts'
 import { useThrottledVisualUpdate } from './use-throttled-visual-update.ts'
-import a11yCss from './accessibility.module.css'
 import css from './ReasoningRow.module.css'
 
 function firstLine(text: string): string {
@@ -39,7 +38,7 @@ export function ReasoningRow({ text, running, t }: { text: string; running: bool
 
   return (
     <div className={css.root} data-variant="think" data-state={running ? 'running' : 'ok'}>
-      {running && <span className={a11yCss.visuallyHidden}>{t('row.running')}</span>}
+      {running && <span className="dsw-visually-hidden">{t('row.running')}</span>}
       <DisclosureRow
         rowClassName={css.row}
         leadingClassName={css.leading}

@@ -1,6 +1,6 @@
 .root {
   position: relative;
-  z-index: 1;
+  z-index: var(--dsw-z-raised);
   isolation: isolate;
   flex: none;
   border-bottom: 1px solid var(--dsw-alias-border-l2);
@@ -63,7 +63,7 @@
 
 .earlierHistory {
   position: absolute;
-  z-index: 5;
+  z-index: var(--dsw-z-raised-5);
   top: 0;
   bottom: 0;
   left: 0;
@@ -117,7 +117,7 @@
 
 .lanes {
   position: absolute;
-  z-index: 2;
+  z-index: var(--dsw-z-raised-2);
   top: 7px;
   bottom: 7px;
   left: var(--trajectory-domain-left);
@@ -126,7 +126,7 @@
 
 .turnBoundaries {
   position: absolute;
-  z-index: 3;
+  z-index: var(--dsw-z-raised-3);
   top: 0;
   bottom: 0;
   left: var(--trajectory-domain-left);
@@ -227,7 +227,7 @@
 }
 
 .span[data-hovered='true']:not([data-current='true']) {
-  z-index: 1;
+  z-index: var(--dsw-z-raised);
   opacity: 1;
   box-shadow:
     0 0 0 1px var(--dsw-alias-bg-layer-2),
@@ -239,7 +239,7 @@
 }
 
 .span[data-current='true'] {
-  z-index: 1;
+  z-index: var(--dsw-z-raised);
   opacity: 1;
   box-shadow:
     0 0 0 1px var(--dsw-alias-bg-layer-2),
@@ -252,7 +252,7 @@
 
 .selection {
   position: absolute;
-  z-index: 1;
+  z-index: var(--dsw-z-raised);
   top: 0;
   bottom: 0;
   left: var(--trajectory-selection-left);
@@ -271,7 +271,7 @@
 
 .selectionEdges {
   position: absolute;
-  z-index: 4;
+  z-index: var(--dsw-z-raised-4);
   top: 0;
   bottom: 0;
   left: var(--trajectory-selection-left);
@@ -282,7 +282,7 @@
 
 .hoverLine {
   position: absolute;
-  z-index: 4;
+  z-index: var(--dsw-z-raised-4);
   top: 0;
   bottom: 0;
   left: clamp(

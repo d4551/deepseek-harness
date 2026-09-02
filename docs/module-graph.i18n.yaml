@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write docs/module-graph.md
-module-graph.md: 196f574821a076eaff1e3df7ecfb9572a33ab8ed
-module-graph.zh.md: ecc26d3b2d1ed4961c178e624eeac5376c9222c6
+module-graph.md: 1ec2687497e04d643c46b73b4e789f64fe51d1a4
+module-graph.zh.md: 588869684dab6a23644b8121e82a250390ed2559

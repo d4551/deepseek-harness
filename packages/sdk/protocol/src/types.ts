@@ -102,18 +102,3 @@ export interface SubagentFinishedNotification {
   /** The child's selected assistant output; absent when the child produced none. */
   lastAssistantMessage?: ContentBlock[]
 }
-
-/** Server-to-client notifications by JSON-RPC method name. */
-export interface HarnessSdkNotificationMap {
-  'session.event': SessionEventNotification
-  'session.status': SessionStatusNotification
-  'subagent.started': SubagentStartedNotification
-  'subagent.finished': SubagentFinishedNotification
-}
-
-/** Client-to-server request methods with their param and result shapes. */
-export interface HarnessSdkRequestMap {
-  'initialize': { params: InitializeParams; result: InitializeResult }
-  'session/prompt': { params: SessionPromptParams; result: SessionPromptResult }
-  'shutdown': { params: undefined; result: Record<string, never> }
-}

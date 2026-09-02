@@ -18,6 +18,8 @@ import { FsError, FsTargetKey } from '@deepseek-ai/dsh-fs'
 import type { FsTarget } from '@deepseek-ai/dsh-fs'
 import SandboxPolicyService from '@deepseek-ai/dsh-sandbox-policy'
 import type { SandboxMode } from '@deepseek-ai/dsh-sandbox'
+import { Session, SessionId } from '@deepseek-ai/dsh-session'
+import { setAdditionalWorkspaceRoots } from '@deepseek-ai/dsh-session/workspace-roots'
 import { SandboxedFileSystem } from '@deepseek-ai/dsh-fs-sandbox'
 
 let base: string
@@ -191,6 +193,42 @@ describe('danger-full-access', () => {
     const path = join(outside, 'free.txt')
     await fs.writeText(await target(path), 'free')
     expect(await readFile(path, 'utf8')).toBe('free')
+  })
+})
+
+describe('multi-root workspace-write containment', () => {
+  let second: string
+  beforeEach(async () => {
+    await boot('workspace-write')
+    second = join(base, 'second')
+    await mkdir(second)
+  })
+
+  /** One session's resolved policy, folding its recorded additional roots. */
+  function policyFor(id: string, additionalRoots: readonly string[]) {
+    const sessionId = SessionId(id)
+    const active = Session.create(sessionId, undefined, { version: 0, id: sessionId, createdAt: 0, cwd: workspace })
+    setAdditionalWorkspaceRoots(active, additionalRoots)
+    return ctx.sandboxPolicy.resolve({ session: active })
+  }
+
+  it('a write inside an additional workspace root lands, and one outside every root is still denied', async () => {
+    const policy = policyFor('sess-fs-multi', [second])
+    const inside = join(second, 'nested', 'ok.txt')
+    await fs.writeText(await target(inside), 'second-root', undefined, undefined, policy)
+    expect(await readFile(inside, 'utf8')).toBe('second-root')
+
+    const denied = join(outside, 'escape.txt')
+    await expect(fs.writeText(await target(denied), 'x', undefined, undefined, policy))
+      .rejects.toMatchObject({ code: 'FS_SANDBOX_DENIED' })
+    expect(existsSync(denied)).toBe(false)
+  })
+
+  it('the root belongs to the session that recorded it: another session is denied the same path', async () => {
+    const path = join(second, 'private.txt')
+    await expect(fs.writeText(await target(path), 'x', undefined, undefined, policyFor('sess-fs-narrow', [])))
+      .rejects.toMatchObject({ code: 'FS_SANDBOX_DENIED' })
+    expect(existsSync(path)).toBe(false)
   })
 })
 

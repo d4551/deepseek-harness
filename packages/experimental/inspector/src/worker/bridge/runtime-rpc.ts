@@ -2,23 +2,18 @@
 
 import { randomUUID } from 'node:crypto'
 import type {
-  ClientConsoleEventFrame,
-  ClientRuntimeCapability,
   ClientRuntimeCommand,
   ClientRuntimeError,
-  ClientRuntimeResponseFrame,
   ClientRuntimeResult,
-} from '../../shared/bridge/messages/runtime/index.ts'
-import {
-  inspectorId,
-  type ClientRemoteObjectHandle,
-  type ClientRuntimeRequestId,
-  type ClientRuntimeSessionId,
-} from '../../shared/bridge/ids.ts'
+} from '../../shared/bridge/messages/runtime/commands.ts'
+import type { ClientConsoleEventFrame } from '../../shared/bridge/messages/runtime/console-frames.ts'
+import type { ClientRuntimeCapability, ClientRuntimeResponseFrame } from '../../shared/bridge/messages/runtime/frames.ts'
+import { inspectorId } from '../../shared/identity.ts'
+import type { ClientRemoteObjectHandle, ClientRuntimeRequestId, ClientRuntimeSessionId } from '../../shared/bridge/ids.ts'
 import { INSPECTOR_PROTOCOL_VERSION, type InspectorSourceDescriptor } from '../../shared/bridge/messages/observation.ts'
 import { sendClientSessionClosed } from './session.ts'
 import type { InspectorSourceEvent, InspectorSourceRegistry } from './hub.ts'
-import type { RuntimeConsoleBackendEvent } from '../../shared/cdp/index.ts'
+import type { RuntimeConsoleBackendEvent } from '../../shared/cdp/console.ts'
 
 /** One connected projection of a Client realm into a synthetic CDP execution context. */
 export interface ClientRuntimeTarget {

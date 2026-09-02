@@ -8,6 +8,9 @@ import { officialClientBuildEnvironment, writeClientBuildRecord } from '../clien
 import { releaseFamily, type ReleaseMember } from './families.ts'
 import { compareVersions, nextVendorVersion, planShared, reachesPayload } from './bump.ts'
 
+/** Manifest fields the spec fixtures exercise, keyed by the product's member manifest type. */
+type FixtureManifest = ReleaseMember['manifest']
+
 /**
  * A release member standing in for a manifest on disk.
  * @param directory - repository-relative package directory.
@@ -15,7 +18,7 @@ import { compareVersions, nextVendorVersion, planShared, reachesPayload } from '
  * @param manifest - manifest fields the subject reads.
  * @returns The member.
  */
-function member(directory: string, name: string, manifest: Record<string, unknown> = {}): ReleaseMember {
+function member(directory: string, name: string, manifest: FixtureManifest = {}): ReleaseMember {
   return { directory, name, version: '0.0.1', manifest }
 }
 
@@ -46,7 +49,18 @@ describe('release families', () => {
     const members = releaseFamily('dsh').members(resolve(import.meta.dirname, '../..'))
 
     expect(members.some(member => member.directory.startsWith('packages/experimental/'))).toBe(false)
-    expect(members.map(member => member.name)).not.toContain('@deepseek-ai/dsh-experimental-agent-team')
+    expect(members.map(member => member.name)).not.toContain('@deepseek-ai/dsh-inspector')
+    expect(members.map(member => member.name)).not.toContain('@deepseek-ai/dsh-webworker-packer')
+    expect(members.map(member => member.name)).not.toContain('@deepseek-ai/dsh-webworker-runtime')
+  })
+
+  it('includes the promoted Agent Teams packages in the dsh release', () => {
+    const members = releaseFamily('dsh').members(resolve(import.meta.dirname, '../..'))
+    const names = members.map(member => member.name)
+
+    expect(names).toContain('@deepseek-ai/dsh-agent-team')
+    expect(names).toContain('@deepseek-ai/dsh-tool-agent-team')
+    expect(names).toContain('@deepseek-ai/dsh-client-ui-agent-team')
   })
 
   it('bumps private dsh packages without adding release tags', () => {

@@ -30,6 +30,9 @@
  */
 
 import { Context } from '@deepseek-ai/cordis'
+import z from '@deepseek-ai/schemastery'
+import { CapacityGate } from '@deepseek-ai/dsh-capacity-gate'
+import type { CapacityRelease, CapacitySnapshot } from '@deepseek-ai/dsh-capacity-gate'
 import { scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { Scoped } from '@deepseek-ai/dsh-scope'
 import { assertObjectJsonSchema } from '@deepseek-ai/dsh-tools'
@@ -60,6 +63,7 @@ import type {
   SubagentStartRequest,
 } from './types.ts'
 import { SubagentError } from './error.ts'
+import { holdSlotUntilSettled } from './capacity.ts'
 import { assertSubagentMaxDepth } from './depth.ts'
 import { createActivationObserver, createLifecycleEmitter, observeRun } from './lifecycle.ts'
 import type { ActivationObserver, LifecycleEmitter } from './lifecycle.ts'
@@ -192,12 +196,40 @@ interface BrowserPromptSource {
   readonly clientTimeZone?: string
 }
 
+/** Deployment limits for the subagent seam. */
+export interface Config {
+  /**
+   * One-shot child runs this deployment may have published at once. A start
+   * beyond the bound queues in arrival order and dispatches to its provider as
+   * soon as an earlier run settles or is disposed.
+   */
+  readonly maxConcurrentRuns?: number
+}
+
+/**
+ * Concurrent one-shot runs allowed when a deployment states no bound. It matches
+ * the worker-thread workflow engine's own resolved ceiling for concurrent child
+ * agents, which is the seam's heaviest current fan-out consumer.
+ */
+const DEFAULT_MAX_CONCURRENT_RUNS = 16
+
 /** Named provider registry with one-shot runs, durable discovery, and continuable-child operations. */
 export class SubagentRuntime extends TypertRemoteService {
+  static Config: z<Config> = z.object({
+    maxConcurrentRuns: z.number().step(1).min(1).default(DEFAULT_MAX_CONCURRENT_RUNS),
+  })
+
   private providers = new Map<string, SubagentProvider>()
   private continuations: SubagentContinuationManager | undefined
   /** Deployment contributions composed into unpublished continuable children. */
   private readonly setupRegistry = new SubagentActivationSetupRegistry()
+  /**
+   * Admission for published one-shot runs. Continuable children stay outside it:
+   * an Activation is resident for as long as its conversation lasts, so counting
+   * one against a run ceiling would park foreground delegations behind
+   * long-lived teammates.
+   */
+  private readonly runCapacity: CapacityGate
   /**
    * The contained lifecycle-edge publisher. Built here because scoped dispatch
    * keys its carrier by this exact service instance, whose own context filter
@@ -205,8 +237,17 @@ export class SubagentRuntime extends TypertRemoteService {
    */
   private readonly emitLifecycle: LifecycleEmitter
 
-  constructor(ctx: Context) {
+  constructor(ctx: Context, config: Config) {
     super(ctx, 'subagents')
+    // Schemastery (static Config) has already validated and filled the bound;
+    // the assertion records that resolution rather than a hidden fallback.
+    this.runCapacity = new CapacityGate((config as Required<Config>).maxConcurrentRuns)
+    ctx.effect(() => () => {
+      this.runCapacity.close(new SubagentError(
+        'the subagent service unloaded before this start reached a concurrency slot',
+        'CANCELLED',
+      ))
+    }, 'subagents.runCapacity()')
     this.emitLifecycle = createLifecycleEmitter(this.ctx, parent => scopeTarget(this, parent))
     ctx.inject(['agents'], (childCtx: Context) => {
       const manager = new SubagentContinuationManager(childCtx, {
@@ -540,14 +581,29 @@ export class SubagentRuntime extends TypertRemoteService {
   }
 
   /**
+   * Read the deployment's one-shot run admission state.
+   * @returns the configured bound, the published runs holding a slot, and the
+   *   starts queued behind them.
+   */
+  capacity(): CapacitySnapshot {
+    return this.runCapacity.snapshot()
+  }
+
+  /**
    * Establish a published child on the named provider. Capability and semantic
-   * checks run before delegation. Provider ownership lasts until its promise
-   * fulfills; a rejection therefore has no run for the caller to dispose and
-   * emits no run lifecycle events. Post-publication turn and infrastructure
-   * failures settle through the returned run.
+   * checks run before delegation, then the start takes one of the deployment's
+   * concurrency slots, queueing in arrival order while they are all held. A
+   * start whose `signal` fires while it is queued rejects `CANCELLED` and never
+   * reaches the provider. Provider ownership lasts until its promise fulfills;
+   * a rejection therefore has no run for the caller to dispose, emits no run
+   * lifecycle events, and returns its slot. Post-publication turn and
+   * infrastructure failures settle through the returned run, whose settlement or
+   * disposal returns the slot.
    * @param name - the provider to use.
    * @param request - child label, prompt, parent, signal, and optional capabilities.
    * @returns the published holder-owned run.
+   * @throws {SubagentError} `CANCELLED` when the caller cancels or the service
+   *   unloads before a slot is granted.
    */
   async start(name: string, request: SubagentStartRequest): Promise<SubagentRun> {
     const provider = this.expectProvider(name)
@@ -560,7 +616,35 @@ export class SubagentRuntime extends TypertRemoteService {
       ...request.label !== undefined ? { label: request.label } : {},
     })
     const resolved: ResolvedSubagentStartRequest = { ...request, descriptor }
-    return observeRun(this.emitLifecycle, name, request.parent, await provider.start(resolved))
+    // Below the bound the slot is taken synchronously, so the provider still
+    // sees `start` in the caller's own tick and a cancellation arriving right
+    // after the call still reaches its transport instead of the seam.
+    const immediate = this.runCapacity.tryAcquire()
+    const release = immediate ?? await this.admit(request.signal)
+    let run: SubagentRun
+    try {
+      run = await provider.start(resolved)
+    } catch (error: unknown) {
+      release()
+      throw error
+    }
+    return observeRun(this.emitLifecycle, name, request.parent, holdSlotUntilSettled(run, release))
+  }
+
+  /**
+   * Take one concurrency slot for a validated start, reporting every way the
+   * wait can end without one as this seam's cancellation.
+   */
+  private async admit(signal: AbortSignal): Promise<CapacityRelease> {
+    try {
+      return await this.runCapacity.acquire(signal)
+    } catch (error: unknown) {
+      throw new SubagentError(
+        'subagent start cancelled while waiting for a concurrency slot',
+        'CANCELLED',
+        { cause: error },
+      )
+    }
   }
 
   /**

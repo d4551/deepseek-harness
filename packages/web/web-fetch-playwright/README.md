@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-With `dsh-web-fetch-playwright`, the harness can fetch JavaScript-rendered pages through the web service (`ctx.web`): it loads each URL in a headless Chromium browser, waits for the DOM, and returns the serialized document. Choose it when a composition needs what plain HTTP retrieval cannot produce — the client-rendered DOM of single-page applications, pages that build their content with scripts, or any document whose meaningful markup exists only after execution. It stays anonymous like the HTTP backend: no credentials, no cookies carried between fetches, each render isolated in a fresh incognito context. The model-facing `web_fetch` tool lives in `dsh-tool-web`, which renders this provider's bodies.
+With `dsh-web-fetch-playwright`, the harness can fetch JavaScript-rendered pages through the web service (`ctx.web`): it loads each URL in a headless Chromium browser, waits for the DOM, and returns the serialized document. Choose it when a composition needs what plain HTTP retrieval cannot produce — the client-rendered DOM of single-page applications, pages that build their content with scripts, or any document whose meaningful markup exists only after execution. It stays anonymous like the HTTP backend: no credentials, no cookies carried between fetches, each render isolated in a fresh incognito context. Every request a page issues — main frame, subresources, and each redirect hop — passes the shared fetch URL policy and must reach a public unicast address. The model-facing `web_fetch` tool lives in `dsh-tool-web`, which renders this provider's bodies.
 
 ## Table of Contents
 
@@ -46,6 +46,8 @@ Load the web service, select this provider for fetch, and mount the provider; co
 |---|---|---|
 | `maxBodyChars` | `100,000` | Maximum serialized DOM length in characters |
 | `timeoutMs` | `30,000` | Per-fetch budget — a resource backstop, not the model-facing tool budget |
+| `maxConcurrentRenders` | `2` | Renders holding a browser context at the same time; the rest queue in arrival order |
+| `userAgent` | `deepseek-harness/0.0.1 (+https://github.com/deepseek-ai)` | `User-Agent` every rendered request carries |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-web-fetch-playwright) is the exhaustive source for every accepted field and its JSDoc.
 
@@ -55,7 +57,11 @@ A successful call yields a `WebFetchResult`: the page's final URL after navigati
 
 ### Render behavior
 
-The provider accepts only `http:` and `https:` URLs without embedded credentials, under the shared fetch URL policy. Each fetch opens a fresh incognito context in one shared browser process, navigates with `domcontentloaded`, serializes the DOM, and closes the page and context; no cookies, storage, or authentication survive a fetch. The browser process launches lazily on first use, is reused across fetches, closes on plugin dispose, and relaunches fresh after it dies. A missing Chromium installation surfaces as `WEB_PROVIDER_ERROR` on first use.
+The provider accepts only `http:` and `https:` URLs without embedded credentials, under the shared fetch URL policy. It then intercepts every request the page issues and admits it only when its destination resolves to a public unicast address; a refused request is aborted as `blockedbyclient`, and a refused navigation target reports `WEB_BLOCKED_URL` before any browser work runs. One decision is memoized per hostname for the life of a fetch, so a page load resolves each host once.
+
+Each fetch opens a fresh incognito context in one shared browser process, navigates with `domcontentloaded`, serializes the DOM, and closes the page and context; no cookies, storage, or authentication survive a fetch. At most `maxConcurrentRenders` fetches hold a context at once; the rest wait in arrival order and give up when their own deadline aborts.
+
+The plugin probes the Chromium installation once while applying and logs a warning naming `playwright install chromium` when none is launchable, so the service reads real availability without probing per selection. The browser process itself launches lazily on first fetch and is reused; a launch that fails or a process that dies clears the memo so the next fetch retries. Disposal is terminal: it cancels the renders in flight, closes the process, and makes every later fetch fail with `WEB_PROVIDER_ERROR`.
 
 ### Failures and recovery
 
@@ -76,6 +82,7 @@ This section explains the design decisions behind the provider; the observable b
 The package is built on one separation and one layered timeout:
 
 - **Rendered retrieval vs. presentation.** This provider owns URL validation, the browser lifecycle, navigation, DOM serialization, and the character cap; `dsh-tool-web` owns HTML→markdown and truncation formatting. A non-2xx navigation is data, not failure.
+- **Address policy at the browser edge.** Interception, not URL validation alone, is where the public-destination rule holds: a rendered page issues requests the caller never named, so the same policy decides the main frame, every subresource, and every redirect hop.
 - **Two timeout layers.** The provider's `timeoutMs` is a resource backstop that also bounds Playwright's own navigation timeout; the model-facing tool-call budget belongs to `dsh-tool-call-timeout-policy`, which arms `exec.signal`. When the outer deadline fires first the provider reports `WEB_ABORTED` and the policy replaces it with `TOOL_TIMEOUT`; `WEB_FETCH_TIMEOUT` therefore identifies a service caller whose provider budget elapsed.
 
 ### Source map
@@ -88,7 +95,7 @@ The package is built on one separation and one layered timeout:
 
 ### Read path
 
-A fetch validates the URL, reuses or launches the shared browser, and opens a fresh incognito context and page. It navigates under the provider timeout with `domcontentloaded`, serializes the DOM, and closes the page and context before returning — so cleanup runs even when serialization fails. A dead or failed launch clears the memoized browser so the next fetch retries instead of pinning a broken process.
+A fetch validates and admits the navigation target, takes a render slot, then reuses or launches the shared browser and opens a fresh incognito context. It installs the destination interceptor on that context before opening a page, navigates under the provider timeout with `domcontentloaded`, serializes the DOM, and closes the page and context before returning — so cleanup runs even when serialization fails. A dead or failed launch clears the memoized browser so the next fetch retries instead of pinning a broken process; a disposed provider refuses to launch at all.
 
 </details>
 
@@ -116,7 +123,8 @@ These boundaries define what the provider does not attempt; they are current pac
 
 - **No post-DOM waiting** — navigation settles at `domcontentloaded`; content that appears only after later network activity, lazy loading, or hydration will be absent from the serialized DOM. An explicit network-idle wait is the next capability to add here.
 - **Every fetch is anonymous** — no cookie or session persistence; pages that require login return their logged-out markup, and no fetch backend in this family performs authenticated retrieval.
-- **Host browser dependency** — Chromium must be installed through `playwright`'s browser binaries; a missing installation fails the first fetch with `WEB_PROVIDER_ERROR`.
+- **Host browser dependency** — Chromium must be installed through `playwright`'s browser binaries; the plugin reports a missing installation as an apply-time warning and every fetch then fails with `WEB_PROVIDER_ERROR`.
+- **Disposal is one-way** — a disposed provider never launches again, so a composition that unloads and remounts the plugin gets a new provider rather than a revived browser.
 
 -----
 

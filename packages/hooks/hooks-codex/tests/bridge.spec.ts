@@ -1,6 +1,6 @@
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -10,10 +10,10 @@ import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
-import { LocalBashExecutor } from '@deepseek-ai/dsh-bash-local'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import * as HooksCodex from '@deepseek-ai/dsh-hooks-codex'
 import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
+import { hookProgram, plugHostShell } from '../../hook-protocol/tests/hook-program.ts'
 
 /**
  * Full-loop Codex bridge tests with a mock model, the real loop and bash
@@ -29,12 +29,6 @@ function configDir(): string {
   dirs.push(dir)
   return dir
 }
-function script(dir: string, name: string, body: string): string {
-  const path = join(dir, name)
-  writeFileSync(path, body)
-  chmodSync(path, 0o755)
-  return path
-}
 function writeHooks(dir: string, hooks: unknown): void {
   writeFileSync(join(dir, 'hooks.json'), JSON.stringify({ hooks }))
 }
@@ -44,7 +38,7 @@ async function harness(dir: string, adapter: MockAdapter, beforeHooks?: (ctx: Co
   await mountAgentLoopTestDependencies(ctx)
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(LocalSubprocessRuntime)
-  await ctx.plugin(LocalBashExecutor, { timeoutMs: 10_000 })
+  await plugHostShell(ctx, { timeoutMs: 10_000 })
   beforeHooks?.(ctx)
   await ctx.plugin(HooksCodex, { configPath: join(dir, 'hooks.json'), model: 'test-model' })
   ctx.llm.registerAdapter(['mock'], adapter)
@@ -68,7 +62,7 @@ async function waitFor(predicate: () => boolean, timeout = 5000, interval = 10):
 describe('hooks-codex bridge', () => {
   it('a PreToolUse hook (exit 2) denies a tool the regex matcher matches as a substring', async () => {
     const dir = configDir()
-    const deny = script(dir, 'deny.sh', '#!/usr/bin/env bash\necho "codex blocked it" >&2\nexit 2\n')
+    const deny = hookProgram(dir, 'deny', 'err(\'codex blocked it\')\nprocess.exit(2)\n')
     // Codex regex matcher: "Bash" is /Bash/ — matches the tool name "Bash".
     writeHooks(dir, { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: deny }] }] })
 
@@ -92,7 +86,7 @@ describe('hooks-codex bridge', () => {
     // Stop ignores its malformed matcher field. Block once with a marker;
     // until the loop guard lands, an always-blocking hook would never finish.
     const marker = join(dir, 'fired')
-    const cont = script(dir, 'cont.sh', `#!/usr/bin/env bash\nif [ -e "${marker}" ]; then exit 0; fi\ntouch "${marker}"\necho "keep going: address the goal" >&2\nexit 2\n`)
+    const cont = hookProgram(dir, 'cont', `if (exists(${JSON.stringify(marker)})) process.exit(0)\ntouch(${JSON.stringify(marker)})\nerr('keep going: address the goal')\nprocess.exit(2)\n`)
     writeHooks(dir, { Stop: [{ matcher: '[', hooks: [{ type: 'command', command: cont }] }] })
 
     const adapter = new MockAdapter([textResponse('first answer'), textResponse('second answer after goal')])
@@ -109,7 +103,7 @@ describe('hooks-codex bridge', () => {
     const dir = configDir()
     const pidFile = join(dir, 'pid')
     const marker = join(dir, 'started')
-    const slow = script(dir, 'slow-prompt.sh', `#!/usr/bin/env bash\necho $$ > "${pidFile}"\ntouch "${marker}"\nsleep 30\n`)
+    const slow = hookProgram(dir, 'slow-prompt', `write(${JSON.stringify(pidFile)}, String(process.pid))\ntouch(${JSON.stringify(marker)})\nsleep(30)\n`)
     writeHooks(dir, { UserPromptSubmit: [{ hooks: [{ type: 'command', command: slow }] }] })
 
     const adapter = new MockAdapter([textResponse('must not run')])
@@ -132,7 +126,7 @@ describe('hooks-codex bridge', () => {
 
   it('only the five bridge-supported Codex events are honored — a SubagentStop entry is ignored', async () => {
     const dir = configDir()
-    const s = script(dir, 'x.sh', '#!/usr/bin/env bash\nexit 2\n')
+    const s = hookProgram(dir, 'x', 'process.exit(2)\n')
     writeHooks(dir, { SubagentStop: [{ hooks: [{ type: 'command', command: s }] }] })
 
     const adapter = new MockAdapter([textResponse('fine')])
@@ -177,14 +171,14 @@ describe('hooks-codex bridge', () => {
     const dir = configDir()
     // A leaked listener would let this blocking hook veto the prompt and log an invocation; a
     // no-op hook would pass even when leaked.
-    const deny = script(dir, 'deny.sh', '#!/usr/bin/env bash\nexit 2\n')
+    const deny = hookProgram(dir, 'deny', 'process.exit(2)\n')
     writeHooks(dir, { UserPromptSubmit: [{ hooks: [{ type: 'command', command: deny }] }] })
     const adapter = new MockAdapter([textResponse('ok')])
     const ctx = new Context()
     await mountAgentLoopTestDependencies(ctx)
     await ctx.plugin(AgentLoop, { agents: [] })
     await ctx.plugin(LocalSubprocessRuntime)
-    await ctx.plugin(LocalBashExecutor, { timeoutMs: 10_000 })
+    await plugHostShell(ctx, { timeoutMs: 10_000 })
     const fiber = await ctx.plugin(HooksCodex, { configPath: join(dir, 'hooks.json'), model: 'm' })
     await fiber.dispose()
     ctx.llm.registerAdapter(['mock'], adapter)
@@ -201,13 +195,13 @@ describe('hooks-codex bridge', () => {
     const marker = join(dir, 'started')
     // Record the PID and marker before sleeping past the suite timeout. Disposal must abort the
     // tracked process through `runPoint`, not await its natural exit.
-    const slow = script(dir, 'slow.sh', `#!/usr/bin/env bash\necho $$ > "${pidFile}"\ntouch "${marker}"\nsleep 30\n`)
+    const slow = hookProgram(dir, 'slow', `write(${JSON.stringify(pidFile)}, String(process.pid))\ntouch(${JSON.stringify(marker)})\nsleep(30)\n`)
     writeHooks(dir, { SessionStart: [{ hooks: [{ type: 'command', command: slow }] }] })
     const ctx = new Context()
     await mountAgentLoopTestDependencies(ctx)
     await ctx.plugin(AgentLoop, { agents: [] })
     await ctx.plugin(LocalSubprocessRuntime)
-    await ctx.plugin(LocalBashExecutor, { timeoutMs: 10_000 })
+    await plugHostShell(ctx, { timeoutMs: 10_000 })
     const fiber = await ctx.plugin(HooksCodex, { configPath: join(dir, 'hooks.json'), model: 'm' })
     ctx.llm.registerAdapter(['mock'], new MockAdapter([]))
     const warn = vi.fn()

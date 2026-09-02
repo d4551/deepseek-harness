@@ -82,7 +82,7 @@ async function openInBrowser(
 }
 
 /** Native path-open intent; macOS distinguishes text editing from file association. */
-type PathOpenIntent = 'default' | 'text-editor'
+export type PathOpenIntent = 'default' | 'text-editor'
 
 /** PowerShell single-quoted literal (doubles embedded quotes). */
 function powershellLiteral(path: string): string {
@@ -119,8 +119,15 @@ async function openWslPath(path: string, signal: AbortSignal, run: PathOpenerRun
   await openWindowsPath(windowsPath, signal, run)
 }
 
-/** Dispatch one shell-free platform command for the requested open intent. */
-async function openNativePathWithIntent(
+/**
+ * Dispatch one shell-free platform command for the requested open intent.
+ * @param path - absolute or host-resolvable path (caller owns resolution).
+ * @param signal - caller/connection lifetime; abort terminates the native command.
+ * @param intent - which platform gesture to issue for the path.
+ * @param internals - platform, environment, and runner hooks for deterministic tests.
+ * @returns settlement of the native command.
+ */
+export async function openNativePathWithIntent(
   path: string,
   signal: AbortSignal,
   intent: PathOpenIntent,
@@ -173,34 +180,4 @@ export function canOpenNativePath(internals: PathOpenerInternals = {}): boolean 
   if (platform !== 'linux') return false
   const env = internals.env ?? process.env
   return isWsl(internals) || present(env.DISPLAY) || present(env.WAYLAND_DISPLAY)
-}
-
-/**
- * Open a filesystem path with the operating system's default application, or
- * with the default browser when the path names a document a browser renders.
- * @param path - absolute or host-resolvable path (caller owns resolution).
- * @param signal - caller/connection lifetime; abort terminates the native command.
- * @param internals - Platform, environment, and runner hooks for deterministic tests.
- */
-export function openNativePath(
-  path: string,
-  signal: AbortSignal,
-  internals: PathOpenerInternals = {},
-): Promise<void> {
-  return openNativePathWithIntent(path, signal, 'default', internals)
-}
-
-/**
- * Open a text document for editing; macOS bypasses the file-type association
- * so a YAML association with a browser cannot consume the gesture.
- * @param path - absolute or host-resolvable text-document path.
- * @param signal - caller/connection lifetime; abort terminates the native command.
- * @param internals - Platform and runner hooks for deterministic tests.
- */
-export function openNativeTextFile(
-  path: string,
-  signal: AbortSignal,
-  internals: PathOpenerInternals = {},
-): Promise<void> {
-  return openNativePathWithIntent(path, signal, 'text-editor', internals)
 }

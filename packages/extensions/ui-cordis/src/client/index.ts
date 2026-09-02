@@ -9,7 +9,6 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { InputTriggerService, InputTriggerSource } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
-import type {} from './events.ts'
 import { CordisActionRow } from './CordisActionRow.tsx'
 import { CordisDefineRow } from './CordisDefineRow.tsx'
 import { CordisRunRow } from './CordisRunRow.tsx'
@@ -31,7 +30,7 @@ export type {
 export type {
   ApprovalRequestId, CordisDynamicPackageId, CordisDynamicPluginId, CordisDynamicPluginRunId,
   DynamicCordisInventoryRow, DynamicCordisPackage, DynamicCordisRetracted,
-} from './events.ts'
+} from '@deepseek-ai/dsh-api-remotes/client'
 export type { CordisKey } from './locales.ts'
 
 /** Required services for the two Tool cards, panel, Remote lifecycle, and Slash source. */

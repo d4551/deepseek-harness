@@ -3,7 +3,7 @@
 import type { DynamicCordisLivePackage } from '@deepseek-ai/dsh-cordis-client-runner/client'
 import type {
   CordisDynamicPackageId, DynamicCordisInventoryRow,
-} from './events.ts'
+} from '@deepseek-ai/dsh-api-remotes/client'
 
 /** The three product-visible lifecycle readings. */
 export type CordisVisibleStatus = 'idle' | 'client-pending' | 'running'

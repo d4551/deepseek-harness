@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { inspectorId } from '../src/shared/bridge/ids.ts'
+import { inspectorId } from '../src/shared/identity.ts'
 import { ClientScriptIdentity } from '../src/worker/realms/client/scripts.ts'
 import { clientConsoleEvent } from '../src/worker/realms/client/values.ts'
 

@@ -1,0 +1,36 @@
+# The dsh-hosted-drive bundle patch: the session workspace moves onto a network
+# drive. Apply after dsh-base and dsh-web-app so this layer replaces the rows
+# those bundles already inserted.
+#
+# One execution world, one directory: fs-network-drive materializes the drive
+# into DSH_DRIVE_WORKSPACE, and sandbox-policy fences by the same directory, so
+# Bash, the terminal, ripgrep, the language servers, and the file tools all see
+# the one workspace the drive backs. Changing either value without the other
+# splits the world.
+
+- id: sandbox-policy
+  config:
+    mode: !!js process.env.DSH_PERMISSION_MODE ?? 'workspace-write'
+    workspaceRoot: !!js process.env.DSH_DRIVE_WORKSPACE
+
+# The host-local filesystem provider the base inserted is replaced, not layered:
+# two ctx.fs providers in one tree would give the model two workspaces.
+- id: fs-sandbox
+  disabled: true
+
+- insert:
+    - id: network-drive
+      name: '@deepseek-ai/dsh-network-drive-webdav'
+      config:
+        url: !!js process.env.DSH_DRIVE_URL
+        authType: password
+        usernameEnv: DSH_DRIVE_USERNAME
+        passwordEnv: DSH_DRIVE_PASSWORD
+        requestTimeoutMs: 30000
+
+    - id: fs-network-drive
+      name: '@deepseek-ai/dsh-fs-network-drive'
+      config:
+        materializationRoot: !!js process.env.DSH_DRIVE_WORKSPACE
+        remoteRoot: !!js process.env.DSH_DRIVE_REMOTE_ROOT ?? ''
+        maxFileBytes: 10485760

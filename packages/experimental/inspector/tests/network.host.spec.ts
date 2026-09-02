@@ -3,7 +3,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { NetworkDomain, type NetworkSink } from '../src/worker/cdp/domains/network/session.ts'
 import { NetworkStore } from '../src/worker/inspection/network-store.ts'
-import { inspectorId } from '../src/shared/bridge/ids.ts'
+import { inspectorId } from '../src/shared/identity.ts'
 import type { InspectorSourceDescriptor } from '../src/shared/bridge/messages/observation.ts'
 import type { IngestedInspectorRecord } from '../src/worker/bridge/hub.ts'
 import type { InspectorJsonValue } from '../src/shared/json.ts'

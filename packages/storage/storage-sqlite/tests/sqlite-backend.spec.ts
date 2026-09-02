@@ -1,14 +1,22 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
+import { spawn } from 'node:child_process'
+import { once } from 'node:events'
 import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
+import {
+  DEFAULT_BUSY_TIMEOUT_MS,
+  MAX_BUSY_TIMEOUT_MS,
+  readConnectionSettings,
+} from '@deepseek-ai/dsh-sqlite-connection'
 import Storage, { storageBackendServiceKey } from '@deepseek-ai/dsh-storage'
 import type { KvUnitDescriptor } from '@deepseek-ai/dsh-storage'
 import { runKvBackendContract } from '../../storage/tests/contract.ts'
 import * as StorageSqlite from '../src/index.ts'
 import { Config, SqliteStorageBackend, STORAGE_SQLITE_SCHEMA_VERSION } from '../src/index.ts'
+import { openDatabase } from '../src/schema.ts'
 
 /** Mirror the loader: resolve schemastery defaults before construction. */
 function backendAt(path: string): SqliteStorageBackend {
@@ -248,6 +256,115 @@ describe('sqlite backend specifics', () => {
     expect(ctx.storage.backend.names()).toEqual([])
     expect(ctx.get(storageBackendServiceKey('sqlite'))).toBeUndefined()
     await expect(backend.kv!.open(DESCRIPTOR)).rejects.toMatchObject({ code: 'closed' })
+  })
+
+  it('holds the connection settings the shared owner verifies', async () => {
+    const db = await openDatabase(await freshDbPath(), 'wal', DEFAULT_BUSY_TIMEOUT_MS)
+    try {
+      expect(readConnectionSettings(db)).toEqual({ trustedSchema: 0, mmapSize: 0, synchronous: 2 })
+      expect(db.prepare('PRAGMA journal_mode').get()).toEqual({ journal_mode: 'wal' })
+    } finally {
+      db.close()
+    }
+  })
+
+  it('holds every configured journal mode and the in-process reported mode', async () => {
+    for (const mode of ['wal', 'delete', 'truncate', 'persist'] as const) {
+      const db = await openDatabase(await freshDbPath(), mode, DEFAULT_BUSY_TIMEOUT_MS)
+      expect(db.prepare('PRAGMA journal_mode').get()).toEqual({ journal_mode: mode })
+      expect(readConnectionSettings(db)).toEqual({ trustedSchema: 0, mmapSize: 0, synchronous: 2 })
+      db.close()
+
+      const memory = await openDatabase(':memory:', mode, DEFAULT_BUSY_TIMEOUT_MS)
+      expect(memory.prepare('PRAGMA journal_mode').get()).toEqual({ journal_mode: 'memory' })
+      expect(memory.prepare('PRAGMA trusted_schema').get()).toEqual({ trusted_schema: 0 })
+      expect(memory.prepare('PRAGMA synchronous').get()).toEqual({ synchronous: 2 })
+      memory.close()
+    }
+  })
+
+  it('closes the connection and fails loud when a setting cannot be applied', async () => {
+    vi.resetModules()
+    let opened: DatabaseSync | undefined
+    vi.doMock('@deepseek-ai/dsh-sqlite-connection', async importOriginal => ({
+      ...await importOriginal<typeof import('@deepseek-ai/dsh-sqlite-connection')>(),
+      // A SQLite build that accepts `PRAGMA trusted_schema = OFF` and keeps
+      // trusting the schema reaches exactly this rejection.
+      configureConnectionSecurity: (db: DatabaseSync) => {
+        opened = db
+        throw new Error('storage database retained trusted_schema=1, expected 0')
+      },
+    }))
+    try {
+      const { openDatabase: guarded } = await import('../src/schema.ts')
+      await expect(guarded(await freshDbPath(), 'wal', DEFAULT_BUSY_TIMEOUT_MS))
+        .rejects.toThrow(/retained trusted_schema=1/)
+      expect(opened).toBeDefined()
+      expect(() => opened?.prepare('PRAGMA user_version').get()).toThrow(/not open/i)
+    } finally {
+      vi.doUnmock('@deepseek-ai/dsh-sqlite-connection')
+      vi.resetModules()
+    }
+  })
+
+  it('opens a database materialized before the connection settings were verified', async () => {
+    const path = await freshDbPath()
+    // The pre-hardening open sequence: journal mode and foreign keys only.
+    const legacy = new DatabaseSync(path)
+    legacy.exec('PRAGMA foreign_keys = ON')
+    legacy.exec('PRAGMA journal_mode = WAL')
+    legacy.exec('CREATE TABLE units (name TEXT PRIMARY KEY, version INTEGER NOT NULL) STRICT')
+    legacy.exec('CREATE TABLE unit_globals (unit TEXT PRIMARY KEY REFERENCES units(name), value TEXT NOT NULL) STRICT')
+    legacy.prepare('INSERT INTO units (name, version) VALUES (?, ?)').run('specimen', 1)
+    legacy.exec('CREATE TABLE u_specimen_records (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT')
+    legacy.prepare('INSERT INTO u_specimen_records (key, value) VALUES (?, ?)').run('k', '{"n":1}')
+    legacy.exec(`PRAGMA user_version = ${STORAGE_SQLITE_SCHEMA_VERSION}`)
+    legacy.close()
+
+    const backend = backendAt(path)
+    const unit = await backend.kv.open(DESCRIPTOR)
+    expect((await unit.loadAll()).tables['records']).toEqual({ k: { n: 1 } })
+    await backend.close()
+  })
+
+  it('validates busyTimeoutMs against SQLite bounds', () => {
+    expect(new Config({ path: ':memory:' }).busyTimeoutMs).toBe(DEFAULT_BUSY_TIMEOUT_MS)
+    expect(new Config({ path: ':memory:', busyTimeoutMs: 0 }).busyTimeoutMs).toBe(0)
+    expect(new Config({ path: ':memory:', busyTimeoutMs: MAX_BUSY_TIMEOUT_MS }).busyTimeoutMs)
+      .toBe(MAX_BUSY_TIMEOUT_MS)
+    expect(() => new Config({ path: ':memory:', busyTimeoutMs: -1 })).toThrow()
+    expect(() => new Config({ path: ':memory:', busyTimeoutMs: 1.5 })).toThrow()
+    expect(() => new Config({ path: ':memory:', busyTimeoutMs: MAX_BUSY_TIMEOUT_MS + 1 })).toThrow()
+  })
+
+  it('waits for a competing process within the configured busy timeout', async () => {
+    const path = await freshDbPath()
+    const backend = new SqliteStorageBackend(new Config({ path, journalMode: 'wal', busyTimeoutMs: 5_000 }))
+    const unit = await backend.kv.open(DESCRIPTOR)
+    await unit.putRecord('records', 'k', { n: 1 })
+
+    // A same-thread holder would deadlock: the synchronous driver blocks the
+    // event loop that would release the lock, so the competitor is a process.
+    const holder = spawn(process.execPath, ['--input-type=module', '-e', String.raw`
+      import { DatabaseSync } from 'node:sqlite';
+      const db = new DatabaseSync(process.argv[1]);
+      db.exec('BEGIN IMMEDIATE');
+      process.stdout.write('locked\n');
+      setTimeout(() => { db.exec('COMMIT'); db.close(); }, 100);
+    `, path], { stdio: ['ignore', 'pipe', 'pipe'] })
+    const exited = new Promise<number | null>((settle, fail) => {
+      holder.once('error', fail)
+      holder.once('exit', settle)
+    })
+    try {
+      await once(holder.stdout, 'data')
+      await expect(unit.putRecord('records', 'k', { n: 2 })).resolves.toBeUndefined()
+      expect(await exited).toBe(0)
+      expect((await unit.loadAll()).tables['records']).toEqual({ k: { n: 2 } })
+    } finally {
+      if (holder.exitCode === null) holder.kill()
+      await backend.close()
+    }
   })
 
   it('rejects an unparsable global slot with malformed-medium', async () => {

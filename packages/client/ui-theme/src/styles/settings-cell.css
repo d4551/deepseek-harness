@@ -1,0 +1,93 @@
+/* ---------- settings cell ----------
+ * The General-settings row SSOT (figma 'Setting-Cell'). Six feature packages
+ * contribute rows into the one `settings.general.item` slot — locale,
+ * ui-agent-preset, ui-chat, ui-conversation, ui-permission-presets, and this
+ * package — and every one of them is the same cell: a hairline-separated
+ * block carrying a title, an optional description, and one trailing control.
+ * The section column (ui-settings-general GeneralSection.module.css) strips
+ * the separator from whichever cell ends the column.
+ *
+ * The rules are global rather than a CSS Module beside a React component
+ * because a component cannot cross these package boundaries: this client
+ * pipeline compiles `composes … from` to an empty class, `.module.css` is
+ * shipped unbundled with no package export entry to import it through, and
+ * the only shared value channel is the frozen module table. Feature packages
+ * therefore write these class names the same way component CSS writes a
+ * `--dsw-*` token name. scripts/client-ui-ssot.ts fails a CSS Module that
+ * declares a second copy of any of these bodies. */
+
+/* Inline cell: title column beside its control. */
+.dsw-settings-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+}
+
+/* Stacked cell: the control is a row of its own under the title, for controls
+   too wide to sit beside it (the appearance cubes). */
+.dsw-settings-cell-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+}
+
+/* Text column of an inline cell. The right padding is the clearance that
+   keeps a long description off the trailing control. */
+.dsw-settings-cell-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-right: 48px;
+}
+
+.dsw-settings-cell-title {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 22px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.dsw-settings-cell-desc {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* Selector pill (figma 'Selector': h36 r18, module fill, pad 0/14, gap 12):
+   the trailing control that opens a menu naming the current value. */
+.dsw-settings-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  height: 36px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 18px;
+  background: var(--dsw-alias-bg-module-platform);
+  font: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+}
+
+/* A pill whose roster is still loading, unwritable, or empty refuses the
+   pick, so it neither lights up nor claims to be clickable. */
+.dsw-settings-selector:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.dsw-settings-selector:disabled {
+  cursor: default;
+}
+
+.dsw-settings-selector-chevron {
+  flex: none;
+}

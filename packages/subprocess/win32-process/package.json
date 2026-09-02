@@ -22,12 +22,22 @@
       "types": "./lib/types/invariant.d.ts",
       "default": "./lib/invariant.js"
     },
+    "./file-security": {
+      "types": "./lib/types/file-security.d.ts",
+      "default": "./lib/file-security.js"
+    },
+    "./job": {
+      "types": "./lib/types/job.d.ts",
+      "default": "./lib/job.js"
+    },
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
   "files": [
     "lib/index.js",
     "lib/invariant.js",
+    "lib/file-security.js",
+    "lib/job.js",
     "lib/types/**/*.d.ts"
   ],
   "license": "MIT",

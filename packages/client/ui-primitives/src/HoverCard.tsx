@@ -205,7 +205,7 @@ export function HoverCard({
       }}
     >
       {anchor}
-      {open && copyable && <span className={css.status} role="status">{copied ? copiedLabel : ''}</span>}
+      {open && copyable && <span className="dsw-visually-hidden" role="status">{copied ? copiedLabel : ''}</span>}
       {card !== false && createPortal(card, document.body)}
     </span>
   )

@@ -33,7 +33,7 @@
           maxDepth: 1
       - insert:
           - id: agent-team
-            name: '@deepseek-ai/dsh-experimental-agent-team'
+            name: '@deepseek-ai/dsh-agent-team'
             config:
               maxMembers: 8
               maxTasks: 256
@@ -41,7 +41,7 @@
               maxMessageBytes: 65536
               disposalTimeoutMs: 5000
           - id: tool-agent-team
-            name: '@deepseek-ai/dsh-experimental-tool-agent-team'
+            name: '@deepseek-ai/dsh-tool-agent-team'
             config:
               freshProvider: spawn
               forkProvider: fork

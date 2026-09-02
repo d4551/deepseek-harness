@@ -7,9 +7,9 @@
   position: fixed;
   top: 120px;
   left: 50%;
-  /* Above the 1000 the image lightbox backdrop uses: a failure reported while
-     a preview is open must stay readable. */
-  z-index: 1100;
+  /* Above the modal plane the image lightbox backdrop uses: a failure reported
+     while a preview is open must stay readable. */
+  z-index: var(--dsw-z-above-modal);
   /* Announcements never intercept clicks. */
   pointer-events: none;
   display: flex;

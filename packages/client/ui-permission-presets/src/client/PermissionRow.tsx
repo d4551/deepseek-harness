@@ -13,7 +13,6 @@ import {
 import type { PermissionSettingsState } from './settings-store.ts'
 import type { PermissionSettingsKey } from './locales.ts'
 import { FULL_ACCESS_PRESET } from './presentation.ts'
-import css from './PermissionRow.module.css'
 
 /** Registration-side business face for the host-backed preference. */
 export interface PermissionRowInjected {
@@ -64,10 +63,10 @@ export function PermissionRow({ load, select, usePermission, t }: PermissionRowP
 
   return (
     <>
-      <div className={css.row}>
-        <div className={css.rowText}>
-          <div className={css.title}>{t('title')}</div>
-          <div className={css.desc} role={state.error === null ? undefined : 'alert'}>{description}</div>
+      <div className="dsw-settings-cell">
+        <div className="dsw-settings-cell-text">
+          <div className="dsw-settings-cell-title">{t('title')}</div>
+          <div className="dsw-settings-cell-desc" role={state.error === null ? undefined : 'alert'}>{description}</div>
         </div>
         <Menu
           open={open}
@@ -89,14 +88,14 @@ export function PermissionRow({ load, select, usePermission, t }: PermissionRowP
           anchor={(
             <button
               type="button"
-              className={css.selector}
+              className="dsw-settings-selector"
               aria-haspopup="menu"
               aria-expanded={open}
               disabled={busy || !state.writable || state.options.length === 0}
               onClick={() => { setOpen(value => !value) }}
             >
               {label}
-              <IconChevronDownOutline14 className={css.chevron} />
+              <IconChevronDownOutline14 className="dsw-settings-selector-chevron" />
             </button>
           )}
         />

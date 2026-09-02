@@ -9,8 +9,8 @@ import {
   type CordisRuntimeTree,
 } from '../src/shared/cordis/model.ts'
 import { startInspector, type InspectorHandle } from '../src/host/bridge/controller.ts'
-import { publishCordisTree as publishHostCordisTree } from '../src/host/inspection/cordis.ts'
-import { inspectorId } from '../src/shared/bridge/ids.ts'
+import { publishCordisTree as publishHostCordisTree } from '../src/shared/cordis/publisher.ts'
+import { inspectorId } from '../src/shared/identity.ts'
 import type { InspectorJsonValue } from '../src/shared/json.ts'
 import { InspectorQueryConnection } from '../src/shared/bridge/rpc.ts'
 import { parseInspectorQueryRequestFrame, parseInspectorQueryResponseFrame } from '../src/shared/bridge/messages/query/codec.ts'

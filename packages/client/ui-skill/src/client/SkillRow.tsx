@@ -140,7 +140,7 @@ export function SkillRow({ block, inspect, t }: SkillRowProps) {
         {...disclosureProps}
       >
         <span className={css.leading}>{leading}</span>
-        {status !== null ? <span className={css.visuallyHidden}>{status}</span> : null}
+        {status !== null ? <span className="dsw-visually-hidden">{status}</span> : null}
         <span className={css.title}>{t('row.title')}</span>
         <span className={css.separator} aria-hidden />
         <span className={model.errorSummary === null ? css.summary : `${css.summary} ${css.errorSummary}`}>

@@ -26,6 +26,7 @@ import { HarnessError } from '@deepseek-ai/dsh-llm'
 import { ItemRetainer, TextRetainer } from '@deepseek-ai/dsh-output-retention'
 import type { RetainedItems } from '@deepseek-ai/dsh-output-retention'
 import type { SubprocessHandle, SubprocessOutcome, SubprocessOutputRead, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
+import { sessionWorkspaceRoots } from '@deepseek-ai/dsh-session/workspace-roots'
 import type { SaveTextSpill, SpillRef } from '@deepseek-ai/dsh-spill'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
 
@@ -279,6 +280,30 @@ export async function runRipgrep(
   }
   const text = completeStdout(toolName, stdout, rawOutputMaxBytes)
   return { stdout: text, noMatches: outcome.exitCode === 1, workdir }
+}
+
+/**
+ * The explicit absolute roots one search must cover, or an empty list when the
+ * default single-root traversal already covers everything. A search that names
+ * no explicit root lets ripgrep walk its spawn cwd, which is the primary
+ * workspace root; a multi-root session instead names EVERY root as an absolute
+ * search path, so a match carries the root it came from and
+ * {@link toWorkdirRelative} renders primary-root hits workdir-relative while
+ * leaving other roots absolute — unambiguous attribution without a second
+ * output channel.
+ *
+ * A model-supplied `path` is an explicit scope and is never widened.
+ *
+ * @param exec - the tool-execution context; only its optional `agent` is read.
+ * @param explicitPath - the path the model scoped the search to, if any.
+ * @returns the absolute roots to pass as search paths, empty when none apply.
+ */
+export function searchRoots(exec: ToolExecution, explicitPath: string | undefined): string[] {
+  if (explicitPath !== undefined) return []
+  const session = exec.agent?.session
+  if (session === undefined) return []
+  const roots = sessionWorkspaceRoots(session)
+  return roots.length > 1 ? roots : []
 }
 
 /**

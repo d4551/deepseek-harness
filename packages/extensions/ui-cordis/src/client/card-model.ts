@@ -3,7 +3,7 @@
 import type { ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
 import type {
   CordisDynamicPackageId, CordisDynamicPluginId, CordisDynamicPluginRunId, CordisDynamicRunMode,
-} from './events.ts'
+} from '@deepseek-ai/dsh-api-remotes/client'
 
 type Block = ToolCallViewProps['block']
 

@@ -46,10 +46,13 @@
   padding: 0;
   border: none;
   background: transparent;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
+/* Icon lead slot: a block-level grid that centers its glyph. Kept inline
+   with QueueDock's — the client css pipeline compiles `composes from` to an
+   empty class, so the shared slot cannot live in one module here. */
 .lead {
   display: grid;
   flex: none;
@@ -109,8 +112,8 @@
   display: grid;
   flex: none;
   place-items: center;
-  width: 16px;
-  height: 16px;
+  width: calc(16px + var(--dsh-content-font-delta, 0px));
+  height: calc(16px + var(--dsh-content-font-delta, 0px));
 }
 
 .glyphCompleted {

@@ -16,6 +16,7 @@ import {
   throwWin32,
 } from './ffi.ts'
 import type { NativePtr, Win32ProcessBindings } from './ffi.ts'
+import { createKillOnCloseJob } from './job.ts'
 
 /**
  * Quote one argument according to CommandLineToArgvW parsing.
@@ -293,27 +294,6 @@ export function waitForProcessExit(api: Win32ProcessBindings, process: NativePtr
     freeNative(exitCodeSlot)
     api.closeHandle(process)
   }
-}
-
-function createKillOnCloseJob(api: Win32ProcessBindings): NativePtr {
-  const job = api.createJobObjectW(null, null)
-  if (isNullPtr(job)) throwLastError(api, 'CreateJobObjectW')
-  const information = Buffer.alloc(abi.JOBOBJECT_EXTENDED_LIMIT_SIZE)
-  information.writeUInt32LE(
-    abi.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-    abi.JOBOBJECT_EXTENDED_LIMIT_FLAGS_OFFSET,
-  )
-  if (api.setInformationJobObject(
-    job,
-    abi.JobObjectExtendedLimitInformation,
-    information,
-    information.length,
-  ) === 0) {
-    const win32Code = api.getLastError()
-    api.closeHandle(job)
-    throwWin32(api, 'SetInformationJobObject', win32Code)
-  }
-  return job
 }
 
 /**

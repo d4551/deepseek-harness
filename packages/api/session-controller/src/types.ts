@@ -270,6 +270,13 @@ export interface SessionSearchValue {
 export interface SessionCreateRequest {
   readonly workspaceId?: WorkspaceId
   readonly cwd?: string
+  /**
+   * Absolute directories the Session may also work in, beside its primary
+   * `cwd` — the multi-root workspace model. They become the Session's durable
+   * additional workspace roots; omitted or empty means the Session works in
+   * its primary root alone.
+   */
+  readonly additionalDirectories?: readonly string[]
   readonly sessionId?: SessionId
   readonly agentPreset?: string
 }

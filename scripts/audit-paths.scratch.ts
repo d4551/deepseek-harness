@@ -161,6 +161,6 @@ for (const [spec, rec] of used) {
   }
 }
 
-say('USED SPECIFIERS: ' + used.size)
+say(`USED SPECIFIERS: ${used.size}`)
 say('PROBLEMS: ' + (problems.length === 0 ? 'none' : '\n  ' + problems.join('\n  ')))
 process.stdout.write(out.join('\n') + '\n')

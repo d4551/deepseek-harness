@@ -303,18 +303,6 @@
   border: 1px solid var(--dsw-alias-border-l1);
 }
 
-/* Visually hidden run-state label for assistive technology: the StateDot and
-   the running sweep are aria-hidden / colour-only, so the text carries the
-   running/failed/interrupted state to a screen reader. */
-.visuallyHidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
-
 /* An `animation` shorthand carries its own literal duration, so the theme's
    reduced-motion collapse of `--ds-transition-duration*` never reaches it. An
    indefinite loop is exactly the motion that setting asks to stop. */

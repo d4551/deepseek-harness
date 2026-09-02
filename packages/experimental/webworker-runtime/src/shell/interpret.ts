@@ -11,7 +11,8 @@
  */
 
 import { parseShell } from '@yarnpkg/parsers'
-import type { Command, CommandChain, CommandLine, RedirectArgument, ShellLine, ValueArgument } from './ast.ts'
+import type { CommandChain, CommandLine, ShellLine } from '@yarnpkg/parsers'
+import type { Command, RedirectArgument, ValueArgument } from './ast.ts'
 import { expandArgument, isGlobPattern } from './expand.ts'
 import type { ExpansionContext } from './expand.ts'
 import { describeFailure, hostFileSystem, resolveIn } from './fs-access.ts'

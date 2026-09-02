@@ -2,11 +2,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { AttachmentError } from '@deepseek-ai/dsh-attachment'
 import { ToolCallId, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
+import { effectiveWorkspaceRoots } from '@deepseek-ai/dsh-session/workspace-roots'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import { makeBridgeHarness, textResponse, type BridgeHarness } from './harness.ts'
 import { startHttpMcpFixture } from '../../../mcp/mcp-client/tests/http-fixture.ts'
@@ -949,7 +950,7 @@ describe('automation-only ACP bridge', () => {
     expect(harness.adapter.requests[0]?.system).toContain(`Automation persona for mock in ${process.cwd()}.`)
   })
 
-  it('requires one absolute primary workspace', async () => {
+  it('requires every workspace directory to be absolute', async () => {
     harness = await makeBridgeHarness()
     await harness.client.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} })
 
@@ -957,13 +958,32 @@ describe('automation-only ACP bridge', () => {
     await expect(harness.client.newSession({
       cwd: process.cwd(),
       mcpServers: [],
-      additionalDirectories: ['/tmp/other'],
-    })).rejects.toThrow(/additionalDirectories/)
+      additionalDirectories: ['relative/other'],
+    })).rejects.toThrow(/additionalDirectories entries must be absolute paths/)
     await expect(harness.client.newSession({
       cwd: process.cwd(),
       mcpServers: [],
       additionalDirectories: [],
     })).resolves.toHaveProperty('sessionId')
+  })
+
+  it('records the additional workspace directories a session/new names', async () => {
+    harness = await makeBridgeHarness()
+    await harness.client.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} })
+
+    const plain = await harness.client.newSession({ cwd: process.cwd(), mcpServers: [] })
+    const plainSession = harness.ctx.agents.get(SessionId(plain.sessionId))?.session
+    expect(plainSession?.events.some(event => event.type === 'workspace/roots')).toBe(false)
+    expect(effectiveWorkspaceRoots(plainSession?.events ?? [])).toEqual([])
+
+    const widened = await harness.client.newSession({
+      cwd: process.cwd(),
+      mcpServers: [],
+      // The primary root and a repeat are dropped: the record carries only what widens the session.
+      additionalDirectories: [resolve('/projects/other'), process.cwd(), resolve('/projects/other')],
+    })
+    const widenedSession = harness.ctx.agents.get(SessionId(widened.sessionId))?.session
+    expect(effectiveWorkspaceRoots(widenedSession?.events ?? [])).toEqual([resolve('/projects/other')])
   })
 
   it('rejects empty and unadvertised image prompts before a turn starts', async () => {

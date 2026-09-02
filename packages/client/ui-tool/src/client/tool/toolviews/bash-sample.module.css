@@ -21,61 +21,11 @@
 }
 
 /* A bash execution error can settle without terminal-card material (for
-   example, command cancellation). Preserve ToolRow's bounded IN/OUT fallback
-   so the original command and full error remain available from this keyed row. */
-.ioCard {
-  display: flex;
-  flex-direction: column;
-  margin: 4px 0 4px 4px;
-  border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: 12px;
-  background: var(--dsw-alias-markdown-code-block);
-  font: var(--dsw-font-markdown-code-block-small);
-}
-
-.ioSection {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  column-gap: 14px;
-  align-items: baseline;
-  padding: 12px 16px;
-  max-height: 150px;
-  overflow-y: auto;
-}
-
-.ioSection::-webkit-scrollbar-thumb {
-  border: 2px solid transparent;
-  background-clip: padding-box;
-  border-radius: 6px;
-}
-
-.ioSection::-webkit-scrollbar-track {
-  margin: 6px 0;
-}
-
-.ioLabel {
-  position: sticky;
-  top: 0;
-  align-self: start;
-  color: var(--dsw-alias-label-caption);
-}
-
-.ioDivider {
-  flex: none;
-  height: 1px;
-  background: var(--dsw-alias-border-l2);
-}
-
-.ioText {
-  min-width: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: var(--dsw-alias-label-secondary);
-}
-
-.ioText[data-error] {
-  color: var(--dsw-alias-state-error-primary);
-}
+   example, command cancellation). The bounded IN/OUT fallback is ToolRow's
+   card, section grid, labels, divider, and payload text — including the
+   card-internal scrollbar and error color ToolRow declares — applied by
+   importing ToolRow.module.css directly in the view so the fallback drifts
+   with its owner instead of beside it. */
 
 /* ToolRow's unified expand interaction, replicated per the registrant
    posture: pointer on the expandable row (the icon→chevron hover preview is
@@ -100,7 +50,7 @@
   top: 0;
   bottom: 0;
   left: 0;
-  width: 300px;
+  width: calc(300px + var(--dsh-content-font-delta, 0px));
   background: linear-gradient(
     90deg,
     transparent 0%,
@@ -124,15 +74,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-right: 6px;
+  margin-inline-end: 6px;
   color: var(--dsw-alias-label-tertiary);
 }
 
 /* Same glyph-scaling rule as DisclosureRow's leading: the CSS edge overrides
    the svg attributes so the 14px glyph follows the font-size delta; StateDot
    (data-state) keeps its fixed figma size.
-   TODO: this bash header duplicates the DisclosureRow structure (and this is
-   the fourth copy of the glyph rule, with DisclosureRow, MessageItem
+   This bash header duplicates the DisclosureRow structure (and this is the
+   fourth copy of the glyph rule, with DisclosureRow, MessageItem
    .compactionLeading, and MessageIconActions); migrating the bash row onto
    the shared DisclosureRow would collapse them to one. */
 .leading svg:not([data-state]) {
@@ -173,15 +123,6 @@
   font-size: var(--dsh-content-font-size-secondary, 13px);
   line-height: calc(24px + var(--dsh-content-font-delta, 0px));
   color: var(--dsw-alias-label-secondary);
-}
-
-.sep {
-  flex: none;
-  width: 2px;
-  height: 2px;
-  border-radius: 1px;
-  margin: 0 8px;
-  background: var(--dsw-alias-label-caption);
 }
 
 .summary {
@@ -240,15 +181,6 @@
   color: var(--dsw-alias-label-primary);
 }
 
-
-.visuallyHidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
 
 /* An `animation` shorthand carries its own literal duration, so the theme's
    reduced-motion collapse of `--ds-transition-duration*` never reaches it. An

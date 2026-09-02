@@ -118,11 +118,13 @@ const DOCUMENT_LOCK_WAIT_MS = 30_000
  * and silently serving secrets out of a world-readable file would make the
  * mode the provider promises meaningless.
  *
- * POSIX only: Windows has no mode to inspect — its ACLs are not expressible
- * here — so the check is skipped rather than faked, and the file's protection
- * there is whatever the create and replace APIs express.
+ * Each platform is asked in its own vocabulary. POSIX inspects the group and
+ * other permission bits. Windows has no such bits — `stat().mode` there is
+ * synthesized and decides nothing — so the equivalent question is put to the
+ * file's DACL: the owner, the local system account, and the administrators
+ * group may read it, and any other trustee with read access is a refusal.
  * @param filename - absolute path of the document.
- * @throws when the path hierarchy is invalid or the file exists with group or other permission bits set.
+ * @throws when the path hierarchy is invalid, or the file exists and something other than its owner can read it.
  */
 async function assertOwnerOnly(filename: string): Promise<void> {
   let mode: number
@@ -133,17 +135,34 @@ async function assertOwnerOnly(filename: string): Promise<void> {
     await canonicalizeWatchPath(filename)
     return
   }
-  /* v8 ignore next -- POSIX coverage cannot take the Windows peer; native Windows coverage does. */
-  if (process.platform === 'win32') return
-  /* v8 ignore start -- Windows has no POSIX mode enforcement; POSIX behavior tests enforce this peer. */
+  /* v8 ignore next 2 -- native Windows coverage takes this arm; POSIX coverage takes the peer below. */
+  if (process.platform === 'win32') return assertWindowsOwnerOnly(filename)
   const offending = mode & GROUP_OTHER_BITS
   if (offending === 0) return
   throw new Error(
     `credentials-local: ${filename} is readable beyond its owner (mode ${(mode & 0o777).toString(8)});`
     + ` run "chmod 600 ${filename}" before starting again`,
   )
-  /* v8 ignore stop */
 }
+
+/**
+ * The Windows half of {@link assertOwnerOnly}: audit the document's DACL and
+ * refuse a document any other account can read. Win32 loads lazily so no
+ * other platform opens a Windows library for this check.
+ * @param filename - absolute path of the document.
+ * @throws when the document has no DACL, or grants read access beyond its owner.
+ */
+/* v8 ignore start -- runs only on win32; the win32-only credentials suite proves it there. */
+async function assertWindowsOwnerOnly(filename: string): Promise<void> {
+  const { FILE_READ_ACCESS, auditPathAccessWin32, describeWin32Exposure } = await import('@deepseek-ai/dsh-win32-process/file-security')
+  const exposure = describeWin32Exposure(auditPathAccessWin32(filename, FILE_READ_ACCESS))
+  if (exposure === undefined) return
+  throw new Error(
+    `credentials-local: ${filename} ${exposure};`
+    + ` run "icacls ${JSON.stringify(filename)} /inheritance:r /grant:r "%USERNAME%":F" before starting again`,
+  )
+}
+/* v8 ignore stop */
 
 /** Whether a filesystem error means absence; every non-ENOENT failure must surface. */
 function isENOENT(error: unknown): boolean {

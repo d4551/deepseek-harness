@@ -1,21 +1,23 @@
 /** Environment-independent backend interfaces for inspected JavaScript realms. */
 
 import type { RuntimeBackendObjectHandle, RuntimeScriptKey } from './ids.ts'
+import type { RuntimeConsoleBackendEvent } from './console.ts'
 import type {
-  RuntimeAwaitPromiseRequest,
-  RuntimeCallFunctionRequest,
-  RuntimeCompletion,
-  RuntimeConsoleBackendEvent,
   RuntimeDebuggerEvent,
   RuntimeDebuggerEnableRequest,
   RuntimeDebuggerResumeRequest,
   RuntimeCallFrameEvaluationRequest,
+} from './debugger.ts'
+import type {
+  RuntimeAwaitPromiseRequest,
+  RuntimeCallFunctionRequest,
+  RuntimeCompletion,
   RuntimeEvaluateRequest,
   RuntimeGetPropertiesRequest,
   RuntimeExecutionContext,
   RuntimeProperties,
-  RuntimeScript,
-} from './index.ts'
+} from './operations.ts'
+import type { RuntimeScript } from './sources.ts'
 
 /** Raw notification emitted by a native engine protocol backend. */
 export interface NativeProtocolNotification {

@@ -174,9 +174,9 @@
 .toBottomSlot {
   position: sticky;
   bottom: 16px;
-  /* Above the sticky composer (z-index 7) so the control stays clickable and
+  /* Above the sticky composer (--dsw-z-composer) so the control stays clickable and
      visible over the input card. */
-  z-index: 8;
+  z-index: var(--dsw-z-above-composer);
   height: 0;
   display: flex;
   justify-content: flex-end;

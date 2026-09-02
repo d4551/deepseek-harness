@@ -5,8 +5,10 @@
     "outDir": "lib/types"
   },
   "files": [
+    "src/browser.ts",
     "src/index.ts",
     "src/invariant.ts",
+    "src/policy.ts",
     "src/provider.ts"
   ],
   "references": [

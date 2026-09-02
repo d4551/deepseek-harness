@@ -617,7 +617,7 @@ function SessionStatusDots({ statuses }: { statuses: readonly [SessionStatus, ..
     <>
       <StateDot state={statuses[0].state} />
       {statuses.map(status => (
-        <span className={css.visuallyHidden} key={status.label}>{status.label}</span>
+        <span key={status.label} className="dsw-visually-hidden">{status.label}</span>
       ))}
     </>
   )

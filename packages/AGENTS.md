@@ -21,6 +21,7 @@ These package-specific rules supplement the repo-wide [conventions](../AGENTS.md
 
 - **Package tsconfig:** extends `tsconfig.base.json` (Client: `tsconfig.base.client.json`), sets `rootDir: src` and `outDir: lib/types`, references workspace dependencies plus `runtime-diagnostics/invariants`, and registers in one aggregate. Packages with distinct Host and Client compiler faces use `tsconfig.host.json` and `tsconfig.client.json` leaves plus a solution-only root; ordinary two-entry Client plugins do not split ([layout](../docs/development.md#typescript-project-layout)).
 - `src/types.ts` contains only types — no runtime code.
+- **No barrels** ([`no-barrels`](../scripts/no-barrels.ts)): no `export * from`, no module that only re-exports. Import the owning module; cross a package boundary with a subpath export whose emitted file is in `files`.
 - Tests live at package level under `tests/`, not `src/__tests__/`.
 - Update package README and JSDoc contracts in the same commit as behavior, and verify them against code with [dsh-prose-standard](../.agents/skills/dsh-prose-standard/SKILL.md). Group READMEs declare subsystem ownership through a canonical English page link or justified [exemption](../scripts/verify-subsystem-pages.ts).
 - Package READMEs document model, token, and KV-cache effects using the [canonical Model Experience format](../docs/cookbook/adding-a-package.md#4-write-the-package-readme).

@@ -109,7 +109,7 @@ export function PluginInventorySettingsTab({ list, t }: PluginInventorySettingsT
         <div className={css.catalog}>
           <label className={css.search}>
             <IconSearchOutline16 aria-hidden="true" />
-            <span className={css.visuallyHidden}>{t('search')}</span>
+            <span className="dsw-visually-hidden">{t('search')}</span>
             <input
               type="search"
               value={query}

@@ -6,7 +6,6 @@ import { IconChevronDownOutline14, Menu } from '@deepseek-ai/dsh-client-ui-primi
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { TranscriptViewMode } from '../../chat-settings.ts'
 import type { ChatKey } from '../locale.ts'
-import css from './TranscriptViewRow.module.css'
 
 /** Registration-side transcript preference face. */
 export interface TranscriptViewRowInjected {
@@ -48,21 +47,21 @@ export function TranscriptViewRow({ useTranscriptView, setTranscriptView, t }: T
   const selector = (
     <button
       type="button"
-      className={css.selector}
+      className="dsw-settings-selector"
       aria-haspopup="menu"
       aria-expanded={open}
       onClick={() => { setOpen(value => !value) }}
     >
       {t(selectedLabel)}
-      <IconChevronDownOutline14 className={css.chevron} />
+      <IconChevronDownOutline14 className="dsw-settings-selector-chevron" />
     </button>
   )
 
   return (
-    <div className={css.row}>
-      <div className={css.rowText}>
-        <div className={css.title}>{t('settings.transcript.title')}</div>
-        <div className={css.desc}>{t('settings.transcript.description')}</div>
+    <div className="dsw-settings-cell">
+      <div className="dsw-settings-cell-text">
+        <div className="dsw-settings-cell-title">{t('settings.transcript.title')}</div>
+        <div className="dsw-settings-cell-desc">{t('settings.transcript.description')}</div>
       </div>
       <Menu
         open={open}

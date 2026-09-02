@@ -14,6 +14,7 @@ import type {
   SaveImageAttachment,
   StoredImageAttachment,
 } from '@deepseek-ai/dsh-attachment'
+import { ensureDurableDirectoryWin32, publishNewFileWin32 } from '@deepseek-ai/dsh-atomic-write/win32'
 import { normalizeImage } from './normalization.ts'
 import type { NormalizationPolicy } from './normalization.ts'
 import { detectImage, probeImage } from './image.ts'
@@ -124,22 +125,24 @@ export async function prepareImageFile(
 }
 
 /**
- * Make a directory's entries durable (fsync on a read-only directory handle).
- * A synced file alone does not survive a crash when its directory entry never
- * reached storage, so the publication directory is synced before a durable
- * reference is reported.
+ * Make a POSIX directory's entries durable (fsync on a read-only directory
+ * handle). A synced file alone does not survive a crash when its directory
+ * entry never reached storage, so the publication directory is synced before a
+ * durable reference is reported.
+ *
+ * Windows takes no part in this: it exposes no directory-fsync contract, so
+ * every entry there is made durable where it is created instead —
+ * {@link ensureDurableDirectoryWin32} for directories, {@link
+ * publishNewFileWin32} for objects — each of which flushes the namespace
+ * change before it returns.
  */
-async function syncDirectory(path: string): Promise<void> {
-  /* v8 ignore next -- Windows cannot open directory handles; NTFS metadata journaling owns entry durability there. */
-  if (process.platform === 'win32') return
-  /* v8 ignore start -- Windows cannot exercise directory fsync; POSIX behavior tests enforce this peer. */
+async function syncPosixDirectory(path: string): Promise<void> {
   const handle = await open(path, constants.O_RDONLY)
   try {
     await handle.sync()
   } finally {
     await handle.close()
   }
-  /* v8 ignore stop */
 }
 
 /**
@@ -155,16 +158,53 @@ async function syncDirectory(path: string): Promise<void> {
  */
 async function ensureDurableDirectory(path: string, boundary: string): Promise<void> {
   const target = resolve(path)
+  /* v8 ignore next 4 -- native Windows coverage takes this arm; POSIX coverage takes the peer below. */
+  if (process.platform === 'win32') {
+    await ensureDurableDirectoryWin32(target)
+    return
+  }
+  /* v8 ignore start -- Windows takes the arm above; POSIX behavior tests enforce this peer. */
   const stop = resolve(boundary)
   await mkdir(target, { recursive: true, mode: 0o700 })
   await chmod(target, 0o700)
   let level = target
   while (level !== stop) {
     const parent = dirname(level)
-    await syncDirectory(parent)
+    await syncPosixDirectory(parent)
     /* v8 ignore next -- filesystem-root guard: callers pass a boundary that is an ancestor of path, so the walk reaches it first. */
     if (parent === level) return
     level = parent
+  }
+  /* v8 ignore stop */
+}
+
+/**
+ * Publish the staged object at its content-addressed name, leaving no staging
+ * entry behind. POSIX hard-links the target and then drops the staging name,
+ * which fails with `EEXIST` when another writer stored the same content first.
+ * Windows has no directory fsync, so the staging file is MOVED into place with
+ * write-through namespace semantics instead — same no-clobber outcome, and the
+ * entry is durable when the call returns.
+ * @param temporary - the synced staging file.
+ * @param target - the content-addressed destination.
+ * @returns whether this call created the entry or found an existing one.
+ */
+async function publishObject(temporary: string, target: string): Promise<'published' | 'exists'> {
+  try {
+    /* v8 ignore next -- native Windows coverage takes this arm; POSIX coverage takes the peer. */
+    if (process.platform === 'win32') await publishNewFileWin32(temporary, target)
+    else await link(temporary, target)
+    // Windows shares the read-only attribute across hard links and refuses to
+    // unlink either name once it is set, so the staging name goes before the
+    // caller stamps the target read-only. The Windows move already consumed it.
+    /* v8 ignore next -- native Windows coverage skips this unlink; POSIX coverage takes it. */
+    if (process.platform !== 'win32') await unlink(temporary)
+    return 'published'
+  } catch (error) {
+    /* v8 ignore next -- Private same-filesystem directories make EEXIST the only recoverable publication race. */
+    if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error
+    await unlink(temporary)
+    return 'exists'
   }
 }
 
@@ -214,26 +254,23 @@ export async function commitPreparedImageFile(
     await handle.sync()
     await handle.close()
     handle = undefined
-    try {
-      await link(temporary, target)
-    } catch (error) {
-      /* v8 ignore next -- Private same-filesystem directories make EEXIST the only recoverable link race. */
-      if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error
+    if (await publishObject(temporary, target) === 'exists') {
       const existing = new Uint8Array(await readFile(target))
       if (digest(existing) !== sha256) throw new AttachmentError('Stored attachment failed integrity verification.', 'ATTACHMENT_CORRUPT')
     }
-    // Windows shares the read-only attribute across hard links and refuses to
-    // unlink either name once it is set, so discard the staging name first.
-    await unlink(temporary)
     // The target remains the sole link for a new object; this also restores
     // read-only mode when the deduplication path observes an existing object.
     await chmod(target, 0o400)
     // Persist the target entry and close a concurrent bucket-creation window
     // before the reference can reach a session checkpoint. The dedup path
     // repeats both syncs because it may observe another writer's link before
-    // that writer reaches its own durability boundary.
-    await syncDirectory(bucket)
-    await syncDirectory(join(root, 'objects'))
+    // that writer reaches its own durability boundary. Windows published both
+    // entries write-through already, so it has nothing left to flush.
+    /* v8 ignore next 4 -- native Windows coverage skips these syncs; POSIX coverage takes them. */
+    if (process.platform !== 'win32') {
+      await syncPosixDirectory(bucket)
+      await syncPosixDirectory(join(root, 'objects'))
+    }
   } catch (error) {
     /* v8 ignore next -- A descriptor can remain open only when the underlying write/sync/close operation fails. */
     if (handle !== undefined) await handle.close().catch(

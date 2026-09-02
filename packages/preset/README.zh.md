@@ -25,7 +25,11 @@ preset 组提供按会话的 agent（智能体）组装：agent preset 是一个
 | 包 | 职责 | ctx 键 |
 |---|---|---|
 | [`agent-presets`](agent-presets/README.zh.md) | preset 名单、对受信任根目录与用户根目录的发现、按 agent 组装、只复制的创作 | `ctx.agentPresets` |
+| [`agent-team-profile`](agent-team-profile/README.zh.md) | 在 `dsh-base` 之上启用 Agent Teams 的源码 checkout profile 层 | — |
+| [`agent-team-web-profile`](agent-team-web-profile/README.zh.md) | 添加 Agent Teams 面板的源码 checkout Web 层 | — |
 | [`persona`](persona/README.zh.md) | preset 挂载的可组装人设行，用于遮蔽或替换部署级人设 | — |
+| [`agent-team-profile`](agent-team-profile/README.zh.md) | 在 `dsh-base` 组合之上启用 Agent Teams 的 patch 层 | — |
+| [`agent-team-web-profile`](agent-team-web-profile/README.zh.md) | 在稳定 Web 组合之上加入 Agent Teams Remote 与 Web UI 的 patch 层 | — |
 
 -----
 

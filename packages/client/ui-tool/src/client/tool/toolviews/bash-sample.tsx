@@ -16,6 +16,10 @@ import {
 import { toolRowModel, type ToolRowState } from '../models/tool-call-model.ts'
 import { CONVERSATION_NS as NS } from '../../locale.ts'
 import css from './bash-sample.module.css'
+// The IN/OUT fallback card is ToolRow's: import its module so the fallback
+// styles stay owned there (this client pipeline compiles `composes from` to
+// an empty class, so css-level sharing is not available).
+import rowCss from '../components/ToolRow.module.css'
 
 type BashRowProps = ToolCallViewProps & PropsLocale<'conversation'>
 
@@ -95,9 +99,9 @@ export function BashRow({ toolName, block, sessionId, useSessions, inspect, t }:
         onKeyDown={expandable ? toggleFromKeyboard : undefined}
       >
         <span className={css.leading}>{leading}</span>
-        {status !== null && <span className={css.visuallyHidden}>{status}</span>}
+        {status !== null && <span className="dsw-visually-hidden">{status}</span>}
         <span className={css.title}>{t(model.titleKey)}</span>
-        <span className={css.sep} aria-hidden />
+        <span className={rowCss.sep} aria-hidden />
         <span className={clsx(css.summary, failureLine !== null && css.errorSummary)}>
           {failureLine ?? terminal?.description ?? model.summary}
         </span>
@@ -114,20 +118,20 @@ export function BashRow({ toolName, block, sessionId, useSessions, inspect, t }:
               />
             )
             : (
-              <div className={css.ioCard}>
+              <div className={rowCss.ioCard}>
                 {model.body !== null && (
-                  <div className={css.ioSection}>
-                    <span className={css.ioLabel}>{t('row.input')}</span>
-                    <span className={css.ioText}>{model.body}</span>
+                  <div className={rowCss.ioSection}>
+                    <span className={rowCss.ioLabel}>{t('row.input')}</span>
+                    <span className={rowCss.ioText}>{model.body}</span>
                   </div>
                 )}
                 {model.body !== null && model.output !== null && (
-                  <span className={css.ioDivider} aria-hidden />
+                  <span className={rowCss.ioDivider} aria-hidden />
                 )}
                 {model.output !== null && (
-                  <div className={css.ioSection}>
-                    <span className={css.ioLabel}>{t('row.output')}</span>
-                    <span className={css.ioText} data-error={state === 'error' || undefined}>
+                  <div className={rowCss.ioSection}>
+                    <span className={rowCss.ioLabel}>{t('row.output')}</span>
+                    <span className={rowCss.ioText} data-error={state === 'error' || undefined}>
                       {model.output}
                     </span>
                   </div>

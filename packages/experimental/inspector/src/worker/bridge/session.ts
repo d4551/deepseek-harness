@@ -1,7 +1,7 @@
 /** Shared cleanup delivery for Worker-owned Client sessions. */
 
-import type { ClientRuntimeSessionClosedFrame } from '../../shared/bridge/messages/runtime/index.ts'
-import type { ClientSourceSessionClosedFrame } from '../../shared/bridge/messages/sources/index.ts'
+import type { ClientRuntimeSessionClosedFrame } from '../../shared/bridge/messages/runtime/frames.ts'
+import type { ClientSourceSessionClosedFrame } from '../../shared/bridge/messages/sources/frames.ts'
 import type { InspectorSourceDescriptor } from '../../shared/bridge/messages/observation.ts'
 import type { InspectorSourceRegistry } from './hub.ts'
 

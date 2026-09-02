@@ -71,7 +71,7 @@ export function ValueField(props: FieldProps & {
       </div>
       <input
         id={props.id}
-        className={props.invalid ? css.inputInvalid : css.input}
+        className={`${css.input}${props.invalid ? ` ${css.inputInvalid}` : ''}`}
         type="text"
         {...props.numeric === true ? { inputMode: 'numeric' as const } : {}}
         {...props.invalid ? { 'aria-invalid': true } : {}}

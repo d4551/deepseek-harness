@@ -48,6 +48,12 @@ export interface ProbedInstructionFile extends InstructionFile {
 
 interface DiscoverOptions {
   cwd: string
+  /**
+   * The session's ADDITIONAL workspace roots. Each contributes its own project
+   * chain to discovery, so a multi-root session loads the instructions of every
+   * directory it works in, not only its primary one.
+   */
+  additionalRoots?: readonly string[]
   dshHome?: string
   projectRootMarkers?: string[]
   instructionFileCandidates?: string[]
@@ -331,6 +337,21 @@ async function discoverInstructionFiles(
     for (const candidates of [config.instructionFileCandidates, config.localInstructionFileCandidates]) {
       for (const file of await allExistingInstructionFiles(dir, projectRoot, candidates, fileSystem, options.signal)) {
         addFile(file)
+      }
+    }
+  }
+  // Each additional root discovers its OWN project root: a second checkout is
+  // its own project, and its markers decide where its chain stops. Their files
+  // display absolute, because a path relative to the primary project root
+  // would collide with a same-named file in another root.
+  for (const additionalRoot of options.additionalRoots ?? []) {
+    const rootCwd = resolve(additionalRoot)
+    const rootProject = await findProjectRoot(rootCwd, config.projectRootMarkers, fileSystem, options.signal)
+    for (const dir of ancestorChain(rootProject, rootCwd)) {
+      for (const candidates of [config.instructionFileCandidates, config.localInstructionFileCandidates]) {
+        for (const file of await allExistingInstructionFiles(dir, rootProject, candidates, fileSystem, options.signal)) {
+          addFile({ ...file, displayPath: file.absolutePath })
+        }
       }
     }
   }

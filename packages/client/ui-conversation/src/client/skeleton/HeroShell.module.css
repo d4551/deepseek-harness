@@ -110,13 +110,13 @@
 
 .body > * {
   position: relative;
-  z-index: 1;
+  z-index: var(--dsw-z-raised);
 }
 
 /* Must beat `.body > :not(.glow)` specificity so the open Menu (and its
    right-hand submenu) paints above the InputBar card. */
 .body > .workspaceRow {
-  z-index: 10;
+  z-index: var(--dsw-z-raised-2);
   display: flex;
   align-items: center;
   min-width: 0;

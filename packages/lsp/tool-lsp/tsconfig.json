@@ -21,6 +21,9 @@
       "path": "../../llm/llm"
     },
     {
+      "path": "../../core/session"
+    },
+    {
       "path": "../../core/tools"
     },
     {

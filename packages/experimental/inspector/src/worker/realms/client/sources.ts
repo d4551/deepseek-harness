@@ -1,9 +1,9 @@
 /** Client SourceBackend over the bounded browser source-catalog transport. */
 
-import type { ClientScriptDescriptor, ClientSourceResult } from '../../../shared/bridge/messages/sources/index.ts'
+import type { ClientScriptDescriptor, ClientSourceResult } from '../../../shared/bridge/messages/sources/commands.ts'
 import type { ClientSourceSessionId } from '../../../shared/bridge/ids.ts'
 import type { RuntimeScriptKey } from '../../../shared/cdp/ids.ts'
-import type { RuntimeScript } from '../../../shared/cdp/index.ts'
+import type { RuntimeScript } from '../../../shared/cdp/sources.ts'
 import type { ClientRuntimeTarget } from '../../bridge/runtime-rpc.ts'
 import type { ClientSourceRouter } from '../../bridge/source-rpc.ts'
 import type { SourceBackend } from '../../../shared/cdp/realm.ts'

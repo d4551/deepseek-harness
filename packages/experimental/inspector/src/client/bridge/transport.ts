@@ -1,11 +1,7 @@
 /** Client observation and Runtime endpoint over the Inspector Worker's ingest WebSocket. */
 
 import type { InspectorClientBootstrap } from '../../shared/bridge/messages/control.ts'
-import type {
-  ClientRuntimeRequestId,
-  ClientRuntimeSessionId,
-  InspectorSourceGeneration,
-} from '../../shared/bridge/ids.ts'
+import type { ClientRuntimeRequestId, ClientRuntimeSessionId, InspectorSourceGeneration } from '../../shared/bridge/ids.ts'
 import { isJsonValue, jsonByteLength } from '../../shared/json.ts'
 import {
   INSPECTOR_PROTOCOL_VERSION,
@@ -21,7 +17,7 @@ import {
   ClientSourceCatalogError,
   discoverInspectorClientSourceCatalog,
 } from '../cdp/sources.ts'
-import type { ClientSourceRequestFrame, ClientSourceResponseFrame } from '../../shared/bridge/messages/sources/index.ts'
+import type { ClientSourceRequestFrame, ClientSourceResponseFrame } from '../../shared/bridge/messages/sources/frames.ts'
 import { ClientRealmSource } from '../inspection/realm.ts'
 import { NETWORK_TOPICS } from '../inspection/network.ts'
 import { ClientBridgeLifecycle } from './lifecycle.ts'

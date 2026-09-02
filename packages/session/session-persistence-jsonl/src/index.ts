@@ -32,7 +32,7 @@ import {
 import {
   compressZstdFrame, createZstdFrameDecoder, decompressZstdFrame, decompressZstdPrefix, scanZstdFrames,
 } from './zstd.ts'
-import { ensureDurableDirectoryWin32, publishNewFileWin32 } from './win32.ts'
+import { ensureDurableDirectoryWin32, publishNewFileWin32 } from '@deepseek-ai/dsh-atomic-write/win32'
 
 export type { JsonlCompression } from './format.ts'
 

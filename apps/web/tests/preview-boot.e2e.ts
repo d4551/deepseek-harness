@@ -26,10 +26,13 @@ import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
 import type { Browser } from 'playwright'
 import { expect, it } from 'vitest'
+import { WRAPPER_CONTRACT } from '@deepseek-ai/dsh-experimental-webworker-packer'
 import {
-  composeProfile, configTrees, indexWorkspacePackages, packVfsImage, packVfsOverlay,
-  previewFixtures, WRAPPER_CONTRACT,
-} from '@deepseek-ai/dsh-experimental-webworker-packer'
+  packVfsImage, packVfsOverlay,
+} from '@deepseek-ai/dsh-experimental-webworker-packer/src/pack.ts'
+import {
+  composeProfile, configTrees, indexWorkspacePackages, previewFixtures,
+} from '@deepseek-ai/dsh-experimental-webworker-packer/src/repository.ts'
 import {
   IMAGE_FILE_NAME, PREVIEW_FIXTURE_MANIFEST_FILE, PREVIEW_FIXTURE_MANIFEST_VERSION,
   type PreviewFixtureManifest,

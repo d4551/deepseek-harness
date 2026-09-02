@@ -38,7 +38,7 @@
   position: relative;
   /* Above the width handles (which start at top: 0) so the breadcrumb row and
      header buttons stay clickable. */
-  z-index: 9;
+  z-index: var(--dsw-z-conversation-header);
   flex: none;
   padding: 12px 28px 0 20px;
   border-bottom: 1px solid transparent;
@@ -50,7 +50,7 @@
   right: 0;
   bottom: 1px;
   left: 0;
-  z-index: 0;
+  z-index: var(--dsw-z-base);
   height: 1px;
   background: var(--dsw-alias-border-l2);
   pointer-events: none;
@@ -152,7 +152,7 @@
 /* figma Tab_Group 34:11441: 35px strip, gap 36, pad-left 8, tabs bottom-aligned. */
 .tabs {
   position: relative;
-  z-index: 1;
+  z-index: var(--dsw-z-raised);
   display: flex;
   gap: 36px;
   margin-top: 4px;
@@ -215,7 +215,7 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  z-index: 8;
+  z-index: var(--dsw-z-above-composer);
   width: min(
     40px,
     calc((100% - var(--dsh-chat-content-width)) / 2 - 24px - 24px)
@@ -344,9 +344,9 @@
 .root[data-phase='active'] .composerSeat {
   position: sticky;
   bottom: 0;
-  /* Above markdown CodeBlock sticky banners (z-index 6) so the footer never
+  /* Above markdown CodeBlock sticky banners (--dsw-z-transcript-sticky) so the footer never
      paints under a sticking code header while scrolling. */
-  z-index: 7;
+  z-index: var(--dsw-z-composer);
   /* Input mask (figma 1205:27463): transcript fades out under a FIXED 36px
      band at the seat's top (the figma 24% of the resting ~150px composer),
      solid below — px stops, not %, so a growing draft only widens the solid
@@ -414,19 +414,19 @@
   /* Card cap + both clearances: the hero input card lands at exactly the same
      width as the docked composer at every viewport. */
   width: min(calc(var(--dsh-composer-card-max-width) + 2 * var(--dsh-composer-side-clearance)), 100%);
-  z-index: 1;
+  z-index: var(--dsw-z-raised);
 }
 
 /* Blue backdrop ellipse (figma 313:14109), centered on the input card: the
    card's resting center sits ~92px above the stack bottom (32 foot pad +
    half of the ~120px two-row card); width tracks the card (glow asset 1051
-   vs design card 776) so blur scales in userSpace with it. z-index -1 keeps
+   vs design card 776) so blur scales in userSpace with it. --dsw-z-behind keeps
    it behind the in-flow hero content inside this stacking context. */
 .heroGlow {
   position: absolute;
   left: 50%;
   bottom: 92px;
-  z-index: -1;
+  z-index: var(--dsw-z-behind);
   width: calc(100% * 1051 / 776);
   aspect-ratio: 1051 / 468;
   transform: translate(-50%, 50%);

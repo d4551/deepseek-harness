@@ -79,6 +79,38 @@ describe('injected SSOT violations', () => {
     expect(painted[0]?.file).toBe('packages/client/ui-chat/src/Painted.module.css')
   })
 
+  it('fails a raw stacking number in a module and accepts a --dsw-z-* token', () => {
+    const findings = scanUiSsot([
+      THEME,
+      FRAME,
+      {
+        file: 'packages/client/ui-chat/src/Layered.module.css',
+        content: '.a { position: absolute; z-index: 5; }\n.b { position: fixed; z-index: -1; }\n',
+      },
+      {
+        file: 'packages/client/ui-chat/src/Tokened.module.css',
+        content: '.c { position: fixed; z-index: var(--dsw-z-popover); }\n',
+      },
+      // The theme sheet declares the scale, so its own numbers are the SSOT.
+      {
+        file: 'packages/client/ui-theme/src/styles/z-scale.css',
+        content: 'body { --dsw-z-popover: 100; }\n.probe { z-index: 100; }\n',
+      },
+    ]).filter(finding => finding.kind === 'z-index')
+    expect(findings).toEqual([
+      {
+        file: 'packages/client/ui-chat/src/Layered.module.css',
+        kind: 'z-index',
+        detail: 'z-index: 5 is a raw stacking number; use a --dsw-z-* token',
+      },
+      {
+        file: 'packages/client/ui-chat/src/Layered.module.css',
+        kind: 'z-index',
+        detail: 'z-index: -1 is a raw stacking number; use a --dsw-z-* token',
+      },
+    ])
+  })
+
   it('fails an interactive control whose width and height are both under 24px', () => {
     // Fixture body lives in a data file: the geometry the detector must catch
     // is exactly what the repo's own UI rules forbid in authored sources.
@@ -208,6 +240,105 @@ describe('injected SSOT violations', () => {
     ])
   })
 
+  it('fails a duplicated row shell across modules and accepts a unique one', () => {
+    const shell = (selector: string): string =>
+      `${selector} { display: grid; column-gap: 14px; padding: 12px 16px; }\n`
+    const selectorAlt = '.unique'
+    const glyphSlot = `${selectorAlt} { display: grid; flex: none; place-items: center; color: var(--dsw-alias-label-tertiary); }\n`
+    const findings = scanUiSsot([
+      THEME,
+      FRAME,
+      {
+        file: 'packages/client/ui-chat/src/A.module.css',
+        // .lead is a glyph-centering grid without inter-child spacing — shared
+        // icon-slot styling, not a row shell, so it must not be flagged.
+        content: shell('.shell') + glyphSlot + `${selectorAlt} { display: grid; column-gap: 16px; padding: 12px 16px; }\n`,
+      },
+      {
+        file: 'packages/client/ui-tool/src/B.module.css',
+        content: shell('.ioSection') + glyphSlot,
+      },
+    ]).filter(finding => finding.kind === 'duplicated-shell')
+    expect(findings).toEqual([{
+      file: 'packages/client/ui-tool/src/B.module.css',
+      kind: 'duplicated-shell',
+      detail: '`.ioSection` copies a grid shell first declared in packages/client/ui-chat/src/A.module.css',
+    }])
+  })
+
+  it('fails a rule body copied into a second module and reads order as identity', () => {
+    // Six declarations is the measured floor (DUPLICATE_RULE_DECLARATIONS):
+    // this is the screen-reader-only box, the body that stood in twelve
+    // modules at once before it moved to the theme sheet.
+    const hidden = [
+      'position: absolute', 'width: 1px', 'height: 1px',
+      'overflow: hidden', 'clip-path: inset(50%)', 'white-space: nowrap',
+    ]
+    const rule = (selector: string, declarations: readonly string[]): string =>
+      `${selector} { ${declarations.join('; ')}; }\n`
+    const findings = scanUiSsot([
+      THEME,
+      FRAME,
+      { file: 'packages/client/ui-chat/src/A.module.css', content: rule('.visuallyHidden', hidden) },
+      // Reordered by a formatter is still the same rule, so the key sorts.
+      { file: 'packages/client/ui-tool/src/B.module.css', content: rule('.status', [...hidden].reverse()) },
+    ]).filter(finding => finding.kind === 'duplicated-rule')
+    expect(findings).toEqual([{
+      file: 'packages/client/ui-tool/src/B.module.css',
+      kind: 'duplicated-rule',
+      detail: '`.status` repeats a 6-declaration rule body first declared in packages/client/ui-chat/src/A.module.css',
+    }])
+  })
+
+  it('accepts a body below the duplicate-rule floor and a second copy inside one module', () => {
+    // Five declarations is the flex-ellipsis clamp: the corpus carries it at
+    // three, four, and five declarations across unrelated components, so it is
+    // convergence rather than a copied component and the floor lets it pass.
+    const clamp = '{ flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n'
+    const hidden = '{ position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }\n'
+    const findings = scanUiSsot([
+      THEME,
+      FRAME,
+      { file: 'packages/client/ui-primitives/src/Menu.module.css', content: `.itemLabel ${clamp}` },
+      { file: 'packages/client/ui-subagent/src/Lineage.module.css', content: `.switcherTitle ${clamp}` },
+      // One module owning two names for the same body is that module's own
+      // business; the rule is about a body escaping its owner.
+      { file: 'packages/client/ui-chat/src/A.module.css', content: `.status ${hidden}.altStatus ${hidden}` },
+      // The theme sheet is where such a body belongs, so it is never an owner.
+      { file: 'packages/client/ui-theme/src/styles/visually-hidden.css', content: `.dsw-visually-hidden ${hidden}` },
+    ]).filter(finding => finding.kind === 'duplicated-rule')
+    expect(findings).toEqual([])
+  })
+
+  it('fails selector blocks nested inside a style rule', () => {
+    const findings = scanUiSsot([
+      THEME,
+      FRAME,
+      { file: 'packages/client/ui-chat/src/Row.module.css', content: '.row { display: flex; .inner { margin: 0; } }\n' },
+    ]).filter(finding => finding.kind === 'deep-nesting')
+    expect(findings).toEqual([{
+      file: 'packages/client/ui-chat/src/Row.module.css',
+      kind: 'deep-nesting',
+      detail: '`.row` nests selector blocks; flatten to one rule per selector',
+    }])
+  })
+
+  it('fails vertical-align inside a flex or grid box and accepts it inline', () => {
+    const findings = scanUiSsot([
+      THEME,
+      FRAME,
+      {
+        file: 'packages/client/ui-chat/src/Row.module.css',
+        content: '.box { display: flex; vertical-align: middle; }\n.inline { vertical-align: baseline; }\n',
+      },
+    ]).filter(finding => finding.kind === 'alignment' && finding.detail.includes('vertical-align'))
+    expect(findings).toEqual([{
+      file: 'packages/client/ui-chat/src/Row.module.css',
+      kind: 'alignment',
+      detail: '`.box` aligns with vertical-align inside a flex/grid box; align with the box, not inline layout',
+    }])
+  })
+
   it('does not treat a tokenized, gridded, module-entry tree as dirty', () => {
     expect(scanUiSsot([
       THEME,
@@ -228,5 +359,14 @@ describe('live UI SSOT corpus', () => {
 
   it('reports no SSOT misses on the live client and web sources', () => {
     expect(scanUiSsot(loadUiSsotCorpus())).toEqual([])
+  })
+
+  it('writes every live stacking level through the --dsw-z-* scale', () => {
+    const files = loadUiSsotCorpus()
+    // The corpus has to actually carry stacked modules, or an empty scan reads
+    // as a clean scale.
+    const stacked = files.filter(f => f.file.endsWith('.module.css') && /z-index\s*:/.test(f.content))
+    expect(stacked.length).toBeGreaterThan(30)
+    expect(scanUiSsot(files).filter(finding => finding.kind === 'z-index')).toEqual([])
   })
 })

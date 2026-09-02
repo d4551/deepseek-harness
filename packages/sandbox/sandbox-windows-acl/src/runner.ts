@@ -1,22 +1,24 @@
 /**
  * The windows-acl confinement runner: the argv-prefix wrapper the sandbox
  * seam spawns in place of the caller's command. It creates the
- * WRITE_RESTRICTED token with the workspace write-SID allowlist, spawns the
- * wrapped argv under it with the CALLER'S stdio inherited (bytes flow
+ * WRITE_RESTRICTED token with the workspace-scope write-SID allowlist, spawns
+ * the wrapped argv under it with the CALLER'S stdio inherited (bytes flow
  * straight through), mirrors the child's exit code, and revokes its temp
  * grant on exit (workspace ACEs stay standing as the reuse cache).
  *
  * Stable argv contract (the seam builds it; a native-exe replacement would
- * keep the same contract):
- *   [node, runner.js, '--workspace', <dir>, '--temp', <dir>,
+ * keep the same contract). `--workspace` repeats once per workspace root the
+ * confined execution may write, primary root first:
+ *   [node, runner.js, ('--workspace', <dir>)+, '--temp', <dir>,
  *    '--mode', <read-only|workspace-write>,
  *    ['--write-sid', <S-1-4-…>,
  *     '--temp-write-sid', <S-1-4-…>], '--', <argv...>]
  *
  * Modes:
- *  - workspace-write: the workspace and temp directories carry distinct
- *    capability-SID Write grants; other ACL-addressable writes are denied
- *    except for the documented Everyone and hard-link boundaries.
+ *  - workspace-write: the workspace roots and the temp directory carry
+ *    distinct capability-SID Write grants (every root shares the one scope
+ *    SID); other ACL-addressable writes are denied except for the documented
+ *    Everyone and hard-link boundaries.
  *  - read-only: no capability-SID grants; the restricting list carries no
  *    capability SID, so a standing grant ACE from an earlier
  *    workspace-write period stays inert. BOTH modes drop Authenticated Users
@@ -27,7 +29,8 @@
  * `--write-sid` + `--temp-write-sid`: the seam's grant contract — the
  * CALLER has already materialized distinct workspace and private-temp ACEs
  * and owns their revocation, so the runner neither grants nor revokes
- * (`manageDacls: false`). Both values are checked against their owning paths.
+ * (`manageDacls: false`). Both values are checked against their owning paths;
+ * `--write-sid` must equal the SID derived from the complete `--workspace` set.
  * Without the pair (standalone/agentless use), workspace-write treats
  * `--temp` as a ROOT, creates a random private child directory, derives its
  * own temp SID, and removes that directory after the child exits. In both
@@ -63,7 +66,7 @@ function fail(detail: string): never {
 }
 
 interface ParsedArgs {
-  workspace: string
+  workspaces: string[]
   temp: string
   mode: 'read-only' | 'workspace-write'
   writeSid: string | undefined
@@ -73,7 +76,7 @@ interface ParsedArgs {
 }
 
 function parseArgs(raw: string[]): ParsedArgs {
-  let workspace: string | undefined
+  const workspaces: string[] = []
   let temp: string | undefined
   let mode: string | undefined
   let writeSid: string | undefined
@@ -89,7 +92,7 @@ function parseArgs(raw: string[]): ParsedArgs {
     const value = raw[index]
     if (value === undefined) fail(`missing value after ${token}`)
     switch (token) {
-      case '--workspace': workspace = value; break
+      case '--workspace': workspaces.push(value); break
       case '--temp': temp = value; break
       case '--mode': mode = value; break
       case '--write-sid': writeSid = value; break
@@ -97,13 +100,13 @@ function parseArgs(raw: string[]): ParsedArgs {
       default: fail(`unknown argument: ${token}`)
     }
   }
-  if (workspace === undefined) fail('missing --workspace')
+  if (workspaces.length === 0) fail('missing --workspace')
   if (temp === undefined) fail('missing --temp')
   if (mode !== 'read-only' && mode !== 'workspace-write') fail(`unknown mode: ${String(mode)}`)
   const argv = raw.slice(index)
   const command = argv[0]
   if (command === undefined) fail('missing command after --')
-  return { workspace, temp, mode, writeSid, tempWriteSid: parsedTempWriteSid, command, args: argv.slice(1) }
+  return { workspaces, temp, mode, writeSid, tempWriteSid: parsedTempWriteSid, command, args: argv.slice(1) }
 }
 
 function requireDirectory(label: string, path: string): void {
@@ -116,7 +119,7 @@ async function main(): Promise<number> {
   const parsed = parseArgs(process.argv.slice(2))
   // Both directories are validated in both modes: a provider bug that passes
   // a bogus root must fail loudly at the runner boundary, never mid-child.
-  requireDirectory('--workspace', parsed.workspace)
+  for (const workspace of parsed.workspaces) requireDirectory('--workspace', workspace)
   requireDirectory('--temp', parsed.temp)
 
   const seamManaged = parsed.writeSid !== undefined || parsed.tempWriteSid !== undefined
@@ -127,7 +130,7 @@ async function main(): Promise<number> {
     fail('workspace-write requires --write-sid and --temp-write-sid together')
   }
   if (parsed.mode === 'workspace-write') {
-    assertTempRootOutsideWorkspace(parsed.workspace, parsed.temp)
+    assertTempRootOutsideWorkspace(parsed.workspaces, parsed.temp)
   }
 
   const api = await win32()
@@ -146,7 +149,7 @@ async function main(): Promise<number> {
     let writeSid: string | undefined
     let privateTempSid: string | undefined
     if (parsed.mode === 'workspace-write') {
-      writeSid = workspaceWriteSid(parsed.workspace)
+      writeSid = workspaceWriteSid(parsed.workspaces)
       if (seamManaged) {
         if (parsed.writeSid !== writeSid) fail('--write-sid does not match --workspace')
         privateTempDir = parsed.temp
@@ -159,7 +162,7 @@ async function main(): Promise<number> {
       }
     }
     sandbox = new AclSandbox({
-      writableDirs: parsed.mode === 'workspace-write' ? [parsed.workspace] : [],
+      writableDirs: parsed.mode === 'workspace-write' ? parsed.workspaces : [],
       tempDir: privateTempDir,
       mode: parsed.mode,
       ...writeSid === undefined ? {} : { writeSid },

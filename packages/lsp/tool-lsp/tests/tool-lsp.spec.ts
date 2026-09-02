@@ -46,14 +46,20 @@ const workspaceRoot = resolve('/virtual/workspace')
 const resolvedWorkspaceRoot = resolve('/virtual/real-workspace')
 const resolvedWorkspaceUri = pathToFileURL(resolvedWorkspaceRoot).href
 const workspaceAlias = resolve('/virtual/workspace-alias')
-/** `cwd: null` means "no agent" (tests LSP_WORKSPACE_REQUIRED); a string is the session cwd. */
-function call(ctx: Context, args: unknown, cwd: string | null = workspaceRoot) {
+/**
+ * `cwd: null` means "no agent" (tests LSP_WORKSPACE_REQUIRED); a string is the
+ * session cwd. `additionalRoots` seeds the session's `workspace/roots` record.
+ */
+function call(ctx: Context, args: unknown, cwd: string | null = workspaceRoot, additionalRoots: readonly string[] = []) {
+  const events = additionalRoots.length === 0
+    ? []
+    : [{ type: 'workspace/roots', seq: 0, time: 0, data: { roots: [...additionalRoots] } }]
   return ctx.tools.execute({
     signal: testToolSignal,
     callId: `c-${++seq}` as never,
     name: 'lsp',
     arguments: args,
-    ...cwd !== null ? { agent: { session: { header: { cwd } } } as never } : {},
+    ...cwd !== null ? { agent: { session: { header: { cwd }, events } } as never } : {},
   })
 }
 
@@ -185,6 +191,32 @@ describe('tool-lsp execution', () => {
     const result = await call(ctx, { operation: 'hover', file_path: 'a.ts', line: 1, character: 1 }, '/ws')
     expect(result.content[0]).toEqual({ type: 'text', text: 'No hover information.' })
     expect(result).toMatchObject({ isError: false, value: { kind: 'hover', hover: null } })
+  })
+
+  it('routes an absolute file to the workspace root that contains it', async () => {
+    const provider = stubProvider(() => okLocations)
+    const { ctx } = await mount(provider)
+    const second = resolve('/virtual/second')
+    const nested = resolve('/virtual/second/packages/inner')
+
+    await call(ctx, { operation: 'goToDefinition', file_path: join(second, 'a.ts'), line: 1, character: 1 }, workspaceRoot, [second])
+    expect(provider.seen.at(-1)?.workspaceRoot).toBe(second)
+
+    // The DEEPEST containing root wins, so a root nested inside another owns its own files.
+    await call(ctx, { operation: 'goToDefinition', file_path: join(nested, 'a.ts'), line: 1, character: 1 }, workspaceRoot, [second, nested])
+    expect(provider.seen.at(-1)?.workspaceRoot).toBe(nested)
+  })
+
+  it('keeps the primary root for a relative path and for an absolute path under no root', async () => {
+    const provider = stubProvider(() => okLocations)
+    const { ctx } = await mount(provider)
+    const second = resolve('/virtual/second')
+
+    await call(ctx, { operation: 'goToDefinition', file_path: 'a.ts', line: 1, character: 1 }, workspaceRoot, [second])
+    expect(provider.seen.at(-1)?.workspaceRoot).toBe(workspaceRoot)
+
+    await call(ctx, { operation: 'goToDefinition', file_path: resolve('/virtual/elsewhere/a.ts'), line: 1, character: 1 }, workspaceRoot, [second])
+    expect(provider.seen.at(-1)?.workspaceRoot).toBe(workspaceRoot)
   })
 
   it('fails LSP_WORKSPACE_REQUIRED without a session cwd', async () => {

@@ -2,25 +2,24 @@
 
 import type {
   ClientCallArgument,
-  ClientRuntimeCapability,
   ClientRuntimeCommand,
   ClientRuntimeCompletion,
   ClientRuntimeError,
   ClientRuntimeExceptionDetails,
-  ClientRuntimeRequestFrame,
-  ClientRuntimeResponseFrame,
   ClientRuntimeResult,
   ClientRuntimeRemoteObject,
-} from '../../shared/bridge/messages/runtime/index.ts'
+} from '../../shared/bridge/messages/runtime/commands.ts'
 import type {
-  ClientRemoteObjectHandle,
-  ClientRuntimeRequestId,
-  ClientRuntimeSessionId,
-} from '../../shared/bridge/ids.ts'
+  ClientRuntimeCapability,
+  ClientRuntimeRequestFrame,
+  ClientRuntimeResponseFrame,
+} from '../../shared/bridge/messages/runtime/frames.ts'
+import type { ClientRemoteObjectHandle, ClientRuntimeRequestId, ClientRuntimeSessionId } from '../../shared/bridge/ids.ts'
 import { isJsonValue, jsonByteLength } from '../../shared/json.ts'
 import { INSPECTOR_PROTOCOL_VERSION } from '../../shared/bridge/version.ts'
 import { ClientRuntimeExecutionError } from './errors.ts'
-import type { RuntimeConsoleBackendEvent, RuntimeConsoleType, RuntimeStackTrace } from '../../shared/cdp/index.ts'
+import type { RuntimeConsoleBackendEvent, RuntimeConsoleType } from '../../shared/cdp/console.ts'
+import type { RuntimeStackTrace } from '../../shared/cdp/errors.ts'
 import { ClientObjectStore, type ClientObjectAllocation } from './objects.ts'
 import { getClientProperties } from './properties.ts'
 import { clientErrorStack, type ClientScriptKeyResolver } from './stack.ts'

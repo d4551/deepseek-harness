@@ -2,7 +2,7 @@
 
 import type { ClientRuntimeSessionId } from '../../../shared/bridge/ids.ts'
 import type { RuntimeBackendObjectHandle } from '../../../shared/cdp/ids.ts'
-import type { RuntimeConsoleBackendEvent } from '../../../shared/cdp/index.ts'
+import type { RuntimeConsoleBackendEvent } from '../../../shared/cdp/console.ts'
 import type { ClientRuntimeRouter, ClientRuntimeTarget } from '../../bridge/runtime-rpc.ts'
 import type { ConsoleBackend } from '../../../shared/cdp/realm.ts'
 import { clientConsoleEvent } from './values.ts'

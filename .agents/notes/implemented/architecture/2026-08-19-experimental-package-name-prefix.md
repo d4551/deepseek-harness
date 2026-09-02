@@ -12,7 +12,7 @@ Directory placement, private manifests, and release-family filtering keep experi
 
 Every package directly below `packages/experimental/` uses the `@deepseek-ai/dsh-experimental-*` npm prefix. The workspace constraints gate discovers those manifests and rejects a missing prefix alongside the existing `private: true` and omitted-`publishConfig` requirements.
 
-Agent Teams uses `@deepseek-ai/dsh-experimental-agent-team` from `packages/experimental/agent-team` and `@deepseek-ai/dsh-experimental-tool-agent-team` from `packages/experimental/tool-agent-team`. Package imports, Cordis configuration rows, generated catalogs, and repository metadata use those names without compatibility aliases.
+Agent Teams incubated as `@deepseek-ai/dsh-experimental-agent-team` and `@deepseek-ai/dsh-experimental-tool-agent-team` and shipped its promotion rename to `@deepseek-ai/dsh-agent-team` from `packages/subagent/agent-team` and `@deepseek-ai/dsh-tool-agent-team` from `packages/subagent/tool-agent-team`. Package imports, Cordis configuration rows, generated catalogs, and repository metadata use those names without compatibility aliases.
 
 Promotion moves a package to its product-role group, removes `experimental-` from its npm name, and updates every repository reference atomically. The pre-release compatibility policy permits that rename without an alias package.
 

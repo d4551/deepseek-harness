@@ -2358,7 +2358,7 @@ export function TrajectoryTable({
                     <span aria-hidden="true">
                       {olderBusy ? t('history.loadingEarlier') : t('history.loadEarlier')}
                     </span>
-                    <span className={css.visuallyHidden} role="status" aria-live="polite">
+                    <span className="dsw-visually-hidden" role="status" aria-live="polite">
                       {olderBusy ? t('history.loadingEarlier') : ''}
                     </span>
                   </button>

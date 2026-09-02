@@ -36,9 +36,9 @@ function companionOwners(): { directory: string; manifestName: string }[] {
  * is asserted exactly, so it cannot grow without this test failing.
  */
 const UNMAPPED_SUBPATHS: readonly string[] = [
-  '@deepseek-ai/dsh-experimental-agent-team-profile',
-  '@deepseek-ai/dsh-experimental-agent-team-web-profile',
-  '@deepseek-ai/dsh-experimental-client-ui-agent-team',
+  '@deepseek-ai/dsh-agent-team-profile',
+  '@deepseek-ai/dsh-agent-team-web-profile',
+  '@deepseek-ai/dsh-client-ui-agent-team',
   '@deepseek-ai/dsh-sdk-client',
   '@deepseek-ai/dsh-sdk-jsonrpc-server',
   '@deepseek-ai/dsh-sdk-protocol',

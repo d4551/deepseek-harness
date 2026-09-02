@@ -9,13 +9,10 @@ import type {
 import type { RuntimeBackendObjectHandle } from '../../../../shared/cdp/ids.ts'
 import type { InspectorRealmSession } from '../../../inspection/realm.ts'
 import type { InspectorRealmSessionEvent, InspectorRealmSessionSet } from '../../realm-sessions.ts'
-import type {
-  RuntimeDebuggerEnableRequest,
-  RuntimeDebuggerEvent,
-  RuntimeScript,
-} from '../../../../shared/cdp/index.ts'
+import type { RuntimeDebuggerEnableRequest, RuntimeDebuggerEvent } from '../../../../shared/cdp/debugger.ts'
+import type { RuntimeScript } from '../../../../shared/cdp/sources.ts'
 import { exactKeys, optionalBoolean } from '../../../../shared/validation.ts'
-import type { RuntimeDomainSession } from '../runtime/index.ts'
+import type { RuntimeDomainSession } from '../runtime/session.ts'
 import { parseCallFrameEvaluation, requestScriptId } from './cdp-params.ts'
 import { debuggerEvent, scriptParsedEvent } from './projector.ts'
 import { DebuggerScriptRegistry } from './script-registry.ts'

@@ -1,17 +1,17 @@
 /**
- * The parsed command line, as this shell names it.
+ * The three grammar members `@yarnpkg/parsers` does not publish, as this shell
+ * names them.
  *
  * `@yarnpkg/parsers` re-exports only part of its grammar's type map from the
  * package root, and its `exports` field forbids reaching the grammar module
- * directly, so the three missing members are derived from the ones it does
- * publish. `CommandChain` is `Command` plus an optional pipeline link, which
- * makes it usable wherever a command node is expected.
+ * directly, so these are derived from the ones it does publish. Every member it
+ * does publish is imported from that package directly. `CommandChain` is
+ * `Command` plus an optional pipeline link, which makes it usable wherever a
+ * command node is expected.
  * @module @deepseek-ai/dsh-experimental-webworker-runtime/src/shell/ast
  */
 
 import type { Argument, CommandChain } from '@yarnpkg/parsers'
-
-export type { ArgumentSegment, ArithmeticExpression, CommandChain, CommandLine, ShellLine } from '@yarnpkg/parsers'
 
 /** One command node: a program call, a subshell, a group, or bare assignments. */
 export type Command = CommandChain

@@ -2,9 +2,6 @@
 
 import type { InspectorId } from '../identity.ts'
 
-export { inspectorId } from '../identity.ts'
-export type { InspectorId } from '../identity.ts'
-
 /** Stable identity of one logical observation source. */
 export type InspectorSourceId = InspectorId<'InspectorSourceId'>
 

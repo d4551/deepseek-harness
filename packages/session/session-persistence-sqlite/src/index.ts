@@ -6,6 +6,7 @@
 
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import { DEFAULT_BUSY_TIMEOUT_MS, MAX_BUSY_TIMEOUT_MS } from '@deepseek-ai/dsh-sqlite-connection'
 import type {
   Session,
   SessionEvent,
@@ -28,11 +29,6 @@ import type { JournalMode } from './schema.ts'
 import { SqliteStore } from './store.ts'
 
 export { SCHEMA_VERSION } from './schema.ts'
-
-/** Default wait for another SQLite connection's write reservation. */
-export const DEFAULT_BUSY_TIMEOUT_MS = 5_000
-/** Largest busy timeout accepted by SQLite's signed millisecond interface. */
-export const MAX_BUSY_TIMEOUT_MS = 2_147_483_647
 
 /** Plugin configuration. */
 export interface Config {

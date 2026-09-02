@@ -308,7 +308,7 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
                         or a keyboard-only user gets. */}
                       {row.broken === undefined
                         ? null
-                        : <span className={css.cardBrokenReason} role="alert">{row.broken}</span>}
+                        : <span className="dsw-visually-hidden" role="alert">{row.broken}</span>}
                       <code className={css.cardId}>{row.id}</code>
                     </button>
                     <div className={css.cardFoot}>

@@ -87,7 +87,7 @@ async function seedVisibleBaseline(
           kind: 'agent-instructions',
           form: 'instructions',
           baseline: true,
-          baselineIdentity: workspaceBaselineIdentity(config, cwd, cwd),
+          baselineIdentity: workspaceBaselineIdentity(config, cwd, cwd, []),
           changes: files.map(file => ({
             action: 'set',
             scope: `.\0${file.name}`,

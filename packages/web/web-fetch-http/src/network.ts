@@ -63,6 +63,20 @@ export function isPublicIpAddress(input: string): boolean {
 }
 
 /**
+ * Return a hostname's bare IP literal, or `undefined` when it names a host that
+ * needs resolution. WHATWG URL keeps brackets around an IPv6 hostname while IP
+ * parsers reject them, so callers that decide a literal without touching DNS
+ * read the address through this function.
+ *
+ * @param hostname - URL hostname, bracketed when it is an IPv6 literal.
+ * @returns the unbracketed IPv4 or IPv6 literal, or `undefined` for a DNS name.
+ */
+export function ipLiteralHostname(hostname: string): string | undefined {
+  const unbracketed = stripIpv6Brackets(hostname)
+  return isIP(unbracketed) === 0 ? undefined : unbracketed
+}
+
+/**
  * Resolve a hostname once and reject the complete answer set if any destination
  * is not public. The returned addresses are the only ones the transport may use.
  *
@@ -76,11 +90,10 @@ export async function resolvePublicAddresses(
   signal: AbortSignal,
   resolver: AddressResolver = systemLookup,
 ): Promise<PublicAddress[]> {
-  const unbracketed = stripIpv6Brackets(hostname)
-  const literalFamily = isIP(unbracketed)
-  const resolved = literalFamily === 0
-    ? await raceWithSignal(resolver(unbracketed, { all: true, order: 'verbatim' }), signal)
-    : [{ address: unbracketed, family: literalFamily }]
+  const literal = ipLiteralHostname(hostname)
+  const resolved = literal === undefined
+    ? await raceWithSignal(resolver(stripIpv6Brackets(hostname), { all: true, order: 'verbatim' }), signal)
+    : [{ address: literal, family: isIP(literal) }]
 
   if (resolved.length === 0) {
     throw new WebError(`hostname "${hostname}" resolved to no addresses`, 'WEB_PROVIDER_ERROR')

@@ -9,6 +9,13 @@
 import { DatabaseSync } from 'node:sqlite'
 import { mkdir, open } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
+import { performance } from 'node:perf_hooks'
+import {
+  configureConnectionSecurity,
+  configureDurability,
+  selectJournalMode,
+  type SqliteDatabaseSubject,
+} from '@deepseek-ai/dsh-sqlite-connection'
 import { StorageError } from '@deepseek-ai/dsh-storage'
 
 /**
@@ -28,11 +35,13 @@ export const STORAGE_SQLITE_SCHEMA_VERSION = 1
  */
 export type JournalMode = 'wal' | 'delete' | 'truncate' | 'persist'
 
-/* jscpd:ignore-start -- deliberately mirrors the session-persistence-sqlite /
-   session-query-sqlite open sequence; this group is the third user, and the
-   shared medium helper is deferred to the log-facet migration so the session
-   packages stay untouched this phase (see the domain KV storage Agent Note's
-   reuse audit). */
+/** How this backend names its database in connection failure messages. */
+const DATABASE_ROLE = 'storage database'
+
+/* jscpd:ignore-start -- the owner-only path setup below is byte-identical to
+   the session-query-sqlite derived-index open (`openSearchDatabase`), which
+   this change does not touch; the connection settings that used to sit here
+   now live in @deepseek-ai/dsh-sqlite-connection. */
 /**
  * Exclusively create a missing database file with owner-only permissions.
  * Existing files retain their modes, and errors other than `EEXIST` propagate.
@@ -48,25 +57,45 @@ async function createDatabaseFile(path: string): Promise<void> {
     if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
   }
 }
+/* jscpd:ignore-end */
 
 /**
- * Open the database and apply its schema and pragmas. Missing directories and
- * database files are created owner-only (`:memory:` skips filesystem setup).
- * A zero `user_version` is stamped with {@link STORAGE_SQLITE_SCHEMA_VERSION};
- * every other non-current version rejects rather than being migrated in place.
+ * Open the database and apply its schema, connection settings, and pragmas.
+ * Missing directories and database files are created owner-only (`:memory:`
+ * skips filesystem setup). Schema trust, memory mapping, the journal mode,
+ * and `synchronous=FULL` come from `@deepseek-ai/dsh-sqlite-connection`, which
+ * reads each one back, so a connection that keeps an unsafe setting fails the
+ * open. A zero `user_version` is stamped with
+ * {@link STORAGE_SQLITE_SCHEMA_VERSION}; every other non-current version
+ * rejects rather than being migrated in place.
  * @param path - the SQLite database file to open, or `:memory:`.
  * @param journalMode - validated journal pragma.
+ * @param busyTimeoutMs - validated maximum wait for a competing SQLite lock.
  * @returns the open handle with pragmas applied and the unit metadata tables ensured.
  */
-export async function openDatabase(path: string, journalMode: JournalMode): Promise<DatabaseSync> {
+export async function openDatabase(
+  path: string,
+  journalMode: JournalMode,
+  busyTimeoutMs: number,
+): Promise<DatabaseSync> {
   const actual = path === ':memory:' ? path : resolve(path)
   if (actual !== ':memory:') {
     await mkdir(dirname(actual), { recursive: true, mode: 0o700 })
     await createDatabaseFile(actual)
   }
-  const db = new DatabaseSync(actual)
+  const deadline = performance.now() + busyTimeoutMs
+  const database: SqliteDatabaseSubject = { path: actual, role: DATABASE_ROLE }
+  const db = new DatabaseSync(actual, { timeout: busyTimeoutMs })
   try {
-    configureDatabase(db, actual, journalMode)
+    configureConnectionSecurity(db, database)
+    configureDatabase(db, actual)
+    await selectJournalMode(db, database, {
+      // The validated union is safe to interpolate into a non-bindable PRAGMA.
+      statement: `PRAGMA journal_mode = ${journalMode.toUpperCase()}`,
+      mode: journalMode,
+      deadline,
+    })
+    configureDurability(db, database)
     return db
   } catch (error: unknown) {
     db.close()
@@ -74,10 +103,8 @@ export async function openDatabase(path: string, journalMode: JournalMode): Prom
   }
 }
 
-function configureDatabase(db: DatabaseSync, path: string, journalMode: JournalMode): void {
+function configureDatabase(db: DatabaseSync, path: string): void {
   db.exec('PRAGMA foreign_keys = ON')
-  // The validated union is safe to interpolate into a non-bindable PRAGMA.
-  db.exec(`PRAGMA journal_mode = ${journalMode.toUpperCase()}`)
   // `PRAGMA user_version` always returns exactly one row { user_version }.
   const { user_version: onDisk } = db.prepare('PRAGMA user_version').get() as { user_version: number }
   if (onDisk !== 0 && onDisk !== STORAGE_SQLITE_SCHEMA_VERSION) {
@@ -86,7 +113,6 @@ function configureDatabase(db: DatabaseSync, path: string, journalMode: JournalM
       `storage database at "${path}" has schema version ${onDisk}, incompatible with this build (${STORAGE_SQLITE_SCHEMA_VERSION})`,
     )
   }
-  /* jscpd:ignore-end */
   db.exec(`
     CREATE TABLE IF NOT EXISTS units (
       name    TEXT PRIMARY KEY,

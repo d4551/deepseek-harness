@@ -1,5 +1,9 @@
+import clsx from 'clsx'
+import css from './FoldToggle.module.css'
+
 interface FoldToggleProps {
-  className: string | undefined
+  /** Block-owned gutter class layered over the shared control chrome. */
+  className?: string | undefined
   expanded: boolean
   hidden: number
   labels: {
@@ -22,7 +26,7 @@ export function FoldToggle({
   return (
     <button
       type="button"
-      className={className}
+      className={clsx(css.foldToggle, className)}
       aria-expanded={expanded}
       aria-label={expanded ? labels.collapseAria : labels.expandAria(hidden)}
       onClick={onToggle}

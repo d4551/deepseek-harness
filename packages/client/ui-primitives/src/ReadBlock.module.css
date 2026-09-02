@@ -94,18 +94,7 @@
   color: var(--dsw-alias-label-primary);
 }
 
+/* The fold control lines up with the code column, not the line gutter. */
 .expand {
-  display: block;
-  width: 100%;
   padding: 0 0 0 var(--dsl-read-gutter);
-  border: none;
-  background-color: transparent;
-  color: var(--dsw-alias-label-tertiary);
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-}
-
-.expand:hover {
-  color: var(--dsw-alias-label-secondary);
 }

@@ -5,7 +5,7 @@
      the menu edge to edge with border and padding kept inside. */
   left: 0;
   right: 0;
-  z-index: 100;
+  z-index: var(--dsw-z-popover);
   /* Height cap: the 320px design maximum, clamped at runtime to the space
    * above the composer (inline max-height set in MenuView.tsx). */
   max-height: 320px;
@@ -44,7 +44,7 @@
   font-size: 14px;
   line-height: 22px;
   color: var(--dsw-alias-label-primary);
-  text-align: left;
+  text-align: start;
 }
 
 /* One shared highlight: pointer motion parks it here through the hover event,
@@ -70,8 +70,8 @@
 .itemIcon {
   display: inline-flex;
   flex: none;
-  width: 16px;
-  height: 16px;
+  width: calc(16px + var(--dsh-content-font-delta, 0px));
+  height: calc(16px + var(--dsh-content-font-delta, 0px));
   align-items: center;
   justify-content: center;
   color: var(--dsw-alias-label-tertiary);
@@ -101,7 +101,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 /* Hint naming the keyboard twin of the chevron — a caption line plus a Tab
@@ -137,8 +137,8 @@
   flex: none;
   display: inline-grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
+  width: calc(20px + var(--dsh-content-font-delta, 0px));
+  height: calc(20px + var(--dsh-content-font-delta, 0px));
   border-radius: 4px;
   /* label-caption, the quiet tint the composer's access-mode chevron uses. */
   color: var(--dsw-alias-label-caption);
@@ -172,19 +172,17 @@
 }
 
 .skeletonBar {
-  height: 20px;
+  height: calc(20px + var(--dsh-content-font-delta, 0px));
   border-radius: 4px;
   background: var(--dsw-alias-bg-skeleton);
   animation: dsh-menu-skeleton 2s cubic-bezier(0.36, 0, 0.64, 1) infinite;
 }
 
 .skeletonBarShort {
-  composes: skeletonBar;
   width: 32%;
 }
 
 .skeletonBarLong {
-  composes: skeletonBar;
   width: 48%;
 }
 

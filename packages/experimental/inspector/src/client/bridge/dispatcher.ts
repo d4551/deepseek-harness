@@ -1,14 +1,13 @@
 /** Dispatch of validated Worker frames to browser-realm capability handlers. */
 
+import type { ClientConsoleDisableFrame, ClientConsoleEnableFrame } from '../../shared/bridge/messages/runtime/console-frames.ts'
 import type {
-  ClientConsoleDisableFrame,
-  ClientConsoleEnableFrame,
   ClientRuntimeCancelFrame,
   ClientRuntimeRequestFrame,
   ClientRuntimeResponseAcknowledgedFrame,
   ClientRuntimeSessionClosedFrame,
-} from '../../shared/bridge/messages/runtime/index.ts'
-import type { ClientSourceRequestFrame, ClientSourceSessionClosedFrame } from '../../shared/bridge/messages/sources/index.ts'
+} from '../../shared/bridge/messages/runtime/frames.ts'
+import type { ClientSourceRequestFrame, ClientSourceSessionClosedFrame } from '../../shared/bridge/messages/sources/frames.ts'
 import type {
   SourceAcceptedFrame,
   SourceAppendAcknowledgedFrame,

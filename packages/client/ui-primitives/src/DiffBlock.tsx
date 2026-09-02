@@ -175,7 +175,6 @@ export function DiffBlock({ diffs, labels, maxLines = DEFAULT_DIFF_MAX_LINES, cl
         ))}
         {hidden > 0 && (
           <FoldToggle
-            className={css.expand}
             expanded={expanded}
             hidden={hidden}
             labels={labels}

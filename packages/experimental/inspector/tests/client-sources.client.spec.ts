@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { ClientSourceCatalog } from '../src/client/cdp/sources.ts'
-import { inspectorId } from '../src/shared/bridge/ids.ts'
+import { inspectorId } from '../src/shared/identity.ts'
 
 const scriptKey = inspectorId<'RuntimeScriptKey'>('bundle', 'scriptKey')
 

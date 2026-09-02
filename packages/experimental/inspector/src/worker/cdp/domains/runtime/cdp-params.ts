@@ -7,7 +7,7 @@ import type {
   RuntimeCallFunctionRequest,
   RuntimeEvaluateRequest,
   RuntimeGetPropertiesRequest,
-} from '../../../../shared/cdp/index.ts'
+} from '../../../../shared/cdp/operations.ts'
 import { exactKeys, optionalBoolean, optionalString } from '../../../../shared/validation.ts'
 
 /** Numeric or globally unique selector for one execution context. */

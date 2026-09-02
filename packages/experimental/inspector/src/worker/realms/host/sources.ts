@@ -1,7 +1,7 @@
 /** SourceBackend implementation over native Node Debugger notifications. */
 
 import type { RuntimeScriptKey } from '../../../shared/cdp/ids.ts'
-import type { RuntimeScript } from '../../../shared/cdp/index.ts'
+import type { RuntimeScript } from '../../../shared/cdp/sources.ts'
 import type { HostInspectorNotification, HostInspectorSession } from './bridge.ts'
 import type { SourceBackend } from '../../../shared/cdp/realm.ts'
 import { hostScriptKey } from './scripts.ts'

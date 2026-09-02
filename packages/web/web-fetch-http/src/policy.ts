@@ -1,7 +1,8 @@
 /**
- * URL validation and content-type classification for the local HTTP(S) fetch
- * provider — the pure, network-free half. The provider's `fetch()` composes
- * these with transport (redirect following, byte caps, decoding).
+ * URL validation, client identity, and content-type classification for the fetch
+ * providers — the pure, network-free half. The HTTP provider's `fetch()` composes
+ * these with transport (redirect following, byte caps, decoding); the Playwright
+ * provider composes the URL and identity rules with page rendering.
  *
  * @module @deepseek-ai/dsh-web-fetch-http/policy
  */
@@ -10,6 +11,9 @@ import { WebError } from '@deepseek-ai/dsh-web'
 
 /** Maximum accepted request URL length enforced by the public fetch provider. */
 export const WEB_FETCH_MAX_URL_LENGTH = 2048
+
+/** Default `User-Agent`: an explicit product agent, never a browser disguise. */
+export const DEFAULT_USER_AGENT = 'deepseek-harness/0.0.1 (+https://github.com/deepseek-ai)'
 
 /** The body kinds this provider decodes. */
 export type FetchableKind = 'html' | 'text'

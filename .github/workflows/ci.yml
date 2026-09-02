@@ -489,6 +489,31 @@ jobs:
           packages/workflow/tool-ralph/tests/integration.spec.ts
           packages/subprocess/subprocess-local/tests/process-exit.spec.ts
           packages/session/session-persistence-sqlite/tests/differential.spec.ts
+          packages/credentials/credentials-local/tests/windows-confidentiality.spec.ts
+          packages/spill/spill-local/tests/windows-confidentiality.spec.ts
+          packages/hooks/hook-protocol/tests/pwsh-shell.spec.ts
+      # The ACL sandbox is the only real confinement Windows has, and every one
+      # of these suites is win32-only: nowhere else in CI executes a restricted
+      # token, a DACL grant, or the runner entry. They belong to a job the
+      # verdict depends on, or the confinement is unproven on every merge.
+      - name: Prove the Windows ACL sandbox
+        shell: pwsh
+        run: >-
+          bun x vitest run
+          --no-file-parallelism
+          --testTimeout 90000
+          packages/sandbox/sandbox-windows-acl/tests/acl.spec.ts
+          packages/sandbox/sandbox-windows-acl/tests/grant.spec.ts
+          packages/sandbox/sandbox-windows-acl/tests/probe.spec.ts
+          packages/sandbox/sandbox-windows-acl/tests/runner.spec.ts
+      # The end-to-end half runs real confined pwsh commands, so it lives in the
+      # e2e lane's config; it gates on win32 and pwsh, not on an API key.
+      - name: Prove real ACL confinement end to end
+        shell: pwsh
+        run: >-
+          bun x vitest run --config vitest.e2e.config.ts
+          --no-file-parallelism
+          packages/shell/pwsh-sandbox/tests/acl.e2e.ts
 
   windows-observational:
     if: github.event_name == 'pull_request'
@@ -528,9 +553,13 @@ jobs:
   # Single stable required check for branch protection: require "all checks
   # passed" instead of enumerating matrix legs whose names change as lanes and
   # node versions evolve. Every blocking job in THIS workflow must be listed in
-  # `needs`. The required Wine job is listed as `windows`; `windows-native` is
-  # deliberately absent so its independent result never delays or changes this
-  # verdict. (`needs` cannot reach across workflow files; the master-only jobs in
+  # `needs`. The required Wine job is listed as `windows`; the native Windows
+  # build, coverage, and targeted-process jobs are listed too, so a Windows-only
+  # regression fails the pull request instead of staying red beside a green
+  # verdict. `windows-observational` stays out: Linux owns the blocking static,
+  # documentation, package, and built-artifact verdicts it duplicates, so its
+  # failure would gate the branch on a second opinion about the same facts.
+  # (`needs` cannot reach across workflow files; the master-only jobs in
   # ci-master.yml are intentionally not part of this PR verdict.)
   # `if: always()` is load-bearing: without it a failed dependency
   # would SKIP this job, and GitHub counts a skipped required check as passing
@@ -549,7 +578,7 @@ jobs:
           && github.event.pull_request.user.login != 'dependabot[bot]'
           && fromJSON('["self-hosted", "linux", "x64", "vm-backup"]')
           || 'ubuntu-latest' }}
-    needs: [node-24, node-24-coverage, node-24-consumers, node-compat, python-sdk, python-runtime, windows, windows-build, windows-native-tests]
+    needs: [node-24, node-24-coverage, node-24-consumers, node-compat, python-sdk, python-runtime, windows, windows-build, windows-coverage, windows-native-tests]
     if: always() && github.event_name == 'pull_request'
     steps:
       - name: Fail if any needed job did not succeed

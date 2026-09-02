@@ -1,6 +1,6 @@
 .bubble {
   position: fixed;
-  z-index: 100;
+  z-index: var(--dsw-z-popover);
   /* Fixed-position shrink-to-fit measures only the space from `left` to the
      viewport edge, so anchors near the right edge would wrap early;
      max-content sizes by the label alone, capped at half the viewport. */

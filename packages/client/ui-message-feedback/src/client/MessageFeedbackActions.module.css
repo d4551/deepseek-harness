@@ -60,10 +60,11 @@
 }
 
 /* Portal surface: fixed in the viewport, left/top supplied inline from the
-   trigger rect. Portaled panels must layer above modal overlays (z 1000). */
+   trigger rect. Portaled panels must layer above the modal plane
+   (--dsw-z-modal). */
 .notePanel {
   position: fixed;
-  z-index: 1100;
+  z-index: var(--dsw-z-above-modal);
   box-sizing: border-box;
   width: 320px;
   max-width: min(360px, calc(100vw - 24px));

@@ -16,9 +16,9 @@ export const inject = ['invariants']
 
 /**
  * No runtime invariant: this package exposes no independent event sequence or mutable data relation
- * beyond contracts enforced at its owning seam. The installer resolves immediately.
+ * beyond contracts enforced at its owning seam.
  */
-const install: InvariantInstaller = () => undefined
+const install: InvariantInstaller = () => {}
 
 /**
  * Register this package's invariant companion.

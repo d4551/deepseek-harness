@@ -1,12 +1,14 @@
 import { spawnSync } from 'node:child_process'
 import { availableParallelism } from 'node:os'
 import { fileURLToPath } from 'node:url'
+import { loadEnv } from 'vite'
 import tsconfigPaths from 'vite-tsconfig-paths'
-import { resolvePwshPath } from './packages/shell/pwsh-local/src/resolve.ts'
 import { defineConfig } from 'vitest/config'
 import { standardDecoratorPlugin, vitestExecArgv } from './vitest.shared.ts'
 import { COVERAGE_EXEMPT_ENV, coverageExemptHeavySuites } from './scripts/coverage-exempt.ts'
 import { COVERAGE_PARTITION_MODE_ENV } from './scripts/coverage-partitions.ts'
+import { resolvePwshPath } from './packages/shell/pwsh-local/src/resolve.ts'
+import { nonLinuxTests, processBoundTests as inventoryProcessBoundTests, windowsPackageTestExclusions, windowsUnsupportedPackages } from './scripts/vitest-inventory.ts'
 
 // Prints exact `path:line:col` records for every uncovered statement, branch
 // path, and function when a file misses the per-file 100% gate — the built-in
@@ -20,35 +22,24 @@ const uncoveredLocationsReporter = fileURLToPath(new URL('./scripts/coverage-unc
 // lib/ never loads a second module-singleton copy.
 const pathsPlugin = (): ReturnType<typeof tsconfigPaths> => tsconfigPaths({ projects: ['./tsconfig.base.json'] })
 
-const windowsUnsupportedPackages = process.platform === 'win32'
-  ? [
-      // Bash-requiring suites (a real POSIX shell is unavailable on Windows).
-      // The pwsh-requiring suites (pwsh-local, tool-pwsh) deliberately stay
-      // INCLUDED: PowerShell ships with Windows, so they run natively here.
-      // This explicit list (not a 'packages/shell/*' glob) keeps
-      // packages/shell/shell — the Service Definition package — running on Windows.
-      'packages/shell/bash-local',
-      'packages/shell/bash-sandbox',
-      'packages/shell/tool-bash',
-      'packages/hooks/*',
-      'packages/terminal/terminal-bash',
-      'packages/sandbox/sandbox-local',
-    ]
-  : []
-
+// Win32 fact entries beyond the package list (which lives in
+// vitest-inventory.ts with its rationale): these suites' oracle is the host's
+// own POSIX semantics or the fixed-linux worker face, so Windows cannot host
+// them. Every entry states the concrete Windows fact that keeps it out.
 const windowsUnsupportedTests = process.platform === 'win32'
   ? [
-      ...windowsUnsupportedPackages.map(path => `${path}/tests/**/*.spec.ts`),
+      ...windowsPackageTestExclusions,
       'packages/subprocess/subprocess/tests/**/*.spec.ts',
       'packages/subprocess/subprocess-local/tests/local.spec.ts',
       'packages/subprocess/subprocess-local/tests/process-inspector.spec.ts',
       'packages/subprocess/subprocess-local/tests/spawn.spec.ts',
       'packages/subprocess/subprocess-local/tests/terminal.spec.ts',
       // Oracle-diff suites: they compare the worker's POSIX path/url faces
-      // against the host Node's own answers, which are win32 semantics on
-      // Windows. The worker always speaks POSIX; the Linux lanes hold the diff.
-      'packages/experimental/webworker-runtime/tests/node/path-diff.spec.ts',
-      'packages/experimental/webworker-runtime/tests/node/shim-diff.spec.ts',
+      // and its implemented built-ins against the host Node's own answers,
+      // which are win32 semantics on Windows. The worker always speaks POSIX;
+      // the Linux lanes hold the diff. The glob covers path-diff, the
+      // built-ins diff, and the crypto/url/util diff suites.
+      'packages/experimental/webworker-runtime/tests/node/*-diff.spec.ts',
       // The subprocess ladder over the worker's child_process face: its kill
       // rung reaches the in-worker process table through `process.kill`,
       // which the ladder's win32 branch replaces with taskkill-by-real-pid —
@@ -58,17 +49,14 @@ const windowsUnsupportedTests = process.platform === 'win32'
     ]
   : []
 
-// These suites compare against or assemble the Worker's fixed Linux platform.
-// Host-native Windows and macOS behavior is not their oracle.
+// These suites compare against or assemble the Worker's fixed Linux platform;
+// the two entries live in vitest-inventory.ts. Host-native Windows and macOS
+// behavior is not their oracle.
 const nonLinuxWebWorkerTests = process.platform === 'linux'
   ? []
-  : [
-      'packages/experimental/webworker-runtime/tests/node/fs-watch-stream.spec.ts',
-      'packages/experimental/webworker-runtime/tests/node/sandbox-stack.spec.ts',
-    ]
+  : nonLinuxTests
 
-const platformUnsupportedTests = [...windowsUnsupportedTests, ...nonLinuxWebWorkerTests]
-
+const platformUnsupportedTests = windowsUnsupportedTests.concat(nonLinuxWebWorkerTests)
 const windowsUnsupportedCoveragePackages = process.platform === 'win32'
   ? [...windowsUnsupportedPackages, 'packages/subprocess/*']
   : []
@@ -84,14 +72,18 @@ const windowsOnlyCoverageExclusions = process.platform !== 'win32'
       // executes only on win32; its decision logic is unit-pinned on every
       // host through the injected-internals suites.
       'packages/subprocess/subprocess-local/src/windows-inspector.ts',
+      // The Job-object factory opens Windows libraries; the tree control that
+      // consumes it is unit-pinned on every host through an injected Job, and
+      // each Job primitive through win32-process's injected binding table.
+      'packages/subprocess/subprocess-local/src/windows-job.ts',
     ]
   : []
 
 // The confinement runner entry executes exclusively as a spawned child
-// process (the sandbox seam's argv-prefix wrapper): its module-level main()
-// would run the confinement in-process if imported, and vitest's v8 coverage
-// never measures child processes. Its behavior is pinned end-to-end by
-// tests/runner.spec.ts, which spawns the real entry through tsx.
+// process (the sandbox seam prefixes child argv with this entry): its
+// module-level main() would run the confinement in-process if imported, and
+// vitest's v8 coverage never measures child processes. Its behavior is pinned
+// end-to-end by tests/runner.spec.ts, which spawns the real entry through tsx.
 const windowsRunnerCoverageExclusions = process.platform === 'win32'
   ? ['packages/sandbox/sandbox-windows-acl/src/runner.ts']
   : []
@@ -119,7 +111,10 @@ const testIncludes = [
 // The instrumented coverage gate sets this env; the exempt heavy suites then
 // run beside it uninstrumented (membership contract in scripts/coverage-exempt.ts).
 // A set-but-not-'1' value is a misconfiguration, not a silent no-op.
-const coverageExemptRaw = process.env[COVERAGE_EXEMPT_ENV]
+// Vitest lanes run under mode 'test', so vite's validated env loader is the
+// one source for every gate switch this config reads.
+const gateEnv = loadEnv('test', fileURLToPath(new URL('.', import.meta.url)), '')
+const coverageExemptRaw = gateEnv[COVERAGE_EXEMPT_ENV]
 if (coverageExemptRaw !== undefined && coverageExemptRaw !== '' && coverageExemptRaw !== '1') {
   throw new Error(`vitest config: ${COVERAGE_EXEMPT_ENV} must be '1' or unset, got ${JSON.stringify(coverageExemptRaw)}.`)
 }
@@ -127,42 +122,19 @@ const coverageExemptExcludes = coverageExemptRaw === '1'
   ? coverageExemptHeavySuites.map(suite => suite.exclude)
   : []
 
-const coveragePartitionRaw = process.env[COVERAGE_PARTITION_MODE_ENV]
+const coveragePartitionRaw = gateEnv[COVERAGE_PARTITION_MODE_ENV]
 if (coveragePartitionRaw !== undefined && coveragePartitionRaw !== '' && coveragePartitionRaw !== '1') {
   throw new Error(`vitest config: ${COVERAGE_PARTITION_MODE_ENV} must be '1' or unset, got ${JSON.stringify(coveragePartitionRaw)}.`)
 }
 const coveragePartitionMode = coveragePartitionRaw === '1'
 
-// These suites exercise process-global state, process APIs, or timing-sensitive process I/O
-// that worker threads cannot isolate reliably under aggregate gate contention.
-// Keep the narrow exception in forks while the rest of the inventory avoids per-file processes.
+// Process-bound selection: the shared inventory (vitest-inventory.ts) lists
+// the suites exercising process-global state, process APIs, or timing-
+// sensitive process I/O that worker threads cannot isolate reliably under
+// aggregate gate contention; the live-provider entry below stays local.
 const processBoundTests = [
-  'packages/session/session-persistence-jsonl/tests/jsonl.spec.ts',
-  'packages/subagent/subagent-acp/tests/subagent-acp.spec.ts',
-  'packages/subprocess/subprocess-local/tests/process-exit.spec.ts',
-  'packages/subprocess/subprocess-local/tests/spawn.spec.ts',
-  'packages/context/time-context/tests/time-context.spec.ts',
+  ...inventoryProcessBoundTests,
   'packages/llm/llm-pi-ai/tests/adapter.spec.ts',
-  'packages/boot/app-boot/tests/app-boot.spec.ts',
-  'packages/workflow/workflow-worker-thread/tests/session.spec.ts',
-  // Real shells, process trees, and repository git state: each drives a live
-  // bash session or subprocess tree against a per-command budget, so two of
-  // them in flight at once exhaust the budget rather than the work.
-  'packages/boot/app-boot/tests/user-patches.spec.ts',
-  'packages/shell/tool-bash-persistent/tests/loader-composition.spec.ts',
-  'packages/terminal/terminal-bash/tests/local.spec.ts',
-  'scripts/client-build-environment.client.spec.ts',
-  // Repository-global git state: the installer rewrites the real hook path and
-  // its include chain, which no two workers can hold at once.
-  'scripts/install-lefthook.spec.ts',
-  // Filesystem watchers and disposal ordering: both assert what happened inside
-  // a timing window, which a loaded fork pool widens past the assertion.
-  'packages/boot/app-boot/tests/hmr-config.spec.ts',
-  'packages/session/session-projection-cache/tests/cache.spec.ts',
-  // A real dedicated Worker with its own inspector sessions: the realm and
-  // console round trips are timing-sensitive process I/O, and a loaded fork
-  // pool widens them past the assertion in whichever test lost the race.
-  'packages/experimental/inspector/tests/integration.host.spec.ts',
 ]
 
 /**
@@ -241,7 +213,8 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       // Coverage measures OUR runtime source. Types-only files carry no
-      // executable code; vendor/ and application/config fixtures are out of scope.
+      // executable code; vendor/ and application/config fixtures are excluded
+      // because they are not authored runtime code here.
       // .tsx: client components are gated like everything else (jsdom lane).
       include: ['packages/*/*/src/**/*.{ts,tsx}'],
       // Types-only files have no runtime coverage. Importing self-executing bins/workers would boot
@@ -256,8 +229,8 @@ export default defineConfig({
         // A killed executable lint-contract test can leave a non-product source probe behind.
         'packages/*/*/src/oxlint-contract-*.ts',
         // Client/web UI files whose remaining branches need a browser-grade
-        // harness the jsdom lane doesn't cover yet. TODO(gui): cover and
-        // remove as the client test lane matures.
+        // harness the jsdom lane does not cover; the client test lane
+        // maturing removes these entries.
         'packages/client/ui-trajectory/src/*',
         // Trajectory's compact Markdown projection retains deferred branch coverage.
         'packages/client/ui-primitives/src/markdown/plain-text.ts',
@@ -278,7 +251,7 @@ export default defineConfig({
         'packages/client/ui-conversation/src/client/*',
         'packages/client/ui-conversation/src/invariant.ts',
         // Chat presentation and assembly retain the same GUI debt exemption;
-        // package wiring and the new approval-detail adapter remain gated.
+        // package wiring and the new approval-detail module remain gated.
         'packages/client/ui-chat/src/client/chat/!(ApprovalCommand).{ts,tsx}',
         'packages/client/ui-chat/src/client/conversation-nodes/*',
         'packages/client/ui-chat/src/client/details/*',
@@ -296,8 +269,8 @@ export default defineConfig({
         // composition is a real dedicated Worker driven by the web browser lane
         // (apps/web/tests/preview-boot.e2e.ts), which unit-process V8 coverage
         // cannot observe. Unit specs cover the algorithmic cores; the assembled
-        // evidence is that boot. TODO(webworker): revisit when a browser-grade
-        // coverage lane exists.
+        // evidence is that boot; a browser-grade coverage lane revisits
+        // these entries.
         'packages/experimental/webworker-runtime/src/**',
         'packages/experimental/webworker-packer/src/*',
         // Inspector execution adapters run in a Node Worker, the Host native
@@ -312,7 +285,7 @@ export default defineConfig({
         'packages/experimental/inspector/src/worker/{entry,server}.ts',
         // Keep already-complete Inspector modules under the per-file gate and
         // enumerate the remaining direct-test debt instead of exempting src/**.
-        // TODO(inspector): close these branch gaps and remove the entries.
+        // Closing these branch gaps removes the entries below.
         'packages/experimental/inspector/src/host/plugin.ts',
         'packages/experimental/inspector/src/shared/bridge/{control-codec,rpc}.ts',
         'packages/experimental/inspector/src/shared/bridge/messages/observation.ts',
@@ -323,8 +296,8 @@ export default defineConfig({
         'packages/client/modules/src/client/system.ts',
         'packages/client/hmr/src/client/index.ts',
         // Web config-tree boot round: the new host-side web-transport halves
-        // whose remaining branches need real-composition/process harnesses.
-        // TODO(gui): cover and remove with the client test lane above.
+        // whose remaining branches need real-composition/process harnesses;
+        // the client test lane maturing removes these entries.
         'packages/client/modules/src/index.ts',
         'packages/client/modules/src/invariant.ts',
         'packages/client/modules/src/client/index.ts',
@@ -339,9 +312,9 @@ export default defineConfig({
         'packages/api/remotes/src/client/index.ts',
         // The Team browser entry binds its source-covered mount lifecycle to
         // the generated Team Remote contribution, which likewise exists only in lib.
-        'packages/experimental/client-ui-agent-team/src/client/index.ts',
+        'packages/client/ui-agent-team/src/client/index.ts',
         // Slash/command/input round: per-file gaps deferred with the same
-        // client-lane debt. TODO(gui): cover and remove with the lane above.
+        // client-lane debt; that lane maturing removes these entries.
         'packages/client/connection/src/client/fixture.ts',
         'packages/client/ui-commands/src/index.ts',
         'packages/client/ui-skill/src/index.ts',
@@ -380,8 +353,8 @@ export default defineConfig({
         // the packer's end-to-end image spec.
         'packages/experimental/webworker-runtime/src/**/*.ts',
         // Projection/command round: executor lifecycle branches and the
-        // registry's drive tails need the same maturing lanes. TODO(gui):
-        // cover and remove with the client test lane above.
+        // registry's drive tails need the same maturing lanes; those lanes
+        // maturing removes these entries.
         'packages/interaction/commands/src/index.ts',
         'packages/interaction/commands/src/invariant.ts',
         'packages/session/session-projection/src/index.ts',
@@ -392,7 +365,7 @@ export default defineConfig({
       ],
       // 100% or it doesn't merge (docs/testing.md: excessive tests are welcome).
       // Per-file so a well-covered big file can't subsidize a bare one.
-      // Every v8 ignore comment must carry a reason — see the quality-gates Agent Note
+      // Every v8 coverage exclusion comment must state its reason — see the quality-gates Agent Note
       // (.agents/notes/implemented/process/2026-06-11-quality-gates.md).
       thresholds: coveragePartitionMode
         ? undefined
@@ -405,7 +378,7 @@ export default defineConfig({
           },
       reporter: coveragePartitionMode
         ? []
-        : process.env.CI
+        : gateEnv.CI
           ? ['text', uncoveredLocationsReporter]
           : ['text', 'html', uncoveredLocationsReporter],
     },

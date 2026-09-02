@@ -62,7 +62,6 @@
   transition: border-color .16s, background .16s;
 }
 
-
 .card:hover:not(.cardActive) {
   border-color: var(--dsw-alias-label-dimmed);
 }
@@ -103,7 +102,7 @@
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
-  z-index: 1;
+  z-index: var(--dsw-z-raised);
   width: max-content;
   max-width: 100%;
   padding: 6px 8px;
@@ -136,20 +135,6 @@
 .cardMain:focus-visible {
   outline: 2px solid var(--dsw-alias-brand-primary);
   outline-offset: -2px;
-}
-
-/* The same reason, for a screen reader. A pointer reveals the badge's tooltip
-   and a keyboard reveals it by focusing the card, but neither announces it;
-   this node is what does. Keeping it out of the card face is what lets a
-   picker card show the preset's own description rather than a package
-   specifier. */
-.cardBrokenReason {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
 }
 
 /* The card body is the control that picks the preset. */
@@ -342,7 +327,6 @@
   font-size: 12.5px;
   cursor: pointer;
 }
-
 
 .secondaryButton:hover:not(:disabled) {
   background: var(--dsw-alias-bg-layer-1);

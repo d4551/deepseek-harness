@@ -18,6 +18,9 @@
       "path": "../../../vendor/schemastery"
     },
     {
+      "path": "../../util/atomic-write"
+    },
+    {
       "path": "../../core/session"
     },
     {

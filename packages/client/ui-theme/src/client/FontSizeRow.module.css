@@ -1,37 +1,6 @@
-/* Font-size row: title + stepper pill, same cell rhythm as the Language and
- * Enter-behavior rows (gap 8, pad 16/0, hairline separator; the section
- * column strips the separator on its last child). */
-
-.row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 16px 0;
-  border-bottom: 1px solid var(--dsw-alias-border-l2);
-}
-
-.rowText {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding-right: 48px;
-}
-
-.title {
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 22px;
-  color: var(--dsw-alias-label-primary);
-}
-
-.desc {
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 18px;
-  color: var(--dsw-alias-label-tertiary);
-}
+/* Font-size row control: the stepper pill and its unit label. The cell frame
+ * (row, text column, title, description) is the shared Settings cell in
+ * ../styles/settings-cell.css. */
 
 /* Stepper pill + unit label. The pill reuses the selector-pill geometry
    (h36 r18, module fill) holding the px value and an always-visible arrow

@@ -35,6 +35,7 @@ import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { assertNever } from '@deepseek-ai/dsh-llm'
 import { SandboxProvider, SandboxUnavailableError } from '@deepseek-ai/dsh-sandbox'
+import { workspaceRoots } from '@deepseek-ai/dsh-sandbox/roots'
 import type { ConfinedArgv, ConfinedSandboxMode, RunnerFailureRule, SandboxEnforcement, SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { AclWriteGrant, assertTempRootOutsideWorkspace, tempWriteSid, workspaceWriteSid } from '@deepseek-ai/dsh-sandbox-windows-acl'
@@ -115,7 +116,7 @@ function defaultProbeWindowsAcl(runnerInvocation: string[], timeoutMs: number): 
 export interface SandboxInternals {
   /** Replaces `process.platform` for chain selection (exercise any platform's chain from any host). */
   platform?: string
-  /** Replaces the platform's chain wholesale (walk mechanics — e.g. probing a rung the product chains only reach unprobed). */
+  /** Replaces the platform's chain wholesale (walk mechanics — e.g. a rung the product chains reach only as a sole candidate). */
   chain?: readonly SelectedRunner['runner'][]
   /** Replaces the functional `bwrap` probe (the Linux chain's first rung). */
   probeBwrap?: () => boolean
@@ -140,7 +141,16 @@ export interface SandboxInternals {
 /** The chain's verdict: which runner confines, and how completely it enforces. */
 type SelectedRunner = { runner: 'bwrap' | 'landlock' | 'seatbelt' | 'windows-acl'; enforcement: SandboxEnforcement }
 
-/** One live session/workspace pair's private temp directory and capability. */
+/**
+ * Spell one root set as repeated `--workspace` runner arguments.
+ * @param roots - the canonical workspace roots, primary first.
+ * @returns the flag/value pairs in root order.
+ */
+function workspaceRootArgs(roots: readonly string[]): string[] {
+  return roots.flatMap(root => ['--workspace', root])
+}
+
+/** One live session/root-set pair's private temp directory and capability. */
 interface AclTempCapability {
   dir: string
   writeSid: string
@@ -149,41 +159,18 @@ interface AclTempCapability {
 
 /**
  * The runner chain per platform — selection is BY PLATFORM first, probes
- * second: a platform's chain is probed in preference order only when it has
- * MORE than one candidate (probing arbitrates; it does not re-validate a
- * choice that has no alternative). A platform with no chain fails closed at
- * `confine()`. Linux prefers `bwrap` (its mount profile is closest to the
- * mode vocabulary) over the Landlock launcher; darwin has exactly one
- * candidate, selected without any probe.
+ * second: the platform's chain is probed in preference order and the first
+ * usable rung wins, so a probe both arbitrates between candidates and proves
+ * the selected backend can actually run. A platform with no chain, and a
+ * platform whose every candidate fails its probe, fail closed at `confine()`.
+ * Linux prefers `bwrap` (its mount profile is closest to the mode vocabulary)
+ * over the Landlock launcher; darwin and win32 have exactly one candidate each.
  */
 const PLATFORM_CHAINS: Record<string, readonly SelectedRunner['runner'][]> = {
   linux: ['bwrap', 'landlock'],
   darwin: ['seatbelt'],
-  // The Windows restricted-token runner (@deepseek-ai/dsh-sandbox-windows-acl):
-  // a sole candidate, selected without a probe — its execution-time refusal
-  // fails closed through its stderr signature (windows-acl-run:) and exit 127.
+  // The Windows restricted-token runner (@deepseek-ai/dsh-sandbox-windows-acl).
   win32: ['windows-acl'],
-}
-
-/**
- * Enforcement completeness a rung claims when selected WITHOUT a probe (a
- * chain of one). `bwrap` and Seatbelt govern every promised file effect by
- * construction, so the claim is a profile fact; `landlock` is listed for the
- * table's totality but is unreachable without a probe (the Linux chain has
- * two rungs, so it is only ever selected through its probe, whose report is
- * what distinguishes full from per-ABI-partial — and the launcher additionally
- * self-reports partial enforcement on stderr at every confined run).
- */
-const STATIC_ENFORCEMENT: Record<SelectedRunner['runner'], SandboxEnforcement> = {
-  bwrap: 'full',
-  landlock: 'full',
-  seatbelt: 'full',
-  // WRITE_RESTRICTED needs Everyone in both restricting lists for process
-  // initialization. An external object that grants Everyone write access
-  // therefore remains writable, and NTFS hard links can alias a granted
-  // workspace file to a path outside it. The backend enforces the remaining
-  // ACL-addressable surface but must not advertise the absolute promise.
-  'windows-acl': 'partial',
 }
 
 /**
@@ -265,10 +252,10 @@ export class LocalSandboxProvider extends SandboxProvider {
   private selectedRunner: SelectedRunner | 'unavailable' | undefined
   /**
    * Server-lifetime write grants (windows-acl rung): the STANDING
-   * workspace-root grant per workspace (its ACE is the cross-session reuse
-   * cache and outlives the provider — never revoked) and the REVOCABLE
-   * private-temp grant per live session/workspace pair (revoked on provider
-   * dispose).
+   * workspace-root grants per ROOT SET, keyed by that set (their ACEs are the
+   * cross-session reuse cache and outlive the provider — never revoked) and
+   * the REVOCABLE private-temp grant per live session/root-set pair (revoked
+   * on provider dispose).
    */
   private readonly workspaceGrants = new Map<string, AclWriteGrant>()
   private readonly tempCapabilities = new Map<string, AclTempCapability>()
@@ -344,12 +331,13 @@ export class LocalSandboxProvider extends SandboxProvider {
   }
 
   /**
-   * The windows-acl runner argv for one policy. With a calling session (the
-   * policy's `sessionId`) under workspace-write, the grants are materialized
-   * once per provider lifetime — the standing workspace-root grant per
-   * workspace and a revocable, RANDOM private-temp capability per live
-   * session/workspace pair. The runner receives `--write-sid` plus
-   * `--temp-write-sid` and grants nothing itself. Agentless workspace-write
+   * The windows-acl runner argv for one policy. Every workspace root the
+   * policy names is passed as its own `--workspace`, primary first. With a
+   * calling session (the policy's `sessionId`) under workspace-write, the
+   * grants are materialized once per provider lifetime — the standing
+   * workspace-root grants per root SET and a revocable, RANDOM private-temp
+   * capability per live session/root-set pair. The runner receives
+   * `--write-sid` plus `--temp-write-sid` and grants nothing itself. Agentless workspace-write
    * calls pass the ambient temp ROOT and no SID flags: the runner creates and
    * removes a random private child directory for that one invocation.
    * @param policy - the resolved per-call policy.
@@ -357,45 +345,49 @@ export class LocalSandboxProvider extends SandboxProvider {
    */
   private windowsAclRunnerArgv(policy: SandboxPolicy): string[] {
     const sessionId = policy.sessionId
+    const roots = workspaceRoots(policy)
     if (sessionId === undefined || policy.mode === 'read-only') {
       return [
         ...this.windowsAclRunnerInvocation(),
-        '--workspace', policy.workspaceRoot,
+        ...workspaceRootArgs(roots),
         '--temp', tmpdir(),
         '--mode', policy.mode,
       ]
     }
-    const temp = this.materializeAclGrant(sessionId, policy.workspaceRoot)
+    const temp = this.materializeAclGrant(sessionId, roots)
     return [
       ...this.windowsAclRunnerInvocation(),
-      '--workspace', policy.workspaceRoot,
+      ...workspaceRootArgs(roots),
       '--temp', temp.dir,
       '--mode', policy.mode,
-      '--write-sid', workspaceWriteSid(policy.workspaceRoot),
+      '--write-sid', workspaceWriteSid(roots),
       '--temp-write-sid', temp.writeSid,
     ]
   }
 
   /**
    * Materialize one workspace-write policy's ACEs once per provider
-   * lifetime. The workspace SID and standing root grant are shared by the
-   * workspace. The temp directory is random and carries a distinct SID, so
-   * another session on the same workspace cannot use the shared workspace
-   * SID to enter it. A fresh provider always chooses a new path; crash
-   * residue therefore cannot collide with or authorize a resumed session.
+   * lifetime. The scope SID and the standing ACE it places on EVERY root are
+   * shared by the whole root set, so a session that works in a different set
+   * holds a different SID and cannot reach roots outside its own. The temp
+   * directory is random and carries a distinct SID, so another session on the
+   * same roots cannot use the shared scope SID to enter it. A fresh provider
+   * always chooses a new path; crash residue therefore cannot collide with or
+   * authorize a resumed session.
    * Fail-closed: a half-materialized temp grant is revoked and its directory
    * removed before the error propagates.
    * @param sessionId - the policy's calling-session identity.
-   * @param workspaceRoot - the resolved policy root.
+   * @param roots - the resolved policy roots, primary first.
    * @returns the pair's private temp directory and write capability.
    */
-  private materializeAclGrant(sessionId: SessionId, workspaceRoot: string): AclTempCapability {
-    assertTempRootOutsideWorkspace(workspaceRoot, tmpdir())
-    const writeSid = workspaceWriteSid(workspaceRoot)
-    if (!this.workspaceGrants.has(workspaceRoot)) {
+  private materializeAclGrant(sessionId: SessionId, roots: readonly string[]): AclTempCapability {
+    assertTempRootOutsideWorkspace(roots, tmpdir())
+    const writeSid = workspaceWriteSid(roots)
+    const scopeKey = JSON.stringify(roots)
+    if (!this.workspaceGrants.has(scopeKey)) {
       const grant = AclWriteGrant.create(writeSid)
       try {
-        grant.add(workspaceRoot, true)
+        for (const root of roots) grant.add(root, true)
       } catch (error) {
         // Free the SID; a standing ACE (if the apply succeeded before a
         // post-apply throw) is the intended end state, not an error
@@ -407,9 +399,9 @@ export class LocalSandboxProvider extends SandboxProvider {
         }
         throw error
       }
-      this.workspaceGrants.set(workspaceRoot, grant)
+      this.workspaceGrants.set(scopeKey, grant)
     }
-    const key = JSON.stringify([String(sessionId), workspaceRoot])
+    const key = JSON.stringify([String(sessionId), ...roots])
     const existing = this.tempCapabilities.get(key)
     if (existing !== undefined) return existing
     const tempDir = mkdtempSync(join(tmpdir(), 'dsh-'))
@@ -484,10 +476,10 @@ export class LocalSandboxProvider extends SandboxProvider {
 
   /**
    * Resolve which runner confines commands, once, for the provider's
-   * lifetime: this platform's chain ({@link PLATFORM_CHAINS}), its sole
-   * candidate selected directly, multiple candidates arbitrated by
-   * functional probes in chain order. Fail closed when the platform has no
-   * chain or no candidate passes — the command never runs.
+   * lifetime: every candidate in this platform's chain ({@link
+   * PLATFORM_CHAINS}) is arbitrated by its functional probe, in chain order.
+   * Fail closed when the platform has no chain or no candidate passes — the
+   * command never runs.
    */
   private selectRunner(mode: ConfinedSandboxMode): SelectedRunner {
     this.selectedRunner ??= this.chainVerdict()
@@ -495,13 +487,15 @@ export class LocalSandboxProvider extends SandboxProvider {
     return this.selectedRunner
   }
 
-  /** Walk this platform's chain: sole candidate unprobed, several probed in order, none usable → unavailable. */
+  /**
+   * Walk this platform's chain, probing every rung in order — a chain of one
+   * included. An unprobed sole candidate would report enforcement for a
+   * backend that cannot run, deferring a composition-time misconfiguration to
+   * the first confined command (exit 127 mid-task); the probe moves that
+   * verdict back to composition. None usable → unavailable.
+   */
   private chainVerdict(): SelectedRunner | 'unavailable' {
     const chain = this.internals.chain ?? PLATFORM_CHAINS[this.internals.platform ?? process.platform] ?? []
-    const [first, ...rest] = chain
-    if (first === undefined) return 'unavailable'
-    // A sole candidate needs no arbitration; its execution-time refusal still fails closed.
-    if (rest.length === 0) return { runner: first, enforcement: STATIC_ENFORCEMENT[first] }
     for (const runner of chain) {
       const enforcement = this.probeRunner(runner)
       if (enforcement !== 'unusable') return { runner, enforcement }

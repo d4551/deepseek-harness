@@ -5,11 +5,13 @@
  */
 
 import { grantArgs as landlockGrantArgs } from '@deepseek-ai/node-addon-landlock-run'
-import { writableRoots } from '@deepseek-ai/dsh-sandbox'
 import type { SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
+import { workspaceRoots, writableRoots } from '@deepseek-ai/dsh-sandbox/roots'
 
 /**
- * Build the bwrap profile arguments for one file-effect policy.
+ * Build the bwrap profile arguments for one file-effect policy. Every
+ * workspace root the policy names is bound read-write; the temp areas keep
+ * bwrap's own ephemeral `/tmp` spelling rather than the shared allow-list.
  * @param policy - file-effect policy to express as bwrap mounts.
  * @returns profile arguments before the trailing separator and command argv.
  */
@@ -17,20 +19,22 @@ export function bwrapProfileArgs(policy: SandboxPolicy): string[] {
   const args = ['--ro-bind', '/', '/', '--dev', '/dev', '--unshare-pid', '--proc', '/proc', '--die-with-parent']
   if (policy.mode === 'workspace-write') {
     args.push('--tmpfs', '/tmp')
-    args.push('--bind', policy.workspaceRoot, policy.workspaceRoot)
+    for (const root of workspaceRoots(policy)) args.push('--bind', root, root)
   }
   return args
 }
 
 /**
- * Build the Landlock launcher grants for one file-effect policy.
+ * Build the Landlock launcher grants for one file-effect policy. Every
+ * workspace root the policy names joins the read-write allow-list; `/tmp` is
+ * the launcher's own temp spelling rather than the shared allow-list.
  * @param policy - file-effect policy to express as Landlock allow-list grants.
  * @returns launcher grant arguments before the trailing separator and command argv.
  */
 export function landlockProfileArgs(policy: SandboxPolicy): string[] {
   const readWrite = ['/dev/null']
   if (policy.mode === 'workspace-write') {
-    readWrite.push('/tmp', policy.workspaceRoot)
+    readWrite.push('/tmp', ...workspaceRoots(policy))
   }
   return landlockGrantArgs({ readOnly: ['/'], readWrite })
 }

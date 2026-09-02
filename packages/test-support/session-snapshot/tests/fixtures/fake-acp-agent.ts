@@ -41,7 +41,7 @@ interface Behavior {
   failOnBoot?: boolean
   /** Reject every `session/new` (exercises the expect-error step without extra dirs). */
   rejectNewSession?: boolean
-  /** Reject `session/new` only when `additionalDirectories` is non-empty (the real bridge's rule). */
+  /** Reject `session/new` only when `additionalDirectories` is non-empty (an external agent that supports one root only). */
   rejectExtraDirs?: boolean
   /** How `session/prompt` settles: a clean response, a JSON-RPC error, or a hang until `session/cancel`. */
   prompt?: 'respond' | 'error' | 'hang-until-cancel'

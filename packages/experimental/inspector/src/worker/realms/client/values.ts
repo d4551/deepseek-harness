@@ -5,21 +5,15 @@ import type {
   ClientRuntimePropertyDescriptor,
   ClientRuntimeRemoteObject,
   ClientRuntimeResult,
-} from '../../../shared/bridge/messages/runtime/index.ts'
-import {
-  type ClientRemoteObjectHandle,
-} from '../../../shared/bridge/ids.ts'
+} from '../../../shared/bridge/messages/runtime/commands.ts'
+import type { ClientRemoteObjectHandle } from '../../../shared/bridge/ids.ts'
 import { inspectorId } from '../../../shared/identity.ts'
 import type { RuntimeBackendObjectHandle, RuntimeScriptKey } from '../../../shared/cdp/ids.ts'
-import type {
-  RuntimeCompletion,
-  RuntimeConsoleBackendEvent,
-  RuntimeExceptionDetails,
-  RuntimeInternalPropertyDescriptor,
-  RuntimePropertyDescriptor,
-  RuntimeRemoteObject,
-  RuntimeStackTrace,
-} from '../../../shared/cdp/index.ts'
+import type { RuntimeConsoleBackendEvent } from '../../../shared/cdp/console.ts'
+import type { RuntimeExceptionDetails, RuntimeStackTrace } from '../../../shared/cdp/errors.ts'
+import type { RuntimeCompletion } from '../../../shared/cdp/operations.ts'
+import type { RuntimeInternalPropertyDescriptor, RuntimePropertyDescriptor } from '../../../shared/cdp/property.ts'
+import type { RuntimeRemoteObject } from '../../../shared/cdp/remote-object.ts'
 
 /** Maps a Client-local script key into its realm-wide Runtime identity. */
 export type ClientScriptKeyMapper = (scriptKey: RuntimeScriptKey) => RuntimeScriptKey

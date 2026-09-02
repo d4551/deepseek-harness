@@ -14,6 +14,10 @@ import {
   parseRangeFloor,
   productUiFiles,
   rangeMeetsFloor,
+  ROOT_DEPENDENCY_FLOORS,
+  rootDependencyMisses,
+  rootManifestSource,
+  unflooredRootDependencies,
   rangeMisses,
   reactMisses,
   REACT_FLOOR,
@@ -158,5 +162,56 @@ describe('live workspace floors', () => {
     expect(versionMajorMinor).toBe('7.0')
     expect(version.startsWith('7.')).toBe(true)
     expect(rangeMeetsFloor(`^${version}`, TYPESCRIPT_FLOOR)).toBe(true)
+  })
+
+  it('names a floor for every dependency the root manifest declares', () => {
+    // The floor list was curated by memory, so a dependency added without one
+    // shipped at whatever version its author installed and was never checked
+    // again. Completeness is asserted here rather than remembered.
+    expect(unflooredRootDependencies(rootManifestSource())).toEqual([])
+  })
+
+  it('holds every root dependency at the version the repository ships', () => {
+    expect(rootDependencyMisses(rootManifestSource())).toEqual([])
+  })
+})
+
+describe('injected root manifest misses', () => {
+  it('reports a dependency declared without a floor', () => {
+    const source = JSON.stringify({
+      devDependencies: { typescript: '^7.0.2', 'some-new-tool': '^1.0.0' },
+    })
+    expect(unflooredRootDependencies(source)).toEqual(['some-new-tool'])
+  })
+
+  it('ignores workspace ranges, whose versions move with the release', () => {
+    const source = JSON.stringify({
+      devDependencies: { '@deepseek-ai/dsh-llm': 'workspace:^' },
+    })
+    expect(unflooredRootDependencies(source)).toEqual([])
+  })
+
+  it('reports a root dependency declared below its floor', () => {
+    const source = JSON.stringify({ devDependencies: { oxlint: '1.0.0' } })
+    expect(rootDependencyMisses(source)).toEqual([{
+      file: 'package.json',
+      name: 'oxlint',
+      range: '1.0.0',
+      floor: ROOT_DEPENDENCY_FLOORS['oxlint'],
+    }])
+  })
+
+  it('rejects a manifest whose dependency group is not an object', () => {
+    expect(() => unflooredRootDependencies('{"devDependencies":[]}')).toThrow(/devDependencies is not an object/)
+  })
+
+  it('reads a dependency range from the dependency groups, not the script of the same name', () => {
+    // A raw-text scan returned `knip --treat-config-hints-as-errors` as knip's
+    // version range, because `scripts` declares a command under that name.
+    const source = JSON.stringify({
+      scripts: { knip: 'knip --treat-config-hints-as-errors' },
+      devDependencies: { knip: '^6.34.0' },
+    })
+    expect(declaredRange(source, 'knip')).toBe('^6.34.0')
   })
 })

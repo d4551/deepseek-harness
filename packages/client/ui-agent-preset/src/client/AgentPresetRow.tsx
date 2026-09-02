@@ -10,7 +10,6 @@ import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-cli
 import type { AgentPresetSettingsState } from './settings-store.ts'
 import { presetDisplayText, type AgentPresetSettingsKey } from './locales.ts'
 import { PresetMenu } from './PresetMenu.tsx'
-import css from './AgentPresetRow.module.css'
 
 /** Registration-side business face for the host-backed preference. */
 export interface AgentPresetRowInjected {
@@ -60,18 +59,16 @@ export function AgentPresetRow({ load, select, useAgentPreset, t }: AgentPresetR
   const description: string = state.error ?? t('description')
 
   return (
-    <div className={css.row}>
-      <div className={css.rowText}>
-        <div className={css.title}>{t('title')}</div>
-        <div className={css.desc} role={state.error === null ? undefined : 'alert'}>{description}</div>
+    <div className="dsw-settings-cell">
+      <div className="dsw-settings-cell-text">
+        <div className="dsw-settings-cell-title">{t('title')}</div>
+        <div className="dsw-settings-cell-desc" role={state.error === null ? undefined : 'alert'}>{description}</div>
       </div>
       <PresetMenu
         options={state.options}
         selectedId={state.currentValue}
         label={label}
         t={t}
-        buttonClassName={css.selector}
-        chevronClassName={css.chevron}
         disabled={busy || !state.writable || state.options.length === 0}
         open={open}
         onOpenChange={setOpen}

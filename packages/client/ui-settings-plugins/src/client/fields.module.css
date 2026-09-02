@@ -94,7 +94,6 @@
 }
 
 .inputInvalid {
-  composes: input;
   border-color: var(--dsw-alias-label-error);
 }
 

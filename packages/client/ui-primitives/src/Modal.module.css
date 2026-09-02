@@ -2,7 +2,7 @@
 .root {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: var(--dsw-z-modal);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -21,7 +21,7 @@
 /* Dialog card: r24, shadow-lv3, layer-2 fill, inverted border, pb 24. */
 .dialog {
   position: relative;
-  z-index: 1;
+  z-index: var(--dsw-z-raised);
   display: flex;
   flex-direction: column;
   gap: 20px;

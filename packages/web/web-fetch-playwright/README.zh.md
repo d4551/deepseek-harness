@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-有了 `dsh-web-fetch-playwright`，harness 可以通过 web 服务（`ctx.web`）抓取 JavaScript 渲染的页面：它在无头 Chromium 浏览器中加载每个 URL，等待 DOM，并返回序列化文档。当组合需要纯 HTTP 抓取无法产出的内容时选择它——单页应用的客户端渲染 DOM、用脚本构建内容的页面，或任何只有在执行后才存在有效标记的文档。它像 HTTP 后端一样保持匿名：不携带凭据，抓取之间不共享 Cookie，每次渲染都隔离在全新的隐身上下文中。面向模型的 `web_fetch` 工具位于 `dsh-tool-web`，由它渲染本提供方的正文。
+有了 `dsh-web-fetch-playwright`，harness 可以通过 web 服务（`ctx.web`）抓取 JavaScript 渲染的页面：它在无头 Chromium 浏览器中加载每个 URL，等待 DOM，并返回序列化文档。当组合需要纯 HTTP 抓取无法产出的内容时选择它——单页应用的客户端渲染 DOM、用脚本构建内容的页面，或任何只有在执行后才存在有效标记的文档。它像 HTTP 后端一样保持匿名：不携带凭据，抓取之间不共享 Cookie，每次渲染都隔离在全新的隐身上下文中。页面发出的每个请求——主框架、子资源以及每一跳重定向——都要通过共享的抓取 URL 策略，并且必须到达公网单播地址。面向模型的 `web_fetch` 工具位于 `dsh-tool-web`，由它渲染本提供方的正文。
 
 ## 目录
 
@@ -46,6 +46,8 @@ kind: "package-reference"
 |---|---|---|
 | `maxBodyChars` | `100,000` | 序列化 DOM 最大字符数 |
 | `timeoutMs` | `30,000` | 每次抓取预算——资源兜底，不是面向模型的工具预算 |
+| `maxConcurrentRenders` | `2` | 同时持有浏览器上下文的渲染数；其余按到达顺序排队 |
+| `userAgent` | `deepseek-harness/0.0.1 (+https://github.com/deepseek-ai)` | 每个渲染请求携带的 `User-Agent` |
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-web-fetch-playwright)是每个受支持字段及其 JSDoc 的穷尽式真源。
 
@@ -55,7 +57,11 @@ kind: "package-reference"
 
 ### 渲染行为
 
-本提供方在共享的抓取 URL 策略下只接受不带嵌入凭据的 `http:` 与 `https:` URL。每次抓取在单一共享浏览器进程中打开全新隐身上下文，以 `domcontentloaded` 导航，序列化 DOM，并关闭页面与上下文；任何 Cookie、存储或身份验证都不会跨越一次抓取存活。浏览器进程在首次使用时惰性启动，跨抓取复用，在插件销毁时关闭，并在死亡后重新全新启动。缺少 Chromium 安装会在首次使用时以 `WEB_PROVIDER_ERROR` 暴露。
+本提供方在共享的抓取 URL 策略下只接受不带嵌入凭据的 `http:` 与 `https:` URL。随后它拦截页面发出的每个请求，只有目标解析到公网单播地址时才放行；被拒绝的请求以 `blockedbyclient` 中止，被拒绝的导航目标则在任何浏览器工作开始前报告 `WEB_BLOCKED_URL`。每个主机名的判定在一次抓取的生命周期内被记忆，因此一次页面加载对每个主机只解析一次。
+
+每次抓取在单一共享浏览器进程中打开全新隐身上下文，以 `domcontentloaded` 导航，序列化 DOM，并关闭页面与上下文；任何 Cookie、存储或身份验证都不会跨越一次抓取存活。同时最多有 `maxConcurrentRenders` 次抓取持有上下文；其余按到达顺序等待，并在自身期限中止时放弃。
+
+插件在 apply 期间探测一次 Chromium 安装，若没有可启动的安装则记录一条点名 `playwright install chromium` 的警告，因此服务读到的是真实可用性，而不必在每次选择时探测。浏览器进程本身在首次抓取时惰性启动并被复用；启动失败或进程死亡会清除记忆值，使下一次抓取重试。销毁是终态：它取消进行中的渲染、关闭进程，并让之后的每次抓取都以 `WEB_PROVIDER_ERROR` 失败。
 
 ### 失败与恢复
 
@@ -76,6 +82,7 @@ kind: "package-reference"
 本包建立在一处分离与一个分层超时之上：
 
 - **渲染抓取与呈现分离。** 本提供方拥有 URL 校验、浏览器生命周期、导航、DOM 序列化与字符上限；`dsh-tool-web` 拥有 HTML→markdown 与截断格式化。非 2xx 导航是数据而非失败。
+- **在浏览器边缘执行地址策略。** 公网目标规则由拦截而非仅靠 URL 校验来把守：渲染中的页面会发出调用方从未指名的请求，因此同一策略要裁决主框架、每个子资源与每一跳重定向。
 - **两层超时。** 提供方的 `timeoutMs` 是资源兜底，同时限定 Playwright 自身的导航超时；面向模型的工具调用预算属于 `dsh-tool-call-timeout-policy`，由它武装 `exec.signal`。当外层期限先到时，提供方报告 `WEB_ABORTED`，该策略将其替换为 `TOOL_TIMEOUT`；因此 `WEB_FETCH_TIMEOUT` 标识的是提供方预算耗尽的服务调用方。
 
 ### 源码地图
@@ -88,7 +95,7 @@ kind: "package-reference"
 
 ### 读取路径
 
-一次抓取校验 URL，复用或启动共享浏览器，并打开全新隐身上下文与页面。它在提供方超时下以 `domcontentloaded` 导航，序列化 DOM，并在返回前关闭页面与上下文——因此即使序列化失败，清理也会执行。死亡或启动失败的浏览器会清除被记忆的句柄，使下一次抓取重试而不是钉死一个坏进程。
+一次抓取校验并放行导航目标，取得一个渲染名额，然后复用或启动共享浏览器并打开全新隐身上下文。它在打开页面之前把目标拦截器安装到该上下文上，在提供方超时下以 `domcontentloaded` 导航，序列化 DOM，并在返回前关闭页面与上下文——因此即使序列化失败，清理也会执行。死亡或启动失败的浏览器会清除被记忆的句柄，使下一次抓取重试而不是钉死一个坏进程；被销毁的提供方则根本不会启动。
 
 </details>
 
@@ -99,13 +106,13 @@ kind: "package-reference"
 
 当包级契约不够用时阅读这些页面。它们从共享词汇表走向服务、面向模型的工具与设计依据。
 
-- [Web 子系统](../../../docs/subsystems/web.md)——穷尽的抓取请求/结果词汇表与错误代码。
-- [Web 包地图](../README.md)——七个包的家族与各自角色。
-- [dsh-web](../web/README.md)——本提供方注册进入的 web 服务。
+- [Web 子系统](../../../docs/subsystems/web.zh.md)——穷尽的抓取请求/结果词汇表与错误代码。
+- [Web 包地图](../README.zh.md)——七个包的家族与各自角色。
+- [dsh-web](../web/README.zh.md)——本提供方注册进入的 web 服务。
 - [dsh-web-fetch-http](../web-fetch-http/README.zh.md)——面向服务端渲染页面的匿名 HTTP 后端；两个抓取后端覆盖互补的页面类别。
 - [dsh-tool-web](../tool-web/README.zh.md)——渲染本提供方正文的面向模型 `web_fetch` 工具。
 - [生成的配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-web-fetch-playwright)——每个受支持配置字段及其源声明。
-- [Web 能力缝决策](../../../.agents/notes/implemented/architecture/2026-06-24-web-capability-seam.md)——为什么搜索与抓取共享一个提供方选择服务。
+- [Web 能力缝决策](../../../.agents/notes/implemented/architecture/2026-06-24-web-capability-seam.zh.md)——为什么搜索与抓取共享一个提供方选择服务。
 
 -----
 
@@ -116,7 +123,20 @@ kind: "package-reference"
 
 - **不做 DOM 后等待**——导航在 `domcontentloaded` 处 settle；仅在网络后续活动、懒加载或水合之后才出现的内容不会出现在序列化 DOM 中。显式的 network-idle 等待是这里下一个要添加的能力。
 - **每次抓取都是匿名的**——没有 Cookie 或会话持久化；要求登录的页面返回其未登录标记，本家族中没有抓取后端执行身份验证检索。
-- **宿主浏览器依赖**——Chromium 必须通过 `playwright` 的浏览器二进制安装；缺少安装会使首次抓取以 `WEB_PROVIDER_ERROR` 失败。
+- **宿主浏览器依赖**——Chromium 必须通过 `playwright` 的浏览器二进制安装；插件把缺少安装报告为 apply 期的警告，随后每次抓取都以 `WEB_PROVIDER_ERROR` 失败。
+- **销毁不可逆**——被销毁的提供方不会再启动，因此卸载后再重新挂载插件得到的是新的提供方，而不是复活的浏览器。
+
+-----
+
+<a id="dev-note"></a>
+### 开发备注
+
+<details>
+<summary>面向维护者的工作上下文——点击展开</summary>
+
+无。
+
+</details>
 
 -----
 
@@ -128,13 +148,3 @@ kind: "package-reference"
 #### KV Cache 影响
 
 不会直接导致 KV Cache 失效；请求前缀变更由上述消费方负责。
-
-<a id="dev-note"></a>
-### 开发备注
-
-<details>
-<summary>面向维护者的工作上下文——点击展开</summary>
-
-无。
-
-</details>

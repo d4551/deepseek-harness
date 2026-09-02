@@ -1,18 +1,17 @@
 /** Closed command/result protocol for Runtime operations executed by a Client. */
 
 import type { ClientRemoteObjectHandle } from '../../ids.ts'
+import type { RuntimeExceptionDetails } from '../../../cdp/errors.ts'
 import type {
-  RuntimeExceptionDetails,
-  RuntimeInternalPropertyDescriptor,
   RuntimeCallArgument,
   RuntimeAwaitPromiseRequest,
   RuntimeCallFunctionRequest,
   RuntimeCompletion,
   RuntimeEvaluateRequest,
   RuntimeGetPropertiesRequest,
-  RuntimePropertyDescriptor,
-  RuntimeRemoteObject,
-} from '../../../cdp/index.ts'
+} from '../../../cdp/operations.ts'
+import type { RuntimeInternalPropertyDescriptor, RuntimePropertyDescriptor } from '../../../cdp/property.ts'
+import type { RuntimeRemoteObject } from '../../../cdp/remote-object.ts'
 
 /** Runtime object serialized with one Client-session handle when retained. */
 export type ClientRuntimeRemoteObject = RuntimeRemoteObject<ClientRemoteObjectHandle>

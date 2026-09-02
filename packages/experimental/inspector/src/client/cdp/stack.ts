@@ -1,7 +1,7 @@
 /** Browser stack parsing for realm-neutral Runtime and Console events. */
 
 import type { RuntimeScriptKey } from '../../shared/cdp/ids.ts'
-import type { RuntimeCallFrame, RuntimeStackTrace } from '../../shared/cdp/index.ts'
+import type { RuntimeCallFrame, RuntimeStackTrace } from '../../shared/cdp/errors.ts'
 
 /** Resolve a browser stack-frame URL to a Client catalog script key. */
 export type ClientScriptKeyResolver = (url: string) => RuntimeScriptKey | undefined

@@ -3,7 +3,7 @@ import type { DynamicCordisLivePackage } from '@deepseek-ai/dsh-cordis-client-ru
 import type {
   CordisDynamicPackageId, CordisDynamicPluginId, CordisDynamicPluginRunId,
   DynamicCordisInventoryRow,
-} from '../src/client/events.ts'
+} from '@deepseek-ai/dsh-api-remotes/client'
 import { cordisDefineCard, cordisRunCard } from '../src/client/card-model.ts'
 import { CordisRunCardRegistry, cordisToolViewKey } from '../src/client/run-card-index.ts'
 import { cordisVisibleStatus } from '../src/client/status.ts'

@@ -1,8 +1,8 @@
 /** Client Console observation shared by every active DevTools Runtime session. */
 
 import type { ClientRemoteObjectHandle, ClientRuntimeSessionId } from '../../shared/bridge/ids.ts'
-import type { ClientConsoleCapability } from '../../shared/bridge/messages/runtime/index.ts'
-import type { RuntimeConsoleBackendEvent, RuntimeConsoleType } from '../../shared/cdp/index.ts'
+import type { ClientConsoleCapability } from '../../shared/bridge/messages/runtime/console-frames.ts'
+import type { RuntimeConsoleBackendEvent, RuntimeConsoleType } from '../../shared/cdp/console.ts'
 import type { ClientRuntimeExecutor } from './runtime.ts'
 import { captureClientConsoleStack, clientErrorStack, type ClientScriptKeyResolver } from './stack.ts'
 

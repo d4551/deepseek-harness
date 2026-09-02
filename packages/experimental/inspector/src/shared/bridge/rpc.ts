@@ -1,6 +1,7 @@
 /** Shared Host/Client owner of correlated non-CDP query requests. */
 
-import { inspectorId, type InspectorSourceGeneration, type InspectorSourceId } from './ids.ts'
+import type { InspectorSourceGeneration, InspectorSourceId } from './ids.ts'
+import { inspectorId } from '../identity.ts'
 import { jsonByteLength, type InspectorJsonValue } from '../json.ts'
 import { INSPECTOR_PROTOCOL_VERSION } from './version.ts'
 import type {

@@ -15,7 +15,7 @@ import type { CordisPanelFace } from './slots.ts'
 import type { CordisKey } from './locales.ts'
 import type {
   ApprovalRequestId, CordisDynamicPackageId, CordisDynamicPluginId,
-} from './events.ts'
+} from '@deepseek-ai/dsh-api-remotes/client'
 import { cordisVisibleStatus, packageOf, type CordisVisibleStatus } from './status.ts'
 import css from './CordisPanel.module.css'
 

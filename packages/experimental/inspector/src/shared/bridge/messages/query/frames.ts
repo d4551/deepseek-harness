@@ -1,6 +1,7 @@
 /** Versioned frames for source-to-Worker non-CDP queries. */
 
-import type { InspectorId, InspectorSourceGeneration, InspectorSourceId } from '../../ids.ts'
+import type { InspectorSourceGeneration, InspectorSourceId } from '../../ids.ts'
+import type { InspectorId } from '../../../identity.ts'
 import { INSPECTOR_PROTOCOL_VERSION } from '../../version.ts'
 import type { InspectorQuery, InspectorQueryError, InspectorQueryResult } from './commands.ts'
 

@@ -3,15 +3,14 @@
 import { isJsonValue, isPlainObject } from '../../../json.ts'
 import { exactKeys, exactObject, optionalBoolean, optionalString, wireId } from '../../../validation.ts'
 import { parseInspectorObjectReference } from '../../../cordis/object-reference.ts'
+import type { RuntimeCallFrame, RuntimeStackTrace } from '../../../cdp/errors.ts'
 import type {
-  RuntimeCallFrame,
   RuntimeObjectPreview,
   RuntimePropertyPreview,
   RuntimeRemoteObjectDescriptor,
   RuntimeRemoteObjectSubtype,
   RuntimeRemoteObjectType,
-  RuntimeStackTrace,
-} from '../../../cdp/index.ts'
+} from '../../../cdp/remote-object.ts'
 import type {
   ClientRuntimeCompletion,
   ClientRuntimeExceptionDetails,

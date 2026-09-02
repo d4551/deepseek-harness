@@ -1,16 +1,14 @@
 /** Per-CDP-connection routing and projection for every realm's Runtime objects. */
 
+import type { RuntimeConsoleBackendEvent } from '../../../../shared/cdp/console.ts'
+import type { RuntimeExceptionDetails, RuntimeStackTrace } from '../../../../shared/cdp/errors.ts'
+import type { RuntimeCompletion, RuntimeProperties } from '../../../../shared/cdp/operations.ts'
 import type {
-  RuntimeCompletion,
-  RuntimeConsoleBackendEvent,
-  RuntimeExceptionDetails,
   RuntimeInternalPropertyDescriptor,
   RuntimePrivatePropertyDescriptor,
-  RuntimeProperties,
   RuntimePropertyDescriptor,
-  RuntimeRemoteObject,
-  RuntimeStackTrace,
-} from '../../../../shared/cdp/index.ts'
+} from '../../../../shared/cdp/property.ts'
+import type { RuntimeRemoteObject } from '../../../../shared/cdp/remote-object.ts'
 import type { InspectorObjectReference } from '../../../../shared/cordis/object-reference.ts'
 import type { RuntimeBackendObjectHandle } from '../../../../shared/cdp/ids.ts'
 import type { InspectorRealmDescriptor, InspectorRealmSession } from '../../../inspection/realm.ts'

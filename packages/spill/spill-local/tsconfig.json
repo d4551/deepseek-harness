@@ -4,8 +4,13 @@
     "rootDir": "src",
     "outDir": "lib/types"
   },
-  "include": ["src"],
+  "include": [
+    "src"
+  ],
   "references": [
+    {
+      "path": "../../subprocess/win32-process"
+    },
     {
       "path": "../../../vendor/cosmokit"
     },

@@ -14,14 +14,16 @@ function containsDirectory(root: string, candidate: string): boolean {
 }
 
 /**
- * Reject a temp parent that is inside the workspace: every child created
- * below it would inherit the standing workspace capability.
- * @param workspaceRoot - the canonical workspace root that receives the standing ACE.
+ * Reject a temp parent that is inside ANY workspace root: every child created
+ * below it would inherit that root's standing workspace capability.
+ * @param workspaceRoots - the canonical workspace roots that receive the standing ACEs.
  * @param tempRoot - the existing parent beneath which a private temp child would be created.
  */
-export function assertTempRootOutsideWorkspace(workspaceRoot: string, tempRoot: string): void {
-  if (containsDirectory(workspaceRoot, tempRoot)) {
-    throw new Error(`Windows ACL temp root must be outside the workspace: workspace=${workspaceRoot}; temp=${tempRoot}`)
+export function assertTempRootOutsideWorkspace(workspaceRoots: readonly string[], tempRoot: string): void {
+  for (const workspaceRoot of workspaceRoots) {
+    if (containsDirectory(workspaceRoot, tempRoot)) {
+      throw new Error(`Windows ACL temp root must be outside the workspace: workspace=${workspaceRoot}; temp=${tempRoot}`)
+    }
   }
 }
 

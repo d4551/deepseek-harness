@@ -15,7 +15,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView, SearchResultView, ToolResult } from '@deepseek-ai/dsh-tools'
 import type { SpillRef } from '@deepseek-ai/dsh-spill'
 import { FIRST_PARTY_SECTION_ORDER } from '@deepseek-ai/dsh-system-prompt'
-import { runRipgrep, toWorkdirRelative, trySaveFormattedResult } from './search-core.ts'
+import { runRipgrep, searchRoots, toWorkdirRelative, trySaveFormattedResult } from './search-core.ts'
 import { globSearchMeta, searchViewFromMeta } from './presentation.ts'
 import { acceptedDirectCallValue } from './direct-call.ts'
 
@@ -85,9 +85,11 @@ export function parseGlobArgs(args: { pattern: string; path?: string }): GlobInp
  * {@link GLOB_VCS_EXCLUDES} keeps VCS metadata out.
  *
  * @param input - the validated arguments.
+ * @param roots - absolute workspace roots to search when the model named no
+ *   `path` ({@link searchRoots}); empty leaves ripgrep walking its spawn cwd.
  * @returns the complete ripgrep argument vector (excluding the binary itself).
  */
-export function buildGlobCommand(input: GlobInput): string[] {
+export function buildGlobCommand(input: GlobInput, roots: readonly string[]): string[] {
   const parts = [
     '--files',
     `--glob=${input.pattern}`,
@@ -104,6 +106,7 @@ export function buildGlobCommand(input: GlobInput): string[] {
     ]),
   ]
   if (input.path !== undefined) parts.push('--', input.path)
+  else if (roots.length > 0) parts.push('--', ...roots)
   return parts
 }
 
@@ -341,7 +344,8 @@ export function applyGlobTool(ctx: Context, caps: GlobToolCaps): void {
     },
     async execute(args, exec) {
       const input = parseGlobArgs(args)
-      const run = await runRipgrep(ctx, exec, 'glob', buildGlobCommand(input), caps.rawOutputMaxBytes, caps.graceMs, caps.stderrMaxBytes)
+      const roots = searchRoots(exec, input.path)
+      const run = await runRipgrep(ctx, exec, 'glob', buildGlobCommand(input, roots), caps.rawOutputMaxBytes, caps.graceMs, caps.stderrMaxBytes)
       const root = input.path === undefined ? '.' : toWorkdirRelative(input.path, run.workdir)
       if (run.noMatches) return { root, paths: [] }
 

@@ -3,7 +3,7 @@
 .slot {
   position: sticky;
   top: 0;
-  z-index: 6;
+  z-index: var(--dsw-z-transcript-sticky);
   height: 0;
   pointer-events: none;
 }

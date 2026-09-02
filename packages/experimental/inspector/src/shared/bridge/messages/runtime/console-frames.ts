@@ -2,7 +2,7 @@
 
 import type { ClientRemoteObjectHandle, ClientRuntimeSessionId, InspectorSourceGeneration, InspectorSourceId } from '../../ids.ts'
 import { isPlainObject } from '../../../json.ts'
-import type { RuntimeConsoleBackendEvent, RuntimeConsoleType } from '../../../cdp/index.ts'
+import type { RuntimeConsoleBackendEvent, RuntimeConsoleType } from '../../../cdp/console.ts'
 import { exactKeys, exactObject, wireId } from '../../../validation.ts'
 import { INSPECTOR_PROTOCOL_VERSION } from '../../version.ts'
 import {

@@ -16,9 +16,9 @@ Status: implemented
 
 每个拉取请求还会在组织自有的 `dsh-windows-2025-16core` 运行器上启动 4 个相互独立的原生作业：`windows-build`、`windows-coverage`、`windows-native-tests` 与 `windows-observational`。每个作业都会为工作区符号链接启用开发人员模式，通过 `oven-sh/setup-bun` 提供仓库固定版本的 bun，在不传输 store 归档的情况下执行不可变安装，并在原生 PowerShell 下运行自己的清单。Windows 故障切换变量会把这 4 个作业全部重定向到公司内部运行器池。各作业采用 60 至 120 分钟的截止时间，以约束卡住的工作，同时不把性能目标当作正确性截止时间。
 
-`windows-build` 与 `windows-native-tests` 是 `all checks passed` 的依赖项；其工作区构建和定向原生进程结果具有阻断性。`windows-coverage` 仍是常规作业，但不在聚合流程的 `needs` 中，因此逐文件 100% 覆盖率结果会保持红灯并可见，却不会延迟必需判定。`windows-observational` 同样不在聚合流程的 `needs` 中，并使用 `continue-on-error`，因为静态检查、文档、包与构建产物的阻断性判定由 Linux 负责。
+`windows-build`、`windows-coverage` 与 `windows-native-tests` 是 `all checks passed` 的依赖项；其工作区构建、受支持源码覆盖率和定向原生进程结果具有阻断性。覆盖率在下文的 job 内分区方案把一次完整通过压入聚合流程现有关键路径之后加入其中：绿灯判定旁边的红色 Windows 覆盖率结果，等于分支接受了一次 Windows 回归，而这正是该拓扑要防止的失效模式。`windows-observational` 仍不在聚合流程的 `needs` 中，并使用 `continue-on-error`，因为它重复的静态检查、文档、包与构建产物阻断性判定由 Linux 负责；要求它通过，等于让分支再就同一批事实征求第二次意见。
 
-`windows-coverage` 会先完成一次工作区构建，再由[job 内分区覆盖率](2026-08-18-in-job-partitioned-coverage.zh.md)启动 4 个单 worker 插桩分片，并与一个双 worker 的豁免重型门禁并行运行。两项覆盖率门禁都将 Vitest 默认的单测试和轮询时间预算设为 30 秒。`windows-observational` 拥有自己的工作区构建和生产网站验证，会一起启动相互独立的静态门禁，并将 `publint` 限制为最多 8 个 worker。其 built-bin 冒烟测试只在其他所有观测性门禁结算后启动；冒烟测试的 `needs` 边仍要求构建成功，而 `after` 边会在其他门禁失败后保留这项诊断。这可避免有界的真实应用启动测量与 tool-catalog、Knip、NodeNext、包及文档进程争抢资源。SQLite busy-journal 节奏 fixture 会在普通 busy 预算内先注入两次 busy 结果，再返回成功，并观察每次尝试之间的延迟，使 schema 设置的调度时间不进入该断言。translation-pairing 合并套件只导入 `scripts/` 源码和子进程，因此放入豁免重型套件门禁；V8 插桩不会为它贡献任何阈值覆盖率，却会放大 Git 进程延迟。Lefthook 并发 fixture 保留原有结果，采用 30 秒单用例预算与 10 秒进程就绪探测；安装器则允许被抢占的 lock 持有者在独占创建后用 5 秒发布记录。directory-picker 组合为防抖配置写入提供显式的 15 秒轮询预算；workspace-context 组合 fixture 使用测试自有、没有无关 1 秒截止时间的信号。LSP 源码与 ACL 沙箱源码仍计入 Windows 分母：基于 stub 的失败路径套件把每个进程内 ACL 沙箱文件都带到 100%，只有 runner 入口保持排除——它只作为 spawn 出的子进程在插桩运行之外执行，其行为由 runner 套件端到端钉住。窄范围且带注释的 V8 ignore 只覆盖不可达分支（另一平台专属分支、生命周期内不可达的防御守卫），其行为测试仍保留在所属平台。
+`windows-coverage` 会先完成一次工作区构建，再由[job 内分区覆盖率](2026-08-18-in-job-partitioned-coverage.zh.md)启动 4 个单 worker 插桩分片，并与一个双 worker 的豁免重型门禁并行运行。两项覆盖率门禁都将 Vitest 默认的单测试和轮询时间预算设为 30 秒。`windows-observational` 拥有自己的工作区构建和生产网站验证，会一起启动相互独立的静态门禁，并将 `publint` 限制为最多 8 个 worker。其 built-bin 冒烟测试只在其他所有观测性门禁结算后启动；冒烟测试的 `needs` 边仍要求构建成功，而 `after` 边会在其他门禁失败后保留这项诊断。这可避免有界的真实应用启动测量与 tool-catalog、Knip、NodeNext、包及文档进程争抢资源。SQLite busy-journal 节奏 fixture 会在普通 busy 预算内先注入两次 busy 结果，再返回成功，并观察每次尝试之间的延迟，使 schema 设置的调度时间不进入该断言。translation-pairing 合并套件只导入 `scripts/` 源码和子进程，因此放入豁免重型套件门禁；V8 插桩不会为它贡献任何阈值覆盖率，却会放大 Git 进程延迟。Lefthook 并发 fixture 保留原有结果，采用 30 秒单用例预算与 10 秒进程就绪探测；安装器则允许被抢占的 lock 持有者在独占创建后用 5 秒发布记录。directory-picker 组合为防抖配置写入提供显式的 15 秒轮询预算；workspace-context 组合 fixture 使用测试自有、没有无关 1 秒截止时间的信号。LSP 源码与 ACL 沙箱源码仍计入 Windows 分母：基于 stub 的失败路径套件把每个进程内 ACL 沙箱文件都带到 100%，只有 runner 入口保持排除——它只作为 spawn 出的子进程在插桩运行之外执行，其行为由 runner 套件端到端钉住。hooks 桥接与持久化终端包同样计入该分母：两者都不是 bash 专属的，其 Windows 通道会通过 PowerShell 执行器与 pwsh PTY 方言运行同一批套件。窄范围且带注释的 V8 ignore 只覆盖不可达分支（另一平台专属分支、生命周期内不可达的防御守卫），其行为测试仍保留在所属平台。
 
 16 核配置是这项清单经实测选定的容量规格。使用 6 个 coverage worker 的试验分别以 6 分 27 秒和 7 分 50 秒跑出完整通过结果，而在单个插桩 Vitest 进程内使用 4 个、3 个和 2 个并发 worker 的分支头精确试验暴露出不稳定的 fixture 与 worker 退出。相互独立的单 worker 子进程保留进程隔离。历史上的 16 分片样本把插桩覆盖率缩短到 112.66–122.01 秒。拉取请求覆盖率作业会在构建后调度 4 个插桩子进程和 2 个豁免 worker，而自托管完整参考流程会用 1 个 worker 串行运行未分片的覆盖率门禁。拉取请求若采用 6 分片配置，就会产生足以违反有界测试截止时间的进程与类型感知 lint 争用。16 个插桩分片加 2 个豁免 worker 会在计入系统开销前就超过 16 核分配。32 核对比仅将聚合门禁时间缩短 1.47 秒，且仍在 fork worker 内触发 CJS lexer 致命故障，因此增加核心数没有带来可靠的墙钟时间改善。
 
@@ -36,11 +36,11 @@ Shiki 会禁用 TextMate 正则的延迟编译，并在用户内容进入保持�
 
 ## 曾考虑的替代方案
 
-**让每项原生 Windows 结果都成为 `all checks passed` 的依赖项。** 这会为聚合流程提供保真度最高的 Windows 判定，但也会让每次合并等待覆盖率和重复的观测性清单。要求构建与定向原生进程套件通过，可以保留快速的原生正确性信号，同时继续自动产生其他结果。
+**让每项原生 Windows 结果都成为 `all checks passed` 的依赖项，包括观测性作业。** 这会为聚合流程提供保真度最高的 Windows 判定，但也会让每次合并等待一份其阻断性判定已由 Linux 负责的清单。要求构建、覆盖率与定向原生进程套件通过，可让每个 Windows 专属的正确性信号都具有阻断性，同时让重复的静态检查与文档门禁继续自动产生结果。
 
 **只在拉取请求上运行 Wine。** Wine 能快速触达阻断性 win32 工具链分支，但即使真实 NT、NTFS、PowerShell、进程或原生插件约定已经损坏，也可能报告绿灯。
 
-**将每个非阻断原生作业都标记为 `continue-on-error`。** 观测性作业采用该设置，因为它的阻断性判定由 Linux 负责。覆盖率仍是聚合流程 `needs` 之外的常规作业，因此阈值失败会保持明显红灯，却不会阻断聚合流程。
+**将每个非阻断原生作业都标记为 `continue-on-error`。** 观测性作业采用该设置，因为它的阻断性判定由 Linux 负责。覆盖率不采用：它的阈值失败是 Windows 专属的，因此会阻断分支。
 
 **排除看似不受支持的文件或削弱 Windows fixture。** 不予采纳，因为受影响的 LSP、watcher、持久化、客户端与进程行为均受支持。仅适用于另一平台的分支采用窄范围标注；可移植结果继续计入分母，并通过符合真实宿主行为的 fixture 验证。
 
@@ -50,7 +50,7 @@ Shiki 会禁用 TextMate 正则的延迟编译，并在用户内容进入保持�
 
 ## 后果
 
-Wine 保留必需聚合流程现有的关键路径和作业身份。`all checks passed` 变绿时，原生覆盖率与观测性结果仍可能处于待处理或红灯状态，因此分支保护采用 Wine 加定向原生构建和进程检查，而评审者和后续自动化采用其余原生结果。
+Wine 保留必需聚合流程现有的关键路径和作业身份。分支保护采用 Wine 加原生构建、覆盖率与定向进程检查，因此 Windows 专属回归会让拉取请求失败。`all checks passed` 变绿时，观测性结果仍可能处于待处理或红灯状态；评审者和后续自动化采用该结果。
 
 尽管如此，每个拉取请求都会获得真实 NT 内核、NTFS、PowerShell、Windows 进程、原生插件和受支持源码覆盖率信号。原生作业会重复设置流程，并在构建、覆盖率与观测性工作区中重复构建，但它们会降低每个作业的进程数，并暴露兼容性通道掩盖的路径、watcher、生命周期与 fixture 缺陷。
 

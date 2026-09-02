@@ -7,7 +7,12 @@ import { randomUUID } from 'node:crypto'
 import { isAbsolute } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import type { DatabaseSync } from 'node:sqlite'
-import { setTimeout as delay } from 'node:timers/promises'
+import {
+  configureConnectionSecurity,
+  configureDurability,
+  selectJournalMode,
+  type SqliteDatabaseSubject,
+} from '@deepseek-ai/dsh-sqlite-connection'
 import {
   SessionId,
   type SessionHeader,
@@ -56,11 +61,13 @@ interface SchemaObjectRow {
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
-const JOURNAL_BUSY_RETRY_INTERVAL_MS = 10
 type DatabaseSyncConstructor = typeof import('node:sqlite')['DatabaseSync']
 
 /**
- * Open and validate a SQLite session database.
+ * Open and validate a SQLite session database. The connection settings shared
+ * with every other Harness SQLite medium — schema trust off, mapping off,
+ * verified journal mode, `synchronous=FULL` — come from
+ * `@deepseek-ai/dsh-sqlite-connection`; schema ownership stays here.
  * @param Database - lazily imported Node SQLite constructor.
  * @param path - SQLite path, including `:memory:`.
  * @param journalMode - validated journal pragma.
@@ -75,32 +82,21 @@ export async function openDatabase(
   busyTimeoutMs: number,
 ): Promise<DatabaseSync> {
   const deadline = performance.now() + busyTimeoutMs
+  const database: SqliteDatabaseSubject = { path, role: 'session database' }
   const db = new Database(path, { timeout: busyTimeoutMs })
   try {
-    configureConnectionSecurity(db, path)
+    configureConnectionSecurity(db, database)
     configureDatabase(Database, db, path)
-    await selectJournalMode(db, path, journalMode, deadline)
-    configureDurability(db, path)
+    await selectJournalMode(db, database, {
+      statement: sql(journalResource(journalMode)),
+      mode: journalMode,
+      deadline,
+    })
+    configureDurability(db, database)
     return db
   } catch (error: unknown) {
     db.close()
     throw error
-  }
-}
-
-function configureConnectionSecurity(db: DatabaseSync, path: string): void {
-  db.exec(sql('trusted-schema-off'))
-  const trustedSchema = integerField(db.prepare(sql('select-trusted-schema')).get(), 'trusted_schema')
-  /* v8 ignore next 3 -- supported SQLite versions return the fixed setting. */
-  if (trustedSchema !== 0) {
-    throw new Error(`session database at "${path}" retained trusted_schema=${trustedSchema}, expected 0`)
-  }
-  db.exec(sql('mmap-off'))
-  if (path === ':memory:') return
-  const mmapSize = integerField(db.prepare(sql('select-mmap-size')).get(), 'mmap_size')
-  /* v8 ignore next 3 -- supported file-backed SQLite connections return the fixed setting. */
-  if (mmapSize !== 0) {
-    throw new Error(`session database at "${path}" retained mmap_size=${mmapSize}, expected 0`)
   }
 }
 
@@ -147,47 +143,6 @@ function configureDatabase(
     }
     throw error
   }
-}
-
-async function selectJournalMode(
-  db: DatabaseSync,
-  path: string,
-  journalMode: JournalMode,
-  deadline: number,
-): Promise<void> {
-  let result: unknown
-  while (true) {
-    try {
-      result = db.prepare(sql(journalResource(journalMode))).get()
-      break
-    } catch (error: unknown) {
-      const remainingMs = Math.max(0, Math.ceil(deadline - performance.now()))
-      if (!isSqliteBusy(error) || remainingMs === 0) throw error
-      await delay(Math.min(JOURNAL_BUSY_RETRY_INTERVAL_MS, remainingMs))
-      if (performance.now() >= deadline) throw error
-    }
-  }
-  const selected = stringField(result, 'journal_mode').toLowerCase()
-  const expected = path === ':memory:' ? 'memory' : journalMode
-  /* v8 ignore next 3 -- SQLite returns the selected mode from these fixed, valid pragmas. */
-  if (selected !== expected) {
-    throw new Error(`session database at "${path}" selected journal mode ${selected}, expected ${expected}`)
-  }
-}
-
-function configureDurability(db: DatabaseSync, path: string): void {
-  db.exec(sql('synchronous-full'))
-  const synchronous = integerField(db.prepare(sql('select-synchronous')).get(), 'synchronous')
-  /* v8 ignore next 3 -- supported SQLite versions return the fixed setting. */
-  if (synchronous !== 2) {
-    throw new Error(`session database at "${path}" retained synchronous=${synchronous}, expected FULL (2)`)
-  }
-}
-
-function isSqliteBusy(error: unknown): boolean {
-  return typeof error === 'object'
-    && error !== null
-    && Reflect.get(error, 'errcode') === 5
 }
 
 function journalResource(mode: JournalMode):

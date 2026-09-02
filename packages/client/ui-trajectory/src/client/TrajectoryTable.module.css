@@ -24,7 +24,7 @@
 
 .historyLoading {
   position: sticky;
-  z-index: 5;
+  z-index: var(--dsw-z-raised-4);
   top: 0;
   height: 0;
   overflow: visible;
@@ -93,15 +93,6 @@
   cursor: default;
 }
 
-.visuallyHidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
-
 .table:not([data-scroll-ready='true']) {
   visibility: hidden;
 }
@@ -143,7 +134,7 @@
 .table th {
   position: sticky;
   top: 0;
-  z-index: 3;
+  z-index: var(--dsw-z-raised-2);
   box-sizing: border-box;
   height: 30px;
   padding: 0 8px;
@@ -233,7 +224,7 @@
   --request-boundary-base-left: 12px;
 
   position: absolute;
-  z-index: 6;
+  z-index: var(--dsw-z-raised-5);
   top: -8px;
   left: calc(var(--request-boundary-base-left) + var(--request-boundary-offset, 0px));
   width: 16px;
@@ -333,7 +324,7 @@
 }
 
 .turnRail {
-  z-index: 4;
+  z-index: var(--dsw-z-raised-3);
   top: -1px;
   bottom: -1px;
   width: 2px;
@@ -345,7 +336,7 @@
 }
 
 .selectionRail {
-  z-index: 5;
+  z-index: var(--dsw-z-raised-4);
   top: 0;
   bottom: 0;
   width: 3px;
@@ -370,7 +361,7 @@
 
 .table tbody tr[data-turn-start='true']:not(:first-child) td::before {
   position: absolute;
-  z-index: 1;
+  z-index: var(--dsw-z-raised);
   top: 0;
   right: 0;
   left: 0;
@@ -389,7 +380,7 @@
 
 .turnLabel {
   position: absolute;
-  z-index: 3;
+  z-index: var(--dsw-z-raised-2);
   top: 0;
   left: 0;
   display: inline-grid;
@@ -876,7 +867,7 @@
 
 .detailsResizeHandle {
   position: absolute;
-  z-index: 6;
+  z-index: var(--dsw-z-raised-5);
   top: 0;
   bottom: 0;
   left: -4px;
@@ -1758,7 +1749,7 @@
 @media (max-width: 760px) {
   .details {
     position: absolute;
-    z-index: 5;
+    z-index: var(--dsw-z-raised-4);
     top: 0;
     right: 0;
     bottom: 0;

@@ -1,17 +1,15 @@
 /** Client-local object handles and CDP-compatible RemoteObject serialization. */
 
-import {
-  inspectorId,
-  type ClientRemoteObjectHandle,
-} from '../../shared/bridge/ids.ts'
+import { inspectorId } from '../../shared/identity.ts'
+import type { ClientRemoteObjectHandle } from '../../shared/bridge/ids.ts'
 import { isJsonValue, type InspectorJsonValue } from '../../shared/json.ts'
-import type { ClientRuntimeRemoteObject } from '../../shared/bridge/messages/runtime/index.ts'
+import type { ClientRuntimeRemoteObject } from '../../shared/bridge/messages/runtime/commands.ts'
 import type {
   RuntimeObjectPreview,
   RuntimePropertyPreview,
   RuntimeRemoteObjectSubtype,
   RuntimeRemoteObjectType,
-} from '../../shared/cdp/index.ts'
+} from '../../shared/cdp/remote-object.ts'
 import { ClientRuntimeExecutionError } from './errors.ts'
 import { identifyRealmObject } from '../../shared/cordis/object-registry.ts'
 

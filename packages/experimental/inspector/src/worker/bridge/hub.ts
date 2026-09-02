@@ -10,8 +10,9 @@ import {
   type SourceToWorkerFrame,
   type WorkerToSourceFrame,
 } from '../../shared/bridge/messages/observation.ts'
-import type { ClientConsoleEventFrame, ClientRuntimeResponseFrame } from '../../shared/bridge/messages/runtime/index.ts'
-import type { ClientSourceResponseFrame } from '../../shared/bridge/messages/sources/index.ts'
+import type { ClientConsoleEventFrame } from '../../shared/bridge/messages/runtime/console-frames.ts'
+import type { ClientRuntimeResponseFrame } from '../../shared/bridge/messages/runtime/frames.ts'
+import type { ClientSourceResponseFrame } from '../../shared/bridge/messages/sources/frames.ts'
 
 /** One validated record with its source-local sequence. */
 export interface IngestedInspectorRecord extends InspectorRecordInput {

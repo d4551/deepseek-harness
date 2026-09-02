@@ -1,0 +1,25 @@
+/* ---------- visually hidden ----------
+ * The screen-reader-only SSOT. Text that names a colour-only or motion-only
+ * signal (a state dot, a running sweep, an icon button) has to reach assistive
+ * technology without painting, and every component that needs it needs the
+ * same six declarations. This sheet owns them; feature packages write the
+ * class name into their markup exactly as component CSS writes a `--dsw-*`
+ * token name, and scripts/client-ui-ssot.ts fails a CSS Module that declares a
+ * second copy.
+ *
+ * The box stays 1x1 and in flow-independent absolute position rather than
+ * `display: none` or `visibility: hidden`, both of which remove the element
+ * from the accessibility tree. `clip-path` is the current spelling of the
+ * clipping step; the deprecated `clip: rect(0 0 0 0)` fallback is omitted
+ * because apps/web builds at `target: 'es2022'` (apps/web/vite.config.ts) with
+ * no browserslist, and every engine in that range supports `clip-path` on a
+ * non-SVG box. `white-space: nowrap` keeps a long label from being wrapped
+ * into the 1px column, which some engines report as its rendered text. */
+.dsw-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

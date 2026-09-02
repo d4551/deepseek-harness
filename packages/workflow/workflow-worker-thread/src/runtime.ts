@@ -13,6 +13,7 @@
  */
 
 import * as vm from 'node:vm'
+import { CapacityGate } from '@deepseek-ai/dsh-capacity-gate'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { assertObjectJsonSchema, JsonSchemaError } from '@deepseek-ai/dsh-tools'
@@ -64,8 +65,8 @@ function defaultLabel(prompt: string): string {
 export class WorkflowExecution {
   /** 1-based count of `agent()` calls started (the `agentsStarted` result field). */
   private started = 0
-  private activeSlots = 0
-  private readonly slotWaiters: { resolve(): void; reject(error: unknown): void }[] = []
+  /** Concurrent `agent()` admission; cancellation fails every queued waiter. */
+  private readonly slots: CapacityGate
   private cancelReason: string | undefined
   private cancelError: WorkflowError | undefined
   private currentPhase: string | undefined
@@ -95,6 +96,7 @@ export class WorkflowExecution {
       throw new WorkflowError(`workflow script does not parse: ${String(error)}`, 'SCRIPT_PARSE', { cause: error })
     }
 
+    this.slots = new CapacityGate(limits.maxConcurrentAgents)
     this.context = vm.createContext({}, { name: `workflow:${meta.name}` })
 
     const globals: Record<string, unknown> = {
@@ -147,7 +149,7 @@ export class WorkflowExecution {
     if (this.cancelReason !== undefined) return
     this.cancelReason = reason
     this.cancelError = new WorkflowError(`workflow run cancelled: ${this.cancelReason}`, 'CANCELLED')
-    for (const waiter of this.slotWaiters.splice(0)) waiter.reject(this.cancelledError())
+    this.slots.close(this.cancelledError())
   }
 
   /**
@@ -219,33 +221,6 @@ export class WorkflowExecution {
     }
   }
 
-  /**
-   * Acquire one concurrency slot (FIFO). Cancellation rejects QUEUED waiters
-   * (see {@link cancel}); the callers guard their own entry and post-acquire
-   * windows, so no cancelled-precheck is duplicated here.
-   */
-  private acquireSlot(): Promise<void> {
-    if (this.activeSlots < this.limits.maxConcurrentAgents) {
-      this.activeSlots += 1
-      return Promise.resolve()
-    }
-    return new Promise<void>((resolve, reject) => {
-      this.slotWaiters.push({
-        resolve: () => {
-          this.activeSlots += 1
-          resolve()
-        },
-        reject,
-      })
-    })
-  }
-
-  private releaseSlot(): void {
-    this.activeSlots -= 1
-    const next = this.slotWaiters.shift()
-    if (next) next.resolve()
-  }
-
   /** The `agent(prompt, opts)` hook. */
   private async agent(rawPrompt: unknown, rawOpts: unknown): Promise<unknown> {
     this.throwIfCancelled()
@@ -264,7 +239,7 @@ export class WorkflowExecution {
     const label = opts.label ?? defaultLabel(rawPrompt)
     const phase = opts.phase ?? this.currentPhase
 
-    await this.acquireSlot()
+    const release = await this.slots.acquire()
     try {
       // Re-check after the acquire: the await yields at least one microtask
       // tick even when a slot is free, and a queued waiter resumes a tick
@@ -340,7 +315,7 @@ export class WorkflowExecution {
         await run.dispose()
       }
     } finally {
-      this.releaseSlot()
+      release()
     }
   }
 

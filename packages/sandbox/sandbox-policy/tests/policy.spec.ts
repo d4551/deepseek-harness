@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
+import { setAdditionalWorkspaceRoots } from '@deepseek-ai/dsh-session/workspace-roots'
 import SandboxPolicyService, { SANDBOX_MODES, effectiveSandboxMode, setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
 import SystemPrompt, { renderContextSnapshot, renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 
@@ -118,6 +119,37 @@ describe('SandboxPolicyService', () => {
     })
   })
 
+  it('folds the session log\'s additional workspace roots into the policy, canonical and free of the primary root', async () => {
+    const ctx = await mounted({ mode: 'workspace-write', workspaceRoot: '/fallback' })
+    const active = session('sess-roots', '/projects/primary')
+    setAdditionalWorkspaceRoots(active, ['/projects/other', '/projects/primary', '/projects/other/../other'])
+
+    expect(ctx.sandboxPolicy.resolve({ session: active })).toEqual({
+      mode: 'workspace-write',
+      workspaceRoot: resolve('/projects/primary'),
+      additionalWorkspaceRoots: [resolve('/projects/other')],
+      sessionId: 'sess-roots',
+    })
+    expect(ctx.sandboxPolicy.additionalRootsOf(active)).toEqual([resolve('/projects/other')])
+  })
+
+  it('omits the additional-roots field entirely for a session that never widened, and for an agentless call', async () => {
+    const ctx = await mounted({ mode: 'workspace-write', workspaceRoot: '/fallback' })
+    const narrow = session('sess-narrow', '/projects/primary')
+    expect(ctx.sandboxPolicy.resolve({ session: narrow })).not.toHaveProperty('additionalWorkspaceRoots')
+    expect(ctx.sandboxPolicy.resolve()).not.toHaveProperty('additionalWorkspaceRoots')
+    expect(ctx.sandboxPolicy.additionalRootsOf(narrow)).toEqual([])
+  })
+
+  it('reconstructs a resumed session\'s additional roots from its log alone', async () => {
+    const active = session('sess-roots-resume', '/projects/primary')
+    setAdditionalWorkspaceRoots(active, ['/projects/other'])
+    const resumed = Session.create(active.id, active.events, active.header)
+    const ctx = await mounted({ mode: 'workspace-write', workspaceRoot: '/fallback' })
+
+    expect(ctx.sandboxPolicy.resolve({ session: resumed }).additionalWorkspaceRoots).toEqual([resolve('/projects/other')])
+  })
+
   it('uses the configured root when a session has no cwd', async () => {
     const ctx = await mounted({ workspaceRoot: '/fallback' })
     expect(ctx.sandboxPolicy.resolve({ session: session('sess-no-cwd') }).workspaceRoot).toBe(resolve('/fallback'))
@@ -194,6 +226,19 @@ describe('sandbox:policy request context', () => {
 
     setSandboxMode(active, 'workspace-write')
     expect(await policyContext(ctx, active)).toBe(`Current DSH file policy: workspace-write. Any available operation enforced by the DSH file sandbox may modify files under the session workspace: ${JSON.stringify(resolve('/projects/current'))}. Some platform temporary areas may also be writable.`)
+  })
+
+  it('names every writable workspace root in the model-facing policy sentence', async () => {
+    const ctx = await promptMounted({ mode: 'workspace-write' })
+    const single = session('sess-prompt-single', '/projects/primary')
+    expect(await policyContext(ctx, single)).toBe(`Current DSH file policy: workspace-write. Any available operation enforced by the DSH file sandbox may modify files under the session workspace: ${JSON.stringify(resolve('/projects/primary'))}. Some platform temporary areas may also be writable.`)
+
+    const widened = session('sess-prompt-multi', '/projects/primary')
+    setAdditionalWorkspaceRoots(widened, ['/projects/other'])
+    const text = await policyContext(ctx, widened)
+    expect(text).toBe(`Current DSH file policy: workspace-write. Any available operation enforced by the DSH file sandbox may modify files under the session workspaces: ${JSON.stringify(resolve('/projects/primary'))}, ${JSON.stringify(resolve('/projects/other'))}. Some platform temporary areas may also be writable.`)
+    // Byte-stable for a given root set: reassembly changes nothing.
+    expect(await policyContext(ctx, widened)).toBe(text)
   })
 
   it('reconstructs resumed policy from the session log and omits diagnostics without an agent', async () => {

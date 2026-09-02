@@ -150,7 +150,7 @@ export function ToolRow({
   const cardBody = variant === 'code' ? null : body
   return (
     <div className={css.root} data-variant={variant} data-tool={toolName} data-state={state}>
-      {status !== null && <span className={css.visuallyHidden}>{status}</span>}
+      {status !== null && <span className="dsw-visually-hidden">{status}</span>}
       <DisclosureRow
         rowClassName={css.row}
         leadingClassName={css.leading}

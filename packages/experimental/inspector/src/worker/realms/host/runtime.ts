@@ -5,19 +5,19 @@ import type { RuntimeBackendObjectHandle } from '../../../shared/cdp/ids.ts'
 import { isJsonValue } from '../../../shared/json.ts'
 import { IDENTIFY_REALM_OBJECT_FUNCTION } from '../../../shared/cordis/object-registry.ts'
 import { parseInspectorObjectReference, type InspectorObjectReference } from '../../../shared/cordis/object-reference.ts'
+import type { RuntimeExceptionDetails, RuntimeStackTrace } from '../../../shared/cdp/errors.ts'
 import type {
   RuntimeCallArgument,
   RuntimeCompletion,
-  RuntimeExceptionDetails,
+  RuntimeProperties,
+  RuntimeExecutionContext,
+} from '../../../shared/cdp/operations.ts'
+import type {
   RuntimeInternalPropertyDescriptor,
   RuntimePrivatePropertyDescriptor,
-  RuntimeProperties,
   RuntimePropertyDescriptor,
-  RuntimeRemoteObject,
-  RuntimeRemoteObjectDescriptor,
-  RuntimeExecutionContext,
-  RuntimeStackTrace,
-} from '../../../shared/cdp/index.ts'
+} from '../../../shared/cdp/property.ts'
+import type { RuntimeRemoteObject, RuntimeRemoteObjectDescriptor } from '../../../shared/cdp/remote-object.ts'
 import type { HostInspectorNotification, HostInspectorSession } from './bridge.ts'
 import type { RuntimeBackend } from '../../../shared/cdp/realm.ts'
 import { isNativeRecord, optionalNativeField, requireNativeRecord } from './values.ts'

@@ -2,15 +2,13 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import {
-  apply as applyHost,
-} from './host/plugin.ts'
+import { apply as applyHost } from './host/index.ts'
 import { resolveInspectorOptions, type InspectorOptions } from './host/bridge/controller.ts'
 import type { CordisRuntimeTreeReader } from './shared/cordis/reader.ts'
 import type { InspectorJsonValue } from './shared/json.ts'
 
-export { resolveInspectorOptions, startInspector } from './host/plugin.ts'
-export type { InspectorEndpoint, InspectorHandle, InspectorOptions, InspectorSpec } from './host/plugin.ts'
+export { resolveInspectorOptions, startInspector } from './host/index.ts'
+export type { InspectorEndpoint, InspectorHandle, InspectorOptions, InspectorSpec } from './host/index.ts'
 export type { CordisRuntimeTreeReader } from './shared/cordis/reader.ts'
 export type {
   CordisRuntimeConnection,

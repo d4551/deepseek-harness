@@ -1,11 +1,13 @@
 /**
  * The sandbox POLICY home (`ctx.sandboxPolicy`): the single owner of the
  * deployment's sandbox fallbacks plus per-session resolution: the file-effect
- * {@link SandboxMode}, the `workspace-write` root, and the override kit (the
- * `sandbox/mode` event, its fold, and its write path, from `./session-mode.ts`).
+ * {@link SandboxMode}, the `workspace-write` roots (the session's immutable
+ * primary cwd plus the additional roots its `workspace/roots` log records),
+ * and the override kit (the `sandbox/mode` event, its fold, and its write
+ * path, from `./session-mode.ts`).
  * Before each agent request, the owner also contributes the resolved policy to
  * the cache-safe runtime-context snapshot. The agent loop logs that snapshot as
- * model history, so replay reconstructs the same mode and root the enforcing
+ * model history, so replay reconstructs the same mode and roots the enforcing
  * consumers resolve without rewriting the stable system prompt.
  *
  * Enforcing filesystem, one-shot bash, and terminal backends read the SAME
@@ -22,8 +24,10 @@ import { resolve as resolvePath } from 'node:path'
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-agent'
-import { canonicalPath, type SandboxExecutionPolicy, type SandboxMode } from '@deepseek-ai/dsh-sandbox'
+import type { SandboxExecutionPolicy, SandboxMode } from '@deepseek-ai/dsh-sandbox'
+import { canonicalPath, workspaceRoots } from '@deepseek-ai/dsh-sandbox/roots'
 import type { Session } from '@deepseek-ai/dsh-session'
+import { effectiveWorkspaceRoots } from '@deepseek-ai/dsh-session/workspace-roots'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import { effectiveSandboxMode } from './session-mode.ts'
 
@@ -39,8 +43,16 @@ function renderPolicyContext(policy: SandboxExecutionPolicy): string {
   switch (policy.mode) {
     case 'read-only':
       return 'Current DSH file policy: read-only. Any available operation enforced by the DSH file sandbox cannot modify files in the standing mode. Do not refuse a required modification from this policy alone: try an available tool normally and follow any denial and escalation guidance it returns.'
-    case 'workspace-write':
-      return `Current DSH file policy: workspace-write. Any available operation enforced by the DSH file sandbox may modify files under the session workspace: ${JSON.stringify(policy.workspaceRoot)}. Some platform temporary areas may also be writable.`
+    case 'workspace-write': {
+      // Only the workspace roots are named: the platform temp areas vary with
+      // the host environment, so naming them would make the same session's
+      // prompt differ byte-for-byte between machines and invalidate the
+      // prefix cache. The roots render in resolution order, primary first.
+      const roots = workspaceRoots(policy)
+      const named = roots.map(root => JSON.stringify(root)).join(', ')
+      const subject = roots.length === 1 ? 'the session workspace' : 'the session workspaces'
+      return `Current DSH file policy: workspace-write. Any available operation enforced by the DSH file sandbox may modify files under ${subject}: ${named}. Some platform temporary areas may also be writable.`
+    }
     case 'danger-full-access':
       return 'Current DSH file policy: danger-full-access. The DSH file sandbox does not restrict file modifications by available operations.'
     /* v8 ignore next 4 -- SandboxMode is a typed same-process closed union; this branch is only the static exhaustiveness guard. */
@@ -76,7 +88,7 @@ export interface Config {
 
 /** Inputs that select the sandbox policy for one capability call. */
 export interface SandboxPolicyRequest {
-  /** Calling session; its immutable cwd becomes the workspace boundary. */
+  /** Calling session; its immutable cwd and recorded additional roots become the workspace boundary. */
   session?: Session
   /** Explicit approved mode override, which outranks session policy. */
   mode?: SandboxMode
@@ -86,7 +98,8 @@ export interface SandboxPolicyRequest {
  * The sandbox-policy service (`ctx.sandboxPolicy`). Owns the deployment
  * default mode, fallback workspace root, and current request-time policy
  * section. Tool layers call {@link resolve} for each execution so a session's
- * mode log and immutable cwd travel together to every enforcing capability.
+ * mode log, immutable cwd, and recorded additional roots travel together to
+ * every enforcing capability.
  */
 export class SandboxPolicyService extends Service {
   // Inline schema call: the config catalog walks `static Config` statically.
@@ -126,17 +139,21 @@ export class SandboxPolicyService extends Service {
   /**
    * Resolve the complete policy for one capability call. An approved explicit
    * mode outranks the session's last `sandbox/mode` event, which outranks the
-   * deployment default. A session cwd is its workspace-write boundary; the
+   * deployment default. A session cwd is its primary workspace-write
+   * boundary and its `workspace/roots` log supplies the additional ones; the
    * configured root is the fallback for agentless calls and sessions without a
    * cwd.
    * @param request - optional session and approved mode override.
-   * @returns the fully resolved per-call mode and absolute workspace root.
+   * @returns the fully resolved per-call mode and absolute workspace roots.
    */
   resolve(request: SandboxPolicyRequest = {}): SandboxExecutionPolicy {
     const { session } = request
+    const workspaceRoot = resolveWorkspaceRoot(session?.header.cwd ?? this.workspaceRoot)
+    const additional = session === undefined ? [] : normalizeAdditionalRoots(session, workspaceRoot)
     return {
       mode: request.mode ?? (session === undefined ? undefined : this.overrideOf(session)) ?? this.defaultMode,
-      workspaceRoot: resolveWorkspaceRoot(session?.header.cwd ?? this.workspaceRoot),
+      workspaceRoot,
+      ...additional.length === 0 ? {} : { additionalWorkspaceRoots: additional },
       ...session === undefined ? {} : { sessionId: session.id },
     }
   }
@@ -149,6 +166,35 @@ export class SandboxPolicyService extends Service {
   overrideOf(session: Session): SandboxMode | undefined {
     return effectiveSandboxMode(session.events)
   }
+
+  /**
+   * Read the session's additional workspace roots as every enforcement layer
+   * compares them, without resolving a whole policy. The primary root is the
+   * session's cwd, or this service's fallback for a session without one.
+   * @param session - session whose log supplies the recorded roots.
+   * @returns canonical additional roots, deduplicated and never the primary root.
+   */
+  additionalRootsOf(session: Session): string[] {
+    return normalizeAdditionalRoots(session, resolveWorkspaceRoot(session.header.cwd ?? this.workspaceRoot))
+  }
+}
+
+/**
+ * Fold a session's recorded additional roots into the form the enforcement
+ * layers compare: canonical filesystem identity, deduplicated, and with the
+ * primary root removed so no root is granted twice.
+ * @param session - session whose log carries the `workspace/roots` record.
+ * @param primaryRoot - the already-resolved primary root to exclude.
+ * @returns the normalized additional roots, in recorded order.
+ */
+function normalizeAdditionalRoots(session: Session, primaryRoot: string): string[] {
+  const normalized: string[] = []
+  for (const root of effectiveWorkspaceRoots(session.events)) {
+    const resolved = resolveWorkspaceRoot(root)
+    if (resolved === primaryRoot || normalized.includes(resolved)) continue
+    normalized.push(resolved)
+  }
+  return normalized
 }
 
 export default SandboxPolicyService

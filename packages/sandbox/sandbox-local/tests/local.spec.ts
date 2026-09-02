@@ -104,6 +104,20 @@ describe('profile dialects', () => {
     expect(profile).toContain(grant)
     expect(profile.split(grant)).toHaveLength(2)
   })
+
+  it('every dialect grants EVERY workspace root a multi-root policy names, not only the primary', () => {
+    const multi = { mode: 'workspace-write', workspaceRoot: '/ws', additionalWorkspaceRoots: ['/second'] } as const
+
+    expect(bwrapProfileArgs(multi)).toEqual([
+      '--ro-bind', '/', '/', '--dev', '/dev', '--unshare-pid', '--proc', '/proc', '--die-with-parent',
+      '--tmpfs', '/tmp', '--bind', '/ws', '/ws', '--bind', '/second', '/second',
+    ])
+    expect(landlockProfileArgs(multi))
+      .toEqual(['--ro', '/', '--rw', '/dev/null', '--rw', '/tmp', '--rw', '/ws', '--rw', '/second'])
+    const profile = seatbeltProfileArgs(multi)[1] as string
+    expect(profile).toContain('(subpath "/ws")')
+    expect(profile).toContain('(subpath "/second")')
+  })
 })
 
 describe('runnerCommand config', () => {
@@ -192,10 +206,7 @@ describe('the platform chains', () => {
     expect(probeLandlock).toHaveBeenCalledWith(launcher)
   })
 
-  it('darwin selects its sole candidate WITHOUT probing: nothing to arbitrate', async () => {
-    // The safety property moves to execution time: an unusable sandbox-exec
-    // refuses to run the command, and the wrap's runnerFailureRules let
-    // the consumer classify that as a sandbox failure, not a task failure.
+  it('darwin probes its sole candidate before reporting enforcement', async () => {
     const probeSeatbelt = vi.fn(() => true)
     const { sandbox } = await setup({}, { platform: 'darwin', probeSeatbelt })
     const confined = sandbox.confine(['bash', '-c', 'echo hi'], RO)
@@ -205,7 +216,32 @@ describe('the platform chains', () => {
       denialSignatures: ['operation not permitted'],
       runnerFailureRules: [{ fatalSignatures: ['sandbox-exec: '] }],
     })
-    expect(probeSeatbelt).not.toHaveBeenCalled()
+    expect(probeSeatbelt).toHaveBeenCalledTimes(1)
+  })
+
+  it('a sole candidate whose probe fails is unavailable at composition, not at exit 127', async () => {
+    // Without the probe the provider would hand back a wrap claiming
+    // enforcement, and the broken backend would first surface as the confined
+    // command's own failure, mid-task.
+    const probeSeatbelt = vi.fn(() => false)
+    const { sandbox } = await setup({}, { platform: 'darwin', probeSeatbelt })
+    expect(() => sandbox.confine(['true'], RO)).toThrow(expect.objectContaining({ name: 'SandboxUnavailableError', code: SANDBOX_UNAVAILABLE }))
+    expect(probeSeatbelt).toHaveBeenCalledTimes(1)
+  })
+
+  it('the win32 sole candidate is probed too: a broken ACL runner fails closed at composition', async () => {
+    const probeWindowsAcl = vi.fn(() => false)
+    const { sandbox } = await setup({}, { platform: 'win32', probeWindowsAcl })
+    expect(() => sandbox.confine(['true'], RO)).toThrow(expect.objectContaining({ name: 'SandboxUnavailableError', code: SANDBOX_UNAVAILABLE }))
+    expect(probeWindowsAcl).toHaveBeenCalledTimes(1)
+  })
+
+  it('the win32 sole candidate reports partial enforcement once its probe passes', async () => {
+    const probeWindowsAcl = vi.fn(() => true)
+    const { sandbox } = await setup({}, { platform: 'win32', probeWindowsAcl, windowsAclRunnerArgs: ['node', 'windows-acl-runner.js'] })
+    const confined = sandbox.confine(['true'], RO)
+    expect(confined.enforcement).toBe('partial')
+    expect(probeWindowsAcl).toHaveBeenCalledTimes(1)
   })
 
   it('a platform with no chain fails closed without a single probe: the command never runs', async () => {
@@ -243,9 +279,8 @@ describe('the platform chains', () => {
   })
 
   it('a multi-rung chain probes a seatbelt rung like any other (the walk, not the platform table, decides)', async () => {
-    // The product chains reach seatbelt only as darwin's sole (unprobed)
-    // candidate; the probe chain exercises the path it would take in
-    // a grown chain, keeping the default seatbelt probe honest.
+    // Every rung is probed, so a seatbelt rung behind a failing bwrap takes
+    // exactly the walk darwin's sole candidate takes.
     const exec = fakeSeatbeltExec(0)
     const probeBwrap = vi.fn(() => false)
     const { sandbox } = await setup({}, { chain: ['bwrap', 'seatbelt'], probeBwrap, seatbeltExec: exec })
@@ -355,9 +390,9 @@ describe('probeTimeoutMs config', () => {
 })
 
 describe('the default seatbelt probe (sandbox-exec contract)', () => {
-  // The product chains reach seatbelt only unprobed (darwin's sole
-  // candidate), so the default probe's contract is pinned through the provider
-  // chain: a grown chain must probe it like any other rung.
+  // darwin reaches seatbelt as its sole candidate, whose probe the injected
+  // chain replaces; these cases pin the DEFAULT probe's executable contract
+  // through a two-rung chain, where the same walk selects it.
   it('selects the rung when the executable applies the read-only profile and exits 0', async () => {
     const exec = fakeSeatbeltExec(0)
     const { sandbox } = await setup({}, { chain: ['bwrap', 'seatbelt'], probeBwrap: () => false, seatbeltExec: exec })
@@ -377,9 +412,9 @@ describe('the default seatbelt probe (sandbox-exec contract)', () => {
 })
 
 describe('the windows-acl probe (runner invocation contract)', () => {
-  // The product chain reaches windows-acl only unprobed (win32's sole
-  // candidate), so the probe case and the runner-entry resolution are pinned
-  // through the chain seam, mirroring the seatbelt default-probe contract.
+  // win32 reaches windows-acl as its sole candidate; these cases pin the
+  // runner-entry resolution and the fall-through arm through a two-rung chain,
+  // mirroring the seatbelt default-probe contract.
   it('selects the rung when the injected probe passes, speaking the ACL dialect', async () => {
     const probeWindowsAcl = vi.fn(() => true)
     const { sandbox } = await setup({}, {

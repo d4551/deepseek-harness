@@ -31,20 +31,21 @@
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
-  z-index: 100;
+  z-index: var(--dsw-z-popover);
   min-width: 218px;
   max-width: 360px;
 }
 
 /* Portal mode: fixed in the viewport, coordinates supplied inline from the
  * anchor rect (side/align resolved in JS, the in-place offset rules above
- * don't apply). Portaled lists must layer above modal overlays (z 1000) —
+ * don't apply). Portaled lists must layer above the modal plane
+ * (--dsw-z-modal) —
  * an anchor inside a dialog still expects its menu on top. */
 .portal {
   position: fixed;
   top: auto;
   left: auto;
-  z-index: 1100;
+  z-index: var(--dsw-z-above-modal);
 }
 
 /* Open above the anchor (empty-state workspace chip: figma 122:9481). */
@@ -228,7 +229,7 @@
   top: auto;
   bottom: -4px;
   left: calc(100% + 10px);
-  z-index: 101;
+  z-index: var(--dsw-z-raised);
   min-width: 163px;
 }
 

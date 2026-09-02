@@ -8,6 +8,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { DatabaseSync } from 'node:sqlite'
+import { DEFAULT_BUSY_TIMEOUT_MS, MAX_BUSY_TIMEOUT_MS } from '@deepseek-ai/dsh-sqlite-connection'
 import { StorageError, UNIT_NAME_RE, storageBackendServiceKey } from '@deepseek-ai/dsh-storage'
 import type { KvFacet, KvUnit, KvUnitDescriptor, StorageBackend } from '@deepseek-ai/dsh-storage'
 import { openDatabase, recordTableName, type JournalMode } from './schema.ts'
@@ -39,12 +40,21 @@ export interface Config {
    * {@link JournalMode}.
    */
   journalMode?: JournalMode
+  /**
+   * Maximum time SQLite waits for another connection holding the write
+   * reservation before it reports the medium busy, in milliseconds. It also
+   * bounds the retries of the opening journal-mode transition. `0` refuses a
+   * contended medium immediately; deployments that share one database file
+   * between processes raise it. Defaults to 5,000 ms.
+   */
+  busyTimeoutMs?: number
 }
 
 /** Schemastery validator for {@link Config}. */
 export const Config: z<Config> = z.object({
   path: z.string().required(),
   journalMode: z.union(['wal', 'delete', 'truncate', 'persist'] as const).default('wal'),
+  busyTimeoutMs: z.number().step(1).min(0).max(MAX_BUSY_TIMEOUT_MS).default(DEFAULT_BUSY_TIMEOUT_MS),
 })
 
 /**
@@ -65,7 +75,8 @@ export class SqliteStorageBackend implements StorageBackend {
    * @param config - Validated plugin configuration.
    */
   constructor(config: Config) {
-    this.ready = openDatabase(config.path, (config as Required<Config>).journalMode)
+    const resolved = config as Required<Config>
+    this.ready = openDatabase(config.path, resolved.journalMode, resolved.busyTimeoutMs)
     // Mark the rejection handled: every primitive re-awaits `ready`, so an
     // open failure still surfaces to each caller; this guard only prevents an
     // unhandled-rejection crash when the failure precedes the first use.

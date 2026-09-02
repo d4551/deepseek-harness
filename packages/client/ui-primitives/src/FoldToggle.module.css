@@ -1,0 +1,20 @@
+/* The head/tail fold control every capped block renders: a full-width text
+   button with no chrome of its own, so the block's own gutter is the only
+   thing that positions it. A block that needs a gutter passes its padding
+   through `className`. */
+
+.foldToggle {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background-color: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.foldToggle:hover {
+  color: var(--dsw-alias-label-secondary);
+}

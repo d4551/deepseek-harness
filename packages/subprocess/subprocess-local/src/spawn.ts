@@ -1,8 +1,8 @@
 /**
  * Process plumbing for the local subprocess service: detached process-tree
  * spawn with per-stream stdio dispositions, tail-keep collection with spill
- * files, tree-scoped signalling (POSIX groups; Windows taskkill), and the
- * SIGTERM→SIGKILL escalation. This layer reacts to an abort signal; callers
+ * files, tree-scoped signalling (POSIX process groups; a Windows Job object,
+ * with taskkill as its reported fallback), and the SIGTERM→SIGKILL escalation. This layer reacts to an abort signal; callers
  * own deadlines, teardown ladders, and cause classification.
  * @module dsh-subprocess-local/spawn
  */
@@ -25,6 +25,8 @@ import type {
   SubprocessSpawnSpec,
 } from '@deepseek-ai/dsh-subprocess'
 import { linuxProcessGroupHasLiveMembers } from './process-inspector.ts'
+import { createWindowsProcessJob } from './windows-job.ts'
+import type { WindowsJobFactory, WindowsProcessJob } from './windows-job.ts'
 
 /**
  * Build a child environment: explicit caller entries override the scrubbed
@@ -50,12 +52,16 @@ export function childEnv(extra?: Readonly<NodeJS.ProcessEnv>): NodeJS.ProcessEnv
 export interface SpawnInternals {
   /** Directory for spill files (defaults to the OS temp dir). */
   spillDir?: string
-  /** Windows tree-termination runner (defaults to `taskkill /PID <pid> /T /F`). */
-  taskkill?: (pid: number) => void
+  /** Windows tree-termination fallback (defaults to `taskkill /PID <pid> /T /F`). */
+  taskkill?: (pid: number) => TaskkillOutcome
+  /** Windows Job factory for the spawned tree (defaults to the kill-on-close Job). */
+  windowsJob?: WindowsJobFactory
   /** Host platform override for signalling decisions. */
   platform?: NodeJS.Platform
   /** Linux process-group member probe (defaults to `/proc` inspection). */
   linuxProcessGroupHasLiveMembers?: (processGroupId: number) => boolean | undefined
+  /** Where a contained teardown failure is reported (defaults to `process.emitWarning`). */
+  warn?: (message: string) => void
 }
 
 /**
@@ -266,36 +272,139 @@ export function killGroup(pid: number, sig: NodeJS.Signals): void {
   }
 }
 
+/** taskkill's status for a pid that no longer exists — the Windows peer of ESRCH. */
+const TASKKILL_PROCESS_NOT_FOUND = 128
+
+/** What one `taskkill /T /F` attempt reported. */
+export interface TaskkillOutcome {
+  /** Process exit status, or `null` when taskkill itself never ran. */
+  status: number | null
+  /** The spawn failure, when taskkill itself could not be started. */
+  error?: Error
+  /** taskkill's own diagnostic text, for the report. */
+  stderr: string
+}
+
 /**
- * Terminate one Windows process tree with `taskkill /T /F`. Contained like
- * POSIX group signalling — delivery races tree exit, so an absent tree, a
- * nonzero status, or a missing taskkill binary must not break idempotent
- * teardown.
- * @param pid - root process id; non-positive is a no-op.
+ * Terminate one Windows process tree with `taskkill /T /F`, and REPORT what
+ * happened. Delivery races tree exit, so an already-absent tree is a success
+ * like ESRCH is for a POSIX group signal — but a missing binary, a refused
+ * termination, or a partial walk are facts a caller must be able to see rather
+ * than outcomes silently discarded into an assumed-dead tree.
+ * @param pid - root process id; non-positive means the spawn failed and the call is a no-op.
+ * @returns the attempt's status, spawn error, and diagnostic text.
  */
-export function taskkillProcessTree(pid: number): void {
-  if (pid <= 0) return
-  // Outcome deliberately unchecked: an already-absent tree (status 128), exit
-  // races, and a missing taskkill binary (spawnSync reports, never throws) are
-  // as tolerable here as ESRCH is for a POSIX group signal.
-  spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' })
+export function taskkillProcessTree(pid: number): TaskkillOutcome {
+  if (pid <= 0) return { status: 0, stderr: '' }
+  const result = spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { encoding: 'utf8' })
+  return {
+    status: result.status,
+    ...result.error !== undefined ? { error: result.error } : {},
+    stderr: result.stderr,
+  }
+}
+
+/**
+ * Whether a taskkill attempt did its job. An absent tree is success: the call
+ * asks for a state, and that state already holds.
+ * @param outcome - what the attempt reported.
+ * @returns whether the tree is gone as far as taskkill can tell.
+ */
+function taskkillSucceeded(outcome: TaskkillOutcome): boolean {
+  return outcome.error === undefined
+    && (outcome.status === 0 || outcome.status === TASKKILL_PROCESS_NOT_FOUND)
+}
+
+/**
+ * The Windows half of tree control: the spawned tree's Job when the kernel
+ * granted one, and the taskkill fallback for when it did not.
+ */
+interface WindowsTreeControl {
+  /** Stop every member of the tree, reporting anything that refused. */
+  terminate(): void
+  /** Members the kernel still counts, or `undefined` when no Job owns the tree. */
+  liveMemberCount(): number | undefined
+  /** Release the Job handle once the tree is confirmed gone. */
+  release(): void
+}
+
+/**
+ * Take Job ownership of a freshly spawned Windows tree.
+ *
+ * Job creation is attempted once, immediately after spawn and before the child
+ * can spawn anything of its own, so the whole tree inherits membership. A Job
+ * the kernel refuses is reported and the control falls back to taskkill, whose
+ * outcome is then checked rather than discarded — a degraded teardown stays
+ * visible instead of being indistinguishable from a clean one.
+ * @param pid - the spawned leader's process id.
+ * @param createJob - the Job factory.
+ * @param taskkill - the fallback tree-termination runner.
+ * @param warn - where a contained teardown failure is reported.
+ * @returns the tree control.
+ */
+function windowsTreeControl(
+  pid: number,
+  createJob: WindowsJobFactory,
+  taskkill: (pid: number) => TaskkillOutcome,
+  warn: (message: string) => void,
+): WindowsTreeControl {
+  let job: WindowsProcessJob | undefined
+  try {
+    job = createJob(pid)
+  } catch (error) {
+    warn(`subprocess-local: pid ${String(pid)} could not be placed in a Job object, falling back to taskkill: ${String(error)}`)
+  }
+  const fallbackTerminate = (): void => {
+    const outcome = taskkill(pid)
+    if (taskkillSucceeded(outcome)) return
+    warn(`subprocess-local: taskkill of pid ${String(pid)} did not terminate the tree (status ${String(outcome.status)})${outcome.error === undefined ? '' : `: ${outcome.error.message}`}${outcome.stderr.length === 0 ? '' : `: ${outcome.stderr.trim()}`}`)
+  }
+  return {
+    terminate: () => {
+      if (job === undefined) {  fallbackTerminate(); return }
+      try {
+        job.terminate()
+      } catch (error) {
+        warn(`subprocess-local: Job termination of pid ${String(pid)} failed, falling back to taskkill: ${String(error)}`)
+        fallbackTerminate()
+      }
+    },
+    liveMemberCount: () => {
+      if (job === undefined) return undefined
+      try {
+        return job.liveMemberCount()
+      } catch (error) {
+        warn(`subprocess-local: Job liveness query for pid ${String(pid)} failed: ${String(error)}`)
+        return undefined
+      }
+    },
+    release: () => {
+      const closing = job
+      job = undefined
+      try {
+        closing?.close()
+      } catch (error) {
+        warn(`subprocess-local: releasing the Job for pid ${String(pid)} failed: ${String(error)}`)
+      }
+    },
+  }
 }
 
 /**
  * Signal a detached process tree with platform-correct semantics: POSIX
  * signals the negative process-group id and falls back to the direct child
- * when the group is gone; Windows terminates the tree via taskkill (any
- * signal value force-terminates — Node maps signals to TerminateProcess).
+ * when the group is gone; Windows terminates every Job member at once (any
+ * signal value force-terminates — Windows has no signal delivery).
  */
 function signalTree(
   platform: NodeJS.Platform,
   pid: number,
   sig: NodeJS.Signals,
   child: ChildProcess,
-  taskkill: (pid: number) => void,
+  windows: WindowsTreeControl | undefined,
 ): void {
   if (platform === 'win32') {
-    taskkill(pid)
+    windows?.terminate()
     return
   }
   /* v8 ignore next -- kill/terminate gate on treeAlive(), which is false for pid -1; this guard protects direct callers only. */
@@ -319,7 +428,7 @@ function signalTree(
  * dispositions. Runtime exits resolve `done` as {@link SubprocessOutcome};
  * only spawn failures reject.
  * @param spec - fully resolved argv, cwd, stdio, grace, cancellation, environment.
- * @param internals - test-only spill-directory, platform, and taskkill overrides.
+ * @param internals - test-only spill-directory, platform, Job, warning-sink, and taskkill overrides.
  * @returns live subprocess handle.
  * @throws when `graceMs` cannot be represented by one Node timer.
  */
@@ -330,6 +439,8 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
   const spillDir = internals.spillDir ?? privateSpillDir()
   const platform = internals.platform ?? process.platform
   const taskkill = internals.taskkill ?? taskkillProcessTree
+  const createJob = internals.windowsJob ?? createWindowsProcessJob
+  const warn = internals.warn ?? ((message: string) => { process.emitWarning(message, 'DshSubprocessTeardownWarning') })
   const linuxGroupHasLiveMembers = internals.linuxProcessGroupHasLiveMembers ?? linuxProcessGroupHasLiveMembers
 
   if (spec.signal?.aborted) {
@@ -377,6 +488,12 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
   // Failed spawns use pid -1 so signalling remains a no-op.
   const pid = child.pid ?? -1
 
+  // Job attachment happens here, in the same turn as the spawn: the child has
+  // not run yet, so every descendant it goes on to create inherits membership.
+  const windows = platform === 'win32' && pid > 0
+    ? windowsTreeControl(pid, createJob, taskkill, warn)
+    : undefined
+
   /** Whether the detached tree's root (or POSIX group) is still alive. */
   const treeAlive = (): boolean => {
     /* v8 ignore next -- only a timer callback already queued when the observer settles can enter here;
@@ -384,8 +501,12 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
     if (treeExitObserved) return false
     if (pid <= 0) return false
     if (platform === 'win32') {
-      // Windows has no group-liveness probe; the direct child's exit is the
-      // observable boundary (taskkill /T already took the tree with it).
+      // The Job's assigned-process count is the whole tree, including a
+      // descendant whose parent already exited. Without a Job the direct
+      // child's exit is the only boundary Windows exposes — the degradation
+      // the Job exists to remove, and it was reported when it happened.
+      const members = windows?.liveMemberCount()
+      if (members !== undefined) return members > 0
       return child.exitCode === null && child.signalCode === null
     }
     try {
@@ -418,6 +539,9 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
     treeExitObservation ??= (async () => {
       while (treeAlive()) await sleepTick()
       treeExitObserved = true
+      // The tree is gone: the Job has nothing left to hold, and keeping the
+      // handle open would retain the kernel object for the host's lifetime.
+      windows?.release()
       if (graceTimer !== undefined) clearTimeout(graceTimer)
       graceTimer = undefined
     })()
@@ -433,7 +557,7 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
     /* v8 ignore next -- the shared exit observer cancels the ordinary dead-tree timer;
        this remains the timer/death race guard and cannot be staged deterministically. */
     if (!treeAlive()) return
-    signalTree(platform, pid, sig, child, taskkill)
+    signalTree(platform, pid, sig, child, windows)
   }
 
   const terminate = (): void => {

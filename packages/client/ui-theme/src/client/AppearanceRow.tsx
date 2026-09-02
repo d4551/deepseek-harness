@@ -42,8 +42,8 @@ const CUBES: readonly { id: ThemePreference; labelKey: ThemeKey; Icon: typeof Ic
 export function AppearanceRow({ t, setTheme, useStore }: AppearanceRowComponentProps) {
   const preference = useStore(s => s.preference)
   return (
-    <div className={css.group}>
-      <div className={css.title}>{t('appearance.title')}</div>
+    <div className="dsw-settings-cell-stack">
+      <div className="dsw-settings-cell-title">{t('appearance.title')}</div>
       <div className={css.cubeRow}>
         {CUBES.map(({ id, labelKey, Icon }) => (
           <button

@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import clsx from 'clsx'
 import { parseAnsiLines, type AnsiLine } from './ansi.ts'
+import { FoldToggle } from './FoldToggle.tsx'
 import { headTailCap } from './head-tail-cap.ts'
 import { useCopyFeedback } from './use-copy-feedback.ts'
 import { Pill } from './Pill.tsx'
@@ -235,15 +236,12 @@ export function TerminalBlock({
               <div key={index} className={css.line}>{renderLine(line)}</div>
             ))}
             {hidden > 0 && (
-              <button
-                type="button"
-                className={css.expand}
-                aria-expanded={expanded}
-                aria-label={expanded ? copy.collapseAria : copy.expandAria(hidden)}
-                onClick={onToggle}
-              >
-                {expanded ? copy.collapse : copy.expand(hidden)}
-              </button>
+              <FoldToggle
+                expanded={expanded}
+                hidden={hidden}
+                labels={copy}
+                onToggle={onToggle}
+              />
             )}
             {capped && lines.slice(lines.length - tailLines).map((line, index) => (
               <div key={index} className={css.line}>{renderLine(line)}</div>

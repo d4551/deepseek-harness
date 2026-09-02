@@ -4,7 +4,7 @@ import type {
   ClientRuntimeGetPropertiesCommand,
   ClientRuntimeInternalPropertyDescriptor,
   ClientRuntimePropertyDescriptor,
-} from '../../shared/bridge/messages/runtime/index.ts'
+} from '../../shared/bridge/messages/runtime/commands.ts'
 import { ClientRuntimeExecutionError } from './errors.ts'
 import { ClientObjectStore, type ClientObjectAllocation } from './objects.ts'
 

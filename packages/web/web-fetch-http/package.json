@@ -22,6 +22,10 @@
       "types": "./lib/types/invariant.d.ts",
       "default": "./lib/invariant.js"
     },
+    "./network": {
+      "types": "./lib/types/network.d.ts",
+      "default": "./lib/network.js"
+    },
     "./policy": {
       "types": "./lib/types/policy.d.ts",
       "default": "./lib/policy.js"
@@ -32,6 +36,7 @@
   "files": [
     "lib/index.js",
     "lib/invariant.js",
+    "lib/network.js",
     "lib/policy.js",
     "lib/types/**/*.d.ts"
   ],

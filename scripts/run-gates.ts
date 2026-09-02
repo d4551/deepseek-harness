@@ -292,6 +292,26 @@ function ciSharedStaticGates(): Gate[] {
   ]
 }
 
+/**
+ * The gates that read the built `lib/` tree, in the order every CI lane that
+ * owns a build runs them. Each entry waits on `build`, so the caller supplies
+ * the build gate itself and this tail follows it unchanged.
+ * @returns the post-build artifact gates.
+ */
+function postBuildArtifactGates(): Gate[] {
+  return [
+    bunScript('publint', 'publint', { needs: ['build'] }),
+    bunScript('node-next-types', 'verify-node-next-types', {
+      label: 'node-next types',
+      needs: ['build'],
+    }),
+    builtPackageInvariantsGate(['build']),
+    builtArtifactSpecsGate(['build']),
+    builtImageSpecsGate(['build']),
+    builtBinSmokeGate(),
+  ]
+}
+
 function ciPrimaryGates(): Gate[] {
   return [
     ...ciSharedStaticGates(),
@@ -313,15 +333,7 @@ function ciPrimaryGates(): Gate[] {
     // repeats the Host contract pass. Wait for all three consumers so build
     // neither races tsbuildinfo nor replaces declarations while they are read.
     ciBuildGate('build', { needs: ['typecheck', 'lint', 'doc-typecheck'] }),
-    bunScript('publint', 'publint', { needs: ['build'] }),
-    bunScript('node-next-types', 'verify-node-next-types', {
-      label: 'node-next types',
-      needs: ['build'],
-    }),
-    builtPackageInvariantsGate(['build']),
-    builtArtifactSpecsGate(['build']),
-    builtImageSpecsGate(['build']),
-    builtBinSmokeGate(),
+    ...postBuildArtifactGates(),
   ]
 }
 
@@ -416,15 +428,7 @@ function ciStaticGates(options: { ownsBuild: boolean }): Gate[] {
 function ciArtifactGates(): Gate[] {
   return [
     ciBuildGate(),
-    bunScript('publint', 'publint', { needs: ['build'] }),
-    bunScript('node-next-types', 'verify-node-next-types', {
-      label: 'node-next types',
-      needs: ['build'],
-    }),
-    builtPackageInvariantsGate(['build']),
-    builtArtifactSpecsGate(['build']),
-    builtImageSpecsGate(['build']),
-    builtBinSmokeGate(),
+    ...postBuildArtifactGates(),
   ]
 }
 
@@ -810,7 +814,7 @@ function builtBinSmokeGate(needs: string[] = ['build']): Gate {
     'packages/subagent/subagent-codex/tests/loader-composition.e2e.ts',
     'packages/subagent/subagent-claude-code/tests/loader-composition.e2e.ts',
     'packages/api/remotes/tests/built-lib.e2e.ts',
-    'packages/experimental/agent-team/tests/built-lib.e2e.ts',
+    'packages/subagent/agent-team/tests/built-lib.e2e.ts',
     // Built execution consumers: the only automated proof that package-name
     // imports reach their lib/ entrypoints under plain Node. The e2e lane runs
     // unbuilt, so these files self-skip there.

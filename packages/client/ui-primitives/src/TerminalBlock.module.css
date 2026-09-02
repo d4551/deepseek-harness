@@ -182,22 +182,6 @@
   white-space: pre;
 }
 
-.expand {
-  display: block;
-  width: 100%;
-  padding: 0;
-  border: none;
-  background-color: transparent;
-  color: var(--dsw-alias-label-tertiary);
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-}
-
-.expand:hover {
-  color: var(--dsw-alias-label-secondary);
-}
-
 .empty {
   padding: 12px 14px 12px 0;
   font: var(--dsl-terminal-font);

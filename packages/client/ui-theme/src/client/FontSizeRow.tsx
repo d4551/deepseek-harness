@@ -35,10 +35,10 @@ export type FontSizeRowComponentProps =
 export function FontSizeRow({ t, setFontSize, useStore }: FontSizeRowComponentProps) {
   const fontSize = useStore(s => s.fontSize)
   return (
-    <div className={css.row}>
-      <div className={css.rowText}>
-        <div className={css.title}>{t('fontSize.title')}</div>
-        <div className={css.desc}>{t('fontSize.description')}</div>
+    <div className="dsw-settings-cell">
+      <div className="dsw-settings-cell-text">
+        <div className="dsw-settings-cell-title">{t('fontSize.title')}</div>
+        <div className="dsw-settings-cell-desc">{t('fontSize.description')}</div>
       </div>
       <div className={css.control}>
         <div className={css.stepper}>

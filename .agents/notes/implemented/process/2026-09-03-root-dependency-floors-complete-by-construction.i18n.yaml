@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-03-root-dependency-floors-complete-by-construction.md
+2026-09-03-root-dependency-floors-complete-by-construction.md: 2c534f9b0f84d162099899045d85234dbd79f94f
+2026-09-03-root-dependency-floors-complete-by-construction.zh.md: fe52fa9e753c9b50a6dbe7e361f39914c97c7c47

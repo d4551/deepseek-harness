@@ -3,7 +3,7 @@
 import { MessageChannel } from 'node:worker_threads'
 import { describe, expect, it, vi } from 'vitest'
 import { HostBridgePublisher } from '../src/host/bridge/publisher.ts'
-import { inspectorId } from '../src/shared/bridge/ids.ts'
+import { inspectorId } from '../src/shared/identity.ts'
 import { InspectorSourceBuffer, type InspectorSourceBufferOptions } from '../src/shared/bridge/buffer.ts'
 import type { InspectorSourceDescriptor } from '../src/shared/bridge/messages/observation.ts'
 

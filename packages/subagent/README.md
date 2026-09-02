@@ -32,9 +32,13 @@ The subagent group is the delegation family: it lets an agent hand a task to a c
 | [`subagent-codex/`](subagent-codex/README.md) | Runs a real Codex child through the official app-server protocol | registers on `ctx.subagents` |
 | [`subagent-claude-code/`](subagent-claude-code/README.md) | Runs a real Claude Code child through the official Agent SDK | registers on `ctx.subagents` |
 | [`subagent-dsh-sdk/`](subagent-dsh-sdk/README.md) | Runs an out-of-process Harness child through the TypeScript SDK | registers on `ctx.subagents` |
+| [`agent-team/`](agent-team/README.md) | Named teammates with durable messages and a shared task board | `ctx.agentTeams` |
+| [`tool-agent-team/`](tool-agent-team/README.md) | Ten tools that let the model create, message, and coordinate teammates | registers scoped tools on `ctx.tools` |
 | [`tool-subagent/`](tool-subagent/README.md) | Exposes delegation to the model | registers on `ctx.tools` |
 | [`tool-subagent-control/`](tool-subagent-control/README.md) | Exposes follow-up, interrupt, and listing to the model | registers on `ctx.tools` |
 | [`tool-subagent-report/`](tool-subagent-report/README.md) | Provides the child-to-parent report channel | registers in child scopes |
+| [`agent-team/`](agent-team/README.md) | Owns named teammates, their durable mailbox, and the shared task board | `ctx.agentTeams` |
+| [`tool-agent-team/`](tool-agent-team/README.md) | Exposes teammate creation, messaging, and task coordination to the model | registers on `ctx.tools` |
 
 -----
 

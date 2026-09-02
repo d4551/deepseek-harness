@@ -27,7 +27,7 @@ import {
   parseLspArgs,
   presentLspCall,
 } from './render.ts'
-import { sessionCwd } from './session-cwd.ts'
+import { sessionWorkspaceRoot } from './session-cwd.ts'
 
 export {
   DEFAULT_MAX_LOCATIONS,
@@ -39,7 +39,6 @@ export {
   presentLspCall,
   renderUri,
 } from './render.ts'
-export { sessionCwd } from './session-cwd.ts'
 
 /** Cordis plugin name for loader diagnostics. */
 export const name = 'tool-lsp'
@@ -183,7 +182,7 @@ export function apply(ctx: Context, config: Config): void {
     timeoutMs: resolved.timeoutMs,
     async execute(args, exec) {
       const input = parseLspArgs(args)
-      const workspaceRoot = sessionCwd(exec)
+      const workspaceRoot = sessionWorkspaceRoot(exec, input.filePath)
       if (workspaceRoot === undefined) {
         throw new LspError('the lsp tool requires a session workspace cwd', 'LSP_WORKSPACE_REQUIRED')
       }

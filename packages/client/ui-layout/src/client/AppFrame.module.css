@@ -58,7 +58,7 @@
   width: 8px;
   margin-left: -4px;
   cursor: col-resize;
-  z-index: 2;
+  z-index: var(--dsw-z-raised-2);
   touch-action: none;
   /* Rides the same curve as the tracks so the pill stays on the moving
      border during collapse/expand; paused while dragging (frame rule). */
@@ -110,7 +110,7 @@
 .overlayLayer {
   position: absolute;
   inset: 0;
-  z-index: 20;
+  z-index: var(--dsw-z-shell-overlay);
   pointer-events: none;
 }
 

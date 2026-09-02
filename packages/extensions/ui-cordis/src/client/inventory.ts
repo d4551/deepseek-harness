@@ -19,7 +19,7 @@
 
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type { CordisDynamicPort, CordisInventoryRow } from './dynamic-port.ts'
-import type { CordisDynamicPluginId } from './events.ts'
+import type { CordisDynamicPluginId } from '@deepseek-ai/dsh-api-remotes/client'
 
 /** What the panel reads: the rows, and whether the first read has happened. */
 export interface CordisInventorySnapshot {

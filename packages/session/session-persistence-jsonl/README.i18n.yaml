@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write packages/session/session-persistence-jsonl/README.md
-README.md: 69fb2901d783c327878cd37570aec730a3ca0841
-README.zh.md: 188982028374d4ca11a5a658acabce5fe5df9930
+README.md: d7d6637ab227f19aee9d93a3fad9e38397ac1088
+README.zh.md: 0c6a679f2e4673836182fbb5d6479e7cd9225421

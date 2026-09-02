@@ -7,7 +7,7 @@ import type { WebhookRuleId } from './brand.ts'
 import { createWebhookSession } from './session.ts'
 import type { VerifiedWebhookDelivery, WebhookRule, WebhookSessionRequest } from './types.ts'
 
-export * from './brand.ts'
+export { WebhookDeliveryId, WebhookRuleId, WebhookSourceId } from './brand.ts'
 export type * from './types.ts'
 
 declare module '@deepseek-ai/cordis' {

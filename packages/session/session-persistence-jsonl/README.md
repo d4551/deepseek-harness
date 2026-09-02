@@ -99,7 +99,6 @@ The default artifact is a standard concatenation of independent [Zstandard frame
 | [`src/index.ts`](src/index.ts) | Plugin entry: `Config` schema, backend class, coordinator wiring |
 | [`src/format.ts`](src/format.ts) | Log path derivation, header encoding, record scanning, packed-row layout |
 | [`src/zstd.ts`](src/zstd.ts) | Zstandard frame compression, decoding, and frame scanning |
-| [`src/win32.ts`](src/win32.ts) | Windows write-through publish and directory creation |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; identity is enforced at the storage layer) |
 
 </details>
