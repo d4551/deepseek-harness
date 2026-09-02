@@ -32,7 +32,8 @@ export interface PluginCardProps {
   /** The card's form state: availability, writability, and what a save would do. */
   state: CardShell
   /** Write every staged edit. */
-  onSave: () => void
+  /** Persist action; a caller may return the settlement of the underlying write. */
+  onSave: () => unknown
   /** Drop every staged edit. */
   onDiscard: () => void
   /** The plugin's controls. */

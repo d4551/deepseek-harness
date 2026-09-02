@@ -64,7 +64,7 @@ export function resolveInitTemplate(name: string, bundles: readonly string[]): I
  * @param profileDir - the profile directory, the second resolution anchor.
  * @throws when a named layer does not resolve or exports no patch.
  */
-export function assertBundlesUsable(bundles: readonly string[], profileDir: string): void {
+function assertBundlesUsable(bundles: readonly string[], profileDir: string): void {
   for (const packageName of bundles) {
     const dir = resolveBundleDir(NAME, packageName, INSTALL_ANCHOR, profileDir)
     if (readProfileManifest(NAME, dir).dsh?.bundle?.patch === undefined) {

@@ -16,6 +16,7 @@
     "**/node_modules/**",
     "**/.sessions/**",
     ".claude/**", // Harness-local state belongs to other checkouts, not this checkout's sources.
+    ".agents/worktrees/**", // Stacked-PR worktrees are separate checkouts with their own gates; their stale copies resolve against foreign tsconfigs here.
     "**/.doc-typecheck-*/**",
     "**/.node-next-types-*/**",
     "**/.oxlint-contract-*/**", // Scratch files created by the executable lint-contract tests.

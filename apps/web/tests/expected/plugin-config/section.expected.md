@@ -37,6 +37,10 @@
           - text: Subagent 控制 Agent 为 Subagent 选择模型的权限。
           - img
       - listitem:
+        - 'button "展开设置: 默认模型"':
+          - text: 默认模型 新会话未显式选择模型时使用的模型。
+          - img
+      - listitem:
         - 'button "展开设置: 网页搜索"':
           - text: 网页搜索 DeepSeek 搜索提供方。
           - img

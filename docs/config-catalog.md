@@ -328,6 +328,27 @@ export interface Config {
 
 Source: [`packages/api/settings-controller/src/index.ts:41`](../packages/api/settings-controller/src/index.ts)
 
+<a id="deepseek-aidsh-approval-assessor"></a>
+
+## `@deepseek-ai/dsh-approval-assessor`
+
+Requires: `approval`
+
+```ts config-catalog
+/** Plugin configuration, shared between composition entry and settings. */
+export interface Config {
+  /** Whether the assessor is active. Default `true`. */
+  enabled?: boolean
+  /**
+   * Additional evasion patterns (JavaScript regex source strings) appended
+   * to the built-in set. Compiled at load time; invalid regex fails loud.
+   */
+  extraPatterns?: string[]
+}
+```
+
+Source: [`packages/guard/approval-assessor/src/index.ts:69`](../packages/guard/approval-assessor/src/index.ts)
+
 <a id="deepseek-aidsh-attachment-local"></a>
 
 ## `@deepseek-ai/dsh-attachment-local`

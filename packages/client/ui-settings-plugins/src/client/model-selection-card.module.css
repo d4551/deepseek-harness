@@ -22,8 +22,8 @@
   box-sizing: border-box;
   position: relative;
   flex: 0 0 auto;
-  width: 36px;
-  height: 20px;
+  width: 2.25rem;
+  height: 1.25rem;
   padding: 2px;
   border: 0;
   border-radius: 10px;
@@ -47,15 +47,15 @@
 
 .thumb {
   display: block;
-  width: 16px;
-  height: 16px;
+  width: 1rem;
+  height: 1rem;
   border-radius: 50%;
   background: var(--dsw-alias-label-primary-foreground);
   transition: transform 120ms ease;
 }
 
 .switchOn .thumb {
-  transform: translateX(16px);
+  transform: translateX(1rem);
 }
 
 .selection {

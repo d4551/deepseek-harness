@@ -3,11 +3,7 @@
   "extends": ["./.oxlintrc.json"],
   "options": {
     "typeAware": false,
-    // This pass does not run type-aware rules, so it cannot tell whether a
-    // type-aware suppression is used: every `typescript/unbound-method`
-    // directive in a staged file would be reported as unused. The root config
-    // keeps this an error, where the rules that consume those directives run.
-    "reportUnusedDisableDirectives": "allow"
+    "reportUnusedDisableDirectives": "warn"
   },
   "ignorePatterns": [
     "**/lib/**",

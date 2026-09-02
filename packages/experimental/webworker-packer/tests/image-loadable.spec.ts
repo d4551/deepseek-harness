@@ -1,328 +1,102 @@
 /**
- * End-to-end spec of the packer's actual product: an image this package builds must
- * mount in the runtime's VFS and be `require`-able by the runtime's module loader,
- * which holds no transform of its own.
+ * Unit plane of the packer's repository knowledge: workspace indexing,
+ * config-tree declarations, preview fixtures, and pack reporting. Everything
+ * here reads source-tree facts and needs no built output.
  *
- * That last part is the point. "It boots" only proves nothing crashed; the loader
- * wraps module bodies exactly as the image holds them, so the pack-time pass is the
- * only thing that can make them wrappable. The refusal case is the positive
- * evidence: restore one un-lowered body and the same setup fails loud.
- *
- * A small synthetic composition rather than the real profile: packing the full
- * closure takes tens of seconds. The path under test — compose, materialize,
- * transform, tar, compress, inflate, mount, require — is the same one.
- *
- * ONE module instance: every runtime import here goes through `src/`, because the VFS
- * and the active loader are module-level slots. The "starts with nothing loaded"
- * case asserts the instance the spec holds is the one that did the work.
+ * The split homes: overlay packing (build-independent) lives in
+ * tests/vfs-overlay.spec.ts; the built-image suites that materialize emitted
+ * `lib/` and require it through the real loader live in
+ * tests/image-loadable.built.ts under vitest.built.config.ts.
  */
 import { existsSync } from 'node:fs'
-import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { FiberState } from '@deepseek-ai/cordis'
-import { createNodeBuiltins, REPLACED_PREFIXES } from '@deepseek-ai/dsh-experimental-webworker-runtime/src/node/builtins.ts'
-import {
-  setActiveModuleLoader, WorkerModuleLoader,
-} from '@deepseek-ai/dsh-experimental-webworker-runtime/src/module-system/module-loader.ts'
-import { inflateImage } from '@deepseek-ai/dsh-experimental-webworker-runtime/src/storage/image-gzip.ts'
-import { loadVfsImage } from '@deepseek-ai/dsh-experimental-webworker-runtime/src/storage/memory.ts'
-import { setActiveVfs } from '@deepseek-ai/dsh-experimental-webworker-runtime/src/storage/active.ts'
-import { indexWorkspacePackages, previewFixtures } from '../src/repository.ts'
-import { DEFAULT_ROOT, MANIFEST_PATH, packVfsImage, packVfsOverlay } from '../src/pack.ts'
+import type { PackResult } from '../src/pack.ts'
+import { configTrees, describePack, indexWorkspacePackages, previewFixtures } from '../src/repository.ts'
 
 const repoRoot = fileURLToPath(new URL('../../../../', import.meta.url))
 
-/** A leaf workspace package: real build output, no dependencies to drag in. */
-const SUBJECT = '@deepseek-ai/dsh-timeout'
-const LANDLOCK = '@deepseek-ai/node-addon-landlock-run'
-const PLUGIN_INVENTORY = '@deepseek-ai/dsh-plugin-package-inventory-deepseek'
-const WEB_SERVER = '@deepseek-ai/dsh-host-webserver'
-
-const workspaces = indexWorkspacePackages(repoRoot)
-
-describe('preview example overlays', () => {
-  it('packs source-looking paths and dot directories into a separate overlay', () => {
-    const fixture = previewFixtures(repoRoot)[0]
-    expect(fixture?.id).toBe('vfs-example')
-    const result = packVfsOverlay(fixture?.trees ?? [])
-    expect(new TextDecoder().decode(result.files['workspace/src/preview.ts']))
-      .toContain("previewStatus = 'ready'")
-    expect(new TextDecoder().decode(result.files['workspace/.agents/skills/preview-tour/SKILL.md']))
-      .toContain('name: preview-tour')
-    expect(Object.keys(result.files).filter(path => path.endsWith('/session.jsonl'))).toHaveLength(3)
+describe('workspace indexing', () => {
+  it('indexes release, native, and experimental packages by manifest name', () => {
+    const index = indexWorkspacePackages(repoRoot)
+    expect(index.get('@deepseek-ai/dsh-timeout')).toBe(`${repoRoot}packages/util/timeout`)
+    expect(index.get('@deepseek-ai/dsh-experimental-webworker-packer'))
+      .toBe(`${repoRoot}packages/experimental/webworker-packer`)
+    // The Landlock family publishes from `native/`, outside `packages/`.
+    expect(index.get('@deepseek-ai/node-addon-landlock-run')).toBeDefined()
   })
 
-  it('fails loud when a declared seed tree is absent', () => {
-    expect(() => packVfsOverlay([
-      { mount: 'workspace', directory: join(repoRoot, 'missing-preview-seed') },
-    ])).toThrow(/tree workspace is missing/)
-  })
-
-  it('refuses overlays that could replace runtime files', () => {
-    const fixture = previewFixtures(repoRoot)[0]
-    expect(() => packVfsOverlay([
-      { mount: 'config', directory: fixture?.trees[0]?.directory ?? repoRoot },
-    ])).toThrow(/must stay under home or workspace/)
+  it('lets a package root own its subtree', () => {
+    const index = indexWorkspacePackages(repoRoot)
+    // Fixture trees (for example the preview example's nested files) live under
+    // package roots; a package root that owns them means no directory below a
+    // manifest is ever indexed as its own workspace.
+    for (const directory of index.values()) {
+      expect(directory.includes('/tests/')).toBe(false)
+      expect(directory.includes('node_modules')).toBe(false)
+    }
   })
 })
 
-/**
- * The pack consumes built `lib/` output. An unbuilt checkout (the unit
- * coverage lane runs before any build) self-skips. Native Windows routes this
- * suite through its post-build uninstrumented gate, and preview builds exercise
- * the same path against complete real artifacts.
- */
-const subjectBuilt = existsSync(join(repoRoot, 'packages/util/timeout/lib/index.js'))
-
-let memo: ReturnType<typeof packVfsImage> | undefined
-const packed = (): ReturnType<typeof packVfsImage> => memo ??= packVfsImage({
-  // The composition's own shape: one entry per plugin, `name:` on its own line.
-  config: `- id: subject\n  name: '${SUBJECT}'\n`,
-  profile: 'image-loadable-check',
-  workspaces,
-  resolveFrom: repoRoot,
-  // Synthetic composition: nothing boots the worker assembly, so its default
-  // image entries must not be demanded of this one-package closure.
-  entries: [],
+describe('config tree declarations', () => {
+  it('follows the CLI declaration to existing directories under distinct mounts', () => {
+    const trees = configTrees(repoRoot)
+    expect(trees.length).toBeGreaterThan(0)
+    expect(new Set(trees.map(tree => tree.mount)).size).toBe(trees.length)
+    for (const tree of trees) {
+      expect(existsSync(tree.directory)).toBe(true)
+    }
+  })
 })
 
-let landlockMemo: ReturnType<typeof packVfsImage> | undefined
-const packedLandlock = (): ReturnType<typeof packVfsImage> => landlockMemo ??= packVfsImage({
-  config: `- id: subject\n  name: '${LANDLOCK}'\n`,
-  profile: 'landlock-package-check',
-  workspaces,
-  resolveFrom: repoRoot,
-  entries: [],
+describe('preview fixtures', () => {
+  it('offers the showcase example as home and workspace overlay trees', () => {
+    const fixtures = previewFixtures(repoRoot)
+    expect(fixtures.map(fixture => fixture.id)).toEqual(['vfs-example'])
+    const showcase = fixtures[0]
+    if (showcase === undefined) throw new Error('previewFixtures returned no showcase entry')
+    expect(showcase.label).not.toBe('')
+    expect(showcase.description).not.toBe('')
+    expect(showcase.trees.map(tree => tree.mount)).toEqual(['home', 'workspace'])
+    for (const tree of showcase.trees) {
+      expect(existsSync(tree.directory)).toBe(true)
+    }
+  })
 })
 
-let pluginInventoryMemo: ReturnType<typeof packVfsImage> | undefined
-const packedPluginInventory = (): ReturnType<typeof packVfsImage> => pluginInventoryMemo ??= packVfsImage({
-  config: `- id: subject\n  name: '${PLUGIN_INVENTORY}'\n`,
-  profile: 'plugin-inventory-check',
-  workspaces,
-  resolveFrom: repoRoot,
-  entries: [],
-})
-
-let webServerMemo: ReturnType<typeof packVfsImage> | undefined
-const packedWebServer = (): ReturnType<typeof packVfsImage> => webServerMemo ??= packVfsImage({
-  config: `- id: subject\n  name: '${WEB_SERVER}'\n`,
-  profile: 'webserver-dependency-check',
-  workspaces,
-  resolveFrom: repoRoot,
-  entries: [],
-})
-
-/** The image's archive, inflated once: mounting reads the tar, not the gzip member. */
-let archiveMemo: Uint8Array | undefined
-const archive = async (): Promise<Uint8Array> =>
-  archiveMemo ??= await inflateImage(packed().image, 'the image this spec packed')
-
-;(subjectBuilt ? describe : describe.skip)('packed image', () => {
-  it('materializes the roster with every dependency resolved', () => {
-    const result = packed()
-    expect(workspaces.has(SUBJECT)).toBe(true)
-    expect(result.roster).toEqual([SUBJECT])
-    expect(result.packages.has(SUBJECT)).toBe(true)
-    expect(result.missing).toEqual([])
+describe('pack reporting', () => {
+  const pack = (missing: readonly string[]): PackResult => ({
+    image: new Uint8Array(2048),
+    files: {
+      'node_modules/left/lib/index.js': new Uint8Array(4096),
+      'node_modules/left/package.json': new Uint8Array(256),
+      'config/cordis.yml': new Uint8Array(512),
+    },
+    packages: new Map([['left', 2]]),
+    workspacePackages: 1,
+    roster: ['left'],
+    missing,
+    executables: ['bin/tool'],
+    pageBundles: [],
+    javascriptEntries: 3,
+    droppedJavascriptEntries: 1,
+    unresolvedExternalRequests: ['orphaned-driver'],
+    transform: { visited: 4, rewritten: 3 },
+    contract: 'lowering-v1',
   })
 
-  it('records the wrapper contract in the manifest and rewrote what it visited', () => {
-    const result = packed()
-    expect(Object.hasOwn(result.files, MANIFEST_PATH)).toBe(true)
-    const manifest = JSON.parse(new TextDecoder().decode(result.files[MANIFEST_PATH])) as { lowered: string }
-    expect(manifest.lowered).toBe(result.contract)
-    expect(result.transform.rewritten).toBeGreaterThan(0)
+  it('renders a complete pack without an unresolved-dependencies section', () => {
+    const lines = describePack(pack([]), repoRoot, `${repoRoot}dist/image.tar.gz`)
+    expect(lines[0]).toBe('vfs image: dist/image.tar.gz')
+    expect(lines.join('\n')).not.toContain('unresolved dependencies:')
+    expect(lines.join('\n')).toContain('transform           3 of 4 reached entries rewritten, 1 unreachable dropped')
+    expect(lines.join('\n')).toContain('unresolved          1 third-party request(s)')
   })
 
-  it('names every JavaScript entry for the debugger, workspace files by repository path', () => {
-    const result = packed()
-    const decoder = new TextDecoder()
-    const entries = Object.keys(result.files).filter(name => /\.[cm]?js$/.test(name))
-    expect(entries.length).toBeGreaterThan(0)
-    for (const name of entries) {
-      const lines = decoder.decode(result.files[name]).split('\n')
-      // V8 stacks and DevTools read the trailing comment, so worker
-      // `new Function` bodies and page blobs alike show under a stable name
-      // instead of as anonymous VM or blob entries.
-      expect(lines.at(-1)).toMatch(/^\/\/# sourceURL=\S+$/)
-      // A dangling map reference would make the debugger report one load
-      // failure per named script; the packer ships no `.map` files.
-      expect(lines.at(-2) ?? '').not.toContain('sourceMappingURL')
-    }
-    // A workspace entry is named by the path a reader navigates in this
-    // repository, not by its image mount.
-    const subject = decoder.decode(result.files[`node_modules/${SUBJECT}/lib/index.js`])
-    expect(subject.endsWith('\n//# sourceURL=packages/util/timeout/lib/index.js')).toBe(true)
-  })
-
-  it('writes one gzip member whose header records no build facts', () => {
-    const image = packed().image
-    // RFC 1952 §2.3: magic, deflate, then the flag byte — no FNAME (0x08) or
-    // FCOMMENT, a zero modification time, and "unknown" for the packing system.
-    expect([...image.slice(0, 4)]).toEqual([0x1f, 0x8b, 0x08, 0x00])
-    expect([...image.slice(4, 8)]).toEqual([0, 0, 0, 0])
-    expect(image[9]).toBe(255)
-  })
-
-  it('packs the same tree to the same bytes', () => {
-    // The preview build compares a freshly packed image against the shipped one,
-    // so anything the compressor takes from its environment would read as a
-    // changed tree.
-    const again = packVfsImage({
-      config: `- id: subject\n  name: '${SUBJECT}'\n`,
-      profile: 'image-loadable-check',
-      workspaces,
-      resolveFrom: repoRoot,
-      entries: [],
-    })
-    expect(Buffer.from(again.image).equals(Buffer.from(packed().image))).toBe(true)
-  })
-
-  it('mounts and requires through the real loader, which carries no transform', async () => {
-    const vfs = loadVfsImage(await archive(), DEFAULT_ROOT)
-    expect(vfs.existsSync(`${DEFAULT_ROOT}/node_modules/${SUBJECT}/lib/index.js`)).toBe(true)
-
-    const loader = new WorkerModuleLoader({
-      vfs,
-      root: DEFAULT_ROOT,
-      staticModules: createNodeBuiltins(),
-      staticModulePrefixes: REPLACED_PREFIXES,
-    })
-    // The loader this spec reads counters from must be the one that did the
-    // requiring; a second instance would report an empty cache trivially.
-    expect(loader.usage().modules).toBe(0)
-
-    const required = loader.requireFrom(`${DEFAULT_ROOT}/workspace`)(SUBJECT) as Record<string, unknown>
-    expect(typeof required.timeoutOf).toBe('function')
-    expect(loader.usage().modules).toBeGreaterThan(0)
-  })
-
-  it('keeps third-party runtime JavaScript published under src', async () => {
-    const result = packedWebServer()
-    expect(result.missing).toEqual([])
-    expect(Object.hasOwn(result.files, 'node_modules/debug/src/index.js')).toBe(true)
-    expect(Object.hasOwn(result.files, 'node_modules/ms/index.js')).toBe(true)
-
-    const vfs = loadVfsImage(await inflateImage(result.image, 'the packed webserver'), DEFAULT_ROOT)
-    const loader = new WorkerModuleLoader({
-      vfs,
-      root: DEFAULT_ROOT,
-      staticModules: createNodeBuiltins(),
-      staticModulePrefixes: REPLACED_PREFIXES,
-    })
-    setActiveVfs(vfs)
-    setActiveModuleLoader(loader)
-    const webserver = loader.requireFrom(`${DEFAULT_ROOT}/workspace`)(WEB_SERVER) as { WebServer?: unknown }
-    expect(typeof webserver.WebServer).toBe('function')
-  })
-
-  it('runs the unchanged Landlock entry package over the Worker platform executable', async () => {
-    const result = packedLandlock()
-    expect(workspaces.has(LANDLOCK)).toBe(true)
-    expect(result.packages.has(LANDLOCK)).toBe(true)
-    expect(result.missing).toEqual([])
-    expect(Object.hasOwn(result.files, `node_modules/${LANDLOCK}/lib/index.js`)).toBe(true)
-    expect(createNodeBuiltins()[LANDLOCK]).toBeUndefined()
-
-    const vfs = loadVfsImage(await inflateImage(result.image, 'the packed Landlock package'), DEFAULT_ROOT)
-    const loader = new WorkerModuleLoader({
-      vfs,
-      root: DEFAULT_ROOT,
-      staticModules: createNodeBuiltins(),
-      staticModulePrefixes: REPLACED_PREFIXES,
-    })
-    setActiveVfs(vfs)
-    setActiveModuleLoader(loader)
-    const landlock = loader.requireFrom(`${DEFAULT_ROOT}/workspace`)(LANDLOCK) as {
-      LAUNCHER_BIN: string
-      LAUNCHER_FAILURE_EXIT: number
-      launcherPath(): string
-      grantArgs(grants: { readOnly?: readonly string[]; readWrite?: readonly string[] }): string[]
-      probe(): string
-    }
-
-    expect(landlock.LAUNCHER_BIN).toBe('landlock-run')
-    expect(landlock.LAUNCHER_FAILURE_EXIT).toBe(125)
-    expect(landlock.grantArgs({ readOnly: ['/'], readWrite: ['/tmp'] })).toEqual([
-      '--ro', '/', '--rw', '/tmp',
-    ])
-    expect(landlock.launcherPath()).toBe(
-      `${DEFAULT_ROOT}/node_modules/${LANDLOCK}/node_modules/${LANDLOCK}-${process.platform}-${process.arch}/bin/landlock-run`,
-    )
-    expect(landlock.probe()).toBe('full')
-  })
-
-  it('prepares the unchanged plugin-package inventory through Worker createRequire paths', async () => {
-    const result = packedPluginInventory()
-    expect(result.missing).toEqual([])
-
-    const vfs = loadVfsImage(await inflateImage(result.image, 'the packed plugin inventory'), DEFAULT_ROOT)
-    const loader = new WorkerModuleLoader({
-      vfs,
-      root: DEFAULT_ROOT,
-      staticModules: createNodeBuiltins(),
-      staticModulePrefixes: REPLACED_PREFIXES,
-    })
-    setActiveVfs(vfs)
-    setActiveModuleLoader(loader)
-    const inventory = loader.requireFrom(`${DEFAULT_ROOT}/workspace`)(PLUGIN_INVENTORY) as {
-      apply(ctx: unknown, config: unknown): void
-    }
-
-    type Prepared = { readonly value: { readonly version: number; readonly packages: readonly unknown[] } }
-    type Prepare = (request: { readonly body: object; readonly signal: AbortSignal }) => Promise<Prepared>
-    let prepare: Prepare | undefined
-    const baseUrl = `file://${DEFAULT_ROOT}/config/cordis.yml`
-    const tree: { readonly ctx: { readonly baseUrl: string }; entries(): readonly unknown[] } = {
-      ctx: { baseUrl },
-      entries: () => [entry],
-    }
-    const entry = {
-      options: { name: PLUGIN_INVENTORY },
-      disabled: false,
-      fiber: { state: FiberState.ACTIVE },
-      parent: { tree },
-    }
-    inventory.apply({
-      baseUrl,
-      loader: tree,
-      deepseekLlmApiExtensions: {
-        register: (field: string, contribution: { readonly prepare: Prepare }): void => {
-          expect(field).toBe('dsh_plugin_packages')
-          prepare = contribution.prepare
-        },
-      },
-    }, {})
-
-    if (prepare === undefined) throw new Error('packed plugin inventory did not register its request contribution')
-    const prepared = await prepare({ body: {}, signal: new AbortController().signal })
-    const manifest = JSON.parse(vfs.readFileSync(
-      `${DEFAULT_ROOT}/node_modules/${PLUGIN_INVENTORY}/package.json`, 'utf8',
-    ) as string) as { version: string }
-    expect(prepared.value).toEqual({
-      version: 1,
-      packages: [{ name: PLUGIN_INVENTORY, version: manifest.version }],
-    })
-  })
-
-  it('refuses a body the packer did not lower, naming the image', async () => {
-    // The case above only proves the packed bytes are wrappable. This is the
-    // other half: the loader has no transform to fall back on, so an entry the
-    // collector missed must fail loud against the image rather than boot.
-    const vfs = loadVfsImage(await archive(), DEFAULT_ROOT)
-    vfs.seed(
-      `${DEFAULT_ROOT}/node_modules/${SUBJECT}/lib/index.js`,
-      new TextEncoder().encode('export const timeoutOf = () => 0\n'),
-    )
-    const loader = new WorkerModuleLoader({
-      vfs,
-      root: DEFAULT_ROOT,
-      staticModules: createNodeBuiltins(),
-      staticModulePrefixes: REPLACED_PREFIXES,
-    })
-    expect(() => loader.requireFrom(`${DEFAULT_ROOT}/workspace`)(SUBJECT))
-      .toThrow(/still carries module syntax, so the image was not lowered by the packer/)
+  it('spells out every missing dependency instead of counting them', () => {
+    const lines = describePack(pack(['missing-a', 'missing-b']), repoRoot, `${repoRoot}dist/image.tar.gz`)
+    expect(lines.join('\n')).toContain('unresolved dependencies:')
+    expect(lines.join('\n')).toContain('    missing-a')
+    expect(lines.join('\n')).toContain('    missing-b')
   })
 })

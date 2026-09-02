@@ -22,7 +22,7 @@ export interface SubagentModelSelectionCardState extends CardShell {
   enabled: boolean
   /** Live catalog joined with stored routes. */
   candidates: readonly ModelRouteCandidate[]
-  /** Adapter-directory request state. */
+  /** Model-directory request state. */
   catalogStatus: ModelCatalogStatus
   /** Whether any provider-local catalog request failed. */
   catalogPartial: boolean
@@ -36,11 +36,11 @@ export interface SubagentModelSelectionCardFace {
     /** Card snapshot bound by the renderer as useSubagentModelSelectionCard. */
     subagentModelSelectionCard: SnapshotStore<SubagentModelSelectionCardState>
   }
-  /** Stage the enabled state; enabling also loads the adapter directory. */
+  /** Stage the enabled state; enabling also loads the model directory. */
   toggleEnabled: () => void
   /** Stage one exact route as allowed or denied. */
   toggleModel: (key: string) => void
-  /** Retry the adapter directory. */
+  /** Retry the model directory. */
   retryCatalog: () => void
   /** Persist the switch and exact routes as one revision-fenced mutation. */
   save: () => void
@@ -54,7 +54,7 @@ function sameRoutes(left: readonly ModelRoute[], right: readonly ModelRoute[]): 
   return left.every(route => rightKeys.has(modelRouteKey(route)))
 }
 
-/** Bridges one settings scope and the live adapter directory onto a staged card. */
+/** Staged card over one settings scope joined with the live model directory. */
 export class SubagentModelSelectionCardController {
   private catalogGroups: readonly ModelProviderGroup[] = []
   private catalogPartial = false
@@ -113,7 +113,9 @@ export class SubagentModelSelectionCardController {
       toggleEnabled: () => { this.toggleEnabled() },
       toggleModel: (key) => { this.toggleModel(key) },
       retryCatalog: () => { this.startCatalog() },
-      save: () => { void this.save() },
+      save: () => {
+        this.save().then(undefined, () => { /* save() publishes its outcome on the card snapshot */ })
+      },
       discard: () => { this.discard() },
     }
   }
@@ -245,9 +247,8 @@ export class SubagentModelSelectionCardController {
   }
 
   /**
-   * Open a directory request unless one is already open, so a duplicate call
-   * leaves the in-flight settlement on {@link background} rather than
-   * replacing it with an immediate return.
+   * Open a directory request when none is open; further calls await the
+   * in-flight {@link background} settlement.
    */
   private startCatalog(): void {
     if (this.disposed || this.catalogStatus === 'loading') return
@@ -260,13 +261,12 @@ export class SubagentModelSelectionCardController {
     this.catalogPartial = false
     this.publish()
     // The Remote folds a Host-reported failure into `ok: false`; only an
-    // assembly fault rejects. The card reports that as a failed directory
-    // rather than letting it reach the browser as an unhandled rejection,
-    // which no page-level handler would catch.
-    let response: Awaited<ReturnType<ClientRemote['session']['modelCatalog']>>
-    try {
-      response = await this.session.modelCatalog()
-    } catch (_catalogCarrierFault) {
+    // assembly fault rejects, reported here as a failed directory load.
+    const response = await this.session.modelCatalog().then(
+      response => response,
+      () => undefined,
+    )
+    if (response === undefined) {
       if (generation === this.catalogGeneration) {
         this.catalogStatus = 'error'
         this.publish()

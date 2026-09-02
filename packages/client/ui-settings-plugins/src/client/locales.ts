@@ -21,6 +21,10 @@ export type PluginsSettingsLocaleKey =
   | 'agentDefaultModelChoose' | 'agentDefaultModelLoading' | 'agentDefaultModelLoadFailed'
   | 'agentDefaultModelPartial' | 'agentDefaultModelRetry' | 'agentDefaultModelUnavailable'
   | 'agentDefaultModelUnavailableGroup' | 'agentDefaultModelEmpty' | 'agentDefaultModelConflict'
+  | 'invalidBoolean'
+  | 'approvalAssessorTitle' | 'approvalAssessorDescription'
+  | 'approvalAssessorEnabled' | 'approvalAssessorEnabledHint' | 'approvalAssessorEnabledPlaceholder'
+  | 'approvalAssessorExtraPatterns' | 'approvalAssessorExtraPatternsHint'
 
 /** English copy. */
 export const en: Record<PluginsSettingsLocaleKey, string> = {
@@ -87,6 +91,14 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
   agentDefaultModelUnavailableGroup: 'Saved but currently unavailable',
   agentDefaultModelEmpty: 'No model provider currently advertises a model.',
   agentDefaultModelConflict: 'Settings changed elsewhere. Discard your draft and try again.',
+  invalidBoolean: 'Enter true or false, or leave blank to use the default.',
+  approvalAssessorTitle: 'Approval assessor',
+  approvalAssessorDescription: 'Screens approval-request reasons for work-avoidance before they reach you.',
+  approvalAssessorEnabled: 'Screening',
+  approvalAssessorEnabledHint: 'true screens every approval reason; false passes all requests through.',
+  approvalAssessorEnabledPlaceholder: 'true',
+  approvalAssessorExtraPatterns: 'Extra evasion patterns',
+  approvalAssessorExtraPatternsHint: 'One regular-expression source per line, matched against the approval reason.',
 }
 
 /** Simplified Chinese copy. */
@@ -154,4 +166,12 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
   agentDefaultModelUnavailableGroup: '已保存但当前不可用',
   agentDefaultModelEmpty: '当前没有模型提供方公布模型。',
   agentDefaultModelConflict: '设置已在其他位置更新。请放弃修改后重试。',
+  invalidBoolean: '请填 true 或 false；留空表示使用默认值。',
+  approvalAssessorTitle: '审批评估器',
+  approvalAssessorDescription: '在审批请求到达你之前，筛查其理由中的规避工作说辞。',
+  approvalAssessorEnabled: '筛查开关',
+  approvalAssessorEnabledHint: 'true 筛查每条审批理由；false 全部原样通过。',
+  approvalAssessorEnabledPlaceholder: 'true',
+  approvalAssessorExtraPatterns: '追加的规避模式',
+  approvalAssessorExtraPatternsHint: '每行一个正则表达式来源，与审批理由比对。',
 }

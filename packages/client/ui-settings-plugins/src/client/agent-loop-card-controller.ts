@@ -2,7 +2,8 @@
 
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
-import { CardForm, numberField, type CardActions, type CardFieldState, type CardShell } from './card-form.ts'
+import { CardForm, type CardActions, type CardFieldState, type CardShell } from './card-form.ts'
+import { numberField } from './card-field-spec.ts'
 
 /**
  * Namespace of the agent loop's user-owned settings. Spelled here rather than

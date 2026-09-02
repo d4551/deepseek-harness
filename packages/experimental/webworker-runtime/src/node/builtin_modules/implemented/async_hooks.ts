@@ -133,16 +133,23 @@ export class AsyncLocalStorage<T> {
     return result
   }
 
-  /** Current store, resolved through the documented slot order: overlay, resumed, ambient, folding entry. */
-  getStore(): T | undefined {
-    if (this.overlay !== undefined) return this.overlay.store
+  /**
+   * Current store, resolved through the documented slot order: overlay, resumed, ambient, folding entry.
+   * @returns The active store, or `undefined` when no slot holds one.
+   */
+  getStore(): T | undefined {    if (this.overlay !== undefined) return this.overlay.store
     if (this.resumed !== undefined) return this.resumed.store
     const ambient = this.ambients.at(-1)
     if (ambient !== undefined) return ambient.store
     return this.entries.at(-1)?.store
   }
 
-  /** Run a callback with no store, folding over its lifetime like {@link run}. */
+  /**
+   * Run a callback with no store, folding over its lifetime like {@link run}.
+   * @param callback - Function to invoke without an active store.
+   * @param args - Arguments forwarded to `callback`.
+   * @returns Whatever `callback` returns.
+   */
   exit<R>(callback: (...args: never[]) => R, ...args: never[]): R {
     return this.run(undefined, callback, ...args)
   }

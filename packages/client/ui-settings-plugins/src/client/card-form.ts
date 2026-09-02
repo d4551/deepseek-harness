@@ -15,23 +15,14 @@
 
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
+import { CLEAR_WRITE, type CardFieldSpec, type SettingValue } from './card-field-spec.ts'
 
-/** The write one field's staged text performs when the card is saved. */
-export type FieldWrite =
-  | { kind: 'set'; value: unknown }
-  | { kind: 'clear' }
-
-/** How one section field converts between its stored value and its draft text. */
-export interface CardFieldSpec {
-  /** Field name inside the namespace section. */
-  field: string
-  /** Render a stored value as draft text; the empty string when the section carries none. */
-  format: (value: unknown) => string
-  /**
-   * The write this draft text stages, or undefined when the text is not a
-   * value this field accepts — which blocks the save rather than discarding it.
-   */
-  parse: (text: string) => FieldWrite | undefined
+/** Read one field from one settings layer; an absent layer carries no field. */
+function fieldOf(layer: object | undefined, field: string): SettingValue | undefined {
+  // `Reflect.get` returns `any`; field names come from the card's own specs,
+  // and the settings document is string-addressed, so the result is the
+  // declared JSON value or its absence.
+  return layer === undefined ? undefined : Reflect.get(layer, field) as SettingValue | undefined
 }
 
 /**
@@ -108,57 +99,25 @@ interface PlannedWrite {
 }
 
 /**
- * A whole-number field. An empty draft clears the field; any other draft that
- * is not a finite number blocks the save.
- * @param field - field name inside the namespace section.
- * @returns the field's conversion spec.
- */
-export function numberField(field: string): CardFieldSpec {
-  return {
-    field,
-    // A section that carries no number for this field renders empty rather
-    // than as a value nobody chose.
-    format: value => typeof value === 'number' ? String(value) : '',
-    parse: (text) => {
-      const trimmed = text.trim()
-      if (trimmed === '') return { kind: 'clear' }
-      const parsed = Number(trimmed)
-      return Number.isFinite(parsed) ? { kind: 'set', value: parsed } : undefined
-    },
-  }
-}
-
-/**
- * A free-text field. An empty draft clears the field, so emptying the control
- * and saving is the same gesture as resetting it.
- * @param field - field name inside the namespace section.
- * @returns the field's conversion spec.
- */
-export function textField(field: string): CardFieldSpec {
-  return {
-    field,
-    format: value => typeof value === 'string' ? value : '',
-    parse: (text) => {
-      const trimmed = text.trim()
-      return trimmed === '' ? { kind: 'clear' } : { kind: 'set', value: trimmed }
-    },
-  }
-}
-
-/**
  * Stages one card's edits over one settings namespace and writes them on save.
  *
  * The form publishes through a snapshot store because slot components read
  * through a snapshot selector, while both the scope and the local drafts
  * change underneath; every projection is rebuilt from the two together.
  */
-export class CardForm<T> {
+export class CardForm<T extends object> {
   private readonly specs: Map<string, CardFieldSpec>
   private readonly secretSpecs: Map<string, CardSecretSpec>
   private readonly staged = new Map<string, StagedEdit>()
   private readonly listeners = new Set<() => void>()
   private saving = false
   private failed = false
+  /**
+   * Settlement chain of the save the injected action started, so a caller can
+   * await the write instead of polling for `saving` to clear. The form's own
+   * writes never reject — a refusal lands as `failed` on the next read-back.
+   */
+  saveChain: Promise<void> = Promise.resolve()
 
   /**
    * @param scope - the bound settings scope for this card's namespace.
@@ -217,7 +176,7 @@ export class CardForm<T> {
     if (staged === undefined) {
       return { text: spec.format(this.sectionValue(field)), overridden: this.stored(field), invalid: false }
     }
-    const write = staged.clear ? { kind: 'clear' as const } : spec.parse(staged.text)
+    const write = staged.clear ? CLEAR_WRITE : spec.parse(staged.text)
     return {
       text: staged.text,
       overridden: write?.kind === 'set',
@@ -235,7 +194,7 @@ export class CardForm<T> {
       resetField: (field) => {
         this.stage(field, { text: this.spec(field).format(this.baseValue(field)), clear: true })
       },
-      save: () => { void this.save() },
+      save: () => { this.saveChain = this.save() },
       discard: () => {
         if (this.staged.size === 0 && !this.failed) return
         this.staged.clear()
@@ -305,15 +264,20 @@ export class CardForm<T> {
     return !this.stored(field)
   }
 
-  private async store(field: string, value: unknown): Promise<boolean> {
+  private async store(field: string, value: SettingValue): Promise<boolean> {
     await this.scope.set(field, value)
-    return this.userLayer()?.[field] === value
+    return fieldOf(this.layerOf(this.snapshotOf().user), field) === value
   }
 
   private stage(field: string, edit: StagedEdit): void {
     this.staged.set(field, edit)
     this.failed = false
     this.publish()
+  }
+
+  /** Rebuild every bound projection from the current scope and drafts. */
+  private publish(): void {
+    for (const notify of this.listeners) notify()
   }
 
   private spec(field: string): CardFieldSpec {
@@ -328,24 +292,25 @@ export class CardForm<T> {
     return this.scope.getSnapshot()
   }
 
-  private sectionValue(field: string): unknown {
-    return (this.snapshotOf().value as Record<string, unknown> | undefined)?.[field]
+  /**
+   * Narrow one raw snapshot layer to the record it is stored as; a `null` or
+   * missing layer carries no field, same as an absent one.
+   */
+  private layerOf(layer: SettingsScopeSnapshot<T>['base']): object | undefined {
+    return typeof layer === 'object' && layer !== null ? layer : undefined
   }
 
-  private baseValue(field: string): unknown {
-    return (this.snapshotOf().base as Record<string, unknown> | undefined)?.[field]
+  private sectionValue(field: string): SettingValue | undefined {
+    return fieldOf(this.snapshotOf().value, field)
   }
 
-  private userLayer(): Record<string, unknown> | undefined {
-    return this.snapshotOf().user as Record<string, unknown> | undefined
+  private baseValue(field: string): SettingValue | undefined {
+    return fieldOf(this.layerOf(this.snapshotOf().base), field)
   }
 
+  /** Whether the user layer carries an entry for this field. */
   private stored(field: string): boolean {
-    const user = this.userLayer()
-    return user !== undefined && Object.hasOwn(user, field)
-  }
-
-  private publish(): void {
-    for (const listener of this.listeners) listener()
+    const user = this.layerOf(this.snapshotOf().user)
+    return user !== undefined && Reflect.has(user, field)
   }
 }

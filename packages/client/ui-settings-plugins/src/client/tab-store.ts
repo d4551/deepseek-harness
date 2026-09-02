@@ -47,6 +47,11 @@ export class ConfigurablePluginsTabController {
   private readonly store = createSnapshotStore<ConfigurablePluginsTabState>({ loaded: false, namespaces: [] })
   private disposed = false
   private readonly unsubscribe: () => void
+  /**
+   * Settlement chain for the latest mirror ensure run, so a caller can await
+   * the refresh instead of polling the store.
+   */
+  mirrorChain: Promise<void> = Promise.resolve()
 
   /**
    * @param describeFace - the shared mirror's describe face; its refreshes
@@ -58,7 +63,7 @@ export class ConfigurablePluginsTabController {
     private readonly entries: () => readonly StoredEntry[],
   ) {
     this.unsubscribe = describeFace.subscribe(() => { this.publish() })
-    void describeFace.ensure()
+    this.mirrorChain = describeFace.ensure()
     this.publish()
   }
 

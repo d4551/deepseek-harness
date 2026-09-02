@@ -10,8 +10,32 @@ import type {
 import { stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
 import { AgentDefaultModelCardController } from '../src/client/agent-default-model-card-controller.ts'
 import { modelCatalogStub } from './model-catalog-stub.client.ts'
+import { deferred } from './scope-stubs.client.ts'
 
 type StubHost = ReturnType<typeof stubSettingsScope<AgentDefaultModelSettings>>
+type CardFace = ReturnType<AgentDefaultModelCardController['inject']>
+
+/** Mount a card whose scope document is ready and whose catalog has answered. */
+async function readyFace(
+  host: StubHost,
+  models: ReturnType<typeof modelCatalogStub>,
+  value: AgentDefaultModelSettings,
+  options: { revision?: number; writable?: boolean } = {},
+): Promise<CardFace> {
+  const controller = new AgentDefaultModelCardController(host.scope, models.api)
+  host.publish({
+    status: 'ready',
+    writable: options.writable ?? true,
+    ...(options.revision === undefined ? {} : { revision: options.revision }),
+    value,
+    user: {},
+  })
+  const face = controller.inject()
+  await vi.waitFor(() => {
+    expect(face.hooks.agentDefaultModelCard.getSnapshot().catalogStatus).toBe('ready')
+  })
+  return face
+}
 
 /**
  * Make the stub behave like a Host that applies every mutation op the card
@@ -59,7 +83,7 @@ describe('AgentDefaultModelCardController', () => {
     expect(Object.keys(controller.inject().hooks)).toEqual(['agentDefaultModelCard'])
   })
 
-  it('loads adapter models, stages a route, and saves provider, model, and the cleared effort atomically', async () => {
+  it('loads directory models, stages a route, and saves provider, model, and the cleared effort atomically', async () => {
     const host = stubSettingsScope<AgentDefaultModelSettings>()
     acceptWrites(host)
     const models = modelCatalogStub({ groups })
@@ -97,15 +121,7 @@ describe('AgentDefaultModelCardController', () => {
   it('reports a rejected write and keeps the draft staged', async () => {
     const host = stubSettingsScope<AgentDefaultModelSettings>()
     const models = modelCatalogStub({ groups })
-    const controller = new AgentDefaultModelCardController(host.scope, models.api)
-    host.publish({
-      status: 'ready', writable: true,
-      value: { provider: 'alpha', model: 'slow' }, user: {},
-    })
-    const face = controller.inject()
-    await vi.waitFor(() => {
-      expect(face.hooks.agentDefaultModelCard.getSnapshot().catalogStatus).toBe('ready')
-    })
+    const face = await readyFace(host, models, { provider: 'alpha', model: 'slow' })
 
     face.selectModel('alpha\0fast')
     const pendingSave = face.save()
@@ -119,15 +135,7 @@ describe('AgentDefaultModelCardController', () => {
   it('flags a draft the Host displaced, and clears it once the values agree again', async () => {
     const host = stubSettingsScope<AgentDefaultModelSettings>()
     const models = modelCatalogStub({ groups })
-    const controller = new AgentDefaultModelCardController(host.scope, models.api)
-    host.publish({
-      status: 'ready', writable: true, revision: 5,
-      value: { provider: 'alpha', model: 'slow' }, user: {},
-    })
-    const face = controller.inject()
-    await vi.waitFor(() => {
-      expect(face.hooks.agentDefaultModelCard.getSnapshot().catalogStatus).toBe('ready')
-    })
+    const face = await readyFace(host, models, { provider: 'alpha', model: 'slow' }, { revision: 5 })
 
     face.selectModel('alpha\0fast')
     host.publish({
@@ -149,15 +157,7 @@ describe('AgentDefaultModelCardController', () => {
     const host = stubSettingsScope<AgentDefaultModelSettings>()
     acceptWrites(host)
     const models = modelCatalogStub({ groups })
-    const controller = new AgentDefaultModelCardController(host.scope, models.api)
-    host.publish({
-      status: 'ready', writable: true, revision: 5,
-      value: { provider: 'alpha', model: 'slow' }, user: {},
-    })
-    const face = controller.inject()
-    await vi.waitFor(() => {
-      expect(face.hooks.agentDefaultModelCard.getSnapshot().catalogStatus).toBe('ready')
-    })
+    const face = await readyFace(host, models, { provider: 'alpha', model: 'slow' }, { revision: 5 })
 
     face.selectModel('alpha\0fast')
     host.publish({
@@ -181,15 +181,7 @@ describe('AgentDefaultModelCardController', () => {
         models: [{ id: 'fast', name: 'Fast' }, { id: 'deep', name: 'Deep' }],
       }],
     })
-    const controller = new AgentDefaultModelCardController(host.scope, models.api)
-    host.publish({
-      status: 'ready', writable: true, revision: 4,
-      value: { provider: 'alpha', model: 'slow' }, user: {},
-    })
-    const face = controller.inject()
-    await vi.waitFor(() => {
-      expect(face.hooks.agentDefaultModelCard.getSnapshot().catalogStatus).toBe('ready')
-    })
+    const face = await readyFace(host, models, { provider: 'alpha', model: 'slow' }, { revision: 4 })
 
     expect(face.selectModel('alpha\0fast')).toBe(true)
     expect(face.selectModel('alpha\0deep')).toBe(true)
@@ -205,15 +197,7 @@ describe('AgentDefaultModelCardController', () => {
   it('discards a staged route', async () => {
     const host = stubSettingsScope<AgentDefaultModelSettings>()
     const models = modelCatalogStub({ groups })
-    const controller = new AgentDefaultModelCardController(host.scope, models.api)
-    host.publish({
-      status: 'ready', writable: true,
-      value: { provider: 'alpha', model: 'slow' }, user: {},
-    })
-    const face = controller.inject()
-    await vi.waitFor(() => {
-      expect(face.hooks.agentDefaultModelCard.getSnapshot().catalogStatus).toBe('ready')
-    })
+    const face = await readyFace(host, models, { provider: 'alpha', model: 'slow' })
 
     face.selectModel('alpha\0fast')
     expect(face.discard()).toBe(true)
@@ -321,26 +305,16 @@ describe('AgentDefaultModelCardController', () => {
   it('skips a save that would rewrite the stored route and one for no value', async () => {
     const host = stubSettingsScope<AgentDefaultModelSettings>()
     const models = modelCatalogStub({ groups })
-    const controller = new AgentDefaultModelCardController(host.scope, models.api)
-    host.publish({
-      status: 'ready', writable: true,
-      value: { provider: 'alpha', model: 'slow' }, user: {},
-    })
-    const face = controller.inject()
-    await vi.waitFor(() => {
-      expect(face.hooks.agentDefaultModelCard.getSnapshot().catalogStatus).toBe('ready')
-    })
+    const face = await readyFace(host, models, { provider: 'alpha', model: 'slow' })
 
     await expect(face.save()).resolves.toBe(false)
     expect(host.mutate).not.toHaveBeenCalled()
   })
 
   it('blocks edits while a save is in flight and lets the Host land over it', async () => {
-    let settle: () => void = () => undefined
+    const gate = deferred<undefined>()
     const host = stubSettingsScope<AgentDefaultModelSettings>()
-    const mutate = vi.fn(() => new Promise<void>((resolve) => {
-      settle = () => { resolve() }
-    }))
+    const mutate = vi.fn(() => gate.promise)
     const models = modelCatalogStub({ groups })
     const controller = new AgentDefaultModelCardController({ ...host.scope, mutate }, models.api)
     host.publish({
@@ -353,7 +327,7 @@ describe('AgentDefaultModelCardController', () => {
     })
 
     face.selectModel('alpha\0fast')
-    void face.save()
+    const pendingSave = face.save()
     await vi.waitFor(() => {
       expect(face.hooks.agentDefaultModelCard.getSnapshot().saving).toBe(true)
     })
@@ -366,8 +340,8 @@ describe('AgentDefaultModelCardController', () => {
     expect(face.hooks.agentDefaultModelCard.getSnapshot().conflicted).toBe(false)
 
     controller.dispose()
-    settle()
-    await Promise.resolve()
+    gate.resolve(undefined)
     expect(face.hooks.agentDefaultModelCard.getSnapshot().saving).toBe(true)
+    await expect(pendingSave).resolves.toBe(false)
   })
 })

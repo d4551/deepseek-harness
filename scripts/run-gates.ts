@@ -320,6 +320,7 @@ function ciPrimaryGates(): Gate[] {
     }),
     builtPackageInvariantsGate(['build']),
     builtArtifactSpecsGate(['build']),
+    builtImageSpecsGate(['build']),
     builtBinSmokeGate(),
   ]
 }
@@ -422,6 +423,7 @@ function ciArtifactGates(): Gate[] {
     }),
     builtPackageInvariantsGate(['build']),
     builtArtifactSpecsGate(['build']),
+    builtImageSpecsGate(['build']),
     builtBinSmokeGate(),
   ]
 }
@@ -661,6 +663,26 @@ function builtArtifactSpecsGate(needs: string[]): Gate {
   ], {
     label: 'built artifact suites',
     env: { DSH_REQUIRE_BUILT_PACKAGES: '1' },
+    needs,
+  })
+}
+
+/**
+ * Run the `*.built.ts` suites — packer image specs that materialize emitted
+ * `lib/` — once the build they read has finished. They run unconditionally
+ * (the config's include is outside the unit lane), which is what turns "the
+ * bundle was never emitted" into a failure rather than a green skip.
+ * @param needs - gate ids that must finish first.
+ * @returns the gate.
+ */
+function builtImageSpecsGate(needs: string[]): Gate {
+  return bunExec('built-image-specs', [
+    'vitest',
+    'run',
+    '--config',
+    'vitest.built.config.ts',
+  ], {
+    label: 'built image suites',
     needs,
   })
 }

@@ -39,14 +39,20 @@
 }
 
 .model {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
   padding: 6px;
   border-radius: 6px;
   cursor: pointer;
+}
+
+/* The names span takes the row's remaining width; a trailing unavailable
+   marker keeps its intrinsic width at the end of the row. */
+.model > span:first-of-type {
+  flex: 1;
+  min-width: 0;
 }
 
 .model:hover {

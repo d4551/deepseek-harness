@@ -3,7 +3,7 @@
 import type { ModelProviderGroup } from '@deepseek-ai/dsh-api-remotes/client'
 
 /**
- * Adapter-directory request state. `idle` is the state before the first
+ * Model-directory request state. `idle` is the state before the first
  * request and after an invalidation, so a card knows to open one.
  */
 export type ModelCatalogStatus = 'idle' | 'loading' | 'ready' | 'error'
@@ -20,11 +20,11 @@ export interface ModelRoute {
 export interface ModelRouteCandidate extends ModelRoute {
   /** Stable opaque identity used only for lookup. */
   key: string
-  /** Adapter-owned provider display name. */
+  /** Provider display name from the model directory. */
   providerName: string
-  /** Adapter-owned model display name. */
+  /** Model display name from the model directory. */
   modelName: string
-  /** Whether the current adapter catalog advertises this exact route. */
+  /** Whether the current model catalog advertises this exact route. */
   available: boolean
   /** Whether the current draft selects this route. */
   selected: boolean
@@ -34,7 +34,7 @@ export interface ModelRouteCandidate extends ModelRoute {
 export interface ModelRouteGroup {
   /** Registered provider route the rows share. */
   provider: string
-  /** Adapter-owned provider display name. */
+  /** Provider display name from the model directory. */
   providerName: string
   /** Rows the catalog advertises for this provider. */
   candidates: readonly ModelRouteCandidate[]
@@ -66,8 +66,8 @@ export function modelRouteKey(route: ModelRoute): string {
 }
 
 /**
- * Join live adapter metadata with stored routes that stay removable after they
- * disappear from the catalog.
+ * Combine the current model directory with stored routes that stay listed
+ * after they disappear from the catalog.
  * @param groups - Current model directory grouped by provider.
  * @param stored - Routes in the effective settings value.
  * @param selected - Opaque route keys selected in the current draft.

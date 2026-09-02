@@ -16,7 +16,7 @@ export type SubagentModelSelectionCardProps =
   & InjectFace<SubagentModelSelectionCardFace>
 
 /**
- * Render the default-off preference and its exact adapter-route choices.
+ * Render the default-off preference and its exact provider/model route choices.
  * @param props - locale copy, the card snapshot, and its toggle action.
  * @returns the preference card, or nothing when the namespace is unavailable.
  */

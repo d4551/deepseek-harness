@@ -37,7 +37,7 @@
 ## 后果
 
 - `lib/worker.js` 不含解析器（当刀落时为 423.5 kB → 246.3 kB，早于 shell 进程层落地）。
-- `diff dist/index.html dist/preview.html` 恰为一个 script 标签；`packages/experimental/webworker-packer/tests/image-loadable.spec.ts` 钉住装载器契约的两半，transform 语义套件钉住 `createRequire` 请求发现，`apps/web/tests/preview-boot.e2e.ts` 则在 web 浏览器车道钉住 preview 可用性（boot 到可交互页面），替代已撤编的 `apps/web/scripts/preview/` 探针脚本。
+- `diff dist/index.html dist/preview.html` 恰为一个 script 标签；`packages/experimental/webworker-packer/tests/image-loadable.built.ts` 钉住装载器契约的两半，transform 语义套件钉住 `createRequire` 请求发现，`apps/web/tests/preview-boot.e2e.ts` 则在 web 浏览器车道钉住 preview 可用性（boot 到可交互页面），替代已撤编的 `apps/web/scripts/preview/` 探针脚本。
 - 转换 corpus 会先通过 Node 导入每个已构建 bundle，再比较 lowered export。固定豁免会点名真正不可导入的 bundle，并在其恢复可导入时失败：`win32-process` 是 Koffi 类型 owner 并承担重复类型豁免；`sandbox-windows-acl` 可正常导入，不承担该豁免。
 - served 的 `<base href="/">` 锚存在的原因是：相对资产 URL 在 SPA fallback 深路径下会解析进请求目录；只有与相对构建 base 一起才可移除它。
 - 镜像以确定性 gzip 压缩的 tar 交付（`vfs-image.tar.gz`；MTIME 0、OS 字节 0xff）：静态托管不压缩二进制 content-type（类型白名单、CDN 尺寸帽），压缩必须随制品走；worker 用浏览器原生 `DecompressionStream` 在下载的同时解压 fetch body。

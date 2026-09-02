@@ -11,7 +11,41 @@ import { apply, inject } from '@deepseek-ai/dsh-client-ui-settings-plugins/clien
 import type {
   ConfigurablePluginsTabFace, PluginsSettingsSectionInjected,
 } from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
+import type { StoredEntry } from '@deepseek-ai/dsh-client-ui-slots'
 import { SubagentModelSelectionCardController } from '../src/client/subagent-model-selection-card-controller.ts'
+
+/** A card face carrying exactly one snapshot-store hook; the shape every card injects. */
+type OneHookFace = { hooks: object }
+
+/**
+ * Invoke a slot entry's type-erased `inject` factory as the section face the
+ * register overload proved. The `Record<string, never>` bridge keeps the cast
+ * a comparable downcast of the registry's erased factory type.
+ * @param entry - slot entry whose injected face the spec wants.
+ * @returns the entry's injected section face.
+ */
+function sectionFace(entry: StoredEntry): PluginsSettingsSectionInjected {
+  return (entry.inject as () => PluginsSettingsSectionInjected & Record<string, never>)()
+}
+
+/**
+ * Tab-entry variant of {@link sectionFace}.
+ * @param entry - slot entry whose injected face the spec wants.
+ * @returns the entry's injected tab face.
+ */
+function tabFace(entry: StoredEntry): ConfigurablePluginsTabFace {
+  return (entry.inject as () => ConfigurablePluginsTabFace & Record<string, never>)()
+}
+
+/**
+ * Card-entry variant of {@link sectionFace}: the face shape every plugin card
+ * shares, regardless of which snapshot store it owns.
+ * @param entry - slot entry whose injected face the spec wants.
+ * @returns the entry's injected card face.
+ */
+function cardFace(entry: StoredEntry): OneHookFace {
+  return (entry.inject as () => OneHookFace & Record<string, never>)()
+}
 
 // These specs assert the shipped Chinese copy. The lane has no jsdom `window`,
 // so browser-language detection never runs and a fresh LocaleRuntime opens on
@@ -57,8 +91,8 @@ async function bench(served?: string[]) {
   }
 }
 
-function declareRoot(slots: SlotRegistry): () => void {
-  return slots.register({
+function declareRoot(slots: SlotRegistry): void {
+  slots.register({
     name: 'root',
     children: { 'settings.section': { kind: 'list', scope: 'root' } },
   } as never, () => null)
@@ -95,27 +129,27 @@ describe('ui-settings-plugins apply', () => {
     await ctx.plugin({ inject: [...inject], apply }).await()
 
     const section = slots.entries('settings.section')[0]!
-    const sectionFace = (section.inject as unknown as () => PluginsSettingsSectionInjected)()
-    const initialTabs = sectionFace.hooks.tabs.getSnapshot()
+    const face = sectionFace(section)
+    const initialTabs = face.hooks.tabs.getSnapshot()
     expect(initialTabs).toEqual([
       { id: 'configurable', order: 0, label: '插件配置' },
     ])
-    expect(sectionFace.hooks.tabs.getSnapshot()).toBe(initialTabs)
+    expect(face.hooks.tabs.getSnapshot()).toBe(initialTabs)
 
     const listener = vi.fn()
-    const unsubscribe = sectionFace.hooks.tabs.subscribe(listener)
+    const unsubscribe = face.hooks.tabs.subscribe(listener)
     slots.register({ name: 'settings.plugins.tab', id: 'plain' } as never, () => null)
-    expect(sectionFace.hooks.tabs.getSnapshot()).toEqual([
+    expect(face.hooks.tabs.getSnapshot()).toEqual([
       { id: 'configurable', order: 0, label: '插件配置' },
       { id: 'plain', order: 0, label: '' },
     ])
     unsubscribe()
 
     const tab = slots.entries('settings.plugins.tab')[0]!
-    const tabFace = (tab.inject as unknown as () => ConfigurablePluginsTabFace)()
-    expect(Object.keys(tabFace.hooks)).toEqual(['configurablePlugins'])
+    const tabFaceHooks = tabFace(tab).hooks
+    expect(Object.keys(tabFaceHooks)).toEqual(['configurablePlugins'])
     for (const entry of slots.entries('settings.plugin.item')) {
-      const face = (entry as { inject?: () => unknown }).inject?.() as { hooks: Record<string, unknown> }
+      const face = cardFace(entry)
       // Each card injects exactly one snapshot store plus its own actions.
       expect(Object.keys(face.hooks)).toHaveLength(1)
     }
@@ -128,7 +162,10 @@ describe('ui-settings-plugins apply', () => {
     await ctx.plugin({ inject: [...inject], apply }).await()
 
     expect(slots.entries('settings.plugin.item').map(entry => entry.options.key))
-      .toEqual(['shell', 'agent-loop', 'subagent-model-selection', 'agent-default-model', 'web-search-deepseek'])
+      .toEqual([
+        'shell', 'agent-loop', 'subagent-model-selection', 'agent-default-model',
+        'web-search-deepseek', 'approval-assessor',
+      ])
   })
 
   it('dispatches the served namespaces its cards claim, and no others', async () => {
@@ -139,7 +176,7 @@ describe('ui-settings-plugins apply', () => {
     await ctx.plugin({ inject: [...inject], apply }).await()
 
     const tab = slots.entries('settings.plugins.tab')[0]!
-    const face = (tab.inject as unknown as () => ConfigurablePluginsTabFace)()
+    const face = tabFace(tab)
     await vi.waitFor(() => {
       expect(face.hooks.configurablePlugins.getSnapshot().namespaces)
         .toEqual(['agent-loop', 'web-search-deepseek'])
@@ -231,7 +268,7 @@ describe('ui-settings-plugins apply', () => {
     declareRoot(slots)
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
-    expect(slots.entries('settings.plugin.item')).toHaveLength(5)
+    expect(slots.entries('settings.plugin.item')).toHaveLength(6)
 
     await fiber.dispose()
 

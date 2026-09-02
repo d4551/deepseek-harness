@@ -12,10 +12,8 @@
 import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
-import {
-  CardForm, numberField, textField,
-  type CardActions, type CardFieldState, type CardShell,
-} from './card-form.ts'
+import { CardForm, type CardActions, type CardFieldState, type CardShell } from './card-form.ts'
+import { numberField, textField } from './card-field-spec.ts'
 
 /**
  * Namespace of the DeepSeek search provider. Spelled here rather than
@@ -28,6 +26,16 @@ const DEFAULT_API_KEY_REF = 'DEEPSEEK_API_KEY'
 
 /** Form field the credential control stages under. */
 const API_KEY_FIELD = 'apiKey'
+
+/**
+ * Settle a credentials call that must not reject into its answer, or
+ * `undefined` when the call did not land. A credentials refusal is not a card
+ * error: the card keeps the last state it knew, and the Host stays the
+ * authority on what exists.
+ */
+function settled<T>(call: Promise<T>): Promise<T | undefined> {
+  return call.then(answer => answer, () => undefined)
+}
 
 /** The search-provider fields this card edits. */
 export interface WebSearchSettings {
@@ -74,11 +82,18 @@ export interface WebSearchCardFace extends CardActions {
   }
 }
 
-/** Bridges the `web-search-deepseek` scope and the credentials domain onto the card. */
+/** Binds the `web-search-deepseek` scope and the credentials domain onto the card. */
 export class WebSearchCardController {
   private readonly form: CardForm<WebSearchSettings>
   private readonly store: SnapshotStore<WebSearchCardState>
   private credential: CredentialState = { ref: '', configured: false, writable: true }
+  /**
+   * Settlement chain of the credential reads this controller started, so a
+   * caller can await the read instead of polling the hook. A read never
+   * rejects — a refusal keeps the last known state and this chain settles
+   * when the read-back has run or given up.
+   */
+  readChain: Promise<void> = Promise.resolve()
 
   /**
    * @param scope - the bound settings scope for the `web-search-deepseek` namespace.
@@ -94,8 +109,8 @@ export class WebSearchCardController {
       [{ field: API_KEY_FIELD, write: text => this.writeKey(text) }],
     )
     this.store = this.form.bind(() => this.projection())
-    scope.subscribe(() => { void this.readCredential() })
-    void this.readCredential()
+    scope.subscribe(() => { this.readChain = this.readCredential() })
+    this.readChain = this.readCredential()
   }
 
   private projection(): WebSearchCardState {
@@ -125,15 +140,8 @@ export class WebSearchCardController {
       this.credential = { ref, configured: false, writable: true }
       this.store.set(this.projection())
     }
-    let response: Awaited<ReturnType<WebSearchCredentials['describe']>>
-    try {
-      response = await this.credentials.describe([ref])
-    } catch (_credentialReadFailure) {
-      // The card stays usable without this: the key control simply reports the
-      // last state it knew, and a write still reaches the Host.
-      return
-    }
-    if (!response.ok || ref !== refOf(this.scope.getSnapshot())) return
+    const response = await settled(this.credentials.describe([ref]))
+    if (response === undefined || !response.ok || ref !== refOf(this.scope.getSnapshot())) return
     const view = response.value[ref]
     const next: CredentialState = {
       ref,
@@ -157,7 +165,7 @@ export class WebSearchCardController {
    */
   refreshCredential(ref: string): void {
     if (ref !== this.credential.ref) return
-    void this.readCredential()
+    this.readChain = this.readChain.then(() => this.readCredential())
   }
 
   /**
@@ -174,12 +182,9 @@ export class WebSearchCardController {
    * @returns whether the Host reports a configured credential afterwards.
    */
   private async writeKey(value: string): Promise<boolean> {
-    try {
-      await this.credentials.set(refOf(this.scope.getSnapshot()), value)
-    } catch (_credentialWriteFailure) {
-      // Refusals surface through the re-read below: the Host is the only
-      // authority on whether the key now exists.
-    }
+    // A refused write surfaces through the re-read below: the Host is the
+    // only authority on whether the key now exists.
+    await settled(this.credentials.set(refOf(this.scope.getSnapshot()), value))
     await this.readCredential()
     return this.credential.configured
   }

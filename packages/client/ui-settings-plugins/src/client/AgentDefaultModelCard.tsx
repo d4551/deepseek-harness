@@ -23,17 +23,13 @@ export type AgentDefaultModelCardProps =
 export function AgentDefaultModelCard(props: AgentDefaultModelCardProps) {
   const { t } = props
   const state = props.useAgentDefaultModelCard(snapshot => snapshot)
-  // Both actions report whether they landed, and the card re-renders from the
-  // controller's snapshot rather than from that flag, so it drops the promise.
-  const onSave = () => { void props.save() }
-  const onRetry = () => { void props.retryCatalog() }
   return (
     <PluginCard
       t={t}
       titleKey="agentDefaultModelTitle"
       descriptionKey="agentDefaultModelDescription"
       state={state}
-      onSave={onSave}
+      onSave={props.save}
       onDiscard={props.discard}
     >
       <div className={css.selection}>
@@ -45,7 +41,7 @@ export function AgentDefaultModelCard(props: AgentDefaultModelCardProps) {
           retryLabel={t('agentDefaultModelRetry')}
           partialNotice={t('agentDefaultModelPartial')}
           retryDisabled={state.saving}
-          onRetry={onRetry}
+          onRetry={props.retryCatalog}
         />
         {state.candidates.length > 0
           ? (

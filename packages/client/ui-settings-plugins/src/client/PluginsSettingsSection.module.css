@@ -51,7 +51,7 @@
   right: 0;
   bottom: -1px;
   left: 0;
-  height: 2px;
+  height: 0.125rem;
   border-radius: 2px 2px 0 0;
   background: var(--dsw-alias-label-primary);
   content: '';

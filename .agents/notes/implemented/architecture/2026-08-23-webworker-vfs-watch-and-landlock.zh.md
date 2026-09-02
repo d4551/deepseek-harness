@@ -66,7 +66,7 @@ Worker 的 `full` 结论覆盖 shell 命令表和 Host 服务 VFS 协议能够�
 
 - `fs-watch-stream.spec.ts` 对照当前 Node 版本验证缺失、创建、修改、删除的 `watchFile` 状态转换，以及文件流生命周期、分片、范围、backpressure、字节计数、默认值和 abort 身份。
 - `chokidar.spec.ts` 通过 Worker transformer 与模块 loader 加载 lockfile 选定的两组 Chokidar 和 readdirp 依赖，并在 `MemoryVfs` 上验证 `ready`、callback watcher、polling、缺失文件创建、删除和完全停稳的关闭。
-- `image-loadable.spec.ts` 打包并加载真实的 `@deepseek-ai/node-addon-landlock-run` JavaScript，验证它不在 replacement 表中，并让其 fallback `launcherPath()` 与 `probe()` 经过 Worker 平台可执行文件。`child-process.spec.ts` 与 `sandbox-stack.spec.ts` 随后通过生产 sandbox 和 subprocess 包验证 launcher 失败码、错误 argv 与授权失败、`/tmp` 与 `/dev/null`、rename 拒绝、三种权限模式和逐进程并发授权。
+- `image-loadable.built.ts` 打包并加载真实的 `@deepseek-ai/node-addon-landlock-run` JavaScript，验证它不在 replacement 表中，并让其 fallback `launcherPath()` 与 `probe()` 经过 Worker 平台可执行文件。`child-process.spec.ts` 与 `sandbox-stack.spec.ts` 随后通过生产 sandbox 和 subprocess 包验证 launcher 失败码、错误 argv 与授权失败、`/tmp` 与 `/dev/null`、rename 拒绝、三种权限模式和逐进程并发授权。
 - `preview-boot.e2e.ts` 构建并启动打包后的浏览器部署，创建 Workspace 与 Session，把缺失的 skill 根逐级推进到可用的 Chokidar watch，读取 catalog，并在没有 watcher 警告的情况下完成 settings 与 credential 写入。
 
 ## Consequences

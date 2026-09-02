@@ -20,7 +20,7 @@ export const AGENT_DEFAULT_MODEL_NS = 'agent-default-model'
 export interface AgentDefaultModelCardState extends CardShell {
   /** Live catalog joined with the stored route. */
   candidates: readonly ModelRouteCandidate[]
-  /** Adapter-directory request state. */
+  /** Model-directory request state. */
   catalogStatus: ModelCatalogStatus
   /** Whether any provider-local catalog request failed. */
   catalogPartial: boolean
@@ -36,7 +36,7 @@ export interface AgentDefaultModelCardFace {
   }
   /** Stage one exact route as the default; reports whether the draft took it. */
   selectModel: (key: string) => boolean
-  /** Retry the adapter directory; resolves to whether the catalog answered. */
+  /** Retry the model directory; resolves to whether the catalog answered. */
   retryCatalog: () => Promise<boolean>
   /** Persist the staged route as one revision-fenced mutation. */
   save: () => Promise<boolean>
@@ -44,7 +44,7 @@ export interface AgentDefaultModelCardFace {
   discard: () => boolean
 }
 
-/** Bridges one settings scope and the live adapter directory onto a staged card. */
+/** Follows one settings scope and the live model directory onto a staged card. */
 export class AgentDefaultModelCardController {
   private catalogGroups: readonly ModelProviderGroup[] = []
   private catalogPartial = false
@@ -57,7 +57,10 @@ export class AgentDefaultModelCardController {
   private disposed = false
   private saveGeneration = 0
   private catalogGeneration = 0
-  /** Settlement chain for the latest backgrounded catalog or save run. */
+  /**
+   * Settlement chain of the latest backgrounded catalog or save run, so a
+   * caller can await the run instead of polling the snapshot.
+   */
   background: Promise<boolean> = Promise.resolve(false)
   private readonly store: SnapshotStore<AgentDefaultModelCardState>
 
@@ -186,8 +189,8 @@ export class AgentDefaultModelCardController {
     this.failed = false
     this.conflicted = false
     this.publish()
-    // A route switch invalidates any reasoning effort stored for the previous
-    // model, so the save clears it and the adapter default applies again.
+    // A route switch makes any reasoning effort stored for the previous model
+    // stale, so the save unsets it and the model answers with its own.
     await this.scope.mutate([
       { op: 'set', path: ['provider'], value: desired.provider },
       { op: 'set', path: ['model'], value: desired.model },

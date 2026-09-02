@@ -5,7 +5,7 @@
  * every covered trap form stays fixed.
  *
  * Scope boundary: this file checks the transform itself; the pack-time loop
- * around it is covered end-to-end by the packer's `image-loadable.spec.ts`.
+ * around it is covered end-to-end by the packer's `image-loadable.built.ts`.
  * Emitted-code assertions are deliberately written against substrings
  * of the real output rather than whole-file goldens: a golden would fail on every
  * helper reordering, which is not the contract. The contract is the observable

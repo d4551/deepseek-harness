@@ -22,6 +22,7 @@ import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { AgentLoopCard } from './AgentLoopCard.tsx'
 import { AgentDefaultModelCard } from './AgentDefaultModelCard.tsx'
+import { ApprovalAssessorCard } from './ApprovalAssessorCard.tsx'
 import { BashCard } from './BashCard.tsx'
 import { ConfigurablePluginsTab } from './ConfigurablePluginsTab.tsx'
 import { PluginsSettingsSection } from './PluginsSettingsSection.tsx'
@@ -33,6 +34,7 @@ import {
   AGENT_DEFAULT_MODEL_NS, AgentDefaultModelCardController,
 } from './agent-default-model-card-controller.ts'
 import { SHELL_NS, BashCardController } from './bash-card-controller.ts'
+import { APPROVAL_ASSESSOR_NS, ApprovalAssessorCardController } from './approval-assessor-card-controller.ts'
 import { ConfigurablePluginsTabController } from './tab-store.ts'
 import {
   SUBAGENT_MODEL_SELECTION_NS, SubagentModelSelectionCardController,
@@ -40,29 +42,12 @@ import {
 import { WEB_SEARCH_NS, WebSearchCardController } from './web-search-card-controller.ts'
 import { en, zh } from './locales.ts'
 
-export type { PluginsSettingsSectionInjected, PluginsSettingsSectionProps } from './PluginsSettingsSection.tsx'
-export type { ConfigurablePluginsTabProps } from './ConfigurablePluginsTab.tsx'
-export type { ConfigurablePluginsTabFace, ConfigurablePluginsTabState } from './tab-store.ts'
-export type { PluginCardProps } from './PluginCard.tsx'
+export type { PluginsSettingsSectionInjected } from './PluginsSettingsSection.tsx'
+export type { ConfigurablePluginsTabFace } from './tab-store.ts'
+// Re-exporting the owner-props type keeps slot-contract.ts in the emitted
+// declaration graph: declaration emit drops the cards' empty `import type {}`
+// anchors, and with them the SlotMap augmentation for package consumers.
 export type { SettingsPluginItemOwnerProps } from './slot-contract.ts'
-export type { FieldProps } from './fields.tsx'
-export type {
-  CardActions, CardFieldSpec, CardFieldState, CardSecretSpec, CardShell,
-} from './card-form.ts'
-export type { AgentLoopCardFace, AgentLoopCardState } from './agent-loop-card-controller.ts'
-export type {
-  AgentDefaultModelCardFace, AgentDefaultModelCardState,
-} from './agent-default-model-card-controller.ts'
-export type {
-  SubagentModelSelectionCardFace, SubagentModelSelectionCardState,
-} from './subagent-model-selection-card-controller.ts'
-export type {
-  ModelCatalogStatus, ModelRoute, ModelRouteCandidate, ModelRouteGroup,
-} from './model-route.ts'
-export type { ModelCatalogStatusNoticesProps } from './ModelCatalogStatusNotices.tsx'
-export type { ModelRouteChoicesProps, ModelRouteSelection } from './ModelRouteChoices.tsx'
-export type { BashCardFace, BashCardState } from './bash-card-controller.ts'
-export type { WebSearchCardFace, WebSearchCardState } from './web-search-card-controller.ts'
 
 /** Dictionary namespace owned by this plugin. */
 const NS = 'settings.plugins'
@@ -92,6 +77,9 @@ export function apply(ctx: ClientContext): void {
     ctx.settingsScope.bind({ namespace: AGENT_DEFAULT_MODEL_NS }),
     ctx.remote.session,
   )
+  const approvalAssessor = new ApprovalAssessorCardController(
+    ctx.settingsScope.bind({ namespace: APPROVAL_ASSESSOR_NS }),
+  )
 
   // The credential a card reports is not part of any settings section, so its
   // scope publishes nothing when one is written. This is the only signal that
@@ -102,7 +90,7 @@ export function apply(ctx: ClientContext): void {
   )
   ctx.effect(
     () => ctx.remote.$on('llm/adapters-updated', () => { subagentModelSelection.refreshCatalog() }),
-    'ui-settings-plugins: subagent adapter invalidations',
+    'ui-settings-plugins: subagent catalog invalidations',
   )
   ctx.effect(
     () => ctx.remote.$on('settings/document-updated', () => {
@@ -147,7 +135,9 @@ export function apply(ctx: ClientContext): void {
             tabsRevision = revision
             tabs = ctx.slots.entries('settings.plugins.tab')
               .map(entry => ({
-                /* v8 ignore next -- list-slot registration requires id */
+                // List registration requires an id (the slot store rejects
+                // an id-less entry at load); the fallback only satisfies the
+                // optional member's type.
                 id: entry.options.id ?? '',
                 order: entry.options.order ?? 0,
                 label: resolveSlotLabel(entry.options.label) ?? '',
@@ -223,5 +213,11 @@ export function apply(ctx: ClientContext): void {
       locale: NS,
       inject: () => webSearch.inject(),
     }, WebSearchCard)
+    yield ctx.slots.register({
+      name: 'settings.plugin.item',
+      key: APPROVAL_ASSESSOR_NS,
+      locale: NS,
+      inject: () => approvalAssessor.inject(),
+    }, ApprovalAssessorCard)
   })
 }

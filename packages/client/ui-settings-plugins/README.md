@@ -35,7 +35,7 @@ The tab reads which settings namespaces the Host serves and dispatches one slot 
 
 A card stages what the user types and writes it only when they save. Each control renders staged text, so what is on screen is exactly what a save would store; **Discard** drops the drafts, and a card holding unsaved edits says so on its header even while collapsed. A successful save collapses the card after the read-back confirms the writes; a failed save keeps the card open, reports the failure, and retains the drafts for correction. A reset stages the composed default rather than writing immediately, and a draft the field does not accept blocks the save instead of being dropped. The Host is the only authority on whether a value was accepted.
 
-The Subagent card stages its permission switch and exact model checkboxes together. Enabling requires at least one selected adapter route. Saving submits `enabled` and `allowedModels` in one mutation fenced by the revision where that draft began; a newer Host revision marks the draft failed instead of restoring a revoked route. Disabling retains the selected routes for later reuse. Available models are grouped by provider, while saved routes absent from the current catalog appear last and remain removable. Adapter names and model descriptions remain live directory metadata and are not stored, and the card refreshes them after adapter changes, settings commits, and reconnects.
+The Subagent card stages its permission switch and exact model checkboxes together. Enabling requires at least one selected provider route. Saving submits `enabled` and `allowedModels` in one mutation fenced by the revision where that draft began; a newer Host revision marks the draft failed instead of restoring a revoked route. Disabling retains the selected routes for later reuse. Available models are grouped by provider, while saved routes absent from the current catalog appear last and remain removable. Provider names and model descriptions stay live directory facts and are not stored, and the card refreshes them after provider changes, settings commits, and reconnects.
 
 The Default model card stages one exact route. Saving submits `provider`, `model`, and a clear of `reasoningEffort` in one mutation fenced by the revision where that draft began, because an effort stored for the previous model does not describe the new one; a newer Host revision marks the draft conflicted instead of writing over it. The route the section already stores stays selectable even once the catalog stops advertising it. A failed directory read offers a retry in place, and both model cards group available routes by provider and list saved-but-unadvertised routes last.
 
@@ -87,12 +87,12 @@ None, as the package is a browser-side settings surface that registers no model 
 
 None; this package neither assembles nor sends a provider request.
 
-## Known Limitations and Deferred Work
+## Behavior Boundaries
 
 <a id="known-limitations-and-deferred-work"></a>
 
 
-These limits define which plugins appear and how fresh the list is; they are current package constraints.
+These boundaries define which plugins appear and how fresh the list is; they are current package contracts.
 
 - **Only host-plane plugins appear** — a plugin an agent preset mounts carries its configuration inline in that preset's `agent.cordis.yml` and cannot register a settings namespace at all, so this section lists nothing for it. Editing those values remains the preset editor's job.
 - **A card still needs a browser bundle** — the browser half must be a `dsh.client` package built in the client module system's lazy-CJS factory format, and the `clientBundle` preset that emits it lives in `../../../packages/client/tsdown.client.ts` rather than a published package, so a plugin outside this repository has to reproduce that build itself.

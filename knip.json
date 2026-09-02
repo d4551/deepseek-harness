@@ -55,6 +55,16 @@
         "tests/**/*.ts"
       ]
     },
+    "packages/experimental/webworker-packer": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.built.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
     "packages/extensions/cordis-host-runner": {
       "entry": [
         "tests/**/*.spec.ts"

@@ -1,11 +1,11 @@
-/** Adapter-directory request state shown above a model-selection route list. */
+/** Model-directory request state shown above a model-selection route list. */
 
 import type { ModelCatalogStatus } from './model-route.ts'
 import css from './model-selection-card.module.css'
 
 /** Props the owning card binds for the directory request state. */
 export interface ModelCatalogStatusNoticesProps {
-  /** Current adapter-directory request state. */
+  /** Current model-directory request state. */
   status: ModelCatalogStatus
   /** Whether any provider-local catalog request failed while others answered. */
   partial: boolean
@@ -20,7 +20,8 @@ export interface ModelCatalogStatusNoticesProps {
   /** Whether the card forbids reopening the directory request right now. */
   retryDisabled: boolean
   /** Reopen the directory request. */
-  onRetry: () => void
+  /** Retry action; a caller may return the settlement of the underlying reload. */
+  onRetry: () => unknown
 }
 
 /**

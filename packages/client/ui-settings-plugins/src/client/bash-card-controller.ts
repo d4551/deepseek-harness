@@ -2,7 +2,8 @@
 
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
-import { CardForm, numberField, type CardActions, type CardFieldState, type CardShell } from './card-form.ts'
+import { CardForm, type CardActions, type CardFieldState, type CardShell } from './card-form.ts'
+import { numberField } from './card-field-spec.ts'
 
 /**
  * Namespace of the shell capability. Spelled here rather than imported: a
@@ -11,7 +12,7 @@ import { CardForm, numberField, type CardActions, type CardFieldState, type Card
  */
 export const SHELL_NS = 'shell'
 
-/** The shell fields this card edits — a subset of the served schema by design. */
+/** The shell fields this card edits, a subset of the served schema. */
 export interface BashSettings {
   /** Foreground command timeout in milliseconds. */
   timeoutMs?: number

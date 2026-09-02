@@ -17,9 +17,9 @@ export const inject = ['invariants']
 /**
  * No runtime invariant: this is a browser-side settings surface whose node half owns no event
  * stream or mutable runtime data; the layering and write refusals are Host contracts covered by
- * the owning plugins and the api-proxy.
+ * the owning plugins and the api-proxy. The installer settles immediately.
  */
-const install: InvariantInstaller = () => {}
+const install: InvariantInstaller = () => Promise.resolve()
 
 /**
  * Register this package's invariant companion.

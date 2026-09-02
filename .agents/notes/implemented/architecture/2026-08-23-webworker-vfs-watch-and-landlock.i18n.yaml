@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-23-webworker-vfs-watch-and-landlock.md
-2026-08-23-webworker-vfs-watch-and-landlock.md: 2705c63aa6bf0f2e2de33d00029a4f41e1b1d4af
-2026-08-23-webworker-vfs-watch-and-landlock.zh.md: 4470720e1ff968aa06578b231b054c9053f27283
+2026-08-23-webworker-vfs-watch-and-landlock.md: 5e6abbd94edf2196134a3f149ef4a2e39269d485
+2026-08-23-webworker-vfs-watch-and-landlock.zh.md: 64a24596c6d35caf6563fbae95d825dd0af0c94b
