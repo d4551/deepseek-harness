@@ -136,13 +136,11 @@ export class CapacityGate {
       }
       const waiter: CapacityWaiter = {
         grant: () => {
-          /* v8 ignore next -- the queue drops a waiter before failing it, so no waiter is settled twice. */
           if (!leave()) return
           this.activeSlots += 1
           resolve()
         },
         fail: (error: Error) => {
-          /* v8 ignore next -- close() splices the queue, so a failed waiter is never also granted. */
           if (!leave()) return
           reject(error)
         },
@@ -153,9 +151,7 @@ export class CapacityGate {
         // post-grant abort check hands that slot on.
         if (index < 0) return
         this.waiters.splice(index, 1)
-        const abortReason = signal?.reason
-        const reason: Error = abortReason instanceof Error ? abortReason : new Error(String(abortReason))
-        waiter.fail(reason)
+        waiter.fail(signal?.reason instanceof Error ? signal?.reason : new Error(String(signal?.reason)))
       }
       signal?.addEventListener('abort', onAbort, { once: true })
       this.waiters.push(waiter)

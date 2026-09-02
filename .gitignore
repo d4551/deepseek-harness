@@ -46,3 +46,4 @@ packages/typert/generator/tests/.probe-*/
 /.audit-tmp
 /.tmp-bun
 /.tmp-dsh
+/.tmp-tsgo
