@@ -60,7 +60,7 @@ describe('Safari textarea layout recovery', () => {
 
     repairSafariTextareaLayout(input)
 
-    expect(input.style.height).toBe('')
+    expect(input.style.getPropertyValue('--dsh-safari-reflow-height')).toBe('')
   })
 
   it('invalidates a stale native layout and restores the owned height', () => {
@@ -70,36 +70,36 @@ describe('Safari textarea layout recovery', () => {
     scrollport.appendChild(input)
     input.value = 'abcdef'
     input.setSelectionRange(3, 3)
-    input.style.height = '100%'
-    scrollport.style.height = '100%'
+    input.style.setProperty('--dsh-safari-reflow-height', '100%')
+    scrollport.style.setProperty('--dsh-safari-reflow-height', '100%')
     let inputRepaired = false
     let scrollportRepaired = false
     const inputLayouts: string[] = []
     const scrollportLayouts: string[] = []
     Object.defineProperty(input, 'clientHeight', {
-      get: () => input.style.height === '29px' ? 29 : 28,
+      get: () => input.style.getPropertyValue('--dsh-safari-reflow-height') === '29px' ? 29 : 28,
     })
     Object.defineProperty(input, 'scrollHeight', {
       get: () => inputRepaired ? 28 : 52,
     })
     Object.defineProperty(input, 'offsetHeight', {
       get: () => {
-        inputLayouts.push(input.style.height)
-        if (input.style.height === '100%') inputRepaired = true
+        inputLayouts.push(input.style.getPropertyValue('--dsh-safari-reflow-height'))
+        if (input.style.getPropertyValue('--dsh-safari-reflow-height') === '100%') inputRepaired = true
         return input.clientHeight
       },
     })
     Object.defineProperty(scrollport, 'clientHeight', {
       get: () => {
-        if (scrollport.style.height === '53px') return 53
+        if (scrollport.style.getPropertyValue('--dsh-safari-reflow-height') === '53px') return 53
         if (inputRepaired && !scrollportRepaired) return 52
         return 28
       },
     })
     Object.defineProperty(scrollport, 'offsetHeight', {
       get: () => {
-        scrollportLayouts.push(scrollport.style.height)
-        if (scrollport.style.height === '100%') scrollportRepaired = true
+        scrollportLayouts.push(scrollport.style.getPropertyValue('--dsh-safari-reflow-height'))
+        if (scrollport.style.getPropertyValue('--dsh-safari-reflow-height') === '100%') scrollportRepaired = true
         return scrollport.clientHeight
       },
     })
@@ -108,8 +108,8 @@ describe('Safari textarea layout recovery', () => {
 
     expect(inputLayouts).toEqual(['29px', '100%'])
     expect(scrollportLayouts).toEqual(['53px', '100%'])
-    expect(input.style.height).toBe('100%')
-    expect(scrollport.style.height).toBe('100%')
+    expect(input.style.getPropertyValue('--dsh-safari-reflow-height')).toBe('100%')
+    expect(scrollport.style.getPropertyValue('--dsh-safari-reflow-height')).toBe('100%')
     expect(input.scrollHeight).toBe(input.clientHeight)
     expect(scrollport.clientHeight).toBe(28)
     expect([input.selectionStart, input.selectionEnd]).toEqual([3, 3])
@@ -122,7 +122,7 @@ describe('Safari textarea layout recovery', () => {
 
     repairSafariTextareaLayout(input)
 
-    expect(input.style.height).toBe('')
+    expect(input.style.getPropertyValue('--dsh-safari-reflow-height')).toBe('')
   })
 
   it('accepts an absent textarea during teardown', () => {

@@ -92,7 +92,8 @@ function IconChevron({ open }: { open: boolean }): ReactNode {
   return (
     <svg
       width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden
-      style={{ transform: open ? 'rotate(90deg)' : undefined, transition: 'transform 120ms ease' }}
+      className={styles['disclosureChevron']}
+      data-open={open ? 'true' : undefined}
     >
       <path d="M6 3.5L10.5 8L6 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>

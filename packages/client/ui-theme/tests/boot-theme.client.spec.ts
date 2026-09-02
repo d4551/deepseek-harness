@@ -31,7 +31,7 @@ describe('theme bootstrap row', () => {
     const row = bootThemeInjection('dark')
     expect(row).toMatchObject({ kind: 'script', placement: 'body' })
     executeBootstrap('dark')
-    expect(document.documentElement.style.colorScheme).toBe('dark')
+    expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(true)
     expect(document.body.hasAttribute(DARK_ATTRIBUTE)).toBe(true)
   })
 
@@ -39,7 +39,7 @@ describe('theme bootstrap row', () => {
     document.body.setAttribute(DARK_ATTRIBUTE, '')
     mockSystemDark(true)
     executeBootstrap('light')
-    expect(document.documentElement.style.colorScheme).toBe('light')
+    expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(false)
     expect(document.body.hasAttribute(DARK_ATTRIBUTE)).toBe(false)
   })
 
@@ -49,14 +49,14 @@ describe('theme bootstrap row', () => {
   ] as const)('resolves system=%s to %s', (matches, colorScheme, dark) => {
     mockSystemDark(matches)
     executeBootstrap('system')
-    expect(document.documentElement.style.colorScheme).toBe(colorScheme)
+    expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(colorScheme === 'dark')
     expect(document.body.hasAttribute(DARK_ATTRIBUTE)).toBe(dark)
   })
 
   it('defaults to system and falls back to light when matchMedia is unavailable', () => {
     vi.stubGlobal('matchMedia', undefined)
     executeBootstrap()
-    expect(document.documentElement.style.colorScheme).toBe('light')
+    expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(false)
     expect(document.body.hasAttribute(DARK_ATTRIBUTE)).toBe(false)
   })
 

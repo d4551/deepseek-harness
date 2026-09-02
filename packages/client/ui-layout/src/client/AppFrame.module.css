@@ -117,3 +117,15 @@
 .overlayLayer > * {
   pointer-events: auto;
 }
+
+/* The two resizable column widths and the handle's measured point arrive as
+   values; that the frame is a three-column grid whose middle column may shrink,
+   and that the handle is positioned against it, are decided here. */
+.frame {
+  grid-template-columns:
+    var(--dsh-frame-sidebar-width, 0) minmax(0, 1fr) var(--dsh-frame-details-width, 0);
+}
+
+.handle {
+  inset-inline-start: var(--dsh-frame-handle-left, 0);
+}

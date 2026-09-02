@@ -41,3 +41,12 @@ summary:focus-visible {
   outline: 2px solid var(--dsw-alias-state-business-primary);
   outline-offset: 2px;
 }
+
+/* The textarea the execCommand copy fallback selects. It has to be laid out and
+   selectable, so it is moved out of view rather than hidden, and it is global
+   because the element is appended to the body by a primitive with no sheet of
+   its own. */
+.dsw-offscreen-copy {
+  position: fixed;
+  inset-inline-start: -9999px;
+}

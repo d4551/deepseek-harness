@@ -11,6 +11,10 @@
   position: relative;
   display: inline-block;
   flex: none;
+  /* The caller's pixel size arrives as a variable so the geometry decision — a
+     square dot — stays here rather than in the component. */
+  inline-size: var(--dsh-state-dot-size);
+  block-size: var(--dsh-state-dot-size);
 }
 
 .dot::before {
@@ -44,8 +48,8 @@
 
 /* Pixel chase: each outer cell holds a discrete brightness step (flat keyframe
  * holds, no tweening — the retro feel), peaking when the chase hits it and
- * decaying over the next three cells. Phase offsets come from per-rect
- * animation-delay (index * -125ms) set inline by the component. */
+ * decaying over the next three cells. The component supplies each cell's phase
+ * as --dsh-state-cell-delay; the delay itself is declared here. */
 .matrix {
   flex: none;
   color: var(--dsh-state-ongoing);
@@ -55,6 +59,7 @@
   fill: currentColor;
   opacity: 0.15;
   animation: dsh-state-dot-chase 1s infinite;
+  animation-delay: var(--dsh-state-cell-delay, 0ms);
 }
 
 @keyframes dsh-state-dot-chase {

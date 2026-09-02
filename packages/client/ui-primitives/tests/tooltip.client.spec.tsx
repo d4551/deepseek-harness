@@ -66,8 +66,8 @@ describe('Tooltip', () => {
     expect(bubble.getAttribute('data-side')).toBe('right')
     // jsdom rects are all-zero: right placement lands at the +10 gutter, then
     // the zero-width measured rect clamps to the 12px edge margin (10 + 12).
-    expect(bubble.style.left).toBe('22px')
-    expect(bubble.style.top).toBe('0px')
+    expect(bubble.style.getPropertyValue('--dsw-tooltip-left')).toBe('22px')
+    expect(bubble.style.getPropertyValue('--dsw-tooltip-top')).toBe('0px')
     fireEvent.mouseLeave(anchor)
     expect(screen.queryByRole('tooltip')).toBeNull()
   })
@@ -83,8 +83,8 @@ describe('Tooltip', () => {
     const bubble = screen.getByRole('tooltip')
     expect(bubble.getAttribute('data-side')).toBe('bottom')
     // Zero-width jsdom rect at x=0 clamps to the 12px edge margin.
-    expect(bubble.style.left).toBe('12px')
-    expect(bubble.style.top).toBe('8px')
+    expect(bubble.style.getPropertyValue('--dsw-tooltip-left')).toBe('12px')
+    expect(bubble.style.getPropertyValue('--dsw-tooltip-top')).toBe('8px')
     fireEvent.blur(anchor)
     expect(screen.queryByRole('tooltip')).toBeNull()
   })
@@ -104,7 +104,7 @@ describe('Tooltip', () => {
     fireEvent.mouseEnter(screen.getByText('anchor'))
 
     // The stylesheet's half-viewport cap stays the default; this one overrides it.
-    expect(screen.getByRole('tooltip').style.maxWidth).toBe('360px')
+    expect(screen.getByRole('tooltip').style.getPropertyValue('--dsw-tooltip-max-width')).toBe('360px')
   })
 
   it('clamps a bubble overflowing the right viewport edge back inside', () => {
@@ -119,7 +119,7 @@ describe('Tooltip', () => {
       // pos.x = 1000 (anchor center); measured right edge 1100 overflows the
       // 1024 viewport's 12px safe margin (limit 1012) by 88, so the clamp
       // shifts left to 912.
-      expect(screen.getByRole('tooltip').style.left).toBe('912px')
+      expect(screen.getByRole('tooltip').style.getPropertyValue('--dsw-tooltip-left')).toBe('912px')
     } finally {
       spy.mockRestore()
     }
@@ -138,18 +138,18 @@ describe('Tooltip', () => {
         </Tooltip>,
       )
       fireEvent.mouseEnter(screen.getByText('anchor'))
-      expect(screen.getByRole('tooltip').style.left).toBe('862px')
+      expect(screen.getByRole('tooltip').style.getPropertyValue('--dsw-tooltip-left')).toBe('862px')
 
       view.rerender(
         <Tooltip label="Short" side="bottom">
           <button type="button">anchor</button>
         </Tooltip>,
       )
-      expect(screen.getByRole('tooltip').style.left).toBe('950px')
+      expect(screen.getByRole('tooltip').style.getPropertyValue('--dsw-tooltip-left')).toBe('950px')
 
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: 900 })
       fireEvent(window, new Event('resize'))
-      expect(screen.getByRole('tooltip').style.left).toBe('888px')
+      expect(screen.getByRole('tooltip').style.getPropertyValue('--dsw-tooltip-left')).toBe('888px')
     } finally {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth })
       spy.mockRestore()
@@ -167,7 +167,7 @@ describe('Tooltip', () => {
       fireEvent.mouseEnter(screen.getByText('anchor'))
       // pos.x = 30 (anchor center); measured left edge -20 underflows the
       // 12px safe margin by 32, so the clamp shifts right to 62.
-      expect(screen.getByRole('tooltip').style.left).toBe('62px')
+      expect(screen.getByRole('tooltip').style.getPropertyValue('--dsw-tooltip-left')).toBe('62px')
     } finally {
       spy.mockRestore()
     }
@@ -197,8 +197,8 @@ describe('Tooltip', () => {
       // There is room above, so the requested side stands: the bubble's own
       // top sits at the anchor's top less the 8px gutter.
       expect(bubble.getAttribute('data-side')).toBe('top')
-      expect(bubble.style.top).toBe('692px')
-      expect(bubble.style.left).toBe('150px')
+      expect(bubble.style.getPropertyValue('--dsw-tooltip-top')).toBe('692px')
+      expect(bubble.style.getPropertyValue('--dsw-tooltip-left')).toBe('150px')
     } finally {
       spy.mockRestore()
     }
@@ -217,7 +217,7 @@ describe('Tooltip', () => {
       fireEvent.mouseEnter(screen.getByText('anchor'))
       const bubble = screen.getByRole('tooltip')
       expect(bubble.getAttribute('data-side')).toBe('top')
-      expect(bubble.style.top).toBe('592px')
+      expect(bubble.style.getPropertyValue('--dsw-tooltip-top')).toBe('592px')
     } finally {
       spy.mockRestore()
     }
@@ -234,7 +234,7 @@ describe('Tooltip', () => {
       fireEvent.mouseEnter(screen.getByText('anchor'))
       const bubble = screen.getByRole('tooltip')
       expect(bubble.getAttribute('data-side')).toBe('bottom')
-      expect(bubble.style.top).toBe('48px')
+      expect(bubble.style.getPropertyValue('--dsw-tooltip-top')).toBe('48px')
     } finally {
       spy.mockRestore()
     }

@@ -40,3 +40,11 @@
     animation: none;
   }
 }
+
+/* The measured point and the caller's width ceiling. That the bubble is
+   positioned, and what it does without a ceiling, are decided here. */
+.bubble {
+  inset-block-start: var(--dsw-tooltip-top, 0);
+  inset-inline-start: var(--dsw-tooltip-left, 0);
+  max-inline-size: var(--dsw-tooltip-max-width, none);
+}

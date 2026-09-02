@@ -585,21 +585,21 @@ describe('overlay chains (ChainRenderOpts.overlay)', () => {
     const input = () => view.container.querySelector<HTMLInputElement>('input[aria-label="probe"]')!
 
     // Resident phase: fallback visible through the layout-neutral wrapper.
-    expect(wrapper().style.display).toBe('contents')
+    expect(wrapper().hidden).toBe(false)
     fireEvent.change(input(), { target: { value: 'draft-in-flight' } })
 
     // Election: entry overlays, fallback hides in place — same DOM node, no remount.
     take = true
     act(() => { h.add('root', { component: () => null }) })   // root bump re-renders the dispatch site
     expect(view.container.textContent).toContain('TAKEOVER')
-    expect(wrapper().style.display).toBe('none')
+    expect(wrapper().hidden).toBe(true)
     expect(input().value).toBe('draft-in-flight')
 
     // Takeover ends: fallback shows again with its state intact, still the original mount.
     take = false
     act(() => { h.add('root', { component: () => null }) })
     expect(view.container.textContent).not.toContain('TAKEOVER')
-    expect(wrapper().style.display).toBe('contents')
+    expect(wrapper().hidden).toBe(false)
     expect(input().value).toBe('draft-in-flight')
     expect(mounted).toHaveBeenCalledTimes(1)
   })
@@ -676,7 +676,7 @@ describe('overlay chains (ChainRenderOpts.overlay)', () => {
     spy.mockRestore()
     act(() => { dispose() })
     const wrapper = view.container.querySelector<HTMLElement>('[data-chain-overlay-fallback="k.chain"]')!
-    expect(wrapper.style.display).toBe('contents')
+    expect(wrapper.hidden).toBe(false)
     expect(view.container.textContent).toBe('resident')
   })
 })

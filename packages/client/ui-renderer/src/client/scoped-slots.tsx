@@ -15,6 +15,7 @@ import {
   keyedObservableHook, maybeObservableHook, observableHook, useHost, useRootBinding,
   useScopeBinding,
 } from './bindings.tsx'
+import css from './scoped-slots.module.css'
 
 type InjectedProps = Record<string, unknown>
 
@@ -877,7 +878,12 @@ function renderChainResult(
     <>
       <div
         data-chain-overlay-fallback={slotKey}
-        style={{ display: elected === null ? 'contents' : 'none' }}
+        className={css['overlayFallback']}
+        // Shown only while nothing was elected. `hidden` is the platform's own
+        // way to say so and carries that to assistive technology, which
+        // `display: none` from a style attribute does not; the sheet keeps the
+        // wrapper boxless while it is shown.
+        hidden={elected !== null}
       >
         {opts.fallback ?? null}
       </div>

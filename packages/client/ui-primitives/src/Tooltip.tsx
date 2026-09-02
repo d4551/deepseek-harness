@@ -4,6 +4,7 @@
 import { cloneElement, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { FocusEventHandler, MouseEventHandler, ReactElement, Ref } from 'react'
 import css from './Tooltip.module.css'
+import type { CSSProperties } from 'react'
 
 /** Bubble placement relative to the anchor. */
 export type TooltipSide = 'right' | 'bottom' | 'top'
@@ -70,12 +71,12 @@ export function Tooltip({ label, side = 'right', delayMs = 0, disabled = false, 
       const el = bubble.current
       /* v8 ignore next -- pos is set only while the bubble is mounted. */
       if (el === null) return
-      el.style.left = `${pos.x}px`
+      el.style.setProperty('--dsw-tooltip-left', `${String(pos.x)}px`)
       const r = el.getBoundingClientRect()
       let dx = 0
       if (r.right > window.innerWidth - EDGE_MARGIN) dx = window.innerWidth - EDGE_MARGIN - r.right
       if (r.left + dx < EDGE_MARGIN) dx = EDGE_MARGIN - r.left
-      el.style.left = `${pos.x + dx}px`
+      el.style.setProperty('--dsw-tooltip-left', `${String(pos.x + dx)}px`)
       if (side === 'right') return
       // Flip only into a side that genuinely fits, so an anchor with room on
       // neither side keeps the requested placement instead of oscillating.
@@ -150,7 +151,11 @@ export function Tooltip({ label, side = 'right', delayMs = 0, disabled = false, 
           ref={bubble}
           className={css.bubble}
           data-side={placement}
-          style={{ left: pos.x, top: y, ...maxWidth === undefined ? {} : { maxWidth } }}
+          style={{
+            '--dsw-tooltip-left': `${String(pos.x)}px`,
+            '--dsw-tooltip-top': `${String(y)}px`,
+            ...(maxWidth === undefined ? {} : { '--dsw-tooltip-max-width': `${String(maxWidth)}px` }),
+          } as CSSProperties}
           role="tooltip"
         >
           {resolvedLabel}

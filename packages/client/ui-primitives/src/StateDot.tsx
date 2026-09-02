@@ -1,4 +1,5 @@
 import clsx from 'clsx'
+import type { CSSProperties } from 'react'
 import css from './StateDot.module.css'
 
 /** Four-color state semantic (green done / amber user-attention / blue running ring / red error). */
@@ -41,7 +42,7 @@ export function StateDot({ state, size = 10, className }: {
             width="2"
             height="2"
             /* Negative delay phases the chase so every cell animates from mount. */
-            style={{ animationDelay: `${(index - MATRIX_CELLS.length) * 125}ms` }}
+            style={{ '--dsh-state-cell-delay': `${(index - MATRIX_CELLS.length) * 125}ms` } as CSSProperties}
           />
         ))}
       </svg>
@@ -51,7 +52,7 @@ export function StateDot({ state, size = 10, className }: {
     <span
       className={clsx(css.dot, className)}
       data-state={state}
-      style={{ width: size, height: size }}
+      style={{ '--dsh-state-dot-size': `${String(size)}px` } as CSSProperties}
       aria-hidden="true"
     />
   )

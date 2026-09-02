@@ -1,0 +1,11 @@
+/* The overlay fallback stays mounted through a takeover so it keeps its state,
+   and is shown or hidden rather than unmounted. `display: contents` is what
+   keeps the wrapper from creating a box of its own while it is shown; `hidden`
+   is what says it is not shown, to a reader as well as to the layout. */
+.overlayFallback {
+  display: contents;
+}
+
+.overlayFallback[hidden] {
+  display: none;
+}

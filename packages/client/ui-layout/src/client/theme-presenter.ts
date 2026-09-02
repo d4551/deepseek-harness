@@ -1,6 +1,7 @@
 /**
  * Global theme DOM applier: projects the resolved ThemeSnapshot onto the
- * document — `html { color-scheme }` for native UA chrome (scrollbars, form
+ * document — the palette attribute the sheet keys `color-scheme` off for native
+ * UA chrome (scrollbars, form
  * controls), `body[data-ds-dark-theme]` for the token palette, the active
  * theme's alias-token overrides as inline CSS variables on body, the content
  * font-size axis (`--dsh-content-font-size`), and one presenter-owned
@@ -30,7 +31,7 @@ export class ThemePresenter {
   }
 
   /**
-   * Project a snapshot onto the document: set root `color-scheme` and the body
+   * Project a snapshot onto the document: set the body
    * palette attribute from `active.colorScheme` (never the id — `system` is
    * resolved upstream), publish the content font-size axis, then replace the
    * previously applied token variables with `active.tokens`. Browser
@@ -40,7 +41,6 @@ export class ThemePresenter {
    */
   apply(snapshot: ThemeSnapshot): void {
     const scheme = snapshot.active.colorScheme
-    document.documentElement.style.colorScheme = scheme
     const body = document.body
     if (scheme === 'dark') body.setAttribute(DARK_ATTRIBUTE, '')
     else body.removeAttribute(DARK_ATTRIBUTE)
@@ -55,9 +55,8 @@ export class ThemePresenter {
     if (!this.themeColorMeta.isConnected) document.head.append(this.themeColorMeta)
   }
 
-  /** Retract root color-scheme, the palette attribute, token variables, the font-size axis, and the owned metadata node. */
+  /** Retract the palette attribute, token variables, the font-size axis, and the owned metadata node. */
   dispose(): void {
-    document.documentElement.style.removeProperty('color-scheme')
     const body = document.body
     body.removeAttribute(DARK_ATTRIBUTE)
     body.style.removeProperty(CONTENT_FONT_SIZE_VARIABLE)

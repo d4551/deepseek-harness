@@ -32,8 +32,10 @@ export async function writeClipboard(text: string): Promise<boolean> {
   const el = document.createElement('textarea')
   el.value = text
   el.setAttribute('readonly', '')
-  el.style.position = 'fixed'
-  el.style.left = '-9999px'
+  // Off-screen rather than hidden: a `display: none` textarea cannot be
+  // selected, which is the whole mechanism. Where it goes is a fixed decision,
+  // so the sheet holds it.
+  el.className = 'dsw-offscreen-copy'
   document.body.appendChild(el)
   el.select()
   try {

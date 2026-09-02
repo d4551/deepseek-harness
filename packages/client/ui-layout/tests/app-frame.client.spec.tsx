@@ -109,9 +109,16 @@ function mountFrame() {
 }
 
 function tracks(frame: HTMLElement): number[] {
-  const m = /^(\d+)px minmax\(0, 1fr\) (\d+)px$/.exec(frame.style.gridTemplateColumns)
-  if (m === null) throw new Error(`unexpected template: ${frame.style.gridTemplateColumns}`)
-  return [Number(m[1]), Number(m[2])]
+  // The two resizable widths, read from the properties that carry them. The
+  // template itself is declared in the sheet, so the component states the two
+  // numbers and nothing about the shape of the grid.
+  const read = (name: string): number => {
+    const value = frame.style.getPropertyValue(name)
+    const m = /^(\d+)px$/.exec(value)
+    if (m === null) throw new Error(`unexpected ${name}: ${value}`)
+    return Number(m[1])
+  }
+  return [read('--dsh-frame-sidebar-width'), read('--dsh-frame-details-width')]
 }
 
 function drag(handle: Element, fromX: number, toX: number): void {

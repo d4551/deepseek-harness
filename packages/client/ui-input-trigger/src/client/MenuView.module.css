@@ -1,4 +1,5 @@
 .menu {
+  max-block-size: var(--dsh-trigger-menu-max-height);
   position: absolute;
   bottom: calc(100% + 4px);
   /* The overlay anchor is exactly the composer card's width; both insets pin

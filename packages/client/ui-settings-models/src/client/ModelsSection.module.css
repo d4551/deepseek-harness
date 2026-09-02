@@ -675,3 +675,20 @@ select.input {
   font-size: 13px;
   overflow-wrap: anywhere;
 }
+
+/* The disclosure chevron points right while its row is closed and down while it
+   is open. The rotation and its timing are fixed, so they are declared here and
+   the component states only which of the two the row is in. */
+.disclosureChevron {
+  transition: transform 120ms ease;
+}
+
+.disclosureChevron[data-open='true'] {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .disclosureChevron {
+    transition: none;
+  }
+}

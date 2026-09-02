@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { writeClipboard } from './clipboard.ts'
 import { usePointerGrace } from './pointer-grace.ts'
 import css from './HoverCard.module.css'
+import type { CSSProperties } from 'react'
 
 /**
  * Render an anchor with a hover-triggered preview card.
@@ -145,7 +146,13 @@ export function HoverCard({
     <div
       ref={cardRef}
       className={`${css.card}${copyable ? ` ${css.copyable}` : ''}${copied ? ` ${css.feedback}` : ''}`}
-      style={{ ...pos, minHeight: copied && copyHeightRef.current !== null ? copyHeightRef.current : undefined }}
+      style={{
+        '--dsw-hovercard-left': `${String(pos.left)}px`,
+        '--dsw-hovercard-top': `${String(pos.top)}px`,
+        ...(copied && copyHeightRef.current !== null
+          ? { '--dsw-hovercard-min-height': `${String(copyHeightRef.current)}px` }
+          : {}),
+      } as CSSProperties}
       role={copyable ? 'button' : undefined}
       tabIndex={copyable ? 0 : undefined}
       aria-label={copyable ? `${copyLabel}: ${copyText}` : undefined}

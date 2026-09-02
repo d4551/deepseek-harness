@@ -220,3 +220,10 @@
 .collapsedContent::after {
   content: '…';
 }
+
+/* The anchor's measured point. Where the anchor sits in the stacking order and
+   that it is positioned at all stay in the sheet. */
+.copyAnchor {
+  inset-block-start: var(--dsw-json-copy-top, 0);
+  inset-inline-start: var(--dsw-json-copy-left, 0);
+}

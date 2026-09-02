@@ -94,6 +94,7 @@
 }
 
 .segment {
+  inline-size: var(--dsh-context-segment-width);
   flex: none;
   min-width: 2px;
   height: 100%;

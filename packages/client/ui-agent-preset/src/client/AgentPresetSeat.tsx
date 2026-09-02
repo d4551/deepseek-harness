@@ -23,6 +23,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { AgentPresetSeatState } from './seat-store.ts'
 import { presetDisplayText } from './locales.ts'
 import css from './AgentPresetSeat.module.css'
+import type { CSSProperties } from 'react'
 
 /** Registration-side business face for the hero chip. */
 export interface AgentPresetSeatInjected {
@@ -134,7 +135,7 @@ export function AgentPresetSeat({ load, select, introduced, useAgentPresetSeat, 
           <span
             key={index}
             className={css.introChar}
-            style={{ animationDelay: `${INTRO_TEXT_DELAY_MS + index * stagger}ms` }}
+            style={{ '--dsh-intro-char-delay': `${INTRO_TEXT_DELAY_MS + index * stagger}ms` } as CSSProperties}
           >
             {character}
           </span>

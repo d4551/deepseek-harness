@@ -22,16 +22,20 @@ describe('StateDot', () => {
     expect(matrix.tagName).toBe('svg')
     const cells = matrix.querySelectorAll('rect')
     expect(cells).toHaveLength(8)
-    // Chase phase: every cell carries its own negative animation delay.
-    const delays = [...cells].map(cell => (cell).style.animationDelay)
+    // Chase phase: every cell carries its own negative delay. The delay is
+    // declared in the sheet and the phase crosses as a custom property, so the
+    // value the component decides is read where it puts it.
+    const delays = [...cells].map(cell => cell.style.getPropertyValue('--dsh-state-cell-delay'))
     expect(new Set(delays).size).toBe(8)
+    expect(delays.every(delay => delay.endsWith('ms'))).toBe(true)
   })
 
   it('sizes via the size prop in both shapes', () => {
     const { container, rerender } = render(<StateDot state="done" size={12} />)
     const dot = container.firstElementChild as HTMLElement
-    expect(dot.style.width).toBe('12px')
-    expect(dot.style.height).toBe('12px')
+    // One property, because the sheet spends it on both axes: a square dot is
+    // the sheet's decision and the caller supplies only the number.
+    expect(dot.style.getPropertyValue('--dsh-state-dot-size')).toBe('12px')
     rerender(<StateDot state="ongoing" size={12} />)
     const ring = container.firstElementChild as SVGSVGElement
     expect(ring.getAttribute('width')).toBe('12')

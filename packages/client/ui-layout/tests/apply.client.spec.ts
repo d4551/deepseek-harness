@@ -66,13 +66,13 @@ describe('ui-layout client apply', () => {
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     // Initial getter application: jsdom has no matchMedia, system resolves light.
-    expect(document.documentElement.style.colorScheme).toBe('light')
+    expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(false)
     expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(false)
     const themeColorMeta = document.head.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
     expect(themeColorMeta).not.toBeNull()
     const theme = ctx.get('theme') as ThemeRuntime
     theme.setTheme('dark')
-    expect(document.documentElement.style.colorScheme).toBe('dark')
+    expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(true)
     expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(true)
     expect(document.head.querySelector('meta[name="theme-color"]')).toBe(themeColorMeta)
     await fiber.dispose()

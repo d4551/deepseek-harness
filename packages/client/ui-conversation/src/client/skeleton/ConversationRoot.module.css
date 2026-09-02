@@ -460,3 +460,11 @@
 .root[data-phase='settling'] .composerSeat {
   visibility: hidden;
 }
+
+/* Safari leaves a textarea's native layout stale after some resizes, and the
+   only way back is to change a height and put it back. The nudge is spent here
+   rather than written from script: without the variable the rule is `auto`,
+   which is what every element that is not being repaired resolves to. */
+:where(textarea, [data-input-scroll]) {
+  block-size: var(--dsh-safari-reflow-height, auto);
+}

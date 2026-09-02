@@ -28,6 +28,7 @@ export interface SsotFinding {
     | 'hit-target'
     | 'dangling-token'
     | 'tsx-inline-color'
+    | 'inline-style'
   /** Why it fired. */
   detail: string
 }
@@ -54,6 +55,43 @@ const TSX_COLOR_OBJECT = new RegExp(
   + String.raw`(${TSX_HEX}|rgba?\(|hsla?\(|oklch\()`,
   'g',
 )
+// A style write that carries a decision rather than a value. A custom property
+// is the channel a runtime number crosses into the sheet on: the rule that
+// consumes it lives in the CSS Module, so the component states no geometry,
+// no timing and no paint. Any other property name is a style decision written
+// where no theme, media query or container query can reach it.
+const STYLE_OBJECT = /style=\{\{([\s\S]*?)\}(?:\s*as\s+[\w.<>[\]]+)?\s*\}/g
+// A shorthand key — `style={{ maxHeight }}` — names the property just as much
+// as `maxHeight: value` does, so the colon is optional here; without that the
+// scan read two of the repository's own violations as clean.
+const STYLE_OBJECT_KEY = /(?:^|,)\s*(?:(['"`])(?<quoted>[^'"`]+)\1|(?<bare>[A-Za-z][\w$]*))\s*(?::|(?=\s*(?:,|$)))/g
+// `element.style.foo = …` and `style.setProperty('foo', …)`, which reach the
+// same place from script.
+const STYLE_ASSIGNMENT = /\.style\.(?!setProperty|removeProperty|getPropertyValue|cssText\b)([A-Za-z][\w$]*)\s*=(?!=)/g
+const STYLE_SET_PROPERTY = /\.style\.(?:set|remove)Property\(\s*(['"`])([^'"`]+)\1/g
+
+/**
+ * Style writes that name a CSS property instead of a custom property.
+ * @param content - the file's source.
+ * @returns each offending property name, in source order.
+ */
+export function inlineStyleProperties(content: string): string[] {
+  const found: string[] = []
+  for (const object of content.matchAll(STYLE_OBJECT)) {
+    const body = object[1] ?? ''
+    for (const key of body.matchAll(STYLE_OBJECT_KEY)) {
+      const name = key.groups?.quoted ?? key.groups?.bare ?? ''
+      if (name !== '' && !name.startsWith('--')) found.push(name)
+    }
+  }
+  for (const assignment of content.matchAll(STYLE_ASSIGNMENT)) found.push(assignment[1] ?? '')
+  for (const call of content.matchAll(STYLE_SET_PROPERTY)) {
+    const name = call[2] ?? ''
+    if (!name.startsWith('--')) found.push(name)
+  }
+  return found
+}
+
 const TSX_COLOR_ATTR = new RegExp(
   String.raw`\b(fill|stroke|color)\s*=\s*(['"])(${TSX_HEX}|rgba?\([^)]*\)|hsla?\([^)]*\)|oklch\([^)]*\))\2`,
   'g',
@@ -154,6 +192,15 @@ export function scanUiSsot(files: readonly { file: string; content: string }[]):
 
     if (path.startsWith('apps/web/src/') && path.endsWith('.js') && !path.endsWith('node-module-stub.js')) {
       findings.push({ file: path, kind: 'one-off-script', detail: `per-page helper outside ${WEB_ENTRY}` })
+    }
+
+    const inlineStyles = inlineStyleProperties(content)
+    if (inlineStyles.length > 0) {
+      findings.push({
+        file: path,
+        kind: 'inline-style',
+        detail: `style write names ${[...new Set(inlineStyles)].join(', ')}; carry the value in a --custom-property the CSS Module consumes`,
+      })
     }
 
     if (path.endsWith('.tsx')) {

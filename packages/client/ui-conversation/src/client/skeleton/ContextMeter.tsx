@@ -12,6 +12,7 @@ import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ComposerBarProps } from '../contract/slots.ts'
 import { contextOccupancy } from '../context-occupancy.ts'
 import css from './ContextMeter.module.css'
+import type { CSSProperties } from 'react'
 
 /** Ring geometry: 14px viewBox, 2px stroke. */
 const RADIUS = 5.5
@@ -144,7 +145,7 @@ export function ContextMeter({ useProjection, t }: ContextMeterProps) {
               <div
                 key={segment.key}
                 className={segment.color === undefined ? css.segment : `${css.segment} ${segment.color}`}
-                style={{ width: `${segment.width}%` }}
+                style={{ '--dsh-context-segment-width': `${segment.width}%` } as CSSProperties}
               />
             ))}
           </div>

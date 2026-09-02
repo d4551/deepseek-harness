@@ -84,6 +84,18 @@ body {
   --dsw-static-red-900: rgb(87, 12, 12);
 }
 
+/* The UA's own chrome — form controls, and the scrollbar where the skin below
+ * does not reach — follows color-scheme on the root. It is keyed off the same
+ * attribute the palette is, so one attribute decides both and no script writes
+ * a painted property to set it. */
+:root {
+  color-scheme: light;
+}
+
+:root:has(body[data-ds-dark-theme]) {
+  color-scheme: dark;
+}
+
 body[data-ds-dark-theme] {
   /* Chip fills, dark counterpart of the light block's pair. The light rung
      sits one step darker than its white surface, so the dark rung sits one

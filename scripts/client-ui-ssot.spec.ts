@@ -208,6 +208,35 @@ describe('injected SSOT violations', () => {
     ])
   })
 
+  it('fails a style write that names a CSS property instead of a custom one', () => {
+    const cases = [
+      ['style={{ maxHeight }}', 'a shorthand key names the property just as a pair does'],
+      ['style={{ left: pos.x, top: pos.y }}', 'a measured point is still a geometry decision'],
+      ["style={{ transform: 'rotate(90deg)' }}", 'a fixed transform belongs in the sheet'],
+      ['el.style.height = `${h}px`', 'a script write reaches the same place'],
+      ["el.style.setProperty('display', 'none')", 'so does setProperty with a plain name'],
+    ] as const
+    for (const [source, why] of cases) {
+      const found = scanUiSsot([{ file: 'packages/client/ui-x/src/X.tsx', content: source }])
+      expect(found.map(f => f.kind), `${why}: ${source}`).toContain('inline-style')
+    }
+  })
+
+  it('accepts a style write that carries only custom properties', () => {
+    // The channel a runtime value crosses on: the rule that spends it lives in
+    // the CSS Module, so the component states no geometry, timing or paint.
+    const clean = [
+      "style={{ '--dsw-tooltip-left': `${x}px` } as CSSProperties}",
+      "style={{ '--a': one, '--b': two }}",
+      "el.style.setProperty('--dsh-safari-reflow-height', value)",
+      "el.style.removeProperty('--dsh-safari-reflow-height')",
+    ]
+    for (const source of clean) {
+      const found = scanUiSsot([{ file: 'packages/client/ui-x/src/X.tsx', content: source }])
+      expect(found.map(f => f.kind), source).not.toContain('inline-style')
+    }
+  })
+
   it('does not treat a tokenized, gridded, module-entry tree as dirty', () => {
     expect(scanUiSsot([
       THEME,

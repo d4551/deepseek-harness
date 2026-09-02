@@ -10,6 +10,7 @@ import { IconCheckOutline16, IconCopyOutline16 } from './icons/index.tsx'
 import { Menu } from './Menu.tsx'
 import type { MenuEntry } from './Menu.tsx'
 import css from './JsonTree.module.css'
+import type { CSSProperties } from 'react'
 
 const OBJECT_PREVIEW_LIMIT = 4
 const ARRAY_PREVIEW_LIMIT = 5
@@ -595,7 +596,10 @@ export function JsonTree({
       {copyTarget !== undefined && (
         <span
           className={css.copyAnchor}
-          style={{ left: copyTarget.left, top: copyTarget.top }}
+          style={{
+            '--dsw-json-copy-left': `${String(copyTarget.left)}px`,
+            '--dsw-json-copy-top': `${String(copyTarget.top)}px`,
+          } as CSSProperties}
         >
           <Menu
             open={copyMenuOpen}

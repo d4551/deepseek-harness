@@ -304,7 +304,7 @@ describe('JsonTree', () => {
 
     fireEvent.mouseOver(firstRow)
     const copyButton = screen.getByRole('button', { name: 'Copy pretty JSON' })
-    expect((copyButton.closest('span')?.parentElement as HTMLElement).style.left).toBe('284px')
+    expect((copyButton.closest('span')?.parentElement as HTMLElement).style.getPropertyValue('--dsw-json-copy-left')).toBe('284px')
     fireEvent.mouseOver(copyButton)
     expect(screen.getByRole('button', { name: 'Copy pretty JSON' })).toBeDefined()
     fireEvent.mouseOver(firstRow)

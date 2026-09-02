@@ -3,6 +3,7 @@
  * shadow-lv3), anchored by the conversation.input.overlay slot. */
 
 .card {
+  max-block-size: var(--dsh-popup-max-height);
   /* The overlay anchor is a zero-height strip on the composer card's top
      edge; entries float themselves above it (same rule as MenuView). */
   position: absolute;

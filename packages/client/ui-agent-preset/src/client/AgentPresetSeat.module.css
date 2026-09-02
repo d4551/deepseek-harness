@@ -69,6 +69,9 @@
   white-space: pre;
   opacity: 0;
   animation: seat-char-in 0.4s ease-out forwards;
+  /* After the shorthand, which resets the delay. The component supplies each
+     character's place in the stagger; the timing is declared here. */
+  animation-delay: var(--dsh-intro-char-delay, 0ms);
 }
 
 @keyframes seat-char-in {

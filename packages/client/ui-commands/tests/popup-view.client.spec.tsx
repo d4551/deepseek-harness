@@ -128,13 +128,13 @@ describe('PopupSelectView', () => {
   it('caps the card height at the design maximum when the composer sits low enough', async () => {
     vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ bottom: 800 } as DOMRect)
     await mountOpen()
-    expect(screen.getByLabelText('/theme 选项').style.maxHeight).toBe('320px')
+    expect(screen.getByLabelText('/theme 选项').style.getPropertyValue('--dsh-popup-max-height')).toBe('320px')
   })
 
   it('clamps the card height to the space above the composer minus the safe margin', async () => {
     vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ bottom: 200 } as DOMRect)
     await mountOpen()
-    expect(screen.getByLabelText('/theme 选项').style.maxHeight).toBe('188px')
+    expect(screen.getByLabelText('/theme 选项').style.getPropertyValue('--dsh-popup-max-height')).toBe('188px')
   })
 
   it('Enter selects the highlighted row: onSelect, consume, close, focusComposer', async () => {

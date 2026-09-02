@@ -15,6 +15,7 @@ import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import css from './MenuView.module.css'
 import type { MenuViewInjected } from './slots.ts'
 import type { MenuKey } from './locales.ts'
+import type { CSSProperties } from 'react'
 
 /** Full menu props: injected face + the locale seat. */
 export type MenuViewProps = MenuViewInjected & PropsLocale<'slash.menu'>
@@ -72,7 +73,7 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t
   return (
     // The listbox role sits on the scrolling viewport, not this shell: a
     // breadcrumb header is not an option, and a listbox may not carry one.
-    <div ref={listRef} className={css.menu} style={{ maxHeight }} data-trigger-menu="">
+    <div ref={listRef} className={css.menu} style={{ '--dsh-trigger-menu-max-height': `${String(maxHeight)}px` } as CSSProperties} data-trigger-menu="">
       {state.groups.map((group) => {
         const trail = crumbs.get(group.source)
         return trail === undefined ? null : (

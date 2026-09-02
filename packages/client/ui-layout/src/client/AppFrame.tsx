@@ -19,6 +19,7 @@ import { computeColumns, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DEFAULT } from './column
 import { DocumentTitle } from './DocumentTitle.tsx'
 import type { createLayoutStore } from './stores.ts'
 import css from './AppFrame.module.css'
+import type { CSSProperties } from 'react'
 
 /** Full composed props: runtime share + child-slot render share + store share. */
 export type AppFrameProps =
@@ -77,7 +78,7 @@ function DragHandle(props: { side: 'sidebar' | 'details'; left: number; onStart:
   return (
     <div
       className={css.handle}
-      style={{ left: props.left }}
+      style={{ '--dsh-frame-handle-left': `${String(props.left)}px` } as CSSProperties}
       data-side={props.side}
       data-dragging={dragging || undefined}
       onPointerDown={onPointerDown}
@@ -176,7 +177,10 @@ export function AppFrame({
     <div
       ref={frameRef}
       className={css.frame}
-      style={{ gridTemplateColumns: `${cols.sidebar}px minmax(0, 1fr) ${cols.details}px` }}
+      style={{
+        '--dsh-frame-sidebar-width': `${String(cols.sidebar)}px`,
+        '--dsh-frame-details-width': `${String(cols.details)}px`,
+      } as CSSProperties}
       data-sidebar-collapsed={sidebarCollapsed || undefined}
       data-details-collapsed={cols.details === 0 || undefined}
       data-dragging={dragging || undefined}

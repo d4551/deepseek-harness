@@ -61,8 +61,8 @@ describe('HoverCard', () => {
     act(() => { vi.advanceTimersByTime(1) })
     const card = screen.getByText('card body').parentElement as HTMLElement
     expect(card.parentElement).toBe(document.body)
-    expect(card.style.left).toBe('208px')
-    expect(card.style.top).toBe('40px')
+    expect(card.style.getPropertyValue('--dsw-hovercard-left')).toBe('208px')
+    expect(card.style.getPropertyValue('--dsw-hovercard-top')).toBe('40px')
   })
 
   it('honors a custom openDelayMs', () => {
@@ -218,7 +218,7 @@ describe('HoverCard', () => {
       expect(writeText).toHaveBeenCalledWith('/full/path')
       expect(status.textContent).toBe('Copied')
       expect(screen.getByRole('button', { name: 'Copy path: /full/path' })).toBe(card)
-      expect(card.style.minHeight).toBe('96px')
+      expect(card.style.getPropertyValue('--dsw-hovercard-min-height')).toBe('96px')
       // Repeated activation while feedback is visible neither rewrites nor
       // extends the one-second success window.
       await act(async () => { fireEvent.click(card) })
@@ -227,7 +227,7 @@ describe('HoverCard', () => {
       expect(status.textContent).toBe('Copied')
       act(() => { vi.advanceTimersByTime(1) })
       expect(screen.getByRole('button', { name: 'Copy path: /full/path' })).toBe(card)
-      expect(card.style.minHeight).toBe('')
+      expect(card.style.getPropertyValue('--dsw-hovercard-min-height')).toBe('')
       expect(status.textContent).toBe('')
       expect(screen.getByText('card body')).toBeTruthy()
     } finally {
@@ -401,7 +401,7 @@ describe('HoverCard', () => {
       act(() => { vi.advanceTimersByTime(500) })
       const card = screen.getByText('card body').parentElement as HTMLElement
       // 300 - 120 - 8 = 172, instead of the anchor top 280.
-      expect(card.style.top).toBe('172px')
+      expect(card.style.getPropertyValue('--dsw-hovercard-top')).toBe('172px')
     } finally {
       Object.defineProperty(HTMLElement.prototype, 'offsetHeight', offsetHeight)
     }
@@ -416,7 +416,7 @@ describe('HoverCard', () => {
     const card = screen.getByText('card body').parentElement as HTMLElement
     Object.defineProperty(card, 'offsetHeight', { value: 120 })
     act(() => { fireEvent.resize(window) })
-    expect(card.style.top).toBe('172px')
+    expect(card.style.getPropertyValue('--dsw-hovercard-top')).toBe('172px')
   })
 
   it('repositions on capture-phase scroll while open and stops listening after close', () => {
@@ -426,8 +426,8 @@ describe('HoverCard', () => {
     stubAnchorRect(screen.getByText('row'), { top: 90, right: 300 })
     act(() => { fireEvent.scroll(document) })
     const card = screen.getByText('card body').parentElement as HTMLElement
-    expect(card.style.left).toBe('308px')
-    expect(card.style.top).toBe('90px')
+    expect(card.style.getPropertyValue('--dsw-hovercard-left')).toBe('308px')
+    expect(card.style.getPropertyValue('--dsw-hovercard-top')).toBe('90px')
     fireEvent.pointerLeave(wrapper)
     act(() => { vi.advanceTimersByTime(POINTER_GRACE_MS) })
     expect(screen.queryByText('card body')).toBeNull()

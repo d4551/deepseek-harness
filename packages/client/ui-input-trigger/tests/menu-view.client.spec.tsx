@@ -214,23 +214,23 @@ describe('MenuView', () => {
   it('caps the list height at the design maximum when the composer sits low enough', () => {
     vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ bottom: 800 } as DOMRect)
     mount(openState())
-    expect(menuShell().style.maxHeight).toBe('320px')
+    expect(menuShell().style.getPropertyValue('--dsh-trigger-menu-max-height')).toBe('320px')
   })
 
   it('clamps the list height to the space above the composer minus the safe margin', () => {
     vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ bottom: 200 } as DOMRect)
     mount(openState())
-    expect(menuShell().style.maxHeight).toBe('188px')
+    expect(menuShell().style.getPropertyValue('--dsh-trigger-menu-max-height')).toBe('188px')
   })
 
   it('re-fits the height when the window resizes', () => {
     const rect = vi.spyOn(Element.prototype, 'getBoundingClientRect')
     rect.mockReturnValue({ bottom: 800 } as DOMRect)
     mount(openState())
-    expect(menuShell().style.maxHeight).toBe('320px')
+    expect(menuShell().style.getPropertyValue('--dsh-trigger-menu-max-height')).toBe('320px')
     rect.mockReturnValue({ bottom: 100 } as DOMRect)
     act(() => { window.dispatchEvent(new Event('resize')) })
-    expect(menuShell().style.maxHeight).toBe('88px')
+    expect(menuShell().style.getPropertyValue('--dsh-trigger-menu-max-height')).toBe('88px')
   })
 
   it('pointerdown outside the menu (no composer card ancestor) dismisses', () => {

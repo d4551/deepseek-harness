@@ -53,3 +53,12 @@
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* The anchored point and the height the card holds while the copy
+   confirmation swaps its content both arrive as values; that the card is
+   positioned at all, and that it never shrinks mid-swap, are decided here. */
+.card {
+  inset-block-start: var(--dsw-hovercard-top, 0);
+  inset-inline-start: var(--dsw-hovercard-left, 0);
+  min-block-size: var(--dsw-hovercard-min-height, 0);
+}
