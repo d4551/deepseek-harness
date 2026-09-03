@@ -65,6 +65,8 @@ User instruction: <excerpt of the user's last instruction, capped at 500 chars>
 
 ## 已知限制与延后工作
 
+<a id="known-limitations-and-deferred-work"></a>
+
 这些限制界定了审计何时不是合适的选择。它们是当前包的约束，不是任务积压。
 
 - **仅内置规避工作模式** — 检测依赖固定模式列表；列表未覆盖的改述式规避会通过审计。学习式或模型辅助检测在出现需求证据前被拒绝。
