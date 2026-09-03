@@ -51,6 +51,11 @@ function sortedStrings(value: unknown, label: string): readonly string[] {
 
 function packageBin(value: unknown, label: string): ReadonlyMap<string, string> {
   if (value === undefined) return new Map()
+  if (typeof value === 'string' && value.length > 0) {
+    const name = label.split('/').at(-1)
+    if (name === undefined || name.length === 0) throw new Error(`${label} bin name is invalid`)
+    return new Map([[name, value]])
+  }
   if (!record(value)) throw new Error(`${label} bin is invalid`)
   const entries = new Map<string, string>()
   for (const [name, path] of Object.entries(value)) {
