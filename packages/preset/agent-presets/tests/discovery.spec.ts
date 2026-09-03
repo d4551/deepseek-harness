@@ -107,6 +107,25 @@ describe('preset discovery', () => {
     expect(found.map(preset => preset.id)).toEqual(['usable'])
   })
 
+  it('discovers a symlinked preset directory', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'dsh-preset-target-'))
+    await writeFile(join(target, COMPOSITION_FILE), '[]\n')
+    const root = await mkdtemp(join(tmpdir(), 'dsh-preset-link-'))
+    await symlink(target, join(root, 'linked'))
+
+    const found = await scanRoot({ path: root, trust: 'user' }, HARNESS)
+
+    // A deployment exposes a composition that lives elsewhere (a generation,
+    // a checkout) as a symlink; the dirent of a link never reports
+    // `isDirectory`, so typing on the dirent alone would hide the preset.
+    expect(found).toHaveLength(1)
+    expect(found[0]).toEqual({
+      id: 'linked',
+      trust: 'user',
+      path: join(root, 'linked', COMPOSITION_FILE),
+    })
+  })
+
   it('records the root trust on every preset it discovers', async () => {
     const found = await scanRoot(USER, HARNESS)
 
