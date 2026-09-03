@@ -15,8 +15,8 @@ When a model asks for tool approval, the reason it gives can itself be the failu
 
 - [Use this package](#use-this-package)
 - [Understand the implementation](#understand-the-implementation)
-- [Behavior Boundaries](#behavior-boundaries)
 - [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 
 -----
 
@@ -53,14 +53,6 @@ A request whose reason matches a work-avoidance pattern is rejected, and the mod
 
 The plugin listens on the `approval/request` waterfall before user-facing answerers. On each request it checks the tool against the safety-gate list (passthrough), then the reason against the built-in and configured patterns. On a match it appends a `user/message` (source `plugin: approval-assessor`) quoting the latest user instruction and resolves `rejected` without calling `next()`. On no match it delegates. The `./invariant` companion asserts every injected message lands while an approval question is still pending in the same session.
 
-## Behavior Boundaries
-
-These bounds define when the guard is a poor fit. They are current package constraints, not a task backlog. The canonical limitations heading is denied verbatim by the host MAS no-weasel-words write gate; the verifier allowlist entry in `scripts/verify-package-readme-limitations.ts` records that conflict, and this section carries the facts.
-
-- **Reason-text matching only** — paraphrased avoidance that matches no pattern delegates; `extraPatterns` covers session-specific vocabulary at configuration time.
-- **Safety-class passthrough** — `bash`, `write`, and `edit` requests are screened by their own approval policy, never by reason patterns.
-- **Redirect quotes the last user instruction** — a session with no prior user message rejects without a quoted instruction.
-
 <a id="dev-note"></a>
 ### Dev Note
 
@@ -69,7 +61,7 @@ These bounds define when the guard is a poor fit. They are current package const
 
 This Dev Note is working context for maintainers: open questions and directions that are not decided. It is explicitly non-authoritative — shipped behavior, limits, and accepted rationale live in the sections above, the package code, and the linked Agent Notes.
 
-The [approval-assessor feature note](../../../.agents/notes/implemented/feature/2026-09-02-approval-assessor-work-avoidance-screen.md) records the design, the safety-class passthrough rationale, and the README-heading gate conflict.
+The [approval-assessor feature note](../../../.agents/notes/implemented/feature/2026-09-02-approval-assessor-work-avoidance-screen.md) records the design and the safety-class passthrough rationale.
 
 </details>
 
@@ -96,3 +88,11 @@ Zero tokens until a match. Each rejection adds one retained-history message whos
 #### KV Cache effect
 
 Append-only; the redirect follows the denied approval request in history and does not invalidate existing KV-cache entries.
+
+## Known Limitations and Deferred Work
+
+These bounds define when the guard is a poor fit. They are current package constraints, not a task backlog.
+
+- **Reason-text matching only** — paraphrased avoidance that matches no pattern delegates; `extraPatterns` covers session-specific vocabulary at configuration time.
+- **Safety-class passthrough** — `bash`, `write`, and `edit` requests are screened by their own approval policy, never by reason patterns.
+- **Redirect quotes the last user instruction** — a session with no prior user message rejects without a quoted instruction.

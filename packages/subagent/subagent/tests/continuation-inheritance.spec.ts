@@ -1,13 +1,13 @@
 /**
- * Continuable-child delegation policy: a fresh continuable start seeds the
- * parent's explicit sandbox override and the pinned `approval/policy: never`
- * onto the child's own log as `source: 'delegation'` events, and a cold
+ * Continuable-child delegated parent state: a fresh continuable start seeds the
+ * parent's explicit sandbox override, the pinned `approval/policy: never`, and
+ * the parent's additional workspace roots onto the child's own log, and a cold
  * resume replays that persisted snapshot instead of re-capturing the parent
  * (the one-shot `subagent-inprocess/tests/inheritance.spec.ts` counterpart).
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -18,6 +18,11 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import SandboxPolicyService, { effectiveSandboxMode, setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import {
+  effectiveWorkspaceRoots,
+  sessionWorkspaceRoots,
+  setAdditionalWorkspaceRoots,
+} from '@deepseek-ai/dsh-session/workspace-roots'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import * as SubagentFork from '@deepseek-ai/dsh-subagent-fork-in-process'
 import * as SubagentSpawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
@@ -206,6 +211,44 @@ describe('continuable policy inheritance', () => {
     expect(loaded.events.filter(event => event.type === 'approval/policy')).toMatchObject([
       { data: { policy: 'never', source: 'delegation' } },
     ])
+  })
+
+  it('seeds the parent workspace roots and reconstructs them on cold resume', { timeout: 20_000 }, async () => {
+    const { ctx, parent } = await setup([textResponse('first'), textResponse('after resume')])
+    // Canonical: the sandbox policy compares roots by filesystem identity.
+    const extra = realpathSync(mkdtempSync(join(tmpdir(), 'dsh-continuation-second-')))
+    roots.push(extra)
+    setAdditionalWorkspaceRoots(parent.session, [extra])
+    let child: Agent | undefined
+    ctx.on('agent/created', ({ agent }) => {
+      if (agent !== parent) child = agent
+    })
+
+    const started = await ctx.subagents.startContinuable(startSpec(parent))
+    if (child === undefined) throw new Error('expected the continuable child to be created')
+    // Live: the roots are effective at inbox acceptance, not after the turn.
+    // This parent has no cwd, so the extra root is the whole workspace list.
+    expect(sessionWorkspaceRoots(child.session)).toEqual([extra])
+    expect(ctx.sandboxPolicy.additionalRootsOf(child.session)).toEqual([extra])
+    await waitNoActivation(ctx, started.childId)
+
+    // The parent drops the extra root AFTER the child was created; the resumed
+    // child keeps the delegation-time set from its own log.
+    setAdditionalWorkspaceRoots(parent.session, [])
+    await ctx.subagents.followup(parent, started.childId, [{ type: 'text', text: 'continue please' }], {
+      source: { kind: 'user' },
+      signal: new AbortController().signal,
+    })
+    await waitNoActivation(ctx, started.childId)
+
+    const loaded = await ctx.sessionPersistence.load(started.childId)
+    // Seeded once at creation, never re-appended on resume, and the fold over
+    // the persisted log alone is what the resumed child works in.
+    expect(loaded.events.filter(event => event.type === 'workspace/roots')).toMatchObject([
+      { data: { roots: [extra] } },
+    ])
+    expect(effectiveWorkspaceRoots(loaded.events)).toEqual([extra])
+    expect(effectiveWorkspaceRoots(parent.session.events)).toEqual([])
   })
 
   it('places inherited events after a fork prefix so fresh policy wins stale seed state', { timeout: 20_000 }, async () => {

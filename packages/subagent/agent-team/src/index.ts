@@ -30,7 +30,7 @@ import type {
   UpdateTeamTaskRequest,
 } from './types.ts'
 
-export type * from './types.ts'
+export type { ClaimNextTeamTaskResult, Config, CreateTeamTaskRequest, SendTeamMessageRequest, SendTeamMessageResult, SpawnTeammateRequest, SpawnTeammateResult, TeamMemberPhase, TeamMemberSnapshot, TeamMemberView, TeamMessageSnapshot, TeamMessageSource, TeamTaskAction, TeamTaskClaimUnavailable, TeamTaskMutationResult, TeamTaskSnapshot, TeamTaskStatus, TeamTaskView, TeamView, TeamWaitResult, UpdateTeamTaskRequest } from './types.ts'
 export type { TeamMembership } from './roster.ts'
 export { TeamId, TeamMessageId, TeamTaskId } from './types.ts'
 export { TeamError } from './error.ts'
@@ -188,7 +188,13 @@ export class TeamService extends TypertRemoteService {
   /**
    * Take ownership of the first ready task whose write scopes are free, in one
    * atomic Lead transaction. A member pulls work with this instead of being
-   * assigned it; concurrent callers therefore receive disjoint tasks.
+   * assigned it; concurrent callers therefore receive disjoint tasks. A ready
+   * task writing where in-progress work does is deferred here and refused by
+   * {@link updateTask}, so no route hands two owners the same paths.
+   *
+   * The transaction serializes callers inside one host process. Membership
+   * requires the exact live `Agent` this process holds, so a second process
+   * running against the same session log is outside the exclusion.
    * @param caller - exact live Team member taking ownership.
    * @returns the claimed task, or the ordinary board state — no unblocked
    *   pending task, or every one of them writing where in-progress work does —
@@ -199,7 +205,11 @@ export class TeamService extends TypertRemoteService {
   }
 
   /**
-   * Compare-and-set one authorized task transition.
+   * Compare-and-set one authorized task transition. A transition that would
+   * leave the task in progress while its write scopes overlap another
+   * in-progress task is refused with `TEAM_TASK_WRITE_SCOPE_CONFLICT`, so
+   * `claim`, `reassign`, and a scope-widening `edit` are bound by the same
+   * exclusion {@link claimNextReadyTask} applies.
    * @param caller - exact live Team member authorizing the mutation.
    * @param request - task identity, expected revision, action, and action fields.
    * @returns the committed next task revision.

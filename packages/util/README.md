@@ -31,6 +31,7 @@ Each package provides one primitive; open a package page for how to use it.
 | [`home-paths/`](home-paths/README.md) | Resolves the single Harness home and joins shared user-data paths |
 | [`launch-environment/`](launch-environment/README.md) | Frozen launch environment that remembers which layer supplied each value |
 | [`atomic-write/`](atomic-write/README.md) | Atomic file replacement and cross-process writer locking |
+| [`document-queue/`](document-queue/README.md) | One document's exclusive operation chain, watcher-driven reloads, and quiescent disposal |
 | [`native-command/`](native-command/README.md) | Runs host-native commands directly, never through a shell string |
 | [`workspace-path/`](workspace-path/README.md) | Provides browser-safe Workspace path and display helpers |
 | [`output-retention/`](output-retention/README.md) | Bounds model-facing output and reports exact omission metadata |

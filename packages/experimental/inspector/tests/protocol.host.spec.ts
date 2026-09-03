@@ -204,6 +204,39 @@ describe('Inspector source protocol', () => {
     })).toThrow('unknown field')
   })
 
+  it('decodes the Client confirmation that Console observation is installed', () => {
+    expect(parseSourceFrame({
+      v: 0,
+      t: 'client-console/enabled',
+      sourceId: 'client-1',
+      generation: 'g-1',
+      sessionId: 'session-1',
+    }, 4)).toMatchObject({ t: 'client-console/enabled', sessionId: 'session-1' })
+
+    expect(() => parseSourceFrame({
+      v: 0,
+      t: 'client-console/enabled',
+      sourceId: 'client-1',
+      generation: 'g-1',
+      sessionId: 'session-1',
+      extra: true,
+    }, 4)).toThrow('unknown field')
+    expect(() => parseSourceFrame({
+      v: 0,
+      t: 'client-console/enabled',
+      sourceId: 'client-1',
+      generation: 'g-1',
+    }, 4)).toThrow('sessionId')
+    // A Worker never receives its own enable request back on the source carrier.
+    expect(() => parseSourceFrame({
+      v: 0,
+      t: 'client-console/enable',
+      sourceId: 'client-1',
+      generation: 'g-1',
+      sessionId: 'session-1',
+    }, 4)).toThrow('unknown source frame')
+  })
+
   it('decodes bounded Client source commands and responses', () => {
     expect(parseWorkerSourceFrame({
       v: 0,

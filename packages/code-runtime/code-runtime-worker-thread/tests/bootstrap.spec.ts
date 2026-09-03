@@ -129,11 +129,22 @@ describe('captureStreamWrites', () => {
   })
 
   it('still fires the callback for a write the exhausted budget drops', async () => {
-    const buffer = new LogBuffer(4, () => {})
+    const emitted: string[] = []
+    const buffer = new LogBuffer(4, text => emitted.push(text))
     const stream: PatchableStream = { write: () => true }
     captureStreamWrites(buffer, stream)
+    const calls: (Error | null | undefined)[] = []
     stream.write('this write overflows the budget and is dropped')
-    await new Promise<void>(resolve => stream.write('also dropped', resolve))
+    await new Promise<void>((resolve) => {
+      stream.write('also dropped', (error?: Error | null) => {
+        calls.push(error)
+        resolve()
+      })
+    })
+    // Neither payload reached the sink, and the dropped write still settled
+    // its callback with no error — a caller waiting on it is never stranded.
+    expect(emitted).toEqual([])
+    expect(calls).toEqual([null])
   })
 })
 

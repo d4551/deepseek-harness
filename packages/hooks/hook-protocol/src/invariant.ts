@@ -1,7 +1,9 @@
 /** Package-owned hook invocation/result stream invariants. @module @deepseek-ai/dsh-hook-protocol/invariant */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
+import { advanceOpenTurn, stageSessionEvents } from '@deepseek-ai/dsh-session/invariant-staging'
+import type { OpenTurnCursor } from '@deepseek-ai/dsh-session/invariant-staging'
+import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type { InvariantFailure, InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 import type {} from './types.ts'
 
@@ -17,8 +19,7 @@ interface HookTransition {
   delta: 1 | -1
 }
 
-interface HookTrace {
-  openTurn: number | null
+interface HookTrace extends OpenTurnCursor {
   pending: Map<string, number>
 }
 
@@ -27,13 +28,18 @@ function hookKey(data: { turn: number; point: string; handlerId: string }): stri
   return `${data.turn}\0${data.point}\0${data.handlerId}`
 }
 
+/** Whether this package owns the candidate Session event. */
+function isHookPairEvent(event: SessionEvent): event is SessionEvent<'hook/invoked' | 'hook/result'> {
+  return event.type === 'hook/invoked' || event.type === 'hook/result'
+}
+
 /** Validate one hook event against committed pending invocations. */
 function validateHookEvent(
   trace: HookTrace,
   event: SessionEvent,
   fail: InvariantFailure,
 ): HookTransition | undefined {
-  if (event.type !== 'hook/invoked' && event.type !== 'hook/result') return undefined
+  if (!isHookPairEvent(event)) return undefined
   if (trace.openTurn === null) fail(`${event.type} appended outside any open turn`)
   if (event.data.turn !== trace.openTurn) {
     fail(`${event.type} names turn ${event.data.turn} but open turn is ${trace.openTurn}`)
@@ -59,58 +65,32 @@ function validateHookEvent(
 }
 
 /** Apply one committed hook-pair transition. */
-function applyHookTransition(pending: Map<string, number>, transition: HookTransition): void {
-  const next = (pending.get(transition.key) ?? 0) + transition.delta
-  if (next === 0) pending.delete(transition.key)
-  else pending.set(transition.key, next)
+function applyHookTransition(trace: HookTrace, transition: HookTransition): HookTrace {
+  const next = (trace.pending.get(transition.key) ?? 0) + transition.delta
+  if (next === 0) trace.pending.delete(transition.key)
+  else trace.pending.set(transition.key, next)
+  return trace
 }
 
 /** Install hook invoked/result pairing checks. */
-// Event owners keep precommit staging local so their vocabularies never move into a central helper.
-/* jscpd:ignore-start */
 const install: InvariantInstaller = Object.assign((ctx: Context, fail: InvariantFailure) => {
-  const traces = new WeakMap<Session, HookTrace>()
-  const staged = new WeakMap<SessionEvent, { session: Session; transition: HookTransition }>()
-  const seed = (session: Session): HookTrace => {
-    const trace: HookTrace = { openTurn: null, pending: new Map() }
-    traces.set(session, trace)
-    for (const event of session.events) {
-      if (event.type === 'turn/start') trace.openTurn = event.data.turn
-      else if (event.type === 'turn/end') trace.openTurn = null
-      const transition = validateHookEvent(trace, event, fail)
-      if (transition !== undefined) applyHookTransition(trace.pending, transition)
-    }
-    return trace
-  }
-  const traceFor = (session: Session): HookTrace => traces.get(session) ?? seed(session)
-
-  for (const session of ctx.sessions.list()) seed(session)
-  ctx.on('session/created', (session) => { seed(session) }, { global: true })
-  ctx.on('session/event', (session, event) => {
-    const trace = traceFor(session)
-    if (event.type === 'turn/start') {
-      trace.openTurn = event.data.turn
-      return
-    }
-    if (event.type === 'turn/end') {
-      trace.openTurn = null
-      return
-    }
-    if (event.type !== 'hook/invoked' && event.type !== 'hook/result') return
-    const candidate = staged.get(event)
-    /* v8 ignore next -- internal/dispatch stages every hook invocation/result event */
-    if (candidate === undefined || candidate.session !== session) return fail('hook event published without pre-commit validation')
-    staged.delete(event)
-    applyHookTransition(trace.pending, candidate.transition)
-  }, { global: true })
-  ctx.on('internal/dispatch', (_mode, eventName, args) => {
-    if (eventName !== 'session/event') return
-    const [session, event] = args as [Session, SessionEvent]
-    const transition = validateHookEvent(traceFor(session), event, fail)
-    if (transition !== undefined) staged.set(event, { session, transition })
-  }, { global: true })
+  stageSessionEvents<HookTrace, HookTransition>(ctx, fail, {
+    seed: (session) => {
+      const trace: HookTrace = { openTurn: null, pending: new Map() }
+      for (const event of session.events) {
+        advanceOpenTurn(trace, event)
+        const transition = validateHookEvent(trace, event, fail)
+        if (transition !== undefined) applyHookTransition(trace, transition)
+      }
+      return trace
+    },
+    publish: advanceOpenTurn,
+    stage: (trace, event) => validateHookEvent(trace, event, fail),
+    claims: isHookPairEvent,
+    commit: applyHookTransition,
+    unstagedMessage: 'hook event published without pre-commit validation',
+  })
 }, { inject: ['sessions'] })
-/* jscpd:ignore-end */
 
 /**
  * Register the hook-protocol invariant companion.

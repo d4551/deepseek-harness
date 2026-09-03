@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-sqlite-connection",
-  "description": "Zero-dependency SQLite connection settings: schema trust off, mapping off, synchronous FULL, and a verified journal-mode transition",
+  "description": "Zero-dependency SQLite open-time steps: owner-only path preparation, schema trust off, mapping off, synchronous FULL, and a verified journal-mode transition",
   "version": "0.1.2-alpha.1",
   "publishConfig": {
     "access": "public"

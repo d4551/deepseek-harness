@@ -26,11 +26,27 @@
         authType: password
         usernameEnv: DSH_DRIVE_USERNAME
         passwordEnv: DSH_DRIVE_PASSWORD
-        requestTimeoutMs: 30000
+        requestTimeoutMs: !!js Number(process.env.DSH_DRIVE_REQUEST_TIMEOUT_MS ?? 30000)
 
     - id: fs-network-drive
       name: '@deepseek-ai/dsh-fs-network-drive'
       config:
         materializationRoot: !!js process.env.DSH_DRIVE_WORKSPACE
         remoteRoot: !!js process.env.DSH_DRIVE_REMOTE_ROOT ?? ''
-        maxFileBytes: 10485760
+        maxFileBytes: !!js Number(process.env.DSH_DRIVE_MAX_FILE_BYTES ?? 10485760)
+
+    # Runtime invariants are opt-in everywhere else (the shipped trees mount
+    # neither the registry nor any companion), so this layer mounts them for
+    # itself: its correctness is the agreement between the two rows above, and
+    # a profile patch or `--patch` overlay can restate either one alone. The
+    # allowlist keeps the opt-in narrow — only this package's companion runs,
+    # so no other package's diagnostics reach a hosted run.
+    - id: invariants
+      name: '@deepseek-ai/dsh-invariants'
+      config:
+        enabled: true
+        package_allowlist:
+          - '^@deepseek-ai/dsh-hosted-drive$'
+
+    - id: hosted-drive-invariant
+      name: '@deepseek-ai/dsh-hosted-drive/invariant'

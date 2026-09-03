@@ -51,7 +51,7 @@ kind: "package-reference"
 
 ### 设计理念
 
-浏览器半建立在一个原则之上：动态包必须与静态包共享同一套激活门控、fiber effect 清理与状态投影。求值后的插件被塞进模块表，并经 `loader.create` 挂载；卸载 = 移除 entry + 失效 factory + 撤下样式。guard 是一份白名单——生命周期动词加已声明服务——与 host 侧沙箱门面对称，因此包作者在两侧面对同一个约定。一个观察者供两个出口：只有这里监视槽位注册表的 entry 错误接缝，凡属于本 runner 落座过的包的崩溃，一路上行给 host（给模型），一路发布到本包自己的 `renderFailures`（给面板）。
+浏览器半建立在一个原则之上：动态包必须与静态包共享同一套激活门控、fiber effect 清理与状态投影。求值后的插件被塞进模块表，并经 `loader.create` 挂载；卸载 = 移除 entry + 失效 factory + 撤下样式。guard 是一份白名单——生命周期动词加已声明服务——与 host 侧沙箱门面对称，因此包作者在两侧面对同一个约定。一个观察者供两个出口：只有这里监视槽位注册表的 entry 错误接缝，凡属于本 runner 落座过的包的崩溃，一路上行给 host（给模型），一路发布到本包自己的 `renderFailures`（给面板）。两半计算方式完全相同的部分——失败明细、Inspect Provider 声明，以及受 guard 约束的 Context 动词转发——来自 `@deepseek-ai/dsh-cordis-host-runner/wire-values`，这是本浏览器 bundle 内联的唯一 host 子路径；围绕该转发的 proxy 陷阱仍写两遍，因为每一半自行裁决各自的拒绝及其教学文本。
 
 ### 源码地图
 

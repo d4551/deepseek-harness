@@ -51,7 +51,7 @@ import {
 } from './filters.ts'
 import * as tracing from './tracing.ts'
 
-export type * from './types.ts'
+export type { SessionAvailability, SessionEventMetadataFilter, SessionEventReadRequest, SessionEventRecord, SessionEventResultFilter, SessionEventSearchDocument, SessionEventSearchHit, SessionEventSearchPage, SessionEventSearchRequest, SessionEventSurface, SessionEventTrace, SessionEventTraceObservation, SessionEventTraceRequest, SessionEventWindow, SessionLineageNode, SessionLineageTrace, SessionLogSnapshot, SessionRecord, SessionResultFilter, SessionResultRange, SessionSearchExecContext, SessionSearchHit, SessionSearchPage, SessionSearchRequest, SessionSurfaceSnapshot, SessionTitleObservation, SessionTitleObservationResult } from './types.ts'
 export { SessionSearchCursor } from './cursor.ts'
 export type { Config, SessionQueryErrorCode } from './config.ts'
 export {

@@ -27,6 +27,12 @@ import {
   viteMisses,
   VITE_FLOOR,
   workspaceManifests,
+  PINNED_PRODUCT_FLOORS,
+  installedPinMisses,
+  installedPinVersions,
+  exactPinnedDependencies,
+  pinnedDependencyMisses,
+  unflooredPinnedDependencies,
 } from './live-stack-floors.ts'
 
 describe('parseRangeFloor', () => {
@@ -203,6 +209,57 @@ describe('injected root manifest misses', () => {
 
   it('rejects a manifest whose dependency group is not an object', () => {
     expect(() => unflooredRootDependencies('{"devDependencies":[]}')).toThrow(/devDependencies is not an object/)
+  })
+
+  it('names a floor for every exact pin any workspace manifest declares', () => {
+    // An exact pin never drifts upward, so one without a floor is a version
+    // nothing would notice going stale.
+    expect(unflooredPinnedDependencies(workspaceManifests())).toEqual([])
+  })
+
+  it('holds every exact pin at the version the repository ships', () => {
+    expect(pinnedDependencyMisses(workspaceManifests())).toEqual([])
+  })
+
+  it('reads the version each pin resolves to on disk, not just what a manifest claims', () => {
+    // A manifest states intent; what runs is what the linker materialized. The
+    // TypeScript floor is already held against the imported compiler for this
+    // reason, and the product pins deserve the same.
+    const installed = installedPinVersions(workspaceManifests())
+    expect(installed.length).toBeGreaterThan(3)
+    expect(installed.every(entry => /^\d+\.\d+\.\d+/.test(entry.version))).toBe(true)
+  })
+
+  it('holds every installed pin at the version the repository ships', () => {
+    expect(installedPinMisses(workspaceManifests())).toEqual([])
+  })
+
+  it('reports an exact pin declared below its floor', () => {
+    const stale = JSON.stringify({ dependencies: { '@openai/codex': '0.149.1' } })
+    expect(pinnedDependencyMisses([{ file: 'p/package.json', source: stale }]))
+      .toEqual([{ file: 'p/package.json', name: '@openai/codex', range: '0.149.1', floor: PINNED_PRODUCT_FLOORS['@openai/codex'] }])
+  })
+
+  it('ignores an operator range, which already tracks upstream', () => {
+    const caret = JSON.stringify({ dependencies: { '@openai/codex': '^0.149.1' } })
+    expect(exactPinnedDependencies([{ file: 'p/package.json', source: caret }])).toEqual([])
+  })
+
+  it('ignores a workspace member, whose version moves with the release', () => {
+    const member = JSON.stringify({ dependencies: { '@deepseek-ai/dsh-fs': '1.2.3' } })
+    expect(exactPinnedDependencies([{ file: 'p/package.json', source: member }])).toEqual([])
+  })
+
+  it('reports an exact pin that declares no floor at all', () => {
+    const unknown = JSON.stringify({ dependencies: { 'some-product-cli': '1.0.0' } })
+    expect(unflooredPinnedDependencies([{ file: 'p/package.json', source: unknown }]))
+      .toEqual([{ file: 'p/package.json', name: 'some-product-cli' }])
+  })
+
+  it('reads the workspace rather than passing on an empty manifest list', () => {
+    const pins = exactPinnedDependencies(workspaceManifests())
+    expect(pins.length).toBeGreaterThan(4)
+    expect(pins.some(pin => pin.name === '@openai/codex')).toBe(true)
   })
 
   it('reads a dependency range from the dependency groups, not the script of the same name', () => {

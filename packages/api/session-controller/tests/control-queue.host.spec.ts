@@ -110,7 +110,10 @@ describe('Session control queue projection', () => {
     inbox.append('next-turn', message('wrong-session'))
 
     abort.abort()
-    await iterator.next()
+    // Neither append reached the stream: the abort ends it with no queue
+    // frame queued in between.
+    const ended = await iterator.next()
+    expect(ended.done).toBe(true)
   })
 
   it('drops broadcasts after cancellation has ended its queue', async () => {

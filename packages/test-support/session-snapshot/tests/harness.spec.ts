@@ -1181,6 +1181,32 @@ describe('runScenario', () => {
     expect(second.rawStdout).toContain('unsupported workspace scope')
   })
 
+  it('substitutes the run cwd into a step\'s declared additional directories', { timeout: 20_000 }, async () => {
+    const { fixtureFile } = await scenario({ rejectExtraDirs: true })
+    const result = await runScenario(
+      {
+        steps: [
+          { op: 'initialize' },
+          { op: 'newSessionExpectError', additionalDirectories: ['{{cwd}}/extra', '/elsewhere'] },
+        ],
+      },
+      { agent: AGENT, mode: 'replay', fixtureFile },
+    )
+    const errors = result.rawStdout.split('\n').filter(line => line.trim().length > 0)
+      .map(line => JSON.parse(line) as { error?: { message?: string } })
+      .flatMap(frame => frame.error?.message === undefined ? [] : [frame.error.message])
+    expect(errors).toEqual([`unsupported workspace scope: ${result.cwd}/extra, /elsewhere`])
+  })
+
+  it('accepts additional directories the agent admits', { timeout: 20_000 }, async () => {
+    const { fixtureFile } = await scenario({})
+    const result = await runScenario(
+      { steps: [{ op: 'initialize' }, { op: 'newSession', additionalDirectories: ['{{cwd}}/extra'] }] },
+      { agent: AGENT, mode: 'replay', fixtureFile },
+    )
+    expect(result.sessionId).toBeDefined()
+  })
+
   it('newSessionExpectError throws when session/new unexpectedly succeeds', { timeout: 20_000 }, async () => {
     const { fixtureFile } = await scenario({})
     await expect(runScenario(

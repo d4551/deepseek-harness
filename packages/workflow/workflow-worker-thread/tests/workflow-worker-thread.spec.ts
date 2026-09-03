@@ -823,9 +823,13 @@ describe('dsh-workflow-worker-thread', { timeout: 120_000 }, () => {
     it('dispose() is idempotent and settles cleanly after a completed run', async () => {
       const { ctx, parent } = await setup()
       const handle = ctx.workflowEngine.start({ ...scripted('return 1'), parent })
-      await handle.result
+      const completed = await handle.result
+      expect(completed.stopReason).toBe('completed')
+
       await handle.dispose()
       await handle.dispose()
+      // Neither disposal rewrites the settled outcome or re-arms the run.
+      expect(await handle.result).toEqual(completed)
     })
 
     it('a settled run arms NO grace timer: disposing a completed run must not pin it for disposeGraceMs', async () => {

@@ -1,48 +1,78 @@
 /**
  * Rendered-page `WebFetchProvider` backed by Playwright Chromium. Each fetch runs in a
  * fresh incognito browser context — no cookies, storage, or ambient credentials — and
- * returns the post-render DOM as an `html` body. Every request the page issues, main
- * frame and subresources alike, must pass the shared fetch URL policy and resolve to a
- * public unicast address. One browser process serves every fetch and closes with
- * `dispose()`.
+ * returns the post-render DOM as an `html` body. Every request the page initiates, main
+ * frame and subresources alike, every hop a redirect names, and every WebSocket its
+ * pages and frames open must pass the shared fetch URL policy and reach a public unicast
+ * address. The three arrive on three Playwright channels and the context installs all
+ * three: the request interceptor, the WebSocket interceptor, and the context's own
+ * `request` observer, which is where a redirect hop appears because Chromium follows one
+ * without re-entering the interceptor. One browser process serves every fetch and closes
+ * with `dispose()`.
  * @module @deepseek-ai/dsh-web-fetch-playwright/provider
  */
 
 import { WebError } from '@deepseek-ai/dsh-web'
 import type { WebFetchProvider, WebFetchRequest, WebFetchResult } from '@deepseek-ai/dsh-web'
+import { CapacityGate } from '@deepseek-ai/dsh-capacity-gate'
+import type { CapacityRelease } from '@deepseek-ai/dsh-capacity-gate'
 import { deadline, timeoutOf } from '@deepseek-ai/dsh-timeout'
-import { boundedDocument, chromiumAccess } from './browser.ts'
+import { boundedDocument, chromiumAccess, chromiumInstallCommand } from './browser.ts'
 import type {
   BrowserAccess,
   PlaywrightFetchLimits,
   RenderBrowser,
+  RenderContext,
   RenderPage,
+  RenderRedirectableRequest,
 } from './browser.ts'
-import { DestinationPolicy, guardRequest, interceptEveryRequest } from './policy.ts'
+import {
+  DestinationPolicy,
+  guardRequest,
+  guardSocket,
+  interceptEveryRequest,
+  interceptEverySocket,
+} from './policy.ts'
 
 // The browser ports live in ./browser.ts; they are re-exported here so the package
 // entry (index.ts) has one public source module.
-export { boundedDocument, chromiumAccess, launchChromium, probeChromium } from './browser.ts'
+export {
+  boundedDocument,
+  chromiumAccess,
+  chromiumExecutablePath,
+  chromiumInstallCommand,
+  launchChromium,
+  playwrightInstallCommand,
+  probeChromium,
+  probeExecutable,
+} from './browser.ts'
 export type {
   BoundedDom,
   BrowserAccess,
   BrowserLauncher,
   BrowserProbe,
+  ExecutableLocator,
+  ModuleResolver,
   PlaywrightFetchLimits,
   RenderBrowser,
   RenderContext,
   RenderPage,
+  RenderRedirectableRequest,
   RenderRequest,
   RenderRoute,
+  RenderSocketRoute,
   RenderedNavigation,
 } from './browser.ts'
-export { DestinationPolicy, guardRequest } from './policy.ts'
+export {
+  DestinationPolicy,
+  guardRequest,
+  guardSocket,
+  interceptEveryRequest,
+  interceptEverySocket,
+} from './policy.ts'
 
 /** Stable id this provider registers under on the fetch registry. */
 export const PLAYWRIGHT_FETCH_PROVIDER_ID = 'playwright'
-
-/** The command that installs the browser this provider renders with. */
-export const CHROMIUM_INSTALL_COMMAND = 'playwright install chromium'
 
 /** Failure text recorded when a browser step outlives the fetch deadline. */
 const ABANDONED_STEP = 'the browser step outlived the fetch deadline'
@@ -50,14 +80,8 @@ const ABANDONED_STEP = 'the browser step outlived the fetch deadline'
 /** Failure text recorded when a fetch reaches a provider that has been disposed. */
 const DISPOSED_PROVIDER = 'web fetch provider is disposed'
 
-/** Failure text recorded when a queued render stops waiting for a slot. */
-const ABANDONED_SLOT = 'web fetch gave up waiting for a render slot'
-
 /** A settled asynchronous step: either its value or the error that failed it. */
 type Outcome<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly failure: Error }
-
-/** Coerce a rejection reason into the `Error` the outcome carries. */
-const asError = (reason: Error | string): Error => (typeof reason === 'string' ? new Error(reason) : reason)
 
 /** Mark an asynchronous step as completed with {@link Outcome.value}. */
 const landed = <T>(value: T): Outcome<T> => ({ ok: true, value })
@@ -70,70 +94,70 @@ const failed = (failure: Error): Outcome<never> => ({ ok: false, failure })
  * @param pending - the browser promise to settle.
  * @returns the step's value, or its rejection as an error.
  */
-const settle = <T>(pending: Promise<T>): Promise<Outcome<T>> =>
-  pending.then(landed, (reason: Error | string) => failed(asError(reason)))
+async function settle<T>(pending: Promise<T>): Promise<Outcome<T>> {
+  const [outcome] = await Promise.allSettled([pending])
+  return outcome.status === 'fulfilled'
+    ? landed(outcome.value)
+    : failed(outcome.reason instanceof Error ? outcome.reason : new Error(String(outcome.reason)))
+}
 
 /**
  * Settle a browser step, or give up on it once the fetch deadline aborts. Playwright
  * cannot cancel a step already in flight, so an abandoned promise is left to settle
- * unobserved while the caller closes the page and context.
+ * unobserved while the caller closes the page and context. The once-listener detaches
+ * itself when the disposed deadline signal aborts.
  * @param pending - the browser promise to settle.
  * @param signal - the deadline signal governing this fetch.
  * @returns the step's value, or the failure of the step or of the abandonment.
  */
-function settleBefore<T>(pending: Promise<T>, signal: AbortSignal): Promise<Outcome<T>> {
-  if (signal.aborted) return Promise.resolve(failed(new Error(ABANDONED_STEP)))
-  return new Promise<Outcome<T>>((resolve) => {
+async function settleBefore<T>(pending: Promise<T>, signal: AbortSignal): Promise<Outcome<T>> {
+  if (signal.aborted) return failed(new Error(ABANDONED_STEP))
+  const abandonment = new Promise<Outcome<T>>((resolve) => {
     const giveUp = (): void => { resolve(failed(new Error(ABANDONED_STEP))) }
     signal.addEventListener('abort', giveUp, { once: true })
-    settle(pending).then(resolve).finally(() => { signal.removeEventListener('abort', giveUp) })
   })
+  return await Promise.race([settle(pending), abandonment])
 }
 
 /**
- * Bounded render slots. At most `limit` fetches hold a browser context at once; the
- * rest wait in arrival order and give up when their own deadline aborts.
+ * The decisions taken on the hops one fetch's context followed on its own. Chromium
+ * reports a redirect hop as a request carrying `redirectedFrom()` and never offers it to
+ * the request interceptor, so the hops are decided here instead — measured against
+ * Chromium 1.62.1: every hop of a navigation chain is reported before `goto` resolves.
  */
-class RenderPermits {
-  private held = 0
-  private readonly waiting = new Set<() => void>()
-
-  /** @param limit - maximum permits held at the same time. */
-  constructor(private readonly limit: number) {}
-
+interface RedirectAudit {
   /**
-   * Take one permit, queueing behind earlier waiters once the limit is reached.
-   * @param signal - the fetch deadline; aborting drops this waiter from the queue.
-   * @returns nothing once the permit is held.
+   * Start deciding one reported request. A request the page initiated is skipped: the
+   * request interceptor already decided that one, and refusing it there aborts the
+   * single request rather than the fetch. A closure rather than a method, because the
+   * context takes it as a standalone listener.
    */
-  async acquire(signal: AbortSignal): Promise<void> {
-    if (signal.aborted) throw new Error(ABANDONED_SLOT)
-    if (this.held < this.limit) {
-      this.held += 1
-      return
-    }
-    await new Promise<void>((resolve, reject) => {
-      const grant = (): void => {
-        signal.removeEventListener('abort', giveUp)
-        this.held += 1
-        resolve()
-      }
-      const giveUp = (): void => {
-        this.waiting.delete(grant)
-        reject(new Error(ABANDONED_SLOT))
-      }
-      this.waiting.add(grant)
-      signal.addEventListener('abort', giveUp, { once: true })
-    })
-  }
+  readonly observe: (request: RenderRedirectableRequest) => void
+  /** Settle every decision started so far into nothing, or the first refusal. */
+  readonly settle: () => Promise<Outcome<void>>
+}
 
-  /** Return one permit, handing it to the longest-waiting render. */
-  release(): void {
-    this.held -= 1
-    const [next] = this.waiting
-    if (next === undefined) return
-    this.waiting.delete(next)
-    next()
+/**
+ * Audit the redirect hops one fetch follows, under the fetch's own destination policy.
+ * A refused hop fails the whole fetch rather than one request, because the page has
+ * already received that hop's response by the time it is reported; settling before the
+ * DOM is read is what keeps its bytes from reaching the caller.
+ * @param policy - the fetch's destination policy, whose per-hostname memo the hops share.
+ * @returns the audit to install on the context's request observer.
+ */
+function auditRedirects(policy: DestinationPolicy): RedirectAudit {
+  const decided: Promise<Outcome<URL>>[] = []
+  return {
+    observe: (request: RenderRedirectableRequest): void => {
+      if (request.redirectedFrom() === null) return
+      decided.push(settle(policy.admit(request.url())))
+    },
+    settle: async (): Promise<Outcome<void>> => {
+      for (const outcome of await Promise.all(decided)) {
+        if (!outcome.ok) return failed(outcome.failure)
+      }
+      return landed(undefined)
+    },
   }
 }
 
@@ -148,7 +172,8 @@ export class PlaywrightFetchProvider implements WebFetchProvider {
   private disposed = false
   private readonly lifetime = new AbortController()
   private readonly running = new Set<Promise<WebFetchResult>>()
-  private readonly permits: RenderPermits
+  /** Render slots: at most `maxConcurrentRenders` fetches hold a browser context at once. */
+  private readonly permits: CapacityGate
 
   /**
    * @param limits - resolved render, identity, concurrency, and time limits.
@@ -158,13 +183,13 @@ export class PlaywrightFetchProvider implements WebFetchProvider {
     private readonly limits: PlaywrightFetchLimits,
     private readonly access: BrowserAccess = chromiumAccess,
   ) {
-    this.permits = new RenderPermits(limits.maxConcurrentRenders)
+    this.permits = new CapacityGate(limits.maxConcurrentRenders)
   }
 
   /**
-   * Probe the browser installation once and memoize the answer. The plugin awaits
-   * this before registering the provider, so {@link available} never performs I/O.
-   * @returns whether a launchable browser installation was found.
+   * Probe the browser installation once and memoize the answer. The plugin awaits this
+   * before registering the provider, so {@link available} never performs I/O.
+   * @returns whether an installed browser was found.
    */
   async resolveAvailability(): Promise<boolean> {
     this.usable = await this.access.probe().then(() => true, () => false)
@@ -172,9 +197,10 @@ export class PlaywrightFetchProvider implements WebFetchProvider {
   }
 
   /**
-   * Whether a launchable browser installation was found. A provider is usable until a
-   * probe proves otherwise or it is disposed; a fetch that reaches a missing
-   * installation fails with the install command in its message.
+   * Whether an installed browser was found. A provider is usable until a probe proves
+   * otherwise or it is disposed; a fetch that reaches an installation the probe passed
+   * but that cannot start fails with the launch error and the install command in its
+   * message.
    */
   available(): boolean {
     return this.usable
@@ -195,8 +221,9 @@ export class PlaywrightFetchProvider implements WebFetchProvider {
 
   /**
    * Stop accepting fetches, cancel the renders in flight, and close the shared browser
-   * process once they have released their pages and contexts. A disposed provider
-   * never launches again.
+   * process once they have released their pages and contexts. The memo is read after
+   * those renders settle, so a process one of them opened while disposal waited is
+   * closed too. A disposed provider accepts no further fetch.
    */
   async dispose(): Promise<void> {
     this.disposed = true
@@ -205,8 +232,11 @@ export class PlaywrightFetchProvider implements WebFetchProvider {
     await Promise.allSettled([...this.running])
     const pending = this.browser
     this.browser = undefined
-    const opened = pending === undefined ? undefined : await settle(pending)
-    if (opened?.ok) await this.discard(opened.value.close())
+    if (pending === undefined) return
+    // A launch that failed cleared the memo itself, so a memo that survives to here is
+    // a process to close; discard() settles a close that fails or wedges, which is what
+    // keeps this method total — the plugin's disposer has no failure to report.
+    await this.discard(pending.then(browser => browser.close()))
   }
 
   /**
@@ -238,22 +268,65 @@ export class PlaywrightFetchProvider implements WebFetchProvider {
     }
     const url = admittedMain.value
 
-    const admitted = await settle(this.permits.acquire(d.signal))
+    const admitted = await settle(this.admitRender(d.signal))
     if (!admitted.ok) throw renderFailure(admitted.failure, d.signal)
-    const release = (): void => { this.permits.release() }
-    return await this.renderAdmitted(url, policy, d.signal).then(
-      (value: WebFetchResult) => { release(); return value },
-      (failure: Error | string) => { release(); throw asError(failure) },
-    )
+    const release = admitted.value
+    const rendered = await settle(this.renderAdmitted(url, policy, d.signal))
+    release()
+    if (!rendered.ok) throw renderFailure(rendered.failure, d.signal)
+    return rendered.value
   }
 
-  /** Open a context, guard its requests, render, and close the page and context. */
+  /**
+   * Take one render slot under the fetch deadline. The gate grants a free slot without
+   * reading the signal, so refusing a fetch whose budget is already spent stays this
+   * provider's own rule: such a fetch must open no browser context.
+   * @param signal - the deadline signal governing this fetch.
+   * @returns the idempotent release for the granted slot.
+   */
+  private async admitRender(signal: AbortSignal): Promise<CapacityRelease> {
+    signal.throwIfAborted()
+    return await this.permits.acquire(signal)
+  }
+
+  /**
+   * Install every destination check the context needs. Playwright reports the three
+   * kinds of destination a rendered page reaches on three channels: HTTP requests the
+   * page initiates through the request interceptor, WebSocket connections through their
+   * own interceptor — an unrouted one is connected straight to its server — and the hops
+   * a redirect names through the context's `request` observer alone. A context missing
+   * any of the three lets a rendered page reach a host the policy would refuse.
+   * @param context - the fresh incognito context.
+   * @param policy - the fetch's destination policy.
+   * @param signal - the deadline signal governing this fetch.
+   * @returns the redirect audit once all three are installed, or the failure that stopped one.
+   */
+  private async guardContext(
+    context: RenderContext,
+    policy: DestinationPolicy,
+    signal: AbortSignal,
+  ): Promise<Outcome<RedirectAudit>> {
+    // The observer goes on first: it is synchronous, and it is the only channel that
+    // reports a redirect hop at all.
+    const audit = auditRedirects(policy)
+    context.on('request', audit.observe)
+    const requests = await settleBefore(context.route(interceptEveryRequest, guardRequest(policy)), signal)
+    if (!requests.ok) return failed(requests.failure)
+    const sockets = await settleBefore(context.routeWebSocket(interceptEverySocket, guardSocket(policy)), signal)
+    if (!sockets.ok) return failed(sockets.failure)
+    return landed(audit)
+  }
+
+  /** Open a context, guard its requests and sockets, render, and close the page and context. */
   private async renderAdmitted(url: URL, policy: DestinationPolicy, signal: AbortSignal): Promise<WebFetchResult> {
     const browser = await this.browserOrRelaunch(signal)
-    const opened = await settleBefore(browser.newContext({ userAgent: this.limits.userAgent }), signal)
+    const identity = { userAgent: this.limits.userAgent, serviceWorkers: 'block' } as const
+    const opened = await settleBefore(browser.newContext(identity), signal)
     if (!opened.ok) throw renderFailure(opened.failure, signal)
     const context = opened.value
-    const guarded = await settleBefore(context.route(interceptEveryRequest, guardRequest(policy)), signal)
+    // Both interceptors are installed before the context has a page: a WebSocket the
+    // page opens first would otherwise reach its server unrouted.
+    const guarded = await this.guardContext(context, policy, signal)
     if (!guarded.ok) {
       await this.discard(context.close())
       throw renderFailure(guarded.failure, signal)
@@ -264,19 +337,29 @@ export class PlaywrightFetchProvider implements WebFetchProvider {
       throw renderFailure(pageOutcome.failure, signal)
     }
     const page = pageOutcome.value
-    const rendered = await this.render(page, url, signal)
+    const rendered = await this.render(page, url, guarded.value, signal)
     await this.discard(page.close().then(() => context.close()))
     if (!rendered.ok) throw renderFailure(rendered.failure, signal)
     return rendered.value
   }
 
   /** Navigate and serialize one page's DOM under the configured limits. */
-  private async render(page: RenderPage, url: URL, signal: AbortSignal): Promise<Outcome<WebFetchResult>> {
+  private async render(
+    page: RenderPage,
+    url: URL,
+    audit: RedirectAudit,
+    signal: AbortSignal,
+  ): Promise<Outcome<WebFetchResult>> {
     const nav = await settleBefore(page.goto(url.toString(), {
       timeout: this.limits.timeoutMs,
       waitUntil: 'domcontentloaded',
     }), signal)
     if (!nav.ok) return failed(nav.failure)
+    // Every hop the navigation followed is reported before `goto` resolves, and this is
+    // the last point before the document is read: a refused hop fails the fetch with the
+    // policy's own code, so no byte of a page that reached a refused address is returned.
+    const hops = await audit.settle()
+    if (!hops.ok) return failed(hops.failure)
     const dom = await settleBefore(page.evaluate(boundedDocument, this.limits.maxBodyChars), signal)
     if (!dom.ok) return failed(dom.failure)
     return landed({
@@ -288,17 +371,16 @@ export class PlaywrightFetchProvider implements WebFetchProvider {
   }
 
   /**
-   * Memoize the browser launch. A disposed provider refuses to launch, so a fetch that
-   * raced dispose fails instead of starting a process nothing will close; a failed or
-   * closed launch clears the memo so the next fetch retries instead of pinning a dead
-   * process.
+   * Memoize the browser launch. A failed or closed launch clears the memo so the next
+   * fetch retries instead of pinning a dead process. A launch that races `dispose()` is
+   * closed by it: `dispose()` waits for every render in flight before reading the memo,
+   * so a process opened during that wait is still the one it closes.
    */
   private async browserOrRelaunch(signal: AbortSignal): Promise<RenderBrowser> {
-    if (this.disposed) throw new WebError(DISPOSED_PROVIDER, 'WEB_PROVIDER_ERROR')
     const onLaunchFailure = (launchFailure: Error): never => {
       this.browser = undefined
       throw new WebError(
-        `web fetch failed to launch a browser: ${String(launchFailure)}; install one with "${CHROMIUM_INSTALL_COMMAND}"`,
+        `web fetch failed to launch a browser: ${String(launchFailure)}; install one with: ${chromiumInstallCommand()}`,
         'WEB_PROVIDER_ERROR',
         { cause: launchFailure },
       )
@@ -321,5 +403,10 @@ function renderFailure(failure: Error, signal: AbortSignal): WebError {
   const timeout = timeoutOf(signal, 'WEB_FETCH_TIMEOUT')
   if (timeout !== undefined) return new WebError('web fetch timed out', 'WEB_FETCH_TIMEOUT', { cause: timeout })
   if (signal.aborted) return new WebError('web fetch aborted', 'WEB_ABORTED')
+  // A `WebError` raised inside the render step is already translated: it
+  // carries the seam code the caller switches on. Wrapping it again would
+  // report a blocked destination as a generic provider error and prefix the
+  // message a second time.
+  if (failure instanceof WebError) return failure
   return new WebError(`web fetch failed: ${failure.message}`, 'WEB_PROVIDER_ERROR')
 }

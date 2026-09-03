@@ -31,7 +31,7 @@ import type { PermissionSelect, PresetOption } from './types.ts'
 // home); this re-export projects the type face onto the package root AND
 // keeps the module edge in the emitted index.d.ts, so aggregate programs
 // consuming the declarations still receive the SessionProjectionMap merge.
-export type * from './types.ts'
+export type { PermissionSelect, PresetOption } from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {

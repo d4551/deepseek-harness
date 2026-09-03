@@ -1,0 +1,24 @@
+{
+  // Leaf project for the Railway Infrastructure as Code file. `deploy/` holds
+  // no workspace package, so nothing imports this project and it emits
+  // nothing; the whole point is that `railway/iac`'s published types check the
+  // `defineRailway` / `service` / `volume` call sites, which the Railway CLI
+  // otherwise would not reject until `railway config apply`.
+  //
+  // Neither aggregate references it: `deploy/` is deployment description, not
+  // Host or Client product code, and a referenced project may not disable
+  // emit. `packages/llm/llm-litert/tests/deploy.spec.ts` runs `tsc` on this
+  // project instead, so the check executes under `bun run test` like every
+  // other assertion that suite owns.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // Railway evaluates this file from its own directory, so its imports must
+    // resolve the way Node resolves them there. Without this, the base map's
+    // workspace aliases would type-check an import the CLI cannot resolve.
+    "paths": {}
+  },
+  "files": [
+    ".railway/railway.ts"
+  ]
+}

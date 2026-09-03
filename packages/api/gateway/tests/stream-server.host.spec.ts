@@ -88,12 +88,17 @@ describe('Remote stream mux server carrier lifecycle', () => {
     const serverSocket = acceptedSocket(entry.mux)
     const cancel = JSON.stringify({ type: 'cancel', streamId: 'absent' })
 
+    // Listen first: a rejected text representation would close the socket
+    // before the carrier error ever fires.
+    const closed = once(client, 'close')
     serverSocket.emit('message', [Buffer.from(cancel)], false)
     serverSocket.emit('message', Uint8Array.from(Buffer.from(cancel)).buffer, false)
-
-    const closed = once(client, 'close')
     serverSocket.emit('error', new Error('fixture carrier failure'))
-    await closed
+
+    // Both fragment-array and ArrayBuffer text parsed (no 1008 rejection);
+    // the carrier error terminated the socket abnormally.
+    const closeEvent = await closed
+    expect([closeEvent[0], String(closeEvent[1])]).toEqual([1006, ''])
   })
 
   it('does not send an end frame after clean source cancellation', async () => {

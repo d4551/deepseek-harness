@@ -33,20 +33,20 @@
   "license": "MIT",
   "peerDependencies": {
     "@deepseek-ai/dsh-atomic-write": "workspace:^",
+    "@deepseek-ai/dsh-document-queue": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
-    "@deepseek-ai/dsh-home-paths": "workspace:^",
     "@deepseek-ai/dsh-settings": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^"
   },
   "dependencies": {
-    "chokidar": "^5.0.0",
     "@deepseek-ai/schemastery": "workspace:^",
     "yaml": "^2.9.0"
   },
   "devDependencies": {
+    "chokidar": "^5.0.0",
     "@deepseek-ai/dsh-atomic-write": "workspace:^",
+    "@deepseek-ai/dsh-document-queue": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
-    "@deepseek-ai/dsh-home-paths": "workspace:^",
     "@deepseek-ai/dsh-settings": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^"
   }

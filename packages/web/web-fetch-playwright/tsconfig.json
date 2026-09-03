@@ -28,6 +28,9 @@
       "path": "../web-fetch-http"
     },
     {
+      "path": "../../util/capacity-gate"
+    },
+    {
       "path": "../../util/timeout"
     },
     {

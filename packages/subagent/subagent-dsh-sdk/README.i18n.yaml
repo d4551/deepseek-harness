@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write packages/subagent/subagent-dsh-sdk/README.md
-README.md: 59dc34f33a924c7cc67225a7337df2f8a3935f30
-README.zh.md: 31da5276333f5ea6a90bd283639ceb495345075e
+README.md: 6ab89388185481b56fc322f2f631e1269c4f046c
+README.zh.md: 2654d60563e67da86e3f698f632279054f331aeb

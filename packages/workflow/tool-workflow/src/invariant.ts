@@ -1,7 +1,8 @@
 /** Package-owned durable workflow-record invariants. @module @deepseek-ai/dsh-tool-workflow/invariant */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
+import { stageSessionEvents } from '@deepseek-ai/dsh-session/invariant-staging'
+import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type { InvariantFailure, InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 import type {} from './types.ts'
 
@@ -130,36 +131,22 @@ function applyEvent(trace: WorkflowTrace, event: SessionEvent, fail: InvariantFa
 
 /** Install an independent incremental fold over every attached Session. */
 const install: InvariantInstaller = Object.assign((ctx: Context, fail: InvariantFailure) => {
-  const traces = new WeakMap<Session, WorkflowTrace>()
-  const staged = new WeakMap<SessionEvent, { session: Session; trace: WorkflowTrace }>()
-
-  const seed = (session: Session): WorkflowTrace => {
-    const trace: WorkflowTrace = new Map()
-    for (const event of session.events.filter(isWorkflowRecordEvent)) applyEvent(trace, event, fail)
-    traces.set(session, trace)
-    return trace
-  }
-  ctx.sessions.list().forEach(seed)
-  ctx.on('session/created', (session) => { seed(session) }, { global: true })
-  ctx.on('internal/dispatch', (_mode, eventName, args) => {
-    if (eventName !== 'session/event') return
-    const [session, event] = args as [Session, SessionEvent]
-    if (!isWorkflowRecordEvent(event)) return
-    // session/event dispatch follows list() or session/created seeding.
-    const trace = cloneTraceForEvent(traces.get(session) as WorkflowTrace, event, fail)
-    applyEvent(trace, event, fail)
-    staged.set(event, { session, trace })
-  }, { global: true })
-  ctx.on('session/event', (session, event) => {
-    if (!isWorkflowRecordEvent(event)) return
-    const candidate = staged.get(event)
-    /* v8 ignore next 2 -- internal/dispatch stages the exact session/event callback arguments. */
-    if (candidate === undefined || candidate.session !== session) {
-      return fail('session/event reached publication without matching workflow-record validation')
-    }
-    staged.delete(event)
-    traces.set(session, candidate.trace)
-  }, { global: true })
+  stageSessionEvents<WorkflowTrace, WorkflowTrace>(ctx, fail, {
+    seed: (session) => {
+      const trace: WorkflowTrace = new Map()
+      for (const event of session.events.filter(isWorkflowRecordEvent)) applyEvent(trace, event, fail)
+      return trace
+    },
+    stage: (trace, event) => {
+      if (!isWorkflowRecordEvent(event)) return undefined
+      const candidate = cloneTraceForEvent(trace, event, fail)
+      applyEvent(candidate, event, fail)
+      return candidate
+    },
+    claims: isWorkflowRecordEvent,
+    commit: (_trace, candidate) => candidate,
+    unstagedMessage: 'session/event reached publication without matching workflow-record validation',
+  })
 }, { inject: ['sessions'] })
 
 /** Register this package's invariant companion. */

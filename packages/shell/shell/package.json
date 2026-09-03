@@ -22,12 +22,22 @@
       "types": "./lib/types/invariant.d.ts",
       "default": "./lib/invariant.js"
     },
+    "./subprocess-executor": {
+      "types": "./lib/types/subprocess-executor.d.ts",
+      "default": "./lib/subprocess-executor.js"
+    },
+    "./sandbox-classify": {
+      "types": "./lib/types/sandbox-classify.d.ts",
+      "default": "./lib/sandbox-classify.js"
+    },
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
   "files": [
     "lib/index.js",
     "lib/invariant.js",
+    "lib/sandbox-classify.js",
+    "lib/subprocess-executor.js",
     "lib/types/**/*.d.ts"
   ],
   "license": "MIT",
@@ -36,13 +46,18 @@
     "@deepseek-ai/dsh-subprocess": "workspace:^",
     "@deepseek-ai/dsh-sandbox": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^",
-    "@deepseek-ai/dsh-settings": "workspace:^"
+    "@deepseek-ai/dsh-settings": "workspace:^",
+    "@deepseek-ai/dsh-timeout": "workspace:^"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/dsh-subprocess": "workspace:^",
     "@deepseek-ai/dsh-sandbox": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^",
-    "@deepseek-ai/dsh-settings": "workspace:^"
+    "@deepseek-ai/dsh-settings": "workspace:^",
+    "@deepseek-ai/dsh-timeout": "workspace:^"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "workspace:^"
   }
 }

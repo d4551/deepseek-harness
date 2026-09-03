@@ -1,12 +1,11 @@
 // Test-local programmable Remote fake (NOT the fixture: fixture is a demo
 // data source on a real clock; behavior tests need per-case responses and
 // deferred-controlled timing). Session streams are hand pumps: pushFollow/pushControl.
-import type {
-  MessageId,
-  RpcError, RpcResponse, SessionId, SessionSearchItem,
-  SubagentCatalog, SubagentInterruptReceipt, SubagentPromptReceipt,
-  WorkspaceId, WorkspaceView,
-} from '@deepseek-ai/dsh-api-remotes/client'
+import type { MessageId, RpcError, RpcResponse, SessionId } from '@deepseek-ai/dsh-api-remotes/client'
+import type { SessionSearchItem } from '@deepseek-ai/dsh-api-session-controller/types'
+import type { WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/types'
+import type { SubagentCatalog, SubagentInterruptReceipt, SubagentPromptReceipt } from '@deepseek-ai/dsh-subagent/client'
+import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import type {
   SessionAddress,
   SessionControlBaseline,

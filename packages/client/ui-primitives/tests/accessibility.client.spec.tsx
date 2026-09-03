@@ -24,10 +24,10 @@ import {
 const MINIMUM_ACCESSIBILITY_SCORE = 100
 
 const {
-  BrandWordmark, Button, CatLogo, CodeBlock, ConnectionBanner, DiffBlock, DisclosureRow, FishLogo, HoverCard,
-  Input, JsonBlock, JsonTree, MarkdownText, Menu, MessageText, Modal, OnboardingSurface, Pill,
-  ReadBlock, ReferenceIcon, RiskConfirmation, SearchBlock, StateDot, TerminalBlock, Toast, Tooltip,
-  WebBlock,
+  BrandWordmark, Button, CatLogo, CodeBlock, ConnectionBanner, DiffBlock, DisclosureRow, FishLogo, FlowRow,
+  GlyphButton, HoverCard, Input, InspectPill, JsonBlock, JsonTree, MarkdownText, Menu, MessageText, Modal,
+  OnboardingSurface, Pill, ReadBlock, ReferenceIcon, ResultText, RiskConfirmation, RowSeparator, RowSummary,
+  SearchBlock, StateDot, TerminalBlock, Toast, Tooltip, WebBlock,
 } = primitives
 
 /**
@@ -53,6 +53,17 @@ const SURFACES: Readonly<Record<string, () => ReactElement>> = {
   ),
   CatLogo: () => <CatLogo size={24} />,
   FishLogo: () => <FishLogo size={24} />,
+  // The flow-row parts are audited in the row they compose, because a bare
+  // separator or summary decides nothing on its own.
+  FlowRow: () => (
+    <FlowRow>
+      <span>Bash</span>
+      <RowSeparator />
+      <RowSummary>ls -la</RowSummary>
+    </FlowRow>
+  ),
+  GlyphButton: () => <GlyphButton surface="bar" aria-label="Pause goal"><StateDot state="ongoing" /></GlyphButton>,
+  InspectPill: () => <InspectPill label="Inspect" onClick={() => {}} />,
   HoverCard: () => (
     <HoverCard anchor={<button type="button">Details</button>} content={<p>More</p>} copyLabel="Copy" copiedLabel="Copied" />
   ),
@@ -88,6 +99,20 @@ const SURFACES: Readonly<Record<string, () => ReactElement>> = {
     />
   ),
   ReferenceIcon: () => <ReferenceIcon kind="file" />,
+  ResultText: () => <ResultText error>Command failed: exit 1</ResultText>,
+  RowSeparator: () => (
+    <FlowRow>
+      <span>Think</span>
+      <RowSeparator />
+      <span>12 seconds</span>
+    </FlowRow>
+  ),
+  RowSummary: () => (
+    <FlowRow>
+      <span>Read</span>
+      <RowSummary>src/index.ts</RowSummary>
+    </FlowRow>
+  ),
   RiskConfirmation: () => (
     <RiskConfirmation
       open

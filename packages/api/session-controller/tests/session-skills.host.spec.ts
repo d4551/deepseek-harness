@@ -9,9 +9,11 @@ import { SessionSkillCatalog } from '../src/skill-catalog.ts'
 
 function observation(
   sessionId: SessionId,
-  options: { readonly cwd?: string; readonly agentPreset?: string } = {},
+  options: { readonly cwd?: string; readonly agentPreset?: string; readonly roots?: readonly string[] } = {},
 ): SessionObservation {
-  const events = Object.freeze([])
+  const events = Object.freeze(options.roots === undefined
+    ? []
+    : [{ seq: 1, time: 1, type: 'workspace/roots', data: { roots: [...options.roots] } }]) as unknown as SessionObservation['events']
   const lease = (): SessionObservation => ({
     source: 'live',
     header: {
@@ -78,7 +80,21 @@ describe('SessionSkillCatalog', () => {
     expect(dispose).toHaveBeenCalledOnce()
     expect(resume).not.toHaveBeenCalled()
     expect(ctx.agents.list()).toEqual([])
-    expect(list).toHaveBeenCalledWith({ cwd: '/cold/project', scope: undefined })
+    expect(list).toHaveBeenCalledWith({ cwd: '/cold/project', additionalRoots: [], scope: undefined })
+
+    // A user who adds a second folder expects its `/name` skills to appear:
+    // the human catalog spans the same roots the model's catalog does.
+    list.mockClear()
+    observeSession.mockResolvedValue(observation(sessionId, {
+      cwd: '/cold/project',
+      roots: ['/cold/project', '/second-root'],
+    }))
+    await catalog.list({ sessionId }, new AbortController().signal)
+    expect(list).toHaveBeenCalledWith({
+      cwd: '/cold/project',
+      additionalRoots: ['/second-root'],
+      scope: undefined,
+    })
   })
 
   it('uses a live Agent to address a preset-owned registry', async () => {
@@ -109,7 +125,7 @@ describe('SessionSkillCatalog', () => {
         modelInvocable: false,
       }],
     })
-    expect(scopedList).toHaveBeenCalledWith({ cwd: '/live/project', scope: agent })
+    expect(scopedList).toHaveBeenCalledWith({ cwd: '/live/project', additionalRoots: [], scope: agent })
     expect(standingKeyFor).not.toHaveBeenCalled()
   })
 
@@ -131,7 +147,7 @@ describe('SessionSkillCatalog', () => {
 
     await expect(catalog.list({ sessionId }, new AbortController().signal)).resolves.toEqual({ skills: [] })
     expect(standingKeyFor).toHaveBeenCalledWith('minimal')
-    expect(list).toHaveBeenCalledWith({ cwd: '/cold/project', scope })
+    expect(list).toHaveBeenCalledWith({ cwd: '/cold/project', additionalRoots: [], scope })
     expect(ctx.agents.list()).toEqual([])
   })
 
@@ -152,7 +168,7 @@ describe('SessionSkillCatalog', () => {
     const catalog = new SessionSkillCatalog(ctx)
 
     await expect(catalog.list({ sessionId }, new AbortController().signal)).resolves.toEqual({ skills: [] })
-    expect(list).toHaveBeenCalledWith({ cwd: '/cold/project', scope: undefined })
+    expect(list).toHaveBeenCalledWith({ cwd: '/cold/project', additionalRoots: [], scope: undefined })
   })
 
   it.each([

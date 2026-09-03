@@ -85,13 +85,14 @@ This section explains the design of the executor and points at the code that rea
 
 ### Design concept
 
-The executor is the PowerShell Service Provider for the `ctx.shell` seam built on the subprocess capability: it owns everything pwsh-shaped — executable resolution, command defaulting and caps, deadline fusion and cause classification, UTF-8 output pinning, the model-friendly terminal environment, and the background read merge — while process-tree mechanics (bounded spill-backed output, credential scrub, kill escalation, disposal) belong to the subprocess service. Every call spawns a fresh non-interactive `pwsh -Command` with `-NoLogo -NoProfile -NonInteractive`, so commands are deterministic and profile state never leaks between calls.
+The executor is the PowerShell Service Provider for the `ctx.shell` seam built on the subprocess capability. It owns the pwsh dialect only — executable resolution, the invocation argv, UTF-8 output pinning, and the environment pwsh honors — while command defaulting and caps, deadline fusion and cause classification, output budgets, and the background read merge belong to `SubprocessShellExecutor` in the seam package, and process-tree mechanics (bounded spill-backed output, credential scrub, kill escalation, disposal) belong to the subprocess service. Every call spawns a fresh non-interactive `pwsh -Command` with `-NoLogo -NoProfile -NonInteractive`, so commands are deterministic and profile state never leaks between calls.
 
 ### Source map
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Plugin entry: `PwshLocalExecutor`, `Config`, settings wiring, argv seam |
+| [`src/index.ts`](src/index.ts) | Plugin entry: `PwshLocalExecutor`, its invocation argv and terminal environment, and the config schema |
+| [`../shell/src/subprocess-executor.ts`](../shell/src/subprocess-executor.ts) | The process mechanics this executor inherits, shared with `dsh-bash-local` |
 | [`src/resolve.ts`](src/resolve.ts) | Pure `resolvePwshPath`/`candidatePwshPaths` executable resolution |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; contracts are enforced at the owning seam) |
 | `tests/` | Exercised behavior: budgets, classification, resolution, background handles |
@@ -119,7 +120,7 @@ Read these pages when the executor contract is not enough. They move from the se
 - [shell seam](../shell/README.md) — the executor contract this provider implements, including the request/spec split.
 - [bash-local](../bash-local/README.md) — the POSIX counterpart this executor mirrors call-for-call.
 - [pwsh-sandbox](../pwsh-sandbox/README.md) — the confining executor to compose instead when commands need the sandbox capability.
-- [tool-pwsh](../tool-pwsh/README.md) — the model-facing `pwsh` tool over this executor.
+- [tool-shell](../tool-shell/README.md) — the model-facing `pwsh` tool over this executor.
 - [Bash executor subsystem](../../../docs/subsystems/shell.md) — request/spec vocabulary, results, and the service contract in full.
 
 -----
@@ -127,7 +128,7 @@ Read these pages when the executor contract is not enough. They move from the se
 <a id="model-experience"></a>
 ## Model Experience
 
-Indirectly, through `dsh-tool-pwsh`, which renders this executor's bounded stdout/stderr tails, background-process deltas (through the generic job runtime), spill-file paths, and infrastructure failures.
+Indirectly, through the pwsh dialect of `dsh-tool-shell`, which renders this executor's bounded stdout/stderr tails, background-process deltas (through the generic job runtime), spill-file paths, and infrastructure failures.
 
 #### KV Cache effect
 

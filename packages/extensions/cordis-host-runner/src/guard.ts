@@ -19,7 +19,9 @@ import { scopeOf } from '@deepseek-ai/dsh-scope'
 import { assertSupportedJsonSchema, defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
+import { hasPlainArrayPrototype, hasPlainObjectPrototype } from '@deepseek-ai/dsh-session'
 import type { JsonValue } from '@deepseek-ai/dsh-session'
+import { CTX_VERBS, TIMER_VERBS, ctxVerbForwarder } from './wire-values.ts'
 
 const DYNAMIC_TOOL = Symbol('cordis-host-runner.dynamic-tool')
 const SCHEMA_TYPES = new Set<unknown>(['string', 'number', 'integer', 'boolean', 'null', 'object', 'array', 'json'])
@@ -31,39 +33,8 @@ type DynamicToolMarker = { [DYNAMIC_TOOL]?: unknown }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
-  const prototype: unknown = Object.getPrototypeOf(value)
-  return prototype === null
-    || typeof prototype === 'object'
-      && Object.getPrototypeOf(prototype) === null
-      && hasIntrinsicConstructor(prototype, 'Object')
+  return hasPlainObjectPrototype(value)
 }
-
-/* jscpd:ignore-start -- this VM boundary mirrors the session-owned realm-safe intrinsic test */
-/** Whether a realm-owned intrinsic prototype is backed by its native constructor. */
-function hasIntrinsicConstructor(prototype: object, name: 'Array' | 'Object'): boolean {
-  const descriptor = Object.getOwnPropertyDescriptor(prototype, 'constructor')
-  const constructor: unknown = descriptor?.value
-  if (typeof constructor !== 'function') return false
-  try {
-    return constructor.name === name
-      && constructor.prototype === prototype
-      && Function.prototype.toString.call(constructor) === `function ${name}() { [native code] }`
-  } catch {
-    return false
-  }
-}
-
-/** Whether an array uses one realm's intrinsic Array prototype rather than a subclass. */
-function hasPlainArrayPrototype(value: unknown[]): boolean {
-  const prototype: unknown = Object.getPrototypeOf(value)
-  if (!Array.isArray(prototype) || !hasIntrinsicConstructor(prototype, 'Array')) return false
-  const objectPrototype: unknown = Object.getPrototypeOf(prototype)
-  return typeof objectPrototype === 'object'
-    && objectPrototype !== null
-    && Object.getPrototypeOf(objectPrototype) === null
-    && hasIntrinsicConstructor(objectPrototype, 'Object')
-}
-/* jscpd:ignore-end */
 
 /** Whether a schema list is a dense intrinsic array with no JSON-invisible decorations. */
 function isDensePlainArray(value: unknown): value is unknown[] {
@@ -633,8 +604,6 @@ export function sandboxRegisterTool(ctx: Context, tool: unknown): () => void {
  * services. `on`/`once` observe events, `provide` exposes a service to other packages, and the
  * timer helpers schedule work — each a fiber effect that unwinds when the package stops.
  */
-const CTX_VERBS = new Set(['effect', 'on', 'once', 'provide', 'timeout', 'interval', 'setTimeout', 'setInterval', 'throttle', 'debounce'])
-const TIMER_VERBS = new Set(['timeout', 'interval', 'setTimeout', 'setInterval', 'throttle', 'debounce'])
 
 /**
  * The tool-registry façade: `register` (marker-guarded) plus READ-ONLY
@@ -665,7 +634,6 @@ function sandboxTools(ctx: Context): Record<string, unknown> {
 // and each half must test against the Context class of ITS OWN face. Moving the
 // rule into a shared package would move a security invariant out of the halves
 // that enforce it, which is a design decision rather than a duplication fix.
-/* jscpd:ignore-start */
 function denyContext(value: unknown, service: string, reportFailure: (error: Error) => void): unknown {
   if (value instanceof Context) {
     return rejectGuard(reportFailure,
@@ -695,7 +663,6 @@ function guardedService(service: object, name: string, reportFailure: (error: Er
     },
   })
 }
-/* jscpd:ignore-end */
 
 /**
  * The service names a plugin declared in `inject`, as a lookup set. Whatever
@@ -743,27 +710,20 @@ function sandboxContext(ctx: Context, reportFailure: (error: Error) => void): Co
     return guardedService(service, name, reportFailure)
   }
   const get = (name: string): unknown => readService(name, false)
-  // The browser half builds the same façade over its own Context
-  // (`@deepseek-ai/dsh-cordis-client-runner`, whose CTX_VERBS names this one its
-  // twin), and the sameness is the point: a package author meets ONE contract on
-  // both halves. Folding them together is not available — the two halves compile
-  // in separate programs where `Context` merges different service keys — so the
-  // duplication is declared here instead of hidden behind a config exception.
-  /* jscpd:ignore-start */
+  // `@deepseek-ai/dsh-cordis-client-runner` builds the same façade over the browser
+  // Context, and the sameness is the point: a package author meets ONE contract on
+  // both halves. Verb dispatch is therefore one shared rule in ./wire-values.ts.
+  // The traps themselves stay two, because what each trap decides is this half's:
+  // the `tools` seat only the Host offers, what `get` hands back, what a denied read
+  // teaches, and the read-only wording. Those decisions belong in the guard that
+  // enforces them, not behind callbacks passed to a shared factory.
   return new Proxy({}, {
     get(_target, prop) {
       if (prop === 'tools') return tools
       if (prop === 'get') return get
       if (typeof prop !== 'string') return undefined
-      // Lazy verb forwarder — reads `ctx[verb]` only when called. Timer mixins
-      // additionally require the Service declaration before Cordis resolves them.
-      if (CTX_VERBS.has(prop)) {
-        return (...args: unknown[]): unknown => {
-          if (TIMER_VERBS.has(prop) && !declared.has('timer')) return denyRead('timer')
-          const method = ctx[prop as keyof Context]
-          return Reflect.apply(method as (...a: unknown[]) => unknown, ctx, args)
-        }
-      }
+      const forward = ctxVerbForwarder(ctx, prop, declared, denyRead)
+      if (forward !== undefined) return forward
       return readService(prop, true)
     },
     // A façade is not the real ctx; block writes rather than let package code
@@ -777,7 +737,6 @@ function sandboxContext(ctx: Context, reportFailure: (error: Error) => void): Co
       || (typeof prop === 'string'
         && ((CTX_VERBS.has(prop) && (!TIMER_VERBS.has(prop) || declared.has('timer'))) || declared.has(prop))),
   }) as unknown as Context
-  /* jscpd:ignore-end */
 }
 
 /**

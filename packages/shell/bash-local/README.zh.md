@@ -80,13 +80,14 @@ if (result.timedOut) console.log('timed out after', result.timeoutMs)
 
 ### 设计概念
 
-本执行器是基于 subprocess 能力的 `ctx.shell` seam 的 Service Provider：它负责所有 bash 层职责——命令默认化与上限、deadline 融合与原因分类、面向模型的终端环境，以及后台读取合并——而进程组机制（有界 spill 输出、凭据清除、终止升级、dispose（资源释放））属于 subprocess 服务。每次调用都 spawn 全新的非登录 `bash -c`，不读取 rc 文件，因此命令是确定性的，shell 状态绝不会在调用之间泄漏。
+本执行器是基于 subprocess 能力的 `ctx.shell` seam 的 Service Provider：它只负责 bash 方言——`bash -c` argv、POSIX 终端环境，以及诊断信息中使用的名称；命令默认化与上限、deadline 融合与原因分类、输出预算与后台读取合并属于 seam 包中的 `SubprocessShellExecutor`，而进程组机制（有界 spill 输出、凭据清除、终止升级、dispose（资源释放））属于 subprocess 服务。每次调用都 spawn 全新的非登录 `bash -c`，不读取 rc 文件，因此命令是确定性的，shell 状态绝不会在调用之间泄漏。
 
 ### 源码地图
 
 | 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | 插件入口：`LocalBashExecutor`、`Config`、设置段接线 |
+| [`src/index.ts`](src/index.ts) | 插件入口：`LocalBashExecutor`、其 `bash -c` argv 与终端环境，以及配置 schema |
+| [`../shell/src/subprocess-executor.ts`](../shell/src/subprocess-executor.ts) | 本执行器继承的进程机制，与 `dsh-pwsh-local` 共享 |
 | [`src/invariant.ts`](src/invariant.ts) | 不变式伴生插件（无运行时不变式；约定在所属 seam 处执行） |
 | `tests/executor.spec.ts` | 已演练的行为：预算、分类、后台句柄、归属 |
 | `tests/settings.spec.ts` | 设置段叠加在组合条目之上 |
@@ -112,7 +113,7 @@ if (result.timedOut) console.log('timed out after', result.timeoutMs)
 
 - [shell seam](../shell/README.zh.md) —— 本提供方实现的执行器约定，包括请求/spec 拆分。
 - [bash-sandbox](../bash-sandbox/README.zh.md) —— 需要沙箱能力时替换组合的受限执行器。
-- [tool-bash](../tool-bash/README.zh.md) —— 基于本执行器的面向模型 `bash` 工具。
+- [tool-shell](../tool-shell/README.zh.md) —— 基于本执行器的面向模型 `bash` 工具。
 - [Bash 执行器子系统](../../../docs/subsystems/shell.zh.md) —— 请求/spec 词汇、结果与完整的服务约定。
 - [subprocess-local](../../subprocess/subprocess-local/README.zh.md) —— 本执行器背后的进程组机制。
 
@@ -121,7 +122,7 @@ if (result.timedOut) console.log('timed out after', result.timeoutMs)
 <a id="model-experience"></a>
 ## 模型体验
 
-通过 `dsh-tool-bash` 间接影响；该工具会渲染本执行器有界的 stdout/stderr 尾部、后台进程增量、spill 文件路径与基础设施失败。
+通过 `dsh-tool-shell` 间接影响；该工具会渲染本执行器有界的 stdout/stderr 尾部、后台进程增量、spill 文件路径与基础设施失败。
 
 #### KV Cache 影响
 

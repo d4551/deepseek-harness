@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { GoalSnapshot } from '@deepseek-ai/dsh-goal/client'
 import {
-  IconCheckOutline16, IconCloseOutline16, IconEditOutline16, IconGoalOutline16,
+  GlyphButton, IconCheckOutline16, IconCloseOutline16, IconEditOutline16, IconGoalOutline16,
   IconPauseOutline16, IconPlayOutline16, IconTrashOutline16, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
@@ -96,26 +96,26 @@ export function GoalBar({ goal, onEdit, onPause, onResume, onClear, t }: GoalBar
           {actionError !== null && <span className={css.error} role="alert">{actionError}</span>}
           <div className={css.actions}>
             <Tooltip label={t('action.save')} side="bottom" delayMs={500}>
-              <button
-                type="button"
+              <GlyphButton
+                surface="bar"
                 className={css.iconBtn}
                 onClick={() => { void handleEdit() }}
                 disabled={pending || draft.trim() === ''}
                 aria-label={t('action.save')}
               >
                 <IconCheckOutline16 size={14} />
-              </button>
+              </GlyphButton>
             </Tooltip>
             <Tooltip label={t('action.cancel')} side="bottom" delayMs={500}>
-              <button
-                type="button"
+              <GlyphButton
+                surface="bar"
                 className={css.iconBtn}
                 onClick={() => { setEditing(false) }}
                 disabled={pending}
                 aria-label={t('action.cancel')}
               >
                 <IconCloseOutline16 size={14} />
-              </button>
+              </GlyphButton>
             </Tooltip>
           </div>
         </div>
@@ -134,33 +134,51 @@ export function GoalBar({ goal, onEdit, onPause, onResume, onClear, t }: GoalBar
         <div className={css.actions}>
           {goal.phase === 'active' && (
             <Tooltip label={t('action.pause')} side="bottom" delayMs={500}>
-              <button type="button" className={css.iconBtn} disabled={pending} onClick={() => { void runAction(onPause) }} aria-label={t('action.pause')}>
+              <GlyphButton
+                surface="bar"
+                className={css.iconBtn}
+                disabled={pending}
+                onClick={() => { void runAction(onPause) }}
+                aria-label={t('action.pause')}
+              >
                 <IconPauseOutline16 size={14} />
-              </button>
+              </GlyphButton>
             </Tooltip>
           )}
           {goal.phase === 'paused' && (
             <Tooltip label={t('action.resume')} side="bottom" delayMs={500}>
-              <button type="button" className={css.iconBtn} disabled={pending} onClick={() => { void runAction(onResume) }} aria-label={t('action.resume')}>
+              <GlyphButton
+                surface="bar"
+                className={css.iconBtn}
+                disabled={pending}
+                onClick={() => { void runAction(onResume) }}
+                aria-label={t('action.resume')}
+              >
                 <IconPlayOutline16 size={14} />
-              </button>
+              </GlyphButton>
             </Tooltip>
           )}
           <Tooltip label={t('action.edit')} side="bottom" delayMs={500}>
-            <button
-              type="button"
+            <GlyphButton
+              surface="bar"
               className={css.iconBtn}
               disabled={pending}
               onClick={() => { setDraft(goal.objective); setEditing(true) }}
               aria-label={t('action.edit')}
             >
               <IconEditOutline16 size={14} />
-            </button>
+            </GlyphButton>
           </Tooltip>
           <Tooltip label={t('action.clear')} side="bottom" delayMs={500}>
-            <button type="button" className={css.iconBtn} disabled={pending} onClick={() => { void handleClear(goal.id) }} aria-label={t('action.clear')}>
+            <GlyphButton
+              surface="bar"
+              className={css.iconBtn}
+              disabled={pending}
+              onClick={() => { void handleClear(goal.id) }}
+              aria-label={t('action.clear')}
+            >
               <IconTrashOutline16 size={14} />
-            </button>
+            </GlyphButton>
           </Tooltip>
         </div>
       </div>

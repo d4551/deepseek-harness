@@ -45,6 +45,20 @@ describe('NetworkDriveFileSystem write-through publication', () => {
     await expect(readFile(fs.processPath(target), 'utf8')).resolves.toBe('one\nthree\n')
   })
 
+  it('publishes over a working file too large to serve, offering no diff basis for it', async () => {
+    // The ceiling refuses to read the prior content, and a write of content
+    // under the ceiling still lands: refusing the write instead would leave an
+    // oversize working file unreplaceable.
+    const { fs, drive, root } = await setup(undefined, { maxFileBytes: 8 })
+    await writeFile(join(root, 'oversize.txt'), 'x'.repeat(64))
+    const target = await fs.resolve('oversize.txt')
+
+    const outcome = await fs.writeText(target, 'small')
+    expect(outcome).toMatchObject({ operation: 'update', before: null, after: 'small' })
+    expect(drive.contentOf('oversize.txt')).toBe('small')
+    await expect(readFile(fs.processPath(target), 'utf8')).resolves.toBe('small')
+  })
+
   it('publishes a working file the local execution world created', async () => {
     const { fs, drive, root } = await setup()
     await mkdir(join(root, 'src'), { recursive: true })

@@ -46,7 +46,7 @@ import {
   type AgentPreset, type Config, type PresetRoot,
 } from './preset.ts'
 import { agentPresetProjectionDefinition } from './session.ts'
-export type * from './types.ts'
+export type { AgentPresetDocument, AgentPresetError, AgentPresetErrorDetailsMap, AgentPresetRoster, AgentPresetRow } from './types.ts'
 
 /** Settings namespace carrying the user's chosen default preset. */
 export const SETTINGS_NAMESPACE = 'agent-presets'

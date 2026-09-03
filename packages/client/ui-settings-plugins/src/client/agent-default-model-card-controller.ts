@@ -1,10 +1,7 @@
 /** Staged editor for the Host-owned default model selection. */
 
-import type {
-  AgentDefaultModelSettings,
-  ClientRemote,
-  ModelProviderGroup,
-} from '@deepseek-ai/dsh-api-remotes/client'
+import type { AgentDefaultModelSettings, ClientRemote } from '@deepseek-ai/dsh-api-remotes/client'
+import type { ModelProviderGroup } from '@deepseek-ai/dsh-api-session-controller/types'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { CardShell } from './card-form.ts'

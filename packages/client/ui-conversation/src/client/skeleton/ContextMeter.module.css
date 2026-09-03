@@ -6,20 +6,8 @@
   display: inline-flex;
 }
 
-/* Same 28px circular hit target family as the composer's attach button. */
-.trigger {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--dsw-alias-label-secondary);
-  cursor: pointer;
-}
-
+/* The box is GlyphButton's `header` surface, the same one the details close
+   button uses; only the hover wash is this meter's. */
 .trigger:hover {
   background: var(--dsw-alias-interactive-bg-hover);
 }

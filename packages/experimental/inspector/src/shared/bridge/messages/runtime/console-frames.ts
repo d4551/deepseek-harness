@@ -34,6 +34,15 @@ export interface ClientConsoleDisableFrame {
   readonly sessionId: ClientRuntimeSessionId
 }
 
+/** Client confirmation that Console observation is installed for one DevTools session. */
+export interface ClientConsoleEnabledFrame {
+  readonly v: typeof INSPECTOR_PROTOCOL_VERSION
+  readonly t: 'client-console/enabled'
+  readonly sourceId: InspectorSourceId
+  readonly generation: InspectorSourceGeneration
+  readonly sessionId: ClientRuntimeSessionId
+}
+
 /** Client Console event carrying objects retained for one DevTools session. */
 export interface ClientConsoleEventFrame {
   readonly v: typeof INSPECTOR_PROTOCOL_VERSION
@@ -63,18 +72,25 @@ export function parseClientConsoleCapability(value: unknown): ClientConsoleCapab
 export function parseClientConsoleControlFrame(
   value: Record<string, unknown>,
 ): ClientConsoleEnableFrame | ClientConsoleDisableFrame {
-  exactKeys(value, ['v', 't', 'sourceId', 'generation', 'sessionId'], 'Client Console control frame')
+  exactKeys(value, CONSOLE_SESSION_KEYS, 'Client Console control frame')
   if (value.v !== INSPECTOR_PROTOCOL_VERSION
     || (value.t !== 'client-console/enable' && value.t !== 'client-console/disable')) {
     throw new Error('inspector protocol: invalid Client Console control frame')
   }
-  return {
-    v: INSPECTOR_PROTOCOL_VERSION,
-    t: value.t,
-    sourceId: wireId<'InspectorSourceId'>(value.sourceId, 'sourceId'),
-    generation: wireId<'InspectorSourceGeneration'>(value.generation, 'generation'),
-    sessionId: wireId<'ClientRuntimeSessionId'>(value.sessionId, 'sessionId'),
+  return { v: INSPECTOR_PROTOCOL_VERSION, t: value.t, ...parseConsoleSession(value) }
+}
+
+/**
+ * Parse one Client-to-Worker confirmation that Console observation is installed.
+ * @param value - Untrusted decoded frame.
+ * @returns The validated confirmation frame.
+ */
+export function parseClientConsoleEnabledFrame(value: Record<string, unknown>): ClientConsoleEnabledFrame {
+  exactKeys(value, CONSOLE_SESSION_KEYS, 'Client Console confirmation frame')
+  if (value.v !== INSPECTOR_PROTOCOL_VERSION || value.t !== 'client-console/enabled') {
+    throw new Error('inspector protocol: invalid Client Console confirmation envelope')
   }
+  return { v: INSPECTOR_PROTOCOL_VERSION, t: 'client-console/enabled', ...parseConsoleSession(value) }
 }
 
 /**
@@ -83,17 +99,35 @@ export function parseClientConsoleControlFrame(
  * @returns A validated Console event frame.
  */
 export function parseClientConsoleEventFrame(value: Record<string, unknown>): ClientConsoleEventFrame {
-  exactKeys(value, ['v', 't', 'sourceId', 'generation', 'sessionId', 'event'], 'Client Console event frame')
+  exactKeys(value, [...CONSOLE_SESSION_KEYS, 'event'], 'Client Console event frame')
   if (value.v !== INSPECTOR_PROTOCOL_VERSION || value.t !== 'client-console/event') {
     throw new Error('inspector protocol: invalid Client Console event envelope')
   }
   return {
     v: INSPECTOR_PROTOCOL_VERSION,
     t: 'client-console/event',
+    ...parseConsoleSession(value),
+    event: parseEvent(value.event),
+  }
+}
+
+/** The routing identifiers every Client Console frame carries. */
+const CONSOLE_SESSION_KEYS = ['v', 't', 'sourceId', 'generation', 'sessionId'] as const
+
+/**
+ * Rebuild the source generation and DevTools session a Console frame addresses.
+ * @param value - Frame whose envelope has already been accepted.
+ * @returns The branded source, generation, and Runtime session identifiers.
+ */
+function parseConsoleSession(value: Record<string, unknown>): {
+  readonly sourceId: InspectorSourceId
+  readonly generation: InspectorSourceGeneration
+  readonly sessionId: ClientRuntimeSessionId
+} {
+  return {
     sourceId: wireId<'InspectorSourceId'>(value.sourceId, 'sourceId'),
     generation: wireId<'InspectorSourceGeneration'>(value.generation, 'generation'),
     sessionId: wireId<'ClientRuntimeSessionId'>(value.sessionId, 'sessionId'),
-    event: parseEvent(value.event),
   }
 }
 

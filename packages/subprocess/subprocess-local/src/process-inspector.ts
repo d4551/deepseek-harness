@@ -4,6 +4,7 @@ import { closeSync, openSync, readFileSync, readdirSync, readlinkSync, readSync,
 import { execFileSync } from 'node:child_process'
 import type { SubprocessTerminalSignal } from '@deepseek-ai/dsh-subprocess'
 import { createWindowsProcessInspector } from './windows-inspector.ts'
+import { walkProcessTree } from './process-tree-walk.ts'
 
 /** PID plus start identity, preventing teardown escalation after PID reuse. */
 export interface ProcessIdentity {
@@ -403,25 +404,7 @@ class PosixProcessSnapshot implements ProcessSnapshot {
 }
 
 function processTree(entries: ProcessTreeEntry[], rootPid: number): ProcessIdentity[] {
-  const byPid = new Map(entries.map(entry => [entry.pid, entry]))
-  const root = byPid.get(rootPid)
-  if (root === undefined) return []
-  const byParent = new Map<number, ProcessTreeEntry[]>()
-  for (const entry of entries) {
-    const children = byParent.get(entry.parentPid) ?? []
-    children.push(entry)
-    byParent.set(entry.parentPid, children)
-  }
-  const visited = new Set<number>()
-  const result: ProcessIdentity[] = []
-  const visit = (entry: ProcessTreeEntry): void => {
-    if (visited.has(entry.pid)) return
-    visited.add(entry.pid)
-    for (const child of byParent.get(entry.pid) ?? []) visit(child)
-    result.push({ pid: entry.pid, started: entry.started })
-  }
-  visit(root)
-  return result
+  return walkProcessTree(entries, rootPid, entry => ({ pid: entry.pid, started: entry.started }))
 }
 
 class LinuxProcessInspector extends PosixProcessInspector {

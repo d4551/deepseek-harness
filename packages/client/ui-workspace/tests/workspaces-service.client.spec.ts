@@ -6,7 +6,8 @@ import type {
 import type {
   IWorkspaces, WorkspaceId, WorkspaceSnapshot, WorkspaceView,
 } from '@deepseek-ai/dsh-api-workspace-controller/client'
-import type { ClientRemote, DirectoryListing } from '@deepseek-ai/dsh-api-remotes/client'
+import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client'
+import type { DirectoryListing } from '@deepseek-ai/dsh-host-directory-picker/types'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import { SessionId } from '@deepseek-ai/dsh-session/types'
 import { DirectoryBrowseError, UiWorkspaceService } from '../src/client/navigation.ts'

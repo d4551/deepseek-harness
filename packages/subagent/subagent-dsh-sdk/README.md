@@ -173,6 +173,7 @@ These limits define when this backend is a poor fit or needs special operational
 - **No non-route start-time capabilities** — the parent can select the child agent route but cannot enforce `outputSchema`, depth, tool filters, or persona inside the child process; configure the selected child profile and its ordered patches instead.
 - **The child's transcript stays in the child's own session root** — the parent log records only the delegation tool call and result; the streamed `session.event` channel is consumed for output extraction, not bridged into the parent log.
 - **Local child processes only** — the resolved working directory is a local path; a remote runtime would need its own backend.
+- **One working directory per child** — the child process starts in the parent session's `cwd`; a parent working in additional workspace roots hands on only that primary root, because the child runtime owns its own session and workspace. In-process children carry the complete root set on their own session logs.
 
 <a id="dev-note"></a>
 ### Dev Note

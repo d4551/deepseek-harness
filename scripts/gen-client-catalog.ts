@@ -419,7 +419,6 @@ export function renderClientCatalog(entries: readonly SlotEntry[]): string {
     ' * @module @deepseek-ai/dsh-cordis-client-runner/client/slot-catalog',
     ' */',
     '',
-    '/* jscpd:ignore-start */',
     '/** One option a register call passes for a given slot cardinality. */',
     'export interface ClientSlotOption {',
     '  /** Option name as written in the register options object. */',
@@ -520,7 +519,7 @@ export function renderClientCatalog(entries: readonly SlotEntry[]): string {
     lines.push(`    source: ${quote(entry.source)},`)
     lines.push('  },')
   }
-  lines.push(']', '/* jscpd:ignore-end */', '')
+  lines.push(']', '')
   return lines.join('\n')
 }
 

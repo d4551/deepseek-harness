@@ -1,10 +1,16 @@
 /**
- * Shared rendering helpers for the shell tools (`dsh-tool-bash`,
- * `dsh-tool-pwsh`): the exit-status marker contract the tools' renderers emit,
- * Host `presentResult` implementations parse here, and the Web terminal card
- * model mirrors without importing Host code.
- * @module @deepseek-ai/dsh-shell/render
+ * Model-facing result rendering shared by the shell tool Consumers: the
+ * output body the `bash` and `pwsh` tools emit, the
+ * truncation, sandbox, and exit-status markers they append, and the inverse
+ * parse Host `presentResult` implementations and the Web terminal card use to
+ * recover the exit status. Every dialect states these facts identically, so the
+ * marker contract and its producer live together here.
+ * @module dsh-shell/render
  */
+
+import type { SandboxMode } from '@deepseek-ai/dsh-sandbox'
+import { escalationHintMarker, sandboxDenialMarker } from '@deepseek-ai/dsh-sandbox'
+import type { CollectedOutput, ShellProcessRead, ShellSandboxInfo } from './types.ts'
 
 /**
  * The exit status recovered from a rendered result, with the output body that
@@ -15,9 +21,115 @@ export type ParsedExitStatus =
   & ({ exitCode: number } | { signal: string })
 
 /**
+ * The finished-run facts {@link renderShellResult} states, structurally wider
+ * than `ShellRunResult` so a tool's own canonical result value renders without
+ * a cast back to the executor DTO.
+ */
+export interface RenderableShellResult {
+  /** Exit code; null when the process died from a signal. */
+  exitCode: number | null
+  /** Terminating signal name; null on normal exit. */
+  signal: string | null
+  /** Whether the executor's own timeout cut the command short first. */
+  timedOut: boolean
+  /** The effective timeout applied to this run. */
+  timeoutMs: number
+  stdout: CollectedOutput
+  stderr: CollectedOutput
+  /** Sandbox execution facts, absent for an unsandboxed executor. */
+  sandbox?: ShellSandboxInfo
+}
+
+/** Append the truncation notice (with the full-output spill path) to a stream's text. */
+function streamText(output: CollectedOutput): string {
+  if (!output.truncated) return output.text
+  return `${output.text}\n[output truncated; full output: ${output.spillPath ?? '(unavailable)'}]`
+}
+
+/**
+ * Shape one finished run into the text the model sees: stdout, then a marked
+ * stderr section, then exit-status markers. Non-zero exits are reported, not
+ * errored — the model decides how to react; only infrastructure failures
+ * (spawn errors, aborts) surface as isError results.
+ * @param result - the completed foreground run from the executor.
+ * @param escalationModes - the escalation targets this composition advertises;
+ *   non-empty adds the same-turn escalation hint after a denial marker
+ *   (default `[]`: no hint).
+ * @returns the model-facing text: output body (or `(no output)`), then any timeout/signal/exit markers, each on its own line.
+ */
+export function renderShellResult(
+  result: RenderableShellResult,
+  escalationModes: readonly SandboxMode[] = [],
+): string {
+  const out = streamText(result.stdout)
+  const err = streamText(result.stderr)
+
+  let body = out
+  if (err.length > 0) {
+    // Single newline between sections (stdout usually ends with one already).
+    if (body.length > 0 && !body.endsWith('\n')) body += '\n'
+    body += `[stderr]\n${err}`
+  }
+  if (body.length === 0) body = '(no output)'
+
+  const markers: string[] = []
+  // Keep the exit marker last because parseExitStatus anchors there.
+  if (result.sandbox?.denied) {
+    markers.push(sandboxDenialMarker(result.sandbox.mode))
+    // Hint only when the composition exposes escalation, before the final exit marker.
+    if (escalationModes.length > 0) {
+      markers.push(escalationHintMarker('command'))
+    }
+  }
+  // A command may trap the termination and exit 0 after timeout; still report interruption.
+  if (result.timedOut) markers.push(`[timed out after ${result.timeoutMs}ms]`)
+  if (result.signal !== null) {
+    markers.push(`[killed by signal: ${result.signal}]`)
+  } else if (result.exitCode !== 0) {
+    markers.push(`[exit code: ${result.exitCode}]`)
+  }
+  if (markers.length === 0) return body
+
+  if (!body.endsWith('\n')) body += '\n'
+  return body + markers.join('\n')
+}
+
+/**
+ * Shape one background-process read into the `job_output` delta the model
+ * sees: the incremental delta, plus the lossy-read notice (with full-stream
+ * spill paths) when in-memory truncation dropped unread bytes. Empty-delta
+ * rendering (`(no new output)`) is the generic job controller's job.
+ * @param read - one incremental read from the process handle.
+ * @param sandbox - settled sandbox facts, when this was a confined process.
+ * @param escalationModes - escalation targets advertised by this composition.
+ * @returns the delta text with any loss or sandbox notice appended.
+ */
+export function renderShellProcessRead(
+  read: ShellProcessRead,
+  sandbox?: ShellSandboxInfo,
+  escalationModes: readonly SandboxMode[] = [],
+): string {
+  const notices: string[] = []
+  if (read.lossy) {
+    const paths = [read.stdoutSpillPath, read.stderrSpillPath].filter((path): path is string => path !== undefined)
+    notices.push(`[some output was dropped from memory; full output: ${paths.length > 0 ? paths.join(', ') : '(unavailable)'}]`)
+  }
+  if (sandbox?.runnerFailed) {
+    notices.push(`[sandbox: the sandbox runner itself failed under ${sandbox.mode} mode — the command did not run; this is a sandbox problem, not a command failure]`)
+  } else if (sandbox?.denied) {
+    notices.push(sandboxDenialMarker(sandbox.mode))
+    if (escalationModes.length > 0) {
+      notices.push(escalationHintMarker('command'))
+    }
+  }
+  if (notices.length === 0) return read.delta
+  return `${read.delta}${read.delta.length > 0 && !read.delta.endsWith('\n') ? '\n' : ''}${notices.join('\n')}`
+}
+
+/**
  * Split a rendered shell-tool result string into its output body and the
  * structured exit status — the inverse of the `[exit code: N]` /
- * `[killed by signal: X]` markers the shell tools' renderers append. A killed
+ * `[killed by signal: X]` markers {@link renderShellResult} appends. A killed
  * marker yields `signal`; otherwise a non-zero marker yields `exitCode`;
  * absent both means a clean exit 0.
  *

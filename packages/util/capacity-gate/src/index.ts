@@ -128,10 +128,11 @@ export class CapacityGate {
   private enqueue(signal: AbortSignal | undefined): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       let settled = false
+      let detach: (() => void) | undefined
       const leave = (): boolean => {
         if (settled) return false
         settled = true
-        signal?.removeEventListener('abort', onAbort)
+        detach?.()
         return true
       }
       const waiter: CapacityWaiter = {
@@ -145,15 +146,19 @@ export class CapacityGate {
           reject(error)
         },
       }
-      const onAbort = (): void => {
-        const index = this.waiters.indexOf(waiter)
-        // A granted waiter already left the queue and owns its slot; the
-        // post-grant abort check hands that slot on.
-        if (index < 0) return
-        this.waiters.splice(index, 1)
-        waiter.fail(signal?.reason instanceof Error ? signal?.reason : new Error(String(signal?.reason)))
+      if (signal !== undefined) {
+        const owned = signal
+        const onAbort = (): void => {
+          const index = this.waiters.indexOf(waiter)
+          // A granted waiter already left the queue and owns its slot; the
+          // post-grant abort check hands that slot on.
+          if (index < 0) return
+          this.waiters.splice(index, 1)
+          waiter.fail(owned.reason instanceof Error ? owned.reason : new Error(String(owned.reason)))
+        }
+        owned.addEventListener('abort', onAbort, { once: true })
+        detach = (): void => { owned.removeEventListener('abort', onAbort) }
       }
-      signal?.addEventListener('abort', onAbort, { once: true })
       this.waiters.push(waiter)
     })
   }

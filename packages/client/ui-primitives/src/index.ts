@@ -2,10 +2,19 @@
  * Cordis-free React primitives styled only through `--dsw-*` tokens.
  */
 
+export type { IconProps } from './icons/props.ts'
 export { StateDot } from './StateDot.tsx'
 export type { StateDotState } from './StateDot.tsx'
 export { DisclosureRow } from './DisclosureRow.tsx'
 export type { DisclosureRowProps } from './DisclosureRow.tsx'
+export { FlowRow } from './FlowRow.tsx'
+export { RowSeparator } from './RowSeparator.tsx'
+export { RowSummary } from './RowSummary.tsx'
+export type { RowSummaryTone } from './RowSummary.tsx'
+export { InspectPill } from './InspectPill.tsx'
+export { ResultText } from './ResultText.tsx'
+export { GlyphButton } from './GlyphButton.tsx'
+export type { GlyphButtonSurface } from './GlyphButton.tsx'
 export { Button } from './Button.tsx'
 export type { ButtonVariant } from './Button.tsx'
 export { Pill } from './Pill.tsx'
@@ -60,4 +69,4 @@ export type { MarkdownCodeLabels, MarkdownFileMentions, MarkdownLabels } from '.
 export { MessageText } from './markdown/MessageText.tsx'
 export { extractMarkdownPlainText } from './markdown/plain-text.ts'
 export type { MarkdownPlainTextMode, MarkdownPlainTextOptions } from './markdown/plain-text.ts'
-export * from './icons/index.tsx'
+export { IconAgentPresetOutline16, IconApiOutline14, IconArchiveOutline20, IconBranchOutline16, IconBrowseOutline16, IconCheckOutline14, IconCheckOutline16, IconChecklistOutline14, IconChevronDownOutline14, IconChevronLeftOutline14, IconChevronRightOutline14, IconChevronUpOutline14, IconCloseFill14, IconCloseOutline16, IconCodeOutline16, IconContextInjectionOutline16, IconCopyOutline16, IconCordisPluginOutline14, IconDarkOutline16, IconDataOutline16, IconDislikeFill16, IconDislikeOutline16, IconDownloadOutline16, IconEditOutline16, IconEllipsisOutline16, IconEnhanceOutline16, IconFolderClose16, IconFolderOpen16, IconFolderOpenOutline16, IconFollowsystemOutline16, IconFullscreenOutline16, IconGlobeOutline14, IconGoalOutline16, IconInspectOutline12, IconLightOutline16, IconLikeFill16, IconLikeOutline16, IconLinkOutline14, IconLinkOutline16, IconListPenOutline16, IconLoadingOutline16, IconNewChatOutline16, IconPanelLeftOutline16, IconPaperclipOutline16, IconPauseOutline16, IconPersonalizationOutline16, IconPlayOutline16, IconPlusOutline16, IconProjectAddOutline16, IconQuestionOutline14, IconQueueOutline14, IconRefreshOutline14, IconRefreshOutline16, IconRightUpOutline14, IconRightUpOutline16, IconSearchOutline16, IconSendOutline14, IconSendOutline16, IconSettingsOutline14, IconSettingsOutline16, IconShareOutline16, IconSkillOutline16, IconSparkle16, IconStopFill16, IconThinkOutline14, IconThinkOutline16, IconTrashOutline16, IconTreeCorner8x10, IconTriangleRightFill14, IconUserOutline16, IconWarningOutline16 } from './icons/index.tsx'

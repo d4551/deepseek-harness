@@ -11,6 +11,12 @@ import { describe, expect, it } from 'vitest'
 const read = (name: string): string =>
   readFileSync(fileURLToPath(new URL(`../src/client/chat/${name}`, import.meta.url)), 'utf8')
 
+// The row summary text and the action-button box are ui-primitives', shared
+// with every other flow row and action row; the axis they follow is the one
+// this package's own rows follow, so it is asserted from here too.
+const readPrimitive = (name: string): string =>
+  readFileSync(fileURLToPath(new URL(`../../ui-primitives/src/${name}`, import.meta.url)), 'utf8')
+
 function declarationsFrom(source: string, selector: string): string[] {
   const declarationText = source.replace(/\/\*[\s\S]*?\*\//g, ' ')
   const rule = new RegExp(`(?:^|\\})\\s*${selector.replace(/[.[\]():*+^$\\]/g, '\\$&')}\\s*\\{([^{}]*)\\}`).exec(declarationText)
@@ -30,17 +36,16 @@ describe('chat flow font-size axis', () => {
   })
 
   it('command and context summaries read the secondary tier on the shared row line', () => {
-    expect(declarationsFrom(read('GenericCommandCard.module.css'), '.summary')).toEqual(expect.arrayContaining([
+    // Both rows put RowSummary in the summary slot, so the tier is asserted on
+    // that sheet; the context row's producer name is its own and sits beside it.
+    expect(declarationsFrom(readPrimitive('RowSummary.module.css'), '.summary')).toEqual(expect.arrayContaining([
       'font-size: var(--dsh-content-font-size-secondary, 13px)',
       'line-height: calc(24px + var(--dsh-content-font-delta, 0px))',
     ]))
-    const context = read('ContextInjectionRow.module.css')
-    for (const selector of ['.source', '.summary']) {
-      expect(declarationsFrom(context, selector)).toEqual(expect.arrayContaining([
-        'font-size: var(--dsh-content-font-size-secondary, 13px)',
-        'line-height: calc(24px + var(--dsh-content-font-delta, 0px))',
-      ]))
-    }
+    expect(declarationsFrom(read('ContextInjectionRow.module.css'), '.source')).toEqual(expect.arrayContaining([
+      'font-size: var(--dsh-content-font-size-secondary, 13px)',
+      'line-height: calc(24px + var(--dsh-content-font-delta, 0px))',
+    ]))
   })
 
   it('the message clock and action glyphs scale with the text they serve', () => {
@@ -50,7 +55,14 @@ describe('chat flow font-size axis', () => {
         'font-size: var(--dsh-content-font-size, 14px)',
       ]))
     }
-    expect(declarationsFrom(actions, '.action svg')).toEqual(expect.arrayContaining([
+    // The buttons beside that clock are GlyphButton's `message` surface, whose
+    // box and glyph edge ride the same delta.
+    const glyph = readPrimitive('GlyphButton.module.css')
+    expect(declarationsFrom(glyph, '.message')).toEqual(expect.arrayContaining([
+      'width: calc(28px + var(--dsh-content-font-delta, 0px))',
+      'height: calc(28px + var(--dsh-content-font-delta, 0px))',
+    ]))
+    expect(declarationsFrom(glyph, '.message svg')).toEqual(expect.arrayContaining([
       'width: calc(16px + var(--dsh-content-font-delta, 0px))',
       'height: calc(16px + var(--dsh-content-font-delta, 0px))',
     ]))
@@ -58,12 +70,17 @@ describe('chat flow font-size axis', () => {
 
   it('compaction rows follow the axis like the disclosure rows they mirror', () => {
     const css = read('MessageItem.module.css')
-    for (const selector of ['.compactionTitle', '.compactionSummary', '.compactionBody']) {
+    for (const selector of ['.compactionTitle', '.compactionBody']) {
       expect(declarationsFrom(css, selector)).toEqual(expect.arrayContaining([
         'font-size: var(--dsh-content-font-size-secondary, 13px)',
         'line-height: calc(24px + var(--dsh-content-font-delta, 0px))',
       ]))
     }
+    // The marker's summary slot is RowSummary, on the same tier.
+    expect(declarationsFrom(readPrimitive('RowSummary.module.css'), '.summary')).toEqual(expect.arrayContaining([
+      'font-size: var(--dsh-content-font-size-secondary, 13px)',
+      'line-height: calc(24px + var(--dsh-content-font-delta, 0px))',
+    ]))
     expect(declarationsFrom(css, '.compactionLeading svg')).toEqual(expect.arrayContaining([
       'width: calc(14px + var(--dsh-content-font-delta, 0px))',
       'height: calc(14px + var(--dsh-content-font-delta, 0px))',

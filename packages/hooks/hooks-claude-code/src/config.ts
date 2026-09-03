@@ -1,12 +1,16 @@
 /**
- * Parse Claude Code's event-to-matcher-group hook format into shared {@link MatcherGroup}s.
- * Only command hooks run; other hook types are returned as skipped so the
- * bridge can warn. Plugin-root and project-directory substitutions are applied
- * to commands at parse time.
+ * Claude Code's contribution to the shared hook-config parse: the events this
+ * bridge supports, the literal-or-regex matcher mode, and the entry conversion
+ * for a `{ type, command, timeout }` hook. Only command hooks run; other hook
+ * types are recorded as skipped so the bridge can warn. Plugin-root and
+ * project-directory substitutions are applied to commands at parse time. The
+ * group skeleton, matcher validation, and the rule that UserPromptSubmit and
+ * Stop carry no matcher subject live in `dsh-hook-protocol`.
  * @module @deepseek-ai/dsh-hooks-claude-code/config
  */
 
-import { matcherDiagnostic, type MatcherGroup } from '@deepseek-ai/dsh-hook-protocol'
+import { parseHookGroups } from '@deepseek-ai/dsh-hook-protocol'
+import type { ParsedHookGroups } from '@deepseek-ai/dsh-hook-protocol'
 
 const CLAUDE_EVENTS = [
   'SessionStart',
@@ -18,19 +22,12 @@ const CLAUDE_EVENTS = [
   'SubagentStop',
 ] as const
 
-/** A parsed CC config: event name → its matcher groups (command hooks only). */
-export type ClaudeCodeHookConfig = Record<string, MatcherGroup[]>
-
 /** A skipped non-command hook, surfaced so the bridge can warn about it. */
 export interface SkippedHook {
+  /** The event the skipped hook was configured under. */
   event: string
+  /** The unsupported `type` value that skipped it. */
   type: string
-}
-
-/** The outcome of parsing one config file: the runnable groups + what was skipped. */
-export interface ParsedClaudeConfig {
-  config: ClaudeCodeHookConfig
-  skipped: SkippedHook[]
 }
 
 /** Substitution variables applied to each `command` string at parse time. */
@@ -39,13 +36,6 @@ export interface SubstitutionVars {
   pluginRoot?: string
   /** Replaces `${CLAUDE_PROJECT_DIR}` — the project root. */
   projectDir?: string
-}
-
-/** A plain (non-null, non-array) object, else undefined. */
-function asObject(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined
 }
 
 /**
@@ -62,62 +52,32 @@ export function substituteCommand(command: string, vars: SubstitutionVars): stri
 }
 
 /**
- * Parse either a settings `hooks` value or a bare `hooks.json` event map. Malformed entries are
- * ignored rather than failing boot; unsupported events are ignored before their groups are parsed,
- * non-command hooks are returned in `skipped`, and substitutions are applied to every surviving
- * command. Matcher fields on UserPromptSubmit and Stop are discarded because those events have no
- * matcher subject. A matcher-bearing supported runnable group with an invalid regex throws a
- * `SyntaxError`, allowing the bridge to reject the complete config before listener registration.
- *
- * @param raw - the parsed JSON config: a settings object with a `hooks` key, or the bare
- *   event map.
- * @param vars - substitution values applied to every surviving `command` (defaults to
- *   none).
+ * Parse either a settings `hooks` value or a bare `hooks.json` event map.
+ * Malformed entries are ignored rather than failing boot; unsupported events
+ * are ignored before their groups are parsed, non-command hooks are returned in
+ * `skipped`, and substitutions are applied to every surviving command. A
+ * matcher-bearing supported runnable group with an invalid regex throws a
+ * `SyntaxError`, allowing the bridge to reject the complete config before
+ * listener registration.
+ * @param raw - the parsed JSON config: a settings object with a `hooks` key, or the bare event map.
+ * @param vars - substitution values applied to every surviving `command` (defaults to none).
  * @returns the runnable per-event groups plus the skipped non-command hooks.
  */
-export function parseClaudeCodeConfig(raw: unknown, vars: SubstitutionVars = {}): ParsedClaudeConfig {
-  const config: ClaudeCodeHookConfig = {}
-  const skipped: SkippedHook[] = []
-  // Accept either `{ hooks: { … } }` (a settings file) or the bare event map.
-  const root = asObject(raw)
-  const hooksMap = root ? asObject(root.hooks) ?? root : undefined
-  if (!hooksMap) return { config, skipped }
-
-  for (const event of CLAUDE_EVENTS) {
-    const rawGroups = hooksMap[event]
-    if (!Array.isArray(rawGroups)) continue
-    const groups: MatcherGroup[] = []
-    for (const rawGroup of rawGroups) {
-      const group = asObject(rawGroup)
-      if (!group || !Array.isArray(group.hooks)) continue
-      const commands: MatcherGroup['hooks'] = []
-      for (const rawHook of group.hooks) {
-        const hook = asObject(rawHook)
-        if (!hook) continue
-        const type = typeof hook.type === 'string' ? hook.type : 'command'
-        if (type !== 'command') {
-          skipped.push({ event, type })
-          continue
-        }
-        if (typeof hook.command !== 'string') continue
-        commands.push({
-          command: substituteCommand(hook.command, vars),
-          ...typeof hook.timeout === 'number' ? { timeoutSec: hook.timeout } : {},
-        })
+export function parseClaudeCodeConfig(raw: unknown, vars: SubstitutionVars = {}): ParsedHookGroups<SkippedHook> {
+  return parseHookGroups<SkippedHook>(raw, {
+    events: CLAUDE_EVENTS,
+    mode: 'claude-code',
+    hook: (hook, event, skip) => {
+      const type = typeof hook.type === 'string' ? hook.type : 'command'
+      if (type !== 'command') {
+        skip({ event, type })
+        return undefined
       }
-      if (commands.length === 0) continue
-      const matcher = event === 'UserPromptSubmit' || event === 'Stop'
-        ? undefined
-        : typeof group.matcher === 'string' ? group.matcher : undefined
-      const diagnostic = matcherDiagnostic(matcher, 'claude-code')
-      if (diagnostic !== undefined) throw new SyntaxError(`${diagnostic} on event ${JSON.stringify(event)}`)
-      groups.push({
-        ...matcher !== undefined ? { matcher } : {},
-        hooks: commands,
-      })
-    }
-    if (groups.length > 0) config[event] = groups
-  }
-
-  return { config, skipped }
+      if (typeof hook.command !== 'string') return undefined
+      return {
+        command: substituteCommand(hook.command, vars),
+        ...typeof hook.timeout === 'number' ? { timeoutSec: hook.timeout } : {},
+      }
+    },
+  })
 }

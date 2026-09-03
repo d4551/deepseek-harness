@@ -6,7 +6,7 @@
 
 import { createReadStream } from 'node:fs'
 import { stat } from 'node:fs/promises'
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { FileSystem, FsInfo, FsTarget, FsVersion } from '@deepseek-ai/dsh-fs'
 import { assertNever } from '@deepseek-ai/dsh-llm'
 import { dshHomeDisplay } from '@deepseek-ai/dsh-home-paths'
@@ -247,18 +247,67 @@ export function ancestorChain(root: string, cwd: string): string[] {
 }
 
 /**
- * Find descendant directories crossed between a cwd and a touched file.
- * @param root - session cwd that bounds nested discovery.
+ * Path segments leading from `root` down to `target`, or `undefined` when
+ * `target` lies outside `root`. `..` escapes the root only as a whole segment,
+ * so `..foo` and `...bar` stay the ordinary sibling names they are on disk; an
+ * absolute result means the two paths share no root at all, which win32 reports
+ * across drive letters.
+ */
+function segmentsWithin(root: string, target: string): string[] | undefined {
+  const within = relative(root, target)
+  const segments = within.split(sep).filter(segment => segment.length > 0)
+  return isAbsolute(within) || segments.includes('..') ? undefined : segments
+}
+
+/**
+ * Find descendant directories crossed between a workspace root and a touched file.
+ * @param root - workspace root that bounds nested discovery.
  * @param touchedPath - absolute path or path relative to `root`.
- * @returns descendant directories from shallowest through the touched file's parent.
+ * @returns descendant directories from shallowest through the touched file's parent,
+ *   empty when the file sits in `root` itself or outside it.
  */
 export function descendantDirsBetween(root: string, touchedPath: string): string[] {
   const resolvedRoot = resolve(root)
   const targetPath = isAbsolute(touchedPath) ? resolve(touchedPath) : resolve(resolvedRoot, touchedPath)
   const targetDir = dirname(targetPath)
-  const rel = relative(resolvedRoot, targetDir)
-  if (rel.length === 0 || rel.startsWith('..') || isAbsolute(rel)) return []
+  const within = segmentsWithin(resolvedRoot, targetDir)
+  if (within === undefined || within.length === 0) return []
   return ancestorChain(resolvedRoot, targetDir).slice(1)
+}
+
+/**
+ * Route one touched path to the workspace root that owns it. A multi-root
+ * session records several checkouts, and each one's instruction chain is keyed
+ * against its own root: judging a touch against the primary root alone would
+ * place every file in another checkout outside the workspace. The deepest
+ * containing root wins, so a root recorded inside another still owns its files.
+ *
+ * A relative path resolves against the primary root, the base the model's
+ * relative paths are written against, and an absolute path under no recorded
+ * root falls back to the primary root, where {@link descendantDirsBetween}
+ * reports it as outside the workspace.
+ * @param primaryRoot - the session working directory.
+ * @param additionalRoots - the session's additional workspace roots, resolved.
+ * @param touchedPath - the path a successful filesystem call reached.
+ * @returns the workspace root this touch's instruction scopes are keyed against.
+ */
+export function touchedWorkspaceRoot(
+  primaryRoot: string,
+  additionalRoots: readonly string[],
+  touchedPath: string,
+): string {
+  if (!isAbsolute(touchedPath)) return primaryRoot
+  const target = resolve(touchedPath)
+  let deepest = primaryRoot
+  let depth = segmentsWithin(primaryRoot, target)?.length ?? Number.POSITIVE_INFINITY
+  for (const root of additionalRoots) {
+    const within = segmentsWithin(root, target)
+    if (within !== undefined && within.length < depth) {
+      deepest = root
+      depth = within.length
+    }
+  }
+  return deepest
 }
 
 /**
@@ -273,7 +322,7 @@ export function relativeDisplay(root: string, path: string): string {
 
 async function allExistingInstructionFiles(
   dir: string,
-  root: string,
+  display: (absolutePath: string) => string,
   instructionFileCandidates: readonly string[],
   fileSystem?: FileSystem,
   signal?: AbortSignal,
@@ -284,7 +333,7 @@ async function allExistingInstructionFiles(
     const probe = await statFile(path, fileSystem, signal)
     switch (probe.kind) {
       case 'present':
-        found.push({ absolutePath: path, displayPath: relativeDisplay(root, path), ...probe.info })
+        found.push({ absolutePath: path, displayPath: display(path), ...probe.info })
         continue
       // A missing candidate is skipped; a transient provider failure skips only
       // that candidate so the remaining independent candidates still load.
@@ -333,29 +382,47 @@ async function discoverInstructionFiles(
   const cwd = resolve(options.cwd)
   const projectRoot = options.projectRoot
     ?? await findProjectRoot(cwd, config.projectRootMarkers, fileSystem, options.signal)
+  const projectDisplay = (path: string): string => relativeDisplay(projectRoot, path)
   for (const dir of ancestorChain(projectRoot, cwd)) {
     for (const candidates of [config.instructionFileCandidates, config.localInstructionFileCandidates]) {
-      for (const file of await allExistingInstructionFiles(dir, projectRoot, candidates, fileSystem, options.signal)) {
+      for (const file of await allExistingInstructionFiles(dir, projectDisplay, candidates, fileSystem, options.signal)) {
         addFile(file)
       }
     }
   }
-  // Each additional root discovers its OWN project root: a second checkout is
-  // its own project, and its markers decide where its chain stops. Their files
-  // display absolute, because a path relative to the primary project root
-  // would collide with a same-named file in another root.
+  // Additional-root files display absolute, because a path relative to the
+  // primary project root would collide with a same-named file in another root.
   for (const additionalRoot of options.additionalRoots ?? []) {
-    const rootCwd = resolve(additionalRoot)
-    const rootProject = await findProjectRoot(rootCwd, config.projectRootMarkers, fileSystem, options.signal)
-    for (const dir of ancestorChain(rootProject, rootCwd)) {
+    for (const dir of await workspaceRootChain(additionalRoot, config.projectRootMarkers, fileSystem, options.signal)) {
       for (const candidates of [config.instructionFileCandidates, config.localInstructionFileCandidates]) {
-        for (const file of await allExistingInstructionFiles(dir, rootProject, candidates, fileSystem, options.signal)) {
-          addFile({ ...file, displayPath: file.absolutePath })
+        for (const file of await allExistingInstructionFiles(dir, path => path, candidates, fileSystem, options.signal)) {
+          addFile(file)
         }
       }
     }
   }
   return files
+}
+
+/**
+ * The directory chain one additional workspace root contributes. Each additional
+ * root discovers its OWN project root: a second checkout is its own project, and
+ * its markers decide where its chain stops, so a root nested inside a larger
+ * checkout stops at its own marker rather than at the enclosing one.
+ * @param root - the recorded additional workspace root.
+ * @param markers - child names that identify a project root.
+ * @param fileSystem - optional provider used instead of host filesystem probes.
+ * @param signal - cancellation for provider and host probes.
+ * @returns directories from that root's project root down to the root itself.
+ */
+export async function workspaceRootChain(
+  root: string,
+  markers: readonly string[],
+  fileSystem?: FileSystem,
+  signal?: AbortSignal,
+): Promise<string[]> {
+  const rootCwd = resolve(root)
+  return ancestorChain(await findProjectRoot(rootCwd, markers, fileSystem, signal), rootCwd)
 }
 
 /**
@@ -505,6 +572,10 @@ export async function loadBaselineInstructionSet(
 
 /**
  * Probe the current provider metadata for one per-candidate instruction scope.
+ * A directory scope is either project-root-relative, which the primary chain
+ * produces, or absolute, which an additional workspace root produces; joining an
+ * absolute directory onto the project root would address a path that exists in
+ * neither root and report the file as removed.
  * @param scope - a {@link candidateScopeKey} identifying a directory and candidate file.
  * @param projectRoot - project root used to resolve and display project scopes.
  * @param resolved - normalized plugin configuration.
@@ -520,9 +591,10 @@ export async function probeScopeInstruction(
   signal?: AbortSignal,
 ): Promise<ScopeInstructionProbe> {
   const { directory, candidateName } = decodeScopeKey(scope)
+  const additionalRootScope = directory !== USER_GLOBAL_DIRECTORY && isAbsolute(directory)
   const dir = directory === USER_GLOBAL_DIRECTORY
     ? resolved.dshHome
-    : directory === '.' ? projectRoot : join(projectRoot, directory)
+    : additionalRootScope ? directory : directory === '.' ? projectRoot : join(projectRoot, directory)
   const absolutePath = join(dir, candidateName)
   // resolve() follows a final-component symlink; stat then classifies the target.
   // A non-file target (missing, or a link to a directory) is a confirmed absence;
@@ -539,7 +611,9 @@ export async function probeScopeInstruction(
   if (info?.type !== 'file') return { kind: 'absent' }
   const file: ProbedInstructionFile = {
     absolutePath,
-    displayPath: directory === USER_GLOBAL_DIRECTORY ? userGlobalDisplayPath(resolved.dshHome) : relativeDisplay(projectRoot, absolutePath),
+    displayPath: directory === USER_GLOBAL_DIRECTORY
+      ? userGlobalDisplayPath(resolved.dshHome)
+      : additionalRootScope ? absolutePath : relativeDisplay(projectRoot, absolutePath),
     target,
     version: info.version,
     ...info.size === undefined ? {} : { size: info.size },

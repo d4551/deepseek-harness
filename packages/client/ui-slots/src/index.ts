@@ -19,8 +19,9 @@ import type {
 } from '@deepseek-ai/dsh-client-store'
 import type { HostObservable } from './renderer.ts'
 
-export * from './store.ts'
-export * from './renderer.ts'
+export type { ActionsDecl, BakedActions, BoundActions, DefineStore, HandleOf, MaybeSnapshotSelectorHook, PropsStore, SnapshotSelectorHook, StoreDecl, StoreFactory, StoreHandle, StoreInstance, StoreSpec } from '@deepseek-ai/dsh-client-store'
+export { SlotOwnershipError, StaleAuthorizationError, standardHookPropName } from './renderer.ts'
+export type { HostObservable, KeyedStandardSource, LocaleFace, RootStandardSourceContribution, ScopedStandardSourceBinding, SlotRenderer, SlotRendererHost, SlotScopeAdapter, StandardSourceBinding, StoreInstanceLike } from './renderer.ts'
 
 /** Slot contract table. Owners extend via declaration merging; entries are {@link SlotEntryDef}. */
 export interface SlotMap {}
@@ -465,6 +466,35 @@ export type InjectParams<K extends keyof SlotMap & string, H> =
       : ([H] extends [StoreDecl] ? [actions: BoundActions<HandleOf<H>>] : [])
 
 /**
+ * Composed props with an empty business face: everything the framework itself
+ * supplies to an entry, before any {@link InjectSeat} factory contributes.
+ */
+type FrameworkProps<
+  K extends keyof SlotMap & string,
+  EntryKey extends EntryKeyOf<K>,
+  D extends ChildrenDecl,
+  H,
+  M,
+  N,
+> = ComposedProps<K, EntryKey, keyof D & keyof SlotMap & string, HandleOf<H>, object, M, N>
+
+/**
+ * The `inject` seat of register options, resolved from the component `C`:
+ * while the framework shares alone satisfy the component's props the factory
+ * stays optional, and the first member they do not cover makes it mandatory
+ * with its return pinned to the component's business face `I`. A component
+ * therefore cannot name a share nothing supplies — the demand lands on the
+ * options as a missing `inject`. Factory parameters derive from the
+ * declaration ({@link InjectParams}).
+ */
+type InjectSeat<C, Framework, K extends keyof SlotMap & string, H, I> =
+  [C] extends [(props: infer P) => ReactNode]
+    ? ([Framework] extends [P]
+      ? { inject?: (...args: InjectParams<K, H>) => I }
+      : { inject: (...args: InjectParams<K, H>) => I })
+    : { inject?: (...args: InjectParams<K, H>) => I }
+
+/**
  * A list-entry display label: a plain string, or a thunk re-evaluated per
  * read so registration-time text (nav rows, tabs) follows the active locale
  * without re-registration. Owners resolve through {@link resolveSlotLabel}.
@@ -725,6 +755,10 @@ export class SlotCore {
    * declared child slot (child entries clear recursively; their stale
    * disposers become no-ops) — one lifecycle axis, no dangling state.
    *
+   * Inject share: the component names the business face it consumes (`I`),
+   * and {@link InjectSeat} turns that demand into the options requirement —
+   * omitting the factory is legal only for a component that demands nothing.
+   *
    * @param options - registration options: target `name`, `children`
    * declaration table, `store` seat, `inject` business-face factory, kind
    * shape fields (keyed `key`; list `id`/`order`/`label`).
@@ -733,9 +767,6 @@ export class SlotCore {
    * @returns disposer removing the registration and its declarations
    * (idempotent; stale disposers after a cascade are no-ops).
    */
-  /* jscpd:ignore-start -- the two register overloads are deliberately
-   * parallel declarations differing only in the inject share; folding them
-   * would lose the per-overload inference of I. */
   register<
     K extends keyof SlotMap & string,
     const EntryKey extends EntryKeyOf<K> = EntryKeyOf<K>,
@@ -743,37 +774,11 @@ export class SlotCore {
     H extends StoreDecl | undefined = undefined,
     M = never,
     N extends (keyof LocaleNamespaceMap & string) | undefined = undefined,
+    I extends object = object,
     C extends SlotComponent<never> = SlotComponent<never>,
   >(
-    options: BaseOptions<K, EntryKey, D, H, M, N> & { inject?: undefined },
-    component: C
-      & SlotComponent<ComposedProps<
-        K, NoInfer<EntryKey>, keyof NoInfer<D> & keyof SlotMap & string,
-        HandleOf<NoInfer<H>>, object, NoInfer<M>, NoInfer<N>
-      >>
-      & RendersCheck<C, D>,
-  ): () => void
-  /**
-   * Inject-bearing overload: identical semantics to the overload above, plus
-   * the registrant's business face — `I` is inferred from the inject
-   * factory's return and joins the component's composed-props constraint
-   * (factory parameters derive from the declaration, {@link InjectParams}).
-   * @param options - registration options plus the `inject` business-face factory.
-   * @param component - component honoring the four-share composed props
-   * contract including the inject share `I`.
-   * @returns disposer removing the registration and its declarations.
-   */
-  register<
-    K extends keyof SlotMap & string,
-    I extends object,
-    const EntryKey extends EntryKeyOf<K> = EntryKeyOf<K>,
-    const D extends ChildrenDecl = Record<never, never>,
-    H extends StoreDecl | undefined = undefined,
-    M = never,
-    N extends (keyof LocaleNamespaceMap & string) | undefined = undefined,
-    C extends SlotComponent<never> = SlotComponent<never>,
-  >(
-    options: BaseOptions<K, EntryKey, D, H, M, N> & { inject: (...args: InjectParams<K, H>) => I },
+    options: BaseOptions<K, EntryKey, D, H, M, N>
+      & InjectSeat<C, FrameworkProps<K, EntryKey, D, H, M, N>, K, H, I>,
     component: C
       & SlotComponent<ComposedProps<
         K, NoInfer<EntryKey>, keyof NoInfer<D> & keyof SlotMap & string,
@@ -781,7 +786,6 @@ export class SlotCore {
       >>
       & RendersCheck<C, D>,
   ): () => void
-  /* jscpd:ignore-end */
   register(options: ErasedOptions, component: unknown): () => void {
     const rec = this.records.get(options.name)
     if (!rec?.spec) {

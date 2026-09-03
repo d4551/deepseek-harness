@@ -11,13 +11,15 @@ The `dsh` command is the sole supported Node application launcher: profiles are 
 | `dsh --profile <name>` | Boot the named profile under `$DSH_HOME/profiles/<name>`. |
 | `dsh --profile acp` | Serve automation clients over ACP stdio until disconnect. |
 | `dsh --profile headless "job"` | Run one fresh persisted session, print the final answer, and exit. |
+| `dsh --profile swarm` | Run one headless task worked by a team of teammates off a shared board. |
+| `dsh --profile hosted` | Serve the web application over a network-drive workspace instead of the host filesystem. |
 | `dsh --profile sdk` | Serve SDK clients over JSON-RPC stdio until shutdown or disconnect. |
 | `dsh --profile sdk-minimal` | Serve SDK clients with the standalone minimal agent tree. |
 | `dsh web` | Alias of `--profile web`. |
 | `dsh init --profile <name>` | Write the profile's config files under `$DSH_HOME/profiles/<name>` without booting it. |
 | `dsh plugin --profile <name> <bun args>` | Manage a profile's plugins by forwarding to bun in the profile directory. |
 
-The invoking directory is the default workspace root. The `web`, `headless`, `sdk`, `sdk-minimal`, and `acp` profiles auto-initialize on first use from shipped templates; `dsh init --profile <name>` creates any other, as does `dsh plugin` on first use. A boot that names a profile no directory backs lists the names this home can boot and the `dsh init` command that creates the missing one, rather than generating an empty tree a misspelled name would silently boot.
+The invoking directory is the default workspace root. Every shipped template — `web`, `headless`, `swarm`, `hosted`, `sdk`, `sdk-minimal`, and `acp` — auto-initializes on first use; `dsh init --profile <name>` creates any other, as does `dsh plugin` on first use. A boot that names a profile no directory backs lists the names this home can boot and the `dsh init` command that creates the missing one, rather than generating an empty tree a misspelled name would silently boot.
 
 ## App arguments
 
@@ -41,7 +43,7 @@ The tree composes over an empty root:
 - then the profile's `cordis.patch.yml`, then the home-level `$DSH_HOME/cordis.patch.yml`
 - then `--patch` overlays
 
-Bundles named in `dsh.profile.bundles` resolve from the dsh installation first (`@deepseek-ai/dsh-base`, `@deepseek-ai/dsh-web-app`, `@deepseek-ai/dsh-headless`, `@deepseek-ai/dsh-sdk-app`, `@deepseek-ai/dsh-sdk-minimal`, `@deepseek-ai/dsh-acp-app`), then from the profile's own `node_modules`, where bun installs out-of-tree plugins.
+Bundles named in `dsh.profile.bundles` resolve from the dsh installation first (`@deepseek-ai/dsh-base`, `@deepseek-ai/dsh-web-app`, `@deepseek-ai/dsh-headless`, `@deepseek-ai/dsh-sdk-app`, `@deepseek-ai/dsh-sdk-minimal`, `@deepseek-ai/dsh-acp-app`, `@deepseek-ai/dsh-swarm-profile`, `@deepseek-ai/dsh-hosted-drive`), then from the profile's own `node_modules`, where bun installs out-of-tree plugins.
 
 Use `--dump-default-config` and `--dump-config` to inspect the composed tree without booting it.
 

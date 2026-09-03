@@ -36,7 +36,6 @@ const repositoryRoot = fileURLToPath(new URL('../../../../../', import.meta.url)
 const BASELINE_EXEMPT: ReadonlyMap<string, string> = new Map([
   ['packages/client/ui-primitives/lib/index.js', 'imports .css, which bare Node cannot load'],
   ['packages/client/web/lib/index.js', 'imports .css, which bare Node cannot load'],
-  ['packages/subprocess/win32-process/lib/index.js', 'koffi type-name collision on a second load'],
   ['packages/test-support/client-runtime/lib/index.js', "needs vitest's internal state"],
 ])
 

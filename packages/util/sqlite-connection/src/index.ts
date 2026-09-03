@@ -1,13 +1,16 @@
 /**
- * The connection settings every Harness SQLite database holds: schema trust
- * and memory mapping off, commits fully synchronized, and a journal-mode
- * transition that waits out a competing writer. Each setting is applied and
- * then read back, so a SQLite build that ignores a pragma fails the open
- * instead of serving an unhardened connection. Statements are fixed constants
- * here; callers never supply pragma text for these settings.
+ * The open-time steps every Harness SQLite database takes: the owner-only file
+ * creation each backend performs before connecting, and the connection settings
+ * it then holds — schema trust and memory mapping off, commits fully
+ * synchronized, and a journal-mode transition that waits out a competing writer.
+ * Each setting is applied and then read back, so a SQLite build that ignores a
+ * pragma fails the open instead of serving an unhardened connection. Statements
+ * are fixed constants here; callers never supply pragma text for these settings.
  * @module @deepseek-ai/dsh-sqlite-connection
  */
 
+import { mkdir, open } from 'node:fs/promises'
+import { dirname, resolve } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { setTimeout as delay } from 'node:timers/promises'
 
@@ -32,6 +35,39 @@ const MMAP_OFF = 'PRAGMA mmap_size = 0;'
 const SELECT_MMAP_SIZE = 'PRAGMA mmap_size;'
 const SYNCHRONOUS_FULL = 'PRAGMA synchronous = FULL;'
 const SELECT_SYNCHRONOUS = 'PRAGMA synchronous;'
+
+/**
+ * Exclusively create a missing database file with owner-only permissions.
+ * Existing files retain their modes, and errors other than `EEXIST` propagate.
+ * `DatabaseSync` reopens by path, so this does not protect confidentiality or
+ * integrity when another principal can replace the database entry in its
+ * parent directory.
+ * @param path - the database file to create when absent.
+ * @returns settlement once the file exists.
+ */
+export async function createDatabaseFile(path: string): Promise<void> {
+  try {
+    const handle = await open(path, 'wx', 0o600)
+    await handle.close()
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+  }
+}
+
+/**
+ * Resolve one database path and give it an owner-only parent directory and
+ * file before any connection opens. `:memory:` names no filesystem entry and
+ * passes through untouched.
+ * @param path - the configured database path, or `:memory:`.
+ * @returns the absolute path to open, or `:memory:` unchanged.
+ */
+export async function prepareDatabasePath(path: string): Promise<string> {
+  if (path === ':memory:') return path
+  const actual = resolve(path)
+  await mkdir(dirname(actual), { recursive: true, mode: 0o700 })
+  await createDatabaseFile(actual)
+  return actual
+}
 
 /** The prepared-statement surface these helpers use. */
 export interface SqliteStatement {

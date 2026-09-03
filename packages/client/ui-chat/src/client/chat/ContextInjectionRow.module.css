@@ -13,31 +13,10 @@
   color: var(--dsw-alias-label-secondary);
 }
 
-/* Separator and producer name beside the role title: ToolRow's summary geometry,
-   so the two disclosure rows keep one 24px rhythm and one separator shape. */
-.sep {
-  flex: none;
-  width: 2px;
-  height: 2px;
-  margin: 0 8px;
-  border-radius: 1px;
-  background: var(--dsw-alias-label-caption);
-}
-
+/* Producer name beside the role title: RowSummary's geometry with a fixed
+   width share, so the two disclosure rows keep one 24px rhythm. */
 .source {
   flex: none;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* A notice's one-line account: the reason it rarely needs expanding. */
-.summary {
-  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   color: var(--dsw-alias-label-tertiary);

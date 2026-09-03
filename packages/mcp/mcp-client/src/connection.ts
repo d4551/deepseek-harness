@@ -18,7 +18,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js'
 import type { Context } from '@deepseek-ai/cordis'
-import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
+import { assertBackoffDelays } from '@deepseek-ai/dsh-timeout'
 import { createTransport } from './transport.ts'
 import { syncTools } from './tools.ts'
 import type { ToolBridgeOptions, ToolDisposers } from './tools.ts'
@@ -72,20 +72,10 @@ export function resolveReconnectPolicy(config: ReconnectConfig | undefined, path
   const initialDelayMs = config?.initialDelayMs ?? RECONNECT_DEFAULTS.initialDelayMs
   const maxDelayMs = config?.maxDelayMs ?? RECONNECT_DEFAULTS.maxDelayMs
   const maxAttempts = config?.maxAttempts ?? RECONNECT_DEFAULTS.maxAttempts
-  /* jscpd:ignore-start — domain-specific delay validation parallels llm retry-policy; not extractable */
-  if (!Number.isFinite(initialDelayMs) || initialDelayMs <= 0 || initialDelayMs > MAX_TIMER_DELAY_MS) {
-    throw new Error(`${path}.initialDelayMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`)
-  }
-  if (!Number.isFinite(maxDelayMs) || maxDelayMs <= 0 || maxDelayMs > MAX_TIMER_DELAY_MS) {
-    throw new Error(`${path}.maxDelayMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`)
-  }
-  if (initialDelayMs > maxDelayMs) {
-    throw new Error(`${path}.initialDelayMs must be less than or equal to maxDelayMs`)
-  }
+  assertBackoffDelays(initialDelayMs, maxDelayMs, path)
   if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
     throw new Error(`${path}.maxAttempts must be a positive integer`)
   }
-  /* jscpd:ignore-end */
   return Object.freeze({ enabled, initialDelayMs, maxDelayMs, maxAttempts })
 }
 

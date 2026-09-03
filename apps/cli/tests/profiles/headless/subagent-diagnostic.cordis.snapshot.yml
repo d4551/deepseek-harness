@@ -27,7 +27,7 @@
     workspaceContext: false
     skills:
       enabled: false
-    toolBash: false
+    toolShell: false
     toolJobs: false
     goals: false
 

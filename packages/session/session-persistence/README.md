@@ -80,6 +80,7 @@ The package is the Service Definition of a capability seam with two halves. The 
 |---|---|
 | [`src/index.ts`](src/index.ts) | Plugin entry: the abstract `SessionPersistence` service and re-exported metadata types |
 | [`src/coordinator.ts`](src/coordinator.ts) | Shared write orchestration: batching, serialization, repair, adoption, disposal, format refusal |
+| [`src/coordinated.ts`](src/coordinated.ts) | `./coordinated`: the `CoordinatedSessionPersistence` base whose service API forwards to the coordinator |
 | [`src/write-behind.ts`](src/write-behind.ts) | The per-session bounded write controller and flush barrier |
 | [`src/preparations.ts`](src/preparations.ts) | Bounded retention of unpublished Session preparations for resume reuse |
 | [`src/revision.ts`](src/revision.ts) | The branded opaque revision token |

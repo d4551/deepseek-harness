@@ -31,6 +31,23 @@ function assertTimerDelay(timeoutMs: number, name: string): void {
 }
 
 /**
+ * Validate one resolved retry backoff's delay pair: both delays must be
+ * schedulable timer delays and the first must not exceed the ceiling the
+ * backoff grows toward.
+ * @param initialDelayMs - the delay before the first retry.
+ * @param maxDelayMs - the ceiling later attempts back off to.
+ * @param path - diagnostic prefix naming the configuration that owns the pair.
+ * @throws when either delay is unschedulable or the pair is inverted.
+ */
+export function assertBackoffDelays(initialDelayMs: number, maxDelayMs: number, path: string): void {
+  assertTimerDelay(initialDelayMs, `${path}.initialDelayMs`)
+  assertTimerDelay(maxDelayMs, `${path}.maxDelayMs`)
+  if (initialDelayMs > maxDelayMs) {
+    throw new Error(`${path}.initialDelayMs must be less than or equal to maxDelayMs`)
+  }
+}
+
+/**
  * Validate a caller's optional timeout hint, use the backend default, then cap
  * it. Supplied values must be positive and finite; zero is not a public
  * disable-timeout sentinel.

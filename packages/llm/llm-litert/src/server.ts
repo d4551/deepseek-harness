@@ -13,7 +13,7 @@
 
 import type { SubprocessHandle, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { deadline, timeoutOf } from '@deepseek-ai/dsh-timeout'
-import type { LitertModelConfig, ResolvedLitertServerConfig } from './config.ts'
+import type { LitertImport, ResolvedLitertServerConfig } from './config.ts'
 
 /** Timeout code carried by an elapsed `litert-lm` budget. */
 export const LITERT_TIMEOUT_CODE = 'LITERT_TIMEOUT'
@@ -52,8 +52,8 @@ export interface LitertServerSpec {
   readonly server: ResolvedLitertServerConfig
   /** The endpoint the route is registered against; the probe appends `/models`. */
   readonly baseURL: string
-  /** Models that must exist in the registry before the server starts. */
-  readonly models: readonly LitertModelConfig[]
+  /** Imports that must reach the registry before the server starts. */
+  readonly imports: readonly LitertImport[]
 }
 
 /** A settled `litert-lm` run: its exit facts and both retained output tails. */
@@ -181,7 +181,7 @@ export class LitertServer {
    */
   private async importMissingModels(signal: AbortSignal): Promise<void> {
     const present = await this.registryIds(signal)
-    for (const model of this.spec.models) {
+    for (const model of this.spec.imports) {
       if (present.has(model.id)) continue
       signal.throwIfAborted()
       await this.importModel(model, signal)
@@ -189,10 +189,13 @@ export class LitertServer {
   }
 
   /**
-   * Read the ids `litert-lm list` reports. The command prints one row per
-   * registered model with the id in the leading column; its header row cannot
-   * collide with a real id, because an id that matched it would only skip an
-   * import the server then fails on, loudly.
+   * Read the ids `litert-lm list` reports. The command prints a
+   * `Listing models in: <dir>` preamble, then a header row, then one row per
+   * registered model with the id in the leading column; taking every leading
+   * word therefore also admits `Listing` and `ID`. Neither is filtered out,
+   * because a model configured under either id would only skip an import the
+   * server then fails on, loudly. The listing is read from the retained stdout
+   * tail, which {@link ResolvedLitertServerConfig.maxStdoutBytes} sizes.
    */
   private async registryIds(signal: AbortSignal): Promise<ReadonlySet<string>> {
     const run = await this.run(['list'], this.spec.server.importTimeoutMs, signal)
@@ -210,7 +213,7 @@ export class LitertServer {
   }
 
   /** Import one model, naming the repository and the file the failure came from. */
-  private async importModel(model: LitertModelConfig, signal: AbortSignal): Promise<void> {
+  private async importModel(model: LitertImport, signal: AbortSignal): Promise<void> {
     const argv = [
       'import',
       ...model.huggingFaceRepo === undefined ? [] : ['--from-huggingface-repo', model.huggingFaceRepo],
@@ -323,10 +326,11 @@ export class LitertServer {
       cwd: server.cwd,
       stdio: {
         stdin: 'ignore',
-        // Both tails are bounded diagnostics: `list` is parsed from stdout and
-        // every failure quotes whichever tail carries the reason. No spill —
-        // the retained tail is what the failure message can hold.
-        stdout: { maxBytes: server.maxStderrBytes },
+        // The two bounds are not one knob: stdout carries the `list` output
+        // this class parses, so trimming stderr log volume must not shorten
+        // it. No spill — the retained tail is what a failure message can hold
+        // and what the parse can see.
+        stdout: { maxBytes: server.maxStdoutBytes },
         stderr: { maxBytes: server.maxStderrBytes },
       },
       graceMs: server.shutdownGraceMs,

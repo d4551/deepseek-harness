@@ -11,6 +11,7 @@ import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { UserMessage } from '@deepseek-ai/dsh-session'
+import { sessionWorkspaceRoots } from '@deepseek-ai/dsh-session/workspace-roots'
 import {
   escapeText,
   isModelInvocable,
@@ -19,6 +20,7 @@ import {
   renderSkillContent,
   type SkillInvocationSource,
   type SkillSummary,
+  type SkillViewOptions,
 } from '@deepseek-ai/dsh-skill'
 
 export const name = 'tool-skill'
@@ -44,6 +46,20 @@ declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
     'skill-catalog': SkillCatalogSource
   }
+}
+
+/**
+ * Registry read options for one agent. The catalog and the loader both address
+ * EVERY workspace root the session records, so a second checkout's skills are
+ * listed and loadable; the agent is its own scope key, so the lookup resolves
+ * the layered registry exactly as this agent's composition sees it.
+ * @param agent - the agent whose session roots and layers the lookup reads.
+ * @param signal - cancellation for provider discovery and loading.
+ * @returns the view options every `ctx.skills` call in this plugin passes.
+ */
+function agentSkillLookup(agent: Agent, signal: AbortSignal): SkillViewOptions {
+  const [cwd, ...additionalRoots] = sessionWorkspaceRoots(agent.session)
+  return { cwd, additionalRoots, signal, scope: agent }
 }
 
 /** Durable entry list mirroring the rendered catalog lines, for non-model consumers. */
@@ -128,9 +144,9 @@ export function apply(ctx: Context, config: Config = {}): void {
       if (!isSkillName(args.name)) {
         throw new Error(`invalid skill name "${args.name}"`)
       }
-      // The agent is its own scope key, so the lookup resolves the layered
-      // registry exactly as this agent's composition sees it.
-      const lookup = { cwd: exec.agent?.session.header.cwd, signal: exec.signal, scope: exec.agent }
+      const lookup: SkillViewOptions = exec.agent === undefined
+        ? { signal: exec.signal }
+        : agentSkillLookup(exec.agent, exec.signal)
       const summary = (await ctx.skills.list(lookup)).find(skill => skill.name === args.name)
       if (!summary) {
         throw new Error(`skill "${args.name}" is unknown or no longer available`)
@@ -183,7 +199,7 @@ export function apply(ctx: Context, config: Config = {}): void {
     const names = invokedSkillNames(messages)
     if (names.length === 0) return decision
     signal.throwIfAborted()
-    const lookup = { cwd: agent.session.header.cwd, signal, scope: agent }
+    const lookup = agentSkillLookup(agent, signal)
     const injections: UserMessage[] = []
     for (const name of names) {
       const skill = await ctx.skills.get(name, lookup)
@@ -219,7 +235,7 @@ export function apply(ctx: Context, config: Config = {}): void {
     signal.throwIfAborted()
     const toolVisible = ctx.tools.get(skillTool.name, agent) === skillTool
     const snapshot = toolVisible
-      ? await ctx.skills.snapshot({ cwd: agent.session.header.cwd, signal, scope: agent })
+      ? await ctx.skills.snapshot(agentSkillLookup(agent, signal))
       : { skills: [], complete: true }
     signal.throwIfAborted()
     if (!snapshot.complete) return decision

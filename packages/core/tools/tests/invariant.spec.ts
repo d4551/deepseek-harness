@@ -61,6 +61,15 @@ describe('tool-pipeline invariants', () => {
     Object.freeze(denied)
     emitResult(ctx, denied, outcome())
     ctx.emit('tools/change')
+
+    // Each result retired its execution from the stage table, so a late
+    // post-execute for either order no longer follows an open stage.
+    for (const retired of [dispatched, denied]) {
+      expect(() => ctx.waterfall(
+        ctx as never, 'tools/post-execute', retired, outcome(),
+        () => Promise.resolve({ kind: 'accept' as const }),
+      )).toThrow(/must follow tools\/pre-execute or tools\/execute/)
+    }
   })
 
   it('rejects repeated and out-of-order pipeline stages', async () => {

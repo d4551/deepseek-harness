@@ -42,6 +42,8 @@ package.json 不变式（由 `bun run constraints` / `scripts/check-workspace-co
 
 对于可替换的能力，当 Service Definition／Service Provider／Consumer 角色需要独立演进时，将它们拆分到不同包中（见 docs/architecture.md § "Capability seams"——shell 三组件是模板）。单一用途的插件保持为一个包。
 
+<a id="name-the-role-that-exists"></a>
+
 ### 使用符合实际的角色名称
 
 名称必须描述当前稳定职责。不要用首个实现、可能的未来扩展或 Cordis 基类命名。接口包使用能力名称。实现包加上能够区分实现的机制、协议、环境或厂商限定词。只有同主机执行属于约定时，才使用 `local`。

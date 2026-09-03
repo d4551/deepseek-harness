@@ -2,7 +2,7 @@ import type { StreamChunk } from '@deepseek-ai/dsh-llm/types'
 // The declaring package, not the local barrel: a Typert-modeled reference must
 // name the package that owns the type so the generated import can point at it.
 import type { AssistantBlock, PartialAssistant } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { emptyAssistantBlock, toAssistantBlock } from './event-projection.ts'
+import { emptyAssistantBlock, toAssistantBlock } from '@deepseek-ai/dsh-client-ui-conversation/client'
 
 /**
  * Whether a stream chunk changes the partial assistant projection shown by the UI.

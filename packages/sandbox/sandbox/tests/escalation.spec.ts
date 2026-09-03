@@ -2,7 +2,7 @@
  * Tests for the shared escalation vocabulary and choreography: the strictly-
  * wider ladder, the argument-pairing validation, the model-facing markers, and
  * {@link approveEscalation}'s ordered fail-closed sequence. Both enforcing tool
- * families (`dsh-tool-bash`, `dsh-tool-fs`) delegate here, so the ordering and
+ * families (`dsh-tool-shell`, `dsh-tool-fs`) delegate here, so the ordering and
  * verbatim texts are pinned once, next to the vocabulary that owns them.
  */
 

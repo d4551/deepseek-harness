@@ -18,10 +18,10 @@ import type { Agent, AgentHandle } from '@deepseek-ai/dsh-agent'
 import { SessionId, type SessionEvent, type TurnEndReason } from '@deepseek-ai/dsh-session'
 import { createUserMessage, type ContentBlock } from '@deepseek-ai/dsh-llm'
 import {
-  appendDelegatedPolicyOverrides,
+  appendDelegatedSessionState,
   applyChildComposition,
   assertSubagentMaxDepth,
-  captureDelegatedPolicyOverrides,
+  captureDelegatedSessionState,
   childSessionMeta,
   finalAssistantOutput,
   resolveChildAgentOptions,
@@ -114,11 +114,11 @@ export async function startInProcessRun(
 
   // Capture before the first await: a later parent switch belongs to the
   // parent's future.
-  const inherited = captureDelegatedPolicyOverrides(parent)
+  const inherited = captureDelegatedSessionState(parent)
 
   let structured: StructuredAttachment | undefined
   const setup = (childCtx: Context): void => {
-    appendDelegatedPolicyOverrides((childCtx.agent as Agent).session, inherited)
+    appendDelegatedSessionState((childCtx.agent as Agent).session, inherited)
     applyChildComposition(childCtx, parent, {
       persona: request.persona,
       toolFilter: request.toolFilter,

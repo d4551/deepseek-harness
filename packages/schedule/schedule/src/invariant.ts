@@ -26,7 +26,7 @@ function validate(events: readonly SessionEvent[], seedLength: number, fail: Inv
   }
 }
 
-/* jscpd:ignore-start -- package companions share replay and dispatch plumbing */
+/* package companions share replay and dispatch plumbing */
 /** Install replay and pre-append validation for the owned event stream. */
 const install: InvariantInstaller = Object.assign((ctx: Context, fail: InvariantFailure) => {
   for (const session of ctx.sessions.list()) {
@@ -42,7 +42,6 @@ const install: InvariantInstaller = Object.assign((ctx: Context, fail: Invariant
     validate([...session.events, event], session.header.seedLength ?? 0, fail)
   }, { global: true })
 }, { inject: ['sessions'] })
-/* jscpd:ignore-end */
 
 /**
  * Register the package-owned invariant companion.

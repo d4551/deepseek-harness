@@ -33,7 +33,7 @@ import type {
 } from './types.ts'
 import { formatSessionReferenceMention, parseSessionReferenceText } from './uri.ts'
 
-export type * from './types.ts'
+export type { PreparedReferencedMessage, ReferencedConversationItem, SessionReferenceCandidate, SessionReferenceInput, SessionReferenceMentionCandidate, SessionReferenceSource } from './types.ts'
 export type { Config, SessionReferenceErrorCode } from './config.ts'
 export {
   DEFAULT_CANDIDATE_LIMIT,

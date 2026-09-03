@@ -112,6 +112,7 @@ ctx.tools.register(defineTool({
 | [`src/json-schema.ts`](src/json-schema.ts) | 强制执行的原始 JSON Schema 子集与校验 |
 | [`src/presentation.ts`](src/presentation.ts) | 带 `card` 标签的 UI 呈现意图 |
 | [`src/ptc.ts`](src/ptc.ts) | PTC mode：SDK 生成、`run_code` 分发桥接层、结算 |
+| [`src/schema-render-stack.ts`](src/schema-render-stack.ts) | 两个 SDK 渲染器共同驱动的显式栈遍历 |
 | [`src/ts-types.ts`](src/ts-types.ts) | TypeScript SDK 类型渲染 |
 | [`src/py-types.ts`](src/py-types.ts) | Python SDK 类型渲染 |
 | [`src/invariant.ts`](src/invariant.ts) | 不变式配套 |

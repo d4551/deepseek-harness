@@ -829,11 +829,13 @@ describe('completion notices', () => {
 
   it('drops the notice for unowned jobs without throwing', async () => {
     const { ctx } = await setup()
-    // Unowned: settles with nobody to notify — nothing throws.
+    // Unowned: it settles with nobody to notify.
     const unowned = producer()
-    ctx.jobs.start(unowned.spec)
+    const id = ctx.jobs.start(unowned.spec)
     unowned.settle({ status: 'completed' })
     await tick()
+    // Only the notice is dropped: the job still reached its terminal state.
+    expect(ctx.jobs.get(id).status).toBe('completed')
   })
 
   it('does not route an old owner completion notice to a same-session replacement', async () => {

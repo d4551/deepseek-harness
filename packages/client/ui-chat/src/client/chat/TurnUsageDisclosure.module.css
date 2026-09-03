@@ -16,15 +16,6 @@
   color: var(--dsw-alias-label-secondary);
 }
 
-.separator {
-  flex: none;
-  width: 2px;
-  height: 2px;
-  margin: 0 8px;
-  border-radius: 1px;
-  background: var(--dsw-alias-label-caption);
-}
-
 .summary {
   min-width: 0;
   overflow: hidden;

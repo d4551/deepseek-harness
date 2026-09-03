@@ -42,13 +42,10 @@
 # never reached the model's shell at all. Both shell tools consume the host
 # registry from here; their executors (`bash-sandbox`/`pwsh-sandbox`) are
 # host-plane too.
-- id: tool-bash
-  name: '@deepseek-ai/dsh-tool-bash'
-  disabled: !!js process.platform === 'win32'
-
-- id: tool-pwsh
-  name: '@deepseek-ai/dsh-tool-pwsh'
-  disabled: !!js process.platform !== 'win32'
+- id: tool-shell
+  name: '@deepseek-ai/dsh-tool-shell'
+  config:
+    dialect: !!js "process.platform === 'win32' ? 'pwsh' : 'bash'"
 
 # ── filesystem ──────────────────────────────────────────────────────────────
 
@@ -65,7 +62,7 @@
 # ── background jobs ────────────────────────────────────────────────────────
 
 # Only the model-facing controls. The task REGISTRY stays on the host plane:
-# its producers sit outside any realm this file could put it in — `tool-bash`
+# its producers sit outside any realm this file could put it in — `tool-shell`
 # above resolves it with `ctx.get`, and an entry-local realm here is invisible
 # to every sibling row, so `run_in_background` would answer "background jobs
 # unavailable" while these controls sat in the catalog. The registry is keyed by

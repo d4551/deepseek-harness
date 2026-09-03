@@ -46,6 +46,7 @@ export class DeepSeekHarness implements AsyncDisposable {
   private clientInstance: HarnessClient
   private readonly createClient: () => HarnessClient
   private readonly cwd: string
+  private readonly additionalDirectories: readonly string[]
   private readonly provider: string
   private readonly model: string
   private readonly reasoningEffort: DeepSeekHarnessOptions['reasoningEffort']
@@ -62,6 +63,9 @@ export class DeepSeekHarness implements AsyncDisposable {
     // process's cwd, but the wire cwd is resolved again inside the child — a
     // relative value would double-resolve (e.g. `worker` → `worker/worker`).
     this.cwd = resolve(options.cwd ?? options.processCwd ?? process.cwd())
+    // Same reason as `cwd`: resolve here so a caller-relative root is anchored
+    // to THIS process rather than re-resolved inside the child.
+    this.additionalDirectories = (options.additionalDirectories ?? []).map(root => resolve(root))
     this.provider = options.provider ?? 'deepseek-official'
     this.model = options.model ?? 'deepseek-v4-flash'
     this.reasoningEffort = options.reasoningEffort
@@ -95,6 +99,9 @@ export class DeepSeekHarness implements AsyncDisposable {
         this.clientInstance.start()
         await this.clientInstance.initialize({
           cwd: this.cwd,
+          ...this.additionalDirectories.length === 0
+            ? {}
+            : { additionalDirectories: [...this.additionalDirectories] },
           provider: this.provider,
           model: this.model,
           ...this.reasoningEffort === undefined ? {} : { reasoningEffort: this.reasoningEffort },

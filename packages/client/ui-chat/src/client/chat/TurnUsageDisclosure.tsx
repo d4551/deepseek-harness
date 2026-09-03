@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { DisclosureRow, IconDataOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { DisclosureRow, IconDataOutline16, RowSeparator } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TurnTokenUsage } from '../contract/chat-nodes.ts'
 import type { ChatViewSlotProps } from '../contract/slots.ts'
 import { formatCacheHitPercent, formatExactTokens, formatTokens } from './token-format.ts'
@@ -41,7 +41,7 @@ export function TurnUsageDisclosure({ usage, t }: TurnUsageDisclosureProps) {
       keepContentWhenOpen
       collapsedContent={(
         <>
-          <span className={css.separator} aria-hidden />
+          <RowSeparator />
           <span className={css.summary}>{summary}</span>
         </>
       )}

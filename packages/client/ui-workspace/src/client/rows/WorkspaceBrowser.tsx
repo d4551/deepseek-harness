@@ -12,7 +12,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
-  Button, IconCloseFill14, IconPersonalizationOutline16,
+  Button, GlyphButton, IconCloseFill14, IconPersonalizationOutline16,
   IconProjectAddOutline16, IconSearchOutline16, Menu, Modal, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
@@ -200,14 +200,14 @@ function ViewOptionsMenu({ groupBy, orderBy, onGroupPick, onOrderPick, t }: {
       portal
       anchor={(
         <Tooltip label={t('viewOptions.label')} side="bottom" delayMs={500}>
-          <button
-            type="button"
+          <GlyphButton
+            surface="sidebar"
             className={clsx(css.iconButton, css.wide)}
             aria-label={t('viewOptions.label')}
             onClick={() => { setOpen(v => !v) }}
           >
             <IconPersonalizationOutline16 />
-          </button>
+          </GlyphButton>
         </Tooltip>
       )}
     />
@@ -1461,9 +1461,9 @@ export function WorkspaceBrowser({
               button rather than leaving a dead one in the header. */}
           {directoryFlowAvailable && (
             <Tooltip label={t('workspace.add')} side="bottom" delayMs={500}>
-              <button
+              <GlyphButton
                 ref={wsPlusRef}
-                type="button"
+                surface="sidebar"
                 className={css.iconButton}
                 aria-label={t('workspace.add')}
                 onClick={() => {
@@ -1471,7 +1471,7 @@ export function WorkspaceBrowser({
                 }}
               >
                 <IconProjectAddOutline16 size={wide ? 16 : 18} />
-              </button>
+              </GlyphButton>
             </Tooltip>
           )}
         </div>

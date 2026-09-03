@@ -54,6 +54,12 @@ describe('workflow invariants', () => {
     ctx.emit('workflow/agent-end', run, agentEnd())
     ctx.emit('workflow/end', run, result())
     ctx.emit('tools/change')
+
+    // Acceptance is observable in the trace the run left behind: the terminal
+    // event retired it, so a late event for the same run has no start to
+    // attach to. A lifecycle the invariant never tracked could not report it.
+    expect(() => { ctx.emit('workflow/log', run, 'late') })
+      .toThrow(/no matching workflow\/start/)
   })
 
   it('rejects invalid run identity and enclosure', async () => {

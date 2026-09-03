@@ -9,6 +9,8 @@
 import type { ToolSchema } from '@deepseek-ai/dsh-llm'
 import { assertSupportedJsonSchema } from './json-schema.ts'
 import type { JsonSchemaNode, JsonSchemaScalar } from './json-schema.ts'
+import { renderSchemaStack } from './schema-render-stack.ts'
+import type { SchemaRenderFrameBase } from './schema-render-stack.ts'
 /** Internal PTC mode projection: the model-facing schema plus the canonical output schema. */
 export interface ToolSdkSchema extends ToolSchema {
   /** Validated canonical value returned by the tool binding. */
@@ -91,140 +93,119 @@ function flattenTypeDocument(document: TypeDocument): string {
   return chunks.join('')
 }
 
+/** One scheduled nested schema and the indentation its render starts at. */
+interface SchemaRenderChild {
+  node: JsonSchemaNode
+  indent: number
+}
+
 /** One explicit call frame for stack-safe schema-to-TypeScript rendering. */
-interface SchemaRenderFrame {
+interface SchemaRenderFrame extends SchemaRenderFrameBase<SchemaRenderChild, TypeDocument> {
   readonly node: JsonSchemaNode
   readonly indent: number
-  phase: 'start' | 'children'
   kind?: 'oneOf' | 'array' | 'object'
-  children: { node: JsonSchemaNode; indent: number }[]
-  childIndex: number
-  childDocuments: TypeDocument[]
   entries: [string, JsonSchemaNode][]
 }
 
 /** Initialize one schema-render frame with empty aggregation state. */
 function schemaRenderFrame(node: JsonSchemaNode, indent: number): SchemaRenderFrame {
-  return { node, indent, phase: 'start', children: [], childIndex: 0, childDocuments: [], entries: [] }
+  return { node, indent, phase: 'start', children: [], childIndex: 0, childResults: [], entries: [] }
+}
+
+/** Combine one frame's rendered children into the type its node declares. */
+function combineRenderedSchema(frame: SchemaRenderFrame, finish: (document: TypeDocument) => void): void {
+  if (frame.kind === 'oneOf') {
+    const parts: (string | TypeDocument)[] = []
+    for (let index = 0; index < frame.childResults.length; index++) {
+      if (index > 0) parts.push(' | ')
+      const child = frame.childResults[index]
+      /* v8 ignore next -- child documents correspond one-to-one with children. */
+      if (child !== undefined) parts.push(child)
+    }
+    finish(typeDocumentFrom(parts))
+    return
+  }
+  if (frame.kind === 'array') {
+    const child = frame.childResults[0]
+    /* v8 ignore next -- array frames always schedule exactly one child. */
+    if (child === undefined) throw new Error('missing array item type')
+    finish(child.containsUnionOrIntersection
+      ? typeDocument('(', child, ')[]')
+      : typeDocument(child, '[]'))
+    return
+  }
+
+  const required = new Set(frame.node.required)
+  const parts: (string | TypeDocument)[] = ['{']
+  for (let index = 0; index < frame.entries.length; index++) {
+    const entry = frame.entries[index]
+    const child = frame.childResults[index]
+    /* v8 ignore next -- object entries and child documents have the same length. */
+    if (entry === undefined || child === undefined) throw new Error('missing object property type')
+    const [name, prop] = entry
+    for (const line of docLines(prop.description, frame.indent + 1)) parts.push('\n', line)
+    parts.push('\n', `${pad(frame.indent + 1)}${renderKey(name)}${required.has(name) ? '' : '?'}: `, child, ';')
+  }
+  parts.push('\n', `${pad(frame.indent)}}`)
+  const declared = typeDocumentFrom(parts)
+  finish(frame.node.additionalProperties === false
+    ? declared
+    : typeDocument(declared, ' & Record<string, JsonValue>'))
+}
+
+/** Schedule one frame's nested schemas, or finish the leaf type it declares. */
+function startRenderedSchema(frame: SchemaRenderFrame, finish: (document: TypeDocument) => void): void {
+  const node = frame.node
+  if (node.oneOf !== undefined) {
+    frame.kind = 'oneOf'
+    frame.children = Array.from(node.oneOf, child => ({ node: child, indent: frame.indent }))
+    return
+  }
+  if (node.type === undefined) {
+    finish(typeDocument('JsonValue'))
+    return
+  }
+  switch (node.type) {
+    case 'string':
+    case 'number':
+    case 'integer':
+    case 'boolean':
+    case 'null':
+      finish(typeDocument(renderConstrainedScalar(node, node.type)))
+      break
+    case 'array':
+      if (node.items === undefined) {
+        finish(typeDocument('JsonValue[]'))
+      } else {
+        frame.kind = 'array'
+        frame.children = [{ node: node.items, indent: frame.indent }]
+      }
+      break
+    case 'object': {
+      const open = node.additionalProperties !== false
+      const entries = Object.entries(node.properties ?? {})
+      if (entries.length === 0) {
+        finish(typeDocument(open ? 'Record<string, JsonValue>' : 'Record<string, never>'))
+      } else {
+        frame.kind = 'object'
+        frame.entries = entries
+        frame.children = entries.map(([, child]) => ({ node: child, indent: frame.indent + 1 }))
+      }
+      break
+    }
+    /* v8 ignore next -- assertSupportedJsonSchema narrowed this closed type union. */
+    default:
+      finish(typeDocument('unknown'))
+  }
 }
 
 /** Render an already asserted schema to a composable document. */
 function renderSupportedSchema(schema: JsonSchemaNode, indent: number): TypeDocument {
-  const frames: SchemaRenderFrame[] = [schemaRenderFrame(schema, indent)]
-  let rootDocument: TypeDocument | undefined
-  const finish = (document: TypeDocument): void => {
-    frames.pop()
-    const parent = frames.at(-1)
-    if (parent === undefined) rootDocument = document
-    else parent.childDocuments.push(document)
-  }
-
-  while (frames.length > 0) {
-    const frame = frames.at(-1)
-    /* v8 ignore next -- the loop condition guarantees a current frame. */
-    if (frame === undefined) break
-    if (frame.phase === 'children') {
-      if (frame.childIndex < frame.children.length) {
-        const child = frame.children[frame.childIndex]
-        /* v8 ignore next -- childIndex is bounded by children.length. */
-        if (child === undefined) throw new Error('missing schema render child')
-        frame.childIndex++
-        frames.push(schemaRenderFrame(child.node, child.indent))
-        continue
-      }
-      if (frame.kind === 'oneOf') {
-        const parts: (string | TypeDocument)[] = []
-        for (let index = 0; index < frame.childDocuments.length; index++) {
-          if (index > 0) parts.push(' | ')
-          const child = frame.childDocuments[index]
-          /* v8 ignore next -- child documents correspond one-to-one with children. */
-          if (child !== undefined) parts.push(child)
-        }
-        finish(typeDocumentFrom(parts))
-        continue
-      }
-      if (frame.kind === 'array') {
-        const child = frame.childDocuments[0]
-        /* v8 ignore next -- array frames always schedule exactly one child. */
-        if (child === undefined) throw new Error('missing array item type')
-        finish(child.containsUnionOrIntersection
-          ? typeDocument('(', child, ')[]')
-          : typeDocument(child, '[]'))
-        continue
-      }
-
-      const required = new Set(frame.node.required)
-      const parts: (string | TypeDocument)[] = ['{']
-      for (let index = 0; index < frame.entries.length; index++) {
-        const entry = frame.entries[index]
-        const child = frame.childDocuments[index]
-        /* v8 ignore next -- object entries and child documents have the same length. */
-        if (entry === undefined || child === undefined) throw new Error('missing object property type')
-        const [name, prop] = entry
-        for (const line of docLines(prop.description, frame.indent + 1)) parts.push('\n', line)
-        parts.push('\n', `${pad(frame.indent + 1)}${renderKey(name)}${required.has(name) ? '' : '?'}: `, child, ';')
-      }
-      parts.push('\n', `${pad(frame.indent)}}`)
-      const declared = typeDocumentFrom(parts)
-      finish(frame.node.additionalProperties === false
-        ? declared
-        : typeDocument(declared, ' & Record<string, JsonValue>'))
-      continue
-    }
-
-    const node = frame.node
-    if (node.oneOf !== undefined) {
-      frame.kind = 'oneOf'
-      frame.children = Array.from(node.oneOf, child => ({ node: child, indent: frame.indent }))
-      frame.childIndex = 0
-      frame.childDocuments = []
-      frame.phase = 'children'
-      continue
-    }
-    if (node.type === undefined) {
-      finish(typeDocument('JsonValue'))
-      continue
-    }
-    switch (node.type) {
-      case 'string':
-      case 'number':
-      case 'integer':
-      case 'boolean':
-      case 'null':
-        finish(typeDocument(renderConstrainedScalar(node, node.type)))
-        break
-      case 'array':
-        if (node.items === undefined) {
-          finish(typeDocument('JsonValue[]'))
-        } else {
-          frame.kind = 'array'
-          frame.children = [{ node: node.items, indent: frame.indent }]
-          frame.childIndex = 0
-          frame.childDocuments = []
-          frame.phase = 'children'
-        }
-        break
-      case 'object': {
-        const open = node.additionalProperties !== false
-        const entries = Object.entries(node.properties ?? {})
-        if (entries.length === 0) {
-          finish(typeDocument(open ? 'Record<string, JsonValue>' : 'Record<string, never>'))
-        } else {
-          frame.kind = 'object'
-          frame.entries = entries
-          frame.children = entries.map(([, child]) => ({ node: child, indent: frame.indent + 1 }))
-          frame.childIndex = 0
-          frame.childDocuments = []
-          frame.phase = 'children'
-        }
-        break
-      }
-      /* v8 ignore next -- assertSupportedJsonSchema narrowed this closed type union. */
-      default:
-        finish(typeDocument('unknown'))
-    }
-  }
-
+  const rootDocument = renderSchemaStack(schemaRenderFrame(schema, indent), {
+    frame: child => schemaRenderFrame(child.node, child.indent),
+    start: startRenderedSchema,
+    combine: combineRenderedSchema,
+  })
   /* v8 ignore next -- every root frame produces one document. */
   return rootDocument ?? typeDocument('unknown')
 }

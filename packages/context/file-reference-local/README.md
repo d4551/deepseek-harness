@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Agents and their host UIs get ranked path candidates for `@file` mentions, scoped to each agent's workspace and bounded so even large repositories stay responsive. `dsh-file-reference-local` implements `ctx.fileReferences` for the local filesystem: it keeps one reusable search index per agent, rebuilds it in the background after tool results so completion reflects workspace changes without stalling, and never follows directory symlinks. When the addressed agent can call `read`, it also installs a stable one-sentence guidance into the system prompt. Choose it when the agent's `read` tool operates on the Harness host filesystem; remote or virtual namespaces need a provider whose discovery matches the tool.
+Agents and their host UIs get ranked path candidates for `@file` mentions, scoped to every workspace root the agent's session works in and bounded so even large repositories stay responsive. `dsh-file-reference-local` implements `ctx.fileReferences` for the local filesystem: it keeps one reusable search index per agent, rebuilds it in the background after tool results so completion reflects workspace changes without stalling, and never follows directory symlinks. When the addressed agent can call `read`, it also installs a stable one-sentence guidance into the system prompt. Choose it when the agent's `read` tool operates on the Harness host filesystem; remote or virtual namespaces need a provider whose discovery matches the tool.
 
 ## Table of Contents
 
@@ -25,7 +25,7 @@ Agents and their host UIs get ranked path candidates for `@file` mentions, scope
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount this provider when `@file` completion should discover the Harness host's own filesystem — the namespace the shipped `read` tool operates on. Each agent's workspace is indexed from its session working directory, falling back to the host process directory when the session has none.
+Mount this provider when `@file` completion should discover the Harness host's own filesystem — the namespace the shipped `read` tool operates on. Each agent's workspace is indexed from its session working directory together with every additional workspace root the session recorded, falling back to the host process directory when the session has neither.
 
 ### Enabling the provider
 
@@ -39,7 +39,9 @@ The defaults suit a typical workspace, so the minimal mount needs no configurati
 
 ### What you get
 
-Typing `@` in a host UI returns up to `maxResults` ranked path candidates for the addressed agent. A query containing `/` lists the matching directory's entries directly; a bare query fuzzy-ranks the bounded recursive index. Directory candidates keep the mention open with a trailing slash. After any tool result the agent's index is marked stale: the next query still answers from it and its replacement builds in the background, so a rebuild never sits in front of the caret.
+Typing `@` in a host UI returns up to `maxResults` ranked path candidates for the addressed agent. A query containing `/` lists the matching directory's entries directly, in every root that has that directory; a bare query fuzzy-ranks the bounded recursive index over all roots. Directory candidates keep the mention open with a trailing slash. After any tool result the agent's index is marked stale: the next query still answers from it and its replacement builds in the background, so a rebuild never sits in front of the caret.
+
+Candidates from the session's primary root are offered relative to that root, the form the model-facing guidance describes. Candidates from an additional root are offered as absolute paths, because a root-relative path would collide with a same-named file in another root; typing or selecting one of those absolute paths lists that root's directories in turn. Ranking always scores the path within its own root, so a root's own location never decides a match. A session that records a different set of roots gets a fresh index on its next query.
 
 ### Configuration
 
@@ -63,7 +65,7 @@ This section explains the design of the provider; the observable behavior is cov
 
 ### Design concept
 
-The provider maintains one reusable `WorkspaceFileSearch` per agent, rooted at that session's `cwd`. Directory-scoped queries (`a/b/...`) list live directory state, while bare fuzzy queries share one bounded recursive traversal. Only a workspace's first bare query waits for that traversal; a `tool/result` event marks the settled entries stale, and the next bare query serves them while the replacement builds. The model guidance is a per-agent prompt section contributed only while the addressed agent has a `read` tool; agent disposal releases both the index and the prompt fiber.
+The provider maintains one reusable `WorkspaceFileSearch` per agent, covering every root `sessionWorkspaceRoots` folds out of that session's log — its `cwd` first, then the roots of the last `workspace/roots` event. Directory-scoped queries (`a/b/...`) list live directory state in each root, while bare fuzzy queries share one bounded recursive traversal that walks all roots breadth-first, so a deep first root cannot spend the whole entry budget before a later root is reached. Only a workspace's first bare query waits for that traversal; a `tool/result` event marks the settled entries stale, and the next bare query serves them while the replacement builds. Because the roots are folded on read, a set the client changed mid-session retires the index built for the previous set. The model guidance is a per-agent prompt section contributed only while the addressed agent has a `read` tool; agent disposal releases both the index and the prompt fiber.
 
 ### Source map
 
@@ -75,7 +77,7 @@ The provider maintains one reusable `WorkspaceFileSearch` per agent, rooted at t
 
 ### Main flow
 
-A `list(agent, query, signal)` call either lists one directory's entries or reads the shared bounded index, ranks the candidates (exact, prefix, substring, then subsequence scores with directory bonuses), and returns at most `maxResults` in deterministic order. `tool/result` events mark the addressed agent's index stale so a later bare query observes a fresh tree. An unreadable or excluded subtree contributes no candidates, while an unreadable root fails its traversal instead: a transient failure must not replace still-good entries with an empty index.
+A `list(agent, query, signal)` call either lists one directory's entries or reads the shared bounded index, ranks the candidates (exact, prefix, substring, then subsequence scores with directory bonuses over each candidate's own root-relative path), and returns at most `maxResults` in deterministic order. Equal scores order by kind, path length, and path text, with the root's position as the final tie-break, so two roots holding the same path rank primary-first. `tool/result` events mark the addressed agent's index stale so a later bare query observes a fresh tree. An unreadable or excluded subtree contributes no candidates, while an unreadable root fails its traversal instead: a transient failure must not replace still-good entries with a partial index.
 
 </details>
 
@@ -126,6 +128,9 @@ These limits define when the provider is a poor fit. They are current package co
 - **Host-local namespace** — the provider scans the Harness host filesystem, so remote or virtual `read` implementations require a provider whose namespace matches the tool.
 - **Bounded advisory index** — very large workspaces may omit paths after `maxEntries`, and excluded or unreadable directories do not appear. The default exclusions name only build outputs no ecosystem also uses for sources; `lib` is deliberately absent, so a workspace that builds into it adds that name through `excludedDirectories`.
 - **One invalidation of staleness** — a bare query answered right after a tool result reflects the tree as of the previous traversal; the following query sees the rebuild.
+- **One entry budget for all roots** — `maxEntries` bounds the whole index, not each root, so many or large roots reach the cap sooner. The traversal is breadth-first across roots, so the budget is spent on every root's shallow paths before any root's deep ones.
+- **A shared path belongs to one root** — a directory two roots both reach is indexed once, under whichever root's traversal reached it first, and rendered in that root's form. A root nested inside another therefore offers its files as absolute paths.
+- **Any unreadable root fails the traversal** — one root that cannot be read leaves the index without that root's entries, so the whole rebuild is discarded and the previous entries keep answering until the root returns.
 - **No ignore-file semantics** — `.gitignore` and other project ignore files do not influence discovery; only configured directory basenames are excluded.
 
 <a id="dev-note"></a>

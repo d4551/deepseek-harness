@@ -1,0 +1,13 @@
+/* Meta separator between a flow row's title and the readings after it: a 2px
+   dot with 8px of air on each side. Decorative, so the markup hides it from
+   assistive technology and the reading order goes straight from title to
+   summary. */
+
+.dot {
+  flex: none;
+  width: 2px;
+  height: 2px;
+  border-radius: 1px;
+  margin: 0 8px;
+  background: var(--dsw-alias-label-caption);
+}

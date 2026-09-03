@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-shell` 定义运行 shell 命令的执行器服务（`ctx.shell`）：前台命令在结束时以有界输出 resolve，后台进程则立即返回句柄。仓库中的每个 shell 执行器——本地 Bash、沙箱 Bash、本地 PowerShell、沙箱 PowerShell——都实现这同一个约定，因此面向模型的 `bash` 与 `pwsh` 工具在任何一个之上都能不加改动地工作。调用方先提交请求，再在任何命令运行前拿到一份默认值与上限都已显式填好的 spec。该服务本身从不向模型渲染任何内容；所有模型可见的输出与沙箱指引都归 shell 工具所有。
+`dsh-shell` 定义运行 shell 命令的执行器服务（`ctx.shell`）：前台命令在结束时以有界输出 resolve，后台进程则立即返回句柄。仓库中的每个 shell 执行器——本地 Bash、沙箱 Bash、本地 PowerShell、沙箱 PowerShell——都实现这同一个约定，因此面向模型的 `bash` 与 `pwsh` 工具在任何一个之上都能不加改动地工作。调用方先提交请求，再在任何命令运行前拿到一份默认值与上限都已显式填好的 spec。本包还持有各方言表述完全一致的部分——各 Provider 共同继承的子进程执行器，以及 `bash` 与 `pwsh` 工具发布的结果文本、参数与输出 schema——因此它们不会在孪生之间漂移。该服务本身不会自行渲染；由工具决定哪些文本到达模型。
 
 ## 目录
 
@@ -80,9 +80,15 @@ seam 本身不是执行器：每个组合只挂载一个提供方，工具即可
 
 | 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | 插件入口：抽象 `ShellExecutor` 服务与共享设置命名空间 |
+| [`src/index.ts`](src/index.ts) | 插件入口：抽象 `ShellExecutor` 服务、共享设置命名空间与本包的公开名称 |
 | [`src/types.ts`](src/types.ts) | 请求/spec 词汇、`ShellRunResult`、`ShellProcess` 与沙箱事实 |
-| [`src/render.ts`](src/render.ts) | `parseExitStatus`：shell 工具共享的退出状态标记约定 |
+| [`src/subprocess-executor.ts`](src/subprocess-executor.ts) | `./subprocess-executor`：`SubprocessShellExecutor`，各方言 Provider 共同继承的实现 |
+| [`src/executor-config.ts`](src/executor-config.ts) | 各 Provider 共享的配置类型、随附默认值与可服务性规则 |
+| [`src/confinement.ts`](src/confinement.ts) | 约束型 Provider 安装到共享执行器上的 `ctx.sandbox` 层 |
+| [`src/render.ts`](src/render.ts) | shell 工具面向模型的结果文本，以及其逆解析 `parseExitStatus` |
+| [`src/background.ts`](src/background.ts) | `processOutcome`：把已结算的后台句柄映射为通用任务结果词汇 |
+| [`src/tool-schema.ts`](src/tool-schema.ts) | 两个工具共享的参数、输出 schema、参数校验与升权指引 |
+| [`src/sandbox-classify.ts`](src/sandbox-classify.ts) | `./sandbox-classify`：两个沙箱执行器据以推导结果事实的拒绝与 runner 失败分类 |
 | [`src/invariant.ts`](src/invariant.ts) | 不变式伴生插件（无运行时不变式；执行器与策略负责观察） |
 
 ### 设置命名空间
@@ -105,7 +111,7 @@ seam 本身不是执行器：每个组合只挂载一个提供方，工具即可
 - [Bash 执行器子系统](../../../docs/subsystems/shell.zh.md) —— 请求/spec 词汇、结果与完整的服务约定。
 - [bash-local](../bash-local/README.zh.md) —— 默认 POSIX 执行器：全新的 `bash -c` 进程、预算与 deadline。
 - [bash-sandbox](../bash-sandbox/README.zh.md) —— 受限执行器：沙箱模式、拒绝与升权。
-- [tool-bash](../tool-bash/README.zh.md) —— 基于该 seam 的面向模型 `bash` 工具。
+- [tool-shell](../tool-shell/README.zh.md) —— 基于该 seam 的面向模型 `bash` 或 `pwsh` 工具。
 - [能力 seam 笔记](../../../.agents/notes/implemented/architecture/2026-06-13-capability-seams.zh.md) —— 本 seam 遵循的 Service Definition / Provider / Consumer 拆分。
 
 -----
@@ -113,7 +119,7 @@ seam 本身不是执行器：每个组合只挂载一个提供方，工具即可
 <a id="model-experience"></a>
 ## 模型体验
 
-通过 `dsh-tool-bash` 间接影响；该工具会将执行器输出与沙箱事实转为指引和保留的工具结果 token。
+通过 `dsh-tool-shell` 间接影响；该工具会将执行器输出与沙箱事实转为指引和保留的工具结果 token。
 
 #### KV Cache 影响
 

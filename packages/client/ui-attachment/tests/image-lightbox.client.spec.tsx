@@ -33,7 +33,11 @@ describe('ImageLightbox', () => {
     Object.defineProperty(document, 'activeElement', { configurable: true, get: () => null })
     try {
       const view = render(<ImageLightbox src="blob:original" alt="原图" labels={labels} onClose={vi.fn()} />)
+      // The dialog opens with no focus owner to remember...
+      expect(view.getByRole('dialog')).toBeTruthy()
       view.unmount()
+      // ...and its teardown restores nothing instead of failing.
+      expect(document.querySelector('[role="dialog"]')).toBeNull()
     } finally {
       delete (document as { activeElement?: unknown }).activeElement
     }

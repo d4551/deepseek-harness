@@ -41,15 +41,22 @@ describe('dsh-base bundle', () => {
     })
     expect(rows.filter(row => row.id === 'subagent-codex')).toHaveLength(0)
     expect(rows.filter(row => row.id === 'subagent-claude-code')).toHaveLength(0)
-    expect(rows.find(row => row.id === 'web')?.config).toMatchObject({ fetchProvider: 'http' })
+    // Fetch renders the page: a model reading a modern site through a raw HTTP
+    // body sees an empty shell. Both providers are mounted and the route is
+    // named, because the seam refuses to guess when two are usable. The rendered
+    // route needs `playwright install chromium`, which the bundle README states.
+    expect(rows.find(row => row.id === 'web')?.config).toMatchObject({ fetchProvider: 'playwright' })
+    expect(rows.find(row => row.id === 'web-fetch-playwright')).toBeDefined()
+    expect(rows.find(row => row.id === 'web-fetch-playwright')?.disabled).toBeUndefined()
     expect(rows.find(row => row.id === 'web-fetch-http')).toBeDefined()
     expect(rows.find(row => row.id === 'tool-web')?.config).toMatchObject({ fetch: false })
     expect(manifest.dependencies).not.toHaveProperty('@deepseek-ai/dsh-subagent-codex')
     expect(manifest.dependencies).not.toHaveProperty('@deepseek-ai/dsh-subagent-claude-code')
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-web-fetch-http')
+    expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-web-fetch-playwright')
   })
 
-  it('gates each shell stack by platform with a symmetric disabled expression', () => {
+  it('gates the executors by platform and selects the shell tool dialect from the same fact', () => {
     const root = fileURLToPath(new URL('..', import.meta.url))
     const parsed = yaml.load(
       readFileSync(resolve(root, 'cordis.patch.yml'), 'utf8'),
@@ -61,16 +68,13 @@ describe('dsh-base bundle', () => {
         ? (patch as { insert?: Record<string, unknown>[] }).insert ?? []
         : [],
     )
-    // Symmetric gating: each stack's executor and tool rows carry the same
-    // platform fact, inverted between the bash and pwsh twins, so exactly one
-    // shell stack mounts per host. Evaluate with a platform-scoped context
-    // (the `with` scope shadows the global `process`) so both outcomes pin on
-    // every host.
+    // Symmetric gating: the two executor rows carry the same platform fact
+    // inverted, so exactly one executor mounts per host. Evaluate with a
+    // platform-scoped context (the `with` scope shadows the global `process`)
+    // so both outcomes pin on every host.
     for (const [id, win32, linux] of [
       ['bash-sandbox', true, false],
-      ['tool-bash', true, false],
       ['pwsh-sandbox', false, true],
-      ['tool-pwsh', false, true],
     ] as const) {
       const row = rows.find(candidate => candidate.id === id)
       if (row === undefined) throw new Error(`base patch must mount ${id}`)
@@ -79,6 +83,18 @@ describe('dsh-base bundle', () => {
       expect(Boolean(evaluate({ process: { platform: 'win32' } }, expression)), `${id} on win32`).toBe(win32)
       expect(Boolean(evaluate({ process: { platform: 'linux' } }, expression)), `${id} on linux`).toBe(linux)
     }
+    // One model-facing shell tool mounts unconditionally; the SAME platform
+    // fact selects the dialect it speaks, so the tool name always matches the
+    // executor that mounted above.
+    const shellTool = rows.find(candidate => candidate.id === 'tool-shell')
+    if (shellTool === undefined) throw new Error('base patch must mount tool-shell')
+    expect(shellTool.disabled, 'tool-shell is never platform-gated').toBeUndefined()
+    const dialect = (shellTool.config as { dialect?: { __jsExpr?: string } } | undefined)?.dialect?.__jsExpr
+    if (dialect === undefined) throw new Error('tool-shell must select its dialect with a !!js expression')
+    expect(evaluate({ process: { platform: 'win32' } }, dialect), 'tool-shell dialect on win32').toBe('pwsh')
+    expect(evaluate({ process: { platform: 'linux' } }, dialect), 'tool-shell dialect on linux').toBe('bash')
+    // No second row can register a competing shell-tool name.
+    expect(rows.filter(candidate => candidate.name === '@deepseek-ai/dsh-tool-shell')).toHaveLength(1)
     // The platform layer folded into these rows: no separate patch file ships.
     expect(existsSync(resolve(root, 'windows.cordis.patch.yml'))).toBe(false)
   })

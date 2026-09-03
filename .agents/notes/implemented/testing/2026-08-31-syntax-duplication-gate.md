@@ -23,7 +23,7 @@ Function-body clones remain jscpd's. The live sweep found zero genuine findings 
 
 ## Companion fix
 
-The same audit round reverted the `838c5e7328` relaxation in [tool-bash integration](../../../../packages/shell/tool-bash/tests/integration.spec.ts): accepting `'absent' | 'present'` for the lazy-JSONL probe un-proved the laziness the test is named for. The harness now pins `writeBatchMaxDelayMs` past the turn so the write-behind deadline cannot fire mid-test, and the strict single-string `absent` assertion is back — the race was made deterministic instead of tolerated.
+The same audit round reverted the `838c5e7328` relaxation in [the bash-dialect shell-tool integration suite](../../../../packages/shell/tool-shell/tests/bash-integration.spec.ts): accepting `'absent' | 'present'` for the lazy-JSONL probe un-proved the laziness the test is named for. The harness now pins `writeBatchMaxDelayMs` past the turn so the write-behind deadline cannot fire mid-test, and the strict single-string `absent` assertion is back — the race was made deterministic instead of tolerated.
 
 ## Alternatives considered
 
@@ -35,7 +35,7 @@ The same audit round reverted the `838c5e7328` relaxation in [tool-bash integrat
 
 **Express the checks as oxlint rules.** Rejected: oxlint's rule set is fixed by its Rust binary, so a repository-local rule is not installable there. The checks live in an executed spec instead, which is also where their red/green contracts can be pinned.
 
-**Leave the `tool-bash` probe accepting either outcome.** Rejected: `'absent' | 'present'` passes whether or not the write-behind stayed lazy, so the test named for laziness proved nothing. Pinning the batch delay past the turn makes the outcome deterministic, which is what the assertion needed.
+**Leave the shell-tool probe accepting either outcome.** Rejected: `'absent' | 'present'` passes whether or not the write-behind stayed lazy, so the test named for laziness proved nothing. Pinning the batch delay past the turn makes the outcome deterministic, which is what the assertion needed.
 
 ## Consequences
 

@@ -27,7 +27,7 @@ import { spawnSubprocess } from '@deepseek-ai/dsh-subprocess-local/src/spawn.ts'
 const mockServer = fileURLToPath(new URL('./mock-acp-server.ts', import.meta.url))
 
 /** A parent Agent stub. The ACP backend reads exactly one thing off it: the session header's cwd (the workspace its child inherits). */
-const fakeParent = { id: 'parent', session: { header: { cwd: process.cwd() } } } as unknown as Agent
+const fakeParent = { id: 'parent', session: { header: { cwd: process.cwd() }, events: [] } } as unknown as Agent
 
 function request(text = 'p', signal = new AbortController().signal) {
   return { prompt: [{ type: 'text' as const, text }], parent: fakeParent, signal }
@@ -238,7 +238,7 @@ describe('child env layering (through the subprocess seam)', () => {
     // config.env; the seam's scrub drops only the AMBIENT namesakes, so the
     // explicit entry merges after it and the child must see the value.
     const ctx = await setup({ MOCK_ECHO_ENV: 'DSH_ACP_TEST_FACT', DSH_ACP_TEST_FACT: 'managed' })
-    const parent = { id: 'parent', session: { header: { cwd: process.cwd() } } } as unknown as Agent
+    const parent = { id: 'parent', session: { header: { cwd: process.cwd() }, events: [] } } as unknown as Agent
     const run = await ctx.subagents.start('acp', {
       label: 'p', prompt: [{ type: 'text' as const, text: 'p' }], parent, signal: new AbortController().signal,
     })
@@ -311,7 +311,7 @@ describe('cwd resolution', () => {
     const workdir = realpathSync(mkdtempSync(join(tmpdir(), 'acp-parent-cwd-')))
     try {
       const ctx = await setup({ MOCK_ECHO_CWD: '1' })
-      const parent = { id: 'parent', session: { header: { cwd: workdir } } } as unknown as Agent
+      const parent = { id: 'parent', session: { header: { cwd: workdir }, events: [] } } as unknown as Agent
       const run = await ctx.subagents.start('acp', { prompt: [{ type: 'text' as const, text: 'p' }], parent, signal: new AbortController().signal })
       const result = await run.result
       await run.dispose()
@@ -357,7 +357,7 @@ describe('cwd resolution', () => {
         permission: 'reject',
         env: { MOCK_ECHO_CWD: '1' },
       })
-      const parent = { id: 'parent', session: { header: { cwd: parentDir } } } as unknown as Agent
+      const parent = { id: 'parent', session: { header: { cwd: parentDir }, events: [] } } as unknown as Agent
       const run = await ctx.subagents.start('acp', { prompt: [{ type: 'text' as const, text: 'p' }], parent, signal: new AbortController().signal })
       const result = await run.result
       await run.dispose()
@@ -453,7 +453,7 @@ describe('cwd resolution', () => {
     // header, and resolving it against the server process cwd would silently
     // re-introduce the launch-directory dependency this resolution removes.
     const ctx = await setup({})
-    const parent = { id: 'parent', session: { header: { cwd: 'relative/workspace' } } } as unknown as Agent
+    const parent = { id: 'parent', session: { header: { cwd: 'relative/workspace' }, events: [] } } as unknown as Agent
     await expect(ctx.subagents.start('acp', { prompt: [{ type: 'text' as const, text: 'p' }], parent, signal: new AbortController().signal }))
       .rejects.toThrow(`subagent-acp: ${expectedFailure('stage: initialize; category: configuration')}`)
   })
@@ -464,7 +464,7 @@ describe('cwd resolution', () => {
     writeFileSync(file, 'x')
     try {
       const ctx = await setup({})
-      const parent = { id: 'parent', session: { header: { cwd: file } } } as unknown as Agent
+      const parent = { id: 'parent', session: { header: { cwd: file }, events: [] } } as unknown as Agent
       await expect(ctx.subagents.start('acp', { prompt: [{ type: 'text' as const, text: 'p' }], parent, signal: new AbortController().signal }))
         .rejects.toThrow(`subagent-acp: ${expectedFailure('stage: initialize; category: configuration')}`)
     } finally {
@@ -480,7 +480,7 @@ describe('cwd resolution', () => {
       await ctx.plugin(SubagentRuntime)
       await ctx.plugin(LocalSubprocessRuntime)
       await ctx.plugin(acp, { providerName: 'acp', command: 'touch', args: [sentinel], permission: 'reject', env: {} })
-      const parent = { id: 'parent', session: { header: { cwd: join(tmp, 'vanished') } } } as unknown as Agent
+      const parent = { id: 'parent', session: { header: { cwd: join(tmp, 'vanished') }, events: [] } } as unknown as Agent
       await expect(ctx.subagents.start('acp', { prompt: [{ type: 'text' as const, text: 'p' }], parent, signal: new AbortController().signal }))
         .rejects.toThrow(`subagent-acp: ${expectedFailure('stage: initialize; category: configuration')}`)
       expect(existsSync(sentinel)).toBe(false)
@@ -609,7 +609,7 @@ describe('dsh-subagent-acp', () => {
       await expect(startAcpRun(
         request('p', controller.signal),
         // `touch <sentinel>` — runs only if the process is actually spawned.
-        { command: 'touch', args: [sentinel], cwd: tmp, permission: 'reject', env: {}, disposeEofGraceMs: DEFAULT_DISPOSE_EOF_GRACE_MS, disposeGraceMs: DEFAULT_DISPOSE_GRACE_MS, spawn: spawnSubprocess },
+        { command: 'touch', args: [sentinel], cwd: tmp, workspaceRoots: [], permission: 'reject', env: {}, disposeEofGraceMs: DEFAULT_DISPOSE_EOF_GRACE_MS, disposeGraceMs: DEFAULT_DISPOSE_GRACE_MS, spawn: spawnSubprocess },
       )).rejects.toThrow('aborted before the ACP child started')
       // The binary was never launched — no sentinel.
       expect(existsSync(sentinel)).toBe(false)
@@ -635,6 +635,7 @@ describe('dsh-subagent-acp', () => {
       command: process.execPath,
       args: [mockServer],
       cwd: process.cwd(),
+      workspaceRoots: [],
       permission: 'reject',
       env: { MOCK_CRASH_ON_INITIALIZE: '1' },
       disposeEofGraceMs: DEFAULT_DISPOSE_EOF_GRACE_MS,
@@ -652,6 +653,7 @@ describe('dsh-subagent-acp', () => {
       command: process.execPath,
       args: [mockServer],
       cwd: process.cwd(),
+      workspaceRoots: [],
       permission: 'reject',
       env: {},
       disposeEofGraceMs: 50,
@@ -673,6 +675,7 @@ describe('dsh-subagent-acp', () => {
         command: process.execPath,
         args: [mockServer],
         cwd: process.cwd(),
+        workspaceRoots: [],
         permission: 'reject',
         env: {
           MOCK_MISSING_SESSION_ID: '1',
@@ -702,6 +705,7 @@ describe('dsh-subagent-acp', () => {
       command: process.execPath,
       args: [mockServer],
       cwd: process.cwd(),
+      workspaceRoots: [],
       permission: 'reject',
       env: { MOCK_MISSING_SESSION_ID: '1' },
       disposeEofGraceMs: 10,
@@ -736,6 +740,7 @@ describe('dsh-subagent-acp', () => {
         command: process.execPath,
         args: [mockServer],
         cwd: process.cwd(),
+        workspaceRoots: [],
         permission: 'reject',
         env: { MOCK_NEWSESSION_READY: ready, MOCK_NEWSESSION_GO: go },
         disposeEofGraceMs: 10,
@@ -774,6 +779,7 @@ describe('dsh-subagent-acp', () => {
         command: process.execPath,
         args: [mockServer],
         cwd: process.cwd(),
+        workspaceRoots: [],
         permission: 'reject',
         env: { MOCK_TRAP_SIGTERM: '1', MOCK_TEXT: 'x', MOCK_READY_FILE: ready },
         // Short on BOTH tiers: the trap ignores EOF and SIGTERM, so dispose must
@@ -818,6 +824,7 @@ describe('dsh-subagent-acp', () => {
         command: process.execPath,
         args: [mockServer],
         cwd: process.cwd(),
+        workspaceRoots: [],
         permission: 'reject',
         // MOCK_HANG so the prompt never resolves on its own — we tear down a live
         // child. The flush beat (400ms) outlasts the 50ms SIGTERM grace but fits
@@ -855,6 +862,7 @@ describe('dsh-subagent-acp', () => {
         command: process.execPath,
         args: [mockServer],
         cwd: process.cwd(),
+        workspaceRoots: [],
         permission: 'reject',
         env: {
           MOCK_HANG: '1', MOCK_IGNORE_EOF: '1', MOCK_TEXT: 'x',
@@ -999,6 +1007,7 @@ describe('dsh-subagent-acp', () => {
       command: process.execPath,
       args: [mockServer],
       cwd: process.cwd(),
+      workspaceRoots: [],
       permission: 'reject',
       env: { MOCK_HANG: '1' },
       disposeEofGraceMs: 100,
@@ -1023,6 +1032,7 @@ describe('dsh-subagent-acp', () => {
       command: process.execPath,
       args: [mockServer],
       cwd: process.cwd(),
+      workspaceRoots: [],
       permission: 'reject',
       env: { MOCK_HANG: '1' },
       disposeEofGraceMs: 100,
@@ -1065,6 +1075,7 @@ describe('dsh-subagent-acp', () => {
       command: process.execPath,
       args: [mockServer],
       cwd: process.cwd(),
+      workspaceRoots: [],
       permission: 'reject',
       env: { MOCK_CRASH_AFTER_CHUNK: '1' },
       disposeEofGraceMs: DEFAULT_DISPOSE_EOF_GRACE_MS,
@@ -1087,7 +1098,7 @@ describe('dsh-subagent-acp', () => {
     const privateCommand = '/nonexistent/private/SECRET_TOKEN/acp-agent'
     const error = await startAcpRun(
       request(),
-      { command: privateCommand, args: [], cwd: process.cwd(), permission: 'reject', env: {}, disposeEofGraceMs: DEFAULT_DISPOSE_EOF_GRACE_MS, disposeGraceMs: DEFAULT_DISPOSE_GRACE_MS, spawn: spawnSubprocess },
+      { command: privateCommand, args: [], cwd: process.cwd(), workspaceRoots: [], permission: 'reject', env: {}, disposeEofGraceMs: DEFAULT_DISPOSE_EOF_GRACE_MS, disposeGraceMs: DEFAULT_DISPOSE_GRACE_MS, spawn: spawnSubprocess },
     ).catch((cause: unknown) => cause)
     expect(error).toBeInstanceOf(Error)
     expect((error as Error).message).toBe(
@@ -1103,6 +1114,7 @@ describe('dsh-subagent-acp', () => {
       command: 'unused',
       args: [],
       cwd: process.cwd(),
+      workspaceRoots: [],
       permission: 'reject',
       env: {},
       disposeEofGraceMs: DEFAULT_DISPOSE_EOF_GRACE_MS,
@@ -1191,6 +1203,7 @@ describe('dsh-subagent-acp', () => {
         command: process.execPath,
         args: [mockServer],
         cwd: process.cwd(),
+        workspaceRoots: [],
         permission,
         env: {
           MOCK_PERMISSION: '1',
@@ -1223,6 +1236,7 @@ describe('dsh-subagent-acp', () => {
       command: process.execPath,
       args: [mockServer],
       cwd: process.cwd(),
+      workspaceRoots: [],
       permission: 'reject',
       env: { MOCK_HANG: '1', MOCK_IGNORE_CANCEL: '1' },
       disposeEofGraceMs: 10,
@@ -1251,6 +1265,7 @@ describe('dsh-subagent-acp', () => {
       command: process.execPath,
       args: [mockServer],
       cwd: process.cwd(),
+      workspaceRoots: [],
       permission: 'reject',
       env: { MOCK_HANG: '1', MOCK_IGNORE_CANCEL: '1' },
       disposeEofGraceMs: 10,
@@ -1282,6 +1297,7 @@ describe('dsh-subagent-acp', () => {
         command: process.execPath,
         args: [mockServer],
         cwd: process.cwd(),
+        workspaceRoots: [],
         permission: 'reject',
         env: { MOCK_CRASH_ON_PROMPT: '1' },
         disposeEofGraceMs: DEFAULT_DISPOSE_EOF_GRACE_MS,
@@ -1327,6 +1343,7 @@ describe('dsh-subagent-acp', () => {
         command: process.execPath,
         args: [mockServer],
         cwd: process.cwd(),
+        workspaceRoots: [],
         permission: 'reject',
         env: { MOCK_CRASH_ON_PROMPT: '1' },
         disposeEofGraceMs: DEFAULT_DISPOSE_EOF_GRACE_MS,

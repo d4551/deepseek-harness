@@ -136,7 +136,7 @@ describe('CI workflow', () => {
     const nativeTestCommand = nativeTestCommands.map(step => step.run).join('\n')
     expect(nativeTestCommand).toContain('--no-file-parallelism')
     expect(nativeTestCommand).toContain('--testTimeout 90000')
-    expect(nativeTestCommand).toContain('tool-pwsh/tests/loader.spec.ts')
+    expect(nativeTestCommand).toContain('tool-shell/tests/pwsh-loader.spec.ts')
     expect(nativeTestCommand).toContain('workflow-worker-thread.spec.ts')
 
     // windows-observational is non-blocking.
@@ -152,12 +152,13 @@ describe('CI workflow', () => {
     expect(serialWindows['runs-on']).toEqual(['self-hosted', 'dsh-win-ci', 'windows'])
     expect(serialWindows.name).toBe('serial / windows (self-hosted standby)')
 
-    // Aggregate: Wine and the required split native jobs are needed;
-    // windows-coverage is temporarily non-blocking while Windows ACP
-    // half-close tests are stabilized; observational stays out too.
+    // Aggregate: Wine and the required native jobs are needed. Coverage is one
+    // of them — a red Windows coverage result beside a green verdict is a
+    // Windows regression the branch accepted. Observational stays out: Linux
+    // owns the blocking static and documentation verdicts it repeats.
     expect(aggregate.needs).toContain('windows')
     expect(aggregate.needs).toContain('windows-build')
-    expect(aggregate.needs).not.toContain('windows-coverage')
+    expect(aggregate.needs).toContain('windows-coverage')
     expect(aggregate.needs).toContain('windows-native-tests')
     expect(aggregate.needs).not.toContain('windows-observational')
     expect(aggregate.needs).not.toContain('serial-windows')

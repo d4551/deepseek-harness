@@ -1,6 +1,7 @@
 /** Package-owned durable clock-context invariants. @module @deepseek-ai/dsh-time-context/invariant */
 
 import type { Context } from '@deepseek-ai/cordis'
+import { stageSessionEvents } from '@deepseek-ai/dsh-session/invariant-staging'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { InvariantFailure, InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 import {
@@ -158,31 +159,48 @@ function validateReading(
   }
 }
 
-/* jscpd:ignore-start -- package companions share replay and dispatch plumbing */
+/** Whether one event is a reading this package wrote. */
+function isReading(event: SessionEvent): event is SessionEvent<'user/message'> {
+  return event.type === 'user/message'
+    && event.data.source.kind === 'plugin'
+    && event.data.source.plugin === SOURCE_NAME
+}
+
 /** Validate all package-owned readings already present in one session. */
 function validateSession(session: Session, fail: InvariantFailure): void {
   for (const [index, event] of session.events.entries()) {
-    if (event.type !== 'user/message'
-      || event.data.source.kind !== 'plugin'
-      || event.data.source.plugin !== SOURCE_NAME) continue
+    if (!isReading(event)) continue
     validateReading(session.events.slice(0, index), event, fail)
   }
 }
 
+/**
+ * The session a reading is judged against. Each check reads the committed
+ * prefix — the turn boundaries, the step boundaries, and the entered messages
+ * that precede the candidate — so the state is the session itself.
+ */
+interface ReadingHistory {
+  /** The session whose committed events precede every staged candidate. */
+  readonly session: Session
+}
+
 /** Install validation for loaded and newly appended context readings. */
 const install: InvariantInstaller = Object.assign((ctx: Context, fail: InvariantFailure) => {
-  for (const session of ctx.sessions.list()) validateSession(session, fail)
-  ctx.on('session/created', (session) => { validateSession(session, fail) }, { global: true })
-  ctx.on('internal/dispatch', (_mode, eventName, args) => {
-    if (eventName !== 'session/event') return
-    const [session, event] = args as [Session, SessionEvent]
-    if (event.type !== 'user/message'
-      || event.data.source.kind !== 'plugin'
-      || event.data.source.plugin !== SOURCE_NAME) return
-    validateReading(session.events, event, fail)
-  }, { global: true })
+  stageSessionEvents<ReadingHistory, SessionEvent>(ctx, fail, {
+    seed: (session) => {
+      validateSession(session, fail)
+      return { session }
+    },
+    stage: (state, event) => {
+      if (!isReading(event)) return undefined
+      validateReading(state.session.events, event, fail)
+      return event
+    },
+    claims: isReading,
+    commit: state => state,
+    unstagedMessage: 'time-context reading published without pre-commit validation',
+  })
 }, { inject: ['sessions'] })
-/* jscpd:ignore-end */
 
 /**
  * Register the time-context invariant companion.

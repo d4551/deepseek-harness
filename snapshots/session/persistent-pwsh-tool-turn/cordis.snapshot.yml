@@ -86,10 +86,10 @@
   name: '@deepseek-ai/dsh-tool-skill'
   disabled: true
 
-- id: tool-bash
-  name: '@deepseek-ai/dsh-tool-bash'
+- id: tool-shell
+  name: '@deepseek-ai/dsh-tool-shell'
   disabled: true
 
 - insert:
-    - id: tool-pwsh-persistent
-      name: '@deepseek-ai/dsh-tool-pwsh-persistent'
+    - id: tool-shell-persistent
+      name: '@deepseek-ai/dsh-tool-shell-persistent'

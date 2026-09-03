@@ -180,6 +180,7 @@ These limits define when this provider is a poor fit or needs special operationa
 - **Assistant payload is final text only** — reasoning, intermediate messages, tool traffic, usage, stderr, and workspace diffs remain product-local.
 - **No optional shared capabilities** — `agentOptions`, output schemas, child personas, tool filtering, and harness depth enforcement are rejected by the shared service for this provider.
 - **No wall-clock timeout or side-effect rollback** — the caller cancels long work, and files or external systems changed before cancellation are not restored.
+- **One working directory per child** — the child runs in the parent session's `cwd`; a parent working in additional workspace roots hands on only that primary root, because Claude Code takes its workspace from its own configuration rather than from this delegation. In-process children carry the complete root set on their own session logs.
 
 <a id="dev-note"></a>
 ### Dev Note

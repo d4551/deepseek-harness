@@ -4,7 +4,8 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import type { SessionId, SessionSummary } from '@deepseek-ai/dsh-api-remotes/client'
+import type { SessionId } from '@deepseek-ai/dsh-api-remotes/client'
+import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/types'
 import { flattenLineage } from '../src/client/sessions/lineage.ts'
 
 const s = (id: string, updatedAt: number, parent?: string): SessionSummary => ({

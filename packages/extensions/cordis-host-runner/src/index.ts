@@ -14,6 +14,9 @@ import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
 import { isPlugin, normalizeHandler } from './guard.ts'
 import { CordisInspectRegistryService } from './inspect-registry.ts'
 import { missingServices, startHostHalf } from './lifecycle.ts'
+import {
+  lifecyclePointers, latestRunPointer, packageSummaries, versionPointers,
+} from './projection.ts'
 import { DynamicCordisRegistry } from './registry.ts'
 import type {
   DynamicCordisDefineReceipt, DynamicCordisDefineRequest, DynamicCordisDefinition,
@@ -25,6 +28,7 @@ import {
   ApprovalRequestId, CordisDynamicPackageId, CordisDynamicPluginId, CordisDynamicPluginRunId,
 } from './types.ts'
 import { createSandbox, evaluateHostCode, precheckCode } from './sandbox.ts'
+import { errorDetails } from './wire-values.ts'
 import type {
   CordisErrorDetails,
   CordisDynamicRunMode, CordisInspectProviderManifest, CordisInspectQueryResolution,
@@ -34,15 +38,11 @@ import type {
   DynamicCordisUndefineReceipt, RequestRunOutcome,
 } from './types.ts'
 
-export type * from './types.ts'
+export type { CordisDynamicRunMode, CordisErrorDetails, CordisHalfState, CordisInspectMethodManifest, CordisInspectPlatform, CordisInspectProviderManifest, CordisInspectProviderView, CordisInspectQueryRequest, CordisInspectQueryResolution, CordisInspectQueryResolved, CordisInspectRequestId, CordisInspectResolveAck, CordisRunDiagnostic, CordisRunStatus, DynamicCordisClientSource, DynamicCordisHostHalfResult, DynamicCordisInventoryPackage, DynamicCordisInventoryRow, DynamicCordisInvokeResult, DynamicCordisPackage, DynamicCordisRenderFailure, DynamicCordisRequestResolved, DynamicCordisResolveAck, DynamicCordisRetracted, DynamicCordisRunAttempt, DynamicCordisRunRequest, DynamicCordisRunResolution, DynamicCordisRunResponse, DynamicCordisStopResponse, DynamicCordisUndefineReceipt, RequestRunOutcome } from './types.ts'
 export {
   ApprovalRequestId, CordisDynamicPackageId, CordisDynamicPluginId, CordisDynamicPluginRunId,
 } from './types.ts'
-export type {
-  DynamicCordisDefineReceipt, DynamicCordisDefineRequest, DynamicCordisDefinition, DynamicCordisHandler,
-  DynamicCordisPackageInspection, DynamicCordisPlugin, DynamicCordisPluginInspection,
-  DynamicCordisReference, DynamicCordisRun,
-} from './registry.ts'
+export type { DynamicCordisDefineReceipt, DynamicCordisDefineRequest, DynamicCordisDefinition, DynamicCordisHandler, DynamicCordisPackageInspection, DynamicCordisPlugin, DynamicCordisPluginInspection, DynamicCordisReference, DynamicCordisRun } from './registry.ts'
 export { CordisInspectRegistryService } from './inspect-registry.ts'
 export type { HostCordisInspectProviderRegistration } from './inspect-registry.ts'
 export { HOST_BUILTIN_INSPECTION } from './sandbox.ts'
@@ -490,28 +490,15 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
    * Frame-wide inventory, grouped as one row per stable Plugin.
    * @returns Source-free metadata for every process-local Plugin.
    */
-  /* jscpd:ignore-start */
   @Remote('inventory')
   inventory(): DynamicCordisInventoryRow[] {
     return this.registry.all().map(plugin => ({
       pluginId: plugin.pluginId,
       agentId: plugin.sessionId,
-      packages: [...plugin.packages.values()].map(definition => ({
-        packageId: definition.packageId,
-        name: definition.name,
-        purpose: definition.purpose,
-        hasHostHalf: definition.hostCode !== undefined,
-        hasClientHalf: definition.clientCode !== undefined,
-      })),
-      ...plugin.currentPackageId === undefined ? {} : { currentPackageId: plugin.currentPackageId },
-      ...plugin.nextPackageId === undefined ? {} : { nextPackageId: plugin.nextPackageId },
-      ...plugin.run === undefined ? {} : {
-        activeRun: { pluginRunId: plugin.run.pluginRunId, packageId: plugin.run.packageId },
-      },
-      ...plugin.latestRun === undefined ? {} : { latestRun: cloneAttempt(plugin.latestRun) },
+      packages: packageSummaries(plugin),
+      ...lifecyclePointers(plugin),
     }))
   }
-  /* jscpd:ignore-end */
 
   /**
    * Read one Session's Host-rich state for inspection and result rendering.
@@ -521,15 +508,8 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
   snapshot(agent: Agent): DynamicCordisSnapshotRow[] {
     return this.registry.ofSession(agent.id).map(plugin => ({
       pluginId: plugin.pluginId,
-      ...plugin.currentPackageId === undefined ? {} : { currentPackageId: plugin.currentPackageId },
-      ...plugin.nextPackageId === undefined ? {} : { nextPackageId: plugin.nextPackageId },
-      packages: [...plugin.packages.values()].map(definition => ({
-        packageId: definition.packageId,
-        name: definition.name,
-        purpose: definition.purpose,
-        hasHostHalf: definition.hostCode !== undefined,
-        hasClientHalf: definition.clientCode !== undefined,
-      })),
+      ...versionPointers(plugin),
+      packages: packageSummaries(plugin),
       ...plugin.run === undefined ? {} : {
         activeRun: {
           pluginRunId: plugin.run.pluginRunId,
@@ -539,7 +519,7 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
           ...plugin.run.renderFailure === undefined ? {} : { renderFailure: plugin.run.renderFailure },
         },
       },
-      ...plugin.latestRun === undefined ? {} : { latestRun: cloneAttempt(plugin.latestRun) },
+      ...latestRunPointer(plugin),
     }))
   }
 
@@ -563,12 +543,7 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
       packageId,
       name: definition.name,
       purpose: definition.purpose,
-      ...plugin.currentPackageId === undefined ? {} : { currentPackageId: plugin.currentPackageId },
-      ...plugin.nextPackageId === undefined ? {} : { nextPackageId: plugin.nextPackageId },
-      ...plugin.run === undefined ? {} : {
-        activeRun: { pluginRunId: plugin.run.pluginRunId, packageId: plugin.run.packageId },
-      },
-      ...plugin.latestRun === undefined ? {} : { latestRun: cloneAttempt(plugin.latestRun) },
+      ...lifecyclePointers(plugin),
     }
   }
 
@@ -592,16 +567,7 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
     if (plugin === undefined) throw new Error(missingPluginMessage(pluginId))
     const reference = this.reference(agent, pluginId)
     if (reference === undefined) throw new Error(`dynamic plugin "${pluginId}" has no package`)
-    return {
-      ...reference,
-      packages: [...plugin.packages.values()].map(definition => ({
-        packageId: definition.packageId,
-        name: definition.name,
-        purpose: definition.purpose,
-        hasHostHalf: definition.hostCode !== undefined,
-        hasClientHalf: definition.clientCode !== undefined,
-      })),
-    }
+    return { ...reference, packages: packageSummaries(plugin) }
   }
 
   /**
@@ -631,14 +597,7 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
         ...definition.hostCode === undefined ? {} : { host: definition.hostCode },
         ...definition.clientCode === undefined ? {} : { client: definition.clientCode },
       },
-      /* jscpd:ignore-start */
-      ...plugin.currentPackageId === undefined ? {} : { currentPackageId: plugin.currentPackageId },
-      ...plugin.nextPackageId === undefined ? {} : { nextPackageId: plugin.nextPackageId },
-      ...plugin.run === undefined ? {} : {
-        activeRun: { pluginRunId: plugin.run.pluginRunId, packageId: plugin.run.packageId },
-      },
-      ...plugin.latestRun === undefined ? {} : { latestRun: cloneAttempt(plugin.latestRun) },
-      /* jscpd:ignore-end */
+      ...lifecyclePointers(plugin),
     }
   }
 
@@ -1010,10 +969,7 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
         + `nextPackageId: ${plugin?.nextPackageId ?? pending.packageId}\n`
         + 'Inspect the failed Package, correct it on the same Plugin when needed, and retry the activation autonomously.'
     }
-    agent.steer(createUserMessage({
-      content: [{ type: 'text', text }],
-      source: { kind: 'plugin', plugin: 'cordis-host-runner' },
-    }))
+    this.steerUserContext(agent, text)
   }
 
   private steerRenderFailure(
@@ -1023,18 +979,15 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
     pluginRunId: CordisDynamicPluginRunId,
     failure: DynamicCordisRenderFailure,
   ): void {
-    agent.steer(createUserMessage({
-      content: [{
-        type: 'text',
-        text: `Cordis Client UI ${plugin.pluginId}/${definition.packageId} (${pluginRunId}) failed while rendering `
-          + `Slot "${failure.slot}" after activation.\n`
-          + `${formatErrorDetails(failure)}\n`
-          + `entryAbdicated: ${failure.abdicated}\n`
-          + 'Inspect the failed Package, fix the Client code by defining a new Package on the same Plugin, and '
-          + 'activate that Package autonomously with cordis_run mode:"update".',
-      }],
-      source: { kind: 'plugin', plugin: 'cordis-host-runner' },
-    }))
+    this.steerUserContext(
+      agent,
+      `Cordis Client UI ${plugin.pluginId}/${definition.packageId} (${pluginRunId}) failed while rendering `
+      + `Slot "${failure.slot}" after activation.\n`
+      + `${formatErrorDetails(failure)}\n`
+      + `entryAbdicated: ${failure.abdicated}\n`
+      + 'Inspect the failed Package, fix the Client code by defining a new Package on the same Plugin, and '
+      + 'activate that Package autonomously with cordis_run mode:"update".',
+    )
   }
 
   private steerHostHandlerFailure(
@@ -1043,49 +996,60 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
     method: string,
     failure: CordisErrorDetails,
   ): void {
-    const reportKey = `Host\u0000handler\u0000${method}\u0000${failure.message}`
-    if (!this.claimRuntimeFailure(plugin, run, reportKey)) return
-    const agents = this.rootCtx.get('agents')
-    const agent = agents?.get(plugin.sessionId)
-    if (agent === undefined) return
-    agent.steer(createUserMessage({
-      content: [{
-        type: 'text',
-        text: `Cordis Host handler ${plugin.pluginId}/${run.packageId} (${run.pluginRunId}) failed when the Client called `
-          + `host.call(${JSON.stringify(method)}).\n`
-          + `${formatErrorDetails(failure)}\n`
-          + 'The Plugin remains running. Inspect this Package, correct the Host code on the same Plugin, and activate '
-          + 'the new Package autonomously with cordis_run mode:"update". If the handler needs a Service, either declare '
-          + 'that Service in the returned Plugin inject list or read it with ctx.get(name) and handle undefined.',
-      }],
-      source: { kind: 'plugin', plugin: 'cordis-host-runner' },
-    }))
+    this.steerRuntimeFailure(
+      plugin,
+      run,
+      `Host\u0000handler\u0000${method}\u0000${failure.message}`,
+      `Cordis Host handler ${plugin.pluginId}/${run.packageId} (${run.pluginRunId}) failed when the Client called `
+      + `host.call(${JSON.stringify(method)}).\n`
+      + `${formatErrorDetails(failure)}\n`
+      + 'The Plugin remains running. Inspect this Package, correct the Host code on the same Plugin, and activate '
+      + 'the new Package autonomously with cordis_run mode:"update". If the handler needs a Service, either declare '
+      + 'that Service in the returned Plugin inject list or read it with ctx.get(name) and handle undefined.',
+    )
   }
 
-  /* jscpd:ignore-start */
   private steerGuardFailure(
     plugin: DynamicCordisPlugin,
     run: DynamicCordisRun,
     platform: 'Host' | 'Client',
     failure: CordisErrorDetails,
   ): void {
-    const reportKey = `${platform}\u0000guard\u0000${failure.message}`
+    this.steerRuntimeFailure(
+      plugin,
+      run,
+      `${platform}\u0000guard\u0000${failure.message}`,
+      `Cordis ${platform} guard rejected runtime code in ${plugin.pluginId}/${run.packageId} `
+      + `(${run.pluginRunId}) after activation.\n${formatErrorDetails(failure)}\n`
+      + 'The Plugin remains running. Inspect this Package, define a corrected Package on the same Plugin, and '
+      + 'activate it autonomously with cordis_run mode:"update".',
+    )
+  }
+
+  /**
+   * Steer the owning Session once per distinct runtime failure of a live activation.
+   * A failure whose activation is no longer the Plugin's live run, or that this
+   * run already reported, is dropped before it reaches the Session.
+   */
+  private steerRuntimeFailure(
+    plugin: DynamicCordisPlugin,
+    run: DynamicCordisRun,
+    reportKey: string,
+    text: string,
+  ): void {
     if (!this.claimRuntimeFailure(plugin, run, reportKey)) return
-    const agents = this.rootCtx.get('agents')
-    const agent = agents?.get(plugin.sessionId)
+    const agent = this.rootCtx.get('agents')?.get(plugin.sessionId)
     if (agent === undefined) return
+    this.steerUserContext(agent, text)
+  }
+
+  /** Deliver one plugin-attributed message into the Agent's running turn. */
+  private steerUserContext(agent: Agent, text: string): void {
     agent.steer(createUserMessage({
-      content: [{
-        type: 'text',
-        text: `Cordis ${platform} guard rejected runtime code in ${plugin.pluginId}/${run.packageId} `
-          + `(${run.pluginRunId}) after activation.\n${formatErrorDetails(failure)}\n`
-          + 'The Plugin remains running. Inspect this Package, define a corrected Package on the same Plugin, and '
-          + 'activate it autonomously with cordis_run mode:"update".',
-      }],
+      content: [{ type: 'text', text }],
       source: { kind: 'plugin', plugin: 'cordis-host-runner' },
     }))
   }
-  /* jscpd:ignore-end */
 
   private claimRuntimeFailure(plugin: DynamicCordisPlugin, run: DynamicCordisRun, key: string): boolean {
     const attempt = plugin.latestRun
@@ -1218,27 +1182,9 @@ function missingPluginMessage(id: CordisDynamicPluginId): string {
   return `no dynamic plugin "${id}" in this process — it may have been removed or lost on DSH restart`
 }
 
-function errorDetails(error: unknown): CordisErrorDetails {
-  if (typeof error !== 'object' || error === null) return { message: String(error) }
-  const message = 'message' in error && typeof error.message === 'string'
-    ? error.message
-    : Object.prototype.toString.call(error)
-  const stack = 'stack' in error && typeof error.stack === 'string' ? error.stack : undefined
-  return { message, ...stack === undefined ? {} : { stack } }
-}
-
 function formatErrorDetails(failure: CordisErrorDetails): string {
   return `message: ${failure.message}`
     + (failure.stack === undefined ? '' : `\nstack:\n${failure.stack}`)
-}
-
-function cloneAttempt(attempt: DynamicCordisRunAttempt): DynamicCordisRunAttempt {
-  return {
-    ...attempt,
-    host: { ...attempt.host, waitingFor: [...attempt.host.waitingFor] },
-    client: { ...attempt.client, waitingFor: [...attempt.client.waitingFor] },
-    ...attempt.error === undefined ? {} : { error: { ...attempt.error } },
-  }
 }
 
 export default DynamicCordisRunnerService

@@ -75,14 +75,15 @@ kind: "package-reference"
 
 ### 设计概念
 
-本执行器是 `dsh-bash-sandbox` 的 pwsh 孪生：它继承 `dsh-pwsh-local` 的进程机制，消费其 argv 级 seam（`argv()`/`runArgv()`/`startArgv()`/`onProcessDone()`），并在 spawn 前把精确的 pwsh 调用经 `ctx.sandbox.confine()` 包装。隔离实体本身是平台无关的——sandbox seam 解析到平台的 runner——而本包只负责 pwsh 侧：所选模式、强制执行完整度，以及结果上的拒绝分类。
+本执行器是 `dsh-bash-sandbox` 的 pwsh 孪生：它继承 `dsh-pwsh-local` 的方言与进程机制，并启用 seam 的约束层——该层在 spawn 前把精确的 pwsh 调用经 `ctx.sandbox.confine()` 包装。隔离实体本身是平台无关的——sandbox seam 解析到平台的 runner——而本包只负责 pwsh 侧：所选模式、强制执行完整度，以及结果上的拒绝分类。
 
 ### 源码地图
 
 | 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | 插件入口：`SandboxPwshExecutor`、按进程保留事实、run/start 包装 |
-| [`src/helpers.ts`](src/helpers.ts) | 拒绝、runner 失败与 runner spawn 失败分类 |
+| [`src/index.ts`](src/index.ts) | 插件入口：`SandboxPwshExecutor`——启用约束的 pwsh 方言 |
+| [`../shell/src/confinement.ts`](../shell/src/confinement.ts) | argv 包装、runner 失败转换与按进程保留事实，与 `dsh-bash-sandbox` 共享 |
+| [`../shell/src/sandbox-classify.ts`](../shell/src/sandbox-classify.ts) | 拒绝、runner 失败与 runner spawn 失败分类，与 `dsh-bash-sandbox` 共享 |
 | [`src/invariant.ts`](src/invariant.ts) | 不变式伴生插件（无运行时不变式；分类在结果中可观察） |
 | `tests/` | 跨 ACL 与平台 runner 演练的行为 |
 

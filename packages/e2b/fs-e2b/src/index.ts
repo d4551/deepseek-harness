@@ -4,6 +4,7 @@
  * @module @deepseek-ai/dsh-fs-e2b
  */
 
+import { KeyedLock } from '@deepseek-ai/dsh-keyed-lock'
 import { createHash, randomUUID } from 'node:crypto'
 import { Buffer } from 'node:buffer'
 import { posix } from 'node:path'
@@ -26,40 +27,24 @@ import {
   quoteE2BShellArg,
 } from '@deepseek-ai/dsh-e2b'
 import type { EntryInfo, Sandbox } from '@deepseek-ai/dsh-e2b'
+import {
+  BINARY_SAMPLE_BYTES,
+  decodeText,
+  decodeTextStream,
+  detectsCrlf,
+  literalEdit,
+  normalizeLineEndings,
+  restoreLineEndings,
+} from '@deepseek-ai/dsh-fs/text'
 
 const VERSION_METADATA_KEY = 'dsh-version'
-const BINARY_SAMPLE_BYTES = 8192
 const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/
 
 function assertNotAborted(signal: AbortSignal | undefined, operation: string): void {
   if (signal?.aborted === true) throw new FsError(`${operation} aborted`, 'FS_ABORTED')
 }
 
-function normalizeLineEndings(value: string): string {
-  return value.replaceAll('\r\n', '\n')
-}
 
-function detectsCrlf(value: string): boolean {
-  const sample = value.slice(0, 4096)
-  const crlf = sample.split('\r\n').length - 1
-  const lf = sample.split('\n').length - 1 - crlf
-  return crlf > lf
-}
-
-function restoreLineEndings(value: string, crlf: boolean): string {
-  return crlf ? normalizeLineEndings(value).replaceAll('\n', '\r\n') : value
-}
-
-function decodeText(bytes: Uint8Array, displayPath: string, binarySampleBytes: number): string {
-  if (bytes.subarray(0, binarySampleBytes).includes(0)) {
-    throw new FsError(`cannot read "${displayPath}": binary file`, 'FS_NOT_TEXT')
-  }
-  try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
-  } catch (error: unknown) {
-    throw new FsError(`cannot read "${displayPath}": invalid UTF-8 text`, 'FS_NOT_TEXT', { cause: error })
-  }
-}
 
 function decodeCanonicalPath(encoded: string): string {
   if (encoded.length === 0 || !BASE64.test(encoded)) {
@@ -146,32 +131,12 @@ function mapError(error: unknown, operation: string, displayPath: string, signal
   return new FsError(`cannot ${operation} "${displayPath}": ${String(error)}`, 'FS_IO_ERROR', { cause: error })
 }
 
-function literalEdit(content: string, request: FsEditRequest, displayPath: string): string {
-  const oldString = normalizeLineEndings(request.oldString)
-  const newString = normalizeLineEndings(request.newString)
-  if (oldString.length === 0) {
-    throw new FsError(`cannot edit "${displayPath}": old_string must be non-empty`, 'FS_EDIT_NOT_FOUND')
-  }
-  let matches = 0
-  let offset = 0
-  while (true) {
-    const found = content.indexOf(oldString, offset)
-    if (found < 0) break
-    matches += 1
-    offset = found + oldString.length
-  }
-  if (matches === 0) throw new FsError(`cannot edit "${displayPath}": old_string was not found`, 'FS_EDIT_NOT_FOUND')
-  if (!request.replaceAll && matches !== 1) {
-    throw new FsError(`cannot edit "${displayPath}": old_string matched ${matches} times`, 'FS_AMBIGUOUS_EDIT')
-  }
-  return request.replaceAll ? content.split(oldString).join(newString) : content.replace(oldString, newString)
-}
 
 /** Remote filesystem backend sharing the sandbox owned by `ctx.e2b`. */
 export class E2BFileSystem extends FileSystem {
   static inject = ['e2b']
 
-  private readonly locks = new Map<string, Promise<unknown>>()
+  private readonly locks = new KeyedLock()
 
   override async resolve(path: string, opts?: { cwd?: string; signal?: AbortSignal }): Promise<FsTarget> {
     assertNotAborted(opts?.signal, 'resolve')
@@ -300,37 +265,22 @@ export class E2BFileSystem extends FileSystem {
     return {
       async *[Symbol.asyncIterator](): AsyncGenerator<string> {
         const reader = stream.getReader()
-        const decoder = new TextDecoder('utf-8', { fatal: true })
-        let sampledBytes = 0
-        let completed = false
-        try {
+        const state = { completed: false }
+        async function* bytes(): AsyncGenerator<Uint8Array> {
           while (true) {
             assertNotAborted(signal, 'read')
             const next = await reader.read()
             if (next.done) break
-            if (sampledBytes < BINARY_SAMPLE_BYTES) {
-              const sample = next.value.subarray(0, BINARY_SAMPLE_BYTES - sampledBytes)
-              if (sample.includes(0)) throw new FsError(`cannot read "${displayPath}": binary file`, 'FS_NOT_TEXT')
-              sampledBytes += sample.length
-            }
-            let text: string
-            try {
-              text = decoder.decode(next.value, { stream: true })
-            } catch (error: unknown) {
-              throw new FsError(`cannot read "${displayPath}": invalid UTF-8 text`, 'FS_NOT_TEXT', { cause: error })
-            }
-            if (text.length > 0) yield text
+            yield next.value
           }
-          try {
-            decoder.decode()
-          } catch (error: unknown) {
-            throw new FsError(`cannot read "${displayPath}": invalid UTF-8 text`, 'FS_NOT_TEXT', { cause: error })
-          }
-          completed = true
+          state.completed = true
+        }
+        try {
+          yield* decodeTextStream(bytes(), displayPath, BINARY_SAMPLE_BYTES)
         } catch (error: unknown) {
           throw mapError(error, 'read', displayPath, signal)
         } finally {
-          if (!completed) {
+          if (!state.completed) {
             try {
               await reader.cancel()
             } catch (_streamCancellationFailure) {
@@ -379,7 +329,7 @@ export class E2BFileSystem extends FileSystem {
     expected?: FsWriteIntent,
     signal?: AbortSignal,
   ): Promise<FsWriteOutcome> {
-    return this.withLock(String(target.targetKey), async () => {
+    return this.locks.run(String(target.targetKey), async () => {
       const existing = await this.probe(String(target.targetKey), target.displayPath, signal)
       if (existing !== undefined && entryType(existing) !== 'file') {
         throw new FsError(`cannot write "${target.displayPath}": not a regular file`, 'FS_NOT_REGULAR_FILE')
@@ -408,7 +358,7 @@ export class E2BFileSystem extends FileSystem {
     expected?: { version: ReturnType<typeof FsVersion> },
     signal?: AbortSignal,
   ): Promise<FsEditOutcome> {
-    return this.withLock(String(target.targetKey), async () => {
+    return this.locks.run(String(target.targetKey), async () => {
       const existing = await this.probe(String(target.targetKey), target.displayPath, signal)
       if (existing === undefined) {
         throw new FsError(`cannot edit "${target.displayPath}": file changed since it was read`, 'FS_STALE_VERSION')
@@ -428,17 +378,6 @@ export class E2BFileSystem extends FileSystem {
     })
   }
 
-  private async withLock<T>(targetKey: string, operation: () => Promise<T>): Promise<T> {
-    const prior = this.locks.get(targetKey) ?? Promise.resolve()
-    const run = prior.then(operation, operation)
-    const tail = run.then(() => undefined, () => undefined)
-    this.locks.set(targetKey, tail)
-    try {
-      return await run
-    } finally {
-      if (this.locks.get(targetKey) === tail) this.locks.delete(targetKey)
-    }
-  }
 
   private async canonicalPath(sandbox: Sandbox, path: string, signal?: AbortSignal): Promise<string> {
     try {

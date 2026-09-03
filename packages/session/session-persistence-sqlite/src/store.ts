@@ -6,9 +6,10 @@
 
 import { randomUUID } from 'node:crypto'
 import { statSync } from 'node:fs'
-import { lstat, mkdir, open } from 'node:fs/promises'
+import { lstat, mkdir } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import type { DatabaseSync, StatementSync } from 'node:sqlite'
+import { createDatabaseFile } from '@deepseek-ai/dsh-sqlite-connection'
 import {
   type SessionEvent,
   type SessionHeader,
@@ -408,15 +409,6 @@ function sqliteRevision(storeIdentity: string, row: SessionRow): PersistenceRevi
   return SessionPersistenceRevision(
     `${storeIdentity}:incarnation:${row.incarnation}:revision:${row.revision}`,
   )
-}
-
-async function createDatabaseFile(path: string): Promise<void> {
-  try {
-    const handle = await open(path, 'wx', 0o600)
-    await handle.close()
-  } catch (error: unknown) {
-    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
-  }
 }
 
 async function validateParentDirectory(path: string): Promise<void> {

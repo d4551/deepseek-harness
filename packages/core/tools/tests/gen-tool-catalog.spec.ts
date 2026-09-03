@@ -34,7 +34,7 @@ describe('gen-tool-catalog collectToolCatalog', () => {
       'read', 'read_image', 'report', 'run_code', 'schedule_create', 'schedule_delete',
       'schedule_list', 'send_message', 'send_message', 'session_event_read', 'session_event_search',
       'session_event_trace', 'session_search', 'session_trace', 'skill', 'spawn_teammate',
-      'str_replace_editor', 'subagent', 'team_task_create',
+      'str_replace_editor', 'subagent', 'team_task_claim_next', 'team_task_create',
       'team_task_get', 'team_task_list', 'team_task_update', 'terminal_close', 'terminal_list',
       'terminal_open', 'terminal_read', 'terminal_send', 'terminal_signal', 'todo_write',
       'update_goal', 'wait_agent', 'web_fetch', 'web_search', 'workflow', 'write',
@@ -60,8 +60,8 @@ describe('gen-tool-catalog collectToolCatalog', () => {
 
   it('attributes each harvested tool with its registering plugin source', async () => {
     const catalog = await collectToolCatalog()
-    const bash = catalog.find(entry => entry.pkg === '@deepseek-ai/dsh-tool-bash')
-    expect(bash?.sources.bash).toBe('packages/shell/tool-bash/src/index.ts')
+    const bash = catalog.find(entry => entry.pkg === '@deepseek-ai/dsh-tool-shell')
+    expect(bash?.sources.bash).toBe('packages/shell/tool-shell/src/index.ts')
     const control = catalog.find(entry => entry.pkg === '@deepseek-ai/dsh-tool-subagent-control')
     expect(control?.sources).toEqual({
       interrupt_agent: 'packages/subagent/tool-subagent-control/src/index.ts',
@@ -102,7 +102,7 @@ describe('gen-tool-catalog assertManifestComplete', () => {
     // An empty manifest scanned against the real tree: every `tool-*` package
     // is unlisted, so the guard must fire and name them.
     expect(() => { assertManifestComplete([]) }).toThrow(/not in the boot manifest/)
-    expect(() => { assertManifestComplete([]) }).toThrow(/tool-bash/)
+    expect(() => { assertManifestComplete([]) }).toThrow(/tool-shell/)
   })
 })
 

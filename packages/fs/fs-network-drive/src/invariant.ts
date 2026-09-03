@@ -6,7 +6,8 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { InvariantFailure, InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 import { drivePathOf } from './materialization.ts'
-import { NetworkDriveFileSystem, isProviderVersion, targetKeyFor } from './index.ts'
+import { NetworkDriveFileSystem } from './index.ts'
+import { isProviderVersion, targetKeyFor } from './vocabulary.ts'
 
 const PACKAGE_NAME = '@deepseek-ai/dsh-fs-network-drive'
 

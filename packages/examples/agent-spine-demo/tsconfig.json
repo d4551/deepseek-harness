@@ -75,7 +75,7 @@
       "path": "../../shell/shell-env"
     },
     {
-      "path": "../../shell/tool-bash"
+      "path": "../../shell/tool-shell"
     },
     {
       "path": "../../jobs/jobs"

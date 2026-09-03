@@ -6,12 +6,13 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import { resolve } from 'node:path'
+import { isAbsolute, resolve } from 'node:path'
 import type { Agent, AgentHandle } from '@deepseek-ai/dsh-agent'
 import { admitEncodedImages, type EncodedImageAttachment, type ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import { createUserMessage, ReasoningEffortId, type ContentBlock, type LlmRuntime } from '@deepseek-ai/dsh-llm'
 import { carrierKeyOf, type Scoped } from '@deepseek-ai/dsh-scope'
 import { SessionId } from '@deepseek-ai/dsh-session'
+import { setAdditionalWorkspaceRoots } from '@deepseek-ai/dsh-session/workspace-roots'
 import type SubagentRuntime from '@deepseek-ai/dsh-subagent'
 import type { SubagentRunEndInfo } from '@deepseek-ai/dsh-subagent'
 import * as LlmDeepSeek from '@deepseek-ai/dsh-llm-deepseek'
@@ -73,6 +74,7 @@ function successStatus(reason: string, options: HarnessSdkJsonRpcServerOptions):
  */
 export class HarnessSdkJsonRpcServer {
   private cwd = process.cwd()
+  private additionalDirectories: readonly string[] = []
   private provider = 'deepseek-official'
   private model = 'deepseek-official'
   private reasoningEffort: ReturnType<typeof ReasoningEffortId> | undefined
@@ -141,6 +143,14 @@ export class HarnessSdkJsonRpcServer {
       throw new TypeError('initialize maxTokens must be a positive safe integer')
     }
     const cwd = resolve(params.cwd)
+    // Wire boundary: reject a root the child's enforcement layers could never
+    // match here, before any SDK session records it.
+    const additionalDirectories = params.additionalDirectories ?? []
+    for (const directory of additionalDirectories) {
+      if (!isAbsolute(directory)) {
+        throw new TypeError(`initialize additionalDirectories entries must be absolute paths: ${directory}`)
+      }
+    }
     const provider = params.provider
     const model = params.model
     const reasoningEffort = params.reasoningEffort === undefined
@@ -159,6 +169,7 @@ export class HarnessSdkJsonRpcServer {
       ...params.maxTokens === undefined ? {} : { maxTokens: params.maxTokens },
     })
     this.cwd = cwd
+    this.additionalDirectories = additionalDirectories
     this.provider = provider
     this.model = model
     this.reasoningEffort = reasoningEffort
@@ -285,6 +296,9 @@ export class HarnessSdkJsonRpcServer {
         ...this.maxTokens === undefined ? {} : { maxTokens: this.maxTokens },
       },
     })
+    // The roots are session data, so they go on the session's own log through
+    // its write path; the header carries only `cwd`.
+    setAdditionalWorkspaceRoots(handle.agent.session, this.additionalDirectories)
     const rec: SessionRecord = { handle }
     this.sessions.set(sessionId, rec)
     return rec

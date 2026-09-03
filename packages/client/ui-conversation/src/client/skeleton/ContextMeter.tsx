@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { UseProjection } from '@deepseek-ai/dsh-api-session-controller/client'
 // Type-only: the `contextPressure` / `contextBreakdown` projection key merges.
 import type {} from '@deepseek-ai/dsh-token-meter/client'
-import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { GlyphButton, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ComposerBarProps } from '../contract/slots.ts'
 import { contextOccupancy } from '../context-occupancy.ts'
 import css from './ContextMeter.module.css'
@@ -106,8 +106,8 @@ export function ContextMeter({ useProjection, t }: ContextMeterProps) {
   return (
     <span ref={rootRef} className={css.root}>
       <Tooltip label={t('context.aria', { percent: reading })} side="top" delayMs={200} disabled={open}>
-        <button
-          type="button"
+        <GlyphButton
+          surface="header"
           className={css.trigger}
           aria-label={t('context.aria', { percent: reading })}
           aria-haspopup="dialog"
@@ -125,7 +125,7 @@ export function ContextMeter({ useProjection, t }: ContextMeterProps) {
               transform="rotate(-90 7 7)"
             />
           </svg>
-        </button>
+        </GlyphButton>
       </Tooltip>
       {open && (
         <div className={css.panel} role="dialog" aria-label={t('context.used')}>

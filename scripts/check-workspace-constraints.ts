@@ -55,6 +55,19 @@ const experimentalPackageDirectory = /^packages\/experimental\/[^/]+$/
 const experimentalPackageNamePrefix = '@deepseek-ai/dsh-experimental-'
 /** Directories whose packages this repository publishes: one release member each. */
 const releaseMemberDirectory = /^(?:packages\/(?!experimental\/)[^/]+\/[^/]+|apps\/[^/]+|vendor\/[^/]+)$/
+/**
+ * Private packages that sit outside `packages/experimental/` and are still not
+ * published. Each is a profile layer a user adds to an initialized source
+ * checkout by name; the release payloads exclude them, and their READMEs and
+ * their own bundle tests both state that. A directory rule cannot express this,
+ * because these live beside published presets, so each is named with its reason.
+ */
+const privateSourceCheckoutPackages: Readonly<Record<string, string>> = {
+  // Experimental Agent Teams and its Web half: opt-in coordination layers the
+  // shipped profiles do not stack.
+  '@deepseek-ai/dsh-agent-team-profile': 'opt-in Agent Teams layer, excluded from release payloads',
+  '@deepseek-ai/dsh-agent-team-web-profile': 'opt-in Agent Teams Web layer, excluded from release payloads',
+}
 const localArtifactDirs = new Set(['node_modules'])
 const appPackageFiles: Readonly<Record<string, readonly string[]>> = {
   '@deepseek-ai/dsh': ['lib/*.js'],
@@ -151,6 +164,12 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   '@deepseek-ai/dsh-client-ui-primitives': ['lib/**/*.css'],
   '@deepseek-ai/dsh-client-web': ['lib/**/*.css'],
   '@deepseek-ai/dsh-client-ui-theme': ['lib/styles'],
+  // A capability seam that owns logic both its providers need publishes it as
+  // its own bundle: the default workspace entry list covers only the package
+  // root and its invariant companion, so a packed install would resolve the
+  // subpath to a missing file.
+  '@deepseek-ai/dsh-session-persistence': ['lib/coordinated.js'],
+  '@deepseek-ai/dsh-shell': ['lib/sandbox-classify.js', 'lib/subprocess-executor.js'],
   // The CPython side ships as source .py files, published as-is rather than built.
   '@deepseek-ai/dsh-code-runtime-python': ['py/**/*.py'],
   // The shipped preset compositions travel inside the roster package.
@@ -177,6 +196,33 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   // bundles beside the lib: `dsh-llm-litert` reaches them through this package's
   // ./config and ./auth subpaths rather than through a re-export on its entry.
   '@deepseek-ai/dsh-llm-pi-ai': ['lib/auth.js', 'lib/config.js'],
+  // The seam's text handling ships as its own bundle beside the lib: every
+  // backend reaches UTF-8 decoding, LF normalization, and the literal edit
+  // through this package's ./text subpath rather than keeping a copy.
+  '@deepseek-ai/dsh-fs': ['lib/text.js'],
+  // The writable-root set ships as its own bundle: every sandbox dialect and the
+  // fs fence read it through this package's ./roots subpath.
+  '@deepseek-ai/dsh-sandbox': ['lib/roots.js'],
+  // The Win32 file-security and job-object bindings ship as their own bundles;
+  // subprocess-local and the ACL sandbox reach them through ./file-security and
+  // ./job rather than through a re-export on this package's entry.
+  '@deepseek-ai/dsh-win32-process': ['lib/file-security.js', 'lib/job.js'],
+  // The Windows durable-publication primitive ships as its own bundle: the JSONL
+  // session log, the attachment store, and the JSON storage backend reach it
+  // through this package's ./win32 subpath.
+  '@deepseek-ai/dsh-atomic-write': ['lib/win32.js'],
+  // The fetch URL policy and the public-address network policy ship as their own
+  // bundles; the rendered-page provider reaches both through ./policy and
+  // ./network rather than deep-importing this package's sources.
+  '@deepseek-ai/dsh-web-fetch-http': ['lib/network.js', 'lib/policy.js'],
+  // The drive's branded path identity and its vocabulary ship as their own
+  // bundles: the WebDAV provider and the fs consumer reach them through this
+  // package's ./identity and ./types subpaths.
+  '@deepseek-ai/dsh-network-drive': ['lib/identity.js'],
+  // The materialization root's path algebra ships as its own bundle; the
+  // hosted composition reaches it through this package's ./materialization
+  // subpath rather than through a re-export on the entry.
+  '@deepseek-ai/dsh-fs-network-drive': ['lib/materialization.js'],
   '@deepseek-ai/dsh-subprocess-local': ['scripts/ensure-spawn-helper.mjs'],
 }
 
@@ -300,7 +346,7 @@ export function checkWorkspaceManifest({ dir, manifest }: WorkspaceManifest): st
       || manifest.repository.directory !== expectedDirectory) {
       errors.push(`${label}: published Landlock package repository must use ${repositoryUrl} with directory ${expectedDirectory} for trusted publishing`)
     }
-  } else if (releaseMemberDirectory.test(dir)) {
+  } else if (releaseMemberDirectory.test(dir) && !(manifest.name !== undefined && manifest.name in privateSourceCheckoutPackages)) {
     // Release members state that they are publishable: npm refuses a private
     // package, and the repository field is how a consumer finds the source of
     // the package it installed.
@@ -321,6 +367,13 @@ export function checkWorkspaceManifest({ dir, manifest }: WorkspaceManifest): st
       || manifest.repository.url !== publishedRepositoryUrl
       || manifest.repository.directory !== dir) {
       errors.push(`${label}: release member repository must use ${publishedRepositoryUrl} with directory ${dir}`)
+    }
+  } else if (manifest.name !== undefined && manifest.name in privateSourceCheckoutPackages) {
+    if (manifest.private !== true) {
+      errors.push(`${label}: private source-checkout package must set "private": true`)
+    }
+    if (manifest.publishConfig !== undefined) {
+      errors.push(`${label}: private source-checkout package must not set publishConfig`)
     }
   } else if (!experimentalPackageDirectory.test(dir) && manifest.private !== true) {
     errors.push(`${label}: package.json must set "private": true`)

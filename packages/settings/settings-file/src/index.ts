@@ -9,12 +9,11 @@
 
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { watch as chokidarWatch } from 'chokidar'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, extname, join, resolve } from 'node:path'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { dirname, extname } from 'node:path'
 import { Document, parseDocument } from 'yaml'
 import { withFileLock, writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
-import { canonicalizeWatchPath, resolveDshHome } from '@deepseek-ai/dsh-home-paths'
+import { DocumentQueue, DocumentQueueConfigFields, readDocumentText, resolveDocumentSpec, type DocumentSpec } from '@deepseek-ai/dsh-document-queue'
 import { SettingsProvider, deepEqualJson, type SettingsNamespace } from '@deepseek-ai/dsh-settings'
 
 /** Plugin config: file location and hot-reload behavior. */
@@ -38,32 +37,24 @@ const FORMATS: Record<string, SettingsFormat> = {
   '.json': 'json',
 }
 
-/** Fully resolved provider parameters; defaulting happens here, never inline. */
-interface ResolvedSpec {
-  filename: string
+/** Fully resolved provider parameters: the shared document location plus this document's format. */
+interface ResolvedSpec extends DocumentSpec {
   format: SettingsFormat
-  watch: boolean
-  debounceMs: number
 }
 
 /**
- * Resolve the runtime spec from plugin config: an explicit `path` wins,
- * otherwise the document lives at `<harness home>/settings.yaml`.
+ * Resolve the runtime spec from plugin config: the shared location and watch
+ * behavior, plus the format the file extension names.
  * @param config - raw plugin config.
  * @returns the resolved file location, format, and watch behavior.
  */
 export function resolveSpec(config: Config): ResolvedSpec {
-  const filename = resolve(config.path ?? join(resolveDshHome(config.dshHome), 'settings.yaml'))
-  const format = FORMATS[extname(filename)]
+  const spec = resolveDocumentSpec(config, 'settings.yaml')
+  const format = FORMATS[extname(spec.filename)]
   if (format === undefined) {
-    throw new Error(`settings-file: extension "${extname(filename)}" is not supported (use .yaml, .yml, or .json)`)
+    throw new Error(`settings-file: extension "${extname(spec.filename)}" is not supported (use .yaml, .yml, or .json)`)
   }
-  return {
-    filename,
-    format,
-    watch: config.watch ?? true,
-    debounceMs: config.debounceMs ?? 100,
-  }
+  return { ...spec, format }
 }
 
 /** Whether a parsed YAML value is a map for diffing purposes. */
@@ -91,11 +82,6 @@ function patchNode(document: Document, path: readonly string[], current: unknown
   if (!deepEqualJson(current, next)) document.setIn([...path], next)
 }
 
-/** Whether a filesystem error means absence; every non-ENOENT failure must surface. */
-function isENOENT(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException | null)?.code === 'ENOENT'
-}
-
 /** Whether an exclusive file create found an existing document. */
 function isEEXIST(error: unknown): boolean {
   return (error as NodeJS.ErrnoException | null)?.code === 'EEXIST'
@@ -103,12 +89,7 @@ function isEEXIST(error: unknown): boolean {
 
 /** File-backed settings provider (`settings.yaml`/`.json`). */
 export class FileSettingsProvider extends SettingsProvider {
-  static Config: z<Config> = z.object({
-    path: z.string(),
-    dshHome: z.string(),
-    watch: z.boolean().default(true),
-    debounceMs: z.number().min(0).default(100),
-  })
+  static Config: z<Config> = z.object(DocumentQueueConfigFields)
 
   private readonly spec: ResolvedSpec
   /**
@@ -118,25 +99,25 @@ export class FileSettingsProvider extends SettingsProvider {
    */
   private text: string | undefined
   /**
-   * Single exclusive operation chain: watcher reloads and document writes run
-   * one at a time in queue order (settled tail), so a write can never render
-   * from text a concurrent reload is busy replacing, and a reload can never
-   * read a half-committed write.
+   * The document's exclusive operation chain: watcher reloads and document
+   * writes run one at a time in queue order, so a write can never render from
+   * text a concurrent reload is busy replacing, and a reload can never read a
+   * half-committed write.
    */
-  private operations: Promise<void> = Promise.resolve()
-  /** Set at dispose: refuse new watcher events and let in-flight work no-op. */
-  private closed = false
-
-  /** Opaque read of {@link closed}: control flow cannot narrow it across awaits. */
-  private isClosed(): boolean {
-    return this.closed
-  }
+  private readonly queue: DocumentQueue
 
   constructor(ctx: Context, public config: Config) {
     super(ctx)
     // Programmatic construction may bypass Schemastery normalization; resolve
     // the same defaults in one explicit step either way.
     this.spec = resolveSpec(config)
+    this.queue = new DocumentQueue({
+      label: 'settings-file',
+      filename: this.spec.filename,
+      debounceMs: this.spec.debounceMs,
+      logger: ctx.logger,
+      reconcile: () => this.reconcileFromDisk(),
+    })
   }
 
   /** The local document is always writable through {@link SettingsProvider.update}. */
@@ -151,7 +132,7 @@ export class FileSettingsProvider extends SettingsProvider {
 
   /** Materialize an absent owner-only document, then return its resolved path. */
   override prepareDocument(): Promise<string> {
-    return this.enqueue(async () => {
+    return this.queue.enqueue(async () => {
       await mkdir(dirname(this.spec.filename), { recursive: true, mode: 0o700 })
       await withFileLock(this.spec.filename, async () => {
         try {
@@ -161,18 +142,15 @@ export class FileSettingsProvider extends SettingsProvider {
           throw error
         }
         this.text = ''
-        if (!this.isClosed()) this.publish({})
+        if (!this.queue.isClosed()) this.publish({})
       })
       return this.spec.filename
     })
   }
 
   protected async load(): Promise<Record<string, unknown>> {
-    let text: string
-    try {
-      text = await readFile(this.spec.filename, 'utf8')
-    } catch (error) {
-      if (!isENOENT(error)) throw error
+    const text = await readDocumentText(this.spec.filename)
+    if (text === undefined) {
       this.text = undefined
       return {}
     }
@@ -186,25 +164,7 @@ export class FileSettingsProvider extends SettingsProvider {
     // queues serialize with each other and with watcher reloads on the one
     // operation chain: each render must see the text the previous operation
     // committed, or a sibling section silently vanishes from disk.
-    return this.enqueue(() => this.persistSection(ns, section))
-  }
-
-  /** Queue one exclusive document operation behind every earlier one. */
-  private enqueue<T>(operation: () => Promise<T>): Promise<T> {
-    const task = this.operations.then(operation)
-    this.operations = task.then(() => undefined, () => undefined)
-    return task
-  }
-
-  /** Queue a reload; only an invariant violation escaping a commit can reject it. */
-  private queueRefresh(): void {
-    void this.enqueue(() => this.refresh()).catch((error: unknown) => {
-      // Only an invariant violation escaping the commit path can reject a
-      // refresh; keep the operation queue alive and surface it as an error so
-      // one poisoned commit cannot silently end hot reloading forever.
-      this.ctx.logger.error('settings-file: reload commit failed at %s', this.spec.filename)
-      this.ctx.logger.error(error)
-    })
+    return this.queue.enqueue(() => this.persistSection(ns, section))
   }
 
   private async persistSection(ns: SettingsNamespace, section: Record<string, unknown>): Promise<void> {
@@ -234,38 +194,9 @@ export class FileSettingsProvider extends SettingsProvider {
     // failure: an existing-but-invalid document must fail loud, never be
     // silently ignored or overwritten.
     yield* super[Service.init]()
-    const watcher = this.spec.watch
-      ? chokidarWatch(await canonicalizeWatchPath(this.spec.filename), {
-        ignoreInitial: true,
-        awaitWriteFinish: {
-          stabilityThreshold: this.spec.debounceMs,
-          pollInterval: Math.max(1, Math.min(this.spec.debounceMs, 10)),
-        },
-      })
-      : undefined
-    if (watcher !== undefined) {
-      watcher.on('all', () => {
-        if (this.closed) return
-        this.queueRefresh()
-      })
-      watcher.on('ready', () => {
-        // The base init's load raced the watcher's own setup: a change written
-        // between that read and the watcher becoming active never fires an
-        // event. One reconcile at ready closes the gap.
-        if (this.closed) return
-        this.queueRefresh()
-      })
-      watcher.on('error', (error) => {
-        this.ctx.logger.warn('settings-file: watcher error on %s', this.spec.filename)
-        this.ctx.logger.warn(error)
-      })
-    }
-    yield async () => {
-      // Quiesce every operation chain, even when no watcher is configured.
-      this.closed = true
-      await watcher?.close()
-      await this.operations
-    }
+    if (this.spec.watch) await this.queue.watch()
+    // Quiesce every operation chain, even when no watcher is configured.
+    yield () => this.queue.close()
   }
 
   /** Parse one document text into raw sections, failing on a non-map root. */
@@ -295,38 +226,14 @@ export class FileSettingsProvider extends SettingsProvider {
   }
 
   /**
-   * Re-read the document after a watcher event. Unchanged content (including
-   * this provider's own writes) is a no-op; an unreadable or unparsable
-   * document keeps the last good sections and warns — a live hot-reload must
-   * never take the process down. An invariant violation escaping a commit is
-   * not a reload failure and propagates to the queue's error surface.
-   */
-  private async refresh(): Promise<void> {
-    if (this.closed) return
-    try {
-      await this.reconcileFromDisk()
-    } catch (error) {
-      if ((error as { code?: unknown } | null)?.code === 'INVARIANT') throw error
-      this.ctx.logger.warn('settings-file: reload failed at %s; keeping the last good document', this.spec.filename)
-      this.ctx.logger.warn(error)
-    }
-  }
-
-  /**
    * Compare the on-disk text against the cache and publish any difference
    * into the seam. Absence publishes the empty document; an unreadable or
    * unparsable file throws, so each caller picks its policy — a reload warns
    * and keeps the last good document, a write fails loud.
    */
   private async reconcileFromDisk(): Promise<void> {
-    let text: string | undefined
-    try {
-      text = await readFile(this.spec.filename, 'utf8')
-    } catch (error) {
-      if (!isENOENT(error)) throw error
-      text = undefined
-    }
-    if (text === this.text || this.isClosed()) return
+    const text = await readDocumentText(this.spec.filename)
+    if (text === this.text || this.queue.isClosed()) return
     if (text === undefined) {
       this.text = undefined
       this.publish({})

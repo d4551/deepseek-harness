@@ -34,7 +34,7 @@ import type {
   MessageFeedbackVersionConflict,
 } from './types.ts'
 
-export type * from './types.ts'
+export type { MessageFeedbackDeleteRequest, MessageFeedbackDeleteResult, MessageFeedbackDeleteValue, MessageFeedbackFailure, MessageFeedbackItem, MessageFeedbackListRequest, MessageFeedbackListResult, MessageFeedbackListValue, MessageFeedbackNoteBlank, MessageFeedbackNoteTooLarge, MessageFeedbackPutRequest, MessageFeedbackPutResult, MessageFeedbackRating, MessageFeedbackRejected, MessageFeedbackSessionNotFound, MessageFeedbackSuccess, MessageFeedbackTargetNotFound, MessageFeedbackVersion, MessageFeedbackVersionConflict } from './types.ts'
 export {
   messageFeedbackDomainSpec,
   messageFeedbackItemSchema,

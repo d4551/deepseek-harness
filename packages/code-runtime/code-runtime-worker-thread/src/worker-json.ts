@@ -4,24 +4,17 @@
  */
 
 import type { CodeJsonValue } from '@deepseek-ai/dsh-code-runtime'
+import { append, defineEnumerableDataProperty, intrinsicReflectApply, takeLast } from './intrinsics.ts'
+import type { IntrinsicCallable } from './intrinsics.ts'
 
-/* jscpd:ignore-start -- the source worker mirrors session JSON helpers without workspace runtime imports */
-type IntrinsicCallable = (this: unknown, ...args: unknown[]) => unknown
-
+/* the source worker mirrors session JSON helpers without workspace runtime imports */
 const intrinsicFunctionToString = Reflect.get(Function.prototype, 'toString') as IntrinsicCallable
-const intrinsicReflectApply = Reflect.get(Reflect, 'apply') as (
-  target: IntrinsicCallable,
-  thisArgument: unknown,
-  argumentsList: readonly unknown[],
-) => unknown
 const IntrinsicError = Error
 const IntrinsicSet = Set
 const intrinsicArrayIsArray = Array.isArray
 const intrinsicArrayPrototype = Array.prototype
 const intrinsicNumberIsFinite = Number.isFinite
 const intrinsicNumberIsSafeInteger = Number.isSafeInteger
-const intrinsicObjectCreate = Object.create
-const intrinsicObjectDefineProperty = Object.defineProperty
 const intrinsicObjectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor
 const intrinsicObjectGetPrototypeOf = Object.getPrototypeOf
 const intrinsicObjectHasOwn = Object.hasOwn
@@ -33,36 +26,6 @@ const intrinsicReflectOwnKeys = Reflect.ownKeys
 const intrinsicSetAdd = Reflect.get(Set.prototype, 'add') as IntrinsicCallable
 const intrinsicSetDelete = Reflect.get(Set.prototype, 'delete') as IntrinsicCallable
 const intrinsicSetHas = Reflect.get(Set.prototype, 'has') as IntrinsicCallable
-
-/** Build a data descriptor that cannot inherit model-defined accessor fields. */
-function dataDescriptor(value: unknown): PropertyDescriptor {
-  const descriptor = intrinsicObjectCreate(null) as PropertyDescriptor
-  descriptor.value = value
-  return descriptor
-}
-
-/** Define an ordinary enumerable data slot without a prototype-bearing descriptor. */
-function defineEnumerableDataProperty(target: object, key: PropertyKey, value: unknown): void {
-  const descriptor = dataDescriptor(value)
-  descriptor.enumerable = true
-  descriptor.configurable = true
-  descriptor.writable = true
-  intrinsicObjectDefineProperty(target, key, descriptor)
-}
-
-/** Append without consulting a model-mutated `Array.prototype`. */
-function append<T>(target: T[], value: T): void {
-  defineEnumerableDataProperty(target, target.length, value)
-}
-
-/** Pop without consulting a model-mutated `Array.prototype`. */
-function takeLast<T>(target: T[]): T | undefined {
-  if (target.length === 0) return undefined
-  const index = target.length - 1
-  const value = target[index]
-  intrinsicObjectDefineProperty(target, 'length', dataDescriptor(index))
-  return value
-}
 
 /** Whether one captured-intrinsic Set contains a value. */
 function setHas<T>(target: Set<T>, value: T): boolean {
@@ -417,4 +380,3 @@ export function decodeWorkerJson(input: unknown): CodeJsonValue | undefined {
     return undefined
   }
 }
-/* jscpd:ignore-end */

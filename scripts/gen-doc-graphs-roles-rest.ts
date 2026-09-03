@@ -71,12 +71,12 @@ export const SERVICE_ROLES_TAIL: ServiceRole[] = [
   {
     key: 'shell', pkg: 'shell', title: 'Bash executor seam', mode: 'seam',
     implementations: ['bash-local', 'bash-sandbox', 'pwsh-local'],
-    consumers: ['tool-bash', 'tool-pwsh', 'hooks-claude-code', 'hooks-codex'],
+    consumers: ['tool-shell', 'hooks-claude-code', 'hooks-codex'],
     note: 'The model-facing shell tools and hook bridges consume this seam; sandboxed, remote, or PowerShell executors replace bash-local without touching them.',
   },
   {
     key: 'shellEnv', pkg: 'shell-env', title: 'Managed bash environment registry', mode: 'core',
-    consumers: ['tool-bash', 'tool-pwsh'],
+    consumers: ['tool-shell'],
     note: 'Plugins declare effect-scoped DSH_* facts; each shell tool collects one trusted snapshot per execution and its executor rebuilds the namespace.',
   },
   {
@@ -96,7 +96,7 @@ export const SERVICE_ROLES_TAIL: ServiceRole[] = [
   },
   {
     key: 'approval', pkg: 'user-approval', title: 'Approval seam', mode: 'seam',
-    implementations: [], consumers: ['tools', 'tool-bash', 'acp'],
+    implementations: [], consumers: ['tools', 'tool-shell', 'acp'],
     note: 'One-shot permission decisions dispatched over the `approval/request` waterfall; answerers are listeners (the ACP bridge for its own agents), absence fails closed to `unavailable`.',
   },
   {
@@ -114,6 +114,11 @@ export const SERVICE_ROLES_TAIL: ServiceRole[] = [
     implementations: ['fs-local', 'fs-sandbox', 'fs-e2b'], consumers: ['tool-fs'],
     companions: ['fs-observation-policy'],
     note: 'tool-fs executes read/write/edit through ctx.fs; fs-sandbox fences mutations by the shared sandbox mode; fs-observation-policy contributes observed-state checks through the fs/* event gate.',
+  },
+  {
+    key: 'networkDrive', pkg: 'network-drive', title: 'Remote byte-store seam', mode: 'seam',
+    implementations: ['network-drive-webdav'], consumers: ['fs-network-drive'],
+    note: 'Seven cancellable operations over one remote tree, including the directory creation, removal, and rename ctx.fs lacks; fs-network-drive projects the drive into ctx.fs behind a local materialization root.',
   },
   {
     key: 'compaction', pkg: 'compaction', title: 'Compaction seam', mode: 'seam',
@@ -138,7 +143,7 @@ export const SERVICE_ROLES_TAIL: ServiceRole[] = [
   {
     key: 'jobs', pkg: 'jobs', title: 'Background job registry', mode: 'seam',
     implementations: ['jobs-local'],
-    consumers: ['tool-bash', 'tool-terminal', 'tool-subagent', 'tool-jobs'],
+    consumers: ['tool-shell', 'tool-terminal', 'tool-subagent', 'tool-jobs'],
     note: 'Producers (background bash, PTY sends, and subagent delegations) register running work; tool-jobs is the model-facing controller that reads, lists, and kills it; jobs-local is the process-local registry.',
   },
   {

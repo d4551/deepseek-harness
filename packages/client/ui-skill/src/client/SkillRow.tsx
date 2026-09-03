@@ -1,6 +1,6 @@
 import { useState, type KeyboardEvent, type ReactNode } from 'react'
 import {
-  IconChevronDownOutline14, IconInspectOutline12, IconSkillOutline16, StateDot,
+  IconChevronDownOutline14, IconSkillOutline16, InspectPill, RowSeparator, StateDot,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
@@ -142,7 +142,7 @@ export function SkillRow({ block, inspect, t }: SkillRowProps) {
         <span className={css.leading}>{leading}</span>
         {status !== null ? <span className="dsw-visually-hidden">{status}</span> : null}
         <span className={css.title}>{t('row.title')}</span>
-        <span className={css.separator} aria-hidden />
+        <RowSeparator />
         <span className={model.errorSummary === null ? css.summary : `${css.summary} ${css.errorSummary}`}>
           {summary}
         </span>
@@ -154,10 +154,7 @@ export function SkillRow({ block, inspect, t }: SkillRowProps) {
             <pre className={css.instructions} data-error={model.state === 'error' || undefined}>{model.output}</pre>
           </section>
           {inspect !== undefined ? (
-            <button type="button" className={css.inspectButton} onClick={inspect}>
-              <IconInspectOutline12 />
-              {t('row.inspect')}
-            </button>
+            <InspectPill className={css.inspectButton} label={t('row.inspect')} onClick={inspect} />
           ) : null}
         </div>
       ) : null}

@@ -1,7 +1,9 @@
 /** Package-owned approval audit-stream invariants. @module @deepseek-ai/dsh-user-approval/invariant */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
+import { advanceOpenTurn, stageSessionEvents } from '@deepseek-ai/dsh-session/invariant-staging'
+import type { OpenTurnCursor } from '@deepseek-ai/dsh-session/invariant-staging'
+import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type { InvariantFailure, InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 import type { ApprovalRequestId } from './index.ts'
 import { APPROVAL_POLICIES } from './index.ts'
@@ -18,9 +20,13 @@ type ApprovalTransition =
   | { kind: 'asked'; id: ApprovalRequestId }
   | { kind: 'decided'; id: ApprovalRequestId }
 
-interface ApprovalTrace {
-  openTurn: number | null
+interface ApprovalTrace extends OpenTurnCursor {
   pending: Set<ApprovalRequestId>
+}
+
+/** Whether this package owns the candidate Session event. */
+function isApprovalPairEvent(event: SessionEvent): boolean {
+  return event.type === 'approval/asked' || event.type === 'approval/decided'
 }
 
 /** Validate one approval event against committed unmatched questions. */
@@ -50,57 +56,31 @@ function validateApprovalEvent(
 }
 
 /** Apply one accepted approval-pair transition. */
-function applyApprovalTransition(pending: Set<ApprovalRequestId>, transition: ApprovalTransition): void {
-  if (transition.kind === 'asked') pending.add(transition.id)
-  else pending.delete(transition.id)
+function applyApprovalTransition(trace: ApprovalTrace, transition: ApprovalTransition): ApprovalTrace {
+  if (transition.kind === 'asked') trace.pending.add(transition.id)
+  else trace.pending.delete(transition.id)
+  return trace
 }
 
 /** Install audit pairing and closed-vocabulary checks. */
-// Event owners keep precommit staging local so their vocabularies never move into a central helper.
-/* jscpd:ignore-start */
 const install: InvariantInstaller = Object.assign((ctx: Context, fail: InvariantFailure) => {
-  const traces = new WeakMap<Session, ApprovalTrace>()
-  const staged = new WeakMap<SessionEvent, { session: Session; transition: ApprovalTransition }>()
-  const seed = (session: Session): ApprovalTrace => {
-    const trace: ApprovalTrace = { openTurn: null, pending: new Set() }
-    traces.set(session, trace)
-    for (const event of session.events) {
-      if (event.type === 'turn/start') trace.openTurn = event.data.turn
-      else if (event.type === 'turn/end') trace.openTurn = null
-      const transition = validateApprovalEvent(trace, event, fail)
-      if (transition !== undefined) applyApprovalTransition(trace.pending, transition)
-    }
-    return trace
-  }
-  const traceFor = (session: Session): ApprovalTrace => traces.get(session) ?? seed(session)
-
-  for (const session of ctx.sessions.list()) seed(session)
-  ctx.on('session/created', (session) => { seed(session) }, { global: true })
-  ctx.on('session/event', (session, event) => {
-    const trace = traceFor(session)
-    if (event.type === 'turn/start') {
-      trace.openTurn = event.data.turn
-      return
-    }
-    if (event.type === 'turn/end') {
-      trace.openTurn = null
-      return
-    }
-    if (event.type !== 'approval/asked' && event.type !== 'approval/decided') return
-    const candidate = staged.get(event)
-    /* v8 ignore next -- internal/dispatch stages every package-owned pair event */
-    if (candidate === undefined || candidate.session !== session) return fail('approval audit event published without pre-commit validation')
-    staged.delete(event)
-    applyApprovalTransition(trace.pending, candidate.transition)
-  }, { global: true })
-  ctx.on('internal/dispatch', (_mode, eventName, args) => {
-    if (eventName !== 'session/event') return
-    const [session, event] = args as [Session, SessionEvent]
-    const transition = validateApprovalEvent(traceFor(session), event, fail)
-    if (transition !== undefined) staged.set(event, { session, transition })
-  }, { global: true })
+  stageSessionEvents<ApprovalTrace, ApprovalTransition>(ctx, fail, {
+    seed: (session) => {
+      const trace: ApprovalTrace = { openTurn: null, pending: new Set() }
+      for (const event of session.events) {
+        advanceOpenTurn(trace, event)
+        const transition = validateApprovalEvent(trace, event, fail)
+        if (transition !== undefined) applyApprovalTransition(trace, transition)
+      }
+      return trace
+    },
+    publish: advanceOpenTurn,
+    stage: (trace, event) => validateApprovalEvent(trace, event, fail),
+    claims: isApprovalPairEvent,
+    commit: applyApprovalTransition,
+    unstagedMessage: 'approval audit event published without pre-commit validation',
+  })
 }, { inject: ['sessions'] })
-/* jscpd:ignore-end */
 
 /**
  * Register the approval invariant companion.

@@ -4,23 +4,14 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { JsonValue } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
+import {
+  EVENT_INPUT, EVENT_OUTPUT, SERVICE_INPUT, SERVICE_OUTPUT, inspectProvider, readExact,
+} from '@deepseek-ai/dsh-cordis-host-runner/wire-values'
 import { queryEventApi, queryServiceApi } from './api-catalog.ts'
 import type { ClientCordisInspectProviderRegistration } from './inspect-registry.ts'
 import { CLIENT_SLOT_API } from './slot-catalog.ts'
 import type { ClientSlotEntry } from './slot-catalog.ts'
 
-/* jscpd:ignore-start */
-const EMPTY_INPUT = { type: 'object', properties: {}, additionalProperties: false } as const
-const ANY_OUTPUT = { description: 'JSON data owned by this inspect provider.' } as const
-const SERVICE_INPUT = exactInput('service', 'Exact Service key. Omit it for the compact Service and method-signature directory.')
-const EVENT_INPUT = exactInput('event', 'Exact Event name. Omit it for the compact Event and listener-signature directory.')
-const SERVICE_OUTPUT = {
-  description: 'Compact Service directory, or one exact Service contract with only its referenced type declarations.',
-} as const
-const EVENT_OUTPUT = {
-  description: 'Compact Event directory, or one exact Event contract with only its referenced type declarations.',
-} as const
-/* jscpd:ignore-end */
 const SUBTREE_OUTPUT = {
   description: 'Compact purpose/topology trees. With root, selected also contains that Slot\'s full contract and live occupants.',
 } as const
@@ -76,7 +67,7 @@ export const CLIENT_BUILTIN_INSPECTION: readonly JsonValue[] = [
  */
 export function clientInspectProviders(ctx: Context): ClientCordisInspectProviderRegistration[] {
   return [
-    registration(
+    inspectProvider(
       'Service',
       'Progressive Client Service discovery: compact capability/signature directory, then one exact coding contract.',
       'listService',
@@ -84,7 +75,7 @@ export function clientInspectProviders(ctx: Context): ClientCordisInspectProvide
       SERVICE_INPUT,
       SERVICE_OUTPUT,
     ),
-    registration(
+    inspectProvider(
       'Event',
       'Progressive Client Event discovery: compact listener directory, then one exact event contract.',
       'listEvents',
@@ -92,7 +83,7 @@ export function clientInspectProviders(ctx: Context): ClientCordisInspectProvide
       EVENT_INPUT,
       EVENT_OUTPUT,
     ),
-    registration('Builtin', 'Plain-JavaScript symbols available to a dynamic Client half.', 'listBuiltins', () => ({
+    inspectProvider('Builtin', 'Plain-JavaScript symbols available to a dynamic Client half.', 'listBuiltins', () => ({
       builtins: [...CLIENT_BUILTIN_INSPECTION],
       referencedTypes: [],
     })),
@@ -123,51 +114,13 @@ export function clientInspectProviders(ctx: Context): ClientCordisInspectProvide
         })
       },
     },
-    registration('Theme', 'Current theme token names and light/dark override requirements.', 'listTokens', () => {
+    inspectProvider('Theme', 'Current theme token names and light/dark override requirements.', 'listTokens', () => {
       const theme = ctx.get('theme')
       if (theme === undefined) throw new Error('Client Theme service is not running')
       return { tokens: theme.exportInspectTokens(), referencedTypes: [] } as unknown as JsonValue
     }),
   ]
 }
-
-/* jscpd:ignore-start */
-function registration(
-  id: string,
-  description: string,
-  method: string,
-  query: (input: JsonValue | undefined) => JsonValue | Promise<JsonValue>,
-  inputSchema: JsonValue = EMPTY_INPUT,
-  outputSchema: JsonValue = ANY_OUTPUT,
-): ClientCordisInspectProviderRegistration {
-  return {
-    manifest: {
-      id,
-      description,
-      methods: [{
-        name: method,
-        description,
-        inputSchema,
-        outputSchema,
-      }],
-    },
-    async query(requested, input) {
-      if (requested !== method) throw new Error(`unknown ${id} inspect method "${requested}"`)
-      return await query(input)
-    },
-  }
-}
-
-function exactInput(field: string, description: string): JsonValue {
-  return { type: 'object', properties: { [field]: { type: 'string', description } }, additionalProperties: false }
-}
-
-function readExact(input: JsonValue | undefined, field: string): string | undefined {
-  if (input === undefined || input === null || Array.isArray(input) || typeof input !== 'object') return undefined
-  const value = input[field]
-  return typeof value === 'string' ? value : undefined
-}
-/* jscpd:ignore-end */
 
 type LiveSlotNode = ReturnType<SlotRegistry['snapshot']>[number]
 

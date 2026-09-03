@@ -127,7 +127,7 @@ Start with the subsystem reference for the exhaustive contract, then the backend
 
 #### What the model sees
 
-Through [`dsh-bash-sandbox`](../../shell/bash-sandbox/README.md) and [`dsh-tool-bash`](../../shell/tool-bash/README.md), a requested confined mode with no usable backend produces code `SANDBOX_UNAVAILABLE` and the exact error below; an execution-time runner failure appends ` Runner failure: <detail>`.
+Through [`dsh-bash-sandbox`](../../shell/bash-sandbox/README.md) and [`dsh-tool-shell`](../../shell/tool-shell/README.md), a requested confined mode with no usable backend produces code `SANDBOX_UNAVAILABLE` and the exact error below; an execution-time runner failure appends ` Runner failure: <detail>`.
 
 ##### Exact error
 

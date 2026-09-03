@@ -55,6 +55,11 @@ describe('subagent invariants', () => {
     emitRun(ctx, 'subagent/end', end())
     ctx.emit('subagent/provider-removed', 'mock')
     ctx.emit('tools/change')
+
+    // Both pairs closed in the invariant's own bookkeeping: the run id no
+    // longer resolves to a start, and the provider name is unregistered.
+    expect(() => { emitRun(ctx, 'subagent/end', end()) }).toThrow(/no matching subagent\/start/)
+    expect(() => { ctx.emit('subagent/provider-removed', 'mock') }).toThrow(/unknown provider/)
   })
 
   it('rejects malformed provider transitions', async () => {
@@ -88,5 +93,10 @@ describe('subagent invariants', () => {
 
     emitRun(ctx, 'subagent/start', start({ provider: historical.name }))
     emitRun(ctx, 'subagent/end', end({ provider: historical.name }))
+
+    // The pair was tracked under the retired provider name, not skipped: its
+    // run id was consumed by the end event.
+    expect(() => { emitRun(ctx, 'subagent/end', end({ provider: historical.name })) })
+      .toThrow(/no matching subagent\/start/)
   })
 })

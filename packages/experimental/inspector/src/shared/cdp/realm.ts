@@ -88,10 +88,17 @@ export interface RuntimeBackend {
 export interface ConsoleBackend {
   /**
    * Subscribe to Console and uncaught-exception events.
+   *
+   * Resolves only once the realm forwards events to this listener, so every
+   * Console call the realm makes afterwards reaches the subscriber. A realm
+   * reached over a transport must confirm the subscription rather than resolve
+   * on dispatch, or a call made in the gap is lost with no later retry.
    * @param listener - Connection-local event consumer.
    * @returns A disposer for the subscription.
    */
-  subscribe(listener: (event: RuntimeConsoleBackendEvent<RuntimeBackendObjectHandle>) => void): () => void
+  subscribe(
+    listener: (event: RuntimeConsoleBackendEvent<RuntimeBackendObjectHandle>) => void,
+  ): Promise<() => void>
   /** Clear backend-owned Console history when supported. */
   clear(): Promise<void>
 }

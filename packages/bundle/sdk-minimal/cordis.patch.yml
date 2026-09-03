@@ -74,13 +74,14 @@
         workspaceContext: false
         skills:
           enabled: false
-        toolBash: false
+        toolShell: false
         toolJobs: false
 
     - id: persistent-bash
-      name: '@deepseek-ai/dsh-tool-bash-persistent'
+      name: '@deepseek-ai/dsh-tool-shell-persistent'
       disabled: !!js process.platform === 'win32'
       config:
+        dialect: bash
         timeoutMs: 300000
         description: |-
           Run commands in a bash shell
@@ -93,9 +94,10 @@
           * Please run long lived commands in the background, e.g. 'sleep 10 &' or start a server in the background.
 
     - id: persistent-pwsh
-      name: '@deepseek-ai/dsh-tool-pwsh-persistent'
+      name: '@deepseek-ai/dsh-tool-shell-persistent'
       disabled: !!js process.platform !== 'win32'
       config:
+        dialect: pwsh
         timeoutMs: 300000
         description: |-
           Run commands in a PowerShell shell

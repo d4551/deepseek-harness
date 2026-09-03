@@ -1,6 +1,7 @@
 /** Serialized Team transactions over the exact live Lead Session log. */
 
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import { KeyedLock } from '@deepseek-ai/dsh-keyed-lock'
 import type { Context } from '@deepseek-ai/cordis'
 import type { SessionEventMap, SessionId } from '@deepseek-ai/dsh-session'
 import { foldTeam } from './fold.ts'
@@ -11,7 +12,7 @@ type MutableTeamEventType = 'team/member' | 'team/task' | 'team/message/queued' 
 
 /** Owns per-Lead transaction order and committed Team event publication. */
 export class TeamJournal {
-  private readonly tails = new Map<SessionId, Promise<void>>()
+  private readonly mutations = new KeyedLock()
 
   /**
    * @param ctx - Team service context with the injected Session service.
@@ -33,24 +34,26 @@ export class TeamJournal {
 
   /**
    * Serialize one Lead's asynchronous mutation operation.
+   *
+   * The serialization is a promise chain in this process, so it excludes
+   * concurrent callers here and is not a lock a second process could join.
    * @param rootId - Lead Session identity selecting the transaction queue.
    * @param operation - complete read-check-append operation.
    * @returns the operation result.
    */
   async transact<T>(rootId: SessionId, operation: () => Promise<T>): Promise<T> {
-    const prior = this.tails.get(rootId) ?? Promise.resolve()
-    const run = prior.then(operation, operation)
-    const tail = run.then(() => undefined, () => undefined)
-    this.tails.set(rootId, tail)
-    try {
-      return await run
-    } finally {
-      if (this.tails.get(rootId) === tail) this.tails.delete(rootId)
-    }
+    return await this.mutations.run(String(rootId), operation)
   }
 
   /**
    * Append and checkpoint one root-owned Team event before publication.
+   *
+   * `append` commits to the session's authoritative in-memory log and `flush`
+   * is the durability boundary, which is the seam's ordering everywhere. A
+   * rejected flush therefore reaches the caller with the event already folded
+   * into Team state: the operation is visible to this process and will not
+   * survive a restart, and `onCommit` does not run, so nothing downstream
+   * observes it as committed.
    * @param root - exact live Lead whose Session owns the event.
    * @param type - Team event discriminant.
    * @param data - payload correlated with the event type.

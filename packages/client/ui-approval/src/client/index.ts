@@ -4,7 +4,9 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import type { ComposerChainProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
-import type { PendingInteractionPublisher } from '@deepseek-ai/dsh-client-ui-session/client'
+import {
+  settlePendingInteraction, type PendingInteractionPublisher,
+} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { TypertClientEventListener } from '@deepseek-ai/dsh-typert-protocol'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { ApprovalPanel } from './ApprovalPanel.tsx'
@@ -30,9 +32,8 @@ type ClientApprovalRequest = Parameters<ApprovalListener>[0]
 type ClientApprovalNext = Parameters<ApprovalListener>[1]
 type ClientApprovalOutcome = Awaited<ReturnType<ApprovalListener>>
 
-/* jscpd:ignore-start -- Approval and Question intentionally mirror one Remote waterfall lifecycle. */
 /** Present one request until the user answers or its lifetime ends. */
-async function answerApproval(
+function answerApproval(
   ctx: ClientContext,
   owner: ClientContext,
   request: ClientApprovalRequest,
@@ -49,24 +50,8 @@ async function answerApproval(
     ...(request.reason === undefined ? {} : { reason: request.reason }),
     ...(request.signal === undefined ? {} : { signal: request.signal }),
   })
-  const completed = Promise.withResolvers<void>()
-  const remove = registerPendingInteraction(pending, async () => {
-    pending.delegate()
-    await completed.promise
-  })
-  try {
-    try {
-      return await pending.result
-    } catch (error) {
-      if (pending.isDelegation(error)) return await next()
-      throw error
-    }
-  } finally {
-    remove()
-    completed.resolve()
-  }
+  return settlePendingInteraction(pending, registerPendingInteraction, next)
 }
-/* jscpd:ignore-end */
 
 /**
  * Install approval copy and the scoped waterfall consumer.

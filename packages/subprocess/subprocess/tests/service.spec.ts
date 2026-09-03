@@ -88,7 +88,9 @@ describe('SubprocessRuntime seam', () => {
       expect(env.SCRUB_PROBE_TOKEN).toBeUndefined()
       expect(env.SCRUB_PROBE_PASSWORD).toBeUndefined()
       expect(env.SCRUB_PROBE_PLAIN).toBe('visible')
-      expect(env.PATH).toBeDefined()
+      // The host's own spelling: Windows stores the search path as `Path`, and
+      // the scrub copies each name verbatim into a plain (case-sensitive) object.
+      expect(Object.keys(env).filter(key => key.toUpperCase() === 'PATH')).toHaveLength(1)
     } finally {
       delete process.env.DSH_SCRUB_PROBE
       delete process.env.dsh_scrub_probe_lower

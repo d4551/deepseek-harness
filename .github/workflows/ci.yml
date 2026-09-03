@@ -484,7 +484,7 @@ jobs:
           bun x vitest run
           --no-file-parallelism
           --testTimeout 90000
-          packages/shell/tool-pwsh/tests/loader.spec.ts
+          packages/shell/tool-shell/tests/pwsh-loader.spec.ts
           packages/workflow/workflow-worker-thread/tests/workflow-worker-thread.spec.ts
           packages/workflow/tool-ralph/tests/integration.spec.ts
           packages/subprocess/subprocess-local/tests/process-exit.spec.ts

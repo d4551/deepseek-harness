@@ -26,6 +26,11 @@ describe('approval invariants', () => {
     session.append('approval/asked', { id, toolName: 'bash' })
     session.append('approval/decided', { id, outcome: 'allowed-once' })
     session.append('approval/policy', { policy: 'never' })
+
+    // The invariant recorded the pair: the decision consumed the open
+    // question, so a repeat decision for the same id has nothing to match.
+    expect(() => session.append('approval/decided', { id, outcome: 'allowed-once' }))
+      .toThrow(/no matching approval\/asked/)
   })
 
   it('rebuilds an unmatched question from an existing session', async () => {

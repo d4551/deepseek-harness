@@ -19,7 +19,8 @@ export function requiredText(value: string, field: string, maxLength: number): s
 }
 
 /**
- * Normalize one workspace-relative path prefix without treating it as a lock.
+ * Normalize one workspace-relative path prefix. The normalized prefix is the
+ * board's exclusion key between tasks, not a filesystem lock.
  * @param value - user-authored path prefix.
  * @returns normalized slash-separated prefix.
  */

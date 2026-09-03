@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-shell` defines the executor service (`ctx.shell`) that runs shell commands for the harness: foreground commands that resolve with bounded output when they finish, and background processes that return a handle immediately. Every shell executor in the repository — local Bash, sandboxed Bash, local PowerShell, sandboxed PowerShell — implements this one contract, so the model-facing `bash` and `pwsh` tools work unchanged over any of them. Callers pass a request and receive a fully-resolved spec with explicit defaults and caps before any command runs. The service itself never renders anything to a model; the shell tools own all model-visible output and sandbox guidance.
+`dsh-shell` defines the executor service (`ctx.shell`) that runs shell commands for the harness: foreground commands that resolve with bounded output when they finish, and background processes that return a handle immediately. Every shell executor in the repository — local Bash, sandboxed Bash, local PowerShell, sandboxed PowerShell — implements this one contract, so the model-facing `bash` and `pwsh` tools work unchanged over any of them. Callers pass a request and receive a fully-resolved spec with explicit defaults and caps before any command runs. The package also holds what every dialect states identically — the subprocess-backed executor the providers extend, and the result text, parameters, and output schema the `bash` and `pwsh` tools publish — so those can never drift between the twins. The service itself renders nothing on its own; a tool decides which text reaches a model.
 
 ## Table of Contents
 
@@ -80,9 +80,15 @@ The package is one role of a standard capability seam: the Service Definition th
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Plugin entry: abstract `ShellExecutor` service and the shared settings namespace |
+| [`src/index.ts`](src/index.ts) | Plugin entry: abstract `ShellExecutor` service, the shared settings namespace, and the package's public names |
 | [`src/types.ts`](src/types.ts) | Request/spec vocabulary, `ShellRunResult`, `ShellProcess`, and sandbox facts |
-| [`src/render.ts`](src/render.ts) | `parseExitStatus`: the exit-status marker contract the shell tools share |
+| [`src/subprocess-executor.ts`](src/subprocess-executor.ts) | `./subprocess-executor`: `SubprocessShellExecutor`, the implementation every dialect provider extends |
+| [`src/executor-config.ts`](src/executor-config.ts) | The providers' shared config type, shipped defaults, and serviceability rules |
+| [`src/confinement.ts`](src/confinement.ts) | The `ctx.sandbox` layer a confining provider installs on the shared executor |
+| [`src/render.ts`](src/render.ts) | The shell tools' model-facing result text and the `parseExitStatus` inverse |
+| [`src/background.ts`](src/background.ts) | `processOutcome`: a settled background handle as generic job-outcome vocabulary |
+| [`src/tool-schema.ts`](src/tool-schema.ts) | The tools' shared parameters, output schema, argument checks, and escalation guidance |
+| [`src/sandbox-classify.ts`](src/sandbox-classify.ts) | `./sandbox-classify`: the denial and runner-failure classification both sandboxing executors derive their result facts from |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; executors and policy own observations) |
 
 ### Settings namespace
@@ -105,7 +111,7 @@ Read these pages when the seam contract is not enough. They move from the shared
 - [Bash executor subsystem](../../../docs/subsystems/shell.md) — the request/spec vocabulary, results, and service contract in full.
 - [bash-local](../bash-local/README.md) — the default POSIX executor: fresh `bash -c` processes, budgets, and deadlines.
 - [bash-sandbox](../bash-sandbox/README.md) — the confining executor: sandbox modes, denials, and escalation.
-- [tool-bash](../tool-bash/README.md) — the model-facing `bash` tool over this seam.
+- [tool-shell](../tool-shell/README.md) — the model-facing `bash` or `pwsh` tool over this seam.
 - [Capability seams note](../../../.agents/notes/implemented/architecture/2026-06-13-capability-seams.md) — the Service Definition / Provider / Consumer split this seam follows.
 
 -----
@@ -113,7 +119,7 @@ Read these pages when the seam contract is not enough. They move from the shared
 <a id="model-experience"></a>
 ## Model Experience
 
-Indirectly, through `dsh-tool-bash`, which turns executor output and sandbox facts into guidance and retained tool-result tokens.
+Indirectly, through `dsh-tool-shell`, which turns executor output and sandbox facts into guidance and retained tool-result tokens.
 
 #### KV Cache effect
 

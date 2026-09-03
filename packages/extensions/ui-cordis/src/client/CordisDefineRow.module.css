@@ -253,32 +253,10 @@
   color: var(--dsw-alias-state-error-primary);
 }
 
-.inspectButton {
-  display: inline-flex;
-  align-self: flex-start;
-  align-items: center;
-  gap: 4px;
-  margin: 4px 0 2px 4px;
-  padding: 2px 8px;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 999px;
-  background: var(--dsw-alias-bg-base);
-  color: var(--dsw-alias-label-secondary);
-  font-size: 11px;
-  line-height: 16px;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 100ms ease;
-}
-
-.card:hover .inspectButton,
-.inspectButton:focus-visible {
+/* InspectPill's reveal target: hovering anywhere on the card brings the pill
+   up. Keyboard focus is the primitive's own. */
+.card:hover .inspectButton {
   opacity: 1;
-}
-
-.inspectButton:hover {
-  background: var(--dsw-alias-interactive-bg-hover-solid);
-  color: var(--dsw-alias-label-primary);
 }
 
 .visuallyHidden {
@@ -291,7 +269,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .inspectButton {
+  /* Two classes, because the pill's own fade lives in another package's sheet
+     and equal specificity would leave the winner to bundle order. */
+  .card .inspectButton {
     transition: none;
   }
 }

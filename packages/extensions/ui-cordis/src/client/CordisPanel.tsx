@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import {
-  IconCheckOutline16, IconCloseOutline16, IconCordisPluginOutline14, IconPlayOutline16,
+  GlyphButton, IconCheckOutline16, IconCloseOutline16, IconCordisPluginOutline14, IconPlayOutline16,
   IconStopFill16, IconTrashOutline16, Tooltip, useDismissOnOutsidePointer,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -86,9 +86,9 @@ function RowAction({ label, children, ...props }: {
 } & ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <Tooltip label={label} side="bottom" delayMs={500}>
-      <button type="button" className={css.actionButton} aria-label={label} {...props}>
+      <GlyphButton surface="bar" className={css.actionButton} aria-label={label} {...props}>
         {children}
-      </button>
+      </GlyphButton>
     </Tooltip>
   )
 }

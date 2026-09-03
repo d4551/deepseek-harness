@@ -7,12 +7,11 @@
  */
 
 import { DatabaseSync } from 'node:sqlite'
-import { mkdir, open } from 'node:fs/promises'
-import { dirname, resolve } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import {
   configureConnectionSecurity,
   configureDurability,
+  prepareDatabasePath,
   selectJournalMode,
   type SqliteDatabaseSubject,
 } from '@deepseek-ai/dsh-sqlite-connection'
@@ -38,27 +37,6 @@ export type JournalMode = 'wal' | 'delete' | 'truncate' | 'persist'
 /** How this backend names its database in connection failure messages. */
 const DATABASE_ROLE = 'storage database'
 
-/* jscpd:ignore-start -- the owner-only path setup below is byte-identical to
-   the session-query-sqlite derived-index open (`openSearchDatabase`), which
-   this change does not touch; the connection settings that used to sit here
-   now live in @deepseek-ai/dsh-sqlite-connection. */
-/**
- * Exclusively create a missing database file with owner-only permissions.
- * Existing files retain their modes, and errors other than `EEXIST` propagate.
- * `DatabaseSync` reopens by path, so this does not protect confidentiality or
- * integrity when another principal can replace the database entry in its
- * parent directory.
- */
-async function createDatabaseFile(path: string): Promise<void> {
-  try {
-    const handle = await open(path, 'wx', 0o600)
-    await handle.close()
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
-  }
-}
-/* jscpd:ignore-end */
-
 /**
  * Open the database and apply its schema, connection settings, and pragmas.
  * Missing directories and database files are created owner-only (`:memory:`
@@ -78,11 +56,7 @@ export async function openDatabase(
   journalMode: JournalMode,
   busyTimeoutMs: number,
 ): Promise<DatabaseSync> {
-  const actual = path === ':memory:' ? path : resolve(path)
-  if (actual !== ':memory:') {
-    await mkdir(dirname(actual), { recursive: true, mode: 0o700 })
-    await createDatabaseFile(actual)
-  }
+  const actual = await prepareDatabasePath(path)
   const deadline = performance.now() + busyTimeoutMs
   const database: SqliteDatabaseSubject = { path: actual, role: DATABASE_ROLE }
   const db = new DatabaseSync(actual, { timeout: busyTimeoutMs })

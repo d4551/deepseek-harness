@@ -25,12 +25,14 @@ export interface LitertModelConfig {
   /**
    * The `.litertlm` file `litert-lm import` reads: a local path when the model
    * is already on disk, or the file name inside {@link huggingFaceRepo} when
-   * it must be downloaded.
+   * it must be downloaded. Required by the supervised posture, which runs that
+   * import; refused by the remote posture, which imports nothing.
    */
-  file: string
+  file?: string
   /**
    * Hugging Face repository the file is pulled from when the registry does not
-   * already hold {@link id}. Omit it for a purely local `.litertlm` file.
+   * already hold {@link id}. Omit it for a purely local `.litertlm` file, and
+   * in the remote posture, which refuses it.
    */
   huggingFaceRepo?: string
   /** Context capacity of this model, in tokens. */
@@ -65,6 +67,15 @@ export interface LitertServerConfig {
   shutdownGraceMs?: number
   /** Budget for one `litert-lm import`, which downloads models of 0.5-4.2 GB. */
   importTimeoutMs?: number
+  /**
+   * Stdout tail retained per `litert-lm` child. `litert-lm list` output is
+   * parsed from it to decide which models the registry still needs, so a bound
+   * that cannot hold one registry listing loses the ids that slid out of the
+   * tail and re-imports models the registry already holds — gigabytes per lost
+   * id. Size it for the largest listing this route can see, never for log
+   * volume; {@link maxStderrBytes} is the knob for that.
+   */
+  maxStdoutBytes?: number
   /** Diagnostic stderr tail retained per `litert-lm` child and quoted in failures. */
   maxStderrBytes?: number
 }
@@ -109,7 +120,23 @@ export type ResolvedLitertEndpoint =
     readonly baseURL: string
     /** Fully defaulted supervision settings. */
     readonly server: ResolvedLitertServerConfig
+    /** Imports that must reach the registry before the server starts, in configuration order. */
+    readonly imports: readonly LitertImport[]
   }
+
+/**
+ * One `litert-lm import` a supervised route runs before its server starts.
+ * Only the supervised posture resolves these: the remote posture refuses the
+ * keys they are read from.
+ */
+export interface LitertImport {
+  /** Registry id the model is imported under; also the `model` name the server answers to. */
+  readonly id: string
+  /** The `.litertlm` file `litert-lm import` reads. */
+  readonly file: string
+  /** Hugging Face repository the file is pulled from; absent for a file already on disk. */
+  readonly huggingFaceRepo?: string
+}
 
 /** One validated LiteRT-LM route: its identity, its models, and its endpoint. */
 export interface ResolvedLitertConfig {
@@ -125,7 +152,7 @@ export interface ResolvedLitertConfig {
 
 const LitertModelConfigSchema: z<LitertModelConfig> = z.object({
   id: z.string().required(),
-  file: z.string().required(),
+  file: z.string(),
   huggingFaceRepo: z.string(),
   contextWindow: z.number().step(1).min(1).required(),
   maxTokens: z.number().step(1).min(1).required(),
@@ -141,6 +168,7 @@ const LitertServerConfigSchema: z<LitertServerConfig> = z.object({
   healthIntervalMs: z.number().step(1).min(1).max(MAX_TIMER_DELAY_MS).default(500),
   shutdownGraceMs: z.number().step(1).min(1).max(MAX_TIMER_DELAY_MS).default(5_000),
   importTimeoutMs: z.number().step(1).min(1).max(MAX_TIMER_DELAY_MS).default(1_800_000),
+  maxStdoutBytes: z.number().step(1).min(1).default(1_048_576),
   maxStderrBytes: z.number().step(1).min(1).default(65_536),
 })
 
@@ -160,6 +188,13 @@ const PREFIX = 'llm-litert'
 function assertTimer(name: string, value: number): void {
   if (!Number.isInteger(value) || value < 1 || value > MAX_TIMER_DELAY_MS) {
     throw new Error(`${PREFIX}: server.${name} must be a positive integer no greater than ${MAX_TIMER_DELAY_MS}`)
+  }
+}
+
+/** Reject a retention bound that could hold no output at all. */
+function assertByteBound(name: string, value: number): void {
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error(`${PREFIX}: server.${name} must be a positive integer`)
   }
 }
 
@@ -188,8 +223,11 @@ function assertUsableBaseURL(baseURL: string): void {
   }
 }
 
-/** Reject a model list the server could never satisfy. */
-function assertModels(models: readonly LitertModelConfig[], supervised: boolean): void {
+/** The keys that instruct `litert-lm import`; only a supervised route can act on either. */
+const IMPORT_KEYS = ['file', 'huggingFaceRepo'] as const
+
+/** Reject a model list no posture could serve. */
+function assertModels(models: readonly LitertModelConfig[]): void {
   if (models.length === 0) {
     throw new Error(`${PREFIX}: models must list at least one model`)
   }
@@ -198,22 +236,53 @@ function assertModels(models: readonly LitertModelConfig[], supervised: boolean)
     if (model.id.length === 0) throw new Error(`${PREFIX}: a model has an empty id`)
     if (seen.has(model.id)) throw new Error(`${PREFIX}: model ${JSON.stringify(model.id)} is listed more than once`)
     seen.add(model.id)
-    if (model.file.length === 0) {
-      throw new Error(`${PREFIX}: model ${JSON.stringify(model.id)} has an empty file`)
-    }
-    // Only the supervised posture runs `litert-lm import`, so only there can a
-    // repository name change what the route serves. Accepting one against a
-    // remote server would read as a promise this plugin cannot keep.
-    if (!supervised && model.huggingFaceRepo !== undefined) {
-      throw new Error(
-        `${PREFIX}: model ${JSON.stringify(model.id)} names huggingFaceRepo, but this route points at an`
-        + ' already-running server through baseURL and imports nothing; import the model where that server runs',
-      )
-    }
-    if (model.huggingFaceRepo !== undefined && model.huggingFaceRepo.length === 0) {
-      throw new Error(`${PREFIX}: model ${JSON.stringify(model.id)} has an empty huggingFaceRepo`)
+    for (const key of IMPORT_KEYS) {
+      if (model[key]?.length === 0) {
+        throw new Error(`${PREFIX}: model ${JSON.stringify(model.id)} has an empty ${key}`)
+      }
     }
   }
+}
+
+/**
+ * Reject an import instruction on a route that imports nothing. The remote
+ * posture never touches the registry the named server reads, so both keys
+ * would read as promises this plugin cannot keep.
+ */
+function assertNoImports(models: readonly LitertModelConfig[]): void {
+  for (const model of models) {
+    for (const key of IMPORT_KEYS) {
+      if (model[key] !== undefined) {
+        throw new Error(
+          `${PREFIX}: model ${JSON.stringify(model.id)} names ${key}, but this route points at an`
+          + ' already-running server through baseURL and imports nothing; import the model where that server runs',
+        )
+      }
+    }
+  }
+}
+
+/**
+ * Read the import every supervised model needs. `file` is what
+ * `litert-lm import` reads, so this posture is where its absence is a failure.
+ * @param models - the configured models of a supervised route.
+ * @returns one import instruction per model, in configuration order.
+ * @throws Error naming a model that gives the importer nothing to read.
+ */
+function resolveImports(models: readonly LitertModelConfig[]): readonly LitertImport[] {
+  return models.map((model) => {
+    if (model.file === undefined) {
+      throw new Error(
+        `${PREFIX}: model ${JSON.stringify(model.id)} must name the .litertlm file litert-lm import reads,`
+        + ' because this route supervises its own server and imports the model itself',
+      )
+    }
+    return {
+      id: model.id,
+      file: model.file,
+      ...model.huggingFaceRepo === undefined ? {} : { huggingFaceRepo: model.huggingFaceRepo },
+    }
+  })
 }
 
 /**
@@ -242,9 +311,10 @@ export function resolveConfig(config: Config): ResolvedLitertConfig {
       + ' with server.cwd',
     )
   }
-  assertModels(config.models, supervises)
+  assertModels(config.models)
   const displayName = config.displayName ?? config.provider
   if (config.baseURL !== undefined) {
+    assertNoImports(config.models)
     assertUsableBaseURL(config.baseURL)
     return {
       provider: config.provider,
@@ -267,9 +337,8 @@ export function resolveConfig(config: Config): ResolvedLitertConfig {
   assertTimer('healthIntervalMs', server.healthIntervalMs)
   assertTimer('shutdownGraceMs', server.shutdownGraceMs)
   assertTimer('importTimeoutMs', server.importTimeoutMs)
-  if (!Number.isInteger(server.maxStderrBytes) || server.maxStderrBytes < 1) {
-    throw new Error(`${PREFIX}: server.maxStderrBytes must be a positive integer`)
-  }
+  assertByteBound('maxStdoutBytes', server.maxStdoutBytes)
+  assertByteBound('maxStderrBytes', server.maxStderrBytes)
   if (server.healthIntervalMs > server.startupTimeoutMs) {
     throw new Error(
       `${PREFIX}: server.healthIntervalMs (${server.healthIntervalMs}) must not exceed`
@@ -284,6 +353,7 @@ export function resolveConfig(config: Config): ResolvedLitertConfig {
       kind: 'local',
       baseURL: `http://${authority(server.host, server.port)}${OPENAI_API_PREFIX}`,
       server: { ...server, env: { ...server.env } },
+      imports: resolveImports(config.models),
     },
   }
 }

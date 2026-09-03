@@ -159,6 +159,12 @@ describe('MessageImage', () => {
     second.unmount()
     reject?.(new Error('late failure'))
     await Promise.resolve()
+
+    // Each arm started exactly one load before unmount, and neither late
+    // settle put an image or a retry control back into the document.
+    expect([load.mock.calls.length, failing.mock.calls.length]).toEqual([1, 1])
+    expect(document.querySelectorAll('img')).toHaveLength(0)
+    expect(document.querySelectorAll('button')).toHaveLength(0)
   })
 })
 

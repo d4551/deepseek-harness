@@ -15,7 +15,7 @@ export const name = 'commands-invariant'
 /** Service required before the companion can reserve package ownership. */
 export const inject = ['invariants']
 
-/* jscpd:ignore-start -- package companions share replay and dispatch plumbing */
+/* package companions share replay and dispatch plumbing */
 /** Install pairing validation over loaded logs and newly appended lifecycle events. */
 const install: InvariantInstaller = Object.assign((ctx: Context, fail: InvariantFailure) => {
   // Install-scoped so a dispose/re-register cycle re-sweeps from a clean slate.
@@ -54,7 +54,6 @@ const install: InvariantInstaller = Object.assign((ctx: Context, fail: Invariant
     validateEvent(session, event)
   }, { global: true })
 }, { inject: ['sessions'] })
-/* jscpd:ignore-end */
 
 /**
  * Register this package's invariant companion.

@@ -1,6 +1,6 @@
 ---
-description: "每个 Harness 数据库后端都应用并校验的 SQLite 连接设置：关闭 schema 信任、关闭内存映射、synchronous FULL，以及会等过竞争写者的 journal 模式切换。"
-kind: "package-library"
+description: "每个 Harness 数据库后端都应用并校验的属主独有路径准备与 SQLite 连接设置：排他地创建文件、关闭 schema 信任、关闭内存映射、synchronous FULL，以及会等过竞争写者的 journal 模式切换。"
+kind: "package-reference"
 ---
 
 # @deepseek-ai/dsh-sqlite-connection
@@ -9,7 +9,7 @@ kind: "package-library"
 
 ## 概述
 
-`dsh-sqlite-connection` 拥有 Harness SQLite 连接在后端使用之前必须保持的设置：schema 信任关闭、内存映射关闭、`synchronous=FULL`，以及连接实际报告的 journal 模式。每个设置都是先应用再读回，因此一个接受了 pragma 却悄悄保留旧值的 SQLite 构建会让打开失败，而不是交出一个后端以为已经加固的连接。这些设置的 pragma 文本固定在本包内部；后端只需提供自己的 journal 模式语句与 busy 截止时间。它是一个零依赖库，由 session 持久化与 storage 的 SQLite 后端共享，因此两者持有同样的保证；它不打开连接、不触碰文件，也不知道这两个包各自的 schema。
+`dsh-sqlite-connection` 拥有 Harness SQLite 连接在后端使用之前必须保持的设置：schema 信任关闭、内存映射关闭、`synchronous=FULL`，以及连接实际报告的 journal 模式。每个设置都是先应用再读回，因此一个接受了 pragma 却悄悄保留旧值的 SQLite 构建会让打开失败，而不是交出一个后端以为已经加固的连接。这些设置的 pragma 文本固定在本包内部；后端只需提供自己的 journal 模式语句与 busy 截止时间。它还拥有每个连接之前的那一个文件系统步骤：以属主独有权限创建数据库文件及其父目录。它是一个零依赖库，由 session 持久化与 storage 的 SQLite 后端共享，因此两者持有同样的保证；它不打开连接，也不知道这两个包各自的 schema。
 
 ## 目录
 
@@ -25,7 +25,7 @@ kind: "package-library"
 <a id="use-this-package"></a>
 ## 使用本包
 
-打开 SQLite 数据库的后端按顺序在自身的 schema 工作前后调用这三个步骤，然后保留句柄。
+打开 SQLite 数据库的后端先准备自己的路径，再按顺序在自身的 schema 工作前后调用这三个连接步骤，然后保留句柄。
 
 ```ts
 import { DatabaseSync } from 'node:sqlite'
@@ -33,6 +33,7 @@ import { performance } from 'node:perf_hooks'
 import {
   configureConnectionSecurity,
   configureDurability,
+  prepareDatabasePath,
   selectJournalMode,
   type SqliteDatabaseSubject,
 } from '@deepseek-ai/dsh-sqlite-connection'
@@ -41,9 +42,10 @@ declare const path: string
 declare const busyTimeoutMs: number
 declare function validateSchema(db: DatabaseSync): void
 
-const database: SqliteDatabaseSubject = { path, role: 'storage database' }
+const actual = await prepareDatabasePath(path)
+const database: SqliteDatabaseSubject = { path: actual, role: 'storage database' }
 const deadline = performance.now() + busyTimeoutMs
-const db = new DatabaseSync(path, { timeout: busyTimeoutMs })
+const db = new DatabaseSync(actual, { timeout: busyTimeoutMs })
 try {
   configureConnectionSecurity(db, database)
   validateSchema(db)
@@ -58,6 +60,10 @@ try {
   throw error
 }
 ```
+
+### 连接前先准备路径
+
+`prepareDatabasePath(path)` 解析路径、以 `0o700` 模式创建其父目录、并以 `wx` 与 `0o600` 模式创建数据库文件本身，然后返回要打开的路径；`:memory:` 不指向任何文件系统条目，原样透传。已存在的文件保留自己的模式，`EEXIST` 之外的任何错误都向上传播。需要在这些步骤之间检查路径的后端——校验属主或拒绝符号链接父目录——在自己的检查之后自行调用 `createDatabaseFile(path)`。
 
 ### 按这个顺序执行步骤
 
@@ -83,7 +89,7 @@ try {
 
 | 文件 | 角色 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | 三个配置步骤、`readConnectionSettings`、busy 超时边界与连接类型 |
+| [`src/index.ts`](src/index.ts) | 路径准备、三个配置步骤、`readConnectionSettings`、busy 超时边界与连接类型 |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant 伴生（无运行时 invariant；设置位于调用方的连接上） |
 
 ### 为什么每个设置都要读回
@@ -96,7 +102,7 @@ journal 模式变更需要排他锁。SQLite 对它立即返回 `SQLITE_BUSY` �
 
 ### 哪些留在后端
 
-以属主独有权限创建文件、校验路径属主、选择哪些 journal 模式足够持久可接受、以及拥有 schema，都留在后端。本包只看到一个已打开的连接和一个放进失败消息的名字。
+校验路径属主、拒绝符号链接父目录、选择哪些 journal 模式足够持久可接受、以及拥有 schema，都留在后端。除以属主独有权限创建文件及其父目录之外，本包只看到一个已打开的连接和一个放进失败消息的名字。
 
 </details>
 
@@ -107,14 +113,14 @@ journal 模式变更需要排他锁。SQLite 对它立即返回 `SQLITE_BUSY` �
 
 - [SQLite 会话持久化](../../session/session-persistence-sqlite/README.zh.md) — 消费这些设置的会话后端。
 - [SQLite 存储后端](../../storage/storage-sqlite/README.zh.md) — 消费这些设置的 storage-hub 后端。
-- [共享 SQLite 连接设置 Agent Note](../../../.agents/notes/implemented/bug-fix/2026-09-03-shared-sqlite-connection-settings.md) — 为什么由一个拥有者持有它们。
+- [共享 SQLite 连接设置 Agent Note](../../../.agents/notes/implemented/bug-fix/2026-09-03-shared-sqlite-connection-settings.zh.md) — 为什么由一个拥有者持有它们。
 
 -----
 
 <a id="model-experience"></a>
 ## 模型体验
 
-无。本包只配置宿主侧数据库连接，不注册任何面向模型的内容。
+无。本包只准备宿主侧数据库路径与连接，不注册任何面向模型的内容。
 
 #### KV Cache 影响
 
@@ -127,7 +133,7 @@ journal 模式变更需要排他锁。SQLite 对它立即返回 `SQLITE_BUSY` �
 - **设置是连接局部的** — 它们都不持久化在数据库文件里，因此其他代码在同一文件上打开的连接不持有其中任何一项；每个打开者都要自行应用。
 - **不评判请求的 journal 模式** — 校验只证明连接报告了调用方要求的模式；拒绝 `memory` 或 `off` 这类非持久模式留在各后端经过校验的配置中。
 - **`readConnectionSettings` 需要文件支撑的连接** — 进程内数据库不返回 `PRAGMA mmap_size` 行，因此读取进程内连接的调用者应直接查询它关心的设置。
-- **不拥有文件或路径** — 权限、symlink 与属主校验、目录创建属于后端；通向一个其他主体可替换文件的加固连接，仍然是一个其他主体可替换的文件。
+- **不做路径校验** — symlink 与属主检查属于后端；面对一个其他主体可写的父目录，属主独有创建也会落败，而通向一个其他主体可替换文件的加固连接，仍然是一个其他主体可替换的文件。
 
 <a id="dev-note"></a>
 ### 开发备注

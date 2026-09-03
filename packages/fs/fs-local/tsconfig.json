@@ -4,13 +4,15 @@
     "rootDir": "src",
     "outDir": "lib/types"
   },
-  "include": ["src"],
+  "include": [
+    "src"
+  ],
   "references": [
     {
-      "path": "../../../vendor/cosmokit"
+      "path": "../../../vendor/cordis"
     },
     {
-      "path": "../../../vendor/cordis"
+      "path": "../../../vendor/cosmokit"
     },
     {
       "path": "../../../vendor/schemastery"
@@ -19,10 +21,13 @@
       "path": "../../llm/llm"
     },
     {
-      "path": "../fs"
+      "path": "../../runtime-diagnostics/invariants"
     },
     {
-      "path": "../../runtime-diagnostics/invariants"
+      "path": "../../util/keyed-lock"
+    },
+    {
+      "path": "../fs"
     }
   ]
 }

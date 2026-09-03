@@ -29,7 +29,7 @@ Mount the plugin in a composition that loads the LLM service; it registers one r
 
 ### Choose a posture
 
-Set `baseURL` to point at an already-running LiteRT-LM server — a container, a Railway service, a server started outside the harness. Nothing is spawned and nothing is imported, so `server.cwd` must be absent and no model may name `huggingFaceRepo`.
+Set `baseURL` to point at an already-running LiteRT-LM server — a container, a Railway service, a server started outside the harness. Nothing is spawned and nothing is imported, so `server.cwd` must be absent and no model may name either import instruction, `file` or `huggingFaceRepo`.
 
 Set `server.cwd` to supervise a local server instead. The plugin imports every configured model, starts `litert-lm serve`, waits for `GET /v1/models` to answer, and terminates the process when the plugin is disposed. Setting both, or neither, fails at load with a message naming the two keys.
 
@@ -62,8 +62,10 @@ Set `server.cwd` to supervise a local server instead. The plugin imports every c
 | `server.port` | `9379` | Port passed to `--port` |
 | `server.startupTimeoutMs` | `120,000` | Budget for the server to answer `GET /v1/models` after it is spawned |
 | `server.importTimeoutMs` | `1,800,000` | Budget for one `litert-lm import`, sized for multi-gigabyte downloads |
+| `server.maxStdoutBytes` | `1,048,576` | Stdout tail retained per child; `litert-lm list` is parsed from it, so a bound below one registry listing loses ids and re-imports gigabytes |
+| `server.maxStderrBytes` | `65,536` | Stderr tail retained per child and quoted in failures; purely diagnostic |
 
-Each model names its `litert-lm` registry id, the `.litertlm` file, and the capacities the harness sizes context management from. The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-llm-litert) is the exhaustive source for every accepted field and its JSDoc.
+Each model names its `litert-lm` registry id and the capacities the harness sizes context management from. A supervised model also names the `.litertlm` `file` its import reads, and optionally the `huggingFaceRepo` to pull it from; a remote model names neither. The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-llm-litert) is the exhaustive source for every accepted field and its JSDoc.
 
 ### Deploying the server separately
 
@@ -71,7 +73,7 @@ Each model names its `litert-lm` registry id, the `.litertlm` file, and the capa
 
 ### Failures at load
 
-Configuration resolution runs before any import, so an unserviceable model list fails without first paying for a multi-gigabyte download. A duplicate model id, an empty id or file, a `huggingFaceRepo` on a remote route, a non-`http`/`https` `baseURL`, or a health interval larger than the startup budget each fail with a message naming the key. A supervised route additionally fails if the executable cannot be resolved, the import does not finish inside `importTimeoutMs`, or the server does not answer within `startupTimeoutMs`; the retained stderr tail is quoted in the failure.
+Configuration resolution runs before any import, so an unserviceable model list fails without first paying for a multi-gigabyte download. A duplicate model id, an empty id, an import instruction on a remote route, a supervised model with no `file`, a non-`http`/`https` `baseURL`, or a health interval larger than the startup budget each fail with a message naming the key. A supervised route additionally fails if the executable cannot be resolved, the import does not finish inside `importTimeoutMs`, or the server does not answer within `startupTimeoutMs`; the retained stderr tail is quoted in the failure.
 
 -----
 
@@ -119,8 +121,15 @@ A supervised route imports its models, spawns the server through `ctx.subprocess
 
 -----
 
-## Known Limitations and Deferred Work
+## Model Experience
 
+Indirectly, through `dsh-llm-pi-ai`, which owns every request this route's profile is sent with.
+
+#### KV Cache effect
+
+No direct invalidation; the delegate adapter and the request assembly own any prefix change.
+
+## Known Limitations and Deferred Work
 <a id="known-limitations-and-deferred-work"></a>
 
 These limits define what the route does not attempt; they are current package contracts.
@@ -145,10 +154,3 @@ None.
 -----
 
 <a id="model-experience"></a>
-## Model Experience
-
-Indirectly, through `dsh-llm-pi-ai`, which owns every request this route's profile is sent with.
-
-#### KV Cache effect
-
-No direct invalidation; the delegate adapter and the request assembly own any prefix change.

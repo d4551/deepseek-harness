@@ -11,6 +11,7 @@ import type { ClientScriptIdentity } from './scripts.ts'
 /** Adapts session-local Client Console events to common Runtime values. */
 export class ClientConsoleBackend implements ConsoleBackend {
   private readonly disposers = new Set<() => void>()
+  private closed = false
 
   constructor(
     private readonly target: ClientRuntimeTarget,
@@ -19,10 +20,18 @@ export class ClientConsoleBackend implements ConsoleBackend {
     private readonly scriptIds: ClientScriptIdentity,
   ) {}
 
-  subscribe(listener: (event: RuntimeConsoleBackendEvent<RuntimeBackendObjectHandle>) => void): () => void {
-    const dispose = this.router.subscribeConsole(this.target, this.sessionId, (event) => {
+  async subscribe(
+    listener: (event: RuntimeConsoleBackendEvent<RuntimeBackendObjectHandle>) => void,
+  ): Promise<() => void> {
+    const dispose = await this.router.subscribeConsole(this.target, this.sessionId, (event) => {
       listener(clientConsoleEvent(event, scriptKey => this.scriptIds.toRuntime(scriptKey)))
     })
+    // The Client confirms an enable this backend may have outlived; the router's
+    // disposer is idempotent, so releasing it here needs no separate bookkeeping.
+    if (this.closed) {
+      dispose()
+      return dispose
+    }
     this.disposers.add(dispose)
     return () => {
       if (!this.disposers.delete(dispose)) return
@@ -34,6 +43,7 @@ export class ClientConsoleBackend implements ConsoleBackend {
 
   /** Disable every active Console subscription for this connection. */
   close(): void {
+    this.closed = true
     for (const dispose of this.disposers) dispose()
     this.disposers.clear()
   }

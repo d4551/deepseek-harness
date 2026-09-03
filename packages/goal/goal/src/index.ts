@@ -51,8 +51,8 @@ import type {
 // declaration) re-exported onto the package root keeps the module edge in
 // the emitted index.d.ts, so aggregate programs consuming the declarations
 // still receive the SessionProjectionMap merge.
-export type * from './types.ts'
-export type * from './domain.ts'
+export type { CreateGoalRequest, CreateGoalResult, EditGoalRequest, GoalActivation, GoalBlockReason, GoalPhase, GoalProjection, GoalRef, GoalSnapshot, GoalView } from './types.ts'
+export type { FoldedGoal, GoalChangeMeta, GoalChanged, GoalClearChangeMeta, GoalErrorCode, GoalMessageSource, GoalOperation, GoalSnapshotChangeMeta } from './domain.ts'
 export { GOAL_CHANGE_VERSION, GoalError, GoalId } from './runtime.ts'
 export { decodeGoalChange, foldGoal, goalChangeRef } from './fold.ts'
 

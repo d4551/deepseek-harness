@@ -1,7 +1,9 @@
 /**
  * Service Definition for the `ctx.shell` capability seam, covering foreground commands and background process
- * handles. Job ids, ownership, polling, and notices belong to
- * `@deepseek-ai/dsh-jobs`, keeping executors independent of sessions.
+ * handles, plus the model-facing result rendering and call contract both shell tool Consumers share. Job ids,
+ * ownership, polling, and notices belong to `@deepseek-ai/dsh-jobs`, keeping executors independent of sessions.
+ * The subprocess-backed implementation both dialect families extend lives on the `./subprocess-executor`
+ * subpath, which imports this module.
  * @module @deepseek-ai/dsh-shell
  */
 
@@ -9,17 +11,6 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import type { SandboxMode } from '@deepseek-ai/dsh-sandbox'
 import type { ShellExecRequest, ShellExecSpec, ShellProcess, ShellRunResult } from './types.ts'
-
-/**
- * Settings namespace of this capability, owned here rather than by either
- * executor family because it names the capability, not an implementation: a
- * host composes exactly one provider of `ctx.shell` (the win32 layer swaps the
- * POSIX rows for the pwsh ones, and mounting both fails loud on a duplicate
- * service registration), so the providers share one namespace without ever
- * registering it twice, and a settings document carried between platforms
- * keeps resolving on both.
- */
-export const SHELL_SETTINGS_NAMESPACE = settingsNamespace('shell')
 
 export { DSH_ENV_PREFIX } from './types.ts'
 export type {
@@ -34,6 +25,35 @@ export type {
   DshEnvironment,
   DshEnvironmentKey,
 } from './types.ts'
+export { assertPositiveFinite, assertServiceableShellConfig, subprocessShellConfigFields } from './executor-config.ts'
+export type { ResolvedSubprocessShellConfig, SubprocessShellConfig } from './executor-config.ts'
+export { parseExitStatus, renderShellProcessRead, renderShellResult } from './render.ts'
+export type { ParsedExitStatus, RenderableShellResult } from './render.ts'
+export { processOutcome } from './background.ts'
+export {
+  SHELL_BACKGROUND_PARAMETER,
+  SHELL_ESCALATION_GUIDANCE,
+  SHELL_JUSTIFICATION_PARAMETER,
+  SHELL_TIMEOUT_PARAMETER,
+  SHELL_TOOL_OUTPUT_SCHEMA,
+  SHELL_WORKDIR_PARAMETER,
+  canonicalShellResult,
+  shellEscalationParameter,
+  validateShellToolArgs,
+} from './tool-schema.ts'
+export type { CanonicalShellResult, CanonicalShellStream, ShellToolArgs } from './tool-schema.ts'
+
+/**
+ * Settings namespace of this capability, owned here rather than by either
+ * executor family because it names the capability, not an implementation: a
+ * host composes exactly one provider of `ctx.shell` (the win32 layer swaps the
+ * POSIX rows for the pwsh ones, and mounting both fails loud on a duplicate
+ * service registration), so the providers share one namespace without ever
+ * registering it twice, and a settings document carried between platforms
+ * keeps resolving on both.
+ */
+export const SHELL_SETTINGS_NAMESPACE = settingsNamespace('shell')
+
 /**
  * Exec-request fields an executor carries onto its spec verbatim, present only
  * when the caller stated them.
@@ -55,9 +75,6 @@ export function carriedShellFields(request: ShellExecRequest): CarriedShellField
     ...request.dshEnv !== undefined ? { dshEnv: request.dshEnv } : {},
   }
 }
-
-export { parseExitStatus } from './render.ts'
-export type { ParsedExitStatus } from './render.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {

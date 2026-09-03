@@ -17,7 +17,9 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { ComposerChainProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
-import type { PendingInteractionPublisher } from '@deepseek-ai/dsh-client-ui-session/client'
+import {
+  settlePendingInteraction, type PendingInteractionPublisher,
+} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { TypertClientEventListener } from '@deepseek-ai/dsh-typert-protocol'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -51,7 +53,7 @@ type ClientQuestionAnswer = Awaited<ReturnType<QuestionListener>>
 export const inject = ['sessions', 'remote', 'uiSession', 'slots', 'locale']
 
 /** Present one request until the user answers, cancels, or its lifetime ends. */
-async function answerQuestion(
+function answerQuestion(
   ctx: ClientContext,
   owner: ClientContext,
   request: ClientQuestionRequest,
@@ -61,22 +63,7 @@ async function answerQuestion(
   const sessionId = (ctx.sessions as ISessions).scopeOf(owner)
   if (sessionId === undefined) return next()
   const pending = new PendingQuestion(sessionId, request.questions, request.signal)
-  const completed = Promise.withResolvers<void>()
-  const remove = registerPendingInteraction(pending, async () => {
-    pending.delegate()
-    await completed.promise
-  })
-  try {
-    try {
-      return await pending.result
-    } catch (error) {
-      if (pending.isDelegation(error)) return await next()
-      throw error
-    }
-  } finally {
-    remove()
-    completed.resolve()
-  }
+  return settlePendingInteraction(pending, registerPendingInteraction, next)
 }
 
 /**

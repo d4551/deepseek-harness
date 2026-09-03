@@ -596,14 +596,28 @@ export function exactEditState(text: string, find: string, replace: string, expe
   return hits === expect && landed === 0 ? 'pending' : 'invalid'
 }
 
+/**
+ * List version-controlled paths, POSIX-separated and repository-relative.
+ * @param args - extra `git ls-files` selectors narrowing the listing.
+ * @returns the matching paths, without the empty trailing entry.
+ */
+function trackedFiles(args: readonly string[]): string[] {
+  return execFileSync('git', ['ls-files', '-z', ...args], { cwd: root, encoding: 'utf8' })
+    .split('\0')
+    .filter(file => file !== '')
+}
+
 function main(): void {
   const args = process.argv.slice(2)
   const mode = args.includes('--apply') ? 'apply' : args.includes('--check') ? 'check' : 'dry'
   const reverse = args.includes('--reverse')
   const all = patterns(reverse)
-  const files = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' })
-    .split('\0')
-    .filter(file => file !== '' && !excluded(file))
+  // `ls-files` reports index entries, but every pass below reads working-tree
+  // text: an entry whose working-tree copy is already deleted has no text to
+  // rewrite and no residue to carry, so subtracting `-d` keeps the deleted half
+  // of a rename from aborting the run before any surviving file is classified.
+  const deleted = new Set(trackedFiles(['-d']))
+  const files = trackedFiles([]).filter(file => !deleted.has(file) && !excluded(file))
 
   const counts = new Map<string, { files: number; lines: number }>()
   const failures: string[] = []

@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-03-one-shell-tool-per-role.md
+2026-09-03-one-shell-tool-per-role.md: f4a5b0c107cbaa28cebd50a4a65a1952a0222f63
+2026-09-03-one-shell-tool-per-role.zh.md: 12be00550cb3c705358a44ab2723a62c9b7f425d

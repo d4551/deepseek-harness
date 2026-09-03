@@ -205,17 +205,18 @@ Source: [`packages/sandbox/sandbox/src/index.ts`](../../packages/sandbox/sandbox
 
 ### `ctx.sandboxPolicy` — `SandboxPolicyService`
 
-The sandbox-policy service (`ctx.sandboxPolicy`). Owns the deployment default mode, fallback workspace root, and current request-time policy section. Tool layers call resolve for each execution so a session's mode log and immutable cwd travel together to every enforcing capability.
+The sandbox-policy service (`ctx.sandboxPolicy`). Owns the deployment default mode, fallback workspace root, and current request-time policy section. Tool layers call resolve for each execution so a session's mode log, immutable cwd, and recorded additional roots travel together to every enforcing capability.
 
 ```ts cordis-catalog
 /**
  * Resolve the complete policy for one capability call. An approved explicit
  * mode outranks the session's last `sandbox/mode` event, which outranks the
- * deployment default. A session cwd is its workspace-write boundary; the
+ * deployment default. A session cwd is its primary workspace-write
+ * boundary and its `workspace/roots` log supplies the additional ones; the
  * configured root is the fallback for agentless calls and sessions without a
  * cwd.
  * @param request - optional session and approved mode override.
- * @returns the fully resolved per-call mode and absolute workspace root.
+ * @returns the fully resolved per-call mode and absolute workspace roots.
  */
 resolve(request: SandboxPolicyRequest = {}): SandboxExecutionPolicy
 
@@ -225,6 +226,15 @@ resolve(request: SandboxPolicyRequest = {}): SandboxExecutionPolicy
  * @returns the last logged mode, or `undefined` without one.
  */
 overrideOf(session: Session): SandboxMode | undefined
+
+/**
+ * Read the session's additional workspace roots as every enforcement layer
+ * compares them, without resolving a whole policy. The primary root is the
+ * session's cwd, or this service's fallback for a session without one.
+ * @param session - session whose log supplies the recorded roots.
+ * @returns canonical additional roots, deduplicated and never the primary root.
+ */
+additionalRootsOf(session: Session): string[]
 ```
 
 Types: [Session](session.zh.md)

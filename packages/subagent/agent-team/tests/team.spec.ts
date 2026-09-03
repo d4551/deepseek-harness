@@ -8,6 +8,7 @@ import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { SessionId, type Session } from '@deepseek-ai/dsh-session'
+import { sessionWorkspaceRoots, setAdditionalWorkspaceRoots } from '@deepseek-ai/dsh-session/workspace-roots'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SubagentService from '@deepseek-ai/dsh-subagent'
 import * as SubagentFork from '@deepseek-ai/dsh-subagent-fork-in-process'
@@ -429,6 +430,21 @@ describe('Team identity and provisioning', () => {
     expect(durable(lead).members).toEqual([])
   })
 
+  it('gives a teammate every workspace root its Lead works in', async () => {
+    const { ctx, lead } = await setup(['hang'])
+    const extra = mkdtempSync(join(tmpdir(), 'dsh-team-extra-root-'))
+    roots.push(extra)
+    setAdditionalWorkspaceRoots(lead.session, [extra])
+    const started = await spawn(ctx, lead, 'scoped')
+    const worker = await waitRunning(ctx, started.member.id)
+
+    // A teammate is a continuable child, so the delegation seam carries the
+    // Lead's multi-root workspace onto its own log rather than narrowing it.
+    expect(sessionWorkspaceRoots(worker.session)).toEqual([extra])
+    ctx.agentTeams.interrupt(lead, 'scoped')
+    await waitNoAgent(ctx, worker.id)
+  })
+
   it('treats an ordinary fork as a new Root Team and filters inherited Team state', async () => {
     const { ctx, lead } = await setup([])
     await ctx.agentTeams.createTask(lead, { subject: 'parent task', description: 'belongs to parent' })
@@ -823,14 +839,22 @@ describe('Team shared task DAG', () => {
     await ctx.agentTeams.updateTask(lead, {
       taskId: broad.id, expectedRevision: broad.revision, action: 'claim',
     })
-    await ctx.agentTeams.updateTask(lead, {
+    // The named claim is bound by the same exclusion `claim_next` defers on:
+    // `src/nested` is inside the in-progress `src`, so this route refuses too.
+    await expect(ctx.agentTeams.updateTask(lead, {
       taskId: narrow.id, expectedRevision: narrow.revision, action: 'claim',
+    })).rejects.toMatchObject({ code: 'TEAM_TASK_WRITE_SCOPE_CONFLICT' })
+    // The refusal committed nothing: the task is still pending at its old
+    // revision, and its view names the in-progress work that is blocking it.
+    expect(ctx.agentTeams.getTask(lead, narrow.id)).toMatchObject({
+      status: 'pending',
+      revision: narrow.revision,
+      writeScopeWarnings: [`write scopes overlap with ${broad.id}`],
     })
     await ctx.agentTeams.updateTask(lead, {
       taskId: disjoint.id, expectedRevision: disjoint.revision, action: 'claim',
     })
-    expect(ctx.agentTeams.getTask(lead, broad.id).writeScopeWarnings)
-      .toEqual([`write scopes overlap with ${narrow.id}`])
+    expect(ctx.agentTeams.getTask(lead, broad.id).writeScopeWarnings).toEqual([])
 
     ctx.agentTeams.interrupt(lead, 'editor')
     await waitNoAgent(ctx, editor.id)
@@ -893,6 +917,63 @@ describe('Team shared task DAG', () => {
     })
     await expect(ctx.agentTeams.claimNextReadyTask(worker))
       .resolves.toMatchObject({ outcome: 'claimed', task: { id: overlapping.id, ownerName: 'scoped' } })
+
+    ctx.agentTeams.interrupt(lead, 'scoped')
+    await waitNoAgent(ctx, worker.id)
+  })
+
+  it('refuses every named route that would start work on paths already being written', async () => {
+    const { ctx, lead } = await setup(['hang'])
+    const member = await spawn(ctx, lead, 'scoped')
+    const worker = await waitRunning(ctx, member.member.id)
+
+    const held = await ctx.agentTeams.createTask(lead, {
+      subject: 'held', description: 'writes the whole tree', writeScopes: ['src'],
+    })
+    const overlapping = await ctx.agentTeams.createTask(lead, {
+      subject: 'overlapping', description: 'writes inside it', writeScopes: ['src/nested'],
+    })
+    const elsewhere = await ctx.agentTeams.createTask(lead, {
+      subject: 'elsewhere', description: 'writes elsewhere', writeScopes: ['docs'],
+    })
+    const taken = await ctx.agentTeams.updateTask(lead, {
+      taskId: held.id, expectedRevision: held.revision, action: 'claim',
+    })
+
+    // A Lead reassignment is the same transition into in-progress work, so the
+    // exclusion cannot be reached around by assigning instead of claiming.
+    await expect(ctx.agentTeams.updateTask(lead, {
+      taskId: overlapping.id, expectedRevision: overlapping.revision, action: 'reassign', owner: 'scoped',
+    })).rejects.toMatchObject({ code: 'TEAM_TASK_WRITE_SCOPE_CONFLICT' })
+    await expect(ctx.agentTeams.updateTask(worker, {
+      taskId: overlapping.id, expectedRevision: overlapping.revision, action: 'claim',
+    })).rejects.toMatchObject({ code: 'TEAM_TASK_WRITE_SCOPE_CONFLICT' })
+
+    // Widening an admitted task onto the held paths is the third route in.
+    const mine = await ctx.agentTeams.updateTask(worker, {
+      taskId: elsewhere.id, expectedRevision: elsewhere.revision, action: 'claim',
+    })
+    await expect(ctx.agentTeams.updateTask(worker, {
+      taskId: elsewhere.id, expectedRevision: mine.revision, action: 'edit', writeScopes: ['src/deep'],
+    })).rejects.toMatchObject({ code: 'TEAM_TASK_WRITE_SCOPE_CONFLICT' })
+    const rescoped = await ctx.agentTeams.updateTask(worker, {
+      taskId: elsewhere.id, expectedRevision: mine.revision, action: 'edit', writeScopes: ['docs/api', 'notes'],
+    })
+    expect(rescoped).toMatchObject({ status: 'in_progress', writeScopes: ['docs/api', 'notes'] })
+    // An owner keeps its own scopes across a transition that touches nothing else.
+    const narrowed = await ctx.agentTeams.updateTask(worker, {
+      taskId: elsewhere.id, expectedRevision: rescoped.revision, action: 'edit', writeScopes: ['docs/api'],
+    })
+    expect(narrowed.writeScopes).toEqual(['docs/api'])
+
+    // Releasing the held task frees every route the exclusion had refused.
+    await ctx.agentTeams.updateTask(lead, {
+      taskId: held.id, expectedRevision: taken.revision, action: 'release',
+    })
+    const claimed = await ctx.agentTeams.updateTask(worker, {
+      taskId: overlapping.id, expectedRevision: overlapping.revision, action: 'claim',
+    })
+    expect(claimed).toMatchObject({ status: 'in_progress', ownerName: 'scoped' })
 
     ctx.agentTeams.interrupt(lead, 'scoped')
     await waitNoAgent(ctx, worker.id)

@@ -6,7 +6,7 @@ import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-test
 import { LocalBashExecutor } from '@deepseek-ai/dsh-bash-local'
 import * as BashEnvPlugin from '@deepseek-ai/dsh-shell-env'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
-import * as ToolBash from '@deepseek-ai/dsh-tool-bash'
+import * as ToolShell from '@deepseek-ai/dsh-tool-shell'
 import * as ToolTodo from '@deepseek-ai/dsh-tool-todo'
 import * as LlmDeepSeek from '@deepseek-ai/dsh-llm-deepseek'
 import TokenMeter from '@deepseek-ai/dsh-token-meter'
@@ -65,7 +65,7 @@ export async function codingHarness(workdir: string, options: CodingHarnessOptio
   await ctx.plugin(LocalSubprocessRuntime)
   await ctx.plugin(BashEnvPlugin)
   await ctx.plugin(LocalBashExecutor, { cwd: workdir, timeoutMs: 30_000 })
-  await ctx.plugin(ToolBash)
+  await ctx.plugin(ToolShell, { dialect: 'bash' })
   await ctx.plugin(ToolTodo, { allowParallelInProgress: true })
   // Compaction is opt-in: only the compaction e2e loads the reusable meter and backend.
   if (options.compact !== undefined) {

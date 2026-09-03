@@ -158,6 +158,7 @@ These limits define when this backend is a poor fit or needs special operational
 
 - **A fresh process per run** — there is no process pooling; each delegation pays the full spawn and ACP handshake cost.
 - **Local workspaces only** — the resolved working directory is a local path handed to a child on the same machine; remote workspace mapping is not designed.
+- **One working directory per child** — `session/new` carries a single `cwd`, so a parent working in additional workspace roots hands on only that primary root. In-process children carry the complete root set on their own session logs.
 - **No optional start-time capabilities** — this provider cannot apply `agentOptions`, `outputSchema`, a depth cap, a tool filter, or a persona inside the remote process, so the seam rejects requests that require them.
 - **Only committed `agent_message_chunk` text is collected** — the automation server keeps reasoning, tool activity, plans, and other trace data in the child session log rather than emitting them on ACP.
 - **Permission prompts are auto-answered** (`permission: allow | reject`) — no human is surfaced a child's `session/request_permission`.

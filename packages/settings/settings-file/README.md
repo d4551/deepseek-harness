@@ -82,19 +82,19 @@ This section explains the design decisions behind the provider and points at the
 - **Every write is a read-modify-write.** A persist first reconciles from disk and publishes any difference into the seam, then renders against that fresh text, so a write can never resurrect a stale document or drop an unobserved sibling section.
 - **Writes hold a cross-process writer lock.** The read-render-rename cycle runs under a `wx`-created `<file>.lock` sibling with exponential backoff and a 2-second acquisition deadline; readers never take the lock because the rename commit is atomic.
 - **YAML edits are leaf-level diffs.** Only changed values are set and only removed keys deleted, preserving comments, anchors, and formatting on untouched nodes.
-- **Reloads and writes share one operation chain.** Watcher refreshes and persists from every namespace queue run one at a time in queue order; each render sees the text the previous operation committed.
+- **Reloads and writes share one operation chain.** Watcher refreshes and persists from every namespace queue run one at a time in queue order; each render sees the text the previous operation committed. The chain, the watcher, and the reload policy come from [`dsh-document-queue`](../../util/document-queue/README.md); this package keeps the parsing, rendering, and publication.
 - **Self-write suppression by content.** The provider caches the last good text; a watcher event whose content equals the cache — its own write included — is a no-op.
 
 ### Source map
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Provider: spec resolution, load/parse, read-modify-write under the writer lock, watcher lifecycle, YAML/JSON rendering |
+| [`src/index.ts`](src/index.ts) | Provider: spec resolution, load/parse, read-modify-write under the writer lock, document-queue wiring, YAML/JSON rendering |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; file round-trip, watcher timing, and atomic-write behavior are proven by package tests, and the in-process commit relation is owned by `dsh-settings`) |
 
 ### Document lifecycle
 
-The base service init loads and publishes the document before the service becomes injectable; the provider then starts the watcher and reconciles once at ready to close the startup gap in which a change written between the initial read and the watcher becoming active never fires an event. Every watcher event and every persist queues onto one exclusive operation chain. `reconcileFromDisk` compares on-disk text against the cache, publishes any difference (including absence as the empty document), and throws only on a parse failure so each caller picks its policy — a reload warns and keeps the last good document, a write fails loud. Disposal marks the provider closed, closes the watcher, and waits out every queued or in-flight operation so nothing publishes after teardown.
+The base service init loads and publishes the document before the service becomes injectable; the provider then starts the shared document queue's watcher, which reconciles once at ready to close the startup gap in which a change written between the initial read and the watcher becoming active never fires an event. Every watcher event and every persist queues onto one exclusive operation chain. `reconcileFromDisk` compares on-disk text against the cache, publishes any difference (including absence as the empty document), and throws only on a parse failure so each caller picks its policy — a reload warns and keeps the last good document, a write fails loud. Disposal closes the queue, which refuses new work, closes the watcher, and waits out every queued or in-flight operation so nothing publishes after teardown.
 
 ### Render paths
 

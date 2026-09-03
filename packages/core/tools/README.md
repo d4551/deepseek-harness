@@ -112,6 +112,7 @@ The registry holds typed `ToolDefinition`s in scoped layers and projects them on
 | [`src/json-schema.ts`](src/json-schema.ts) | The enforced raw JSON Schema subset and validation |
 | [`src/presentation.ts`](src/presentation.ts) | The `card`-tagged UI render intents |
 | [`src/ptc.ts`](src/ptc.ts) | PTC mode: SDK generation, `run_code` dispatch bridge, settlement |
+| [`src/schema-render-stack.ts`](src/schema-render-stack.ts) | The explicit-stack walk both SDK renderers drive |
 | [`src/ts-types.ts`](src/ts-types.ts) | TypeScript SDK type rendering |
 | [`src/py-types.ts`](src/py-types.ts) | Python SDK type rendering |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion |

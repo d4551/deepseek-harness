@@ -75,7 +75,7 @@ This section explains the design decisions behind the backend; the observable be
 
 ### Design philosophy
 
-The backend owns storage details only, on one principle: **a spilled tool result must be private and unredirectable**. The root is private (0700), the session directory is a stable hash, the leaf name is unpredictable, and the write is exclusive and owner-only. The storage mechanics live in a Cordis-free module so they are unit-testable without a context.
+The backend owns storage details only, on one principle: **a spilled tool result must be private and unredirectable**. The root is private (0700), the session directory is a stable hash, the leaf name is unpredictable, and the write is exclusive and, on POSIX, owner-only. The storage mechanics live in a Cordis-free module so they are unit-testable without a context.
 
 ### Source map
 
@@ -126,6 +126,7 @@ These limits define when the local backend is a poor fit or needs operational ca
 
 - **A long-lived deployment is not swept until restart** — the one-shot sweep runs only after activation, so files that cross the age cutoff during a run are reclaimed on the next start.
 - **Locators require a co-located filesystem consumer** — a remote or virtual deployment needs another `SpillStore` backend whose locator and retrieval hint are meaningful there.
+- **Windows creation is not owner-only** — the `0700` root and `0600` file modes do not exist on Windows, so both inherit the access-control list of the directory they land in. Only the cleanup sweep audits an access-control list, and it audits the roots it sweeps rather than the files this backend writes; set `root` to a directory only your account can reach whenever the ambient temp directory is not one.
 
 <a id="dev-note"></a>
 ### Dev Note

@@ -41,7 +41,7 @@ import type { PlanProjection } from './types.ts'
 // this re-export projects the type face onto the package root AND keeps the
 // module edge in the emitted index.d.ts, so aggregate programs consuming the
 // declarations still receive the SessionProjectionMap merge.
-export type * from './types.ts'
+export type { PlanProjection } from './types.ts'
 
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {

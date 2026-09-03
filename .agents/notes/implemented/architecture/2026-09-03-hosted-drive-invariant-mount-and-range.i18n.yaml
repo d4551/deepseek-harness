@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-03-hosted-drive-invariant-mount-and-range.md
+2026-09-03-hosted-drive-invariant-mount-and-range.md: d296b78f83d83c786b001098ea401b669b76fb83
+2026-09-03-hosted-drive-invariant-mount-and-range.zh.md: e0f4ed75e379369bf1c5b2078e5cde97da9c6512

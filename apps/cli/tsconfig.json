@@ -69,7 +69,7 @@
       "path": "../../packages/shell/shell-env"
     },
     {
-      "path": "../../packages/shell/tool-bash"
+      "path": "../../packages/shell/tool-shell"
     }
   ]
 }

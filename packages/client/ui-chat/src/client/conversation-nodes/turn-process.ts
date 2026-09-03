@@ -12,8 +12,9 @@ import {
   decodeTurnProcess, encodeTurnProcess, isSubagentDelegationTool,
   type TurnProcessSignature, type TurnProcessSpec,
 } from '../contract/turn-process.ts'
-import { CHAT_SYNTHETIC_SEQ_OFFSETS, chatNode } from './common.ts'
-import { toAssistantBlocks } from './event-projection.ts'
+import { SYNTHETIC_SEQ_OFFSETS } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import { chatNode } from './common.ts'
+import { toAssistantBlocks } from '@deepseek-ai/dsh-client-ui-conversation/client'
 
 declare module '../contract/chat-nodes.ts' {
   interface ChatNodeDataMap {
@@ -268,7 +269,7 @@ export const turnProcessDefinition: ConversationNodeDefinition<TurnProcessState>
     return chatNode(
       context,
       'turn-process',
-      data.controlAnchorSeq + CHAT_SYNTHETIC_SEQ_OFFSETS.processControl,
+      data.controlAnchorSeq + SYNTHETIC_SEQ_OFFSETS.processControl,
       data,
     )
   },

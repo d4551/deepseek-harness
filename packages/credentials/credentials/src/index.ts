@@ -278,7 +278,7 @@ export abstract class CredentialProvider extends Service {
     this.fanOut('credentials/record-updated', key)
   }
 
-  /* jscpd:ignore-start -- deliberate symmetry with the settings seam's commit
+  /* deliberate symmetry with the settings seam's commit
      fan-out: the contained-dispatch shape is the reviewed listener-lifecycle
      contract, and extracting it would couple the two seams' event semantics. */
   /** The contained dispatch both notifications run through; see {@link notifyUpdated}. */
@@ -303,7 +303,6 @@ export abstract class CredentialProvider extends Service {
     }
     if (invariantFailure !== undefined) throw invariantFailure as Error
   }
-  /* jscpd:ignore-end */
 
   /** Contained-listener diagnostic shared by the sync and async failure paths. */
   private warnListenerFailure(event: string, subject: string, error: unknown): void {

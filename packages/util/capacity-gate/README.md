@@ -1,6 +1,6 @@
 ---
 description: "Zero-dependency bounded FIFO admission control for capability holders that cap concurrent work without coupling the settlement of the operations they admit."
-kind: "package-library"
+kind: "package-reference"
 ---
 
 # @deepseek-ai/dsh-capacity-gate

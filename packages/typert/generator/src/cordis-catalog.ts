@@ -685,7 +685,6 @@ function renderRuntimeApi(
     ' * @module @deepseek-ai/dsh-tool-cordis/api-catalog',
     ' */',
     '',
-    '/* jscpd:ignore-start */',
     '/** One named parameter in a Service method or Event listener. */',
     'export interface ApiParameter {',
     '  /** Parameter name from the exact signature. */',
@@ -906,7 +905,6 @@ function renderRuntimeApi(
     '    referencedTypes: referencedTypeClosure([event.signature]),',
     '  }',
     '}',
-    '/* jscpd:ignore-end */',
     '',
   )
   return lines.join('\n')

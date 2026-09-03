@@ -375,7 +375,7 @@ describe('bare provider (no dsh-fs-observation-policy)', () => {
 
 // Per-session cwd: a relative file_path resolves against the calling session's workspace
 // (`exec.agent.session.header.cwd`), not the backend's config.cwd, so the
-// caller-selected session workspace wins, matching dsh-tool-bash.
+// caller-selected session workspace wins, matching dsh-tool-shell.
 describe('per-session cwd', () => {
   let sessionDir: string
   beforeEach(async () => {

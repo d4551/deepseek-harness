@@ -30,10 +30,8 @@ shell 组为 agent 提供命令执行能力：运行前台命令并读取其有�
 | [`pwsh-local`](pwsh-local/README.zh.md) | 在 Windows 上以全新 `pwsh -Command` 进程运行 PowerShell 命令 | 注册 `ctx.shell` |
 | [`pwsh-sandbox`](pwsh-sandbox/README.zh.md) | 通过沙箱能力限制 PowerShell 命令运行 | 注册 `ctx.shell` |
 | [`shell-env`](shell-env/README.zh.md) | 提供每条 shell 命令都会收到的受管 `DSH_*` 环境 | `ctx.shellEnv` |
-| [`tool-bash`](tool-bash/README.zh.md) | 以 `bash` 工具向模型公开 Bash 执行与后台任务 | 注册到 `ctx.tools` |
-| [`tool-bash-persistent`](tool-bash-persistent/README.zh.md) | 在单个限定所有者范围的持久 Bash 会话中运行模型的 shell 调用 | 注册到 `ctx.tools` |
-| [`tool-pwsh`](tool-pwsh/README.zh.md) | 以 `pwsh` 工具向模型公开 PowerShell 执行 | 注册到 `ctx.tools` |
-| [`tool-pwsh-persistent`](tool-pwsh-persistent/README.zh.md) | 在单个限定所有者范围的持久 PowerShell 会话中运行模型的 shell 调用 | 注册到 `ctx.tools` |
+| [`tool-shell`](tool-shell/README.zh.md) | 以 `dialect` 选定的工具名向模型公开一次性 Bash 或 PowerShell 执行与后台任务 | 注册到 `ctx.tools` |
+| [`tool-shell-persistent`](tool-shell-persistent/README.zh.md) | 在单个限定所有者范围、由 `dialect` 选定的持久 Bash 或 PowerShell 会话中运行模型的 shell 调用 | 注册到 `ctx.tools` |
 
 profile 层恰好选择一个执行器实现（win32 层会把 POSIX 行换成 pwsh 行；同时挂载两个会因服务重复注册而在加载期失败）以及所需的面向模型工具。沙箱化组合还会选择一个 `ctx.sandbox` 提供方与 `ctx.sandboxPolicy`；[base bundle](../bundle/base/cordis.patch.yml)拥有随附接线。
 

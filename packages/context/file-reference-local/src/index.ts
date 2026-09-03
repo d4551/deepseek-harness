@@ -11,6 +11,7 @@ import FileReferenceService, {
   FILE_REFERENCE_PROMPT,
   type FileReferenceCandidate,
 } from '@deepseek-ai/dsh-file-reference'
+import { sessionWorkspaceRoots } from '@deepseek-ai/dsh-session/workspace-roots'
 import { FIRST_PARTY_SECTION_ORDER } from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-tools'
 import {
@@ -51,7 +52,8 @@ export class LocalFileReferenceService extends FileReferenceService {
   })
 
   private readonly config: FileSearchConfig
-  private readonly searches = new Map<Agent, WorkspaceFileSearch>()
+  /** One index per agent, keyed with the root set it was built for. */
+  private readonly searches = new Map<Agent, { roots: readonly string[]; search: WorkspaceFileSearch }>()
   private readonly promptFibers = new Map<Agent, ReturnType<Context['inject']>>()
   private readonly promptDisposals = new Set<Promise<void>>()
 
@@ -90,17 +92,17 @@ export class LocalFileReferenceService extends FileReferenceService {
     for (const agent of ctx.agents.list()) installPrompt(agent)
     ctx.on('agent/created', ({ agent }) => { installPrompt(agent) })
     ctx.on('agent/disposed', ({ agent }) => {
-      this.searches.get(agent)?.dispose()
+      this.searches.get(agent)?.search.dispose()
       this.searches.delete(agent)
       disposePrompt(agent)
     })
     ctx.on('session/event', (session, event) => {
       if (event.type !== 'tool/result') return
       const agent = ctx.agents.get(session.id)
-      if (agent !== undefined) this.searches.get(agent)?.invalidate()
+      if (agent !== undefined) this.searches.get(agent)?.search.invalidate()
     })
     ctx.effect(() => async () => {
-      for (const search of this.searches.values()) search.dispose()
+      for (const { search } of this.searches.values()) search.dispose()
       this.searches.clear()
       const promptFibers = [...this.promptFibers.values()]
       this.promptFibers.clear()
@@ -116,13 +118,37 @@ export class LocalFileReferenceService extends FileReferenceService {
     query: string,
     signal: AbortSignal,
   ): Promise<FileReferenceCandidate[]> {
-    let search = this.searches.get(agent)
-    if (search === undefined) {
-      search = new WorkspaceFileSearch(agent.session.header.cwd ?? process.cwd(), this.config)
-      this.searches.set(agent, search)
-    }
+    const roots = completionRoots(agent)
+    const cached = this.searches.get(agent)
+    if (cached !== undefined && sameRoots(cached.roots, roots)) return cached.search.list(query, signal)
+    // The session records its roots in its own log, so a set the client
+    // changed mid-session retires the index built for the previous set.
+    cached?.search.dispose()
+    const search = new WorkspaceFileSearch(roots, this.config)
+    this.searches.set(agent, { roots, search })
     return search.list(query, signal)
   }
+}
+
+/**
+ * The workspace roots one agent's completion covers.
+ * @param agent - agent whose session records the roots.
+ * @returns the session's roots, primary first, or the host process directory
+ *   when the session records neither a cwd nor an additional root.
+ */
+function completionRoots(agent: Agent): readonly string[] {
+  const roots = sessionWorkspaceRoots(agent.session)
+  return roots.length > 0 ? roots : [process.cwd()]
+}
+
+/**
+ * Whether two root lists name the same roots in the same order.
+ * @param left - roots an index was built for.
+ * @param right - roots the session carries now.
+ * @returns true when the cached index still covers the session.
+ */
+function sameRoots(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((root, index) => root === right[index])
 }
 
 function validateConfig(config: FileSearchConfig): void {

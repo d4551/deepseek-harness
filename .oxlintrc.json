@@ -44,7 +44,8 @@
         "apps/*/tests/**/*.{ts,tsx}",
         "examples/**/*.{ts,tsx}",
         "scripts/**/*.{ts,tsx}",
-        "website/**/*.{ts,tsx}"
+        "website/**/*.{ts,tsx}",
+        "deploy/*/.railway/*.{ts,tsx}"
       ],
       "rules": {
         "no-var": "error",
@@ -159,7 +160,8 @@
         "apps/*/src/**/*.{ts,tsx}",
         "examples/**/*.{ts,tsx}",
         "scripts/**/*.{ts,tsx}",
-        "website/**/*.{ts,tsx}"
+        "website/**/*.{ts,tsx}",
+        "deploy/*/.railway/*.{ts,tsx}"
       ],
       "rules": {
         "typescript/no-non-null-assertion": "error",
@@ -225,7 +227,8 @@
         "apps/**/*.{ts,tsx}",
         "examples/**/*.{ts,tsx}",
         "scripts/**/*.{ts,tsx}",
-        "website/**/*.{ts,tsx}"
+        "website/**/*.{ts,tsx}",
+        "deploy/*/.railway/*.{ts,tsx}"
       ],
       "rules": {
         "no-dupe-else-if": "error"
@@ -237,7 +240,8 @@
         "apps/**/*.{ts,tsx}",
         "examples/**/*.{ts,tsx}",
         "scripts/**/*.{ts,tsx}",
-        "website/**/*.{ts,tsx}"
+        "website/**/*.{ts,tsx}",
+        "deploy/*/.railway/*.{ts,tsx}"
       ],
       "rules": {
         "@stylistic/indent": [

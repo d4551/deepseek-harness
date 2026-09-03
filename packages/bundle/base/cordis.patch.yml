@@ -249,13 +249,10 @@
     - id: shell-env
       name: '@deepseek-ai/dsh-shell-env'
 
-    - id: tool-bash
-      name: '@deepseek-ai/dsh-tool-bash'
-      disabled: !!js process.platform === 'win32'
-
-    - id: tool-pwsh
-      name: '@deepseek-ai/dsh-tool-pwsh'
-      disabled: !!js process.platform !== 'win32'
+    - id: tool-shell
+      name: '@deepseek-ai/dsh-tool-shell'
+      config:
+        dialect: !!js "process.platform === 'win32' ? 'pwsh' : 'bash'"
 
     - id: tool-jobs
       name: '@deepseek-ai/dsh-tool-jobs'
@@ -442,16 +439,47 @@
     # overriding tool-web. DeepSeek search resolves the same DEEPSEEK_API_KEY
     # credential the Models page manages for chat, at each search; its Messages
     # endpoint is separate from the chat-completions endpoint, so it takes its own
-    # base-URL override. Anonymous fetch accepts only public HTTP(S) destinations,
-    # resolves and validates every destination, and pins every actual connection.
-    # Search is a full auxiliary model request with server-side retrieval, so this
-    # shipped DeepSeek route gets 60s while the provider-neutral tool default
-    # remains 30s.
+    # base-URL override. Search is a full auxiliary model request with server-side
+    # retrieval, so this shipped DeepSeek route gets 60s while the
+    # provider-neutral tool default remains 30s.
+    #
+    # Fetch renders the page. A model reading a modern site through a raw HTTP
+    # body sees an empty shell, so the shipped route is Playwright Chromium in a
+    # fresh incognito context per fetch. Both providers are mounted and the route
+    # is named rather than inferred: the seam refuses to guess when two are
+    # usable. `web-fetch-http` stays mounted so a deployment that cannot install
+    # a browser states `fetchProvider: http` in one overlay line.
+    #
+    # THE RENDERED ROUTE NEEDS A BROWSER THIS INSTALL DOES NOT DOWNLOAD.
+    # `playwright` ships no postinstall, so a host that has not run
+    # `playwright install chromium` fails every web_fetch with
+    # WEB_PROVIDER_CONFIGURED_UNAVAILABLE. The plugin warns at mount and names
+    # the exact command; the base bundle README states the step.
+    #
+    # The two enforce the same public-destination policy by different means, and
+    # the difference is real. `web-fetch-http` resolves the destination once and
+    # pins the connection to that address, so it cannot be re-resolved. The
+    # rendered route validates every destination the page reaches — main frame,
+    # subresources, each hop a redirect names, and each WebSocket — and refuses
+    # anything that is not a public unicast address, but Chromium resolves again
+    # when it connects, so that route admits a destination rather than pinning it.
+    #
+    # Those destinations arrive on three separate Playwright channels and the
+    # context installs all three: the request interceptor, the WebSocket
+    # interceptor, and the context's own request observer. The observer is not
+    # redundant — Chromium follows a redirect inside its own network stack and
+    # never re-enters the interceptor, so without it a page admitted at a public
+    # host could be redirected to a private one and hand back what it read. A
+    # refused hop fails the whole fetch, before the document is read.
+    #
+    # Service workers stay blocked, because Playwright routes none of their
+    # requests. A socket opened from inside a dedicated worker is the one path
+    # no channel sees; the provider's README records what that leaves reachable.
     - id: web
       name: '@deepseek-ai/dsh-web'
       config:
         searchProvider: deepseek-official
-        fetchProvider: http
+        fetchProvider: playwright
 
     - id: web-search-deepseek
       name: '@deepseek-ai/dsh-web-search-deepseek'
@@ -460,6 +488,12 @@
 
     - id: web-fetch-http
       name: '@deepseek-ai/dsh-web-fetch-http'
+
+    # Chromium comes from the `playwright` package's own browser download, not
+    # from this dependency: a host without it fails the first fetch with the
+    # install command named, and the plugin warns at mount.
+    - id: web-fetch-playwright
+      name: '@deepseek-ai/dsh-web-fetch-playwright'
 
     - id: tool-web
       name: '@deepseek-ai/dsh-tool-web'

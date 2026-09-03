@@ -2,7 +2,8 @@ import { useState, type KeyboardEvent } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import clsx from 'clsx'
 import {
-  IconApiOutline14, IconChevronDownOutline14, IconInspectOutline12, StateDot, TerminalBlock,
+  FlowRow, IconApiOutline14, IconChevronDownOutline14, InspectPill, RowSeparator, RowSummary, StateDot,
+  TerminalBlock,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ToolCallViewProps } from '../../contract/slots.ts'
@@ -86,7 +87,7 @@ export function BashRow({ toolName, block, sessionId, useSessions, inspect, t }:
       : leadingFor(state)
   return (
     <div className={css.card}>
-      <div
+      <FlowRow
         className={css.root}
         data-sample="bash"
         data-variant="bash"
@@ -101,11 +102,11 @@ export function BashRow({ toolName, block, sessionId, useSessions, inspect, t }:
         <span className={css.leading}>{leading}</span>
         {status !== null && <span className="dsw-visually-hidden">{status}</span>}
         <span className={css.title}>{t(model.titleKey)}</span>
-        <span className={rowCss.sep} aria-hidden />
-        <span className={clsx(css.summary, failureLine !== null && css.errorSummary)}>
+        <RowSeparator />
+        <RowSummary tone={failureLine !== null ? 'error' : 'default'}>
           {failureLine ?? terminal?.description ?? model.summary}
-        </span>
-      </div>
+        </RowSummary>
+      </FlowRow>
       {open && (
         <div className={css.bodyWrap}>
           {terminal !== null
@@ -139,10 +140,7 @@ export function BashRow({ toolName, block, sessionId, useSessions, inspect, t }:
               </div>
             )}
           {inspect !== undefined && (
-            <button type="button" className={css.inspectButton} onClick={inspect}>
-              <IconInspectOutline12 />
-              {t('row.inspect')}
-            </button>
+            <InspectPill className={css.inspectButton} label={t('row.inspect')} onClick={inspect} />
           )}
         </div>
       )}

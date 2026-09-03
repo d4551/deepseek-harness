@@ -174,13 +174,13 @@ export class FileSystemSkillProvider implements SkillProvider {
   }
 
   /**
-   * Discover local skill summaries for a cwd-sensitive workspace.
-   * @param options - lookup options; `cwd` selects the project roots to scan.
+   * Discover local skill summaries for a workspace-sensitive lookup.
+   * @param options - lookup options; `cwd` and `additionalRoots` select the project roots to scan.
    * @returns local provider candidates with stable root ranks; watcher startup
    *   failure returns readable candidates as an incomplete observation.
    */
   async list(options: SkillLookupOptions): Promise<SkillCandidate[] | SkillProviderObservation> {
-    const roots = await this.roots(options.cwd)
+    const roots = await this.roots(options)
     let complete = true
     try {
       await this.watchManager.observeRoots(roots)
@@ -238,14 +238,24 @@ export class FileSystemSkillProvider implements SkillProvider {
     return this.disposal
   }
 
-  private async roots(cwd: string | undefined): Promise<SkillRoot[]> {
+  private async roots(options: SkillLookupOptions): Promise<SkillRoot[]> {
     const roots: SkillRoot[] = []
-    if (this.includeDefaultRoots && cwd !== undefined) {
-      const projectRoot = await findProjectRoot(resolve(cwd), optionalFileSystem(this.ctx))
-      roots.push(
-        { path: join(projectRoot, '.dsh/skills'), source: 'project-dsh', rank: PROJECT_DSH_RANK, projectRoot },
-        { path: join(projectRoot, '.agents/skills'), source: 'project-agents', rank: PROJECT_AGENTS_RANK, projectRoot },
-      )
+    if (this.includeDefaultRoots) {
+      const fileSystem = optionalFileSystem(this.ctx)
+      // Every workspace root the session works in contributes its project skill
+      // directories, primary root first. Two roots inside one checkout resolve to
+      // the same project root and are scanned once. The source ranks are unchanged
+      // per root, so root order decides only the collisions rank leaves tied.
+      const scanned = new Set<string>()
+      for (const workspace of [...options.cwd === undefined ? [] : [options.cwd], ...options.additionalRoots ?? []]) {
+        const projectRoot = await findProjectRoot(resolve(workspace), fileSystem)
+        if (scanned.has(projectRoot)) continue
+        scanned.add(projectRoot)
+        roots.push(
+          { path: join(projectRoot, '.dsh/skills'), source: 'project-dsh', rank: PROJECT_DSH_RANK, projectRoot },
+          { path: join(projectRoot, '.agents/skills'), source: 'project-agents', rank: PROJECT_AGENTS_RANK, projectRoot },
+        )
+      }
     }
     roots.push(...this.customSkillDirs.map(path => ({ path, source: 'custom' as const, rank: CUSTOM_RANK })))
     if (this.includeDefaultRoots) {

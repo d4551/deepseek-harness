@@ -5,7 +5,8 @@
  * process group (Windows has no POSIX groups), and taskkill tree signalling.
  * The koffi bindings load lazily so
  * non-Windows processes never touch Win32 libraries; all decision logic takes
- * an injectable internals boundary so suites can pin it on any host.
+ * an injectable internals boundary, and the binding table itself takes an
+ * injectable library loader, so suites pin every path on any host.
  * @module dsh-subprocess-local/windows-inspector
  */
 
@@ -13,6 +14,7 @@ import { spawnSync } from 'node:child_process'
 import koffi from 'koffi'
 import type { SubprocessTerminalSignal } from '@deepseek-ai/dsh-subprocess'
 import type { ProcessIdentity, ProcessInspector, ProcessSnapshot } from './process-inspector.ts'
+import { walkProcessTree } from './process-tree-walk.ts'
 
 /** One Toolhelp32 process-table row. */
 export interface ProcessEntry {
@@ -47,34 +49,15 @@ export interface WindowsProcessInspectorInternals {
  * @param started - creation-time identity resolver for one member.
  * @returns the root and its current transitive descendants, children first.
  */
-/* jscpd:ignore-start -- the Windows inspector deliberately mirrors process-inspector.ts:
-   the decision logic (tree walk, identity fencing, group signalling) is the same contract over
-   Win32 primitives, per the persistent-pty note 2026-08-11-pwsh-persistent-pty. */
 export function windowsProcessTree(
   entries: ProcessEntry[],
   rootPid: number,
   started: (pid: number) => string | undefined,
 ): ProcessIdentity[] {
-  const byPid = new Map(entries.map(entry => [entry.pid, entry]))
-  const root = byPid.get(rootPid)
-  if (root === undefined) return []
-  const byParent = new Map<number, ProcessEntry[]>()
-  for (const entry of entries) {
-    const children = byParent.get(entry.parentPid) ?? []
-    children.push(entry)
-    byParent.set(entry.parentPid, children)
-  }
-  const visited = new Set<number>()
-  const result: ProcessIdentity[] = []
-  const visit = (entry: ProcessEntry): void => {
-    if (visited.has(entry.pid)) return
-    visited.add(entry.pid)
-    for (const child of byParent.get(entry.pid) ?? []) visit(child)
+  return walkProcessTree(entries, rootPid, (entry) => {
     const identity = started(entry.pid)
-    if (identity !== undefined) result.push({ pid: entry.pid, started: identity })
-  }
-  visit(root)
-  return result
+    return identity === undefined ? undefined : { pid: entry.pid, started: identity }
+  })
 }
 
 /**
@@ -127,7 +110,6 @@ export class WindowsProcessInspector implements ProcessInspector {
     if (this.isAlive(identity)) this.internals.taskkill(identity.pid, signal === 'SIGKILL')
   }
 }
-/* jscpd:ignore-end */
 
 /**
  * Create the Windows process inspector.
@@ -163,8 +145,24 @@ export function isInvalidHandle(value: NativePtr | null | undefined): boolean {
   return asBigInt === 0n || asBigInt === 0xFFFFFFFFFFFFFFFFn || asBigInt === -1n
 }
 
+/** One loaded Win32 library, reduced to the stdcall binding the table needs. */
+export interface Win32Library {
+  /**
+   * Bind one exported function.
+   * @param convention - the calling convention (`__stdcall` for every Win32 call here).
+   * @param name - the exported symbol.
+   * @param result - the koffi result type.
+   * @param args - the koffi parameter types.
+   * @returns the callable binding.
+   */
+  func(convention: string, name: string, result: unknown, args: unknown[]): unknown
+}
+
+/** Opens one Win32 library by file name; koffi's loader in production. */
+export type Win32LibraryLoader = (name: string) => Win32Library
+
 /** The lazy koffi binding table: every Win32 call the Windows inspector uses. */
-interface Win32Bindings {
+export interface Win32Bindings {
   createToolhelp32Snapshot(flags: number, processId: number): NativePtr
   process32FirstW(snapshot: NativePtr, entry: NativePtr): number
   process32NextW(snapshot: NativePtr, entry: NativePtr): number
@@ -183,15 +181,16 @@ interface Win32Bindings {
 const PVOID: ReturnType<typeof koffi.pointer> = koffi.pointer('void')
 
 /**
- * Resolve the koffi Win32 struct types once. Registration is lazy and cached
- * because koffi's type registry is global per process: test runners that
- * re-evaluate this module (a hoisted `vi.mock` re-imports the graph) must not
- * re-register the names.
+ * Resolve the koffi Win32 struct types once per module evaluation. The types
+ * are ANONYMOUS: koffi's named-type registry is global per process, so a test
+ * runner that re-evaluates this module (a hoisted `vi.mock` re-imports the
+ * graph) would hit `Duplicate type name` on the second registration.
+ * @returns the process-table entry and timestamp layouts, cached after the first call.
  */
-function win32Structs(): { PROCESSENTRY32W: ReturnType<typeof koffi.struct>; FILETIME: ReturnType<typeof koffi.struct> } {
+export function win32Structs(): { PROCESSENTRY32W: ReturnType<typeof koffi.struct>; FILETIME: ReturnType<typeof koffi.struct> } {
   if (cachedStructs !== undefined) return cachedStructs
   // koffi PROCESSENTRY32W layout (tlhelp32.h); the size assert pins the x64 layout.
-  const PROCESSENTRY32W = koffi.struct('PROCESSENTRY32W', {
+  const PROCESSENTRY32W = koffi.struct({
     dwSize: 'uint32',
     cntUsage: 'uint32',
     th32ProcessID: 'uint32',
@@ -204,7 +203,7 @@ function win32Structs(): { PROCESSENTRY32W: ReturnType<typeof koffi.struct>; FIL
     szExeFile: koffi.array('char16', 260),
   })
   // koffi FILETIME layout (minwinbase.h): two 32-bit halves of the 64-bit timestamp.
-  const FILETIME = koffi.struct('FILETIME', {
+  const FILETIME = koffi.struct({
     dwLowDateTime: 'uint32',
     dwHighDateTime: 'uint32',
   })
@@ -225,22 +224,21 @@ const SYNCHRONIZE = 0x00100000
 const WAIT_OBJECT_0 = 0
 const WAIT_TIMEOUT = 0x102
 
-let cachedBindings: Win32Bindings | undefined
-
 /**
- * Resolve the lazy Win32 bindings (throws the first binding failure, fail-closed).
- * @returns the cached binding table.
+ * Bind every Win32 call this inspector makes from one kernel32 the loader
+ * opens. Binding failures propagate on the first call, fail-closed.
+ * @param load - opens the library; koffi's loader in production.
+ * @returns the binding table.
  */
-function win32Bindings(): Win32Bindings {
-  if (cachedBindings !== undefined) return cachedBindings
+function bindWin32(load: Win32LibraryLoader): Win32Bindings {
   const { PROCESSENTRY32W, FILETIME } = win32Structs()
-  const kernel32 = koffi.load('kernel32.dll')
+  const kernel32 = load('kernel32.dll')
   const bind = (
     name: string,
     result: ReturnType<typeof koffi.pointer> | string,
     args: Array<ReturnType<typeof koffi.pointer> | string>,
   ): unknown => kernel32.func('__stdcall', name, result, args)
-  cachedBindings = {
+  return {
     createToolhelp32Snapshot: bind('CreateToolhelp32Snapshot', PVOID, ['uint32', 'uint32']),
     process32FirstW: bind('Process32FirstW', 'int', [PVOID, koffi.pointer(PROCESSENTRY32W)]),
     process32NextW: bind('Process32NextW', 'int', [PVOID, koffi.pointer(PROCESSENTRY32W)]),
@@ -255,8 +253,21 @@ function win32Bindings(): Win32Bindings {
     waitForSingleObject: bind('WaitForSingleObject', 'uint32', [PVOID, 'uint32']),
     closeHandle: bind('CloseHandle', 'int', [PVOID]),
   } as unknown as Win32Bindings
-  return cachedBindings
 }
+
+/**
+ * Defer opening kernel32 until a question actually reaches the process table,
+ * and open it at most once: constructing an inspector on any host, including
+ * one with no Win32 libraries at all, binds nothing.
+ * @param load - opens the library; koffi's loader in production.
+ * @returns a resolver that binds on first use and reuses that table after.
+ */
+export function lazyWin32Bindings(load: Win32LibraryLoader): () => Win32Bindings {
+  let cached: Win32Bindings | undefined
+  return () => (cached ??= bindWin32(load))
+}
+
+const win32Bindings = lazyWin32Bindings(koffi.load)
 
 /**
  * Allocate koffi memory as a branded {@link NativePtr}; koffi's TS types are
@@ -274,8 +285,8 @@ function allocNative(type: Parameters<typeof koffi.alloc>[0], count: number): Na
 function snapshotWindowsProcesses(bindings: Win32Bindings): ProcessEntry[] {
   const { PROCESSENTRY32W } = win32Structs()
   const snapshot = bindings.createToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
-  /* v8 ignore next -- an invalid snapshot for the process flag is not producible through the public API;
-     the guard mirrors POSIX's unreadable-proc tolerance and isInvalidHandle is unit-tested. */
+  // An unreadable snapshot is an empty table, mirroring POSIX's tolerance of an
+  // unreadable /proc rather than failing the question that asked for the tree.
   if (isInvalidHandle(snapshot)) return []
   const entries: ProcessEntry[] = []
   try {
@@ -306,14 +317,13 @@ function windowsProcessState(bindings: Win32Bindings, pid: number): WindowsProce
     const exit = allocNative(FILETIME, 1)
     const kernel = allocNative(FILETIME, 1)
     const user = allocNative(FILETIME, 1)
-    /* v8 ignore next -- a GetProcessTimes failure after a successful open races process exit and
-       cannot be staged deterministically; the absent-process path is covered and the caller
-       treats undefined as a detector miss. */
+    // A GetProcessTimes failure after a successful open races process exit; the
+    // caller reads undefined as a detector miss, exactly like an absent process.
     if (bindings.getProcessTimes(handle, creation, exit, kernel, user) === 0) return undefined
     const record = koffi.decode(creation, FILETIME) as { dwLowDateTime: number; dwHighDateTime: number }
     const wait = bindings.waitForSingleObject(handle, 0)
-    /* v8 ignore next -- an opened process handle has exactly one of these two
-       zero-time wait states; an unexpected Win32 failure is an unreadable process. */
+    // An opened process handle has exactly one of these two zero-time wait
+    // states; any other return is an unreadable process, never a liveness claim.
     if (wait !== WAIT_OBJECT_0 && wait !== WAIT_TIMEOUT) return undefined
     return {
       started: `${record.dwHighDateTime}:${record.dwLowDateTime}`,
@@ -324,11 +334,20 @@ function windowsProcessState(bindings: Win32Bindings, pid: number): WindowsProce
   }
 }
 
-/** The koffi-backed default internals; bindings resolve lazily on first use. */
-function defaultWindowsProcessInternals(): WindowsProcessInspectorInternals {
+/**
+ * The koffi-backed internals over one binding table.
+ * @param bindings - resolves the Win32 table on the first question that needs it.
+ * @returns internals that read the real Windows process table.
+ */
+export function windowsProcessInternals(bindings: () => Win32Bindings): WindowsProcessInspectorInternals {
   return {
-    snapshot: () => snapshotWindowsProcesses(win32Bindings()),
-    processState: pid => windowsProcessState(win32Bindings(), pid),
+    snapshot: () => snapshotWindowsProcesses(bindings()),
+    processState: pid => windowsProcessState(bindings(), pid),
     taskkill: taskkillTree,
   }
+}
+
+/** The koffi-backed default internals; bindings resolve lazily on first use. */
+function defaultWindowsProcessInternals(): WindowsProcessInspectorInternals {
+  return windowsProcessInternals(win32Bindings)
 }

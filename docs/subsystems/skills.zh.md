@@ -189,15 +189,23 @@ type SkillRegistration = Omit<SkillDefinition, 'invocation' | 'provider'> & {
 
 ## 查找与配置
 
-skill 查找对 cwd 敏感，因为提供方可能暴露工作区本地的 skill；可选的 signal 为调用方取消提供方的工作。注册表读取还通过 `SkillViewOptions` 携带观察 scope——消费方传入调用中的 agent，agent 本身就是自己的 scope key；注册表消费 `scope` 做层选择，提供方只从同一个借用的选项对象中读取其 `SkillLookupOptions` 约定。取消在目录选择前后（包括缓存命中时）都会检查，并与发现和完整定义加载竞争。如果找不到 git root，本地提供方将所提供的 cwd 本身视为项目根目录。
+skill 查找对工作区敏感，因为提供方可能暴露工作区本地的 skill：`cwd` 指定主工作区，`additionalRoots` 指定调用方工作的其余根；可选的 signal 为调用方取消提供方的工作。目录是一份会话级的列表，而不是按文件路由的决定，因此对工作区敏感的提供方会覆盖每一个根，并让 `cwd` 的顺序决定其自身 rank 未能区分的同名冲突。注册表读取还通过 `SkillViewOptions` 携带观察 scope——消费方传入调用中的 agent，agent 本身就是自己的 scope key；注册表消费 `scope` 做层选择，提供方只从同一个借用的选项对象中读取其 `SkillLookupOptions` 约定。取消在目录选择前后（包括缓存命中时）都会检查，并与发现和完整定义加载竞争。如果找不到 git root，本地提供方将所提供的 cwd 本身视为项目根目录。
 
 注册表不缓存完整定义。每次调用 `get()` 都会携所选候选项调用胜出提供方，因此本地提供方会重新读取当前正文。名称与该候选项不再匹配的定义会被拒绝，并使该提供方实例失效以便重新发现。
 
 ```ts type-equiv
-/** Caller context used for cwd-sensitive and abortable provider work. */
+/** Caller context used for workspace-sensitive and abortable provider work. */
 interface SkillLookupOptions {
-  /** Workspace selector for the current lookup. */
+  /** Primary workspace selector for the current lookup. */
   readonly cwd?: string | undefined
+  /**
+   * The caller's ADDITIONAL workspace roots. A skill catalog is one session-wide
+   * list rather than a per-file routing decision, so a workspace-sensitive
+   * provider covers every root: a second checkout the session works in
+   * contributes its skills beside the primary root's. Ordered after `cwd`, which
+   * decides same-name collisions the provider's own ranking leaves tied.
+   */
+  readonly additionalRoots?: readonly string[] | undefined
   /** Abort discovery or loading work for the current caller. */
   readonly signal?: AbortSignal | undefined
 }

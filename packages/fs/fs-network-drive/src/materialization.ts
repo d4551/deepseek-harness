@@ -15,7 +15,7 @@
  */
 
 import { createHash, randomUUID } from 'node:crypto'
-import { constants } from 'node:fs'
+import { constants, createReadStream } from 'node:fs'
 import { lstat, mkdir, open, readFile, rename, rm } from 'node:fs/promises'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import type { DrivePath, DriveVersion } from '@deepseek-ai/dsh-network-drive/types'
@@ -40,6 +40,47 @@ export interface MaterializationRecord {
  */
 export function digestOf(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex')
+}
+
+/**
+ * Lowercase hex sha256 of the bytes one local path currently holds, read as a
+ * stream so a file of any size costs one chunk of memory to digest.
+ * @param localPath - the absolute local path to digest.
+ * @returns the 64-character lowercase hex digest of the file's whole content.
+ * @throws the raw `node:fs` failure when the path cannot be opened or read; a
+ * caller translates it.
+ */
+export async function digestOfFile(localPath: string): Promise<string> {
+  const hash = createHash('sha256')
+  for await (const chunk of createReadStream(localPath) as AsyncIterable<Buffer>) hash.update(chunk)
+  return hash.digest('hex')
+}
+
+/**
+ * Read one local file, stopping one byte past a ceiling.
+ * @param localPath - the absolute local path to read.
+ * @param maxBytes - the byte ceiling the caller enforces.
+ * @returns at most `maxBytes + 1` leading bytes. The extra byte is what
+ * distinguishes a file at the ceiling from one above it, so a caller can refuse
+ * an oversize file without ever holding it.
+ * @throws the raw `node:fs` failure when the path cannot be opened or read; a
+ * caller translates it.
+ */
+export async function readBounded(localPath: string, maxBytes: number): Promise<Uint8Array> {
+  const chunks: Uint8Array[] = []
+  let total = 0
+  // `end` is an inclusive offset, so this admits exactly one byte past the ceiling.
+  for await (const chunk of createReadStream(localPath, { end: maxBytes }) as AsyncIterable<Uint8Array>) {
+    chunks.push(chunk)
+    total += chunk.byteLength
+  }
+  const content = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    content.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return content
 }
 
 /**
@@ -71,8 +112,11 @@ export function localPathOf(materializationRoot: string, path: DrivePath): strin
  */
 export function drivePathOf(materializationRoot: string, localPath: string): string | undefined {
   const within = relative(materializationRoot, resolve(localPath))
-  if (within.startsWith('..') || within.startsWith(`..${sep}`)) return undefined
   const segments = within.split(sep).filter(segment => segment.length > 0)
+  // `..` escapes the root only as a whole segment. A prefix test would also
+  // reject `..foo` and `...bar`, which are ordinary filenames the drive path
+  // vocabulary accepts.
+  if (segments.includes('..')) return undefined
   if (segments[0] === STATE_DIRECTORY) return undefined
   return segments.join('/')
 }
@@ -134,18 +178,10 @@ export async function writeRecord(
 }
 
 /**
- * Drop the record for one drive path, so the next read transfers again.
- * @param materializationRoot - the absolute local workspace root.
- * @param path - the drive path whose record is stale.
- */
-export async function dropRecord(materializationRoot: string, path: DrivePath): Promise<void> {
-  await rm(recordPath(materializationRoot, path), { force: true })
-}
-
-/**
  * Whether the materialized copy of one drive path still holds the exact bytes
  * of a given drive revision. Both halves are checked: the record must name that
- * revision, and the file must still hash to the digest recorded with it.
+ * revision, and the file must still hash to the digest recorded with it, at the
+ * recorded length.
  * @param materializationRoot - the absolute local workspace root.
  * @param path - the drive path to verify.
  * @param version - the drive revision the caller wants served.
@@ -160,7 +196,10 @@ export async function verifiedCopy(
   if (record === undefined || record.version !== version) return undefined
   let bytes: Uint8Array
   try {
-    bytes = new Uint8Array(await readFile(localPathOf(materializationRoot, path)))
+    // The recorded length bounds the read: a copy that outgrew it is not the
+    // recorded content, and the one byte past proves that without holding the
+    // rest of a file the local execution world may have grown to any size.
+    bytes = await readBounded(localPathOf(materializationRoot, path), record.bytes)
   } catch (_copyAbsentOrUnreadable) {
     // The workspace copy is gone or is no longer a readable regular file; the
     // caller transfers again, which is what a missing copy already means.

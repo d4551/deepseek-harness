@@ -51,7 +51,7 @@ skill 可以是被扫描根目录顶层的目录 bundle `<name>/SKILL.md`，也�
 | 400 | `user-dsh` | `<dshHome>/skills` |
 | 500 | `user-agents` | `<agentsHome>/skills` |
 
-项目根目录是包含 `.git` 的最近祖先目录；如果不存在，则使用当前 cwd。用户 DSH 根目录会跳过其 `.system` 子目录。`includeDefaultRoots: false` 会省略项目根、用户根以及 `$DSH_BUNDLED_SKILL_DIR` 默认值，使隔离提供方只看到自身配置的根；`bundledSkillDir` 会按 rank 600 添加一个内置根目录。
+项目根目录是包含 `.git` 的最近祖先目录；如果不存在，则使用当前 cwd。当查询给出附加工作区根时，每个根的项目行都会加入，主根在前，因此在两个检出中工作的会话能看到两边的 skill；同一检出内的多个根解析到同一个项目根，只扫描一次。rank 按来源而非按根划分，因此在两个根中同名时，由 rank 未能区分的条目中排在前面的那个根获胜。用户 DSH 根目录会跳过其 `.system` 子目录。`includeDefaultRoots: false` 会省略项目根、用户根以及 `$DSH_BUNDLED_SKILL_DIR` 默认值，使隔离提供方只看到自身配置的根；`bundledSkillDir` 会按 rank 600 添加一个内置根目录。
 
 ### 挂载与配置
 

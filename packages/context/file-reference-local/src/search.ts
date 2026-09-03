@@ -3,6 +3,13 @@
  * only: selected values remain ordinary prompt text and file contents stay
  * behind the model-facing `read` tool.
  *
+ * One index covers EVERY workspace root the session works in. Candidates from
+ * the primary root keep their root-relative mention text, the form the
+ * file-reference prompt tells the model to expect; candidates from an
+ * additional root render as absolute paths, because a root-relative path would
+ * collide with a same-named file in another root. Ranking always scores the
+ * root-relative path, so a root prefix never decides a match.
+ *
  * @module @deepseek-ai/dsh-file-reference-local/search
  */
 
@@ -56,11 +63,29 @@ export interface FileSearchConfig {
   excludedDirectories: readonly string[]
 }
 
-interface IndexedPath extends FileReferenceCandidate {}
+/** One candidate paired with the paths that rank and order it. */
+interface IndexedPath {
+  /** Mention text as the user inserts it: root-relative for the primary root, absolute otherwise. */
+  candidate: FileReferenceCandidate
+  /** Root-relative path the query scores against, so a root prefix never ranks. */
+  sortPath: string
+  /** Position of the owning root in the configured order; breaks ties between equal `sortPath`s. */
+  rootIndex: number
+}
 
 interface RankedPath {
-  candidate: FileReferenceCandidate
+  entry: IndexedPath
   score: number
+}
+
+/** One queued traversal directory and the root whose display form it belongs to. */
+interface ScanDirectory {
+  absolute: string
+  /** Path relative to the owning root; empty for the root itself. */
+  relative: string
+  rootIndex: number
+  /** Whether this entry is a workspace root, whose read failure fails the traversal. */
+  isRoot: boolean
 }
 
 interface IndexGeneration {
@@ -75,10 +100,10 @@ interface SettledIndex {
 }
 
 /**
- * Cancellable, reusable fuzzy index rooted at one agent working directory.
- * Directory-scoped queries list live state; bare fuzzy queries share one
- * bounded traversal. Only the first query of a workspace waits for that
- * traversal — an invalidated index keeps answering while its replacement
+ * Cancellable, reusable fuzzy index over one agent's workspace roots.
+ * Directory-scoped queries list live state in every root; bare fuzzy queries
+ * share one bounded traversal. Only the first query of a workspace waits for
+ * that traversal — an invalidated index keeps answering while its replacement
  * builds behind the caret.
  */
 export class WorkspaceFileSearch {
@@ -90,9 +115,12 @@ export class WorkspaceFileSearch {
   private disposed = false
 
   constructor(
-    private readonly root: string,
+    private readonly roots: readonly string[],
     private readonly config: FileSearchConfig,
   ) {
+    if (roots.length === 0) {
+      throw new Error('file search requires at least one workspace root')
+    }
     if (!Number.isSafeInteger(config.maxResults) || config.maxResults <= 0) {
       throw new Error('file search maxResults must be a positive safe integer')
     }
@@ -122,8 +150,8 @@ export class WorkspaceFileSearch {
       return this.listDirectory(directory, fragment, signal)
     }
     const indexed = await this.indexFor(signal)
-    return rankCandidates(
-      indexed.filter(candidate => visibleForGlobalQuery(candidate.path, query)),
+    return rankEntries(
+      indexed.filter(entry => visibleForGlobalQuery(entry.sortPath, query)),
       query,
       this.config.maxResults,
     )
@@ -198,9 +226,22 @@ export class WorkspaceFileSearch {
     return generation.promise
   }
 
+  /**
+   * Breadth-first across every root at once, so the entry budget reaches each
+   * root's shallow paths before any root's deep ones. A path two roots both
+   * reach is indexed once, under whichever root reached it first.
+   * @param signal - cancels the traversal.
+   * @returns the bounded index in traversal order.
+   */
   private async scanWorkspace(signal: AbortSignal): Promise<IndexedPath[]> {
     const indexed: IndexedPath[] = []
-    const directories: { absolute: string; relative: string }[] = [{ absolute: this.root, relative: '' }]
+    const seen = new Set<string>()
+    const directories: ScanDirectory[] = this.roots.map((root, rootIndex) => ({
+      absolute: root,
+      relative: '',
+      rootIndex,
+      isRoot: true,
+    }))
     for (let cursor = 0; cursor < directories.length && indexed.length < this.config.maxEntries; cursor += 1) {
       signal.throwIfAborted()
       const directory = directories[cursor]
@@ -208,22 +249,32 @@ export class WorkspaceFileSearch {
       if (directory === undefined) {
         throw new Error('file search selected a missing directory')
       }
-      // The root is not a subtree: an unreadable branch costs its own
+      // A root is not a subtree: an unreadable branch costs its own
       // candidates, but an unreadable root means the traversal learned
-      // nothing. Letting that settle would publish an empty index over
-      // entries that are still good and leave no invalidation to retry from.
-      const entries = cursor === 0
+      // nothing about it. Letting that settle would publish a partial index
+      // over entries that are still good and leave no invalidation to retry from.
+      const entries = directory.isRoot
         ? await readWorkspaceRoot(directory.absolute, signal)
         : await readDirectory(directory.absolute, signal)
       for (const entry of entries) {
         signal.throwIfAborted()
-        const path = directory.relative === '' ? entry.name : `${directory.relative}/${entry.name}`
-        if (entry.isDirectory()) {
-          if (this.excludedDirectories.has(entry.name)) continue
-          indexed.push({ path, kind: 'directory' })
-          directories.push({ absolute: join(directory.absolute, entry.name), relative: path })
-        } else if (entry.isFile()) {
-          indexed.push({ path, kind: 'file' })
+        const isDirectory = entry.isDirectory()
+        if (!isDirectory && !entry.isFile()) continue
+        if (isDirectory && this.excludedDirectories.has(entry.name)) continue
+        const absolute = join(directory.absolute, entry.name)
+        if (seen.has(absolute)) continue
+        seen.add(absolute)
+        const sortPath = directory.relative === '' ? entry.name : `${directory.relative}/${entry.name}`
+        indexed.push({
+          candidate: {
+            path: this.mentionPath(directory.rootIndex, absolute, sortPath),
+            kind: isDirectory ? 'directory' : 'file',
+          },
+          sortPath,
+          rootIndex: directory.rootIndex,
+        })
+        if (isDirectory) {
+          directories.push({ absolute, relative: sortPath, rootIndex: directory.rootIndex, isRoot: false })
         }
         if (indexed.length >= this.config.maxEntries) break
       }
@@ -231,26 +282,57 @@ export class WorkspaceFileSearch {
     return indexed
   }
 
+  /**
+   * List one directory level in every root that contains it. A relative query
+   * names that directory inside each root; an absolute query resolves inside
+   * exactly the root that contains it and yields nothing for the others.
+   * @param displayDirectory - directory text the user typed, including its trailing slash.
+   * @param fragment - text after the last slash, ranked against the level's entries.
+   * @param signal - cancels the directory reads.
+   * @returns at most `maxResults` deterministic candidates.
+   */
   private async listDirectory(
     displayDirectory: string,
     fragment: string,
     signal: AbortSignal,
   ): Promise<FileReferenceCandidate[]> {
     if (displayDirectory.split('/').some(segment => this.excludedDirectories.has(segment))) return []
-    const absolute = await resolveDisplayDirectory(this.root, displayDirectory, signal)
-    if (absolute === undefined) return []
-    const entries = await readDirectory(absolute, signal)
-    const candidates: FileReferenceCandidate[] = []
-    for (const entry of entries) {
-      if (entry.name.startsWith('.') && !fragment.startsWith('.')) continue
-      if (entry.isDirectory()) {
-        if (this.excludedDirectories.has(entry.name)) continue
-        candidates.push({ path: `${displayDirectory}${entry.name}`, kind: 'directory' })
-      } else if (entry.isFile()) {
-        candidates.push({ path: `${displayDirectory}${entry.name}`, kind: 'file' })
+    const entries: IndexedPath[] = []
+    const seen = new Set<string>()
+    for (const [rootIndex, root] of this.roots.entries()) {
+      const absolute = await resolveDisplayDirectory(root, displayDirectory, signal)
+      if (absolute === undefined) continue
+      for (const entry of await readDirectory(absolute, signal)) {
+        if (entry.name.startsWith('.') && !fragment.startsWith('.')) continue
+        const isDirectory = entry.isDirectory()
+        if (!isDirectory && !entry.isFile()) continue
+        if (isDirectory && this.excludedDirectories.has(entry.name)) continue
+        const absolutePath = join(absolute, entry.name)
+        if (seen.has(absolutePath)) continue
+        seen.add(absolutePath)
+        const sortPath = `${displayDirectory}${entry.name}`
+        entries.push({
+          candidate: {
+            path: this.mentionPath(rootIndex, absolutePath, sortPath),
+            kind: isDirectory ? 'directory' : 'file',
+          },
+          sortPath,
+          rootIndex,
+        })
       }
     }
-    return rankCandidates(candidates, fragment, this.config.maxResults)
+    return rankEntries(entries, fragment, this.config.maxResults)
+  }
+
+  /**
+   * The mention text one candidate is inserted as.
+   * @param rootIndex - position of the owning root in the configured order.
+   * @param absolute - the candidate's absolute host path.
+   * @param rootRelative - the candidate's path within its own root.
+   * @returns `rootRelative` for the primary root, the absolute path otherwise.
+   */
+  private mentionPath(rootIndex: number, absolute: string, rootRelative: string): string {
+    return rootIndex === 0 ? rootRelative : absolute.replaceAll('\\', '/')
   }
 }
 
@@ -307,30 +389,33 @@ function visibleForGlobalQuery(path: string, query: string): boolean {
   return !path.split('/').some(segment => segment.startsWith('.'))
 }
 
-function rankCandidates(
-  candidates: readonly FileReferenceCandidate[],
+function rankEntries(
+  entries: readonly IndexedPath[],
   query: string,
   limit: number,
 ): FileReferenceCandidate[] {
   const ranked: RankedPath[] = []
-  for (const candidate of candidates) {
-    const score = scoreCandidate(candidate, query)
-    if (score !== undefined) ranked.push({ candidate, score })
+  for (const entry of entries) {
+    const score = scoreEntry(entry, query)
+    if (score !== undefined) ranked.push({ entry, score })
   }
+  // Root order is the last tie-break, so two roots holding the same path rank
+  // primary-first instead of by whichever host enumeration finished sooner.
   ranked.sort((left, right) =>
     right.score - left.score
-    || kindRank(left.candidate.kind) - kindRank(right.candidate.kind)
-    || (query === '' ? 0 : left.candidate.path.length - right.candidate.path.length)
-    || compareText(left.candidate.path, right.candidate.path))
-  return ranked.slice(0, limit).map(entry => entry.candidate)
+    || kindRank(left.entry.candidate.kind) - kindRank(right.entry.candidate.kind)
+    || (query === '' ? 0 : left.entry.sortPath.length - right.entry.sortPath.length)
+    || compareText(left.entry.sortPath, right.entry.sortPath)
+    || left.entry.rootIndex - right.entry.rootIndex)
+  return ranked.slice(0, limit).map(item => item.entry.candidate)
 }
 
-function scoreCandidate(candidate: FileReferenceCandidate, query: string): number | undefined {
+function scoreEntry(entry: IndexedPath, query: string): number | undefined {
   if (query === '') return 0
-  const path = candidate.path.toLowerCase()
+  const path = entry.sortPath.toLowerCase()
   const name = path.slice(path.lastIndexOf('/') + 1)
   const needle = query.toLowerCase()
-  const directoryBonus = candidate.kind === 'directory' ? 25 : 0
+  const directoryBonus = entry.candidate.kind === 'directory' ? 25 : 0
   if (name === needle) return 1_000 + directoryBonus
   if (name.startsWith(needle)) return 900 + directoryBonus
   if (name.includes(needle)) return 700 + directoryBonus
@@ -356,8 +441,6 @@ function kindRank(kind: FileReferenceCandidate['kind']): number {
 }
 
 function compareText(left: string, right: string): number {
-  /* v8 ignore next -- entries and candidates are unique; host enumeration
-   * order determines which comparison direction sort requests. */
   return left < right ? -1 : left > right ? 1 : 0
 }
 

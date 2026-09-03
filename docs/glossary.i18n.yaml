@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write docs/glossary.md
-glossary.md: 891234c487eea37e6f6beb4779c47054dd011168
-glossary.zh.md: d8fef23873d4c0098b774cf846c8fec156c2d269
+glossary.md: f5534c8e8aab3d83121567e323cea15a9f375cad
+glossary.zh.md: 9a4a16d81b03325116a8bdab9962f0e7d2b361b2

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write docs/architecture.md
-architecture.md: 6288a943c8cdfe23b7815879667bddab29df868c
-architecture.zh.md: 2588cc7814ed4d9ee286038050e2aa816b1d7077
+architecture.md: 53514a738306ef21bca225dd2916a53c6744da24
+architecture.zh.md: a94d92d4c7ac86f86b4067128203db18aaae6a25

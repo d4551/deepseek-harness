@@ -802,6 +802,13 @@ describe('E2B filesystem adapter integration edges', () => {
     const ctx = new Context()
     await ctx.plugin(InvariantRegistry, { enabled: true })
     const fiber = await ctx.plugin(E2BFsInvariant).await()
+    // The mounted companion holds this package's name reservation.
+    expect(() => ctx.invariants.register('@deepseek-ai/dsh-fs-e2b', () => {})).toThrow(/already registered/)
+
     await fiber.dispose()
+    // Disposal releases it: the name registers again and yields its disposer.
+    const reregistered = ctx.invariants.register('@deepseek-ai/dsh-fs-e2b', () => {})
+    expect(reregistered).toBeTypeOf('function')
+    reregistered()
   })
 })

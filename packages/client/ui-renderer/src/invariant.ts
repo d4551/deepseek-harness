@@ -3,7 +3,6 @@
  * @module @deepseek-ai/dsh-client-ui-renderer/invariant
  */
 
-/* jscpd:ignore-start */
 /* oxlint-disable typescript/no-redundant-type-constituents --
  * `keyof SlotMap & string` is the declaration-merge key pattern: SlotMap is
  * empty in this compilation unit but consumers merge concrete keys into it. */
@@ -44,4 +43,3 @@ const install: InvariantInstaller = (ctx, fail) => {
  */
 export const apply = (ctx: Context): Promise<() => void> =>
   Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install))
-/* jscpd:ignore-end */

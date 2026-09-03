@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-03-cordis-runner-shared-plumbing.md
+2026-09-03-cordis-runner-shared-plumbing.md: 5ac12804f9b203fcac6c966dc1a2292373726b05
+2026-09-03-cordis-runner-shared-plumbing.zh.md: a60201080e7d41062bff46a2f18ce77d92a4a7b1

@@ -33,7 +33,7 @@ import { CredentialsController } from './credentials.ts'
 import type { AgentPresetDirectoryOpenValue, SettingsDocumentOpenValue } from './types.ts'
 
 export { CredentialsController } from './credentials.ts'
-export type * from './types.ts'
+export type { AgentPresetDirectoryOpenValue, CredentialError, CredentialErrorDetailsMap, SettingsDocumentOpenValue, SettingsError, SettingsErrorDetailsMap } from './types.ts'
 
 const settingsNamespaceRequestSchema = z.object({ ns: z.string().min(1) })
 

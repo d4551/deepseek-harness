@@ -34,6 +34,17 @@ describe('NetworkDriveFileSystem identity and metadata', () => {
     await expectCode(fs.resolve('   '), 'FS_NOT_FOUND')
   })
 
+  it('accepts a filename that begins with dots, which only a prefix test would reject', async () => {
+    // `..` escapes the root as a whole segment; `..foo` and `...bar` are
+    // ordinary names the drive path vocabulary accepts.
+    const { fs, root } = await setup()
+    for (const name of ['..foo', '...bar', '..hidden/file.txt']) {
+      const target = await fs.resolve(name)
+      expect(fs.processPath(target)).toBe(join(root, name))
+      expect(fs.processPathFromHostPath(join(root, name))).toBe(join(root, name))
+    }
+  })
+
   it('reports drive metadata, local working files, and links through lstat', async () => {
     const { fs, root } = await setup((d) => {
       d.file('on-drive.md', 'remote')

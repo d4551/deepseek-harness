@@ -54,7 +54,7 @@ interface TeamMessageSource {
 
 ## 共享任务 DAG
 
-每条 task event 都存储完整快照。`revision` 是 compare-and-set 值，每次变更递增 1。`blockedBy` edge 必须指向未删除任务，并维持无环图。`writeScopes` 是规范化的提示性路径前缀，不是锁。
+每条 task event 都存储完整快照。`revision` 是 compare-and-set 值，每次变更递增 1。`blockedBy` edge 必须指向未删除任务，并维持无环图。`writeScopes` 是规范化的路径前缀。它们是任务板的互斥键，而不是文件系统锁：不会有两个任务在重叠前缀上同时处于 in_progress，但也没有任何机制阻止进程写到它所认领范围之外。
 
 ```ts type-equiv
 /** Whole durable task snapshot; every mutation increments {@link revision}. */
@@ -71,6 +71,28 @@ interface TeamTaskSnapshot {
 ```
 
 `pending` 表示尚未开始或已经释放，`in_progress` 携带 owner，`completed` 满足 blocker，`deleted` 是保留的 tombstone。view 会添加 owner name、readiness 和 write-scope 重叠警告，但不会改变持久快照。
+
+## 认领工作
+
+swarm 中的队友是主动拉取工作，而不是被指派。`claimNextReadyTask()` 取走第一个未被阻塞的 pending 任务，且其写入范围没有任何 in_progress 任务已经持有；该操作与其他所有任务板变更处在同一个按 Lead 的事务中，因此同一个 Lead 团队中的两个成员绝不会认领到同一个任务。该事务是一条持有在 Lead 自己进程内的 promise 链，而 `tryMembership` 只在 `ctx.agents` 仍持有那个完全相同的活动 Agent 时才接纳成员，因此这项互斥覆盖的是单个宿主进程，并非分布式锁。
+
+```ts type-equiv
+/** Outcome of one atomic claim-the-next-ready-task attempt. */
+type ClaimNextTeamTaskResult =
+  | {
+    readonly outcome: 'claimed'
+    /** The task this caller now owns, at its committed revision. */
+    readonly task: TeamTaskView
+  }
+  | {
+    readonly outcome: 'none'
+    readonly reason: TeamTaskClaimUnavailable
+    /** Unblocked pending tasks skipped because their write scopes are busy. */
+    readonly deferred: TeamTaskId[]
+  }
+```
+
+两种 `none` 原因都不是失败。`no-ready-task` 表示所有任务都已完成、已被拥有或仍被阻塞；`write-scope-conflict` 表示存在就绪的工作，但它会写到另一个成员正在写入的位置，并在 `deferred` 中列出这些任务，使调用方可以等待它们，而不是盲目轮询。
 
 ## 回放
 
@@ -145,7 +167,28 @@ getTask(caller: Agent, id: TeamTaskId): TeamTaskView
 listTasks(caller: Agent): TeamTaskView[]
 
 /**
- * Compare-and-set one authorized task transition.
+ * Take ownership of the first ready task whose write scopes are free, in one
+ * atomic Lead transaction. A member pulls work with this instead of being
+ * assigned it; concurrent callers therefore receive disjoint tasks. A ready
+ * task writing where in-progress work does is deferred here and refused by
+ * {@link updateTask}, so no route hands two owners the same paths.
+ *
+ * The transaction serializes callers inside one host process. Membership
+ * requires the exact live `Agent` this process holds, so a second process
+ * running against the same session log is outside the exclusion.
+ * @param caller - exact live Team member taking ownership.
+ * @returns the claimed task, or the ordinary board state — no unblocked
+ *   pending task, or every one of them writing where in-progress work does —
+ *   that left nothing to take.
+ */
+async claimNextReadyTask(caller: Agent): Promise<ClaimNextTeamTaskResult>
+
+/**
+ * Compare-and-set one authorized task transition. A transition that would
+ * leave the task in progress while its write scopes overlap another
+ * in-progress task is refused with `TEAM_TASK_WRITE_SCOPE_CONFLICT`, so
+ * `claim`, `reassign`, and a scope-widening `edit` are bound by the same
+ * exclusion {@link claimNextReadyTask} applies.
  * @param caller - exact live Team member authorizing the mutation.
  * @param request - task identity, expected revision, action, and action fields.
  * @returns the committed next task revision.

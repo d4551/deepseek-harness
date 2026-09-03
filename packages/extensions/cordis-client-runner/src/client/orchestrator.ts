@@ -19,8 +19,9 @@ import type {
   DynamicCordisRunResponse,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SessionId } from '@deepseek-ai/dsh-client-connection/client'
-import { errorDetails } from './runtime.ts'
-import type { CordisErrorDetails, CordisObservable, DynamicCordisPackageRunner } from './runtime.ts'
+import type { CordisErrorDetails } from '@deepseek-ai/dsh-cordis-host-runner/types'
+import { errorDetails } from '@deepseek-ai/dsh-cordis-host-runner/wire-values'
+import type { CordisObservable, DynamicCordisPackageRunner } from './runtime.ts'
 
 /** One Plugin's in-flight approval or activation. */
 export type CordisRunActivity =

@@ -23,7 +23,7 @@ Status: implemented
 
 ## 伴随修复
 
-同一轮审计回退了 [tool-bash 集成测试](../../../../packages/shell/tool-bash/tests/integration.spec.ts) 中 `838c5e7328` 的放宽：让惰性 JSONL 探针接受 `'absent' | 'present'` 恰好取消了该测试名称所声明的惰性证明。测试装置现在把 `writeBatchMaxDelayMs` 固定到远超单轮的窗口，使 write-behind 截止时间不可能在测试中途触发，严格的单字符串 `absent` 断言得以恢复 —— 竞态被确定化，而不是被容忍。
+同一轮审计回退了 [shell 工具的 bash 方言集成测试](../../../../packages/shell/tool-shell/tests/bash-integration.spec.ts) 中 `838c5e7328` 的放宽：让惰性 JSONL 探针接受 `'absent' | 'present'` 恰好取消了该测试名称所声明的惰性证明。测试装置现在把 `writeBatchMaxDelayMs` 固定到远超单轮的窗口，使 write-behind 截止时间不可能在测试中途触发，严格的单字符串 `absent` 断言得以恢复 —— 竞态被确定化，而不是被容忍。
 
 ## 备选方案
 
@@ -35,7 +35,7 @@ Status: implemented
 
 **把这些检查写成 oxlint 规则。** 已否决：oxlint 的规则集由其 Rust 二进制固定，仓库本地规则无法在其中安装。这些检查因此落在一个已执行的 spec 里，那里也正好能钉住它们的红/绿契约。
 
-**让 `tool-bash` 探针继续接受两种结果。** 已否决：`'absent' | 'present'` 无论 write-behind 是否保持惰性都会通过，于是以惰性命名的测试什么也没证明。把批处理延迟固定到超出单轮，使结果确定化，这才是该断言所需要的。
+**让 shell 工具探针继续接受两种结果。** 已否决：`'absent' | 'present'` 无论 write-behind 是否保持惰性都会通过，于是以惰性命名的测试什么也没证明。把批处理延迟固定到超出单轮，使结果确定化，这才是该断言所需要的。
 
 ## 影响
 

@@ -18,11 +18,19 @@
     - id: web-fetch-fixture
       name: './web-fetch-fixture-server.mjs'
 
+# `config` replaces the base row's mapping, so the search pin drops with it;
+# this scenario exposes only fetch.
 - id: web
   name: '@deepseek-ai/dsh-web'
+  config:
+    fetchProvider: http
 
 - id: web-fetch-http
   name: '@deepseek-ai/dsh-web-fetch-http'
+  disabled: true
+
+- id: web-fetch-playwright
+  name: '@deepseek-ai/dsh-web-fetch-playwright'
   disabled: true
 
 - id: tool-web

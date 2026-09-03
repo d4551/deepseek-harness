@@ -1,8 +1,9 @@
 /**
  * Out-of-process ACP subagent backend. Each child has its own process, session, model, and
  * tools, so it shares no Cordis context and advertises no parent-enforced start capabilities;
- * the ONE thing it reads off `request.parent` is the session's workspace cwd (see
- * {@link resolveCwd}). This plugin uses named exports only; a default would hide its
+ * what it reads off `request.parent` is that session's workspace — the cwd
+ * (see {@link resolveCwd}) plus the other roots it works in, sent as ACP's
+ * `additionalDirectories`. This plugin uses named exports only; a default would hide its
  * loader metadata (see `docs/postmortem/0001-acp-default-export-drops-inject.md`).
  * @module @deepseek-ai/dsh-subagent-acp
  */
@@ -17,6 +18,7 @@ import type {
   SubagentProvider,
   SubagentStartRequest,
 } from '@deepseek-ai/dsh-subagent'
+import { resolveChildWorkspaceRoots } from '@deepseek-ai/dsh-subagent'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { acpConfigurationFailure, type AcpRunSpec, DEFAULT_DISPOSE_EOF_GRACE_MS, DEFAULT_DISPOSE_GRACE_MS, type PermissionPolicy, startAcpRun } from './run.ts'
 
@@ -172,6 +174,7 @@ class AcpProvider implements SubagentProvider {
       command: this.config.command,
       args: this.config.args,
       cwd,
+      workspaceRoots: resolveChildWorkspaceRoots(request.parent, cwd),
       permission: this.config.permission,
       env: this.config.env,
       disposeEofGraceMs: this.config.disposeEofGraceMs,

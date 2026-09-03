@@ -51,7 +51,7 @@ Default roots are scanned in this provider's rank order:
 | 400 | `user-dsh` | `<dshHome>/skills` |
 | 500 | `user-agents` | `<agentsHome>/skills` |
 
-The project root is the nearest ancestor containing `.git`; without one, the current cwd is used. The user DSH root skips its `.system` child. `includeDefaultRoots: false` omits the project and user rows plus the `$DSH_BUNDLED_SKILL_DIR` default so an isolated provider sees only its own configured roots; `bundledSkillDir` adds a bundled root at rank 600.
+The project root is the nearest ancestor containing `.git`; without one, the current cwd is used. A lookup that names additional workspace roots contributes the project rows of every root, primary first, so a session working in two checkouts sees both their skills; roots inside one checkout resolve to the same project root and are scanned once. Ranks are per source, not per root, so a name present in two roots is won by the root listed first among the entries the ranks leave tied. The user DSH root skips its `.system` child. `includeDefaultRoots: false` omits the project and user rows plus the `$DSH_BUNDLED_SKILL_DIR` default so an isolated provider sees only its own configured roots; `bundledSkillDir` adds a bundled root at rank 600.
 
 ### Mount and configure
 

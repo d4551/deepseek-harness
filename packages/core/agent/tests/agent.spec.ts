@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { Context, Service, symbols } from '@deepseek-ai/cordis'
 import { createUserMessage, freezeMessage } from '@deepseek-ai/dsh-llm'
-import { Session, SessionId, type UserMessage } from '@deepseek-ai/dsh-session'
+import { Session, SessionId, type AgentCancelCause, type UserMessage } from '@deepseek-ai/dsh-session'
 import AgentRegistry, {
   agentEvents,
   Inbox,
@@ -10,7 +10,6 @@ import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
 
 import type {
   Agent,
-  AgentCancelCause,
   AgentFactory,
   AgentStatus,
   CreateAgentOptions,

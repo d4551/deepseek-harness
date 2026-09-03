@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-03-exact-pin-version-floors.md
+2026-09-03-exact-pin-version-floors.md: 17d628c3e896d0a6d3b2772c234b63fbc8afc3f5
+2026-09-03-exact-pin-version-floors.zh.md: d8b763cba457dc6163db2eed53ee0cfbd7f2f86a

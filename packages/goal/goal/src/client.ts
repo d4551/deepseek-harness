@@ -7,4 +7,4 @@
  * @module @deepseek-ai/dsh-goal/client
  */
 
-export type * from './types.ts'
+export type { CreateGoalRequest, CreateGoalResult, EditGoalRequest, GoalActivation, GoalBlockReason, GoalId, GoalPhase, GoalProjection, GoalRef, GoalSnapshot, GoalView } from './types.ts'

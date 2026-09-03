@@ -17,12 +17,7 @@ import { Context } from '@deepseek-ai/cordis'
 import type { DynamicCordisPackage } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { ThemeRuntime } from '@deepseek-ai/dsh-client-ui-theme/client'
-
-/** Facade verbs beyond declared services (host CTX_VERBS twin). */
-const CTX_VERBS = new Set([
-  'effect', 'on', 'once', 'provide', 'timeout', 'interval', 'setTimeout', 'setInterval', 'throttle', 'debounce',
-])
-const TIMER_VERBS = new Set(['timeout', 'interval', 'setTimeout', 'setInterval', 'throttle', 'debounce'])
+import { CTX_VERBS, TIMER_VERBS, ctxVerbForwarder } from '@deepseek-ai/dsh-cordis-host-runner/wire-values'
 
 /** One package's slot-registration ledger row (contribution projection source). */
 export interface DynamicCordisSlotLedgerRow {
@@ -213,14 +208,8 @@ export function dynamicCordisContext(ctx: Context, env: DynamicCordisGuardEnv): 
     get(_target, prop) {
       if (prop === 'get') return (name: string): unknown => readService(name, false)
       if (typeof prop !== 'string') return undefined
-      // Lazy verb forwarder (host twin): resolve ctx[verb] only when called.
-      if (CTX_VERBS.has(prop)) {
-        return (...args: unknown[]): unknown => {
-          if (TIMER_VERBS.has(prop) && !declared.has('timer')) return denyRead('timer')
-          const method = ctx[prop as keyof Context]
-          return Reflect.apply(method as (...a: unknown[]) => unknown, ctx, args)
-        }
-      }
+      const forward = ctxVerbForwarder(ctx, prop, declared, denyRead)
+      if (forward !== undefined) return forward
       return readService(prop, true)
     },
     set(_target, prop) {

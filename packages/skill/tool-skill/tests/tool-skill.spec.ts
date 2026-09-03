@@ -6,6 +6,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { createUserMessage, ToolCallId, type Message } from '@deepseek-ai/dsh-llm'
 import { createScope, type Scope } from '@deepseek-ai/dsh-scope'
 import { Session, SessionId, type SessionEvent, type UserMessage } from '@deepseek-ai/dsh-session'
+import { setAdditionalWorkspaceRoots } from '@deepseek-ai/dsh-session/workspace-roots'
 import SystemPrompt, { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import AgentRegistry, { agentEvents, Inbox, type Agent, type PreStepDecision } from '@deepseek-ai/dsh-agent'
@@ -769,7 +770,8 @@ describe('dsh-tool-skill', () => {
       callId: ToolCallId('c1'),
       name: 'skill',
       arguments: { name: 'project-skill' },
-      agent: { session: { header: { cwd: project } } } as never,
+      // A session carries its workspace roots in its log, which the lookup folds.
+      agent: { session: { header: { cwd: project }, events: [] } } as never,
     })
 
     expect(result.isError).toBe(false)
@@ -1081,5 +1083,60 @@ describe('user-explicit invocation injection', () => {
       .filter(message => (message.source as { kind?: string }).kind === 'skill-invocation')
       .map(message => (message.source as { name: string }).name)
     expect(invoked).toEqual(['shared-skill'])
+  })
+
+  it('catalogs and loads a skill from a second recorded workspace root', async () => {
+    const home = await tempDir('tool-multi-root-home')
+    const project = await tempDir('tool-multi-root-project')
+    const second = await tempDir('tool-multi-root-second')
+    await mkdir(join(project, '.git'), { recursive: true })
+    await mkdir(join(second, '.git'), { recursive: true })
+    await writeSkill(join(project, '.dsh/skills'), 'primary-skill', 'Primary skill', 'Primary instructions.')
+    await writeSkill(join(second, '.dsh/skills'), 'second-root-skill', 'Second root skill', 'Second root instructions.')
+    const ctx = await setup(home)
+    const agent = agentForCwd(project)
+    setAdditionalWorkspaceRoots(agent.session, [second])
+
+    const prefix = await composePrefixForAgent(ctx, agent)
+    const result = await ctx.tools.execute({
+      signal: testToolSignal,
+      callId: ToolCallId('second-root-load'),
+      name: 'skill',
+      arguments: { name: 'second-root-skill' },
+      agent,
+    })
+
+    const catalog = prefix.map(message => message.content
+      .map(block => block.type === 'text' ? block.text : '').join('')).join('\n')
+    expect(catalog).toContain('`primary-skill`: Primary skill')
+    expect(catalog).toContain('`second-root-skill`: Second root skill')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected skill success')
+    expect(result.value).toMatchObject({
+      name: 'second-root-skill',
+      content: 'Second root instructions.',
+    })
+  })
+
+  it('retires a skill catalog entry when its recorded workspace root is dropped', async () => {
+    const home = await tempDir('tool-dropped-root-home')
+    const project = await tempDir('tool-dropped-root-project')
+    const second = await tempDir('tool-dropped-root-second')
+    await mkdir(join(project, '.git'), { recursive: true })
+    await mkdir(join(second, '.git'), { recursive: true })
+    await writeSkill(join(second, '.dsh/skills'), 'second-root-skill', 'Second root skill', 'Second root instructions.')
+    const ctx = await setup(home)
+    const agent = agentForCwd(project)
+    setAdditionalWorkspaceRoots(agent.session, [second])
+    await composePrefixForAgent(ctx, agent)
+
+    setAdditionalWorkspaceRoots(agent.session, [])
+    await composePrefixForAgent(ctx, agent)
+
+    const published = catalogMessages(agent.session)
+    expect(published).toHaveLength(2)
+    expect(published.map(event => event.data.source.kind === 'skill-catalog'
+      ? event.data.source.entries.map(entry => entry.name)
+      : undefined)).toEqual([['second-root-skill'], []])
   })
 })

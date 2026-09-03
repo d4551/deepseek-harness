@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write packages/sandbox/sandbox/README.md
-README.md: 1e39fe31ad607a23a5a59f3e143b6823409126f2
-README.zh.md: 15d200ab6af5c6ff80091163624f5535799c6723
+README.md: 9fe97aa7a78e04c93ec110b79c16009e0e670714
+README.zh.md: 9c1e4cfe8f1643c1a176cb78c8897231ebe2a114

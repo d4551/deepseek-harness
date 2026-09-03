@@ -3,7 +3,7 @@
 
 # DSH Base Composition
 
-The dsh-base bundle patch shared by the web, headless, sdk, and acp profiles; their mode bundles and user layers patch over it, while sdk-minimal owns a separate standalone tree.
+The dsh-base bundle patch shared by every shipped profile but sdk-minimal — web, headless, swarm, hosted, sdk, and acp; their mode bundles and user layers patch over it, while sdk-minimal owns a separate standalone tree.
 
 ```mermaid
 flowchart LR
@@ -82,10 +82,8 @@ flowchart LR
   cfg --> plugin_dsh_base_permission
   plugin_dsh_base_shell_env["shell-env<br/>@deepseek-ai/dsh-shell-env"]
   cfg --> plugin_dsh_base_shell_env
-  plugin_dsh_base_tool_bash["tool-bash<br/>@deepseek-ai/dsh-tool-bash"]
-  cfg --> plugin_dsh_base_tool_bash
-  plugin_dsh_base_tool_pwsh["tool-pwsh<br/>@deepseek-ai/dsh-tool-pwsh"]
-  cfg --> plugin_dsh_base_tool_pwsh
+  plugin_dsh_base_tool_shell["tool-shell<br/>@deepseek-ai/dsh-tool-shell"]
+  cfg --> plugin_dsh_base_tool_shell
   plugin_dsh_base_tool_jobs["tool-jobs<br/>@deepseek-ai/dsh-tool-jobs"]
   cfg --> plugin_dsh_base_tool_jobs
   plugin_dsh_base_fs_observation_policy["fs-observation-policy<br/>@deepseek-ai/dsh-fs-observation-policy"]
@@ -168,6 +166,8 @@ flowchart LR
   cfg --> plugin_dsh_base_web_search_deepseek
   plugin_dsh_base_web_fetch_http["web-fetch-http<br/>@deepseek-ai/dsh-web-fetch-http"]
   cfg --> plugin_dsh_base_web_fetch_http
+  plugin_dsh_base_web_fetch_playwright["web-fetch-playwright<br/>@deepseek-ai/dsh-web-fetch-playwright"]
+  cfg --> plugin_dsh_base_web_fetch_playwright
   plugin_dsh_base_tool_web["tool-web<br/>@deepseek-ai/dsh-tool-web"]
   cfg --> plugin_dsh_base_tool_web
   plugin_dsh_base_tools["tools<br/>@deepseek-ai/dsh-tools"]
@@ -221,8 +221,7 @@ flowchart LR
 | `approval` | `@deepseek-ai/dsh-user-approval` |
 | `permission` | `@deepseek-ai/dsh-permission-presets` |
 | `shell-env` | `@deepseek-ai/dsh-shell-env` |
-| `tool-bash` | `@deepseek-ai/dsh-tool-bash` |
-| `tool-pwsh` | `@deepseek-ai/dsh-tool-pwsh` |
+| `tool-shell` | `@deepseek-ai/dsh-tool-shell` |
 | `tool-jobs` | `@deepseek-ai/dsh-tool-jobs` |
 | `fs-observation-policy` | `@deepseek-ai/dsh-fs-observation-policy` |
 | `tool-fs` | `@deepseek-ai/dsh-tool-fs` |
@@ -264,6 +263,7 @@ flowchart LR
 | `web` | `@deepseek-ai/dsh-web` |
 | `web-search-deepseek` | `@deepseek-ai/dsh-web-search-deepseek` |
 | `web-fetch-http` | `@deepseek-ai/dsh-web-fetch-http` |
+| `web-fetch-playwright` | `@deepseek-ai/dsh-web-fetch-playwright` |
 | `tool-web` | `@deepseek-ai/dsh-tool-web` |
 | `tools` | `@deepseek-ai/dsh-tools` |
 | `system-prompt` | `@deepseek-ai/dsh-system-prompt` |

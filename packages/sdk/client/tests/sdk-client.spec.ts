@@ -436,8 +436,10 @@ describe('HarnessClient', () => {
       { shutdownTimeoutMs: 100, disposeEofGraceMs: 100, disposeGraceMs: 300 },
     ))
     await client.initialize({ cwd: process.cwd(), provider: 'p', model: 'm' })
-    // Resolves (does not hang or reject): the SIGKILL rung reaped the child.
+    // The SIGKILL rung reaps a child that traps both EOF and SIGTERM, so
+    // close() settles instead of hanging and leaves the transport closed.
     await client.close()
+    await expect(client.request('anything')).rejects.toThrow(TransportClosedError)
   })
 
   it('delivers notifications to unfiltered and filtered subscriptions in wire order', async () => {

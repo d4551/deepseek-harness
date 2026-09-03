@@ -28,7 +28,7 @@ import * as sessionInvariant from '@deepseek-ai/dsh-session/invariant'
 import * as agentInvariant from '@deepseek-ai/dsh-agent/invariant'
 import * as scopeInvariant from '@deepseek-ai/dsh-scope/invariant'
 import * as agentLoopInvariant from '@deepseek-ai/dsh-agent-loop/invariant'
-import * as toolBash from '@deepseek-ai/dsh-tool-bash'
+import * as toolShell from '@deepseek-ai/dsh-tool-shell'
 import * as bashEnv from '@deepseek-ai/dsh-shell-env'
 import * as workspaceContext from '@deepseek-ai/dsh-agent-instructions'
 import * as toolSkill from '@deepseek-ai/dsh-tool-skill'
@@ -78,7 +78,7 @@ export interface GoalConfig {
  * the fallback title service, `skills` to the
  * skill registry/local provider/tool consumer, `workspaceContext` to the
  * agent-instructions loader, `jobs` to the process-local job provider, and
- * `toolBash`/`toolJobs` to the model-facing tool plugins this bundle owns.
+ * `toolShell`/`toolJobs` to the model-facing tool plugins this bundle owns.
  * Provider adapters own their `retryPolicy`; this bundle always mounts its
  * executor.
  * `goals` opts into and configures the persisted goal domain plus its model tool
@@ -86,9 +86,9 @@ export interface GoalConfig {
  * relational checks. Owner schemas supply defaults for optional input;
  * workspace context instead requires an explicit byte budget or `false` because
  * it changes model-visible input. Producer opt-in stays producer-local:
- * `toolBash` configures bash only; independently composed producers keep their
- * own config. Set `toolBash: false` when another plugin owns the model-facing
- * `bash` name.
+ * `toolShell` configures the shell tool only; independently composed producers
+ * keep their own config. Set `toolShell: false` when another plugin owns the
+ * model-facing shell-tool name.
  */
 export interface Config {
   /** The agent-loop `agents` list (see dsh-agent-loop's `Config`). */
@@ -117,8 +117,8 @@ export interface Config {
    * single model-tool plugins use `Config | false` to disable that one consumer.
    */
   skills?: SkillConfig
-  /** Model-facing bash tool config, or false when another plugin owns `bash`. */
-  toolBash?: toolBash.Config | false
+  /** Model-facing shell tool config naming its dialect, or false when another plugin owns that tool name. */
+  toolShell?: toolShell.Config | false
   /** Process-local background-job admission config. */
   jobs?: JobsConfig
   /** Generic background-job controls; set false to keep the job service without model-facing job tools. */
@@ -141,9 +141,9 @@ export const SkillConfigSchema: z<SkillConfig> = z.object({
 export const SessionTitleConfigSchema: z<SessionTitleConfig> = SessionTitleService.Config
   .default(EXAMPLE_SESSION_TITLE_CONFIG)
 
-/** The bash-tool config schema exported for app packages that forward `toolBash`. */
-export const ToolBashConfigSchema: z<toolBash.Config | false> =
-  z.union([z.const(false), toolBash.Config])
+/** The shell-tool config schema exported for app packages that forward `toolShell`. */
+export const ToolShellConfigSchema: z<toolShell.Config | false> =
+  z.union([z.const(false), toolShell.Config])
 
 /** The process-local job registry schema exported for app packages that forward `jobs`. */
 export const JobsConfigSchema: z<JobsConfig> = LocalJobRegistry.Config
@@ -167,12 +167,12 @@ export const Config = z.intersect([
     sessionTitle: SessionTitleConfigSchema,
     skills: SkillConfigSchema,
     workspaceContext: z.union([z.const(false), workspaceContext.Config]).required(),
-    toolBash: ToolBashConfigSchema,
+    toolShell: ToolShellConfigSchema,
     jobs: JobsConfigSchema,
     toolJobs: z.union([z.const(false), ToolJobsConfigSchema]),
     invariants: InvariantRegistry.Config,
     goals: z.union([z.const(false), GoalConfigSchema]),
-  }) as unknown as z<Pick<Config, 'tools' | 'dshHome' | 'sessionTitle' | 'skills' | 'workspaceContext' | 'toolBash' | 'jobs' | 'toolJobs' | 'invariants' | 'goals'>>,
+  }) as unknown as z<Pick<Config, 'tools' | 'dshHome' | 'sessionTitle' | 'skills' | 'workspaceContext' | 'toolShell' | 'jobs' | 'toolJobs' | 'invariants' | 'goals'>>,
 ]) as unknown as z<Config>
 
 /**
@@ -192,7 +192,7 @@ export function pickSpineConfig(config: Omit<Config, 'agents'>): Omit<Config, 'a
     ...config.sessionTitle !== undefined ? { sessionTitle: config.sessionTitle } : {},
     workspaceContext: config.workspaceContext,
     ...config.skills !== undefined ? { skills: config.skills } : {},
-    ...config.toolBash !== undefined ? { toolBash: config.toolBash } : {},
+    ...config.toolShell !== undefined ? { toolShell: config.toolShell } : {},
     ...config.jobs !== undefined ? { jobs: config.jobs } : {},
     ...config.toolJobs !== undefined ? { toolJobs: config.toolJobs } : {},
     ...config.invariants !== undefined ? { invariants: config.invariants } : {},
@@ -248,9 +248,11 @@ export function apply(ctx: Context, config: Config): void {
   ctx.plugin(agentInvariant)
   ctx.plugin(scopeInvariant)
   ctx.plugin(agentLoopInvariant)
-  if (config.toolBash !== false) {
+  if (config.toolShell !== false) {
     ctx.plugin(bashEnv, { dshHome })
-    ctx.plugin(toolBash, config.toolBash ?? {})
+    // The bundle mounts no executor; `bash` is the dialect every composition
+    // that omits the field has always mounted.
+    ctx.plugin(toolShell, config.toolShell ?? { dialect: 'bash' })
   }
   if (config.workspaceContext !== false) {
     ctx.plugin(workspaceContext, config.workspaceContext)

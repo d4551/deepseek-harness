@@ -155,6 +155,21 @@ export const PROFILE_TEMPLATES: Record<string, ProfileTemplate> = {
     bundles: ['@deepseek-ai/dsh-sdk-minimal'],
     patchReload: 'startup',
   },
+  // Swarm mode: one headless task worked by many teammates at once off a
+  // shared board. `swarm` applies after `headless` because it replaces rows
+  // `base` inserted — the global continuable-child controls whose tool names
+  // the Team-scoped ones reuse — and bounds the Subagent run ceiling.
+  swarm: {
+    bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-headless', '@deepseek-ai/dsh-swarm-profile'],
+    patchReload: 'startup',
+  },
+  // The Web application over a network-drive workspace. `hosted-drive` applies
+  // after `web-app` because it replaces rows those layers inserted: the
+  // host-local filesystem provider and the sandbox policy's workspace root.
+  hosted: {
+    bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-hosted-drive'],
+    patchReload: 'live',
+  },
 }
 
 /** Installation-owned bundle tuples normalized to the shipped template. */

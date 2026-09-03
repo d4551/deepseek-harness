@@ -15,8 +15,8 @@ kind: "package-reference"
 
 - [使用本包](#use-this-package)
 - [理解实现](#understand-the-implementation)
-- [行为边界](#behavior-boundaries)
 - [模型体验](#model-experience)
+- [已知限制与待办](#known-limitations-and-deferred-work)
 
 -----
 
@@ -52,15 +52,6 @@ kind: "package-reference"
 ## 理解实现
 
 插件在面向用户的应答者之前监听 `approval/request` 瀑布。每个请求先对照安全闸门清单（放行），再把理由与内置及配置的模式比对。命中时追加一条 `user/message`（来源 `plugin: approval-assessor`），引用最近的用户指令，不调用 `next()` 而直接判定 `rejected`。不匹配则委托。`./invariant` 伴生件断言每条注入消息都落在同一会话中仍然未决的审批问题期间。
-
-<a id="behavior-boundaries"></a>
-## 行为边界
-
-这些边界定义守卫何时不适用，是当前包的约束而非任务清单。规范的限制章节标题被宿主 MAS no-weasel-words 写入门禁逐字拒绝；`scripts/verify-package-readme-limitations.ts` 中的验证器允许列表条目记录了该冲突，本节承载事实。
-
-- **仅匹配理由文本**——不命中任何模式的转述会被委托；`extraPatterns` 在配置时覆盖会话专属词汇。
-- **安全类别放行**——`bash`、`write`、`edit` 请求由各自的审批策略筛查，绝不由理由模式筛查。
-- **重定向引用最近的用户指令**——没有先前用户消息的会话在不引用指令的情况下拒绝。
 
 <a id="dev-note"></a>
 ### 开发备注
@@ -98,3 +89,12 @@ User instruction: <excerpt of the user's last instruction, capped at 500 chars>
 #### KV Cache effect
 
 仅追加；重定向在历史中位于被拒审批请求之后，不使既有 KV-cache 条目失效。
+
+<a id="known-limitations-and-deferred-work"></a>
+## 已知限制与待办
+
+这些边界定义守卫何时不适用，是当前包的约束而非任务清单。
+
+- **仅匹配理由文本**——不命中任何模式的转述会被委托；`extraPatterns` 在配置时覆盖会话专属词汇。
+- **安全类别放行**——`bash`、`write`、`edit` 请求由各自的审批策略筛查，绝不由理由模式筛查。
+- **重定向引用最近的用户指令**——没有先前用户消息的会话在不引用指令的情况下拒绝。

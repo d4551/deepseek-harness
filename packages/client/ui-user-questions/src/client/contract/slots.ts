@@ -5,6 +5,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {
   AskUserQuestionAnswer, AskUserQuestionItem,
 } from '@deepseek-ai/dsh-user-questions'
+import { settlePendingComposer } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { createQuestionDraftStore } from '../draft-store.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-session/client' {
@@ -22,19 +23,6 @@ type QuestionItem = AskUserQuestionItem
 
 /** One option the asker offered on a question. */
 type QuestionOption = NonNullable<QuestionItem['options']>[number]
-
-/* jscpd:ignore-start -- Question and Approval intentionally own independent pending-settlement lifecycles. */
-function settlePendingComposer(settle: () => void, failureMessage: string): Promise<void> {
-  try {
-    settle()
-    return Promise.resolve()
-  } catch (error) {
-    return Promise.reject(error instanceof Error
-      ? error
-      : new Error(failureMessage, { cause: error }))
-  }
-}
-/* jscpd:ignore-end */
 
 /**
  * A request narrowed to the `plan-review` presentation intent: everything the

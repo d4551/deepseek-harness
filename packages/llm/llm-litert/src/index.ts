@@ -46,6 +46,7 @@ import type { LitertHealthProbe } from './server.ts'
 
 export { Config, resolveConfig } from './config.ts'
 export type {
+  LitertImport,
   LitertModelConfig,
   LitertServerConfig,
   ResolvedLitertConfig,
@@ -116,7 +117,7 @@ async function superviseServer(
   probe: LitertHealthProbe,
 ): Promise<void> {
   const server = new LitertServer(
-    { server: resolved.endpoint.server, baseURL: resolved.endpoint.baseURL, models: resolved.models },
+    { server: resolved.endpoint.server, baseURL: resolved.endpoint.baseURL, imports: resolved.endpoint.imports },
     {
       resolveExecutable: (command, env, signal) => ctx.subprocess.resolveExecutable(command, env, signal),
       spawn: spec => ctx.subprocess.spawn(spec),

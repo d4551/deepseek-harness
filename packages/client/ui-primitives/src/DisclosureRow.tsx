@@ -1,5 +1,6 @@
 import { type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import clsx from 'clsx'
+import { FlowRow } from './FlowRow.tsx'
 import { IconChevronDownOutline14 } from './icons/index.tsx'
 import css from './DisclosureRow.module.css'
 
@@ -71,7 +72,7 @@ export function DisclosureRow({
 
   return (
     <div className={clsx(css.root, className)} data-open={open || undefined}>
-      <div
+      <FlowRow
         className={clsx(css.row, rowClassName)}
         data-disclosure-row
         data-expandable={rowExpands || undefined}
@@ -101,7 +102,7 @@ export function DisclosureRow({
         )}
         <span className={clsx(css.title, titleClassName)}>{title}</span>
         {(keepContentWhenOpen || !open) && collapsedContent}
-      </div>
+      </FlowRow>
       {open && children}
     </div>
   )

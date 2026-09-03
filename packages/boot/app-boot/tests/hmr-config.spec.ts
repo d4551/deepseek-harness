@@ -104,6 +104,9 @@ describe('HMR exact config paths', () => {
       await eventually(() => observed.includes('two'), 'HMR did not observe config change')
       unlinkSync(filename)
       await eventually(() => observed.includes('missing'), 'HMR did not observe config removal')
+      // Add, change, and unlink each reached the callback, in that order. The
+      // watcher may repeat an event, so distinct states carry the assertion.
+      expect([...new Set(observed)]).toEqual(['one', 'two', 'missing'])
     } finally {
       await ctx.fiber.dispose()
     }
@@ -122,6 +125,8 @@ describe('HMR exact config paths', () => {
       mkdirSync(dir)
       writeFileSync(filename, 'created')
       await eventually(() => observed.includes('created'), 'HMR did not observe config creation under a new parent')
+      // The new parent produced exactly the creation state, nothing else.
+      expect([...new Set(observed)]).toEqual(['created'])
     } finally {
       await ctx.fiber.dispose()
     }

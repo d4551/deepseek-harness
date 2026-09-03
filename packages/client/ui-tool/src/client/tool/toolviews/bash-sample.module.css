@@ -27,20 +27,12 @@
    importing ToolRow.module.css directly in the view so the fallback drifts
    with its owner instead of beside it. */
 
-/* ToolRow's unified expand interaction, replicated per the registrant
-   posture: pointer on the expandable row (the icon→chevron hover preview is
-   the affordance, no row fill). */
+/* The row line is FlowRow's; this sheet adds ToolRow's unified expand
+   interaction, replicated per the registrant posture: pointer on the
+   expandable row (the icon→chevron hover preview is the affordance, no row
+   fill). */
 .root[data-expandable] {
   cursor: pointer;
-}
-
-.root {
-  position: relative; /* sweep-glare overlay anchor */
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  height: calc(24px + var(--dsh-content-font-delta, 0px));
-  min-width: 0;
 }
 
 /* Running sweep glare — same deepsuite ShimmerText pattern as ToolRow. */
@@ -125,62 +117,18 @@
   color: var(--dsw-alias-label-secondary);
 }
 
-.summary {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
-  color: var(--dsw-alias-label-tertiary);
-}
-
-/* Error row's collapsed summary: the failure's first line in the error color. */
-.errorSummary {
-  color: var(--dsw-alias-state-error-primary);
-}
-
-/* Hover-revealed Inspect pill under the expanded terminal's bottom-left —
-   ToolRow's .bodyWrap/.inspectButton treatment, replicated per the registrant
-   posture: real flow (it reserves its line), revealed by hovering anywhere on
-   the tool call — title row included — or by keyboard focus. */
+/* Column wrapper under the expanded terminal, so the InspectPill sits on its
+   own line at the card's bottom-left. */
 .bodyWrap {
   display: flex;
   flex-direction: column;
 }
 
-.inspectButton {
-  display: inline-flex;
-  align-self: flex-start;
-  align-items: center;
-  gap: 4px;
-  margin: 4px 0 2px 4px;
-  padding: 2px 8px;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 999px;
-  /* Base background, not bg-overlay: the overlay token reads too heavy. */
-  background: var(--dsw-alias-bg-base);
-  color: var(--dsw-alias-label-secondary);
-  font-size: 11px;
-  line-height: 16px;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 100ms ease;
-}
-
-.card:hover .inspectButton,
-.inspectButton:focus-visible {
+/* InspectPill's reveal target: hovering anywhere on the tool call — title row
+   included — brings the pill up. Keyboard focus is the primitive's own. */
+.card:hover .inspectButton {
   opacity: 1;
 }
-
-/* Solid hover fill: the pill floats over terminal output, so a translucent
-   hover token would let the text underneath bleed through. */
-.inspectButton:hover {
-  background: var(--dsw-alias-interactive-bg-hover-solid);
-  color: var(--dsw-alias-label-primary);
-}
-
 
 /* An `animation` shorthand carries its own literal duration, so the theme's
    reduced-motion collapse of `--ds-transition-duration*` never reaches it. An

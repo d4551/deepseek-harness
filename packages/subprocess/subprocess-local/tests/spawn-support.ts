@@ -1,4 +1,3 @@
-import { spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -12,7 +11,7 @@ import type { SubprocessHandle, SubprocessOutputReader } from '@deepseek-ai/dsh-
  * @param command - the bash `-c` command string used by the test.
  * @returns the argv to spawn.
  */
-export function shellArgv(command: string): string[] {
+function shellArgv(command: string): string[] {
   if (process.platform !== 'win32') return ['bash', '-c', command]
   const node = (script: string): string[] => [process.execPath, '-e', script]
   switch (command) {
@@ -50,13 +49,19 @@ export function shellArgv(command: string): string[] {
 }
 
 /**
- * Kill the process a win32-injected taskkill mock targets, without throwing
- * when it already exited: `kill(1)` reports failure like taskkill's tolerated
- * not-found status instead of raising ESRCH the way `process.kill` does.
+ * Kill the process a win32-injected taskkill mock targets, tolerating one that
+ * already exited the way taskkill tolerates a not-found tree. Node's own signal
+ * delivery is the primitive here: a `kill` binary exists on POSIX only, so a
+ * spawned one would silently terminate nothing on the win32 lane.
  * @param pid - process id the simulated taskkill targets.
  */
 export function killQuietly(pid: number): void {
-  spawnSync('kill', ['-9', String(pid)])
+  try {
+    process.kill(pid, 'SIGKILL')
+  } catch {
+    // Swallows only the already-exited case: nothing else can reach a pid this
+    // suite spawned and owns.
+  }
 }
 
 export const spillDir = mkdtempSync(join(tmpdir(), 'dsh-subprocess-spec-'))
@@ -83,13 +88,24 @@ export function spec(command: string, overrides: SpecOverrides = {}) {
   }
 }
 
-/** Whether `kill -0` still sees the pid; the sync syscall result is checked, nothing throws. */
-export function processAlive(pid: number): boolean {
-  return spawnSync('kill', ['-0', String(pid)]).status === 0
+/**
+ * Whether the pid still exists. The zero signal is an existence probe on every
+ * supported host, including Windows; EPERM means the process is there but not
+ * ours to signal, which is still alive.
+ * @param pid - the process to probe.
+ * @returns whether the process table still holds the pid.
+ */
+function processAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error: unknown) {
+    return (error as NodeJS.ErrnoException).code !== 'ESRCH'
+  }
 }
 
 /** Linux-only /proc check: the state char is zombie (Z) or dead (X), or the entry vanished. */
-export function zombieOrGone(pid: number): boolean {
+function zombieOrGone(pid: number): boolean {
   const statPath = `/proc/${pid}/stat`
   if (!existsSync(statPath)) return true
   const stat = readFileSync(statPath, 'utf8')

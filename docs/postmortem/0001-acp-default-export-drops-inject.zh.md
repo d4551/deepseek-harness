@@ -26,7 +26,7 @@ ACP 服务器无法创建或加载任何一个会话——而这正是编辑器�
 
 ## 根因 #1——`export default apply` 丢弃了插件的 `inject`（导致 `session/new` 崩溃）
 
-`packages/acp/acp/src/index.ts` 是一个*命名空间插件*：它将 `name`、`inject`、`Config` 和 `apply` 作为独立的命名导出，仓库中其他所有插件（`invariants`、`llm-deepseek`、`tool-bash`、`tui` 等）也是如此。但它*还*多了一行其他插件都没有的代码：
+`packages/acp/acp/src/index.ts` 是一个*命名空间插件*：它将 `name`、`inject`、`Config` 和 `apply` 作为独立的命名导出，仓库中其他所有插件（`invariants`、`llm-deepseek`、`tool-shell`、`tui` 等）也是如此。但它*还*多了一行其他插件都没有的代码：
 
 ```ts ignore-check
 export const name = 'acp'

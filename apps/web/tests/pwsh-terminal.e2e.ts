@@ -1,5 +1,5 @@
 // Keyless browser regression for pwsh UI parity with bash: a seeded session
-// whose pwsh call/result is presented by the REAL tool-pwsh on replay (the
+// whose pwsh call/result is presented by the REAL pwsh-dialect tool-shell on replay (the
 // api-proxy recomputes presentation views from logged args/result content)
 // must render with the same terminal card layout as bash and show the parsed exit-status
 // pill — not a generic console-fenced card. The seed is authored, not
@@ -36,7 +36,7 @@ const MODE = webSnapshotMode()
 // a host without a usable `pwsh` cannot boot it, so the lane self-skips,
 // mirroring the pwshOnly ACP scenarios. The probe follows the executor's own
 // resolution (Program Files installs on Windows are found even when bare
-// `pwsh` is not on PATH), the same judgment the tool-pwsh tests reuse; record
+// `pwsh` is not on PATH), the same judgment the tool-shell pwsh tests reuse; record
 // mode skips the lane anyway, so the probe stays inert there.
 const HAS_PWSH = MODE === 'record' ? false : spawnSync(
   resolvePwshPath(), ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', '$true'],

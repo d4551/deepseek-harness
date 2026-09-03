@@ -15,6 +15,9 @@
       "path": "../../../vendor/cordis"
     },
     {
+      "path": "../../../vendor/schemastery"
+    },
+    {
       "path": "../../subprocess/subprocess"
     },
     {
@@ -22,6 +25,9 @@
     },
     {
       "path": "../../settings/settings"
+    },
+    {
+      "path": "../../util/timeout"
     },
     {
       "path": "../../runtime-diagnostics/invariants"

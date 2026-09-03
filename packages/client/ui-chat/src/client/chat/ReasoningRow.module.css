@@ -41,15 +41,6 @@
   font-weight: 400;
 }
 
-.separator {
-  flex: none;
-  width: 2px;
-  height: 2px;
-  margin: 0 8px;
-  border-radius: 1px;
-  background: var(--dsw-alias-label-caption);
-}
-
 /* Think text reads the secondary tier — one step under the body size
    (setting −1 at ≤14, setting −2 above), shared with every flow-row title
    and summary. */

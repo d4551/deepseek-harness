@@ -4,18 +4,45 @@
     "rootDir": "src",
     "outDir": "lib/types"
   },
-  "include": ["src"],
+  "include": [
+    "src"
+  ],
   "references": [
-    { "path": "../../../vendor/cosmokit" },
-    { "path": "../../../vendor/schemastery" },
-    { "path": "../../../vendor/cordis" },
-    { "path": "../../util/brand" },
-    { "path": "../../llm/llm" },
-    { "path": "../../core/session" },
-    { "path": "../../core/agent" },
-    { "path": "../../typert/protocol" },
-    { "path": "../../subagent/subagent" },
-    { "path": "../../session/session-persistence" },
-    { "path": "../../runtime-diagnostics/invariants" }
+    {
+      "path": "../../../vendor/cosmokit"
+    },
+    {
+      "path": "../../../vendor/schemastery"
+    },
+    {
+      "path": "../../../vendor/cordis"
+    },
+    {
+      "path": "../../util/brand"
+    },
+    {
+      "path": "../../llm/llm"
+    },
+    {
+      "path": "../../core/session"
+    },
+    {
+      "path": "../../core/agent"
+    },
+    {
+      "path": "../../typert/protocol"
+    },
+    {
+      "path": "../../subagent/subagent"
+    },
+    {
+      "path": "../../session/session-persistence"
+    },
+    {
+      "path": "../../runtime-diagnostics/invariants"
+    },
+    {
+      "path": "../../util/keyed-lock"
+    }
   ]
 }

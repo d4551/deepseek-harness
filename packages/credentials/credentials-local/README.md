@@ -112,7 +112,7 @@ A key's value can be any text, multi-line values included — no quoting tricks 
 
 ### Who can read the file
 
-Only your OS user can read the file: the product creates it with owner-only permissions, and on POSIX it refuses to load a file that any other user can read — the error tells you to run `chmod 600`. Windows has no mode to inspect, so the check is skipped there rather than faked. The agent is not another user: its tool processes run as you, so they can read the file like any other file you own. The product never hands the agent the file's path and never loads the file into the environment, so reaching a value takes a deliberate read of a path the agent was not given. That is discretion, not a boundary: a deployment that must keep provider keys away from its own agent cannot get there with file permissions.
+Only your OS user can read the file: the product creates it with owner-only permissions, and on POSIX it refuses to load a file that any other user can read — the error tells you to run `chmod 600`. Windows has no mode bits, so the same question goes to the file's access-control list instead: a document another account can read is refused, and the error tells you the `icacls` command that repairs it. The agent is not another user: its tool processes run as you, so they can read the file like any other file you own. The product never hands the agent the file's path and never loads the file into the environment, so reaching a value takes a deliberate read of a path the agent was not given. That is discretion, not a boundary: a deployment that must keep provider keys away from its own agent cannot get there with file permissions.
 
 ### What can go wrong
 
@@ -142,7 +142,7 @@ This section explains the design decisions behind the provider and points at the
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Provider: layer resolution, strict document parse, reference and record write paths under the writer lock, watcher lifecycle, permissions check |
+| [`src/index.ts`](src/index.ts) | Provider: layer resolution, strict document parse, reference and record write paths under the writer lock, document-queue wiring, permissions check |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; the seam companion owns the event lifecycle contract) |
 
 ### Resolution and write paths
@@ -153,7 +153,7 @@ This section explains the design decisions behind the provider and points at the
 
 ### Reload lifecycle
 
-A watcher event or the ready reconcile queues a refresh behind the same chain. `reconcileFromDisk` re-checks permissions, re-reads the text, replaces both snapshots wholesale when the text differs, and publishes one event per changed reference or record; content equal to the text cache — including the provider's own writes — is a no-op. Disposal sets the closed flag, stops accepting events, closes the watcher, and waits out queued operations so nothing publishes after teardown.
+The operation chain, the watcher, and the warn-and-keep reload policy come from [`dsh-document-queue`](../../util/document-queue/README.md); this package keeps the permissions check, the strict parse, and the seam publication. A watcher event or the ready reconcile queues a reload behind the same chain. `reconcileFromDisk` re-checks permissions, re-reads the text, replaces both snapshots wholesale when the text differs, and publishes one event per changed reference or record; content equal to the text cache — including the provider's own writes — is a no-op. Disposal closes the queue, which stops accepting events, closes the watcher, and waits out queued operations so nothing publishes after teardown.
 
 ### Document versioning
 
@@ -200,6 +200,7 @@ These limits define when the provider is a poor fit or needs special operational
 - **A same-UID process can read the document** — the file-effect sandbox modes do not deny reads, and an OS-keychain provider is deferred.
 - **Environment changes are invisible** — the snapshot is frozen at launch, so a variable exported after startup reaches neither resolution nor `describe`; changing an environment-sourced credential takes a restart.
 - **Atomic, not crash-durable** — inherited from `dsh-atomic-write`; the store re-reads on boot.
+- **Windows creation is not owner-only** — the `0600` file and `0700` directory modes the writer asks for do not exist on Windows, so a new document inherits the access-control list of the directory it lands in. The access-control audit refuses an exposed document at the next load or write rather than at creation, so keep the harness home under a directory only your account can reach.
 
 <a id="dev-note"></a>
 ### Dev Note

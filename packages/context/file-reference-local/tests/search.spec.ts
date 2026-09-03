@@ -1,6 +1,6 @@
 import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   activeAtToken,
@@ -54,14 +54,34 @@ async function workspace(): Promise<string> {
   return root
 }
 
-function search(root: string, overrides: Partial<ConstructorParameters<typeof WorkspaceFileSearch>[1]> = {}): WorkspaceFileSearch {
-  const instance = new WorkspaceFileSearch(root, {
+function search(
+  root: string | readonly string[],
+  overrides: Partial<ConstructorParameters<typeof WorkspaceFileSearch>[1]> = {},
+): WorkspaceFileSearch {
+  const instance = new WorkspaceFileSearch(typeof root === 'string' ? [root] : root, {
     maxResults: overrides.maxResults ?? 20,
     maxEntries: overrides.maxEntries ?? 10_000,
     excludedDirectories: overrides.excludedDirectories ?? ['.git', 'node_modules'],
   })
   searches.push(instance)
   return instance
+}
+
+/** A bare workspace root holding exactly the given root-relative files. */
+async function checkout(...files: readonly string[]): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-file-autocomplete-root-'))
+  roots.push(root)
+  for (const file of files) {
+    const absolute = join(root, file)
+    await mkdir(dirname(absolute), { recursive: true })
+    await writeFile(absolute, file)
+  }
+  return root
+}
+
+/** The mention text an additional root renders its candidates as. */
+function mention(root: string, path: string): string {
+  return join(root, path).replaceAll('\\', '/')
 }
 
 afterEach(async () => {
@@ -316,5 +336,158 @@ describe('WorkspaceFileSearch', () => {
     const nonErrorPending = files.list('tui', nonErrorAbort.signal)
     nonErrorAbort.abort('cancelled')
     await expect(nonErrorPending).rejects.toThrow('file search aborted')
+  })
+})
+
+describe('WorkspaceFileSearch across multiple workspace roots', () => {
+  it('reaches a file that exists only in an additional root, rendered absolute', async () => {
+    const primary = await checkout('README.md', 'src/app.ts')
+    const second = await checkout('service.ts')
+    const files = search([primary, second])
+
+    expect(await files.list('service', new AbortController().signal)).toEqual([
+      { path: mention(second, 'service.ts'), kind: 'file' },
+    ])
+  })
+
+  it('ranks a stronger additional-root match above primary-root matches within maxResults', async () => {
+    const primary = await checkout('src/service.ts.bak', 'lib/service.tsx')
+    const second = await checkout('service.ts')
+    const files = search([primary, second], { maxResults: 1 })
+
+    expect(await files.list('service.ts', new AbortController().signal)).toEqual([
+      { path: mention(second, 'service.ts'), kind: 'file' },
+    ])
+  })
+
+  it('scores the root-relative path, so a root prefix never decides a match', async () => {
+    const primary = await checkout('README.md')
+    const second = await checkout('service.ts')
+    const files = search([primary, second])
+
+    // Every additional-root candidate carries the temporary directory's own
+    // path segments; matching them would offer the whole root for any query.
+    expect(await files.list('autocomplete', new AbortController().signal)).toEqual([])
+  })
+
+  it('offers an additional root whose absolute path contains a dotted segment', async () => {
+    const primary = await checkout('README.md')
+    const container = await mkdtemp(join(tmpdir(), 'dsh-file-autocomplete-container-'))
+    roots.push(container)
+    const hidden = join(container, '.checkouts', 'service')
+    await mkdir(hidden, { recursive: true })
+    await writeFile(join(hidden, 'service.ts'), 'service')
+    const files = search([primary, hidden])
+
+    expect(await files.list('service', new AbortController().signal)).toEqual([
+      { path: mention(hidden, 'service.ts'), kind: 'file' },
+    ])
+  })
+
+  it('lists a relative directory level in every root that has one', async () => {
+    const primary = await checkout('src/app.ts')
+    const second = await checkout('src/service.ts')
+    const files = search([primary, second])
+
+    expect(await files.list('src/', new AbortController().signal)).toEqual([
+      { path: 'src/app.ts', kind: 'file' },
+      { path: mention(second, 'src/service.ts'), kind: 'file' },
+    ])
+  })
+
+  it('orders a merged directory level by path, not by root', async () => {
+    const primary = await checkout('src/service.ts')
+    const second = await checkout('src/app.ts')
+    const files = search([primary, second])
+
+    expect(await files.list('src/', new AbortController().signal)).toEqual([
+      { path: mention(second, 'src/app.ts'), kind: 'file' },
+      { path: 'src/service.ts', kind: 'file' },
+    ])
+  })
+
+  it('lists a directory level two roots both resolve exactly once', async () => {
+    const primary = await checkout('nested/inner/file.ts')
+    const nested = join(primary, 'nested')
+    const files = search([primary, nested])
+
+    expect(await files.list(`${mention(primary, 'nested')}/`, new AbortController().signal)).toEqual([
+      { path: mention(nested, 'inner'), kind: 'directory' },
+    ])
+  })
+
+  it('drills into an additional root through the absolute path it was offered as', async () => {
+    const primary = await checkout('src/app.ts')
+    const second = await checkout('src/service.ts')
+    const files = search([primary, second])
+    const secondSrc = `${mention(second, 'src')}/`
+
+    expect(await files.list(`${secondSrc}serv`, new AbortController().signal)).toEqual([
+      { path: `${secondSrc}service.ts`, kind: 'file' },
+    ])
+  })
+
+  it('orders an identically named file primary root first', async () => {
+    const primary = await checkout('README.md')
+    const second = await checkout('README.md')
+    const files = search([primary, second])
+
+    expect(await files.list('README', new AbortController().signal)).toEqual([
+      { path: 'README.md', kind: 'file' },
+      { path: mention(second, 'README.md'), kind: 'file' },
+    ])
+  })
+
+  it('spends the entry budget breadth-first, so a deep primary root cannot starve a later one', async () => {
+    const primary = await checkout('deep/nested/leaf.ts')
+    const second = await checkout('top.ts')
+    const files = search([primary, second], { maxEntries: 2 })
+    const signal = new AbortController().signal
+
+    expect(await files.list('top', signal)).toEqual([
+      { path: mention(second, 'top.ts'), kind: 'file' },
+    ])
+    expect(await files.list('leaf', signal)).toEqual([])
+  })
+
+  it('indexes a path two roots both reach once, under the root that reached it first', async () => {
+    const primary = await checkout('nested/inner/file.ts')
+    const nested = join(primary, 'nested')
+    const files = search([primary, nested])
+
+    expect(await files.list('file', new AbortController().signal)).toEqual([
+      { path: mention(nested, 'inner/file.ts'), kind: 'file' },
+    ])
+  })
+
+  it('keeps the stale entries when an additional root is unreadable, and retries once it returns', async () => {
+    const primary = await checkout('README.md')
+    const second = await checkout('service.ts')
+    const files = search([primary, second])
+    const signal = new AbortController().signal
+    const secondService = { path: mention(second, 'service.ts'), kind: 'file' as const }
+    expect(await files.list('service', signal)).toEqual([secondService])
+
+    await writeFile(join(primary, 'fresh.ts'), 'fresh')
+    fsControl.denyReaddir = second
+    try {
+      files.invalidate()
+      // A root that cannot be read leaves the traversal without that root's
+      // entries, so it must not publish a primary-only index over good ones.
+      expect(await files.list('fresh', signal)).toEqual([])
+      await new Promise((resolve) => { setTimeout(resolve, 50) })
+      expect(await files.list('service', signal)).toEqual([secondService])
+    } finally {
+      fsControl.denyReaddir = undefined
+    }
+
+    await vi.waitFor(async () => {
+      expect(await files.list('fresh', signal)).toEqual([{ path: 'fresh.ts', kind: 'file' }])
+    })
+    expect(await files.list('service', signal)).toEqual([secondService])
+  })
+
+  it('rejects an empty root list instead of indexing nothing', () => {
+    expect(() => search([])).toThrow('at least one workspace root')
   })
 })

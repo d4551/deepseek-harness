@@ -311,7 +311,7 @@ export class AuthorizationService extends Service {
     }
   }
 
-  /* jscpd:ignore-start -- deliberate symmetry with the credentials seam's
+  /* deliberate symmetry with the credentials seam's
      commit fan-out (`CredentialProvider`): the contained-dispatch shape is the
      reviewed listener-lifecycle contract, and extracting it would couple the
      two seams' event semantics. */
@@ -345,7 +345,6 @@ export class AuthorizationService extends Service {
     }
     if (invariantFailure !== undefined) throw invariantFailure as Error
   }
-  /* jscpd:ignore-end */
 
   /** Contained-listener diagnostic shared by the sync and async failure paths. */
   private warnSettledListenerFailure(key: CredentialKey, error: unknown): void {

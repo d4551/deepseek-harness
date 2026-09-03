@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-03-playwright-websocket-policy-and-coverage.md
+2026-09-03-playwright-websocket-policy-and-coverage.md: 004cdf1c903e028ae4544b7617daa0046945cdf6
+2026-09-03-playwright-websocket-policy-and-coverage.zh.md: 3dd79b6c438839b912396201032d0040f18ddfeb

@@ -37,6 +37,11 @@ export interface AcpRunSpec {
    * else the delegating parent session's workspace.
    */
   cwd: string
+  /**
+   * The delegating parent's other workspace roots, sent on `session/new` as
+   * ACP's `additionalDirectories`. Empty for a single-root parent.
+   */
+  workspaceRoots: readonly string[]
   /** How to auto-answer the child's permission prompts. */
   permission: PermissionPolicy
   /**
@@ -326,8 +331,8 @@ function terminalFailure(
  * failure, or teardown alone after cancellation, without claiming quiescence.
  * Disposal cancels, kills, and reaps the child.
  * @param request - the start request; its signal is the cancellation channel.
- * @param spec - the resolved spawn spec: command/args/cwd, env, permission
- * policy, dispose graces, and the optional error sink.
+ * @param spec - the resolved spawn spec: command/args/cwd, workspace roots,
+ * env, permission policy, dispose graces, and the optional error sink.
  * @returns the ready run handle for the child subprocess.
  */
 export async function startAcpRun(request: SubagentStartRequest, spec: AcpRunSpec): Promise<SubagentRun> {
@@ -479,7 +484,15 @@ export async function startAcpRun(request: SubagentStartRequest, spec: AcpRunSpe
           clientCapabilities: {},
         })
         startupStage = 'new-session'
-        const session = await agent.request(methods.agent.session.new, { cwd: spec.cwd, mcpServers: [] })
+        // An empty list is protocol-equivalent to omitting the key, so a
+        // single-root parent leaves `session/new` exactly as it was.
+        const session = await agent.request(methods.agent.session.new, {
+          cwd: spec.cwd,
+          mcpServers: [],
+          ...spec.workspaceRoots.length === 0
+            ? {}
+            : { additionalDirectories: [...spec.workspaceRoots] },
+        })
         const returnedSessionId: unknown = Reflect.get(session, 'sessionId')
         if (typeof returnedSessionId !== 'string') {
           throw new AcpRunFailure(

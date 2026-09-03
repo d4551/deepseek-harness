@@ -59,8 +59,8 @@ type QueryFactory = (params: {
 
 const queryMock = vi.hoisted(() => vi.fn<QueryFactory>())
 
-const CLAUDE_AGENT_SDK_VERSION = '0.3.241'
-const CLAUDE_CODE_VERSION = '2.1.241'
+const CLAUDE_AGENT_SDK_VERSION = '0.3.259'
+const CLAUDE_CODE_VERSION = '2.1.259'
 const CLAUDE_PLATFORM_PACKAGES = [
   '@anthropic-ai/claude-agent-sdk-darwin-arm64',
   '@anthropic-ai/claude-agent-sdk-darwin-x64',
@@ -79,7 +79,7 @@ vi.mock('@anthropic-ai/claude-agent-sdk', async importOriginal => ({
 
 const fakeParent = {
   id: 'parent',
-  session: { header: { cwd: process.cwd() } },
+  session: { header: { cwd: process.cwd() }, events: [] },
 } as unknown as Agent
 
 function request(
@@ -307,6 +307,7 @@ function fakeRun(
   const options: FakeRun['options'] = []
   const spec: ClaudeCodeRunSpec = {
     cwd: '/workspace',
+    workspaceRoots: [],
     permissionMode: DEFAULT_CLAUDE_CODE_PERMISSION_MODE,
     env: { ANTHROPIC_API_KEY: 'fake-key' },
     disposeGraceMs: 5,
@@ -638,7 +639,7 @@ describe('task admission and package contracts', () => {
 
     const invalidCwdParent = {
       id: 'parent-with-invalid-cwd',
-      session: { header: { cwd: 'relative/SECRET_TOKEN' } },
+      session: { header: { cwd: 'relative/SECRET_TOKEN' }, events: [] },
     } as unknown as Agent
     const invalidCwd = ctx.subagents.start('claude-diagnostic', {
       ...request(),
@@ -865,6 +866,7 @@ describe('query options and result mapping', () => {
     const diagnostics: string[] = []
     const spec: ClaudeCodeRunSpec = {
       cwd: '/workspace',
+      workspaceRoots: [],
       model: 'claude-explicit-model',
       permissionMode: 'acceptEdits',
       env: {
@@ -957,6 +959,7 @@ describe('query options and result mapping', () => {
       const child = fakeChild()
       const options = claudeQueryOptions({
         cwd: '/workspace',
+        workspaceRoots: [],
         permissionMode,
         env: {},
         disposeGraceMs: 17,
@@ -981,6 +984,7 @@ describe('query options and result mapping', () => {
     const child = fakeChild()
     const options = claudeQueryOptions({
       cwd: '/workspace',
+      workspaceRoots: [],
       permissionMode: 'plan',
       env: {},
       disposeGraceMs: 17,
@@ -1124,6 +1128,7 @@ describe('run publication, cancellation, and settlement', () => {
     let childIndex = 0
     const spec: ClaudeCodeRunSpec = {
       cwd: '/workspace',
+      workspaceRoots: [],
       permissionMode: 'dontAsk',
       env: {},
       disposeGraceMs: 5,
@@ -1176,6 +1181,7 @@ describe('run publication, cancellation, and settlement', () => {
     })
     const run = await startClaudeCodeRun(request(), {
       cwd: '/workspace',
+      workspaceRoots: [],
       permissionMode: DEFAULT_CLAUDE_CODE_PERMISSION_MODE,
       env: {},
       disposeGraceMs: 5,
@@ -1225,6 +1231,7 @@ describe('run publication, cancellation, and settlement', () => {
       })
       const run = await startClaudeCodeRun(request(), {
         cwd: '/workspace',
+        workspaceRoots: [],
         permissionMode: DEFAULT_CLAUDE_CODE_PERMISSION_MODE,
         env: {},
         disposeGraceMs: 5,
@@ -1253,6 +1260,7 @@ describe('run publication, cancellation, and settlement', () => {
     let index = 0
     const spec: ClaudeCodeRunSpec = {
       cwd: '/workspace',
+      workspaceRoots: [],
       permissionMode: 'dontAsk',
       env: {},
       disposeGraceMs: 5,
@@ -1304,6 +1312,7 @@ describe('run publication, cancellation, and settlement', () => {
       request(undefined, parentAbort.signal),
       {
         cwd: '/workspace',
+        workspaceRoots: [],
         permissionMode: DEFAULT_CLAUDE_CODE_PERMISSION_MODE,
         env: {},
         disposeGraceMs: 5,

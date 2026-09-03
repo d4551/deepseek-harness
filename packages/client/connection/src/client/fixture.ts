@@ -61,7 +61,7 @@ interface ModelProviderGroup {
   }[]
 }
 
-/* jscpd:ignore-start -- The standalone fixture mirrors host timing without importing a target implementation. */
+/* The standalone fixture mirrors host timing without importing a target implementation. */
 function isFixtureTokenDelta(chunk: StreamChunk): boolean {
   switch (chunk.type) {
     case 'text-delta':
@@ -73,7 +73,6 @@ function isFixtureTokenDelta(chunk: StreamChunk): boolean {
       return false
   }
 }
-/* jscpd:ignore-end */
 
 interface FixtureSessionSummary {
   readonly sessionId: SessionId
@@ -1886,7 +1885,7 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
    * roster a GUI journey sees after writing is the text it wrote.
    */
   const fixturePresets = new Map<string, { trust: 'system' | 'user'; content: string }>([
-    ['standard', { trust: 'system', content: "- id: tool-bash\n  name: '@deepseek-ai/dsh-tool-bash'\n" }],
+    ['standard', { trust: 'system', content: "- id: tool-shell\n  name: '@deepseek-ai/dsh-tool-shell'\n" }],
     ['minimal', { trust: 'system', content: "- id: tool-web-search\n  name: '@deepseek-ai/dsh-tool-web-search'\n" }],
     ['my-agent', { trust: 'user', content: "- id: tool-read\n  name: '@deepseek-ai/dsh-tool-read'\n" }],
   ])

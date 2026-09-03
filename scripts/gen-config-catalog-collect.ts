@@ -130,7 +130,7 @@ export function collectConfigCatalog(scanRoot: string): CatalogEntry[] {
     collectPastes(pkg, ctx, typeName, cache, violations, entry)
     const schemaExpr = findSchemaExpr(ctx, pluginClass)
     if (schemaExpr) {
-      const { keys, composes } = walkSchemaExpr(ctx, schemaExpr, `${pkg} (${entryRel})`, violations)
+      const { keys, composes } = walkSchemaExpr(ctx, schemaExpr, `${pkg} (${entryRel})`, violations, world)
       entry.schemaKeys = keys
       entry.schemaComposes = composes
     } else {

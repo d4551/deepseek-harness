@@ -1,6 +1,6 @@
 /** One provider/model route and the catalog join both model-selection cards read. */
 
-import type { ModelProviderGroup } from '@deepseek-ai/dsh-api-remotes/client'
+import type { ModelProviderGroup } from '@deepseek-ai/dsh-api-session-controller/types'
 
 /**
  * Model-directory request state. `idle` is the state before the first

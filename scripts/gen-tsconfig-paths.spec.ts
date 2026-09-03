@@ -24,8 +24,11 @@ describe('generated tsconfig package aliases', () => {
       hasInvariant: true,
       subpaths: [
         { name: 'chunk-rows', entry: './packages/core/session/src/chunk-rows.ts' },
+        { name: 'chunk-run-codec', entry: './packages/core/session/src/chunk-run-codec.ts' },
+        { name: 'invariant-staging', entry: './packages/core/session/src/invariant-staging.ts' },
         { name: 'surface', entry: './packages/core/session/src/surface.ts' },
         { name: 'types', entry: './packages/core/session/src/types.ts' },
+        { name: 'workspace-roots', entry: './packages/core/session/src/workspace-roots.ts' },
       ],
     })
     // Sorted, so a package added anywhere lands in a stable spot in the diff.
@@ -107,6 +110,7 @@ describe('generated tsconfig package aliases', () => {
     const aliases = collectPackageAliases()
     const fetchHttp = aliases.find(alias => alias.specifier === '@deepseek-ai/dsh-web-fetch-http')
     expect(fetchHttp?.subpaths).toEqual([
+      { name: 'network', entry: './packages/web/web-fetch-http/src/network.ts' },
       { name: 'policy', entry: './packages/web/web-fetch-http/src/policy.ts' },
     ])
   })

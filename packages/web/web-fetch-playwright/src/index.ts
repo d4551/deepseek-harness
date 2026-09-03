@@ -7,13 +7,12 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-web'
-import { CHROMIUM_INSTALL_COMMAND, chromiumAccess, PlaywrightFetchProvider } from './provider.ts'
+import { chromiumAccess, chromiumInstallCommand, PlaywrightFetchProvider } from './provider.ts'
 import type { BrowserAccess, PlaywrightFetchLimits } from './provider.ts'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { DEFAULT_USER_AGENT } from '@deepseek-ai/dsh-web-fetch-http/policy'
 
 export {
-  CHROMIUM_INSTALL_COMMAND,
   chromiumAccess,
   launchChromium,
   probeChromium,
@@ -31,6 +30,7 @@ export type {
   RenderPage,
   RenderRequest,
   RenderRoute,
+  RenderSocketRoute,
   RenderedNavigation,
 } from './provider.ts'
 
@@ -71,7 +71,7 @@ function assertPositiveFinite(name: string, value: number): void {
 
 /** A render slot is a whole browser context, so the cap must be a positive integer. */
 function assertPositiveInteger(name: string, value: number): void {
-  if (!Number.isInteger(value) || value <= 0) {
+  if (!Number.isSafeInteger(value) || value <= 0) {
     throw new Error(`web-fetch-playwright: ${name} must be a positive integer`)
   }
 }
@@ -86,8 +86,9 @@ function assertTimeoutMs(value: number): void {
 
 /**
  * Register the Playwright-rendering fetch provider with `ctx.web` and close its
- * browser on dispose. The browser installation is probed once here, so the seam sees
- * real availability without the provider probing on every selection.
+ * browser on dispose. The browser installation is probed once here — one filesystem
+ * check, not a launch — so the seam reads availability without the provider probing on
+ * every selection and without a browser process on every boot.
  * @param ctx - plugin context carrying the web seam.
  * @param config - validated plugin config; schemastery has applied every default.
  * @param access - browser launch and installation probe; tests inject fakes here.
@@ -107,15 +108,13 @@ export async function apply(ctx: Context, config: Config, access: BrowserAccess 
   }
   const provider = new PlaywrightFetchProvider(limits, access)
   // The disposer is armed before the probe so a provider that launches a browser
-  // later is always closed with the fiber.
+  // later is always closed with the fiber. Disposal settles every close itself, so
+  // there is nothing here to report.
   ctx.effect(function* () {
-    const warnCloseFailure = (closeFailure: Error): void => {
-      ctx.logger.warn('web-fetch-playwright: browser close failed: %s', String(closeFailure))
-    }
-    yield () => provider.dispose().then(undefined, warnCloseFailure)
+    yield () => provider.dispose()
   }, 'web-fetch-playwright: shared browser')
   if (!await provider.resolveAvailability()) {
-    ctx.logger.warn('web-fetch-playwright: no browser installation found; install one with "%s"', CHROMIUM_INSTALL_COMMAND)
+    ctx.logger.warn('web-fetch-playwright: no browser installation found; install one with: %s', chromiumInstallCommand())
   }
   ctx.web.registerFetchProvider(provider)
 }

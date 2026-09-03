@@ -7,4 +7,4 @@
  * @module @deepseek-ai/dsh-session-stats/client
  */
 
-export type * from './types.ts'
+export type { SessionStatsProjection } from './types.ts'

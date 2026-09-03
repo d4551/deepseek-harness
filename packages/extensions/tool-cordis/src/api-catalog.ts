@@ -12,7 +12,6 @@
  * @module @deepseek-ai/dsh-tool-cordis/api-catalog
  */
 
-/* jscpd:ignore-start */
 /** One named parameter in a Service method or Event listener. */
 export interface ApiParameter {
   /** Parameter name from the exact signature. */
@@ -386,8 +385,14 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'detached current task views.',
       },
       {
+        signature: 'async claimNextReadyTask(caller: Agent): Promise<ClaimNextTeamTaskResult>',
+        description: 'Take ownership of the first ready task whose write scopes are free, in one atomic Lead transaction. A member pulls work with this instead of being assigned it; concurrent callers therefore receive disjoint tasks. A ready task writing where in-progress work does is deferred here and refused by updateTask, so no route hands two owners the same paths.\n\nThe transaction serializes callers inside one host process. Membership requires the exact live `Agent` this process holds, so a second process running against the same session log is outside the exclusion.',
+        parameters: [{ name: 'caller', description: 'exact live Team member taking ownership.' }],
+        returns: 'the claimed task, or the ordinary board state — no unblocked pending task, or every one of them writing where in-progress work does — that left nothing to take.',
+      },
+      {
         signature: 'async updateTask(caller: Agent, request: UpdateTeamTaskRequest): Promise<TeamTaskView>',
-        description: 'Compare-and-set one authorized task transition.',
+        description: 'Compare-and-set one authorized task transition. A transition that would leave the task in progress while its write scopes overlap another in-progress task is refused with `TEAM_TASK_WRITE_SCOPE_CONFLICT`, so `claim`, `reassign`, and a scope-widening `edit` are bound by the same exclusion claimNextReadyTask applies.',
         parameters: [{ name: 'caller', description: 'exact live Team member authorizing the mutation.' }, { name: 'request', description: 'task identity, expected revision, action, and action fields.' }],
         returns: 'the committed next task revision.',
       },
@@ -868,14 +873,14 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the process path for the same file, or undefined when this execution world cannot read that host file.',
       },
       {
-        signature: 'abstract fileUrl(target: FsTarget): string',
-        description: 'Return the canonical `file:` URI for a target in this filesystem\'s execution world. Backends own URI encoding because the host platform may differ from the execution platform.',
+        signature: 'fileUrl(target: FsTarget): string',
+        description: 'Return the canonical `file:` URI for a target in this filesystem\'s execution world.\n\nThe default reads processPath as a host path. A backend whose execution world is not this host overrides it, because the host platform\'s URI encoding does not describe a remote path.',
         parameters: [{ name: 'target', description: 'the resolved target to encode.' }],
         returns: 'the target\'s canonical file URI.',
       },
       {
-        signature: 'abstract contains(parent: FsTarget, child: FsTarget): boolean',
-        description: 'Test canonical containment without exposing or parsing backend target keys. Both targets must come from this provider.',
+        signature: 'contains(parent: FsTarget, child: FsTarget): boolean',
+        description: 'Test canonical containment without exposing or parsing backend target keys. Both targets must come from this provider.\n\nThe default compares processPath values as host paths, so it follows the host\'s separator and case rules. A backend whose execution world is not this host overrides it.',
         parameters: [{ name: 'parent', description: 'canonical directory target.' }, { name: 'child', description: 'canonical candidate target.' }],
         returns: 'true when `child` is `parent` or a descendant of it.',
       },
@@ -1225,6 +1230,58 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'networkDrive',
+    summary: 'Abstract network-drive provider.',
+    description: 'Abstract network-drive provider. Every operation takes the caller\'s `AbortSignal` and must abandon its transfer when the signal fires, raising `DRIVE_ABORTED`. Every failure is a `DriveError` carrying a closed-union code; a provider never leaks its transport\'s own error type.\n\nIdentity contract: a provider returns the same DriveVersion for an unchanged entry and a different one after any content change, so a consumer can use it as a compare-and-set token. Providers whose backing store cannot distinguish two writes within one revision granularity must widen the token with a value that can, never narrow it to a timestamp alone.',
+    methods: [
+      {
+        signature: 'abstract stat(path: DrivePath, signal?: AbortSignal): Promise<DriveStat | undefined>',
+        description: 'Return metadata for one path, or `undefined` when the drive holds nothing there.',
+        parameters: [{ name: 'path', description: 'the entry to inspect.' }, { name: 'signal', description: 'aborts the metadata round-trip.' }],
+        returns: 'the entry\'s metadata, never its content; `undefined` when absent.',
+      },
+      {
+        signature: 'abstract list(path: DrivePath, signal?: AbortSignal): Promise<DriveDirEntry[]>',
+        description: 'List the direct children of one directory.',
+        parameters: [{ name: 'path', description: 'the directory to list; `drivePath(\'\')` is the drive root.' }, { name: 'signal', description: 'aborts the listing.' }],
+        returns: 'one entry per direct child; never reads child content.',
+        throws: ['DriveError `DRIVE_NOT_FOUND` when absent, `DRIVE_NOT_DIRECTORY` when the path is a file.'],
+      },
+      {
+        signature: 'abstract read(path: DrivePath, range: DriveByteRange | undefined, signal?: AbortSignal): Promise<DriveContent>',
+        description: 'Read raw bytes of one file. Omitting `range` reads the whole file; a range reads at most `range.length` bytes starting at `range.offset`, which is how a consumer bounds a transfer before it commits memory to it.',
+        parameters: [{ name: 'path', description: 'the file to read.' }, { name: 'range', description: 'the byte window to transfer; omit for the whole file.' }, { name: 'signal', description: 'aborts the transfer.' }],
+        returns: 'the bytes and the revision they were served at.',
+        throws: ['DriveError `DRIVE_NOT_FOUND` when absent, `DRIVE_NOT_FILE` for a directory.'],
+      },
+      {
+        signature: 'abstract write( path: DrivePath, bytes: Uint8Array, expected: DriveWriteIntent | undefined, signal?: AbortSignal, ): Promise<DriveVersion>',
+        description: 'Replace or create one file\'s complete content. The write is the drive\'s commit point: it either publishes every byte or leaves the previous revision in place.',
+        parameters: [{ name: 'path', description: 'the file to write; its parent directory must already exist.' }, { name: 'bytes', description: 'the complete new content.' }, { name: 'expected', description: 'the compare-and-set precondition; omit for an unconditional write.' }, { name: 'signal', description: 'aborts before the drive publishes the new revision.' }],
+        returns: 'the revision the write produced.',
+        throws: ['DriveError `DRIVE_PRECONDITION_FAILED` when `expected` does not hold.'],
+      },
+      {
+        signature: 'abstract remove(path: DrivePath, signal?: AbortSignal): Promise<void>',
+        description: 'Remove one entry. Removing a directory removes its descendants.',
+        parameters: [{ name: 'path', description: 'the entry to remove.' }, { name: 'signal', description: 'aborts the removal.' }],
+        throws: ['DriveError `DRIVE_NOT_FOUND` when the path holds nothing.'],
+      },
+      {
+        signature: 'abstract move(from: DrivePath, to: DrivePath, signal?: AbortSignal): Promise<void>',
+        description: 'Move one entry to another path, replacing whatever the destination held. Providers implement it as one remote operation, so a rename does not transfer bytes and cannot leave the drive holding both names.',
+        parameters: [{ name: 'from', description: 'the entry to move.' }, { name: 'to', description: 'the destination path; its parent directory must already exist.' }, { name: 'signal', description: 'aborts the move.' }],
+        throws: ['DriveError `DRIVE_NOT_FOUND` when the source holds nothing.'],
+      },
+      {
+        signature: 'abstract makeDirectory(path: DrivePath, signal?: AbortSignal): Promise<void>',
+        description: 'Create one directory and every missing ancestor below the drive root. Succeeds when the directory already exists, so a consumer can make a parent ready without a preceding probe.',
+        parameters: [{ name: 'path', description: 'the directory to create.' }, { name: 'signal', description: 'aborts the creation.' }],
+        throws: ['DriveError `DRIVE_NOT_DIRECTORY` when the path or an ancestor is a file.'],
+      },
+    ],
+  },
+  {
     key: 'permissionPresets',
     summary: 'Owns the deployment\'s permission presets and their write path.',
     description: 'Owns the deployment\'s permission presets and their write path. Requires a confining `ctx.shell` executor and `ctx.approval`; unmatched knob values are reported as CUSTOM_PRESET, not an error.',
@@ -1297,7 +1354,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
   {
     key: 'sandboxPolicy',
     summary: 'The sandbox-policy service (`ctx.sandboxPolicy`).',
-    description: 'The sandbox-policy service (`ctx.sandboxPolicy`). Owns the deployment default mode, fallback workspace root, and current request-time policy section. Tool layers call resolve for each execution so a session\'s mode log and immutable cwd travel together to every enforcing capability.',
+    description: 'The sandbox-policy service (`ctx.sandboxPolicy`). Owns the deployment default mode, fallback workspace root, and current request-time policy section. Tool layers call resolve for each execution so a session\'s mode log, immutable cwd, and recorded additional roots travel together to every enforcing capability.',
     methods: [
       {
         signature: 'readonly defaultMode: SandboxMode',
@@ -1311,15 +1368,21 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       },
       {
         signature: 'resolve(request: SandboxPolicyRequest = {}): SandboxExecutionPolicy',
-        description: 'Resolve the complete policy for one capability call. An approved explicit mode outranks the session\'s last `sandbox/mode` event, which outranks the deployment default. A session cwd is its workspace-write boundary; the configured root is the fallback for agentless calls and sessions without a cwd.',
+        description: 'Resolve the complete policy for one capability call. An approved explicit mode outranks the session\'s last `sandbox/mode` event, which outranks the deployment default. A session cwd is its primary workspace-write boundary and its `workspace/roots` log supplies the additional ones; the configured root is the fallback for agentless calls and sessions without a cwd.',
         parameters: [{ name: 'request', description: 'optional session and approved mode override.' }],
-        returns: 'the fully resolved per-call mode and absolute workspace root.',
+        returns: 'the fully resolved per-call mode and absolute workspace roots.',
       },
       {
         signature: 'overrideOf(session: Session): SandboxMode | undefined',
         description: 'Read the session override without applying the deployment default.',
         parameters: [{ name: 'session', description: 'session whose log supplies the override.' }],
         returns: 'the last logged mode, or `undefined` without one.',
+      },
+      {
+        signature: 'additionalRootsOf(session: Session): string[]',
+        description: 'Read the session\'s additional workspace roots as every enforcement layer compares them, without resolving a whole policy. The primary root is the session\'s cwd, or this service\'s fallback for a session without one.',
+        parameters: [{ name: 'session', description: 'session whose log supplies the recorded roots.' }],
+        returns: 'canonical additional roots, deduplicated and never the primary root.',
       },
     ],
   },
@@ -2271,10 +2334,17 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the registered names.',
       },
       {
+        signature: 'capacity(): CapacitySnapshot',
+        description: 'Read the deployment\'s one-shot run admission state.',
+        parameters: [],
+        returns: 'the configured bound, the published runs holding a slot, and the starts queued behind them.',
+      },
+      {
         signature: 'async start(name: string, request: SubagentStartRequest): Promise<SubagentRun>',
-        description: 'Establish a published child on the named provider. Capability and semantic checks run before delegation. Provider ownership lasts until its promise fulfills; a rejection therefore has no run for the caller to dispose and emits no run lifecycle events. Post-publication turn and infrastructure failures settle through the returned run.',
+        description: 'Establish a published child on the named provider. Capability and semantic checks run before delegation, then the start takes one of the deployment\'s concurrency slots, queueing in arrival order while they are all held. A start whose `signal` fires while it is queued rejects `CANCELLED` and never reaches the provider. Provider ownership lasts until its promise fulfills; a rejection therefore has no run for the caller to dispose, emits no run lifecycle events, and returns its slot. Post-publication turn and infrastructure failures settle through the returned run, whose settlement or disposal returns the slot.',
         parameters: [{ name: 'name', description: 'the provider to use.' }, { name: 'request', description: 'child label, prompt, parent, signal, and optional capabilities.' }],
         returns: 'the published holder-owned run.',
+        throws: ['{SubagentError} `CANCELLED` when the caller cancels or the service unloads before a slot is granted.'],
       },
     ],
   },
@@ -3595,8 +3665,20 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type Branded<B extends string> = string & {\n    readonly [BRAND]: B;\n};',
   },
   {
+    name: 'CapacitySnapshot',
+    declaration: 'export interface CapacitySnapshot {\n    readonly limit: number;\n    readonly active: number;\n    readonly waiting: number;\n}',
+  },
+  {
+    name: 'ChunkRow',
+    declaration: 'export type ChunkRow = {\n    type: \'text-chunks\';\n    seq0: number;\n    time0: number;\n    data: TextRunData;\n} | {\n    type: \'reasoning-chunks\';\n    seq0: number;\n    time0: number;\n    data: TextRunData;\n} | {\n    type: \'tool-call-chunks\';\n    seq0: number;\n    time0: number;\n    data: ToolCallRunData;\n};',
+  },
+  {
     name: 'ChunkRowEvent',
     declaration: 'export type ChunkRowEvent = {\n    [Kind in ChunkRow[\'type\']]: {\n        readonly type: `chunkrow/${Kind}`;\n        readonly seq: number;\n        readonly time: number;\n        readonly data: Extract<ChunkRow, {\n            readonly type: Kind;\n        }>[\'data\'];\n    };\n}[ChunkRow[\'type\']];',
+  },
+  {
+    name: 'ClaimNextTeamTaskResult',
+    declaration: 'export type ClaimNextTeamTaskResult = {\n    readonly outcome: \'claimed\';\n    readonly task: TeamTaskView;\n} | {\n    readonly outcome: \'none\';\n    readonly reason: TeamTaskClaimUnavailable;\n    readonly deferred: TeamTaskId[];\n};',
   },
   {
     name: 'ClientArtifactBaseline',
@@ -3933,6 +4015,38 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'DomainTableSpec',
     declaration: 'export interface DomainTableSpec<K extends string = string, V = unknown> {\n    readonly valueSchema: ZodType<V>;\n    readonly __key?: K;\n}',
+  },
+  {
+    name: 'DriveByteRange',
+    declaration: 'export interface DriveByteRange {\n    readonly offset: number;\n    readonly length: number;\n}',
+  },
+  {
+    name: 'DriveContent',
+    declaration: 'export interface DriveContent {\n    readonly bytes: Uint8Array;\n    readonly version: DriveVersion;\n}',
+  },
+  {
+    name: 'DriveDirEntry',
+    declaration: 'export interface DriveDirEntry {\n    readonly name: string;\n    readonly path: DrivePath;\n    readonly type: DriveEntryType;\n    readonly version: DriveVersion;\n    readonly size?: number;\n}',
+  },
+  {
+    name: 'DriveEntryType',
+    declaration: 'export type DriveEntryType = \'file\' | \'directory\' | \'other\';',
+  },
+  {
+    name: 'DrivePath',
+    declaration: 'export type DrivePath = Branded<\'DrivePath\'>;',
+  },
+  {
+    name: 'DriveStat',
+    declaration: 'export interface DriveStat {\n    readonly path: DrivePath;\n    readonly type: DriveEntryType;\n    readonly version: DriveVersion;\n    readonly size?: number;\n}',
+  },
+  {
+    name: 'DriveVersion',
+    declaration: 'export type DriveVersion = Branded<\'DriveVersion\'>;',
+  },
+  {
+    name: 'DriveWriteIntent',
+    declaration: 'export type DriveWriteIntent = {\n    readonly kind: \'createIfAbsent\';\n} | {\n    readonly kind: \'replaceIfVersion\';\n    readonly version: DriveVersion;\n};',
   },
   {
     name: 'DshEnvironment',
@@ -4676,7 +4790,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SandboxExecutionPolicy',
-    declaration: 'export interface SandboxExecutionPolicy {\n    mode: SandboxMode;\n    workspaceRoot: string;\n    sessionId?: SessionId;\n}',
+    declaration: 'export interface SandboxExecutionPolicy {\n    mode: SandboxMode;\n    workspaceRoot: string;\n    additionalWorkspaceRoots?: readonly string[];\n    sessionId?: SessionId;\n}',
   },
   {
     name: 'SandboxMode',
@@ -4784,7 +4898,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SessionCreateRequest',
-    declaration: 'export interface SessionCreateRequest {\n    readonly workspaceId?: WorkspaceId;\n    readonly cwd?: string;\n    readonly sessionId?: SessionId;\n    readonly agentPreset?: string;\n}',
+    declaration: 'export interface SessionCreateRequest {\n    readonly workspaceId?: WorkspaceId;\n    readonly cwd?: string;\n    readonly additionalDirectories?: readonly string[];\n    readonly sessionId?: SessionId;\n    readonly agentPreset?: string;\n}',
   },
   {
     name: 'SessionCreateValue',
@@ -4808,7 +4922,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SessionEventMap',
-    declaration: 'export interface SessionEventMap {\n    \'turn/start\': {\n        turn: number;\n    };\n    \'turn/end\': {\n        turn: number;\n        reason: TurnEndReason;\n    };\n    \'step/start\': {\n        turn: number;\n        step: number;\n    };\n    \'step/end\': {\n        turn: number;\n        step: number;\n    };\n    \'user/message\': UserMessage;\n    \'assistant/chunk\': {\n        turn: number;\n        step: number;\n        chunk: StreamChunk;\n    };\n    \'assistant/message\': {\n        turn: number;\n        step: number;\n        message: AssistantMessage;\n        usage?: TokenUsage;\n        interrupted?: true;\n    };\n    \'tool/call\': {\n        turn: number;\n        step: number;\n        callId: ToolCallId;\n        name: string;\n        arguments: string;\n    };\n    \'tool/result\': {\n        turn: number;\n        step: number;\n        message: ToolResultMessage;\n        error?: {\n            name: string;\n            code: string;\n        };\n        meta?: JsonValue;\n    };\n    \'request/header\': {\n        header: EpochHeader;\n        reason: RequestHeaderReason;\n        startsSeries?: true;\n    };\n    \'request/context\': RequestContext;\n    \'session/end-seed\': Record<string, never>;\n}',
+    declaration: 'export interface SessionEventMap {\n    \'turn/start\': {\n        turn: number;\n    };\n    \'turn/end\': {\n        turn: number;\n        reason: TurnEndReason;\n    };\n    \'step/start\': {\n        turn: number;\n        step: number;\n    };\n    \'step/end\': {\n        turn: number;\n        step: number;\n    };\n    \'user/message\': UserMessage;\n    \'assistant/chunk\': {\n        turn: number;\n        step: number;\n        chunk: StreamChunk;\n    };\n    \'assistant/message\': {\n        turn: number;\n        step: number;\n        message: AssistantMessage;\n        usage?: TokenUsage;\n        interrupted?: true;\n    };\n    \'tool/call\': {\n        turn: number;\n        step: number;\n        callId: ToolCallId;\n        name: string;\n        arguments: string;\n    };\n    \'tool/result\': {\n        turn: number;\n        step: number;\n        message: ToolResultMessage;\n        error?: {\n            name: string;\n            code: string;\n        };\n        meta?: JsonValue;\n    };\n    \'request/header\': {\n        header: EpochHeader;\n        reason: RequestHeaderReason;\n        startsSeries?: true;\n    };\n    \'request/context\': RequestContext;\n    \'workspace/roots\': {\n        roots: string[];\n    };\n    \'session/end-seed\': Record<string, never>;\n}',
   },
   {
     name: 'SessionEventMetadataFilter',
@@ -5276,7 +5390,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SkillLookupOptions',
-    declaration: 'export interface SkillLookupOptions {\n    readonly cwd?: string | undefined;\n    readonly signal?: AbortSignal | undefined;\n}',
+    declaration: 'export interface SkillLookupOptions {\n    readonly cwd?: string | undefined;\n    readonly additionalRoots?: readonly string[] | undefined;\n    readonly signal?: AbortSignal | undefined;\n}',
   },
   {
     name: 'SkillProvider',
@@ -5432,7 +5546,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SubagentRuntime',
-    declaration: 'export class SubagentRuntime extends TypertRemoteService {\n    constructor(ctx: Context);\n    async startContinuable(spec: ContinuableStartSpec): Promise<ContinuableStart>;\n    async followup(parent: Agent, childId: SessionId, content: ContentBlock[], options: SubagentFollowupOptions): Promise<MessageId>;\n    interrupt(targetSessionId: SessionId, authority: SubagentInterruptAuthority): void;\n    async reportFrom(child: Agent, content: ContentBlock[], options: SubagentReportOptions): Promise<MessageId>;\n    registerContinuableSetup(contribution: ContinuableSetupContribution): () => void;\n    async drainContinuableDescendants(parents: readonly Agent[]): Promise<void>;\n    async drainContinuableChildren(parent: Agent, childIds: readonly SessionId[]): Promise<void>;\n    listChildren(parentSessionId: SessionId, signal?: AbortSignal): Promise<SubagentListEntry[]>;\n    listDescendants(rootSessionId: SessionId, signal?: AbortSignal): Promise<SubagentDescendantListEntry[]>;\n    @Remote(\'list\')\n    async remoteExportList(parentSessionId: SessionId, signal: AbortSignal): Promise<SubagentCatalog>;\n    @Remote(\'prompt\')\n    async prompt(request: SubagentPromptRequest, signal: AbortSignal): Promise<SubagentPromptReceipt>;\n    @Remote(\'interruptByParent\')\n    interruptByParent(childSessionId: SessionId, parentSessionId: SessionId, mode: \'continuable\'): SubagentInterruptReceipt;\n    registerProvider(provider: SubagentProvider): () => void;\n    getProvider(name: string): SubagentProvider | un /* …truncated — full shape in source */',
+    declaration: 'export class SubagentRuntime extends TypertRemoteService {\n    static Config: z<Config>;\n    constructor(ctx: Context, config: Config);\n    async startContinuable(spec: ContinuableStartSpec): Promise<ContinuableStart>;\n    async followup(parent: Agent, childId: SessionId, content: ContentBlock[], options: SubagentFollowupOptions): Promise<MessageId>;\n    interrupt(targetSessionId: SessionId, authority: SubagentInterruptAuthority): void;\n    async reportFrom(child: Agent, content: ContentBlock[], options: SubagentReportOptions): Promise<MessageId>;\n    registerContinuableSetup(contribution: ContinuableSetupContribution): () => void;\n    async drainContinuableDescendants(parents: readonly Agent[]): Promise<void>;\n    async drainContinuableChildren(parent: Agent, childIds: readonly SessionId[]): Promise<void>;\n    listChildren(parentSessionId: SessionId, signal?: AbortSignal): Promise<SubagentListEntry[]>;\n    listDescendants(rootSessionId: SessionId, signal?: AbortSignal): Promise<SubagentDescendantListEntry[]>;\n    @Remote(\'list\')\n    async remoteExportList(parentSessionId: SessionId, signal: AbortSignal): Promise<SubagentCatalog>;\n    @Remote(\'prompt\')\n    async prompt(request: SubagentPromptRequest, signal: AbortSignal): Promise<SubagentPromptReceipt>;\n    @Remote(\'interruptByParent\')\n    interruptByParent(childSessionId: SessionId, parentSessionId: SessionId, mode: \'continuable\'): SubagentInterruptReceipt;\n    registerProvider(provider: SubagentProvider): () => void;\n    ge /* …truncated — full shape in source */',
   },
   {
     name: 'SubagentStartRequest',
@@ -5549,6 +5663,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'TeamTaskAction',
     declaration: 'export type TeamTaskAction = \'claim\' | \'release\' | \'edit\' | \'set_dependencies\' | \'complete\' | \'reopen\' | \'reassign\' | \'delete\';',
+  },
+  {
+    name: 'TeamTaskClaimUnavailable',
+    declaration: 'export type TeamTaskClaimUnavailable = \'no-ready-task\' | \'write-scope-conflict\';',
   },
   {
     name: 'TeamTaskId',
@@ -6221,4 +6339,3 @@ export function queryEventApi(name?: string, events: readonly EventApiEntry[] = 
     referencedTypes: referencedTypeClosure([event.signature]),
   }
 }
-/* jscpd:ignore-end */

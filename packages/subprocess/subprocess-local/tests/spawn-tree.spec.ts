@@ -3,6 +3,26 @@ import { describe, expect, it, vi } from 'vitest'
 import { childEnv, killGroup, spawnSubprocess, taskkillProcessTree } from '../src/spawn.ts'
 import { killQuietly, spec, spillDir, waitForPidFile, waitGone } from './spawn-support.ts'
 
+/**
+ * A Job factory for a host that has no Win32 Job objects.
+ *
+ * Every case below drives the no-Job fallback. Left uninjected, they reached it
+ * only because the real `createWindowsProcessJob` fails to `dlopen` kernel32 on
+ * this host — an accident of the test platform that also emitted a teardown
+ * warning on every POSIX run, and that would silently stop exercising the
+ * fallback the day the binding loaded. Injecting the refusal makes the branch a
+ * choice the case states, and the warning it collects into `log` is how a case
+ * asserts the run took that branch rather than the Job-backed one.
+ * @param log - collector for the warning the fallback reports.
+ * @returns internals injecting the refusing factory and a warning recorder.
+ */
+function withoutWindowsJob(log: string[]): { windowsJob: () => never; warn: (message: string) => void } {
+  return {
+    windowsJob: () => { throw new Error('no Job objects on this host') },
+    warn: (message: string) => { log.push(message) },
+  }
+}
+
 describe('killGroup', () => {
   it('ignores non-positive pids', () => {
     expect(() => { killGroup(-1, 'SIGTERM') }).not.toThrow()
@@ -39,11 +59,13 @@ describe('AbortSignal lifecycle', () => {
 })
 
 describe('windows tree semantics (injected platform)', () => {
-  it('host-exit termination routes through taskkill immediately', async () => {
+  it('host-exit termination routes through taskkill immediately when no Job exists', async () => {
     const killed: number[] = []
+    const warnings: string[] = []
     const running = spawnSubprocess(spec('exec sleep 60', { graceMs: 60_000 }), {
       spillDir,
       platform: 'win32',
+      ...withoutWindowsJob(warnings),
       taskkill: (pid) => {
         killed.push(pid)
         killQuietly(pid)
@@ -53,13 +75,16 @@ describe('windows tree semantics (injected platform)', () => {
     running.terminateForHostExit()
     await running.done
     expect(killed).toEqual([running.pid])
+    expect(warnings.some(line => line.includes('falling back to taskkill'))).toBe(true)
   })
 
-  it('terminate routes through taskkill by root pid', async () => {
+  it('terminate routes through taskkill by root pid when no Job exists', async () => {
     const killed: number[] = []
+    const warnings: string[] = []
     const running = spawnSubprocess(spec('exec sleep 60', { graceMs: 100 }), {
       spillDir,
       platform: 'win32',
+      ...withoutWindowsJob(warnings),
       taskkill: (pid) => {
         killed.push(pid)
         // Simulate the forced tree termination taskkill performs.
@@ -74,9 +99,12 @@ describe('windows tree semantics (injected platform)', () => {
   })
 
   it('waitForExit falls back to direct-child liveness where groups do not exist', async () => {
-    const running = spawnSubprocess(spec('true'), { spillDir, platform: 'win32', taskkill: () => ({ status: 0, stderr: '' }) })
+    const warnings: string[] = []
+    const running = spawnSubprocess(spec('true'), { spillDir, platform: 'win32', ...withoutWindowsJob(warnings), taskkill: () => ({ status: 0, stderr: '' }) })
     await running.done
     await expect(running.waitForExit()).resolves.toBe(true)
+    // The verdict above is only the no-Job reading when the Job was refused.
+    expect(warnings.some(line => line.includes('falling back to taskkill'))).toBe(true)
   })
 })
 
@@ -239,11 +267,16 @@ describe('coverage seams', () => {
 })
 
 describe('coverage seams 2', () => {
-  it('win32 treeAlive reports alive for a live child and gone after taskkill', async () => {
+  it('win32 without a Job falls back to direct-child liveness, alive then gone after taskkill', async () => {
+    // Named for the branch it takes: with no Job there is no assigned-process
+    // count, so the direct child's exit is the only boundary Windows exposes.
+    // The Job-backed count has its own coverage in windows-job.spec.ts.
     let killedPid = 0
+    const warnings: string[] = []
     const running = spawnSubprocess(spec('sleep 60'), {
       spillDir,
       platform: 'win32',
+      ...withoutWindowsJob(warnings),
       taskkill: (pid) => {
         killedPid = pid
         killQuietly(pid)
@@ -257,17 +290,21 @@ describe('coverage seams 2', () => {
     await running.done
     expect(killedPid).toBe(running.pid)
     await expect(running.waitForExit()).resolves.toBe(true)
+    expect(warnings.some(line => line.includes('falling back to taskkill'))).toBe(true)
   })
 
   it('an inert win32 taskkill leaves the tree alive for a bounded wait to report', async () => {
     // An inert taskkill simulates a tree that never reports exit: terminate()
     // delivers nothing, so a bounded consumer wait must come back false.
-    const running = spawnSubprocess(spec('sleep 60'), { spillDir, platform: 'win32', taskkill: () => ({ status: 0, stderr: 'inert' }) })
+    const warnings: string[] = []
+    const running = spawnSubprocess(spec('sleep 60'), { spillDir, platform: 'win32', ...withoutWindowsJob(warnings), taskkill: () => ({ status: 0, stderr: 'inert' }) })
     running.terminate()
     const bound = new AbortController()
     const timer = setTimeout(() => { bound.abort() }, 60)
     await expect(running.waitForExit(bound.signal)).resolves.toBe(false)
     clearTimeout(timer)
+    // A live Job would have answered that wait from its member count instead.
+    expect(warnings.some(line => line.includes('falling back to taskkill'))).toBe(true)
     // Real cleanup: the injected platform spawned without detachment, so the
     // child is a plain (group-less) POSIX process — kill it directly.
     process.kill(running.pid, 'SIGKILL')

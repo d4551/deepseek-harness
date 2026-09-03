@@ -49,6 +49,16 @@ Run `dsh --profile my-profile "your task"` and you get a working agent with mode
 
 Out of the box, every profile built on this core provides: a DeepSeek model connection (the provider and model are configurable, and you can enable extra providers from your settings), the full tool set — file editing, shell commands, web search, subagents, task and goal tracking — durable sessions that survive restarts, and the default permission policy that confines file writes to your workspace and asks before risky actions. Telemetry stays off unless you opt in.
 
+### Install the browser the fetch tool needs
+
+One shipped default needs a step this install does not perform. `web_fetch` is routed to the Playwright Chromium backend, because a model reading a modern site through a raw HTTP body sees an empty shell — but `playwright` ships no postinstall, so the browser is not downloaded for you. Until it is, the plugin warns at mount and **every `web_fetch` call fails** with `WEB_PROVIDER_CONFIGURED_UNAVAILABLE`. Install it once per host:
+
+```sh
+npx playwright install chromium
+```
+
+The warning and every launch failure print the command resolved for the installation they found, so the message names something runnable wherever you read it. A deployment that cannot install a browser states `fetchProvider: http` on the `web` row in its profile patch instead; that backend needs nothing, at the cost of returning the unrendered HTML.
+
 ### Shell tools per platform
 
 On macOS and Linux you get the bash shell tools; on Windows you get the PowerShell twins instead, so exactly one shell stack is available per machine. The safety behavior is identical on every platform. A Windows host that prefers the unconfined PowerShell executor can switch the shell rows in its profile patch — the switch must disable both PowerShell rows and re-enable both bash rows, otherwise the profile fails to load.
@@ -73,7 +83,7 @@ A patch replaces the targeted row's whole `config` rather than merging into it. 
 
 ### Platform gating
 
-The patch gates the two shell stacks by platform on its own rows: `bash-sandbox` and `tool-bash` carry `disabled: !!js process.platform === 'win32'`, and their twins `pwsh-sandbox` and `tool-pwsh` mount on win32 only with the inverted expression. The permission surface stays identical to POSIX: the sandbox policy executes the same file-effect policy through the Windows ACL restricted-token runner (`dsh-sandbox-local` → `@deepseek-ai/dsh-sandbox-windows-acl`), and `fs-sandbox` keeps fencing `ctx.fs` writes — mounting `dsh-fs-local` alongside it would double-register `ctx.fs` and fail the load.
+The patch gates the two executors by platform on its own rows — `bash-sandbox` carries `disabled: !!js process.platform === 'win32'` and its twin `pwsh-sandbox` mounts on win32 only with the inverted expression — and the single `tool-shell` row reads the same platform fact into its `dialect` config, so the model-facing tool name always matches the executor that mounted. The permission surface stays identical to POSIX: the sandbox policy executes the same file-effect policy through the Windows ACL restricted-token runner (`dsh-sandbox-local` → `@deepseek-ai/dsh-sandbox-windows-acl`), and `fs-sandbox` keeps fencing `ctx.fs` writes — mounting `dsh-fs-local` alongside it would double-register `ctx.fs` and fail the load.
 
 ### Source map
 
@@ -125,6 +135,7 @@ These limits tell you when the core needs extra care or where an override must g
 - **Per-surface settings belong to the surface's bundle** — a default that differs between the web GUI and headless mode lives in that surface's bundle, not in the shared core.
 - **Windows temp grants are private per-session subdirectories** — `workspace-write` confines writes to the workspace plus the session's own temp subdirectory (`<temp>\dsh-<hash>`, TMP/TEMP rewritten for confined children); `read-only` grants nothing. See `@deepseek-ai/dsh-sandbox-windows-acl`.
 - **Adding the plain filesystem provider on top of the sandboxed one fails the profile** — the two register the same service, so the profile refuses to load; use one or the other.
+- **The shipped fetch route needs a browser this install does not download** — `web_fetch` is routed to Playwright Chromium, and `playwright` ships no postinstall, so `npx playwright install chromium` is a required manual step per host; without it the plugin warns at mount and every `web_fetch` fails with `WEB_PROVIDER_CONFIGURED_UNAVAILABLE`. A host that cannot install one states `fetchProvider: http` on the `web` row.
 
 <a id="dev-note"></a>
 ### Dev Note

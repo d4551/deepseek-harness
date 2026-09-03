@@ -42,6 +42,9 @@
         "@deepseek-ai/dsh-client-ui-session",
         "@deepseek-ai/dsh-client-ui-sidebar"
       ],
+      "external": [
+        "@deepseek-ai/dsh-client-ui-session/client"
+      ],
       "platform": "web"
     }
   },
@@ -67,7 +70,8 @@
     "@deepseek-ai/dsh-typert-protocol": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/dsh-session": "workspace:^",
-    "@deepseek-ai/dsh-util-workspace-path": "workspace:^"
+    "@deepseek-ai/dsh-util-workspace-path": "workspace:^",
+    "@deepseek-ai/dsh-host-directory-picker": "workspace:^"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
@@ -90,7 +94,8 @@
     "@deepseek-ai/dsh-typert-protocol": "workspace:^",
     "@deepseek-ai/dsh-util-workspace-path": "workspace:^",
     "@types/react": "~19.2.18",
-    "react": "^19.2.8"
+    "react": "^19.2.8",
+    "@deepseek-ai/dsh-host-directory-picker": "workspace:^"
   },
   "files": [
     "lib/index.js",

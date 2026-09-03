@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write packages/subagent/subagent-claude-code/README.md
-README.md: 9fcce15b45a77a7a3b7dd4e6299609f8ef5ee484
-README.zh.md: 5066c2553f7bd7f71fd87c7ee5acb800b7398b59
+README.md: 16336424bbcb0799ea15c8d727191e8425dafeae
+README.zh.md: d4240bacd9810a85d564433049bf8c26994e62da

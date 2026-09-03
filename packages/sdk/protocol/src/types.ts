@@ -16,6 +16,12 @@ import type { SubagentStopReason } from '@deepseek-ai/dsh-subagent'
 export interface InitializeParams {
   /** Working directory recorded on every SDK-created session's header. */
   cwd: string
+  /**
+   * Absolute workspace roots recorded on every SDK-created session BESIDES
+   * {@link cwd}: the multi-root workspace the client works in. Omitted or
+   * empty records that the session works in `cwd` alone.
+   */
+  additionalDirectories?: string[]
   /** Provider route every SDK-created agent runs on. */
   provider: string
   /** Model name every SDK-created agent runs on (the server may mount a fallback adapter; see `HarnessSdkJsonRpcServer.initialize`). */

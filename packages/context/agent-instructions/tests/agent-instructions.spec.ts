@@ -1,5 +1,5 @@
 import { chmod, mkdtemp, mkdir, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises'
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { tmpdir } from 'node:os'
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
@@ -7,6 +7,7 @@ import Loader from '@deepseek-ai/cordis-plugin-loader'
 import * as workspaceContext from '@deepseek-ai/dsh-agent-instructions'
 import LlmRuntime, { createUserMessage, ToolCallId, type Message, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import SessionStore, { Session, SessionId, SESSION_FORMAT_VERSION, type SessionEvent, type UserMessage } from '@deepseek-ai/dsh-session'
+import { setAdditionalWorkspaceRoots } from '@deepseek-ai/dsh-session/workspace-roots'
 import AgentRegistry, { agentEvents, Inbox, type Agent } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { FileSystem, FsTargetKey, FsVersion } from '@deepseek-ai/dsh-fs'
@@ -992,7 +993,10 @@ describe('workspace context request injection', () => {
   it('mounts without requiring a filesystem provider', async () => {
     const ctx = new Context()
     try {
-      await ctx.plugin(workspaceContext, { maxBytes: 65536 })
+      // The mount reaches ready while `fs` is absent: the provider is read
+      // per request, never required at load.
+      await expect(ctx.plugin(workspaceContext, { maxBytes: 65536 })).resolves.toBeDefined()
+      expect(ctx.get('fs')).toBeUndefined()
     } finally {
       await ctx.fiber.dispose()
     }
@@ -4783,6 +4787,625 @@ describe('aggregate source budget', () => {
       })).resolves.toBeUndefined()
     } finally {
       await rm(root, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('additional workspace root instruction discovery', () => {
+  /** A self-contained checkout: its own `.git` marker plus one root instruction file. */
+  async function checkout(instruction: string): Promise<string> {
+    const root = await tempRepo()
+    await mkdir(join(root, '.git'), { recursive: true })
+    await write(join(root, 'AGENTS.md'), instruction)
+    return root
+  }
+
+  /** The identity recorded on the agent's most recent baseline message. */
+  function lastBaselineIdentity(agent: Agent): string | undefined {
+    const last = baselineEvents(agent).at(-1)
+    if (last?.type !== 'user/message') return undefined
+    return last.data.source.kind === 'agent-instructions' ? last.data.source.baselineIdentity : undefined
+  }
+
+  /** The model-visible text of the agent's most recent baseline message. */
+  function lastBaselineText(agent: Agent): string {
+    const last = baselineEvents(agent).at(-1)
+    return last?.type === 'user/message' ? blocksText(last.data.content) : ''
+  }
+
+  it('discovers each additional root chain after the primary chain, displayed absolute', async () => {
+    const primary = await checkout('primary rule')
+    const second = await checkout('second rule')
+    const home = await tempRepo()
+    try {
+      const files = await discoverBaselineInstructionFiles({
+        cwd: primary,
+        additionalRoots: [second],
+        dshHome: home,
+      })
+
+      expect(files.map(file => file.displayPath)).toEqual([
+        'AGENTS.md',
+        join(second, 'AGENTS.md'),
+      ])
+    } finally {
+      await rm(primary, { recursive: true, force: true })
+      await rm(second, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('walks each additional root down to its own cwd and loads its local overlay', async () => {
+    const primary = await checkout('primary rule')
+    const second = await checkout('second root rule')
+    const home = await tempRepo()
+    try {
+      const secondCwd = join(second, 'pkg')
+      await write(join(second, 'AGENTS.local.md'), 'second root overlay')
+      await write(join(secondCwd, 'CLAUDE.md'), 'second package rule')
+
+      const files = await discoverBaselineInstructionFiles({
+        cwd: primary,
+        additionalRoots: [secondCwd],
+        dshHome: home,
+      })
+
+      expect(files.map(file => file.displayPath)).toEqual([
+        'AGENTS.md',
+        join(second, 'AGENTS.md'),
+        join(second, 'AGENTS.local.md'),
+        join(secondCwd, 'CLAUDE.md'),
+      ])
+    } finally {
+      await rm(primary, { recursive: true, force: true })
+      await rm(second, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('stops an additional root chain at that root own marker, not at an enclosing project', async () => {
+    const primary = await checkout('primary rule')
+    const outer = await checkout('outer rule that must not load')
+    const home = await tempRepo()
+    try {
+      const second = join(outer, 'nested-checkout')
+      await mkdir(join(second, '.git'), { recursive: true })
+      await write(join(second, 'AGENTS.md'), 'nested checkout rule')
+
+      const files = await discoverBaselineInstructionFiles({
+        cwd: primary,
+        additionalRoots: [second],
+        dshHome: home,
+      })
+
+      expect(files.map(file => file.displayPath)).toEqual([
+        'AGENTS.md',
+        join(second, 'AGENTS.md'),
+      ])
+    } finally {
+      await rm(primary, { recursive: true, force: true })
+      await rm(outer, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('contributes nothing for an additional root that holds no instruction file', async () => {
+    const primary = await checkout('primary rule')
+    const empty = await tempRepo()
+    const home = await tempRepo()
+    try {
+      await mkdir(join(empty, '.git'), { recursive: true })
+
+      const files = await discoverBaselineInstructionFiles({
+        cwd: primary,
+        additionalRoots: [empty],
+        dshHome: home,
+      })
+
+      expect(files.map(file => file.displayPath)).toEqual(['AGENTS.md'])
+    } finally {
+      await rm(primary, { recursive: true, force: true })
+      await rm(empty, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('loads a repeated additional root once', async () => {
+    const primary = await checkout('primary rule')
+    const second = await checkout('second rule')
+    const home = await tempRepo()
+    try {
+      const files = await discoverBaselineInstructionFiles({
+        cwd: primary,
+        additionalRoots: [second, second],
+        dshHome: home,
+      })
+
+      expect(files.map(file => file.displayPath)).toEqual([
+        'AGENTS.md',
+        join(second, 'AGENTS.md'),
+      ])
+    } finally {
+      await rm(primary, { recursive: true, force: true })
+      await rm(second, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps a file the primary chain already loaded at its project-relative display path', async () => {
+    const primary = await checkout('primary rule')
+    const home = await tempRepo()
+    try {
+      const cwd = join(primary, 'pkg')
+      await write(join(cwd, 'CLAUDE.md'), 'package rule')
+
+      const files = await discoverBaselineInstructionFiles({
+        cwd,
+        additionalRoots: [primary],
+        dshHome: home,
+      })
+
+      expect(files.map(file => file.displayPath)).toEqual([
+        'AGENTS.md',
+        join('pkg', 'CLAUDE.md'),
+      ])
+    } finally {
+      await rm(primary, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('renders additional roots in the order the session recorded them', async () => {
+    const primary = await checkout('primary rule')
+    const alpha = await checkout('alpha rule')
+    const beta = await checkout('beta rule')
+    const home = await tempRepo()
+    try {
+      const forward = await discoverBaselineInstructionFiles({
+        cwd: primary,
+        additionalRoots: [alpha, beta],
+        dshHome: home,
+      })
+      const reversed = await discoverBaselineInstructionFiles({
+        cwd: primary,
+        additionalRoots: [beta, alpha],
+        dshHome: home,
+      })
+
+      expect(forward.map(file => file.displayPath)).toEqual([
+        'AGENTS.md',
+        join(alpha, 'AGENTS.md'),
+        join(beta, 'AGENTS.md'),
+      ])
+      expect(reversed.map(file => file.displayPath)).toEqual([
+        'AGENTS.md',
+        join(beta, 'AGENTS.md'),
+        join(alpha, 'AGENTS.md'),
+      ])
+    } finally {
+      await rm(primary, { recursive: true, force: true })
+      await rm(alpha, { recursive: true, force: true })
+      await rm(beta, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('renders every additional root into one baseline, primary chain first', async () => {
+    const primary = await checkout('primary checkout rule')
+    const second = await checkout('second checkout rule')
+    const home = await tempRepo()
+    const ctx = new Context()
+    try {
+      await mountWorkspaceContext(ctx, { dshHome: home, maxBytes: 65536 })
+      const agent = stubAgent(primary)
+      setAdditionalWorkspaceRoots(agent.session, [second])
+
+      await composeBaselinePrefix(ctx, agent)
+
+      const text = derivedText(agent)
+      expect(text).toContain('primary checkout rule')
+      expect(text).toContain('second checkout rule')
+      expect(text).toContain(`Instructions from: ${join(second, 'AGENTS.md')}`)
+      expect(text.indexOf('Instructions from: AGENTS.md'))
+        .toBeLessThan(text.indexOf(`Instructions from: ${join(second, 'AGENTS.md')}`))
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(primary, { recursive: true, force: true })
+      await rm(second, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('replaces the visible baseline when the session gains an additional root', async () => {
+    const primary = await checkout('primary checkout rule')
+    const second = await checkout('second checkout rule')
+    const home = await tempRepo()
+    const ctx = new Context()
+    try {
+      await mountWorkspaceContext(ctx, { dshHome: home, maxBytes: 65536 })
+      const agent = stubAgent(primary)
+      await composeBaselinePrefix(ctx, agent)
+      const beforeIdentity = lastBaselineIdentity(agent)
+      expect(baselineEvents(agent)).toHaveLength(1)
+      expect(lastBaselineText(agent)).not.toContain('second checkout rule')
+
+      setAdditionalWorkspaceRoots(agent.session, [second])
+      await composeBaselinePrefix(ctx, agent)
+
+      expect(baselineEvents(agent)).toHaveLength(2)
+      const replacement = lastBaselineText(agent)
+      expect(replacement).toContain('replaces all earlier workspace instruction baselines')
+      expect(replacement).toContain('second checkout rule')
+      expect(lastBaselineIdentity(agent)).not.toBe(beforeIdentity)
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(primary, { recursive: true, force: true })
+      await rm(second, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps one baseline when a later request records the same additional roots again', async () => {
+    const primary = await checkout('primary checkout rule')
+    const second = await checkout('second checkout rule')
+    const home = await tempRepo()
+    const ctx = new Context()
+    try {
+      await mountWorkspaceContext(ctx, { dshHome: home, maxBytes: 65536 })
+      const agent = stubAgent(primary)
+      setAdditionalWorkspaceRoots(agent.session, [second])
+      await composeBaselinePrefix(ctx, agent)
+      const firstIdentity = lastBaselineIdentity(agent)
+
+      setAdditionalWorkspaceRoots(agent.session, [second])
+      await composeBaselinePrefix(ctx, agent)
+
+      expect(baselineEvents(agent)).toHaveLength(1)
+      expect(lastBaselineIdentity(agent)).toBe(firstIdentity)
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(primary, { recursive: true, force: true })
+      await rm(second, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('ignores a recorded root that repeats the session cwd', async () => {
+    const primary = await checkout('primary checkout rule')
+    const second = await checkout('second checkout rule')
+    const home = await tempRepo()
+    const ctx = new Context()
+    try {
+      await mountWorkspaceContext(ctx, { dshHome: home, maxBytes: 65536 })
+      const recorded = stubAgent(primary)
+      setAdditionalWorkspaceRoots(recorded.session, [second])
+      await composeBaselinePrefix(ctx, recorded)
+
+      const withCwd = stubAgent(primary)
+      // A durable log may name the primary root among the roots it carries;
+      // the plugin folds it out instead of walking the primary chain twice.
+      withCwd.session.append('workspace/roots', { roots: [primary, second] })
+      await composeBaselinePrefix(ctx, withCwd)
+
+      expect(lastBaselineText(withCwd)).toBe(lastBaselineText(recorded))
+      expect(lastBaselineIdentity(withCwd)).toBe(lastBaselineIdentity(recorded))
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(primary, { recursive: true, force: true })
+      await rm(second, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  /** Model-visible text of every workspace instruction message the session recorded. */
+  function instructionText(agent: Agent): string {
+    return agent.session.events
+      .map(event => event.type === 'user/message' && event.data.source.kind === 'agent-instructions'
+        ? blocksText(event.data.content)
+        : '')
+      .join('\n')
+  }
+
+  it('keeps an additional root instruction loaded when a later pre-step reconciles it', async () => {
+    const primary = await checkout('primary checkout rule')
+    const second = await checkout('second checkout rule')
+    const home = await tempRepo()
+    const ctx = new Context()
+    try {
+      await mountWorkspaceContext(ctx, { dshHome: home, maxBytes: 65536 })
+      const agent = stubAgent(primary)
+      setAdditionalWorkspaceRoots(agent.session, [second])
+
+      await composeBaselinePrefix(ctx, agent)
+      await composeBaselinePrefix(ctx, agent)
+
+      expect(instructionText(agent)).toContain('second checkout rule')
+      expect(instructionText(agent)).not.toContain('Instructions removed')
+      expect(baselineEvents(agent)).toHaveLength(1)
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(primary, { recursive: true, force: true })
+      await rm(second, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('discovers a nested instruction file after a touch reaches inside an additional root', async () => {
+    const primary = await checkout('primary checkout rule')
+    const second = await checkout('second checkout rule')
+    const home = await tempRepo()
+    const ctx = new Context()
+    try {
+      await write(join(second, 'pkg', 'AGENTS.md'), 'second package rule')
+      await write(join(second, 'pkg', 'file.txt'), 'hello')
+      await mountFileToolsAndWorkspaceContext(ctx, { dshHome: home, maxBytes: 65536 })
+      const agent = stubAgent(primary)
+      setAdditionalWorkspaceRoots(agent.session, [second])
+
+      const result = await ctx.tools.execute({
+        signal: testToolSignal,
+        callId: ToolCallId('read-inside-additional-root'),
+        name: 'read',
+        arguments: { file_path: join(second, 'pkg', 'file.txt') },
+        agent,
+      })
+
+      expect(result.isError).toBe(false)
+      const context = await syncedWorkspaceContext(ctx, agent)
+      expect(blocksText(context.content))
+        .toContain(`Additional instructions from: ${join(second, 'pkg', 'AGENTS.md')}`)
+      expect(blocksText(context.content)).toContain('second package rule')
+      expect(context.source.kind === 'agent-instructions' && context.source.changes.some(change =>
+        change.action === 'set'
+        && change.scope === sk(join(second, 'pkg'), 'AGENTS.md')
+        && change.path === join(second, 'pkg', 'AGENTS.md'))).toBe(true)
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(primary, { recursive: true, force: true })
+      await rm(second, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('replaces a changed additional root instruction instead of dropping it', async () => {
+    const primary = await checkout('primary checkout rule')
+    const second = await checkout('second checkout rule')
+    const home = await tempRepo()
+    const ctx = new Context()
+    try {
+      await write(join(primary, 'file.txt'), 'hello')
+      await mountFileToolsAndWorkspaceContext(ctx, { dshHome: home, maxBytes: 65536 })
+      const agent = stubAgent(primary)
+      setAdditionalWorkspaceRoots(agent.session, [second])
+
+      await composeBaselinePrefix(ctx, agent)
+      await write(join(second, 'AGENTS.md'), 'second checkout rule with more detail')
+      await ctx.tools.execute({
+        signal: testToolSignal,
+        callId: ToolCallId('read-after-additional-root-change'),
+        name: 'read',
+        arguments: { file_path: 'file.txt' },
+        agent,
+      })
+
+      const context = await syncedWorkspaceContext(ctx, agent)
+      expect(context.source).toMatchObject({
+        changes: [{ action: 'replace', scope: sk(second, 'AGENTS.md'), path: join(second, 'AGENTS.md') }],
+      })
+      expect(blocksText(context.content))
+        .toContain(`Updated instructions from: ${join(second, 'AGENTS.md')}`)
+      expect(blocksText(context.content)).toContain('second checkout rule with more detail')
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(primary, { recursive: true, force: true })
+      await rm(second, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('removes an additional root instruction only after the file itself disappears', async () => {
+    const primary = await checkout('primary checkout rule')
+    const second = await checkout('second checkout rule')
+    const home = await tempRepo()
+    const ctx = new Context()
+    try {
+      await mountWorkspaceContext(ctx, { dshHome: home, maxBytes: 65536 })
+      const agent = stubAgent(primary)
+      setAdditionalWorkspaceRoots(agent.session, [second])
+      await composeBaselinePrefix(ctx, agent)
+
+      await rm(join(second, 'AGENTS.md'))
+      await composeBaselinePrefix(ctx, agent)
+
+      expect(instructionText(agent)).toContain(`Instructions removed: ${join(second, 'AGENTS.md')}`)
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(primary, { recursive: true, force: true })
+      await rm(second, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('routes a touch to the deepest recorded root that contains it', async () => {
+    const primary = await checkout('primary checkout rule')
+    const outer = await checkout('outer checkout rule')
+    const unrelated = await checkout('unrelated checkout rule')
+    const home = await tempRepo()
+    const ctx = new Context()
+    try {
+      const inner = join(outer, 'mid', 'inner')
+      await mkdir(join(inner, '.git'), { recursive: true })
+      await write(join(outer, 'mid', 'AGENTS.md'), 'intermediate rule owned by no recorded root')
+      await write(join(inner, 'AGENTS.md'), 'inner checkout rule')
+      await write(join(inner, 'pkg', 'AGENTS.md'), 'inner package rule')
+      await write(join(inner, 'pkg', 'file.txt'), 'hello')
+      await mountFileToolsAndWorkspaceContext(ctx, { dshHome: home, maxBytes: 65536 })
+      const agent = stubAgent(primary)
+      // Recorded innermost first, so the enclosing root is compared against an
+      // already-chosen deeper one rather than winning by iteration order.
+      setAdditionalWorkspaceRoots(agent.session, [inner, outer, unrelated])
+
+      await ctx.tools.execute({
+        signal: testToolSignal,
+        callId: ToolCallId('read-inside-nested-root'),
+        name: 'read',
+        arguments: { file_path: join(inner, 'pkg', 'file.txt') },
+        agent,
+      })
+
+      const text = blocksText((await syncedWorkspaceContext(ctx, agent)).content)
+      expect(text).toContain(`Additional instructions from: ${join(inner, 'pkg', 'AGENTS.md')}`)
+      expect(text).toContain('inner package rule')
+      expect(text).not.toContain('intermediate rule owned by no recorded root')
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(primary, { recursive: true, force: true })
+      await rm(outer, { recursive: true, force: true })
+      await rm(unrelated, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('contributes nothing for a touch outside every recorded root', async () => {
+    const primary = await checkout('primary checkout rule')
+    const second = await checkout('second checkout rule')
+    const outside = await checkout('outside rule that must not load')
+    const home = await tempRepo()
+    const ctx = new Context()
+    try {
+      await write(join(outside, 'pkg', 'AGENTS.md'), 'outside package rule')
+      await write(join(outside, 'pkg', 'file.txt'), 'hello')
+      await mountFileToolsAndWorkspaceContext(ctx, { dshHome: home, maxBytes: 65536 })
+      const agent = stubAgent(primary)
+      setAdditionalWorkspaceRoots(agent.session, [second])
+
+      await ctx.tools.execute({
+        signal: testToolSignal,
+        callId: ToolCallId('read-outside-every-root'),
+        name: 'read',
+        arguments: { file_path: join(outside, 'pkg', 'file.txt') },
+        agent,
+      })
+
+      const text = blocksText((await syncedWorkspaceContext(ctx, agent)).content)
+      expect(text).toContain('primary checkout rule')
+      expect(text).not.toContain('outside package rule')
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(primary, { recursive: true, force: true })
+      await rm(second, { recursive: true, force: true })
+      await rm(outside, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('discovers a directory whose name only starts with dots, inside an additional root', async () => {
+    const primary = await checkout('primary checkout rule')
+    const second = await checkout('second checkout rule')
+    const home = await tempRepo()
+    const ctx = new Context()
+    try {
+      // `..foo` is an ordinary sibling name: a containment test that compares
+      // the leading characters of a relative path rejects it as an escape.
+      await write(join(second, '..foo', 'AGENTS.md'), 'dot prefixed package rule')
+      await write(join(second, '..foo', 'file.txt'), 'hello')
+      await mountFileToolsAndWorkspaceContext(ctx, { dshHome: home, maxBytes: 65536 })
+      const agent = stubAgent(primary)
+      setAdditionalWorkspaceRoots(agent.session, [second])
+
+      await ctx.tools.execute({
+        signal: testToolSignal,
+        callId: ToolCallId('read-dot-prefixed-directory'),
+        name: 'read',
+        arguments: { file_path: join(second, '..foo', 'file.txt') },
+        agent,
+      })
+
+      expect(blocksText((await syncedWorkspaceContext(ctx, agent)).content))
+        .toContain('dot prefixed package rule')
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(primary, { recursive: true, force: true })
+      await rm(second, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('discovers a directory whose name only starts with dots, inside the primary root', async () => {
+    const root = await checkout('primary checkout rule')
+    const home = await tempRepo()
+    const ctx = new Context()
+    try {
+      await write(join(root, '..foo', 'AGENTS.md'), 'dot prefixed package rule')
+      await write(join(root, '..foo', 'file.txt'), 'hello')
+      await mountFileToolsAndWorkspaceContext(ctx, { dshHome: home, maxBytes: 65536 })
+      const agent = stubAgent(root)
+
+      await ctx.tools.execute({
+        signal: testToolSignal,
+        callId: ToolCallId('read-dot-prefixed-primary-directory'),
+        name: 'read',
+        arguments: { file_path: join('..foo', 'file.txt') },
+        agent,
+      })
+
+      expect(blocksText((await syncedWorkspaceContext(ctx, agent)).content))
+        .toContain('dot prefixed package rule')
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(root, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('reconciles a root recorded under the session cwd own path exactly once', async () => {
+    const primary = await checkout('primary checkout rule')
+    const home = await tempRepo()
+    const ctx = new Context()
+    try {
+      await mountWorkspaceContext(ctx, { dshHome: home, maxBytes: 65536 })
+      const agent = stubAgent(primary)
+      // A durable log may spell the primary root with a trailing separator; the
+      // spelling filter above this plugin keeps it, so reconciliation must not
+      // key that root's files a second time under absolute scopes.
+      agent.session.append('workspace/roots', { roots: [`${primary}${sep}`] })
+
+      await composeBaselinePrefix(ctx, agent)
+      await composeBaselinePrefix(ctx, agent)
+
+      const text = instructionText(agent)
+      expect(text).toContain('Instructions from: AGENTS.md')
+      expect(text).not.toContain(`Instructions from: ${join(primary, 'AGENTS.md')}`)
+      expect(text).not.toContain('Additional instructions from')
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(primary, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps a chain directory the primary chain already covers at its project-relative scope', async () => {
+    const primary = await checkout('primary checkout rule')
+    const home = await tempRepo()
+    const ctx = new Context()
+    try {
+      const cwd = join(primary, 'pkg')
+      await write(join(cwd, 'AGENTS.md'), 'package rule')
+      await mountWorkspaceContext(ctx, { dshHome: home, maxBytes: 65536 })
+      const agent = stubAgent(cwd)
+      setAdditionalWorkspaceRoots(agent.session, [primary])
+
+      await composeBaselinePrefix(ctx, agent)
+      await composeBaselinePrefix(ctx, agent)
+
+      const text = instructionText(agent)
+      expect(text).toContain('Instructions from: AGENTS.md')
+      expect(text).not.toContain(`Instructions from: ${join(primary, 'AGENTS.md')}`)
+      expect(text).not.toContain('Additional instructions from')
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(primary, { recursive: true, force: true })
       await rm(home, { recursive: true, force: true })
     }
   })

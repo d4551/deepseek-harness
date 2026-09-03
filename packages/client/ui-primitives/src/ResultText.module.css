@@ -1,0 +1,21 @@
+/* A call's flattened result as a code panel (figma Code-block
+   I54:42735;43:41429): r12, pad 16, mono 13/22. Wrapping is on, and long
+   unbroken runs (a path, a base64 blob) break inside the word rather than
+   widening the panel past its column. */
+
+.text {
+  margin: 0;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--dsw-alias-markdown-code-block);
+  font-family: var(--ds-font-family-code);
+  font-size: 13px;
+  line-height: 22px;
+  color: var(--dsw-alias-label-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.text[data-error] {
+  color: var(--dsw-alias-state-error-primary);
+}

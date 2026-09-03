@@ -69,7 +69,7 @@ session.deriveMessages()         // the derived model history
 
 ### 设计理念
 
-该包建立在事件溯源之上：`Session` 是类型化 `SessionEvent` 的仅追加日志，其他一切——模型历史、transcript、遥测、标题、持久化——都从这条流派生。surface 是派生投影：一个增量管理器校验追加候选、根据已提交事件推进有序视图，并跟踪每次已提交重写都会递增的 `replaceGeneration`。模型可见即已记录：任何到达模型请求的内容都必须能从日志重建。共享的[行编解码器](src/chunk-rows.ts)在事件序列与紧凑行之间无损转换，逐字保留无法识别的事件，并拒绝形态错误的行。持久化后端决定是否打包写入；有界历史传输可以使用同一种行，同时保留完整逻辑区间，并为需要 token 边界的消费方提供精确解码。
+该包建立在事件溯源之上：`Session` 是类型化 `SessionEvent` 的仅追加日志，其他一切——模型历史、transcript、遥测、标题、持久化——都从这条流派生。surface 是派生投影：一个增量管理器校验追加候选、根据已提交事件推进有序视图，并跟踪每次已提交重写都会递增的 `replaceGeneration`。模型可见即已记录：任何到达模型请求的内容都必须能从日志重建。共享的[行编解码器](src/chunk-run-codec.ts)在事件序列与紧凑行之间无损转换，逐字保留无法识别的事件，并拒绝形态错误的行；每一种会打包 chunk 连续段的持久化格式都写入这同一种编码，只额外加上自己的行上限。持久化后端决定是否打包写入；有界历史传输可以使用同一种行，同时保留完整逻辑区间，并为需要 token 边界的消费方提供精确解码。
 
 ### 请求 header
 
@@ -84,9 +84,11 @@ session.deriveMessages()         // the derived model history
 | [`src/surface.ts`](src/surface.ts) | 有序 surface 投影、替换校验、`deriveEventMessage` |
 | [`src/request-header.ts`](src/request-header.ts) | `request/header` 折叠与重建 |
 | [`src/json.ts`](src/json.ts) | 无损 JSON 校验与快照 |
-| [`src/chunk-rows.ts`](src/chunk-rows.ts) | 供持久化后端使用的共享紧凑行存储编解码器 |
+| [`src/chunk-run-codec.ts`](src/chunk-run-codec.ts) | 打包 chunk 连续段的编码：行词汇表、打包白名单与无损变换 |
+| [`src/chunk-rows.ts`](src/chunk-rows.ts) | JSONL 日志对该编码的使用：其成段阈值与不设上限的行 |
 | [`src/repair.ts`](src/repair.ts) | 崩溃遗留日志的冷修复 |
 | [`src/invariant.ts`](src/invariant.ts) | 不变式配套：序号、轮次／步骤闭合、工具调用／结果配对 |
+| [`src/invariant-staging.ts`](src/invariant-staging.ts) | 各包不变式配套共用的预提交暂存与开放轮次游标 |
 
 ### 追加校验
 

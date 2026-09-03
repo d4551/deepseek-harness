@@ -7,12 +7,14 @@ import type {
   SubprocessCollectedOutputs,
   SubprocessHandle,
   SubprocessOutcome,
+  SubprocessOutputMode,
+  SubprocessOutputReader,
   SubprocessSpawnSpec,
   SubprocessTerminalHandle,
   SubprocessTerminalSpawnSpec,
 } from '@deepseek-ai/dsh-subprocess'
 import { resolveConfig } from '../src/config.ts'
-import type { Config, LitertModelConfig, ResolvedLitertServerConfig } from '../src/config.ts'
+import type { Config, LitertImport, LitertModelConfig, ResolvedLitertServerConfig } from '../src/config.ts'
 import { LitertServer } from '../src/server.ts'
 import type { LitertHealthProbe, LitertServerSpec } from '../src/server.ts'
 import * as litert from '../src/index.ts'
@@ -29,6 +31,25 @@ interface ScriptedRun {
   lingers?: boolean
 }
 
+/**
+ * Retain one scripted stream the way the subprocess seam does: a collect mode
+ * keeps the TAIL of `maxBytes`, so an undersized cap loses the head of the
+ * output rather than its end.
+ * @param value - the whole scripted stream.
+ * @param mode - the disposition the spawn spec asked for.
+ * @returns a reader over what that disposition retains.
+ */
+function tailReader(value: string | undefined, mode: SubprocessOutputMode): SubprocessOutputReader {
+  const whole = Buffer.from(value ?? '', 'utf8')
+  const kept = typeof mode === 'object'
+    ? whole.subarray(Math.max(0, whole.byteLength - mode.maxBytes))
+    : whole
+  const text = kept.toString('utf8')
+  return {
+    readFrom: () => ({ text, nextOffset: whole.byteLength, lossy: kept.byteLength < whole.byteLength }),
+  }
+}
+
 /** One spawned fake child, recording the termination the caller drove. */
 class FakeHandle implements SubprocessHandle {
   readonly stdin = undefined
@@ -40,10 +61,10 @@ class FakeHandle implements SubprocessHandle {
   private settle: (outcome: SubprocessOutcome) => void = () => {}
 
   constructor(readonly pid: number, spec: SubprocessSpawnSpec, run: ScriptedRun) {
-    const text = (value: string | undefined): { readFrom: () => { text: string; nextOffset: number; lossy: boolean } } => ({
-      readFrom: () => ({ text: value ?? '', nextOffset: (value ?? '').length, lossy: false }),
-    })
-    this.collected = { stdout: text(run.stdout), stderr: text(run.stderr) }
+    this.collected = {
+      stdout: tailReader(run.stdout, spec.stdio.stdout),
+      stderr: tailReader(run.stderr, spec.stdio.stderr),
+    }
     if (run.lingers !== true) {
       this.done = Promise.resolve({ exitCode: run.exitCode ?? 0, signal: null })
       return
@@ -120,28 +141,53 @@ const serverDefaults: ResolvedLitertServerConfig = {
   healthIntervalMs: 5,
   shutdownGraceMs: 1_000,
   importTimeoutMs: 1_000,
+  maxStdoutBytes: 4_096,
   maxStderrBytes: 4_096,
 }
+
+/** Repository the default fixture model is pulled from. */
+const HUGGING_FACE_REPO = 'litert-community/gemma-4-E2B-it-litert-lm'
 
 const model: LitertModelConfig = {
   id: 'gemma4-e2b',
   file: 'gemma-4-E2B-it.litertlm',
-  huggingFaceRepo: 'litert-community/gemma-4-E2B-it-litert-lm',
+  huggingFaceRepo: HUGGING_FACE_REPO,
   contextWindow: 32_768,
   maxTokens: 4_096,
 }
+
+/** The import instruction resolution produces for {@link model}. */
+const modelImport: LitertImport = {
+  id: 'gemma4-e2b',
+  file: 'gemma-4-E2B-it.litertlm',
+  huggingFaceRepo: HUGGING_FACE_REPO,
+}
+
+/** What `litert-lm list` prints for a registry holding exactly {@link model}. */
+const REGISTRY_LISTING = [
+  'Listing models in: /data/.litert-lm',
+  'ID          SIZE     MODIFIED',
+  'gemma4-e2b  1.2 GB   2026-09-01',
+  '',
+].join('\n')
 
 function serverSpec(overrides: Partial<ResolvedLitertServerConfig> = {}): LitertServerSpec {
   return {
     server: { ...serverDefaults, ...overrides },
     baseURL: 'http://127.0.0.1:9379/v1',
-    models: [model],
+    imports: [modelImport],
   }
 }
 
-/** The same model without an import instruction, as a remote route must declare it. */
-function importedElsewhere(): LitertModelConfig {
+/** The same model without a repository, as a route importing a file already on disk declares it. */
+function alreadyOnDisk(): LitertModelConfig {
   const { huggingFaceRepo: _repo, ...rest } = model
+  return rest
+}
+
+/** The same model with no import instruction at all, as a remote route must declare it. */
+function servedElsewhere(): LitertModelConfig {
+  const { huggingFaceRepo: _repo, file: _file, ...rest } = model
   return rest
 }
 
@@ -176,6 +222,11 @@ describe('LitertServer lifecycle', () => {
       '9379',
     ])
     expect(urls).toEqual(['http://127.0.0.1:9379/v1/models', 'http://127.0.0.1:9379/v1/models'])
+    // The parsed stream and the diagnostic stream carry their own byte bounds.
+    expect(litertLm.spawns[0]?.stdio).toMatchObject({
+      stdout: { maxBytes: 4_096 },
+      stderr: { maxBytes: 4_096 },
+    })
     const serve = litertLm.handles[2]
     expect(serve?.terminateCount).toBe(0)
     await server.dispose()
@@ -186,10 +237,7 @@ describe('LitertServer lifecycle', () => {
   })
 
   it('does not re-import a model the registry already holds', async () => {
-    const litertLm = new FakeLitert({
-      list: { stdout: 'ID          SIZE   MODIFIED\ngemma4-e2b  1.2 GB 2026-09-01\n' },
-      serve: { lingers: true },
-    })
+    const litertLm = new FakeLitert({ list: { stdout: REGISTRY_LISTING }, serve: { lingers: true } })
     const { probe } = scriptedProbe([true])
     const server = new LitertServer(serverSpec(), { resolveExecutable, spawn: litertLm.spawn, probe })
     await server.start(new AbortController().signal)
@@ -197,12 +245,42 @@ describe('LitertServer lifecycle', () => {
     await server.dispose()
   })
 
+  it('still reads the whole registry listing under a stderr bound far too small to hold it', async () => {
+    const litertLm = new FakeLitert({ list: { stdout: REGISTRY_LISTING }, serve: { lingers: true } })
+    const { probe } = scriptedProbe([true])
+    const server = new LitertServer(
+      serverSpec({ maxStderrBytes: 8 }),
+      { resolveExecutable, spawn: litertLm.spawn, probe },
+    )
+    await server.start(new AbortController().signal)
+    // The listing survives the small diagnostic bound, so nothing is re-imported.
+    expect(litertLm.subcommands()).toEqual(['list', 'serve'])
+    expect(litertLm.spawns[0]?.stdio).toMatchObject({
+      stdout: { maxBytes: 4_096 },
+      stderr: { maxBytes: 8 },
+    })
+    await server.dispose()
+  })
+
+  it('re-imports a model whose id slid out of an undersized stdout tail', async () => {
+    const litertLm = new FakeLitert({ list: { stdout: REGISTRY_LISTING }, import: {}, serve: { lingers: true } })
+    const { probe } = scriptedProbe([true])
+    const server = new LitertServer(
+      serverSpec({ maxStdoutBytes: 12 }),
+      { resolveExecutable, spawn: litertLm.spawn, probe },
+    )
+    await server.start(new AbortController().signal)
+    // The bound that governs the parse is the one that can lose an id, which
+    // is why it is not the diagnostic knob.
+    expect(litertLm.subcommands()).toEqual(['list', 'import', 'serve'])
+    await server.dispose()
+  })
+
   it('imports a purely local .litertlm file without a repository flag', async () => {
     const litertLm = new FakeLitert({ list: {}, import: {}, serve: { lingers: true } })
     const { probe } = scriptedProbe([true])
-    const local = importedElsewhere()
     const server = new LitertServer(
-      { ...serverSpec(), models: [local] },
+      { ...serverSpec(), imports: [{ id: modelImport.id, file: modelImport.file }] },
       { resolveExecutable, spawn: litertLm.spawn, probe },
     )
     await server.start(new AbortController().signal)
@@ -318,7 +396,7 @@ describe('resolveConfig', () => {
   })
 
   it('keeps an explicit baseURL and marks the route remote', () => {
-    const remoteModel = importedElsewhere()
+    const remoteModel = servedElsewhere()
     const resolved = resolveConfig({
       provider: 'litert',
       displayName: 'LiteRT on Railway',
@@ -356,13 +434,41 @@ describe('resolveConfig', () => {
       .toThrow(/has an empty huggingFaceRepo/)
   })
 
-  it('refuses an import instruction on a route that supervises nothing', () => {
-    expect(() => resolveConfig({ ...base, baseURL: 'http://localhost:9379/v1' }))
+  it('refuses either import instruction on a route that supervises nothing', () => {
+    const remote = (models: LitertModelConfig[]): Config =>
+      ({ provider: 'litert', models, baseURL: 'http://localhost:9379/v1' })
+    expect(() => resolveConfig(remote([model])))
+      .toThrow(/names file, but this route points at an already-running server/)
+    expect(() => resolveConfig(remote([alreadyOnDisk()])))
+      .toThrow(/names file, but this route points at an already-running server/)
+    expect(() => resolveConfig(remote([{ ...servedElsewhere(), huggingFaceRepo: HUGGING_FACE_REPO }])))
       .toThrow(/names huggingFaceRepo, but this route points at an already-running server/)
   })
 
+  it('requires the imported file on a route that supervises its own server', () => {
+    expect(() => resolveConfig({ ...base, models: [servedElsewhere()], server: { ...serverDefaults } }))
+      .toThrow(/must name the .litertlm file litert-lm import reads/)
+  })
+
+  it('carries one import instruction per supervised model, repository included when given', () => {
+    const resolved = resolveConfig({
+      ...base,
+      models: [model, { ...alreadyOnDisk(), id: 'local-only' }],
+      server: { ...serverDefaults },
+    })
+    expect(resolved.endpoint).toStrictEqual({
+      kind: 'local',
+      baseURL: 'http://127.0.0.1:9379/v1',
+      server: { ...serverDefaults },
+      imports: [
+        { id: 'gemma4-e2b', file: modelImport.file, huggingFaceRepo: HUGGING_FACE_REPO },
+        { id: 'local-only', file: modelImport.file },
+      ],
+    })
+  })
+
   it('rejects a baseURL the route could not send a request to', () => {
-    const remote = (baseURL: string): Config => ({ provider: 'litert', models: [importedElsewhere()], baseURL })
+    const remote = (baseURL: string): Config => ({ provider: 'litert', models: [servedElsewhere()], baseURL })
     expect(() => resolveConfig(remote(''))).toThrow(/baseURL must not be empty/)
     expect(() => resolveConfig(remote('/v1'))).toThrow(/is not an absolute URL/)
     expect(() => resolveConfig(remote('ftp://litert.example/v1'))).toThrow(/must use http or https/)
@@ -382,6 +488,7 @@ describe('resolveConfig', () => {
     expect(() => resolveConfig(local({ shutdownGraceMs: -1 }))).toThrow(/server\.shutdownGraceMs must be a positive integer/)
     expect(() => resolveConfig(local({ importTimeoutMs: 1.5 }))).toThrow(/server\.importTimeoutMs must be a positive integer/)
     expect(() => resolveConfig(local({ maxStderrBytes: 0 }))).toThrow(/server\.maxStderrBytes must be a positive integer/)
+    expect(() => resolveConfig(local({ maxStdoutBytes: 0 }))).toThrow(/server\.maxStdoutBytes must be a positive integer/)
     expect(() => resolveConfig(local({ startupTimeoutMs: 100, healthIntervalMs: 500 })))
       .toThrow(/healthIntervalMs \(500\) must not exceed server\.startupTimeoutMs \(100\)/)
   })
@@ -438,7 +545,7 @@ describe('llm-litert plugin', () => {
     const fiber = await mount(ctx, {
       provider: 'litert',
       displayName: 'LiteRT on Railway',
-      models: [{ id: 'gemma4-e2b', file: 'gemma-4-E2B-it.litertlm', contextWindow: 32_768, maxTokens: 4_096 }],
+      models: [{ id: 'gemma4-e2b', contextWindow: 32_768, maxTokens: 4_096 }],
       baseURL: 'https://litert.up.railway.app/v1',
     }, probe)
     expect(recorder.spawns).toHaveLength(0)
@@ -506,7 +613,7 @@ describe('llm-litert plugin', () => {
     const { probe } = scriptedProbe([true])
     await expect(mount(ctx, {
       provider: 'litert',
-      models: [{ id: 'gemma4-e2b', file: 'gemma-4-E2B-it.litertlm', contextWindow: 32_768, maxTokens: 4_096 }],
+      models: [{ id: 'gemma4-e2b', contextWindow: 32_768, maxTokens: 4_096 }],
       baseURL: 'http://127.0.0.1:9379/v1',
       server: { cwd: '/srv/litert' },
     }, probe)).rejects.toThrow(/the two postures of one route/)

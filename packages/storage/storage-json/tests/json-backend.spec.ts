@@ -202,9 +202,15 @@ describe('json backend specifics', () => {
     const ctx = new Context()
     await ctx.plugin(InvariantRegistry)
     const fiber = await ctx.plugin(InvariantCompanion)
-    // Disposal releases the reservation: a fresh mount succeeds.
+    // The mount holds the package-name reservation.
+    expect(() => ctx.invariants.register('@deepseek-ai/dsh-storage-json', () => {}))
+      .toThrow(/already registered/)
+
+    // Disposal releases it: the name registers again and yields its disposer.
     await fiber.dispose()
-    await ctx.plugin(InvariantCompanion)
+    const reregistered = ctx.invariants.register('@deepseek-ai/dsh-storage-json', () => {})
+    expect(reregistered).toBeTypeOf('function')
+    reregistered()
   })
 
   it('close drains in-flight writes and blocks in-flight opens', async () => {

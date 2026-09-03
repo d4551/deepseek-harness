@@ -879,4 +879,65 @@ describe('FileSystemSkillProvider', () => {
       }
     }
   })
+
+  it('scans the project skill roots of every recorded workspace root', async () => {
+    const home = await tempDir('skill-multi-root-home')
+    const first = await tempDir('skill-multi-root-first')
+    const second = await tempDir('skill-multi-root-second')
+    await mkdir(join(first, '.git'), { recursive: true })
+    await mkdir(join(second, '.git'), { recursive: true })
+    await writeSkill(join(first, '.agents/skills'), 'first-project', 'First project')
+    await writeSkill(join(second, '.agents/skills'), 'second-project', 'Second project')
+    await writeSkill(join(first, '.agents/skills'), 'shared-name', 'Primary root wins')
+    await writeSkill(join(second, '.agents/skills'), 'shared-name', 'Second root loses')
+    const ctx = new Context()
+    await ctx.plugin(SkillRegistry)
+    await ctx.plugin(SkillFileSystem, {
+      dshHome: join(home, '.dsh'),
+      agentsHome: join(home, '.agents'),
+      watch: false,
+    })
+
+    const listed = await ctx.skills.list({ cwd: join(first, 'pkg'), additionalRoots: [second] })
+
+    expect(listed.map(skill => skill.name)).toEqual(['first-project', 'second-project', 'shared-name'])
+    expect(listed.find(skill => skill.name === 'shared-name')?.description).toBe('Primary root wins')
+  })
+
+  it('scans one project root once when several recorded roots resolve to it', async () => {
+    const home = await tempDir('skill-repeated-root-home')
+    const project = await tempDir('skill-repeated-root-project')
+    await mkdir(join(project, '.git'), { recursive: true })
+    await writeSkill(join(project, '.agents/skills'), 'repeated-project', 'Repeated project')
+    const ctx = new Context()
+    await ctx.plugin(SkillRegistry)
+    await ctx.plugin(SkillFileSystem, {
+      dshHome: join(home, '.dsh'),
+      agentsHome: join(home, '.agents'),
+      watch: false,
+    })
+
+    // Both roots sit in one checkout, so they share a project root; a second
+    // scan of it would list the same skill twice under the same rank.
+    const listed = await ctx.skills.list({ cwd: join(project, 'pkg'), additionalRoots: [join(project, 'docs')] })
+
+    expect(listed.map(skill => skill.name)).toEqual(['repeated-project'])
+  })
+
+  it('scans a recorded root when the lookup names no primary workspace', async () => {
+    const home = await tempDir('skill-rootless-home')
+    const second = await tempDir('skill-rootless-second')
+    await mkdir(join(second, '.git'), { recursive: true })
+    await writeSkill(join(second, '.agents/skills'), 'rootless-project', 'Recorded root only')
+    const ctx = new Context()
+    await ctx.plugin(SkillRegistry)
+    await ctx.plugin(SkillFileSystem, {
+      dshHome: join(home, '.dsh'),
+      agentsHome: join(home, '.agents'),
+      watch: false,
+    })
+
+    expect((await ctx.skills.list({ additionalRoots: [second] })).map(skill => skill.name))
+      .toEqual(['rootless-project'])
+  })
 })

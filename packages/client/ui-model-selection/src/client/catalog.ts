@@ -1,6 +1,7 @@
 /** One Host-generation model catalog shared by every Session selector. */
 
-import type { ClientRemote, ModelCatalog } from '@deepseek-ai/dsh-api-remotes/client'
+import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client'
+import type { ModelCatalog } from '@deepseek-ai/dsh-api-session-controller/types'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 
 /** Observable lifecycle of the shared model catalog. */

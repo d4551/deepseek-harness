@@ -4,9 +4,8 @@
  */
 
 import { vi } from 'vitest'
-import type {
-  ClientRemote, ModelCatalog, ModelCatalogFailure, ModelProviderGroup, ModelSelection,
-} from '@deepseek-ai/dsh-api-remotes/client'
+import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client'
+import type { ModelCatalog, ModelCatalogFailure, ModelProviderGroup, ModelSelection } from '@deepseek-ai/dsh-api-session-controller/types'
 
 /** What a card controller reads from the Host session face. */
 type CatalogApi = Pick<ClientRemote['session'], 'modelCatalog'>

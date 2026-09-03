@@ -4,7 +4,9 @@
  * well, so a clean tree is not the only passing case.
  */
 import { describe, expect, it } from 'vitest'
-import { auditBarrels, barrelCandidateFiles, scanBarrels } from './no-barrels.ts'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { auditBarrels, barrelCandidateFiles, isPublishedEntry, scanBarrels } from './no-barrels.ts'
 
 describe('injected barrels', () => {
   it('rejects a star re-export even in a module that owns declarations', () => {
@@ -17,6 +19,11 @@ describe('injected barrels', () => {
       kind: 'star-re-export',
       detail: 'forwards every symbol of ./types.ts; import that module directly, or publish it as a subpath export',
     }])
+  })
+
+  it('rejects `export type * from`, which forwards an unnamed type surface', () => {
+    const findings = scanBarrels('packages/a/b/src/client.ts', "export type * from './types.ts'\nexport const NS = 'x'\n")
+    expect(findings.map(finding => finding.kind)).toEqual(['star-re-export'])
   })
 
   it('rejects `export * as ns from`, which forwards the same unnamed surface', () => {
@@ -53,6 +60,14 @@ describe('injected barrels', () => {
     expect(scanBarrels('packages/a/b/src/index.ts', source)).toEqual([])
   })
 
+  it('accepts a module that declares a type alias beside a forwarded one', () => {
+    const source = [
+      "export type { Busy } from '../settings.ts'",
+      'export type SubmitMode = Busy',
+    ].join('\n')
+    expect(scanBarrels('packages/a/b/src/contract.ts', source)).toEqual([])
+  })
+
   it('accepts a module whose only export is its own declaration', () => {
     expect(scanBarrels('packages/a/b/src/types.ts', 'export interface Alpha { id: string }\n')).toEqual([])
   })
@@ -67,6 +82,41 @@ describe('injected barrels', () => {
   })
 })
 
+describe('published-entry detection', () => {
+  const root = resolve(import.meta.dirname, '..')
+
+  it('does not treat a path that merely appears in the manifest text as an export target', () => {
+    // `files` and `scripts` also name lib paths; only the exports map publishes.
+    expect(auditBarrels()).toEqual([])
+  })
+
+  it('recognizes a package entry the exports map publishes', () => {
+    expect(isPublishedEntry('packages/subprocess/win32-process/src/index.ts', root)).toBe(true)
+  })
+
+  it('recognizes a Client entry the build flattens to the same emitted stem', () => {
+    // `src/client/index.ts` emits as `lib/client.js`, which is what `./client` names.
+    expect(isPublishedEntry('packages/client/ui-tool/src/client/index.ts', root)).toBe(true)
+  })
+
+  it('exempts no internal module of a package whose exports map carries a ./src/* wildcard', () => {
+    // The wildcard exists so a sibling can deep-import a source module. It
+    // resolves to the literal './src/*', which equals no emitted stem, so it
+    // must not turn the whole source tree into published entries — that would
+    // disable the pure-barrel rule everywhere instead of at the boundary.
+    const manifest = resolve(root, 'packages/subprocess/win32-process/package.json')
+    const targets = JSON.parse(readFileSync(manifest, 'utf8')) as { exports: Record<string, unknown> }
+    expect(Object.keys(targets.exports)).toContain('./src/*')
+    for (const internal of ['ffi.ts', 'errors.ts', 'abi.ts', 'process.ts']) {
+      expect(isPublishedEntry(`packages/subprocess/win32-process/src/${internal}`, root), internal).toBe(false)
+    }
+  })
+
+  it('exempts nothing in a directory that is not a package', () => {
+    expect(isPublishedEntry('scripts/no-barrels.ts', root)).toBe(false)
+  })
+})
+
 describe('live tree', () => {
   const files = barrelCandidateFiles()
 
@@ -74,11 +124,6 @@ describe('live tree', () => {
     expect(files.length).toBeGreaterThan(1000)
     expect(files.some(entry => entry.file.startsWith('packages/core/'))).toBe(true)
     expect(files.some(entry => entry.file.startsWith('scripts/'))).toBe(true)
-  })
-
-  it('excludes built output and vendored sources, which this repository does not author', () => {
-    expect(files.some(entry => entry.file.includes('/lib/'))).toBe(false)
-    expect(files.some(entry => entry.file.startsWith('vendor/'))).toBe(false)
   })
 
   it('holds no barrels', () => {

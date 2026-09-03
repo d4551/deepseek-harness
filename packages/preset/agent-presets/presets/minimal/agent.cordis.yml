@@ -34,9 +34,10 @@
         timeoutMs: 300000
 
     - id: persistent-bash
-      name: '@deepseek-ai/dsh-tool-bash-persistent'
+      name: '@deepseek-ai/dsh-tool-shell-persistent'
       disabled: !!js process.platform === 'win32'
       config:
+        dialect: bash
         timeoutMs: 300000
         description: |-
           Run commands in a bash shell
@@ -56,9 +57,10 @@
         timeoutMs: 300000
 
     - id: persistent-pwsh
-      name: '@deepseek-ai/dsh-tool-pwsh-persistent'
+      name: '@deepseek-ai/dsh-tool-shell-persistent'
       disabled: !!js process.platform !== 'win32'
       config:
+        dialect: pwsh
         timeoutMs: 300000
         description: |-
           Run commands in a PowerShell shell

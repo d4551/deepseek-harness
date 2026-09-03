@@ -57,7 +57,7 @@ beforeEach(async () => {
   await ctx.plugin(agentSpine, {
     workspaceContext: false,
     skills: { enabled: false },
-    toolBash: { enableRunInBackground: false },
+    toolShell: { dialect: 'bash' as const, enableRunInBackground: false },
     toolJobs: false,
   })
   await new Promise(resolve => setTimeout(resolve, 50))

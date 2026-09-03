@@ -1,0 +1,74 @@
+/* Icon-only control on a transparent fill: the whole box is the hit target and
+   the glyph is the only resting chrome. Each variant is one surface's geometry
+   and ink; the surfaces below have not been reconciled to a single box, so a
+   caller names the one it sits on rather than inheriting a wrong size. Hover,
+   focus, disabled, and selected treatments stay with the owner, which composes
+   them onto the class it passes. */
+
+.root {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* Sidebar shell controls (ui-sidebar SidebarRoot, ui-workspace
+   WorkspaceBrowser): a 28px circle that never shrinks in its flex row, with
+   the UA button padding cleared so the glyph centres on the circle. */
+.sidebar {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  padding: 0;
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* Panel and composer controls (ui-chat DetailsPanel close, ui-conversation
+   ContextMeter trigger): a 28px content box centred as a grid, keeping the UA
+   button padding around it. */
+.header {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* Dock bar actions (ui-goal GoalBar, ui-cordis CordisPanel): a 28px circle in
+   the quiet tertiary ink, since the label lives in a tooltip. */
+.bar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 999px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* Message action rows (ui-chat MessageIconActions, ui-message-feedback): the
+   box rides the Settings font-size axis so slot-injected buttons match their
+   built-in siblings at every size. */
+.message {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(28px + var(--dsh-content-font-delta, 0px));
+  height: calc(28px + var(--dsh-content-font-delta, 0px));
+  padding: 6px;
+  border-radius: 28px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* The 16px action glyphs follow the same px delta as the text they serve; the
+   CSS edge overrides each svg's own width/height attributes. */
+.message svg {
+  width: calc(16px + var(--dsh-content-font-delta, 0px));
+  height: calc(16px + var(--dsh-content-font-delta, 0px));
+}

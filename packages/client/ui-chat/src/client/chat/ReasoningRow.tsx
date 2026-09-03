@@ -1,6 +1,6 @@
 /** Assistant reasoning disclosure, independent of Tool-call presentation. */
 import { useEffect, useRef, useState } from 'react'
-import { DisclosureRow, IconThinkOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { DisclosureRow, IconThinkOutline14, RowSeparator } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ChatViewSlotProps } from '../contract/slots.ts'
 import { useThrottledVisualUpdate } from './use-throttled-visual-update.ts'
 import css from './ReasoningRow.module.css'
@@ -52,7 +52,7 @@ export function ReasoningRow({ text, running, t }: { text: string; running: bool
         onToggle={() => { setExpanded(value => !value) }}
         collapsedContent={(
           <>
-            <span className={css.separator} aria-hidden />
+            <RowSeparator />
             <span ref={summaryRef} className={css.summary} data-follow-end={running || undefined}>{summary}</span>
           </>
         )}

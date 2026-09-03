@@ -40,7 +40,7 @@ export const APP_EXAMPLES: AppExample[] = [
     title: 'DSH Base Composition',
     label: 'packages/bundle/base/cordis.patch.yml',
     config: 'packages/bundle/base/cordis.patch.yml',
-    summary: 'The dsh-base bundle patch shared by the web, headless, sdk, and acp profiles; their mode bundles and user layers patch over it, while sdk-minimal owns a separate standalone tree.',
+    summary: 'The dsh-base bundle patch shared by every shipped profile but sdk-minimal — web, headless, swarm, hosted, sdk, and acp; their mode bundles and user layers patch over it, while sdk-minimal owns a separate standalone tree.',
   },
 ]
 

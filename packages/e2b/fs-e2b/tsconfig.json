@@ -4,22 +4,27 @@
     "rootDir": "src",
     "outDir": "lib/types"
   },
-  "include": ["src"],
+  "include": [
+    "src"
+  ],
   "references": [
-    {
-      "path": "../../../vendor/cosmokit"
-    },
     {
       "path": "../../../vendor/cordis"
     },
     {
-      "path": "../e2b"
+      "path": "../../../vendor/cosmokit"
     },
     {
       "path": "../../fs/fs"
     },
     {
       "path": "../../runtime-diagnostics/invariants"
+    },
+    {
+      "path": "../../util/keyed-lock"
+    },
+    {
+      "path": "../e2b"
     }
   ]
 }

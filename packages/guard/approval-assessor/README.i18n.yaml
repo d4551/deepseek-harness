@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write packages/guard/approval-assessor/README.md
-README.md: 65003711942f0540433d452f9d29d4b90cc13fce
-README.zh.md: 4afd77aa12e2abbd89246a706b28c8232c08dd93
+README.md: b36b172783600d4cd09ca8745d4464d087da11d3
+README.zh.md: 5f37a8fb804ac35993227b83d57e8d1240cfef23

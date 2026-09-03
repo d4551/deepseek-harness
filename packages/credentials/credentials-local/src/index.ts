@@ -37,12 +37,13 @@
 
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { watch as chokidarWatch } from 'chokidar'
 import { mkdir, readFile, stat } from 'node:fs/promises'
-import { dirname, join, resolve } from 'node:path'
+import { dirname } from 'node:path'
+import { isDeepStrictEqual } from 'node:util'
 import { Document, isMap, isScalar, parseDocument, type YAMLError } from 'yaml'
 import { withFileLock, writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
-import { canonicalizeWatchPath, resolveDshHome } from '@deepseek-ai/dsh-home-paths'
+import { DocumentQueue, DocumentQueueConfigFields, isENOENT, readDocumentText, resolveDocumentSpec, type DocumentSpec } from '@deepseek-ai/dsh-document-queue'
+import { canonicalizeWatchPath } from '@deepseek-ai/dsh-home-paths'
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
 import { CredentialProvider, credentialRef, parseCredentialKey } from '@deepseek-ai/dsh-credentials'
 import type {
@@ -72,25 +73,14 @@ export interface Config {
   debounceMs?: number
 }
 
-/** Fully resolved provider parameters; defaulting happens here, never inline. */
-interface ResolvedSpec {
-  filename: string
-  watch: boolean
-  debounceMs: number
-}
-
 /**
  * Resolve the runtime spec from plugin config: an explicit `path` wins,
  * otherwise the document lives at `<harness home>/.credentials.yaml`.
  * @param config - raw plugin config.
  * @returns the resolved file location and watch behavior.
  */
-export function resolveSpec(config: Config): ResolvedSpec {
-  return {
-    filename: resolve(config.path ?? join(resolveDshHome(config.dshHome), CREDENTIALS_FILENAME)),
-    watch: config.watch ?? true,
-    debounceMs: config.debounceMs ?? 100,
-  }
+export function resolveSpec(config: Config): DocumentSpec {
+  return resolveDocumentSpec(config, CREDENTIALS_FILENAME)
 }
 
 /** Permission bits outside the owner; a credentials document must have none of them. */
@@ -163,11 +153,6 @@ async function assertWindowsOwnerOnly(filename: string): Promise<void> {
   )
 }
 /* v8 ignore stop */
-
-/** Whether a filesystem error means absence; every non-ENOENT failure must surface. */
-function isENOENT(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException | null)?.code === 'ENOENT'
-}
 
 /**
  * Describe one YAML parse failure without quoting the source. The parser's own
@@ -508,39 +493,11 @@ function deleteSectionEntry(document: Document, section: 'refs' | 'records', key
   document.deleteIn([section, key])
 }
 
-/**
- * Structural equality over two admitted JSON values. Records reach this after
- * {@link assertJsonValue}, so the walk meets only JSON shapes; key order is
- * ignored because an external editor may reorder a record's fields without
- * changing what it stores.
- * @param left - one value.
- * @param right - the other value.
- * @returns whether the two carry the same JSON content.
- */
-function sameJsonValue(left: unknown, right: unknown): boolean {
-  if (left === right) return true
-  if (typeof left !== 'object' || typeof right !== 'object' || left === null || right === null) return false
-  if (Array.isArray(left) !== Array.isArray(right)) return false
-  const leftKeys = Object.keys(left)
-  const rightKeys = Object.keys(right)
-  if (leftKeys.length !== rightKeys.length) return false
-  return leftKeys.every(key => key in right
-    && sameJsonValue((left as Record<string, unknown>)[key], (right as Record<string, unknown>)[key]))
-}
-
 /** File-backed credentials provider (`$DSH_HOME/.credentials.yaml`). */
 export class LocalCredentialProvider extends CredentialProvider {
-  /* jscpd:ignore-start -- deliberate config-surface and lifecycle symmetry with
-     settings-file (prefer symmetry for parallel values); extracting the shared
-     shape would couple the two providers' teardown semantics across packages. */
-  static Config: z<Config> = z.object({
-    path: z.string(),
-    dshHome: z.string(),
-    watch: z.boolean().default(true),
-    debounceMs: z.number().min(0).default(100),
-  })
+  static Config: z<Config> = z.object(DocumentQueueConfigFields)
 
-  private readonly spec: ResolvedSpec
+  private readonly spec: DocumentSpec
   /**
    * Raw text of the last read or persisted document; `undefined` while the
    * file is absent. Watcher events whose content equals this cache are no-ops,
@@ -552,25 +509,24 @@ export class LocalCredentialProvider extends CredentialProvider {
   /** Parsed record snapshot; replaced wholesale on every reload. */
   private records = new Map<string, CredentialRecord>()
   /**
-   * Single exclusive operation chain: watcher reloads and line edits run one
-   * at a time in queue order (settled tail), so an edit can never render from
-   * text a concurrent reload is busy replacing.
+   * The document's exclusive operation chain: watcher reloads and line edits
+   * run one at a time in queue order, so an edit can never render from text a
+   * concurrent reload is busy replacing.
    */
-  private operations: Promise<void> = Promise.resolve()
-  /** Set at dispose: refuse new writes and let in-flight work no-op. */
-  private closed = false
-
-  /** Opaque read of {@link closed}: control flow cannot narrow it across awaits. */
-  private isClosed(): boolean {
-    return this.closed
-  }
-  /* jscpd:ignore-end */
+  private readonly queue: DocumentQueue
 
   constructor(ctx: Context, public config: Config) {
     super(ctx)
     // Programmatic construction may bypass Schemastery normalization; resolve
     // the same defaults in one explicit step either way.
     this.spec = resolveSpec(config)
+    this.queue = new DocumentQueue({
+      label: 'credentials-local',
+      filename: this.spec.filename,
+      debounceMs: this.spec.debounceMs,
+      logger: ctx.logger,
+      reconcile: () => this.reconcileFromDisk(),
+    })
   }
 
   /** The inherited-environment value for a reference, or `undefined` when empty or unset. */
@@ -590,47 +546,15 @@ export class LocalCredentialProvider extends CredentialProvider {
   }
 
   async* [Service.init](): AsyncGenerator<() => Promise<void> | void, void, void> {
-    yield async () => {
-      // Drain: refuse new operations, then settle the queued ones so disposal
-      // completes only once storage is quiescent.
-      this.closed = true
-      await this.operations
-    }
+    // Drain: refuse new operations, then settle the queued ones so disposal
+    // completes only once storage is quiescent.
+    yield () => this.queue.close()
     await this.loadInitial()
     if (!this.spec.watch) return
-    /* jscpd:ignore-start -- same watcher discipline as settings-file by design:
-       the serialized-refresh and quiesce-on-dispose shape is the reviewed
-       lifecycle contract, not accidental repetition. */
-    const watcher = chokidarWatch(await canonicalizeWatchPath(this.spec.filename), {
-      ignoreInitial: true,
-      awaitWriteFinish: {
-        stabilityThreshold: this.spec.debounceMs,
-        pollInterval: Math.max(1, Math.min(this.spec.debounceMs, 10)),
-      },
-    })
-    watcher.on('all', () => {
-      if (this.closed) return
-      this.queueRefresh()
-    })
-    watcher.on('ready', () => {
-      // The initial load raced the watcher's own setup: a change written
-      // between that read and the watcher becoming active never fires an
-      // event. One reconcile at ready closes the gap.
-      if (this.closed) return
-      this.queueRefresh()
-    })
-    watcher.on('error', (error) => {
-      this.ctx.logger.warn('credentials-local: watcher error on %s', this.spec.filename)
-      this.ctx.logger.warn(error)
-    })
-    yield async () => {
-      // Quiesce: stop accepting events, close the watcher, then wait out any
-      // queued or in-flight operation so nothing publishes after disposal.
-      this.closed = true
-      await watcher.close()
-      await this.operations
-    }
-    /* jscpd:ignore-end */
+    await this.queue.watch()
+    // Quiesce: stop accepting events, close the watcher, then wait out any
+    // queued or in-flight operation so nothing publishes after disposal.
+    yield () => this.queue.close()
   }
 
   override resolve(ref: CredentialRef): Promise<ResolvedCredential | undefined> {
@@ -694,9 +618,9 @@ export class LocalCredentialProvider extends CredentialProvider {
     key: CredentialKey,
     mutate: (current: CredentialRecord | undefined) => Promise<CredentialRecord | undefined>,
   ): Promise<CredentialRecord | undefined> {
-    if (this.isClosed()) throw new Error(`credentials-local is disposed: cannot modify "${key}"`)
-    return this.enqueue(async () => {
-      if (this.isClosed()) {
+    if (this.queue.isClosed()) throw new Error(`credentials-local is disposed: cannot modify "${key}"`)
+    return this.queue.enqueue(async () => {
+      if (this.queue.isClosed()) {
         throw new Error(`credentials-local was disposed before the queued "${key}" modify ran`)
       }
       await mkdir(dirname(this.spec.filename), { recursive: true, mode: 0o700 })
@@ -726,9 +650,9 @@ export class LocalCredentialProvider extends CredentialProvider {
   }
 
   override async deleteRecord(key: CredentialKey): Promise<void> {
-    if (this.isClosed()) throw new Error(`credentials-local is disposed: cannot delete "${key}"`)
-    await this.enqueue(async () => {
-      if (this.isClosed()) {
+    if (this.queue.isClosed()) throw new Error(`credentials-local is disposed: cannot delete "${key}"`)
+    await this.queue.enqueue(async () => {
+      if (this.queue.isClosed()) {
         throw new Error(`credentials-local was disposed before the queued "${key}" delete ran`)
       }
       await mkdir(dirname(this.spec.filename), { recursive: true, mode: 0o700 })
@@ -744,39 +668,15 @@ export class LocalCredentialProvider extends CredentialProvider {
     })
   }
 
-  /* jscpd:ignore-start -- the operation-chain and reload lifecycle is the same
-     reviewed contract as settings-file, deliberately mirrored (prefer symmetry
-     for parallel values); the two providers own different documents and
-     failure policies, so extracting a shared helper would couple their teardown
-     semantics across packages for a handful of lines. */
-  /** Queue one exclusive document operation behind every earlier one. */
-  private enqueue<T>(operation: () => Promise<T>): Promise<T> {
-    const task = this.operations.then(operation)
-    this.operations = task.then(() => undefined, () => undefined)
-    return task
-  }
-
-  /** Queue a reload; only an invariant violation escaping the fan-out can reject it. */
-  private queueRefresh(): void {
-    void this.enqueue(() => this.refresh()).catch((error: unknown) => {
-      // Only an invariant violation escaping the update fan-out can reject a
-      // refresh; keep the operation queue alive and surface it as an error so
-      // one poisoned commit cannot silently end hot reloading forever.
-      this.ctx.logger.error('credentials-local: reload commit failed at %s', this.spec.filename)
-      this.ctx.logger.error(error)
-    })
-  }
-  /* jscpd:ignore-end */
-
   /** Queue one line edit; entry checks reject early, the queue re-judges them at run time. */
   private async write(ref: CredentialRef, value: string | undefined): Promise<void> {
     const verb = value === undefined ? 'unset' : 'set'
-    if (this.isClosed()) {
+    if (this.queue.isClosed()) {
       throw new Error(`credentials-local is disposed: cannot ${verb} "${ref}"`)
     }
     this.assertUnshadowed(ref, verb)
-    return this.enqueue(async () => {
-      if (this.isClosed()) {
+    return this.queue.enqueue(async () => {
+      if (this.queue.isClosed()) {
         throw new Error(`credentials-local was disposed before the queued "${ref}" ${verb} ran`)
       }
       // Re-judged at run time: the environment may have changed while queued.
@@ -829,14 +729,11 @@ export class LocalCredentialProvider extends CredentialProvider {
    */
   private async loadInitial(): Promise<void> {
     await assertOwnerOnly(this.spec.filename)
-    let text: string
-    try {
-      text = await readFile(this.spec.filename, 'utf8')
-    } catch (error) {
-      if (!isENOENT(error)) throw error
-      return
-    }
-    if (renderFlatLayoutMigration(text) !== undefined) text = await this.migrateFlatDocument()
+    const initial = await readDocumentText(this.spec.filename)
+    if (initial === undefined) return
+    const text = renderFlatLayoutMigration(initial) === undefined
+      ? initial
+      : await this.migrateFlatDocument()
     const document = parseCredentialsDocument(text, this.spec.filename)
     this.values = document.refs
     this.records = document.records
@@ -874,46 +771,19 @@ export class LocalCredentialProvider extends CredentialProvider {
     }, { waitMs: DOCUMENT_LOCK_WAIT_MS })
   }
 
-  /* jscpd:ignore-start -- same deliberate mirror of settings-file's reload and
-     reconcile policy: warn-and-keep on a reload, throw on a write, invariant
-     failures propagate. */
-  /**
-   * Re-read the document after a watcher event. Unchanged content (including
-   * this provider's own writes) is a no-op; an unreadable document keeps the
-   * last good snapshot and warns — a live hot-reload must never take the
-   * process down. An invariant violation escaping the fan-out is not a reload
-   * failure and propagates to the queue's error surface.
-   */
-  private async refresh(): Promise<void> {
-    if (this.closed) return
-    try {
-      await this.reconcileFromDisk()
-    } catch (error) {
-      if ((error as { code?: unknown } | null)?.code === 'INVARIANT') throw error
-      this.ctx.logger.warn('credentials-local: reload failed at %s; keeping the last good document', this.spec.filename)
-      this.ctx.logger.warn(error)
-    }
-  }
-
   /**
    * Compare the on-disk text against the cache and publish any difference
    * into the seam. Absence publishes the empty store; an unreadable or
-   * invalid document throws, so each caller picks its policy — a reload warns
-   * and keeps the last good snapshot, a write fails loud rather than
+   * invalid document throws, so each caller picks its policy — a queued reload
+   * warns and keeps the last good snapshot, a write fails loud rather than
    * overwriting a document it could not understand.
    */
   private async reconcileFromDisk(): Promise<void> {
     // Re-checked on every reload and before every write: an external editor or
     // a restored backup can loosen the mode after boot.
     await assertOwnerOnly(this.spec.filename)
-    let text: string | undefined
-    try {
-      text = await readFile(this.spec.filename, 'utf8')
-    } catch (error) {
-      if (!isENOENT(error)) throw error
-      text = undefined
-    }
-    if (text === this.text || this.isClosed()) return
+    const text = await readDocumentText(this.spec.filename)
+    if (text === this.text || this.queue.isClosed()) return
     const next = text === undefined
       ? { refs: new Map<string, string>(), records: new Map<string, CredentialRecord>() }
       : parseCredentialsDocument(text, this.spec.filename)
@@ -925,7 +795,6 @@ export class LocalCredentialProvider extends CredentialProvider {
     for (const ref of changedRefs) this.notifyUpdated(ref)
     for (const key of changedRecords) this.notifyRecordUpdated(key)
   }
-  /* jscpd:ignore-end */
 
   /** Entries whose stored value changed; the parser has already proven every key addressable. */
   private changedRefs(prev: Map<string, string>, next: Map<string, string>): CredentialRef[] {
@@ -937,14 +806,19 @@ export class LocalCredentialProvider extends CredentialProvider {
     return changed
   }
 
-  /** Records whose stored value changed; the parser has already proven every key addressable. */
+  /**
+   * Records whose stored value changed; the parser has already proven every
+   * key addressable. Comparison is structural and key-order-insensitive, so an
+   * external editor that reorders a record's fields publishes no change; every
+   * record has passed {@link assertJsonValue}, so it holds only JSON shapes.
+   */
   private changedRecords(
     prev: Map<string, CredentialRecord>,
     next: Map<string, CredentialRecord>,
   ): CredentialKey[] {
     const changed: CredentialKey[] = []
     for (const key of new Set([...prev.keys(), ...next.keys()])) {
-      if (sameJsonValue(prev.get(key), next.get(key))) continue
+      if (isDeepStrictEqual(prev.get(key), next.get(key))) continue
       changed.push(parseCredentialKey(key))
     }
     return changed

@@ -7,4 +7,4 @@
  * @module @deepseek-ai/dsh-permission-presets/client
  */
 
-export type * from './types.ts'
+export type { PermissionSelect, PresetOption } from './types.ts'

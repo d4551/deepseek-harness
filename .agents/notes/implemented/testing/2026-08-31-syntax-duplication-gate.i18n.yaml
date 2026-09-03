@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/testing/2026-08-31-syntax-duplication-gate.md
-2026-08-31-syntax-duplication-gate.md: eb5acbdca25204b04eab8f8c075c018ee943d3e5
-2026-08-31-syntax-duplication-gate.zh.md: 820efd510d110535314e702619eb68a099867030
+2026-08-31-syntax-duplication-gate.md: 4c882de1e865e2fb5c535e77ade5cdd39f66f45f
+2026-08-31-syntax-duplication-gate.zh.md: 91bea0fa5ba1e3fe3c5dcb7ae9cf3aef9caa9f7f

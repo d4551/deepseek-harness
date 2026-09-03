@@ -12,7 +12,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { sessionStatsProjectionDefinition } from './projection.ts'
 
-export type * from './types.ts'
+export type { SessionStatsProjection } from './types.ts'
 
 /** Cordis plugin name. */
 export const name = 'session-stats'

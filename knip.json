@@ -25,7 +25,8 @@
         "scripts/**/*.cjs",
         "snapshots/**/*.mjs",
         "scripts/types/client-build-environment/index.d.ts",
-        "vitest.shared.ts"
+        "vitest.shared.ts",
+        "deploy/*/.railway/*.ts"
       ],
       "ignoreUnresolved": [
         "client-build-environment"
@@ -34,7 +35,8 @@
         "scripts/**/*.ts",
         "scripts/**/*.mjs",
         "scripts/**/*.cjs",
-        "snapshots/**/*.mjs"
+        "snapshots/**/*.mjs",
+        "deploy/*/.railway/*.ts"
       ],
       "ignoreDependencies": [
         "@deepseek-ai/.+"
@@ -715,7 +717,7 @@
         "@deepseek-ai/dsh-skill-filesystem"
       ]
     },
-    "packages/shell/tool-pwsh": {
+    "packages/shell/tool-shell": {
       "entry": [
         "tests/**/*.spec.ts",
         "tests/fixtures/loader/driver.ts"

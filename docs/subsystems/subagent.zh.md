@@ -493,6 +493,24 @@ spawn 和 fork 后端通过 `parent.ctx` 创建一个普通的单次 agent，将
 - **委派深度**由持久 `SessionHeader.delegationDepth` 与可合并扩展的运行时字段 `AgentOptions.subagentDepth` 共同表示；缺失表示顶层深度为零，存在的较大值具有权威性。两个字段都归该 seam 所有——循环既不设置也不读取它们——因此进程内子 agent 会持久保存 parent 深度 + 1，冷恢复无法降低深度，而且每次 start 都会拒绝超出安全整数域、或高于已定义绝对 `request.maxDepth` 上限的派生深度。
 - **Fork 种子注入**使用 [`CreateAgentOptions.seed`](core.zh.md#creation-and-ownership)（一个 `SessionEvent[]` 前缀，经由 `AgentLoop.createAgent` → `ctx.sessions.prepare({ seed })` 传递，与 `ctx.agents.resume()` 使用的原语相同）。fork 后端传入父级日志的一段*平衡的已完成轮次前缀*——父级事件直到并包括其最后一个 `turn/end`——因此种子从 0 连续，[invariants](../../packages/runtime-diagnostics/invariants) 回放可以接受它（进行中的、未平衡的轮次被排除在外）。
 
+## 运行准入
+
+`start()` 限制同时执行的一次性运行数量。该 seam 自身的 provider 约定一直允许这样做——“共享的容量控制器可以延迟一次操作，但不得耦合它的结算”——而 `maxConcurrentRuns` 就是设定该上限的受校验字段。一次运行从被准入起持有其名额，直到该运行结算；所有结算路径都会归还名额：结果兑现、结果拒绝，以及持有方的 `dispose()`——被中断或被放弃的运行正是由此交回名额。排队期间被取消的调用方以自身的 signal 原因拒绝，且从不占用名额。
+
+```ts type-equiv
+/** Point-in-time admission state of one gate. */
+interface CapacitySnapshot {
+  /** Concurrent grants this gate allows. */
+  readonly limit: number
+  /** Granted slots not yet released. */
+  readonly active: number
+  /** Acquisitions queued behind the limit, in admission order. */
+  readonly waiting: number
+}
+```
+
+`ctx.subagents.capacity()` 报告它。该上限约束的是启动，而非已被准入的工作：被延迟的启动表现为等待它的那次工具调用的延迟，而闸门不会中止任何它已经放行的运行。
+
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
 <a id="cordis-surface"></a>
@@ -722,14 +740,27 @@ getProvider(name: string): SubagentProvider | undefined
 list(): string[]
 
 /**
+ * Read the deployment's one-shot run admission state.
+ * @returns the configured bound, the published runs holding a slot, and the
+ *   starts queued behind them.
+ */
+capacity(): CapacitySnapshot
+
+/**
  * Establish a published child on the named provider. Capability and semantic
- * checks run before delegation. Provider ownership lasts until its promise
- * fulfills; a rejection therefore has no run for the caller to dispose and
- * emits no run lifecycle events. Post-publication turn and infrastructure
- * failures settle through the returned run.
+ * checks run before delegation, then the start takes one of the deployment's
+ * concurrency slots, queueing in arrival order while they are all held. A
+ * start whose `signal` fires while it is queued rejects `CANCELLED` and never
+ * reaches the provider. Provider ownership lasts until its promise fulfills;
+ * a rejection therefore has no run for the caller to dispose, emits no run
+ * lifecycle events, and returns its slot. Post-publication turn and
+ * infrastructure failures settle through the returned run, whose settlement or
+ * disposal returns the slot.
  * @param name - the provider to use.
  * @param request - child label, prompt, parent, signal, and optional capabilities.
  * @returns the published holder-owned run.
+ * @throws {SubagentError} `CANCELLED` when the caller cancels or the service
+ *   unloads before a slot is granted.
  */
 async start(name: string, request: SubagentStartRequest): Promise<SubagentRun>
 ```

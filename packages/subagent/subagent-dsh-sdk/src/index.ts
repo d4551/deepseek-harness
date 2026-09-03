@@ -4,8 +4,9 @@
  * session, model route, and tools — driven over stdio JSON-RPC through the
  * TypeScript SDK client, so it shares no Cordis context. It accepts the
  * provider/model/reasoning/maxTokens subset of `agentOptions`; other start
- * features remain unsupported. The ONE thing it reads off `request.parent`
- * is the session's workspace cwd. This plugin uses named
+ * features remain unsupported. What it reads off `request.parent` is that
+ * session's workspace: the cwd, plus the other roots it works in, which the
+ * child runtime records on its own session. This plugin uses named
  * exports only; a default would hide its loader metadata (see
  * `docs/postmortem/0001-acp-default-export-drops-inject.md`).
  * @module @deepseek-ai/dsh-subagent-dsh-sdk
@@ -17,7 +18,7 @@ import { isAbsolute, resolve } from 'node:path'
 import z from '@deepseek-ai/schemastery'
 import type { AgentOptions } from '@deepseek-ai/dsh-agent'
 import type { SubagentCapabilities, SubagentProvider, SubagentStartRequest } from '@deepseek-ai/dsh-subagent'
-import { assertPositiveFinite, NO_START_CAPABILITIES, resolveChildCwd, validateConfiguredCwd } from '@deepseek-ai/dsh-subagent'
+import { assertPositiveFinite, NO_START_CAPABILITIES, resolveChildCwd, resolveChildWorkspaceRoots, validateConfiguredCwd } from '@deepseek-ai/dsh-subagent'
 import {
   DEFAULT_DISPOSE_EOF_GRACE_MS,
   DEFAULT_DISPOSE_GRACE_MS,
@@ -160,6 +161,7 @@ class SdkSubagentProvider implements SubagentProvider {
       patches: this.config.patches,
       dshHome: this.config.dshHome,
       cwd,
+      workspaceRoots: resolveChildWorkspaceRoots(request.parent, cwd),
       ...route,
       env: this.config.env,
       shutdownTimeoutMs: this.config.shutdownTimeoutMs,

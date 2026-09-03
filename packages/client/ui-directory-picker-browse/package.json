@@ -54,7 +54,8 @@
     "@deepseek-ai/dsh-client-ui-renderer": "workspace:^",
     "@deepseek-ai/dsh-client-ui-workspace": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
-    "@deepseek-ai/cordis": "workspace:^"
+    "@deepseek-ai/cordis": "workspace:^",
+    "@deepseek-ai/dsh-host-directory-picker": "workspace:^"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-client-a11y": "workspace:*",
@@ -70,7 +71,8 @@
     "@types/react": "~19.2.18",
     "@deepseek-ai/cordis": "workspace:^",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "@deepseek-ai/dsh-host-directory-picker": "workspace:^"
   },
   "files": [
     "lib/index.js",

@@ -16,14 +16,13 @@ import { scheduler } from 'node:timers/promises'
 import { randomBytes } from 'node:crypto'
 import {
   DEFAULT_PREPARED_SESSION_CACHE_SIZE, DEFAULT_WRITE_BATCH_MAX_DELAY_MS, MAX_WRITE_BATCH_DELAY_MS,
-  SessionPersistence, SessionPersistenceRevision, PersistenceCoordinator, SessionFormatUnsupportedError,
-  type BorrowedSessionSource,
+  SessionPersistenceRevision, PersistenceCoordinator, SessionFormatUnsupportedError,
   type PersistenceBackend, type SessionLocation, type SessionPersistenceSnapshot,
-  type SessionInspection,
   type SessionPersistenceRevision as PersistenceRevision, type SessionRawArtifact,
   type StoredPrefix,
 } from '@deepseek-ai/dsh-session-persistence'
-import type { Session, SessionEvent, SessionId, SessionHeader, SessionPreparation } from '@deepseek-ai/dsh-session'
+import { CoordinatedSessionPersistence } from '@deepseek-ai/dsh-session-persistence/coordinated'
+import type { SessionEvent, SessionId, SessionHeader } from '@deepseek-ai/dsh-session'
 import {
   encodeSegment, eventLines, logPath, logSuffix, parseHeaderMeta, projectDir, scanLog, sessionDir,
   SessionLogScanner, toHeaderLine,
@@ -120,7 +119,8 @@ function isENOENT(error: unknown): boolean {
  * listeners. Its torn-tail marker carries the byte offset and any events
  * recovered from an incomplete final Zstandard frame.
  */
-export class JsonlSessionPersistence extends SessionPersistence implements PersistenceBackend<JsonlTornMarker> {
+export class JsonlSessionPersistence extends CoordinatedSessionPersistence<JsonlTornMarker>
+  implements PersistenceBackend<JsonlTornMarker> {
   override readonly supportsRawArtifacts = true
 
   static inject = ['sessions']
@@ -144,7 +144,7 @@ export class JsonlSessionPersistence extends SessionPersistence implements Persi
   private root: string
   private packChunks: boolean
   private compression: JsonlCompression
-  private coordinator: PersistenceCoordinator<JsonlTornMarker>
+  protected readonly coordinator: PersistenceCoordinator<JsonlTornMarker>
   private rootEncodingCheck: Promise<void> | undefined
 
   constructor(ctx: Context, public config: Config) {
@@ -165,54 +165,19 @@ export class JsonlSessionPersistence extends SessionPersistence implements Persi
     })
   }
 
-  // Each backend keeps the typed service API beside its storage hooks;
-  // extracting these trivial forwards would add an inheritance layer.
-  /* jscpd:ignore-start */
-  // --- SessionPersistence service API (delegated to the coordinator) ---
+  // The coordinator-delegated service API lives on CoordinatedSessionPersistence.
+  // JSONL is sequential media: it contributes no loadStoredFrom hook, so the
+  // inherited readFrom parses the stored prefix (both encodings) and skips
+  // forward to fromSeq.
 
   /** Resolve the absolute target path without touching the filesystem. */
   locate(meta: SessionHeader): SessionLocation {
     return { kind: 'jsonl', path: logPath(this.root, meta.cwd, meta.id, this.compression) }
   }
 
-  create(meta: SessionHeader): Promise<void> {
-    return this.coordinator.create(meta)
-  }
-
-  override ensureMaterialized(session: Session): Promise<void> {
-    return this.coordinator.ensureMaterialized(session)
-  }
-
-  append(id: SessionId, events: readonly SessionEvent[]): Promise<void> {
-    return this.coordinator.append(id, events)
-  }
-
-  override prepare(id: SessionId, signal?: AbortSignal): Promise<SessionPreparation> {
-    return this.coordinator.prepare(id, signal)
-  }
-
-  load(id: SessionId): Promise<SessionInspection> {
-    return this.coordinator.load(id)
-  }
-
-  inspect(id: SessionId, signal?: AbortSignal): Promise<SessionInspection> {
-    return this.coordinator.inspect(id, signal)
-  }
-
-  override borrowSession(id: SessionId, signal?: AbortSignal): Promise<BorrowedSessionSource> {
-    return this.coordinator.borrowSession(id, signal)
-  }
-
-  // JSONL is sequential media: no loadStoredFrom hook, so the coordinator
-  // parses the stored prefix (both encodings) and skips forward to fromSeq.
-  readFrom(id: SessionId, fromSeq: number, signal?: AbortSignal): Promise<{ meta: SessionHeader; events: SessionEvent[] }> {
-    return this.coordinator.readFrom(id, fromSeq, signal)
-  }
-
   // One method serves both public `list` and the backend hook; delegating it to
   // the coordinator would call this hook recursively.
 
-  /* jscpd:ignore-end */
   // --- PersistenceBackend hooks (the file-bytes storage primitives) ---
 
   /** Read a stored prefix by id across all project directories when cwd is unknown. */

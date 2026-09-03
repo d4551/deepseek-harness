@@ -1,7 +1,11 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { ChunkRowEvent } from '@deepseek-ai/dsh-api-session-controller/types'
-import type {
-  ConversationLocation, ConversationMatch, ConversationNodeContext, ConversationNodeDefinition,
+import {
+  EMPTY_ASSISTANT_STREAM, applyAssistantChunk, applyChunkRun, assistantFinalNode,
+  assistantStepPublication, blockIsVisible, closedLocationBoundary, compactBlocks,
+  isChunkRunEvent, settledBlocks,
+  type AssistantStream, type ConversationMatch, type ConversationNodeContext,
+  type ConversationNodeDefinition,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-llm-retry/types'
 import { isAppendSurfaceEvent } from '@deepseek-ai/dsh-session/surface'
@@ -9,10 +13,7 @@ import type { AssistantChatData } from '../contract/chat-nodes.ts'
 // The declaring package, not the local barrel: a Typert-modeled reference must
 // name the package that owns the type so the generated import can point at it.
 import type { AssistantBlock, AssistantMessageNode } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { CHAT_SYNTHETIC_SEQ_OFFSETS, chatNode } from './common.ts'
-import {
-  emptyAssistantBlock, isTokenDelta, toAssistantBlock, toAssistantBlocks,
-} from './event-projection.ts'
+import { chatNode } from './common.ts'
 
 declare module '../contract/chat-nodes.ts' {
   interface ChatNodeDataMap {
@@ -28,71 +29,43 @@ declare module '@deepseek-ai/dsh-client-ui-conversation/client' {
   }
 }
 
+/**
+ * Chat's Assistant step state. Beyond the shared block accumulation Chat keeps
+ * `hidden`, the retry-suppression flag that lets a step whose visible content a
+ * retry threw away stay mounted instead of disappearing from the flow.
+ */
 interface AssistantState {
   readonly turn: number
   readonly step: number
-  readonly blocks: readonly (AssistantBlock | undefined)[]
-  readonly visibleBlocks: number
-  readonly firstVisibleSeq: number | undefined
-  readonly firstVisibleTime: number | undefined
-  readonly firstTokenTime: number | undefined
+  readonly stream: AssistantStream
   readonly hidden: boolean
   readonly final: ConversationMatch | undefined
   readonly usage: unknown
-}
-
-function isChunkRunEvent(event: ConversationMatch['event']): event is ChunkRowEvent {
-  return event.type === 'chunkrow/text-chunks'
-    || event.type === 'chunkrow/reasoning-chunks'
-    || event.type === 'chunkrow/tool-call-chunks'
 }
 
 function initialState(turn: number, step: number): AssistantState {
   return {
     turn,
     step,
-    blocks: [],
-    visibleBlocks: 0,
-    firstVisibleSeq: undefined,
-    firstVisibleTime: undefined,
-    firstTokenTime: undefined,
+    stream: EMPTY_ASSISTANT_STREAM,
     hidden: false,
     final: undefined,
     usage: undefined,
   }
 }
 
-function compactBlocks(blocks: readonly (AssistantBlock | undefined)[]): AssistantBlock[] {
-  return blocks.filter((block): block is AssistantBlock => block !== undefined)
-}
-
-function blockIsVisible(block: AssistantBlock | undefined): boolean {
-  if (block === undefined || block.kind === 'tool-call') return false
-  if (block.kind === 'text' || block.kind === 'reasoning') return block.text.trim() !== ''
-  return true
-}
-
-function countVisibleBlocks(blocks: readonly AssistantBlock[]): number {
-  let count = 0
-  for (const block of blocks) if (blockIsVisible(block)) count++
-  return count
-}
-
 function hasVisibleContent(blocks: readonly AssistantBlock[]): boolean {
   return blocks.some(blockIsVisible)
 }
 
-function hasInterruptionEvidence(blocks: readonly AssistantBlock[]): boolean {
-  return blocks.some((block) => {
-    if (block.kind === 'text' || block.kind === 'reasoning') return block.text.trim() !== ''
-    return true
-  })
+function withStream(state: AssistantState, stream: AssistantStream): AssistantState {
+  return { ...state, stream, hidden: stream.visibleBlocks > 0 ? false : state.hidden }
 }
 
 function resetForRetry(state: AssistantState): AssistantState {
   return {
     ...initialState(state.turn, state.step),
-    firstTokenTime: state.firstTokenTime,
+    stream: { ...EMPTY_ASSISTANT_STREAM, firstTokenTime: state.stream.firstTokenTime },
     hidden: true,
   }
 }
@@ -100,203 +73,38 @@ function resetForRetry(state: AssistantState): AssistantState {
 function updateChunk(state: AssistantState, match: ConversationMatch): AssistantState {
   if (match.event.type !== 'assistant/chunk') return state
   const chunk = match.event.data.chunk
-  const blocks = [...state.blocks]
-  let changedIndex = -1
-  let previousVisible = false
-  switch (chunk.type) {
-    case 'block-start':
-      changedIndex = chunk.index
-      previousVisible = blockIsVisible(blocks[chunk.index])
-      blocks[chunk.index] = emptyAssistantBlock(chunk.blockType)
-      break
-    case 'text-delta': {
-      const previous = blocks[chunk.index]
-      changedIndex = chunk.index
-      previousVisible = blockIsVisible(previous)
-      blocks[chunk.index] = { kind: 'text', text: (previous?.kind === 'text' ? previous.text : '') + chunk.text }
-      break
-    }
-    case 'reasoning-delta': {
-      const previous = blocks[chunk.index]
-      changedIndex = chunk.index
-      previousVisible = blockIsVisible(previous)
-      blocks[chunk.index] = { kind: 'reasoning', text: (previous?.kind === 'reasoning' ? previous.text : '') + chunk.text }
-      break
-    }
-    case 'tool-call-delta': {
-      const previous = blocks[chunk.index]
-      changedIndex = chunk.index
-      previousVisible = blockIsVisible(previous)
-      const base = previous?.kind === 'tool-call'
-        ? previous
-        : { kind: 'tool-call' as const, callId: '', name: '', argsRaw: '' }
-      blocks[chunk.index] = {
-        kind: 'tool-call',
-        callId: base.callId || String(chunk.id),
-        name: chunk.name ?? base.name,
-        argsRaw: base.argsRaw + chunk.argumentsDelta,
-      }
-      break
-    }
-    case 'block-end':
-      changedIndex = chunk.index
-      previousVisible = blockIsVisible(blocks[chunk.index])
-      blocks[chunk.index] = toAssistantBlock(chunk.block)
-      break
-    case 'usage':
-      return { ...state, usage: chunk.usage }
-    default:
-      return state
-  }
-  const visibleBlocks = state.visibleBlocks
-    - Number(previousVisible)
-    + Number(blockIsVisible(blocks[changedIndex]))
-  const firstToken = isTokenDelta(chunk)
-  return {
-    ...state,
-    blocks,
-    visibleBlocks,
-    hidden: visibleBlocks > 0 ? false : state.hidden,
-    ...visibleBlocks > 0 && state.firstVisibleSeq === undefined
-      ? { firstVisibleSeq: match.event.seq, firstVisibleTime: match.event.time }
-      : {},
-    ...firstToken && state.firstTokenTime === undefined
-      ? { firstTokenTime: match.event.time }
-      : {},
-  }
-}
-
-interface ChunkRunBoundaries {
-  readonly firstTokenTime: number | undefined
-  readonly firstVisible: { readonly seq: number; readonly time: number } | undefined
-}
-
-function chunkRunBoundaries(
-  event: ChunkRowEvent,
-  needsToken: boolean,
-  needsVisible: boolean,
-  visibleFromStart: boolean,
-): ChunkRunBoundaries {
-  const fragments = event.type === 'chunkrow/tool-call-chunks' ? event.data.args : event.data.texts
-  const nameStartsToken = event.type === 'chunkrow/tool-call-chunks'
-    && Object.hasOwn(event.data, 'name')
-  let firstTokenTime: number | undefined
-  let firstVisible: ChunkRunBoundaries['firstVisible']
-  let time = event.time
-  for (let index = 0; index < fragments.length; index++) {
-    const fragment = fragments[index] as string
-    if (needsToken && firstTokenTime === undefined && (nameStartsToken || fragment !== '')) {
-      firstTokenTime = time
-    }
-    if (needsVisible && firstVisible === undefined
-      && (visibleFromStart
-        || (event.type !== 'chunkrow/tool-call-chunks' && fragment.trim() !== ''))) {
-      firstVisible = { seq: event.seq + index, time }
-    }
-    if ((!needsToken || firstTokenTime !== undefined)
-      && (!needsVisible || firstVisible !== undefined)) break
-    time += event.data.dt[index] ?? 0
-  }
-  return { firstTokenTime, firstVisible }
+  const stream = applyAssistantChunk(state.stream, chunk, match.event.seq, match.event.time)
+  if (stream !== null) return withStream(state, stream)
+  return chunk.type === 'usage' ? { ...state, usage: chunk.usage } : state
 }
 
 function updateChunkRun(state: AssistantState, event: ChunkRowEvent): AssistantState {
-  const blocks = [...state.blocks]
-  const previous = blocks[event.data.index]
-  const previousVisible = blockIsVisible(previous)
-  let visibleFromStart = state.visibleBlocks - Number(previousVisible) > 0
-  if (event.type === 'chunkrow/text-chunks') {
-    const text = previous?.kind === 'text' ? previous.text : ''
-    visibleFromStart ||= text.trim() !== ''
-    blocks[event.data.index] = { kind: 'text', text: text + event.data.texts.join('') }
-  } else if (event.type === 'chunkrow/reasoning-chunks') {
-    const text = previous?.kind === 'reasoning' ? previous.text : ''
-    visibleFromStart ||= text.trim() !== ''
-    blocks[event.data.index] = { kind: 'reasoning', text: text + event.data.texts.join('') }
-  } else {
-    const base = previous?.kind === 'tool-call'
-      ? previous
-      : { kind: 'tool-call' as const, callId: '', name: '', argsRaw: '' }
-    blocks[event.data.index] = {
-      kind: 'tool-call',
-      callId: base.callId || String(event.data.id),
-      name: Object.hasOwn(event.data, 'name') ? event.data.name as string : base.name,
-      argsRaw: base.argsRaw + event.data.args.join(''),
-    }
-  }
-  const boundaries = chunkRunBoundaries(
-    event,
-    state.firstTokenTime === undefined,
-    state.firstVisibleSeq === undefined,
-    visibleFromStart,
-  )
-  const visibleBlocks = state.visibleBlocks
-    - Number(previousVisible)
-    + Number(blockIsVisible(blocks[event.data.index]))
-  return {
-    ...state,
-    blocks,
-    visibleBlocks,
-    hidden: visibleBlocks > 0 ? false : state.hidden,
-    ...(boundaries.firstVisible === undefined ? {} : {
-      firstVisibleSeq: boundaries.firstVisible.seq,
-      firstVisibleTime: boundaries.firstVisible.time,
-    }),
-    ...(boundaries.firstTokenTime === undefined ? {} : {
-      firstTokenTime: boundaries.firstTokenTime,
-    }),
-  }
+  return withStream(state, applyChunkRun(state.stream, event))
 }
 
-function closedBoundary(location: ConversationLocation): { seq: number; time: number } | undefined {
-  if (location.kind === 'step' && location.step.status === 'closed' && location.step.end !== undefined) {
-    return location.step.end
+function settle(state: AssistantState, match: ConversationMatch, usage: unknown): AssistantState {
+  if (match.event.type !== 'assistant/message') return state
+  const { blocks, visibleBlocks } = settledBlocks(match.event.data.message.content)
+  return {
+    ...state,
+    stream: { ...state.stream, blocks, visibleBlocks },
+    hidden: false,
+    final: match,
+    usage,
   }
-  if ((location.kind === 'step' || location.kind === 'turn')
-    && location.turn.status === 'closed' && location.turn.end !== undefined) {
-    return location.turn.end
-  }
-  return undefined
 }
 
 function finalNode(
   state: AssistantState,
   context: ConversationNodeContext<AssistantState>,
 ): AssistantMessageNode | undefined {
-  const final = state.final
-  if (final?.event.type === 'assistant/message') {
-    const event = final.event
-    return {
-      kind: 'assistant',
-      seq: event.seq,
-      messageId: event.data.message.id,
-      time: event.time,
-      turn: state.turn,
-      step: state.step,
-      blocks: toAssistantBlocks(event.data.message.content),
-      usage: event.data.usage,
-      timing: {
-        stepStartTime: context.start?.event.time ?? null,
-        firstTokenTime: state.firstTokenTime ?? null,
-        completedTime: event.time,
-      },
-      ...event.data.interrupted === true ? { interrupted: true } : {},
-    }
-  }
-  const location = context.start?.location ?? context.matches.at(-1)?.location
-  const boundary = location === undefined ? undefined : closedBoundary(location)
-  if (boundary === undefined) return undefined
-  const blocks = compactBlocks(state.blocks)
-  if (!hasInterruptionEvidence(blocks)) return undefined
-  return {
-    kind: 'assistant',
-    seq: boundary.seq + CHAT_SYNTHETIC_SEQ_OFFSETS.interruptedAssistant,
-    time: boundary.time,
-    turn: state.turn,
-    step: state.step,
-    blocks,
-    interrupted: true,
-  }
+  // Chat reads the step's start straight off the matched step/start event and
+  // presents no provider identity; the row shows what the model wrote.
+  return assistantFinalNode(
+    state,
+    { stepStartTime: context.start?.event.time ?? null, withProvenance: false },
+    closedLocationBoundary(context.start?.location ?? context.matches.at(-1)?.location),
+  )
 }
 
 function fallbackState(context: ConversationNodeContext<AssistantState>): AssistantState | undefined {
@@ -314,15 +122,7 @@ function fallbackState(context: ConversationNodeContext<AssistantState>): Assist
     }
     if (match.event.type === 'assistant/message') {
       state ??= initialState(match.event.data.turn, match.event.data.step)
-      const blocks = toAssistantBlocks(match.event.data.message.content)
-      state = {
-        ...state,
-        blocks,
-        visibleBlocks: countVisibleBlocks(blocks),
-        hidden: false,
-        final: match,
-        usage: match.event.data.usage,
-      }
+      state = settle(state, match, match.event.data.usage)
       continue
     }
     if (match.event.type === 'llm/retry' && state !== undefined) {
@@ -343,13 +143,13 @@ function projectAssistant(context: ConversationNodeContext<AssistantState>): Ass
   const state = context.state ?? fallbackState(context)
   if (state === undefined) return undefined
   const settled = finalNode(state, context)
-  const blocks = settled?.blocks ?? compactBlocks(state.blocks)
-  const visible = settled === undefined ? state.visibleBlocks > 0 : hasVisibleContent(blocks)
+  const blocks = settled?.blocks ?? compactBlocks(state.stream.blocks)
+  const visible = settled === undefined ? state.stream.visibleBlocks > 0 : hasVisibleContent(blocks)
   const status = settled?.interrupted === true
     ? 'interrupted'
     : settled === undefined ? 'running' : 'settled'
-  const anchorSeq = settled?.seq ?? state.firstVisibleSeq ?? context.matches[0]?.event.seq ?? 0
-  const time = settled?.time ?? state.firstVisibleTime ?? context.matches[0]?.event.time ?? 0
+  const anchorSeq = settled?.seq ?? state.stream.firstVisibleSeq ?? context.matches[0]?.event.seq ?? 0
+  const time = settled?.time ?? state.stream.firstVisibleTime ?? context.matches[0]?.event.time ?? 0
   return {
     anchorSeq,
     visible,
@@ -394,28 +194,14 @@ export const assistantDefinition: ConversationNodeDefinition<AssistantState> = {
     }
     if (match.event.type === 'assistant/chunk') return updateChunk(context.state, match)
     if (match.event.type === 'assistant/message') {
-      const blocks = toAssistantBlocks(match.event.data.message.content)
-      return {
-        ...context.state,
-        blocks,
-        visibleBlocks: countVisibleBlocks(blocks),
-        hidden: false,
-        final: match,
-        usage: match.event.data.usage,
-      }
+      return settle(context.state, match, match.event.data.usage)
     }
     if (match.event.type === 'llm/retry') {
       return resetForRetry(context.state)
     }
     return context.state
   },
-  publication: (match) => {
-    if (match.event.type === 'step/start') return 'none'
-    if (isChunkRunEvent(match.event)) return 'animation-frame'
-    if (match.event.type !== 'assistant/chunk') return 'immediate'
-    const type = match.event.data.chunk.type
-    return type === 'usage' || type === 'finish' ? 'none' : 'animation-frame'
-  },
+  publication: assistantStepPublication,
   buildLocationData: (context, scope) => {
     if (scope !== 'step') return null
     const projected = projectAssistant(context)

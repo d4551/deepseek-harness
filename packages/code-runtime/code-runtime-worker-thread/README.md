@@ -100,6 +100,7 @@ Two independent budgets exist because the peer is hostile: `computeMs` meters th
 | [`src/protocol.ts`](src/protocol.ts) | Port message vocabulary between host and worker |
 | [`src/worker-json.ts`](src/worker-json.ts) | Worker-side lossless-JSON encode/decode |
 | [`src/output-json.ts`](src/output-json.ts) | Byte metering and truncation for the outer ledger |
+| [`src/intrinsics.ts`](src/intrinsics.ts) | Prototype-safe primitives both JSON modules build values through |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; see its reason) |
 
 ### The worker entry, unbuilt and built

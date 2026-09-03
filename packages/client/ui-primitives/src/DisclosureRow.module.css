@@ -13,15 +13,8 @@
   min-width: 0;
 }
 
-.row {
-  position: relative;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  height: calc(24px + var(--dsh-content-font-delta, 0px));
-  min-width: 0;
-}
-
+/* The row line itself is FlowRow's; this sheet adds only the disclosure
+   behaviour layered on it. */
 .row[data-expandable] {
   cursor: pointer;
 }

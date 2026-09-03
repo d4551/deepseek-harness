@@ -28,6 +28,9 @@
     },
     {
       "path": "../session-query"
+    },
+    {
+      "path": "../../util/sqlite-connection"
     }
   ]
 }

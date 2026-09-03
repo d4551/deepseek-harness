@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write packages/examples/agent-spine-demo/README.md
-README.md: 727effb9f6c9c4b1b5af6c7f3da8aea50b0641fa
-README.zh.md: df84c48e8271cdddcbf68e7659e8014e0c223ae1
+README.md: 0c90ae58ff8ad39f77b55662fa52488926310813
+README.zh.md: a414c45e538ff3d019f0f8926aeb25f6a7f457b7

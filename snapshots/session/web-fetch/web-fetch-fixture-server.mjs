@@ -4,6 +4,11 @@
  * fixed loopback port behind the real address-pinned transport. Recording and
  * replay therefore exercise fetch and markdown rendering without
  * external network. The port is fixed because the fetched URL is recorded.
+ *
+ * This registers the real {@link HttpFetchProvider} under the seam's `http` id
+ * with an injected resolver, so the scenario's overlay must name
+ * `fetchProvider: http` and disable the shipped `web-fetch-http` row it
+ * replaces. Selection is by configured id, never by registration order.
  */
 import { createServer } from 'node:http'
 import { HttpFetchProvider } from '@deepseek-ai/dsh-web-fetch-http'

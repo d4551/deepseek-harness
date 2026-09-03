@@ -18,7 +18,7 @@ The Session Controller owns the contiguous loaded logical-event window. Each `Se
 | View Definition | A target package creates one incremental builder per Session and owns the final snapshot type for that target. |
 | View | A Slot entry such as Chat or Trajectory reads only its target snapshot and renders target-owned nodes. |
 
-Chat and Trajectory may recognize the same durable event family, but each keeps its own Definition State and final node payload. Shared target-neutral machinery is limited to identity routing, ordered replay, Location data, predecessor dependencies, and publication cadence.
+Chat and Trajectory may recognize the same durable event family, but each keeps its own Definition State and final node payload. Target-neutral machinery covers identity routing, ordered replay, Location data, predecessor dependencies, publication cadence, and the event-to-record projection every target reads the same way: Assistant block accumulation with its visible-block and first-token boundaries, Tool call and result records with the subcall-edge rule, the inbox fold and input-message classification, and the synthetic seq offsets that order frozen Nodes against a closing boundary. A target supplies only what its own view decides — which surfaces it accepts, where it times a step from, and what it renders.
 
 ## Replayable event families
 

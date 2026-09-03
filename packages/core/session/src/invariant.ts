@@ -9,7 +9,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import { assertNever } from '@deepseek-ai/dsh-llm'
 import type { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { InvariantFailure, InvariantInstaller } from '@deepseek-ai/dsh-invariants'
-import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
+import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import { stageSessionEvents } from './invariant-staging.ts'
 import { TOOL_NOT_STARTED } from './repair.ts'
 
 const PACKAGE_NAME = '@deepseek-ai/dsh-session'
@@ -185,59 +186,34 @@ function applyTransition(trace: SessionTrace, transition: SessionTraceTransition
   }
 }
 
-/** Install the session contribution into its child registration fiber. */
-const install: InvariantInstaller = Object.assign((ctx: Context, fail: InvariantFailure) => {
-  const traces = new WeakMap<Session, SessionTrace>()
-  const stagedTransitions = new WeakMap<SessionEvent, {
-    session: Session
-    trace: SessionTrace
-    transition: SessionTraceTransition
-  }>()
-
-  const freshTrace = (): SessionTrace => ({
+/** Start one session's trace before any of its events replay. */
+function freshTrace(): SessionTrace {
+  return {
     lastSeq: -1,
     openTurn: null,
     openStep: null,
     nextTurn: 1,
     nextStep: 1,
     pendingCalls: new Set(),
-  })
-
-  const seedSession = (session: Session): SessionTrace => {
-    const trace = freshTrace()
-    traces.set(session, trace)
-    for (const event of session.events) {
-      applyTransition(trace, validateEvent(trace, event, fail))
-    }
-    return trace
   }
+}
 
-  /* v8 ignore next -- session/event always follows list() or session/created seeding */
-  const traceFor = (session: Session): SessionTrace => traces.get(session) ?? seedSession(session)
-
-  for (const session of ctx.sessions.list()) seedSession(session)
-
-  ctx.on('session/created', (session) => { seedSession(session) }, { global: true })
-
-  ctx.on('session/event', (session, event) => {
-    const staged = stagedTransitions.get(event)
-    /* v8 ignore next 2 -- internal/dispatch stages the exact callback arguments */
-    if (staged === undefined || staged.session !== session) {
-      return fail('session/event reached publication without matching pre-commit validation')
-    }
-    stagedTransitions.delete(event)
-    applyTransition(staged.trace, staged.transition)
-  }, { global: true })
-
-  ctx.on('internal/dispatch', (_mode, eventName, args) => {
-    if (eventName !== 'session/event') return
-    const [session, event] = args as [Session, SessionEvent]
-    const trace = traceFor(session)
-    const transition = validateEvent(trace, event, fail)
-    // A later dispatch listener may veto. Validation is pure, so abandoning
-    // this weakly keyed transition does not advance or retain the session.
-    stagedTransitions.set(event, { session, trace, transition })
-  }, { global: true })
+/** Install the session contribution into its child registration fiber. */
+const install: InvariantInstaller = Object.assign((ctx: Context, fail: InvariantFailure) => {
+  stageSessionEvents<SessionTrace, SessionTraceTransition>(ctx, fail, {
+    seed: (session) => {
+      const trace = freshTrace()
+      for (const event of session.events) applyTransition(trace, validateEvent(trace, event, fail))
+      return trace
+    },
+    stage: (trace, event) => validateEvent(trace, event, fail),
+    claims: () => true,
+    commit: (trace, transition) => {
+      applyTransition(trace, transition)
+      return trace
+    },
+    unstagedMessage: 'session/event reached publication without matching pre-commit validation',
+  })
 }, { inject: ['sessions'] })
 
 /**

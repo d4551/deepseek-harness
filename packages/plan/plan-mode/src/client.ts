@@ -7,4 +7,4 @@
  * @module @deepseek-ai/dsh-plan-mode/client
  */
 
-export type * from './types.ts'
+export type { PlanProjection } from './types.ts'

@@ -1,15 +1,35 @@
 # Web-fetch composition for the web-fetch snapshot scenario. The base bundle
-# supplies the web seam and public HTTP provider; this overlay inserts a
-# deterministic provider and exposes only fetch.
+# supplies the web seam and both shipped fetch providers, and names `playwright`
+# as its route. This overlay names the address-pinned `http` route instead and
+# swaps in a provider whose resolver answers from a loopback fixture server, so
+# recording and replay reach no external network.
+#
+# The shipped rendered route cannot run in this corpus. Its policy refuses
+# loopback, so a fixture page it may fetch needs Chromium's own
+# `--host-resolver-rules` mapping at launch, which a shipped profile has nowhere
+# to state; that mapping is why the end-to-end render proof lives in
+# `packages/web/web-fetch-playwright/tests/chromium.spec.ts`, which launches its
+# own browser. Its row is dropped rather than left mounted, because the plugin
+# warns at mount exactly when the host has no Chromium and this harness compares
+# process stderr byte for byte — a mounted row would make the scenario pass or
+# fail on whether the host happens to have a browser.
 - insert:
     - id: web-fetch-fixture
       name: './web-fetch-fixture-server.mjs'
 
+# `config` replaces the base row's mapping, so the search pin drops with it;
+# this scenario exposes only fetch.
 - id: web
   name: '@deepseek-ai/dsh-web'
+  config:
+    fetchProvider: http
 
 - id: web-fetch-http
   name: '@deepseek-ai/dsh-web-fetch-http'
+  disabled: true
+
+- id: web-fetch-playwright
+  name: '@deepseek-ai/dsh-web-fetch-playwright'
   disabled: true
 
 - id: tool-web

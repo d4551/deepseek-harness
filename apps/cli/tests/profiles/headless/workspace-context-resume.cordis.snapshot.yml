@@ -28,7 +28,7 @@
       dshHome: !!js process.cwd() + '/.dsh'
     skills:
       enabled: false
-    toolBash: false
+    toolShell: false
     toolJobs: false
     goals: false
 

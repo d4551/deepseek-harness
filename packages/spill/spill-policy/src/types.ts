@@ -5,7 +5,7 @@
  * `@deepseek-ai/dsh-tools`' `ToolExecution` satisfies this shape, so the policy
  * reads `exec` straight through without importing `dsh-tools` or `dsh-agent`.
  * Only the session HEADER id is read — the same identity every other subsystem
- * keys off (see `dsh-tool-bash`'s owner derivation).
+ * keys off (see `dsh-tool-shell`'s owner derivation).
  *
  * @module @deepseek-ai/dsh-spill-policy/types
  */

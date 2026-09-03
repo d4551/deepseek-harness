@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-03-client-projection-duplication.md
+2026-09-03-client-projection-duplication.md: 6274000dc021fd7810e9cf5a9bfa34213b9489b8
+2026-09-03-client-projection-duplication.zh.md: f38f6c11928539e7a7ef186632b6ffd75e859b7e

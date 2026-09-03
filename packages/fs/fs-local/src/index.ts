@@ -4,10 +4,10 @@
  * @module @deepseek-ai/dsh-fs-local
  */
 
+import { KeyedLock } from '@deepseek-ai/dsh-keyed-lock'
 import { Context } from '@deepseek-ai/cordis'
 import { constants as bufferConstants } from 'node:buffer'
-import { isAbsolute, relative, resolve, sep } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { isAbsolute, resolve } from 'node:path'
 import z from '@deepseek-ai/schemastery'
 import { FileSystem, FsError, FsVersion } from '@deepseek-ai/dsh-fs'
 import type {
@@ -74,7 +74,7 @@ export class LocalFileSystem extends FileSystem {
   /** Per-targetKey tail promise: serializes mutating ops so the read→guard→write
    * window can't interleave, making concurrent writes/edits deterministically
    * ordered (one wins, the rest see the new version and reject as stale). */
-  private locks = new Map<string, Promise<unknown>>()
+  private readonly locks = new KeyedLock()
 
   constructor(ctx: Context, config: Config) {
     super(ctx)
@@ -87,21 +87,6 @@ export class LocalFileSystem extends FileSystem {
     this.config = resolved
   }
 
-  /** Run `op` with exclusive access to `targetKey` (FIFO per key). */
-  private async withLock<T>(targetKey: string, op: () => Promise<T>): Promise<T> {
-    const prior = this.locks.get(targetKey) ?? Promise.resolve()
-    const run = prior.then(op, op)
-    // Keep the chain alive but swallow this op's result/throw for the *next* waiter.
-    const tail = run.then(() => undefined, () => undefined)
-    this.locks.set(targetKey, tail)
-    try {
-      return await run
-    } finally {
-      if (this.locks.get(targetKey) === tail) {
-        this.locks.delete(targetKey)
-      }
-    }
-  }
 
   override async resolve(path: string, opts?: { cwd?: string; signal?: AbortSignal }): Promise<FsTarget> {
     if (opts?.signal?.aborted) throw new FsError('resolve aborted', 'FS_ABORTED')
@@ -118,14 +103,7 @@ export class LocalFileSystem extends FileSystem {
     return isAbsolute(hostPath) ? resolve(hostPath) : undefined
   }
 
-  override fileUrl(target: FsTarget): string {
-    return pathToFileURL(this.processPath(target)).href
-  }
 
-  override contains(parent: FsTarget, child: FsTarget): boolean {
-    const path = relative(this.processPath(parent), this.processPath(child))
-    return path === '' || (path !== '..' && !path.startsWith(`..${sep}`) && !isAbsolute(path))
-  }
 
   override async stat(target: FsTarget, signal?: AbortSignal): Promise<FsInfo | undefined> {
     if (signal?.aborted) throw new FsError('stat aborted', 'FS_ABORTED')
@@ -173,7 +151,7 @@ export class LocalFileSystem extends FileSystem {
     expected?: FsWriteIntent,
     signal?: AbortSignal,
   ): Promise<FsWriteOutcome> {
-    return this.withLock(target.targetKey, async () => {
+    return this.locks.run(target.targetKey, async () => {
       const existing = await probe(target.targetKey)
       if (existing && existing.type !== 'file') {
         throw new FsError(`cannot write "${target.displayPath}": not a regular file`, 'FS_NOT_REGULAR_FILE')
@@ -228,7 +206,7 @@ export class LocalFileSystem extends FileSystem {
     expected?: { version: FsVersion },
     signal?: AbortSignal,
   ): Promise<FsEditOutcome> {
-    return this.withLock(target.targetKey, async () => {
+    return this.locks.run(target.targetKey, async () => {
       const existing = await probe(target.targetKey)
       // Stale guard before literal matching: an edit based on an old read reports
       // FS_STALE_VERSION, not FS_EDIT_NOT_FOUND/FS_AMBIGUOUS_EDIT against newer content.

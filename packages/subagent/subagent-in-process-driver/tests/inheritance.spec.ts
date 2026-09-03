@@ -1,6 +1,7 @@
 /**
- * Delegation policy through child session events appended before publication:
- * the parent's sandbox override plus the pinned `approval/policy: never`.
+ * Delegated parent state through child session events appended before
+ * publication: the parent's sandbox override, the pinned
+ * `approval/policy: never`, and the parent's additional workspace roots.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -15,6 +16,7 @@ import SandboxedFileSystem from '@deepseek-ai/dsh-fs-sandbox'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import SandboxPolicyService, { setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
 import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
+import { sessionWorkspaceRoots, setAdditionalWorkspaceRoots } from '@deepseek-ai/dsh-session/workspace-roots'
 import * as ToolFs from '@deepseek-ai/dsh-tool-fs'
 import ApprovalService from '@deepseek-ai/dsh-user-approval'
 import { snapshotSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
@@ -26,14 +28,17 @@ type Script = ConstructorParameters<typeof MockAdapter>[0]
 const READ_ONLY_DENIAL = '[sandbox: file access denied under read-only mode]'
 const contexts: Context[] = []
 let workspace: string
+let secondRoot: string
 
 beforeEach(async () => {
   workspace = await realpath(await mkdtemp(join(tmpdir(), 'dsh-inherit-')))
+  secondRoot = await realpath(await mkdtemp(join(tmpdir(), 'dsh-inherit-second-')))
 })
 
 afterEach(async () => {
   for (const ctx of contexts.splice(0).reverse()) await ctx.fiber.dispose()
   await rm(workspace, { recursive: true, force: true })
+  await rm(secondRoot, { recursive: true, force: true })
 })
 
 async function setupWalled(script: Script): Promise<{ ctx: Context; parent: Agent }> {
@@ -129,6 +134,51 @@ describe('in-process policy inheritance', () => {
       expect(request.data.header.system).not.toContain('Approval prompts are disabled')
       expect(request.data.header.system).not.toContain('You are a delegated subagent')
       expect(parent.session.events).toHaveLength(parentLogLength)
+    } finally {
+      await run.dispose()
+    }
+  })
+
+  it('gives a spawn child every workspace root its parent works in, not the primary one alone', async () => {
+    const script: Script = []
+    const { ctx, parent } = await setupWalled(script)
+    setAdditionalWorkspaceRoots(parent.session, [secondRoot])
+    const outside = join(secondRoot, 'second-root.txt')
+    script.push(
+      toolCallResponse('write', 'write', { file_path: outside, content: 'multi-root' }),
+      textResponse('child done'),
+    )
+
+    const run = await startInProcessRun(spawnRequest(parent), {})
+    try {
+      await run.result
+      const child = run.localAgent as Agent
+
+      // The write fence is the observable consequence: a child that inherited
+      // only `cwd` would have been denied here.
+      expect(await readFile(outside, 'utf8')).toBe('multi-root')
+      expect(toolResultTexts(child).join('\n')).not.toContain(READ_ONLY_DENIAL)
+      expect(ctx.sandboxPolicy.additionalRootsOf(child.session)).toEqual([secondRoot])
+      // Model-visible because logged: the child's own log carries the set.
+      expect(child.session.events.filter(event => event.type === 'workspace/roots')).toMatchObject([
+        { data: { roots: [secondRoot] } },
+      ])
+      expect(sessionWorkspaceRoots(child.session)).toEqual([workspace, secondRoot])
+    } finally {
+      await run.dispose()
+    }
+  })
+
+  it('records no roots for a single-root parent', async () => {
+    const script: Script = [textResponse('child done')]
+    const { parent } = await setupWalled(script)
+
+    const run = await startInProcessRun(spawnRequest(parent), {})
+    try {
+      await run.result
+      const child = run.localAgent as Agent
+      expect(child.session.events.some(event => event.type === 'workspace/roots')).toBe(false)
+      expect(sessionWorkspaceRoots(child.session)).toEqual([workspace])
     } finally {
       await run.dispose()
     }

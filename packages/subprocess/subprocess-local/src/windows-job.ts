@@ -17,6 +17,7 @@
  */
 
 import { attachProcessToJob, createKillOnCloseJob, jobAssignedProcessCount, terminateJob, win32ProcessBindings } from '@deepseek-ai/dsh-win32-process/job'
+import type { Win32ProcessBindings } from '@deepseek-ai/dsh-win32-process'
 
 /** Exit code reported for members a Job termination stops. */
 const JOB_TERMINATION_EXIT_CODE = 1
@@ -39,27 +40,39 @@ export interface WindowsProcessJob {
  */
 export type WindowsJobFactory = (pid: number) => WindowsProcessJob
 
-/* v8 ignore start -- opens Windows libraries; POSIX lanes inject a Job instead, and the win32-process suite pins each primitive. */
 /**
- * Put an already-spawned process, and every descendant it creates from now on,
- * into a kill-on-close Job.
- * @param pid - the spawned leader's process id.
- * @returns the tree's Job.
- * @throws Win32Error when the Job cannot be created or the leader cannot join it.
+ * Compose the Job factory over one Win32 binding table.
+ *
+ * The table is resolved per Job rather than at composition time, so building
+ * the factory opens no Windows library and a host that has none reaches the
+ * failure only when a Job is actually requested. Every primitive the factory
+ * calls comes from the injected table, so its create/attach/terminate/release
+ * sequence and its attach-failure cleanup run on any host.
+ * @param bindings - resolves the Win32 process bindings the Job runs against.
+ * @returns the factory: it creates a kill-on-close Job, joins the leader to
+ *   it, and closes the Job again if the leader cannot join.
  */
-export function createWindowsProcessJob(pid: number): WindowsProcessJob {
-  const api = win32ProcessBindings()
-  const job = createKillOnCloseJob(api)
-  try {
-    attachProcessToJob(api, job, pid)
-  } catch (error) {
-    api.closeHandle(job)
-    throw error
-  }
-  return {
-    terminate: () => { terminateJob(api, job, JOB_TERMINATION_EXIT_CODE) },
-    liveMemberCount: () => jobAssignedProcessCount(api, job),
-    close: () => { api.closeHandle(job) },
+export function windowsJobFactory(bindings: () => Win32ProcessBindings): WindowsJobFactory {
+  return (pid) => {
+    const api = bindings()
+    const job = createKillOnCloseJob(api)
+    try {
+      attachProcessToJob(api, job, pid)
+    } catch (error) {
+      api.closeHandle(job)
+      throw error
+    }
+    return {
+      terminate: () => { terminateJob(api, job, JOB_TERMINATION_EXIT_CODE) },
+      liveMemberCount: () => jobAssignedProcessCount(api, job),
+      close: () => { api.closeHandle(job) },
+    }
   }
 }
-/* v8 ignore stop */
+
+/**
+ * Put an already-spawned process, and every descendant it creates from now on,
+ * into a kill-on-close Job, through the shared Win32 process bindings. Those
+ * bindings open Windows libraries on the first Job this factory creates.
+ */
+export const createWindowsProcessJob: WindowsJobFactory = windowsJobFactory(win32ProcessBindings)

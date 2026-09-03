@@ -33,6 +33,20 @@ export function isArchivedAgentNotePath(path: string): boolean {
  * @param isExcluded - optional predicate over each matched relative path.
  * @returns matched files in stable first-seen order.
  */
+/**
+ * Whether a matched path is emitted output or a pinned upstream copy.
+ *
+ * Every source-plane gate scans authored sources only: `lib/` and
+ * `node_modules/` are emitted from those sources, and `vendor/` is a pinned
+ * upstream copy this repository does not author. Judging emitted output would
+ * report each finding twice, once at its source and once at its build.
+ * @param relativePath - repository-relative path.
+ * @returns true when a source-plane rule does not apply to it.
+ */
+export function isEmittedOrVendored(relativePath: string): boolean {
+  return relativePath.includes('/lib/') || relativePath.includes('/node_modules/') || relativePath.startsWith('vendor/')
+}
+
 export function uniqueRepoFiles(
   root: string,
   patterns: readonly string[],

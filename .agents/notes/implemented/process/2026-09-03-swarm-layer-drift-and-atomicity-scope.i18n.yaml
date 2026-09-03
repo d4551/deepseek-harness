@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-03-swarm-layer-drift-and-atomicity-scope.md
+2026-09-03-swarm-layer-drift-and-atomicity-scope.md: f144207b46f13b759d5dceb85d657ae601bfef03
+2026-09-03-swarm-layer-drift-and-atomicity-scope.zh.md: f5848955e6a17de160f6780fa34f20e502b16d8b

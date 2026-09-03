@@ -8,7 +8,7 @@ import { createWebhookSession } from './session.ts'
 import type { VerifiedWebhookDelivery, WebhookRule, WebhookSessionRequest } from './types.ts'
 
 export { WebhookDeliveryId, WebhookRuleId, WebhookSourceId } from './brand.ts'
-export type * from './types.ts'
+export type { VerifiedWebhookDelivery, WebhookEventMap, WebhookEventOf, WebhookModelSelection, WebhookRule, WebhookSessionRequest } from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {

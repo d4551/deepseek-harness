@@ -56,6 +56,12 @@ export interface HarnessClientOptions {
 export interface DeepSeekHarnessOptions extends HarnessClientOptions {
   /** Workspace cwd recorded on every SDK-created session (default: the process cwd, else `process.cwd()`). */
   cwd?: string
+  /**
+   * Absolute workspace roots recorded on every SDK-created session besides
+   * {@link cwd}. Omitted or empty runs the session in `cwd` alone; a relative
+   * entry is rejected by the runtime handshake.
+   */
+  additionalDirectories?: readonly string[]
   /** Provider route for SDK-created agents (default `deepseek-official`). */
   provider?: string
   /** Model for SDK-created agents (default `deepseek-v4-flash`). */

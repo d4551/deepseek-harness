@@ -54,7 +54,7 @@ interface TeamMessageSource {
 
 ## Shared task DAG
 
-Every task event stores a complete snapshot. `revision` is the compare-and-set value and increments by one per mutation. `blockedBy` edges must name non-deleted tasks and keep the graph acyclic. `writeScopes` are normalized advisory path prefixes rather than locks.
+Every task event stores a complete snapshot. `revision` is the compare-and-set value and increments by one per mutation. `blockedBy` edges must name non-deleted tasks and keep the graph acyclic. `writeScopes` are normalized path prefixes. They are the board's exclusion key, not filesystem locks: no two tasks are in progress on overlapping prefixes, and nothing stops a process from writing outside its claimed scope.
 
 ```ts type-equiv
 /** Whole durable task snapshot; every mutation increments {@link revision}. */
@@ -71,6 +71,28 @@ interface TeamTaskSnapshot {
 ```
 
 `pending` is unstarted or released, `in_progress` carries an owner, `completed` satisfies blockers, and `deleted` is a retained tombstone. Views add owner name, readiness, and write-scope overlap warnings without changing the durable snapshot.
+
+## Claiming work
+
+A swarm's teammates pull work rather than being told what to do. `claimNextReadyTask()` takes the first unblocked pending task whose write scopes no in-progress task already holds, under the same per-Lead transaction every board mutation uses, so two members of one Lead's team can never claim one task. That transaction is a promise chain held in the Lead's own process, and `tryMembership` admits a member only when `ctx.agents` still holds that exact live Agent, so the mutual exclusion covers one host process and is not a distributed lock.
+
+```ts type-equiv
+/** Outcome of one atomic claim-the-next-ready-task attempt. */
+type ClaimNextTeamTaskResult =
+  | {
+    readonly outcome: 'claimed'
+    /** The task this caller now owns, at its committed revision. */
+    readonly task: TeamTaskView
+  }
+  | {
+    readonly outcome: 'none'
+    readonly reason: TeamTaskClaimUnavailable
+    /** Unblocked pending tasks skipped because their write scopes are busy. */
+    readonly deferred: TeamTaskId[]
+  }
+```
+
+Neither `none` reason is a failure. `no-ready-task` means every task is completed, owned, or still blocked; `write-scope-conflict` means ready work exists but would write where another member is writing, and names it in `deferred` so the caller can wait for those tasks rather than poll blindly.
 
 ## Replay
 
@@ -145,7 +167,28 @@ getTask(caller: Agent, id: TeamTaskId): TeamTaskView
 listTasks(caller: Agent): TeamTaskView[]
 
 /**
- * Compare-and-set one authorized task transition.
+ * Take ownership of the first ready task whose write scopes are free, in one
+ * atomic Lead transaction. A member pulls work with this instead of being
+ * assigned it; concurrent callers therefore receive disjoint tasks. A ready
+ * task writing where in-progress work does is deferred here and refused by
+ * {@link updateTask}, so no route hands two owners the same paths.
+ *
+ * The transaction serializes callers inside one host process. Membership
+ * requires the exact live `Agent` this process holds, so a second process
+ * running against the same session log is outside the exclusion.
+ * @param caller - exact live Team member taking ownership.
+ * @returns the claimed task, or the ordinary board state — no unblocked
+ *   pending task, or every one of them writing where in-progress work does —
+ *   that left nothing to take.
+ */
+async claimNextReadyTask(caller: Agent): Promise<ClaimNextTeamTaskResult>
+
+/**
+ * Compare-and-set one authorized task transition. A transition that would
+ * leave the task in progress while its write scopes overlap another
+ * in-progress task is refused with `TEAM_TASK_WRITE_SCOPE_CONFLICT`, so
+ * `claim`, `reassign`, and a scope-widening `edit` are bound by the same
+ * exclusion {@link claimNextReadyTask} applies.
  * @param caller - exact live Team member authorizing the mutation.
  * @param request - task identity, expected revision, action, and action fields.
  * @returns the committed next task revision.

@@ -53,8 +53,7 @@
     "@deepseek-ai/dsh-subprocess-local": "workspace:^",
     "@deepseek-ai/dsh-terminal": "workspace:^",
     "@deepseek-ai/dsh-terminal-bash": "workspace:^",
-    "@deepseek-ai/dsh-tool-bash-persistent": "workspace:^",
-    "@deepseek-ai/dsh-tool-pwsh-persistent": "workspace:^",
+    "@deepseek-ai/dsh-tool-shell-persistent": "workspace:^",
     "@deepseek-ai/dsh-tool-str-replace-editor": "workspace:^"
   },
   "peerDependencies": {

@@ -38,12 +38,8 @@
   name: '@deepseek-ai/dsh-fs-sandbox'
   disabled: true
 
-- id: tool-bash
-  name: '@deepseek-ai/dsh-tool-bash'
-  disabled: true
-
-- id: tool-pwsh
-  name: '@deepseek-ai/dsh-tool-pwsh'
+- id: tool-shell
+  name: '@deepseek-ai/dsh-tool-shell'
   disabled: true
 
 - id: agent-instructions
@@ -148,8 +144,9 @@
         timeoutMs: 300000
 
     - id: persistent-bash
-      name: '@deepseek-ai/dsh-tool-bash-persistent'
+      name: '@deepseek-ai/dsh-tool-shell-persistent'
       config:
+        dialect: bash
         timeoutMs: 300000
         description: |-
           Run commands in a bash shell

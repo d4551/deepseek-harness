@@ -116,7 +116,7 @@ kind: "package-reference"
 <a id="model-experience"></a>
 ## 模型体验
 
-间接地，通过 `dsh-user-approval` 和 `dsh-tool-bash`：二者渲染由此服务的旋钮事件所选择的审批策略提示词、切换通知与沙箱工具结果；`permission/preset` 本身只写入日志。
+间接地，通过 `dsh-user-approval` 和 `dsh-tool-shell`：二者渲染由此服务的旋钮事件所选择的审批策略提示词、切换通知与沙箱工具结果；`permission/preset` 本身只写入日志。
 
 #### KV Cache 影响
 

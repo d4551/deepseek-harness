@@ -48,6 +48,9 @@
       "path": "../../core/session"
     },
     {
+      "path": "../../core/tools"
+    },
+    {
       "path": "../../interaction/commands"
     },
     {

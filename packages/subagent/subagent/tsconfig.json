@@ -21,6 +21,9 @@
       "path": "../../util/capacity-gate"
     },
     {
+      "path": "../../util/timeout"
+    },
+    {
       "path": "../../core/agent"
     },
     {

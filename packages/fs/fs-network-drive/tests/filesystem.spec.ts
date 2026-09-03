@@ -4,7 +4,8 @@
  * serialization of concurrent guarded mutations of one target.
  */
 
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DriveError } from '@deepseek-ai/dsh-network-drive/identity'
 import { expectCode, setup } from './harness.ts'
@@ -44,6 +45,25 @@ describe('NetworkDriveFileSystem publication failures and guards', () => {
     await expect(fs.writeText(target, 'mine', { kind: 'replaceIfVersion', version: current }))
       .resolves.toMatchObject({ operation: 'update' })
     expect(drive.contentOf('shared.md')).toBe('mine')
+  })
+
+  it('rejects a guarded write over an oversize working file another writer replaced with the same byte count', async () => {
+    const { fs, root } = await setup(undefined, { maxFileBytes: 8 })
+    const workspaceCopy = join(root, 'oversize.txt')
+    await writeFile(workspaceCopy, 'AAAAAAAAAAAA')
+    const target = await fs.resolve('oversize.txt')
+    const observed = (await fs.stat(target))!.version
+
+    // Same length, different bytes: only a content-derived version can tell the
+    // two apart, and the guard is the only thing standing between them.
+    await writeFile(workspaceCopy, 'BBBBBBBBBBBB')
+    expect((await fs.stat(target))!.version).not.toBe(observed)
+
+    await expectCode(
+      fs.writeText(target, 'mine', { kind: 'replaceIfVersion', version: observed }),
+      'FS_STALE_VERSION',
+    )
+    await expect(readFile(workspaceCopy, 'utf8')).resolves.toBe('BBBBBBBBBBBB')
   })
 
   it('surfaces a drive-side precondition failure as a stale version', async () => {

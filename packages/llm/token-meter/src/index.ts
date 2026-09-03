@@ -24,7 +24,7 @@ import { commitSurfaceTokens, planSurfaceTokens } from './surface-fold.ts'
 import type { MeterSurfaceNode } from './surface-fold.ts'
 import { priceSurface } from './route-pricing.ts'
 
-export type * from './types.ts'
+export type { TokenMeasurement, TokenMeasurementBaseline, TokenMeterConfig, TokenSurfaceNode } from './types.ts'
 
 /**
  * Raw anchor facts captured at the latest successful call; the baseline is

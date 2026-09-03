@@ -242,6 +242,50 @@ export function apply(ctx: Context, config: Config): void {}
     expect(entries[0]?.schemaKeys).toEqual(['knob'])
   })
 
+  it('walks a field set a workspace package owns, so sibling plugins share one schema', () => {
+    const root = makeRoot()
+    writePkg(root, 'group/fields', '@fix/fields', {
+      'src/index.ts': `import z from '@deepseek-ai/schemastery'
+/** Owned field validators. */
+export const Fields = { knob: z.string() }
+`,
+    })
+    writePkg(root, 'group/one', '@fix/one', {
+      'src/index.ts': `import type { Context } from '@deepseek-ai/cordis'
+import z from '@deepseek-ai/schemastery'
+import { Fields } from '@fix/fields'
+${DOCUMENTED_CONFIG}
+export const Config: z<Config> = z.object(Fields)
+/** Load. */
+export function apply(ctx: Context, config: Config): void {}
+`,
+    })
+    const entries = collectConfigCatalog(root)
+    expect(entries.find(entry => entry.pkg === '@fix/one')?.schemaKeys).toEqual(['knob'])
+  })
+
+  it('hard-errors on a key an owned field set adds that the config type omits', () => {
+    const root = makeRoot()
+    writePkg(root, 'group/fields', '@fix/fields', {
+      'src/index.ts': `import z from '@deepseek-ai/schemastery'
+/** Owned field validators. */
+export const Fields = { knob: z.string(), hidden: z.number() }
+`,
+    })
+    writePkg(root, 'group/one', '@fix/one', {
+      'src/index.ts': `import type { Context } from '@deepseek-ai/cordis'
+import z from '@deepseek-ai/schemastery'
+import { Fields } from '@fix/fields'
+${DOCUMENTED_CONFIG}
+export const Config: z<Config> = z.object(Fields)
+/** Load. */
+export function apply(ctx: Context, config: Config): void {}
+`,
+    })
+    expect(() => collectConfigCatalog(root))
+      .toThrow(/schema validates key 'hidden' but config type 'Config' declares no such member/)
+  })
+
   it('hard-errors on a schema key the config type does not declare', () => {
     expect(() => collectConfigCatalog(make({
       'src/index.ts': `import type { Context } from '@deepseek-ai/cordis'

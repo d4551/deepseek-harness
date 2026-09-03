@@ -25,7 +25,7 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Load this plugin in any composition that mounts a model shell tool (`dsh-tool-bash` or `dsh-tool-pwsh`): each foreground or background shell call then runs with a freshly collected managed environment instead of whatever `DSH_*` values the process inherited.
+Load this plugin in any composition that mounts a model shell tool (`dsh-tool-shell`): each foreground or background shell call then runs with a freshly collected managed environment instead of whatever `DSH_*` values the process inherited.
 
 ### What every shell call receives
 
@@ -104,8 +104,7 @@ Read these pages when the package-level contract is not enough. They move from t
 
 - [shell package map](../README.md) — the bash capability family and its roles.
 - [Bash executor subsystem](../../../docs/subsystems/shell.md) — the `ctx.shell` seam the tools execute through.
-- [tool-bash](../tool-bash/README.md) — the bash tool that consumes this environment.
-- [tool-pwsh](../tool-pwsh/README.md) — the pwsh tool that consumes this environment.
+- [tool-shell](../tool-shell/README.md) — the shell tool that consumes this environment.
 - [home paths package](../../util/home-paths/README.md) — how `DSH_HOME` is resolved.
 - [Generated configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-shell-env) — every accepted config field and its source declaration.
 
@@ -114,7 +113,7 @@ Read these pages when the package-level contract is not enough. They move from t
 <a id="model-experience"></a>
 ## Model Experience
 
-Indirectly, through the shell tools (`dsh-tool-bash`, `dsh-tool-pwsh`), which expose this registry's managed `DSH_*` facts in every shell-tool call.
+Indirectly, through the shell tool (`dsh-tool-shell`), which exposes this registry's managed `DSH_*` facts in every shell-tool call.
 
 #### KV Cache effect
 

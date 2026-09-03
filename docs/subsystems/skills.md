@@ -189,15 +189,23 @@ type SkillRegistration = Omit<SkillDefinition, 'invocation' | 'provider'> & {
 
 ## Lookup and configuration
 
-Skill lookup is cwd-sensitive because providers may expose workspace-local skills, and its optional signal cancels provider work for the caller. Registry reads additionally take the viewing scope — consumers pass the calling agent, which is its own scope key — through `SkillViewOptions`; the registry consumes `scope` for layer selection, and providers read only their `SkillLookupOptions` contract from the same borrowed options object. Cancellation is checked before and after catalog selection, including cache hits, and races both discovery and full-definition loading. If no git root is found, the local provider treats the supplied cwd itself as the project root.
+Skill lookup is workspace-sensitive because providers may expose workspace-local skills: `cwd` names the primary workspace and `additionalRoots` the rest of the roots the caller works in, and its optional signal cancels provider work for the caller. A catalog is one session-wide list rather than a per-file routing decision, so a workspace-sensitive provider covers every root and lets `cwd` order decide the same-name collisions its own ranking leaves tied. Registry reads additionally take the viewing scope — consumers pass the calling agent, which is its own scope key — through `SkillViewOptions`; the registry consumes `scope` for layer selection, and providers read only their `SkillLookupOptions` contract from the same borrowed options object. Cancellation is checked before and after catalog selection, including cache hits, and races both discovery and full-definition loading. If no git root is found, the local provider treats the supplied cwd itself as the project root.
 
 Full definitions are not cached by the registry. Each `get()` calls the winning provider with the selected candidate, so the local provider rereads the current body. A definition whose name no longer matches that candidate is rejected and invalidates the exact provider for rediscovery.
 
 ```ts type-equiv
-/** Caller context used for cwd-sensitive and abortable provider work. */
+/** Caller context used for workspace-sensitive and abortable provider work. */
 interface SkillLookupOptions {
-  /** Workspace selector for the current lookup. */
+  /** Primary workspace selector for the current lookup. */
   readonly cwd?: string | undefined
+  /**
+   * The caller's ADDITIONAL workspace roots. A skill catalog is one session-wide
+   * list rather than a per-file routing decision, so a workspace-sensitive
+   * provider covers every root: a second checkout the session works in
+   * contributes its skills beside the primary root's. Ordered after `cwd`, which
+   * decides same-name collisions the provider's own ranking leaves tied.
+   */
+  readonly additionalRoots?: readonly string[] | undefined
   /** Abort discovery or loading work for the current caller. */
   readonly signal?: AbortSignal | undefined
 }

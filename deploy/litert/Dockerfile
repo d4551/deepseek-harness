@@ -15,17 +15,20 @@ RUN apt-get update \
 RUN pip install --no-cache-dir --upgrade litert-lm
 
 # The CLI keeps its model registry and caches in `$HOME/.litert-lm`, so pointing
-# HOME at the Railway volume mount is what makes imported models survive a
-# deploy. Keep this in step with `deploy.requiredMountPath` in railway.json and
-# with the volume's configured mount path.
+# HOME at the volume mount is what makes imported models survive a deploy. The
+# same path is `MOUNT_PATH` in `.railway/railway.ts`, which derives both the
+# mount and the service's own HOME from it; the deploy suite in
+# `packages/llm/llm-litert` fails when the two files disagree.
 ENV HOME=/data
-ENV LITERT_MODEL_REPO=litert-community/gemma-4-E2B-it-litert-lm
-ENV LITERT_MODEL_FILE=gemma-4-E2B-it.litertlm
-ENV LITERT_MODEL_ID=gemma4-e2b
+
+# Which model this serves is deployment configuration, not image content:
+# `.railway/railway.ts` supplies LITERT_MODEL_REPO, LITERT_MODEL_FILE, and
+# LITERT_MODEL_ID as service variables, so the image stays model-agnostic and
+# the entrypoint's guards on them can actually fire.
 
 COPY entrypoint.sh /usr/local/bin/litert-entrypoint.sh
 RUN chmod +x /usr/local/bin/litert-entrypoint.sh
 
-# Railway injects PORT and routes public traffic to it; the 9379 CLI default
-# would never receive a request.
+# Railway injects PORT and routes public traffic to it; the CLI's own default
+# port would never receive a request.
 CMD ["/usr/local/bin/litert-entrypoint.sh"]

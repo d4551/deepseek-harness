@@ -296,12 +296,19 @@ describe('JsonRpcLineTransport', () => {
   })
 
   it('ignores responses that do not match a pending request', async () => {
-    const { aToB, b } = transportPair()
+    const { aToB, bToA, b } = transportPair()
     b.start()
 
     aToB.write('{"jsonrpc":"2.0","id":"unknown","result":{"ignored":true}}\n')
-    await new Promise(resolve => setTimeout(resolve, 10))
 
+    // The unmatched response settles nothing and leaves the transport usable:
+    // the next real request still resolves with its own reply.
+    const pending = b.request('echo', {})
+    const requestChunk = (await once(bToA, 'data'))[0] as Buffer | string
+    const request = JSON.parse(String(requestChunk)) as { id: string }
+    aToB.write(`${JSON.stringify({ jsonrpc: '2.0', id: request.id, result: { matched: true } })}\n`)
+
+    await expect(pending).resolves.toEqual({ matched: true })
     b.close()
   })
 })

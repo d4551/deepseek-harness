@@ -1,7 +1,7 @@
 /** Low-level Win32 process, stdio, and Job Object primitives used by the Windows ACL sandbox. */
 
 export { ERROR_INSUFFICIENT_BUFFER } from './abi.ts'
-export * from './errors.ts'
+export { Win32Error } from './errors.ts'
 export {
   allocPtrSlot,
   allocUint32,

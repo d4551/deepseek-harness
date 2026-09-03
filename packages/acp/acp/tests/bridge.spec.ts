@@ -787,6 +787,12 @@ describe('automation-only ACP bridge', () => {
     const first = await harness.client.newSession({ cwd: process.cwd(), mcpServers })
     const second = await harness.client.newSession({ cwd: process.cwd(), mcpServers })
 
+    // The repeated namespace was admitted rather than rejected as a
+    // collision: both sessions exist and hold a live Agent at the same time.
+    expect(first.sessionId).not.toBe(second.sessionId)
+    expect(harness.ctx.agents.get(SessionId(first.sessionId))).toBeDefined()
+    expect(harness.ctx.agents.get(SessionId(second.sessionId))).toBeDefined()
+
     await Promise.all([
       harness.client.closeSession({ sessionId: first.sessionId }),
       harness.client.closeSession({ sessionId: second.sessionId }),

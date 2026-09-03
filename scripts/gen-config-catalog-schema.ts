@@ -2,10 +2,13 @@
  * Schemastery schema walk and plugin entry classification for the config catalog.
  */
 
+import { existsSync } from 'node:fs'
+import { resolve } from 'node:path'
 import type {
   ClassDeclaration,
   Expression,
   FunctionDeclaration,
+  ObjectLiteralExpression,
 } from 'typescript/unstable/ast'
 import { SyntaxKind } from 'typescript/unstable/ast'
 import {
@@ -26,7 +29,8 @@ import {
   isStringLiteral,
   isVariableStatement,
 } from 'typescript/unstable/ast/is'
-import type { FileCtx } from './gen-config-catalog-model.ts'
+import { loadFile } from './gen-config-catalog-load.ts'
+import type { FileCtx, World } from './gen-config-catalog-model.ts'
 
 function unwrapExpr(expr: Expression): Expression {
   let e = expr
@@ -34,37 +38,83 @@ function unwrapExpr(expr: Expression): Expression {
   return e
 }
 
+/** The entry file of the workspace package a bare specifier names. */
+function packageEntry(specifier: string, world: World): FileCtx | null {
+  if (specifier.startsWith('.')) return null
+  const dir = world.pkgDirByName.get(specifier)
+  if (dir === undefined) return null
+  const rel = `${dir}/src/index.ts`
+  const abs = resolve(world.scanRoot, rel)
+  return existsSync(abs) ? loadFile(abs, rel, world.cache) : null
+}
+
+/**
+ * The object literal a `z.object(...)` call validates: written inline, or named
+ * by a `const` this file or a workspace package it imports declares. Following
+ * exactly one named hop lets several plugin entries validate one owner's field
+ * set without copying it, while the walk stays static.
+ */
+function schemaObjectLiteral(
+  ctx: FileCtx,
+  argument: Expression,
+  world: World | undefined,
+): { literal: ObjectLiteralExpression; ctx: FileCtx } | null {
+  const expr = unwrapExpr(argument)
+  if (isObjectLiteralExpression(expr)) return { literal: expr, ctx }
+  if (!isIdentifier(expr)) return null
+  const imported = ctx.imports.get(expr.text)
+  const owner = imported === undefined
+    ? ctx
+    : world === undefined ? null : packageEntry(imported.specifier, world)
+  if (owner === null) return null
+  const declared = imported?.imported ?? expr.text
+  for (const stmt of owner.sf.statements) {
+    if (!isVariableStatement(stmt)) continue
+    for (const decl of stmt.declarationList.declarations) {
+      if (!isIdentifier(decl.name) || decl.name.text !== declared || !decl.initializer) continue
+      const initializer = unwrapExpr(decl.initializer)
+      if (isObjectLiteralExpression(initializer)) return { literal: initializer, ctx: owner }
+    }
+  }
+  return null
+}
+
 /**
  * Statically walk a schemastery schema expression to its key paths plus the
- * packages whose schemas an intersect composes.
+ * packages whose schemas an intersect composes. `world` lets a `z.object(...)`
+ * argument name a field set another workspace package owns.
  */
 export function walkSchemaExpr(
   ctx: FileCtx,
   expr: Expression,
   where: string,
   violations: string[],
+  world?: World,
 ): { keys: string[]; composes: string[] } {
   const keys: string[] = []
   const composes: string[] = []
-  const collectValuePaths = (value: Expression, base: string) => {
+  const collectValuePaths = (from: FileCtx, value: Expression, base: string) => {
     const call = unwrapExpr(value)
     if (!isCallExpression(call) || !isPropertyAccessExpression(call.expression)) return
     const method = call.expression.name.text
-    if (method === 'object' && call.arguments[0] && isObjectLiteralExpression(call.arguments[0])) {
-      for (const prop of call.arguments[0].properties) {
+    const target = method === 'object' && call.arguments[0]
+      ? schemaObjectLiteral(from, call.arguments[0], world)
+      : null
+    if (target) {
+      for (const prop of target.literal.properties) {
         if (!isPropertyAssignment(prop)) continue
-        const key = isStringLiteral(prop.name) ? prop.name.text : prop.name.getText(ctx.sf)
+        const key = isStringLiteral(prop.name) ? prop.name.text : prop.name.getText(target.ctx.sf)
         keys.push(`${base}.${key}`)
-        collectValuePaths(prop.initializer, `${base}.${key}`)
+        collectValuePaths(target.ctx, prop.initializer, `${base}.${key}`)
       }
       return
     }
     if (method === 'array' && call.arguments[0]) {
-      collectValuePaths(call.arguments[0], `${base}[]`)
+      collectValuePaths(from, call.arguments[0], `${base}[]`)
       return
     }
     const inner = unwrapExpr(call.expression.expression)
-    if (isCallExpression(inner)) collectValuePaths(inner, base)
+    if (isCallExpression(inner)) collectValuePaths(from, inner, base)
   }
   const visit = (e: Expression) => {
     const call = unwrapExpr(e)
@@ -73,14 +123,17 @@ export function walkSchemaExpr(
       return
     }
     const method = call.expression.name.text
-    if (method === 'object' && call.arguments[0] && isObjectLiteralExpression(call.arguments[0])) {
-      for (const prop of call.arguments[0].properties) {
+    const target = method === 'object' && call.arguments[0]
+      ? schemaObjectLiteral(ctx, call.arguments[0], world)
+      : null
+    if (target) {
+      for (const prop of target.literal.properties) {
         if (isPropertyAssignment(prop) || isShorthandPropertyAssignment(prop)) {
-          const key = isStringLiteral(prop.name) ? prop.name.text : prop.name.getText(ctx.sf)
+          const key = isStringLiteral(prop.name) ? prop.name.text : prop.name.getText(target.ctx.sf)
           keys.push(key)
-          if (isPropertyAssignment(prop)) collectValuePaths(prop.initializer, key)
+          if (isPropertyAssignment(prop)) collectValuePaths(target.ctx, prop.initializer, key)
         } else {
-          violations.push(`${where}: schema object property '${prop.getText(ctx.sf)}' is not a plain key.`)
+          violations.push(`${where}: schema object property '${prop.getText(target.ctx.sf)}' is not a plain key.`)
         }
       }
       return

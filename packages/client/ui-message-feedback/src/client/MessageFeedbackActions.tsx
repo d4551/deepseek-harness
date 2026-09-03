@@ -16,7 +16,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  IconDislikeOutline16, IconLikeOutline16, Tooltip, useAnchoredPosition,
+  GlyphButton, IconDislikeOutline16, IconLikeOutline16, Tooltip, useAnchoredPosition,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MessageFeedbackRating } from '@deepseek-ai/dsh-message-feedback/types'
 import type { MessageFeedbackActionProps } from './slots.ts'
@@ -230,8 +230,8 @@ export function MessageFeedbackActions({ messageId, ensure, rate, toggle, clearN
   return (
     <>
       <Tooltip label={likeLabel} side="bottom">
-        <button
-          type="button"
+        <GlyphButton
+          surface="message"
           className={css.action}
           aria-label={likeLabel}
           aria-pressed={rating === 'positive'}
@@ -242,11 +242,11 @@ export function MessageFeedbackActions({ messageId, ensure, rate, toggle, clearN
           onClick={() => { onRate('positive') }}
         >
           <IconLikeOutline16 />
-        </button>
+        </GlyphButton>
       </Tooltip>
       <Tooltip label={dislikeLabel} side="bottom">
-        <button
-          type="button"
+        <GlyphButton
+          surface="message"
           className={css.action}
           aria-label={dislikeLabel}
           aria-pressed={rating === 'negative'}
@@ -257,7 +257,7 @@ export function MessageFeedbackActions({ messageId, ensure, rate, toggle, clearN
           onClick={() => { onRate('negative') }}
         >
           <IconDislikeOutline16 />
-        </button>
+        </GlyphButton>
       </Tooltip>
       {rating !== undefined && (
         <button

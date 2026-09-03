@@ -75,14 +75,15 @@ This section explains the design of the executor and points at the code that rea
 
 ### Design concept
 
-The executor is the sandboxing Service Provider for the `ctx.shell` seam: it inherits `dsh-bash-local`'s process mechanics and re-wraps each command's exact `['bash', '-c', command]` argv through `ctx.sandbox.confine()`, spawning the returned argv directly. Which platform runner confines the command — and whether one is usable at all — is the provider's concern; this package owns the bash side only: the selected mode, enforcement completeness, and denial classification on results.
+The executor is the sandboxing Service Provider for the `ctx.shell` seam: it inherits `dsh-bash-local`'s dialect and process mechanics and turns on the seam's confinement layer, which re-wraps each command's exact `['bash', '-c', command]` argv through `ctx.sandbox.confine()` and spawns the returned argv directly. Which platform runner confines the command — and whether one is usable at all — is the provider's concern; this package owns the bash side only: the selected mode, enforcement completeness, and denial classification on results.
 
 ### Source map
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Plugin entry: `SandboxBashExecutor`, per-process fact retention, run/start wrapping |
-| [`src/helpers.ts`](src/helpers.ts) | Denial, runner-failure, and runner-spawn-failure classification |
+| [`src/index.ts`](src/index.ts) | Plugin entry: `SandboxBashExecutor` — the bash dialect with confinement turned on |
+| [`../shell/src/confinement.ts`](../shell/src/confinement.ts) | Argv wrapping, runner-failure conversion, and per-process fact retention, shared with `dsh-pwsh-sandbox` |
+| [`../shell/src/sandbox-classify.ts`](../shell/src/sandbox-classify.ts) | Denial, runner-failure, and runner-spawn-failure classification, shared with `dsh-pwsh-sandbox` |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; classification is observable in results) |
 | `tests/` | Exercised behavior across the bwrap, Landlock, and Seatbelt runners |
 
@@ -111,7 +112,7 @@ Read these pages when the executor contract is not enough. They move from the se
 - [sandbox seam](../../sandbox/sandbox/README.md) — the confinement capability, its modes, and its fail-closed contract.
 - [sandbox-policy](../../sandbox/sandbox-policy/README.md) — the per-session mode and workspace root this executor honors.
 - [sandbox-local](../../sandbox/sandbox-local/README.md) — the shipped runner backends: bwrap, Landlock, and Seatbelt.
-- [tool-bash](../tool-bash/README.md) — the model-facing `bash` tool and its escalation surface.
+- [tool-shell](../tool-shell/README.md) — the model-facing `bash` tool and its escalation surface.
 - [Sandbox Agent Note](../../../.agents/notes/implemented/feature/2026-07-06-sandbox.md) — the sandbox design, escalation, and switching contract.
 
 -----
@@ -123,7 +124,7 @@ Read these pages when the executor contract is not enough. They move from the se
 
 #### What the model sees
 
-The generated [`dsh-tool-bash` schemas](../../../docs/tool-catalog.md#deepseek-aidsh-tool-bash) are the baseline. By advertising a confining `sandboxMode`, this backend augments `bash` with `sandbox_permissions` (enum `workspace-write` | `danger-full-access`) and `justification`. The policy owner separately contributes the current capability-neutral `sandbox:policy` context.
+The generated [`dsh-tool-shell` schemas](../../../docs/tool-catalog.md#deepseek-aidsh-tool-shell) are the baseline. By advertising a confining `sandboxMode`, this backend augments `bash` with `sandbox_permissions` (enum `workspace-write` | `danger-full-access`) and `justification`. The policy owner separately contributes the current capability-neutral `sandbox:policy` context.
 
 #### Token effect
 

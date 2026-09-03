@@ -1,0 +1,14 @@
+# Stand-in for the two rows dsh-base inserts that the hosted-drive layer takes
+# over: the host-local sandbox policy fencing the launch directory, and the
+# host-local filesystem provider. Booting the whole base bundle is not what
+# this suite measures; what the shipped hosted-drive patch does to these rows
+# is. Row ids, plugin names, and `!!js` expressions are dsh-base's own.
+- insert:
+    - id: sandbox-policy
+      name: '@deepseek-ai/dsh-sandbox-policy'
+      config:
+        mode: !!js process.env.DSH_PERMISSION_MODE ?? 'workspace-write'
+        workspaceRoot: !!js process.cwd()
+
+    - id: fs-sandbox
+      name: '@deepseek-ai/dsh-fs-sandbox'

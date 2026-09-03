@@ -10,7 +10,10 @@ import {
   type SourceToWorkerFrame,
   type WorkerToSourceFrame,
 } from '../../shared/bridge/messages/observation.ts'
-import type { ClientConsoleEventFrame } from '../../shared/bridge/messages/runtime/console-frames.ts'
+import type {
+  ClientConsoleEnabledFrame,
+  ClientConsoleEventFrame,
+} from '../../shared/bridge/messages/runtime/console-frames.ts'
 import type { ClientRuntimeResponseFrame } from '../../shared/bridge/messages/runtime/frames.ts'
 import type { ClientSourceResponseFrame } from '../../shared/bridge/messages/sources/frames.ts'
 
@@ -51,6 +54,11 @@ export type InspectorSourceEvent =
     readonly type: 'client-runtime-response'
     readonly source: InspectorSourceDescriptor
     readonly frame: ClientRuntimeResponseFrame
+  }
+  | {
+    readonly type: 'client-console-enabled'
+    readonly source: InspectorSourceDescriptor
+    readonly frame: ClientConsoleEnabledFrame
   }
   | {
     readonly type: 'client-console-event'
@@ -208,12 +216,14 @@ export class InspectorSourceRegistry {
       this.emit({ type: 'client-runtime-response', source: state.source, frame })
       return
     }
-    if (frame.t === 'client-console/event') {
+    if (frame.t === 'client-console/enabled' || frame.t === 'client-console/event') {
       if (state.source.kind !== 'client'
         || !state.source.capabilities.some(capability => capability.type === 'client-console')) {
         throw new Error('inspector protocol: source did not declare Client Console')
       }
-      this.emit({ type: 'client-console-event', source: state.source, frame })
+      this.emit(frame.t === 'client-console/enabled'
+        ? { type: 'client-console-enabled', source: state.source, frame }
+        : { type: 'client-console-event', source: state.source, frame })
       return
     }
     if (frame.t === 'client-sources/response') {
@@ -278,13 +288,16 @@ export class InspectorSourceRegistry {
       dropped: 0,
       topicCounts: new Map(),
     })
+    // Admission completes on this side first: a source starts publishing the
+    // moment it reads `source/accepted`, so any capability frame a consumer
+    // sends for this generation has to be on the wire ahead of that reply.
+    this.emit({ type: 'opened', source })
     connection.send({
       v: INSPECTOR_PROTOCOL_VERSION,
       t: 'source/accepted',
       sourceId: source.sourceId,
       generation: source.generation,
     })
-    this.emit({ type: 'opened', source })
     this.notifyStatus()
   }
 

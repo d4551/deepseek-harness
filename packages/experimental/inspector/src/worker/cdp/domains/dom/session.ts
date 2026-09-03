@@ -45,7 +45,9 @@ export class CordisDomSession {
   private readonly backendByObjectId = new Map<CdpRemoteObjectId, BoundDomObject>()
   private readonly objectIdsByGroup = new Map<string, Set<CdpRemoteObjectId>>()
   private readonly searches = new Map<string, CdpNodeId[]>()
+  private readonly withheld: CordisDomChange[] = []
   private readonly unsubscribe: () => void
+  private readonly unsubscribeAnnouncements: () => void
   private nextNodeId = 1
   private nextSearchId = 1
   private enabled = false
@@ -56,6 +58,7 @@ export class CordisDomSession {
     private readonly runtime: RuntimeDomainSession,
   ) {
     this.unsubscribe = backend.subscribe((event) => { this.updateDocument(event) })
+    this.unsubscribeAnnouncements = this.runtime.onAnnouncementSettled(() => { this.deliverWithheld() })
   }
 
   /**
@@ -113,6 +116,7 @@ export class CordisDomSession {
   /** Release connection-owned ids and subscriptions. */
   close(): void {
     this.unsubscribe()
+    this.unsubscribeAnnouncements()
     this.resetDocument()
     this.searches.clear()
   }
@@ -129,6 +133,8 @@ export class CordisDomSession {
         return {}
       case 'DOM.getDocument':
         this.enabled = true
+        // The served document is the current one, so the incremental updates that produced it are spent.
+        this.withheld.length = 0
         return { root: this.serialize(this.backend.document().root, 0, depthParam(params.depth, DEFAULT_DOCUMENT_DEPTH), true) }
       case 'DOM.requestChildNodes': {
         const node = this.fromNodeId(params.nodeId)
@@ -331,6 +337,7 @@ export class CordisDomSession {
   }
 
   private resetDocument(): void {
+    this.withheld.length = 0
     this.nodeIdByBackend.clear()
     this.backendByNodeId.clear()
     this.backendByObjectId.clear()
@@ -339,13 +346,29 @@ export class CordisDomSession {
     this.childrenSent.clear()
   }
 
+  /**
+   * Hold every change while this connection owes an execution-context announcement.
+   *
+   * A realm's first records reach the Worker in the same socket read as the reply that
+   * completes its announcement, so applying them on arrival would push Elements nodes for a
+   * context DevTools has not been told about. Holding the whole stream keeps the mutation
+   * order the frontend replays against its tree.
+   */
   private updateDocument(event: CordisDomChange): void {
+    if (this.runtime.announcementPending()) {
+      this.withheld.push(event)
+      return
+    }
     if (event.type === 'source-disconnected') {
       this.releaseSourceObjects(event.source)
       return
     }
     if (this.enabled) for (const mutation of event.mutations) this.sendMutation(mutation)
     this.pruneDocumentState()
+  }
+
+  private deliverWithheld(): void {
+    for (const event of this.withheld.splice(0)) this.updateDocument(event)
   }
 
   private sendMutation(mutation: CordisDomMutation): void {

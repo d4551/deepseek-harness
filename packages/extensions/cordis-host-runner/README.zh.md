@@ -78,10 +78,13 @@ runner 建立在两个分离之上。**注册表与沙箱是同一个服务。**
 | [`src/lifecycle.ts`](src/lifecycle.ts) | 在 `cordis-dynamic` fiber 组下启动 host 半 |
 | [`src/inspect-registry.ts`](src/inspect-registry.ts) | `ctx.cordisInspect` 注册表：host provider 加镜像的 client manifest |
 | [`src/types.ts`](src/types.ts) | `dynamicCordisRunner` remote namespace 与转发事件共享的 client 安全载荷形态 |
+| [`src/wire-values.ts`](src/wire-values.ts) | 两半计算方式完全相同的部分：失败记录、单方法 Inspect Provider 声明，以及受 guard 约束的 Context 动词转发 |
 
 ### 一次 run 的流程
 
 `define` 对元数据做首尾去空白与必填校验，用编译预检每一半的语法（不执行任何代码），铸出插件与包标识，并把定义登记在发起调用的会话名下。`run` 对照 `currentPackageId` 与 `nextPackageId` 解析目标：纯 host 包在沙箱中求值并立即提交，带浏览器半的包则挂起一次审批请求、emit `cordis/request-run` 并挂起。作答页面依次走 `runHostHalf`、`getClientCode` 与 `resolveRequestRun`；命名存活 revision 的成功会提交激活、设置 `currentPackageId`，`cordis/request-run-resolved` 让其他每个页面撤下待作答入口。`stop` 回退存活下发——handler disposer、fiber dispose 与 `cordis/dynamic-retract` 广播——并让定义保持可运行。四条转发事件（`cordis/request-run`、`cordis/request-run-resolved`、`cordis/dynamic-package`、`cordis/dynamic-retract`）声明在 client 安全的 `./types` 子路径上，并由 `@deepseek-ai/dsh-api-remotes` 的白名单准许投递——正是这一点让浏览器能经 `ctx.remote.$on` 收到它们。
+
+`./types` 子路径声明这些载荷，`./wire-values` 子路径构造它们。`./wire-values` 不引用任何平台——没有 Cordis service、没有 Node 模块、没有浏览器 API——因此 `@deepseek-ai/dsh-tool-cordis` 与 `@deepseek-ai/dsh-cordis-client-runner` 的浏览器半都导入它并产出完全相同的记录。同一模块还持有 `ctxVerbForwarder`——两个 guard 门面中唯一属于 dispatch 而非策略的部分；每个 guard 仍自行提供拒绝逻辑，因此一半拒绝什么、如何解释拒绝，都留在那一半。`./wire-values` 是本包唯一允许 client bundle 按值导入的子路径：共享 client 预设的 `INLINE_SAFE` 白名单只准许这一个说明符，本包名下其余一概不准——这也是动词规则与载荷构造函数放在一起、而不另立模块的原因。
 
 </details>
 

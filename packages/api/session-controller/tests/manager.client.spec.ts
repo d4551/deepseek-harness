@@ -725,6 +725,13 @@ describe('remaining branches', () => {
     const manager = new SessionManager(fakeRemote(api))
     manager.handleSessionStatus(S2, true)
     manager.handleSessionError(S2, '无实例')
+    // Neither event materializes a row or an instance.
+    expect(manager.getListSnapshot().items).toEqual([])
+    // The first instantiation after them starts from the Host baseline: the
+    // dropped running bit and failure text reach no Session.
+    const session = manager.get(S2)
+    expect(session.getSnapshot().running).toBe(false)
+    expect(session.getSnapshot().lastAgentError).toBeNull()
   })
 
   it('keeps list-entry identity for unchanged rows across an unrelated list change', async () => {

@@ -25,6 +25,12 @@ const css = readFileSync(
   fileURLToPath(new URL('../src/client/MessageFeedbackActions.module.css', import.meta.url)),
   'utf8',
 )
+// The action button's box is ui-primitives' GlyphButton `message` surface, the
+// same one ui-chat's own row uses; the axis contract is read from there.
+const glyphButtonCss = readFileSync(
+  fileURLToPath(new URL('../../ui-primitives/src/GlyphButton.module.css', import.meta.url)),
+  'utf8',
+)
 // The theme package maps `./styles/*` to `./src/styles/*`, so the declarations
 // stay on the source plane rather than needing a build. Every theme sheet, not
 // just the platform tokens: font and scrollbar variables are declared in
@@ -36,14 +42,17 @@ const tokens = readdirSync(fileURLToPath(new URL('../../ui-theme/src/styles/', i
 
 /**
  * The declarations of one top-level rule, by selector.
+ * @param source - the stylesheet text to read.
  * @param selector - the class selector to read, including its leading dot.
  * @returns the rule's declaration text.
  */
-function block(selector: string): string {
-  const match = new RegExp(`^\\${selector} \\{([^}]*)\\}`, 'm').exec(css)
-  if (match === null) throw new Error(`MessageFeedbackActions.module.css has no \`${selector}\` rule`)
+function blockIn(source: string, selector: string): string {
+  const match = new RegExp(`^\\${selector} \\{([^}]*)\\}`, 'm').exec(source)
+  if (match === null) throw new Error(`no \`${selector}\` rule`)
   return match[1] ?? ''
 }
+
+const block = (selector: string): string => blockIn(css, selector)
 
 describe('MessageFeedbackActions theme styles', () => {
   it('names only theme variables the token sheet defines', () => {
@@ -95,9 +104,9 @@ describe('MessageFeedbackActions theme styles', () => {
     // These buttons render inside ui-chat's MessageIconActions row; a fixed
     // 28px would leave them undersized (or overflowing) once the Settings
     // font size moves the row.
-    expect(block('.action')).toMatch(/width:\s*calc\(28px \+ var\(--dsh-content-font-delta, 0px\)\)/)
-    expect(block('.action')).toMatch(/height:\s*calc\(28px \+ var\(--dsh-content-font-delta, 0px\)\)/)
-    expect(block('.action svg')).toMatch(/width:\s*calc\(16px \+ var\(--dsh-content-font-delta, 0px\)\)/)
+    expect(blockIn(glyphButtonCss, '.message')).toMatch(/width:\s*calc\(28px \+ var\(--dsh-content-font-delta, 0px\)\)/)
+    expect(blockIn(glyphButtonCss, '.message')).toMatch(/height:\s*calc\(28px \+ var\(--dsh-content-font-delta, 0px\)\)/)
+    expect(blockIn(glyphButtonCss, '.message svg')).toMatch(/width:\s*calc\(16px \+ var\(--dsh-content-font-delta, 0px\)\)/)
     expect(block('.noteOpen')).toMatch(/line-height:\s*calc\(28px \+ var\(--dsh-content-font-delta, 0px\)\)/)
   })
 })

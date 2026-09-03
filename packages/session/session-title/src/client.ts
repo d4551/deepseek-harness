@@ -7,4 +7,6 @@
  * @module @deepseek-ai/dsh-session-title/client
  */
 
-export type * from './types.ts'
+// The projection-table augmentation lives in `./types.ts`; this seat carries
+// it into the emitted declarations without forwarding an unnamed surface.
+export type {} from './types.ts'

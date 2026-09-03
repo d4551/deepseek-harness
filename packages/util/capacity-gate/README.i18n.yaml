@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write packages/util/capacity-gate/README.md
-README.md: 1190168ae7659b8916bd4614991ee0ae069910ab
-README.zh.md: 5fb56a775f0466818d5e64a0b940ae092142100a
+README.md: 80c7947a31271f2888c9b719feb817932258de11
+README.zh.md: cfed40c2eca293e4d1d3dd48e81e8c5cd2a89c31

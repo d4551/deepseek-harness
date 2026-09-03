@@ -10,7 +10,7 @@ import type { ChatLocationNodeIndex, ChatNodeStore, ChatSnapshot, ChatTurnNaviga
 // name the package that owns the type so the generated import can point at it.
 import type { ConversationNode, PartialAssistant, RunningToolCall } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { TURN_PROCESS_INDEPENDENT_KINDS } from '../contract/turn-process.ts'
-import { sessionRecallLabels } from './event-projection.ts'
+import { sessionRecallLabels } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { sameTurnNavigationItem, turnNavigationItem } from './turn-navigation.ts'
 
 const EMPTY_KEYS: readonly string[] = []

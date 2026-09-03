@@ -19,7 +19,9 @@ import type {} from '@deepseek-ai/dsh-session-projection'
 // this re-export projects the type face onto the package root AND keeps the
 // module edge in the emitted index.d.ts, so aggregate programs consuming the
 // declarations still receive the SessionProjectionMap merge.
-export type * from './types.ts'
+// The projection-table augmentation lives in `./types.ts`; this seat carries
+// it into the emitted declarations without forwarding an unnamed surface.
+export type {} from './types.ts'
 import { fallbackSessionTitle, normalizeSessionTitle } from './normalize.ts'
 
 export { fallbackSessionTitle, normalizeSessionTitle, truncateTitleUtf8 } from './normalize.ts'

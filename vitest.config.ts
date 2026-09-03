@@ -20,6 +20,13 @@ const uncoveredLocationsReporter = fileURLToPath(new URL('./scripts/coverage-unc
 // has no include, which vite-tsconfig-paths treats as match-all, so its paths
 // map applies to every test file. paths must win over package exports so built
 // lib/ never loads a second module-singleton copy.
+//
+// Vite 8 prints a startup notice recommending its own resolve.tsconfigPaths in
+// place of this plugin. It is not a swap here: the native option applies a
+// config's paths only to the files that config matches through `files` or
+// `include`, and tsconfig.base.json declares neither, so its 589 mappings would
+// reach nothing. The match-all reading of a config without `include` is the
+// behaviour this repository depends on, and only the plugin has it.
 const pathsPlugin = (): ReturnType<typeof tsconfigPaths> => tsconfigPaths({ projects: ['./tsconfig.base.json'] })
 
 // Win32 fact entries beyond the package list (which lives in
@@ -29,11 +36,6 @@ const pathsPlugin = (): ReturnType<typeof tsconfigPaths> => tsconfigPaths({ proj
 const windowsUnsupportedTests = process.platform === 'win32'
   ? [
       ...windowsPackageTestExclusions,
-      'packages/subprocess/subprocess/tests/**/*.spec.ts',
-      'packages/subprocess/subprocess-local/tests/local.spec.ts',
-      'packages/subprocess/subprocess-local/tests/process-inspector.spec.ts',
-      'packages/subprocess/subprocess-local/tests/spawn.spec.ts',
-      'packages/subprocess/subprocess-local/tests/terminal.spec.ts',
       // Oracle-diff suites: they compare the worker's POSIX path/url faces
       // and its implemented built-ins against the host Node's own answers,
       // which are win32 semantics on Windows. The worker always speaks POSIX;
@@ -57,8 +59,12 @@ const nonLinuxWebWorkerTests = process.platform === 'linux'
   : nonLinuxTests
 
 const platformUnsupportedTests = windowsUnsupportedTests.concat(nonLinuxWebWorkerTests)
+// Coverage follows the test lane: a package qualifies here only because NO
+// suite of its own runs on win32 (the same list, with the same reasons), so
+// its sources cannot be covered there. A package whose suites do run states a
+// per-file reason below or meets the gate.
 const windowsUnsupportedCoveragePackages = process.platform === 'win32'
-  ? [...windowsUnsupportedPackages, 'packages/subprocess/*']
+  ? windowsUnsupportedPackages
   : []
 
 // Windows-only packages: their sources execute exclusively on win32 (koffi
@@ -66,17 +72,7 @@ const windowsUnsupportedCoveragePackages = process.platform === 'win32'
 // The Windows dev/CI lane exercises them through the probe/runner suites; the
 // per-file 100% gate must not fail on their Linux-uncovered paths.
 const windowsOnlyCoverageExclusions = process.platform !== 'win32'
-  ? [
-      'packages/sandbox/sandbox-windows-acl/src/**/*.ts',
-      // The koffi-backed Win32 table (Toolhelp32/GetProcessTimes/taskkill)
-      // executes only on win32; its decision logic is unit-pinned on every
-      // host through the injected-internals suites.
-      'packages/subprocess/subprocess-local/src/windows-inspector.ts',
-      // The Job-object factory opens Windows libraries; the tree control that
-      // consumes it is unit-pinned on every host through an injected Job, and
-      // each Job primitive through win32-process's injected binding table.
-      'packages/subprocess/subprocess-local/src/windows-job.ts',
-    ]
+  ? ['packages/sandbox/sandbox-windows-acl/src/**/*.ts']
   : []
 
 // The confinement runner entry executes exclusively as a spawned child
@@ -341,8 +337,46 @@ export default defineConfig({
         'packages/client/ui-primitives/src/JsonTree.tsx',
         'packages/client/ui-settings-models/src/client/DeepSeekOnboardingDialog.tsx',
         'packages/client/ui-settings-models/src/client/welcome-store.ts',
-        'packages/extensions/*/src/**/*.ts',
-        'packages/extensions/*/src/**/*.tsx',
+        // The Cordis extension group's per-file gaps, enumerated rather than
+        // matched by a `packages/extensions/*` glob. The glob sat at the tail
+        // of the client slash/command block and inherited a comment that
+        // described none of it, so an entire package group left the gate
+        // silently and any file added to it left too. Measured at enumeration:
+        // 57.91% statements over 45 files, 12 of them already meeting every
+        // threshold and now gated. Deleting an entry is how a file rejoins.
+        'packages/extensions/cordis-client-runner/src/client/api-catalog.ts',
+        'packages/extensions/cordis-client-runner/src/client/guard.ts',
+        'packages/extensions/cordis-client-runner/src/client/index.ts',
+        'packages/extensions/cordis-client-runner/src/client/inspect-registry.ts',
+        'packages/extensions/cordis-client-runner/src/client/orchestrator.ts',
+        'packages/extensions/cordis-client-runner/src/client/providers.ts',
+        'packages/extensions/cordis-client-runner/src/client/runtime.ts',
+        'packages/extensions/cordis-client-runner/src/client/timer.ts',
+        'packages/extensions/cordis-host-runner/src/guard.ts',
+        'packages/extensions/cordis-host-runner/src/index.ts',
+        'packages/extensions/cordis-host-runner/src/inspect-registry.ts',
+        'packages/extensions/cordis-host-runner/src/registry.ts',
+        'packages/extensions/cordis-host-runner/src/sandbox.ts',
+        'packages/extensions/cordis-host-runner/src/wire-values.ts',
+        'packages/extensions/tool-cordis/src/api-catalog.ts',
+        'packages/extensions/tool-cordis/src/fiber-state.ts',
+        'packages/extensions/tool-cordis/src/index.ts',
+        'packages/extensions/tool-cordis/src/inspect.ts',
+        'packages/extensions/tool-cordis/src/present.ts',
+        'packages/extensions/tool-cordis/src/prompt.ts',
+        'packages/extensions/tool-cordis/src/providers.ts',
+        'packages/extensions/ui-cordis/src/client/CordisActionRow.tsx',
+        'packages/extensions/ui-cordis/src/client/CordisDefineRow.tsx',
+        'packages/extensions/ui-cordis/src/client/CordisPanel.tsx',
+        'packages/extensions/ui-cordis/src/client/CordisRunRow.tsx',
+        'packages/extensions/ui-cordis/src/client/card-model.ts',
+        'packages/extensions/ui-cordis/src/client/index.ts',
+        'packages/extensions/ui-cordis/src/client/inventory.ts',
+        'packages/extensions/ui-cordis/src/client/locales.ts',
+        'packages/extensions/ui-cordis/src/client/run-card-index.ts',
+        'packages/extensions/ui-cordis/src/client/status.ts',
+        'packages/extensions/ui-cordis/src/index.ts',
+        'packages/extensions/ui-cordis/src/invariant.ts',
         // Typert generator: correctness is pinned by its fixture suites and
         // the byte-for-byte catalog reproduction test; per-file coverage
         // would put whole-workspace compiler analysis under v8

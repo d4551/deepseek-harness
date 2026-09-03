@@ -2001,7 +2001,10 @@ describe('SessionPersistence service registration', () => {
       store.set(m.id, { meta: m, events: [...oneTurnLog().slice(0, -1), ending] })
     }
     await ctx.plugin(MemoryPersistence, { store })
-    await Promise.all([...store.keys()].map(id => ctx.sessionPersistence.load(SessionId(id))))
+    const loaded = await Promise.all([...store.keys()].map(id => ctx.sessionPersistence.load(SessionId(id))))
+    // Each log comes back with its authored ending: the current shapes pass
+    // through the loader untouched.
+    expect(loaded.map(entry => entry?.events.at(-1))).toEqual(endings)
     await ctx.fiber.dispose()
   })
 

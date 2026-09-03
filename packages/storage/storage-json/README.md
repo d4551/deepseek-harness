@@ -92,6 +92,7 @@ A `per-record` table document at `<root>/<unit>/<table>/<key>.json` has the form
 | File | Role |
 |---|---|
 | [`src/index.ts`](src/index.ts) | Plugin entry: backend registration, `root` config, unit open/close table |
+| [`src/unit-lifecycle.ts`](src/unit-lifecycle.ts) | The open-slot lifecycle both layouts share: closed guard, write drain, declared-global check |
 | [`src/single-unit.ts`](src/single-unit.ts) | One `single` unit: authoritative memory, write primitives, publish rollback |
 | [`src/per-record-unit.ts`](src/per-record-unit.ts) | One `per-record` unit: tree reads, path-safe records, and one-document writes |
 | [`src/format.ts`](src/format.ts) | Whole-unit and record serialization with version validation |

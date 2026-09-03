@@ -1,5 +1,5 @@
 ---
-description: "叠加在 dsh-base 之上的私有 swarm profile 层：多个队友同时处理同一个请求，从共享任务板自行领取工作，并受有界的一次性 run 上限约束。"
+description: "叠加在 dsh-base 之上的随发布提供的 swarm profile 层：多个队友同时处理同一个请求，从共享任务板自行领取工作，并受有界的一次性 run 上限约束。"
 kind: "package-bundle"
 ---
 
@@ -7,9 +7,9 @@ kind: "package-bundle"
 
 [English](README.md) | 中文
 
-## 概要
+## 概述
 
-`@deepseek-ai/dsh-swarm-profile` 是一个私有 profile 层，在 `@deepseek-ai/dsh-base` 之上把 [Agent Teams](../../subagent/agent-team/README.zh.md) 变成 swarm 模式。Lead 先把请求拆成带写作用域和依赖的共享任务，再创建队友；每个队友用 `team_task_claim_next` 自行领取工作，而不是等待被指派。该 patch 同时为 Subagent 缝设定并发一次性 run 的上限，因此扇出前台委派的 swarm 会排队，而不会让宿主超载。请在初始化过的源码检出 profile 中显式添加它；正式发布不包含本包。
+`@deepseek-ai/dsh-swarm-profile` 是把 [Agent Teams](../../subagent/agent-team/README.zh.md) 在 `@deepseek-ai/dsh-base` 之上变成 swarm 模式的 profile 层。Lead 先把请求拆成带写作用域和依赖的共享任务，再创建队友；每个队友用 `team_task_claim_next` 自行领取工作，而不是等待被指派。该 patch 同时为 Subagent 缝设定并发一次性 run 的上限，因此扇出前台委派的 swarm 会排队，而不会让宿主超载。随发布提供的 `swarm` profile 已把它叠加在 `dsh-base` 与 `dsh-headless` 之上，因此 `dsh --profile swarm "<task>"` 就是入口；其他 profile 也可以把它作为额外一层添加。
 
 ## 目录
 
@@ -25,13 +25,20 @@ kind: "package-bundle"
 <a id="use-this-package"></a>
 ## 使用本包
 
-### 安装到 profile
+### 运行随发布提供的 profile
 
-在本仓库检出中，把本包加入一个已初始化的 profile，然后运行一个足够大、值得拆分的任务：
+`swarm` profile 在首次使用时创建，已经把本层叠加在 `dsh-base` 与 `dsh-headless` 之上：
 
 ```sh
-bun run dsh plugin --profile headless add ./packages/preset/swarm-profile
-bun run dsh --profile headless "Split this refactor across a swarm and report when the board is empty."
+dsh --profile swarm "Split this refactor across a swarm and report when the board is empty."
+```
+
+### 把本层添加到其他 profile
+
+任何已初始化的 profile 都可以把它作为额外一层叠加：
+
+```sh
+dsh plugin --profile <name> add @deepseek-ai/dsh-swarm-profile
 ```
 
 该 profile 必须已经包含 `@deepseek-ai/dsh-base`，本层要消费它提供的 Subagent 服务与 provider 行。用 `dsh plugin --profile <name> remove @deepseek-ai/dsh-swarm-profile` 移除本包，会把该 bundle 从 profile 的有序层列表中去掉。
@@ -97,13 +104,12 @@ bun run dsh --profile headless "Split this refactor across a swarm and report wh
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **仅限源码检出** —— 该私有包不出现在正式的 npm、CLI、Web 或 Python 发布产物中。
-- **共享检出目录** —— 每个队友看到同一个工作目录；写作用域是建议性的任务元数据，不是文件系统锁，本 bundle 也不提供 worktree 隔离。
+- **共享检出目录** —— 每个队友看到同一个工作目录；写作用域会阻止两个任务同时在同一批路径上进行，但它不是文件系统锁，本 bundle 也不提供 worktree 隔离。
 - **需要 base profile** —— 该 patch 依赖 `dsh-base` 提供的行 id 与 Subagent provider，它不是独立 profile。
 - **每个部署只有一个上限** —— `maxConcurrentRuns` 约束整个进程，没有按 Team 或按成员的子配额。
 
 <a id="dev-note"></a>
-### 开发者备注
+### 开发备注
 
 <details>
 <summary>维护者的工作上下文——点击展开</summary>

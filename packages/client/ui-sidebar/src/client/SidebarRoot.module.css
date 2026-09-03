@@ -174,21 +174,8 @@
   letter-spacing: 0;
 }
 
-.iconButton {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: 50%;
-  padding: 0;
-  background: transparent;
-  cursor: pointer;
-  color: var(--dsw-alias-label-secondary);
-}
-
+/* The box is GlyphButton's `sidebar` surface; this sheet keeps the shell's own
+   hover, focus, and rail treatments. */
 .iconButton:hover {
   background: var(--dsw-alias-interactive-bg-hover);
 }

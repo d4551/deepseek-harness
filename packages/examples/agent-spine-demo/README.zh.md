@@ -117,8 +117,8 @@ kind: "package-reference"
 @deepseek-ai/dsh-agent/invariant
 @deepseek-ai/dsh-scope/invariant
 @deepseek-ai/dsh-agent-loop/invariant package-owned relational checks
-@deepseek-ai/dsh-shell-env            managed DSH_* shell environment for model shell calls (unless toolBash=false)
-@deepseek-ai/dsh-tool-bash            the model-facing bash schema (unless toolBash=false)
+@deepseek-ai/dsh-shell-env            managed DSH_* shell environment for model shell calls (unless toolShell=false)
+@deepseek-ai/dsh-tool-shell           the model-facing shell schema (unless toolShell=false)
 @deepseek-ai/dsh-agent-instructions   AGENTS.md/CLAUDE.md workspace context loader
 @deepseek-ai/dsh-tool-skill           session-prefix skill catalog + model-facing loader schema
 @deepseek-ai/dsh-tool-jobs            job_output/job_list/job_kill schemas + completion notices
@@ -161,7 +161,7 @@ YAML include 可以去重配置，却无法拥有 bin 或提供入口默认值�
 <a id="model-experience"></a>
 ## 模型体验
 
-模型体验由组合包挂载的面向模型子插件间接提供——`dsh-system-prompt`、`dsh-tools`、`dsh-tool-skill`、`dsh-tool-bash`、`dsh-tool-jobs` 与 `dsh-llm-retry`，启用 `goals` 时还包括 `dsh-tool-goal` 与目标轮次驱动器的提示词；组合包自身不添加任何面向模型的包装内容。
+模型体验由组合包挂载的面向模型子插件间接提供——`dsh-system-prompt`、`dsh-tools`、`dsh-tool-skill`、`dsh-tool-shell`、`dsh-tool-jobs` 与 `dsh-llm-retry`，启用 `goals` 时还包括 `dsh-tool-goal` 与目标轮次驱动器的提示词；组合包自身不添加任何面向模型的包装内容。
 
 #### KV Cache 影响
 

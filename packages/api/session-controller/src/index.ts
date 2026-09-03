@@ -51,7 +51,7 @@ import type {
   SessionUpdateQueueValue,
 } from './types.ts'
 
-export type * from './types.ts'
+export type { ChunkRowEvent, ModelCatalog, ModelCatalogFailure, ModelCatalogModel, ModelProviderGroup, ModelReasoning, ModelReasoningEffort, ModelSelection, ModelSelectionProjection, ModelSelectionProjectionState, PromptContentPart, QueueAction, SESSION_SEARCH_RESULT_LIMIT, SESSION_SEARCH_SNIPPET_MAX_CODE_POINTS, SessionAddress, SessionAttachmentRequest, SessionAttachmentValue, SessionCancelRequest, SessionCancelValue, SessionChunkRun, SessionControlBaseline, SessionControlFrame, SessionCreateRequest, SessionCreateValue, SessionError, SessionErrorDetailsMap, SessionEventEntry, SessionFollowFrame, SessionFollowRequest, SessionForkRequest, SessionForkValue, SessionHistoryRecord, SessionJob, SessionListMetadata, SessionListRequest, SessionListValue, SessionOpenWorkspacePathRequest, SessionOpenWorkspacePathValue, SessionPage, SessionPageRequest, SessionProjectionBaseline, SessionProjectionHints, SessionProjectionUpdate, SessionProjectionValue, SessionProjectionValues, SessionPromptRequest, SessionPromptValue, SessionQueuedItem, SessionRenameRequest, SessionRenameValue, SessionRequestId, SessionSearchItem, SessionSearchRequest, SessionSearchValue, SessionSelectModelRequest, SessionSelectModelValue, SessionSummary, SessionUpdateQueueRequest, SessionUpdateQueueValue, SessionWireEvent, SkillEntry, SkillListRequest, SkillListValue } from './types.ts'
 export { ApiSessionNotFound } from './agent.ts'
 export { SessionFileReferences } from './file-references.ts'
 export { SessionSkillCatalog } from './skill-catalog.ts'

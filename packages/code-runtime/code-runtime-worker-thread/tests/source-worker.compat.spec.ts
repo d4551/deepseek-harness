@@ -14,7 +14,7 @@ it('boots the source worker without workspace package outputs', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'dsh-code-source-worker-'))
   let worker: Worker | undefined
   try {
-    const files = ['worker.ts', 'bootstrap.ts', 'protocol.ts', 'worker-json.ts', 'output-json.ts']
+    const files = ['worker.ts', 'bootstrap.ts', 'protocol.ts', 'worker-json.ts', 'output-json.ts', 'intrinsics.ts']
     await Promise.all(files.map(async (file) => {
       await copyFile(new URL(`../src/${file}`, import.meta.url), join(directory, file))
     }))

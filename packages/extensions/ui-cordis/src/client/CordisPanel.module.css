@@ -320,22 +320,8 @@
   line-height: 16px;
 }
 
-/* Matches GoalBar's action controls: compact circular icons whose visible copy
-   lives in a tooltip and accessible name. */
-.actionButton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: none;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--dsw-alias-label-tertiary);
-  cursor: pointer;
-}
-
+/* The box is GlyphButton's `bar` surface, the same one GoalBar's action controls
+   use; the visible copy lives in a tooltip and the accessible name. */
 .actionButton:hover:not(:disabled) {
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-secondary);

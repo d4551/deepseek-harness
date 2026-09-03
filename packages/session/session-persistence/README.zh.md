@@ -80,6 +80,7 @@ const headers = await ctx.sessionPersistence.list()        // every stored sessi
 |---|---|
 | [`src/index.ts`](src/index.ts) | 插件入口：抽象 `SessionPersistence` 服务与重新导出的元数据类型 |
 | [`src/coordinator.ts`](src/coordinator.ts) | 共享写入编排：批处理、串行化、修复、接管、dispose、格式拒绝 |
+| [`src/coordinated.ts`](src/coordinated.ts) | `./coordinated`：服务 API 转发给协调器的 `CoordinatedSessionPersistence` 基类 |
 | [`src/write-behind.ts`](src/write-behind.ts) | 每会话有界写入控制器与 flush 屏障 |
 | [`src/preparations.ts`](src/preparations.ts) | 为恢复复用而有界保留的未发布 Session 准备结果 |
 | [`src/revision.ts`](src/revision.ts) | 带品牌类型的不透明修订值 token |

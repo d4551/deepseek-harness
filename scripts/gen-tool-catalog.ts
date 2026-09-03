@@ -22,7 +22,6 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { type Config as ToolsConfig } from '@deepseek-ai/dsh-tools'
 import LocalBashExecutor from '@deepseek-ai/dsh-bash-local'
 import * as BashEnvPlugin from '@deepseek-ai/dsh-shell-env'
-import { PwshLocalExecutor } from '@deepseek-ai/dsh-pwsh-local'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
 import { AttachmentStore } from '@deepseek-ai/dsh-attachment'
@@ -41,10 +40,8 @@ import SkillRegistry from '@deepseek-ai/dsh-skill'
 import * as SkillFileSystem from '@deepseek-ai/dsh-skill-filesystem'
 import LocalJobRegistry from '@deepseek-ai/dsh-jobs-local'
 import * as ToolAskUser from '@deepseek-ai/dsh-tool-ask-user'
-import * as ToolBash from '@deepseek-ai/dsh-tool-bash'
-import * as ToolPwsh from '@deepseek-ai/dsh-tool-pwsh'
-import * as ToolBashPersistent from '@deepseek-ai/dsh-tool-bash-persistent'
-import * as ToolPwshPersistent from '@deepseek-ai/dsh-tool-pwsh-persistent'
+import * as ToolShell from '@deepseek-ai/dsh-tool-shell'
+import * as ToolShellPersistent from '@deepseek-ai/dsh-tool-shell-persistent'
 import CordisHostRunner from '@deepseek-ai/dsh-cordis-host-runner'
 import * as ToolCordis from '@deepseek-ai/dsh-tool-cordis'
 import * as ToolFs from '@deepseek-ai/dsh-tool-fs'
@@ -228,37 +225,25 @@ const TOOL_PACKAGES: ToolPackage[] = [
       'exit_plan_mode stays in the model-facing schema while planning is inactive so transitions add no tool-catalog churn on top of the plan-policy change. Its execute path rejects calls outside plan mode; in plan mode it presents the plan over the user-questions seam (approve / keep planning with feedback), and approval logs plan mode inactive at the step boundary.',
   },
   {
-    pkg: '@deepseek-ai/dsh-tool-bash',
-    dir: 'tool-bash',
-    source: 'packages/shell/tool-bash/src/index.ts',
+    pkg: '@deepseek-ai/dsh-tool-shell',
+    dir: 'tool-shell',
+    source: 'packages/shell/tool-shell/src/index.ts',
     requires: ['ctx.tools', 'ctx.shell', 'ctx.systemPrompt', 'ctx.shellEnv', 'ctx.jobs at call time for run_in_background'],
     writes: ['tool/call', 'tool/result'],
     async mount(ctx) {
+      // `dialect` is REQUIRED, and both values ship, so the harvest mounts the
+      // plugin twice and catalogues both names. The registered schema depends
+      // on the dialect and on whether the mounted executor confines — never on
+      // which executor backs the seam — so one unconfined local executor
+      // satisfies both mounts (registration never spawns a process).
       await ctx.plugin(LocalSubprocessRuntime)
       await ctx.plugin(BashEnvPlugin)
       await ctx.plugin(LocalBashExecutor)
-      await ctx.plugin(ToolBash)
+      await ctx.plugin(ToolShell, { dialect: 'bash' })
+      await ctx.plugin(ToolShell, { dialect: 'pwsh' })
     },
     note:
-      'The bash tool is the model-facing consumer of the bash executor seam. A `run_in_background` run registers with the generic `ctx.jobs` runtime and is collected/stopped through the `job_*` tools from `@deepseek-ai/dsh-tool-jobs`; the `enableRunInBackground` config (default true) removes the parameter entirely when disabled.',
-  },
-  {
-    pkg: '@deepseek-ai/dsh-tool-pwsh',
-    dir: 'tool-pwsh',
-    source: 'packages/shell/tool-pwsh/src/index.ts',
-    requires: ['ctx.tools', 'ctx.shell', 'ctx.systemPrompt', 'ctx.shellEnv', 'ctx.jobs at call time for run_in_background'],
-    writes: ['tool/call', 'tool/result'],
-    async mount(ctx) {
-      // The pwsh tool consumes the bash executor seam; the schema harvest
-      // mounts the pwsh-local implementation so the inject resolves without
-      // executing anything (registration never spawns a process).
-      await ctx.plugin(LocalSubprocessRuntime)
-      await ctx.plugin(BashEnvPlugin)
-      await ctx.plugin(PwshLocalExecutor)
-      await ctx.plugin(ToolPwsh)
-    },
-    note:
-      'The pwsh tool is the PowerShell-dialect consumer of the bash executor seam for Windows compositions (a PowerShell executor such as `@deepseek-ai/dsh-pwsh-local` backs `ctx.shell`); it mirrors the bash tool call-for-call minus sandbox controls — `run_in_background` runs register with the generic `ctx.jobs` runtime and are collected/stopped through the `job_*` tools, and the managed `DSH_*` environment comes from `@deepseek-ai/dsh-shell-env`. Each call runs in a fresh process (no persistent PTY session), with native `C:\\...` paths and `$env:NAME` variables.',
+      'One package, one model-facing tool per mount: the required `dialect` config selects the tool name, its command vocabulary, and its prompt section. A deployment mounts it ONCE, with the dialect that matches the executor backing `ctx.shell` (`@deepseek-ai/dsh-bash-local`/`dsh-bash-sandbox` for `bash`, `@deepseek-ai/dsh-pwsh-local`/`dsh-pwsh-sandbox` for `pwsh`); this page shows both branches. A `run_in_background` run registers with the generic `ctx.jobs` runtime and is collected/stopped through the `job_*` tools from `@deepseek-ai/dsh-tool-jobs`; the `enableRunInBackground` config (default true) removes the parameter entirely when disabled. The pwsh dialect adds its Windows termination note, native `C:\\...` paths, and `$env:NAME` variables; both dialects run each call in a fresh process (no persistent PTY session).',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-cordis',
@@ -274,30 +259,20 @@ const TOOL_PACKAGES: ToolPackage[] = [
       'Not in any shipped tree (a deliberate opt-in — dynamic package code reaches the real runtime, see .agents/notes/implemented/feature/2026-07-08-self-referential-cordis-toolset.md). The toolset injects `ctx.dynamicCordisRunner` from `@deepseek-ai/dsh-cordis-host-runner`, which owns the definition registry and the vm sandbox; a composition missing it never activates the tools. A running package may register ADDITIONAL model-visible tools until it is stopped, undefined, or DSH restarts; a full changed request header logs those tool-set changes.',
   },
   {
-    pkg: '@deepseek-ai/dsh-tool-bash-persistent',
-    dir: 'tool-bash-persistent',
-    source: 'packages/shell/tool-bash-persistent/src/index.ts',
+    pkg: '@deepseek-ai/dsh-tool-shell-persistent',
+    dir: 'tool-shell-persistent',
+    source: 'packages/shell/tool-shell-persistent/src/index.ts',
     requires: ['ctx.tools', 'ctx.terminals', 'an owning Agent at execution time'],
     writes: ['tool/call', 'PTY shell state', 'tool/result'],
     async mount(ctx) {
+      // `dialect` is REQUIRED and both values ship; the harvest mounts the
+      // plugin twice so both names and both default descriptions appear.
       await ctx.plugin(TerminalSessionService)
-      await ctx.plugin(ToolBashPersistent)
+      await ctx.plugin(ToolShellPersistent, { dialect: 'bash' })
+      await ctx.plugin(ToolShellPersistent, { dialect: 'pwsh' })
     },
     note:
-      'One owner-isolated persistent bash tool; deployment composition supplies the PTY backend and may override the model-facing environment description.',
-  },
-  {
-    pkg: '@deepseek-ai/dsh-tool-pwsh-persistent',
-    dir: 'tool-pwsh-persistent',
-    source: 'packages/shell/tool-pwsh-persistent/src/index.ts',
-    requires: ['ctx.tools', 'ctx.terminals', 'an owning Agent at execution time'],
-    writes: ['tool/call', 'PTY shell state', 'tool/result'],
-    async mount(ctx) {
-      await ctx.plugin(TerminalSessionService)
-      await ctx.plugin(ToolPwshPersistent)
-    },
-    note:
-      'One owner-isolated persistent pwsh tool, the Windows counterpart of the persistent bash tool; deployment composition supplies a pwsh-dialect PTY backend and may override the model-facing environment description.',
+      'One owner-isolated persistent shell tool per mount; the required `dialect` config selects the tool name, the command wrapping, and the default description, and this page shows both branches. A deployment mounts it once with the dialect its PTY backend speaks, supplies that backend, and may override the model-facing environment description.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-str-replace-editor',
@@ -566,7 +541,7 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     scope: ctx => catalogChildScopes.get(ctx) as Agent,
     note:
-      'All ten tools are scoped to implicit Team Leads and durable teammates. The shipped dsh-base bundle keeps the package disabled; the documented Agent Teams profile patch enables it while disabling the legacy continuable-child control names.',
+      'All eleven tools are scoped to implicit Team Leads and durable teammates. The shipped dsh-base bundle keeps the package disabled; the documented Agent Teams profile patch enables it while disabling the legacy continuable-child control names.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-todo',

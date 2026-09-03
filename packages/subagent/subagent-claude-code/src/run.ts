@@ -20,6 +20,8 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import {
   settleRunResult,
   subprocessRunHandle,
+  toError,
+  type OneShotRunConfig,
   type SubagentResult,
   type SubagentRun,
   type SubagentStartRequest,
@@ -143,29 +145,23 @@ function unattendedDiagnostic(
   return `Claude Code unattended decision (mode: ${mode}; request: ${request}; decision: ${decision}): ${reason}`
 }
 
-/* jscpd:ignore-start -- sibling providers intentionally keep product-private
- * run inputs and error normalization instead of adding a shared lifecycle owner. */
-/** Fully resolved inputs for one official Claude Agent SDK query. */
-export interface ClaudeCodeRunSpec {
+/**
+ * Fully resolved inputs for one official Claude Agent SDK query: the model,
+ * permission mode, environment, and termination grace the plugin config
+ * resolved once, plus this run's workspace, spawn operation, and sink.
+ */
+export interface ClaudeCodeRunSpec extends OneShotRunConfig<ClaudeCodePermissionMode> {
   /** Parent Session workspace supplied to the SDK and real CLI. */
   readonly cwd: string
-  /** Profile-selected native model; omitted to preserve Claude settings. */
-  readonly model?: string
-  /** Profile-selected native non-interactive permission mode. */
-  readonly permissionMode: ClaudeCodePermissionMode
-  /** Explicit deployment/test environment layered after shared scrubbing. */
-  readonly env: Record<string, string>
-  /** Subprocess termination grace passed to the shared process-tree owner. */
-  readonly disposeGraceMs: number
+  /**
+   * The delegating parent's other workspace roots, forwarded as the SDK's
+   * `additionalDirectories`. Empty for a single-root parent.
+   */
+  readonly workspaceRoots: readonly string[]
   /** Shared subprocess service spawn operation. */
   readonly spawn: (spec: SubprocessSpawnSpec) => SubprocessHandle
   /** Host diagnostic sink for a product failure kept outside model-visible text. */
   readonly onError?: (error: Error, stopReason: SubagentStopReason) => void
-}
-
-function thrown(value: unknown): Error {
-  /* v8 ignore next -- typed SDK and subprocess failures reject with Error. */
-  return value instanceof Error ? value : new Error(String(value))
 }
 
 /** Read live request cancellation across awaited startup cleanup. */
@@ -173,7 +169,6 @@ function isAborted(signal: AbortSignal): boolean {
   return signal.aborted
 }
 
-/* jscpd:ignore-end */
 
 /**
  * Validate and preserve the one-shot task before crossing the SDK boundary.
@@ -274,14 +269,14 @@ export async function disposeClaudeCodeChild(
   try {
     query?.close()
   } catch (error: unknown) {
-    failures.push(thrown(error))
+    failures.push(toError(error))
   }
 
   child.terminate()
   try {
     await child.waitForExit()
   } catch (error: unknown) {
-    failures.push(thrown(error))
+    failures.push(toError(error))
   }
   const outcome = await child.done
 
@@ -301,7 +296,7 @@ export async function disposeClaudeCodeChild(
 
 /**
  * Build the fixed official SDK options for one one-shot provider run.
- * @param spec - Workspace, environment, process service, and disposal policy.
+ * @param spec - Workspace roots, environment, process service, and disposal policy.
  * @param controller - per-run cancellation owner.
  * @param capture - receives the shared child and SDK-facing process synchronously.
  * @param captureDiagnostic - receives safe facts from unattended interaction callbacks.
@@ -319,6 +314,7 @@ export function claudeQueryOptions(
   return {
     abortController: controller,
     cwd: spec.cwd,
+    ...spec.workspaceRoots.length === 0 ? {} : { additionalDirectories: [...spec.workspaceRoots] },
     ...spec.model === undefined ? {} : { model: spec.model },
     env: { ...scrubbedParentEnv(), ...spec.env },
     persistSession: false,
@@ -452,7 +448,7 @@ export async function startClaudeCodeRun(
     } as const
     const startupFailure = (cause: unknown = error): ClaudeCodeFailure => new ClaudeCodeFailure(
       startupFacts,
-      thrown(cause),
+      toError(cause),
     )
     requestCancel()
     if (child !== undefined && child.pid <= 0) {
@@ -460,14 +456,14 @@ export async function startClaudeCodeRun(
       try {
         query?.close()
       } catch (disposeError: unknown) {
-        closeError = thrown(disposeError)
+        closeError = toError(disposeError)
       }
 
-      let spawnError = thrown(error)
+      let spawnError = toError(error)
       try {
         await child.done
       } catch (childError: unknown) {
-        spawnError = thrown(childError)
+        spawnError = toError(childError)
       }
 
       if (closeError !== undefined) {
@@ -495,7 +491,7 @@ export async function startClaudeCodeRun(
         await disposeClaudeCodeChild(query, child)
       } catch (disposeError: unknown) {
         const failure = startupFailure()
-        const cleanupFailure = thrown(disposeError)
+        const cleanupFailure = toError(disposeError)
         const aggregate = new AggregateError(
           [failure, cleanupFailure],
           `${failure.message}; ${cleanupFailure.message}`,
@@ -511,7 +507,7 @@ export async function startClaudeCodeRun(
         const cleanupFailure = new ClaudeCodeFailure({
           stage: 'teardown',
           category: 'unknown',
-        }, thrown(disposeError))
+        }, toError(disposeError))
         const aggregate = new AggregateError(
           [failure, cleanupFailure],
           `${failure.message}; ${cleanupFailure.message}`,
@@ -566,7 +562,7 @@ export async function startClaudeCodeRun(
         // Keep the SDK category and cause; the diagnostic adds later process facts.
         throw error instanceof ClaudeCodeFailure
           ? error
-          : new ClaudeCodeFailure(facts, thrown(error))
+          : new ClaudeCodeFailure(facts, toError(error))
       }
     },
     collectOutput: () => [],
@@ -587,7 +583,7 @@ export async function startClaudeCodeRun(
       try {
         await disposeClaudeCodeChild(publishedQuery, publishedChild)
       } catch (error: unknown) {
-        const failure = thrown(error)
+        const failure = toError(error)
         reportFailure(failure)
         throw failure
       }

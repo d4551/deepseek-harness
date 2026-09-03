@@ -39,7 +39,6 @@ export function privateRoot(): string {
 }
 
 // Spill keeps its empty-name policy local so storage backends stay decoupled.
-/* jscpd:ignore-start */
 /**
  * Encode an arbitrary string as one safe path segment, injectively over ALL JS
  * (UTF-16) strings. A session id / suggested name is untrusted input, so this
@@ -66,7 +65,6 @@ export function encodeSegment(raw: string): string {
   }
   return out
 }
-/* jscpd:ignore-end */
 
 /**
  * Derive the stable session-scoped directory under a spill root.

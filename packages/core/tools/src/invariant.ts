@@ -1,7 +1,8 @@
 /** Package-owned tool-pipeline invariants. @module @deepseek-ai/dsh-tools/invariant */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
+import { advanceOpenTurn, stageSessionEvents } from '@deepseek-ai/dsh-session/invariant-staging'
+import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type { InvariantFailure, InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 import type { ToolExecution, ToolExecutionResult } from './index.ts'
 
@@ -13,6 +14,54 @@ export const name = 'tools-invariant'
 export const inject = ['invariants']
 
 type ToolStage = 'pre' | 'execute' | 'post'
+
+/** The two events that announce one code-dispatched sub-call. */
+type DispatchEventType = 'tool/code-dispatch-start' | 'tool/code-dispatch'
+
+/** Committed code-dispatch state for one session log. */
+interface DispatchTrace {
+  /** The open turn number, or null between turns. */
+  openTurn: number | null
+  /** The rootCallId committed for each subCallId the log already carries. */
+  roots: Map<string, string>
+}
+
+/** The subCallId-to-rootCallId edge one validated dispatch event commits. */
+interface DispatchEdge {
+  child: string
+  root: string
+}
+
+/** Whether an event announces a code-dispatched sub-call. */
+function isDispatchEvent(event: SessionEvent): event is SessionEvent<DispatchEventType> {
+  return event.type === 'tool/code-dispatch-start' || event.type === 'tool/code-dispatch'
+}
+
+/**
+ * Validate one dispatch candidate against the committed trace: call ids are
+ * present, the sub-call keeps one root, its parent belongs to that root, and
+ * the announcement falls inside an open turn.
+ */
+function validateDispatch(
+  trace: DispatchTrace,
+  event: SessionEvent,
+  fail: InvariantFailure,
+): DispatchEdge | undefined {
+  if (!isDispatchEvent(event)) return undefined
+  const root = String(event.data.rootCallId)
+  const parent = String(event.data.parentCallId)
+  const child = String(event.data.subCallId)
+  if (root.length === 0 || parent.length === 0 || child.length === 0) {
+    fail(`${event.type} must carry non-empty rootCallId, parentCallId, and subCallId`)
+  }
+  const known = trace.roots.get(child)
+  if (known !== undefined && known !== root) fail(`${event.type} changed rootCallId for subCallId ${child}`)
+  if (parent !== root && trace.roots.get(parent) !== root) {
+    fail(`${event.type} parentCallId ${parent} does not belong to rootCallId ${root}`)
+  }
+  if (trace.openTurn === null) fail(`${event.type} appended outside any open turn`)
+  return { child, root }
+}
 
 /** Validate the immutable final execution/result snapshot. */
 function validateResult(
@@ -32,65 +81,26 @@ function validateResult(
 /** Install monotonic pipeline, final-snapshot, and code-dispatch enclosure checks. */
 const install: InvariantInstaller = Object.assign((ctx: Context, fail: InvariantFailure) => {
   const stages = new WeakMap<object, ToolStage>()
-  const openTurns = new WeakMap<Session, number | null>()
-  const dispatchRoots = new WeakMap<Session, Map<string, string>>()
-  const validateDispatch = (session: Session, event: SessionEvent): void => {
-    if (event.type !== 'tool/code-dispatch-start' && event.type !== 'tool/code-dispatch') return
-    const root = String(event.data.rootCallId)
-    const parent = String(event.data.parentCallId)
-    const child = String(event.data.subCallId)
-    if (root.length === 0 || parent.length === 0 || child.length === 0) {
-      fail(`${event.type} must carry non-empty rootCallId, parentCallId, and subCallId`)
-      return
-    }
-    const roots = dispatchRoots.get(session)
-    const known = roots?.get(child)
-    if (known !== undefined && known !== root) fail(`${event.type} changed rootCallId for subCallId ${child}`)
-    if (parent !== root && roots?.get(parent) !== root) {
-      fail(`${event.type} parentCallId ${parent} does not belong to rootCallId ${root}`)
-    }
-  }
-  const commitDispatch = (session: Session, event: SessionEvent): void => {
-    if (event.type !== 'tool/code-dispatch-start' && event.type !== 'tool/code-dispatch') return
-    const roots = dispatchRoots.get(session) as Map<string, string>
-    roots.set(String(event.data.subCallId), String(event.data.rootCallId))
-  }
-  const seed = (session: Session): number | null => {
-    let openTurn: number | null = null
-    dispatchRoots.set(session, new Map())
-    for (const event of session.events) {
-      validateDispatch(session, event)
-      commitDispatch(session, event)
-      if (event.type === 'turn/start') openTurn = event.data.turn
-      else if (event.type === 'turn/end') openTurn = null
-      else if ((event.type === 'tool/code-dispatch-start' || event.type === 'tool/code-dispatch')
-        && openTurn === null) {
-        fail(`${event.type} appended outside any open turn`)
+  stageSessionEvents<DispatchTrace, DispatchEdge>(ctx, fail, {
+    seed: (session) => {
+      const trace: DispatchTrace = { openTurn: null, roots: new Map() }
+      for (const event of session.events) {
+        const edge = validateDispatch(trace, event, fail)
+        if (edge !== undefined) trace.roots.set(edge.child, edge.root)
+        advanceOpenTurn(trace, event)
       }
-    }
-    openTurns.set(session, openTurn)
-    return openTurn
-  }
-  const openTurnFor = (session: Session): number | null => openTurns.get(session) ?? seed(session)
-
-  for (const session of ctx.sessions.list()) seed(session)
-  ctx.on('session/created', (session) => { seed(session) }, { global: true })
-  ctx.on('session/event', (session, event) => {
-    validateDispatch(session, event)
-    commitDispatch(session, event)
-    if (event.type === 'turn/start') openTurns.set(session, event.data.turn)
-    else if (event.type === 'turn/end') openTurns.set(session, null)
-  }, { global: true })
+      return trace
+    },
+    publish: (trace, event) => advanceOpenTurn(trace, event),
+    stage: (trace, event) => validateDispatch(trace, event, fail),
+    claims: isDispatchEvent,
+    commit: (trace, edge) => {
+      trace.roots.set(edge.child, edge.root)
+      return trace
+    },
+    unstagedMessage: 'a code-dispatch record reached publication without enclosure validation',
+  })
   ctx.on('internal/dispatch', (_mode, eventName, args) => {
-    if (eventName === 'session/event') {
-      const [session, event] = args as [Session, SessionEvent]
-      validateDispatch(session, event)
-      if ((event.type === 'tool/code-dispatch-start' || event.type === 'tool/code-dispatch')
-        && openTurnFor(session) === null) {
-        fail(`${event.type} appended outside any open turn`)
-      }
-      return
-    }
     if (eventName === 'tools/pre-execute') {
       const exec = args[0] as ToolExecution
       if (stages.has(exec)) fail('tools/pre-execute repeated for one execution')

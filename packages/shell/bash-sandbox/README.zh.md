@@ -75,14 +75,15 @@ kind: "package-reference"
 
 ### 设计概念
 
-本执行器是 `ctx.shell` seam 的沙箱 Service Provider：它继承 `dsh-bash-local` 的进程机制，把每条命令的精确 `['bash', '-c', command]` argv 经 `ctx.sandbox.confine()` 重新包装，并直接 spawn 返回的 argv。由哪种平台 runner 限制命令、以及是否有 runner 可用，属于提供方职责；本包只负责 bash 侧：所选模式、强制执行完整度，以及结果上的拒绝分类。
+本执行器是 `ctx.shell` seam 的沙箱 Service Provider：它继承 `dsh-bash-local` 的方言与进程机制，并启用 seam 的约束层——该层把每条命令的精确 `['bash', '-c', command]` argv 经 `ctx.sandbox.confine()` 重新包装，并直接 spawn 返回的 argv。由哪种平台 runner 限制命令、以及是否有 runner 可用，属于提供方职责；本包只负责 bash 侧：所选模式、强制执行完整度，以及结果上的拒绝分类。
 
 ### 源码地图
 
 | 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | 插件入口：`SandboxBashExecutor`、按进程保留事实、run/start 包装 |
-| [`src/helpers.ts`](src/helpers.ts) | 拒绝、runner 失败与 runner spawn 失败分类 |
+| [`src/index.ts`](src/index.ts) | 插件入口：`SandboxBashExecutor`——启用约束的 bash 方言 |
+| [`../shell/src/confinement.ts`](../shell/src/confinement.ts) | argv 包装、runner 失败转换与按进程保留事实，与 `dsh-pwsh-sandbox` 共享 |
+| [`../shell/src/sandbox-classify.ts`](../shell/src/sandbox-classify.ts) | 拒绝、runner 失败与 runner spawn 失败分类，与 `dsh-pwsh-sandbox` 共享 |
 | [`src/invariant.ts`](src/invariant.ts) | 不变式伴生插件（无运行时不变式；分类在结果中可观察） |
 | `tests/` | 跨 bwrap、Landlock 与 Seatbelt runner 演练的行为 |
 
@@ -111,7 +112,7 @@ kind: "package-reference"
 - [sandbox seam](../../sandbox/sandbox/README.zh.md) —— 隔离能力、其模式与失败关闭约定。
 - [sandbox-policy](../../sandbox/sandbox-policy/README.zh.md) —— 本执行器遵守的每会话模式与工作区根目录。
 - [sandbox-local](../../sandbox/sandbox-local/README.zh.md) —— 随附的 runner 后端：bwrap、Landlock 与 Seatbelt。
-- [tool-bash](../tool-bash/README.zh.md) —— 面向模型的 `bash` 工具及其升权面。
+- [tool-shell](../tool-shell/README.zh.md) —— 面向模型的 `bash` 工具及其升权面。
 - [沙箱 Agent Note](../../../.agents/notes/implemented/feature/2026-07-06-sandbox.zh.md) —— 沙箱设计、升权与切换约定。
 
 -----
@@ -123,7 +124,7 @@ kind: "package-reference"
 
 #### 模型看到的内容
 
-基线是生成的 [`dsh-tool-bash` schema](../../../docs/tool-catalog.zh.md#deepseek-aidsh-tool-bash)。通过公布表明启用隔离的 `sandboxMode` 能力，此后端会为 `bash` 增加 `sandbox_permissions`（enum 为 `workspace-write` | `danger-full-access`）与 `justification`。策略归属方会另行贡献当前且不区分具体能力的 `sandbox:policy` 上下文。
+基线是生成的 [`dsh-tool-shell` schema](../../../docs/tool-catalog.zh.md#deepseek-aidsh-tool-shell)。通过公布表明启用隔离的 `sandboxMode` 能力，此后端会为 `bash` 增加 `sandbox_permissions`（enum 为 `workspace-write` | `danger-full-access`）与 `justification`。策略归属方会另行贡献当前且不区分具体能力的 `sandbox:policy` 上下文。
 
 #### Token 影响
 

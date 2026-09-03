@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write deploy/litert/README.md
-README.md: 3ef63b500427aba5355f6dfe21738694ba5ec408
-README.zh.md: d9a1358810c7ae37ec95d4a3ebbc70df7a805172
+README.md: d49b5ef8f25e490eee63ae0ef7872617d93bb142
+README.zh.md: a660526cf74933a7167dea9f4d62a9dffcfcd5a7

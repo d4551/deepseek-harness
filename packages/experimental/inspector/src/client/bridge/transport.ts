@@ -10,6 +10,7 @@ import {
   type SourceOpenFrame,
 } from '../../shared/bridge/messages/observation.ts'
 import { InspectorSourceConnection } from '../../shared/bridge/publisher.ts'
+import type { ClientConsoleEnabledFrame } from '../../shared/bridge/messages/runtime/console-frames.ts'
 import { ClientConsoleObserver } from '../cdp/console.ts'
 import { ClientRuntimeExecutor } from '../cdp/runtime.ts'
 import {
@@ -185,7 +186,10 @@ export class ClientInspectorSource extends InspectorSourceConnection {
             this.console.disable(closed.sessionId)
             this.runtime.closeSession(closed.sessionId)
           },
-          consoleEnabled: (enabled) => { this.console.enable(enabled.sessionId) },
+          consoleEnabled: (enabled) => {
+            this.console.enable(enabled.sessionId)
+            this.confirmConsole(socket, generation, enabled.sessionId)
+          },
           consoleDisabled: (disabled) => { this.console.disable(disabled.sessionId) },
           sources: (request) => {
             void this.executeSourceRequest(socket, generation, request).catch((error: unknown) => {
@@ -231,6 +235,27 @@ export class ClientInspectorSource extends InspectorSourceConnection {
       return
     }
     socket.send(JSON.stringify(response))
+  }
+
+  private confirmConsole(
+    socket: WebSocket,
+    generation: InspectorSourceGeneration,
+    sessionId: ClientRuntimeSessionId,
+  ): void {
+    if (this.closed || this.socket !== socket || this.generation !== generation
+      || socket.readyState !== WebSocket.OPEN) return
+    const frame: ClientConsoleEnabledFrame = {
+      v: INSPECTOR_PROTOCOL_VERSION,
+      t: 'client-console/enabled',
+      sourceId: this.realmSource.sourceId,
+      generation,
+      sessionId,
+    }
+    try {
+      socket.send(JSON.stringify(frame))
+    } catch {
+      // The socket close path rejects the Worker's outstanding Console enable.
+    }
   }
 
   private acknowledgeRuntime(sessionId: ClientRuntimeSessionId, requestId: ClientRuntimeRequestId): void {

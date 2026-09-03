@@ -24,6 +24,14 @@ import type {
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { renderSessionArea } from './session-provider.tsx'
 
+export {
+  indexSubagentDescendants, type SubagentDescendantSummary,
+} from './subagent-lineage.ts'
+export {
+  settlePendingComposer, settlePendingInteraction,
+  type DelegatablePendingInteraction,
+} from './pending-settlement.ts'
+
 /** Selector hook over the Session Controller list and current selection. */
 export type UseSessions = SnapshotSelectorHook<SessionListState>
 /** Selector hook over one Session's lifecycle and control state. */

@@ -25,7 +25,7 @@ import type {
   DriveWriteIntent,
 } from '@deepseek-ai/dsh-network-drive/types'
 import { AuthType, createClient } from 'webdav'
-import type { FileStat, WebDAVClient, WebDAVClientOptions } from 'webdav'
+import type { BufferLike, FileStat, Headers as WebDavHeaders, ResponseDataDetailed, WebDAVClient, WebDAVClientOptions } from 'webdav'
 
 /** How the provider authenticates to the WebDAV endpoint. */
 export type WebDavAuthMode = 'none' | 'password' | 'token' | 'digest' | 'auto'
@@ -116,15 +116,78 @@ function mapError(error: unknown, operation: string, path: DrivePath, signal: Ab
   }
 }
 
+/**
+ * The seam's entry kind for one WebDAV entry. `webdav` parses `resourcetype`
+ * into exactly a file or a collection, so this drive never reports `other`.
+ * @param stat - the entry the server described.
+ * @returns the seam's entry kind.
+ */
 function entryType(stat: FileStat): DriveEntryType {
-  switch (stat.type) {
-    case 'file':
-      return 'file'
-    case 'directory':
-      return 'directory'
-    default:
-      return 'other'
+  return stat.type === 'directory' ? 'directory' : 'file'
+}
+
+/**
+ * The bytes of one GET body, or `undefined` when the answer is not binary.
+ * @param data - the payload the client returned for a binary-format read.
+ * @returns the body as bytes, or `undefined` when it is not a binary body.
+ */
+function bodyBytes(data: BufferLike | string | undefined): Uint8Array | undefined {
+  if (data instanceof ArrayBuffer) return new Uint8Array(data)
+  if (ArrayBuffer.isView(data)) return new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
+  return undefined
+}
+
+/**
+ * The first-byte position a `Content-Range` answer states.
+ * @param header - the response's `Content-Range` value, if it sent one.
+ * @returns the stated first-byte position, or `undefined` when the header is absent or unparsable.
+ */
+function statedStart(header: string | undefined): number | undefined {
+  const stated = header === undefined ? null : /^bytes\s+(\d+)-/.exec(header.trim())
+  const digits = stated?.[1]
+  return digits === undefined ? undefined : Number(digits)
+}
+
+/**
+ * The zero-based file position the answered body starts at, for a ranged read.
+ *
+ * Body length cannot tell a served window from a whole small file: a server
+ * that ignores `Range` answers 200 with the entire entity, and that entity may
+ * be shorter than the requested length. Only the status says which one
+ * arrived. A 200 body starts at zero and is cut here; a 206 body starts where
+ * its `Content-Range` says. Any other answer, a 206 without a parseable
+ * `Content-Range`, and a window served past the requested offset all leave the
+ * region unverifiable, so the read fails instead of returning bytes the caller
+ * did not ask for.
+ * @param status - the HTTP status the drive answered.
+ * @param headers - the response headers, whose names `webdav` lowercases.
+ * @param range - the window the caller requested.
+ * @param path - the drive path, for the failure message.
+ * @returns the file position of the body's first byte.
+ * @throws DriveError `DRIVE_IO_ERROR` when the answer does not place its body.
+ */
+function answeredStart(status: number, headers: WebDavHeaders, range: DriveByteRange, path: DrivePath): number {
+  if (status === 200) return 0
+  if (status !== 206) {
+    throw new DriveError(
+      `cannot read "${path}": the drive answered ${status} for a byte range, which does not say where the body starts`,
+      'DRIVE_IO_ERROR',
+    )
   }
+  const start = statedStart(headers['content-range'])
+  if (start === undefined) {
+    throw new DriveError(
+      `cannot read "${path}": the drive answered 206 without a Content-Range placing the body`,
+      'DRIVE_IO_ERROR',
+    )
+  }
+  if (start > range.offset) {
+    throw new DriveError(
+      `cannot read "${path}": the drive served bytes from ${start} for a window requested at ${range.offset}`,
+      'DRIVE_IO_ERROR',
+    )
+  }
+  return start
 }
 
 /**
@@ -215,8 +278,6 @@ export class WebDavNetworkDrive extends NetworkDrive {
           throw new Error(`network-drive-webdav: authType ${JSON.stringify(this.config.authType)} requires both usernameEnv and passwordEnv`)
         }
         return { scheme: this.config.authType, usernameEnv: this.config.usernameEnv, passwordEnv: this.config.passwordEnv }
-      default:
-        throw new Error(`network-drive-webdav: unknown authType ${JSON.stringify(String(this.config.authType))}`)
     }
   }
 
@@ -353,20 +414,28 @@ export class WebDavNetworkDrive extends NetworkDrive {
       if (entryType(stat) !== 'file') {
         throw new DriveError(`cannot read "${path}": not a file`, 'DRIVE_NOT_FILE')
       }
-      const options = range === undefined
-        ? { signal: requestSignal }
-        : { signal: requestSignal, headers: { Range: `bytes=${range.offset}-${range.offset + range.length - 1}` } }
-      const body = await client.getFileContents(requestPath(path), { ...options, format: 'binary' })
-      if (!(body instanceof ArrayBuffer) && !ArrayBuffer.isView(body)) {
+      const rangeHeader = range === undefined
+        ? {}
+        : { headers: { Range: `bytes=${range.offset}-${range.offset + range.length - 1}` } }
+      // `details: true` is what makes the answer placeable: it carries the
+      // status and headers beside the body. `webdav` types the return as the
+      // union of both answer forms because the signature is not overloaded on
+      // the flag, so the detailed arm is asserted here and re-checked through
+      // `bodyBytes`, which fails loud on anything else.
+      const answer = await client.getFileContents(requestPath(path), {
+        signal: requestSignal,
+        format: 'binary',
+        details: true,
+        ...rangeHeader,
+      }) as ResponseDataDetailed<BufferLike | string>
+      const whole = bodyBytes(answer.data)
+      if (whole === undefined) {
         throw new DriveError(`cannot read "${path}": the drive returned no binary body`, 'DRIVE_IO_ERROR')
       }
-      const whole = body instanceof ArrayBuffer
-        ? new Uint8Array(body)
-        : new Uint8Array(body.buffer, body.byteOffset, body.byteLength)
-      // A server that ignores Range answers 200 with the whole file; the window
-      // is applied here so the caller's bound holds against either answer.
-      const bytes = range === undefined ? whole : whole.subarray(0, range.length)
-      return { bytes, version: versionOf(stat) }
+      if (range === undefined) return { bytes: whole, version: versionOf(stat) }
+      const start = answeredStart(answer.status, answer.headers, range, path)
+      const from = range.offset - start
+      return { bytes: whole.subarray(from, from + range.length), version: versionOf(stat) }
     })
   }
 

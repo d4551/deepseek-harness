@@ -7,6 +7,7 @@ import { Context } from '@deepseek-ai/cordis'
 import LocalSubprocessRuntime, { hasWindowsExecutableExtension } from '@deepseek-ai/dsh-subprocess-local'
 import type { SubprocessSpawnSpec, SubprocessTerminalHandle, SubprocessTerminalSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { childEnv } from '../src/spawn.ts'
+import { killQuietly } from './spawn-support.ts'
 
 function spec(command: string, overrides: Partial<SubprocessSpawnSpec> = {}): SubprocessSpawnSpec {
   // Windows has no bash; the suite's simple commands translate to node one-liners.
@@ -462,6 +463,24 @@ describe('LocalSubprocessRuntime', () => {
     const outcome = await handle.done
     // Windows teardown terminates through taskkill, which reports no signal.
     expect(outcome.signal).toBe(process.platform === 'win32' ? null : 'SIGTERM')
+  })
+
+  it('routes a teardown degradation into the host log rather than an unread return value', async () => {
+    const ctx = new Context()
+    const fiber = await ctx.plugin(LocalSubprocessRuntime)
+    const warnings: unknown[] = []
+    ctx.logger.warn = ((message: unknown) => { warnings.push(message) }) as typeof ctx.logger.warn
+    // No `warn` override: the service's own sink is what a product host gets.
+    ;(ctx.subprocess as LocalSubprocessRuntime).internals = {
+      platform: 'win32',
+      windowsJob: () => { throw new Error('no Job objects on this host') },
+      taskkill: (pid) => { killQuietly(pid); return { status: 0, stderr: '' } },
+    }
+    const handle = ctx.subprocess.spawn(spec('sleep 60'))
+    handle.terminate()
+    await handle.done
+    await fiber.dispose()
+    expect(warnings.map(String).some(line => line.includes('falling back to taskkill'))).toBe(true)
   })
 
   it('a settled process leaves the live set (disposal does not re-kill it)', async () => {

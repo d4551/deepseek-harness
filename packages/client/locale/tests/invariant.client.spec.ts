@@ -15,8 +15,12 @@ describe('invariant companion', () => {
     await expect(ctx.plugin(LocaleInvariant).await()).resolves.toBeDefined()
   })
 
-  it('node-half apply tolerates a Host without settings', () => {
-    nodeApply(new Context())
+  it('node-half apply tolerates a Host without settings', async () => {
+    const ctx = new Context()
+    // The settings service is optional here: its absence leaves the locale
+    // section registration pending instead of failing the mount.
+    await expect(ctx.plugin({ apply: nodeApply }).await()).resolves.toBeDefined()
+    expect(ctx.get('settings')).toBeUndefined()
   })
 
   it('client apply provides ctx.locale seeded with the zh/en common namespace', async () => {

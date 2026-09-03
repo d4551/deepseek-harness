@@ -17,7 +17,7 @@ import type {} from '@deepseek-ai/dsh-session-projection'
 // this re-export projects the type face onto the package root AND keeps the
 // module edge in the emitted index.d.ts, so aggregate programs consuming the
 // declarations still receive the SessionProjectionMap merge.
-export type * from './types.ts'
+export type { TodoItem } from './types.ts'
 
 export const name = 'tool-todo'
 export const inject = ['tools']

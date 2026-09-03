@@ -1,12 +1,12 @@
 import type { Context } from '@deepseek-ai/cordis'
-import type { ConversationNodeDefinition } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import {
+  inputMessageNode, type ConversationNodeDefinition, type InboxState,
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { isAppendSurfaceEvent, isReplacementSurfaceEvent } from '@deepseek-ai/dsh-session/surface'
 // The declaring package, not the local barrel: a Typert-modeled reference must
 // name the package that owns the type so the generated import can point at it.
 import type { ContextMessageNode, SteeringMessageNode, UserMessageNode } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type { InboxState } from './inbox.ts'
 import { chatNode } from './common.ts'
-import { contextForm, contextProvenance } from './event-projection.ts'
 
 interface ReferencedUserMessageNode extends UserMessageNode {
   /** Labels cited by the immediately following session-reference context. */
@@ -49,34 +49,9 @@ export const messageDefinition: ConversationNodeDefinition<MessageNode> = {
   start: (_context, match, reader) => {
     if (match.event.type !== 'user/message') throw new Error('input-message start requires user/message')
     const event = match.event
-    if (event.data.source.kind !== 'user') {
-      return {
-        kind: 'context',
-        seq: event.seq,
-        time: event.time,
-        content: event.data.content,
-        source: event.data.source,
-        provenance: contextProvenance(event.data.source),
-        form: contextForm(event.data.source),
-      }
-    }
-    const claimed = reader.previous<InboxState>('inbox-next-step')?.state.claimed.has(String(event.data.id)) === true
-    return claimed
-      ? {
-        kind: 'steering',
-        messageId: event.data.id,
-        seq: event.seq,
-        time: event.time,
-        content: event.data.content,
-        source: event.data.source,
-      }
-      : {
-        kind: 'user',
-        seq: event.seq,
-        time: event.time,
-        content: event.data.content,
-        source: event.data.source,
-      }
+    const claimed = reader.previous<InboxState>('inbox-next-step')
+      ?.state.claimed.has(String(event.data.id)) === true
+    return inputMessageNode(event, claimed)
   },
   update: context => context.state,
   buildViewNode: (context) => {

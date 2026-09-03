@@ -78,7 +78,7 @@ export type { DeepSeekFileId as DeepSeekFileIdType } from './file-id.ts'
 export { DeepSeekUploadIndex, deepSeekFileScope } from './upload-index.ts'
 export type { DeepSeekUploadRecord } from './upload-index.ts'
 export type { RequestDefaults } from './serialize.ts'
-export type * from './types.ts'
+export type { WireAssistantMessage, WireChoice, WireChunk, WireDelta, WireError, WireFileContentPart, WireImageContentPart, WireImageUrlContentPart, WireMessage, WireRequest, WireSystemMessage, WireTextContentPart, WireTool, WireToolCall, WireToolCallDelta, WireToolMessage, WireUsage, WireUserContentPart, WireUserMessage } from './types.ts'
 
 export const name = 'llm-deepseek'
 export const inject = ['llm']

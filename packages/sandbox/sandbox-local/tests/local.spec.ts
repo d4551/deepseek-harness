@@ -105,7 +105,7 @@ describe('profile dialects', () => {
     expect(profile.split(grant)).toHaveLength(2)
   })
 
-  it('every dialect grants EVERY workspace root a multi-root policy names, not only the primary', () => {
+  it('every dialect grants EVERY workspace root a multi-root policy names, not only the primary', async () => {
     const multi = { mode: 'workspace-write', workspaceRoot: '/ws', additionalWorkspaceRoots: ['/second'] } as const
 
     expect(bwrapProfileArgs(multi)).toEqual([
@@ -117,6 +117,23 @@ describe('profile dialects', () => {
     const profile = seatbeltProfileArgs(multi)[1] as string
     expect(profile).toContain('(subpath "/ws")')
     expect(profile).toContain('(subpath "/second")')
+
+    // The windows-acl dialect spells its roots as repeated --workspace flags in
+    // the runner argv rather than in a profile, so it is asserted through
+    // confine(). Agentless (no sessionId): the runner owns its own private temp
+    // child, so no grant is materialized and no host ACE is touched.
+    const { sandbox } = await setup({}, {
+      chain: ['windows-acl'],
+      probeWindowsAcl: () => true,
+      windowsAclRunnerArgs: ['node', 'windows-acl-runner.js'],
+    })
+    expect(sandbox.confine(['true'], multi).argv).toEqual([
+      'node', 'windows-acl-runner.js',
+      '--workspace', '/ws', '--workspace', '/second',
+      '--temp', tmpdir(),
+      '--mode', 'workspace-write',
+      '--', 'true',
+    ])
   })
 })
 

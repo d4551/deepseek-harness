@@ -112,6 +112,23 @@ describe('formatSid', () => {
 })
 
 describe('auditFileAccess', () => {
+  it('drops an entry whose trustee is cut off by the end of the descriptor', () => {
+    // A descriptor truncated after an ACE header: the entry is still declared,
+    // its SID bytes are gone. Reading it as a trustee would report exposure
+    // from whatever follows the buffer.
+    const full = descriptor({
+      owner: OWNER,
+      aces: [{ type: ACCESS_ALLOWED_ACE_TYPE, mask: GENERIC_READ, trustee: OTHER_USER }],
+    })
+    const aceOffset = full.length - (8 + sid(OTHER_USER).length)
+    const truncated = Buffer.from(full.subarray(0, aceOffset + 8))
+    truncated.writeUInt16LE(8, aceOffset + 2) // ACE size: header only
+    truncated.writeUInt16LE(16, aceOffset - 8 + 2) // ACL size: its header plus that ACE
+
+    expect(auditFileAccess(truncated, FILE_READ_ACCESS))
+      .toEqual({ owner: OWNER, unprotected: false, exposedTo: [] })
+  })
+
   it('accepts a descriptor whose only readers are the owner and the administrative accounts', () => {
     const audit = auditFileAccess(descriptor({
       owner: OWNER,

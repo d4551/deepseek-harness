@@ -92,6 +92,7 @@ kind: "package-reference"
 | 文件 | 职责 |
 |---|---|
 | [`src/index.ts`](src/index.ts) | 插件入口：后端注册、`root` 配置、单元打开／关闭表 |
+| [`src/unit-lifecycle.ts`](src/unit-lifecycle.ts) | 两种布局共享的开放槽生命周期：关闭守卫、写入排空、已声明 global 检查 |
 | [`src/single-unit.ts`](src/single-unit.ts) | 一个 `single` 单元：权威内存、写入原语与发布回滚 |
 | [`src/per-record-unit.ts`](src/per-record-unit.ts) | 一个 `per-record` 单元：目录树读取、路径安全记录与单文档写入 |
 | [`src/format.ts`](src/format.ts) | 带版本校验的整单元与记录序列化 |

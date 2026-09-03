@@ -133,7 +133,7 @@ Every ordinary runtime root is the implicit Lead of a Team whose `TeamId` equals
 
 ### Shared task board
 
-Tasks are complete versioned snapshots; every mutation carries `expectedRevision`, and a stale caller receives `TEAM_TASK_STALE_REVISION` instead of overwriting a newer value. Numeric `task-<n>` ids require a safe-integer suffix, and id-space exhaustion reports `TEAM_TASK_LIMIT` instead of reusing the final id. Deleted tasks remain tombstones for replay and id stability but do not consume `maxTasks` or appear in `listTasks()`. `writeScopes` are normalized workspace-relative prefixes; views warn on overlap with in-progress tasks but never block claim or authorize writes.
+Tasks are complete versioned snapshots; every mutation carries `expectedRevision`, and a stale caller receives `TEAM_TASK_STALE_REVISION` instead of overwriting a newer value. Numeric `task-<n>` ids require a safe-integer suffix, and id-space exhaustion reports `TEAM_TASK_LIMIT` instead of reusing the final id. Deleted tasks remain tombstones for replay and id stability but do not consume `maxTasks` or appear in `listTasks()`. `writeScopes` are normalized workspace-relative prefixes and the board's exclusion key: every commit that leaves a task in progress is refused with `TEAM_TASK_WRITE_SCOPE_CONFLICT` when another in-progress task holds an overlapping prefix, so `claim`, `reassign`, and a scope-widening `edit` are bound by the rule `claimNextReadyTask()` defers on. A pending task's view names the in-progress tasks blocking it. The prefixes authorize no writes: a member can still write outside its claimed scope.
 
 ### Waiting and interruption
 
@@ -194,7 +194,7 @@ These limits describe what a team cannot do yet or what needs special operationa
 
 - **Prerelease with no stability promise** — the package publishes at `0.x` alpha and its contracts still change freely.
 - **One process and one shared checkout** — members share cwd and observe edits immediately; this package provides no worktree, remote member, merge, or filesystem lock.
-- **Advisory write scopes** — Bash, formatters, code generators, and direct external writers can bypass filesystem version checks; Leads must coordinate ownership and review the final diff.
+- **Write scopes exclude tasks, not writers** — the board refuses two in-progress tasks on overlapping prefixes, but Bash, formatters, code generators, and direct external writers can still write anywhere and bypass filesystem version checks; Leads must review the final diff.
 - **Flat immutable roster** — only the Lead creates direct teammates; there is no nested Team, rename, deletion, or name reuse.
 - **No automatic ownership release** — idle, interruption, process exit, and failed work do not release a task owner.
 - **Mailbox is not cross-process exactly-once** — concurrent harness processes over one Team are unsupported.

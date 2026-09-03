@@ -80,13 +80,14 @@ This section explains the design of the executor and points at the code that rea
 
 ### Design concept
 
-The executor is a Service Provider for the `ctx.shell` seam built on the subprocess capability: it owns everything bash-shaped — command defaulting and caps, deadline fusion and cause classification, the model-friendly terminal environment, and the background read merge — while process-group mechanics (bounded spill-backed output, credential scrub, kill escalation, disposal) belong to the subprocess service. Every call spawns a fresh non-login `bash -c` with no rc files, so commands are deterministic and shell state never leaks between calls.
+The executor is a Service Provider for the `ctx.shell` seam built on the subprocess capability. It owns the bash dialect only — the `bash -c` argv, the POSIX terminal environment, and the name its diagnostics carry — while command defaulting and caps, deadline fusion and cause classification, output budgets, and the background read merge belong to `SubprocessShellExecutor` in the seam package, and process-group mechanics (bounded spill-backed output, credential scrub, kill escalation, disposal) belong to the subprocess service. Every call spawns a fresh non-login `bash -c` with no rc files, so commands are deterministic and shell state never leaks between calls.
 
 ### Source map
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Plugin entry: `LocalBashExecutor`, `Config`, settings-section wiring |
+| [`src/index.ts`](src/index.ts) | Plugin entry: `LocalBashExecutor`, its `bash -c` argv and terminal environment, and the config schema |
+| [`../shell/src/subprocess-executor.ts`](../shell/src/subprocess-executor.ts) | The process mechanics this executor inherits, shared with `dsh-pwsh-local` |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; contracts are enforced at the owning seam) |
 | `tests/executor.spec.ts` | Exercised behavior: budgets, classification, background handles, ownership |
 | `tests/settings.spec.ts` | Settings layering over the composition entry |
@@ -112,7 +113,7 @@ Read these pages when the executor contract is not enough. They move from the se
 
 - [shell seam](../shell/README.md) — the executor contract this provider implements, including the request/spec split.
 - [bash-sandbox](../bash-sandbox/README.md) — the confining executor to compose instead when commands need the sandbox capability.
-- [tool-bash](../tool-bash/README.md) — the model-facing `bash` tool over this executor.
+- [tool-shell](../tool-shell/README.md) — the model-facing `bash` tool over this executor.
 - [Bash executor subsystem](../../../docs/subsystems/shell.md) — request/spec vocabulary, results, and the service contract in full.
 - [subprocess-local](../../subprocess/subprocess-local/README.md) — the process-group mechanics behind this executor.
 
@@ -121,7 +122,7 @@ Read these pages when the executor contract is not enough. They move from the se
 <a id="model-experience"></a>
 ## Model Experience
 
-Indirectly, through `dsh-tool-bash`, which renders this executor's bounded stdout/stderr tails, background-process deltas, spill-file paths, and infrastructure failures.
+Indirectly, through `dsh-tool-shell`, which renders this executor's bounded stdout/stderr tails, background-process deltas, spill-file paths, and infrastructure failures.
 
 #### KV Cache effect
 

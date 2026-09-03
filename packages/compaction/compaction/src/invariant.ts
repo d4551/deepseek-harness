@@ -2,7 +2,9 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import { isReplacementSurfaceEvent } from '@deepseek-ai/dsh-session'
-import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
+import { advanceOpenTurn, stageSessionEvents } from '@deepseek-ai/dsh-session/invariant-staging'
+import type { OpenTurnCursor } from '@deepseek-ai/dsh-session/invariant-staging'
+import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type { InvariantFailure, InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 import type { CompactionId } from './brand.ts'
 import { isCompactCheckpointSource } from './checkpoint.ts'
@@ -24,8 +26,7 @@ interface CompactionTrace {
   summarized: boolean
 }
 
-interface SessionTrace {
-  openTurn: number | null
+interface SessionTrace extends OpenTurnCursor {
   compaction: CompactionTrace | undefined
 }
 
@@ -107,19 +108,6 @@ function validateTurnBoundary(
   fail(`${event.type} cannot cross an open ${owner}`)
 }
 
-/** Advance the committed turn cursor after its boundary has been accepted. */
-function applyTurnBoundary(trace: SessionTrace, event: SessionEvent): boolean {
-  if (event.type === 'turn/start') {
-    trace.openTurn = event.data.turn
-    return true
-  }
-  if (event.type === 'turn/end') {
-    trace.openTurn = null
-    return true
-  }
-  return false
-}
-
 /** Require a numbered bracket inside its exact turn, or a standalone bracket between turns. */
 function validateOwner(
   owner: number | null,
@@ -133,6 +121,14 @@ function validateOwner(
   }
   if (openTurn === null) fail(`${eventType} for turn ${owner} appended outside any open turn`)
   if (owner !== openTurn) fail(`${eventType} names turn ${owner} but open turn is ${openTurn}`)
+}
+
+/** Whether this package owns the candidate Session event. */
+function isCompactionRecordEvent(event: SessionEvent): boolean {
+  return event.type === 'session/end-seed'
+    || event.type === 'compaction/start'
+    || event.type === 'compaction/summary'
+    || event.type === 'compaction/end'
 }
 
 /** Validate one compaction event without advancing committed trace state. */
@@ -243,59 +239,43 @@ function applyCompactionTransition(
 }
 
 /** Install compaction start/summary/end checks. */
-// Event owners keep precommit staging local so their vocabularies never move into a central helper.
-/* jscpd:ignore-start */
 const install: InvariantInstaller = Object.assign((ctx: Context, fail: InvariantFailure) => {
-  const traces = new WeakMap<Session, SessionTrace>()
-  const staged = new WeakMap<SessionEvent, { session: Session; transition: CompactionTransition }>()
-  const seed = (session: Session): SessionTrace => {
-    const trace: SessionTrace = { openTurn: null, compaction: undefined }
-    traces.set(session, trace)
-    const staleOrphanStartSeqs = inheritedOrphanStartSeqs(session.events)
-    for (const event of session.events) {
-      // Constructor-seed repair boundaries can precede the end-seed marker
-      // that proves an inherited orphan stale. Replay that inherited prefix
-      // without letting the soon-to-be-cleared bracket veto its repair.
-      if (
-        trace.compaction === undefined
-        || !staleOrphanStartSeqs.has(trace.compaction.startSeq)
-      ) {
-        validateTurnBoundary(trace, event, fail)
+  stageSessionEvents<SessionTrace, CompactionTransition>(ctx, fail, {
+    seed: (session) => {
+      const trace: SessionTrace = { openTurn: null, compaction: undefined }
+      const staleOrphanStartSeqs = inheritedOrphanStartSeqs(session.events)
+      for (const event of session.events) {
+        // Constructor-seed repair boundaries can precede the end-seed marker
+        // that proves an inherited orphan stale. Replay that inherited prefix
+        // without letting the soon-to-be-cleared bracket veto its repair.
+        if (
+          trace.compaction === undefined
+          || !staleOrphanStartSeqs.has(trace.compaction.startSeq)
+        ) {
+          validateTurnBoundary(trace, event, fail)
+        }
+        const transition = validateCompactionEvent(trace, event, fail)
+        if (transition !== undefined) trace.compaction = applyCompactionTransition(transition)
+        advanceOpenTurn(trace, event)
       }
-      const transition = validateCompactionEvent(trace, event, fail)
-      if (transition !== undefined) trace.compaction = applyCompactionTransition(transition)
-      applyTurnBoundary(trace, event)
-    }
-    return trace
-  }
-  const traceFor = (session: Session): SessionTrace => traces.get(session) ?? seed(session)
-
-  for (const session of ctx.sessions.list()) seed(session)
-  ctx.on('session/created', (session) => { seed(session) }, { global: true })
-  ctx.on('session/event', (session, event) => {
-    const trace = traceFor(session)
-    validateTurnBoundary(trace, event, fail)
-    if (applyTurnBoundary(trace, event)) return
-    if (event.type !== 'session/end-seed'
-      && event.type !== 'compaction/start'
-      && event.type !== 'compaction/summary'
-      && event.type !== 'compaction/end') return
-    const candidate = staged.get(event)
-    /* v8 ignore next -- internal/dispatch stages every compaction event */
-    if (candidate === undefined || candidate.session !== session) return fail('compaction event published without pre-commit validation')
-    staged.delete(event)
-    trace.compaction = applyCompactionTransition(candidate.transition)
-  }, { global: true })
-  ctx.on('internal/dispatch', (_mode, eventName, args) => {
-    if (eventName !== 'session/event') return
-    const [session, event] = args as [Session, SessionEvent]
-    const trace = traceFor(session)
-    validateTurnBoundary(trace, event, fail)
-    const transition = validateCompactionEvent(trace, event, fail)
-    if (transition !== undefined) staged.set(event, { session, transition })
-  }, { global: true })
+      return trace
+    },
+    publish: (trace, event) => {
+      validateTurnBoundary(trace, event, fail)
+      return advanceOpenTurn(trace, event)
+    },
+    stage: (trace, event) => {
+      validateTurnBoundary(trace, event, fail)
+      return validateCompactionEvent(trace, event, fail)
+    },
+    claims: isCompactionRecordEvent,
+    commit: (trace, transition) => {
+      trace.compaction = applyCompactionTransition(transition)
+      return trace
+    },
+    unstagedMessage: 'compaction event published without pre-commit validation',
+  })
 }, { inject: ['sessions'] })
-/* jscpd:ignore-end */
 
 /**
  * Register the compact invariant companion.

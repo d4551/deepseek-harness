@@ -9,14 +9,17 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
-const css = readFileSync(fileURLToPath(new URL('../src/DisclosureRow.module.css', import.meta.url)), 'utf8')
-const declarationText = css.replace(/\/\*[\s\S]*?\*\//g, ' ')
+const read = (name: string): string =>
+  readFileSync(fileURLToPath(new URL(`../src/${name}`, import.meta.url)), 'utf8')
 
-function declarations(selector: string): string[] {
+function declarationsFrom(name: string, selector: string): string[] {
+  const declarationText = read(name).replace(/\/\*[\s\S]*?\*\//g, ' ')
   const rule = new RegExp(`(?:^|\\})\\s*${selector.replace(/[.[\]():*+^$\\]/g, '\\$&')}\\s*\\{([^{}]*)\\}`).exec(declarationText)
-  if (rule === null) throw new Error(`DisclosureRow.module.css has no \`${selector}\` rule`)
+  if (rule === null) throw new Error(`${name} has no \`${selector}\` rule`)
   return (rule[1] ?? '').split(';').map(part => part.trim()).filter(Boolean)
 }
+
+const declarations = (selector: string): string[] => declarationsFrom('DisclosureRow.module.css', selector)
 
 describe('DisclosureRow.module.css font-size axis', () => {
   it('sizes the title from the secondary content tier on the shared row line', () => {
@@ -27,7 +30,8 @@ describe('DisclosureRow.module.css font-size axis', () => {
   })
 
   it('moves the row height and leading box by the same delta', () => {
-    expect(declarations('.row')).toEqual(expect.arrayContaining([
+    // The row line is FlowRow's, shared with every hand-built flow row.
+    expect(declarationsFrom('FlowRow.module.css', '.row')).toEqual(expect.arrayContaining([
       'height: calc(24px + var(--dsh-content-font-delta, 0px))',
     ]))
     expect(declarations('.leading')).toEqual(expect.arrayContaining([

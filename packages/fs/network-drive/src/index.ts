@@ -4,9 +4,16 @@
  * they own no local path, no text decoding, and no edit semantics.
  *
  * This is deliberately not a second filesystem. `ctx.fs` omits directory
- * creation, removal, and renaming because no model-facing tool needs them; a
- * drive-backed `ctx.fs` provider needs exactly those operations to keep a local
- * materialization and the remote in step, so they live here, one seam below.
+ * creation, removal, and renaming because no model-facing tool needs them, and
+ * a local backend gets them from the shell. A drive has no shell, so the seam
+ * that stands in for one carries them.
+ *
+ * `makeDirectory` has a consumer today: writing a file below a directory the
+ * drive does not hold yet. `remove` and `move` do not. They are here because a
+ * shell `rm` or `mv` inside the materialization root changes the local copy and
+ * never reaches the drive, which is the gap the drive-backed `ctx.fs` provider
+ * records under its own limitations; closing it needs these two operations, and
+ * a drive that could not express them could not close it at all.
  *
  * @module @deepseek-ai/dsh-network-drive
  */
@@ -103,8 +110,8 @@ export abstract class NetworkDrive extends Service {
 
   /**
    * Move one entry to another path, replacing whatever the destination held.
-   * Providers implement it as one remote operation so a consumer can publish a
-   * staged file without a read-write window.
+   * Providers implement it as one remote operation, so a rename does not
+   * transfer bytes and cannot leave the drive holding both names.
    * @param from - the entry to move.
    * @param to - the destination path; its parent directory must already exist.
    * @param signal - aborts the move.

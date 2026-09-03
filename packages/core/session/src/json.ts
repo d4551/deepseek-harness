@@ -31,8 +31,14 @@ function isIntrinsicObjectPrototype(value: object): boolean {
   return Object.getPrototypeOf(value) === null && hasIntrinsicConstructor(value, 'Object')
 }
 
-/** Whether an array uses one realm's intrinsic `Array.prototype`, not a subclass or forged prototype. */
-function hasPlainArrayPrototype(value: unknown[]): boolean {
+/**
+ * Whether an array uses one realm's intrinsic `Array.prototype`, not a
+ * subclass or forged prototype. The caller owns any exotic-object guard: a
+ * Proxy can throw from the prototype read this performs.
+ * @param value - an array from any JavaScript realm.
+ * @returns Whether the array's prototype chain is intrinsic.
+ */
+export function hasPlainArrayPrototype(value: unknown[]): boolean {
   const prototype: unknown = Object.getPrototypeOf(value)
   if (!Array.isArray(prototype) || !hasIntrinsicConstructor(prototype, 'Array')) return false
   const objectPrototype: unknown = Object.getPrototypeOf(prototype)
@@ -41,8 +47,14 @@ function hasPlainArrayPrototype(value: unknown[]): boolean {
     && isIntrinsicObjectPrototype(objectPrototype)
 }
 
-/** Whether an object is a plain or null-prototype record from any JavaScript realm. */
-function hasPlainObjectPrototype(value: object): boolean {
+/**
+ * Whether an object is a plain or null-prototype record from any JavaScript
+ * realm. The caller owns any exotic-object guard: a Proxy can throw from the
+ * prototype read this performs.
+ * @param value - a non-null object from any JavaScript realm.
+ * @returns Whether the object's prototype chain is intrinsic or absent.
+ */
+export function hasPlainObjectPrototype(value: object): boolean {
   const prototype: unknown = Object.getPrototypeOf(value)
   return prototype === null
     || typeof prototype === 'object' && isIntrinsicObjectPrototype(prototype)

@@ -1,0 +1,5 @@
+{"type":"session","version":0,"id":"{{session:1}}","createdAt":0,"cwd":"{{cwd}}","delegationDepth":0}
+{"type":"permission/preset","data":{"preset":"danger-full-access"}}
+{"type":"sandbox/mode","data":{"mode":"danger-full-access"}}
+{"type":"approval/policy","data":{"policy":"never"}}
+{"type":"workspace/roots","data":{"roots":["{{cwd}}/extra-root"]}}

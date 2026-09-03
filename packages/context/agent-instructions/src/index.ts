@@ -210,6 +210,7 @@ export function apply(ctx: Context, config: Config): void {
         includeBaselineScopes: keepVisibleBaseline,
         ...keepVisibleBaseline ? { excludedBaselineScopes } : {},
         touchedPaths,
+        additionalRoots,
         projectRoot,
         signal,
       },

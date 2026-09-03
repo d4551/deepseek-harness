@@ -35,7 +35,7 @@
   name: '@deepseek-ai/dsh-tool-fs'
 
 # This scenario probes filesystem confinement only, so the bash stack is absent:
-# without it the bundle's `toolBash: false` is required, because `tool-bash` would
+# without it the bundle's `toolShell: false` is required, because `tool-shell` would
 # otherwise wait forever for a `bash` executor this tree never mounts.
 - id: agent
   name: '@deepseek-ai/dsh-agent-spine-demo'
@@ -44,7 +44,7 @@
     workspaceContext: false
     skills:
       enabled: false
-    toolBash: false
+    toolShell: false
     toolJobs: false
     goals: false
 

@@ -80,15 +80,13 @@ export function format(template: unknown, ...args: unknown[]): string {
 
 /**
  * Structural deep equality, as `isDeepStrictEqual` defines it for plain data.
+ * Host packages reach it through `node:util`, so this module is the worker's
+ * single implementation of the comparison rather than one of several copies.
  * @param left - first value.
  * @param right - second value.
  * @returns true when both sides are structurally identical.
  */
 export function isDeepStrictEqual(left: unknown, right: unknown): boolean {
-  /* jscpd:ignore-start -- the walk necessarily matches credentials-local's
-     sameJsonValue (both are structural equality over plain data); a shared
-     helper would couple the self-contained builtin face packed into the worker
-     image to a host package. */
   if (Object.is(left, right)) return true
   if (typeof left !== 'object' || typeof right !== 'object' || left === null || right === null) return false
   if (Array.isArray(left) !== Array.isArray(right)) return false
@@ -97,7 +95,6 @@ export function isDeepStrictEqual(left: unknown, right: unknown): boolean {
   if (leftKeys.length !== rightKeys.length) return false
   return leftKeys.every(key => key in right
     && isDeepStrictEqual((left as Record<string, unknown>)[key], (right as Record<string, unknown>)[key]))
-  /* jscpd:ignore-end */
 }
 
 /** Runtime type predicates (`node:util/types`), checked against the Node module of that name. */

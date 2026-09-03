@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-03-no-barrels.md
-2026-09-03-no-barrels.md: 52ea1c815dec9be5d9b78b0782bcd491cbc7b04b
-2026-09-03-no-barrels.zh.md: c64d0101c62918eeb0c72edf40a9902d683f0ba9
+2026-09-03-no-barrels.md: 8e383662d7af063f774a1a273ac58fb3d0de16ed
+2026-09-03-no-barrels.zh.md: 583dd1c6d7cd6d88da39e807df7cc796b22c3a11

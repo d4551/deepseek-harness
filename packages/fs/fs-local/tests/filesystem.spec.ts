@@ -88,7 +88,7 @@ describe('registration', () => {
 describe('resolve', () => {
   it('resolves a relative path against opts.cwd, not config.cwd', async () => {
     // config.cwd is `dir`; a call supplying a DIFFERENT cwd bases the relative
-    // path there (the per-session workspace mapping — mirrors tool-bash workdir).
+    // path there (the per-session workspace mapping — mirrors tool-shell workdir).
     const other = await mkdtemp(join(tmpdir(), 'dsh-fs-other-'))
     try {
       await writeFile(join(other, 'x.txt'), 'in other')

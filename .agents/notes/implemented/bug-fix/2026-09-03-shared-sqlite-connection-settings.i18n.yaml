@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-03-shared-sqlite-connection-settings.md
+2026-09-03-shared-sqlite-connection-settings.md: e37267c5a994e6ec3e4692d1aea12b29a8917901
+2026-09-03-shared-sqlite-connection-settings.zh.md: 43d5502b688041c89fc785f462c463c8f202643c

@@ -100,6 +100,7 @@ kind: "package-reference"
 | [`src/protocol.ts`](src/protocol.ts) | host 与 worker 之间的端口消息词汇 |
 | [`src/worker-json.ts`](src/worker-json.ts) | worker 侧无损 JSON 编解码 |
 | [`src/output-json.ts`](src/output-json.ts) | 外层账本的字节计量与截断 |
+| [`src/intrinsics.ts`](src/intrinsics.ts) | 两个 JSON 模块共同用于构造值的原型安全原语 |
 | [`src/invariant.ts`](src/invariant.ts) | 不变式伴生插件（无运行时不变式；理由见其说明） |
 
 ### 未构建与已构建的 worker 入口

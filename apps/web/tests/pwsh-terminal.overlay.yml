@@ -1,6 +1,6 @@
 # The pwsh terminal-card lane swaps the shipped bash stack for the PowerShell
 # twin: the bash executor row is disabled, the pwsh executor is inserted, and
-# the host tool-pwsh row is enabled by id. The pwsh-sandbox row is disabled
+# the host tool-shell row is enabled with the pwsh dialect. The pwsh-sandbox row is disabled
 # too so the inserted pwsh-local is the lone executor on every platform. The
 # permission service refuses an unconfined executor by design (presets bundle
 # a sandbox mode), so its row is disabled as well — this lane renders a seeded
@@ -21,10 +21,12 @@
     - id: pwsh-local
       name: '@deepseek-ai/dsh-pwsh-local'
 
-# tool-pwsh already exists in the shipped composition: the base bundle declares
-# it platform-gated on every platform, and the web-app overlay disables it for
-# surfaces that use presets. So this lane enables it by id rather than
-# inserting a second row to the same id.
-- id: tool-pwsh
-  name: '@deepseek-ai/dsh-tool-pwsh'
+# tool-shell already exists in the shipped composition: the base bundle mounts
+# one row whose dialect follows the platform, and the web-app overlay disables
+# it for surfaces that use presets. So this lane enables it by id and pins the
+# pwsh dialect rather than inserting a second row to the same id.
+- id: tool-shell
+  name: '@deepseek-ai/dsh-tool-shell'
   disabled: false
+  config:
+    dialect: pwsh

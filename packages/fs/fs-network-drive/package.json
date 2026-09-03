@@ -40,6 +40,7 @@
     "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/dsh-fs": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
+    "@deepseek-ai/dsh-keyed-lock": "workspace:^",
     "@deepseek-ai/dsh-llm": "workspace:^",
     "@deepseek-ai/dsh-network-drive": "workspace:^",
     "@deepseek-ai/dsh-sandbox": "workspace:^"
@@ -53,6 +54,7 @@
     "@deepseek-ai/cordis-plugin-loader": "workspace:^",
     "@deepseek-ai/dsh-fs": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
+    "@deepseek-ai/dsh-keyed-lock": "workspace:^",
     "@deepseek-ai/dsh-llm": "workspace:^",
     "@deepseek-ai/dsh-network-drive": "workspace:^",
     "@deepseek-ai/dsh-network-drive-webdav": "workspace:^",

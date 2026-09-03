@@ -1,7 +1,7 @@
 # Test-only composition of Codex, the Bundle-supplied default Claude provider,
 # and two named Claude instances. It never invokes a model or product process.
 - id: fixture
-  name: './fixture.ts'
+  name: '../../../../subagent-codex/tests/fixtures/loader/fixture.ts'
 
 - id: subagent
   name: '@deepseek-ai/dsh-subagent'

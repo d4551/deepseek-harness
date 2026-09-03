@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { WebError } from '@deepseek-ai/dsh-web'
 import { publicHttpNetwork } from '@deepseek-ai/dsh-web-fetch-http/network'
 import { PlaywrightFetchProvider } from '../src/provider.ts'
-import { FakeRoute, fakeBrowser, limits, render, sharedSetup } from './fakes.ts'
+import { FakeRoute, FakeSocketRoute, fakeBrowser, limits, render, sharedSetup } from './fakes.ts'
+
+/** What the page's `close` event reports for a WebSocket the address policy refuses. */
+const REFUSED_SOCKET = { code: 1008, reason: 'refused by the web fetch destination policy' }
 
 sharedSetup()
 
@@ -52,20 +55,98 @@ describe('PlaywrightFetchProvider destination policy', () => {
 
     const subresource = new FakeRoute('https://static.example.com/app.js')
     const metadata = new FakeRoute('http://169.254.169.254/latest/meta-data/')
-    const redirectHop = new FakeRoute('http://127.0.0.1:8080/internal')
+    // Loopback reached from inside the page, not a redirect hop: Chromium follows a
+    // redirect without re-entering this handler (tests/chromium.spec.ts pins that).
+    const loopback = new FakeRoute('http://127.0.0.1:8080/internal')
     const privateName = new FakeRoute('http://10.1.2.3/admin')
     const credentialed = new FakeRoute('https://user:pass@example.com/x')
     const otherScheme = new FakeRoute('file:///etc/passwd')
-    for (const route of [subresource, metadata, redirectHop, privateName, credentialed, otherScheme]) {
+    for (const route of [subresource, metadata, loopback, privateName, credentialed, otherScheme]) {
       await guard?.(route)
     }
 
     expect(subresource.continueCount).toBe(1)
     expect(subresource.abortedWith).toBeUndefined()
-    for (const route of [metadata, redirectHop, privateName, credentialed, otherScheme]) {
+    for (const route of [metadata, loopback, privateName, credentialed, otherScheme]) {
       expect(route.abortedWith, route.request().url()).toBe('blockedbyclient')
       expect(route.continueCount, route.request().url()).toBe(0)
     }
+  })
+
+  it('admits a public IP literal without consulting DNS', async () => {
+    const { access, browser } = fakeBrowser()
+    const provider = new PlaywrightFetchProvider(limits, access)
+    const result = await render(provider, 'https://93.184.216.34/page')
+    expect(result.statusCode).toBe(200)
+    expect(publicHttpNetwork.resolve).not.toHaveBeenCalled()
+    expect(browser.newContextCount).toBe(1)
+  })
+
+  it('refuses every WebSocket the page opens to a destination the policy denies', async () => {
+    const { access, browser } = fakeBrowser()
+    const provider = new PlaywrightFetchProvider(limits, access)
+    await render(provider, 'https://example.com/page')
+    const [matches] = browser.context.socketMatchers
+    const [guard] = browser.context.socketHandlers
+    expect(guard).toBeDefined()
+    // The matcher decides which connections reach the handler: every one of them,
+    // because Playwright connects an unmatched WebSocket straight to its server.
+    expect(matches?.(new URL('wss://anything.example/socket'))).toBe(true)
+    expect(matches?.(new URL('ws://127.0.0.1:8080/'))).toBe(true)
+
+    const loopback = new FakeSocketRoute('ws://127.0.0.1:8080/')
+    const metadata = new FakeSocketRoute('ws://169.254.169.254/latest/meta-data/')
+    const privateAddress = new FakeSocketRoute('wss://10.1.2.3/admin')
+    const credentialed = new FakeSocketRoute('wss://user:pass@example.com/socket')
+    const otherScheme = new FakeSocketRoute('http://example.com/not-a-socket')
+    const malformed = new FakeSocketRoute('not a url')
+    const refused = [loopback, metadata, privateAddress, credentialed, otherScheme, malformed]
+    for (const socket of refused) await guard?.(socket)
+
+    for (const socket of refused) {
+      expect(socket.closedWith, socket.url()).toEqual(REFUSED_SOCKET)
+      expect(socket.connectCount, socket.url()).toBe(0)
+    }
+  })
+
+  it('connects a WebSocket whose destination the policy admits, reusing the page decision', async () => {
+    const { access, browser } = fakeBrowser()
+    const provider = new PlaywrightFetchProvider(limits, access)
+    await render(provider, 'https://example.com/page')
+    const [guard] = browser.context.socketHandlers
+    const socket = new FakeSocketRoute('wss://example.com/socket')
+    await guard?.(socket)
+    expect(socket.connectCount).toBe(1)
+    expect(socket.closedWith).toBeUndefined()
+    // `wss://example.com` is the host the main frame already decided.
+    expect(publicHttpNetwork.resolve).toHaveBeenCalledTimes(1)
+  })
+
+  it('refuses a WebSocket to a named host whose addresses are not public', async () => {
+    const { access, browser } = fakeBrowser()
+    const provider = new PlaywrightFetchProvider(limits, access)
+    await render(provider, 'https://example.com/page')
+    vi.mocked(publicHttpNetwork.resolve).mockRejectedValue(
+      new WebError('URL hostname "internal.test" resolves to a non-public IP address', 'WEB_BLOCKED_URL'),
+    )
+    const [guard] = browser.context.socketHandlers
+    const socket = new FakeSocketRoute('wss://internal.test/socket')
+    await guard?.(socket)
+    expect(socket.closedWith).toEqual(REFUSED_SOCKET)
+    expect(socket.connectCount).toBe(0)
+  })
+
+  it('leaves a WebSocket refusal settled when the close itself fails', async () => {
+    const { access, browser } = fakeBrowser()
+    const provider = new PlaywrightFetchProvider(limits, access)
+    await render(provider, 'https://example.com/page')
+    const [guard] = browser.context.socketHandlers
+    const socket = new FakeSocketRoute('ws://127.0.0.1/')
+    // A connection the page already dropped rejects the close; the handler must still
+    // settle, because a handler that throws leaves Playwright's route pending.
+    vi.spyOn(socket, 'close').mockRejectedValue(new Error('socket already closed'))
+    await expect(guard?.(socket)).resolves.toBeUndefined()
+    expect(socket.connectCount).toBe(0)
   })
 
   it('resolves each named host once for the whole page load', async () => {

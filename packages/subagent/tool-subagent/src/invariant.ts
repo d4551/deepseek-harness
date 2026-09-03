@@ -3,7 +3,6 @@
  * @module @deepseek-ai/dsh-tool-subagent/invariant
  */
 
-/* jscpd:ignore-start */
 import type { Context } from '@deepseek-ai/cordis'
 import type { InvariantFailure, InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 import { subagentModelSelectionPolicy } from './model-selection-state.ts'
@@ -43,4 +42,3 @@ const install: InvariantInstaller = Object.assign((ctx: Context, fail: Invariant
  */
 export const apply = (ctx: Context): Promise<() => void> =>
   Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install))
-/* jscpd:ignore-end */

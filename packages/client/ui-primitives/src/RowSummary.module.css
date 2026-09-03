@@ -1,0 +1,19 @@
+/* A flow row's summary text: it takes the width left after the title, clips to
+   one line with an ellipsis, and reads the secondary content tier (one step
+   under the body size) on the 24px row line. */
+
+.summary {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* A failed row's summary carries the failure's first line, in the error ink. */
+.error {
+  color: var(--dsw-alias-state-error-primary);
+}

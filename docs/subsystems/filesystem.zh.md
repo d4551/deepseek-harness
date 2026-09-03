@@ -269,6 +269,71 @@ type FsErrorCode =
 
 目录列表使用 `FS_NOT_DIRECTORY`、`FS_PERMISSION_DENIED` 与 `FS_IO_ERROR` 区分已存在但并非目录的目标、被拒绝的列表操作和意外的后端 I/O 失败。`FS_SANDBOX_DENIED` 是强制执行沙箱的后端（`dsh-fs-sandbox`）所作的策略拒绝——模式边界拒绝了写入/编辑——与 `FS_PERMISSION_DENIED`（宿主内核拒绝）不同。`FS_NOT_OBSERVED` 表示策略插件没有此所有者的先前观测记录（或 `createIfAbsent` 遇到了现有文件）。`FS_NOT_FOUND` 也表示策略因确认缺失而拒绝 edit。`FS_STALE_VERSION` 表示后端版本不再与观测到的版本匹配（或提供方本身收到针对缺失目标的 edit）。新鲜度授权没有部分/完整之分，因此不存在 `FS_PARTIAL_OBSERVATION`。
 
+## 网络驱动器（`ctx.networkDrive`）
+
+托管部署可以用非宿主磁盘的存储来支撑工作区。 [`dsh-network-drive`](../../packages/fs/network-drive/README.zh.md) 声明该 seam； [`dsh-network-drive-webdav`](../../packages/fs/network-drive-webdav/README.zh.md) 基于 WebDAV 实现它，而 [`dsh-fs-network-drive`](../../packages/fs/fs-network-drive/README.zh.md) 把它投影到 `ctx.fs`。
+
+它恰好承载了 `ctx.fs` 所省略的部分——`makeDirectory`、`remove` 与 `move`——因为本地后端从 shell 获得这些能力，而驱动器没有 shell。
+
+```ts type-equiv
+/**
+ * Opaque identity of one entry on the drive. A provider chooses the encoding:
+ * the WebDAV provider uses a slash-separated collection path below the
+ * configured remote root, another provider may use a workspace URI or a file
+ * id. Consumers MUST NOT parse it or assume it is a local absolute path; they
+ * build one with {@link drivePath} from a slash-separated relative path and
+ * pass it back unchanged.
+ */
+type DrivePath = Branded<'DrivePath'>
+```
+
+```ts type-equiv
+/**
+ * Opaque revision token of one drive entry — the value a compare-and-set write
+ * guards against. The WebDAV provider derives it from the entry's ETag when the
+ * server supplies one and from its last-modified stamp and size otherwise.
+ * Consumers MUST NOT interpret it; they compare tokens for equality and hand
+ * the current one back to {@link NetworkDrive.write}.
+ */
+type DriveVersion = Branded<'DriveVersion'>
+```
+
+```ts type-equiv
+/**
+ * Metadata about one drive entry. Never carries content: a consumer decides
+ * from `type` and `size` whether to transfer bytes at all.
+ */
+interface DriveStat {
+  /** The entry's own identity, as the drive reports it. */
+  readonly path: DrivePath
+  /** Whether the entry is a file, a directory, or neither. */
+  readonly type: DriveEntryType
+  /** Revision token of the entry right now. */
+  readonly version: DriveVersion
+  /** Byte size of a file; absent for a directory or when the drive omits it. */
+  readonly size?: number
+}
+```
+
+```ts type-equiv
+/**
+ * Precondition on a {@link NetworkDrive.write}. `createIfAbsent` fails with
+ * `DRIVE_PRECONDITION_FAILED` when the path already exists;
+ * `replaceIfVersion` fails with the same code when the path is absent or holds
+ * another revision. Omitting the precondition means unconditional
+ * create-or-replace, not a third arm.
+ */
+type DriveWriteIntent =
+  | { readonly kind: 'createIfAbsent' }
+  | { readonly kind: 'replaceIfVersion'; readonly version: DriveVersion }
+```
+
+`DriveStat`、`DriveDirEntry`、`DriveByteRange` 与 `DriveContent` 补全了这套词汇；下方生成的 [`ctx.networkDrive` 小节](#ctxnetworkdrive--networkdrive-abstract-seam) 载有全部签名。
+
+`DriveWriteIntent` 正是防止同一 collection 上的两个 harness 静默覆盖彼此的机制。不提供 ETag 的 collection 仍会由修改时间与大小得出版本，因此比较始终会执行；失去的是原子的远端守卫，从而在检查与 `PUT` 之间留下一个窗口。
+
+由驱动器支撑的 `ctx.fs` provider 会物化到一个真实的本地目录，因为 `processPath()` 必须返回 ripgrep、shell 与语言服务器能够打开的路径。该目录必须与 `sandbox-policy` 设围栏的目录相同； [`dsh-hosted-drive`](../../packages/bundle/hosted-drive/README.zh.md) 用同一个变量设置两者，其不变式伴生插件会在二者分歧时使运行失败。
+
 ## 文件 IO 不设超时
 
 `read`/`write`/`edit` **不**接受 `timeoutMs`，提供方约定也不设置截止时间——不同于 bash 与 web（它们消费 [`@deepseek-ai/dsh-timeout`](../../packages/util/timeout/README.zh.md)）以及 subprocess 支撑的 `glob`/`grep`（其声明的 `timeoutMs` 由 `@deepseek-ai/dsh-tool-call-timeout-policy` 强制执行）：那些是进程支撑的，截止时间可以真正终止工作。本地系统调用至多是尽力中止——超时无法迫使进行中的 `fsync`/`rename` 停下，因此这里的 `timeoutMs` 会成为 seam 无法强制执行的截止时间，而且恰好落在「显式优于隐式」禁止隐式默认值的位置。取消仍通过工具执行 signal 传播，在系统调用边界尽力中止。
@@ -325,21 +390,28 @@ processPathFromHostPath(hostPath: string): string | undefined
 
 /**
  * Return the canonical `file:` URI for a target in this filesystem's
- * execution world. Backends own URI encoding because the host platform may
- * differ from the execution platform.
+ * execution world.
+ *
+ * The default reads {@link processPath} as a host path. A backend whose
+ * execution world is not this host overrides it, because the host platform's
+ * URI encoding does not describe a remote path.
  * @param target - the resolved target to encode.
  * @returns the target's canonical file URI.
  */
-abstract fileUrl(target: FsTarget): string
+fileUrl(target: FsTarget): string
 
 /**
  * Test canonical containment without exposing or parsing backend target
  * keys. Both targets must come from this provider.
+ *
+ * The default compares {@link processPath} values as host paths, so it
+ * follows the host's separator and case rules. A backend whose execution
+ * world is not this host overrides it.
  * @param parent - canonical directory target.
  * @param child - canonical candidate target.
  * @returns true when `child` is `parent` or a descendant of it.
  */
-abstract contains(parent: FsTarget, child: FsTarget): boolean
+contains(parent: FsTarget, child: FsTarget): boolean
 
 /**
  * Return target metadata, or `undefined` when the target does not exist.
@@ -438,6 +510,90 @@ abstract editText( target: FsTarget, edit: FsEditRequest, expected?: { version: 
 Types: [SandboxExecutionPolicy](sandbox.zh.md)
 
 Source: [`packages/fs/fs/src/index.ts`](../../packages/fs/fs/src/index.ts)
+
+<a id="ctxnetworkdrive--networkdrive-abstract-seam"></a>
+
+### `ctx.networkDrive` — `NetworkDrive` (abstract seam)
+
+Abstract network-drive provider. Every operation takes the caller's `AbortSignal` and must abandon its transfer when the signal fires, raising `DRIVE_ABORTED`. Every failure is a `DriveError` carrying a closed-union code; a provider never leaks its transport's own error type.
+
+Identity contract: a provider returns the same DriveVersion for an unchanged entry and a different one after any content change, so a consumer can use it as a compare-and-set token. Providers whose backing store cannot distinguish two writes within one revision granularity must widen the token with a value that can, never narrow it to a timestamp alone.
+
+```ts cordis-catalog
+/**
+ * Return metadata for one path, or `undefined` when the drive holds nothing
+ * there.
+ * @param path - the entry to inspect.
+ * @param signal - aborts the metadata round-trip.
+ * @returns the entry's metadata, never its content; `undefined` when absent.
+ */
+abstract stat(path: DrivePath, signal?: AbortSignal): Promise<DriveStat | undefined>
+
+/**
+ * List the direct children of one directory.
+ * @param path - the directory to list; `drivePath('')` is the drive root.
+ * @param signal - aborts the listing.
+ * @returns one entry per direct child; never reads child content.
+ * @throws DriveError `DRIVE_NOT_FOUND` when absent, `DRIVE_NOT_DIRECTORY` when the path is a file.
+ */
+abstract list(path: DrivePath, signal?: AbortSignal): Promise<DriveDirEntry[]>
+
+/**
+ * Read raw bytes of one file. Omitting `range` reads the whole file; a range
+ * reads at most `range.length` bytes starting at `range.offset`, which is how
+ * a consumer bounds a transfer before it commits memory to it.
+ * @param path - the file to read.
+ * @param range - the byte window to transfer; omit for the whole file.
+ * @param signal - aborts the transfer.
+ * @returns the bytes and the revision they were served at.
+ * @throws DriveError `DRIVE_NOT_FOUND` when absent, `DRIVE_NOT_FILE` for a directory.
+ */
+abstract read(path: DrivePath, range: DriveByteRange | undefined, signal?: AbortSignal): Promise<DriveContent>
+
+/**
+ * Replace or create one file's complete content. The write is the drive's
+ * commit point: it either publishes every byte or leaves the previous
+ * revision in place.
+ * @param path - the file to write; its parent directory must already exist.
+ * @param bytes - the complete new content.
+ * @param expected - the compare-and-set precondition; omit for an unconditional write.
+ * @param signal - aborts before the drive publishes the new revision.
+ * @returns the revision the write produced.
+ * @throws DriveError `DRIVE_PRECONDITION_FAILED` when `expected` does not hold.
+ */
+abstract write( path: DrivePath, bytes: Uint8Array, expected: DriveWriteIntent | undefined, signal?: AbortSignal, ): Promise<DriveVersion>
+
+/**
+ * Remove one entry. Removing a directory removes its descendants.
+ * @param path - the entry to remove.
+ * @param signal - aborts the removal.
+ * @throws DriveError `DRIVE_NOT_FOUND` when the path holds nothing.
+ */
+abstract remove(path: DrivePath, signal?: AbortSignal): Promise<void>
+
+/**
+ * Move one entry to another path, replacing whatever the destination held.
+ * Providers implement it as one remote operation, so a rename does not
+ * transfer bytes and cannot leave the drive holding both names.
+ * @param from - the entry to move.
+ * @param to - the destination path; its parent directory must already exist.
+ * @param signal - aborts the move.
+ * @throws DriveError `DRIVE_NOT_FOUND` when the source holds nothing.
+ */
+abstract move(from: DrivePath, to: DrivePath, signal?: AbortSignal): Promise<void>
+
+/**
+ * Create one directory and every missing ancestor below the drive root.
+ * Succeeds when the directory already exists, so a consumer can make a parent
+ * ready without a preceding probe.
+ * @param path - the directory to create.
+ * @param signal - aborts the creation.
+ * @throws DriveError `DRIVE_NOT_DIRECTORY` when the path or an ancestor is a file.
+ */
+abstract makeDirectory(path: DrivePath, signal?: AbortSignal): Promise<void>
+```
+
+Source: [`packages/fs/network-drive/src/index.ts`](../../packages/fs/network-drive/src/index.ts)
 
 <a id="fs-events"></a>
 

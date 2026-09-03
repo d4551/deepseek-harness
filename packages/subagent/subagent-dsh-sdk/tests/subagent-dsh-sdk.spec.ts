@@ -66,7 +66,7 @@ afterEach(() => {
 })
 
 /** A parent Agent stub. The SDK backend reads exactly one thing off it: the session header's cwd (the workspace its child inherits). */
-const fakeParent = { id: 'parent', session: { header: { cwd: process.cwd() } } } as unknown as Agent
+const fakeParent = { id: 'parent', session: { header: { cwd: process.cwd() }, events: [] } } as unknown as Agent
 
 function request(text = 'p', signal = new AbortController().signal, agentOptions?: AgentOptions) {
   return {
@@ -202,6 +202,7 @@ describe('dsh-subagent-dsh-sdk provider', () => {
       const records = readFileSync(recordFile, 'utf8').trim().split('\n').map(line => JSON.parse(line) as Record<string, unknown>)
       expect(records).toEqual([{
         cwd: process.cwd(),
+        workspaceRoots: [],
         provider: 'fake-provider',
         model: 'fake-model',
         maxTokens: 4096,
@@ -225,6 +226,7 @@ describe('dsh-subagent-dsh-sdk provider', () => {
       const { readFileSync } = await import('node:fs')
       expect(JSON.parse(readFileSync(recordFile, 'utf8'))).toEqual({
         cwd: process.cwd(),
+        workspaceRoots: [],
         provider: 'fake-provider',
         model: 'fake-model',
         reasoningEffort: 'high',
@@ -264,6 +266,7 @@ describe('dsh-subagent-dsh-sdk provider', () => {
       expect(records).toEqual([
         {
           cwd: process.cwd(),
+          workspaceRoots: [],
           provider: 'provider-a',
           model: 'model-a',
           reasoningEffort: 'high',
@@ -271,6 +274,7 @@ describe('dsh-subagent-dsh-sdk provider', () => {
         },
         {
           cwd: process.cwd(),
+          workspaceRoots: [],
           provider: 'provider-b',
           model: 'model-b',
           reasoningEffort: 'max',
@@ -422,6 +426,7 @@ describe('dsh-subagent-dsh-sdk provider', () => {
         patches: [],
         dshHome: process.cwd(),
         cwd: process.cwd(),
+        workspaceRoots: [],
         provider: 'p',
         model: 'm',
         env: { FAKE_HANG_INIT: '1' },
@@ -453,6 +458,7 @@ describe('dsh-subagent-dsh-sdk provider', () => {
         patches: [],
         dshHome: process.cwd(),
         cwd: process.cwd(),
+        workspaceRoots: [],
         provider: 'p',
         model: 'm',
         env: {},
@@ -536,6 +542,7 @@ describe('dsh-subagent-dsh-sdk provider', () => {
         patches: [],
         dshHome: process.cwd(),
         cwd: process.cwd(),
+        workspaceRoots: [],
         provider: 'p',
         model: 'm',
         env: { FAKE_INIT_READY: ready, FAKE_INIT_GO: go },
@@ -614,6 +621,7 @@ describe('dsh-subagent-dsh-sdk provider', () => {
       patches: [],
       dshHome: process.cwd(),
       cwd: process.cwd(),
+      workspaceRoots: [],
       provider: 'p',
       model: 'm',
       env: { FAKE_REASON_KIND: reason },
@@ -651,6 +659,7 @@ describe('dsh-subagent-dsh-sdk provider', () => {
           patches: [],
           dshHome: sentinel,
           cwd: tmp,
+          workspaceRoots: [],
           provider: 'p',
           model: 'm',
           env: {},
@@ -711,6 +720,7 @@ describe('dsh-subagent-dsh-sdk provider', () => {
       patches: [],
       dshHome: process.cwd(),
       cwd: process.cwd(),
+      workspaceRoots: [],
       provider: 'p',
       model: 'm',
       env: { FAKE_HANG_INIT: '1' },
@@ -730,6 +740,7 @@ describe('dsh-subagent-dsh-sdk provider', () => {
       patches: [],
       dshHome: process.cwd(),
       cwd: process.cwd(),
+      workspaceRoots: [],
       provider: 'p',
       model: 'm',
       // The fake dies as soon as the prompt arrives: FAKE_HANG_PROMPT plus a

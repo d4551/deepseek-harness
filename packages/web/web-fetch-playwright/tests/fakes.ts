@@ -14,8 +14,10 @@ import type {
   PlaywrightFetchLimits,
   RenderContext,
   RenderPage,
+  RenderRedirectableRequest,
   RenderRequest,
   RenderRoute,
+  RenderSocketRoute,
 } from '../src/provider.ts'
 import type { Disposable } from 'playwright'
 
@@ -25,12 +27,23 @@ export const dom = { html: '<html><body>rendered</body></html>' }
 /** Ordered close events, so a disposal test can prove renders quiesced first. */
 export const closeLog: string[] = []
 
+/** One request a fake navigation reports; `from` absent means the page initiated it. */
+interface ReportedRequest {
+  /** Absolute URL of the reported request. */
+  url: string
+  /** The hop this request redirects from, or undefined for a page-initiated request. */
+  from?: string
+}
+
 /** Recording fake for one rendered page. */
 class FakePage implements RenderPage {
   urlValue = 'https://example.com/rendered'
   statusValue = 200
   closeCount = 0
+  /** @param report - reports the navigation's requests, as Chromium does before `goto` resolves. */
+  constructor(private readonly report: () => void = () => {}) {}
   async goto(): Promise<{ status(): number } | null> {
+    this.report()
     return { status: () => this.statusValue }
   }
   // The provider's page function runs here against a stubbed document, so the cap it
@@ -67,24 +80,76 @@ export class FakeRoute implements RenderRoute {
   }
 }
 
+/** Recording fake for one intercepted WebSocket connection. */
+export class FakeSocketRoute implements RenderSocketRoute {
+  closedWith: { code?: number; reason?: string } | undefined
+  connectCount = 0
+  constructor(private readonly socketUrl: string) {}
+  url(): string {
+    return this.socketUrl
+  }
+  connectToServer(): unknown {
+    this.connectCount += 1
+    return undefined
+  }
+  async close(options?: Readonly<{ code?: number; reason?: string }>): Promise<void> {
+    this.closedWith = { ...options }
+  }
+}
+
 /** An already-settled route registration teardown, matching Playwright's `Disposable`. */
-export function routeDisposable(): Disposable {
+function routeDisposable(): Disposable {
   const dispose = (): Promise<void> => Promise.resolve()
   return { dispose, [Symbol.asyncDispose]: dispose }
 }
 
 /** Recording fake for one incognito context. */
-export class FakeContext implements RenderContext {
-  readonly page = new FakePage()
+class FakeContext implements RenderContext {
+  /**
+   * Requests this context reports while its page navigates. Chromium reports every
+   * redirect hop here and offers none of them to the request interceptor.
+   */
+  readonly reported: ReportedRequest[] = []
+  readonly requestListeners: ((request: RenderRedirectableRequest) => void)[] = []
+  readonly page = new FakePage(() => { this.report() })
   readonly routePatterns: string[] = []
   readonly routeHandlers: ((route: RenderRoute) => Promise<void>)[] = []
+  readonly socketMatchers: ((url: URL) => boolean)[] = []
+  readonly socketHandlers: ((socket: RenderSocketRoute) => Promise<void>)[] = []
+  /** Ordered context setup calls, so a suite can prove the interceptors precede the page. */
+  readonly setupLog: string[] = []
   closeCount = 0
+  on(event: 'request', listener: (request: RenderRedirectableRequest) => void): unknown {
+    this.requestListeners.push(listener)
+    this.setupLog.push(`on:${event}`)
+    return this
+  }
+  /** Hand every reported request to every installed observer, as one navigation would. */
+  private report(): void {
+    for (const request of this.reported) {
+      const from = request.from
+      const redirectedFrom = from === undefined ? null : { url: () => from }
+      for (const listener of this.requestListeners) {
+        listener({ url: () => request.url, redirectedFrom: () => redirectedFrom })
+      }
+    }
+  }
   async route(pattern: string, handler: (route: RenderRoute) => Promise<void>): Promise<Disposable> {
     this.routePatterns.push(pattern)
     this.routeHandlers.push(handler)
+    this.setupLog.push('route')
     return routeDisposable()
   }
+  async routeWebSocket(
+    match: (url: URL) => boolean,
+    handler: (socket: RenderSocketRoute) => Promise<void>,
+  ): Promise<void> {
+    this.socketMatchers.push(match)
+    this.socketHandlers.push(handler)
+    this.setupLog.push('routeWebSocket')
+  }
   async newPage(): Promise<RenderPage> {
+    this.setupLog.push('newPage')
     return this.page
   }
   async close(): Promise<void> {
@@ -97,11 +162,13 @@ export class FakeContext implements RenderContext {
 export class FakeBrowser {
   readonly context = new FakeContext()
   readonly userAgents: string[] = []
+  readonly serviceWorkerModes: string[] = []
   closeCount = 0
   newContextCount = 0
-  async newContext(options: Readonly<{ userAgent: string }>): Promise<RenderContext> {
+  async newContext(options: Readonly<{ userAgent: string; serviceWorkers: 'block' }>): Promise<RenderContext> {
     this.newContextCount += 1
     this.userAgents.push(options.userAgent)
+    this.serviceWorkerModes.push(options.serviceWorkers)
     return this.context
   }
   async close(): Promise<void> {

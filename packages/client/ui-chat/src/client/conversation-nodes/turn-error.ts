@@ -6,7 +6,7 @@ import type {
 // name the package that owns the type so the generated import can point at it.
 import type { TurnErrorNode } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { chatNode } from './common.ts'
-import { displayFailure } from './event-projection.ts'
+import { displayFailure } from '@deepseek-ai/dsh-client-ui-conversation/client'
 
 declare module '../contract/chat-nodes.ts' {
   interface ChatNodeDataMap {

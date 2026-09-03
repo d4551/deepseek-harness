@@ -1,7 +1,7 @@
 import { useMemo, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
-import clsx from 'clsx'
 import {
-  CodeBlock, DiffBlock, DisclosureRow, IconInspectOutline12, ReadBlock, SearchBlock, StateDot, TerminalBlock, WebBlock,
+  CodeBlock, DiffBlock, DisclosureRow, InspectPill, ReadBlock, RowSeparator, RowSummary, SearchBlock, StateDot,
+  TerminalBlock, WebBlock,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import { CHAT_DIFF_MAX_LINES, type DiffCardModel } from '../models/diff-card-model.ts'
@@ -167,7 +167,7 @@ export function ToolRow({
           /* An empty summary drops the separator with it (a row that is only
              its title shows no trailing dot). */
           <>
-            <span className={css.sep} aria-hidden />
+            <RowSeparator className={css.sep} />
             {fileLink ? (
               <button
                 type="button"
@@ -178,11 +178,9 @@ export function ToolRow({
                 {summaryText}
               </button>
             ) : (
-              <span
-                className={clsx(css.summary, failureLine !== null && css.errorSummary)}
-              >
+              <RowSummary tone={failureLine !== null ? 'error' : 'default'}>
                 {summaryText}
-              </span>
+              </RowSummary>
             )}
             {suffix !== null && <span className={css.summarySuffix}>{suffix}</span>}
           </>
@@ -253,14 +251,7 @@ export function ToolRow({
                         </>
                       )}
           {inspect !== undefined && (
-            <button
-              type="button"
-              className={css.inspectButton}
-              onClick={inspect}
-            >
-              <IconInspectOutline12 />
-              {t('row.inspect')}
-            </button>
+            <InspectPill className={css.inspectButton} label={t('row.inspect')} onClick={inspect} />
           )}
         </div>
       </DisclosureRow>

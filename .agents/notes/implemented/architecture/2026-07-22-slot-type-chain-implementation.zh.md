@@ -57,7 +57,7 @@ ctx.slots.register({
 
 「不接」的判定住在 `select` 里，绝不在挂载后的组件里自探 props：组件为了渲染 null 也得先挂载，其钩子与 effect 全部白跑，随之而来的挂载/卸载抖动还会破坏 memo 化与 React key 语义；而选择器是纯函数——可单测、零挂载副作用——与「presentation methods are pure functions of `args`」是同一条纪律。纯，就是选择器的约定：不读外部可变状态、不产副作用，路由判定因此完全是 owner props 的函数，每次分派都可安全执行。选择器只做路由，绝不创建新对象——按分派逐次构造对象会让引用每次渲染都换新；把匹配值包成更丰富的面这件事，发生在当选组件内部（以 `matched` 为依赖的 `useMemo`）。
 
-类型链上，chain entry 的 SlotMap 形状是 `{ kind: 'chain'; scope; owner }`，`owner` 即链的货币；`M`——`matched` prop 的类型——从 select 返回值推导（选择器收窄 union 成员时，`matched` 类型自动随之收窄），且组件位不参与 `M` 的推断，与钉住 inject 份额的 NoInfer 裁定同源（见下文裁定）。owner 侧，`renderSlotChain(key, owner, { fallback })` 与 `renderSlot` 同住 `PropsRenderSlots` 份额，其键域静态收窄到本 entry children 声明中 chain kind 的键（`ChainKeysOf`）；分派现场只有一行，不含任何自有的派生或路由逻辑。
+类型链上，chain entry 的 SlotMap 形状是 `{ kind: 'chain'; scope; owner }`，`owner` 即链的货币；`M`——`matched` prop 的类型——从 select 返回值推导（选择器收窄 union 成员时，`matched` 类型自动随之收窄），且 `NoInfer` 让组件位不参与 `M` 的推断（见下文裁定）。owner 侧，`renderSlotChain(key, owner, { fallback })` 与 `renderSlot` 同住 `PropsRenderSlots` 份额，其键域静态收窄到本 entry children 声明中 chain kind 的键（`ChainKeysOf`）；分派现场只有一行，不含任何自有的派生或路由逻辑。
 
 ### store 席位：引擎归框架，schema 归注册方
 
@@ -96,10 +96,11 @@ inject 工厂只接收其声明所授权的形参——session slot 获得 `sess
 
 ### 类型链实现裁定
 
-register 签名里的两条硬化裁定之所以存在，是因为显然的替代方案会以具体、可复现的方式失败；将来的编辑者不应重新争论它们：
+register 签名里的三条硬化裁定之所以存在，是因为显然的替代方案会以具体、可复现的方式失败；将来的编辑者不应重新争论它们：
 
 1. **注册位用 `SlotComponent<P>`（裸调用签名）而非 `FC<P>`。** React 的 `FC` 携带静态字段（`propTypes`、`defaultProps`），其类型在协变位引用 `P`；两个 `FC` 实例化之间的可赋性检查连这些静态位一起查，会拒绝设计本想接受的组件。裸调用签名只走干净的形参逆变检查；组件仍是普通函数。
-2. **`NoInfer<I>` 把业务份额的推断钉在 inject 工厂上。** 没有它，TS 还会从组件形参位收集推断候选，漂移的组件（消费一个工厂并不供给的键）会静默把 `I` 加宽到让调用通过——恰好吸收掉类型链本要抓的漂移。负样本 spec 钉住这一点：若这个 `NoInfer` 日后被「顺手简化」掉，expect-error 位会第一个变红。
+2. **`InjectSeat` 在单个 `register` 签名内，从组件反推出 `inject` 的必需性。** 业务份额没法像 `M` 那样钉住：写成 `(sessionId) => …` 的 inject 工厂形参未标注类型，因而是语境敏感的，它的返回类型晚一轮才进入推断——组件位上的 `NoInfer<I>` 会先把 `I` 固定在 `object` 缺省值上，于是每个调用都会拒绝它拿到的那个接口。所以 `I` 从组件位推导，而选项上的席位再把这份需求读回来：只要 `FrameworkProps<…>`（业务接口为空的合成 props）仍能满足组件形参，`inject` 就保持可选；框架份额未覆盖的第一个成员会让工厂变为必填，并把它的返回类型钉到 `I`。漂移的组件照样会加宽 `I`——而正是这次加宽让席位索要一个该调用并不具备的工厂，于是漂移以选项实参上缺失 `inject` 的形式暴露出来，而不是被吸收掉。
+3. **一个签名，而非一对重载。** 该席位取代了两个 `register` 重载，二者唯一的差别就是 inject 份额；重载之间无法共享类型参数列表，于是这一对就成了 `bun run duplication` 报出的自克隆。负样本 spec 钉住这次折叠没有放松任何严格性：一旦席位被摊平成普通的可选 `inject`，`packages/client/ui-slots/tests/type-chain.client.spec.tsx` 与 `packages/client/ui-conversation/tests/views-type-chain.client.spec.tsx` 便会因 `@ts-expect-error` 指令未被使用而变红。
 
 ## 后果
 

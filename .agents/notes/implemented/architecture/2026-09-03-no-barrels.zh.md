@@ -18,7 +18,11 @@ Status: implemented
 
 符号从声明它的模块导入。需要跨越包边界的符号获得真实的子路径导出，且其产物文件列入 `files`——即 [`dsh-web-fetch-http`](../../../../packages/web/web-fetch-http/package.json) 用于 `./policy` 的形式。该包同时说明了为什么必须验证产物而非假定其存在：它声明了 `./policy` 子路径，而 `lib/policy.js` 从未被构建，因此该导出从未解析成功。
 
-一个既声明自身 API、又列名转发少量符号的模块不是 barrel。它就是包的 `exports` 映射所指向的模块，门禁不会触发。检测器划的界线是归属而非再导出的数量：自身没有任何声明的模块，对它发布的名字没有归属权。
+有两类模块不是 barrel。其一是既声明自身 API、又列名转发少量符号的模块。其二是包自身 `exports` 映射所发布的模块，即使它没有任何声明：该模块本身就是边界，公开接口横跨多个文件的包在此处一次性声明它，而不是让每个消费方去猜哪个文件拥有哪个名字。`isPublishedEntry()` 依据 manifest 作出判断，把源模块与其产出的 `lib/` 路径匹配，其中包含 Client 构建把 `src/client/index.ts` 扁平化为 `lib/client.js` 的情形。
+
+该规则要移除的是内部转发器——消费方无法直接导入、却夹在调用方与声明之间的模块。本门禁的第一版没有划出这条界线，误拒了 22 个已发布入口，这一区分正是由此发现的：`packages/session/session-title/src/client.ts` 的存在是为了给浏览器侧提供一个收窄的入口，删除它会让 Client 触及仅限 Host 的模块。为收窄而转发，与该规则针对的危害正好相反。
+
+该门禁还查出了它自身的两个缺陷。`export type * from` 也是星号形式，却对第一版模式不可见，因而隐藏了另外 34 处转发；而 `OWN_DECLARATION` 用 `\b` 锚定 `type[ \t]+\w`，导致它从不匹配 `export type Alpha = …`，于是所有仅以类型别名作为声明的模块都被报为纯 barrel。两者都有回归用例。
 
 该规则放在 [packages/AGENTS.md](../../../../packages/AGENTS.md) 中其他模块布局规则旁，而不是根约定文件。它最初写入根文件并使其超出词数上限；`docs/AGENTS.md` 要求先迁移再压缩，而模块布局本就是包级议题。在规则已被压缩两次之后，[scripts/doc-budgets.manifest.json](../../../../scripts/doc-budgets.manifest.json) 中 `packages/AGENTS.md` 的上限从 675 调整为 710 以容纳它。
 

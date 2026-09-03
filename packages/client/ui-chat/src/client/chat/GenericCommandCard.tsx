@@ -1,6 +1,8 @@
 import { useState, type ReactNode } from 'react'
 import type { ChatViewSlotProps, CommandRowOwnerProps } from '../contract/slots.ts'
-import { DisclosureRow, IconApiOutline14, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  DisclosureRow, IconApiOutline14, RowSeparator, RowSummary, StateDot,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './GenericCommandCard.module.css'
 
 type CommandRowState = 'running' | 'ok' | 'error'
@@ -52,8 +54,8 @@ export function GenericCommandCard({ node, t, runningSummary }: GenericCommandCa
         onToggle={() => { setExpanded(value => !value) }}
         collapsedContent={(
           <>
-            <span className={css.separator} aria-hidden />
-            <span className={css.summary} data-error={state === 'error' || undefined}>{summary}</span>
+            <RowSeparator />
+            <RowSummary tone={state === 'error' ? 'error' : 'default'}>{summary}</RowSummary>
           </>
         )}
       >

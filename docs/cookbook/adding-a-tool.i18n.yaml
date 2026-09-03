@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write docs/cookbook/adding-a-tool.md
-adding-a-tool.md: f6b2703f3db69a6abc04dbd0fd9893555eed0602
-adding-a-tool.zh.md: d4831e2be061c2565e88004062cbb1558491bb9d
+adding-a-tool.md: f24c3fec9c6c391f9069ed77de067d9b4b670f45
+adding-a-tool.zh.md: 829fc2f858ab9f23e4fa713381f3230b61af5666

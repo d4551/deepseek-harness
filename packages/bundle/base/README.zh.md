@@ -49,6 +49,16 @@ kind: "package-bundle"
 
 开箱即用，基于本核心构建的每个 profile 都提供：DeepSeek 模型连接（provider 与模型可配置，你还可以在设置中启用额外 provider）、完整工具集——文件编辑、shell 命令、web 搜索、subagent、任务与目标跟踪——可跨重启存活的持久会话，以及默认权限策略：把文件写入限制在工作区内，危险操作前征询许可。遥测默认关闭，除非你主动开启。
 
+### 安装 fetch 工具所需的浏览器
+
+有一项随发行版交付的默认值需要本安装不会执行的步骤。`web_fetch` 路由到 Playwright Chromium 后端，因为模型通过原始 HTTP 正文阅读现代站点看到的只是一具空壳——但 `playwright` 不带 postinstall 步骤，浏览器不会被自动下载。在下载之前，插件会在挂载期告警，并且**每次 `web_fetch` 调用都会失败**，报 `WEB_PROVIDER_CONFIGURED_UNAVAILABLE`。每台主机安装一次：
+
+```sh
+npx playwright install chromium
+```
+
+告警与每次启动失败都会打印针对它们所找到的那份安装解析出的命令，因此消息在任何阅读处都点名一条可运行的命令。无法安装浏览器的部署可以改为在其 profile patch 的 `web` 行上声明 `fetchProvider: http`；该后端不需要任何额外步骤，代价是返回未经渲染的 HTML。
+
 ### 各平台的 shell 工具
 
 在 macOS 与 Linux 上你获得 bash shell 工具；在 Windows 上则获得对应的 PowerShell 孪生工具，因此每台机器恰好有一套 shell 栈。各平台的安全行为完全一致。偏好不受沙盒约束的 PowerShell 执行器的 Windows 主机可以在其 profile patch 中切换 shell 行——切换必须同时禁用两个 PowerShell 行并重新启用两个 bash 行，否则 profile 无法加载。
@@ -73,7 +83,7 @@ patch 会替换目标行的整个 `config`，而不是合并进它。后续组�
 
 ### 平台门控
 
-patch 在自身上按平台门控两个 shell 栈：`bash-sandbox` 与 `tool-bash` 携带 `disabled: !!js process.platform === 'win32'`，孪生行 `pwsh-sandbox` 与 `tool-pwsh` 以取反的表达式仅在 win32 挂载。权限面与 POSIX 完全一致：沙箱策略通过 Windows ACL 受限令牌 runner（`dsh-sandbox-local` → `@deepseek-ai/dsh-sandbox-windows-acl`）执行相同的文件效果策略，`fs-sandbox` 继续围栏 `ctx.fs` 写入——在其旁再挂载 `dsh-fs-local` 会重复注册 `ctx.fs` 并在加载时失败。
+patch 在自身上按平台门控两个执行器：`bash-sandbox` 携带 `disabled: !!js process.platform === 'win32'`，孪生行 `pwsh-sandbox` 以取反的表达式仅在 win32 挂载；而唯一的 `tool-shell` 行把同一个平台事实读入其 `dialect` 配置，因此面向模型的工具名始终与挂载的执行器一致。权限面与 POSIX 完全一致：沙箱策略通过 Windows ACL 受限令牌 runner（`dsh-sandbox-local` → `@deepseek-ai/dsh-sandbox-windows-acl`）执行相同的文件效果策略，`fs-sandbox` 继续围栏 `ctx.fs` 写入——在其旁再挂载 `dsh-fs-local` 会重复注册 `ctx.fs` 并在加载时失败。
 
 ### 源码地图
 
@@ -125,6 +135,7 @@ patch 在自身上按平台门控两个 shell 栈：`bash-sandbox` 与 `tool-bas
 - **按表层的设置属于该表层的组合包**——web GUI 与 headless 模式取值不同的默认值放在对应表层的组合包里，而不是共享核心。
 - **Windows 的临时目录授权是按会话的私有子目录**——`workspace-write` 把写入限制在工作区与会话自己的 temp 子目录（`<temp>\dsh-<hash>`，受限子进程的 TMP/TEMP 被改写）；`read-only` 不授予任何临时目录写入权限。见 `@deepseek-ai/dsh-sandbox-windows-acl`。
 - **在沙箱化文件系统提供方之上添加普通提供方会导致 profile 失败**——两者注册同一个服务，profile 因此拒绝加载；二选一。
+- **随发行版交付的 fetch 路线需要本安装不会下载的浏览器**——`web_fetch` 路由到 Playwright Chromium，而 `playwright` 不带 postinstall 步骤，因此每台主机都必须手工执行一次 `npx playwright install chromium`；在此之前插件会在挂载期告警，且每次 `web_fetch` 都以 `WEB_PROVIDER_CONFIGURED_UNAVAILABLE` 失败。无法安装浏览器的主机应在 `web` 行上声明 `fetchProvider: http`。
 
 <a id="dev-note"></a>
 ### 开发备注

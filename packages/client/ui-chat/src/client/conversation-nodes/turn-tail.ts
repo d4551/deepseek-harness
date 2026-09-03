@@ -10,8 +10,9 @@ import type {
   AssistantChatData, FinalAssistantChatData, TurnTailChatData,
 } from '../contract/chat-nodes.ts'
 import { deriveTurnMetrics } from '../contract/turn-metrics.ts'
-import { CHAT_SYNTHETIC_SEQ_OFFSETS, chatNode } from './common.ts'
-import { toAssistantBlocks } from './event-projection.ts'
+import { SYNTHETIC_SEQ_OFFSETS } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import { chatNode } from './common.ts'
+import { toAssistantBlocks } from '@deepseek-ai/dsh-client-ui-conversation/client'
 
 declare module '../contract/chat-nodes.ts' {
   interface ChatNodeDataMap {
@@ -108,7 +109,7 @@ function closingAnchor(context: ConversationNodeContext<TurnTailState>): number 
     if (event.type === 'assistant/message') {
       steps.set(coordinates.step, { streamedText: false, finalized: true })
       if (hasTextAssistant(event)) {
-        anchor = event.seq + CHAT_SYNTHETIC_SEQ_OFFSETS.finalizedFollowup
+        anchor = event.seq + SYNTHETIC_SEQ_OFFSETS.finalizedFollowup
       }
       continue
     }
@@ -117,7 +118,7 @@ function closingAnchor(context: ConversationNodeContext<TurnTailState>): number 
       continue
     }
     if (event.type === 'step/end' && previous.streamedText && !previous.finalized) {
-      anchor = event.seq + CHAT_SYNTHETIC_SEQ_OFFSETS.interruptedFollowup
+      anchor = event.seq + SYNTHETIC_SEQ_OFFSETS.interruptedFollowup
     }
   }
   return anchor

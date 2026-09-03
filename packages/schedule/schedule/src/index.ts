@@ -9,7 +9,7 @@ import type {} from '@deepseek-ai/dsh-session-persistence'
 import { ScheduleRuntime } from './runtime.ts'
 import { registerScheduleTools } from './tools.ts'
 
-export type * from './types.ts'
+export type { AfterScheduleRecord, AtInput, AtScheduleRecord, CorruptScheduleLogError, EveryScheduleDispatchChange, EveryScheduleRecord, FrequencyTooHighError, InternalScheduleError, InvalidPromptError, InvalidRuleError, InvalidSelectorError, InvalidTimeZoneError, LocalAtInput, NotFutureError, OneShotScheduleDispatchChange, OneShotScheduleRecord, PersistenceUncertainError, ScheduleChange, ScheduleCreateChange, ScheduleCreateValue, ScheduleDeleteChange, ScheduleDeleteResult, ScheduleDeleteValue, ScheduleDeliveryMode, ScheduleDispatchChange, ScheduleListValue, SchedulePersistenceOperation, ScheduleRecord, ScheduleState, ScheduleToolError, ScheduleView, TimeOutOfRangeError } from './types.ts'
 export {
   SCHEDULE_CHANGE_VERSION,
   MIN_EVERY_INTERVAL_SECONDS,

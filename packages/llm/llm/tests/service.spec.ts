@@ -505,7 +505,14 @@ describe('LlmRuntime', () => {
     await ctx.plugin(LlmRuntime)
     ctx.llm.registerAdapter(['test'], adapter)
 
-    for await (const _chunk of ctx.llm.stream({ provider: 'test', model: 'test', messages: [] })) break
+    const seen: StreamChunk[] = []
+    for await (const chunk of ctx.llm.stream({ provider: 'test', model: 'test', messages: [] })) {
+      seen.push(chunk)
+      break
+    }
+    // The break closes a source iterator that has no return(): the delivered
+    // chunk stands and the loop settles instead of failing the close.
+    expect(seen).toEqual([SCRIPT[0]])
   })
 
   it('unregisters adapters when the owning fiber is disposed (HMR safety)', async () => {

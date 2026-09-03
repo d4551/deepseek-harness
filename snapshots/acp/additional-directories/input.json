@@ -1,0 +1,7 @@
+{
+  "steps": [
+    { "op": "initialize" },
+    { "op": "newSessionExpectError", "additionalDirectories": ["extra-root"] },
+    { "op": "newSession", "additionalDirectories": ["{{cwd}}/extra-root"] }
+  ]
+}

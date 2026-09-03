@@ -31,6 +31,7 @@ kind: "package-group"
 | [`home-paths/`](home-paths/README.zh.md) | 解析统一的 Harness 主目录并拼接共享的用户数据路径 |
 | [`launch-environment/`](launch-environment/README.zh.md) | 冻结的启动环境，记住每个值来自哪一层 |
 | [`atomic-write/`](atomic-write/README.zh.md) | 原子文件替换与跨进程写锁 |
+| [`document-queue/`](document-queue/README.zh.md) | 单个文档的独占操作链、由 watcher 驱动的重载与静默收敛的释放 |
 | [`native-command/`](native-command/README.zh.md) | 直接运行宿主原生命令，绝不拼 shell 字符串 |
 | [`workspace-path/`](workspace-path/README.zh.md) | 提供浏览器安全的 Workspace 路径与显示辅助函数 |
 | [`output-retention/`](output-retention/README.zh.md) | 限制面向模型的输出并报告精确的省略元数据 |

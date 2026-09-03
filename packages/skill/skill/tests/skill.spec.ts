@@ -1268,4 +1268,24 @@ describe('SkillRegistry scoped layers', () => {
     expect(await ctx.skills.list({ scope })).toEqual([])
     await preset.dispose()
   })
+
+  it('keys the catalog cache on the additional workspace roots as well as the cwd', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SkillRegistry)
+    const seen: (readonly string[] | undefined)[] = []
+    ctx.skills.registerProvider(() => ({
+      name: 'roots-recording',
+      list: (options) => {
+        seen.push(options.additionalRoots)
+        return Promise.resolve([{ ...memorySkill('roots-skill', 'Roots skill', 100), provider: 'roots-recording' }])
+      },
+      get: () => Promise.resolve(undefined),
+    }))
+
+    await ctx.skills.list({ cwd: '/workspace', additionalRoots: ['/second'] })
+    await ctx.skills.list({ cwd: '/workspace', additionalRoots: ['/second'] })
+    await ctx.skills.list({ cwd: '/workspace', additionalRoots: ['/third'] })
+
+    expect(seen).toEqual([['/second'], ['/third']])
+  })
 })

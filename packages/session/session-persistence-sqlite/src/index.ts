@@ -7,24 +7,16 @@
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { DEFAULT_BUSY_TIMEOUT_MS, MAX_BUSY_TIMEOUT_MS } from '@deepseek-ai/dsh-sqlite-connection'
-import type {
-  Session,
-  SessionEvent,
-  SessionHeader,
-  SessionId,
-  SessionPreparation,
-} from '@deepseek-ai/dsh-session'
+import type { SessionHeader } from '@deepseek-ai/dsh-session'
 import {
   DEFAULT_PREPARED_SESSION_CACHE_SIZE,
   DEFAULT_WRITE_BATCH_MAX_DELAY_MS,
   MAX_WRITE_BATCH_DELAY_MS,
-  type BorrowedSessionSource,
   PersistenceCoordinator,
-  SessionPersistence,
-  type SessionInspection,
   type SessionLocation,
   type SessionPersistenceSnapshot,
 } from '@deepseek-ai/dsh-session-persistence'
+import { CoordinatedSessionPersistence } from '@deepseek-ai/dsh-session-persistence/coordinated'
 import type { JournalMode } from './schema.ts'
 import { SqliteStore } from './store.ts'
 
@@ -47,7 +39,7 @@ export interface Config {
 /**
  * SQLite `SessionPersistence` provider with a schema-owned physical codec.
  */
-export class SqliteSessionPersistence extends SessionPersistence {
+export class SqliteSessionPersistence extends CoordinatedSessionPersistence<number> {
   override readonly supportsRawArtifacts = false
   override readonly name = 'session-persistence-sqlite'
 
@@ -63,7 +55,7 @@ export class SqliteSessionPersistence extends SessionPersistence {
   })
 
   private readonly store: SqliteStore
-  private readonly coordinator: PersistenceCoordinator<number>
+  protected readonly coordinator: PersistenceCoordinator<number>
 
   constructor(ctx: Context, public config: Config) {
     super(ctx)
@@ -92,41 +84,9 @@ export class SqliteSessionPersistence extends SessionPersistence {
     return undefined
   }
 
-  create(meta: SessionHeader): Promise<void> {
-    return this.coordinator.create(meta)
-  }
-
-  override ensureMaterialized(session: Session): Promise<void> {
-    return this.coordinator.ensureMaterialized(session)
-  }
-
-  append(id: SessionId, events: readonly SessionEvent[]): Promise<void> {
-    return this.coordinator.append(id, events)
-  }
-
-  override prepare(id: SessionId, signal?: AbortSignal): Promise<SessionPreparation> {
-    return this.coordinator.prepare(id, signal)
-  }
-
-  load(id: SessionId): Promise<SessionInspection> {
-    return this.coordinator.load(id)
-  }
-
-  inspect(id: SessionId, signal?: AbortSignal): Promise<SessionInspection> {
-    return this.coordinator.inspect(id, signal)
-  }
-
-  override borrowSession(id: SessionId, signal?: AbortSignal): Promise<BorrowedSessionSource> {
-    return this.coordinator.borrowSession(id, signal)
-  }
-
-  readFrom(
-    id: SessionId,
-    fromSeq: number,
-    signal?: AbortSignal,
-  ): Promise<{ meta: SessionHeader; events: SessionEvent[] }> {
-    return this.coordinator.readFrom(id, fromSeq, signal)
-  }
+  // The coordinator-delegated service API lives on CoordinatedSessionPersistence.
+  // Listing is not one of its operations: the coordinator only consumes `list`
+  // as a backend hook, so both listings read the store directly.
 
   list(signal?: AbortSignal): Promise<SessionHeader[]> {
     return this.store.list(signal)

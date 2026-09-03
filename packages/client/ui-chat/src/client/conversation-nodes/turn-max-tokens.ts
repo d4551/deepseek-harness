@@ -5,7 +5,8 @@ import type {
 // The declaring package, not the local barrel: a Typert-modeled reference must
 // name the package that owns the type so the generated import can point at it.
 import type { TurnMaxTokensNode } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { CHAT_SYNTHETIC_SEQ_OFFSETS, chatNode } from './common.ts'
+import { SYNTHETIC_SEQ_OFFSETS } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import { chatNode } from './common.ts'
 
 declare module '../contract/chat-nodes.ts' {
   interface ChatNodeDataMap {
@@ -38,7 +39,7 @@ function noticeAnchor(context: ConversationNodeContext<TurnMaxTokensState>, seq:
   const closing = location.turn.data.get('turn-tail')?.closing
   return closing === null || closing === undefined
     ? seq
-    : closing.finalNode.seq + CHAT_SYNTHETIC_SEQ_OFFSETS.maxTokensNotice
+    : closing.finalNode.seq + SYNTHETIC_SEQ_OFFSETS.maxTokensNotice
 }
 
 function stateFrom(match: ConversationMatch): TurnMaxTokensState | undefined {

@@ -13,7 +13,7 @@ import type {
   PreparedDeepSeekLlmApiExtensions,
 } from './types.ts'
 
-export type * from './types.ts'
+export type { DeepSeekLlmApiExtensionMap, DeepSeekLlmApiExtensionProvider, DeepSeekLlmApiExtensionRequest, DeepSeekLlmApiJson, PreparedDeepSeekLlmApiExtension, PreparedDeepSeekLlmApiExtensions } from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {

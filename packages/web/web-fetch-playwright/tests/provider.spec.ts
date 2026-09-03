@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
-import { PlaywrightFetchProvider, PLAYWRIGHT_FETCH_PROVIDER_ID } from '../src/provider.ts'
-import type { BrowserAccess } from '../src/provider.ts'
+import { publicHttpNetwork } from '@deepseek-ai/dsh-web-fetch-http/network'
+import { chromiumInstallCommand, PlaywrightFetchProvider, PLAYWRIGHT_FETCH_PROVIDER_ID } from '../src/provider.ts'
+import type { BrowserAccess, RenderBrowser } from '../src/provider.ts'
 import {
   armedNavigationGate,
   closeLog,
   dom,
   fakeBrowser,
+  FakeBrowser,
   limits,
   render,
   settleQueue,
@@ -66,6 +68,78 @@ describe('PlaywrightFetchProvider', () => {
     expect(browser.userAgents).toEqual(['test-agent/1.0', 'test-agent/1.0'])
   })
 
+  it('blocks service workers in every context so no request escapes the interceptor', async () => {
+    const { access, browser } = fakeBrowser()
+    const provider = new PlaywrightFetchProvider(limits, access)
+    await render(provider, 'https://example.com/sw')
+    // Playwright's request interceptor never sees a request a service worker issues,
+    // so registration stays off rather than opening an unguarded path to the network.
+    expect(browser.serviceWorkerModes).toEqual(['block'])
+  })
+
+  it('installs all three destination checks before the context has a page', async () => {
+    const { access, browser } = fakeBrowser()
+    const provider = new PlaywrightFetchProvider(limits, access)
+    await render(provider, 'https://example.com/order')
+    // Playwright routes only WebSockets opened after the handler is installed, so a
+    // page that exists first could open one that reaches its server unrouted; the
+    // request observer precedes both because it is the only channel a redirect hop
+    // reaches and it costs no await.
+    expect(browser.context.setupLog).toEqual(['on:request', 'route', 'routeWebSocket', 'newPage'])
+  })
+
+  it('fails the fetch when a redirect hop the interceptor never sees is refused', async () => {
+    const { access, browser } = fakeBrowser()
+    // Chromium follows a redirect inside its own network stack: the hop is reported as
+    // a request carrying redirectedFrom() and is offered to no interceptor.
+    browser.context.reported.push(
+      { url: 'https://example.com/page' },
+      { url: 'http://169.254.169.254/latest/meta-data/', from: 'https://example.com/page' },
+    )
+    const evaluated = vi.spyOn(browser.context.page, 'evaluate')
+    const provider = new PlaywrightFetchProvider(limits, access)
+    await expect(render(provider, 'https://example.com/page'))
+      .rejects.toThrow(expect.objectContaining({ code: 'WEB_BLOCKED_URL' }))
+    // The refusal lands before the document is read, so no byte of a page that reached
+    // the refused address is returned, and the context is still closed.
+    expect(evaluated).not.toHaveBeenCalled()
+    expect(browser.context.page.closeCount).toBe(1)
+    expect(browser.context.closeCount).toBe(1)
+  })
+
+  it('returns a render whose redirect hops the policy admits', async () => {
+    const { access, browser } = fakeBrowser()
+    browser.context.reported.push(
+      { url: 'https://example.com/page' },
+      { url: 'https://example.com/moved', from: 'https://example.com/page' },
+    )
+    const provider = new PlaywrightFetchProvider(limits, access)
+    const result = await render(provider, 'https://example.com/page')
+    expect(result.statusCode).toBe(200)
+    expect(result.body.content).toContain('rendered')
+    // The hop reuses the host decision the main frame already made.
+    expect(publicHttpNetwork.resolve).toHaveBeenCalledTimes(1)
+  })
+
+  it('fails the fetch when a redirect hop leaves the scheme the policy accepts', async () => {
+    const { access, browser } = fakeBrowser()
+    browser.context.reported.push({ url: 'file:///etc/passwd', from: 'https://example.com/page' })
+    const provider = new PlaywrightFetchProvider(limits, access)
+    await expect(render(provider, 'https://example.com/page'))
+      .rejects.toThrow(expect.objectContaining({ code: 'WEB_INVALID_URL' }))
+  })
+
+  it('closes the context when the WebSocket interceptor cannot be installed', async () => {
+    const { access, browser } = fakeBrowser()
+    const spy = vi.spyOn(browser.context, 'routeWebSocket').mockRejectedValue(new Error('no socket interception'))
+    const provider = new PlaywrightFetchProvider(limits, access)
+    await expect(render(provider, 'https://example.com/nosocketroute'))
+      .rejects.toThrow(expect.objectContaining({ code: 'WEB_PROVIDER_ERROR' }))
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(browser.context.closeCount).toBe(1)
+    expect(browser.context.page.closeCount).toBe(0)
+  })
+
   it('reports a synthetic navigation (null) as status 200', async () => {
     const { access, browser } = fakeBrowser()
     const spy = vi.spyOn(browser.context.page, 'goto').mockResolvedValue(null)
@@ -92,6 +166,45 @@ describe('PlaywrightFetchProvider', () => {
     controller.abort()
     await expect(render(provider, 'not a url', controller.signal))
       .rejects.toThrow(expect.objectContaining({ code: 'WEB_ABORTED' }))
+  })
+
+  it('surfaces a browser step that rejects with a non-Error value', async () => {
+    const { access, browser } = fakeBrowser()
+    // A page that throws a primitive surfaces as a non-Error rejection; the provider
+    // still owes its caller a WebError.
+    vi.spyOn(browser.context.page, 'evaluate').mockRejectedValue('the page threw a string')
+    const provider = new PlaywrightFetchProvider(limits, access)
+    // The browser step already translated it, so the caller sees one prefix:
+    // re-wrapping would also have replaced the step's own seam code.
+    await expect(render(provider, 'https://example.com/primitive'))
+      .rejects.toThrow(expect.objectContaining({
+        code: 'WEB_PROVIDER_ERROR',
+        message: 'web fetch failed: the page threw a string',
+      }))
+    expect(browser.context.closeCount).toBe(1)
+  })
+
+  it('reports a resolution failure that is not a policy refusal as WEB_PROVIDER_ERROR', async () => {
+    const { access, browser } = fakeBrowser()
+    // A name that does not resolve fails resolution itself, not the address policy.
+    vi.mocked(publicHttpNetwork.resolve).mockRejectedValue(new Error('getaddrinfo ENOTFOUND nowhere.test'))
+    const provider = new PlaywrightFetchProvider(limits, access)
+    await expect(render(provider, 'https://nowhere.test/page'))
+      .rejects.toThrow(expect.objectContaining({
+        code: 'WEB_PROVIDER_ERROR',
+        message: 'web fetch failed: getaddrinfo ENOTFOUND nowhere.test',
+      }))
+    expect(browser.newContextCount).toBe(0)
+  })
+
+  it('surfaces a context that cannot be opened as WEB_PROVIDER_ERROR', async () => {
+    const { access, browser } = fakeBrowser()
+    const spy = vi.spyOn(browser, 'newContext').mockRejectedValue(new Error('browser has been closed'))
+    const provider = new PlaywrightFetchProvider(limits, access)
+    await expect(render(provider, 'https://example.com/nocontext'))
+      .rejects.toThrow(expect.objectContaining({ code: 'WEB_PROVIDER_ERROR' }))
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(browser.context.closeCount).toBe(0)
   })
 
   it('surfaces a browser-step failure as WEB_PROVIDER_ERROR and still cleans up', async () => {
@@ -240,6 +353,65 @@ describe('PlaywrightFetchProvider limits and lifecycle', () => {
     await holderAssertion
   })
 
+  it('bounds a browser launch that outlives the fetch budget', async () => {
+    const browser = new FakeBrowser()
+    const access: BrowserAccess = {
+      launch: () => new Promise<RenderBrowser>(resolve => setTimeout(() => { resolve(browser) }, 60)),
+      probe: async () => undefined,
+    }
+    const provider = new PlaywrightFetchProvider({ ...limits, timeoutMs: 20 }, access)
+    await expect(render(provider, 'https://example.com/slow-launch'))
+      .rejects.toThrow(expect.objectContaining({ code: 'WEB_FETCH_TIMEOUT' }))
+    // The budget expired before the launch landed, so the context was never guarded
+    // and no page was opened in it.
+    expect(browser.context.setupLog).toEqual([])
+  })
+
+  it('gives up on a render whose deadline expired during destination admission', async () => {
+    const { access, browser } = fakeBrowser()
+    vi.mocked(publicHttpNetwork.resolve).mockImplementation(async () => {
+      await new Promise(resolve => setTimeout(resolve, 60))
+      return [{ address: '93.184.216.34', family: 4 }]
+    })
+    const provider = new PlaywrightFetchProvider({ ...limits, timeoutMs: 20 }, access)
+    await expect(render(provider, 'https://slow-dns.test/page'))
+      .rejects.toThrow(expect.objectContaining({ code: 'WEB_FETCH_TIMEOUT' }))
+    // A render whose budget is already spent takes no slot and opens no context.
+    expect(browser.newContextCount).toBe(0)
+  })
+
+  it('closes nothing when a provider that never rendered is disposed', async () => {
+    const { access, browser, launchCount } = fakeBrowser()
+    const provider = new PlaywrightFetchProvider(limits, access)
+    await provider.dispose()
+    expect(launchCount()).toBe(0)
+    expect(browser.closeCount).toBe(0)
+    expect(provider.available()).toBe(false)
+  })
+
+  it('closes a browser whose launch was still in flight when disposal began', async () => {
+    const browser = new FakeBrowser()
+    let releaseLaunch: (opened: RenderBrowser) => void = () => {
+      throw new Error('launch release was never installed')
+    }
+    const access: BrowserAccess = {
+      launch: () => new Promise<RenderBrowser>((resolve) => { releaseLaunch = resolve }),
+      probe: async () => undefined,
+    }
+    const provider = new PlaywrightFetchProvider(limits, access)
+    const pending = render(provider, 'https://example.com/racing-launch')
+    const assertion = expect(pending).rejects.toThrow(expect.objectContaining({ code: 'WEB_ABORTED' }))
+    await settleQueue()
+    const disposal = provider.dispose()
+    releaseLaunch(browser)
+    await disposal
+    await assertion
+    // Disposal waits for the renders in flight and then reads the memo, so the process
+    // this one opened while disposal waited is the process disposal closes.
+    expect(browser.closeCount).toBe(1)
+    expect(browser.context.setupLog).toEqual([])
+  })
+
   it('refuses to fetch after dispose and launches no further browser', async () => {
     const { access, browser, launchCount } = fakeBrowser()
     const provider = new PlaywrightFetchProvider(limits, access)
@@ -277,8 +449,10 @@ describe('PlaywrightFetchProvider limits and lifecycle', () => {
     expect(provider.available()).toBe(true)
     await expect(provider.resolveAvailability()).resolves.toBe(false)
     expect(provider.available()).toBe(false)
+    // The failure names the command that fixes it, resolved to this installation's own
+    // CLI so the reader can run it from wherever they read the message.
     await expect(render(provider, 'https://example.com/x'))
-      .rejects.toThrow(/playwright install chromium/)
+      .rejects.toThrow(chromiumInstallCommand())
   })
 
   it('reports the browser as available when the probe resolves', async () => {

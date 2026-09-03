@@ -77,6 +77,7 @@ kind: "package-reference"
 | [`src/index.ts`](src/index.ts) | 服务接线：存活句柄集合、dispose、宿主退出最终清理、可执行文件查找 |
 | [`src/spawn.ts`](src/spawn.ts) | 进程管道：detached spawn、保尾收集、spill 文件、升级、进程树退出观察器 |
 | [`src/terminal.ts`](src/terminal.ts) | `node-pty` 终端句柄：前台检查、会话清理、Windows 拆卸 |
+| [`src/process-tree-walk.ts`](src/process-tree-walk.ts) | 两个平台检查器共同运行的子先于父的进程表遍历 |
 | [`src/process-inspector.ts`](src/process-inspector.ts) | POSIX 进程树与会话检查 |
 | [`src/windows-inspector.ts`](src/windows-inspector.ts) | 经 koffi 的 Windows Toolhelp32 进程表检查 |
 | [`src/invariant.ts`](src/invariant.ts) | 不变式伴生插件（无运行时不变式；约定归 seam 所有） |

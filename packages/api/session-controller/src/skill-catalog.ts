@@ -2,6 +2,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent-presets/types'
+import { effectiveWorkspaceRoots } from '@deepseek-ai/dsh-session/workspace-roots'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { SessionQueryError } from '@deepseek-ai/dsh-session-query'
 import { isUserInvocable } from '@deepseek-ai/dsh-skill'
@@ -37,6 +38,7 @@ export class SessionSkillCatalog extends TypertRemoteService {
     void signal
     const { sessionId } = request
     let cwd: string | undefined
+    let additionalRoots: readonly string[] = []
     let agentPreset: string | undefined
     try {
       using observation = await this.ctx.sessionQuery.observeSession(sessionId)
@@ -44,6 +46,9 @@ export class SessionSkillCatalog extends TypertRemoteService {
         throw new Error('skill catalog requires a projected Session observation')
       }
       cwd = observation.header.cwd
+      // The human catalog spans the same directories the model's does: a user
+      // who adds a second folder expects its `/name` skills to appear.
+      additionalRoots = effectiveWorkspaceRoots(observation.events).filter((root: string) => root !== cwd)
       agentPreset = observation.projections.values.agentPreset ?? undefined
     } catch (error: unknown) {
       if (error instanceof SessionQueryError
@@ -76,7 +81,7 @@ export class SessionSkillCatalog extends TypertRemoteService {
 
     const scope = await this.scopeFor(sessionId, agentPreset)
     try {
-      const skills = (await skillRegistry.list({ cwd, scope })).filter(isUserInvocable)
+      const skills = (await skillRegistry.list({ cwd, additionalRoots, scope })).filter(isUserInvocable)
       return {
         skills: skills.map(skill => ({
           name: skill.name,

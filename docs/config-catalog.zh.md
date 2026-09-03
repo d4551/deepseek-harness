@@ -182,7 +182,7 @@ export type PresetTrust = 'system' | 'user'
  * the fallback title service, `skills` to the
  * skill registry/local provider/tool consumer, `workspaceContext` to the
  * agent-instructions loader, `jobs` to the process-local job provider, and
- * `toolBash`/`toolJobs` to the model-facing tool plugins this bundle owns.
+ * `toolShell`/`toolJobs` to the model-facing tool plugins this bundle owns.
  * Provider adapters own their `retryPolicy`; this bundle always mounts its
  * executor.
  * `goals` opts into and configures the persisted goal domain plus its model tool
@@ -190,9 +190,9 @@ export type PresetTrust = 'system' | 'user'
  * relational checks. Owner schemas supply defaults for optional input;
  * workspace context instead requires an explicit byte budget or `false` because
  * it changes model-visible input. Producer opt-in stays producer-local:
- * `toolBash` configures bash only; independently composed producers keep their
- * own config. Set `toolBash: false` when another plugin owns the model-facing
- * `bash` name.
+ * `toolShell` configures the shell tool only; independently composed producers
+ * keep their own config. Set `toolShell: false` when another plugin owns the
+ * model-facing shell-tool name.
  */
 export interface Config {
   /** The agent-loop `agents` list (see dsh-agent-loop's `Config`). */
@@ -221,8 +221,8 @@ export interface Config {
    * single model-tool plugins use `Config | false` to disable that one consumer.
    */
   skills?: SkillConfig
-  /** Model-facing bash tool config, or false when another plugin owns `bash`. */
-  toolBash?: toolBash.Config | false
+  /** Model-facing shell tool config naming its dialect, or false when another plugin owns that tool name. */
+  toolShell?: toolShell.Config | false
   /** Process-local background-job admission config. */
   jobs?: JobsConfig
   /** Generic background-job controls; set false to keep the job service without model-facing job tools. */
@@ -254,7 +254,7 @@ export interface GoalConfig {
 }
 ```
 
-依赖：[`AgentLoopConfig`](#deepseek-aidsh-agent-loop) · [`GoalDomainConfig`](#deepseek-aidsh-goal) · [`InvariantConfig`](#deepseek-aidsh-invariants) · [`JobsConfig`](#deepseek-aidsh-jobs-local) · [`SessionTitleConfig`](#deepseek-aidsh-session-title) · [`SkillFileSystem`](../packages/skill/skill-filesystem/src/index.ts) · [`SkillRegistryConfig`](#deepseek-aidsh-skill) · [`SystemPromptConfig`](#deepseek-aidsh-system-prompt) · [`toolBash`](../packages/shell/tool-bash/src/index.ts) · [`toolGoal`](../packages/goal/tool-goal/src/index.ts) · [`toolJobs`](../packages/jobs/tool-jobs/src/index.ts) · [`ToolsConfig`](#deepseek-aidsh-tools) · [`toolSkill`](../packages/skill/tool-skill/src/index.ts) · [`workspaceContext`](../packages/context/agent-instructions/src/index.ts)
+依赖：[`AgentLoopConfig`](#deepseek-aidsh-agent-loop) · [`GoalDomainConfig`](#deepseek-aidsh-goal) · [`InvariantConfig`](#deepseek-aidsh-invariants) · [`JobsConfig`](#deepseek-aidsh-jobs-local) · [`SessionTitleConfig`](#deepseek-aidsh-session-title) · [`SkillFileSystem`](../packages/skill/skill-filesystem/src/index.ts) · [`SkillRegistryConfig`](#deepseek-aidsh-skill) · [`SystemPromptConfig`](#deepseek-aidsh-system-prompt) · [`toolGoal`](../packages/goal/tool-goal/src/index.ts) · [`toolJobs`](../packages/jobs/tool-jobs/src/index.ts) · [`ToolsConfig`](#deepseek-aidsh-tools) · [`toolShell`](../packages/shell/tool-shell/src/index.ts) · [`toolSkill`](../packages/skill/tool-skill/src/index.ts) · [`workspaceContext`](../packages/context/agent-instructions/src/index.ts)
 
 来源：[`packages/examples/agent-spine-demo/src/index.ts:93`](../packages/examples/agent-spine-demo/src/index.ts)
 
@@ -418,23 +418,12 @@ export interface Config {
 
 ```ts config-catalog
 /** Plugin config (all optional — `static Config` supplies the defaults). */
-export interface Config {
-  /** Default working directory for commands (default: process.cwd()). */
-  cwd?: string
-  /** Default foreground timeout in milliseconds. */
-  timeoutMs?: number
-  /** Upper bound for per-call timeout overrides. */
-  maxTimeoutMs?: number
-  /** Per-stream in-memory output cap; overflow spills to a temp file. */
-  maxOutputBytes?: number
-  /** Per-stream spill-file cap; larger streams retain only their in-memory tail. */
-  maxSpillBytes?: number
-  /** Grace period for kill escalation and inherited pipes; at most `MAX_TIMER_DELAY_MS`. */
-  graceMs?: number
-}
+export type Config = SubprocessShellConfig
 ```
 
-来源：[`packages/shell/bash-local/src/index.ts:41`](../packages/shell/bash-local/src/index.ts)
+依赖：[`SubprocessShellConfig`](../packages/shell/shell/src/index.ts)
+
+来源：[`packages/shell/bash-local/src/index.ts:36`](../packages/shell/bash-local/src/index.ts)
 
 <a id="deepseek-aidsh-bash-sandbox"></a>
 
@@ -643,7 +632,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/credentials/credentials-local/src/index.ts:64`](../packages/credentials/credentials-local/src/index.ts)
+来源：[`packages/credentials/credentials-local/src/index.ts:65`](../packages/credentials/credentials-local/src/index.ts)
 
 <a id="deepseek-aidsh-e2b"></a>
 
@@ -1117,12 +1106,14 @@ export interface LitertModelConfig {
   /**
    * The `.litertlm` file `litert-lm import` reads: a local path when the model
    * is already on disk, or the file name inside {@link huggingFaceRepo} when
-   * it must be downloaded.
+   * it must be downloaded. Required by the supervised posture, which runs that
+   * import; refused by the remote posture, which imports nothing.
    */
-  file: string
+  file?: string
   /**
    * Hugging Face repository the file is pulled from when the registry does not
-   * already hold {@link id}. Omit it for a purely local `.litertlm` file.
+   * already hold {@link id}. Omit it for a purely local `.litertlm` file, and
+   * in the remote posture, which refuses it.
    */
   huggingFaceRepo?: string
   /** Context capacity of this model, in tokens. */
@@ -1157,6 +1148,15 @@ export interface LitertServerConfig {
   shutdownGraceMs?: number
   /** Budget for one `litert-lm import`, which downloads models of 0.5-4.2 GB. */
   importTimeoutMs?: number
+  /**
+   * Stdout tail retained per `litert-lm` child. `litert-lm list` output is
+   * parsed from it to decide which models the registry still needs, so a bound
+   * that cannot hold one registry listing loses the ids that slid out of the
+   * tail and re-imports models the registry already holds — gigabytes per lost
+   * id. Size it for the largest listing this route can see, never for log
+   * volume; {@link maxStderrBytes} is the knob for that.
+   */
+  maxStdoutBytes?: number
   /** Diagnostic stderr tail retained per `litert-lm` child and quoted in failures. */
   maxStderrBytes?: number
 }
@@ -1784,19 +1784,7 @@ export interface Config {
 
 ```ts config-catalog
 /** Plugin config (all optional — `static Config` supplies the defaults). */
-export interface Config {
-  /** Default working directory for commands (default: process.cwd()). */
-  cwd?: string
-  /** Default foreground timeout in milliseconds. */
-  timeoutMs?: number
-  /** Upper bound for per-call timeout overrides. */
-  maxTimeoutMs?: number
-  /** Per-stream in-memory output cap; overflow spills to a temp file. */
-  maxOutputBytes?: number
-  /** Per-stream spill-file cap; larger streams retain only their in-memory tail. */
-  maxSpillBytes?: number
-  /** Grace period for kill escalation and inherited pipes; at most `MAX_TIMER_DELAY_MS`. */
-  graceMs?: number
+export interface Config extends SubprocessShellConfig {
   /**
    * Explicit pwsh executable. When omitted, well-known Windows install
    * locations and PATH entries are probed in order (PowerShell 7 install,
@@ -1807,7 +1795,9 @@ export interface Config {
 }
 ```
 
-来源：[`packages/shell/pwsh-local/src/index.ts:58`](../packages/shell/pwsh-local/src/index.ts)
+依赖：[`SubprocessShellConfig`](../packages/shell/shell/src/index.ts)
+
+来源：[`packages/shell/pwsh-local/src/index.ts:52`](../packages/shell/pwsh-local/src/index.ts)
 
 <a id="deepseek-aidsh-pwsh-sandbox"></a>
 
@@ -2297,7 +2287,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/skill/skill/src/index.ts:279`](../packages/skill/skill/src/index.ts)
+来源：[`packages/skill/skill/src/index.ts:287`](../packages/skill/skill/src/index.ts)
 
 <a id="deepseek-aidsh-skill-filesystem"></a>
 
@@ -2494,7 +2484,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/subagent/subagent/src/index.ts:201`](../packages/subagent/subagent/src/index.ts)
+来源：[`packages/subagent/subagent/src/index.ts:190`](../packages/subagent/subagent/src/index.ts)
 
 <a id="deepseek-aidsh-subagent-acp"></a>
 
@@ -2547,7 +2537,7 @@ export interface Config {
 export type PermissionPolicy = 'allow' | 'reject'
 ```
 
-来源：[`packages/subagent/subagent-acp/src/index.ts:27`](../packages/subagent/subagent-acp/src/index.ts)
+来源：[`packages/subagent/subagent-acp/src/index.ts:29`](../packages/subagent/subagent-acp/src/index.ts)
 
 <a id="deepseek-aidsh-subagent-claude-code"></a>
 
@@ -2582,7 +2572,7 @@ export interface Config {
 export type ClaudeCodePermissionMode = typeof CLAUDE_CODE_PERMISSION_MODES[number]
 ```
 
-来源：[`packages/subagent/subagent-claude-code/src/index.ts:38`](../packages/subagent/subagent-claude-code/src/index.ts)
+来源：[`packages/subagent/subagent-claude-code/src/index.ts:41`](../packages/subagent/subagent-claude-code/src/index.ts)
 
 <a id="deepseek-aidsh-subagent-codex"></a>
 
@@ -2615,7 +2605,7 @@ export type CodexPermissionMode =
   | 'dangerously-bypass-approvals-and-sandbox'
 ```
 
-来源：[`packages/subagent/subagent-codex/src/index.ts:36`](../packages/subagent/subagent-codex/src/index.ts)
+来源：[`packages/subagent/subagent-codex/src/index.ts:40`](../packages/subagent/subagent-codex/src/index.ts)
 
 <a id="deepseek-aidsh-subagent-dsh-sdk"></a>
 
@@ -2671,7 +2661,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/subagent/subagent-dsh-sdk/src/index.ts:34`](../packages/subagent/subagent-dsh-sdk/src/index.ts)
+来源：[`packages/subagent/subagent-dsh-sdk/src/index.ts:35`](../packages/subagent/subagent-dsh-sdk/src/index.ts)
 
 <a id="deepseek-aidsh-subagent-fork-in-process"></a>
 
@@ -2873,44 +2863,6 @@ export type TeamCoordination = 'delegated' | 'swarm'
 
 来源：[`packages/subagent/tool-agent-team/src/index.ts:25`](../packages/subagent/tool-agent-team/src/index.ts)
 
-<a id="deepseek-aidsh-tool-bash"></a>
-
-## `@deepseek-ai/dsh-tool-bash`
-
-需要：`tools` · `shell` · `systemPrompt` · `shellEnv`
-
-```ts config-catalog
-/** Configuration for the bash tool. */
-export interface Config {
-  /** Expose `run_in_background` (default true); disabled calls are also rejected. */
-  enableRunInBackground?: boolean
-}
-```
-
-来源：[`packages/shell/tool-bash/src/index.ts:34`](../packages/shell/tool-bash/src/index.ts)
-
-<a id="deepseek-aidsh-tool-bash-persistent"></a>
-
-## `@deepseek-ai/dsh-tool-bash-persistent`
-
-需要：`tools` · `terminals`
-
-```ts config-catalog
-/** Configuration for the persistent Bash tool. */
-export interface Config {
-  /** PTY backend used for each owner-isolated persistent shell (default `shell`). */
-  backendType?: string
-  /** Wall-clock limit for one command (default 300000). */
-  timeoutMs?: number
-  /** Maximum returned command-output characters before clipping (default 16000). */
-  maxOutputChars?: number
-  /** Model-facing tool description; deployments may describe their environment. */
-  description?: string
-}
-```
-
-来源：[`packages/shell/tool-bash-persistent/src/index.ts:432`](../packages/shell/tool-bash-persistent/src/index.ts)
-
 <a id="deepseek-aidsh-tool-fs"></a>
 
 ## `@deepseek-ai/dsh-tool-fs`
@@ -3038,44 +2990,6 @@ export interface Config {
 
 来源：[`packages/lsp/tool-lsp/src/index.ts:58`](../packages/lsp/tool-lsp/src/index.ts)
 
-<a id="deepseek-aidsh-tool-pwsh"></a>
-
-## `@deepseek-ai/dsh-tool-pwsh`
-
-需要：`tools` · `shell` · `systemPrompt` · `shellEnv`
-
-```ts config-catalog
-/** Configuration for the pwsh tool. */
-export interface Config {
-  /** Expose `run_in_background` (default true); disabled calls are also rejected. */
-  enableRunInBackground?: boolean
-}
-```
-
-来源：[`packages/shell/tool-pwsh/src/index.ts:52`](../packages/shell/tool-pwsh/src/index.ts)
-
-<a id="deepseek-aidsh-tool-pwsh-persistent"></a>
-
-## `@deepseek-ai/dsh-tool-pwsh-persistent`
-
-需要：`tools` · `terminals`
-
-```ts config-catalog
-/** Configuration for the persistent pwsh tool. */
-export interface Config {
-  /** PTY backend used for each owner-isolated persistent shell (default `shell`). */
-  backendType?: string
-  /** Wall-clock limit for one command (default 300000). */
-  timeoutMs?: number
-  /** Maximum returned command-output characters before clipping (default 16000). */
-  maxOutputChars?: number
-  /** Model-facing tool description; deployments may describe their environment. */
-  description?: string
-}
-```
-
-来源：[`packages/shell/tool-pwsh-persistent/src/index.ts:472`](../packages/shell/tool-pwsh-persistent/src/index.ts)
-
 <a id="deepseek-aidsh-tool-ralph"></a>
 
 ## `@deepseek-ai/dsh-tool-ralph`
@@ -3116,6 +3030,54 @@ export interface Config {
 
 来源：[`packages/session-query/tool-session-query/src/index.ts:29`](../packages/session-query/tool-session-query/src/index.ts)
 
+<a id="deepseek-aidsh-tool-shell"></a>
+
+## `@deepseek-ai/dsh-tool-shell`
+
+需要：`tools` · `shell` · `systemPrompt` · `shellEnv`
+
+```ts config-catalog
+/** Configuration for the one-shot shell tool. */
+export interface Config {
+  /** Shell whose name, command vocabulary, and prompt section this mount publishes. */
+  dialect: ShellDialectName
+  /** Expose `run_in_background` (default true); disabled calls are also rejected. */
+  enableRunInBackground?: boolean
+}
+
+/** The shells this tool can speak; a composition selects exactly one per mount. */
+export type ShellDialectName = 'bash' | 'pwsh'
+```
+
+来源：[`packages/shell/tool-shell/src/index.ts:54`](../packages/shell/tool-shell/src/index.ts)
+
+<a id="deepseek-aidsh-tool-shell-persistent"></a>
+
+## `@deepseek-ai/dsh-tool-shell-persistent`
+
+需要：`tools` · `terminals`
+
+```ts config-catalog
+/** Configuration for the persistent shell tool. */
+export interface Config {
+  /** Shell whose name, command wrapping, and prompt handling this mount publishes. */
+  dialect: ShellDialectName
+  /** PTY backend used for each owner-isolated persistent shell (default `shell`). */
+  backendType?: string
+  /** Wall-clock limit for one command (default 300000). */
+  timeoutMs?: number
+  /** Maximum returned command-output characters before clipping (default 16000). */
+  maxOutputChars?: number
+  /** Model-facing tool description; defaults to the selected dialect's, and deployments may describe their environment. */
+  description?: string
+}
+
+/** The shells this tool can drive; a composition selects exactly one per mount. */
+export type ShellDialectName = 'bash' | 'pwsh'
+```
+
+来源：[`packages/shell/tool-shell-persistent/src/index.ts:438`](../packages/shell/tool-shell-persistent/src/index.ts)
+
 <a id="deepseek-aidsh-tool-skill"></a>
 
 ## `@deepseek-ai/dsh-tool-skill`
@@ -3130,7 +3092,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/skill/tool-skill/src/index.ts:61`](../packages/skill/tool-skill/src/index.ts)
+来源：[`packages/skill/tool-skill/src/index.ts:77`](../packages/skill/tool-skill/src/index.ts)
 
 <a id="deepseek-aidsh-tool-str-replace-editor"></a>
 
@@ -3757,11 +3719,13 @@ export interface Config {
 - `@deepseek-ai/dsh-cmdline`（[`packages/boot/cmdline/src/index.ts`](../packages/boot/cmdline/src/index.ts)）
 - `@deepseek-ai/dsh-code-runtime-python`（[`packages/code-runtime/code-runtime-python/src/index.ts`](../packages/code-runtime/code-runtime-python/src/index.ts)）
 - `@deepseek-ai/dsh-diagnostic-text`（[`packages/util/diagnostic-text/src/index.ts`](../packages/util/diagnostic-text/src/index.ts)）
+- `@deepseek-ai/dsh-document-queue`（[`packages/util/document-queue/src/index.ts`](../packages/util/document-queue/src/index.ts)）
 - `@deepseek-ai/dsh-experimental-webworker-packer`（[`packages/experimental/webworker-packer/src/index.ts`](../packages/experimental/webworker-packer/src/index.ts)）
 - `@deepseek-ai/dsh-experimental-webworker-runtime`（[`packages/experimental/webworker-runtime/src/index.ts`](../packages/experimental/webworker-runtime/src/index.ts)）
 - `@deepseek-ai/dsh-home-paths`（[`packages/util/home-paths/src/index.ts`](../packages/util/home-paths/src/index.ts)）
 - `@deepseek-ai/dsh-hook-protocol`（[`packages/hooks/hook-protocol/src/index.ts`](../packages/hooks/hook-protocol/src/index.ts)）
 - `@deepseek-ai/dsh-hosted-drive`（[`packages/bundle/hosted-drive/src/index.ts`](../packages/bundle/hosted-drive/src/index.ts)）
+- `@deepseek-ai/dsh-keyed-lock`（[`packages/util/keyed-lock/src/index.ts`](../packages/util/keyed-lock/src/index.ts)）
 - `@deepseek-ai/dsh-launch-environment`（[`packages/util/launch-environment/src/index.ts`](../packages/util/launch-environment/src/index.ts)）
 - `@deepseek-ai/dsh-llm-mock-server`（[`packages/test-support/llm-mock-server/src/index.ts`](../packages/test-support/llm-mock-server/src/index.ts)）
 - `@deepseek-ai/dsh-loader-smoke`（[`packages/test-support/loader-smoke/src/index.ts`](../packages/test-support/loader-smoke/src/index.ts)）

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write packages/subagent/subagent-in-process-driver/README.md
-README.md: 4f343862d336a0cf697ab3bf5cf73f86d1d235fe
-README.zh.md: a77032317c592f4431b9bba4f5e808f4da8eb702
+README.md: 787da2706f52c7ed4b0725635696fa1fd9dd62b9
+README.zh.md: 7ce33fd9bf7d25795388242552965604372d323c

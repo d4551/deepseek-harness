@@ -7,4 +7,4 @@
  * @module @deepseek-ai/dsh-tool-todo/client
  */
 
-export type * from './types.ts'
+export type { TodoItem } from './types.ts'

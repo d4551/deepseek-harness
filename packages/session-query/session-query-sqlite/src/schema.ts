@@ -1,8 +1,7 @@
 /** SQLite schema for the disposable session full-text read model. */
 
 import type { DatabaseSync } from 'node:sqlite'
-import { mkdir, open } from 'node:fs/promises'
-import { dirname, resolve } from 'node:path'
+import { prepareDatabasePath } from '@deepseek-ai/dsh-sqlite-connection'
 
 /** Current derived-index schema version. Incompatible versions reset in place. */
 export const SESSION_QUERY_SQLITE_SCHEMA_VERSION = 8
@@ -25,30 +24,13 @@ const DERIVED_USER_TABLES = new Set([
 ])
 
 /**
- * Exclusively create a missing database file with owner-only permissions.
- * Existing files retain their modes, and errors other than `EEXIST` propagate.
- */
-async function createDatabaseFile(path: string): Promise<void> {
-  try {
-    const handle = await open(path, 'wx', 0o600)
-    await handle.close()
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
-  }
-}
-
-/**
  * Open, validate, and initialize persistent and connection-local schemas.
  * @param path - dedicated derived-index path or `:memory:`; missing filesystem paths are created owner-only.
  * @param journalMode - validated SQLite journal mode.
  * @returns initialized database handle owned by the search service.
  */
 export async function openSearchDatabase(path: string, journalMode: JournalMode): Promise<DatabaseSync> {
-  const actual = path === ':memory:' ? path : resolve(path)
-  if (actual !== ':memory:') {
-    await mkdir(dirname(actual), { recursive: true, mode: 0o700 })
-    await createDatabaseFile(actual)
-  }
+  const actual = await prepareDatabasePath(path)
   const { DatabaseSync } = await import('node:sqlite')
   const db = new DatabaseSync(actual)
   try {

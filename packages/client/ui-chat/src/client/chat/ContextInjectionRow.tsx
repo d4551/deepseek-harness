@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import type { ChatViewSlotProps } from '../contract/slots.ts'
-import { DisclosureRow, IconContextInjectionOutline16, ReferenceIcon } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  DisclosureRow, IconContextInjectionOutline16, ReferenceIcon, RowSeparator, RowSummary,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ContextMessageNode } from '../contract/snapshot.ts'
 import { contextBody } from './ContextBody.tsx'
 import css from './ContextInjectionRow.module.css'
@@ -43,16 +45,16 @@ export function ContextInjectionRow({ content, source, provenance, form, t }: Co
       chevronClassName={css.chevron}
       title={t(provenance.role === 'recall' ? 'message.contextRecall' : 'message.contextInjection')}
       collapsedContent={provenance.label === null ? undefined : (
-        /* ToolRow's separator shape: an aria-hidden dot, so the accessible name
-           stays the two readable parts and the two disclosure rows expose one
-           name shape. A source that names no producer drops the dot with it. */
+        /* RowSeparator is aria-hidden, so the accessible name stays the two
+           readable parts and the two disclosure rows expose one name shape. A
+           source that names no producer drops the dot with it. */
         <>
-          <span className={css.sep} aria-hidden />
+          <RowSeparator />
           <span className={css.source} data-context-source>{provenance.label}</span>
           {summary !== null && (
             <>
-              <span className={css.sep} aria-hidden />
-              <span className={css.summary} data-context-summary>{summary}</span>
+              <RowSeparator />
+              <RowSummary data-context-summary>{summary}</RowSummary>
             </>
           )}
         </>

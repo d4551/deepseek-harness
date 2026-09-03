@@ -8,10 +8,11 @@
 // here would hide a package that is merely UNTESTED on Windows behind one that
 // genuinely cannot run there, which is how the hooks integration and the pwsh
 // PTY dialect went unexercised. The pwsh-requiring suites (pwsh-local,
-// tool-pwsh, terminal-bash's pwsh dialect, hook-protocol's pwsh shell)
-// deliberately stay INCLUDED: PowerShell ships with Windows, so they run
-// natively here. This explicit list (not a 'packages/shell/*' glob) keeps
-// packages/shell/shell — the Service Definition package — running on Windows.
+// tool-shell's pwsh dialect, terminal-bash's pwsh dialect, hook-protocol's
+// pwsh shell) deliberately stay INCLUDED: PowerShell ships with Windows, so
+// they run natively here. This explicit list (not a 'packages/shell/*' glob)
+// keeps packages/shell/shell — the Service Definition package — running on
+// Windows.
 export const windowsUnsupportedPackages = process.platform === 'win32'
   ? [
     // The POSIX bash executor itself: its subject is `bash -c`, which
@@ -20,9 +21,6 @@ export const windowsUnsupportedPackages = process.platform === 'win32'
     // The bash executor under a POSIX sandbox runner (bwrap/Landlock/
     // Seatbelt); the Windows confinement peer is packages/shell/pwsh-sandbox.
     'packages/shell/bash-sandbox',
-    // The bash tool Consumer, whose fixtures are bash command strings; the
-    // Windows peer tool is packages/shell/tool-pwsh.
-    'packages/shell/tool-bash',
     // Runner selection for the POSIX chain: the suites stage bwrap,
     // Landlock, and sandbox-exec through real POSIX shell scripts. The
     // win32 rung's argv, dialect, and probe are asserted platform-
@@ -44,10 +42,22 @@ const nonLinuxWebWorkerTests = process.platform === 'linux'
 /** Webworker suites excluded off-Linux because their oracle is the fixed Worker platform. */
 export const nonLinuxTests: readonly string[] = nonLinuxWebWorkerTests
 
-/** Windows packages whose whole suite set stays out of the win32 lane. */
-export const windowsPackageTestExclusions: readonly string[] = windowsUnsupportedPackages.map(
-  path => `${path}/tests/**/*.spec.ts`,
-)
+// The merged shell tool package hosts both dialects, so the win32 exclusion is
+// per suite rather than per package: its bash suites drive a real `bash -c`
+// executor Windows has no interpreter for, while its pwsh suites are exactly
+// what the win32 lane exists to exercise.
+const windowsUnsupportedShellToolSuites = process.platform === 'win32'
+  ? [
+    'packages/shell/tool-shell/tests/bash-dialect.spec.ts',
+    'packages/shell/tool-shell/tests/bash-integration.spec.ts',
+  ]
+  : []
+
+/** Windows packages whose whole suite set stays out of the win32 lane, plus the per-suite entries. */
+export const windowsPackageTestExclusions: readonly string[] = [
+  ...windowsUnsupportedPackages.map(path => `${path}/tests/**/*.spec.ts`),
+  ...windowsUnsupportedShellToolSuites,
+]
 
 // These suites exercise process-global state, process APIs, or timing-sensitive
 // process I/O that worker threads cannot isolate reliably under aggregate gate
@@ -68,7 +78,7 @@ export const processBoundTests = [
   // bash session or subprocess tree against a per-command budget, so two of
   // them in flight at once exhaust the budget rather than the work.
   'packages/boot/app-boot/tests/user-patches.spec.ts',
-  'packages/shell/tool-bash-persistent/tests/loader-composition.spec.ts',
+  'packages/shell/tool-shell-persistent/tests/bash-loader-composition.spec.ts',
   'packages/terminal/terminal-bash/tests/local.spec.ts',
   'scripts/client-build-environment.client.spec.ts',
   // Repository-global git state: the installer rewrites the real hook path and

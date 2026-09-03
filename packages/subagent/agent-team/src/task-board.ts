@@ -103,11 +103,14 @@ export class TeamTaskBoard {
   /**
    * Take the first ready task the caller can work on without colliding, in one
    * Lead transaction. Readiness is the same rule the `claim` action applies —
-   * `pending` with every blocker completed — and a candidate is skipped when its
-   * write scopes overlap those of an in-progress task, so two owners never start
-   * work that writes the same paths. Because the transaction serializes with
-   * every other Team mutation on this Lead, concurrent callers see each other's
-   * commits and no task is handed out twice.
+   * `pending` with every blocker completed — and a candidate whose write scopes
+   * overlap those of an in-progress task is deferred rather than refused,
+   * because this caller asked for whatever work is free. Every other path into
+   * `in_progress` refuses that overlap instead, so no route starts two owners on
+   * the same paths. Because the transaction serializes with every other Team
+   * mutation on this Lead, concurrent callers see each other's commits and no
+   * task is handed out twice. That serialization is a promise chain in this
+   * process; it is not a lock two processes could share.
    * @param caller - exact live Team member taking ownership.
    * @param membership - caller role and exact live Lead.
    * @returns the claimed task, or the board state that left nothing to take.
@@ -119,13 +122,10 @@ export class TeamTaskBoard {
     const { root } = membership
     return this.journal.transact(root.id, async () => {
       const state = this.journal.state(root)
-      const busyScopes = [...state.tasks.values()]
-        .filter(task => task.status === 'in_progress')
-        .flatMap(task => task.writeScopes)
       const deferred: TeamTaskId[] = []
       for (const candidate of state.tasks.values()) {
         if (candidate.status !== 'pending' || !this.taskReady(state, candidate)) continue
-        if (candidate.writeScopes.some(scope => busyScopes.some(busy => scopesOverlap(scope, busy)))) {
+        if (this.busyOverlaps(state, candidate).length > 0) {
           deferred.push(candidate.id)
           continue
         }
@@ -256,6 +256,10 @@ export class TeamTaskBoard {
         revision: current.revision + 1,
       }
       this.assertTaskGraph(state, task)
+      // The write-scope exclusion is decided here, at the commit that leaves a
+      // task in progress, so `claim`, `reassign`, and a scope-widening `edit`
+      // are bound by it exactly as `claimNextReady` is.
+      if (task.status === 'in_progress') this.assertBusyScopesFree(state, task)
       await this.journal.appendAndFlush(root, 'team/task', { version: 1, teamId: TeamId(root.id), task })
       return this.taskView(root, state, task)
     })
@@ -298,6 +302,28 @@ export class TeamTaskBoard {
     }
   }
 
+  /**
+   * The in-progress tasks already writing paths this task would write. The
+   * task itself is excluded so its own scopes never block its own transitions.
+   */
+  private busyOverlaps(state: TeamFoldState, task: TeamTaskSnapshot): TeamTaskSnapshot[] {
+    return [...state.tasks.values()].filter(other =>
+      other.id !== task.id
+      && other.status === 'in_progress'
+      && task.writeScopes.some(scope => other.writeScopes.some(busy => scopesOverlap(scope, busy))))
+  }
+
+  /** Refuse a commit that would leave two owners writing the same paths. */
+  private assertBusyScopesFree(state: TeamFoldState, task: TeamTaskSnapshot): void {
+    const [conflict] = this.busyOverlaps(state, task)
+    if (conflict !== undefined) {
+      throw new TeamError(
+        `team task "${task.id}" write scopes overlap in-progress task "${conflict.id}"`,
+        'TEAM_TASK_WRITE_SCOPE_CONFLICT',
+      )
+    }
+  }
+
   /** Whether all current blockers completed. */
   private taskReady(state: TeamFoldState, task: TeamTaskSnapshot): boolean {
     return task.blockedBy.every(id => state.tasks.get(id)?.status === 'completed')
@@ -321,13 +347,6 @@ export class TeamTaskBoard {
       : task.ownerId === root.id
         ? 'lead'
         : state.members.get(task.ownerId)?.name
-    const warnings = new Set<string>()
-    for (const other of state.tasks.values()) {
-      if (other.id === task.id || other.status !== 'in_progress') continue
-      if (task.writeScopes.some(left => other.writeScopes.some(right => scopesOverlap(left, right)))) {
-        warnings.add(`write scopes overlap with ${other.id}`)
-      }
-    }
     return {
       id: task.id,
       revision: task.revision,
@@ -338,7 +357,7 @@ export class TeamTaskBoard {
       writeScopes: structuredClone(task.writeScopes),
       ...ownerName === undefined ? {} : { ownerName },
       ready: task.status === 'pending' && this.taskReady(state, task),
-      writeScopeWarnings: [...warnings],
+      writeScopeWarnings: this.busyOverlaps(state, task).map(other => `write scopes overlap with ${other.id}`),
     }
   }
 }

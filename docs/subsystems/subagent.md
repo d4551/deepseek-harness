@@ -489,6 +489,24 @@ The spawn and fork backends create an ordinary one-shot agent through `parent.ct
 - **Delegation depth** is durable `SessionHeader.delegationDepth` plus the merge-extensible runtime field `AgentOptions.subagentDepth`; absence means top-level depth zero, and the greater present value is authoritative. The seam owns both fields — the loop neither sets nor reads them — so an in-process child persists parent depth + 1, cold resume cannot lower it, and every start rejects a derived depth outside the safe-integer domain or above a defined absolute `request.maxDepth` cap.
 - **Fork seeding** uses [`CreateAgentOptions.seed`](core.md#creation-and-ownership) (a `SessionEvent[]` prefix threaded through `AgentLoop.createAgent` → `ctx.sessions.prepare({ seed })`, the same primitive `ctx.agents.resume()` uses). The fork backend passes a *balanced completed-turn prefix* of the parent's log — the parent's events up to and including its last `turn/end` — so the seed is contiguous-from-0 and the [invariants](../../packages/runtime-diagnostics/invariants) replay accepts it (the in-flight, unbalanced turn is excluded).
 
+## Run admission
+
+`start()` bounds how many one-shot runs execute at once. The seam's own provider contract has always allowed it — "a shared capacity controller may delay an operation but must not couple its settlement" — and `maxConcurrentRuns` is the validated field that sets the bound. A run holds its slot from admission until the run settles, and every settlement path returns it: the result resolving, the result rejecting, and the holder's `dispose()`, which is how an interrupted or abandoned run gives its slot back. A caller cancelled while queued rejects with its own signal reason and never consumes a slot.
+
+```ts type-equiv
+/** Point-in-time admission state of one gate. */
+interface CapacitySnapshot {
+  /** Concurrent grants this gate allows. */
+  readonly limit: number
+  /** Granted slots not yet released. */
+  readonly active: number
+  /** Acquisitions queued behind the limit, in admission order. */
+  readonly waiting: number
+}
+```
+
+`ctx.subagents.capacity()` reports it. The bound governs starts, never work already admitted: a delayed start is latency inside the tool call that waits for it, and the gate stops nothing it has let through.
+
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
 <a id="cordis-surface"></a>
@@ -718,14 +736,27 @@ getProvider(name: string): SubagentProvider | undefined
 list(): string[]
 
 /**
+ * Read the deployment's one-shot run admission state.
+ * @returns the configured bound, the published runs holding a slot, and the
+ *   starts queued behind them.
+ */
+capacity(): CapacitySnapshot
+
+/**
  * Establish a published child on the named provider. Capability and semantic
- * checks run before delegation. Provider ownership lasts until its promise
- * fulfills; a rejection therefore has no run for the caller to dispose and
- * emits no run lifecycle events. Post-publication turn and infrastructure
- * failures settle through the returned run.
+ * checks run before delegation, then the start takes one of the deployment's
+ * concurrency slots, queueing in arrival order while they are all held. A
+ * start whose `signal` fires while it is queued rejects `CANCELLED` and never
+ * reaches the provider. Provider ownership lasts until its promise fulfills;
+ * a rejection therefore has no run for the caller to dispose, emits no run
+ * lifecycle events, and returns its slot. Post-publication turn and
+ * infrastructure failures settle through the returned run, whose settlement or
+ * disposal returns the slot.
  * @param name - the provider to use.
  * @param request - child label, prompt, parent, signal, and optional capabilities.
  * @returns the published holder-owned run.
+ * @throws {SubagentError} `CANCELLED` when the caller cancels or the service
+ *   unloads before a slot is granted.
  */
 async start(name: string, request: SubagentStartRequest): Promise<SubagentRun>
 ```

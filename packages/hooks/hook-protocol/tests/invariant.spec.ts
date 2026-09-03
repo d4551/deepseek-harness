@@ -43,6 +43,11 @@ describe('hook-protocol invariants', () => {
     session.append('step/start', { turn: 1, step: 1 })
     session.append('hook/result', result())
     session.append('hook/result', result())
+
+    // Both invocations were consumed by their results: a third result for the
+    // same handler has no open invocation left to pair with.
+    expect(() => session.append('hook/result', result()))
+      .toThrow(/no matching hook\/invoked/)
   })
 
   it('rebuilds pending hook invocations from an existing session', async () => {

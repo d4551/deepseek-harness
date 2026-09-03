@@ -1,0 +1,13 @@
+/* One line of the conversation flow. The row is the anchor for a row-wide
+   overlay (the running sweep), clips that overlay to its own box, and centres a
+   single flex line whose height rides the Settings font-size delta so the
+   leading glyph keeps its optical share of the line at every size. */
+
+.row {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  height: calc(24px + var(--dsh-content-font-delta, 0px));
+  min-width: 0;
+}

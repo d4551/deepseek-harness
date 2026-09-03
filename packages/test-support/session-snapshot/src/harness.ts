@@ -42,11 +42,19 @@ export type { AgentUnderTest } from './launcher.ts'
 const DEFAULT_WAIT_TIMEOUT_MS = 10_000
 const WAIT_POLL_INTERVAL_MS = 10
 
+/** The committed-script stand-in for the run's generated workspace root. */
+const CWD_TOKEN = '{{cwd}}'
+
 /**
  * One step of a scenario's deterministic input script (`input.json`). The
  * harness interprets these in order. `newSession` captures the server-issued
  * (random) session id into a `{{sessionId}}` variable that later steps
  * reference, since a committed file cannot know the id in advance.
+ *
+ * `newSession` and `newSessionExpectError` send their declared
+ * `additionalDirectories` verbatim after substituting `{{cwd}}` with the run's
+ * generated workspace root, so one script can name both an absolute root the
+ * bridge accepts and a relative spelling it rejects.
  *
  * `promptAndCancel` starts a prompt without awaiting completion, waits for a
  * readiness condition, then cancels and awaits completion. Its optional
@@ -72,7 +80,7 @@ const WAIT_POLL_INTERVAL_MS = 10
  */
 export type InputStep =
   | { op: 'initialize' }
-  | { op: 'newSession' }
+  | { op: 'newSession'; additionalDirectories?: string[] }
   | { op: 'newSessionExpectError'; additionalDirectories?: string[] }
   | { op: 'prompt'; text: string }
   | { op: 'promptContent'; content: AcpContentBlock[] }
@@ -389,6 +397,22 @@ export async function runScenario(input: InputScript, opts: RunOptions): Promise
   return outcome.value
 }
 
+/**
+ * Expand a `session/new` step's declared additional workspace roots into
+ * request fields. Entries are sent verbatim except for `{{cwd}}`, which a
+ * committed script uses to name the generated workspace root it cannot know.
+ * @param step - the step whose declared roots to expand.
+ * @param cwd - the run's generated workspace root.
+ * @returns the `additionalDirectories` request field, absent when undeclared.
+ */
+function workspaceScopeOf(
+  step: { additionalDirectories?: string[] },
+  cwd: string,
+): { additionalDirectories?: string[] } {
+  if (step.additionalDirectories === undefined) return {}
+  return { additionalDirectories: step.additionalDirectories.map(root => root.split(CWD_TOKEN).join(cwd)) }
+}
+
 /** Drive one input step over the client connection. */
 async function runStep(
   client: AcpTestClient,
@@ -413,22 +437,27 @@ async function runStep(
       })
       return
     case 'newSession': {
-      const { sessionId } = await client.newSession({ cwd, mcpServers: [] })
+      const { sessionId } = await client.newSession({
+        cwd,
+        mcpServers: [],
+        ...workspaceScopeOf(step, cwd),
+      })
       setSessionId(sessionId)
       return
     }
     case 'newSessionExpectError': {
-      // The bridge rejects a session/new that widens the workspace scope
-      // (non-empty additionalDirectories / mcpServers — unimplemented). The SDK
-      // surfaces that as a rejected RPC; swallow it so the run completes and the
-      // error frame is captured in the transcript.
+      // A workspace root the session could not enforce is refused up front: a
+      // relative additional directory would otherwise reach the session record,
+      // where an enforcement layer could only fail to match it. The SDK
+      // surfaces that refusal as a rejected RPC; swallow it so the run
+      // completes and the error frame is captured in the transcript.
       await client.newSession({
         cwd,
         mcpServers: [],
-        ...step.additionalDirectories !== undefined ? { additionalDirectories: step.additionalDirectories } : {},
+        ...workspaceScopeOf(step, cwd),
       }).then(
         () => { throw new Error('snapshot-harness: expected session/new to be rejected but it succeeded') },
-        () => { /* expected: the bridge rejected the unsupported workspace scope */ },
+        () => { /* expected: the bridge rejected the unenforceable workspace scope */ },
       )
       return
     }

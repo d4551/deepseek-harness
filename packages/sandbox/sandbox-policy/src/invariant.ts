@@ -12,7 +12,7 @@ export const name = 'sandbox-policy-invariant'
 /** Service required before the companion can reserve package ownership. */
 export const inject = ['invariants']
 
-/* jscpd:ignore-start -- package companions share replay and dispatch plumbing */
+/* package companions share replay and dispatch plumbing */
 /** Validate the package-owned event fields and ignore unrelated events. */
 function validateEvent(event: SessionEvent, fail: InvariantFailure): void {
   if (event.type === 'sandbox/mode' && !SANDBOX_MODES.includes(event.data.mode)) {
@@ -31,7 +31,6 @@ const install: InvariantInstaller = Object.assign((ctx: Context, fail: Invariant
     validateEvent(event, fail)
   }, { global: true })
 }, { inject: ['sessions'] })
-/* jscpd:ignore-end */
 
 /**
  * Register this package's invariant companion.

@@ -12,7 +12,7 @@ import type {
   PluginInventorySnapshot,
 } from './types.ts'
 
-export type * from './types.ts'
+export type { PluginEntryId, PluginFiberPhase, PluginInventoryEntry, PluginInventorySnapshot } from './types.ts'
 
 /** Brand an existing Loader-tree entry id at the owning boundary. */
 function pluginEntryId(value: string): PluginEntryId {

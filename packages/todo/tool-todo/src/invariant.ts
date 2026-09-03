@@ -1,6 +1,7 @@
 /** Package-owned durable todo-snapshot invariants. @module @deepseek-ai/dsh-tool-todo/invariant */
 
 import type { Context } from '@deepseek-ai/cordis'
+import { stageSessionEvents } from '@deepseek-ai/dsh-session/invariant-staging'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { InvariantFailure, InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 
@@ -38,7 +39,6 @@ function validateTodos(value: unknown, fail: InvariantFailure): void {
   }
 }
 
-/* jscpd:ignore-start -- package companions share replay and dispatch plumbing */
 /** Incremental turn state for one committed session log. */
 interface TurnTrace {
   open: boolean
@@ -69,30 +69,20 @@ function seedTrace(session: Session, fail: InvariantFailure): TurnTrace {
 
 /** Install validation for loaded and newly appended whole-list todo snapshots. */
 const install: InvariantInstaller = Object.assign((ctx: Context, fail: InvariantFailure) => {
-  const traces = new WeakMap<Session, TurnTrace>()
-  const seed = (session: Session): void => {
-    traces.set(session, seedTrace(session, fail))
-  }
-  const traceFor = (session: Session): TurnTrace => {
-    let trace = traces.get(session)
-    if (trace === undefined) {
-      trace = seedTrace(session, fail)
-      traces.set(session, trace)
-    }
-    return trace
-  }
-  for (const session of ctx.sessions.list()) seed(session)
-  ctx.on('session/created', (session) => { seed(session) }, { global: true })
-  ctx.on('internal/dispatch', (_mode, eventName, args) => {
-    if (eventName !== 'session/event') return
-    const [session, event] = args as [Session, SessionEvent]
-    validateEvent(event, traceFor(session), fail)
-  }, { global: true })
-  ctx.on('session/event', (session, event) => {
-    advanceTrace(traceFor(session), event)
-  }, { global: true })
+  stageSessionEvents<TurnTrace, SessionEvent>(ctx, fail, {
+    seed: session => seedTrace(session, fail),
+    stage: (trace, event) => {
+      validateEvent(event, trace, fail)
+      return event
+    },
+    claims: () => true,
+    commit: (trace, event) => {
+      advanceTrace(trace, event)
+      return trace
+    },
+    unstagedMessage: 'todo session event published without pre-commit validation',
+  })
 }, { inject: ['sessions'] })
-/* jscpd:ignore-end */
 
 /**
  * Register the todo invariant companion.

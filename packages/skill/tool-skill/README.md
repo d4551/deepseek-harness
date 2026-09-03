@@ -53,6 +53,7 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 - **A loader tool.** The model calls `skill` with the exact skill name and receives the full instruction body plus resource guidance in a canonical `<skill_content>` block; the result is retained as ordinary tool history.
 - **Explicit user invocation.** A `/name` token in direct user input that names a user-invocable skill injects that skill's instructions into the step, without the model having to load it.
 - **Live catalog updates.** Later membership, description, or visibility changes append a complete replacement catalog; removing every skill appends an empty catalog that retires older names.
+- **Every workspace root.** The catalog and the loader address every workspace root the session records, not the primary root alone, so a second checkout's skills are listed and loadable; adding or dropping a root changes the catalog like any other membership change.
 
 ### Observable success and failures
 

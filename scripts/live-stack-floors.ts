@@ -4,8 +4,9 @@
  * manifest or source snippet; a clean tree is not the only passing case.
  */
 
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { createRequire } from 'node:module'
+import { existsSync, readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
 import { uniqueRepoFiles } from './repo-files.ts'
 
 /** One three-part version used as a floor, never as a copied expected blob. */
@@ -90,6 +91,14 @@ const YAML_FLOOR: SemVer = { major: 2, minor: 9, patch: 0 }
 const FFLATE_FLOOR: SemVer = { major: 0, minor: 8, patch: 3 }
 /** `playwright` pin: the browser the Web snapshot and e2e lanes drive. */
 const PLAYWRIGHT_FLOOR: SemVer = { major: 1, minor: 62, patch: 1 }
+/**
+ * `railway` pin: the Infrastructure as Code authoring types
+ * `deploy/litert/.railway/railway.ts` compiles against. Railway documents the
+ * install as an unpinned `npm install railway`, so the version a deployer gets
+ * is whatever is current; holding the repository at that same version is what
+ * keeps the compile check measuring the API the CLI will evaluate.
+ */
+const RAILWAY_FLOOR: SemVer = { major: 3, minor: 11, patch: 0 }
 
 /**
  * Every non-workspace dependency the root manifest declares, mapped to the
@@ -138,6 +147,7 @@ export const ROOT_DEPENDENCY_FLOORS: Readonly<Record<string, SemVer>> = Object.f
   oxlint: OXLINT_FLOOR,
   'oxlint-tsgolint': OXLINT_TSGOLINT_FLOOR,
   publint: { major: 0, minor: 3, patch: 24 },
+  railway: RAILWAY_FLOOR,
   'smol-toml': { major: 1, minor: 8, patch: 0 },
   'spdx-expression-parse': { major: 5, minor: 0, patch: 0 },
   tsdown: { major: 0, minor: 22, patch: 14 },
@@ -354,6 +364,179 @@ export function toolchainMisses(manifests: readonly { file: string; source: stri
     fflate: FFLATE_FLOOR,
     playwright: PLAYWRIGHT_FLOOR,
   }))
+}
+
+/**
+ * Third-party packages a workspace manifest pins to one exact version, mapped
+ * to the version the repository ships.
+ *
+ * An exact pin is the one range that cannot drift upward on its own: a caret
+ * range tracks minors, while `"0.149.1"` stays on 0.149.1 until a person
+ * changes it, so the pins are where a stack silently rots. These are also the
+ * pins that matter most — three of them are third-party *products* the harness
+ * drives as subprocesses, whose wire behavior changes between releases and
+ * whose fixtures are hand-written mocks of that behavior.
+ *
+ * Complete by construction, like {@link ROOT_DEPENDENCY_FLOORS}:
+ * {@link unflooredPinnedDependencies} fails when a manifest pins a package
+ * this map does not name.
+ */
+export const PINNED_PRODUCT_FLOORS: Readonly<Record<string, SemVer>> = Object.freeze({
+  '@agentclientprotocol/sdk': { major: 1, minor: 4, patch: 0 },
+  '@types/ws': { major: 8, minor: 18, patch: 1 },
+  '@anthropic-ai/claude-agent-sdk': { major: 0, minor: 3, patch: 259 },
+  '@anthropic-ai/sdk': { major: 0, minor: 123, patch: 0 },
+  '@openai/codex': { major: 0, minor: 153, patch: 0 },
+  e2b: { major: 2, minor: 46, patch: 1 },
+  'use-sync-external-store': { major: 1, minor: 6, patch: 0 },
+  webdav: { major: 5, minor: 10, patch: 0 },
+  ws: { major: 8, minor: 21, patch: 3 },
+})
+
+/**
+ * Every floor an exact pin may be held to.
+ *
+ * The root manifest states its own toolchain floors, and a workspace manifest
+ * that pins a member of a root family is held to the same number rather than
+ * repeating it.
+ */
+const PIN_FLOORS: Readonly<Record<string, SemVer>> = Object.freeze({
+  ...ROOT_DEPENDENCY_FLOORS,
+  ...PINNED_PRODUCT_FLOORS,
+})
+
+/**
+ * Every exact-version third-party pin across the workspace manifests.
+ *
+ * `workspace:` ranges name packages in this repository, whose versions move
+ * with the release, and a range with an operator already tracks upstream, so
+ * neither is a pin this gate governs.
+ *
+ * `website/` is excluded: it is a VitePress projection whose dependency set is
+ * VitePress's own — including the Vite 5 that VitePress pins, which the Vite 8
+ * floor above would otherwise reject. Its stack moves when VitePress moves.
+ * @param manifests - repository-relative path plus raw package.json text.
+ * @returns one entry per exact pin, in manifest then declaration order.
+ */
+export function exactPinnedDependencies(
+  manifests: readonly { file: string; source: string }[],
+): { file: string; name: string; range: string }[] {
+  const pins: { file: string; name: string; range: string }[] = []
+  for (const { file, source } of manifests) {
+    if (file.startsWith('website/')) continue
+    for (const group of dependencyGroups(source)) {
+      for (const [name, range] of Object.entries(group)) {
+        if (name.startsWith('@deepseek-ai/')) continue
+        if (!/^\d+\.\d+\.\d+$/.test(range)) continue
+        pins.push({ file, name, range })
+      }
+    }
+  }
+  return pins
+}
+
+/**
+ * Locate an installed package's own manifest from the manifest that declares it.
+ *
+ * `require.resolve` is tried first and is not sufficient on its own: a package
+ * whose `exports` map omits `./package.json` refuses that subpath, and the
+ * product SDKs pinned here do exactly that. Falling back to the directory on
+ * disk keeps them measured rather than silently skipped, which is the shape of
+ * hole this check exists to close.
+ * @param name - the dependency's package name.
+ * @param declaredIn - absolute path of the manifest declaring it.
+ * @returns absolute path to the installed package.json, or undefined when the
+ *   package is not materialized in this checkout.
+ */
+function installedManifestOf(name: string, declaredIn: string): string | undefined {
+  const from = createRequire(declaredIn)
+  try {
+    return from.resolve(`${name}/package.json`)
+  } catch {
+    // The exports map refuses the subpath, or the package is absent; the disk
+    // answers both cases below.
+  }
+  let directory = dirname(declaredIn)
+  for (;;) {
+    const candidate = resolve(directory, 'node_modules', name, 'package.json')
+    if (existsSync(candidate)) return candidate
+    const parent = dirname(directory)
+    if (parent === directory) return undefined
+    directory = parent
+  }
+}
+
+/**
+ * The version each exact pin actually resolves to on disk.
+ *
+ * A manifest states a range; what runs is whatever the lockfile resolved and
+ * the linker materialized. Checking only the declaration measures the intent
+ * rather than the stack, which is the failure this whole file exists to catch,
+ * so the floors are held against both. Resolution starts from the manifest that
+ * declares the pin because `bunfig.toml` sets `linker = "isolated"`: a package
+ * resolves only its own declared tree, with no root hoist to fall back on.
+ * @param manifests - repository-relative path plus raw package.json text.
+ * @param root - repository root.
+ * @returns one entry per pin whose installed package.json could be read.
+ */
+export function installedPinVersions(
+  manifests: readonly { file: string; source: string }[],
+  root: string = ROOT,
+): { file: string; name: string; version: string }[] {
+  const found: { file: string; name: string; version: string }[] = []
+  for (const pin of exactPinnedDependencies(manifests)) {
+    const installed = installedManifestOf(pin.name, resolve(root, pin.file))
+    if (installed === undefined) continue
+    const version = (JSON.parse(readFileSync(installed, 'utf8')) as { version?: string }).version
+    if (version !== undefined) found.push({ file: pin.file, name: pin.name, version })
+  }
+  return found
+}
+
+/**
+ * Exact pins whose installed version sits below the floor.
+ * @param manifests - repository-relative path plus raw package.json text.
+ * @param root - repository root.
+ * @returns every miss, carrying the version found on disk as its range.
+ */
+export function installedPinMisses(
+  manifests: readonly { file: string; source: string }[],
+  root: string = ROOT,
+): RangeMiss[] {
+  const misses: RangeMiss[] = []
+  for (const { file, name, version } of installedPinVersions(manifests, root)) {
+    const floor = PIN_FLOORS[name]
+    if (floor === undefined) continue
+    if (rangeMeetsFloor(version, floor)) continue
+    misses.push({ file, name, range: version, floor })
+  }
+  return misses
+}
+
+/**
+ * Exact pins that declare no floor, so nothing would notice them going stale.
+ * @param manifests - repository-relative path plus raw package.json text.
+ * @returns each unflooded pin's manifest path and dependency name.
+ */
+export function unflooredPinnedDependencies(
+  manifests: readonly { file: string; source: string }[],
+): { file: string; name: string }[] {
+  return exactPinnedDependencies(manifests)
+    .filter(pin => !(pin.name in PIN_FLOORS))
+    .map(({ file, name }) => ({ file, name }))
+}
+
+/**
+ * Exact pins sitting below the version the repository ships.
+ * @param manifests - repository-relative path plus raw package.json text.
+ * @returns every miss against {@link PINNED_PRODUCT_FLOORS}.
+ */
+export function pinnedDependencyMisses(
+  manifests: readonly { file: string; source: string }[],
+): RangeMiss[] {
+  return manifests
+    .filter(({ file }) => !file.startsWith('website/'))
+    .flatMap(({ file, source }) => rangeMisses(file, source, PIN_FLOORS))
 }
 
 /**

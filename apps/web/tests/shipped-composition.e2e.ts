@@ -202,7 +202,7 @@ it('lets a preset producer reach the background-job registry', async () => {
   })
   try {
     const signal = new AbortController().signal
-    // `tool-bash` is a preset row and `tasks` is a host registry; the producer
+    // `tool-shell` is a preset row and `tasks` is a host registry; the producer
     // resolves it with `ctx.get`, so a registry hidden behind a preset realm
     // fails here — with every task control still listed in the catalog above.
     const started = await ctx.tools.execute({

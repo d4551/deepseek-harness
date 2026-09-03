@@ -6,7 +6,10 @@ import type {
   ClientRuntimeError,
   ClientRuntimeResult,
 } from '../../shared/bridge/messages/runtime/commands.ts'
-import type { ClientConsoleEventFrame } from '../../shared/bridge/messages/runtime/console-frames.ts'
+import type {
+  ClientConsoleEnabledFrame,
+  ClientConsoleEventFrame,
+} from '../../shared/bridge/messages/runtime/console-frames.ts'
 import type { ClientRuntimeCapability, ClientRuntimeResponseFrame } from '../../shared/bridge/messages/runtime/frames.ts'
 import { inspectorId } from '../../shared/identity.ts'
 import type { ClientRemoteObjectHandle, ClientRuntimeRequestId, ClientRuntimeSessionId } from '../../shared/bridge/ids.ts'
@@ -41,6 +44,9 @@ interface ConsoleSubscription {
   readonly target: ClientRuntimeTarget
   readonly sessionId: ClientRuntimeSessionId
   readonly listener: (event: RuntimeConsoleBackendEvent<ClientRemoteObjectHandle>) => void
+  /** Settles when the Client confirms it observes this session's Console calls. */
+  readonly installed: PromiseWithResolvers<void>
+  readonly timer: ReturnType<typeof setTimeout>
 }
 
 /** Error returned deliberately by the Client Runtime executor. */
@@ -94,41 +100,28 @@ export class ClientRuntimeRouter {
 
   /**
    * Enable Console events for one Client realm and DevTools session.
+   *
+   * A Client installs its Console observer only when the enable frame arrives, so
+   * this resolves on the Client's confirmation. Resolving on dispatch instead
+   * loses every Console call the page makes in the gap.
    * @param target - Active Client realm.
    * @param sessionId - DevTools Runtime session retaining event arguments.
    * @param listener - Consumer of validated Client Console events.
    * @returns A disposer that disables this Console session.
    */
-  subscribeConsole(
+  async subscribeConsole(
     target: ClientRuntimeTarget,
     sessionId: ClientRuntimeSessionId,
     listener: (event: RuntimeConsoleBackendEvent<ClientRemoteObjectHandle>) => void,
-  ): () => void {
-    const subscription: ConsoleSubscription = { target, sessionId, listener }
-    if (!this.sources.send(target.source, {
-      v: INSPECTOR_PROTOCOL_VERSION,
-      t: 'client-console/enable',
-      sourceId: target.source.sourceId,
-      generation: target.source.generation,
-      sessionId,
-    })) {
-      throw new Error('Client Console source disconnected before enable')
+  ): Promise<() => void> {
+    const subscription = this.openConsole(target, sessionId, listener)
+    try {
+      await subscription.installed.promise
+    } catch (error) {
+      this.closeConsole(subscription)
+      throw error
     }
-    this.consoleSubscriptions.add(subscription)
-    return () => {
-      if (!this.consoleSubscriptions.delete(subscription)) return
-      try {
-        this.sources.send(target.source, {
-          v: INSPECTOR_PROTOCOL_VERSION,
-          t: 'client-console/disable',
-          sourceId: target.source.sourceId,
-          generation: target.source.generation,
-          sessionId,
-        })
-      } catch {
-        // Source removal also disables Console observation in the Client.
-      }
-    }
+    return () => { this.closeConsole(subscription) }
   }
 
   /**
@@ -185,7 +178,7 @@ export class ClientRuntimeRouter {
     }
     for (const subscription of [...this.consoleSubscriptions]) {
       if (subscription.target === target && subscription.sessionId === sessionId) {
-        this.consoleSubscriptions.delete(subscription)
+        this.abandonConsole(subscription, 'DevTools Runtime session closed')
       }
     }
     sendClientSessionClosed(this.sources, target.source, {
@@ -205,9 +198,61 @@ export class ClientRuntimeRouter {
     for (const requestId of [...this.pending.keys()]) {
       this.rejectPending(requestId, new Error('Client Runtime router closed'))
     }
+    for (const subscription of [...this.consoleSubscriptions]) {
+      this.abandonConsole(subscription, 'Client Runtime router closed')
+    }
     this.targetsBySource.clear()
-    this.consoleSubscriptions.clear()
     this.listeners.clear()
+  }
+
+  private openConsole(
+    target: ClientRuntimeTarget,
+    sessionId: ClientRuntimeSessionId,
+    listener: (event: RuntimeConsoleBackendEvent<ClientRemoteObjectHandle>) => void,
+  ): ConsoleSubscription {
+    const installed = Promise.withResolvers<void>()
+    const timer = setTimeout(() => {
+      installed.reject(new Error(`Client Console enable timed out after ${String(this.timeoutMs)}ms`))
+    }, this.timeoutMs)
+    timer.unref()
+    const subscription: ConsoleSubscription = { target, sessionId, listener, installed, timer }
+    this.consoleSubscriptions.add(subscription)
+    try {
+      if (!this.sources.send(target.source, {
+        v: INSPECTOR_PROTOCOL_VERSION,
+        t: 'client-console/enable',
+        sourceId: target.source.sourceId,
+        generation: target.source.generation,
+        sessionId,
+      })) {
+        installed.reject(new Error('Client Console source disconnected before enable'))
+      }
+    } catch (error) {
+      installed.reject(renderError(error))
+    }
+    return subscription
+  }
+
+  private abandonConsole(subscription: ConsoleSubscription, reason: string): void {
+    if (!this.consoleSubscriptions.delete(subscription)) return
+    clearTimeout(subscription.timer)
+    subscription.installed.reject(new Error(reason))
+  }
+
+  private closeConsole(subscription: ConsoleSubscription): void {
+    if (!this.consoleSubscriptions.has(subscription)) return
+    this.abandonConsole(subscription, 'Client Console session closed before the Client confirmed it')
+    try {
+      this.sources.send(subscription.target.source, {
+        v: INSPECTOR_PROTOCOL_VERSION,
+        t: 'client-console/disable',
+        sourceId: subscription.target.source.sourceId,
+        generation: subscription.target.source.generation,
+        sessionId: subscription.sessionId,
+      })
+    } catch {
+      // Source removal also disables Console observation in the Client.
+    }
   }
 
   private receiveSourceEvent(event: InspectorSourceEvent): void {
@@ -220,6 +265,9 @@ export class ClientRuntimeRouter {
         return
       case 'client-runtime-response':
         this.settle(event.source, event.frame)
+        return
+      case 'client-console-enabled':
+        this.consoleInstalled(event.source, event.frame)
         return
       case 'client-console-event':
         this.consoleEvent(event.source, event.frame)
@@ -255,9 +303,21 @@ export class ClientRuntimeRouter {
       this.rejectPending(requestId, new Error(`Client execution context closed: ${reason}`))
     }
     for (const subscription of [...this.consoleSubscriptions]) {
-      if (subscription.target === target) this.consoleSubscriptions.delete(subscription)
+      if (subscription.target === target) {
+        this.abandonConsole(subscription, `Client execution context closed: ${reason}`)
+      }
     }
     this.emit({ type: 'closed', target })
+  }
+
+  private consoleInstalled(source: InspectorSourceDescriptor, frame: ClientConsoleEnabledFrame): void {
+    const target = this.targetsBySource.get(source.sourceId)
+    if (target === undefined || target.source.generation !== source.generation) return
+    for (const subscription of this.consoleSubscriptions) {
+      if (subscription.target !== target || subscription.sessionId !== frame.sessionId) continue
+      clearTimeout(subscription.timer)
+      subscription.installed.resolve()
+    }
   }
 
   private consoleEvent(source: InspectorSourceDescriptor, frame: ClientConsoleEventFrame): void {

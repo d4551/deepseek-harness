@@ -68,10 +68,24 @@ vi.mock('webdav', () => ({
         .filter(candidate => candidate !== path && candidate.slice(0, candidate.lastIndexOf('/')) === (path === '/' ? '' : path))
         .map(statOf)
     },
-    getFileContents: async (path: string) => {
+    // A conforming collection: it honours `Range` with a 206 whose
+    // Content-Range places the window, which is what the provider reads to
+    // decide where the returned bytes sit in the file.
+    getFileContents: async (path: string, options?: { headers?: Record<string, string> }) => {
       const node = server.get(path)
       if (node === undefined) throw Object.assign(new Error('Invalid response: 404'), { status: 404 })
-      return new TextEncoder().encode(node.content).buffer
+      const bytes = new TextEncoder().encode(node.content)
+      const stated = /^bytes=(\d+)-(\d+)$/.exec(options?.headers?.Range ?? '')
+      const first = stated?.[1]
+      const last = stated?.[2]
+      if (first === undefined || last === undefined) return { status: 200, headers: {}, data: bytes.buffer }
+      const offset = Math.min(Number(first), bytes.byteLength)
+      const end = Math.min(Number(last) + 1, bytes.byteLength)
+      return {
+        status: 206,
+        headers: { 'content-range': `bytes ${offset}-${end - 1}/${bytes.byteLength}` },
+        data: bytes.slice(offset, end).buffer,
+      }
     },
     putFileContents: async (path: string, data: ArrayBuffer) => {
       const content = new TextDecoder().decode(new Uint8Array(data))

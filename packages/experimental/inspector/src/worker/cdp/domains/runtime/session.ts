@@ -27,8 +27,10 @@ import type { RuntimeObjectRoute } from './object-table.ts'
 export class RuntimeDomainSession {
   private readonly objects: RuntimeObjectTable
   private readonly announcedContexts = new Set<number>()
-  private readonly consoleDisposers = new Map<InspectorRealmId, () => void>()
+  private readonly consoleSubscriptions = new Map<InspectorRealmId, Promise<() => void>>()
   private readonly unsubscribeRealms: () => void
+  private readonly settledListeners = new Set<() => void>()
+  private pendingAnnouncements = 0
   private enabled = false
   private closed = false
 
@@ -90,10 +92,34 @@ export class RuntimeDomainSession {
     if (this.closed) return
     this.closed = true
     this.unsubscribeRealms()
-    for (const dispose of this.consoleDisposers.values()) dispose()
-    this.consoleDisposers.clear()
+    this.detachConsoles()
     this.objects.clear()
     this.announcedContexts.clear()
+    this.settledListeners.clear()
+  }
+
+  /**
+   * Report whether this connection still owes an execution-context announcement.
+   *
+   * A realm is admitted while its Console subscription is still being established, and that
+   * establishment reply and the realm's first observation records can reach the Worker in one
+   * socket read. Domains that expose realm-owned entities read this before writing, so this
+   * connection never learns of a node before the context that owns it.
+   * @returns True from realm admission until the announcement is sent or the realm is dropped.
+   */
+  announcementPending(): boolean {
+    return this.pendingAnnouncements > 0
+  }
+
+  /**
+   * Observe every completed execution-context announcement.
+   * @param listener - Called after one announcement is sent or dropped; reads
+   * {@link announcementPending} for the state the announcement left behind.
+   * @returns A disposer removing the listener.
+   */
+  onAnnouncementSettled(listener: () => void): () => void {
+    this.settledListeners.add(listener)
+    return () => { this.settledListeners.delete(listener) }
   }
 
   /**
@@ -197,26 +223,25 @@ export class RuntimeDomainSession {
 
   private async enable(): Promise<object> {
     this.enabled = true
+    this.pendingAnnouncements++
+    const realms = this.realms.all()
     try {
-      await Promise.all(this.realms.all().map(async (realm) => { await runtimeBackend(realm).enable() }))
-      for (const realm of this.realms.all()) {
-        this.attachConsole(realm)
-        this.announce(realm)
-      }
+      await Promise.all(realms.map(async (realm) => { await this.openRealm(realm) }))
+      for (const realm of realms) this.announce(realm)
       return {}
     } catch (error) {
       this.enabled = false
-      for (const dispose of this.consoleDisposers.values()) dispose()
-      this.consoleDisposers.clear()
+      this.detachConsoles()
       this.announcedContexts.clear()
-      await Promise.allSettled(this.realms.all().map(async (realm) => { await runtimeBackend(realm).disable() }))
+      await Promise.allSettled(realms.map(async (realm) => { await runtimeBackend(realm).disable() }))
       throw error
+    } finally {
+      this.settleAnnouncement()
     }
   }
 
   private async disable(): Promise<object> {
-    for (const dispose of this.consoleDisposers.values()) dispose()
-    this.consoleDisposers.clear()
+    this.detachConsoles()
     try {
       await Promise.all(this.realms.all().map(async (realm) => { await runtimeBackend(realm).disable() }))
     } finally {
@@ -408,28 +433,81 @@ export class RuntimeDomainSession {
   private receiveRealm(event: InspectorRealmSessionEvent): void {
     if (event.type === 'opened') {
       if (this.enabled) {
-        void runtimeBackend(event.session).enable().then(
-          () => {
-            this.attachConsole(event.session)
-            this.announce(event.session)
-          },
-          () => { event.session.close() },
-        )
+        this.pendingAnnouncements++
+        void this.announceRealm(event.session)
       }
       return
     }
-    this.consoleDisposers.get(event.session.descriptor.realmId)?.()
-    this.consoleDisposers.delete(event.session.descriptor.realmId)
+    this.detachConsole(event.session.descriptor.realmId)
     this.objects.releaseRealm(event.session)
     this.destroy(event.session)
   }
 
-  private attachConsole(realm: InspectorRealmSession): void {
-    if (realm.console.state === 'unsupported' || this.consoleDisposers.has(realm.descriptor.realmId)) return
-    this.consoleDisposers.set(realm.descriptor.realmId, realm.console.backend.subscribe((event) => {
-      if (!this.enabled) return
-      this.transport.send(this.objects.consoleEvent(realm, event))
-    }))
+  /**
+   * Prepare one realm for this connection, Console subscription first.
+   *
+   * `attachConsole` dispatches a Client realm's enable frame in this turn, before
+   * the Worker replies `source/accepted` and the source starts publishing, so the
+   * Client installs its Console observer ahead of its own first records.
+   * @param realm - Realm session to observe and enable.
+   * @returns Once Console events and Runtime state are live for this connection.
+   */
+  private async openRealm(realm: InspectorRealmSession): Promise<void> {
+    await Promise.all([this.attachConsole(realm), enableRuntime(realm)])
+  }
+
+  private async announceRealm(realm: InspectorRealmSession): Promise<void> {
+    try {
+      await this.openRealm(realm)
+      this.announce(realm)
+    } catch {
+      // A realm this connection cannot observe is closed instead of announced.
+      // Closing the session ends a Console subscription that did establish, so
+      // this connection forgets it rather than replaying it to a closed backend.
+      this.detachConsole(realm.descriptor.realmId)
+      realm.close()
+    } finally {
+      this.settleAnnouncement()
+    }
+  }
+
+  private settleAnnouncement(): void {
+    this.pendingAnnouncements--
+    for (const listener of [...this.settledListeners]) listener()
+  }
+
+  private async attachConsole(realm: InspectorRealmSession): Promise<void> {
+    if (realm.console.state === 'unsupported') return
+    let subscription = this.consoleSubscriptions.get(realm.descriptor.realmId)
+    if (subscription === undefined) {
+      subscription = realm.console.backend.subscribe((event) => {
+        if (!this.enabled) return
+        this.transport.send(this.objects.consoleEvent(realm, event))
+      })
+      this.consoleSubscriptions.set(realm.descriptor.realmId, subscription)
+    }
+    try {
+      await subscription
+    } catch (error) {
+      this.consoleSubscriptions.delete(realm.descriptor.realmId)
+      throw error
+    }
+  }
+
+  private detachConsole(realmId: InspectorRealmId): void {
+    const subscription = this.consoleSubscriptions.get(realmId)
+    if (subscription === undefined) return
+    this.consoleSubscriptions.delete(realmId)
+    void subscription.then(
+      (dispose) => { dispose() },
+      () => {
+        // A subscription the realm never established retains nothing to release.
+      },
+    )
+  }
+
+  private detachConsoles(): void {
+    for (const realmId of [...this.consoleSubscriptions.keys()]) this.detachConsole(realmId)
   }
 
   private announce(realm: InspectorRealmSession): void {
@@ -467,6 +545,10 @@ export class RuntimeDomainSession {
   private sendError(request: CdpRequest, message: string): void {
     this.transport.send(cdpError(request.id, -32000, message))
   }
+}
+
+async function enableRuntime(realm: InspectorRealmSession): Promise<void> {
+  await runtimeBackend(realm).enable()
 }
 
 function runtimeBackend(realm: InspectorRealmSession): RuntimeBackend {

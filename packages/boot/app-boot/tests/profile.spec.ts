@@ -204,7 +204,7 @@ describe('loadProfile', () => {
     const bare = () => loadProfile('t', 'custom', anchor, home)
     // A misspelled shipped name is visible against the list rather than
     // becoming an empty profile that boots and does nothing.
-    expect(bare).toThrow('shipped profiles (created on first use): acp, headless, sdk, sdk-minimal, web')
+    expect(bare).toThrow('shipped profiles (created on first use): acp, headless, hosted, sdk, sdk-minimal, swarm, web')
     expect(bare).toThrow('create it with: t init --profile custom')
     expect(bare).not.toThrow(/profiles in /)
     initProfile(join(home, PROFILES_DIR, 'mine'), ['@deepseek-ai/dsh-base'])
@@ -229,12 +229,24 @@ describe('loadProfile', () => {
       bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-acp-app'],
       patchReload: 'startup',
     })
+    // `hosted-drive` must come last: it disables the host-local filesystem the
+    // base inserted and restates the sandbox policy's workspace root.
+    expect(PROFILE_TEMPLATES.hosted).toEqual({
+      bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-hosted-drive'],
+      patchReload: 'live',
+    })
     expect(PROFILE_TEMPLATES.sdk).toEqual({
       bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-sdk-app'],
       patchReload: 'startup',
     })
     expect(PROFILE_TEMPLATES['sdk-minimal']).toEqual({
       bundles: ['@deepseek-ai/dsh-sdk-minimal'],
+      patchReload: 'startup',
+    })
+    // The swarm layer must come last: it disables the global continuable-child
+    // control rows `base` inserted before the Team-scoped tools reuse those names.
+    expect(PROFILE_TEMPLATES.swarm).toEqual({
+      bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-headless', '@deepseek-ai/dsh-swarm-profile'],
       patchReload: 'startup',
     })
     try {

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write packages/util/sqlite-connection/README.md
-README.md: b483f6a2b4fced787d9b99b241bdd9333ca2bbaa
-README.zh.md: 36878905c0d15f08d1130be3757a78b60acc2573
+README.md: 30db50253611b23c0585d44577315df2d261ee72
+README.zh.md: f3342bda98c531a8dcb325428112a4b10707d47b

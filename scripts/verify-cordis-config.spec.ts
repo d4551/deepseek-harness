@@ -19,7 +19,7 @@ import {
 describe('verify-cordis-config metadata expressions', () => {
   it('accepts a disabled !!js expression', () => {
     const problems = metadataExpressionErrors(
-      { id: 'tool-bash', name: '@deepseek-ai/dsh-tool-bash', disabled: { __jsExpr: "process.platform === 'win32'" } },
+      { id: 'tool-shell', name: '@deepseek-ai/dsh-tool-shell', disabled: { __jsExpr: "process.platform === 'win32'" } },
       '[0]',
     )
     expect(problems).toEqual([])
@@ -32,7 +32,7 @@ describe('verify-cordis-config metadata expressions', () => {
 
   it('rejects an expression nested below disabled (only the field itself interpolates)', () => {
     const problems = metadataExpressionErrors(
-      { id: 'tool-bash', name: 'pkg', disabled: { when: { __jsExpr: 'process.platform' } } },
+      { id: 'tool-shell', name: 'pkg', disabled: { when: { __jsExpr: 'process.platform' } } },
       '[0]',
     )
     expect(problems).toContain('[0].disabled.when: !!js is not interpolated here')
@@ -40,7 +40,7 @@ describe('verify-cordis-config metadata expressions', () => {
 
   it('rejects a disabled expression that does not parse (the loader would fail the boot)', () => {
     const problems = metadataExpressionErrors(
-      { id: 'tool-bash', name: 'pkg', disabled: { __jsExpr: 'process.platform ===' } },
+      { id: 'tool-shell', name: 'pkg', disabled: { __jsExpr: 'process.platform ===' } },
       '[0]',
     )
     expect(problems.some(problem => problem.includes('[0].disabled: disabled expression does not parse'))).toBe(true)

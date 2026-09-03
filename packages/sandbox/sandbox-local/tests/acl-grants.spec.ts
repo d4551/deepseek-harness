@@ -71,7 +71,14 @@ async function setup() {
   const ctx = new Context()
   const fiber = await ctx.plugin(LocalSandboxProvider, {})
   const sandbox = ctx.sandbox as LocalSandboxProvider
-  sandbox.internals = { platform: 'win32', windowsAclRunnerArgs: ['node', 'windows-acl-runner.js'] }
+  // Every rung is probed, a chain of one included, so the win32 rung needs a
+  // passing probe here the way `local.spec.ts` supplies one: these cases are
+  // about grant materialization, not about whether the runner exists.
+  sandbox.internals = {
+    platform: 'win32',
+    probeWindowsAcl: () => true,
+    windowsAclRunnerArgs: ['node', 'windows-acl-runner.js'],
+  }
   return { ctx, sandbox, fiber }
 }
 

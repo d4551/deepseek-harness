@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
-import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -241,6 +241,8 @@ describe('sqlite backend specifics', () => {
     const unit = await backend.kv.open(DESCRIPTOR)
     await unit.putRecord('records', 'k', 1)
     await backend.close()
+    // The write reached the pre-existing file and left its mode untouched.
+    expect((await stat(path)).mode & 0o777).toBe(0o644)
   })
 
   it('registers on the storage hub as backend sqlite and closes on dispose', async () => {

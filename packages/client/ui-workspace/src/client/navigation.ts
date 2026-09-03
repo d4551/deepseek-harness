@@ -1,7 +1,8 @@
 /** Workspace archive and directory UI capability. */
 
 import { Service, type Context } from '@deepseek-ai/cordis'
-import type { ClientRemote, DirectoryListing } from '@deepseek-ai/dsh-api-remotes/client'
+import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client'
+import type { DirectoryListing } from '@deepseek-ai/dsh-host-directory-picker/types'
 import type { RemoteFailure } from '@deepseek-ai/dsh-typert-protocol'
 import type {
   ISessions,

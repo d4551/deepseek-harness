@@ -8,7 +8,7 @@
  */
 
 import z from '@deepseek-ai/schemastery'
-import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
+import { assertBackoffDelays, MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { EMPTY_RESPONSE_CODE } from './error.ts'
 
 const DEFAULT_MAX_RETRIES = 5
@@ -124,15 +124,7 @@ function resolveBackoff(config: BackoffConfig | undefined, path: string): Resolv
   const maxDelayMs = config?.maxDelayMs ?? DEFAULT_MAX_DELAY_MS
   const jitterRatio = config?.jitterRatio ?? DEFAULT_JITTER_RATIO
 
-  if (!Number.isFinite(initialDelayMs) || initialDelayMs <= 0 || initialDelayMs > MAX_TIMER_DELAY_MS) {
-    throw new Error(`${path}.initialDelayMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`)
-  }
-  if (!Number.isFinite(maxDelayMs) || maxDelayMs <= 0 || maxDelayMs > MAX_TIMER_DELAY_MS) {
-    throw new Error(`${path}.maxDelayMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`)
-  }
-  if (initialDelayMs > maxDelayMs) {
-    throw new Error(`${path}.initialDelayMs must be less than or equal to maxDelayMs`)
-  }
+  assertBackoffDelays(initialDelayMs, maxDelayMs, path)
   if (!Number.isFinite(jitterRatio) || jitterRatio < 0 || jitterRatio > 1) {
     throw new Error(`${path}.jitterRatio must be between 0 and 1`)
   }

@@ -14,11 +14,11 @@ The Bash execution capability consists of:
 
 - **Service Definition** (`dsh-shell`) — defines the Cordis service and Bash request and result types
 - **Service Provider** (`dsh-bash-local`) — executes commands on the local machine
-- **Consumer** (`dsh-tool-bash`) — exposes the capability as a model-callable tool
+- **Consumer** (`dsh-tool-shell`) — exposes the capability as a model-callable tool
 
 ```
 ┌─────────────┐     ┌──────────────────┐     ┌──────────────┐
-│  dsh-shell   │────▶│  dsh-bash-local  │     │ dsh-tool-bash│
+│  dsh-shell   │────▶│  dsh-bash-local  │     │dsh-tool-shell│
 │(definition) │     │    (provider)     │     │(consumer/tool)│
 └─────────────┘     └──────────────────┘     └──────────────┘
        ▲                                            │

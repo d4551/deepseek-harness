@@ -2,7 +2,7 @@
 
 English | [中文](adding-a-tool.zh.md)
 
-Reference for the contracts a model-facing tool must satisfy. For an ordered first tool, follow [Build a tool](../user/develop/basic/tool.md). `packages/shell/tool-bash` is the production-grade three-package example.
+Reference for the contracts a model-facing tool must satisfy. For an ordered first tool, follow [Build a tool](../user/develop/basic/tool.md). `packages/shell/tool-shell` is the production-grade three-package example.
 
 ## The minimal shape
 
@@ -52,7 +52,7 @@ Registration is effect-based: disposing the plugin fiber unregisters the tool. S
 
 Gate `run_in_background` with producer config, then register through `ctx.jobs.start({ kind, label, owner: exec.agent, run })`. The registry rejects a pre-aborted invocation before the producer body; the runtime validates ownership and task-controller availability before `run()` starts work, then supplies the id, session fence, generic control tools, notices, and owner cleanup. A successful background branch returns a typed canonical handle such as `{ kind: 'background', jobId }`; its Native renderer may keep human prose such as `started background job bash-1`, but PTC mode must never parse that prose to recover the id.
 
-The producer supplies synchronous `cancel`, non-rejecting `done` that settles after resource cleanup, and optional consuming `readOutput` with bounded-output formatting. A pre-aborted call is a failure because no task exists whose id could satisfy the successful output schema. Once `ctx.jobs.start()` publishes the id, use a task-owned cancellation signal rather than `exec.signal`: later outer-call cancellation stops waiting for the call but does not kill published work; `job_kill`, owner disposal, and service teardown own that lifetime. Foreground work remains coupled to `exec.signal`. See the [background job runtime Agent Note](../../.agents/notes/implemented/architecture/2026-06-20-generic-long-running-tool-runtime.md) and `dsh-tool-bash` for a stream producer.
+The producer supplies synchronous `cancel`, non-rejecting `done` that settles after resource cleanup, and optional consuming `readOutput` with bounded-output formatting. A pre-aborted call is a failure because no task exists whose id could satisfy the successful output schema. Once `ctx.jobs.start()` publishes the id, use a task-owned cancellation signal rather than `exec.signal`: later outer-call cancellation stops waiting for the call but does not kill published work; `job_kill`, owner disposal, and service teardown own that lifetime. Foreground work remains coupled to `exec.signal`. See the [background job runtime Agent Note](../../.agents/notes/implemented/architecture/2026-06-20-generic-long-running-tool-runtime.md) and `dsh-tool-shell` for a stream producer.
 
 ## Execution policy and observation
 
@@ -72,7 +72,7 @@ Both methods return a **`card`-tagged render intent** — pick the card kind tha
 
 - `presentCall(args)` → a `ToolCallView` (the PENDING card):
   - `{ card: 'generic', title, kind?, rawInput?, content?, locations? }` — the default. Set `kind` for an icon (`read`/`search`/…); set `locations: [{ path, line? }]` for any file your tool touches so a capable editor follows along / jumps to it.
-  - `{ card: 'terminal', title, description?, cwd? }` — your call IS a shell command. `title` is the command, `description` renders above the terminal card. (tool-bash.)
+  - `{ card: 'terminal', title, description?, cwd? }` — your call IS a shell command. `title` is the command, `description` renders above the terminal card. (tool-shell.)
   - `{ card: 'diff', title, diffs, locations? }` — your call creates or modifies a file. `diffs: [{ path, oldText, newText }]` (`oldText: null` for a new file) renders as an inline diff card. (tool-fs `write`/`edit`.)
 - `presentResult(args, { content, isError, meta? })` returns the completed card:
   - `generic` supplies an optional title and content.
@@ -88,7 +88,7 @@ Hard rules (they bite if broken):
 - **UI-only formatting stays out of the model result.** A fenced ` ```console ` block, a diff, a relativized path—none of these belongs in the canonical value or Native content merely to serve a UI. `output.render` owns model-facing prose; `presentationMeta` plus the card presenters own replayable UI state. A `terminal` result view carries raw output and the adapter adds any fallback framing.
 - **`defineTool` soft-validates the display path.** Malformed or older logged arguments make the wrapper return `undefined` (a generic fallback) rather than throw — display must never crash a replay.
 
-The neutral vocabulary lives in `dsh-tools`; tools never import a UI or transport type. Consumers of this API map each `card` into their own view. The design and the why are in [the render-intent-union Agent Note](../../.agents/notes/implemented/architecture/2026-07-02-tool-render-intent-union.md); `dsh-tool-fs` (generic/diff) and `dsh-tool-bash` (terminal) are the reference implementations.
+The neutral vocabulary lives in `dsh-tools`; tools never import a UI or transport type. Consumers of this API map each `card` into their own view. The design and the why are in [the render-intent-union Agent Note](../../.agents/notes/implemented/architecture/2026-07-02-tool-render-intent-union.md); `dsh-tool-fs` (generic/diff) and `dsh-tool-shell` (terminal) are the reference implementations.
 
 ## Web Client presentation
 

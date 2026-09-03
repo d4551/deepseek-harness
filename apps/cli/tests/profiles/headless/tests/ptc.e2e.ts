@@ -15,7 +15,7 @@ import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { LocalBashExecutor } from '@deepseek-ai/dsh-bash-local'
 import * as BashEnvPlugin from '@deepseek-ai/dsh-shell-env'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
-import * as ToolBash from '@deepseek-ai/dsh-tool-bash'
+import * as ToolShell from '@deepseek-ai/dsh-tool-shell'
 import * as LlmDeepSeek from '@deepseek-ai/dsh-llm-deepseek'
 import { WorkerThreadCodeRuntime } from '@deepseek-ai/dsh-code-runtime-worker-thread'
 import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
@@ -61,7 +61,7 @@ async function ptcModeHarness(cwd: string): Promise<Context> {
   await harness.plugin(LocalSubprocessRuntime)
   await harness.plugin(BashEnvPlugin)
   await harness.plugin(LocalBashExecutor, { cwd, timeoutMs: 30_000 })
-  await harness.plugin(ToolBash)
+  await harness.plugin(ToolShell, { dialect: 'bash' })
   await harness.plugin(WorkerThreadCodeRuntime, {})
   return harness
 }
@@ -128,7 +128,7 @@ async function backgroundPtcModeHarness(cwd: string): Promise<Context> {
   await harness.plugin(LocalSubprocessRuntime)
   await harness.plugin(BashEnvPlugin)
   await harness.plugin(LocalBashExecutor, { cwd, timeoutMs: 30_000 })
-  await harness.plugin(ToolBash)
+  await harness.plugin(ToolShell, { dialect: 'bash' })
   return harness
 }
 

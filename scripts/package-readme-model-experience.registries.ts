@@ -4,7 +4,7 @@
  * [Model Experience Agent Note](../.agents/notes/implemented/process/2026-07-12-package-model-experience-contract.md).
  */
 
-export type SentenceKind = 'none' | 'indirect'
+type SentenceKind = 'none' | 'indirect'
 
 export interface SentenceContract {
   kind: SentenceKind
@@ -33,10 +33,10 @@ export const NO_MODEL_EXPERIENCE_SECTION: Readonly<Record<string, string>> = {
 export const SENTENCE_MODEL_EXPERIENCE: Readonly<Record<string, SentenceContract>> = {
   'packages/attachment/attachment': { kind: 'indirect', reason: 'The storage seam delegates model request rendering to provider adapters.' },
   'packages/attachment/attachment-local': { kind: 'indirect', reason: 'The local backend delegates model request rendering to provider adapters.' },
-  'packages/shell/shell': { kind: 'indirect', reason: 'The service interface delegates all model rendering to dsh-tool-bash.' },
-  'packages/shell/shell-env': { kind: 'indirect', reason: 'The env service exposes managed DSH_* facts through the shell tools (dsh-tool-bash/dsh-tool-pwsh); it registers no prompt or schema of its own.' },
-  'packages/shell/bash-local': { kind: 'indirect', reason: 'The executor backend delegates model rendering to dsh-tool-bash.' },
-  'packages/shell/pwsh-local': { kind: 'indirect', reason: 'The executor backend delegates model rendering to dsh-tool-pwsh.' },
+  'packages/shell/shell': { kind: 'indirect', reason: 'The service interface delegates all model rendering to dsh-tool-shell.' },
+  'packages/shell/shell-env': { kind: 'indirect', reason: 'The env service exposes managed DSH_* facts through the shell tool (dsh-tool-shell); it registers no prompt or schema of its own.' },
+  'packages/shell/bash-local': { kind: 'indirect', reason: 'The executor backend delegates model rendering to dsh-tool-shell.' },
+  'packages/shell/pwsh-local': { kind: 'indirect', reason: 'The executor backend delegates model rendering to the pwsh dialect of dsh-tool-shell.' },
   'packages/code-runtime/code-runtime': { kind: 'indirect', reason: 'The service interface delegates model rendering to PTC mode in dsh-tools.' },
   'packages/core/agent-tool-presentation': { kind: 'indirect', reason: 'The row only selects between the two projections dsh-tools owns; it registers no prompt, schema, or result of its own.' },
   'packages/code-runtime/code-runtime-worker-thread': { kind: 'indirect', reason: 'The worker backend delegates model rendering to PTC mode in dsh-tools.' },
@@ -45,6 +45,14 @@ export const SENTENCE_MODEL_EXPERIENCE: Readonly<Record<string, SentenceContract
   'packages/util/crypto': { kind: 'indirect', reason: 'Pure identifier minting; the ids consumers mint with it never enter prompts as semantic content.' },
   'packages/util/diagnostic-text': { kind: 'none', reason: 'Zero-dependency string join over a compiler diagnostic chain; the gate, analyzer, or report printing the sentence owns every surface it reaches.' },
   'packages/util/capacity-gate': { kind: 'indirect', reason: 'Zero-dependency FIFO admission control that only delays an acquisition; the holders it bounds own every prompt, schema, and result the model sees.' },
+  'packages/util/keyed-lock': { kind: 'indirect', reason: 'Zero-dependency per-key serialization that only orders operations; the filesystem backends it serializes own every result the model sees.' },
+  'packages/util/document-queue': { kind: 'none', reason: 'One document\'s operation chain and watcher; the settings and credentials providers it serializes own every model-visible projection of what they store.' },
+  'packages/llm/llm-litert': { kind: 'indirect', reason: 'The route resolves a LiteRT server and model catalog; dsh-llm-pi-ai owns the request wire and every token the model sees.' },
+  'packages/fs/network-drive': { kind: 'indirect', reason: 'Capability contract only; the filesystem backend projecting the drive owns every path, byte, and error the model sees.' },
+  'packages/fs/network-drive-webdav': { kind: 'indirect', reason: 'WebDAV transport for the drive seam; dsh-fs-network-drive owns the model-visible projection of what it returns.' },
+  'packages/fs/fs-network-drive': { kind: 'indirect', reason: 'The backend answers with local paths under the materialization root; the file and search tools own every rendered path and byte.' },
+  'packages/bundle/hosted-drive': { kind: 'indirect', reason: 'Patch layer only; the file and shell tools it re-points own every path and byte the model sees.' },
+  'packages/util/sqlite-connection': { kind: 'none', reason: 'Host-side database connection settings; the session log and storage backends own every model-visible projection of what they persist.' },
   'packages/core/agent-default-model': { kind: 'indirect', reason: 'The service supplies a ModelSelection; request assembly and adapters own the model-visible request.' },
   'packages/llm/deepseek-llm-api-extensions': { kind: 'indirect', reason: 'The registry contributes model-hidden provider fields; dsh-llm-deepseek owns their wire placement.' },
   'packages/preset/agent-presets': { kind: 'indirect', reason: 'The mount installs a preset\'s own plugins, which own every model-facing registration it makes visible.' },
@@ -122,7 +130,7 @@ export const SENTENCE_MODEL_EXPERIENCE: Readonly<Record<string, SentenceContract
   'packages/subprocess/subprocess': { kind: 'indirect', reason: 'The seam delegates all model rendering to consumer seams such as the bash executor family.' },
   'packages/e2b/subprocess-e2b': { kind: 'indirect', reason: 'The remote spawn backend delegates model rendering to consumer seams such as the bash executor family.' },
   'packages/subprocess/subprocess-local': { kind: 'indirect', reason: 'The spawn backend delegates model rendering to consumer seams such as the bash executor family.' },
-  'packages/sandbox/sandbox-local': { kind: 'indirect', reason: 'The provider backend delegates model rendering to dsh-bash-sandbox and dsh-tool-bash.' },
+  'packages/sandbox/sandbox-local': { kind: 'indirect', reason: 'The provider backend delegates model rendering to dsh-bash-sandbox and dsh-tool-shell.' },
   'packages/sandbox/sandbox-windows-acl': { kind: 'indirect', reason: 'The provider backend delegates model rendering to the shell/pwsh sandbox executors and their tools.' },
   'packages/sdk/client': { kind: 'none', reason: 'Client-process library; model-facing behavior lives in the spawned runtime\'s composed plugins.' },
   'packages/sdk/protocol': { kind: 'none', reason: 'Client-facing wire library; the runtime plugins behind the serving entry own model-facing behavior.' },
@@ -161,7 +169,7 @@ export const SENTENCE_MODEL_EXPERIENCE: Readonly<Record<string, SentenceContract
   'packages/jobs/jobs-local': { kind: 'indirect', reason: 'The registry backend delegates model rendering to producer plugins and dsh-tool-jobs.' },
   'packages/boot/app-boot': { kind: 'indirect', reason: 'Only the loaded plugin tree contributes model context.' },
   'packages/boot/cmdline': { kind: 'none', reason: 'Resolves the process command line before any session exists; configured rows own every model-visible consequence.' },
-  'packages/interaction/permission-presets': { kind: 'indirect', reason: 'The service writes mechanism events rendered by dsh-user-approval and dsh-tool-bash.' },
+  'packages/interaction/permission-presets': { kind: 'indirect', reason: 'The service writes mechanism events rendered by dsh-user-approval and dsh-tool-shell.' },
   'packages/interaction/user-questions': { kind: 'indirect', reason: 'Model-facing consumers render provider answers and seam errors.' },
   'packages/util/timeout': { kind: 'indirect', reason: 'Only timeout consumers render timeout outcomes.' },
   'packages/util/output-retention': { kind: 'indirect', reason: 'Only retention consumers render retained content and omission metadata.' },

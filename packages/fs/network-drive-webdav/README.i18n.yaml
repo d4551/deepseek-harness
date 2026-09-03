@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write packages/fs/network-drive-webdav/README.md
+README.md: 56cef1b0868cd9f7430499b085a31f7b0d674bfa
+README.zh.md: 0c52ac8072ec43b736376b9714ad9ce445ebfb56

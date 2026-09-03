@@ -69,7 +69,7 @@ This section explains how the package realizes the behavior above; the observabl
 
 ### Design concept
 
-The package is built on event sourcing: a `Session` is an append-only log of typed `SessionEvent`s, and everything else — model history, transcripts, telemetry, titles, persistence — derives from that stream. The surface is a derived projection: an incremental manager validates append candidates, advances the ordered view from committed events, and tracks a `replaceGeneration` that bumps on every committed rewrite. Model-visible means logged: anything that reaches a model request must be reconstructable from the log. The shared [row codec](src/chunk-rows.ts) losslessly converts event sequences to compact rows and back, preserves unrecognized events verbatim, and rejects malformed rows. Persistence backends decide whether to pack writes; bounded history transports can use the same rows while retaining the complete logical interval and exact decoding for consumers that need token boundaries.
+The package is built on event sourcing: a `Session` is an append-only log of typed `SessionEvent`s, and everything else — model history, transcripts, telemetry, titles, persistence — derives from that stream. The surface is a derived projection: an incremental manager validates append candidates, advances the ordered view from committed events, and tracks a `replaceGeneration` that bumps on every committed rewrite. Model-visible means logged: anything that reaches a model request must be reconstructable from the log. The shared [row codec](src/chunk-run-codec.ts) losslessly converts event sequences to compact rows and back, preserves unrecognized events verbatim, and rejects malformed rows; every durable format that packs chunk runs writes that one encoding and adds only its own row limits. Persistence backends decide whether to pack writes; bounded history transports can use the same rows while retaining the complete logical interval and exact decoding for consumers that need token boundaries.
 
 ### Request headers
 
@@ -84,9 +84,11 @@ The package is built on event sourcing: a `Session` is an append-only log of typ
 | [`src/surface.ts`](src/surface.ts) | Ordered surface projection, replacement validation, `deriveEventMessage` |
 | [`src/request-header.ts`](src/request-header.ts) | `request/header` folding and reconstruction |
 | [`src/json.ts`](src/json.ts) | Lossless JSON validation and snapshotting |
-| [`src/chunk-rows.ts`](src/chunk-rows.ts) | Shared compact-row storage codec for persistence backends |
+| [`src/chunk-run-codec.ts`](src/chunk-run-codec.ts) | The packed chunk-run encoding: row vocabulary, packing whitelist, and lossless transforms |
+| [`src/chunk-rows.ts`](src/chunk-rows.ts) | The JSONL log's use of that encoding: its run threshold and unbounded rows |
 | [`src/repair.ts`](src/repair.ts) | Cold repair of crash-orphaned logs |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion: seq, turn/step enclosure, tool call/result pairing |
+| [`src/invariant-staging.ts`](src/invariant-staging.ts) | Pre-commit staging and open-turn cursor shared by package invariant companions |
 
 ### Append validation
 

@@ -16,7 +16,7 @@ import type {
 } from './types.ts'
 
 export { default, TypertRegistry, typertEndpoint, typertKey, typertPackageKey } from './service.ts'
-export type * from './types.ts'
+export type { TypertContribution, TypertDocTag, TypertDocumentation, TypertEventModel, TypertFace, TypertMemberModel, TypertObjectModel, TypertPackageFilter, TypertPackageModel, TypertPackageRecord, TypertSchema, TypertSchemaFilter, TypertSchemaRecord, TypertServiceModel, TypertTypeModel } from './types.ts'
 
 /** Reflection and schema operations the runtime registry adds to `TypertRegistryContract`. */
 export interface TypertRegistryOperations {

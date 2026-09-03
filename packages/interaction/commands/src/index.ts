@@ -22,7 +22,7 @@ import type {
 } from './types.ts'
 
 export { CommandId } from './brand.ts'
-export type * from './types.ts'
+export type { CommandDescriptor, CommandExecution, CommandInputDescriptor, CommandResult, CommandSource, CommandSourceMap } from './types.ts'
 
 export const name = 'commands'
 

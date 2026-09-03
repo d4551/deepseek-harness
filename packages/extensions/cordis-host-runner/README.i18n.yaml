@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write packages/extensions/cordis-host-runner/README.md
-README.md: 0efd3afcff94027408f732541d3d2b4d3470843d
-README.zh.md: a92a4c281ded7395756c5e8f8423e8e61a4d1af2
+README.md: 8627cf3d39b010cffcc76fae9afd0876a792ad6a
+README.zh.md: cd59ee57ac0c7a6200c5cd975f360729d3c47280

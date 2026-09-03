@@ -12,7 +12,6 @@
  * @module @deepseek-ai/dsh-cordis-client-runner/client/api-catalog
  */
 
-/* jscpd:ignore-start */
 /** One named parameter in a Service method or Event listener. */
 export interface ApiParameter {
   /** Parameter name from the exact signature. */
@@ -442,10 +441,6 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface BeginSubmissionInput {\n    readonly text: string;\n    readonly images: readonly PendingSubmissionImage[];\n    readonly onRetire?: (retirement: PendingSubmissionRetirement) => void;\n}',
   },
   {
-    name: 'BoundActions',
-    declaration: 'export type BoundActions<H> = H extends StoreHandle<infer T, infer A> ? BakedActions<T, A> : never;',
-  },
-  {
     name: 'BuiltInLocaleId',
     declaration: 'export type BuiltInLocaleId = typeof LOCALE_IDS[number];',
   },
@@ -546,10 +541,6 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type InjectFace<I extends object> = I extends {\n    hooks: infer HS extends HooksSources;\n} ? Omit<I, \'hooks\'> & PropsHooks<HS> : I;',
   },
   {
-    name: 'InjectParams',
-    declaration: 'export type InjectParams<K extends keyof SlotMap & string, H> = ScopeOf<K> extends \'session\' ? ([\n    H\n] extends [\n    StoreDecl\n] ? [\n    sessionId: SessionIdOf,\n    actions: BoundActions<HandleOf<H>>\n] : [\n    sessionId: SessionIdOf\n]) : ScopeOf<K> extends \'session-maybe\' ? ([\n    H\n] extends [\n    StoreDecl\n] ? [\n    sessionId: SessionIdOf | undefined,\n    actions: BoundActions<HandleOf<H>> | undefined\n] : [\n    sessionId: SessionIdOf | undefined\n]) : ([\n    H\n] extends [\n    StoreDecl\n] ? [\n    actions: BoundActions<HandleOf<H>>\n] : [\n]);',
-  },
-  {
     name: 'ISession',
     declaration: 'export interface ISession {\n    readonly sessionId: SessionId;\n    readonly projections: ProjectionsFace;\n    beginSubmission(input: BeginSubmissionInput): SubmissionHandle;\n    prompt(content: PromptContentPart[], mode: \'queue\' | \'steer\', signal?: AbortSignal, requestId?: SessionRequestId): Promise<ClientResult<{\n        accepted: true;\n    }>>;\n    readAttachment(attachmentId: AttachmentIdType): Promise<ClientResult<{\n        attachment: ImageAttachmentRef;\n        data: Uint8Array;\n    }>>;\n    updateQueue(itemId: MessageId, action: QueueAction): Promise<ClientResult<{\n        accepted: true;\n    }>>;\n    cancel(): Promise<ClientResult<{\n        accepted: true;\n    }>>;\n    rename(title: string): Promise<ClientResult<{\n        title: string;\n        seq: number;\n    }>>;\n    loadOlder(): Promise<void>;\n    command(line: string): Promise<RemoteResult<{\n        matched: boolean;\n    }>>;\n}',
   },
@@ -560,6 +551,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'LanguageRegistration',
     declaration: 'export interface LanguageRegistration {\n    id: LocaleId;\n    label: string;\n    fallback: LocaleId;\n}',
+  },
+  {
+    name: 'LiveSlotNode',
+    declaration: 'export interface LiveSlotNode {\n    name: string;\n    kind: SlotKind;\n    scope: SlotScope;\n    declaredBy?: string;\n    occupants: LiveSlotOccupant[];\n    children: LiveSlotNode[];\n}',
+  },
+  {
+    name: 'LiveSlotOccupant',
+    declaration: 'export interface LiveSlotOccupant {\n    registrant?: string;\n    key?: string;\n    id?: string;\n    order?: number;\n    priority: number;\n    active: boolean;\n}',
   },
   {
     name: 'LocaleDefinition',
@@ -702,10 +701,6 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type SessionFace = ISession & ObservableSnapshot<SessionSnapshot>;',
   },
   {
-    name: 'SessionIdOf',
-    declaration: 'export type SessionIdOf = SessionStandardProps extends {\n    sessionId: infer S;\n} ? S : string;',
-  },
-  {
     name: 'SessionLiveEventEntry',
     declaration: 'export type SessionLiveEventEntry = Extract<SessionEventLikeEntry, {\n    readonly type: \'event\';\n}>;',
   },
@@ -739,7 +734,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SlotCore',
-    declaration: 'export class SlotCore {\n    constructor();\n    register<K extends keyof SlotMap & string, const EntryKey extends EntryKeyOf<K> = EntryKeyOf<K>, const D extends ChildrenDecl = Record<never, never>, H extends StoreDecl | undefined = undefined, M = never, N extends (keyof LocaleNamespaceMap & string) | undefined = undefined, C extends SlotComponent<never> = SlotComponent<never>>(options: BaseOptions<K, EntryKey, D, H, M, N> & {\n        inject?: undefined;\n    }, component: C & SlotComponent<ComposedProps<K, NoInfer<EntryKey>, keyof NoInfer<D> & keyof SlotMap & string, HandleOf<NoInfer<H>>, object, NoInfer<M>, NoInfer<N>>> & RendersCheck<C, D>): () => void;\n    register<K extends keyof SlotMap & string, I extends object, const EntryKey extends EntryKeyOf<K> = EntryKeyOf<K>, const D extends ChildrenDecl = Record<never, never>, H extends StoreDecl | undefined = undefined, M = never, N extends (keyof LocaleNamespaceMap & string) | undefined = undefined, C extends SlotComponent<never> = SlotComponent<never>>(options: BaseOptions<K, EntryKey, D, H, M, N> & {\n        inject: (...args: InjectParams<K, H>) => I;\n    }, component: C & SlotComponent<ComposedProps<K, NoInfer<EntryKey>, keyof NoInfer<D> & keyof SlotMap & string, HandleOf<NoInfer<H>>, I, NoInfer<M>, NoInfer<N>>> & RendersCheck<C, D>): () => void;\n    register(options: ErasedOptions, component: unknown): () => void;\n    isLive(entry: StoredEntry): boolean;\n    entries(key: string): readonly StoredEntry[];\n    entriesOfSlot(key /* …truncated — full shape in source */',
+    declaration: 'export class SlotCore {\n    constructor();\n    register<K extends keyof SlotMap & string, const EntryKey extends EntryKeyOf<K> = EntryKeyOf<K>, const D extends ChildrenDecl = Record<never, never>, H extends StoreDecl | undefined = undefined, M = never, N extends (keyof LocaleNamespaceMap & string) | undefined = undefined, I extends object = object, C extends SlotComponent<never> = SlotComponent<never>>(options: BaseOptions<K, EntryKey, D, H, M, N> & InjectSeat<C, FrameworkProps<K, EntryKey, D, H, M, N>, K, H, I>, component: C & SlotComponent<ComposedProps<K, NoInfer<EntryKey>, keyof NoInfer<D> & keyof SlotMap & string, HandleOf<NoInfer<H>>, I, NoInfer<M>, NoInfer<N>>> & RendersCheck<C, D>): () => void;\n    register(options: ErasedOptions, component: unknown): () => void;\n    isLive(entry: StoredEntry): boolean;\n    entries(key: string): readonly StoredEntry[];\n    entriesOfSlot(key: string): readonly StoredEntry[];\n    spec<K extends keyof SlotMap & string>(key: K): SlotSpec<SlotMap[K]> | undefined;\n    specDynamic(key: string): SlotSpec<SlotEntryDef> | undefined;\n    snapshot(root?: string): LiveSlotNode[];\n    declarationEpoch(key: string): number;\n    subscribe(key: string, fn: () => void): () => void;\n    subscribeDeclaration(key: string, fn: () => void): () => void;\n    getVersion(key: string): number;\n    onMutate(fn: (key: string) => void): () => void;\n    reportEntryError(key: string, entry: StoredEntry, error: unknown, info: {\n        abdicate: boolean;\n    }): void; /* …truncated — full shape in source */',
   },
   {
     name: 'SlotEntryDef',
@@ -944,4 +939,3 @@ export function queryEventApi(name?: string, events: readonly EventApiEntry[] = 
     referencedTypes: referencedTypeClosure([event.signature]),
   }
 }
-/* jscpd:ignore-end */

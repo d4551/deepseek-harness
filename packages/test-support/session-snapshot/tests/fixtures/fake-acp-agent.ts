@@ -41,7 +41,11 @@ interface Behavior {
   failOnBoot?: boolean
   /** Reject every `session/new` (exercises the expect-error step without extra dirs). */
   rejectNewSession?: boolean
-  /** Reject `session/new` only when `additionalDirectories` is non-empty (an external agent that supports one root only). */
+  /**
+   * Reject `session/new` only when `additionalDirectories` is non-empty (an
+   * external agent that supports one root only). The rejection quotes the
+   * received roots, so a caller can assert what the harness sent.
+   */
   rejectExtraDirs?: boolean
   /** How `session/prompt` settles: a clean response, a JSON-RPC error, or a hang until `session/cancel`. */
   prompt?: 'respond' | 'error' | 'hang-until-cancel'
@@ -206,7 +210,12 @@ function handleFrame(frame: Record<string, unknown>): void {
       return
     case 'session/new': {
       const extra = params.additionalDirectories as unknown[] | undefined
-      if (behavior.rejectNewSession === true || (behavior.rejectExtraDirs === true && extra !== undefined && extra.length > 0)) {
+      if (behavior.rejectExtraDirs === true && extra !== undefined && extra.length > 0) {
+        // Echo the roots as received so a caller can assert what reached the wire.
+        respondError(id as number | string, `unsupported workspace scope: ${extra.map(String).join(', ')}`)
+        return
+      }
+      if (behavior.rejectNewSession === true) {
         respondError(id as number | string, 'unsupported workspace scope')
         return
       }

@@ -1,5 +1,5 @@
 import { Fragment } from 'react'
-import { CodeBlock } from '@deepseek-ai/dsh-client-ui-primitives'
+import { CodeBlock, GlyphButton, ResultText } from '@deepseek-ai/dsh-client-ui-primitives'
 import { shallowEqual } from '@deepseek-ai/dsh-client-store'
 import type { DetailsSlotProps } from '../contract/slots.ts'
 import type { ChatSnapshot, RunningToolCall, ToolCallBlock, ToolResultNode } from '../contract/snapshot.ts'
@@ -62,14 +62,14 @@ export function DetailsPanel({ useChat, useSessions, sessionId, useStore, render
         <div className={css.title}>
           {selection === null ? t('details.title') : material?.name ?? selection.toolName ?? t('details.title')}
         </div>
-        <button
-          type="button" className={css.close} aria-label={t('details.close')}
+        <GlyphButton
+          surface="header" className={css.close} aria-label={t('details.close')}
           onClick={() => { closeDetails() }}
         >
           <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
             <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
-        </button>
+        </GlyphButton>
       </div>
       <div className={css.body}>
         {selection === null || callId === undefined
@@ -94,9 +94,9 @@ export function DetailsPanel({ useChat, useSessions, sessionId, useStore, render
                     {renderSlot('conversation.details.tool', { block: material.block, cwd: sessionCwd }, {
                       fallback: 'kind' in material.block
                         ? (
-                          <pre className={css.code} data-error={material.block.isError || undefined}>
+                          <ResultText error={material.block.isError}>
                             {rawResultText(material.block)}
-                          </pre>
+                          </ResultText>
                         )
                         : <div className={css.empty}>{t('details.running')}</div>,
                     })}

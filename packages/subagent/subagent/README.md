@@ -75,11 +75,11 @@ This section explains how the service is built and where the observable behavior
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Service entry: provider registry, start and continuation API, lifecycle events |
+| [`src/index.ts`](src/index.ts) | Service entry: provider registry, start and continuation API, lifecycle events, shared one-shot provider config fields |
 | [`src/continuation.ts`](src/continuation.ts) | Continuable children: identity reservation, Activation residency, follow-up, interrupt, settlement |
 | [`src/types.ts`](src/types.ts) | Public request, result, and provider contracts |
 | [`src/descriptor.ts`](src/descriptor.ts) | Versioned `subagent/descriptor` session-event vocabulary |
-| [`src/child-agent.ts`](src/child-agent.ts) | Child composition, delegated policy, depth helpers |
+| [`src/child-agent.ts`](src/child-agent.ts) | Child composition, delegated session state, depth helpers |
 | [`src/list-children.ts`](src/list-children.ts) | Discovery over the live session store and optional persistence |
 | [`src/control.ts`](src/control.ts) | Browser control assembly: catalog activity sampling, browser-zone validation, failure codes |
 | [`src/control-types.ts`](src/control-types.ts) | Client-safe catalog row, control requests, receipts, and failures |

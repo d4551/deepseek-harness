@@ -100,10 +100,18 @@ export type SkillRegistration = Omit<SkillDefinition, 'invocation' | 'provider'>
   readonly provider?: string
 }
 
-/** Caller context used for cwd-sensitive and abortable provider work. */
+/** Caller context used for workspace-sensitive and abortable provider work. */
 export interface SkillLookupOptions {
-  /** Workspace selector for the current lookup. */
+  /** Primary workspace selector for the current lookup. */
   readonly cwd?: string | undefined
+  /**
+   * The caller's ADDITIONAL workspace roots. A skill catalog is one session-wide
+   * list rather than a per-file routing decision, so a workspace-sensitive
+   * provider covers every root: a second checkout the session works in
+   * contributes its skills beside the primary root's. Ordered after `cwd`, which
+   * decides same-name collisions the provider's own ranking leaves tied.
+   */
+  readonly additionalRoots?: readonly string[] | undefined
   /** Abort discovery or loading work for the current caller. */
   readonly signal?: AbortSignal | undefined
 }
@@ -525,7 +533,7 @@ export class SkillRegistry extends Service {
       // The chain is part of the key rather than assumed stable: a blank-session
       // recompose re-parents an existing scope without touching this registry,
       // and only a chain-bearing key makes the next read see the new preset.
-      const key = this.collectCacheKey(options.cwd, scopeChainOf(options.scope), revision)
+      const key = this.collectCacheKey(options, scopeChainOf(options.scope), revision)
       const cached = this.collectCache.get(key)
       if (cached !== undefined) return { entries: cached, cacheable: true }
 
@@ -641,8 +649,15 @@ export class SkillRegistry extends Service {
     return id
   }
 
-  private collectCacheKey(cwd: string | undefined, chain: ScopeKey[], revision: number): string {
-    return JSON.stringify({ cwd, scopes: chain.map(key => this.scopeId(key)), revision })
+  private collectCacheKey(options: SkillViewOptions, chain: ScopeKey[], revision: number): string {
+    // Both root fields are part of the key: two sessions can share a cwd and
+    // still work in different additional roots, whose catalogs must not collide.
+    return JSON.stringify({
+      cwd: options.cwd,
+      additionalRoots: options.additionalRoots,
+      scopes: chain.map(key => this.scopeId(key)),
+      revision,
+    })
   }
 
   /** Notify catalog observers without making their refresh work load-bearing. */

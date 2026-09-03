@@ -1,18 +1,23 @@
 /**
  * Profile-named Claude Code one-shot subagent provider. Every accepted run
- * invokes the official Agent SDK in the delegating Session's workspace and
- * places the SDK-spawned real CLI under the shared subprocess owner.
+ * invokes the official Agent SDK in the delegating Session's workspace, hands
+ * the child that Session's other workspace roots as the SDK's
+ * `additionalDirectories`, and places the SDK-spawned real CLI under the
+ * shared subprocess owner.
  *
  * @module @deepseek-ai/dsh-subagent-claude-code
  */
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import {
-  assertPositiveFinite,
+  assertTimerBound,
   NO_START_CAPABILITIES,
+  OneShotProviderConfigFields,
   resolveChildCwd,
+  resolveChildWorkspaceRoots,
+  resolveOneShotProviderConfig,
+  type OneShotRunConfig,
   type ResolvedSubagentStartRequest,
   type SubagentCapabilities,
   type SubagentProvider,
@@ -32,8 +37,6 @@ export const inject = ['subagents', 'subprocess']
 
 const DEFAULT_PROVIDER_NAME = 'claude-code'
 
-/* jscpd:ignore-start -- sibling product providers intentionally expose
- * overlapping deployment-owned fields without adding a shared config owner. */
 /** Deployment-owned model, permission, environment, and process-release settings. */
 export interface Config {
   /** Provider name on `ctx.subagents` (default `claude-code`). */
@@ -56,20 +59,16 @@ export interface Config {
   disposeGraceMs?: number
 }
 
-export const Config: z<Config> = z.object({
-  providerName: z.string().min(1).default(DEFAULT_PROVIDER_NAME),
-  model: z.string().min(1),
-  env: z.dict(z.string()).default({}),
-  permissionMode: z.union([...CLAUDE_CODE_PERMISSION_MODES])
-    .default(DEFAULT_CLAUDE_CODE_PERMISSION_MODE),
-  disposeGraceMs: z.number().default(DEFAULT_DISPOSE_GRACE_MS),
-})
+export const Config: z<Config> = z.intersect([
+  z.object(OneShotProviderConfigFields),
+  z.object({
+    providerName: z.string().min(1).default(DEFAULT_PROVIDER_NAME),
+    permissionMode: z.union([...CLAUDE_CODE_PERMISSION_MODES])
+      .default(DEFAULT_CLAUDE_CODE_PERMISSION_MODE),
+    disposeGraceMs: z.number().default(DEFAULT_DISPOSE_GRACE_MS),
+  }),
+])
 
-type ResolvedConfig = Omit<Required<Config>, 'model'> & Pick<Config, 'model'>
-/* jscpd:ignore-end */
-
-/* jscpd:ignore-start -- Cordis registration and shared-seam plumbing mirror
- * the Codex sibling; each product's lifecycle remains package-private. */
 class ClaudeCodeProvider implements SubagentProvider {
   readonly capabilities: SubagentCapabilities = NO_START_CAPABILITIES
   readonly inheritsParentContext = false
@@ -77,7 +76,7 @@ class ClaudeCodeProvider implements SubagentProvider {
   constructor(
     readonly name: string,
     private readonly ctx: Context,
-    private readonly config: ResolvedConfig,
+    private readonly config: OneShotRunConfig<ClaudeCodePermissionMode>,
   ) {}
 
   async start(request: ResolvedSubagentStartRequest) {
@@ -108,11 +107,9 @@ class ClaudeCodeProvider implements SubagentProvider {
       throw failure
     }
     const spec: ClaudeCodeRunSpec = {
+      ...this.config,
       cwd,
-      ...this.config.model === undefined ? {} : { model: this.config.model },
-      permissionMode: this.config.permissionMode,
-      env: this.config.env,
-      disposeGraceMs: this.config.disposeGraceMs,
+      workspaceRoots: resolveChildWorkspaceRoots(request.parent, cwd),
       spawn: spawnSpec => this.ctx.subprocess.spawn(spawnSpec),
       onError: (error, stopReason) => {
         this.ctx.logger.warn(
@@ -131,27 +128,10 @@ class ClaudeCodeProvider implements SubagentProvider {
  * @param config - registry name, optional model, permission mode, child environment, and disposal grace.
  */
 export function apply(ctx: Context, config: Config): void {
-  const resolved: ResolvedConfig = {
-    providerName: config.providerName ?? DEFAULT_PROVIDER_NAME,
-    ...config.model === undefined ? {} : { model: config.model },
-    env: config.env as Record<string, string>,
-    permissionMode: config.permissionMode ?? DEFAULT_CLAUDE_CODE_PERMISSION_MODE,
-    disposeGraceMs: config.disposeGraceMs as number,
-  }
-  assertPositiveFinite(
-    'subagent-claude-code',
-    'disposeGraceMs',
-    resolved.disposeGraceMs,
-  )
-  if (resolved.disposeGraceMs > MAX_TIMER_DELAY_MS) {
-    throw new Error(
-      `subagent-claude-code: disposeGraceMs must be no greater than ${MAX_TIMER_DELAY_MS}`,
-    )
-  }
-  ctx.subagents.registerProvider(new ClaudeCodeProvider(
-    resolved.providerName,
-    ctx,
-    resolved,
-  ))
+  const { providerName, run } = resolveOneShotProviderConfig(config, {
+    providerName: DEFAULT_PROVIDER_NAME,
+    permissionMode: DEFAULT_CLAUDE_CODE_PERMISSION_MODE,
+  })
+  assertTimerBound('subagent-claude-code', 'disposeGraceMs', run.disposeGraceMs)
+  ctx.subagents.registerProvider(new ClaudeCodeProvider(providerName, ctx, run))
 }
-/* jscpd:ignore-end */

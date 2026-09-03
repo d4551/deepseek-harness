@@ -41,7 +41,7 @@ interface PatchRow {
 const packageRoot = fileURLToPath(new URL('..', import.meta.url))
 const manifest = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8')) as {
   private?: boolean
-  publishConfig?: unknown
+  publishConfig?: { access?: string }
   dependencies?: Record<string, string>
   dsh?: { bundle?: { patch?: string } }
 }
@@ -140,8 +140,10 @@ async function boot(document: string, configPath: string, dir: string): Promise<
 
 describe('swarm profile bundle', () => {
   it('declares a parseable layer that bounds subagent runs and inserts the Team stack', async () => {
-    expect(manifest.private).toBe(true)
-    expect(manifest.publishConfig).toBeUndefined()
+    // The shipped `swarm` profile template names this bundle, so a release that
+    // omitted it would leave `dsh --profile swarm` unable to resolve its layer.
+    expect(manifest.private).toBeUndefined()
+    expect(manifest.publishConfig?.access).toBe('public')
     expect(manifest.dependencies).toMatchObject({
       '@deepseek-ai/dsh-agent-team': 'workspace:^',
       '@deepseek-ai/dsh-subagent': 'workspace:^',
@@ -160,6 +162,50 @@ describe('swarm profile bundle', () => {
       name: '@deepseek-ai/dsh-tool-agent-team',
       config: { coordination: 'swarm' },
     })
+  })
+
+  it('is the Agent Teams layer plus exactly its documented swarm deltas', async () => {
+    // The two patch documents are near-identical YAML, and `bun run duplication`
+    // scans TypeScript only, so nothing else would notice one drifting from the
+    // other. A rename in base's subagent rows has to reach both files; this
+    // fails when it reaches only one.
+    const swarm = await shippedPatch()
+    const team = yaml.load(
+      await readFile(resolve(packageRoot, '..', 'agent-team-profile', 'cordis.patch.yml'), 'utf8'),
+      { schema: entryListSchema },
+    ) as PatchRow[]
+
+    const deltas = swarm.filter(row => row.id === 'subagent')
+    expect(deltas.map(row => row.config)).toEqual([{ maxConcurrentRuns: 8 }])
+
+    // Everything else must be the team layer, with only the two documented
+    // value changes: a wider roster and the swarm coordination mode.
+    const rest = swarm.filter(row => row.id !== 'subagent')
+    const teamAsSwarm = JSON.parse(JSON.stringify(team).replace('"maxMembers":8', '"maxMembers":16')) as PatchRow[]
+    const withCoordination = JSON.parse(
+      JSON.stringify(rest).replace(',"coordination":"swarm"', ''),
+    ) as PatchRow[]
+    expect(withCoordination).toEqual(teamAsSwarm)
+  })
+
+  it('targets only row ids the base bundle actually declares', async () => {
+    // A patch whose target row is absent stays a Loader warning by design, so a
+    // renamed base row would silently leave the global tools registered beside
+    // the Team-scoped ones. Nothing but this check would report it.
+    const base = yaml.load(
+      readFileSync(
+        resolve(packageRoot, '..', '..', 'bundle', 'base', 'cordis.patch.yml'),
+        'utf8',
+      ),
+      { schema: entryListSchema },
+    ) as { id?: string; insert?: { id?: string }[] }[]
+    const baseIds = new Set(
+      base.flatMap(row => [row.id, ...(row.insert ?? []).map(entry => entry.id)])
+        .filter((id): id is string => id !== undefined),
+    )
+    const targeted = (await shippedPatch()).map(row => row.id).filter((id): id is string => id !== undefined)
+    expect(targeted.length).toBeGreaterThan(0)
+    for (const id of targeted) expect(baseIds, id).toContain(id)
   })
 
   it('boots its own rows into a bounded seam, the claim tool, and swarm guidance', async () => {

@@ -1,10 +1,7 @@
 /** Staged editor for the Host-owned subagent model allowlist. */
 
-import type {
-  ClientRemote,
-  ModelProviderGroup,
-  SubagentModelSelectionSettings,
-} from '@deepseek-ai/dsh-api-remotes/client'
+import type { ClientRemote, SubagentModelSelectionSettings } from '@deepseek-ai/dsh-api-remotes/client'
+import type { ModelProviderGroup } from '@deepseek-ai/dsh-api-session-controller/types'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { CardShell } from './card-form.ts'

@@ -78,10 +78,13 @@ The runner is built on two separations. **Registry and sandbox are one service.*
 | [`src/lifecycle.ts`](src/lifecycle.ts) | Starting a host half under the `cordis-dynamic` fiber group |
 | [`src/inspect-registry.ts`](src/inspect-registry.ts) | The `ctx.cordisInspect` registry: host providers plus the mirrored client manifest |
 | [`src/types.ts`](src/types.ts) | Client-safe payload shapes for the `dynamicCordisRunner` remote namespace and forwarded events |
+| [`src/wire-values.ts`](src/wire-values.ts) | What both halves compute identically: the failure record, the single-method Inspect Provider declaration, and guarded Context verb dispatch |
 
 ### How a run flows
 
 `define` trims and requires the metadata, prechecks each half's syntax by compiling it (running nothing), mints the plugin and package ids, and records the definition against the session that asked. `run` resolves the target against `currentPackageId` and `nextPackageId`; a host-only package evaluates in the sandbox and commits immediately, while a browser-half package arms an approval request, emits `cordis/request-run`, and suspends. The answering page walks `runHostHalf`, `getClientCode`, then `resolveRequestRun`; a success naming the live revision commits the activation and sets `currentPackageId`, and `cordis/request-run-resolved` drops the pending affordance on every other page. `stop` retracts the live dispatch — handler disposers, fiber dispose, and the `cordis/dynamic-retract` broadcast — and leaves the definition runnable. Four forwarded events (`cordis/request-run`, `cordis/request-run-resolved`, `cordis/dynamic-package`, `cordis/dynamic-retract`) are declared on the client-safe `./types` subpath and allowlisted for delivery by `@deepseek-ai/dsh-api-remotes`, which is what lets a browser reach them through `ctx.remote.$on`.
+
+The `./types` subpath declares those payloads; the `./wire-values` subpath builds them. `./wire-values` holds no platform reference — no Cordis service, no Node module, no browser API — so `@deepseek-ai/dsh-tool-cordis` and the browser half of `@deepseek-ai/dsh-cordis-client-runner` both import it and produce identical records. The same module holds `ctxVerbForwarder`, the one part of the two guard façades that is dispatch rather than policy — each guard still supplies its own refusal, so what a half denies and how it explains the denial stays in that half. `./wire-values` is the only subpath of this package a client bundle may import as a value; the shared client preset's `INLINE_SAFE` allowlist admits that one specifier and nothing else under this package name, which is why the verb rule lives beside the payload builders rather than in a module of its own.
 
 </details>
 

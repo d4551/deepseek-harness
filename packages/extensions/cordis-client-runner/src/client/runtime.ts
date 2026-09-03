@@ -22,6 +22,8 @@ import type {
 import type { SessionId } from '@deepseek-ai/dsh-client-connection/client'
 import type { ClientModuleSystem } from '@deepseek-ai/dsh-client-modules/client'
 import type { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type { CordisErrorDetails } from '@deepseek-ai/dsh-cordis-host-runner/types'
+import { errorDetails } from '@deepseek-ai/dsh-cordis-host-runner/wire-values'
 import { DynamicCordisStyles, evaluateClientHalf, DYNAMIC_CLIENT_REDIRECTS } from './evaluator.ts'
 import type { DynamicCordisEvaluatedPlugin } from './evaluator.ts'
 import { dynamicCordisContext } from './guard.ts'
@@ -45,14 +47,6 @@ export interface CordisObservable<T> {
 
 /** Which stage of a load failed, as the page classified it. */
 export type DynamicCordisLoadErrorCause = 'evaluate' | 'module-import' | 'activate'
-
-/** Error fields retained by the page runner and Host transport. */
-export interface CordisErrorDetails {
-  /** Original error message. */
-  message: string
-  /** Original stack when the thrown value supplied one. */
-  stack?: string
-}
 
 /** One package's browser half as the host handed it over. */
 export interface DynamicCordisClientHalf {
@@ -490,22 +484,6 @@ function settled(record: { pkg: DynamicCordisPackage; waitingFor: string[] }): D
 function indexable(component: unknown): component is object {
   return typeof component === 'object' && component !== null || typeof component === 'function'
 }
-
-/**
- * Preserve error fields for a load result without fabricating a stack.
- * @param error - original thrown value.
- * @returns its message and original string stack, when present.
- */
-/* jscpd:ignore-start */
-export function errorDetails(error: unknown): CordisErrorDetails {
-  if (typeof error !== 'object' || error === null) return { message: String(error) }
-  const message = 'message' in error && typeof error.message === 'string'
-    ? error.message
-    : Object.prototype.toString.call(error)
-  const stack = 'stack' in error && typeof error.stack === 'string' ? error.stack : undefined
-  return { message, ...stack === undefined ? {} : { stack } }
-}
-/* jscpd:ignore-end */
 
 /**
  * What the authoring session reads about one render crash. The slot says where it

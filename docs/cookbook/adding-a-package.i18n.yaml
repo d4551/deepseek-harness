@@ -3,4 +3,4 @@
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write docs/cookbook/adding-a-package.md
 adding-a-package.md: abdfbbf42c9b3c48f232d61960ca95999f69c8b1
-adding-a-package.zh.md: 2b79c0ce8bd6e298f406c76cc73179c7f0d4f19f
+adding-a-package.zh.md: 7174bdd35c9bb4f9e8292085aa2819d7b599f79e

@@ -91,16 +91,11 @@ export function parseClientRuntimeCapability(value: unknown): ClientRuntimeCapab
  * @returns The validated request frame.
  */
 export function parseClientRuntimeRequestFrame(value: Record<string, unknown>): ClientRuntimeRequestFrame {
-  exactKeys(value, ['v', 't', 'sourceId', 'generation', 'sessionId', 'requestId', 'command'], 'Client Runtime request')
-  if (value.v !== INSPECTOR_PROTOCOL_VERSION || value.t !== 'client-runtime/request') {
-    throw new Error('inspector protocol: invalid Client Runtime request envelope')
-  }
+  assertFrameEnvelope(value, 'client-runtime/request', [...REQUEST_ADDRESSED_KEYS, 'command'], 'Client Runtime request')
   return {
     v: INSPECTOR_PROTOCOL_VERSION,
     t: 'client-runtime/request',
-    sourceId: wireId<'InspectorSourceId'>(value.sourceId, 'sourceId'),
-    generation: wireId<'InspectorSourceGeneration'>(value.generation, 'generation'),
-    sessionId: wireId<'ClientRuntimeSessionId'>(value.sessionId, 'sessionId'),
+    ...parseFrameAddress(value),
     requestId: wireId<'ClientRuntimeRequestId'>(value.requestId, 'requestId'),
     command: parseClientRuntimeCommand(value.command),
   }
@@ -112,18 +107,7 @@ export function parseClientRuntimeRequestFrame(value: Record<string, unknown>): 
  * @returns The validated cancellation frame.
  */
 export function parseClientRuntimeCancelFrame(value: Record<string, unknown>): ClientRuntimeCancelFrame {
-  exactKeys(value, ['v', 't', 'sourceId', 'generation', 'sessionId', 'requestId'], 'Client Runtime cancellation')
-  if (value.v !== INSPECTOR_PROTOCOL_VERSION || value.t !== 'client-runtime/cancel') {
-    throw new Error('inspector protocol: invalid Client Runtime cancellation envelope')
-  }
-  return {
-    v: INSPECTOR_PROTOCOL_VERSION,
-    t: 'client-runtime/cancel',
-    sourceId: wireId<'InspectorSourceId'>(value.sourceId, 'sourceId'),
-    generation: wireId<'InspectorSourceGeneration'>(value.generation, 'generation'),
-    sessionId: wireId<'ClientRuntimeSessionId'>(value.sessionId, 'sessionId'),
-    requestId: wireId<'ClientRuntimeRequestId'>(value.requestId, 'requestId'),
-  }
+  return parseRequestAddressedFrame(value, 'client-runtime/cancel', 'Client Runtime cancellation')
 }
 
 /**
@@ -131,26 +115,15 @@ export function parseClientRuntimeCancelFrame(value: Record<string, unknown>): C
  * @param value - Untrusted acknowledgement frame.
  * @returns The validated acknowledgement frame.
  */
-/* jscpd:ignore-start */
-// Deliberately mirrors parseClientRuntimeCancelFrame: each wire parser spells
-// out its own envelope literally instead of sharing a tag-parameterized helper.
 export function parseClientRuntimeResponseAcknowledgedFrame(
   value: Record<string, unknown>,
 ): ClientRuntimeResponseAcknowledgedFrame {
-  exactKeys(value, ['v', 't', 'sourceId', 'generation', 'sessionId', 'requestId'], 'Client Runtime response acknowledgement')
-  if (value.v !== INSPECTOR_PROTOCOL_VERSION || value.t !== 'client-runtime/response-acknowledged') {
-    throw new Error('inspector protocol: invalid Client Runtime response acknowledgement envelope')
-  }
-  return {
-    v: INSPECTOR_PROTOCOL_VERSION,
-    t: 'client-runtime/response-acknowledged',
-    sourceId: wireId<'InspectorSourceId'>(value.sourceId, 'sourceId'),
-    generation: wireId<'InspectorSourceGeneration'>(value.generation, 'generation'),
-    sessionId: wireId<'ClientRuntimeSessionId'>(value.sessionId, 'sessionId'),
-    requestId: wireId<'ClientRuntimeRequestId'>(value.requestId, 'requestId'),
-  }
+  return parseRequestAddressedFrame(
+    value,
+    'client-runtime/response-acknowledged',
+    'Client Runtime response acknowledgement',
+  )
 }
-/* jscpd:ignore-end */
 
 /**
  * Parse and rebuild one Client-to-Worker Runtime response.
@@ -158,16 +131,11 @@ export function parseClientRuntimeResponseAcknowledgedFrame(
  * @returns The validated response frame.
  */
 export function parseClientRuntimeResponseFrame(value: Record<string, unknown>): ClientRuntimeResponseFrame {
-  exactKeys(value, ['v', 't', 'sourceId', 'generation', 'sessionId', 'requestId', 'outcome'], 'Client Runtime response')
-  if (value.v !== INSPECTOR_PROTOCOL_VERSION || value.t !== 'client-runtime/response') {
-    throw new Error('inspector protocol: invalid Client Runtime response envelope')
-  }
+  assertFrameEnvelope(value, 'client-runtime/response', [...REQUEST_ADDRESSED_KEYS, 'outcome'], 'Client Runtime response')
   return {
     v: INSPECTOR_PROTOCOL_VERSION,
     t: 'client-runtime/response',
-    sourceId: wireId<'InspectorSourceId'>(value.sourceId, 'sourceId'),
-    generation: wireId<'InspectorSourceGeneration'>(value.generation, 'generation'),
-    sessionId: wireId<'ClientRuntimeSessionId'>(value.sessionId, 'sessionId'),
+    ...parseFrameAddress(value),
     requestId: wireId<'ClientRuntimeRequestId'>(value.requestId, 'requestId'),
     outcome: parseOutcome(value.outcome),
   }
@@ -179,16 +147,79 @@ export function parseClientRuntimeResponseFrame(value: Record<string, unknown>):
  * @returns The validated cleanup frame.
  */
 export function parseClientRuntimeSessionClosedFrame(value: Record<string, unknown>): ClientRuntimeSessionClosedFrame {
-  exactKeys(value, ['v', 't', 'sourceId', 'generation', 'sessionId'], 'Client Runtime session close')
-  if (value.v !== INSPECTOR_PROTOCOL_VERSION || value.t !== 'client-runtime/session-closed') {
-    throw new Error('inspector protocol: invalid Client Runtime session close envelope')
-  }
+  const keys = REQUEST_ADDRESSED_KEYS.filter(key => key !== 'requestId')
+  assertFrameEnvelope(value, 'client-runtime/session-closed', keys, 'Client Runtime session close')
   return {
     v: INSPECTOR_PROTOCOL_VERSION,
     t: 'client-runtime/session-closed',
+    ...parseFrameAddress(value),
+  }
+}
+
+/** The exact field set of a frame addressed to one outstanding request. */
+const REQUEST_ADDRESSED_KEYS = ['v', 't', 'sourceId', 'generation', 'sessionId', 'requestId'] as const
+
+/**
+ * Rebuild the routing identifiers every Client Runtime frame carries.
+ * @param value - Frame whose envelope has already been accepted.
+ * @returns The branded source, generation, and DevTools session identifiers.
+ */
+function parseFrameAddress(value: Record<string, unknown>): {
+  sourceId: InspectorSourceId
+  generation: InspectorSourceGeneration
+  sessionId: ClientRuntimeSessionId
+} {
+  return {
     sourceId: wireId<'InspectorSourceId'>(value.sourceId, 'sourceId'),
     generation: wireId<'InspectorSourceGeneration'>(value.generation, 'generation'),
     sessionId: wireId<'ClientRuntimeSessionId'>(value.sessionId, 'sessionId'),
+  }
+}
+
+/**
+ * Reject a frame whose field set, protocol version, or tag does not match.
+ * @param value - Untrusted frame.
+ * @param tag - Exact `t` discriminant this frame must carry.
+ * @param keys - Complete field allowlist for this frame.
+ * @param label - Frame name used in validation errors.
+ */
+function assertFrameEnvelope(
+  value: Record<string, unknown>,
+  tag: string,
+  keys: readonly string[],
+  label: string,
+): void {
+  exactKeys(value, keys, label)
+  if (value.v !== INSPECTOR_PROTOCOL_VERSION || value.t !== tag) {
+    throw new Error(`inspector protocol: invalid ${label} envelope`)
+  }
+}
+
+/**
+ * Parse one frame that names a single outstanding request and carries nothing
+ * else. Cancellation and response acknowledgement differ only by tag, so both
+ * are rebuilt here rather than spelled out twice.
+ * @param value - Untrusted frame.
+ * @param tag - Exact `t` discriminant this frame must carry.
+ * @param label - Frame name used in validation errors.
+ * @returns The validated envelope, routing identifiers, and request id.
+ */
+function parseRequestAddressedFrame<
+  Tag extends ClientRuntimeCancelFrame['t'] | ClientRuntimeResponseAcknowledgedFrame['t'],
+>(value: Record<string, unknown>, tag: Tag, label: string): {
+  readonly v: typeof INSPECTOR_PROTOCOL_VERSION
+  readonly t: Tag
+  readonly sourceId: InspectorSourceId
+  readonly generation: InspectorSourceGeneration
+  readonly sessionId: ClientRuntimeSessionId
+  readonly requestId: ClientRuntimeRequestId
+} {
+  assertFrameEnvelope(value, tag, REQUEST_ADDRESSED_KEYS, label)
+  return {
+    v: INSPECTOR_PROTOCOL_VERSION,
+    t: tag,
+    ...parseFrameAddress(value),
+    requestId: wireId<'ClientRuntimeRequestId'>(value.requestId, 'requestId'),
   }
 }
 

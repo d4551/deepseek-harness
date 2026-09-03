@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
+import { setAdditionalWorkspaceRoots } from '@deepseek-ai/dsh-session/workspace-roots'
 import SystemPrompt, { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import ToolRegistry, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import { FILE_REFERENCE_PROMPT } from '@deepseek-ai/dsh-file-reference'
@@ -158,5 +159,57 @@ describe('LocalFileReferenceService', () => {
       expect(warn).toHaveBeenCalledWith('file-reference-local: prompt cleanup failed: string cleanup')
     })
     await expect(fiber.dispose()).resolves.toBeUndefined()
+  })
+})
+
+describe('LocalFileReferenceService across multiple workspace roots', () => {
+  /** A second checkout holding one uniquely named file. */
+  async function secondRoot(): Promise<string> {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-file-reference-second-'))
+    roots.push(root)
+    await writeFile(join(root, 'service.ts'), 'service')
+    return root
+  }
+
+  it('offers a file that exists only in an additional workspace root', async () => {
+    const ctx = await harness()
+    const { agent } = await stubAgent(ctx, 'multi-root-visible')
+    const second = await secondRoot()
+    setAdditionalWorkspaceRoots(agent.session, [second])
+    await ctx.plugin(LocalFileReferenceService)
+
+    await expect(ctx.fileReferences.list(agent, 'service', new AbortController().signal))
+      .resolves.toEqual([{ path: join(second, 'service.ts').replaceAll('\\', '/'), kind: 'file' }])
+  })
+
+  it('retires the cached index when the session records a new root set', async () => {
+    const ctx = await harness()
+    const { agent } = await stubAgent(ctx, 'multi-root-change')
+    const second = await secondRoot()
+    await ctx.plugin(LocalFileReferenceService)
+    await expect(ctx.fileReferences.list(agent, 'service', new AbortController().signal))
+      .resolves.toEqual([])
+
+    setAdditionalWorkspaceRoots(agent.session, [second])
+
+    await expect(ctx.fileReferences.list(agent, 'service', new AbortController().signal))
+      .resolves.toEqual([{ path: join(second, 'service.ts').replaceAll('\\', '/'), kind: 'file' }])
+  })
+
+  it('keeps serving the primary root after the session drops its additional roots', async () => {
+    const ctx = await harness()
+    const { agent } = await stubAgent(ctx, 'multi-root-drop')
+    const second = await secondRoot()
+    setAdditionalWorkspaceRoots(agent.session, [second])
+    await ctx.plugin(LocalFileReferenceService)
+    await expect(ctx.fileReferences.list(agent, 'service', new AbortController().signal))
+      .resolves.toEqual([{ path: join(second, 'service.ts').replaceAll('\\', '/'), kind: 'file' }])
+
+    setAdditionalWorkspaceRoots(agent.session, [])
+
+    await expect(ctx.fileReferences.list(agent, 'service', new AbortController().signal))
+      .resolves.toEqual([])
+    await expect(ctx.fileReferences.list(agent, 'README', new AbortController().signal))
+      .resolves.toEqual([{ path: 'README.md', kind: 'file' }])
   })
 })

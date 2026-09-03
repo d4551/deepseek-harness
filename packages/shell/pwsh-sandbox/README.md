@@ -75,14 +75,15 @@ This section explains the design of the executor and points at the code that rea
 
 ### Design concept
 
-The executor is the pwsh twin of `dsh-bash-sandbox`: it inherits `dsh-pwsh-local`'s process mechanics, consumes its argv-level seam (`argv()`/`runArgv()`/`startArgv()`/`onProcessDone()`), and wraps the exact pwsh invocation through `ctx.sandbox.confine()` before spawning. The confinement substance is platform-neutral — the sandbox seam resolves to the platform's runner — while this package owns the pwsh side only: the selected mode, enforcement completeness, and denial classification on results.
+The executor is the pwsh twin of `dsh-bash-sandbox`: it inherits `dsh-pwsh-local`'s dialect and process mechanics and turns on the seam's confinement layer, which wraps the exact pwsh invocation through `ctx.sandbox.confine()` before spawning. The confinement substance is platform-neutral — the sandbox seam resolves to the platform's runner — while this package owns the pwsh side only: the selected mode, enforcement completeness, and denial classification on results.
 
 ### Source map
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Plugin entry: `SandboxPwshExecutor`, per-process fact retention, run/start wrapping |
-| [`src/helpers.ts`](src/helpers.ts) | Denial, runner-failure, and runner-spawn-failure classification |
+| [`src/index.ts`](src/index.ts) | Plugin entry: `SandboxPwshExecutor` — the pwsh dialect with confinement turned on |
+| [`../shell/src/confinement.ts`](../shell/src/confinement.ts) | Argv wrapping, runner-failure conversion, and per-process fact retention, shared with `dsh-bash-sandbox` |
+| [`../shell/src/sandbox-classify.ts`](../shell/src/sandbox-classify.ts) | Denial, runner-failure, and runner-spawn-failure classification, shared with `dsh-bash-sandbox` |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; classification is observable in results) |
 | `tests/` | Exercised behavior across the ACL and platform runners |
 

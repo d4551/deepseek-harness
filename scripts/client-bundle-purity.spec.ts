@@ -110,6 +110,17 @@ describe('client bundle purity gate', () => {
     expect(() => resolveId('@deepseek-ai/dsh-token-meter/client/internal')).toThrow(/purity/)
   })
 
+  it('admits one Host wire-value subpath without admitting the Host package around it', () => {
+    // `cordis-host-runner/wire-values` is the value half of the client-safe
+    // wire vocabulary its sibling `./types` declares. The entry is anchored,
+    // so it names that one module and never a prefix of it.
+    expect(resolveId('@deepseek-ai/dsh-cordis-host-runner/wire-values')).toBeNull()
+    expect(() => resolveId('@deepseek-ai/dsh-cordis-host-runner')).toThrow(/purity/)
+    expect(() => resolveId('@deepseek-ai/dsh-cordis-host-runner/types')).toThrow(/purity/)
+    expect(() => resolveId('@deepseek-ai/dsh-cordis-host-runner/wire-values/x')).toThrow(/purity/)
+    expect(() => resolveId('@deepseek-ai/dsh-cordis-host-runner/wire-valuesX')).toThrow(/purity/)
+  })
+
   it('lets exact generated Remote contributions inline without admitting their package implementation', () => {
     expect(resolveId('@deepseek-ai/dsh-goal/remote')).toBeNull()
     expect(() => resolveId('@deepseek-ai/dsh-goal')).toThrow(/purity/)

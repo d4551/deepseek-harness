@@ -20,7 +20,7 @@ import type {
   WorkspaceValue,
 } from './types.ts'
 
-export type * from './types.ts'
+export type { DirectoryPickerErrorDetailsMap, WorkspaceArchiveSessionRequest, WorkspaceArchiveValue, WorkspaceBaseline, WorkspaceCreateRequest, WorkspaceCreateValue, WorkspaceDeleteRequest, WorkspaceDeleteValue, WorkspaceError, WorkspaceErrorDetailsMap, WorkspaceFollowFrame, WorkspaceFollowIncrement, WorkspaceInsertBeforeRequest, WorkspaceInsertSessionBeforeRequest, WorkspaceOrderValue, WorkspaceRenameRequest, WorkspaceValue, WorkspaceView } from './types.ts'
 export { DirectoryPickerController } from './directory-picker.ts'
 
 declare module '@deepseek-ai/cordis' {

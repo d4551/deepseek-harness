@@ -222,7 +222,7 @@ async function realHarness(
   })
   const parent = {
     id: 'real-parent',
-    session: { header: { cwd: instance.workspace } },
+    session: { header: { cwd: instance.workspace }, events: [] },
   } as unknown as Agent
   return {
     harness: {
@@ -284,7 +284,7 @@ function startRequest(
   })
 }
 
-describe('real Claude Agent SDK 0.3.241 and its distributed Claude Code 2.1.241 fixture', {
+describe('real Claude Agent SDK 0.3.259 and its distributed Claude Code 2.1.259 fixture', {
   timeout: 60_000,
 }, () => {
   it('inherits host settings and sends the exact task and fake key to local Messages', async () => {
@@ -294,13 +294,13 @@ describe('real Claude Agent SDK 0.3.241 and its distributed Claude Code 2.1.241 
       kind: 'complete',
       text: sentinel,
     })
-    expect(sdkPackage.version).toBe('0.3.241')
-    expect(sdkPackage.claudeCodeVersion).toBe('2.1.241')
-    expect(sdkPackage.optionalDependencies[platformPackage]).toBe('0.3.241')
+    expect(sdkPackage.version).toBe('0.3.259')
+    expect(sdkPackage.claudeCodeVersion).toBe('2.1.259')
+    expect(sdkPackage.optionalDependencies[platformPackage]).toBe('0.3.259')
     const version = await execFileAsync(claudeBin, ['--version'], {
       env: { ...process.env, ...harness.env },
     })
-    expect(version.stdout.trim()).toBe('2.1.241 (Claude Code)')
+    expect(version.stdout.trim()).toBe('2.1.259 (Claude Code)')
 
     const run = await startRequest(harness, task)
     await expect(run.result).resolves.toEqual({
@@ -313,7 +313,7 @@ describe('real Claude Agent SDK 0.3.241 and its distributed Claude Code 2.1.241 
       (message): message is SDKSystemMessage =>
         message.type === 'system' && message.subtype === 'init',
     )
-    expect(initMessage?.claude_code_version).toBe('2.1.241')
+    expect(initMessage?.claude_code_version).toBe('2.1.259')
     const spawnedExecutable = harness.spawnSpecs[0]?.argv[0]
     expect(spawnedExecutable).toBeDefined()
     expect(process.platform === 'win32'
@@ -401,11 +401,11 @@ describe('real Claude Agent SDK 0.3.241 and its distributed Claude Code 2.1.241 
     })
     const safeParent = {
       id: 'safe-parent',
-      session: { header: { cwd: safeInstance.workspace } },
+      session: { header: { cwd: safeInstance.workspace }, events: [] },
     } as unknown as Agent
     const bypassParent = {
       id: 'bypass-parent',
-      session: { header: { cwd: bypassInstance.workspace } },
+      session: { header: { cwd: bypassInstance.workspace }, events: [] },
     } as unknown as Agent
     const safeController = new AbortController()
 

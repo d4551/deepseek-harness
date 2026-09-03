@@ -8,6 +8,8 @@
  * @module @deepseek-ai/dsh-fs
  */
 
+import { isAbsolute, relative, sep } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { Context, Service } from '@deepseek-ai/cordis'
 import type { SandboxExecutionPolicy, SandboxMode } from '@deepseek-ai/dsh-sandbox'
 import type {
@@ -140,21 +142,33 @@ export abstract class FileSystem extends Service {
 
   /**
    * Return the canonical `file:` URI for a target in this filesystem's
-   * execution world. Backends own URI encoding because the host platform may
-   * differ from the execution platform.
+   * execution world.
+   *
+   * The default reads {@link processPath} as a host path. A backend whose
+   * execution world is not this host overrides it, because the host platform's
+   * URI encoding does not describe a remote path.
    * @param target - the resolved target to encode.
    * @returns the target's canonical file URI.
    */
-  abstract fileUrl(target: FsTarget): string
+  fileUrl(target: FsTarget): string {
+    return pathToFileURL(this.processPath(target)).href
+  }
 
   /**
    * Test canonical containment without exposing or parsing backend target
    * keys. Both targets must come from this provider.
+   *
+   * The default compares {@link processPath} values as host paths, so it
+   * follows the host's separator and case rules. A backend whose execution
+   * world is not this host overrides it.
    * @param parent - canonical directory target.
    * @param child - canonical candidate target.
    * @returns true when `child` is `parent` or a descendant of it.
    */
-  abstract contains(parent: FsTarget, child: FsTarget): boolean
+  contains(parent: FsTarget, child: FsTarget): boolean {
+    const path = relative(this.processPath(parent), this.processPath(child))
+    return path === '' || (path !== '..' && !path.startsWith(`..${sep}`) && !isAbsolute(path))
+  }
 
   /**
    * Return target metadata, or `undefined` when the target does not exist.

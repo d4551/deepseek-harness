@@ -66,7 +66,7 @@ const install: InvariantInstaller = Object.assign((ctx: Context, fail: Invariant
       prior.push(event)
     }
   }
-  /* jscpd:ignore-start -- package companions share dispatch and registration plumbing */
+  /* package companions share dispatch and registration plumbing */
   ctx.on('internal/dispatch', (_mode, eventName, args) => {
     if (eventName !== 'session/event') return
     const [session, event] = args as [Session, SessionEvent]
@@ -81,4 +81,3 @@ const install: InvariantInstaller = Object.assign((ctx: Context, fail: Invariant
  */
 export const apply = (ctx: Context): Promise<() => void> =>
   Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install))
-/* jscpd:ignore-end */

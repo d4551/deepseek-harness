@@ -117,8 +117,8 @@ This section explains how the bundle composes the spine and points at the code t
 @deepseek-ai/dsh-agent/invariant
 @deepseek-ai/dsh-scope/invariant
 @deepseek-ai/dsh-agent-loop/invariant package-owned relational checks
-@deepseek-ai/dsh-shell-env            managed DSH_* shell environment for model shell calls (unless toolBash=false)
-@deepseek-ai/dsh-tool-bash            the model-facing bash schema (unless toolBash=false)
+@deepseek-ai/dsh-shell-env            managed DSH_* shell environment for model shell calls (unless toolShell=false)
+@deepseek-ai/dsh-tool-shell           the model-facing shell schema (unless toolShell=false)
 @deepseek-ai/dsh-agent-instructions   AGENTS.md/CLAUDE.md workspace context loader
 @deepseek-ai/dsh-tool-skill           session-prefix skill catalog + model-facing loader schema
 @deepseek-ai/dsh-tool-jobs            job_output/job_list/job_kill schemas + completion notices
@@ -161,7 +161,7 @@ Read these pages when the package-level contract is not enough. They move from t
 <a id="model-experience"></a>
 ## Model Experience
 
-Indirectly, through the model-facing child plugins the bundle mounts — `dsh-system-prompt`, `dsh-tools`, `dsh-tool-skill`, `dsh-tool-bash`, `dsh-tool-jobs`, and `dsh-llm-retry`, plus `dsh-tool-goal` and the goal-round driver's prompts when `goals` is enabled; the bundle adds no model-bound wrapper content of its own.
+Indirectly, through the model-facing child plugins the bundle mounts — `dsh-system-prompt`, `dsh-tools`, `dsh-tool-skill`, `dsh-tool-shell`, `dsh-tool-jobs`, and `dsh-llm-retry`, plus `dsh-tool-goal` and the goal-round driver's prompts when `goals` is enabled; the bundle adds no model-bound wrapper content of its own.
 
 #### KV Cache effect
 

@@ -26,10 +26,13 @@ function snapshotMode(value: string | undefined): SnapshotSuiteOptions['mode'] {
 const controllerCases: readonly {
   readonly name: string
   readonly hasModelTurn: boolean
+  readonly comparesLog?: boolean
   readonly configPath?: string
 }[] = [
   { name: 'handshake', hasModelTurn: false },
-  { name: 'reject-extra-dirs', hasModelTurn: false },
+  // No model turn, but session/new records the accepted roots durably, so the
+  // session log is the evidence that the extra directory took effect.
+  { name: 'additional-directories', hasModelTurn: false, comparesLog: true },
   { name: 'cancel', hasModelTurn: true },
   { name: 'cancel-tool-calls', hasModelTurn: true },
   { name: 'escalation-approved', hasModelTurn: true },

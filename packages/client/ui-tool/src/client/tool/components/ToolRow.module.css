@@ -69,31 +69,12 @@
   font-weight: 400;
 }
 
-.sep {
-  flex: none;
-  width: 2px;
-  height: 2px;
-  border-radius: 1px;
-  margin: 0 8px;
-  background: var(--dsw-alias-label-caption);
-}
-
-.summary {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
-  color: var(--dsw-alias-label-tertiary);
-}
-
-/* Trailing summary fragment kept out of .summary's ellipsis, for a count whose
-   whole value is that it survives a narrow row (the todo row's parallel-active
-   `+n`). Repeats .summary's type because it sits beside that text, and its
-   `nowrap` too: `flex: none` stops the box shrinking but not the text wrapping,
-   which would break the one-line row in the narrow case the slot exists for. */
+/* Trailing summary fragment kept out of RowSummary's ellipsis, for a count
+   whose whole value is that it survives a narrow row (the todo row's
+   parallel-active `+n`). Repeats that text's type because it sits beside it,
+   and its `nowrap` too: `flex: none` stops the box shrinking but not the text
+   wrapping, which would break the one-line row in the narrow case the slot
+   exists for. */
 .summarySuffix {
   flex: none;
   margin-left: 4px;
@@ -103,7 +84,7 @@
   color: var(--dsw-alias-label-tertiary);
 }
 
-/* File-tool path: same geometry as .summary, with a persistent link affordance. */
+/* File-tool path: same geometry as RowSummary, with a persistent link affordance. */
 .fileLink {
   flex: 1 1 auto;
   min-width: 0;
@@ -133,50 +114,16 @@
   text-decoration-color: currentColor;
 }
 
-/* Error row's collapsed summary: the failure's first line in the error color. */
-.errorSummary {
-  color: var(--dsw-alias-state-error-primary);
-}
-
 /* Expanded body + Inspect pill wrapper (sibling of .row: clicks never toggle). */
 .bodyWrap {
   display: flex;
   flex-direction: column;
 }
 
-/* Hover-revealed jump to the trajectory record: a small pill in real flow
-   under the expanded body's bottom-left corner (it reserves its line, so
-   revealing never shifts layout); revealed by hovering anywhere on the tool
-   call — title row included — or by keyboard focus. */
-.inspectButton {
-  display: inline-flex;
-  align-self: flex-start;
-  align-items: center;
-  gap: 4px;
-  margin: 4px 0 2px 4px;
-  padding: 2px 8px;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 999px;
-  /* Base background, not bg-overlay: the overlay token is a raised dark
-     surface and reads too heavy for a quiet in-flow affordance. */
-  background: var(--dsw-alias-bg-base);
-  color: var(--dsw-alias-label-secondary);
-  font-size: 11px;
-  line-height: 16px;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 100ms ease;
-}
-
-.root:hover .inspectButton,
-.inspectButton:focus-visible {
+/* InspectPill's reveal target: hovering anywhere on the tool call — title row
+   included — brings the pill up. Keyboard focus is the primitive's own. */
+.root:hover .inspectButton {
   opacity: 1;
-}
-
-/* Solid hover fill (a translucent token would let content bleed through). */
-.inspectButton:hover {
-  background: var(--dsw-alias-interactive-bg-hover-solid);
-  color: var(--dsw-alias-label-primary);
 }
 
 /* Expanded-body scroll wrapper for the run_code CodeBlock; the IN/OUT card

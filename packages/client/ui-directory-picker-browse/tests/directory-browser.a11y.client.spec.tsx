@@ -2,7 +2,7 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
-import type { DirectoryListing } from '@deepseek-ai/dsh-api-remotes/client'
+import type { DirectoryListing } from '@deepseek-ai/dsh-host-directory-picker/types'
 import { DirectoryBrowser } from '../src/client/DirectoryBrowser.tsx'
 
 afterEach(cleanup)

@@ -1,6 +1,7 @@
 /** Package-owned durable retry-event invariants. @module @deepseek-ai/dsh-llm-retry/invariant */
 
 import type { Context } from '@deepseek-ai/cordis'
+import { stageSessionEvents } from '@deepseek-ai/dsh-session/invariant-staging'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { LlmFailure } from '@deepseek-ai/dsh-llm'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
@@ -145,24 +146,50 @@ function validateStarted(
   }
 }
 
+/** Whether one event is a durable retry record this package wrote. */
+function isRetryRecord(event: SessionEvent): boolean {
+  return event.type === 'llm/retry' || event.type === 'llm/retry-started'
+}
+
+/** Validate one retry record against the events that precede it. */
+function validateRecord(history: readonly SessionEvent[], event: SessionEvent, fail: InvariantFailure): void {
+  if (event.type === 'llm/retry') validateRetry(history, event, fail)
+  else if (event.type === 'llm/retry-started') validateStarted(history, event, fail)
+}
+
 /** Validate every retry record already present in one loaded session. */
 function validateSession(session: Session, fail: InvariantFailure): void {
   for (const [index, event] of session.events.entries()) {
-    if (event.type === 'llm/retry') validateRetry(session.events.slice(0, index), event, fail)
-    else if (event.type === 'llm/retry-started') validateStarted(session.events.slice(0, index), event, fail)
+    validateRecord(session.events.slice(0, index), event, fail)
   }
+}
+
+/**
+ * The session a retry record is judged against. Each check reads the committed
+ * prefix — the open turn and step, the routed provider, and the earlier
+ * records of the same chain — so the state is the session itself.
+ */
+interface RetryHistory {
+  /** The session whose committed events precede every staged candidate. */
+  readonly session: Session
 }
 
 /** Install validation for loaded and newly appended retry records. */
 const install: InvariantInstaller = Object.assign((ctx: Context, fail: InvariantFailure) => {
-  for (const session of ctx.sessions.list()) validateSession(session, fail)
-  ctx.on('session/created', (session) => { validateSession(session, fail) }, { global: true })
-  ctx.on('internal/dispatch', (_mode, eventName, args) => {
-    if (eventName !== 'session/event') return
-    const [session, event] = args as [Session, SessionEvent]
-    if (event.type === 'llm/retry') validateRetry(session.events, event, fail)
-    else if (event.type === 'llm/retry-started') validateStarted(session.events, event, fail)
-  }, { global: true })
+  stageSessionEvents<RetryHistory, SessionEvent>(ctx, fail, {
+    seed: (session) => {
+      validateSession(session, fail)
+      return { session }
+    },
+    stage: (state, event) => {
+      if (!isRetryRecord(event)) return undefined
+      validateRecord(state.session.events, event, fail)
+      return event
+    },
+    claims: isRetryRecord,
+    commit: state => state,
+    unstagedMessage: 'llm retry record published without pre-commit validation',
+  })
 }, { inject: ['sessions'] })
 
 /**

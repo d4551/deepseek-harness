@@ -2,7 +2,7 @@
 
 import { useId, useState, type ReactNode } from 'react'
 import {
-  CodeBlock, DisclosureRow, IconCodeOutline16, IconInspectOutline12, StateDot,
+  CodeBlock, DisclosureRow, IconCodeOutline16, InspectPill, StateDot,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
@@ -159,10 +159,7 @@ export function CordisDefineRow({
           )}
           {card.pluginId !== null && <div className={css.panelHint}>{t('panel.hint')}</div>}
           {inspect !== undefined && (
-            <button type="button" className={css.inspectButton} onClick={inspect}>
-              <IconInspectOutline12 />
-              {t('action.inspect')}
-            </button>
+            <InspectPill className={css.inspectButton} label={t('action.inspect')} onClick={inspect} />
           )}
         </div>
       </DisclosureRow>

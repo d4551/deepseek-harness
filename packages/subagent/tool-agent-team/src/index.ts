@@ -45,7 +45,7 @@ export const Config: z<Config> = z.object({
 /** Model-facing collaboration guidance for a Lead that hands work to named teammates. */
 const DELEGATED_POLICY = `Agent Teams is available in this session, but create teammates only when the user explicitly asks to use Agent Teams or teammates.
 
-The Team Lead and all teammates share the same working directory and filesystem. Edits are immediately visible to every member. Split write work into disjoint scopes, record expected write scopes on shared tasks, and use task dependencies when work must be ordered. Write-scope overlap is advisory, not a lock.
+The Team Lead and all teammates share the same working directory and filesystem. Edits are immediately visible to every member. Split write work into disjoint scopes, record expected write scopes on shared tasks, and use task dependencies when work must be ordered. Claiming a task whose write scopes overlap a task already in progress is refused; complete or release that task first.
 
 Prefer read/edit/write for file changes. If a file operation returns FS_STALE_VERSION, read the current file, rebase your intended change onto the new content, and retry. Bash, formatters, code generators, and scripts are not fully protected by the filesystem version guard; coordinate them explicitly and have the Lead review the final diff and run tests.
 
@@ -54,7 +54,7 @@ Use send_message for quiet information that must not start an idle teammate. Use
 /** Model-facing guidance for many members working one request off the shared board. */
 const SWARM_POLICY = `This session runs as a swarm: several teammates work one request at the same time and take their work from the shared task board instead of being told what to do.
 
-The Team Lead and all teammates share the same working directory and filesystem. Edits are immediately visible to every member. Give every task the write scopes it will touch, keep those scopes disjoint between tasks that may run at once, and use blocked_by when work must be ordered.
+The Team Lead and all teammates share the same working directory and filesystem. Edits are immediately visible to every member. Give every task the write scopes it will touch, keep those scopes disjoint between tasks that may run at once, and use blocked_by when work must be ordered. A task whose write scopes overlap a task already in progress cannot be claimed until that task completes or is released.
 
 As the Lead, decompose first and spawn second. Create one task per independently completable unit of work with team_task_create: a self-contained description that a member with no other context can execute, the write scopes it will modify, and blocked_by for anything it must wait on. Then spawn one teammate per stream of concurrent work and tell each to claim from the board. Do not name a specific task in a teammate's prompt; the board decides who gets what.
 
@@ -440,7 +440,7 @@ function install(agent: Agent, ctx: Context, config: Required<Config>): () => vo
 
     register(scoped.tools.register(defineTool({
       name: 'team_task_update',
-      description: 'Compare-and-set a shared task action using the latest revision from team_task_get or team_task_list.',
+      description: 'Compare-and-set a shared task action using the latest revision from team_task_get or team_task_list. claim, reassign, and a scope-widening edit are refused when the write scopes overlap a task already in progress.',
       parameters: {
         task_id: { type: 'string', required: true, description: 'Shared task id.' },
         expected_revision: { type: 'integer', required: true, description: 'Current task revision used as the CAS precondition.' },
@@ -453,7 +453,7 @@ function install(agent: Agent, ctx: Context, config: Required<Config>): () => vo
         subject: { type: 'string', description: 'Replacement title for edit.' },
         description: { type: 'string', description: 'Replacement details for edit.' },
         blocked_by: { type: 'array', items: { type: 'string' }, description: 'Complete blocker list for set_dependencies.' },
-        write_scopes: { type: 'array', items: { type: 'string' }, description: 'Replacement advisory write scopes for edit.' },
+        write_scopes: { type: 'array', items: { type: 'string' }, description: 'Replacement write scopes for edit.' },
         owner: { type: 'string', description: 'Member name for Lead-only reassign; omit to unassign.' },
       },
       output: jsonOutput(TASK_VIEW_SCHEMA),

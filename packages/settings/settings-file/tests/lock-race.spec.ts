@@ -117,7 +117,9 @@ describe('writer-lock failure cleanup', () => {
     const disposing = fiber.dispose()
     void disposing.then(() => { disposed = true })
     await vi.waitFor(() => {
-      expect((settings as unknown as { closed: boolean }).closed).toBe(true)
+      // Teardown flips the document queue's refuse-new-work flag before the
+      // in-flight create settles; the provider itself keeps no such field.
+      expect((settings as unknown as { queue: { isClosed(): boolean } }).queue.isClosed()).toBe(true)
     })
     expect(disposed).toBe(false)
     releaseCreate()

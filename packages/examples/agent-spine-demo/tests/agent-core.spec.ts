@@ -665,10 +665,10 @@ describe('dsh-agent-spine-demo bundle', () => {
     }
   })
 
-  it('forwards its bundled tool configs to tool-bash and tool-jobs', async () => {
+  it('forwards its bundled tool configs to tool-shell and tool-jobs', async () => {
     const ctx = await mount({
       workspaceContext: false,
-      toolBash: { enableRunInBackground: false },
+      toolShell: { dialect: 'bash' as const, enableRunInBackground: false },
       toolJobs: { waitTimeoutMs: 7, maxWaitTimeoutMs: 11 },
     }, true)
 
@@ -698,7 +698,7 @@ describe('dsh-agent-spine-demo bundle', () => {
     const ctx = await mount({
       workspaceContext: false,
       skills: { enabled: false },
-      toolBash: { enableRunInBackground: false },
+      toolShell: { dialect: 'bash' as const, enableRunInBackground: false },
       toolJobs: false,
     }, true)
 
@@ -716,7 +716,7 @@ describe('dsh-agent-spine-demo bundle', () => {
       persona: 'You are a helpful software engineer assistant.',
       workspaceContext: false,
       skills: { enabled: false },
-      toolBash: false,
+      toolShell: false,
       toolJobs: false,
     }, true)
 
@@ -742,7 +742,7 @@ describe('dsh-agent-spine-demo bundle', () => {
       sessionTitle: { fallbackMaxWords: 3, fallbackMaxBytes: 24, maxTitleBytes: 60 },
       workspaceContext: false as const,
       skills: { enabled: false },
-      toolBash: { enableRunInBackground: false },
+      toolShell: { dialect: 'bash' as const, enableRunInBackground: false },
       jobs: { maxConcurrentJobsPerOwner: 4 },
       toolJobs: false as const,
       invariants: { enabled: false },
@@ -760,7 +760,7 @@ describe('dsh-agent-spine-demo bundle', () => {
       sessionTitle: appConfig.sessionTitle,
       workspaceContext: false,
       skills: appConfig.skills,
-      toolBash: appConfig.toolBash,
+      toolShell: appConfig.toolShell,
       jobs: appConfig.jobs,
       toolJobs: appConfig.toolJobs,
       invariants: appConfig.invariants,

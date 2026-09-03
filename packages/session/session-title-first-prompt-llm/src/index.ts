@@ -13,18 +13,12 @@ export const inject = ['sessionTitle', 'llm', 'sessions']
 
 /** Required LLM policy; this plugin adds no defaults. */
 export type Config = SessionTitleLlmConfig
-/** Loader schema shared with the all-messages provider. */
-/* jscpd:ignore-start -- Loader requires each plugin to export its own statically walkable schema; the field validators remain shared. */
-export const Config: z<Config> = z.object({
-  targetWords: SessionTitleLlmConfigFields.targetWords,
-  targetCjkCharacters: SessionTitleLlmConfigFields.targetCjkCharacters,
-  maxInputBytes: SessionTitleLlmConfigFields.maxInputBytes,
-  maxOutputTokens: SessionTitleLlmConfigFields.maxOutputTokens,
-  timeoutMs: SessionTitleLlmConfigFields.timeoutMs,
-  provider: SessionTitleLlmConfigFields.provider,
-  model: SessionTitleLlmConfigFields.model,
-})
-/* jscpd:ignore-end */
+/**
+ * Loader schema over the seam's field validators. Each plugin exports its own
+ * `Config` because the Loader and the config catalog read it from the entry
+ * file; the fields themselves stay owned by `dsh-session-title-llm`.
+ */
+export const Config: z<Config> = z.object(SessionTitleLlmConfigFields)
 
 /**
  * Register the first-prompt model provider.

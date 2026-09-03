@@ -29,7 +29,7 @@ kind: "package-reference"
 
 ### 选择姿态
 
-设置 `baseURL` 指向已在运行的 LiteRT-LM 服务器——容器、Railway 服务，或在 harness 之外启动的服务器。此时不会启动任何进程，也不会导入任何模型，因此 `server.cwd` 必须缺省，任何模型也不得指定 `huggingFaceRepo`。
+设置 `baseURL` 指向已在运行的 LiteRT-LM 服务器——容器、Railway 服务，或在 harness 之外启动的服务器。此时不会启动任何进程，也不会导入任何模型，因此 `server.cwd` 必须缺省，任何模型也不得指定两条导入指令 `file` 与 `huggingFaceRepo` 中的任何一条。
 
 改为设置 `server.cwd` 则监管本地服务器。插件会导入所有已配置的模型，启动 `litert-lm serve`，等待 `GET /v1/models` 作出响应，并在插件销毁时终止该进程。两者都设置或都不设置，都会在加载时以点名这两个键的消息失败。
 
@@ -62,8 +62,10 @@ kind: "package-reference"
 | `server.port` | `9379` | 传给 `--port` 的端口 |
 | `server.startupTimeoutMs` | `120,000` | 服务器被启动后回应 `GET /v1/models` 的预算 |
 | `server.importTimeoutMs` | `1,800,000` | 一次 `litert-lm import` 的预算，按数 GB 下载设定 |
+| `server.maxStdoutBytes` | `1,048,576` | 每个子进程保留的 stdout 尾部；`litert-lm list` 由它解析，因此小于一次注册表列表的界限会丢失 id 并重新导入数 GB |
+| `server.maxStderrBytes` | `65,536` | 每个子进程保留、并在失败信息中被引用的 stderr 尾部；纯诊断用途 |
 
-每个模型都要指明其 `litert-lm` 注册表 id、`.litertlm` 文件，以及 harness 据以进行上下文管理的容量。生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-llm-litert)是每个受支持字段及其 JSDoc 的穷尽式真源。
+每个模型都要指明其 `litert-lm` 注册表 id，以及 harness 据以进行上下文管理的容量。被监管的模型还要指明其导入所读取的 `.litertlm` `file`，并可选地指明从中拉取它的 `huggingFaceRepo`；远程模型两者都不指明。生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-llm-litert)是每个受支持字段及其 JSDoc 的穷尽式真源。
 
 ### 单独部署服务器
 
@@ -71,7 +73,7 @@ kind: "package-reference"
 
 ### 加载期失败
 
-配置解析先于任何导入运行，因此无法提供的模型列表会直接失败，不必先付出数 GB 的下载代价。重复的模型 id、空的 id 或 file、远程路由上的 `huggingFaceRepo`、非 `http`／`https` 的 `baseURL`，以及大于启动预算的健康检查间隔，都会以点名该键的消息失败。被监管的路由还会在以下情况失败：可执行文件无法解析、导入未在 `importTimeoutMs` 内完成，或服务器未在 `startupTimeoutMs` 内作出响应；失败信息中会引用保留的 stderr 尾部。
+配置解析先于任何导入运行，因此无法提供的模型列表会直接失败，不必先付出数 GB 的下载代价。重复的模型 id、空的 id、远程路由上的导入指令、缺少 `file` 的被监管模型、非 `http`／`https` 的 `baseURL`，以及大于启动预算的健康检查间隔，都会以点名该键的消息失败。被监管的路由还会在以下情况失败：可执行文件无法解析、导入未在 `importTimeoutMs` 内完成，或服务器未在 `startupTimeoutMs` 内作出响应；失败信息中会引用保留的 stderr 尾部。
 
 -----
 
@@ -119,6 +121,15 @@ kind: "package-reference"
 
 -----
 
+## 模型体验
+
+间接影响，通过 `dsh-llm-pi-ai` 体现，该适配器拥有使用本路由档案发出的每个请求。
+
+#### KV Cache 影响
+
+不会直接导致失效；被委派的适配器与请求组装负责任何前缀变更。
+
+
 ## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
@@ -145,10 +156,3 @@ kind: "package-reference"
 -----
 
 <a id="model-experience"></a>
-## 模型体验
-
-间接影响，通过 `dsh-llm-pi-ai` 体现，该适配器拥有使用本路由档案发出的每个请求。
-
-#### KV Cache 影响
-
-不会直接导致失效；被委派的适配器与请求组装负责任何前缀变更。

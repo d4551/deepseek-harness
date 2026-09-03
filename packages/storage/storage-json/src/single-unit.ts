@@ -11,11 +11,11 @@
 
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { StorageError } from '@deepseek-ai/dsh-storage'
 import type { KvUnit, KvUnitDescriptor } from '@deepseek-ai/dsh-storage'
 import { writeAtomic } from './atomic.ts'
 import { parse, serialize } from './format.ts'
 import type { UnitState } from './format.ts'
+import { JsonUnitLifecycle } from './unit-lifecycle.ts'
 
 /**
  * Open (load or lazily create) one `single`-layout unit under `root`: the
@@ -49,17 +49,15 @@ export async function openSingleUnit(
   return new SingleJsonUnit(descriptor, path, state, onClose)
 }
 
-class SingleJsonUnit implements KvUnit {
-  private closed = false
-  /** In-flight publishes; close() drains them before releasing the unit. */
-  private readonly inFlight = new Set<Promise<void>>()
-
+class SingleJsonUnit extends JsonUnitLifecycle implements KvUnit {
   constructor(
-    private readonly descriptor: KvUnitDescriptor,
+    descriptor: KvUnitDescriptor,
     private readonly path: string,
     private readonly state: UnitState,
-    private readonly onClose: () => void,
-  ) {}
+    onClose: () => void,
+  ) {
+    super(descriptor, onClose)
+  }
 
   // oxlint-disable-next-line typescript/require-await -- async keeps the closed guard a rejection, not a synchronous throw
   async loadAll(): Promise<{ tables: Record<string, Record<string, unknown>>; global: unknown }> {
@@ -100,9 +98,7 @@ class SingleJsonUnit implements KvUnit {
 
   async setGlobal(value: unknown): Promise<void> {
     this.assertOpen()
-    if (!this.descriptor.hasGlobal) {
-      throw new Error(`unit '${this.descriptor.name}' does not declare a global slot`)
-    }
+    this.assertGlobalDeclared()
     const previous = this.state.global
     this.state.global = value
     await this.publish().catch((error: unknown) => {
@@ -110,24 +106,6 @@ class SingleJsonUnit implements KvUnit {
       throw error
     })
   }
-
-  /* jscpd:ignore-start -- the two unit classes are standalone; the drain/guard lifecycle mirrors the shared KvUnit contract */
-  async close(): Promise<void> {
-    if (this.closed) {
-      await Promise.allSettled(this.inFlight)
-      return
-    }
-    this.closed = true
-    await Promise.allSettled(this.inFlight)
-    this.onClose()
-  }
-
-  private assertOpen(): void {
-    if (this.closed) {
-      throw new StorageError('closed', `unit '${this.descriptor.name}' is closed`)
-    }
-  }
-  /* jscpd:ignore-end */
 
   private records(table: string): Map<string, unknown> {
     const records = this.state.tables.get(table)
@@ -138,11 +116,6 @@ class SingleJsonUnit implements KvUnit {
   }
 
   private publish(): Promise<void> {
-    const write = writeAtomic(this.path, serialize(this.descriptor.name, this.state))
-    this.inFlight.add(write)
-    // Swallow only on the tracking branch: the caller still awaits `write`
-    // itself, so rejections stay observed exactly once.
-    write.catch(() => {}).finally(() => this.inFlight.delete(write))
-    return write
+    return this.tracked(writeAtomic(this.path, serialize(this.descriptor.name, this.state)))
   }
 }

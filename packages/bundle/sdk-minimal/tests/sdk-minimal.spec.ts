@@ -36,8 +36,8 @@ describe('dsh-sdk-minimal bundle', () => {
       ['terminal-pwsh', '@deepseek-ai/dsh-terminal-bash'],
       ['fs-local', '@deepseek-ai/dsh-fs-local'],
       ['agent-spine', '@deepseek-ai/dsh-agent-spine-demo'],
-      ['persistent-bash', '@deepseek-ai/dsh-tool-bash-persistent'],
-      ['persistent-pwsh', '@deepseek-ai/dsh-tool-pwsh-persistent'],
+      ['persistent-bash', '@deepseek-ai/dsh-tool-shell-persistent'],
+      ['persistent-pwsh', '@deepseek-ai/dsh-tool-shell-persistent'],
       ['str-replace-editor', '@deepseek-ai/dsh-tool-str-replace-editor'],
       ['sessions', '@deepseek-ai/dsh-session-persistence-jsonl'],
     ])
@@ -56,7 +56,7 @@ describe('dsh-sdk-minimal bundle', () => {
       includeRuntimeContext: false,
       workspaceContext: false,
       skills: { enabled: false },
-      toolBash: false,
+      toolShell: false,
       toolJobs: false,
     })
     expect(rows.find(row => row.id === 'terminal-bash')).toMatchObject({

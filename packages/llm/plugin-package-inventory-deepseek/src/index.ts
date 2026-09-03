@@ -19,7 +19,7 @@ import type {} from '@deepseek-ai/dsh-agent-presets'
 import type { DeepSeekPluginPackageIdentity, DeepSeekPluginPackageInventoryExtension } from './types.ts'
 import type {} from './types.ts'
 
-export type * from './types.ts'
+export type { DeepSeekPluginPackageIdentity, DeepSeekPluginPackageInventoryExtension } from './types.ts'
 
 /** Cordis plugin name. */
 export const name = 'plugin-package-inventory-deepseek'

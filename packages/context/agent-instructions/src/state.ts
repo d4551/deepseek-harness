@@ -4,6 +4,7 @@
  * @module @deepseek-ai/dsh-agent-instructions/state
  */
 
+import { resolve } from 'node:path'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { Message } from '@deepseek-ai/dsh-llm'
@@ -19,6 +20,8 @@ import {
   openSourceBudget,
   readScopeInstruction,
   relativeDisplay,
+  touchedWorkspaceRoot,
+  workspaceRootChain,
   type LoadedInstructionFile,
 } from './files.ts'
 import {
@@ -241,7 +244,7 @@ function relativeScope(projectRoot: string, dir: string): string {
  * @param resolved - normalized plugin configuration.
  * @param versionCache - per-session scope metadata used to skip unchanged reads.
  * @param fileSystem - provider used for current file probes.
- * @param options - authoritative claimed context, pending scope hints, touched paths, and baseline participation.
+ * @param options - claimed authority, pending scope hints, touched paths, additional roots, and baseline participation.
  * @returns rendered context plus deferred cache updates, or undefined when unchanged/unavailable.
  */
 export async function reconcileInstructionContext(
@@ -253,6 +256,8 @@ export async function reconcileInstructionContext(
     authorityMessages: readonly UserMessage[]
     scopeMessages: readonly UserMessage[]
     touchedPaths: readonly string[]
+    /** The session's additional workspace roots, whose chains and touches reconcile beside the primary root's. */
+    additionalRoots?: readonly string[]
     includeBaselineScopes: boolean
     excludedBaselineScopes?: ReadonlySet<string>
     projectRoot?: string
@@ -262,7 +267,11 @@ export async function reconcileInstructionContext(
   const session = agent.session
   const effective = visibleInstructionChanges(agent, options.authorityMessages)
   /* v8 ignore next -- normal agents carry an absolute session cwd. */
-  const cwd = session.header.cwd ?? process.cwd()
+  const cwd = resolve(session.header.cwd ?? process.cwd())
+  // Resolved, so a root respelling the session cwd compares equal to it below
+  // and keeps that chain's project-relative keys instead of minting a second,
+  // absolute key for the same file.
+  const additionalRoots = (options.additionalRoots ?? []).map(root => resolve(root))
   // One budget spans the whole reconciliation batch, so its reads are bounded
   // in aggregate exactly like a baseline load.
   const sourceBudget = openSourceBudget(resolved.maxTotalSourceBytes)
@@ -277,11 +286,21 @@ export async function reconcileInstructionContext(
     for (const candidate of resolved.instructionFileCandidates) target.add(candidateScopeKey(directory, candidate))
     for (const candidate of resolved.localInstructionFileCandidates) target.add(candidateScopeKey(directory, candidate))
   }
-  const addProjectScopes = (target: Set<string>, dir: string): void => {
-    addDirScopes(target, relativeScope(projectRoot, dir))
+  // The primary root keys the directories its own chain and touches reach
+  // relative to the project root; every other root keys its own absolutely,
+  // matching the absolute display paths discovery gives that root's files. A
+  // directory both reach is probed once, because the two keys address the same
+  // candidate and `seenAbsolutePaths` below keeps only the first.
+  const addRootScopes = (target: Set<string>, root: string, dir: string): void => {
+    addDirScopes(target, root === cwd ? relativeScope(projectRoot, dir) : dir)
   }
   baselineScopes.add(candidateScopeKey(USER_GLOBAL_DIRECTORY, USER_GLOBAL_FILE))
-  for (const dir of ancestorChain(projectRoot, cwd)) addProjectScopes(baselineScopes, dir)
+  for (const dir of ancestorChain(projectRoot, cwd)) addRootScopes(baselineScopes, cwd, dir)
+  for (const root of additionalRoots) {
+    for (const dir of await workspaceRootChain(root, resolved.projectRootMarkers, fileSystem, options.signal)) {
+      addRootScopes(baselineScopes, root, dir)
+    }
+  }
   if (options.includeBaselineScopes) {
     for (const scope of baselineScopes) scopes.add(scope)
   }
@@ -300,7 +319,8 @@ export async function reconcileInstructionContext(
     else addDirScopes(scopes, directory)
   }
   for (const touchedPath of options.touchedPaths) {
-    for (const dir of descendantDirsBetween(cwd, touchedPath)) addProjectScopes(scopes, dir)
+    const root = touchedWorkspaceRoot(cwd, additionalRoots, touchedPath)
+    for (const dir of descendantDirsBetween(root, touchedPath)) addRootScopes(scopes, root, dir)
   }
 
   const versions = versionStatesFor(session, versionCache)

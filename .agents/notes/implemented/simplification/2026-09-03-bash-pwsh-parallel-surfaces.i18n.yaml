@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-03-bash-pwsh-parallel-surfaces.md
+2026-09-03-bash-pwsh-parallel-surfaces.md: 53d15ac8e53211944b4e2477257f5cea36372d0b
+2026-09-03-bash-pwsh-parallel-surfaces.zh.md: c95af14230d745a9ccd3167248b8bb9072c1ff4e

@@ -22,6 +22,10 @@
       "types": "./lib/types/invariant.d.ts",
       "default": "./lib/invariant.js"
     },
+    "./invariant-staging": {
+      "types": "./lib/types/invariant-staging.d.ts",
+      "default": "./lib/types/invariant-staging.js"
+    },
     "./types": {
       "types": "./lib/types/types.d.ts",
       "default": "./lib/types/types.js"
@@ -29,6 +33,10 @@
     "./chunk-rows": {
       "types": "./lib/types/chunk-rows.d.ts",
       "default": "./lib/types/chunk-rows.js"
+    },
+    "./chunk-run-codec": {
+      "types": "./lib/types/chunk-run-codec.d.ts",
+      "default": "./lib/types/chunk-run-codec.js"
     },
     "./workspace-roots": {
       "types": "./lib/types/workspace-roots.d.ts",

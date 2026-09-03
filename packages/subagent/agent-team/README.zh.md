@@ -133,7 +133,7 @@ Lead 可以停止 teammate 的当前轮次，而不会删除其排队的消息�
 
 ### 共享任务板
 
-任务是完整版本化快照；每次变更都携带 `expectedRevision`，陈旧调用方会收到 `TEAM_TASK_STALE_REVISION`，而不会覆盖更新的值。数字 `task-<n>` id 的后缀必须是安全整数，id 空间耗尽时报告 `TEAM_TASK_LIMIT`，而不是复用最后一个 id。已删除任务作为 tombstone 保留以供回放与维持 id 稳定，但不占用 `maxTasks`，也不出现在 `listTasks()` 中。`writeScopes` 是规范化后的 workspace 相对前缀；视图会对与 in-progress 任务的重叠发出警告，但绝不阻止 claim 或授予写权限。
+任务是完整版本化快照；每次变更都携带 `expectedRevision`，陈旧调用方会收到 `TEAM_TASK_STALE_REVISION`，而不会覆盖更新的值。数字 `task-<n>` id 的后缀必须是安全整数，id 空间耗尽时报告 `TEAM_TASK_LIMIT`，而不是复用最后一个 id。已删除任务作为 tombstone 保留以供回放与维持 id 稳定，但不占用 `maxTasks`，也不出现在 `listTasks()` 中。`writeScopes` 是规范化后的 workspace 相对前缀，也是任务板的互斥键：只要另一个 in-progress 任务持有重叠前缀，任何会让任务处于 in_progress 的提交都会以 `TEAM_TASK_WRITE_SCOPE_CONFLICT` 被拒绝，因此 `claim`、`reassign` 以及扩大作用域的 `edit` 都受 `claimNextReadyTask()` 所延后的同一条规则约束。pending 任务的视图会指出正在阻塞它的 in-progress 任务。这些前缀不授予任何写权限：成员仍然可以写到其认领范围之外。
 
 ### 等待与中断
 
@@ -194,7 +194,7 @@ Peer 消息追加在 target 可复用历史前缀之后。冷恢复会先复用�
 
 - **Prerelease，无稳定性承诺**——本包以 `0.x` alpha 发布，约定仍可自由变更。
 - **单进程、共享 checkout**——成员共享 cwd，修改立即可见；本包不提供 worktree、远端成员、merge 或文件锁。
-- **write scope 仅作提示**——Bash、formatter、代码生成器与直接外部写入可以绕过文件版本检查；Lead 必须协调 owner 并检查最终 diff。
+- **write scope 互斥的是任务，不是写入者**——任务板会拒绝两个 in-progress 任务落在重叠前缀上，但 Bash、formatter、代码生成器与直接外部写入仍可写到任何位置并绕过文件版本检查；Lead 必须检查最终 diff。
 - **扁平且不可变的 roster**——只有 Lead 可以创建直接 teammate；不支持嵌套 Team、重命名、删除或名字复用。
 - **不会自动释放 owner**——idle、interrupt、进程退出与工作失败都不会释放任务 owner。
 - **mailbox 不保证跨进程 exactly-once**——不支持多个 harness 进程并发操作同一 Team。

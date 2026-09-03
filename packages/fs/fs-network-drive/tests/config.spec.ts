@@ -80,10 +80,17 @@ describe('NetworkDriveFileSystem cancellation and configuration', () => {
     expect(drive.reads.at(0)?.path).toBe('team/space/report.md')
   })
 
-  it('registers the package-owned invariant installer and removes it on disposal', async () => {
+  it('registers the package-owned invariant installer and releases it on disposal', async () => {
     const ctx = new Context()
     await ctx.plugin(InvariantRegistry, { enabled: true })
     const fiber = await ctx.plugin(FsNetworkDriveInvariant).await()
+    // The registry refuses a second registration under the same package name,
+    // which is what makes the mount observable: the same call can only succeed
+    // once disposal has released the name.
+    expect(() => ctx.invariants.register('@deepseek-ai/dsh-fs-network-drive', () => {})).toThrow('already registered')
     await fiber.dispose()
+    const release = ctx.invariants.register('@deepseek-ai/dsh-fs-network-drive', () => {})
+    expect(typeof release).toBe('function')
+    release()
   })
 })

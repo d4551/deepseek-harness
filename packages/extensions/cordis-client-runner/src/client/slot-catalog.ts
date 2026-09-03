@@ -13,7 +13,6 @@
  * @module @deepseek-ai/dsh-cordis-client-runner/client/slot-catalog
  */
 
-/* jscpd:ignore-start */
 /** One option a register call passes for a given slot cardinality. */
 export interface ClientSlotOption {
   /** Option name as written in the register options object. */
@@ -147,7 +146,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ],
     replaceRisk: 'shadows-shipped-ui',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'conversation.approval.detail\', () => ctx.slots.register(\n      { name: \'conversation.approval.detail\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
-    source: 'packages/client/ui-approval/src/client/contract/slots.ts:37',
+    source: 'packages/client/ui-approval/src/client/contract/slots.ts:25',
   },
   {
     key: 'conversation.chat.assistant-actions',
@@ -1147,8 +1146,8 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     declaredBy: 'an entry in \'conversation.session.header\' (client-ui-conversation), so it exists while that entry is mounted',
     occupants: [
       'client-ui-agent-preset AgentPresetLabel id \'agent-preset\'',
+      'client-ui-agent-team TeamAction id \'agent-team\'',
       'client-ui-jobs JobListAction id \'job-list\'',
-      'experimental-client-ui-agent-team TeamAction id \'agent-team\'',
     ],
     replaceRisk: 'none',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'conversation.session.header.actions\', () => ctx.slots.register(\n      { name: \'conversation.session.header.actions\', id: \'my-entry\', order: 100, label: \'My entry\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
@@ -2225,4 +2224,3 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     source: 'packages/extensions/ui-cordis/src/client/slots.ts:33',
   },
 ]
-/* jscpd:ignore-end */

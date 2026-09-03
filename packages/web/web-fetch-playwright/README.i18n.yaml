@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write packages/web/web-fetch-playwright/README.md
-README.md: 45a360174afae9a7d6f5b1ea81d126ff17d730f6
-README.zh.md: 906c2f159f2d37c60dbf5807c4023018a4b191e9
+README.md: 769ffe71a14545bc2b2b89fabac9cfae026c80f3
+README.zh.md: 2c931f0d4c5db558e454e5e2ac5d4b787c843a5d

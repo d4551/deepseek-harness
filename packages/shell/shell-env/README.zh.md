@@ -25,7 +25,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-在任何挂载模型 shell 工具（`dsh-tool-bash` 或 `dsh-tool-pwsh`）的组合中加载本插件：此后每次前台或后台 shell 调用都会运行在新收集的受管环境中，而不是进程继承来的任意 `DSH_*` 值。
+在任何挂载模型 shell 工具（`dsh-tool-shell`）的组合中加载本插件：此后每次前台或后台 shell 调用都会运行在新收集的受管环境中，而不是进程继承来的任意 `DSH_*` 值。
 
 ### 每次 shell 调用都会收到什么
 
@@ -104,8 +104,7 @@ contributor 必须声明它返回的每个键；返回未声明或非字符串�
 
 - [shell 包映射](../README.zh.md)——bash 能力家族及其角色。
 - [Bash 执行器子系统](../../../docs/subsystems/shell.zh.md)——工具执行所经由的 `ctx.shell` seam。
-- [tool-bash](../tool-bash/README.zh.md)——消费本环境的 bash 工具。
-- [tool-pwsh](../tool-pwsh/README.zh.md)——消费本环境的 pwsh 工具。
+- [tool-shell](../tool-shell/README.zh.md)——消费本环境的 shell 工具。
 - [home paths 包](../../util/home-paths/README.zh.md)——`DSH_HOME` 如何解析。
 - [生成的配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-shell-env)——每个受支持配置字段及其源声明。
 
@@ -114,7 +113,7 @@ contributor 必须声明它返回的每个键；返回未声明或非字符串�
 <a id="model-experience"></a>
 ## 模型体验
 
-通过 shell 工具（`dsh-tool-bash`、`dsh-tool-pwsh`）间接产生影响；这些工具把本注册表的受管 `DSH_*` 事实暴露在每次 shell 工具调用中。
+通过 shell 工具（`dsh-tool-shell`）间接产生影响；该工具把本注册表的受管 `DSH_*` 事实暴露在每次 shell 工具调用中。
 
 #### KV Cache 影响
 

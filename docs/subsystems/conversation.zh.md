@@ -18,7 +18,7 @@ Session Controller 拥有连续的已加载逻辑 event window。每个 `Session
 | View Definition | Target 包为每个 Session 创建一个增量 builder，并拥有该 target 的最终 snapshot 类型。 |
 | View | Chat 或 Trajectory 等 Slot entry 只读取自身 target snapshot，并渲染 target 自有 node。 |
 
-Chat 与 Trajectory 可以识别同一个持久 event family，但各自保留自己的 Definition State 与最终 node payload。共享的 target-neutral 机制只包括 identity routing、有序 replay、Location data、predecessor dependency 与 publication cadence。
+Chat 与 Trajectory 可以识别同一个持久 event family，但各自保留自己的 Definition State 与最终 node payload。target-neutral 机制涵盖 identity routing、有序 replay、Location data、predecessor dependency、publication cadence，以及每个 target 都以相同方式读取的 event 到 record 投影：带可见 block 与首 token 边界的 Assistant block 累积、带 subcall 边规则的 Tool call 与 result record、inbox 折叠与输入消息归类，以及把冻结 Node 相对收尾边界排序的 synthetic seq 偏移量。target 只提供由自身视图决定的部分——它接受哪些 surface、从何处为一个 step 计时，以及渲染什么。
 
 ## 可回放 event family
 

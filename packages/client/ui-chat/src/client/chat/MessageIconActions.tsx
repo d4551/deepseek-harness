@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import {
-  IconBranchOutline16, IconCheckOutline16, IconCopyOutline16, Tooltip, writeClipboard,
+  GlyphButton, IconBranchOutline16, IconCheckOutline16, IconCopyOutline16, Tooltip, writeClipboard,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ChatViewSlotProps } from '../contract/slots.ts'
 import { formatLatencySeconds, formatMessageClock, formatRunDuration, formatTokensPerSecond } from './message-chrome.ts'
@@ -111,16 +111,21 @@ export function MessageIconActions({
     <div className={className === undefined ? css.actions : `${css.actions} ${className}`}>
       {clock === 'start' ? clockEl : null}
       <Tooltip label={copied ? t('copied') : t('copy')} side="bottom">
-        <button type="button" className={css.action} aria-label={copied ? t('copied') : t('copy')} onClick={onCopy}>
+        <GlyphButton
+          surface="message"
+          className={css.action}
+          aria-label={copied ? t('copied') : t('copy')}
+          onClick={onCopy}
+        >
           {copied ? <IconCheckOutline16 /> : <IconCopyOutline16 />}
-        </button>
+        </GlyphButton>
       </Tooltip>
       {extraActions}
       {onBranch !== undefined && (
         <Tooltip label={branchUnavailable ? t('message.branchUnavailable') : t('message.branch')} side="bottom">
           {/* Native disabled buttons do not deliver the hover/focus events Tooltip needs. */}
-          <button
-            type="button"
+          <GlyphButton
+            surface="message"
             className={css.action}
             aria-label={t('message.branch')}
             aria-disabled={branchUnavailable || undefined}
@@ -129,7 +134,7 @@ export function MessageIconActions({
             onClick={branchUnavailable ? undefined : onBranch}
           >
             <IconBranchOutline16 />
-          </button>
+          </GlyphButton>
         </Tooltip>
       )}
       {onBranch !== undefined && branchUnavailable && (

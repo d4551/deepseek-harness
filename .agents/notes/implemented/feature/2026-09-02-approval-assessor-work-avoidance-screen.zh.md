@@ -14,7 +14,7 @@ Status: implemented
 
 `./invariant` 伴生件持有一条运行时关系：本插件注入的每条 `user/message` 必须在会话中存在未决的审批问题时追加（位于其 `approval/asked` 与 `approval/decided` 之间），因为该注入只作为该问题的拒绝上下文而存在。
 
-规范的 README 限制章节标题（`## Known Limitations and Deferred Work`）被宿主 MAS no-weasel-words 写入门禁逐字拒绝，该门禁把 "known limitation" 短语读作接受性措辞。因此该包在 `scripts/verify-package-readme-limitations.ts` 中被列入白名单，冲突原因记录在条目中，其 README 以 `## Behavior Boundaries` 章节记录边界。
+2026-09-03 起作废。本段曾记录规范的 README 限制章节标题（`## Known Limitations and Deferred Work`）无法写出，因此该包在 `scripts/verify-package-readme-limitations.ts` 中被列入白名单，并改用 `## Behavior Boundaries` 记录边界。该说法不成立：该标题可以正常写出，而且它断言的是某个写作工具的性质，而非本包的性质。白名单条目已删除，该章节使用规范标题，同一理由曾被复制到另外两个包的条目中，那两条也已删除。
 
 ## 考虑过的替代方案
 

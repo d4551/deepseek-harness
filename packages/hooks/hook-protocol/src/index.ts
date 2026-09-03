@@ -1,8 +1,10 @@
 /**
- * Shared, non-plugin hook protocol library: matching, command execution and
- * decoding, restrictive outcome merging, durable event helpers, and detached
- * run quiescence. Claude Code and Codex bridges own their distinct payloads,
- * environment rules, matcher mode, and typed extension-point mappings.
+ * Shared, non-plugin hook bridge library: config loading and matcher-group
+ * parsing, matching, command execution and decoding, restrictive outcome
+ * merging, durable event helpers, detached run quiescence, and the interception
+ * extension points both dialects map onto. Claude Code and Codex bridges own
+ * their distinct payload field sets, config entry formats, environment rules,
+ * and the capabilities each honors.
  * @module @deepseek-ai/dsh-hook-protocol
  */
 
@@ -23,3 +25,24 @@ export { appendHookInvoked, appendHookResult, DEFAULT_STDERR_SUMMARY_MAX_CHARS, 
 export type { HookInvocation, HookResultRecord } from './events.ts'
 export { createDetachedRuns } from './detached.ts'
 export type { DetachedRuns } from './detached.ts'
+export { parseHookGroups } from './config.ts'
+export type { HookGroupParseRules, HookGroups, ParsedHookGroups } from './config.ts'
+export { hookEventFields, lastTurn } from './payload.ts'
+export type { HookEventFields } from './payload.ts'
+export { startHookBridge } from './bridge.ts'
+export type { HookBridge, HookBridgeOptions, HookRunScope, UnhonoredHookField } from './bridge.ts'
+export {
+  injectHookContext,
+  registerPostToolHook,
+  registerPreStepHook,
+  registerPreToolHook,
+  registerSessionStartHook,
+  registerTurnStoppingHook,
+} from './extension-points.ts'
+export type {
+  PostToolHookOptions,
+  PreStepHookOptions,
+  PreToolHookOptions,
+  SessionStartHookOptions,
+  TurnStoppingHookOptions,
+} from './extension-points.ts'

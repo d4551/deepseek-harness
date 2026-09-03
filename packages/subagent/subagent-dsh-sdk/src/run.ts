@@ -41,6 +41,12 @@ export interface SdkRunSpec {
    * config override, else the delegating parent session's workspace.
    */
   cwd: string
+  /**
+   * The delegating parent's other workspace roots, recorded on the child
+   * runtime's own session as its additional workspace roots. Empty for a
+   * single-root parent.
+   */
+  workspaceRoots: readonly string[]
   /** Provider route the child runtime initializes with. */
   provider: string
   /** Model the child runtime initializes with. */
@@ -224,9 +230,9 @@ function sdkStartupFailure(spec: SdkRunSpec, error: unknown): Error {
  * or shutdown alone after cancellation, without claiming quiescence. Disposal
  * shuts the runtime down and reaps it.
  * @param request - the start request; its signal is the cancellation channel.
- * @param spec - the resolved spawn spec: profile/patches/home/cwd, the child's
- * provider/model/reasoning route, output cap, env, timeouts, and the optional
- * error sink.
+ * @param spec - the resolved spawn spec: profile/patches/home/cwd, the
+ * inherited workspace roots, the child's provider/model/reasoning route,
+ * output cap, env, timeouts, and the optional error sink.
  * @returns the ready run handle for the child subprocess.
  */
 export async function startSdkRun(request: SubagentStartRequest, spec: SdkRunSpec): Promise<SubagentRun> {
@@ -246,6 +252,9 @@ export async function startSdkRun(request: SubagentStartRequest, spec: SdkRunSpe
     disposeEofGraceMs: spec.disposeEofGraceMs,
     disposeGraceMs: spec.disposeGraceMs,
     cwd: spec.cwd,
+    ...spec.workspaceRoots.length === 0
+      ? {}
+      : { additionalDirectories: [...spec.workspaceRoots] },
     provider: spec.provider,
     model: spec.model,
     ...spec.reasoningEffort === undefined ? {} : { reasoningEffort: spec.reasoningEffort },

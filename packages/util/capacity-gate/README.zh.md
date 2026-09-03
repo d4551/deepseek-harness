@@ -1,13 +1,13 @@
 ---
 description: "零依赖的有界 FIFO 准入控制，供需要限制并发工作量、又不能让被准入操作的结算相互耦合的能力持有者使用。"
-kind: "package-library"
+kind: "package-reference"
 ---
 
 # @deepseek-ai/dsh-capacity-gate
 
 [English](README.md) | 中文
 
-## 概要
+## 概述
 
 `dsh-capacity-gate` 限制一个持有者同时运行多少个操作。调用方用 `acquire()` 取得一个名额，执行自己的工作，再通过闸门返回的幂等 release 归还名额。在闸门已满时到达的调用方按到达顺序排队，并以先进先出的顺序获得准入。闸门只推迟准入：它从不取消、结算或清理被准入的工作，因此共用一个闸门的两个操作保持各自独立的结算。取消有两种作用域——每次准入自带的 `AbortSignal` 只拒绝那一个等待者，且该等待者不持有任何名额；而 `close(error)` 拒绝所有排队的等待者并拒绝之后的准入请求，这样正在释放的持有者就不会把调用方永远停在队列里。
 
@@ -130,7 +130,7 @@ const release = gate.tryAcquire() ?? await gate.acquire(signal)
 - **上限在构造时固定** —— 需要更改上限的部署应重建持有者，而不是调整活动闸门的大小。
 
 <a id="dev-note"></a>
-### 开发者备注
+### 开发备注
 
 <details>
 <summary>维护者的工作上下文——点击展开</summary>

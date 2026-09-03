@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-fs",
-  "description": "Abstract filesystem capability seam (ctx.fs) for the DeepSeek Harness — vocabulary types, the FileSystem service (text IO + optional version-guarded atomic mutations), and the fs/* policy event vocabulary",
+  "description": "Abstract filesystem capability seam (ctx.fs) for the DeepSeek Harness \u2014 vocabulary types, the FileSystem service (text IO + optional version-guarded atomic mutations), and the fs/* policy event vocabulary",
   "version": "0.1.2-alpha.1",
   "publishConfig": {
     "access": "public"
@@ -22,12 +22,17 @@
       "types": "./lib/types/invariant.d.ts",
       "default": "./lib/invariant.js"
     },
+    "./text": {
+      "types": "./lib/types/text.d.ts",
+      "default": "./lib/text.js"
+    },
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
   "files": [
     "lib/index.js",
     "lib/invariant.js",
+    "lib/text.js",
     "lib/types/**/*.d.ts"
   ],
   "license": "MIT",

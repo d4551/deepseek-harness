@@ -1,5 +1,5 @@
 ---
-description: "Private swarm profile layer over dsh-base: many teammates work one request at once, pulling from the shared task board under a bounded one-shot run ceiling."
+description: "Shipped swarm profile layer over dsh-base: many teammates work one request at once, pulling from the shared task board under a bounded one-shot run ceiling."
 kind: "package-bundle"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`@deepseek-ai/dsh-swarm-profile` is a private profile layer that turns [Agent Teams](../../subagent/agent-team/README.md) into swarm mode over `@deepseek-ai/dsh-base`. The Lead decomposes a request into shared tasks with write scopes and dependencies, spawns teammates, and every teammate pulls its own work with `team_task_claim_next` instead of waiting to be told. The patch also bounds the Subagent seam's concurrent one-shot runs, so a swarm that fans out foreground delegations queues instead of oversubscribing the host. Add it explicitly to an initialized source-checkout profile; official releases exclude this package.
+`@deepseek-ai/dsh-swarm-profile` is the profile layer that turns [Agent Teams](../../subagent/agent-team/README.md) into swarm mode over `@deepseek-ai/dsh-base`. The Lead decomposes a request into shared tasks with write scopes and dependencies, spawns teammates, and every teammate pulls its own work with `team_task_claim_next` instead of waiting to be told. The patch also bounds the Subagent seam's concurrent one-shot runs, so a swarm that fans out foreground delegations queues instead of oversubscribing the host. The shipped `swarm` profile stacks it over `dsh-base` and `dsh-headless`, so `dsh --profile swarm "<task>"` is the entry point; any other profile can add it as one more layer.
 
 ## Table of Contents
 
@@ -25,16 +25,23 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-### Install into a profile
+### Run the shipped profile
 
-From this repository checkout, add the package to an initialized profile, then run a task large enough to split:
+The `swarm` profile is created on first use and already stacks this layer over `dsh-base` and `dsh-headless`:
 
 ```sh
-bun run dsh plugin --profile headless add ./packages/preset/swarm-profile
-bun run dsh --profile headless "Split this refactor across a swarm and report when the board is empty."
+dsh --profile swarm "Split this refactor across a swarm and report when the board is empty."
 ```
 
-The profile must already contain `@deepseek-ai/dsh-base`, whose Subagent services and provider rows this layer consumes. Removing the package with `dsh plugin --profile <name> remove @deepseek-ai/dsh-swarm-profile` removes the bundle from the profile's ordered layer list.
+### Add the layer to another profile
+
+Any other initialized profile can stack it as one more layer:
+
+```sh
+dsh plugin --profile <name> add @deepseek-ai/dsh-swarm-profile
+```
+
+That profile must already contain `@deepseek-ai/dsh-base`, whose Subagent services and provider rows this layer consumes. Removing the package with `dsh plugin --profile <name> remove @deepseek-ai/dsh-swarm-profile` removes the bundle from the profile's ordered layer list.
 
 ### What you get
 
@@ -97,8 +104,7 @@ The bundle's composition is prefix-stable while its patch, Team identity, and co
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Source-checkout only** — this private package is not present in official npm, CLI, Web, or Python release payloads.
-- **Shared checkout** — every teammate observes the same working directory; write scopes are advisory task metadata, not filesystem locks, and this bundle adds no worktree isolation.
+- **Shared checkout** — every teammate observes the same working directory; write scopes exclude two tasks from being in progress on the same paths, but they are not filesystem locks, and this bundle adds no worktree isolation.
 - **Base profile required** — the patch depends on row ids and Subagent providers supplied by `dsh-base`; it is not a standalone profile.
 - **One ceiling per deployment** — `maxConcurrentRuns` bounds the whole process, with no per-Team or per-member sub-quota.
 

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write packages/util/timeout/README.md
-README.md: f446f9b33edad5badc1218802b27547ef116f7db
-README.zh.md: 31b4c4f5d42777b2a2439f85d3d517ec6cd435f9
+README.md: ac9a35d1555759fb45b20c36520054f06683e232
+README.zh.md: d5648f454cbaf4b901d25145fd29bd46c091bf66
