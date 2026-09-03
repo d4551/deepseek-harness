@@ -307,8 +307,13 @@ export async function scanRoot(root: PresetRoot, harnessBase: string): Promise<A
   }
   const found: AgentPreset[] = []
   for (const child of children) {
-    if (!child.isDirectory() || !PRESET_ID.test(child.name)) continue
+    if (!PRESET_ID.test(child.name)) continue
+    // `stat`, not the dirent's own type: a symlinked preset is a deployment's
+    // way of exposing a composition that lives elsewhere (a generation, a
+    // checkout), and the dirent of a link never reports `isDirectory`.
     const directory = join(dir, child.name)
+    const directoryStat = await stat(directory).catch(() => undefined)
+    if (directoryStat === undefined || !directoryStat.isDirectory()) continue
     const path = join(directory, COMPOSITION_FILE)
     const broken = await isFile(path)
       ? await compositionProblem(path, harnessBase)
