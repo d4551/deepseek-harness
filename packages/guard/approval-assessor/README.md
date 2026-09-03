@@ -69,3 +69,13 @@ These limits define when the audit is a poor fit. They are current package const
 - **Built-in work-avoidance patterns only** — detection is a fixed pattern list; a paraphrased evasion the list does not contain passes the audit. Learned or model-assisted detection is rejected pending evidence of need.
 - **English patterns** — the built-in list matches English phrasing; work-avoidance justifications written in other languages reach the normal approval flow.
 - **No configuration surface** — the pattern list is not settable from `cordis.yml` or stored settings; deployment-specific patterns require a plugin change.
+
+<a id="dev-note"></a>
+### Dev Note
+
+<details>
+<summary>Working context for maintainers — click to expand</summary>
+
+None.
+
+</details>

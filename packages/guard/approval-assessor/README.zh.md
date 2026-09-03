@@ -70,3 +70,13 @@ User instruction: <excerpt of the user's last instruction, capped at 500 chars>
 - **仅内置规避工作模式** — 检测依赖固定模式列表；列表未覆盖的改述式规避会通过审计。学习式或模型辅助检测在出现需求证据前被拒绝。
 - **模式仅覆盖英文** — 内置列表匹配英文表述；以其他语言写成的规避理由会进入正常审批流。
 - **没有配置面** — 模式列表不能从 `cordis.yml` 或存储设置设定；部署特定的模式需要修改插件。
+
+<a id="dev-note"></a>
+### 开发备注
+
+<details>
+<summary>维护者工作上下文——点击展开</summary>
+
+无。
+
+</details>
