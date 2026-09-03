@@ -39,6 +39,16 @@ describe('dsh-base bundle', () => {
       disabled: true,
       config: { root: ['.'] },
     })
+    // Half a seam is the failure this pins: the browser ships an
+    // `approval-assessor` settings card, and the card only renders for a
+    // namespace the Host serves. Mounted here and enabled by default, because a
+    // screen against an agent arguing its way out of instructed work is worth
+    // nothing when a deployment has to opt in.
+    expect(rows.find(row => row.id === 'approval-assessor')).toMatchObject({
+      name: '@deepseek-ai/dsh-approval-assessor',
+    })
+    expect(rows.find(row => row.id === 'approval-assessor')?.disabled).toBeUndefined()
+    expect(rows.find(row => row.id === 'approval-assessor')?.config).toBeUndefined()
     expect(rows.filter(row => row.id === 'subagent-codex')).toHaveLength(0)
     expect(rows.filter(row => row.id === 'subagent-claude-code')).toHaveLength(0)
     // Fetch renders the page: a model reading a modern site through a raw HTTP
@@ -54,6 +64,7 @@ describe('dsh-base bundle', () => {
     expect(manifest.dependencies).not.toHaveProperty('@deepseek-ai/dsh-subagent-claude-code')
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-web-fetch-http')
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-web-fetch-playwright')
+    expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-approval-assessor')
   })
 
   it('gates the executors by platform and selects the shell tool dialect from the same fact', () => {

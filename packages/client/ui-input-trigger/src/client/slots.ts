@@ -30,6 +30,12 @@ export interface MenuViewInjected {
    * @param index - crumb index within that source's published header.
    */
   onCrumb: (source: string, index: number) => void
+  /**
+   * Re-run one failed group's candidate load (the failure's retry
+   * affordance); nothing else in the pipeline repeats a given up load.
+   * @param source - source (group) name whose failed group is being retried.
+   */
+  onRetry: (source: string) => void
   /** Dismiss the menu (external pointer outside the composer area). */
   onDismiss: () => void
 }

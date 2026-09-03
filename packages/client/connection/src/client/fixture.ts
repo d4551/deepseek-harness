@@ -31,7 +31,9 @@ import type { CommandId } from '@deepseek-ai/dsh-commands/brand'
 import type { CommandDescriptor, CommandExecution, CommandResult } from '@deepseek-ai/dsh-commands/types'
 import type { CredentialInfo } from '@deepseek-ai/dsh-credentials/types'
 import type { DirectoryListing as FixtureDirectoryListing } from '@deepseek-ai/dsh-host-directory-picker/types'
-import type { SettingsDescribeValue, SettingsNamespaceView } from '@deepseek-ai/dsh-settings/types'
+import type {
+  SettingsDescribeValue, SettingsNamespaceView, SettingsPathOpView,
+} from '@deepseek-ai/dsh-settings/types'
 import { deriveEventMessage, foldSurface } from '@deepseek-ai/dsh-session/surface'
 import type { RpcResult } from './api.ts'
 import { randomUuid } from './random-uuid.ts'
@@ -1786,9 +1788,22 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
 
   /** Canonical fixture implementation of the generated Settings Remote contract. */
   const settingsRemotes = {
-    // Only the resolved DeepSeek address needed by first-run readiness is
-    // represented here. Fixture-backed journeys do not open its Models editor;
-    // real schema-driven forms ride the HTTP transport.
+    // Loopback fixture pages run their settings scopes in host mode, so the
+    // welcome notice acknowledges through settings/mutate. Hold the onboarding
+    // section in memory: describe() surfaces it and mutate()/update() apply
+    // path ops to it, keeping every other namespace read-only as before.
+    onboardingSection: {} as Record<string, JsonValue>,
+    onboardingRevision: 0,
+    onboardingView(): SettingsNamespaceView {
+      return {
+        ns: 'ui-onboarding',
+        schema: {},
+        value: structuredClone(this.onboardingSection),
+        applies: 'live',
+        secrets: [],
+        revision: this.onboardingRevision,
+      }
+    },
     describe(): RpcResult<SettingsDescribeValue> {
       return {
         ok: true,
@@ -1802,40 +1817,64 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
             applies: 'live',
             secrets: [{ path: ['apiKey'], set: false }],
             revision: 0,
-          }],
+          }, this.onboardingView()],
         },
       }
     },
-    update(ns: string): ConnectionRpcResult<SettingsNamespaceView> {
+    writeOnboarding(ops: readonly SettingsPathOpView[]): SettingsNamespaceView {
+      for (const op of ops) {
+        if (op.op === 'unset') {
+          const [field] = op.path
+          if (field !== undefined) {
+            const { [field]: _removed, ...rest } = this.onboardingSection
+            this.onboardingSection = rest
+          }
+          continue
+        }
+        let cursor: Record<string, unknown> = this.onboardingSection
+        const last = op.path[op.path.length - 1]
+        for (const segment of op.path.slice(0, -1)) {
+          const next = cursor[segment]
+          if (typeof next !== 'object' || next === null) {
+            const fresh: Record<string, unknown> = {}
+            cursor[segment] = fresh
+            cursor = fresh
+          } else {
+            cursor = next as Record<string, unknown>
+          }
+        }
+        if (last !== undefined) (cursor)[last] = op.value
+      }
+      this.onboardingRevision += 1
+      return this.onboardingView()
+    },
+    rejected(ns: string, reason: string): ConnectionRpcResult<SettingsNamespaceView> {
       return {
         ok: false,
         error: {
           code: 'settings-rejected',
-          message: 'fixture: the minimal readiness settings descriptor is read-only',
+          message: `fixture: ${reason}`,
           details: { ns },
         },
       }
+    },
+    update(ns: string, patch?: unknown): ConnectionRpcResult<SettingsNamespaceView> {
+      if (ns === 'ui-onboarding' && typeof patch === 'object' && patch !== null) {
+        this.onboardingSection = structuredClone(patch) as Record<string, JsonValue>
+        this.onboardingRevision += 1
+        return { ok: true, value: this.onboardingView() }
+      }
+      return this.rejected(ns, 'the minimal readiness settings descriptor is read-only')
     },
     replace(ns: string): ConnectionRpcResult<SettingsNamespaceView> {
-      return {
-        ok: false,
-        error: {
-          code: 'settings-rejected',
-          message: 'fixture: the minimal readiness settings descriptor is read-only',
-          details: { ns },
-        },
-      }
+      return this.rejected(ns, 'the minimal readiness settings descriptor is read-only')
     },
-    mutate(ns: string): ConnectionRpcResult<SettingsNamespaceView> {
-      // A Remote failure code is free-form, unlike the unary error vocabulary.
-      return {
-        ok: false,
-        error: {
-          code: 'settings-rejected',
-          message: 'fixture: no settings namespaces are registered',
-          details: { ns },
-        },
+    mutate(ns: string, ops?: unknown): ConnectionRpcResult<SettingsNamespaceView> {
+      if (ns === 'ui-onboarding' && Array.isArray(ops)) {
+        return { ok: true, value: this.writeOnboarding(ops as readonly SettingsPathOpView[]) }
       }
+      // A Remote failure code is free-form, unlike the unary error vocabulary.
+      return this.rejected(ns, 'no settings namespaces are registered')
     },
     openSettingsDocument(): RpcResult<{ opened: true }> {
       return { ok: true, value: { opened: true } }
@@ -3412,6 +3451,8 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
           ref?: string | { id: string; revision: number }
           refs?: readonly string[]
           value?: string
+          ops?: unknown
+          patch?: unknown
           ns?: string
           settingsNs?: string
           agentPreset?: string
@@ -3520,9 +3561,13 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
           ok: true,
           value: fixtureModelGroups().flatMap(group => group.models.map(model => ({ id: model.id, name: model.name }))),
         })
-        case 'settings/update': return Promise.resolve(settingsRemotes.update(args.ns as string))
+        case 'settings/update': return Promise.resolve(
+          settingsRemotes.update(args.ns as string, args.patch),
+        )
         case 'settings/replace': return Promise.resolve(settingsRemotes.replace(args.ns as string))
-        case 'settings/mutate': return Promise.resolve(settingsRemotes.mutate(args.ns as string))
+        case 'settings/mutate': return Promise.resolve(
+          settingsRemotes.mutate(args.ns as string, args.ops),
+        )
         case 'session/list': return sessionApi.list(
           args._request as Parameters<FixtureSessionApi['list']>[0],
         )

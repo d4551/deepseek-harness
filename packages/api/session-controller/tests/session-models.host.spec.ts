@@ -350,7 +350,6 @@ describe('Web session model selection', () => {
     }))
     ctx.llm.registerAdapter(['string-failure'], new class extends CatalogAdapter {
       override listModels(): Promise<readonly LlmModelInfo[]> {
-        // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- non-Error provider normalization is the scenario.
         return Promise.reject('string catalog failure')
       }
     }('String Failure', []))
@@ -376,6 +375,37 @@ describe('Web session model selection', () => {
     ]))
     expect(catalog.failures).toContainEqual({
       id: 'string-failure', name: 'String Failure', message: 'string catalog failure',
+    })
+    await ctx.fiber.dispose()
+  })
+
+  it('carries an adapter-stated hosting posture into its catalog group', async () => {
+    const { ctx } = await harness()
+    // A route whose models run on this deployment's hardware, and one whose
+    // adapter draws no such distinction: the group states the first and omits
+    // the key for the second, so a selector never guesses at a cloud API.
+    class OnDeviceAdapter extends CatalogAdapter {
+      override providerInfo(provider: string): LlmProviderInfo {
+        return { ...super.providerInfo(provider), hosting: 'local' }
+      }
+    }
+    ctx.llm.registerAdapter(['on-device'], new OnDeviceAdapter('On Device', [
+      { provider: 'on-device', id: 'small', name: 'Small' },
+    ]))
+    ctx.llm.registerAdapter(['unstated'], new CatalogAdapter('Unstated', [
+      { provider: 'unstated', id: 'remote-model', name: 'Remote Model' },
+    ]))
+    createSessionTestRemote(ctx, {
+      defaultModelSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-chat' }),
+      cwd: '/tmp',
+    })
+
+    const catalog = await buildModelCatalog(ctx)
+    expect(catalog.groups).toContainEqual({
+      id: 'on-device', name: 'On Device', hosting: 'local', models: [{ id: 'small', name: 'Small' }],
+    })
+    expect(catalog.groups).toContainEqual({
+      id: 'unstated', name: 'Unstated', models: [{ id: 'remote-model', name: 'Remote Model' }],
     })
     await ctx.fiber.dispose()
   })
@@ -609,7 +639,6 @@ describe('Web session model selection', () => {
     }('Image Capable', []))
     ctx.llm.registerAdapter(['string-error'], new class extends CatalogAdapter {
       override resolveModel(): Promise<LlmResolvedModelInfo> {
-        // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- non-Error provider normalization is the scenario.
         return Promise.reject('string selection failure')
       }
     }('String Error', []))

@@ -93,6 +93,10 @@ export function webBlockLabels(t: T): WebBlockLabels {
     sourcesTruncated: t('web.sourcesTruncated'),
     http: t('web.http'),
     contentTruncated: t('web.contentTruncated'),
+    retrieval: retrieval => ({
+      label: t(retrieval === 'rendered' ? 'web.retrieval.rendered' : 'web.retrieval.http'),
+      title: t(retrieval === 'rendered' ? 'web.retrieval.renderedTitle' : 'web.retrieval.httpTitle'),
+    }),
     markdown: markdownLabels(t),
   }
 }

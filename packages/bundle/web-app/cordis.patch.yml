@@ -236,6 +236,12 @@
     - id: ui-workspace
       name: '@deepseek-ai/dsh-client-ui-workspace'
 
+    # Multi-root sessions: the session-header panel over the workspaceRoots
+    # projection, with add/remove through session.setWorkspaceRoots. It also
+    # names the filesystem origin, so a network-drive workspace reads as one.
+    - id: ui-workspace-roots
+      name: '@deepseek-ai/dsh-client-ui-workspace-roots'
+
     # Input triggers: the '/' | '@' pipeline (ui-input-trigger), the command surface over
     # it (ui-commands), and the reference sources (ui-skill / ui-reference).
     - id: ui-input-trigger

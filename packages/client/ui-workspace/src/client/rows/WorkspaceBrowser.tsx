@@ -1456,9 +1456,8 @@ export function WorkspaceBrowser({
               t={t}
             />
           )}
-          {/* Adding is the button's one action, so a composition with no
-              picking affordance has nothing to offer here: the region hides the
-              button rather than leaving a dead one in the header. */}
+          {/* The picker lets the user choose an existing workspace for a new
+              session or enter the directory flow for another workspace. */}
           {directoryFlowAvailable && (
             <Tooltip label={t('workspace.add')} side="bottom" delayMs={500}>
               <GlyphButton
@@ -1475,7 +1474,7 @@ export function WorkspaceBrowser({
             </Tooltip>
           )}
         </div>
-        {/* Add flow + its error dialog (same package — direct composition). */}
+        {/* Session-or-folder picker and its directory-flow error dialog. */}
         <WorkspacePickFlow
           t={t}
           open={wsPickerOpen}
@@ -1484,7 +1483,6 @@ export function WorkspaceBrowser({
           createWorkspace={createWorkspace}
           useDirectoryFlow={useDirectoryFlow}
           renderDirectoryFlow={owner => renderSlot('sidebar.workspaces.directoryFlow', owner)}
-          addOnly
           side="right"
           onPick={(workspaceId) => {
             setWsPickerOpen(false)

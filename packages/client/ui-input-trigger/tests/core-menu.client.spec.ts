@@ -117,25 +117,35 @@ describe('menuReduce source-settled', () => {
 })
 
 describe('menuReduce source-failed', () => {
-  it('silently removes the failed group', () => {
+  it('keeps the failed group in place carrying its message', () => {
     let s = open(['command', 'skill'])
     s = menuReduce(s, { type: 'source-settled', generation: 1, source: 'skill', items: [item('commit')] })
-    s = menuReduce(s, { type: 'source-failed', generation: 1, source: 'command' })
-    expect(s.groups.map(g => g.source)).toEqual(['skill'])
+    s = menuReduce(s, { type: 'source-failed', generation: 1, source: 'command', error: 'list failed: internal' })
+    expect(s.groups).toEqual([
+      { source: 'command', status: 'failed', items: [], error: 'list failed: internal' },
+      { source: 'skill', status: 'ready', items: [item('commit')] },
+    ])
     expect(s.open).toBe(true)
   })
 
-  it('closes when the last group fails', () => {
+  it('stays open when the last group fails, so the failure is never hidden', () => {
     let s = open(['command'])
-    s = menuReduce(s, { type: 'source-failed', generation: 1, source: 'command' })
-    expect(s.open).toBe(false)
+    s = menuReduce(s, { type: 'source-failed', generation: 1, source: 'command', error: 'boom' })
+    expect(s.open).toBe(true)
+    expect(s.groups).toEqual([{ source: 'command', status: 'failed', items: [], error: 'boom' }])
   })
 
-  it('closes when the surviving groups are all ready and empty', () => {
+  it('stays open when every other group is ready and empty', () => {
     let s = open(['command', 'skill'])
     s = menuReduce(s, { type: 'source-settled', generation: 1, source: 'skill', items: [] })
-    s = menuReduce(s, { type: 'source-failed', generation: 1, source: 'command' })
-    expect(s.open).toBe(false)
+    s = menuReduce(s, { type: 'source-failed', generation: 1, source: 'command', error: 'boom' })
+    expect(s.open).toBe(true)
+  })
+
+  it('preserves a hidden group title across the failure', () => {
+    let s = menuReduce(seedGroups(MENU_CLOSED, [{ name: 'reference', showGroupTitle: false }]), { type: 'hit', hit: hit() })
+    s = menuReduce(s, { type: 'source-failed', generation: 1, source: 'reference', error: 'boom' })
+    expect(s.groups[0]).toEqual({ source: 'reference', showGroupTitle: false, status: 'failed', items: [], error: 'boom' })
   })
 
   it('moves the highlight off the failed group', () => {
@@ -143,14 +153,95 @@ describe('menuReduce source-failed', () => {
     s = menuReduce(s, { type: 'source-settled', generation: 1, source: 'command', items: [item('goal')] })
     s = menuReduce(s, { type: 'source-settled', generation: 1, source: 'skill', items: [item('commit')] })
     expect(s.highlight).toEqual({ source: 'command', index: 0 })
-    s = menuReduce(s, { type: 'source-failed', generation: 1, source: 'command' })
+    s = menuReduce(s, { type: 'source-failed', generation: 1, source: 'command', error: 'boom' })
+    expect(s.highlight).toEqual({ source: 'skill', index: 0 })
+  })
+
+  it('keeps a highlight the failure did not invalidate', () => {
+    let s = open(['command', 'skill'])
+    s = menuReduce(s, { type: 'source-settled', generation: 1, source: 'skill', items: [item('commit')] })
+    expect(s.highlight).toEqual({ source: 'skill', index: 0 })
+    s = menuReduce(s, { type: 'source-failed', generation: 1, source: 'command', error: 'boom' })
     expect(s.highlight).toEqual({ source: 'skill', index: 0 })
   })
 
   it('drops stale-generation and unknown-source failures by reference', () => {
     const s = open(['command'])
-    expect(menuReduce(s, { type: 'source-failed', generation: 0, source: 'command' })).toBe(s)
-    expect(menuReduce(s, { type: 'source-failed', generation: 1, source: 'ghost' })).toBe(s)
+    expect(menuReduce(s, { type: 'source-failed', generation: 0, source: 'command', error: 'boom' })).toBe(s)
+    expect(menuReduce(s, { type: 'source-failed', generation: 1, source: 'ghost', error: 'boom' })).toBe(s)
+    expect(menuReduce(MENU_CLOSED, { type: 'source-failed', generation: 0, source: 'command', error: 'boom' })).toBe(MENU_CLOSED)
+  })
+})
+
+describe('menuReduce source-retry', () => {
+  const failed = (): MenuState => menuReduce(
+    open(['command', 'skill']),
+    { type: 'source-failed', generation: 1, source: 'command', error: 'boom' },
+  )
+
+  it('returns the failed group to pending, dropping its message', () => {
+    const s = menuReduce(failed(), { type: 'source-retry', generation: 1, source: 'command' })
+    expect(s.groups[0]).toEqual({ source: 'command', status: 'pending', items: [] })
+  })
+
+  it('preserves a hidden group title through the retry', () => {
+    let s = menuReduce(seedGroups(MENU_CLOSED, [{ name: 'reference', showGroupTitle: false }]), { type: 'hit', hit: hit() })
+    s = menuReduce(s, { type: 'source-failed', generation: 1, source: 'reference', error: 'boom' })
+    s = menuReduce(s, { type: 'source-retry', generation: 1, source: 'reference' })
+    expect(s.groups[0]).toEqual({ source: 'reference', showGroupTitle: false, status: 'pending', items: [] })
+  })
+
+  it('ignores a retry of a group that is not failed, a stale generation, an unknown source, and a closed menu', () => {
+    const s = failed()
+    expect(menuReduce(s, { type: 'source-retry', generation: 1, source: 'skill' })).toBe(s)
+    expect(menuReduce(s, { type: 'source-retry', generation: 0, source: 'command' })).toBe(s)
+    expect(menuReduce(s, { type: 'source-retry', generation: 1, source: 'ghost' })).toBe(s)
+    expect(menuReduce(MENU_CLOSED, { type: 'source-retry', generation: 0, source: 'command' })).toBe(MENU_CLOSED)
+  })
+})
+
+describe('menuReduce source-removed', () => {
+  it('silently removes the unregistered source group', () => {
+    let s = open(['command', 'skill'])
+    s = menuReduce(s, { type: 'source-settled', generation: 1, source: 'skill', items: [item('commit')] })
+    s = menuReduce(s, { type: 'source-removed', generation: 1, source: 'command' })
+    expect(s.groups.map(g => g.source)).toEqual(['skill'])
+    expect(s.open).toBe(true)
+  })
+
+  it('closes when the last group is removed', () => {
+    let s = open(['command'])
+    s = menuReduce(s, { type: 'source-removed', generation: 1, source: 'command' })
+    expect(s.open).toBe(false)
+  })
+
+  it('closes when the surviving groups are all ready and empty', () => {
+    let s = open(['command', 'skill'])
+    s = menuReduce(s, { type: 'source-settled', generation: 1, source: 'skill', items: [] })
+    s = menuReduce(s, { type: 'source-removed', generation: 1, source: 'command' })
+    expect(s.open).toBe(false)
+  })
+
+  it('moves the highlight off the removed group', () => {
+    let s = ready()
+    expect(s.highlight).toEqual({ source: 'command', index: 0 })
+    s = menuReduce(s, { type: 'source-removed', generation: 1, source: 'command' })
+    expect(s.highlight).toEqual({ source: 'skill', index: 0 })
+  })
+
+  it('keeps a highlight the removal did not invalidate', () => {
+    let s = ready()
+    s = menuReduce(s, { type: 'move', dir: -1 })
+    expect(s.highlight).toEqual({ source: 'skill', index: 0 })
+    s = menuReduce(s, { type: 'source-removed', generation: 1, source: 'command' })
+    expect(s.highlight).toEqual({ source: 'skill', index: 0 })
+  })
+
+  it('drops stale-generation and unknown-source removals by reference', () => {
+    const s = open(['command'])
+    expect(menuReduce(s, { type: 'source-removed', generation: 0, source: 'command' })).toBe(s)
+    expect(menuReduce(s, { type: 'source-removed', generation: 1, source: 'ghost' })).toBe(s)
+    expect(menuReduce(MENU_CLOSED, { type: 'source-removed', generation: 0, source: 'command' })).toBe(MENU_CLOSED)
   })
 })
 

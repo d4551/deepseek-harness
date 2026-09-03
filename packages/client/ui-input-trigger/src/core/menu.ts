@@ -1,8 +1,8 @@
 /**
  * Menu reduction pure core. One group per source;
- * generation-gated settlement; empty ready groups auto-close. Zero React /
- * DOM / cordis. Stale or no-op events return the same state reference so
- * store subscribers skip re-renders.
+ * generation-gated settlement; empty ready groups auto-close, failed ones
+ * stay. Zero React / DOM / cordis. Stale or no-op events return the same
+ * state reference so store subscribers skip re-renders.
  *
  * Roster protocol: the frozen `hit` event carries no source roster, so the
  * reducer cannot invent groups. Opening from a closed state, the shell seeds
@@ -11,7 +11,7 @@
  * a new generation. Auto-close and explicit close drop the groups.
  */
 import type { InputTriggerCandidate, InputTriggerSource } from '../types.ts'
-import type { ExactMatch, MenuReduce, MenuState } from './contract.ts'
+import type { ExactMatch, MenuGroup, MenuReduce, MenuState } from './contract.ts'
 
 /** Closed rest state with generation 0; store initializer and test seed. */
 export const MENU_CLOSED: MenuState = { open: false, hit: null, generation: 0, groups: [], highlight: null }
@@ -38,6 +38,20 @@ export function seedGroups(
     })),
     highlight: null,
   }
+}
+
+/** The group's title opt-out, carried across every status rebuild below. */
+const titling = (group: MenuGroup): { readonly showGroupTitle?: false } =>
+  group.showGroupTitle === false ? { showGroupTitle: false } : {}
+
+/** Rebuild one group under a loading status, dropping any recorded failure. */
+function loading(group: MenuGroup, status: 'pending' | 'ready', items: readonly InputTriggerCandidate[]): MenuGroup {
+  return { source: group.source, ...titling(group), status, items }
+}
+
+/** Rebuild one group as failed, carrying the load failure's message for the view. */
+function failed(group: MenuGroup, error: string): MenuGroup {
+  return { source: group.source, ...titling(group), status: 'failed', items: [], error }
 }
 
 /** Close, preserving the generation so in-flight settlements stay droppable. */
@@ -78,11 +92,18 @@ const allReadyEmpty = (groups: MenuState['groups']): boolean =>
 /**
  * Pure menu reducer. `hit` opens a new generation over the seeded roster
  * (null hit closes); `source-settled` outside the current generation, the
- * open menu, or the roster is dropped; a settlement or failure leaving every
- * group ready-and-empty (or no groups) auto-closes; `source-failed` silently
- * removes the group (the shell logs); `move` cycles the highlight across
- * ready items; `hover` parks it on one ready item (pointer and keyboard
- * share the single highlight — last input wins).
+ * open menu, or the roster is dropped; a settlement leaving every group
+ * ready-and-empty (or no groups) auto-closes; `source-failed` marks the group
+ * failed and keeps the menu open so the view can render the message and offer
+ * `source-retry`; `source-removed` silently drops an unregistered source's
+ * group; `move` cycles the highlight across ready items; `hover` parks it on
+ * one ready item (pointer and keyboard share the single highlight — last
+ * input wins).
+ *
+ * A failed group is never ready, so it holds the menu open by itself. That is
+ * what makes a failure terminal: the open menu suppresses the shell's
+ * re-seed-and-refetch path for the same hit, which a closing menu re-armed on
+ * every later draft notification.
  *
  * @param state - Current menu state.
  * @param ev - Menu event.
@@ -96,7 +117,7 @@ export const menuReduce: MenuReduce = (state, ev) => {
         open: true,
         hit: ev.hit,
         generation: state.generation + 1,
-        groups: state.groups.map(g => ({ ...g, status: 'pending', items: [] })),
+        groups: state.groups.map(g => loading(g, 'pending', [])),
         highlight: null,
       }
     }
@@ -105,13 +126,27 @@ export const menuReduce: MenuReduce = (state, ev) => {
       const idx = state.groups.findIndex(g => g.source === ev.source)
       if (idx < 0) return state
       const items: readonly InputTriggerCandidate[] = ev.items ?? []
-      const groups = state.groups.map((g, i) =>
-        i === idx ? { ...g, status: 'ready' as const, items } : g)
+      const groups = state.groups.map((g, i) => i === idx ? loading(g, 'ready', items) : g)
       if (allReadyEmpty(groups)) return closed(state)
       const highlight = validHighlight(state.highlight, groups) ?? firstHighlight(groups)
       return { ...state, groups, highlight }
     }
     case 'source-failed': {
+      if (!state.open || ev.generation !== state.generation) return state
+      const idx = state.groups.findIndex(g => g.source === ev.source)
+      if (idx < 0) return state
+      const groups = state.groups.map((g, i) => i === idx ? failed(g, ev.error) : g)
+      const highlight = validHighlight(state.highlight, groups) ?? firstHighlight(groups)
+      return { ...state, groups, highlight }
+    }
+    case 'source-retry': {
+      if (!state.open || ev.generation !== state.generation) return state
+      const idx = state.groups.findIndex(g => g.source === ev.source)
+      if (idx < 0 || state.groups[idx]?.status !== 'failed') return state
+      const groups = state.groups.map((g, i) => i === idx ? loading(g, 'pending', []) : g)
+      return { ...state, groups }
+    }
+    case 'source-removed': {
       if (!state.open || ev.generation !== state.generation) return state
       if (!state.groups.some(g => g.source === ev.source)) return state
       const groups = state.groups.filter(g => g.source !== ev.source)

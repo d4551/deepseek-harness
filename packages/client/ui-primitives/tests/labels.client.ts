@@ -41,6 +41,10 @@ export const searchBlockLabels: SearchBlockLabels = {
 }
 
 export const terminalBlockLabels: TerminalBlockLabels = {
+  shell: shell => ({
+    label: shell === 'bash' ? 'bash' : 'PowerShell',
+    title: `该命令按 ${shell === 'bash' ? 'bash' : 'PowerShell'} 语法编写并执行。`,
+  }),
   signal: signal => `信号 ${signal}`,
   exitCode: code => `退出码 ${code}`,
   running: '运行中', failed: '失败', done: '已完成',
@@ -60,5 +64,9 @@ export const jsonTreeLabels: JsonTreeLabels = {
 
 export const webBlockLabels: WebBlockLabels = {
   noResults: '未找到结果', sourcesTruncated: '来源列表已截断',
-  http: 'HTTP', contentTruncated: '内容已截断', markdown: markdownLabels,
+  http: 'HTTP', contentTruncated: '内容已截断',
+  retrieval: retrieval => retrieval === 'rendered'
+    ? { label: '浏览器渲染', title: '在浏览器引擎中打开页面：页面脚本已执行。' }
+    : { label: '直接抓取', title: '通过 HTTP 获取字节，未执行页面脚本。' },
+  markdown: markdownLabels,
 }

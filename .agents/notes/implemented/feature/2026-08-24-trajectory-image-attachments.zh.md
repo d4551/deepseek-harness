@@ -30,4 +30,4 @@ Trajectory 不展示会话图片。持久化的 `{ type: 'image', attachment: Im
 
 - 两个视图共用一个画廊实现，图片行为（尺寸、重试、灯箱、文案）不会在 Chat 与 Trajectory 之间漂移，且无论多少个视图展示，一个会话附件只读取一次。
 - `TrajectoryTable` 需要把必填的 `renderImages` prop 逐层传入详情组件；`ui-trajectory` 新增对 `dsh-attachment` 的仅类型依赖，`ui-attachment` 为新的 SlotMap 行新增对 `ui-trajectory` 的仅类型依赖。
-- keyless 组装快照 `apps/web/tests/trajectory-image-display.snapshot.ts` 直接钉住共享缓存这一事实：详情面板中的图片 URL 与 Chat 画廊对同一 fixture 附件的 URL 字符串相同。
+- keyless 组装快照 `apps/web/tests/trajectory-image-display.client.expected.e2e.ts` 直接钉住共享缓存这一事实：详情面板中的图片 URL 与 Chat 画廊对同一 fixture 附件的 URL 字符串相同。

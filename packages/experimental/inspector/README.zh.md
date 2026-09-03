@@ -36,7 +36,7 @@ Host 插件启动 Worker 并连接专用 `MessagePort`。Client 插件读取注�
 
 Host 与 Client producer 发送内部观测记录，不发送 CDP 消息。记录包含 source generation、sequence、source 时钟时间、topic 和 JSON payload。Worker 验证每个进程或网络帧，独占 source 状态与保留历史，并把已识别 topic 转换成标准 CDP domain。
 
-Client source 声明类型化 Runtime、Console 和只读 Sources 能力。`Runtime.enable` 发布真实 Host execution context，并为每个已连接的 Client source 发布一个 synthetic context。选择 Client context 后，求值、属性读取、函数调用、Promise await 和对象释放都会路由到该浏览器 realm。Client Console argument 使用同一份 session-local object table；`Debugger.enable` 发布构建后的 `lib/client.js` catalog，`Debugger.getScriptSource` 读取有界 content chunk。Client script 断点、step 和 call frame 仍不支持；target-wide pause 与 resume 只控制 Host debugger。
+Client source 声明类型化 Runtime、Console 和只读 Sources 能力。`Runtime.enable` 发布真实 Host execution context，并为本连接能够接纳的每个已连接 Client source 发布一个 synthetic context；始终不确认 Console enable 的 Client 只在该连接上被丢弃，Host realm 与其余 Client 仍保持 enabled。选择 Client context 后，求值、属性读取、函数调用、Promise await 和对象释放都会路由到该浏览器 realm。Client Console argument 使用同一份 session-local object table；`Debugger.enable` 发布构建后的 `lib/client.js` catalog，`Debugger.getScriptSource` 读取有界 content chunk。Client script 断点、step 和 call frame 仍不支持；target-wide pause 与 resume 只控制 Host debugger。
 
 两个插件面运行同一份浏览器安全 Cordis collector。它把可达 Context 与 Fiber 对象转换成有版本的 `CordisTreeSnapshot`；Worker 存储这份与 CDP 无关的表示，并把每个 Host 或 Client source 投影到 Elements 面板。
 
@@ -64,7 +64,7 @@ Host 插件注入 `webServer`，接受以下字段：
 | `stopTimeoutMs` | 5 秒 | 强制终止前的 Worker 优雅关闭期限 |
 | `clientReconnectBaseMs` | 250 ms | Client 首次重连退避上限 |
 | `clientReconnectMaxMs` | 5 秒 | Client 最大重连退避上限 |
-| `clientRuntimeTimeoutMs` | 30 秒 | 一次 Worker 到 Client Runtime 或 Sources 命令的截止时间 |
+| `clientRuntimeTimeoutMs` | 30 秒 | 一次 Worker 到 Client 的 Runtime 命令、Sources 命令或 Console enable 的截止时间 |
 | `queryTimeoutMs` | 10 秒 | 一次非 CDP 语义查询的截止时间 |
 | `maxClientRuntimeObjects` | `10000` | 每条 DevTools 连接保留的 Client 实时对象 handle 数 |
 | `maxClientRuntimeProperties` | `2000` | 单次 Client 对象检查返回的属性描述符数 |

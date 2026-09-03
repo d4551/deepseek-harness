@@ -71,7 +71,7 @@ describe('terminalCardModel', () => {
     expect(terminalCardModel(running({ argsRaw: shellArgs({ workdir: '/projects/app' }) }))).toEqual({
       copy: { kind: 'shell', command: 'ls -la', description: 'List files' },
       card: {
-        cwd: '/projects/app', output: undefined,
+        shell: 'bash', cwd: '/projects/app', output: undefined,
         exitCode: undefined, signal: undefined, running: true,
       },
     })
@@ -84,7 +84,7 @@ describe('terminalCardModel', () => {
     }))).toEqual({
       copy: { kind: 'shell', command: 'ls -la', description: 'List files' },
       card: {
-        cwd: '/projects/app', output: 'boom',
+        shell: 'bash', cwd: '/projects/app', output: 'boom',
         exitCode: 2, signal: undefined, running: false,
       },
     })
@@ -410,6 +410,27 @@ describe('BashRow terminal card', () => {
     fireEvent.click(view.container.querySelector('[data-expandable]')!)
     expect(view.queryByText(/a\.ts/)).toBeNull()
     expect(view.getByText('List files')).toBeTruthy()
+  })
+
+  // One tool runs bash or PowerShell depending on the host, so the card is the
+  // only place a reader can learn which language the command line is in.
+  it('names the shell the command was written for', () => {
+    const bashView = render(<BashRow {...rowProps(settled())} />)
+    fireEvent.click(bashView.container.querySelector('[data-expandable]')!)
+    const bashBadge = bashView.container.querySelector('[data-shell="bash"]')
+    expect(bashBadge?.textContent).toBe(zh['terminal.shell.bash'])
+    expect(bashBadge?.getAttribute('title'))
+      .toBe(zh['terminal.shell.title'].replace('{shell}', zh['terminal.shell.bash']))
+    cleanup()
+
+    const pwshView = render(<BashRow {...rowProps(settled({
+      call: { name: 'pwsh', argsRaw: ARGS },
+    }))} />)
+    fireEvent.click(pwshView.container.querySelector('[data-expandable]')!)
+    const pwshBadge = pwshView.container.querySelector('[data-shell="pwsh"]')
+    expect(pwshBadge?.textContent).toBe(zh['terminal.shell.pwsh'])
+    expect(pwshBadge?.getAttribute('title'))
+      .toBe(zh['terminal.shell.title'].replace('{shell}', zh['terminal.shell.pwsh']))
   })
 
   // The row's leading StateDot and the card's run-state dot describe the same

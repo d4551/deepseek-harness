@@ -1,7 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis'
-import {
-  applyInboxSplice, type ConversationNodeDefinition, type InboxState,
-} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { ConversationNodeDefinition } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import { applyInboxSplice, type InboxState } from '@deepseek-ai/dsh-client-ui-projection'
 import type { InboxTarget } from '@deepseek-ai/dsh-agent/types'
 
 function inboxDefinition(target: InboxTarget): ConversationNodeDefinition<InboxState> {

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { DelegatablePendingInteraction } from '@deepseek-ai/dsh-client-ui-session/client'
 import { QuestionComposer } from '../src/client/QuestionComposer.tsx'
 import { PendingQuestion } from '../src/client/contract/slots.ts'
 import { createQuestionDraftStore } from '../src/client/draft-store.ts'
@@ -51,14 +52,31 @@ async function bench(declare = true) {
   )[SESSION_SCOPE])
   ctx.provide('sessions', { scopeOf } as never)
   const pending = new Map<PendingQuestion, () => Promise<void>>()
-  const registerPendingInteraction = vi.fn((_precedence: (value: PendingQuestion) => number) => (
-    value: PendingQuestion,
-    delegate: () => Promise<void>,
-  ) => {
-    _precedence(value)
-    pending.set(value, delegate)
-    return () => { pending.delete(value) }
-  })
+  // Stands in for uiSession.registerPendingInteraction: publish, await the
+  // answer, resume the waterfall on a delegation, and remove in every outcome.
+  const registerPendingInteraction = vi.fn((precedence: (value: PendingQuestion) => number) =>
+    async <Outcome>(
+      value: PendingQuestion & DelegatablePendingInteraction<Outcome>,
+      delegated: () => Promise<Outcome>,
+    ): Promise<Outcome> => {
+      precedence(value)
+      const completed = Promise.withResolvers<undefined>()
+      pending.set(value, async () => {
+        value.delegate()
+        await completed.promise
+      })
+      try {
+        try {
+          return await value.result
+        } catch (error) {
+          if (value.isDelegation(error)) return await delegated()
+          throw error
+        }
+      } finally {
+        pending.delete(value)
+        completed.resolve(undefined)
+      }
+    })
   ctx.provide('uiSession', { registerPendingInteraction } as never)
   let listener: QuestionListener | undefined
   const on = vi.fn((event: string, value: QuestionListener) => {

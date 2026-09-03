@@ -246,6 +246,12 @@
             sandbox: danger-full-access
             approval: never
 
+    # Screens every approval request before any user-facing answerer sees it.
+    # Missing and work-avoidance justifications reject; every tool uses the
+    # same mandatory audit.
+    - id: approval-assessor
+      name: '@deepseek-ai/dsh-approval-assessor'
+
     - id: shell-env
       name: '@deepseek-ai/dsh-shell-env'
 
@@ -485,6 +491,20 @@
       name: '@deepseek-ai/dsh-web-search-deepseek'
       config:
         apiKeyEnv: DEEPSEEK_API_KEY
+
+    # Exa and Perplexity are mounted for the same reason `web-fetch-http` is:
+    # a backend nobody can select is a backend nobody has. Each reads its own
+    # key from the environment and reports itself unusable without one, so an
+    # unkeyed host mounts two inert registrations and keeps the pinned
+    # DeepSeek route; selection is pinned above, so a keyed host never becomes
+    # ambiguous either. Mounted, they carry a settings section, which is what
+    # lets the Web app name them, state which one serves, and switch between
+    # them without editing a composition file.
+    - id: web-search-exa
+      name: '@deepseek-ai/dsh-web-search-exa'
+
+    - id: web-search-perplexity
+      name: '@deepseek-ai/dsh-web-search-perplexity'
 
     - id: web-fetch-http
       name: '@deepseek-ai/dsh-web-fetch-http'

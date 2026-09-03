@@ -12,7 +12,7 @@ import {
 } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, MessageSource } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import { setAdditionalWorkspaceRoots } from '@deepseek-ai/dsh-session/workspace-roots'
+import { effectiveWorkspaceRoots, setAdditionalWorkspaceRoots } from '@deepseek-ai/dsh-session/workspace-roots'
 import type { SessionEvent, SessionHeader, UserMessage } from '@deepseek-ai/dsh-session'
 import { SessionQueryError, type SessionObservation } from '@deepseek-ai/dsh-session-query'
 import { SessionTitleInvalidError } from '@deepseek-ai/dsh-session-title'
@@ -43,6 +43,8 @@ import type {
   SessionRenameValue,
   SessionSelectModelRequest,
   SessionSelectModelValue,
+  SessionSetWorkspaceRootsRequest,
+  SessionSetWorkspaceRootsValue,
   SessionUpdateQueueRequest,
   SessionUpdateQueueValue,
 } from './types.ts'
@@ -162,6 +164,35 @@ export class SessionCommandController {
         )
       }
     })
+  }
+
+  /**
+   * Replace the complete additional-root set of one live Session.
+   *
+   * Every root is rejected before the Session is resolved, for the same reason
+   * `create` rejects them before the Session exists: a root the enforcement
+   * layers cannot match must never reach the durable record, and a partially
+   * applied set would be neither the old one nor the requested one. The write
+   * itself is one `workspace/roots` event, so the change takes effect on the
+   * Session's next resolved capability call.
+   * @param request - Session identity and the complete replacement root set.
+   * @returns the additional roots the Session carries after the replacement.
+   */
+  async setWorkspaceRoots(
+    request: SessionSetWorkspaceRootsRequest,
+  ): Promise<SessionSetWorkspaceRootsValue> {
+    for (const directory of request.additionalDirectories) {
+      if (!isAbsolute(directory)) {
+        reject(
+          'bad-request',
+          `session.setWorkspaceRoots additionalDirectories entries must be absolute paths: ${directory}`,
+          { directory },
+        )
+      }
+    }
+    const agent = await this.resolveAgent(request.sessionId)
+    setAdditionalWorkspaceRoots(agent.session, request.additionalDirectories)
+    return { additional: [...effectiveWorkspaceRoots(agent.session.events)] }
   }
 
   /**

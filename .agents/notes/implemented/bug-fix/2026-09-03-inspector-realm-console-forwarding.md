@@ -31,7 +31,7 @@ Ordering the announcement behind a round trip would have put a reconnected Clien
 - `InspectorSourceRegistry.open` emits `opened` before replying `source/accepted`. A source publishes the moment it reads that reply (`ClientBridgePublisher.accept` sends the replacement synchronously), so a capability frame a consumer sends for the generation has to be on the wire ahead of it.
 - `openRealm` starts the Console subscription before awaiting the Runtime enable. `attachConsole` reaches `sources.send` with no intervening `await`, so the enable frame is written inside the `opened` emit rather than a microtask later. Subscribing before enabling is also the safer order for the Host: no native notification can arrive between the two.
 
-The Client therefore installs its observer and acknowledges before it processes `source/accepted`, and the acknowledgement reaches the Worker ahead of the first record frame.
+The Client therefore installs its observer and acknowledges before it processes `source/accepted`, and the acknowledgement reaches the Worker ahead of the first record frame. Frame order alone does not settle the Worker's own delivery, because one socket read can carry the acknowledgement and that record frame together; [DOM delivery behind the announcement](2026-09-03-inspector-dom-delivery-behind-announcement.md) holds Elements updates until the announcement is written.
 
 ## Alternatives considered
 

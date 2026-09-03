@@ -33,11 +33,13 @@ const TASK_GRAPH_ERROR_CODES: Record<TeamTaskGraphViolation, string> = {
 export class TeamTaskBoard {
   /**
    * @param journal - authoritative Lead-log transaction owner.
-   * @param maxTasks - maximum non-deleted tasks retained by one Team.
+   * @param maxTasks - reads the maximum non-deleted tasks retained by one
+   *   Team, at each creation, so a stored settings change bounds the next
+   *   task without touching the board already built.
    */
   constructor(
     private readonly journal: TeamJournal,
-    private readonly maxTasks: number,
+    private readonly maxTasks: () => number,
   ) {}
 
   /**
@@ -51,8 +53,9 @@ export class TeamTaskBoard {
     return this.journal.transact(root.id, async () => {
       const state = this.journal.state(root)
       const active = [...state.tasks.values()].filter(task => task.status !== 'deleted').length
-      if (active >= this.maxTasks) {
-        throw new TeamError(`Team task limit ${this.maxTasks} reached`, 'TEAM_TASK_LIMIT')
+      const maxTasks = this.maxTasks()
+      if (active >= maxTasks) {
+        throw new TeamError(`Team task limit ${maxTasks} reached`, 'TEAM_TASK_LIMIT')
       }
       const id = TeamTaskId(`task-${state.nextTaskNumber}`)
       if (state.tasks.has(id)) {

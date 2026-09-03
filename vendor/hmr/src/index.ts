@@ -4,7 +4,10 @@ import { ModuleLoader, type ModuleJob, type ResolveResult } from '@deepseek-ai/c
 import type { Include } from '@deepseek-ai/cordis-plugin-include'
 import { FSWatcher, watch, type ChokidarOptions } from 'chokidar'
 import { dirname, relative, resolve } from 'node:path'
+import { createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { realpath, stat } from 'node:fs/promises'
+import { clearInterval, setInterval } from 'node:timers'
 import { handleError } from './error.ts'
 import type {} from '@deepseek-ai/cordis-plugin-timer'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -59,6 +62,36 @@ interface ConfigRefresh {
 
 interface ConfigRegistration {
   watcher: FSWatcher
+  /** Repair cadence backstopping this registration's watch; cleared when the registration closes. */
+  repair?: NodeJS.Timeout
+}
+
+/** Generation reported for a watched path that does not exist. */
+const ABSENT_GENERATION = 'absent'
+
+/**
+ * Fingerprint an exact watched path, so a change the platform watch never
+ * reported is still observable by comparison against the generation last
+ * announced.
+ *
+ * Content, not stat metadata: a filesystem whose timestamps have one-second
+ * resolution reports the same mtime and size for two writes of equal length,
+ * which is an ordinary config edit, and a poll's own first stat is a baseline
+ * it never reports. The read is synchronous so a writer on this thread cannot
+ * be observed between its truncation and its write.
+ * @param filename - absolute path of the watched config file.
+ * @returns a value that differs whenever a later read of the path would differ.
+ */
+function readGeneration(filename: string): string {
+  try {
+    return createHash('sha256').update(readFileSync(filename)).digest('hex')
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === 'ENOENT') return ABSENT_GENERATION
+    // Present but unreadable — a directory at the path, a denied permission —
+    // is its own generation: announced once, and again when the reason changes.
+    return `error:${code ?? String(error)}`
+  }
 }
 
 async function findWatchRoot(filename: string): Promise<{ filename: string; root: string; depth: number }> {
@@ -126,8 +159,19 @@ class Hmr extends Service {
 
   /**
    * Watch one exact config path outside the configured module roots.
+   *
+   * A filesystem event is not the only trigger. Chokidar reports `ready` once
+   * its initial scan finished and `fs.watch()` returned, and on macOS libuv
+   * arms the FSEvents stream on its own run-loop thread after that call
+   * returns, so a change landing between the finished scan and the armed
+   * stream is reported by neither and is lost for good. A repair cadence
+   * therefore re-reads the path every `repairInterval` milliseconds, and both
+   * triggers share one serialized reconciliation that announces each
+   * generation of the file's content exactly once. The callback therefore
+   * trails the file by at most one `repairInterval`, whatever the platform
+   * watch loses, and never sees one generation twice.
    * @param filename - Config path, resolved against the HMR base directory.
-   * @param refresh - Refresh callback run serially on add, change, or unlink.
+   * @param refresh - Refresh callback run serially once per generation of the watched path, including its absence.
    * @returns an asynchronous disposer once the exact watch is ready.
    * @throws when HMR is inactive, the path is already registered, or watcher startup fails.
    */
@@ -146,16 +190,33 @@ class Hmr extends Service {
       ignored: undefined,
       ignoreInitial: false,
     })
-    const registration = { watcher }
+    const registration: ConfigRegistration = { watcher }
     this.configs.set(watchFilename, registration)
+    // The generation last announced to `refresh`. `ignoreInitial: false`
+    // promises exactly one announcement for a file present at registration and
+    // none for an absent one, so the seed is the absent generation.
+    let generation = ABSENT_GENERATION
+    const announce = async () => {
+      const current = readGeneration(filename)
+      if (current === generation) return
+      // Recorded before it is attempted: a generation whose refresh throws is
+      // reported once, by whichever trigger observed it first.
+      generation = current
+      await refresh()
+    }
     const onChange = (path: string) => {
       const observed = resolve(path)
       if (observed !== filename && observed !== watchFilename) return
-      this.refreshConfig(registration, filename, refresh)
+      this.refreshConfig(registration, filename, announce)
     }
     watcher.on('add', onChange)
     watcher.on('change', onChange)
     watcher.on('unlink', onChange)
+    if (this.config.repairInterval > 0) {
+      registration.repair = setInterval(() => this.refreshConfig(registration, filename, announce), this.config.repairInterval)
+      // A repair cadence must never be why a finished process stays alive.
+      registration.repair.unref()
+    }
 
     const ready = Promise.withResolvers<void>()
     let readyState: 'pending' | 'resolved' | 'rejected' = 'pending'
@@ -176,11 +237,14 @@ class Hmr extends Service {
       await ready.promise
       return this.ctx.effect(() => async () => {
         if (this.configs.get(watchFilename) === registration) this.configs.delete(watchFilename)
+        // Both triggers stop before the drain, so nothing new enters the queue.
+        clearInterval(registration.repair)
         await watcher.close()
         await this.configRefreshes.get(registration)?.running
       }, 'hmr.registerConfig()')
     } catch (error) {
       this.configs.delete(watchFilename)
+      clearInterval(registration.repair)
       await watcher.close()
       throw error
     }
@@ -199,7 +263,10 @@ class Hmr extends Service {
   async* [Service.init]() {
     yield async () => {
       await this.watcher?.close()
-      await Promise.allSettled([...this.configs.values()].map(registration => registration.watcher.close()))
+      await Promise.allSettled([...this.configs.values()].map((registration) => {
+        clearInterval(registration.repair)
+        return registration.watcher.close()
+      }))
       this.configs.clear()
       await Promise.allSettled([...this.refreshTasks])
     }
@@ -555,6 +622,14 @@ namespace Hmr {
     root: string[]
     debounce: number
     ignored: string[]
+    /**
+     * Milliseconds between the reconciliations that repair a change of a
+     * {@link Hmr.registerConfig} path no filesystem event reported. The bound
+     * on how long a registered callback may trail its file; deployments on
+     * filesystems whose watches are lossier or whose reads are expensive move
+     * it. `0` runs the watch alone and restores the platform's own losses.
+     */
+    repairInterval: number
   }
 
   export const Config: z<Config> = z.object({
@@ -567,6 +642,7 @@ namespace Hmr {
       'data',
     ]),
     debounce: z.natural().role('ms').default(100),
+    repairInterval: z.natural().role('ms').default(100),
   })
   // [deepseek-harness] vendored modification: removed `.i18n({ 'en-US': enUS, 'zh-CN': zhCN })`
   // and the corresponding `./locales/*.yml` imports, to avoid a runtime YAML import hook

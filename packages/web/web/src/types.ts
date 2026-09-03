@@ -66,6 +66,16 @@ export interface WebFetchRequest {
 }
 
 /**
+ * How a provider obtained the body it returns. A CLOSED union: `http`
+ * retrieved bytes over HTTP and never executed the page; `rendered` loaded the
+ * page in a browser engine, which ran its JavaScript and issued whatever
+ * subresource requests the page asked for. The two are materially different
+ * acts, and only the provider knows which one it performed, so it states it
+ * per result rather than letting a consumer infer it from a provider id.
+ */
+export type WebFetchRetrieval = 'http' | 'rendered'
+
+/**
  * Normalized fetch outcome. A successful network fetch of a non-2xx response is
  * a result, not an error: the status code is part of the fetched resource
  * state. {@link WebError} is reserved for failures to safely retrieve or
@@ -80,6 +90,13 @@ export interface WebFetchResult {
   readonly body: WebFetchBody
   /** True when the provider capped the decoded body. */
   readonly truncated: boolean
+  /**
+   * How this body was obtained; see {@link WebFetchRetrieval}. Optional
+   * because only the provider can answer and a backend outside this repository
+   * may not: an absent value states nothing, which is the honest fallback, and
+   * every provider shipped here declares it.
+   */
+  readonly retrieval?: WebFetchRetrieval
 }
 
 /**

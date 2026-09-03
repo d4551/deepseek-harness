@@ -15,6 +15,12 @@ import { parsedToolCall, singleResultText, validEscalationFields } from './raw-t
  */
 export function terminalBlockLabels(t: TranslateNS<'conversation'>): TerminalBlockLabels {
   return {
+    shell: shell => ({
+      label: t(shell === 'bash' ? 'terminal.shell.bash' : 'terminal.shell.pwsh'),
+      title: t('terminal.shell.title', {
+        shell: t(shell === 'bash' ? 'terminal.shell.bash' : 'terminal.shell.pwsh'),
+      }),
+    }),
     signal: signal => t('terminal.signal', { signal }),
     exitCode: code => t('terminal.exitCode', { code }),
     running: t('terminal.running'),
@@ -40,7 +46,7 @@ export interface TerminalCardModel {
    * The locale-neutral props {@link TerminalBlock} draws. The render site adds
    * `command` after resolving {@link copy} through its locale seat.
    */
-  card: Pick<TerminalBlockProps, 'cwd' | 'output' | 'exitCode' | 'signal' | 'running'>
+  card: Pick<TerminalBlockProps, 'shell' | 'cwd' | 'output' | 'exitCode' | 'signal' | 'running'>
   /**
    * Verbatim Tool data or semantic `terminal_send` data. Product copy stays
    * unresolved until a render site supplies its locale seat.
@@ -51,7 +57,7 @@ export interface TerminalCardModel {
 }
 
 interface LocalizedTerminalCardModel {
-  readonly card: Pick<TerminalBlockProps, 'command' | 'cwd' | 'output' | 'exitCode' | 'signal' | 'running'>
+  readonly card: Pick<TerminalBlockProps, 'command' | 'shell' | 'cwd' | 'output' | 'exitCode' | 'signal' | 'running'>
   readonly description: string | undefined
 }
 
@@ -174,6 +180,12 @@ function collapse(body: string, rooted: boolean, separator = '/'): string {
 interface ShellCall {
   kind: 'shell'
   command: string
+  /**
+   * The dialect the command line is written in. `dsh-tool-shell` registers
+   * itself under its dialect's name, so the call name IS the dialect, and one
+   * deployment answers to one of them depending on the host platform.
+   */
+  shell: 'bash' | 'pwsh'
   description: string | undefined
   workdir: string | undefined
   persistent: boolean
@@ -192,12 +204,21 @@ function shellCall(name: string, args: Record<string, unknown>): ShellCall | nul
     // The standard dsh-tool-shell schema requires `description`;
     // persistent shell providers omit it. Their parameter roots stay open, so
     // unrelated fields do not change their running-card behavior.
-    return { kind: 'shell', command, description: undefined, workdir: undefined, persistent: true, background: false }
+    return {
+      kind: 'shell',
+      command,
+      shell: name,
+      description: undefined,
+      workdir: undefined,
+      persistent: true,
+      background: false,
+    }
   }
   if (typeof description !== 'string' || description.trim() === '') return null
   return {
     kind: 'shell',
     command,
+    shell: name,
     description,
     workdir,
     persistent: false,
@@ -278,10 +299,14 @@ export function terminalCardModel(
     ? { kind: 'shell', command: call.command, description: call.description }
     : { kind: 'terminal-send', text: call.text, sessionId: call.sessionId }
   const cwd = resolveTerminalCwd(call.kind === 'shell' ? call.workdir : undefined, sessionCwd)
+  // A `terminal_send` call writes into a session whose shell the harness never
+  // chose, so it states none; a shell call states the dialect its tool name is.
+  const shell = call.kind === 'shell' ? { shell: call.shell } : {}
   if (!('kind' in block)) {
     return {
       copy,
       card: {
+        ...shell,
         cwd,
         output: undefined,
         exitCode: undefined,
@@ -297,6 +322,7 @@ export function terminalCardModel(
   return {
     copy,
     card: {
+      ...shell,
       cwd,
       output: status.output,
       exitCode: status.exitCode,

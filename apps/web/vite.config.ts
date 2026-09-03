@@ -134,10 +134,11 @@ const FONT_EXTENSIONS: readonly string[] = ['.woff2', '.woff', '.ttf']
  * node_modules inside its content-addressed store.
  */
 function npmPackageOf(id: string): string | undefined {
-  const parts = id.split('/node_modules/')
-  if (parts.length === 1) return undefined
-  const [first, second] = parts[parts.length - 1].split('/')
-  if (first.startsWith('.')) return undefined // isolated-store segment, not a package
+  const marker = '/node_modules/'
+  const at = id.lastIndexOf(marker)
+  if (at === -1) return undefined
+  const [first, second] = id.slice(at + marker.length).split('/')
+  if (first === undefined || first.startsWith('.')) return undefined // isolated-store segment, not a package
   if (first.startsWith('@')) return second === undefined ? undefined : `${first}/${second}`
   return first
 }

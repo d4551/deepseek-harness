@@ -1440,6 +1440,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'true when the matching open operation is available.',
       },
       {
+        signature: '@Remote(\'workspaceOrigin\') workspaceOrigin(): SessionWorkspaceOrigin | null',
+        description: 'Report where this deployment\'s composed filesystem backend keeps the workspace, so a surface can distinguish a host-disk directory from one the harness mirrors. Read through `ctx.get` because the filesystem seam is optional here: a deployment that composes no backend has no origin to state, and null says exactly that rather than claiming the host\'s disk.',
+        parameters: [],
+        returns: 'the composed backend\'s origin, or null when none is composed.',
+      },
+      {
         signature: '@Remote(\'openWorkspacePath\') async openWorkspacePath( request: SessionOpenWorkspacePathRequest, signal: AbortSignal, ): Promise<SessionOpenWorkspacePathValue>',
         description: 'Open one path prepared by a Session-aware caller on the Host desktop.',
         parameters: [{ name: 'request', description: 'path after best-effort Session workspace resolution.' }, { name: 'signal', description: 'caller lifetime; abort terminates the native command.' }],
@@ -1451,6 +1457,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Rename one Session after explicitly resuming it.',
         parameters: [{ name: 'request', description: 'Session identity and proposed title.' }],
         returns: 'the accepted title and durable event sequence.',
+      },
+      {
+        signature: '@Remote(\'setWorkspaceRoots\') setWorkspaceRoots( request: SessionSetWorkspaceRootsRequest, ): Promise<SessionSetWorkspaceRootsValue>',
+        description: 'Replace the complete additional workspace-root set of one Session after explicitly resuming it.',
+        parameters: [{ name: 'request', description: 'Session identity and the complete replacement root set.' }],
+        returns: 'the additional roots the Session carries after the replacement.',
       },
       {
         signature: '@Remote(\'fork\') fork(request: SessionForkRequest): Promise<SessionForkValue>',
@@ -4401,8 +4413,12 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface LlmModelReasoningInfo {\n    efforts: readonly LlmReasoningEffortInfo[];\n    defaultEffort?: ReasoningEffortId;\n}',
   },
   {
+    name: 'LlmProviderHosting',
+    declaration: 'export type LlmProviderHosting = \'local\' | \'self-hosted\';',
+  },
+  {
     name: 'LlmProviderInfo',
-    declaration: 'export interface LlmProviderInfo {\n    id: string;\n    name: string;\n}',
+    declaration: 'export interface LlmProviderInfo {\n    id: string;\n    name: string;\n    hosting?: LlmProviderHosting;\n}',
   },
   {
     name: 'LlmReasoningEffortInfo',
@@ -4578,7 +4594,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ModelProviderGroup',
-    declaration: 'export interface ModelProviderGroup {\n    readonly id: string;\n    readonly name: string;\n    readonly models: readonly ModelCatalogModel[];\n}',
+    declaration: 'export interface ModelProviderGroup {\n    readonly id: string;\n    readonly name: string;\n    readonly models: readonly ModelCatalogModel[];\n    readonly hosting?: \'local\' | \'self-hosted\';\n}',
   },
   {
     name: 'ModelReasoning',
@@ -5197,6 +5213,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface SessionSelectModelValue {\n    readonly selected: ModelSelection;\n}',
   },
   {
+    name: 'SessionSetWorkspaceRootsRequest',
+    declaration: 'export interface SessionSetWorkspaceRootsRequest {\n    readonly sessionId: SessionId;\n    readonly additionalDirectories: readonly string[];\n}',
+  },
+  {
+    name: 'SessionSetWorkspaceRootsValue',
+    declaration: 'export interface SessionSetWorkspaceRootsValue {\n    readonly additional: readonly string[];\n}',
+  },
+  {
     name: 'SessionStartSource',
     declaration: 'export type SessionStartSource = \'startup\' | \'resume\' | \'clear\' | \'compact\';',
   },
@@ -5283,6 +5307,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SessionWireEvent',
     declaration: 'export interface SessionWireEvent {\n    readonly type: string;\n    readonly seq: number;\n    readonly time: number;\n    readonly data: JsonValue;\n    readonly sourceEventSeqs?: number[];\n    readonly surfaceOp?: SurfaceOp;\n}',
+  },
+  {
+    name: 'SessionWorkspaceOrigin',
+    declaration: 'export interface SessionWorkspaceOrigin {\n    readonly kind: string;\n}',
   },
   {
     name: 'SettingsApplies',
@@ -6046,11 +6074,15 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'WebFetchResult',
-    declaration: 'export interface WebFetchResult {\n    readonly url: string;\n    readonly statusCode: number;\n    readonly body: WebFetchBody;\n    readonly truncated: boolean;\n}',
+    declaration: 'export interface WebFetchResult {\n    readonly url: string;\n    readonly statusCode: number;\n    readonly body: WebFetchBody;\n    readonly truncated: boolean;\n    readonly retrieval?: WebFetchRetrieval;\n}',
   },
   {
     name: 'WebFetchResultView',
-    declaration: 'export interface WebFetchResultView {\n    card: \'web\';\n    kind: \'fetch\';\n    title?: string;\n    url: string;\n    statusCode: number;\n    truncated: boolean;\n}',
+    declaration: 'export interface WebFetchResultView {\n    card: \'web\';\n    kind: \'fetch\';\n    title?: string;\n    url: string;\n    statusCode: number;\n    truncated: boolean;\n    retrieval?: \'http\' | \'rendered\';\n}',
+  },
+  {
+    name: 'WebFetchRetrieval',
+    declaration: 'export type WebFetchRetrieval = \'http\' | \'rendered\';',
   },
   {
     name: 'WebhookDeliveryId',

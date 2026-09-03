@@ -224,17 +224,12 @@ export class RuntimeDomainSession {
   private async enable(): Promise<object> {
     this.enabled = true
     this.pendingAnnouncements++
-    const realms = this.realms.all()
     try {
-      await Promise.all(realms.map(async (realm) => { await this.openRealm(realm) }))
-      for (const realm of realms) this.announce(realm)
+      const admitted = await Promise.all(this.realms.all().map(realm => this.admitRealm(realm)))
+      // Announced in registry order, not completion order, so two connections
+      // that admit the same realms describe them in the same sequence.
+      for (const realm of admitted) if (realm !== undefined) this.announce(realm)
       return {}
-    } catch (error) {
-      this.enabled = false
-      this.detachConsoles()
-      this.announcedContexts.clear()
-      await Promise.allSettled(realms.map(async (realm) => { await runtimeBackend(realm).disable() }))
-      throw error
     } finally {
       this.settleAnnouncement()
     }
@@ -444,28 +439,36 @@ export class RuntimeDomainSession {
   }
 
   /**
-   * Prepare one realm for this connection, Console subscription first.
+   * Admit one realm to this connection, Console subscription first.
    *
    * `attachConsole` dispatches a Client realm's enable frame in this turn, before
    * the Worker replies `source/accepted` and the source starts publishing, so the
    * Client installs its Console observer ahead of its own first records.
+   *
+   * A realm this connection cannot observe is closed instead of announced, and
+   * the failure stays inside it: one Client whose Console enable is never
+   * confirmed leaves the Host realm and every sibling Client on this connection.
    * @param realm - Realm session to observe and enable.
-   * @returns Once Console events and Runtime state are live for this connection.
+   * @returns The realm once its Console events and Runtime state are live for
+   * this connection, or undefined when it was dropped instead.
    */
-  private async openRealm(realm: InspectorRealmSession): Promise<void> {
-    await Promise.all([this.attachConsole(realm), enableRuntime(realm)])
-  }
-
-  private async announceRealm(realm: InspectorRealmSession): Promise<void> {
+  private async admitRealm(realm: InspectorRealmSession): Promise<InspectorRealmSession | undefined> {
     try {
-      await this.openRealm(realm)
-      this.announce(realm)
+      await Promise.all([this.attachConsole(realm), enableRuntime(realm)])
+      return realm
     } catch {
-      // A realm this connection cannot observe is closed instead of announced.
       // Closing the session ends a Console subscription that did establish, so
       // this connection forgets it rather than replaying it to a closed backend.
       this.detachConsole(realm.descriptor.realmId)
       realm.close()
+      return undefined
+    }
+  }
+
+  private async announceRealm(realm: InspectorRealmSession): Promise<void> {
+    try {
+      const admitted = await this.admitRealm(realm)
+      if (admitted !== undefined) this.announce(admitted)
     } finally {
       this.settleAnnouncement()
     }

@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-03-canonical-session-fixture-write-back.md
+2026-09-03-canonical-session-fixture-write-back.md: 213d09c242194e54f111fcfe7e72b165da7b86ee
+2026-09-03-canonical-session-fixture-write-back.zh.md: cca0191a8163e48305393e815b6a861b539b8901

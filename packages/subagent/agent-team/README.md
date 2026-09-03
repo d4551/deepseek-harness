@@ -56,6 +56,12 @@ With the tools installed, the model does the rest on request — for example, "c
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-agent-team) is the exhaustive source for every accepted field and its JSDoc.
 
+### Capacities a user owns
+
+`maxMembers` and `maxTasks` are also a settings section under the `agent-team` namespace, so a running deployment retunes them without editing the composition — the Web app renders them as the Agent team card on the Plugins settings page. The stored value layers over the composition entry and is read at the admission it bounds: a raised capacity admits the next teammate or task immediately, and a lowered one leaves members and tasks already admitted in place.
+
+The section carries only those two fields. `maxPendingMessagesPerMember` and `maxMessageBytes` bound what one delivery costs the durable log and the model's context window, and `disposalTimeoutMs` times a teardown already in progress; all three stay composition-only. Storing one of them in the section is refused at the write, with the field named, rather than sitting in the settings document looking applied.
+
 ### Teammates
 
 Ask the Lead to create a teammate: give it a unique lowercase name such as `reviewer` and describe its job. A teammate starts fresh with no memory of the Lead's conversation, or as a fork that inherits the Lead's completed turns; the creation request chooses which. Teammate names are permanent — even a teammate whose creation failed keeps its name, and no name is ever reused.

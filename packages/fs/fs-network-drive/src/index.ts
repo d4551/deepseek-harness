@@ -20,6 +20,7 @@ import type {
   FsEditOutcome,
   FsEditRequest,
   FsInfo,
+  FsOrigin,
   FsPathInfo,
   FsTarget,
   FsVersion,
@@ -101,6 +102,17 @@ export class NetworkDriveFileSystem extends FileSystem {
     const drive = (): NetworkDrive => ctx.networkDrive
     this.addressing = new DriveAddressing(resolved, drive)
     this.transfer = new DriveTransfer(resolved, this.addressing, drive)
+  }
+
+  /**
+   * The workspace this backend serves is a mirror of a remote drive, not the
+   * host's own disk. A surface reading this tells a person that the directory
+   * their session works in is materialized, and that writes commit to the
+   * drive before the local copy is refreshed.
+   * @returns the network-drive origin.
+   */
+  override get origin(): FsOrigin {
+    return { kind: 'network-drive' }
   }
 
   override resolve(path: string, opts?: { cwd?: string; signal?: AbortSignal }): Promise<FsTarget> {

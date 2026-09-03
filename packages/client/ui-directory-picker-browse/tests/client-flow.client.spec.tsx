@@ -79,7 +79,7 @@ describe('directory-picker-browse client half', () => {
     b.declare()
     // Foreign occupant in the SECOND registered hole: the pair construction
     // throws after the outer injection installed its subscription.
-    b.slots.register({ name: HOLES[1] } as never, () => null)
+    b.slots.register({ name: HOLES[1] }, () => null)
     const rejections: unknown[] = []
     const onUnhandled = (reason: unknown): void => { rejections.push(reason) }
     process.on('unhandledRejection', onUnhandled)
@@ -90,7 +90,7 @@ describe('directory-picker-browse client half', () => {
       // throw from its orphaned subscription against the HERO hole; the
       // rollback leaves only the activation failure itself (cordis re-raises
       // the apply throw as a late rejection — installFailLoud's contract).
-      const disposeProbe = b.slots.register({ name: HOLES[0] } as never, () => null)
+      const disposeProbe = b.slots.register({ name: HOLES[0] }, () => null)
       await new Promise(resolve => setTimeout(resolve, 20))
       expect(rejections.map(String).filter(text => text.includes(HOLES[0]))).toEqual([])
       disposeProbe()
@@ -109,8 +109,8 @@ describe('directory-picker-browse client half', () => {
       // The rival subscribes first, so synchronous declaration notifications
       // let it occupy the pair before this provider's waiting injection runs.
       b.slots.inject(HOLES[0], () => b.slots.inject(HOLES[1], function* () {
-        yield b.slots.register({ name: HOLES[0] } as never, () => null)
-        yield b.slots.register({ name: HOLES[1] } as never, () => null)
+        yield b.slots.register({ name: HOLES[0] }, () => null)
+        yield b.slots.register({ name: HOLES[1] }, () => null)
       }))
       await b.ctx.plugin({ inject: [...inject], apply }).await()
       b.declare()

@@ -247,3 +247,53 @@
     animation: none;
   }
 }
+
+/* Failed-source block: the load failure's message with its retry action,
+   sharing the item row metrics so it reads as that group's body. */
+.error {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.errorTitle {
+  flex: none;
+  font-weight: 500;
+}
+
+/* The host message can be long; it wraps rather than truncating, because the
+   package name it usually carries is the actionable part. */
+.errorText {
+  flex: 1 1 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.retry {
+  flex: none;
+  margin-inline-start: auto;
+  padding: 2px 8px;
+  border: 1px solid var(--dsw-alias-border-inverted);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.retry:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+/* Text for assistive technology only: the skeleton bars carry the loading
+   state visually and say nothing, so the state name rides here instead of an
+   aria-label alone, which a text-reading tool never surfaces. */

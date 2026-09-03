@@ -22,24 +22,29 @@ import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { AgentLoopCard } from './AgentLoopCard.tsx'
 import { AgentDefaultModelCard } from './AgentDefaultModelCard.tsx'
-import { ApprovalAssessorCard } from './ApprovalAssessorCard.tsx'
+import { AgentTeamCard } from './AgentTeamCard.tsx'
 import { BashCard } from './BashCard.tsx'
 import { ConfigurablePluginsTab } from './ConfigurablePluginsTab.tsx'
 import { PluginsSettingsSection } from './PluginsSettingsSection.tsx'
 import type { PluginsSettingsSectionInjected, PluginsSettingsTabEntry } from './PluginsSettingsSection.tsx'
 import { SubagentModelSelectionCard } from './SubagentModelSelectionCard.tsx'
+import { WebAccessCard } from './WebAccessCard.tsx'
+import { WebProviderCard } from './WebProviderCard.tsx'
 import { WebSearchCard } from './WebSearchCard.tsx'
 import { AGENT_LOOP_NS, AgentLoopCardController } from './agent-loop-card-controller.ts'
 import {
   AGENT_DEFAULT_MODEL_NS, AgentDefaultModelCardController,
 } from './agent-default-model-card-controller.ts'
 import { SHELL_NS, BashCardController } from './bash-card-controller.ts'
-import { APPROVAL_ASSESSOR_NS, ApprovalAssessorCardController } from './approval-assessor-card-controller.ts'
+import { AGENT_TEAM_NS, AgentTeamCardController } from './agent-team-card-controller.ts'
 import { ConfigurablePluginsTabController } from './tab-store.ts'
 import {
   SUBAGENT_MODEL_SELECTION_NS, SubagentModelSelectionCardController,
 } from './subagent-model-selection-card-controller.ts'
 import { WEB_SEARCH_NS, WebSearchCardController } from './web-search-card-controller.ts'
+import { WEB_ACCESS_NS, WebAccessCardController } from './web-access-card-controller.ts'
+import { WebProviderCardController } from './web-provider-card-controller.ts'
+import { WEB_PROVIDERS } from './web-provider-catalog.ts'
 import { en, zh } from './locales.ts'
 
 export type { PluginsSettingsSectionInjected } from './PluginsSettingsSection.tsx'
@@ -77,9 +82,22 @@ export function apply(ctx: ClientContext): void {
     ctx.settingsScope.bind({ namespace: AGENT_DEFAULT_MODEL_NS }),
     ctx.remote.session,
   )
-  const approvalAssessor = new ApprovalAssessorCardController(
-    ctx.settingsScope.bind({ namespace: APPROVAL_ASSESSOR_NS }),
+  const webAccess = new WebAccessCardController(
+    ctx.settingsScope.bind({ namespace: WEB_ACCESS_NS }),
+    ctx.settingsScope.describe(),
   )
+  // Each backend edits its own namespace; the DeepSeek one keeps its own card
+  // because its key lives in the credentials domain rather than in its section.
+  const webProviders = WEB_PROVIDERS
+    .filter(provider => provider.fields.length > 0)
+    .map(provider => new WebProviderCardController(
+      provider,
+      ctx.settingsScope.bind({ namespace: provider.ns }),
+    ))
+  ctx.effect(() => () => { webAccess.dispose() }, 'ui-settings-plugins: web backend directory')
+  // Only a Team-composed deployment serves this namespace, so the card is
+  // absent from a profile that mounts no Team rather than showing dead controls.
+  const agentTeam = new AgentTeamCardController(ctx.settingsScope.bind({ namespace: AGENT_TEAM_NS }))
 
   // The credential a card reports is not part of any settings section, so its
   // scope publishes nothing when one is written. This is the only signal that
@@ -215,9 +233,23 @@ export function apply(ctx: ClientContext): void {
     }, WebSearchCard)
     yield ctx.slots.register({
       name: 'settings.plugin.item',
-      key: APPROVAL_ASSESSOR_NS,
+      key: AGENT_TEAM_NS,
       locale: NS,
-      inject: () => approvalAssessor.inject(),
-    }, ApprovalAssessorCard)
+      inject: () => agentTeam.inject(),
+    }, AgentTeamCard)
+    yield ctx.slots.register({
+      name: 'settings.plugin.item',
+      key: WEB_ACCESS_NS,
+      locale: NS,
+      inject: () => webAccess.inject(),
+    }, WebAccessCard)
+    for (const controller of webProviders) {
+      yield ctx.slots.register({
+        name: 'settings.plugin.item',
+        key: controller.namespace,
+        locale: NS,
+        inject: () => controller.inject(),
+      }, WebProviderCard)
+    }
   })
 }

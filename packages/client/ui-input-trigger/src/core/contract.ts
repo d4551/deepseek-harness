@@ -29,27 +29,45 @@ export interface TriggerHit {
  */
 export type DetectTrigger = (draft: string, caret: number, guard: TriggerGuard) => TriggerHit | null
 
+/** Row facts every menu group carries, whatever its load status. */
+interface MenuGroupBase {
+  readonly source: string
+  /** False when candidate section rows own all visible group labeling. */
+  readonly showGroupTitle?: boolean
+  readonly items: readonly InputTriggerCandidate[]
+}
+
+/**
+ * One source's group in the open menu. A `failed` group keeps its seat in the
+ * roster and carries the load failure's message verbatim, so the view renders
+ * the failure instead of an empty body and the menu does not auto-close into
+ * a state the next keystroke would refetch.
+ */
+export type MenuGroup =
+  | (MenuGroupBase & { readonly status: 'pending' })
+  | (MenuGroupBase & { readonly status: 'ready' })
+  | (MenuGroupBase & { readonly status: 'failed'; readonly error: string })
+
 /** Menu state: one group per source; empty ready groups auto-close the menu. */
 export interface MenuState {
   readonly open: boolean
   readonly hit: TriggerHit | null
   /** Monotonic per-hit generation; stale source settlements are dropped. */
   readonly generation: number
-  readonly groups: readonly {
-    readonly source: string
-    /** False when candidate section rows own all visible group labeling. */
-    readonly showGroupTitle?: boolean
-    readonly status: 'pending' | 'ready'
-    readonly items: readonly InputTriggerCandidate[]
-  }[]
+  readonly groups: readonly MenuGroup[]
   readonly highlight: { readonly source: string; readonly index: number } | null
 }
 
-/** Menu reduction events. Source failure = silent group removal (log only; no error UI tier). */
+/**
+ * Menu reduction events. A source failure keeps the group and publishes its
+ * message; only an unregistered source (`source-removed`) drops one silently.
+ */
 export type MenuEvent =
   | { readonly type: 'hit'; readonly hit: TriggerHit | null }
   | { readonly type: 'source-settled'; readonly generation: number; readonly source: string; readonly items?: readonly InputTriggerCandidate[] }
-  | { readonly type: 'source-failed'; readonly generation: number; readonly source: string }
+  | { readonly type: 'source-failed'; readonly generation: number; readonly source: string; readonly error: string }
+  | { readonly type: 'source-retry'; readonly generation: number; readonly source: string }
+  | { readonly type: 'source-removed'; readonly generation: number; readonly source: string }
   | { readonly type: 'move'; readonly dir: 1 | -1 }
   | { readonly type: 'hover'; readonly source: string; readonly index: number }
   | { readonly type: 'close' }

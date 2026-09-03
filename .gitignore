@@ -44,6 +44,11 @@ packages/typert/generator/tests/.generated-*/
 packages/typert/generator/tests/.rendered-model-*/
 packages/typert/generator/tests/.probe-*/
 /.audit-tmp
-/.tmp-bun
-/.tmp-dsh
-/.tmp-tsgo
+
+# Scratch and tool-cache residue. The host auto-commits the whole tree, so an
+# unignored probe file at the repository root reaches a commit before anyone
+# reviews it; `knip`'s project scope does not reach loose root files, so no
+# gate catches it either.
+/tmp-*
+/*.scratch.*
+/.tmp-*

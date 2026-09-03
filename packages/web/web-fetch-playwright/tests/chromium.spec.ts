@@ -117,8 +117,10 @@ describe('Playwright browser access', () => {
   })
 
   it('probes the installation by checking the executable, not by launching one', async () => {
-    const answer = await probeChromium().then(() => 'installed', () => 'missing')
-    expect(answer).toBe(installed ? 'installed' : 'missing')
+    const answer = await probeChromium({}).then(confirmed => confirmed, () => 'missing')
+    expect(answer).toBe(installed ? executable : 'missing')
+    // A named executable is confirmed on its own path rather than Playwright's.
+    await expect(probeChromium({ executablePath: playwrightManifest })).resolves.toBe(playwrightManifest)
     expect(chromiumAccess.probe).toBe(probeChromium)
     expect(chromiumAccess.launch).toBe(launchChromium)
   })
@@ -126,17 +128,17 @@ describe('Playwright browser access', () => {
   it('rejects when the located executable is absent and resolves when it is present', async () => {
     await expect(probeExecutable(async () => join(playwrightDir, 'no-such-browser'))).rejects
       .toThrow(/no browser executable at /)
-    await expect(probeExecutable(async () => playwrightManifest)).resolves.toBeUndefined()
+    await expect(probeExecutable(async () => playwrightManifest)).resolves.toBe(playwrightManifest)
   })
 
   it('launches a headless browser when one is installed', async () => {
     if (!installed) {
       // Without an installation the launcher must fail rather than hang; the message
       // is Playwright's own, and the provider appends the install command to it.
-      await expect(launchChromium()).rejects.toThrow()
+      await expect(launchChromium({})).rejects.toThrow()
       return
     }
-    shared = await launchChromium() as Browser
+    shared = await launchChromium({}) as Browser
     const context = await shared.newContext({ userAgent: 'test-agent/1.0', serviceWorkers: 'block' })
     expect(context.pages()).toEqual([])
     await context.close()
@@ -199,7 +201,7 @@ describe.skipIf(!installed)('Playwright redirect routing', () => {
     vi.spyOn(publicHttpNetwork, 'resolve').mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
     const access: BrowserAccess = {
       launch: async (): Promise<RenderBrowser> => mapped,
-      probe: async () => undefined,
+      probe: async () => '/fake/chromium',
     }
     const provider = new PlaywrightFetchProvider({ ...limits, timeoutMs: 20_000 }, access)
     const { fetch: renderOne } = provider

@@ -26,7 +26,7 @@ The preset group provides per-session agent composition: an agent preset is a di
 |---|---|---|
 | [`agent-presets`](agent-presets/README.md) | Preset roster, discovery over trusted and user roots, per-agent composition, copy-only authoring | `ctx.agentPresets` |
 | [`agent-team-profile`](agent-team-profile/README.md) | Source-checkout profile layer enabling Agent Teams over `dsh-base` | — |
-| [`agent-team-web-profile`](agent-team-web-profile/README.md) | Source-checkout Web layer adding the Agent Teams panel | — |
+| [`agent-team-web-profile`](agent-team-web-profile/README.md) | Shipped browser layer behind `dsh --profile swarm-web`: the Agent Teams panel | — |
 | [`persona`](persona/README.md) | The composable persona row a preset mounts to shadow or replace the deployment persona | — |
 | [`swarm-profile`](swarm-profile/README.md) | Shipped profile layer behind `dsh --profile swarm`: Agent Teams in swarm mode over `dsh-base` | — |
 

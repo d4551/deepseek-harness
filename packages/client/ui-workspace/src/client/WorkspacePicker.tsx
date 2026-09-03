@@ -2,11 +2,9 @@
  * Workspace pick/add flow. WorkspacePickFlow is the reusable core (menu +
  * path error dialog) consumed directly by WorkspaceBrowser (same package) and
  * wrapped by WorkspacePicker for the conversation empty-state slot
- * registration. Directory picking itself lives in the composed flow package's
- * slot occupant (see the contract module doc): this core only opens the flow,
- * adopts the picked path, and owns the error surface. Adding a workspace has
- * exactly one route — pick a host directory, new or existing — because the
- * occupant's own create-folder affordance already covers creating one.
+ * registration. Directory picking lives in the composed flow package's slot
+ * occupant; this core opens that flow, adopts its result, and owns the error
+ * surface.
  */
 import type { ReactNode, RefObject } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -42,8 +40,6 @@ export interface WorkspacePickFlowProps {
   onPick: (workspaceId: WorkspaceId) => void
   /** Close the popover (outside click / Escape / post-pick). */
   onClose: () => void
-  /** Only offer the add action, hide existing workspaces. */
-  addOnly?: boolean
   /** Menu opening direction relative to the anchor. */
   side?: 'bottom' | 'top' | 'right'
   /** Currently active workspace (trailing check in the picker list). */
@@ -65,7 +61,6 @@ export function WorkspacePickFlow({
   renderDirectoryFlow,
   onPick,
   onClose,
-  addOnly = false,
   side = 'bottom',
   selectedId,
 }: WorkspacePickFlowProps) {
@@ -103,7 +98,7 @@ export function WorkspacePickFlow({
     : []
   // With workspaces listed, the add action pins below the scroll region
   // (divider + always visible); otherwise it IS the menu.
-  const pinAdd = !addOnly && workspaces.length > 0
+  const pinAdd = workspaces.length > 0
   const items: MenuEntry[] = pinAdd
     ? workspaces.map(workspace => ({
       id: workspace.workspaceId,
@@ -147,8 +142,8 @@ export function WorkspacePickFlow({
   // would consume it (close the popover, raise the flow). An empty list is
   // only final once the baseline lands — until then the menu stays up with its
   // loading status instead of jumping into a flow the arriving list would have
-  // made unnecessary; the add-only surface lists nothing and never waits.
-  const listSettled = addOnly || workspaceSnapshot.phase === 'ready'
+  // made unnecessary.
+  const listSettled = workspaceSnapshot.phase === 'ready'
   const addIsTheOnlyEntry = !pinAdd && listSettled && addEntries.length === 1
   // `flowBusy` gates this exactly as it disables the equivalent menu entry: a
   // pick still being adopted owns the surface until it settles.
@@ -177,7 +172,11 @@ export function WorkspacePickFlow({
       openDirectoryFlow()
       return
     }
-    onPick(id as WorkspaceId)
+    const workspace = workspaces.find(candidate => candidate.workspaceId === id)
+    if (workspace === undefined) {
+      throw new Error(`Workspace picker received an unknown selection: ${id}`)
+    }
+    onPick(workspace.workspaceId)
   }
 
   return (

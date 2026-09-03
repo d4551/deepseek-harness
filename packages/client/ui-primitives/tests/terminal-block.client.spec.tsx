@@ -27,7 +27,7 @@ function runStateOf(container: HTMLElement): { state: string | null; label: stri
   const dot = container.querySelector('[class*="_runState_"][data-state]')
   return {
     state: dot?.getAttribute('data-state') ?? null,
-    label: container.querySelector('[class^="_runStateLabel_"]')?.textContent ?? undefined,
+    label: container.querySelector('.dsw-visually-hidden')?.textContent ?? undefined,
   }
 }
 
@@ -259,7 +259,7 @@ describe('TerminalBlock run-state dot', () => {
   it('marks the call once, on the first row, never per line', () => {
     const view = render(<TerminalBlock command={'true\nfalse\ntrue'} output="x" exitCode={1} />)
     expect(view.container.querySelectorAll('[class*="_runState_"][data-state]')).toHaveLength(1)
-    expect(view.container.querySelectorAll('[class^="_runStateLabel_"]')).toHaveLength(1)
+    expect(view.container.querySelectorAll('.dsw-visually-hidden')).toHaveLength(1)
     expect(runStateOf(view.container)).toEqual({ state: 'error', label: '失败' })
     const rows = view.container.querySelectorAll('[class^="_promptLine_"]')
     expect(rows[0]!.querySelector('[data-state]')).not.toBeNull()

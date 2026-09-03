@@ -44,6 +44,13 @@ export interface WebFetchBlockProps {
   statusCode: number
   /** True when the provider or the output cap cut the fetched content. */
   truncated: boolean
+  /**
+   * How the provider obtained the body: `http` read bytes and executed
+   * nothing, `rendered` loaded the page in a browser engine that ran its
+   * scripts. Absent renders no badge, which is what a result recorded before
+   * the providers declared it deserves.
+   */
+  retrieval?: 'http' | 'rendered' | undefined
   /** Extra class merged onto the wrapper (callers position; this component draws). */
   className?: string | undefined
 }
@@ -57,6 +64,13 @@ export interface WebBlockLabels {
   sourcesTruncated: string
   http: string
   contentTruncated: string
+  /**
+   * Badge copy naming how the body was obtained: `label` is the visible text,
+   * `title` the fuller sentence the badge carries as its accessible name.
+   * @param retrieval - the mode the result recorded.
+   * @returns the visible badge text and its title.
+   */
+  retrieval: (retrieval: 'http' | 'rendered') => { label: string; title: string }
   markdown: MarkdownLabels
 }
 
@@ -172,12 +186,16 @@ function WebSearchBlock({ answer, sources, truncated, labels, className }: WebSe
  * @param props - see {@link WebFetchBlockProps}.
  * @returns the fetch card element.
  */
-function WebFetchBlock({ url, statusCode, truncated, labels, className }: WebFetchBlockProps) {
+function WebFetchBlock({ url, statusCode, truncated, retrieval, labels, className }: WebFetchBlockProps) {
+  const mode = retrieval === undefined ? undefined : labels.retrieval(retrieval)
   return (
     <div className={clsx(css.block, css.fetch, className)} data-web="fetch">
       <SafeLink url={url} label={url} className={css.fetchUrl} />
       <div className={css.fetchMeta}>
         <span className={css.status}>{labels.http} {statusCode}</span>
+        {mode !== undefined && (
+          <span className={css.retrieval} data-retrieval={retrieval} title={mode.title}>{mode.label}</span>
+        )}
         {truncated && <span className={css.truncated}>{labels.contentTruncated}</span>}
       </div>
     </div>

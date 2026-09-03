@@ -10,9 +10,9 @@ import type {
   AssistantChatData, FinalAssistantChatData, TurnTailChatData,
 } from '../contract/chat-nodes.ts'
 import { deriveTurnMetrics } from '../contract/turn-metrics.ts'
-import { SYNTHETIC_SEQ_OFFSETS } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import { SYNTHETIC_SEQ_OFFSETS } from '@deepseek-ai/dsh-client-ui-projection'
 import { chatNode } from './common.ts'
-import { toAssistantBlocks } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import { toAssistantBlocks } from '@deepseek-ai/dsh-client-ui-projection'
 
 declare module '../contract/chat-nodes.ts' {
   interface ChatNodeDataMap {

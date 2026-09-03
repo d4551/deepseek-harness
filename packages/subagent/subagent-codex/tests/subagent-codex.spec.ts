@@ -1,6 +1,9 @@
-import { readFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
+import { spawnSync } from 'node:child_process'
+import { mkdtempSync, readFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
 import { PassThrough } from 'node:stream'
+import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
@@ -65,7 +68,7 @@ vi.mock('node:fs', async (importOriginal) => {
 
 type JsonObject = Record<string, unknown>
 
-const CODEX_VERSION = '0.149.1'
+const CODEX_VERSION = '0.153.0'
 const CODEX_PLATFORM_PACKAGES = [
   '@openai/codex-darwin-arm64',
   '@openai/codex-darwin-x64',
@@ -75,16 +78,39 @@ const CODEX_PLATFORM_PACKAGES = [
   '@openai/codex-win32-x64',
 ] as const
 
-const fakeParent = {
-  id: 'parent',
-  session: { header: { cwd: process.cwd() } },
-} as unknown as Agent
+/**
+ * The `sandbox` member the real app-server 0.153.0 returns on `thread/start`
+ * under a `workspace-write` policy, carrying whichever roots it accepted.
+ */
+function workspaceWriteSandbox(writableRoots: readonly string[]) {
+  return {
+    type: 'workspaceWrite',
+    writableRoots: [...writableRoots],
+    networkAccess: false,
+    excludeTmpdirEnvVar: false,
+    excludeSlashTmp: false,
+  }
+}
+
+/** A delegating parent whose session log folds to `roots` as its additional workspace roots. */
+function parentAgent(roots: readonly string[] = []): Agent {
+  return {
+    id: 'parent',
+    session: {
+      header: { cwd: process.cwd() },
+      events: roots.length === 0 ? [] : [{ type: 'workspace/roots', data: { roots } }],
+    },
+  } as unknown as Agent
+}
+
+const fakeParent = parentAgent()
 
 function request(
   prompt: ContentBlock[] = [{ type: 'text', text: 'do the task' }],
   signal = new AbortController().signal,
+  parent: Agent = fakeParent,
 ) {
-  return { prompt, parent: fakeParent, signal }
+  return { prompt, parent, signal }
 }
 
 async function nextTask(): Promise<void> {
@@ -249,6 +275,7 @@ function runSpec(
 ): CodexRunSpec {
   return {
     cwd: process.cwd(),
+    workspaceRoots: [],
     permissionMode: DEFAULT_CODEX_PERMISSION_MODE,
     env: {},
     disposeGraceMs: DEFAULT_DISPOSE_GRACE_MS,
@@ -266,13 +293,13 @@ async function initializeWire(): Promise<{
   wire.start()
   const initializing = wire.initialize(new AbortController().signal)
   const initialize = await child.peer.nextMethod('initialize')
-  child.peer.respond(initialize, { userAgent: 'codex-cli 0.149.1' })
+  child.peer.respond(initialize, { userAgent: 'codex-cli 0.153.0' })
   await initializing
   expect(await child.peer.nextMethod('initialized')).toEqual({
     jsonrpc: '2.0',
     method: 'initialized',
   })
-  const starting = wire.startThread(process.cwd(), new AbortController().signal)
+  const starting = wire.startThread(process.cwd(), [], new AbortController().signal)
   const threadStart = await child.peer.nextMethod('thread/start')
   child.peer.respond(threadStart, { thread: { id: 'thread-1', ephemeral: true } })
   await starting
@@ -286,7 +313,7 @@ async function publishRun(
 ) {
   const starting = startCodexRun(request(undefined, signal), runSpec(child, specOverrides))
   const initialize = await child.peer.nextMethod('initialize')
-  child.peer.respond(initialize, { userAgent: 'codex-cli 0.149.1' })
+  child.peer.respond(initialize, { userAgent: 'codex-cli 0.153.0' })
   await child.peer.nextMethod('initialized')
   const threadStart = await child.peer.nextMethod('thread/start')
   child.peer.respond(threadStart, { thread: { id: 'thread-1', ephemeral: true } })
@@ -509,7 +536,7 @@ describe('task admission and package contracts', () => {
       [bypassChild, 'codex-bypass-model'],
     ] as const) {
       const initialize = await child.peer.nextMethod('initialize')
-      child.peer.respond(initialize, { userAgent: 'codex-cli 0.149.1' })
+      child.peer.respond(initialize, { userAgent: 'codex-cli 0.153.0' })
       await child.peer.nextMethod('initialized')
       const threadStart = await child.peer.nextMethod('thread/start')
       expect(threadStart.params).toMatchObject({ model })
@@ -597,6 +624,46 @@ describe('task admission and package contracts', () => {
     }
   })
 
+  it('forwards the delegating session\'s additional workspace roots to the child thread', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SubagentRuntime)
+    await ctx.plugin(LocalSubprocessRuntime)
+    const child = fakeChild()
+    vi.spyOn(ctx.subprocess, 'spawn').mockReturnValue(child.handle)
+    await ctx.plugin(codex, {})
+    const starting = ctx.subagents.start(
+      'codex',
+      request(undefined, undefined, parentAgent(['/second-root', '/third-root'])),
+    )
+    const initialize = await child.peer.nextMethod('initialize')
+    child.peer.respond(initialize, { userAgent: 'codex-cli 0.153.0' })
+    await child.peer.nextMethod('initialized')
+    const threadStart = await child.peer.nextMethod('thread/start')
+    expect(threadStart.params).toMatchObject({
+      cwd: process.cwd(),
+      config: {
+        'sandbox_workspace_write.writable_roots': ['/second-root', '/third-root'],
+      },
+    })
+    child.peer.respond(threadStart, {
+      thread: { id: 'thread-1', ephemeral: true },
+      sandbox: workspaceWriteSandbox(['/second-root', '/third-root']),
+    })
+    const run = await starting
+    const turnStart = await child.peer.nextMethod('turn/start')
+    child.peer.send(
+      { id: turnStart.id, result: { turn: { id: 'turn-1' } } },
+      agentMessage('multi-root answer', 'final_answer'),
+      turnCompleted('completed'),
+    )
+    await expect(run.result).resolves.toEqual({
+      output: [{ type: 'text', text: 'multi-root answer' }],
+      stopReason: 'completed',
+    })
+    await run.dispose()
+    await ctx.fiber.dispose()
+  })
+
   it('resolves the safe permission default when apply is called directly', async () => {
     const ctx = new Context()
     await ctx.plugin(SubagentRuntime)
@@ -607,7 +674,7 @@ describe('task admission and package contracts', () => {
     expect(ctx.subagents.getProvider('codex')).toBeDefined()
     const starting = ctx.subagents.start('codex', request())
     const initialize = await child.peer.nextMethod('initialize')
-    child.peer.respond(initialize, { userAgent: 'codex-cli 0.149.1' })
+    child.peer.respond(initialize, { userAgent: 'codex-cli 0.153.0' })
     await child.peer.nextMethod('initialized')
     const threadStart = await child.peer.nextMethod('thread/start')
     expect(threadStart.params).not.toHaveProperty('model')
@@ -648,10 +715,10 @@ describe('task admission and package contracts', () => {
     wire.start()
     const initializing = wire.initialize(new AbortController().signal)
     const initialize = await child.peer.nextMethod('initialize')
-    child.peer.respond(initialize, { userAgent: 'codex-cli 0.149.1' })
+    child.peer.respond(initialize, { userAgent: 'codex-cli 0.153.0' })
     await initializing
     await child.peer.nextMethod('initialized')
-    const starting = wire.startThread('/workspace', new AbortController().signal)
+    const starting = wire.startThread('/workspace', [], new AbortController().signal)
     const threadStart = await child.peer.nextMethod('thread/start')
     expect(threadStart.params).toEqual({
       cwd: '/workspace',
@@ -675,10 +742,10 @@ describe('task admission and package contracts', () => {
     wire.start()
     const initializing = wire.initialize(new AbortController().signal)
     const initialize = await child.peer.nextMethod('initialize')
-    child.peer.respond(initialize, { userAgent: 'codex-cli 0.149.1' })
+    child.peer.respond(initialize, { userAgent: 'codex-cli 0.153.0' })
     await initializing
     await child.peer.nextMethod('initialized')
-    const starting = wire.startThread('/workspace', new AbortController().signal)
+    const starting = wire.startThread('/workspace', [], new AbortController().signal)
     const threadStart = await child.peer.nextMethod('thread/start')
     expect(threadStart.params).toEqual({
       cwd: '/workspace',
@@ -757,11 +824,11 @@ describe('CodexAppServerWire', () => {
         requestAttestation: false,
       },
     })
-    child.peer.respond(initialize, { userAgent: 'codex-cli 0.149.1' })
+    child.peer.respond(initialize, { userAgent: 'codex-cli 0.153.0' })
     await initializing
     await child.peer.nextMethod('initialized')
 
-    const starting = wire.startThread('/workspace', new AbortController().signal)
+    const starting = wire.startThread('/workspace', [], new AbortController().signal)
     const threadStart = await child.peer.nextMethod('thread/start')
     expect(threadStart.params).toEqual({
       cwd: '/workspace',
@@ -815,6 +882,116 @@ describe('CodexAppServerWire', () => {
     wire.close()
   })
 
+  it('declares inherited workspace roots as the thread\'s writable roots', async () => {
+    const child = fakeChild()
+    const wire = defaultWire(child)
+    wire.start()
+    const initializing = wire.initialize(new AbortController().signal)
+    const initialize = await child.peer.nextMethod('initialize')
+    child.peer.respond(initialize, { userAgent: 'codex-cli 0.153.0' })
+    await initializing
+    await child.peer.nextMethod('initialized')
+
+    const starting = wire.startThread(
+      '/workspace',
+      ['/second-root', '/third-root'],
+      new AbortController().signal,
+    )
+    const threadStart = await child.peer.nextMethod('thread/start')
+    // Codex 0.153.0 reads this dotted config path for the sandbox's writable
+    // roots and echoes the merged policy in `ThreadStartResponse.sandbox`.
+    expect(threadStart.params).toEqual({
+      cwd: '/workspace',
+      ephemeral: true,
+      approvalPolicy: 'never',
+      config: {
+        'sandbox_workspace_write.writable_roots': ['/second-root', '/third-root'],
+      },
+    })
+    child.peer.respond(threadStart, {
+      thread: { id: 'thread-1', ephemeral: true },
+      sandbox: workspaceWriteSandbox(['/second-root', '/third-root']),
+    })
+    await starting
+    wire.close()
+  })
+
+  it.each([
+    ['an ignored config override', workspaceWriteSandbox(['/third-root'])],
+    ['a policy carrying no writable-root list', { type: 'workspaceWrite' }],
+    ['a policy it cannot read', 'workspaceWrite'],
+  ])('refuses a thread that did not accept the declared writable roots: %s', async (_label, sandbox) => {
+    const child = fakeChild()
+    const wire = defaultWire(child)
+    wire.start()
+    const initializing = wire.initialize(new AbortController().signal)
+    const initialize = await child.peer.nextMethod('initialize')
+    child.peer.respond(initialize, { userAgent: 'codex-cli 0.153.0' })
+    await initializing
+    await child.peer.nextMethod('initialized')
+
+    const starting = wire.startThread(
+      '/workspace',
+      ['/second-root', '/third-root'],
+      new AbortController().signal,
+    )
+    const threadStart = await child.peer.nextMethod('thread/start')
+    child.peer.respond(threadStart, { thread: { id: 'thread-1', ephemeral: true }, sandbox })
+    await expect(starting).rejects.toThrow('subagent-codex')
+    wire.close()
+  })
+
+  it('names the roots Codex silently dropped from the thread', async () => {
+    const child = fakeChild()
+    const wire = defaultWire(child)
+    wire.start()
+    const initializing = wire.initialize(new AbortController().signal)
+    const initialize = await child.peer.nextMethod('initialize')
+    child.peer.respond(initialize, { userAgent: 'codex-cli 0.153.0' })
+    await initializing
+    await child.peer.nextMethod('initialized')
+
+    // An unrecognized `config` key is ignored without an error, so the empty
+    // writable-root list is the only signal the override did not land.
+    const starting = wire.startThread('/workspace', ['/second-root', '/third-root'], new AbortController().signal)
+    const threadStart = await child.peer.nextMethod('thread/start')
+    child.peer.respond(threadStart, {
+      thread: { id: 'thread-1', ephemeral: true },
+      sandbox: workspaceWriteSandbox([]),
+    })
+    await expect(starting).rejects.toThrow(
+      'Codex did not accept the delegating session\'s additional workspace roots as '
+      + 'sandbox_workspace_write.writable_roots; missing from the thread\'s writable roots: '
+      + '/second-root, /third-root',
+    )
+    wire.close()
+  })
+
+  it('accepts a full-access thread, where a writable-root list is not the mechanism', async () => {
+    const child = fakeChild()
+    const wire = new CodexAppServerWire(
+      child.handle.stdout!,
+      child.handle.stdin!,
+      'dangerously-bypass-approvals-and-sandbox',
+    )
+    wire.start()
+    const initializing = wire.initialize(new AbortController().signal)
+    const initialize = await child.peer.nextMethod('initialize')
+    child.peer.respond(initialize, { userAgent: 'codex-cli 0.153.0' })
+    await initializing
+    await child.peer.nextMethod('initialized')
+
+    const starting = wire.startThread('/workspace', ['/second-root'], new AbortController().signal)
+    const threadStart = await child.peer.nextMethod('thread/start')
+    // The real app-server answers exactly this under danger-full-access.
+    child.peer.respond(threadStart, {
+      thread: { id: 'thread-1', ephemeral: true },
+      sandbox: { type: 'dangerFullAccess' },
+    })
+    await expect(starting).resolves.toBeUndefined()
+    wire.close()
+  })
+
   it('uses the last nullable-phase answer when no explicit final exists', async () => {
     const { child, wire } = await initializeWire()
     const result = wire.runTurn(['task'], new AbortController().signal)
@@ -830,6 +1007,40 @@ describe('CodexAppServerWire', () => {
       stopReason: 'completed',
     })
     wire.close()
+  })
+
+  it('classifies every string error the installed app-server declares', async () => {
+    // The vocabulary comes from the vendored binary, not from a list kept here:
+    // `codex app-server generate-json-schema` prints what this exact version
+    // can send, so a member added by an upgrade fails this case by name
+    // instead of landing silently in `unknown`. 0.153.0 added
+    // `rateLimitExceeded` that way.
+    const out = mkdtempSync(join(tmpdir(), 'dsh-codex-schema-'))
+    const codexEntry = resolve(dirname(createRequire(import.meta.url).resolve('@openai/codex/package.json')), 'bin', 'codex.js')
+    const generated = spawnSync(process.execPath, [codexEntry, 'app-server', 'generate-json-schema', '--out', out], { encoding: 'utf8' })
+    expect(generated.status, generated.stderr).toBe(0)
+
+    const schema = JSON.parse(readFileSync(join(out, 'codex_app_server_protocol.v2.schemas.json'), 'utf8')) as {
+      definitions: { CodexErrorInfo: { oneOf: { enum?: string[] }[] } }
+    }
+    const declared = schema.definitions.CodexErrorInfo.oneOf.flatMap(variant => variant.enum ?? [])
+    expect(declared.length).toBeGreaterThan(10)
+
+    const unclassified: string[] = []
+    for (const codexErrorInfo of declared) {
+      const { child, wire } = await initializeWire()
+      const result = wire.runTurn(['task'], new AbortController().signal)
+      const turnStart = await child.peer.nextMethod('turn/start')
+      child.peer.respond(turnStart, { turn: { id: 'turn-1' } })
+      child.peer.send(turnCompleted('failed', 'turn-1', 'thread-1', { message: 'x', codexErrorInfo }))
+      await result.catch(() => undefined)
+      // `collectFailure()` is the recorded classification the product reports;
+      // reading it is what makes an unhandled member visible here.
+      const collected = wire.collectFailure()
+      if (collected === undefined || collected.category === 'unknown') unclassified.push(codexErrorInfo)
+      wire.close()
+    }
+    expect(unclassified).toEqual([])
   })
 
   it('groups representative string errors without changing stop reasons', async () => {
@@ -941,7 +1152,7 @@ describe('CodexAppServerWire', () => {
       const child = fakeChild()
       const wire = defaultWire(child)
       wire.start()
-      const pending = wire.startThread('/workspace', new AbortController().signal)
+      const pending = wire.startThread('/workspace', [], new AbortController().signal)
       const frame = await child.peer.nextMethod('thread/start')
       child.peer.respond(frame, { thread: { id: 'thread-1', ephemeral: false } })
       await expect(pending).rejects.toThrow('did not create an ephemeral thread')
@@ -1507,7 +1718,7 @@ describe('run lifecycle and quiescence', () => {
     void starting.then(() => { published = true })
     const initialize = await child.peer.nextMethod('initialize')
     expect(published).toBe(false)
-    child.peer.respond(initialize, { userAgent: 'codex-cli 0.149.1' })
+    child.peer.respond(initialize, { userAgent: 'codex-cli 0.153.0' })
     await child.peer.nextMethod('initialized')
     const threadStart = await child.peer.nextMethod('thread/start')
     expect(published).toBe(false)
@@ -1875,6 +2086,7 @@ describe('run lifecycle and quiescence', () => {
       request(undefined, controller.signal),
       {
         cwd: process.cwd(),
+        workspaceRoots: [],
         permissionMode: DEFAULT_CODEX_PERMISSION_MODE,
         env: {},
         disposeGraceMs: 10,
@@ -1885,6 +2097,7 @@ describe('run lifecycle and quiescence', () => {
 
     const spawnFailure = startCodexRun(request(), {
       cwd: process.cwd(),
+      workspaceRoots: [],
       permissionMode: DEFAULT_CODEX_PERMISSION_MODE,
       env: {},
       disposeGraceMs: 10,
@@ -1958,7 +2171,7 @@ describe('run lifecycle and quiescence', () => {
     const threadChild = fakeChild()
     const threadStarting = startCodexRun(request(), runSpec(threadChild))
     const threadInitialize = await threadChild.peer.nextMethod('initialize')
-    threadChild.peer.respond(threadInitialize, { userAgent: 'codex-cli 0.149.1' })
+    threadChild.peer.respond(threadInitialize, { userAgent: 'codex-cli 0.153.0' })
     await threadChild.peer.nextMethod('initialized')
     const invalidThread = await threadChild.peer.nextMethod('thread/start')
     threadChild.peer.respond(invalidThread, { thread: { id: '', ephemeral: true } })
@@ -1973,7 +2186,7 @@ describe('run lifecycle and quiescence', () => {
     )
     const exitedThreadInitialize = await exitedThreadChild.peer.nextMethod('initialize')
     exitedThreadChild.peer.respond(exitedThreadInitialize, {
-      userAgent: 'codex-cli 0.149.1',
+      userAgent: 'codex-cli 0.153.0',
     })
     await exitedThreadChild.peer.nextMethod('initialized')
     await exitedThreadChild.peer.nextMethod('thread/start')
@@ -1992,7 +2205,7 @@ describe('run lifecycle and quiescence', () => {
     const eofBeforeCloseInitialize = await eofBeforeCloseChild.peer
       .nextMethod('initialize')
     eofBeforeCloseChild.peer.respond(eofBeforeCloseInitialize, {
-      userAgent: 'codex-cli 0.149.1',
+      userAgent: 'codex-cli 0.153.0',
     })
     await eofBeforeCloseChild.peer.nextMethod('initialized')
     await eofBeforeCloseChild.peer.nextMethod('thread/start')
@@ -2010,7 +2223,7 @@ describe('run lifecycle and quiescence', () => {
     const stderrStarting = startCodexRun(request(), runSpec(stderrChild))
     const stderrInitialize = await stderrChild.peer.nextMethod('initialize')
     stderrChild.stderr.emit('error', new Error('startup stderr broke'))
-    stderrChild.peer.respond(stderrInitialize, { userAgent: 'codex-cli 0.149.1' })
+    stderrChild.peer.respond(stderrInitialize, { userAgent: 'codex-cli 0.153.0' })
     await stderrChild.peer.nextMethod('initialized')
     const stderrThreadStart = await stderrChild.peer.nextMethod('thread/start')
     stderrChild.peer.respond(stderrThreadStart, {
@@ -2036,7 +2249,7 @@ describe('run lifecycle and quiescence', () => {
       runSpec(child),
     )
     const initialize = await child.peer.nextMethod('initialize')
-    child.peer.respond(initialize, { userAgent: 'codex-cli 0.149.1' })
+    child.peer.respond(initialize, { userAgent: 'codex-cli 0.153.0' })
     await child.peer.nextMethod('initialized')
     const threadStart = await child.peer.nextMethod('thread/start')
     expect(threadStart.params).toEqual({
@@ -2153,7 +2366,7 @@ describe('run lifecycle and quiescence', () => {
 
     const invalidCwdParent = {
       id: 'parent-with-invalid-cwd',
-      session: { header: { cwd: 'relative/SECRET_TOKEN' } },
+      session: { header: { cwd: 'relative/SECRET_TOKEN' }, events: [] },
     } as unknown as Agent
     const invalidCwdError: unknown = await ctx.subagents.start('codex-diagnostic', {
       prompt: [{ type: 'text', text: 'task' }],
@@ -2191,7 +2404,7 @@ describe('run lifecycle and quiescence', () => {
       signal: new AbortController().signal,
     })
     const initialize = await child.peer.nextMethod('initialize')
-    child.peer.respond(initialize, { userAgent: 'codex-cli 0.149.1' })
+    child.peer.respond(initialize, { userAgent: 'codex-cli 0.153.0' })
     await child.peer.nextMethod('initialized')
     const threadStart = await child.peer.nextMethod('thread/start')
     expect(threadStart.params).toEqual({

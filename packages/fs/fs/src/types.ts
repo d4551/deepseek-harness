@@ -45,6 +45,33 @@ export function FsVersion(v: string): FsVersion {
 }
 
 /**
+ * Merge-extensible vocabulary for where a backend keeps the files its
+ * consumers read and write. A backend that is not the host's own disk declares
+ * its own member; consumers switch with a documented default so an unknown
+ * member from a later backend degrades to "not stated" rather than to a wrong
+ * claim about where the workspace lives.
+ */
+export interface FsOriginKindMap {
+  /** Files live on the disk of the host running the harness. */
+  local: 'local'
+  /** Files live on a remote drive, materialized into a local workspace directory. */
+  'network-drive': 'network-drive'
+}
+
+/** Any declared filesystem origin. */
+export type FsOriginKind = FsOriginKindMap[keyof FsOriginKindMap]
+
+/**
+ * Where one filesystem backend keeps the workspace. This is a deployment fact
+ * of the composed backend, not a per-path or per-session one: the harness runs
+ * one filesystem provider, so every path a session reaches has this origin.
+ */
+export interface FsOrigin {
+  /** The declared origin of the composed backend. */
+  readonly kind: FsOriginKind
+}
+
+/**
  * One authoritative observation of a target. A present observation carries the
  * version used by guarded replacement; an absent observation authorizes only a
  * guarded create, never an edit.

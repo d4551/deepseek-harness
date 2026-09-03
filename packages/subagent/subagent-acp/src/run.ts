@@ -13,6 +13,7 @@ import {
   ndJsonStream,
   PROTOCOL_VERSION,
   type ContentBlock as AcpContentBlock,
+  type InitializeResponse,
   type StopReason,
   type ToolKind,
 } from '@agentclientprotocol/sdk'
@@ -164,6 +165,20 @@ class AcpRunFailure extends Error {
  */
 export function acpConfigurationFailure(cause: unknown): Error {
   return new AcpRunFailure({ stage: 'initialize', category: 'configuration' }, cause)
+}
+
+/**
+ * Whether the child advertised `additionalDirectories` support on its
+ * `initialize` response. ACP negotiates the field: per `SessionCapabilities`,
+ * an omitted or `null` `sessionCapabilities.additionalDirectories` means the
+ * agent does NOT support it, and `{}` means it does. Optional chaining reads
+ * every absent level as unsupported, which is the protocol's own default.
+ * @param response - the child's `initialize` result.
+ * @returns `true` only when the capability is present and not null.
+ */
+function advertisesAdditionalDirectories(response: InitializeResponse): boolean {
+  const advertised = response.agentCapabilities?.sessionCapabilities?.additionalDirectories
+  return advertised !== undefined && advertised !== null
 }
 
 /** Keep only the closed ACP tool-kind vocabulary; future values use a fixed fallback. */
@@ -477,15 +492,31 @@ export async function startAcpRun(request: SubagentStartRequest, spec: AcpRunSpe
   try {
     await Promise.race([
       (async (): Promise<void> => {
-        await agent.request(methods.agent.initialize, {
+        const initialized = await agent.request(methods.agent.initialize, {
           protocolVersion: PROTOCOL_VERSION,
           // Advertise NO optional client capabilities (no fs, no terminal): the
           // child self-serves in its own process.
           clientCapabilities: {},
         })
         startupStage = 'new-session'
+        // `additionalDirectories` is negotiated. An agent that does not
+        // advertise it may ignore the unknown field, which would run the child
+        // in a narrower workspace than the parent believes it gave — so refuse
+        // the delegation here, the earliest point the advertisement is known,
+        // rather than let the narrowing pass silently.
+        if (spec.workspaceRoots.length > 0 && !advertisesAdditionalDirectories(initialized)) {
+          throw new AcpRunFailure(
+            { stage: 'new-session', category: 'configuration' },
+            new Error(
+              `subagent-acp: the configured ACP agent "${spec.command}" does not advertise `
+              + 'session capability "additionalDirectories", so it cannot take the delegating '
+              + `session's additional workspace roots: ${spec.workspaceRoots.join(', ')}`,
+            ),
+          )
+        }
         // An empty list is protocol-equivalent to omitting the key, so a
-        // single-root parent leaves `session/new` exactly as it was.
+        // single-root parent leaves `session/new` exactly as it was — and needs
+        // no advertisement, because it asks the agent for nothing extra.
         const session = await agent.request(methods.agent.session.new, {
           cwd: spec.cwd,
           mcpServers: [],

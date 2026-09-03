@@ -117,6 +117,16 @@
   font: var(--dsw-font-xs-13);
 }
 
+/* States how the body was obtained. It reads as a neutral fact beside the
+   status, not as a warning: a rendered fetch is the shipped default. */
+.retrieval {
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--dsw-alias-fill-l2);
+  color: var(--dsw-alias-label-tertiary);
+  font: var(--dsw-font-xs-13);
+}
+
 /* The fetch card's truncation note sits inline beside the status, so it drops
    the search card's top margin. */
 .fetch .truncated {

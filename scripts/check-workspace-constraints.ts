@@ -11,6 +11,7 @@ import { pathToFileURL } from 'node:url'
 import { hasTypertRemoteNavigation, isForbiddenPublicationFile } from './publication-payload.ts'
 import { collectProjectReferenceFaceViolations } from './project-reference-faces.ts'
 import { readConfigFile } from './ts7-session.ts'
+import { collectWebProgramPartitionViolations } from './web-program-partition.ts'
 
 const root = resolve(import.meta.dirname, '..')
 // vendor/* is single-level; packages/<group>/<pkg> nests one level deeper
@@ -63,10 +64,10 @@ const releaseMemberDirectory = /^(?:packages\/(?!experimental\/)[^/]+\/[^/]+|app
  * because these live beside published presets, so each is named with its reason.
  */
 const privateSourceCheckoutPackages: Readonly<Record<string, string>> = {
-  // Experimental Agent Teams and its Web half: opt-in coordination layers the
-  // shipped profiles do not stack.
+  // The Agent Teams layer over `dsh-base` alone. The shipped `swarm` and
+  // `swarm-web` profiles stack `dsh-swarm-profile` instead, which also bounds
+  // the Subagent run ceiling; this one stays a source-checkout add-on.
   '@deepseek-ai/dsh-agent-team-profile': 'opt-in Agent Teams layer, excluded from release payloads',
-  '@deepseek-ai/dsh-agent-team-web-profile': 'opt-in Agent Teams Web layer, excluded from release payloads',
 }
 const localArtifactDirs = new Set(['node_modules'])
 const appPackageFiles: Readonly<Record<string, readonly string[]>> = {
@@ -677,6 +678,7 @@ export function main(): void {
     ...checkExperimentalDependencyIsolation(dependencyManifests),
     ...checkHierarchyShape(),
     ...collectProjectReferenceFaceViolations(root),
+    ...collectWebProgramPartitionViolations(root),
     ...checkEmittingProjectRootDirs(),
     ...checkBuildToolingBootstrap(rootManifest.scripts),
   ]

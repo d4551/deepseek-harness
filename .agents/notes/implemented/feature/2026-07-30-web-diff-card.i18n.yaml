@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/feature/2026-07-30-web-diff-card.md
-2026-07-30-web-diff-card.md: 8497038d6f3d4c512d3c5e44d9cb69e0b3aaaabe
-2026-07-30-web-diff-card.zh.md: 40fc079f36009a444a4618982f39ad032266ec13
+2026-07-30-web-diff-card.md: 0f82c1ce5f7657a05309b3c6e468eafbde654618
+2026-07-30-web-diff-card.zh.md: 06050af5824a8e990d78559279c908ce6f7279bd

@@ -151,18 +151,40 @@ describe('gate graph validation', () => {
     }
   })
 
-  it('runs the Windows built-bin smoke after other observational gates settle', () => {
+  it('blocks on the Windows built-bin smoke rather than observing it', () => {
+    // Linux runs this same smoke blocking, so platform-independent breakage is
+    // already caught there. What only this run can see is a Windows-only
+    // failure to start the shipped binary or to resolve a package name to its
+    // `lib/` entrypoint, and an observed verdict on that would let the branch
+    // go green while the deliverable is broken.
+    const blocking = withBunEntrypoint(() => gatesForMode('ci-windows-blocking'))
     const observational = withBunEntrypoint(() => gatesForMode('ci-windows-observational'))
-    const builtBin = observational.find(gate => gate.id === 'built-bin-smoke')
+    const complete = withBunEntrypoint(() => gatesForMode('ci-windows-complete'))
 
+    const blockingBuiltBin = blocking.find(gate => gate.id === 'built-bin-smoke')
+    expect(blockingBuiltBin).toBeDefined()
+    expect(blockingBuiltBin?.allowFailure).not.toBe(true)
+    expect(observational.map(gate => gate.id)).not.toContain('built-bin-smoke')
+
+    const completeBuiltBin = complete.find(gate => gate.id === 'built-bin-smoke')
+    expect(completeBuiltBin?.allowFailure).not.toBe(true)
+    expect(completeBuiltBin?.after).toContain('windows-site')
+    expect(completeBuiltBin?.after).not.toContain('docs-site-build')
+  })
+
+  it('starts the Windows built-bin smoke only after its aggregate has settled', () => {
+    // The smoke starts real application children and measures startup against
+    // bounded deadlines, so every other gate in the run finishes first.
+    const blocking = withBunEntrypoint(() => gatesForMode('ci-windows-blocking'))
+    const builtBin = blocking.find(gate => gate.id === 'built-bin-smoke')
     expect(builtBin?.after).toEqual(
-      observational.filter(gate => gate.id !== 'built-bin-smoke').map(gate => gate.id),
+      blocking.filter(gate => gate.id !== 'built-bin-smoke').map(gate => gate.id),
     )
+    expect(builtBin?.needs).toContain('windows-build')
 
     const completeBuiltBin = withBunEntrypoint(() => gatesForMode('ci-windows-complete'))
       .find(gate => gate.id === 'built-bin-smoke')
-    expect(completeBuiltBin?.after).toContain('windows-site')
-    expect(completeBuiltBin?.after).not.toContain('docs-site-build')
+    expect(completeBuiltBin?.after).toEqual(expect.arrayContaining(['coverage', 'coverage-exempt-heavy']))
   })
 
   it('applies one configured test and polling timeout to both coverage gates', () => {

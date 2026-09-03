@@ -11,6 +11,27 @@ export type PluginsSettingsLocaleKey =
   | 'webSearchTitle' | 'webSearchDescription'
   | 'webSearchApiKey' | 'webSearchApiKeyHint' | 'webSearchApiKeySet' | 'webSearchApiKeyUnset'
   | 'webSearchBaseUrl' | 'webSearchBaseUrlHint' | 'webSearchMaxUses' | 'webSearchMaxUsesHint'
+  | 'appliesRestart'
+  | 'webAccessTitle' | 'webAccessDescription'
+  | 'webSearchProvider' | 'webSearchProviderHint' | 'webFetchProvider' | 'webFetchProviderHint'
+  | 'webProviderAutomatic' | 'webProviderNotMounted' | 'webFetchBrowserMissing'
+  | 'webApiKey' | 'webApiKeySet' | 'webApiKeyUnset' | 'webBaseUrl' | 'webBaseUrlHint' | 'webMaxTokens'
+  | 'webSearchExaTitle' | 'webSearchExaDescription' | 'webSearchExaApiKeyHint'
+  | 'webSearchExaType' | 'webSearchExaTypeHint'
+  | 'webSearchExaNumResults' | 'webSearchExaNumResultsHint'
+  | 'webSearchExaHighlights' | 'webSearchExaHighlightsHint'
+  | 'webSearchPerplexityTitle' | 'webSearchPerplexityDescription' | 'webSearchPerplexityApiKeyHint'
+  | 'webSearchPerplexityModel' | 'webSearchPerplexityModelHint' | 'webSearchPerplexityMaxTokensHint'
+  | 'webSearchPerplexityRecency' | 'webSearchPerplexityRecencyHint'
+  | 'webFetchHttpTitle' | 'webFetchHttpDescription'
+  | 'webFetchPlaywrightTitle' | 'webFetchPlaywrightDescription'
+  | 'webFetchMaxResponseBytes' | 'webFetchMaxResponseBytesHint'
+  | 'webFetchMaxBodyChars' | 'webFetchMaxBodyCharsHint'
+  | 'webFetchTimeoutMs' | 'webFetchTimeoutMsHint'
+  | 'webFetchMaxRedirects' | 'webFetchMaxRedirectsHint'
+  | 'webFetchMaxConcurrentRenders' | 'webFetchMaxConcurrentRendersHint'
+  | 'webFetchUserAgent' | 'webFetchUserAgentHint'
+  | 'webFetchExecutablePath' | 'webFetchExecutablePathHint'
   | 'subagentModelSelectionTitle' | 'subagentModelSelectionDescription'
   | 'subagentModelSelectionToggle' | 'subagentModelSelectionChoose' | 'subagentModelSelectionAllowed'
   | 'subagentModelSelectionLoading' | 'subagentModelSelectionLoadFailed' | 'subagentModelSelectionRetry'
@@ -22,9 +43,9 @@ export type PluginsSettingsLocaleKey =
   | 'agentDefaultModelPartial' | 'agentDefaultModelRetry' | 'agentDefaultModelUnavailable'
   | 'agentDefaultModelUnavailableGroup' | 'agentDefaultModelEmpty' | 'agentDefaultModelConflict'
   | 'invalidBoolean'
-  | 'approvalAssessorTitle' | 'approvalAssessorDescription'
-  | 'approvalAssessorEnabled' | 'approvalAssessorEnabledHint' | 'approvalAssessorEnabledPlaceholder'
-  | 'approvalAssessorExtraPatterns' | 'approvalAssessorExtraPatternsHint'
+  | 'agentTeamTitle' | 'agentTeamDescription'
+  | 'agentTeamMaxMembers' | 'agentTeamMaxMembersHint'
+  | 'agentTeamMaxTasks' | 'agentTeamMaxTasksHint'
 
 /** English copy. */
 export const en: Record<PluginsSettingsLocaleKey, string> = {
@@ -55,8 +76,8 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
   agentLoopDescription: 'How the agent dispatches tool calls.',
   agentLoopMaxParallel: 'Parallel tool calls',
   agentLoopMaxParallelHint: 'Upper bound on parallel-safe calls running at once within one step.',
-  webSearchTitle: 'Web search',
-  webSearchDescription: 'The DeepSeek search provider.',
+  webSearchTitle: 'DeepSeek search',
+  webSearchDescription: 'Searches through DeepSeek\u2019s hosted retrieval, billed to the DeepSeek key.',
   webSearchApiKey: 'API key',
   webSearchApiKeyHint: 'Stored outside the settings file. Leave blank to keep the current key.',
   webSearchApiKeySet: 'A key is configured.',
@@ -65,6 +86,57 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
   webSearchBaseUrlHint: 'Leave blank to use the provider default.',
   webSearchMaxUses: 'Max searches per request',
   webSearchMaxUsesHint: 'How many times one request may search before it must answer.',
+  appliesRestart: 'This plugin reads these values once, so a saved change takes effect the next time this deployment starts.',
+  webAccessTitle: 'Web access',
+  webAccessDescription: 'Which backend serves web search, and which retrieves a page.',
+  webSearchProvider: 'Search backend',
+  webSearchProviderHint: 'The backend web_search runs through.',
+  webFetchProvider: 'Fetch backend',
+  webFetchProviderHint: 'The backend web_fetch runs through. Rendering executes the page\u2019s own scripts; HTTP does not.',
+  webProviderAutomatic: 'No backend is pinned, so the seam serves only while exactly one mounted backend is usable.',
+  webProviderNotMounted: 'Not mounted in this deployment. Add it to a composition overlay as',
+  webFetchBrowserMissing: 'No browser installation was found, so rendered fetch cannot serve. Install one with: npx playwright install chromium',
+  webApiKey: 'API key',
+  webApiKeySet: 'A key is configured.',
+  webApiKeyUnset: 'No key is configured; this backend is unavailable until one is.',
+  webBaseUrl: 'Endpoint',
+  webBaseUrlHint: 'Leave blank to use the provider default.',
+  webMaxTokens: 'Max answer tokens',
+  webSearchExaTitle: 'Exa search',
+  webSearchExaDescription: 'Searches through Exa, which returns sources with highlighted passages.',
+  webSearchExaApiKeyHint: 'Stored in the settings document. Leave blank to fall back to $EXA_API_KEY.',
+  webSearchExaType: 'Retrieval mode',
+  webSearchExaTypeHint: 'auto, keyword, or neural. Leave blank to use the provider default.',
+  webSearchExaNumResults: 'Default result count',
+  webSearchExaNumResultsHint: 'Used when a request carries no bound of its own.',
+  webSearchExaHighlights: 'Highlights per result',
+  webSearchExaHighlightsHint: 'How many highlighted passages each source returns.',
+  webSearchPerplexityTitle: 'Perplexity search',
+  webSearchPerplexityDescription: 'Searches through Perplexity, which returns a generated answer with citations.',
+  webSearchPerplexityApiKeyHint: 'Stored in the settings document. Leave blank to fall back to $PERPLEXITY_API_KEY.',
+  webSearchPerplexityModel: 'Search model',
+  webSearchPerplexityModelHint: 'Leave blank to use the provider default.',
+  webSearchPerplexityMaxTokensHint: 'Upper bound on the generated answer this backend returns.',
+  webSearchPerplexityRecency: 'Recency window',
+  webSearchPerplexityRecencyHint: 'day, week, month, or year. Leave blank to apply no filter.',
+  webFetchHttpTitle: 'HTTP fetch',
+  webFetchHttpDescription: 'Retrieves the response bytes over HTTP and runs none of the page\u2019s scripts.',
+  webFetchPlaywrightTitle: 'Rendered fetch',
+  webFetchPlaywrightDescription: 'Renders the page in headless Chromium, which executes the page\u2019s own JavaScript.',
+  webFetchMaxResponseBytes: 'Response cap (bytes)',
+  webFetchMaxResponseBytesHint: 'A response larger than this fails rather than being read.',
+  webFetchMaxBodyChars: 'Body cap (characters)',
+  webFetchMaxBodyCharsHint: 'Text beyond this is cut, and the result says it was.',
+  webFetchTimeoutMs: 'Fetch timeout (ms)',
+  webFetchTimeoutMsHint: 'How long one retrieval may take before it is abandoned.',
+  webFetchMaxRedirects: 'Redirect hops',
+  webFetchMaxRedirectsHint: 'How many same-origin redirects one retrieval may follow. 0 follows none.',
+  webFetchMaxConcurrentRenders: 'Concurrent renders',
+  webFetchMaxConcurrentRendersHint: 'How many fetches may hold a browser context at once.',
+  webFetchUserAgent: 'User agent',
+  webFetchUserAgentHint: 'The User-Agent header every request carries.',
+  webFetchExecutablePath: 'Browser executable',
+  webFetchExecutablePathHint: 'The browser binary this backend runs. Leave blank to use the installation Playwright resolves.',
   subagentModelSelectionTitle: 'Subagent',
   subagentModelSelectionDescription: 'Control which models agents may choose for subagents.',
   subagentModelSelectionToggle: 'Allow agents to choose models for subagents',
@@ -92,13 +164,12 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
   agentDefaultModelEmpty: 'No model provider currently advertises a model.',
   agentDefaultModelConflict: 'Settings changed elsewhere. Discard your draft and try again.',
   invalidBoolean: 'Enter true or false, or leave blank to use the default.',
-  approvalAssessorTitle: 'Approval assessor',
-  approvalAssessorDescription: 'Screens approval-request reasons for work-avoidance before they reach you.',
-  approvalAssessorEnabled: 'Screening',
-  approvalAssessorEnabledHint: 'true screens every approval reason; false passes all requests through.',
-  approvalAssessorEnabledPlaceholder: 'true',
-  approvalAssessorExtraPatterns: 'Extra evasion patterns',
-  approvalAssessorExtraPatternsHint: 'One regular-expression source per line, matched against the approval reason.',
+  agentTeamTitle: 'Agent team',
+  agentTeamDescription: 'How large a team may grow while it works one request.',
+  agentTeamMaxMembers: 'Teammates',
+  agentTeamMaxMembersHint: 'How many teammates one team may hold. Bounds the next teammate; those already running keep their place.',
+  agentTeamMaxTasks: 'Shared tasks',
+  agentTeamMaxTasksHint: 'How many open tasks the shared board may hold. Bounds the next task, not the board already built.',
 }
 
 /** Simplified Chinese copy. */
@@ -130,8 +201,8 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
   agentLoopDescription: 'Agent 如何派发工具调用。',
   agentLoopMaxParallel: '并行工具调用数',
   agentLoopMaxParallelHint: '同一步内最多同时运行多少个可并行的调用。',
-  webSearchTitle: '网页搜索',
-  webSearchDescription: 'DeepSeek 搜索提供方。',
+  webSearchTitle: 'DeepSeek 搜索',
+  webSearchDescription: '通过 DeepSeek 托管检索搜索，按 DeepSeek 密钥计费。',
   webSearchApiKey: 'API Key',
   webSearchApiKeyHint: '不写入设置文件。留空表示保持当前密钥。',
   webSearchApiKeySet: '已配置密钥。',
@@ -140,6 +211,57 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
   webSearchBaseUrlHint: '留空则使用提供方默认地址。',
   webSearchMaxUses: '单次请求最多搜索次数',
   webSearchMaxUsesHint: '一次请求在必须作答前最多可以搜索多少次。',
+  appliesRestart: '该插件只读取这些值一次，保存后的修改将在本部署下次启动时生效。',
+  webAccessTitle: '网页访问',
+  webAccessDescription: '由哪个后端提供网页搜索，由哪个后端抓取网页。',
+  webSearchProvider: '搜索后端',
+  webSearchProviderHint: 'web_search 使用的后端。',
+  webFetchProvider: '抓取后端',
+  webFetchProviderHint: 'web_fetch 使用的后端。渲染方式会执行页面自身的脚本，HTTP 方式不会。',
+  webProviderAutomatic: '未固定后端；只有当已挂载的后端恰好有一个可用时，该能力才会工作。',
+  webProviderNotMounted: '本部署未挂载。可在组合覆盖层中加入：',
+  webFetchBrowserMissing: '未找到浏览器安装，渲染抓取无法工作。请执行安装：npx playwright install chromium',
+  webApiKey: 'API Key',
+  webApiKeySet: '已配置密钥。',
+  webApiKeyUnset: '未配置密钥；配置之前该后端不可用。',
+  webBaseUrl: '接口地址',
+  webBaseUrlHint: '留空则使用提供方默认地址。',
+  webMaxTokens: '回答 token 上限',
+  webSearchExaTitle: 'Exa 搜索',
+  webSearchExaDescription: '通过 Exa 搜索，返回带高亮片段的来源。',
+  webSearchExaApiKeyHint: '保存在设置文件中。留空则回退到 $EXA_API_KEY。',
+  webSearchExaType: '检索模式',
+  webSearchExaTypeHint: 'auto、keyword 或 neural。留空则使用提供方默认值。',
+  webSearchExaNumResults: '默认结果数',
+  webSearchExaNumResultsHint: '当请求自身未给出上限时使用。',
+  webSearchExaHighlights: '每条结果的高亮数',
+  webSearchExaHighlightsHint: '每个来源返回多少段高亮内容。',
+  webSearchPerplexityTitle: 'Perplexity 搜索',
+  webSearchPerplexityDescription: '通过 Perplexity 搜索，返回带引用的生成式回答。',
+  webSearchPerplexityApiKeyHint: '保存在设置文件中。留空则回退到 $PERPLEXITY_API_KEY。',
+  webSearchPerplexityModel: '搜索模型',
+  webSearchPerplexityModelHint: '留空则使用提供方默认值。',
+  webSearchPerplexityMaxTokensHint: '该后端返回的生成式回答的上限。',
+  webSearchPerplexityRecency: '时间范围',
+  webSearchPerplexityRecencyHint: 'day、week、month 或 year。留空则不做过滤。',
+  webFetchHttpTitle: 'HTTP 抓取',
+  webFetchHttpDescription: '通过 HTTP 获取响应字节，不执行页面中的任何脚本。',
+  webFetchPlaywrightTitle: '渲染抓取',
+  webFetchPlaywrightDescription: '在无头 Chromium 中渲染页面，会执行页面自身的 JavaScript。',
+  webFetchMaxResponseBytes: '响应上限（字节）',
+  webFetchMaxResponseBytesHint: '超过该大小的响应会直接失败，而不是被读取。',
+  webFetchMaxBodyChars: '正文上限（字符）',
+  webFetchMaxBodyCharsHint: '超出部分会被截断，并在结果中说明。',
+  webFetchTimeoutMs: '抓取超时（毫秒）',
+  webFetchTimeoutMsHint: '单次抓取在被放弃前允许耗时多久。',
+  webFetchMaxRedirects: '重定向跳数',
+  webFetchMaxRedirectsHint: '单次抓取最多跟随多少次同源重定向。0 表示不跟随。',
+  webFetchMaxConcurrentRenders: '并发渲染数',
+  webFetchMaxConcurrentRendersHint: '最多允许多少次抓取同时占用浏览器上下文。',
+  webFetchUserAgent: 'User-Agent',
+  webFetchUserAgentHint: '每个请求携带的 User-Agent 头。',
+  webFetchExecutablePath: '浏览器可执行文件',
+  webFetchExecutablePathHint: '该后端运行的浏览器程序。留空则使用 Playwright 解析出的安装。',
   subagentModelSelectionTitle: 'Subagent',
   subagentModelSelectionDescription: '控制 Agent 为 Subagent 选择模型的权限。',
   subagentModelSelectionToggle: '允许 Agent 为 Subagent 选择模型',
@@ -167,11 +289,10 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
   agentDefaultModelEmpty: '当前没有模型提供方公布模型。',
   agentDefaultModelConflict: '设置已在其他位置更新。请放弃修改后重试。',
   invalidBoolean: '请填 true 或 false；留空表示使用默认值。',
-  approvalAssessorTitle: '审批评估器',
-  approvalAssessorDescription: '在审批请求到达你之前，筛查其理由中的规避工作说辞。',
-  approvalAssessorEnabled: '筛查开关',
-  approvalAssessorEnabledHint: 'true 筛查每条审批理由；false 全部原样通过。',
-  approvalAssessorEnabledPlaceholder: 'true',
-  approvalAssessorExtraPatterns: '追加的规避模式',
-  approvalAssessorExtraPatternsHint: '每行一个正则表达式来源，与审批理由比对。',
+  agentTeamTitle: '智能体团队',
+  agentTeamDescription: '一个团队在处理同一请求时最多可以有多大。',
+  agentTeamMaxMembers: '队友数量',
+  agentTeamMaxMembersHint: '一个团队最多容纳多少名队友。约束下一名队友；已在运行的队友保持不变。',
+  agentTeamMaxTasks: '共享任务数',
+  agentTeamMaxTasksHint: '共享任务板最多容纳多少条未完成任务。约束下一条任务，不影响已建好的任务板。',
 }

@@ -23,6 +23,7 @@ export const t = makeTranslate(en)
 export const settled: CardShell = {
   available: true,
   writable: true,
+  restartRequired: false,
   dirty: false,
   invalid: false,
   saving: false,

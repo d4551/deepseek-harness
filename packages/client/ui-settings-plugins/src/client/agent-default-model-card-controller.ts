@@ -248,6 +248,7 @@ export class AgentDefaultModelCardController {
     return {
       available: snapshot.status === 'ready',
       writable: snapshot.writable,
+      restartRequired: snapshot.applies === 'restart',
       dirty: current === undefined
         ? desired !== undefined
         : desired === undefined || modelRouteKey(current) !== modelRouteKey(desired),

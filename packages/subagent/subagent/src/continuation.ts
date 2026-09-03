@@ -40,14 +40,14 @@ import type { ToolRestriction } from '@deepseek-ai/dsh-tools'
 import { foldSubagentDescriptor, snapshotSubagentDescriptor } from './descriptor.ts'
 import type { SubagentDescriptorData } from './descriptor.ts'
 import {
-  appendDelegatedPolicyOverrides,
+  appendDelegatedSessionState,
   applyChildComposition,
-  captureDelegatedPolicyOverrides,
+  captureDelegatedSessionState,
   childSessionMeta,
   resolveChildAgentOptions,
   resolveChildDepth,
 } from './child-agent.ts'
-import type { DelegatedPolicyOverrides } from './child-agent.ts'
+import type { DelegatedSessionState } from './child-agent.ts'
 import { assertSubagentMaxDepth } from './depth.ts'
 import { seedDescriptorTurn } from './descriptor-seed.ts'
 import type { ContinuableCreateRequest, ContinuableCreateSpec, SubagentResult, SubagentStartRequest } from './types.ts'
@@ -253,14 +253,14 @@ interface MaterializeInputs {
   parent: Agent
   /**
    * Creation inputs; absent for a cold resume, which loads the persisted
-   * session — including the delegation policy events a fresh creation seeded,
-   * so a resume never re-captures the parent's policy.
+   * session — including the delegation events a fresh creation seeded, so a
+   * resume never re-captures the parent's policy or workspace roots.
    */
   create?: {
     seed: readonly SessionEvent[]
     meta: NonNullable<CreateAgentOptions['meta']>
-    /** Policy captured at the delegation boundary: the parent's sandbox override plus the approval pin. */
-    delegatedPolicies: DelegatedPolicyOverrides
+    /** Parent state captured at the delegation boundary: sandbox override, approval pin, and workspace roots. */
+    delegatedState: DelegatedSessionState
   }
   agentOptions: AgentOptions
   composition: { persona?: string | undefined; toolFilter?: ToolRestriction | undefined }
@@ -434,7 +434,7 @@ export class SubagentContinuationManager {
     })
     // Capture before the first await: a later parent switch belongs to the
     // parent's future, not to this child.
-    const delegatedPolicies = captureDelegatedPolicyOverrides(parent)
+    const delegatedState = captureDelegatedSessionState(parent)
 
     const prepared = await this.host.prepareContinuable(spec.provider, {
       sessionId: childId,
@@ -463,7 +463,7 @@ export class SubagentContinuationManager {
         childId,
         provider: spec.provider,
         parent,
-        create: { seed, meta: childSessionMeta(parent, childDepth, lineageSeedLength), delegatedPolicies },
+        create: { seed, meta: childSessionMeta(parent, childDepth, lineageSeedLength), delegatedState },
         agentOptions,
         composition: { persona: request.persona, toolFilter: request.toolFilter },
         signal: spec.signal,
@@ -609,7 +609,6 @@ export class SubagentContinuationManager {
    * @throws {SubagentError} when the sender is unauthorized, the parent is not
    *   live, or continuation admission is closing.
    */
-  // oxlint-disable-next-line typescript/require-await -- keep rejection semantics without yielding during admission
   async reportFrom(
     child: Agent,
     content: ContentBlock[],
@@ -1067,11 +1066,11 @@ export class SubagentContinuationManager {
     // some other owner holds — a duplicate would reject there with rollback.
     inputs.signal.throwIfAborted()
     const setup = (childCtx: Context): AgentSetupCommit => {
-      // Only fresh creation seeds the delegation policy onto the child's own
-      // log (after any fork seed, so fresh policy wins stale seed state); a
+      // Only fresh creation seeds the delegated parent state onto the child's
+      // own log (after any fork seed, so fresh state wins stale seed state); a
       // cold resume replays those persisted events instead.
       if (create !== undefined) {
-        appendDelegatedPolicyOverrides((childCtx.agent as Agent).session, create.delegatedPolicies)
+        appendDelegatedSessionState((childCtx.agent as Agent).session, create.delegatedState)
       }
       applyChildComposition(childCtx, parent, inputs.composition)
       return this.setupRegistry.apply(childCtx)

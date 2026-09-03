@@ -20,6 +20,7 @@ import { deadline, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import { boundedDocument, chromiumAccess, chromiumInstallCommand } from './browser.ts'
 import type {
   BrowserAccess,
+  BrowserSelection,
   PlaywrightFetchLimits,
   RenderBrowser,
   RenderContext,
@@ -51,6 +52,7 @@ export type {
   BrowserAccess,
   BrowserLauncher,
   BrowserProbe,
+  BrowserSelection,
   ExecutableLocator,
   ModuleResolver,
   PlaywrightFetchLimits,
@@ -169,6 +171,8 @@ export class PlaywrightFetchProvider implements WebFetchProvider {
   readonly id = PLAYWRIGHT_FETCH_PROVIDER_ID
   private browser: Promise<RenderBrowser> | undefined
   private usable = true
+  /** Executable the last probe confirmed; undefined until one has, or once none did. */
+  private executable: string | undefined
   private disposed = false
   private readonly lifetime = new AbortController()
   private readonly running = new Set<Promise<WebFetchResult>>()
@@ -176,7 +180,7 @@ export class PlaywrightFetchProvider implements WebFetchProvider {
   private readonly permits: CapacityGate
 
   /**
-   * @param limits - resolved render, identity, concurrency, and time limits.
+   * @param limits - resolved render, identity, concurrency, and time limits, plus the browser binary to run.
    * @param access - browser launch and installation probe; defaults to Playwright Chromium.
    */
   constructor(
@@ -192,8 +196,28 @@ export class PlaywrightFetchProvider implements WebFetchProvider {
    * @returns whether an installed browser was found.
    */
   async resolveAvailability(): Promise<boolean> {
-    this.usable = await this.access.probe().then(() => true, () => false)
+    this.executable = await this.access.probe(this.selection()).then(
+      confirmed => confirmed,
+      () => undefined,
+    )
+    this.usable = this.executable !== undefined
     return this.usable
+  }
+
+  /**
+   * The browser executable the probe confirmed, which the plugin publishes so a
+   * configuration surface can name the binary this provider renders with.
+   * @returns the confirmed absolute path, or undefined when no installation was found.
+   */
+  browserExecutable(): string | undefined {
+    return this.executable
+  }
+
+  /** The browser binary every probe and launch of this provider applies to. */
+  private selection(): BrowserSelection {
+    return this.limits.executablePath === undefined
+      ? {}
+      : { executablePath: this.limits.executablePath }
   }
 
   /**
@@ -367,6 +391,11 @@ export class PlaywrightFetchProvider implements WebFetchProvider {
       statusCode: nav.value?.status() ?? 200,
       body: { kind: 'html' as const, content: dom.value.content },
       truncated: dom.value.length > this.limits.maxBodyChars,
+      // The returned DOM is post-render: Chromium executed the page's scripts
+      // and issued the subresource requests they asked for, all under the same
+      // destination policy. That is a different act from reading bytes, and a
+      // reader of the transcript is entitled to know which one happened.
+      retrieval: 'rendered',
     })
   }
 
@@ -385,7 +414,7 @@ export class PlaywrightFetchProvider implements WebFetchProvider {
         { cause: launchFailure },
       )
     }
-    this.browser ??= this.access.launch().then(opened => opened, onLaunchFailure)
+    this.browser ??= this.access.launch(this.selection()).then(opened => opened, onLaunchFailure)
     const opened = await settle(this.browser)
     if (!opened.ok) throw renderFailure(opened.failure, signal)
     return opened.value

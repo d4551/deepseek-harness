@@ -39,6 +39,9 @@
       "path": "../../session/session-persistence"
     },
     {
+      "path": "../../settings/settings"
+    },
+    {
       "path": "../../runtime-diagnostics/invariants"
     },
     {

@@ -32,13 +32,22 @@ Status: implemented
 
 于是「模型可见即被记录」得以成立：子会话的根目录以一条 `workspace/roots` 事件存在于子会话自己的日志上，`sessionWorkspaceRoots` 折叠它们，冷恢复会回放它们，而不是从一个可能已经消失的父级重新推导。选择改名这一对函数而不是新增第二对，保住了[可续接策略那篇 Agent Note](../feature/2026-08-10-continuable-subagent-policy-inheritance.zh.md)所确立的单一捕获点：一次性驱动器与续接管理器都调用它，因此两条委派路径不会漂移，而 Team teammate——一个可续接的子会话——按构造即被覆盖。
 
-四个进程外提供方（`subagent-codex`、`subagent-claude-code`、`subagent-acp`、`subagent-dsh-sdk`）仍然只传递主根目录。它们启动的是拥有自己会话的外部 agent（智能体），其工作区取自它自己的配置，或者对 ACP 而言取自只携带单个 `cwd` 的一次 `session/new`；把一组根目录跨这些接口传递，是每个产品各自的改动，需要各自的协议证据。没有任何交付组合包挂载它们中的任何一个。每份 README 现在都在「Known Limitations」下写明这项限制，而不是让这次收窄保持沉默。
+本 Agent Note 交付时，四个进程外提供方（`subagent-codex`、`subagent-claude-code`、`subagent-acp`、`subagent-dsh-sdk`）只传递主根目录，因为把一组根目录跨每个产品各自的接口传递，是每个产品各自的改动，需要各自的协议证据。[进程外子 agent 工作区根目录 Agent Note](2026-09-03-out-of-process-child-workspace-roots.zh.md) 提供了这份证据，并通过每个产品自己的根目录列表把这些根目录传递下去，因此这些 README 不再携带该限制。
 
 ## 验证
 
-`bun x vitest run packages/subagent packages/preset packages/bundle apps/cli`——1187 通过、3 失败，三个失败全部位于 `packages/subagent/subagent-codex/tests/real-product.spec.ts`，且属于环境因素：这台宿主在 `/etc/codex/requirements.toml` 携带一份受管的 Codex 策略，其中 `allow_managed_hooks_only = true`，它的 `PreToolUse` 钩子拒绝该 fixture（测试前置数据）的写入——运行期间输出的唯一一行钩子日志是 `[MAS hardban-edit-guard] DENIED write ... Command: touch approval-side-effect`。每次拒绝都消耗子进程一个轮次，因此脚本化的 fixture 在用例走完之前就耗尽了应答。单独运行该文件时，失败的恰好就是这三个。
+`bun x vitest run packages/subagent packages/preset packages/bundle apps/cli`——1187 通过、3 失败，三个失败全部位于 `packages/subagent/subagent-codex/tests/real-product.spec.ts`。原因是这台宿主在 `/etc/codex/requirements.toml` 上的受管 Codex 策略（root 所有，`allow_managed_hooks_only = true`），而这一结论来自抓取到的协议帧，而不是我们自己的错误文本。
+
+子进程给出了正确答案——`item/completed` 携带了脚本约定的哨兵值。随后该策略的四个 `[[hooks.Stop]]` 条目运行，`mas-stop-advisor.mjs` **拒绝了这次 stop**：`[NES strict] Stop denied: Judge certification has not completed.`（`hookRunId stop:27`）与 `[NES/PirateBao strict] Stop denied: trusted source evidence is not bound.`（`stop:30`）。被拒绝的 stop 会让 app-server 继续这一轮，于是第二次请求打到只脚本化了一种行为的 Responses fixture，得到 500；再经过五次 `responseStreamDisconnected` 重试后以 `internalServerError` 结束，而 `wire.ts:163` 将其映射为 `category: 'service'`——这是正确的。分类没有问题，这一轮确实失败了。
+
+该拒绝读取的是一个共享的 MAS 生命周期账本，它会在审计周期运行期间变化，因此这**并不确定**：探针测得 3 次运行中 2 次被拒、1 次放行，某个单独用例先通过一次，随后连续失败五次。三种隔离尝试均被证伪——在测试 `CODEX_HOME` 中设置 `features.hooks = false`、清空 `hooks.managed_dir`、以及在 `thread/start` 中覆盖 config——因为 `/etc/codex/*.toml` 是编译进二进制的绝对路径，且生成的 `ClientRequest` schema 没有暴露任何关闭钩子的入口。
+
+本段较早的一个修订只点名了 `PreToolUse` 的 `hardban-edit-guard` 拒绝。那个钩子在这台宿主上确实会触发，但它不是让这三个用例失败的原因，Stop 拒绝才是。「只有 PreToolUse」的措辞是对一句原本准确的话所做的错误更正，上面的协议帧把它恢复了回来。
+
 
 `apps/cli/tests/profile-bundles.spec.ts` 通过：每个模板指名的每个组合包都是一项已声明的 `apps/cli` 依赖。`packages/boot/app-boot/tests/profile.spec.ts` 钉住新的模板元组，以及缺失 profile 诊断所打印的交付 profile 列表。`packages/preset/swarm-profile/tests/profile.spec.ts` 现在断言该 manifest（元数据清单）可发布，而它对交付配置行的 Loader 启动保持不变。
+
+`apps/web/tests/swarm-web-composition.e2e.ts` 覆盖 `swarm-web` 元组本身。它从 `PROFILE_TEMPLATES` 读取组合包列表，把每个组合包解析到该包 manifest 自己声明的 patch 文件，在空根之上完成组合，并断言生效条目表带有 `maxConcurrentRuns: 8`、`maxMembers: 16` 与 `coordination: swarm`；随后启动脚手架尚未挂载的那些层，断言实时 Loader 配置行带有相同取值、`ctx.subagents.capacity()` 报出该上限、客户端名册提供 `dsh-client-ui-agent-team` 与 `dsh-client-ui-workspace-roots`，以及 Lead 装配出的提示词是 swarm 策略而非 delegated 策略。把模板中的 `dsh-swarm-profile` 换成 `dsh-agent-team-profile` 会让第一项上限失败，去掉浏览器组合包会让名册失败，让已挂载的工具忽略其配置的 coordination 会让提示词失败。不使用浏览器：面板与工作区标题的渲染各有自己的用例，而 swarm 的差异抵达的是模型而非 DOM。
 
 write scope 这部分工作是通过执行器而不是工具 schema 来证明的。`refuses every named route that would start work on paths already being written` 先 claim `src`，随后拒绝一次改派给 teammate 的 `reassign`、teammate 自己的一次 `claim`，以及把一个已准入的 `docs` 任务扩大到 `src/deep` 的一次 `edit`，最后展示在持有的任务被释放之后每条路由都放行一次。原先演示该绕过路径的那个已作废用例，现在断言的是拒绝本身、没有任何内容被提交，以及被拒绝任务的视图指名了阻塞它的那个任务。
 

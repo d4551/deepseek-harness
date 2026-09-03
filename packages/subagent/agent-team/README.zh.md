@@ -56,6 +56,12 @@ kind: "package-reference"
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-agent-team)是每个受支持字段及其 JSDoc 的穷尽式真源。
 
+### 用户拥有的容量
+
+`maxMembers` 与 `maxTasks` 同时是 `agent-team` 命名空间下的设置分区，运行中的部署无需改动组合即可重新调整它们——Web 应用把它们渲染为插件设置页上的"智能体团队"卡片。存储值叠加在组合条目之上，并在它所约束的准入处读取：调高后立即接纳下一名队友或下一条任务，调低则不影响已经准入的成员与任务。
+
+该分区只承载这两个字段。`maxPendingMessagesPerMember` 与 `maxMessageBytes` 约束单次投递对持久日志和模型上下文窗口的开销，`disposalTimeoutMs` 为已经开始的拆卸计时；三者都只属于组合。把它们之一写进该分区会在写入时被拒绝并指名该字段，而不是留在设置文档里看起来已生效。
+
 ### Teammate
 
 请 Lead 创建 teammate：给它一个唯一的小写名字（例如 `reviewer`）并描述其职责。teammate 可以 fresh 启动（不携带 Lead 对话的任何记忆），也可以作为 fork 启动（继承 Lead 已完成的轮次）；创建请求决定用哪种。teammate 名字是永久的——即使创建失败的 teammate 也保留其名字，任何名字都不会被复用。

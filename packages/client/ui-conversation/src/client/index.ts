@@ -34,23 +34,6 @@ export type {
 export { inspectRequestPrompt } from './contract/request-inspection.ts'
 export type { ConversationStoreState, ConversationViewRequest, ViewTab } from './contract/views.ts'
 
-export {
-  displayFailure, emptyAssistantBlock, sessionRecallLabels, toAssistantBlock, toAssistantBlocks,
-} from './projection/event-projection.ts'
-export {
-  EMPTY_ASSISTANT_STREAM, SYNTHETIC_SEQ_OFFSETS, applyAssistantChunk, applyChunkRun,
-  assistantFinalNode, assistantStepPublication, blockIsVisible, closedLocationBoundary,
-  compactBlocks, isChunkRunEvent, settledBlocks,
-} from './projection/assistant-stream.ts'
-export type { AssistantStream } from './projection/assistant-stream.ts'
-export {
-  MAX_TOOL_CALL_DEPTH, acceptsSubcallEdge, childToolCall, childToolResult,
-  interruptedToolResult, rootToolCall, rootToolResult, toolCallMatch,
-} from './projection/tool-calls.ts'
-export type { SubcallGraph } from './projection/tool-calls.ts'
-export { applyInboxSplice, inputMessageNode } from './projection/messages.ts'
-export type { InboxState, InputMessageNode } from './projection/messages.ts'
-
 export { ConversationNodeAssembler } from './conversation/assembler.ts'
 export type {
   ConversationEventDefinitions, ConversationViewDefinitions,

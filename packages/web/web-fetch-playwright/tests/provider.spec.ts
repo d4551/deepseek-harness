@@ -303,7 +303,7 @@ describe('PlaywrightFetchProvider', () => {
         }
         return browser
       },
-      probe: async () => undefined,
+      probe: async () => '/fake/chromium',
     }
     const provider = new PlaywrightFetchProvider(limits, access)
     await expect(render(provider, 'https://example.com/first'))
@@ -357,7 +357,7 @@ describe('PlaywrightFetchProvider limits and lifecycle', () => {
     const browser = new FakeBrowser()
     const access: BrowserAccess = {
       launch: () => new Promise<RenderBrowser>(resolve => setTimeout(() => { resolve(browser) }, 60)),
-      probe: async () => undefined,
+      probe: async () => '/fake/chromium',
     }
     const provider = new PlaywrightFetchProvider({ ...limits, timeoutMs: 20 }, access)
     await expect(render(provider, 'https://example.com/slow-launch'))
@@ -396,7 +396,7 @@ describe('PlaywrightFetchProvider limits and lifecycle', () => {
     }
     const access: BrowserAccess = {
       launch: () => new Promise<RenderBrowser>((resolve) => { releaseLaunch = resolve }),
-      probe: async () => undefined,
+      probe: async () => '/fake/chromium',
     }
     const provider = new PlaywrightFetchProvider(limits, access)
     const pending = render(provider, 'https://example.com/racing-launch')

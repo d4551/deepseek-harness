@@ -2,9 +2,10 @@
  * Trigger candidate menu: renders the InputTriggerService menu store into the
  * conversation.input.overlay anchor. Closed state renders null (the overlay
  * slot stays mounted); groups render in roster order under localized title
- * rows, pending groups as two skeleton rows; pointer picks route back through
- * the service (combobox pattern — focus never leaves the textarea, so rows
- * are mousedown-handled and the highlight is exposed via
+ * rows, pending groups as two skeleton rows, and a failed group as an alert
+ * carrying the load failure's message plus its retry action; pointer picks
+ * route back through the service (combobox pattern — focus never leaves the
+ * textarea, so rows are mousedown-handled and the highlight is exposed via
  * aria-activedescendant on the listbox). A source publishing crumbs gets a
  * breadcrumb header pinned above the scrolling list.
  */
@@ -32,7 +33,7 @@ function optionId(source: string, index: number): string {
  * @param props - injected face (the menu store and the pick route); `t` rides the standard locale seat.
  * @returns the dropdown while open; null while closed.
  */
-export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t }: MenuViewProps) {
+export function MenuView({ menu, headers, onPick, onCrumb, onHover, onRetry, onDismiss, t }: MenuViewProps) {
   const state = useSyncExternalStore(
     fn => menu.subscribe(fn),
     () => menu.getSnapshot(),
@@ -99,7 +100,7 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t
         )
       })}
       {/* An empty listbox violates aria-required-children; with no ready
-          options the pending statuses below carry the open state alone. */}
+          options the pending and failed blocks below carry the open state alone. */}
       {state.groups.some(group => group.status === 'ready' && group.items.length > 0) && (
         <div
           className={css.viewport}
@@ -107,7 +108,9 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t
           aria-label={t('suggestions.aria')}
           aria-activedescendant={highlight !== null ? optionId(highlight.source, highlight.index) : undefined}
         >
-          {state.groups.map(group => (group.status === 'ready' && group.items.length === 0) || group.status === 'pending'
+          {/* Only a ready group with rows enters the listbox: a pending or
+              failed one has no options and renders its own block below. */}
+          {state.groups.map(group => group.status !== 'ready' || group.items.length === 0
             ? null
             : (
               <Fragment key={group.source}>
@@ -179,19 +182,47 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t
             ))}
         </div>
       )}
-      {/* Pending skeletons sit OUTSIDE the listbox: a role=status live region
-          is not an allowed listbox child (axe aria-required-children). */}
-      {state.groups.map(group => group.status !== 'pending'
+      {/* Pending skeletons and failure alerts sit OUTSIDE the listbox: neither
+          a role=status nor a role=alert live region is an allowed listbox
+          child (axe aria-required-children). Both carry real text, so a
+          screen reader hears the state a purely visual skeleton or an empty
+          group body would leave silent. */}
+      {state.groups.map(group => group.status === 'ready'
         ? null
         : (
           <Fragment key={group.source}>
             {group.showGroupTitle === false
               ? null
               : <div className={css.groupTitle} role="presentation" data-source={group.source}>{t(group.source as MenuKey)}</div>}
-            <div role="status" aria-label={t('loading')} data-source={group.source}>
-              <div className={css.skeletonRow}><span className={clsx(css.skeletonBar, css.skeletonBarShort)} /></div>
-              <div className={css.skeletonRow}><span className={clsx(css.skeletonBar, css.skeletonBarLong)} /></div>
-            </div>
+            {group.status === 'failed'
+              ? (
+                <div className={css.error} role="alert" data-source={group.source}>
+                  <span className={css.errorTitle}>{t('error.title', { source: t(group.source as MenuKey) })}</span>
+                  {/* The load failure's own message, verbatim from the host it
+                      came from: it names the actual defect, so it is data the
+                      user reads, not copy the dictionaries own. */}
+                  <span className={css.errorText}>{group.error}</span>
+                  <button
+                    type="button"
+                    className={css.retry}
+                    // mousedown, not click: the textarea keeps focus (combobox
+                    // pattern), same as a row.
+                    onMouseDown={(ev) => {
+                      ev.preventDefault()
+                      onRetry(group.source)
+                    }}
+                  >
+                    {t('retry')}
+                  </button>
+                </div>
+              )
+              : (
+                <div role="status" aria-label={t('loading')} data-source={group.source}>
+                  <span className="dsw-visually-hidden">{t('loading')}</span>
+                  <div className={css.skeletonRow}><span className={clsx(css.skeletonBar, css.skeletonBarShort)} /></div>
+                  <div className={css.skeletonRow}><span className={clsx(css.skeletonBar, css.skeletonBarLong)} /></div>
+                </div>
+              )}
           </Fragment>
         ))}
     </div>

@@ -1,4 +1,8 @@
-/** The experimental Web bundle must carry one parseable Team Client layer. */
+/**
+ * The `swarm-web` browser bundle must carry one parseable Team Client layer,
+ * and must be publishable: `swarm-web` is a shipped template, so a packed
+ * `@deepseek-ai/dsh` install has to be able to resolve this bundle by name.
+ */
 
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -11,16 +15,16 @@ import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
 import * as WebProfileInvariant from '../src/invariant.ts'
 
 describe('Agent Teams Web profile bundle', () => {
-  it('declares a private parseable layer containing the Team UI', () => {
+  it('declares a publishable parseable layer containing the Team UI', () => {
     const root = fileURLToPath(new URL('..', import.meta.url))
     const manifest = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')) as {
       private?: boolean
-      publishConfig?: unknown
+      publishConfig?: { access?: string }
       dependencies?: Record<string, string>
       dsh?: { bundle?: { patch?: string } }
     }
-    expect(manifest.private).toBe(true)
-    expect(manifest.publishConfig).toBeUndefined()
+    expect(manifest.private).toBeUndefined()
+    expect(manifest.publishConfig?.access).toBe('public')
     expect(manifest.dsh?.bundle?.patch).toBe('./cordis.patch.yml')
     expect(manifest.dependencies).toEqual({
       '@deepseek-ai/dsh-client-ui-agent-team': 'workspace:^',

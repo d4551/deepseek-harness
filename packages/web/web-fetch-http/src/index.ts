@@ -7,6 +7,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-web'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { HttpFetchProvider } from './provider.ts'
@@ -48,6 +49,9 @@ export const Config: z<Config> = z.object({
   userAgent: z.string().default(DEFAULT_USER_AGENT),
 })
 
+/** Settings namespace carrying this provider's transport and response limits. */
+export const WEB_FETCH_HTTP_SETTINGS_NAMESPACE = settingsNamespace('web-fetch-http')
+
 /** Complete config after schemastery applies every field default. */
 type ResolvedConfig = Required<Config>
 
@@ -88,5 +92,11 @@ export function apply(ctx: Context, config: Config): void {
     maxRedirects: resolved.maxRedirects,
     userAgent: resolved.userAgent,
   }
+  // The provider binds its limits once, so a stored change waits for the next boot.
+  installSettingsSection(ctx, WEB_FETCH_HTTP_SETTINGS_NAMESPACE, Config, config, {
+    applies: 'restart',
+    setSource: () => {},
+    onChange: () => {},
+  })
   ctx.web.registerFetchProvider(new HttpFetchProvider(limits))
 }

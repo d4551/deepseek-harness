@@ -284,7 +284,18 @@ export function ModelSelect(
                   const headingId = `${id}-${group.id}`
                   return (
                     <section role="group" aria-labelledby={headingId} className={css.group} key={group.id}>
-                      <div className={css.groupTitle} id={headingId}>{group.name}</div>
+                      <div className={css.groupTitle} id={headingId}>
+                        <span>{group.name}</span>
+                        {/* Part of the group's own heading, so it joins the
+                            group's accessible name rather than needing one of
+                            its own. The explicit space is a real text node:
+                            without it the name computation runs the two spans
+                            together as "LiteRTOn this machine". */}
+                        {group.hosting !== undefined && ' '}
+                        {group.hosting !== undefined && (
+                          <span className={css.hosting}>{t(`hosting.${group.hosting}`)}</span>
+                        )}
+                      </div>
                       {group.models.map((model) => {
                         const selected = state.current?.provider === group.id && state.current.model === model.id
                         return (

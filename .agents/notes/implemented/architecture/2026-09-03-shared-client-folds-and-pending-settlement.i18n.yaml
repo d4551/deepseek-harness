@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-03-shared-client-folds-and-pending-settlement.md
+2026-09-03-shared-client-folds-and-pending-settlement.md: 5d7846be255029c2b6417c33f2035df363f46483
+2026-09-03-shared-client-folds-and-pending-settlement.zh.md: 8fdff73ffce9d3a979995bcc82585de6d3c63617

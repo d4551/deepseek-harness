@@ -45,13 +45,20 @@ import type {
   SessionSearchValue,
   SessionSelectModelRequest,
   SessionSelectModelValue,
+  SessionSetWorkspaceRootsRequest,
+  SessionSetWorkspaceRootsValue,
   SessionUpdateQueueRequest,
   SessionUpdateQueueValue,
+  SessionWorkspaceOrigin,
 } from '../src/types.ts'
 
 /** Direct test face matching the generated `ctx.remote.session` unary methods. */
 export interface TestSessionRemote {
   canOpenWorkspacePath(): Promise<RemoteResult<boolean>>
+  workspaceOrigin(): Promise<RemoteResult<SessionWorkspaceOrigin | null>>
+  setWorkspaceRoots(
+    request: SessionSetWorkspaceRootsRequest,
+  ): Promise<RemoteResult<SessionSetWorkspaceRootsValue>>
   list(request: SessionListRequest, signal?: AbortSignal): Promise<RemoteResult<SessionListValue>>
   search(request: SessionSearchRequest, signal?: AbortSignal): Promise<RemoteResult<SessionSearchValue>>
   create(request: SessionCreateRequest): Promise<RemoteResult<SessionCreateValue>>
@@ -243,6 +250,8 @@ export function createSessionTestRemote(
   const direct = createSessionTestController(ctx, defaults)
   return {
     canOpenWorkspacePath: () => remoteResult(() => direct.canOpenWorkspacePath()),
+    workspaceOrigin: () => remoteResult(() => direct.workspaceOrigin()),
+    setWorkspaceRoots: request => remoteResult(() => direct.setWorkspaceRoots(request)),
     list: (request, signal = new AbortController().signal) => remoteResult(
       () => direct.list(request, signal),
       signal,

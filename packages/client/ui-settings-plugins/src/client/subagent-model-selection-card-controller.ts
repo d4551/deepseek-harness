@@ -289,6 +289,7 @@ export class SubagentModelSelectionCardController {
     return {
       available: snapshot.status === 'ready',
       writable: snapshot.writable,
+      restartRequired: snapshot.applies === 'restart',
       dirty: this.currentEnabled() !== enabled || !sameRoutes(current, desired),
       invalid: enabled && desired.length === 0,
       saving: this.saving,

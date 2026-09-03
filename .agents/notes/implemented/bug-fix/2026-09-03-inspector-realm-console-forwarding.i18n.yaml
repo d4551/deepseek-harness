@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-03-inspector-realm-console-forwarding.md
-2026-09-03-inspector-realm-console-forwarding.md: f51a2dd66e8b6e153977123fb76740ed1e9b326e
-2026-09-03-inspector-realm-console-forwarding.zh.md: cf0a09933b78be1834ea823fdc82391a65ef3302
+2026-09-03-inspector-realm-console-forwarding.md: 333c0d4cc0b6cd1615aba0440d82defe579985d4
+2026-09-03-inspector-realm-console-forwarding.zh.md: 5bc248dcdab7c996b85585e144e5926ce585e935

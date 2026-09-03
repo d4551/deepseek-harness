@@ -377,39 +377,10 @@ export function normalizeSessionLog(
 }
 
 /**
- * Repack projected body records so persistence flush boundaries do not affect
- * committed snapshots. Synthetic envelopes exist only while the storage codec
- * reconstructs and packs the logical event stream; returned rows stay projected.
- */
-function repackSessionSnapshot(rawLog: string): string {
-  const lines = rawLog.split('\n').filter(line => line.trim().length > 0)
-  const header = lines.shift() as string
-
-  let nextSeq = 0
-  const events = lines.flatMap((line) => {
-    const record = JSON.parse(line) as Record<string, unknown>
-    if (isPackedFixtureRow(record)) {
-      const decoded = decodeStorageRecord({ ...record, seq0: nextSeq, time0: 0 })
-      nextSeq += decoded.length
-      return decoded
-    }
-    const event = { ...record, seq: nextSeq, time: 0 } as SessionEvent
-    nextSeq += 1
-    return [event]
-  })
-  const body = packChunkRuns(events).map((stored) => {
-    const projected = { ...stored } as Record<string, unknown>
-    omitFixtureEnvelope(projected)
-    return JSON.stringify(projected)
-  })
-  return [header, ...body, ''].join('\n')
-}
-
-/**
  * Normalize and project persisted session JSONL for a committed fixture.
- * This composes ordinary log normalization with request-header scrubbing and
- * persistence-envelope projection, then packs the logical event stream into a
- * canonical layout independent of persistence flush boundaries.
+ * This composes ordinary log normalization with the committed-fixture
+ * projection, so the result is byte-identical to what a refresh writes for the
+ * same volatile values.
  *
  * @param rawLog - persisted or already-projected session JSONL.
  * @param ctx - the run's volatile values to scrub.
@@ -421,7 +392,7 @@ export function normalizeSessionSnapshot(
   ctx: NormalizeContext,
   options: NormalizeOptions = {},
 ): string {
-  return repackSessionSnapshot(scrubSessionSnapshot(normalizeSessionLog(rawLog, ctx, options)))
+  return scrubSessionSnapshot(normalizeSessionLog(rawLog, ctx, options))
 }
 
 /**
@@ -436,13 +407,11 @@ export function normalizeSessionSnapshots(
   ctx: NormalizeContext,
   options: Omit<NormalizeOptions, 'identityMode'> = {},
 ): string[] {
-  return redactSessionSnapshotIds(rawLogs).map(log => repackSessionSnapshot(
-    scrubSessionSnapshot(normalizeSessionLog(
-      log,
-      { ...ctx, sessionIds: [] },
-      { ...options, identityMode: 'preserve' },
-    )),
-  ))
+  return redactSessionSnapshotIds(rawLogs).map(log => scrubSessionSnapshot(normalizeSessionLog(
+    log,
+    { ...ctx, sessionIds: [] },
+    { ...options, identityMode: 'preserve' },
+  )))
 }
 
 /**
@@ -490,27 +459,63 @@ export function scrubRequestHeaders(rawLog: string): string {
 }
 
 /**
- * Project a persisted session log while tokenizing all request-header bulk.
- * Each non-empty line is parsed at most once; the session header stays
- * byte-identical. Body records omit their persistence-only envelopes, and
- * request-header payloads are tokenized.
+ * Decode one body record into the logical events it stores, shedding every
+ * physical storage encoding on the way: a range-encoded `sourceEventSeqs`
+ * expands to its projected seq list, and a packed chunk row expands to its
+ * members. A persisted record carries its own `seq`/`seq0` and `time`/`time0`
+ * envelope; an already-projected fixture record has none, so its position and a
+ * zero time stand in. Decoding is idempotent, so a projected record survives a
+ * second pass unchanged.
+ *
+ * @param record - one parsed body record, persisted or already projected.
+ * @param nextSeq - the sequence position the record occupies.
+ * @returns the events the record stores, in log order.
+ */
+function decodeFixtureRecord(record: Record<string, unknown>, nextSeq: number): SessionEvent[] {
+  if (Object.hasOwn(record, 'sourceEventSeqs')) {
+    record.sourceEventSeqs = decodeSeqRanges(record.sourceEventSeqs)
+  }
+  const packed = isPackedFixtureRow(record)
+  const seqKey = packed ? 'seq0' : 'seq'
+  const timeKey = packed ? 'time0' : 'time'
+  return decodeStorageRecord({
+    ...record,
+    [seqKey]: Object.hasOwn(record, seqKey) ? record[seqKey] : nextSeq,
+    [timeKey]: Object.hasOwn(record, timeKey) ? record[timeKey] : 0,
+  })
+}
+
+/**
+ * Project a persisted session log into the committed-fixture layout and
+ * tokenize all request-header bulk. The session header line stays
+ * byte-identical. Body records decode to the logical event stream, repack with
+ * {@link packChunkRuns} so persistence flush boundaries do not reach the
+ * fixture, and omit their persistence-only envelopes. This is the layout
+ * `scripts/session-fixture-layout.ts` calls canonical, so record and refresh
+ * write-back needs no follow-up fixture migration.
  *
  * @param rawLog - persisted or already-projected session JSONL.
  * @returns committed snapshot JSONL with request headers tokenized.
+ * @throws when the log does not start with a session header record.
  */
 export function scrubSessionSnapshot(rawLog: string): string {
-  const scrubbed = scrubRequestHeaders(rawLog)
-  let recordIndex = 0
-  return scrubbed.split('\n').map((line) => {
-    if (line.trim().length === 0) return line
-    const record = JSON.parse(line) as Record<string, unknown>
-    if (recordIndex++ === 0) {
-      if (record.type !== 'session') throw new Error('session snapshot must start with a session header')
-      return line
-    }
-    omitFixtureEnvelope(record)
-    return JSON.stringify(record)
-  }).join('\n')
+  const [headerLine, ...bodyLines] = scrubRequestHeaders(rawLog)
+    .split('\n').filter(line => line.trim().length > 0)
+  if (headerLine === undefined || (JSON.parse(headerLine) as { type?: unknown }).type !== 'session') {
+    throw new Error('session snapshot must start with a session header')
+  }
+  let nextSeq = 0
+  const events = bodyLines.flatMap((line) => {
+    const decoded = decodeFixtureRecord(JSON.parse(line) as Record<string, unknown>, nextSeq)
+    nextSeq += decoded.length
+    return decoded
+  })
+  const body = packChunkRuns(events).map((stored) => {
+    const projected = stored as unknown as Record<string, unknown>
+    omitFixtureEnvelope(projected)
+    return JSON.stringify(projected)
+  })
+  return [headerLine, ...body, ''].join('\n')
 }
 
 /** Which independent request-header payloads a scrubber replaces. */

@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-03-trigger-menu-failed-group-is-terminal.md
+2026-09-03-trigger-menu-failed-group-is-terminal.md: 5116477e1fbbf6fd512e0c5861fa6b3aca40d45f
+2026-09-03-trigger-menu-failed-group-is-terminal.zh.md: c9062e6a41cd47949f2ebb711b1c8b39f9d80bf5

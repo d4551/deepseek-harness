@@ -448,6 +448,12 @@ interface LlmProviderInfo {
   id: string
   /** Human-readable provider name for selectors and diagnostics. */
   name: string
+  /**
+   * Where this route's models run, when the adapter knows. Selectors show it
+   * so a person can tell an on-device route from a hosted one; absent leaves
+   * the route unlabelled rather than guessed.
+   */
+  hosting?: LlmProviderHosting
 }
 ```
 

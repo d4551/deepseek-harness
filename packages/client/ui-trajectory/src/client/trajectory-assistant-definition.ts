@@ -1,13 +1,14 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { ChunkRowEvent } from '@deepseek-ai/dsh-api-session-controller/types'
+import type {
+  AssistantMessageNode, ConversationMatch, ConversationNodeContext,
+  ConversationNodeDefinition, PartialAssistant, RequestView,
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import {
   EMPTY_ASSISTANT_STREAM, applyAssistantChunk, applyChunkRun, assistantFinalNode,
   assistantStepPublication, closedLocationBoundary, compactBlocks, displayFailure,
-  isChunkRunEvent, settledBlocks,
-  type AssistantMessageNode, type AssistantStream, type ConversationMatch,
-  type ConversationNodeContext, type ConversationNodeDefinition, type PartialAssistant,
-  type RequestView,
-} from '@deepseek-ai/dsh-client-ui-conversation/client'
+  isChunkRunEvent, settledBlocks, type AssistantStream,
+} from '@deepseek-ai/dsh-client-ui-projection'
 import { trajectoryNode } from './trajectory-definition-common.ts'
 
 interface UsageValue {

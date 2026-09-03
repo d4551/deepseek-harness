@@ -338,7 +338,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/api/session-controller/src/index.ts:67`](../packages/api/session-controller/src/index.ts)
+来源：[`packages/api/session-controller/src/index.ts:74`](../packages/api/session-controller/src/index.ts)
 
 <a id="deepseek-aidsh-api-settings-controller"></a>
 
@@ -353,27 +353,6 @@ export interface Config {
 ```
 
 来源：[`packages/api/settings-controller/src/index.ts:41`](../packages/api/settings-controller/src/index.ts)
-
-<a id="deepseek-aidsh-approval-assessor"></a>
-
-## `@deepseek-ai/dsh-approval-assessor`
-
-需要：`approval`
-
-```ts config-catalog
-/** Plugin configuration, shared between composition entry and settings. */
-export interface Config {
-  /** Whether the assessor is active. Default `true`. */
-  enabled?: boolean
-  /**
-   * Additional evasion patterns (JavaScript regex source strings) appended
-   * to the built-in set. Compiled at load time; invalid regex fails loud.
-   */
-  extraPatterns?: string[]
-}
-```
-
-来源：[`packages/guard/approval-assessor/src/index.ts:69`](../packages/guard/approval-assessor/src/index.ts)
 
 <a id="deepseek-aidsh-attachment-local"></a>
 
@@ -781,7 +760,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/fs/fs-network-drive/src/index.ts:90`](../packages/fs/fs-network-drive/src/index.ts)
+来源：[`packages/fs/fs-network-drive/src/index.ts:40`](../packages/fs/fs-network-drive/src/index.ts)
 
 <a id="deepseek-aidsh-fs-sandbox"></a>
 
@@ -3383,6 +3362,10 @@ export type ApprovalPolicy = 'ask' | 'never'
  * wins for each capability; both are optional (a single registered usable
  * provider auto-selects). Operational overrides such as environment variables
  * must feed these same fields rather than introduce a hidden priority chain.
+ *
+ * This is also the schema of the {@link WEB_SETTINGS_NAMESPACE} section, so a
+ * stored document layers over the composition entry and a configuration
+ * surface renders the same two fields the loader accepts.
  */
 export interface WebRuntimeConfig {
   /** Explicit search provider id. Omitted = auto-select when exactly one usable. */
@@ -3392,7 +3375,7 @@ export interface WebRuntimeConfig {
 }
 ```
 
-来源：[`packages/web/web/src/index.ts:55`](../packages/web/web/src/index.ts)
+来源：[`packages/web/web/src/index.ts:73`](../packages/web/web/src/index.ts)
 
 <a id="deepseek-aidsh-web-app"></a>
 
@@ -3443,7 +3426,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/web/web-fetch-http/src/index.ts:30`](../packages/web/web-fetch-http/src/index.ts)
+来源：[`packages/web/web-fetch-http/src/index.ts:31`](../packages/web/web-fetch-http/src/index.ts)
 
 <a id="deepseek-aidsh-web-fetch-playwright"></a>
 
@@ -3452,7 +3435,7 @@ export interface Config {
 需要：`web`
 
 ```ts config-catalog
-/** Plugin config: the provider's render, identity, concurrency, and time limits (all defaulted). */
+/** Plugin config: the provider's render, identity, concurrency, and time limits, plus the browser to run. */
 export interface Config {
   /** Maximum rendered body length in characters. */
   maxBodyChars?: number
@@ -3462,10 +3445,18 @@ export interface Config {
   maxConcurrentRenders?: number
   /** `User-Agent` every rendered request carries. */
   userAgent?: string
+  /**
+   * Browser executable to render with; omitted uses the installation
+   * `playwright` resolves for itself. In the settings section's composition
+   * layer this field is present exactly when the mount-time probe confirmed a
+   * browser there, so a configuration surface reads its absence as "no browser
+   * installation was found".
+   */
+  executablePath?: string
 }
 ```
 
-来源：[`packages/web/web-fetch-playwright/src/index.ts:44`](../packages/web/web-fetch-playwright/src/index.ts)
+来源：[`packages/web/web-fetch-playwright/src/index.ts:46`](../packages/web/web-fetch-playwright/src/index.ts)
 
 <a id="deepseek-aidsh-web-search-deepseek"></a>
 
@@ -3517,7 +3508,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/web/web-search-exa/src/index.ts:35`](../packages/web/web-search-exa/src/index.ts)
+来源：[`packages/web/web-search-exa/src/index.ts:36`](../packages/web/web-search-exa/src/index.ts)
 
 <a id="deepseek-aidsh-web-search-perplexity"></a>
 
@@ -3541,7 +3532,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/web/web-search-perplexity/src/index.ts:30`](../packages/web/web-search-perplexity/src/index.ts)
+来源：[`packages/web/web-search-perplexity/src/index.ts:31`](../packages/web/web-search-perplexity/src/index.ts)
 
 <a id="deepseek-aidsh-webhook-github"></a>
 
@@ -3603,6 +3594,7 @@ export interface Config {
 - `@deepseek-ai/dsh-agent`（[`packages/core/agent/src/index.ts`](../packages/core/agent/src/index.ts)）
 - `@deepseek-ai/dsh-api-remotes` — 需要 `typertGateway`（[`packages/api/remotes/src/index.ts`](../packages/api/remotes/src/index.ts)）
 - `@deepseek-ai/dsh-api-workspace-controller` — 需要 `typert` · `workspaceRegistry`（[`packages/api/workspace-controller/src/index.ts`](../packages/api/workspace-controller/src/index.ts)）
+- `@deepseek-ai/dsh-approval-assessor` — 需要 `approval`（[`packages/guard/approval-assessor/src/index.ts`](../packages/guard/approval-assessor/src/index.ts)）
 - `@deepseek-ai/dsh-authorization` — 需要 `credentials`（[`packages/credentials/authorization/src/index.ts`](../packages/credentials/authorization/src/index.ts)）
 - `@deepseek-ai/dsh-client-locale`（[`packages/client/locale/src/index.ts`](../packages/client/locale/src/index.ts)）
 - `@deepseek-ai/dsh-client-modules` — 需要 `webServer` · `loader`（[`packages/client/modules/src/index.ts`](../packages/client/modules/src/index.ts)）
@@ -3643,6 +3635,7 @@ export interface Config {
 - `@deepseek-ai/dsh-client-ui-user-questions`（[`packages/client/ui-user-questions/src/index.ts`](../packages/client/ui-user-questions/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-workflow-run`（[`packages/client/ui-workflow-run/src/index.ts`](../packages/client/ui-workflow-run/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-workspace`（[`packages/client/ui-workspace/src/index.ts`](../packages/client/ui-workspace/src/index.ts)）
+- `@deepseek-ai/dsh-client-ui-workspace-roots`（[`packages/client/ui-workspace-roots/src/index.ts`](../packages/client/ui-workspace-roots/src/index.ts)）
 - `@deepseek-ai/dsh-command-compact` — 需要 `commands` · `compaction`（[`packages/compaction/command-compact/src/index.ts`](../packages/compaction/command-compact/src/index.ts)）
 - `@deepseek-ai/dsh-command-feedback` — 需要 `commands`（[`packages/feedback/command-feedback/src/index.ts`](../packages/feedback/command-feedback/src/index.ts)）
 - `@deepseek-ai/dsh-command-goal` — 需要 `commands` · `goals`（[`packages/goal/command-goal/src/index.ts`](../packages/goal/command-goal/src/index.ts)）
@@ -3714,6 +3707,7 @@ export interface Config {
 - `@deepseek-ai/dsh-client-store`（[`packages/client/store/src/index.ts`](../packages/client/store/src/index.ts)）
 - `@deepseek-ai/dsh-client-test-runtime`（[`packages/test-support/client-runtime/src/index.ts`](../packages/test-support/client-runtime/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-primitives`（[`packages/client/ui-primitives/src/index.ts`](../packages/client/ui-primitives/src/index.ts)）
+- `@deepseek-ai/dsh-client-ui-projection`（[`packages/client/ui-projection/src/index.ts`](../packages/client/ui-projection/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-slots`（[`packages/client/ui-slots/src/index.ts`](../packages/client/ui-slots/src/index.ts)）
 - `@deepseek-ai/dsh-client-web`（[`packages/client/web/src/index.ts`](../packages/client/web/src/index.ts)）
 - `@deepseek-ai/dsh-cmdline`（[`packages/boot/cmdline/src/index.ts`](../packages/boot/cmdline/src/index.ts)）

@@ -6,6 +6,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-web'
 import { chromiumAccess, chromiumInstallCommand, PlaywrightFetchProvider } from './provider.ts'
 import type { BrowserAccess, PlaywrightFetchLimits } from './provider.ts'
@@ -24,6 +25,7 @@ export type {
   BrowserAccess,
   BrowserLauncher,
   BrowserProbe,
+  BrowserSelection,
   PlaywrightFetchLimits,
   RenderBrowser,
   RenderContext,
@@ -40,7 +42,7 @@ export const name = 'web-fetch-playwright'
 /** The web seam this provider registers into. */
 export const inject = ['web']
 
-/** Plugin config: the provider's render, identity, concurrency, and time limits (all defaulted). */
+/** Plugin config: the provider's render, identity, concurrency, and time limits, plus the browser to run. */
 export interface Config {
   /** Maximum rendered body length in characters. */
   maxBodyChars?: number
@@ -50,6 +52,14 @@ export interface Config {
   maxConcurrentRenders?: number
   /** `User-Agent` every rendered request carries. */
   userAgent?: string
+  /**
+   * Browser executable to render with; omitted uses the installation
+   * `playwright` resolves for itself. In the settings section's composition
+   * layer this field is present exactly when the mount-time probe confirmed a
+   * browser there, so a configuration surface reads its absence as "no browser
+   * installation was found".
+   */
+  executablePath?: string
 }
 
 export const Config: z<Config> = z.object({
@@ -57,7 +67,11 @@ export const Config: z<Config> = z.object({
   timeoutMs: z.number().default(30_000),
   maxConcurrentRenders: z.number().default(2),
   userAgent: z.string().default(DEFAULT_USER_AGENT),
+  executablePath: z.string(),
 })
+
+/** Settings namespace carrying this provider's render limits and browser selection. */
+export const WEB_FETCH_PLAYWRIGHT_SETTINGS_NAMESPACE = settingsNamespace('web-fetch-playwright')
 
 /** Complete config after schemastery applies every field default. */
 type ResolvedConfig = Required<Config>
@@ -105,6 +119,7 @@ export async function apply(ctx: Context, config: Config, access: BrowserAccess 
     timeoutMs: resolved.timeoutMs,
     maxConcurrentRenders: resolved.maxConcurrentRenders,
     userAgent: resolved.userAgent,
+    ...config.executablePath === undefined ? {} : { executablePath: config.executablePath },
   }
   const provider = new PlaywrightFetchProvider(limits, access)
   // The disposer is armed before the probe so a provider that launches a browser
@@ -116,5 +131,28 @@ export async function apply(ctx: Context, config: Config, access: BrowserAccess 
   if (!await provider.resolveAvailability()) {
     ctx.logger.warn('web-fetch-playwright: no browser installation found; install one with: %s', chromiumInstallCommand())
   }
+  // The section is registered after the probe so its composition layer carries
+  // the confirmed executable: the render slots bind a capacity gate at
+  // construction, so a stored change waits for the next boot.
+  installSettingsSection(ctx, WEB_FETCH_PLAYWRIGHT_SETTINGS_NAMESPACE, Config, confirmedEntry(config, provider), {
+    applies: 'restart',
+    setSource: () => {},
+    onChange: () => {},
+  })
   ctx.web.registerFetchProvider(provider)
+}
+
+/**
+ * The composition layer this plugin publishes: its entry config, with
+ * `executablePath` replaced by the browser the probe confirmed and removed when
+ * it confirmed none. A configured path that does not exist must not read as a
+ * working installation.
+ * @param config - the plugin's composition entry.
+ * @param provider - the provider whose probe already ran.
+ * @returns the entry to publish as the settings composition layer.
+ */
+function confirmedEntry(config: Config, provider: PlaywrightFetchProvider): Config {
+  const { executablePath: _configured, ...rest } = config
+  const confirmed = provider.browserExecutable()
+  return confirmed === undefined ? rest : { ...rest, executablePath: confirmed }
 }

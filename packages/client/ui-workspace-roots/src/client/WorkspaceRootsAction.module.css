@@ -1,0 +1,218 @@
+/* The header seat sets the type scale once; every control below inherits it
+   through `font: inherit`, so no control restates a size. */
+.root {
+  position: relative;
+  font-size: 12px;
+}
+
+.trigger,
+.iconButton,
+.action,
+.retry {
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 3px 7px;
+}
+
+.trigger:hover,
+.iconButton:hover,
+.action:hover,
+.retry:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.count {
+  min-width: 16px;
+  border-radius: 8px;
+  background: var(--dsw-alias-fill-l2);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* Matches the trigger's painted box so the header does not reflow when the
+   projection arrives and the real control replaces it. */
+.skeleton {
+  display: inline-block;
+  width: 92px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-skeleton);
+}
+
+.panel {
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  z-index: var(--dsw-z-popover-2);
+  box-sizing: border-box;
+  width: min(480px, calc(100vw - 32px));
+  max-height: min(560px, calc(100vh - 120px));
+  padding: 12px;
+  overflow: auto;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  background: var(--dsw-specific-menu);
+  box-shadow: var(--dsw-shadow-lv3);
+}
+
+.toolbar,
+.formActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar {
+  min-height: 28px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+}
+
+.iconButton:disabled,
+.action:disabled,
+.retry:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 8px 0;
+  padding: 8px 9px;
+  border: 1px solid var(--dsw-alias-state-error-secondary);
+  border-radius: 8px;
+}
+
+.alertText {
+  flex: 1;
+  color: var(--dsw-alias-state-error-primary);
+  font-size: 12px;
+}
+
+.retry,
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 4px 6px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 8px;
+}
+
+.path {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+}
+
+.badge {
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--dsw-alias-fill-l2);
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 12px;
+  text-align: center;
+}
+
+.emptyIcon {
+  color: var(--dsw-alias-label-quaternary);
+}
+
+.empty strong {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+}
+
+.empty p {
+  max-width: 34ch;
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+}
+
+.form {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.field {
+  display: grid;
+  gap: 4px;
+}
+
+.fieldLabel {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+}
+
+.input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 30px;
+  padding: 6px 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 12px;
+}
+
+.formActions {
+  justify-content: flex-end;
+}

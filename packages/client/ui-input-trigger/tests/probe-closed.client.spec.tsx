@@ -38,6 +38,7 @@ function mountView(state: MenuState) {
       onPick={vi.fn()}
       onCrumb={vi.fn()}
       onHover={vi.fn()}
+      onRetry={vi.fn()}
       onDismiss={vi.fn()}
       t={t}
     />,

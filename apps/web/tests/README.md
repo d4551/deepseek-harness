@@ -8,15 +8,24 @@ the deliberate composition divergences from `dsh web` — are documented in
 [`scaffold.ts`](scaffold.ts) and the
 [browser e2e Agent Note](../../../.agents/notes/implemented/testing/2026-07-24-web-gui-browser-e2e-lane.md).
 
-## These are Host-face tests
+## The `.client.` infix names the owning program
 
-They type-check in the root `tsconfig.host.json`, not in the Client aggregate,
-because they read Host services directly: `ctx.connection`, the Host
-`SessionStore`, and `ctx.sessionProjectionCache`. Driving a browser at runtime does
-not make a file part of the Client program — the two faces merge cordis
+An unmarked file here type-checks in the root `tsconfig.host.json`, because the
+browser e2e lane reads Host services directly: `ctx.connection`, the Host
+`SessionStore`, and `ctx.sessionProjectionCache`. Driving a browser at runtime
+does not make a file part of the Client program — the two faces merge cordis
 `Context` under the same keys with different services, so one program cannot see
-both. Moving these files into the Client aggregate makes every Host-service
+both. Moving an unmarked file into the Client aggregate makes every Host-service
 access fail to compile.
+
+A file that mounts the Client shell in-process carries a `.client.` infix and
+type-checks in `apps/web/tsconfig.json` instead, the same marker
+`packages/*/*/tests` uses. `tsconfig.host.json` excludes
+`apps/web/tests/**/*.client.*` and includes everything else under this
+directory, so membership follows the filename and neither config enumerates
+files. [`scripts/web-program-partition.ts`](../../../scripts/web-program-partition.ts)
+fails `bun run constraints` when an `apps/web` file reaches neither program or
+both.
 
 ## Do not import `@deepseek-ai/dsh-client-*` here
 
@@ -33,11 +42,14 @@ then surfaces as a missed selector or a stale mirrored value — a loud failure,
 never a silent pass. `scaffold.ts` follows this rule for the welcome-notice
 namespace, acknowledgement field, version, and asserted Chinese copy.
 
-One kind of Client import stands. `assembled-boot.ts` drives the shell itself, so
-it imports `AppWebEntry` from `@deepseek-ai/dsh-client-web` and the boot-manifest
-type from `@deepseek-ai/dsh-client-modules/client`: booting the real shell is what
-that harness is for, and both packages are already in the Host graph. The chat
-scenarios mirror `conversationContextKey` in `support.ts` instead of importing
-its Client owner.
+One kind of Client import stands, and the infix is what licenses it.
+`assembled-boot.client.ts` drives the shell itself, so it imports `AppWebEntry`
+from `@deepseek-ai/dsh-client-web` and the boot-manifest type from
+`@deepseek-ai/dsh-client-modules/client`; booting the real shell is what that
+harness is for, and it and its nine `*.client.expected.e2e.ts` consumers sit in
+the Client program, where those packages already are. The chat scenarios mirror
+`conversationContextKey` in `support.ts` instead of importing its Client owner.
 
-Nothing mechanically enforces this rule; keep it in review.
+Nothing mechanically enforces the mirroring rule; keep it in review. The program
+split itself is enforced: an unmarked file that imports a Client package pulls
+that package's project into the Host graph and the Host build fails.

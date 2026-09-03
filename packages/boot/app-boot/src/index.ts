@@ -8,6 +8,7 @@
 
 import { pathToFileURL } from 'node:url'
 import { readFileSync } from 'node:fs'
+import { clearInterval, setInterval } from 'node:timers'
 import { parseEnv } from 'node:util'
 import { basename, dirname, isAbsolute, resolve } from 'node:path'
 import * as yaml from 'js-yaml'
@@ -212,6 +213,14 @@ const bootstrapIncludes = new WeakMap<Context, Entry>()
 // reference `process.env`.
 const userPatchesSchema = entryListSchema
 
+/**
+ * Milliseconds between repair reconciliations when the caller names none.
+ * Short enough that a lost filesystem event is invisible to a person editing
+ * the file, and one stat-sized read of one file is the whole cost of a tick
+ * that finds nothing to do.
+ */
+const DEFAULT_USER_PATCH_REPAIR_INTERVAL = 100
+
 /** Options for live user patch-layer reconciliation. */
 export interface UserPatchWatchOptions {
   /** Diagnostic prefix used by {@link loadOptionalPatches}. */
@@ -226,46 +235,136 @@ export interface UserPatchWatchOptions {
    * is the whole patch list.
    */
   compose?: (userPatches: PatchOptions[]) => PatchOptions[]
+  /**
+   * Milliseconds between the reconciliations that repair a change no
+   * filesystem event reported. The bound on how long the mounted layer may
+   * disagree with the file; deployments on filesystems whose watches are
+   * lossier or whose reads are expensive move it. Defaults to
+   * {@link DEFAULT_USER_PATCH_REPAIR_INTERVAL}.
+   */
+  repairInterval?: number
 }
 
 /**
  * Watch the user patch layer through Cordis HMR and transactionally reapply it to the boot include.
+ *
+ * A filesystem watch cannot be the only trigger. Chokidar reports `ready` once
+ * its initial scan finished and `fs.watch()` returned, and on macOS libuv arms
+ * the FSEvents stream on its own run-loop thread after that call returns, so a
+ * change landing in the gap between the scan and the armed stream produces no
+ * event at all — the layer would then disagree with the file until some later
+ * change happened to be reported. A repair reconciliation therefore re-reads
+ * the file on `repairInterval`, and both triggers share one serialized
+ * reconciliation that applies each generation of the file exactly once.
  * @param ctx - settled app context containing the root Include and an active HMR service.
- * @param options - diagnostic, file, and patch-composition inputs.
- * @returns an asynchronous disposer after the exact-path watcher is ready.
- * @throws when HMR or the root Include is absent, watcher setup fails, or initial path resolution fails.
+ * @param options - diagnostic, file, patch-composition, and repair-cadence inputs.
+ * @returns an asynchronous disposer that stops both triggers and awaits the reconciliation in flight.
+ * @throws when HMR or the root Include is absent, the present file is unreadable, watcher setup fails, or initial path resolution fails.
  */
 export async function watchUserPatches(
   ctx: Context,
   options: UserPatchWatchOptions,
 ): Promise<() => Promise<void>> {
-  const { binName, filename, compose = (patches: PatchOptions[]) => patches } = options
+  const {
+    binName,
+    filename,
+    compose = (patches: PatchOptions[]) => patches,
+    repairInterval = DEFAULT_USER_PATCH_REPAIR_INTERVAL,
+  } = options
   const hmr = ctx.get('hmr')
   if (hmr === undefined) throw new Error(`${binName}: user patch-layer watching requires the Cordis HMR service`)
   const entry = bootstrapIncludes.get(ctx)
   if (entry === undefined) throw new Error(`${binName}: user patch-layer watching requires the root Include entry`)
-  const register = hmr.registerConfig(filename, async () => {
-    // Re-read the include's non-patch options per refresh so a writer that
-    // updates another option between refreshes is not silently reverted.
-    const { patches: _previousPatches, ...includeConfig } = entry.options.config as Include.Config
-    const userPatches = loadOptionalPatches(binName, filename) ?? []
-    const patches = compose(userPatches)
-    await entry.update({
-      config: {
-        ...includeConfig,
-        patches,
-      },
+  // The two generations already accounted for: the file text the mounted tree
+  // reflects (`boot()` applied this file before this call), and the read
+  // failure last reported. Every later generation, valid or broken, is applied
+  // and reported once, whichever trigger observes it first.
+  let applied = readUserPatchSource(binName, filename)
+  let unreadable: string | undefined
+  // One reconciliation at a time: both triggers observe the same file, and two
+  // `entry.update()` calls in flight interleave candidate application and
+  // rollback on one Include tree.
+  let queue: Promise<unknown> = Promise.resolve()
+  const reconcile = (): Promise<void> => {
+    const run = queue.then(async () => {
+      let source: string | undefined
+      try {
+        source = readUserPatchSource(binName, filename)
+      } catch (error) {
+        const reason = String(error)
+        if (reason === unreadable) return
+        unreadable = reason
+        throw error
+      }
+      unreadable = undefined
+      if (source === applied) return
+      applied = source
+      const userPatches = source === undefined ? [] : parsePatchList(binName, filename, source, 'patches')
+      // Re-read the include's non-patch options per generation so a writer that
+      // updates another option between generations is not silently reverted.
+      const { patches: _previousPatches, ...includeConfig } = entry.options.config as Include.Config
+      await entry.update({
+        config: {
+          ...includeConfig,
+          patches: compose(userPatches),
+        },
+      })
     })
-  })
+    // A rejected generation must not poison the chain: whichever trigger
+    // started it owns its report.
+    queue = run.then(undefined, () => {})
+    return run
+  }
+  // The repair trigger's own failure report, matching what HMR broadcasts for
+  // the watch trigger so one broken file reads the same either way.
+  const report = async (reason: unknown): Promise<void> => {
+    const error = reason instanceof Error ? reason : new Error(String(reason), { cause: reason })
+    ctx.logger.warn('user patch repair at %C failed', filename)
+    ctx.logger.warn(error)
+    try {
+      await ctx.parallel('hmr/config-update-failed', filename, error)
+    } catch (rejection) {
+      ctx.logger.warn(rejection)
+    }
+  }
+  const cleanup: Array<() => unknown> = []
   try {
-    return await register
+    cleanup.push(ctx.effect(() => {
+      const timer = setInterval(() => void reconcile().catch(report), repairInterval)
+      // A repair cadence must never be why a finished process stays alive.
+      timer.unref()
+      return () => { clearInterval(timer) }
+    }, 'watchUserPatches() repair cadence'))
+    cleanup.push(await hmr.registerConfig(filename, reconcile))
+    return async () => {
+      // Both triggers stop before the drain, so nothing new enters the queue.
+      for (const stop of [...cleanup].reverse()) await stop()
+      await queue
+    }
   } catch (error) {
+    for (const stop of [...cleanup].reverse()) await stop()
     // A surface can dispose the whole tree while the watcher is still opening;
     // the HMR effect registration then fails with INACTIVE_EFFECT. That is the
     // app exiting exactly as asked, not a watch failure, so return a no-op
     // disposer instead of crashing.
     if ((error as { code?: string } | null)?.code === 'INACTIVE_EFFECT') return async () => {}
     throw error
+  }
+}
+
+/**
+ * Read a user patch file's source text.
+ * @param binName - the diagnostic prefix on the thrown error.
+ * @param file - absolute path of the patch file.
+ * @returns the file's text, or `undefined` when it does not exist.
+ * @throws when the file is present and unreadable.
+ */
+function readUserPatchSource(binName: string, file: string): string | undefined {
+  try {
+    return readFileSync(file, 'utf8')
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException | null)?.code === 'ENOENT') return undefined
+    throw new Error(`${binName}: failed to read patches ${file}: ${String(error)}`)
   }
 }
 
@@ -281,13 +380,8 @@ export async function watchUserPatches(
  * @returns the parsed patches, or `undefined` when the file does not exist.
  */
 export function loadOptionalPatches(binName: string, file: string): PatchOptions[] | undefined {
-  let content: string
-  try {
-    content = readFileSync(file, 'utf8')
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException | null)?.code === 'ENOENT') return undefined
-    throw new Error(`${binName}: failed to read patches ${file}: ${String(error)}`)
-  }
+  const content = readUserPatchSource(binName, file)
+  if (content === undefined) return undefined
   return parsePatchList(binName, file, content, 'patches')
 }
 

@@ -264,6 +264,9 @@ describe('HttpFetchProvider success', () => {
     expect(result.statusCode).toBe(200)
     expect(result.body).toEqual({ kind: 'text', content: 'hello world' })
     expect(result.truncated).toBe(false)
+    // This provider reads bytes and decodes them; nothing on the page ran, and
+    // the fetch card states that difference from a rendered fetch.
+    expect(result.retrieval).toBe('http')
   })
 
   it('fetches an html body and classifies it as html', async () => {

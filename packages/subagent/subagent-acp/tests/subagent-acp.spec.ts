@@ -56,6 +56,21 @@ async function setup(mockEnv: SetupEnv = {}, permission: 'allow' | 'reject' = 'r
   return ctx
 }
 
+/**
+ * The rejection of a start that must be refused, narrowed to `Error`. A start
+ * that publishes a run instead — the exact regression the refusal tests exist
+ * to catch — fails here rather than being cast away.
+ */
+async function refusedStart(start: Promise<unknown>): Promise<Error> {
+  try {
+    await start
+  } catch (error: unknown) {
+    if (error instanceof Error) return error
+    throw new Error(`the ACP start rejected with a non-Error: ${String(error)}`)
+  }
+  throw new Error('the ACP start published a run instead of refusing the delegation')
+}
+
 function text(blocks: { type: string; text?: string }[]): string {
   return blocks.filter(b => b.type === 'text').map(b => b.text).join('')
 }
@@ -320,6 +335,98 @@ describe('cwd resolution', () => {
       expect(text(result.output)).toBe(`${workdir}\n${workdir}`)
     } finally {
       rmSync(workdir, { recursive: true, force: true })
+    }
+  })
+
+  it('announces the delegating session\'s additional workspace roots on session/new', async () => {
+    const ctx = await setup({ MOCK_ECHO_ROOTS: '1', MOCK_SESSION_CAPS_DIRS: '1' })
+    const parent = {
+      id: 'parent',
+      session: {
+        header: { cwd: process.cwd() },
+        events: [{ type: 'workspace/roots', data: { roots: ['/second-root', '/third-root'] } }],
+      },
+    } as unknown as Agent
+    const run = await ctx.subagents.start('acp', { prompt: [{ type: 'text' as const, text: 'p' }], parent, signal: new AbortController().signal })
+    const result = await run.result
+    await run.dispose()
+    // The child echoes back the `additionalDirectories` it was handed.
+    expect(JSON.parse(text(result.output))).toEqual(['/second-root', '/third-root'])
+    await ctx.fiber.dispose()
+  })
+
+  it('announces no additional roots for a single-root delegating session, without needing the capability', async () => {
+    // No MOCK_SESSION_CAPS_DIRS: an empty root set asks the agent for nothing
+    // extra, so an agent that never negotiated the field still runs.
+    const ctx = await setup({ MOCK_ECHO_ROOTS: '1' })
+    const run = await ctx.subagents.start('acp', request())
+    const result = await run.result
+    await run.dispose()
+    expect(JSON.parse(text(result.output))).toBeNull()
+    await ctx.fiber.dispose()
+  })
+
+  // The protocol defines two "not supported" forms: an omitted key and an
+  // explicit `null`. Neither may let the narrowing pass.
+  it.each([
+    ['omits the capability', {}],
+    ['sends a null capability', { MOCK_SESSION_CAPS_DIRS: 'null' }],
+    ['advertises no capabilities at all', { MOCK_NO_AGENT_CAPS: '1' }],
+  ])('refuses the delegation when the real ACP agent %s', async (_label, capsEnv) => {
+    const ctx = await setup({ MOCK_ECHO_ROOTS: '1', ...capsEnv })
+    const parent = {
+      id: 'parent',
+      session: {
+        header: { cwd: process.cwd() },
+        events: [{ type: 'workspace/roots', data: { roots: ['/second-root', '/third-root'] } }],
+      },
+    } as unknown as Agent
+    const failure = await refusedStart(ctx.subagents.start('acp', { prompt: [{ type: 'text' as const, text: 'p' }], parent, signal: new AbortController().signal }))
+    // Model-visible text stays the fixed safe fact...
+    expect(failure.message).toBe(
+      `subagent-acp: ${expectedFailure('stage: new-session; category: configuration')}`,
+    )
+    // ...and the actionable detail names the configured agent and the roots.
+    const { cause } = failure
+    if (!(cause instanceof Error)) throw new Error('the refusal carried no Error cause')
+    expect(cause.message).toContain(process.execPath)
+    expect(cause.message).toContain('does not advertise session capability "additionalDirectories"')
+    expect(cause.message).toContain('/second-root, /third-root')
+    await ctx.fiber.dispose()
+  })
+
+  it('forwards only the parent\'s additional roots when config.cwd moves the child', async () => {
+    const configured = realpathSync(mkdtempSync(join(tmpdir(), 'acp-roots-configured-')))
+    const parentDir = realpathSync(mkdtempSync(join(tmpdir(), 'acp-roots-parent-')))
+    try {
+      const ctx = new Context()
+      await ctx.plugin(SubagentRuntime)
+      await ctx.plugin(LocalSubprocessRuntime)
+      await ctx.plugin(acp, {
+        providerName: 'acp',
+        command: process.execPath,
+        args: [mockServer],
+        cwd: configured,
+        permission: 'reject',
+        env: { MOCK_ECHO_ROOTS: '1', MOCK_SESSION_CAPS_DIRS: '1' },
+      })
+      const parent = {
+        id: 'parent',
+        session: {
+          header: { cwd: parentDir },
+          events: [{ type: 'workspace/roots', data: { roots: ['/second-root'] } }],
+        },
+      } as unknown as Agent
+      const run = await ctx.subagents.start('acp', { prompt: [{ type: 'text' as const, text: 'p' }], parent, signal: new AbortController().signal })
+      const result = await run.result
+      await run.dispose()
+      // The override pinned where the child works, so `parentDir` is NOT added
+      // back as a root; only the parent's own additional roots travel.
+      expect(JSON.parse(text(result.output))).toEqual(['/second-root'])
+      await ctx.fiber.dispose()
+    } finally {
+      rmSync(configured, { recursive: true, force: true })
+      rmSync(parentDir, { recursive: true, force: true })
     }
   })
 

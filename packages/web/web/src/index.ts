@@ -3,11 +3,16 @@
  * fetch. Duplicate ids are rejected. At execution time, a configured provider must exist and
  * be usable; without one, exactly one usable provider is required, so selection never depends
  * on registration order.
+ *
+ * The selection itself is a user setting (`web`), so a deployment can move
+ * `web_search` or `web_fetch` to another mounted backend without editing a
+ * composition file.
  * @module @deepseek-ai/dsh-web
  */
 
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
 import type {
   WebFetchProvider,
   WebFetchRequest,
@@ -26,6 +31,7 @@ export type {
   WebFetchProvider,
   WebFetchRequest,
   WebFetchResult,
+  WebFetchRetrieval,
   WebSearchProvider,
   WebSearchRequest,
   WebSearchResult,
@@ -37,6 +43,14 @@ declare module '@deepseek-ai/cordis' {
     web: WebRuntime
   }
 }
+
+/**
+ * Settings namespace carrying this seam's provider selection. It is the seam's
+ * own, not any provider's: which backend serves `web_search` and `web_fetch`
+ * is a deployment choice about the capability, and a provider that is not
+ * selected must not be the place a user goes to stop using it.
+ */
+export const WEB_SETTINGS_NAMESPACE = settingsNamespace('web')
 
 /** Selection inputs for execution-time provider resolution. */
 interface Selection<P> {
@@ -51,6 +65,10 @@ interface Selection<P> {
  * wins for each capability; both are optional (a single registered usable
  * provider auto-selects). Operational overrides such as environment variables
  * must feed these same fields rather than introduce a hidden priority chain.
+ *
+ * This is also the schema of the {@link WEB_SETTINGS_NAMESPACE} section, so a
+ * stored document layers over the composition entry and a configuration
+ * surface renders the same two fields the loader accepts.
  */
 export interface WebRuntimeConfig {
   /** Explicit search provider id. Omitted = auto-select when exactly one usable. */
@@ -84,13 +102,30 @@ export class WebRuntime extends Service {
 
   private searchProviders = new Map<string, WebSearchProvider>()
   private fetchProviders = new Map<string, WebFetchProvider>()
-  private readonly searchProviderId: string | undefined
-  private readonly fetchProviderId: string | undefined
+  /** The currently authoritative selection: the settings section, or the composition entry. */
+  private selection: () => WebRuntimeConfig
 
   constructor(ctx: Context, config: WebRuntimeConfig = {}) {
     super(ctx, 'web')
-    this.searchProviderId = config.searchProvider ?? process.env.DSH_WEB_SEARCH_PROVIDER
-    this.fetchProviderId = config.fetchProvider ?? process.env.DSH_WEB_FETCH_PROVIDER
+    this.selection = () => config
+    // Selection is resolved at every call, so a committed section takes effect
+    // on the next search or fetch with no provider re-registration.
+    installSettingsSection(ctx, WEB_SETTINGS_NAMESPACE, WebRuntime.Config, config, {
+      setSource: (current) => {
+        this.selection = current
+      },
+      onChange: () => {},
+    })
+  }
+
+  /** The search provider id in force, from the settings section or the environment. */
+  private get searchProviderId(): string | undefined {
+    return this.selection().searchProvider ?? process.env.DSH_WEB_SEARCH_PROVIDER
+  }
+
+  /** The fetch provider id in force, from the settings section or the environment. */
+  private get fetchProviderId(): string | undefined {
+    return this.selection().fetchProvider ?? process.env.DSH_WEB_FETCH_PROVIDER
   }
 
   /**

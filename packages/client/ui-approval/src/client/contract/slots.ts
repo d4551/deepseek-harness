@@ -4,7 +4,8 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {
   PropsLocale, PropsRenderSlots, PropsRuntime,
 } from '@deepseek-ai/dsh-client-ui-slots'
-import { settlePendingComposer } from '@deepseek-ai/dsh-client-ui-session/client'
+import { settlePendingComposer } from '@deepseek-ai/dsh-client-ui-projection'
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { ApprovalKey } from '../locales.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-session/client' {

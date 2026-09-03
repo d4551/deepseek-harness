@@ -80,6 +80,8 @@ flowchart LR
   cfg --> plugin_dsh_base_approval
   plugin_dsh_base_permission["permission<br/>@deepseek-ai/dsh-permission-presets"]
   cfg --> plugin_dsh_base_permission
+  plugin_dsh_base_approval_assessor["approval-assessor<br/>@deepseek-ai/dsh-approval-assessor"]
+  cfg --> plugin_dsh_base_approval_assessor
   plugin_dsh_base_shell_env["shell-env<br/>@deepseek-ai/dsh-shell-env"]
   cfg --> plugin_dsh_base_shell_env
   plugin_dsh_base_tool_shell["tool-shell<br/>@deepseek-ai/dsh-tool-shell"]
@@ -164,6 +166,10 @@ flowchart LR
   cfg --> plugin_dsh_base_web
   plugin_dsh_base_web_search_deepseek["web-search-deepseek<br/>@deepseek-ai/dsh-web-search-deepseek"]
   cfg --> plugin_dsh_base_web_search_deepseek
+  plugin_dsh_base_web_search_exa["web-search-exa<br/>@deepseek-ai/dsh-web-search-exa"]
+  cfg --> plugin_dsh_base_web_search_exa
+  plugin_dsh_base_web_search_perplexity["web-search-perplexity<br/>@deepseek-ai/dsh-web-search-perplexity"]
+  cfg --> plugin_dsh_base_web_search_perplexity
   plugin_dsh_base_web_fetch_http["web-fetch-http<br/>@deepseek-ai/dsh-web-fetch-http"]
   cfg --> plugin_dsh_base_web_fetch_http
   plugin_dsh_base_web_fetch_playwright["web-fetch-playwright<br/>@deepseek-ai/dsh-web-fetch-playwright"]
@@ -220,6 +226,7 @@ flowchart LR
 | `pwsh-sandbox` | `@deepseek-ai/dsh-pwsh-sandbox` |
 | `approval` | `@deepseek-ai/dsh-user-approval` |
 | `permission` | `@deepseek-ai/dsh-permission-presets` |
+| `approval-assessor` | `@deepseek-ai/dsh-approval-assessor` |
 | `shell-env` | `@deepseek-ai/dsh-shell-env` |
 | `tool-shell` | `@deepseek-ai/dsh-tool-shell` |
 | `tool-jobs` | `@deepseek-ai/dsh-tool-jobs` |
@@ -262,6 +269,8 @@ flowchart LR
 | `repeat-tool-reminder` | `@deepseek-ai/dsh-repeat-tool-reminder` |
 | `web` | `@deepseek-ai/dsh-web` |
 | `web-search-deepseek` | `@deepseek-ai/dsh-web-search-deepseek` |
+| `web-search-exa` | `@deepseek-ai/dsh-web-search-exa` |
+| `web-search-perplexity` | `@deepseek-ai/dsh-web-search-perplexity` |
 | `web-fetch-http` | `@deepseek-ai/dsh-web-fetch-http` |
 | `web-fetch-playwright` | `@deepseek-ai/dsh-web-fetch-playwright` |
 | `tool-web` | `@deepseek-ai/dsh-tool-web` |

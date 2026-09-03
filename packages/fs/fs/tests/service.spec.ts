@@ -88,6 +88,10 @@ describe('FileSystem provider seam', () => {
     await ctx.plugin(FakeFileSystem)
     const fs = ctx.fs as FakeFileSystem
     expect(fs.sandboxMode).toBeUndefined()
+    // A backend that does not override the capability fact keeps the workspace
+    // on the host's own disk; a surface reading `local` is reading a claim the
+    // base class is entitled to make.
+    expect(fs.origin).toEqual({ kind: 'local' })
     expect(fs.processPathFromHostPath('/host/file')).toBeUndefined()
     fs.files.set('a.txt', 'hi')
     const target = await fs.resolve('a.txt')

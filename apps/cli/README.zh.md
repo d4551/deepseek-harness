@@ -12,6 +12,7 @@
 | `dsh --profile acp` | 通过 ACP stdio 为自动化 client 提供服务，直至断开连接。 |
 | `dsh --profile headless "job"` | 运行一个全新的持久化会话，打印最终答案并退出。 |
 | `dsh --profile swarm` | 运行一个 headless 任务，由一支队伍围绕共享任务板协同完成。 |
+| `dsh --profile swarm-web` | 让 web 应用在同一块共享任务板上提供服务，在浏览器中显示队伍名册与任务板。 |
 | `dsh --profile hosted` | 让 web 应用在网络驱动器工作区上提供服务，而不是宿主文件系统。 |
 | `dsh --profile sdk` | 通过 JSON-RPC stdio 为 SDK client 提供服务，直至关闭或断开连接。 |
 | `dsh --profile sdk-minimal` | 以独立极简 agent 配置树为 SDK client 提供服务。 |
@@ -19,7 +20,7 @@
 | `dsh init --profile <name>` | 在 `$DSH_HOME/profiles/<name>` 下写出该 profile 的配置文件，不启动它。 |
 | `dsh plugin --profile <name> <bun args>` | 通过在 profile 目录中转发给 bun 来管理该 profile 的插件。 |
 
-运行命令时所在的目录将作为默认 workspace 根目录。每一个随附模板——`web`、`headless`、`swarm`、`hosted`、`sdk`、`sdk-minimal` 和 `acp`——都会在首次使用时自动初始化；其他 profile 由 `dsh init --profile <name>` 创建，`dsh plugin` 在首次使用时同样会创建。启动时若指定的 profile 没有对应目录，命令会列出该 home 可启动的名称以及创建缺失 profile 的 `dsh init` 命令，而不是生成一棵拼错名称也会照常启动的空配置树。
+运行命令时所在的目录将作为默认 workspace 根目录。每一个随附模板——`web`、`headless`、`swarm`、`swarm-web`、`hosted`、`sdk`、`sdk-minimal` 和 `acp`——都会在首次使用时自动初始化；其他 profile 由 `dsh init --profile <name>` 创建，`dsh plugin` 在首次使用时同样会创建。启动时若指定的 profile 没有对应目录，命令会列出该 home 可启动的名称以及创建缺失 profile 的 `dsh init` 命令，而不是生成一棵拼错名称也会照常启动的空配置树。
 
 ## 应用参数
 
@@ -43,7 +44,7 @@ profile 目录包含一个 `package.json`，其中记录树外插件依赖，以
 - profile 自身的 `cordis.patch.yml`，然后是 home 级的 `$DSH_HOME/cordis.patch.yml`
 - `--patch` 指定的覆盖层
 
-`dsh.profile.bundles` 中列出的组合包先从 dsh 安装目录解析（`@deepseek-ai/dsh-base`、`@deepseek-ai/dsh-web-app`、`@deepseek-ai/dsh-headless`、`@deepseek-ai/dsh-sdk-app`、`@deepseek-ai/dsh-sdk-minimal`、`@deepseek-ai/dsh-acp-app`、`@deepseek-ai/dsh-swarm-profile`、`@deepseek-ai/dsh-hosted-drive`），再从 profile 自身的 `node_modules` 解析；bun 会将树外插件安装到该目录。
+`dsh.profile.bundles` 中列出的组合包先从 dsh 安装目录解析（`@deepseek-ai/dsh-base`、`@deepseek-ai/dsh-web-app`、`@deepseek-ai/dsh-headless`、`@deepseek-ai/dsh-sdk-app`、`@deepseek-ai/dsh-sdk-minimal`、`@deepseek-ai/dsh-acp-app`、`@deepseek-ai/dsh-swarm-profile`、`@deepseek-ai/dsh-agent-team-web-profile`、`@deepseek-ai/dsh-hosted-drive`），再从 profile 自身的 `node_modules` 解析；bun 会将树外插件安装到该目录。
 
 使用 `--dump-default-config` 和 `--dump-config` 可在不启动的情况下检查组合后的配置树。
 

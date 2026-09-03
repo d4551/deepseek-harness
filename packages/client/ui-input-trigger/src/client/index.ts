@@ -28,7 +28,7 @@ export type {
   InputTriggerSource, SubmitEnvelope, SubmitImageAttachment, SubmitOutcome, TokenSpan, TriggerChar,
   TriggerGuard, TriggerPosition,
 } from '../types.ts'
-export type { DetectTrigger, ExactMatch, MenuEvent, MenuReduce, MenuState, TriggerHit } from '../core/contract.ts'
+export type { DetectTrigger, ExactMatch, MenuEvent, MenuGroup, MenuReduce, MenuState, TriggerHit } from '../core/contract.ts'
 export type { InputTriggerServiceContract } from './contract.ts'
 
 declare module '@deepseek-ai/cordis' {
@@ -79,6 +79,7 @@ export function apply(ctx: ClientContext): void {
           onPick: (source, index, action) => { controller.pick(source, index, action) },
           onCrumb: (source, index) => { controller.pickCrumb(source, index) },
           onHover: (source, index) => { controller.hover(source, index) },
+          onRetry: (source) => { controller.retrySource(source) },
           onDismiss: () => { controller.dismiss() },
         }
       },

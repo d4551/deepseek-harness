@@ -373,7 +373,10 @@ jobs:
   # Every pull request also gets real Windows-kernel signals. The former
   # monolithic windows-native job is split into smaller jobs so one slow
   # coverage gate does not hold up build/static results, while the total
-  # per-job process count stays lower. Observational checks are non-blocking.
+  # per-job process count stays lower. Observational checks are non-blocking,
+  # so this job also runs the built-bin smoke: starting the shipped binary and
+  # resolving package names to their `lib/` entrypoints is the one Windows
+  # verdict Linux cannot stand in for, and it must be able to fail the branch.
   # Dependabot PRs are excluded from the self-hosted pool and stay queued for
   # the hosted runner.
   windows-build:
@@ -556,9 +559,13 @@ jobs:
   # `needs`. The required Wine job is listed as `windows`; the native Windows
   # build, coverage, and targeted-process jobs are listed too, so a Windows-only
   # regression fails the pull request instead of staying red beside a green
-  # verdict. `windows-observational` stays out: Linux owns the blocking static,
-  # documentation, package, and built-artifact verdicts it duplicates, so its
-  # failure would gate the branch on a second opinion about the same facts.
+  # verdict. `windows-observational` stays out: what remains in it is static,
+  # documentation, package, and built-artifact analysis whose verdict does not
+  # vary by platform, and Linux already blocks on all of it, so its failure
+  # would gate the branch on a second opinion about the same facts. The one
+  # gate there that was NOT a second opinion — the built-bin smoke, the only
+  # proof the shipped binary starts on Windows — now runs in the blocking
+  # `windows-build` job instead of being observed.
   # (`needs` cannot reach across workflow files; the master-only jobs in
   # ci-master.yml are intentionally not part of this PR verdict.)
   # `if: always()` is load-bearing: without it a failed dependency

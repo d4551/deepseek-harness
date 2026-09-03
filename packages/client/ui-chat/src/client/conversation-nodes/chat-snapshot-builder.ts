@@ -8,9 +8,11 @@ import { isRunningTool } from '../contract/chat-nodes.ts'
 import type { ChatLocationNodeIndex, ChatNodeStore, ChatSnapshot, ChatTurnNavigationIndex, LegacyConversationSlice, TurnNavigationItem } from '../contract/snapshot.ts'
 // The declaring package, not the local barrel: a Typert-modeled reference must
 // name the package that owns the type so the generated import can point at it.
-import type { ConversationNode, PartialAssistant, RunningToolCall } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type {
+  ConversationNode, PartialAssistant, RunningToolCall,
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { TURN_PROCESS_INDEPENDENT_KINDS } from '../contract/turn-process.ts'
-import { sessionRecallLabels } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import { sessionRecallLabels } from '@deepseek-ai/dsh-client-ui-projection'
 import { sameTurnNavigationItem, turnNavigationItem } from './turn-navigation.ts'
 
 const EMPTY_KEYS: readonly string[] = []

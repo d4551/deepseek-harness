@@ -26,7 +26,7 @@ preset 组提供按会话的 agent（智能体）组装：agent preset 是一个
 |---|---|---|
 | [`agent-presets`](agent-presets/README.zh.md) | preset 名单、对受信任根目录与用户根目录的发现、按 agent 组装、只复制的创作 | `ctx.agentPresets` |
 | [`agent-team-profile`](agent-team-profile/README.zh.md) | 在 `dsh-base` 之上启用 Agent Teams 的源码 checkout profile 层 | — |
-| [`agent-team-web-profile`](agent-team-web-profile/README.zh.md) | 添加 Agent Teams 面板的源码 checkout Web 层 | — |
+| [`agent-team-web-profile`](agent-team-web-profile/README.zh.md) | `dsh --profile swarm-web` 背后随发布提供的浏览器层：Agent Teams 面板 | — |
 | [`persona`](persona/README.zh.md) | preset 挂载的可组装人设行，用于遮蔽或替换部署级人设 | — |
 | [`swarm-profile`](swarm-profile/README.zh.md) | `dsh --profile swarm` 背后随发布提供的 profile 层：在 `dsh-base` 之上以 swarm 模式运行 Agent Teams | — |
 

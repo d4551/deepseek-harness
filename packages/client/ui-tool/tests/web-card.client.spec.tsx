@@ -44,6 +44,7 @@ interface FetchMeta {
   url: string
   statusCode: number
   truncated: boolean
+  retrieval?: unknown
 }
 
 /** Persisted web_search result metadata. */
@@ -107,6 +108,24 @@ describe('webCardModel', () => {
     })
     expect(webCardModel(settledFetch({ meta: fetchMeta({ statusCode: 404, truncated: true }) })))
       .toEqual({ kind: 'fetch', url: 'https://example.com/page', statusCode: 404, truncated: true })
+  })
+
+  it('carries the recorded retrieval mode, so a rendered fetch is not read as a plain one', () => {
+    expect(webCardModel(settledFetch({ meta: fetchMeta({ retrieval: 'rendered' }) })))
+      .toMatchObject({ kind: 'fetch', retrieval: 'rendered' })
+    expect(webCardModel(settledFetch({ meta: fetchMeta({ retrieval: 'http' }) })))
+      .toMatchObject({ kind: 'fetch', retrieval: 'http' })
+  })
+
+  it('states no retrieval mode for a result that recorded none or recorded an unknown one', () => {
+    // A result persisted before the providers declared it, and a forged value:
+    // both leave the card silent rather than putting an unrecognized word on a
+    // claim about whether a page's scripts ran.
+    expect(webCardModel(settledFetch())).not.toHaveProperty('retrieval')
+    expect(webCardModel(settledFetch({ meta: fetchMeta({ retrieval: 'browser' }) })))
+      .not.toHaveProperty('retrieval')
+    expect(webCardModel(settledFetch({ meta: fetchMeta({ retrieval: 7 }) })))
+      .not.toHaveProperty('retrieval')
   })
 
   it('returns null for a running call, since the web card is result-only', () => {
@@ -176,6 +195,29 @@ describe('chat row web body', () => {
     const card = view.container.querySelector('[data-web="fetch"]')
     expect(card?.querySelector('a')?.getAttribute('href')).toBe('https://example.com/page')
     expect(view.getByText('HTTP 200')).toBeTruthy()
+    // Nothing recorded the mode, so the card claims nothing about it.
+    expect(card?.querySelector('[data-retrieval]')).toBeNull()
+  })
+
+  it('the fetch card states whether the page was rendered in a browser or read directly', () => {
+    const rendered = render(<WebRow {...rowProps(
+      settledFetch({ meta: fetchMeta({ retrieval: 'rendered' }) }),
+      'web_fetch',
+    )} />)
+    toggleRow(rendered)
+    const renderedBadge = rendered.container.querySelector('[data-retrieval="rendered"]')
+    expect(renderedBadge?.textContent).toBe(zh['web.retrieval.rendered'])
+    expect(renderedBadge?.getAttribute('title')).toBe(zh['web.retrieval.renderedTitle'])
+    cleanup()
+
+    const direct = render(<WebRow {...rowProps(
+      settledFetch({ meta: fetchMeta({ retrieval: 'http' }) }),
+      'web_fetch',
+    )} />)
+    toggleRow(direct)
+    const directBadge = direct.container.querySelector('[data-retrieval="http"]')
+    expect(directBadge?.textContent).toBe(zh['web.retrieval.http'])
+    expect(directBadge?.getAttribute('title')).toBe(zh['web.retrieval.httpTitle'])
   })
 
   it('a running web call is the summary row alone, with nothing to expand', () => {

@@ -3,17 +3,23 @@
  * that enforce this seam's own contracts around a child in another process:
  * the no-capabilities advertisement, timing-bound validation, child
  * working-directory resolution (config override, else the delegating parent
- * session's workspace), the never-reject result settlement, and the standard
- * run-handle publication. Backends compose these with their own wire drivers;
- * the process machinery itself (spawn, env scrub, tree-scoped teardown)
- * belongs to the `dsh-subprocess` seam.
+ * session's workspace), the additional workspace roots the child inherits from
+ * that parent, the one-shot provider's config resolution and the run
+ * config every start copies, error normalization, the never-reject result
+ * settlement, and the standard run-handle publication. Backends compose these
+ * with their own wire drivers; the process machinery itself (spawn, env scrub,
+ * tree-scoped teardown) belongs to the `dsh-subprocess` seam, so a run spec
+ * that carries a spawn operation declares that field in its own package.
  *
  * @module @deepseek-ai/dsh-subagent/out-of-process
  */
 
 import { accessSync, constants, statSync } from 'node:fs'
 import { isAbsolute, resolve } from 'node:path'
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
+import { effectiveWorkspaceRoots } from '@deepseek-ai/dsh-session/workspace-roots'
+import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import type { SubagentCapabilities, SubagentResult, SubagentRun, SubagentStopReason } from './types.ts'
 
 /** Maximum UTF-8 size of {@link SubagentResult.diagnostic}. */
@@ -72,6 +78,108 @@ export const NO_START_CAPABILITIES: SubagentCapabilities = Object.freeze({
 export function assertPositiveFinite(prefix: string, name: string, value: number): void {
   if (!Number.isFinite(value) || value <= 0) {
     throw new Error(`${prefix}: ${name} must be a positive finite number`)
+  }
+}
+
+/**
+ * Assert a configured timing bound is usable as a timer delay: positive and
+ * finite (see {@link assertPositiveFinite}) and within the platform maximum,
+ * above which `setTimeout` fires immediately and the wait it was meant to
+ * bound never happens.
+ * @param prefix - the consuming plugin's diagnostic prefix (e.g. `subagent-codex`).
+ * @param name - the config field name, for the diagnostic.
+ * @param value - the configured value.
+ */
+export function assertTimerBound(prefix: string, name: string, value: number): void {
+  assertPositiveFinite(prefix, name, value)
+  if (value > MAX_TIMER_DELAY_MS) {
+    throw new Error(`${prefix}: ${name} must be no greater than ${MAX_TIMER_DELAY_MS}`)
+  }
+}
+
+/**
+ * Deployment inputs a one-shot out-of-process run spec carries unchanged from
+ * plugin config. A provider stores this resolved record and spreads it into
+ * each run's spec beside that run's own working directory and callbacks.
+ * @typeParam TPermissionMode - the product's own non-interactive permission modes.
+ */
+export interface OneShotRunConfig<TPermissionMode extends string> {
+  /** Native model fixed for this instance; omitted to inherit the product's own settings. */
+  readonly model?: string
+  /** Explicit environment entries layered over the subprocess seam's scrubbed parent environment. */
+  readonly env: Record<string, string>
+  /** Native non-interactive permission mode fixed for this Provider instance. */
+  readonly permissionMode: TPermissionMode
+  /** Grace in milliseconds for child process-tree termination. */
+  readonly disposeGraceMs: number
+}
+
+/**
+ * The deployment fields a one-shot out-of-process provider accepts. Each
+ * provider still declares its own `Config` — that declaration is the
+ * deployment surface the config catalog pastes verbatim — and satisfies this
+ * type to resolve it.
+ * @typeParam TPermissionMode - the product's own non-interactive permission modes.
+ */
+export interface OneShotProviderConfig<TPermissionMode extends string> {
+  /** Provider name on `ctx.subagents`. */
+  providerName?: string
+  /** Native model fixed for this instance. */
+  model?: string
+  /** Explicit environment entries for the child. */
+  env?: Record<string, string>
+  /** Native non-interactive permission mode. */
+  permissionMode?: TPermissionMode
+  /** Grace in milliseconds for child process-tree termination. */
+  disposeGraceMs?: number
+}
+
+/**
+ * The values a provider substitutes for the two fields a programmatic caller
+ * may legitimately omit. Each is product-specific, so the seam holds none of
+ * them.
+ * @typeParam TPermissionMode - the product's own non-interactive permission modes.
+ */
+export interface OneShotProviderDefaults<TPermissionMode extends string> {
+  /** Registry name when config omits `providerName`. */
+  readonly providerName: string
+  /** Native mode when config omits `permissionMode`. */
+  readonly permissionMode: TPermissionMode
+}
+
+/** A resolved one-shot provider: its registry name and the config every run copies. */
+export interface ResolvedOneShotProvider<TPermissionMode extends string> {
+  /** Provider name to register on `ctx.subagents`. */
+  readonly providerName: string
+  /** Deployment inputs every run spec carries unchanged. */
+  readonly run: OneShotRunConfig<TPermissionMode>
+}
+
+/**
+ * Resolve one-shot provider config at plugin load, in one explicit step for
+ * both entry paths: Schemastery normalizes a Loader-supplied config, while
+ * programmatic construction bypasses it and reaches the same substitutes here.
+ *
+ * `env` and `disposeGraceMs` keep the Schemastery-normalized value rather than
+ * a substitute. A programmatic caller that omits `disposeGraceMs` must fail
+ * loud in the caller's own {@link assertTimerBound} check instead of silently
+ * inheriting a termination grace it never chose.
+ * @param config - the raw plugin config.
+ * @param defaults - the provider's product-specific substitutes for an omitted name or mode.
+ * @returns the registry name and the run config every start spreads into its spec.
+ */
+export function resolveOneShotProviderConfig<TPermissionMode extends string>(
+  config: OneShotProviderConfig<TPermissionMode>,
+  defaults: OneShotProviderDefaults<TPermissionMode>,
+): ResolvedOneShotProvider<TPermissionMode> {
+  return {
+    providerName: config.providerName ?? defaults.providerName,
+    run: {
+      ...config.model === undefined ? {} : { model: config.model },
+      env: config.env as Record<string, string>,
+      permissionMode: config.permissionMode ?? defaults.permissionMode,
+      disposeGraceMs: config.disposeGraceMs as number,
+    },
   }
 }
 
@@ -152,8 +260,39 @@ export function resolveChildCwd(prefix: string, configured: string | undefined, 
   return assertUsableCwd(prefix, 'parent session cwd', parentCwd)
 }
 
-/** Normalize an unknown thrown value to an Error (the catch binding is `unknown`). */
-function toError(value: unknown): Error {
+/**
+ * Resolve the workspace roots an out-of-process child works in BESIDES its own
+ * primary root: the delegating parent's ADDITIONAL roots
+ * ({@link effectiveWorkspaceRoots}), minus the child's own resolved `cwd`.
+ *
+ * This is the delegation counterpart of `captureDelegatedSessionState`, which
+ * seeds an in-process child from the same fold: an out-of-process child that
+ * received only `cwd` would work in a narrower workspace than its parent.
+ * Providers hand the result to whatever root list the child product accepts.
+ *
+ * The parent's own `cwd` is deliberately NOT in the result. Without a `cwd`
+ * override the child already runs there, and with one the deployment has said
+ * where the child works — re-adding the parent's directory would widen a
+ * deliberately pinned child's write fence past its configuration. The
+ * `childCwd` filter therefore only removes an override that lands on one of
+ * the parent's own additional roots, which is the child's primary root rather
+ * than an additional one. Roots are compared by exact spelling, the identity
+ * `setAdditionalWorkspaceRoots` records them under; canonicalization belongs to
+ * the child's own enforcement layer.
+ * @param parent - the delegating parent agent.
+ * @param childCwd - the child's resolved primary working directory.
+ * @returns the additional roots to forward, empty for a single-root parent.
+ */
+export function resolveChildWorkspaceRoots(parent: Agent, childCwd: string): string[] {
+  return effectiveWorkspaceRoots(parent.session.events).filter(root => root !== childCwd)
+}
+
+/**
+ * Normalize an unknown thrown value to an Error (the catch binding is `unknown`).
+ * @param value - the caught value.
+ * @returns the value itself when it is an `Error`, otherwise one wrapping its text.
+ */
+export function toError(value: unknown): Error {
   // The rejecting surfaces (wire clients, spawn failures) only throw
   // `Error`s; the `String(value)` arm is a defensive fallback for a non-Error
   // throw the typed surfaces cannot produce.

@@ -4,6 +4,7 @@ import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-session-persistence'
+import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { TeamActivity } from './activity.ts'
 import { errorMessage, TeamError } from './error.ts'
@@ -56,6 +57,56 @@ function positiveLimit(name: string, value: number): number {
   return value
 }
 
+/** Settings namespace carrying the Team capacities a user owns. */
+export const AGENT_TEAM_SETTINGS_NAMESPACE = settingsNamespace('agent-team')
+
+/**
+ * The Team fields a user owns, a deliberate strict subset of {@link Config}.
+ * Both are capacities a user retunes per machine and per task: how many
+ * teammates may exist at once, and how many tasks the shared board holds.
+ * Each is read at the admission it bounds, so a stored change applies to the
+ * next spawn or task and never disturbs the Team already running.
+ *
+ * `maxPendingMessagesPerMember` and `maxMessageBytes` stay composition-only:
+ * they bound what one delivery costs the durable log and the model's context,
+ * which is a deployment budget rather than a preference. `disposalTimeoutMs`
+ * stays composition-only because it times a teardown already in progress,
+ * where a mid-flight change has no defined meaning.
+ */
+export interface AgentTeamSettings {
+  /** Maximum immutable teammate names retained by one Team. */
+  maxMembers: number
+  /** Maximum non-deleted tasks retained by one Team. */
+  maxTasks: number
+}
+
+/** Schema of the Team settings section. */
+export const AGENT_TEAM_SETTINGS_SCHEMA: z<AgentTeamSettings> = z.object({
+  maxMembers: z.number().step(1).min(1).default(DEFAULT_MAX_MEMBERS),
+  maxTasks: z.number().step(1).min(1).default(DEFAULT_MAX_TASKS),
+})
+
+/** The field names the settings section owns; anything else belongs to composition. */
+const SETTABLE_FIELDS: ReadonlySet<string> = new Set(['maxMembers', 'maxTasks'])
+
+/**
+ * Reject a stored section carrying a field this namespace does not own. The
+ * schema keeps unrecognized keys in the resolved value, so without this a
+ * `maxMessageBytes` typed into the settings document would sit there looking
+ * applied while the mailbox kept the composed budget.
+ * @param section - the resolved section, schema-valid by construction.
+ */
+function assertOwnedFields(section: AgentTeamSettings): void {
+  const foreign = Object.keys(section).filter(field => !SETTABLE_FIELDS.has(field))
+  if (foreign.length > 0) {
+    throw new TeamError(
+      `agent-team settings own only ${[...SETTABLE_FIELDS].join(', ')}; ${foreign.join(', ')} `
+      + 'is a composition field and belongs in cordis.yml',
+      'TEAM_INVALID_CONFIG',
+    )
+  }
+}
+
 /** Agent Teams service backed by the exact live Lead Session log. */
 export class TeamService extends TypertRemoteService {
   static inject = ['agents', 'sessions', 'sessionPersistence', 'subagents']
@@ -70,6 +121,9 @@ export class TeamService extends TypertRemoteService {
 
   /** Validated deployment limits used by every Team operation. */
   private readonly config: Required<Config>
+
+  /** The currently authoritative user-owned capacities: the settings section, or the composition entry. */
+  private settings: () => AgentTeamSettings
 
   private readonly activity: TeamActivity
   private readonly lifecycle: TeamRuntimeLifecycle
@@ -94,10 +148,27 @@ export class TeamService extends TypertRemoteService {
       ),
     }
 
+    const entry: AgentTeamSettings = { maxMembers: this.config.maxMembers, maxTasks: this.config.maxTasks }
+    this.settings = () => entry
+    installSettingsSection(ctx, AGENT_TEAM_SETTINGS_NAMESPACE, AGENT_TEAM_SETTINGS_SCHEMA, entry, {
+      // The schema admits any integer above zero; `positiveLimit` owns the
+      // whole rule, so refusing here keeps the running Team on its last good
+      // capacities instead of failing at the next spawn.
+      validate: (section) => {
+        assertOwnedFields(section)
+        positiveLimit('maxMembers', section.maxMembers)
+        positiveLimit('maxTasks', section.maxTasks)
+      },
+      setSource: (current) => { this.settings = current },
+      // Nothing is derived from the capacities: the admission checks below are
+      // the only readers, and each reads at the moment it bounds.
+      onChange: () => {},
+    })
+
     this.activity = new TeamActivity()
     this.lifecycle = new TeamRuntimeLifecycle(this.config.disposalTimeoutMs)
     this.journal = new TeamJournal(ctx, (root) => { this.activity.notify(TeamId(root.id)) })
-    this.roster = new TeamRoster(ctx, this.journal, this.lifecycle, this.config.maxMembers)
+    this.roster = new TeamRoster(ctx, this.journal, this.lifecycle, () => this.settings().maxMembers)
     this.mailbox = new TeamMailbox(
       ctx,
       this.journal,
@@ -106,7 +177,7 @@ export class TeamService extends TypertRemoteService {
       this.config.maxPendingMessagesPerMember,
       this.config.maxMessageBytes,
     )
-    this.tasks = new TeamTaskBoard(this.journal, this.config.maxTasks)
+    this.tasks = new TeamTaskBoard(this.journal, () => this.settings().maxTasks)
 
     ctx.on('session/event', (session, event) => { this.mailbox.observeSessionEvent(session, event) })
     ctx.on('agent/session-start', ({ agent }) => { this.scheduleRecovery(agent) })

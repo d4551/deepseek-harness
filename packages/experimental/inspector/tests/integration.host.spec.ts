@@ -1,11 +1,14 @@
 /** Host-driven integration over an isolated Client fixture. */
 
+import { randomUUID } from 'node:crypto'
 import { createServer, type Server } from 'node:http'
 import { createContext, runInContext } from 'node:vm'
 import WebSocket from 'ws'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { startInspector, type InspectorHandle } from '../src/host/bridge/controller.ts'
 import { InspectorClientFixture } from './fixtures/client-source.host.ts'
+import type { InspectorClientBootstrap } from '../src/shared/bridge/messages/control.ts'
+import { INSPECTOR_PROTOCOL_VERSION } from '../src/shared/bridge/messages/observation.ts'
 import { rawText } from '../src/worker/bridge/endpoint.ts'
 
 interface CdpMessage {
@@ -34,17 +37,41 @@ const WORKER_ROUND_TRIP_MS = 15_000
 const waitForWorker = <T>(check: () => T | Promise<T>): Promise<T> =>
   vi.waitFor(check, { timeout: WORKER_ROUND_TRIP_MS })
 
+/** One sent CDP request awaiting the response carrying its id. */
+interface PendingCall {
+  readonly method: string
+  readonly resolve: (message: CdpMessage) => void
+  readonly reject: (error: Error) => void
+}
+
+/**
+ * CDP client whose calls settle only on events of the connection.
+ *
+ * A request has three terminal conditions: the response carrying its id, a
+ * closed socket, and a socket error. Elapsed time is not one of them, so the
+ * lane's `testTimeout` stays the single deadline and a host too busy to answer
+ * within it is reported as a slow test rather than as a CDP fault. A request
+ * the socket outlives is named by {@link inFlight}.
+ */
 class TestCdpClient {
   private nextId = 0
-  private readonly pending = new Map<number, (message: CdpMessage) => void>()
+  private readonly pending = new Map<number, PendingCall>()
   readonly events: CdpMessage[] = []
 
   private constructor(private readonly socket: WebSocket) {
     socket.on('message', (data) => {
       const message = JSON.parse(rawText(data)) as CdpMessage
-      if (message.id !== undefined) this.pending.get(message.id)?.(message)
-      else this.events.push(message)
+      if (message.id === undefined) {
+        this.events.push(message)
+        return
+      }
+      const pending = this.pending.get(message.id)
+      if (pending === undefined) return
+      this.pending.delete(message.id)
+      pending.resolve(message)
     })
+    socket.on('close', () => { this.abandon('Inspector CDP socket closed') })
+    socket.on('error', (error: Error) => { this.abandon(`Inspector CDP socket failed: ${error.message}`) })
   }
 
   static async connect(url: string): Promise<TestCdpClient> {
@@ -56,22 +83,97 @@ class TestCdpClient {
     return new TestCdpClient(socket)
   }
 
+  /** Methods sent whose response has not arrived, in call order. */
+  get inFlight(): readonly string[] {
+    return [...this.pending.values()].map(pending => pending.method)
+  }
+
+  /**
+   * Send one CDP request over this connection.
+   * @param method - CDP method name.
+   * @param params - Method parameters.
+   * @returns The response carrying this request's id; rejects when the socket closes or fails first.
+   */
   call(method: string, params: Record<string, unknown> = {}): Promise<CdpMessage> {
     const id = ++this.nextId
-    return new Promise((resolve, reject) => {
-      // A real Worker answering over a WebSocket; 5s is under the round trip on
-      // a loaded host, while this still fails fast on a protocol hang.
-      const timer = setTimeout(() => {
-        this.pending.delete(id)
-        reject(new Error(`CDP call timed out: ${method}`))
-      }, 30_000)
-      this.pending.set(id, (message) => {
-        clearTimeout(timer)
-        this.pending.delete(id)
-        resolve(message)
-      })
+    return new Promise<CdpMessage>((resolve, reject) => {
+      this.pending.set(id, { method, resolve, reject })
       this.socket.send(JSON.stringify({ id, method, params }))
     })
+  }
+
+  /**
+   * Fail every outstanding request the connection can no longer answer.
+   * @param reason - Terminal condition the socket reached.
+   */
+  private abandon(reason: string): void {
+    for (const [id, pending] of [...this.pending]) {
+      this.pending.delete(id)
+      pending.reject(new Error(`${reason} with ${pending.method} in flight`))
+    }
+  }
+
+  async close(): Promise<void> {
+    if (this.socket.readyState === WebSocket.CLOSED) return
+    const closed = new Promise<void>((resolve) => { this.socket.once('close', () => { resolve() }) })
+    this.socket.close()
+    await closed
+  }
+}
+
+/**
+ * Client peer that speaks the ingest protocol and never answers the Worker.
+ *
+ * The Worker reaches a Client only over this socket, so a peer that writes
+ * nothing back is how a case observes `clientRuntimeTimeoutMs` without asking
+ * the host to be fast: every `client-runtime/request` and `client-console/enable`
+ * it receives can end only in that deadline. Console is an optional Client
+ * capability, so a peer that omits it is admitted to a DevTools connection
+ * without any Worker-to-Client round trip.
+ */
+class SilentClientSource {
+  private constructor(private readonly socket: WebSocket) {}
+
+  /**
+   * Open one Client source generation and wait for the Worker to admit it.
+   * @param bootstrap - Client ingest endpoint published by the Inspector.
+   * @param options - Source label and whether this source declares Console.
+   * @returns The admitted peer.
+   */
+  static async open(
+    bootstrap: InspectorClientBootstrap,
+    options: { readonly label: string; readonly console: boolean },
+  ): Promise<SilentClientSource> {
+    const socket = new WebSocket(bootstrap.endpoint, bootstrap.protocol)
+    await new Promise<void>((resolve, reject) => {
+      socket.once('open', () => { resolve() })
+      socket.once('error', reject)
+    })
+    const admitted = new Promise<void>((resolve, reject) => {
+      socket.on('message', (data) => {
+        const frame = JSON.parse(rawText(data)) as { t?: string; message?: string }
+        if (frame.t === 'source/accepted') resolve()
+        if (frame.t === 'source/rejected') reject(new Error(`Client source rejected: ${String(frame.message)}`))
+      })
+    })
+    socket.send(JSON.stringify({
+      v: INSPECTOR_PROTOCOL_VERSION,
+      t: 'source/open',
+      source: {
+        sourceId: `silent-${randomUUID()}`,
+        generation: `silent-${randomUUID()}`,
+        kind: 'client',
+        label: options.label,
+        timeOriginMs: 0,
+        capabilities: [
+          { type: 'client-runtime', origin: 'https://silent.invalid' },
+          ...(options.console ? [{ type: 'client-console' }] : []),
+        ],
+      },
+      topics: [],
+    }))
+    await admitted
+    return new SilentClientSource(socket)
   }
 
   async close(): Promise<void> {
@@ -87,11 +189,15 @@ describe('experimental Inspector real Worker', () => {
   let cdp: TestCdpClient | undefined
   let secondCdp: TestCdpClient | undefined
   let client: InspectorClientFixture | undefined
+  let silentClient: SilentClientSource | undefined
   let server: Server | undefined
 
   afterEach(async () => {
+    const stranded = [...cdp?.inFlight ?? [], ...secondCdp?.inFlight ?? []]
     await client?.close()
     client = undefined
+    await silentClient?.close()
+    silentClient = undefined
     await cdp?.close()
     cdp = undefined
     await secondCdp?.close()
@@ -100,6 +206,10 @@ describe('experimental Inspector real Worker', () => {
     inspector = undefined
     if (server !== undefined) await new Promise<void>((resolve) => { server!.close(() => { resolve() }) })
     server = undefined
+    // A case that spent the lane's testTimeout inside a call reaches here with
+    // that request still open; reporting it after teardown names the method
+    // Vitest's own timeout message cannot.
+    if (stranded.length > 0) throw new Error(`Inspector CDP requests never answered: ${stranded.join(', ')}`)
   })
 
   it('switches between Host and Client contexts and routes Client RemoteObjects', async () => {
@@ -274,22 +384,60 @@ describe('experimental Inspector real Worker', () => {
 
   it('cancels Client Runtime work when the Worker deadline expires', async () => {
     inspector = await startInspector({ port: 0, captureFetch: false, clientRuntimeTimeoutMs: 20 })
-    client = await InspectorClientFixture.start(inspector.endpoint.client, { label: 'Timeout Client' })
+    // A Client that declares Runtime without Console: admitting its realm costs
+    // this connection no Worker-to-Client round trip, so nothing this case needs
+    // before the deadline has to complete within the deadline it configures.
+    silentClient = await SilentClientSource.open(inspector.endpoint.client, {
+      label: 'Timeout Client',
+      console: false,
+    })
     cdp = await TestCdpClient.connect(inspector.endpoint.webSocketDebuggerUrl)
     await cdp.call('Runtime.enable')
     const contextId = await clientContext(cdp, 'Timeout Client')
 
-    const timedOut = await cdp.call('Runtime.evaluate', {
-      expression: 'new Promise(() => {})',
-      contextId,
-      awaitPromise: true,
+    const stalled = { expression: 'new Promise(() => {})', contextId, awaitPromise: true }
+    expect((await cdp.call('Runtime.evaluate', stalled)).error?.message)
+      .toContain('Client Runtime evaluate timed out after 20ms')
+    // The cancelled request did not take the realm with it: a realm this
+    // connection had dropped answers `is no longer available` instead.
+    expect((await cdp.call('Runtime.evaluate', stalled)).error?.message)
+      .toContain('Client Runtime evaluate timed out after 20ms')
+    const sources = (await cdp.call('DSHInspector.getSources')).result?.sources
+    expect(recordArray(sources).map(source => source.label)).toContain('Timeout Client')
+  })
+
+  it('keeps the Host realm on a connection whose Client realm never confirms its Console', async () => {
+    inspector = await startInspector({ port: 0, captureFetch: false, clientRuntimeTimeoutMs: 20 })
+    // Declares Console and never confirms the enable, so the Worker's deadline is
+    // the only way this connection's attach to that realm can end.
+    silentClient = await SilentClientSource.open(inspector.endpoint.client, {
+      label: 'Mute Client',
+      console: true,
     })
-    expect(timedOut.error?.message).toContain('timed out after 20ms')
+    cdp = await TestCdpClient.connect(inspector.endpoint.webSocketDebuggerUrl)
+
+    expect((await cdp.call('Runtime.enable')).error).toBeUndefined()
+    expect(runtimeContexts(cdp).some(context => String(context.name).startsWith('Client —'))).toBe(false)
+
+    // A native context created after the enable proves the Host realm's Runtime
+    // domain is still enabled for this connection, not rolled back with the Client.
+    const context = createContext({}, { name: 'Host Survives Client Context' })
+    runInContext('globalThis.hostSurvivorMarker = "enabled"', context)
+    let vmContextId: number | undefined
+    await waitForWorker(() => {
+      const created = runtimeContexts(cdp!).find(candidate => candidate.name === 'Host Survives Client Context')
+      expect(created, 'the Host realm stopped announcing execution contexts').toBeDefined()
+      vmContextId = created?.id as number | undefined
+    })
     expect((await cdp.call('Runtime.evaluate', {
-      expression: '42',
-      contextId,
+      expression: 'globalThis.hostSurvivorMarker',
+      contextId: vmContextId,
       returnByValue: true,
-    })).result?.result).toMatchObject({ type: 'number', value: 42 })
+    })).result?.result).toMatchObject({ type: 'string', value: 'enabled' })
+
+    // The realm was dropped for this connection only; the Worker kept the source.
+    const sources = (await cdp.call('DSHInspector.getSources')).result?.sources
+    expect(recordArray(sources).map(source => source.label)).toContain('Mute Client')
   })
 
   it('preserves native Host execution-context selectors', async () => {

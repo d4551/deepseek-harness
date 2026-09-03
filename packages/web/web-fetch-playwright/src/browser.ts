@@ -22,6 +22,11 @@ export interface PlaywrightFetchLimits {
   maxConcurrentRenders: number
   /** `User-Agent` every rendered request carries. */
   userAgent: string
+  /**
+   * Browser executable to probe and launch; omitted uses the installation
+   * `playwright` resolves for itself.
+   */
+  executablePath?: string
 }
 
 /** Navigation outcome consumed by this provider: the final main-frame status code. */
@@ -162,11 +167,25 @@ export interface RenderBrowser {
   close(): Promise<void>
 }
 
-/** Opens a browser process; injected by tests, defaulted to Playwright Chromium. */
-export type BrowserLauncher = () => Promise<RenderBrowser>
+/** Which browser binary a launch or a probe applies to. */
+export interface BrowserSelection {
+  /**
+   * Absolute path of the browser executable to run. Omitted selects the
+   * installation `playwright` resolves for itself.
+   */
+  readonly executablePath?: string
+}
 
-/** Confirms an installed browser by resolving, a missing one by rejecting. */
-export type BrowserProbe = () => Promise<void>
+/** Opens a browser process; injected by tests, defaulted to Playwright Chromium. */
+export type BrowserLauncher = (selection: BrowserSelection) => Promise<RenderBrowser>
+
+/**
+ * Confirms an installed browser by resolving with the executable path it
+ * confirmed, a missing one by rejecting. The path is what the plugin publishes
+ * as the settings composition layer, so a configuration surface can state which
+ * binary the provider found — or that it found none.
+ */
+export type BrowserProbe = (selection: BrowserSelection) => Promise<string>
 
 /** Resolves the path of the browser executable a launch would run. */
 export type ExecutableLocator = () => Promise<string>
@@ -237,11 +256,15 @@ export function chromiumInstallCommand(): string {
 
 /**
  * Launch headless Chromium through the `playwright` package.
+ * @param selection - the executable to run; omitted uses Playwright's own installation.
  * @returns the live browser process to render through.
  */
-export const launchChromium: BrowserLauncher = async () => {
+export const launchChromium: BrowserLauncher = async (selection) => {
   const { chromium } = await import('playwright')
-  return await chromium.launch({ headless: true })
+  return await chromium.launch({
+    headless: true,
+    ...selection.executablePath === undefined ? {} : { executablePath: selection.executablePath },
+  })
 }
 
 /**
@@ -260,20 +283,26 @@ export const chromiumExecutablePath: ExecutableLocator = async () => {
  * exists. This costs one filesystem check, so the plugin can resolve availability while
  * applying; a launch-and-close probe would put a whole browser process on every boot.
  * @param locate - resolves the executable path to check.
- * @returns nothing once the executable exists; rejects when it does not.
+ * @returns the confirmed executable path; rejects when nothing exists there.
  */
-export async function probeExecutable(locate: ExecutableLocator): Promise<void> {
+export async function probeExecutable(locate: ExecutableLocator): Promise<string> {
   const executable = await locate()
   if (!existsSync(executable)) {
     throw new Error(`no browser executable at ${executable}`)
   }
+  return executable
 }
 
 /**
  * Confirm an installed Chromium without launching it.
- * @returns nothing once Chromium's executable is present; rejects when it is not.
+ * @param selection - the executable to confirm; omitted confirms Playwright's own.
+ * @returns the confirmed executable path; rejects when nothing is installed there.
  */
-export const probeChromium: BrowserProbe = () => probeExecutable(chromiumExecutablePath)
+export const probeChromium: BrowserProbe = selection => probeExecutable(
+  selection.executablePath === undefined
+    ? chromiumExecutablePath
+    : () => Promise.resolve(selection.executablePath as string),
+)
 
 /** Production browser access: headless Chromium through the `playwright` package. */
 export const chromiumAccess: BrowserAccess = { launch: launchChromium, probe: probeChromium }

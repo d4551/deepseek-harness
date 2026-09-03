@@ -14,6 +14,7 @@ import * as Cordis from '@deepseek-ai/cordis'
 import * as ClientStore from '@deepseek-ai/dsh-client-store'
 import * as UiSlots from '@deepseek-ai/dsh-client-ui-slots'
 import * as UiPrimitives from '@deepseek-ai/dsh-client-ui-primitives'
+import * as UiProjection from '@deepseek-ai/dsh-client-ui-projection'
 import type { PlatformModule } from './platform.ts'
 
 /**
@@ -33,6 +34,7 @@ export function getStaticModules(): Record<string, unknown> {
     '@deepseek-ai/dsh-client-store': ClientStore,
     '@deepseek-ai/dsh-client-ui-slots': UiSlots,
     '@deepseek-ai/dsh-client-ui-primitives': UiPrimitives,
+    '@deepseek-ai/dsh-client-ui-projection': UiProjection,
   } satisfies Record<PlatformModule, object>
   return {
     ...modules,

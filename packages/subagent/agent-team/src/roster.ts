@@ -61,13 +61,15 @@ export class TeamRoster {
    * @param ctx - Team service context with Agent, Session, persistence, and subagent services.
    * @param journal - authoritative Lead-log transaction owner.
    * @param lifecycle - shared Team runtime admission cutoff.
-   * @param maxMembers - maximum immutable roster entries per Team.
+   * @param maxMembers - reads the maximum immutable roster entries per Team,
+   *   at each admission, so a stored settings change bounds the next spawn
+   *   without disturbing members already rostered.
    */
   constructor(
     private readonly ctx: Context,
     private readonly journal: TeamJournal,
     private readonly lifecycle: TeamRuntimeLifecycle,
-    private readonly maxMembers: number,
+    private readonly maxMembers: () => number,
   ) {}
 
   /**
@@ -269,8 +271,9 @@ export class TeamRoster {
       if (state.memberIdsByName.has(name)) {
         throw new TeamError(`teammate name "${name}" was already used in this Team`, 'TEAM_MEMBER_NAME_TAKEN')
       }
-      if (state.members.size >= this.maxMembers) {
-        throw new TeamError(`Team member limit ${this.maxMembers} reached`, 'TEAM_MEMBER_LIMIT')
+      const maxMembers = this.maxMembers()
+      if (state.members.size >= maxMembers) {
+        throw new TeamError(`Team member limit ${maxMembers} reached`, 'TEAM_MEMBER_LIMIT')
       }
       await this.journal.appendAndFlush(root, 'team/member', { version: 1, teamId: TeamId(root.id), member })
     })

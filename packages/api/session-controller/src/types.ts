@@ -20,6 +20,8 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
     imageLimits: null
     /** Durable model selection already used by a request and still pending for a later request. */
     modelSelection: ModelSelectionProjectionState
+    /** The Session's primary root and the additional roots its log records. */
+    workspaceRoots: WorkspaceRootsProjection
   }
   interface SessionProjectionMap {
     /** Persisted facts used to summarize a Session without activating it. */
@@ -28,6 +30,8 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
     imageLimits: ImageAttachmentLimits
     /** Durable model selection already used and selected for the next request. */
     modelSelection: ModelSelectionProjection
+    /** Every workspace root the Session works in; see {@link WorkspaceRootsProjection}. */
+    workspaceRoots: WorkspaceRootsProjection
   }
 }
 
@@ -100,6 +104,55 @@ export interface ModelSelectionProjection {
   readonly next: ModelSelection | null
 }
 
+/**
+ * Every workspace root one Session works in. `primary` is the immutable
+ * {@link SessionHeader.cwd} the Session was created against — null for a
+ * Session created without one — and `additional` folds the Session's
+ * `workspace/roots` log, so the pair is exactly what search coverage,
+ * language-server routing, per-root instruction loading, and the sandbox
+ * write fence resolve from. Both the state and the wire view are this one
+ * record: nothing is derived on the client.
+ */
+export interface WorkspaceRootsProjection {
+  /** The Session's immutable primary root; null when it was created without a cwd. */
+  readonly primary: string | null
+  /** Additional roots the Session recorded, in the order the last `workspace/roots` event carries. */
+  readonly additional: readonly string[]
+}
+
+/** Session-addressed request replacing the complete additional-root set. */
+export interface SessionSetWorkspaceRootsRequest {
+  readonly sessionId: SessionId
+  /**
+   * The complete replacement set of additional absolute roots. An empty list
+   * records that the Session works in its primary root alone; the Session's own
+   * primary root and duplicate spellings are dropped rather than rejected,
+   * matching `setAdditionalWorkspaceRoots`.
+   */
+  readonly additionalDirectories: readonly string[]
+}
+
+/** The additional-root set the Session carries after the replacement committed. */
+export interface SessionSetWorkspaceRootsValue {
+  readonly additional: readonly string[]
+}
+
+/**
+ * Where this deployment's composed filesystem backend keeps the workspace: the
+ * wire face of `ctx.fs.origin`. It is a deployment fact, not a Session one —
+ * the harness runs one filesystem provider — so a surface reads it once and
+ * applies it to every Session's primary root.
+ */
+export interface SessionWorkspaceOrigin {
+  /**
+   * The backend's declared origin, as `FsOrigin.kind` states it. The
+   * filesystem origin vocabulary is merge-extensible, so this crosses the wire
+   * as a plain string and a surface names an unrecognized member rather than
+   * claiming one it knows.
+   */
+  readonly kind: string
+}
+
 /** One adapter-owned reasoning effort for an exact model route. */
 export interface ModelReasoningEffort {
   readonly id: string
@@ -126,6 +179,12 @@ export interface ModelProviderGroup {
   readonly id: string
   readonly name: string
   readonly models: readonly ModelCatalogModel[]
+  /**
+   * Where this route's models run, as the adapter states it (`LlmProviderInfo.hosting`).
+   * Absent means the adapter draws no such distinction, so a selector labels
+   * nothing rather than guessing at a cloud API's hardware.
+   */
+  readonly hosting?: 'local' | 'self-hosted'
 }
 
 /** One provider whose model catalog lookup failed. */

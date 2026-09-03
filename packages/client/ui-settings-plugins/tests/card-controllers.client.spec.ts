@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest'
 import { stubSettingsScope, type StubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
 import { AgentLoopCardController } from '../src/client/agent-loop-card-controller.ts'
-import { ApprovalAssessorCardController } from '../src/client/approval-assessor-card-controller.ts'
+import { AgentTeamCardController } from '../src/client/agent-team-card-controller.ts'
 import { BashCardController } from '../src/client/bash-card-controller.ts'
 
 /** One scope carrying every card's fields, as a merged Host document. */
@@ -15,19 +15,19 @@ type MergedSettings = {
   timeoutMs?: number
   maxOutputBytes?: number
   maxParallelToolCalls?: number
-  enabled?: boolean
-  extraPatterns?: string[]
+  maxMembers?: number
+  maxTasks?: number
 }
 
 describe('card controllers over one shared scope', () => {
   function mountedCards(host: StubSettingsScope<MergedSettings>) {
     const bash = new BashCardController(host.scope)
     const loop = new AgentLoopCardController(host.scope)
-    const approval = new ApprovalAssessorCardController(host.scope)
+    const team = new AgentTeamCardController(host.scope)
     return {
       bash: bash.inject().hooks.bashCard,
       loop: loop.inject().hooks.agentLoopCard,
-      approval: approval.inject().hooks.approvalAssessorCard,
+      team: team.inject().hooks.agentTeamCard,
     }
   }
 
@@ -38,14 +38,14 @@ describe('card controllers over one shared scope', () => {
     host.publish({
       status: 'ready',
       writable: true,
-      value: { timeoutMs: 5_000, maxParallelToolCalls: 10, enabled: true },
+      value: { timeoutMs: 5_000, maxParallelToolCalls: 10, maxMembers: 16 },
       base: { timeoutMs: 60_000 },
       user: { timeoutMs: 5_000 },
     })
 
     expect(cards.bash.getSnapshot().timeoutMs.text).toBe('5000')
     expect(cards.loop.getSnapshot().maxParallelToolCalls.text).toBe('10')
-    expect(cards.approval.getSnapshot().enabled.text).toBe('true')
+    expect(cards.team.getSnapshot().maxMembers.text).toBe('16')
   })
 
   it('updates every card on a later publish, not only the first', () => {
@@ -57,14 +57,13 @@ describe('card controllers over one shared scope', () => {
     host.publish({
       status: 'ready',
       writable: true,
-      value: { timeoutMs: 9_000, maxParallelToolCalls: 2, extraPatterns: ['late'] },
+      value: { timeoutMs: 9_000, maxParallelToolCalls: 2 },
       base: { timeoutMs: 60_000 },
       user: { timeoutMs: 9_000 },
     })
 
     expect(cards.bash.getSnapshot().timeoutMs).toMatchObject({ text: '9000', overridden: true })
     expect(cards.loop.getSnapshot().maxParallelToolCalls.text).toBe('2')
-    expect(cards.approval.getSnapshot().extraPatterns.text).toBe('late')
   })
 
   it('projects only the fields each namespace owns from a merged document', () => {
@@ -77,7 +76,7 @@ describe('card controllers over one shared scope', () => {
       value: {
         timeoutMs: 5_000, maxOutputBytes: 64_000,
         maxParallelToolCalls: 10,
-        enabled: true, extraPatterns: ['x'],
+        maxMembers: 16,
       },
     })
 
@@ -87,7 +86,10 @@ describe('card controllers over one shared scope', () => {
     // its built-in default rather than inheriting a sibling card's value.
     expect(bash.maxOutputBytes.text).toBe('64000')
     expect(cards.loop.getSnapshot().maxParallelToolCalls.text).toBe('10')
-    expect(cards.approval.getSnapshot().enabled.text).toBe('true')
-    expect(cards.approval.getSnapshot().extraPatterns.text).toBe('x')
+    const team = cards.team.getSnapshot()
+    expect(team.maxMembers.text).toBe('16')
+    // maxTasks is absent from this document, so the Team card renders blank
+    // rather than borrowing a sibling card's number.
+    expect(team.maxTasks.text).toBe('')
   })
 })

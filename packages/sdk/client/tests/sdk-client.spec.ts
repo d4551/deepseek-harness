@@ -180,6 +180,46 @@ describe('DeepSeekHarness', () => {
     }])
   })
 
+  it('sends the configured additional directories in the handshake, resolved absolute', async () => {
+    const dir = await tempDir('sdk-client-roots-')
+    const recordFile = join(dir, 'init.jsonl')
+    const relativeRoot = relative(process.cwd(), dir)
+    expect(isAbsolute(relativeRoot)).toBe(false)
+    const harness = createProcessDeepSeekHarness(fakeLaunch({ FAKE_RECORD_INIT: recordFile }), {
+      cwd: dir,
+      additionalDirectories: [join(dir, 'second'), relativeRoot],
+      provider: 'p',
+      model: 'm',
+    })
+    cleanups.push(() => harness.close())
+    await harness.run('one')
+    await harness.close()
+    const records = (await readFile(recordFile, 'utf8')).trim().split('\n').map(line => JSON.parse(line) as object)
+    expect(records).toEqual([{
+      cwd: dir,
+      // Anchored to THIS process, so the child never re-resolves a relative root.
+      additionalDirectories: [join(dir, 'second'), resolvePath(relativeRoot)],
+      provider: 'p',
+      model: 'm',
+    }])
+  })
+
+  it('omits additional directories from the handshake when none are configured', async () => {
+    const dir = await tempDir('sdk-client-no-roots-')
+    const recordFile = join(dir, 'init.jsonl')
+    const harness = createProcessDeepSeekHarness(fakeLaunch({ FAKE_RECORD_INIT: recordFile }), {
+      cwd: dir,
+      additionalDirectories: [],
+      provider: 'p',
+      model: 'm',
+    })
+    cleanups.push(() => harness.close())
+    await harness.run('one')
+    await harness.close()
+    const records = (await readFile(recordFile, 'utf8')).trim().split('\n').map(line => JSON.parse(line) as object)
+    expect(records).toEqual([{ cwd: dir, provider: 'p', model: 'm' }])
+  })
+
   it('resolves a relative launch cwd to an absolute workspace before the handshake', async () => {
     // vitest workers forbid chdir, so derive a RELATIVE path from the real
     // process cwd to a temp worker dir; resolution is lexical either way.

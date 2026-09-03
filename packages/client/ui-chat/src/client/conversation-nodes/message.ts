@@ -1,11 +1,12 @@
 import type { Context } from '@deepseek-ai/cordis'
-import {
-  inputMessageNode, type ConversationNodeDefinition, type InboxState,
-} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { ConversationNodeDefinition } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import { inputMessageNode, type InboxState } from '@deepseek-ai/dsh-client-ui-projection'
 import { isAppendSurfaceEvent, isReplacementSurfaceEvent } from '@deepseek-ai/dsh-session/surface'
 // The declaring package, not the local barrel: a Typert-modeled reference must
 // name the package that owns the type so the generated import can point at it.
-import type { ContextMessageNode, SteeringMessageNode, UserMessageNode } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type {
+  ContextMessageNode, SteeringMessageNode, UserMessageNode,
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { chatNode } from './common.ts'
 
 interface ReferencedUserMessageNode extends UserMessageNode {

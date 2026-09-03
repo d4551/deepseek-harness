@@ -1,5 +1,5 @@
 ---
-description: "Approval-stage guard that detects work-avoidance justification in tool-approval requests and rejects them with a redirect to the user's instructions, for users and maintainers choosing, configuring, or debugging the plugin."
+description: "Mandatory approval-stage audit that rejects missing or work-avoidance justifications and redirects the model to the user's instructions."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-When a model asks for tool approval, the reason it gives can itself be the failure: "should I skip this since it's pre-existing?", "this is a known limitation", "leave it as-is" — rationales that talk the approval channel into abandoning work the user asked for. `dsh-approval-assessor` screens the reason text of every approval request against work-avoidance patterns and rejects matches instead of forwarding them, injecting a short redirect into the session that quotes the user's last instruction so the model returns to the task. Non-matching requests pass through untouched to the normal approval flow, and safety-critical tools (shell, write, edit) always pass through so their own policy checks decide. Patterns ship a default set and accept extras from configuration.
+Every tool-approval request receives a mandatory audit. A missing justification or a justification that asks to skip, defer, or soften user-authorized work is rejected before an answerer can decide it. The rejection appends a short redirect that quotes the most recent human instruction. A non-evasive, non-empty justification reaches the normal approval flow only after that audit.
 
 ## Table of Contents
 
@@ -23,47 +23,20 @@ When a model asks for tool approval, the reason it gives can itself be the failu
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount this plugin when autonomous sessions must not talk themselves out of requested work at the approval gate. There is nothing to wire: every approval request with a reason passes through the assessor, matches reject, everything else delegates.
-
-### Configuring patterns and the toggle
-
-```yaml
-- name: '@deepseek-ai/dsh-approval-assessor'
-  config:
-    enabled: true            # false disables all interception; every request delegates
-    extraPatterns:           # additional case-insensitive regex sources, compiled at load
-      - 'should i bother'
-```
-
-| Field | Default | Meaning |
-|---|---|---|
-| `enabled` | `true` | `false` makes the assessor delegate every request |
-| `extraPatterns` | `[]` | Extra regex sources matched against the approval reason |
-
-Invalid `extraPatterns` (non-regex, empty) fail at plugin load with a clear error, never a silent skip.
+Every `dsh-base` profile mounts this plugin ahead of the product approval answerers. It has no deployment setting, stored setting, override, or opt-out. Each request must carry a non-empty justification that passes the audit before a downstream answerer can decide it.
 
 ### What you get
 
-A request whose reason matches a work-avoidance pattern is rejected, and the model receives a plugin-attributed message quoting the user's last instruction — the model sees the original task next to the rejection and returns to it. Requests for `bash`, `write`, and `edit` are never intercepted by pattern: their approval is governed by their own safety policy, not by reason text.
+A request with a missing or work-avoidance justification is rejected, and the model receives a plugin-attributed message quoting the user's last instruction. Only a human message qualifies as that instruction: the user-role log also carries plugin snapshots such as the runtime-context notice, and quoting one of those would point the model at plugin text. `bash`, `pwsh`, `write`, and `edit` use the same mandatory audit as every other tool.
 
 -----
 
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
 
-The plugin listens on the `approval/request` waterfall before user-facing answerers. On each request it checks the tool against the safety-gate list (passthrough), then the reason against the built-in and configured patterns. On a match it appends a `user/message` (source `plugin: approval-assessor`) quoting the latest user instruction and resolves `rejected` without calling `next()`. On no match it delegates. The `./invariant` companion asserts every injected message lands while an approval question is still pending in the same session.
+The plugin listens on the `approval/request` waterfall before user-facing answerers; `dsh-base` mounts it before layers that add those answerers. It rejects a missing reason or a reason that matches a built-in work-avoidance pattern, injects a redirect with source `plugin: approval-assessor`, and resolves `rejected` without calling `next()`. A non-evasive justification delegates after the audit. The redirect reaches the log through the agent inbox as a later `user/message`. The `./invariant` companion ensures committed redirects never outnumber rejected approval decisions.
 
-<a id="dev-note"></a>
-### Dev Note
-
-<details>
-<summary>Working context for maintainers — click to expand</summary>
-
-This Dev Note is working context for maintainers: open questions and directions that are not decided. It is explicitly non-authoritative — shipped behavior, limits, and accepted rationale live in the sections above, the package code, and the linked Agent Notes.
-
-The [approval-assessor feature note](../../../.agents/notes/implemented/feature/2026-09-02-approval-assessor-work-avoidance-screen.md) records the design and the safety-class passthrough rationale.
-
-</details>
+The audit applies to every approval request. Missing justification and built-in work-avoidance patterns reject. A session with no human message still receives the rejection without an instruction quote.
 
 ## Model Experience
 
@@ -76,14 +49,14 @@ When a work-avoidance pattern matches, the model receives the message below as a
 ##### Rejection redirect
 
 ```markdown
-Approval denied: the request to approve "<toolName>" appears to be work-avoidance, not a legitimate safety gate. Do not ask for permission to skip, defer, or soften work the user already instructed you to do. Refer to the user's original instructions and proceed.
+Mandatory approval audit denied "<toolName>": the justification is missing or indicates work-avoidance. Do not ask for permission to skip, defer, or soften work the user already instructed you to do. Refer to the user's original instructions and proceed.
 
 User instruction: <excerpt of the user's last instruction, capped at 500 chars>
 ```
 
 #### Token effect
 
-Zero tokens until a match. Each rejection adds one retained-history message whose data-dependent part is bounded by the 500-char instruction excerpt.
+Zero tokens until a rejection. Each rejection adds one retained-history message whose data-dependent part is bounded by the 500-char instruction excerpt.
 
 #### KV Cache effect
 
@@ -91,8 +64,8 @@ Append-only; the redirect follows the denied approval request in history and doe
 
 ## Known Limitations and Deferred Work
 
-These bounds define when the guard is a poor fit. They are current package constraints, not a task backlog.
+These limits define when the audit is a poor fit. They are current package constraints, not a task backlog.
 
-- **Reason-text matching only** — paraphrased avoidance that matches no pattern delegates; `extraPatterns` covers session-specific vocabulary at configuration time.
-- **Safety-class passthrough** — `bash`, `write`, and `edit` requests are screened by their own approval policy, never by reason patterns.
-- **Redirect quotes the last user instruction** — a session with no prior user message rejects without a quoted instruction.
+- **Built-in work-avoidance patterns only** — detection is a fixed pattern list; a paraphrased evasion the list does not contain passes the audit. Learned or model-assisted detection is rejected pending evidence of need.
+- **English patterns** — the built-in list matches English phrasing; work-avoidance justifications written in other languages reach the normal approval flow.
+- **No configuration surface** — the pattern list is not settable from `cordis.yml` or stored settings; deployment-specific patterns require a plugin change.

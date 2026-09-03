@@ -1,0 +1,9 @@
+dsh web: http://127.0.0.1:8877/?token=uChfS8LQVDpsY8UqAiZDCLY-cNPNsnH6Th_8tJ-Oxoc
+🔑 License validation failed: Unable to connect. Is the computer able to access the url?
+Please set LICENSE and EMAIL env variables.
+Docs: https://daisyui.com/blueprint/
+Contact pouya@daisyui.com if there's an issue
+daisyUI Blueprint MCP Server v1.6.1 s1
+  https://daisyui.com/blueprint
+  Source:310
+  Licensed to: brandon@vault35.org

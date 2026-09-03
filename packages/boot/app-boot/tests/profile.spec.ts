@@ -204,7 +204,7 @@ describe('loadProfile', () => {
     const bare = () => loadProfile('t', 'custom', anchor, home)
     // A misspelled shipped name is visible against the list rather than
     // becoming an empty profile that boots and does nothing.
-    expect(bare).toThrow('shipped profiles (created on first use): acp, headless, hosted, sdk, sdk-minimal, swarm, web')
+    expect(bare).toThrow('shipped profiles (created on first use): acp, headless, hosted, sdk, sdk-minimal, swarm, swarm-web, web')
     expect(bare).toThrow('create it with: t init --profile custom')
     expect(bare).not.toThrow(/profiles in /)
     initProfile(join(home, PROFILES_DIR, 'mine'), ['@deepseek-ai/dsh-base'])

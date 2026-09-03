@@ -21,6 +21,9 @@ import type {
 } from '../src/provider.ts'
 import type { Disposable } from 'playwright'
 
+/** Executable path the fake probe confirms, so a suite can assert what the plugin publishes. */
+export const fakeExecutable = '/fake/chromium'
+
 /** Serialized document the fake page evaluates the provider's page function against. */
 export const dom = { html: '<html><body>rendered</body></html>' }
 
@@ -186,7 +189,7 @@ export function fakeBrowser(): { access: BrowserAccess; browser: FakeBrowser; la
       launches += 1
       return browser
     },
-    probe: async () => undefined,
+    probe: async () => fakeExecutable,
   }
   return { access, browser, launchCount: () => launches }
 }

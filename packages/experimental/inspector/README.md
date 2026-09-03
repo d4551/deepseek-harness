@@ -36,7 +36,7 @@ The source tree follows those execution environments: `client/` and `host/` prov
 
 Host and Client producers send internal observation records rather than CDP messages. Records contain a source generation, sequence, source-clock timestamp, topic, and JSON payload. The Worker validates every process or network frame, owns source state and retention, and translates recognized topics to standard CDP domains.
 
-Client sources declare typed Runtime, Console, and read-only Sources capabilities. `Runtime.enable` publishes the real Host execution context and one synthetic context for every connected Client source. Selecting a Client context routes evaluation, property access, function calls, promise awaiting, and object release to that browser realm. Client Console arguments use the same session-local object table, while `Debugger.enable` publishes the built `lib/client.js` catalog and `Debugger.getScriptSource` reads bounded content chunks. Client-script breakpoints, step, and call frames remain unsupported; target-wide pause and resume control the Host debugger only.
+Client sources declare typed Runtime, Console, and read-only Sources capabilities. `Runtime.enable` publishes the real Host execution context and one synthetic context for every connected Client source this connection can admit; a Client that never confirms its Console enable is dropped from that connection alone, leaving the Host realm and sibling Clients enabled. Selecting a Client context routes evaluation, property access, function calls, promise awaiting, and object release to that browser realm. Client Console arguments use the same session-local object table, while `Debugger.enable` publishes the built `lib/client.js` catalog and `Debugger.getScriptSource` reads bounded content chunks. Client-script breakpoints, step, and call frames remain unsupported; target-wide pause and resume control the Host debugger only.
 
 Both plugin faces run the same browser-safe Cordis collector. It converts reachable Context and Fiber objects into a versioned `CordisTreeSnapshot`; the Worker stores that CDP-independent representation and projects each Host or Client source into the Elements panel.
 
@@ -64,7 +64,7 @@ The Host plugin injects `webServer` and accepts these fields:
 | `stopTimeoutMs` | 5 seconds | Graceful Worker shutdown deadline before termination |
 | `clientReconnectBaseMs` | 250 ms | First Client reconnect backoff cap |
 | `clientReconnectMaxMs` | 5 seconds | Maximum Client reconnect backoff cap |
-| `clientRuntimeTimeoutMs` | 30 seconds | Deadline for one Worker-to-Client Runtime or Sources command |
+| `clientRuntimeTimeoutMs` | 30 seconds | Deadline for one Worker-to-Client Runtime command, Sources command, or Console enable |
 | `queryTimeoutMs` | 10 seconds | Deadline for one non-CDP semantic query |
 | `maxClientRuntimeObjects` | `10000` | Live Client object handles retained per DevTools connection |
 | `maxClientRuntimeProperties` | `2000` | Property descriptors returned by one Client object inspection |

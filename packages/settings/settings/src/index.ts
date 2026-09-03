@@ -860,8 +860,15 @@ function isUnloading(ctx: Context): boolean {
   return state === FIBER_UNLOADING || state === FIBER_DISPOSED
 }
 
-/** Hooks a consumer hands to {@link installSettingsSection}. */
+/** Hooks and registration options a consumer hands to {@link installSettingsSection}. */
 export interface SettingsSectionHooks<T> {
+  /**
+   * When this consumer applies a committed change; defaults to `live`. A
+   * consumer that binds its config once — at construction, or into a resource
+   * it cannot rebuild — declares `restart`, so a configuration surface tells
+   * the user the change waits for the next boot instead of implying it landed.
+   */
+  applies?: SettingsApplies
   /**
    * Receive the active configuration source: the resolved settings scope
    * while one is attached, the composition entry otherwise. Called before
@@ -893,7 +900,7 @@ export interface SettingsSectionHooks<T> {
  * @param ns - the consumer-owned settings namespace.
  * @param schema - schema resolving the namespace (typically the plugin Config).
  * @param entry - the consumer's composition entry config, used as `base`.
- * @param hooks - source sink and change notification.
+ * @param hooks - source sink, change notification, and the effect timing to declare.
  */
 export function installSettingsSection<T>(
   ctx: Context,
@@ -905,6 +912,7 @@ export function installSettingsSection<T>(
   ctx.inject(['settings'], (sctx) => {
     const scope = sctx.settings.register(ns, schema, {
       base: entry,
+      ...hooks.applies === undefined ? {} : { applies: hooks.applies },
       ...hooks.validate === undefined ? {} : { validate: hooks.validate },
     })
     hooks.setSource(() => scope.get())

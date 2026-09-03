@@ -178,12 +178,28 @@ export interface LlmImageRequestPricing {
   priceImages(images: readonly ImageAttachmentRef[]): readonly LlmImageRequestPrice[]
 }
 
+/**
+ * Where one route's models actually run, for adapters that know. `local` means
+ * the models run on the deployment's own hardware behind a server this process
+ * supervises; `self-hosted` means an already-running server the deployment
+ * named. Absent means the adapter draws no such distinction — the same reading
+ * {@link LlmConfigurableProvider.declared} has, and the only honest answer for
+ * a cloud API, whose hardware the harness knows nothing about.
+ */
+export type LlmProviderHosting = 'local' | 'self-hosted'
+
 /** Display metadata for one registered provider route. */
 export interface LlmProviderInfo {
   /** Provider route key used by {@link GenerateOptions.provider}. */
   id: string
   /** Human-readable provider name for selectors and diagnostics. */
   name: string
+  /**
+   * Where this route's models run, when the adapter knows. Selectors show it
+   * so a person can tell an on-device route from a hosted one; absent leaves
+   * the route unlabelled rather than guessed.
+   */
+  hosting?: LlmProviderHosting
 }
 
 /** Merge-extensible provider model modality vocabulary. */

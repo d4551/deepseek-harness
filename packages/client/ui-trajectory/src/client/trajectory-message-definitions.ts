@@ -1,8 +1,8 @@
 import type { Context } from '@deepseek-ai/cordis'
+import type { ConversationNodeDefinition } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import {
-  applyInboxSplice, inputMessageNode,
-  type ConversationNodeDefinition, type InboxState, type InputMessageNode,
-} from '@deepseek-ai/dsh-client-ui-conversation/client'
+  applyInboxSplice, inputMessageNode, type InboxState, type InputMessageNode,
+} from '@deepseek-ai/dsh-client-ui-projection'
 import type {} from '@deepseek-ai/dsh-agent/types'
 import { trajectoryNode } from './trajectory-definition-common.ts'
 

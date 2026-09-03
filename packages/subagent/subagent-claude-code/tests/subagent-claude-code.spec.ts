@@ -77,16 +77,25 @@ vi.mock('@anthropic-ai/claude-agent-sdk', async importOriginal => ({
   query: queryMock,
 }))
 
-const fakeParent = {
-  id: 'parent',
-  session: { header: { cwd: process.cwd() }, events: [] },
-} as unknown as Agent
+/** A delegating parent whose session log folds to `roots` as its additional workspace roots. */
+function parentAgent(roots: readonly string[] = []): Agent {
+  return {
+    id: 'parent',
+    session: {
+      header: { cwd: process.cwd() },
+      events: roots.length === 0 ? [] : [{ type: 'workspace/roots', data: { roots } }],
+    },
+  } as unknown as Agent
+}
+
+const fakeParent = parentAgent()
 
 function request(
   prompt: ContentBlock[] = [{ type: 'text', text: 'do the task' }],
   signal = new AbortController().signal,
+  parent: Agent = fakeParent,
 ) {
-  return { prompt, parent: fakeParent, signal }
+  return { prompt, parent, signal }
 }
 
 async function nextTask(): Promise<void> {
@@ -581,6 +590,33 @@ describe('task admission and package contracts', () => {
     }
   })
 
+  it('forwards the delegating session\'s additional workspace roots to the SDK', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SubagentRuntime)
+    await ctx.plugin(LocalSubprocessRuntime)
+    const child = fakeChild()
+    vi.spyOn(ctx.subprocess, 'spawn').mockReturnValue(child.handle)
+    let observed: readonly string[] | undefined
+    queryMock.mockImplementation(({ options }) => {
+      observed = options.additionalDirectories
+      options.spawnClaudeCodeProcess!(sdkSpawnOptions())
+      return queryFrom([success('multi-root answer')])
+    })
+    await ctx.plugin(claudeCode, {})
+    const run = await ctx.subagents.start(
+      'claude-code',
+      request(undefined, undefined, parentAgent(['/second-root', '/third-root'])),
+    )
+    // The official SDK's own `--add-dir` equivalent (Options.additionalDirectories).
+    expect(observed).toEqual(['/second-root', '/third-root'])
+    await expect(run.result).resolves.toEqual({
+      output: [{ type: 'text', text: 'multi-root answer' }],
+      stopReason: 'completed',
+    })
+    await run.dispose()
+    await ctx.fiber.dispose()
+  })
+
   it('resolves the safe permission default when apply is called directly', async () => {
     const ctx = new Context()
     await ctx.plugin(SubagentRuntime)
@@ -897,6 +933,8 @@ describe('query options and result mapping', () => {
     })
     expect(options).not.toHaveProperty('pathToClaudeCodeExecutable')
     expect(options).not.toHaveProperty('allowDangerouslySkipPermissions')
+    // A single-root parent leaves the SDK options exactly as they were.
+    expect(options).not.toHaveProperty('additionalDirectories')
     expect(options.env).toMatchObject({
       HOST_VISIBLE: 'overridden',
       ANTHROPIC_API_KEY: 'explicit-fake-key',

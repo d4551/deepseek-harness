@@ -17,14 +17,13 @@ kind: "package-reference"
 - [理解实现](#understand-the-implementation)
 - [进一步探索](#further-exploration)
 - [模型体验](#model-experience)
-- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
 ## 使用本包
 
-打开设置中的「插件」分区并选择**插件配置**标签页，即可编辑本部署所组装的宿主平面插件。卡片依次为 shell 执行器（`bash`）、agent 循环的工具调用并行度（`agent-loop`）、subagent 模型选择（`subagent-model-selection`）、新会话默认模型（`agent-default-model`）以及 DeepSeek 搜索提供方（`web-search-deepseek`）。
+打开设置中的「插件」分区并选择**插件配置**标签页，即可编辑本部署所组装的宿主平面插件。卡片依次为 shell 执行器（`bash`）、agent 循环的工具调用并行度（`agent-loop`）、subagent 模型选择（`subagent-model-selection`）、新会话默认模型（`agent-default-model`）、DeepSeek 搜索提供方（`web-search-deepseek`）以及智能体团队容量（`agent-team`）。
 
 ### 这里会出现什么
 
@@ -74,18 +73,6 @@ Subagent 卡会同时暂存其权限开关与精确模型复选框。启用时�
 - [settings](../../settings/README.zh.md)——持久化用户设置 seam 及其文件提供方。
 - [credentials](../../credentials/README.zh.md)——secret 字段写入所经的凭据引用 seam。
 - [ui-settings-general](../ui-settings-general/README.zh.md)——承载本分区的设置外壳。
-
------
-
-<a id="dev-note"></a>
-### 开发备注
-
-<details>
-<summary>维护者的工作上下文——点击展开</summary>
-
-无。
-
-</details>
 
 -----
 

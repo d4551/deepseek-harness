@@ -91,6 +91,9 @@ describe('apply', () => {
     // The hover face routes into the controller too (closed menu → no-op).
     injected.onHover('command', 0)
     expect(controller.menu.getSnapshot().open).toBe(false)
+    // The retry face routes into the controller too (closed menu → no-op).
+    injected.onRetry('command')
+    expect(controller.menu.getSnapshot().open).toBe(false)
     // The dismiss face routes into the controller too (closed menu → no-op).
     injected.onDismiss()
     expect(controller.menu.getSnapshot().open).toBe(false)

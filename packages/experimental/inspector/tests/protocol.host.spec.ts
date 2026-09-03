@@ -2,6 +2,9 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import { INSPECTOR_PROTOCOL_VERSION, parseSourceFrame, parseWorkerSourceFrame } from '../src/shared/bridge/messages/observation.ts'
+import type { WorkerToSourceFrame } from '../src/shared/bridge/messages/observation.ts'
+import { inspectorId } from '../src/shared/identity.ts'
+import { ClientRuntimeRouter, type ClientRuntimeTarget } from '../src/worker/bridge/runtime-rpc.ts'
 import { InspectorSourceRegistry, type InspectorRecordConsumer, type SourceConnection } from '../src/worker/bridge/hub.ts'
 
 describe('Inspector source protocol', () => {
@@ -83,6 +86,70 @@ describe('Inspector source protocol', () => {
     })
     expect(replies.at(-1)).toMatchObject({ t: 'source/resnapshot', expectedSequence: 3 })
     expect(append).toHaveBeenCalledOnce()
+  })
+
+  it('cancels the Client Runtime request its deadline ended and keeps serving that session', async () => {
+    const frames: WorkerToSourceFrame[] = []
+    const connection: SourceConnection = {
+      kind: 'client',
+      send: (frame) => { frames.push(frame) },
+      close: () => {},
+    }
+    const registry = new InspectorSourceRegistry([], 16_384, 4)
+    const router = new ClientRuntimeRouter(registry, 20)
+    let target: ClientRuntimeTarget | undefined
+    router.subscribe((event) => { if (event.type === 'opened') target = event.target })
+    registry.receive(connection, {
+      v: INSPECTOR_PROTOCOL_VERSION,
+      t: 'source/open',
+      source: {
+        sourceId: 'client-1',
+        generation: 'g-1',
+        kind: 'client',
+        label: 'Deadline Client',
+        timeOriginMs: 0,
+        capabilities: [{ type: 'client-runtime', origin: 'https://client.invalid' }],
+      },
+      topics: [],
+    })
+    if (target === undefined) throw new Error('the Client Runtime target was never admitted')
+    const sessionId = inspectorId<'ClientRuntimeSessionId'>('devtools-1', 'sessionId')
+
+    // This Client answers nothing, so the deadline is the only settlement its
+    // first request can reach, whatever the host is doing meanwhile.
+    await expect(router.request(target, sessionId, {
+      op: 'evaluate',
+      expression: 'new Promise(() => {})',
+      awaitPromise: true,
+    })).rejects.toThrow('Client Runtime evaluate timed out after 20ms')
+    const abandoned = sentRequestIds(frames).at(-1)
+    expect(abandoned).toBeTypeOf('string')
+    expect(addressedFrames(frames, 'client-runtime/cancel', abandoned!)).toBe(1)
+
+    const served = router.request(target, sessionId, { op: 'evaluate', expression: '6 * 7', returnByValue: true })
+    const requestId = sentRequestIds(frames).at(-1)
+    expect(requestId).not.toBe(abandoned)
+    registry.receive(connection, {
+      v: INSPECTOR_PROTOCOL_VERSION,
+      t: 'client-runtime/response',
+      sourceId: 'client-1',
+      generation: 'g-1',
+      sessionId,
+      requestId,
+      outcome: {
+        ok: true,
+        result: { op: 'evaluate', completion: { result: { descriptor: { type: 'number', value: 42 } } } },
+      },
+    })
+    await expect(served).resolves.toMatchObject({
+      op: 'evaluate',
+      completion: { result: { descriptor: { type: 'number', value: 42 } } },
+    })
+    expect(addressedFrames(frames, 'client-runtime/response-acknowledged', requestId!)).toBe(1)
+    expect(addressedFrames(frames, 'client-runtime/cancel', requestId!)).toBe(0)
+
+    router.close()
+    registry.close()
   })
 
   it('closes only a malformed source connection', () => {
@@ -305,3 +372,17 @@ describe('Inspector source protocol', () => {
     }, 4)).toThrow('chunk data')
   })
 })
+
+function sentRequestIds(frames: readonly WorkerToSourceFrame[]): string[] {
+  const ids: string[] = []
+  for (const frame of frames) if (frame.t === 'client-runtime/request') ids.push(frame.requestId)
+  return ids
+}
+
+function addressedFrames(
+  frames: readonly WorkerToSourceFrame[],
+  tag: WorkerToSourceFrame['t'],
+  requestId: string,
+): number {
+  return frames.filter(frame => frame.t === tag && 'requestId' in frame && frame.requestId === requestId).length
+}

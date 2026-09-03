@@ -96,14 +96,6 @@
 }
 
 /* The dot is aria-hidden; this is its text label for assistive technology. */
-.runStateLabel {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
 
 .cwd {
   flex: none;
@@ -131,6 +123,19 @@
   top: 0;
   height: var(--dsl-terminal-line-height);
   color: var(--dsw-alias-state-error-primary);
+}
+
+/* Names the shell the command line was written for. One tool runs either
+   shell depending on the host, so this is the only place the language of the
+   command is stated. */
+.shell {
+  flex: none;
+  position: sticky;
+  top: 0;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--dsw-alias-fill-l2);
+  color: var(--dsw-alias-label-tertiary);
 }
 
 .copyButton {

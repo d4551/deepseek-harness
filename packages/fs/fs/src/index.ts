@@ -17,6 +17,7 @@ import type {
   FsEditOutcome,
   FsEditRequest,
   FsInfo,
+  FsOrigin,
   FsPathInfo,
   FsObservation,
   FsTarget,
@@ -37,6 +38,9 @@ export type {
   FsErrorCode,
   FsInfo,
   FsObservation,
+  FsOrigin,
+  FsOriginKind,
+  FsOriginKindMap,
   FsPathInfo,
   FsTarget,
   FsWriteIntent,
@@ -104,6 +108,20 @@ export abstract class FileSystem extends Service {
    */
   get sandboxMode(): SandboxMode | undefined {
     return undefined
+  }
+
+  /**
+   * Where this backend keeps the workspace — the deployment fact a surface
+   * reads to tell a person whether the directory they are looking at is the
+   * host's own disk or something the harness mirrors (`sandboxMode` is the
+   * same kind of capability fact, read by the tool layer). The base class and
+   * every host-disk backend report `local`; a backend whose files live
+   * elsewhere overrides it. Per backend, never per path: one composed provider
+   * serves the whole execution world.
+   * @returns the composed backend's declared origin.
+   */
+  get origin(): FsOrigin {
+    return { kind: 'local' }
   }
 
   /**

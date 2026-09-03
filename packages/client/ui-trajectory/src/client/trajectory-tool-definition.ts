@@ -1,11 +1,13 @@
 import type { Context } from '@deepseek-ai/cordis'
-import {
-  MAX_TOOL_CALL_DEPTH, acceptsSubcallEdge, childToolCall, childToolResult,
-  SYNTHETIC_SEQ_OFFSETS, closedLocationBoundary, interruptedToolResult, rootToolCall,
-  rootToolResult, toolCallMatch,
-  type ConversationMatch, type ConversationNodeContext, type ConversationNodeDefinition,
-  type SubcallGraph, type ToolCallBlock,
+import type {
+  ConversationMatch, ConversationNodeContext, ConversationNodeDefinition,
+  ToolCallBlock,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import {
+  MAX_TOOL_CALL_DEPTH, acceptsSubcallEdge, childToolCall, childToolResult, SYNTHETIC_SEQ_OFFSETS,
+  closedLocationBoundary, interruptedToolResult, rootToolCall, rootToolResult, toolCallMatch,
+  type SubcallGraph,
+} from '@deepseek-ai/dsh-client-ui-projection'
 import type {} from '@deepseek-ai/dsh-tools/types'
 import { trajectoryNode } from './trajectory-definition-common.ts'
 

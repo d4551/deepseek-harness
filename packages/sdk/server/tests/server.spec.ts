@@ -10,6 +10,7 @@ import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry, { type Agent, type AgentHandle } from '@deepseek-ai/dsh-agent'
 
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
+import { effectiveWorkspaceRoots } from '@deepseek-ai/dsh-session/workspace-roots'
 import * as agentCore from '@deepseek-ai/dsh-agent-spine-demo'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import * as LlmDeepSeek from '@deepseek-ai/dsh-llm-deepseek'
@@ -27,6 +28,18 @@ class FakeTransport implements JsonRpcTransportPeer {
   notify(method: string, params?: object): void {
     this.notifications.push(params === undefined ? { method } : { method, params: params as Record<string, unknown> })
   }
+}
+
+/**
+ * A stub Agent for the isolated prompt tests. `session` carries the empty log
+ * the server folds when it records the handshake's workspace roots.
+ */
+function stubAgent(id: string, rest: Record<string, unknown>): Agent {
+  return {
+    id: SessionId(id),
+    session: { header: { cwd: '/workspace' }, events: [] },
+    ...rest,
+  } as unknown as Agent
 }
 
 const servers: Server[] = []
@@ -181,15 +194,9 @@ describe('HarnessSdkJsonRpcServer', () => {
 
   it('queues overlapping prompts for one session without blocking other sessions', async () => {
     const mainFollowup = vi.fn<Agent['followup']>()
-    const mainAgent = ({
-      id: SessionId('main'),
-      followup: mainFollowup,
-    } satisfies Pick<Agent, 'id' | 'followup'>) as unknown as Agent
+    const mainAgent = stubAgent('main', { followup: mainFollowup })
     const otherFollowup = vi.fn<Agent['followup']>()
-    const otherAgent = ({
-      id: SessionId('other'),
-      followup: otherFollowup,
-    } satisfies Pick<Agent, 'id' | 'followup'>) as unknown as Agent
+    const otherAgent = stubAgent('other', { followup: otherFollowup })
     const mainHandle = { agent: mainAgent, dispose: vi.fn(() => Promise.resolve()) }
     const otherHandle = { agent: otherAgent, dispose: vi.fn(() => Promise.resolve()) }
     const create = vi.fn(async (options: { sessionId: SessionId }) =>
@@ -221,7 +228,7 @@ describe('HarnessSdkJsonRpcServer', () => {
 
   it('admits inline SDK images before the user message enters the session', async () => {
     const followup = vi.fn<Agent['followup']>()
-    const agent = ({ id: SessionId('image'), followup } satisfies Pick<Agent, 'id' | 'followup'>) as unknown as Agent
+    const agent = stubAgent('image', { followup })
     const handle = { agent, dispose: vi.fn(() => Promise.resolve()) }
     const ref = {
       attachmentId: 'sha256:image',
@@ -258,7 +265,7 @@ describe('HarnessSdkJsonRpcServer', () => {
 
   it('rejects inline SDK images when the composition has no attachment store', async () => {
     const followup = vi.fn<Agent['followup']>()
-    const agent = ({ id: SessionId('image'), followup } satisfies Pick<Agent, 'id' | 'followup'>) as unknown as Agent
+    const agent = stubAgent('image', { followup })
     const handle = { agent, dispose: vi.fn(() => Promise.resolve()) }
     const ctx = {
       on: vi.fn(() => () => undefined),
@@ -279,7 +286,7 @@ describe('HarnessSdkJsonRpcServer', () => {
 
   it('rechecks agent liveness after asynchronous image admission', async () => {
     const followup = vi.fn<Agent['followup']>()
-    const agent = ({ id: SessionId('image-race'), followup } satisfies Pick<Agent, 'id' | 'followup'>) as unknown as Agent
+    const agent = stubAgent('image-race', { followup })
     const handle = { agent, dispose: vi.fn(() => Promise.resolve()) }
     const admitted = Promise.withResolvers<Array<{
       attachmentId: string
@@ -315,11 +322,7 @@ describe('HarnessSdkJsonRpcServer', () => {
 
   it('rejects a prompt for a session whose agent was disposed outside the server', async () => {
     const followup = vi.fn<Agent['followup']>()
-    const agent = ({
-      id: SessionId('zombie'),
-      followup,
-      whenIdle: vi.fn(() => Promise.resolve()),
-    } satisfies Pick<Agent, 'id' | 'followup' | 'whenIdle'>) as unknown as Agent
+    const agent = stubAgent('zombie', { followup, whenIdle: vi.fn(() => Promise.resolve()) })
     const handle = { agent, dispose: vi.fn(() => Promise.resolve()) }
     // The registry drops the agent after creation, modelling an agent-loop-only
     // reload that leaves the server's SessionRecord pointing at a detached agent.
@@ -418,6 +421,68 @@ describe('HarnessSdkJsonRpcServer', () => {
 
       await vi.waitFor(() => { expect(llmServer.requests).toHaveLength(1) })
       await server.shutdown()
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(storageDir, { recursive: true, force: true })
+    }
+  })
+
+  it('records the handshake additional directories on every SDK-created session', { timeout: 15_000 }, async () => {
+    const storageDir = await mkdtemp(join(tmpdir(), 'dsh-jsonrpc-roots-'))
+    const llmServer = await mockCompletionServer()
+    vi.stubEnv('DEEPSEEK_API_KEY', 'test-key')
+    vi.stubEnv('DEEPSEEK_BASE_URL', llmServer.url)
+    const ctx = await makeHarness(storageDir)
+    try {
+      const server = new HarnessSdkJsonRpcServer(ctx, new FakeTransport())
+      await server.initialize({
+        cwd: storageDir,
+        additionalDirectories: [join(storageDir, 'second'), join(storageDir, 'third')],
+        provider: 'deepseek-official',
+        model: 'roots-model',
+      })
+      await server.prompt({ sessionId: 'roots', contentBlocks: [{ type: 'text', text: 'hello' }] })
+      const session = ctx.sessions.get(SessionId('roots'))!
+      expect(effectiveWorkspaceRoots(session.events))
+        .toEqual([join(storageDir, 'second'), join(storageDir, 'third')])
+      await server.shutdown()
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(storageDir, { recursive: true, force: true })
+    }
+  })
+
+  it('records no additional roots when the handshake omits them', { timeout: 15_000 }, async () => {
+    const storageDir = await mkdtemp(join(tmpdir(), 'dsh-jsonrpc-no-roots-'))
+    const llmServer = await mockCompletionServer()
+    vi.stubEnv('DEEPSEEK_API_KEY', 'test-key')
+    vi.stubEnv('DEEPSEEK_BASE_URL', llmServer.url)
+    const ctx = await makeHarness(storageDir)
+    try {
+      const server = new HarnessSdkJsonRpcServer(ctx, new FakeTransport())
+      await server.initialize({ cwd: storageDir, provider: 'deepseek-official', model: 'no-roots-model' })
+      await server.prompt({ sessionId: 'no-roots', contentBlocks: [{ type: 'text', text: 'hello' }] })
+      const session = ctx.sessions.get(SessionId('no-roots'))!
+      expect(effectiveWorkspaceRoots(session.events)).toEqual([])
+      expect(session.events.some(event => event.type === 'workspace/roots')).toBe(false)
+      await server.shutdown()
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(storageDir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects a relative additional directory at the handshake', async () => {
+    const storageDir = await mkdtemp(join(tmpdir(), 'dsh-jsonrpc-bad-root-'))
+    const ctx = await makeHarness(storageDir)
+    try {
+      const server = new HarnessSdkJsonRpcServer(ctx, new FakeTransport())
+      await expect(server.initialize({
+        cwd: storageDir,
+        additionalDirectories: ['relative/second'],
+        provider: 'deepseek-official',
+        model: 'bad-root-model',
+      })).rejects.toThrow('initialize additionalDirectories entries must be absolute paths: relative/second')
     } finally {
       await ctx.fiber.dispose()
       await rm(storageDir, { recursive: true, force: true })
@@ -1084,8 +1149,8 @@ describe('HarnessSdkJsonRpcServer', () => {
   it('coalesces concurrent session creation and retries a failed creation', async () => {
     let resolveShared: ((handle: AgentHandle) => void) | undefined
     const sharedCreation = new Promise<AgentHandle>((resolve) => { resolveShared = resolve })
-    const sharedHandle = { agent: {} as Agent, dispose: vi.fn(() => Promise.resolve()) }
-    const retryHandle = { agent: {} as Agent, dispose: vi.fn(() => Promise.resolve()) }
+    const sharedHandle = { agent: stubAgent('shared', {}), dispose: vi.fn(() => Promise.resolve()) }
+    const retryHandle = { agent: stubAgent('retry', {}), dispose: vi.fn(() => Promise.resolve()) }
     const create = vi.fn<(options: unknown) => Promise<AgentHandle>>()
       .mockReturnValueOnce(sharedCreation)
       .mockRejectedValueOnce(new Error('creation failed'))
@@ -1119,7 +1184,7 @@ describe('HarnessSdkJsonRpcServer', () => {
 
   it('resolves a relative cwd before creating the session', async () => {
     const create = vi.fn<(options: unknown) => Promise<AgentHandle>>()
-      .mockResolvedValue({ agent: {} as Agent, dispose: () => Promise.resolve() })
+      .mockResolvedValue({ agent: stubAgent('relative', {}), dispose: () => Promise.resolve() })
     const resolveCallConfig = vi.fn(async (config: unknown) => config)
     const ctx = {
       on: vi.fn(() => () => undefined),

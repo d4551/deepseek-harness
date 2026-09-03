@@ -4,7 +4,7 @@
  * a real Loader tree, kept live through transactional HMR.
  */
 
-import { mkdirSync, mkdtempSync, unlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -25,15 +25,8 @@ const NAME = 'dsh-test-bin'
 
 const tmp = (): string => mkdtempSync(join(tmpdir(), 'dsh-user-patches-'))
 
-async function eventually(test: () => boolean, message: string): Promise<void> {
-  const deadline = Date.now() + 10_000
-  while (!test()) {
-    if (Date.now() >= deadline) throw new Error(message)
-    await new Promise(resolve => setTimeout(resolve, 10))
-  }
-}
-
-const settleChokidarChangeThrottle = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 75))
+/** Cadence the user-patch watch is allowed to trail the file by, shared by every wait here. */
+const WATCH_POLL = { interval: 10, timeout: 10_000 } as const
 
 describe('loadOptionalPatches', () => {
   afterEach(() => {
@@ -350,7 +343,9 @@ describe('boot with user patches', () => {
     const basePatches = [{ id: 'noop', config: { value: 'generated' } }]
     const ctx = await boot(NAME, writeTree(dir), basePatches)
     await ctx.plugin(Timer)
-    await ctx.plugin(Hmr, { root: [], ignored: [], debounce: 0 })
+    // The HMR cadence is off here so these cases measure the user-patch
+    // layer's own repair, not a second one reconciling the same file.
+    await ctx.plugin(Hmr, { root: [], ignored: [], debounce: 0, repairInterval: 0 })
     const failures: Array<{ filename: string; error: Error }> = []
     ctx.on('hmr/config-update-failed', (failedFilename, error) => {
       failures.push({ filename: failedFilename, error })
@@ -362,29 +357,30 @@ describe('boot with user patches', () => {
     })
     try {
       writeFileSync(filename, '- id: noop\n  config:\n    value: live\n')
-      await eventually(() => (entryConfig(ctx, 'noop') as { value?: string }).value === 'live', 'user patch addition was not applied')
+      await expect.poll(() => (entryConfig(ctx, 'noop') as { value?: string }).value, { ...WATCH_POLL, message: 'user patch addition was not applied' })
+        .toBe('live')
 
       writeFileSync(filename, '- id: noop\n  config:\n    fail: true\n')
-      await eventually(() => failures.length === 1, 'failed candidate was not broadcast')
+      await expect.poll(() => failures.length, { ...WATCH_POLL, message: 'failed candidate was not broadcast' })
+        .toBe(1)
       expect(failures[0]).toMatchObject({ filename })
       expect(failures[0]?.error).toBeInstanceOf(Error)
       expect((entryConfig(ctx, 'noop') as { value?: string }).value).toBe('live')
-      await settleChokidarChangeThrottle()
 
       writeFileSync(filename, 'invalid: [unclosed\n')
-      await eventually(() => failures.length === 2, 'parse failure was not broadcast')
+      await expect.poll(() => failures.length, { ...WATCH_POLL, message: 'parse failure was not broadcast' })
+        .toBe(2)
       expect(failures[1]?.error).toBeInstanceOf(Error)
       expect((entryConfig(ctx, 'noop') as { value?: string }).value).toBe('live')
-      await settleChokidarChangeThrottle()
 
       writeFileSync(filename, '- id: noop\n  config:\n    value: recovered\n')
-      await eventually(() => (entryConfig(ctx, 'noop') as { value?: string }).value === 'recovered', 'valid recovery was not applied')
-      await settleChokidarChangeThrottle()
+      await expect.poll(() => (entryConfig(ctx, 'noop') as { value?: string }).value, { ...WATCH_POLL, message: 'valid recovery was not applied' })
+        .toBe('recovered')
 
       unlinkSync(filename)
-      await eventually(() => (entryConfig(ctx, 'noop') as { value?: string }).value === 'generated', 'user patch removal did not restore the app-owned patch')
+      await expect.poll(() => (entryConfig(ctx, 'noop') as { value?: string }).value, { ...WATCH_POLL, message: 'user patch removal did not restore the app-owned patch' })
+        .toBe('generated')
       expect(failures).toHaveLength(2)
-      await settleChokidarChangeThrottle()
 
       // Default compose: the user layer IS the whole patch list, so a
       // fresh generation replaces the app-owned layer instead of stacking on it.
@@ -392,12 +388,160 @@ describe('boot with user patches', () => {
       const disposeDefault = await watchUserPatches(ctx, { binName: NAME, filename })
       try {
         writeFileSync(filename, '- id: noop\n  config:\n    value: identity\n')
-        await eventually(() => (entryConfig(ctx, 'noop') as { value?: string }).value === 'identity', 'default-compose user patch was not applied')
+        await expect.poll(() => (entryConfig(ctx, 'noop') as { value?: string }).value, { ...WATCH_POLL, message: 'default-compose user patch was not applied' })
+          .toBe('identity')
       } finally {
         await disposeDefault()
       }
     } finally {
       await dispose()
+      await ctx.fiber.dispose()
+    }
+  })
+
+  // A watcher that reports nothing is what a platform watch armed after its
+  // own readiness signal looks like from here: the change lands in the gap
+  // between the initial scan and the armed watch, and no event ever follows
+  // it. These cases drive the repair cadence alone by registering a watcher
+  // that never calls back, so what they assert is the cadence, not a race.
+  const silentWatcher = (ctx: Context): void => {
+    ctx.provide('hmr', { registerConfig: () => Promise.resolve(async () => {}) })
+  }
+
+  it('applies a generation no filesystem event reported', async () => {
+    const dir = tmp()
+    const filename = join(tmp(), PROFILE_PATCH_FILENAME)
+    const basePatches = [{ id: 'noop', config: { value: 'generated' } }]
+    const ctx = await boot(NAME, writeTree(dir), basePatches)
+    try {
+      silentWatcher(ctx)
+      const dispose = await watchUserPatches(ctx, {
+        binName: NAME,
+        filename,
+        compose: userPatches => [...basePatches, ...userPatches],
+        repairInterval: 10,
+      })
+      try {
+        writeFileSync(filename, '- id: noop\n  config:\n    value: repaired\n')
+        await expect.poll(() => (entryConfig(ctx, 'noop') as { value?: string }).value, { ...WATCH_POLL, message: 'unreported addition was not repaired' })
+          .toBe('repaired')
+        unlinkSync(filename)
+        await expect.poll(() => (entryConfig(ctx, 'noop') as { value?: string }).value, { ...WATCH_POLL, message: 'unreported removal was not repaired' })
+          .toBe('generated')
+      } finally {
+        await dispose()
+      }
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('reports each broken generation once, not once per repair', async () => {
+    const dir = tmp()
+    const filename = join(tmp(), PROFILE_PATCH_FILENAME)
+    const basePatches = [{ id: 'noop', config: { value: 'generated' } }]
+    const ctx = await boot(NAME, writeTree(dir), basePatches)
+    const failures: Error[] = []
+    ctx.on('hmr/config-update-failed', (_filename, error) => { failures.push(error) })
+    try {
+      silentWatcher(ctx)
+      const dispose = await watchUserPatches(ctx, {
+        binName: NAME,
+        filename,
+        compose: userPatches => [...basePatches, ...userPatches],
+        repairInterval: 10,
+      })
+      try {
+        writeFileSync(filename, 'invalid: [unclosed\n')
+        await expect.poll(() => failures.length, { ...WATCH_POLL, message: 'unreported parse failure was not broadcast' })
+          .toBe(1)
+        // The applied recovery proves many repairs ran between the two
+        // assertions, so the unchanged failure count is a re-report that did
+        // not happen rather than a window that was not waited out.
+        writeFileSync(filename, '- id: noop\n  config:\n    value: recovered\n')
+        await expect.poll(() => (entryConfig(ctx, 'noop') as { value?: string }).value, { ...WATCH_POLL, message: 'unreported recovery was not applied' })
+          .toBe('recovered')
+        expect(failures).toHaveLength(1)
+      } finally {
+        await dispose()
+      }
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('reconciles each generation once and a generation already applied not at all', async () => {
+    const dir = tmp()
+    const filename = join(tmp(), PROFILE_PATCH_FILENAME)
+    const ctx = await boot(NAME, writeTree(dir))
+    let refresh: (() => Promise<void>) | undefined
+    try {
+      ctx.provide('hmr', {
+        registerConfig: (_filename: string, callback: () => Promise<void>) => {
+          refresh = callback
+          return Promise.resolve(async () => {})
+        },
+      })
+      // A cadence long enough that it cannot fire inside this case: the two
+      // observations below are the watch trigger, driven by hand, so what the
+      // assertions measure is the second observation and not a timer.
+      const dispose = await watchUserPatches(ctx, { binName: NAME, filename, repairInterval: 60_000 })
+      try {
+        // The absent layer the mounted tree already reflects: nothing to do.
+        await expect(refresh?.()).resolves.toBeUndefined()
+        expect(entryConfig(ctx, 'noop')).toEqual({ value: 'base' })
+
+        mkdirSync(filename) // a directory: present, unreadable as a file
+        await expect(refresh?.()).rejects.toThrow(new RegExp(`^${NAME}: failed to read patches `))
+        // Same failure, already reported by the observation above.
+        await expect(refresh?.()).resolves.toBeUndefined()
+
+        rmSync(filename, { recursive: true })
+        writeFileSync(filename, '- id: noop\n  config:\n    value: readable\n')
+        await refresh?.()
+        expect(entryConfig(ctx, 'noop')).toEqual({ value: 'readable' })
+        // The generation just applied is not applied a second time.
+        await expect(refresh?.()).resolves.toBeUndefined()
+      } finally {
+        await dispose()
+      }
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('normalizes a non-Error repair rejection and contains a throwing observer', async () => {
+    const dir = tmp()
+    const filename = join(tmp(), PROFILE_PATCH_FILENAME)
+    const ctx = await boot(NAME, writeTree(dir))
+    const failures: Error[] = []
+    ctx.on('hmr/config-update-failed', (_filename, error) => {
+      failures.push(error)
+      throw new Error('failure observer rejected')
+    })
+    try {
+      silentWatcher(ctx)
+      const dispose = await watchUserPatches(ctx, {
+        binName: NAME,
+        filename,
+        // A composer that rejects with a bare value is what the normalization covers.
+        compose: () => { throw 'composition rejected without an Error' },
+        repairInterval: 10,
+      })
+      try {
+        writeFileSync(filename, '- id: noop\n  config:\n    value: live\n')
+        await expect.poll(() => failures.length, { ...WATCH_POLL, message: 'non-Error repair rejection was not broadcast' })
+          .toBe(1)
+        expect(failures[0]).toBeInstanceOf(Error)
+        expect(failures[0]?.message).toBe('composition rejected without an Error')
+        // The observer's own rejection did not stop the cadence.
+        writeFileSync(filename, '- id: noop\n  config:\n    value: second\n')
+        await expect.poll(() => failures.length, { ...WATCH_POLL, message: 'the cadence stopped after a throwing observer' })
+          .toBe(2)
+      } finally {
+        await dispose()
+      }
+    } finally {
       await ctx.fiber.dispose()
     }
   })
@@ -412,7 +556,7 @@ describe('boot with user patches', () => {
     withoutInclude.baseUrl = pathToFileURL(`${tmp()}/`).href
     await withoutInclude.plugin(Loader)
     await withoutInclude.plugin(Timer)
-    await withoutInclude.plugin(Hmr, { root: [], ignored: [], debounce: 0 })
+    await withoutInclude.plugin(Hmr, { root: [], ignored: [], debounce: 0, repairInterval: 0 })
     await expect(watchUserPatches(withoutInclude, { binName: NAME, filename: join(tmp(), PROFILE_PATCH_FILENAME) })).rejects.toThrow('requires the root Include entry')
     await withoutInclude.fiber.dispose()
   })
@@ -441,7 +585,7 @@ describe('boot with user patches', () => {
     const ctx = await boot(NAME, writeTree(dir))
     try {
       await ctx.plugin(Timer)
-      await ctx.plugin(Hmr, { root: [], ignored: [], debounce: 0 })
+      await ctx.plugin(Hmr, { root: [], ignored: [], debounce: 0, repairInterval: 0 })
       const dispose = await watchUserPatches(ctx, { binName: NAME, filename })
       // Same user-layer path registered twice: HMR refuses; not a teardown race.
       await expect(watchUserPatches(ctx, { binName: NAME, filename })).rejects.toThrow('already registered')

@@ -127,6 +127,10 @@ export const zh = {
   'web.sourcesTruncated': '来源列表已截断',
   'web.http': 'HTTP',
   'web.contentTruncated': '内容已截断',
+  'web.retrieval.http': '直接抓取',
+  'web.retrieval.httpTitle': '通过 HTTP 获取字节，未执行页面脚本。',
+  'web.retrieval.rendered': '浏览器渲染',
+  'web.retrieval.renderedTitle': '在浏览器引擎中打开页面：页面脚本已执行，其请求的子资源已加载。',
   'details.running': '运行中…',
   'queue.count': '{n} 条排队消息',
   'queue.edit': '编辑排队消息',
@@ -150,6 +154,9 @@ export const zh = {
   'terminal.expandRest': '… 其余 {n} 行',
   'terminal.sendInput': '（发送输入）',
   'terminal.session': '终端 {sessionId}',
+  'terminal.shell.bash': 'bash',
+  'terminal.shell.pwsh': 'PowerShell',
+  'terminal.shell.title': '该命令按 {shell} 语法编写并执行。',
 } satisfies Record<string, string>
 
 /** The conversation namespace key union. */
@@ -275,6 +282,10 @@ export const en = {
   'web.sourcesTruncated': 'Source list truncated',
   'web.http': 'HTTP',
   'web.contentTruncated': 'Content truncated',
+  'web.retrieval.http': 'Fetched directly',
+  'web.retrieval.httpTitle': 'Retrieved over HTTP; the page\'s scripts were not executed.',
+  'web.retrieval.rendered': 'Rendered in a browser',
+  'web.retrieval.renderedTitle': 'Opened in a browser engine: the page\'s scripts ran and the subresources they requested were loaded.',
   'details.running': 'Running…',
   'queue.count': '{n} queued messages',
   'queue.edit': 'Edit queued message',
@@ -300,4 +311,7 @@ export const en = {
   // aligned with these English values.
   'terminal.sendInput': '(send input)',
   'terminal.session': 'Terminal {sessionId}',
+  'terminal.shell.bash': 'bash',
+  'terminal.shell.pwsh': 'PowerShell',
+  'terminal.shell.title': 'This command was written for, and run by, {shell}.',
 } satisfies Record<ConversationKey, string>

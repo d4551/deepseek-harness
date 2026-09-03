@@ -8,9 +8,9 @@ import {
 } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import {
-  indexSubagentDescendants,
-  type SessionPendingInteractionBase, type SubagentDescendantSummary,
-} from '@deepseek-ai/dsh-client-ui-session/client'
+  indexSubagentDescendants, type SubagentDescendantSummary,
+} from '@deepseek-ai/dsh-client-ui-projection'
+import type { SessionPendingInteractionBase } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { workspaceTitleOf } from '@deepseek-ai/dsh-util-workspace-path'
 

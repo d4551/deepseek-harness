@@ -57,6 +57,11 @@ export interface CardShell {
   available: boolean
   /** Whether the Host document accepts writes. */
   writable: boolean
+  /**
+   * Whether the owning Host plugin binds this section once, so a saved change
+   * waits for the next boot. The card says so; silence would imply otherwise.
+   */
+  restartRequired: boolean
   /** Whether the form holds edits that a save would write. */
   dirty: boolean
   /** Whether any staged draft is invalid, which blocks the save. */
@@ -155,6 +160,7 @@ export class CardForm<T extends object> {
     return {
       available: snapshot.status === 'ready',
       writable: snapshot.writable,
+      restartRequired: snapshot.applies === 'restart',
       dirty: plan.length > 0,
       invalid: plan.some(item => item.run === undefined),
       saving: this.saving,

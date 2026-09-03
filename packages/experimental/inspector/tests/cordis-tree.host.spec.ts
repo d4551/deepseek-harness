@@ -34,17 +34,41 @@ interface CdpNode {
   readonly children?: CdpNode[]
 }
 
+/** One sent CDP request awaiting the response carrying its id. */
+interface PendingCall {
+  readonly method: string
+  readonly resolve: (message: CdpMessage) => void
+  readonly reject: (error: Error) => void
+}
+
+/**
+ * CDP client whose calls settle only on events of the connection.
+ *
+ * A request has three terminal conditions: the response carrying its id, a
+ * closed socket, and a socket error. Elapsed time is not one of them, so the
+ * lane's `testTimeout` stays the single deadline and a host too busy to answer
+ * within it is reported as a slow test rather than as a CDP fault. A request
+ * the socket outlives is named by {@link inFlight}.
+ */
 class CdpClient {
   private nextId = 0
-  private readonly pending = new Map<number, (message: CdpMessage) => void>()
+  private readonly pending = new Map<number, PendingCall>()
   readonly events: CdpMessage[] = []
 
   private constructor(private readonly socket: WebSocket) {
     socket.on('message', (data) => {
       const message = JSON.parse(rawText(data)) as CdpMessage
-      if (message.id !== undefined) this.pending.get(message.id)?.(message)
-      else this.events.push(message)
+      if (message.id === undefined) {
+        this.events.push(message)
+        return
+      }
+      const pending = this.pending.get(message.id)
+      if (pending === undefined) return
+      this.pending.delete(message.id)
+      pending.resolve(message)
     })
+    socket.on('close', () => { this.abandon('Inspector CDP socket closed') })
+    socket.on('error', (error: Error) => { this.abandon(`Inspector CDP socket failed: ${error.message}`) })
   }
 
   static async connect(url: string): Promise<CdpClient> {
@@ -56,17 +80,34 @@ class CdpClient {
     return new CdpClient(socket)
   }
 
+  /** Methods sent whose response has not arrived, in call order. */
+  get inFlight(): readonly string[] {
+    return [...this.pending.values()].map(pending => pending.method)
+  }
+
+  /**
+   * Send one CDP request over this connection.
+   * @param method - CDP method name.
+   * @param params - Method parameters.
+   * @returns The response carrying this request's id; rejects when the socket closes or fails first.
+   */
   call(method: string, params: Record<string, unknown> = {}): Promise<CdpMessage> {
     const id = ++this.nextId
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { reject(new Error(`CDP call timed out: ${method}`)) }, 5_000)
-      this.pending.set(id, (message) => {
-        clearTimeout(timer)
-        this.pending.delete(id)
-        resolve(message)
-      })
+    return new Promise<CdpMessage>((resolve, reject) => {
+      this.pending.set(id, { method, resolve, reject })
       this.socket.send(JSON.stringify({ id, method, params }))
     })
+  }
+
+  /**
+   * Fail every outstanding request the connection can no longer answer.
+   * @param reason - Terminal condition the socket reached.
+   */
+  private abandon(reason: string): void {
+    for (const [id, pending] of [...this.pending]) {
+      this.pending.delete(id)
+      pending.reject(new Error(`${reason} with ${pending.method} in flight`))
+    }
   }
 
   async close(): Promise<void> {
@@ -86,6 +127,7 @@ describe('Cordis tree inspection', () => {
   const fibers: Array<{ dispose(): Promise<void> }> = []
 
   afterEach(async () => {
+    const stranded = [...cdp?.inFlight ?? [], ...secondCdp?.inFlight ?? []]
     for (const dispose of observers.splice(0).reverse()) dispose()
     for (const fiber of fibers.splice(0).reverse()) await fiber.dispose()
     await clientSource?.close()
@@ -97,6 +139,10 @@ describe('Cordis tree inspection', () => {
     await inspector?.close()
     inspector = undefined
     Reflect.deleteProperty(globalThis, '__cordisHostProbe')
+    // A case that spent the lane's testTimeout inside a call reaches here with
+    // that request still open; reporting it after teardown names the method
+    // Vitest's own timeout message cannot.
+    if (stranded.length > 0) throw new Error(`Inspector CDP requests never answered: ${stranded.join(', ')}`)
   })
 
   it('preserves separate Fiber and Context identities in one shared snapshot model', async () => {

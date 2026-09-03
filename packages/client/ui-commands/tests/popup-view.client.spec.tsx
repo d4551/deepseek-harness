@@ -211,6 +211,32 @@ describe('PopupSelectView', () => {
     expect(consume).toHaveBeenCalledTimes(1)
   })
 
+  it('loading: a pending options load shows the loading line and no rows', async () => {
+    const popup = new PopupSelectController<string>({ consume: () => true, focusComposer: () => {} })
+    render(<main><PopupSelectView popup={popup} t={t} /></main>)
+    await act(async () => {
+      popup.open('theme', spec({ options: () => new Promise<SelectOption[]>(() => {}) }), 'ctx-A', SEGMENT)
+      await Promise.resolve()
+    })
+    expect(screen.getByText('正在加载选项…')).toBeTruthy()
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('empty: a settled load with no options shows the empty line inside an open shell', async () => {
+    await mountOpen({ options: () => Promise.resolve([]) })
+    expect(screen.getByText('无选项')).toBeTruthy()
+    expect(screen.queryByRole('option')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('empty: a search matching nothing shows the same empty line', async () => {
+    const { search } = await mountOpen()
+    act(() => { fireEvent.change(search, { target: { value: 'zzz' } }) })
+    expect(screen.getByText('无选项')).toBeTruthy()
+    expect(screen.queryByRole('option')).toBeNull()
+  })
+
   it('a failed options load shows the error with a retry button that reloads', async () => {
     let attempts = 0
     await mountOpen({

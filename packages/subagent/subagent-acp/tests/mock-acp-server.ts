@@ -30,6 +30,19 @@
  *                        client announced in `session/new` — so a test can assert
  *                        where the child actually ran and what workspace it was
  *                        told it has.
+ * - `MOCK_SESSION_CAPS_DIRS` — `1` advertises
+ *                        `agentCapabilities.sessionCapabilities.additionalDirectories`
+ *                        as `{}` (supported); `null` sends the key as JSON
+ *                        `null`, which the protocol defines as NOT supported.
+ *                        Unset omits the key, the other "not supported" form,
+ *                        matching an agent that never negotiated the field.
+ * - `MOCK_NO_AGENT_CAPS` — if `1`, omit `agentCapabilities` from `initialize`
+ *                        entirely. The field is optional in the schema, so this
+ *                        is a legal agent that advertises nothing at all.
+ * - `MOCK_ECHO_ROOTS` — if `1`, ignore MOCK_TEXT and stream the JSON of the
+ *                        `additionalDirectories` the client announced in
+ *                        `session/new` — so a test can assert which workspace
+ *                        roots the child was actually handed.
  * - `MOCK_READY_FILE`  — if set, the path the agent touches once its `prompt`
  *                        handler is in flight (it has streamed its chunk). A test
  *                        polls for this file to cancel on a CONDITION rather than
@@ -87,6 +100,9 @@ const TEXT = echoEnvName !== undefined
   ? process.env[echoEnvName] ?? `<${echoEnvName} unset>`
   : process.env.MOCK_TEXT ?? 'mock child answer'
 const ECHO_CWD = process.env.MOCK_ECHO_CWD === '1'
+const ECHO_ROOTS = process.env.MOCK_ECHO_ROOTS === '1'
+const SESSION_CAPS_DIRS = process.env.MOCK_SESSION_CAPS_DIRS
+const NO_AGENT_CAPS = process.env.MOCK_NO_AGENT_CAPS === '1'
 const STOP = (process.env.MOCK_STOP ?? 'end_turn') as StopReason
 const HANG = process.env.MOCK_HANG === '1'
 const WANT_PERMISSION = process.env.MOCK_PERMISSION === '1'
@@ -113,18 +129,29 @@ function makeAgent() {
   let resolveCancel: ((reason: StopReason) => void) | undefined
   // The cwd the client announced in `session/new`, echoed under MOCK_ECHO_CWD.
   let sessionCwd: string | undefined
+  // The additional roots announced in `session/new`, echoed under MOCK_ECHO_ROOTS.
+  let sessionRoots: readonly string[] | undefined
 
   return {
     initialize(_params: InitializeRequest): Promise<InitializeResponse> {
       if (CRASH_ON_INITIALIZE) process.exit(11)
+      if (NO_AGENT_CAPS) return Promise.resolve({ protocolVersion: PROTOCOL_VERSION, authMethods: [] })
       return Promise.resolve({
         protocolVersion: PROTOCOL_VERSION,
-        agentCapabilities: { promptCapabilities: { image: false, audio: false, embeddedContext: false } },
+        agentCapabilities: {
+          promptCapabilities: { image: false, audio: false, embeddedContext: false },
+          // `{}` is the protocol's "supported" value; `null` and an omitted
+          // key are its two "not supported" forms.
+          ...SESSION_CAPS_DIRS === undefined
+            ? {}
+            : { sessionCapabilities: { additionalDirectories: SESSION_CAPS_DIRS === 'null' ? null : {} } },
+        },
         authMethods: [],
       })
     },
     async newSession(params: NewSessionRequest): Promise<NewSessionResponse> {
       sessionCwd = params.cwd
+      sessionRoots = params.additionalDirectories
       // Optionally signal "newSession reached" and block until released, so a
       // test can cancel DURING newSession (the early-cancel race window) on a
       // condition rather than a timeout.
@@ -173,12 +200,18 @@ function makeAgent() {
         })
       }
       // Stream the canned assistant text as one chunk (or, under MOCK_ECHO_CWD,
-      // the observable process cwd + announced session cwd).
+      // the observable process cwd + announced session cwd; under
+      // MOCK_ECHO_ROOTS, the announced additional workspace roots).
       await conn.notify(methods.client.session.update, {
         sessionId: params.sessionId,
         update: {
           sessionUpdate: 'agent_message_chunk',
-          content: { type: 'text', text: ECHO_CWD ? `${process.cwd()}\n${sessionCwd ?? ''}` : TEXT },
+          content: {
+            type: 'text',
+            text: ECHO_ROOTS
+              ? JSON.stringify(sessionRoots ?? null)
+              : ECHO_CWD ? `${process.cwd()}\n${sessionCwd ?? ''}` : TEXT,
+          },
         },
       })
       if (CRASH_AFTER_CHUNK) {

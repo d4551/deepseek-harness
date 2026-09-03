@@ -1,19 +1,22 @@
 /**
  * Unit coverage for the seam's out-of-process provider vocabulary: cwd
- * resolution against the real filesystem, and the settlement/handle helpers
- * under their never-reject and idempotence contracts.
+ * resolution against the real filesystem, the workspace roots a child inherits
+ * from its delegating parent, and the settlement/handle helpers under their
+ * never-reject and idempotence contracts.
  */
 
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, relative, resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import {
   assertPositiveFinite,
   assertUsableCwd,
   NO_START_CAPABILITIES,
   resolveChildCwd,
+  resolveChildWorkspaceRoots,
   settleRunResult,
   subprocessRunHandle,
   validateConfiguredCwd,
@@ -93,6 +96,36 @@ describe('child cwd resolution', () => {
     expect(resolveChildCwd('p', undefined, tmpdir())).toBe(tmpdir())
     expect(() => resolveChildCwd('p', undefined, undefined)).toThrow('no working directory for the child')
     expect(() => resolveChildCwd('p', undefined, 'relative/parent')).toThrow('parent session cwd must be an absolute path')
+  })
+})
+
+describe('child workspace roots', () => {
+  /** A parent whose log folds to `roots` beside its primary `cwd`. */
+  function parent(cwd: string, roots: readonly string[]): Agent {
+    return {
+      session: {
+        header: { cwd },
+        events: roots.length === 0 ? [] : [{ type: 'workspace/roots', data: { roots } }],
+      },
+    } as unknown as Agent
+  }
+
+  it('carries the parent additional roots and drops the child cwd', () => {
+    expect(resolveChildWorkspaceRoots(parent('/main', ['/second', '/third']), '/main'))
+      .toEqual(['/second', '/third'])
+    expect(resolveChildWorkspaceRoots(parent('/main', []), '/main')).toEqual([])
+  })
+
+  it('never re-adds the parent cwd when a configured override moved the child', () => {
+    // The deployment pinned where the child works; the parent's own directory
+    // must not widen that child's write fence past its configuration.
+    expect(resolveChildWorkspaceRoots(parent('/main', ['/second']), '/elsewhere'))
+      .toEqual(['/second'])
+    expect(resolveChildWorkspaceRoots(parent('/main', []), '/elsewhere')).toEqual([])
+    // An override that lands on one of the parent's own additional roots is
+    // the child's primary root, not an additional one.
+    expect(resolveChildWorkspaceRoots(parent('/main', ['/second', '/third']), '/second'))
+      .toEqual(['/third'])
   })
 })
 

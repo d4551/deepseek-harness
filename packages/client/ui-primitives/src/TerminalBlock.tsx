@@ -16,6 +16,14 @@ export const DEFAULT_TERMINAL_MAX_LINES = 16
  * (this package is cordis-free, so copy arrives via props).
  */
 export interface TerminalBlockLabels {
+  /**
+   * Badge copy naming the shell the command was written for: `label` is the
+   * visible name, `title` the fuller sentence the badge carries as its
+   * accessible name.
+   * @param shell - the dialect the call's tool selected.
+   * @returns the visible badge text and its title.
+   */
+  shell: (shell: 'bash' | 'pwsh') => { label: string; title: string }
   /** Status pill text for a signal-terminated command. */
   signal: (signal: string) => string
   /** Status pill text for a non-zero exit code. */
@@ -45,6 +53,13 @@ export interface TerminalBlockLabels {
 export interface TerminalBlockProps {
   /** The command line, rendered verbatim after the prompt label. */
   command: string
+  /**
+   * Shell dialect the command was written for. One tool runs either shell
+   * depending on the host, so the language of the command line is not
+   * recoverable from the command text; absent renders no badge, which is what
+   * a `terminal_send` call (whose shell the harness never chose) deserves.
+   */
+  shell?: 'bash' | 'pwsh' | undefined
   /** Working directory for the prompt label; absent renders a plain `$`. */
   cwd?: string | undefined
   /** Absolute home directory, so a cwd equal to it collapses to `~`; absent disables that collapse. */
@@ -146,6 +161,7 @@ function renderLine(line: AnsiLine) {
  */
 export function TerminalBlock({
   command,
+  shell,
   cwd,
   home,
   output,
@@ -181,6 +197,7 @@ export function TerminalBlock({
 
   const status = statusText(exitCode, signal, copy)
   const state = runState(running, exitCode, signal, copy)
+  const shellBadge = shell === undefined ? undefined : copy.shell(shell)
   // A multi-line command gets one prompt row per line, so a two-command shell
   // snippet reads as the two commands it is instead of collapsing into one
   // ellipsized row. A trailing newline is a terminator, not an empty command.
@@ -200,7 +217,7 @@ export function TerminalBlock({
     <div className={clsx(css.block, className)} data-terminal="" data-running={running ? '' : undefined}>
       <div className={css.header}>
         <div className={css.prompt}>
-          <span className={css.runStateLabel}>{state.label}</span>
+          <span className="dsw-visually-hidden">{state.label}</span>
           {commandLines.map((line, index) => (
             <div key={index} className={css.promptLine}>
               {/* One dot for the card, on the first row: the exit status the
@@ -221,6 +238,9 @@ export function TerminalBlock({
             </div>
           ))}
         </div>
+        {shellBadge !== undefined && (
+          <span className={css.shell} data-shell={shell} title={shellBadge.title}>{shellBadge.label}</span>
+        )}
         {status !== undefined && <Pill className={css.status}>{status}</Pill>}
         {!running && !empty && (
           <button type="button" className={css.copyButton} onClick={onCopy}>

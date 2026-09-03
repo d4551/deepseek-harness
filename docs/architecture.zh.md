@@ -16,7 +16,7 @@
 
 运行中的 `dsh` 是一棵插件树，由启动时按序叠加的各层组合而成。
 
-**profile** 是存放在 Harness home 中的具名组装。它列出自己叠放的组合包，存放自己安装的树外插件，并保存用户自己的 `cordis.patch.yml`。`web`、`headless`、`swarm`、`hosted`、`sdk`、`sdk-minimal` 和 `acp` 作为模板随发行版交付，每一个都在首次使用时自动初始化。
+**profile** 是存放在 Harness home 中的具名组装。它列出自己叠放的组合包，存放自己安装的树外插件，并保存用户自己的 `cordis.patch.yml`。`web`、`headless`、`swarm`、`swarm-web`、`hosted`、`sdk`、`sdk-minimal` 和 `acp` 作为模板随发行版交付，每一个都在首次使用时自动初始化。
 
 **组合包**是 Cordis 配置项及其挂载代码的分发格式，因此它插入的内容始终可被其上各层 patch。
 
@@ -26,7 +26,7 @@
 
 各层按此顺序应用在空条目列表之上：先按 profile 列出的顺序应用每个组合包，然后是 profile 的 `cordis.patch.yml`，然后是 home 级的那份，最后是任意 `--patch` overlay。一条 patch 按 id 定位某个条目并替换其整个 config，或插入新条目。
 
-自定义 profile 默认实时重载 patch。随附的 `web` 与 `hosted` profile 使用实时重载；`headless`、`swarm`、`sdk`、`sdk-minimal` 和 `acp` 则只在启动时应用一次所有配置层，因为一次性应用或 stdio 应用拥有工作之后，替换其依赖会破坏该生命周期。
+自定义 profile 默认实时重载 patch。随附的 `web`、`swarm-web` 与 `hosted` profile 使用实时重载；`headless`、`swarm`、`sdk`、`sdk-minimal` 和 `acp` 则只在启动时应用一次所有配置层，因为一次性应用或 stdio 应用拥有工作之后，替换其依赖会破坏该生命周期。
 
 要查看你的机器启动的配置树：
 
@@ -40,7 +40,7 @@ dsh --profile web --dump-config
 
 ## 应用启动
 
-所有受支持的 Node 应用都从 `dsh` CLI 与具名 profile 启动。随附应用是 `dsh web`（刻意为 `--profile web` 保留的别名）、`dsh --profile headless`、`dsh --profile swarm`、`dsh --profile hosted`、`dsh --profile sdk`、`dsh --profile sdk-minimal` 与 `dsh --profile acp`。TypeScript SDK 会解析其同版本 `dsh` 依赖并选择 `sdk`；自定义插件组合继续由 profile 与有序 patch 文件表达，而不是另一个可执行文件或内联应用树。`sdk-minimal` 是位于同一 launcher 后的仓库自有独立组合包，而不是由调用方提供的 Cordis 配置树。
+所有受支持的 Node 应用都从 `dsh` CLI 与具名 profile 启动。随附应用是 `dsh web`（刻意为 `--profile web` 保留的别名）、`dsh --profile headless`、`dsh --profile swarm`、`dsh --profile swarm-web`、`dsh --profile hosted`、`dsh --profile sdk`、`dsh --profile sdk-minimal` 与 `dsh --profile acp`。TypeScript SDK 会解析其同版本 `dsh` 依赖并选择 `sdk`；自定义插件组合继续由 profile 与有序 patch 文件表达，而不是另一个可执行文件或内联应用树。`sdk-minimal` 是位于同一 launcher 后的仓库自有独立组合包，而不是由调用方提供的 Cordis 配置树。
 
 Vendored CLI、仅用于构建和测试的可执行文件、进程内直接挂载插件以及私有浏览器 WebWorker 预览都不属于 Harness 应用启动器。[`verify-application-entrypoints`](../scripts/verify-application-entrypoints.ts)将每个包 bin、可执行源码与根 demo 归入显式类别，并拒绝任何绕过 `dsh` 的 Node 应用路径。
 
@@ -116,7 +116,7 @@ turn/end
 
 seam 正是替换一个提供方就能改变整个产品的原因。文件系统与进程提供方共享同一个执行世界，因此把它们指向远程沙箱，也就把 Bash、PTY 和 LSP 一并搬了过去，无需提供方专用 fork。[subagent 提供方](subsystems/subagent.zh.md)在同一个接口之后同样千差万别，从新建一个子 agent，到把一个轮次委派给另一个产品。
 
-[Agent Teams](subsystems/agent-team.zh.md) 是 `ctx.agentTeams` 上的显式启用协作 seam，在可继续 subagent 之上提供持久 roster、任务板和 mailbox；`dsh-base` 将其禁用，而随附的 `swarm` profile 就是启用它的那一层 patch——它把 `dsh-swarm-profile` 叠放在 `headless` 之上，插入团队及其受限作用域的工具，并替换掉那些工具重用了同名工具的全局可继续子进程控制项。
+[Agent Teams](subsystems/agent-team.zh.md) 是 `ctx.agentTeams` 上的显式启用协作 seam，在可继续 subagent 之上提供持久 roster、任务板和 mailbox；`dsh-base` 将其禁用，而随附的 `swarm` profile 就是启用它的那一层 patch——它把 `dsh-swarm-profile` 叠放在 `headless` 之上，插入团队及其受限作用域的工具，并替换掉那些工具重用了同名工具的全局可继续子进程控制项。`swarm-web` 把同一层改叠在 `web-app` 之上，并加上 [`dsh-agent-team-web-profile`](../packages/preset/agent-team-web-profile/README.zh.md)——渲染 roster、任务板与 mailbox 的那一行浏览器条目；Team 工具注册在每个 Agent 自身的 scope 中，会遮蔽 preset scope 中的同名控制项，因此不涉及 Team-aware Agent preset。
 
 ## 新行为的归属位置
 

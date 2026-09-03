@@ -24,14 +24,6 @@ import type {
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { renderSessionArea } from './session-provider.tsx'
 
-export {
-  indexSubagentDescendants, type SubagentDescendantSummary,
-} from './subagent-lineage.ts'
-export {
-  settlePendingComposer, settlePendingInteraction,
-  type DelegatablePendingInteraction,
-} from './pending-settlement.ts'
-
 /** Selector hook over the Session Controller list and current selection. */
 export type UseSessions = SnapshotSelectorHook<SessionListState>
 /** Selector hook over one Session's lifecycle and control state. */
@@ -63,11 +55,29 @@ export type SessionPendingInteractionSnapshot = ReadonlyMap<SessionId, SessionPe
 /** Selector hook over Session-scoped pending interactions. */
 export type UseSessionPendingInteraction = SnapshotSelectorHook<SessionPendingInteractionSnapshot>
 
-/** Publish one pending interaction and define how plugin teardown delegates it. */
-export type PendingInteractionPublisher<T extends SessionPendingInteractionBase> = (
-  interaction: T,
-  delegate: () => Promise<void>,
-) => () => void
+/** A pending presentation that can hand its request back to the Host waterfall. */
+export interface DelegatablePendingInteraction<Outcome> {
+  /** Result returned to the waiting Host listener. */
+  readonly result: Promise<Outcome>
+  /** Reject {@link DelegatablePendingInteraction.result} with the delegation marker. */
+  delegate: () => void
+  /**
+   * Test whether a rejection requests waterfall delegation.
+   * @param reason - rejection received from `result`.
+   * @returns whether `delegate` produced it.
+   */
+  isDelegation: (reason: unknown) => boolean
+}
+
+/**
+ * Publish one pending interaction of a registered domain and settle it: the
+ * user's answer wins, a delegation resumes the Host waterfall, and any other
+ * rejection propagates.
+ */
+export type PendingInteractionSettler<T extends SessionPendingInteractionBase> = <Outcome>(
+  interaction: T & DelegatablePendingInteraction<Outcome>,
+  delegated: () => Promise<Outcome>,
+) => Promise<Outcome>
 
 interface PendingInteractionEntry<T> {
   readonly interaction: T
@@ -92,10 +102,9 @@ class PendingInteractionDomain<T extends SessionPendingInteractionBase> {
     }
     this.values.set(interaction.key, { interaction, delegate })
     this.changed()
-    let active = true
+    // The settler removes exactly once, in its finally; a value already taken
+    // by teardown's release() is gone and must not republish the snapshot.
     return () => {
-      if (!active) return
-      active = false
       if (!this.values.delete(interaction.key)) return
       this.changed()
     }
@@ -303,15 +312,19 @@ export class UiSession extends Service {
   }
 
   /**
-   * Register one pending-interaction domain and return its publication function.
+   * Register one pending-interaction domain and return its settler. Publication
+   * and settlement are one operation with one settlement point: the settler
+   * publishes the interaction, awaits the user's answer, resumes the Host
+   * waterfall on a delegation, and removes the publication in every outcome.
    * Domain teardown first removes its visible values, then delegates and awaits
-   * every still-active owner request.
+   * every still-active owner request, so the domain is quiescent before its
+   * owner's fiber disposes.
    * @param precedence - deterministic cross-domain precedence; larger values win.
-   * @returns a function that publishes one interaction and its teardown delegation.
+   * @returns the domain's settler for one interaction at a time.
    */
   registerPendingInteraction<T extends SessionPendingInteractionBase>(
     precedence: (interaction: T) => number,
-  ): PendingInteractionPublisher<T> {
+  ): PendingInteractionSettler<T> {
     const domain = new PendingInteractionDomain(precedence, () => {
       this.publishPendingInteractions()
     })
@@ -327,7 +340,24 @@ export class UiSession extends Service {
         await Promise.allSettled(delegates.map(delegate => Promise.resolve().then(delegate)))
       }
     }, 'uiSession.registerPendingInteraction()')
-    return (interaction, delegate) => domain.publish(interaction, delegate)
+    return async (interaction, delegated) => {
+      const completed = Promise.withResolvers<void>()
+      const remove = domain.publish(interaction, async () => {
+        interaction.delegate()
+        await completed.promise
+      })
+      try {
+        try {
+          return await interaction.result
+        } catch (error) {
+          if (interaction.isDelegation(error)) return await delegated()
+          throw error
+        }
+      } finally {
+        remove()
+        completed.resolve()
+      }
+    }
   }
 
   private rebuildBindings(): void {

@@ -11,7 +11,9 @@
  * through tsconfig `paths` no matter what the installed tree holds, so a
  * resolution check would pass for a bundle a packed install could never find.
  * The patch itself is read from the workspace directory the name maps to,
- * which is the same file a packed install ships.
+ * and the last case checks that `files` actually packs it, because a bundle
+ * that resolves and parses in this tree still ships an unbootable profile
+ * when the tarball omits the patch.
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -23,6 +25,7 @@ import { PROFILE_TEMPLATES } from '@deepseek-ai/dsh-app-boot'
 
 interface BundleManifest {
   name?: string
+  files?: string[]
   dependencies?: Record<string, string>
   dsh?: { bundle?: { patch?: string } }
 }
@@ -102,6 +105,28 @@ describe('shipped profile templates', () => {
       })
       .map(({ profile, bundle }) => `${profile} -> ${bundle}`)
     expect(undeclared).toEqual([])
+  })
+
+  it('packs the patch in every named bundle, so an installed profile still boots', () => {
+    // `files` decides the tarball. A patch present here and absent from the
+    // package is the orphan shape rounds 23 and 27 caught, one layer further
+    // out: nothing in this repository would notice until someone installed it.
+    const unpacked = namedBundles.flatMap(({ profile, bundle }) => {
+      const dir = workspace.get(bundle)
+      if (dir === undefined) return []
+      const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as BundleManifest
+      const declaredPatch = pkg.dsh?.bundle?.patch
+      if (declaredPatch === undefined) return []
+      const packed = pkg.files ?? []
+      const target = declaredPatch.replace(/^\.\//u, '')
+      // An entry packs the patch by naming it, or by naming a directory above it.
+      const covered = packed.some((entry) => {
+        const cleaned = entry.replace(/^\.\//u, '').replace(/\/$/u, '')
+        return cleaned === target || target.startsWith(`${cleaned}/`)
+      })
+      return covered ? [] : [`${profile} -> ${bundle}: files does not pack ${declaredPatch}`]
+    })
+    expect(unpacked).toEqual([])
   })
 
   it('points every dsh.bundle.patch at a patch file that exists and parses', () => {

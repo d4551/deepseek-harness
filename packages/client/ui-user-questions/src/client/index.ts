@@ -17,9 +17,7 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { ComposerChainProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
-import {
-  settlePendingInteraction, type PendingInteractionPublisher,
-} from '@deepseek-ai/dsh-client-ui-session/client'
+import type { PendingInteractionSettler } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { TypertClientEventListener } from '@deepseek-ai/dsh-typert-protocol'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -58,12 +56,12 @@ function answerQuestion(
   owner: ClientContext,
   request: ClientQuestionRequest,
   next: ClientQuestionNext,
-  registerPendingInteraction: PendingInteractionPublisher<PendingQuestion>,
+  settlePendingQuestion: PendingInteractionSettler<PendingQuestion>,
 ): Promise<ClientQuestionAnswer> {
   const sessionId = (ctx.sessions as ISessions).scopeOf(owner)
   if (sessionId === undefined) return next()
   const pending = new PendingQuestion(sessionId, request.questions, request.signal)
-  return settlePendingInteraction(pending, registerPendingInteraction, next)
+  return settlePendingQuestion(pending, next)
 }
 
 /**
@@ -75,7 +73,7 @@ function answerQuestion(
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-user-questions: dictionaries')
   const questionDraftStore = createQuestionDraftStore()
-  const registerPendingInteraction = ctx.uiSession.registerPendingInteraction<PendingQuestion>(
+  const settlePendingQuestion = ctx.uiSession.registerPendingInteraction<PendingQuestion>(
     pending => pending.kind === 'plan-review' ? 2 : 1,
   )
   ctx.slots.inject('conversation.composer', () => ctx.slots.register(
@@ -89,6 +87,6 @@ export function apply(ctx: ClientContext): void {
     QuestionComposer,
   ))
   ctx.remote.$on('user-questions/request', function (request, next) {
-    return answerQuestion(ctx, this, request, next, registerPendingInteraction)
+    return answerQuestion(ctx, this, request, next, settlePendingQuestion)
   })
 }

@@ -15,7 +15,7 @@ How this repo tests, tier by tier, and the rules that keep a green suite meaning
 
 - **Mutation** (`bun run mutation`): Stryker over `packages/util/*/src`. Coverage proves a line ran; this proves an assertion would notice it being wrong ([Agent Note](../.agents/notes/implemented/testing/2026-06-11-mutation-testing.md)).
 
-Session fixtures keep headers and payloads but omit body sequence/time envelopes. Replay synthesizes them. Fixtures use canonical packed rows; [the migrator](../scripts/migrate-packed-session-fixtures.ts) rewrites old layouts.
+Session fixtures keep headers and payloads but omit storage-only encodings, which replay synthesizes. Write-back emits the canonical packed layout; [the migrator](../scripts/migrate-packed-session-fixtures.ts) converts older fixtures.
 
 ## The with-key policy: inference is cheap here
 

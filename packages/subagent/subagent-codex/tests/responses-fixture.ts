@@ -37,6 +37,13 @@ export interface ResponsesFixture {
   readonly baseUrl: string
   readonly requests: RecordedResponsesRequest[]
   readonly requestStarted: Promise<void>
+  /**
+   * One entry per request the script had no behavior left for. A test that
+   * asserts a failure category reads a fixture artifact unless this is empty:
+   * every unscripted request is answered 500, which Codex reports as its own
+   * `internalServerError`.
+   */
+  readonly exhausted: readonly string[]
   close(): Promise<void>
 }
 
@@ -94,7 +101,7 @@ function responseObject(text: string): Record<string, unknown> {
 }
 
 /**
- * Build the minimal Responses SSE event sequence consumed by Codex 0.149.1.
+ * Build the minimal Responses SSE event sequence consumed by Codex 0.153.0.
  * @param text - exact assistant answer.
  * @returns ordered response lifecycle events.
  */
@@ -248,6 +255,7 @@ export async function startResponsesFixture(
 ): Promise<ResponsesFixture> {
   const behaviors = [...script]
   const requests: RecordedResponsesRequest[] = []
+  const exhausted: string[] = []
   const started = Promise.withResolvers<undefined>()
   const openResponses = new Set<ServerResponse>()
   const server = createServer((request, response) => {
@@ -264,8 +272,17 @@ export async function startResponsesFixture(
       started.resolve(undefined)
       const behavior = behaviors.shift()
       if (behavior === undefined) {
+        // Codex renders any 5xx as "We're currently experiencing high demand",
+        // so an exhausted script reaches the caller as a service outage. Name
+        // the real condition and what the extra turn carried: a machine-level
+        // managed Codex policy can append turns this script never planned for.
+        const input = parsedBody['input']
+        const turns = Array.isArray(input) ? input.length : 0
+        exhausted.push(`request ${String(requests.length)} carried ${String(turns)} input item(s)`)
         response.writeHead(500, { 'content-type': 'application/json' })
-        response.end(JSON.stringify({ error: { message: 'fixture script exhausted' } }))
+        response.end(JSON.stringify({
+          error: { message: `fixture script exhausted after ${String(requests.length - 1)} scripted response(s); ${exhausted.join('; ')}` },
+        }))
         return
       }
       const advertisedCall = behavior.kind === 'advertisedFunctionCall'
@@ -320,6 +337,7 @@ export async function startResponsesFixture(
     baseUrl: `http://127.0.0.1:${address.port}/v1`,
     requests,
     requestStarted: started.promise,
+    exhausted,
     async close(): Promise<void> {
       for (const response of openResponses) response.destroy()
       await closeServer(server)

@@ -31,7 +31,7 @@ Mount this provider when a delegation should run as a complete Harness runtime i
 
 Choose this backend when the child must be a full harness peer — its own composition, session persistence, model route, and tools — rather than an agent that shares the parent's process. Choose an in-process backend when the child must share the parent's composition or honor parent-enforced non-route capabilities: this provider accepts agent route options but rejects structured output, depth caps, tool filters, and personas rather than silently omitting them.
 
-The provider advertises `agentOptions: true`, with `outputSchema`/`depthLimit`/`toolFilter`/`persona` false, and `inheritsParentContext: false`. Its immutable `agentRouteDefaults` publish the configured provider/model baseline to `dsh-tool-subagent` before model overrides and exact-route preflight; `start()` independently applies the same configuration defaults for direct callers and `maxTokens`. Agent route values cross the SDK wire as an explicit whitelist; the child remains a fresh runtime in another process, and the only value derived from the parent agent itself is the workspace cwd. `dsh-tool-subagent` deployments over this provider set `maxDepth: 'provider-managed'` — the child harness owns its own recursion budget.
+The provider advertises `agentOptions: true`, with `outputSchema`/`depthLimit`/`toolFilter`/`persona` false, and `inheritsParentContext: false`. Its immutable `agentRouteDefaults` publish the configured provider/model baseline to `dsh-tool-subagent` before model overrides and exact-route preflight; `start()` independently applies the same configuration defaults for direct callers and `maxTokens`. Agent route values cross the SDK wire as an explicit whitelist; the child remains a fresh runtime in another process, and the only values derived from the parent agent itself are its workspace cwd and the other roots that Session works in. `dsh-tool-subagent` deployments over this provider set `maxDepth: 'provider-managed'` — the child harness owns its own recursion budget.
 
 ### Configuration
 
@@ -73,7 +73,7 @@ Request `agentOptions` override `provider`, `model`, and `maxTokens` independent
 
 ### What you get
 
-A successful run returns the child's final assistant text (or accumulated partial text after cancellation) as result output. The child's model route, tools, and session come from the child runtime itself — the parent supplies the task, working directory, and `initialize` route. The child's last durable `turn/end` maps into the seam vocabulary: `completed` and `max-tokens` pass through, `blocked` becomes `refusal`, and an unexpected or missing terminal becomes `error`. An `aborted` result stays aborted; only a child-side `disposed` cause adds a `child-disposed` diagnostic.
+A successful run returns the child's final assistant text (or accumulated partial text after cancellation) as result output. The child's model route, tools, and session come from the child runtime itself — the parent supplies the task, workspace, and `initialize` route. The child's last durable `turn/end` maps into the seam vocabulary: `completed` and `max-tokens` pass through, `blocked` becomes `refusal`, and an unexpected or missing terminal becomes `error`. An `aborted` result stays aborted; only a child-side `disposed` cause adds a `child-disposed` diagnostic.
 
 ### Failure and recovery
 
@@ -91,7 +91,7 @@ This section explains how the backend drives a child Harness runtime and where t
 
 ### Design concept
 
-- **Full harness peer.** Each child is a complete Harness runtime in its own process — own composition, session, model route, and tools; only the resolved working directory and the `initialize` route cross from the parent.
+- **Full harness peer.** Each child is a complete Harness runtime in its own process — own composition, session, model route, and tools; only the resolved workspace and the `initialize` route cross from the parent.
 - **One runtime per run.** Every run spawns a fresh runtime process; there is no pooling.
 - **The JSON-RPC wire is the serialization boundary.** Same-process subagent values are not defensively cloned; the protocol is where hostile input is validated.
 
@@ -104,7 +104,7 @@ This section explains how the backend drives a child Harness runtime and where t
 
 ### Run flow
 
-A start resolves the child's working directory and one process-wide SDK route before spawning. Each declared `request.agentOptions` field (`provider`, `model`, `reasoningEffort`, or `maxTokens`) overrides the matching provider-instance default; omission preserves the configured provider/model and optional cap, while reasoning effort remains absent unless the request supplies it. The provider spawns the runtime through the SDK client and completes the `initialize` handshake, including exact-model and effort validation, before it fulfills. A route, spawn, handshake, or pre-publication cancellation failure rejects only after the subprocess is reaped; a working-directory resolution failure rejects before spawning. After publication the provider owns one SDK activity and reads the child's answer from its session events: the last complete non-empty `assistant/message` (an empty-content message that records usage is skipped), or the accumulated `text-delta` stream when no such message exists. Disposal is idempotent: it settles the result locally as `aborted`, sends a bounded protocol `shutdown` request, then escalates through stdin EOF → SIGTERM → SIGKILL to actual exit.
+A start resolves the child's working directory, the additional workspace roots it inherits from the delegating Session, and one process-wide SDK route before spawning. The roots travel in the `initialize` handshake as `additionalDirectories` and the child runtime records them on every session it creates. Each declared `request.agentOptions` field (`provider`, `model`, `reasoningEffort`, or `maxTokens`) overrides the matching provider-instance default; omission preserves the configured provider/model and optional cap, while reasoning effort remains absent unless the request supplies it. The provider spawns the runtime through the SDK client and completes the `initialize` handshake, including exact-model and effort validation, before it fulfills. A route, spawn, handshake, or pre-publication cancellation failure rejects only after the subprocess is reaped; a working-directory resolution failure rejects before spawning. After publication the provider owns one SDK activity and reads the child's answer from its session events: the last complete non-empty `assistant/message` (an empty-content message that records usage is skipped), or the accumulated `text-delta` stream when no such message exists. Disposal is idempotent: it settles the result locally as `aborted`, sends a bounded protocol `shutdown` request, then escalates through stdin EOF → SIGTERM → SIGKILL to actual exit.
 
 ### Stop-reason mapping
 
@@ -173,7 +173,6 @@ These limits define when this backend is a poor fit or needs special operational
 - **No non-route start-time capabilities** — the parent can select the child agent route but cannot enforce `outputSchema`, depth, tool filters, or persona inside the child process; configure the selected child profile and its ordered patches instead.
 - **The child's transcript stays in the child's own session root** — the parent log records only the delegation tool call and result; the streamed `session.event` channel is consumed for output extraction, not bridged into the parent log.
 - **Local child processes only** — the resolved working directory is a local path; a remote runtime would need its own backend.
-- **One working directory per child** — the child process starts in the parent session's `cwd`; a parent working in additional workspace roots hands on only that primary root, because the child runtime owns its own session and workspace. In-process children carry the complete root set on their own session logs.
 
 <a id="dev-note"></a>
 ### Dev Note

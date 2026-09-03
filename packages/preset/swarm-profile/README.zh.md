@@ -47,6 +47,10 @@ dsh plugin --profile <name> add @deepseek-ai/dsh-swarm-profile
 
 本层加入 Agent Teams 域及其作用域内的工具，并设置 `coordination: swarm`，从而以拉取式指引取代委派式策略。它禁用工具名与 Team 控制重叠的全局可续子 Agent 控制行，保留 `subagent` 与 `subagent_fork` 作为一次性委派工具，并为 `ctx.subagents` 设定 `maxConcurrentRuns` 上限。
 
+### 从设置调整团队
+
+`agent-team` 行上的 `maxMembers` 与 `maxTasks` 同时是设置分区，运行中的部署可以从 Web 应用插件设置页的**智能体团队**卡片重新调整，而无需改动本层。本层的 `maxMembers: 16` 是卡片的组合起点，存储值叠加其上。本层设置的其余各项都是组合决定并留在这里：`coordination: swarm` 选择本 profile 存在的意义所在——那套模型可见的拉取式策略；`freshProvider`／`forkProvider` 指名本层挂载的 Subagent provider 行；邮箱预算与拆卸截止时间约束单次投递与单次拆卸的开销。
+
 ### 调整 run 上限
 
 `subagent` 行上的 `maxConcurrentRuns` 表示该部署同时可以有多少个已发布的一次性子 run；超出上限的启动按到达顺序排队，并在更早的 run 结算或被释放后立即派发。队友是可续子 Agent，不计入该上限：一个 Activation 会在整个对话期间常驻，把它计入会让前台委派被长期存在的成员堵住。宿主容量更大时调高该值，多个 swarm 共用一台机器时调低。

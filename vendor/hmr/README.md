@@ -13,6 +13,15 @@ ancestor, then restore any missing suffix. Callbacks and diagnostics retain the
 requested absolute filename, while the native backend receives one filesystem
 spelling even when Windows supplied an 8.3 alias.
 
+An exact config watch does not rely on the platform watch alone. Chokidar
+reports `ready` once its initial scan finished and `fs.watch()` returned, which
+on macOS is before libuv arms the FSEvents stream on its own run-loop thread,
+so a change landing in that gap is reported by neither. A repair cadence
+re-reads the registered path every `repairInterval` milliseconds; it shares one
+serialized reconciliation with the watch, and each generation of the file's
+content — including its absence — reaches the callback exactly once, whichever
+trigger observed it.
+
 ## Requirements
 
 - `@cordisjs/plugin-loader`
@@ -44,6 +53,7 @@ spelling even when Windows supplied an 8.3 alias.
 | `root` | Chokidar roots to watch. Defaults to `['.']`. |
 | `ignored` | Picomatch patterns excluded from watch and reload analysis. |
 | `debounce` | Milliseconds to wait before processing a burst of changes. |
+| `repairInterval` | Milliseconds between the reconciliations that repair an exact config change no filesystem event reported. Defaults to `100`; `0` runs the watch alone. |
 
 ## Events
 

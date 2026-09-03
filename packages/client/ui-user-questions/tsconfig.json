@@ -39,6 +39,9 @@
       "path": "../ui-primitives"
     },
     {
+      "path": "../ui-projection"
+    },
+    {
       "path": "../ui-slots"
     },
     {

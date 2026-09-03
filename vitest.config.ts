@@ -208,6 +208,13 @@ export default defineConfig({
     ],
     coverage: {
       provider: 'v8',
+      // Emit the report even when tests fail. Vitest defaults this off, so a
+      // single failing test left the per-file gate with no verdict at all
+      // rather than a failing one — three unrelated failures blinded it for a
+      // whole session. `scripts/coverage-partitions.ts` already passes
+      // `--coverage.reportOnFailure` for the sharded lane; this is the same
+      // decision for the plain one. It relaxes no threshold.
+      reportOnFailure: true,
       // Coverage measures OUR runtime source. Types-only files carry no
       // executable code; vendor/ and application/config fixtures are excluded
       // because they are not authored runtime code here.

@@ -373,6 +373,36 @@ describe('web_fetch presentation meta and result view', () => {
       .toEqual({ url: 'https://a.test', statusCode: 404, truncated: true })
   })
 
+  it('carries the provider-stated retrieval mode into meta, and omits the key when none was stated', () => {
+    const body = { kind: 'text' as const, content: 'x' }
+    expect(fetchMetaFromValue({ url: 'https://a.test', statusCode: 200, truncated: false, body, retrieval: 'rendered' }, NO_CAP))
+      .toEqual({ url: 'https://a.test', statusCode: 200, truncated: false, retrieval: 'rendered' })
+    expect(fetchMetaFromValue({ url: 'https://a.test', statusCode: 200, truncated: false, body, retrieval: 'http' }, NO_CAP))
+      .toEqual({ url: 'https://a.test', statusCode: 200, truncated: false, retrieval: 'http' })
+    // Persisted meta is replayed: an absent key must stay absent rather than
+    // becoming a null the card would have to interpret.
+    expect(fetchMetaFromValue({ url: 'https://a.test', statusCode: 200, truncated: false, body }, NO_CAP))
+      .not.toHaveProperty('retrieval')
+  })
+
+  it('drops a retrieval value outside the closed union rather than replaying it onto the card', () => {
+    expect(fetchMetaFromResult({ url: 'u', statusCode: 200, truncated: false, retrieval: 'rendered' }))
+      .toEqual({ url: 'u', statusCode: 200, truncated: false, retrieval: 'rendered' })
+    expect(fetchMetaFromResult({ url: 'u', statusCode: 200, truncated: false, retrieval: 'browser' }))
+      .toEqual({ url: 'u', statusCode: 200, truncated: false })
+    expect(fetchMetaFromResult({ url: 'u', statusCode: 200, truncated: false, retrieval: 3 }))
+      .toEqual({ url: 'u', statusCode: 200, truncated: false })
+  })
+
+  it('presents the retrieval mode on the fetch card so a rendered page is not read as a plain fetch', () => {
+    const meta = fetchMetaFromValue({
+      url: 'https://a.test', statusCode: 200, truncated: false,
+      body: { kind: 'text', content: 'ok' }, retrieval: 'rendered',
+    }, NO_CAP)
+    expect(presentFetchResult({ url: 'https://a.test' }, toolResult(meta, 'ok')))
+      .toMatchObject({ card: 'web', kind: 'fetch', retrieval: 'rendered' })
+  })
+
   it('projects truncated: true when the output cap cut a body the provider did not, matching the render footer', () => {
     // The provider reports truncated: false, but conversion outgrows the cap, so
     // the render text carries the truncation footer. The meta must agree.

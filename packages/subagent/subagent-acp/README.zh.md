@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-subagent-acp` 在全新的子进程中运行每个被委派的子 agent，并作为 Agent Client Protocol 客户端驱动它：子 agent（智能体）拥有自己的运行时、会话、模型配置和工具，可以是任何兼容 ACP 的 agent，而不只是 Harness。它是进程内 spawn 与 fork 后端的进程外替代方案，只与子 agent 共享父会话的工作目录。每次运行都会 spawn 全新进程、初始化 ACP 会话、发送任务并收集流式最终答案；权限提示由配置自动应答，因此无需人工参与。父级只收到子 agent 的最终答案或安全错误——中间消息与工具流量不会跨越边界。当子 agent 必须与父 harness 完全隔离且能说 ACP 时，选择它。
+`dsh-subagent-acp` 在全新的子进程中运行每个被委派的子 agent，并作为 Agent Client Protocol 客户端驱动它：子 agent（智能体）拥有自己的运行时、会话、模型配置和工具，可以是任何兼容 ACP 的 agent，而不只是 Harness。它是进程内 spawn 与 fork 后端的进程外替代方案，只与子 agent 共享父会话的工作区——其工作目录以及它工作的其他根目录。每次运行都会 spawn 全新进程、初始化 ACP 会话、发送任务并收集流式最终答案；权限提示由配置自动应答，因此无需人工参与。父级只收到子 agent 的最终答案或安全错误——中间消息与工具流量不会跨越边界。当子 agent 必须与父 harness 完全隔离且能说 ACP 时，选择它。
 
 ## 目录
 
@@ -63,7 +63,7 @@ DeepSeek Harness 子进程使用产品启动器和一个显式的绝对路径 `D
 
 ### 你会得到什么
 
-成功的运行会把子 agent 最终的流式 assistant 文本作为结果输出返回。子 agent 的会话、模型与工具来自子进程自身——父级只提供任务与工作目录。停止原因把 `end_turn` 映射为 `completed`、`max_tokens` 映射为 `max-tokens`、`refusal` 映射为 `refusal`、`cancelled` 映射为 `aborted`，其余值映射为 `error`。已发布运行失败时，部分 assistant 文本保留在 `output`，安全的结构化详情则单独放在 `diagnostic`。
+成功的运行会把子 agent 最终的流式 assistant 文本作为结果输出返回。子 agent 的会话、模型与工具来自子进程自身——父级只提供任务与其工作区。停止原因把 `end_turn` 映射为 `completed`、`max_tokens` 映射为 `max-tokens`、`refusal` 映射为 `refusal`、`cancelled` 映射为 `aborted`，其余值映射为 `error`。已发布运行失败时，部分 assistant 文本保留在 `output`，安全的结构化详情则单独放在 `diagnostic`。
 
 ### 失败与恢复
 
@@ -85,13 +85,13 @@ spawn、初始化或新建会话失败会在发布前拒绝，通常先等待子
 
 ### 设计理念
 
-- **完全进程隔离。** 每个子 agent 在全新子进程中运行，拥有自己的会话、模型与工具；只有解析后的工作目录从父级跨越。
+- **完全进程隔离。** 每个子 agent 在全新子进程中运行，拥有自己的会话、模型与工具；只有解析后的工作区从父级跨越。
 - **每次运行一个进程。** 每次运行都 spawn 新进程；没有进程池。
 - **ACP 协议格式（wire format）是序列化边界。** 同进程 subagent 值不会为防御目的克隆；协议才是校验不可信输入的地方。
 
 ### 启动与所有权流程
 
-一次启动先解析子 agent 的工作目录（配置的 `cwd` 覆盖值，否则取父会话 cwd），经子进程 seam spawn 命令，完成 ACP `initialize` 与 `newSession` 握手，然后才发布运行。兑现意味着远程会话已就绪、所有权已转移给调用方。dispose（资源释放）是幂等的：先关闭 stdin 并按配置的宽限等待协作式完全停稳，再经 SIGTERM 升级到 SIGKILL，并等待整棵进程树退出。清理失败会作为有序的安全事实保持可观察，且绝不声称已经完全停稳。
+一次启动先解析子 agent 的工作目录（配置的 `cwd` 覆盖值，否则取父会话 cwd）以及父级工作的其他根目录，经子进程 seam spawn 命令，完成 ACP `initialize` 与 `newSession` 握手——把这些根目录作为 `session/new` 的 `additionalDirectories` 一并告知——然后才发布运行。`additionalDirectories` 是协商字段：当父级存在附加根目录、而子 agent 的 `initialize` 响应未声明 `sessionCapabilities.additionalDirectories` 时，启动会被拒绝，而不是发给一个可能忽略该字段、从而在比父级记录更窄的工作区中运行的 agent。单根目录父级不额外索取任何东西，因此可以对任何 agent 运行。兑现意味着远程会话已就绪、所有权已转移给调用方。dispose（资源释放）是幂等的：先关闭 stdin 并按配置的宽限等待协作式完全停稳，再经 SIGTERM 升级到 SIGKILL，并等待整棵进程树退出。清理失败会作为有序的安全事实保持可观察，且绝不声称已经完全停稳。
 
 ### 停止原因映射
 
@@ -158,7 +158,6 @@ spawn、初始化或新建会话失败会在发布前拒绝，通常先等待子
 
 - **每次运行使用全新进程**——没有进程池；每次委派都要付出完整的 spawn 与 ACP 握手成本。
 - **仅支持本地工作区**——解析后的工作目录是交给同一台机器上子进程的本地路径；远程工作区映射尚未设计。
-- **每个子 agent 只有一个工作目录**——`session/new` 只携带一个 `cwd`，因此在多个工作区根目录中工作的父级只会传递这个主根目录。进程内子 agent 会把完整的根目录集合携带到它自己的会话日志上。
 - **不支持可选启动时能力**——本提供方无法在远程进程内应用 `agentOptions`、`outputSchema`、深度上限、工具过滤器或 persona，因此 seam 会拒绝需要它们的请求。
 - **只收集已提交的 `agent_message_chunk` 文本**——自动化服务器把推理（reasoning）、工具活动、计划和其他 trace 数据保留在子 agent 会话日志中，不通过 ACP 发出。
 - **权限提示自动应答**（`permission: allow | reject`）——不会把子 agent 的 `session/request_permission` 呈现给人。

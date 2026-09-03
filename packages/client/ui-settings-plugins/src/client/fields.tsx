@@ -87,6 +87,83 @@ export function ValueField(props: FieldProps & {
   )
 }
 
+/** One option a {@link ChoiceField} offers. */
+export interface ChoiceOption {
+  /** Value staged when this option is picked; also its input value. */
+  value: string
+  /** Visible option name. */
+  label: string
+  /** One-line explanation rendered under the option name. */
+  description: string
+  /** Whether the staged value names this option. */
+  selected: boolean
+  /** Whether this option can be picked; a disabled option still renders. */
+  pickable: boolean
+  /** Copy explaining why an unpickable option cannot be picked. */
+  unavailableLabel?: string
+}
+
+/**
+ * A staged single-choice field, rendered as one radio group so the browser
+ * treats the options as one selection and arrow keys move between them. An
+ * option this deployment cannot serve stays visible and disabled: hiding it
+ * would leave the user unable to learn that the backend exists.
+ * @param props - the group's copy, its options, and the staging actions.
+ * @returns the labelled radio group.
+ */
+export function ChoiceField(props: Pick<FieldProps,
+  'id' | 'label' | 'hint' | 'overridden' | 'overriddenLabel' | 'resetLabel' | 'disabled' | 'onReset'> & {
+  /** Radio group name; one per group on the page. */
+    name: string
+    /** Options in the order they render. */
+    options: readonly ChoiceOption[]
+    /** Stage the picked option's value. */
+    onPick: (value: string) => void
+  }) {
+  return (
+    <div className={css.field}>
+      <fieldset className={css.choices}>
+        <legend className={css.label}>{props.label}</legend>
+        {props.overridden
+          ? (
+            <span className={css.badges}>
+              <span className={css.badge}>{props.overriddenLabel}</span>
+              <button
+                type="button"
+                className={css.reset}
+                disabled={props.disabled}
+                onClick={props.onReset}
+              >
+                {props.resetLabel}
+              </button>
+            </span>
+          )
+          : null}
+        {props.options.map(option => (
+          <label key={option.value} className={css.choice}>
+            <input
+              type="radio"
+              name={props.name}
+              value={option.value}
+              checked={option.selected}
+              disabled={props.disabled || !option.pickable}
+              onChange={() => { props.onPick(option.value) }}
+            />
+            <span className={css.choiceText}>
+              <span className={css.choiceName}>{option.label}</span>
+              <span className={css.choiceHint}>{option.description}</span>
+              {option.unavailableLabel === undefined
+                ? null
+                : <span className={css.choiceHint}>{option.unavailableLabel}</span>}
+            </span>
+          </label>
+        ))}
+      </fieldset>
+      <p className={css.hint} id={`${props.id}-hint`}>{props.hint}</p>
+    </div>
+  )
+}
+
 /**
  * A write-only credential control. The value never rides a response, so the
  * control reports only whether one is configured and starts blank; a blank

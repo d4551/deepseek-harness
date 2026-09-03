@@ -2,6 +2,9 @@
 
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+// Type-only: pulls the `ctx.fs` Context merge the workspace-origin probe reads
+// through `ctx.get`. The seam itself is optional to this package.
+import type {} from '@deepseek-ai/dsh-fs'
 import { errorChain } from '@deepseek-ai/dsh-llm'
 import { canOpenNativePath, openNativePath } from '@deepseek-ai/dsh-native-command'
 import type { SessionEvent, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
@@ -19,6 +22,7 @@ import { SessionFileReferences } from './file-references.ts'
 import { ApiSessionList, DEFAULT_COLD_BLANK_PROBE_MAX_BYTES } from './list.ts'
 import { buildModelCatalog } from './catalog.ts'
 import { installModelSelectionProjection } from './model-selection-projection.ts'
+import { installWorkspaceRootsProjection } from './workspace-roots-projection.ts'
 import { SessionSkillCatalog } from './skill-catalog.ts'
 import type {
   ModelCatalog,
@@ -47,11 +51,14 @@ import type {
   SessionSearchValue,
   SessionSelectModelRequest,
   SessionSelectModelValue,
+  SessionSetWorkspaceRootsRequest,
+  SessionSetWorkspaceRootsValue,
   SessionUpdateQueueRequest,
   SessionUpdateQueueValue,
+  SessionWorkspaceOrigin,
 } from './types.ts'
 
-export type { ChunkRowEvent, ModelCatalog, ModelCatalogFailure, ModelCatalogModel, ModelProviderGroup, ModelReasoning, ModelReasoningEffort, ModelSelection, ModelSelectionProjection, ModelSelectionProjectionState, PromptContentPart, QueueAction, SESSION_SEARCH_RESULT_LIMIT, SESSION_SEARCH_SNIPPET_MAX_CODE_POINTS, SessionAddress, SessionAttachmentRequest, SessionAttachmentValue, SessionCancelRequest, SessionCancelValue, SessionChunkRun, SessionControlBaseline, SessionControlFrame, SessionCreateRequest, SessionCreateValue, SessionError, SessionErrorDetailsMap, SessionEventEntry, SessionFollowFrame, SessionFollowRequest, SessionForkRequest, SessionForkValue, SessionHistoryRecord, SessionJob, SessionListMetadata, SessionListRequest, SessionListValue, SessionOpenWorkspacePathRequest, SessionOpenWorkspacePathValue, SessionPage, SessionPageRequest, SessionProjectionBaseline, SessionProjectionHints, SessionProjectionUpdate, SessionProjectionValue, SessionProjectionValues, SessionPromptRequest, SessionPromptValue, SessionQueuedItem, SessionRenameRequest, SessionRenameValue, SessionRequestId, SessionSearchItem, SessionSearchRequest, SessionSearchValue, SessionSelectModelRequest, SessionSelectModelValue, SessionSummary, SessionUpdateQueueRequest, SessionUpdateQueueValue, SessionWireEvent, SkillEntry, SkillListRequest, SkillListValue } from './types.ts'
+export type { ChunkRowEvent, ModelCatalog, ModelCatalogFailure, ModelCatalogModel, ModelProviderGroup, ModelReasoning, ModelReasoningEffort, ModelSelection, ModelSelectionProjection, ModelSelectionProjectionState, PromptContentPart, QueueAction, SESSION_SEARCH_RESULT_LIMIT, SESSION_SEARCH_SNIPPET_MAX_CODE_POINTS, SessionAddress, SessionAttachmentRequest, SessionAttachmentValue, SessionCancelRequest, SessionCancelValue, SessionChunkRun, SessionControlBaseline, SessionControlFrame, SessionCreateRequest, SessionCreateValue, SessionError, SessionErrorDetailsMap, SessionEventEntry, SessionFollowFrame, SessionFollowRequest, SessionForkRequest, SessionForkValue, SessionHistoryRecord, SessionJob, SessionListMetadata, SessionListRequest, SessionListValue, SessionOpenWorkspacePathRequest, SessionOpenWorkspacePathValue, SessionPage, SessionPageRequest, SessionProjectionBaseline, SessionProjectionHints, SessionProjectionUpdate, SessionProjectionValue, SessionProjectionValues, SessionPromptRequest, SessionPromptValue, SessionQueuedItem, SessionRenameRequest, SessionRenameValue, SessionRequestId, SessionSearchItem, SessionSearchRequest, SessionSearchValue, SessionSelectModelRequest, SessionSelectModelValue, SessionSetWorkspaceRootsRequest, SessionSetWorkspaceRootsValue, SessionSummary, SessionUpdateQueueRequest, SessionUpdateQueueValue, SessionWireEvent, SessionWorkspaceOrigin, SkillEntry, SkillListRequest, SkillListValue, WorkspaceRootsProjection } from './types.ts'
 export { ApiSessionNotFound } from './agent.ts'
 export { SessionFileReferences } from './file-references.ts'
 export { SessionSkillCatalog } from './skill-catalog.ts'
@@ -114,6 +121,7 @@ export class SessionController extends TypertRemoteService {
   constructor(ctx: Context, config: Config, internals: SessionControllerInternals = {}) {
     super(ctx, 'sessionController', { namespace: 'session' })
     installModelSelectionProjection(ctx)
+    installWorkspaceRootsProjection(ctx)
     this.agents = new ApiSessionAgentController(ctx)
     this.commands = new SessionCommandController(ctx, this.agents, process.cwd())
     this.controlState = new SessionControlController(ctx)
@@ -260,6 +268,20 @@ export class SessionController extends TypertRemoteService {
   }
 
   /**
+   * Report where this deployment's composed filesystem backend keeps the
+   * workspace, so a surface can distinguish a host-disk directory from one the
+   * harness mirrors. Read through `ctx.get` because the filesystem seam is
+   * optional here: a deployment that composes no backend has no origin to
+   * state, and null says exactly that rather than claiming the host's disk.
+   * @returns the composed backend's origin, or null when none is composed.
+   */
+  @Remote('workspaceOrigin')
+  workspaceOrigin(): SessionWorkspaceOrigin | null {
+    const origin = this.ctx.get('fs')?.origin
+    return origin === undefined ? null : { kind: origin.kind }
+  }
+
+  /**
    * Open one path prepared by a Session-aware caller on the Host desktop.
    * @param request - path after best-effort Session workspace resolution.
    * @param signal - caller lifetime; abort terminates the native command.
@@ -304,6 +326,19 @@ export class SessionController extends TypertRemoteService {
   @Remote('rename')
   rename(request: SessionRenameRequest): Promise<SessionRenameValue> {
     return this.commands.rename(request)
+  }
+
+  /**
+   * Replace the complete additional workspace-root set of one Session after
+   * explicitly resuming it.
+   * @param request - Session identity and the complete replacement root set.
+   * @returns the additional roots the Session carries after the replacement.
+   */
+  @Remote('setWorkspaceRoots')
+  setWorkspaceRoots(
+    request: SessionSetWorkspaceRootsRequest,
+  ): Promise<SessionSetWorkspaceRootsValue> {
+    return this.commands.setWorkspaceRoots(request)
   }
 
   /**

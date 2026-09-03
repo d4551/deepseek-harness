@@ -6,6 +6,18 @@ import type { NativeProtocolNotification } from '../../../shared/cdp/realm.ts'
 /** Notification emitted by Node's native inspector session. */
 export type HostInspectorNotification = NativeProtocolNotification
 
+/**
+ * Period of the loop turn held while this Worker awaits the Host main thread.
+ *
+ * `connectToMainThread()` carries the main thread's answer back to this Worker through a runtime
+ * wakeup that a Worker loop parked with no other work can miss. Measured on a loaded host, answers
+ * that V8 had already produced stayed undelivered for eight and for thirty seconds, and an
+ * unreferenced timer of this period in the Worker removed every stall. The value bounds the delay a
+ * missed wakeup can add; it is not a deadline, so no request fails when it elapses, and the timer
+ * runs only while requests are outstanding and never keeps the Worker alive.
+ */
+const HOST_ANSWER_WAKEUP_MS = 100
+
 interface DynamicInspectorSession {
   connectToMainThread(): void
   disconnect(): void
@@ -23,6 +35,8 @@ export class HostInspectorSession {
   private readonly listeners = new Set<(message: HostInspectorNotification) => void>()
   private connected = false
   private failure: string | undefined
+  private outstanding = 0
+  private wakeup: ReturnType<typeof setInterval> | undefined
 
   constructor(private readonly contextName: string) {
     this.session.on('inspectorNotification', (message) => {
@@ -56,13 +70,16 @@ export class HostInspectorSession {
   request(method: string, params: Readonly<Record<string, unknown>>): Promise<Readonly<Record<string, unknown>>> {
     const failure = this.connect()
     if (failure !== undefined) return Promise.reject(new Error(failure))
+    this.retainWakeup()
     return new Promise((resolve, reject) => {
       try {
         this.session.post(method, params, (error, result) => {
+          this.releaseWakeup()
           if (error !== null) reject(error)
           else resolve(result ?? {})
         })
       } catch (error) {
+        this.releaseWakeup()
         reject(new Error(renderError(error)))
       }
     })
@@ -78,6 +95,18 @@ export class HostInspectorSession {
     } catch {
       // The underlying inspector session is already disconnected.
     }
+  }
+
+  private retainWakeup(): void {
+    this.outstanding++
+    this.wakeup ??= setInterval(turnLoop, HOST_ANSWER_WAKEUP_MS).unref()
+  }
+
+  private releaseWakeup(): void {
+    this.outstanding--
+    if (this.outstanding > 0 || this.wakeup === undefined) return
+    clearInterval(this.wakeup)
+    this.wakeup = undefined
   }
 
   private connect(): string | undefined {
@@ -162,3 +191,6 @@ export class HostNotificationChannel<Event> {
 function renderError(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
+
+/** Turning the Worker loop is the whole effect; the tick itself carries no work. */
+function turnLoop(): void {}

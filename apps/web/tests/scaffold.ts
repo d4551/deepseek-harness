@@ -233,11 +233,13 @@ export interface LaunchOptions {
   /** Compare the replayed root session with `replayFixture`; defaults on for a manifest-owned canonical recording. */
   compareReplaySession?: boolean
   /**
-   * Optional product overlay applied after the shipped Web surface and before
+   * Optional product overlays applied after the shipped Web surface and before
    * the scaffold's hermetic test patches, matching the launcher's `--patch`
-   * ordering.
+   * ordering. Several paths compose in list order, so a shipped profile
+   * template's remaining bundle layers can be named as their own files instead
+   * of copied into one overlay.
    */
-  extraOverlayPath?: string
+  extraOverlayPath?: string | readonly string[]
   /**
    * Additional source-checkout package manifests whose dependency closures
    * supply private profile layers named by {@link extraOverlayPath}.
@@ -439,9 +441,11 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
   // drifting).
   const basePatches = loadOverlayPatches('web e2e scaffold', BASE_PATCH_PATH)
   const surfacePatches = loadOverlayPatches('web e2e scaffold', WEB_PATCH_PATH)
-  const extraOverlayPatches = options.extraOverlayPath === undefined
+  const extraOverlayPaths = options.extraOverlayPath === undefined
     ? []
-    : loadOverlayPatches('web e2e scaffold', options.extraOverlayPath)
+    : typeof options.extraOverlayPath === 'string' ? [options.extraOverlayPath] : [...options.extraOverlayPath]
+  const extraOverlayPatches = extraOverlayPaths
+    .flatMap(path => loadOverlayPatches('web e2e scaffold', path))
   const composedRows = composeEntries([basePatches, surfacePatches, extraOverlayPatches])
   const webRuntimeConfig = composedRows.find(row => row.id === 'web-runtime')?.config as {
     surfaceContext?: boolean

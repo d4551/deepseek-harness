@@ -5,7 +5,8 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {
   AskUserQuestionAnswer, AskUserQuestionItem,
 } from '@deepseek-ai/dsh-user-questions'
-import { settlePendingComposer } from '@deepseek-ai/dsh-client-ui-session/client'
+import { settlePendingComposer } from '@deepseek-ai/dsh-client-ui-projection'
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { createQuestionDraftStore } from '../draft-store.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-session/client' {

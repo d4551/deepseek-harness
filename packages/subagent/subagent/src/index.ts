@@ -82,62 +82,52 @@ import type { SubagentDescendantListEntry, SubagentListEntry } from './list-chil
 import { snapshotSubagentDescriptor } from './descriptor.ts'
 import { subagentIdentityProjectionDefinition, subagentTimingProjectionDefinition } from './projection.ts'
 
-export * from './out-of-process.ts'
+export { NO_START_CAPABILITIES, assertPositiveFinite, assertTimerBound, assertUsableCwd, resolveChildCwd, resolveChildWorkspaceRoots, resolveOneShotProviderConfig, settleRunResult, subprocessRunHandle, toError, validateConfiguredCwd } from './out-of-process.ts'
+export type { OneShotProviderConfig, OneShotProviderDefaults, OneShotRunConfig, ResolvedOneShotProvider, RunResultSettlement, SubprocessRunHandleParts } from './out-of-process.ts'
+
+/**
+ * Loader field validators for the `OneShotProviderConfig` keys that carry no
+ * product-specific value. `providerName`, `permissionMode`, and
+ * `disposeGraceMs` stay in each provider's own schema half, because each names
+ * that product's own default or mode vocabulary. A provider entry validates
+ * both halves as `z.intersect([z.object(OneShotProviderConfigFields), z.object({ … })])`.
+ *
+ * It is declared here rather than beside `OneShotProviderConfig` in
+ * `out-of-process.ts` because `scripts/gen-config-catalog.ts` follows a
+ * cross-package field reference exactly one hop, into the owning package's
+ * entry file; a re-export leaves the plugin's accepted keys uncatalogued.
+ */
+export const OneShotProviderConfigFields = {
+  model: z.string().min(1),
+  env: z.dict(z.string()).default({}),
+}
 export { AssistantOutputFold, finalAssistantOutput } from './assistant-output.ts'
 export { SubagentRunId } from './types.ts'
-export type {
-  ContinuableCreateRequest,
-  ContinuableCreateSpec,
-  ResolvedSubagentStartRequest,
-  SubagentCapabilities,
-  SubagentProvider,
-  SubagentResult,
-  SubagentRun,
-  SubagentStartRequest,
-  SubagentStopReason,
-  SubagentStopReasonMap,
-} from './types.ts'
+export type { ContinuableCreateRequest, ContinuableCreateSpec, ResolvedSubagentStartRequest, SubagentCapabilities, SubagentProvider, SubagentResult, SubagentRun, SubagentStartRequest, SubagentStopReason, SubagentStopReasonMap } from './types.ts'
 export {
   foldSubagentDescriptor,
   snapshotSubagentDescriptor,
   SUBAGENT_DESCRIPTOR_VERSION,
 } from './descriptor.ts'
-export type {
-  ContinuableSubagentDescriptorData,
-  ContinuableSubagentDescriptorInput,
-  OneShotSubagentDescriptorData,
-  OneShotSubagentDescriptorInput,
-  SubagentDescriptorData,
-  SubagentDescriptorInput,
-} from './descriptor.ts'
+export type { ContinuableSubagentDescriptorData, ContinuableSubagentDescriptorInput, OneShotSubagentDescriptorData, OneShotSubagentDescriptorInput, SubagentDescriptorData, SubagentDescriptorInput } from './descriptor.ts'
 export { seedDescriptorTurn } from './descriptor-seed.ts'
 export { SubagentError } from './error.ts'
 export { settleRun } from './run-settlement.ts'
 export { assertSubagentMaxDepth, delegationDepthOf } from './depth.ts'
 export {
-  appendDelegatedPolicyOverrides,
+  appendDelegatedSessionState,
   applyChildComposition,
-  captureDelegatedPolicyOverrides,
+  captureDelegatedSessionState,
   childSessionMeta,
   parentAgentOptionsForDelegation,
   resolveChildAgentOptions,
   resolveChildDepth,
   SubagentDepthError,
 } from './child-agent.ts'
-export type { ChildComposition, DelegatedPolicyOverrides } from './child-agent.ts'
-export type {
-  ContinuableStart,
-  ContinuableStartSpec,
-  CoordinatorMessageSource,
-  SubagentFollowupOptions,
-  SubagentInterruptAuthority,
-  SubagentReportDelivery,
-  SubagentReportMessageSource,
-  SubagentReportOptions,
-  SubagentSettledMessageSource,
-} from './continuation.ts'
+export type { ChildComposition, DelegatedSessionState } from './child-agent.ts'
+export type { ContinuableStart, ContinuableStartSpec, CoordinatorMessageSource, SubagentFollowupOptions, SubagentInterruptAuthority, SubagentReportDelivery, SubagentReportMessageSource, SubagentReportOptions, SubagentSettledMessageSource } from './continuation.ts'
 export type { ContinuableSetupContribution } from './activation-setup-registry.ts'
-export type * from './control-types.ts'
+export type { SubagentAddress, SubagentCatalog, SubagentControlError, SubagentControlErrorDetailsMap, SubagentInterruptReceipt, SubagentListEntry, SubagentPromptReceipt, SubagentPromptRequest, SubagentPromptRequestId } from './control-types.ts'
 export type { SubagentDescendantListEntry } from './list-children.ts'
 export type { SubagentRunEndInfo, SubagentRunInfo } from './types.ts'
 export type { SubagentIdentityProjection, SubagentTimingProjection } from './projection-types.ts'
@@ -350,7 +340,6 @@ export class SubagentRuntime extends TypertRemoteService {
    * @returns the exact Cordis effect disposer.
    */
   registerContinuableSetup(contribution: ContinuableSetupContribution): () => void {
-    // oxlint-disable-next-line typescript/no-misused-promises -- synchronous disposer
     return this.ctx.effect(
       () => this.setupRegistry.register(contribution),
       'subagents.registerContinuableSetup()',
@@ -547,7 +536,6 @@ export class SubagentRuntime extends TypertRemoteService {
    */
   registerProvider(provider: SubagentProvider): () => void {
     const name = provider.name
-    // oxlint-disable-next-line typescript/no-misused-promises -- synchronous disposer
     return this.ctx.effect(function* (this: SubagentRuntime) {
       if (this.providers.has(name)) {
         throw new SubagentError(`a subagent provider named "${name}" is already registered`, 'DUPLICATE_PROVIDER')

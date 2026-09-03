@@ -45,6 +45,10 @@ describe('web-fetch-playwright result contract through the seam', () => {
     expect(result.statusCode).toBe(200)
     expect(result.body.kind).toBe('html')
     expect(result.truncated).toBe(false)
+    // The DOM is post-render: Chromium executed the page's scripts to produce
+    // it, and the fetch card states that rather than leaving it indistinguishable
+    // from bytes read over HTTP.
+    expect(result.retrieval).toBe('rendered')
     await ctx.fiber.dispose()
   })
 

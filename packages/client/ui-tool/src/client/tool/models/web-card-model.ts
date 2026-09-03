@@ -73,10 +73,15 @@ export function webCardModel(block: ToolCallBlock): WebCardModelProps | null {
   }
   if (typeof meta.url !== 'string') return null
   if (typeof meta.statusCode !== 'number' || !Number.isInteger(meta.statusCode)) return null
+  // A rendered fetch executed the page's scripts and a plain one did not. The
+  // provider records which; a value outside that pair states nothing rather
+  // than putting an unrecognized word on a trust-bearing card.
+  const retrieval = meta.retrieval === 'http' || meta.retrieval === 'rendered' ? meta.retrieval : undefined
   return {
     kind: 'fetch',
     url: meta.url,
     statusCode: meta.statusCode,
     truncated: meta.truncated,
+    ...retrieval === undefined ? {} : { retrieval },
   }
 }

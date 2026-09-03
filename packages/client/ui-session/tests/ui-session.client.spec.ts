@@ -13,11 +13,7 @@ import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { Fragment } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import {
-  apply,
-  type SessionPendingInteractionBase,
-  UiSession,
-} from '../src/client/index.ts'
+import { apply, UiSession } from '../src/client/index.ts'
 import { apply as nodeApply } from '../src/index.ts'
 import * as SessionInvariant from '../src/invariant.ts'
 
@@ -421,68 +417,157 @@ describe('UiSession bindings', () => {
   })
 })
 
+/** One answerable presentation, exactly what a composer domain publishes. */
+class TestPending {
+  readonly result: Promise<string>
+  readonly #settle: (outcome: string) => void
+  readonly #reject: (reason: unknown) => void
+  readonly #delegated = Symbol('delegated')
+
+  constructor(readonly key: string, readonly kind: string, readonly sessionId: SessionId) {
+    const completion = Promise.withResolvers<string>()
+    this.result = completion.promise
+    this.#settle = completion.resolve
+    this.#reject = completion.reject
+  }
+
+  answer(outcome: string): void {
+    this.#settle(outcome)
+  }
+
+  fail(reason: unknown): void {
+    this.#reject(reason)
+  }
+
+  delegate(): void {
+    this.#reject(this.#delegated)
+  }
+
+  isDelegation(reason: unknown): boolean {
+    return reason === this.#delegated
+  }
+}
+
 describe('UiSession pending interactions', () => {
-  it('publishes the highest-precedence exact object and removes each source independently', async () => {
+  it('publishes the highest-precedence exact object and removes each settlement independently', async () => {
     const ctx = new Context()
     const bench = createSessionsBench(ctx)
     const service = createUiSession(ctx, bench)
     const id = sessionId('s1')
     const listener = vi.fn()
     const off = service.pendingInteractions.subscribe(listener)
-    const registerApproval = service.registerPendingInteraction<SessionPendingInteractionBase>(
-      () => 0,
-    )
-    const registerQuestion = service.registerPendingInteraction<SessionPendingInteractionBase>(
+    const settleApproval = service.registerPendingInteraction<TestPending>(() => 0)
+    const settleQuestion = service.registerPendingInteraction<TestPending>(
       interaction => interaction.kind === 'plan-review' ? 2 : 1,
     )
-    const registerBackground = service.registerPendingInteraction<SessionPendingInteractionBase>(
-      () => -1,
-    )
+    const settleBackground = service.registerPendingInteraction<TestPending>(() => -1)
     listener.mockClear()
 
-    const approval = { key: 'approval:1', kind: 'approval', sessionId: id }
-    const duplicate = { key: 'approval:2', kind: 'approval', sessionId: id }
-    const question = { key: 'question:1', kind: 'question', sessionId: id }
-    const plan = { key: 'question:2', kind: 'plan-review', sessionId: id }
-    const background = { key: 'background:1', kind: 'background', sessionId: id }
-    const delegate = (): Promise<void> => Promise.resolve()
-    const removeApproval = registerApproval(approval, delegate)
-    expect(service.pendingInteractions.getSnapshot().get(id)).toBe(approval)
-    const removeDuplicate = registerApproval(duplicate, delegate)
-    expect(service.pendingInteractions.getSnapshot().get(id)).toBe(duplicate)
-    const removeQuestion = registerQuestion(question, delegate)
-    expect(service.pendingInteractions.getSnapshot().get(id)).toBe(question)
-    const removePlan = registerQuestion(plan, delegate)
-    expect(service.pendingInteractions.getSnapshot().get(id)).toBe(plan)
-    const removeBackground = registerBackground(background, delegate)
+    const approval = new TestPending('approval:1', 'approval', id)
+    const duplicate = new TestPending('approval:2', 'approval', id)
+    const question = new TestPending('question:1', 'question', id)
+    const plan = new TestPending('question:2', 'plan-review', id)
+    const background = new TestPending('background:1', 'background', id)
+    const never = (): Promise<string> => Promise.reject(new Error('delegation not expected'))
+    const settled = [
+      settleApproval(approval, never),
+      settleApproval(duplicate, never),
+      settleQuestion(question, never),
+      settleQuestion(plan, never),
+      settleBackground(background, never),
+    ]
     expect(service.pendingInteractions.getSnapshot().get(id)).toBe(plan)
 
-    removeBackground()
-    removeQuestion()
+    background.answer('background')
+    await settled[4]
+    question.answer('question')
+    await settled[2]
     expect(service.pendingInteractions.getSnapshot().get(id)).toBe(plan)
-    removePlan()
+    plan.answer('plan')
+    await expect(settled[3]).resolves.toBe('plan')
     expect(service.pendingInteractions.getSnapshot().get(id)).toBe(duplicate)
-    removeDuplicate()
+    duplicate.answer('duplicate')
+    await settled[1]
     expect(service.pendingInteractions.getSnapshot().get(id)).toBe(approval)
-    removeApproval()
-    removeApproval()
+    approval.answer('approval')
+    await settled[0]
     expect(service.pendingInteractions.getSnapshot().has(id)).toBe(false)
     off()
     await ctx.fiber.dispose()
   })
 
-  it('rejects duplicate keys and contains a failing aggregate subscriber', () => {
+  it('resumes the Host waterfall on a delegation and propagates any other failure', async () => {
     const ctx = new Context()
     const bench = createSessionsBench(ctx)
     const service = createUiSession(ctx, bench)
-    const registerPendingInteraction = service.registerPendingInteraction<SessionPendingInteractionBase>(
-      () => 1,
-    )
-    const interaction = { key: 'question:1', kind: 'question', sessionId: sessionId('s1') }
-    const delegate = () => Promise.resolve()
-    const remove = registerPendingInteraction(interaction, delegate)
-    expect(() => { registerPendingInteraction(interaction, delegate) })
-      .toThrow("ui-session: duplicate pending interaction key 'question:1'")
+    const id = sessionId('s1')
+    const settle = service.registerPendingInteraction<TestPending>(() => 0)
+
+    const delegated = new TestPending('question:1', 'question', id)
+    const resumed = settle(delegated, () => Promise.resolve('waterfall'))
+    delegated.delegate()
+    await expect(resumed).resolves.toBe('waterfall')
+    expect(service.pendingInteractions.getSnapshot().has(id)).toBe(false)
+
+    const failure = new Error('composer failed')
+    const failing = new TestPending('question:2', 'question', id)
+    const propagated = settle(failing, () => Promise.resolve('waterfall'))
+    failing.fail(failure)
+    await expect(propagated).rejects.toBe(failure)
+    expect(service.pendingInteractions.getSnapshot().has(id)).toBe(false)
+    await ctx.fiber.dispose()
+  })
+
+  it('shows two domains one effective interaction per Session through one service', async () => {
+    const ctx = new Context()
+    const bench = createSessionsBench(ctx)
+    const service = createUiSession(ctx, bench)
+    const id = sessionId('s1')
+    const settleApproval = service.registerPendingInteraction<TestPending>(() => 0)
+    const settleQuestion = service.registerPendingInteraction<TestPending>(() => 1)
+    const never = (): Promise<string> => Promise.reject(new Error('delegation not expected'))
+
+    const approval = new TestPending('approval:1', 'approval', id)
+    const question = new TestPending('question:1', 'question', id)
+    const settled = [settleApproval(approval, never), settleQuestion(question, never)]
+
+    // One owner: both domains project into a single snapshot entry, so the
+    // composer takeover shows the higher-precedence question, not two rows.
+    const shared = service.pendingInteractions.getSnapshot()
+    expect(shared.size).toBe(1)
+    expect(shared.get(id)).toBe(question)
+
+    // A second owner is what a statically duplicated registry would produce.
+    // Cordis already refuses a second `uiSession` on one Context, so the copy
+    // needs its own root; each copy then sees only its own domain and the
+    // single `sessionPendingInteraction` root hook strands the other.
+    const duplicateCtx = new Context()
+    const duplicateBench = createSessionsBench(duplicateCtx)
+    const duplicate = createUiSession(duplicateCtx, duplicateBench)
+    const settleDuplicate = duplicate.registerPendingInteraction<TestPending>(() => 1)
+    const stranded = new TestPending('question:2', 'question', id)
+    const strandedSettled = settleDuplicate(stranded, never)
+    expect(service.pendingInteractions.getSnapshot().get(id)).toBe(question)
+    expect(duplicate.pendingInteractions.getSnapshot().get(id)).toBe(stranded)
+
+    approval.answer('approval')
+    question.answer('question')
+    stranded.answer('stranded')
+    await Promise.all([...settled, strandedSettled])
+    await duplicateCtx.fiber.dispose()
+    await ctx.fiber.dispose()
+  })
+
+  it('rejects duplicate keys and contains a failing aggregate subscriber', async () => {
+    const ctx = new Context()
+    const bench = createSessionsBench(ctx)
+    const service = createUiSession(ctx, bench)
+    const settle = service.registerPendingInteraction<TestPending>(() => 1)
+    const interaction = new TestPending('question:1', 'question', sessionId('s1'))
+    const never = (): Promise<string> => Promise.reject(new Error('delegation not expected'))
+    const settled = settle(interaction, never)
+    await expect(settle(interaction, never))
+      .rejects.toThrow("ui-session: duplicate pending interaction key 'question:1'")
 
     const failure = new Error('pending subscriber failed')
     const report = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -490,36 +575,35 @@ describe('UiSession pending interactions', () => {
     const after = vi.fn()
     service.pendingInteractions.subscribe(after)
 
-    remove()
+    interaction.answer('question')
+    await settled
 
     expect(after).toHaveBeenCalledOnce()
     expect(report).toHaveBeenCalledWith(
       '[ui-session] pending interactions subscriber failed:',
       failure,
     )
+    await ctx.fiber.dispose()
   })
 
   it('removes active values before awaiting their teardown delegation', async () => {
     const ctx = new Context()
     const bench = createSessionsBench(ctx)
     const service = createUiSession(ctx, bench)
-    const gate = Promise.withResolvers<undefined>()
-    const delegate = vi.fn(() => gate.promise)
-    const publish = service.registerPendingInteraction<SessionPendingInteractionBase>(() => 1)
-    const remove = publish(
-      { key: 'question:1', kind: 'question', sessionId: sessionId('s1') },
-      delegate,
-    )
+    const gate = Promise.withResolvers<string>()
+    const settle = service.registerPendingInteraction<TestPending>(() => 1)
+    const pending = new TestPending('question:1', 'question', sessionId('s1'))
+    const settled = settle(pending, () => gate.promise)
 
     let disposed = false
     const disposal = ctx.fiber.dispose().then(() => { disposed = true })
-    await vi.waitFor(() => { expect(delegate).toHaveBeenCalledOnce() })
-    expect(service.pendingInteractions.getSnapshot()).toEqual(new Map())
+    await vi.waitFor(() => {
+      expect(service.pendingInteractions.getSnapshot()).toEqual(new Map())
+    })
     expect(disposed).toBe(false)
-    remove()
-    remove()
 
-    gate.resolve(undefined)
+    gate.resolve('waterfall')
+    await expect(settled).resolves.toBe('waterfall')
     await disposal
     expect(disposed).toBe(true)
   })

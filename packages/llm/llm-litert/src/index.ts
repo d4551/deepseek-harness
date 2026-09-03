@@ -33,7 +33,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type {} from '@deepseek-ai/dsh-llm'
+import type { LlmProviderHosting, LlmProviderInfo } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-subprocess'
 import { PiAiAdapter } from '@deepseek-ai/dsh-llm-pi-ai'
 import { authContextFrom, credentialStoreFrom } from '@deepseek-ai/dsh-llm-pi-ai/auth'
@@ -105,6 +105,35 @@ function providerProfile(resolved: ResolvedLitertConfig): Record<string, PiAiPro
 }
 
 /**
+ * The delegate adapter, plus the one fact pi-ai cannot know: LiteRT-LM models
+ * run on hardware this deployment owns. `local` is the supervised posture,
+ * where this process starts and stops the server; `self-hosted` is the remote
+ * posture, where the deployment named an already-running one. A selector shows
+ * that difference; nothing about request handling changes.
+ */
+class LitertAdapter extends PiAiAdapter {
+  /**
+   * @param options - the pi-ai adapter's own collaborators.
+   * @param hosting - the posture resolution selected for this route.
+   */
+  constructor(
+    options: ConstructorParameters<typeof PiAiAdapter>[0],
+    private readonly hosting: LlmProviderHosting,
+  ) {
+    super(options)
+  }
+
+  /**
+   * Attach this route's hosting posture to the display metadata pi-ai builds.
+   * @param provider - the harness route key.
+   * @returns the delegate's provider info plus where its models run.
+   */
+  override providerInfo(provider: string): LlmProviderInfo {
+    return { ...super.providerInfo(provider), hosting: this.hosting }
+  }
+}
+
+/**
  * Start the supervised server, cancelling the startup work if the plugin is
  * unloaded while it runs, and register its teardown as an effect.
  * @param ctx - the plugin context carrying `ctx.subprocess`.
@@ -164,14 +193,14 @@ export async function apply(
   if (resolved.endpoint.kind === 'local') {
     await superviseServer(ctx, { ...resolved, endpoint: resolved.endpoint }, probe)
   }
-  const adapter = new PiAiAdapter({
+  const adapter = new LitertAdapter({
     profiles: () => profiles,
     resolveApiKey: () => Promise.resolve(UNAUTHENTICATED_API_KEY),
     // Read through `ctx` per call so a credential the harness stores for
     // another pi-ai route cannot be captured here at construction; this route
     // itself authenticates nothing.
     auth: { credentials: credentialStoreFrom(ctx), authContext: authContextFrom(ctx) },
-  })
+  }, resolved.endpoint.kind === 'local' ? 'local' : 'self-hosted')
   // The registry binds this to the calling fiber, so disposal removes the
   // route before the server-teardown effect above stops the process.
   ctx.llm.registerAdapter([resolved.provider], adapter)

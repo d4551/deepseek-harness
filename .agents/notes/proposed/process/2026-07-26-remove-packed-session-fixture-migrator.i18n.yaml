@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/proposed/process/2026-07-26-remove-packed-session-fixture-migrator.md
-2026-07-26-remove-packed-session-fixture-migrator.md: 5e6ea8e8e65a8d66f8d3820a33327f5b4a8a961c
-2026-07-26-remove-packed-session-fixture-migrator.zh.md: baf3f8582fd9f9ee3eb14fdf96e387dc048d43b7
+2026-07-26-remove-packed-session-fixture-migrator.md: 2acaf9cda1e0c8e750f65a1acfe8bb0ab96ef5c4
+2026-07-26-remove-packed-session-fixture-migrator.zh.md: d3b1eaeaf6d2b836fcf84ce3fb132f828ff1bb39

@@ -342,7 +342,7 @@ describe('track', () => {
     expect(controller.menu.getSnapshot().open).toBe(false)
   })
 
-  it('a rejecting source logs and silently drops its group', async () => {
+  it('a rejecting source logs and publishes its message on a kept group', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     try {
       const cmd = deferredSource('/', 'command')
@@ -353,8 +353,149 @@ describe('track', () => {
       cmd.pending[0]!.resolve([{ name: 'goal' }])
       await tick()
       const state = controller.menu.getSnapshot()
-      expect(state.groups.map(g => g.source)).toEqual(['command'])
+      expect(state.groups).toEqual([
+        { source: 'command', status: 'ready', items: [{ name: 'goal' }] },
+        { source: 'skill', status: 'failed', items: [], error: 'boom' },
+      ])
       expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('skill'), expect.any(Error))
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
+  it('a non-Error rejection still publishes readable text', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const cmd = deferredSource('/', 'command')
+      const { controller } = controllerBench([cmd.source])
+      controller.track('/g', 2, { tier: 'plain' }, 1)
+      cmd.pending[0]!.reject('offline')
+      await tick()
+      expect(controller.menu.getSnapshot().groups[0]).toEqual(
+        { source: 'command', status: 'failed', items: [], error: 'offline' },
+      )
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
+  it('a failed group holds the menu open, so an unchanged draft never refetches', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const cmd = deferredSource('/', 'command')
+      const skill = deferredSource('/', 'skill')
+      const { controller } = controllerBench([cmd.source, skill.source])
+      controller.track('/', 1, { tier: 'plain' }, 1)
+      cmd.pending[0]!.reject(new Error('list failed: internal'))
+      skill.pending[0]!.resolve([])
+      await tick()
+      expect(controller.menu.getSnapshot().open).toBe(true)
+      // The composer notifies on every draft/caret event; each one used to
+      // re-seed the auto-closed menu and re-issue every source's request.
+      for (let i = 0; i < 20; i++) {
+        controller.track('/', 1, { tier: 'plain' }, 1)
+        await tick()
+      }
+      expect(cmd.pending).toHaveLength(1)
+      expect(skill.pending).toHaveLength(1)
+      expect(errorSpy).toHaveBeenCalledTimes(1)
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+})
+
+describe('retrySource', () => {
+  /** One failed 'command' group beside a settled 'skill' group. */
+  async function failedBench() {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const cmd = deferredSource('/', 'command')
+    const skill = deferredSource('/', 'skill')
+    const bench = controllerBench([cmd.source, skill.source])
+    bench.controller.track('/', 1, { tier: 'plain' }, 1)
+    cmd.pending[0]!.reject(new Error('list failed: internal'))
+    skill.pending[0]!.resolve([{ name: 'review' }])
+    await tick()
+    return { ...bench, cmd, skill, errorSpy }
+  }
+
+  it('re-runs only the failed source and settles it into the open menu', async () => {
+    const { controller, cmd, skill, errorSpy } = await failedBench()
+    try {
+      controller.retrySource('command')
+      expect(controller.menu.getSnapshot().groups[0]).toEqual({ source: 'command', status: 'pending', items: [] })
+      expect(cmd.pending).toHaveLength(2)
+      expect(skill.pending).toHaveLength(1)
+      cmd.pending[1]!.resolve([{ name: 'goal' }])
+      await tick()
+      expect(controller.menu.getSnapshot().groups[0]).toEqual({
+        source: 'command', status: 'ready', items: [{ name: 'goal' }],
+      })
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
+  it('a retry that fails again returns to failed with the new message', async () => {
+    const { controller, cmd, errorSpy } = await failedBench()
+    try {
+      controller.retrySource('command')
+      cmd.pending[1]!.reject(new Error('still down'))
+      await tick()
+      expect(controller.menu.getSnapshot().groups[0]).toEqual({
+        source: 'command', status: 'failed', items: [], error: 'still down',
+      })
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
+  it('closing the menu drops a retry still in flight', async () => {
+    const { controller, cmd, errorSpy } = await failedBench()
+    try {
+      controller.retrySource('command')
+      controller.dismiss()
+      cmd.pending[1]!.resolve([{ name: 'goal' }])
+      await tick()
+      expect(controller.menu.getSnapshot().open).toBe(false)
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
+  it('ignores a retry of a group that is not failed, an unknown source, and a closed menu', async () => {
+    const { controller, cmd, skill, errorSpy } = await failedBench()
+    try {
+      controller.retrySource('skill')
+      controller.retrySource('ghost')
+      expect(skill.pending).toHaveLength(1)
+      expect(cmd.pending).toHaveLength(1)
+      controller.dismiss()
+      controller.retrySource('command')
+      expect(cmd.pending).toHaveLength(1)
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
+  it('ignores a retry once the trigger hit is gone', async () => {
+    const { controller, cmd, errorSpy } = await failedBench()
+    try {
+      controller.track('hello', 5, { tier: 'plain' }, 2)
+      controller.retrySource('command')
+      expect(cmd.pending).toHaveLength(1)
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
+  it('ignores a retry of a source that unregistered while its group showed the failure', async () => {
+    const { controller, cmd, sources, errorSpy } = await failedBench()
+    try {
+      sources.splice(0, 1)
+      controller.retrySource('command')
+      expect(cmd.pending).toHaveLength(1)
+      expect(controller.menu.getSnapshot().groups[0]?.status).toBe('failed')
     } finally {
       errorSpy.mockRestore()
     }

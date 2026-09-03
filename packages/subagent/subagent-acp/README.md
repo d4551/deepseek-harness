@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-subagent-acp` runs each delegated child in a fresh subprocess and drives it as an Agent Client Protocol client: the child gets its own runtime, session, model configuration, and tools, and it can be any ACP-compatible agent, not just Harness. It is the out-of-process alternative to the in-process spawn and fork backends, sharing only the parent session's working directory with the child. Each run spawns a fresh process, initializes an ACP session, sends the task, and collects the streamed final answer; permission prompts are auto-answered by configuration, so no human is needed. The parent receives only the child's final answer or a safe error — no intermediate messages or tool traffic crosses the boundary. Choose it when the child must be fully isolated from the parent harness and can speak ACP.
+`dsh-subagent-acp` runs each delegated child in a fresh subprocess and drives it as an Agent Client Protocol client: the child gets its own runtime, session, model configuration, and tools, and it can be any ACP-compatible agent, not just Harness. It is the out-of-process alternative to the in-process spawn and fork backends, sharing only the parent session's workspace — its working directory plus the other roots it works in — with the child. Each run spawns a fresh process, initializes an ACP session, sends the task, and collects the streamed final answer; permission prompts are auto-answered by configuration, so no human is needed. The parent receives only the child's final answer or a safe error — no intermediate messages or tool traffic crosses the boundary. Choose it when the child must be fully isolated from the parent harness and can speak ACP.
 
 ## Table of Contents
 
@@ -63,7 +63,7 @@ A DeepSeek Harness child uses the product launcher and an explicit absolute `DSH
 
 ### What you get
 
-A successful run returns the child's final streamed assistant text as the result output. The child's session, model, and tools come from the child process itself — the parent supplies only the task and the working directory. The stop reason maps `end_turn` to `completed`, `max_tokens` to `max-tokens`, `refusal` to `refusal`, `cancelled` to `aborted`, and every other value to `error`. A failed published run preserves partial assistant text in `output` and returns safe structured detail separately in `diagnostic`.
+A successful run returns the child's final streamed assistant text as the result output. The child's session, model, and tools come from the child process itself — the parent supplies only the task and its workspace. The stop reason maps `end_turn` to `completed`, `max_tokens` to `max-tokens`, `refusal` to `refusal`, `cancelled` to `aborted`, and every other value to `error`. A failed published run preserves partial assistant text in `output` and returns safe structured detail separately in `diagnostic`.
 
 ### Failure and recovery
 
@@ -85,13 +85,13 @@ This section explains how the backend drives a child over ACP and where the obse
 
 ### Design concept
 
-- **Full process isolation.** Each child runs in a fresh subprocess with its own session, model, and tools; only the resolved working directory crosses from the parent.
+- **Full process isolation.** Each child runs in a fresh subprocess with its own session, model, and tools; only the resolved workspace crosses from the parent.
 - **One process per run.** Every run spawns a new process; there is no process pooling.
 - **The ACP wire is the serialization boundary.** Same-process subagent values are not defensively cloned; the protocol is where hostile input is validated.
 
 ### Start and ownership flow
 
-A start resolves the child's working directory (the configured `cwd` override, else the parent session's cwd), spawns the command through the subprocess seam, performs the ACP `initialize` and `newSession` handshake, and only then publishes the run. Fulfillment means a remote session is ready and ownership has transferred to the caller. Disposal is idempotent: it closes stdin and waits a configured grace for cooperative quiescence, then escalates through SIGTERM to SIGKILL and awaits whole-tree exit. Cleanup failures remain observable as ordered safe facts and never claim quiescence.
+A start resolves the child's working directory (the configured `cwd` override, else the parent session's cwd) and the additional roots the parent works in, spawns the command through the subprocess seam, performs the ACP `initialize` and `newSession` handshake — announcing those roots as `session/new`'s `additionalDirectories` — and only then publishes the run. `additionalDirectories` is a negotiated field: when the parent has additional roots and the child's `initialize` response does not advertise `sessionCapabilities.additionalDirectories`, the start is refused rather than sent to an agent that may ignore it and run in a narrower workspace than the parent recorded. A single-root parent asks for nothing extra, so it runs against any agent. Fulfillment means a remote session is ready and ownership has transferred to the caller. Disposal is idempotent: it closes stdin and waits a configured grace for cooperative quiescence, then escalates through SIGTERM to SIGKILL and awaits whole-tree exit. Cleanup failures remain observable as ordered safe facts and never claim quiescence.
 
 ### Stop-reason mapping
 
@@ -158,7 +158,6 @@ These limits define when this backend is a poor fit or needs special operational
 
 - **A fresh process per run** — there is no process pooling; each delegation pays the full spawn and ACP handshake cost.
 - **Local workspaces only** — the resolved working directory is a local path handed to a child on the same machine; remote workspace mapping is not designed.
-- **One working directory per child** — `session/new` carries a single `cwd`, so a parent working in additional workspace roots hands on only that primary root. In-process children carry the complete root set on their own session logs.
 - **No optional start-time capabilities** — this provider cannot apply `agentOptions`, `outputSchema`, a depth cap, a tool filter, or a persona inside the remote process, so the seam rejects requests that require them.
 - **Only committed `agent_message_chunk` text is collected** — the automation server keeps reasoning, tool activity, plans, and other trace data in the child session log rather than emitting them on ACP.
 - **Permission prompts are auto-answered** (`permission: allow | reject`) — no human is surfaced a child's `session/request_permission`.

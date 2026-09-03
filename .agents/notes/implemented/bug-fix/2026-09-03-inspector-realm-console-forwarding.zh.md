@@ -31,7 +31,7 @@ DIAGC 1788421304623 enable 5ee1a073-… closed=false active=true
 - `InspectorSourceRegistry.open` 在应答 `source/accepted` 之前发出 `opened`。source 一读到该应答就会发布（`ClientBridgePublisher.accept` 同步发送替换），因此消费方为该 generation 发出的能力帧必然先于它上线。
 - `openRealm` 在等待 Runtime enable 之前就启动 Console 订阅。`attachConsole` 抵达 `sources.send` 的路径上没有任何 `await`，因此 enable 帧是在 `opened` 的发出过程之内写出的，而不是晚一个微任务。先订阅再启用对 Host 也是更安全的顺序：两者之间不会有原生通知插进来。
 
-于是 Client 会在处理 `source/accepted` 之前安装好 observer 并作出确认，而这份确认早于第一条记录帧抵达 Worker。
+于是 Client 会在处理 `source/accepted` 之前安装好 observer 并作出确认，而这份确认早于第一条记录帧抵达 Worker。仅有帧顺序并不能决定 Worker 自身的投递顺序，因为一次 socket 读取可能同时携带该确认与那条记录帧；[把 DOM 投递排在公布之后](2026-09-03-inspector-dom-delivery-behind-announcement.zh.md)会扣住 Elements 更新，直到公布被写出。
 
 ## 考虑过的替代方案
 

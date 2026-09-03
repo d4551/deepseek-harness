@@ -27,6 +27,11 @@ describe('NetworkDriveFileSystem identity and metadata', () => {
     expect(fs.processPathFromHostPath('relative.png')).toBeUndefined()
   })
 
+  it('declares a network-drive origin so a surface does not read the mirror as host disk', async () => {
+    const { fs } = await setup()
+    expect(fs.origin).toEqual({ kind: 'network-drive' })
+  })
+
   it('refuses to resolve a path outside the drive-backed workspace', async () => {
     const { fs } = await setup()
     await expectCode(fs.resolve('/etc/hosts'), 'FS_PERMISSION_DENIED')

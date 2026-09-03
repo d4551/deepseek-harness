@@ -209,6 +209,12 @@ export class FakeApiClient {
       },
       session: {
         canOpenWorkspacePath: () => Promise.resolve(remoteOk(true)),
+        // No filesystem backend is composed behind this fake, which is exactly
+        // what a null origin states.
+        workspaceOrigin: () => Promise.resolve(remoteOk(null)),
+        setWorkspaceRoots: payload => Promise.resolve(
+          remoteOk({ additional: [...payload.additionalDirectories] }),
+        ),
         list: payload => this.remoteResult('session.list', payload, this.onList(payload)),
         modelCatalog: () => Promise.resolve({
           ok: true,

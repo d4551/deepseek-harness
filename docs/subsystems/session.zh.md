@@ -599,6 +599,10 @@ interface TurnEndReasonMap {
 
 `SessionOpenWorkspacePathRequest` 携带绝对路径或已按 workspace 解析的 `path`。`SessionOpenWorkspacePathValue` 确认 Host 已接受原生交接。Session-aware Client 会在已知当前 Session cwd 时据此解析相对路径；controller 将路径原样交给打开器，并通过 Session Remote 错误词汇表报告无效请求、取消与打开器失败。
 
+`SessionSetWorkspaceRootsRequest` 替换一个 Session 完整的附加根目录集合：`additionalDirectories` 是绝对根目录的整份替换列表，空列表表示该 Session 只在自己的主根目录中工作，而该 Session 自身的主根目录以及重复写法会被丢弃而不是被拒绝。`SessionSetWorkspaceRootsValue` 返回替换提交之后该 Session 所持有的附加集合。一个 Session 工作所在的各个根目录以单个 `WorkspaceRootsProjection` 抵达每一个读取方：`primary` 是不可变的创建时 cwd，若该 Session 创建时没有 cwd 则为 null，`additional` 则折叠该 Session 的 `workspace/roots` 日志。搜索覆盖范围、语言服务器路由、按根目录的指令加载与沙箱写入围栏都由这一对解析而来，且协议视图就是已存储的那条记录，而非客户端的派生结果。
+
+`SessionWorkspaceOrigin` 是 `ctx.fs.origin` 的协议面：本部署所组合的文件系统后端把 workspace 放在何处。它是部署事实而非 Session 事实，因为 harness 只运行一个文件系统 provider，所以某个界面只需读取一次并把它应用到每个 Session 的主根目录。它的 `kind` 以普通字符串跨越协议，因为文件系统 origin 词汇是可合并扩展的；界面会指名一个未识别的成员，而不是声称它认识某个已知成员。
+
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
 <a id="cordis-surface"></a>
@@ -672,6 +676,16 @@ inspect( sessionId: SessionId, signal?: AbortSignal, ): Promise<{ meta: SessionH
 @Remote canOpenWorkspacePath(): boolean
 
 /**
+ * Report where this deployment's composed filesystem backend keeps the
+ * workspace, so a surface can distinguish a host-disk directory from one the
+ * harness mirrors. Read through `ctx.get` because the filesystem seam is
+ * optional here: a deployment that composes no backend has no origin to
+ * state, and null says exactly that rather than claiming the host's disk.
+ * @returns the composed backend's origin, or null when none is composed.
+ */
+@Remote('workspaceOrigin') workspaceOrigin(): SessionWorkspaceOrigin | null
+
+/**
  * Open one path prepared by a Session-aware caller on the Host desktop.
  * @param request - path after best-effort Session workspace resolution.
  * @param signal - caller lifetime; abort terminates the native command.
@@ -686,6 +700,14 @@ inspect( sessionId: SessionId, signal?: AbortSignal, ): Promise<{ meta: SessionH
  * @returns the accepted title and durable event sequence.
  */
 @Remote('rename') rename(request: SessionRenameRequest): Promise<SessionRenameValue>
+
+/**
+ * Replace the complete additional workspace-root set of one Session after
+ * explicitly resuming it.
+ * @param request - Session identity and the complete replacement root set.
+ * @returns the additional roots the Session carries after the replacement.
+ */
+@Remote('setWorkspaceRoots') setWorkspaceRoots( request: SessionSetWorkspaceRootsRequest, ): Promise<SessionSetWorkspaceRootsValue>
 
 /**
  * Fork one cold-readable completed-turn prefix into a new Session.

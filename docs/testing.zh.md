@@ -14,7 +14,7 @@
 - **Web 浏览器快照**（`bun run test:web`；必需的 Linux PR（Pull Request）门禁）：Chromium 比较 `snapshots/web/` 下由会话驱动的输出，以及 `apps/web/tests/expected/` 下仅含 UI 的输出。CI 强制只读的 `DSH_SNAPSHOT=replay`，绝不写入预期输出；record/refresh 留在本地，每处 diff 都须评审（[web e2e 车道](../.agents/notes/implemented/testing/2026-07-24-web-gui-browser-e2e-lane.zh.md)、[CI 门禁决策](../.agents/notes/implemented/testing/2026-07-30-web-browser-snapshot-ci-gate.zh.md)）。`test:web` 会[先构建](../.agents/notes/implemented/bug-fix/2026-07-28-themed-scrollbars-and-reserved-gutter.zh.md)以交付插件 CSS。
 - **变异测试**（`bun run mutation`）：Stryker 在 `packages/util/*/src` 上运行。覆盖率证明某行被执行；变异测试证明该行出错时会有断言察觉（[Agent Note](../.agents/notes/implemented/testing/2026-06-11-mutation-testing.zh.md)）。
 
-会话 fixture 保留 header 与 payload，但省略正文序号／时间 envelope。回放会合成这些字段；运行时持久化不变。fixture 使用规范打包行；[迁移器](../scripts/migrate-packed-session-fixtures.ts)会改写旧布局。
+会话 fixture 保留 header 与 payload，但省略仅存储用编码，回放会合成这些字段；运行时持久化不变。写回直接写出规范打包布局；[迁移器](../scripts/migrate-packed-session-fixtures.ts)只转换较旧的 fixture。
 
 ## 带密钥策略：推理（inference）在这里很便宜
 

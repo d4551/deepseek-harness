@@ -9,27 +9,21 @@ import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Timer from '@deepseek-ai/cordis-plugin-timer'
 import { describe, expect, it, vi } from 'vitest'
 
-async function bootHmr(dir: string, root: string[] = [], usePolling?: boolean): Promise<Context> {
+type HmrConfig = ConstructorParameters<typeof Hmr>[1]
+
+async function bootHmr(dir: string, root: string[] = [], config: Partial<HmrConfig> = {}): Promise<Context> {
   const ctx = new Context()
   ctx.baseUrl = pathToFileURL(dir).href + '/'
   await ctx.plugin(Loader)
   await ctx.plugin(Timer)
-  await ctx.plugin(Hmr, {
-    root,
-    ignored: [],
-    debounce: 0,
-    ...usePolling === undefined ? {} : { usePolling },
-  })
+  // `repairInterval` is stated, not defaulted: these cases assert what the
+  // cadence does, so the value they run at belongs in the test.
+  await ctx.plugin(Hmr, { root, ignored: [], debounce: 0, repairInterval: 100, ...config })
   return ctx
 }
 
-async function eventually(test: () => boolean, message: string): Promise<void> {
-  const deadline = Date.now() + 10_000
-  while (!test()) {
-    if (Date.now() >= deadline) throw new Error(message)
-    await new Promise(resolve => setTimeout(resolve, 10))
-  }
-}
+/** Ceiling and cadence every filesystem observation below shares; each call site adds what did not happen. */
+const WATCH_POLL = { interval: 10, timeout: 10_000 } as const
 
 describe('HMR exact config paths', () => {
   it('observes module changes when its watch base is a filesystem alias', { timeout: 30_000 }, async () => {
@@ -40,7 +34,7 @@ describe('HMR exact config paths', () => {
     writeFileSync(aliasFilename, 'export const generation = 0\n')
     // This acceptance owns alias-to-cache identity. Other cases below exercise
     // native events; polling keeps Windows fs.watch queue pressure out of it.
-    const ctx = await bootHmr(alias, ['.'], true)
+    const ctx = await bootHmr(alias, ['.'], { usePolling: true })
     const filename = join(await realpath(target), 'module.ts')
     const expected = pathToFileURL(filename).href
     const cacheHas = vi.spyOn(ctx.loader.internal!.loadCache, 'has').mockReturnValue(false)
@@ -99,14 +93,18 @@ describe('HMR exact config paths', () => {
       })
 
       writeFileSync(filename, 'one', { flag: 'wx' })
-      await eventually(() => observed.includes('one'), 'HMR did not observe config creation')
+      await expect.poll(() => observed, { ...WATCH_POLL, message: 'HMR did not observe config creation' })
+        .toContain('one')
       writeFileSync(filename, 'two')
-      await eventually(() => observed.includes('two'), 'HMR did not observe config change')
+      await expect.poll(() => observed, { ...WATCH_POLL, message: 'HMR did not observe config change' })
+        .toContain('two')
       unlinkSync(filename)
-      await eventually(() => observed.includes('missing'), 'HMR did not observe config removal')
-      // Add, change, and unlink each reached the callback, in that order. The
-      // watcher may repeat an event, so distinct states carry the assertion.
-      expect([...new Set(observed)]).toEqual(['one', 'two', 'missing'])
+      await expect.poll(() => observed, { ...WATCH_POLL, message: 'HMR did not observe config removal' })
+        .toContain('missing')
+      // Add, change, and unlink each reached the callback once, in that order:
+      // a repeated event and a repair that finds the generation already
+      // announced are both reconciled to nothing.
+      expect(observed).toEqual(['one', 'two', 'missing'])
     } finally {
       await ctx.fiber.dispose()
     }
@@ -124,9 +122,55 @@ describe('HMR exact config paths', () => {
       })
       mkdirSync(dir)
       writeFileSync(filename, 'created')
-      await eventually(() => observed.includes('created'), 'HMR did not observe config creation under a new parent')
+      await expect.poll(() => observed, { ...WATCH_POLL, message: 'HMR did not observe config creation under a new parent' })
+        .toContain('created')
       // The new parent produced exactly the creation state, nothing else.
-      expect([...new Set(observed)]).toEqual(['created'])
+      expect(observed).toEqual(['created'])
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('announces a creation, a change, and a removal no filesystem event reported', { timeout: 20_000 }, async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-hmr-config-'))
+    const filename = join(dir, 'plugins.yml')
+    // A watch that cannot report inside this case: polling a minute apart, so
+    // its initial scan of an empty directory is its only delivery and every
+    // observation below is the repair cadence rather than a race with a
+    // platform watch. That is what a watch armed after its own readiness
+    // signal looks like from here — the change lands in the gap between the
+    // finished scan and the armed stream, and no event ever follows it.
+    const ctx = await bootHmr(dir, [], {
+      usePolling: true,
+      interval: 60_000,
+      binaryInterval: 60_000,
+      repairInterval: 20,
+    })
+    const observed: string[] = []
+    try {
+      await ctx.hmr.registerConfig(filename, () => {
+        try {
+          observed.push(readFileSync(filename, 'utf8'))
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+          observed.push('missing')
+        }
+      })
+
+      writeFileSync(filename, 'created', { flag: 'wx' })
+      await expect.poll(() => observed, { ...WATCH_POLL, message: 'the repair cadence did not announce an unreported creation' })
+        .toContain('created')
+      // Same byte length as the generation before it: content, not stat
+      // metadata, is what the cadence compares.
+      writeFileSync(filename, 'changed')
+      await expect.poll(() => observed, { ...WATCH_POLL, message: 'the repair cadence did not announce an unreported change' })
+        .toContain('changed')
+      unlinkSync(filename)
+      await expect.poll(() => observed, { ...WATCH_POLL, message: 'the repair cadence did not announce an unreported removal' })
+        .toContain('missing')
+      // The cadence ran many times between those three assertions; each
+      // generation still reached the callback exactly once.
+      expect(observed).toEqual(['created', 'changed', 'missing'])
     } finally {
       await ctx.fiber.dispose()
     }
@@ -195,11 +239,12 @@ describe('HMR exact config paths', () => {
       expect(observed.error).toBeInstanceOf(Error)
       expect(observed.error.message).toBe('42')
 
-      // Let Chokidar's atomic-write window close before requiring a distinct
-      // second notification from the same path.
-      await new Promise(resolve => setTimeout(resolve, 250))
+      // No wait for Chokidar's per-path change throttle: an event it throttles
+      // away is a generation the repair cadence announces like any other one
+      // no filesystem event reported.
       writeFileSync(filename, 'invalid again')
-      await eventually(() => failureCount === 2, 'HMR stopped broadcasting after an observer rejected')
+      await expect.poll(() => failureCount, { ...WATCH_POLL, message: 'HMR stopped broadcasting after an observer rejected' })
+        .toBe(2)
     } finally {
       await ctx.fiber.dispose()
     }

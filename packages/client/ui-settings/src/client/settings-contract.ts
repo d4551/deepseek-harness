@@ -2,7 +2,7 @@
  * Settings-namespace scope contracts owned beside the settings transport.
  */
 
-import type { SettingsPathOpView } from '@deepseek-ai/dsh-api-remotes/client'
+import type { SettingsPathOpView, SettingsSecretView } from '@deepseek-ai/dsh-api-remotes/client'
 
 /** Client-side sync state of one settings namespace. */
 export interface SettingsScopeSnapshot<T> {
@@ -29,6 +29,21 @@ export interface SettingsScopeSnapshot<T> {
   revision: number | undefined
   /** Whether the Host document accepts writes; memory mode never does. */
   writable: boolean
+  /**
+   * Every schema-declared secret slot with whether the Host holds a value for
+   * it. A secret is redacted out of {@link value}, {@link base}, and
+   * {@link user} alike, so this is the only place a surface can read that one
+   * is configured.
+   */
+  secrets: readonly SettingsSecretView[]
+  /**
+   * When the owning Host plugin applies a committed change. `restart` means the
+   * owner bound its config once, so a saved value waits for the next boot; a
+   * surface that stays silent about it implies a change that did not happen.
+   * `live` until the first Host view, which is what an unregistered namespace
+   * would claim anyway.
+   */
+  applies: 'live' | 'restart'
   /** `host` syncs with the Host document; `memory` keeps a remote browser process-local. */
   mode: 'host' | 'memory'
 }

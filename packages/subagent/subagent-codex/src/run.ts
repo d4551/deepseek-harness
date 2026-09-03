@@ -16,6 +16,8 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import {
   settleRunResult,
   subprocessRunHandle,
+  toError,
+  type OneShotRunConfig,
   type SubagentResult,
   type SubagentRun,
   type SubagentStartRequest,
@@ -135,27 +137,24 @@ export function codexAppServerArgv(): string[] {
   return [process.execPath, CODEX_PACKAGE_BIN, 'app-server', '--stdio']
 }
 
-/** Fully resolved inputs for one Codex app-server run. */
-export interface CodexRunSpec {
+/**
+ * Fully resolved inputs for one Codex app-server run: the model, permission
+ * mode, environment, and termination grace the plugin config resolved once,
+ * plus this run's workspace, spawn operation, and sink.
+ */
+export interface CodexRunSpec extends OneShotRunConfig<CodexPermissionMode> {
   /** Parent Session workspace, also supplied to `thread/start`. */
   readonly cwd: string
-  /** Profile-selected native model; omitted to preserve Codex settings. */
-  readonly model?: string
-  /** Profile-selected native non-interactive permission mode. */
-  readonly permissionMode: CodexPermissionMode
-  /** Explicit deployment/test environment layered after the shared scrub. */
-  readonly env: Record<string, string>
-  /** Subprocess termination grace passed to the shared process-tree owner. */
-  readonly disposeGraceMs: number
+  /**
+   * The delegating parent's other workspace roots, forwarded on `thread/start`
+   * as the thread's `sandbox_workspace_write.writable_roots`. Empty for a
+   * single-root parent.
+   */
+  readonly workspaceRoots: readonly string[]
   /** Shared subprocess service spawn operation. */
   readonly spawn: (spec: SubprocessSpawnSpec) => SubprocessHandle
   /** Diagnostic sink for a post-publication error flattened into a result. */
   readonly onError?: (error: Error, stopReason: SubagentStopReason) => void
-}
-
-function thrown(value: unknown): Error {
-  /* v8 ignore next -- typed subprocess/wire failures reject with Error. */
-  return value instanceof Error ? value : new Error(String(value))
 }
 
 /**
@@ -212,7 +211,7 @@ export async function disposeCodexChild(
         stage: 'teardown',
         category: 'unknown',
         outcome,
-      }, thrown(error))
+      }, toError(error))
     }
     await child.done
   } else {
@@ -248,7 +247,7 @@ export async function startCodexRun(
     throw new CodexRunFailure({
       stage: 'initialize',
       category: 'unknown',
-    }, thrown(error))
+    }, toError(error))
   }
 
   const wire = new CodexAppServerWire(
@@ -300,7 +299,7 @@ export async function startCodexRun(
         stage: 'process',
         category: 'unknown',
       }
-      throw new CodexRunFailure(processFailureFacts, thrown(error))
+      throw new CodexRunFailure(processFailureFacts, toError(error))
     },
   )
   // A normal post-result dispose also closes the process. Keep its expected
@@ -321,7 +320,7 @@ export async function startCodexRun(
     wire.start()
     await Promise.race([wire.initialize(request.signal), processFailure])
     startupStage = 'thread-start'
-    await Promise.race([wire.startThread(spec.cwd, request.signal), processFailure])
+    await Promise.race([wire.startThread(spec.cwd, spec.workspaceRoots, request.signal), processFailure])
   } catch (error: unknown) {
     request.signal.removeEventListener('abort', onAbort)
     const cancelledBeforeCleanup = runAbort.signal.aborted
@@ -336,11 +335,11 @@ export async function startCodexRun(
       outcome: error instanceof CodexRunFailure
         ? error.facts.outcome
         : processFailureFacts?.outcome,
-    }, thrown(error))
+    }, toError(error))
     try {
       await disposeProcess()
     } catch (disposeError: unknown) {
-      const cleanupFailure = thrown(disposeError)
+      const cleanupFailure = toError(disposeError)
       throw new AggregateError(
         [failure, cleanupFailure],
         `${failure.message}; ${cleanupFailure.message}`,
@@ -421,7 +420,7 @@ export async function startCodexRun(
         recordFailureDiagnostic(facts)
         throw error instanceof CodexRunFailure
           ? error
-          : new CodexRunFailure(facts, thrown(error))
+          : new CodexRunFailure(facts, toError(error))
       }
     },
     collectOutput,

@@ -40,7 +40,7 @@ export { assertNever } from './never.ts'
 export { CONTEXT_WINDOW_EXCEEDED_CODE, EMPTY_RESPONSE_CODE, HarnessError, INVALID_CREDENTIAL_CODE, QUOTA_EXCEEDED_CODE, errorChain, isContextWindowExceededError, isHarnessError, isQuotaExceededError } from './error.ts'
 export { normalizeApiKey } from './api-key.ts'
 export type { ApiKeyCheck, ApiKeyRejection } from './api-key.ts'
-export type { ContentBlock, ContentBlockMap, ContentBlockType, FinishReason, FinishReasonMap, GenerateOptions, ImageBlock, LlmConfigurableProvider, LlmDiscoveredModel, LlmFailure, LlmImageRequestPrice, LlmImageRequestPricing, LlmModelContext, LlmModelDiscoveryError, LlmModelDiscoveryOperation, LlmModelDiscoveryRequest, LlmModelInfo, LlmModelReasoningInfo, LlmProviderInfo, LlmReasoningEffortInfo, LlmResolvedModelInfo, ModelModality, ModelModalityMap, ReasoningBlock, ReplayEnvelope, StreamChunk, TextBlock, TokenUsage, ToolCallBlock, ToolResultBlock, ToolSchema } from './types.ts'
+export type { ContentBlock, ContentBlockMap, ContentBlockType, FinishReason, FinishReasonMap, GenerateOptions, ImageBlock, LlmConfigurableProvider, LlmDiscoveredModel, LlmFailure, LlmImageRequestPrice, LlmImageRequestPricing, LlmModelContext, LlmModelDiscoveryError, LlmModelDiscoveryOperation, LlmModelDiscoveryRequest, LlmModelInfo, LlmModelReasoningInfo, LlmProviderHosting, LlmProviderInfo, LlmReasoningEffortInfo, LlmResolvedModelInfo, ModelModality, ModelModalityMap, ReasoningBlock, ReplayEnvelope, StreamChunk, TextBlock, TokenUsage, ToolCallBlock, ToolResultBlock, ToolSchema } from './types.ts'
 export { contentHasImage, offloadRequestImagesWithPolicy, offloadedImagePrefixCount, offloadedImageText, projectImagesForTextModel, requestImageHandleText, resolveImageAttachmentAccess, textOnlyImageText } from './content.ts'
 export type { ImageAttachmentAccess, ImageAttachmentAccessResolver, RequestImageOffloadPolicy } from './content.ts'
 export { CONTEXT_SUMMARY_MAX_CHARS, boundContextSummary, createAssistantMessage, createMessage, createToolResultMessage, createUserMessage, freezeMessage } from './message.ts'
@@ -435,7 +435,14 @@ export class LlmRuntime extends TypertRemoteService {
         ?? resolveRetryPolicy(undefined, `llm: provider "${provider}" retryPolicy`)
       registrations.push({
         adapter,
-        provider: { id: info.id, name: info.name },
+        // Detached copy, not the adapter's object: `hosting` rides along when
+        // the adapter states it and is omitted when it does not, so a selector
+        // never reads an absent key as a claim.
+        provider: {
+          id: info.id,
+          name: info.name,
+          ...info.hosting === undefined ? {} : { hosting: info.hosting },
+        },
         retryPolicy,
       })
     }

@@ -31,7 +31,7 @@ kind: "package-reference"
 
 当子进程必须是完整的 harness 对等体——拥有自己的组合、会话持久化、模型路由与工具——而不是共享父进程的 agent 时，选择此后端。当子进程必须共享父级组合或遵守父级强制的非路由能力时，请选择进程内后端：本提供方接受 agent 路由选项，但会拒绝结构化输出、深度上限、工具过滤或 persona，而不是静默省略。
 
-提供方声明 `agentOptions: true`，同时保持 `outputSchema`/`depthLimit`/`toolFilter`/`persona` 为 false，并且 `inheritsParentContext: false`。不可变的 `agentRouteDefaults` 会在模型覆盖与确切路由预检前，把配置的 provider／model 基线公开给 `dsh-tool-subagent`；`start()` 则为直接调用方与 `maxTokens` 独立应用同一份配置默认值。Agent 路由值通过显式白名单跨越 SDK 协议；子进程仍是另一进程里的全新运行时，唯一从父 agent 本身派生的值是工作区 cwd。基于本提供方的 `dsh-tool-subagent` 部署应设置 `maxDepth: 'provider-managed'`——子 harness 拥有自己的递归预算。
+提供方声明 `agentOptions: true`，同时保持 `outputSchema`/`depthLimit`/`toolFilter`/`persona` 为 false，并且 `inheritsParentContext: false`。不可变的 `agentRouteDefaults` 会在模型覆盖与确切路由预检前，把配置的 provider／model 基线公开给 `dsh-tool-subagent`；`start()` 则为直接调用方与 `maxTokens` 独立应用同一份配置默认值。Agent 路由值通过显式白名单跨越 SDK 协议；子进程仍是另一进程里的全新运行时，从父 agent 本身派生的值只有它的工作区 cwd 以及该会话工作的其他根目录。基于本提供方的 `dsh-tool-subagent` 部署应设置 `maxDepth: 'provider-managed'`——子 harness 拥有自己的递归预算。
 
 ### 配置
 
@@ -73,7 +73,7 @@ kind: "package-reference"
 
 ### 你会得到什么
 
-成功的运行会把子进程最终的 assistant 文本（或取消后累积的部分文本）作为结果输出返回。子进程的模型路由、工具与会话来自子运行时自身——父级提供任务、工作目录与 `initialize` 路由。子进程最后一个持久化 `turn/end` 会映射进 seam 词汇：`completed` 与 `max-tokens` 原样通过，`blocked` 变为 `refusal`，意外终态或缺少终态变为 `error`。`aborted` 结果保持中止；只有子进程侧 `disposed` 原因会附加 `child-disposed` 诊断。
+成功的运行会把子进程最终的 assistant 文本（或取消后累积的部分文本）作为结果输出返回。子进程的模型路由、工具与会话来自子运行时自身——父级提供任务、工作区与 `initialize` 路由。子进程最后一个持久化 `turn/end` 会映射进 seam 词汇：`completed` 与 `max-tokens` 原样通过，`blocked` 变为 `refusal`，意外终态或缺少终态变为 `error`。`aborted` 结果保持中止；只有子进程侧 `disposed` 原因会附加 `child-disposed` 诊断。
 
 ### 失败与恢复
 
@@ -91,7 +91,7 @@ kind: "package-reference"
 
 ### 设计理念
 
-- **完整 harness 对等体。** 每个子进程都是独立进程中的完整 Harness 运行时——拥有自己的组合、会话、模型路由与工具；只有解析后的工作目录与 `initialize` 路由从父级跨越。
+- **完整 harness 对等体。** 每个子进程都是独立进程中的完整 Harness 运行时——拥有自己的组合、会话、模型路由与工具；只有解析后的工作区与 `initialize` 路由从父级跨越。
 - **每次运行一个运行时。** 每次运行都 spawn 全新运行时进程；没有进程池。
 - **JSON-RPC 协议格式是序列化边界。** 同进程 subagent 值不会为防御目的克隆；协议才是校验不可信输入的地方。
 
@@ -104,7 +104,7 @@ kind: "package-reference"
 
 ### 运行流程
 
-一次启动会在 spawn 前解析子进程工作目录与一条进程级 SDK 路由。`request.agentOptions` 中每个已声明字段（`provider`、`model`、`reasoningEffort` 或 `maxTokens`）都会覆盖对应的提供方实例默认值；省略时保留已配置的提供方／模型与可选上限，而推理强度只有在请求提供时才会出现。随后，提供方通过 SDK 客户端 spawn 运行时，并在履行前完成 `initialize` 握手，其中包括确切模型与推理强度校验。路由、spawn、握手或发布前取消失败时，只会在子进程被回收后拒绝；工作目录解析失败则会在尚未 spawn 任何内容时拒绝。发布后，提供方拥有一段 SDK 活动，并从子会话事件中读取答案：最后一条完整且非空的 `assistant/message`（记录 usage 的空内容消息会被跳过）；若没有这类消息，则取累积的 `text-delta` 流。dispose（资源释放）是幂等的：先在本地把结果确定为 `aborted`，发出有界的协议 `shutdown` 请求，再经 stdin EOF → SIGTERM → SIGKILL 升级到实际退出。
+一次启动会在 spawn 前解析子进程工作目录、它从发起委派的会话继承的其他工作区根目录，以及一条进程级 SDK 路由。这些根目录会作为 `additionalDirectories` 随 `initialize` 握手传递，子运行时会把它们记录到自己创建的每个会话上。`request.agentOptions` 中每个已声明字段（`provider`、`model`、`reasoningEffort` 或 `maxTokens`）都会覆盖对应的提供方实例默认值；省略时保留已配置的提供方／模型与可选上限，而推理强度只有在请求提供时才会出现。随后，提供方通过 SDK 客户端 spawn 运行时，并在履行前完成 `initialize` 握手，其中包括确切模型与推理强度校验。路由、spawn、握手或发布前取消失败时，只会在子进程被回收后拒绝；工作目录解析失败则会在尚未 spawn 任何内容时拒绝。发布后，提供方拥有一段 SDK 活动，并从子会话事件中读取答案：最后一条完整且非空的 `assistant/message`（记录 usage 的空内容消息会被跳过）；若没有这类消息，则取累积的 `text-delta` 流。dispose（资源释放）是幂等的：先在本地把结果确定为 `aborted`，发出有界的协议 `shutdown` 请求，再经 stdin EOF → SIGTERM → SIGKILL 升级到实际退出。
 
 ### 停止原因映射
 
@@ -173,7 +173,6 @@ kind: "package-reference"
 - **不支持路由之外的启动时能力**——父级可以选择子 agent 路由，但无法在子进程内强制执行 `outputSchema`、深度限制、工具过滤或 persona；应改为配置所选子 profile 及其有序 patch。
 - **子进程的 transcript（文本记录）保留在其自身的会话根目录中**——父级日志只记录委派工具调用与结果；流式会话事件通道只用于提取输出，不会桥接到父级日志中。
 - **仅支持本地子进程**——解析出的工作目录是本地路径；远程运行时需要独立的后端。
-- **每个子 agent 只有一个工作目录**——子进程在父会话的 `cwd` 中启动；在多个工作区根目录中工作的父级只会传递这个主根目录，因为子运行时拥有自己的会话与工作区。进程内子 agent 会把完整的根目录集合携带到它自己的会话日志上。
 
 <a id="dev-note"></a>
 ### 开发备注

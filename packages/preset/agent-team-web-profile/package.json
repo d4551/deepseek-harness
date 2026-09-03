@@ -1,8 +1,10 @@
 {
   "name": "@deepseek-ai/dsh-agent-team-web-profile",
-  "description": "Private Web profile layer for Agent Teams Remote and UI plugins",
+  "description": "Browser layer of the swarm-web profile: the Agent Teams Remote assembly and its roster, task board, and teammate navigation",
   "version": "0.1.2-alpha.1",
-  "private": true,
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",

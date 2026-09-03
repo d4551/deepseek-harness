@@ -148,12 +148,24 @@
   position: sticky;
   top: 0;
   z-index: var(--dsw-z-raised);
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 5px 8px 3px;
   background: var(--dsw-specific-menu);
   color: var(--dsw-alias-label-tertiary);
   font-size: 12px;
   line-height: 18px;
   font-weight: 500;
+}
+
+.hosting {
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--dsw-alias-fill-l2);
+  color: var(--dsw-alias-label-quaternary);
+  font-size: 11px;
+  font-weight: 400;
 }
 
 .option {

@@ -1,7 +1,6 @@
 /**
  * `workspace` namespace dictionaries: the browsing region (section header,
- * search, tree rows, dialogs) and the pick/add flow. Runtime failure
- * messages (wire error strings) pass through untranslated by policy.
+ * search, tree rows, dialogs) and the workspace-picker flow.
  */
 
 /** Simplified Chinese dictionary (the key-set source of truth). */
@@ -21,7 +20,7 @@ export const zh = {
   'sessions.collapse': '收起',
   'empty.none': '暂无会话',
   'empty.noMatches': '无匹配结果',
-  'workspace.add': '添加工作区',
+  'workspace.add': '新建会话或添加工作区',
   'search.sessions.aria': '搜索会话',
   'search.placeholder': '搜索会话…',
   'search.clear': '清除搜索',
@@ -94,7 +93,7 @@ export const en = {
   'sessions.collapse': 'Show less',
   'empty.none': 'No sessions yet',
   'empty.noMatches': 'No matches',
-  'workspace.add': 'Add workspace',
+  'workspace.add': 'New session or add workspace',
   'search.sessions.aria': 'Search sessions',
   'search.placeholder': 'Search sessions...',
   'search.clear': 'Clear search',

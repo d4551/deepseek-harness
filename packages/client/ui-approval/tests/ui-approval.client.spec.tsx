@@ -4,6 +4,7 @@ import { createScope, scopeOf } from '@deepseek-ai/dsh-api-session-controller/cl
 import InvariantRegistry from '@deepseek-ai/dsh-invariants'
 import type { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { DelegatablePendingInteraction } from '@deepseek-ai/dsh-client-ui-session/client'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import type { SurfaceAudit } from '@deepseek-ai/dsh-client-a11y'
@@ -56,14 +57,31 @@ function setupPlugin(): PluginBench {
   const disposeSlot = vi.fn()
   const disposeLocale = vi.fn()
   const pending = new Map<PendingApproval, () => Promise<void>>()
-  const registerPendingInteraction = vi.fn((_precedence: (value: PendingApproval) => number) => (
-    value: PendingApproval,
-    delegate: () => Promise<void>,
-  ) => {
-    _precedence(value)
-    pending.set(value, delegate)
-    return () => { pending.delete(value) }
-  })
+  // Stands in for uiSession.registerPendingInteraction: publish, await the
+  // answer, resume the waterfall on a delegation, and remove in every outcome.
+  const registerPendingInteraction = vi.fn((precedence: (value: PendingApproval) => number) =>
+    async <Outcome, >(
+      value: PendingApproval & DelegatablePendingInteraction<Outcome>,
+      delegated: () => Promise<Outcome>,
+    ): Promise<Outcome> => {
+      precedence(value)
+      const completed = Promise.withResolvers<undefined>()
+      pending.set(value, async () => {
+        value.delegate()
+        await completed.promise
+      })
+      try {
+        try {
+          return await value.result
+        } catch (error) {
+          if (value.isDelegation(error)) return await delegated()
+          throw error
+        }
+      } finally {
+        pending.delete(value)
+        completed.resolve(undefined)
+      }
+    })
   const register = vi.fn((
     options: NonNullable<typeof registration>['options'],
     component: unknown,

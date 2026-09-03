@@ -66,6 +66,7 @@ function mount(state: MenuState, crumbs: ReadonlyMap<string, readonly InputTrigg
   const onPick = vi.fn()
   const onCrumb = vi.fn()
   const onHover = vi.fn()
+  const onRetry = vi.fn()
   const onDismiss = vi.fn()
   const view = render(
     <main>
@@ -75,12 +76,13 @@ function mount(state: MenuState, crumbs: ReadonlyMap<string, readonly InputTrigg
         onPick={onPick}
         onCrumb={onCrumb}
         onHover={onHover}
+        onRetry={onRetry}
         onDismiss={onDismiss}
         t={t}
       />
     </main>,
   )
-  return { menu, headers, onPick, onCrumb, onHover, onDismiss, view }
+  return { menu, headers, onPick, onCrumb, onHover, onRetry, onDismiss, view }
 }
 
 /** The bounded menu shell: it owns the height clamp, the listbox scrolls inside it. */
@@ -115,8 +117,10 @@ describe('MenuView', () => {
     // The icon token renders as an SVG glyph, not text.
     expect(options[0]?.querySelector('svg')).not.toBeNull()
     expect(options[1]?.querySelector('svg')).toBeNull()
+    // The loading state is announced by text, not by the skeleton bars alone.
     const status = screen.getByRole('status', { name: '正在加载…' })
-    expect(status.children).toHaveLength(2)
+    expect(status.textContent).toBe('正在加载…')
+    expect(status.children).toHaveLength(3)
   })
 
   it('keeps an opted-out source title hidden while its candidates are pending', () => {
@@ -256,6 +260,7 @@ describe('MenuView', () => {
           onPick={vi.fn()}
           onCrumb={vi.fn()}
           onHover={vi.fn()}
+          onRetry={vi.fn()}
           onDismiss={onDismiss}
           t={t}
         />
@@ -336,6 +341,107 @@ describe('MenuView', () => {
   })
 })
 
+/**
+ * The four states one source's group can be shown in. The failed state is the
+ * one a catalog load reaches when its host request answers an application
+ * error: the group keeps its seat, names itself, and carries the host's own
+ * message plus the single affordance that repeats the request.
+ */
+describe('MenuView group states', () => {
+  const failedState = (error = 'resume failed for session "s1": preset "meowbao" failed to mount'): MenuState =>
+    openState({
+      groups: [
+        { source: 'command', status: 'failed', items: [], error },
+        { source: 'skill', status: 'ready', items: [{ name: 'review' }] },
+      ],
+      highlight: { source: 'skill', index: 0 },
+    })
+
+  it('loading: the pending group announces itself and shows two skeleton rows', () => {
+    mount(openState({ groups: [{ source: 'command', status: 'pending', items: [] }], highlight: null }))
+    const status = screen.getByRole('status', { name: '正在加载…' })
+    expect(status.textContent).toBe('正在加载…')
+    expect(status.children).toHaveLength(3)
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('empty: a settled group with no rows shows neither a title nor a listbox row', () => {
+    const { view } = mount(openState({
+      groups: [
+        { source: 'command', status: 'ready', items: [] },
+        { source: 'skill', status: 'ready', items: [{ name: 'review' }] },
+      ],
+      highlight: { source: 'skill', index: 0 },
+    }))
+    expect(titles(view.container)).toEqual(['技能'])
+    expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual(['review'])
+  })
+
+  it('success: ready rows render as options under their group title', () => {
+    const { view } = mount(openState())
+    expect(titles(view.container)).toEqual(['指令', '技能'])
+    expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual(['goalSet up a goal', 'plan'])
+  })
+
+  it('error: the failed group renders an alert with its title, the host message, and a retry action', () => {
+    const { view } = mount(failedState())
+    const alert = screen.getByRole('alert')
+    expect(alert.getAttribute('data-source')).toBe('command')
+    expect(alert.textContent).toContain('指令加载失败')
+    expect(alert.textContent).toContain('resume failed for session "s1": preset "meowbao" failed to mount')
+    expect(screen.getByRole('button', { name: '重试' })).toBeTruthy()
+    // The failed group keeps its seat and its title. A listbox may hold only
+    // options, so every non-ready block renders after it — the same place the
+    // pending skeletons already take.
+    expect(titles(view.container)).toEqual(['技能', '指令'])
+    // A failure is not an option: the listbox holds the ready group alone.
+    expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual(['review'])
+    expect(screen.getByRole('listbox').contains(alert)).toBe(false)
+  })
+
+  it('error: a failed-only roster still renders the alert, and no listbox', () => {
+    mount(openState({
+      groups: [{ source: 'command', status: 'failed', items: [], error: 'offline' }],
+      highlight: null,
+    }))
+    expect(screen.getByRole('alert').textContent).toContain('offline')
+    expect(screen.queryByRole('listbox')).toBeNull()
+  })
+
+  it('error: an opted-out source title stays hidden while its group shows the failure', () => {
+    const { view } = mount(openState({
+      groups: [{ source: 'reference', showGroupTitle: false, status: 'failed', items: [], error: 'offline' }],
+      highlight: null,
+    }))
+    expect(titles(view.container)).toEqual([])
+    expect(screen.getByRole('alert').textContent).toContain('offline')
+  })
+
+  it('mousedown on retry routes the source without stealing composer focus', () => {
+    const { onRetry } = mount(failedState())
+    const notPrevented = fireEvent.mouseDown(screen.getByRole('button', { name: '重试' }))
+    // fireEvent returns false when preventDefault was called.
+    expect(notPrevented).toBe(false)
+    expect(onRetry).toHaveBeenCalledWith('command')
+  })
+
+  it('a failure landing on the open menu replaces its skeleton with the alert', () => {
+    const { menu } = mount(openState({
+      groups: [{ source: 'command', status: 'pending', items: [] }],
+      highlight: null,
+    }))
+    expect(screen.getByRole('status', { name: '正在加载…' })).toBeTruthy()
+    act(() => {
+      menu.set(openState({
+        groups: [{ source: 'command', status: 'failed', items: [], error: 'offline' }],
+        highlight: null,
+      }))
+    })
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.getByRole('alert').textContent).toContain('offline')
+  })
+})
+
 describe('slash menu accessibility', () => {
   const MINIMUM_ACCESSIBILITY_SCORE = 100
 
@@ -343,6 +449,20 @@ describe('slash menu accessibility', () => {
     const { view } = mount(openState())
     expect(accessibilityFailures(
       [await auditSurface('MenuView open', view.baseElement)],
+      MINIMUM_ACCESSIBILITY_SCORE,
+    )).toBe('')
+  })
+
+  it('renders no accessibility violations while a group shows its load failure', async () => {
+    const { view } = mount(openState({
+      groups: [
+        { source: 'command', status: 'failed', items: [], error: 'offline' },
+        { source: 'skill', status: 'ready', items: [{ name: 'review' }] },
+      ],
+      highlight: { source: 'skill', index: 0 },
+    }))
+    expect(accessibilityFailures(
+      [await auditSurface('MenuView failed group', view.baseElement)],
       MINIMUM_ACCESSIBILITY_SCORE,
     )).toBe('')
   })

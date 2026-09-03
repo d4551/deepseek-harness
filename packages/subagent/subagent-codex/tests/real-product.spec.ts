@@ -82,6 +82,11 @@ async function realInstanceFixture(
   mkdirSync(codexHome)
   const fixture = await startResponsesFixture(typeof script === 'function' ? script(workspace) : script)
   fixtures.push(fixture)
+  // Codex retries a failed Responses request by default, and every retry takes
+  // another entry from the script; an exhausted script then answers 500, which
+  // the app-server reports as `internalServerError`. Zero retries keep
+  // `startResponsesFixture`'s one-behavior-per-request contract exact, so a
+  // scripted response — not exhaustion — decides each turn's outcome.
   writeFileSync(join(codexHome, 'config.toml'), [
     'model = "fixture-model"',
     'model_provider = "fixture"',
@@ -96,6 +101,8 @@ async function realInstanceFixture(
     'env_key = "OPENAI_API_KEY"',
     'wire_api = "responses"',
     'requires_openai_auth = false',
+    'request_max_retries = 0',
+    'stream_max_retries = 0',
     '',
     '[analytics]',
     'enabled = false',
@@ -154,7 +161,7 @@ async function realHarness(
   })
   const parent = {
     id: 'real-parent',
-    session: { header: { cwd: instance.workspace } },
+    session: { header: { cwd: instance.workspace }, events: [] },
   } as unknown as Agent
   return {
     harness: {
@@ -212,18 +219,18 @@ function responseInputTexts(body: Record<string, unknown>): string[] {
   })
 }
 
-describe('real @openai/codex 0.149.1 product', () => {
+describe('real @openai/codex 0.153.0 product', () => {
   it('starts approve-for-me through the real app-server and returns exact text', async () => {
     const sentinel = 'REAL_CODEX_SENTINEL_0_149_1'
     const task = 'Return the fixture sentinel exactly.'
     const { harness, fixture } = await realHarness([
       { kind: 'complete', text: sentinel },
     ], 'approve-for-me')
-    expect(codexPackage.version).toBe('0.149.1')
+    expect(codexPackage.version).toBe('0.153.0')
     const version = await execFileAsync(process.execPath, [codexEntry, '--version'], {
       env: { ...process.env, ...harness.env },
     })
-    expect(version.stdout.trim()).toBe('codex-cli 0.149.1')
+    expect(version.stdout.trim()).toBe('codex-cli 0.153.0')
     const schemaRoot = mkdtempSync(join(tmpdir(), 'dsh-codex-schema-'))
     roots.push(schemaRoot)
     await execFileAsync(process.execPath, [
@@ -315,11 +322,11 @@ describe('real @openai/codex 0.149.1 product', () => {
     })
     const safeParent = {
       id: 'safe-parent',
-      session: { header: { cwd: safeInstance.workspace } },
+      session: { header: { cwd: safeInstance.workspace }, events: [] },
     } as unknown as Agent
     const bypassParent = {
       id: 'bypass-parent',
-      session: { header: { cwd: bypassInstance.workspace } },
+      session: { header: { cwd: bypassInstance.workspace }, events: [] },
     } as unknown as Agent
     const safeController = new AbortController()
 
@@ -434,9 +441,15 @@ describe('real @openai/codex 0.149.1 product', () => {
 
   it('reports a real service failure and an early app-server exit safely', async () => {
     {
-      const { harness } = await realHarness([{
+      // Codex 0.153.0 classifies the upstream status itself: 500 is
+      // `internalServerError`, the app-server's own service failure, which this
+      // provider groups as `service`. 503 is `other` — the unclassified bucket,
+      // reported with the raw upstream message and no structured status — which
+      // the same table groups as `product-error`. Scripting 500 is what makes
+      // this case observe the category it names.
+      const { harness, fixture } = await realHarness([{
         kind: 'error',
-        status: 503,
+        status: 500,
         message: 'SECRET_TOKEN in /private/secret.txt',
       }])
       const run = await harness.ctx.subagents.start('codex', {
@@ -451,6 +464,8 @@ describe('real @openai/codex 0.149.1 product', () => {
       )
       expect(result.diagnostic).not.toContain('SECRET_TOKEN')
       expect(result.diagnostic).not.toContain('/private/secret.txt')
+      expect(fixture.requests).toHaveLength(1)
+      expect(fixture.exhausted).toEqual([])
       await run.dispose()
       await expectQuiescent(harness.handles)
     }

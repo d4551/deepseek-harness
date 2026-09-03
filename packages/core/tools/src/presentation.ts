@@ -386,4 +386,11 @@ export interface WebFetchResultView {
    * truncation the model-facing text also reflects).
    */
   truncated: boolean
+  /**
+   * How the body was obtained: `http` retrieved bytes and executed nothing,
+   * `rendered` loaded the page in a browser engine that ran its scripts.
+   * Omitted when the recorded result predates the providers declaring it, so a
+   * card states the fact only when the fact was recorded.
+   */
+  retrieval?: 'http' | 'rendered'
 }

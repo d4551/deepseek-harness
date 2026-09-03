@@ -30,4 +30,4 @@ Trajectory did not display session images. A durable `{ type: 'image', attachmen
 
 - Both views present one gallery implementation, so image behavior (sizing, retry, lightbox, labels) cannot drift between Chat and Trajectory, and a session attachment is read once regardless of how many views show it.
 - `TrajectoryTable` threads a required `renderImages` prop through its detail components; `ui-trajectory` gains a type-only dependency on `dsh-attachment`, and `ui-attachment` gains a type-only dependency on `ui-trajectory` for the new SlotMap row.
-- The keyless assembled snapshot `apps/web/tests/trajectory-image-display.snapshot.ts` pins the shared-cache fact directly: the details-panel image URL is string-identical to the Chat gallery's URL for the same fixture attachment.
+- The keyless assembled snapshot `apps/web/tests/trajectory-image-display.client.expected.e2e.ts` pins the shared-cache fact directly: the details-panel image URL is string-identical to the Chat gallery's URL for the same fixture attachment.

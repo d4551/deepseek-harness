@@ -156,6 +156,9 @@ export class HttpFetchProvider implements WebFetchProvider {
       statusCode: response.status,
       body,
       truncated: truncatedByBytes || truncatedByChars,
+      // Bytes off the wire, decoded and never executed: no script ran and no
+      // subresource was requested on this page's behalf.
+      retrieval: 'http',
     }
   }
 

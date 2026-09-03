@@ -4,9 +4,7 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import type { ComposerChainProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
-import {
-  settlePendingInteraction, type PendingInteractionPublisher,
-} from '@deepseek-ai/dsh-client-ui-session/client'
+import type { PendingInteractionSettler } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { TypertClientEventListener } from '@deepseek-ai/dsh-typert-protocol'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { ApprovalPanel } from './ApprovalPanel.tsx'
@@ -38,7 +36,7 @@ function answerApproval(
   owner: ClientContext,
   request: ClientApprovalRequest,
   next: ClientApprovalNext,
-  registerPendingInteraction: PendingInteractionPublisher<PendingApproval>,
+  settlePendingApproval: PendingInteractionSettler<PendingApproval>,
 ): Promise<ClientApprovalOutcome> {
   const sessionId = ctx.sessions.scopeOf(owner)
   if (sessionId === undefined) return next()
@@ -50,7 +48,7 @@ function answerApproval(
     ...(request.reason === undefined ? {} : { reason: request.reason }),
     ...(request.signal === undefined ? {} : { signal: request.signal }),
   })
-  return settlePendingInteraction(pending, registerPendingInteraction, next)
+  return settlePendingApproval(pending, next)
 }
 
 /**
@@ -59,9 +57,7 @@ function answerApproval(
  */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-approval: dictionaries')
-  const registerPendingInteraction = ctx.uiSession.registerPendingInteraction<PendingApproval>(
-    () => 0,
-  )
+  const settlePendingApproval = ctx.uiSession.registerPendingInteraction<PendingApproval>(() => 0)
   ctx.slots.inject('conversation.composer', () => ctx.slots.register({
     name: 'conversation.composer',
     priority: 1,
@@ -73,6 +69,6 @@ export function apply(ctx: ClientContext): void {
     },
   }, ApprovalPanel))
   ctx.remote.$on('approval/request', function (request, next) {
-    return answerApproval(ctx, this, request, next, registerPendingInteraction)
+    return answerApproval(ctx, this, request, next, settlePendingApproval)
   })
 }

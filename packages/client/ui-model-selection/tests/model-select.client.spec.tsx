@@ -143,6 +143,48 @@ describe('ModelSelect reasoning effort', () => {
     expect(screen.queryByText('Fast catalog description')).toBeNull()
   })
 
+  it('names where a route runs, and leaves an unstated route unlabelled', () => {
+    // A LiteRT route is the case this exists for: its models run on the
+    // deployment's own hardware, or on a server the deployment named, and
+    // neither is visible from the model names alone.
+    const directory = createSnapshotStore<ModelDirectoryState>(state({
+      groups: [
+        {
+          id: 'litert',
+          name: 'LiteRT',
+          hosting: 'local',
+          models: [{ id: 'gemma4-e2b', name: 'Gemma 4 E2B' }],
+        },
+        {
+          id: 'litert-remote',
+          name: 'LiteRT on Railway',
+          hosting: 'self-hosted',
+          models: [{ id: 'gemma4-e4b', name: 'Gemma 4 E4B' }],
+        },
+        {
+          id: 'deepseek-official',
+          name: 'DeepSeek',
+          models: [{ id: 'deepseek-v4-flash', name: 'DeepSeek-V4-Flash' }],
+        },
+      ],
+    }))
+    render(<ModelSelect
+      locked={false}
+      available
+      directory={directory}
+      load={vi.fn()}
+      select={vi.fn().mockResolvedValue(true)}
+      t={t}
+    />)
+    fireEvent.click(screen.getByRole('button', { name: /选择模型|当前/ }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /模型/ }))
+
+    expect(screen.getByRole('group', { name: `LiteRT ${zh['hosting.local']}` })).toBeTruthy()
+    expect(screen.getByRole('group', { name: `LiteRT on Railway ${zh['hosting.self-hosted']}` })).toBeTruthy()
+    // The cloud route's adapter states nothing, so its heading is its name alone.
+    expect(screen.getByRole('group', { name: 'DeepSeek' })).toBeTruthy()
+  })
+
   it('shows loading until the catalog and Session projection are both ready', async () => {
     const directory = createSnapshotStore<ModelDirectoryState>(state({
       current: null,

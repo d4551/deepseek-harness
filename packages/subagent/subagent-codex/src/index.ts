@@ -1,18 +1,22 @@
 /**
  * Profile-named Codex one-shot subagent provider. Every accepted run starts a
  * fresh official package-local Codex wrapper with `app-server --stdio` in the
- * delegating Session's workspace and publishes only after an ephemeral thread exists.
+ * delegating Session's workspace, declares that Session's other workspace roots
+ * as the thread's writable roots, and publishes only after an ephemeral thread exists.
  *
  * @module @deepseek-ai/dsh-subagent-codex
  */
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import {
-  assertPositiveFinite,
+  assertTimerBound,
   NO_START_CAPABILITIES,
+  OneShotProviderConfigFields,
   resolveChildCwd,
+  resolveChildWorkspaceRoots,
+  resolveOneShotProviderConfig,
+  type OneShotRunConfig,
   type ResolvedSubagentStartRequest,
   type SubagentCapabilities,
   type SubagentProvider,
@@ -49,16 +53,15 @@ export interface Config {
   disposeGraceMs?: number
 }
 
-export const Config: z<Config> = z.object({
-  providerName: z.string().min(1).default(DEFAULT_PROVIDER_NAME),
-  model: z.string().min(1),
-  env: z.dict(z.string()).default({}),
-  permissionMode: z.union([...CODEX_PERMISSION_MODES])
-    .default(DEFAULT_CODEX_PERMISSION_MODE),
-  disposeGraceMs: z.number().default(DEFAULT_DISPOSE_GRACE_MS),
-})
-
-type ResolvedConfig = Omit<Required<Config>, 'model'> & Pick<Config, 'model'>
+export const Config: z<Config> = z.intersect([
+  z.object(OneShotProviderConfigFields),
+  z.object({
+    providerName: z.string().min(1).default(DEFAULT_PROVIDER_NAME),
+    permissionMode: z.union([...CODEX_PERMISSION_MODES])
+      .default(DEFAULT_CODEX_PERMISSION_MODE),
+    disposeGraceMs: z.number().default(DEFAULT_DISPOSE_GRACE_MS),
+  }),
+])
 
 class CodexProvider implements SubagentProvider {
   readonly capabilities: SubagentCapabilities = NO_START_CAPABILITIES
@@ -67,7 +70,7 @@ class CodexProvider implements SubagentProvider {
   constructor(
     readonly name: string,
     private readonly ctx: Context,
-    private readonly config: ResolvedConfig,
+    private readonly config: OneShotRunConfig<CodexPermissionMode>,
   ) {}
 
   start(request: ResolvedSubagentStartRequest) {
@@ -93,11 +96,9 @@ class CodexProvider implements SubagentProvider {
       throw codexStartupFailure(error)
     }
     const spec: CodexRunSpec = {
+      ...this.config,
       cwd,
-      ...this.config.model === undefined ? {} : { model: this.config.model },
-      permissionMode: this.config.permissionMode,
-      env: this.config.env,
-      disposeGraceMs: this.config.disposeGraceMs,
+      workspaceRoots: resolveChildWorkspaceRoots(request.parent, cwd),
       spawn: spawnSpec => this.ctx.subprocess.spawn(spawnSpec),
       onError: (error, stopReason) => {
         this.ctx.logger.warn(
@@ -115,26 +116,10 @@ class CodexProvider implements SubagentProvider {
  * @param config - registry name, optional model, permission mode, child environment, and disposal grace.
  */
 export function apply(ctx: Context, config: Config): void {
-  const resolved: ResolvedConfig = {
-    providerName: config.providerName ?? DEFAULT_PROVIDER_NAME,
-    ...config.model === undefined ? {} : { model: config.model },
-    env: config.env as Record<string, string>,
-    permissionMode: config.permissionMode ?? DEFAULT_CODEX_PERMISSION_MODE,
-    disposeGraceMs: config.disposeGraceMs as number,
-  }
-  assertPositiveFinite(
-    'subagent-codex',
-    'disposeGraceMs',
-    resolved.disposeGraceMs,
-  )
-  if (resolved.disposeGraceMs > MAX_TIMER_DELAY_MS) {
-    throw new Error(
-      `subagent-codex: disposeGraceMs must be no greater than ${MAX_TIMER_DELAY_MS}`,
-    )
-  }
-  ctx.subagents.registerProvider(new CodexProvider(
-    resolved.providerName,
-    ctx,
-    resolved,
-  ))
+  const { providerName, run } = resolveOneShotProviderConfig(config, {
+    providerName: DEFAULT_PROVIDER_NAME,
+    permissionMode: DEFAULT_CODEX_PERMISSION_MODE,
+  })
+  assertTimerBound('subagent-codex', 'disposeGraceMs', run.disposeGraceMs)
+  ctx.subagents.registerProvider(new CodexProvider(providerName, ctx, run))
 }

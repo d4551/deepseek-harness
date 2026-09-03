@@ -1,5 +1,5 @@
 /**
- * Minimal Codex app-server 0.149.1 protocol adapter. The shared JSON-RPC
+ * Minimal Codex app-server 0.153.0 protocol adapter. The shared JSON-RPC
  * transport owns framing and request correlation; this module owns only the
  * product methods, current thread/turn association, unattended approval
  * responses, and terminal-answer selection.
@@ -29,6 +29,15 @@ export interface CodexWireFailureFacts {
   readonly httpStatus?: number | undefined
 }
 
+/**
+ * Codex's own dotted config path for the directories a `workspace-write`
+ * sandbox may write to besides the thread `cwd`. Fixed by the product's config
+ * vocabulary (`codex -c sandbox_workspace_write.writable_roots=[…]`), not a
+ * deployment choice; `thread/start` accepts the same overrides through its
+ * `config` map and echoes the result in `ThreadStartResponse.sandbox`.
+ */
+const WRITABLE_ROOTS_CONFIG_KEY = 'sandbox_workspace_write.writable_roots'
+
 const THREAD_PERMISSION_PARAMS: Readonly<Record<CodexPermissionMode, JsonObject>> = {
   never: { approvalPolicy: 'never' },
   'approve-for-me': {
@@ -40,6 +49,40 @@ const THREAD_PERMISSION_PARAMS: Readonly<Record<CodexPermissionMode, JsonObject>
     approvalPolicy: 'never',
     sandbox: 'danger-full-access',
   },
+}
+
+/**
+ * Confirm the app-server actually took the roots the thread declared.
+ *
+ * The `config` map is a silent override: an unrecognized key is ignored
+ * without an error, so a renamed key in a future Codex would narrow the child's
+ * write fence with no signal. `ThreadStartResponse.sandbox` reports the merged
+ * policy, so the acknowledgement is checkable — and only against the policy
+ * whose writable-root list the override targets. Under `dangerFullAccess` the
+ * child may write anywhere, and under a read-only or external policy the list
+ * is not the mechanism the deployment chose; neither is a forwarding failure.
+ * @param sandbox - the `sandbox` member of the `thread/start` response.
+ * @param workspaceRoots - the roots the request declared.
+ * @throws Error when a `workspaceWrite` policy is missing a declared root, or
+ *   when the response carries no readable policy to confirm against.
+ */
+function assertWritableRootsAccepted(
+  sandbox: unknown,
+  workspaceRoots: readonly string[],
+): void {
+  if (sandbox === null || typeof sandbox !== 'object' || Array.isArray(sandbox)) {
+    throw new Error('subagent-codex: app-server returned invalid thread/start sandbox policy')
+  }
+  if (Reflect.get(sandbox, 'type') !== 'workspaceWrite') return
+  const accepted: unknown = Reflect.get(sandbox, 'writableRoots')
+  const present: readonly unknown[] = Array.isArray(accepted) ? accepted : []
+  const missing = workspaceRoots.filter(root => !present.includes(root))
+  if (missing.length > 0) {
+    throw new Error(
+      'subagent-codex: Codex did not accept the delegating session\'s additional workspace roots '
+      + `as ${WRITABLE_ROOTS_CONFIG_KEY}; missing from the thread's writable roots: ${missing.join(', ')}`,
+    )
+  }
 }
 
 function object(value: unknown, label: string): JsonObject {
@@ -124,6 +167,10 @@ function failureInfo(turn: JsonObject): ParsedFailureInfo {
         return { category: 'limit', maxTokens: true }
       case 'sessionBudgetExceeded':
       case 'usageLimitExceeded':
+      // A rate limit is the caller exceeding an allowance, which is what
+      // `limit` names; `serverOverloaded` is the service itself failing and
+      // stays under `service`.
+      case 'rateLimitExceeded':
         return { category: 'limit' }
       case 'serverOverloaded':
       case 'internalServerError':
@@ -282,21 +329,33 @@ export class CodexAppServerWire {
 
   /**
    * Create the run's private ephemeral thread and retain its identity.
+   *
+   * Additional roots travel as a thread-scoped `config` override rather than a
+   * structured `sandboxPolicy`, so the deployment's own network, tmpdir, and
+   * `/tmp` sandbox settings stay in force; an empty list sends no override at
+   * all rather than replacing a deployment's configured roots with nothing.
+   * A non-empty list is confirmed against the policy the response reports,
+   * because an unrecognized `config` key is ignored silently.
    * @param cwd - parent Session workspace.
+   * @param workspaceRoots - the parent's other workspace roots, empty for a single-root parent.
    * @param signal - unpublished-start cancellation.
    */
-  async startThread(cwd: string, signal: AbortSignal): Promise<void> {
+  async startThread(cwd: string, workspaceRoots: readonly string[], signal: AbortSignal): Promise<void> {
     const response = object(await this.guarded(this.transport.request('thread/start', {
       cwd,
       ephemeral: true,
       ...this.model === undefined ? {} : { model: this.model },
       ...THREAD_PERMISSION_PARAMS[this.permissionMode],
+      ...workspaceRoots.length === 0
+        ? {}
+        : { config: { [WRITABLE_ROOTS_CONFIG_KEY]: [...workspaceRoots] } },
     }, signal), signal), 'thread/start response')
     const thread = object(response.thread, 'thread/start thread')
     const id = string(thread.id, 'thread/start thread id')
     if (thread.ephemeral !== true) {
       throw new Error('subagent-codex: app-server did not create an ephemeral thread')
     }
+    if (workspaceRoots.length > 0) assertWritableRootsAccepted(response.sandbox, workspaceRoots)
     this.threadId = id
   }
 

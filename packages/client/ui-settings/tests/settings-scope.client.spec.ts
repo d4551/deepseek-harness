@@ -83,11 +83,13 @@ describe('SettingsScopeController', () => {
     const describeCall = vi.fn().mockResolvedValueOnce(described({ preference: 'dark' }, 3))
     const { mirror, scope } = derivedScope({ describe: describeCall })
     expect(scope.getSnapshot()).toEqual({
-      status: 'loading', value: undefined, revision: undefined, writable: false, mode: 'host',
+      status: 'loading', value: undefined, revision: undefined, writable: false,
+      secrets: [], applies: 'live', mode: 'host',
     })
     await mirror.load()
     expect(scope.getSnapshot()).toEqual({
-      status: 'ready', value: { preference: 'dark' }, revision: 3, writable: true, mode: 'host',
+      status: 'ready', value: { preference: 'dark' }, revision: 3, writable: true,
+      secrets: [], applies: 'live', mode: 'host',
     })
   })
 
@@ -438,7 +440,8 @@ describe('SettingsScopeController', () => {
     const scope = new SettingsScopeController<UiTestSettings>(
       wire, { namespace: 'ui-test' }, mirror, 'memory', settingsSchema)
     expect(scope.getSnapshot()).toEqual({
-      status: 'unavailable', value: undefined, revision: undefined, writable: false, mode: 'memory',
+      status: 'unavailable', value: undefined, revision: undefined, writable: false,
+      secrets: [], applies: 'live', mode: 'memory',
     })
     await mirror.load()
     await scope.set('preference', 'dark')

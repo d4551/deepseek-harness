@@ -14,38 +14,58 @@ export const name = 'approval-assessor-invariant'
 /** Service required before the companion can reserve package ownership. */
 export const inject = ['invariants']
 
-/**
- * Count still-unmatched approval questions after replaying `events`.
- * @param events - committed session log prefix to fold.
- * @returns ids of `approval/asked` events without their `approval/decided`.
- */
-function openQuestionIds(events: readonly SessionEvent[]): Set<string> {
-  const open = new Set<string>()
-  for (const event of events) {
-    if (event.type === 'approval/asked') open.add(event.data.id)
-    else if (event.type === 'approval/decided') open.delete(event.data.id)
-  }
-  return open
-}
-
-/** Whether one session event is a user message injected by this plugin. */
-function isAssessorInjection(event: SessionEvent): boolean {
+/** Whether one session event is a user message this plugin authored. */
+function isAssessorRedirect(event: SessionEvent): boolean {
   if (event.type !== 'user/message') return false
   const origin = (event.data as { source?: { kind?: string; plugin?: string } }).source
   return origin?.kind === 'plugin' && origin.plugin === 'approval-assessor'
 }
 
+/** Redirects this plugin has already committed, and rejections available to explain them. */
+interface RedirectBalance {
+  /** Committed `user/message` events this plugin authored. */
+  redirects: number
+  /** Committed `approval/decided` events whose outcome was `rejected`. */
+  rejections: number
+}
+
 /**
- * Install the injection-window invariant: every user message this plugin
- * injects must be appended while an approval question is still pending in
- * the same session, because the injection is the assessor's rejection
- * context for that question.
+ * Fold the committed prefix into the counts the relation compares.
+ * @param events - committed session log prefix to fold.
+ * @returns the redirect and rejection counts.
+ */
+function balance(events: readonly SessionEvent[]): RedirectBalance {
+  const counts: RedirectBalance = { redirects: 0, rejections: 0 }
+  for (const event of events) {
+    if (isAssessorRedirect(event)) counts.redirects += 1
+    else if (event.type === 'approval/decided' && event.data.outcome === 'rejected') counts.rejections += 1
+  }
+  return counts
+}
+
+/**
+ * Install the redirect-accounting invariant: this plugin appends one redirect
+ * for each approval it rejects, so the redirects committed to a session never
+ * outnumber that session's rejected approval decisions. A redirect with no
+ * rejection behind it is a message the model was given without the denial it
+ * explains.
+ *
+ * The redirect reaches the log through the agent inbox, one step after the
+ * decision, so the window is the whole session rather than the span of a
+ * single open question.
  */
 const install: InvariantInstaller = Object.assign((ctx: Context, fail: InvariantFailure) => {
-  ctx.on('session/event', (session: Session, event: SessionEvent) => {
-    if (!isAssessorInjection(event)) return
-    if (openQuestionIds(session.events).size === 0) {
-      fail('approval-assessor injected a user message with no pending approval question')
+  // internal/dispatch rejects the append before publication; a session/event
+  // listener runs after the commit, where `Session.append` contains a throw
+  // into a logger warning and the offending message stays in the log.
+  ctx.on('internal/dispatch', (_mode, eventName, args) => {
+    if (eventName !== 'session/event') return
+    const [session, event] = args as [Session, SessionEvent]
+    if (!isAssessorRedirect(event)) return
+    // The candidate is not committed yet, so it is counted here rather than folded.
+    const { redirects, rejections } = balance(session.events)
+    if (redirects + 1 > rejections) {
+      fail(`approval-assessor redirect ${String(redirects + 1)} has no rejected approval decision behind it (${String(rejections)} recorded)`)
     }
   }, { global: true })
 }, { inject: ['sessions'] })

@@ -47,6 +47,10 @@ That profile must already contain `@deepseek-ai/dsh-base`, whose Subagent servic
 
 The layer adds the Agent Teams domain and its scoped tools with `coordination: swarm`, which selects pull-based guidance in place of the delegated policy. It disables the global continuable-child control rows whose tool names overlap with Team controls, leaves `subagent` and `subagent_fork` available as one-shot delegation tools, and gives `ctx.subagents` a `maxConcurrentRuns` ceiling.
 
+### Tuning the team from Settings
+
+`maxMembers` and `maxTasks` on the `agent-team` row are also a settings section, so a running deployment retunes them from the Web app's Plugins settings page (the **Agent team** card) instead of editing this layer. This layer's `maxMembers: 16` is the composition floor the card starts from, and a stored value layers over it. Everything else the layer sets is a composition decision and stays here: `coordination: swarm` selects the model-visible pull-based policy that this profile exists to install, `freshProvider`/`forkProvider` name the Subagent provider rows this layer mounts, and the mailbox budgets and disposal deadline bound what one delivery and one teardown cost.
+
 ### Tuning the run ceiling
 
 `maxConcurrentRuns` on the `subagent` row is how many one-shot child runs the deployment may have published at once; a start beyond it queues in arrival order and dispatches as soon as an earlier run settles or is disposed. Teammates are continuable children and are not counted: an Activation is resident for as long as its conversation lasts, so counting one would park foreground delegations behind long-lived members. Raise the value for a host with more capacity, and lower it when several swarms share one machine.

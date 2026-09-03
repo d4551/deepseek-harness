@@ -38,11 +38,13 @@ kind: "package-group"
 | [`ui-session/`](ui-session/README.zh.md) | 把 Session Controller 状态适配为标准 Slot source 与 hook | — |
 | [`ui-theme/`](ui-theme/README.zh.md) | 应用所选颜色主题 | — |
 | [`ui-primitives/`](ui-primitives/README.zh.md) | 提供共享 React 控件、图标与内容渲染器 | — |
+| [`ui-projection/`](ui-projection/README.zh.md) | 把持久化 Session 数据投影为每个 Client row 共享的视图值 | — |
 | [`ui-attachment/`](ui-attachment/README.zh.md) | 注册输入框与消息图片的附件呈现 | — |
 | [`ui-layout/`](ui-layout/README.zh.md) | 排列应用的主要区域 | — |
 | [`ui-sidebar/`](ui-sidebar/README.zh.md) | 展示工作区与会话导航 | — |
 | [`ui-brand-official/`](ui-brand-official/README.zh.md) | 用官方名称与标记填充通用浏览器品牌 slot | — |
 | [`ui-workspace/`](ui-workspace/README.zh.md) | 提供工作区选择与创建界面 | — |
+| [`ui-workspace-roots/`](ui-workspace-roots/README.zh.md) | 列出会话工作的目录，带文件系统来源与增删控件 | — |
 | [`ui-conversation/`](ui-conversation/README.zh.md) | 展示当前对话及其输入界面 | — |
 | [`ui-agent-team/`](ui-agent-team/README.zh.md) | 会话页头的 Team roster、任务板与 teammate 导航 | — |
 | [`ui-chat/`](ui-chat/README.zh.md) | 投影并渲染 Chat 对话 target | — |

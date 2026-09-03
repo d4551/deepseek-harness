@@ -595,6 +595,10 @@ The backends that consume this contract are on [persistence.md](persistence.md).
 
 `SessionOpenWorkspacePathRequest` carries an absolute or workspace-resolved `path`. `SessionOpenWorkspacePathValue` confirms that the Host accepted the native handoff. A Session-aware Client resolves relative paths against its current Session cwd when known; the controller hands the path to the opener unchanged and reports invalid requests, cancellation, and opener failures through the Session Remote error vocabulary.
 
+`SessionSetWorkspaceRootsRequest` replaces a Session's complete additional-root set: `additionalDirectories` is the whole replacement list of absolute roots, an empty list records that the Session works in its primary root alone, and the Session's own primary root and duplicate spellings are dropped rather than rejected. `SessionSetWorkspaceRootsValue` returns the additional set the Session carries once the replacement committed. The roots a Session works in reach every reader as one `WorkspaceRootsProjection`: `primary` is the immutable creation cwd, null when the Session was created without one, and `additional` folds the Session's `workspace/roots` log. Search coverage, language-server routing, per-root instruction loading, and the sandbox write fence all resolve from that pair, and the wire view is the stored record rather than a client-side derivation.
+
+`SessionWorkspaceOrigin` is the wire face of `ctx.fs.origin`: where this deployment's composed filesystem backend keeps the workspace. It is a deployment fact rather than a Session one, because the harness runs one filesystem provider, so a surface reads it once and applies it to every Session's primary root. Its `kind` crosses the wire as a plain string because the filesystem origin vocabulary is merge-extensible; a surface names an unrecognized member instead of claiming one it knows.
+
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
 <a id="cordis-surface"></a>
@@ -668,6 +672,16 @@ inspect( sessionId: SessionId, signal?: AbortSignal, ): Promise<{ meta: SessionH
 @Remote canOpenWorkspacePath(): boolean
 
 /**
+ * Report where this deployment's composed filesystem backend keeps the
+ * workspace, so a surface can distinguish a host-disk directory from one the
+ * harness mirrors. Read through `ctx.get` because the filesystem seam is
+ * optional here: a deployment that composes no backend has no origin to
+ * state, and null says exactly that rather than claiming the host's disk.
+ * @returns the composed backend's origin, or null when none is composed.
+ */
+@Remote('workspaceOrigin') workspaceOrigin(): SessionWorkspaceOrigin | null
+
+/**
  * Open one path prepared by a Session-aware caller on the Host desktop.
  * @param request - path after best-effort Session workspace resolution.
  * @param signal - caller lifetime; abort terminates the native command.
@@ -682,6 +696,14 @@ inspect( sessionId: SessionId, signal?: AbortSignal, ): Promise<{ meta: SessionH
  * @returns the accepted title and durable event sequence.
  */
 @Remote('rename') rename(request: SessionRenameRequest): Promise<SessionRenameValue>
+
+/**
+ * Replace the complete additional workspace-root set of one Session after
+ * explicitly resuming it.
+ * @param request - Session identity and the complete replacement root set.
+ * @returns the additional roots the Session carries after the replacement.
+ */
+@Remote('setWorkspaceRoots') setWorkspaceRoots( request: SessionSetWorkspaceRootsRequest, ): Promise<SessionSetWorkspaceRootsValue>
 
 /**
  * Fork one cold-readable completed-turn prefix into a new Session.

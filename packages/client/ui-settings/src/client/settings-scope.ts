@@ -74,6 +74,8 @@ export class SettingsScopeController<T> implements SettingsScope<T> {
       user: undefined,
       revision: undefined,
       writable: false,
+      secrets: [],
+      applies: 'live',
       mode: persistence,
     })
     if (persistence === 'host') {
@@ -199,6 +201,8 @@ export class SettingsScopeController<T> implements SettingsScope<T> {
       draft.base = view.base
       draft.user = view.user
       draft.writable = writable
+      draft.secrets = view.secrets
+      draft.applies = view.applies
       if (decoded === undefined) return
       draft.status = 'ready'
       draft.value = decoded

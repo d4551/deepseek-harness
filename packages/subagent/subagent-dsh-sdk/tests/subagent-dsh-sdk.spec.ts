@@ -65,14 +65,33 @@ afterEach(() => {
   runInternals.createHarness = defaultCreateHarness
 })
 
-/** A parent Agent stub. The SDK backend reads exactly one thing off it: the session header's cwd (the workspace its child inherits). */
-const fakeParent = { id: 'parent', session: { header: { cwd: process.cwd() }, events: [] } } as unknown as Agent
+/**
+ * A parent Agent stub. The SDK backend reads its session's workspace off it:
+ * the header cwd plus the additional roots its log folds to (both inherited by
+ * the child).
+ */
+function parentAgent(roots: readonly string[] = [], cwd = process.cwd()): Agent {
+  return {
+    id: 'parent',
+    session: {
+      header: { cwd },
+      events: roots.length === 0 ? [] : [{ type: 'workspace/roots', data: { roots } }],
+    },
+  } as unknown as Agent
+}
 
-function request(text = 'p', signal = new AbortController().signal, agentOptions?: AgentOptions) {
+const fakeParent = parentAgent()
+
+function request(
+  text = 'p',
+  signal = new AbortController().signal,
+  agentOptions?: AgentOptions,
+  parent: Agent = fakeParent,
+) {
   return {
     label: text,
     prompt: [{ type: 'text' as const, text }],
-    parent: fakeParent,
+    parent,
     signal,
     ...agentOptions === undefined ? {} : { agentOptions },
   }
@@ -202,11 +221,34 @@ describe('dsh-subagent-dsh-sdk provider', () => {
       const records = readFileSync(recordFile, 'utf8').trim().split('\n').map(line => JSON.parse(line) as Record<string, unknown>)
       expect(records).toEqual([{
         cwd: process.cwd(),
-        workspaceRoots: [],
         provider: 'fake-provider',
         model: 'fake-model',
         maxTokens: 4096,
       }])
+      await ctx.fiber.dispose()
+    } finally {
+      rmSync(tmp, { recursive: true, force: true })
+    }
+  })
+
+  it('records the delegating session\'s additional workspace roots in the child handshake', async () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'subagent-dsh-sdk-roots-'))
+    const recordFile = join(tmp, 'init.jsonl')
+    try {
+      const ctx = await setup({ FAKE_RECORD_INIT: recordFile })
+      const run = await ctx.subagents.start(
+        'dsh-sdk',
+        request('roots', new AbortController().signal, undefined, parentAgent(['/second-root', '/third-root'])),
+      )
+      await run.result
+      await run.dispose()
+      const { readFileSync } = await import('node:fs')
+      expect(JSON.parse(readFileSync(recordFile, 'utf8'))).toEqual({
+        cwd: process.cwd(),
+        additionalDirectories: ['/second-root', '/third-root'],
+        provider: 'fake-provider',
+        model: 'fake-model',
+      })
       await ctx.fiber.dispose()
     } finally {
       rmSync(tmp, { recursive: true, force: true })
@@ -226,7 +268,6 @@ describe('dsh-subagent-dsh-sdk provider', () => {
       const { readFileSync } = await import('node:fs')
       expect(JSON.parse(readFileSync(recordFile, 'utf8'))).toEqual({
         cwd: process.cwd(),
-        workspaceRoots: [],
         provider: 'fake-provider',
         model: 'fake-model',
         reasoningEffort: 'high',
@@ -266,7 +307,6 @@ describe('dsh-subagent-dsh-sdk provider', () => {
       expect(records).toEqual([
         {
           cwd: process.cwd(),
-          workspaceRoots: [],
           provider: 'provider-a',
           model: 'model-a',
           reasoningEffort: 'high',
@@ -274,7 +314,6 @@ describe('dsh-subagent-dsh-sdk provider', () => {
         },
         {
           cwd: process.cwd(),
-          workspaceRoots: [],
           provider: 'provider-b',
           model: 'model-b',
           reasoningEffort: 'max',

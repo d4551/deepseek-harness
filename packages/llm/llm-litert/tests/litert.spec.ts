@@ -550,7 +550,14 @@ describe('llm-litert plugin', () => {
     }, probe)
     expect(recorder.spawns).toHaveLength(0)
     expect(urls).toHaveLength(0)
-    expect(ctx.llm.listProviders().map(entry => entry.id)).toContain('litert')
+    // A route pointed at a server someone else started is self-hosted, not
+    // on-device: a selector that labelled it `local` would be claiming the
+    // deployment's own hardware runs it.
+    expect(ctx.llm.listProviders()).toContainEqual({
+      id: 'litert',
+      name: 'LiteRT on Railway',
+      hosting: 'self-hosted',
+    })
     expect((await ctx.llm.listModels('litert')).map(entry => entry.id)).toEqual(['gemma4-e2b'])
     await fiber.dispose()
     expect(ctx.llm.listProviders().map(entry => entry.id)).not.toContain('litert')
@@ -570,7 +577,13 @@ describe('llm-litert plugin', () => {
       server: { cwd: '/srv/litert', healthIntervalMs: 5, startupTimeoutMs: 2_000 },
     }, probe)
     expect(recorder.subcommands()).toEqual(['list', 'import', 'serve'])
-    expect(ctx.llm.listProviders().map(entry => entry.id)).toContain('litert')
+    // The supervised posture runs the models on this deployment's hardware, and
+    // that is the fact a model selector shows beside the route.
+    expect(ctx.llm.listProviders()).toContainEqual({
+      id: 'litert',
+      name: 'litert',
+      hosting: 'local',
+    })
     const serve = recorder.handles[2]
     expect(serve?.terminateCount).toBe(0)
     await fiber.dispose()

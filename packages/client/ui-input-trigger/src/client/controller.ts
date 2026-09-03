@@ -21,6 +21,11 @@ import type {
   SubmitEnvelope, TriggerChar, TriggerGuard,
 } from '../types.ts'
 
+/** The message a failed candidate load publishes into its menu group. */
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
 /** Roster access the controller borrows from the root service (registration order preserved). */
 export interface SourceRoster {
   sources(trigger: string): readonly InputTriggerSource[]
@@ -199,6 +204,26 @@ export class InputTriggerController {
   }
 
   /**
+   * Re-run one failed source's candidate fetch for the open hit — the only
+   * path that repeats a load the pipeline already gave up on, so a failure
+   * costs exactly one request until the user asks for another. No-op unless
+   * that source's group is currently failed.
+   * @param source - source (group) name whose failed group is being retried.
+   */
+  retrySource(source: string): void {
+    const hit = this.hit
+    const state = this.menu.getSnapshot()
+    if (hit === null || !state.open) return
+    if (state.groups.find(g => g.source === source)?.status !== 'failed') return
+    const src = this.deps.roster.sources(hit.trigger).find(s => s.name === source)
+    if (src === undefined) return
+    this.reduce({ type: 'source-retry', generation: state.generation, source })
+    // The retry rides the open round's abort so a close or a new hit drops it
+    // exactly like the fetch it replaces; siblings still in flight keep theirs.
+    this.fetchOne(src, hit, state.generation, (this.fetch ??= new AbortController()).signal)
+  }
+
+  /**
    * Pointer hover from MenuView: park the shared highlight on the hovered
    * candidate (keyboard `move` and pointer hover drive one highlight —
    * last input wins).
@@ -324,7 +349,7 @@ export class InputTriggerController {
   sourceRemoved(source: InputTriggerSource): void {
     const state = this.menu.getSnapshot()
     if (state.open && state.hit !== null && state.hit.trigger === source.trigger) {
-      this.reduce({ type: 'source-failed', generation: state.generation, source: source.name })
+      this.reduce({ type: 'source-removed', generation: state.generation, source: source.name })
     }
     this.lexiconOffs.get(source)?.()
     this.lexiconOffs.delete(source)
@@ -429,28 +454,35 @@ export class InputTriggerController {
     const controller = new AbortController()
     this.fetch = controller
     const generation = this.menu.getSnapshot().generation
-    const projection = this.project()
-    for (const source of roster) {
-      void source
-        .candidates(projection, {
-          query: hit.query,
-          quoted: hit.quoted,
-          position: hit.position,
-          drilled: this.drilled,
-          signal: controller.signal,
-        })
-        .then(
-          (items) => {
-            if (controller.signal.aborted) return
-            this.reduce({ type: 'source-settled', generation, source: source.name, items })
-          },
-          (error: unknown) => {
-            if (controller.signal.aborted) return
-            console.error(`[ui-input-trigger] source "${source.name}" candidates failed:`, error)
-            this.reduce({ type: 'source-failed', generation, source: source.name })
-          },
-        )
-    }
+    for (const source of roster) this.fetchOne(source, hit, generation, controller.signal)
+  }
+
+  /** Run one source's candidate fetch and publish its settlement or failure. */
+  private fetchOne(
+    source: InputTriggerSource,
+    hit: TriggerHit,
+    generation: number,
+    signal: AbortSignal,
+  ): void {
+    void source
+      .candidates(this.project(), {
+        query: hit.query,
+        quoted: hit.quoted,
+        position: hit.position,
+        drilled: this.drilled,
+        signal,
+      })
+      .then(
+        (items) => {
+          if (signal.aborted) return
+          this.reduce({ type: 'source-settled', generation, source: source.name, items })
+        },
+        (error: unknown) => {
+          if (signal.aborted) return
+          console.error(`[ui-input-trigger] source "${source.name}" candidates failed:`, error)
+          this.reduce({ type: 'source-failed', generation, source: source.name, error: errorText(error) })
+        },
+      )
   }
 
   private stopFetch(): void {

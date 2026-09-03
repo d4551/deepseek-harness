@@ -746,6 +746,65 @@ describe('scrubSessionSnapshot', () => {
     expect(() => scrubSessionSnapshot('{"type":"turn/start"}\n'))
       .toThrow('session snapshot must start with a session header')
   })
+
+  it('rejects an empty log', () => {
+    expect(() => scrubSessionSnapshot(''))
+      .toThrow('session snapshot must start with a session header')
+  })
+
+  it('expands storage range-encoded provenance into a projected seq list', () => {
+    const raw = [
+      JSON.stringify({ type: 'session', version: 0 }),
+      JSON.stringify({
+        type: 'assistant/message',
+        seq: 6,
+        time: 20,
+        sourceEventSeqs: [[1, 3], 5],
+        surfaceOp: 'append',
+        data: { turn: 1, step: 1 },
+      }),
+    ].join('\n') + '\n'
+    expect(scrubSessionSnapshot(raw)).toContain('"sourceEventSeqs":[1,2,3,5]')
+  })
+
+  it('merges a chunk run the persistence flush boundary split into two rows', () => {
+    const raw = [
+      JSON.stringify({ type: 'session', version: 0 }),
+      JSON.stringify({
+        type: 'text-chunks',
+        seq0: 0,
+        time0: 10,
+        data: { turn: 1, step: 1, index: 0, dt: [1, 1], texts: ['a', 'b', 'c'] },
+      }),
+      JSON.stringify({
+        type: 'text-chunks',
+        seq0: 3,
+        time0: 15,
+        data: { turn: 1, step: 1, index: 0, dt: [2, 2], texts: ['d', 'e', 'f'] },
+      }),
+    ].join('\n') + '\n'
+    expect(scrubSessionSnapshot(raw)).toBe([
+      JSON.stringify({ type: 'session', version: 0 }),
+      JSON.stringify({
+        type: 'text-chunks',
+        data: { turn: 1, step: 1, index: 0, dt: [1, 1, 3, 2, 2], texts: ['a', 'b', 'c', 'd', 'e', 'f'] },
+      }),
+      '',
+    ].join('\n'))
+  })
+
+  it('keeps the persisted inter-chunk gaps a committed fixture records', () => {
+    const raw = [
+      JSON.stringify({ type: 'session', version: 0 }),
+      JSON.stringify({
+        type: 'text-chunks',
+        seq0: 0,
+        time0: 10,
+        data: { turn: 1, step: 1, index: 0, dt: [1, 4], texts: ['a', 'b', 'c'] },
+      }),
+    ].join('\n') + '\n'
+    expect(scrubSessionSnapshot(raw)).toContain('"dt":[1,4]')
+  })
 })
 
 describe('scrubSystemPrompts', () => {

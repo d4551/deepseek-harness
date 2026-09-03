@@ -499,9 +499,22 @@ function webSnapshotGate(needs: string[], after?: string[]): Gate {
 }
 
 function ciWindowsBlockingGates(): Gate[] {
+  const build = ciBuildGate('windows-build', { label: 'build' })
+  const site = bunScript('windows-site', 'docs:build', { label: 'production site' })
   return [
-    ciBuildGate('windows-build', { label: 'build' }),
-    bunScript('windows-site', 'docs:build', { label: 'production site' }),
+    build,
+    site,
+    {
+      // The only automated proof that the shipped binary starts on Windows and
+      // that package-name imports reach their `lib/` entrypoints there. Linux
+      // runs the same smoke blocking, which catches platform-independent
+      // breakage; a Windows-only startup or resolution regression appears
+      // nowhere else, so it blocks here rather than being observed.
+      ...builtBinSmokeGate(['windows-build']),
+      // Starting real application children measures startup against bounded
+      // deadlines, so the build and site finish before the clock starts.
+      after: [build.id, site.id],
+    },
   ]
 }
 
@@ -523,11 +536,18 @@ function ciWindowsCompleteGates(): Gate[] {
         ...(gate.after ?? []).map(id => id === 'docs-site-build' ? 'windows-site' : id),
       ])],
     }))
+  const site = bunScript('windows-site', 'docs:build', { label: 'production site' })
   return [
     ciBuildGate(),
-    bunScript('windows-site', 'docs:build', { label: 'production site' }),
+    site,
     ...coverage,
     ...observational,
+    {
+      // Blocking on master for the same reason it blocks on a pull request:
+      // nothing else proves the built binary runs on Windows.
+      ...builtBinSmokeGate(['build']),
+      after: [...coverageAfter, site.id],
+    },
   ]
 }
 
@@ -543,15 +563,9 @@ function ciWindowsObservationalGates(): Gate[] {
     }),
     builtPackageInvariantsGate(['build']),
   ]
-  return [
-    ...predecessors,
-    {
-      ...builtBinSmokeGate(),
-      // This smoke starts real application children with bounded startup
-      // deadlines. Let other Windows processes settle before measuring startup.
-      after: predecessors.map(gate => gate.id),
-    },
-  ]
+  // The built-bin smoke is deliberately absent: it is the one gate here whose
+  // verdict Linux cannot stand in for, so `ciWindowsBlockingGates` owns it.
+  return predecessors
 }
 
 function typertContractsGate(): Gate {

@@ -12,6 +12,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, AgentOptions, CreateAgentOptions } from '@deepseek-ai/dsh-agent'
 import type { SandboxMode } from '@deepseek-ai/dsh-sandbox'
 import type { Session, SessionId } from '@deepseek-ai/dsh-session'
+import { effectiveWorkspaceRoots, setAdditionalWorkspaceRoots } from '@deepseek-ai/dsh-session/workspace-roots'
 import { PERSONA_ORDER } from '@deepseek-ai/dsh-system-prompt'
 import type { ToolRestriction } from '@deepseek-ai/dsh-tools'
 // Type-only: make `ctx.get('sandboxPolicy')` / `ctx.get('approval')` resolve
@@ -210,8 +211,8 @@ export function applyChildComposition(
   if (composition.toolFilter !== undefined) childCtx.tools.restrict(composition.toolFilter)
 }
 
-/** Policy seeded onto a child session's log at the delegation boundary. */
-export interface DelegatedPolicyOverrides {
+/** Parent session facts seeded onto a child session's log at the delegation boundary. */
+export interface DelegatedSessionState {
   /** The parent session's explicit sandbox-mode override, or `undefined` without one. */
   readonly sandboxMode: SandboxMode | undefined
   /**
@@ -220,44 +221,62 @@ export interface DelegatedPolicyOverrides {
    * delegation, so its asks are rejected deterministically.
    */
   readonly approvalPolicy: 'never' | undefined
+  /**
+   * The parent's ADDITIONAL workspace roots, empty for a single-root parent.
+   * The child inherits the parent's `cwd` through {@link childSessionMeta}, and
+   * a multi-root parent that passed on only that one would hand the child a
+   * narrower workspace than its own: sandbox writes, search coverage,
+   * language-server routing, and per-root instruction loading all collapse to
+   * the primary root.
+   */
+  readonly workspaceRoots: readonly string[]
 }
 
 /**
- * Capture the policy to seed into one delegation. Call synchronously before
- * the child start's first await: a later parent switch belongs to the
- * parent's future, not to this child. Only the parent session's explicit
- * sandbox override is captured — never deployment defaults or one-shot
- * grants — and the approval policy is pinned to `'never'` regardless of the
- * parent's own policy.
+ * Capture the parent session state to seed into one delegation. Call
+ * synchronously before the child start's first await: a later parent switch
+ * belongs to the parent's future, not to this child. Only the parent session's
+ * explicit sandbox override is captured — never deployment defaults or one-shot
+ * grants — the approval policy is pinned to `'never'` regardless of the
+ * parent's own policy, and the workspace roots are the parent log's current
+ * fold.
  * @param parent - the delegating parent agent.
- * @returns the sandbox override (or `undefined` without one) and the approval pin.
+ * @returns the sandbox override (or `undefined` without one), the approval pin,
+ *   and the parent's additional workspace roots.
  */
-export function captureDelegatedPolicyOverrides(parent: Agent): DelegatedPolicyOverrides {
+export function captureDelegatedSessionState(parent: Agent): DelegatedSessionState {
   return {
     sandboxMode: parent.ctx.get('sandboxPolicy')?.overrideOf(parent.session),
     approvalPolicy: parent.ctx.get('approval') === undefined ? undefined : 'never',
+    workspaceRoots: [...effectiveWorkspaceRoots(parent.session.events)],
   }
 }
 
 /**
- * Append the captured delegation policy onto the child's own log as
- * `source: 'delegation'` events inside the unpublished creation window, so the
- * child's effective policy is reconstructable from its log alone. Appends land
- * after any fork seed, so fresh policy wins stale seed state; later child
+ * Append the captured delegation state onto the child's own log inside the
+ * unpublished creation window, so the child's effective policy and workspace
+ * are reconstructable from its log alone and a cold resume replays them
+ * instead of re-deriving them from a parent that may be gone. Appends land
+ * after any fork seed, so fresh state wins stale seed state; later child
  * switches still win over these events.
+ *
+ * The roots go through the session's own write path, which drops a root equal
+ * to the child's primary root and appends nothing when the fork seed already
+ * carried the same set.
  * @param childSession - the unpublished child's session.
- * @param overrides - the policy captured at delegation.
+ * @param state - the parent session state captured at delegation.
  */
-export function appendDelegatedPolicyOverrides(
+export function appendDelegatedSessionState(
   childSession: Session,
-  overrides: DelegatedPolicyOverrides,
+  state: DelegatedSessionState,
 ): void {
-  if (overrides.sandboxMode !== undefined) {
-    childSession.append('sandbox/mode', { mode: overrides.sandboxMode, source: 'delegation' })
+  if (state.sandboxMode !== undefined) {
+    childSession.append('sandbox/mode', { mode: state.sandboxMode, source: 'delegation' })
   }
-  if (overrides.approvalPolicy !== undefined) {
-    childSession.append('approval/policy', { policy: overrides.approvalPolicy, source: 'delegation' })
+  if (state.approvalPolicy !== undefined) {
+    childSession.append('approval/policy', { policy: state.approvalPolicy, source: 'delegation' })
   }
+  if (state.workspaceRoots.length > 0) setAdditionalWorkspaceRoots(childSession, state.workspaceRoots)
 }
 
 /** Identity and lineage inputs shared by every in-process child creation. */

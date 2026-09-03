@@ -16,7 +16,7 @@ There is no privileged core to patch: you extend dsh by mounting a plugin beside
 
 A running `dsh` is a plugin tree composed at boot from ordered layers.
 
-A **profile** is a named composition stored in the Harness home. It lists the bundles it stacks, holds any out-of-tree plugins it installs, and keeps the user's own `cordis.patch.yml`. `web`, `headless`, `swarm`, `hosted`, `sdk`, `sdk-minimal`, and `acp` ship as templates, each auto-initialized on first use.
+A **profile** is a named composition stored in the Harness home. It lists the bundles it stacks, holds any out-of-tree plugins it installs, and keeps the user's own `cordis.patch.yml`. `web`, `headless`, `swarm`, `swarm-web`, `hosted`, `sdk`, `sdk-minimal`, and `acp` ship as templates, each auto-initialized on first use.
 
 A **bundle** is a distribution format for Cordis config rows and the code they mount, so whatever it inserts stays patchable by the layers above it.
 
@@ -26,7 +26,7 @@ Each declares itself in its own `package.json` under a `dsh` field: `dsh.profile
 
 Layers apply to an empty entry list in this order: each bundle in the profile's listed order, then the profile's `cordis.patch.yml`, then the home-level one, then any `--patch` overlay. A patch targets a row by id and replaces its whole config, or inserts new rows.
 
-Custom profiles default to live patch reload. The shipped `web` and `hosted` profiles are live; `headless`, `swarm`, `sdk`, `sdk-minimal`, and `acp` apply all layers once at startup because replacing a one-shot or stdio application's dependencies after it owns work would invalidate that lifecycle.
+Custom profiles default to live patch reload. The shipped `web`, `swarm-web`, and `hosted` profiles are live; `headless`, `swarm`, `sdk`, `sdk-minimal`, and `acp` apply all layers once at startup because replacing a one-shot or stdio application's dependencies after it owns work would invalidate that lifecycle.
 
 To see the tree your machine boots:
 
@@ -40,7 +40,7 @@ Composition mechanics are in [app-boot](../packages/boot/app-boot/README.md#prof
 
 ## Application launch
 
-Every supported Node application starts at the `dsh` CLI with a named profile. The shipped applications are `dsh web` (the deliberate alias for `--profile web`), `dsh --profile headless`, `dsh --profile swarm`, `dsh --profile hosted`, `dsh --profile sdk`, `dsh --profile sdk-minimal`, and `dsh --profile acp`. The TypeScript SDK resolves its same-version `dsh` dependency and selects `sdk`; custom plugin composition remains a profile plus ordered patch files, not another executable or inline application tree. `sdk-minimal` is a repository-owned standalone bundle behind the same launcher, not a caller-supplied Cordis tree.
+Every supported Node application starts at the `dsh` CLI with a named profile. The shipped applications are `dsh web` (the deliberate alias for `--profile web`), `dsh --profile headless`, `dsh --profile swarm`, `dsh --profile swarm-web`, `dsh --profile hosted`, `dsh --profile sdk`, `dsh --profile sdk-minimal`, and `dsh --profile acp`. The TypeScript SDK resolves its same-version `dsh` dependency and selects `sdk`; custom plugin composition remains a profile plus ordered patch files, not another executable or inline application tree. `sdk-minimal` is a repository-owned standalone bundle behind the same launcher, not a caller-supplied Cordis tree.
 
 Vendored CLIs, build-only and test-only executables, direct in-process plugin mounting, and the private browser WebWorker preview are not Harness application launchers. [`verify-application-entrypoints`](../scripts/verify-application-entrypoints.ts) keeps every package bin, executable source, and root demo in an explicit class and rejects a Node application path that bypasses `dsh`.
 
@@ -112,7 +112,7 @@ A **seam** is a swappable capability with three roles: a **Service Definition** 
 
 Seams are why one provider swap changes the whole product. Filesystem and subprocess providers share one execution world, so pointing them at a remote sandbox moves Bash, PTY, and LSP with them, with no provider forks. [Subagent providers](subsystems/subagent.md) vary just as widely behind one interface, from a fresh child agent to a delegated turn in another product.
 
-[Agent Teams](subsystems/agent-team.md) is an opt-in coordination seam on `ctx.agentTeams`, with a durable roster, task board, and mailbox layered over continuable subagents; `dsh-base` keeps it disabled, and the shipped `swarm` profile is the patch layer that turns it on — it stacks `dsh-swarm-profile` over `headless` to insert the team and its scoped tools, and replaces the global continuable-child controls whose tool names those reuse.
+[Agent Teams](subsystems/agent-team.md) is an opt-in coordination seam on `ctx.agentTeams`, with a durable roster, task board, and mailbox layered over continuable subagents; `dsh-base` keeps it disabled, and the shipped `swarm` profile is the patch layer that turns it on — it stacks `dsh-swarm-profile` over `headless` to insert the team and its scoped tools, and replaces the global continuable-child controls whose tool names those reuse. `swarm-web` stacks that same layer over `web-app` instead and adds [`dsh-agent-team-web-profile`](../packages/preset/agent-team-web-profile/README.md), the one browser row that renders the roster, task board, and mailbox; Team tools register in each Agent's own scope, which shadows the preset-scope controls of the same names, so no Team-aware Agent preset is involved.
 
 ## Where new behavior goes
 

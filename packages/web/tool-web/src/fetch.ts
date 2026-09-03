@@ -10,7 +10,7 @@ import TurndownService from 'turndown'
 import { gfm } from '@joplin/turndown-plugin-gfm'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView, JsonValue, ToolResult, WebFetchResultView } from '@deepseek-ai/dsh-tools'
-import type { WebFetchBody, WebFetchResult } from '@deepseek-ai/dsh-web'
+import type { WebFetchBody, WebFetchResult, WebFetchRetrieval } from '@deepseek-ai/dsh-web'
 import { assertNever } from '@deepseek-ai/dsh-llm'
 import { FIRST_PARTY_SECTION_ORDER } from '@deepseek-ai/dsh-system-prompt'
 import { EXTERNAL_WEB_CONTENT_NOTICE } from './trust.ts'
@@ -376,6 +376,14 @@ export interface WebFetchMeta {
   statusCode: number
   /** True when the provider, a source cut, or the output cap trimmed the content. */
   truncated: boolean
+  /**
+   * How the provider obtained the body ({@link WebFetchResult.retrieval}). It
+   * is carried rather than derived because the composed provider can change
+   * between the call and the replay, and the card must state what actually
+   * happened on this call. Absent on a result recorded before the providers
+   * declared it.
+   */
+  retrieval?: WebFetchRetrieval
 }
 
 /**
@@ -391,7 +399,14 @@ export interface WebFetchMeta {
  * @returns the URL, status code, and effective truncation flag.
  */
 export function fetchMetaFromValue(value: WebFetchResult, maxOutputChars: number): JsonValue {
-  return { url: value.url, statusCode: value.statusCode, truncated: renderFetchOutput(value, maxOutputChars).truncated }
+  return {
+    url: value.url,
+    statusCode: value.statusCode,
+    truncated: renderFetchOutput(value, maxOutputChars).truncated,
+    // Omitted rather than written as null when the provider stated nothing:
+    // the meta is persisted, and an absent key replays as "not recorded".
+    ...value.retrieval === undefined ? {} : { retrieval: value.retrieval },
+  }
 }
 
 /**
@@ -404,9 +419,12 @@ export function fetchMetaFromValue(value: WebFetchResult, maxOutputChars: number
  */
 export function fetchMetaFromResult(meta: unknown): WebFetchMeta | undefined {
   if (typeof meta !== 'object' || meta === null || Array.isArray(meta)) return undefined
-  const { url, statusCode, truncated } = meta as Record<string, unknown>
+  const { url, statusCode, truncated, retrieval } = meta as Record<string, unknown>
   if (typeof url !== 'string' || typeof statusCode !== 'number' || typeof truncated !== 'boolean') return undefined
-  return { url, statusCode, truncated }
+  // A value outside the closed union is dropped rather than passed through: an
+  // unknown word on a trust-bearing card is worse than no claim at all.
+  const known = retrieval === 'http' || retrieval === 'rendered'
+  return { url, statusCode, truncated, ...known ? { retrieval } : {} }
 }
 
 /**
@@ -432,6 +450,7 @@ export function presentFetchResult(args: { url: string }, result: ToolResult): W
     url: meta.url,
     statusCode: meta.statusCode,
     truncated: meta.truncated,
+    ...meta.retrieval === undefined ? {} : { retrieval: meta.retrieval },
   }
 }
 
@@ -487,6 +506,18 @@ export function applyWebFetchTool(ctx: Context, timeoutMs: number, maxOutputChar
             ],
           },
           truncated: { type: 'boolean', required: true },
+          // Stated by the provider, not by this tool, and optional because a
+          // backend outside this repository may not answer it. A rendered
+          // fetch executed the page's scripts and a direct one did not, which
+          // changes what the returned text can be expected to contain. It is
+          // also the fact the fetch card shows, and `presentationMeta` reads
+          // only the declared output value.
+          retrieval: {
+            oneOf: [
+              { type: 'string', const: 'http' },
+              { type: 'string', const: 'rendered' },
+            ],
+          },
         },
       },
       render: (_args, value) => [{ type: 'text', text: formatFetchOutput(value, maxOutputChars) }],
@@ -506,6 +537,7 @@ export function applyWebFetchTool(ctx: Context, timeoutMs: number, maxOutputChar
         statusCode: result.statusCode,
         body: { kind: result.body.kind, content: result.body.content },
         truncated: result.truncated,
+        ...result.retrieval === undefined ? {} : { retrieval: result.retrieval },
       }
     },
     presentCall: presentFetchCall,

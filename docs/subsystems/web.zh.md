@@ -100,6 +100,13 @@ interface WebFetchResult {
   readonly body: WebFetchBody
   /** True when the provider capped the decoded body. */
   readonly truncated: boolean
+  /**
+   * How this body was obtained; see {@link WebFetchRetrieval}. Optional
+   * because only the provider can answer and a backend outside this repository
+   * may not: an absent value states nothing, which is the honest fallback, and
+   * every provider shipped here declares it.
+   */
+  readonly retrieval?: WebFetchRetrieval
 }
 ```
 

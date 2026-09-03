@@ -1,7 +1,10 @@
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { type SessionEvent } from '@deepseek-ai/dsh-session'
+import { MessageId } from '@deepseek-ai/dsh-llm/brand'
 import { parseSessionLog } from '@deepseek-ai/dsh-llm-replay'
+import { eventLines } from '@deepseek-ai/dsh-session-persistence-jsonl/src/format.ts'
+import { scrubSessionSnapshot } from '@deepseek-ai/dsh-session-snapshot'
 import {
   canonicalSessionFixture,
   inspectSessionFixtureLayouts,
@@ -72,6 +75,72 @@ describe('canonicalSessionFixture', () => {
   it('labels malformed packed rows with the fixture path and line', () => {
     expect(() => canonicalSessionFixture(`${HEADER}\n{"type":"text-chunks"}\n`, 'broken.jsonl'))
       .toThrow(/broken\.jsonl: session snapshot line 2: malformed text-chunks storage row/)
+  })
+})
+
+/** One `assistant/chunk` text delta as the persistence encoder receives it. */
+function textDelta(seq: number, text: string): SessionEvent {
+  return {
+    type: 'assistant/chunk',
+    seq,
+    time: 1_000 + seq,
+    data: { turn: 1, step: 1, chunk: { type: 'text-delta', index: 0, text } },
+  }
+}
+
+/** The provenance-carrying record class: an `assistant/message` citing the chunk seqs that built it. */
+function assistantMessage(seq: number, sourceEventSeqs: readonly number[]): SessionEvent<'assistant/message'> {
+  return {
+    type: 'assistant/message',
+    seq,
+    time: 1_000 + seq,
+    surfaceOp: 'append',
+    sourceEventSeqs: [...sourceEventSeqs],
+    data: {
+      turn: 1,
+      step: 1,
+      message: {
+        id: MessageId('message-0'),
+        role: 'assistant',
+        content: [{ type: 'text', text: 'abcdef' }],
+        source: { kind: 'model', provider: 'fixture', model: 'fixture-model' },
+      },
+    },
+  }
+}
+
+/** A log in the physical layout the JSONL backend writes: one `eventLines` batch per durable flush. */
+function persistedLog(batches: readonly (readonly SessionEvent[])[]): string {
+  return [HEADER.trim(), ...batches.map(batch => eventLines(batch, true)), ''].join('\n')
+}
+
+const RUN = Array.from({ length: 6 }, (_, index) => textDelta(index, `part-${index}`))
+const MESSAGE = assistantMessage(6, [0, 1, 2, 3, 4, 5])
+
+describe('snapshot write-back layout', () => {
+  it('writes a persisted log the canonicalizer accepts unchanged', () => {
+    const written = scrubSessionSnapshot(persistedLog([[...RUN, MESSAGE]]))
+    expect(canonicalSessionFixture(written, 'written.jsonl')).toBe(written)
+  })
+
+  it('expands storage range-encoded provenance into projected seq lists', () => {
+    const written = scrubSessionSnapshot(persistedLog([[...RUN, MESSAGE]]))
+    expect(written).toContain('"sourceEventSeqs":[0,1,2,3,4,5]')
+  })
+
+  it('writes a flush-split chunk run the canonicalizer accepts unchanged', () => {
+    const written = scrubSessionSnapshot(persistedLog([RUN.slice(0, 3), [...RUN.slice(3), MESSAGE]]))
+    expect(canonicalSessionFixture(written, 'written.jsonl')).toBe(written)
+  })
+
+  it('merges a chunk run the persistence flush boundary split into two rows', () => {
+    const written = scrubSessionSnapshot(persistedLog([RUN.slice(0, 3), [...RUN.slice(3), MESSAGE]]))
+    expect(written.split('\n').filter(line => line.includes('"text-chunks"'))).toHaveLength(1)
+  })
+
+  it('keeps the real inter-chunk gaps the committed corpus records', () => {
+    const written = scrubSessionSnapshot(persistedLog([[...RUN, MESSAGE]]))
+    expect(written).toContain('"dt":[1,1,1,1,1]')
   })
 })
 
