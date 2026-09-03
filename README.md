@@ -2,11 +2,7 @@
 
 English | [中文](README.zh.md)
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-[![Runtime: Node](https://img.shields.io/badge/node-%E2%89%A524-339933?logo=node.js&logoColor=white)](package.json)
-[![Package manager: bun](https://img.shields.io/badge/bun-1.4-deadck?logo=bun)](package.json)
-[![TypeScript 7](https://img.shields.io/badge/TypeScript-7-3178c6?logo=typescript&logoColor=white)](package.json)
-[![Status: developer preview](https://img.shields.io/badge/status-developer%20preview-orange)](SAFETY.md)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Node](https://img.shields.io/badge/node-%E2%89%A524-339933?logo=node.js&logoColor=white)](package.json) [![bun 1.4](https://img.shields.io/badge/bun-1.4-deadck?logo=bun)](package.json) [![TypeScript 7](https://img.shields.io/badge/TypeScript-7-3178c6?logo=typescript&logoColor=white)](package.json) [![Status: developer preview](https://img.shields.io/badge/status-developer%20preview-orange)](SAFETY.md)
 
 ## Explain it like I'm five
 
@@ -18,26 +14,23 @@ It is built on an **everything-is-a-plugin** architecture and powered by [Cordis
 
 Documentation: [https://deepseek-harness.github.io/deepseek-harness/](https://deepseek-harness.github.io/deepseek-harness/)
 
-## This repository
+## Why this fork
 
-This repository is a fork of [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) with a different contributor toolchain. Product identity, plugin architecture, Node runtime, community channels, and license stay with upstream.
+This repository extends the upstream harness with capabilities and a toolchain you will not get from the npm package:
 
-- **bun 1.4** is the package manager and script runner (`packageManager` in `package.json`). Workspace linking uses bun's isolated linker; `dsh plugin` forwards to bun. Native addons and the single-exe build remain Node artifacts on the documented Node engines.
-- **TypeScript 7** (`typescript` ^7.0.2) compiles Host and Client programs. The package exports the compiler API at `typescript/unstable/sync` and `typescript/unstable/ast`, and every compiler-API consumer imports it from there.
+- **Multi-agent swarms** — run a team of agents that share a durable roster, task board, and mailbox. One profile (`dsh --profile swarm`) runs it headless; `swarm-web` adds the same team to the Web UI with a live Team row.
+- **A Web UI that shows real state** — manage workspace roots from the browser, edit every plugin's settings through generated cards, and follow work through diff, search, todo, and trajectory cards.
+- **Browser-grade web access** — the model can fetch pages with a real Chromium instance, so JavaScript-rendered sites are readable, with the browser executable, user agent, and render concurrency configurable.
+- **Hardened approvals** — every tool approval needs a justification, and justifications that try to skip or soften the user's instructions are rejected automatically.
+- **A current toolchain** — bun 1.4 workspaces, TypeScript 7, and Node 24+ (CI-verified), instead of the upstream npm/yarn-era setup.
 
-No package is published from this fork: `npx @deepseek-ai/dsh` fetches the upstream release, so building from source below is the only way to run this repository. Contributor setup is in the [development guide](docs/development.md).
+## Getting this code
 
-## What this fork adds
+This repository publishes nothing to npm. `npx @deepseek-ai/dsh` installs the official upstream release, not this fork — to run this code, build it from source as shown in [Run](#run). Setup details are in the [development guide](docs/development.md).
 
-Capabilities and surfaces beyond the upstream checkout:
+Toolchain specifics: **bun 1.4** is the package manager and script runner (isolated workspace linker; `dsh plugin` forwards to bun), and **TypeScript 7** (`typescript` ^7.0.2) compiles the Host and Client programs and exports the compiler API at `typescript/unstable/sync` and `typescript/unstable/ast`.
 
-- **Swarm profiles** — the shipped `swarm` and `swarm-web` profiles stack [`dsh-swarm-profile`](packages/preset/) over `headless`/`web-app` to turn on [Agent Teams](docs/subsystems/agent-team.md): a durable roster, task board, and mailbox over continuable subagents, with the Team row rendered in the Web UI.
-- **Web UI surfaces** — workspace-roots projection and picker, settings-plugin cards for every served namespace, and diff/search/todo/trajectory cards.
-- **Browser-rendered web access** — the `web-fetch-playwright` provider fetches with a real browser (configurable executable, `User-Agent`, render concurrency) for pages that need JavaScript.
-- **Mandatory approval audit** — [`dsh-approval-assessor`](packages/guard/approval-assessor/) rejects work-avoidance justifications before any approval answerer decides, redirecting the model to the user's instruction.
-- **Modern toolchain** — bun 1.4 workspace with the isolated linker, TypeScript 7 for Host and Client programs, Node `^22.19 || >=24` engines (CI on Node 24), and tsx-based ESM source launch for the `dsh` CLI.
-
-A local build runs the Web UI under the name **DeepMeow** with a cat-face mark instead of the upstream wordmark. The [Web UI guide](docs/user/guide/index.md#local-build-identity) records where that name appears and which build profile restores the official wordmark.
+A build from this repository runs the Web UI under the name **DeepMeow** with a cat-face mark; the [Web UI guide](docs/user/guide/index.md#local-build-identity) explains where the name appears and how to restore the official one.
 
 ## Developer preview
 

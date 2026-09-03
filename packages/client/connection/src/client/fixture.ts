@@ -1826,7 +1826,10 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
         if (op.op === 'unset') {
           const [field] = op.path
           if (field !== undefined) {
-            const { [field]: _removed, ...rest } = this.onboardingSection
+            const rest: Record<string, JsonValue> = {}
+            for (const [key, value] of Object.entries(this.onboardingSection)) {
+              if (key !== field) rest[key] = value
+            }
             this.onboardingSection = rest
           }
           continue
