@@ -48,17 +48,10 @@ function parseConcurrency(raw: string | undefined): number {
 }
 
 /** Pack the family named by `--family` into `--out`. */
-async function main(): Promise<void> {
-  const { values } = parseArgs({
-    options: { family: { type: 'string' }, out: { type: 'string' }, concurrency: { type: 'string' } },
-    allowPositionals: false,
-  })
-  if (values.family === undefined) throw new Error('usage: pack.ts --family <dsh|vendor> [--out dist/npm] [--concurrency 1]')
-  const concurrency = parseConcurrency(values.concurrency)
-
-  const family = releaseFamily(values.family)
+export async function packFamily(familyId: string, output: string, concurrency = 1): Promise<number> {
+  const family = releaseFamily(familyId)
   const root = process.cwd()
-  const destination = resolve(root, values.out ?? DEFAULT_OUTPUT)
+  const destination = resolve(root, output)
   const members = family.publishOrder(family.members(root)).order
   family.verifyBuildArtifacts(root)
   family.verifyVersions(members)
@@ -66,9 +59,6 @@ async function main(): Promise<void> {
   rmSync(destination, { recursive: true, force: true })
   mkdirSync(destination, { recursive: true })
 
-  // Members pack in a bounded pool; the recorded publish order stays the
-  // members' order regardless of completion order, because each worker writes
-  // its result at the member's own position.
   const order = new Array<string>(members.length)
   let cursor = 0
   await Promise.all(Array.from({ length: Math.min(concurrency, members.length) }, async () => {
@@ -81,8 +71,20 @@ async function main(): Promise<void> {
     }
   }))
   writeFileSync(join(destination, PUBLISH_ORDER_FILE), `${order.join('\n')}\n`)
+  return order.length
+}
 
-  console.log(`release pack: family ${family.id}, ${String(order.length)} tarball(s) in ${values.out ?? DEFAULT_OUTPUT}`)
+async function main(): Promise<void> {
+  const { values } = parseArgs({
+    options: { family: { type: 'string' }, out: { type: 'string' }, concurrency: { type: 'string' } },
+    allowPositionals: false,
+  })
+  if (values.family === undefined) throw new Error('usage: pack.ts --family <dsh|vendor> [--out dist/npm] [--concurrency 1]')
+  const concurrency = parseConcurrency(values.concurrency)
+
+  const count = await packFamily(values.family, values.out ?? DEFAULT_OUTPUT, concurrency)
+
+  console.log(`release pack: family ${values.family}, ${String(count)} tarball(s) in ${values.out ?? DEFAULT_OUTPUT}`)
 }
 
 if (isEntry(import.meta.url)) await main()
