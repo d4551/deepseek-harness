@@ -305,11 +305,11 @@ export function validateIntegrationReleaseControl(value: unknown) {
     throw new Error('integration release pack size differs')
   }
   for (const entry of packages) {
-    const packed = entries.filter(candidate => candidate.path === entry.file)
+    const packed = entries.find(candidate => candidate.path === entry.file)
     if (
-      packed.length !== 1 ||
-      packed[0].byteSize !== entry.byteSize ||
-      packed[0].sha256 !== entry.sha256
+      packed === undefined ||
+      packed.byteSize !== entry.byteSize ||
+      packed.sha256 !== entry.sha256
     ) {
       throw new Error('integration release package differs from its pack entry')
     }
