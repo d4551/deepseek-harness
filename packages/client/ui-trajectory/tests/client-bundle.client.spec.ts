@@ -13,6 +13,7 @@ import { stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
 import { afterEach, describe, expect, it } from 'vitest'
 import { UiConversation } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
+import { JSDOM } from 'jsdom'
 
 const PLUGIN_ID = '@deepseek-ai/dsh-client-ui-trajectory'
 
@@ -29,9 +30,14 @@ function readBundle(): string | undefined {
   }
 }
 
+// One JSDOM realm per load: the bundle must run as a real window-scope script
+// (`runScripts: 'dangerously'`), and its factory closes over that window, so
+// the module-CSS assertions read the same document the artifact touched.
+let dom: JSDOM | undefined
+
 afterEach(() => {
-  delete (window as Win).__ModuleLoader__
-  for (const el of document.querySelectorAll('style')) el.remove()
+  dom?.window.close()
+  dom = undefined
 })
 
 // Absent artifacts skip a local run, but `DSH_REQUIRE_BUILT_PACKAGES=1` makes
@@ -51,9 +57,13 @@ describe('tsdown client artifact', () => {
     }
     let handoff: Handoff | undefined
     ;(window as Win).__ModuleLoader__ = { load: (h) => { handoff = h } }
-    // The implied-eval ban targets accidental string execution, not this
-    // deliberate built-bundle fixture running in the window scope.
-    new Function(code)()
+    // The bundle is a window-scope script by contract (`window.__ModuleLoader__
+    // .load({...})`), so execute it exactly as the browser would: a script
+    // element in the jsdom document, never string-to-function compilation.
+    const script = document.createElement('script')
+    script.textContent = code
+    document.body.append(script)
+    script.remove()
     expect(handoff).toBeDefined()
     const modules = new Map<string, unknown>([
       ['react', await import('react')],
