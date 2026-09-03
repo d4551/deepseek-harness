@@ -18,6 +18,11 @@ const NATIVE_ROOT = 'native/landlock-run'
 const NATIVE_ENTRY = '@deepseek-ai/node-addon-landlock-run'
 const DSH_ENTRY = '@deepseek-ai/dsh'
 const SHELL_TOOL = '@deepseek-ai/dsh-tool-shell'
+const RELEASE_STATUS_PATHS = [
+  ':(top)**',
+  ':(top,exclude).agents/**',
+  ':(top,exclude)goal/**',
+] as const
 
 interface RootManifest {
   readonly engine: string
@@ -94,7 +99,11 @@ function readFamily(family: IntegrationFamily, directory: string): readonly Pack
 }
 
 function sourceIdentity(root: string): { readonly commit: string; readonly tree: string } {
-  const status = capture('git', ['status', '--porcelain=v1', '--untracked-files=all'], { cwd: root })
+  const status = capture(
+    'git',
+    ['status', '--porcelain=v1', '--untracked-files=all', '--', ...RELEASE_STATUS_PATHS],
+    { cwd: root },
+  )
   if (status !== '') throw new Error(`integration release requires a clean source tree:\n${status}`)
   return {
     commit: capture('git', ['rev-parse', 'HEAD'], { cwd: root }),
