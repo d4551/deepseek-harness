@@ -56,13 +56,15 @@ describe('tsdown client artifact', () => {
       )
     }
     let handoff: Handoff | undefined
-    ;(window as Win).__ModuleLoader__ = { load: (h) => { handoff = h } }
+    dom = new JSDOM('', { runScripts: 'dangerously' })
+    const win = dom.window as Win & typeof dom.window
+    win.__ModuleLoader__ = { load: (h) => { handoff = h } }
     // The bundle is a window-scope script by contract (`window.__ModuleLoader__
     // .load({...})`), so execute it exactly as the browser would: a script
-    // element in the jsdom document, never string-to-function compilation.
-    const script = document.createElement('script')
+    // element in a runScripts-enabled document, never string compilation.
+    const script = win.document.createElement('script')
     script.textContent = code
-    document.body.append(script)
+    win.document.body.append(script)
     script.remove()
     expect(handoff).toBeDefined()
     const modules = new Map<string, unknown>([
@@ -125,7 +127,7 @@ describe('tsdown client artifact', () => {
 
   it.skipIf(!requireBuiltPackages && code === undefined)('injects plugin-tagged module CSS during factory execution', async () => {
     await loadArtifact()
-    const tags = document.querySelectorAll(`style[data-plugin=${JSON.stringify(PLUGIN_ID)}]`)
+    const tags = dom!.window.document.querySelectorAll(`style[data-plugin=${JSON.stringify(PLUGIN_ID)}]`)
     expect(tags.length).toBeGreaterThan(0)
   })
 })
