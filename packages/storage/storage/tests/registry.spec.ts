@@ -3,7 +3,23 @@ import { Context } from '@deepseek-ai/cordis'
 import Storage, { BackendRegistry, storageBackendServiceKey } from '../src/index.ts'
 import type { StorageBackend } from '../src/index.ts'
 
-const fakeBackend = (): StorageBackend => ({ close: async () => {} })
+// The registry contract leaves closing to the owning plugin, never the
+// disposer, so the fake's close fulfils the promise without side effects.
+const fakeBackend = (): StorageBackend => ({ close: async () => undefined })
+
+/**
+ * Settled view of a throwing call: resolves to the thrown error as a value,
+ * or to the returned value when the call did not throw — the assertion on the
+ * error shape then fails loudly against a non-error.
+ * @param fn - the call expected to throw.
+ * @returns the thrown error.
+ */
+function thrown<E>(fn: () => E): Promise<E | Error> {
+  return Promise.resolve().then(
+    fn,
+    (error: Error) => error,
+  )
+}
 
 describe('BackendRegistry', () => {
   it('registers, resolves, and disposes names', () => {
@@ -14,13 +30,15 @@ describe('BackendRegistry', () => {
     expect(registry.names()).toEqual(['json'])
     dispose()
     expect(registry.names()).toEqual([])
-    expect(() => registry.get('json')).toThrowMatchingObject({ code: 'backend-not-found' })
+    expect(thrown(() => registry.get('json'))).resolves.toMatchObject({ code: 'backend-not-found' })
   })
 
   it('rejects duplicate names', () => {
     const registry = new BackendRegistry()
     registry.register('json', fakeBackend())
-    expect(() => registry.register('json', fakeBackend())).toThrowMatchingObject({ code: 'duplicate-backend' })
+    expect(thrown(() => registry.register('json', fakeBackend()))).resolves.toMatchObject({
+      code: 'duplicate-backend',
+    })
   })
 })
 
@@ -39,12 +57,14 @@ describe('Storage service', () => {
     const dispose = ctx.storage.mount('domain' as never, facility as never)
     expect(ctx.storage.form('domain' as never)).toBe(facility)
     expect(ctx.storage.domain).toBe(facility)
-    expect(() => ctx.storage.mount('domain' as never, facility as never)).toThrowMatchingObject({
+    await expect(thrown(() => ctx.storage.mount('domain' as never, facility as never))).resolves.toMatchObject({
       code: 'duplicate-mount',
     })
     dispose()
-    expect(() => ctx.storage.form('domain' as never)).toThrowMatchingObject({ code: 'form-not-mounted' })
-    expect(() => ctx.storage.domain).toThrowMatchingObject({ code: 'form-not-mounted' })
+    await expect(thrown(() => ctx.storage.form('domain' as never))).resolves.toMatchObject({
+      code: 'form-not-mounted',
+    })
+    await expect(thrown(() => ctx.storage.domain)).resolves.toMatchObject({ code: 'form-not-mounted' })
   })
 
   it('ignores a stale disposer after dispose and re-mount / re-register', async () => {
@@ -67,23 +87,3 @@ describe('Storage service', () => {
     expect(ctx.storage.backend.get('json')).toBe(backendB)
   })
 })
-
-expect.extend({
-  toThrowMatchingObject(received: () => unknown, expected: object) {
-    try {
-      received()
-    } catch (error) {
-      const pass = Object.entries(expected).every(
-        entry => (error as Record<string, unknown>)[entry[0]] === entry[1],
-      )
-      return { pass, message: () => `expected thrown error to match ${JSON.stringify(expected)}, got ${String(error)}` }
-    }
-    return { pass: false, message: () => 'expected function to throw' }
-  },
-})
-
-declare module 'vitest' {
-  interface Assertion<T> {
-    toThrowMatchingObject(expected: object): T
-  }
-}

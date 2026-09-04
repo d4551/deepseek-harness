@@ -4,9 +4,39 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage, type UserMessage } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import SessionStore, { Session } from '@deepseek-ai/dsh-session'
+import { SettingsProvider } from '@deepseek-ai/dsh-settings'
+import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import ApprovalService from '@deepseek-ai/dsh-user-approval'
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval'
 import * as ApprovalAssessor from '../src/index.ts'
+
+/** Writable provider used to verify the Host settings seam and live reloads. */
+class MemorySettings extends SettingsProvider {
+  doc: Record<string, unknown>
+
+  constructor(ctx: Context, config: { doc?: Record<string, unknown> } = {}) {
+    super(ctx)
+    this.doc = structuredClone(config.doc ?? {})
+  }
+
+  get writable(): boolean {
+    return true
+  }
+
+  protected load(): Promise<Record<string, unknown>> {
+    return Promise.resolve(structuredClone(this.doc))
+  }
+
+  protected persist(ns: SettingsNamespace, section: Record<string, unknown>): Promise<void> {
+    this.doc[ns] = structuredClone(section)
+    return Promise.resolve()
+  }
+
+  pushExternal(doc: Record<string, unknown>): void {
+    this.doc = structuredClone(doc)
+    this.publish(structuredClone(doc))
+  }
+}
 
 /**
  * Behavior suite for the mandatory approval assessor: justification screening,
@@ -43,6 +73,20 @@ async function harness(): Promise<Context> {
   return ctx
 }
 
+/** Mount the assessor with a real in-memory settings provider. */
+async function settingsHarness(config?: { doc?: Record<string, unknown> }): Promise<{
+  ctx: Context
+  provider: MemorySettings
+}> {
+  const ctx = new Context()
+  await ctx.plugin(SessionStore)
+  await ctx.plugin(ApprovalService)
+  const providerFiber = ctx.plugin(MemorySettings, config ?? {})
+  await providerFiber
+  await ctx.plugin(ApprovalAssessor)
+  return { ctx, provider: ctx.settings as MemorySettings }
+}
+
 describe('plugin mounting', () => {
   it('registers an approval/request listener that intercepts evasion', async () => {
     const ctx = await harness()
@@ -58,6 +102,69 @@ describe('plugin mounting', () => {
     })
     await ctx.approval.request({ agent, toolName: 'read', reason: 'legitimate' })
     expect(listenerRan).toBe(true)
+  })
+})
+
+describe('settings policy', () => {
+  it('registers enabled defaults and an empty extra-pattern list', async () => {
+    const { ctx } = await settingsHarness()
+    const descriptor = ctx.settings.describe().find(row => String(row.ns) === 'approval-assessor')
+
+    expect(descriptor?.value).toEqual({ enabled: true, extraPatterns: [] })
+    await ctx.fiber.dispose()
+  })
+
+  it('rejects an invalid extra pattern before persistence', async () => {
+    const { ctx, provider } = await settingsHarness()
+
+    await expect(ctx.settings.update(ApprovalAssessor.APPROVAL_ASSESSOR_SETTINGS_NAMESPACE, {
+      extraPatterns: ['['],
+    })).rejects.toThrow('invalid extraPatterns[0]')
+    expect(provider.doc).toEqual({})
+    await ctx.fiber.dispose()
+  })
+
+  it('screens a valid extra pattern and supports disabling the assessor', async () => {
+    const { ctx } = await settingsHarness()
+    const agent = sessionAgent('settings-extra')
+
+    await ctx.settings.update(ApprovalAssessor.APPROVAL_ASSESSOR_SETTINGS_NAMESPACE, {
+      extraPatterns: ['\\bdo-not-ship\\b'],
+    })
+    await expect(ctx.approval.request({
+      agent,
+      toolName: 'read',
+      reason: 'This contains do-not-ship guidance.',
+    })).resolves.toBe('rejected')
+
+    await ctx.settings.update(ApprovalAssessor.APPROVAL_ASSESSOR_SETTINGS_NAMESPACE, { enabled: false })
+    await expect(ctx.approval.request({
+      agent,
+      toolName: 'read',
+      reason: 'Should I skip this?',
+    })).resolves.toBe('unavailable')
+    await ctx.fiber.dispose()
+  })
+
+  it('refreshes policy from provider-backed document updates', async () => {
+    const { ctx, provider } = await settingsHarness()
+    const agent = sessionAgent('settings-provider')
+    const namespace = String(ApprovalAssessor.APPROVAL_ASSESSOR_SETTINGS_NAMESPACE)
+
+    provider.pushExternal({ [namespace]: { enabled: false } })
+    await expect(ctx.approval.request({
+      agent,
+      toolName: 'read',
+      reason: 'Should I skip this?',
+    })).resolves.toBe('unavailable')
+
+    provider.pushExternal({ [namespace]: { enabled: true, extraPatterns: ['provider-deny'] } })
+    await expect(ctx.approval.request({
+      agent,
+      toolName: 'read',
+      reason: 'provider-deny applies here.',
+    })).resolves.toBe('rejected')
+    await ctx.fiber.dispose()
   })
 })
 

@@ -8,13 +8,46 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import z from '@deepseek-ai/schemastery'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval'
 import type { ApprovalRequestEvent } from '@deepseek-ai/dsh-user-approval/types'
 
 export const name = 'approval-assessor'
 export const inject = ['approval']
+
+/** Composition values inherited by the approval-assessor settings section. */
+export interface Config {
+  /** Whether the assessor rejects work-avoidance approval reasons. */
+  enabled?: boolean
+  /** Additional case-insensitive regular-expression sources to screen. */
+  extraPatterns?: string[]
+}
+
+/** User-owned approval-assessor policy, applied to every approval request. */
+export interface ApprovalAssessorSettings {
+  /** Whether the assessor rejects work-avoidance approval reasons. */
+  enabled: boolean
+  /** Additional case-insensitive regular-expression sources to screen. */
+  extraPatterns: string[]
+}
+
+/** Plugin configuration schema with the mandatory audit enabled by default. */
+export const Config: z<Config> = z.object({
+  enabled: z.boolean().default(true),
+  extraPatterns: z.array(z.string()).default([]),
+})
+
+/** Settings namespace served to Host configuration surfaces. */
+export const APPROVAL_ASSESSOR_SETTINGS_NAMESPACE = settingsNamespace('approval-assessor')
+
+/** Schema for the complete user-owned approval-assessor policy. */
+export const APPROVAL_ASSESSOR_SETTINGS_SCHEMA: z<ApprovalAssessorSettings> = z.object({
+  enabled: z.boolean().default(true),
+  extraPatterns: z.array(z.string()).default([]),
+})
 
 /**
  * Evasion patterns in approval reasons: phrases that signal the agent is
@@ -45,6 +78,32 @@ const EVASION_PATTERNS: readonly RegExp[] = [
   /\bskip\s+for\s+now\b/i,
 ]
 
+/** Compiled policy used by the request waterfall. */
+interface ApprovalPolicy {
+  enabled: boolean
+  patterns: readonly RegExp[]
+}
+
+/** Compile user-provided pattern sources, rejecting malformed expressions. */
+function compileExtraPatterns(patterns: readonly string[]): readonly RegExp[] {
+  return patterns.map((source, index) => {
+    try {
+      return new RegExp(source, 'i')
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error)
+      throw new Error(`approval-assessor: invalid extraPatterns[${String(index)}] (${detail})`)
+    }
+  })
+}
+
+/** Compile one complete approval policy after schema validation. */
+function compilePolicy(settings: ApprovalAssessorSettings): ApprovalPolicy {
+  return {
+    enabled: settings.enabled,
+    patterns: [...EVASION_PATTERNS, ...compileExtraPatterns(settings.extraPatterns)],
+  }
+}
+
 /**
  * Extract the most recent human instruction from session events. Only
  * `source.kind === 'user'` messages qualify: the user-role log also carries
@@ -74,10 +133,11 @@ function lastUserInstruction(events: readonly SessionEvent[]): string | undefine
  * @param req - the approval request event.
  * @returns true when the request cannot proceed to an answerer.
  */
-function isRejectedByAudit(req: ApprovalRequestEvent): boolean {
+function isRejectedByAudit(req: ApprovalRequestEvent, policy: ApprovalPolicy): boolean {
+  if (!policy.enabled) return false
   const reason = req.reason
   if (reason === undefined || reason.length === 0) return true
-  return EVASION_PATTERNS.some(pattern => pattern.test(reason))
+  return policy.patterns.some(pattern => pattern.test(reason))
 }
 
 /**
@@ -100,9 +160,32 @@ function rejectionMessage(toolName: string, instruction: string | undefined): st
  * Install the mandatory approval assessor.
  * @param ctx - plugin context.
  */
-export function apply(ctx: Context): void {
+export function apply(ctx: Context, config: Config = {}): void {
+  const entry: ApprovalAssessorSettings = {
+    enabled: config.enabled ?? true,
+    extraPatterns: config.extraPatterns ?? [],
+  }
+  let source: () => ApprovalAssessorSettings = () => entry
+  let policy = compilePolicy(entry)
+  const refreshPolicy = (): void => {
+    policy = compilePolicy(source())
+  }
+
+  installSettingsSection(
+    ctx,
+    APPROVAL_ASSESSOR_SETTINGS_NAMESPACE,
+    APPROVAL_ASSESSOR_SETTINGS_SCHEMA,
+    entry,
+    {
+      setSource: (current) => { source = current },
+      validate: (settings) => { compilePolicy(settings) },
+      onChange: refreshPolicy,
+    },
+  )
+
   ctx.on('approval/request', async (req: ApprovalRequestEvent, next): Promise<ApprovalOutcome> => {
-    if (!isRejectedByAudit(req)) return next()
+    refreshPolicy()
+    if (!isRejectedByAudit(req, policy)) return next()
 
     const instruction = lastUserInstruction(req.agent.session.events)
 

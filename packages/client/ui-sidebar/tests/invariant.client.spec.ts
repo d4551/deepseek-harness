@@ -12,7 +12,6 @@ describe('invariant companion', () => {
 
   it('node-half apply is a no-op host placeholder', async () => {
     const { apply } = await import('@deepseek-ai/dsh-client-ui-sidebar')
-    apply()
-    expect(true).toBe(true) // reaching here without throw is the contract
+    expect(apply()).toBeUndefined()
   })
 })

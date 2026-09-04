@@ -23,7 +23,7 @@ export const TOOLCHAIN_FLOORS = Object.freeze({
   react: [19, 2],
   'react-dom': [19, 2],
   playwright: [1, 62],
-  vitest: [4, 1],
+  vitest: [5, 0],
   tsx: [4, 23],
 } as const satisfies Record<string, readonly [number, number]>)
 

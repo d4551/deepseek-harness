@@ -16,10 +16,10 @@ const ROOT_MANIFEST = {
   devDependencies: {
     typescript: '^7.0.2',
     vite: '^8.2.2',
-    vitest: '^4.1.11',
+    vitest: '^5.0.0',
     tsx: '^4.23.13',
   },
-} as Record<string, unknown>
+}
 
 const WEB_MANIFEST = {
   devDependencies: {
@@ -27,7 +27,7 @@ const WEB_MANIFEST = {
     'react-dom': '~19.2.8',
     playwright: '^1.62.1',
   },
-} as Record<string, unknown>
+}
 
 describe('rangeMeetsFloor', () => {
   it('accepts the current toolchain ranges', () => {
@@ -36,6 +36,7 @@ describe('rangeMeetsFloor', () => {
       ['~19.2.8', TOOLCHAIN_FLOORS['react']],
       ['^1.62.1', TOOLCHAIN_FLOORS['playwright']],
       ['^4.23.13', TOOLCHAIN_FLOORS['tsx']],
+      ['^5.0.0', TOOLCHAIN_FLOORS['vitest']],
     ] as const) {
       expect(rangeMeetsFloor(range, floor), range).toBe(true)
     }
@@ -44,6 +45,7 @@ describe('rangeMeetsFloor', () => {
   it('rejects old-major and old-minor bases and unparsable ranges', () => {
     expect(rangeMeetsFloor('^6.9.9', TOOLCHAIN_FLOORS['typescript'])).toBe(false)
     expect(rangeMeetsFloor('^8.1.9', TOOLCHAIN_FLOORS['vite'])).toBe(false)
+    expect(rangeMeetsFloor('^4.1.11', TOOLCHAIN_FLOORS['vitest'])).toBe(false)
     expect(rangeMeetsFloor('workspace:^', TOOLCHAIN_FLOORS['vitest'])).toBe(false)
     expect(rangeMeetsFloor('*', TOOLCHAIN_FLOORS['tsx'])).toBe(false)
   })
@@ -64,7 +66,7 @@ describe('checkToolchainFloors', () => {
       devDependencies: {
         typescript: '^6.0.2',
         vite: '^7.2.2',
-        vitest: '^3.1.11',
+        vitest: '^4.1.11',
         tsx: '^3.19.13',
       },
     }, {
@@ -86,7 +88,7 @@ describe('checkToolchainFloors', () => {
   })
 
   it('fails an unpinned engine, bun, or entry absent from every manifest', () => {
-    const { tsx: _removed, ...rootDeps } = ROOT_MANIFEST['devDependencies'] as Record<string, string>
+    const { tsx: _removed, ...rootDeps } = ROOT_MANIFEST.devDependencies
     const findings = checkToolchainFloors({
       ...ROOT_MANIFEST,
       engines: { node: '^20.0.0' },

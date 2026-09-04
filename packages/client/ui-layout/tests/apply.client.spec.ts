@@ -2,6 +2,7 @@
 
 import { Context } from '@deepseek-ai/cordis'
 import { stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
+import InvariantRegistry from '@deepseek-ai/dsh-invariants'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
@@ -21,12 +22,20 @@ async function bench() {
   // seam for persistence; model this bench as a remote, memory-only browser.
   ctx.provide('locale', new LocaleRuntime(ctx))
   ctx.provide('connection', { api: { settings: {} }, isLoopback: false } as never)
-  // ui-theme's Appearance row binds a durable scope through these two.
-  ctx.provide('remote', { $on: () => () => {} } as never)
+  // ui-theme's Appearance row binds a durable scope through these two. The
+  // live count makes subscribe/unsubscribe observable instead of hollow.
+  const remote = {
+    live: 0,
+    $on() {
+      this.live += 1
+      return () => { this.live -= 1 }
+    },
+  }
+  ctx.provide('remote', remote as never)
   ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
   await ctx.plugin({ inject: themeInject, apply: themeApply }).await()
   await slotsFiber.await()
-  return { ctx, slots: ctx.get('slots') as SlotRegistry }
+  return { ctx, remote, slots: ctx.get('slots') as SlotRegistry }
 }
 
 describe('ui-layout client apply', () => {
@@ -62,7 +71,7 @@ describe('ui-layout client apply', () => {
   })
 
   it('theme presenter applies the initial snapshot, follows theme/change, and unwinds on dispose', async () => {
-    const { ctx } = await bench()
+    const { ctx, remote } = await bench()
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     // Initial getter application: jsdom has no matchMedia, system resolves light.
@@ -76,6 +85,7 @@ describe('ui-layout client apply', () => {
     expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(true)
     expect(document.head.querySelector('meta[name="theme-color"]')).toBe(themeColorMeta)
     await fiber.dispose()
+    expect(remote.live).toBe(0)
     expect(document.documentElement.style.colorScheme).toBe('')
     expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(false)
     expect(themeColorMeta?.isConnected).toBe(false)
@@ -101,19 +111,16 @@ describe('ui-layout client apply', () => {
 
 describe('node half + invariant companion', () => {
   it('node apply is an intentional no-op (loader-managed lifecycle only)', () => {
-    nodeApply()
-    expect(true).toBe(true) // reaching here without throw is the contract
+    expect(nodeApply()).toBeUndefined()
   })
 
-  it('invariant companion registers under the package name', async () => {
-    const register = vi.fn().mockReturnValue(() => {})
-    const ctx = { invariants: { register } } as never
-    // The /invariant subpath types live in lib/types (build product); assert
-    // the API so the call stays typed where lint runs without a build.
-    const dispose = await (invariant as { apply: (ctx: never) => Promise<() => void> }).apply(ctx)
-    expect(register).toHaveBeenCalledWith('@deepseek-ai/dsh-client-ui-layout', expect.any(Function))
-    // The installer is the declared no-op — calling it must not throw.
-    expect(() => { (register.mock.calls[0]![1] as (c: never) => void)(undefined as never) }).not.toThrow()
-    expect(dispose).toBeTypeOf('function')
+  it('invariant companion reserves the package name exclusively and releases it on dispose', async () => {
+    const ctx = new Context()
+    await ctx.plugin(InvariantRegistry, { enabled: true })
+    const dispose = await invariant.apply(ctx)
+    expect(() => invariant.apply(ctx)).toThrow('is already registered')
+    dispose()
+    const reinstalled = await invariant.apply(ctx)
+    reinstalled()
   })
 })
