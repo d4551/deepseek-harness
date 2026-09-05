@@ -43,7 +43,7 @@ export const TYPESCRIPT_FLOOR: SemVer = { major: 7, minor: 0, patch: 2 }
 /** React product pin. */
 export const REACT_FLOOR: SemVer = { major: 19, minor: 2, patch: 8 }
 /** react-dom product pin. */
-const REACT_DOM_FLOOR: SemVer = { major: 19, minor: 2, patch: 8 }
+export const REACT_DOM_FLOOR: SemVer = { major: 19, minor: 2, patch: 8 }
 /** @types/react product pin. */
 const TYPES_REACT_FLOOR: SemVer = { major: 19, minor: 2, patch: 18 }
 /** @types/react-dom product pin. */
@@ -66,17 +66,18 @@ const OXLINT_FLOOR: SemVer = { major: 1, minor: 81, patch: 0 }
  * silently weakening.
  */
 const OXLINT_TSGOLINT_FLOOR: SemVer = { major: 7, minor: 0, patch: 2001 }
-/** Vitest pin: the runner every lane configures. */
-const VITEST_FLOOR: SemVer = { major: 4, minor: 1, patch: 11 }
+/**
+ * Vitest pin: the runner every lane configures. `@vitest/coverage-v8` is the
+ * same triple — a second constant here is how the two would drift.
+ */
+export const VITEST_FLOOR: SemVer = { major: 5, minor: 0, patch: 0 }
 /** `@types/node` pin: the ambient surface every Host package compiles against. */
 const TYPES_NODE_FLOOR: SemVer = { major: 26, minor: 4, patch: 0 }
 /**
  * `tsx` pin. The `dsh` source launch runs through tsx's ESM-only hook, so this
  * is a named part of the source-launch contract rather than a test-only tool.
  */
-const TSX_FLOOR: SemVer = { major: 4, minor: 23, patch: 13 }
-/** Coverage reporter pin: versioned in lockstep with {@link VITEST_FLOOR}. */
-const COVERAGE_V8_FLOOR: SemVer = { major: 4, minor: 1, patch: 11 }
+export const TSX_FLOOR: SemVer = { major: 4, minor: 23, patch: 13 }
 /** `@testing-library/react` pin: every Client component suite renders through it. */
 const TESTING_LIBRARY_REACT_FLOOR: SemVer = { major: 16, minor: 3, patch: 3 }
 /** `execa` pin: the subprocess surface the CLI and loader smokes drive. */
@@ -90,7 +91,11 @@ const YAML_FLOOR: SemVer = { major: 2, minor: 9, patch: 0 }
 /** `fflate` pin: session-transcript compression. */
 const FFLATE_FLOOR: SemVer = { major: 0, minor: 8, patch: 3 }
 /** `playwright` pin: the browser the Web snapshot and e2e lanes drive. */
-const PLAYWRIGHT_FLOOR: SemVer = { major: 1, minor: 62, patch: 1 }
+export const PLAYWRIGHT_FLOOR: SemVer = { major: 1, minor: 62, patch: 1 }
+/** Exact bun pin the root `packageManager` field must carry. */
+export const BUN_FLOOR: SemVer = { major: 1, minor: 4, patch: 2 }
+/** `packageManager` spelling of {@link BUN_FLOOR}. */
+export const BUN_PIN = `bun@${BUN_FLOOR.major}.${BUN_FLOOR.minor}.${BUN_FLOOR.patch}`
 /**
  * `railway` pin: the Infrastructure as Code authoring types
  * `deploy/litert/.railway/railway.ts` compiles against. Railway documents the
@@ -128,7 +133,7 @@ export const ROOT_DEPENDENCY_FLOORS: Readonly<Record<string, SemVer>> = Object.f
   '@types/mdast': { major: 4, minor: 0, patch: 4 },
   '@types/node': TYPES_NODE_FLOOR,
   '@types/spdx-expression-parse': { major: 4, minor: 0, patch: 0 },
-  '@vitest/coverage-v8': COVERAGE_V8_FLOOR,
+  '@vitest/coverage-v8': VITEST_FLOOR,
   '@yarnpkg/cli-dist': { major: 4, minor: 18, patch: 0 },
   execa: EXECA_FLOOR,
   'fast-check': { major: 4, minor: 9, patch: 0 },
@@ -158,7 +163,65 @@ export const ROOT_DEPENDENCY_FLOORS: Readonly<Record<string, SemVer>> = Object.f
   'vite-tsconfig-paths': { major: 6, minor: 1, patch: 1 },
 })
 
-const FORBIDDEN_STACK = /(\b(?:daisyui|tailwindcss|htmx\.org|hx-(?:get|post|put|patch|delete|swap|trigger|boost|target))\b|@tailwind\b)/g
+/**
+ * Shared names the live-stack SemVer floors and the toolchain (major, minor)
+ * floors must agree on. A second copy of any of these numbers is a miss.
+ */
+export const LIVE_TOOLCHAIN_FLOORS = Object.freeze({
+  typescript: TYPESCRIPT_FLOOR,
+  vite: VITE_FLOOR,
+  react: REACT_FLOOR,
+  'react-dom': REACT_DOM_FLOOR,
+  playwright: PLAYWRIGHT_FLOOR,
+  vitest: VITEST_FLOOR,
+  tsx: TSX_FLOOR,
+})
+
+/** One name whose live-stack SemVer and toolchain (major, minor) disagree. */
+export interface CollectorFloorDisagreement {
+  /** Dependency or toolchain name. */
+  name: string
+  /** Live-stack SemVer, or undefined when that collector omits the name. */
+  live: SemVer | undefined
+  /** Toolchain (major, minor), or undefined when that collector omits the name. */
+  toolchain: readonly [number, number] | undefined
+}
+
+/**
+ * Names where two floor collectors would accept different pins.
+ *
+ * A live-stack floor of vitest 4.1.11 and a toolchain floor of [5, 0] both
+ * pass a tree that already ships 5.x; the disagreement is the miss, not the
+ * live tree.
+ * @param live - SemVer floors keyed by dependency name.
+ * @param toolchain - (major, minor) floors keyed by the same names.
+ * @returns one row per missing or disagreeing name, sorted by name.
+ */
+export function collectorFloorDisagreements(
+  live: Readonly<Record<string, SemVer>>,
+  toolchain: Readonly<Record<string, readonly [number, number]>>,
+): CollectorFloorDisagreement[] {
+  const names = [...new Set([...Object.keys(live), ...Object.keys(toolchain)])].sort()
+  const misses: CollectorFloorDisagreement[] = []
+  for (const name of names) {
+    const liveFloor = live[name]
+    const toolFloor = toolchain[name]
+    if (liveFloor === undefined || toolFloor === undefined) {
+      misses.push({ name, live: liveFloor, toolchain: toolFloor })
+      continue
+    }
+    if (liveFloor.major !== toolFloor[0] || liveFloor.minor !== toolFloor[1]) {
+      misses.push({ name, live: liveFloor, toolchain: toolFloor })
+    }
+  }
+  return misses
+}
+
+const FORBIDDEN_STACK = new RegExp(
+  String.raw`(\b(?:daisyui|tailwindcss|htmx\.org|hx-(?:get|post|put|patch|delete|swap|trigger|boost|target))\b`
+    + String.raw`|@tailwind\b|@apply\b)`,
+  'g',
+)
 
 /**
  * Parse the first `major.minor.patch` in a declared range (`^7.0.2`, `~18.3.1`).
@@ -353,7 +416,7 @@ export function toolchainMisses(manifests: readonly { file: string; source: stri
     oxlint: OXLINT_FLOOR,
     'oxlint-tsgolint': OXLINT_TSGOLINT_FLOOR,
     vitest: VITEST_FLOOR,
-    '@vitest/coverage-v8': COVERAGE_V8_FLOOR,
+    '@vitest/coverage-v8': VITEST_FLOOR,
     '@types/node': TYPES_NODE_FLOOR,
     tsx: TSX_FLOOR,
     '@testing-library/react': TESTING_LIBRARY_REACT_FLOOR,
@@ -464,6 +527,23 @@ function installedManifestOf(name: string, declaredIn: string): string | undefin
     if (parent === directory) return undefined
     directory = parent
   }
+}
+
+/**
+ * Version the named dependency actually resolves to from the root manifest.
+ *
+ * Caret ranges in the manifest are intent; the installed package.json is what
+ * the suite imports. A floor that only reads the caret would accept a lockfile
+ * that resolved below it.
+ * @param name - dependency name.
+ * @param root - repository root.
+ * @returns the installed version string, or undefined when it is not on disk.
+ */
+export function installedNamedVersion(name: string, root: string = ROOT): string | undefined {
+  const installed = installedManifestOf(name, resolve(root, 'package.json'))
+  if (installed === undefined) return undefined
+  const version = (JSON.parse(readFileSync(installed, 'utf8')) as { version?: string }).version
+  return version
 }
 
 /**
@@ -586,6 +666,30 @@ function rootDeclaredDependencies(source: string): string[] {
  */
 export function rootManifestSource(root: string = ROOT): string {
   return readFileSync(resolve(root, 'package.json'), 'utf8')
+}
+
+/**
+ * Root `packageManager` misses against {@link BUN_PIN}.
+ *
+ * The pin is exact: `bun@1.4.0` and `bun@1.3.x` both miss once the floor is
+ * 1.4.2. A SemVer `>=` comparison would accept a newer major the CI image has
+ * not been proven on.
+ * @param source - raw package.json text.
+ * @returns a miss when the field is absent or not {@link BUN_PIN}.
+ */
+export function packageManagerMisses(source: string): RangeMiss[] {
+  const manifest: unknown = JSON.parse(source)
+  if (typeof manifest !== 'object' || manifest === null || Array.isArray(manifest)) {
+    throw new Error('package.json is not an object')
+  }
+  const declared = (manifest as Record<string, unknown>)['packageManager']
+  if (typeof declared === 'string' && declared === BUN_PIN) return []
+  return [{
+    file: 'package.json',
+    name: 'packageManager',
+    range: typeof declared === 'string' ? declared : '(absent)',
+    floor: BUN_FLOOR,
+  }]
 }
 
 function isProductUiPath(relativePath: string): boolean {

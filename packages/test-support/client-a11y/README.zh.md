@@ -9,7 +9,7 @@ kind: "package-library"
 
 ## 概述
 
-`dsh-client-a11y` 对 client 套件已渲染出的 DOM 运行 axe-core，并报告其发现：被违反的规则、通过与失败的规则-节点检查数，以及套件所审计的全部 surface（受审面）上的一个聚合分数。规则集在此固定——WCAG 2.0 与 2.1 的 A、AA 级加 axe 的最佳实践标签——因此没有任何套件能收窄自身被检验的标准。它是独立的包而非 [`dsh-client-test-runtime`](../client-runtime/README.zh.md) 的一部分，因为 axe-core 在加载时会触碰 jsdom 的全局对象：把它导入共享测试台会让它出现在每个 client spec 之前，并改变无关测试的布局测量结果。
+`dsh-client-a11y` 对 client 套件已渲染出的 DOM 运行 axe-core，并报告其发现：被违反的规则、通过与失败的规则-节点检查数，以及套件所审计的全部 surface（受审面）上的一个聚合分数。规则集在此固定——WCAG 2.0、2.1 与 2.2 的 A、AA 级加 axe 的最佳实践标签——因此没有任何套件能收窄自身被检验的标准。它是独立的包而非 [`dsh-client-test-runtime`](../client-runtime/README.zh.md) 的一部分，因为 axe-core 在加载时会触碰 jsdom 的全局对象：把它导入共享测试台会让它出现在每个 client spec 之前，并改变无关测试的布局测量结果。
 
 ## 目录
 
@@ -25,17 +25,16 @@ kind: "package-library"
 <a id="use-this-package"></a>
 ## 使用本包
 
-渲染一个 surface（受审面）、审计它、断言没有违规，并守住聚合分数：
+渲染一个 surface（受审面）、审计它，并用 `accessibilityFailures` 守住下限：
 
 ```text
 const { baseElement } = render(<main><Button>Send</Button></main>)
 const audit = await auditSurface('Button', baseElement)
 
-expect(formatViolations(audit)).toBe('')
-expect(accessibilityScore([audit])).toBeGreaterThanOrEqual(99)
+expect(accessibilityFailures([audit], 100)).toBe('')
 ```
 
-`auditSurface(surface, context)` 返回被违反的规则，以及 `passed`、`failed`、`undecided` 三个节点计数，还有 `undecidedRules`——这些未判定检查所属的规则。`accessibilityScore(audits)` 是*已判定*检查中通过的百分比；`formatViolations(audit)` 为每个违规节点渲染一行，写明规则、其影响级别与对应元素。
+`auditSurface(surface, context)` 返回被违反的规则，以及 `passed`、`failed`、`undecided` 三个节点计数，还有 `undecidedRules`——这些未判定检查所属的规则。`accessibilityFailures(audits, 100)` 是下限：未判定任何检查的 surface、违规节点、以及低于 100 的分数都会失败。`accessibilityScore(audits)` 是*已判定*检查中通过的百分比；`formatViolations(audit)` 为每个违规节点渲染一行，写明规则、其影响级别与对应元素。
 
 ### 在 landmark 内渲染
 
@@ -66,7 +65,7 @@ expect(accessibilityScore([audit])).toBeGreaterThanOrEqual(99)
 
 | 文件 | 作用 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | `CLIENT_AXE_TAGS`、`auditSurface`、`accessibilityScore`、`formatViolations` |
+| [`src/index.ts`](src/index.ts) | `CLIENT_AXE_TAGS`、`clientAxeRunOptions`、`auditSurface`、`accessibilityFailures`、`accessibilityScore`、`formatViolations` |
 | [`src/invariant.ts`](src/invariant.ts) | 不变式伴生插件（无运行时不变式；该模块不拥有事件流或可变数据） |
 
 </details>

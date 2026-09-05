@@ -54,8 +54,10 @@ describe('injected SSOT violations', () => {
         content: 'body { display: grid; } .row { float: left; }\n',
       },
       { file: 'packages/client/ui-chat/src/Bad.tsx', content: "import 'daisyui'\n" },
+      { file: 'packages/client/ui-chat/src/Util.tsx', content: '<div className="flex items-center gap-4 p-2 bg-red-500" />\n' },
       { file: 'apps/web/index.html', content: '<script src="/vendor/legacy.js"></script>\n' },
       { file: 'apps/web/src/page-helper.js', content: 'window.ready = true\n' },
+      { file: 'packages/client/ui-chat/src/page-helper.js', content: 'window.ready = true\n' },
     ])
     const kinds = new Set(findings.map(f => f.kind))
     expect(kinds.has('shell-drift')).toBe(true)
@@ -63,6 +65,7 @@ describe('injected SSOT violations', () => {
     expect(kinds.has('forbidden-stack')).toBe(true)
     expect(kinds.has('inline-script')).toBe(true)
     expect(kinds.has('one-off-script')).toBe(true)
+    expect(kinds.has('utility-class-stack')).toBe(true)
   })
 
   it('flags painted color literals in component CSS', () => {
@@ -344,6 +347,7 @@ describe('injected SSOT violations', () => {
       THEME,
       FRAME,
       { file: 'packages/client/ui-chat/src/Row.module.css', content: '.row { color: var(--dsw-alias-label-primary); display: flex; }\n' },
+      { file: 'packages/client/ui-chat/src/Row.tsx', content: '<div className={css.row} />\n' },
       { file: 'apps/web/index.html', content: '<script type="module" src="/src/main.ts"></script>\n' },
     ])).toEqual([])
   })

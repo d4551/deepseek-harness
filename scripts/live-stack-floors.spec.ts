@@ -8,9 +8,15 @@ import { version, versionMajorMinor } from 'typescript'
 import {
   AXE_FLOOR,
   auditStackMisses,
+  BUN_FLOOR,
+  BUN_PIN,
+  collectorFloorDisagreements,
   declaredRange,
   forbiddenStackHits,
+  installedNamedVersion,
+  LIVE_TOOLCHAIN_FLOORS,
   MCP_SDK_FLOOR,
+  packageManagerMisses,
   parseRangeFloor,
   productUiFiles,
   rangeMeetsFloor,
@@ -26,6 +32,7 @@ import {
   typescriptCompileMisses,
   viteMisses,
   VITE_FLOOR,
+  VITEST_FLOOR,
   workspaceManifests,
   PINNED_PRODUCT_FLOORS,
   installedPinMisses,
@@ -34,6 +41,7 @@ import {
   pinnedDependencyMisses,
   unflooredPinnedDependencies,
 } from './live-stack-floors.ts'
+import { checkToolchainFloors, NODE_ENGINE_FLOOR, TOOLCHAIN_FLOORS } from './verify-toolchain-floors.ts'
 
 describe('parseRangeFloor', () => {
   it('reads the encoded version from a caret range', () => {
@@ -104,6 +112,39 @@ describe('injected floor misses', () => {
     expect(misses.map(m => m.range)).toEqual(['^6.0.0'])
   })
 
+  it('fails a vitest 4 pin the toolchain floor already rejects', () => {
+    const source = '{"devDependencies":{"vitest":"^4.1.11","@vitest/coverage-v8":"^4.1.11"}}'
+    expect(toolchainMisses([{ file: 'package.json', source }]).map(miss => miss.name).sort())
+      .toEqual(['@vitest/coverage-v8', 'vitest'])
+    expect(rangeMeetsFloor('^4.1.11', VITEST_FLOOR)).toBe(false)
+  })
+
+  it('fails bun 1.3.x and bun 1.4.0 once the pin is 1.4.2', () => {
+    expect(packageManagerMisses('{"packageManager":"bun@1.3.11"}')).toEqual([{
+      file: 'package.json',
+      name: 'packageManager',
+      range: 'bun@1.3.11',
+      floor: BUN_FLOOR,
+    }])
+    expect(packageManagerMisses('{"packageManager":"bun@1.4.0"}')[0]?.range).toBe('bun@1.4.0')
+    expect(packageManagerMisses(`{"packageManager":"${BUN_PIN}"}`)).toEqual([])
+  })
+
+  it('fails when live-stack would accept a pin the toolchain floor rejects', () => {
+    expect(collectorFloorDisagreements(
+      { vitest: { major: 4, minor: 1, patch: 11 } },
+      { vitest: [5, 0] },
+    )).toEqual([{
+      name: 'vitest',
+      live: { major: 4, minor: 1, patch: 11 },
+      toolchain: [5, 0],
+    }])
+    expect(collectorFloorDisagreements(
+      { vitest: VITEST_FLOOR },
+      { vitest: [5, 0], bun: [1, 4] },
+    )).toEqual([{ name: 'bun', live: undefined, toolchain: [1, 4] }])
+  })
+
   it('does not treat a missing name as a pass that hid a pin', () => {
     expect(declaredRange('{"devDependencies":{}}', 'typescript')).toBeUndefined()
     expect(rangeMeetsFloor('^19.2.8', REACT_FLOOR)).toBe(true)
@@ -117,8 +158,9 @@ describe('forbidden stacks', () => {
       { file: 'packages/client/ui-chat/src/y.css', content: '@tailwind base;\n' },
       { file: 'apps/web/src/z.ts', content: "import 'htmx.org'\n" },
       { file: 'apps/web/index.html', content: '<div hx-get="/x"></div>\n' },
+      { file: 'packages/client/ui-chat/src/z.css', content: '.a { @apply flex items-center; }\n' },
     ])
-    expect(hits.map(h => h.token).sort()).toEqual(['@tailwind', 'daisyui', 'htmx.org', 'hx-get'])
+    expect(hits.map(h => h.token).sort()).toEqual(['@apply', '@tailwind', 'daisyui', 'htmx.org', 'hx-get'])
   })
 
   it('does not fire on a clean snippet', () => {
@@ -168,6 +210,52 @@ describe('live workspace floors', () => {
     expect(versionMajorMinor).toBe('7.0')
     expect(version.startsWith('7.')).toBe(true)
     expect(rangeMeetsFloor(`^${version}`, TYPESCRIPT_FLOOR)).toBe(true)
+  })
+
+  it('holds the root packageManager at the bun pin', () => {
+    expect(packageManagerMisses(rootManifestSource())).toEqual([])
+    const manifest = JSON.parse(rootManifestSource()) as { packageManager?: unknown }
+    expect(manifest.packageManager).toBe(BUN_PIN)
+  })
+
+  it('holds live-stack and toolchain floors to the same major.minor per shared name', () => {
+    expect(collectorFloorDisagreements(LIVE_TOOLCHAIN_FLOORS, TOOLCHAIN_FLOORS)).toEqual([])
+  })
+
+  it('holds installed vitest and coverage-v8 at the live-stack floor, not a mocked string', () => {
+    const vitest = installedNamedVersion('vitest')
+    const coverage = installedNamedVersion('@vitest/coverage-v8')
+    expect(vitest).toBeDefined()
+    expect(coverage).toBeDefined()
+    expect(rangeMeetsFloor(vitest ?? '', VITEST_FLOOR)).toBe(true)
+    expect(rangeMeetsFloor(coverage ?? '', VITEST_FLOOR)).toBe(true)
+    expect(parseRangeFloor(vitest ?? '0.0.0').major).toBe(VITEST_FLOOR.major)
+    expect(parseRangeFloor(vitest ?? '0.0.0').major).toBe(TOOLCHAIN_FLOORS.vitest[0])
+  })
+
+  it('rejects vitest 4 on both collectors at once', () => {
+    const live = toolchainMisses([{
+      file: 'package.json',
+      source: '{"devDependencies":{"vitest":"^4.1.11"}}',
+    }])
+    const tool = checkToolchainFloors({
+      engines: { node: NODE_ENGINE_FLOOR },
+      packageManager: BUN_PIN,
+      devDependencies: {
+        typescript: '^7.0.2',
+        vite: '^8.2.2',
+        vitest: '^4.1.11',
+        tsx: '^4.23.13',
+      },
+    }, {
+      devDependencies: {
+        react: '~19.2.8',
+        'react-dom': '~19.2.8',
+        playwright: '^1.62.1',
+      },
+    })
+    expect(live.map(miss => miss.name)).toEqual(['vitest'])
+    expect(tool.some(finding => finding.subject.includes('vitest'))).toBe(true)
   })
 
   it('names a floor for every dependency the root manifest declares', () => {

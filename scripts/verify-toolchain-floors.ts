@@ -8,8 +8,21 @@
 
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { BUN_PIN, LIVE_TOOLCHAIN_FLOORS, type SemVer } from './live-stack-floors.ts'
 
 const ROOT = resolve(import.meta.dirname, '..')
+
+export { BUN_PIN }
+
+/**
+ * (major, minor) projection of {@link LIVE_TOOLCHAIN_FLOORS}. The SemVer
+ * triples live in one file; this map must not restate them.
+ * @param version - three-part floor.
+ * @returns the major.minor pair the toolchain gate compares against.
+ */
+function majorMinor(version: SemVer): readonly [number, number] {
+  return [version.major, version.minor]
+}
 
 /**
  * Minimum accepted (major, minor) per toolchain dependency of the root
@@ -18,20 +31,17 @@ const ROOT = resolve(import.meta.dirname, '..')
  * snapshot lanes execute on.
  */
 export const TOOLCHAIN_FLOORS = Object.freeze({
-  typescript: [7, 0],
-  vite: [8, 2],
-  react: [19, 2],
-  'react-dom': [19, 2],
-  playwright: [1, 62],
-  vitest: [5, 0],
-  tsx: [4, 23],
+  typescript: majorMinor(LIVE_TOOLCHAIN_FLOORS.typescript),
+  vite: majorMinor(LIVE_TOOLCHAIN_FLOORS.vite),
+  react: majorMinor(LIVE_TOOLCHAIN_FLOORS.react),
+  'react-dom': majorMinor(LIVE_TOOLCHAIN_FLOORS['react-dom']),
+  playwright: majorMinor(LIVE_TOOLCHAIN_FLOORS.playwright),
+  vitest: majorMinor(LIVE_TOOLCHAIN_FLOORS.vitest),
+  tsx: majorMinor(LIVE_TOOLCHAIN_FLOORS.tsx),
 } as const satisfies Record<string, readonly [number, number]>)
 
 /** Node engine floor the manifest must declare (CI matrix legs match it). */
 export const NODE_ENGINE_FLOOR = '^22.19.0 || >=24.0.0'
-
-/** Exact bun pin the manifest's packageManager field must carry. */
-export const BUN_PIN = 'bun@1.4.0'
 
 /** One floor miss. */
 export interface ToolchainFinding {

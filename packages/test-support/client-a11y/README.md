@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-client-a11y` runs axe-core over a DOM a client suite already rendered and reports what it found: the violated rules, the rule-node checks that passed and failed, and one aggregate score across every surface a suite audited. The rule set is fixed here — WCAG 2.0 and 2.1 levels A and AA plus axe's best-practice tags — so no suite can narrow the bar it is held to. It is a separate package rather than part of [`dsh-client-test-runtime`](../client-runtime/README.md) because axe-core touches jsdom globals when it loads: importing it into the shared bench put it in front of every client spec and moved unrelated layout measurements.
+`dsh-client-a11y` runs axe-core over a DOM a client suite already rendered and reports what it found: the violated rules, the rule-node checks that passed and failed, and one aggregate score across every surface a suite audited. The rule set is fixed here — WCAG 2.0, 2.1, and 2.2 levels A and AA plus axe's best-practice tags — so no suite can narrow the bar it is held to. It is a separate package rather than part of [`dsh-client-test-runtime`](../client-runtime/README.md) because axe-core touches jsdom globals when it loads: importing it into the shared bench put it in front of every client spec and moved unrelated layout measurements.
 
 ## Table of Contents
 
@@ -25,17 +25,16 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Render a surface, audit it, assert that nothing was violated, and hold the aggregate score:
+Render a surface, audit it, and hold the floor with `accessibilityFailures`:
 
 ```text
 const { baseElement } = render(<main><Button>Send</Button></main>)
 const audit = await auditSurface('Button', baseElement)
 
-expect(formatViolations(audit)).toBe('')
-expect(accessibilityScore([audit])).toBeGreaterThanOrEqual(99)
+expect(accessibilityFailures([audit], 100)).toBe('')
 ```
 
-`auditSurface(surface, context)` returns the violated rules plus `passed`, `failed`, and `undecided` node counts, and `undecidedRules` — the rules those undecided checks belong to. `accessibilityScore(audits)` is the percentage of *decided* checks that passed; `formatViolations(audit)` renders one line per offending node, naming the rule, its impact, and the element.
+`auditSurface(surface, context)` returns the violated rules plus `passed`, `failed`, and `undecided` node counts, and `undecidedRules` — the rules those undecided checks belong to. `accessibilityFailures(audits, 100)` is the floor: silent surfaces, violated nodes, and a score below 100 each fail. `accessibilityScore(audits)` is the percentage of *decided* checks that passed; `formatViolations(audit)` renders one line per offending node, naming the rule, its impact, and the element.
 
 ### Render inside a landmark
 
@@ -66,7 +65,7 @@ The module is a thin, honest projection of `axe.run`. It fixes the tag list, req
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | `CLIENT_AXE_TAGS`, `auditSurface`, `accessibilityScore`, `formatViolations` |
+| [`src/index.ts`](src/index.ts) | `CLIENT_AXE_TAGS`, `clientAxeRunOptions`, `auditSurface`, `accessibilityFailures`, `accessibilityScore`, `formatViolations` |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; the module owns no event stream or mutable data) |
 
 </details>

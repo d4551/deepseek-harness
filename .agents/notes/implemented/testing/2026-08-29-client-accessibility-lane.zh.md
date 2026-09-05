@@ -12,7 +12,7 @@ Status: implemented
 
 [`dsh-client-a11y`](../../../../packages/test-support/client-a11y/README.zh.md) 对套件已渲染出的 DOM 运行 axe-core，而 `packages/client/ui-primitives/tests/accessibility.client.spec.tsx` 用它检验 primitives 包的每一个导出组件。该通道在 `bun run test` 内运行，因此存在于每一个运行单元层级的聚合中。
 
-- **规则集固定在 harness 内**，而非按调用传入：WCAG 2.0 与 2.1 的 A、AA 级加 axe 的最佳实践标签。套件无法收窄衡量自身的标准，并且有一个单元测试钉住该清单。
+- **规则集固定在 harness 内**，而非按调用传入：WCAG 2.0、2.1 与 2.2 的 A、AA 级加 axe 的最佳实践标签。套件无法收窄衡量自身的标准，并且有一个单元测试钉住该清单。下限是 `accessibilityFailures(..., 100) === ''`；仅断言分数、因而会在未判定任何检查的 surface 上通过的写法不算覆盖。
 - **受审集合由包的导出推导得出**，套件断言受审名称等于导出名称。新组件或新图标在交付的那一刻即被审计，而不是等到有人想起把它加进清单。React `memo` 包装也算组件，否则被 memo 包裹的导出会从名称检查中溜走。
 - **各 surface（受审面）在 `main` landmark 内渲染。** 页面结构类规则无法由漂浮在空 `body` 中的组件满足；没有该 landmark，审计会把脚手架缺少页面框架报告成每个组件的缺陷。
 - **下限等于已记录分数。** 每一项已判定检查都通过，因此下限为 100，任何一项检查失败都会让运行失败。低于记录值的下限会恰好允许那么多回归落地，却仍读起来像一条下限。

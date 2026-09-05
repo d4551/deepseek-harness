@@ -1,5 +1,7 @@
 /** Toolchain floor gate: downgrade detection against the root and web manifests. */
 
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   BUN_PIN,
@@ -8,6 +10,7 @@ import {
   checkToolchainFloors,
   rangeMeetsFloor,
 } from './verify-toolchain-floors.ts'
+import { collectorFloorDisagreements, LIVE_TOOLCHAIN_FLOORS } from './live-stack-floors.ts'
 
 const ROOT_MANIFEST = {
   name: '@deepseek-ai/dsh-root',
@@ -100,5 +103,24 @@ describe('checkToolchainFloors', () => {
       'engines.node',
       'packageManager',
     ])
+  })
+
+  it('fails a bun 1.3.x packageManager pin', () => {
+    const findings = checkToolchainFloors({
+      ...ROOT_MANIFEST,
+      packageManager: 'bun@1.3.11',
+    }, WEB_MANIFEST)
+    expect(findings.some(finding => finding.subject === 'packageManager' && finding.declared.includes('1.3.11'))).toBe(true)
+  })
+
+  it('holds the live root and web manifests, not only the in-spec fixtures', () => {
+    const root = JSON.parse(readFileSync(resolve(import.meta.dirname, '../package.json'), 'utf8')) as Record<string, unknown>
+    const web = JSON.parse(readFileSync(resolve(import.meta.dirname, '../apps/web/package.json'), 'utf8')) as Record<string, unknown>
+    expect(checkToolchainFloors(root, web)).toEqual([])
+    expect(root['packageManager']).toBe(BUN_PIN)
+  })
+
+  it('derives its (major, minor) floors from the live-stack SemVer triples', () => {
+    expect(collectorFloorDisagreements(LIVE_TOOLCHAIN_FLOORS, TOOLCHAIN_FLOORS)).toEqual([])
   })
 })

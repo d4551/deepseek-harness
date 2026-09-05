@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { BUN_PIN } from '../verify-toolchain-floors.ts'
 import {
   createIntegrationRelease,
   integrationReleaseFiles,
@@ -28,7 +29,7 @@ function input(): IntegrationReleaseInput {
       minimumExactMajor: 22,
       minimumExactMinor: 19,
       minimumMajor: 24,
-      packageManager: 'bun@1.4.0',
+      packageManager: BUN_PIN,
       platform: 'linux-x64',
       toolPackage: '@deepseek-ai/dsh-tool-shell',
     },

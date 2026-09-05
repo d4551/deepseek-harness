@@ -6,7 +6,7 @@
 
 ## 层级
 
-- **单元测试**（`bun run test`）：vitest 运行包和示例各自的 `tests/**` 目录下的测试，以及匹配 `scripts/**/*.spec.ts` 的仓库脚本测试；测试文件与其所覆盖的代码区域放在一起。每个注册表都有一个 HMR（热模块替换）安全测试（对向该注册表贡献内容的 fiber 执行 dispose（资源释放），并断言清理完成）。优先覆盖边界情况、错误路径、事件顺序、并发竞态，以及针对约定回归的永久测试（见 `packages/core/agent-loop/tests/contract-regressions.spec.ts`）。每个导出的 client UI 组件都会以 axe-core 按 WCAG 2.0/2.1 A 与 AA 级加最佳实践规则接受审计（[dsh-client-a11y](../packages/test-support/client-a11y/README.zh.md)）。
+- **单元测试**（`bun run test`）：vitest 运行包和示例各自的 `tests/**` 目录下的测试，以及匹配 `scripts/**/*.spec.ts` 的仓库脚本测试；测试文件与其所覆盖的代码区域放在一起。每个注册表都有一个 HMR（热模块替换）安全测试（对向该注册表贡献内容的 fiber 执行 dispose（资源释放），并断言清理完成）。优先覆盖边界情况、错误路径、事件顺序、并发竞态，以及针对约定回归的永久测试（见 `packages/core/agent-loop/tests/contract-regressions.spec.ts`）。每个导出的 client UI 组件都会以 axe-core 按 WCAG 2.0/2.1/2.2 A 与 AA 级加最佳实践规则接受审计（[dsh-client-a11y](../packages/test-support/client-a11y/README.zh.md)）。
 - **覆盖率门禁**（`bun run test:coverage`）：门禁级运行，对 `packages/*/*/src` 按文件 100% 覆盖。未覆盖的行往往是门禁正确标记出的死代码（应删除），而非需要补写的测试。行覆盖率是必要条件，但永远不是充分条件：它证明行被执行过，不证明功能按交付预期工作。`vitest.config.ts` 承载该标准未覆盖的部分，且每条都附有理由：没有运行时覆盖率可测量的文件；执行组合位于 Worker、浏览器 realm 或子进程中、单元进程的 V8 无法观测的代码；以及一份带标记的欠债清单（`TODO(gui)`、`TODO(inspector)`、`TODO(webworker)`），等待浏览器级测试通道。
 - **真实 API e2e**（`bun run test:e2e`）：带密钥测试调用真实提供方 API，包括 DeepSeek 模型以及各提供方特有的冒烟测试；这些测试各自由自己的密钥控制（`EXA_API_KEY`、`PERPLEXITY_API_KEY` 等），缺少密钥时套件会自动跳过，使 keyless CI 保持绿色（[真实 API e2e Agent Note](../.agents/notes/implemented/testing/2026-06-19-real-api-e2e-ci.zh.md)）。
 - **所属位置的预期输出**（`bun run test:expected`）：无录制会话往返的无密钥组装 CLI/进程预期。驱动使用 `*.expected.e2e.ts`，并与 `tests/expected/` 同属一处；CI 针对构建产物运行。包/脚本预期使用 `test`，浏览器预期使用 `test:web`。

@@ -1,13 +1,14 @@
 /**
  * Fail-capable scan of the CSS-Modules / `--dsw-*` styling SSOT: forbidden
- * stacks, token bypass, raw stacking numbers, a second page shell, float and
- * dead inline alignment, inline scripts, missing theme focus/motion,
- * undersized interactive geometry, rule bodies copied between CSS Modules,
- * and nested selector blocks.
+ * stacks, utility-class stacks, token bypass, raw stacking numbers, a second
+ * page shell, float and dead inline alignment, inline scripts, missing theme
+ * focus/motion, undersized interactive geometry, rule bodies copied between
+ * CSS Modules, and nested selector blocks.
  */
 
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { forbiddenStackHits } from './live-stack-floors.ts'
 import { uniqueRepoFiles } from './repo-files.ts'
 import { cssRules, declaresInfiniteAnimation, selectorParts, stopsAnimation, stripCssComments } from './ui-ssot-css.ts'
 
@@ -34,6 +35,7 @@ export interface SsotFinding {
     | 'duplicated-shell'
     | 'duplicated-rule'
     | 'deep-nesting'
+    | 'utility-class-stack'
   /** Why it fired. */
   detail: string
 }
@@ -42,7 +44,6 @@ const THEME_STYLES_DIR = 'packages/client/ui-theme/src/styles/'
 const APP_FRAME_CSS = 'packages/client/ui-layout/src/client/AppFrame.module.css'
 const WEB_ENTRY = 'apps/web/src/main.ts'
 
-const FORBIDDEN = /\b(daisyui|tailwindcss|htmx\.org|@tailwind|hx-(?:get|post|put|patch|delete|swap|trigger|boost|target))\b/
 const COLOR_NAME = '(?:color|background(?:-color)?|border(?:-color)?|fill|stroke|outline-color)'
 const COLOR_PROP = new RegExp(
   String.raw`(?:^|[;{\s])${COLOR_NAME}\s*:\s*(#[0-9a-f]{3,8}|rgba?\(|hsla?\(|oklch\()`,
@@ -106,6 +107,34 @@ const SCRIPT_IS_MODULE = /\btype\s*=\s*['"]module['"]/i
 const ON_HANDLER = /\son(?:click|load|error|submit)\s*=/i
 const INTERACTIVE = /(?:^|,)\s*(?:button|\[role=['"]button['"]\]|\.button)[^{]*\{([^}]*)\}/gi
 const PX_SIZE = /(?:width|height|min-width|min-height)\s*:\s*(\d+)px/gi
+/**
+ * One Tailwind-like utility token. A single `flex` in a CSS Module class name
+ * is not a stack; three or more space-separated tokens in one quoted string is.
+ */
+const UTILITY_PREFIX = '(?:(?:sm|md|lg|xl|2xl|hover|focus|focus-visible|active|disabled|dark|group-hover):)*?'
+const UTILITY_BODY = '(?:flex|inline-flex|grid|inline-grid|hidden|block|inline-block|inline|contents'
+  + '|items-[a-z]+|justify-[a-z]+|content-[a-z]+|self-[a-z]+|place-items-[a-z]+|gap-\\S+'
+  + '|p[xytblr]?-\\S+|m[xytblr]?-\\S+|w-\\S+|h-\\S+|min-[wh]-\\S+|max-[wh]-\\S+'
+  + '|bg-\\S+|text-\\S+|font-\\S+|leading-\\S+|tracking-\\S+|rounded(?:-\\S+)?'
+  + '|shadow(?:-\\S+)?|border(?:-\\S+)?|ring(?:-\\S+)?|opacity-\\S+|z-\\d+|overflow-\\S+|truncate|sr-only)'
+const UTILITY_TOKEN = new RegExp(`^${UTILITY_PREFIX}${UTILITY_BODY}$`)
+
+/**
+ * Quoted strings that carry three or more Tailwind-like utility tokens.
+ * @param content - file text.
+ * @returns each stack, space-joined.
+ */
+function quotedUtilityStacks(content: string): string[] {
+  const stacks: string[] = []
+  const quoted = /(['"`])([^'"`\n]+)\1/g
+  let match: RegExpExecArray | null
+  while ((match = quoted.exec(content)) !== null) {
+    const tokens = (match[2] ?? '').trim().split(/\s+/).filter(part => part !== '')
+    const utilities = tokens.filter(token => UTILITY_TOKEN.test(token))
+    if (utilities.length >= 3) stacks.push(utilities.join(' '))
+  }
+  return stacks
+}
 
 function themeSheets(files: readonly { file: string; content: string }[]): string {
   return files
@@ -172,8 +201,22 @@ export function scanUiSsot(files: readonly { file: string; content: string }[]):
     const path = file.replaceAll('\\', '/')
     const css = path.endsWith('.css') ? stripCssComments(content) : content
 
-    if (FORBIDDEN.test(content)) {
-      findings.push({ file: path, kind: 'forbidden-stack', detail: 'Tailwind, daisyUI, or htmx token in product UI' })
+    for (const hit of forbiddenStackHits([{ file: path, content }])) {
+      findings.push({
+        file: path,
+        kind: 'forbidden-stack',
+        detail: `Tailwind, daisyUI, or htmx token in product UI (${hit.token})`,
+      })
+    }
+
+    if (/\.(?:tsx|jsx|html?)$/.test(path)) {
+      for (const stack of quotedUtilityStacks(content)) {
+        findings.push({
+          file: path,
+          kind: 'utility-class-stack',
+          detail: `utility-class stack "${stack}"; use CSS Modules and --dsw-* tokens`,
+        })
+      }
     }
 
     if (path.endsWith('.css') && !path.startsWith(THEME_STYLES_DIR) && COLOR_PROP.test(css)) {
@@ -204,7 +247,11 @@ export function scanUiSsot(files: readonly { file: string; content: string }[]):
       findings.push({ file: path, kind: 'inline-script', detail: 'inline or non-module script / HTML handler outside the Vite entry' })
     }
 
-    if (path.startsWith('apps/web/src/') && path.endsWith('.js') && !path.endsWith('node-module-stub.js')) {
+    if (
+      (path.startsWith('apps/web/src/') || /^packages\/client\/[^/]+\/src\//.test(path))
+      && path.endsWith('.js')
+      && !path.endsWith('node-module-stub.js')
+    ) {
       findings.push({ file: path, kind: 'one-off-script', detail: `per-page helper outside ${WEB_ENTRY}` })
     }
 

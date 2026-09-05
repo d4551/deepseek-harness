@@ -9,7 +9,7 @@ The setup tutorial takes a new contributor from prerequisites to a checked check
 ### Prerequisites
 
 - Node.js supports 22.19+ and 24+. CI covers 22.19, 24, and 26; see the [Node engine floor Agent Note](../.agents/notes/implemented/process/2026-07-06-node-engine-floor.md).
-- bun. The repo pins `bun@1.4.0` in `package.json`; install it from [bun.com/docs/installation](https://bun.com/docs/installation) if `bun --version` does not resolve.
+- bun. The repo pins `bun@1.4.2` in `package.json`; install it from [bun.com/docs/installation](https://bun.com/docs/installation) if `bun --version` does not resolve.
 - Git 2.26 or newer; hook setup enables Git's worktree-specific configuration extension.
 - Optional: a DeepSeek API key for the Web, headless, and ACP automation demos and real-API e2e tests.
 
