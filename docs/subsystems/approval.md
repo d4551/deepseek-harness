@@ -2,7 +2,7 @@
 
 English | [中文](approval.zh.md)
 
-The user-approval seam of [dsh-user-approval](../../packages/interaction/user-approval) answers one question: may this specific action proceed? It owns the shared request/outcome vocabulary, the `ctx.approval` dispatch service, the `approval/request` answerer waterfall, the log-only audit pair, and the per-session `ask`/`never` policy. UI channels may provide human answerers; the [ACP automation bridge](../../packages/acp/acp) provides one-shot machine decisions for its own agents. Callers such as [dsh-tools](../../packages/core/tools) and [dsh-tool-shell](../../packages/shell/tool-shell) consume the closed outcome and fail closed unless it is `allowed-once`.
+The user-approval seam of [dsh-user-approval](../../packages/interaction/user-approval) answers one question: may this specific action proceed? It owns the shared request/outcome vocabulary, the `ctx.approval` dispatch service, the `approval/request` answerer waterfall, the log-only audit pair, and the per-session `ask`/`never` policy. UI channels may provide human answerers; the [ACP automation bridge](../../packages/acp/acp) provides one-shot machine decisions for its own agents, and [dsh-approval-adversary](../../packages/guard/approval-adversary) provides an opt-in model reviewer that decides in place of a human prompt. Callers such as [dsh-tools](../../packages/core/tools) and [dsh-tool-shell](../../packages/shell/tool-shell) consume the closed outcome and fail closed unless it is `allowed-once`.
 
 Source: [`packages/interaction/user-approval/src/index.ts`](../../packages/interaction/user-approval/src/index.ts)
 
@@ -86,6 +86,28 @@ interface ApprovalRequest extends ApprovalRequestEvent {
 `ctx.approval.request(req)` requires the requesting session to be inside an open turn. It appends `approval/asked`, obtains one outcome, appends the matching `approval/decided`, and resolves with that outcome. The `never` policy is enforced inside the service before waterfall dispatch, so even an answerer registered later with `prepend` cannot bypass it. Answerers return an outcome when they own the request or call `next()` to delegate; the first answer occupies the single decision slot.
 
 The audit events are log-only and do not enter the model transcript. Model-visible behavior is the caller's derived tool result plus the current runtime-context snapshot. Service disposal removes its context contribution; answerer listeners are independently effect-bound to their owning plugins.
+
+## Adversarial review record
+
+[dsh-approval-adversary](../../packages/guard/approval-adversary) answers the waterfall with a model review when a deployment enables it. It appends the exact review request before dispatch, so a decision the reviewer made is reconstructable from the log beside the audit pair it belongs to; the verdict itself reaches the model as a plugin notice appended after `approval/decided`.
+
+```ts type-equiv
+/** Exact model-visible request recorded before one adversarial review dispatch. */
+interface ApprovalAdversaryRequestEventData {
+  /** The approval question under review, when its audit record is identifiable. */
+  readonly approvalId?: ApprovalRequestId
+  /** Tool the question is about. */
+  readonly toolName: string
+  /** Exact auxiliary LLM route. */
+  readonly route: { readonly provider: string; readonly model: string }
+  /** Exact auxiliary system prompt. */
+  readonly system: string
+  /** Exact auxiliary message list. */
+  readonly messages: Message[]
+  /** Exact auxiliary output-token cap. */
+  readonly maxTokens: number
+}
+```
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 

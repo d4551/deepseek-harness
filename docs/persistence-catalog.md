@@ -126,6 +126,19 @@ Source: [`packages/preset/agent-presets/src/session.ts:28`](../packages/preset/a
 
 ### `approval/*`
 
+<a id="approvaladversary-request--log-only"></a>
+
+#### `approval/adversary-request` — log-only
+
+```ts persistence-catalog
+/** Log-only pre-dispatch record of one adversarial approval review request. */
+'approval/adversary-request': ApprovalAdversaryRequestEventData
+```
+
+Types: [ApprovalAdversaryRequestEventData](subsystems/approval.md)
+
+Source: [`packages/guard/approval-adversary/src/index.ts:91`](../packages/guard/approval-adversary/src/index.ts)
+
 <a id="approvalasked--log-only"></a>
 
 #### `approval/asked` — log-only

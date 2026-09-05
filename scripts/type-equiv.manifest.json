@@ -28,6 +28,11 @@
     },
     {
       "doc": "docs/subsystems/approval.md",
+      "symbol": "ApprovalAdversaryRequestEventData",
+      "source": "packages/guard/approval-adversary/src/index.ts"
+    },
+    {
+      "doc": "docs/subsystems/approval.md",
       "symbol": "ApprovalOutcome",
       "source": "packages/interaction/user-approval/src/types.ts"
     },

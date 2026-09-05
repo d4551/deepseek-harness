@@ -64,6 +64,16 @@
         "tests/**/*.ts"
       ]
     },
+    "packages/guard/approval-adversary": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/fixtures/reviewed-tool.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
     "packages/experimental/inspector": {
       "entry": [
         "tests/**/*.e2e.ts"

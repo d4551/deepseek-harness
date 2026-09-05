@@ -354,6 +354,39 @@ export interface Config {
 
 来源：[`packages/api/settings-controller/src/index.ts:41`](../packages/api/settings-controller/src/index.ts)
 
+<a id="deepseek-aidsh-approval-adversary"></a>
+
+## `@deepseek-ai/dsh-approval-adversary`
+
+需要：`approval` · `llm`
+
+```ts config-catalog
+/** Composition values inherited by the approval-adversary settings section. */
+export interface Config {
+  /** Whether the adversary decides approval requests instead of delegating them. */
+  enabled?: boolean
+  /** Explicit provider route for the review call; paired with `model`. Absent: the requesting agent's own route. */
+  provider?: string
+  /** Explicit model id for the review call; paired with `provider`. */
+  model?: string
+  /** What happens to a request the review could not decide. */
+  fallback?: AdversaryFallback
+  /** End-to-end review call deadline in milliseconds. */
+  timeoutMs?: number
+  /** Output-token cap for the verdict. */
+  maxOutputTokens?: number
+  /** Character cap for each excerpt the reviewer reads and each excerpt a notice quotes. */
+  maxExcerptChars?: number
+  /** Deployment instruction appended after the built-in review instruction. */
+  instructions?: string
+}
+
+/** What the adversary does with a request it could not decide. */
+export type AdversaryFallback = 'delegate' | 'reject'
+```
+
+来源：[`packages/guard/approval-adversary/src/index.ts:33`](../packages/guard/approval-adversary/src/index.ts)
+
 <a id="deepseek-aidsh-approval-assessor"></a>
 
 ## `@deepseek-ai/dsh-approval-assessor`

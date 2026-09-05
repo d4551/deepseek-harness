@@ -2,7 +2,7 @@
 
 [English](approval.md) | 中文
 
-[dsh-user-approval](../../packages/interaction/user-approval) 的用户审批 seam 回答一个问题：这个具体操作是否可以继续？它拥有共享的请求/结果词汇、`ctx.approval` 分发服务、`approval/request` 应答者 waterfall（瀑布式事件）、仅记录日志的审计事件对，以及按会话的 `ask`/`never` 策略。UI 通道可以提供人类应答者；[ACP（Agent Client Protocol）自动化桥接层](../../packages/acp/acp)为其拥有的 agent（智能体）提供一次性机器决策。调用方如 [dsh-tools](../../packages/core/tools) 和 [dsh-tool-shell](../../packages/shell/tool-shell) 消费闭合的结果，除非结果为 `allowed-once`，否则一律拒绝。
+[dsh-user-approval](../../packages/interaction/user-approval) 的用户审批 seam 回答一个问题：这个具体操作是否可以继续？它拥有共享的请求/结果词汇、`ctx.approval` 分发服务、`approval/request` 应答者 waterfall（瀑布式事件）、仅记录日志的审计事件对，以及按会话的 `ask`/`never` 策略。UI 通道可以提供人类应答者；[ACP（Agent Client Protocol）自动化桥接层](../../packages/acp/acp)为其拥有的 agent（智能体）提供一次性机器决策，[dsh-approval-adversary](../../packages/guard/approval-adversary) 则提供可选启用的模型评审者，代替人工提示作出决定。调用方如 [dsh-tools](../../packages/core/tools) 和 [dsh-tool-shell](../../packages/shell/tool-shell) 消费闭合的结果，除非结果为 `allowed-once`，否则一律拒绝。
 
 源码：[`packages/interaction/user-approval/src/index.ts`](../../packages/interaction/user-approval/src/index.ts)
 
@@ -86,6 +86,28 @@ interface ApprovalRequest extends ApprovalRequestEvent {
 `ctx.approval.request(req)` 要求发起请求的会话处于一个尚未结束的轮次内。它追加 `approval/asked`，获取一个结果，追加对应的 `approval/decided`，然后以该结果完成。`never` 策略在服务内部、waterfall 分发之前强制执行，因此即使后来以 `prepend` 注册的应答者也无法绕过它。应答者在负责处理该请求时返回结果，否则调用 `next()` 委托；第一个应答占据唯一的决策槽位。
 
 审计事件仅写入日志，不进入模型 transcript（文本记录）。模型可见的行为是调用方派生的工具结果与当前运行时上下文快照。服务 dispose（资源释放）时会移除其上下文贡献；应答者监听器独立地通过 effect 绑定到其所属插件。
+
+## 对抗式评审记录
+
+部署启用后，[dsh-approval-adversary](../../packages/guard/approval-adversary) 以模型评审回答该 waterfall。它在分发前追加精确的评审请求，因此评审者作出的决定可以从日志中、紧邻其所属的审计事件对重建；裁决本身在 `approval/decided` 之后作为插件通知追加并抵达模型。
+
+```ts type-equiv
+/** Exact model-visible request recorded before one adversarial review dispatch. */
+interface ApprovalAdversaryRequestEventData {
+  /** The approval question under review, when its audit record is identifiable. */
+  readonly approvalId?: ApprovalRequestId
+  /** Tool the question is about. */
+  readonly toolName: string
+  /** Exact auxiliary LLM route. */
+  readonly route: { readonly provider: string; readonly model: string }
+  /** Exact auxiliary system prompt. */
+  readonly system: string
+  /** Exact auxiliary message list. */
+  readonly messages: Message[]
+  /** Exact auxiliary output-token cap. */
+  readonly maxTokens: number
+}
+```
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 

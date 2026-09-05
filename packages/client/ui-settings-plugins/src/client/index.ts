@@ -23,6 +23,7 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { AgentLoopCard } from './AgentLoopCard.tsx'
 import { AgentDefaultModelCard } from './AgentDefaultModelCard.tsx'
 import { AgentTeamCard } from './AgentTeamCard.tsx'
+import { ApprovalAdversaryCard } from './ApprovalAdversaryCard.tsx'
 import { ApprovalAssessorCard } from './ApprovalAssessorCard.tsx'
 import { BashCard } from './BashCard.tsx'
 import { ConfigurablePluginsTab } from './ConfigurablePluginsTab.tsx'
@@ -33,6 +34,9 @@ import { WebAccessCard } from './WebAccessCard.tsx'
 import { WebProviderCard } from './WebProviderCard.tsx'
 import { WebSearchCard } from './WebSearchCard.tsx'
 import { AGENT_LOOP_NS, AgentLoopCardController } from './agent-loop-card-controller.ts'
+import {
+  APPROVAL_ADVERSARY_NS, ApprovalAdversaryCardController,
+} from './approval-adversary-card-controller.ts'
 import {
   APPROVAL_ASSESSOR_NS, ApprovalAssessorCardController,
 } from './approval-assessor-card-controller.ts'
@@ -78,6 +82,9 @@ export function apply(ctx: ClientContext): void {
   const agentLoop = new AgentLoopCardController(ctx.settingsScope.bind({ namespace: AGENT_LOOP_NS }))
   const approvalAssessor = new ApprovalAssessorCardController(
     ctx.settingsScope.bind({ namespace: APPROVAL_ASSESSOR_NS }),
+  )
+  const approvalAdversary = new ApprovalAdversaryCardController(
+    ctx.settingsScope.bind({ namespace: APPROVAL_ADVERSARY_NS }),
   )
   const webSearch = new WebSearchCardController(
     ctx.settingsScope.bind({ namespace: WEB_SEARCH_NS }), ctx.remote.credentials)
@@ -226,6 +233,12 @@ export function apply(ctx: ClientContext): void {
       locale: NS,
       inject: () => approvalAssessor.inject(),
     }, ApprovalAssessorCard)
+    yield ctx.slots.register({
+      name: 'settings.plugin.item',
+      key: APPROVAL_ADVERSARY_NS,
+      locale: NS,
+      inject: () => approvalAdversary.inject(),
+    }, ApprovalAdversaryCard)
     yield ctx.slots.register({
       name: 'settings.plugin.item',
       key: SUBAGENT_MODEL_SELECTION_NS,

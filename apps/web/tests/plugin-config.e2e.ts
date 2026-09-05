@@ -77,7 +77,8 @@ describe('web e2e: plugin configuration section', () => {
     const dialog = await openPlugins(page)
 
     // Every card the shipped web composition exposes: the shell executor, the
-    // agent loop, subagent selection, and the DeepSeek search provider.
+    // agent loop, the two approval guards, subagent selection, and the DeepSeek
+    // search provider.
     await dialog.getByText('Subagent', { exact: true }).waitFor({ timeout: 10_000 })
     expect(await dialog.getByRole('button', { name: '展开设置: Subagent' }).count()).toBe(1)
     await dialog.getByText('终端', { exact: true }).waitFor({ timeout: 10_000 })
@@ -85,6 +86,11 @@ describe('web e2e: plugin configuration section', () => {
     const approvalAssessor = dialog.getByRole('button', { name: '展开设置: 审批审计' })
     await approvalAssessor.waitFor({ timeout: 10_000 })
     expect(await approvalAssessor.count()).toBe(1)
+    // The adversary ships mounted but off; its card renders because the base
+    // serves the namespace, and enabling it is this page's job.
+    const approvalAdversary = dialog.getByRole('button', { name: '展开设置: 对抗式审批评审' })
+    await approvalAdversary.waitFor({ timeout: 10_000 })
+    expect(await approvalAdversary.count()).toBe(1)
     expect(await dialog.getByRole('button', { name: '展开设置: 智能体团队' }).count()).toBe(0)
     expect(await dialog.getByText('DeepSeek 搜索', { exact: true }).count()).toBe(1)
     // Collapsed: a card's fields appear only once it is expanded.

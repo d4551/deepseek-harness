@@ -82,6 +82,8 @@ flowchart LR
   cfg --> plugin_dsh_base_permission
   plugin_dsh_base_approval_assessor["approval-assessor<br/>@deepseek-ai/dsh-approval-assessor"]
   cfg --> plugin_dsh_base_approval_assessor
+  plugin_dsh_base_approval_adversary["approval-adversary<br/>@deepseek-ai/dsh-approval-adversary"]
+  cfg --> plugin_dsh_base_approval_adversary
   plugin_dsh_base_shell_env["shell-env<br/>@deepseek-ai/dsh-shell-env"]
   cfg --> plugin_dsh_base_shell_env
   plugin_dsh_base_tool_shell["tool-shell<br/>@deepseek-ai/dsh-tool-shell"]
@@ -227,6 +229,7 @@ flowchart LR
 | `approval` | `@deepseek-ai/dsh-user-approval` |
 | `permission` | `@deepseek-ai/dsh-permission-presets` |
 | `approval-assessor` | `@deepseek-ai/dsh-approval-assessor` |
+| `approval-adversary` | `@deepseek-ai/dsh-approval-adversary` |
 | `shell-env` | `@deepseek-ai/dsh-shell-env` |
 | `tool-shell` | `@deepseek-ai/dsh-tool-shell` |
 | `tool-jobs` | `@deepseek-ai/dsh-tool-jobs` |

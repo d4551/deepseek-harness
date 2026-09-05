@@ -37,6 +37,10 @@
           - text: 审批审计 检查审批理由是否试图规避已授权的工作。
           - img
       - listitem:
+        - 'button "展开设置: 对抗式审批评审"':
+          - text: 对抗式审批评审 由模型评审者代替人工决定审批请求。
+          - img
+      - listitem:
         - 'button "展开设置: Subagent"':
           - text: Subagent 控制 Agent 为 Subagent 选择模型的权限。
           - img

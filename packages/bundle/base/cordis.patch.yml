@@ -252,6 +252,21 @@
     - id: approval-assessor
       name: '@deepseek-ai/dsh-approval-assessor'
 
+    # Decides approval requests with an adversarial model review in place of a
+    # human answerer once a user enables it from the Plugins settings page. It
+    # sits behind the assessor's deterministic screen and ahead of every
+    # user-facing answerer. Opt-in: enabling it hands every approval the
+    # session would have asked a person to a reviewer that assumes the agent
+    # is overreaching, so the composition ships it armed but off.
+    - id: approval-adversary
+      name: '@deepseek-ai/dsh-approval-adversary'
+      config:
+        enabled: false
+        fallback: delegate
+        timeoutMs: 30000
+        maxOutputTokens: 256
+        maxExcerptChars: 4000
+
     - id: shell-env
       name: '@deepseek-ai/dsh-shell-env'
 

@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/testing/2026-09-05-capacity-gate-mutation-equivalents.md
+2026-09-05-capacity-gate-mutation-equivalents.md: e6c54e01559cf4c6466e8c56a9f10a6fa61a75a6
+2026-09-05-capacity-gate-mutation-equivalents.zh.md: f6c61ab065df534501ce014a0e37368f93cee01e

@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { TeamTaskId, TeamView } from '@deepseek-ai/dsh-agent-team/client'
 import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import { TeamAction, actions, props, task, view } from './team-fixtures.client.ts'
 import type { TeamActionInjected } from '../src/client/TeamAction.tsx'
+import { zh } from '../src/client/locales.ts'
 
 const MINIMUM_ACCESSIBILITY_SCORE = 100
 
@@ -27,6 +28,18 @@ describe('TeamAction accessibility', () => {
   it('renders an accessible toggle and open panel', async () => {
     await assertPanelAccessible(actions().load)
     await screen.findByText('Implement runtime')
+    expect(screen.getByRole('combobox', { name: zh.owner })).toBeTruthy()
+  })
+
+  it('moves focus into the dialog and restores it when closed', async () => {
+    render(<TeamAction {...props(actions())} />)
+    const toggle = screen.getByRole('button', { name: /Agent Team/u })
+    fireEvent.click(toggle)
+
+    const dialog = screen.getByRole('dialog')
+    await waitFor(() => { expect(document.activeElement).toBe(dialog) })
+    fireEvent.click(screen.getByRole('button', { name: zh.close }))
+    expect(document.activeElement).toBe(toggle)
   })
 
   it('renders ready, blocked, and completed task variants accessibly', async () => {

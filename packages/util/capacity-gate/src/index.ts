@@ -41,6 +41,16 @@ interface CapacityWaiter {
   fail(error: Error): void
 }
 
+function abortError(signal: AbortSignal): Error {
+  const reason: unknown = signal.reason
+  if (reason instanceof Error) return reason
+  return new Error(typeof reason === 'string' ? reason : 'capacity gate wait aborted', { cause: reason })
+}
+
+function isAborted(signal: AbortSignal | undefined): signal is AbortSignal {
+  return signal?.aborted === true
+}
+
 /**
  * Bounded FIFO admission controller shared by capability holders that must cap
  * concurrent work without coupling the settlement of the operations they admit.
@@ -89,25 +99,26 @@ export class CapacityGate {
    * reading the signal, so a holder that is not at its bound behaves exactly as
    * it would with no gate and keeps its own pre-flight cancellation rule. Once
    * the gate is full, an already-aborted or later-aborted caller rejects with
-   * `signal.reason` and holds no slot.
+   * the Error in `signal.reason`, or an Error describing a non-Error reason,
+   * and holds no slot.
    * @param signal - optional caller cancellation covering the wait only.
    * @returns the idempotent release for the granted slot.
-   * @throws `signal.reason` when the caller cancels while queued, or the
-   *   {@link close} error when the gate closed before or during the wait.
+   * @throws the Error in `signal.reason`, an Error describing a non-Error
+   *   reason, or the {@link close} error when the gate closes the wait.
    */
   async acquire(signal?: AbortSignal): Promise<CapacityRelease> {
     if (this.closure !== undefined) throw this.closure.error
     if (this.activeSlots < this.limit) {
       this.activeSlots += 1
     } else {
-      signal?.throwIfAborted()
+      if (isAborted(signal)) throw abortError(signal)
       await this.enqueue(signal)
       // A release and an abort can land in the same tick: the grant already
       // took the slot, so hand it to the next waiter rather than running work
       // this caller cancelled.
-      if (signal?.aborted === true) {
+      if (isAborted(signal)) {
         this.handOff()
-        signal.throwIfAborted()
+        throw abortError(signal)
       }
     }
     return this.releaser()
@@ -126,38 +137,46 @@ export class CapacityGate {
 
   /** Queue one acquisition until a release grants it, the caller aborts, or the gate closes. */
   private enqueue(signal: AbortSignal | undefined): Promise<void> {
+    return signal === undefined ? this.enqueueUncancelled() : this.enqueueCancellable(signal)
+  }
+
+  private enqueueUncancelled(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-      let settled = false
-      let detach: (() => void) | undefined
-      const leave = (): boolean => {
-        if (settled) return false
-        settled = true
-        detach?.()
-        return true
-      }
+      this.waiters.push({
+        grant: () => {
+          this.activeSlots += 1
+          resolve()
+        },
+        fail: reject,
+      })
+    })
+  }
+
+  private enqueueCancellable(signal: AbortSignal): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      let detach: () => void
       const waiter: CapacityWaiter = {
         grant: () => {
-          if (!leave()) return
+          detach()
           this.activeSlots += 1
           resolve()
         },
         fail: (error: Error) => {
-          if (!leave()) return
+          detach()
           reject(error)
         },
       }
-      if (signal !== undefined) {
-        const owned = signal
+      {
         const onAbort = (): void => {
           const index = this.waiters.indexOf(waiter)
           // A granted waiter already left the queue and owns its slot; the
           // post-grant abort check hands that slot on.
           if (index < 0) return
           this.waiters.splice(index, 1)
-          waiter.fail(owned.reason instanceof Error ? owned.reason : new Error(String(owned.reason)))
+          waiter.fail(abortError(signal))
         }
-        owned.addEventListener('abort', onAbort, { once: true })
-        detach = (): void => { owned.removeEventListener('abort', onAbort) }
+        signal.addEventListener('abort', onAbort)
+        detach = (): void => { signal.removeEventListener('abort', onAbort) }
       }
       this.waiters.push(waiter)
     })

@@ -671,6 +671,7 @@
         "@deepseek-ai/dsh-agent-instructions": "workspace:^",
         "@deepseek-ai/dsh-agent-loop": "workspace:^",
         "@deepseek-ai/dsh-api-gateway": "workspace:^",
+        "@deepseek-ai/dsh-approval-adversary": "workspace:^",
         "@deepseek-ai/dsh-approval-assessor": "workspace:^",
         "@deepseek-ai/dsh-attachment-local": "workspace:^",
         "@deepseek-ai/dsh-bash-sandbox": "workspace:^",
@@ -3863,6 +3864,40 @@
         "@deepseek-ai/dsh-session": "workspace:^",
         "@deepseek-ai/dsh-system-prompt": "workspace:^",
         "@deepseek-ai/dsh-tools": "workspace:^",
+      },
+    },
+    "packages/guard/approval-adversary": {
+      "name": "@deepseek-ai/dsh-approval-adversary",
+      "version": "0.1.2-alpha.1",
+      "dependencies": {
+        "@deepseek-ai/schemastery": "workspace:^",
+      },
+      "devDependencies": {
+        "@deepseek-ai/cordis": "workspace:^",
+        "@deepseek-ai/cordis-plugin-include": "workspace:^",
+        "@deepseek-ai/cordis-plugin-loader": "workspace:^",
+        "@deepseek-ai/dsh-agent": "workspace:^",
+        "@deepseek-ai/dsh-agent-loop": "workspace:^",
+        "@deepseek-ai/dsh-approval-assessor": "workspace:^",
+        "@deepseek-ai/dsh-invariants": "workspace:^",
+        "@deepseek-ai/dsh-llm": "workspace:^",
+        "@deepseek-ai/dsh-scope": "workspace:^",
+        "@deepseek-ai/dsh-session": "workspace:^",
+        "@deepseek-ai/dsh-settings": "workspace:^",
+        "@deepseek-ai/dsh-system-prompt": "workspace:^",
+        "@deepseek-ai/dsh-timeout": "workspace:^",
+        "@deepseek-ai/dsh-tools": "workspace:^",
+        "@deepseek-ai/dsh-user-approval": "workspace:^",
+      },
+      "peerDependencies": {
+        "@deepseek-ai/cordis": "workspace:^",
+        "@deepseek-ai/dsh-agent": "workspace:^",
+        "@deepseek-ai/dsh-invariants": "workspace:^",
+        "@deepseek-ai/dsh-llm": "workspace:^",
+        "@deepseek-ai/dsh-session": "workspace:^",
+        "@deepseek-ai/dsh-settings": "workspace:^",
+        "@deepseek-ai/dsh-timeout": "workspace:^",
+        "@deepseek-ai/dsh-user-approval": "workspace:^",
       },
     },
     "packages/guard/approval-assessor": {
@@ -8025,6 +8060,8 @@
     "@deepseek-ai/dsh-api-workspace-controller": ["@deepseek-ai/dsh-api-workspace-controller@workspace:packages/api/workspace-controller"],
 
     "@deepseek-ai/dsh-app-boot": ["@deepseek-ai/dsh-app-boot@workspace:packages/boot/app-boot"],
+
+    "@deepseek-ai/dsh-approval-adversary": ["@deepseek-ai/dsh-approval-adversary@workspace:packages/guard/approval-adversary"],
 
     "@deepseek-ai/dsh-approval-assessor": ["@deepseek-ai/dsh-approval-assessor@workspace:packages/guard/approval-assessor"],
 

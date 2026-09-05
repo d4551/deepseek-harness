@@ -104,6 +104,8 @@ export function TeamAction({
   const [editing, setEditing] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState<Draft>(EMPTY_DRAFT)
   const [pendingTasks, setPendingTasks] = useState<ReadonlySet<string>>(() => new Set())
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
   const sessionRef = useRef(sessionId)
   const refreshGeneration = useRef(0)
   sessionRef.current = sessionId
@@ -120,6 +122,10 @@ export function TeamAction({
     setEditDraft(EMPTY_DRAFT)
     setPendingTasks(new Set())
   }, [sessionId])
+
+  useEffect(() => {
+    if (open) panelRef.current?.focus()
+  }, [open])
 
   const refresh = useCallback(async (): Promise<boolean> => {
     const requestedSession = sessionId
@@ -238,10 +244,15 @@ export function TeamAction({
 
   const teammates = view?.members.filter(member => member.role === 'teammate') ?? []
   const assignable = view?.members.filter(member => member.status !== 'failed' && member.status !== 'provisioning') ?? []
+  const closePanel = (): void => {
+    setOpen(false)
+    triggerRef.current?.focus()
+  }
 
   return (
     <div className={css.root} data-team-action>
       <button
+        ref={triggerRef}
         type="button"
         className={css.trigger}
         aria-expanded={open}
@@ -256,14 +267,14 @@ export function TeamAction({
         {teammates.length > 0 && <span className={css.count}>{teammates.length}</span>}
       </button>
       {open && (
-        <div className={css.panel} role="dialog" aria-label={t('trigger')}>
+        <div ref={panelRef} className={css.panel} role="dialog" aria-label={t('trigger')} tabIndex={-1}>
           <div className={css.toolbar}>
             <strong>{t('trigger')}</strong>
             <span className={css.spacer} />
             <button type="button" className={css.iconButton} aria-label={t('refresh')} onClick={() => { void refresh() }}>
               <IconRefreshOutline14 />
             </button>
-            <button type="button" className={css.iconButton} aria-label={t('close')} onClick={() => { setOpen(false) }}>
+            <button type="button" className={css.iconButton} aria-label={t('close')} onClick={closePanel}>
               <IconCloseOutline16 size={14} />
             </button>
           </div>

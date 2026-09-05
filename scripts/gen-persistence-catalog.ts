@@ -56,6 +56,7 @@ const LINK_MAP: Record<string, string> = {
   TodoItem: 'subsystems/todo.md',
   TurnTrigger: 'subsystems/session.md',
   TurnEndReason: 'subsystems/session.md',
+  ApprovalAdversaryRequestEventData: 'subsystems/approval.md',
   SessionTitleEventData: 'subsystems/session-title.md',
   SessionTitleLlmRequestEventData: 'subsystems/session-title.md',
   SessionTitleModelProvenance: 'subsystems/session-title.md',

@@ -25,7 +25,7 @@ export const zh = {
   complete: '完成',
   reopen: '重开',
   delete: '删除',
-  owner: 'Owner',
+  owner: '负责人',
   unowned: '未分配',
   blockedBy: '依赖',
   writeScopes: '写入范围',

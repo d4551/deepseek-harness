@@ -128,6 +128,19 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 ### `approval/*`
 
+<a id="approvaladversary-request--log-only"></a>
+
+#### `approval/adversary-request` — log-only
+
+```ts persistence-catalog
+/** Log-only pre-dispatch record of one adversarial approval review request. */
+'approval/adversary-request': ApprovalAdversaryRequestEventData
+```
+
+类型：[ApprovalAdversaryRequestEventData](subsystems/approval.zh.md)
+
+来源：[`packages/guard/approval-adversary/src/index.ts:91`](../packages/guard/approval-adversary/src/index.ts)
+
 <a id="approvalasked--log-only"></a>
 
 #### `approval/asked` — log-only

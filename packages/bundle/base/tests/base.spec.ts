@@ -49,6 +49,16 @@ describe('dsh-base bundle', () => {
     })
     expect(rows.find(row => row.id === 'approval-assessor')?.disabled).toBeUndefined()
     expect(rows.find(row => row.id === 'approval-assessor')?.config).toBeUndefined()
+    // The adversary replaces the human answerer once enabled, so the base
+    // ships it mounted behind the assessor but off: the browser card renders
+    // for the served namespace, and enabling it is a user's decision.
+    expect(rows.indexOf(rows.find(row => row.id === 'approval-adversary')!))
+      .toBe(rows.indexOf(rows.find(row => row.id === 'approval-assessor')!) + 1)
+    expect(rows.find(row => row.id === 'approval-adversary')).toMatchObject({
+      name: '@deepseek-ai/dsh-approval-adversary',
+      config: { enabled: false, fallback: 'delegate', timeoutMs: 30000, maxOutputTokens: 256, maxExcerptChars: 4000 },
+    })
+    expect(rows.find(row => row.id === 'approval-adversary')?.disabled).toBeUndefined()
     expect(rows.filter(row => row.id === 'subagent-codex')).toHaveLength(0)
     expect(rows.filter(row => row.id === 'subagent-claude-code')).toHaveLength(0)
     // Fetch renders the page: a model reading a modern site through a raw HTTP
@@ -65,6 +75,7 @@ describe('dsh-base bundle', () => {
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-web-fetch-http')
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-web-fetch-playwright')
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-approval-assessor')
+    expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-approval-adversary')
   })
 
   it('gates the executors by platform and selects the shell tool dialect from the same fact', () => {
