@@ -238,33 +238,52 @@ describe('web e2e: plugin configuration section', () => {
     await expand.click()
     const provider = dialog.getByRole('textbox', { name: '评审提供方', exact: true })
     const model = dialog.getByRole('textbox', { name: '评审模型', exact: true })
+    const decide = dialog.getByRole('radio', {
+      name: '由评审者决定通过审批审计的每个请求都由评审者允许或拒绝；不再提示任何人。',
+      exact: true,
+    })
+    const reject = dialog.getByRole('radio', {
+      name: '拒绝拒绝该请求，并告知模型评审无法作出决定。',
+      exact: true,
+    })
     const save = dialog.getByRole('button', { name: '保存', exact: true })
     expect(await provider.inputValue()).toBe('')
     expect(await model.inputValue()).toBe('')
 
     // The Host refuses half a route and the card keeps the draft for correction.
     await provider.fill('reviewer-route')
-    await expect.poll(() => save.isEnabled(), { timeout: 5_000 }).toBe(true)
-    await save.click()
-    await dialog.getByText('本部署没有接受这些值，已保留供你修改。', { exact: true }).waitFor({ timeout: 10_000 })
+    await expect.poll(() => provider.getAttribute('aria-invalid'), { timeout: 5_000 }).toBe('true')
+    await expect.poll(() => model.getAttribute('aria-invalid'), { timeout: 5_000 }).toBe('true')
+    for (const field of [provider, model]) {
+      const describedBy = await field.getAttribute('aria-describedby')
+      expect(describedBy).not.toBeNull()
+      await expect(page.locator('[id="' + describedBy + '"]')).toBeVisible()
+    }
+    await expect.poll(() => save.isDisabled(), { timeout: 5_000 }).toBe(true)
     expect(await settingsDocument(scaffold)).not.toContain('reviewer-route')
 
     // The complete pair lands in one mutation.
     await model.fill('reviewer-model')
+    await decide.check()
+    await reject.check()
     await save.click()
     await expand.waitFor({ timeout: 10_000 })
     await expect.poll(async () => await settingsDocument(scaffold), { timeout: 10_000 })
       .toContain('provider: reviewer-route')
     expect(await settingsDocument(scaffold)).toContain('model: reviewer-model')
+    expect(await settingsDocument(scaffold)).toContain('enabled: true')
+    expect(await settingsDocument(scaffold)).toContain('fallback: reject')
 
     // Clearing both returns the review to the agent's own route.
     await expand.click()
     expect(await provider.inputValue()).toBe('reviewer-route')
     expect(await model.inputValue()).toBe('reviewer-model')
+    expect(await decide.isChecked()).toBe(true)
+    expect(await reject.isChecked()).toBe(true)
     const resets = dialog.getByRole('button', { name: '恢复默认', exact: true })
-    expect(await resets.count()).toBe(2)
+    expect(await resets.count()).toBe(4)
+    await resets.nth(2).click()
     await resets.nth(1).click()
-    await resets.nth(0).click()
     await save.click()
     await expand.waitFor({ timeout: 10_000 })
     await expect.poll(async () => await settingsDocument(scaffold), { timeout: 10_000 })
