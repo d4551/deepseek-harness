@@ -55,6 +55,19 @@ function balance(events: readonly SessionEvent[]): VerdictBalance {
   return counts
 }
 
+/** Reject one candidate notice when no recorded approval decision explains it. */
+function checkNotice(session: Session, event: SessionEvent, fail: InvariantFailure): void {
+  const notice = noticeClass(event)
+  if (notice === undefined) return
+  const counts = balance(session.events)
+  if (notice === 'allowed' && counts.allowedNotices + 1 > counts.grants) {
+    fail(`approval-adversary allowed notice ${String(counts.allowedNotices + 1)} has no granted approval decision behind it (${String(counts.grants)} recorded)`)
+  }
+  if (notice === 'rejected' && counts.rejectedNotices + 1 > counts.rejections) {
+    fail(`approval-adversary rejection notice ${String(counts.rejectedNotices + 1)} has no rejected approval decision behind it (${String(counts.rejections)} recorded)`)
+  }
+}
+
 /**
  * Install the verdict-accounting invariant: this plugin appends one notice per
  * verdict it produced, so a session's allowed notices never outnumber its
@@ -72,16 +85,8 @@ const install: InvariantInstaller = Object.assign((ctx: Context, fail: Invariant
   ctx.on('internal/dispatch', (_mode, eventName, args) => {
     if (eventName !== 'session/event') return
     const [session, event] = args as [Session, SessionEvent]
-    const notice = noticeClass(event)
-    if (notice === undefined) return
     // The candidate is not committed yet, so it is counted here rather than folded.
-    const counts = balance(session.events)
-    if (notice === 'allowed' && counts.allowedNotices + 1 > counts.grants) {
-      fail(`approval-adversary allowed notice ${String(counts.allowedNotices + 1)} has no granted approval decision behind it (${String(counts.grants)} recorded)`)
-    }
-    if (notice === 'rejected' && counts.rejectedNotices + 1 > counts.rejections) {
-      fail(`approval-adversary rejection notice ${String(counts.rejectedNotices + 1)} has no rejected approval decision behind it (${String(counts.rejections)} recorded)`)
-    }
+    checkNotice(session, event, fail)
   }, { global: true })
 }, { inject: ['sessions'] })
 

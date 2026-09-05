@@ -420,16 +420,16 @@ async function review(
   })
   callDeadline.signal.throwIfAborted()
   const assembler = new BlockAssembler()
-  for await (const chunk of ctx.llm.stream(options)) {
+  const stream = ctx.llm.stream(options)
+  for await (const chunk of stream) {
     callDeadline.signal.throwIfAborted()
     assembler.push(chunk)
   }
   callDeadline.signal.throwIfAborted()
-  const terminalError = finishError(assembler.finish)
-  if (terminalError !== undefined) throw terminalError
-  const text = assembler.blocks()
-    .flatMap(block => block.type === 'text' ? [block.text] : [])
-    .join('\n')
+  const failure = finishError(assembler.finish)
+  if (failure !== undefined) throw failure
+  const textBlocks = assembler.blocks().filter(block => block.type === 'text')
+  const text = textBlocks.map(block => block.text).join('\n')
   const parsed = parseVerdict(text)
   if (parsed === undefined) throw new Error('review model did not follow the exact two-line verdict protocol')
   return parsed

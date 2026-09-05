@@ -71,6 +71,7 @@ export function ValueField(props: FieldProps & {
   /** Placeholder shown while the draft is empty. */
   placeholder?: string
 }) {
+  const hintId = props.id + '-hint'
   return (
     <div className={css.field}>
       <div className={css.head}>
@@ -83,12 +84,13 @@ export function ValueField(props: FieldProps & {
         type="text"
         {...props.numeric === true ? { inputMode: 'numeric' as const } : {}}
         {...props.invalid ? { 'aria-invalid': true } : {}}
+        aria-describedby={hintId}
         value={props.text}
         placeholder={props.placeholder ?? ''}
         disabled={props.disabled}
         onChange={(event) => { props.onEdit(event.target.value) }}
       />
-      <p className={props.invalid ? css.invalid : css.hint}>
+      <p id={hintId} className={props.invalid ? css.invalid : css.hint}>
         {props.invalid ? props.invalidLabel : props.hint}
       </p>
     </div>

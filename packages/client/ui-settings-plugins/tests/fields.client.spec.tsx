@@ -53,9 +53,12 @@ describe('ValueField', () => {
   it('replaces the hint with the reason an invalid draft cannot be saved', () => {
     render(<ValueField {...frame} invalid text="soon" onEdit={vi.fn()} onReset={vi.fn()} />)
 
+    const input = screen.getByLabelText('Command timeout')
     expect(screen.getByText('Enter a number.')).toBeTruthy()
     expect(screen.queryByText('How long one command may run.')).toBeNull()
-    expect(screen.getByLabelText('Command timeout').getAttribute('aria-invalid')).toBe('true')
+    expect(input.getAttribute('aria-invalid')).toBe('true')
+    expect(document.getElementById(input.getAttribute('aria-describedby') ?? '')?.textContent)
+      .toBe('Enter a number.')
   })
 
   it('hints a numeric keypad and renders a placeholder when asked', () => {
