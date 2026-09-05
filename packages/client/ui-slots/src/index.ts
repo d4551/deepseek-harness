@@ -37,12 +37,16 @@ export interface SlotMap {}
 export interface LocaleNamespaceMap {}
 
 /**
- * Translate a dictionary key with optional `{name}` template params.
- * `K` narrows the accepted keys to the owning namespace's dictionary union
- * (plus the shared common vocabulary where composed).
  */
+/** Primitive locale interpolation value; undefined supports optional source fields. */
+export type TranslateParam = string | number | undefined
+
+/** Named primitive values accepted by locale template interpolation. */
+export type TranslateParams = Readonly<Record<string, TranslateParam>>
+
+/** Translate a locale key with optional named primitive values. */
 export type Translate<K extends string = string> =
-  (key: K, params?: Record<string, unknown>) => string
+  (key: K, params?: TranslateParams) => string
 
 /**
  * The shared `common` vocabulary keys as merged by the locale plugin;

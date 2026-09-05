@@ -733,11 +733,24 @@ describe('createFixtureApi', () => {
     const api = createFixtureApi()
     const settings = await api.settingsRemote.describe()
     if (!settings.ok) throw new Error('settings describe failed')
-    expect((settings.value as { namespaces: unknown[] }).namespaces).toMatchObject([{
-      ns: 'llm-deepseek',
-      value: { apiKeyEnv: 'DEEPSEEK_API_KEY' },
-      secrets: [{ path: ['apiKey'], set: false }],
-    }])
+    expect((settings.value as { namespaces: unknown[] }).namespaces).toEqual([
+      {
+        ns: 'llm-deepseek',
+        revision: 0,
+        applies: 'live',
+        value: { apiKeyEnv: 'DEEPSEEK_API_KEY' },
+        schema: {},
+        secrets: [{ path: ['apiKey'], set: false }],
+      },
+      {
+        ns: 'ui-onboarding',
+        revision: 0,
+        applies: 'live',
+        value: {},
+        schema: {},
+        secrets: [],
+      },
+    ])
     for (const result of [
       await api.settingsRemote.update('llm-deepseek', {}, undefined),
       await api.settingsRemote.replace('llm-deepseek', {}, undefined),

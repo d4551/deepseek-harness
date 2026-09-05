@@ -7,20 +7,6 @@ import type { StorageBackend } from '../src/index.ts'
 // disposer, so the fake's close fulfils the promise without side effects.
 const fakeBackend = (): StorageBackend => ({ close: async () => undefined })
 
-/**
- * Settled view of a throwing call: resolves to the thrown error as a value,
- * or to the returned value when the call did not throw — the assertion on the
- * error shape then fails loudly against a non-error.
- * @param fn - the call expected to throw.
- * @returns the thrown error.
- */
-function thrown<E>(fn: () => E): Promise<E | Error> {
-  return Promise.resolve().then(
-    fn,
-    (error: Error) => error,
-  )
-}
-
 describe('BackendRegistry', () => {
   it('registers, resolves, and disposes names', () => {
     const registry = new BackendRegistry()
@@ -30,15 +16,13 @@ describe('BackendRegistry', () => {
     expect(registry.names()).toEqual(['json'])
     dispose()
     expect(registry.names()).toEqual([])
-    expect(thrown(() => registry.get('json'))).resolves.toMatchObject({ code: 'backend-not-found' })
+    expect(() => registry.get('json')).toThrow(expect.objectContaining({ code: 'backend-not-found' }))
   })
 
   it('rejects duplicate names', () => {
     const registry = new BackendRegistry()
     registry.register('json', fakeBackend())
-    expect(thrown(() => registry.register('json', fakeBackend()))).resolves.toMatchObject({
-      code: 'duplicate-backend',
-    })
+    expect(() => registry.register('json', fakeBackend())).toThrow(expect.objectContaining({ code: 'duplicate-backend' }))
   })
 })
 
@@ -57,14 +41,12 @@ describe('Storage service', () => {
     const dispose = ctx.storage.mount('domain' as never, facility as never)
     expect(ctx.storage.form('domain' as never)).toBe(facility)
     expect(ctx.storage.domain).toBe(facility)
-    await expect(thrown(() => ctx.storage.mount('domain' as never, facility as never))).resolves.toMatchObject({
-      code: 'duplicate-mount',
-    })
+    expect(() => ctx.storage.mount('domain' as never, facility as never)).toThrow(
+      expect.objectContaining({ code: 'duplicate-mount' }),
+    )
     dispose()
-    await expect(thrown(() => ctx.storage.form('domain' as never))).resolves.toMatchObject({
-      code: 'form-not-mounted',
-    })
-    await expect(thrown(() => ctx.storage.domain)).resolves.toMatchObject({ code: 'form-not-mounted' })
+    expect(() => ctx.storage.form('domain' as never)).toThrow(expect.objectContaining({ code: 'form-not-mounted' }))
+    expect(() => ctx.storage.domain).toThrow(expect.objectContaining({ code: 'form-not-mounted' }))
   })
 
   it('ignores a stale disposer after dispose and re-mount / re-register', async () => {

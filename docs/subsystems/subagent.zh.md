@@ -608,7 +608,7 @@ async reportFrom( child: Agent, content: ContentBlock[], options: SubagentReport
  * @param contribution - synchronous child-scope installer.
  * @returns the exact Cordis effect disposer.
  */
-registerContinuableSetup(contribution: ContinuableSetupContribution): () => void
+registerContinuableSetup(contribution: ContinuableSetupContribution): Disposable
 
 /**
  * Close continuable admission below exact live parent Agents, stop only their
@@ -724,7 +724,7 @@ listDescendants(rootSessionId: SessionId, signal?: AbortSignal): Promise<Subagen
  * @param provider - the trusted provider implementation.
  * @returns the exact Cordis effect disposer.
  */
-registerProvider(provider: SubagentProvider): () => void
+registerProvider(provider: SubagentProvider): Disposable
 
 /**
  * Look up a provider by name.

@@ -226,7 +226,7 @@ describe('WebProviderCard', () => {
     renderWebProvider('web-fetch-http', { fields: {} })
     fireEvent.click(screen.getByText(en.webFetchHttpTitle))
 
-    expect((screen.getByLabelText(en.webFetchUserAgent) as HTMLInputElement).value).toBe('')
+    expect(screen.getByLabelText<HTMLInputElement>(en.webFetchUserAgent).value).toBe('')
   })
 
   it('resets one field back to its composition layer', () => {

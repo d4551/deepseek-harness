@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 
 export const INTEGRATION_CONTROL_FILE = 'dsh-integration-release.bao'
 export const INTEGRATION_PACK_FILE = 'dsh-integration-release.pack'
-export const INTEGRATION_RELEASE_SCHEMA = 'deepseek-harness.integration-release/v1'
+const INTEGRATION_RELEASE_SCHEMA = 'deepseek-harness.integration-release/v1'
 
 const DIGEST = /^[a-f0-9]{64}$/u
 const GIT_IDENTITY = /^[a-f0-9]{40}$/u
@@ -32,12 +32,12 @@ export interface IntegrationPackageInput {
   readonly version: string
 }
 
-export interface IntegrationFileInput {
+interface IntegrationFileInput {
   readonly bytes: Uint8Array
   readonly path: string
 }
 
-export interface IntegrationRuntimeInput {
+interface IntegrationRuntimeInput {
   readonly engine: string
   readonly entry: {
     readonly name: string

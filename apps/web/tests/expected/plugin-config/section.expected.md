@@ -33,6 +33,10 @@
           - text: Agent 循环 Agent 如何派发工具调用。
           - img
       - listitem:
+        - 'button "展开设置: 审批审计"':
+          - text: 审批审计 检查审批理由是否试图规避已授权的工作。
+          - img
+      - listitem:
         - 'button "展开设置: Subagent"':
           - text: Subagent 控制 Agent 为 Subagent 选择模型的权限。
           - img
@@ -41,6 +45,26 @@
           - text: 默认模型 新会话未显式选择模型时使用的模型。
           - img
       - listitem:
-        - 'button "展开设置: 网页搜索"':
-          - text: 网页搜索 DeepSeek 搜索提供方。
+        - 'button "展开设置: DeepSeek 搜索"':
+          - text: DeepSeek 搜索 通过 DeepSeek 托管检索搜索，按 DeepSeek 密钥计费。
+          - img
+      - listitem:
+        - 'button "展开设置: 网页访问"':
+          - text: 网页访问 由哪个后端提供网页搜索，由哪个后端抓取网页。
+          - img
+      - listitem:
+        - 'button "展开设置: Exa 搜索"':
+          - text: Exa 搜索 通过 Exa 搜索，返回带高亮片段的来源。
+          - img
+      - listitem:
+        - 'button "展开设置: Perplexity 搜索"':
+          - text: Perplexity 搜索 通过 Perplexity 搜索，返回带引用的生成式回答。
+          - img
+      - listitem:
+        - 'button "展开设置: HTTP 抓取"':
+          - text: HTTP 抓取 通过 HTTP 获取响应字节，不执行页面中的任何脚本。
+          - img
+      - listitem:
+        - 'button "展开设置: 渲染抓取"':
+          - text: 渲染抓取 在无头 Chromium 中渲染页面，会执行页面自身的 JavaScript。
           - img

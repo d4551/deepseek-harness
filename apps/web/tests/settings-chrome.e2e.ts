@@ -48,14 +48,16 @@ describe('web e2e: settings modal and General preferences', () => {
     expect(await trigger.getAttribute('aria-expanded')).toBe('true')
     // General is active by default; Permission, Language and Appearance are functional.
     expect(await dialog.getByRole('button', { name: '通用设置' }).getAttribute('aria-current')).toBe('true')
-    await dialog.getByRole('button', { name: 'Workspace Write' }).waitFor({ timeout: 10_000 })
+    await dialog.getByRole('button', { name: '工作区写入' }).waitFor({ timeout: 10_000 })
     await expect.poll(() => dialog.getByText('语言', { exact: true }).count(), { timeout: 5_000 }).toBe(1)
     await expect.poll(() => dialog.getByText('外观', { exact: true }).count(), { timeout: 5_000 }).toBe(1)
     const openDocument = dialog.getByRole('button', { name: '打开配置文件' })
     await openDocument.waitFor({ timeout: 10_000 })
     let openRequests = 0
     await page.route('**/api/settings/openSettingsDocument', async (route) => {
-      const envelope: { rpcId: string; payload: { args: Record<string, never> } } = route.request().postDataJSON()
+      const raw = route.request().postData()
+      if (raw === null) throw new Error('openSettingsDocument posted no body')
+      const envelope = JSON.parse(raw) as { rpcId: string; payload: { args: Record<string, never> } }
       expect(envelope.payload).toEqual({ args: {} })
       openRequests += 1
       await route.fulfill({
@@ -123,12 +125,12 @@ describe('web e2e: settings modal and General preferences', () => {
     await page.getByRole('button', { name: '设置', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: '设置' })
     await dialog.waitFor({ timeout: 10_000 })
-    const selector = dialog.getByRole('button', { name: 'Workspace Write' })
+    const selector = dialog.getByRole('button', { name: '工作区写入' })
     await selector.waitFor({ timeout: 10_000 })
     await expect.poll(() => selector.isEnabled(), { timeout: 5_000 }).toBe(true)
     await selector.click()
-    await page.getByRole('menuitem', { name: 'Read Only' }).click()
-    await dialog.getByRole('button', { name: 'Read Only' }).waitFor({ timeout: 10_000 })
+    await page.getByRole('menuitem', { name: '只读' }).click()
+    await dialog.getByRole('button', { name: '只读' }).waitFor({ timeout: 10_000 })
 
     const document = await readSettingsDocument(scaffold)
     expect(document).toContain('permission:')
@@ -143,14 +145,14 @@ describe('web e2e: settings modal and General preferences', () => {
       ['approval/policy', { policy: 'ask' }],
     ])
 
-    await dialog.getByRole('button', { name: 'Read Only' }).click()
-    await page.getByRole('menuitem', { name: 'Full access' }).click()
-    const confirmation = page.getByRole('dialog', { name: '确认启用 Full access？' })
-    const enable = confirmation.getByRole('button', { name: '启用 Full access' })
+    await dialog.getByRole('button', { name: '只读' }).click()
+    await page.getByRole('menuitem', { name: '完全访问' }).click()
+    const confirmation = page.getByRole('dialog', { name: '确认启用完全访问？' })
+    const enable = confirmation.getByRole('button', { name: '启用完全访问' })
     expect(await enable.isDisabled()).toBe(true)
     await confirmation.getByRole('checkbox').click()
     await enable.click()
-    await dialog.getByRole('button', { name: 'Full access' }).waitFor({ timeout: 10_000 })
+    await dialog.getByRole('button', { name: '完全访问' }).waitFor({ timeout: 10_000 })
     const confirmedDocument = await readSettingsDocument(scaffold)
     expect(confirmedDocument).toContain('defaultPreset: danger-full-access')
     const confirmed = scaffold.ctx.sessions.create(SessionId('settings-permission-confirmed'))

@@ -6,10 +6,11 @@
 import { createElement } from 'react'
 import type { ReactElement } from 'react'
 import type { DirectoryListing } from '@deepseek-ai/dsh-host-directory-picker/types'
-import type { Translate } from '@deepseek-ai/dsh-client-locale/client'
+import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: the owner contract of the directory-flow holes.
 import type { DirectoryFlowOwnerProps } from '@deepseek-ai/dsh-client-ui-workspace/client'
 import { DirectoryBrowser } from './DirectoryBrowser.tsx'
+import { DIRECTORY_BROWSER_NS } from './locales.ts'
 
 /** Injected face: the browse wire calls and copy the dialog drives (bound in apply's closure). */
 export interface BrowseFlowInjected {
@@ -18,7 +19,7 @@ export interface BrowseFlowInjected {
   /** Create one child directory under an existing parent. */
   createDirectory: (path: string, name: string) => Promise<string>
   /** Localized dialog copy (this package's namespace). */
-  t: Translate
+  t: TranslateNS<typeof DIRECTORY_BROWSER_NS>
 }
 
 /**

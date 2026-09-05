@@ -140,6 +140,10 @@ describe('ui-permission browser plugin', () => {
     b.values.set(sid('s1'), { ...SELECT, options: [{ value: 'plain', name: 'Ask Every Time' }] })
     const passthrough = await c.ui.options(proj, new AbortController().signal)
     expect(passthrough[0]?.label).toBe('Ask Every Time')
+    ;(b.ctx.get('locale') as LocaleRuntime).setLocale('zh')
+    b.values.set(sid('s1'), SELECT)
+    const localized = await c.ui.options(proj, new AbortController().signal)
+    expect(localized.map(option => option.label)).toEqual(['只读', '工作区写入', '完全访问'])
     // A projection that vanished between availability and open throws.
     expect(() => c.ui.options({ sessionId: sid('ghost') }, new AbortController().signal))
       .toThrow(/not available on this host/)

@@ -51,14 +51,19 @@ const MANUAL_INVARIANT_TEST_EXCEPTIONS = [
   '/packages/examples/agent-spine-demo/tests/agent-core.spec.ts',
 ] as const
 
+/** Suite whose assertions require the exact Fiber object returned by Cordis. */
+const NATIVE_FIBER_IDENTITY_TEST = [
+  'packages', 'experimental', 'inspector', 'tests', 'cordis-tree.host.spec.ts',
+].join('/')
+
 interface InvariantHost {
-  readonly byCallback: ReadonlyMap<unknown, PluginFiber>
+  readonly byCallback: ReadonlyMap<PluginCallback, PluginFiber>
   readonly barrierOwners: WeakSet<Context['fiber']>
   readonly ready: Promise<void>
 }
 
 type PluginFiber = ReturnType<RegistryService['plugin']>
-type PluginCallback = Plugin.Function | Plugin.Constructor
+type PluginCallback = NonNullable<ReturnType<RegistryService['resolve']>>
 
 const hosts = new WeakMap<Context, InvariantHost>()
 // oxlint-disable-next-line typescript/unbound-method -- every call below supplies its RegistryService receiver explicitly.
@@ -66,7 +71,9 @@ const originalPlugin = RegistryService.prototype.plugin
 
 RegistryService.prototype.plugin = function(plugin: Plugin, config?: unknown, getOuterStack?: () => string[]) {
   const testPath = expect.getState().testPath ?? ''
-  if (usesManualInvariantTree(testPath)) return originalPlugin.call(this, plugin, config, getOuterStack)
+  if (usesManualInvariantTree(testPath) || usesNativeFiberIdentity(testPath)) {
+    return originalPlugin.call(this, plugin, config, getOuterStack)
+  }
 
   const root = this.ctx.root
   const host = hosts.get(root) ?? startInvariantHost(root)
@@ -88,7 +95,7 @@ RegistryService.prototype.plugin = function(plugin: Plugin, config?: unknown, ge
 
   const fiber = originalPlugin.call(
     this,
-    withInvariantReadiness(plugin, callback as PluginCallback),
+    withInvariantReadiness(plugin, callback),
     config,
     getOuterStack,
   )
@@ -106,6 +113,16 @@ export function usesManualInvariantTree(testPath: string): boolean {
   const normalized = testPath.replaceAll('\\', '/')
   if (/\/packages\/[^/]+\/[^/]+\/tests\/[^/]*invariant[^/]*\.spec\.ts$/.test(normalized)) return true
   return MANUAL_INVARIANT_TEST_EXCEPTIONS.some(path => normalized.endsWith(path))
+}
+
+/**
+ * Detect the suite whose subject requires native Cordis Fiber identity.
+ * @param testPath - absolute or repo-relative Vitest file path.
+ * @returns whether the readiness wrapper must leave Fiber identity untouched.
+ */
+export function usesNativeFiberIdentity(testPath: string): boolean {
+  const normalized = testPath.replaceAll('\\', '/')
+  return normalized.split('/').slice(-5).join('/') === NATIVE_FIBER_IDENTITY_TEST
 }
 
 const ALL_COMPANION_TESTS = ['/scripts/test-invariants.spec.ts'] as const
@@ -157,7 +174,7 @@ export function testInvariantCompanionPaths(testPath: string): string[] {
 }
 
 function startInvariantHost(root: Context): InvariantHost {
-  const byCallback = new Map<unknown, PluginFiber>()
+  const byCallback = new Map<PluginCallback, PluginFiber>()
   const barrierOwners = new WeakSet<Context['fiber']>()
   const mount = (plugin: Plugin, config?: unknown): PluginFiber => {
     const fiber = originalPlugin.call(root.registry, plugin, config)
@@ -269,6 +286,8 @@ function joinInvariantStartup(
     }
   })
   const joined = Object.create(fiber) as PluginFiber
+  const awaitReadiness: typeof rawFiber.await = () => readiness
+  Object.defineProperty(joined, 'await', { value: awaitReadiness })
   joined.then = readiness.then.bind(readiness)
   return joined
 }

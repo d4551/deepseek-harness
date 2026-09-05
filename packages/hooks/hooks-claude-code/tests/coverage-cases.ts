@@ -690,7 +690,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
       const childDir = dir()
       const marker = join(childDir, 'stopwhere')
       const payload = join(childDir, 'stoppayload')
-      hooks(serverDir, { SubagentStop: [{ hooks: [{ type: 'command', command: 'cat > stoppayload.tmp; mv stoppayload.tmp stoppayload; pwd > stopwhere' }] }] })
+      hooks(serverDir, { SubagentStop: [{ hooks: [{ type: 'command', command: 'cat > stoppayload.tmp; mv stoppayload.tmp stoppayload; pwd > stopwhere.tmp; mv stopwhere.tmp stopwhere' }] }] })
       const ctx = new Context()
       await mountAgentLoopTestDependencies(ctx)
       await ctx.plugin(AgentLoop, { agents: [] })

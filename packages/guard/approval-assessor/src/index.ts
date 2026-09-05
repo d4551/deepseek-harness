@@ -22,22 +22,29 @@ export const inject = ['approval']
 export interface Config {
   /** Whether the assessor rejects work-avoidance approval reasons. */
   enabled?: boolean
-  /** Additional case-insensitive regular-expression sources to screen. */
-  extraPatterns?: string[]
+  /** Additional case-insensitive literal phrases to screen. */
+  extraPhrases?: string[]
 }
 
 /** User-owned approval-assessor policy, applied to every approval request. */
 export interface ApprovalAssessorSettings {
   /** Whether the assessor rejects work-avoidance approval reasons. */
   enabled: boolean
-  /** Additional case-insensitive regular-expression sources to screen. */
-  extraPatterns: string[]
+  /** Additional case-insensitive literal phrases to screen. */
+  extraPhrases: string[]
 }
+
+const MAX_EXTRA_PHRASES = 64
+const MAX_EXTRA_PHRASE_LENGTH = 256
+
+const extraPhrasesSchema = z.array(
+  z.string().min(1).max(MAX_EXTRA_PHRASE_LENGTH),
+).max(MAX_EXTRA_PHRASES).default([])
 
 /** Plugin configuration schema with the mandatory audit enabled by default. */
 export const Config: z<Config> = z.object({
   enabled: z.boolean().default(true),
-  extraPatterns: z.array(z.string()).default([]),
+  extraPhrases: extraPhrasesSchema,
 })
 
 /** Settings namespace served to Host configuration surfaces. */
@@ -46,7 +53,7 @@ export const APPROVAL_ASSESSOR_SETTINGS_NAMESPACE = settingsNamespace('approval-
 /** Schema for the complete user-owned approval-assessor policy. */
 export const APPROVAL_ASSESSOR_SETTINGS_SCHEMA: z<ApprovalAssessorSettings> = z.object({
   enabled: z.boolean().default(true),
-  extraPatterns: z.array(z.string()).default([]),
+  extraPhrases: extraPhrasesSchema,
 })
 
 /**
@@ -82,25 +89,34 @@ const EVASION_PATTERNS: readonly RegExp[] = [
 interface ApprovalPolicy {
   enabled: boolean
   patterns: readonly RegExp[]
+  phrases: readonly string[]
 }
 
-/** Compile user-provided pattern sources, rejecting malformed expressions. */
-function compileExtraPatterns(patterns: readonly string[]): readonly RegExp[] {
-  return patterns.map((source, index) => {
-    try {
-      return new RegExp(source, 'i')
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error)
-      throw new Error(`approval-assessor: invalid extraPatterns[${String(index)}] (${detail})`)
+/**
+ * Normalize user-provided literal phrases for case-insensitive matching.
+ * @param phrases - bounded phrases accepted by the settings schema.
+ * @returns the normalized phrases.
+ */
+function normalizeExtraPhrases(phrases: readonly string[]): readonly string[] {
+  return phrases.map((phrase, index) => {
+    const normalized = phrase.trim().toLowerCase()
+    if (normalized.length === 0) {
+      throw new Error(`approval-assessor: extraPhrases[${String(index)}] must contain text`)
     }
+    return normalized
   })
 }
 
-/** Compile one complete approval policy after schema validation. */
+/**
+ * Compile one complete approval policy after schema validation.
+ * @param settings - resolved user-owned settings.
+ * @returns the active screening policy.
+ */
 function compilePolicy(settings: ApprovalAssessorSettings): ApprovalPolicy {
   return {
     enabled: settings.enabled,
-    patterns: [...EVASION_PATTERNS, ...compileExtraPatterns(settings.extraPatterns)],
+    patterns: EVASION_PATTERNS,
+    phrases: normalizeExtraPhrases(settings.extraPhrases),
   }
 }
 
@@ -131,13 +147,16 @@ function lastUserInstruction(events: readonly SessionEvent[]): string | undefine
  * justification is rejected, and a supplied justification is rejected when
  * it matches a work-avoidance pattern.
  * @param req - the approval request event.
+ * @param policy - the active screening policy.
  * @returns true when the request cannot proceed to an answerer.
  */
 function isRejectedByAudit(req: ApprovalRequestEvent, policy: ApprovalPolicy): boolean {
   if (!policy.enabled) return false
   const reason = req.reason
-  if (reason === undefined || reason.length === 0) return true
+  if (reason === undefined || reason.trim().length === 0) return true
+  const normalizedReason = reason.toLowerCase()
   return policy.patterns.some(pattern => pattern.test(reason))
+    || policy.phrases.some(phrase => normalizedReason.includes(phrase))
 }
 
 /**
@@ -159,11 +178,12 @@ function rejectionMessage(toolName: string, instruction: string | undefined): st
 /**
  * Install the mandatory approval assessor.
  * @param ctx - plugin context.
+ * @param config - initial policy inherited by the user-owned settings section.
  */
 export function apply(ctx: Context, config: Config = {}): void {
   const entry: ApprovalAssessorSettings = {
     enabled: config.enabled ?? true,
-    extraPatterns: config.extraPatterns ?? [],
+    extraPhrases: config.extraPhrases ?? [],
   }
   let source: () => ApprovalAssessorSettings = () => entry
   let policy = compilePolicy(entry)

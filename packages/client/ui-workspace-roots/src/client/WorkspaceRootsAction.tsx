@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SessionWorkspaceOrigin } from '@deepseek-ai/dsh-api-session-controller/types'
 import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
@@ -97,11 +97,17 @@ export function WorkspaceRootsAction({
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [fieldError, setFieldError] = useState(false)
   const [retry, setRetry] = useState<(() => void) | null>(null)
   const [saving, setSaving] = useState(false)
   const [origin, setOrigin] = useState<SessionWorkspaceOrigin | null | undefined>(undefined)
   const aliveRef = useRef(true)
+  const sessionRef = useRef(sessionId)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const closeRef = useRef<HTMLButtonElement>(null)
+  const titleId = useId()
+  const errorId = useId()
+  sessionRef.current = sessionId
 
   useEffect(() => {
     aliveRef.current = true
@@ -116,9 +122,14 @@ export function WorkspaceRootsAction({
     setOpen(false)
     setDraft('')
     setError(null)
+    setFieldError(false)
     setRetry(null)
     setSaving(false)
   }, [sessionId])
+
+  useEffect(() => {
+    if (open) closeRef.current?.focus()
+  }, [open])
 
   // The origin is a deployment constant, so one read serves every session this
   // component sees. It is read when the panel first opens, not at mount, so a
@@ -136,20 +147,23 @@ export function WorkspaceRootsAction({
   const submit = useCallback((next: readonly string[], after: () => void): void => {
     setSaving(true)
     setError(null)
+    setFieldError(false)
     setRetry(null)
     void setRoots(sessionId, next).then((result) => {
-      if (!aliveRef.current) return
+      if (!aliveRef.current || sessionRef.current !== sessionId) return
       setSaving(false)
       if (result.ok) {
         after()
         return
       }
       setError(failureText(result.error))
+      setFieldError(false)
       setRetry(() => () => { submit(next, after) })
     }, (reason: unknown) => {
-      if (!aliveRef.current) return
+      if (!aliveRef.current || sessionRef.current !== sessionId) return
       setSaving(false)
       setError(reason instanceof Error ? reason.message : String(reason))
+      setFieldError(false)
       setRetry(() => () => { submit(next, after) })
     })
   }, [sessionId, setRoots])
@@ -166,11 +180,13 @@ export function WorkspaceRootsAction({
     if (path === '') return
     if (!isAbsolutePath(path)) {
       setError(t('add.relative'))
+      setFieldError(true)
       setRetry(null)
       return
     }
     if (path === roots.primary || additional.includes(path)) {
       setError(t('add.duplicate'))
+      setFieldError(true)
       setRetry(null)
       return
     }
@@ -179,11 +195,15 @@ export function WorkspaceRootsAction({
 
   const browse = (): void => {
     setError(null)
+    setFieldError(false)
     void pickDirectory().then((chosen) => {
-      if (!aliveRef.current || chosen === null) return
+      if (!aliveRef.current || sessionRef.current !== sessionId || chosen === null) return
       setDraft(chosen)
     }, (reason: unknown) => {
-      if (aliveRef.current) setError(reason instanceof Error ? reason.message : String(reason))
+      if (aliveRef.current && sessionRef.current === sessionId) {
+        setError(reason instanceof Error ? reason.message : String(reason))
+        setFieldError(false)
+      }
     })
   }
 
@@ -202,11 +222,22 @@ export function WorkspaceRootsAction({
         <span className={css.count}>{count}</span>
       </button>
       {open && (
-        <div className={css.panel} role="dialog" aria-label={t('title')}>
+        <div
+          className={css.panel}
+          role="dialog"
+          aria-labelledby={titleId}
+          onKeyDown={(event) => {
+            if (event.key !== 'Escape') return
+            event.stopPropagation()
+            setOpen(false)
+            triggerRef.current?.focus()
+          }}
+        >
           <div className={css.toolbar}>
-            <strong>{t('title')}</strong>
+            <strong id={titleId}>{t('title')}</strong>
             <span className={css.spacer} />
             <button
+              ref={closeRef}
               type="button"
               className={css.iconButton}
               aria-label={t('close')}
@@ -219,7 +250,7 @@ export function WorkspaceRootsAction({
             </button>
           </div>
           {error !== null && (
-            <div className={css.alert} role="alert">
+            <div className={css.alert} role="alert" id={errorId}>
               <span className={css.alertText}>{error}</span>
               {retry !== null && (
                 <button type="button" className={css.retry} onClick={retry} disabled={saving}>
@@ -271,9 +302,12 @@ export function WorkspaceRootsAction({
                 value={draft}
                 placeholder={t('add.placeholder')}
                 disabled={saving}
+                aria-invalid={fieldError || undefined}
+                aria-describedby={fieldError ? errorId : undefined}
                 onChange={(event) => {
                   setDraft(event.target.value)
                   setError(null)
+                  setFieldError(false)
                 }}
               />
             </label>

@@ -18,6 +18,12 @@
     "@yarnpkg/cli-dist",
     "lightningcss"
   ],
+  "stryker": {
+    "config": [],
+    "entry": [
+      "stryker.config.mjs"
+    ]
+  },
   "workspaces": {
     ".": {
       "entry": [
@@ -46,6 +52,16 @@
       "ignoreDependencies": [
         "@deepseek-ai/dsh-client-ui-directory-picker-browse",
         "@deepseek-ai/dsh-client-ui-directory-picker-native"
+      ]
+    },
+    "packages/guard/approval-assessor": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/fixtures/escalating-tool.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
       ]
     },
     "packages/experimental/inspector": {

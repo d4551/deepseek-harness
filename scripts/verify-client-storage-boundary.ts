@@ -45,14 +45,14 @@ export const STORAGE_ALLOWLIST: readonly StorageAllowlistEntry[] = [
 ]
 
 /** Storage key names from the pre-migration client that must never return. */
-export const FORBIDDEN_STORAGE_KEYS: readonly string[] = [
+const FORBIDDEN_STORAGE_KEYS: readonly string[] = [
   'dsh.theme',
   'dsh.locale',
   'dsh.conversation.busyEnter',
 ]
 
 /** One detected browser-storage occurrence. */
-export interface StorageUsage {
+interface StorageUsage {
   /** Repository-relative file path with `/` separators. */
   path: string
   /** 1-based source line of the occurrence. */
@@ -297,7 +297,7 @@ export function collectCorpus(directory: string, root: string = ROOT): { path: s
 }
 
 /** Print one violation per line to stderr. */
-export function reportBoundaryViolations(violations: readonly BoundaryViolation[]): void {
+function reportBoundaryViolations(violations: readonly BoundaryViolation[]): void {
   for (const violation of violations) {
     const at = violation.line === 0 ? '' : `:${String(violation.line)}`
     process.stderr.write(`verify-client-storage-boundary: ${violation.path}${at} — ${violation.detail}\n`)
@@ -308,7 +308,7 @@ export function reportBoundaryViolations(violations: readonly BoundaryViolation[
  * Verify the live client tree and exit nonzero on any boundary violation.
  * @returns exit code, 0 when the boundary holds.
  */
-export function verifyClientStorageBoundary(root: string = ROOT): number {
+function verifyClientStorageBoundary(root: string = ROOT): number {
   const directories = clientSourceDirectories(root)
   const files = directories.flatMap(directory => collectCorpus(directory, root))
   const violations = checkStorageBoundary(files)

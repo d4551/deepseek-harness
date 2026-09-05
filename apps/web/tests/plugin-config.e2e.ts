@@ -18,7 +18,37 @@ import { ZH_BROWSER_LOCALE, saveFailureShot } from './support.ts'
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('./expected/plugin-config', import.meta.url))
 const SECTION_EXPECTED = join(SNAPSHOT_DIR, 'section.expected.md')
+const AGENT_TEAM_PATCH = fileURLToPath(
+  new URL('../../../packages/preset/agent-team-profile/cordis.patch.yml', import.meta.url),
+)
+const AGENT_TEAM_INSTALL_ANCHOR = fileURLToPath(
+  new URL('../../../packages/preset/agent-team-profile/package.json', import.meta.url),
+)
 const MODE = webSnapshotMode()
+
+/** Open the Plugins section of the settings dialog on one scaffold page. */
+async function openPlugins(page: Page) {
+  if (await page.getByRole('dialog', { name: '设置' }).count() > 0) {
+    await page.keyboard.press('Escape')
+    await expect.poll(() => page.getByRole('dialog', { name: '设置' }).count(), { timeout: 5_000 }).toBe(0)
+  }
+  await page.getByRole('button', { name: '设置', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: '设置' })
+  await dialog.waitFor({ timeout: 10_000 })
+  await dialog.getByRole('button', { name: '插件', exact: true }).click()
+  await expect
+    .poll(() => dialog.getByRole('button', { name: '插件', exact: true }).getAttribute('aria-current'), { timeout: 5_000 })
+    .toBe('true')
+  await expect
+    .poll(() => dialog.getByRole('tab', { name: '插件配置', exact: true }).getAttribute('aria-selected'), { timeout: 5_000 })
+    .toBe('true')
+  return dialog
+}
+
+/** Read the settings document written by one isolated Host. */
+async function settingsDocument(scaffold: WebScaffold): Promise<string> {
+  return readFile(join(scaffold.harnessHome, 'settings.yaml'), 'utf8').catch(() => '')
+}
 
 describe('web e2e: plugin configuration section', () => {
   let scaffold: WebScaffold
@@ -42,38 +72,9 @@ describe('web e2e: plugin configuration section', () => {
     await scaffold?.close()
   })
 
-  /**
-   * Open the settings dialog on the Plugins section. The scenarios share one
-   * page so the settings document accumulates across them, so this leaves any
-   * dialog a previous scenario opened closed first — its mask would otherwise
-   * swallow the trigger click.
-   */
-  async function openPlugins() {
-    if (await page.getByRole('dialog', { name: '设置' }).count() > 0) {
-      await page.keyboard.press('Escape')
-      await expect.poll(() => page.getByRole('dialog', { name: '设置' }).count(), { timeout: 5_000 }).toBe(0)
-    }
-    await page.getByRole('button', { name: '设置', exact: true }).click()
-    const dialog = page.getByRole('dialog', { name: '设置' })
-    await dialog.waitFor({ timeout: 10_000 })
-    await dialog.getByRole('button', { name: '插件', exact: true }).click()
-    await expect
-      .poll(() => dialog.getByRole('button', { name: '插件', exact: true }).getAttribute('aria-current'), { timeout: 5_000 })
-      .toBe('true')
-    await expect
-      .poll(() => dialog.getByRole('tab', { name: '插件配置', exact: true }).getAttribute('aria-selected'), { timeout: 5_000 })
-      .toBe('true')
-    return dialog
-  }
-
-  /** The settings document as the Host has written it so far. */
-  async function settingsDocument(): Promise<string> {
-    return readFile(join(scaffold.harnessHome, 'settings.yaml'), 'utf8').catch(() => '')
-  }
-
   it('shows one card per exposed host-plane namespace', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-plugin-config-cards'))
-    const dialog = await openPlugins()
+    const dialog = await openPlugins(page)
 
     // Every card the shipped web composition exposes: the shell executor, the
     // agent loop, subagent selection, and the DeepSeek search provider.
@@ -81,7 +82,11 @@ describe('web e2e: plugin configuration section', () => {
     expect(await dialog.getByRole('button', { name: '展开设置: Subagent' }).count()).toBe(1)
     await dialog.getByText('终端', { exact: true }).waitFor({ timeout: 10_000 })
     expect(await dialog.getByText('Agent 循环', { exact: true }).count()).toBe(1)
-    expect(await dialog.getByText('网页搜索', { exact: true }).count()).toBe(1)
+    const approvalAssessor = dialog.getByRole('button', { name: '展开设置: 审批审计' })
+    await approvalAssessor.waitFor({ timeout: 10_000 })
+    expect(await approvalAssessor.count()).toBe(1)
+    expect(await dialog.getByRole('button', { name: '展开设置: 智能体团队' }).count()).toBe(0)
+    expect(await dialog.getByText('DeepSeek 搜索', { exact: true }).count()).toBe(1)
     // Collapsed: a card's fields appear only once it is expanded.
     expect(await dialog.getByLabel('命令超时（毫秒）').count()).toBe(0)
 
@@ -92,7 +97,7 @@ describe('web e2e: plugin configuration section', () => {
 
   it('persists selected adapter routes as the subagent model allowlist', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-plugin-config-subagent-model-selection'))
-    const dialog = await openPlugins()
+    const dialog = await openPlugins(page)
     await dialog.getByText('Subagent', { exact: true }).click()
     const toggle = dialog.getByRole('switch', { name: '允许 Agent 为 Subagent 选择模型' })
 
@@ -105,12 +110,12 @@ describe('web e2e: plugin configuration section', () => {
 
     const expandSubagent = dialog.getByRole('button', { name: '展开设置: Subagent' })
     await expandSubagent.waitFor({ timeout: 5_000 })
-    await expect.poll(async () => (await settingsDocument()).includes('subagent-model-selection:'), { timeout: 10_000 })
+    await expect.poll(async () => (await settingsDocument(scaffold)).includes('subagent-model-selection:'), { timeout: 10_000 })
       .toBe(true)
-    expect(await settingsDocument()).toContain('enabled: true')
-    expect(await settingsDocument()).toContain('allowedModels:')
-    expect(await settingsDocument()).toContain('provider:')
-    expect(await settingsDocument()).toContain('model:')
+    expect(await settingsDocument(scaffold)).toContain('enabled: true')
+    expect(await settingsDocument(scaffold)).toContain('allowedModels:')
+    expect(await settingsDocument(scaffold)).toContain('provider:')
+    expect(await settingsDocument(scaffold)).toContain('model:')
     await expandSubagent.click()
     await expect.poll(() => toggle.getAttribute('aria-checked'), { timeout: 5_000 }).toBe('true')
     await expect.poll(() => dialog.getByRole('button', { name: '保存', exact: true }).isDisabled()).toBe(true)
@@ -119,11 +124,11 @@ describe('web e2e: plugin configuration section', () => {
     await toggle.click()
     await dialog.getByRole('button', { name: '保存', exact: true }).click()
     await expandSubagent.waitFor({ timeout: 5_000 })
-    await expect.poll(async () => (await settingsDocument()).includes('enabled: false'), { timeout: 10_000 })
+    await expect.poll(async () => (await settingsDocument(scaffold)).includes('enabled: false'), { timeout: 10_000 })
       .toBe(true)
-    expect(await settingsDocument()).toContain('allowedModels:')
-    expect(await settingsDocument()).toContain('provider:')
-    expect(await settingsDocument()).toContain('model:')
+    expect(await settingsDocument(scaffold)).toContain('allowedModels:')
+    expect(await settingsDocument(scaffold)).toContain('provider:')
+    expect(await settingsDocument(scaffold)).toContain('model:')
     await expandSubagent.click()
     await expect.poll(() => toggle.getAttribute('aria-checked'), { timeout: 5_000 }).toBe('false')
     expect(tripwire.pageErrors).toEqual([])
@@ -131,7 +136,7 @@ describe('web e2e: plugin configuration section', () => {
 
   it('stages an edit and writes it only when saved', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-plugin-config-write'))
-    const dialog = await openPlugins()
+    const dialog = await openPlugins(page)
     await dialog.getByText('终端', { exact: true }).click()
 
     const timeout = dialog.getByLabel('命令超时（毫秒）')
@@ -143,12 +148,12 @@ describe('web e2e: plugin configuration section', () => {
 
     // Nothing crosses the wire until the user saves: leaving the control is
     // not a decision to store the value.
-    expect(await settingsDocument()).not.toContain('timeoutMs')
+    expect(await settingsDocument(scaffold)).not.toContain('timeoutMs')
     const save = dialog.getByRole('button', { name: '保存', exact: true })
     await expect.poll(() => save.isEnabled(), { timeout: 5_000 }).toBe(true)
     await save.click()
 
-    await expect.poll(async () => (await settingsDocument()).includes('timeoutMs: 12000'), { timeout: 10_000 })
+    await expect.poll(async () => (await settingsDocument(scaffold)).includes('timeoutMs: 12000'), { timeout: 10_000 })
       .toBe(true)
     const expandTerminal = dialog.getByRole('button', { name: '展开设置: 终端' })
     await expandTerminal.waitFor({ timeout: 5_000 })
@@ -164,7 +169,7 @@ describe('web e2e: plugin configuration section', () => {
 
   it('drops a staged edit on discard without touching the document', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-plugin-config-discard'))
-    const dialog = await openPlugins()
+    const dialog = await openPlugins(page)
     await dialog.getByText('终端', { exact: true }).click()
     const timeout = dialog.getByLabel('命令超时（毫秒）')
     await timeout.waitFor({ timeout: 10_000 })
@@ -173,13 +178,13 @@ describe('web e2e: plugin configuration section', () => {
     await dialog.getByRole('button', { name: '放弃修改' }).click()
 
     await expect.poll(() => timeout.inputValue(), { timeout: 5_000 }).toBe('12000')
-    expect(await settingsDocument()).toContain('timeoutMs: 12000')
+    expect(await settingsDocument(scaffold)).toContain('timeoutMs: 12000')
     expect(tripwire.pageErrors).toEqual([])
   }, 60_000)
 
   it('refuses to save a draft that is not a number', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-plugin-config-invalid'))
-    const dialog = await openPlugins()
+    const dialog = await openPlugins(page)
     await dialog.getByText('终端', { exact: true }).click()
     const timeout = dialog.getByLabel('命令超时（毫秒）')
     await timeout.waitFor({ timeout: 10_000 })
@@ -195,7 +200,7 @@ describe('web e2e: plugin configuration section', () => {
 
   it('clears the field back to the composed default on reset', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-plugin-config-reset'))
-    const dialog = await openPlugins()
+    const dialog = await openPlugins(page)
     await dialog.getByText('终端', { exact: true }).click()
     const timeout = dialog.getByLabel('命令超时（毫秒）')
     await timeout.waitFor({ timeout: 10_000 })
@@ -205,11 +210,11 @@ describe('web e2e: plugin configuration section', () => {
     // override until the save lands.
     await dialog.getByRole('button', { name: '恢复默认' }).click()
     await expect.poll(() => timeout.inputValue(), { timeout: 5_000 }).toBe('60000')
-    expect(await settingsDocument()).toContain('timeoutMs: 12000')
+    expect(await settingsDocument(scaffold)).toContain('timeoutMs: 12000')
 
     await dialog.getByRole('button', { name: '保存', exact: true }).click()
 
-    await expect.poll(async () => (await settingsDocument()).includes('timeoutMs'), { timeout: 10_000 })
+    await expect.poll(async () => (await settingsDocument(scaffold)).includes('timeoutMs'), { timeout: 10_000 })
       .toBe(false)
     const expandTerminal = dialog.getByRole('button', { name: '展开设置: 终端' })
     await expandTerminal.waitFor({ timeout: 5_000 })
@@ -223,4 +228,81 @@ describe('web e2e: plugin configuration section', () => {
     expect(tripwire.warnings).toEqual([])
     await assertFixtureInventory(SNAPSHOT_DIR, ['section.expected.md'])
   })
+})
+
+describe('web e2e: Agent Team plugin configuration', () => {
+  let scaffold: WebScaffold
+  let browser: Browser
+  let page: Page
+  let tripwire: ReturnType<typeof watchConsole>
+
+  beforeAll(async () => {
+    scaffold = await launchWebScaffold({
+      extraOverlayPath: AGENT_TEAM_PATCH,
+      extraInstallAnchors: [AGENT_TEAM_INSTALL_ANCHOR],
+    })
+    browser = await chromium.launch()
+    page = await browser.newPage({ viewport: { width: 1680, height: 1000 }, locale: ZH_BROWSER_LOCALE })
+    tripwire = watchConsole(page)
+    await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
+    await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
+  }, 120_000)
+
+  afterAll(async () => {
+    await browser?.close()
+    await scaffold?.close()
+  })
+
+  it('rejects zero, persists both capacities, and resets them to the composed defaults', async () => {
+    onTestFailed(() => saveFailureShot(page, 'web-e2e-plugin-config-agent-team'))
+    const dialog = await openPlugins(page)
+    const expand = dialog.getByRole('button', { name: '展开设置: 智能体团队' })
+    await expand.waitFor({ timeout: 10_000 })
+    expect(await expand.count()).toBe(1)
+    await expand.click()
+
+    const members = dialog.getByRole('textbox', { name: '队友数量', exact: true })
+    const tasks = dialog.getByRole('textbox', { name: '共享任务数', exact: true })
+    expect(await members.inputValue()).toBe('8')
+    expect(await tasks.inputValue()).toBe('256')
+
+    await members.fill('0')
+    const save = dialog.getByRole('button', { name: '保存', exact: true })
+    await expect.poll(() => save.isEnabled(), { timeout: 5_000 }).toBe(true)
+    await save.click()
+    await dialog.getByText('本部署没有接受这些值，已保留供你修改。', { exact: true })
+      .waitFor({ timeout: 10_000 })
+    expect(await settingsDocument(scaffold)).not.toContain('maxMembers: 0')
+
+    await members.fill('12')
+    await tasks.fill('300')
+    await save.click()
+    await dialog.getByRole('button', { name: '展开设置: 智能体团队' }).waitFor({ timeout: 10_000 })
+    await expect.poll(async () => await settingsDocument(scaffold), { timeout: 10_000 })
+      .toContain('maxMembers: 12')
+    expect(await settingsDocument(scaffold)).toContain('maxTasks: 300')
+
+    await dialog.getByRole('button', { name: '展开设置: 智能体团队' }).click()
+    expect(await members.inputValue()).toBe('12')
+    expect(await tasks.inputValue()).toBe('300')
+    expect(await dialog.getByText('已覆盖', { exact: true }).count()).toBe(2)
+    const resets = dialog.getByRole('button', { name: '恢复默认', exact: true })
+    expect(await resets.count()).toBe(2)
+    await resets.nth(1).click()
+    await resets.nth(0).click()
+    expect(await members.inputValue()).toBe('8')
+    expect(await tasks.inputValue()).toBe('256')
+    await save.click()
+
+    await dialog.getByRole('button', { name: '展开设置: 智能体团队' }).waitFor({ timeout: 10_000 })
+    await expect.poll(async () => await settingsDocument(scaffold), { timeout: 10_000 })
+      .not.toContain('maxMembers:')
+    expect(await settingsDocument(scaffold)).not.toContain('maxTasks:')
+    await dialog.getByRole('button', { name: '展开设置: 智能体团队' }).click()
+    expect(await members.inputValue()).toBe('8')
+    expect(await tasks.inputValue()).toBe('256')
+    expect(await dialog.getByText('已覆盖', { exact: true }).count()).toBe(0)
+    expect(tripwire.pageErrors).toEqual([])
+    expect(tripwire.warnings).toEqual([])
+  }, 60_000)
 })

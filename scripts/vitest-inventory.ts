@@ -66,6 +66,7 @@ export const windowsPackageTestExclusions: readonly string[] = [
 export const processBoundTests = [
   'packages/session/session-persistence-jsonl/tests/jsonl.spec.ts',
   'packages/subagent/subagent-acp/tests/subagent-acp.spec.ts',
+  'packages/subagent/subagent-codex/tests/real-product.spec.ts',
   'packages/subprocess/subprocess-local/tests/process-exit.spec.ts',
   'packages/subprocess/subprocess-local/tests/spawn.spec.ts',
   'packages/subprocess/subprocess-local/tests/spawn-env.spec.ts',

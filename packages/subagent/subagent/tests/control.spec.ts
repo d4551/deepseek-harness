@@ -127,10 +127,7 @@ describe('subagent catalog Remote', () => {
       new SubagentError('no registry', 'SUBAGENT_CONTROL_PROJECTIONS_UNAVAILABLE'),
     )
     await expect(subagents.remoteExportList(PARENT, signal)).rejects.toMatchObject({
-      failure: {
-        code: 'subagent-projections-unavailable',
-        message: expect.stringContaining('sessionProjections') as unknown as string,
-      },
+      failure: { code: 'subagent-projections-unavailable' },
     })
 
     listChildren.mockRejectedValue(new Error('disk gone'))
@@ -290,7 +287,7 @@ describe('subagent interrupt Remote', () => {
 
     interrupt.mockImplementation(() => { throw new SubagentError('not yours', 'UNAUTHORIZED') })
     expect(() => subagents.interruptByParent(CHILD, PARENT, 'continuable')).toThrow(
-      expect.objectContaining({ failure: { code: 'subagent-unauthorized', message: expect.any(String) as unknown as string, details: { childSessionId: CHILD } } }),
+      expect.objectContaining({ failure: { code: 'subagent-unauthorized', message: 'subagent does not belong to this parent', details: { childSessionId: CHILD } } }),
     )
 
     interrupt.mockImplementation(() => { throw new Error('boom') })

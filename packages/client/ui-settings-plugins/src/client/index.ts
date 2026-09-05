@@ -23,6 +23,7 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { AgentLoopCard } from './AgentLoopCard.tsx'
 import { AgentDefaultModelCard } from './AgentDefaultModelCard.tsx'
 import { AgentTeamCard } from './AgentTeamCard.tsx'
+import { ApprovalAssessorCard } from './ApprovalAssessorCard.tsx'
 import { BashCard } from './BashCard.tsx'
 import { ConfigurablePluginsTab } from './ConfigurablePluginsTab.tsx'
 import { PluginsSettingsSection } from './PluginsSettingsSection.tsx'
@@ -32,6 +33,9 @@ import { WebAccessCard } from './WebAccessCard.tsx'
 import { WebProviderCard } from './WebProviderCard.tsx'
 import { WebSearchCard } from './WebSearchCard.tsx'
 import { AGENT_LOOP_NS, AgentLoopCardController } from './agent-loop-card-controller.ts'
+import {
+  APPROVAL_ASSESSOR_NS, ApprovalAssessorCardController,
+} from './approval-assessor-card-controller.ts'
 import {
   AGENT_DEFAULT_MODEL_NS, AgentDefaultModelCardController,
 } from './agent-default-model-card-controller.ts'
@@ -72,6 +76,9 @@ export function apply(ctx: ClientContext): void {
 
   const bash = new BashCardController(ctx.settingsScope.bind({ namespace: SHELL_NS }))
   const agentLoop = new AgentLoopCardController(ctx.settingsScope.bind({ namespace: AGENT_LOOP_NS }))
+  const approvalAssessor = new ApprovalAssessorCardController(
+    ctx.settingsScope.bind({ namespace: APPROVAL_ASSESSOR_NS }),
+  )
   const webSearch = new WebSearchCardController(
     ctx.settingsScope.bind({ namespace: WEB_SEARCH_NS }), ctx.remote.credentials)
   const subagentModelSelection = new SubagentModelSelectionCardController(
@@ -213,6 +220,12 @@ export function apply(ctx: ClientContext): void {
       locale: NS,
       inject: () => agentLoop.inject(),
     }, AgentLoopCard)
+    yield ctx.slots.register({
+      name: 'settings.plugin.item',
+      key: APPROVAL_ASSESSOR_NS,
+      locale: NS,
+      inject: () => approvalAssessor.inject(),
+    }, ApprovalAssessorCard)
     yield ctx.slots.register({
       name: 'settings.plugin.item',
       key: SUBAGENT_MODEL_SELECTION_NS,

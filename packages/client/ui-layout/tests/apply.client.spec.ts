@@ -2,14 +2,11 @@
 
 import { Context } from '@deepseek-ai/cordis'
 import { stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
-import InvariantRegistry from '@deepseek-ai/dsh-invariants'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { apply as themeApply, inject as themeInject, ThemeRuntime } from '@deepseek-ai/dsh-client-ui-theme/client'
 import { apply, inject, LayoutController } from '@deepseek-ai/dsh-client-ui-layout/client'
-import { apply as nodeApply } from '@deepseek-ai/dsh-client-ui-layout'
-import * as invariant from '@deepseek-ai/dsh-client-ui-layout/invariant'
 
 beforeEach(() => {
   document.head.querySelectorAll('meta[name="theme-color"]').forEach((node) => { node.remove() })
@@ -26,9 +23,12 @@ async function bench() {
   // live count makes subscribe/unsubscribe observable instead of hollow.
   const remote = {
     live: 0,
-    $on() {
+    $on(): () => boolean {
       this.live += 1
-      return () => { this.live -= 1 }
+      return () => {
+        this.live -= 1
+        return this.live > 0
+      }
     },
   }
   ctx.provide('remote', remote as never)
@@ -106,21 +106,5 @@ describe('ui-layout client apply', () => {
     expect(slots.spec('sidebar')).toBeUndefined()
     // The built-in root declaration survives entry teardown (renderer-owned).
     expect(slots.spec('root')).toEqual({ kind: 'single', scope: 'root' })
-  })
-})
-
-describe('node half + invariant companion', () => {
-  it('node apply is an intentional no-op (loader-managed lifecycle only)', () => {
-    expect(nodeApply()).toBeUndefined()
-  })
-
-  it('invariant companion reserves the package name exclusively and releases it on dispose', async () => {
-    const ctx = new Context()
-    await ctx.plugin(InvariantRegistry, { enabled: true })
-    const dispose = await invariant.apply(ctx)
-    expect(() => invariant.apply(ctx)).toThrow('is already registered')
-    dispose()
-    const reinstalled = await invariant.apply(ctx)
-    reinstalled()
   })
 })

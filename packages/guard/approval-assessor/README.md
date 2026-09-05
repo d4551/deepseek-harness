@@ -23,7 +23,16 @@ Every tool-approval request receives a mandatory audit. A missing justification 
 <a id="use-this-package"></a>
 ## Use this package
 
-Every `dsh-base` profile mounts this plugin ahead of the product approval answerers. It has no deployment setting, stored setting, override, or opt-out. Each request must carry a non-empty justification that passes the audit before a downstream answerer can decide it.
+Every `dsh-base` profile mounts this plugin ahead of the product approval answerers. Its composition values seed a user-owned Host settings section, so the policy can change without replacing the plugin row. Each enabled request must carry a non-empty justification that passes the audit before a downstream answerer can decide it.
+
+### Configuration
+
+| Field | Default | Meaning |
+|---|---|---|
+| `enabled` | `true` | Reject missing and matching work-avoidance reasons; `false` delegates every request unchanged. |
+| `extraPhrases` | `[]` | Add up to 64 case-insensitive literal phrases of at most 256 characters each. Regular-expression syntax has no special meaning. |
+
+The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-approval-assessor) is the exhaustive source for the composition fields. The Host settings section uses the same fields under the `approval-assessor` namespace and applies persisted or externally published changes to later requests.
 
 ### What you get
 
@@ -34,9 +43,9 @@ A request with a missing or work-avoidance justification is rejected, and the mo
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
 
-The plugin listens on the `approval/request` waterfall before user-facing answerers; `dsh-base` mounts it before layers that add those answerers. It rejects a missing reason or a reason that matches a built-in work-avoidance pattern, injects a redirect with source `plugin: approval-assessor`, and resolves `rejected` without calling `next()`. A non-evasive justification delegates after the audit. The redirect reaches the log through the agent inbox as a later `user/message`. The `./invariant` companion ensures committed redirects never outnumber rejected approval decisions.
+The plugin listens on the `approval/request` waterfall before user-facing answerers; `dsh-base` mounts it before layers that add those answerers. It reads the current Host settings, rejects a missing reason or a reason that matches a built-in or configured work-avoidance pattern, injects a redirect with source `plugin: approval-assessor`, and resolves `rejected` without calling `next()`. A disabled policy or non-evasive justification delegates after the audit. The redirect reaches the log through the agent inbox as a later `user/message`. The `./invariant` companion ensures committed redirects never outnumber rejected approval decisions.
 
-The audit applies to every approval request. Missing justification and built-in work-avoidance patterns reject. A session with no human message still receives the rejection without an instruction quote.
+The enabled audit applies to every approval request. Missing justification and built-in or configured work-avoidance patterns reject. A session with no human message still receives the rejection without an instruction quote.
 
 ## Model Experience
 
@@ -66,9 +75,9 @@ Append-only; the redirect follows the denied approval request in history and doe
 
 These limits define when the audit is a poor fit. They are current package constraints, not a task backlog.
 
-- **Built-in work-avoidance patterns only** — detection is a fixed pattern list; a paraphrased evasion the list does not contain passes the audit. Learned or model-assisted detection is rejected pending evidence of need.
-- **English patterns** — the built-in list matches English phrasing; work-avoidance justifications written in other languages reach the normal approval flow.
-- **No configuration surface** — the pattern list is not settable from `cordis.yml` or stored settings; deployment-specific patterns require a plugin change.
+- **Rule matching only** — a paraphrased evasion that matches neither a built-in rule nor an `extraPhrases` entry passes the audit. Learned or model-assisted detection is rejected pending evidence of need.
+- **Built-in rules are English** — other languages require deployment-specific entries in `extraPhrases`.
+- **One user-owned policy** — the Host settings namespace applies one enabled state and phrase list to every approval request; it does not select policy by tool or session.
 
 <a id="dev-note"></a>
 ### Dev Note

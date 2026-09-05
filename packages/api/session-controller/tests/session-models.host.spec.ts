@@ -349,8 +349,8 @@ describe('Web session model selection', () => {
       efforts: [{ id: ReasoningEffortId('high'), name: 'High', description: 'More thinking' }],
     }))
     ctx.llm.registerAdapter(['string-failure'], new class extends CatalogAdapter {
-      override listModels(): Promise<readonly LlmModelInfo[]> {
-        return Promise.reject('string catalog failure')
+      override async listModels(): Promise<readonly LlmModelInfo[]> {
+        throw 'string catalog failure'
       }
     }('String Failure', []))
     createSessionTestRemote(ctx, {
@@ -638,8 +638,8 @@ describe('Web session model selection', () => {
       }
     }('Image Capable', []))
     ctx.llm.registerAdapter(['string-error'], new class extends CatalogAdapter {
-      override resolveModel(): Promise<LlmResolvedModelInfo> {
-        return Promise.reject('string selection failure')
+      override async resolveModel(): Promise<LlmResolvedModelInfo> {
+        throw 'string selection failure'
       }
     }('String Error', []))
     let saveMode: 'success' | 'error' | 'remote' = 'success'

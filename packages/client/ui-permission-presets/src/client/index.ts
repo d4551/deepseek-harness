@@ -26,11 +26,12 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { CommandUiContract, SelectOption } from '@deepseek-ai/dsh-client-ui-commands/client'
 import type { ClientSessionContext } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
+import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { PermissionSelect } from '@deepseek-ai/dsh-permission-presets/client'
 import { PermissionRow } from './PermissionRow.tsx'
 import type { PermissionRowInjected } from './PermissionRow.tsx'
 import {
-  accessEn, accessZh, en, zh,
+  accessEn, accessZh, en, zh, type PermissionAccessKey,
 } from './locales.ts'
 import {
   displayPermissionPreset, FULL_ACCESS_PRESET,
@@ -50,18 +51,24 @@ export const inject = [
 
 const ACCESS_NS = 'permission.access'
 
+declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface LocaleNamespaceMap {
+    'permission.access': PermissionAccessKey
+  }
+}
+
 /** Read one session's current permissions projection value (undefined = capability absent). */
 function selectOf(session: SessionFace | undefined): PermissionSelect | undefined {
   return session?.projections.faceOf('permissions').getSnapshot() as PermissionSelect | undefined
 }
 
 /** Flatten the projection select into popup rows; `custom` is display state, never a target. */
-function optionsOf(value: PermissionSelect, t: (key: string) => string): SelectOption[] {
+function optionsOf(value: PermissionSelect, t: TranslateNS<typeof ACCESS_NS>): SelectOption[] {
   return value.options
     .filter(option => option.value !== 'custom')
     .map(option => ({
       id: option.value,
-      label: displayPermissionPreset(option.value, option.name),
+      label: displayPermissionPreset(option.value, option.name, t),
       ...(option.description !== undefined ? { detail: option.description } : {}),
       ...(option.value === value.currentValue ? { active: true } : {}),
       ...(option.value === FULL_ACCESS_PRESET
@@ -88,25 +95,10 @@ export function apply(ctx: ClientContext): void {
   const sessions = ctx.sessions
   // This optional bundle and ui-conversation can load independently, so each
   // owns the same safety copy under its own locale namespace.
-  ctx.effect(() => {
-    const disposers = [
-      ctx.locale.register(ACCESS_NS, 'zh', {
-        'confirm.title': accessZh['confirm.title'],
-        'confirm.description': accessZh['confirm.description'],
-        'confirm.acknowledge': accessZh['confirm.acknowledge'],
-        'confirm.cancel': accessZh['confirm.cancel'],
-        'confirm.enable': accessZh['confirm.enable'],
-      }),
-      ctx.locale.register(ACCESS_NS, 'en', {
-        'confirm.title': accessEn['confirm.title'],
-        'confirm.description': accessEn['confirm.description'],
-        'confirm.acknowledge': accessEn['confirm.acknowledge'],
-        'confirm.cancel': accessEn['confirm.cancel'],
-        'confirm.enable': accessEn['confirm.enable'],
-      }),
-    ]
-    return () => { for (const dispose of disposers) dispose() }
-  }, 'ui-permission: Full access confirmation dictionaries')
+  ctx.effect(
+    () => ctx.locale.register(ACCESS_NS, { zh: accessZh, en: accessEn }),
+    'ui-permission: current-session dictionaries',
+  )
   const t = ctx.locale.bind(ACCESS_NS)
   const sessionFor = (session: ClientSessionContext): SessionFace | undefined =>
     sessions.binding(session.sessionId)?.session

@@ -14,14 +14,12 @@ import * as SubagentFork from '@deepseek-ai/dsh-subagent-fork-in-process'
 import type { GenerateOptions, MessageId, StreamChunk } from '@deepseek-ai/dsh-llm'
 import { ToolCallId, createUserMessage, LlmAdapter, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import InvariantRegistry from '@deepseek-ai/dsh-invariants'
 import { MockAdapter, maxTokensResponse, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 import SubagentRuntime, {
   SubagentError,
   SUBAGENT_DESCRIPTOR_VERSION,
 } from '../src/index.ts'
 import type { SubagentRunEndInfo, SubagentRunInfo } from '../src/index.ts'
-import * as SubagentInvariant from '../src/invariant.ts'
 import { TestSessionQuery } from './test-session-query.ts'
 
 type Script = ConstructorParameters<typeof MockAdapter>[0]
@@ -577,8 +575,6 @@ describe('SubagentRuntime.followup residency routing', () => {
 
   it('cold-resumes after the initial provider unregisters', async () => {
     const { ctx, parent } = await setup([textResponse('first'), textResponse('after resume')])
-    await ctx.plugin(InvariantRegistry)
-    await ctx.plugin(SubagentInvariant)
     const disposeProvider = ctx.subagents.registerProvider({
       name: 'retired',
       capabilities: { agentOptions: false, outputSchema: false, depthLimit: false, toolFilter: false, persona: false },

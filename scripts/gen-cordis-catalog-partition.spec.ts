@@ -13,7 +13,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { isModuleBlock, isModuleDeclaration } from 'typescript/unstable/ast/is'
 import { contextKeyMap, contextMergeFiles, eventNameList } from './cordis-walk.ts'
 import { createSourceFile } from './ts7-session.ts'
-import { walkPartitionProblems } from './gen-cordis-catalog.ts'
+import { FOUNDATION_TYPE_NAMES, walkPartitionProblems } from './gen-cordis-catalog.ts'
 import type { WalkPartitionInput, WalkPartitionMaps } from './gen-cordis-catalog.ts'
 
 const roots: string[] = []
@@ -47,6 +47,10 @@ function baseline(): { input: WalkPartitionInput; maps: WalkPartitionMaps } {
 }
 
 describe('walkPartitionProblems', () => {
+  it('classifies Cordis lifecycle disposers as framework-owned types', () => {
+    expect(FOUNDATION_TYPE_NAMES).toContain('Disposable')
+  })
+
   it('accepts a partition where every declared key and event is rendered or exempted', () => {
     const { input, maps } = baseline()
     expect(walkPartitionProblems(input, maps)).toEqual([])

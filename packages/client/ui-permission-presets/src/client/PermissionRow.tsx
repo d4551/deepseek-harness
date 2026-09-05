@@ -12,7 +12,7 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PermissionSettingsState } from './settings-store.ts'
 import type { PermissionSettingsKey } from './locales.ts'
-import { FULL_ACCESS_PRESET } from './presentation.ts'
+import { displayPermissionPreset, FULL_ACCESS_PRESET } from './presentation.ts'
 
 /** Registration-side business face for the host-backed preference. */
 export interface PermissionRowInjected {
@@ -56,9 +56,15 @@ export function PermissionRow({ load, select, usePermission, t }: PermissionRowP
 
   if (state.status === 'unavailable') return null
   const selected = state.options.find(option => option.id === state.currentValue)
+  const items = state.options.map(option => ({
+    id: option.id,
+    label: displayPermissionPreset(option.id, option.name, t),
+  }))
   const busy = state.status === 'loading' || state.status === 'saving' || confirmingFullAccess
-  const label = selected?.label
-    ?? (busy ? t('loading') : t('unavailable'))
+  const label = selected === undefined
+    ? undefined
+    : displayPermissionPreset(selected.id, selected.name, t)
+  const selectedLabel = label ?? (busy ? t('loading') : t('unavailable'))
   const description: string = state.error ?? t('description')
 
   return (
@@ -71,7 +77,7 @@ export function PermissionRow({ load, select, usePermission, t }: PermissionRowP
         <Menu
           open={open}
           onClose={() => { setOpen(false) }}
-          items={state.options.map(option => ({ id: option.id, label: option.label }))}
+          items={items}
           selectedId={state.currentValue}
           onSelect={(id) => {
             setOpen(false)
@@ -94,7 +100,7 @@ export function PermissionRow({ load, select, usePermission, t }: PermissionRowP
               disabled={busy || !state.writable || state.options.length === 0}
               onClick={() => { setOpen(value => !value) }}
             >
-              {label}
+              {selectedLabel}
               <IconChevronDownOutline14 className="dsw-settings-selector-chevron" />
             </button>
           )}

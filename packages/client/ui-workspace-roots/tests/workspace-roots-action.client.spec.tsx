@@ -1,140 +1,33 @@
 // @vitest-environment jsdom
 
 /**
- * The workspace-root panel's four states and its two mutations. The rendered
- * root set is the host projection in every case, so a spec changes what the
- * panel shows by changing the projection, never by changing component state.
+ * The workspace-root panel's mutations, failure handling, unmount behavior,
+ * and the absolute-path validation. The rendered root set mirrors the host
+ * projection; specs drive the projection.
  */
 
 import { afterEach, describe, expect, it } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { WorkspaceRootsAction, isAbsolutePath, originLabel } from '../src/client/WorkspaceRootsAction.tsx'
+import { createElement } from 'react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { isAbsolutePath, WorkspaceRootsAction } from '../src/client/WorkspaceRootsAction.tsx'
 import { zh } from '../src/client/locales.ts'
-import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
-import { PRIMARY, SECOND, SESSION, origin, projection, props } from './roots-fixtures.client.ts'
+import { PRIMARY, SECOND, SESSION, origin, projection, props, type RootsBench } from './roots-fixtures.client.ts'
+import { openPanel, panelField, panelTriggerName } from './roots-bench.client.tsx'
 
 afterEach(cleanup)
 
-/** The trigger's accessible name for a root set of `count` folders. */
-function triggerName(count: number): string {
-  return zh['trigger.aria'].replace('{count}', String(count))
-}
-
-/** The add-folder field, addressed by its own label. */
-function field(): HTMLInputElement {
-  return screen.getByLabelText<HTMLInputElement>(zh['add.label'])
-}
-
-/** Render the panel already open over one bench. */
-function open(bench: Parameters<typeof props>[0] = {}): ReturnType<typeof props> {
-  const built = props(bench)
-  const roots = bench.roots
-  const count = roots === undefined
-    ? 0
-    : roots.additional.length + (roots.primary === null ? 0 : 1)
-  render(<WorkspaceRootsAction {...built.props} />)
-  fireEvent.click(screen.getByRole('button', { name: triggerName(count) }))
-  return built
-}
-
-describe('WorkspaceRootsAction states', () => {
-  it('renders a busy placeholder while the projection has not arrived', () => {
-    render(<WorkspaceRootsAction {...props({ roots: undefined }).props} />)
-    expect(screen.getByRole('status', { name: zh['trigger.loading'] })).toBeTruthy()
-    expect(screen.queryByRole('button')).toBeNull()
-  })
-
-  it('counts the primary root and every additional root on the trigger', () => {
-    render(<WorkspaceRootsAction {...props({ roots: projection([SECOND]) }).props} />)
-    expect(screen.getByRole('button', { name: triggerName(2) })).toBeTruthy()
-  })
-
-  it('counts only the additional roots when the Session has no cwd', () => {
-    render(<WorkspaceRootsAction {...props({ roots: projection([SECOND], null) }).props} />)
-    expect(screen.getByRole('button', { name: triggerName(1) })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: triggerName(1) }))
-    expect(screen.queryByText(zh.primary)).toBeNull()
-    expect(screen.getByText(SECOND)).toBeTruthy()
-  })
-
-  it('shows the empty state while the Session works in its primary root alone', () => {
-    open({ roots: projection() })
-    expect(screen.getByText(zh['empty.title'])).toBeTruthy()
-    expect(screen.getByText(zh['empty.description'])).toBeTruthy()
-    expect(screen.getByText(PRIMARY)).toBeTruthy()
-  })
-
-  it('drops the empty state once an additional root is recorded', () => {
-    const { props: bench } = props({ roots: projection([SECOND]) })
-    render(<WorkspaceRootsAction {...bench} />)
-    fireEvent.click(screen.getByRole('button', { name: triggerName(2) }))
-    expect(screen.queryByText(zh['empty.title'])).toBeNull()
-    expect(screen.getByRole('list', { name: zh['list.aria'] })).toBeTruthy()
-  })
-
-  it('closes the panel and returns focus to the trigger', () => {
-    open({ roots: projection() })
-    const trigger = screen.getByRole('button', { name: triggerName(1) })
-    expect(trigger.getAttribute('aria-expanded')).toBe('true')
-    fireEvent.click(screen.getByRole('button', { name: zh.close }))
-    expect(trigger.getAttribute('aria-expanded')).toBe('false')
-    expect(document.activeElement).toBe(trigger)
-  })
-})
-
-describe('WorkspaceRootsAction origin', () => {
-  it('names a local backend beside the primary root, reading it once', async () => {
-    const { calls } = open({ roots: projection() })
-    expect(await screen.findByText(zh['origin.local'])).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: zh.close }))
-    fireEvent.click(screen.getByRole('button', { name: triggerName(1) }))
-    await waitFor(() => { expect(screen.getByText(zh['origin.local'])).toBeTruthy() })
-    expect(calls.origins).toBe(1)
-  })
-
-  it('names a network drive so a mirrored workspace does not read as local disk', async () => {
-    open({
-      roots: projection(),
-      loadOrigin: () => Promise.resolve({ ok: true, value: origin('network-drive') }),
-    })
-    expect(await screen.findByText(zh['origin.network-drive'])).toBeTruthy()
-  })
-
-  it('names an unrecognized origin member rather than claiming a known one', () => {
-    const t = makeTranslate(zh) as never
-    expect(originLabel('sandbox', t)).toBe(zh['origin.other'].replace('{kind}', 'sandbox'))
-  })
-
-  it('shows no origin when the deployment composes no filesystem backend', async () => {
-    open({ roots: projection(), loadOrigin: () => Promise.resolve({ ok: true, value: null }) })
-    await waitFor(() => { expect(screen.queryByText(zh['origin.local'])).toBeNull() })
-  })
-
-  it('shows no origin when the origin read fails', async () => {
-    open({ roots: projection(), loadOrigin: () => Promise.reject(new Error('offline')) })
-    await waitFor(() => { expect(screen.queryByText(zh['origin.local'])).toBeNull() })
-  })
-
-  it('shows no origin when the Remote refuses the read', async () => {
-    open({
-      roots: projection(),
-      loadOrigin: () => Promise.resolve({ ok: false, error: { code: 'internal', message: 'no', details: {} } }),
-    })
-    await waitFor(() => { expect(screen.queryByText(zh['origin.local'])).toBeNull() })
-  })
-})
-
 describe('WorkspaceRootsAction mutations', () => {
   it('adds a typed absolute folder to the recorded set', async () => {
-    const { calls } = open({ roots: projection() })
+    const { calls } = openPanel({ roots: projection() })
     fireEvent.change(screen.getByLabelText(zh['add.label']), { target: { value: ` ${SECOND} ` } })
     fireEvent.click(screen.getByRole('button', { name: zh['add.submit'] }))
     await waitFor(() => { expect(calls.setRoots).toEqual([{ sessionId: SESSION, roots: [SECOND] }]) })
-    await waitFor(() => { expect(field().value).toBe('') })
+    await waitFor(() => { expect(panelField().value).toBe('') })
   })
 
   it('appends to the roots the Session already carries', async () => {
-    const { calls } = open({ roots: projection([SECOND]) })
+    const { calls } = openPanel({ roots: projection([SECOND]) })
     fireEvent.change(screen.getByLabelText(zh['add.label']), { target: { value: '/projects/third' } })
     fireEvent.click(screen.getByRole('button', { name: zh['add.submit'] }))
     await waitFor(() => {
@@ -143,7 +36,7 @@ describe('WorkspaceRootsAction mutations', () => {
   })
 
   it('removes one root by sending the remaining set', async () => {
-    const { calls } = open({ roots: projection([SECOND, '/projects/third']) })
+    const { calls } = openPanel({ roots: projection([SECOND, '/projects/third']) })
     fireEvent.click(screen.getByRole('button', { name: zh['remove.aria'].replace('{path}', SECOND) }))
     await waitFor(() => {
       expect(calls.setRoots).toEqual([{ sessionId: SESSION, roots: ['/projects/third'] }])
@@ -151,15 +44,19 @@ describe('WorkspaceRootsAction mutations', () => {
   })
 
   it('refuses a relative path in the field rather than sending it', () => {
-    const { calls } = open({ roots: projection() })
+    const { calls } = openPanel({ roots: projection() })
     fireEvent.change(screen.getByLabelText(zh['add.label']), { target: { value: 'relative/dir' } })
     fireEvent.click(screen.getByRole('button', { name: zh['add.submit'] }))
-    expect(screen.getByRole('alert').textContent).toContain(zh['add.relative'])
+    const alert = screen.getByRole('alert')
+    const field = screen.getByLabelText(zh['add.label'])
+    expect(alert.textContent).toContain(zh['add.relative'])
+    expect(field.getAttribute('aria-invalid')).toBe('true')
+    expect(field.getAttribute('aria-describedby')).toBe(alert.id)
     expect(calls.setRoots).toEqual([])
   })
 
   it('refuses a folder the Session already works in', () => {
-    const { calls } = open({ roots: projection([SECOND]) })
+    const { calls } = openPanel({ roots: projection([SECOND]) })
     fireEvent.change(screen.getByLabelText(zh['add.label']), { target: { value: SECOND } })
     fireEvent.click(screen.getByRole('button', { name: zh['add.submit'] }))
     expect(screen.getByRole('alert').textContent).toContain(zh['add.duplicate'])
@@ -167,7 +64,7 @@ describe('WorkspaceRootsAction mutations', () => {
   })
 
   it('refuses the primary root as an addition', () => {
-    const { calls } = open({ roots: projection() })
+    const { calls } = openPanel({ roots: projection() })
     fireEvent.change(screen.getByLabelText(zh['add.label']), { target: { value: PRIMARY } })
     fireEvent.click(screen.getByRole('button', { name: zh['add.submit'] }))
     expect(screen.getByRole('alert').textContent).toContain(zh['add.duplicate'])
@@ -175,7 +72,7 @@ describe('WorkspaceRootsAction mutations', () => {
   })
 
   it('submits nothing for a blank field', () => {
-    const { calls } = open({ roots: projection() })
+    const { calls } = openPanel({ roots: projection() })
     const form = screen.getByLabelText(zh['add.label']).closest('form')
     fireEvent.change(screen.getByLabelText(zh['add.label']), { target: { value: '   ' } })
     fireEvent.submit(form as HTMLFormElement)
@@ -183,39 +80,40 @@ describe('WorkspaceRootsAction mutations', () => {
   })
 
   it('fills the field from the host directory chooser', async () => {
-    const { calls } = open({
+    const { calls } = openPanel({
       roots: projection(),
       pickDirectory: () => Promise.resolve('/chosen/folder'),
     })
     fireEvent.click(screen.getByRole('button', { name: zh['add.browse'] }))
     await waitFor(() => {
-      expect(field().value).toBe('/chosen/folder')
+      expect(panelField().value).toBe('/chosen/folder')
     })
     expect(calls.picks).toBe(1)
   })
 
   it('leaves the field untouched when the chooser is cancelled', async () => {
-    const { calls } = open({ roots: projection() })
+    const { calls } = openPanel({ roots: projection() })
     fireEvent.click(screen.getByRole('button', { name: zh['add.browse'] }))
     await waitFor(() => { expect(calls.picks).toBe(1) })
-    expect(field().value).toBe('')
+    expect(panelField().value).toBe('')
   })
 
   it('reports a chooser this deployment cannot serve', async () => {
-    open({
+    openPanel({
       roots: projection(),
       pickDirectory: () => Promise.reject(new Error('directoryPicker.pick needs the native capability')),
     })
     fireEvent.click(screen.getByRole('button', { name: zh['add.browse'] }))
     expect((await screen.findByRole('alert')).textContent)
       .toContain('directoryPicker.pick needs the native capability')
+    expect(screen.getByLabelText(zh['add.label']).hasAttribute('aria-invalid')).toBe(false)
   })
 })
 
 describe('WorkspaceRootsAction failures', () => {
   it('reports a refused replacement and retries the same set', async () => {
     let attempts = 0
-    const { calls } = open({
+    const { calls } = openPanel({
       roots: projection(),
       setRoots: (_sessionId, roots) => {
         attempts += 1
@@ -235,7 +133,7 @@ describe('WorkspaceRootsAction failures', () => {
 
   it('reports a rejected replacement request and retries the same set', async () => {
     let attempts = 0
-    const { calls } = open({
+    const { calls } = openPanel({
       roots: projection(),
       setRoots: (_sessionId, roots) => {
         attempts += 1
@@ -253,20 +151,24 @@ describe('WorkspaceRootsAction failures', () => {
   })
 
   it('reports a non-Error rejection by its stringified value', async () => {
-    open({ roots: projection(), setRoots: () => Promise.reject('refused') })
+    // The rejection reason is a bare string on purpose: the panel must
+    // stringify whatever a handler rejects with, not just Error instances.
+    const refusal = 'refused'
+    openPanel({ roots: projection(), setRoots: async () => { throw refusal } })
     fireEvent.change(screen.getByLabelText(zh['add.label']), { target: { value: SECOND } })
     fireEvent.click(screen.getByRole('button', { name: zh['add.submit'] }))
     expect((await screen.findByRole('alert')).textContent).toContain('refused')
   })
 
   it('reports a non-Error chooser rejection by its stringified value', async () => {
-    open({ roots: projection(), pickDirectory: () => Promise.reject('cancelled') })
+    const cancellation = 'cancelled'
+    openPanel({ roots: projection(), pickDirectory: async () => { throw cancellation } })
     fireEvent.click(screen.getByRole('button', { name: zh['add.browse'] }))
     expect((await screen.findByRole('alert')).textContent).toContain('cancelled')
   })
 
   it('clears a validation message as soon as the field changes again', () => {
-    open({ roots: projection() })
+    openPanel({ roots: projection() })
     fireEvent.change(screen.getByLabelText(zh['add.label']), { target: { value: 'relative' } })
     fireEvent.click(screen.getByRole('button', { name: zh['add.submit'] }))
     expect(screen.getByRole('alert')).toBeTruthy()
@@ -276,7 +178,7 @@ describe('WorkspaceRootsAction failures', () => {
 
   it('shows the saving label and disables the controls while a replacement is in flight', async () => {
     let settle: (() => void) | undefined
-    open({
+    openPanel({
       roots: projection(),
       setRoots: (_sessionId, roots) => new Promise((resolve) => {
         settle = () => { resolve({ ok: true, value: { additional: [...roots] } }) }
@@ -286,10 +188,75 @@ describe('WorkspaceRootsAction failures', () => {
     fireEvent.click(screen.getByRole('button', { name: zh['add.submit'] }))
     const saving = await screen.findByRole('button', { name: zh.saving })
     expect(saving.hasAttribute('disabled')).toBe(true)
-    expect(field().disabled).toBe(true)
+    expect(panelField().disabled).toBe(true)
     settle?.()
     await waitFor(() => { expect(screen.getByRole('button', { name: zh['add.submit'] })).toBeTruthy() })
   })
+})
+
+describe('WorkspaceRootsAction session changes', () => {
+  const NEXT_SESSION = 'next-roots-session' as SessionId
+  const NEXT_DRAFT = 'current-session-draft'
+
+  it.each(['resolve', 'reject'] as const)(
+    'drops a stale replacement that completes by %s',
+    async (outcome) => {
+      let settle!: () => void
+      const pending = new Promise<{ ok: true; value: { additional: readonly string[] } }>((resolve, reject) => {
+        settle = outcome === 'resolve'
+          ? () => { resolve({ ok: true, value: { additional: [SECOND] } }) }
+          : () => { reject(new Error('stale failure')) }
+      })
+      const built = props({ roots: projection(), setRoots: () => pending })
+      const view = render(createElement(WorkspaceRootsAction, built.props))
+      fireEvent.click(screen.getByRole('button', { name: panelTriggerName(1) }))
+      fireEvent.change(panelField(), { target: { value: SECOND } })
+      fireEvent.click(screen.getByRole('button', { name: zh['add.submit'] }))
+      await waitFor(() => { expect(built.calls.setRoots).toHaveLength(1) })
+
+      view.rerender(createElement(WorkspaceRootsAction, { ...built.props, sessionId: NEXT_SESSION }))
+      await waitFor(() => { expect(screen.queryByRole('dialog')).toBeNull() })
+      fireEvent.click(screen.getByRole('button', { name: panelTriggerName(1) }))
+      fireEvent.change(panelField(), { target: { value: NEXT_DRAFT } })
+
+      await act(async () => {
+        settle()
+        await Promise.resolve()
+      })
+      expect(panelField().value).toBe(NEXT_DRAFT)
+      expect(screen.queryByRole('alert')).toBeNull()
+      expect(screen.getByRole('button', { name: zh['add.submit'] })).toBeTruthy()
+    },
+  )
+
+  it.each(['resolve', 'reject'] as const)(
+    'drops a stale directory choice that completes by %s',
+    async (outcome) => {
+      let settle!: () => void
+      const pending = new Promise<string | null>((resolve, reject) => {
+        settle = outcome === 'resolve'
+          ? () => { resolve('stale-choice') }
+          : () => { reject(new Error('stale chooser failure')) }
+      })
+      const built = props({ roots: projection(), pickDirectory: () => pending })
+      const view = render(createElement(WorkspaceRootsAction, built.props))
+      fireEvent.click(screen.getByRole('button', { name: panelTriggerName(1) }))
+      fireEvent.click(screen.getByRole('button', { name: zh['add.browse'] }))
+      await waitFor(() => { expect(built.calls.picks).toBe(1) })
+
+      view.rerender(createElement(WorkspaceRootsAction, { ...built.props, sessionId: NEXT_SESSION }))
+      await waitFor(() => { expect(screen.queryByRole('dialog')).toBeNull() })
+      fireEvent.click(screen.getByRole('button', { name: panelTriggerName(1) }))
+      fireEvent.change(panelField(), { target: { value: NEXT_DRAFT } })
+
+      await act(async () => {
+        settle()
+        await Promise.resolve()
+      })
+      expect(panelField().value).toBe(NEXT_DRAFT)
+      expect(screen.queryByRole('alert')).toBeNull()
+    },
+  )
 })
 
 describe('WorkspaceRootsAction after unmount', () => {
@@ -298,16 +265,17 @@ describe('WorkspaceRootsAction after unmount', () => {
    * that touches state is guarded, so a late answer must leave the document
    * empty instead of reviving a removed surface.
    * @param bench - the deferred action under test plus its projection.
-   * @param act - the interaction that starts the deferred call.
    * @param settle - resolves or rejects the deferred call.
+   * @param act - the interaction that starts the deferred call; the origin
+   * read starts on mount, so only some scenarios need one.
    */
   async function settleAfterUnmount(
-    bench: Parameters<typeof props>[0],
-    act: () => void,
+    bench: RootsBench,
     settle: () => void,
+    act?: () => void,
   ): Promise<void> {
-    open(bench)
-    act()
+    openPanel(bench)
+    act?.()
     cleanup()
     settle()
     await Promise.resolve()
@@ -324,11 +292,11 @@ describe('WorkspaceRootsAction after unmount', () => {
           settle = () => { resolve({ ok: true, value: { additional: [...roots] } }) }
         }),
       },
+      () => { settle?.() },
       () => {
         fireEvent.change(screen.getByLabelText(zh['add.label']), { target: { value: SECOND } })
         fireEvent.click(screen.getByRole('button', { name: zh['add.submit'] }))
       },
-      () => { settle?.() },
     )
   })
 
@@ -341,11 +309,11 @@ describe('WorkspaceRootsAction after unmount', () => {
           fail = () => { reject(new Error('late')) }
         }),
       },
+      () => { fail?.() },
       () => {
         fireEvent.change(screen.getByLabelText(zh['add.label']), { target: { value: SECOND } })
         fireEvent.click(screen.getByRole('button', { name: zh['add.submit'] }))
       },
-      () => { fail?.() },
     )
   })
 
@@ -358,8 +326,8 @@ describe('WorkspaceRootsAction after unmount', () => {
           settle = () => { resolve('/late') }
         }),
       },
-      () => { fireEvent.click(screen.getByRole('button', { name: zh['add.browse'] })) },
       () => { settle?.() },
+      () => { fireEvent.click(screen.getByRole('button', { name: zh['add.browse'] })) },
     )
   })
 
@@ -372,8 +340,8 @@ describe('WorkspaceRootsAction after unmount', () => {
           fail = () => { reject(new Error('late')) }
         }),
       },
-      () => { fireEvent.click(screen.getByRole('button', { name: zh['add.browse'] })) },
       () => { fail?.() },
+      () => { fireEvent.click(screen.getByRole('button', { name: zh['add.browse'] })) },
     )
   })
 
@@ -386,7 +354,6 @@ describe('WorkspaceRootsAction after unmount', () => {
           settle = () => { resolve({ ok: true, value: origin('local') }) }
         }),
       },
-      () => {},
       () => { settle?.() },
     )
   })
@@ -400,7 +367,6 @@ describe('WorkspaceRootsAction after unmount', () => {
           fail = () => { reject(new Error('late')) }
         }),
       },
-      () => {},
       () => { fail?.() },
     )
   })

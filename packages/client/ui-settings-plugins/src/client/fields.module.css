@@ -97,6 +97,11 @@
   border-color: var(--dsw-alias-label-error);
 }
 
+.multiline {
+  height: auto;
+  resize: vertical;
+}
+
 .invalid {
   margin: 0;
   font-size: 12px;

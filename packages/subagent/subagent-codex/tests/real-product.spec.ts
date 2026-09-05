@@ -71,6 +71,20 @@ interface RealInstanceFixture {
 
 type ResponsesScript = readonly ResponsesBehavior[] | ((workspace: string) => readonly ResponsesBehavior[])
 
+function ambientCodexTombstones(): NodeJS.ProcessEnv {
+  return Object.fromEntries(Object.keys(process.env)
+    .filter(key => key.toUpperCase().startsWith('CODEX_'))
+    .map(key => [key, undefined]))
+}
+
+function isolatedCodexEnvironment(explicit: Readonly<Record<string, string>>): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    ...ambientCodexTombstones(),
+    ...explicit,
+  }
+}
+
 async function realInstanceFixture(
   script: ResponsesScript,
 ): Promise<RealInstanceFixture> {
@@ -137,8 +151,15 @@ async function realRuntime(): Promise<RealRuntime> {
   const spawnSpecs: SubprocessSpawnSpec[] = []
   const spawn = ctx.subprocess.spawn.bind(ctx.subprocess)
   vi.spyOn(ctx.subprocess, 'spawn').mockImplementation((spec) => {
-    spawnSpecs.push(spec)
-    const handle = spawn(spec)
+    const isolatedSpec: SubprocessSpawnSpec = {
+      ...spec,
+      env: {
+        ...ambientCodexTombstones(),
+        ...spec.env,
+      },
+    }
+    spawnSpecs.push(isolatedSpec)
+    const handle = spawn(isolatedSpec)
     handles.push(handle)
     return handle
   })
@@ -228,7 +249,7 @@ describe('real @openai/codex 0.153.0 product', () => {
     ], 'approve-for-me')
     expect(codexPackage.version).toBe('0.153.0')
     const version = await execFileAsync(process.execPath, [codexEntry, '--version'], {
-      env: { ...process.env, ...harness.env },
+      env: isolatedCodexEnvironment(harness.env),
     })
     expect(version.stdout.trim()).toBe('codex-cli 0.153.0')
     const schemaRoot = mkdtempSync(join(tmpdir(), 'dsh-codex-schema-'))
@@ -239,7 +260,7 @@ describe('real @openai/codex 0.153.0 product', () => {
       'generate-json-schema',
       '--out',
       schemaRoot,
-    ], { env: { ...process.env, ...harness.env } })
+    ], { env: isolatedCodexEnvironment(harness.env) })
     const schema = JSON.parse(readFileSync(
       join(schemaRoot, 'ClientRequest.json'),
       'utf8',
@@ -258,7 +279,9 @@ describe('real @openai/codex 0.153.0 product', () => {
       parent: harness.parent,
       signal: new AbortController().signal,
     })
-    await expect(run.result).resolves.toEqual({
+    const result = await run.result
+    expect(fixture.exhausted).toEqual([])
+    expect(result).toEqual({
       output: [{ type: 'text', text: sentinel }],
       stopReason: 'completed',
     })

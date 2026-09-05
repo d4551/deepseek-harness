@@ -826,11 +826,19 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'Translate',
-    declaration: 'export type Translate<K extends string = string> = (key: K, params?: Record<string, unknown>) => string;',
+    declaration: 'export type Translate<K extends string = string> = (key: K, params?: TranslateParams) => string;',
   },
   {
     name: 'TranslateNS',
     declaration: 'export type TranslateNS<N extends keyof LocaleNamespaceMap & string> = Translate<LocaleKeysOf<N>>;',
+  },
+  {
+    name: 'TranslateParam',
+    declaration: 'export type TranslateParam = string | number | undefined;',
+  },
+  {
+    name: 'TranslateParams',
+    declaration: 'export type TranslateParams = Readonly<Record<string, TranslateParam>>;',
   },
   {
     name: 'WorkspaceView',

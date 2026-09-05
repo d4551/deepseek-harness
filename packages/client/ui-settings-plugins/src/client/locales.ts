@@ -8,6 +8,12 @@ export type PluginsSettingsLocaleKey =
   | 'bashTitle' | 'bashDescription' | 'bashTimeoutMs' | 'bashTimeoutMsHint'
   | 'bashMaxOutputBytes' | 'bashMaxOutputBytesHint'
   | 'agentLoopTitle' | 'agentLoopDescription' | 'agentLoopMaxParallel' | 'agentLoopMaxParallelHint'
+  | 'approvalAssessorTitle' | 'approvalAssessorDescription'
+  | 'approvalAssessorEnabled' | 'approvalAssessorEnabledHint'
+  | 'approvalAssessorEnabledOn' | 'approvalAssessorEnabledOnHint'
+  | 'approvalAssessorEnabledOff' | 'approvalAssessorEnabledOffHint'
+  | 'approvalAssessorExtraPhrases' | 'approvalAssessorExtraPhrasesHint'
+  | 'approvalAssessorExtraPhrasesInvalid'
   | 'webSearchTitle' | 'webSearchDescription'
   | 'webSearchApiKey' | 'webSearchApiKeyHint' | 'webSearchApiKeySet' | 'webSearchApiKeyUnset'
   | 'webSearchBaseUrl' | 'webSearchBaseUrlHint' | 'webSearchMaxUses' | 'webSearchMaxUsesHint'
@@ -76,6 +82,17 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
   agentLoopDescription: 'How the agent dispatches tool calls.',
   agentLoopMaxParallel: 'Parallel tool calls',
   agentLoopMaxParallelHint: 'Upper bound on parallel-safe calls running at once within one step.',
+  approvalAssessorTitle: 'Approval audit',
+  approvalAssessorDescription: 'Screens approval reasons for attempts to avoid authorized work.',
+  approvalAssessorEnabled: 'Work-avoidance screening',
+  approvalAssessorEnabledHint: 'Whether approval requests are checked before they reach an answerer.',
+  approvalAssessorEnabledOn: 'Enforce',
+  approvalAssessorEnabledOnHint: 'Reject missing reasons and reasons that match a configured rule.',
+  approvalAssessorEnabledOff: 'Disabled',
+  approvalAssessorEnabledOffHint: 'Pass approval requests to the configured answerer without this audit.',
+  approvalAssessorExtraPhrases: 'Additional rejection phrases',
+  approvalAssessorExtraPhrasesHint: 'One case-insensitive literal phrase per line, up to 64 phrases and 256 characters each. Built-in rules remain active while enforcement is on.',
+  approvalAssessorExtraPhrasesInvalid: 'Enter no more than 64 phrases of at most 256 characters each.',
   webSearchTitle: 'DeepSeek search',
   webSearchDescription: 'Searches through DeepSeek\u2019s hosted retrieval, billed to the DeepSeek key.',
   webSearchApiKey: 'API key',
@@ -201,6 +218,17 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
   agentLoopDescription: 'Agent 如何派发工具调用。',
   agentLoopMaxParallel: '并行工具调用数',
   agentLoopMaxParallelHint: '同一步内最多同时运行多少个可并行的调用。',
+  approvalAssessorTitle: '审批审计',
+  approvalAssessorDescription: '检查审批理由是否试图规避已授权的工作。',
+  approvalAssessorEnabled: '规避工作检查',
+  approvalAssessorEnabledHint: '审批请求抵达处理程序之前是否接受检查。',
+  approvalAssessorEnabledOn: '启用',
+  approvalAssessorEnabledOnHint: '拒绝缺少理由或匹配配置规则的请求。',
+  approvalAssessorEnabledOff: '停用',
+  approvalAssessorEnabledOffHint: '不经本审计，直接将审批请求交给已配置的处理程序。',
+  approvalAssessorExtraPhrases: '附加拒绝短语',
+  approvalAssessorExtraPhrasesHint: '每行一个不区分大小写的字面短语，最多 64 条，每条最多 256 个字符。启用检查时，内置规则仍然生效。',
+  approvalAssessorExtraPhrasesInvalid: '最多输入 64 条短语，每条不超过 256 个字符。',
   webSearchTitle: 'DeepSeek 搜索',
   webSearchDescription: '通过 DeepSeek 托管检索搜索，按 DeepSeek 密钥计费。',
   webSearchApiKey: 'API Key',

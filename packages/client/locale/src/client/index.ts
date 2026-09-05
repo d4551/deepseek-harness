@@ -7,6 +7,7 @@
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import {
   type BoundActions, type LocaleDictOf, type LocaleNamespaceMap, type Translate, type TranslateNS,
+  type TranslateParams,
 } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: the ctx.settingsScope Context merge and the settings slot types.
 // Cross-plugin collaboration goes through the service, never a value import
@@ -35,7 +36,7 @@ export type { BuiltInLocaleId, LocaleId, LocaleSettings } from '../locale-settin
 // The translate currency lives in ui-slots (the render machinery synthesizes
 // the seat); re-exported here so dictionary owners import one package.
 // TranslateNS<'model'> is the namespace-addressed developer-facing form.
-export type { Translate, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
+export type { Translate, TranslateNS, TranslateParam, TranslateParams } from '@deepseek-ai/dsh-client-ui-slots'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -445,7 +446,7 @@ export class LocaleRuntime {
     return t
   }
 
-  private translate(ns: string, key: string, params?: Record<string, unknown>): string {
+  private translate(ns: string, key: string, params?: TranslateParams): string {
     const chain = this.fallbackChain(this.snapshot.active)
     const template = this.lookup(ns, key, chain)
       ?? (ns !== COMMON_NS ? this.lookup(COMMON_NS, key, chain) : undefined)

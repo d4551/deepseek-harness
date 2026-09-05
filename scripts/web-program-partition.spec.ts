@@ -1,18 +1,12 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { createWorkspaceFixtures } from './test-workspace-fixtures.ts'
 import { collectWebProgramPartitionViolations } from './web-program-partition.ts'
 
-const roots: string[] = []
+const fixtures = createWorkspaceFixtures('dsh-web-program-partition-')
 
-afterEach(() => {
-  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
-})
-
-function writeJson(path: string, value: unknown): void {
-  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`)
-}
+afterEach(fixtures.cleanup)
 
 /**
  * Build a repository whose `apps/web` files split across the two aggregates by
@@ -24,17 +18,16 @@ function partitionFixture(options: {
   readonly hostExclude: readonly string[]
   readonly webInclude: readonly string[]
 }): string {
-  const root = mkdtempSync(join(tmpdir(), 'dsh-web-program-partition-'))
-  roots.push(root)
+  const root = fixtures.createRoot()
   mkdirSync(join(root, 'apps/web/tests'), { recursive: true })
   mkdirSync(join(root, 'apps/web/src'), { recursive: true })
   for (const file of options.files) writeFileSync(join(root, file), 'export const marker = 1\n')
-  writeJson(join(root, 'apps/web/tsconfig.json'), { include: options.webInclude })
-  writeJson(join(root, 'tsconfig.host.json'), {
+  fixtures.writeJson(join(root, 'apps/web/tsconfig.json'), { include: options.webInclude })
+  fixtures.writeJson(join(root, 'tsconfig.host.json'), {
     include: options.hostInclude,
     exclude: options.hostExclude,
   })
-  writeJson(join(root, 'tsconfig.client.json'), {
+  fixtures.writeJson(join(root, 'tsconfig.client.json'), {
     files: [],
     references: [{ path: './apps/web' }],
   })

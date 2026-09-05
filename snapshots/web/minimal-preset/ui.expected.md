@@ -3,6 +3,9 @@
     - button "Use the bash tool to" [disabled]
   - img
   - text: Minimal mode
+  - 'button "Workspace folders: 1"':
+    - img
+    - text: Folders 1
   - button "Session log":
     - text: Session log
     - img

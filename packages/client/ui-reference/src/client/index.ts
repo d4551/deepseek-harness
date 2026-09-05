@@ -19,6 +19,7 @@ import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import { relativeTime } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { Translate as LocaleTranslate } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
   ClientSessionContext, InputTriggerCrumb, InputTriggerServiceContract, InputTriggerSource,
 } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
@@ -122,7 +123,7 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => inputTriggers.registerSource(source), 'ui-reference: @ source')
 }
 
-type Translate = (key: ReferenceKey, params?: Record<string, unknown>) => string
+type Translate = LocaleTranslate<ReferenceKey>
 
 type ReferenceCandidateValue =
   | { kind: 'file'; fileKind: FileReferenceCandidate['kind']; label: string; mention: string }

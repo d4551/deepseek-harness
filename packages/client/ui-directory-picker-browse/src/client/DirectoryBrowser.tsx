@@ -41,8 +41,9 @@ import {
   IconPlusOutline16, Modal,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { DirectoryEntry, DirectoryListing } from '@deepseek-ai/dsh-host-directory-picker/types'
-import type { Translate } from '@deepseek-ai/dsh-client-locale/client'
+import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import css from './DirectoryBrowser.module.css'
+import { DIRECTORY_BROWSER_NS } from './locales.ts'
 
 /** Owner-supplied browser props: browse calls, pick semantics, and copy. */
 export interface DirectoryBrowserProps {
@@ -68,7 +69,7 @@ export interface DirectoryBrowserProps {
   /** The owner's confirm is in flight: Open disables, the view freezes. */
   busy: boolean
   /** Localized copy. */
-  t: Translate
+  t: TranslateNS<typeof DIRECTORY_BROWSER_NS>
 }
 
 /** Failure text from the injected directory operation. */

@@ -163,7 +163,7 @@ describe('ui-settings-plugins apply', () => {
 
     expect(slots.entries('settings.plugin.item').map(entry => entry.options.key))
       .toEqual([
-        'shell', 'agent-loop', 'subagent-model-selection', 'agent-default-model',
+        'shell', 'agent-loop', 'approval-assessor', 'subagent-model-selection', 'agent-default-model',
         'web-search-deepseek', 'agent-team',
         'web', 'web-search-exa', 'web-search-perplexity', 'web-fetch-http', 'web-fetch-playwright',
       ])
@@ -172,7 +172,9 @@ describe('ui-settings-plugins apply', () => {
   it('dispatches the served namespaces its cards claim, and no others', async () => {
     // ui-theme is served but belongs to another surface, and a deployment
     // composing no PowerShell/POSIX executor serves no `bash` at all.
-    const { ctx, slots } = await bench(['agent-loop', 'ui-theme', 'web-search-deepseek'])
+    const { ctx, slots } = await bench([
+      'agent-loop', 'approval-assessor', 'ui-theme', 'web-search-deepseek',
+    ])
     declareRoot(slots)
     await ctx.plugin({ inject: [...inject], apply }).await()
 
@@ -180,7 +182,7 @@ describe('ui-settings-plugins apply', () => {
     const face = tabFace(tab)
     await vi.waitFor(() => {
       expect(face.hooks.configurablePlugins.getSnapshot().namespaces)
-        .toEqual(['agent-loop', 'web-search-deepseek'])
+        .toEqual(['agent-loop', 'approval-assessor', 'web-search-deepseek'])
     })
   })
 
@@ -269,7 +271,7 @@ describe('ui-settings-plugins apply', () => {
     declareRoot(slots)
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
-    expect(slots.entries('settings.plugin.item')).toHaveLength(11)
+    expect(slots.entries('settings.plugin.item')).toHaveLength(12)
 
     await fiber.dispose()
 

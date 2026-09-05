@@ -6,6 +6,7 @@
  * card's save is the single point where a draft becomes a document mutation.
  */
 
+import { createElement, type ChangeEvent } from 'react'
 import css from './fields.module.css'
 
 /** What every field control needs regardless of its value type. */
@@ -36,6 +37,27 @@ export interface FieldProps {
   onReset: () => void
 }
 
+function OverrideBadge(props: Pick<FieldProps,
+  'overridden' | 'overriddenLabel' | 'resetLabel' | 'disabled' | 'onReset'>) {
+  return props.overridden
+    ? createElement(
+      'span',
+      { className: css.badges },
+      createElement('span', { className: css.badge }, props.overriddenLabel),
+      createElement(
+        'button',
+        {
+          type: 'button',
+          className: css.reset,
+          disabled: props.disabled,
+          onClick: props.onReset,
+        },
+        props.resetLabel,
+      ),
+    )
+    : null
+}
+
 /**
  * A staged value field. `numeric` only hints the keypad: which drafts a field
  * accepts is decided by its spec, so the control never silently rewrites what
@@ -53,21 +75,7 @@ export function ValueField(props: FieldProps & {
     <div className={css.field}>
       <div className={css.head}>
         <label className={css.label} htmlFor={props.id}>{props.label}</label>
-        {props.overridden
-          ? (
-            <span className={css.badges}>
-              <span className={css.badge}>{props.overriddenLabel}</span>
-              <button
-                type="button"
-                className={css.reset}
-                disabled={props.disabled}
-                onClick={props.onReset}
-              >
-                {props.resetLabel}
-              </button>
-            </span>
-          )
-          : null}
+        {createElement(OverrideBadge, props)}
       </div>
       <input
         id={props.id}
@@ -84,6 +92,36 @@ export function ValueField(props: FieldProps & {
         {props.invalid ? props.invalidLabel : props.hint}
       </p>
     </div>
+  )
+}
+
+export function MultilineField(props: FieldProps) {
+  const hintId = props.id + '-hint'
+  return createElement(
+    'div',
+    { className: css.field },
+    createElement(
+      'div',
+      { className: css.head },
+      createElement('label', { className: css.label, htmlFor: props.id }, props.label),
+      createElement(OverrideBadge, props),
+    ),
+    createElement('textarea', {
+      id: props.id,
+      rows: 4,
+      className: [css.input, css.multiline, props.invalid ? css.inputInvalid : undefined]
+        .filter(Boolean).join(' '),
+      'aria-describedby': hintId,
+      'aria-invalid': props.invalid || undefined,
+      value: props.text,
+      disabled: props.disabled,
+      onChange: (event: ChangeEvent<HTMLTextAreaElement>) => { props.onEdit(event.target.value) },
+    }),
+    createElement(
+      'p',
+      { id: hintId, className: props.invalid ? css.invalid : css.hint },
+      props.invalid ? props.invalidLabel : props.hint,
+    ),
   )
 }
 
@@ -122,23 +160,9 @@ export function ChoiceField(props: Pick<FieldProps,
   }) {
   return (
     <div className={css.field}>
-      <fieldset className={css.choices}>
+      <fieldset className={css.choices} aria-describedby={`${props.id}-hint`}>
         <legend className={css.label}>{props.label}</legend>
-        {props.overridden
-          ? (
-            <span className={css.badges}>
-              <span className={css.badge}>{props.overriddenLabel}</span>
-              <button
-                type="button"
-                className={css.reset}
-                disabled={props.disabled}
-                onClick={props.onReset}
-              >
-                {props.resetLabel}
-              </button>
-            </span>
-          )
-          : null}
+        {createElement(OverrideBadge, props)}
         {props.options.map(option => (
           <label key={option.value} className={css.choice}>
             <input

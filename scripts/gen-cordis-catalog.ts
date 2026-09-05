@@ -644,6 +644,7 @@ export const FOUNDATION_TYPE_NAMES: ReadonlySet<string> = new Set([
   'AbortSignal',
   'AsyncIterable',
   'Context',
+  'Disposable',
   'Error',
   'EntryTree',
   'Exclude',

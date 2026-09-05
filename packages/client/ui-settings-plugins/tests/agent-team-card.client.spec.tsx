@@ -69,6 +69,21 @@ describe('AgentTeamCard', () => {
 
     expect(screen.getByText(en.invalidNumber)).toBeTruthy()
   })
+
+  it('names and disables both controls when the settings document is read-only', () => {
+    renderAgentTeam({
+      writable: false,
+      maxTasks: field('512', { overridden: true }),
+    })
+
+    fireEvent.click(screen.getByText(en.agentTeamTitle))
+
+    expect(screen.getByRole('status').textContent).toBe(en.readOnly)
+    expect(screen.getByRole('textbox', { name: en.agentTeamMaxMembers })).toHaveProperty('disabled', true)
+    expect(screen.getByRole('textbox', { name: en.agentTeamMaxTasks })).toHaveProperty('disabled', true)
+    expect(screen.getByRole('button', { name: en.reset })).toHaveProperty('disabled', true)
+    expect(screen.getByRole('button', { name: en.save })).toHaveProperty('disabled', true)
+  })
 })
 
 describe('agent-team card accessibility', () => {

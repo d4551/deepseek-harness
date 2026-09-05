@@ -84,7 +84,19 @@ it('pins native DeepSeek Files offload and inline fallback in assembled requests
       })
     })
   })
-  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  await new Promise<void>((resolve, reject) => {
+    const onError = (error: Error): void => {
+      server.off('listening', onListening)
+      reject(error)
+    }
+    const onListening = (): void => {
+      server.off('error', onError)
+      resolve()
+    }
+    server.once('error', onError)
+    server.once('listening', onListening)
+    server.listen(0, '127.0.0.1')
+  })
   const address = server.address()
   if (address === null || typeof address === 'string') throw new Error('image-offload snapshot server has no port')
 

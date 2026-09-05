@@ -29,7 +29,7 @@
  * @module @deepseek-ai/dsh-subagent
  */
 
-import { Context } from '@deepseek-ai/cordis'
+import { Context, type Disposable } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { CapacityGate } from '@deepseek-ai/dsh-capacity-gate'
 import type { CapacityRelease, CapacitySnapshot } from '@deepseek-ai/dsh-capacity-gate'
@@ -339,7 +339,7 @@ export class SubagentRuntime extends TypertRemoteService {
    * @param contribution - synchronous child-scope installer.
    * @returns the exact Cordis effect disposer.
    */
-  registerContinuableSetup(contribution: ContinuableSetupContribution): () => void {
+  registerContinuableSetup(contribution: ContinuableSetupContribution): Disposable {
     return this.ctx.effect(
       () => this.setupRegistry.register(contribution),
       'subagents.registerContinuableSetup()',
@@ -534,7 +534,7 @@ export class SubagentRuntime extends TypertRemoteService {
    * @param provider - the trusted provider implementation.
    * @returns the exact Cordis effect disposer.
    */
-  registerProvider(provider: SubagentProvider): () => void {
+  registerProvider(provider: SubagentProvider): Disposable {
     const name = provider.name
     return this.ctx.effect(function* (this: SubagentRuntime) {
       if (this.providers.has(name)) {

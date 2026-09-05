@@ -97,7 +97,7 @@ function mount(overrides: Partial<Parameters<typeof DirectoryBrowser>[0]> = {}) 
     onOpen,
     onClose,
     busy: false,
-    t: (key: string, params?: Record<string, unknown>) => (params === undefined ? key : `${key}:${String(params.name)}`),
+    t: (key: string, params?: Readonly<Record<string, string | number | undefined>>) => (params === undefined ? key : `${key}:${String(params.name)}`),
     ...overrides,
   }
   const view = render(<DirectoryBrowser {...props} />)

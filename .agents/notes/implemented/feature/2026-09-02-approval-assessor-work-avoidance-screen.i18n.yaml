@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-02-approval-assessor-work-avoidance-screen.md
-2026-09-02-approval-assessor-work-avoidance-screen.md: 24544857e49731b7060db82bfb9278606155de75
-2026-09-02-approval-assessor-work-avoidance-screen.zh.md: 8fffe2cca64bd4f183c713a78ba078841bf2233c
+2026-09-02-approval-assessor-work-avoidance-screen.md: 38a22d6ea50187a20376bef27a9be601eb478ff8
+2026-09-02-approval-assessor-work-avoidance-screen.zh.md: 36cc07297124be094473c1a17ed0cec5f625e12d

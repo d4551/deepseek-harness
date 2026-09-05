@@ -106,36 +106,47 @@ describe('plugin mounting', () => {
 })
 
 describe('settings policy', () => {
-  it('registers enabled defaults and an empty extra-pattern list', async () => {
+  it('registers enabled defaults and an empty extra-phrase list', async () => {
     const { ctx } = await settingsHarness()
     const descriptor = ctx.settings.describe().find(row => String(row.ns) === 'approval-assessor')
 
-    expect(descriptor?.value).toEqual({ enabled: true, extraPatterns: [] })
+    expect(descriptor?.value).toEqual({ enabled: true, extraPhrases: [] })
     await ctx.fiber.dispose()
   })
 
-  it('rejects an invalid extra pattern before persistence', async () => {
+  it('rejects extra phrases beyond the security limits before persistence', async () => {
     const { ctx, provider } = await settingsHarness()
 
     await expect(ctx.settings.update(ApprovalAssessor.APPROVAL_ASSESSOR_SETTINGS_NAMESPACE, {
-      extraPatterns: ['['],
-    })).rejects.toThrow('invalid extraPatterns[0]')
+      extraPhrases: ['x'.repeat(257)],
+    })).rejects.toThrow('expected string length <= 256')
+    await expect(ctx.settings.update(ApprovalAssessor.APPROVAL_ASSESSOR_SETTINGS_NAMESPACE, {
+      extraPhrases: Array.from({ length: 65 }, (_, index) => 'phrase-' + String(index)),
+    })).rejects.toThrow('expected array length <= 64')
+    await expect(ctx.settings.update(ApprovalAssessor.APPROVAL_ASSESSOR_SETTINGS_NAMESPACE, {
+      extraPhrases: ['   '],
+    })).rejects.toThrow('extraPhrases[0] must contain text')
     expect(provider.doc).toEqual({})
     await ctx.fiber.dispose()
   })
 
-  it('screens a valid extra pattern and supports disabling the assessor', async () => {
+  it('screens a literal extra phrase and supports disabling the assessor', async () => {
     const { ctx } = await settingsHarness()
     const agent = sessionAgent('settings-extra')
 
     await ctx.settings.update(ApprovalAssessor.APPROVAL_ASSESSOR_SETTINGS_NAMESPACE, {
-      extraPatterns: ['\\bdo-not-ship\\b'],
+      extraPhrases: ['(do-not-ship)+$'],
     })
     await expect(ctx.approval.request({
       agent,
       toolName: 'read',
-      reason: 'This contains do-not-ship guidance.',
+      reason: 'This contains (DO-NOT-SHIP)+$ guidance.',
     })).resolves.toBe('rejected')
+    await expect(ctx.approval.request({
+      agent,
+      toolName: 'read',
+      reason: 'do-not-ship does not contain the configured punctuation.',
+    })).resolves.toBe('unavailable')
 
     await ctx.settings.update(ApprovalAssessor.APPROVAL_ASSESSOR_SETTINGS_NAMESPACE, { enabled: false })
     await expect(ctx.approval.request({
@@ -158,7 +169,7 @@ describe('settings policy', () => {
       reason: 'Should I skip this?',
     })).resolves.toBe('unavailable')
 
-    provider.pushExternal({ [namespace]: { enabled: true, extraPatterns: ['provider-deny'] } })
+    provider.pushExternal({ [namespace]: { enabled: true, extraPhrases: ['provider-deny'] } })
     await expect(ctx.approval.request({
       agent,
       toolName: 'read',
@@ -226,6 +237,13 @@ describe('evasion detection', () => {
     const agent = sessionAgent('no-reason')
     // Missing justification cannot pass the mandatory audit.
     const outcome = await ctx.approval.request({ agent, toolName: 'read' })
+    expect(outcome).toBe('rejected')
+  })
+
+  it('rejects a request with only whitespace as its justification', async () => {
+    const ctx = await harness()
+    const agent = sessionAgent('blank-reason')
+    const outcome = await ctx.approval.request({ agent, toolName: 'read', reason: '   \n\t' })
     expect(outcome).toBe('rejected')
   })
 

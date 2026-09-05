@@ -22,8 +22,8 @@
     - text: 标准模式
     - img
   - text: 权限 选择新会话的默认权限模式
-  - button "Workspace Write":
-    - text: Workspace Write
+  - button "工作区写入":
+    - text: 工作区写入
     - img
   - text: 语言
   - button "中文":
@@ -45,8 +45,8 @@
   - button "减小字号":
     - img
   - text: px 对话显示 控制已完成轮次的过程内容
-  - button "Compact":
-    - text: Compact
+  - button "紧凑":
+    - text: 紧凑
     - img
   - text: 繁忙时 Enter 键行为 仅在智能体运行时生效；Cmd/Ctrl+Enter 使用另一行为
   - button "排队发送":

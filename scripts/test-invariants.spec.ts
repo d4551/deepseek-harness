@@ -11,6 +11,7 @@ import {
   testInvariantCompanions,
   type TestInvariantCompanion,
   usesManualInvariantTree,
+  usesNativeFiberIdentity,
 } from './test-invariants.ts'
 
 declare module '@deepseek-ai/cordis' {
@@ -157,6 +158,19 @@ describe('global test invariant host', () => {
     expect(usesManualInvariantTree('C:\\repo\\packages\\runtime-diagnostics\\invariants\\tests\\service.spec.ts')).toBe(true)
     expect(usesManualInvariantTree('/repo/packages/examples/agent-spine-demo/tests/agent-core.spec.ts')).toBe(true)
     expect(usesManualInvariantTree('/repo/packages/core/session/tests/session.spec.ts')).toBe(false)
+  })
+
+  it('leaves only the inspector Cordis tree suite on native Fiber identities', () => {
+    const path = (...segments: string[]): string => segments.join('/')
+    expect(usesNativeFiberIdentity(path(
+      '', 'repo', 'packages', 'experimental', 'inspector', 'tests', 'cordis-tree.host.spec.ts',
+    ))).toBe(true)
+    expect(usesNativeFiberIdentity(path(
+      '', 'repo', 'packages', 'experimental', 'inspector', 'tests', 'network.host.spec.ts',
+    ))).toBe(false)
+    expect(usesNativeFiberIdentity(path(
+      '', 'repo', 'packages', 'core', 'session', 'tests', 'cordis-tree.host.spec.ts',
+    ))).toBe(false)
   })
 
   it('preserves config validation failures without starting the rejected plugin', async () => {
@@ -317,18 +331,25 @@ describe('global test invariant host', () => {
 
         const rootFiber = ctx.plugin(rootApply)
         const derivedFiber = derived.plugin(derivedApply)
+        let directAwaitSettled = false
+        const directAwait = rootFiber.await().then((fiber) => {
+          directAwaitSettled = true
+          return fiber
+        })
 
         await started
         await Promise.resolve()
         await Promise.resolve()
         expect(rootApply).not.toHaveBeenCalled()
         expect(derivedApply).not.toHaveBeenCalled()
+        expect(directAwaitSettled).toBe(false)
         expect(derivedFiber.inject).toEqual({
           [TEST_INVARIANT_READY_SERVICE]: null,
         })
 
         release()
-        await Promise.all([rootFiber, derivedFiber])
+        const [, , directlyAwaited] = await Promise.all([rootFiber, derivedFiber, directAwait])
+        expect(directlyAwaited).toBe(rootFiber.ctx.fiber)
         expect(rootFiber.state).toBe(FiberState.ACTIVE)
         expect(derivedFiber.state).toBe(FiberState.ACTIVE)
         expect(rootApply).toHaveBeenCalledOnce()

@@ -17,18 +17,10 @@ export const name = 'approval-assessor-fixture'
 export const inject = ['llm', 'tools', 'approval']
 
 /** The tool name the scripted model calls; deliberately outside the safety-gate set. */
-export const FIXTURE_TOOL = 'inspect_report'
+const FIXTURE_TOOL = 'inspect_report'
 
 /** The justification the scripted model supplies; overridable per scenario. */
-let justification = 'this is a known limitation, leave it as-is'
-
-/**
- * Set the justification the scripted model escalates with.
- * @param value - the justification text, or undefined to restore the default.
- */
-export function setJustification(value: string | undefined): void {
-  justification = value ?? 'this is a known limitation, leave it as-is'
-}
+const justification = 'this is a known limitation, leave it as-is'
 
 /**
  * Model turns the fixture adapter replays, in order: one escalating tool call,

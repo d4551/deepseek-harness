@@ -1339,15 +1339,18 @@ describe('WorkspaceBrowser', () => {
     }
   })
 
-  it('rail add-workspace raises the directory flow in place, with no menu and no expansion', () => {
+  it('rail create control opens the workspace picker without expanding the sidebar', () => {
     const expandSidebar = vi.fn()
     mount({ wide: false, expandSidebar, useWorkspaces: hook(workspaceState([workspace('alpha', [])])) })
-    fireEvent.click(screen.getByRole('button', { name: '添加工作区' }))
+    fireEvent.click(screen.getByRole('button', { name: '新建会话或添加工作区' }))
     expect(expandSidebar).not.toHaveBeenCalled()
     // Adding is the header's only action, so the gesture IS that action: no
     // one-row popover, and existing workspaces stay in the tree below.
+    expect(screen.getByRole('menu')).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'alpha' })).toBeTruthy()
+    expect(screen.queryByTestId('directory-flow')).toBeNull()
+    fireEvent.click(screen.getByRole('menuitem', { name: '添加工作区…' }))
     expect(screen.queryByRole('menu')).toBeNull()
-    expect(screen.queryByRole('menuitem', { name: 'alpha' })).toBeNull()
     expect(screen.getByTestId('directory-flow')).toBeTruthy()
   })
 
