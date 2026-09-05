@@ -317,18 +317,25 @@ interface ParsedVerdict {
 }
 
 /**
- * Parse the two-line verdict protocol. The verdict line is required; a
- * missing reason line is reported as such rather than failing the review.
+ * Parse the exact two-line verdict protocol. Extra text, a missing reason, or
+ * more than one verdict makes the review undecided rather than guessing which
+ * model text is authoritative.
  * @param text - the review model's complete text output.
- * @returns the verdict, or undefined when no verdict line is present.
+ * @returns the verdict, or undefined when the complete output does not match.
  */
 function parseVerdict(text: string): ParsedVerdict | undefined {
-  const word = /^\s*VERDICT:\s*(ALLOW|DENY)\b/im.exec(text)?.[1]
-  if (word === undefined) return undefined
-  const reason = /^\s*REASON:\s*(.+?)\s*$/im.exec(text)?.[1]
+  const lines = text.trim().split(/\r?\n/)
+  if (lines.length !== 2) return undefined
+  const [verdictLine, reasonLine] = lines
+  if (verdictLine === undefined || reasonLine === undefined) return undefined
+  const verdict = /^VERDICT:\s*(ALLOW|DENY)$/i.exec(verdictLine.trim())
+  const reason = /^REASON:\s*(\S(?:.*\S)?)$/i.exec(reasonLine.trim())
+  const word = verdict?.[1]
+  const detail = reason?.[1]
+  if (word === undefined || detail === undefined) return undefined
   return {
     verdict: word.toUpperCase() === 'ALLOW' ? 'allowed' : 'denied',
-    reason: reason ?? 'no reason given',
+    reason: detail,
   }
 }
 
@@ -424,7 +431,7 @@ async function review(
     .flatMap(block => block.type === 'text' ? [block.text] : [])
     .join('\n')
   const parsed = parseVerdict(text)
-  if (parsed === undefined) throw new Error('review model produced no VERDICT line')
+  if (parsed === undefined) throw new Error('review model did not follow the exact two-line verdict protocol')
   return parsed
 }
 

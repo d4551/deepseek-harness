@@ -85,6 +85,22 @@ describe('ApprovalAdversaryCardController', () => {
     })
   })
 
+  it('marks both route fields invalid while only one side is present', () => {
+    const host = stubSettingsScope<ApprovalAdversarySettings>()
+    const controller = new ApprovalAdversaryCardController(host.scope)
+    host.publish({ status: 'ready', writable: true, value: {}, base: {}, user: {} })
+    const face = controller.inject()
+
+    face.edit('provider', 'deepseek-official')
+
+    expect(face.hooks.approvalAdversaryCard.getSnapshot()).toMatchObject({
+      dirty: true,
+      invalid: true,
+      provider: { invalid: true },
+      model: { invalid: true },
+    })
+  })
+
   it('stages clearing a user-owned route back to the agent route', async () => {
     const host = stubSettingsScope<ApprovalAdversarySettings>()
     acceptWrites(host)

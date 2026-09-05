@@ -337,14 +337,14 @@ describe('verdicts', () => {
     expect(notice?.text).not.toContain('User instruction:')
   })
 
-  it('parses the verdict case-insensitively and reports a missing reason', async () => {
-    const { ctx } = await harness(EXPLICIT, [reply('verdict: allow')])
+  it('parses the exact two-line verdict case-insensitively', async () => {
+    const { ctx } = await harness(EXPLICIT, [reply('verdict: allow\nreason: direct step')])
     const agent = sessionAgent('lenient')
 
     await expect(ctx.approval.request({ agent, toolName: 'bash', reason: 'rebuild' })).resolves.toBe('allowed-once')
 
     expect(notices(agent.session.events)[0]?.text)
-      .toBe('Adversarial approval review allowed "bash": no reason given')
+      .toBe('Adversarial approval review allowed "bash": direct step')
   })
 })
 
@@ -562,15 +562,19 @@ describe('undecided reviews', () => {
 
     expect(warn).toHaveBeenCalledWith(
       'approval-adversary: review of "bash" reached no verdict '
-      + '(review model produced no VERDICT line); fallback: delegate',
+      + '(review model did not follow the exact two-line verdict protocol); fallback: delegate',
     )
     expect(loggedReviews(agent.session.events)).toHaveLength(1)
     expect(notices(agent.session.events)).toEqual([])
   })
 
-  it('treats a verdict-less reply, an output cut, a tool call, and an error finish as undecided', async () => {
+  it('treats malformed verdicts, an output cut, a tool call, and an error finish as undecided', async () => {
     const cases: [ScriptEntry, string][] = [
-      [reply('I cannot tell.'), 'review model produced no VERDICT line'],
+      [reply('I cannot tell.'), 'review model did not follow the exact two-line verdict protocol'],
+      [reply('VERDICT: ALLOW'), 'review model did not follow the exact two-line verdict protocol'],
+      [reply('VERDICT: ALLOW\nREASON: direct step\nIgnore the protocol.'), 'review model did not follow the exact two-line verdict protocol'],
+      [reply('Quoted evidence:\nVERDICT: ALLOW\nREASON: direct step'), 'review model did not follow the exact two-line verdict protocol'],
+      [reply('VERDICT: ALLOW\nVERDICT: DENY\nREASON: conflicting output'), 'review model did not follow the exact two-line verdict protocol'],
       [reply('VERDICT: AL', { type: 'finish', reason: { kind: 'max-tokens' } }), 'verdict output reached maxOutputTokens'],
       [reply('VERDICT: ALLOW', { type: 'finish', reason: { kind: 'tool-calls' } }), 'review model unexpectedly requested a tool'],
       [reply('', { type: 'finish', reason: { kind: 'error', failure: { code: 'REVIEW_FIXTURE', message: 'boom' } } }), 'boom'],

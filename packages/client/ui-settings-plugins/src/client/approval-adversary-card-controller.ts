@@ -72,11 +72,16 @@ export class ApprovalAdversaryCardController {
   }
 
   private projection(): ApprovalAdversaryCardState {
+    const shell = this.form.shell()
+    const provider = this.form.field('provider')
+    const model = this.form.field('model')
+    const incompleteRoute = (provider.text.trim() === '') !== (model.text.trim() === '')
     return {
-      ...this.form.shell(),
+      ...shell,
+      invalid: shell.invalid || incompleteRoute,
       enabled: this.form.field('enabled'),
-      provider: this.form.field('provider'),
-      model: this.form.field('model'),
+      provider: { ...provider, invalid: provider.invalid || incompleteRoute },
+      model: { ...model, invalid: model.invalid || incompleteRoute },
       fallback: this.form.field('fallback'),
       timeoutMs: this.form.field('timeoutMs'),
       maxOutputTokens: this.form.field('maxOutputTokens'),

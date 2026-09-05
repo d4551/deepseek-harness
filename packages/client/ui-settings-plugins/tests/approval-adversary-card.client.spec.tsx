@@ -97,6 +97,22 @@ describe('ApprovalAdversaryCard', () => {
     expect(screen.getAllByRole('button', { name: en.reset })).toHaveLength(1)
   })
 
+  it('explains an incomplete route and blocks saving it', () => {
+    renderCard({
+      dirty: true,
+      invalid: true,
+      provider: field('deepseek-official', { invalid: true }),
+      model: field('', { invalid: true }),
+    })
+    fireEvent.click(screen.getByText(en.approvalAdversaryTitle))
+
+    expect(screen.getByLabelText(en.approvalAdversaryProvider).getAttribute('aria-invalid')).toBe('true')
+    expect(screen.getByLabelText(en.approvalAdversaryModel).getAttribute('aria-invalid')).toBe('true')
+    expect(screen.getByRole('button', { name: en.save })).toHaveProperty('disabled', true)
+    expect(screen.getByText(en.approvalAdversaryProviderHint)).toBeTruthy()
+    expect(screen.getByText(en.approvalAdversaryModelHint)).toBeTruthy()
+  })
+
   it('renders nothing before the namespace is served', () => {
     renderCard({ available: false })
     expect(screen.queryByText(en.approvalAdversaryTitle)).toBeNull()
