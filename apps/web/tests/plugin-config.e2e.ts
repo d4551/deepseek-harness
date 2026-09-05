@@ -238,14 +238,10 @@ describe('web e2e: plugin configuration section', () => {
     await expand.click()
     const provider = dialog.getByRole('textbox', { name: '评审提供方', exact: true })
     const model = dialog.getByRole('textbox', { name: '评审模型', exact: true })
-    const decide = dialog.getByRole('radio', {
-      name: '由评审者决定通过审批审计的每个请求都由评审者允许或拒绝；不再提示任何人。',
-      exact: true,
-    })
-    const reject = dialog.getByRole('radio', {
-      name: '拒绝拒绝该请求，并告知模型评审无法作出决定。',
-      exact: true,
-    })
+    const decide = dialog.getByText('由评审者决定', { exact: true })
+      .locator('..').locator('..').getByRole('radio')
+    const reject = dialog.getByText('拒绝', { exact: true })
+      .locator('..').locator('..').getByRole('radio')
     const save = dialog.getByRole('button', { name: '保存', exact: true })
     expect(await provider.inputValue()).toBe('')
     expect(await model.inputValue()).toBe('')
@@ -256,8 +252,8 @@ describe('web e2e: plugin configuration section', () => {
     await expect.poll(() => model.getAttribute('aria-invalid'), { timeout: 5_000 }).toBe('true')
     for (const field of [provider, model]) {
       const describedBy = await field.getAttribute('aria-describedby')
-      expect(describedBy).not.toBeNull()
-      await expect(page.locator('[id="' + describedBy + '"]')).toBeVisible()
+      if (describedBy === null) throw new Error('Invalid route field lacks an accessible description')
+      expect(await page.locator('[id="' + describedBy + '"]').isVisible()).toBe(true)
     }
     await expect.poll(() => save.isDisabled(), { timeout: 5_000 }).toBe(true)
     expect(await settingsDocument(scaffold)).not.toContain('reviewer-route')

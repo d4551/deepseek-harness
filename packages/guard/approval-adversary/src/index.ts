@@ -380,7 +380,8 @@ function noticeText(
  * @param req - the approval request under review.
  * @param settings - the active policy.
  * @returns the parsed verdict.
- * @throws when no route is available, the call fails, times out, or yields no verdict line.
+ * @throws when no route is available, the call fails, times out, or the complete
+ * output does not match the exact two-line verdict protocol.
  */
 async function review(
   ctx: Context,
