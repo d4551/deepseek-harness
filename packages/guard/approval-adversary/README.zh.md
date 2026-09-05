@@ -52,6 +52,7 @@ kind: "package-reference"
 
 评审者只读取记录携带的证据：最近一条 `source.kind === 'user'` 的消息（插件快照同样占用 user 角色）；请求 `callId` 指向的 `tool/call` 事件及其原始参数；以及请求方的理由。每段摘录都按 `maxExcerptChars` 截断并带有可见的截断标记。
 
+<a id="model-experience"></a>
 ## 模型体验
 
 ### 评审请求
@@ -102,6 +103,8 @@ User instruction: <excerpt of the user's latest instruction, clipped to maxExcer
 仅追加；通知在历史中位于已决定的审批请求之后，不使既有 KV-cache 条目失效。
 
 ## 已知限制与延后工作
+
+<a id="known-limitations-and-deferred-work"></a>
 
 这些限制界定了评审者何时不是合适的选择。它们是当前包的约束，不是任务积压。
 

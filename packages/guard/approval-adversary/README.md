@@ -103,6 +103,8 @@ Append-only; the notice follows the decided approval request in history and does
 
 ## Known Limitations and Deferred Work
 
+<a id="known-limitations-and-deferred-work"></a>
+
 These limits define when the reviewer is a poor fit. They are current package constraints, not a task backlog.
 
 - **The reviewer sees the record, not the workspace** — it judges the instruction, the call, and the justification; it cannot inspect files, run commands, or read earlier turns, so an action whose danger is only visible in the repository can pass.

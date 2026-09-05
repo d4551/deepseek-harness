@@ -394,8 +394,11 @@ export type AdversaryFallback = 'delegate' | 'reject'
 需要：`approval`
 
 ```ts config-catalog
+/** Composition values inherited by the approval-assessor settings section. */
 export interface Config {
+  /** Whether the assessor rejects work-avoidance approval reasons. */
   enabled?: boolean
+  /** Additional case-insensitive literal phrases to screen. */
   extraPhrases?: string[]
 }
 ```

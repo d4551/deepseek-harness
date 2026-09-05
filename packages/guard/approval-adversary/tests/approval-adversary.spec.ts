@@ -4,7 +4,7 @@
  * notices the model receives.
  */
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import LlmRuntime, { LlmAdapter, ToolCallId, createUserMessage } from '@deepseek-ai/dsh-llm'
@@ -549,6 +549,22 @@ describe('undecided reviews', () => {
 
     await expect(ctx.approval.request({ agent, toolName: 'bash', reason: 'rebuild' })).resolves.toBe('allowed-once')
 
+    expect(notices(agent.session.events)).toEqual([])
+  })
+
+  it('logs an undecided review and fails closed when no human answerer owns the request', async () => {
+    const { ctx } = await harness(EXPLICIT, [reply('I cannot tell from this record.')])
+    const agent = sessionAgent('no-human-answerer')
+    const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => {})
+
+    await expect(ctx.approval.request({ agent, toolName: 'bash', reason: 'rebuild' }))
+      .resolves.toBe('unavailable')
+
+    expect(warn).toHaveBeenCalledWith(
+      'approval-adversary: review of "bash" reached no verdict '
+      + '(review model produced no VERDICT line); fallback: delegate',
+    )
+    expect(loggedReviews(agent.session.events)).toHaveLength(1)
     expect(notices(agent.session.events)).toEqual([])
   })
 
