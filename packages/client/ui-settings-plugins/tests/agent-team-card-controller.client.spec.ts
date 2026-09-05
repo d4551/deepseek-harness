@@ -6,7 +6,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
 import { AgentTeamCardController, type AgentTeamSettings } from '../src/client/agent-team-card-controller.ts'
-import { acceptWrites } from './scope-stubs.client.ts'
+import { acceptWrites, setOp, unsetOp } from './scope-stubs.client.ts'
 
 describe('AgentTeamCardController', () => {
   it('renders the served capacities and rejects a non-numeric draft', () => {
@@ -40,9 +40,9 @@ describe('AgentTeamCardController', () => {
     face.edit('maxMembers', ' 24 ')
     face.edit('maxTasks', '512')
     face.save()
-    await vi.waitFor(() => { expect(host.set).toHaveBeenCalledTimes(2) })
+    await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledTimes(1) })
 
-    expect(host.set.mock.calls).toEqual([['maxMembers', 24], ['maxTasks', 512]])
+    expect(host.mutate.mock.calls).toEqual([[[setOp('maxMembers', 24), setOp('maxTasks', 512)]]])
     expect(face.hooks.agentTeamCard.getSnapshot()).toMatchObject({ dirty: false, failed: false })
   })
 
@@ -61,9 +61,9 @@ describe('AgentTeamCardController', () => {
 
     face.resetField('maxMembers')
     face.save()
-    await vi.waitFor(() => { expect(host.unset).toHaveBeenCalledWith('maxMembers') })
+    await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledOnce() })
 
-    expect(host.set).not.toHaveBeenCalled()
+    expect(host.mutate).toHaveBeenCalledWith([unsetOp('maxMembers')])
   })
 
   it('reports a read-only document so the card can disable its controls', () => {

@@ -41,12 +41,16 @@ export function acceptWrites<T extends object>(host: StubSettingsScope<T>): void
   host.mutate.mockImplementation((ops: readonly SettingsPathOpView[]) => {
     const snap = host.scope.getSnapshot()
     let section = snap.value
-    const user = { ...layer(snap.user) }
+    let user = layer(snap.user)
+    const base = layer(snap.base)
     for (const op of ops) {
       const field = op.path[0]!
       if (op.op === 'set') {
         if (section !== undefined) section = { ...section, [field]: op.value }
-        user[field] = op.value
+        user = { ...user, [field]: op.value }
+      } else {
+        if (section !== undefined) section = { ...section, [field]: base[field] }
+        user = Object.fromEntries(Object.entries(user).filter(([key]) => key !== field))
       }
     }
     host.publish({ ...(section !== undefined && { value: section }), user })
@@ -59,6 +63,25 @@ export function acceptWrites<T extends object>(host: StubSettingsScope<T>): void
       user: Object.fromEntries(Object.entries(layer(snap.user)).filter(([key]) => key !== field)),
     })
   })
+}
+
+/**
+ * One `set` operation as a card's save sends it, for asserting the mutation.
+ * @param field - section field.
+ * @param value - the staged value.
+ * @returns the operation.
+ */
+export function setOp(field: string, value: SetValue): SettingsPathOpView {
+  return { op: 'set', path: [field], value }
+}
+
+/**
+ * One `unset` operation as a card's save sends it, for asserting the mutation.
+ * @param field - section field.
+ * @returns the operation.
+ */
+export function unsetOp(field: string): SettingsPathOpView {
+  return { op: 'unset', path: [field] }
 }
 
 /** A credentials domain face that reports one reference as configured or not. */

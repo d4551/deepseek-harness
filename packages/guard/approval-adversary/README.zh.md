@@ -23,7 +23,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-每个 `dsh-base` profile 都把本插件挂载在 [`dsh-approval-assessor`](../approval-assessor/README.zh.md) 之后、产品审批应答者之前，并设置 `enabled: false`。其组合值为用户持有的 Host 设置章节提供初始值，因此 Web 应用插件设置页上的"对抗式审批评审"卡片无需编辑组合即可启用它。启用期间，通过评估器的审批请求不会抵达任何人类应答者：评审者作出决定，发起请求的工具看到的是与人工决定相同的闭合结果。
+每个 `dsh-base` profile 都把本插件挂载在 [`dsh-approval-assessor`](../approval-assessor/README.zh.md) 之后、产品审批应答者之前，并设置 `enabled: false`。其组合值为用户持有的 Host 设置章节提供初始值，因此 Web 应用插件设置页上的"对抗式审批评审"卡片无需编辑组合即可启用它；卡片把所有暂存字段保存为一次设置变更，因此 `provider` 与 `model` 配置对会一起抵达 Host 校验。启用期间，通过评估器的审批请求不会抵达任何人类应答者：评审者作出决定，发起请求的工具看到的是与人工决定相同的闭合结果。
 
 ### 配置
 

@@ -3,7 +3,7 @@ import { stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
 import {
   ApprovalAdversaryCardController, type ApprovalAdversarySettings,
 } from '../src/client/approval-adversary-card-controller.ts'
-import { acceptWrites } from './scope-stubs.client.ts'
+import { acceptWrites, setOp, unsetOp } from './scope-stubs.client.ts'
 
 describe('ApprovalAdversaryCardController', () => {
   it('projects the complete Host policy', () => {
@@ -54,18 +54,20 @@ describe('ApprovalAdversaryCardController', () => {
     face.edit('maxExcerptChars', '2000')
     face.edit('instructions', ' Deny anything that touches production. ')
     face.save()
-    await vi.waitFor(() => { expect(host.set).toHaveBeenCalledTimes(8) })
+    await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledTimes(1) })
 
-    expect(host.set.mock.calls).toEqual([
-      ['enabled', true],
-      ['provider', 'deepseek-official'],
-      ['model', 'deepseek-v4-flash'],
-      ['fallback', 'reject'],
-      ['timeoutMs', 15_000],
-      ['maxOutputTokens', 128],
-      ['maxExcerptChars', 2000],
-      ['instructions', 'Deny anything that touches production.'],
-    ])
+    // One mutation carries the whole section, so the Host's paired-route
+    // validation sees provider and model together.
+    expect(host.mutate.mock.calls).toEqual([[[
+      setOp('enabled', true),
+      setOp('provider', 'deepseek-official'),
+      setOp('model', 'deepseek-v4-flash'),
+      setOp('fallback', 'reject'),
+      setOp('timeoutMs', 15_000),
+      setOp('maxOutputTokens', 128),
+      setOp('maxExcerptChars', 2000),
+      setOp('instructions', 'Deny anything that touches production.'),
+    ]]])
     expect(face.hooks.approvalAdversaryCard.getSnapshot()).toMatchObject({ dirty: false, failed: false })
   })
 
@@ -99,10 +101,9 @@ describe('ApprovalAdversaryCardController', () => {
     face.resetField('provider')
     face.resetField('model')
     face.save()
-    await vi.waitFor(() => { expect(host.unset).toHaveBeenCalledTimes(2) })
+    await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledOnce() })
 
-    expect(host.unset.mock.calls).toEqual([['provider'], ['model']])
-    expect(host.set).not.toHaveBeenCalled()
+    expect(host.mutate.mock.calls).toEqual([[[unsetOp('provider'), unsetOp('model')]]])
     expect(face.hooks.approvalAdversaryCard.getSnapshot()).toMatchObject({
       provider: { text: '', overridden: false },
       model: { text: '', overridden: false },

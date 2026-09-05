@@ -230,6 +230,49 @@ describe('web e2e: plugin configuration section', () => {
     expect(tripwire.pageErrors).toEqual([])
   }, 60_000)
 
+  it('commits the review route as a pair and refuses half of one', async () => {
+    onTestFailed(() => saveFailureShot(page, 'web-e2e-plugin-config-approval-adversary'))
+    const dialog = await openPlugins(page)
+    const expand = dialog.getByRole('button', { name: '展开设置: 对抗式审批评审' })
+    await expand.waitFor({ timeout: 10_000 })
+    await expand.click()
+    const provider = dialog.getByRole('textbox', { name: '评审提供方', exact: true })
+    const model = dialog.getByRole('textbox', { name: '评审模型', exact: true })
+    const save = dialog.getByRole('button', { name: '保存', exact: true })
+    expect(await provider.inputValue()).toBe('')
+    expect(await model.inputValue()).toBe('')
+
+    // The Host refuses half a route and the card keeps the draft for correction.
+    await provider.fill('reviewer-route')
+    await expect.poll(() => save.isEnabled(), { timeout: 5_000 }).toBe(true)
+    await save.click()
+    await dialog.getByText('本部署没有接受这些值，已保留供你修改。', { exact: true }).waitFor({ timeout: 10_000 })
+    expect(await settingsDocument(scaffold)).not.toContain('reviewer-route')
+
+    // The complete pair lands in one mutation.
+    await model.fill('reviewer-model')
+    await save.click()
+    await expand.waitFor({ timeout: 10_000 })
+    await expect.poll(async () => await settingsDocument(scaffold), { timeout: 10_000 })
+      .toContain('provider: reviewer-route')
+    expect(await settingsDocument(scaffold)).toContain('model: reviewer-model')
+
+    // Clearing both returns the review to the agent's own route.
+    await expand.click()
+    expect(await provider.inputValue()).toBe('reviewer-route')
+    expect(await model.inputValue()).toBe('reviewer-model')
+    const resets = dialog.getByRole('button', { name: '恢复默认', exact: true })
+    expect(await resets.count()).toBe(2)
+    await resets.nth(1).click()
+    await resets.nth(0).click()
+    await save.click()
+    await expand.waitFor({ timeout: 10_000 })
+    await expect.poll(async () => await settingsDocument(scaffold), { timeout: 10_000 })
+      .not.toContain('reviewer-route')
+    expect(await settingsDocument(scaffold)).not.toContain('reviewer-model')
+    expect(tripwire.pageErrors).toEqual([])
+  }, 60_000)
+
   it.skipIf(MODE === 'record')('keeps the fixture inventory closed', async () => {
     expect(tripwire.warnings).toEqual([])
     await assertFixtureInventory(SNAPSHOT_DIR, ['section.expected.md'])

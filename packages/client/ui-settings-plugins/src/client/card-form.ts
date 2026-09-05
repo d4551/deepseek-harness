@@ -5,7 +5,10 @@
  * settings write is a durable, revision-fenced document mutation, so a control
  * that committed as it settled turned one edit into a write the user never
  * asked for and could not preview; staged text makes what is on screen exactly
- * what a save would store.
+ * what a save would store. A save commits every staged section field in one
+ * mutation, so a Host validator that constrains fields together — a provider
+ * and model that must be set as a pair — judges the complete section rather
+ * than each field on its own.
  *
  * A field shows its effective value — the user layer over the composition
  * layer over the schema default — and whether the user layer carries it. That
@@ -13,6 +16,7 @@
  * override equal to the composition default is still an override.
  */
 
+import type { JsonValue, SettingsPathOpView } from '@deepseek-ai/dsh-api-remotes/client'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import { CLEAR_WRITE, type CardFieldSpec, type SettingValue } from './card-field-spec.ts'
@@ -92,15 +96,22 @@ interface StagedEdit {
   clear: boolean
 }
 
-/** One staged edit resolved into the write a save performs. */
-interface PlannedWrite {
-  /** Field this entry writes. */
-  field: string
-  /**
-   * Perform the write and report whether the Host holds the staged value
-   * afterwards; undefined when the draft is not a value the field accepts.
-   */
-  run: (() => Promise<boolean>) | undefined
+/**
+ * One staged edit resolved into the write a save performs: a section field
+ * operation joining the save's single mutation, a write-only control's own
+ * write, or a draft the field does not accept, which blocks the save.
+ */
+type PlannedWrite =
+  | { kind: 'op'; field: string; op: SettingsPathOpView }
+  | { kind: 'secret'; run: () => Promise<boolean> }
+  | { kind: 'invalid'; field: string }
+
+/**
+ * Whether two JSON values are the same value. A section read back from the
+ * Host is a fresh parse, so a list field compares by content, not identity.
+ */
+function sameJson(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a) === JSON.stringify(b)
 }
 
 /**
@@ -162,7 +173,7 @@ export class CardForm<T extends object> {
       writable: snapshot.writable,
       restartRequired: snapshot.applies === 'restart',
       dirty: plan.length > 0,
-      invalid: plan.some(item => item.run === undefined),
+      invalid: plan.some(item => item.kind === 'invalid'),
       saving: this.saving,
       failed: this.failed,
     }
@@ -213,22 +224,29 @@ export class CardForm<T extends object> {
   /**
    * Write every staged edit, then re-seed from what the Host accepted.
    *
-   * The Host is the only authority on whether a value was accepted — its
-   * validators own the constraints no schema can express — so the outcome is
-   * read back from the section rather than predicted here. A save that did not
-   * land keeps its drafts, so the user can correct them instead of retyping.
+   * Section fields travel in one mutation, so the Host validates the complete
+   * section and either every field lands or none does. The Host is the only
+   * authority on whether a value was accepted — its validators own the
+   * constraints no schema can express — so the outcome is read back from the
+   * section rather than predicted here. A save that did not land keeps its
+   * drafts, so the user can correct them instead of retyping. Write-only
+   * controls write after the section, each on its own.
    * @returns settlement after every write and the read-back.
    */
   async save(): Promise<void> {
     const plan = this.plan()
-    const writes = plan.flatMap(item => item.run === undefined ? [] : [item.run])
-    if (plan.length === 0 || this.saving || writes.length !== plan.length) return
+    if (plan.length === 0 || this.saving || plan.some(item => item.kind === 'invalid')) return
     this.saving = true
     this.failed = false
     this.publish()
     let landed = true
-    for (const write of writes) {
-      landed = await write() && landed
+    const section = plan.flatMap(item => item.kind === 'op' ? [item] : [])
+    if (section.length > 0) {
+      await this.scope.mutate(section.map(item => item.op))
+      landed = section.every(item => this.landed(item.field, item.op))
+    }
+    for (const item of plan) {
+      if (item.kind === 'secret') landed = await item.run() && landed
     }
     if (landed) this.staged.clear()
     this.saving = false
@@ -248,31 +266,27 @@ export class CardForm<T extends object> {
       const secret = this.secretSpecs.get(field)
       if (secret !== undefined) {
         const value = staged.text.trim()
-        if (value !== '') plan.push({ field, run: () => secret.write(value) })
+        if (value !== '') plan.push({ kind: 'secret', run: () => secret.write(value) })
         continue
       }
       const spec = this.spec(field)
       if (staged.clear) {
-        if (this.stored(field)) plan.push({ field, run: () => this.clear(field) })
+        if (this.stored(field)) plan.push({ kind: 'op', field, op: { op: 'unset', path: [field] } })
         continue
       }
       if (staged.text === spec.format(this.sectionValue(field))) continue
       const write = spec.parse(staged.text)
-      if (write === undefined) plan.push({ field, run: undefined })
-      else if (write.kind === 'clear') plan.push({ field, run: () => this.clear(field) })
-      else plan.push({ field, run: () => this.store(field, write.value) })
+      if (write === undefined) plan.push({ kind: 'invalid', field })
+      else if (write.kind === 'clear') plan.push({ kind: 'op', field, op: { op: 'unset', path: [field] } })
+      else plan.push({ kind: 'op', field, op: { op: 'set', path: [field], value: write.value as JsonValue } })
     }
     return plan
   }
 
-  private async clear(field: string): Promise<boolean> {
-    await this.scope.unset(field)
-    return !this.stored(field)
-  }
-
-  private async store(field: string, value: SettingValue): Promise<boolean> {
-    await this.scope.set(field, value)
-    return fieldOf(this.layerOf(this.snapshotOf().user), field) === value
+  /** Whether the Host holds one section operation's outcome after the mutation. */
+  private landed(field: string, op: SettingsPathOpView): boolean {
+    if (op.op === 'unset') return !this.stored(field)
+    return sameJson(fieldOf(this.layerOf(this.snapshotOf().user), field), op.value)
   }
 
   private stage(field: string, edit: StagedEdit): void {

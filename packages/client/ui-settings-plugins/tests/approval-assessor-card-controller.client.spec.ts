@@ -3,7 +3,7 @@ import { stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
 import {
   ApprovalAssessorCardController, type ApprovalAssessorSettings,
 } from '../src/client/approval-assessor-card-controller.ts'
-import { acceptWrites } from './scope-stubs.client.ts'
+import { acceptWrites, setOp, unsetOp } from './scope-stubs.client.ts'
 
 describe('ApprovalAssessorCardController', () => {
   it('projects the complete Host policy', () => {
@@ -33,12 +33,12 @@ describe('ApprovalAssessorCardController', () => {
     face.edit('enabled', 'false')
     face.edit('extraPhrases', ' first \n\n second ')
     face.save()
-    await vi.waitFor(() => { expect(host.set).toHaveBeenCalledTimes(2) })
+    await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledTimes(1) })
 
-    expect(host.set.mock.calls).toEqual([
-      ['enabled', false],
-      ['extraPhrases', ['first', 'second']],
-    ])
+    expect(host.mutate.mock.calls).toEqual([[[
+      setOp('enabled', false),
+      setOp('extraPhrases', ['first', 'second']),
+    ]]])
     expect(face.hooks.approvalAssessorCard.getSnapshot()).toMatchObject({ dirty: false, failed: false })
   })
 
@@ -57,8 +57,8 @@ describe('ApprovalAssessorCardController', () => {
 
     face.resetField('extraPhrases')
     face.save()
-    await vi.waitFor(() => { expect(host.unset).toHaveBeenCalledWith('extraPhrases') })
+    await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledOnce() })
 
-    expect(host.set).not.toHaveBeenCalled()
+    expect(host.mutate).toHaveBeenCalledWith([unsetOp('extraPhrases')])
   })
 })

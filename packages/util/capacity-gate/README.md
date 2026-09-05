@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-capacity-gate` bounds how many operations one holder runs at once. A caller takes a slot with `acquire()`, runs its work, and returns the slot through the idempotent release the gate handed back. Callers that arrive while the gate is full queue in arrival order and are admitted first-in, first-out. The gate only delays an acquisition: it never cancels, settles, or cleans up the admitted work, so two operations sharing one gate keep independent settlement. Cancellation has two scopes — a per-acquisition `AbortSignal` rejects that one waiter and leaves it holding nothing, while `close(error)` rejects every queued waiter and refuses later acquisitions so a disposing holder never leaves a caller parked forever.
+`dsh-capacity-gate` bounds how many operations one holder runs at once. A caller takes a slot with `acquire()`, runs its work, and returns the slot through the idempotent release the gate handed back. Callers that arrive while the gate is full queue in arrival order and are admitted first-in, first-out. The gate only delays an acquisition: it never cancels, settles, or cleans up the admitted work, so two operations sharing one gate keep independent settlement. Cancellation has two scopes — a queued acquisition's `AbortSignal` rejects only that waiter and leaves it holding nothing, while `close(error)` rejects every queued waiter and refuses later acquisitions so a disposing holder never leaves a caller parked forever.
 
 ## Table of Contents
 
@@ -45,7 +45,7 @@ try {
 }
 ```
 
-`acquire` resolves as soon as a slot is free and otherwise queues. `signal` governs the wait alone: below the bound the gate grants without reading it, so a holder that is not saturated behaves exactly as it would with no gate and keeps its own pre-flight cancellation rule. Once the gate is full, a caller that has already aborted or aborts while queued rejects with `signal.reason` and holds no slot. The release is idempotent, so a holder that must release from several terminal paths — a rejection before the work starts, the work's own settlement, and an explicit disposal — may call it from each.
+`acquire` resolves as soon as a slot is free and otherwise queues. `signal` governs the wait alone: below the bound the gate grants without reading it, so a holder that is not saturated behaves exactly as it would with no gate and keeps its own pre-flight cancellation rule. Once the gate is full, a caller that has already aborted or aborts while queued rejects with the Error in `signal.reason`, or an Error describing a non-Error reason, and holds no slot. The release is idempotent, so a holder that must release from several terminal paths — a rejection before the work starts, the work's own settlement, and an explicit disposal — may call it from each.
 
 ### Disposing a holder
 

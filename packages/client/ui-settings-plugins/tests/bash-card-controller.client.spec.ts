@@ -5,7 +5,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
 import { BashCardController, type BashSettings } from '../src/client/bash-card-controller.ts'
-import { acceptWrites } from './scope-stubs.client.ts'
+import { acceptWrites, setOp, unsetOp } from './scope-stubs.client.ts'
 
 describe('BashCardController', () => {
   it('projects both fields and saves them in one write pass', async () => {
@@ -34,9 +34,9 @@ describe('BashCardController', () => {
     expect(face.hooks.bashCard.getSnapshot().dirty).toBe(true)
 
     face.save()
-    await vi.waitFor(() => { expect(host.set).toHaveBeenCalledTimes(2) })
+    await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledTimes(1) })
 
-    expect(host.set.mock.calls).toEqual([['timeoutMs', 9_000], ['maxOutputBytes', 1_024]])
+    expect(host.mutate.mock.calls).toEqual([[[setOp('timeoutMs', 9_000), setOp('maxOutputBytes', 1_024)]]])
     expect(face.hooks.bashCard.getSnapshot().dirty).toBe(false)
   })
 
@@ -57,7 +57,7 @@ describe('BashCardController', () => {
     expect(face.hooks.bashCard.getSnapshot().timeoutMs.text).toBe('60000')
 
     face.save()
-    await vi.waitFor(() => { expect(host.unset).toHaveBeenCalledWith('timeoutMs') })
+    await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledWith([unsetOp('timeoutMs')]) })
 
     expect(face.hooks.bashCard.getSnapshot()).toMatchObject({
       dirty: false,
@@ -75,6 +75,6 @@ describe('BashCardController', () => {
     face.discard()
 
     expect(face.hooks.bashCard.getSnapshot().timeoutMs.text).toBe('5000')
-    expect(host.set).not.toHaveBeenCalled()
+    expect(host.mutate).not.toHaveBeenCalled()
   })
 })

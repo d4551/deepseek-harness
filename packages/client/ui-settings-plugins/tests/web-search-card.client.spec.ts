@@ -6,7 +6,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
 import { WebSearchCardController, type WebSearchSettings } from '../src/client/web-search-card-controller.ts'
-import { acceptWrites, credentialsApi } from './scope-stubs.client.ts'
+import { acceptWrites, credentialsApi, setOp } from './scope-stubs.client.ts'
 
 describe('WebSearchCardController', () => {
   it('reads the credential state for the reference the tab names', async () => {
@@ -44,7 +44,7 @@ describe('WebSearchCardController', () => {
     await vi.waitFor(() => { expect(credentials.set).toHaveBeenCalled() })
 
     expect(credentials.set).toHaveBeenCalledWith('DEEPSEEK_API_KEY', 'ds-secret')
-    expect(host.set).not.toHaveBeenCalled()
+    expect(host.mutate).not.toHaveBeenCalled()
     await vi.waitFor(() => {
       expect(face.hooks.webSearchCard.getSnapshot()).toMatchObject({ dirty: false, apiKeyConfigured: true })
     })
@@ -161,9 +161,9 @@ describe('WebSearchCardController', () => {
     face.edit('baseURL', 'https://other.test')
     face.edit('maxUses', '3')
     face.save()
-    await vi.waitFor(() => { expect(host.set).toHaveBeenCalledTimes(2) })
+    await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledTimes(1) })
 
-    expect(host.set.mock.calls).toEqual([['baseURL', 'https://other.test'], ['maxUses', 3]])
+    expect(host.mutate.mock.calls).toEqual([[[setOp('baseURL', 'https://other.test'), setOp('maxUses', 3)]]])
     expect(credentials.set).not.toHaveBeenCalled()
   })
 })

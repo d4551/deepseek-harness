@@ -6,7 +6,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
 import { AgentLoopCardController, type AgentLoopSettings } from '../src/client/agent-loop-card-controller.ts'
-import { acceptWrites } from './scope-stubs.client.ts'
+import { acceptWrites, setOp } from './scope-stubs.client.ts'
 
 describe('AgentLoopCardController', () => {
   it('saves the only field it owns', async () => {
@@ -24,7 +24,7 @@ describe('AgentLoopCardController', () => {
 
     face.edit('maxParallelToolCalls', '4')
     face.save()
-    await vi.waitFor(() => { expect(host.set).toHaveBeenCalledWith('maxParallelToolCalls', 4) })
+    await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledWith([setOp('maxParallelToolCalls', 4)]) })
 
     expect(face.hooks.agentLoopCard.getSnapshot()).toMatchObject({
       dirty: false,

@@ -11,7 +11,7 @@ import {
   type WebProviderSettings,
 } from '../src/client/web-provider-card-controller.ts'
 import { WEB_PROVIDERS, webProvidersFor } from '../src/client/web-provider-catalog.ts'
-import { acceptWrites } from './scope-stubs.client.ts'
+import { acceptWrites, setOp } from './scope-stubs.client.ts'
 
 /** The catalogued backend for one namespace; every id below is a shipped one. */
 function spec(ns: string) {
@@ -65,9 +65,9 @@ describe('WebProviderCardController', () => {
 
     card.edit('timeoutMs', '2500')
     card.save()
-    await vi.waitFor(() => { expect(host.set).toHaveBeenCalledOnce() })
+    await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledOnce() })
 
-    expect(host.set).toHaveBeenCalledWith('timeoutMs', 2500)
+    expect(host.mutate).toHaveBeenCalledWith([setOp('timeoutMs', 2500)])
   })
 
   it('reports a configured key from the namespace secret slots, never from a value', () => {

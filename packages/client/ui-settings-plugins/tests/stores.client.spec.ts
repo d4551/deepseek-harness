@@ -6,7 +6,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
 import { BashCardController, type BashSettings } from '../src/client/bash-card-controller.ts'
-import { acceptWrites } from './scope-stubs.client.ts'
+import { acceptWrites, setOp } from './scope-stubs.client.ts'
 
 describe('two Bash cards over one shared scope', () => {
   function pair(accepting: boolean) {
@@ -28,7 +28,7 @@ describe('two Bash cards over one shared scope', () => {
 
     first.edit('timeoutMs', '9000')
     first.save()
-    await vi.waitFor(() => { expect(host.set).toHaveBeenCalledWith('timeoutMs', 9_000) })
+    await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledWith([setOp('timeoutMs', 9_000)]) })
 
     expect(first.hooks.bashCard.getSnapshot()).toMatchObject({ dirty: false, failed: false })
     // The sibling never staged anything, so it shows the section as saved.
@@ -44,7 +44,7 @@ describe('two Bash cards over one shared scope', () => {
     second.edit('timeoutMs', '7000')
     first.edit('timeoutMs', '9000')
     first.save()
-    await vi.waitFor(() => { expect(host.set).toHaveBeenCalledWith('timeoutMs', 9_000) })
+    await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledWith([setOp('timeoutMs', 9_000)]) })
 
     // The staged draft survives the sibling's save: only its own save or a
     // discard may drop it.
@@ -79,7 +79,7 @@ describe('two Bash cards over one shared scope', () => {
       dirty: true,
       maxOutputBytes: { text: '1024' },
     })
-    expect(host.set).toHaveBeenCalledTimes(1)
+    expect(host.mutate).toHaveBeenCalledTimes(1)
   })
 
   it('delegates a read-only flip to the Host: no card hides the write it staged', async () => {
@@ -97,7 +97,7 @@ describe('two Bash cards over one shared scope', () => {
     first.save()
     await vi.waitFor(() => { expect(first.hooks.bashCard.getSnapshot().failed).toBe(true) }, { timeout: 5_000 })
 
-    expect(host.set).toHaveBeenCalledTimes(1)
+    expect(host.mutate).toHaveBeenCalledTimes(1)
     expect(first.hooks.bashCard.getSnapshot()).toMatchObject({
       dirty: true,
       timeoutMs: { text: '9000' },

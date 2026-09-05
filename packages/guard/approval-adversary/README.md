@@ -23,7 +23,7 @@ When a deployment enables it, every approval request that would otherwise prompt
 <a id="use-this-package"></a>
 ## Use this package
 
-Every `dsh-base` profile mounts this plugin directly behind [`dsh-approval-assessor`](../approval-assessor/README.md) and ahead of the product approval answerers, with `enabled: false`. Its composition values seed a user-owned Host settings section, so the Web app's Adversarial approval review card on the Plugins settings page arms it without editing the composition. While enabled, no approval request the assessor lets through reaches a human answerer: the reviewer decides, and the requesting tool sees the same closed outcome a person would have produced.
+Every `dsh-base` profile mounts this plugin directly behind [`dsh-approval-assessor`](../approval-assessor/README.md) and ahead of the product approval answerers, with `enabled: false`. Its composition values seed a user-owned Host settings section, so the Web app's Adversarial approval review card on the Plugins settings page arms it without editing the composition; the card saves every staged field in one settings mutation, so a `provider` and `model` pair reaches Host validation together. While enabled, no approval request the assessor lets through reaches a human answerer: the reviewer decides, and the requesting tool sees the same closed outcome a person would have produced.
 
 ### Configuration
 

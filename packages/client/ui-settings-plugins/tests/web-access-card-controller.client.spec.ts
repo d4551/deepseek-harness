@@ -10,7 +10,7 @@ import type { SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SettingsDescribeFace, SettingsMirrorSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { JsonValue } from '@deepseek-ai/dsh-session/types'
 import { WebAccessCardController, type WebAccessSettings } from '../src/client/web-access-card-controller.ts'
-import { acceptWrites } from './scope-stubs.client.ts'
+import { acceptWrites, setOp } from './scope-stubs.client.ts'
 
 /** One served namespace as the mirror reports it. */
 function view(ns: string, base?: Record<string, JsonValue>): SettingsNamespaceView {
@@ -121,9 +121,9 @@ describe('WebAccessCardController', () => {
     card.edit('searchProvider', 'exa')
     expect(card.hooks.webAccessCard.getSnapshot().search.choices.find(choice => choice.selected)?.id).toBe('exa')
     card.save()
-    await vi.waitFor(() => { expect(host.set).toHaveBeenCalledOnce() })
+    await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledOnce() })
 
-    expect(host.set).toHaveBeenCalledWith('searchProvider', 'exa')
+    expect(host.mutate).toHaveBeenCalledWith([setOp('searchProvider', 'exa')])
   })
 
   it('reports a missing browser only while the rendering backend is the pinned one', () => {

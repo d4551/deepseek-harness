@@ -67,19 +67,34 @@ describe('ApprovalAdversaryCard', () => {
     expect(actions.save).toHaveBeenCalledOnce()
   })
 
-  it('offers a reset only for an overridden field and stages the clear', () => {
+  it('offers a reset for every overridden field and stages each clear', () => {
     const actions = renderCard({
       dirty: true,
       enabled: field('true', { overridden: true }),
+      provider: field('deepseek-official', { overridden: true }),
+      model: field('deepseek-v4-flash', { overridden: true }),
+      fallback: field('reject', { overridden: true }),
+      timeoutMs: field('15000', { overridden: true }),
+      maxOutputTokens: field('128', { overridden: true }),
+      maxExcerptChars: field('2000', { overridden: true }),
       instructions: field('custom', { overridden: true }),
     })
     fireEvent.click(screen.getByText(en.approvalAdversaryTitle))
 
     const resets = screen.getAllByRole('button', { name: en.reset })
-    expect(resets).toHaveLength(2)
-    fireEvent.click(resets[1]!)
+    expect(resets).toHaveLength(8)
+    for (const reset of resets) fireEvent.click(reset)
 
-    expect(actions.resetField).toHaveBeenCalledWith('instructions')
+    expect(actions.resetField.mock.calls.map(([name]) => name)).toEqual([
+      'enabled', 'provider', 'model', 'fallback', 'timeoutMs', 'maxOutputTokens', 'maxExcerptChars', 'instructions',
+    ])
+  })
+
+  it('offers no reset for an inherited field', () => {
+    renderCard({ instructions: field('custom', { overridden: true }) })
+    fireEvent.click(screen.getByText(en.approvalAdversaryTitle))
+
+    expect(screen.getAllByRole('button', { name: en.reset })).toHaveLength(1)
   })
 
   it('renders nothing before the namespace is served', () => {
