@@ -29,4 +29,4 @@ Status: implemented
 
 ## 后果
 
-七条工具链、engines 字符串或 bun 钉住值的协同降级如今会令 `ci-static` 失败。代价是每次有意抬高下限都要改一次门禁——而这处修改正是"声明 CI 现在假定哪个工具链版本"的可评审动作。首次实跑暴露了由[构建工具依赖闭合](2026-09-02-build-tooling-dependency-closure.zh.md)记录承载的构建顺序死锁：根 tsdown 配置无法解析 `packages/util/diagnostic-text/lib/index.js`，而这个 bundle 正是同一次构建才写出的。
+任何具名工具链下限、engines 字符串或 bun 钉住值的协同降级如今会令 `ci-static` 失败。代价是每次有意抬高下限都要改一次门禁——而这处修改正是"声明 CI 现在假定哪个工具链版本"的可评审动作。首次实跑暴露了由[构建工具依赖闭合](2026-09-02-build-tooling-dependency-closure.zh.md)记录承载的构建顺序死锁：根 tsdown 配置无法解析 `packages/util/diagnostic-text/lib/index.js`，而这个 bundle 正是同一次构建才写出的。

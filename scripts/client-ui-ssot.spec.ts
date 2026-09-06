@@ -128,6 +128,19 @@ describe('injected SSOT violations', () => {
     expect(findings.some(f => f.kind === 'hit-target')).toBe(true)
   })
 
+  it('fails a control with a single undersized dimension', () => {
+    const scan = (content: string): boolean => scanUiSsot([
+      THEME,
+      FRAME,
+      { file: 'packages/client/ui-primitives/src/Tiny.module.css', content },
+    ]).some(finding => finding.kind === 'hit-target')
+    expect(scan('.button { width: 16px; }\n'), 'width only').toBe(true)
+    expect(scan('.button { height: 16px; }\n'), 'height only').toBe(true)
+    expect(scan('.button { width: 16px; height: 48px; }\n'), 'one axis below 24').toBe(true)
+    expect(scan('.iconButton { min-width: 16px; }\n'), 'iconButton min-width').toBe(true)
+    expect(scan('.button { min-width: 24px; min-height: 24px; }\n'), 'floor').toBe(false)
+  })
+
   it('fails an infinite animation no reduced-motion rule actually stops', () => {
     const spinning = '.s { animation: spin 0.8s linear infinite; }'
     const guard = '@media (prefers-reduced-motion: reduce) { .s { animation: none; } }'

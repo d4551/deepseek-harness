@@ -75,6 +75,80 @@ function withoutImportLines(source: string): string {
   return source.replace(/^[ \t]*import\s[\s\S]*?from\s+['"][^'"]+['"];?/gm, '')
 }
 
+function matchingParen(text: string, openIndex: number): number {
+  let depth = 0
+  let quote: string | undefined
+  for (let index = openIndex; index < text.length; index += 1) {
+    const character = text.charAt(index)
+    if (quote !== undefined) {
+      if (character === '\\') {
+        index += 1
+        continue
+      }
+      if (character === quote) quote = undefined
+      continue
+    }
+    if (character === '"' || character === "'" || character === '`') {
+      quote = character
+      continue
+    }
+    if (character === '(') depth += 1
+    else if (character === ')') {
+      depth -= 1
+      if (depth === 0) return index
+    }
+  }
+  return -1
+}
+
+function callArguments(source: string, callee: string): string[] {
+  const args: string[] = []
+  const needle = `${callee}(`
+  let from = 0
+  while (from < source.length) {
+    const start = source.indexOf(needle, from)
+    if (start < 0) break
+    if (start > 0 && /\w/.test(source.charAt(start - 1))) {
+      from = start + needle.length
+      continue
+    }
+    const open = start + needle.length - 1
+    const close = matchingParen(source, open)
+    if (close < 0) break
+    args.push(source.slice(open + 1, close))
+    from = close + 1
+  }
+  return args
+}
+
+const SKIP_IDENTS = new Set([
+  'const', 'let', 'var', 'null', 'undefined', 'true', 'false', 'return', 'await',
+  'new', 'void', 'typeof', 'function', 'async', 'createElement', 'Fragment',
+  'render', 'cleanup', 'main', 'div', 'span', 'p',
+])
+
+function assignedFromComponent(source: string, ident: string, component: string): boolean {
+  const assigned = new RegExp(
+    `(?:const|let|var)\\s+${ident}\\s*=\\s*(?:createElement\\(\\s*${component}\\b|<${component}[\\s/>])`,
+  )
+  return assigned.test(source)
+}
+
+function renderArgUses(arg: string, name: string, file: string): boolean {
+  if (new RegExp(`(?:<${name}[\\s/>]|createElement\\(\\s*${name}\\b)`).test(arg)) return true
+  const idents = [...arg.matchAll(/\b([A-Za-z_$][\w$]*)\b/g)].map(match => match[1] ?? '')
+  for (const ident of idents) {
+    if (ident === name) return true
+    if (SKIP_IDENTS.has(ident)) continue
+    if (assignedFromComponent(file, ident, name)) return true
+  }
+  return false
+}
+
+function isDummyRenderArg(arg: string): boolean {
+  return /<p>\s*Probe\s*<\/p>/.test(arg)
+}
+
 function usesBinding(source: string, name: string): boolean {
   const body = withoutImportLines(source)
   const tag = new RegExp(`<${name}[\\s/>]`)
@@ -107,7 +181,8 @@ export function specHoldsAxeFloor(source: string): boolean {
  * A dummy landmark (`<main><p>Probe</p></main>`) can satisfy
  * {@link specHoldsAxeFloor} without rendering a package export. Coverage
  * requires a `../src` or package-name value import whose binding appears in
- * JSX, `createElement`, a call, or a namespace destructure.
+ * a `render(...)` argument (or a variable that `render` receives). A stray
+ * `createElement(Name)` next to a Probe audit does not count.
  * @param source - spec text.
  * @param packageName - `ui-*` directory name.
  * @returns true when the spec renders that package's source and holds the floor.
@@ -116,6 +191,14 @@ export function specAuditsPackageSource(source: string, packageName: string): bo
   if (!specHoldsAxeFloor(source)) return false
   const text = stripSpecComments(source)
   const { names, namespaces } = srcBindings(text, packageName)
+  const bindings = [...names, ...namespaces]
+  if (bindings.length === 0) return false
+  const renderArgs = callArguments(text, 'render')
+  const inRender = bindings.some(name => renderArgs.some(arg => renderArgUses(arg, name, text)))
+  if (inRender) return true
+  const dummyAudit = /auditSurface\(\s*['"]Probe['"]/.test(text)
+    || (renderArgs.length > 0 && renderArgs.every(arg => isDummyRenderArg(arg)))
+  if (dummyAudit) return false
   if (names.some(name => usesBinding(text, name))) return true
   if (namespaces.some(name => usesBinding(text, name))) return true
   return false
@@ -169,6 +252,13 @@ describe('client UI axe coverage', () => {
     expect(specAuditsPackageSource(dead, 'ui-layout')).toBe(false)
     expect(specAuditsPackageSource(
       `${dead}createElement(AppFrame, props)\n`,
+      'ui-layout',
+    )).toBe(false)
+    expect(specAuditsPackageSource(
+      `${importLine}import { AppFrame } from '../src/client/AppFrame.tsx'\n`
+      + 'const { baseElement } = render(createElement(AppFrame, props))\n'
+      + "auditSurface('AppFrame', baseElement)\n"
+      + "expect(accessibilityFailures(audits, 100)).toBe('')\n",
       'ui-layout',
     )).toBe(true)
   })

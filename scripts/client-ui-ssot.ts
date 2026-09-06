@@ -105,8 +105,8 @@ const TSX_COLOR_ATTR = new RegExp(
 const MARKUP_TAG = /<\s*([a-z][a-z0-9:-]*)\b([^>]*)>/gi
 const SCRIPT_IS_MODULE = /\btype\s*=\s*['"]module['"]/i
 const ON_HANDLER = /\son(?:click|load|error|submit)\s*=/i
-const INTERACTIVE = /(?:^|,)\s*(?:button|\[role=['"]button['"]\]|\.button)[^{]*\{([^}]*)\}/gi
-const PX_SIZE = /(?:width|height|min-width|min-height)\s*:\s*(\d+)px/gi
+const INTERACTIVE = /(?:^|,)\s*(?:button|\[role=['"]button['"]\]|\.button|\.iconButton)[^{]*\{([^}]*)\}/gi
+const PX_SIZE = /(?:^|[^\w-])(?:min-)?(?:width|height)\s*:\s*(\d+)px/gi
 /**
  * One Tailwind-like utility token. A single `flex` in a CSS Module class name
  * is not a stack; three or more space-separated tokens in one quoted string is.
@@ -277,7 +277,7 @@ export function scanUiSsot(files: readonly { file: string; content: string }[]):
         while ((size = PX_SIZE.exec(body)) !== null) {
           if (size[1] !== undefined) sizes.push(Number(size[1]))
         }
-        if (sizes.length >= 2 && sizes.every(px => px < 24)) {
+        if (sizes.some(px => px < 24)) {
           findings.push({
             file: path,
             kind: 'hit-target',
