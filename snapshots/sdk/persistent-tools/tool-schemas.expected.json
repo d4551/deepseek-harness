@@ -17,6 +17,106 @@
       }
     },
     {
+      "name": "followup_task",
+      "description": "Send a durable follow-up task to another Team member and start a turn when needed.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "Team member name, or lead."
+          },
+          "message": {
+            "type": "string",
+            "description": "Self-contained message for the target."
+          }
+        },
+        "required": [
+          "target",
+          "message"
+        ]
+      }
+    },
+    {
+      "name": "interrupt_agent",
+      "description": "Interrupt one teammate's current turn while preserving its pending inbox. Team Lead only.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "Teammate name."
+          }
+        },
+        "required": [
+          "target"
+        ]
+      }
+    },
+    {
+      "name": "list_agents",
+      "description": "List the Lead and every durable teammate with current runtime status.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "send_message",
+      "description": "Send durable information to another Team member without starting an idle member.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "Team member name, or lead."
+          },
+          "message": {
+            "type": "string",
+            "description": "Self-contained message for the target."
+          }
+        },
+        "required": [
+          "target",
+          "message"
+        ]
+      }
+    },
+    {
+      "name": "spawn_teammate",
+      "description": "Create one named, durable teammate. Only the Team Lead may call this tool.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Unique lower-kebab-case teammate name."
+          },
+          "description": {
+            "type": "string",
+            "description": "Short description of the delegated responsibility."
+          },
+          "prompt": {
+            "type": "string",
+            "description": "Complete initial task for the teammate."
+          },
+          "context": {
+            "type": "string",
+            "description": "fresh starts without Lead history; fork inherits completed Lead turns. Defaults to fresh.",
+            "enum": [
+              "fresh",
+              "fork"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "prompt"
+        ]
+      }
+    },
+    {
       "name": "str_replace_editor",
       "description": "Custom editing tool for viewing, creating and editing files\n* State is persistent across command calls and discussions with the user\n* If `path` is a file, `view` displays the result of applying `cat -n`. If `path` is a directory, `view` lists non-hidden files and directories up to 2 levels deep\n* The `create` command cannot be used if the specified `path` already exists as a file\n* If a `command` generates a long output, it will be truncated and marked with `<response clipped>`\n* A null placeholder for a parameter unused by the selected command is treated as omitted. Required parameters still need values; omit `str_replace.new_str` rather than setting it to null when deleting a match\n\nNotes for using the `str_replace` command:\n* The `old_str` parameter should match EXACTLY one or more consecutive lines from the original file. Be mindful of whitespaces!\n* If the `old_str` parameter is not unique in the file, the replacement will not be performed. Make sure to include enough context in `old_str` to make it unique\n* The `new_str` parameter should contain the edited lines that should replace the `old_str`",
       "parameters": {
@@ -99,6 +199,174 @@
           "command",
           "path"
         ]
+      }
+    },
+    {
+      "name": "team_task_claim_next",
+      "description": "Take ownership of the next ready task on the shared board: the first unblocked pending task whose write scopes no in-progress task is already writing. Returns outcome claimed with the task you now own, or outcome none with a reason: no-pending-task when no pending task remains, so nothing becomes claimable until a task is created, released, or reopened; no-ready-task when every pending task is blocked by work still in progress; write-scope-conflict, plus the deferred task ids, when the ready work would write where work in progress already writes. No none result is a failure. Two members can never claim the same task.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "team_task_create",
+      "description": "Create one unowned pending task on the shared Team task board.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "subject": {
+            "type": "string",
+            "description": "Concise task title."
+          },
+          "description": {
+            "type": "string",
+            "description": "Complete task details and acceptance criteria."
+          },
+          "blocked_by": {
+            "type": "array",
+            "description": "Task ids that must complete first.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "write_scopes": {
+            "type": "array",
+            "description": "Advisory workspace-relative file or directory prefixes this task expects to modify.",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "subject",
+          "description"
+        ]
+      }
+    },
+    {
+      "name": "team_task_get",
+      "description": "Read the complete latest value of one shared task before changing or executing it.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "Shared task id."
+          }
+        },
+        "required": [
+          "task_id"
+        ]
+      }
+    },
+    {
+      "name": "team_task_list",
+      "description": "List shared tasks, including readiness, owner, revision, blockers, and write-scope warnings.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Optional exact status filter.",
+            "enum": [
+              "pending",
+              "in_progress",
+              "completed"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "description": "Optional member-name filter; use unowned for tasks without an owner."
+          },
+          "ready": {
+            "type": "boolean",
+            "description": "Optional readiness filter."
+          },
+          "cursor": {
+            "type": "integer",
+            "description": "Zero-based result offset. Defaults to 0."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Number of rows, 1 through 100. Defaults to 50."
+          }
+        }
+      }
+    },
+    {
+      "name": "team_task_update",
+      "description": "Compare-and-set a shared task action using the latest revision from team_task_get or team_task_list. claim, reassign, and a scope-widening edit are refused when the write scopes overlap a task already in progress.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "Shared task id."
+          },
+          "expected_revision": {
+            "type": "integer",
+            "description": "Current task revision used as the CAS precondition."
+          },
+          "action": {
+            "type": "string",
+            "description": "Task transition to apply.",
+            "enum": [
+              "claim",
+              "release",
+              "edit",
+              "set_dependencies",
+              "complete",
+              "reopen",
+              "reassign",
+              "delete"
+            ]
+          },
+          "subject": {
+            "type": "string",
+            "description": "Replacement title for edit."
+          },
+          "description": {
+            "type": "string",
+            "description": "Replacement details for edit."
+          },
+          "blocked_by": {
+            "type": "array",
+            "description": "Complete blocker list for set_dependencies.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "write_scopes": {
+            "type": "array",
+            "description": "Replacement write scopes for edit.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "owner": {
+            "type": "string",
+            "description": "Member name for Lead-only reassign; omit to unassign."
+          }
+        },
+        "required": [
+          "task_id",
+          "expected_revision",
+          "action"
+        ]
+      }
+    },
+    {
+      "name": "wait_agent",
+      "description": "Wait for the next teammate status, mailbox, or shared-task change after this call starts. This never wakes inactive members and returns noProgress immediately when no other member is running or provisioning. Re-list after wakeup or timeout instead of polling.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "timeout_ms": {
+            "type": "integer",
+            "description": "Wait duration in milliseconds, from 10000 through 3600000. Defaults to 30000."
+          }
+        }
       }
     }
   ],
