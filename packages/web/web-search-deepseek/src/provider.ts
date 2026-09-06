@@ -6,7 +6,7 @@
  * @module @deepseek-ai/dsh-web-search-deepseek/provider
  */
 
-import { WebError } from '@deepseek-ai/dsh-web'
+import { WEB_USER_AGENT, WebError } from '@deepseek-ai/dsh-web'
 import type {
   WebSearchProvider,
   WebSearchRequest,
@@ -45,9 +45,6 @@ export const DEEPSEEK_DEFAULT_MAX_TOKENS = 4096
 
 /** Default maximum `web_search` server-tool uses per request. */
 export const DEEPSEEK_DEFAULT_MAX_USES = 5
-
-/** Attribution header sent on every request. Bump with the package version. */
-const USER_AGENT = 'deepseek-harness/0.0.1'
 
 /**
  * Exact secret-free DeepSeek Messages request recorded immediately before one
@@ -230,7 +227,7 @@ export class DeepSeekSearchProvider implements WebSearchProvider {
           'anthropic-version': options.apiVersion,
           'content-type': 'application/json',
           'accept': 'application/json',
-          'user-agent': USER_AGENT,
+          'user-agent': WEB_USER_AGENT,
         },
         body: JSON.stringify(body),
         ...signal !== undefined ? { signal } : {},

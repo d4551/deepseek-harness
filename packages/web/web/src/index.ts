@@ -10,9 +10,29 @@
  * @module @deepseek-ai/dsh-web
  */
 
+import { createRequire } from 'node:module'
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+// The package's own manifest is the single source of the version, so the
+// `User-Agent` every web request sends cannot drift from what is published
+// (`./package.json` is an export of this package; the relative path resolves
+// from both `src/` and the bundled `lib/`).
+const { version } = createRequire(import.meta.url)('../package.json') as { version: string }
+
+/**
+ * Product identity every web request sends as `User-Agent`. One constant so a
+ * provider cannot ship a version the release never bumped, and an explicit
+ * product agent rather than a browser disguise.
+ */
+export const WEB_USER_AGENT = `deepseek-harness/${version}`
+
+/**
+ * `User-Agent` for requests to sites that read one, carrying the contact URL
+ * a crawl policy expects an automated client to publish.
+ */
+export const WEB_FETCH_USER_AGENT = `${WEB_USER_AGENT} (+https://github.com/deepseek-ai)`
+
 import type {
   WebFetchProvider,
   WebFetchRequest,

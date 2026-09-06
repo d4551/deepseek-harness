@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
+import { createRequire } from 'node:module'
 import WebRuntime, {
+  WEB_FETCH_USER_AGENT,
+  WEB_USER_AGENT,
   WebError,
   type WebFetchProvider,
   type WebFetchResult,
@@ -211,5 +214,22 @@ describe('WebError', () => {
     const error = new WebError('boom', 'WEB_INVALID_URL')
     expect(error.code).toBe('WEB_INVALID_URL')
     expect(error.name).toBe('WebError')
+  })
+})
+
+describe('product identity', () => {
+  it('names the version this package publishes, not a literal that can go stale', () => {
+    // Three search providers and two fetch providers each carried their own
+    // `deepseek-harness/0.0.1` while the package shipped 0.1.2-alpha.1, so the
+    // agent is read from the manifest the release bumps rather than restated.
+    const { version } = createRequire(import.meta.url)(
+      '@deepseek-ai/dsh-web/package.json',
+    ) as { version: string }
+    expect(WEB_USER_AGENT).toBe(`deepseek-harness/${version}`)
+    expect(WEB_USER_AGENT).not.toMatch(/0\.0\.1$/)
+  })
+
+  it('adds the contact URL a crawl policy expects to the fetch agent', () => {
+    expect(WEB_FETCH_USER_AGENT).toBe(`${WEB_USER_AGENT} (+https://github.com/deepseek-ai)`)
   })
 })
