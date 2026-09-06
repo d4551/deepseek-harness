@@ -753,12 +753,6 @@
         "tests/**/*.ts"
       ]
     },
-    "packages/preset/agent-team-profile": {
-      "ignoreDependencies": [
-        "@deepseek-ai/dsh-agent-team",
-        "@deepseek-ai/dsh-tool-agent-team"
-      ]
-    },
     "packages/bundle/base": {
       "ignoreDependencies": [
         "@deepseek-ai/.+"
@@ -788,11 +782,6 @@
       "entry": [
         "tests/**/*.spec.ts",
         "tests/**/*.e2e.ts"
-      ]
-    },
-    "packages/preset/agent-team-web-profile": {
-      "ignoreDependencies": [
-        "@deepseek-ai/dsh-client-ui-agent-team"
       ]
     },
     "packages/bundle/web-app": {

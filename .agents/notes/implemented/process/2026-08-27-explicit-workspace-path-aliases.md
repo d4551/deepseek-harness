@@ -34,7 +34,7 @@ Seven are `/invariant` subpaths: `dsh-invariants/invariant`, `dsh-lsp/invariant`
 
 The deleted `dsh-*/invariant` wildcard omitted the `lsp`, `terminal`, `client`, and `host` groups. The `client` and `host` omissions are deliberate and documented — those families have dedicated wildcards because their package names prefix the group directory. The `lsp` and `terminal` omissions have no such reason, and `packages/runtime-diagnostics/invariants` appeared in neither list. Those seven specifiers therefore resolved through the workspace symlink and the package's `./invariant` export to built `lib/types/*.d.ts` instead of to source, which contradicts the rule that static gates resolve workspace imports through `paths` to `src` and pass on a clean tree. Making the aliases uniform resolves them to source like every sibling.
 
-The other four are whole packages the coverage assertion surfaced: `dsh-client-ui-directory-picker-browse`, `dsh-client-ui-directory-picker-native`, `dsh-experimental-agent-team-profile`, and `dsh-experimental-agent-team-web-profile`. Each is named `dsh-<group>-<directory>`, which no wildcard could ever substitute, and each sits beside siblings that do carry hand-written aliases — they were simply missing. They now carry one too.
+The others are whole packages the coverage assertion surfaced: `dsh-client-ui-directory-picker-browse` and `dsh-client-ui-directory-picker-native`. Each is named `dsh-<group>-<directory>`, which no wildcard could ever substitute, and each sits beside siblings that do carry hand-written aliases — they were simply missing. They now carry one too.
 
 ## Testing
 

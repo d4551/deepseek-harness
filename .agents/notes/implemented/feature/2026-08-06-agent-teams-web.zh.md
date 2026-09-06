@@ -16,9 +16,9 @@
 
 Teammate navigation 使用既有 `{ parentSessionId, childSessionId, mode: 'continuable' }` Subagent address，不带 Team tag。UI 刷新直接 child catalog、再次检查所选 Session，然后打开 addressed conversation。History 与后续人类 prompt 使用稳定 Subagent 路径；Team mailbox 只用于 Team 工具发起的 Team peer delivery。
 
-`@deepseek-ai/dsh-experimental-agent-team-web-profile` 在稳定 Web bundle 之后只插入 UI。它与 Host 侧 `@deepseek-ai/dsh-experimental-agent-team-profile` 一起应用，后者已经插入 `ctx.agentTeams` 与模型工具。两个稳定 bundle 都不包含禁用的 Team row 或依赖。
+`dsh-web-app` 在 `ui-subagent` 之后以 `ui-agent-team` 行挂载该 UI，位于 `dsh-base` 挂载的 `ctx.agentTeams` 服务与模型工具之上（[Agent Teams 随每个 profile 交付](../architecture/2026-09-07-agent-teams-in-every-profile.zh.md)）。
 
-稳定 Web preset 仍会在自身 preset scope 内注册 continuable Subagent control。顶层 Agent Teams profile override 无法替换这些 registration，因此该实验性 composition 可能同时暴露 Team roster 与 legacy child control。Team-aware Web preset 暂缓实现；[Web profile README](../../../../packages/preset/agent-team-web-profile/README.zh.md#known-limitations-and-deferred-work)负责记录当前限制。
+稳定 Web preset 仍会在自身 preset scope 内注册 continuable Subagent control。顶层 Agent Teams profile override 无法替换这些 registration，因此该实验性 composition 可能同时暴露 Team roster 与 legacy child control。Team-aware Web preset 暂缓实现；注册在每个 Agent 自身 scope 中的 Team 工具会遮蔽那些 preset control，因此模型看到的 roster 是 Team 的。
 
 ## 边界
 

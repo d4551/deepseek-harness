@@ -18,7 +18,7 @@ Status: implemented
 
 **swarm 层就地发布，并由一个交付的 `swarm` profile 把它叠上去。** `@deepseek-ai/dsh-swarm-profile` 去掉 `private` 并声明 `publishConfig.access: public`；它的 allowlist 条目被移除，因为一个可发布的包不能留在发布排除表中。`PROFILE_TEMPLATES.swarm` 是 `['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-headless', '@deepseek-ai/dsh-swarm-profile']`，带 `patchReload: 'startup'`，并且 `apps/cli` 把该组合包声明为依赖，这样 `resolveBundleDir` 才能从安装锚点找到它。`dsh --profile swarm "<task>"` 就是入口：一个 headless 任务、多个 teammate、一块共享任务板、可配置的运行上限。
 
-这一层仍是一份自足的补丁文档，而不是叠在 `agent-team-profile` 之上的增量，这是[既有的决定](../process/2026-09-03-swarm-layer-drift-and-atomicity-scope.zh.md)——组合包无法要求一个前置组合包，因此只应用增量的用户得到的会是一条 Loader 警告，而不是一次拒绝。两份文档仍然是一份经过校验的副本，而防止它们漂移的等价性测试与基础配置行 id 测试保持不变。
+这一层是叠在 `dsh-base` 行之上的一份自足补丁文档——组合包无法要求一个前置组合包，因此依赖另一层的层会让只应用它的用户得到一条 Loader 警告，而不是一次拒绝（[漂移 note](../process/2026-09-03-swarm-layer-drift-and-atomicity-scope.zh.md)）。由于 base 为每个 profile 挂载 Team 行（[Agent Teams 随每个 profile 交付](2026-09-07-agent-teams-in-every-profile.zh.md)），这一层只重新调校它们，其基础配置行 id 测试防止它针对 base 不再声明的行。
 
 这一层仍留在 `packages/preset/` 之下。把它移到 `packages/bundle/` 会更贴合分组定义，但这次移动要改写生成的 tsconfig 路径别名、模块图与配置 catalog，而其他工作正在这些文件中进行，况且它并不能换来 profile 模板条目尚未提供的任何东西。
 
@@ -47,7 +47,7 @@ Status: implemented
 
 `apps/cli/tests/profile-bundles.spec.ts` 通过：每个模板指名的每个组合包都是一项已声明的 `apps/cli` 依赖。`packages/boot/app-boot/tests/profile.spec.ts` 钉住新的模板元组，以及缺失 profile 诊断所打印的交付 profile 列表。`packages/preset/swarm-profile/tests/profile.spec.ts` 现在断言该 manifest（元数据清单）可发布，而它对交付配置行的 Loader 启动保持不变。
 
-`apps/web/tests/swarm-web-composition.e2e.ts` 覆盖 `swarm-web` 元组本身。它从 `PROFILE_TEMPLATES` 读取组合包列表，把每个组合包解析到该包 manifest 自己声明的 patch 文件，在空根之上完成组合，并断言生效条目表带有 `maxConcurrentRuns: 8`、`maxMembers: 16` 与 `coordination: swarm`；随后启动脚手架尚未挂载的那些层，断言实时 Loader 配置行带有相同取值、`ctx.subagents.capacity()` 报出该上限、客户端名册提供 `dsh-client-ui-agent-team` 与 `dsh-client-ui-workspace-roots`，以及 Lead 装配出的提示词是 swarm 策略而非 delegated 策略。把模板中的 `dsh-swarm-profile` 换成 `dsh-agent-team-profile` 会让第一项上限失败，去掉浏览器组合包会让名册失败，让已挂载的工具忽略其配置的 coordination 会让提示词失败。不使用浏览器：面板与工作区标题的渲染各有自己的用例，而 swarm 的差异抵达的是模型而非 DOM。
+`apps/web/tests/swarm-web-composition.e2e.ts` 覆盖 `swarm-web` 元组本身。它从 `PROFILE_TEMPLATES` 读取组合包列表，把每个组合包解析到该包 manifest 自己声明的 patch 文件，在空根之上完成组合，并断言生效条目表带有 `maxConcurrentRuns: 8`、`maxMembers: 16` 与 `coordination: swarm`；随后启动脚手架尚未挂载的那些层，断言实时 Loader 配置行带有相同取值、`ctx.subagents.capacity()` 报出该上限、客户端名册提供 `dsh-client-ui-agent-team` 与 `dsh-client-ui-workspace-roots`，以及 Lead 装配出的提示词是 swarm 策略而非 delegated 策略。从模板中去掉 `dsh-swarm-profile` 会让第一项上限失败，从 Web bundle 中去掉 `ui-agent-team` 会让名册失败，让已挂载的工具忽略其配置的 coordination 会让提示词失败。不使用浏览器：面板与工作区标题的渲染各有自己的用例，而 swarm 的差异抵达的是模型而非 DOM。
 
 write scope 这部分工作是通过执行器而不是工具 schema 来证明的。`refuses every named route that would start work on paths already being written` 先 claim `src`，随后拒绝一次改派给 teammate 的 `reassign`、teammate 自己的一次 `claim`，以及把一个已准入的 `docs` 任务扩大到 `src/deep` 的一次 `edit`，最后展示在持有的任务被释放之后每条路由都放行一次。原先演示该绕过路径的那个已作废用例，现在断言的是拒绝本身、没有任何内容被提交，以及被拒绝任务的视图指名了阻塞它的那个任务。
 
@@ -57,7 +57,7 @@ write scope 这部分工作是通过执行器而不是工具 schema 来证明的
 
 ## 考虑过的替代方案
 
-**把 Team 底座放进 `packages/bundle/base`。** 当时否决：那会把 Team 工具面及其提示词策略交给每一个 profile，而按需选用的东西当时不进交付默认值。已于 2026-09-07 被 [Agent Teams 随每个 profile 交付](2026-09-07-agent-teams-in-every-profile.zh.md)取代，它把底座移入 `dsh-base`，把浏览器行移入 `web-app`。
+**把 Team 底座放进 `packages/bundle/base`。** 在此否决，因为那会把 Team 工具面及其提示词策略交给每一个 profile，而按需选用的东西当时不进交付默认值；[Agent Teams 随每个 profile 交付](2026-09-07-agent-teams-in-every-profile.zh.md)推翻了这一决定，把底座移入 `dsh-base`，把浏览器行移入 `web-app`。
 
 **把 swarm 拆成叠在一个已发布 `agent-team` 组合包之上的增量。** 以那篇漂移 Agent Note 已经记录的理由否决——没有任何东西能强制用户把两者都叠上，而只应用增量得到的是警告而不是拒绝。
 

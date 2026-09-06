@@ -22,9 +22,9 @@ Status: implemented
 
 ### `swarm-web` 成为内置 profile 模板
 
-`PROFILE_TEMPLATES` 新增 `swarm-web`：`dsh-base`、`dsh-web-app`、`dsh-swarm-profile`、`dsh-agent-team-web-profile`，采用实时 patch 重载。`swarm` 模板叠在 `headless` 之上的同一层 Host swarm 层，改叠在 `web-app` 之上，浏览器层再补上渲染 Team 的那一行。
+`PROFILE_TEMPLATES` 新增 `swarm-web`：`dsh-base`、`dsh-web-app`、`dsh-swarm-profile`，采用实时 patch 重载。`swarm` 模板叠在 `headless` 之上的同一层 Host swarm 层，改叠在 `web-app` 之上；渲染 Team 的那一行属于 `dsh-web-app`（[Agent Teams 随每个 profile 交付](../architecture/2026-09-07-agent-teams-in-every-profile.zh.md)）。
 
-`dsh-agent-team-web-profile` 不再是私有包：内置模板的 bundle 必须能从打包安装的 `@deepseek-ai/dsh` 中解析，因此该包改为发布，CLI 在 `dependencies` 中声明它。它的兄弟包 `agent-team-profile` 保持私有——那一层只在 `dsh-base` 之上叠加 Agent Teams，没有任何内置 profile 会叠它。
+不存在单独的 Team 层包：`dsh-base` 挂载 Team，`dsh-web-app` 挂载其浏览器行，因此内置模板的 bundle 能以 CLI 已在 `dependencies` 中声明的那些 bundle 从打包安装的 `@deepseek-ai/dsh` 中解析。
 
 不涉及 Team-aware Agent preset。Team 工具注册在每个 Agent 自身的 scope 中，而工具注册表让较近的 scope 胜过较远的，因此对每个 Team 成员来说，Team scope 的 `list_agents`、`send_message` 与 `interrupt_agent` 会遮蔽 preset scope 中的同名 continuable child 控制项。每个根 Agent 都隐式是 Team Lead，因此每个 `swarm-web` 会话打开时面板就已有内容。
 
@@ -92,7 +92,7 @@ Consumer 是新包 `packages/client/ui-workspace-roots`：一个会话标题栏�
 
 三个 seam 各增加了一个可选成员（`FileSystem.origin`、`LlmProviderInfo.hosting`、`WebFetchResult.retrieval`）。每一个都遵循「缺省即未声明」，因此本仓库之外的 provider 继续可用，其界面保持沉默而非猜测。
 
-`dsh-agent-team-web-profile` 现在是发布产物的一员。它发布依赖的 `dsh-client-ui-agent-team` 本就是公开包。
+`dsh-client-ui-agent-team` 通过 `dsh-web-app` 成为发布产物的一员；不再有单独的 Team 浏览器层。
 
 ## Testing
 

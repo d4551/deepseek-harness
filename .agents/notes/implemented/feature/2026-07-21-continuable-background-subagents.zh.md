@@ -112,7 +112,7 @@ Task 记录和活跃 run 关联都位于进程内。持久化使 child 会话可
 - `packages/subagent/subagent-in-process-driver/tests/subagent-in-process-driver.spec.ts` 固定可继续执行的持久性边界：缺少 flush 监听器、flush 监听器已脱离或监听器持续失败时，均会以 `DURABILITY_FAILED` 拒绝；循环检查点的瞬时失败可在最终确认成功后继续完成，发生取消时最终检查点无论成功还是失败都由取消优先决定结果，resume 同样会确认持久性，而前台运行仍采用尽力而为策略。`packages/subagent/subagent/tests/continuation.spec.ts` 以无密钥方式驱动真实栈（agent loop、JSONL 持久化、spawn／fork 提供方、Task 服务和 `ctx.subagents`）：初始及恢复后的激活都会创建新 Task，并在进入终态前 dispose 各自的 run；描述符事件位于轮次前、对模型隐藏、带版本、在服务分配的 child id 下持久化，并在初始 prompt admission 阻止请求或抛出异常时仍保留；取消、steering、cold follow-up、授权、所有权冲突与 resume 竞态保留上述约定。
 - `packages/subagent/tool-subagent-control/tests/tool-subagent-control.spec.ts` 固定 `send_message` 的 schema、coordinator 来源标记、两种路由渲染、未送达失败、无 agent 时的拒绝，以及 HMR（热模块替换）dispose。
 - `packages/subagent/tool-subagent/tests/tool-subagent.spec.ts` 覆盖配置的后台路由：可继续模式要求提供方可恢复，并在不要求 `send_message` 的情况下返回两个 id；即使提供方可以恢复，一次性模式仍保持普通的 Task 确认消息；它还固定 Task 服务集成及面向模型的 Task 控制工具。
-- 无密钥 SDK 快照场景 `subagent-continuable` 曾固定模型可见的 transcript（双 id 确认消息、最终持久性确认失败——该失败通过 `job_output` 呈现且不包含未经确认的 child 输出——以及一次 `send_message` 后续操作，其已启动的 Task 会带着「id 不可用」失败），直到 2026-09-07 Team 工具在每个 profile 中接管 `send_message`、该场景随之退役（[note](../architecture/2026-09-07-agent-teams-in-every-profile.zh.md)）；`packages/subagent/subagent/tests/` 下的 continuation 套件继续承担持久性失败与后续操作的覆盖。
+- 没有任何无密钥 SDK 场景固定该 transcript：`subagent-continuable` 已退役，因为 Team 工具在每个随发布 profile 中拥有 `send_message`（[Agent Teams 随每个 profile 交付](../architecture/2026-09-07-agent-teams-in-every-profile.zh.md)）。持久性失败组合仍由 `subagent-published-run-failure` session 场景演练，`packages/subagent/subagent/tests/continuation.spec.ts` 覆盖对可续 child 的后续操作，包括 id 不可用的那一种。
 
 ## 影响
 

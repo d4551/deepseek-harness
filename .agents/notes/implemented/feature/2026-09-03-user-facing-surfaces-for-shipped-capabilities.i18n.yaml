@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-03-user-facing-surfaces-for-shipped-capabilities.md
-2026-09-03-user-facing-surfaces-for-shipped-capabilities.md: f819dc0f469f980fbb0085aa006c9f43c34881f4
-2026-09-03-user-facing-surfaces-for-shipped-capabilities.zh.md: 81142a4b5c3d7985aaafdfbd871487c699929d77
+2026-09-03-user-facing-surfaces-for-shipped-capabilities.md: c28f50f8304b07108ae6a255a549df29e616ed3a
+2026-09-03-user-facing-surfaces-for-shipped-capabilities.zh.md: 1b9cb729bdb0ade32202785db494db7b2f4d6d46

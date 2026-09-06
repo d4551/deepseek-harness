@@ -16,11 +16,11 @@ Status: implemented
 
 三处散文现在都说明该互斥是进程内作用域，并点明使它成为进程内作用域的机制：一条位于本进程的 promise 链，以及要求本进程持有那个完全相同的活动 `Agent` 的成员资格。
 
-分叉仍然是分叉，两个测试让它成为受检查的分叉。一个独立的 profile 层必须自包含——bundle 只声明 `dsh.bundle.patch`，没有任何办法要求一个前置层，因此把 swarm 拆成增量，会让单独应用它的用户得到一条警告而不是一份可用的组合。这份重复需要的不是移除，而是一个读者。
+一个独立的 profile 层必须自包含——bundle 只声明 `dsh.bundle.patch`，没有任何办法要求一个前置层，因此把 swarm 拆成叠在另一层之上的增量，会让单独应用它的用户得到一条警告而不是一份可用的组合。那份副本本身已不存在：`dsh-base` 为每个 profile 挂载 Team 行，`agent-team-profile` 已删除（[Agent Teams 随每个 profile 交付](../architecture/2026-09-07-agent-teams-in-every-profile.zh.md)），因此 swarm 层重新调校 base 的行，副本所需要的读者变成了与 base 的比较。
 
-`is the Agent Teams layer plus exactly its documented swarm deltas` 通过 Loader 自己的 entry schema 解析两份 patch，断言 swarm 等于 team 层加上恰好那三项有记录的改动。`targets only row ids the base bundle actually declares` 读取 `dsh-base` 的 patch，断言本层针对的每个 id 都存在于其中，从而把那条按设计的警告变成本层的失败。
+`declares a publishable layer that retunes only rows dsh-base mounts` 读取 `dsh-base` 的 patch，断言本层针对的每个 id 都存在于其中，从而把那条按设计的警告变成本层的失败。`changes exactly its documented values and restates every other key` 把每个重新调校的行与 base 自己的行比较，断言差异恰好是记录在案的那个值，因为 patch 会替换整行的 config。
 
-两者都以变异证明：把一个共享的 disable 目标改名，四个用例中有三个失败；把 `maxConcurrentRuns` 从 8 改成 9，仅等价性用例失败。
+把 `maxConcurrentRuns` 从 8 改成 9 只会让记录值用例失败；把某一行改为针对 base 未声明的 id，则基础配置行 id 断言失败。
 
 ## 备选方案
 
@@ -32,6 +32,4 @@ Status: implemented
 
 ## 影响
 
-原子性说法在子系统页面与两个调用点都写明了作用域。两个 preset 层不会彼此漂移，swarm-profile 也不能针对一个不再存在的 base 行，否则会有测试失败。它们之间的重复仍在，并且仍是刻意的。
-
-已于 2026-09-07 被取代：`dsh-base` 为每个 profile 挂载 Team 行，`agent-team-profile` 已不存在，因此受检副本及其等价性测试都已移除；swarm 层现在重新调校 base 的行，其套件把每一行与 base 自己的行比较（[note](../architecture/2026-09-07-agent-teams-in-every-profile.zh.md)）。
+原子性说法在子系统页面与两个调用点都写明了作用域。swarm 层不能针对一个不再存在的 base 行，也不能偏离 base 所组合的取值，否则会有测试失败。

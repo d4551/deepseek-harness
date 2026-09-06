@@ -34,7 +34,7 @@ TypeScript 与 tsx 按顺序逐个尝试这些候选、取第一个存在的，�
 
 被删除的 `dsh-*/invariant` 通配符遗漏了 `lsp`、`terminal`、`client`、`host` 四个分组。其中 `client` 与 `host` 的遗漏是**刻意且有文档的**——这两族有专用通配符，因为它们的包名以分组目录名为前缀。而 `lsp` 与 `terminal` 的遗漏没有任何这类理由，`packages/runtime-diagnostics/invariants` 则两条列表都不在。于是这七个说明符此前是通过 workspace 软链与包的 `./invariant` 导出解析到构建产物 `lib/types/*.d.ts`，而不是解析到源码——这与「静态门禁通过 `paths` 把 workspace 导入解析到 `src`、并在干净树上通过」的规则相抵触。把别名统一之后，它们与所有同类一样解析到源码。
 
-另外四个是被覆盖断言揪出来的**整包**：`dsh-client-ui-directory-picker-browse`、`dsh-client-ui-directory-picker-native`、`dsh-experimental-agent-team-profile`、`dsh-experimental-agent-team-web-profile`。它们都叫 `dsh-<分组>-<目录>`，任何通配符都代不出这种形态；而它们身旁的同族包都有手写别名——这四个只是漏了。现在补上。
+另外几个是被覆盖断言揪出来的**整包**：`dsh-client-ui-directory-picker-browse` 与 `dsh-client-ui-directory-picker-native`。它们都叫 `dsh-<分组>-<目录>`，任何通配符都代不出这种形态；而它们身旁的同族包都有手写别名——它们只是漏了。现在补上。
 
 ## Testing
 

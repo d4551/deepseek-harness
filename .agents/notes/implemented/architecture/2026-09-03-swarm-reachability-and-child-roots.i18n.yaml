@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-03-swarm-reachability-and-child-roots.md
-2026-09-03-swarm-reachability-and-child-roots.md: 120b79f668bbba3b0785651c4b6348efddd09794
-2026-09-03-swarm-reachability-and-child-roots.zh.md: 040d93df3978167686806d16e3ce10aaf292f9dd
+2026-09-03-swarm-reachability-and-child-roots.md: a1fb769e8ee43ffd56e224cbf8899002bc7f5e25
+2026-09-03-swarm-reachability-and-child-roots.zh.md: 53b4b631943e7d7adf4d6324e3039697370e9598

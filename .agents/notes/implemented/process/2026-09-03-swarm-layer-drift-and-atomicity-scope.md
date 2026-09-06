@@ -16,11 +16,11 @@ An audit of swarm mode returned DONE and then named two things the deliverable h
 
 The three prose sites now say the exclusion is process-scoped and name the mechanism that scopes it: a promise chain in this process, and membership requiring the exact live `Agent` this process holds.
 
-The fork stays a fork, and two tests make it a checked one. A standalone profile layer has to be self-contained — bundles declare only `dsh.bundle.patch`, with no way to require a predecessor, so splitting swarm into deltas would leave a user who applies it alone with a warning instead of a working composition. What the duplication needed was not removal but a reader.
+A standalone profile layer has to be self-contained — bundles declare only `dsh.bundle.patch`, with no way to require a predecessor, so splitting swarm into deltas over another layer would leave a user who applies it alone with a warning instead of a working composition. The copy itself no longer exists: `dsh-base` mounts the Team rows for every profile and `agent-team-profile` is deleted ([Agent Teams ship in every profile](../architecture/2026-09-07-agent-teams-in-every-profile.md)), so the swarm layer retunes base rows and the reader the copy needed is a comparison with base.
 
-`is the Agent Teams layer plus exactly its documented swarm deltas` parses both patches through the Loader's own entry schema and asserts swarm equals the team layer with exactly the three documented changes applied. `targets only row ids the base bundle actually declares` reads `dsh-base`'s patch and asserts every id this layer targets exists there, which turns the by-design warning into a failure for this layer.
+`declares a publishable layer that retunes only rows dsh-base mounts` reads `dsh-base`'s patch and asserts every id this layer targets exists there, which turns the by-design warning into a failure for this layer. `changes exactly its documented values and restates every other key` compares each retuned row to base's own row and asserts the difference is exactly the documented value, because a patch replaces a row's whole config.
 
-Both were proved by mutation: renaming one shared disable target fails three of the four cases, and changing `maxConcurrentRuns` from 8 to 9 fails the equivalence case alone.
+Changing `maxConcurrentRuns` from 8 to 9 fails the documented-values case alone, and retargeting a row at an id base does not declare fails the base-id assertion.
 
 ## Alternatives considered
 
@@ -32,6 +32,4 @@ Both were proved by mutation: renaming one shared disable target fails three of 
 
 ## Consequences
 
-The atomicity claim states its scope in the subsystem page and at both call sites. The two preset layers cannot drift apart, and swarm-profile cannot target a base row that no longer exists, without a test failing. The duplication between them remains, and remains deliberate.
-
-Superseded on 2026-09-07: `dsh-base` mounts the Team rows for every profile and `agent-team-profile` no longer exists, so the checked copy and its equivalence test are gone; the swarm layer now retunes base rows, and its suite compares each row to base's own ([note](../architecture/2026-09-07-agent-teams-in-every-profile.md)).
+The atomicity claim states its scope in the subsystem page and at both call sites. The swarm layer cannot target a base row that no longer exists, nor drift from the values base composes, without a test failing.

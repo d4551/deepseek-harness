@@ -3426,7 +3426,7 @@ export interface WebRuntimeConfig {
 }
 ```
 
-来源：[`packages/web/web/src/index.ts:73`](../packages/web/web/src/index.ts)
+来源：[`packages/web/web/src/index.ts:93`](../packages/web/web/src/index.ts)
 
 <a id="deepseek-aidsh-web-app"></a>
 
@@ -3477,7 +3477,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/web/web-fetch-http/src/index.ts:31`](../packages/web/web-fetch-http/src/index.ts)
+来源：[`packages/web/web-fetch-http/src/index.ts:30`](../packages/web/web-fetch-http/src/index.ts)
 
 <a id="deepseek-aidsh-web-fetch-playwright"></a>
 
@@ -3744,8 +3744,6 @@ export interface Config {
 由其他包作为库导入；`cordis.yml` 无法加载它们。
 
 - `@deepseek-ai/dsh-agent-loop-testkit`（[`packages/test-support/agent-loop-testkit/src/index.ts`](../packages/test-support/agent-loop-testkit/src/index.ts)）
-- `@deepseek-ai/dsh-agent-team-profile`（[`packages/preset/agent-team-profile/src/index.ts`](../packages/preset/agent-team-profile/src/index.ts)）
-- `@deepseek-ai/dsh-agent-team-web-profile`（[`packages/preset/agent-team-web-profile/src/index.ts`](../packages/preset/agent-team-web-profile/src/index.ts)）
 - `@deepseek-ai/dsh-anonymous-user-id`（[`packages/identity/anonymous-user-id/src/index.ts`](../packages/identity/anonymous-user-id/src/index.ts)）
 - `@deepseek-ai/dsh-app-boot`（[`packages/boot/app-boot/src/index.ts`](../packages/boot/app-boot/src/index.ts)）
 - `@deepseek-ai/dsh-atomic-write`（[`packages/util/atomic-write/src/index.ts`](../packages/util/atomic-write/src/index.ts)）

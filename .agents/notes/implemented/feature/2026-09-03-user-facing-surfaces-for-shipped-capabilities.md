@@ -22,9 +22,9 @@ Two more surfaces stated nothing a reader needed. **A rendered fetch read as a p
 
 ### `swarm-web` is a shipped profile template
 
-`PROFILE_TEMPLATES` gains `swarm-web`: `dsh-base`, `dsh-web-app`, `dsh-swarm-profile`, `dsh-agent-team-web-profile`, with live patch reload. The same host swarm layer the `swarm` template stacks over `headless` stacks over `web-app` instead, and the browser layer adds the one row that renders the Team.
+`PROFILE_TEMPLATES` gains `swarm-web`: `dsh-base`, `dsh-web-app`, `dsh-swarm-profile`, with live patch reload. The same host swarm layer the `swarm` template stacks over `headless` stacks over `web-app` instead; the row that renders the Team is part of `dsh-web-app` ([Agent Teams ship in every profile](../architecture/2026-09-07-agent-teams-in-every-profile.md)).
 
-`dsh-agent-team-web-profile` is no longer private: a shipped template's bundles must resolve from a packed `@deepseek-ai/dsh` install, so the package publishes and the CLI declares it in `dependencies`. Its `agent-team-profile` sibling stays private — that one layers Agent Teams over `dsh-base` alone, which no shipped profile stacks.
+No separate Team layer package exists: `dsh-base` mounts the Team and `dsh-web-app` its browser row, so a shipped template's bundles resolve from a packed `@deepseek-ai/dsh` install with the bundles the CLI already declares in `dependencies`.
 
 No Team-aware Agent preset is involved. Team tools register in each Agent's own scope, and the tool registry resolves a nearer scope over a farther one, so the Team-scoped `list_agents`, `send_message`, and `interrupt_agent` shadow the preset-scope continuable-child controls of the same names for every Team member. Every root Agent is implicitly a Team Lead, so every `swarm-web` session opens with the panel populated.
 
@@ -92,7 +92,7 @@ Every fetch card now states whether a browser engine ran the page, and every she
 
 Three seams grew one optional member each (`FileSystem.origin`, `LlmProviderInfo.hosting`, `WebFetchResult.retrieval`). Each is absent-means-unstated, so a provider outside this repository keeps working and its surface stays silent instead of guessing.
 
-`dsh-agent-team-web-profile` is now a release payload member. Its published dependency `dsh-client-ui-agent-team` was already public.
+`dsh-client-ui-agent-team` is a release payload member through `dsh-web-app`; no separate Team browser layer exists.
 
 ## Testing
 

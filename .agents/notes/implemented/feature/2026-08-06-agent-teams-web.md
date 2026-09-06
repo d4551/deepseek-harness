@@ -16,9 +16,9 @@ The private `ctx.agentTeams` service owns generated `agentTeams/view`, `agentTea
 
 Teammate navigation uses the existing `{ parentSessionId, childSessionId, mode: 'continuable' }` Subagent address without a Team tag. The UI refreshes the direct-child catalog, rechecks the selected Session, and opens the addressed conversation. History and later human prompts follow the stable Subagent path; the Team mailbox remains reserved for Team peer delivery from Team tools.
 
-`@deepseek-ai/dsh-experimental-agent-team-web-profile` inserts only the UI after the stable Web bundle. It is applied alongside the Host-side `@deepseek-ai/dsh-experimental-agent-team-profile`, which already inserts `ctx.agentTeams` and the model tools. Neither stable bundle contains disabled Team rows or dependencies.
+`dsh-web-app` mounts the UI as its `ui-agent-team` row after `ui-subagent`, over the `ctx.agentTeams` service and model tools that `dsh-base` mounts ([Agent Teams ship in every profile](../architecture/2026-09-07-agent-teams-in-every-profile.md)).
 
-Stable Web presets still register continuable Subagent controls inside their preset scope. Top-level Agent Teams profile overrides cannot replace those registrations, so this experimental composition may expose both the Team roster and legacy child controls. A Team-aware Web preset is deferred; the [Web profile README](../../../../packages/preset/agent-team-web-profile/README.md#known-limitations-and-deferred-work) owns the current limitation.
+Stable Web presets still register continuable Subagent controls inside their preset scope. Top-level Agent Teams profile overrides cannot replace those registrations, so this experimental composition may expose both the Team roster and legacy child controls. A Team-aware Web preset is deferred; Team tools registered in each Agent's own scope shadow those preset controls, so the roster the model sees is the Team's.
 
 ## Boundaries
 
