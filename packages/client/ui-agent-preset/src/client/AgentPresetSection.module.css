@@ -318,6 +318,9 @@
 }
 
 .secondaryButton {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
   border: none;
   border-radius: 7px;
   padding: 5px 8px;

@@ -7,6 +7,7 @@
   display: inline-flex;
   align-self: flex-start;
   align-items: center;
+  min-height: 24px;
   gap: 4px;
   margin: 4px 0 2px 4px;
   padding: 2px 8px;

@@ -5,6 +5,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-height: 24px;
   gap: 4px;
   border: none;
   border-radius: 18px;

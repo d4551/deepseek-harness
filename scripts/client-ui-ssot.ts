@@ -110,41 +110,223 @@ const CURSOR_POINTER = /cursor\s*:\s*pointer\b/i
 const POINTER_EVENTS_NONE = /pointer-events\s*:\s*none\b/i
 const NATIVE_FORM_CONTROL = /(?:^|[\s>+~,(])(?:input|textarea|select)(?:$|[\s.:#[,>+~])/i
 const UA_PSEUDO_ELEMENT = /::[\w-]/
-const PX_SIZE = /(?:^|[^\w-])(?:min-)?(?:width|height)\s*:\s*(\d+)px/gi
 /** WCAG 2.5.8 Target Size (Minimum): 24 CSS pixels on each authored pointer target. */
 const HIT_TARGET_MIN_PX = 24
+/**
+ * CSS pixels one `rem` resolves to. No sheet under `packages/client` or
+ * `apps/web` sets a root font size, so `rem` measures against the initial
+ * value every browser ships. `em` is deliberately not converted: it resolves
+ * against the element's own inherited font size, which a stylesheet scan
+ * cannot know, and guessing it would report sizes that are not the page's.
+ */
+const ROOT_FONT_PX = 16
+/** One absolute length the scan can resolve, as `value` + `unit`. */
+const LENGTH = String.raw`(\d+(?:\.\d+)?)\s*(px|rem)`
+const SIZE_DECL = new RegExp(String.raw`(?:^|[^\w-])(?:min-)?(?:width|height)\s*:\s*${LENGTH}`, 'gi')
+const FONT_SIZE_DECL = new RegExp(String.raw`(?:^|[^\w-])font-size\s*:\s*${LENGTH}`, 'i')
+const LINE_HEIGHT_DECL = /(?:^|[^\w-])line-height\s*:\s*([^;}]+)/i
+const PADDING_SHORTHAND = /(?:^|[^\w-])padding\s*:\s*([^;}]+)/i
+const PADDING_BLOCK = /(?:^|[^\w-])padding-block\s*:\s*([^;}]+)/i
+const PADDING_TOP = /(?:^|[^\w-])padding-(?:top|block-start)\s*:\s*([^;}]+)/i
+const PADDING_BOTTOM = /(?:^|[^\w-])padding-(?:bottom|block-end)\s*:\s*([^;}]+)/i
+const BORDER_SHORTHAND = /(?:^|[^\w-])border\s*:\s*([^;}]+)/i
+const BORDER_WIDTH = /(?:^|[^\w-])border-width\s*:\s*([^;}]+)/i
+const BORDER_TOP_WIDTH = /(?:^|[^\w-])border-(?:top|block-start)(?:-width)?\s*:\s*([^;}]+)/i
+const BORDER_BOTTOM_WIDTH = /(?:^|[^\w-])border-(?:bottom|block-end)(?:-width)?\s*:\s*([^;}]+)/i
+/** Trailing pseudo-classes and functional pseudo-classes on one compound selector. */
+const TRAILING_PSEUDO_CLASS = /:(?!:)[\w-]+(\([^)]*\))?\s*$/
 
 /**
- * Pixel width/height/min-width/min-height declarations in one rule body.
+ * Resolve one absolute length to CSS pixels.
+ * @param value - the numeric part as written.
+ * @param unit - `px` or `rem`.
+ * @returns the length in CSS pixels.
+ */
+function lengthPx(value: string, unit: string): number {
+  return unit.toLowerCase() === 'rem' ? Number(value) * ROOT_FONT_PX : Number(value)
+}
+
+/**
+ * Declared width/height/min-width/min-height lengths in one rule body.
  * @param body - style-rule declarations.
- * @returns each captured pixel length, in source order.
+ * @returns each declared length in CSS pixels, in source order.
  */
 function declaredPxSizes(body: string): number[] {
   const sizes: number[] = []
-  PX_SIZE.lastIndex = 0
+  SIZE_DECL.lastIndex = 0
   let size: RegExpExecArray | null
-  while ((size = PX_SIZE.exec(body)) !== null) {
-    if (size[1] !== undefined) sizes.push(Number(size[1]))
+  while ((size = SIZE_DECL.exec(body)) !== null) {
+    if (size[1] !== undefined && size[2] !== undefined) sizes.push(lengthPx(size[1], size[2]))
   }
   return sizes
 }
 
 /**
- * Whether a style rule is an authored pointer target the 24px floor applies to.
+ * First absolute length in a declaration value, or `undefined`.
+ *
+ * A value the scan cannot resolve — `var(--x)`, a percentage, `em`, `auto` —
+ * returns `undefined` so the caller declines to bound the box rather than
+ * treating the missing part as zero.
+ * @param value - the declaration value as written.
+ * @returns the length in CSS pixels, or undefined.
+ */
+function firstLengthPx(value: string): number | undefined {
+  const match = new RegExp(LENGTH, 'i').exec(value.trim())
+  if (match?.[1] === undefined || match[2] === undefined) return undefined
+  return lengthPx(match[1], match[2])
+}
+
+/**
+ * Every absolute length in a shorthand value, in order, or `undefined` when any
+ * component is unresolvable.
+ * @param value - the shorthand value as written.
+ * @returns the lengths in CSS pixels, or undefined.
+ */
+function shorthandLengthsPx(value: string): number[] | undefined {
+  const parts = value.trim().split(/\s+/)
+  const lengths: number[] = []
+  for (const part of parts) {
+    if (/^0$/.test(part)) { lengths.push(0); continue }
+    const match = new RegExp(`^${LENGTH}$`, 'i').exec(part)
+    if (match?.[1] === undefined || match[2] === undefined) return undefined
+    lengths.push(lengthPx(match[1], match[2]))
+  }
+  return lengths.length === 0 ? undefined : lengths
+}
+
+/**
+ * Top plus bottom padding a rule declares, in CSS pixels.
+ * @param body - style-rule declarations.
+ * @returns the vertical padding, or undefined when any part is unresolvable.
+ */
+function verticalPaddingPx(body: string): number | undefined {
+  const top = PADDING_TOP.exec(body)?.[1]
+  const bottom = PADDING_BOTTOM.exec(body)?.[1]
+  if (top !== undefined && bottom !== undefined) {
+    const above = firstLengthPx(top)
+    const below = firstLengthPx(bottom)
+    return above === undefined || below === undefined ? undefined : above + below
+  }
+  const block = PADDING_BLOCK.exec(body)?.[1] ?? PADDING_SHORTHAND.exec(body)?.[1]
+  if (block === undefined) return undefined
+  const sides = shorthandLengthsPx(block)
+  if (sides === undefined) return undefined
+  // `padding` and `padding-block` both put the block-start value first and
+  // repeat it for block-end when only one value is given.
+  const above = sides[0]
+  if (above === undefined) return undefined
+  const below = sides.length >= 3 ? sides[2] : above
+  return below === undefined ? undefined : above + below
+}
+
+/**
+ * Top plus bottom border width a rule declares, in CSS pixels.
+ * @param body - style-rule declarations.
+ * @returns the vertical border width, or undefined when any part is unresolvable.
+ */
+function verticalBorderPx(body: string): number | undefined {
+  const top = BORDER_TOP_WIDTH.exec(body)?.[1]
+  const bottom = BORDER_BOTTOM_WIDTH.exec(body)?.[1]
+  if (top !== undefined || bottom !== undefined) {
+    const above = top === undefined ? 0 : firstLengthPx(top)
+    const below = bottom === undefined ? 0 : firstLengthPx(bottom)
+    return above === undefined || below === undefined ? undefined : above + below
+  }
+  const shorthand = BORDER_WIDTH.exec(body)?.[1] ?? BORDER_SHORTHAND.exec(body)?.[1]
+  if (shorthand === undefined) return 0
+  const width = firstLengthPx(shorthand)
+  // `border: 0` and `border: none` both remove the border.
+  if (width === undefined) return /(?:^|\s)(?:0|none)(?:\s|$)/.test(shorthand.trim()) ? 0 : undefined
+  return width * 2
+}
+
+/**
+ * Lower bound on a rule's border-box height when it declares no height.
+ *
+ * A control sized only by padding still has a floor: its content box is at
+ * least the declared `font-size` tall, because a line box is never shorter than
+ * the font size. Padding and border add to that. When every part resolves and
+ * the total is under the floor, the element cannot reach the floor vertically —
+ * so this reports only boxes that are certainly too short, never ones that
+ * merely might be.
+ * @param body - style-rule declarations.
+ * @returns the lower bound in CSS pixels, or undefined when it cannot be bounded.
+ */
+function paddedHeightFloorPx(body: string): number | undefined {
+  const font = FONT_SIZE_DECL.exec(body)
+  if (font?.[1] === undefined || font[2] === undefined) return undefined
+  const fontPx = lengthPx(font[1], font[2])
+  const padding = verticalPaddingPx(body)
+  if (padding === undefined) return undefined
+  const border = verticalBorderPx(body)
+  if (border === undefined) return undefined
+  return contentHeightPx(body, fontPx) + padding + border
+}
+
+/**
+ * Height of one line box, in CSS pixels.
+ *
+ * A declared `line-height` is the content height of a single-line control, and
+ * a unitless one multiplies the font size. Without one, the font size is the
+ * lower bound: no line box is shorter than its font size. A `line-height` this
+ * scan cannot resolve falls back to that same bound rather than to zero.
+ * @param body - style-rule declarations.
+ * @param fontPx - the rule's declared font size in CSS pixels.
+ * @returns the single-line content height in CSS pixels.
+ */
+function contentHeightPx(body: string, fontPx: number): number {
+  const declared = LINE_HEIGHT_DECL.exec(body)?.[1]?.trim()
+  if (declared === undefined) return fontPx
+  const absolute = new RegExp(`^${LENGTH}$`, 'i').exec(declared)
+  if (absolute?.[1] !== undefined && absolute[2] !== undefined) return lengthPx(absolute[1], absolute[2])
+  const ratio = /^\d+(?:\.\d+)?$/.exec(declared)
+  return ratio === null ? fontPx : Number(declared) * fontPx
+}
+
+/**
+ * Whether a selector's merged declarations make it an authored pointer target
+ * the 24px floor applies to.
  *
  * `button` / `[role=button]` / `.button` / `.iconButton` count even without
- * `cursor: pointer`. Any other rule counts when it sets `cursor: pointer`.
- * User-agent pseudo-elements, native `input`/`textarea`/`select`, and
- * `pointer-events: none` are not authored compact buttons.
- * @param selector - collapsed selector list from {@link cssRules}.
- * @param body - declarations for that rule.
- * @returns true when undersized geometry on this rule is a hit-target miss.
+ * `cursor: pointer`. Any other selector counts when it sets `cursor: pointer`.
+ * Native `input`/`textarea`/`select` and `pointer-events: none` are not
+ * authored compact buttons; user-agent pseudo-elements are dropped before the
+ * merge, so their geometry never reaches the element they decorate.
+ * @param selector - one compound selector, pseudo-classes already stripped.
+ * @param body - every declaration that selector carries across the sheet.
+ * @returns true when undersized geometry on this selector is a hit-target miss.
  */
 function isAuthoredPointerTarget(selector: string, body: string): boolean {
   if (POINTER_EVENTS_NONE.test(body)) return false
-  if (UA_PSEUDO_ELEMENT.test(selector)) return false
   if (NATIVE_FORM_CONTROL.test(selector)) return false
-  return NAMED_INTERACTIVE.test(selector) || CURSOR_POINTER.test(body)
+  return NAMED_INTERACTIVE.test(`,${selector}`) || CURSOR_POINTER.test(body)
+}
+
+/**
+ * Merge every rule's declarations onto the individual selectors it targets.
+ *
+ * A sheet routinely splits one control across rules: `.disclosure,
+ * .disclosureSpace { width: 14px; height: 18px }` sizes it and `.disclosure {
+ * cursor: pointer }` makes it a target. Read rule by rule neither half is a
+ * finding, so the geometry has to meet the `cursor` on the element they share.
+ * Pseudo-classes are stripped because `:hover` styles the same box; rules whose
+ * selector names a user-agent pseudo-element are skipped entirely, since their
+ * geometry belongs to the decoration rather than to the control.
+ * @param rules - the sheet's style rules.
+ * @returns declarations keyed by compound selector, in first-seen order.
+ */
+export function mergeSelectorDeclarations(rules: readonly { selector: string; body: string }[]): Map<string, string> {
+  const merged = new Map<string, string>()
+  for (const rule of rules) {
+    for (const part of rule.selector.split(',')) {
+      const compound = part.trim()
+      if (compound === '' || UA_PSEUDO_ELEMENT.test(compound)) continue
+      const key = compound.replace(TRAILING_PSEUDO_CLASS, '').trim()
+      if (key === '') continue
+      merged.set(key, `${merged.get(key) ?? ''};${rule.body}`)
+    }
+  }
+  return merged
 }
 
 /**
@@ -307,14 +489,26 @@ export function scanUiSsot(files: readonly { file: string; content: string }[]):
     }
 
     if (path.endsWith('.css')) {
-      for (const rule of cssRules(css)) {
-        if (!isAuthoredPointerTarget(rule.selector, rule.body)) continue
-        const sizes = declaredPxSizes(rule.body)
+      for (const [selector, body] of mergeSelectorDeclarations(cssRules(css))) {
+        if (!isAuthoredPointerTarget(selector, body)) continue
+        const sizes = declaredPxSizes(body)
         if (sizes.some(px => px < HIT_TARGET_MIN_PX)) {
           findings.push({
             file: path,
             kind: 'hit-target',
-            detail: `interactive geometry ${sizes.join('x')}px is below WCAG 2.5.8 ${HIT_TARGET_MIN_PX}px`,
+            detail: `${selector} geometry ${sizes.join('x')}px is below WCAG 2.5.8 ${HIT_TARGET_MIN_PX}px`,
+          })
+          continue
+        }
+        // A control the sheet never sizes still has a floor its padding,
+        // border, and font size put on it; only report one it cannot clear.
+        if (sizes.length > 0) continue
+        const floor = paddedHeightFloorPx(body)
+        if (floor !== undefined && floor < HIT_TARGET_MIN_PX) {
+          findings.push({
+            file: path,
+            kind: 'hit-target',
+            detail: `${selector} is at most ${floor}px tall (font size plus padding and border) with no height declared, below WCAG 2.5.8 ${HIT_TARGET_MIN_PX}px`,
           })
         }
       }

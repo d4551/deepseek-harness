@@ -154,6 +154,9 @@
 }
 
 .older button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
   border: none;
   border-radius: 14px;
   padding: 4px 12px;

@@ -53,6 +53,9 @@
 }
 
 .reset {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
   border: none;
   background: none;
   padding: 0;

@@ -332,6 +332,9 @@
 }
 
 .retry {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
   margin-left: 8px;
   padding: 1px 8px;
   border: 1px solid currentColor;

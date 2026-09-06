@@ -158,6 +158,109 @@ describe('injected SSOT violations', () => {
     ).toBe(false)
   })
 
+  it('resolves rem sizes against the root font size', () => {
+    // No sheet under packages/client sets a root font size, so `rem` is 16px.
+    // A px-only scan walked a 2.25rem x 1.25rem toggle straight through.
+    const scan = (content: string): boolean => scanUiSsot([
+      THEME,
+      FRAME,
+      { file: 'packages/client/ui-primitives/src/Tiny.module.css', content },
+    ]).some(finding => finding.kind === 'hit-target')
+    expect(scan('.switch { cursor: pointer; width: 2.25rem; height: 1.25rem; }\n'), '36x20 rem').toBe(true)
+    expect(scan('.switch { cursor: pointer; width: 2.25rem; height: 1.5rem; }\n'), '36x24 rem').toBe(false)
+    expect(scan('.chip { cursor: pointer; height: 23.5px; }\n'), 'fractional px').toBe(true)
+    expect(scan('.chip { cursor: pointer; height: 1.4375rem; }\n'), 'fractional rem').toBe(true)
+    // `em` resolves against the element's own inherited font size, which a
+    // stylesheet scan cannot know; reporting it would state a size that is not
+    // the page's.
+    expect(scan('.chip { cursor: pointer; height: 1em; }\n'), 'em declines').toBe(false)
+  })
+
+  it('meets a size declared in one rule with the cursor declared in another', () => {
+    const scan = (content: string): boolean => scanUiSsot([
+      THEME,
+      FRAME,
+      { file: 'packages/client/ui-primitives/src/Tiny.module.css', content },
+    ]).some(finding => finding.kind === 'hit-target')
+    const split = '.disclosure, .disclosureSpace { width: 14px; height: 18px; }\n.disclosure { cursor: pointer; }\n'
+    expect(scan(split), 'size and cursor in sibling rules').toBe(true)
+    expect(
+      scan('.disclosure, .disclosureSpace { width: 24px; height: 24px; }\n.disclosure { cursor: pointer; }\n'),
+      'both at the floor',
+    ).toBe(false)
+    // A pseudo-class styles the same box, so its declarations merge.
+    expect(scan('.chip:hover { width: 16px; }\n.chip { cursor: pointer; }\n'), 'pseudo-class merges').toBe(true)
+    // A user-agent pseudo-element is a decoration, not the control; its
+    // geometry must not be attributed to the element it decorates.
+    expect(
+      scan('.search::-webkit-search-cancel-button { width: 12px; }\n.search { cursor: pointer; }\n'),
+      'UA pseudo-element stays out of the merge',
+    ).toBe(false)
+    // The sibling selector that never takes the cursor is not itself a target.
+    expect(scan('.a, .b { width: 14px; }\n.a { cursor: pointer; }\n'), 'only the cursor half reports').toBe(true)
+    expect(scan('.a, .b { width: 14px; }\n.c { cursor: pointer; }\n'), 'unrelated cursor').toBe(false)
+  })
+
+  it('fails a control whose padding, border and line box cannot reach the floor', () => {
+    const scan = (content: string): boolean => scanUiSsot([
+      THEME,
+      FRAME,
+      { file: 'packages/client/ui-primitives/src/Tiny.module.css', content },
+    ]).some(finding => finding.kind === 'hit-target')
+    expect(
+      scan('.retry { cursor: pointer; padding: 1px 8px; border: 1px solid currentColor; font-size: 12px; }\n'),
+      '12 + 2 + 2 = 16',
+    ).toBe(true)
+    expect(
+      scan('.retry { cursor: pointer; padding: 4px 8px; border: 1px solid currentColor; font-size: 14px; }\n'),
+      '14 + 8 + 2 = 24',
+    ).toBe(false)
+    expect(
+      scan('.crumb { cursor: pointer; padding: 2px 6px; font-size: 12px; line-height: 18px; }\n'),
+      'line-height 18 + 4 = 22',
+    ).toBe(true)
+    expect(
+      scan('.crumb { cursor: pointer; padding: 3px 6px; font-size: 12px; line-height: 18px; }\n'),
+      'line-height 18 + 6 = 24',
+    ).toBe(false)
+    expect(
+      scan('.crumb { cursor: pointer; padding: 0; font-size: 12px; line-height: 1.5; }\n'),
+      'unitless line-height 1.5 x 12 = 18',
+    ).toBe(true)
+    expect(
+      scan('.b { cursor: pointer; padding-top: 4px; padding-bottom: 4px; font-size: 12px; }\n'),
+      'longhand padding 12 + 8 = 20',
+    ).toBe(true)
+    // A declared height answers the floor on its own; the padding bound is only
+    // for controls the sheet never sizes.
+    expect(
+      scan('.b { cursor: pointer; min-height: 24px; padding: 0; font-size: 12px; }\n'),
+      'declared min-height wins',
+    ).toBe(false)
+    // Parts the scan cannot resolve mean it declines to bound the box rather
+    // than reading the missing part as zero.
+    expect(
+      scan('.b { cursor: pointer; padding: var(--pad); font-size: 12px; }\n'),
+      'var padding declines',
+    ).toBe(false)
+    expect(
+      scan('.b { cursor: pointer; padding: 4%; font-size: 12px; }\n'),
+      'percentage padding declines',
+    ).toBe(false)
+    expect(
+      scan('.b { cursor: pointer; padding: 2px; border: var(--edge); font-size: 12px; }\n'),
+      'var border declines',
+    ).toBe(false)
+    expect(
+      scan('.b { cursor: pointer; padding: 2px; font: inherit; }\n'),
+      'no font-size declines',
+    ).toBe(false)
+    expect(
+      scan('.b { cursor: pointer; padding: 2px; border: none; font-size: 12px; }\n'),
+      'border none counts as zero',
+    ).toBe(true)
+  })
+
   it('fails an infinite animation no reduced-motion rule actually stops', () => {
     const spinning = '.s { animation: spin 0.8s linear infinite; }'
     const guard = '@media (prefers-reduced-motion: reduce) { .s { animation: none; } }'

@@ -354,6 +354,7 @@
 .customizedSummary {
   display: flex;
   align-items: center;
+  min-height: 24px;
   gap: 6px;
   width: fit-content;
   padding: 2px 4px;

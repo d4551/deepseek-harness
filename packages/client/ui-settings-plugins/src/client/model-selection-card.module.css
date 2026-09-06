@@ -21,9 +21,11 @@
 .switch {
   box-sizing: border-box;
   position: relative;
+  display: flex;
+  align-items: center;
   flex: 0 0 auto;
   width: 2.25rem;
-  height: 1.25rem;
+  height: 1.5rem;
   padding: 2px;
   border: 0;
   border-radius: 10px;
@@ -47,15 +49,17 @@
 
 .thumb {
   display: block;
-  width: 1rem;
-  height: 1rem;
+  width: 1.25rem;
+  height: 1.25rem;
   border-radius: 50%;
   background: var(--dsw-alias-label-primary-foreground);
   transition: transform 120ms ease;
 }
 
 .switchOn .thumb {
-  transform: translateX(1rem);
+  /* Track content box is 2.25rem minus the 2px padding either side; the thumb
+     travels that width less its own. */
+  transform: translateX(0.75rem);
 }
 
 .selection {
