@@ -53,8 +53,8 @@
   z-index: var(--dsw-z-raised);
   display: grid;
   place-items: center;
-  width: 18px;
-  height: 18px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   border: none;
   border-radius: 50%;

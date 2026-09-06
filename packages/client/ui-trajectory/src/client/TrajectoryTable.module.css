@@ -227,8 +227,8 @@
   z-index: var(--dsw-z-raised-5);
   top: -8px;
   left: calc(var(--request-boundary-base-left) + var(--request-boundary-offset, 0px));
-  width: 16px;
-  height: 16px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -237,8 +237,8 @@
 
 .requestBoundaryControl::before {
   position: absolute;
-  top: 5.5px;
-  left: 5.5px;
+  top: 9.5px;
+  left: 9.5px;
   width: 5px;
   height: 5px;
   border-radius: 50%;
@@ -254,8 +254,8 @@
 
 .requestBoundaryControl::after {
   position: absolute;
-  top: 2px;
-  left: 17px;
+  top: 6px;
+  left: 25px;
   width: max-content;
   padding: 0 4px;
   border: 1px solid var(--dsw-alias-border-l1);
@@ -1350,13 +1350,13 @@
   display: flex;
   align-items: center;
   width: max-content;
-  height: 18px;
+  height: 24px;
   padding: 0;
   border: 0;
   color: var(--dsw-alias-label-tertiary);
   background: transparent;
   cursor: pointer;
-  font: 600 12px/18px var(--dsw-font-family);
+  font: 600 12px/24px var(--dsw-font-family);
   gap: 2px;
   user-select: none;
 }
@@ -1573,7 +1573,7 @@
   box-sizing: border-box;
   width: calc(100% + 4px);
   min-width: 0;
-  height: 19px;
+  height: 24px;
   align-items: center;
   margin-left: -4px;
   padding: 0 4px;

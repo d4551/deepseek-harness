@@ -67,9 +67,9 @@
   position: relative;
   box-sizing: border-box;
   min-width: 100%;
-  min-height: 16px;
+  min-height: 24px;
   margin: 0;
-  padding: 0 0 0 10px;
+  padding: 0 0 0 24px;
   list-style: none;
 }
 
@@ -81,7 +81,7 @@
   top: 0;
   right: 0;
   left: 0;
-  height: 16px;
+  height: 24px;
   background: var(--json-tree-hover);
   content: '';
   pointer-events: none;
@@ -145,8 +145,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 16px;
+  width: 24px;
+  height: 24px;
   margin: 0;
   padding: 0;
   border: 0;
@@ -178,10 +178,10 @@
   left: 0;
   display: inline-flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   box-sizing: border-box;
-  width: 8px;
-  height: 16px;
+  width: 24px;
+  height: 24px;
   margin: 0;
   color: var(--json-tree-icon);
   cursor: pointer;

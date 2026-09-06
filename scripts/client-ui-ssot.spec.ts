@@ -135,10 +135,27 @@ describe('injected SSOT violations', () => {
       { file: 'packages/client/ui-primitives/src/Tiny.module.css', content },
     ]).some(finding => finding.kind === 'hit-target')
     expect(scan('.button { width: 16px; }\n'), 'width only').toBe(true)
+    expect(scan('button { width: 16px; }\n'), 'element width only').toBe(true)
     expect(scan('.button { height: 16px; }\n'), 'height only').toBe(true)
-    expect(scan('.button { width: 16px; height: 48px; }\n'), 'one axis below 24').toBe(true)
+    expect(scan('.button { width: 16px; height: 24px; }\n'), '16x24').toBe(true)
+    expect(scan('.button { width: 24px; height: 16px; }\n'), '24x16').toBe(true)
     expect(scan('.iconButton { min-width: 16px; }\n'), 'iconButton min-width').toBe(true)
     expect(scan('.button { min-width: 24px; min-height: 24px; }\n'), 'floor').toBe(false)
+    expect(scan('.chip { cursor: pointer; width: 16px; height: 12px; }\n'), 'cursor:pointer both').toBe(true)
+    expect(scan('.chip { cursor: pointer; width: 16px; }\n'), 'cursor:pointer width only').toBe(true)
+    expect(scan('.chip { cursor: pointer; height: 20px; }\n'), 'cursor:pointer height only').toBe(true)
+    expect(scan('.chip { width: 16px; height: 12px; }\n'), 'no cursor, unnamed').toBe(false)
+    expect(scan('.chip { cursor: pointer; min-width: 24px; min-height: 24px; }\n'), 'cursor at floor').toBe(false)
+    expect(scan('input { cursor: pointer; width: 16px; height: 16px; }\n'), 'native input').toBe(false)
+    expect(scan('.ack input { cursor: pointer; width: 16px; height: 16px; }\n'), 'native input descendant').toBe(false)
+    expect(
+      scan('.search::-webkit-search-cancel-button { cursor: pointer; width: 12px; height: 12px; }\n'),
+      'UA pseudo',
+    ).toBe(false)
+    expect(
+      scan('.mark { width: 20px; cursor: pointer; pointer-events: none; }\n'),
+      'pointer-events none',
+    ).toBe(false)
   })
 
   it('fails an infinite animation no reduced-motion rule actually stops', () => {

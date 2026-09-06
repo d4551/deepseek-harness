@@ -14,6 +14,8 @@ import css from './JsonTree.module.css'
 const OBJECT_PREVIEW_LIMIT = 4
 const ARRAY_PREVIEW_LIMIT = 5
 const PREVIEW_DEPTH_LIMIT = 2
+/** Inset from the tree's right edge so the 24px copy control stays inside the root. */
+const COPY_BUTTON_INSET_PX = 30
 
 /**
  * Display copy for the tree's copy affordance; the owner passes localized
@@ -438,7 +440,7 @@ export function JsonTree({
     const rootRect = root.getBoundingClientRect()
     const rowRect = row.getBoundingClientRect()
     return {
-      left: rootRect.left + root.clientWidth - 26,
+      left: rootRect.left + root.clientWidth - COPY_BUTTON_INSET_PX,
       side: rowRect.top - rootRect.top > root.clientHeight / 2 ? 'top' : 'bottom',
       top: rowRect.top,
     }

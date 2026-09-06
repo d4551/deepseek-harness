@@ -105,8 +105,48 @@ const TSX_COLOR_ATTR = new RegExp(
 const MARKUP_TAG = /<\s*([a-z][a-z0-9:-]*)\b([^>]*)>/gi
 const SCRIPT_IS_MODULE = /\btype\s*=\s*['"]module['"]/i
 const ON_HANDLER = /\son(?:click|load|error|submit)\s*=/i
-const INTERACTIVE = /(?:^|,)\s*(?:button|\[role=['"]button['"]\]|\.button|\.iconButton)[^{]*\{([^}]*)\}/gi
+const NAMED_INTERACTIVE = /(?:^|,)\s*(?:button|\[role=['"]button['"]\]|\.button|\.iconButton)/i
+const CURSOR_POINTER = /cursor\s*:\s*pointer\b/i
+const POINTER_EVENTS_NONE = /pointer-events\s*:\s*none\b/i
+const NATIVE_FORM_CONTROL = /(?:^|[\s>+~,(])(?:input|textarea|select)(?:$|[\s.:#[,>+~])/i
+const UA_PSEUDO_ELEMENT = /::[\w-]/
 const PX_SIZE = /(?:^|[^\w-])(?:min-)?(?:width|height)\s*:\s*(\d+)px/gi
+/** WCAG 2.5.8 Target Size (Minimum): 24 CSS pixels on each authored pointer target. */
+const HIT_TARGET_MIN_PX = 24
+
+/**
+ * Pixel width/height/min-width/min-height declarations in one rule body.
+ * @param body - style-rule declarations.
+ * @returns each captured pixel length, in source order.
+ */
+function declaredPxSizes(body: string): number[] {
+  const sizes: number[] = []
+  PX_SIZE.lastIndex = 0
+  let size: RegExpExecArray | null
+  while ((size = PX_SIZE.exec(body)) !== null) {
+    if (size[1] !== undefined) sizes.push(Number(size[1]))
+  }
+  return sizes
+}
+
+/**
+ * Whether a style rule is an authored pointer target the 24px floor applies to.
+ *
+ * `button` / `[role=button]` / `.button` / `.iconButton` count even without
+ * `cursor: pointer`. Any other rule counts when it sets `cursor: pointer`.
+ * User-agent pseudo-elements, native `input`/`textarea`/`select`, and
+ * `pointer-events: none` are not authored compact buttons.
+ * @param selector - collapsed selector list from {@link cssRules}.
+ * @param body - declarations for that rule.
+ * @returns true when undersized geometry on this rule is a hit-target miss.
+ */
+function isAuthoredPointerTarget(selector: string, body: string): boolean {
+  if (POINTER_EVENTS_NONE.test(body)) return false
+  if (UA_PSEUDO_ELEMENT.test(selector)) return false
+  if (NATIVE_FORM_CONTROL.test(selector)) return false
+  return NAMED_INTERACTIVE.test(selector) || CURSOR_POINTER.test(body)
+}
+
 /**
  * One Tailwind-like utility token. A single `flex` in a CSS Module class name
  * is not a stack; three or more space-separated tokens in one quoted string is.
@@ -267,21 +307,14 @@ export function scanUiSsot(files: readonly { file: string; content: string }[]):
     }
 
     if (path.endsWith('.css')) {
-      INTERACTIVE.lastIndex = 0
-      let block: RegExpExecArray | null
-      while ((block = INTERACTIVE.exec(css)) !== null) {
-        const body = block[1] ?? ''
-        const sizes: number[] = []
-        PX_SIZE.lastIndex = 0
-        let size: RegExpExecArray | null
-        while ((size = PX_SIZE.exec(body)) !== null) {
-          if (size[1] !== undefined) sizes.push(Number(size[1]))
-        }
-        if (sizes.some(px => px < 24)) {
+      for (const rule of cssRules(css)) {
+        if (!isAuthoredPointerTarget(rule.selector, rule.body)) continue
+        const sizes = declaredPxSizes(rule.body)
+        if (sizes.some(px => px < HIT_TARGET_MIN_PX)) {
           findings.push({
             file: path,
             kind: 'hit-target',
-            detail: `interactive geometry ${sizes.join('x')}px is below WCAG 2.5.8 24px`,
+            detail: `interactive geometry ${sizes.join('x')}px is below WCAG 2.5.8 ${HIT_TARGET_MIN_PX}px`,
           })
         }
       }
