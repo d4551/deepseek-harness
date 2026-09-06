@@ -11,6 +11,7 @@ import { resolve } from 'node:path'
 import { forbiddenStackHits } from './live-stack-floors.ts'
 import { uniqueRepoFiles } from './repo-files.ts'
 import {
+  type CssRule,
   cssRules, declaresInfiniteAnimation, selectorParts, stopsAnimation, stopsTransition, stripCssComments,
 } from './ui-ssot-css.ts'
 
@@ -173,6 +174,21 @@ function statesLiteralDuration(layer: string): boolean {
   if (literal === null) return false
   const token = MOTION_TOKEN.exec(layer)
   return token === null || literal.index < token.index
+}
+
+/**
+ * Selectors of one rule that no later reduced-motion guard answers.
+ *
+ * A guard says nothing about a selector it does not name, and one the animated
+ * rule overrides is dead in the cascade, so only a guard appearing after the
+ * rule and naming that selector — or `*` — counts.
+ * @param rule - the rule declaring motion.
+ * @param guards - reduced-motion rules in the same sheet that stop motion.
+ * @returns each selector left unanswered, in source order.
+ */
+function unansweredSelectors(rule: CssRule, guards: readonly CssRule[]): string[] {
+  return selectorParts(rule.selector).filter(part => !guards.some(guard => guard.start > rule.start
+    && selectorParts(guard.selector).some(target => target === part || target === '*')))
 }
 
 /** A rule that only turns the user-agent focus ring off. */
@@ -626,10 +642,7 @@ export function scanUiSsot(files: readonly { file: string; content: string }[]):
     const guards = rules.filter(rule => rule.reduced && !rule.conditional && stopsAnimation(rule.body))
     for (const rule of rules) {
       if (rule.reduced || !declaresInfiniteAnimation(rule.body)) continue
-      for (const part of selectorParts(rule.selector)) {
-        const answered = guards.some(guard => guard.start > rule.start
-          && selectorParts(guard.selector).some(target => target === part || target === '*'))
-        if (answered) continue
+      for (const part of unansweredSelectors(rule, guards)) {
         findings.push({
           file: path,
           kind: 'reduced-motion',
@@ -685,10 +698,7 @@ export function scanUiSsot(files: readonly { file: string; content: string }[]):
         // would make one selector read as two problems.
         if (property === 'animation' && declaresInfiniteAnimation(rule.body)) continue
         if (!motionLayers(value).some(statesLiteralDuration)) continue
-        for (const part of selectorParts(rule.selector)) {
-          const answered = guards.some(guard => guard.start > rule.start
-            && selectorParts(guard.selector).some(target => target === part || target === '*'))
-          if (answered) continue
+        for (const part of unansweredSelectors(rule, guards)) {
           findings.push({
             file: path,
             kind: 'reduced-motion',

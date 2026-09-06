@@ -367,15 +367,6 @@ const reference = [
   // Projected links intentionally resolve to its GitHub source instead of a public site route.
   ...pairedPages(([
     ['docs/architecture.md', 'reference/index.md', '架构', 'Architecture', 0],
-  ] as const).map(([source, route, rootLabel, enLabel, order]): PairedPage => ({
-    source,
-    route,
-    label: { root: rootLabel, en: enLabel },
-    sidebar: { root: 'zh-reference', en: 'en-reference' },
-    section: { root: '概念', en: 'Concepts' },
-    order,
-  }))),
-  ...pairedPages(([
     ['docs/capability-seams.md', 'reference/capability-seams.md', '能力服务', 'Capability services', 2],
     ['docs/agent-lifecycle.md', 'reference/agent-lifecycle.md', 'Agent 生命周期', 'Agent lifecycle', 3],
     ['docs/tool-execution-pipeline.md', 'reference/tool-execution-pipeline.md', 'Tool 执行', 'Tool execution', 4],

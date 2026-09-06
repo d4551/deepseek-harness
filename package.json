@@ -32,7 +32,7 @@
     "lint:contracts-ready": "tsx scripts/run-oxlint.ts .",
     "lint:fix": "bun run build:lib:host && bun run lint:fix:contracts-ready",
     "lint:fix:contracts-ready": "tsx scripts/run-oxlint.ts --config .oxlintrc.staged.json packages/typert/generator/tests/fixtures/type-model --fix && tsx scripts/run-oxlint.ts . --fix",
-    "duplication": "jscpd --config .jscpd.json packages scripts",
+    "duplication": "jscpd --config .jscpd.json packages scripts apps website",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:coverage:partitioned": "tsx scripts/run-coverage-partitions.ts",
