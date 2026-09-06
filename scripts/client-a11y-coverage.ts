@@ -39,7 +39,7 @@ function uiPackagesWithTsx(): string[] {
  * @param source - spec text.
  * @returns comment-free text.
  */
-export function stripSpecComments(source: string): string {
+function stripSpecComments(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:'"])\/\/[^\n]*/g, '$1')
 }
 

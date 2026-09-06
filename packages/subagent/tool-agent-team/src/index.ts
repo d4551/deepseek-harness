@@ -58,13 +58,13 @@ The Team Lead and all teammates share the same working directory and filesystem.
 
 As the Lead, decompose first and spawn second. Create one task per independently completable unit of work with team_task_create: a self-contained description that a member with no other context can execute, the write scopes it will modify, and blocked_by for anything it must wait on. Then spawn one teammate per stream of concurrent work and tell each to claim from the board. Do not name a specific task in a teammate's prompt; the board decides who gets what.
 
-As a teammate, call team_task_claim_next to take work. It either hands you the task you now own or reports that there is nothing to take: no-ready-task means every task is completed, owned, or still blocked, and write-scope-conflict means the remaining ready tasks would write where another member is already writing, and lists them. Neither is a failure. When nothing is available, use wait_agent and then claim again. Perform the claimed work, complete it with team_task_update, and immediately claim the next one. Release a task you cannot finish so another member can take it.
+As a teammate, call team_task_claim_next to take work. It either hands you the task you now own or reports that there is nothing to take, and the reason says what to do next. no-ready-task means every remaining pending task is blocked by work still in progress, and write-scope-conflict means the remaining ready tasks would write where another member is already writing and lists them: in both cases use wait_agent, then claim again. no-pending-task means no pending task remains, every task is completed or owned by another member, and nothing becomes claimable until the Lead creates a task or an owner releases one: end your turn with a short report of what you completed instead of waiting. No none result is a failure. Perform the claimed work, complete it with team_task_update, and immediately claim the next one. Release a task you cannot finish so another member can take it.
 
 team_task_claim_next never returns a task another member owns and never gives the same task to two members, so every member may claim whenever it is free.
 
 Prefer read/edit/write for file changes. If a file operation returns FS_STALE_VERSION, read the current file, rebase your intended change onto the new content, and retry. Bash, formatters, code generators, and scripts are not fully protected by the filesystem version guard; keep them inside your claimed task's write scopes and have the Lead review the final diff and run tests.
 
-Use send_message for quiet information that must not start an idle teammate. Use followup_task when the target should run another turn. A delivered peer item starts with its stable message id and sender name. A successful send is already durable even when its result says queued; do not resend it. Before wait_agent, use list_agents and make sure another required member is running or provisioning; use followup_task first when the required member is inactive. wait_agent observes only changes after that call starts, never wakes a member, and returns noProgress immediately when no other member can produce a change. Re-list after wakeup or timeout. The Lead collects: keep waiting and re-listing until every task is completed, then give the final answer.`
+Use send_message for quiet information that must not start an idle teammate. Use followup_task when the target should run another turn. A delivered peer item starts with its stable message id and sender name. A successful send is already durable even when its result says queued; do not resend it. Before wait_agent, use list_agents and make sure another required member is running or provisioning; use followup_task first when the required member is inactive. wait_agent observes only changes after that call starts, never wakes a member, and returns noProgress immediately when no other member can produce a change. Re-list after wakeup or timeout. The Lead collects: keep waiting and re-listing until every task is completed, then give the final answer. A teammate ends its turn once no pending task remains, so wake it with followup_task when you create more tasks afterwards, and release or reassign a task whose owner is inactive, because it will not complete on its own.`
 
 /**
  * Select the guidance one deployment's members receive.
@@ -191,7 +191,7 @@ const CLAIM_NEXT_VALUE_SCHEMA = {
       additionalProperties: false,
       properties: {
         outcome: { type: 'string', required: true, const: 'none' },
-        reason: { type: 'string', required: true, enum: ['no-ready-task', 'write-scope-conflict'] },
+        reason: { type: 'string', required: true, enum: ['no-pending-task', 'no-ready-task', 'write-scope-conflict'] },
         deferred: { type: 'array', required: true, items: { type: 'string' } },
       },
     },
@@ -430,7 +430,7 @@ function install(agent: Agent, ctx: Context, config: Required<Config>): () => vo
 
     register(scoped.tools.register(defineTool({
       name: 'team_task_claim_next',
-      description: 'Take ownership of the next ready task on the shared board: the first unblocked pending task whose write scopes no in-progress task is already writing. Returns outcome claimed with the task you now own, or outcome none with reason no-ready-task when nothing is unblocked and write-scope-conflict, plus the deferred task ids, when the ready work would collide. Neither none result is a failure. Two members can never claim the same task.',
+      description: 'Take ownership of the next ready task on the shared board: the first unblocked pending task whose write scopes no in-progress task is already writing. Returns outcome claimed with the task you now own, or outcome none with a reason: no-pending-task when no pending task remains, so nothing becomes claimable until a task is created, released, or reopened; no-ready-task when every pending task is blocked by work still in progress; write-scope-conflict, plus the deferred task ids, when the ready work would write where work in progress already writes. No none result is a failure. Two members can never claim the same task.',
       parameters: {},
       output: jsonOutput(CLAIM_NEXT_VALUE_SCHEMA),
       async execute(_args, exec) {

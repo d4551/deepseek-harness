@@ -94,7 +94,7 @@ dsh plugin --profile <name> add @deepseek-ai/dsh-swarm-profile
 
 #### 模型看到什么
 
-策略文本与工具 schema 属于 [`@deepseek-ai/dsh-tool-agent-team`](../../subagent/tool-agent-team/README.zh.md)。本 bundle 选择 swarm 策略：Lead 被要求先拆成带写作用域的任务再创建队友；每个成员被要求用 `team_task_claim_next` 领取工作，并把 `none` 结果读作普通的任务板状态而不是失败。Team 作用域的 `list_agents`、`send_message` 与 `interrupt_agent` 取代被禁用的全局可续子 Agent 控制。
+策略文本与工具 schema 属于 [`@deepseek-ai/dsh-tool-agent-team`](../../subagent/tool-agent-team/README.zh.md)。本 bundle 选择 swarm 策略：Lead 被要求先拆成带写作用域的任务再创建队友；每个成员被要求用 `team_task_claim_next` 领取工作，把 `none` 结果读作普通的任务板状态而不是失败，并在任务板不再有 pending 任务时结束本轮。Team 作用域的 `list_agents`、`send_message` 与 `interrupt_agent` 取代被禁用的全局可续子 Agent 控制。
 
 #### Token 影响
 

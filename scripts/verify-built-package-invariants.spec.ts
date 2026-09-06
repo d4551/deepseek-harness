@@ -1,8 +1,8 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { afterEach, describe, expect, it } from 'vitest'
 
 const verifier = fileURLToPath(new URL('./verify-built-package-invariants.mjs', import.meta.url))
@@ -54,6 +54,20 @@ function verify(root: string, loaderUrl: string) {
   })
 }
 
+/** Wait for the predicate to hold, polling briefly, so a slow probe start fails the test instead of hanging it. */
+async function waitFor(predicate: () => boolean, deadlineMs = 5_000): Promise<void> {
+  const startedAt = Date.now()
+  while (!predicate()) {
+    if (Date.now() - startedAt > deadlineMs) throw new Error('condition not reached before the deadline')
+    await new Promise(resolve => setTimeout(resolve, 20))
+  }
+}
+
+/** The staged package views currently present under one fixture package. */
+function stagedViews(packageDir: string): string[] {
+  return readdirSync(packageDir).filter(entry => entry.startsWith('.dsh-built-invariant-'))
+}
+
 describe('built package invariant verifier', () => {
   it('loads the staged compiled self-reference through plain Node and Loader normalization', () => {
     const { root, loaderUrl } = fixture()
@@ -85,4 +99,49 @@ describe('built package invariant verifier', () => {
     expect(result.status).toBe(1)
     expect(result.stderr).toContain('chunk.js')
   })
+
+  it('removes the staged package view when a companion never settles', () => {
+    // Node ends the process with status 13 when the entry module's top-level
+    // await cannot settle, which skips the probe's own cleanup.
+    const { root, loaderUrl } = fixture({
+      invariantSource: "export const name = 'probe-invariant'\nexport const inject = ['invariants']\nexport const apply = () => {}\nawait new Promise(() => {})\n",
+    })
+    const result = verify(root, loaderUrl)
+    expect(result.status, result.stderr).toBe(13)
+    expect(stagedViews(join(root, 'packages', 'core', 'probe'))).toEqual([])
+  })
 })
+
+// POSIX delivers SIGTERM to the verifier's listener, which removes the staged
+// package view before termination resumes. Windows ends the process without
+// running signal listeners, so the suite declares the termination contract
+// only where the platform can honor it.
+if (process.platform !== 'win32') {
+  describe('built package invariant verifier termination', () => {
+    it('removes the staged package view when the run is terminated mid-probe', async () => {
+      // The companion holds the event loop open well past the test's deadline,
+      // so the verifier is still mid-probe when the signal arrives.
+      const { root, loaderUrl } = fixture({
+        invariantSource: "export const name = 'probe-invariant'\nexport const inject = ['invariants']\nexport const apply = () => {}\nawait new Promise(resolve => setTimeout(resolve, 60_000))\n",
+      })
+      const child = spawn(process.execPath, [
+        verifier,
+        '--packages-root', root,
+        '--loader-url', loaderUrl,
+      ], { stdio: 'ignore' })
+      const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve, reject) => {
+        child.once('error', reject)
+        child.once('exit', (code, signal) => { resolve({ code, signal }) })
+      })
+      const packageDir = join(root, 'packages', 'core', 'probe')
+      try {
+        await waitFor(() => stagedViews(packageDir).length > 0)
+        child.kill('SIGTERM')
+        expect(await exited).toEqual({ code: null, signal: 'SIGTERM' })
+        expect(stagedViews(packageDir)).toEqual([])
+      } finally {
+        child.kill('SIGKILL')
+      }
+    })
+  })
+}

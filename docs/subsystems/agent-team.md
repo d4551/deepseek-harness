@@ -92,7 +92,7 @@ type ClaimNextTeamTaskResult =
   }
 ```
 
-Neither `none` reason is a failure. `no-ready-task` means every task is completed, owned, or still blocked; `write-scope-conflict` means ready work exists but would write where another member is writing, and names it in `deferred` so the caller can wait for those tasks rather than poll blindly.
+No `none` reason is a failure, and each says whether waiting can help. `no-pending-task` means no pending task remains, so nothing becomes claimable until a task is created, released, or reopened, and a swarm teammate ends its turn on it; `no-ready-task` means every pending task is blocked by work still in progress; `write-scope-conflict` means ready work exists but would write where another member is writing, and names it in `deferred` so the caller can wait for those tasks rather than poll blindly.
 
 ## Replay
 
@@ -177,9 +177,10 @@ listTasks(caller: Agent): TeamTaskView[]
  * requires the exact live `Agent` this process holds, so a second process
  * running against the same session log is outside the exclusion.
  * @param caller - exact live Team member taking ownership.
- * @returns the claimed task, or the ordinary board state — no unblocked
- *   pending task, or every one of them writing where in-progress work does —
- *   that left nothing to take.
+ * @returns the claimed task, or the ordinary board state that left nothing
+ *   to take: no pending task at all, every pending task blocked by
+ *   in-progress work, or every unblocked one writing where in-progress work
+ *   does.
  */
 async claimNextReadyTask(caller: Agent): Promise<ClaimNextTeamTaskResult>
 

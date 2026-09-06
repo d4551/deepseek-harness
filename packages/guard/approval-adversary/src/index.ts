@@ -317,21 +317,32 @@ interface ParsedVerdict {
 }
 
 /**
- * Parse the exact two-line verdict protocol. Extra text, a missing reason, or
- * more than one verdict makes the review undecided rather than guessing which
- * model text is authoritative.
+ * The complete reply once blank lines are dropped and each line is trimmed:
+ * one verdict line, then one non-empty reason line, with Markdown emphasis
+ * tolerated around each label and around the verdict word. `.` never crosses
+ * the line break and the anchors bind both ends, so a third line, a second
+ * verdict, or text before the verdict leaves the whole reply unmatched.
+ */
+const EMPHASIS = '[*_`]*'
+const VERDICT_PROTOCOL = new RegExp(
+  `^${EMPHASIS}VERDICT${EMPHASIS}:${EMPHASIS}\\s*${EMPHASIS}(?<word>ALLOW|DENY)[*_\`.]*\\n`
+  + `${EMPHASIS}REASON${EMPHASIS}:${EMPHASIS}\\s*(?<detail>\\S(?:.*\\S)?)$`,
+  'i',
+)
+
+/**
+ * Parse the two-line verdict protocol. Blank lines and Markdown emphasis
+ * around the two labels are ignored; any other extra text, a missing reason,
+ * or more than one verdict makes the review undecided rather than guessing
+ * which model text is authoritative.
  * @param text - the review model's complete text output.
  * @returns the verdict, or undefined when the complete output does not match.
  */
 function parseVerdict(text: string): ParsedVerdict | undefined {
-  const lines = text.trim().split(/\r?\n/)
-  if (lines.length !== 2) return undefined
-  const [verdictLine, reasonLine] = lines
-  if (verdictLine === undefined || reasonLine === undefined) return undefined
-  const verdict = /^VERDICT:\s*(ALLOW|DENY)$/i.exec(verdictLine.trim())
-  const reason = /^REASON:\s*(\S(?:.*\S)?)$/i.exec(reasonLine.trim())
-  const word = verdict?.[1]
-  const detail = reason?.[1]
+  const reply = text.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0).join('\n')
+  const groups = VERDICT_PROTOCOL.exec(reply)?.groups
+  const word = groups?.word
+  const detail = groups?.detail
   if (word === undefined || detail === undefined) return undefined
   return {
     verdict: word.toUpperCase() === 'ALLOW' ? 'allowed' : 'denied',
@@ -401,6 +412,9 @@ async function review(
     source: { kind: 'plugin', plugin: APPROVAL_ADVERSARY_PLUGIN },
   })]
   using callDeadline = deadline(req.signal, settings.timeoutMs, APPROVAL_ADVERSARY_TIMEOUT_CODE)
+  // The verdict is one short fixed-format reply under a small output cap, so
+  // the call names its purpose and an adapter that can switch thinking off per
+  // request does so instead of spending the cap on reasoning.
   const options: GenerateOptions = deepFreeze({
     provider: route.provider,
     model: route.model,
@@ -408,6 +422,7 @@ async function review(
     system,
     maxTokens: settings.maxOutputTokens,
     sessionId: session.id,
+    purpose: 'approval-review',
     signal: callDeadline.signal,
   })
   const id = approvalId(session.events, req)

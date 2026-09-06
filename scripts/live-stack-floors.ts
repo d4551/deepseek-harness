@@ -43,7 +43,7 @@ export const TYPESCRIPT_FLOOR: SemVer = { major: 7, minor: 0, patch: 2 }
 /** React product pin. */
 export const REACT_FLOOR: SemVer = { major: 19, minor: 2, patch: 8 }
 /** react-dom product pin. */
-export const REACT_DOM_FLOOR: SemVer = { major: 19, minor: 2, patch: 8 }
+const REACT_DOM_FLOOR: SemVer = { major: 19, minor: 2, patch: 8 }
 /** @types/react product pin. */
 const TYPES_REACT_FLOOR: SemVer = { major: 19, minor: 2, patch: 18 }
 /** @types/react-dom product pin. */
@@ -77,7 +77,7 @@ const TYPES_NODE_FLOOR: SemVer = { major: 26, minor: 4, patch: 0 }
  * `tsx` pin. The `dsh` source launch runs through tsx's ESM-only hook, so this
  * is a named part of the source-launch contract rather than a test-only tool.
  */
-export const TSX_FLOOR: SemVer = { major: 4, minor: 23, patch: 13 }
+const TSX_FLOOR: SemVer = { major: 4, minor: 23, patch: 13 }
 /** `@testing-library/react` pin: every Client component suite renders through it. */
 const TESTING_LIBRARY_REACT_FLOOR: SemVer = { major: 16, minor: 3, patch: 3 }
 /** `execa` pin: the subprocess surface the CLI and loader smokes drive. */
@@ -91,7 +91,7 @@ const YAML_FLOOR: SemVer = { major: 2, minor: 9, patch: 0 }
 /** `fflate` pin: session-transcript compression. */
 const FFLATE_FLOOR: SemVer = { major: 0, minor: 8, patch: 3 }
 /** `playwright` pin: the browser the Web snapshot and e2e lanes drive. */
-export const PLAYWRIGHT_FLOOR: SemVer = { major: 1, minor: 62, patch: 1 }
+const PLAYWRIGHT_FLOOR: SemVer = { major: 1, minor: 62, patch: 1 }
 /** Exact bun pin the root `packageManager` field must carry. */
 export const BUN_FLOOR: SemVer = { major: 1, minor: 4, patch: 2 }
 /** `packageManager` spelling of {@link BUN_FLOOR}. */

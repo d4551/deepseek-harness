@@ -10,9 +10,9 @@ Status: implemented
 
 ## 决策
 
-`packages/guard/approval-adversary`（`@deepseek-ai/dsh-approval-adversary`）在评估器之后、每个面向用户的应答者之前监听 `approval/request`。启用期间它用一次辅助模型调用决定每个请求。评审者的固定指令要求它假定智能体可能正在规避、收窄或越出用户的指令，拒绝缺失、含糊、规避、破坏性、超出范围或削弱检查的操作，只允许直接且有理由的步骤；它以两行 `VERDICT:` / `REASON:` 协议作答。证据是一条 JSON 记录：最近一条人类 `user/message`、请求 `callId` 指向的 `tool/call` 及其原始参数，以及请求方的理由，每项都按 `maxExcerptChars` 截断。路由是配置的 `provider`/`model` 对，或智能体最近一次记录的 `request/header` 路由。
+`packages/guard/approval-adversary`（`@deepseek-ai/dsh-approval-adversary`）在评估器之后、每个面向用户的应答者之前监听 `approval/request`。启用期间它用一次辅助模型调用决定每个请求。评审者的固定指令要求它假定智能体可能正在规避、收窄或越出用户的指令，拒绝缺失、含糊、规避、破坏性、超出范围或削弱检查的操作，只允许直接且有理由的步骤；它以两行 `VERDICT:` / `REASON:` 协议作答。证据是一条 JSON 记录：最近一条人类 `user/message`、请求 `callId` 指向的 `tool/call` 及其原始参数，以及请求方的理由，每项都按 `maxExcerptChars` 截断。路由是配置的 `provider`/`model` 对，或智能体最近一次记录的 `request/header` 路由。该调用携带 `purpose: 'approval-review'`，DeepSeek 适配器会在关闭 thinking 的情况下执行它：其 `max_tokens` 同时约束推理与回答，因此推理预算会在回复开始之前耗尽 256 token 的裁决上限，使每次评审都成为未决。
 
-每次裁决都成为一条来源为 `plugin: approval-adversary` 的 `user/message`，其 `notice` 形态的摘要写明裁决：允许的请求告诉模型评审者的理由，拒绝的请求另加一条"不要改写理由重新提交"的指示并引用用户的指令。精确的评审请求在分发前作为仅记录日志的 `approval/adversary-request` 事件追加，因此模型可见的辅助调用可以从会话日志重建。未决评审——无论是超时、调用失败还是没有裁决行的回复——遵循 `fallback`：`delegate` 把请求交给下一个应答者，`reject` 以"无法决定"通知拒绝它。评审期间被撤回的问题以 `cancelled` 完成，不附带通知。
+每次裁决都成为一条来源为 `plugin: approval-adversary` 的 `user/message`，其 `notice` 形态的摘要写明裁决：允许的请求告诉模型评审者的理由，拒绝的请求另加一条"不要改写理由重新提交"的指示并引用用户的指令。精确的评审请求在分发前作为仅记录日志的 `approval/adversary-request` 事件追加，因此模型可见的辅助调用可以从会话日志重建。未决评审——无论是超时、调用失败，还是在忽略空行与标签周围的 Markdown 强调后仍不是两行协议的回复——遵循 `fallback`：`delegate` 把请求交给下一个应答者，`reject` 以"无法决定"通知拒绝它。评审期间被撤回的问题以 `cancelled` 完成，不附带通知。
 
 插件注册由用户持有、以组合值为初始值的设置章节，只设置一半的路由会在写入时被拒绝。`dsh-base` 以 `enabled: false` 挂载它；Web 应用的插件设置页在被服务的命名空间上渲染"对抗式审批评审"卡片，开启评审者是该卡片的职责。由于 Host 把 `provider` 与 `model` 作为一对校验，共享的插件卡片表单把所有暂存的章节字段提交为一次设置变更而不是逐字段写入，并按 JSON 值回读每个字段；该页面上的每张卡片都以此方式保存。`./invariant` 伴生件持有一条运行时关系：会话中的允许通知条数永不超过其 `allowed-once` 决定条数，拒绝与无法决定通知条数永不超过其 `rejected` 决定条数。
 

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write packages/preset/swarm-profile/README.md
-README.md: 4446487644aed04622c5512c681d06baa397fa94
-README.zh.md: e3a2f8facbed191deff5b86bfa78ce175fad8038
+README.md: 84af8fe3670417108fec8455155322e739ec2ccb
+README.zh.md: 4078111edf65070e1ec601646cb20c1abe46ed75

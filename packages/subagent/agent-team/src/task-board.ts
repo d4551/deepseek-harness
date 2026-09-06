@@ -116,7 +116,9 @@ export class TeamTaskBoard {
    * process; it is not a lock two processes could share.
    * @param caller - exact live Team member taking ownership.
    * @param membership - caller role and exact live Lead.
-   * @returns the claimed task, or the board state that left nothing to take.
+   * @returns the claimed task, or the board state that left nothing to take:
+   *   no pending task at all, every pending task blocked by in-progress work,
+   *   or every unblocked one deferred behind a write-scope collision.
    */
   async claimNextReady(
     caller: Agent,
@@ -126,8 +128,13 @@ export class TeamTaskBoard {
     return this.journal.transact(root.id, async () => {
       const state = this.journal.state(root)
       const deferred: TeamTaskId[] = []
+      let blocked = 0
       for (const candidate of state.tasks.values()) {
-        if (candidate.status !== 'pending' || !this.taskReady(state, candidate)) continue
+        if (candidate.status !== 'pending') continue
+        if (!this.taskReady(state, candidate)) {
+          blocked += 1
+          continue
+        }
         if (this.busyOverlaps(state, candidate).length > 0) {
           deferred.push(candidate.id)
           continue
@@ -143,7 +150,9 @@ export class TeamTaskBoard {
       }
       return {
         outcome: 'none',
-        reason: deferred.length === 0 ? 'no-ready-task' : 'write-scope-conflict',
+        reason: deferred.length > 0
+          ? 'write-scope-conflict'
+          : blocked > 0 ? 'no-ready-task' : 'no-pending-task',
         deferred,
       }
     })

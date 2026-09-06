@@ -92,7 +92,7 @@ type ClaimNextTeamTaskResult =
   }
 ```
 
-两种 `none` 原因都不是失败。`no-ready-task` 表示所有任务都已完成、已被拥有或仍被阻塞；`write-scope-conflict` 表示存在就绪的工作，但它会写到另一个成员正在写入的位置，并在 `deferred` 中列出这些任务，使调用方可以等待它们，而不是盲目轮询。
+任何 `none` 原因都不是失败，且每种原因都说明等待是否有用。`no-pending-task` 表示不再有 pending 任务，在有任务被创建、释放或重新打开之前不会有任何任务可认领，swarm 队友遇到它就结束本轮；`no-ready-task` 表示每个 pending 任务都被仍在进行中的工作阻塞；`write-scope-conflict` 表示存在就绪的工作，但它会写到另一个成员正在写入的位置，并在 `deferred` 中列出这些任务，使调用方可以等待它们，而不是盲目轮询。
 
 ## 回放
 
@@ -177,9 +177,10 @@ listTasks(caller: Agent): TeamTaskView[]
  * requires the exact live `Agent` this process holds, so a second process
  * running against the same session log is outside the exclusion.
  * @param caller - exact live Team member taking ownership.
- * @returns the claimed task, or the ordinary board state — no unblocked
- *   pending task, or every one of them writing where in-progress work does —
- *   that left nothing to take.
+ * @returns the claimed task, or the ordinary board state that left nothing
+ *   to take: no pending task at all, every pending task blocked by
+ *   in-progress work, or every unblocked one writing where in-progress work
+ *   does.
  */
 async claimNextReadyTask(caller: Agent): Promise<ClaimNextTeamTaskResult>
 

@@ -497,7 +497,7 @@ describe('dsh-tool-team', () => {
     const { ctx, lead } = await setup(['hang'])
     const empty = await execute(ctx, lead, 'team_task_claim_next', {})
     expect(empty.isError).toBe(false)
-    expect(JSON.parse(text(empty))).toEqual({ outcome: 'none', reason: 'no-ready-task', deferred: [] })
+    expect(JSON.parse(text(empty))).toEqual({ outcome: 'none', reason: 'no-pending-task', deferred: [] })
 
     await execute(ctx, lead, 'team_task_create', {
       subject: 'broad', description: 'writes the whole tree', write_scopes: ['src'],
@@ -538,6 +538,9 @@ describe('dsh-tool-team', () => {
     const prompt = renderPrompt(await assembly(ctx, lead))
     expect(prompt).toContain('This session runs as a swarm')
     expect(prompt).toContain('team_task_claim_next never returns a task another member owns')
+    // The pull loop has a stop rule: an exhausted board ends the teammate's turn.
+    expect(prompt).toContain('no-pending-task means no pending task remains')
+    expect(prompt).toContain('end your turn with a short report')
     expect(prompt).toContain('Your Team role is lead')
     expect(prompt).not.toContain('create teammates only when the user explicitly asks')
     // Both modes register the same tools; only the guidance changes.

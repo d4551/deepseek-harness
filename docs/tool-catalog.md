@@ -1883,7 +1883,7 @@ Source: [`packages/subagent/tool-agent-team/src/index.ts`](../packages/subagent/
 
 ### `team_task_claim_next`
 
-Take ownership of the next ready task on the shared board: the first unblocked pending task whose write scopes no in-progress task is already writing. Returns outcome claimed with the task you now own, or outcome none with reason no-ready-task when nothing is unblocked and write-scope-conflict, plus the deferred task ids, when the ready work would collide. Neither none result is a failure. Two members can never claim the same task.
+Take ownership of the next ready task on the shared board: the first unblocked pending task whose write scopes no in-progress task is already writing. Returns outcome claimed with the task you now own, or outcome none with a reason: no-pending-task when no pending task remains, so nothing becomes claimable until a task is created, released, or reopened; no-ready-task when every pending task is blocked by work still in progress; write-scope-conflict, plus the deferred task ids, when the ready work would write where work in progress already writes. No none result is a failure. Two members can never claim the same task.
 
 ```json
 {

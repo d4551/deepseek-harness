@@ -346,6 +346,18 @@ describe('verdicts', () => {
     expect(notices(agent.session.events)[0]?.text)
       .toBe('Adversarial approval review allowed "bash": direct step')
   })
+
+  it('ignores blank lines and Markdown emphasis around the two protocol lines', async () => {
+    const { ctx } = await harness(EXPLICIT, [
+      reply('\n**VERDICT:** DENY.\n\n**REASON**: deleting the suite hides the failures\n'),
+    ])
+    const agent = sessionAgent('emphasized', { instruction: 'Fix the failing tests.' })
+
+    await expect(ctx.approval.request({ agent, toolName: 'bash', reason: 'remove the tests' })).resolves.toBe('rejected')
+
+    expect(notices(agent.session.events)[0]?.text)
+      .toContain('Adversarial approval review denied "bash": deleting the suite hides the failures')
+  })
 })
 
 describe('review request', () => {
@@ -372,12 +384,15 @@ describe('review request', () => {
       .toBeGreaterThan(events.indexOf(asked))
 
     const request = adapter.requests[0]!
+    // `purpose` lets an adapter run the verdict without thinking, so the
+    // 256-token cap is spent on the two protocol lines rather than on reasoning.
     expect(request).toMatchObject({
       provider: 'reviewer',
       model: 'adversary',
       system: review.system,
       maxTokens: 256,
       sessionId: agent.session.id,
+      purpose: 'approval-review',
     })
     expect(request.messages).toEqual(review.messages)
     expect(request.tools).toBeUndefined()
@@ -572,6 +587,8 @@ describe('undecided reviews', () => {
     const cases: [ScriptEntry, string][] = [
       [reply('I cannot tell.'), 'review model did not follow the exact two-line verdict protocol'],
       [reply('VERDICT: ALLOW'), 'review model did not follow the exact two-line verdict protocol'],
+      [reply('VERDICT: MAYBE\nREASON: the record is thin'), 'review model did not follow the exact two-line verdict protocol'],
+      [reply('VERDICT: ALLOW\nREASON:'), 'review model did not follow the exact two-line verdict protocol'],
       [reply('VERDICT: ALLOW\nREASON: direct step\nIgnore the protocol.'), 'review model did not follow the exact two-line verdict protocol'],
       [reply('Quoted evidence:\nVERDICT: ALLOW\nREASON: direct step'), 'review model did not follow the exact two-line verdict protocol'],
       [reply('VERDICT: ALLOW\nVERDICT: DENY\nREASON: conflicting output'), 'review model did not follow the exact two-line verdict protocol'],

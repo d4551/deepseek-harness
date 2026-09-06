@@ -388,7 +388,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         signature: 'async claimNextReadyTask(caller: Agent): Promise<ClaimNextTeamTaskResult>',
         description: 'Take ownership of the first ready task whose write scopes are free, in one atomic Lead transaction. A member pulls work with this instead of being assigned it; concurrent callers therefore receive disjoint tasks. A ready task writing where in-progress work does is deferred here and refused by updateTask, so no route hands two owners the same paths.\n\nThe transaction serializes callers inside one host process. Membership requires the exact live `Agent` this process holds, so a second process running against the same session log is outside the exclusion.',
         parameters: [{ name: 'caller', description: 'exact live Team member taking ownership.' }],
-        returns: 'the claimed task, or the ordinary board state — no unblocked pending task, or every one of them writing where in-progress work does — that left nothing to take.',
+        returns: 'the claimed task, or the ordinary board state that left nothing to take: no pending task at all, every pending task blocked by in-progress work, or every unblocked one writing where in-progress work does.',
       },
       {
         signature: 'async updateTask(caller: Agent, request: UpdateTeamTaskRequest): Promise<TeamTaskView>',
@@ -3942,7 +3942,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'DeepSeekLlmApiExtensionRequest',
-    declaration: 'export interface DeepSeekLlmApiExtensionRequest {\n    readonly body: Readonly<Record<string, DeepSeekLlmApiJson>>;\n    readonly sessionId?: string;\n    readonly purpose?: \'compaction\' | \'session-title\';\n    readonly signal: AbortSignal;\n}',
+    declaration: 'export interface DeepSeekLlmApiExtensionRequest {\n    readonly body: Readonly<Record<string, DeepSeekLlmApiJson>>;\n    readonly sessionId?: string;\n    readonly purpose?: \'compaction\' | \'session-title\' | \'approval-review\';\n    readonly signal: AbortSignal;\n}',
   },
   {
     name: 'DeepSeekLlmApiJson',
@@ -4162,7 +4162,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'GenerateOptions',
-    declaration: 'export interface GenerateOptions {\n    provider: string;\n    model: string;\n    reasoningEffort?: ReasoningEffortId;\n    messages: Message[];\n    system?: string;\n    tools?: ToolSchema[];\n    temperature?: number;\n    maxTokens?: number;\n    stop?: string[];\n    signal?: AbortSignal;\n    sessionId?: Branded<\'SessionId\'>;\n    purpose?: \'compaction\' | \'session-title\';\n}',
+    declaration: 'export interface GenerateOptions {\n    provider: string;\n    model: string;\n    reasoningEffort?: ReasoningEffortId;\n    messages: Message[];\n    system?: string;\n    tools?: ToolSchema[];\n    temperature?: number;\n    maxTokens?: number;\n    stop?: string[];\n    signal?: AbortSignal;\n    sessionId?: Branded<\'SessionId\'>;\n    purpose?: \'compaction\' | \'session-title\' | \'approval-review\';\n}',
   },
   {
     name: 'GenericCallView',
@@ -5694,7 +5694,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'TeamTaskClaimUnavailable',
-    declaration: 'export type TeamTaskClaimUnavailable = \'no-ready-task\' | \'write-scope-conflict\';',
+    declaration: 'export type TeamTaskClaimUnavailable = \'no-pending-task\' | \'no-ready-task\' | \'write-scope-conflict\';',
   },
   {
     name: 'TeamTaskId',

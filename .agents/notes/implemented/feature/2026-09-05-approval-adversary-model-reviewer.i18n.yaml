@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-05-approval-adversary-model-reviewer.md
-2026-09-05-approval-adversary-model-reviewer.md: 2a217995b84f8bc4107057beaa45ca590a50fd3e
-2026-09-05-approval-adversary-model-reviewer.zh.md: 5257e8063f31debdfd524746b208d2695a46004f
+2026-09-05-approval-adversary-model-reviewer.md: bc2665b163903150f066e938f13a5c6b17dc8701
+2026-09-05-approval-adversary-model-reviewer.zh.md: 1c8872bd0d6085c24b49525ae5b16c3b43eca4b3

@@ -1889,7 +1889,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 
 ### `team_task_claim_next`
 
-取得共享任务板上下一个就绪任务的归属：第一个未被阻塞的 pending 任务，且其写入范围没有任何 in_progress 任务正在写入。返回 outcome claimed 与你现在拥有的任务；或返回 outcome none，当没有任何任务解除阻塞时 reason 为 no-ready-task，当就绪的工作会发生冲突时 reason 为 write-scope-conflict 并附上被推迟的任务 id。两种 none 结果都不是失败。两个成员绝不会认领到同一个任务。
+取得共享任务板上下一个就绪任务的归属：第一个未被阻塞的 pending 任务，且其写入范围没有任何 in_progress 任务正在写入。返回 outcome claimed 与你现在拥有的任务；或返回 outcome none 并附原因：不再有 pending 任务、因而在有任务被创建、释放或重新打开之前没有任务可认领时为 no-pending-task；每个 pending 任务都被仍在进行中的工作阻塞时为 no-ready-task；就绪的工作会写到进行中的工作已在写入的位置时为 write-scope-conflict，并附上被推迟的任务 id。任何 none 结果都不是失败。两个成员永远不会认领同一个任务。
 
 ```json
 {

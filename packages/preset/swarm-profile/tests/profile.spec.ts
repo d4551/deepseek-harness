@@ -233,6 +233,6 @@ describe('swarm profile bundle', () => {
 
     // The board is live in the booted composition, not merely registered.
     await expect(context.agentTeams.claimNextReadyTask(lead))
-      .resolves.toEqual({ outcome: 'none', reason: 'no-ready-task', deferred: [] })
+      .resolves.toEqual({ outcome: 'none', reason: 'no-pending-task', deferred: [] })
   })
 })

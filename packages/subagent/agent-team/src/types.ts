@@ -202,12 +202,15 @@ export interface UpdateTeamTaskRequest {
 }
 
 /**
- * Why an autonomous claim found nothing to take. Both values are ordinary
- * board states, never a failure: `no-ready-task` means no unblocked pending task
- * exists, and `write-scope-conflict` means every unblocked pending task would
- * write where an in-progress task already writes.
+ * Why an autonomous claim found nothing to take. Every value is an ordinary
+ * board state, never a failure, and each says whether waiting can help:
+ * `no-pending-task` means no pending task remains, so nothing becomes
+ * claimable until a task is created, released, or reopened; `no-ready-task`
+ * means every pending task is blocked by work still in progress; and
+ * `write-scope-conflict` means every unblocked pending task would write where
+ * an in-progress task already writes.
  */
-export type TeamTaskClaimUnavailable = 'no-ready-task' | 'write-scope-conflict'
+export type TeamTaskClaimUnavailable = 'no-pending-task' | 'no-ready-task' | 'write-scope-conflict'
 
 /** Outcome of one atomic claim-the-next-ready-task attempt. */
 export type ClaimNextTeamTaskResult =

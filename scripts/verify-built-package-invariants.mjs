@@ -28,29 +28,52 @@ const manifests = globSync('packages/*/*/package.json', { cwd: packagesRoot }).s
 const { default: Loader } = await import(loaderUrl)
 const loader = Object.create(Loader.prototype)
 
-for (const manifestPath of manifests) {
-  const packageDir = dirname(resolve(packagesRoot, manifestPath))
-  const manifest = JSON.parse(readFileSync(resolve(packagesRoot, manifestPath), 'utf8'))
+// The staged package view lives inside the tree under audit, so every way the
+// process can end removes the current one: the probe's own `finally`, the
+// `exit` event for an early end such as a companion whose top-level await never
+// settles, and a SIGTERM/SIGINT listener that cleans up and re-raises the
+// signal. `once` has dropped that listener before it runs, so the re-raised
+// signal reaches the default disposition and ends the process with its status.
+let stagedPackageDir
+function removeStagedPackageDir() {
+  if (stagedPackageDir === undefined) return
+  rmSync(stagedPackageDir, { recursive: true, force: true })
+  stagedPackageDir = undefined
+}
+process.on('exit', removeStagedPackageDir)
+for (const signal of ['SIGTERM', 'SIGINT']) {
+  process.once(signal, () => {
+    removeStagedPackageDir()
+    process.kill(process.pid, signal)
+  })
+}
+
+/**
+ * Verify one manifest's compiled companion inside a staged package view.
+ * @param manifestPath - absolute path of the package manifest.
+ * @returns `undefined` when the companion passes, else the failure's subject and reason.
+ */
+async function stageAndProbe(manifestPath) {
+  const packageDir = dirname(manifestPath)
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
   const packageName = manifest.name
   if (typeof packageName !== 'string' || packageName.length === 0) {
-    failures.push(`${manifestPath}: missing package name`)
-    continue
+    return { subject: manifestPath, reason: 'missing package name' }
   }
   const invariantExport = manifest.exports?.['./invariant']
   if (typeof invariantExport !== 'object'
     || invariantExport.default !== './lib/invariant.js'
     || !manifest.files?.includes('lib/invariant.js')) {
-    failures.push(`${packageName}: manifest does not publish ./lib/invariant.js as ./invariant`)
-    continue
+    return { subject: packageName, reason: 'manifest does not publish ./lib/invariant.js as ./invariant' }
   }
 
   // Keep the staged view below its owning package so Node reaches the real
   // dependency links. Junctioning node_modules elsewhere breaks the isolated
   // linker's relative workspace links on Windows. Copy the manifest-declared lib view
   // so a companion that imports an undeclared runtime chunk fails here.
-  const stagedPackageDir = mkdtempSync(resolve(packageDir, '.dsh-built-invariant-'))
+  stagedPackageDir = mkdtempSync(resolve(packageDir, '.dsh-built-invariant-'))
   try {
-    copyFileSync(resolve(packageDir, 'package.json'), resolve(stagedPackageDir, 'package.json'))
+    copyFileSync(manifestPath, resolve(stagedPackageDir, 'package.json'))
     copyDeclaredLibFiles(packageDir, stagedPackageDir, manifest.files)
     const probePath = resolve(stagedPackageDir, 'probe.mjs')
     writeFileSync(
@@ -66,11 +89,17 @@ for (const manifestPath of manifests) {
       throw new Error('companion does not inject invariants')
     }
     if (typeof unwrapped.apply !== 'function') throw new Error('companion apply is missing')
+    return undefined
   } catch (error) {
-    failures.push(`${packageName}: ${error instanceof Error ? error.message : String(error)}`)
+    return { subject: packageName, reason: error instanceof Error ? error.message : String(error) }
   } finally {
-    rmSync(stagedPackageDir, { recursive: true, force: true })
+    removeStagedPackageDir()
   }
+}
+
+for (const manifestPath of manifests) {
+  const outcome = await stageAndProbe(resolve(packagesRoot, manifestPath))
+  if (outcome !== undefined) failures.push(`${outcome.subject}: ${outcome.reason}`)
 }
 
 if (failures.length > 0) {

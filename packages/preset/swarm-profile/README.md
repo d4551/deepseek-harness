@@ -94,7 +94,7 @@ The package's own suite boots the rows this patch inserts through the real Loade
 
 #### What the model sees
 
-The policy text and tool schemas belong to [`@deepseek-ai/dsh-tool-agent-team`](../../subagent/tool-agent-team/README.md). This bundle selects the swarm policy: the Lead is told to decompose into tasks with write scopes before spawning anyone, and every member is told to take work with `team_task_claim_next` and to read a `none` outcome as an ordinary board state rather than a failure. Team-scoped `list_agents`, `send_message`, and `interrupt_agent` replace the disabled global continuable-child controls.
+The policy text and tool schemas belong to [`@deepseek-ai/dsh-tool-agent-team`](../../subagent/tool-agent-team/README.md). This bundle selects the swarm policy: the Lead is told to decompose into tasks with write scopes before spawning anyone, and every member is told to take work with `team_task_claim_next`, to read a `none` outcome as an ordinary board state rather than a failure, and to end its turn once the board holds no pending task. Team-scoped `list_agents`, `send_message`, and `interrupt_agent` replace the disabled global continuable-child controls.
 
 #### Token effect
 

@@ -440,6 +440,9 @@ export interface GenerateOptions {
    * Provider-neutral classification for an auxiliary model call. Adapters may
    * map the purpose to model-hidden transport metadata or purpose-specific
    * generation policy. Ordinary conversation requests leave it unset.
+   * `session-title` and `approval-review` are each one short reply in a fixed
+   * format, so an adapter with a per-request thinking switch turns thinking off
+   * for them rather than let a reasoning budget consume the output cap.
    */
-  purpose?: 'compaction' | 'session-title'
+  purpose?: 'compaction' | 'session-title' | 'approval-review'
 }

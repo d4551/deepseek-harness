@@ -267,9 +267,10 @@ export class TeamService extends TypertRemoteService {
    * requires the exact live `Agent` this process holds, so a second process
    * running against the same session log is outside the exclusion.
    * @param caller - exact live Team member taking ownership.
-   * @returns the claimed task, or the ordinary board state — no unblocked
-   *   pending task, or every one of them writing where in-progress work does —
-   *   that left nothing to take.
+   * @returns the claimed task, or the ordinary board state that left nothing
+   *   to take: no pending task at all, every pending task blocked by
+   *   in-progress work, or every unblocked one writing where in-progress work
+   *   does.
    */
   async claimNextReadyTask(caller: Agent): Promise<ClaimNextTeamTaskResult> {
     return await this.tasks.claimNextReady(caller, this.roster.membership(caller))

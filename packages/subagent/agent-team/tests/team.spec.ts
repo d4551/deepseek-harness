@@ -860,10 +860,11 @@ describe('Team shared task DAG', () => {
     await waitNoAgent(ctx, editor.id)
   })
 
-  it('reports an empty and a fully blocked board as no ready task rather than a failure', async () => {
+  it('tells an empty, a fully blocked, and a fully owned board apart, none of them a failure', async () => {
     const { ctx, lead } = await setup([])
+    // Nothing is pending, so waiting cannot produce work: the caller is told so.
     await expect(ctx.agentTeams.claimNextReadyTask(lead))
-      .resolves.toEqual({ outcome: 'none', reason: 'no-ready-task', deferred: [] })
+      .resolves.toEqual({ outcome: 'none', reason: 'no-pending-task', deferred: [] })
 
     const blocker = await ctx.agentTeams.createTask(lead, { subject: 'blocker', description: 'runs first' })
     const blocked = await ctx.agentTeams.createTask(lead, {
@@ -871,7 +872,8 @@ describe('Team shared task DAG', () => {
     })
     const first = await ctx.agentTeams.claimNextReadyTask(lead)
     expect(first).toMatchObject({ outcome: 'claimed', task: { id: blocker.id, status: 'in_progress' } })
-    // Only the blocked task is left, so the board is empty of ready work.
+    // Only the blocked task is left: it is still pending behind in-progress
+    // work, so waiting for that work is the right next step.
     await expect(ctx.agentTeams.claimNextReadyTask(lead))
       .resolves.toEqual({ outcome: 'none', reason: 'no-ready-task', deferred: [] })
 
@@ -881,6 +883,9 @@ describe('Team shared task DAG', () => {
     })
     await expect(ctx.agentTeams.claimNextReadyTask(lead))
       .resolves.toMatchObject({ outcome: 'claimed', task: { id: blocked.id } })
+    // Every task is now completed or owned: nothing pending, nothing to wait for.
+    await expect(ctx.agentTeams.claimNextReadyTask(lead))
+      .resolves.toEqual({ outcome: 'none', reason: 'no-pending-task', deferred: [] })
 
     // A non-member is still a failure, which is what makes the empty-board
     // result readable as an ordinary state.
@@ -1014,7 +1019,7 @@ describe('Team shared task DAG', () => {
     expect(new Set(durable(lead).tasks.map(task => task.ownerId)).size).toBeGreaterThan(1)
 
     await expect(ctx.agentTeams.claimNextReadyTask(lead))
-      .resolves.toEqual({ outcome: 'none', reason: 'no-ready-task', deferred: [] })
+      .resolves.toEqual({ outcome: 'none', reason: 'no-pending-task', deferred: [] })
 
     for (const name of ['w1', 'w2', 'w3']) ctx.agentTeams.interrupt(lead, name)
     for (const worker of workers.slice(1)) await waitNoAgent(ctx, worker.id)

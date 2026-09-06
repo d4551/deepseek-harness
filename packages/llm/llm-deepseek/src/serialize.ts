@@ -79,9 +79,15 @@ function reasoningEffort(effort: NonNullable<GenerateOptions['reasoningEffort']>
   )
 }
 
-/** Resolve one legal thinking/effort pair without exposing `off` as a wire effort. */
+/**
+ * Resolve one legal thinking/effort pair without exposing `off` as a wire
+ * effort. A title or approval-review call is one short fixed-format reply, so
+ * it runs with thinking disabled whatever the deployment default: on this API
+ * `max_tokens` bounds reasoning and answer together, and a reasoning budget
+ * would spend the small output cap those calls carry before the reply starts.
+ */
 function resolveThinking(options: GenerateOptions, defaults: RequestDefaults): ResolvedThinking {
-  if (options.purpose === 'session-title') return { thinking: 'disabled' }
+  if (options.purpose === 'session-title' || options.purpose === 'approval-review') return { thinking: 'disabled' }
   const effort = options.reasoningEffort === undefined
     ? defaults.reasoningEffort
     : reasoningEffort(options.reasoningEffort)

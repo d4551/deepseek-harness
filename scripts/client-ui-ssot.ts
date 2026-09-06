@@ -399,7 +399,7 @@ function isAuthoredPointerTarget(selector: string, body: string): boolean {
  * @param rules - the sheet's style rules.
  * @returns declarations keyed by compound selector, in first-seen order.
  */
-export function mergeSelectorDeclarations(rules: readonly { selector: string; body: string }[]): Map<string, string> {
+function mergeSelectorDeclarations(rules: readonly { selector: string; body: string }[]): Map<string, string> {
   const merged = new Map<string, string>()
   for (const rule of rules) {
     for (const part of rule.selector.split(',')) {
