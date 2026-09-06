@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  assertBackoffDelays,
   clampTimeout,
   deadline,
   idleWatchdog,
@@ -313,5 +314,36 @@ describe('timer-delay validation boundaries', () => {
     const watchdog = idleWatchdog(undefined, MAX_TIMER_DELAY_MS, 'X')
     expect(watchdog.signal.aborted).toBe(false)
     watchdog[Symbol.dispose]()
+  })
+})
+
+describe('assertBackoffDelays', () => {
+  it('accepts a pair whose first delay is at or under the ceiling', () => {
+    expect(() => { assertBackoffDelays(1, 1, 'llm.retry') }).not.toThrow()
+    expect(() => { assertBackoffDelays(500, 10_000, 'llm.retry') }).not.toThrow()
+    expect(() => { assertBackoffDelays(MAX_TIMER_DELAY_MS, MAX_TIMER_DELAY_MS, 'llm.retry') }).not.toThrow()
+  })
+
+  it('rejects an inverted pair by one millisecond, naming the field and the path', () => {
+    // Equal is the boundary the message states, so the case either side of it
+    // is what proves the comparison is `>` and not `>=`.
+    expect(() => { assertBackoffDelays(1_001, 1_000, 'llm.retry') })
+      .toThrow('llm.retry.initialDelayMs must be less than or equal to maxDelayMs')
+    expect(() => { assertBackoffDelays(1_000, 1_000, 'llm.retry') }).not.toThrow()
+  })
+
+  it('holds each delay to the schedulable range under its own name', () => {
+    for (const bad of [0, -1, Number.NaN, Number.POSITIVE_INFINITY, MAX_TIMER_DELAY_MS + 1]) {
+      expect(() => { assertBackoffDelays(bad, 10_000, 'web.fetch') })
+        .toThrow(`web.fetch.initialDelayMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`)
+      expect(() => { assertBackoffDelays(10, bad, 'web.fetch') })
+        .toThrow(`web.fetch.maxDelayMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`)
+    }
+  })
+
+  it('checks the initial delay before the ceiling', () => {
+    // Both are unschedulable; the first field named is the one reported, so a
+    // reader is not sent to the wrong setting.
+    expect(() => { assertBackoffDelays(0, 0, 'shell.retry') }).toThrow('shell.retry.initialDelayMs')
   })
 })
