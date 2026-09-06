@@ -66,7 +66,7 @@
     - listitem:
       - 'button "加载失败: broken-yaml" [disabled]':
         - text: broken-yaml 加载失败 自定义 暂无描述。
-        - alert: "the composition is not valid YAML: unexpected end of the stream within a flow collection (3:1)"
+        - alert: "the composition is not valid YAML: deficient indentation (3:1)"
         - code: broken-yaml
       - 'button "查看路径: broken-yaml"':
         - img

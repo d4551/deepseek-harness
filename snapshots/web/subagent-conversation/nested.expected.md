@@ -5,6 +5,12 @@
     - 'button "Switch subagent: event-sourcing researcher"': event-sourcing researcher
     - text: /
     - 'button "Switch subagent: example editor"': example editor
+  - 'button "Workspace folders: 1"':
+    - img
+    - text: Folders 1
+  - button "Agent Team":
+    - img
+    - text: Agent Team
   - button "Session log":
     - text: Session log
     - img

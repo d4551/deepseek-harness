@@ -189,7 +189,7 @@ describe('swarm profile bundle', () => {
       const composed = base.find(entry => entry.id === row.id)?.config ?? {}
       const retuned = row.config ?? {}
       const changed = Object.fromEntries(
-        Object.entries(retuned).filter(([key, value]) => composed[key] !== value),
+        Object.entries(retuned).filter(([key, value]) => JSON.stringify(composed[key]) !== JSON.stringify(value)),
       )
       expect(changed, row.id).toEqual(DOCUMENTED_DELTAS[row.id ?? ''])
       expect(Object.keys(composed).filter(key => !(key in retuned)), row.id).toEqual([])

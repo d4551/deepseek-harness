@@ -53,6 +53,10 @@
           - text: DeepSeek 搜索 通过 DeepSeek 托管检索搜索，按 DeepSeek 密钥计费。
           - img
       - listitem:
+        - 'button "展开设置: 智能体团队"':
+          - text: 智能体团队 一个团队在处理同一请求时最多可以有多大。
+          - img
+      - listitem:
         - 'button "展开设置: 网页访问"':
           - text: 网页访问 由哪个后端提供网页搜索，由哪个后端抓取网页。
           - img

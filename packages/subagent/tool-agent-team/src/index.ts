@@ -33,13 +33,21 @@ export interface Config {
    * every teammate pull from it.
    */
   readonly coordination?: TeamCoordination
+  /**
+   * Agent preset ids whose Agents keep their preset's exact tool set: an Agent
+   * whose session header names one of them receives neither the Team tools nor
+   * the policy section. A deployment without agent presets composes no such
+   * header, so every Agent is a member there.
+   */
+  readonly excludePresets?: string[]
 }
 
-/** Loader schema for the opt-in Team tool plugin. */
+/** Loader schema for the Team tool plugin. */
 export const Config: z<Config> = z.object({
   freshProvider: z.string().default('spawn'),
   forkProvider: z.string().default('fork'),
   coordination: z.union(['delegated', 'swarm']).default('delegated'),
+  excludePresets: z.array(z.string()).default([]),
 })
 
 /** Model-facing collaboration guidance for a Lead that hands work to named teammates. */
@@ -485,10 +493,19 @@ export function apply(ctx: Context, config: Config = {}): void {
     freshProvider: config.freshProvider ?? 'spawn',
     forkProvider: config.forkProvider ?? 'fork',
     coordination: config.coordination ?? 'delegated',
+    excludePresets: config.excludePresets ?? [],
+  }
+  const excludedPresets = new Set(resolved.excludePresets)
+  // The session header records the preset an Agent was composed from before
+  // `agent/created` announces it, so the exclusion reads the header rather than
+  // the preset service, which a deployment need not mount.
+  const keepsPresetToolSet = (agent: Agent): boolean => {
+    const preset = agent.session.header.agentPreset
+    return preset !== undefined && excludedPresets.has(preset)
   }
   const installed = new Map<Agent, () => void>()
   const maybeInstall = (agent: Agent): void => {
-    if (installed.has(agent) || ctx.agentTeams.tryMembership(agent) === undefined) return
+    if (installed.has(agent) || keepsPresetToolSet(agent) || ctx.agentTeams.tryMembership(agent) === undefined) return
     installed.set(agent, install(agent, ctx, resolved))
   }
   for (const agent of ctx.agents.list()) maybeInstall(agent)

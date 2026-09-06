@@ -547,4 +547,42 @@ describe('dsh-tool-team', () => {
     expect((await assembly(ctx, lead)).tools.map(schema => schema.name)
       .filter(name => TOOL_NAMES.includes(name)).sort()).toEqual(TOOL_NAMES)
   })
+
+  it('keeps an excluded preset\'s Agents on their preset tool set', async () => {
+    const ctx = new Context()
+    await mountAgentLoopTestDependencies(ctx)
+    const storageRoot = mkdtempSync(join(tmpdir(), 'dsh-tool-team-presets-'))
+    roots.push(storageRoot)
+    await ctx.plugin(JsonlSessionPersistence, { root: storageRoot })
+    await ctx.plugin(TestSessionQuery)
+    await ctx.plugin(AgentLoop, { agents: [] })
+    await ctx.plugin(SubagentService)
+    await ctx.plugin(SubagentSpawn, { providerName: 'spawn' })
+    await ctx.plugin(SubagentFork, { providerName: 'fork' })
+    await ctx.plugin(TeamService)
+    await ctx.plugin(toolTeam, { excludePresets: ['minimal'] })
+    ctx.llm.registerAdapter(['mock'], new MockAdapter(['hang']))
+    // The session header names the preset before `agent/created` announces
+    // the Agent, which is where the exclusion reads it.
+    const minimal = await ctx.agents.create({
+      sessionId: SessionId('minimal-preset-agent'),
+      meta: { agentPreset: 'minimal' },
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    const standard = await ctx.agents.create({
+      sessionId: SessionId('standard-preset-agent'),
+      meta: { agentPreset: 'standard' },
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    try {
+      const minimalAssembly = await assembly(ctx, minimal.agent)
+      expect(minimalAssembly.tools.map(schema => schema.name).filter(name => TOOL_NAMES.includes(name))).toEqual([])
+      expect(renderPrompt(minimalAssembly)).not.toContain('Your Team role is')
+      expect((await assembly(ctx, standard.agent)).tools.map(schema => schema.name)
+        .filter(name => TOOL_NAMES.includes(name)).sort()).toEqual(TOOL_NAMES)
+    } finally {
+      await minimal.dispose()
+      await standard.dispose()
+    }
+  })
 })

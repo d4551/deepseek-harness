@@ -1,8 +1,8 @@
 - tree "Sessions":
-  - treeitem "{{workspace}}" [expanded]:
+  - treeitem "{{workspace}}" [expanded] [level=1]:
     - img
     - text: {{workspace}}
-  - treeitem "Review deepseek-harness/deepseek-harness#314 Session actions for Review deepseek-harness/deepseek-harness#314" [selected]:
+  - treeitem "Review deepseek-harness/deepseek-harness#314 Session actions for Review deepseek-harness/deepseek-harness#314" [level=2]:
     - text: Review deepseek-harness/deepseek-harness#314
     - button "Session actions for Review deepseek-harness/deepseek-harness#314":
       - img
@@ -14,6 +14,12 @@
     - button "Review deepseek-harness/deepseek-harness#314" [disabled]
   - img
   - text: Standard mode
+  - 'button "Workspace folders: 1"':
+    - img
+    - text: Folders 1
+  - button "Agent Team":
+    - img
+    - text: Agent Team
   - button "Session log":
     - text: Session log
     - img

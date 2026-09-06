@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-07-agent-teams-in-every-profile.md
-2026-09-07-agent-teams-in-every-profile.md: 5fd765c6d388409c4f60d701fa7ce23c59a86c6a
-2026-09-07-agent-teams-in-every-profile.zh.md: a83bdf8ac8997ea1e342c9b28214859b50497ada
+2026-09-07-agent-teams-in-every-profile.md: e0cc8d90992f4ab5de0ba7994efe0c32bff00cd3
+2026-09-07-agent-teams-in-every-profile.zh.md: 50eeb7deddff282747e1924579eb1ce4c273d7e4

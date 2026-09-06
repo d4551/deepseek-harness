@@ -1,6 +1,12 @@
 - banner:
   - navigation "Session hierarchy":
     - button "Reference order target" [disabled]
+  - 'button "Workspace folders: 1"':
+    - img
+    - text: Folders 1
+  - button "Agent Team":
+    - img
+    - text: Agent Team
   - button "Session log":
     - text: Session log
     - img

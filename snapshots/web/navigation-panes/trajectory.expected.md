@@ -1,5 +1,6 @@
 - toolbar "Trajectory toolbar":
   - button "Use actual duration": Duration
+  - switch "Actual time"
   - button "Collapse turns": Turns
   - button "Collapse calls": Calls
   - img

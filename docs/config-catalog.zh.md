@@ -2882,6 +2882,13 @@ export interface Config {
    * every teammate pull from it.
    */
   readonly coordination?: TeamCoordination
+  /**
+   * Agent preset ids whose Agents keep their preset's exact tool set: an Agent
+   * whose session header names one of them receives neither the Team tools nor
+   * the policy section. A deployment without agent presets composes no such
+   * header, so every Agent is a member there.
+   */
+  readonly excludePresets?: readonly string[]
 }
 
 /**

@@ -30,3 +30,4 @@
     freshProvider: spawn
     forkProvider: fork
     coordination: swarm
+    excludePresets: [minimal]

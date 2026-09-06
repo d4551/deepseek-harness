@@ -33,7 +33,7 @@ Choose it when the model should create and coordinate teammates by itself rather
 
 ### Smallest working example
 
-The smallest addition to an existing composition is the two-package fragment from the [agent-team README](../agent-team/README.md#smallest-working-setup): durable session storage, the team domain package, and this package. The plugin itself takes two optional settings:
+The smallest addition to an existing composition is the two-package fragment from the [agent-team README](../agent-team/README.md#smallest-working-setup): durable session storage, the team domain package, and this package. The plugin itself takes four optional settings:
 
 ```yaml
 - id: tool-agent-team
@@ -47,6 +47,8 @@ The smallest addition to an existing composition is the two-package fragment fro
 |---|---|---|
 | `freshProvider` | `spawn` | Provider that starts fresh teammates |
 | `forkProvider` | `fork` | Provider that starts fork teammates |
+| `coordination` | `delegated` | Guidance the members receive: `delegated` or `swarm` |
+| `excludePresets` | `[]` | Agent preset ids whose Agents keep their preset's exact tool set and receive no Team tools |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-tool-agent-team) is the exhaustive source for every accepted field and its JSDoc.
 

@@ -33,7 +33,7 @@ kind: "package-reference"
 
 ### 最小工作示例
 
-对现有组合的最小增量是 [agent-team README](../agent-team/README.zh.md#smallest-working-setup) 中的两包片段：持久会话存储、团队领域包与本包。插件本身只有两个可选设置：
+对现有组合的最小增量是 [agent-team README](../agent-team/README.zh.md#smallest-working-setup) 中的两包片段：持久会话存储、团队领域包与本包。插件本身只有四个可选设置：
 
 ```yaml
 - id: tool-agent-team
@@ -47,6 +47,8 @@ kind: "package-reference"
 |---|---|---|
 | `freshProvider` | `spawn` | 启动 fresh teammate 的 provider |
 | `forkProvider` | `fork` | 启动 fork teammate 的 provider |
+| `coordination` | `delegated` | 成员收到的指引：`delegated` 或 `swarm` |
+| `excludePresets` | `[]` | 其 Agent 保持 preset 自身精确工具集、不接收 Team 工具的 agent preset id |
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-tool-agent-team)是每个受支持字段及其 JSDoc 的穷尽式真源。
 

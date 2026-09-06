@@ -403,12 +403,15 @@
         maxMessageBytes: 65536
         disposalTimeoutMs: 5000
 
+    # `excludePresets` keeps the two-tool `minimal` agent preset exact wherever
+    # a Web profile composes it; a profile without presets ignores the value.
     - id: tool-agent-team
       name: '@deepseek-ai/dsh-tool-agent-team'
       config:
         freshProvider: spawn
         forkProvider: fork
         coordination: delegated
+        excludePresets: [minimal]
 
     - id: workflow-worker-thread
       name: '@deepseek-ai/dsh-workflow-worker-thread'
