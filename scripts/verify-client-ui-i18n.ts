@@ -81,7 +81,7 @@ const COPY_SUFFIX = /(?:aria|copy|description|empty|heading|label|labels|message
  * it would be the defect — so it is not copy the dictionaries own.
  * See BRAND_GUIDELINES.md.
  */
-const BRAND_TOKENS = new Set(['HARNESS', 'DeepSeek Harness', 'DSH'])
+const BRAND_TOKENS = new Set(['HARNESS', 'DeepSeek Harness', 'DSH', 'DeepMeow'])
 
 const IMMUTABLE_LANGUAGE_TOKENS = new Set([
   'Function',

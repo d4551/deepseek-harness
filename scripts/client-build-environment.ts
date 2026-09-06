@@ -16,10 +16,10 @@ const CLIENT_BUILD_ENV_PREFIX = 'DSH_CLIENT_'
 /** Non-public selector used by build orchestration to request a named client profile. */
 export const CLIENT_BUILD_PROFILE_SELECTOR = 'DSH_BUILD_CLIENT_PROFILE'
 
-/** Public client environment required by official DSH artifacts. */
+/** Public client environment required by official artifacts; the official identity is DeepMeow. */
 const OFFICIAL_CLIENT_BUILD_ENVIRONMENT = {
   DSH_CLIENT_BUILD_PROFILE: 'official',
-  DSH_CLIENT_TITLE: 'DeepSeek Harness',
+  DSH_CLIENT_TITLE: 'DeepMeow',
 } as const
 
 /** Public variable carrying the source commit embedded in client artifacts. */

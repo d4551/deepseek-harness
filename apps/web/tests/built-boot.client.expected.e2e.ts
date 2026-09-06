@@ -61,12 +61,15 @@ it('boots the built plugin graph and renders a fixture session end to end', asyn
 
   // The sidebar renders from the boot graph: every inject layer activated.
   const tree = await screen.findByRole('tree', { name: 'Sessions' }, { timeout: 10_000 })
-  if (clientBuildValue('DSH_CLIENT_BUILD_PROFILE') === 'official') {
-    expect(document.querySelector('svg[viewBox="26 0 156 24"]')).not.toBeNull()
-    expect(screen.queryByText('DeepMeow')).toBeNull()
-  } else {
-    const brand = screen.getByText('DeepMeow')
-    expect(brand.closest('button')?.querySelector('svg[viewBox="0 0 24 24"]')).not.toBeNull()
+  // Both profiles carry the DeepMeow name over the cat-face mark; only the
+  // source build appends its version beside the name. The viewBox is read
+  // back with getAttribute: attribute selectors lower-case the name under
+  // jsdom, and SVG attribute names are case-sensitive.
+  const brand = screen.getByText('DeepMeow')
+  const viewBoxes = (root: ParentNode) => [...root.querySelectorAll('svg')].map(svg => svg.getAttribute('viewBox'))
+  expect(viewBoxes(brand.closest('button') ?? document)).toContain('0 0 24 24')
+  expect(viewBoxes(document)).not.toContain('26 0 156 24')
+  if (clientBuildValue('DSH_CLIENT_BUILD_PROFILE') !== 'official') {
     const version = clientBuildValue('DSH_CLIENT_VERSION')
     if (version === undefined) throw new Error('default client build record must carry DSH_CLIENT_VERSION')
     const commit = clientBuildValue('DSH_CLIENT_COMMIT_HASH')

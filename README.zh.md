@@ -30,7 +30,7 @@ DeepSeek Harness（`dsh`）是由 [DeepSeek AI](https://deepseek.com) 开发的�
 
 工具链要点：**bun 1.4** 是包管理器与脚本运行器（isolated workspace linker；`dsh plugin` 转发给 bun）；**TypeScript 7**（`typescript` ^7.0.2）编译 Host 与 Client program，并在 `typescript/unstable/sync` 与 `typescript/unstable/ast` 导出 compiler API。
 
-从本仓库构建出的 Web UI 自称 **DeepMeow**，搭配猫脸标记；[Web UI 指南](docs/user/guide/index.zh.md#local-build-identity)说明了该名称出现的位置以及如何恢复 official 名称。
+从本仓库构建出的 Web UI 自称 **DeepMeow**，搭配猫脸标记，源码构建与 official 产物皆然；[Web UI 指南](docs/user/guide/index.zh.md#build-identity)说明了该名称出现的位置。
 
 ## 开发者预览
 

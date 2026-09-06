@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-30-deepmeow-local-build-brand.md
-2026-08-30-deepmeow-local-build-brand.md: 3d9c15034e457be4ea201bd3f52b72687956108b
-2026-08-30-deepmeow-local-build-brand.zh.md: 8a216548325a880eec6f850014ccb11ffb31a765
+2026-08-30-deepmeow-local-build-brand.md: 89a0f23369c11b3e503eb740680d0aa9246fa5ca
+2026-08-30-deepmeow-local-build-brand.zh.md: b651754de3e74154dd03388d10be758eb48c6c4b

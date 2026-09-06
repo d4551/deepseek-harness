@@ -16,8 +16,8 @@ describe('projectDocumentTitle', () => {
     expect(projectDocumentTitle(committedIndex, DEFAULT_CLIENT_TITLE)).toBe(committedIndex)
   })
 
-  it('projects the official title into the committed document', () => {
-    expect(projectDocumentTitle(committedIndex, 'DeepSeek Harness')).toContain('<title>DeepSeek Harness</title>')
+  it('projects a selected title into the committed document', () => {
+    expect(projectDocumentTitle(committedIndex, 'Fork Build')).toContain('<title>Fork Build</title>')
   })
 
   it('escapes HTML syntax in the title', () => {
@@ -29,7 +29,7 @@ describe('projectDocumentTitle', () => {
   })
 
   it('rejects a document that lost its placeholder title', () => {
-    expect(() => projectDocumentTitle('<title>Other</title>', 'DeepSeek Harness')).toThrow(/lost its/)
+    expect(() => projectDocumentTitle('<title>Other</title>', 'Fork Build')).toThrow(/lost its/)
   })
 })
 
@@ -38,16 +38,7 @@ describe('projectManifestTitle', () => {
     expect(projectManifestTitle(committedManifest, DEFAULT_CLIENT_TITLE)).toBe(committedManifest)
   })
 
-  it('projects the official title into every title member', () => {
-    const projected: unknown = JSON.parse(projectManifestTitle(committedManifest, 'DeepSeek Harness'))
-    expect(projected).toMatchObject({
-      name: 'DeepSeek Harness',
-      short_name: 'DSH',
-      description: 'DeepSeek Harness',
-    })
-  })
-
-  it('carries a non-official title into the launcher label unabbreviated', () => {
+  it('carries a selected title into every title member, the launcher label unabbreviated', () => {
     const projected: unknown = JSON.parse(projectManifestTitle(committedManifest, 'Fork Build'))
     expect(projected).toMatchObject({ name: 'Fork Build', short_name: 'Fork Build', description: 'Fork Build' })
   })
@@ -64,6 +55,6 @@ describe('projectManifestTitle', () => {
 
   it.each(['name', 'short_name', 'description'])('rejects a manifest that lost its %s placeholder', (member) => {
     const damaged = committedManifest.replace(`"${member}": "${DEFAULT_CLIENT_TITLE}"`, `"${member}": "Other"`)
-    expect(() => projectManifestTitle(damaged, 'DeepSeek Harness')).toThrow(new RegExp(`lost its .*${member}`))
+    expect(() => projectManifestTitle(damaged, 'Fork Build')).toThrow(new RegExp(`lost its .*${member}`))
   })
 })

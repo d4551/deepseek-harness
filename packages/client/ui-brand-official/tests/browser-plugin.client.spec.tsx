@@ -65,12 +65,14 @@ describe('official browser-brand plugin', () => {
     for (const hole of HOLES) expect(after.slots.entries(hole)).toHaveLength(1)
   })
 
-  it('renders the official name independently from both requested mark sizes', () => {
+  it('renders the official name as text and the cat-face mark at both requested sizes', () => {
     const name = render(<OfficialBrandName />)
-    expect(name.container.querySelector('svg')?.getAttribute('viewBox')).toBe('26 0 156 24')
+    expect(name.container.textContent).toBe('DeepMeow')
+    expect(name.container.querySelector('svg')).toBeNull()
     name.unmount()
 
     const mark = render(<OfficialBrandMark size={34} className="hero-mark" />)
+    expect(mark.container.querySelector('svg')?.getAttribute('viewBox')).toBe('0 0 24 24')
     expect(mark.container.querySelector('svg')?.getAttribute('width')).toBe('34')
     expect(mark.container.querySelector('svg')?.getAttribute('class')).toBe('hero-mark')
     mark.rerender(<OfficialBrandMark size={24} />)
