@@ -30,7 +30,7 @@ This repository publishes nothing to npm. `npx @deepseek-ai/dsh` installs the of
 
 Toolchain specifics: **bun 1.4** is the package manager and script runner (isolated workspace linker; `dsh plugin` forwards to bun), and **TypeScript 7** (`typescript` ^7.0.2) compiles the Host and Client programs and exports the compiler API at `typescript/unstable/sync` and `typescript/unstable/ast`.
 
-A build from this repository runs the Web UI under the name **DeepMeow** with a cat-face mark; the [Web UI guide](docs/user/guide/index.md#local-build-identity) explains where the name appears and how to restore the official one.
+A build from this repository runs the Web UI under the name **DeepMeow** with a cat-face mark, in source builds and official artifacts alike; the [Web UI guide](docs/user/guide/index.md#build-identity) explains where the name appears.
 
 ## Developer preview
 

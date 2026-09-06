@@ -1,0 +1,9 @@
+/* The official name sits beside the 24px mark in the sidebar header. Its size
+   matches the sidebar's own fallback name, so an official artifact and a
+   source build lay the header out identically. */
+.name {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0;
+  white-space: nowrap;
+}

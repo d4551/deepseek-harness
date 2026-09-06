@@ -4,11 +4,11 @@
 
 请先按照[根目录 README](../../../README.zh.md#run) 中的说明启动 Web UI；命令会打印其访问地址。本指南从服务器已经运行的状态开始。`dsh` 进程会把启动时所在的目录作为默认文件系统位置；全新的 Web UI 则不会选中任何工作区，你需要添加一个工作区。
 
-<a id="local-build-identity"></a>
+<a id="build-identity"></a>
 
-## 本地构建身份
+## 构建身份
 
-源码构建不是 official 产物，客户端 chrome 也据实呈现：浏览器标签页、侧栏标题、空会话 hero 以及安装提示都显示 **DeepMeow** 与猫脸标记。以 `DSH_CLIENT_BUILD_PROFILE=official` 构建客户端才会恢复 DeepSeek Harness wordmark 与鲸鱼标记；该 profile 同时通过 `DSH_CLIENT_TITLE` 固定文档标题。
+本仓库的每一个构建都以 **DeepMeow** 与猫脸标记标识自己：浏览器标签页、侧栏标题、空会话 hero 以及安装提示都承载该名称。源码构建通过外壳自身的回退渲染它；`official` 客户端构建 profile 则注册承载该身份的品牌填充，并通过 `DSH_CLIENT_TITLE` 固定文档标题。
 
 ## 配置模型
 
