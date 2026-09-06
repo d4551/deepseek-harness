@@ -175,6 +175,9 @@ function statesLiteralDuration(layer: string): boolean {
   return token === null || literal.index < token.index
 }
 
+/** A rule that only turns the user-agent focus ring off. */
+const ONLY_REMOVES_RING = /^[\s;]*outline\s*:\s*(?:none|0)\s*;?[\s;]*$/i
+
 /** WCAG 2.5.8 Target Size (Minimum): 24 CSS pixels on each authored pointer target. */
 const HIT_TARGET_MIN_PX = 24
 /**
@@ -631,6 +634,31 @@ export function scanUiSsot(files: readonly { file: string; content: string }[]):
           file: path,
           kind: 'reduced-motion',
           detail: `\`${part}\` animates forever with no prefers-reduced-motion rule stopping it`,
+        })
+      }
+    }
+  }
+
+  // `base.css` supplies a keyboard ring by element and role, and says so: a
+  // component's own `:focus-visible` beats it on specificity. A rule whose
+  // whole body turns that ring off, with nothing else in the sheet keyed on the
+  // same `:focus-visible` selector, leaves a keyboard user no indicator at all.
+  for (const { file: path, content } of files) {
+    if (!path.endsWith('.css')) continue
+    const rules = cssRules(stripCssComments(content))
+    for (const rule of rules) {
+      if (!rule.selector.includes(':focus-visible')) continue
+      if (!ONLY_REMOVES_RING.test(rule.body)) continue
+      for (const part of selectorParts(rule.selector)) {
+        if (!part.includes(':focus-visible')) continue
+        // A replacement may be painted on an inner element or through a
+        // pseudo-element, so any other rule naming this focused selector counts.
+        const replaced = rules.some(other => other !== rule && other.selector.includes(part))
+        if (replaced) continue
+        findings.push({
+          file: path,
+          kind: 'focus-visible',
+          detail: `\`${part}\` removes the keyboard focus ring and nothing else in the sheet replaces it`,
         })
       }
     }

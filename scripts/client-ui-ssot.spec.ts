@@ -261,6 +261,39 @@ describe('injected SSOT violations', () => {
     ).toBe(true)
   })
 
+  it('fails a rule that only turns the keyboard focus ring off', () => {
+    // base.css supplies the ring by element and role and says a component's own
+    // `:focus-visible` beats it on specificity, so a bare removal leaves a
+    // keyboard user nothing.
+    const scan = (content: string): number => scanUiSsot([THEME, FRAME, { file: 'Row.module.css', content }])
+      .filter(finding => finding.kind === 'focus-visible' && finding.file === 'Row.module.css').length
+    expect(scan('.handle:focus-visible { outline: none; }\n'), 'bare removal').toBe(1)
+    expect(scan('.handle:focus-visible { outline: 0; }\n'), 'outline zero').toBe(1)
+    expect(
+      scan('.handle:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); }\n'),
+      'a real ring',
+    ).toBe(0)
+    expect(
+      scan('.handle:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--dsw-alias-state-business-primary); }\n'),
+      'replaced in the same rule',
+    ).toBe(0)
+    // A replacement painted on an inner element or a pseudo-element counts.
+    expect(
+      scan('.b:focus-visible { outline: none; }\n.b:focus-visible .wrap { outline: 2px solid red; }\n'),
+      'inner element carries the ring',
+    ).toBe(0)
+    expect(
+      scan('.e:focus-visible { outline: none; }\n.row:has(> .e:focus-visible)::after { outline: 2px solid red; }\n'),
+      'row overlay carries the ring',
+    ).toBe(0)
+    // An unrelated rule is not a replacement.
+    expect(
+      scan('.b:focus-visible { outline: none; }\n.other:focus-visible .wrap { outline: 2px solid red; }\n'),
+      'unrelated selector',
+    ).toBe(1)
+    expect(scan('.b:hover { outline: none; }\n'), 'not a focus rule').toBe(0)
+  })
+
   it('fails a literal motion duration the theme collapse cannot reach', () => {
     // Only `--ds-transition-duration*` shortens under the setting, so a
     // literal duration is motion that setting never reaches.

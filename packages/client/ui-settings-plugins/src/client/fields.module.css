@@ -87,7 +87,8 @@
 }
 
 .input:focus-visible {
-  outline: none;
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 2px;
   border-color: var(--dsw-alias-brand-primary);
 }
 
