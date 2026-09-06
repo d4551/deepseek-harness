@@ -58,7 +58,7 @@
 .chevron {
   flex: 0 0 auto;
   color: var(--dsw-alias-label-caption);
-  transition: transform 120ms ease;
+  transition: transform var(--ds-transition-duration-fast) ease;
 }
 
 .chevronOpen {

@@ -203,6 +203,29 @@ function shortensToNothing(body: string): boolean {
   return (declared[2]?.toLowerCase() === 's' ? value * 1000 : value) <= 1
 }
 
+/**
+ * Whether a rule cuts a transition to something nobody perceives.
+ *
+ * The reduced-motion idiom for a transition is the same as for an animation:
+ * a duration at or under a millisecond, which lands the end state at once
+ * while leaving `transitionend` to fire. `transition: none` says it outright.
+ * Every stated time must be that short — a guard that shortens one property
+ * and leaves another moving has not stopped the motion.
+ * @param body - declarations the rule carries.
+ * @returns true when the rule leaves no perceptible transition.
+ */
+export function stopsTransition(body: string): boolean {
+  if (/transition\s*:\s*none\b/i.test(body)) return true
+  const declared = /(?:^|[^\w-])transition(?:-duration)?\s*:\s*([^;}]+)/i.exec(body)?.[1]
+  if (declared === undefined) return false
+  const times = [...declared.matchAll(/(?:^|[^\w.-])(\d*\.?\d+)\s*(ms|s)\b/gi)]
+  if (times.length === 0) return false
+  return times.every((time) => {
+    const value = Number(time[1])
+    return (time[2]?.toLowerCase() === 's' ? value * 1000 : value) <= 1
+  })
+}
+
 /** Whether a rule stops an animation rather than merely restyling it. */
 export function stopsAnimation(body: string): boolean {
   return /animation\s*:\s*none\b/i.test(body)

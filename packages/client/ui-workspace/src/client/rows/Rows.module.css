@@ -127,7 +127,7 @@
   gap: 0;
   /* Mount fade: session rows appear by unfolding a group (or the tree
      mounting). Stable row keys keep already-visible rows from replaying it. */
-  animation: row-in 150ms var(--ds-ease-in-out);
+  animation: row-in var(--ds-transition-duration) var(--ds-ease-in-out);
 }
 
 .sessionRow .title {
@@ -163,7 +163,7 @@
 
 /* Expand arrow (filled triangle): points right closed, rotates to point down open. */
 .arrow {
-  transition: transform 150ms var(--ds-ease-in-out);
+  transition: transform var(--ds-transition-duration) var(--ds-ease-in-out);
 }
 
 .arrowOpen {

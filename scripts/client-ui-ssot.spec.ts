@@ -261,6 +261,59 @@ describe('injected SSOT violations', () => {
     ).toBe(true)
   })
 
+  it('fails a literal motion duration the theme collapse cannot reach', () => {
+    // Only `--ds-transition-duration*` shortens under the setting, so a
+    // literal duration is motion that setting never reaches.
+    const scan = (content: string): number => scanUiSsot([THEME, FRAME, { file: 'Row.module.css', content }])
+      .filter(finding => finding.detail.includes('states a literal')).length
+    expect(scan('.row { transition: opacity 120ms ease; }\n'), 'literal transition').toBe(1)
+    expect(scan('.row { transition: opacity var(--ds-transition-duration-fast) ease; }\n'), 'token').toBe(0)
+    expect(scan('.row { transition: none; }\n'), 'no duration to collapse').toBe(0)
+    expect(scan('.row { animation: fade 160ms ease-out; }\n'), 'finite animation').toBe(1)
+    // An endless animation is the other rule's finding; one selector must not
+    // read as two problems.
+    expect(scan('.row { animation: spin 0.8s linear infinite; }\n'), 'infinite belongs to the other rule').toBe(0)
+    // The duration is the first time in a layer and the delay is the second,
+    // so a hold written as a literal fallback is not a duration.
+    expect(
+      scan('.row { animation: fade var(--ds-transition-duration) ease var(--hold, 3000ms) forwards; }\n'),
+      'literal delay after a token duration',
+    ).toBe(0)
+    // A timing function carries commas of its own; one layer is not four.
+    expect(
+      scan('.row { transition: top var(--ds-transition-duration) cubic-bezier(0.2, 0.8, 0.2, 1); }\n'),
+      'cubic-bezier commas',
+    ).toBe(0)
+    // Every layer has to take the token, not just the first.
+    expect(
+      scan('.row { transition: width var(--ds-transition-duration) ease, color 140ms ease; }\n'),
+      'second layer still literal',
+    ).toBe(1)
+    // A rule the sheet answers by name under the setting is stopped.
+    expect(
+      scan('.row { transition: opacity 120ms ease; }\n@media (prefers-reduced-motion: reduce) { .row { transition: none; } }\n'),
+      'answered by a guard',
+    ).toBe(0)
+    expect(
+      scan('.row { transition: opacity 120ms ease; }\n@media (prefers-reduced-motion: reduce) { .other { transition: none; } }\n'),
+      'guard names a different selector',
+    ).toBe(1)
+    expect(
+      scan('.row { transition: opacity 120ms ease; }\n@media (prefers-reduced-motion: reduce) { .row { color: red; } }\n'),
+      'guard restyles without stopping',
+    ).toBe(1)
+  })
+
+  it('fails a literal motion duration in a TSX style object', () => {
+    const scan = (content: string): number => scanUiSsot([THEME, FRAME, { file: 'packages/client/ui-x/src/Row.tsx', content }])
+      .filter(finding => finding.kind === 'reduced-motion').length
+    // A style object carries no media query, so no guard can ever reach it.
+    expect(scan("const a = <svg style={{ transition: 'transform 120ms ease' }} />\n"), 'inline transition').toBe(1)
+    expect(scan("const a = <svg style={{ animationDuration: '200ms' }} />\n"), 'inline animation-duration').toBe(1)
+    expect(scan("const a = <svg className={styles['chevron']} />\n"), 'class instead').toBe(0)
+    expect(scan("const label = 'transition: 120ms is what the sheet declares'\n"), 'prose mentioning one').toBe(0)
+  })
+
   it('fails an infinite animation no reduced-motion rule actually stops', () => {
     const spinning = '.s { animation: spin 0.8s linear infinite; }'
     const guard = '@media (prefers-reduced-motion: reduce) { .s { animation: none; } }'

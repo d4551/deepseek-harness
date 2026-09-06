@@ -182,7 +182,7 @@
   color: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background-color 120ms ease, border-color 120ms ease;
+  transition: background-color var(--ds-transition-duration-fast) ease, border-color var(--ds-transition-duration-fast) ease;
 }
 
 .option:hover:not(:disabled),
@@ -238,7 +238,7 @@
   height: 14px;
   border: 1px solid var(--dsw-alias-border-l4);
   border-radius: 4px;
-  transition: background-color 120ms ease, border-color 120ms ease;
+  transition: background-color var(--ds-transition-duration-fast) ease, border-color var(--ds-transition-duration-fast) ease;
 }
 
 .checkbox > svg {
@@ -307,7 +307,7 @@
   padding: 8px 12px 8px 8px;
   border: 1px solid transparent;
   border-radius: 12px;
-  transition: background-color 120ms ease, border-color 120ms ease;
+  transition: background-color var(--ds-transition-duration-fast) ease, border-color var(--ds-transition-duration-fast) ease;
 }
 
 .customRow:hover,

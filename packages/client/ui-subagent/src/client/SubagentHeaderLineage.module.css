@@ -85,7 +85,7 @@
 
 .trigger svg,
 .switcherTrigger svg {
-  transition: transform 120ms ease;
+  transition: transform var(--ds-transition-duration-fast) ease;
 }
 
 .triggerOpen {
@@ -190,7 +190,7 @@
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   cursor: pointer;
-  transition: transform 120ms ease;
+  transition: transform var(--ds-transition-duration-fast) ease;
 }
 
 .disclosure:hover {

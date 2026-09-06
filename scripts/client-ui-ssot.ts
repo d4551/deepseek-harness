@@ -10,7 +10,9 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { forbiddenStackHits } from './live-stack-floors.ts'
 import { uniqueRepoFiles } from './repo-files.ts'
-import { cssRules, declaresInfiniteAnimation, selectorParts, stopsAnimation, stripCssComments } from './ui-ssot-css.ts'
+import {
+  cssRules, declaresInfiniteAnimation, selectorParts, stopsAnimation, stopsTransition, stripCssComments,
+} from './ui-ssot-css.ts'
 
 const ROOT = resolve(import.meta.dirname, '..')
 
@@ -95,6 +97,12 @@ const TSX_COLOR_OBJECT = new RegExp(
   + String.raw`(${TSX_HEX}|rgba?\(|hsla?\(|oklch\()`,
   'g',
 )
+/**
+ * A literal motion duration in a TSX style object. A style object carries no
+ * media query, so the theme's reduced-motion collapse can never reach it: the
+ * duration has to come from the token, through a CSS Module class.
+ */
+const TSX_MOTION = /\b(?:transition|animation)(?:Duration)?\s*:\s*(['"])[^'"]*?\d*\.?\d+\s*m?s\b[^'"]*\1/g
 const TSX_COLOR_ATTR = new RegExp(
   String.raw`\b(fill|stroke|color)\s*=\s*(['"])(${TSX_HEX}|rgba?\([^)]*\)|hsla?\([^)]*\)|oklch\([^)]*\))\2`,
   'g',
@@ -110,6 +118,63 @@ const CURSOR_POINTER = /cursor\s*:\s*pointer\b/i
 const POINTER_EVENTS_NONE = /pointer-events\s*:\s*none\b/i
 const NATIVE_FORM_CONTROL = /(?:^|[\s>+~,(])(?:input|textarea|select)(?:$|[\s.:#[,>+~])/i
 const UA_PSEUDO_ELEMENT = /::[\w-]/
+/**
+ * One `transition` or `animation` declaration and the value it carries.
+ *
+ * The theme collapses `--ds-transition-duration*` under
+ * `prefers-reduced-motion`, so a duration written as a literal is motion that
+ * setting can never reach.
+ */
+const MOTION_DECL = /(?:^|[^\w-])(transition|animation)(?:-duration)?\s*:\s*([^;}]+)/gi
+/** A stated time in a motion value. */
+const MOTION_TIME = /(?:^|[^\w.-])\d*\.?\d+\s*(?:ms|s)\b/i
+/** The theme's collapsible duration scale. */
+const MOTION_TOKEN = /var\(\s*--ds-transition-duration/i
+
+/**
+ * Split a declaration value on the commas that separate its layers.
+ *
+ * `transition` and `animation` both take a comma-separated list, and a timing
+ * function carries commas of its own — `cubic-bezier(0.2, 0.8, 0.2, 1)` is one
+ * layer, not four. Only commas outside parentheses divide layers.
+ * @param value - the declaration value as written.
+ * @returns one entry per layer, trimmed.
+ */
+function motionLayers(value: string): string[] {
+  const layers: string[] = []
+  let depth = 0
+  let start = 0
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value.charAt(index)
+    if (character === '(') depth += 1
+    else if (character === ')') depth -= 1
+    else if (character === ',' && depth === 0) {
+      layers.push(value.slice(start, index).trim())
+      start = index + 1
+    }
+  }
+  layers.push(value.slice(start).trim())
+  return layers.filter(layer => layer !== '')
+}
+
+/**
+ * Whether one motion layer states its duration as a literal.
+ *
+ * The duration is the first time in the layer and the delay is the second, so
+ * only the first is read: a toast whose hold is `var(--hold, 3000ms)` states
+ * its duration through the token even though a literal time appears later. A
+ * layer with no duration at all — `transition: none`, or one taking its time
+ * from another property — states nothing to collapse.
+ * @param layer - one comma-separated layer of a motion value.
+ * @returns true when the layer's duration is a literal the collapse cannot reach.
+ */
+function statesLiteralDuration(layer: string): boolean {
+  const literal = MOTION_TIME.exec(layer)
+  if (literal === null) return false
+  const token = MOTION_TOKEN.exec(layer)
+  return token === null || literal.index < token.index
+}
+
 /** WCAG 2.5.8 Target Size (Minimum): 24 CSS pixels on each authored pointer target. */
 const HIT_TARGET_MIN_PX = 24
 /**
@@ -486,6 +551,14 @@ export function scanUiSsot(files: readonly { file: string; content: string }[]):
       if (TSX_COLOR_ATTR.test(content)) {
         findings.push({ file: path, kind: 'tsx-inline-color', detail: 'literal hex in an SVG color attribute; use a CSS Module class or currentColor' })
       }
+      TSX_MOTION.lastIndex = 0
+      if (TSX_MOTION.test(content)) {
+        findings.push({
+          file: path,
+          kind: 'reduced-motion',
+          detail: 'literal motion duration in a TSX style object, which no prefers-reduced-motion rule can reach; move it to a CSS Module using --ds-transition-duration*',
+        })
+      }
     }
 
     if (path.endsWith('.css')) {
@@ -559,6 +632,41 @@ export function scanUiSsot(files: readonly { file: string; content: string }[]):
           kind: 'reduced-motion',
           detail: `\`${part}\` animates forever with no prefers-reduced-motion rule stopping it`,
         })
+      }
+    }
+  }
+
+  // A literal duration is motion the theme's collapse cannot reach: only
+  // `--ds-transition-duration*` shortens under the setting. A rule stating one
+  // therefore has to take the token or be answered by name, the same bar the
+  // endless-animation rule applies.
+  for (const { file: path, content } of files) {
+    if (!path.endsWith('.css')) continue
+    const rules = cssRules(stripCssComments(content))
+    const guards = rules.filter(rule =>
+      rule.reduced && !rule.conditional && (stopsAnimation(rule.body) || stopsTransition(rule.body)))
+    for (const rule of rules) {
+      if (rule.reduced) continue
+      MOTION_DECL.lastIndex = 0
+      let declaration: RegExpExecArray | null
+      while ((declaration = MOTION_DECL.exec(rule.body)) !== null) {
+        const property = declaration[1]?.toLowerCase()
+        const value = declaration[2]
+        if (property === undefined || value === undefined) continue
+        // An endless animation is the other rule's finding; reporting it twice
+        // would make one selector read as two problems.
+        if (property === 'animation' && declaresInfiniteAnimation(rule.body)) continue
+        if (!motionLayers(value).some(statesLiteralDuration)) continue
+        for (const part of selectorParts(rule.selector)) {
+          const answered = guards.some(guard => guard.start > rule.start
+            && selectorParts(guard.selector).some(target => target === part || target === '*'))
+          if (answered) continue
+          findings.push({
+            file: path,
+            kind: 'reduced-motion',
+            detail: `\`${part}\` states a literal ${property} duration, which --ds-transition-duration* collapse never reaches`,
+          })
+        }
       }
     }
   }

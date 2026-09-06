@@ -21,7 +21,7 @@
   line-height: 16px;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 100ms ease;
+  transition: opacity var(--ds-transition-duration-fast) ease;
 }
 
 .pill:focus-visible {
