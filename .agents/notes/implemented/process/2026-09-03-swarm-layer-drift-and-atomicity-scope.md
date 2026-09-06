@@ -33,3 +33,5 @@ Both were proved by mutation: renaming one shared disable target fails three of 
 ## Consequences
 
 The atomicity claim states its scope in the subsystem page and at both call sites. The two preset layers cannot drift apart, and swarm-profile cannot target a base row that no longer exists, without a test failing. The duplication between them remains, and remains deliberate.
+
+Superseded on 2026-09-07: `dsh-base` mounts the Team rows for every profile and `agent-team-profile` no longer exists, so the checked copy and its equivalence test are gone; the swarm layer now retunes base rows, and its suite compares each row to base's own ([note](../architecture/2026-09-07-agent-teams-in-every-profile.md)).

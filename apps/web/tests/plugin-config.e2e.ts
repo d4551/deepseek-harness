@@ -17,12 +17,6 @@ import { launchBrowser, saveFailureShot, ZH_BROWSER_LOCALE } from './support.ts'
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('./expected/plugin-config', import.meta.url))
 const SECTION_EXPECTED = join(SNAPSHOT_DIR, 'section.expected.md')
-const AGENT_TEAM_PATCH = fileURLToPath(
-  new URL('../../../packages/preset/agent-team-profile/cordis.patch.yml', import.meta.url),
-)
-const AGENT_TEAM_INSTALL_ANCHOR = fileURLToPath(
-  new URL('../../../packages/preset/agent-team-profile/package.json', import.meta.url),
-)
 const MODE = webSnapshotMode()
 
 /** Open the Plugins section of the settings dialog on one scaffold page. */
@@ -300,10 +294,7 @@ describe('web e2e: Agent Team plugin configuration', () => {
   let tripwire: ReturnType<typeof watchConsole>
 
   beforeAll(async () => {
-    scaffold = await launchWebScaffold({
-      extraOverlayPath: AGENT_TEAM_PATCH,
-      extraInstallAnchors: [AGENT_TEAM_INSTALL_ANCHOR],
-    })
+    scaffold = await launchWebScaffold()
     browser = await launchBrowser()
     page = await browser.newPage({ viewport: { width: 1680, height: 1000 }, locale: ZH_BROWSER_LOCALE })
     tripwire = watchConsole(page)

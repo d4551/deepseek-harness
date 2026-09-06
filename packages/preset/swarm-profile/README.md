@@ -45,7 +45,7 @@ That profile must already contain `@deepseek-ai/dsh-base`, whose Subagent servic
 
 ### What you get
 
-The layer adds the Agent Teams domain and its scoped tools with `coordination: swarm`, which selects pull-based guidance in place of the delegated policy. It disables the global continuable-child control rows whose tool names overlap with Team controls, leaves `subagent` and `subagent_fork` available as one-shot delegation tools, and gives `ctx.subagents` a `maxConcurrentRuns` ceiling.
+The layer retunes the Team rows `dsh-base` mounts for every profile: `coordination: swarm` selects pull-based guidance in place of the delegated policy, `maxMembers: 16` widens the roster, `subagent` becomes a one-shot delegation tool beside the one-shot `subagent_fork`, and `ctx.subagents` gets a `maxConcurrentRuns` ceiling.
 
 ### Tuning the team from Settings
 
@@ -63,7 +63,7 @@ The layer adds the Agent Teams domain and its scoped tools with `coordination: s
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The package's runtime content is [`cordis.patch.yml`](cordis.patch.yml). Applied after `dsh-base`, the patch bounds the `subagent` row, disables `tool-subagent-control`, `tool-subagent-list-agents`, and `tool-subagent-report`, sets the fresh and fork Subagent rows to `one-shot`, and inserts the Team service and tool rows with explicit providers, limits, and the swarm coordination mode.
+The package's runtime content is [`cordis.patch.yml`](cordis.patch.yml). Applied after `dsh-base`, the patch bounds the `subagent` row, sets the fresh Subagent row to `one-shot`, and restates the `agent-team` and `tool-agent-team` rows base mounts with a wider roster and the swarm coordination mode; it inserts no row of its own.
 
 | File | Role |
 |---|---|
@@ -94,7 +94,7 @@ The package's own suite boots the rows this patch inserts through the real Loade
 
 #### What the model sees
 
-The policy text and tool schemas belong to [`@deepseek-ai/dsh-tool-agent-team`](../../subagent/tool-agent-team/README.md). This bundle selects the swarm policy: the Lead is told to decompose into tasks with write scopes before spawning anyone, and every member is told to take work with `team_task_claim_next`, to read a `none` outcome as an ordinary board state rather than a failure, and to end its turn once the board holds no pending task. Team-scoped `list_agents`, `send_message`, and `interrupt_agent` replace the disabled global continuable-child controls.
+The policy text and tool schemas belong to [`@deepseek-ai/dsh-tool-agent-team`](../../subagent/tool-agent-team/README.md). This bundle selects the swarm policy: the Lead is told to decompose into tasks with write scopes before spawning anyone, and every member is told to take work with `team_task_claim_next`, to read a `none` outcome as an ordinary board state rather than a failure, and to end its turn once the board holds no pending task. Team-scoped `list_agents`, `send_message`, and `interrupt_agent` are the ones every profile carries; no global continuable-child control shares their names.
 
 #### Token effect
 

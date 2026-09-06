@@ -163,19 +163,12 @@ export const PROFILE_TEMPLATES: Record<string, ProfileTemplate> = {
     bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-headless', '@deepseek-ai/dsh-swarm-profile'],
     patchReload: 'startup',
   },
-  // Swarm mode with a browser attached. The same `swarm-profile` host layer
-  // stacks over `web-app` instead of `headless`, and `agent-team-web-profile`
-  // adds the one browser row that renders the roster, task board, and mailbox.
-  // Team tools register in each Agent's own scope, which shadows the
-  // preset-scope continuable-child controls that share their names, so no
-  // Team-aware Agent preset is required.
+  // Swarm mode with a browser attached: the same `swarm-profile` host layer
+  // stacks over `web-app` instead of `headless`. `base` already mounts the
+  // Team and its tools and `web-app` the browser row that renders the roster,
+  // task board, and mailbox, so this layer only switches coordination to swarm.
   'swarm-web': {
-    bundles: [
-      '@deepseek-ai/dsh-base',
-      '@deepseek-ai/dsh-web-app',
-      '@deepseek-ai/dsh-swarm-profile',
-      '@deepseek-ai/dsh-agent-team-web-profile',
-    ],
+    bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-swarm-profile'],
     patchReload: 'live',
   },
   // The Web application over a network-drive workspace. `hosted-drive` applies

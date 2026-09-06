@@ -58,17 +58,12 @@ const experimentalPackageNamePrefix = '@deepseek-ai/dsh-experimental-'
 const releaseMemberDirectory = /^(?:packages\/(?!experimental\/)[^/]+\/[^/]+|apps\/[^/]+|vendor\/[^/]+)$/
 /**
  * Private packages that sit outside `packages/experimental/` and are still not
- * published. Each is a profile layer a user adds to an initialized source
- * checkout by name; the release payloads exclude them, and their READMEs and
- * their own bundle tests both state that. A directory rule cannot express this,
- * because these live beside published presets, so each is named with its reason.
+ * published: profile layers a user adds to an initialized source checkout by
+ * name, which the release payloads exclude. A directory rule cannot express
+ * this, because such a layer lives beside published presets, so each is named
+ * with its reason. Empty while every preset layer ships.
  */
-const privateSourceCheckoutPackages: Readonly<Record<string, string>> = {
-  // The Agent Teams layer over `dsh-base` alone. The shipped `swarm` and
-  // `swarm-web` profiles stack `dsh-swarm-profile` instead, which also bounds
-  // the Subagent run ceiling; this one stays a source-checkout add-on.
-  '@deepseek-ai/dsh-agent-team-profile': 'opt-in Agent Teams layer, excluded from release payloads',
-}
+const privateSourceCheckoutPackages: Readonly<Record<string, string>> = {}
 const localArtifactDirs = new Set(['node_modules'])
 const appPackageFiles: Readonly<Record<string, readonly string[]>> = {
   '@deepseek-ai/dsh': ['lib/*.js'],

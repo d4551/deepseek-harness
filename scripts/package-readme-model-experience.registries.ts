@@ -75,7 +75,6 @@ export const SENTENCE_MODEL_EXPERIENCE: Readonly<Record<string, SentenceContract
   'packages/client/ui-session': { kind: 'none', reason: 'Browser-side Session projection; registers nothing model-facing.' },
   'packages/client/connection': { kind: 'none', reason: 'Browser-side UI plugin layer; registers nothing model-facing.' },
   'packages/api/remotes': { kind: 'none', reason: 'The Remote BFF selects business methods and forwarded events; selected services own any model-visible effect.' },
-  'packages/preset/agent-team-web-profile': { kind: 'indirect', reason: 'The browser layer of swarm-web delegates model composition to the Host-side swarm layer.' },
   'packages/client/ui-agent-team': { kind: 'none', reason: 'The browser projection and task controls register no model-facing input.' },
   'packages/client/ui-layout': { kind: 'none', reason: 'Browser-side UI plugin layer; registers nothing model-facing.' },
   'packages/client/ui-sidebar': { kind: 'none', reason: 'Browser-side UI plugin layer; registers nothing model-facing.' },

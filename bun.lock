@@ -130,7 +130,6 @@
         "@deepseek-ai/cordis-plugin-timer": "workspace:^",
         "@deepseek-ai/dsh-acp-app": "workspace:^",
         "@deepseek-ai/dsh-agent-instructions": "workspace:^",
-        "@deepseek-ai/dsh-agent-team-web-profile": "workspace:^",
         "@deepseek-ai/dsh-agent-tool-presentation": "workspace:^",
         "@deepseek-ai/dsh-app-boot": "workspace:^",
         "@deepseek-ai/dsh-base": "workspace:^",
@@ -201,7 +200,6 @@
         "@deepseek-ai/dsh-agent": "workspace:^",
         "@deepseek-ai/dsh-agent-spine-demo": "workspace:^",
         "@deepseek-ai/dsh-agent-team": "workspace:^",
-        "@deepseek-ai/dsh-agent-team-profile": "workspace:^",
         "@deepseek-ai/dsh-attachment-local": "workspace:^",
         "@deepseek-ai/dsh-bash-local": "workspace:^",
         "@deepseek-ai/dsh-credentials-local": "workspace:^",
@@ -670,6 +668,7 @@
         "@deepseek-ai/dsh-agent-default-model": "workspace:^",
         "@deepseek-ai/dsh-agent-instructions": "workspace:^",
         "@deepseek-ai/dsh-agent-loop": "workspace:^",
+        "@deepseek-ai/dsh-agent-team": "workspace:^",
         "@deepseek-ai/dsh-api-gateway": "workspace:^",
         "@deepseek-ai/dsh-approval-adversary": "workspace:^",
         "@deepseek-ai/dsh-approval-assessor": "workspace:^",
@@ -726,6 +725,7 @@
         "@deepseek-ai/dsh-subprocess-local": "workspace:^",
         "@deepseek-ai/dsh-system-prompt": "workspace:^",
         "@deepseek-ai/dsh-token-meter": "workspace:^",
+        "@deepseek-ai/dsh-tool-agent-team": "workspace:^",
         "@deepseek-ai/dsh-tool-call-timeout-policy": "workspace:^",
         "@deepseek-ai/dsh-tool-fs": "workspace:^",
         "@deepseek-ai/dsh-tool-fs-search": "workspace:^",
@@ -736,7 +736,6 @@
         "@deepseek-ai/dsh-tool-skill": "workspace:^",
         "@deepseek-ai/dsh-tool-str-replace-editor": "workspace:^",
         "@deepseek-ai/dsh-tool-subagent": "workspace:^",
-        "@deepseek-ai/dsh-tool-subagent-control": "workspace:^",
         "@deepseek-ai/dsh-tool-subagent-report": "workspace:^",
         "@deepseek-ai/dsh-tool-todo": "workspace:^",
         "@deepseek-ai/dsh-tool-web": "workspace:^",
@@ -888,6 +887,7 @@
         "@deepseek-ai/dsh-client-locale": "workspace:^",
         "@deepseek-ai/dsh-client-modules": "workspace:^",
         "@deepseek-ai/dsh-client-ui-agent-preset": "workspace:^",
+        "@deepseek-ai/dsh-client-ui-agent-team": "workspace:^",
         "@deepseek-ai/dsh-client-ui-approval": "workspace:^",
         "@deepseek-ai/dsh-client-ui-attachment": "workspace:^",
         "@deepseek-ai/dsh-client-ui-brand-official": "workspace:^",
@@ -4836,41 +4836,6 @@
         "@deepseek-ai/dsh-typert-protocol": "workspace:^",
       },
     },
-    "packages/preset/agent-team-profile": {
-      "name": "@deepseek-ai/dsh-agent-team-profile",
-      "version": "0.1.2-alpha.1",
-      "dependencies": {
-        "@deepseek-ai/dsh-agent-team": "workspace:^",
-        "@deepseek-ai/dsh-tool-agent-team": "workspace:^",
-      },
-      "devDependencies": {
-        "@deepseek-ai/cordis": "workspace:^",
-        "@deepseek-ai/cordis-plugin-include": "workspace:^",
-        "@deepseek-ai/dsh-invariants": "workspace:^",
-        "js-yaml": "^5.4.1",
-      },
-      "peerDependencies": {
-        "@deepseek-ai/cordis": "workspace:^",
-        "@deepseek-ai/dsh-invariants": "workspace:^",
-      },
-    },
-    "packages/preset/agent-team-web-profile": {
-      "name": "@deepseek-ai/dsh-agent-team-web-profile",
-      "version": "0.1.2-alpha.1",
-      "dependencies": {
-        "@deepseek-ai/dsh-client-ui-agent-team": "workspace:^",
-      },
-      "devDependencies": {
-        "@deepseek-ai/cordis": "workspace:^",
-        "@deepseek-ai/cordis-plugin-include": "workspace:^",
-        "@deepseek-ai/dsh-invariants": "workspace:^",
-        "js-yaml": "^5.4.1",
-      },
-      "peerDependencies": {
-        "@deepseek-ai/cordis": "workspace:^",
-        "@deepseek-ai/dsh-invariants": "workspace:^",
-      },
-    },
     "packages/preset/persona": {
       "name": "@deepseek-ai/dsh-persona",
       "version": "0.1.2-alpha.1",
@@ -4892,11 +4857,6 @@
     "packages/preset/swarm-profile": {
       "name": "@deepseek-ai/dsh-swarm-profile",
       "version": "0.1.2-alpha.1",
-      "dependencies": {
-        "@deepseek-ai/dsh-agent-team": "workspace:^",
-        "@deepseek-ai/dsh-subagent": "workspace:^",
-        "@deepseek-ai/dsh-tool-agent-team": "workspace:^",
-      },
       "devDependencies": {
         "@deepseek-ai/cordis": "workspace:^",
         "@deepseek-ai/cordis-plugin-include": "workspace:^",
@@ -8040,10 +8000,6 @@
     "@deepseek-ai/dsh-agent-spine-demo": ["@deepseek-ai/dsh-agent-spine-demo@workspace:packages/examples/agent-spine-demo"],
 
     "@deepseek-ai/dsh-agent-team": ["@deepseek-ai/dsh-agent-team@workspace:packages/subagent/agent-team"],
-
-    "@deepseek-ai/dsh-agent-team-profile": ["@deepseek-ai/dsh-agent-team-profile@workspace:packages/preset/agent-team-profile"],
-
-    "@deepseek-ai/dsh-agent-team-web-profile": ["@deepseek-ai/dsh-agent-team-web-profile@workspace:packages/preset/agent-team-web-profile"],
 
     "@deepseek-ai/dsh-agent-tool-presentation": ["@deepseek-ai/dsh-agent-tool-presentation@workspace:packages/core/agent-tool-presentation"],
 

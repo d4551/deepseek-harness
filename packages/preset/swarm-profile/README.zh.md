@@ -45,7 +45,7 @@ dsh plugin --profile <name> add @deepseek-ai/dsh-swarm-profile
 
 ### 你会得到什么
 
-本层加入 Agent Teams 域及其作用域内的工具，并设置 `coordination: swarm`，从而以拉取式指引取代委派式策略。它禁用工具名与 Team 控制重叠的全局可续子 Agent 控制行，保留 `subagent` 与 `subagent_fork` 作为一次性委派工具，并为 `ctx.subagents` 设定 `maxConcurrentRuns` 上限。
+本层重新调校 `dsh-base` 为每个 profile 挂载的 Team 行：`coordination: swarm` 以拉取式指引取代委派式策略，`maxMembers: 16` 放宽名册，`subagent` 变成与一次性的 `subagent_fork` 并列的一次性委派工具，并为 `ctx.subagents` 设定 `maxConcurrentRuns` 上限。
 
 ### 从设置调整团队
 
@@ -63,7 +63,7 @@ dsh plugin --profile <name> add @deepseek-ai/dsh-swarm-profile
 <details>
 <summary>实现内部细节——点击展开</summary>
 
-本包的运行时内容就是 [`cordis.patch.yml`](cordis.patch.yml)。它在 `dsh-base` 之后应用：为 `subagent` 行设定上限，禁用 `tool-subagent-control`、`tool-subagent-list-agents` 与 `tool-subagent-report`，把 fresh 与 fork 两个 Subagent 行设为 `one-shot`，并插入带显式 provider、限额与 swarm 协作模式的 Team 服务行与工具行。
+本包的运行时内容就是 [`cordis.patch.yml`](cordis.patch.yml)。它在 `dsh-base` 之后应用：为 `subagent` 行设定上限，把 fresh Subagent 行设为 `one-shot`，并以更宽的名册与 swarm 协作模式重述 base 挂载的 `agent-team` 与 `tool-agent-team` 行；它自己不插入任何行。
 
 | 文件 | 职责 |
 |---|---|
@@ -94,7 +94,7 @@ dsh plugin --profile <name> add @deepseek-ai/dsh-swarm-profile
 
 #### 模型看到什么
 
-策略文本与工具 schema 属于 [`@deepseek-ai/dsh-tool-agent-team`](../../subagent/tool-agent-team/README.zh.md)。本 bundle 选择 swarm 策略：Lead 被要求先拆成带写作用域的任务再创建队友；每个成员被要求用 `team_task_claim_next` 领取工作，把 `none` 结果读作普通的任务板状态而不是失败，并在任务板不再有 pending 任务时结束本轮。Team 作用域的 `list_agents`、`send_message` 与 `interrupt_agent` 取代被禁用的全局可续子 Agent 控制。
+策略文本与工具 schema 属于 [`@deepseek-ai/dsh-tool-agent-team`](../../subagent/tool-agent-team/README.zh.md)。本 bundle 选择 swarm 策略：Lead 被要求先拆成带写作用域的任务再创建队友；每个成员被要求用 `team_task_claim_next` 领取工作，把 `none` 结果读作普通的任务板状态而不是失败，并在任务板不再有 pending 任务时结束本轮。Team 作用域的 `list_agents`、`send_message` 与 `interrupt_agent` 就是每个 profile 携带的那一组；没有任何全局可续子 Agent 控制与它们同名。
 
 #### Token 影响
 

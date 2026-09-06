@@ -363,13 +363,9 @@
         providerName: fork
 
     # Continuable background children are selected per delegation tool. The
-    # separately loaded follow-up tool registers the one global `send_message`.
-    - id: tool-subagent-control
-      name: '@deepseek-ai/dsh-tool-subagent-control'
-
-    - id: tool-subagent-list-agents
-      name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
-
+    # Team tools below own `send_message`, `list_agents`, and `interrupt_agent`
+    # in every Agent scope, so the global continuable-child controls of the same
+    # names are not mounted; a continuable child answers through `report`.
     - id: tool-subagent
       name: '@deepseek-ai/dsh-tool-subagent'
       config:
@@ -393,6 +389,26 @@
     # Optional direct-child return channel; absent from roots and one-shot agents.
     - id: tool-subagent-report
       name: '@deepseek-ai/dsh-tool-subagent-report'
+
+    # Agent Teams: the durable roster, task board, and mailbox every root Agent
+    # leads, and the Team-scoped tools that register in each member's own scope.
+    # The delegated policy tells the model to create teammates only when the
+    # user asks; the swarm layer retunes these rows for pull-based coordination.
+    - id: agent-team
+      name: '@deepseek-ai/dsh-agent-team'
+      config:
+        maxMembers: 8
+        maxTasks: 256
+        maxPendingMessagesPerMember: 64
+        maxMessageBytes: 65536
+        disposalTimeoutMs: 5000
+
+    - id: tool-agent-team
+      name: '@deepseek-ai/dsh-tool-agent-team'
+      config:
+        freshProvider: spawn
+        forkProvider: fork
+        coordination: delegated
 
     - id: workflow-worker-thread
       name: '@deepseek-ai/dsh-workflow-worker-thread'

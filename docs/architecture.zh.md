@@ -116,7 +116,7 @@ turn/end
 
 seam 正是替换一个提供方就能改变整个产品的原因。文件系统与进程提供方共享同一个执行世界，因此把它们指向远程沙箱，也就把 Bash、PTY 和 LSP 一并搬了过去，无需提供方专用 fork。[subagent 提供方](subsystems/subagent.zh.md)在同一个接口之后同样千差万别，从新建一个子 agent，到把一个轮次委派给另一个产品。
 
-[Agent Teams](subsystems/agent-team.zh.md) 是 `ctx.agentTeams` 上的显式启用协作 seam，在可继续 subagent 之上提供持久 roster、任务板和 mailbox；`dsh-base` 将其禁用，而随附的 `swarm` profile 就是启用它的那一层 patch——它把 `dsh-swarm-profile` 叠放在 `headless` 之上，插入团队及其受限作用域的工具，并替换掉那些工具重用了同名工具的全局可继续子进程控制项。`swarm-web` 把同一层改叠在 `web-app` 之上，并加上 [`dsh-agent-team-web-profile`](../packages/preset/agent-team-web-profile/README.zh.md)——渲染 roster、任务板与 mailbox 的那一行浏览器条目；Team 工具注册在每个 Agent 自身的 scope 中，会遮蔽 preset scope 中的同名控制项，因此不涉及 Team-aware Agent preset。
+[Agent Teams](subsystems/agent-team.zh.md) 是 `ctx.agentTeams` 上的协作 seam，在可继续 subagent 之上提供持久 roster、任务板和 mailbox。`dsh-base` 在每个 profile 中都以委派策略挂载团队及其受限作用域的工具——该策略只在用户要求时才创建 teammate——而 `web-app` 挂载渲染 roster、任务板与 mailbox 的那一行浏览器条目。随附的 `swarm` profile 把 `dsh-swarm-profile` 叠放在 `headless` 之上，把协作切换为 swarm、放宽名册并为 Subagent 运行上限设界；`swarm-web` 把同一层叠在 `web-app` 之上。Team 工具注册在每个 Agent 自身的 scope 中，会遮蔽 preset scope 中的同名可继续子进程控制项，因此不涉及 Team-aware Agent preset。
 
 ## 新行为的归属位置
 

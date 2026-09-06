@@ -1,12 +1,9 @@
-// Keyless assembled-browser coverage for the private Agent Teams Web profiles
-// over the real Host Typert Remote flow.
+// Keyless assembled-browser coverage for the Agent Teams panel the shipped Web
+// bundle mounts, over the real Host Typert Remote flow.
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
-import { readFileSync } from 'node:fs'
 import type { Browser, Page } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
-import * as yaml from 'js-yaml'
-import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
 import { createMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import {
   assertFixtureInventory, captureStableAria, compareOrRefreshGolden,
@@ -16,29 +13,7 @@ import { connectFreshWorkspace, launchBrowser, newEnglishPage, saveFailureShot }
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('./snapshots/agent-team-panel', import.meta.url))
 const PANEL_EXPECTED = join(SNAPSHOT_DIR, 'task.expected.md')
-const OVERLAY = fileURLToPath(new URL('./agent-team-panel.overlay.yml', import.meta.url))
-const HOST_PATCH = fileURLToPath(new URL('../../../packages/preset/agent-team-profile/cordis.patch.yml', import.meta.url))
-const WEB_PATCH = fileURLToPath(new URL('../../../packages/preset/agent-team-web-profile/cordis.patch.yml', import.meta.url))
-const INSTALL_ANCHORS = [
-  fileURLToPath(new URL('../../../packages/preset/agent-team-profile/package.json', import.meta.url)),
-  fileURLToPath(new URL('../../../packages/preset/agent-team-web-profile/package.json', import.meta.url)),
-]
 const MODE = webSnapshotMode()
-
-function profileEntries(path: string): unknown[] {
-  const parsed = yaml.load(readFileSync(path, 'utf8'), { schema: entryListSchema })
-  if (!Array.isArray(parsed)) throw new Error(`profile layer at ${path} must be a list`)
-  return parsed
-}
-
-describe('Agent Teams panel overlay', () => {
-  it('matches the shipped Host and Web profile layers', () => {
-    expect(profileEntries(OVERLAY)).toEqual([
-      ...profileEntries(HOST_PATCH),
-      ...profileEntries(WEB_PATCH),
-    ])
-  })
-})
 
 describe('web e2e: Agent Teams panel', () => {
   let scaffold: WebScaffold
@@ -47,7 +22,7 @@ describe('web e2e: Agent Teams panel', () => {
   let tripwire: ReturnType<typeof watchConsole>
 
   beforeAll(async () => {
-    scaffold = await launchWebScaffold({ extraOverlayPath: OVERLAY, extraInstallAnchors: INSTALL_ANCHORS })
+    scaffold = await launchWebScaffold()
     browser = await launchBrowser()
     page = await newEnglishPage(browser)
     tripwire = watchConsole(page)

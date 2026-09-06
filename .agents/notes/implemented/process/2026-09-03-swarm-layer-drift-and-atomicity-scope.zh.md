@@ -33,3 +33,5 @@ Status: implemented
 ## 影响
 
 原子性说法在子系统页面与两个调用点都写明了作用域。两个 preset 层不会彼此漂移，swarm-profile 也不能针对一个不再存在的 base 行，否则会有测试失败。它们之间的重复仍在，并且仍是刻意的。
+
+已于 2026-09-07 被取代：`dsh-base` 为每个 profile 挂载 Team 行，`agent-team-profile` 已不存在，因此受检副本及其等价性测试都已移除；swarm 层现在重新调校 base 的行，其套件把每一行与 base 自己的行比较（[note](../architecture/2026-09-07-agent-teams-in-every-profile.zh.md)）。

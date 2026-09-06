@@ -57,7 +57,7 @@ write scope 这部分工作是通过执行器而不是工具 schema 来证明的
 
 ## 考虑过的替代方案
 
-**把 Team 底座放进 `packages/bundle/base`。** 否决：那会把 Team 工具面及其提示词策略交给每一个 profile，而按需选用的东西不进交付默认值。
+**把 Team 底座放进 `packages/bundle/base`。** 当时否决：那会把 Team 工具面及其提示词策略交给每一个 profile，而按需选用的东西当时不进交付默认值。已于 2026-09-07 被 [Agent Teams 随每个 profile 交付](2026-09-07-agent-teams-in-every-profile.zh.md)取代，它把底座移入 `dsh-base`，把浏览器行移入 `web-app`。
 
 **把 swarm 拆成叠在一个已发布 `agent-team` 组合包之上的增量。** 以那篇漂移 Agent Note 已经记录的理由否决——没有任何东西能强制用户把两者都叠上，而只应用增量得到的是警告而不是拒绝。
 

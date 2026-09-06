@@ -1,7 +1,8 @@
 /**
- * The shipped swarm layer must declare one parseable patch and, when its own
- * rows are booted through the real Loader, produce a working swarm: the bounded
- * subagent run ceiling, the shared Team board including the pull-based claim
+ * The shipped swarm layer must declare one parseable patch that retunes only
+ * rows `dsh-base` mounts for every profile and, when those rows are booted
+ * through the real Loader with its overrides, produce a working swarm: the
+ * bounded subagent run ceiling, the wider Team roster, the pull-based claim
  * tool, and the swarm guidance in the assembled system prompt.
  */
 
@@ -30,20 +31,29 @@ import SystemPrompt, { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import * as ToolAgentTeam from '@deepseek-ai/dsh-tool-agent-team'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 
-/** One patch row in the shipped bundle document. */
+/** One patch row in a bundle document. */
 interface PatchRow {
   id?: string
+  name?: string
   disabled?: boolean
   config?: Record<string, unknown>
-  insert?: { id?: string; name?: string; config?: Record<string, unknown> }[]
+  insert?: PatchRow[]
 }
 
 const packageRoot = fileURLToPath(new URL('..', import.meta.url))
+const basePatchPath = resolve(packageRoot, '..', '..', 'bundle', 'base', 'cordis.patch.yml')
 const manifest = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8')) as {
   private?: boolean
   publishConfig?: { access?: string }
-  dependencies?: Record<string, string>
   dsh?: { bundle?: { patch?: string } }
+}
+
+/** The value each retuned row changes; every other key must restate `dsh-base`. */
+const DOCUMENTED_DELTAS: Record<string, Record<string, unknown>> = {
+  'subagent': { maxConcurrentRuns: 8 },
+  'tool-subagent': { backgroundMode: 'one-shot' },
+  'agent-team': { maxMembers: 16 },
+  'tool-agent-team': { coordination: 'swarm' },
 }
 
 /** Session query implementation whose search faces are outside this test. */
@@ -79,11 +89,22 @@ async function shippedPatch(): Promise<PatchRow[]> {
   return parsed as PatchRow[]
 }
 
-/** Render the shipped rows this layer inserts, plus its subagent bound, as one config document. */
+/** Every row `dsh-base` mounts, flattened out of its insert lists. */
+function baseRows(): PatchRow[] {
+  const base = yaml.load(readFileSync(basePatchPath, 'utf8'), { schema: entryListSchema }) as PatchRow[]
+  return base.flatMap(row => [row, ...(row.insert ?? [])])
+}
+
+/** One base row with this layer's override applied, as a Loader entry. */
+function retunedRow(patches: PatchRow[], id: string): { name: string; config?: Record<string, unknown> } {
+  const row = baseRows().find(entry => entry.id === id)
+  if (row?.name === undefined) throw new Error(`dsh-base must mount row ${id}`)
+  const config = patches.find(patch => patch.id === id)?.config ?? row.config
+  return { name: row.name, ...config === undefined ? {} : { config } }
+}
+
+/** Render the base rows this layer retunes, with its overrides, as one config document. */
 function swarmComposition(patches: PatchRow[], storageRoot: string): string {
-  const subagentConfig = patches.find(patch => patch.id === 'subagent')?.config
-  if (subagentConfig === undefined) throw new Error('the swarm layer must bound the subagent seam')
-  const inserted = patches.flatMap(patch => patch.insert ?? [])
   const rows = [
     { name: '@deepseek-ai/dsh-llm' },
     { name: '@deepseek-ai/dsh-session' },
@@ -93,18 +114,16 @@ function swarmComposition(patches: PatchRow[], storageRoot: string): string {
     { name: '@deepseek-ai/dsh-session-persistence-jsonl', config: { root: storageRoot } },
     { name: '@deepseek-ai/dsh-test-session-query' },
     { name: '@deepseek-ai/dsh-agent-loop', config: { agents: [] } },
-    { name: '@deepseek-ai/dsh-subagent', config: subagentConfig },
+    retunedRow(patches, 'subagent'),
     { name: '@deepseek-ai/dsh-subagent-spawn-in-process', config: { providerName: 'spawn' } },
     { name: '@deepseek-ai/dsh-subagent-fork-in-process', config: { providerName: 'fork' } },
-    ...inserted.map(entry => ({
-      name: entry.name,
-      ...entry.config === undefined ? {} : { config: entry.config },
-    })),
+    retunedRow(patches, 'agent-team'),
+    retunedRow(patches, 'tool-agent-team'),
   ]
   return yaml.dump(rows)
 }
 
-/** Boot one Loader composition over the shipped rows with no network or model access. */
+/** Boot one Loader composition over the retuned rows with no network or model access. */
 async function boot(document: string, configPath: string, dir: string): Promise<Context> {
   await writeFile(configPath, document)
   const ctx = new Context()
@@ -139,84 +158,51 @@ async function boot(document: string, configPath: string, dir: string): Promise<
 }
 
 describe('swarm profile bundle', () => {
-  it('declares a parseable layer that bounds subagent runs and inserts the Team stack', async () => {
-    // The shipped `swarm` profile template names this bundle, so a release that
-    // omitted it would leave `dsh --profile swarm` unable to resolve its layer.
+  it('declares a publishable layer that retunes only rows dsh-base mounts', async () => {
+    // The shipped `swarm` and `swarm-web` templates name this bundle, so a
+    // release that omitted it would leave those profiles unable to resolve it.
     expect(manifest.private).toBeUndefined()
     expect(manifest.publishConfig?.access).toBe('public')
-    expect(manifest.dependencies).toMatchObject({
-      '@deepseek-ai/dsh-agent-team': 'workspace:^',
-      '@deepseek-ai/dsh-subagent': 'workspace:^',
-      '@deepseek-ai/dsh-tool-agent-team': 'workspace:^',
-    })
 
     const patches = await shippedPatch()
-    expect(patches.find(patch => patch.id === 'subagent')?.config)
-      .toMatchObject({ maxConcurrentRuns: expect.any(Number) as number })
-    expect(patches.find(patch => patch.id === 'tool-subagent-control')).toMatchObject({ disabled: true })
-    expect(patches.find(patch => patch.id === 'tool-subagent-list-agents')).toMatchObject({ disabled: true })
-    expect(patches.find(patch => patch.id === 'tool-subagent-report')).toMatchObject({ disabled: true })
-    const inserted = patches.flatMap(patch => patch.insert ?? [])
-    expect(inserted.find(entry => entry.id === 'agent-team')?.name).toBe('@deepseek-ai/dsh-agent-team')
-    expect(inserted.find(entry => entry.id === 'tool-agent-team')).toMatchObject({
-      name: '@deepseek-ai/dsh-tool-agent-team',
-      config: { coordination: 'swarm' },
-    })
+    // A patch whose target row is absent stays a Loader warning by design, so
+    // a base row this layer no longer finds would silently leave the swarm
+    // running on delegated defaults. Every row here must name a base row, and
+    // the layer inserts, disables, and mounts nothing of its own.
+    const baseIds = new Set(baseRows().map(row => row.id).filter((id): id is string => id !== undefined))
+    expect(patches.map(row => row.id).sort()).toEqual(Object.keys(DOCUMENTED_DELTAS).sort())
+    for (const row of patches) {
+      expect(baseIds, row.id).toContain(row.id)
+      expect(row.name, row.id).toBeUndefined()
+      expect(row.insert, row.id).toBeUndefined()
+      expect(row.disabled, row.id).toBeUndefined()
+    }
   })
 
-  it('is the Agent Teams layer plus exactly its documented swarm deltas', async () => {
-    // The two patch documents are near-identical YAML, and `bun run duplication`
-    // scans TypeScript only, so nothing else would notice one drifting from the
-    // other. A rename in base's subagent rows has to reach both files; this
-    // fails when it reaches only one.
-    const swarm = await shippedPatch()
-    const team = yaml.load(
-      await readFile(resolve(packageRoot, '..', 'agent-team-profile', 'cordis.patch.yml'), 'utf8'),
-      { schema: entryListSchema },
-    ) as PatchRow[]
-
-    const deltas = swarm.filter(row => row.id === 'subagent')
-    expect(deltas.map(row => row.config)).toEqual([{ maxConcurrentRuns: 8 }])
-
-    // Everything else must be the team layer, with only the two documented
-    // value changes: a wider roster and the swarm coordination mode.
-    const rest = swarm.filter(row => row.id !== 'subagent')
-    const teamAsSwarm = JSON.parse(JSON.stringify(team).replace('"maxMembers":8', '"maxMembers":16')) as PatchRow[]
-    const withCoordination = JSON.parse(
-      JSON.stringify(rest).replace(',"coordination":"swarm"', ''),
-    ) as PatchRow[]
-    expect(withCoordination).toEqual(teamAsSwarm)
+  it('changes exactly its documented values and restates every other key', async () => {
+    // A patch replaces the targeted row's whole config, so a key this layer
+    // forgot to restate would fall back to the plugin default rather than to
+    // the value base composed. Each row is therefore compared to base's own.
+    const patches = await shippedPatch()
+    const base = baseRows()
+    for (const row of patches) {
+      const composed = base.find(entry => entry.id === row.id)?.config ?? {}
+      const retuned = row.config ?? {}
+      const changed = Object.fromEntries(
+        Object.entries(retuned).filter(([key, value]) => composed[key] !== value),
+      )
+      expect(changed, row.id).toEqual(DOCUMENTED_DELTAS[row.id ?? ''])
+      expect(Object.keys(composed).filter(key => !(key in retuned)), row.id).toEqual([])
+    }
   })
 
-  it('targets only row ids the base bundle actually declares', async () => {
-    // A patch whose target row is absent stays a Loader warning by design, so a
-    // renamed base row would silently leave the global tools registered beside
-    // the Team-scoped ones. Nothing but this check would report it.
-    const base = yaml.load(
-      readFileSync(
-        resolve(packageRoot, '..', '..', 'bundle', 'base', 'cordis.patch.yml'),
-        'utf8',
-      ),
-      { schema: entryListSchema },
-    ) as { id?: string; insert?: { id?: string }[] }[]
-    const baseIds = new Set(
-      base.flatMap(row => [row.id, ...(row.insert ?? []).map(entry => entry.id)])
-        .filter((id): id is string => id !== undefined),
-    )
-    const targeted = (await shippedPatch()).map(row => row.id).filter((id): id is string => id !== undefined)
-    expect(targeted.length).toBeGreaterThan(0)
-    for (const id of targeted) expect(baseIds, id).toContain(id)
-  })
-
-  it('boots its own rows into a bounded seam, the claim tool, and swarm guidance', async () => {
+  it('boots its retuned rows into a bounded seam, the claim tool, and swarm guidance', async () => {
     const patches = await shippedPatch()
     root = await mkdtemp(join(tmpdir(), 'dsh-swarm-profile-'))
     const storageRoot = join(root, 'sessions')
     context = await boot(swarmComposition(patches, storageRoot), join(root, 'cordis.yml'), root)
 
-    const configuredBound = patches.find(patch => patch.id === 'subagent')?.config?.maxConcurrentRuns
-    expect(context.subagents.capacity())
-      .toEqual({ limit: configuredBound, active: 0, waiting: 0 })
+    expect(context.subagents.capacity()).toEqual({ limit: 8, active: 0, waiting: 0 })
 
     const lead = context.agentLoop.create(SessionId('swarm-lead'), { provider: 'mock', model: 'mock' })
     expect(context.agentTeams.membership(lead).role).toBe('lead')

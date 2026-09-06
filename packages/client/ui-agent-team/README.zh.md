@@ -25,7 +25,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-在稳定 Web bundle 与 Host-side Agent Teams profile 之后，通过 [`@deepseek-ai/dsh-agent-team-web-profile`](../../preset/agent-team-web-profile/README.zh.md) 安装本包。Web Client loader 挂载 `/client` export；root Host export 不执行行为，本包也没有用户配置字段。
+[`@deepseek-ai/dsh-web-app`](../../bundle/web-app/README.zh.md) 在每个 Web profile 中以 `ui-agent-team` 行挂载本包，位于 [`@deepseek-ai/dsh-base`](../../bundle/base/README.zh.md) 挂载的 Team 服务与工具之上。Web Client loader 挂载 `/client` export；root Host export 不执行行为，本包也没有用户配置字段。
 
 ### 检查并导航 roster
 
@@ -61,7 +61,7 @@ Client export 挂载来自 [`@deepseek-ai/dsh-agent-team/remote`](../../subagent
 <a id="further-exploration"></a>
 ## 进一步探索
 
-- [Agent Teams Web profile](../../preset/agent-team-web-profile/README.zh.md)——挂载本 Client plugin 的源码 checkout bundle。
+- [Web bundle](../../bundle/web-app/README.zh.md)——挂载本 Client plugin 的随发布 bundle。
 - [Agent Teams service](../../subagent/agent-team/README.zh.md)——权威 roster、task 与 Remote 行为。
 - [会话 UI](../ui-conversation/README.zh.md)——稳定 header slot 与 addressed-subagent 导航表层。
 

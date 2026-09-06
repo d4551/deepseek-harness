@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-swarm-profile",
-  "description": "Profile bundle composing swarm mode: shared Team board, pull-based task claiming, and a bounded subagent run ceiling",
+  "description": "Profile bundle composing swarm mode over the Team every profile mounts: pull-based task claiming, a wider roster, and a bounded subagent run ceiling",
   "version": "0.1.2-alpha.1",
   "publishConfig": {
     "access": "public"
@@ -38,11 +38,7 @@
       "patch": "./cordis.patch.yml"
     }
   },
-  "dependencies": {
-    "@deepseek-ai/dsh-agent-team": "workspace:^",
-    "@deepseek-ai/dsh-subagent": "workspace:^",
-    "@deepseek-ai/dsh-tool-agent-team": "workspace:^"
-  },
+  "dependencies": {},
   "peerDependencies": {
     "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^"

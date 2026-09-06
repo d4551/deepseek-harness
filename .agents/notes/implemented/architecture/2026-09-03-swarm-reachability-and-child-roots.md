@@ -56,7 +56,7 @@ Per-file coverage is 100% on statements, branches, functions, and lines for ever
 
 ## Alternatives considered
 
-**Put the Team substrate into `packages/bundle/base`.** Rejected: it would give every profile the Team tool surface and its prompt policy, and opt-ins stay out of shipped defaults.
+**Put the Team substrate into `packages/bundle/base`.** Rejected at the time: it would give every profile the Team tool surface and its prompt policy, and opt-ins stayed out of shipped defaults. Superseded on 2026-09-07 by [Agent Teams ship in every profile](2026-09-07-agent-teams-in-every-profile.md), which moves the substrate into `dsh-base` and the browser row into `web-app`.
 
 **Split swarm into deltas over a published `agent-team` bundle.** Rejected for the reason the drift note already recorded — nothing enforces that a user stacks both, and applying only the delta warns instead of refusing.
 

@@ -25,7 +25,7 @@ This package adds an Agent Teams action to the Web conversation header, where a 
 <a id="use-this-package"></a>
 ## Use this package
 
-Install the package through [`@deepseek-ai/dsh-agent-team-web-profile`](../../preset/agent-team-web-profile/README.md) after the stable Web bundle and the Host-side Agent Teams profile. The Web Client loader mounts the `/client` export; the root Host export is inert, and the package has no user configuration fields.
+[`@deepseek-ai/dsh-web-app`](../../bundle/web-app/README.md) mounts this package as its `ui-agent-team` row in every Web profile, over the Team service and tools that [`@deepseek-ai/dsh-base`](../../bundle/base/README.md) mounts. The Web Client loader mounts the `/client` export; the root Host export is inert, and the package has no user configuration fields.
 
 ### Inspect and navigate the roster
 
@@ -61,7 +61,7 @@ Starting a create or update invalidates older refreshes. Success reloads the com
 <a id="further-exploration"></a>
 ## Further Exploration
 
-- [Agent Teams Web profile](../../preset/agent-team-web-profile/README.md) — the source-checkout bundle that mounts this Client plugin.
+- [Web bundle](../../bundle/web-app/README.md) — the shipped bundle that mounts this Client plugin.
 - [Agent Teams service](../../subagent/agent-team/README.md) — authoritative roster, task, and Remote behavior.
 - [Conversation UI](../ui-conversation/README.md) — the stable header slot and addressed-subagent navigation surface.
 

@@ -1,7 +1,0 @@
-# The browser layer of the `swarm-web` profile. Apply after dsh-web-app and a
-# host-side Agent Teams layer (dsh-swarm-profile, or dsh-agent-team-profile in a
-# profile of your own) so the browser mounts only when the Team service is present.
-
-- insert:
-    - id: ui-agent-team
-      name: '@deepseek-ai/dsh-client-ui-agent-team'

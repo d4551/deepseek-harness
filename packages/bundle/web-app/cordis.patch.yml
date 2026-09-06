@@ -256,6 +256,11 @@
     - id: ui-subagent
       name: '@deepseek-ai/dsh-client-ui-subagent'
 
+    # Agent Teams: the conversation-header action over the Team Remote — roster,
+    # shared task board, and teammate navigation for the Team every root Agent leads.
+    - id: ui-agent-team
+      name: '@deepseek-ai/dsh-client-ui-agent-team'
+
     - id: ui-reference
       name: '@deepseek-ai/dsh-client-ui-reference'
 
@@ -390,12 +395,6 @@
 # registers under a globally unique name, so a per-session copy would both
 # starve that host row and collide on the second session. What a preset
 # chooses is which delegation TOOLS its agent sees, below.
-
-- id: tool-subagent-control
-  disabled: true
-
-- id: tool-subagent-list-agents
-  disabled: true
 
 - id: tool-subagent
   disabled: true
