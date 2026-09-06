@@ -12,8 +12,8 @@ Status: implemented
 
 `scripts/verify-toolchain-floors.ts`（含 spec）按版本下限断言工具链钉住值：
 
-- `engines.node` 必须逐字等于 `^22.19.0 || >=24.0.0`，`packageManager` 必须精确等于 `bun@1.4.0`。
-- 工具链依赖必须不低于 `(major, minor)` 下限，检查覆盖根 manifest 与 `apps/web/package.json`（浏览器工具链——react、playwright——钉在 web 入口而非根）：typescript `7.0`、vite `8.2`、react/react-dom `19.2`、playwright `1.62`、vitest `4.1`、tsx `4.23`。
+- `engines.node` 必须逐字等于 `^22.19.0 || >=24.0.0`，`packageManager` 必须精确等于 `bun@1.4.2`。
+- 工具链依赖必须不低于 `(major, minor)` 下限，检查覆盖根 manifest 与 `apps/web/package.json`（浏览器工具链——react、playwright——钉在 web 入口而非根）：typescript `7.0`、vite `8.2`、react/react-dom `19.2`、playwright `1.62`、vitest `5.0`、`@vitest/coverage-v8` `5.0`、tsx `4.23`。这些 pair 所投影的 SemVer 三元组由 [live-stack 一致](2026-09-06-live-stack-toolchain-floor-agreement.zh.md) 持有。
 - 某工具链名在所有 manifest 中消失本身就是 finding——把依赖处处移除等于对 CI 实际运行内容的静默降级。
 - `rangeMeetsFloor` 读取范围的基础版本（`^`、`~`、`>=` 或裸版本）：major 或 minor 低于下限即失败；更高 major 的基础版本放行，因为未测试的更新工具链不是下限违规，而由实际使用它的分支负责暴露。
 

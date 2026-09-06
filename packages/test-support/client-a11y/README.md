@@ -1,5 +1,5 @@
 ---
-description: "axe-core accessibility auditing for the jsdom client lane, for test authors holding rendered UI to WCAG A/AA."
+description: "axe-core accessibility auditing for the jsdom client lane, for test authors holding rendered UI to WCAG 2.2 A/AA."
 kind: "package-library"
 ---
 

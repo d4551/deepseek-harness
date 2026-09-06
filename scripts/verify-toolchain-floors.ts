@@ -37,6 +37,7 @@ export const TOOLCHAIN_FLOORS = Object.freeze({
   'react-dom': majorMinor(LIVE_TOOLCHAIN_FLOORS['react-dom']),
   playwright: majorMinor(LIVE_TOOLCHAIN_FLOORS.playwright),
   vitest: majorMinor(LIVE_TOOLCHAIN_FLOORS.vitest),
+  '@vitest/coverage-v8': majorMinor(LIVE_TOOLCHAIN_FLOORS['@vitest/coverage-v8']),
   tsx: majorMinor(LIVE_TOOLCHAIN_FLOORS.tsx),
 } as const satisfies Record<string, readonly [number, number]>)
 

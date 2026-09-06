@@ -20,6 +20,7 @@ const ROOT_MANIFEST = {
     typescript: '^7.0.2',
     vite: '^8.2.2',
     vitest: '^5.0.0',
+    '@vitest/coverage-v8': '^5.0.0',
     tsx: '^4.23.13',
   },
 }
@@ -40,6 +41,7 @@ describe('rangeMeetsFloor', () => {
       ['^1.62.1', TOOLCHAIN_FLOORS['playwright']],
       ['^4.23.13', TOOLCHAIN_FLOORS['tsx']],
       ['^5.0.0', TOOLCHAIN_FLOORS['vitest']],
+      ['^5.0.0', TOOLCHAIN_FLOORS['@vitest/coverage-v8']],
     ] as const) {
       expect(rangeMeetsFloor(range, floor), range).toBe(true)
     }
@@ -49,6 +51,7 @@ describe('rangeMeetsFloor', () => {
     expect(rangeMeetsFloor('^6.9.9', TOOLCHAIN_FLOORS['typescript'])).toBe(false)
     expect(rangeMeetsFloor('^8.1.9', TOOLCHAIN_FLOORS['vite'])).toBe(false)
     expect(rangeMeetsFloor('^4.1.11', TOOLCHAIN_FLOORS['vitest'])).toBe(false)
+    expect(rangeMeetsFloor('^4.1.11', TOOLCHAIN_FLOORS['@vitest/coverage-v8'])).toBe(false)
     expect(rangeMeetsFloor('workspace:^', TOOLCHAIN_FLOORS['vitest'])).toBe(false)
     expect(rangeMeetsFloor('*', TOOLCHAIN_FLOORS['tsx'])).toBe(false)
   })
@@ -70,6 +73,7 @@ describe('checkToolchainFloors', () => {
         typescript: '^6.0.2',
         vite: '^7.2.2',
         vitest: '^4.1.11',
+        '@vitest/coverage-v8': '^4.1.11',
         tsx: '^3.19.13',
       },
     }, {
@@ -83,6 +87,7 @@ describe('checkToolchainFloors', () => {
       'apps/web devDependencies.playwright',
       'apps/web devDependencies.react',
       'apps/web devDependencies.react-dom',
+      'root devDependencies.@vitest/coverage-v8',
       'root devDependencies.tsx',
       'root devDependencies.typescript',
       'root devDependencies.vite',
@@ -103,6 +108,17 @@ describe('checkToolchainFloors', () => {
       'engines.node',
       'packageManager',
     ])
+  })
+
+  it('fails coverage-v8 4.x the same way it fails vitest 4.x', () => {
+    const findings = checkToolchainFloors({
+      ...ROOT_MANIFEST,
+      devDependencies: {
+        ...ROOT_MANIFEST.devDependencies,
+        '@vitest/coverage-v8': '^4.1.11',
+      },
+    }, WEB_MANIFEST)
+    expect(findings.map(finding => finding.subject)).toEqual(['root devDependencies.@vitest/coverage-v8'])
   })
 
   it('fails a bun 1.3.x packageManager pin', () => {

@@ -18,7 +18,7 @@ Global style sheets belong in `ui-theme/src/styles/`. Component styles live besi
 - Pair font sizes with line heights and use the theme typography variables when an existing role matches.
 - Keep source text, terminal output, and diff lines unwrapped when their component contract requires column preservation; use the shared scrollbar styles rather than component-specific scrollbar selectors.
 - Put presentation in CSS. Inline React styles may pass component-local custom-property values but must not encode theme branches.
-- Preserve keyboard focus visibility and reduced-motion behavior when adding transitions or hover-only controls.
+- Preserve keyboard focus visibility, reduced-motion behavior, and a 24px minimum hit target (WCAG 2.5.8) when adding transitions, hover-only controls, or compact buttons.
 
 ## Changing the system
 

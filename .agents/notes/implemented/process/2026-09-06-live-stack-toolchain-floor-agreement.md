@@ -10,7 +10,7 @@ Two floor collectors named the same toolchain and could disagree without failing
 
 ## Decision
 
-[`LIVE_TOOLCHAIN_FLOORS`](../../../../scripts/live-stack-floors.ts) is the SemVer source for the names both collectors share (TypeScript, Vite, React, react-dom, Playwright, vitest, tsx). `TOOLCHAIN_FLOORS` is the (major, minor) projection of that map; it does not restate the numbers. `@vitest/coverage-v8` uses `VITEST_FLOOR` rather than a second triple. `BUN_PIN` is `bun@1.4.2` and both collectors compare the root `packageManager` field to that exact spelling.
+[`LIVE_TOOLCHAIN_FLOORS`](../../../../scripts/live-stack-floors.ts) is the SemVer source for the names both collectors share (TypeScript, Vite, React, react-dom, Playwright, vitest, `@vitest/coverage-v8`, tsx). `TOOLCHAIN_FLOORS` is the (major, minor) projection of that map; it does not restate the numbers. `@vitest/coverage-v8` uses `VITEST_FLOOR` rather than a second triple. `BUN_PIN` is `bun@1.4.2` and both collectors compare the root `packageManager` field to that exact spelling. The [toolchain floor gate](2026-09-01-toolchain-floor-gate.md) is the CI leaf that runs this projection.
 
 [`collectorFloorDisagreements`](../../../../scripts/live-stack-floors.ts) fails an injected pair where one collector would accept a pin the other rejects (vitest 4.1.11 vs [5, 0]). Live specs read the root and `apps/web` manifests and the installed `vitest` / `@vitest/coverage-v8` package.json files, not a copied expected version string. Injected TypeScript 6, vitest 4, bun 1.3.x, bun 1.4.0, React 18, Vite 6, and forbidden Tailwind / daisyUI / htmx / `@apply` product UI still fail.
 

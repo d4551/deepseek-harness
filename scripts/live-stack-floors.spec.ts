@@ -233,6 +233,30 @@ describe('live workspace floors', () => {
     expect(parseRangeFloor(vitest ?? '0.0.0').major).toBe(TOOLCHAIN_FLOORS.vitest[0])
   })
 
+  it('rejects coverage-v8 4 on both collectors at once', () => {
+    const source = '{"devDependencies":{"@vitest/coverage-v8":"^4.1.11"}}'
+    const live = toolchainMisses([{ file: 'package.json', source }])
+    const tool = checkToolchainFloors({
+      engines: { node: NODE_ENGINE_FLOOR },
+      packageManager: BUN_PIN,
+      devDependencies: {
+        typescript: '^7.0.2',
+        vite: '^8.2.2',
+        vitest: '^5.0.0',
+        '@vitest/coverage-v8': '^4.1.11',
+        tsx: '^4.23.13',
+      },
+    }, {
+      devDependencies: {
+        react: '~19.2.8',
+        'react-dom': '~19.2.8',
+        playwright: '^1.62.1',
+      },
+    })
+    expect(live.map(miss => miss.name)).toEqual(['@vitest/coverage-v8'])
+    expect(tool.some(finding => finding.subject.includes('@vitest/coverage-v8'))).toBe(true)
+  })
+
   it('rejects vitest 4 on both collectors at once', () => {
     const live = toolchainMisses([{
       file: 'package.json',

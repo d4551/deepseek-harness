@@ -1,5 +1,5 @@
 ---
-description: "面向 jsdom client 测试通道的 axe-core 无障碍审计，供测试作者依 WCAG A/AA 检验已渲染的 UI。"
+description: "面向 jsdom client 测试通道的 axe-core 无障碍审计，供测试作者依 WCAG 2.2 A/AA 检验已渲染的 UI。"
 kind: "package-library"
 ---
 

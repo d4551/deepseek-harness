@@ -12,8 +12,8 @@ The version-drift audit found the only real downgrade protections were `bun.lock
 
 `scripts/verify-toolchain-floors.ts` (+ spec) asserts the toolchain pins against floors:
 
-- `engines.node` must equal `^22.19.0 || >=24.0.0` verbatim, and `packageManager` must equal `bun@1.4.0` exactly.
-- Toolchain dependencies must sit at or above `(major, minor)` floors, checked across the root manifest and `apps/web/package.json` (the browser toolchain — react, playwright — is pinned at the web entry, not the root): typescript `7.0`, vite `8.2`, react/react-dom `19.2`, playwright `1.62`, vitest `4.1`, tsx `4.23`.
+- `engines.node` must equal `^22.19.0 || >=24.0.0` verbatim, and `packageManager` must equal `bun@1.4.2` exactly.
+- Toolchain dependencies must sit at or above `(major, minor)` floors, checked across the root manifest and `apps/web/package.json` (the browser toolchain — react, playwright — is pinned at the web entry, not the root): typescript `7.0`, vite `8.2`, react/react-dom `19.2`, playwright `1.62`, vitest `5.0`, `@vitest/coverage-v8` `5.0`, tsx `4.23`. The SemVer triples those pairs project are owned by [the live-stack agreement](2026-09-06-live-stack-toolchain-floor-agreement.md).
 - A toolchain name absent from every manifest is itself a finding — removing the dependency everywhere is a silent downgrade of what CI runs.
 - `rangeMeetsFloor` reads the base of the range (`^`, `~`, `>=`, or bare): any base below the floor on major or minor fails; a base on a higher major passes, because an untested newer toolchain is not a floor miss and is caught by the lanes that exercise it.
 

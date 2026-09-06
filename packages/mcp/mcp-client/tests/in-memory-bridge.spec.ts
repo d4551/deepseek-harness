@@ -69,4 +69,29 @@ describe('official SDK in-memory bridge', () => {
     expect(result.isError).toBe(false)
     expect(result.content).toEqual([{ type: 'text', text: 'HI' }])
   })
+
+  it('returns an error result for a tool the server did not list', async () => {
+    ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+
+    server = new McpServer(
+      { name: 'mem', version: '1.0.0' },
+      { capabilities: { tools: {} } },
+    )
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+    await server.connect(serverTransport)
+    client = new Client({ name: 'bridge-test', version: '1' })
+    await client.connect(clientTransport)
+
+    const disposers = await syncTools(client, ctx, defaultOpts, new Map())
+    expect(disposers.size).toBe(0)
+    const result = await ctx.tools.execute({
+      signal: testToolSignal,
+      callId: ToolCallId('in-memory-missing'),
+      name: 'mcp__srv__missing',
+      arguments: {},
+    })
+    expect(result.isError).toBe(true)
+  })
 })

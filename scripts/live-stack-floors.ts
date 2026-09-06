@@ -174,6 +174,7 @@ export const LIVE_TOOLCHAIN_FLOORS = Object.freeze({
   'react-dom': REACT_DOM_FLOOR,
   playwright: PLAYWRIGHT_FLOOR,
   vitest: VITEST_FLOOR,
+  '@vitest/coverage-v8': VITEST_FLOOR,
   tsx: TSX_FLOOR,
 })
 

@@ -10,7 +10,7 @@ Status: implemented
 
 ## Decision
 
-[`LIVE_TOOLCHAIN_FLOORS`](../../../../scripts/live-stack-floors.ts) 是两套收集器共享名称（TypeScript、Vite、React、react-dom、Playwright、vitest、tsx）的 SemVer 来源。`TOOLCHAIN_FLOORS` 是该表的 (major, minor) 投影，不得重写这些数字。`@vitest/coverage-v8` 使用 `VITEST_FLOOR`，而不是第二个三元组。`BUN_PIN` 为 `bun@1.4.2`，两套收集器都把根目录 `packageManager` 字段与这一精确拼写比较。
+[`LIVE_TOOLCHAIN_FLOORS`](../../../../scripts/live-stack-floors.ts) 是两套收集器共享名称（TypeScript、Vite、React、react-dom、Playwright、vitest、`@vitest/coverage-v8`、tsx）的 SemVer 来源。`TOOLCHAIN_FLOORS` 是该表的 (major, minor) 投影，不得重写这些数字。`@vitest/coverage-v8` 使用 `VITEST_FLOOR`，而不是第二个三元组。`BUN_PIN` 为 `bun@1.4.2`，两套收集器都把根目录 `packageManager` 字段与这一精确拼写比较。[工具链下限门禁](2026-09-01-toolchain-floor-gate.zh.md) 是运行该投影的 CI 叶子。
 
 [`collectorFloorDisagreements`](../../../../scripts/live-stack-floors.ts) 会让一套收集器会接受、另一套会拒绝的注入对失败（vitest 4.1.11 对 [5, 0]）。现场 spec 读取根目录与 `apps/web` 清单，以及已安装的 `vitest` / `@vitest/coverage-v8` 的 package.json，而不是一份抄来的预期版本字符串。注入的 TypeScript 6、vitest 4、bun 1.3.x、bun 1.4.0、React 18、Vite 6，以及产品 UI 中被禁止的 Tailwind / daisyUI / htmx / `@apply` 仍然失败。
 
