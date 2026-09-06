@@ -4,6 +4,7 @@
  * not the only passing case.
  */
 import { describe, expect, it } from 'vitest'
+import { execFileSync } from 'node:child_process'
 import { version, versionMajorMinor } from 'typescript'
 import {
   AXE_FLOOR,
@@ -216,6 +217,8 @@ describe('live workspace floors', () => {
     expect(packageManagerMisses(rootManifestSource())).toEqual([])
     const manifest = JSON.parse(rootManifestSource()) as { packageManager?: unknown }
     expect(manifest.packageManager).toBe(BUN_PIN)
+    expect(execFileSync('bun', ['--version'], { encoding: 'utf8' }).trim())
+      .toBe(`${BUN_FLOOR.major}.${BUN_FLOOR.minor}.${BUN_FLOOR.patch}`)
   })
 
   it('holds live-stack and toolchain floors to the same major.minor per shared name', () => {

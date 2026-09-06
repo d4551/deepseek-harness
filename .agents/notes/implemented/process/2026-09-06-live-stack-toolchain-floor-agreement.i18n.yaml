@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-06-live-stack-toolchain-floor-agreement.md
-2026-09-06-live-stack-toolchain-floor-agreement.md: 65e935efd49ca769f26bf439dd3e17e9468027e2
-2026-09-06-live-stack-toolchain-floor-agreement.zh.md: ddc4b62ab74771444398bf7c15d389980fb62c3a
+2026-09-06-live-stack-toolchain-floor-agreement.md: 36d00f674a96ba807deb3891edeb070f48de9b88
+2026-09-06-live-stack-toolchain-floor-agreement.zh.md: 4180ea2ce526f7f4b2e07a4ef83ee261f17aac90

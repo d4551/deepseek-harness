@@ -71,13 +71,18 @@ function srcBindings(source: string, packageName: string): { names: string[]; na
   return { names, namespaces }
 }
 
+function withoutImportLines(source: string): string {
+  return source.replace(/^[ \t]*import\s[\s\S]*?from\s+['"][^'"]+['"];?/gm, '')
+}
+
 function usesBinding(source: string, name: string): boolean {
+  const body = withoutImportLines(source)
   const tag = new RegExp(`<${name}[\\s/>]`)
   const element = new RegExp(`createElement\\(\\s*${name}\\b`)
   const call = new RegExp(`\\b${name}\\s*\\(`)
   const member = new RegExp(`\\b${name}\\.`)
   const destructure = new RegExp(`\\}\\s*=\\s*${name}\\b`)
-  return tag.test(source) || element.test(source) || call.test(source) || member.test(source) || destructure.test(source)
+  return tag.test(body) || element.test(body) || call.test(body) || member.test(body) || destructure.test(body)
 }
 
 /**

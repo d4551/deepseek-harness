@@ -70,7 +70,7 @@ describe('official SDK in-memory bridge', () => {
     expect(result.content).toEqual([{ type: 'text', text: 'HI' }])
   })
 
-  it('returns an error result for a tool the server did not list', async () => {
+  it('returns an error result for a name the bridge did not register', async () => {
     ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
@@ -79,13 +79,19 @@ describe('official SDK in-memory bridge', () => {
       { name: 'mem', version: '1.0.0' },
       { capabilities: { tools: {} } },
     )
+    server.registerTool('shout', {
+      description: 'Upper-cases a message.',
+      inputSchema: { message: z.string() },
+    }, async args => ({
+      content: [{ type: 'text', text: args.message.toUpperCase() }],
+    }))
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
     await server.connect(serverTransport)
     client = new Client({ name: 'bridge-test', version: '1' })
     await client.connect(clientTransport)
 
     const disposers = await syncTools(client, ctx, defaultOpts, new Map())
-    expect(disposers.size).toBe(0)
+    expect(disposers.has('mcp__srv__shout')).toBe(true)
     const result = await ctx.tools.execute({
       signal: testToolSignal,
       callId: ToolCallId('in-memory-missing'),

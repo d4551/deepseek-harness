@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-01-toolchain-floor-gate.md
-2026-09-01-toolchain-floor-gate.md: 7621e5185b7f364327320620e7e8b465ae4c5f6d
-2026-09-01-toolchain-floor-gate.zh.md: 6757ab0e4bdc35424fdd30f7430449cc073865da
+2026-09-01-toolchain-floor-gate.md: 57e4e7df3eba6c5ec901d991830928eea1a64b2e
+2026-09-01-toolchain-floor-gate.zh.md: 2ce96b652e64ced9a7171636c6bcc4877e4701ac
