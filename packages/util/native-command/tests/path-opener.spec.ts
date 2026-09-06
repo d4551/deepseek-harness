@@ -182,6 +182,59 @@ describe('browser-renderable documents', () => {
     );
 }`
 
+  // The nested versions dict carries its own LSHandlerRoleAll. Written after
+  // the outer role, it is what the block scan would otherwise stop on.
+  const NESTED_AFTER_ROLE_PLIST = `{
+    LSHandlers = (
+        {
+            LSHandlerRoleAll = "com.google.chrome";
+            LSHandlerPreferredVersions =             {
+                LSHandlerRoleAll = "-";
+            };
+            LSHandlerURLScheme = https;
+        }
+    );
+}`
+
+  const NO_HTTPS_PLIST = `{
+    LSHandlers = (
+        {
+            LSHandlerRoleAll = "com.apple.mail";
+            LSHandlerURLScheme = mailto;
+        }
+    );
+}`
+
+  it('strips the nested versions dict before reading the https handler', async () => {
+    const calls: { command: string; args: readonly string[] }[] = []
+    const run = async (command: string, args: readonly string[]) => {
+      calls.push({ command, args })
+      return { stdout: command === 'defaults' ? NESTED_AFTER_ROLE_PLIST : '', stderr: '' }
+    }
+    await openNativePath('/w/page.html', new AbortController().signal, { platform: 'darwin', run })
+
+    // Without the strip the scan starts after the nested block and finds a
+    // section with no role at all, so the page opens with no browser named.
+    expect(calls.map(c => [c.command, ...c.args])).toEqual([
+      ['defaults', 'read', 'com.apple.LaunchServices/com.apple.launchservices.secure'],
+      ['open', '-b', 'com.google.chrome', '/w/page.html'],
+    ])
+  })
+
+  it('opens without naming a bundle when LaunchServices records no https handler', async () => {
+    const calls: { command: string; args: readonly string[] }[] = []
+    const run = async (command: string, args: readonly string[]) => {
+      calls.push({ command, args })
+      return { stdout: command === 'defaults' ? NO_HTTPS_PLIST : '', stderr: '' }
+    }
+    await openNativePath('/w/page.html', new AbortController().signal, { platform: 'darwin', run })
+
+    expect(calls.map(c => [c.command, ...c.args])).toEqual([
+      ['defaults', 'read', 'com.apple.LaunchServices/com.apple.launchservices.secure'],
+      ['open', '/w/page.html'],
+    ])
+  })
+
   it('opens a page with the default browser rather than the .html handler on darwin', async () => {
     const calls: { command: string; args: readonly string[] }[] = []
     const run = async (command: string, args: readonly string[]) => {

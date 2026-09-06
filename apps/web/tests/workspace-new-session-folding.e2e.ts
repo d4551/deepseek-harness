@@ -4,7 +4,6 @@ import { readFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Browser, Page } from 'playwright'
-import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
 import {
   assertFixtureInventory,
@@ -16,7 +15,7 @@ import {
   webSnapshotMode,
   type WebScaffold,
 } from './scaffold.ts'
-import { newEnglishPage, saveFailureShot } from './support.ts'
+import { launchBrowser, newEnglishPage, saveFailureShot } from './support.ts'
 
 const EXPECTED_DIR = fileURLToPath(new URL('./expected/workspace-new-session-folding', import.meta.url))
 const SIDEBAR_EXPECTED = join(EXPECTED_DIR, 'sidebar.expected.md')
@@ -44,7 +43,7 @@ describe('web e2e: blank New Session folding quota', () => {
     const workspace = await scaffold.ctx.workspaceRegistry.create(scaffold.workspaceCwd)
     for (const sessionId of sessionIds) await workspace.attachSession(sessionId)
 
-    browser = await chromium.launch()
+    browser = await launchBrowser()
     page = await newEnglishPage(browser)
     tripwire = watchConsole(page)
     await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })

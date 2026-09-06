@@ -20,7 +20,6 @@
 // NO_ADAPTER.
 import { fileURLToPath } from 'node:url'
 import type { Browser, Page } from 'playwright'
-import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
 import { createMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import {
@@ -38,7 +37,7 @@ import {
   webSnapshotMode,
   type WebScaffold,
 } from './scaffold.ts'
-import { newEnglishPage, saveFailureShot } from './support.ts'
+import { launchBrowser, newEnglishPage, saveFailureShot } from './support.ts'
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('./expected/markdown-wide-table', import.meta.url))
 const GEOMETRY_EXPECTED = fileURLToPath(
@@ -250,7 +249,7 @@ describe('web e2e: markdown tables fill the column, wide ones break out and scro
   beforeAll(async () => {
     scaffold = await launchWebScaffold({})
     await seedSession(scaffold, wideTableFixture(), SEED_ID)
-    browser = await chromium.launch()
+    browser = await launchBrowser()
     page = await newEnglishPage(browser)
     tripwire = watchConsole(page)
     await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })

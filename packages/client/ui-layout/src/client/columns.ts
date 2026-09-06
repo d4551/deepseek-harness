@@ -31,6 +31,17 @@ export const SIDEBAR_COLLAPSED = 56
  * LG breakpoint); a manual toggle below it re-expands over the squeezed center
  * (stores.ts narrowExpanded). */
 export const SIDEBAR_AUTO_COLLAPSE = 1024
+/**
+ * Viewport width below which an expanded sidebar is drawn over the centre
+ * instead of taking a column of its own.
+ *
+ * The sidebar never concedes width, so on a phone a re-expand would otherwise
+ * leave the centre at `viewport - SIDEBAR_MIN`: 95px at 375, which clips the
+ * composer to a sliver and squeezes its trailing controls under the 24px hit
+ * target floor. Above this width the squeeze is still usable — 488px at 768 —
+ * so the column layout stands.
+ */
+export const SIDEBAR_OVERLAY = 640
 /** Details drag clamp floor. */
 export const DETAILS_MIN = 300
 /** Details drag clamp ceiling. */

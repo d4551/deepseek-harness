@@ -3,7 +3,10 @@ import type { EventEmitter } from 'node:events'
 import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { DocumentQueue, isENOENT, readDocumentText, resolveDocumentSpec } from '../src/index.ts'
+import z from '@deepseek-ai/schemastery'
+import {
+  DocumentQueue, DocumentQueueConfigFields, isENOENT, readDocumentText, resolveDocumentSpec,
+} from '../src/index.ts'
 
 // chokidar is the nondeterministic OS boundary: faking it drives the event
 // pipeline (change, ready, error) deterministically. Real end-to-end watching
@@ -166,14 +169,32 @@ describe('DocumentQueue operations', () => {
 })
 
 describe('DocumentQueue reloads', () => {
-  it('keeps the last good document and warns when a reload fails', async () => {
+  it('keeps the last good document and warns with the failure when a reload fails', async () => {
     const dir = await tempDir()
-    const { queue, logger } = queueFor(join(dir, 'doc.yaml'), () => Promise.reject(new Error('unparsable')))
+    const failure = new Error('unparsable')
+    const { queue, logger } = queueFor(join(dir, 'doc.yaml'), () => Promise.reject(failure))
 
     queue.queueReload()
     await queue.enqueue(() => Promise.resolve())
 
     expect(logger.warned[0]?.[0]).toBe('%s: reload failed at %s; keeping the last good document')
+    // The failure itself reaches the log; the notice alone says nothing about
+    // why the document was rejected.
+    expect(logger.warned[1]?.[0]).toBe(failure)
+    expect(logger.errored).toEqual([])
+  })
+
+  it('keeps the last good document when a reload throws a value with no code', async () => {
+    // The invariant check reads `code` off whatever was thrown, and a thrown
+    // null is why that read is optional.
+    const dir = await tempDir()
+    const { queue, logger } = queueFor(join(dir, 'doc.yaml'), async () => { throw null })
+
+    queue.queueReload()
+    await queue.enqueue(() => Promise.resolve())
+
+    expect(logger.warned[0]?.[0]).toBe('%s: reload failed at %s; keeping the last good document')
+    expect(logger.warned[1]?.[0]).toBeNull()
     expect(logger.errored).toEqual([])
   })
 
@@ -245,5 +266,24 @@ describe('DocumentQueue watching', () => {
     instance?.watcher.emit('error', failure)
     expect(logger.warned[0]?.[0]).toBe('%s: watcher error on %s')
     expect(logger.warned[1]?.[0]).toBe(failure)
+  })
+})
+
+describe('DocumentQueueConfigFields', () => {
+  it('names the four keys every document-backed provider validates', () => {
+    expect(Object.keys(DocumentQueueConfigFields).sort()).toEqual(['debounceMs', 'dshHome', 'path', 'watch'])
+  })
+
+  it('accepts a settle window of zero or more and refuses a negative one', () => {
+    const schema = z.object(DocumentQueueConfigFields)
+    expect(schema({ path: 'a', dshHome: 'b', debounceMs: 0 }).debounceMs).toBe(0)
+    expect(schema({ path: 'a', dshHome: 'b', debounceMs: 250 }).debounceMs).toBe(250)
+    expect(() => schema({ path: 'a', dshHome: 'b', debounceMs: -1 })).toThrow()
+  })
+
+  it('defaults watching on and the settle window to the documented value', () => {
+    const parsed = z.object(DocumentQueueConfigFields)({ path: 'a', dshHome: 'b' })
+    expect(parsed.watch).toBe(true)
+    expect(parsed.debounceMs).toBe(100)
   })
 })

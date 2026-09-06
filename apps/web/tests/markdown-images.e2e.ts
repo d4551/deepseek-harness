@@ -5,7 +5,6 @@
 import { createServer, type Server } from 'node:http'
 import { fileURLToPath } from 'node:url'
 import type { Browser, Page } from 'playwright'
-import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
 import { createMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import {
@@ -24,7 +23,7 @@ import {
   webSnapshotMode,
   type WebScaffold,
 } from './scaffold.ts'
-import { newEnglishPage, saveFailureShot } from './support.ts'
+import { launchBrowser, newEnglishPage, saveFailureShot } from './support.ts'
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('./expected/markdown-images', import.meta.url))
 const UI_EXPECTED = fileURLToPath(new URL('./expected/markdown-images/ui.expected.md', import.meta.url))
@@ -150,7 +149,7 @@ describe('web e2e: remote Markdown image rendering', () => {
     imageOrigin = await startImageOrigin()
     scaffold = await launchWebScaffold({})
     await seedSession(scaffold, markdownImageFixture(imageOrigin.url), SEED_ID)
-    browser = await chromium.launch()
+    browser = await launchBrowser()
     page = await newEnglishPage(browser)
     tripwire = watchConsole(page)
     await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })

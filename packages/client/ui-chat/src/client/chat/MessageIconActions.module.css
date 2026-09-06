@@ -37,7 +37,7 @@
 @media (hover: hover) {
   [data-time-hover-root] :is(.timeStart, .timeEnd) {
     opacity: 0;
-    transition: opacity 80ms ease;
+    transition: opacity var(--ds-transition-duration-fast) ease;
   }
 
   [data-time-hover-root]:hover :is(.timeStart, .timeEnd),

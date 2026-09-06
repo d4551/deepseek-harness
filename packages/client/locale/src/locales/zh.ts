@@ -29,6 +29,7 @@ export const zh = {
   'expand': '展开',
   'back': '返回',
   'brand.localBuild': 'DeepMeow',
+  'sidebar.closeOverlay': '关闭侧边栏',
   'unknown': '未知',
   'none': '无',
   'truncated': '已截断',

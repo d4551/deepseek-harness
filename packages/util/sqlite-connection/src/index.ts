@@ -199,8 +199,8 @@ export async function selectJournalMode(
       result = db.prepare(selection.statement).get()
       break
     } catch (error: unknown) {
-      const remainingMs = Math.max(0, Math.ceil(selection.deadline - performance.now()))
-      if (!isSqliteBusy(error) || remainingMs === 0) throw error
+      if (!isSqliteBusy(error) || performance.now() >= selection.deadline) throw error
+      const remainingMs = Math.ceil(selection.deadline - performance.now())
       await delay(Math.min(JOURNAL_BUSY_RETRY_INTERVAL_MS, remainingMs))
       if (performance.now() >= selection.deadline) throw error
     }

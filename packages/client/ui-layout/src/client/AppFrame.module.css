@@ -22,14 +22,42 @@
   }
 }
 
+/* Each column is pinned to its own track: taking the sidebar out of flow for
+   the phone drawer would otherwise let auto-placement slide the centre into
+   the rail track. */
 .sidebarCol {
+  grid-column: 1;
   min-width: 0;
   overflow: hidden;
   background: var(--dsw-specific-sidebar-fill);
   border-right: 1px solid var(--dsw-alias-border-l1);
 }
 
+/* Phone drawer: an expanded sidebar is drawn over the centre instead of taking
+   a column, so the centre keeps the width it had while collapsed. The grid
+   track behind it stays the rail, which is what the drawer slides back to. */
+.frame[data-sidebar-overlay] .sidebarCol {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  z-index: var(--dsw-z-shell-drawer);
+  box-shadow: var(--dsw-shadow-lv2);
+}
+
+/* Dismissal target for the drawer, covering the centre it hides. It is a real
+   button so a keyboard reaches it in order after the drawer's own controls. */
+.scrim {
+  position: absolute;
+  inset: 0;
+  z-index: var(--dsw-z-shell-overlay);
+  border: none;
+  padding: 0;
+  background: var(--dsw-alias-bg-mask-1);
+  cursor: pointer;
+}
+
 .centerCol {
+  grid-column: 2;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -37,6 +65,7 @@
 }
 
 .detailsCol {
+  grid-column: 3;
   min-width: 0;
   overflow: hidden;
   border-left: 1px solid var(--dsw-alias-border-l2);

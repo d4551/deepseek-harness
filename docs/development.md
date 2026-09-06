@@ -94,6 +94,8 @@ bun run build
 
 `bun run hygiene` includes `publint`, which validates package entrypoints against the built `lib/*.js` files, and `verify-node-next-types`, which validates built declarations against a temporary NodeNext consumer. A fresh worktree has no bundled JS or declarations until `bun run build` runs; ordinary commits and pushes do not require that build unless their selected checks consume it.
 
+`knip.json` excludes knip's `duplicates` issue type, because a Cordis plugin module exports its Service class by name and as `default` and knip counts that as one binding under two names. `bun run verify-duplicate-exports`, also in the hygiene lane, runs that same detector and classifies what it reports: the plugin convention and the file-scoped aliases named in `scripts/knip-duplicate-exports.ts` pass, and any other module exporting one binding under two names fails.
+
 ### Environment variables
 
 The real DeepSeek adapter and key-backed agent demos read credentials from the environment or from a gitignored `.env` at the repo root:

@@ -7,13 +7,12 @@ import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import type { Browser, Page } from 'playwright'
-import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
 import {
   assertFixtureInventory, compareOrRefreshGolden, launchWebScaffold, seedSession, watchConsole,
   webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
-import { newEnglishPage, saveFailureShot } from './support.ts'
+import { launchBrowser, newEnglishPage, saveFailureShot } from './support.ts'
 
 const SEED = fileURLToPath(new URL('../../../snapshots/web/seeded-history/session.jsonl', import.meta.url))
 const SNAPSHOT_DIR = fileURLToPath(new URL('../../../snapshots/web/sidebar-scrollbar', import.meta.url))
@@ -287,7 +286,7 @@ describe('web e2e: sidebar session list scrollbar (reserved gutter / themed thum
     for (let index = 0; index < SEED_COUNT; index += 1) {
       await seedSession(scaffold, fixture, `sidebar-scrollbar-web-e2e-${String(index).padStart(2, '0')}`)
     }
-    browser = await chromium.launch()
+    browser = await launchBrowser()
     // Shorter than the other scenarios' 1000px so SEED_COUNT rows overflow
     // the list with room to spare.
     page = await newEnglishPage(browser, 800)

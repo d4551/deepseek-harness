@@ -50,7 +50,7 @@ button.leading {
 .iconIdle {
   display: inline-flex;
   opacity: 1;
-  transition: opacity 100ms ease;
+  transition: opacity var(--ds-transition-duration-fast) ease;
 }
 
 .chevronHover {
@@ -58,7 +58,7 @@ button.leading {
   inset: 0;
   margin: auto;
   opacity: 0;
-  transition: opacity 100ms ease;
+  transition: opacity var(--ds-transition-duration-fast) ease;
 }
 
 .row:hover .iconIdle {

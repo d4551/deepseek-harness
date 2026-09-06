@@ -156,6 +156,19 @@ function escapeVueInterpolation(html: string): string {
   return html.replaceAll('{{', '&#123;&#123;').replaceAll('}}', '&#125;&#125;')
 }
 
+/**
+ * GitHub source URL for one projected page, which both locales link to under
+ * their own label.
+ * @param page - the page VitePress is rendering.
+ * @returns the edit URL for the documentation source it was projected from.
+ */
+function editSourceUrl({ frontmatter }: PageData): string {
+  const data: unknown = frontmatter
+  const editSource: unknown = typeof data === 'object' && data !== null ? Reflect.get(data, 'editSource') : undefined
+  if (typeof editSource !== 'string') throw new Error('Projected documentation page has no editSource frontmatter.')
+  return `https://github.com/deepseek-ai/deepseek-harness/edit/master/${editSource}`
+}
+
 const sharedTheme: Pick<DefaultTheme.Config, 'search' | 'socialLinks' | 'editLink'> = {
   search: {
     provider: 'local',
@@ -191,12 +204,7 @@ const sharedTheme: Pick<DefaultTheme.Config, 'search' | 'socialLinks' | 'editLin
     { icon: 'github', link: 'https://github.com/deepseek-ai/deepseek-harness' },
   ],
   editLink: {
-    pattern: ({ frontmatter }: PageData) => {
-      const data: unknown = frontmatter
-      const editSource: unknown = typeof data === 'object' && data !== null ? Reflect.get(data, 'editSource') : undefined
-      if (typeof editSource !== 'string') throw new Error('Projected documentation page has no editSource frontmatter.')
-      return `https://github.com/deepseek-ai/deepseek-harness/edit/master/${editSource}`
-    },
+    pattern: editSourceUrl,
     text: '在 GitHub 上编辑此页',
   },
 }
@@ -354,12 +362,7 @@ export default withMermaid({
           '/en/reference/': sidebar('en', 'en-reference'),
         },
         editLink: {
-          pattern: ({ frontmatter }: PageData) => {
-            const data: unknown = frontmatter
-            const editSource: unknown = typeof data === 'object' && data !== null ? Reflect.get(data, 'editSource') : undefined
-            if (typeof editSource !== 'string') throw new Error('Projected documentation page has no editSource frontmatter.')
-            return `https://github.com/deepseek-ai/deepseek-harness/edit/master/${editSource}`
-          },
+          pattern: editSourceUrl,
           text: 'Edit this page on GitHub',
         },
         outline: { label: 'On this page' },

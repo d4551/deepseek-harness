@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from 'node:fs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join, parse } from 'node:path'
 
 const MOVEFILE_REPLACE_EXISTING = 0x00000001
 const MOVEFILE_WRITE_THROUGH = 0x00000008
@@ -308,5 +308,150 @@ describe('Windows durable namespace helpers', () => {
     writeFileSync(blocked, 'x')
 
     await expect(ensureDurableDirectoryWin32(join(blocked, 'child'))).rejects.toMatchObject({ code: 'ENOTDIR' })
+  })
+})
+
+describe('Windows binding and failure identity', () => {
+  it('loads kernel32 by name, once, however many calls follow', async () => {
+    const loaded: string[] = []
+    vi.resetModules()
+    vi.doMock('koffi', () => ({
+      default: {
+        load: (library: string) => {
+          loaded.push(library)
+          return { func: (_convention: string, name: string) => (name === 'MoveFileExW' ? () => 1 : () => 0) }
+        },
+      },
+    }))
+    const { publishNewFileWin32 } = await import('../src/win32.ts')
+
+    await publishNewFileWin32('from', 'to')
+    await publishNewFileWin32('other', 'elsewhere')
+    // One entry proves the cache: reloading kernel32 per call would rebind the
+    // function pointers on every publish.
+    expect(loaded).toEqual(['kernel32.dll'])
+  })
+
+  it('names MoveFileExW as the failing syscall', async () => {
+    const { publishNewFileWin32 } = await importWithError(ERROR_ACCESS_DENIED)
+    await expect(publishNewFileWin32('from', 'to')).rejects.toMatchObject({ syscall: 'MoveFileExW' })
+  })
+})
+
+describe('Windows durable directory failure handling', () => {
+  it('rethrows a directory probe failure that is not a missing path', async () => {
+    // The probe reads `code` off whatever was thrown, and a thrown null is why
+    // that read is optional: reading through it would replace the driver's
+    // failure with a TypeError.
+    for (const thrown of [null, Object.assign(new Error('denied'), { code: 'EACCES' })]) {
+      vi.resetModules()
+      vi.doMock('node:fs/promises', async importOriginal => ({
+        ...await importOriginal<typeof import('node:fs/promises')>(),
+        stat: async () => { throw thrown },
+      }))
+      const { ensureDurableDirectoryWin32 } = await import('../src/win32.ts')
+      await expect(ensureDurableDirectoryWin32('/tmp/dsh-probe')).rejects.toBe(thrown)
+    }
+  })
+
+  it('refuses a path whose component already exists as a file', async () => {
+    const { ensureDurableDirectoryWin32 } = await importWithFilesystemMove()
+    const root = await tempRoot()
+    const blocker = join(root, 'blocker')
+    writeFileSync(blocker, 'not a directory')
+
+    await expect(ensureDurableDirectoryWin32(join(blocker, 'child')))
+      .rejects.toThrow('path exists but is not a directory')
+  })
+
+  it('surfaces a publication failure even when the target is already a directory', async () => {
+    const root = await tempRoot()
+    const target = join(root, 'blocked')
+    const { ensureDurableDirectoryWin32 } = await importWithMove((existing, replacement, _flags, setLastError) => {
+      const from = stripNamespace(existing)
+      const to = stripNamespace(replacement)
+      if (to === target) {
+        // Another writer wins the name, and the publish fails for an unrelated
+        // reason: a directory at the target does not excuse that failure.
+        mkdirSync(to)
+        setLastError(ERROR_ACCESS_DENIED)
+        return 0
+      }
+      renameSync(from, to)
+      return 1
+    })
+
+    await expect(ensureDurableDirectoryWin32(target)).rejects.toMatchObject({ code: 'EACCES' })
+  })
+
+  it('refuses an existing-target race whose winner is not a directory', async () => {
+    const root = await tempRoot()
+    const target = join(root, 'winner')
+    const { ensureDurableDirectoryWin32 } = await importWithMove((existing, replacement, _flags, setLastError) => {
+      const from = stripNamespace(existing)
+      const to = stripNamespace(replacement)
+      if (to === target) {
+        writeFileSync(to, 'a file took the name')
+        setLastError(ERROR_ALREADY_EXISTS)
+        return 0
+      }
+      renameSync(from, to)
+      return 1
+    })
+
+    await expect(ensureDurableDirectoryWin32(target)).rejects.toThrow('path exists but is not a directory')
+  })
+
+  it('rethrows a publish failure thrown as null', async () => {
+    vi.resetModules()
+    vi.doMock('koffi', () => ({
+      default: {
+        load: () => ({
+          func: (_convention: string, name: string) => (name === 'MoveFileExW'
+            ? () => { throw null }
+            : () => 0),
+        }),
+      },
+    }))
+    const { ensureDurableDirectoryWin32 } = await import('../src/win32.ts')
+    const root = await tempRoot()
+
+    await expect(ensureDurableDirectoryWin32(join(root, 'leaf'))).rejects.toBeNull()
+  })
+
+  it('probes a path that is already the filesystem root exactly once', async () => {
+    // Slicing the root off leaves an empty remainder, which must produce no
+    // segments: one that survived would re-probe the root as its own child.
+    const probes: string[] = []
+    vi.resetModules()
+    vi.doMock('node:fs/promises', async importOriginal => ({
+      ...await importOriginal<typeof import('node:fs/promises')>(),
+      stat: (path: string) => {
+        probes.push(path)
+        return Promise.resolve({ isDirectory: () => true })
+      },
+    }))
+    const { ensureDurableDirectoryWin32 } = await import('../src/win32.ts')
+    const root = parse(process.cwd()).root
+
+    await ensureDurableDirectoryWin32(root)
+    expect(probes).toEqual([root])
+  })
+
+  it('stages under a name that does not derive from the target', async () => {
+    const staged: string[] = []
+    const { ensureDurableDirectoryWin32 } = await importWithMove((existing, replacement, _flags, setLastError) => {
+      const from = stripNamespace(existing)
+      const to = stripNamespace(replacement)
+      staged.push(basename(from))
+      if (!existsSync(from)) { setLastError(ERROR_FILE_NOT_FOUND); return 0 }
+      renameSync(from, to)
+      return 1
+    })
+    const root = await tempRoot()
+
+    await ensureDurableDirectoryWin32(join(root, 'leaf'))
+    expect(staged.length).toBeGreaterThan(0)
+    for (const name of staged) expect(name.startsWith('.dsh-mkdir-')).toBe(true)
   })
 })

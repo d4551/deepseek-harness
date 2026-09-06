@@ -24,10 +24,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import type { Browser, Page } from 'playwright'
-import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
 import WebSocket from 'ws'
-import { REPO_ROOT, connectFreshWorkspace, newEnglishPage, probeFreePort, requireDist, saveFailureShot } from './support.ts'
+import {
+  connectFreshWorkspace, launchBrowser, newEnglishPage, probeFreePort, REPO_ROOT, requireDist, saveFailureShot,
+} from './support.ts'
 
 const WEB_SURFACE_PROMPT = fileURLToPath(new URL('./expected/web-runtime-context/web-surface-prompt.expected.md', import.meta.url))
 const authenticatedCookies = new Map<string, Promise<{ origin: string; cookie: string }>>()
@@ -325,7 +326,7 @@ describe('dsh web keyless CLI smoke', () => {
       const readyUrl = await waitForReadyLine(child)
       expect(readyUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/\?token=[A-Za-z0-9_-]+$/u)
       expect((await fetch(readyUrl, { redirect: 'manual' })).status).toBe(303)
-      browser = await chromium.launch({ headless: true })
+      browser = await launchBrowser({ headless: true })
       const page = await newEnglishPage(browser)
       const pluginScripts: string[] = []
       const cacheHeaders = new Map<string, string | undefined>()
@@ -716,7 +717,7 @@ describe.skipIf(!process.env.DEEPSEEK_API_KEY)('web smoke (real host, real key)'
       },
     )
     baseUrl = (await waitForReadyLine(child)).replace('0.0.0.0', '127.0.0.1')
-    browser = await chromium.launch()
+    browser = await launchBrowser()
     page = await newEnglishPage(browser)
     page.on('pageerror', e => pageErrors.push(String(e)))
     await page.goto(baseUrl, { waitUntil: 'load' })

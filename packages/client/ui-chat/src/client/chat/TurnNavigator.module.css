@@ -35,7 +35,7 @@
   cursor: pointer;
   pointer-events: auto;
   transform: translateY(-50%);
-  transition: height 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: height var(--ds-transition-duration) cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .marks {
@@ -50,8 +50,8 @@
   left: 0;
   height: 10px;
   transform: translateY(-50%);
-  transition: top 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
-  animation: dsh-turn-mark-enter 150ms ease-out;
+  transition: top var(--ds-transition-duration) cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: dsh-turn-mark-enter var(--ds-transition-duration) ease-out;
 }
 
 /* The rail owns pointer input for the whole column, so a mark is a keyboard
@@ -80,7 +80,7 @@
   background: var(--dsw-alias-border-l4);
   content: '';
   transform: translateY(-50%);
-  transition: width 140ms ease, background-color 140ms ease;
+  transition: width var(--ds-transition-duration) ease, background-color var(--ds-transition-duration) ease;
 }
 
 .markPreview::before {
@@ -130,8 +130,8 @@
   background: var(--dsw-alias-bg-layer-1);
   box-shadow: var(--dsw-shadow-lv2);
   pointer-events: none;
-  animation: dsh-turn-preview-enter 120ms ease-out;
-  transition: top 140ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: dsh-turn-preview-enter var(--ds-transition-duration-fast) ease-out;
+  transition: top var(--ds-transition-duration) cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .previewPrompt,

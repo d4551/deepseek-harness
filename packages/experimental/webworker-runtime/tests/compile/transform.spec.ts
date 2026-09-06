@@ -19,7 +19,7 @@
 import { expect, test } from 'vitest'
 import { parse } from 'acorn'
 import { lowerModuleSource } from '../../src/compile/transform.ts'
-import { LOWERING_VERSION, WRAPPER_PARAMS } from '../../src/image-layout.ts'
+import { LOWERING_VERSION, MODULE_PARAMS } from '../../src/image-layout.ts'
 
 /**
  * Lower one probe module the way the packer does — the transform's only caller.
@@ -79,7 +79,7 @@ function runBody(
   const exports: Record<string, unknown> = {}
   const module = { exports }
   // eslint-disable-next-line @typescript-eslint/no-implied-eval -- the wrapper contract under test is a `new Function` body
-  const factory = new Function(...WRAPPER_PARAMS, code) as (...args: unknown[]) => void
+  const factory = new Function(...MODULE_PARAMS, code) as (...args: unknown[]) => void
   factory(exports, require, module, '/vfs/probe.js', '/vfs', { url: 'file:///vfs/probe.js' }, als)
   return exports
 }
@@ -96,7 +96,7 @@ const parsesAsScript = (label: string, code: string): void => {
 // ---------------------------------------------------------------------------
 
 check('LOWERING_VERSION is a non-empty string', typeof LOWERING_VERSION === 'string' && LOWERING_VERSION.length > 0, true)
-check('WRAPPER_PARAMS is the frozen 7-parameter shape', [...WRAPPER_PARAMS], [
+check('MODULE_PARAMS is the frozen 7-parameter shape', [...MODULE_PARAMS], [
   'exports', 'require', 'module', '__filename', '__dirname', '__dsh$meta', '__als',
 ])
 // The wrapper signature is a contract with the loader's `new Function`, so the
@@ -106,7 +106,7 @@ check(
   (() => {
     try {
       // eslint-disable-next-line @typescript-eslint/no-implied-eval -- proves the parameter names compile where the loader uses them
-      new Function(...WRAPPER_PARAMS, 'return 0')
+      new Function(...MODULE_PARAMS, 'return 0')
       return true
     } catch {
       return false

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import WebRuntime from '@deepseek-ai/dsh-web'
 import type { WebFetchProvider, WebFetchRequest, WebFetchResult } from '@deepseek-ai/dsh-web'
-import { DEFAULT_USER_AGENT } from '@deepseek-ai/dsh-web-fetch-http/policy'
+import { WEB_FETCH_USER_AGENT } from '@deepseek-ai/dsh-web'
 import { PLAYWRIGHT_FETCH_PROVIDER_ID } from '../src/provider.ts'
 import { fakeBrowser } from './fakes.ts'
 import * as playwrightPlugin from '../src/index.ts'
@@ -66,7 +66,7 @@ describe('web-fetch-playwright plugin', () => {
       },
     })
     await throughSeam(ctx)('https://example.com/agent')
-    expect(browser.userAgents).toEqual([DEFAULT_USER_AGENT])
+    expect(browser.userAgents).toEqual([WEB_FETCH_USER_AGENT])
   })
 
   it('leaves the provider unusable when no browser installation is found', async () => {

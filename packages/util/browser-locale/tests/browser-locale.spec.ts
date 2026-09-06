@@ -48,4 +48,17 @@ describe('resolveBrowserLocale', () => {
     vi.stubGlobal('navigator', { language: 'zh-TW' })
     expect(resolveBrowserLocale()).toBe('zh')
   })
+
+  it('honours an empty languages list rather than falling back to language', () => {
+    vi.stubGlobal('window', {})
+    vi.stubGlobal('navigator', { language: 'zh-CN', languages: [] })
+    expect(resolveBrowserLocale()).toBe('en')
+  })
+
+  it('answers from explicit tags without reading the browser', () => {
+    vi.stubGlobal('window', {})
+    vi.stubGlobal('navigator', { language: 'zh-CN', languages: ['zh-Hans'] })
+    expect(resolveBrowserLocale(['fr', 'en'])).toBe('en')
+    expect(resolveBrowserLocale([])).toBe('en')
+  })
 })

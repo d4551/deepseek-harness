@@ -108,6 +108,9 @@
 }
 
 .retry {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
   padding: 2px 8px;
   border: 1px solid var(--dsw-alias-border-inverted);
   border-radius: 6px;

@@ -228,54 +228,50 @@ export default defineConfig({
         'packages/*/*/src/types.ts',
         'packages/*/*/src/bin.ts',
         'packages/*/*/src/worker.ts',
-        // Dynamic Host/Client composition is covered by its focused lifecycle
-        // tests and assembled application checks rather than per-file coverage.
-        'packages/self-modification/*/src/**/*.{ts,tsx}',
         // A killed executable lint-contract test can leave a non-product source probe behind.
         'packages/*/*/src/oxlint-contract-*.ts',
-        // Client/web UI files whose remaining branches need a browser-grade
-        // harness the jsdom lane does not cover; the client test lane
-        // maturing removes these entries.
+        // TODO(gui): client/web UI files whose remaining branches need a
+        // browser-grade harness the jsdom lane does not cover; the client test
+        // lane maturing removes these entries.
         'packages/client/ui-trajectory/src/*',
-        // Trajectory's compact Markdown projection retains deferred branch coverage.
+        // TODO(gui): Trajectory's compact Markdown projection and the surfaces
+        // below retain deferred branch coverage on the same lane.
         'packages/client/ui-primitives/src/markdown/plain-text.ts',
         'packages/client/ui-user-questions/src/client/QuestionComposer.tsx',
         'packages/client/ui-primitives/src/Menu.tsx',
         'packages/client/ui-primitives/src/RiskConfirmation.tsx',
-        'packages/client/ui-workspace/src/client/WorkspaceBrowser.tsx',
         'packages/client/ui-workspace/src/client/WorkspacePicker.tsx',
         'packages/client/ui-workspace/src/client/rows/WorkspaceBrowser.tsx',
         'packages/client/ui-renderer/src/client/*',
-        // Session object internals retain the runtime GUI debt exemption; the
-        // new Controller entry, transport, Agent scope, and adapters stay gated.
+        // TODO(gui): Session object internals retain the runtime GUI debt
+        // exemption; the Controller entry, transport, Agent scope, and adapters
+        // stay gated.
         'packages/api/session-controller/src/client/sessions/*',
         'packages/api/session-controller/src/client/ordered-baseline.ts',
         'packages/api/session-controller/src/client/time-zone.ts',
-        // Keep the browser conversation tree under its existing GUI debt
-        // exemption while gating the newly stateful Host half and vocabulary.
+        // TODO(gui): the browser conversation tree keeps its GUI debt
+        // exemption while the stateful Host half and vocabulary stay gated.
         'packages/client/ui-conversation/src/client/*',
         'packages/client/ui-conversation/src/invariant.ts',
-        // Chat presentation and assembly retain the same GUI debt exemption;
-        // package wiring and the new approval-detail module remain gated.
+        // TODO(gui): chat presentation and assembly keep the same GUI debt
+        // exemption; package wiring and the approval-detail module stay gated.
         'packages/client/ui-chat/src/client/chat/!(ApprovalCommand).{ts,tsx}',
         'packages/client/ui-chat/src/client/conversation-nodes/*',
         'packages/client/ui-chat/src/client/details/*',
         'packages/client/ui-chat/src/client/model/*',
-        'packages/client/ui-chat/src/client/contract/context-provenance.ts',
         'packages/client/ui-chat/src/client/contract/snapshot.ts',
-        'packages/client/ui-chat/src/client/historical-images.ts',
         'packages/client/ui-primitives/src/DisclosureRow.tsx',
         'packages/client/ui-tool/src/*',
         'packages/client/ui-slots/src/*',
         'packages/client/ui-layout/src/*',
         'packages/client/web/src/*',
         'packages/host/webserver/src/*',
-        // The browser-worker runtime and its image packer: the executing
-        // composition is a real dedicated Worker driven by the web browser lane
-        // (apps/web/tests/preview-boot.e2e.ts), which unit-process V8 coverage
-        // cannot observe. Unit specs cover the algorithmic cores; the assembled
-        // evidence is that boot; a browser-grade coverage lane revisits
-        // these entries.
+        // TODO(webworker): the browser-worker runtime and its image packer.
+        // The executing composition is a real dedicated Worker driven by the web
+        // browser lane (apps/web/tests/preview-boot.e2e.ts), which unit-process
+        // V8 coverage cannot observe. Unit specs cover the algorithmic cores and
+        // that boot is the assembled evidence; a browser-grade coverage lane
+        // revisits these entries.
         'packages/experimental/webworker-runtime/src/**',
         'packages/experimental/webworker-packer/src/*',
         // Inspector execution adapters run in a Node Worker, the Host native
@@ -288,10 +284,10 @@ export default defineConfig({
         'packages/experimental/inspector/src/worker/cdp/**',
         'packages/experimental/inspector/src/worker/realms/**',
         'packages/experimental/inspector/src/worker/{entry,server}.ts',
-        // Keep already-complete Inspector modules under the per-file gate and
-        // enumerate the remaining direct-test debt instead of exempting src/**.
-        // Closing these branch gaps removes the entries below.
-        'packages/experimental/inspector/src/host/plugin.ts',
+        // TODO(inspector): already-complete Inspector modules stay under the
+        // per-file gate; the remaining direct-test debt is enumerated rather
+        // than exempting src/**. Closing these branch gaps removes the entries
+        // below.
         'packages/experimental/inspector/src/shared/bridge/{control-codec,rpc}.ts',
         'packages/experimental/inspector/src/shared/bridge/messages/observation.ts',
         'packages/experimental/inspector/src/shared/bridge/messages/query/codec.ts',
@@ -300,9 +296,9 @@ export default defineConfig({
         'packages/experimental/inspector/src/worker/inspection/{cordis-store,query-router,realm-store}.ts',
         'packages/client/modules/src/client/system.ts',
         'packages/client/hmr/src/client/index.ts',
-        // Web config-tree boot round: the new host-side web-transport halves
-        // whose remaining branches need real-composition/process harnesses;
-        // the client test lane maturing removes these entries.
+        // TODO(gui): the host-side web-transport halves, whose remaining
+        // branches need real-composition/process harnesses; the client test lane
+        // maturing removes these entries.
         'packages/client/modules/src/index.ts',
         'packages/client/modules/src/invariant.ts',
         'packages/client/modules/src/client/index.ts',
@@ -318,7 +314,7 @@ export default defineConfig({
         // The Team browser entry binds its source-covered mount lifecycle to
         // the generated Team Remote contribution, which likewise exists only in lib.
         'packages/client/ui-agent-team/src/client/index.ts',
-        // Slash/command/input round: per-file gaps deferred with the same
+        // TODO(gui): slash/command/input per-file gaps, deferred with the same
         // client-lane debt; that lane maturing removes these entries.
         'packages/client/connection/src/client/fixture.ts',
         'packages/client/ui-commands/src/index.ts',
@@ -346,7 +342,7 @@ export default defineConfig({
         'packages/client/ui-primitives/src/JsonTree.tsx',
         'packages/client/ui-settings-models/src/client/DeepSeekOnboardingDialog.tsx',
         'packages/client/ui-settings-models/src/client/welcome-store.ts',
-        // The Cordis extension group's per-file gaps, enumerated rather than
+        // TODO(gui): the Cordis extension group's per-file gaps, enumerated rather than
         // matched by a `packages/extensions/*` glob. The glob sat at the tail
         // of the client slash/command block and inherited a comment that
         // described none of it, so an entire package group left the gate
@@ -391,13 +387,13 @@ export default defineConfig({
         // would put whole-workspace compiler analysis under v8
         // instrumentation — the coverage lane's longest tail.
         'packages/typert/generator/src/*.ts',
-        // Experimental webworker-runtime is outside the coverage requirement
-        // by decision: its correctness signal is its uninstrumented suite and
-        // the packer's end-to-end image spec.
+        // TODO(webworker): experimental webworker-runtime is outside the
+        // coverage requirement by decision; its correctness signal is its
+        // uninstrumented suite and the packer's end-to-end image spec.
         'packages/experimental/webworker-runtime/src/**/*.ts',
-        // Projection/command round: executor lifecycle branches and the
-        // registry's drive tails need the same maturing lanes; those lanes
-        // maturing removes these entries.
+        // TODO(gui): executor lifecycle branches and the registry's drive
+        // tails need the same maturing lanes; those lanes maturing removes
+        // these entries.
         'packages/interaction/commands/src/index.ts',
         'packages/interaction/commands/src/invariant.ts',
         'packages/session/session-projection/src/index.ts',

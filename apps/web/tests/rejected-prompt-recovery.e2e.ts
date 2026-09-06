@@ -5,10 +5,9 @@
 // client pipeline as any host rejection (model-unavailable / agent-busy /
 // attachment-error).
 import type { Browser, Page } from 'playwright'
-import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
 import { launchWebScaffold, watchConsole, type WebScaffold } from './scaffold.ts'
-import { newEnglishPage, saveFailureShot } from './support.ts'
+import { launchBrowser, newEnglishPage, saveFailureShot } from './support.ts'
 
 const MARK = 'REJECTED_PROMPT_MARKER'
 
@@ -19,7 +18,7 @@ describe('web e2e: rejected prompt surfaces instead of stalling', () => {
 
   beforeAll(async () => {
     scaffold = await launchWebScaffold()
-    browser = await chromium.launch()
+    browser = await launchBrowser()
     page = await newEnglishPage(browser, 900)
     // The token exchange redirects to '/' and drops the query; revisit with
     // the fixture switches once the session cookie is in place.

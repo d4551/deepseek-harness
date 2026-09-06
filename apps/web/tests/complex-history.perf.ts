@@ -7,7 +7,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import type { Browser, CDPSession, Locator, Page } from 'playwright'
-import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { StreamChunk } from '@deepseek-ai/dsh-llm'
 import {
@@ -32,7 +31,7 @@ import {
   webSnapshotMode,
   type WebScaffold,
 } from './scaffold.ts'
-import { connectFreshWorkspace, newEnglishPage } from './support.ts'
+import { connectFreshWorkspace, launchBrowser, newEnglishPage } from './support.ts'
 
 const SIDEBAR_SESSION_COUNT = 1_000
 const LONG_SESSION_ID = 'perf-long-history'
@@ -1176,7 +1175,7 @@ describe('manual web performance: complex workspace and history', () => {
     if (webSnapshotMode() === 'record') {
       throw new Error('manual web performance runs only with deterministic replay')
     }
-    browser = await chromium.launch()
+    browser = await launchBrowser()
   })
 
   afterAll(async () => {

@@ -11,7 +11,7 @@ import type {} from '@deepseek-ai/dsh-web'
 import { chromiumAccess, chromiumInstallCommand, PlaywrightFetchProvider } from './provider.ts'
 import type { BrowserAccess, PlaywrightFetchLimits } from './provider.ts'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
-import { DEFAULT_USER_AGENT } from '@deepseek-ai/dsh-web-fetch-http/policy'
+import { WEB_FETCH_USER_AGENT } from '@deepseek-ai/dsh-web'
 
 export {
   chromiumAccess,
@@ -66,7 +66,7 @@ export const Config: z<Config> = z.object({
   maxBodyChars: z.number().default(100_000),
   timeoutMs: z.number().default(30_000),
   maxConcurrentRenders: z.number().default(2),
-  userAgent: z.string().default(DEFAULT_USER_AGENT),
+  userAgent: z.string().default(WEB_FETCH_USER_AGENT),
   executablePath: z.string(),
 })
 

@@ -354,6 +354,7 @@
 .customizedSummary {
   display: flex;
   align-items: center;
+  min-height: 24px;
   gap: 6px;
   width: fit-content;
   padding: 2px 4px;
@@ -378,7 +379,7 @@
   border-right: 1.5px solid currentcolor;
   border-bottom: 1.5px solid currentcolor;
   transform: rotate(-45deg) translate(-1px, -1px);
-  transition: transform 120ms ease;
+  transition: transform var(--ds-transition-duration-fast) ease;
 }
 
 .customized[open] > .customizedSummary::before {
@@ -663,4 +664,16 @@ select.input {
   font-family: var(--ds-font-family-code);
   font-size: 13px;
   overflow-wrap: anywhere;
+}
+
+/* Disclosure chevron for a model row. The rotation lives here rather than in a
+   TSX style object because a style object carries no media query, so the
+   theme's reduced-motion collapse of `--ds-transition-duration*` could never
+   reach a duration written inline. */
+.rowChevron {
+  transition: transform var(--ds-transition-duration-fast) ease;
+}
+
+.rowChevronOpen {
+  transform: rotate(90deg);
 }

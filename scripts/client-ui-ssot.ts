@@ -10,7 +10,10 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { forbiddenStackHits } from './live-stack-floors.ts'
 import { uniqueRepoFiles } from './repo-files.ts'
-import { cssRules, declaresInfiniteAnimation, selectorParts, stopsAnimation, stripCssComments } from './ui-ssot-css.ts'
+import {
+  type CssRule,
+  cssRules, declaresInfiniteAnimation, selectorParts, stopsAnimation, stopsTransition, stripCssComments,
+} from './ui-ssot-css.ts'
 
 const ROOT = resolve(import.meta.dirname, '..')
 
@@ -95,6 +98,12 @@ const TSX_COLOR_OBJECT = new RegExp(
   + String.raw`(${TSX_HEX}|rgba?\(|hsla?\(|oklch\()`,
   'g',
 )
+/**
+ * A literal motion duration in a TSX style object. A style object carries no
+ * media query, so the theme's reduced-motion collapse can never reach it: the
+ * duration has to come from the token, through a CSS Module class.
+ */
+const TSX_MOTION = /\b(?:transition|animation)(?:Duration)?\s*:\s*(['"])[^'"]*?\d*\.?\d+\s*m?s\b[^'"]*\1/g
 const TSX_COLOR_ATTR = new RegExp(
   String.raw`\b(fill|stroke|color)\s*=\s*(['"])(${TSX_HEX}|rgba?\([^)]*\)|hsla?\([^)]*\)|oklch\([^)]*\))\2`,
   'g',
@@ -110,41 +119,298 @@ const CURSOR_POINTER = /cursor\s*:\s*pointer\b/i
 const POINTER_EVENTS_NONE = /pointer-events\s*:\s*none\b/i
 const NATIVE_FORM_CONTROL = /(?:^|[\s>+~,(])(?:input|textarea|select)(?:$|[\s.:#[,>+~])/i
 const UA_PSEUDO_ELEMENT = /::[\w-]/
-const PX_SIZE = /(?:^|[^\w-])(?:min-)?(?:width|height)\s*:\s*(\d+)px/gi
-/** WCAG 2.5.8 Target Size (Minimum): 24 CSS pixels on each authored pointer target. */
-const HIT_TARGET_MIN_PX = 24
+/**
+ * One `transition` or `animation` declaration and the value it carries.
+ *
+ * The theme collapses `--ds-transition-duration*` under
+ * `prefers-reduced-motion`, so a duration written as a literal is motion that
+ * setting can never reach.
+ */
+const MOTION_DECL = /(?:^|[^\w-])(transition|animation)(?:-duration)?\s*:\s*([^;}]+)/gi
+/** A stated time in a motion value. */
+const MOTION_TIME = /(?:^|[^\w.-])\d*\.?\d+\s*(?:ms|s)\b/i
+/** The theme's collapsible duration scale. */
+const MOTION_TOKEN = /var\(\s*--ds-transition-duration/i
 
 /**
- * Pixel width/height/min-width/min-height declarations in one rule body.
+ * Split a declaration value on the commas that separate its layers.
+ *
+ * `transition` and `animation` both take a comma-separated list, and a timing
+ * function carries commas of its own — `cubic-bezier(0.2, 0.8, 0.2, 1)` is one
+ * layer, not four. Only commas outside parentheses divide layers.
+ * @param value - the declaration value as written.
+ * @returns one entry per layer, trimmed.
+ */
+function motionLayers(value: string): string[] {
+  const layers: string[] = []
+  let depth = 0
+  let start = 0
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value.charAt(index)
+    if (character === '(') depth += 1
+    else if (character === ')') depth -= 1
+    else if (character === ',' && depth === 0) {
+      layers.push(value.slice(start, index).trim())
+      start = index + 1
+    }
+  }
+  layers.push(value.slice(start).trim())
+  return layers.filter(layer => layer !== '')
+}
+
+/**
+ * Whether one motion layer states its duration as a literal.
+ *
+ * The duration is the first time in the layer and the delay is the second, so
+ * only the first is read: a toast whose hold is `var(--hold, 3000ms)` states
+ * its duration through the token even though a literal time appears later. A
+ * layer with no duration at all — `transition: none`, or one taking its time
+ * from another property — states nothing to collapse.
+ * @param layer - one comma-separated layer of a motion value.
+ * @returns true when the layer's duration is a literal the collapse cannot reach.
+ */
+function statesLiteralDuration(layer: string): boolean {
+  const literal = MOTION_TIME.exec(layer)
+  if (literal === null) return false
+  const token = MOTION_TOKEN.exec(layer)
+  return token === null || literal.index < token.index
+}
+
+/**
+ * Selectors of one rule that no later reduced-motion guard answers.
+ *
+ * A guard says nothing about a selector it does not name, and one the animated
+ * rule overrides is dead in the cascade, so only a guard appearing after the
+ * rule and naming that selector — or `*` — counts.
+ * @param rule - the rule declaring motion.
+ * @param guards - reduced-motion rules in the same sheet that stop motion.
+ * @returns each selector left unanswered, in source order.
+ */
+function unansweredSelectors(rule: CssRule, guards: readonly CssRule[]): string[] {
+  return selectorParts(rule.selector).filter(part => !guards.some(guard => guard.start > rule.start
+    && selectorParts(guard.selector).some(target => target === part || target === '*')))
+}
+
+/** A rule that only turns the user-agent focus ring off. */
+const ONLY_REMOVES_RING = /^[\s;]*outline\s*:\s*(?:none|0)\s*;?[\s;]*$/i
+
+/** WCAG 2.5.8 Target Size (Minimum): 24 CSS pixels on each authored pointer target. */
+const HIT_TARGET_MIN_PX = 24
+/**
+ * CSS pixels one `rem` resolves to. No sheet under `packages/client` or
+ * `apps/web` sets a root font size, so `rem` measures against the initial
+ * value every browser ships. `em` is deliberately not converted: it resolves
+ * against the element's own inherited font size, which a stylesheet scan
+ * cannot know, and guessing it would report sizes that are not the page's.
+ */
+const ROOT_FONT_PX = 16
+/** One absolute length the scan can resolve, as `value` + `unit`. */
+const LENGTH = String.raw`(\d+(?:\.\d+)?)\s*(px|rem)`
+const SIZE_DECL = new RegExp(String.raw`(?:^|[^\w-])(?:min-)?(?:width|height)\s*:\s*${LENGTH}`, 'gi')
+const FONT_SIZE_DECL = new RegExp(String.raw`(?:^|[^\w-])font-size\s*:\s*${LENGTH}`, 'i')
+const LINE_HEIGHT_DECL = /(?:^|[^\w-])line-height\s*:\s*([^;}]+)/i
+const PADDING_SHORTHAND = /(?:^|[^\w-])padding\s*:\s*([^;}]+)/i
+const PADDING_BLOCK = /(?:^|[^\w-])padding-block\s*:\s*([^;}]+)/i
+const PADDING_TOP = /(?:^|[^\w-])padding-(?:top|block-start)\s*:\s*([^;}]+)/i
+const PADDING_BOTTOM = /(?:^|[^\w-])padding-(?:bottom|block-end)\s*:\s*([^;}]+)/i
+const BORDER_SHORTHAND = /(?:^|[^\w-])border\s*:\s*([^;}]+)/i
+const BORDER_WIDTH = /(?:^|[^\w-])border-width\s*:\s*([^;}]+)/i
+const BORDER_TOP_WIDTH = /(?:^|[^\w-])border-(?:top|block-start)(?:-width)?\s*:\s*([^;}]+)/i
+const BORDER_BOTTOM_WIDTH = /(?:^|[^\w-])border-(?:bottom|block-end)(?:-width)?\s*:\s*([^;}]+)/i
+/** Trailing pseudo-classes and functional pseudo-classes on one compound selector. */
+const TRAILING_PSEUDO_CLASS = /:(?!:)[\w-]+(\([^)]*\))?\s*$/
+
+/**
+ * Resolve one absolute length to CSS pixels.
+ * @param value - the numeric part as written.
+ * @param unit - `px` or `rem`.
+ * @returns the length in CSS pixels.
+ */
+function lengthPx(value: string, unit: string): number {
+  return unit.toLowerCase() === 'rem' ? Number(value) * ROOT_FONT_PX : Number(value)
+}
+
+/**
+ * Declared width/height/min-width/min-height lengths in one rule body.
  * @param body - style-rule declarations.
- * @returns each captured pixel length, in source order.
+ * @returns each declared length in CSS pixels, in source order.
  */
 function declaredPxSizes(body: string): number[] {
   const sizes: number[] = []
-  PX_SIZE.lastIndex = 0
+  SIZE_DECL.lastIndex = 0
   let size: RegExpExecArray | null
-  while ((size = PX_SIZE.exec(body)) !== null) {
-    if (size[1] !== undefined) sizes.push(Number(size[1]))
+  while ((size = SIZE_DECL.exec(body)) !== null) {
+    if (size[1] !== undefined && size[2] !== undefined) sizes.push(lengthPx(size[1], size[2]))
   }
   return sizes
 }
 
 /**
- * Whether a style rule is an authored pointer target the 24px floor applies to.
+ * First absolute length in a declaration value, or `undefined`.
+ *
+ * A value the scan cannot resolve — `var(--x)`, a percentage, `em`, `auto` —
+ * returns `undefined` so the caller declines to bound the box rather than
+ * treating the missing part as zero.
+ * @param value - the declaration value as written.
+ * @returns the length in CSS pixels, or undefined.
+ */
+function firstLengthPx(value: string): number | undefined {
+  const match = new RegExp(LENGTH, 'i').exec(value.trim())
+  if (match?.[1] === undefined || match[2] === undefined) return undefined
+  return lengthPx(match[1], match[2])
+}
+
+/**
+ * Every absolute length in a shorthand value, in order, or `undefined` when any
+ * component is unresolvable.
+ * @param value - the shorthand value as written.
+ * @returns the lengths in CSS pixels, or undefined.
+ */
+function shorthandLengthsPx(value: string): number[] | undefined {
+  const parts = value.trim().split(/\s+/)
+  const lengths: number[] = []
+  for (const part of parts) {
+    if (/^0$/.test(part)) { lengths.push(0); continue }
+    const match = new RegExp(`^${LENGTH}$`, 'i').exec(part)
+    if (match?.[1] === undefined || match[2] === undefined) return undefined
+    lengths.push(lengthPx(match[1], match[2]))
+  }
+  return lengths.length === 0 ? undefined : lengths
+}
+
+/**
+ * Top plus bottom padding a rule declares, in CSS pixels.
+ * @param body - style-rule declarations.
+ * @returns the vertical padding, or undefined when any part is unresolvable.
+ */
+function verticalPaddingPx(body: string): number | undefined {
+  const top = PADDING_TOP.exec(body)?.[1]
+  const bottom = PADDING_BOTTOM.exec(body)?.[1]
+  if (top !== undefined && bottom !== undefined) {
+    const above = firstLengthPx(top)
+    const below = firstLengthPx(bottom)
+    return above === undefined || below === undefined ? undefined : above + below
+  }
+  const block = PADDING_BLOCK.exec(body)?.[1] ?? PADDING_SHORTHAND.exec(body)?.[1]
+  if (block === undefined) return undefined
+  const sides = shorthandLengthsPx(block)
+  if (sides === undefined) return undefined
+  // `padding` and `padding-block` both put the block-start value first and
+  // repeat it for block-end when only one value is given.
+  const above = sides[0]
+  if (above === undefined) return undefined
+  const below = sides.length >= 3 ? sides[2] : above
+  return below === undefined ? undefined : above + below
+}
+
+/**
+ * Top plus bottom border width a rule declares, in CSS pixels.
+ * @param body - style-rule declarations.
+ * @returns the vertical border width, or undefined when any part is unresolvable.
+ */
+function verticalBorderPx(body: string): number | undefined {
+  const top = BORDER_TOP_WIDTH.exec(body)?.[1]
+  const bottom = BORDER_BOTTOM_WIDTH.exec(body)?.[1]
+  if (top !== undefined || bottom !== undefined) {
+    const above = top === undefined ? 0 : firstLengthPx(top)
+    const below = bottom === undefined ? 0 : firstLengthPx(bottom)
+    return above === undefined || below === undefined ? undefined : above + below
+  }
+  const shorthand = BORDER_WIDTH.exec(body)?.[1] ?? BORDER_SHORTHAND.exec(body)?.[1]
+  if (shorthand === undefined) return 0
+  const width = firstLengthPx(shorthand)
+  // `border: 0` and `border: none` both remove the border.
+  if (width === undefined) return /(?:^|\s)(?:0|none)(?:\s|$)/.test(shorthand.trim()) ? 0 : undefined
+  return width * 2
+}
+
+/**
+ * Lower bound on a rule's border-box height when it declares no height.
+ *
+ * A control sized only by padding still has a floor: its content box is at
+ * least the declared `font-size` tall, because a line box is never shorter than
+ * the font size. Padding and border add to that. When every part resolves and
+ * the total is under the floor, the element cannot reach the floor vertically —
+ * so this reports only boxes that are certainly too short, never ones that
+ * merely might be.
+ * @param body - style-rule declarations.
+ * @returns the lower bound in CSS pixels, or undefined when it cannot be bounded.
+ */
+function paddedHeightFloorPx(body: string): number | undefined {
+  const font = FONT_SIZE_DECL.exec(body)
+  if (font?.[1] === undefined || font[2] === undefined) return undefined
+  const fontPx = lengthPx(font[1], font[2])
+  const padding = verticalPaddingPx(body)
+  if (padding === undefined) return undefined
+  const border = verticalBorderPx(body)
+  if (border === undefined) return undefined
+  return contentHeightPx(body, fontPx) + padding + border
+}
+
+/**
+ * Height of one line box, in CSS pixels.
+ *
+ * A declared `line-height` is the content height of a single-line control, and
+ * a unitless one multiplies the font size. Without one, the font size is the
+ * lower bound: no line box is shorter than its font size. A `line-height` this
+ * scan cannot resolve falls back to that same bound rather than to zero.
+ * @param body - style-rule declarations.
+ * @param fontPx - the rule's declared font size in CSS pixels.
+ * @returns the single-line content height in CSS pixels.
+ */
+function contentHeightPx(body: string, fontPx: number): number {
+  const declared = LINE_HEIGHT_DECL.exec(body)?.[1]?.trim()
+  if (declared === undefined) return fontPx
+  const absolute = new RegExp(`^${LENGTH}$`, 'i').exec(declared)
+  if (absolute?.[1] !== undefined && absolute[2] !== undefined) return lengthPx(absolute[1], absolute[2])
+  const ratio = /^\d+(?:\.\d+)?$/.exec(declared)
+  return ratio === null ? fontPx : Number(declared) * fontPx
+}
+
+/**
+ * Whether a selector's merged declarations make it an authored pointer target
+ * the 24px floor applies to.
  *
  * `button` / `[role=button]` / `.button` / `.iconButton` count even without
- * `cursor: pointer`. Any other rule counts when it sets `cursor: pointer`.
- * User-agent pseudo-elements, native `input`/`textarea`/`select`, and
- * `pointer-events: none` are not authored compact buttons.
- * @param selector - collapsed selector list from {@link cssRules}.
- * @param body - declarations for that rule.
- * @returns true when undersized geometry on this rule is a hit-target miss.
+ * `cursor: pointer`. Any other selector counts when it sets `cursor: pointer`.
+ * Native `input`/`textarea`/`select` and `pointer-events: none` are not
+ * authored compact buttons; user-agent pseudo-elements are dropped before the
+ * merge, so their geometry never reaches the element they decorate.
+ * @param selector - one compound selector, pseudo-classes already stripped.
+ * @param body - every declaration that selector carries across the sheet.
+ * @returns true when undersized geometry on this selector is a hit-target miss.
  */
 function isAuthoredPointerTarget(selector: string, body: string): boolean {
   if (POINTER_EVENTS_NONE.test(body)) return false
-  if (UA_PSEUDO_ELEMENT.test(selector)) return false
   if (NATIVE_FORM_CONTROL.test(selector)) return false
-  return NAMED_INTERACTIVE.test(selector) || CURSOR_POINTER.test(body)
+  return NAMED_INTERACTIVE.test(`,${selector}`) || CURSOR_POINTER.test(body)
+}
+
+/**
+ * Merge every rule's declarations onto the individual selectors it targets.
+ *
+ * A sheet routinely splits one control across rules: `.disclosure,
+ * .disclosureSpace { width: 14px; height: 18px }` sizes it and `.disclosure {
+ * cursor: pointer }` makes it a target. Read rule by rule neither half is a
+ * finding, so the geometry has to meet the `cursor` on the element they share.
+ * Pseudo-classes are stripped because `:hover` styles the same box; rules whose
+ * selector names a user-agent pseudo-element are skipped entirely, since their
+ * geometry belongs to the decoration rather than to the control.
+ * @param rules - the sheet's style rules.
+ * @returns declarations keyed by compound selector, in first-seen order.
+ */
+export function mergeSelectorDeclarations(rules: readonly { selector: string; body: string }[]): Map<string, string> {
+  const merged = new Map<string, string>()
+  for (const rule of rules) {
+    for (const part of rule.selector.split(',')) {
+      const compound = part.trim()
+      if (compound === '' || UA_PSEUDO_ELEMENT.test(compound)) continue
+      const key = compound.replace(TRAILING_PSEUDO_CLASS, '').trim()
+      if (key === '') continue
+      merged.set(key, `${merged.get(key) ?? ''};${rule.body}`)
+    }
+  }
+  return merged
 }
 
 /**
@@ -304,17 +570,37 @@ export function scanUiSsot(files: readonly { file: string; content: string }[]):
       if (TSX_COLOR_ATTR.test(content)) {
         findings.push({ file: path, kind: 'tsx-inline-color', detail: 'literal hex in an SVG color attribute; use a CSS Module class or currentColor' })
       }
+      TSX_MOTION.lastIndex = 0
+      if (TSX_MOTION.test(content)) {
+        findings.push({
+          file: path,
+          kind: 'reduced-motion',
+          detail: 'literal motion duration in a TSX style object, which no prefers-reduced-motion rule can reach; move it to a CSS Module using --ds-transition-duration*',
+        })
+      }
     }
 
     if (path.endsWith('.css')) {
-      for (const rule of cssRules(css)) {
-        if (!isAuthoredPointerTarget(rule.selector, rule.body)) continue
-        const sizes = declaredPxSizes(rule.body)
+      for (const [selector, body] of mergeSelectorDeclarations(cssRules(css))) {
+        if (!isAuthoredPointerTarget(selector, body)) continue
+        const sizes = declaredPxSizes(body)
         if (sizes.some(px => px < HIT_TARGET_MIN_PX)) {
           findings.push({
             file: path,
             kind: 'hit-target',
-            detail: `interactive geometry ${sizes.join('x')}px is below WCAG 2.5.8 ${HIT_TARGET_MIN_PX}px`,
+            detail: `${selector} geometry ${sizes.join('x')}px is below WCAG 2.5.8 ${HIT_TARGET_MIN_PX}px`,
+          })
+          continue
+        }
+        // A control the sheet never sizes still has a floor its padding,
+        // border, and font size put on it; only report one it cannot clear.
+        if (sizes.length > 0) continue
+        const floor = paddedHeightFloorPx(body)
+        if (floor !== undefined && floor < HIT_TARGET_MIN_PX) {
+          findings.push({
+            file: path,
+            kind: 'hit-target',
+            detail: `${selector} is at most ${floor}px tall (font size plus padding and border) with no height declared, below WCAG 2.5.8 ${HIT_TARGET_MIN_PX}px`,
           })
         }
       }
@@ -356,15 +642,69 @@ export function scanUiSsot(files: readonly { file: string; content: string }[]):
     const guards = rules.filter(rule => rule.reduced && !rule.conditional && stopsAnimation(rule.body))
     for (const rule of rules) {
       if (rule.reduced || !declaresInfiniteAnimation(rule.body)) continue
-      for (const part of selectorParts(rule.selector)) {
-        const answered = guards.some(guard => guard.start > rule.start
-          && selectorParts(guard.selector).some(target => target === part || target === '*'))
-        if (answered) continue
+      for (const part of unansweredSelectors(rule, guards)) {
         findings.push({
           file: path,
           kind: 'reduced-motion',
           detail: `\`${part}\` animates forever with no prefers-reduced-motion rule stopping it`,
         })
+      }
+    }
+  }
+
+  // `base.css` supplies a keyboard ring by element and role, and says so: a
+  // component's own `:focus-visible` beats it on specificity. A rule whose
+  // whole body turns that ring off, with nothing else in the sheet keyed on the
+  // same `:focus-visible` selector, leaves a keyboard user no indicator at all.
+  for (const { file: path, content } of files) {
+    if (!path.endsWith('.css')) continue
+    const rules = cssRules(stripCssComments(content))
+    for (const rule of rules) {
+      if (!rule.selector.includes(':focus-visible')) continue
+      if (!ONLY_REMOVES_RING.test(rule.body)) continue
+      for (const part of selectorParts(rule.selector)) {
+        if (!part.includes(':focus-visible')) continue
+        // A replacement may be painted on an inner element or through a
+        // pseudo-element, so any other rule naming this focused selector counts.
+        const replaced = rules.some(other => other !== rule && other.selector.includes(part))
+        if (replaced) continue
+        findings.push({
+          file: path,
+          kind: 'focus-visible',
+          detail: `\`${part}\` removes the keyboard focus ring and nothing else in the sheet replaces it`,
+        })
+      }
+    }
+  }
+
+  // A literal duration is motion the theme's collapse cannot reach: only
+  // `--ds-transition-duration*` shortens under the setting. A rule stating one
+  // therefore has to take the token or be answered by name, the same bar the
+  // endless-animation rule applies.
+  for (const { file: path, content } of files) {
+    if (!path.endsWith('.css')) continue
+    const rules = cssRules(stripCssComments(content))
+    const guards = rules.filter(rule =>
+      rule.reduced && !rule.conditional && (stopsAnimation(rule.body) || stopsTransition(rule.body)))
+    for (const rule of rules) {
+      if (rule.reduced) continue
+      MOTION_DECL.lastIndex = 0
+      let declaration: RegExpExecArray | null
+      while ((declaration = MOTION_DECL.exec(rule.body)) !== null) {
+        const property = declaration[1]?.toLowerCase()
+        const value = declaration[2]
+        if (property === undefined || value === undefined) continue
+        // An endless animation is the other rule's finding; reporting it twice
+        // would make one selector read as two problems.
+        if (property === 'animation' && declaresInfiniteAnimation(rule.body)) continue
+        if (!motionLayers(value).some(statesLiteralDuration)) continue
+        for (const part of unansweredSelectors(rule, guards)) {
+          findings.push({
+            file: path,
+            kind: 'reduced-motion',
+            detail: `\`${part}\` states a literal ${property} duration, which --ds-transition-duration* collapse never reaches`,
+          })
+        }
       }
     }
   }

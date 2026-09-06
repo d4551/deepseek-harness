@@ -158,6 +158,195 @@ describe('injected SSOT violations', () => {
     ).toBe(false)
   })
 
+  it('resolves rem sizes against the root font size', () => {
+    // No sheet under packages/client sets a root font size, so `rem` is 16px.
+    // A px-only scan walked a 2.25rem x 1.25rem toggle straight through.
+    const scan = (content: string): boolean => scanUiSsot([
+      THEME,
+      FRAME,
+      { file: 'packages/client/ui-primitives/src/Tiny.module.css', content },
+    ]).some(finding => finding.kind === 'hit-target')
+    expect(scan('.switch { cursor: pointer; width: 2.25rem; height: 1.25rem; }\n'), '36x20 rem').toBe(true)
+    expect(scan('.switch { cursor: pointer; width: 2.25rem; height: 1.5rem; }\n'), '36x24 rem').toBe(false)
+    expect(scan('.chip { cursor: pointer; height: 23.5px; }\n'), 'fractional px').toBe(true)
+    expect(scan('.chip { cursor: pointer; height: 1.4375rem; }\n'), 'fractional rem').toBe(true)
+    // `em` resolves against the element's own inherited font size, which a
+    // stylesheet scan cannot know; reporting it would state a size that is not
+    // the page's.
+    expect(scan('.chip { cursor: pointer; height: 1em; }\n'), 'em declines').toBe(false)
+  })
+
+  it('meets a size declared in one rule with the cursor declared in another', () => {
+    const scan = (content: string): boolean => scanUiSsot([
+      THEME,
+      FRAME,
+      { file: 'packages/client/ui-primitives/src/Tiny.module.css', content },
+    ]).some(finding => finding.kind === 'hit-target')
+    const split = '.disclosure, .disclosureSpace { width: 14px; height: 18px; }\n.disclosure { cursor: pointer; }\n'
+    expect(scan(split), 'size and cursor in sibling rules').toBe(true)
+    expect(
+      scan('.disclosure, .disclosureSpace { width: 24px; height: 24px; }\n.disclosure { cursor: pointer; }\n'),
+      'both at the floor',
+    ).toBe(false)
+    // A pseudo-class styles the same box, so its declarations merge.
+    expect(scan('.chip:hover { width: 16px; }\n.chip { cursor: pointer; }\n'), 'pseudo-class merges').toBe(true)
+    // A user-agent pseudo-element is a decoration, not the control; its
+    // geometry must not be attributed to the element it decorates.
+    expect(
+      scan('.search::-webkit-search-cancel-button { width: 12px; }\n.search { cursor: pointer; }\n'),
+      'UA pseudo-element stays out of the merge',
+    ).toBe(false)
+    // The sibling selector that never takes the cursor is not itself a target.
+    expect(scan('.a, .b { width: 14px; }\n.a { cursor: pointer; }\n'), 'only the cursor half reports').toBe(true)
+    expect(scan('.a, .b { width: 14px; }\n.c { cursor: pointer; }\n'), 'unrelated cursor').toBe(false)
+  })
+
+  it('fails a control whose padding, border and line box cannot reach the floor', () => {
+    const scan = (content: string): boolean => scanUiSsot([
+      THEME,
+      FRAME,
+      { file: 'packages/client/ui-primitives/src/Tiny.module.css', content },
+    ]).some(finding => finding.kind === 'hit-target')
+    expect(
+      scan('.retry { cursor: pointer; padding: 1px 8px; border: 1px solid currentColor; font-size: 12px; }\n'),
+      '12 + 2 + 2 = 16',
+    ).toBe(true)
+    expect(
+      scan('.retry { cursor: pointer; padding: 4px 8px; border: 1px solid currentColor; font-size: 14px; }\n'),
+      '14 + 8 + 2 = 24',
+    ).toBe(false)
+    expect(
+      scan('.crumb { cursor: pointer; padding: 2px 6px; font-size: 12px; line-height: 18px; }\n'),
+      'line-height 18 + 4 = 22',
+    ).toBe(true)
+    expect(
+      scan('.crumb { cursor: pointer; padding: 3px 6px; font-size: 12px; line-height: 18px; }\n'),
+      'line-height 18 + 6 = 24',
+    ).toBe(false)
+    expect(
+      scan('.crumb { cursor: pointer; padding: 0; font-size: 12px; line-height: 1.5; }\n'),
+      'unitless line-height 1.5 x 12 = 18',
+    ).toBe(true)
+    expect(
+      scan('.b { cursor: pointer; padding-top: 4px; padding-bottom: 4px; font-size: 12px; }\n'),
+      'longhand padding 12 + 8 = 20',
+    ).toBe(true)
+    // A declared height answers the floor on its own; the padding bound is only
+    // for controls the sheet never sizes.
+    expect(
+      scan('.b { cursor: pointer; min-height: 24px; padding: 0; font-size: 12px; }\n'),
+      'declared min-height wins',
+    ).toBe(false)
+    // Parts the scan cannot resolve mean it declines to bound the box rather
+    // than reading the missing part as zero.
+    expect(
+      scan('.b { cursor: pointer; padding: var(--pad); font-size: 12px; }\n'),
+      'var padding declines',
+    ).toBe(false)
+    expect(
+      scan('.b { cursor: pointer; padding: 4%; font-size: 12px; }\n'),
+      'percentage padding declines',
+    ).toBe(false)
+    expect(
+      scan('.b { cursor: pointer; padding: 2px; border: var(--edge); font-size: 12px; }\n'),
+      'var border declines',
+    ).toBe(false)
+    expect(
+      scan('.b { cursor: pointer; padding: 2px; font: inherit; }\n'),
+      'no font-size declines',
+    ).toBe(false)
+    expect(
+      scan('.b { cursor: pointer; padding: 2px; border: none; font-size: 12px; }\n'),
+      'border none counts as zero',
+    ).toBe(true)
+  })
+
+  it('fails a rule that only turns the keyboard focus ring off', () => {
+    // base.css supplies the ring by element and role and says a component's own
+    // `:focus-visible` beats it on specificity, so a bare removal leaves a
+    // keyboard user nothing.
+    const scan = (content: string): number => scanUiSsot([THEME, FRAME, { file: 'Row.module.css', content }])
+      .filter(finding => finding.kind === 'focus-visible' && finding.file === 'Row.module.css').length
+    expect(scan('.handle:focus-visible { outline: none; }\n'), 'bare removal').toBe(1)
+    expect(scan('.handle:focus-visible { outline: 0; }\n'), 'outline zero').toBe(1)
+    expect(
+      scan('.handle:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); }\n'),
+      'a real ring',
+    ).toBe(0)
+    expect(
+      scan('.handle:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--dsw-alias-state-business-primary); }\n'),
+      'replaced in the same rule',
+    ).toBe(0)
+    // A replacement painted on an inner element or a pseudo-element counts.
+    expect(
+      scan('.b:focus-visible { outline: none; }\n.b:focus-visible .wrap { outline: 2px solid red; }\n'),
+      'inner element carries the ring',
+    ).toBe(0)
+    expect(
+      scan('.e:focus-visible { outline: none; }\n.row:has(> .e:focus-visible)::after { outline: 2px solid red; }\n'),
+      'row overlay carries the ring',
+    ).toBe(0)
+    // An unrelated rule is not a replacement.
+    expect(
+      scan('.b:focus-visible { outline: none; }\n.other:focus-visible .wrap { outline: 2px solid red; }\n'),
+      'unrelated selector',
+    ).toBe(1)
+    expect(scan('.b:hover { outline: none; }\n'), 'not a focus rule').toBe(0)
+  })
+
+  it('fails a literal motion duration the theme collapse cannot reach', () => {
+    // Only `--ds-transition-duration*` shortens under the setting, so a
+    // literal duration is motion that setting never reaches.
+    const scan = (content: string): number => scanUiSsot([THEME, FRAME, { file: 'Row.module.css', content }])
+      .filter(finding => finding.detail.includes('states a literal')).length
+    expect(scan('.row { transition: opacity 120ms ease; }\n'), 'literal transition').toBe(1)
+    expect(scan('.row { transition: opacity var(--ds-transition-duration-fast) ease; }\n'), 'token').toBe(0)
+    expect(scan('.row { transition: none; }\n'), 'no duration to collapse').toBe(0)
+    expect(scan('.row { animation: fade 160ms ease-out; }\n'), 'finite animation').toBe(1)
+    // An endless animation is the other rule's finding; one selector must not
+    // read as two problems.
+    expect(scan('.row { animation: spin 0.8s linear infinite; }\n'), 'infinite belongs to the other rule').toBe(0)
+    // The duration is the first time in a layer and the delay is the second,
+    // so a hold written as a literal fallback is not a duration.
+    expect(
+      scan('.row { animation: fade var(--ds-transition-duration) ease var(--hold, 3000ms) forwards; }\n'),
+      'literal delay after a token duration',
+    ).toBe(0)
+    // A timing function carries commas of its own; one layer is not four.
+    expect(
+      scan('.row { transition: top var(--ds-transition-duration) cubic-bezier(0.2, 0.8, 0.2, 1); }\n'),
+      'cubic-bezier commas',
+    ).toBe(0)
+    // Every layer has to take the token, not just the first.
+    expect(
+      scan('.row { transition: width var(--ds-transition-duration) ease, color 140ms ease; }\n'),
+      'second layer still literal',
+    ).toBe(1)
+    // A rule the sheet answers by name under the setting is stopped.
+    expect(
+      scan('.row { transition: opacity 120ms ease; }\n@media (prefers-reduced-motion: reduce) { .row { transition: none; } }\n'),
+      'answered by a guard',
+    ).toBe(0)
+    expect(
+      scan('.row { transition: opacity 120ms ease; }\n@media (prefers-reduced-motion: reduce) { .other { transition: none; } }\n'),
+      'guard names a different selector',
+    ).toBe(1)
+    expect(
+      scan('.row { transition: opacity 120ms ease; }\n@media (prefers-reduced-motion: reduce) { .row { color: red; } }\n'),
+      'guard restyles without stopping',
+    ).toBe(1)
+  })
+
+  it('fails a literal motion duration in a TSX style object', () => {
+    const scan = (content: string): number => scanUiSsot([THEME, FRAME, { file: 'packages/client/ui-x/src/Row.tsx', content }])
+      .filter(finding => finding.kind === 'reduced-motion').length
+    // A style object carries no media query, so no guard can ever reach it.
+    expect(scan("const a = <svg style={{ transition: 'transform 120ms ease' }} />\n"), 'inline transition').toBe(1)
+    expect(scan("const a = <svg style={{ animationDuration: '200ms' }} />\n"), 'inline animation-duration').toBe(1)
+    expect(scan("const a = <svg className={styles['chevron']} />\n"), 'class instead').toBe(0)
+    expect(scan("const label = 'transition: 120ms is what the sheet declares'\n"), 'prose mentioning one').toBe(0)
+  })
+
   it('fails an infinite animation no reduced-motion rule actually stops', () => {
     const spinning = '.s { animation: spin 0.8s linear infinite; }'
     const guard = '@media (prefers-reduced-motion: reduce) { .s { animation: none; } }'

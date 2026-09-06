@@ -7,7 +7,6 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Browser, Page } from 'playwright'
-import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
 import { ToolCallId, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import type { ReplayEntry, ReplayOverrideDoc } from '@deepseek-ai/dsh-llm-replay'
@@ -19,7 +18,7 @@ import {
   type WebScaffold,
 } from './scaffold.ts'
 import {
-  connectFreshWorkspace, conversationContextKey, expandOwningTurnProcess, newEnglishPage, saveFailureShot,
+  connectFreshWorkspace, conversationContextKey, expandOwningTurnProcess, launchBrowser, newEnglishPage, saveFailureShot,
 } from './support.ts'
 
 const MODE = webSnapshotMode()
@@ -193,7 +192,7 @@ describe('web e2e: continuous conversation grown through the composer', () => {
     scaffold.ctx.on('session/event', (_session, event: SessionEvent) => {
       sessionEvents.push(event)
     })
-    browser = await chromium.launch()
+    browser = await launchBrowser()
     page = await newEnglishPage(browser, 900)
     tripwire = watchConsole(page)
     page.on('console', (message) => {

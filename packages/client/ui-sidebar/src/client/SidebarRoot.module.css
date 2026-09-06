@@ -46,12 +46,12 @@
    150ms; at settle the children unmount/snap to the rail layout. */
 .fading > * {
   opacity: 0;
-  transition: opacity 150ms var(--ds-ease-in-out);
+  transition: opacity var(--ds-transition-duration) var(--ds-ease-in-out);
 }
 
 /* Wide-only content fades back in on expand remount. */
 .wide {
-  animation: wide-in 200ms var(--ds-ease-in-out);
+  animation: wide-in var(--ds-transition-duration) var(--ds-ease-in-out);
 }
 
 @keyframes wide-in {
@@ -66,11 +66,11 @@
 .railIn .iconButton,
 .railIn .newSession,
 .railIn .regionArea {
-  animation: rail-in 150ms var(--ds-ease-in-out) backwards;
+  animation: rail-in var(--ds-transition-duration) var(--ds-ease-in-out) backwards;
 }
 
 .railIn .footArea {
-  animation: rail-fade-in 150ms var(--ds-ease-in-out) backwards;
+  animation: rail-fade-in var(--ds-transition-duration) var(--ds-ease-in-out) backwards;
 }
 
 @keyframes rail-in {

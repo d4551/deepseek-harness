@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/testing/2026-09-06-duplication-gate-scope.md
+2026-09-06-duplication-gate-scope.md: 35e06cd4f084794c45a3055065b493b58df6f889
+2026-09-06-duplication-gate-scope.zh.md: fcddf16206c73fe553627c4f586ed2e0c1c0e323

@@ -6,7 +6,7 @@
  * @module @deepseek-ai/dsh-web-search-exa/provider
  */
 
-import { WebError } from '@deepseek-ai/dsh-web'
+import { WEB_USER_AGENT, WebError } from '@deepseek-ai/dsh-web'
 import type {
   WebSearchProvider,
   WebSearchRequest,
@@ -26,9 +26,6 @@ export const EXA_DEFAULT_SEARCH_TYPE = 'auto'
 
 /** Default number of highlight sentences requested per result. */
 export const EXA_DEFAULT_HIGHLIGHTS_PER_RESULT = 1
-
-/** Attribution header sent on every request. Bump with the package version. */
-const USER_AGENT = 'deepseek-harness/0.0.1'
 
 /** Resolved provider options (the plugin's `apply` supplies env-var and constant defaults). */
 export interface ExaSearchProviderOptions {
@@ -105,7 +102,7 @@ export class ExaSearchProvider implements WebSearchProvider {
           'authorization': `Bearer ${this.options.apiKey}`,
           'content-type': 'application/json',
           'accept': 'application/json',
-          'user-agent': USER_AGENT,
+          'user-agent': WEB_USER_AGENT,
         },
         body: JSON.stringify({
           query: request.query,

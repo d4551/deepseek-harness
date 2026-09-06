@@ -1,14 +1,13 @@
 // Trusted non-loopback Web access cannot call the loopback-only settings API;
 // the notice therefore advances for this browser process and returns on reload.
 import type { Browser, Page } from 'playwright'
-import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   acknowledgeReloadConnectionLoss, launchWebScaffold, watchConsole, webSnapshotMode,
   WELCOME_NOTICE_COPY,
   type WebScaffold,
 } from './scaffold.ts'
-import { ZH_BROWSER_LOCALE } from './support.ts'
+import { launchBrowser, ZH_BROWSER_LOCALE } from './support.ts'
 
 const MODE = webSnapshotMode()
 
@@ -23,7 +22,7 @@ describe.skipIf(MODE === 'record')('web e2e: remote welcome notice', () => {
       remoteAuthority: 'remote.localhost',
       welcomeNoticePending: true,
     })
-    browser = await chromium.launch()
+    browser = await launchBrowser()
     page = await browser.newPage({
       viewport: { width: 1440, height: 960 },
       locale: ZH_BROWSER_LOCALE,

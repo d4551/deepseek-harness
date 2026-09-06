@@ -59,7 +59,7 @@
   display: flex;
   flex-direction: column;
   background: var(--dsw-alias-bg-layer-3);
-  transition: border-color .16s, background .16s;
+  transition: border-color var(--ds-transition-duration), background var(--ds-transition-duration);
 }
 
 .card:hover:not(.cardActive) {
@@ -117,7 +117,7 @@
   overflow-wrap: anywhere;
   opacity: 0;
   pointer-events: none;
-  transition: opacity .12s;
+  transition: opacity var(--ds-transition-duration-fast);
 }
 
 /* Focusing the card reveals it too: a broken card keeps its place in the tab
@@ -281,7 +281,7 @@
   white-space: nowrap;
   opacity: 0;
   pointer-events: none;
-  transition: opacity .12s;
+  transition: opacity var(--ds-transition-duration-fast);
 }
 
 .iconButton:hover::after,
@@ -318,6 +318,9 @@
 }
 
 .secondaryButton {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
   border: none;
   border-radius: 7px;
   padding: 5px 8px;

@@ -11,6 +11,12 @@ const state = vi.hoisted(() => ({
   failTempWriteWithCode: '',
   fixedTempSuffix: '',
   mkdirCalls: [] as Array<[PathLike, MakeDirectoryOptions | undefined]>,
+  // Injection points for the durability steps, which no real filesystem fails
+  // on demand: the open before an fsync, the fsync itself, and its close.
+  failOpenSuffix: '',
+  failFsyncSuffix: '',
+  failCloseAfterFsync: false,
+  syncedPaths: [] as string[],
 }))
 
 /** Completion callback shape every mocked `node:fs` call answers on. */
@@ -55,6 +61,34 @@ vi.mock('node:fs', async (importOriginal) => {
       state.mkdirCalls.push([path, options])
       ;(actual.mkdir as (path: PathLike, options: MakeDirectoryOptions | undefined, callback: FsCallback) => void)(path, options, done)
     }) as typeof actual.mkdir,
+    open: ((path: PathLike, flags: string, done: (error: NodeJS.ErrnoException | null, fd: number) => void) => {
+      if (state.failOpenSuffix !== '' && String(path).endsWith(state.failOpenSuffix)) {
+        done(Object.assign(new Error('EACCES: injected open failure'), { code: 'EACCES' }), -1)
+        return
+      }
+      type OpenCallback = (error: NodeJS.ErrnoException | null, fd: number) => void
+      type RawOpen = (path: PathLike, flags: string, callback: OpenCallback) => void
+      ;(actual.open as RawOpen)(path, flags, (error, fd) => {
+        if (error === null) state.syncedPaths.push(String(path))
+        done(error, fd)
+      })
+    }) as unknown as typeof actual.open,
+    fsync: ((fd: number, done: FsCallback) => {
+      if (state.failFsyncSuffix !== '' && state.syncedPaths.at(-1)?.endsWith(state.failFsyncSuffix) === true) {
+        done(Object.assign(new Error('EIO: injected fsync failure'), { code: 'EIO' }))
+        return
+      }
+      ;(actual.fsync as (fd: number, callback: FsCallback) => void)(fd, done)
+    }) as typeof actual.fsync,
+    close: ((fd: number, done: FsCallback) => {
+      if (state.failCloseAfterFsync) {
+        ;(actual.close as (fd: number, callback: FsCallback) => void)(fd, () => {
+          done(Object.assign(new Error('EBADF: injected close failure'), { code: 'EBADF' }))
+        })
+        return
+      }
+      ;(actual.close as (fd: number, callback: FsCallback) => void)(fd, done)
+    }) as typeof actual.close,
   }
 })
 
@@ -74,6 +108,10 @@ afterEach(() => {
   state.failTempWriteWithCode = ''
   state.fixedTempSuffix = ''
   state.mkdirCalls = []
+  state.failOpenSuffix = ''
+  state.failFsyncSuffix = ''
+  state.failCloseAfterFsync = false
+  state.syncedPaths = []
 })
 
 let scratchRoot: string | undefined
@@ -391,5 +429,80 @@ describe('writer lock deadline and backoff', () => {
       expect(delays.slice(0, 5)).toEqual([20, 40, 80, 160, 200])
       expect(delays.every(delay => delay <= 200)).toBe(true)
     })
+  })
+})
+
+describe('atomic write durability failures', () => {
+  const root = (): Promise<string> => mkdtemp(join(tmpdir(), 'dsh-atomic-durable-'))
+
+  it('rejects when the parent cannot be created and writes nothing', async () => {
+    // The parent of the target is a file, so mkdir fails; the failure has to
+    // reach the caller rather than the write proceeding into nowhere.
+    const dir = await root()
+    const blocker = join(dir, 'blocker')
+    await writeFile(blocker, 'not a directory')
+
+    await expect(writeFileAtomic(join(blocker, 'child', 'out.json'), 'x', { mode: 0o600 }))
+      .rejects.toMatchObject({ code: 'ENOTDIR' })
+    expect(await readFile(blocker, 'utf8')).toBe('not a directory')
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('reports the open failure that stops a sync, and leaves no temp file', async () => {
+    const dir = await root()
+    state.failOpenSuffix = '.tmp'
+
+    await expect(writeFileAtomic(join(dir, 'out.json'), 'x', { mode: 0o600 }))
+      .rejects.toMatchObject({ code: 'EACCES' })
+    expect(await readdir(dir)).toEqual([])
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('reports an fsync failure in preference to the close that follows it', async () => {
+    // Both steps run so the descriptor is always released; the first failure is
+    // the one the caller is told about.
+    const dir = await root()
+    state.failFsyncSuffix = '.tmp'
+    state.failCloseAfterFsync = true
+
+    await expect(writeFileAtomic(join(dir, 'out.json'), 'x', { mode: 0o600 }))
+      .rejects.toMatchObject({ code: 'EIO' })
+    expect(await readdir(dir)).toEqual([])
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('reports a close failure when the sync itself succeeded', async () => {
+    const dir = await root()
+    state.failCloseAfterFsync = true
+
+    await expect(writeFileAtomic(join(dir, 'out.json'), 'x', { mode: 0o600 }))
+      .rejects.toMatchObject({ code: 'EBADF' })
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('stops before the commit when the staged file cannot be synced', async () => {
+    // A commit after a failed sync would publish content that is not on disk.
+    const dir = await root()
+    const target = join(dir, 'out.json')
+    state.failFsyncSuffix = '.tmp'
+
+    await expect(writeFileAtomic(target, 'x', { mode: 0o600 })).rejects.toMatchObject({ code: 'EIO' })
+    await expect(stat(target)).rejects.toMatchObject({ code: 'ENOENT' })
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('syncs the parent directory after the rename, not only the staged file', async () => {
+    // POSIX needs the directory entry flushed too; without it the committed
+    // name can vanish in a crash even though the content was synced.
+    const dir = await root()
+    const target = join(dir, 'out.json')
+
+    await writeFileAtomic(target, 'x', { mode: 0o600 })
+
+    if (process.platform !== 'win32') {
+      expect(state.syncedPaths.some(path => path.endsWith('.tmp'))).toBe(true)
+      expect(state.syncedPaths).toContain(dir)
+    }
+    await rm(dir, { recursive: true, force: true })
   })
 })

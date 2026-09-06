@@ -12,14 +12,13 @@ import type {} from '@deepseek-ai/dsh-web'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { HttpFetchProvider } from './provider.ts'
 import type { HttpFetchLimits } from './provider.ts'
-import { DEFAULT_USER_AGENT } from './policy.ts'
+import { WEB_FETCH_USER_AGENT } from '@deepseek-ai/dsh-web'
 
 export {
   LOCAL_FETCH_PROVIDER_ID,
   HttpFetchProvider,
 } from './provider.ts'
 export type { HttpFetchLimits, HttpFetchResolver } from './provider.ts'
-export { DEFAULT_USER_AGENT } from './policy.ts'
 
 /** Cordis plugin name used by loader diagnostics. */
 export const name = 'web-fetch-http'
@@ -46,7 +45,7 @@ export const Config: z<Config> = z.object({
   maxBodyChars: z.number().default(100_000),
   timeoutMs: z.number().default(30_000),
   maxRedirects: z.number().default(5),
-  userAgent: z.string().default(DEFAULT_USER_AGENT),
+  userAgent: z.string().default(WEB_FETCH_USER_AGENT),
 })
 
 /** Settings namespace carrying this provider's transport and response limits. */

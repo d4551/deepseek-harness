@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {
   TeamMemberView as TeamRosterMember,
@@ -249,8 +249,14 @@ export function TeamAction({
     triggerRef.current?.focus()
   }
 
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+    if (event.key !== 'Escape' || !open) return
+    event.preventDefault()
+    closePanel()
+  }
+
   return (
-    <div className={css.root} data-team-action>
+    <div className={css.root} data-team-action onKeyDown={onKeyDown}>
       <button
         ref={triggerRef}
         type="button"

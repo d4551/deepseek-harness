@@ -1,12 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, isAbsolute, join } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { DatabaseSync } from 'node:sqlite'
 import {
   configureConnectionSecurity,
   configureDurability,
+  createDatabaseFile,
+  prepareDatabasePath,
   readConnectionSettings,
   selectJournalMode,
   type SqliteConnection,
@@ -143,10 +145,14 @@ describe('configureConnectionSecurity', () => {
   })
 
   it('rejects a driver that answers a pragma read with no row', () => {
-    const db = new FakeConnection(hardened())
-    vi.spyOn(db, 'prepare').mockReturnValue({ get: () => undefined })
-    expect(() =>{  configureConnectionSecurity(db, FILE_SUBJECT) })
-      .toThrow('SQLite returned no row for PRAGMA trusted_schema')
+    // `null` and `undefined` are separate answers: `typeof null` is 'object',
+    // so only the explicit null check rejects a driver that answers with it.
+    for (const answer of [undefined, null]) {
+      const db = new FakeConnection(hardened())
+      vi.spyOn(db, 'prepare').mockReturnValue({ get: () => answer })
+      expect(() => { configureConnectionSecurity(db, FILE_SUBJECT) })
+        .toThrow('SQLite returned no row for PRAGMA trusted_schema')
+    }
   })
 
   it('rejects a driver that answers a pragma read with a non-integer', () => {
@@ -217,17 +223,44 @@ describe('selectJournalMode', () => {
     expect(attempts).toBe(1)
   })
 
-  it('propagates a failure that is not a busy lock', async () => {
+  it('propagates a failure that is not a busy lock, unchanged and on the first attempt', async () => {
+    // The exact value has to reach the caller: a driver error replaced by a
+    // TypeError from reading `errcode` off a primitive says nothing about the
+    // database. One attempt proves the retry arm was not taken.
     for (const failure of [
       Object.assign(new Error('disk I/O error'), { errcode: 10 }),
+      Object.assign(new Error('constraint'), { errcode: 19 }),
       'not an error object',
       null,
+      undefined,
     ]) {
+      let attempts = 0
       const db = new FakeConnection(hardened(), new Set(), () => {
+        attempts += 1
         throw failure
       })
       await expect(selectJournalMode(db, FILE_SUBJECT, { ...selection, deadline: performance.now() + 1_000 }))
-        .rejects.toBeDefined()
+        .rejects.toBe(failure)
+      expect(attempts, `${String(failure)} must not be retried`).toBe(1)
+    }
+  })
+
+  it('gives up on a spent deadline without pausing first', async () => {
+    // Only setTimeout is faked, so nothing advances it: a pause would never
+    // resolve, and the rejection proves the remaining budget read as zero
+    // before any pause was scheduled.
+    vi.useFakeTimers({ toFake: ['setTimeout'] })
+    try {
+      let attempts = 0
+      const db = new FakeConnection(hardened(), new Set(), () => {
+        attempts += 1
+        throw busy()
+      })
+      await expect(selectJournalMode(db, FILE_SUBJECT, { ...selection, deadline: performance.now() - 1 }))
+        .rejects.toThrow('database is locked')
+      expect(attempts).toBe(1)
+    } finally {
+      vi.useRealTimers()
     }
   })
 
@@ -241,5 +274,69 @@ describe('selectJournalMode', () => {
     const db = new FakeConnection(hardened(), new Set(), () => ({ journal_mode: 7 }))
     await expect(selectJournalMode(db, FILE_SUBJECT, { ...selection, deadline: performance.now() + 1_000 }))
       .rejects.toThrow('SQLite returned a non-text PRAGMA journal_mode')
+  })
+})
+
+describe('createDatabaseFile', () => {
+  it('creates a missing file the owner alone can read', async () => {
+    const path = await freshDbPath()
+    await createDatabaseFile(path)
+
+    const created = await stat(path)
+    expect(created.isFile()).toBe(true)
+    expect(created.size).toBe(0)
+    if (process.platform !== 'win32') expect(created.mode & 0o777).toBe(0o600)
+  })
+
+  it('leaves the bytes and mode of an existing file alone', async () => {
+    const path = await freshDbPath()
+    await writeFile(path, 'existing', { mode: 0o640 })
+    await createDatabaseFile(path)
+
+    expect(await readFile(path, 'utf8')).toBe('existing')
+    if (process.platform !== 'win32') expect((await stat(path)).mode & 0o777).toBe(0o640)
+  })
+
+  it('propagates a failure that is not an existing file', async () => {
+    // The parent is missing, so the open fails ENOENT. Swallowing everything
+    // would report a database that was never created.
+    const path = join(await freshDbPath(), 'missing-parent', 'probe.db')
+    await expect(createDatabaseFile(path)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+})
+
+describe('prepareDatabasePath', () => {
+  it('passes :memory: through without touching the filesystem', async () => {
+    const before = await mkdtemp(join(tmpdir(), 'dsh-sqlite-memory-'))
+    dirs.push(before)
+    expect(await prepareDatabasePath(':memory:')).toBe(':memory:')
+    await expect(stat(join(before, ':memory:'))).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('returns an absolute path and creates the file it names', async () => {
+    const path = await freshDbPath()
+    const prepared = await prepareDatabasePath(path)
+
+    expect(prepared).toBe(path)
+    expect(isAbsolute(prepared)).toBe(true)
+    expect((await stat(prepared)).isFile()).toBe(true)
+  })
+
+  it('creates a parent directory that does not exist yet, owner-only', async () => {
+    // `recursive` is what makes a nested parent work, and it is also what keeps
+    // an existing parent from failing EEXIST; both cases are here.
+    const root = await mkdtemp(join(tmpdir(), 'dsh-sqlite-nested-'))
+    dirs.push(root)
+    const nested = join(root, 'a', 'b', 'probe.db')
+    await prepareDatabasePath(nested)
+
+    expect((await stat(nested)).isFile()).toBe(true)
+    if (process.platform !== 'win32') expect((await stat(dirname(nested))).mode & 0o777).toBe(0o700)
+  })
+
+  it('accepts a parent directory that already exists', async () => {
+    const path = await freshDbPath()
+    await prepareDatabasePath(path)
+    await expect(prepareDatabasePath(path)).resolves.toBe(path)
   })
 })

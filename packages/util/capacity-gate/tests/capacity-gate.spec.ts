@@ -140,6 +140,33 @@ describe('CapacityGate', () => {
     expect(gate.snapshot()).toEqual({ limit: 1, active: 0, waiting: 0 })
   })
 
+  it('leaves the queue alone when the signal of a granted waiter aborts afterwards', async () => {
+    // The grant already removed that waiter, so its late abort must find
+    // nothing to remove: taking the last queue entry instead would strand a
+    // waiter that is still owed a slot.
+    const gate = new CapacityGate(1)
+    const held = await gate.acquire()
+    const granted = new AbortController()
+    const promoted = gate.acquire(granted.signal)
+    const survivor = gate.acquire()
+    await drain()
+    expect(gate.snapshot().waiting).toBe(2)
+
+    held()
+    const promotedRelease = await promoted
+    expect(gate.snapshot()).toEqual({ limit: 1, active: 1, waiting: 1 })
+
+    granted.abort(new Error('too late'))
+    await drain()
+    expect(gate.snapshot()).toEqual({ limit: 1, active: 1, waiting: 1 })
+
+    promotedRelease()
+    const survivorRelease = await survivor
+    expect(gate.snapshot()).toEqual({ limit: 1, active: 1, waiting: 0 })
+    survivorRelease()
+    expect(gate.snapshot()).toEqual({ limit: 1, active: 0, waiting: 0 })
+  })
+
   it('normalizes non-Error reasons before and during a queued wait', async () => {
     const gate = new CapacityGate(1)
     const held = await gate.acquire()

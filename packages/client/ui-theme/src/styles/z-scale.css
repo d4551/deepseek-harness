@@ -46,8 +46,10 @@ body {
   --dsw-z-conversation-header: 9;
 
   /* The AppFrame `shell.overlay` seat: above the frame columns and their drag
-     handles, below every popover. */
+     handles, below every popover. The phone sidebar drawer sits one step
+     higher so the scrim it opens with dims the centre it covers, not itself. */
   --dsw-z-shell-overlay: 20;
+  --dsw-z-shell-drawer: 21;
 
   /* Popover plane: a surface anchored to a trigger — menus, tooltips, hover
      cards, the connection banner, anchored panels. Above content and shell

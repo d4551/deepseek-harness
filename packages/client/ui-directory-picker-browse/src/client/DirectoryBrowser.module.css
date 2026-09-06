@@ -109,7 +109,7 @@
 .crumb {
   border: none;
   background: transparent;
-  padding: 0;
+  padding: 2px 0;
   max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -333,6 +333,7 @@
 .showHiddenToggle {
   display: inline-flex;
   align-items: center;
+  min-height: 24px;
   gap: 4px;
   border: none;
   background: transparent;
