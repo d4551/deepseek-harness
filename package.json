@@ -70,6 +70,7 @@
     "check:node-compat": "tsx scripts/run-gates.ts node-compat",
     "knip": "knip --treat-config-hints-as-errors",
     "verify-duplicate-exports": "tsx scripts/knip-duplicate-exports.ts",
+    "verify-coverage-debt": "tsx scripts/coverage-debt.ts",
     "publint": "tsx scripts/publint-all.ts",
     "doc-typecheck": "bun run build:lib:host && bun run doc-typecheck:contracts-ready",
     "doc-typecheck:contracts-ready": "tsx scripts/doc-typecheck.ts",

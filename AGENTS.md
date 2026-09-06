@@ -35,7 +35,7 @@ packages/    @deepseek-ai/dsh-<pkg> workspaces at packages/<group>/<pkg>/
   plan/        plan mode as logged state
   preset/      per-session agent composition from preset cordis.yml files
   guard/       loop-hygiene + tool-timeout plugins
-  self-modification/  the agent inspects/mounts its own plugins
+  extensions/  the agent inspects/mounts its own plugins through Cordis runners
   hooks/       Claude Code/Codex hook bridges + wire-protocol library
   session/     durable session data: persistence, projection, titles, telemetry
   identity/    anonymous identity
