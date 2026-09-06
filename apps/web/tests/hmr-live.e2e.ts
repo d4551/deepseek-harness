@@ -11,7 +11,7 @@ import type { Fiber } from '@deepseek-ai/cordis'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import type { SubprocessHandle, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { readClientBuildRecord } from '../../../scripts/client-build-environment.ts'
-import { REPO_ROOT } from './support.ts'
+import { launchBrowser, REPO_ROOT } from './support.ts'
 
 function spawnSpec(argv: readonly string[], cwd: string, env?: Record<string, string>): SubprocessSpawnSpec {
   return {
@@ -107,7 +107,7 @@ it('hot-reloads a real client-plugin source edit without refreshing the page', a
       },
     ))
     const baseUrl = await waitForOutput(host, /dsh web: (http:\/\/[^\s]+)/, 'built dsh web')
-    browser = await chromium.launch()
+    browser = await launchBrowser()
     const page = await browser.newPage()
     const pageErrors: string[] = []
     page.on('pageerror', error => pageErrors.push(String(error)))

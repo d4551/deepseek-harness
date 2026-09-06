@@ -31,6 +31,7 @@ export const en = {
   'expand': 'Expand',
   'back': 'Back',
   'brand.localBuild': 'DeepMeow',
+  'sidebar.closeOverlay': 'Close the sidebar',
   'unknown': 'Unknown',
   'none': 'None',
   'truncated': 'Truncated',

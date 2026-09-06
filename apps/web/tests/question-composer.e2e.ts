@@ -11,7 +11,6 @@ import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import type { Browser, Locator, Page } from 'playwright'
-import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -19,9 +18,7 @@ import {
   assertFixtureInventory, captureStableAria, compareOrRefreshGolden, fixtureUserPrompts,
   launchWebScaffold, recordFixture, seedSession, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
-import {
-  connectFreshWorkspace, expandTurnProcesses, newEnglishPage, saveFailureShot,
-} from './support.ts'
+import { connectFreshWorkspace, expandTurnProcesses, launchBrowser, newEnglishPage, saveFailureShot } from './support.ts'
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('../../../snapshots/web/question-composer', import.meta.url))
 const FIXTURE = join(SNAPSHOT_DIR, 'session.jsonl')
@@ -128,7 +125,7 @@ describe('web e2e: resident question composer round trip', () => {
   beforeAll(async () => {
     scaffold = await launchWebScaffold(MODE === 'record' ? {} : { replayFixture: FIXTURE, paceMs: 15, compareReplaySession: true })
     scaffold.ctx.on('session/event', (_session, event: SessionEvent) => { sessionEvents.push(event) })
-    browser = await chromium.launch()
+    browser = await launchBrowser()
     page = await newEnglishPage(browser)
     tripwire = watchConsole(page)
     await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
@@ -366,7 +363,7 @@ describe.skipIf(MODE === 'record')('web e2e: cancelled question transcript', () 
       cancelledFixture(await readFile(FIXTURE, 'utf8')),
       CANCELLED_SEED_ID,
     )
-    cancelledBrowser = await chromium.launch()
+    cancelledBrowser = await launchBrowser()
     cancelledPage = await newEnglishPage(cancelledBrowser)
     cancelledTripwire = watchConsole(cancelledPage)
     await cancelledPage.goto(cancelledScaffold.authenticatedUrl, { waitUntil: 'load' })

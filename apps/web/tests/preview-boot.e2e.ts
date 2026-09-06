@@ -23,7 +23,6 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { tmpdir } from 'node:os'
 import { dirname, extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { chromium } from 'playwright'
 import type { Browser } from 'playwright'
 import { expect, it } from 'vitest'
 import { WRAPPER_CONTRACT } from '@deepseek-ai/dsh-experimental-webworker-packer'
@@ -38,7 +37,7 @@ import {
   type PreviewFixtureManifest,
 } from '@deepseek-ai/dsh-experimental-webworker-runtime'
 import { captureStableAria, compareOrRefreshGolden, webSnapshotMode } from './scaffold.ts'
-import { newEnglishPage, REPO_ROOT, saveFailureShot } from './support.ts'
+import { launchBrowser, newEnglishPage, REPO_ROOT, saveFailureShot } from './support.ts'
 
 const DIST_ROOT = fileURLToPath(new URL('../dist', import.meta.url))
 
@@ -250,7 +249,7 @@ it('boots the packed worker deployment to an interactive page', async () => {
   try {
     const site = await serveDist(assets.overrides)
     try {
-      const browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] })
+      const browser = await launchBrowser({ headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] })
       try {
         await bootEmptyPreview(site.origin, browser)
         await bootPreview(site.origin, browser)

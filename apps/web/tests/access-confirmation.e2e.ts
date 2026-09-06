@@ -5,13 +5,12 @@
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import type { Browser, Page } from 'playwright'
-import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
 import {
   assertFixtureInventory, captureStableAria, compareOrRefreshGolden,
   launchWebScaffold, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
-import { ZH_BROWSER_LOCALE, connectFreshWorkspaceZh, saveFailureShot } from './support.ts'
+import { connectFreshWorkspaceZh, launchBrowser, saveFailureShot, ZH_BROWSER_LOCALE } from './support.ts'
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('./expected/access-confirmation', import.meta.url))
 const UI_EXPECTED = join(SNAPSHOT_DIR, 'ui.expected.md')
@@ -25,11 +24,7 @@ describe('web e2e: Full access confirmation', () => {
 
   beforeAll(async () => {
     scaffold = await launchWebScaffold({})
-    // CI uses Playwright's pinned browser. A developer may point this one
-    // scenario at an installed Chromium when the matching browser download
-    // is temporarily unavailable.
-    const executablePath = process.env.DSH_PLAYWRIGHT_EXECUTABLE_PATH
-    browser = await chromium.launch(executablePath === undefined ? {} : { executablePath })
+    browser = await launchBrowser()
     // Keep the Chinese surface via {@link ZH_BROWSER_LOCALE}: the golden pins
     // the actual registered dictionary rather than a test-local translation
     // callback.

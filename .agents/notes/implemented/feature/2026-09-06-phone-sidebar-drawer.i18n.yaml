@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-06-phone-sidebar-drawer.md
+2026-09-06-phone-sidebar-drawer.md: 979c52733293e81e001bdfb67ab930fe89a21372
+2026-09-06-phone-sidebar-drawer.zh.md: 2690dad3887a6eb7b000540177ca585ceee9e49b

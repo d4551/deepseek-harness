@@ -3,7 +3,6 @@
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Browser, Page } from 'playwright'
-import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
 import type { AgentHandle } from '@deepseek-ai/dsh-agent'
 import { ToolCallId, createUserMessage, LlmAdapter } from '@deepseek-ai/dsh-llm'
@@ -25,7 +24,7 @@ import {
   webSnapshotMode,
   type WebScaffold,
 } from './scaffold.ts'
-import { connectFreshWorkspace, conversationContextKey, saveFailureShot } from './support.ts'
+import { connectFreshWorkspace, conversationContextKey, launchBrowser, saveFailureShot } from './support.ts'
 
 const MODE = webSnapshotMode()
 const OVERLAY = fileURLToPath(new URL('../../cli/config/examples/schedule/cordis.yml', import.meta.url))
@@ -227,7 +226,7 @@ describe.skipIf(MODE === 'record')('web e2e: conversational reminders', () => {
       'Schedule Web Every adapter',
     )
 
-    browser = await chromium.launch()
+    browser = await launchBrowser()
     page = await browser.newPage({
       viewport: { width: 1680, height: 1000 },
       locale: 'en-US',

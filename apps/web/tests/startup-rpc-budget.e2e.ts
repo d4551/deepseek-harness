@@ -1,10 +1,9 @@
 // Cold boot may issue at most two settings/describe calls regardless of client
 // plugin count. No model call or replay fixture is involved.
 import type { Browser, Page } from 'playwright'
-import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { launchWebScaffold, watchConsole, type WebScaffold } from './scaffold.ts'
-import { newEnglishPage } from './support.ts'
+import { launchBrowser, newEnglishPage } from './support.ts'
 
 /** One eager read plus one first-connection reset closes the pre-subscription commit window. */
 const DESCRIBE_BUDGET = 2
@@ -15,7 +14,7 @@ let page: Page
 
 beforeAll(async () => {
   scaffold = await launchWebScaffold()
-  browser = await chromium.launch()
+  browser = await launchBrowser()
 })
 
 afterAll(async () => {

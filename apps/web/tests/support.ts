@@ -3,7 +3,25 @@ import { existsSync, mkdirSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { Browser, Locator, Page } from 'playwright'
+import type { Browser, LaunchOptions, Locator, Page } from 'playwright'
+import { chromium } from 'playwright'
+
+/**
+ * Launch the browser every web scenario drives.
+ *
+ * CI uses Playwright's pinned build. `DSH_PLAYWRIGHT_EXECUTABLE_PATH` points
+ * the whole lane at an already-installed Chromium instead, which is what a
+ * host without the matching download has — an environment where every
+ * scenario would otherwise fail in `beforeAll` before running any assertion.
+ * One rule here rather than at each launch site keeps that true for the lane
+ * rather than for whichever file remembered it.
+ * @param options - per-scenario launch options, merged over the resolved executable.
+ * @returns the launched browser.
+ */
+export function launchBrowser(options: LaunchOptions = {}): Promise<Browser> {
+  const executablePath = process.env.DSH_PLAYWRIGHT_EXECUTABLE_PATH
+  return chromium.launch(executablePath === undefined ? options : { executablePath, ...options })
+}
 
 /** The built page under test; `bun run test:web` rebuilds it before running. */
 export const DIST_INDEX = fileURLToPath(new URL('../dist/index.html', import.meta.url))

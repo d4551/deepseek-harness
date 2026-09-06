@@ -4,14 +4,13 @@
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import type { Browser, Page } from 'playwright'
-import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
 import { createChatScrollFixture } from './chat-scroll-fixture.ts'
 import {
   assertFixtureInventory, compareOrRefreshGolden, launchWebScaffold, seedSession, watchConsole,
   webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
-import { newEnglishPage, saveFailureShot } from './support.ts'
+import { launchBrowser, newEnglishPage, saveFailureShot } from './support.ts'
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('./expected/composer-tab-geometry', import.meta.url))
 /** Records platform-neutral distances between the two tabs' card rectangles. */
@@ -245,7 +244,7 @@ describe('web e2e: input card position across view tabs', () => {
     scaffold = await launchWebScaffold({})
     await seedSession(scaffold, FIXTURE.log, SEED_ID)
     // Scrollbars must take layout space here or the comparison is vacuous.
-    browser = await chromium.launch({ ignoreDefaultArgs: ['--hide-scrollbars'] })
+    browser = await launchBrowser({ ignoreDefaultArgs: ['--hide-scrollbars'] })
     page = await newEnglishPage(browser, WIDE_VIEWPORT.height)
     tripwire = watchConsole(page)
     await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
