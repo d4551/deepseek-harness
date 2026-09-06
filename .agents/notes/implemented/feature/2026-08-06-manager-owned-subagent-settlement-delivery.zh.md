@@ -58,7 +58,7 @@ Status: implemented
 
 三个整体组装的 ACP 场景覆盖该通知：一个从不上报的 child、一个先上报的 child，以及一个被多轮 follow-up 驱动的 child。三者都需要显式栅栏。通知在 child 拆卸完成后才到达，会与父级当时正在做的事竞争，因此每个场景都会把 child 保持到父级启动轮次结束，再等待该通知开启的那个父级轮次（先 `waitForTurnStart` 到该轮次，再 `waitForTurnEnd`），然后脚本才继续。等待一个运行并未被栅栏保证会产生的轮次不算覆盖：一旦通知落进已经在跑的那个轮次，它就是一次超时。
 
-`subagent-continuable` 是其中固定失败结局的那个。它的 child 最后一个轮次在被强制的持久化检查点上死亡，且未进入任何 step，因此该 transcript 正是上面那条终止原因规则的端到端可见之处：通知说该 child **失败**，把此前的 `SECOND_OK` 作为它最后产出的内容而非结果携带，而父级自己的确认轮次会到达 ACP 客户端。
+`subagent-continuable` 曾是其中固定失败结局的那个，直到 2026-09-07 Team 工具在每个 profile 中接管 `send_message`、该场景随之退役（[note](../architecture/2026-09-07-agent-teams-in-every-profile.zh.md)）。它的 child 最后一个轮次在被强制的持久化检查点上死亡，且未进入任何 step，因此该 transcript 曾是上面那条终止原因规则的端到端可见之处：通知说该 child **失败**，把此前的 `SECOND_OK` 作为它最后产出的内容而非结果携带，而父级自己的确认轮次会到达 ACP 客户端。`packages/subagent/subagent/tests/` 下的 settlement 套件继续覆盖该规则。
 
 另有一个无密钥的 headless Loader 快照端到端覆盖用户可见路径。其重放父级省略 `run_in_background` 以覆盖可继续后台默认路径，从不调用 `list_agents`、`send_message` 或 Task 工具，消费管理器写入的 `subagent-settled` 通知，并给出最终答案。child 从不调用 `report`，因此该 transcript 不可能经由协作式上报路径通过。一个仅用于测试的 Loader 栅栏会把父级启动后的请求保持到真实管理器通知进入其 inbox 为止，从 transcript 中排除平台调度差异，但不会伪造该通知。
 

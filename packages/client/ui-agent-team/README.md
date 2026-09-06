@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This package adds an Agent Teams action to the Web conversation header, where a user can inspect the current roster, manage the shared task board, and navigate into a teammate's conversation. It reads authoritative Team state through the generated `ctx.remote.agentTeams` contribution and keeps ordinary child-history navigation on the stable addressed-subagent path. Choose it through the Agent Teams Web profile, which source checkouts mount after the stable Web bundle; official release bundles do not mount it. The browser projection does not extend the stable API Proxy, store Team state, or register model-facing input.
+This package adds an Agent Teams action to the Web conversation header, where a user can inspect the current roster, manage the shared task board, and navigate into a teammate's conversation. It reads authoritative Team state through the generated `ctx.remote.agentTeams` contribution and keeps ordinary child-history navigation on the stable addressed-subagent path. The Web bundle mounts it in every Web profile, over the Team that every profile's base mounts. The browser projection does not extend the stable API Proxy, store Team state, or register model-facing input.
 
 ## Table of Contents
 

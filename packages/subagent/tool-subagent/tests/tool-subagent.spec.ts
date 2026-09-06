@@ -1221,7 +1221,9 @@ describe('dsh-tool-subagent continuable background mode', () => {
     // Continuable delegation has no Task, so the schema promises no collection.
     expect(schema.description).not.toContain('job_output')
     expect(schema.description).not.toContain('job_kill')
-    expect(schema.description).toContain('send_message')
+    // Which follow-up tool reaches the child is the composition's choice, so the
+    // description names none.
+    expect(schema.description).not.toContain('send_message')
     expect(schema.description).toContain('runs in the background by default')
     expect(schema.description).not.toContain('never poll or wait on it')
     const properties = (schema.parameters as {

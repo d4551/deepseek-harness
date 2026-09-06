@@ -1,0 +1,35 @@
+# Agent Note: Agent Teams ship in every profile
+
+Status: implemented
+
+English | [中文](2026-09-07-agent-teams-in-every-profile.zh.md)
+
+## Problem
+
+The Team service, its scoped tools, the Agent Teams panel, and the Agent team settings card reached a user only through two profiles, `swarm` and `swarm-web`, because the [swarm reachability note](2026-09-03-swarm-reachability-and-child-roots.md) kept opt-ins out of shipped defaults. Every other execution type, `web`, `headless`, `hosted`, `sdk`, and `acp`, booted without them. A deployment composed from `dsh-base` and `dsh-web-app`, which is what the owner's DeepMeow install runs, showed no team card and no team panel, and its model could not spawn a teammate at all. The owner ruled that the capability belongs to every execution type, and that a deployment should not have to know a profile name to see plugins the repository ships.
+
+The opt-in layer also cost two packages whose whole content was a copy of rows: `agent-team-profile` inserted the Team rows over `dsh-base` and disabled the global continuable-child controls whose names the Team tools reuse, and `agent-team-web-profile` inserted one browser row. The [drift note](../process/2026-09-03-swarm-layer-drift-and-atomicity-scope.md) had to add tests so `swarm-profile` and `agent-team-profile` could not diverge.
+
+## Decision
+
+`dsh-base` mounts `agent-team` and `tool-agent-team` for every profile, with the delegated policy, the eight-member roster, and the same mailbox and disposal limits the swarm layer restated. The policy tells the model to create teammates only when the user asks, so an ordinary session reads the Team tools without being steered into a swarm. `dsh-web-app` mounts `ui-agent-team` after `ui-subagent`, so every Web profile renders the roster, task board, and teammate navigation, and the Agent team card on the Plugins settings page renders wherever the `agent-team` namespace is served, which is now everywhere.
+
+`dsh-base` no longer mounts `tool-subagent-control` or `tool-subagent-list-agents`: the Team tools register `send_message`, `list_agents`, and `interrupt_agent` in every Agent's own scope, which shadows the global controls of the same names, so those rows had no reachable tool left. The continuable `subagent` row and `tool-subagent-report` stay, because a continuable child still answers its parent through `report` and a Web or SDK client still follows it up through the host's own follow-up surface; the tool's continuable description no longer promises that `send_message` reaches such a child. The Web bundle's own agent preset keeps its copies of the controls, and the Team tools shadow them exactly as they did under `swarm-web`.
+
+`swarm-profile` is now a retune of base rows and inserts nothing: it bounds the `subagent` row, makes `subagent` one-shot, restates `agent-team` with sixteen members, and restates `tool-agent-team` with `coordination: swarm`. Its suite asserts that every row targets a base id, that each row changes exactly its documented value and restates every other key, and that the retuned rows boot into the swarm. `agent-team-profile` and `agent-team-web-profile` are deleted; the `swarm-web` template is `dsh-base`, `dsh-web-app`, `dsh-swarm-profile`; the panel and plugin-configuration browser scenarios boot the shipped bundles with no overlay.
+
+Every recorded session now carries the Team policy section and the eleven Team tool schemas, so the keyless goldens were refreshed. Two sdk scenarios were retired rather than refreshed: `subagent-continuable` had the model call the global `send_message` with a subagent id, and `subagent-list-agents` had it call the global `list_agents`; both tools are the Team's in every shipped profile now, and the package suites under `packages/subagent/subagent/tests/` and `packages/subagent/tool-subagent-control/tests/` keep the behavior those transcripts showed. The three notes that cited the scenarios say so.
+
+## Alternatives considered
+
+**Keep the Team an opt-in layer and compose it into the owner's deployment profile.** Rejected by the owner: the plugins should surface regardless of execution type, and a profile name should not be the gate to shipped capability.
+
+**Keep `tool-subagent-control` and `tool-subagent-list-agents` in `dsh-base` beside the Team tools.** Rejected: the Team tools shadow them in every root scope, so they would be mounted and unreachable, and the two retired scenarios would still have broken.
+
+**Make `subagent` one-shot in `dsh-base` as the swarm layer does.** Rejected for now: continuable children remain the SDK's and the Web client's persistent-control path, and switching the shipped mode would have obsoleted every recorded scenario that starts a background child. The swarm layer keeps its one-shot override because its run ceiling bounds foreground delegations.
+
+**Make `coordination` a user setting on the Agent team card.** Deferred: the policy text is a composition decision today, and a setting that rewrites the system prompt mid-session needs its own logged event. The two shipped coordination modes remain profile layers.
+
+## Consequences
+
+Every profile except `sdk-minimal` answers with the Team tools available, and the Web app shows the panel and the card in every profile, including a deployment built from `dsh-base` and `dsh-web-app` alone. Every request in those profiles carries the delegated policy section and eleven more tool schemas, a fixed prefix-stable cost the opt-in design avoided. Every keyless recorded session changed in its system prompt and tool list and was refreshed; the swarm profile still has no recorded session, because recording needs a model key. A profile directory initialized from the old `swarm-web` template still lists `@deepseek-ai/dsh-agent-team-web-profile` in its `package.json` and must be re-initialized. The release-exclusion allowlist in `scripts/check-workspace-constraints.ts` is empty, because no preset layer stays private.

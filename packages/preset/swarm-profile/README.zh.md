@@ -71,7 +71,7 @@ dsh plugin --profile <name> add @deepseek-ai/dsh-swarm-profile
 | [`src/index.ts`](src/index.ts) | 空模块入口；patch 才是运行时内容 |
 | [`src/invariant.ts`](src/invariant.ts) | 静态 bundle 的空不变量伴生插件 |
 
-本包自己的测试会用真实 Loader 启动该 patch 插入的行，并断言由此得到的组合：`ctx.subagents` 上配置的 run 上限、装配后的工具 schema 中的 `team_task_claim_next`，以及渲染后提示词中的 swarm 指引。
+本包自己的测试会用真实 Loader 启动该 patch 重新调校的 base 行，并断言由此得到的组合：`ctx.subagents` 上配置的 run 上限、装配后的工具 schema 中的 `team_task_claim_next`，以及渲染后提示词中的 swarm 指引。
 
 </details>
 

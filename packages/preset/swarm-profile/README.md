@@ -71,7 +71,7 @@ The package's runtime content is [`cordis.patch.yml`](cordis.patch.yml). Applied
 | [`src/index.ts`](src/index.ts) | Empty module entry; the patch is the runtime content |
 | [`src/invariant.ts`](src/invariant.ts) | Empty invariant companion for the static bundle |
 
-The package's own suite boots the rows this patch inserts through the real Loader and asserts the resulting composition: the configured run ceiling on `ctx.subagents`, `team_task_claim_next` in the assembled tool schemas, and the swarm guidance in the rendered prompt.
+The package's own suite boots the base rows this patch retunes through the real Loader and asserts the resulting composition: the configured run ceiling on `ctx.subagents`, `team_task_claim_next` in the assembled tool schemas, and the swarm guidance in the rendered prompt.
 
 </details>
 

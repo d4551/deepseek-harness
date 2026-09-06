@@ -276,8 +276,6 @@ flowchart TD
   end
   subgraph group_preset["packages/preset"]
     pkg_agent_presets["agent-presets"]
-    pkg_agent_team_profile["agent-team-profile"]
-    pkg_agent_team_web_profile["agent-team-web-profile"]
     pkg_persona["persona"]
     pkg_swarm_profile["swarm-profile"]
   end
@@ -406,8 +404,6 @@ flowchart TD
   pkg_host_directory_picker_browse --> pkg_invariants
   pkg_host_directory_picker_native --> pkg_invariants
   pkg_host_webserver --> pkg_invariants
-  pkg_agent_team_profile --> pkg_invariants
-  pkg_agent_team_web_profile --> pkg_invariants
   pkg_swarm_profile --> pkg_invariants
   pkg_sandbox_windows_acl --> pkg_invariants
   pkg_storage --> pkg_invariants
@@ -1835,8 +1831,6 @@ flowchart TD
 | [`host-directory-picker-browse`](../packages/host/directory-picker-browse) | `host` | [`invariants`](../packages/runtime-diagnostics/invariants) |
 | [`host-directory-picker-native`](../packages/host/directory-picker-native) | `host` | [`invariants`](../packages/runtime-diagnostics/invariants) |
 | [`host-webserver`](../packages/host/webserver) | `host` | [`invariants`](../packages/runtime-diagnostics/invariants) |
-| [`agent-team-profile`](../packages/preset/agent-team-profile) | `preset` | [`invariants`](../packages/runtime-diagnostics/invariants) |
-| [`agent-team-web-profile`](../packages/preset/agent-team-web-profile) | `preset` | [`invariants`](../packages/runtime-diagnostics/invariants) |
 | [`swarm-profile`](../packages/preset/swarm-profile) | `preset` | [`invariants`](../packages/runtime-diagnostics/invariants) |
 | [`sandbox-windows-acl`](../packages/sandbox/sandbox-windows-acl) | `sandbox` | [`invariants`](../packages/runtime-diagnostics/invariants) |
 | [`storage`](../packages/storage/storage) | `storage` | [`invariants`](../packages/runtime-diagnostics/invariants) |
