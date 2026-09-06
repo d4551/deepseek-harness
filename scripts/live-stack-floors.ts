@@ -112,11 +112,15 @@ const RAILWAY_FLOOR: SemVer = { major: 3, minor: 11, patch: 0 }
  * runner, and documentation tooling all resolve from here, so a stale
  * declaration here weakens every gate below it.
  *
- * This map is complete by construction rather than by memory:
- * {@link unflooredRootDependencies} fails when the manifest declares a
- * dependency this map does not, so adding one forces stating the version it
- * may never fall below. Families that also appear in workspace manifests
- * reuse the exported floor constant rather than repeating the number.
+ * This map is complete by construction rather than by memory, in both
+ * directions: {@link unflooredRootDependencies} fails when the manifest
+ * declares a dependency this map does not, so adding one forces stating the
+ * version it may never fall below, and {@link staleRootDependencyFloors} fails
+ * when this map names one the manifest no longer declares, because
+ * {@link rangeMisses} skips an absent name and a floor left behind by a
+ * removed dependency would otherwise read as coverage it does not provide.
+ * Families that also appear in workspace manifests reuse the exported floor
+ * constant rather than repeating the number.
  */
 export const ROOT_DEPENDENCY_FLOORS: Readonly<Record<string, SemVer>> = Object.freeze({
   '@babel/core': { major: 8, minor: 0, patch: 1 },
@@ -125,7 +129,6 @@ export const ROOT_DEPENDENCY_FLOORS: Readonly<Record<string, SemVer>> = Object.f
   '@babel/preset-typescript': { major: 8, minor: 0, patch: 1 },
   '@stryker-mutator/api': { major: 10, minor: 0, patch: 0 },
   '@stryker-mutator/core': { major: 10, minor: 0, patch: 0 },
-  '@stryker-mutator/vitest-runner': { major: 10, minor: 0, patch: 0 },
   '@stylistic/eslint-plugin': { major: 5, minor: 10, patch: 0 },
   '@testing-library/dom': { major: 10, minor: 4, patch: 1 },
   '@testing-library/react': TESTING_LIBRARY_REACT_FLOOR,
@@ -630,6 +633,36 @@ export function pinnedDependencyMisses(
  */
 export function unflooredRootDependencies(source: string): string[] {
   return rootDeclaredDependencies(source).filter(name => !(name in ROOT_DEPENDENCY_FLOORS))
+}
+
+/**
+ * Floors naming a root dependency the manifest no longer declares.
+ *
+ * {@link rangeMisses} skips a name it cannot find, so a floor left behind by a
+ * removed dependency is never evaluated: the entry reads as coverage while
+ * measuring nothing, and its recorded version stops tracking anything real.
+ * @param source - raw root package.json text.
+ * @returns every {@link ROOT_DEPENDENCY_FLOORS} name the manifest omits, sorted.
+ */
+export function staleRootDependencyFloors(source: string): string[] {
+  const declared = new Set(rootDeclaredDependencies(source))
+  return Object.keys(ROOT_DEPENDENCY_FLOORS).filter(name => !declared.has(name)).sort()
+}
+
+/**
+ * Product floors naming a package no workspace manifest pins exactly.
+ *
+ * The same hole as {@link staleRootDependencyFloors}, on the pin map: a
+ * product dropped from the workspace leaves a floor that measures nothing.
+ * Names shared with {@link ROOT_DEPENDENCY_FLOORS} are that map's to hold.
+ * @param manifests - repository-relative path plus raw package.json text.
+ * @returns every {@link PINNED_PRODUCT_FLOORS} name nothing pins, sorted.
+ */
+export function stalePinnedProductFloors(
+  manifests: readonly { file: string; source: string }[],
+): string[] {
+  const pinned = new Set(exactPinnedDependencies(manifests).map(pin => pin.name))
+  return Object.keys(PINNED_PRODUCT_FLOORS).filter(name => !pinned.has(name)).sort()
 }
 
 /**

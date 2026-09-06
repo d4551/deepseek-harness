@@ -98,6 +98,8 @@ bun run build
 
 `bun run hygiene` 包含 `publint`（用构建出的 `lib/*.js` 文件校验包入口点）和 `verify-node-next-types`（用一个临时的 NodeNext 消费方校验构建出的声明文件）。新 worktree 在 `bun run build` 运行之前没有打包的 JS 和声明文件；普通提交和推送无需构建，除非所选检查会使用这些产物。
 
+`knip.json` 排除了 knip 的 `duplicates` 问题类型，因为 Cordis 插件模块既按名字导出其 Service 类，又将其作为 `default` 导出，而 knip 会把这算作同一个绑定的两个名字。同在 hygiene 通道中的 `bun run verify-duplicate-exports` 会运行同一个检测器并对其报告分类：插件约定以及 `scripts/knip-duplicate-exports.ts` 中按文件列名的别名通过，任何其他把一个绑定用两个名字导出的模块都会失败。
+
 ### 环境变量
 
 真实的 DeepSeek 适配器和需要密钥的 agent 演示从环境变量或仓库根目录一个被 gitignore 的 `.env` 文件读取凭证：

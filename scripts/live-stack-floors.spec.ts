@@ -25,6 +25,7 @@ import {
   rootDependencyMisses,
   rootManifestSource,
   unflooredRootDependencies,
+  staleRootDependencyFloors,
   rangeMisses,
   reactMisses,
   REACT_FLOOR,
@@ -41,6 +42,7 @@ import {
   exactPinnedDependencies,
   pinnedDependencyMisses,
   unflooredPinnedDependencies,
+  stalePinnedProductFloors,
 } from './live-stack-floors.ts'
 import { checkToolchainFloors, NODE_ENGINE_FLOOR, TOOLCHAIN_FLOORS } from './verify-toolchain-floors.ts'
 
@@ -295,6 +297,16 @@ describe('live workspace floors', () => {
   it('holds every root dependency at the version the repository ships', () => {
     expect(rootDependencyMisses(rootManifestSource())).toEqual([])
   })
+
+  it('declares no floor for a root dependency the manifest dropped', () => {
+    // rangeMisses skips a name it cannot find, so a floor outliving its
+    // dependency reads as coverage while measuring nothing.
+    expect(staleRootDependencyFloors(rootManifestSource())).toEqual([])
+  })
+
+  it('declares no product pin floor nothing pins', () => {
+    expect(stalePinnedProductFloors(workspaceManifests())).toEqual([])
+  })
 })
 
 describe('injected root manifest misses', () => {
@@ -324,6 +336,23 @@ describe('injected root manifest misses', () => {
 
   it('rejects a manifest whose dependency group is not an object', () => {
     expect(() => unflooredRootDependencies('{"devDependencies":[]}')).toThrow(/devDependencies is not an object/)
+  })
+
+  it('reports a floor whose dependency the manifest no longer declares', () => {
+    // Every floored name minus the one this manifest keeps: the rest are the
+    // floors a removal would strand, which is what the live case asserts is empty.
+    const source = JSON.stringify({ devDependencies: { oxlint: '1.81.0' } })
+    const stranded = staleRootDependencyFloors(source)
+    expect(stranded).not.toContain('oxlint')
+    expect(stranded).toContain('typescript')
+    expect(stranded).toEqual([...stranded].sort())
+  })
+
+  it('reports a product floor no manifest pins exactly', () => {
+    const source = JSON.stringify({ dependencies: { ws: '8.21.3' } })
+    const stranded = stalePinnedProductFloors([{ file: 'p/package.json', source }])
+    expect(stranded).not.toContain('ws')
+    expect(stranded).toContain('webdav')
   })
 
   it('names a floor for every exact pin any workspace manifest declares', () => {

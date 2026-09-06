@@ -51,10 +51,3 @@ export const LOWERING_VERSION = 'dsh-worker-transform/1'
 export const MODULE_PARAMS = [
   'exports', 'require', 'module', '__filename', '__dirname', '__dsh$meta', '__als',
 ] as const
-
-/**
- * The lowered-code parameter list, under the name the transform and the loader
- * imported before the layout module was rewritten. Kept as the same constant so
- * existing imports stay exact; new code names {@link MODULE_PARAMS}.
- */
-export const WRAPPER_PARAMS: readonly string[] = MODULE_PARAMS

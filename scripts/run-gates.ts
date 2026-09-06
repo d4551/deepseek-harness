@@ -329,6 +329,7 @@ function ciPrimaryGates(): Gate[] {
     }),
     bunScript('module-graph', 'verify-module-graph', { label: 'module graph' }),
     bunScript('knip', 'knip'),
+    bunScript('duplicate-exports', 'verify-duplicate-exports', { label: 'duplicate exports' }),
     // The prepared typecheck and build both drive Client tsc, while build also
     // repeats the Host contract pass. Wait for all three consumers so build
     // neither races tsbuildinfo nor replaces declarations while they are read.
