@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
@@ -16,7 +16,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AgentPresets, {
   COMPOSITION_FILE, leakedServices, livePresetMounts, mountPreset, PresetMountError, serviceForAgent,
 } from '@deepseek-ai/dsh-agent-presets'
-import type { Config } from '@deepseek-ai/dsh-agent-presets'
+import { agentOn, FIXTURES, harness, ROOTS, toolNames } from './harness.ts'
 import type {} from '@deepseek-ai/dsh-agent-presets/types'
 import { bindScopeParent, createScope, scopeOf } from '@deepseek-ai/dsh-scope'
 
@@ -26,48 +26,6 @@ declare module '@deepseek-ai/cordis' {
     fixtureIsolatedSvc: { label: string }
   }
 }
-
-const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
-const ROOTS = [
-  { path: join(FIXTURES, 'system'), trust: 'system' as const },
-  { path: join(FIXTURES, 'user'), trust: 'user' as const },
-]
-
-/**
- * A composition carrying the registries a preset contributes to, plus the
- * preset roster.
- * @param roster - roster config, defaulting to the fixture roots.
- * @returns the booted context.
- */
-async function harness(roster: Config = { default: 'standard', roots: ROOTS, includeShippedRoot: false, includeUserRoot: false }): Promise<Context> {
-  const ctx = new Context()
-  ctx.baseUrl = pathToFileURL(FIXTURES).href + '/'
-  await ctx.plugin(Loader)
-  ctx.loader.builtins.include = Include
-  // A preset outside this workspace cannot resolve `cordis-plugin-group` by
-  // name, so the app registers it as a builtin; the fixtures compose the same
-  // way real presets do, which needs it here too.
-  ctx.loader.builtins.group = Group
-  await ctx.plugin(LlmRuntime)
-  await ctx.plugin(SessionStore)
-  await ctx.plugin(SystemPrompt, { persona: '' })
-  await ctx.plugin(ToolRuntime)
-  await ctx.plugin(AgentRegistry)
-  await ctx.plugin(AgentLoop, { agents: [] })
-  await ctx.plugin(AgentPresets, roster)
-  return ctx
-}
-
-async function agentOn(ctx: Context, id: string, presetId?: string): Promise<Agent> {
-  const handle = await ctx.agents.create({
-    sessionId: SessionId(id),
-    setup: async (agentCtx: Context) => void await ctx.agentPresets.mount(agentCtx, presetId),
-  })
-  return handle.agent
-}
-
-const toolNames = (ctx: Context, agent?: Agent): string[] =>
-  ctx.tools.schemas(agent).map(schema => schema.name).sort()
 
 /** Every service registration in the runtime, regardless of which realm holds it. */
 function providedServiceNames(ctx: Context): string[] {
