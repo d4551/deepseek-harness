@@ -38,7 +38,7 @@ Choose `dsh-hooks-claude-code` or `dsh-hooks-codex` when you have existing Claud
 - **Attach context** — a hook can return extra text that the model sees in the next request.
 - **Run on chosen moments** — a hook config selects which events it fires on by name or pattern; an absent, empty, or `'*'` pattern means every event of that kind.
 - **Fail without stopping the run** — any exit code other than 2 is a non-blocking failure: the action proceeds and the failure is logged, and a hook that cannot be started at all is treated the same way.
-- **Ask the run to stop** — a hook can request that the run halt (`{"continue": false}`); the request is recorded but has no run-level effect (see Known Limitations).
+- **Ask the run to stop** — a hook can request that the run halt (`{"continue": false}`); on the points its dialect applies it to, the prompt or tool call is refused and the turn ends with the hook's reason on record.
 
 ### What you see when hooks run
 
@@ -125,7 +125,6 @@ No direct invalidation; the named consumers own any request-prefix changes.
 These limits describe what hooks cannot do through the shared engine yet. They are current package constraints, not a task backlog.
 
 - **`HookOutput.updatedInput` is parsed but not honored** — input rewrite is a deferred consistency-design problem ([the pre-tool-input-rewrite Agent Note](../../../.agents/notes/proposed/feature/2026-06-30-pre-tool-input-rewrite.md)); a bridge logs and warns when a hook sets it.
-- **A folded halt has no run-level effect** — `mergeHookOutputs` folds `continue: false` into a sticky `stop`, but the interception points have no hard-halt primitive, so a bridge records the halt and keeps the hook's per-point effect.
 - **Only the command-hook shape runs** — the protocol executes `{ type: 'command', command, timeout? }`; a bridge parses-and-skips the other shapes its dialect defines (`http`, `mcp_tool`, `prompt`, `agent`).
 
 <a id="dev-note"></a>
@@ -136,8 +135,8 @@ These limits describe what hooks cannot do through the shared engine yet. They a
 
 This Dev Note is working context for maintainers: open questions and directions that are not decided. It is explicitly non-authoritative — shipped behavior, limits, and accepted rationale live in the sections above, the package code, and the linked Agent Notes.
 
-#### Future: run-level halt
+#### Future: halts on detached points
 
-A hook that asks to halt the whole run (`continue: false`) is folded into `MergedHookOutcome.stop` but not applied anywhere: the interception points lack a hard-halt primitive, and mid-turn requests record the halt in `hook/result` instead. A run-level halt mechanism would let the bridges honor it; no design exists yet.
+`SessionStart` and the subagent pair run detached from any turn, so a `continue: false` returned there has nothing to end and is recorded only. Ending a session or a child from those points needs an owner for that decision; none is designed.
 
 </details>

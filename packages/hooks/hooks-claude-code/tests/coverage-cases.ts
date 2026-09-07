@@ -720,20 +720,20 @@ export function defineCoverageCases(group: CoverageGroup): void {
     })
   })
 
-  if (group === 'config') describe('hooks-claude-code coverage — systemMessage is warned, not surfaced', () => {
-    it('a hook emitting a systemMessage is logged as not-yet-surfaced', async () => {
+  if (group === 'config') describe('hooks-claude-code coverage — systemMessage reaches the model where Claude Code shows it', () => {
+    it('a UserPromptSubmit hook emitting a systemMessage puts it in the next request without a warning', async () => {
       const d = dir()
       const s = hookProgram(d, 'sm', 'out(\'{"systemMessage":"heads up"}\')\n')
       const path = hooks(d, { UserPromptSubmit: [{ hooks: [{ type: 'command', command: s }] }] })
-      const adapter = new MockAdapter([textResponse('ok')])
-      const ctx = await harness(path, adapter)
-      const warn = vi.fn(); ctx.logger.warn = warn as never
+      const model = new MockAdapter([textResponse('ok')])
+      const ctx = await harness(path, model)
+      const warn = vi.spyOn(ctx.logger, 'warn')
       const agent = ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
       agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
       await waitForIdle(ctx, agent)
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining('systemMessage'))
-      // Not surfaced: the systemMessage text never reaches the model request.
-      expect(JSON.stringify(adapter.requests[0]!.messages)).not.toContain('heads up')
+      expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('systemMessage'))
+      // Shown to the model: the text rides the prompt's request as hook context.
+      expect(JSON.stringify(model.requests.at(0)?.messages)).toContain('heads up')
     })
   })
 

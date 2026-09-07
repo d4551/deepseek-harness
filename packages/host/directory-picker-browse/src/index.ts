@@ -11,7 +11,7 @@
 
 import { mkdir, opendir, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { basename, dirname, join, posix, resolve, win32 } from 'node:path'
+import { basename, dirname, join, posix, resolve, sep, win32 } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import {
@@ -293,7 +293,7 @@ export default class BrowseDirectoryPicker extends DirectoryPicker {
       }
       entries.push(row)
     }
-    return { path: target, home, crumbs: ancestryCrumbs(target), entries, truncated }
+    return { path: target, home, separator: sep, crumbs: ancestryCrumbs(target), entries, truncated }
   }
 
   private async createDirectory(path: string, name: string): Promise<string> {

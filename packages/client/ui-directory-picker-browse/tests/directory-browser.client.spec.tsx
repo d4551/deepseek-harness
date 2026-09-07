@@ -21,7 +21,7 @@ function listingFor(path?: string): DirectoryListing {
   const tree: Record<string, DirectoryListing> = {
     [HOME]: {
       path: HOME,
-      home: HOME,
+      home: HOME, separator: '/',
       crumbs: [
         { name: '/', path: '/', hidden: false },
         { name: 'home', path: '/home', hidden: false },
@@ -35,14 +35,14 @@ function listingFor(path?: string): DirectoryListing {
     },
     '/': {
       path: '/',
-      home: HOME,
+      home: HOME, separator: '/',
       crumbs: [{ name: '/', path: '/', hidden: false }],
       entries: [{ name: 'home', path: '/home', hidden: false }],
       truncated: false,
     },
     [`${HOME}/.config`]: {
       path: `${HOME}/.config`,
-      home: HOME,
+      home: HOME, separator: '/',
       crumbs: [
         { name: '/', path: '/', hidden: false },
         { name: 'home', path: '/home', hidden: false },
@@ -54,7 +54,7 @@ function listingFor(path?: string): DirectoryListing {
     },
     [DOCS]: {
       path: DOCS,
-      home: HOME,
+      home: HOME, separator: '/',
       crumbs: [
         { name: '/', path: '/', hidden: false },
         { name: 'home', path: '/home', hidden: false },
@@ -66,7 +66,7 @@ function listingFor(path?: string): DirectoryListing {
     },
     [HARNESS]: {
       path: HARNESS,
-      home: HOME,
+      home: HOME, separator: '/',
       crumbs: [
         { name: '/', path: '/', hidden: false },
         { name: 'home', path: '/home', hidden: false },
@@ -521,7 +521,7 @@ describe('DirectoryBrowser', () => {
     }
     const winUsers: DirectoryListing = {
       path: TYPED,
-      home: ROOT,
+      home: ROOT, separator: '\\',
       crumbs: [{ name: 'C:\\', path: ROOT, hidden: false }, { name: 'users', path: TYPED, hidden: false }],
       entries: [],
       truncated: false,
@@ -771,21 +771,21 @@ describe('DirectoryBrowser', () => {
     const tree: Record<string, DirectoryListing> = {
       [ROOT]: {
         path: ROOT,
-        home: ROOT,
+        home: ROOT, separator: '/',
         crumbs: chain,
         entries: [{ name: 'mid', path: MID, hidden: false }, { name: 'other', path: `${ROOT}/other`, hidden: false }],
         truncated: false,
       },
       [MID]: {
         path: MID,
-        home: ROOT,
+        home: ROOT, separator: '/',
         crumbs: [...chain, { name: 'mid', path: MID, hidden: false }],
         entries: [{ name: 'leaf', path: LEAF, hidden: false }, { name: 'sibling', path: `${MID}/sibling`, hidden: false }],
         truncated: false,
       },
       [LEAF]: {
         path: LEAF,
-        home: ROOT,
+        home: ROOT, separator: '/',
         crumbs: [...chain, { name: 'mid', path: MID, hidden: false }, { name: 'leaf', path: LEAF, hidden: false }],
         entries: [],
         truncated: false,
@@ -1210,7 +1210,7 @@ describe('DirectoryBrowser', () => {
   it('renders the full ancestry when the level sits outside the home subtree', async () => {
     const outside: DirectoryListing = {
       path: '/srv/data',
-      home: HOME,
+      home: HOME, separator: '/',
       crumbs: [
         { name: '/', path: '/', hidden: false },
         { name: 'srv', path: '/srv', hidden: false },

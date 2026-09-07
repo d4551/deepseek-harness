@@ -38,7 +38,7 @@ kind: "package-library"
 - **附加上下文**——钩子可以返回额外文本，模型会在下一次请求中看到。
 - **在选定时刻运行**——钩子配置按名称或 pattern 选择触发的事件；缺失、空或 `'*'` pattern 表示该类的每个事件。
 - **失败不停止运行**——除 2 以外的任何退出码都是非阻塞失败：操作继续，失败被记录；完全无法启动的钩子按同样方式处理。
-- **请求运行停止**——钩子可以请求运行暂停（`{"continue": false}`）；该请求会被记录，但没有运行级效果（见已知限制）。
+- **请求运行停止**——钩子可以请求运行停止（`{"continue": false}`）；在其方言适用的拦截点上，提示词或工具调用会被拒绝，轮次随即结束，并把钩子给出的原因记录在案。
 
 ### 钩子运行时你会看到什么
 
@@ -125,7 +125,6 @@ kind: "package-library"
 这些限制描述钩子目前还无法通过共享引擎做到的事情。它们是当前包约束，而非任务积压。
 
 - **`HookOutput.updatedInput` 会被解析但不会应用**——输入改写是已延期的设计一致性问题（见 [pre-tool-input-rewrite Agent Note](../../../.agents/notes/proposed/feature/2026-06-30-pre-tool-input-rewrite.zh.md)）；当 hook 设置它时，桥接会记录并警告。
-- **折叠出的停止没有运行级效果**——`mergeHookOutputs` 把 `continue: false` 折叠为粘性 `stop`，但拦截点没有硬停止原语，因此桥接只记录该停止并保留 hook 的逐点效果。
 - **只有 command 形态会运行**——协议只执行 `{ type: 'command', command, timeout? }`；桥接会解析并跳过其方言定义的其他形态（`http`、`mcp_tool`、`prompt`、`agent`）。
 
 <a id="dev-note"></a>
@@ -136,8 +135,8 @@ kind: "package-library"
 
 本开发备注是维护者的工作上下文：开放问题与尚未决定的探索方向。它明确不具权威性——已交付的行为、限制与既定理由以上文、包代码和相关 Agent Note 为准。
 
-#### 未来：运行级停止
+#### 未来：脱离拦截点上的停止
 
-请求停止整个运行的 hook（`continue: false`）会被折叠进 `MergedHookOutcome.stop`，但不会在任何地方生效：拦截点缺少硬停止原语，轮次中途的请求改为在 `hook/result` 中记录该停止。运行级停止机制可以让桥接真正应用它；目前尚无设计。
+`SessionStart` 与 subagent 这一对拦截点脱离任何轮次运行，因此在那里返回的 `continue: false` 没有可结束的对象，只会被记录。要从这些点结束会话或子 agent，需要有人负责该决定；目前尚无设计。
 
 </details>

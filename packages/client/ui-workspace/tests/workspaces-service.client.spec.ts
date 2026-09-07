@@ -150,7 +150,7 @@ class FakeWorkspaces implements IWorkspaces {
 
 const listing: DirectoryListing = {
   path: '/home/u',
-  home: '/home/u',
+  home: '/home/u', separator: '/',
   crumbs: [{ name: '/', path: '/', hidden: false }],
   entries: [{ name: 'project', path: '/home/u/project', hidden: false }],
   truncated: false,
