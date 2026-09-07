@@ -257,10 +257,9 @@ Durable workspace registry. Startup waits for `sessionPersistence`, builds one c
  * A newly created workspace is prepended to the durable registry order.
  * Different canonical paths may share a display title.
  * @param path - Existing directory to own, in any path spelling.
- * @param title - Display title used only when a new record is created.
  * @returns the existing or newly durable workspace.
  */
-async create(path: string, title?: string): Promise<Workspace>
+async create(path: string): Promise<Workspace>
 
 /**
  * Look up a workspace by id.

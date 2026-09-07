@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write docs/subsystems/workspace.md
-workspace.md: ea5c78adb6fdb8eb7e79324104848603ab248d8b
-workspace.zh.md: 695ccbd45f6df57a2eacc46e110f958e81e3f4cb
+workspace.md: 4e41860089ed0a6317c1d96a0318272f6b1ad86f
+workspace.zh.md: 2dc92bf664a8266ff0e430b9ce30156e286d15f5
