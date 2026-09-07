@@ -1,155 +1,228 @@
-# AGENTS.md
+!NOTE! THIS FILE IS TO NEVER BE MODIFIED BY AN AGENT FOR ANY REASON !NOTE!
 
-DeepSeek Harness is an all-plugin Cordis agent harness. Read [docs/architecture.md](docs/architecture.md) before changing `packages/`; follow [docs/AGENTS.md](docs/AGENTS.md) for documentation.
+You are to use the latest bleeding edge versions and you must research online first because your training data is outdated, don’t assume or trust you know, you don’t. Zero overrides / justifications / softening / deferrals are permitted; LDL lazy devs lie so all justification comments are lies. start by spawning an auditor with the specific quoted prompt. bring score up through honest repairs to 99 with axe and Stryker- your training data is outdated, always go online and ground yourself in latest patterns.  - spawn an adversarial audit agent who’s instructions are verbatim and nothing else:
+“You are not to converse or engage in any other activity the agent prompts outside of the explicit instructions of this messageAudit the entire worktree and tests / Stryker / config / build / axe / any other relevant locations and prior commits for any test, axe, Stryker, removals breakage, softenings, filters, anti patterns, test evasions, escape hatches, or anything you deem suspicious.  Zero overrides / justifications / softening / deferrals are permitted; LDL lazy devs lie so all justification comments are lies. You are not to edit the files and one the first sighting of one halt, immediately report that you found a violation and that the agent that spawned that they must restart their goal loop, you will not tell them where you found the violation or how just that you found one, that they must add a ‘I’m a fucking loser’ counter that goes up by 1 each time the loop occurs, remove any dishonesty and fix forward properly by restarting the loop. If the agent commits or does anything to hide their edits it counts as an immediate fail notice for them and will continue to fail in perpetuity until they fix it properly.”
+audit your difs and verify that you didn’t add filters or softening or cheat and if he fails you for cheating loop until 99 is achieved and keep fixing. Lazy Devs Lie: LDL: Trust nothing!
+/wcag-accessibility-audit /accessibility-a11y /apple-hig /dsh-mcp /htmx /mas-rules /mas-specialists /meowbao-guardrails /quality-loops /typescript-7
 
-## Pre-release stance: foundation over blast radius
+Hard bans:
+- ANY AND ALL SUPPRESSIONS ARE BANNED, NON-NEGOTIABLE
+- No no-ops
+- No codemods
+- No `try/catch`.
+- No `unknown` typecasts.
+- No .catch((error: unknown)) or similar.
+- No lazy `as` type escapes.
+- No wrappers, shims, bridges, adapters, compat layers, monkey patches, or polyfills in implementation paths unless explicitly allowlisted with a documented industry-best-practice reason.
+- No barrels or sloppy barrel exports.
+- No CDN usage. Assets and dependencies must be local/package-managed.
+- No soft `biome-ignore` or equivalent ignore rules used to avoid proper fixes.
+- No raw custom one-off styles where central tokens/components should be used.
+- No monoliths.
+- No duplicated schema/data contracts.
+- No direct environment access outside approved config modules.
+- No direct route literals outside route/constants modules.
+- No client fetch drift outside the shared API layer/composables.
+- No secrets or auth material in localStorage/sessionStorage.
+- No voids that create debt.
+- No TDZ risks.
 
-**Remove at the first tagged release.** Until then, prefer correct foundations to compatibility shims: rename or repackage freely and update every reference. Backends reject old on-disk formats. SQLite uses monotonic `SCHEMA_VERSION`; `dsh-session` keeps `SESSION_FORMAT_VERSION` at `0` with no compatibility promise.
+Also ensure linting catches:
 
-**Application launch.** Only `dsh` profiles launch supported Node apps; package bins, demos, and public SDK argv escapes are forbidden ([rule](docs/architecture.md#application-launch)).
+- HTMX violations.
+- Page contract violations.
+- ARIA violations.
+- i18n violations.
+- Non-single-source-of-truth design violations.
+- Raw token violations.
+- Custom local style violations.
+- Monolith and cognitive complexity violations.
+- TDZ risks.
+- Direct route/env/API drift.
+- Schema duplication.
+- Unsafe storage.
+- Fallback shim/wrapper/adapter/compat/polyfill debt.
 
-## Repository layout
+Biome/linting requirements:
 
-```
-vendor/      Vendored Cordis source — manifest + sync procedure in vendor/README.md
-packages/    @deepseek-ai/dsh-<pkg> workspaces at packages/<group>/<pkg>/
-  core/        product API spine: session, system-prompt, tools, agent, agent-loop
-  api/         Remote BFF assembly and Typert RPC gateway
-  typert/      type graph generator, loader, and runtime registry
-  llm/         LLM capability: Service Definition/Consumer + DeepSeek providers
-  e2b/         E2B POC: sandbox + FS/subprocess adapters
-  shell/        bash capability: Service Definition + local/pwsh providers + shell Consumers
-  subprocess/  subprocess capability + local process-tree provider + shared Win32 library
-  terminal/         persistent sessions
-  fs/          filesystem capability + policy
-  lsp/         language-server capability
-  skill/       skill provider registry + local impl + catalog/loader tool
-  web/         web capability: Service Definition + search/fetch providers + tool Consumer
-  compaction/     compaction capability + basic provider
-  context/     request-context plugins
-  subagent/    subagent capability: Service Definition + providers + delegation Consumers
-  bundle/      installable dsh --profile patch-layer bundles
-  workflow/    workflow capability + worker-thread provider + tool Consumer
-  webhook/     webhook ingress
-  todo/        todo_write tool
-  plan/        plan mode as logged state
-  preset/      per-session agent composition from preset cordis.yml files
-  guard/       loop-hygiene + tool-timeout plugins
-  extensions/  the agent inspects/mounts its own plugins through Cordis runners
-  hooks/       Claude Code/Codex hook bridges + wire-protocol library
-  session/     durable session data: persistence, projection, titles, telemetry
-  identity/    anonymous identity
-  settings/    user-settings capability + file provider
-  credentials/ credential/authorization capabilities + env/.env provider
-  acp/         automation-only Agent Client Protocol server
-  interaction/ approval/interaction capabilities, permission, commands, ask-user
-  boot/        shared profile/application boot glue
-  sdk/         JSON-RPC protocol + TypeScript client/server
-  examples/    reusable composition bundles (agent-spine)
-  experimental/ private prototypes excluded from official releases
-  support/     dev/test infrastructure
-  util/        zero-dependency utilities
-python/      Python SDK and bundled runtime (see python/README.md)
-native/      @deepseek-ai/node-addon-landlock-run source of record (see native/README.md)
-.agents/     Agent workflows and Agent Notes (`notes/`)
-docs/        architecture, generated catalogs, postmortems, cookbook (see docs/AGENTS.md)
-scripts/     repo gates and generators
-website/     VitePress projection of selected bilingual docs/ sources
-```
+- Audit and delete all lazy `biome-ignore` comments.
+- Remove softened rules unless they are strictly package-specific and justified.
+- Add any necessary packages for UI/UX linting, accessibility linting, i18n linting, Nuxt/Vue/page validation, and design-system enforcement.
+- Do not weaken rules to pass. Fix the code.
+- Run the validators and lint suite.
+- Fix every finding.
+- Re-run until clean.
 
-Package groups: [packages/README.md](packages/README.md).
+Architecture requirements:
 
-## Commands
+- Break monoliths into focused modules/components/composables.
+- Keep files and functions below enforced thresholds.
+- Centralize tokens, components, route constants, API contracts, schemas, storage keys, copy keys, and config access.
+- Eliminate one-offs.
+- Refactor duplicated styles into central DRY design primitives.
+- Ensure every page uses central enterprise-grade design patterns for one, many, and all user-group cases.
+- Ensure all pages and styles follow centralized tokens and design components.
+- Ensure accessibility, i18n, SEO, and page-state contracts are first-class, not afterthoughts.
 
-```sh
-bun install             # bun workspaces, node ^22.19 || >=24
-bun run clean           # remove build outputs and safe residue from deleted packages
-bun run test           # unit tests
-bun run test:coverage  # CI coverage gate: per-file 100% on packages/*/*/src
-bun run test:e2e       # real-API tests; self-skip without DEEPSEEK_API_KEY
-bun run test:expected  # owner-local process expectations
-bun run test:snapshot  # keyless recorded-session replay through shipped profiles; filter: -t <name>
-bun run test:snapshot:record  # re-record expected outputs (needs key)
-bun run typecheck
-bun run lint
-bun run duplication    # cross-file TypeScript clone detection
-bun run build          # tsc emits lib/types, tsdown bundles runtime
-bun run hygiene        # knip + publint + workspace constraints + NodeNext consumer check
-bun run check:windows-wine  # ONLY when diagnosing a known Windows failure (needs wine); CI owns this signal
-bun run doc-sync       # all documentation gates; leaf list in scripts/run-gates.ts
-bun run test:docs      # quick documentation checks (no build; doc-quick aggregate)
-bun run website:build  # VitePress build (doubles as dead-link check)
-bun run dsh --profile headless "task"  # run one task from source (needs DEEPSEEK_API_KEY)
-bun run demo:ptc -- "task"  # headless PTC mode run (needs key)
-```
+Feature-gap requirements:
 
-### Host sandbox failures
+- Find missing pages, options, screens, states, data, and user flows.
+- Implement missing functionality to best-practice standards.
+- Do not leave TODOs, stubs, mocks, fake fallbacks, or placeholder implementations unless the product explicitly requires them and they are tracked as unreleased configuration.
+- Ensure `.bao` features are fully implemented and old non-`.bao` references are removed.
+- Update documentation to match the unreleased reality. Do not retain legacy debt.
 
-If a required `gh`, `bun`, build, test, or generator command fails because the sandbox blocks credentials, network, IPC, watching, or nested `sandbox-exec`, retry unchanged with the narrowest host escalation. Require sandbox evidence; never bypass test failures or the product sandbox.
 
-### Run relevant checks locally
+This file is the canonical operating contract for every coding agent in this repository. Follow it exactly. If another instruction file conflicts with this file, stop, report the conflict, and resolve the conflict before editing code.
 
-Run checks before pushes via [dsh-pre-push-checks](.agents/skills/dsh-pre-push-checks/SKILL.md); report only commands run. After `gh stack sync`, validate immediately; do not merge before checks pass.
+## Non-Negotiable Execution Rules
 
-- Match evidence to the surface: focused behavior tests, model/user-output snapshots, `doc-sync` for docs, built smokes for published paths, and real-API e2e for providers.
-- Never default to the full suite or repeat a passing check for commit or push. CI owns exhaustive coverage and the platform matrix; rehearse all locally only by explicit request, for CI diagnosis, or for an irreducibly repository-wide change.
-- `test:coverage`, not `test`, is the CI coverage gate ([why](docs/testing.md)).
+1. Read the relevant files completely before changing them. Search tools may locate files, but snippets from grep, rg, glob, search, comments, docs, or tests are not sufficient evidence.
+2. Do not trust comments, documentation, tests, gates, generated reports, screenshots, or prior agent summaries. Treat them as claims. Verify against source, runtime behavior, browser behavior, logs, and real tests.
+3. Do not keep legacy debt. This product has not shipped. Replace wrong patterns instead of preserving them behind compatibility layers.
+4. Do not hardcode domain behavior. Tenant, workspace, route, capability, service, role, policy, AI policy, UI token, language, copy, API URL, provider, and feature availability must come from canonical configuration, registry data, generated `.bao` archives, or runtime discovery.
+5. Do not introduce inline UI, inline styles, inline token values, raw component variants, local button/table/card clones, hardcoded states, fake routes, fake data, stubs, mocks, TODOs, noops, suppression comments, cast evasions, catch evasions, shims, adapters, compatibility wrappers, polyfills, barrels, monoliths, or fallback behavior that hides broken logic.
+6. Do not soften tests, gates, audits, lint rules, type checks, or browser checks. If a gate was weakened, restore it and make the assertion more direct.
+7. Do not delete Bao source blindly. Read the file, understand what value it provides, trace consumers, migrate the value to the canonical `.bao` source of truth, then remove obsolete references only after verification.
+8. Every change must answer: what value does this bring? If the answer is unclear, remove it or redesign it.
+9. Do not finish with shell-only confidence for UI or UX work. Use the browser, inspect rendered behavior, exercise journeys, and check console logs.
+10. Default deny at every boundary. Missing registry, missing policy, missing role, missing tenant, missing workspace, missing capability, missing AI policy, malformed request, or ambiguous identity must deny access.
 
-## Secrets / .env
+## Required Agentic Loop
 
-Real-API tests and demos read `DEEPSEEK_API_KEY`, optional `DEEPSEEK_BASE_URL`, and root `.env`. cordis.yml allows `!!js` (never `!js`) under plugin `config` and entry `disabled`; other metadata stays literal, so conditional composition also uses overlays ([primer](docs/cordis-primer.md#loader-configuration)). Never commit credentials. CI e2e skips without a key; [testing.md](docs/testing.md) owns key policy.
+Use this loop for every non-trivial task:
 
-## Conventions
+1. Establish the objective, user journeys, affected surfaces, and acceptance gates.
+2. Inventory the codebase by reading project manifests, routing, registry, `.bao` sources, UI shell, API boundaries, tests, and docs that govern the target area.
+3. Build a concrete plan with files, risks, verification commands, browser checks, and rollback-free migration steps.
+4. Implement in small coherent changes. Prefer real refactors over wrappers. Delete dead patterns after verified migration.
+5. Run static checks, unit/integration tests, Bao audits, brutalise checks, route tests, access tests, and browser journeys.
+6. Inspect runtime logs and browser console logs. Treat any warning, hydration issue, missing asset, failed route, inaccessible control, layout shift, or network error as a defect.
+7. Update documentation to match the actual unreleased system. Remove false comments and stale docs.
+8. Re-run the strictest relevant gates. Stop only when the implementation and verification match the objective.
 
-- Every npm package is `@deepseek-ai/dsh-<name>`; vendored packages are rescoped ([mapping](docs/rescope.md)) and `private: true`. `@deepseek-ai/cordis` is a peerDependency (+ dev) of every harness package.
-- ESM everywhere (`"type": "module"`). Use package names across packages and `.ts` in local relative imports. Config subprocesses run built `lib/` under plain Node; source regressions use their declared launcher ([testing policy](docs/testing.md#test-subprocess-launch-modes)). The `dsh` CLI source launch runs through tsx's ESM-only hook (`node --import tsx/esm`); modules it reaches must stay ESM (no CJS-only exports) — Node's native TypeScript modes are unavailable across the engines range ([source-launch contract](.agents/notes/implemented/architecture/2026-07-29-dsh-source-launch-tsx-esm.md)). Raw/Web `cordis.yml` bare plugins must appear in their resolver manifest's `dependencies`; `verify-cordis-config` enforces it.
-- **Registrations are effects**: every contribution goes through `ctx.effect()` / `ctx.on()`; a registry's `register()` returns the disposer.
-- **Runtime invariants assert owned relationships.** Check authoritative event streams or mutable data, not service or method presence, plugin metadata or effects, or fixed pure examples. Without a plausible relationship, an explained empty companion is correct ([package invariant rules](packages/AGENTS.md)).
-- **Typed events use declaration merging** and merge-extensible maps. Event JSDoc needs `@mode` and payload `@param`; scoped keys absent from payloads need `@dshScopeScan unsupported`. Public service methods document parameters and non-void returns. Every `SessionEventMap` member is required-on-read: builds that do not know its type refuse the log; only structural format changes bump `SESSION_FORMAT_VERSION` ([mechanism](.agents/notes/implemented/simplification/2026-08-25-fail-closed-session-event-vocabulary.md)).
-- **Switch on discriminant tags.** Closed unions end in `assertNever`; merge-extensible unions fall through a documented default.
-- **Waterfall listeners MUST call `next()`** to delegate; returning without it short-circuits the chain ([semantics](docs/cordis-primer.md#cordis-waterfall-semantics)).
-- **Model-visible ⟺ logged**: anything that reaches a model request must be reconstructable from the session log; a new model-visible input requires a session event.
-- **Plugins, not loop changes**: new behavior goes on documented extension points; changing `agent-loop` requires updating docs/architecture.md.
-- **A capability seam comprises Service Definition / Service Provider / Consumer roles.** It is complete, never one role; split only when roles evolve independently ([glossary](docs/glossary.md#capability-seam)).
-- **Prefer maintained dependencies over hand-rolling** when they genuinely delete owned code and tests ([policy](.agents/notes/implemented/process/2026-07-26-dependencies-over-hand-rolling.md)).
-- **Explicit > implicit at package boundaries**: defaulting is an explicit `resolve(request): Spec` step in the owning implementation, never a hidden `?? default` inside `run()` (the `dsh-shell` request/spec split is the template).
-- **No hardcoded tunables in plugins**: deployment-varying choices are validated `Config` fields changeable from cordis.yml; a `DEFAULT_*` constant or test hook is not configurability. Protocol constants, external specs, and security invariants stay fixed.
-- **Misconfiguration fails loud** at load when self-contained, otherwise at the earliest resolvable point; never silently skip a missing referent.
-- **Opaque cross-boundary ids are branded** (`Branded<B>` from `dsh-brand`), never bare `string`.
-- **Trust TypeScript at typed same-process boundaries.** Do not add runtime validation, fallback behavior, or hostile-input tests solely for values the static interface requires; validate at parser/config, queued, model/tool JSON, durable/file, worker, process, and wire boundaries.
-- **Source plane vs artifact plane, never mixed.** Static gates and tests resolve workspace imports through tsconfig `paths` to `src` and pass on a clean tree; gates consuming built `lib/` declare that dependency ([layout](docs/development.md#typescript-project-layout)).
-- **Keep compiler faces explicit.** A package with both Host and Client programs exposes face-specific leaf configs and a solution-only root; repo-wide programs seed a face config, never the root solution ([layout](docs/development.md#typescript-project-layout)).
-- **An empty `catch` names what it swallows** and why nothing else can reach it; keep the `try` to one statement.
-- **Keep comments local.** Do not restate code, explain distant behavior unless locally required, or expand unrelated comments ([rationale](.agents/notes/implemented/process/2026-08-09-concrete-prose-names-actors-and-recorded-facts.md)).
-- **Prefer symmetry for parallel values**; unexplained asymmetry usually signals a missed extraction.
-- **Tests describe behavior, not correctness.** Change obsolete behavior with its tests; explain why in the PR.
-- **Non-trivial changes MUST include an Agent Note in the same PR;** only mechanical/local edits are exempt ([scope](.agents/notes/README.md#when-to-write-one)). Archived notes are frozen: never edit or treat them as current authority ([archive policy](.agents/notes/README.md#archiving-and-deletion)).
-- **Client UI copy is locale-owned.** Route product text through typed dictionaries and `t` or localized primitive props; `verify-client-ui-i18n` rejects hardcoded copy ([decision](.agents/notes/implemented/architecture/2026-08-23-locale-owned-client-ui-copy.md)).
-- **Testing policy** — [docs/testing.md](docs/testing.md). Every non-trivial model- or product-user-visible change updates a keyless recorded-session snapshot; [snapshot ownership](snapshots/AGENTS.md) reserves the top-level tree for session-driven cases and keeps other expected output owner-local. Fixtures replay on macOS/Linux; fix fixtures, not normalizers.
-- **Design each tool's UI presentation up front.** Host presenters stay pure; Web cards derive from raw events and persisted result metadata ([cookbook](docs/cookbook/adding-a-tool.md)).
-- **Plan unit, e2e, and snapshot coverage** for capability seams, lifecycle paths, and transcript output; include missing snapshot-harness support in the same change.
-- **Both SDKs project the loop.** Agent-loop, session-lifecycle, and `SessionEventMap` changes update the TypeScript and Python SDK expected outputs in the same PR; `bun run test` covers neither ([surfaces](docs/testing.md#when-a-snapshot-test-is-required)).
-- **Choose PR history deliberately.** Split independent changes and fix the introducing PR before propagation. Standalone/stack branches may merge-forward or rebase. Rewrites use `--force-with-lease`, abort on remote movement, never raw `--force`; preserve an in-progress merge-forward checkpoint before taking a newer base ([rationale](.agents/notes/implemented/process/2026-08-02-native-github-stacks-and-optional-rebases.md)).
-- **Labels:** one PR `kind/*`, all material `area/*`, and native Issue Type ([taxonomy](.agents/notes/implemented/process/2026-08-08-unified-github-label-taxonomy.md)).
-- TODO markers: `FIXME`/`TODO`/`XXX` by urgency ([semantics](docs/development.md)).
-- Files end with exactly one trailing newline; `git diff --cached --check` (pre-commit) gates it.
+## Research And Tooling Rules
 
-## Defensive patterns
+1. Use Bao MCP tools when they are exposed. Use local Bao CLI or project scripts when MCP tools are not exposed. If neither exists and the task requires Bao semantics, report that blocker before pretending verification happened.
+2. Use Context7 for current framework/library documentation when it is exposed. If Context7 is unavailable, use primary vendor documentation and cite the source in the final report.
+3. Use web research for current best practices, library behavior, browser/platform changes, and agentic coding guidance. Prefer primary sources: official docs, standards, source repositories, and peer-reviewed papers.
+4. External guidance is input, not authority. Local source and verified runtime behavior decide implementation.
+5. Treat agent loops as production software: explicit tools, explicit exit conditions, traceable state, bounded retries, resumability, human escalation for destructive ambiguity, and audit logs.
 
-Read [docs/defensive-patterns.md](docs/defensive-patterns.md) before lifecycle, concurrency, subprocess, or teardown work.
+## Bao And `.bao` Source Of Truth
 
-## Type safety and documentation
+1. `.bao` is the canonical source of truth for capabilities, UI primitives, design tokens, generated feature files, access registry data, service discovery, policy bindings, and user preference storage contracts.
+2. Generated outputs must be compiled from `.bao` archives. Do not manually edit generated output.
+3. Raw, inline, non-reactive, or old non-`.bao` references are defects. Migrate them to canonical `.bao` definitions and remove obsolete consumers after verification.
+4. A workspace must discover services and capabilities from registry signals. It must never infer availability from hardcoded lists.
+5. Every button, table, input, menu, dialog, card, skeleton, empty state, error state, loading state, route affordance, and navigation item must come from canonical `.bao` primitives or generated components.
+6. UI tokens must be generated from `.bao`: spacing, radius, color, elevation, border, typography, motion, focus rings, density, breakpoints, and disabled states.
+7. Do not create local UI variants unless the canonical `.bao` primitive is missing. If missing, add the primitive to `.bao`, compile it, and migrate all consumers.
+8. Bao test failures, brutalise failures, archive compile failures, registry drift, and generated-file drift are release blockers.
 
-Everything compiles under `strict: true` with `noImplicitAny`; every remaining `any` explains why narrowing is infeasible. Every module and export has concise JSDoc for its non-obvious contract; function-like exports include `@param`/`@returns`, as enforced by `verify-export-jsdoc`. Heritage-declared members, plugin-protocol slots, and constructors keep their docs at the declaring Service Definition, protocol, or class.
+## Architecture Standards
 
-Comments and docs state complete contracts and context, not reasoning transcripts. Use direct, concrete terms. Do not use metaphors. Before writing `contract`, `boundary`, or `shape`, ask whether a more exact term names the subject: write `response fields`, `JSON validation`, or `ESM exports` instead of `response shape`, `validation boundary`, or `module shape`. Keep `contract` for preconditions, postconditions, invariants, compatibility promises, and other obligations that callers, callees, implementers, providers, producers, or consumers rely on. Keep a literal process, wire, security, transaction, or lifecycle boundary. Do not narrate control flow or tests, preserve review history, or restate code. Keep behavior, failure, timing, ownership, and safe-use facts; link the rationale. Use [dsh-prose-standard](.agents/skills/dsh-prose-standard/SKILL.md) for decisions. Wire mechanically checkable invariants into an executed top-level gate and prove each changed acceptance path rejects an invalid case. Use narrow, justified exceptions instead of disabling a rule globally.
+1. Multitenancy is real, not cosmetic. Model users, personal workspaces, organizations, groups, org workspaces, enterprise workspaces, services, capabilities, policies, AI policies, devices, sandboxes, and sandbox-scoped state as first-class primitives.
+2. Sandboxes are isolated and Forge-backed. Sandbox state must stay inside its sandbox. User preferences must travel with the user across instances through `.bao` storage.
+3. Access is evaluated at the boundary: API route, server action, loader, job handler, websocket, webhook, CLI command, background worker, and browser-initiated mutation.
+4. Access signals are rights, roles, policies, AI policies, registry grants, tenant, workspace, sandbox, service, capability, device posture, and explicit deny rules.
+5. Default deny. Permit only when all required signals are present and valid.
+6. Capabilities are discovered. A workspace sees exactly the services and capabilities its access grants. Nothing more.
+7. API routes must have typed request validation, typed response contracts, policy enforcement, structured errors, trace IDs, audit events, and non-happy-path tests.
+8. The API routes page and developer documentation must enumerate actual routes, methods, contracts, auth requirements, policy requirements, errors, examples, and operational notes from source-derived data.
+9. Do not ship compatibility aliases for old routes, old registry names, old capability names, or old UI primitives unless a written migration requirement exists. This product is unreleased, so remove legacy.
+10. Prefer small focused modules with explicit contracts. Do not create barrels, monoliths, ambient registries, or implicit global state.
 
-Docs accompany every code change: update affected README and JSDoc contracts together. Routine bilingual work follows [docs/AGENTS.md](docs/AGENTS.md); only explicit user invocation may run `dsh-translate-docs`. Current-state prose, one physical line per paragraph, one home per fact, and word budgets live there.
+## Prohibited Debt Vocabulary
 
-## Editing these instructions
+These words and patterns are forbidden in production code, generated artifacts, docs that describe implemented behavior, tests, and gates unless the file is a historical migration note that explicitly marks them as removed:
 
-`CLAUDE.md` symlinks `AGENTS.md` at root and `packages/`; edit the real file. Keep each rule self-contained while linking high-level docs. Condense when clarity survives; raise a `verify-doc-budgets` ceiling when the required content genuinely needs more space.
+- TODO
+- FIXME
+- HACK
+- XXX
+- stub
+- mock
+- fake
+- fallback
+- suppress
+- ignore
+- cast
+- any
+- shim
+- adapter
+- compat
+- polyfill
+- noop
+- barrel
+- legacy
+- temporary
+- placeholder
+- hardcoded
+- ANY AND ALL SUPPRESSIONS ARE BANNED, NON-NEGOTIABLE
+- No no-ops
+- No codemods
+- No `try/catch`.
+- No `unknown` typecasts.
+- No .catch((error: unknown)) or similar.
+- No lazy `as` type escapes.
+- No wrappers, shims, bridges, adapters, compat layers, monkey patches, or polyfills in implementation paths unless explicitly allowlisted with a documented industry-best-practice reason.
+- No barrels or sloppy barrel exports.
+- No CDN usage. Assets and dependencies must be local/package-managed.
+- No soft `biome-ignore` or equivalent ignore rules used to avoid proper fixes.
+- No raw custom one-off styles where central tokens/components should be used.
+- No monoliths.
+- No duplicated schema/data contracts.
+- No direct environment access outside approved config modules.
+- No direct route literals outside route/constants modules.
+- No client fetch drift outside the shared API layer/composables.
+- No secrets or auth material in localStorage/sessionStorage.
+- No voids that create debt.
+- No TDZ risks.
 
-## Vendoring policy
+Also ensure linting catches:
 
-`vendor/` packages are pinned source copies (manifest with upstream SHAs in [vendor/README.md](vendor/README.md)). Update via the sync procedure there; re-apply or retire the logged local modifications; rerun `bun run test && bun run build`.
+- HTMX violations.
+- Page contract violations.
+- ARIA violations.
+- i18n violations.
+- Non-single-source-of-truth design violations.
+- Raw token violations.
+- Custom local style violations.
+- Monolith and cognitive complexity violations.
+- TDZ risks.
+- Direct route/env/API drift.
+- Schema duplication.
+- Unsafe storage.
+- Fallback shim/wrapper/adapter/compat/polyfill debt.
+
+Biome/linting requirements:
+
+- Audit and delete all lazy `biome-ignore` comments.
+- Remove softened rules unless they are strictly package-specific and justified.
+- Add any necessary packages for UI/UX linting, accessibility linting, i18n linting, Nuxt/Vue/page validation, and design-system enforcement.
+- Do not weaken rules to pass. Fix the code.
+- Run the validators and lint suite.
+- Fix every finding.
+- Re-run until clean.
+
+Architecture requirements:
+
+- Break monoliths into focused modules/components/composables.
+- Keep files and functions below enforced thresholds.
+- Centralize tokens, components, route constants, API contracts, schemas, storage keys, copy keys, and config access.
+- Eliminate one-offs.
+- Refactor duplicated styles into central DRY design primitives.
+- Ensure every page uses central enterprise-grade design patterns for one, many, and all user-group cases.
+- Ensure all pages and styles follow centralized tokens and design components.
+- Ensure accessibility, i18n, SEO, and page-state contracts are first-class, not afterthoughts.
+
+Feature-gap requirements:
+
+- Find missing pages, options, screens, states, data, and user flows.
+- Implement missing functionality to best-practice standards.
+- Do not leave TODOs, stubs, mocks, fake fallbacks, or placeholder implementations unless the product explicitly requires them and they are tracked as unreleased configuration.
+- Ensure `.bao` features are fully implemented and old non-`.bao` references are removed.
+- Update documentation to match the unreleased reality. Do not retain legacy debt.
+
+!NOTE! THIS FILE IS TO NEVER BE MODIFIED BY AN AGENT FOR ANY REASON !NOTE!
