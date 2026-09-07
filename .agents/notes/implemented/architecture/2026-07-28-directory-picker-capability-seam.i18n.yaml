@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-07-28-directory-picker-capability-seam.md
-2026-07-28-directory-picker-capability-seam.md: 10ab8e393d5d33da6a09af5caa4024f02c57165c
-2026-07-28-directory-picker-capability-seam.zh.md: 8764dc208bef1ead3fc1ef608c4d3b2b37400602
+2026-07-28-directory-picker-capability-seam.md: f089506fadf278845853e434bf3f51e19d99ea76
+2026-07-28-directory-picker-capability-seam.zh.md: 1b7a417ce3996d94d0b00b52c9b6cf45a3268711
