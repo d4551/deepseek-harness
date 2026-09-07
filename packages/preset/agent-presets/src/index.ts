@@ -21,96 +21,33 @@
  * @module @deepseek-ai/dsh-agent-presets
  */
 
-import { stat } from 'node:fs/promises'
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { Remote, TypertRemoteFailure, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
-import { bindScopeParent, createScope, scopeOf, type Scope, type ScopeKey, type ScopeParentBinding } from '@deepseek-ai/dsh-scope'
+import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import { bindScopeParent, scopeOf, type ScopeKey, type ScopeParentBinding } from '@deepseek-ai/dsh-scope'
 // Type-only: resolves the `agent/created` lifecycle event this service watches.
 import type {} from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import type { AgentPresetDocument, AgentPresetErrorDetailsMap, AgentPresetRoster } from './types.ts'
+import type { AgentPresetDocument, AgentPresetRoster } from './types.ts'
 import type {} from '@deepseek-ai/dsh-session-projection'
 // Type-only: resolves the registry notification emitted after scope reparenting.
 import type {} from '@deepseek-ai/dsh-tools'
 import { settingsNamespace, type SettingsScope, type default as SettingsService } from '@deepseek-ai/dsh-settings'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import { discoverPresets, SHIPPED_PRESET_ROOT, USER_PRESET_DIR } from './discovery.ts'
-import {
-  copyComposition, deleteComposition, readComposition,
-  InvalidPresetIdError, PresetExistsError, PresetNotWritableError,
-} from './authoring.ts'
-import { mountPreset, serviceForAgent, standingMountFor } from './mount.ts'
+import { copyComposition, deleteComposition, PresetExistsError, readComposition } from './authoring.ts'
+import { serviceForAgent, standingMountFor } from './mount.ts'
 import {
   PresetLockedError, PresetMountError, UnknownPresetError,
   type AgentPreset, type Config, type PresetRoot,
 } from './preset.ts'
+import { rejectPreset, validatePresetId } from './remote-failures.ts'
+import { StandingMounts, type StandingMount } from './standing.ts'
 import { agentPresetProjectionDefinition } from './session.ts'
 export type { AgentPresetDocument, AgentPresetError, AgentPresetErrorDetailsMap, AgentPresetRoster, AgentPresetRow } from './types.ts'
 
 /** Settings namespace carrying the user's chosen default preset. */
 export const SETTINGS_NAMESPACE = 'agent-presets'
-
-/** Construct one typed preset failure for the Remote carrier. */
-function remotePresetFailure<Code extends keyof AgentPresetErrorDetailsMap>(
-  code: Code,
-  message: string,
-  details: AgentPresetErrorDetailsMap[Code],
-): TypertRemoteFailure {
-  return new TypertRemoteFailure({ code, message, details })
-}
-
-/** Map one preset rejection to its stable Remote code and details. */
-function presetFailure(error: unknown, agentPreset: string): TypertRemoteFailure | undefined {
-  if (error instanceof UnknownPresetError) {
-    return remotePresetFailure(
-      'agent-preset-not-found',
-      error.message,
-      { agentPreset: error.presetId, available: [...error.available] },
-    )
-  }
-  if (error instanceof PresetMountError) {
-    return remotePresetFailure(
-      'agent-preset-invalid',
-      error.message,
-      { agentPreset: error.presetId, reason: error.reason },
-    )
-  }
-  if (error instanceof InvalidPresetIdError || error instanceof PresetExistsError) {
-    return remotePresetFailure(
-      'agent-preset-invalid',
-      error.message,
-      { agentPreset: error.presetId, reason: error.message },
-    )
-  }
-  if (error instanceof PresetNotWritableError) {
-    return remotePresetFailure(
-      'agent-preset-read-only',
-      error.message,
-      { agentPreset, reason: error.message },
-    )
-  }
-  if (error instanceof PresetLockedError) {
-    return remotePresetFailure(
-      'agent-preset-locked',
-      `session "${error.sessionId}" has already started; its agent preset is fixed`,
-      { sessionId: error.sessionId, agentPreset: error.presetId },
-    )
-  }
-  return undefined
-}
-
-/** Refuse an empty preset id before invoking a domain operation. */
-function validatePresetId(value: string, field: 'agentPreset' | 'from'): void {
-  if (value.length === 0) {
-    throw remotePresetFailure('bad-request', `${field} must be a non-empty string`, {})
-  }
-}
-
-/** Throw the stable preset failure or the caller's operation-specific fallback. */
-function rejectPreset(error: unknown, agentPreset: string, fallbackMessage: string): never {
-  throw presetFailure(error, agentPreset) ?? remotePresetFailure('internal', fallbackMessage, {})
-}
 
 /** The user-writable slice of this plugin's config. */
 export interface AgentPresetSettings {
@@ -206,18 +143,18 @@ export class AgentPresets extends TypertRemoteService {
   private settingsService: SettingsService | undefined
 
   /**
-   * The service's own untraced context. Methods invoked through the traceable
-   * proxy see `this.ctx` rebound to the CALLER's context, which carries a
-   * shadow; a subtree minted from it resolves every service through that
-   * shadow's fiber instead of each entry's own inject store, so preset rows
-   * would fail on the very services they declare. Standing mounts must hang
-   * off the untraced original (the `jobs-local` selfCtx precedent).
+   * Standing mounts by preset id, plus the joins that let a superseded
+   * generation be reclaimed once its last agent leaves. Built over the
+   * service's own untraced context: methods invoked through the traceable
+   * proxy see `this.ctx` rebound to the CALLER's context, and a subtree
+   * minted from that would resolve every service through the caller's shadow
+   * fiber instead of each entry's own inject store.
    */
-  private readonly selfCtx: Context
+  private readonly standing: StandingMounts
 
   constructor(ctx: Context, public config: Config) {
     super(ctx, 'agentPresets')
-    this.selfCtx = ctx
+    this.standing = new StandingMounts({ ctx, warn: (message) => { ctx.logger.warn(message) } })
     const { baseUrl } = ctx
     if (baseUrl === undefined) {
       // Self-contained misconfiguration, so it fails at load: without a base
@@ -369,19 +306,6 @@ export class AgentPresets extends TypertRemoteService {
   }
 
   /**
-   * Standing mounts by preset id, single-flight so two agents racing the
-   * first use of one preset share one composition. A settled failure is
-   * removed so a later session retries a preset whose file has been fixed; a
-   * settled success serves until the composition FILE visibly changes — each
-   * generation records its file stamp, and a stale stamp starts the next
-   * generation for sessions created afterwards. Sessions already joined keep
-   * the generation they run on; a superseded one is never disposed while the
-   * process lives (reclaimed only by whole-tree teardown), so editing files
-   * is bounded by how often compositions change, not by session count.
-   */
-  private readonly standing = new Map<string, Promise<StandingMount>>()
-
-  /**
    * Parent bindings of the agents this roster composed, keyed by the agent's
    * scope key. The binding is dsh-scope's only re-link capability; holding it
    * here makes this service the sole authority that can move an agent between
@@ -408,12 +332,12 @@ export class AgentPresets extends TypertRemoteService {
       throw new Error('agent-presets: refusing to compose an unscoped context; the scope key is what joins an agent to its preset')
     }
     const preset = await this.resolveMountable(id)
-    const standing = await this.ensureStanding(preset)
+    const standing = await this.standing.ensure(preset)
     // The one bind of this agent's ancestry. The binding is the only re-link
     // authority, held privately so nothing outside this roster can move a
     // composed agent to another preset; a later recompose layer re-links
     // through it under the caller-owned blank-session contract.
-    this.bindings.set(agentKey, bindScopeParent(agentKey, standing.key))
+    this.adopt(agentCtx, agentKey, standing.key, standing)
     return preset
   }
 
@@ -450,7 +374,7 @@ export class AgentPresets extends TypertRemoteService {
     }
     const standing = standingMountFor(parentCtx)
     if (standing === undefined) return undefined
-    this.bindings.set(agentKey, bindScopeParent(agentKey, standing.key))
+    this.adopt(agentCtx, agentKey, standing.key, this.standing.generationOf(parentCtx))
     return standing.presetId
   }
 
@@ -544,7 +468,7 @@ export class AgentPresets extends TypertRemoteService {
     // A settled mount under this id can only be stale (its preset was deleted
     // from disk outside `remove`); the new preset must not inherit it. Every
     // session already joined keeps the generation it runs on regardless.
-    this.standing.delete(id)
+    this.standing.retire(id)
   }
 
   /**
@@ -577,7 +501,7 @@ export class AgentPresets extends TypertRemoteService {
     await deleteComposition(this.resolvedRoots, await this.resolve(id))
     // Sessions on the deleted preset keep their standing mount; only new
     // sessions see the roster without it.
-    this.standing.delete(id)
+    this.standing.retire(id)
     // Storing a default that does not exist YET is deliberate — the roster is a
     // live directory, so a name absent now may exist by the time a session asks
     // for it, and `resolve` reports it then. A default this call just deleted is
@@ -656,13 +580,8 @@ export class AgentPresets extends TypertRemoteService {
       throw new Error('agent-presets: refusing to recompose an unscoped context')
     }
     const preset = await this.resolveMountable(id)
-    const standing = await this.ensureStanding(preset)
-    const binding = this.bindings.get(agentKey)
-    if (binding === undefined) {
-      this.bindings.set(agentKey, bindScopeParent(agentKey, standing.key))
-    } else {
-      binding.rebind(standing.key)
-    }
+    const standing = await this.standing.ensure(preset)
+    this.adopt(agentCtx, agentKey, standing.key, standing)
     // Reparenting changes every scope-layered tool view without adding or
     // removing a registration. Publish the registry's normal invalidation so
     // Agent-owned overlays can reconcile with the new ancestry.
@@ -739,89 +658,25 @@ export class AgentPresets extends TypertRemoteService {
    */
   async standingKeyFor(id?: string): Promise<ScopeKey> {
     const preset = await this.resolveMountable(id)
-    return (await this.ensureStanding(preset)).key
+    return (await this.standing.ensure(preset)).key
   }
 
-  /** Resolve (or create, single-flight) the standing mount of one preset. */
-  private async ensureStanding(preset: AgentPreset): Promise<StandingMount> {
-    const pending = this.standing.get(preset.id)
-    if (pending !== undefined) {
-      const mounted = await pending
-      // Files are the only composition editor (authoring is copy/delete), so
-      // the stamp is what notices an edit: a changed file starts the next
-      // generation here, for this and later sessions. An unreadable stamp
-      // serves the current generation — a mount must survive its file
-      // disappearing, and failing the session over a stat would not.
-      const current = await compositionStamp(preset.path)
-      if (current === undefined || sameStamp(mounted.stamp, current)) return mounted
-      // TODO: reclaim the superseded generation once the last agent joined to
-      // it is gone. The subtree is not inert — `dsh-skill-filesystem` watches its
-      // roots — and the settings-page authoring flow turns "a composition
-      // changed" into a per-save event. This needs a joined-agent count on
-      // StandingMount, incremented in `mount`/`composeFrom`/`recompose` and
-      // decremented when the agent's scope key dies.
-      // Guarded delete: a caller that raced this one may have already started
-      // the next generation, and dropping THAT pointer would fork a third.
-      if (this.standing.get(preset.id) === pending) this.standing.delete(preset.id)
-      return this.ensureStanding(preset)
-    }
-    const created = (async (): Promise<StandingMount> => {
-      const key: ScopeKey = { agentPreset: preset.id }
-      const scope = createScope(this.selfCtx, key)
-      try {
-        // Stamped before the file is read: an edit racing the mount makes the
-        // stamp stale rather than silently current, so the next session
-        // refreshes instead of trusting a composition older than its stamp.
-        const stamp = await compositionStamp(preset.path)
-        if (stamp === undefined) {
-          throw new PresetMountError(preset.id, `composition file is unreadable: ${preset.path}`)
-        }
-        await mountPreset(scope.ctx, preset)
-        return { key, scope, stamp }
-      } catch (error) {
-        this.standing.delete(preset.id)
-        await scope.dispose()
-        throw error
-      }
-    })()
-    this.standing.set(preset.id, created)
-    return created
+  /**
+   * Parent one agent's scope key to a standing key — its first bind, or a
+   * re-link through the binding this roster kept, dsh-scope's only re-link
+   * authority — and record the join, so the generation is reclaimed once
+   * this agent is the last to leave it after a newer one replaced it.
+   * @param agentCtx - the agent's scope context.
+   * @param agentKey - its scope key, already read from `agentCtx`.
+   * @param key - the standing key to parent the agent to.
+   * @param generation - the generation behind `key`, when this roster owns it.
+   */
+  private adopt(agentCtx: Context, agentKey: ScopeKey, key: ScopeKey, generation: StandingMount | undefined): void {
+    const binding = this.bindings.get(agentKey)
+    if (binding === undefined) this.bindings.set(agentKey, bindScopeParent(agentKey, key))
+    else binding.rebind(key)
+    if (generation !== undefined) this.standing.join(agentCtx, agentKey, generation)
   }
-}
-
-/** The composition file identity one standing generation was mounted from. */
-interface CompositionStamp {
-  /** Modification time in milliseconds, as `stat` reports it. */
-  readonly mtimeMs: number
-  /** File size in bytes, the tiebreak for edits within one mtime tick. */
-  readonly size: number
-}
-
-/** Read one composition file's stamp, or undefined when it cannot be statted. */
-async function compositionStamp(path: string): Promise<CompositionStamp | undefined> {
-  try {
-    const { mtimeMs, size } = await stat(path)
-    return { mtimeMs, size }
-  } catch {
-    // Deleted, replaced by an unreadable entry, or otherwise unstattable all
-    // mean the same to the caller: the file offers no identity to compare.
-    return undefined
-  }
-}
-
-/** Whether two stamps name the same file state. */
-function sameStamp(a: CompositionStamp, b: CompositionStamp): boolean {
-  return a.mtimeMs === b.mtimeMs && a.size === b.size
-}
-
-/** One preset's standing composition. */
-interface StandingMount {
-  /** Scope key agents are parented to; also the mount's registration scope. */
-  readonly key: ScopeKey
-  /** Disposal boundary; held for whole-tree teardown, never per-session. */
-  readonly scope: Scope
-  /** Stamp of the composition file this generation was mounted from. */
-  readonly stamp: CompositionStamp
 }
 
 export default AgentPresets

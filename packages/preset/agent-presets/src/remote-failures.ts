@@ -27,11 +27,11 @@ export function remotePresetFailure<Code extends keyof AgentPresetErrorDetailsMa
 
 /**
  * Map one preset rejection to its stable Remote code and details.
- * @param error - the rejection a roster operation produced.
+ * @param error - the rejection a roster operation produced, whatever it threw.
  * @param agentPreset - the preset id the operation was about.
  * @returns the typed failure, or `undefined` for a rejection outside the preset vocabulary.
  */
-export function presetFailure(error: object | string | undefined, agentPreset: string): TypertRemoteFailure | undefined {
+export function presetFailure<Thrown>(error: Thrown, agentPreset: string): TypertRemoteFailure | undefined {
   if (error instanceof UnknownPresetError) {
     return remotePresetFailure(
       'agent-preset-not-found',
@@ -84,11 +84,11 @@ export function validatePresetId(value: string, field: 'agentPreset' | 'from'): 
 
 /**
  * Throw the stable preset failure for `error`, or the caller's operation-specific `internal` failure.
- * @param error - the rejection a roster operation produced.
+ * @param error - the rejection a roster operation produced, whatever it threw.
  * @param agentPreset - the preset id the operation was about.
  * @param internalMessage - the message for a rejection outside the preset vocabulary.
  * @throws {TypertRemoteFailure} always.
  */
-export function rejectPreset(error: object | string | undefined, agentPreset: string, internalMessage: string): never {
+export function rejectPreset<Thrown>(error: Thrown, agentPreset: string, internalMessage: string): never {
   throw presetFailure(error, agentPreset) ?? remotePresetFailure('internal', internalMessage, {})
 }

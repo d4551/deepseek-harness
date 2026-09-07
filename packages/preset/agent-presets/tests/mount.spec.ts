@@ -715,15 +715,14 @@ describe('editing a composition file', () => {
     const { scoped, path } = await editable('guarded-refresh')
     const preset = await scoped.agentPresets.resolve('guarded-refresh')
     await agentOn(scoped, 'sess-guarded-refresh-seed', 'guarded-refresh')
-    const service = scoped.agentPresets as unknown as {
-      standing: Map<string, Promise<{
-        key: unknown
-        scope: unknown
-        stamp: { mtimeMs: number; size: number }
-      }>>
-      ensureStanding(current: typeof preset): Promise<unknown>
+    const service = scoped.agentPresets as object as {
+      standing: {
+        pending: Map<string, Promise<{ key: object; scope: object; stamp: { mtimeMs: number; size: number } }>>
+        ensure(current: typeof preset): Promise<object>
+      }
     }
-    const stalePromise = service.standing.get(preset.id)!
+    const stalePromise = service.standing.pending.get(preset.id)
+    if (stalePromise === undefined) throw new Error('the seed session left no standing generation')
     const stale = await stalePromise
     await writeFile(path, rowFor('afterwards'))
     const { mtimeMs, size } = await stat(path)
@@ -732,11 +731,11 @@ describe('editing a composition file', () => {
 
     // `await pending` yields before the guarded delete, letting the winning
     // refresher replace the pointer deterministically instead of by timing.
-    const refresh = service.ensureStanding(preset)
-    service.standing.set(preset.id, newerPromise)
+    const refresh = service.standing.ensure(preset)
+    service.standing.pending.set(preset.id, newerPromise)
 
     expect(await refresh).toBe(newer)
-    expect(service.standing.get(preset.id)).toBe(newerPromise)
+    expect(service.standing.pending.get(preset.id)).toBe(newerPromise)
   })
 
   it('hands a host reader the standing key without starting an agent', async () => {
@@ -759,10 +758,10 @@ describe('editing a composition file', () => {
     // Discovery would refuse the preset too; a caller that resolved just
     // before the deletion must get a mount failure, not an unstamped
     // generation that no later edit could ever refresh.
-    const racer = scoped.agentPresets as unknown as {
-      ensureStanding(preset: { id: string; trust: 'user'; path: string }): Promise<unknown>
+    const racer = scoped.agentPresets as object as {
+      standing: { ensure(preset: { id: string; trust: 'user'; path: string }): Promise<object> }
     }
-    await expect(racer.ensureStanding({ id: 'unstampable', trust: 'user', path }))
+    await expect(racer.standing.ensure({ id: 'unstampable', trust: 'user', path }))
       .rejects.toThrow(PresetMountError)
     expect(livePresetMounts().filter(mount => mount.presetId === 'unstampable')).toHaveLength(0)
   })
@@ -778,10 +777,10 @@ describe('editing a composition file', () => {
     // public route cannot reach this state — but a caller that resolved just
     // before the deletion still can, and it must be served the standing
     // generation rather than failed over a stat.
-    const racer = scoped.agentPresets as unknown as {
-      ensureStanding(preset: { id: string; trust: 'user'; path: string }): Promise<unknown>
+    const racer = scoped.agentPresets as object as {
+      standing: { ensure(preset: { id: string; trust: 'user'; path: string }): Promise<object> }
     }
-    await racer.ensureStanding({ id: 'stale', trust: 'user', path })
+    await racer.standing.ensure({ id: 'stale', trust: 'user', path })
 
     expect(livePresetMounts().filter(mount => mount.presetId === 'stale')).toHaveLength(1)
   })
