@@ -16,7 +16,7 @@ import SubagentRuntime, { SubagentRunId } from '@deepseek-ai/dsh-subagent'
 import * as HooksClaude from '@deepseek-ai/dsh-hooks-claude-code'
 import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 import { hookProgram, plugHostShell } from '../../hook-protocol/tests/hook-program.ts'
-
+export { MockAdapter, textResponse, toolCallResponse }
 const testToolSignal = new AbortController().signal
 
 /** Targeted branch coverage for the CC bridge: option arms, warn paths, no-agent
@@ -631,24 +631,24 @@ export function defineCoverageCases(group: CoverageGroup): void {
   })
 
   if (group === 'edge-paths') describe('hooks-claude-code coverage — detached-listener catch handlers', () => {
-    it('a throwing SessionStart inject is contained (logged, agent still runs)', async () => {
+    it('a cancelled turn stops waiting on a slow SessionStart hook, whose context reaches the next turn', async () => {
       const d = dir()
-      const s = hookProgram(d, 'start', 'out(\'{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"x"}}\')\n')
+      const s = hookProgram(d, 'start', 'out(\'{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"x"}}\')\nsleep(2)\n')
       const path = hooks(d, { SessionStart: [{ hooks: [{ type: 'command', command: s }] }] })
-      const adapter = new MockAdapter([textResponse('ok')])
-      const ctx = await harness(path, adapter)
+      const model = new MockAdapter([textResponse('ok')])
+      const ctx = await harness(path, model)
       const agent = ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
-      // Make inject throw, forcing the SessionStart .catch path.
-      const original = agent.inject.bind(agent)
-      let threw = false
-      agent.inject = (() => { threw = true; throw new Error('inject boom') })
-      await waitFor(() => threw)
-      expect(threw).toBe(true)
-      agent.inject = original
-      agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+      agent.followup(createUserMessage({ content: [{ type: 'text', text: 'first' }], source: { kind: 'user' } }))
+      // The first step is holding for the hook; cancelling must release it at once.
+      await waitFor(() => events(agent).some(e => e.type === 'turn/start'))
+      agent.cancel({ kind: 'user' })
       await waitForIdle(ctx, agent)
-      expect(adapter.requests).toHaveLength(1) // loop survived the thrown inject
-    })
+      expect(model.requests).toHaveLength(0)
+      expect(events(agent).findLast(e => e.type === 'turn/end')?.data).toMatchObject({ reason: { kind: 'aborted', reason: { kind: 'user' } } })
+      agent.followup(createUserMessage({ content: [{ type: 'text', text: 'second' }], source: { kind: 'user' } }))
+      await waitForIdle(ctx, agent)
+      expect(JSON.stringify(model.requests.at(0)?.messages)).toContain('"x"')
+    }, 10_000)
   })
 
   if (group === 'stop') describe('hooks-claude-code coverage — hook runs in the session cwd, not the server cwd', () => {

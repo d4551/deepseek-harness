@@ -14,7 +14,7 @@ import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import * as HooksCodex from '@deepseek-ai/dsh-hooks-codex'
 import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 import { hookProgram, plugHostShell } from '../../hook-protocol/tests/hook-program.ts'
-
+export { MockAdapter, textResponse, toolCallResponse }
 const testToolSignal = new AbortController().signal
 
 const dirs: string[] = []
