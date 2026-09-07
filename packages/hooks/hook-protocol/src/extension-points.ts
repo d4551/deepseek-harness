@@ -130,14 +130,18 @@ export interface SessionStartHookOptions {
  */
 export function registerSessionStartHook(ctx: Context, hooks: HookBridge, options: SessionStartHookOptions): void {
   ctx.on('agent/session-start', ({ agent, source }) => {
-    const context = hooks.run('SessionStart', source, options.payload(agent, source), {
-      agent,
-      signal: hooks.detachedSignal,
-      plainStdoutAsContext: options.plainStdoutAsContext,
-    }).then(merged => hooks.context(merged)).then(undefined, (error) => {
-      hooks.warnFailure('SessionStart', error)
-      return undefined
-    })
+    const context = (async (): Promise<UserMessage | undefined> => {
+      const [run] = await Promise.allSettled([hooks.run('SessionStart', source, options.payload(agent, source), {
+        agent,
+        signal: hooks.detachedSignal,
+        plainStdoutAsContext: options.plainStdoutAsContext,
+      })])
+      if (run.status === 'rejected') {
+        hooks.warnFailure('SessionStart', run.reason)
+        return undefined
+      }
+      return hooks.context(run.value)
+    })()
     // Two dialects may both run at one start; the step reads every dialect's
     // context in the order the runs were announced.
     const earlier = sessionStarts.get(agent) ?? Promise.resolve([])

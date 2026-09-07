@@ -208,21 +208,23 @@ export class StandingMounts {
       await scope.dispose()
       throw new PresetMountError(preset.id, `composition file is unreadable: ${preset.path}`)
     }
-    return mountPreset(scope.ctx, preset).then(
-      () => ({ key, scope, stamp, agents: new Set<ScopeKey>(), superseded: false, reclaiming: undefined }),
-      async (error) => {
-        this.pending.delete(preset.id)
-        await scope.dispose()
-        throw error
-      },
-    )
+    const [mounted] = await Promise.allSettled([mountPreset(scope.ctx, preset)])
+    if (mounted.status === 'rejected') {
+      this.pending.delete(preset.id)
+      await scope.dispose()
+      throw mounted.reason
+    }
+    return { key, scope, stamp, agents: new Set<ScopeKey>(), superseded: false, reclaiming: undefined }
   }
 
   /** Dispose a superseded generation no agent runs on; racing owners share the one teardown. */
   private reclaimIfIdle(mount: StandingMount): void {
     if (!mount.superseded || mount.agents.size > 0 || mount.reclaiming !== undefined) return
-    mount.reclaiming = mount.scope.dispose().then(undefined, (error) => {
-      this.options.warn(`agent-presets: reclaiming a superseded standing mount failed: ${String(error)}`)
-    })
+    mount.reclaiming = (async (): Promise<void> => {
+      const [disposed] = await Promise.allSettled([mount.scope.dispose()])
+      if (disposed.status === 'rejected') {
+        this.options.warn(`agent-presets: reclaiming a superseded standing mount failed: ${String(disposed.reason)}`)
+      }
+    })()
   }
 }

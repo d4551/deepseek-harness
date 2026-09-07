@@ -136,9 +136,13 @@ export function apply(ctx: Context, config: Config): void {
   ctx.on('subagent/start', (info) => {
     const child = ctx.get('agents')?.get(info.id)
     if (child !== undefined) subagentChildren.set(info.runId, child)
-    hooks.detach(hooks.run('SubagentStart', SUBAGENT_TYPE, subagentPayload(ctx, 'SubagentStart', info, child), { ...child ? { agent: child } : {}, signal: hooks.detachedSignal })
-      .then((merged) => { injectHookContext(hooks, child, merged) })
-      .then(undefined, (error) => { hooks.warnFailure('SubagentStart', error) }))
+    hooks.detach((async () => {
+      const [run] = await Promise.allSettled([
+        hooks.run('SubagentStart', SUBAGENT_TYPE, subagentPayload(ctx, 'SubagentStart', info, child), { ...child ? { agent: child } : {}, signal: hooks.detachedSignal })
+          .then((merged) => { injectHookContext(hooks, child, merged) }),
+      ])
+      if (run.status === 'rejected') hooks.warnFailure('SubagentStart', run.reason)
+    })())
   })
   ctx.on('subagent/end', (info) => {
     const child = subagentChildren.get(info.runId) ?? ctx.get('agents')?.get(info.id)

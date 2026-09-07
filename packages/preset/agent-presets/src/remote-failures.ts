@@ -10,6 +10,9 @@ import { InvalidPresetIdError, PresetExistsError, PresetNotWritableError } from 
 import { PresetLockedError, PresetMountError, UnknownPresetError } from './preset.ts'
 import type { AgentPresetErrorDetailsMap } from './types.ts'
 
+/** Whatever a roster operation threw; only the preset errors below are read from it. */
+type Thrown = unknown
+
 /**
  * Construct one typed preset failure for the Remote carrier.
  * @param code - the stable failure code a caller discriminates on.
@@ -31,7 +34,7 @@ export function remotePresetFailure<Code extends keyof AgentPresetErrorDetailsMa
  * @param agentPreset - the preset id the operation was about.
  * @returns the typed failure, or `undefined` for a rejection outside the preset vocabulary.
  */
-export function presetFailure<Thrown>(error: Thrown, agentPreset: string): TypertRemoteFailure | undefined {
+export function presetFailure(error: Thrown, agentPreset: string): TypertRemoteFailure | undefined {
   if (error instanceof UnknownPresetError) {
     return remotePresetFailure(
       'agent-preset-not-found',
@@ -89,6 +92,6 @@ export function validatePresetId(value: string, field: 'agentPreset' | 'from'): 
  * @param internalMessage - the message for a rejection outside the preset vocabulary.
  * @throws {TypertRemoteFailure} always.
  */
-export function rejectPreset<Thrown>(error: Thrown, agentPreset: string, internalMessage: string): never {
+export function rejectPreset(error: Thrown, agentPreset: string, internalMessage: string): never {
   throw presetFailure(error, agentPreset) ?? remotePresetFailure('internal', internalMessage, {})
 }
