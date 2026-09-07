@@ -8,6 +8,7 @@
  * are a minute long on purpose: any case that waited would fail by timing out
  * rather than pass slowly.
  */
+import { getEventListeners } from 'node:events'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { scheduler, setImmediate, setTimeout } from '../../src/node/builtin_modules/implemented/timers/promises.ts'
 
@@ -38,6 +39,15 @@ describe('setTimeout', () => {
     controller.abort()
     expect(await rejectionOf(pending)).toMatchObject({ name: 'AbortError' })
     expect(cleared).toHaveBeenCalled()
+  })
+
+  it('unsubscribes from the signal once the timer fires', async () => {
+    // A long-lived signal shared by many waits would otherwise keep one
+    // listener per settled wait until it aborts.
+    const controller = new AbortController()
+    await expect(setTimeout(1, 'done', { signal: controller.signal })).resolves.toBe('done')
+    await expect(setTimeout(1, 'again', { signal: controller.signal })).resolves.toBe('again')
+    expect(getEventListeners(controller.signal, 'abort')).toHaveLength(0)
   })
 })
 

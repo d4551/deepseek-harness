@@ -24,6 +24,30 @@ function prependContext(ours: UserMessage, theirs: UserMessage[] | undefined): U
 }
 
 /**
+ * The text a halting hook leaves behind: its `stopReason`, else the blocking
+ * reason it paired the halt with, else the point's own wording.
+ * @param merged - the folded outcome whose `stop` is set.
+ * @param point - the hook point that halted.
+ * @returns the reason recorded on the turn and shown where the dialect shows it.
+ */
+function stopReasonOf(merged: MergedHookOutcome, point: string): string {
+  return merged.stopReason ?? merged.reason ?? `${point} hook returned continue: false`
+}
+
+/**
+ * End the turn on a halting hook and, where the dialect shows stop reasons to
+ * the model, queue the reason for its next request.
+ * @param hooks - the shared execution surface.
+ * @param agent - the agent whose turn halts.
+ * @param point - the hook point that halted.
+ * @param merged - the folded outcome whose `stop` is set.
+ */
+function haltTurn(hooks: HookBridge, agent: Agent, point: string, merged: MergedHookOutcome): void {
+  hooks.halt(agent, stopReasonOf(merged, point))
+  if (hooks.stops.stopReasonToModel && merged.stopReason !== undefined) hooks.inform(agent, merged.stopReason)
+}
+
+/**
  * Inject a merged outcome's context into an agent, when both are present.
  * Detached points deliver context this way because no extension point awaits
  * their decision.
@@ -83,23 +107,28 @@ export interface PreStepHookOptions {
 }
 
 /**
- * Register `UserPromptSubmit` on `agent/pre-step`. A denying hook rejects the
- * step; context alone is not a veto, so the chain still delegates and the
- * hooks' context rides on a downstream enter decision.
- * @param ctx - the bridge plugin's context.
- * @param bridge - the shared execution surface.
+ * Register `UserPromptSubmit` on `agent/pre-step`. A halting hook
+ * (`continue: false`) refuses the prompt and ends the turn with its reason; a
+ * denying hook rejects the step; context alone is not a veto, so the chain
+ * still delegates and the hooks' context rides on a downstream enter decision.
+ * @param ctx - the dialect plugin's context.
+ * @param hooks - the shared execution surface.
  * @param options - the dialect's payload builder and stdout-context rule.
  */
-export function registerPreStepHook(ctx: Context, bridge: HookBridge, options: PreStepHookOptions): void {
+export function registerPreStepHook(ctx: Context, hooks: HookBridge, options: PreStepHookOptions): void {
   ctx.on('agent/pre-step', async ({ agent, messages, turn, signal }, next): Promise<PreStepDecision> => {
     if (messages.length === 0) return next()
     const prompt = blocksToText(messages.flatMap(message => message.content))
-    const merged = await bridge.run('UserPromptSubmit', '', options.payload({ agent, turn, prompt }), {
+    const merged = await hooks.run('UserPromptSubmit', '', options.payload({ agent, turn, prompt }), {
       agent, turn, signal, plainStdoutAsContext: options.plainStdoutAsContext,
     })
+    if (merged.stop) {
+      haltTurn(hooks, agent, 'UserPromptSubmit', merged)
+      return { kind: 'reject' }
+    }
     if (merged.decision === 'deny') return { kind: 'reject' }
     const downstream = await next()
-    const ours = bridge.context(merged)
+    const ours = hooks.context(merged, 'UserPromptSubmit')
     if (!ours || downstream.kind !== 'enter') return downstream
     return {
       ...downstream,
@@ -124,18 +153,28 @@ export interface PreToolHookOptions {
 }
 
 /**
- * Register `PreToolUse` on `tools/pre-execute`. A denying hook blocks the call
- * with its reason; anything else delegates.
- * @param ctx - the bridge plugin's context.
- * @param bridge - the shared execution surface.
+ * Register `PreToolUse` on `tools/pre-execute`. A halting hook
+ * (`continue: false`) denies the call and ends the turn where the dialect
+ * halts here, and is warned about where it does not; a denying hook blocks the
+ * call with its reason; anything else delegates.
+ * @param ctx - the dialect plugin's context.
+ * @param hooks - the shared execution surface.
  * @param options - the dialect's payload builder and honored decisions.
  */
-export function registerPreToolHook(ctx: Context, bridge: HookBridge, options: PreToolHookOptions): void {
+export function registerPreToolHook(ctx: Context, hooks: HookBridge, options: PreToolHookOptions): void {
   ctx.on('tools/pre-execute', async (exec, next): Promise<PreToolDecision> => {
     const turn = lastTurn(exec.agent)
-    const merged = await bridge.run('PreToolUse', exec.name, options.payload(exec), {
+    const merged = await hooks.run('PreToolUse', exec.name, options.payload(exec), {
       ...exec.agent ? { agent: exec.agent } : {}, turn, signal: exec.signal,
     })
+    if (merged.stop && hooks.stops.preTool === 'halt') {
+      // The denial text is what the model reads, so the reason travels there
+      // once instead of being queued a second time as context.
+      const reason = stopReasonOf(merged, 'PreToolUse')
+      if (exec.agent !== undefined) hooks.halt(exec.agent, reason)
+      return { kind: 'deny', reason }
+    }
+    if (merged.stop) hooks.warnUnsupported('PreToolUse', 'continue: false')
     if (merged.decision === 'deny') return { kind: 'deny', reason: merged.reason ?? 'blocked by PreToolUse hook' }
     if (options.honorAsk && merged.decision === 'ask') {
       return { kind: 'ask', ...merged.reason !== undefined ? { reason: merged.reason } : {} }

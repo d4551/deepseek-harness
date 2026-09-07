@@ -29,6 +29,7 @@ export { parseHookGroups } from './config.ts'
 export type { HookGroupParseRules, HookGroups, ParsedHookGroups } from './config.ts'
 export { hookEventFields, lastTurn } from './payload.ts'
 export type { HookEventFields } from './payload.ts'
+export type { HookStopPolicy } from './stop-policy.ts'
 export { startHookBridge } from './bridge.ts'
 export type { HookBridge, HookBridgeOptions, HookRunScope, UnhonoredHookField } from './bridge.ts'
 export {

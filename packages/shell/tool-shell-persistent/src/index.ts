@@ -351,8 +351,7 @@ async function executeCommand(
       )
       await shells.reset(owner, `persistent ${dialect.toolName} command timed out`)
       return [
-        // TODO: Report a timeout only; this signal does not establish an OOM.
-        `Your command timed out after ${Math.round(timedOut.timeoutMs / 1000)} seconds or experienced an OOM error. Below is partial output:`,
+        `Your command timed out after ${Math.round(timedOut.timeoutMs / 1000)} seconds. Below is partial output:`,
         partial,
         dialect.resetMessage,
       ].join('\n')

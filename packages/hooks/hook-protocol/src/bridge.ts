@@ -21,6 +21,7 @@ import { matchesMatcher } from './matcher.ts'
 import { mergeHookOutputs } from './merge.ts'
 import type { MergedHookOutcome } from './merge.ts'
 import { DEFAULT_HOOK_TIMEOUT_MS, runHook } from './runner.ts'
+import type { HookStopPolicy } from './stop-policy.ts'
 import type { HookDialect, HookOutput } from './types.ts'
 
 /**
@@ -31,12 +32,11 @@ import type { HookDialect, HookOutput } from './types.ts'
 let handlerCounter = 0
 
 /** A protocol field the codec decodes but no extension point acts on yet. */
-export type UnhonoredHookField = 'updatedInput' | 'systemMessage'
+export type UnhonoredHookField = 'updatedInput'
 
-/** The warning each unhonored field produces, so both bridges word it identically. */
+/** The warning each unhonored field produces, so both dialects word it identically. */
 const UNHONORED_WARNINGS: Record<UnhonoredHookField, (point: string) => string> = {
   updatedInput: point => `${point} hook requested updatedInput, which is not yet honored (ignored)`,
-  systemMessage: point => `${point} hook emitted a systemMessage, which is not yet surfaced (ignored)`,
 }
 
 /** Everything one bridge states about itself when it loads. */
@@ -61,6 +61,8 @@ export interface HookBridgeOptions {
   trailingNewline: boolean
   /** Fields to warn about when a hook returns them, in warning order. */
   unhonored: readonly UnhonoredHookField[]
+  /** How this dialect applies `continue: false` and `systemMessage`, point by point. */
+  stops: HookStopPolicy
   /**
    * Environment exported to each hook process. Omit it for a dialect that
    * exports none.
@@ -205,6 +207,9 @@ function createBridge(ctx: Context, options: HookBridgeOptions, spec: HookBridge
         for (const field of options.unhonored) {
           if (output[field] !== undefined) ctx.logger.warn(`${options.plugin}: ${UNHONORED_WARNINGS[field](point)}`)
         }
+        if (output.systemMessage !== undefined && !options.stops.modelVisibleSystemMessages.includes(point)) {
+          ctx.logger.warn(`${options.plugin}: ${point} hook emitted a systemMessage, which this point does not show to the model`)
+        }
         if (session && scope.turn !== undefined) {
           appendHookResult(session, {
             turn: scope.turn, point, handlerId, output,
@@ -221,10 +226,23 @@ function createBridge(ctx: Context, options: HookBridgeOptions, spec: HookBridge
     source,
     detachedSignal: detached.signal,
     run,
-    context(merged: MergedHookOutcome): UserMessage | undefined {
-      if (merged.additionalContext.length === 0) return undefined
-      const content: ContentBlock[] = merged.additionalContext.map(text => ({ type: 'text', text }))
+    stops: options.stops,
+    context(merged: MergedHookOutcome, point?: string): UserMessage | undefined {
+      const texts = point !== undefined && options.stops.modelVisibleSystemMessages.includes(point)
+        ? [...merged.additionalContext, ...merged.systemMessages]
+        : merged.additionalContext
+      if (texts.length === 0) return undefined
+      const content: ContentBlock[] = texts.map(text => ({ type: 'text', text }))
       return createUserMessage({ content, source })
+    },
+    halt(agent: Agent, reason: string): void {
+      agent.cancel({ kind: 'hook', reason })
+    },
+    inform(agent: Agent, text: string): void {
+      agent.inject(createUserMessage({ content: [{ type: 'text', text }], source }))
+    },
+    warnUnsupported(point: string, field: string): void {
+      ctx.logger.warn(`${options.plugin}: ${point} hook returned ${field}, which this point does not apply`)
     },
     detach(chain: Promise<unknown>): void {
       detached.track(chain)

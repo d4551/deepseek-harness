@@ -528,7 +528,7 @@ describe('tool-shell-persistent: the pwsh dialect', () => {
     await call(ctx, owner, 'warm up')
     stub.sessions[0]!.mode = 'wait-for-abort'
     const result = await call(ctx, owner, 'hang')
-    expect(text(result)).toContain('timed out after 0 seconds or experienced an OOM error')
+    expect(text(result)).toContain('timed out after 0 seconds. Below is partial output:')
     expect(text(result)).toContain('partial output')
     expect(text(result)).toContain('next pwsh call starts from the workspace')
     expect(stub.sessions[0]?.closed).toContain('persistent pwsh command timed out')

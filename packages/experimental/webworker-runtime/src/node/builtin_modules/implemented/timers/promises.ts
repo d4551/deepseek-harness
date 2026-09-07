@@ -25,11 +25,18 @@ export function setTimeout<T = void>(
       reject(abortError())
       return
     }
-    const timer = globalThis.setTimeout(() => { resolve(value as T) }, delayMs)
-    options?.signal?.addEventListener('abort', () => {
+    // A signal that outlives many waits must not accumulate one abort listener
+    // per settled wait; Node unsubscribes when the timer fires, so this does too.
+    const signal = options?.signal
+    const onAbort = (): void => {
       globalThis.clearTimeout(timer)
       reject(abortError())
-    }, { once: true })
+    }
+    const timer = globalThis.setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve(value as T)
+    }, delayMs)
+    signal?.addEventListener('abort', onAbort, { once: true })
   })
 }
 
