@@ -10,6 +10,7 @@ afterEach(cleanup)
 const HOME: DirectoryListing = {
   path: '/home/u',
   home: '/home/u',
+  separator: '/',
   crumbs: [
     { name: '/', path: '/', hidden: false },
     { name: 'u', path: '/home/u', hidden: false },

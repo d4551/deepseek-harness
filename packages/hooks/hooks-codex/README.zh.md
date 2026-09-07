@@ -92,7 +92,7 @@ matcher subject 是工具名称（`PreToolUse`／`PostToolUse`）或会话源（
 
 ### 脱离运行与释放
 
-`SessionStart` 是唯一的 emit 点，它脱离运行——没有扩展点等待它。每条运行链都会被跟踪，对桥接执行 dispose（资源释放）时会中止仍在运行的 hook 进程，并在 dispose 完成前排空 continuation（`createDetachedRuns`，位于 `dsh-hook-protocol`）。
+`SessionStart` 是唯一的 emit 点，它脱离自身事件运行；会话启动后的第一个 pre-step 会等待该运行并把其上下文带入请求。每条运行链都会被跟踪，对插件执行 dispose（资源释放）时会中止仍在运行的 hook 进程，并在 dispose 完成前排空 continuation（`createDetachedRuns`，位于 `dsh-hook-protocol`）。
 
 ### 设计理念
 
@@ -150,7 +150,7 @@ hook 不返回上下文时没有成本。Hook 文本取决于数据，会被记�
 
 #### 模型看到什么
 
-提供方提供的原因逐字传递。缺失原因时，已拒绝工具变为 `Error: blocked by PreToolUse hook`，已阻塞工具后反馈精确为 `blocked by PostToolUse hook`，阻塞 stop 则精确添加 steering `continue: blocked by Stop hook`；已阻塞提示词不会产生任何模型可见消息，而是以 `blocked` 结束该轮次。Codex `systemMessage` 不会呈现。
+提供方提供的原因逐字传递。缺失原因时，已拒绝工具变为 `Error: blocked by PreToolUse hook`，已阻塞工具后反馈精确为 `blocked by PostToolUse hook`，阻塞 stop 则精确添加 steering `continue: blocked by Stop hook`；已阻塞提示词不会产生任何模型可见消息，而是以 `blocked` 结束该轮次。停止型 hook（`continue: false`）会以携带其 `stopReason` 的 `hook` 取消原因结束轮次，该原因只被记录，不会展示给模型；在 `PostToolUse` 上则由停止文本替换工具结果，轮次继续。Codex `systemMessage` 不会呈现。
 
 #### Token 影响
 
@@ -168,12 +168,12 @@ hook 不返回上下文时没有成本。Hook 文本取决于数据，会被记�
 这些限制描述你的 Codex 钩子目前还无法通过本桥接做到的事情，以及行为与参考工具的差异。它们是当前包约束，而非任务积压。
 
 - **不支持的 hook 事件（Codex 当前 10 项中的 5 项）**——`PermissionRequest`、`PreCompact`、`PostCompact`、`SubagentStart` 与 `SubagentStop`。这些事件的配置会在解析期间静默丢弃。比较基线是 Codex [官方 hook 参考](https://learn.chatgpt.com/docs/hooks)。
-- **`SessionStart` 只支持部分功能**——支持纯 stdout 与 JSON `additionalContext`，但 hook 脱离运行，因此上下文可能错过第一个请求。
-- **`UserPromptSubmit` 只支持部分功能**——支持阻塞加纯 stdout 或 JSON 上下文，但不会强制执行通用 `systemMessage` 与 `{"continue": false}` 控制。
-- **`PreToolUse` 只支持部分功能**——支持阻塞，但会忽略 `additionalContext`、`permissionDecision: "allow"` 与 `updatedInput`。每个工具都表示为 `tool_input: { command }`，因此非 shell 工具参数不会被如实公开给 hook。
-- **`PostToolUse` 只支持部分功能**——支持阻塞反馈与 JSON `additionalContext`，但不会强制执行 `{"continue": false}`，非 shell 工具参数会缩减为 `{ command }`，结构化工具输出会在 `tool_response` 中展平为文本。
-- **`Stop` 只支持部分功能**——阻塞会强制另一个模型轮次，但 `stop_hook_active` 始终为 `false`，`last_assistant_message` 始终为 `null`，且不会强制执行 `{"continue": false}`。因此，无条件阻塞 hook 会在每个步骤中强制 continuation，除非它自我限制。
-- **通用 payload 与输出字段只支持部分功能**——每个已映射事件都报告静态配置的 `model` 与 `permission_mode: "default"`，而非当前 Codex 运行时值。`systemMessage` 会被记录 + 警告但不呈现，`{"continue": false}` 会被记录但不会应用 Codex 的事件特定停止行为。
+- **`SessionStart` 只支持部分功能**——支持纯 stdout 与 JSON `additionalContext`，且第一步会等待脱离运行的 hook，使其上下文到达第一个请求；此拦截点上的 `continue: false` 只会被记录，因为没有打开的轮次可结束。
+- **`UserPromptSubmit` 只支持部分功能**——支持阻塞、纯 stdout 或 JSON 上下文以及 `{"continue": false}`，但不会呈现通用 `systemMessage` 控制。
+- **`PreToolUse` 只支持部分功能**——支持阻塞，但会忽略 `additionalContext`、`permissionDecision: "allow"` 与 `updatedInput`，`{"continue": false}` 会被警告而调用照常进行，因为 Codex 在此处不接受它。每个工具都表示为 `tool_input: { command }`，因此非 shell 工具参数不会被如实公开给 hook。
+- **`PostToolUse` 只支持部分功能**——支持阻塞反馈、JSON `additionalContext` 与 `{"continue": false}`（停止文本替换工具结果，轮次继续），但非 shell 工具参数会缩减为 `{ command }`，结构化工具输出会在 `tool_response` 中展平为文本。
+- **`Stop` 只支持部分功能**——阻塞会强制另一个模型轮次，`stop_hook_active` 从同一轮次的第二次运行起为 `true`，`{"continue": false}` 优先于阻塞，同一轮次内连续八次阻塞会被覆盖并发出警告（Codex 未记录此上限）；`last_assistant_message` 始终为 `null`。
+- **通用 payload 与输出字段只支持部分功能**——每个已映射事件都报告静态配置的 `model` 与 `permission_mode: "default"`，而非当前 Codex 运行时值。`systemMessage` 会被记录 + 警告但不呈现；`{"continue": false}` 在 `UserPromptSubmit`、`PostToolUse` 与 `Stop` 上遵循 Codex 的行为，`stopReason` 记录在轮次结束处而不展示给模型。
 - **配置加载与执行只支持部分功能**——一个进程级 `configPath` 会在加载时解析；尚未实现 Codex 的活动用户层、项目层、会话层、系统／托管层与插件层、信任控制以及内联 `config.toml` hook 形态。只运行同步 `command` handler，`statusMessage` 与 `commandWindows` 等当前元数据会被忽略，匹配 handler 串行运行，而非使用 Codex 的并发启动语义。
 
 <a id="dev-note"></a>
@@ -184,6 +184,6 @@ hook 不返回上下文时没有成本。Hook 文本取决于数据，会被记�
 
 本开发备注是维护者的工作上下文：开放问题与尚未决定的探索方向。它明确不具权威性——已交付的行为、限制与既定理由以上文、包代码和相关 Agent Note 为准。
 
-上面的延期缺口就是工作队列：按会话的 hook 配置发现、会话启动投递门、stop 循环防护，以及 `continue: false` 的运行级停止。目前均无设计；官方 Codex 参考是实现其中任何一项的基线。
+上面的延期缺口就是工作队列：按会话的 hook 配置发现。目前尚无设计；官方 Codex 参考是实现它的基线。
 
 </details>

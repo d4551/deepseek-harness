@@ -92,7 +92,7 @@ The matcher subject is the tool name (`PreToolUse` / `PostToolUse`) or the sessi
 
 ### Detached runs and disposal
 
-`SessionStart` is the one emit point and runs detached — no extension point awaits it. Each run chain is tracked, and disposing the bridge aborts a still-running hook process, then drains the continuation before the dispose resolves (`createDetachedRuns` in `dsh-hook-protocol`).
+`SessionStart` is the one emit point and runs detached from its event; the first pre-step after a session start waits for that run and carries its context into the request. Each run chain is tracked, and disposing the plugin aborts a still-running hook process, then drains the continuation before the dispose resolves (`createDetachedRuns` in `dsh-hook-protocol`).
 
 ### Design philosophy
 
@@ -150,7 +150,7 @@ Append-only; newly visible content follows the reusable request prefix and does 
 
 #### What the model sees
 
-Provider-supplied reasons pass through verbatim. When absent, a denied tool becomes `Error: blocked by PreToolUse hook`, blocked post-tool feedback is exactly `blocked by PostToolUse hook`, and a blocking stop adds steering exactly `continue: blocked by Stop hook`; a blocked prompt is discarded with no model-visible message, ending the turn as `blocked`. Codex `systemMessage` is not surfaced.
+Provider-supplied reasons pass through verbatim. When absent, a denied tool becomes `Error: blocked by PreToolUse hook`, blocked post-tool feedback is exactly `blocked by PostToolUse hook`, and a blocking stop adds steering exactly `continue: blocked by Stop hook`; a blocked prompt is discarded with no model-visible message, ending the turn as `blocked`. A halting hook (`continue: false`) ends the turn on a `hook` cancel cause carrying its `stopReason`, which is recorded and not shown to the model; on `PostToolUse` the stop text replaces the tool result instead and the turn continues. Codex `systemMessage` is not surfaced.
 
 #### Token effect
 
@@ -168,12 +168,12 @@ A blocked prompt sends no request and invalidates nothing. Denial, feedback, and
 These limits describe what your Codex hooks cannot do through this bridge yet, and where behavior differs from the reference tool. They are current package constraints, not a task backlog.
 
 - **Unsupported hook events (5 of Codex's current 10)** — `PermissionRequest`, `PreCompact`, `PostCompact`, `SubagentStart`, and `SubagentStop`. Config for these events is silently dropped during parsing. The comparison baseline is Codex's [official hook reference](https://learn.chatgpt.com/docs/hooks).
-- **`SessionStart` is partial** — plain stdout and JSON `additionalContext` work, but the hook runs detached, so context can miss the first request.
-- **`UserPromptSubmit` is partial** — blocking plus plain-stdout or JSON context work, but the common `systemMessage` and `{"continue": false}` controls are not enforced.
-- **`PreToolUse` is partial** — blocking works, but `additionalContext`, `permissionDecision: "allow"`, and `updatedInput` are ignored. Every tool is represented as `tool_input: { command }`, so non-shell tool arguments are not faithfully exposed to the hook.
-- **`PostToolUse` is partial** — blocking feedback and JSON `additionalContext` work, but `{"continue": false}` is not enforced, non-shell tool arguments are reduced to `{ command }`, and structured tool output is flattened to text in `tool_response`.
-- **`Stop` is partial** — blocking forces another model turn, but `stop_hook_active` is always `false`, `last_assistant_message` is always `null`, and `{"continue": false}` is not enforced. An unconditionally blocking hook therefore force-continues every step unless it self-limits.
-- **Common payload and output fields are partial** — every mapped event reports the statically configured `model` and `permission_mode: "default"` instead of current Codex runtime values. `systemMessage` is logged + warned but not surfaced, and `{"continue": false}` is recorded but does not apply Codex's event-specific stop behavior.
+- **`SessionStart` is partial** — plain stdout and JSON `additionalContext` work, and the first step waits for the detached run so its context reaches the first request; `continue: false` on this point is recorded only, since no turn is open to end.
+- **`UserPromptSubmit` is partial** — blocking, plain-stdout or JSON context, and `{"continue": false}` work, but the common `systemMessage` control is not surfaced.
+- **`PreToolUse` is partial** — blocking works, but `additionalContext`, `permissionDecision: "allow"`, and `updatedInput` are ignored, and `{"continue": false}` is warned about while the call proceeds, as Codex does not accept it here. Every tool is represented as `tool_input: { command }`, so non-shell tool arguments are not faithfully exposed to the hook.
+- **`PostToolUse` is partial** — blocking feedback, JSON `additionalContext`, and `{"continue": false}` (the stop text replaces the tool result and the turn continues) work, but non-shell tool arguments are reduced to `{ command }` and structured tool output is flattened to text in `tool_response`.
+- **`Stop` is partial** — blocking forces another model turn, `stop_hook_active` is `true` from the second run in one turn, `{"continue": false}` outranks a block, and eight consecutive blocks in a turn are overridden with a warning, a cap Codex does not document; `last_assistant_message` is always `null`.
+- **Common payload and output fields are partial** — every mapped event reports the statically configured `model` and `permission_mode: "default"` instead of current Codex runtime values. `systemMessage` is logged + warned but not surfaced; `{"continue": false}` follows Codex on `UserPromptSubmit`, `PostToolUse`, and `Stop`, and `stopReason` is recorded on the turn's end rather than shown to the model.
 - **Config loading and execution are partial** — one process-level `configPath` is parsed at load; Codex's active user, project, session, system/managed, and plugin layers, trust controls, and inline `config.toml` hook form are not implemented. Only synchronous `command` handlers run, current metadata such as `statusMessage` and `commandWindows` is ignored, and matching handlers run serially rather than with Codex's concurrent launch semantics.
 
 <a id="dev-note"></a>
@@ -184,6 +184,6 @@ These limits describe what your Codex hooks cannot do through this bridge yet, a
 
 This Dev Note is working context for maintainers: open questions and directions that are not decided. It is explicitly non-authoritative — shipped behavior, limits, and accepted rationale live in the sections above, the package code, and the linked Agent Notes.
 
-The deferred gaps above are the working queue: per-session hook-config discovery, a session-start delivery gate, a stop loop-guard, and a run-level halt for `continue: false`. None has a design yet; the official Codex reference is the baseline for closing any of them.
+The deferred gap above is the working queue: per-session hook-config discovery. It has no design yet; the official Codex reference is the baseline for closing it.
 
 </details>
