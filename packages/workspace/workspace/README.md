@@ -50,11 +50,11 @@ With these rows mounted, creating a project shows up in the list immediately and
 
 ### Creating and ordering projects
 
-Create a project from any directory that exists: give its path and an optional title, and the project appears in the list, newest first. A path that does not exist, or a file instead of a directory, is rejected and nothing changes; creating a project for a directory that already has one returns the existing project unchanged. Rename a project at any time, and move it to any position in the list:
+Create a project from any directory that exists: give its path, and the project appears in the list, newest first, titled after the directory's name. A path that does not exist, or a file instead of a directory, is rejected and nothing changes; creating a project for a directory that already has one returns the existing project unchanged. Rename a project at any time, and move it to any position in the list:
 
 ```text
 // Host consumer code, after the composition above is loaded:
-const project = await ctx.workspaceRegistry.create('/path/to/dir', 'My Project')
+const project = await ctx.workspaceRegistry.create('/path/to/dir')
 await project.setTitle('Renamed')
 ctx.workspaceRegistry.list() // shows the project, newest first
 ```

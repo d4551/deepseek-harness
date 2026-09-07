@@ -514,7 +514,7 @@ describe('DirectoryBrowser', () => {
     const TYPED = 'c:\\users'
     const winRoot: DirectoryListing = {
       path: ROOT,
-      home: ROOT,
+      home: ROOT, separator: '\\',
       crumbs: [{ name: 'C:\\', path: ROOT, hidden: false }],
       entries: [{ name: 'Users', path: 'C:\\Users', hidden: false }],
       truncated: false,
@@ -1108,7 +1108,7 @@ describe('DirectoryBrowser', () => {
     const ROOT = 'C:\\'
     const windowsListing: DirectoryListing = {
       path: ROOT,
-      home: ROOT,
+      home: ROOT, separator: '\\',
       crumbs: [{ name: 'C:\\', path: ROOT, hidden: false }],
       entries: [
         { name: 'Program Files', path: `${ROOT}Program Files`, hidden: false },
@@ -1263,7 +1263,7 @@ describe('DirectoryBrowser', () => {
     // offer a second create against a target the pending relist/select
     // sequence is about to change.
     const fresh: DirectoryListing = {
-      path: `${HOME}/fresh`, home: HOME,
+      path: `${HOME}/fresh`, home: HOME, separator: '/',
       crumbs: [...listingFor(HOME).crumbs, { name: 'fresh', path: `${HOME}/fresh`, hidden: false }],
       entries: [],
       truncated: false,
@@ -1554,7 +1554,7 @@ describe('DirectoryBrowser', () => {
     b.listDirectory.mockImplementation(async (path?: string) => {
       if (path === `${DOCS}/fresh`) {
         return {
-          path: `${DOCS}/fresh`, home: HOME,
+          path: `${DOCS}/fresh`, home: HOME, separator: '/',
           crumbs: [...listingFor(DOCS).crumbs, { name: 'fresh', path: `${DOCS}/fresh`, hidden: false }],
           entries: [],
           truncated: false,
@@ -1689,7 +1689,7 @@ describe('DirectoryBrowser', () => {
   })
 
   it('names the create target by its path when the level reports no crumbs', async () => {
-    const bare: DirectoryListing = { path: '/srv/data', home: HOME, crumbs: [], entries: [], truncated: false }
+    const bare: DirectoryListing = { path: '/srv/data', home: HOME, separator: '/', crumbs: [], entries: [], truncated: false }
     mount({ listDirectory: vi.fn(async () => bare) })
     await waitFor(() => { expect(screen.getByRole('button', { name: 'browser.newFolder' })).toBeTruthy() })
     await waitFor(() => {

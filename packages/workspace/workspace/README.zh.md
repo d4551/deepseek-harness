@@ -50,11 +50,11 @@ kind: "package-reference"
 
 ### 创建与排序项目
 
-从任何存在的目录创建项目：给出路径和可选标题，项目即出现在列表中，新到旧排列。不存在的路径或文件而非目录会被拒绝，且不会有任何变化；为已有项目的目录再次创建会原样返回现有项目。你可以随时重命名项目，并把它移动到列表中的任意位置：
+从任何存在的目录创建项目：给出路径，项目即以该目录名为标题出现在列表中，新到旧排列。不存在的路径或文件而非目录会被拒绝，且不会有任何变化；为已有项目的目录再次创建会原样返回现有项目。你可以随时重命名项目，并把它移动到列表中的任意位置：
 
 ```text
 // Host consumer code, after the composition above is loaded:
-const project = await ctx.workspaceRegistry.create('/path/to/dir', 'My Project')
+const project = await ctx.workspaceRegistry.create('/path/to/dir')
 await project.setTitle('Renamed')
 ctx.workspaceRegistry.list() // shows the project, newest first
 ```
