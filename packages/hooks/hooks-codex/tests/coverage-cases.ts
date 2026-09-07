@@ -19,13 +19,13 @@ const testToolSignal = new AbortController().signal
 
 const dirs: string[] = []
 afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
-function dir(): string { const d = mkdtempSync(join(tmpdir(), 'dsh-hx-cov-')); dirs.push(d); return d }
-function hooks(d: string, h: unknown): string {
+export function dir(): string { const d = mkdtempSync(join(tmpdir(), 'dsh-hx-cov-')); dirs.push(d); return d }
+export function hooks(d: string, h: object): string {
   writeFileSync(join(d, 'hooks.json'), JSON.stringify({ hooks: h })); return join(d, 'hooks.json')
 }
 
 type HarnessOpts = { stderrSummaryMaxChars?: number; sessionRoot?: string }
-async function harness(configPath: string, adapter: MockAdapter, opts: HarnessOpts = {}): Promise<Context> {
+export async function harness(configPath: string, model: MockAdapter, opts: HarnessOpts = {}): Promise<Context> {
   const ctx = new Context()
   await mountAgentLoopTestDependencies(ctx)
   if (opts.sessionRoot !== undefined) await ctx.plugin(JsonlSessionPersistence, { root: opts.sessionRoot })
@@ -33,13 +33,13 @@ async function harness(configPath: string, adapter: MockAdapter, opts: HarnessOp
   await ctx.plugin(LocalSubprocessRuntime)
   await plugHostShell(ctx, { timeoutMs: 10_000 })
   await ctx.plugin(HooksCodex, { configPath, model: 'm', ...opts })
-  ctx.llm.registerAdapter(['mock'], adapter)
+  ctx.llm.registerAdapter(['mock'], model)
   return ctx
 }
-function waitForIdle(_ctx: Context, agent: Agent): Promise<void> {
+export function waitForIdle(_ctx: Context, agent: Agent): Promise<void> {
   return agent.whenIdle()
 }
-function events(agent: Agent): SessionEvent[] { return [...agent.session.events] }
+export function events(agent: Agent): SessionEvent[] { return [...agent.session.events] }
 /** Poll until `predicate` holds or the deadline passes — robust to detached
  * emit-listener hooks firing on a `.then` (a fixed sleep flakes under load). */
 async function waitFor(predicate: () => boolean, timeout = 5000, interval = 10): Promise<void> {
@@ -202,16 +202,16 @@ export function defineCoverageCases(groups: CoverageGroup | readonly CoverageGro
       expect(events(agent).some(e => e.type === 'user/message' && e.data.source.kind !== 'user' && e.data.content.some(b => b.type === 'text' && b.text.includes('bridge-note')))).toBe(true)
     }, 10_000) // The real hook subprocess needs startup and teardown headroom under full-suite contention.
 
-    it('SessionStart additionalContext is injected for the first request', async () => {
+    it('SessionStart additionalContext reaches the first request, which waits for the hook', async () => {
       const d = dir()
       hooks(d, { SessionStart: [{ hooks: [{ type: 'command', command: hookProgram(d, 's', 'out(\'{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"start-ctx"}}\')\n') }] }] })
-      const adapter = new MockAdapter([textResponse('ok')])
-      const ctx = await harness(join(d, 'hooks.json'), adapter)
+      const model = new MockAdapter([textResponse('ok')])
+      const ctx = await harness(join(d, 'hooks.json'), model)
       const agent = ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
-      await waitFor(() => agent.inbox.nextStep.some(message =>
-        message.content.some(block => block.type === 'text' && block.text.includes('start-ctx'))))
+      // The prompt goes in at once: the first step holds until the detached run settles.
       agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } })); await waitForIdle(ctx, agent)
-      expect(JSON.stringify(adapter.requests[0]!.messages)).toContain('start-ctx')
+      expect(JSON.stringify(model.requests.at(0)?.messages)).toContain('start-ctx')
+      expect(agent.inbox.nextStep).toHaveLength(0)
     })
 
     it('PostToolUse block (exit 2) → isError feedback; default reason', async () => {
@@ -351,16 +351,16 @@ export function defineCoverageCases(groups: CoverageGroup | readonly CoverageGro
       expect(events(agent).some(e => e.type === 'user/message' && e.data.source.kind !== 'user')).toBe(false)
     })
 
-    it('a throwing SessionStart inject is contained (logged)', async () => {
+    it('the first step waits for a slow SessionStart hook and puts its context before the prompt', async () => {
       const d = dir()
-      hooks(d, { SessionStart: [{ hooks: [{ type: 'command', command: hookProgram(d, 's', 'out(\'{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"x"}}\')\n') }] }] })
-      const adapter = new MockAdapter([textResponse('ok')])
-      const ctx = await harness(join(d, 'hooks.json'), adapter)
-      const warn = vi.fn(); ctx.logger.warn = warn as never
+      hooks(d, { SessionStart: [{ hooks: [{ type: 'command', command: hookProgram(d, 's', 'out(\'{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"late-ctx"}}\')\nsleep(1)\n') }] }] })
+      const model = new MockAdapter([textResponse('ok')])
+      const ctx = await harness(join(d, 'hooks.json'), model)
       const agent = ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
-      agent.inject = (() => { throw new Error('inject boom') })
-      await waitFor(() => warn.mock.calls.some(c => String(c[0]).includes('SessionStart hook failed')))
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining('SessionStart hook failed'))
+      agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } })); await waitForIdle(ctx, agent)
+      const texts = events(agent).flatMap(e => (e.type === 'user/message' ? e.data.content : [])).map(block => (block.type === 'text' ? block.text : ''))
+      expect(texts).toEqual(['late-ctx', 'go'])
+      expect(JSON.stringify(model.requests.at(0)?.messages)).toContain('late-ctx')
     })
   })
 
@@ -391,21 +391,19 @@ export function defineCoverageCases(groups: CoverageGroup | readonly CoverageGro
       expect(events(agent).some(e => e.type === 'hook/invoked')).toBe(false)
     })
 
-    it('a {"continue":false} hook is RECORDED as "stop" but does not halt the run (TODO(hook-continue-false))', async () => {
-    // Honoring `continue:false` is deferred — the extension points have no hard-halt
-    // primitive. Assert the LOG records the halt request AND that the run is not
-    // actually halted (the tool still runs, the turn completes).
+    it('a PreToolUse {"continue":false} hook is recorded as "stop", warned about, and the tool call proceeds', async () => {
       const d = dir()
       hooks(d, { PreToolUse: [{ hooks: [{ type: 'command', command: hookProgram(d, 's', 'out(\'{"continue":false,"stopReason":"halt"}\')\n') }] }] })
-      const adapter = new MockAdapter([toolCallResponse('c1', 'Bash', { command: 'x' }), textResponse('done')])
-      const ctx = await harness(join(d, 'hooks.json'), adapter)
+      const model = new MockAdapter([toolCallResponse('c1', 'Bash', { command: 'x' }), textResponse('done')])
+      const ctx = await harness(join(d, 'hooks.json'), model)
+      const warn = vi.spyOn(ctx.logger, 'warn')
       let ran = false
       ctx.tools.register(defineContentToolFixture({ name: 'Bash', description: 'b', parameters: { command: { type: 'string' } }, async execute() { ran = true; return [{ type: 'text', text: 'ok' }] } }))
       const agent = ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
       agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } })); await waitForIdle(ctx, agent)
-      const res = events(agent).find(e => e.type === 'hook/result')
-      expect(res?.type === 'hook/result' && res.data.decision).toBe('stop') // recorded
-      expect(ran).toBe(true) // NOT honored: the tool still ran (halt is deferred)
+      expect(events(agent).find(e => e.type === 'hook/result')?.data).toMatchObject({ decision: 'stop' })
+      expect(ran).toBe(true) // Codex refuses `continue` here: the call goes ahead
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('PreToolUse hook returned continue: false'))
     })
 
     it('PreToolUse deny with EMPTY stderr uses the default reason (?? right arm)', async () => {
@@ -542,16 +540,16 @@ export function defineCoverageCases(groups: CoverageGroup | readonly CoverageGro
       expect(JSON.stringify(adapter.requests[0]!.messages)).not.toContain('stale')
     })
 
-    it('a clean SessionStart hook that prints PLAIN stdout injects it (not JSON)', async () => {
+    it('a clean SessionStart hook that prints PLAIN stdout carries it (not JSON) into the first request', async () => {
       const d = dir()
       hooks(d, { SessionStart: [{ hooks: [{ type: 'command', command: hookProgram(d, 'ss', 'out(\'session preamble\')\nprocess.exit(0)\n') }] }] })
-      const adapter = new MockAdapter([textResponse('ok')])
-      const ctx = await harness(join(d, 'hooks.json'), adapter)
+      const model = new MockAdapter([textResponse('ok')])
+      const ctx = await harness(join(d, 'hooks.json'), model)
       const agent = ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
-      await waitFor(() => agent.inbox.nextStep.some(message =>
-        message.content.some(block => block.type === 'text' && block.text.includes('session preamble'))))
+      // No inbox wait: the first step holds for the detached run before it enters.
       agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } })); await waitForIdle(ctx, agent)
-      expect(JSON.stringify(adapter.requests[0]!.messages)).toContain('session preamble')
+      expect(JSON.stringify(model.requests.at(0)?.messages)).toContain('session preamble')
+      expect(events(agent).some(e => e.type === 'user/message' && e.data.source.kind !== 'user')).toBe(true)
     })
 
     it('a clean hook that prints JSON is NOT injected as prose (plain-stdout gate)', async () => {

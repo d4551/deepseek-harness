@@ -18,6 +18,36 @@ import type { HookBridge } from './bridge.ts'
 import type { MergedHookOutcome } from './merge.ts'
 import { blocksToText, lastTurn } from './payload.ts'
 
+/**
+ * Consecutive forced continuations a Stop hook may impose on one turn before
+ * it is overridden and the turn stops: the cap Claude Code applies, so a hook
+ * that blocks unconditionally cannot keep one turn alive forever.
+ */
+const STOP_HOOK_CONTINUATION_CAP = 8
+
+/**
+ * The context each agent's `SessionStart` runs produced and no step has read
+ * yet. The agent's next pre-step waits for it and carries it into that
+ * request, so the hook's context reaches the first model call instead of the
+ * one after it.
+ */
+const sessionStarts = new WeakMap<Agent, Promise<UserMessage[]>>()
+
+/**
+ * Wait for `pending`, or stop waiting the moment `signal` aborts; the caller's
+ * own abort check follows, so a cancelled turn never idles on a slow hook.
+ * @param pending - the settlement to wait for.
+ * @param signal - the waiting operation's cancellation.
+ * @returns the settled value, or `undefined` when the signal aborted first.
+ */
+async function untilAborted<T>(pending: Promise<T>, signal: AbortSignal): Promise<T | undefined> {
+  if (signal.aborted) return undefined
+  const aborted = Promise.withResolvers<undefined>()
+  const onAbort = (): void => { aborted.resolve(undefined) }
+  signal.addEventListener('abort', onAbort, { once: true })
+  return Promise.race([pending, aborted.promise]).finally(() => { signal.removeEventListener('abort', onAbort) })
+}
+
 /** Prepend one context without flattening source fields or other downstream metadata. */
 function prependContext(ours: UserMessage, theirs: UserMessage[] | undefined): UserMessage[] {
   return [ours, ...theirs ?? []]
@@ -35,16 +65,31 @@ function stopReasonOf(merged: MergedHookOutcome, point: string): string {
 }
 
 /**
- * End the turn on a halting hook and, where the dialect shows stop reasons to
- * the model, queue the reason for its next request.
+ * End the turn on a halting hook: the cancel cause records the reason on the
+ * turn's end and clears pending work, so the agent settles idle instead of
+ * picking up the next queued item. Where the dialect shows stop reasons to
+ * the model, the reason is also queued, without waking the agent, for its
+ * next request.
  * @param hooks - the shared execution surface.
  * @param agent - the agent whose turn halts.
  * @param point - the hook point that halted.
  * @param merged - the folded outcome whose `stop` is set.
  */
 function haltTurn(hooks: HookBridge, agent: Agent, point: string, merged: MergedHookOutcome): void {
-  hooks.halt(agent, stopReasonOf(merged, point))
-  if (hooks.stops.stopReasonToModel && merged.stopReason !== undefined) hooks.inform(agent, merged.stopReason)
+  agent.cancel({ kind: 'hook', reason: stopReasonOf(merged, point) })
+  if (!hooks.stops.stopReasonToModel || merged.stopReason === undefined) return
+  agent.inject(createUserMessage({ content: [{ type: 'text', text: merged.stopReason }], source: hooks.source }))
+}
+
+/**
+ * Warn that a hook returned a field the dialect does not apply on `point`.
+ * @param ctx - the dialect plugin's context, whose logger carries the warning.
+ * @param hooks - the shared execution surface, named in the warning.
+ * @param point - the hook point that received the field.
+ * @param field - the returned field, as the hook spelled it.
+ */
+function warnUnsupported(ctx: Context, hooks: HookBridge, point: string, field: string): void {
+  ctx.logger.warn(`${hooks.plugin}: ${point} hook returned ${field}, which this point does not apply`)
 }
 
 /**
@@ -74,23 +119,31 @@ export interface SessionStartHookOptions {
 }
 
 /**
- * Register `SessionStart` on `agent/session-start`. The point is emit-shaped, so
- * the run is detached and its context arrives whenever the hook resolves — a
- * slow hook may miss the first model request.
- * @param ctx - the bridge plugin's context.
- * @param bridge - the shared execution surface.
+ * Register `SessionStart` on `agent/session-start`. The point is emit-shaped,
+ * so the run is detached, but its context is not left to arrive whenever the
+ * hook resolves: the agent's next pre-step waits for the run and carries the
+ * context into that request, so a slow hook delays the first model call
+ * instead of missing it.
+ * @param ctx - the dialect plugin's context.
+ * @param hooks - the shared execution surface.
  * @param options - the dialect's payload builder and stdout-context rule.
  */
-// TODO(session-start-gating): add a startup gate before promising first-turn delivery.
-export function registerSessionStartHook(ctx: Context, bridge: HookBridge, options: SessionStartHookOptions): void {
+export function registerSessionStartHook(ctx: Context, hooks: HookBridge, options: SessionStartHookOptions): void {
   ctx.on('agent/session-start', ({ agent, source }) => {
-    bridge.detach(bridge.run('SessionStart', source, options.payload(agent, source), {
+    const context = hooks.run('SessionStart', source, options.payload(agent, source), {
       agent,
-      signal: bridge.detachedSignal,
+      signal: hooks.detachedSignal,
       plainStdoutAsContext: options.plainStdoutAsContext,
+    }).then(merged => hooks.context(merged)).then(undefined, (error) => {
+      hooks.warnFailure('SessionStart', error)
+      return undefined
     })
-      .then((merged) => { injectHookContext(bridge, agent, merged) })
-      .catch((error: unknown) => { bridge.warnFailure('SessionStart', error) }))
+    // Two dialects may both run at one start; the step reads every dialect's
+    // context in the order the runs were announced.
+    const earlier = sessionStarts.get(agent) ?? Promise.resolve([])
+    const combined = Promise.all([earlier, context]).then(([before, ours]) => ours === undefined ? before : [...before, ours])
+    sessionStarts.set(agent, combined)
+    hooks.detach(combined)
   })
 }
 
@@ -117,7 +170,20 @@ export interface PreStepHookOptions {
  */
 export function registerPreStepHook(ctx: Context, hooks: HookBridge, options: PreStepHookOptions): void {
   ctx.on('agent/pre-step', async ({ agent, messages, turn, signal }, next): Promise<PreStepDecision> => {
-    if (messages.length === 0) return next()
+    // Session-start context waits here rather than riding the inbox: this
+    // step's batch is already claimed, so a message queued now would reach the
+    // request after this one. A wait cut short by cancellation leaves the
+    // context queued for the next step.
+    const pendingStart = sessionStarts.get(agent)
+    const started = pendingStart === undefined ? undefined : await untilAborted(pendingStart, signal)
+    const withContext = (decision: PreStepDecision, after: UserMessage[]): PreStepDecision => {
+      if (decision.kind !== 'enter') return decision
+      if (started !== undefined && sessionStarts.get(agent) === pendingStart) sessionStarts.delete(agent)
+      const before = started ?? []
+      if (before.length === 0 && after.length === 0) return decision
+      return { ...decision, messages: [...before, ...decision.messages, ...after] }
+    }
+    if (messages.length === 0) return withContext(await next(), [])
     const prompt = blocksToText(messages.flatMap(message => message.content))
     const merged = await hooks.run('UserPromptSubmit', '', options.payload({ agent, turn, prompt }), {
       agent, turn, signal, plainStdoutAsContext: options.plainStdoutAsContext,
@@ -127,13 +193,8 @@ export function registerPreStepHook(ctx: Context, hooks: HookBridge, options: Pr
       return { kind: 'reject' }
     }
     if (merged.decision === 'deny') return { kind: 'reject' }
-    const downstream = await next()
     const ours = hooks.context(merged, 'UserPromptSubmit')
-    if (!ours || downstream.kind !== 'enter') return downstream
-    return {
-      ...downstream,
-      messages: [...downstream.messages, ours],
-    }
+    return withContext(await next(), ours === undefined ? [] : [ours])
   })
 }
 
@@ -171,10 +232,10 @@ export function registerPreToolHook(ctx: Context, hooks: HookBridge, options: Pr
       // The denial text is what the model reads, so the reason travels there
       // once instead of being queued a second time as context.
       const reason = stopReasonOf(merged, 'PreToolUse')
-      if (exec.agent !== undefined) hooks.halt(exec.agent, reason)
+      if (exec.agent !== undefined) exec.agent.cancel({ kind: 'hook', reason })
       return { kind: 'deny', reason }
     }
-    if (merged.stop) hooks.warnUnsupported('PreToolUse', 'continue: false')
+    if (merged.stop) warnUnsupported(ctx, hooks, 'PreToolUse', 'continue: false')
     if (merged.decision === 'deny') return { kind: 'deny', reason: merged.reason ?? 'blocked by PreToolUse hook' }
     if (options.honorAsk && merged.decision === 'ask') {
       return { kind: 'ask', ...merged.reason !== undefined ? { reason: merged.reason } : {} }
@@ -195,20 +256,30 @@ export interface PostToolHookOptions {
 }
 
 /**
- * Register `PostToolUse` on `tools/post-execute`. A denying hook blocks the
- * result with its reason; otherwise the chain delegates and the hooks' context
- * is prepended to whatever decision comes back.
- * @param ctx - the bridge plugin's context.
- * @param bridge - the shared execution surface.
+ * Register `PostToolUse` on `tools/post-execute`. A halting hook
+ * (`continue: false`) replaces the result with its stop text where the dialect
+ * does that, and is warned about where the dialect reads no `continue` here; a
+ * denying hook blocks the result with its reason; otherwise the chain delegates
+ * and the hooks' context is prepended to whatever decision comes back.
+ * @param ctx - the dialect plugin's context.
+ * @param hooks - the shared execution surface.
  * @param options - the dialect's payload builder.
  */
-export function registerPostToolHook(ctx: Context, bridge: HookBridge, options: PostToolHookOptions): void {
+export function registerPostToolHook(ctx: Context, hooks: HookBridge, options: PostToolHookOptions): void {
   ctx.on('tools/post-execute', async (exec, result, next): Promise<PostToolDecision> => {
     const turn = lastTurn(exec.agent)
-    const merged = await bridge.run('PostToolUse', exec.name, options.payload(exec, blocksToText(result.content)), {
+    const merged = await hooks.run('PostToolUse', exec.name, options.payload(exec, blocksToText(result.content)), {
       ...exec.agent ? { agent: exec.agent } : {}, turn, signal: exec.signal,
     })
-    const context = bridge.context(merged)
+    const context = hooks.context(merged, 'PostToolUse')
+    if (merged.stop && hooks.stops.postTool === 'replace-result') {
+      return {
+        kind: 'block',
+        feedback: [{ type: 'text', text: stopReasonOf(merged, 'PostToolUse') }],
+        ...context ? { additionalContexts: [context] } : {},
+      }
+    }
+    if (merged.stop) warnUnsupported(ctx, hooks, 'PostToolUse', 'continue: false')
     if (merged.decision === 'deny') {
       return {
         kind: 'block',
@@ -227,26 +298,44 @@ export interface TurnStoppingHookOptions {
   /**
    * Build the stdin payload for one stopping turn.
    * @param agent - the agent whose turn is stopping.
+   * @param stopHookActive - whether a Stop hook already forced this turn to continue; both dialects name it `stop_hook_active`.
    * @returns the dialect payload.
    */
-  payload: (agent: Agent) => unknown
+  payload: (agent: Agent, stopHookActive: boolean) => unknown
 }
 
 /**
  * Register `Stop` on `agent/turn-stopping`. A blocking hook steers at the
  * stopping boundary, which makes the machine observe pending input and run
- * another step; a block with no reason still forces continuation.
- * @param ctx - the bridge plugin's context.
- * @param bridge - the shared execution surface.
+ * another step; a block with no reason still forces continuation, and the
+ * hooks' context rides along so the next request sees it. A halting hook
+ * (`continue: false`) outranks the block: the turn stops, and nothing is
+ * queued, because any pending message at this boundary would itself force
+ * another step. Each forced continuation is counted per turn: later runs in
+ * that turn see `stopHookActive`, and past
+ * {@link STOP_HOOK_CONTINUATION_CAP} the block is overridden with a warning.
+ * @param ctx - the dialect plugin's context.
+ * @param hooks - the shared execution surface.
  * @param options - the dialect's payload builder.
  */
 // TODO(stop-loop-guard): cap consecutive forced continuations; hooks must self-limit meanwhile.
-export function registerTurnStoppingHook(ctx: Context, bridge: HookBridge, options: TurnStoppingHookOptions): void {
+export function registerTurnStoppingHook(ctx: Context, hooks: HookBridge, options: TurnStoppingHookOptions): void {
+  // Forced continuations per agent within one turn: the flag tells a Stop hook
+  // it already continued this turn, and past the cap the hook is overridden.
+  const continued = new WeakMap<Agent, { turn: number; count: number }>()
   ctx.on('agent/turn-stopping', async ({ agent, turn, signal }): Promise<void> => {
-    const merged = await bridge.run('Stop', '', options.payload(agent), { agent, turn, signal })
-    if (merged.decision === 'deny') {
-      const text = merged.reason ?? 'continue: blocked by Stop hook'
-      agent.steer(createUserMessage({ content: [{ type: 'text', text }], source: bridge.source }))
+    const previous = continued.get(agent)
+    const count = previous !== undefined && previous.turn === turn ? previous.count : 0
+    const merged = await hooks.run('Stop', '', options.payload(agent, count > 0), { agent, turn, signal })
+    if (merged.stop || merged.decision !== 'deny') return
+    if (count >= STOP_HOOK_CONTINUATION_CAP) {
+      ctx.logger.warn(`${hooks.plugin}: Stop hook blocked ${String(count)} consecutive times in turn ${String(turn)}; the turn stops`)
+      return
     }
+    continued.set(agent, { turn, count: count + 1 })
+    const context = hooks.context(merged, 'Stop')
+    if (context) agent.inject(context)
+    const text = merged.reason ?? 'continue: blocked by Stop hook'
+    agent.steer(createUserMessage({ content: [{ type: 'text', text }], source: hooks.source }))
   })
 }

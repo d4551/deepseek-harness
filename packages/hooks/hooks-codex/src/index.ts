@@ -2,8 +2,8 @@
  * Bridge for unmodified Codex command hooks on harness interception points. It
  * supports five points (SessionStart, prompt/tool pre/post, Stop), regex-only
  * matchers, snake_case payloads without a trailing newline, no hook environment
- * or command substitution, and no pre-tool approval or rewrite path; only
- * blocking decisions are honored. Shared config loading, execution, parsing,
+ * or command substitution, and no pre-tool approval or rewrite path; blocking
+ * decisions and `continue: false` are honored where Codex applies them. Shared config loading, execution, parsing,
  * and the five extension points both dialects share live in
  * `dsh-hook-protocol`; see the
  * [hook-bridges Agent Note](../../../../.agents/notes/implemented/feature/2026-06-30-hook-bridges.md).
@@ -57,12 +57,22 @@ export const Config: z<Config> = z.object({
 export function apply(ctx: Context, config: Config): void {
   const model = config.model ?? ''
   // Codex writes stdin without a trailing newline and exports no hook environment.
-  const bridge = startHookBridge(ctx, {
+  const hooks = startHookBridge(ctx, {
     dialect: 'codex',
     plugin: name,
     configPath: config.configPath,
     trailingNewline: false,
-    unhonored: ['systemMessage'],
+    unhonored: [],
+    // Codex applies `continue: false` on UserPromptSubmit and Stop, turns a
+    // PostToolUse stop into replaced tool output, and refuses it on PreToolUse
+    // (the hook run fails and the call proceeds); it records `stopReason` and
+    // surfaces `systemMessage` only in its own UI, which this host lacks.
+    stops: {
+      preTool: 'proceed',
+      postTool: 'replace-result',
+      stopReasonToModel: false,
+      modelVisibleSystemMessages: [],
+    },
     ...config.defaultTimeoutMs !== undefined ? { defaultTimeoutMs: config.defaultTimeoutMs } : {},
     ...config.stderrSummaryMaxChars !== undefined ? { stderrSummaryMaxChars: config.stderrSummaryMaxChars } : {},
     parse: (raw) => {
@@ -73,26 +83,23 @@ export function apply(ctx: Context, config: Config): void {
       }
     },
   })
-  if (bridge === undefined) return
+  if (hooks === undefined) return
 
   // Codex reads clean plain stdout as context on its two context-bearing
   // points, honors blocking decisions only (no allow/ask), and has one
   // emit-shaped point: SessionStart.
-  registerSessionStartHook(ctx, bridge, {
+  registerSessionStartHook(ctx, hooks, {
     payload: (agent, source) => ({ ...base(ctx, agent, 'SessionStart', model), source }),
     plainStdoutAsContext: true,
   })
-  registerPreStepHook(ctx, bridge, {
+  registerPreStepHook(ctx, hooks, {
     payload: ({ agent, turn, prompt }) => ({ ...base(ctx, agent, 'UserPromptSubmit', model), turn_id: String(turn), prompt }),
     plainStdoutAsContext: true,
   })
-  registerPreToolHook(ctx, bridge, { payload: exec => preToolPayload(ctx, exec, model), honorAsk: false })
-  registerPostToolHook(ctx, bridge, { payload: (exec, response) => postToolPayload(ctx, exec, response, model) })
-  registerTurnStoppingHook(ctx, bridge, {
-    // TODO(stop-loop-guard): Codex supplies `stop_hook_active` so a Stop hook can
-    // avoid continuing the same turn indefinitely. It is always false here, so an
-    // unconditionally blocking hook force-continues every step until it self-limits.
-    payload: agent => ({ ...turnBase(ctx, agent, 'Stop', model), stop_hook_active: false, last_assistant_message: null }),
+  registerPreToolHook(ctx, hooks, { payload: exec => preToolPayload(ctx, exec, model), honorAsk: false })
+  registerPostToolHook(ctx, hooks, { payload: (exec, response) => postToolPayload(ctx, exec, response, model) })
+  registerTurnStoppingHook(ctx, hooks, {
+    payload: (agent, stopHookActive) => ({ ...turnBase(ctx, agent, 'Stop', model), stop_hook_active: stopHookActive, last_assistant_message: null }),
   })
 }
 

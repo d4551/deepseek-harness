@@ -231,25 +231,22 @@ describe('hooks-claude-code bridge — PostToolUse', () => {
 })
 
 describe('hooks-claude-code bridge — SessionStart', () => {
-  it('a SessionStart hook injects additionalContext the first request sees', async () => {
+  it('a SessionStart hook carries additionalContext into the first request, which waits for it', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-hooks-claude-'))
     dirs.push(dir)
     const s = hookProgram(dir, 'start', 'out(\'{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"project uses tabs"}}\')\n')
     // matcher 'startup' selects the startup source.
     writeFileSync(join(dir, 'hooks.json'), JSON.stringify({ hooks: { SessionStart: [{ matcher: 'startup', hooks: [{ type: 'command', command: s }] }] } }))
 
-    const adapter = new MockAdapter([textResponse('ok')])
-    const ctx = await harness(dir, adapter)
+    const model = new MockAdapter([textResponse('ok')])
+    const ctx = await harness(dir, model)
     const agent = ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
-    // session-start fires async (detached .then → agent.inject); injection now
-    // enters the next-step inbox directly and becomes a user/message only after
-    // step entry, so synchronize on the pending inbox item before sending.
-    await waitFor(() => agent.inbox.nextStep.some(message =>
-      message.content.some(block => block.type === 'text' && block.text.includes('project uses tabs'))))
+    // The prompt goes in at once: the first step holds until the detached
+    // session-start run settles, so nothing waits on the inbox here.
     agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
     await waitForIdle(ctx, agent)
 
-    expect(JSON.stringify(adapter.requests[0]!.messages)).toContain('project uses tabs')
+    expect(JSON.stringify(model.requests.at(0)?.messages)).toContain('project uses tabs')
   })
 })
 

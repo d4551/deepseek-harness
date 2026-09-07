@@ -116,12 +116,19 @@ export interface HookBridge {
    * @returns the merged, already-most-restrictive outcome for the caller to map onto its decision.
    */
   run: (point: string, matchQuery: string, payload: unknown, scope: HookRunScope) => Promise<MergedHookOutcome>
+  /** The dialect plugin name, prefixed onto diagnostics about a point's unsupported fields. */
+  readonly plugin: string
+  /** The dialect's reference behavior for `continue: false` and `systemMessage`. */
+  readonly stops: HookStopPolicy
   /**
-   * Build the model context a merged outcome carries.
+   * Build the model context a merged outcome carries: every hook's
+   * `additionalContext`, plus its `systemMessage` when `point` is one the
+   * dialect shows to the model.
    * @param merged - the folded outcome of one hook point.
+   * @param point - the hook point that produced it; absent for a point whose `systemMessage` is never shown.
    * @returns the context message, or `undefined` when no hook contributed context.
    */
-  context: (merged: MergedHookOutcome) => UserMessage | undefined
+  context: (merged: MergedHookOutcome, point?: string) => UserMessage | undefined
   /**
    * Hold one emit-shaped run chain until it settles, so disposal can drain it.
    * Pass the full chain including its continuation and error handler.
@@ -226,6 +233,7 @@ function createBridge(ctx: Context, options: HookBridgeOptions, spec: HookBridge
     source,
     detachedSignal: detached.signal,
     run,
+    plugin: options.plugin,
     stops: options.stops,
     context(merged: MergedHookOutcome, point?: string): UserMessage | undefined {
       const texts = point !== undefined && options.stops.modelVisibleSystemMessages.includes(point)
@@ -234,15 +242,6 @@ function createBridge(ctx: Context, options: HookBridgeOptions, spec: HookBridge
       if (texts.length === 0) return undefined
       const content: ContentBlock[] = texts.map(text => ({ type: 'text', text }))
       return createUserMessage({ content, source })
-    },
-    halt(agent: Agent, reason: string): void {
-      agent.cancel({ kind: 'hook', reason })
-    },
-    inform(agent: Agent, text: string): void {
-      agent.inject(createUserMessage({ content: [{ type: 'text', text }], source }))
-    },
-    warnUnsupported(point: string, field: string): void {
-      ctx.logger.warn(`${options.plugin}: ${point} hook returned ${field}, which this point does not apply`)
     },
     detach(chain: Promise<unknown>): void {
       detached.track(chain)

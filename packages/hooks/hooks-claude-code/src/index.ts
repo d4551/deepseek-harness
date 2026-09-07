@@ -75,12 +75,21 @@ export const Config: z<Config> = z.object({
 export function apply(ctx: Context, config: Config): void {
   // The config file is read once at load; a read or parse failure logs and
   // registers nothing.
-  const bridge = startHookBridge(ctx, {
+  const hooks = startHookBridge(ctx, {
     dialect: 'claude-code',
     plugin: name,
     configPath: config.configPath,
     trailingNewline: true,
-    unhonored: ['updatedInput', 'systemMessage'],
+    unhonored: ['updatedInput'],
+    // Claude Code reads `continue: false` on PreToolUse, UserPromptSubmit, and
+    // Stop, shows `stopReason` to the model, and shows `systemMessage` on the
+    // points below; PostToolUse reads neither.
+    stops: {
+      preTool: 'halt',
+      postTool: 'none',
+      stopReasonToModel: true,
+      modelVisibleSystemMessages: ['UserPromptSubmit', 'PostToolUse', 'Stop'],
+    },
     ...config.defaultTimeoutMs !== undefined ? { defaultTimeoutMs: config.defaultTimeoutMs } : {},
     ...config.stderrSummaryMaxChars !== undefined ? { stderrSummaryMaxChars: config.stderrSummaryMaxChars } : {},
     // CLAUDE_PROJECT_DIR: an explicit config value wins; otherwise it defaults to the
@@ -100,21 +109,21 @@ export function apply(ctx: Context, config: Config): void {
       }
     },
   })
-  if (bridge === undefined) return
+  if (hooks === undefined) return
 
   // Claude Code ignores matchers on UserPromptSubmit and Stop, and its
   // permission decisions include `ask`, which routes to approval.
-  registerSessionStartHook(ctx, bridge, {
+  registerSessionStartHook(ctx, hooks, {
     payload: (agent, source) => sessionStartPayload(ctx, agent, source),
     plainStdoutAsContext: false,
   })
-  registerPreStepHook(ctx, bridge, {
+  registerPreStepHook(ctx, hooks, {
     payload: ({ agent, prompt }) => promptPayload(ctx, agent, prompt),
     plainStdoutAsContext: false,
   })
-  registerPreToolHook(ctx, bridge, { payload: exec => preToolPayload(ctx, exec), honorAsk: true })
-  registerPostToolHook(ctx, bridge, { payload: (exec, response) => postToolPayload(ctx, exec, response) })
-  registerTurnStoppingHook(ctx, bridge, { payload: agent => stopPayload(ctx, agent) })
+  registerPreToolHook(ctx, hooks, { payload: exec => preToolPayload(ctx, exec), honorAsk: true })
+  registerPostToolHook(ctx, hooks, { payload: (exec, response) => postToolPayload(ctx, exec, response) })
+  registerTurnStoppingHook(ctx, hooks, { payload: (agent, stopHookActive) => stopPayload(ctx, agent, stopHookActive) })
 
   // Only the start edge guarantees registry access. Retain each local child
   // through its paired end so stop hooks keep the session workspace after the
@@ -127,14 +136,14 @@ export function apply(ctx: Context, config: Config): void {
   ctx.on('subagent/start', (info) => {
     const child = ctx.get('agents')?.get(info.id)
     if (child !== undefined) subagentChildren.set(info.runId, child)
-    bridge.detach(bridge.run('SubagentStart', SUBAGENT_TYPE, subagentPayload(ctx, 'SubagentStart', info, child), { ...child ? { agent: child } : {}, signal: bridge.detachedSignal })
-      .then((merged) => { injectHookContext(bridge, child, merged) })
-      .catch((error: unknown) => { bridge.warnFailure('SubagentStart', error) }))
+    hooks.detach(hooks.run('SubagentStart', SUBAGENT_TYPE, subagentPayload(ctx, 'SubagentStart', info, child), { ...child ? { agent: child } : {}, signal: hooks.detachedSignal })
+      .then((merged) => { injectHookContext(hooks, child, merged) })
+      .then(undefined, (error) => { hooks.warnFailure('SubagentStart', error) }))
   })
   ctx.on('subagent/end', (info) => {
     const child = subagentChildren.get(info.runId) ?? ctx.get('agents')?.get(info.id)
     subagentChildren.delete(info.runId)
-    bridge.detach(bridge.run('SubagentStop', SUBAGENT_TYPE, subagentPayload(ctx, 'SubagentStop', info, child), { ...child ? { agent: child } : {}, signal: bridge.detachedSignal }))
+    hooks.detach(hooks.run('SubagentStop', SUBAGENT_TYPE, subagentPayload(ctx, 'SubagentStop', info, child), { ...child ? { agent: child } : {}, signal: hooks.detachedSignal }))
   })
 }
 
@@ -166,8 +175,8 @@ function preToolPayload(ctx: Context, exec: ToolExecution): Record<string, unkno
 function postToolPayload(ctx: Context, exec: ToolExecution, response: string): Record<string, unknown> {
   return { ...base(ctx, exec.agent, 'PostToolUse'), tool_name: exec.name, tool_input: exec.arguments, tool_use_id: exec.callId, tool_response: response }
 }
-function stopPayload(ctx: Context, agent: Agent): Record<string, unknown> {
-  return { ...base(ctx, agent, 'Stop'), stop_hook_active: false }
+function stopPayload(ctx: Context, agent: Agent, stopHookActive: boolean): HookEventFields & { stop_hook_active: boolean } {
+  return { ...base(ctx, agent, 'Stop'), stop_hook_active: stopHookActive }
 }
 /**
  * Build a SubagentStart/SubagentStop payload from the CC base (the child's
