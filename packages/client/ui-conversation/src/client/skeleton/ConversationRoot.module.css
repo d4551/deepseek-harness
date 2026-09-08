@@ -41,19 +41,7 @@
   z-index: var(--dsw-z-conversation-header);
   flex: none;
   padding: 12px 28px 0 20px;
-  border-bottom: 1px solid transparent;
-}
-
-.header::after {
-  content: '';
-  position: absolute;
-  right: 0;
-  bottom: 1px;
-  left: 0;
-  z-index: var(--dsw-z-base);
-  height: 1px;
-  background: var(--dsw-alias-border-l2);
-  pointer-events: none;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
 }
 
 /* Blank hero/settling: keep the strict Session header mounted without taking

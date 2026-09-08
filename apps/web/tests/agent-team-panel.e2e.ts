@@ -15,8 +15,9 @@ import { assertPageAccessibility } from './accessibility.ts'
 const SNAPSHOT_DIR = fileURLToPath(new URL('./snapshots/agent-team-panel', import.meta.url))
 const PANEL_EXPECTED = join(SNAPSHOT_DIR, 'task.expected.md')
 const MODE = webSnapshotMode()
+const COLOR_SCHEMES: Array<'light' | 'dark'> = ['light', 'dark']
 
-describe('web e2e: Agent Teams panel', () => {
+describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page
@@ -26,9 +27,11 @@ describe('web e2e: Agent Teams panel', () => {
     scaffold = await launchWebScaffold()
     browser = await launchBrowser()
     page = await newEnglishPage(browser)
+    await page.emulateMedia({ colorScheme })
     tripwire = watchConsole(page)
     await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
     await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
+    expect(await page.locator('body').getAttribute('data-ds-dark-theme')).toBe(colorScheme === 'dark' ? '' : null)
     await connectFreshWorkspace(page, scaffold.workspaceCwd)
     const agent = scaffold.ctx.agents.list()[0]
     if (agent === undefined) throw new Error('connected Team workspace did not create an Agent')
@@ -65,6 +68,12 @@ describe('web e2e: Agent Teams panel', () => {
     await action.getByText('No shared tasks yet').waitFor()
     await action.getByText('lead').waitFor()
     await assertPageAccessibility(page)
+    await page.setViewportSize({ width: 840, height: 1000 })
+    await expect.poll(async () => {
+      const panel = await action.getByRole('dialog', { name: 'Agent Team' }).boundingBox()
+      return panel !== null && panel.x >= 0 && panel.x + panel.width <= 840
+    }).toBe(true)
+    await page.setViewportSize({ width: 1680, height: 1000 })
 
     await action.getByRole('button', { name: 'New task' }).click()
     await assertPageAccessibility(page)

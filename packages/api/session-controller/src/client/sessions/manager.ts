@@ -695,8 +695,9 @@ export class SessionManager {
       return
     }
     if (frame.type === 'projection') {
-      this.projectionStore(frame.sessionId).apply(frame.key, frame.value, frame.seq)
-      this.notifier.markDirty()
+      if (this.projectionStore(frame.sessionId).apply(frame.key, frame.value, frame.seq)) {
+        this.notifier.markDirty()
+      }
       return
     }
     if (frame.type === 'jobs') {

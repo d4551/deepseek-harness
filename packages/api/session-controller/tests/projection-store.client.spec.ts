@@ -98,6 +98,30 @@ describe('Session projection value semantics', () => {
     expect(populated).not.toBe(empty)
     expect(store.values()).toBe(populated)
   })
+
+  it('advances unchanged values without publishing and rejects intermediate sequence values', async () => {
+    const store = new ProjectionValueStore()
+    store.apply('title', 'Worker results', 1)
+    await Promise.resolve()
+    const before = store.values()
+    let notifications = 0
+    store.subscribeAny(() => { notifications += 1 })
+    store.faceOf('title').subscribe(() => { notifications += 1 })
+
+    store.apply('title', 'Worker results', 10)
+    store.apply('title', 'Older title', 5)
+    store.seed({ asOfSeq: 9, values: {} })
+    await Promise.resolve()
+
+    expect(store.get('title')).toBe('Worker results')
+    expect(store.values()).toBe(before)
+    expect(notifications).toBe(0)
+    store.apply('title', 'Final results', 11)
+    await Promise.resolve()
+    expect(store.get('title')).toBe('Final results')
+    expect(store.values()).not.toBe(before)
+    expect(notifications).toBe(2)
+  })
 })
 
 describe('Session tail-page seeding', () => {
@@ -138,6 +162,30 @@ describe('Session tail-page seeding', () => {
 
 describe('manager frame routing', () => {
   const sid = (s: string): SessionId => s as SessionId
+
+  it('keeps swarm list subscribers quiet for replayed and unchanged projections', async () => {
+    const manager = new SessionManager(fakeRemote())
+    manager.handleSessionAdded({ sessionId: SID, updatedAt: 1, running: false, blank: false })
+    manager.handleControlFrame({ type: 'projection', sessionId: SID, key: 'title', value: 'Worker', seq: 2 })
+    await Promise.resolve()
+    await Promise.resolve()
+    const before = manager.getListSnapshot()
+    let notifications = 0
+    const unsubscribe = manager.subscribe(() => { notifications += 1 })
+    for (let seq = 3; seq <= 100; seq += 1) {
+      manager.handleControlFrame({ type: 'projection', sessionId: SID, key: 'title', value: 'Worker', seq })
+      manager.handleControlFrame({ type: 'projection', sessionId: SID, key: 'title', value: 'Stale', seq: 1 })
+      expect(manager.getListSnapshot()).toBe(before)
+      await Promise.resolve()
+    }
+    expect(notifications).toBe(0)
+    manager.handleControlFrame({ type: 'projection', sessionId: SID, key: 'title', value: 'Completed', seq: 101 })
+    expect(manager.getListSnapshot().items[0]?.title).toBe('Completed')
+    await Promise.resolve()
+    expect(notifications).toBe(1)
+    unsubscribe()
+    await manager.dispose()
+  })
 
   it('lands projection frames before instantiation and the Session adopts the same store', async () => {
     const api = new FakeApiClient()

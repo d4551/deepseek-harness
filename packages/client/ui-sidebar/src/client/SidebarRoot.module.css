@@ -240,7 +240,6 @@
   background: var(--dsw-alias-label-primary);
   font: var(--dsw-font-markdown-code-block-small);
   font-weight: 500;
-  line-height: 1;
   white-space: nowrap;
 }
 

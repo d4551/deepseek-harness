@@ -146,3 +146,7 @@
 .overlayLayer > * {
   pointer-events: auto;
 }
+
+.overlayLayer:has(> :global([data-slot='shell.overlay']:empty)) {
+  display: none;
+}

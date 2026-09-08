@@ -46,9 +46,7 @@
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
 
-  position: absolute;
-  top: calc(100% + 5px);
-  left: 0;
+  position: fixed;
   z-index: var(--dsw-z-popover-2);
   box-sizing: border-box;
   width: min(560px, calc(100vw - 32px));

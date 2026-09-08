@@ -11,7 +11,7 @@ import type {
 import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import {
   IconCheckOutline14, IconCloseOutline16, IconEditOutline16, IconPlusOutline16,
-  IconRefreshOutline14, IconTrashOutline16, IconUserOutline16, StateDot,
+  IconRefreshOutline14, IconTrashOutline16, IconUserOutline16, StateDot, useAnchoredPosition,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -108,6 +108,7 @@ export function TeamAction({
   const [pendingTasks, setPendingTasks] = useState<ReadonlySet<string>>(() => new Set())
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const panelPosition = useAnchoredPosition({ open, anchorRef: triggerRef, panelRef, gap: 5, margin: 16 })
   const sessionRef = useRef(sessionId)
   const refreshGeneration = useRef(0)
   sessionRef.current = sessionId
@@ -292,7 +293,7 @@ export function TeamAction({
         {teammates.length > 0 && <span className={css.count}>{teammates.length}</span>}
       </button>
       {open && (
-        <div ref={panelRef} className={css.panel} role="dialog" aria-label={t('trigger')} tabIndex={-1}>
+        <div ref={panelRef} className={css.panel} style={panelPosition ?? undefined} role="dialog" aria-label={t('trigger')} tabIndex={-1}>
           <div className={css.toolbar}>
             <strong>{t('trigger')}</strong>
             <span className={css.spacer} />
