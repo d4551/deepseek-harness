@@ -79,6 +79,21 @@ function invocationOf(value: unknown): TypertRemoteEventInvocation {
 }
 
 describe('Remote event Host source', () => {
+  it.each([false, true])('settles cancellation between pulls with buffered events: %s', async (buffered) => {
+    const { ctx, gateway } = await setup()
+    const abort = new AbortController()
+    const iterator = sourceOf(gateway)(abort.signal)[Symbol.asyncIterator]()
+    emitRaw(ctx, 'commands/change', [])
+    await expect(iterator.next()).resolves.toEqual({
+      done: false, value: { event: 'commands/change', args: [] },
+    })
+    if (buffered) emitRaw(ctx, 'settings/document-updated', ['ui-theme', 2])
+    abort.abort(new Error('conversation disconnected between pulls'))
+    await expect(iterator.next()).resolves.toEqual({ done: true, value: undefined })
+    expect(() => emitRaw(ctx, 'settings/document-updated', ['ui-theme', 1n])).not.toThrow()
+    await ctx.fiber.dispose()
+  })
+
   it('registers the Host home used by Client connection generations', async () => {
     const { gateway, fiber } = await setup()
     expect(gateway.host?.home).toBeTypeOf('string')
