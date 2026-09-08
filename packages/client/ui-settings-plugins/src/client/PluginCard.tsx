@@ -46,6 +46,7 @@ export function PluginCard(props: PluginCardProps) {
   const headerRef = useRef<HTMLButtonElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const saveStarted = useRef(false)
+  const saveHadFocus = useRef(false)
   const { state } = props
   // Collapse only after Host-confirmed settlement; a rejected write keeps its
   // diagnostics and retained drafts visible for correction.
@@ -57,9 +58,13 @@ export function PluginCard(props: PluginCardProps) {
     if (!saveStarted.current) return
     saveStarted.current = false
     if (!state.dirty && !state.failed) {
-      if (bodyRef.current?.contains(document.activeElement)) headerRef.current?.focus()
+      const active = document.activeElement
+      if (bodyRef.current?.contains(active) || (saveHadFocus.current && active === document.body)) {
+        headerRef.current?.focus()
+      }
       setOpen(false)
     }
+    saveHadFocus.current = false
   }, [state.dirty, state.failed, state.saving])
   if (!state.available) return null
   const title = props.t(props.titleKey)
@@ -104,7 +109,10 @@ export function PluginCard(props: PluginCardProps) {
                 variant="primary"
                 size="sm"
                 disabled={blocked}
-                onClick={props.onSave}
+                onClick={() => {
+                  saveHadFocus.current = bodyRef.current?.contains(document.activeElement) === true
+                  return props.onSave()
+                }}
               >
                 {props.t(state.saving ? 'saving' : 'save')}
               </Button>

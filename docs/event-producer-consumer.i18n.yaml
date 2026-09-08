@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write docs/event-producer-consumer.md
-event-producer-consumer.md: 2bf05479e235064fa7f6e8bc76f476442eafbcc0
-event-producer-consumer.zh.md: 9492096d19717186f56e58b1037e54e5c1d735b9
+event-producer-consumer.md: a611cb1a85a3639215d577ef7eed8d752c4e3cb3
+event-producer-consumer.zh.md: 916b79891db44615c64b65ed0389726f8f0aafe7
