@@ -47,14 +47,14 @@ export function browserSearchResults(page: WebFetchResult, request: WebSearchReq
   for (const row of rows) {
     const anchor = row.querySelector('h2 a[href]')
     const href = anchor?.getAttribute('href')
-    const title = anchor?.textContent?.trim()
+    const title = anchor?.textContent.trim()
     if (href === undefined || href === null || title === undefined || title.length === 0) {
       throw new WebError('Browser search returned an incomplete result', 'WEB_PROVIDER_ERROR')
     }
     const url = sourceUrl(href, page.url)
     if (seen.has(url)) continue
     seen.add(url)
-    const snippet = row.querySelector('.b_caption p')?.textContent?.trim()
+    const snippet = row.querySelector('.b_caption p')?.textContent.trim()
     sources.push({ url, title, ...snippet === undefined || snippet.length === 0 ? {} : { snippet } })
   }
   const limit = request.maxResults ?? sources.length

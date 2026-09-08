@@ -22,6 +22,8 @@ type SettingsNamespace = Branded<'SettingsNamespace'>
 ```ts type-equiv
 /** Registration options beyond the namespace schema. */
 interface SettingsRegisterOptions<T> {
+  /** Runtime capability readiness, independent of configured values. */
+  available?: boolean
   /** Composition-layer values resolved below the user layer (entry-config subset). */
   base?: Partial<T>
   /** Owner's effect timing, surfaced to configuration UIs; defaults to `live`. */
@@ -65,6 +67,8 @@ scope 是面向 owner 的句柄。`update` 把稀疏 patch 只合并进用户分
 ```ts type-equiv
 /** Owner-facing handle for one registered namespace. */
 interface SettingsScope<T> {
+  /** Publish runtime readiness without changing persisted settings or their revision. */
+  setAvailable(available: boolean): void
   /** Current resolved value: schema defaults, then `base`, then the user layer. */
   get(): T
   /**
@@ -100,6 +104,8 @@ interface SettingsScope<T> {
 ```ts type-equiv
 /** One registered namespace as surfaced to configuration UIs. */
 interface SettingsDescriptor {
+  /** Owner-reported runtime readiness, when the namespace configures a capability. */
+  available?: boolean
   /** The registered namespace. */
   ns: SettingsNamespace
   /** Serialized schemastery schema (`schema.toJSON()`). */

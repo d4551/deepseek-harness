@@ -10,13 +10,14 @@ afterEach(() => {
 })
 
 describe('auditSurface against axe-core', () => {
-  it.each(['visible', 'missing-id', 'wrong-role', 'hidden-popup', 'duplicate-id'])('verifies popup references: %s', async (state) => {
+  it.each(['visible', 'missing-id', 'wrong-role', 'hidden-popup', 'duplicate-id', 'different-review'])('verifies popup references: %s', async (state) => {
     const main = document.createElement('main')
     const trigger = document.createElement('button')
     trigger.textContent = 'Choose action'
     trigger.setAttribute('aria-haspopup', 'menu')
     trigger.setAttribute('aria-expanded', 'true')
     trigger.setAttribute('aria-controls', 'actions')
+    if (state === 'different-review') trigger.setAttribute('aria-current', 'later')
     const popup = document.createElement('div')
     popup.id = state === 'missing-id' ? 'other-actions' : 'actions'
     popup.setAttribute('role', state === 'wrong-role' ? 'group' : 'menu')
@@ -26,7 +27,9 @@ describe('auditSurface against axe-core', () => {
     item.textContent = 'Open'
     item.setAttribute('role', 'menuitem')
     popup.append(item)
-    main.append(trigger, popup)
+    const triggerRow = document.createElement('p')
+    triggerRow.append(trigger)
+    main.append(triggerRow, popup)
     if (state === 'duplicate-id') main.append(popup.cloneNode(true))
     document.body.append(main)
     const audit = await auditSurface(`popup-${state}`, main)

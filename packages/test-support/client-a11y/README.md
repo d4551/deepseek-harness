@@ -62,13 +62,14 @@ A hand-written list of audited components silently stops covering the next one. 
 
 ### Design
 
-The module is a thin, honest projection of `axe.run`. It fixes the tag list, requests violations, passes, and incomplete results, and converts axe's per-rule node arrays into counts. Incomplete results are reported separately and excluded from the score: scoring an undecided check either way would misstate the audit.
+The module fixes the `axe.run` tag list, requests violations, passes, and incomplete results, and converts axe's per-rule node arrays into counts. Raw incomplete results and counts remain intact and do not enter the score. For axe's exact `controlsWithinPopup` review, `completedReviews` records native DOM evidence: each controlled ID resolves uniquely, the popup role matches `aria-haspopup`, and an expanded popup is visible and accessible. Every other incomplete check, and every popup review without that evidence, fails `accessibilityFailures`.
 
 ### Source map
 
 | File | Role |
 |---|---|
 | [`src/index.ts`](src/index.ts) | `CLIENT_AXE_TAGS`, `clientAxeRunOptions`, `auditSurface`, `accessibilityFailures`, `accessibilityScore`, `formatViolations` |
+| [`src/popup-review.ts`](src/popup-review.ts) | Native DOM verification of popup-reference reviews |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; the module owns no event stream or mutable data) |
 
 </details>

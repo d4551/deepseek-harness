@@ -62,13 +62,14 @@ expect(audit.incomplete).toEqual([])
 
 ### 设计
 
-该模块是对 `axe.run` 的一层薄而诚实的投影。它固定标签清单，请求 violations、passes 与 incomplete 结果，并把 axe 的按规则节点数组转换为计数。incomplete 结果被单独报告并排除在分数之外：把未判定的检查算作任何一侧都会歪曲审计结果。
+该模块固定 `axe.run` 的标签清单，请求 violations、passes 与 incomplete 结果，并把 axe 的按规则节点数组转换为计数。原始 incomplete 结果和计数保持完整，不计入分数。对于 axe 的确切 `controlsWithinPopup` 审查，`completedReviews` 记录原生 DOM 证据：每个受控 ID 唯一解析，弹窗角色匹配 `aria-haspopup`，展开的弹窗可见且可访问。其他未判定检查，以及缺少上述证据的弹窗审查，都会使 `accessibilityFailures` 失败。
 
 ### 源码地图
 
 | 文件 | 作用 |
 |---|---|
 | [`src/index.ts`](src/index.ts) | `CLIENT_AXE_TAGS`、`clientAxeRunOptions`、`auditSurface`、`accessibilityFailures`、`accessibilityScore`、`formatViolations` |
+| [`src/popup-review.ts`](src/popup-review.ts) | 弹窗引用审查的原生 DOM 验证 |
 | [`src/invariant.ts`](src/invariant.ts) | 不变式伴生插件（无运行时不变式；该模块不拥有事件流或可变数据） |
 
 </details>

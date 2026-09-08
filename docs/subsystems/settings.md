@@ -22,6 +22,8 @@ Registration binds a schemastery schema to a namespace on the calling plugin's f
 ```ts type-equiv
 /** Registration options beyond the namespace schema. */
 interface SettingsRegisterOptions<T> {
+  /** Runtime capability readiness, independent of configured values. */
+  available?: boolean
   /** Composition-layer values resolved below the user layer (entry-config subset). */
   base?: Partial<T>
   /** Owner's effect timing, surfaced to configuration UIs; defaults to `live`. */
@@ -65,6 +67,8 @@ The scope is the owner-facing handle. `update` merges a sparse patch over the us
 ```ts type-equiv
 /** Owner-facing handle for one registered namespace. */
 interface SettingsScope<T> {
+  /** Publish runtime readiness without changing persisted settings or their revision. */
+  setAvailable(available: boolean): void
   /** Current resolved value: schema defaults, then `base`, then the user layer. */
   get(): T
   /**
@@ -100,6 +104,8 @@ interface SettingsScope<T> {
 ```ts type-equiv
 /** One registered namespace as surfaced to configuration UIs. */
 interface SettingsDescriptor {
+  /** Owner-reported runtime readiness, when the namespace configures a capability. */
+  available?: boolean
   /** The registered namespace. */
   ns: SettingsNamespace
   /** Serialized schemastery schema (`schema.toJSON()`). */

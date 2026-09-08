@@ -76,7 +76,12 @@ export interface SettingsDescribeValue {
 
 declare module '@deepseek-ai/cordis' {
   interface Events {
-    /** Runtime capability readiness changed without a settings-document edit. @mode emit */
+    /**
+     * Runtime capability readiness changed without a settings-document edit.
+     * @param ns - the namespace whose runtime readiness changed.
+     * @param available - whether the owner's capability is ready.
+     * @mode emit
+     */
     'settings/availability-updated'(ns: SettingsNamespace, available: boolean): void
     /**
      * Committed change to one registered namespace's resolved value. Emitted

@@ -41,7 +41,11 @@ function popupReview(node: NodeResult): CompletedPopupReview | undefined {
   return { rule: 'aria-valid-attr-value', node, controlledIds, popupRole, expanded: expanded === 'true' }
 }
 
-/** Complete only the exact popup-ID obligation against the audited DOM. */
+/**
+ * Complete only the exact popup-ID obligation against the audited DOM.
+ * @param results - untouched incomplete results from the native browser audit.
+ * @returns evidence for each popup reference fully verified in the DOM.
+ */
 export function completePopupReviews(results: readonly Result[]): readonly CompletedPopupReview[] {
   const completed: CompletedPopupReview[] = []
   for (const result of results) {

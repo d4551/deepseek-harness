@@ -639,8 +639,8 @@ describe('web-fetch-http plugin registration', () => {
 
   it('applies persisted character caps and user agent after remount', async () => {
     const ctx = new Context()
-    await ctx.plugin(MemorySettings)
-    await ctx.plugin(WebRuntime, { fetchProvider: LOCAL_FETCH_PROVIDER_ID })
+    const settings = await ctx.plugin(MemorySettings)
+    const web = await ctx.plugin(WebRuntime, { fetchProvider: LOCAL_FETCH_PROVIDER_ID })
     let seenUserAgent: string | undefined
     handler = (req, res) => {
       seenUserAgent = req.headers['user-agent']
@@ -663,6 +663,7 @@ describe('web-fetch-http plugin registration', () => {
     expect(after.truncated).toBe(true)
     expect(seenUserAgent).toBe('saved-agent')
     await remounted.dispose()
-    await ctx.dispose()
+    await web.dispose()
+    await settings.dispose()
   })
 })
