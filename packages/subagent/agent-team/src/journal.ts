@@ -3,16 +3,23 @@
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { KeyedLock } from '@deepseek-ai/dsh-keyed-lock'
 import type { Context } from '@deepseek-ai/cordis'
-import type { SessionEventMap, SessionId } from '@deepseek-ai/dsh-session'
-import { foldTeam } from './fold.ts'
+import type { Session, SessionEventMap, SessionId } from '@deepseek-ai/dsh-session'
+import { applyTeamEvent, emptyTeamFoldState } from './fold.ts'
 import type { TeamEventType, TeamFoldState } from './fold.ts'
 
-type AppendTeamEvent = <T extends TeamEventType>(type: T, data: SessionEventMap[T]) => void
-type MutableTeamEventType = 'team/member' | 'team/task' | 'team/message/queued' | 'team/message/delivered'
+type TeamAppend = {
+  [T in TeamEventType]: [root: Agent, type: T, data: SessionEventMap[T]]
+}[TeamEventType]
+
+interface ReplayPosition {
+  readonly state: TeamFoldState
+  seq: number
+}
 
 /** Owns per-Lead transaction order and committed Team event publication. */
 export class TeamJournal {
   private readonly mutations = new KeyedLock()
+  private readonly replays = new WeakMap<Session, ReplayPosition>()
 
   /**
    * @param ctx - Team service context with the injected Session service.
@@ -29,7 +36,19 @@ export class TeamJournal {
    * @returns current replay state selected by the Lead Team id.
    */
   state(root: Agent): TeamFoldState {
-    return foldTeam(root.id, root.session.events)
+    const session = root.session
+    let replay = this.replays.get(session)
+    if (replay === undefined) {
+      replay = { state: emptyTeamFoldState(session.id), seq: 0 }
+      this.replays.set(session, replay)
+    }
+    if (replay.seq < session.seq) {
+      for (const event of session.events.slice(replay.seq)) {
+        applyTeamEvent(replay.state, event)
+        replay.seq += 1
+      }
+    }
+    return structuredClone(replay.state)
   }
 
   /**
@@ -58,16 +77,8 @@ export class TeamJournal {
    * @param type - Team event discriminant.
    * @param data - payload correlated with the event type.
    */
-  async appendAndFlush<T extends MutableTeamEventType>(
-    root: Agent,
-    type: T,
-    data: SessionEventMap[T],
-  ): Promise<void> {
-    // Team events never enter the conversation surface. This narrower local
-    // capability removes Session.append's conditional surface argument while
-    // preserving the event-key/payload correlation.
-    const append = root.session.append.bind(root.session) as unknown as AppendTeamEvent
-    append(type, data)
+  async appendAndFlush(...[root, type, data]: TeamAppend): Promise<void> {
+    root.session.append<TeamEventType>(type, data)
     await this.ctx.sessions.flush(root.session)
     this.onCommit(root)
   }

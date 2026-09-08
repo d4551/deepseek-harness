@@ -480,6 +480,6 @@ async function bootEmptyPreview(origin: string, browser: Browser): Promise<void>
       ? error
       : new AggregateError([error, ...pageErrors], 'empty preview boot failed, with uncaught page errors')
   } finally {
-    await page.close()
+    await page.context().close()
   }
 }

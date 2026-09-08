@@ -1,9 +1,8 @@
 /** Strict replay fold for Agent Teams log-only events. */
 
 import { z } from 'zod'
-import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import type { SessionEvent, SessionEventMap } from '@deepseek-ai/dsh-session'
+import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type {
   TeamId,
   TeamMemberSnapshot,
@@ -42,7 +41,7 @@ const imageAttachmentSchema = z.object({
 
 // ContentBlockMap is merge-extensible. Validate every core variant exactly,
 // while retaining JSON-decoded plugin variants under an unknown type tag.
-const contentBlockSchema: z.ZodType<ContentBlock> = z.lazy(() => z.union([
+const contentBlockSchema: z.ZodType = z.lazy(() => z.union([
   z.object({ type: z.literal('text'), text: z.string() }).strict(),
   z.object({ type: z.literal('reasoning'), text: z.string() }).strict(),
   z.object({ type: z.literal('image'), attachment: imageAttachmentSchema }).strict(),
@@ -62,7 +61,7 @@ const contentBlockSchema: z.ZodType<ContentBlock> = z.lazy(() => z.union([
     block => !coreContentBlockTypes.has(block.type),
     { message: 'known content block types must match their declared fields' },
   ),
-])) as z.ZodType<ContentBlock>
+]))
 
 const teamMemberSnapshotSchema = z.object({
   id: sessionIdSchema,
@@ -72,7 +71,7 @@ const teamMemberSnapshotSchema = z.object({
   context: z.enum(['fresh', 'fork']),
   phase: z.enum(['provisioning', 'active', 'failed']),
   error: z.string().optional(),
-}).strict() as z.ZodType<TeamMemberSnapshot>
+}).strict()
 
 const teamTaskSnapshotSchema = z.object({
   id: teamTaskIdSchema,
@@ -83,7 +82,7 @@ const teamTaskSnapshotSchema = z.object({
   ownerId: sessionIdSchema.optional(),
   blockedBy: z.array(teamTaskIdSchema),
   writeScopes: z.array(z.string()),
-}).strict() as z.ZodType<TeamTaskSnapshot>
+}).strict()
 
 const teamMessageSnapshotSchema = z.object({
   id: teamMessageIdSchema,
@@ -92,7 +91,7 @@ const teamMessageSnapshotSchema = z.object({
   targetId: sessionIdSchema,
   delivery: z.enum(['quiet', 'wakeup']),
   content: z.array(contentBlockSchema),
-}).strict() as z.ZodType<TeamMessageSnapshot>
+}).strict()
 
 const teamEventSelectorSchema = z.object({
   version: nonNegativeSafeInteger,
@@ -103,26 +102,26 @@ const teamMemberEventSchema = z.object({
   version: z.literal(1),
   teamId: teamIdSchema,
   member: teamMemberSnapshotSchema,
-}).strict() as z.ZodType<SessionEventMap['team/member']>
+}).strict()
 
 const teamTaskEventSchema = z.object({
   version: z.literal(1),
   teamId: teamIdSchema,
   task: teamTaskSnapshotSchema,
-}).strict() as z.ZodType<SessionEventMap['team/task']>
+}).strict()
 
 const teamMessageQueuedEventSchema = z.object({
   version: z.literal(1),
   teamId: teamIdSchema,
   message: teamMessageSnapshotSchema,
-}).strict() as z.ZodType<SessionEventMap['team/message/queued']>
+}).strict()
 
 const teamMessageDeliveredEventSchema = z.object({
   version: z.literal(1),
   teamId: teamIdSchema,
   messageId: teamMessageIdSchema,
   targetId: sessionIdSchema,
-}).strict() as z.ZodType<SessionEventMap['team/message/delivered']>
+}).strict()
 
 /** Mutable internal replay state. */
 export interface TeamFoldState {
@@ -176,28 +175,30 @@ export function isTeamEvent(event: SessionEvent): event is TeamSessionEvent {
 
 /** Decode one persisted Team value and retain the schema failure as its cause. */
 function parsePersisted<T>(type: TeamEventType, schema: z.ZodType<T>, value: unknown): T {
-  try {
-    return schema.parse(value)
-  } catch (error: unknown) {
-    throw new Error(`persisted Agent Teams ${type} payload is invalid`, { cause: error })
+  const result = schema.safeParse(value)
+  if (!result.success) {
+    throw new Error(`persisted Agent Teams ${type} payload is invalid`, { cause: result.error })
   }
+  return result.data
 }
 
 /** Decode the complete current-version payload selected by one Team event type. */
 function parseCurrentTeamEvent(event: TeamSessionEvent): TeamSessionEvent {
   switch (event.type) {
     case 'team/member':
-      return { ...event, data: parsePersisted(event.type, teamMemberEventSchema, event.data) }
+      parsePersisted(event.type, teamMemberEventSchema, event.data)
+      break
     case 'team/task':
-      return { ...event, data: parsePersisted(event.type, teamTaskEventSchema, event.data) }
+      parsePersisted(event.type, teamTaskEventSchema, event.data)
+      break
     case 'team/message/queued':
-      return { ...event, data: parsePersisted(event.type, teamMessageQueuedEventSchema, event.data) }
+      parsePersisted(event.type, teamMessageQueuedEventSchema, event.data)
+      break
     case 'team/message/delivered':
-      return { ...event, data: parsePersisted(event.type, teamMessageDeliveredEventSchema, event.data) }
-    /* v8 ignore next 2 -- TeamEventType is closed and every member is handled above. */
-    default:
-      return event
+      parsePersisted(event.type, teamMessageDeliveredEventSchema, event.data)
+      break
   }
+  return structuredClone(event)
 }
 
 /**
@@ -272,9 +273,6 @@ export function applyTeamEvent(state: TeamFoldState, event: SessionEvent): void 
       state.delivered.add(decoded.data.messageId)
       break
     }
-    /* v8 ignore next 2 -- TeamEventType is closed and every member is handled above. */
-    default:
-      return
   }
 }
 

@@ -90,6 +90,8 @@ type SessionListMutation =
 
 /** Instance cluster + frame entry + the session list. */
 export class SessionManager {
+  private readonly lifetime = new AbortController()
+  private readonly pendingRequests = new Set<Promise<unknown>>()
   private readonly sessions = new Map<SessionId, Session>()
   /** In-flight Session disposals remain here after instances leave `sessions`, so manager disposal can await quiescence. */
   private readonly sessionDisposals = new Set<Promise<void>>()
@@ -163,17 +165,23 @@ export class SessionManager {
    * @param sessionId - listed or catalog-addressed Session id.
    */
   select(sessionId: SessionId): void {
+    this.lifetime.signal.throwIfAborted()
     const address = this.navigationAddress(sessionId)
     if (!this.summaries.some(summary => summary.sessionId === sessionId) && address === undefined) {
       throw new Error(`sessions.select: unknown session ${sessionId}`)
     }
     if (address !== undefined) this.addresses.set(sessionId, address)
-    this.sessions.get(sessionId)?.configureSubagent(
+    const session = this.sessions.get(sessionId)
+    const catalog = address === undefined ? undefined : this.catalogs.get(address.parentSessionId)
+    session?.configureSubagent(
       address,
-      address === undefined
-        ? undefined
-        : this.catalogs.get(address.parentSessionId)?.parentAvailable,
+      catalog?.parentAvailable,
     )
+    const entry = catalog?.entries.find(candidate => candidate.id === sessionId)
+    if (entry?.kind === 'child') {
+      session?.handleBlank(false)
+      session?.handleRunning(entry.activity === 'running')
+    }
     this.selected = sessionId
     // Looking at the session consumes its completion reminder (dot clears).
     this.completedNotifications.delete(sessionId)
@@ -186,17 +194,14 @@ export class SessionManager {
    * @param address - catalog-derived parent and child ids.
    */
   selectSubagent(address: SubagentAddress): void {
+    this.lifetime.signal.throwIfAborted()
     const catalog = this.catalogs.get(address.parentSessionId)
     const entry = catalog?.entries.find(candidate => candidate.id === address.childSessionId)
     if (entry === undefined || entry.kind !== 'child' || entry.mode !== address.mode) {
       throw new Error(`sessions.selectSubagent: ${address.childSessionId} is not a healthy catalog child`)
     }
     this.addresses.set(address.childSessionId, address)
-    this.sessions.get(address.childSessionId)?.configureSubagent(address, catalog?.parentAvailable)
-    this.selected = address.childSessionId
-    this.completedNotifications.delete(address.childSessionId)
-    void this.refreshSubagents(address.childSessionId)
-    this.notifier.notifyNow()
+    this.select(address.childSessionId)
   }
 
   /** Clear the selection (the layout falls to the no-session view state). */
@@ -246,34 +251,40 @@ export class SessionManager {
   }
 
   /**
-   * Stop owned timers and every remaining Session instance.
-   * @returns when every Session Remote iterator has completed teardown.
+   * Stop owned requests, timers, and every remaining Session instance.
+   * @returns when all owned requests and Session Remote iterators have settled.
    */
   async dispose(): Promise<void> {
+    this.lifetime.abort()
     for (const timer of this.catalogDebounce.values()) clearTimeout(timer)
     this.catalogDebounce.clear()
     this.catalogStale.clear()
     this.openCatalogs.clear()
     const sessions = [...this.sessions.values()]
     this.sessions.clear()
-    for (const session of sessions) void this.startSessionDisposal(session)
-    await this.drainSessionDisposals()
+    const results = await Promise.allSettled([
+      ...this.sessionDisposals,
+      ...this.pendingRequests,
+      ...sessions.map(session => this.startSessionDisposal(session)),
+      ...[...this.catalogInflight.values()].map(request => request.promise),
+      ...(this.listInflight === null ? [] : [this.listInflight]),
+    ])
+    this.catalogInflight.clear()
+    this.listInflight = null
+    this.listMutations = null
+    const failures: unknown[] = []
+    for (const result of results) {
+      if (result.status === 'rejected') failures.push(result.reason)
+    }
+    if (failures.length > 0) throw new AggregateError(failures, 'Session manager disposal failed')
   }
 
-  private startSessionDisposal(session: Session): Promise<void> {
+  private async startSessionDisposal(session: Session): Promise<void> {
     const disposal = session.dispose()
     this.sessionDisposals.add(disposal)
-    void disposal.then(
-      () => { this.sessionDisposals.delete(disposal) },
-      () => { this.sessionDisposals.delete(disposal) },
-    )
-    return disposal
-  }
-
-  private async drainSessionDisposals(): Promise<void> {
-    while (this.sessionDisposals.size > 0) {
-      await Promise.allSettled([...this.sessionDisposals])
-    }
+    const [result] = await Promise.allSettled([disposal])
+    this.sessionDisposals.delete(disposal)
+    if (result.status === 'rejected') throw result.reason
   }
 
   /**
@@ -283,6 +294,7 @@ export class SessionManager {
    * @returns the resident instance.
    */
   get(sessionId: SessionId): Session {
+    this.lifetime.signal.throwIfAborted()
     let session = this.sessions.get(sessionId)
     if (session === undefined) {
       session = this.createSession(sessionId)
@@ -350,6 +362,7 @@ export class SessionManager {
    * @param parentSessionId - catalog owner.
    */
   refreshSubagents(parentSessionId: SessionId): Promise<void> {
+    this.lifetime.signal.throwIfAborted()
     const existing = this.catalogInflight.get(parentSessionId)
     if (existing !== undefined) return existing.promise
     const previous = this.catalogs.get(parentSessionId)
@@ -365,37 +378,35 @@ export class SessionManager {
     })
     this.notifier.markDirty()
     const operation = (async () => {
-      try {
-        const result = toSessionResult(await this.remote.subagents.list(parentSessionId))
-        if (result.ok) {
-          const parentAvailable = this.catalogInflight.get(parentSessionId)?.parentAvailableOverride
-            ?? result.value.parentAvailable
-          this.catalogs.set(parentSessionId, {
-            ...result.value,
-            entries: this.withCatalogMutations(result.value.entries, expandableRows, activityRows),
-            parentAvailable,
-            state: 'ready',
-            error: null,
-          })
-          for (const [childId, address] of this.addresses) {
-            if (address.parentSessionId !== parentSessionId) continue
-            this.sessions.get(childId)?.handleSubagentParentAvailable(parentAvailable)
-          }
-        } else {
-          this.catalogs.set(parentSessionId, {
-            entries: this.withCatalogMutations(
-              previous?.entries ?? [], expandableRows, activityRows,
-            ),
-            ...catalogAvailability(
-              this.catalogInflight.get(parentSessionId)?.parentAvailableOverride
-                ?? previous?.parentAvailable,
-            ),
-            state: 'error',
-            error: result.error,
-          })
+      const [outcome] = await Promise.allSettled([
+        this.remote.subagents.list(parentSessionId, this.lifetime.signal),
+      ])
+      if (this.lifetime.signal.aborted) return
+      const result = outcome.status === 'fulfilled'
+        ? toSessionResult(outcome.value)
+        : transportResult<SubagentCatalog>(outcome.reason)
+      if (result.ok) {
+        const parentAvailable = this.catalogInflight.get(parentSessionId)?.parentAvailableOverride
+          ?? result.value.parentAvailable
+        const entries = this.withCatalogMutations(result.value.entries, expandableRows, activityRows)
+        this.catalogs.set(parentSessionId, {
+          ...result.value,
+          entries,
+          parentAvailable,
+          state: 'ready',
+          error: null,
+        })
+        for (const entry of entries) {
+          if (entry.kind !== 'child') continue
+          const session = this.sessions.get(entry.id)
+          session?.handleBlank(false)
+          session?.handleRunning(entry.activity === 'running')
         }
-      } catch (error: unknown) {
-        const folded = transportResult<never>(error)
+        for (const [childId, address] of this.addresses) {
+          if (address.parentSessionId !== parentSessionId) continue
+          this.sessions.get(childId)?.handleSubagentParentAvailable(parentAvailable)
+        }
+      } else {
         this.catalogs.set(parentSessionId, {
           entries: this.withCatalogMutations(
             previous?.entries ?? [], expandableRows, activityRows,
@@ -405,16 +416,15 @@ export class SessionManager {
               ?? previous?.parentAvailable,
           ),
           state: 'error',
-          error: folded.ok ? null : folded.error,
+          error: result.error,
         })
-      } finally {
-        this.catalogInflight.delete(parentSessionId)
-        // Re-arm the trailing pull before the dirty notify: the response the
-        // caller observed predates the stale-marking change, so the follow-up
-        // refresh is the only carrier of that change.
-        if (this.catalogStale.delete(parentSessionId)) void this.refreshSubagents(parentSessionId)
-        this.notifier.markDirty()
       }
+      this.catalogInflight.delete(parentSessionId)
+      // Re-arm the trailing pull before the dirty notify: the response the
+      // caller observed predates the stale-marking change, so the follow-up
+      // refresh is the only carrier of that change.
+      if (this.catalogStale.delete(parentSessionId)) void this.refreshSubagents(parentSessionId)
+      this.notifier.markDirty()
     })()
     this.catalogInflight.set(parentSessionId, {
       promise: operation,
@@ -431,13 +441,14 @@ export class SessionManager {
    * @param open - current menu state.
    */
   setSubagentCatalogOpen(parentSessionId: SessionId, open: boolean): void {
+    this.lifetime.signal.throwIfAborted()
     if (open) {
       this.openCatalogs.add(parentSessionId)
       void this.refreshSubagents(parentSessionId)
     } else {
       this.openCatalogs.delete(parentSessionId)
       const timer = this.catalogDebounce.get(parentSessionId)
-      if (timer !== undefined) {
+      if (timer !== undefined && !this.consumesCatalog(parentSessionId)) {
         clearTimeout(timer)
         this.catalogDebounce.delete(parentSessionId)
       }
@@ -448,6 +459,7 @@ export class SessionManager {
 
   /** Full refresh via session.list (single-flight: an in-flight call is reused). */
   refreshList(): Promise<void> {
+    this.lifetime.signal.throwIfAborted()
     if (this.listInflight !== null) return this.listInflight
     this.listState = 'loading'
     this.listError = null
@@ -456,65 +468,59 @@ export class SessionManager {
     this.listMutations = mutations
     this.notifier.markDirty()
     this.listInflight = (async () => {
-      try {
-        const result = toSessionResult(await this.remote.session.list({}))
-        if (result.ok) {
-          const baseline: SessionSummary[] = this.listPhase === 'pending'
-            ? [...result.value.items]
-            : mergeOrderedBaseline(established, result.value.items, summary => summary.sessionId)
-          // Seed first observations from the pull-time baseline BEFORE replaying
-          // in-flight mutations, then reconcile the reminders after EVERY
-          // replayed mutation: an edge that happens entirely between mutations
-          // (baseline idle → running → idle) must still arm, which a single
-          // sync on the folded result would collapse away.
-          for (const s of baseline) {
-            if (!this.prevRunning.has(s.sessionId)) this.prevRunning.set(s.sessionId, s.running)
-          }
-          let summaries = baseline
-          for (const mutation of mutations) {
-            summaries = applyMutation(summaries, mutation)
-            this.summaries = summaries
-            this.syncCompletedNotifications()
-          }
-          this.summaries = summaries
-          this.listState = 'idle'
-          this.listPhase = 'ready'
-          // Covers the empty-mutations pull (a plain baseline carries no edge).
-          this.syncCompletedNotifications()
-          // Push running/blank bits down to instantiated Sessions (the list is the authoritative summary source).
-          for (const s of this.summaries) {
-            const session = this.sessions.get(s.sessionId)
-            if (session === undefined) continue
-            session.handleBlank(s.blank)
-            session.handleRunning(s.running)
-          }
-          // Seed each row's projection baseline into the per-session value
-          // store (cold titles surface without opening the session). Per-key
-          // apply, not seed(): the list block is a partial baseline — the
-          // cold cache serves only version-matching keys — so an absent key
-          // must not clear; higher-seq-wins still keeps a stale list block
-          // from overwriting a newer push frame or tail baseline.
-          for (const s of result.value.items) {
-            const block = s.projections
-            if (block === undefined) continue
-            const store = this.projectionStore(s.sessionId)
-            const values = block.values as Record<string, unknown>
-            for (const key of Object.keys(values)) store.apply(key, values[key], block.asOfSeq)
-          }
-        } else {
-          this.listState = 'error'
-          this.listError = result.error
+      const [outcome] = await Promise.allSettled([
+        this.remote.session.list({}, this.lifetime.signal),
+      ])
+      if (this.lifetime.signal.aborted) return
+      const result = outcome.status === 'fulfilled'
+        ? toSessionResult(outcome.value)
+        : transportResult<{ items: SessionSummary[] }>(outcome.reason)
+      if (result.ok) {
+        const baseline: SessionSummary[] = this.listPhase === 'pending'
+          ? [...result.value.items]
+          : mergeOrderedBaseline(established, result.value.items, summary => summary.sessionId)
+        // Completion reminders observe every status edge, including transitions
+        // received during hydration that leave the final running bit unchanged.
+        for (const s of baseline) {
+          if (!this.prevRunning.has(s.sessionId)) this.prevRunning.set(s.sessionId, s.running)
         }
-      } catch (error) {
+        let summaries = baseline
+        for (const mutation of mutations) {
+          summaries = applyMutation(summaries, mutation)
+          this.summaries = summaries
+          this.syncCompletedNotifications()
+        }
+        this.summaries = summaries
+        this.listState = 'idle'
+        this.listPhase = 'ready'
+        // Covers the empty-mutations pull (a plain baseline carries no edge).
+        this.syncCompletedNotifications()
+        // Push running/blank bits down to instantiated Sessions (the list is the authoritative summary source).
+        for (const s of this.summaries) {
+          const session = this.sessions.get(s.sessionId)
+          if (session === undefined) continue
+          session.handleBlank(s.blank)
+          session.handleRunning(s.running)
+        }
+        // Seed each row's projection baseline into the per-session value
+        // store (cold titles surface without opening the session). Per-key
+        // apply, not seed(): the list block is a partial baseline — the
+        // cold cache serves only version-matching keys — so an absent key
+        // must not clear; higher-seq-wins still keeps a stale list block
+        // from overwriting a newer push frame or tail baseline.
+        for (const s of result.value.items) {
+          const block = s.projections
+          if (block === undefined) continue
+          const store = this.projectionStore(s.sessionId)
+          for (const [key, value] of Object.entries(block.values)) store.apply(key, value, block.asOfSeq)
+        }
+      } else {
         this.listState = 'error'
-        const folded = transportResult<never>(error)
-        /* v8 ignore next -- the `? null` arm is unreachable: transportResult always returns ok:false. */
-        this.listError = folded.ok ? null : folded.error
-      } finally {
-        this.listMutations = null
-        this.listInflight = null
-        this.notifier.markDirty()
+        this.listError = result.error
       }
+      this.listMutations = null
+      this.listInflight = null
+      this.notifier.markDirty()
     })()
     return this.listInflight
   }
@@ -530,18 +536,22 @@ export class SessionManager {
     query: string,
     signal: AbortSignal,
   ): Promise<ClientResult<{ items: SessionSearchResultItem[]; hasMore: boolean }>> {
-    try {
-      const result = toSessionResult(await this.remote.session.search({ query }, signal))
-      if (!result.ok) return result
-      return {
-        ok: true,
-        value: {
-          items: [...result.value.items],
-          hasMore: result.value.hasMore,
-        },
-      }
-    } catch (error: unknown) {
-      return transportResult(error)
+    this.lifetime.signal.throwIfAborted()
+    const request = Promise.allSettled([
+      this.remote.session.search({ query }, AbortSignal.any([signal, this.lifetime.signal])),
+    ])
+    this.pendingRequests.add(request)
+    const [outcome] = await request
+    this.pendingRequests.delete(request)
+    if (outcome.status === 'rejected') return transportResult(outcome.reason)
+    const result = toSessionResult(outcome.value)
+    if (!result.ok) return result
+    return {
+      ok: true,
+      value: {
+        items: [...result.value.items],
+        hasMore: result.value.hasMore,
+      },
     }
   }
 
@@ -559,35 +569,40 @@ export class SessionManager {
       sessionId?: SessionId
     } = {},
   ): Promise<ClientResult<{ sessionId: SessionId }>> {
-    try {
-      const shared = opts.sessionId === undefined ? {} : { sessionId: opts.sessionId }
-      const payload = opts.workspaceId !== undefined
-        ? { workspaceId: opts.workspaceId, ...shared }
-        : { ...(opts.cwd === undefined ? {} : { cwd: opts.cwd }), ...shared }
-      const result = toSessionResult(await this.remote.session.create(payload))
-      if (result.ok) {
+    this.lifetime.signal.throwIfAborted()
+    const shared = opts.sessionId === undefined ? {} : { sessionId: opts.sessionId }
+    const payload = opts.workspaceId !== undefined
+      ? { workspaceId: opts.workspaceId, ...shared }
+      : { ...(opts.cwd === undefined ? {} : { cwd: opts.cwd }), ...shared }
+    const request = Promise.allSettled([
+      this.remote.session.create(payload),
+    ])
+    this.pendingRequests.add(request)
+    const [outcome] = await request
+    this.pendingRequests.delete(request)
+    if (outcome.status === 'rejected') return transportResult(outcome.reason)
+    const result = toSessionResult(outcome.value)
+    if (this.lifetime.signal.aborted) return result
+    if (result.ok) {
+      this.recordMutation({ kind: 'upsert', summary: {
+        sessionId: result.value.sessionId, updatedAt: Date.now(), running: false, blank: true,
+        ...(opts.cwd !== undefined ? { cwd: opts.cwd } : {}),
+      } })
+    } else {
+      const publishedSessionId = workspaceAttachSessionId(result.error)
+      // Publication precedes attachment. The error's id is a real Session,
+      // so expose it immediately as Ungrouped while the caller keeps the
+      // prompt buffer and decides whether to retry attachment.
+      if (publishedSessionId !== undefined) {
         this.recordMutation({ kind: 'upsert', summary: {
-          sessionId: result.value.sessionId, updatedAt: Date.now(), running: false, blank: true,
-          ...(opts.cwd !== undefined ? { cwd: opts.cwd } : {}),
+          sessionId: publishedSessionId,
+          updatedAt: Date.now(),
+          running: false,
+          blank: true,
         } })
-      } else {
-        const publishedSessionId = workspaceAttachSessionId(result.error)
-        // Publication precedes attachment. The error's id is a real Session,
-        // so expose it immediately as Ungrouped while the caller keeps the
-        // prompt buffer and decides whether to retry attachment.
-        if (publishedSessionId !== undefined) {
-          this.recordMutation({ kind: 'upsert', summary: {
-            sessionId: publishedSessionId,
-            updatedAt: Date.now(),
-            running: false,
-            blank: true,
-          } })
-        }
       }
-      return result
-    } catch (error) {
-      return transportResult(error)
     }
+    return result
   }
 
   /**
@@ -602,26 +617,31 @@ export class SessionManager {
   async fork(
     opts: { sessionId: SessionId; atSeq?: number },
   ): Promise<ClientResult<{ sessionId: SessionId }>> {
-    try {
-      const source = this.summaries.find(s => s.sessionId === opts.sessionId)
-      const result = toSessionResult(await this.remote.session.fork({
+    this.lifetime.signal.throwIfAborted()
+    const source = this.summaries.find(s => s.sessionId === opts.sessionId)
+    const request = Promise.allSettled([
+      this.remote.session.fork({
         sessionId: opts.sessionId,
         ...opts.atSeq === undefined ? {} : { atSeq: opts.atSeq },
-      }))
-      const childId = result.ok
-        ? result.value.sessionId
-        : workspaceAttachSessionId(result.error)
-      if (childId !== undefined) {
-        this.recordMutation({ kind: 'upsert', summary: {
-          sessionId: childId, updatedAt: Date.now(), running: false, blank: false,
-          parentSessionId: opts.sessionId,
-          ...(source?.cwd !== undefined ? { cwd: source.cwd } : {}),
-        } })
-      }
-      return result
-    } catch (error) {
-      return transportResult(error)
+      }),
+    ])
+    this.pendingRequests.add(request)
+    const [outcome] = await request
+    this.pendingRequests.delete(request)
+    if (outcome.status === 'rejected') return transportResult(outcome.reason)
+    const result = toSessionResult(outcome.value)
+    if (this.lifetime.signal.aborted) return result
+    const childId = result.ok
+      ? result.value.sessionId
+      : workspaceAttachSessionId(result.error)
+    if (childId !== undefined) {
+      this.recordMutation({ kind: 'upsert', summary: {
+        sessionId: childId, updatedAt: Date.now(), running: false, blank: false,
+        parentSessionId: opts.sessionId,
+        ...(source?.cwd !== undefined ? { cwd: source.cwd } : {}),
+      } })
     }
+    return result
   }
 
   /**
@@ -728,8 +748,7 @@ export class SessionManager {
     if (summary.origin === 'subagent' && summary.parentSessionId !== undefined) {
       this.markCatalogParentExpandable(summary.parentSessionId)
     }
-    if (summary.parentSessionId !== undefined
-      && (this.selected === summary.parentSessionId || this.openCatalogs.has(summary.parentSessionId))) {
+    if (summary.parentSessionId !== undefined && this.consumesCatalog(summary.parentSessionId)) {
       this.scheduleCatalogRefresh(summary.parentSessionId)
     }
   }
@@ -740,7 +759,7 @@ export class SessionManager {
    */
   handleSessionRemoved(sessionId: SessionId): void {
     const summary = this.summaries.find(candidate => candidate.sessionId === sessionId)
-    const durableSubagent = summary?.origin === 'subagent' || this.addresses.has(sessionId)
+    const durableSubagent = summary?.origin === 'subagent' || this.navigationAddress(sessionId) !== undefined
     this.recordMutation(durableSubagent
       ? { kind: 'status', sessionId, running: false }
       : { kind: 'remove', sessionId })
@@ -807,7 +826,15 @@ export class SessionManager {
     for (const parentSessionId of this.openCatalogs) void this.refreshSubagents(parentSessionId)
   }
 
-  /** Debounce membership refetches while one parent catalog is selected or open. */
+  /** Selected child conversations also consume their parent's sibling catalog. */
+  private consumesCatalog(parentSessionId: SessionId): boolean {
+    return this.selected === parentSessionId
+      || this.openCatalogs.has(parentSessionId)
+      || (this.selected !== undefined
+        && this.addresses.get(this.selected)?.parentSessionId === parentSessionId)
+  }
+
+  /** Debounce membership refetches for the selected conversation and open catalogs. */
   private scheduleCatalogRefresh(parentSessionId: SessionId): void {
     if (this.catalogDebounce.has(parentSessionId)) return
     const timer = setTimeout(() => {
@@ -943,14 +970,15 @@ export class SessionManager {
       this.entryCache.set(entry.sessionId, entry)
       return entry
     })
+    const listedIds = new Set(items.map(entry => entry.sessionId))
     for (const id of this.entryCache.keys()) {
-      if (!items.some(e => e.sessionId === id)) this.entryCache.delete(id)
+      if (!listedIds.has(id)) this.entryCache.delete(id)
     }
     const sameOrder = items.length === this.itemsCache.length && items.every((e, i) => e === this.itemsCache[i])
     if (!sameOrder) this.itemsCache = items
     const selected = this.selected
     const current = selected !== undefined
-      && (items.some(item => item.sessionId === selected) || this.addresses.has(selected))
+      && (listedIds.has(selected) || this.addresses.has(selected))
       ? selected
       : undefined
     return {

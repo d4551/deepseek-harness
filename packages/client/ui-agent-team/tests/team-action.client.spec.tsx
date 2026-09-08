@@ -8,10 +8,65 @@ import {
   TeamAction, SESSION, actions, props, task, taskSuccess, view,
 } from './team-fixtures.client.ts'
 import { zh } from '../src/client/locales.ts'
+import { TeamActivity } from '../../../subagent/agent-team/src/activity.ts'
+import { TeamId } from '../../../subagent/agent-team/src/types.ts'
 
 afterEach(cleanup)
 
 describe('TeamAction load and refresh ordering', () => {
+  it('refreshes external Team changes and stops the subscription when closed', async () => {
+    const activity = new TeamActivity()
+    let current = view
+    const load = vi.fn(() => Promise.resolve({ ok: true as const, value: current }))
+    const changes = vi.fn((sessionId: SessionId, signal: AbortSignal) =>
+      activity.changes(TeamId(sessionId), signal))
+    render(<TeamAction {...props(actions({ load, changes }))} />)
+    const trigger = screen.getByRole('button', { name: /Agent Team/u })
+    expect(changes).not.toHaveBeenCalled()
+    fireEvent.click(trigger)
+    await screen.findByText('Implement runtime')
+    current = { ...view, tasks: [{ ...task, revision: 2, subject: 'Updated by teammate' }] }
+    activity.notify(TeamId(SESSION))
+    expect(await screen.findByText('Updated by teammate')).toBeTruthy()
+    expect(load).toHaveBeenCalledTimes(2)
+    fireEvent.click(trigger)
+    expect(changes.mock.calls[0]?.[1].aborted).toBe(true)
+    activity.notify(TeamId(SESSION))
+    await Promise.resolve()
+    expect(load).toHaveBeenCalledTimes(2)
+    fireEvent.click(trigger)
+    expect(await screen.findByText('Updated by teammate')).toBeTruthy()
+    expect(changes).toHaveBeenCalledTimes(2)
+  })
+
+  it('coalesces activity while a view request is pending', async () => {
+    let sent = 0
+    const first = Promise.withResolvers<{ ok: true; value: TeamView }>()
+    const load = vi.fn()
+      .mockImplementationOnce(() => first.promise)
+      .mockResolvedValue({ ok: true, value: { ...view, tasks: [{ ...task, subject: 'Latest state' }] } })
+    render(<TeamAction {...props(actions({
+      load,
+      async *changes(_sessionId, signal) {
+        for (let revision = 0; revision <= 100; revision += 1) {
+          sent = revision
+          yield revision
+        }
+        if (signal.aborted) return
+        await new Promise<void>((resolve) => {
+          signal.addEventListener('abort', () => { resolve() }, { once: true })
+        })
+      },
+    }))} />)
+    fireEvent.click(screen.getByRole('button', { name: /Agent Team/u }))
+    await waitFor(() => { expect(load).toHaveBeenCalledOnce() })
+    await waitFor(() => { expect(sent).toBe(100) })
+    expect(load).toHaveBeenCalledOnce()
+    first.resolve({ ok: true, value: view })
+    expect(await screen.findByText('Latest state')).toBeTruthy()
+    expect(load).toHaveBeenCalledTimes(2)
+  })
+
   it('ignores a stale Team load after the conversation switches sessions', async () => {
     const nextSession = 'next-lead' as SessionId
     const firstLoad = Promise.withResolvers<{ ok: true; value: TeamView }>()

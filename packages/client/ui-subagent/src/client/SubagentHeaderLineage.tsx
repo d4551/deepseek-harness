@@ -560,7 +560,6 @@ function CatalogDropdown({
     cancelHoverClose()
     if (next) {
       const trigger = triggerRef.current
-      /* v8 ignore next -- a queued callback can outlive the trigger */
       if (trigger === null) return
       setOpen(true)
       setMenuPosition(catalogMenuPosition(trigger))
@@ -637,7 +636,6 @@ function CatalogDropdown({
     if (!open) return
     const placeMenu = (): void => {
       const trigger = triggerRef.current
-      /* v8 ignore next -- native resize or scroll can outlive the trigger */
       if (trigger === null) return
       setMenuPosition(catalogMenuPosition(trigger))
     }
@@ -692,7 +690,7 @@ function CatalogDropdown({
 
   const navigate = (event: KeyboardEvent<HTMLDivElement>): void => {
     const items = treeItems(menuRef.current)
-    const index = items.indexOf(document.activeElement as HTMLElement)
+    const index = items.findIndex(item => item === document.activeElement)
     if (event.key === 'Escape') {
       event.preventDefault()
       changeOpen(false, true)
@@ -735,7 +733,7 @@ function CatalogDropdown({
             { count: descendants.runningCount > 0 ? descendants.runningCount : descendantCount },
           )}
         onClick={openTitle === undefined
-          ? undefined
+          ? () => { changeOpen(!open) }
           : () => {
             cancelHoverOpen()
             if (open) changeOpen(false)

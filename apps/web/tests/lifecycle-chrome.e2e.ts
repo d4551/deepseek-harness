@@ -152,7 +152,7 @@ describe('web e2e: lifecycle & chrome (workspace flow / reload / dark mode)', ()
       await saveFailureShot(activePage, 'web-e2e-plan-active').catch(() => undefined)
       throw error
     } finally {
-      await activePage.close()
+      await activePage.context().close()
       await activeScaffold.close()
     }
   })

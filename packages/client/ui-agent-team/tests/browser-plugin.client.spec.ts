@@ -20,6 +20,8 @@ import {
 } from '../src/client/TeamAction.tsx'
 import { inject, mountAgentTeamUi } from '../src/client/mount.ts'
 import { apply as nodeApply } from '../src/index.ts'
+import { TeamActivity } from '../../../subagent/agent-team/src/activity.ts'
+import { TeamId } from '../../../subagent/agent-team/src/types.ts'
 
 const SESSION = 'team-session' as SessionId
 const CHILD = 'team-child' as SessionId
@@ -33,6 +35,7 @@ type CreateTaskInput = Parameters<TeamActionInjected['createTask']>[1]
 type UpdateTaskInput = Parameters<TeamActionInjected['updateTask']>[1]
 
 type TeamRpcCall =
+  | { method: 'agentTeams/changes'; args: [sessionId: SessionId] }
   | { method: 'agentTeams/view'; args: [sessionId: SessionId] }
   | { method: 'agentTeams/createTask'; args: [sessionId: SessionId, input: CreateTaskInput] }
   | { method: 'agentTeams/updateTask'; args: [sessionId: SessionId, input: UpdateTaskInput] }
@@ -46,7 +49,7 @@ interface TeamAddress {
 type TeamNavigation = ['refresh', SessionId] | ['open', TeamAddress]
 
 const isTeamActionInjected = <T extends object>(value: T): value is T & TeamActionInjected =>
-  'load' in value && 'createTask' in value && 'updateTask' in value && 'openTeammate' in value
+  'changes' in value && 'load' in value && 'createTask' in value && 'updateTask' in value && 'openTeammate' in value
 
 const TASK: TeamTaskView = {
   id: TASK_ID,
@@ -87,6 +90,7 @@ async function bench(options: {
 } = {}) {
   const ctx = new Context()
   const calls: TeamRpcCall[] = []
+  const activity = new TeamActivity()
   class RemoteService extends Service {
     readonly disposeMount = vi.fn(() => Promise.resolve())
     readonly mount = vi.fn((_contribution: TypertRemoteContribution) => Promise.resolve(this.disposeMount))
@@ -103,6 +107,10 @@ async function bench(options: {
   const mutation = (value: TeamTaskMutationResult): RemoteResult<TeamTaskMutationResult> =>
     ({ ok: true as const, value })
   ctx.provide('remote.agentTeams', {
+    changes: (sessionId: SessionId, signal: AbortSignal): AsyncIterable<number> => {
+      calls.push({ method: 'agentTeams/changes', args: [sessionId] })
+      return activity.changes(TeamId(sessionId), signal)
+    },
     view: (sessionId: SessionId): Promise<TeamActionResult<TeamView>> => {
       calls.push({ method: 'agentTeams/view', args: [sessionId] })
       return Promise.resolve(options.remoteFailure === 'view'
@@ -289,6 +297,12 @@ describe('ui-team browser plugin', () => {
   it('routes Team actions from an addressed teammate conversation back through its Lead', async () => {
     const b = await bench({ addressed: true })
     const actions = b.actions()
+    const controller = new AbortController()
+    const changes = actions.changes(CHILD, controller.signal)[Symbol.asyncIterator]()
+    expect(await changes.next()).toEqual({ value: 0, done: false })
+    expect(b.calls[0]).toEqual({ method: 'agentTeams/changes', args: [SESSION] })
+    controller.abort()
+    expect(await changes.next()).toEqual({ value: undefined, done: true })
     await actions.load(CHILD)
     await actions.openTeammate(CHILD, {
       id: CHILD,
@@ -297,7 +311,7 @@ describe('ui-team browser plugin', () => {
       status: 'inactive',
       diagnostics: [],
     })
-    expect(b.calls[0]).toEqual({ method: 'agentTeams/view', args: [SESSION] })
+    expect(b.calls[1]).toEqual({ method: 'agentTeams/view', args: [SESSION] })
     expect(b.navigation).toEqual([
       ['refresh', SESSION],
       ['open', {

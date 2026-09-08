@@ -207,14 +207,15 @@ describe('list lifecycle', () => {
 })
 
 describe('search', () => {
-  it('returns bounded Host results and forwards the caller signal', async () => {
+  it('returns bounded Host results and honors caller cancellation', async () => {
     const api = new FakeApiClient()
     api.onSearch = () => Promise.resolve(ok({
       items: [{ sessionId: S1, snippet: 'matching excerpt' }],
       hasMore: true,
     }))
     const manager = new SessionManager(fakeRemote(api))
-    const signal = new AbortController().signal
+    const controller = new AbortController()
+    const signal = controller.signal
 
     await expect(manager.search('exact phrase', signal)).resolves.toEqual({
       ok: true,
@@ -224,7 +225,11 @@ describe('search', () => {
       },
     })
     expect(api.callsOf('session.search')).toEqual([{ query: 'exact phrase' }])
-    expect(api.lastSearchSignal).toBe(signal)
+    expect(api.lastSearchSignal?.aborted).toBe(false)
+    const reason = new Error('Search superseded')
+    controller.abort(reason)
+    expect(api.lastSearchSignal?.aborted).toBe(true)
+    expect(api.lastSearchSignal?.reason).toBe(reason)
   })
 
   it('preserves business errors and folds transport failures', async () => {
@@ -797,8 +802,10 @@ describe('connected generation', () => {
 
     manager.handleConnected()
     expect(manager.get(S2).getSnapshot().subagent).toEqual({ address })
+    const catalogs = Promise.all([manager.refreshSubagents(S1), manager.refreshSubagents(S2)])
     parent.resolve(remoteOk({ entries: [], parentAvailable: true }))
     child.resolve(remoteOk({ entries: [], parentAvailable: true }))
+    await catalogs
 
     await vi.waitFor(() => {
       expect(api.callsOf('session.list')).toHaveLength(1)

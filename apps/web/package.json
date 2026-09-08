@@ -32,6 +32,7 @@
   },
   "license": "MIT",
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@deepseek-ai/cordis-plugin-group": "workspace:^",
     "@deepseek-ai/dsh-client-modules": "workspace:^",
     "@deepseek-ai/dsh-client-store": "workspace:^",
@@ -48,6 +49,7 @@
     "@types/react-dom": "~19.2.5",
     "@types/ws": "8.18.1",
     "@vitejs/plugin-react": "^6.1.1",
+    "axe-core": "^4.13.0",
     "fflate": "^0.8.3",
     "http-server": "^14.1.1",
     "playwright": "^1.62.1",

@@ -355,7 +355,13 @@ describe('web e2e: persisted subagent conversation and human continuation', () =
 
   it('opens the completed child from persistence without activating it', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-subagent-open'))
-    await page.getByRole('button', { name: '3 subagents' }).hover()
+    const trigger = page.getByRole('button', { name: '3 subagents' })
+    await trigger.press('Enter')
+    await page.getByRole('tree', { name: 'Subagent sessions' }).waitFor()
+    expect(await trigger.getAttribute('aria-expanded')).toBe('true')
+    await trigger.press('Space')
+    expect(await trigger.getAttribute('aria-expanded')).toBe('false')
+    await trigger.click()
     await page.getByRole('treeitem', { name: new RegExp(LABEL) }).click()
     await expect.poll(
       () => page.getByText(INITIAL_PROMPT, { exact: true }).count(),

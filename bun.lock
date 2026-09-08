@@ -242,6 +242,7 @@
       "name": "@deepseek-ai/dsh-web-frontend",
       "version": "0.1.2-alpha.1",
       "devDependencies": {
+        "@axe-core/playwright": "4.13.0",
         "@deepseek-ai/cordis-plugin-group": "workspace:^",
         "@deepseek-ai/dsh-client-modules": "workspace:^",
         "@deepseek-ai/dsh-client-store": "workspace:^",
@@ -258,6 +259,7 @@
         "@types/react-dom": "~19.2.5",
         "@types/ws": "8.18.1",
         "@vitejs/plugin-react": "^6.1.1",
+        "axe-core": "^4.13.0",
         "fflate": "^0.8.3",
         "http-server": "^14.1.1",
         "playwright": "^1.62.1",
@@ -7858,6 +7860,8 @@
     "@aws-sdk/xml-builder": ["@aws-sdk/xml-builder@3.972.40", "", { "dependencies": { "@smithy/types": "^4.17.2", "tslib": "^2.6.2" } }, "sha512-wlFmCIGUlwF4zx/kncw+bmxTQh1HeSJq4mYV/V5cZUSJadDP3kXvGW8Rn21cimj/7y9ju+47oYWXi97vF7czaA=="],
 
     "@aws/lambda-invoke-store": ["@aws/lambda-invoke-store@0.3.0", "", {}, "sha512-sl4Bm6yiMNYrZKkqqDFWN0UfnWhlS8ivKxrYl+6t0gCLrqr8y3B2IqZZbFRkfaVVp7C/baApyh71P+LeE1A2sQ=="],
+
+    "@axe-core/playwright": ["@axe-core/playwright@4.13.0", "", { "dependencies": { "axe-core": "~4.13.0" }, "peerDependencies": { "playwright-core": ">= 1.0.0" } }, "sha512-6YLx+kxXu5GJceG4ozFg+33a2EMTdjYwWGloJ3sb9Kta5pp+ZNS53uxGVog5JetIY8s++P5UrtX+cri+u0VAVg=="],
 
     "@babel/code-frame": ["@babel/code-frame@7.29.7", "", { "dependencies": { "@babel/helper-validator-identifier": "^7.29.7", "js-tokens": "^4.0.0", "picocolors": "^1.1.1" } }, "sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw=="],
 

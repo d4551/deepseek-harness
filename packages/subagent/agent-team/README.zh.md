@@ -108,7 +108,7 @@ Lead 可以停止 teammate 的当前轮次，而不会删除其排队的消息�
 
 本服务建立在一个分离与三项承诺之上：
 
-- **持久日志，派生状态。** Lead Session 日志是唯一真源；roster、mailbox 与任务状态每次读取都从中回放。
+- **持久日志，派生状态。** Lead Session 日志是唯一真源。每个 live Session 保留自己的回放位置，应用新追加的事件，并在每次读取时返回独立的 roster、mailbox 与任务状态副本。
 - **进程内归属。** 所有协作都位于单一进程；保证是重试加去重，绝不是跨进程共识。
 - **显式权限。** 每个服务方法都接收精确的 live 调用 `Agent`；只有 Lead 可以 spawn、reassign 或 interrupt。
 - **边界大声失败。** 每个限制都是经过校验的部署值，耗尽时报告类型化错误，而不是复用 id 或名字。
@@ -173,7 +173,7 @@ dispose 会关闭准入、中止并等待已获准的创建与 mailbox dispatch 
 
 ### 浏览器 Remote
 
-`TeamService` 除了 roster、mailbox、task 与 lifecycle operation，还直接负责生成式 `agentTeams/view`、`agentTeams/createTask` 与 `agentTeams/updateTask` Remote method。`./remote` 导出由 Web UI 挂载的 Client contribution，`./client` 则重新导出可在浏览器 compilation face 中安全使用的 request、view 与 task mutation result type。Typert 在外层 `RemoteResult` 中保留 transport failure；create 与 update rejection 则作为 transport 成功响应中的显式 domain result，其中过期的 update revision 会区分为 task conflict。
+`TeamService` 除了 roster、mailbox、task 与 lifecycle operation，还直接负责生成式 `agentTeams/view`、`agentTeams/changes`、`agentTeams/createTask` 与 `agentTeams/updateTask` Remote method。可取消的 changes 流先发出初始 revision，再合并后续活动，让客户端读取当前 view。`./remote` 导出由 Web UI 挂载的 Client contribution，`./client` 则重新导出可在浏览器 compilation face 中安全使用的 request、view 与 task mutation result type。Typert 在外层 `RemoteResult` 中保留 transport failure；create 与 update rejection 则作为 transport 成功响应中的显式 domain result，其中过期的 update revision 会区分为 task conflict。
 
 ## 模型体验
 

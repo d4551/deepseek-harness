@@ -34,11 +34,7 @@ export function standardDecoratorPlugin() {
       })
       if (result === null) return
       return {
-        code: result.code
-          .replace(
-            /^(\s*)(__esDecorate\()/gmu,
-            '$1/* v8 ignore next -- compiler-synthetic decorator accessors have no source behavior */ $2',
-          ),
+        code: result.code,
         map: result.map ?? undefined,
       }
     },

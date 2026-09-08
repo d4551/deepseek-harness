@@ -12,7 +12,7 @@
 - **所属位置的预期输出**（`bun run test:expected`）：无录制会话往返的无密钥组装 CLI/进程预期。驱动使用 `*.expected.e2e.ts`，并与 `tests/expected/` 同属一处；CI 针对构建产物运行。包/脚本预期使用 `test`，浏览器预期使用 `test:web`。
 - **快照**（`bun run test:snapshot`）：顶层场景的录制 `session.jsonl` 同时提供用户输入和模型回放，并作为持久化结果的预期值。进程级场景都通过 `dsh` 启动：headless 负责一次性行为，SDK 负责持久控制，ACP 负责自动化协议行为，Web 在同一会话旁保留浏览器与 ARIA 证据。`snapshot.yml` 声明 profile、组合与请求头类别、录制策略、例外回放或输入元数据以及工作区事实。带类型的 token 保留父子身份关系；只有请求头 pin 拥有提示词/schema sidecar。变更工作区的场景会独立比较完整的 `workspace.expected/` 目录，record 与 refresh 绝不改写该目录。当模型 transcript（文本记录）变化时使用 `test:snapshot:record`，回放输入仍有效时使用 `test:snapshot:refresh`；请审查所有结果差异。
 - **Web 浏览器快照**（`bun run test:web`；必需的 Linux PR（Pull Request）门禁）：Chromium 比较 `snapshots/web/` 下由会话驱动的输出，以及 `apps/web/tests/expected/` 下仅含 UI 的输出。CI 强制只读的 `DSH_SNAPSHOT=replay`，绝不写入预期输出；record/refresh 留在本地，每处 diff 都须评审（[web e2e 车道](../.agents/notes/implemented/testing/2026-07-24-web-gui-browser-e2e-lane.zh.md)、[CI 门禁决策](../.agents/notes/implemented/testing/2026-07-30-web-browser-snapshot-ci-gate.zh.md)）。`test:web` 会[先构建](../.agents/notes/implemented/bug-fix/2026-07-28-themed-scrollbars-and-reserved-gutter.zh.md)以交付插件 CSS。
-- **变异测试**（`bun run mutation`）：Stryker 在 `packages/util/*/src` 上运行。覆盖率证明某行被执行；变异测试证明该行出错时会有断言察觉（[Agent Note](../.agents/notes/implemented/testing/2026-06-11-mutation-testing.zh.md)）。
+- **变异测试**（`bun run mutation`）：Stryker 通过 Vitest 测试工具库、Agent Teams、会话 session manager 与 teammate 导航 UI。[配置](../stryker.config.mjs)定义完整源码范围和 99 分最低标准；[变异测试套件](../vitest.mutation.config.ts)包含对应包的测试。每个变异都在新进程中运行完整套件。变异结果表明测试能否检测已实现行为的变化。
 
 会话 fixture 保留 header 与 payload，但省略仅存储用编码，回放会合成这些字段；运行时持久化不变。写回直接写出规范打包布局；[迁移器](../scripts/migrate-packed-session-fixtures.ts)只转换较旧的 fixture。
 

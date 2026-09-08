@@ -108,7 +108,7 @@ This section explains the design decisions behind the service and points at the 
 
 The service is built on one separation and three commitments:
 
-- **Durable log, derived state.** The Lead Session log is the single source of truth; roster, mailbox, and task state are replayed from it on every read.
+- **Durable log, derived state.** The Lead Session log is the single source of truth. Each live Session retains its replay position, applies newly appended events, and returns detached roster, mailbox, and task state on each read.
 - **Process-local ownership.** All coordination lives in one process; the guarantee is retry plus de-duplication, never cross-process consensus.
 - **Explicit authority.** Every service method takes the exact live calling `Agent`; only the Lead spawns, reassigns, or interrupts.
 - **Bounds that fail loud.** Every limit is a validated deployment value, and exhaustion reports a typed error instead of reusing an id or name.
@@ -173,7 +173,7 @@ Read these pages when the package-level contract is not enough. They move from t
 
 ### Browser Remote
 
-`TeamService` owns the generated `agentTeams/view`, `agentTeams/createTask`, and `agentTeams/updateTask` Remote methods beside the roster, mailbox, task, and lifecycle operations. The `./remote` export supplies the Client contribution mounted by the Web UI, while `./client` re-exports the request, view, and task-mutation result types that are safe in a browser compilation face. Typert retains transport failures in its outer `RemoteResult`; create and update rejections remain explicit domain results inside a successful transport response, with stale update revisions distinguished as task conflicts.
+`TeamService` owns the generated `agentTeams/view`, `agentTeams/changes`, `agentTeams/createTask`, and `agentTeams/updateTask` Remote methods beside the roster, mailbox, task, and lifecycle operations. The cancellable changes stream emits an initial revision and coalesces subsequent activity so clients can read the current view. The `./remote` export supplies the Client contribution mounted by the Web UI, while `./client` re-exports the request, view, and task-mutation result types that are safe in a browser compilation face. Typert retains transport failures in its outer `RemoteResult`; create and update rejections remain explicit domain results inside a successful transport response, with stale update revisions distinguished as task conflicts.
 
 ## Model Experience
 

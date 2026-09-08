@@ -11,7 +11,6 @@
  * zero self-made hooks.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
 import type {
   PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore,
 } from '@deepseek-ai/dsh-client-ui-slots'
@@ -28,16 +27,6 @@ export type AppFrameProps =
   & PropsRenderSlots<'sidebar' | 'conversation' | 'details' | 'shell.overlay'>
   & PropsStore<ReturnType<typeof createLayoutStore>>
   & PropsLocale<'common'>
-
-/** Center column grid item (session-body building block). */
-function CenterColumn(props: { children?: ReactNode }) {
-  return <div className={css.centerCol}>{props.children}</div>
-}
-
-/** Details column grid item; width 0 keeps the subtree mounted (never unmount on close). */
-function DetailsColumn(props: { children?: ReactNode }) {
-  return <div className={css.detailsCol}>{props.children}</div>
-}
 
 /**
  * One drag handle: pointer capture, rAF-throttled dx reports against the drag-start origin.
@@ -122,7 +111,6 @@ export function AppFrame({
   // Track the frame's own box (not the window): rAF-throttled ResizeObserver.
   useEffect(() => {
     const el = frameRef.current
-    /* v8 ignore next -- the ref is always attached by effect time: the frame div renders unconditionally. */
     if (el === null) return
     let raf: number | null = null
     const observer = new ResizeObserver(() => {
@@ -197,7 +185,7 @@ export function AppFrame({
         productTitle={productTitle}
         {...documentTitle === undefined ? {} : { title: documentTitle }}
       />
-      <div className={css.sidebarCol} style={overlaySidebar ? { width: `${drawerWidth}px` } : undefined}>
+      <nav className={css.sidebarCol} style={overlaySidebar ? { width: `${drawerWidth}px` } : undefined}>
         {/* Render-site slot call with live concession output: a closed
             sidebar keeps the mounted slot at the compact-rail width, and the
             component sees its rendered state as owner params decided here
@@ -207,17 +195,17 @@ export function AppFrame({
           collapsed: sidebarCollapsed,
           width: overlaySidebar ? drawerWidth : cols.sidebar,
         })}
-      </div>
+      </nav>
       <>
         {/* Both column occupants stay at fixed tree positions from first
             paint — no loading gate: a bare status line reads worse than
             the shell's own pending rendering. The conversation
             is session-maybe; SessionProvider withholds the strict details
             entry while no session is current. */}
-        <CenterColumn>{renderSlot('conversation', {})}</CenterColumn>
-        <DetailsColumn>
+        <main className={css.centerCol}>{renderSlot('conversation', {})}</main>
+        <aside className={css.detailsCol} inert={cols.details === 0}>
           <SessionProvider>{renderSlot('details', {})}</SessionProvider>
-        </DetailsColumn>
+        </aside>
       </>
       <div className={css.overlayLayer} data-shell-overlay>
         {renderSlot('shell.overlay', {})}

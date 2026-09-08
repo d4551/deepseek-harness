@@ -75,7 +75,10 @@ describe('app frame accessibility', () => {
       SessionProvider: ({ children }) => createElement(Fragment, null, children),
       t: key => key === 'brand.localBuild' ? 'DeepMeow' : key,
     })
-    const { baseElement } = render(createElement('main', null, frame))
+    const { baseElement } = render(frame)
+    expect(baseElement.querySelectorAll('main')).toHaveLength(1)
+    expect(baseElement.querySelectorAll('nav')).toHaveLength(1)
+    expect(baseElement.querySelector('aside')?.hasAttribute('inert')).toBe(true)
     expect(accessibilityFailures(
       [await auditSurface('AppFrame', baseElement)],
       MINIMUM_ACCESSIBILITY_SCORE,

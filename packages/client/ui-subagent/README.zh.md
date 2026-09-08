@@ -29,7 +29,7 @@ kind: "package-reference"
 
 ### 浏览目录
 
-行显示 mode、`running`/`inactive` 活动状态与由日志支撑的可选 title；尾随列在上行显示提供方的持久化 token 用量总计，在下行显示活跃轮次耗时。键盘导航：ArrowRight/ArrowLeft 展开和折叠分支；ArrowUp/ArrowDown、Home、End 与 Escape 用于导航或关闭树。没有 label 的 one-shot 行回退到其会话 id；损坏、不受支持或不可用的行仍保持可读但禁用。
+点击或轻触后代数量或当前子会话标题，即可打开或关闭其目录。Enter 和 Space 激活获得焦点的按钮；ArrowDown 打开目录树，并将焦点移到第一个可用行。悬停也可打开目录。行显示 mode、`running`/`inactive` 活动状态、由日志支撑的可选 title、持久化 token 用量与活跃轮次耗时。ArrowRight/ArrowLeft 展开和折叠分支；ArrowUp/ArrowDown、Home、End 与 Escape 用于导航或关闭树。没有 label 的 one-shot 行显示其会话 id；损坏、不受支持或不可用的行仍保持可读但禁用。
 
 ### 续接对话
 
@@ -51,7 +51,7 @@ kind: "package-reference"
 
 ### 目录派生
 
-页头谱系 renderer 通过标准 `useSessions` 钩子读取 `subagentsByParent` 与会话摘要。紧凑树仍以直接目录为权威依据：每个健康行的 `hasChildren` 提示在交互前决定是否显示展开控件；每层目录仅在其中至少一个健康行是分支时才预留展开列；展开分支时会立即为每个已知直接后代预留一行禁用的加载行，随后再用该 child 的权威目录懒加载结果替换。每个可见分支都会上报给运行时，使成员帧只在树正被消费的位置触发去抖动刷新。
+页头谱系 renderer 通过标准 `useSessions` 钩子读取 `subagentsByParent` 与会话摘要。紧凑树仍以直接目录为权威依据：每个健康行的 `hasChildren` 提示在交互前决定是否显示展开控件；每层目录仅在其中至少一个健康行是分支时才预留展开列；展开分支时会立即为每个已知直接后代预留一行禁用的加载行，随后再用该 child 的权威目录懒加载结果替换。成员更新会刷新已展开的分支、当前会话的子会话目录，以及其直接父级的同级会话目录。关闭菜单会保留当前对话所需的待执行刷新。目录读取还会更新已驻留子会话的运行状态；选择目录中的子会话时，会在渲染前初始化其已有的对话状态。
 
 ### 耗时与 token
 

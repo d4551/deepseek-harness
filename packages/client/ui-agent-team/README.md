@@ -29,7 +29,7 @@ This package adds an Agent Teams action to the Web conversation header, where a 
 
 ### Inspect and navigate the roster
 
-Opening the panel calls `agentTeams/view`. Roster rows show durable names, runtime status, model, and diagnostics. Selecting a healthy teammate refreshes the existing direct-child catalog and opens the ordinary `{ parentSessionId, childSessionId, mode: 'continuable' }` address. History and later human prompts continue through the stable addressed-subagent conversation path; this package adds no Team-specific address field.
+Opening the panel subscribes to `agentTeams/changes` and reads `agentTeams/view` for its initial state and subsequent updates. Roster rows show durable names, runtime status, model, and diagnostics. Selecting a healthy teammate refreshes the existing direct-child catalog and opens the ordinary `{ parentSessionId, childSessionId, mode: 'continuable' }` address. History and later human prompts continue through the stable addressed-subagent conversation path; this package adds no Team-specific address field.
 
 ### Manage the task board
 
@@ -47,10 +47,13 @@ The Client export mounts the generated `ctx.remote.agentTeams` contribution from
 
 Starting a create or update invalidates older refreshes. Success reloads the complete Team view so every task's derived fields stay current. A `team-task-conflict` result displays a stale-state notice only after that reload succeeds; a reload failure remains visible instead. Editing task text or scopes and changing dependencies use two sequential compare-and-set mutations because the Team service exposes them as separate actions.
 
+The live subscription coalesces activity while a view read is pending. Closing the panel, changing conversations, or unmounting cancels it and invalidates outstanding reads. An interrupted stream displays an error; reopening the panel establishes a new subscription and reads current state.
+
 | File | Role |
 |---|---|
 | [`src/client/mount.ts`](src/client/mount.ts) | Generated Remote, locale, navigation, and slot registrations |
 | [`src/client/TeamAction.tsx`](src/client/TeamAction.tsx) | Roster and task-board interaction state |
+| [`src/client/observe-team.ts`](src/client/observe-team.ts) | Bounded activity consumption and subscription cancellation |
 | [`src/client/locales.ts`](src/client/locales.ts) | English and Chinese panel copy |
 | [`src/index.ts`](src/index.ts) | Inert Host entry |
 
@@ -80,7 +83,7 @@ No direct effect; the Team tools and ordinary conversation submission own any la
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Snapshot refresh** — the panel refreshes on open, explicit refresh, and mutations; it has no live event subscription or mailbox timeline.
+- **Mailbox history** — the panel shows the live roster and task board but has no mailbox timeline.
 - **Ordinary child continuation** — a human message sent after navigation uses the stable addressed-subagent prompt path, not the Team peer mailbox.
 - **No lifecycle or workspace controls** — the panel cannot spawn, rename, delete, or interrupt teammates, and write scopes remain advisory metadata.
 

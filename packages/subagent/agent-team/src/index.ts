@@ -181,6 +181,8 @@ export class TeamService extends TypertRemoteService {
 
     ctx.on('session/event', (session, event) => { this.mailbox.observeSessionEvent(session, event) })
     ctx.on('agent/session-start', ({ agent }) => { this.scheduleRecovery(agent) })
+    ctx.on('agent/created', ({ agent }) => { this.notifyLifecycleChange(agent) })
+    ctx.on('agent/disposed', ({ agent }) => { this.notifyLifecycleChange(agent) })
     ctx.on('agent/status', ({ agent }) => {
       const membership = this.roster.tryMembership(agent)
       if (membership !== undefined) this.activity.notify(membership.id)
@@ -335,6 +337,21 @@ export class TeamService extends TypertRemoteService {
   }
 
   /**
+   * Follow Team activity through the generated Remote stream.
+   * @param agent - exact live Team member authorizing the subscription.
+   * @param signal - Remote subscription cancellation.
+   * @returns an initial revision followed by coalesced changes requiring a fresh view.
+   */
+  @Remote({ mode: 'stream' })
+  async *changes(agent: Agent, signal: AbortSignal): AsyncIterable<number> {
+    const membership = this.roster.membership(agent)
+    for await (const revision of this.activity.changes(membership.id, signal)) {
+      this.roster.membership(agent)
+      yield revision
+    }
+  }
+
+  /**
    * Create one shared task through the generated Remote API.
    * @param agent - exact live Team member creating the task.
    * @param request - task text, blockers, and advisory write scopes.
@@ -369,6 +386,17 @@ export class TeamService extends TypertRemoteService {
           message: error.message,
         },
       }
+    }
+  }
+
+  /** Notify the owning Team when a member enters or leaves the live registry. */
+  private notifyLifecycleChange(agent: Agent): void {
+    this.activity.notify(TeamId(agent.id))
+    const parentId = agent.session.header.parentSession
+    if (parentId === undefined) return
+    const parent = this.ctx.agents.get(parentId)
+    if (parent !== undefined && this.journal.state(parent).members.has(agent.id)) {
+      this.activity.notify(TeamId(parent.id))
     }
   }
 

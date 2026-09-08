@@ -29,7 +29,7 @@ The session header keeps the current session title as the lineage breadcrumb and
 
 ### Browsing the tree
 
-Rows display mode plus `running`/`inactive` activity and an optional log-backed title; the trailing column stacks total durable provider usage above active-turn duration. Keyboard navigation works with ArrowRight/ArrowLeft to expand and collapse branches and ArrowUp/ArrowDown, Home, End, and Escape to navigate or close the tree. An unlabeled one-shot row falls back to its session id; corrupt, unsupported, or unavailable rows remain readable but disabled.
+Click or tap the descendant count or current child title to toggle its catalog. Enter and Space activate the focused button; ArrowDown opens the tree and focuses its first available row. Hover also opens the catalog. Rows display mode, `running`/`inactive` activity, an optional log-backed title, durable token usage, and active-turn duration. ArrowRight/ArrowLeft expand and collapse branches; ArrowUp/ArrowDown, Home, End, and Escape navigate or close the tree. Unlabeled one-shot rows display their session ids; corrupt, unsupported, or unavailable rows remain readable but disabled.
 
 ### Continuing a conversation
 
@@ -51,7 +51,7 @@ The catalog and composer behavior are specified by the [Web subagent conversatio
 
 ### Catalog derivation
 
-The header lineage renderer reads `subagentsByParent` and session summaries through the standard `useSessions` hook. The compact tree remains direct-catalog authoritative: each healthy row's `hasChildren` hint determines disclosure before interaction, a catalog level reserves the disclosure column only when at least one healthy row is a branch, and expanding a branch immediately reserves one disabled loading row per known direct descendant before lazily replacing them with that child's authoritative catalog. Every visible branch is reported to the runtime so membership frames cause a debounced refresh only where the tree is being consumed.
+The header lineage renderer reads `subagentsByParent` and session summaries through the standard `useSessions` hook. The compact tree remains direct-catalog authoritative: each healthy row's `hasChildren` hint determines disclosure before interaction, a catalog level reserves the disclosure column only when at least one healthy row is a branch, and expanding a branch immediately reserves one disabled loading row per known direct descendant before lazily replacing them with that child's authoritative catalog. Membership updates refresh open branches, the selected session's children, and its direct-parent sibling catalog. Closing a menu preserves a pending refresh needed by the selected conversation. Catalog reads also update the running state of resident child conversations; selecting a catalog child initializes its existing conversation state before rendering.
 
 ### Duration and tokens
 

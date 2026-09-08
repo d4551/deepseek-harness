@@ -5,6 +5,8 @@ import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { zh } from '../src/client/locales.ts'
 import { TeamAction } from '../src/client/TeamAction.tsx'
+import { TeamActivity } from '../../../subagent/agent-team/src/activity.ts'
+import { TeamId } from '../../../subagent/agent-team/src/types.ts'
 import type {
   TeamActionInjected, TeamActionProps, TeamActionResult, TeamTaskActionResult,
 } from '../src/client/TeamAction.tsx'
@@ -65,7 +67,9 @@ export function remoteFailure(message: string): { ok: false; error: { code: 'int
 }
 
 export function actions(overrides: Partial<TeamActionInjected> = {}): TeamActionInjected {
+  const activity = new TeamActivity()
   return {
+    changes: (sessionId, signal) => activity.changes(TeamId(sessionId), signal),
     load: () => Promise.resolve({ ok: true, value: view }),
     createTask: () => Promise.resolve(taskSuccess({ ...task, id: TASK_2, subject: 'New task' })),
     updateTask: () => Promise.resolve({

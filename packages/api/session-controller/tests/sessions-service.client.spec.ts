@@ -117,7 +117,8 @@ describe('search', () => {
       items: [{ sessionId: sid('s1'), snippet: 'matching excerpt' }],
       hasMore: false,
     }))
-    const signal = new AbortController().signal
+    const controller = new AbortController()
+    const signal = controller.signal
 
     await expect(b.svc.search('needle', signal)).resolves.toEqual({
       ok: true,
@@ -126,7 +127,11 @@ describe('search', () => {
         hasMore: false,
       },
     })
-    expect(b.api.lastSearchSignal).toBe(signal)
+    expect(b.api.lastSearchSignal?.aborted).toBe(false)
+    const reason = new Error('Search superseded')
+    controller.abort(reason)
+    expect(b.api.lastSearchSignal?.aborted).toBe(true)
+    expect(b.api.lastSearchSignal?.reason).toBe(reason)
     expect(b.svc.list.getSnapshot()).toBe(before)
   })
 })

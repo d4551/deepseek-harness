@@ -29,7 +29,7 @@ kind: "package-reference"
 
 ### 检查并导航 roster
 
-打开 panel 会调用 `agentTeams/view`。Roster row 展示持久 name、运行时 status、model 与 diagnostics。选择健康 teammate 时，系统刷新既有直接 child catalog，并打开普通的 `{ parentSessionId, childSessionId, mode: 'continuable' }` address。History 与后续人类 prompt 继续使用稳定 addressed-subagent 会话路径；本包不会添加 Team 专用 address 字段。
+打开 panel 会订阅 `agentTeams/changes`，并通过 `agentTeams/view` 读取初始状态和后续更新。Roster row 展示持久 name、运行时 status、model 与 diagnostics。选择健康 teammate 时，系统刷新既有直接 child catalog，并打开普通的 `{ parentSessionId, childSessionId, mode: 'continuable' }` address。History 与后续人类 prompt 继续使用稳定 addressed-subagent 会话路径；本包不会添加 Team 专用 address 字段。
 
 ### 管理任务板
 
@@ -47,10 +47,13 @@ Client export 挂载来自 [`@deepseek-ai/dsh-agent-team/remote`](../../subagent
 
 开始 create 或 update 会让更早的 refresh 失效。成功后会重新读取完整 Team view，使每个 task 的派生字段保持最新。`team-task-conflict` 结果仅在重新读取成功后显示状态陈旧提示；如果重新读取失败，则保留该错误。由于 Team service 把任务文本或 scope 编辑与 dependency 修改公开为独立 action，两者使用两个连续的 compare-and-set mutation。
 
+实时订阅会在 view 读取尚未完成时合并活动通知。关闭 panel、切换会话或卸载会取消订阅，并使未完成的读取失效。流中断时会显示错误；重新打开 panel 会建立新订阅并读取当前状态。
+
 | 文件 | 职责 |
 |---|---|
 | [`src/client/mount.ts`](src/client/mount.ts) | 生成式 Remote、locale、导航与 slot registration |
 | [`src/client/TeamAction.tsx`](src/client/TeamAction.tsx) | Roster 与任务板交互状态 |
+| [`src/client/observe-team.ts`](src/client/observe-team.ts) | 有界活动消费与订阅取消 |
 | [`src/client/locales.ts`](src/client/locales.ts) | 中英文 panel 文案 |
 | [`src/index.ts`](src/index.ts) | 不执行行为的 Host entry |
 
@@ -80,7 +83,7 @@ Client export 挂载来自 [`@deepseek-ai/dsh-agent-team/remote`](../../subagent
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Snapshot refresh**——panel 会在打开、显式 refresh 与 mutation 后刷新；它没有实时 event subscription 或 mailbox timeline。
+- **Mailbox 历史**——panel 展示实时 roster 与任务板，但没有 mailbox timeline。
 - **普通 child continuation**——导航后发送的人类消息使用稳定 addressed-subagent prompt 路径，而不是 Team peer mailbox。
 - **没有 lifecycle 或 workspace control**——panel 不能 spawn、rename、delete 或 interrupt teammate，write scope 仍只是提示性 metadata。
 

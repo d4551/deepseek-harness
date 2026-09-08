@@ -37,6 +37,9 @@ function registerUi(ctx: ClientContext): void {
   }
 
   const actions: TeamActionInjected = {
+    changes(sessionId, signal): AsyncIterable<number> {
+      return ctx.remote.agentTeams.changes(leadSessionId(sessionId), signal)
+    },
     async load(sessionId): Promise<TeamActionResult<TeamView>> {
       return await ctx.remote.agentTeams.view(leadSessionId(sessionId))
     },

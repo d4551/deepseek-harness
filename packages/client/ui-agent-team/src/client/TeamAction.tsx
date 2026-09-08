@@ -16,6 +16,7 @@ import {
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { NS, type TeamKey } from './locales.ts'
+import { observeTeamActivity } from './observe-team.ts'
 import css from './TeamAction.module.css'
 
 /** Generated Remote result consumed directly by the Team UI. */
@@ -26,6 +27,7 @@ export type TeamTaskActionResult = RemoteResult<TeamTaskMutationResult>
 
 /** Business actions injected by the browser plugin. */
 export interface TeamActionInjected {
+  changes: (sessionId: SessionId, signal: AbortSignal) => AsyncIterable<number>
   load: (sessionId: SessionId) => Promise<TeamActionResult<TeamView>>
   createTask: (sessionId: SessionId, input: {
     subject: string
@@ -93,7 +95,7 @@ function memberStatusKey(status: TeamRosterMember['status']): TeamKey {
 
 /** Render the live Team roster and compare-and-set task board. */
 export function TeamAction({
-  sessionId, load, createTask, updateTask, openTeammate, t,
+  sessionId, changes, load, createTask, updateTask, openTeammate, t,
 }: TeamActionProps) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -143,6 +145,24 @@ export function TeamAction({
       return false
     }
   }, [load, sessionId])
+
+  useEffect(() => {
+    if (!open) return
+    const controller = new AbortController()
+    const reportFailure = (reason: unknown): void => {
+      if (!controller.signal.aborted) setError(String(reason))
+    }
+    observeTeamActivity(signal => changes(sessionId, signal), refresh, controller.signal).then(
+      () => {
+        if (!controller.signal.aborted) setError(t('disconnected'))
+      },
+      reportFailure,
+    )
+    return () => {
+      controller.abort()
+      refreshGeneration.current += 1
+    }
+  }, [changes, open, refresh, sessionId, t])
 
   const invalidateRefresh = useCallback((): void => {
     refreshGeneration.current += 1
@@ -265,7 +285,6 @@ export function TeamAction({
         onClick={() => {
           const next = !open
           setOpen(next)
-          if (next) void refresh()
         }}
       >
         <IconUserOutline16 size={14} />

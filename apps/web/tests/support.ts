@@ -46,7 +46,8 @@ export const ZH_BROWSER_LOCALE = 'zh-CN'
  * @returns the initialized page.
  */
 export async function newEnglishPage(browser: Browser, height = 1000): Promise<Page> {
-  return await browser.newPage({ viewport: { width: 1680, height }, locale: 'en-US' })
+  const context = await browser.newContext({ viewport: { width: 1680, height }, locale: 'en-US' })
+  return await context.newPage()
 }
 
 /**

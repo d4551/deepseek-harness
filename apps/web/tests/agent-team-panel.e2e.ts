@@ -10,6 +10,7 @@ import {
   launchWebScaffold, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
 import { connectFreshWorkspace, launchBrowser, newEnglishPage, saveFailureShot } from './support.ts'
+import { assertPageAccessibility } from './accessibility.ts'
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('./snapshots/agent-team-panel', import.meta.url))
 const PANEL_EXPECTED = join(SNAPSHOT_DIR, 'task.expected.md')
@@ -63,8 +64,10 @@ describe('web e2e: Agent Teams panel', () => {
     await action.getByRole('button', { name: /Agent Team/iu }).click()
     await action.getByText('No shared tasks yet').waitFor()
     await action.getByText('lead').waitFor()
+    await assertPageAccessibility(page)
 
     await action.getByRole('button', { name: 'New task' }).click()
+    await assertPageAccessibility(page)
     await action.getByPlaceholder('Task subject').fill('Browser task')
     await action.getByPlaceholder('Task description').fill('Created through the assembled browser')
     await action.getByPlaceholder(/Write scopes/iu).fill('src/web')
@@ -73,7 +76,25 @@ describe('web e2e: Agent Teams panel', () => {
 
     const snapshot = await captureStableAria(page, '[data-team-action]', scaffold.workspaceCwd)
     await compareOrRefreshGolden(PANEL_EXPECTED, snapshot, MODE)
+    const lead = scaffold.ctx.agents.list()[0]
+    if (lead === undefined) throw new Error('Team lead is unavailable')
+    const external = await scaffold.ctx.agentTeams.createTask(lead, {
+      subject: 'Task created outside the panel',
+      description: 'Live update from another Team client',
+    })
+    await action.getByText('Task created outside the panel', { exact: true }).waitFor()
+    await scaffold.ctx.agentTeams.updateTask(lead, {
+      taskId: external.id,
+      expectedRevision: external.revision,
+      action: 'edit',
+      subject: 'Task updated outside the panel',
+    })
+    await action.getByText('Task updated outside the panel', { exact: true }).waitFor()
+    await action.getByRole('button', { name: 'Close', exact: true }).click()
+    await action.getByRole('button', { name: /Agent Team/iu }).click()
+    await action.getByText('Task updated outside the panel', { exact: true }).waitFor()
     expect(tripwire.pageErrors).toEqual([])
+    await assertPageAccessibility(page)
     expect(tripwire.warnings).toEqual([])
   }, 60_000)
 

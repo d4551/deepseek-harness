@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
+import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import type {
   SessionListState, SessionSummary, SubagentCatalogSnapshot,
 } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -99,6 +100,17 @@ function hoverCatalog(trigger: HTMLElement): void {
 }
 
 describe('SubagentHeaderLineage', () => {
+  it('exposes an accessible clickable trigger and child conversation tree', async () => {
+    render(<SubagentHeaderLineage {...props(catalog())} />)
+    const trigger = screen.getByRole('button', { name: /2 个子代理/ })
+    fireEvent.click(trigger)
+    const audits = [
+      await auditSurface('subagent trigger', trigger),
+      await auditSurface('subagent conversations', screen.getByRole('tree')),
+    ]
+    expect(accessibilityFailures(audits, 100)).toBe('')
+  })
+
   it('aggregates live descendant activity onto the closed trigger', () => {
     const summaries: Record<SessionId, SessionSummary> = {
       [CHILD]: {
@@ -227,7 +239,7 @@ describe('SubagentHeaderLineage', () => {
     expect(screen.queryByRole('tree')).toBeNull()
   })
 
-  it('opens only on hover and preserves the portaled-menu crossing grace', async () => {
+  it('toggles on click and preserves hover opening and portaled-menu crossing grace', async () => {
     vi.useFakeTimers()
     const advance = async (duration: number): Promise<void> => {
       await act(async () => { await vi.advanceTimersByTimeAsync(duration) })
@@ -238,7 +250,11 @@ describe('SubagentHeaderLineage', () => {
       .mockReturnValue({ bottom: 40, left: 50 } as DOMRect)
 
     fireEvent.click(trigger)
+    expect(screen.getByRole('tree')).toBeTruthy()
+    expect(trigger.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.click(trigger)
     expect(screen.queryByRole('tree')).toBeNull()
+    expect(trigger.getAttribute('aria-expanded')).toBe('false')
 
     fireEvent.mouseEnter(trigger.parentElement!)
     await advance(149)
@@ -699,7 +715,7 @@ describe('SubagentHeaderLineage', () => {
     expect(switcherIcon?.getAttribute('width')).toBe('16')
     expect(switcherIcon?.getAttribute('height')).toBe('16')
 
-    hoverCatalog(switcher)
+    fireEvent.click(switcher)
     expect(input.setCatalogOpen).toHaveBeenCalledWith(PARENT, true)
     const current = screen.getByRole('treeitem', { name: /worker/ })
     expect(current.getAttribute('aria-current')).toBe('true')
