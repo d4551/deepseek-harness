@@ -13,7 +13,9 @@ export default {
   eventReporter: { baseDir: '.artifacts/mutation/events' },
   mutate: [
     'packages/util/*/src/**/*.ts',
+    'packages/api/session-controller/src/control.ts',
     'packages/api/session-controller/src/client/sessions/manager.ts',
+    'packages/api/session-controller/src/client/sessions/list-mutations.ts',
     'packages/subagent/agent-team/src/**/*.ts',
     'packages/client/ui-agent-team/src/client/**/*.{ts,tsx}',
     'packages/client/ui-subagent/src/client/SubagentHeaderLineage.tsx',

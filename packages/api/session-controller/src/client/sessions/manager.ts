@@ -18,6 +18,7 @@ import type { ClientFailure, ClientResult } from '../contract/result.ts'
 import { transportResult } from '../contract/result.ts'
 import type { SessionListEntry, TitledSessionSummary } from './lineage.ts'
 import { flattenLineage } from './lineage.ts'
+import { applySessionListMutation, type SessionListMutation } from './list-mutations.ts'
 // Type-only merge edge: the title domain's client-namespace outlet declares
 // the 'title' projection key this manager projects into list rows (and any
 // useProjection('title') consumer reads). Zero value imports by construction.
@@ -80,14 +81,6 @@ interface CatalogInflight {
   parentAvailableOverride: false | undefined
 }
 
-type SessionListMutation =
-  | { kind: 'upsert'; summary: SessionSummary }
-  | { kind: 'remove'; sessionId: SessionId }
-  | { kind: 'status'; sessionId: SessionId; running: boolean }
-  | { kind: 'activity'; sessionId: SessionId; updatedAt: number }
-  /** Local first-send flip: the sender clears blank without waiting for a host frame. */
-  | { kind: 'engaged'; sessionId: SessionId }
-
 /** Instance cluster + frame entry + the session list. */
 export class SessionManager {
   private readonly lifetime = new AbortController()
@@ -110,7 +103,7 @@ export class SessionManager {
    *  is instantiated (list rows read the 'title' key), and an instantiated Session adopts the
    *  same store so history-baseline seeding and frames converge on one row set. */
   private readonly projectionStores = new Map<SessionId, ProjectionValueStore>()
-  private summaries: SessionSummary[] = []
+  private summaries: readonly SessionSummary[] = []
   private listState: 'idle' | 'loading' | 'error' = 'idle'
   /** Arrival phase; the pending → ready edge fires on the first successful pull (see SessionListPhase). */
   private listPhase: SessionListPhase = 'pending'
@@ -484,9 +477,9 @@ export class SessionManager {
         for (const s of baseline) {
           if (!this.prevRunning.has(s.sessionId)) this.prevRunning.set(s.sessionId, s.running)
         }
-        let summaries = baseline
+        let summaries: readonly SessionSummary[] = baseline
         for (const mutation of mutations) {
-          summaries = applyMutation(summaries, mutation)
+          summaries = applySessionListMutation(summaries, mutation)
           this.summaries = summaries
           this.syncCompletedNotifications()
         }
@@ -644,20 +637,12 @@ export class SessionManager {
     return result
   }
 
-  /**
-   * Insert-or-enrich a locally synthesized summary: a new id prepends; an
-   * existing entry only gains fields it lacks (the session-added frame and the
-   * create() echo race — whichever lands second must fill the placeholder's
-   * missing cwd/parentSessionId, never overwrite list-refresh data).
-   */
-  private mergeSummary(summary: SessionSummary): void {
-    this.recordMutation({ kind: 'upsert', summary })
-  }
-
   /** Apply immediately and retain for replay when a list response is in flight. */
   private recordMutation(mutation: SessionListMutation): void {
     this.listMutations?.push(mutation)
-    this.summaries = applyMutation(this.summaries, mutation)
+    const summaries = applySessionListMutation(this.summaries, mutation)
+    if (summaries === this.summaries) return
+    this.summaries = summaries
     // Eager edge reconciliation — a snapshot-build-time pass would miss consecutive status frames.
     this.syncCompletedNotifications()
     this.notifier.markDirty()
@@ -737,13 +722,13 @@ export class SessionManager {
    * @param summary - current Host summary for the added Session.
    */
   handleSessionAdded(summary: SessionSummary): void {
-    this.mergeSummary(summary)
+    this.recordMutation({ kind: 'upsert', summary })
     this.sessions.get(summary.sessionId)?.handleBlank(summary.blank)
     const projections = summary.projections
     if (projections !== undefined) {
       const store = this.projectionStore(summary.sessionId)
       for (const [key, value] of Object.entries(projections.values)) {
-        store.apply(key, value, projections.asOfSeq)
+        if (store.apply(key, value, projections.asOfSeq)) this.notifier.markDirty()
       }
     }
     if (summary.origin === 'subagent' && summary.parentSessionId !== undefined) {
@@ -768,7 +753,7 @@ export class SessionManager {
     if (durableSubagent) this.sessions.get(sessionId)?.handleRunning(false)
     else this.sessions.get(sessionId)?.handleRemoved()
     this.queues.delete(sessionId)
-    this.jobsBySession.delete(sessionId)
+    if (this.jobsBySession.delete(sessionId)) this.notifier.markDirty()
     if (!durableSubagent) this.projectionStores.delete(sessionId)
     const inflightCatalog = this.catalogInflight.get(sessionId)
     if (inflightCatalog !== undefined) {
@@ -778,6 +763,7 @@ export class SessionManager {
     const ownedCatalog = this.catalogs.get(sessionId)
     if (ownedCatalog !== undefined && ownedCatalog.parentAvailable) {
       this.catalogs.set(sessionId, { ...ownedCatalog, parentAvailable: false })
+      this.notifier.markDirty()
     }
     for (const [childId, address] of this.addresses) {
       if (address.parentSessionId === sessionId) {
@@ -992,49 +978,6 @@ export class SessionManager {
       jobsBySession: Object.fromEntries(this.jobsBySession),
       currentAddress: current === undefined ? undefined : this.addresses.get(current),
     }
-  }
-}
-
-/** Apply one list mutation without deriving display order. */
-function applyMutation(summaries: readonly SessionSummary[], mutation: SessionListMutation): SessionSummary[] {
-  switch (mutation.kind) {
-    case 'upsert': {
-      const existing = summaries.find(summary => summary.sessionId === mutation.summary.sessionId)
-      if (existing === undefined) return [mutation.summary, ...summaries]
-      const filled: SessionSummary = {
-        ...existing,
-        // Blank only lowers: a stale true (session-added racing the local
-        // first send) never re-hides an already-surfaced session.
-        blank: existing.blank && mutation.summary.blank,
-        ...(existing.cwd === undefined && mutation.summary.cwd !== undefined ? { cwd: mutation.summary.cwd } : {}),
-        ...(existing.parentSessionId === undefined && mutation.summary.parentSessionId !== undefined
-          ? { parentSessionId: mutation.summary.parentSessionId } : {}),
-        ...(existing.origin === undefined && mutation.summary.origin !== undefined
-          ? { origin: mutation.summary.origin } : {}),
-      }
-      if (filled.cwd === existing.cwd && filled.parentSessionId === existing.parentSessionId
-        && filled.origin === existing.origin && filled.blank === existing.blank
-      ) return [...summaries]
-      return summaries.map(summary => summary.sessionId === mutation.summary.sessionId ? filled : summary)
-    }
-    case 'remove':
-      return summaries.filter(summary => summary.sessionId !== mutation.sessionId)
-    case 'status':
-      // running:true doubles as the cross-client blank flip (a blank session
-      // never runs, so the first running frame proves a message landed).
-      return summaries.map(summary => summary.sessionId === mutation.sessionId
-        && (summary.running !== mutation.running || (mutation.running && summary.blank))
-        ? { ...summary, running: mutation.running, blank: summary.blank && !mutation.running }
-        : summary)
-    case 'activity':
-      return summaries.map(summary => summary.sessionId === mutation.sessionId
-        && mutation.updatedAt > summary.updatedAt
-        ? { ...summary, updatedAt: mutation.updatedAt }
-        : summary)
-    case 'engaged':
-      return summaries.map(summary => summary.sessionId === mutation.sessionId && summary.blank
-        ? { ...summary, blank: false }
-        : summary)
   }
 }
 

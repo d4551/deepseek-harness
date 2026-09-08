@@ -134,7 +134,7 @@ export class SessionControlController {
 }
 
 class ControlQueue {
-  private readonly buffer: SessionControlFrame[] = []
+  private buffer: SessionControlFrame[] = []
   private wake: (() => void) | undefined
   private done = false
 
@@ -158,15 +158,18 @@ class ControlQueue {
     const onAbort = (): void => { this.end() }
     signal.addEventListener('abort', onAbort, { once: true })
     try {
-      while (!this.done && !signal.aborted) {
-        const frame = this.buffer.shift()
-        if (frame !== undefined) {
+      while (!this.done || this.buffer.length > 0) {
+        const batch = this.buffer
+        this.buffer = []
+        for (const frame of batch) {
+          if (signal.aborted) return
           yield frame
-          continue
         }
-        await new Promise<void>((resolve) => { this.wake = resolve })
+        if (signal.aborted) return
+        if (!this.done && this.buffer.length === 0) {
+          await new Promise<void>((resolve) => { this.wake = resolve })
+        }
       }
-      while (this.buffer.length > 0 && !signal.aborted) yield this.buffer.shift() as SessionControlFrame
     } finally {
       signal.removeEventListener('abort', onAbort)
       this.end()

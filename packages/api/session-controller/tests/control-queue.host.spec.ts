@@ -144,4 +144,46 @@ describe('Session control queue projection', () => {
     expect(second).toMatchObject({ done: false, value: { type: 'queue' } })
     await expect(iterator.next()).resolves.toMatchObject({ done: true })
   })
+
+  it('drains a burst and frames arriving during consumption in publication order on shutdown', async () => {
+    const { ctx, control, inbox } = await harness()
+    const iterator = control.control(new AbortController().signal)[Symbol.asyncIterator]()
+    await iterator.next()
+    const expected: string[][] = []
+    for (let index = 0; index < 128; index += 1) {
+      const queued = message(`burst-${index}`)
+      inbox.append('next-turn', queued)
+      expected.push([queued.id])
+      inbox.remove(queued.id)
+      expected.push([])
+    }
+    const first = await iterator.next()
+    if (first.done || first.value.type !== 'queue') throw new Error('missing first burst frame')
+    const received = [first.value.items.map(item => item.id)]
+    const late = message('arrived during consumption')
+    inbox.append('next-turn', late)
+    expected.push([late.id])
+    await ctx.fiber.dispose()
+    let next = await iterator.next()
+    while (!next.done) {
+      const frame = next.value
+      if (frame.type !== 'queue') throw new Error('unexpected burst frame')
+      received.push(frame.items.map(item => item.id))
+      next = await iterator.next()
+    }
+    expect(received).toEqual(expected)
+  })
+
+  it('cancels the remaining burst immediately while a frame is yielded', async () => {
+    const { ctx, control, inbox } = await harness()
+    const abort = new AbortController()
+    const iterator = control.control(abort.signal)[Symbol.asyncIterator]()
+    await iterator.next()
+    inbox.append('next-turn', message('first'))
+    inbox.append('next-turn', message('second'))
+    await expect(iterator.next()).resolves.toMatchObject({ done: false, value: { type: 'queue' } })
+    abort.abort()
+    await expect(iterator.next()).resolves.toMatchObject({ done: true })
+    await ctx.fiber.dispose()
+  })
 })
