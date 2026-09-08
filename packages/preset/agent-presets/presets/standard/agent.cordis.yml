@@ -174,30 +174,22 @@
   isolate:
     workflowEngine: true
   config:
-    - id: tool-subagent-control
-      name: '@deepseek-ai/dsh-tool-subagent-control'
-
-    - id: tool-subagent-list-agents
-      name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
-
     - id: tool-subagent
       name: '@deepseek-ai/dsh-tool-subagent'
       config:
         provider: spawn
         toolName: subagent
         modelSelectionSettings: true
-        backgroundMode: continuable
+        backgroundMode: one-shot
 
-    # Fork omits model selection so provider/model stay equal to the parent and
-    # the inherited history remains eligible for KV Cache reuse. This preset
-    # keeps fork continuable and accepts its child-scoped `report` additions invalidating
-    # that prefix; issue #2124 tracks cache-preserving continuable fork.
+    # One-shot forks inherit the parent's model and completed history.
+    # Durable follow-up work belongs to named Team members.
     - id: tool-subagent-fork
       name: '@deepseek-ai/dsh-tool-subagent'
       config:
         provider: fork
         toolName: subagent_fork
-        backgroundMode: continuable
+        backgroundMode: one-shot
 
     # Production dsh does not install these optional providers. Install the
     # matching Bundle in this Profile and restart the Host, then copy this
