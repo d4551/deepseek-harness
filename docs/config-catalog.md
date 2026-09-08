@@ -2886,7 +2886,7 @@ export interface Config {
    * the policy section. A deployment without agent presets composes no such
    * header, so every Agent is a member there.
    */
-  readonly excludePresets?: readonly string[]
+  readonly excludePresets?: string[]
 }
 
 /**
@@ -3111,7 +3111,7 @@ export interface Config {
 export type ShellDialectName = 'bash' | 'pwsh'
 ```
 
-Source: [`packages/shell/tool-shell-persistent/src/index.ts:438`](../packages/shell/tool-shell-persistent/src/index.ts)
+Source: [`packages/shell/tool-shell-persistent/src/index.ts:437`](../packages/shell/tool-shell-persistent/src/index.ts)
 
 <a id="deepseek-aidsh-tool-skill"></a>
 

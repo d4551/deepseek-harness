@@ -2,11 +2,11 @@
 
 [English](testing.md) | 中文
 
-本文说明本仓库的分层测试方式，以及保持绿色测试套件有意义的规则。命令见根目录 [AGENTS.md](../AGENTS.md)；相关 Agent Note 承载设计动机。
+测试层级与验证规则。[package.json](../package.json) 定义命令；[AGENTS.md](../AGENTS.md) 规定执行要求。
 
 ## 层级
 
-- **单元测试**（`bun run test`）：vitest 运行包和示例各自的 `tests/**` 目录下的测试，以及匹配 `scripts/**/*.spec.ts` 的仓库脚本测试；测试文件与其所覆盖的代码区域放在一起。每个注册表都有一个 HMR（热模块替换）安全测试（对向该注册表贡献内容的 fiber 执行 dispose（资源释放），并断言清理完成）。优先覆盖边界情况、错误路径、事件顺序、并发竞态，以及针对约定回归的永久测试（见 `packages/core/agent-loop/tests/contract-regressions.spec.ts`）。每个导出的 client UI 组件都会以 axe-core 按 WCAG 2.0/2.1/2.2 A 与 AA 级加最佳实践规则接受审计（[dsh-client-a11y](../packages/test-support/client-a11y/README.zh.md)）。
+- **单元测试**（`bun run test`）：Vitest 运行所属代码旁的包/示例 `tests/**` 与 `scripts/**/*.spec.ts`。注册表测试释放贡献 fiber，并断言 HMR 清理。覆盖边界情况、错误、事件顺序、并发竞态和约定回归（`packages/core/agent-loop/tests/contract-regressions.spec.ts`）。每个导出的 client UI 组件都使用 axe-core 审计 WCAG 2.0/2.1/2.2 A、AA 和最佳实践规则（[dsh-client-a11y](../packages/test-support/client-a11y/README.zh.md)）。
 - **覆盖率门禁**（`bun run test:coverage`）：门禁级运行，对 `packages/*/*/src` 按文件 100% 覆盖。未覆盖的行往往是门禁正确标记出的死代码（应删除），而非需要补写的测试。行覆盖率只证明行被执行过，不证明功能按交付预期工作。`vitest.config.ts` 承载该标准未覆盖的部分，且每条都附有理由：没有运行时覆盖率可测量的文件；执行组合位于 Worker、浏览器 realm 或子进程中、单元进程的 V8 无法观测的代码；以及一份带标记的欠债清单（`TODO(gui)`、`TODO(inspector)`、`TODO(webworker)`），等待浏览器级测试通道。`bun run verify-coverage-debt` 会把这些标记读回来：没有携带标记的欠债条目、匹配不到任何文件的 glob，或没有任何条目使用的标记，都会失败；该命令还会按通道打印欠债数量，以便逐步收敛。
 - **真实 API e2e**（`bun run test:e2e`）：带密钥测试调用真实提供方 API，包括 DeepSeek 模型以及各提供方特有的冒烟测试；这些测试各自由自己的密钥控制（`EXA_API_KEY`、`PERPLEXITY_API_KEY` 等），缺少密钥时套件会自动跳过，使 keyless CI 保持绿色（[真实 API e2e Agent Note](../.agents/notes/implemented/testing/2026-06-19-real-api-e2e-ci.zh.md)）。
 - **所属位置的预期输出**（`bun run test:expected`）：无录制会话往返的无密钥组装 CLI/进程预期。驱动使用 `*.expected.e2e.ts`，并与 `tests/expected/` 同属一处；CI 针对构建产物运行。包/脚本预期使用 `test`，浏览器预期使用 `test:web`。
@@ -26,7 +26,7 @@
 
 ## 验证外部世界，而非自我报告
 
-e2e 断言应重新运行命令或从外部重新读取文件；对 agent 自身输出做关键词探测会让作弊的 agent 通过。断言未修改的文件逐字节一致。e2e 测试自行管理资源：在测试中创建 harness，在 `afterEach` 中 dispose（即使失败/重试/超时也要释放）；共享 fixture 放在普通的 `tests/harness.ts` 中，绝不放在另一个 `*.e2e.ts` 中（导入一个 spec 会重新注册其 `describe`，导致真实 API 调用重复执行）。
+E2e 断言从外部重新运行命令或读取文件；agent 输出的关键词不能证明两者。断言未修改的文件逐字节一致。测试创建自己的资源，并在 `afterEach` 中释放，涵盖失败、重试与超时。共享 fixture 放在 `tests/harness.ts`；导入另一个 `*.e2e.ts` 会重复注册测试并重复调用 API。
 
 ## 测试真实入口路径
 

@@ -2,11 +2,11 @@
 
 English | [中文](testing.zh.md)
 
-How this repo tests, tier by tier, and the rules that keep a green suite meaningful. Commands live in root [AGENTS.md](../AGENTS.md); linked Agent Notes carry the rationale.
+Testing tiers and validation rules. [package.json](../package.json) owns commands; [AGENTS.md](../AGENTS.md) governs execution.
 
 ## Tiers
 
-- **Unit** (`bun run test`): vitest over package and example specs under their `tests/**` directories plus repository script specs under `scripts/**/*.spec.ts`; tests stay with the code area they exercise. Every registry gets an HMR-safety test (dispose the contributing fiber, assert cleanup). Prefer edge cases, error paths, event ordering, concurrency races, and permanent tests for contract regressions (see `packages/core/agent-loop/tests/contract-regressions.spec.ts`). Every exported client UI component is audited with axe-core over WCAG 2.0/2.1/2.2 A and AA plus best practice ([dsh-client-a11y](../packages/test-support/client-a11y/README.md)).
+- **Unit** (`bun run test`): Vitest runs package/example `tests/**` and `scripts/**/*.spec.ts` beside their owning code. Registry tests dispose contributing fibers and assert HMR cleanup. Cover edge cases, errors, event ordering, concurrency races and contract regressions (`packages/core/agent-loop/tests/contract-regressions.spec.ts`). Audit every exported client UI component with axe-core: WCAG 2.0/2.1/2.2 A, AA and best practice ([dsh-client-a11y](../packages/test-support/client-a11y/README.md)).
 - **Coverage gate** (`bun run test:coverage`): the gating run, per-file 100% on `packages/*/*/src`. An uncovered line is often dead code the gate flags for deletion, not a missing test to bolt on. Line coverage proves lines ran, not that the feature works as shipped. `vitest.config.ts` carries what the bar does not cover, each entry with its reason: files with no runtime coverage to measure, code whose executing composition is a Worker, browser realm, or subprocess that unit-process V8 cannot observe, and a marked debt list (`TODO(gui)`, `TODO(inspector)`, `TODO(webworker)`) waiting on a browser-grade lane. `bun run verify-coverage-debt` reads those markers back: a debt entry carrying none, a glob matching nothing, or a marker nothing uses fails, and the run prints the debt count per lane so it can be ratcheted down.
 - **Real-API e2e** (`bun run test:e2e`): with-key tests against live provider APIs — the DeepSeek model plus provider-specific smokes that gate on their own keys (`EXA_API_KEY`, `PERPLEXITY_API_KEY`, …); each suite self-skips without its key so keyless CI stays green ([real-API e2e Agent Note](../.agents/notes/implemented/testing/2026-06-19-real-api-e2e-ci.md)).
 - **Owner-local expected output** (`bun run test:expected`): keyless assembled CLI/process expectations without a recorded-session round trip. Drivers use `*.expected.e2e.ts` beside `tests/expected/`; CI runs built exports. Package/script expectations use `test`, while browser expectations use `test:web`.
@@ -27,7 +27,7 @@ Mock only the expensive or non-deterministic boundary (LLM adapter, network, clo
 
 ## Verify the world, not the self-report
 
-An e2e assertion re-runs the command or re-reads the file externally; a keyword probe on the agent's own output lets a cheating agent pass. Assert untouched files are byte-identical. e2e tests own their resources: create it in the test, dispose in `afterEach` (even on failure/retry/timeout); shared fixtures live in a plain `tests/harness.ts`, never another `*.e2e.ts` (importing a spec re-registers its `describe` and duplicates real API calls).
+E2e assertions rerun commands or reread files externally; agent-output keywords prove neither. Assert untouched files are byte-identical. Tests create their resources and dispose them in `afterEach`, including failure, retry and timeout. Shared fixtures belong in `tests/harness.ts`; importing another `*.e2e.ts` registers its tests again and duplicates API calls.
 
 ## Test the real entry path
 

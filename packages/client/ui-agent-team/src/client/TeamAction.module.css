@@ -2,10 +2,7 @@
   position: relative;
 }
 
-.trigger,
-.iconButton,
-.smallButton,
-.taskActions button {
+.trigger {
   display: inline-flex;
   align-items: center;
   min-height: 24px;
@@ -25,10 +22,7 @@
   font-size: 12px;
 }
 
-.trigger:hover,
-.iconButton:hover,
-.smallButton:hover,
-.taskActions button:hover {
+.trigger:hover {
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
@@ -73,14 +67,6 @@
 
 .spacer {
   flex: 1;
-}
-
-.iconButton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
 }
 
 .panel h3 {
@@ -132,13 +118,8 @@
   color: var(--dsw-alias-state-error-primary);
 }
 
-.smallButton {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+.createButton {
   margin-left: auto;
-  padding: 4px 7px;
-  font-size: 11px;
 }
 
 .tasks {
@@ -201,19 +182,6 @@
   font: inherit;
 }
 
-.taskActions button {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 4px 6px;
-  font-size: 11px;
-}
-
-.taskActions button:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
 .form {
   display: grid;
   gap: 6px;
@@ -224,9 +192,6 @@
   width: 100%;
   padding: 6px 8px;
   font-size: 12px;
-}
-
-.form textarea {
   min-height: 58px;
   resize: vertical;
 }

@@ -10,7 +10,7 @@ import type {
 } from '@deepseek-ai/dsh-agent-team/client'
 import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import {
-  IconCheckOutline14, IconCloseOutline16, IconEditOutline16, IconPlusOutline16,
+  Button, IconCheckOutline14, IconCloseOutline16, IconEditOutline16, IconPlusOutline16,
   IconRefreshOutline14, IconTrashOutline16, IconUserOutline16, StateDot, useAnchoredPosition, useDismissOnOutsidePointer,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -290,12 +290,12 @@ export function TeamAction({
           <div className={css.toolbar}>
             <strong>{t('trigger')}</strong>
             <span className={css.spacer} />
-            <button type="button" className={css.iconButton} aria-label={t('refresh')} onClick={() => { void refresh() }}>
+            <Button size="sm" aria-label={t('refresh')} onClick={() => { void refresh() }}>
               <IconRefreshOutline14 />
-            </button>
-            <button type="button" className={css.iconButton} aria-label={t('close')} onClick={closePanel}>
+            </Button>
+            <Button size="sm" aria-label={t('close')} onClick={closePanel}>
               <IconCloseOutline16 size={14} />
-            </button>
+            </Button>
           </div>
           {error !== null && <div className={css.error} role="alert">{error}</div>}
           {loading && view === null && <div className={css.notice}>{t('loading')}</div>}
@@ -328,9 +328,9 @@ export function TeamAction({
               <section>
                 <div className={css.sectionTitle}>
                   <h3>{t('tasks')}</h3>
-                  <button type="button" className={css.smallButton} onClick={() => { setCreating(true) }}>
+                  <Button size="sm" className={css.createButton} onClick={() => { setCreating(true) }}>
                     <IconPlusOutline16 size={13} /> {t('create')}
-                  </button>
+                  </Button>
                 </div>
                 {creating && (
                   <TaskForm
@@ -390,28 +390,28 @@ export function TeamAction({
                               {assignable.map(member => <option key={member.id} value={member.name}>{member.name}</option>)}
                             </select>
                           </label>
-                          <button type="button" onClick={() => { startEdit(task) }} disabled={pendingTasks.has(task.id)}>
+                          <Button size="sm" onClick={() => { startEdit(task) }} disabled={pendingTasks.has(task.id)}>
                             <IconEditOutline16 size={13} /> {t('edit')}
-                          </button>
+                          </Button>
                           {task.status === 'in_progress' && (
-                            <button type="button" disabled={pendingTasks.has(task.id)} onClick={() => {
+                            <Button size="sm" disabled={pendingTasks.has(task.id)} onClick={() => {
                               void settleTask(task.id, () => updateTask(sessionId, {
                                 taskId: task.id, expectedRevision: task.revision, action: 'complete',
                               }))
-                            }}><IconCheckOutline14 /> {t('complete')}</button>
+                            }}><IconCheckOutline14 /> {t('complete')}</Button>
                           )}
                           {task.status === 'completed' && (
-                            <button type="button" disabled={pendingTasks.has(task.id)} onClick={() => {
+                            <Button size="sm" disabled={pendingTasks.has(task.id)} onClick={() => {
                               void settleTask(task.id, () => updateTask(sessionId, {
                                 taskId: task.id, expectedRevision: task.revision, action: 'reopen',
                               }))
-                            }}>{t('reopen')}</button>
+                            }}>{t('reopen')}</Button>
                           )}
-                          <button type="button" disabled={pendingTasks.has(task.id)} onClick={() => {
+                          <Button size="sm" disabled={pendingTasks.has(task.id)} onClick={() => {
                             void settleTask(task.id, () => updateTask(sessionId, {
                               taskId: task.id, expectedRevision: task.revision, action: 'delete',
                             }))
-                          }}><IconTrashOutline16 size={13} /> {t('delete')}</button>
+                          }}><IconTrashOutline16 size={13} /> {t('delete')}</Button>
                         </div>
                       </article>
                     ))}
