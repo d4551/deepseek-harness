@@ -866,7 +866,7 @@ async function launchPerformanceWorld(
     const failures: unknown[] = [error]
     if (page !== undefined) {
       try {
-        await page.close()
+        await page.context().close()
       } catch (cleanupError) {
         failures.push(cleanupError)
       }
@@ -892,7 +892,8 @@ async function launchPerformanceWorld(
 
 async function closePerformanceWorld(world: PerformanceWorld): Promise<void> {
   const failures: unknown[] = []
-  await world.page.close().catch((error: unknown) => failures.push(error))
+  const [pageClosed] = await Promise.allSettled([world.page.context().close()])
+  if (pageClosed.status === 'rejected') failures.push(pageClosed.reason)
   await world.scaffold.close().catch((error: unknown) => failures.push(error))
   if (world.replayDir !== undefined) {
     await rm(world.replayDir, { recursive: true, force: true })
