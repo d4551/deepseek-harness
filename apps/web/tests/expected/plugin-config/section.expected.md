@@ -73,6 +73,6 @@
           - text: HTTP 抓取 通过 HTTP 获取响应字节，不执行页面中的任何脚本。
           - img
       - listitem:
-        - 'button "展开设置: 渲染抓取"':
-          - text: 渲染抓取 在无头 Chromium 中渲染页面，会执行页面自身的 JavaScript。
+        - 'button "展开设置: 浏览器搜索和抓取"':
+          - text: 浏览器搜索和抓取 使用本地 Chromium 搜索 Bing 并渲染网页，无需付费搜索 API。搜索引擎可能要求人工验证。
           - img
