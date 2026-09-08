@@ -259,7 +259,7 @@
   padding: 8px 10px;
   font-size: 12px;
   line-height: 18px;
-  color: var(--dsw-alias-state-error-primary);
+  color: var(--dsw-alias-label-error);
 }
 
 .errorTitle {

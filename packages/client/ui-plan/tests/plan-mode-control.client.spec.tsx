@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * PlanChip over the `plan` projection: nothing renders while the capability
  * is absent or the effective target is the default mode; while plan mode is

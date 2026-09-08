@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /** FontSizeRow behavior: value display, arrow clicks drive setFontSize,
  * bound-value arrows disable, display follows the store mirror. */
 import { afterEach, describe, expect, it, vi } from 'vitest'

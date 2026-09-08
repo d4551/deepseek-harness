@@ -122,11 +122,13 @@ export default defineConfig({
               test: /node_modules[\\/]/,
               tags: ['$initial'],
               priority: 10,
+              entriesAware: true,
             },
             {
               name: 'shell',
               tags: ['$initial'],
               priority: -10,
+              entriesAware: true,
             },
           ],
         },

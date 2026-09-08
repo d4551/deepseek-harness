@@ -17,7 +17,7 @@ export type {
 } from './model.ts'
 export { WorkspaceController, WorkspaceCreateError } from './service.ts'
 export type { IWorkspaces, WorkspaceSource } from './service.ts'
-export { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
+export type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 export type { WorkspaceView } from '../types.ts'
 
 type WorkspaceStreamRemote = Pick<ClientRemote, '$stream'> & {

@@ -341,6 +341,24 @@ Source: [`packages/api/settings-controller/src/index.ts`](../../packages/api/set
 
 ### `settings/*` events
 
+<a id="settingsavailability-updated--emit"></a>
+
+#### `settings/availability-updated` — emit
+
+Runtime capability readiness changed without a settings-document edit.
+
+```ts cordis-catalog
+/**
+ * Runtime capability readiness changed without a settings-document edit.
+ * @param ns - the namespace whose runtime readiness changed.
+ * @param available - whether the owner's capability is ready.
+ * @mode emit
+ */
+'settings/availability-updated'(ns: SettingsNamespace, available: boolean): void
+```
+
+Source: [`packages/settings/settings/src/types.ts`](../../packages/settings/settings/src/types.ts)
+
 <a id="settingsdocument-updated--emit"></a>
 
 #### `settings/document-updated` — emit

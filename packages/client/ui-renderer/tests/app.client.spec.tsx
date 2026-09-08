@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'

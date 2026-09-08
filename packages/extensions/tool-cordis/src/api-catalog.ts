@@ -3283,6 +3283,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [{ name: 'session', description: 'the session whose buffered events must reach durable storage.' }],
   },
   {
+    name: 'settings/availability-updated',
+    mode: 'emit',
+    signature: '\'settings/availability-updated\'(ns: SettingsNamespace, available: boolean): void',
+    summary: 'Runtime capability readiness changed without a settings-document edit.',
+    description: 'Runtime capability readiness changed without a settings-document edit.',
+    parameters: [{ name: 'ns', description: 'the namespace whose runtime readiness changed.' }, { name: 'available', description: 'whether the owner\'s capability is ready.' }],
+  },
+  {
     name: 'settings/document-updated',
     mode: 'emit',
     signature: '\'settings/document-updated\'(ns: SettingsNamespace, revision: number): void',
@@ -5332,7 +5340,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SettingsDescriptor',
-    declaration: 'export interface SettingsDescriptor {\n    ns: SettingsNamespace;\n    schema: unknown;\n    value: unknown;\n    revision: number;\n    base?: unknown;\n    user?: unknown;\n    applies: SettingsApplies;\n    secrets?: RedactedSecret[];\n}',
+    declaration: 'export interface SettingsDescriptor {\n    available?: boolean;\n    ns: SettingsNamespace;\n    schema: unknown;\n    value: unknown;\n    revision: number;\n    base?: unknown;\n    user?: unknown;\n    applies: SettingsApplies;\n    secrets?: RedactedSecret[];\n}',
   },
   {
     name: 'SettingsDocumentOpenValue',
@@ -5344,7 +5352,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SettingsNamespaceView',
-    declaration: 'export interface SettingsNamespaceView {\n    ns: string;\n    schema: JsonValue;\n    value: JsonValue;\n    base?: JsonValue;\n    user?: JsonValue;\n    applies: \'live\' | \'restart\';\n    secrets: SettingsSecretView[];\n    revision: number;\n}',
+    declaration: 'export interface SettingsNamespaceView {\n    available?: boolean;\n    ns: string;\n    schema: JsonValue;\n    value: JsonValue;\n    base?: JsonValue;\n    user?: JsonValue;\n    applies: \'live\' | \'restart\';\n    secrets: SettingsSecretView[];\n    revision: number;\n}',
   },
   {
     name: 'SettingsPathOp',
@@ -5356,7 +5364,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SettingsRegisterOptions',
-    declaration: 'export interface SettingsRegisterOptions<T> {\n    base?: Partial<T>;\n    applies?: SettingsApplies;\n    validate?: (value: T) => void;\n}',
+    declaration: 'export interface SettingsRegisterOptions<T> {\n    available?: boolean;\n    base?: Partial<T>;\n    applies?: SettingsApplies;\n    validate?: (value: T) => void;\n}',
   },
   {
     name: 'SettingsSecretView',
@@ -6249,6 +6257,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'WorkspaceFollowIncrement',
     declaration: 'export type WorkspaceFollowIncrement = {\n    readonly type: \'upsert\';\n    readonly workspace: WorkspaceView;\n} | {\n    readonly type: \'remove\';\n    readonly workspaceId: WorkspaceId;\n} | {\n    readonly type: \'order\';\n    readonly workspaceIds: readonly WorkspaceId[];\n} | {\n    readonly type: \'archived\';\n    readonly archivedSessionIds: readonly SessionId[];\n};',
+  },
+  {
+    name: 'WorkspaceId',
+    declaration: 'export type WorkspaceId = Branded<\'WorkspaceId\'>;',
   },
   {
     name: 'WorkspaceInsertBeforeRequest',

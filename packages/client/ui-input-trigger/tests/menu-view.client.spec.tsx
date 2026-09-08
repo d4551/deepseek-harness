@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * MenuView rendering spec, props-direct: closed store
  * renders null, groups render in roster order under localized title rows
@@ -8,6 +7,7 @@
  * aria-selected, and the list height clamps to the space above the composer.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { page } from 'vitest/browser'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
@@ -18,6 +18,7 @@ import type {
   InputTriggerCrumb, MenuState, TriggerHit,
 } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import { MenuView } from '../src/client/MenuView.tsx'
+import './menu-view.browser.css'
 
 const hit: TriggerHit = {
   trigger: '/',
@@ -43,12 +44,7 @@ function openState(partial?: Partial<MenuState>): MenuState {
   }
 }
 
-// jsdom has no scrollIntoView; the view calls it on the highlighted option.
-const scrollIntoView = vi.fn()
-beforeEach(() => {
-  Element.prototype.scrollIntoView = scrollIntoView
-  scrollIntoView.mockClear()
-})
+beforeEach(async () => { await page.viewport(1000, 804) })
 
 afterEach(() => {
   cleanup()
@@ -69,7 +65,7 @@ function mount(state: MenuState, crumbs: ReadonlyMap<string, readonly InputTrigg
   const onRetry = vi.fn()
   const onDismiss = vi.fn()
   const view = render(
-    <main>
+    <main className="menuComposer">
       <MenuView
         menu={menu}
         headers={headers}
@@ -207,34 +203,40 @@ describe('MenuView', () => {
   })
 
   it('scrolls the highlighted option into view when the highlight moves', () => {
-    const { menu } = mount(openState())
-    scrollIntoView.mockClear()
-    act(() => { menu.set(openState({ highlight: { source: 'command', index: 1 } })) })
+    const state = openState({ groups: [{ source: 'command', status: 'ready',
+      items: Array.from({ length: 30 }, (_, index) => ({ name: `Command ${index}` })),
+    }] })
+    const { menu } = mount(state)
+    const listbox = screen.getByRole('listbox')
+    expect(listbox.scrollTop).toBe(0)
+    act(() => { menu.set({ ...state, highlight: { source: 'command', index: 29 } }) })
     const options = screen.getAllByRole('option')
-    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
-    expect(scrollIntoView.mock.instances.at(-1)).toBe(options[1])
+    const selected = options[29]
+    if (!selected) throw new Error('Last command is missing')
+    expect(listbox.scrollTop).toBeGreaterThan(0)
+    expect(selected.getBoundingClientRect().top).toBeGreaterThanOrEqual(listbox.getBoundingClientRect().top)
+    expect(selected.getBoundingClientRect().bottom).toBeLessThanOrEqual(listbox.getBoundingClientRect().bottom)
   })
 
   it('caps the list height at the design maximum when the composer sits low enough', () => {
-    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ bottom: 800 } as DOMRect)
     mount(openState())
+    expect(menuShell().getBoundingClientRect().bottom).toBe(800)
     expect(menuShell().style.maxHeight).toBe('320px')
   })
 
-  it('clamps the list height to the space above the composer minus the safe margin', () => {
-    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ bottom: 200 } as DOMRect)
+  it('clamps the list height to the space above the composer minus the safe margin', async () => {
+    await page.viewport(1000, 204)
     mount(openState())
+    expect(menuShell().getBoundingClientRect().bottom).toBe(200)
     expect(menuShell().style.maxHeight).toBe('188px')
   })
 
-  it('re-fits the height when the window resizes', () => {
-    const rect = vi.spyOn(Element.prototype, 'getBoundingClientRect')
-    rect.mockReturnValue({ bottom: 800 } as DOMRect)
+  it('re-fits the height when the window resizes', async () => {
     mount(openState())
     expect(menuShell().style.maxHeight).toBe('320px')
-    rect.mockReturnValue({ bottom: 100 } as DOMRect)
-    act(() => { window.dispatchEvent(new Event('resize')) })
-    expect(menuShell().style.maxHeight).toBe('88px')
+    await act(async () => { await page.viewport(1000, 104) })
+    await expect.poll(() => menuShell().style.maxHeight).toBe('88px')
+    expect(menuShell().getBoundingClientRect().bottom).toBe(100)
   })
 
   it('pointerdown outside the menu (no composer card ancestor) dismisses', () => {

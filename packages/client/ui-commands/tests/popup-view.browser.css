@@ -1,0 +1,7 @@
+.popup-composer-anchor {
+  position: fixed;
+  bottom: 0;
+  left: 12px;
+  right: 12px;
+  height: 0;
+}

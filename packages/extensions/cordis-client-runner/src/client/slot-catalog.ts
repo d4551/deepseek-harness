@@ -606,6 +606,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ],
     ownerPropsReferences: [
       'Workspace',
+      'WorkspaceId',
     ],
     standardProps: [
       'useWorkspaces: SnapshotSelectorHook<WorkspaceSnapshot>',

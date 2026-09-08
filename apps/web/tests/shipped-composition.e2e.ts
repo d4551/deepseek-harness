@@ -91,7 +91,7 @@ it('assembles the shipped Web transport, catalog, guidance, and defaults', async
   const abortedSearch = new AbortController()
   abortedSearch.abort(new Error('shipped browser search cancellation'))
   await expect(ctx.web.search({ query: 'TypeScript', maxResults: 1 }, abortedSearch.signal))
-    .rejects.toThrow('shipped browser search cancellation')
+    .rejects.toMatchObject({ code: 'WEB_ABORTED', message: 'web fetch aborted' })
   const index = await fetch(`http://127.0.0.1:${String(ctx.webServer.port)}`, {
     headers: { 'accept-encoding': 'gzip' },
   })

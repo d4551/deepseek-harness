@@ -70,10 +70,13 @@ External packages that a workspace package resolves at runtime. The tier covers 
 | [`clsx`](https://github.com/lukeed/clsx) | MIT |
 | [`commander`](https://github.com/tj/commander.js) | MIT |
 | [`compression`](https://github.com/expressjs/compression) | MIT |
+| [`css-select`](https://github.com/fb55/css-select) | BSD-2-Clause |
 | [`diff`](https://github.com/kpdecker/jsdiff) | BSD-3-Clause |
+| [`domhandler`](https://github.com/fb55/domhandler) | BSD-2-Clause |
 | [`e2b`](https://github.com/e2b-dev/e2b) | MIT |
 | [`eventsource-parser`](https://github.com/rexxars/eventsource-parser) | MIT |
 | [`fflate`](https://github.com/101arrowz/fflate) | MIT |
+| [`htmlparser2`](https://github.com/fb55/htmlparser2) | MIT |
 | [`immer`](https://github.com/immerjs/immer) | MIT |
 | [`ipaddr.js`](https://github.com/whitequark/ipaddr.js) | MIT |
 | [`js-yaml`](https://github.com/nodeca/js-yaml) | MIT |
@@ -81,7 +84,6 @@ External packages that a workspace package resolves at runtime. The tier covers 
 | [`katex`](https://github.com/KaTeX/KaTeX) | MIT |
 | [`koffi`](https://github.com/Koromix/koffi) | MIT |
 | [`lexical`](https://github.com/facebook/lexical) | MIT |
-| [`linkedom`](https://github.com/WebReflection/linkedom) | ISC |
 | [`mdast-util-from-markdown`](https://github.com/syntax-tree/mdast-util-from-markdown) | MIT |
 | [`mdast-util-gfm`](https://github.com/syntax-tree/mdast-util-gfm) | MIT |
 | [`mdast-util-math`](https://github.com/syntax-tree/mdast-util-math) | MIT |

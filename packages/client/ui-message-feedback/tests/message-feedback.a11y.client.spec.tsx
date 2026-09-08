@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * axe-core audit of the ui-message-feedback browser surface: the rating
  * controls over a ready view with a recorded rating (the pressed state) and

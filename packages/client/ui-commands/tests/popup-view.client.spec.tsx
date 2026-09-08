@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * PopupSelectView interaction spec: the search input takes
  * focus on open and plain typing filters locally, ↑↓ move the filtered
@@ -9,6 +8,8 @@
  * clamps to the space above the composer.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { page } from 'vitest/browser'
+import './popup-view.browser.css'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import type { SelectOption } from '../src/client/contract.ts'
@@ -22,11 +23,8 @@ import { zh } from '../src/client/locales.ts'
 // The framework-injected t seat, stubbed over the zh dictionaries (the default locale).
 const t: Parameters<typeof PopupSelectView>[0]['t'] = makeTranslate(zh, commonZh)
 
-// jsdom has no scrollIntoView; the view calls it on the highlighted row.
-const scrollIntoView = vi.fn()
-beforeEach(() => {
-  Element.prototype.scrollIntoView = scrollIntoView
-  scrollIntoView.mockClear()
+beforeEach(async () => {
+  await page.viewport(1024, 804)
 })
 
 afterEach(() => {
@@ -65,7 +63,7 @@ async function mountOpen(overrides: Partial<PopupSpec<string>> = {}, consumeResu
   const consume = vi.fn((_segment: TokenSegment) => consumeResult)
   const focusComposer = vi.fn()
   const popup = new PopupSelectController<string>({ consume, focusComposer })
-  const view = render(<main><PopupSelectView popup={popup} t={t} /></main>)
+  const view = render(<main className="popup-composer-anchor"><PopupSelectView popup={popup} t={t} /></main>)
   await act(async () => {
     popup.open('theme', spec(overrides), 'ctx-A', SEGMENT)
     await Promise.resolve()
@@ -117,23 +115,32 @@ describe('PopupSelectView', () => {
   })
 
   it('scrolls the highlighted row into view when the highlight moves', async () => {
-    const { search } = await mountOpen()
-    scrollIntoView.mockClear()
-    act(() => { fireEvent.keyDown(search, { key: 'ArrowDown' }) })
-    const options = screen.getAllByRole('option')
-    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
-    expect(scrollIntoView.mock.instances.at(-1)).toBe(options[1])
+    const rows = Array.from({ length: 30 }, (_, index) => ({ id: String(index), label: `Choice ${index}` }))
+    const { search } = await mountOpen({ options: () => Promise.resolve(rows) })
+    const list = screen.getByRole('listbox')
+    expect(list.scrollHeight).toBeGreaterThan(list.clientHeight)
+    expect(list.scrollTop).toBe(0)
+    for (let index = 0; index < rows.length - 1; index++) {
+      act(() => { fireEvent.keyDown(search, { key: 'ArrowDown' }) })
+    }
+    const active = screen.getByRole('option', { name: 'Choice 29' })
+    const bounds = list.getBoundingClientRect()
+    expect(active.getAttribute('aria-selected')).toBe('true')
+    expect(list.scrollTop).toBeGreaterThan(0)
+    expect(active.getBoundingClientRect().top).toBeGreaterThanOrEqual(bounds.top)
+    expect(active.getBoundingClientRect().bottom).toBeLessThanOrEqual(bounds.bottom)
   })
 
   it('caps the card height at the design maximum when the composer sits low enough', async () => {
-    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ bottom: 800 } as DOMRect)
     await mountOpen()
+    expect(screen.getByLabelText('/theme 选项').getBoundingClientRect().bottom).toBe(800)
     expect(screen.getByLabelText('/theme 选项').style.maxHeight).toBe('320px')
   })
 
   it('clamps the card height to the space above the composer minus the safe margin', async () => {
-    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ bottom: 200 } as DOMRect)
+    await page.viewport(1024, 204)
     await mountOpen()
+    expect(screen.getByLabelText('/theme 选项').getBoundingClientRect().bottom).toBe(200)
     expect(screen.getByLabelText('/theme 选项').style.maxHeight).toBe('188px')
   })
 
@@ -213,7 +220,7 @@ describe('PopupSelectView', () => {
 
   it('loading: a pending options load shows the loading line and no rows', async () => {
     const popup = new PopupSelectController<string>({ consume: () => true, focusComposer: () => {} })
-    render(<main><PopupSelectView popup={popup} t={t} /></main>)
+    render(<main className="popup-composer-anchor"><PopupSelectView popup={popup} t={t} /></main>)
     await act(async () => {
       popup.open('theme', spec({ options: () => new Promise<SelectOption[]>(() => {}) }), 'ctx-A', SEGMENT)
       await Promise.resolve()
@@ -286,7 +293,7 @@ describe('popup select accessibility', () => {
   it('renders no accessibility violations while open', async () => {
     const consume = vi.fn(() => true)
     const popup = new PopupSelectController<string>({ consume, focusComposer: vi.fn() })
-    const { baseElement } = render(<main><PopupSelectView popup={popup} t={t} /></main>)
+    const { baseElement } = render(<main className="popup-composer-anchor"><PopupSelectView popup={popup} t={t} /></main>)
     await act(async () => {
       popup.open('theme', spec(), 'ctx-A', SEGMENT)
       await Promise.resolve()

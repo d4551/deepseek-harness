@@ -4,6 +4,7 @@ import { TestRemote } from '@deepseek-ai/dsh-client-test-runtime'
 import { apply, inject } from '../src/client/index.ts'
 import { SettingsSchemaService } from '../src/client/schema.ts'
 import { SettingsScopeBinder } from '../src/client/settings-scope.ts'
+import type { SettingsDescribeView } from '../src/client/settings-mirror.ts'
 
 function bench() {
   const describeCall = vi.fn().mockResolvedValue({
@@ -24,7 +25,7 @@ describe('settings domain base plugin', () => {
     await vi.waitFor(() => { expect(describeCall).toHaveBeenCalledTimes(1) })
   })
 
-  it('refreshes the mirror on document commits and connection resets, once each', async () => {
+  it('refreshes the mirror on document commits, availability changes, and connection resets', async () => {
     const { ctx, describeCall, remote, fiber } = bench()
     await fiber.await()
     await vi.waitFor(() => { expect(describeCall).toHaveBeenCalledTimes(1) })
@@ -32,6 +33,8 @@ describe('settings domain base plugin', () => {
     await vi.waitFor(() => { expect(describeCall).toHaveBeenCalledTimes(2) })
     ctx.emit('connection/reset')
     await vi.waitFor(() => { expect(describeCall).toHaveBeenCalledTimes(3) })
+    remote.emit('settings/availability-updated', [])
+    await vi.waitFor(() => { expect(describeCall).toHaveBeenCalledTimes(4) })
   })
 
   it('fiber disposal retires the service and its invalidation subscriptions', async () => {
@@ -42,8 +45,26 @@ describe('settings domain base plugin', () => {
     expect(ctx.get('settingsScope')).toBeUndefined()
     expect(ctx.get('settingsSchema')).toBeUndefined()
     remote.emit('settings/document-updated', ['ui-test', 0])
+    remote.emit('settings/availability-updated', [])
     ctx.emit('connection/reset')
     await Promise.resolve()
     expect(describeCall).toHaveBeenCalledTimes(1)
+  })
+
+  it('disposal joins an in-flight availability refresh', async () => {
+    const { describeCall, remote, fiber } = bench()
+    await fiber.await()
+    await vi.waitFor(() => { expect(describeCall).toHaveBeenCalledTimes(1) })
+    const read = Promise.withResolvers<{ ok: true; value: SettingsDescribeView }>()
+    describeCall.mockReturnValueOnce(read.promise)
+    remote.emit('settings/availability-updated', [])
+    await vi.waitFor(() => { expect(describeCall).toHaveBeenCalledTimes(2) })
+    let disposed = false
+    const disposal = fiber.dispose().then(() => { disposed = true })
+    await Promise.resolve()
+    expect(disposed).toBe(false)
+    read.resolve({ ok: true, value: { writable: true, hasDocument: true, namespaces: [] } })
+    await disposal
+    expect(disposed).toBe(true)
   })
 })

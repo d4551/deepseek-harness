@@ -3,7 +3,7 @@
  * settings-namespace scope service every preference row binds its durable
  * section through, and owns the one `settings.describe` reader in the browser:
  * the describe mirror, whose invalidation subscriptions
- * (`settings/document-updated`, `connection/reset`) live here so every derived
+ * (`settings/document-updated`, `settings/availability-updated`, `connection/reset`) live here so every derived
  * surface refreshes from a single wire read. It depends on no `ui-*`
  * presentation package, so any feature that owns a preference can reach it:
  * the settings SHELL — the `sidebar.settings` occupant, its navigation, and
@@ -44,8 +44,8 @@ export const inject = ['connection', 'remote', 'remote.settings']
 
 /**
  * Provide the settings-namespace scope service over one shared describe
- * mirror, and keep that mirror fresh on the two signals that can move the
- * settings document: a document commit and a (re)connect.
+ * mirror, and refresh it on document commits, provider availability changes,
+ * and reconnects.
  *
  * Constructing the service in this plugin's fiber keeps its traced methods
  * bound to each consuming plugin's context.
@@ -59,17 +59,21 @@ export function apply(ctx: Context): void {
   const wire = { settings: ctx.remote.settings }
   const mirror = new SettingsDescribeMirror(wire, connection.isLoopback ? 'host' : 'memory')
   ctx.effect(() => {
+    let pending = mirror.ensure()
+    const refresh = (): void => { pending = mirror.load() }
     const disposers = [
-      ctx.remote.$on('settings/document-updated', () => { void mirror.load() }),
-      ctx.remote.$on('settings/availability-updated', () => mirror.load()),
-      ctx.on('connection/reset', () => { void mirror.load() }),
+      ctx.remote.$on('settings/document-updated', refresh),
+      ctx.remote.$on('settings/availability-updated', refresh),
+      ctx.on('connection/reset', refresh),
     ]
     // The first connection also emits connection/reset, so startup normally
     // costs two reads (budgeted in startup-rpc-budget.e2e.ts). The in-flight
     // fold does not merge them into one; it guarantees at most one pending
     // read at a time and that no invalidation arriving mid-read is lost.
-    void mirror.ensure()
-    return () => { for (const dispose of disposers) dispose() }
+    return async () => {
+      for (const dispose of disposers) dispose()
+      await pending
+    }
   }, 'ui-settings: describe mirror invalidations')
   new SettingsScopeBinder(ctx, { mirror, schema, wire })
 }

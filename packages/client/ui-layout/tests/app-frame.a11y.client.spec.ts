@@ -1,6 +1,6 @@
-// @vitest-environment jsdom
 import { createElement, Fragment, useSyncExternalStore } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { page } from 'vitest/browser'
 import { cleanup, render } from '@testing-library/react'
 import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -10,25 +10,10 @@ import { AppFrame } from '../src/client/AppFrame.tsx'
 import type { AppFrameProps } from '../src/client/AppFrame.tsx'
 import { createLayoutStore } from '../src/client/stores.ts'
 
-afterEach(() => {
-  cleanup()
-  vi.unstubAllGlobals()
-})
+afterEach(cleanup)
 
-class ResizeObserverStub {
-  observe(): void {}
-  unobserve(): void {}
-  disconnect(): void {}
-}
-
-beforeEach(() => {
-  vi.stubGlobal('ResizeObserver', ResizeObserverStub)
-  vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
-    cb(0)
-    return 0
-  })
-  vi.stubGlobal('cancelAnimationFrame', () => {})
-  window.innerWidth = 1920
+beforeEach(async () => {
+  await page.viewport(1920, 1080)
 })
 
 const noAttention = new Map()

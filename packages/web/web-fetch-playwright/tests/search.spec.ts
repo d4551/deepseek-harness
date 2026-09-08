@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import type { WebFetchResult } from '@deepseek-ai/dsh-web'
 import { browserSearchResults, browserSearchUrl } from '../src/search.ts'
 
@@ -7,6 +9,19 @@ function resultPage(content: string, truncated = false): WebFetchResult {
 }
 
 describe('browser search extraction', () => {
+  it('loads the search parser without native canvas in a fresh Host process', async () => {
+    const source = new URL('../src/search.ts', import.meta.url).href
+    const script = `
+      import assert from 'node:assert/strict';
+      import { createRequire } from 'node:module';
+      await import(${JSON.stringify(source)});
+      const require = createRequire(import.meta.url);
+      assert.equal(Object.keys(require.cache).some(path => path.includes('/node_modules/canvas/')), false);
+    `
+    const { stderr } = await promisify(execFile)(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', script])
+    expect(stderr).toBe('')
+  })
+
   it('encodes a literal query without allowing URL parameters to change it', () => {
     const url = new URL(browserSearchUrl({ query: 'symbols & aliases #日本語' }))
     expect(url.origin).toBe('https://www.bing.com')

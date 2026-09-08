@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /** Classifier probe: a minimal axe audit of a plain surface. */
 import { cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'

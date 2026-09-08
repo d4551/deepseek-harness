@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 
 /**
  * The two web Settings cards as a user drives them: the seam's backend

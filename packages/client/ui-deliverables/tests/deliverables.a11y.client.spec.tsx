@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * axe-core audit of the ui-deliverables browser surface: the produced-files
  * row rendered over a realistic overflowing match set and an open capability.

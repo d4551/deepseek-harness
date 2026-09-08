@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { Context } from '@deepseek-ai/cordis'
 import { createScope, scopeOf } from '@deepseek-ai/dsh-api-session-controller/client'
 import InvariantRegistry from '@deepseek-ai/dsh-invariants'

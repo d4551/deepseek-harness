@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 
 /** Axe floor for the workspace-root trigger, its panel, and its failure state. */
 
