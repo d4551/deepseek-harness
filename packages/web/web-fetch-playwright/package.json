@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-web-fetch-playwright",
-  "description": "Playwright Chromium rendered-page fetch provider for the DeepSeek Harness web capability seam (ctx.web)",
+  "description": "Playwright Chromium browser search and rendered-page provider for the DeepSeek Harness web capability seam (ctx.web)",
   "version": "0.1.2-alpha.1",
   "publishConfig": {
     "access": "public"
@@ -50,5 +50,8 @@
     "@deepseek-ai/dsh-web-fetch-http": "workspace:^",
     "playwright": "^1.62.1",
     "@deepseek-ai/dsh-settings": "workspace:^"
+  },
+  "dependencies": {
+    "linkedom": "^0.18.13"
   }
 }

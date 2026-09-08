@@ -75,6 +75,8 @@ scope.update({ density: 'compact' })   // merges into the user section and persi
 
 ### 事件与失败
 
+所有者可通过注册时的可选 `available` 值及 `scope.setAvailable(boolean)` 发布运行时就绪状态。descriptor 与设置 API 将此元数据和可编辑配置分开传递。值变化时发出 `settings/availability-updated (ns, available)`，不写入用户文档，也不增加其 revision。已释放的注册不能发布可用性。
+
 `settings/updated (ns, next, prev, source)` 在每次已提交变更后触发——进程内写入（`source: 'update'`）或外部观察到的编辑（`source: 'provider'`）——解析值深相等时绝不触发。`settings/document-updated (ns, revision)` 在原始用户分节发生变化时触发，即使解析值没有变——已打开的编辑器正需要它来得知字段从继承变为覆盖。schema 拒绝的存量分节在重载时保留该 namespace 的最后可用值并告警；注册时同样的失败会直接拒绝注册。
 
 -----

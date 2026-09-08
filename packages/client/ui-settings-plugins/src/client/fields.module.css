@@ -52,28 +52,6 @@
   color: var(--dsw-alias-label-tertiary);
 }
 
-.reset {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  border: none;
-  background: none;
-  padding: 0;
-  font: inherit;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--dsw-alias-label-secondary);
-  cursor: pointer;
-}
-
-.reset:hover:not(:disabled) {
-  color: var(--dsw-alias-label-primary);
-}
-
-.reset:disabled {
-  cursor: default;
-}
-
 .input {
   height: 2.125rem;
   padding: 0 12px;
@@ -103,6 +81,7 @@
 
 .multiline {
   height: auto;
+  padding-block: 6px;
   resize: vertical;
 }
 

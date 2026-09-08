@@ -255,7 +255,7 @@ body {
   --dsw-alias-state-success-primary: var(--dsw-static-green-500);
   --dsw-alias-state-success-secondary: var(--dsw-static-green-400);
   --dsw-alias-state-success-tertiary: var(--dsw-static-green-100);
-  --dsw-alias-state-warn-label: var(--dsw-static-amber-600);
+  --dsw-alias-state-warn-label: var(--dsw-static-amber-900);
   --dsw-alias-state-warn-primary: var(--dsw-static-amber-500);
   --dsw-alias-state-warn-secondary: var(--dsw-static-amber-400);
   --dsw-alias-state-warn-tertiary: var(--dsw-static-amber-100);
@@ -289,6 +289,7 @@ body {
      the 4.5:1 WCAG 1.4.3 minimum by a hundredth. `red-700` clears it at 6.03:1
      and stays in the same ramp. */
   --dsw-alias-label-error: var(--dsw-static-red-700);
+  --dsw-alias-label-success: var(--dsw-static-green-900);
   --dsw-alias-label-quaternary: var(--dsw-alias-label-tertiary);
   --dsw-alias-line-secondary: var(--dsw-alias-border-l2);
   --dsw-alias-separator-primary: var(--dsw-alias-border-l2);
@@ -368,7 +369,8 @@ body[data-ds-dark-theme] {
   --dsw-alias-state-success-primary: var(--dsw-static-green-500);
   --dsw-alias-state-success-secondary: var(--dsw-static-green-400);
   --dsw-alias-state-success-tertiary: var(--dsw-static-green-900);
-  --dsw-alias-state-warn-label: var(--dsw-static-amber-600);
+  --dsw-alias-state-warn-label: var(--dsw-static-amber-400);
+  --dsw-alias-label-success: var(--dsw-static-green-400);
   --dsw-alias-state-warn-primary: var(--dsw-static-amber-500);
   --dsw-alias-state-warn-secondary: var(--dsw-static-amber-400);
   --dsw-alias-state-warn-tertiary: var(--dsw-static-amber-900);

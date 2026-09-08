@@ -5,6 +5,7 @@
 // the settings document on a blank frame, so there is no fixture and a stray
 // stream would fail loud on the open llm seam.
 import { readFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import type { Browser, Page } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
@@ -40,7 +41,8 @@ async function openPlugins(page: Page) {
 
 /** Read the settings document written by one isolated Host. */
 async function settingsDocument(scaffold: WebScaffold): Promise<string> {
-  return readFile(join(scaffold.harnessHome, 'settings.yaml'), 'utf8').catch(() => '')
+  const path = join(scaffold.harnessHome, 'settings.yaml')
+  return existsSync(path) ? readFile(path, 'utf8') : ''
 }
 
 describe('web e2e: plugin configuration section', () => {
@@ -71,7 +73,7 @@ describe('web e2e: plugin configuration section', () => {
 
     // Every card the shipped web composition exposes: the shell executor, the
     // agent loop, the two approval guards, subagent selection, the Agent Team
-    // that every profile's base mounts, and the DeepSeek search provider.
+    // that every profile's base mounts, and the browser search/fetch provider.
     await dialog.getByText('Subagent', { exact: true }).waitFor({ timeout: 10_000 })
     expect(await dialog.getByRole('button', { name: '展开设置: Subagent' }).count()).toBe(1)
     await dialog.getByText('终端', { exact: true }).waitFor({ timeout: 10_000 })
@@ -86,6 +88,7 @@ describe('web e2e: plugin configuration section', () => {
     expect(await approvalAdversary.count()).toBe(1)
     expect(await dialog.getByRole('button', { name: '展开设置: 智能体团队' }).count()).toBe(1)
     expect(await dialog.getByText('DeepSeek 搜索', { exact: true }).count()).toBe(1)
+    expect(await dialog.getByRole('button', { name: '展开设置: 浏览器搜索和抓取' }).count()).toBe(1)
     // Collapsed: a card's fields appear only once it is expanded.
     expect(await dialog.getByLabel('命令超时（毫秒）').count()).toBe(0)
 
@@ -156,6 +159,7 @@ describe('web e2e: plugin configuration section', () => {
       .toBe(true)
     const expandTerminal = dialog.getByRole('button', { name: '展开设置: 终端' })
     await expandTerminal.waitFor({ timeout: 5_000 })
+    expect(await expandTerminal.evaluate(element => element === document.activeElement)).toBe(true)
     await expandTerminal.click()
     // Presence in the user layer is what the badge reports, and the reset is
     // offered only for a field that has one.
@@ -287,7 +291,7 @@ describe('web e2e: plugin configuration section', () => {
   })
 })
 
-describe('web e2e: Agent Team plugin configuration', () => {
+describe('web e2e: Team and browser plugin configuration', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page
@@ -356,6 +360,32 @@ describe('web e2e: Agent Team plugin configuration', () => {
     expect(await members.inputValue()).toBe('8')
     expect(await tasks.inputValue()).toBe('256')
     expect(await dialog.getByText('已覆盖', { exact: true }).count()).toBe(0)
+    expect(tripwire.pageErrors).toEqual([])
+    expect(tripwire.warnings).toEqual([])
+  }, 60_000)
+
+  it('selects browser search and fetch and persists their shared browser capacity', async () => {
+    onTestFailed(() => saveFailureShot(page, 'web-e2e-plugin-config-browser'))
+    const dialog = await openPlugins(page)
+    await dialog.getByRole('button', { name: '展开设置: 网页访问' }).click()
+    const search = dialog.locator('input[name="plugin-config-web-search-provider"][value="playwright"]')
+    const fetch = dialog.locator('input[name="plugin-config-web-fetch-provider"][value="playwright"]')
+    expect(await search.isChecked()).toBe(true)
+    expect(await fetch.isChecked()).toBe(true)
+    expect(await dialog.getByRole('alert').count()).toBe(0)
+    await dialog.getByRole('button', { name: '收起设置: 网页访问' }).click()
+
+    const browserCard = dialog.getByRole('button', { name: '展开设置: 浏览器搜索和抓取' })
+    await browserCard.click()
+    expect(await dialog.getByRole('alert').count()).toBe(0)
+    const capacity = dialog.getByRole('textbox', { name: '并发渲染数', exact: true })
+    await capacity.fill('3')
+    await dialog.getByRole('button', { name: '保存', exact: true }).click()
+    await browserCard.waitFor({ timeout: 10_000 })
+    await expect.poll(() => settingsDocument(scaffold), { timeout: 10_000 }).toContain('maxConcurrentRenders: 3')
+    expect(await browserCard.evaluate(element => element === document.activeElement)).toBe(true)
+    await browserCard.click()
+    expect(await capacity.inputValue()).toBe('3')
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])
   }, 60_000)

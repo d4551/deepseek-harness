@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * Trajectory turn chrome and layout fold: expand blocks, usage on Message,
  * tool own-duration, group wall-span descriptions, in-flight rows.
@@ -694,7 +693,7 @@ describe('trajectory layout accessibility', () => {
     for (const audit of audits) {
       expect(audit.passed + audit.failed, `${audit.surface} decided no checks`).toBeGreaterThan(0)
     }
-    expect([...new Set(audits.flatMap(audit => audit.undecidedRules))]).toEqual(['color-contrast'])
+    expect(audits.flatMap(audit => audit.undecidedRules)).toEqual([])
     expect(accessibilityFailures(audits, MINIMUM_ACCESSIBILITY_SCORE)).toBe('')
   })
 })

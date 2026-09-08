@@ -23,7 +23,7 @@
 }
 
 .chip:hover:not(:disabled) {
-  color: var(--dsw-alias-state-warn-primary);
+  text-decoration: underline;
 }
 
 .chip:focus-visible {
@@ -43,7 +43,7 @@
 }
 
 .error {
-  color: var(--dsw-alias-state-error-primary);
+  color: var(--dsw-alias-label-error);
   font-size: 12px;
   line-height: 18px;
 }

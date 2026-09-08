@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-client-a11y",
-  "description": "axe-core accessibility auditing for the jsdom client test lane",
+  "description": "axe-core accessibility auditing for the native browser client test lane",
   "version": "0.1.2-alpha.1",
   "publishConfig": {
     "access": "public"

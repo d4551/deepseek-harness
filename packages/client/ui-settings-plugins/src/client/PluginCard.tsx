@@ -2,21 +2,17 @@
  * One plugin's card: a header naming the plugin and what its settings govern,
  * disclosing that plugin's controls in place, with the save that writes them.
  *
- * The header is its own button rather than a shared disclosure row because a
- * card stacks its name over its description, while that row lays the two side
- * by side — the layout, not the behavior, is what differs. Disclosure is
- * card-local state: which card a user has open is a reading gesture, not
- * something the Host or the section has any stake in. Staged edits outlive
- * collapsing, so the header marks a card holding unsaved edits.
+ * Staged edits outlive collapsing; the header marks unsaved edits. Successful
+ * saves collapse the form and return its keyboard focus to the header.
  *
  * A card renders nothing while its namespace is unavailable: a deployment that
  * does not compose the owning plugin should show no trace of it, rather than a
  * disabled card the user cannot act on.
  */
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import clsx from 'clsx'
-import { IconChevronDownOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconChevronDownOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { CardShell } from './card-form.ts'
 import type { PluginsSettingsLocaleKey } from './locales.ts'
 import css from './PluginCard.module.css'
@@ -31,7 +27,6 @@ export interface PluginCardProps {
   descriptionKey: PluginsSettingsLocaleKey
   /** The card's form state: availability, writability, and what a save would do. */
   state: CardShell
-  /** Write every staged edit. */
   /** Persist action; a caller may return the settlement of the underlying write. */
   onSave: () => unknown
   /** Drop every staged edit. */
@@ -47,6 +42,9 @@ export interface PluginCardProps {
  */
 export function PluginCard(props: PluginCardProps) {
   const [open, setOpen] = useState(false)
+  const bodyId = useId()
+  const headerRef = useRef<HTMLButtonElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
   const saveStarted = useRef(false)
   const { state } = props
   // Collapse only after Host-confirmed settlement; a rejected write keeps its
@@ -58,7 +56,10 @@ export function PluginCard(props: PluginCardProps) {
     }
     if (!saveStarted.current) return
     saveStarted.current = false
-    if (!state.dirty && !state.failed) setOpen(false)
+    if (!state.dirty && !state.failed) {
+      if (bodyRef.current?.contains(document.activeElement)) headerRef.current?.focus()
+      setOpen(false)
+    }
   }, [state.dirty, state.failed, state.saving])
   if (!state.available) return null
   const title = props.t(props.titleKey)
@@ -66,9 +67,11 @@ export function PluginCard(props: PluginCardProps) {
   return (
     <li className={clsx(css.card, open && css.cardOpen)}>
       <button
+        ref={headerRef}
         type="button"
         className={css.header}
         aria-expanded={open}
+        aria-controls={open ? bodyId : undefined}
         aria-label={`${props.t(open ? 'collapse' : 'expand')}: ${title}`}
         onClick={() => { setOpen(!open) }}
       >
@@ -81,7 +84,7 @@ export function PluginCard(props: PluginCardProps) {
       </button>
       {open
         ? (
-          <div className={css.body}>
+          <div ref={bodyRef} id={bodyId} className={css.body} aria-busy={state.saving}>
             {!state.writable ? <p className={css.readOnly} role="status">{props.t('readOnly')}</p> : null}
             {state.restartRequired
               ? <p className={css.readOnly} role="status">{props.t('appliesRestart')}</p>
@@ -89,22 +92,22 @@ export function PluginCard(props: PluginCardProps) {
             {props.children}
             <div className={css.footer}>
               {state.failed ? <p className={css.failed} role="status">{props.t('saveFailed')}</p> : null}
-              <button
-                type="button"
-                className={css.discard}
+              <Button
+                variant="outline"
+                size="sm"
                 disabled={!state.dirty || state.saving}
                 onClick={props.onDiscard}
               >
                 {props.t('discard')}
-              </button>
-              <button
-                type="button"
-                className={css.save}
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
                 disabled={blocked}
                 onClick={props.onSave}
               >
                 {props.t(state.saving ? 'saving' : 'save')}
-              </button>
+              </Button>
             </div>
           </div>
         )

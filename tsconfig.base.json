@@ -1,7 +1,6 @@
 {
-  // Doubles as the resolution facade for vite-tsconfig-paths (vitest configs
-  // point here). NEVER add include/files to this file: it would leak into
-  // every extending package project and narrow the facade's match-all scope.
+  // Shared compiler options and source paths for package projects and Vite.
+  // File ownership belongs to each extending project.
   "compilerOptions": {
     "target": "es2024",
     "module": "esnext",

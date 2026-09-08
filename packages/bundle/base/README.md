@@ -25,7 +25,7 @@ Every base-backed `dsh --profile` surface runs on `dsh-base`, so those surfaces 
 <a id="use-this-package"></a>
 ## Use this package
 
-You get the dsh core automatically: the shipped `web` and `headless` profiles already include it, and a custom profile names it as its first bundle. After that, everything works with no further configuration.
+The shipped `web` and `headless` profiles include the core; a custom profile names it as its first bundle. Configure model access and install Chromium before using browser search or page reading.
 
 ### A minimal custom profile
 
@@ -51,15 +51,15 @@ Out of the box, every profile built on this core provides: a DeepSeek model conn
 
 Ordinary `subagent` and `subagent_fork` calls finish once. They wait for results by default; `run_in_background: true` returns a job collected through `job_output` or stopped through `job_kill`. Use `spawn_teammate` for named, persistent conversations controlled by Team messaging, follow-up, roster, and interruption tools.
 
-### Install the browser the fetch tool needs
+### Install the browser for search and page reading
 
-One shipped default needs a step this install does not perform. `web_fetch` is routed to the Playwright Chromium backend, because a model reading a modern site through a raw HTTP body sees an empty shell — but `playwright` ships no postinstall, so the browser is not downloaded for you. Until it is, the plugin warns at mount and **every `web_fetch` call fails** with `WEB_PROVIDER_CONFIGURED_UNAVAILABLE`. Install it once per host:
+`web_search` reads Bing results through Playwright Chromium without a search API key. `web_fetch` reads rendered pages through the same browser provider. Playwright requires a separate browser download; without it both tools fail with `WEB_PROVIDER_CONFIGURED_UNAVAILABLE`. From this repository, install it once per host:
 
 ```sh
-npx playwright install chromium
+node packages/web/web-fetch-playwright/node_modules/playwright/cli.js install chromium
 ```
 
-The warning and every launch failure print the command resolved for the installation they found, so the message names something runnable wherever you read it. A deployment that cannot install a browser states `fetchProvider: http` on the `web` row in its profile patch instead; that backend needs nothing, at the cost of returning the unrendered HTML.
+Startup and launch errors name the installation's browser command. Plugins settings selects search and fetch providers independently; browser requests share the **Browser search and fetch** settings. DeepSeek, Exa, and Perplexity search APIs require their own credentials. `fetchProvider: http` selects unrendered HTTP page reading. Browser search reports challenges and blocked pages as errors.
 
 ### Shell tools per platform
 
@@ -137,7 +137,7 @@ These limits tell you when the core needs extra care or where an override must g
 - **Per-surface settings belong to the surface's bundle** — a default that differs between the web GUI and headless mode lives in that surface's bundle, not in the shared core.
 - **Windows temp grants are private per-session subdirectories** — `workspace-write` confines writes to the workspace plus the session's own temp subdirectory (`<temp>\dsh-<hash>`, TMP/TEMP rewritten for confined children); `read-only` grants nothing. See `@deepseek-ai/dsh-sandbox-windows-acl`.
 - **Adding the plain filesystem provider on top of the sandboxed one fails the profile** — the two register the same service, so the profile refuses to load; use one or the other.
-- **The shipped fetch route needs a browser this install does not download** — `web_fetch` is routed to Playwright Chromium, and `playwright` ships no postinstall, so `npx playwright install chromium` is a required manual step per host; without it the plugin warns at mount and every `web_fetch` fails with `WEB_PROVIDER_CONFIGURED_UNAVAILABLE`. A host that cannot install one states `fetchProvider: http` on the `web` row.
+- **Browser installation is required** — default search and fetch use Playwright Chromium. Without its browser download, both fail with `WEB_PROVIDER_CONFIGURED_UNAVAILABLE`; choose another provider explicitly if Chromium cannot run on the host.
 
 <a id="dev-note"></a>
 ### Dev Note

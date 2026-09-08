@@ -1,4 +1,4 @@
-import tsconfigPaths from 'vite-tsconfig-paths'
+import { existsSync } from 'node:fs'
 import { defineConfig } from 'vitest/config'
 import { standardDecoratorPlugin, vitestExecArgv } from './vitest.shared.ts'
 
@@ -6,21 +6,13 @@ import { standardDecoratorPlugin, vitestExecArgv } from './vitest.shared.ts'
 // and replayed keyless e2e scenarios outside the unit/e2e includes. Linux PR CI
 // pins DSH_SNAPSHOT=replay and compares committed goldens; record/refresh remain
 // explicit local workflows. Real-model cases self-skip without DEEPSEEK_API_KEY.
-try {
-  // Node >= 21.7 native; throws when the file does not exist.
+if (existsSync(new URL('.env', import.meta.url))) {
   process.loadEnvFile(new URL('.env', import.meta.url).pathname)
-} catch {
-  // No .env — fine, the environment may already carry the variables.
 }
 
 export default defineConfig({
-  // Same resolution note as vitest.config.ts: the tsconfig.base.json paths
-  // facade has no include (match-all), so apps/web/tests resolves bare
-  // workspace imports to source like every other lane.
-  plugins: [
-    tsconfigPaths({ projects: ['./tsconfig.base.json'] }),
-    standardDecoratorPlugin(),
-  ],
+  resolve: { tsconfigPaths: true },
+  plugins: [standardDecoratorPlugin()],
   test: {
     execArgv: vitestExecArgv,
     include: [

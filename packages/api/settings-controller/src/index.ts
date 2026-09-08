@@ -66,6 +66,7 @@ export interface SettingsControllerInternals {
 function namespaceView(descriptor: SettingsDescriptor): SettingsNamespaceView {
   return {
     ns: String(descriptor.ns),
+    ...descriptor.available === undefined ? {} : { available: descriptor.available },
     schema: descriptor.schema as JsonValue,
     value: descriptor.value as JsonValue,
     ...descriptor.base === undefined ? {} : { base: descriptor.base as JsonValue },

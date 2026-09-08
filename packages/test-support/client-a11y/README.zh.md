@@ -1,5 +1,5 @@
 ---
-description: "面向 jsdom client 测试通道的 axe-core 无障碍审计，供测试作者依 WCAG 2.2 A/AA 检验已渲染的 UI。"
+description: "在真实浏览器中运行 axe-core 无障碍审计，供测试作者依 WCAG 2.2 A/AA 检验已渲染的 UI。"
 kind: "package-library"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-library"
 
 ## 概述
 
-`dsh-client-a11y` 对 client 套件已渲染出的 DOM 运行 axe-core，并报告其发现：被违反的规则、通过与失败的规则-节点检查数，以及套件所审计的全部 surface（受审面）上的一个聚合分数。规则集在此固定——WCAG 2.0、2.1 与 2.2 的 A、AA 级加 axe 的最佳实践标签——因此没有任何套件能收窄自身被检验的标准。它是独立的包而非 [`dsh-client-test-runtime`](../client-runtime/README.zh.md) 的一部分，因为 axe-core 在加载时会触碰 jsdom 的全局对象：把它导入共享测试台会让它出现在每个 client spec 之前，并改变无关测试的布局测量结果。
+`dsh-client-a11y` 按 WCAG 2.0、2.1、2.2 的 A、AA 级及 axe 最佳实践规则审计已渲染的 client 组件。Chromium 使用产品主题计算布局、对比度与伪元素。报告包含违规、已判定检查数，以及带诊断数据的未判定检查。固定规则集适用于每个受审组件。
 
 ## 目录
 
@@ -25,7 +25,7 @@ kind: "package-library"
 <a id="use-this-package"></a>
 ## 使用本包
 
-工作区安装 jsdom 的 `canvas` peer，并启用其原生构建。所属测试验证像素读写，因此缺少 canvas backend 会导致验证失败。布局与对比度仍需通过浏览器测试验证。
+运行 `bunx vitest run --config vitest.client-browser.config.ts packages/test-support/client-a11y` 验证浏览器审计引擎。浏览器通道发现导入本包的 client 套件，以及名为 `*.browser.spec.ts` 或 `*.browser.spec.tsx` 的文件。无需布局的单元套件使用 jsdom；独立像素回归测试验证其已安装的原生 `canvas` peer。
 
 渲染一个 surface（受审面）、审计它，并用 `accessibilityFailures` 守住下限：
 
@@ -34,9 +34,10 @@ const { baseElement } = render(<main><Button>Send</Button></main>)
 const audit = await auditSurface('Button', baseElement)
 
 expect(accessibilityFailures([audit], 100)).toBe('')
+expect(audit.incomplete).toEqual([])
 ```
 
-`auditSurface(surface, context)` 返回被违反的规则，以及 `passed`、`failed`、`undecided` 三个节点计数，还有 `undecidedRules`——这些未判定检查所属的规则。`accessibilityFailures(audits, 100)` 是下限：未判定任何检查的 surface、违规节点、以及低于 100 的分数都会失败。`accessibilityScore(audits)` 是*已判定*检查中通过的百分比；`formatViolations(audit)` 为每个违规节点渲染一行，写明规则、其影响级别与对应元素。
+`auditSurface(surface, context)` 返回违规、`passed`、`failed`、`undecided` 节点计数、`undecidedRules` 和完整的 `incomplete` 结果。`accessibilityFailures(audits, 100)` 拒绝空审计集、未判定任何检查的受审面、违规节点、未判定检查和低于 100 的分数。对 `incomplete` 的断言会输出完整诊断数据。`accessibilityScore(audits)` 衡量已判定检查；`formatViolations(audit)` 标明每条违规规则及受影响元素。
 
 ### 在 landmark 内渲染
 
@@ -48,7 +49,7 @@ expect(accessibilityFailures([audit], 100)).toBe('')
 
 ### 可能出什么问题
 
-- **颜色对比度被报告为 undecided（未判定）**——jsdom 不计算布局，因此对比度检查什么也判定不了，且不计入分数的任何一侧。对比度回归需要浏览器通道来发现。请断言 `undecidedRules` 而不只是分数：否则某条规则变为不可判定时，分数不会变化，也就不会失败。
+- **检查报告为未判定**——查看 `incomplete` 中的受影响节点和原因。重叠文字、遮挡动画或未确定的图片背景即使在浏览器中也可能阻止判定。修复渲染状态后重新审计。
 - **portal 出去的 surface（受审面）逃出了 landmark**——渲染进 `document.body` 的内容位于包裹层之外。请赋予它实际具有的 role（模态浮层就是 `dialog`），而不是排除该规则。
 
 -----
@@ -100,7 +101,7 @@ expect(accessibilityFailures([audit], 100)).toBe('')
 
 这些限制界定了该审计能力的消费方式。它们是当前的包级约束，而非任务待办。
 
-- **jsdom 判定不了颜色对比度**——这些检查返回 incomplete 并被排除在分数之外。对比度应由浏览器通道来证明。
+- **自动检查仅覆盖部分无障碍要求**——键盘操作流程、屏幕阅读器行为和内容可理解性还需要交互审查。
 - **一次只审计一个 surface（受审面）**——该模块审计调用方已渲染好的 DOM 子树。它不挂载任何东西，也不了解 slot，因此由套件决定什么算一个 surface 以及如何构建它。
 
 <a id="dev-note"></a>

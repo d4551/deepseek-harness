@@ -1,5 +1,6 @@
 .root {
   position: relative;
+  anchor-scope: --model-trigger;
   min-width: 0;
 }
 
@@ -7,13 +8,11 @@
    12px caption chevron; 28px chip height matches the sibling Plan /
    Read-only selects in the same tool row. */
 .trigger {
+  anchor-name: --model-trigger;
   display: flex;
   align-items: center;
   gap: 4px;
   min-width: 0;
-  /* Legacy fallback, then a row-relative cap that grants long names more
-     room without letting this trailing control consume the composer. */
-  max-width: 220px;
   max-width: min(360px, 45cqw);
   height: 28px;
   padding: 0 4px 0 8px;
@@ -66,9 +65,11 @@
 }
 
 .menu {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 8px);
+  position: fixed;
+  position-anchor: --model-trigger;
+  position-area: top span-left;
+  position-try: flip-block, flip-inline, flip-block flip-inline;
+  margin-bottom: 8px;
   z-index: var(--dsw-z-popover);
   display: flex;
   flex-direction: column;

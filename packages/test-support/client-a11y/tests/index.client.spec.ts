@@ -16,13 +16,16 @@ function violation(id: string, help: string, targets: string[][], impact?: Resul
   return {
     id,
     help,
+    description: help,
+    helpUrl: `https://dequeuniversity.com/rules/axe/${id}`,
+    tags: [],
     ...impact === undefined ? {} : { impact },
-    nodes: targets.map(target => ({ target })),
-  } as Result
+    nodes: targets.map(target => ({ target, html: '', any: [], all: [], none: [] })),
+  }
 }
 
 function audit(surface: string, over: Partial<SurfaceAudit> = {}): SurfaceAudit {
-  return { surface, violations: [], passed: 0, failed: 0, undecided: 0, undecidedRules: [], ...over }
+  return { surface, violations: [], passed: 0, failed: 0, undecided: 0, undecidedRules: [], incomplete: [], ...over }
 }
 
 describe('accessibilityScore', () => {
@@ -79,6 +82,16 @@ describe('formatViolations', () => {
 })
 
 describe('accessibilityFailures', () => {
+  it('rejects an empty audit set', () => {
+    expect(accessibilityFailures([], 100)).toBe('No surfaces were audited')
+  })
+
+  it('rejects unresolved checks even when every decided check passed', () => {
+    expect(accessibilityFailures([
+      audit('animated text', { passed: 12, undecided: 1, undecidedRules: ['color-contrast'] }),
+    ], 100)).toBe('animated text: unresolved checks (color-contrast)')
+  })
+
   it('is empty when every surface decided checks and none failed', () => {
     expect(accessibilityFailures([audit('a', { passed: 4 })], 100)).toBe('')
   })

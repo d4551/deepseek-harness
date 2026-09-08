@@ -3,8 +3,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, createEvent, fireEvent, render, screen } from '@testing-library/react'
 import type { WorkspaceId } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
-import type { SurfaceAudit } from '@deepseek-ai/dsh-client-a11y'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import type { RowDragProps, RowMultiSelection, RowSeat } from '../src/client/rows/Rows.tsx'
@@ -632,59 +630,7 @@ describe('workspace browser rows', () => {
   })
 })
 
-/**
- * Session rows are the workspace's navigation: a user reaches every session
- * through them, so an unnamed control here is one there is no way around.
- * Audited idle and running, against the same fixed WCAG A/AA rule set and
- * floor the primitives lane holds.
- */
-describe('workspace rows accessibility', () => {
-  const MINIMUM_ACCESSIBILITY_SCORE = 100
-
-  it('renders no accessibility violations for a session row', async () => {
-    const node: SessionNode = {
-      id: sid('a11y'), title: 'Audited Session', blank: false, running: false,
-      runningSubagentCount: 0, completed: false, updatedAt: 0,
-    }
-    const ranged = {
-      active: true, count: 2, archivableCount: 2,
-      extend: vi.fn(), toggle: vi.fn(), selectAll: vi.fn(), anchor: vi.fn(), archiveSelected: vi.fn(),
-    }
-    const surfaces = [
-      ['SessionNodeItem idle', false, false],
-      ['SessionNodeItem running', true, false],
-      ['SessionNodeItem multi-selected', false, true],
-    ] as const
-    const audits: SurfaceAudit[] = []
-    for (const [surface, running, selected] of surfaces) {
-      // A row is `role="treeitem"`, which ARIA requires to sit inside a
-      // `tree`; WorkspaceBrowser provides that container in the product, so
-      // auditing the row without one reports the harness's omission rather
-      // than a defect. The `main` landmark is the page shell's, for the same
-      // reason.
-      const { baseElement } = render(
-        <main>
-          <div role="tree" aria-label="Sessions" aria-multiselectable="true">
-            <SessionNodeItem seat={seatOf()}
-              node={{ ...node, running }} currentId={undefined} now={0} onOpen={vi.fn()}
-              onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()}
-              {...selected ? { selection: ranged } : {}}
-              flat t={t}
-            />
-          </div>
-        </main>,
-      )
-      audits.push(await auditSurface(surface, baseElement))
-      cleanup()
-    }
-
-    // A surface that decided nothing would score 100 for free.
-    for (const audit of audits) {
-      expect(audit.passed + audit.failed, `${audit.surface} decided no checks`).toBeGreaterThan(0)
-    }
-    expect([...new Set(audits.flatMap(audit => audit.undecidedRules))]).toEqual(['color-contrast'])
-    expect(accessibilityFailures(audits, MINIMUM_ACCESSIBILITY_SCORE)).toBe('')
-  })
+describe('workspace row context menus', () => {
   it('opens the workspace row menu under the pointer on right-click and leaves the bucket alone', () => {
     const onRename = vi.fn()
     const onToggle = vi.fn()

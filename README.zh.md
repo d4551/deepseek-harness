@@ -20,7 +20,7 @@ DeepSeek Harness（`dsh`）是由 [DeepSeek AI](https://deepseek.com) 开发的�
 
 - **多智能体 swarm** —— 运行一个共享持久名册、任务看板与邮箱的智能体团队。一个 profile（`dsh --profile swarm`）即可无界面运行；`swarm-web` 把同一个团队带进 Web UI，并渲染实时 Team 行。
 - **展示真实状态的 Web UI** —— 在浏览器里管理 workspace 根目录、通过生成的卡片编辑每个插件的设置，并用 diff、搜索、todo、轨迹卡片跟进工作。
-- **浏览器级网页访问** —— 模型可以用真实 Chromium 实例抓取页面，需要 JavaScript 的站点也能读取；浏览器可执行文件、user agent 与渲染并发数均可配置。
+- **浏览器搜索与网页阅读** —— 模型通过 Chromium 搜索 Bing 并读取 JavaScript 渲染的页面，无需搜索 API 密钥。浏览器可执行文件、user agent 与并发数均可配置。
 - **强化的审批** —— 每次工具审批都必须给出理由，试图跳过或弱化用户指令的理由会被自动拒绝。
 - **现代化工具链** —— bun 1.4 workspace、TypeScript 7、Node 24+（CI 验证），取代上游的 npm/yarn 时代配置。
 
@@ -65,7 +65,7 @@ bun run dsh web
 
 需要持久协作时，请使用命名 teammate。普通 `subagent` 和 `subagent_fork` 调用只完成一次；后台调用返回可通过 `job_output` 收集或通过 `job_kill` 停止的 job。Team 消息与后续任务工具以命名 Team member 为目标。
 
-Chromium 为标准 Web preset 提供渲染式 `web_fetch`。`web_search` 使用配置的搜索提供方，默认为 DeepSeek 搜索。浏览器抓取不会替代该搜索服务，也不提供交互式浏览器控制工具。详见[浏览器设置](packages/web/web-fetch-playwright/README.zh.md)。
+默认由 Chromium 提供 `web_search` 和渲染式 `web_fetch`。搜索读取 Bing 结果页；验证挑战或页面拦截会返回明确错误。在**设置 → 插件 → 网页访问**中选择各能力的提供方；**浏览器搜索和抓取**配置它们共用的浏览器。DeepSeek、Exa 与 Perplexity 仍是可选的 API 提供方。详见[浏览器设置](packages/web/web-fetch-playwright/README.zh.md)。
 
 ## 社区与支持
 

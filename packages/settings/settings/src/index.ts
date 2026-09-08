@@ -35,6 +35,8 @@ export type SettingsApplies = 'live' | 'restart'
 
 /** Registration options beyond the namespace schema. */
 export interface SettingsRegisterOptions<T> {
+  /** Runtime capability readiness, independent of configured values. */
+  available?: boolean
   /** Composition-layer values resolved below the user layer (entry-config subset). */
   base?: Partial<T>
   /** Owner's effect timing, surfaced to configuration UIs; defaults to `live`. */
@@ -63,6 +65,8 @@ export interface SettingsRegisterOptions<T> {
 
 /** One registered namespace as surfaced to configuration UIs. */
 export interface SettingsDescriptor {
+  /** Owner-reported runtime readiness, when the namespace configures a capability. */
+  available?: boolean
   // TODO(settings-namespace-vocabulary): Rename `ns` to `namespace` across the
   // public API, provider contract, implementations, tests, and consumers.
   /** The registered namespace. */
@@ -101,6 +105,8 @@ export interface SettingsDescribeOptions {
 
 /** Owner-facing handle for one registered namespace. */
 export interface SettingsScope<T> {
+  /** Publish runtime readiness without changing persisted settings or their revision. */
+  setAvailable(available: boolean): void
   /** Current resolved value: schema defaults, then `base`, then the user layer. */
   get(): T
   /**
@@ -332,6 +338,7 @@ interface SettingsWatcher {
 
 /** One live namespace registration owned by a registrant fiber. */
 interface SettingsRegistration {
+  available?: boolean
   ns: SettingsNamespace
   schema: z<unknown>
   base: unknown
@@ -447,6 +454,7 @@ export abstract class SettingsProvider extends Service {
       throw new Error(`settings namespace "${ns}" is already registered`)
     }
     const registration: SettingsRegistration = {
+      ...options?.available === undefined ? {} : { available: options.available },
       ns,
       schema: schema as z<unknown>,
       base: options?.base,
@@ -476,6 +484,11 @@ export abstract class SettingsProvider extends Service {
       }
     }, `settings.register(${JSON.stringify(String(ns))})`)
     return {
+      setAvailable: (available) => {
+        if (this.registrations.get(ns) !== registration || registration.available === available) return
+        registration.available = available
+        this.ctx.emit('settings/availability-updated', ns, available)
+      },
       get: () => registration.resolved as T,
       watch: (callback) => {
         const watcher: SettingsWatcher = { callback: callback, tail: Promise.resolve(), active: true }
@@ -511,6 +524,7 @@ export abstract class SettingsProvider extends Service {
       const base = registration.base === undefined ? undefined : structuredClone(registration.base)
       const detachedUser = user === undefined ? undefined : structuredClone(user)
       const descriptor: SettingsDescriptor = {
+        ...registration.available === undefined ? {} : { available: registration.available },
         ns: registration.ns,
         schema: registration.schema.toJSON(),
         value: registration.resolved,

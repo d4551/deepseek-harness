@@ -13,6 +13,20 @@
   border-color: var(--dsw-alias-brand-primary);
 }
 
+.wrap:has(input:focus-visible) {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: 2px;
+}
+
+.wrap:has(input[aria-invalid='true']) {
+  border-color: var(--dsw-alias-label-error);
+}
+
+.input:disabled {
+  color: var(--dsw-alias-label-tertiary);
+  cursor: default;
+}
+
 .icon {
   display: inline-flex;
   width: 16px;

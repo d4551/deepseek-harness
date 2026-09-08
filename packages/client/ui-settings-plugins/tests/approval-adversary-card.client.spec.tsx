@@ -1,5 +1,3 @@
-// @vitest-environment jsdom
-
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
@@ -133,6 +131,7 @@ describe('ApprovalAdversaryCard', () => {
     fireEvent.click(screen.getByText(en.approvalAdversaryTitle))
 
     const audit = await auditSurface('ApprovalAdversaryCard', document.body)
+    expect(audit.incomplete).toEqual([])
     expect(audit.passed + audit.failed).toBeGreaterThan(0)
     expect(accessibilityFailures([audit], 100)).toBe('')
   })

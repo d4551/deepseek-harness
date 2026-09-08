@@ -2,7 +2,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
-import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import type {
   SessionListState, SessionSummary, SubagentCatalogSnapshot,
 } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -100,17 +99,6 @@ function hoverCatalog(trigger: HTMLElement): void {
 }
 
 describe('SubagentHeaderLineage', () => {
-  it('exposes an accessible clickable trigger and child conversation tree', async () => {
-    render(<SubagentHeaderLineage {...props(catalog())} />)
-    const trigger = screen.getByRole('button', { name: /2 个子代理/ })
-    fireEvent.click(trigger)
-    const audits = [
-      await auditSurface('subagent trigger', trigger),
-      await auditSurface('subagent conversations', screen.getByRole('tree')),
-    ]
-    expect(accessibilityFailures(audits, 100)).toBe('')
-  })
-
   it('aggregates live descendant activity onto the closed trigger', () => {
     const summaries: Record<SessionId, SessionSummary> = {
       [CHILD]: {

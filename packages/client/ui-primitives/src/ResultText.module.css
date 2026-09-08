@@ -17,5 +17,5 @@
 }
 
 .text[data-error] {
-  color: var(--dsw-alias-state-error-primary);
+  color: var(--dsw-alias-label-error);
 }

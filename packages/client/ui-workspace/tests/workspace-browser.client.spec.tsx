@@ -2,7 +2,6 @@
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactElement, ReactNode } from 'react'
-import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import type {
@@ -285,31 +284,6 @@ describe('WorkspaceBrowser', () => {
     expect(b.store.getSnapshot().groupExpansion).toEqual({ alpha: true })
     expect(screen.queryByText('session-6')).toBeNull()
     expect(screen.getByRole('treeitem', { name: '展开其余 2 个会话' })).toBeTruthy()
-  })
-
-  it('audits the assembled tree, the grouped list and the search results alike', async () => {
-    // The row-level audit renders one row inside a hand-built `tree`; only the
-    // assembled region can answer for the containers, the overflow rows, and
-    // the second tree a query puts in their place.
-    const items = Array.from({ length: 7 }, (_, index) => summary(`session-${index + 1}`, 7 - index))
-    const b = mount({
-      useSessions: hook(sessionState(items)),
-      useWorkspaces: hook(workspaceState([
-        workspace('alpha', items.slice(0, 6).map(item => item.id)),
-        workspace('beta', [items[6]?.id ?? sid('session-7')]),
-      ])),
-    }, ({ children }) => <main>{children}</main>)
-    fireEvent.click(screen.getByText('alpha'))
-    const audits = [await auditSurface('WorkspaceBrowser grouped tree', b.view.baseElement)]
-
-    fireEvent.change(screen.getByPlaceholderText('搜索会话…'), { target: { value: 'session' } })
-    audits.push(await auditSurface('WorkspaceBrowser search results', b.view.baseElement))
-
-    // A surface that decided nothing would score 100 for free.
-    for (const audit of audits) {
-      expect(audit.passed + audit.failed, `${audit.surface} decided no checks`).toBeGreaterThan(0)
-    }
-    expect(accessibilityFailures(audits, 100)).toBe('')
   })
 
   it('seats the overflow row in the tree instead of giving it a tab stop of its own', () => {

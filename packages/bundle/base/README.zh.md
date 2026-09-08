@@ -25,7 +25,7 @@ kind: "package-bundle"
 <a id="use-this-package"></a>
 ## 使用本包
 
-你会自动获得 dsh 核心：随发行版交付的 `web` 与 `headless` profile 已包含它，自定义 profile 则把它列为第一个组合包。之后一切无需任何额外配置即可工作。
+随附的 `web` 与 `headless` profile 已包含核心；自定义 profile 将它列为第一个组合包。使用浏览器搜索或网页阅读前，请配置模型访问并安装 Chromium。
 
 ### 最小自定义 profile
 
@@ -51,15 +51,15 @@ kind: "package-bundle"
 
 普通的 `subagent` 和 `subagent_fork` 调用只执行一次。默认等待结果；`run_in_background: true` 返回可通过 `job_output` 收集或通过 `job_kill` 停止的 job。需要命名且持久的会话时，使用 `spawn_teammate`，并通过 Team 消息、后续任务、roster 与中断工具控制。
 
-### 安装 fetch 工具所需的浏览器
+### 安装搜索与网页阅读所需的浏览器
 
-有一项随发行版交付的默认值需要本安装不会执行的步骤。`web_fetch` 路由到 Playwright Chromium 后端，因为模型通过原始 HTTP 正文阅读现代站点看到的只是一具空壳——但 `playwright` 不带 postinstall 步骤，浏览器不会被自动下载。在下载之前，插件会在挂载期告警，并且**每次 `web_fetch` 调用都会失败**，报 `WEB_PROVIDER_CONFIGURED_UNAVAILABLE`。每台主机安装一次：
+`web_search` 通过 Playwright Chromium 读取 Bing 结果，无需搜索 API 密钥。`web_fetch` 通过同一浏览器提供方读取渲染后的页面。Playwright 需要单独下载浏览器；未安装时两个工具均以 `WEB_PROVIDER_CONFIGURED_UNAVAILABLE` 失败。在本仓库中，每台主机安装一次：
 
 ```sh
-npx playwright install chromium
+node packages/web/web-fetch-playwright/node_modules/playwright/cli.js install chromium
 ```
 
-告警与每次启动失败都会打印针对它们所找到的那份安装解析出的命令，因此消息在任何阅读处都点名一条可运行的命令。无法安装浏览器的部署可以改为在其 profile patch 的 `web` 行上声明 `fetchProvider: http`；该后端不需要任何额外步骤，代价是返回未经渲染的 HTML。
+启动错误会给出当前安装所用的浏览器命令。插件设置分别选择搜索与抓取提供方；浏览器请求共用**浏览器搜索和抓取**设置。DeepSeek、Exa 和 Perplexity 搜索 API 需要各自的凭据。`fetchProvider: http` 选择读取未渲染的 HTTP 页面。浏览器搜索将验证挑战与页面拦截报告为错误。
 
 ### 各平台的 shell 工具
 
@@ -137,7 +137,7 @@ patch 在自身上按平台门控两个执行器：`bash-sandbox` 携带 `disabl
 - **按表层的设置属于该表层的组合包**——web GUI 与 headless 模式取值不同的默认值放在对应表层的组合包里，而不是共享核心。
 - **Windows 的临时目录授权是按会话的私有子目录**——`workspace-write` 把写入限制在工作区与会话自己的 temp 子目录（`<temp>\dsh-<hash>`，受限子进程的 TMP/TEMP 被改写）；`read-only` 不授予任何临时目录写入权限。见 `@deepseek-ai/dsh-sandbox-windows-acl`。
 - **在沙箱化文件系统提供方之上添加普通提供方会导致 profile 失败**——两者注册同一个服务，profile 因此拒绝加载；二选一。
-- **随发行版交付的 fetch 路线需要本安装不会下载的浏览器**——`web_fetch` 路由到 Playwright Chromium，而 `playwright` 不带 postinstall 步骤，因此每台主机都必须手工执行一次 `npx playwright install chromium`；在此之前插件会在挂载期告警，且每次 `web_fetch` 都以 `WEB_PROVIDER_CONFIGURED_UNAVAILABLE` 失败。无法安装浏览器的主机应在 `web` 行上声明 `fetchProvider: http`。
+- **必须安装浏览器**——默认搜索与抓取使用 Playwright Chromium。未下载浏览器时，两者均以 `WEB_PROVIDER_CONFIGURED_UNAVAILABLE` 失败；主机无法运行 Chromium 时，请明确选择其他提供方。
 
 <a id="dev-note"></a>
 ### 开发备注

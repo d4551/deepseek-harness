@@ -1,10 +1,10 @@
-// @vitest-environment jsdom
 import { cleanup, render } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import type { SurfaceAudit } from '@deepseek-ai/dsh-client-a11y'
 import * as primitives from '../src/index.ts'
+import * as icons from '../src/icons/index.tsx'
 import {
   diffBlockLabels,
   jsonTreeLabels,
@@ -157,9 +157,7 @@ const MEMO_TAG = Symbol.for('react.memo')
  */
 function iconSurfaces(): Record<string, () => ReactElement> {
   const surfaces: Record<string, () => ReactElement> = {}
-  for (const [name, value] of Object.entries(primitives)) {
-    if (!name.startsWith('Icon') || typeof value !== 'function') continue
-    const Icon = value as () => ReactElement
+  for (const [name, Icon] of Object.entries(icons)) {
     surfaces[name] = () => <Icon />
   }
   return surfaces
@@ -167,26 +165,31 @@ function iconSurfaces(): Record<string, () => ReactElement> {
 
 const AUDITED: Readonly<Record<string, () => ReactElement>> = { ...SURFACES, ...iconSurfaces() }
 
+function isComponent(value: unknown): boolean {
+  if (typeof value === 'function') return true
+  return typeof value === 'object' && value !== null
+    && '$$typeof' in value && value.$$typeof === MEMO_TAG
+}
+
 function exportedComponentNames(): string[] {
   return Object.entries(primitives)
-    .filter(([name, value]) => {
-      if (!/^[A-Z]/.test(name)) return false
-      if (typeof value === 'function') return true
-      return typeof value === 'object' && value !== null
-        && (value as { $$typeof?: symbol }).$$typeof === MEMO_TAG
-    })
+    .filter(([name, value]) => /^[A-Z]/.test(name) && isComponent(value))
     .map(([name]) => name)
     .sort()
 }
 
 describe('ui-primitives accessibility', () => {
-  afterEach(cleanup)
+  afterEach(() => {
+    cleanup()
+    document.body.removeAttribute('data-ds-dark-theme')
+  })
 
   it('audits every exported component', () => {
     expect(Object.keys(AUDITED).sort()).toEqual(exportedComponentNames())
   })
 
-  it('renders no accessibility violations and holds the aggregate score', async () => {
+  it.each(['light', 'dark'])('renders no accessibility violations in %s theme and holds the aggregate score', async (theme) => {
+    document.body.toggleAttribute('data-ds-dark-theme', theme === 'dark')
     const audits: SurfaceAudit[] = []
     for (const [surface, mount] of Object.entries(AUDITED)) {
       // A `main` landmark is what the product's page shell provides; without
@@ -203,11 +206,7 @@ describe('ui-primitives accessibility', () => {
       expect(audit.passed + audit.failed, `${audit.surface} decided no checks`).toBeGreaterThan(0)
     }
 
-    // Undecided checks are excluded from the score, so which rules land there
-    // is itself an assertion: jsdom computes no layout and therefore cannot
-    // decide contrast, and that is the browser lane's to prove. Any other rule
-    // arriving here would be silently dropped from the score without this.
-    expect([...new Set(audits.flatMap(audit => audit.undecidedRules))]).toEqual(['color-contrast'])
+    expect(audits.filter(audit => audit.undecidedRules.length > 0)).toEqual([])
 
     expect(accessibilityFailures(audits, MINIMUM_ACCESSIBILITY_SCORE)).toBe('')
   })

@@ -52,3 +52,4 @@ packages/typert/generator/tests/.probe-*/
 /tmp-*
 /*.scratch.*
 /.tmp-*
+/.vitest

@@ -266,9 +266,9 @@ export function WorkspaceRootsAction({
                 <span className={css.path}>{roots.primary}</span>
                 <span className={css.badge}>{t('primary')}</span>
                 {origin !== undefined && origin !== null && (
-                  <span className={css.badge} aria-label={t('origin.aria', { origin: originLabel(origin.kind, t) })}>
+                  <output className={css.badge} aria-label={t('origin.aria', { origin: originLabel(origin.kind, t) })}>
                     {originLabel(origin.kind, t)}
-                  </span>
+                  </output>
                 )}
               </li>
             )}

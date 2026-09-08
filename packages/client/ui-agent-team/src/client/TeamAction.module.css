@@ -114,9 +114,12 @@
 }
 
 .diagnostic,
-.error,
+.error {
+  color: var(--dsw-alias-label-error);
+}
+
 .warning {
-  color: var(--dsw-alias-state-error-primary);
+  color: var(--dsw-alias-state-warn-label);
 }
 
 .createButton {

@@ -37,8 +37,8 @@ export interface WebProviderSpec {
   ns: string
   /** Provider id the `web` seam's selection fields name. */
   providerId: string
-  /** Which half of the seam this backend serves. */
-  capability: WebCapability
+  /** Capabilities supplied by this plugin's single settings section. */
+  capabilities: readonly WebCapability[]
   /** Plugin package name, so an unmounted backend can be named in a composition line. */
   moduleName: string
   /** Locale key of the backend's display name. */
@@ -48,10 +48,8 @@ export interface WebProviderSpec {
   /** The section fields this backend's card edits. */
   fields: readonly WebProviderFieldSpec[]
   /**
-   * Field whose COMPOSITION layer carries the browser executable the Host
-   * confirmed at mount. Its absence there is the deployment's statement that no
-   * browser installation was found, which is the one condition under which this
-   * backend is mounted, selected, and still unable to serve.
+   * Browser executable field edited by this card. Readiness comes from the
+   * Host descriptor's available flag, independently of the saved path.
    */
   browserField?: string
 }
@@ -117,7 +115,7 @@ export const WEB_PROVIDERS: readonly WebProviderSpec[] = [
   {
     ns: 'web-search-deepseek',
     providerId: 'deepseek-official',
-    capability: 'search',
+    capabilities: ['search'],
     moduleName: '@deepseek-ai/dsh-web-search-deepseek',
     titleKey: 'webSearchTitle',
     descriptionKey: 'webSearchDescription',
@@ -126,7 +124,7 @@ export const WEB_PROVIDERS: readonly WebProviderSpec[] = [
   {
     ns: 'web-search-exa',
     providerId: 'exa',
-    capability: 'search',
+    capabilities: ['search'],
     moduleName: '@deepseek-ai/dsh-web-search-exa',
     titleKey: 'webSearchExaTitle',
     descriptionKey: 'webSearchExaDescription',
@@ -135,7 +133,7 @@ export const WEB_PROVIDERS: readonly WebProviderSpec[] = [
   {
     ns: 'web-search-perplexity',
     providerId: 'perplexity',
-    capability: 'search',
+    capabilities: ['search'],
     moduleName: '@deepseek-ai/dsh-web-search-perplexity',
     titleKey: 'webSearchPerplexityTitle',
     descriptionKey: 'webSearchPerplexityDescription',
@@ -144,7 +142,7 @@ export const WEB_PROVIDERS: readonly WebProviderSpec[] = [
   {
     ns: 'web-fetch-http',
     providerId: 'http',
-    capability: 'fetch',
+    capabilities: ['fetch'],
     moduleName: '@deepseek-ai/dsh-web-fetch-http',
     titleKey: 'webFetchHttpTitle',
     descriptionKey: 'webFetchHttpDescription',
@@ -153,7 +151,7 @@ export const WEB_PROVIDERS: readonly WebProviderSpec[] = [
   {
     ns: 'web-fetch-playwright',
     providerId: 'playwright',
-    capability: 'fetch',
+    capabilities: ['search', 'fetch'],
     moduleName: '@deepseek-ai/dsh-web-fetch-playwright',
     titleKey: 'webFetchPlaywrightTitle',
     descriptionKey: 'webFetchPlaywrightDescription',
@@ -168,5 +166,5 @@ export const WEB_PROVIDERS: readonly WebProviderSpec[] = [
  * @returns the backends for that capability, in catalog order.
  */
 export function webProvidersFor(capability: WebCapability): readonly WebProviderSpec[] {
-  return WEB_PROVIDERS.filter(provider => provider.capability === capability)
+  return WEB_PROVIDERS.filter(provider => provider.capabilities.includes(capability))
 }

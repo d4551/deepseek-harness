@@ -9,7 +9,8 @@
     "src/index.ts",
     "src/invariant.ts",
     "src/policy.ts",
-    "src/provider.ts"
+    "src/provider.ts",
+    "src/search.ts"
   ],
   "references": [
     {

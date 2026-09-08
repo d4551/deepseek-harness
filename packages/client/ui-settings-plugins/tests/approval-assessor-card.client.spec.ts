@@ -1,5 +1,3 @@
-// @vitest-environment jsdom
-
 import { createElement } from 'react'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -58,6 +56,7 @@ describe('ApprovalAssessorCard', () => {
     fireEvent.click(screen.getByText(en.approvalAssessorTitle))
 
     const audit = await auditSurface('ApprovalAssessorCard', document.body)
+    expect(audit.incomplete).toEqual([])
     expect(audit.passed + audit.failed).toBeGreaterThan(0)
     expect(accessibilityFailures([audit], 100)).toBe('')
   })

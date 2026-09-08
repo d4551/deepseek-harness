@@ -5,6 +5,7 @@ import type { WebFetchResult } from '@deepseek-ai/dsh-web'
 import { PLAYWRIGHT_FETCH_PROVIDER_ID } from '../src/provider.ts'
 import { dom, fakeBrowser, sharedSetup } from './fakes.ts'
 import * as playwrightPlugin from '../src/index.ts'
+import { MemorySettings } from './settings-provider.ts'
 
 sharedSetup()
 
@@ -15,6 +16,7 @@ async function seamWithFakeBrowser(): Promise<{
   setStatus: (status: number) => void
 }> {
   const ctx = new Context()
+  await ctx.plugin(MemorySettings)
   await ctx.plugin(WebRuntime, { fetchProvider: PLAYWRIGHT_FETCH_PROVIDER_ID })
   const { access, browser } = fakeBrowser()
   await ctx.plugin({

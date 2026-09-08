@@ -13,7 +13,8 @@
  */
 
 import { WebError } from '@deepseek-ai/dsh-web'
-import type { WebFetchProvider, WebFetchRequest, WebFetchResult } from '@deepseek-ai/dsh-web'
+import type { WebFetchProvider, WebFetchRequest, WebFetchResult, WebSearchProvider, WebSearchRequest, WebSearchResult } from '@deepseek-ai/dsh-web'
+import { browserSearchResults, browserSearchUrl } from './search.ts'
 import { CapacityGate } from '@deepseek-ai/dsh-capacity-gate'
 import type { CapacityRelease } from '@deepseek-ai/dsh-capacity-gate'
 import { deadline, timeoutOf } from '@deepseek-ai/dsh-timeout'
@@ -167,7 +168,7 @@ function auditRedirects(policy: DestinationPolicy): RedirectAudit {
  * The Playwright-rendering fetch provider: anonymous, credential-free page rendering
  * restricted to public destinations.
  */
-export class PlaywrightFetchProvider implements WebFetchProvider {
+export class PlaywrightFetchProvider implements WebFetchProvider, WebSearchProvider {
   readonly id = PLAYWRIGHT_FETCH_PROVIDER_ID
   private browser: Promise<RenderBrowser> | undefined
   private usable = true
@@ -241,6 +242,13 @@ export class PlaywrightFetchProvider implements WebFetchProvider {
     const forget = (): void => { this.running.delete(running) }
     running.then(forget, forget)
     return running
+  }
+
+  /** Search public pages using the same isolated browser, capacity and cancellation as fetch. */
+  async search(request: WebSearchRequest, signal?: AbortSignal): Promise<WebSearchResult> {
+    const page = await this.fetch({ url: browserSearchUrl(request) }, signal)
+    if (signal?.aborted) throw new WebError('Web search aborted', 'WEB_ABORTED')
+    return browserSearchResults(page, request)
   }
 
   /**
@@ -344,8 +352,7 @@ export class PlaywrightFetchProvider implements WebFetchProvider {
   /** Open a context, guard its requests and sockets, render, and close the page and context. */
   private async renderAdmitted(url: URL, policy: DestinationPolicy, signal: AbortSignal): Promise<WebFetchResult> {
     const browser = await this.browserOrRelaunch(signal)
-    const identity = { userAgent: this.limits.userAgent, serviceWorkers: 'block' } as const
-    const opened = await settleBefore(browser.newContext(identity), signal)
+    const opened = await settleBefore(browser.newContext({ userAgent: this.limits.userAgent, serviceWorkers: 'block' }), signal)
     if (!opened.ok) throw renderFailure(opened.failure, signal)
     const context = opened.value
     // Both interceptors are installed before the context has a page: a WebSocket the
@@ -389,7 +396,7 @@ export class PlaywrightFetchProvider implements WebFetchProvider {
     return landed({
       url: page.url(),
       statusCode: nav.value?.status() ?? 200,
-      body: { kind: 'html' as const, content: dom.value.content },
+      body: { kind: 'html', content: dom.value.content },
       truncated: dom.value.length > this.limits.maxBodyChars,
       // The returned DOM is post-render: Chromium executed the page's scripts
       // and issued the subresource requests they asked for, all under the same
@@ -406,10 +413,10 @@ export class PlaywrightFetchProvider implements WebFetchProvider {
    * so a process opened during that wait is still the one it closes.
    */
   private async browserOrRelaunch(signal: AbortSignal): Promise<RenderBrowser> {
-    const onLaunchFailure = (launchFailure: Error): never => {
+    const onLaunchFailure = async (launchFailure: Error): Promise<never> => {
       this.browser = undefined
       throw new WebError(
-        `web fetch failed to launch a browser: ${String(launchFailure)}; install one with: ${chromiumInstallCommand()}`,
+        `web fetch failed to launch a browser: ${String(launchFailure)}; install one with: ${await chromiumInstallCommand()}`,
         'WEB_PROVIDER_ERROR',
         { cause: launchFailure },
       )

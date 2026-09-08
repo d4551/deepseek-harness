@@ -133,6 +133,14 @@ jobs:
           if (( install_status != 0 )); then exit "$install_status"; fi
           exit "$sandbox_status"
 
+      - name: Install Playwright Chromium and hosted dependencies
+        if: vars.DSH_CI_FAILOVER_LINUX != 'selfhosted' || github.event.pull_request.user.login == 'dependabot[bot]'
+        run: bun run --filter @deepseek-ai/dsh-web-frontend playwright:install:deps
+
+      - name: Install Playwright Chromium on the failover VM
+        if: vars.DSH_CI_FAILOVER_LINUX == 'selfhosted' && github.event.pull_request.user.login != 'dependabot[bot]'
+        run: bun run --filter @deepseek-ai/dsh-web-frontend playwright:install
+
       - name: Run exhaustive coverage
         run: bun run check:ci:coverage
 
@@ -445,6 +453,9 @@ jobs:
       - name: Install (immutable)
         shell: pwsh
         run: bun install --frozen-lockfile
+      - name: Install Playwright Chromium
+        shell: pwsh
+        run: bun run --filter @deepseek-ai/dsh-web-frontend playwright:install
       - name: Build before coverage
         shell: pwsh
         run: bun run build

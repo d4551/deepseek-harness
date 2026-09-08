@@ -141,6 +141,9 @@ jobs:
       - name: Install (immutable)
         run: bun install --frozen-lockfile
 
+      - name: Install Playwright Chromium
+        run: bun run --filter @deepseek-ai/dsh-web-frontend playwright:install
+
       - name: Run complete unsharded primary Node CI serially
         env:
           DSH_COVERAGE_MAX_WORKERS: '1'
@@ -188,6 +191,10 @@ jobs:
       - name: Install (immutable)
         shell: pwsh
         run: bun install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        shell: pwsh
+        run: bun run --filter @deepseek-ai/dsh-web-frontend playwright:install
 
       - name: Run complete unsharded Windows gate inventory serially
         shell: pwsh
@@ -387,6 +394,10 @@ jobs:
         if: matrix.platform == 'windows'
         shell: pwsh
         run: bun install --frozen-lockfile
+
+      - name: Install Playwright Chromium and hosted dependencies
+        if: matrix.platform == 'linux'
+        run: bun run --filter @deepseek-ai/dsh-web-frontend playwright:install:deps
 
       - name: Run complete unsharded primary Node CI concurrently
         if: matrix.platform == 'linux'

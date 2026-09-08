@@ -23,7 +23,7 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Open the Plugins section in Settings and select the **Plugin configuration** tab to edit the host-plane plugins this deployment composes. The cards appear in this order: the shell executor (`bash`), the agent loop's tool-call parallelism (`agent-loop`), subagent model selection (`subagent-model-selection`), the default model for new sessions (`agent-default-model`), the DeepSeek search provider (`web-search-deepseek`), and the Agent team capacities (`agent-team`).
+Open the Plugins section in Settings and select the **Plugin configuration** tab to edit the host-plane plugins this deployment composes. Available cards follow the served settings namespaces and registered card contributions.
 
 ### What appears here
 
@@ -36,6 +36,8 @@ A card stages what the user types and writes it only when they save, and a save 
 The Subagent card stages its permission switch and exact model checkboxes together. Enabling requires at least one selected provider route. Saving submits `enabled` and `allowedModels` in one mutation fenced by the revision where that draft began; a newer Host revision marks the draft failed instead of restoring a revoked route. Disabling retains the selected routes for later reuse. Available models are grouped by provider, while saved routes absent from the current catalog appear last and remain removable. Provider names and model descriptions stay live directory facts and are not stored, and the card refreshes them after provider changes, settings commits, and reconnects.
 
 The Default model card stages one exact route. Saving submits `provider`, `model`, and a clear of `reasoningEffort` in one mutation fenced by the revision where that draft began, because an effort stored for the previous model does not describe the new one; a newer Host revision marks the draft conflicted instead of writing over it. The route the section already stores stays selectable even once the catalog stops advertising it. A failed directory read offers a retry in place, and both model cards group available routes by provider and list saved-but-unadvertised routes last.
+
+Card actions and single-line fields use shared `Button` and `Input` controls. The disclosure identifies its expanded body, which announces when a save is busy. A successful save returns focus from the collapsing form to its disclosure button; focus elsewhere stays where the user placed it. Save and discard actions wrap within narrow cards.
 
 ### Secret-role fields
 

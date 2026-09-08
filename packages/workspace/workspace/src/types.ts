@@ -1,7 +1,5 @@
 /**
- * Public type vocabulary of the workspace entity: the `WorkspaceId` brand and
- * the `Workspace` consumer interface. Types only — the `WorkspaceId` factory
- * lives in `index.ts` (this file carries no runtime code).
+ * Browser-safe workspace identity and consumer vocabulary.
  * @module @deepseek-ai/dsh-workspace/src/types
  */
 
@@ -13,6 +11,15 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
  * normalization rewrites paths, and a reference anchor must stay stable.
  */
 export type WorkspaceId = Branded<'WorkspaceId'>
+
+/**
+ * Construct the opaque identity of an existing workspace record.
+ * @param id - Workspace identifier received from its registry.
+ * @returns the unchanged identifier with its workspace brand.
+ */
+export function WorkspaceId(id: string): WorkspaceId {
+  return id as WorkspaceId
+}
 
 /**
  * One workspace: a stable id over an existing directory, a display title, and

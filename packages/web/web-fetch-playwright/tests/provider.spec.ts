@@ -452,7 +452,7 @@ describe('PlaywrightFetchProvider limits and lifecycle', () => {
     // The failure names the command that fixes it, resolved to this installation's own
     // CLI so the reader can run it from wherever they read the message.
     await expect(render(provider, 'https://example.com/x'))
-      .rejects.toThrow(chromiumInstallCommand())
+      .rejects.toThrow(await chromiumInstallCommand())
   })
 
   it('reports the browser as available when the probe resolves', async () => {

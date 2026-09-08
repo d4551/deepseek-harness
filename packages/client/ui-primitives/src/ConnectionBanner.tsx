@@ -12,5 +12,5 @@ export function ConnectionBanner({ reconnecting, label }: {
   label: string
 }) {
   if (!reconnecting) return null
-  return <div className={css.banner}>{label}</div>
+  return <div className={css.banner} role="status">{label}</div>
 }

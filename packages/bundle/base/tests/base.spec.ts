@@ -70,7 +70,7 @@ describe('dsh-base bundle', () => {
     // body sees an empty shell. Both providers are mounted and the route is
     // named, because the seam refuses to guess when two are usable. The rendered
     // route needs `playwright install chromium`, which the bundle README states.
-    expect(rows.find(row => row.id === 'web')?.config).toMatchObject({ fetchProvider: 'playwright' })
+    expect(rows.find(row => row.id === 'web')?.config).toEqual({ searchProvider: 'playwright', fetchProvider: 'playwright' })
     expect(rows.find(row => row.id === 'web-fetch-playwright')).toBeDefined()
     expect(rows.find(row => row.id === 'web-fetch-playwright')?.disabled).toBeUndefined()
     expect(rows.find(row => row.id === 'web-fetch-http')).toBeDefined()

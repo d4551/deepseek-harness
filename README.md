@@ -20,7 +20,7 @@ This repository extends the upstream harness with capabilities and a toolchain y
 
 - **Multi-agent swarms** — run a team of agents that share a durable roster, task board, and mailbox. One profile (`dsh --profile swarm`) runs it headless; `swarm-web` adds the same team to the Web UI with a live Team row.
 - **A Web UI that shows real state** — manage workspace roots from the browser, edit every plugin's settings through generated cards, and follow work through diff, search, todo, and trajectory cards.
-- **Browser-grade web access** — the model can fetch pages with a real Chromium instance, so JavaScript-rendered sites are readable, with the browser executable, user agent, and render concurrency configurable.
+- **Browser search and page reading** — the model searches Bing and reads JavaScript-rendered pages through Chromium without a search API key. Browser executable, user agent, and concurrency are configurable.
 - **Hardened approvals** — every tool approval needs a justification, and justifications that try to skip or soften the user's instructions are rejected automatically.
 - **A current toolchain** — bun 1.4 workspaces, TypeScript 7, and Node 24+ (CI-verified), instead of the upstream npm/yarn-era setup.
 
@@ -61,7 +61,7 @@ For swarm coordination in the browser, run `bun run dsh --profile swarm-web`. Th
 
 Use named teammates for persistent collaboration. Ordinary `subagent` and `subagent_fork` calls complete once; background calls return jobs collected with `job_output` or stopped with `job_kill`. Team messaging and follow-up tools address named Team members.
 
-Chromium enables rendered `web_fetch` in the standard Web preset. `web_search` uses the configured search provider; its default is DeepSeek search. Browser fetching does not replace that search service or provide interactive browser-control tools. See [browser setup](packages/web/web-fetch-playwright/README.md).
+Chromium serves `web_search` and rendered `web_fetch` by default. Search reads Bing result pages; challenges and blocked pages return explicit errors. In **Settings → Plugins → Web access**, select the provider for each capability; **Browser search and fetch** configures their shared browser. DeepSeek, Exa, and Perplexity remain optional API providers. See [browser setup](packages/web/web-fetch-playwright/README.md).
 
 ## Community and support
 

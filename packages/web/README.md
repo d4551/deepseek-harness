@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The `web/` group gives the harness web access — searching the web and fetching URLs — through one provider-neutral service (`ctx.web`) and the backends and tools that use it. A deployment mounts one or more backends — Exa, Perplexity, or DeepSeek for search, anonymous HTTP(S) for fetch — and the service picks a usable provider per operation, so the model-facing tools stay stable while backends come and go. Six packages split the family: the `web/` service that owns provider selection and errors, three search backends, one fetch backend, and `tool-web/`, which exposes `web_search` and `web_fetch` to the model. The group owns web access only: no browsing or extraction, no per-URL policy, and each backend keeps its own resource caps. Search and fetch deliberately share one service so selection, cancellation, errors, and configuration have a single owner.
+The `web/` group lets agents search the web and retrieve pages through `web_search` and `web_fetch`. Local Playwright Chromium provides browser search without a paid search API and retrieves rendered pages. Exa, Perplexity and DeepSeek provide alternative search backends; HTTP provides anonymous byte retrieval. The shared `ctx.web` service owns provider selection, cancellation and errors. Providers own destination checks and resource limits.
 
 ## Table of Contents
 
@@ -22,7 +22,7 @@ The `web/` group gives the harness web access — searching the web and fetching
 <a id="packages"></a>
 ## Packages
 
-Six packages play the web roles; the subsystem reference owns the exhaustive vocabulary and contracts.
+Seven packages own web access; the subsystem reference describes their shared contracts.
 
 | Package | Role | ctx key |
 |---|---|---|
@@ -31,7 +31,7 @@ Six packages play the web roles; the subsystem reference owns the exhaustive voc
 | [`web-search-perplexity/`](web-search-perplexity/README.md) | Searches the web through Perplexity | registers on `ctx.web` |
 | [`web-search-deepseek/`](web-search-deepseek/README.md) | Searches the web through DeepSeek native search | registers on `ctx.web` |
 | [`web-fetch-http/`](web-fetch-http/README.md) | Fetches public HTTP(S) pages anonymously | registers on `ctx.web` |
-| [`web-fetch-playwright/`](web-fetch-playwright/README.md) | Renders public pages in headless Chromium and returns the post-render DOM | registers on `ctx.web` |
+| [`web-fetch-playwright/`](web-fetch-playwright/README.md) | Searches Bing and retrieves rendered pages through local Chromium | registers on `ctx.web` |
 | [`tool-web/`](tool-web/README.md) | Exposes `web_search` and `web_fetch` to the model | registers on `ctx.tools` |
 
 -----

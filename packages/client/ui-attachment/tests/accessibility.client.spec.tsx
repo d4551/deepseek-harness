@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * axe over this package's rendered surfaces.
  *
@@ -9,9 +8,9 @@
  */
 
 import { cleanup, render } from '@testing-library/react'
-import { AttachmentId } from '@deepseek-ai/dsh-attachment'
+import { AttachmentId } from '@deepseek-ai/dsh-attachment/src/brand.ts'
 import type { ReactElement } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import type { SurfaceAudit } from '@deepseek-ai/dsh-client-a11y'
 import { AttachmentRail } from '../src/AttachmentRail.tsx'
@@ -26,6 +25,14 @@ const MINIMUM_ACCESSIBILITY_SCORE = 100
 
 afterEach(cleanup)
 
+const canvas = document.createElement('canvas')
+canvas.width = 640
+canvas.height = 320
+const context = canvas.getContext('2d')
+if (context === null) throw new Error('Image accessibility requires native canvas support')
+context.fillRect(0, 0, canvas.width, canvas.height)
+const imageUrl = canvas.toDataURL('image/png')
+
 const railLabels: AttachmentRailLabels = {
   group: '待发送图片',
   open: '查看原图',
@@ -34,8 +41,8 @@ const railLabels: AttachmentRailLabels = {
 }
 
 const railItems: AttachmentRailItem[] = [
-  { id: 'a', previewUrl: 'blob:a', alt: 'a.png', removeLabel: '移除图片 a.png' },
-  { id: 'b', previewUrl: 'blob:b', alt: 'b.png', removeLabel: '移除图片 b.png' },
+  { id: 'a', previewUrl: imageUrl, alt: 'a.png', removeLabel: '移除图片 a.png' },
+  { id: 'b', previewUrl: imageUrl, alt: 'b.png', removeLabel: '移除图片 b.png' },
 ]
 
 const imageLabels: MessageImageLabels = {
@@ -56,7 +63,7 @@ const SURFACES: Readonly<Record<string, () => ReactElement>> = {
   ),
   ImageLightbox: () => (
     <ImageLightbox
-      src="blob:original"
+      src={imageUrl}
       alt="原图"
       labels={{ dialog: '原图预览', close: '关闭原图预览' }}
       onClose={() => {}}
@@ -74,7 +81,7 @@ const SURFACES: Readonly<Record<string, () => ReactElement>> = {
           name: 'history.png',
         },
       }}
-      load={() => Promise.resolve('blob:seeded')}
+      load={() => Promise.resolve(imageUrl)}
       variant="single"
       labels={imageLabels}
     />
@@ -83,33 +90,16 @@ const SURFACES: Readonly<Record<string, () => ReactElement>> = {
 
 describe('ui-attachment accessibility', () => {
   it('renders no accessibility violations and holds the aggregate score', async () => {
-    // A ResizeObserver the rail measures with; jsdom provides none.
-    vi.stubGlobal('ResizeObserver', class {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    })
-    try {
-      const audits: SurfaceAudit[] = []
-      for (const [surface, mount] of Object.entries(SURFACES)) {
-        // The page shell supplies the `main` landmark; without one the audit
-        // reports the harness's missing page frame against every surface.
-        const { baseElement } = render(<main>{mount()}</main>)
-        audits.push(await auditSurface(surface, baseElement))
-        cleanup()
-      }
-
-      // A surface that decided nothing scores 100 for free.
-      for (const audit of audits) {
-        expect(audit.passed + audit.failed, `${audit.surface} decided no checks`).toBeGreaterThan(0)
-      }
-      // jsdom computes no layout, so contrast decides nothing; asserting the
-      // set keeps a newly undecidable rule from silently leaving the score.
-      expect([...new Set(audits.flatMap(audit => audit.undecidedRules))]).toEqual(['color-contrast'])
-
-      expect(accessibilityFailures(audits, MINIMUM_ACCESSIBILITY_SCORE)).toBe('')
-    } finally {
-      vi.unstubAllGlobals()
+    const audits: SurfaceAudit[] = []
+    for (const [surface, mount] of Object.entries(SURFACES)) {
+      const { baseElement } = render(<main>{mount()}</main>)
+      audits.push(await auditSurface(surface, baseElement))
+      cleanup()
     }
+    for (const audit of audits) {
+      expect(audit.passed + audit.failed, `${audit.surface} decided no checks`).toBeGreaterThan(0)
+    }
+    expect(audits.flatMap(audit => audit.undecidedRules)).toEqual([])
+    expect(accessibilityFailures(audits, MINIMUM_ACCESSIBILITY_SCORE)).toBe('')
   })
 })

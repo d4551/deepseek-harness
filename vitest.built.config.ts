@@ -1,4 +1,3 @@
-import tsconfigPaths from 'vite-tsconfig-paths'
 import { defineConfig } from 'vitest/config'
 import { standardDecoratorPlugin, vitestExecArgv } from './vitest.shared.ts'
 
@@ -9,11 +8,8 @@ import { standardDecoratorPlugin, vitestExecArgv } from './vitest.shared.ts'
 // tree — that is why they live outside the default `**/*.spec.ts` include of
 // vitest.config.ts and carry no `DSH_REQUIRE_BUILT_PACKAGES` check.
 export default defineConfig({
-  // Same resolution note as vitest.config.ts: bare workspace names resolve
-  // through the tsconfig.base.json paths facade to `src`, never to built
-  // dist exports; the built-ness under test lives in the packed image's own
-  // file bytes and createRequire lookups, which bypass vite resolution.
-  plugins: [tsconfigPaths({ projects: ['./tsconfig.base.json'] }), standardDecoratorPlugin()],
+  resolve: { tsconfigPaths: true },
+  plugins: [standardDecoratorPlugin()],
   test: {
     execArgv: vitestExecArgv,
     setupFiles: ['./scripts/test-invariants.ts'],

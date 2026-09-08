@@ -1,5 +1,5 @@
 ---
-description: "ctx.web 的 Playwright Chromium 渲染页抓取后端：部署方如何挂载 DOM 渲染式 URL 抓取，含匿名隐身上下文、单一共享浏览器进程与有界输出。"
+description: "通过本地 Chromium 为 ctx.web 提供浏览器搜索和渲染网页抓取，使用匿名上下文、共享容量和有界输出。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-有了 `dsh-web-fetch-playwright`，harness 可以通过 web 服务（`ctx.web`）抓取 JavaScript 渲染的页面：它在无头 Chromium 浏览器中加载每个 URL，等待 DOM，并返回序列化文档。当组合需要纯 HTTP 抓取无法产出的内容时选择它——单页应用的客户端渲染 DOM、用脚本构建内容的页面，或任何只有在执行后才存在有效标记的文档。它像 HTTP 后端一样保持匿名：不携带凭据，抓取之间不共享 Cookie，每次渲染都隔离在全新的隐身上下文中。页面抵达的每个目标——主框架、子资源、重定向指向的每一跳，以及其页面与框架打开的每个 WebSocket——都要通过共享的抓取 URL 策略，并且只有目标是公网单播地址时才被放行；与 HTTP 后端不同，浏览器在连接时会再次解析主机名，因此这项检查放行的是目标，而不是把连接钉死到某个地址。面向模型的 `web_fetch` 工具位于 `dsh-tool-web`，由它渲染本提供方的正文。
+通过本地 Chromium 搜索 Bing 并抓取渲染网页，无需付费搜索 API。每次操作在同一个共享浏览器中使用全新的匿名上下文。模型通过 `web_search` 获得自然搜索结果的标题、直接引用 URL 和摘要，通过 `web_fetch` 获得渲染页面内容。必须安装浏览器；搜索验证和结果标记变化会产生明确错误。
 
 ## 目录
 
@@ -26,7 +26,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-在已加载 web 服务的组合中挂载本提供方；它以 `playwright` 抓取提供方身份注册。它是随发行版交付的抓取路线：`dsh` 基础组合包固定了 `fetchProvider: playwright`，因此基于该核心构建的每个 profile 都进行渲染。想改用纯 HTTP 后端的组合——因为无法安装浏览器，或因为需要地址钉死——应在 `web` 行上声明 `fetchProvider: http`。
+在已加载 web 与 settings 服务的组合中挂载本提供方；它以 `playwright` 同时注册搜索和抓取。两项能力共享浏览器设置和容量。设置 → 插件显示一张**浏览器搜索和抓取**卡片，并在两个后端选择器中提供此选项。
 
 ### 何时选择
 
@@ -44,11 +44,12 @@ node packages/web/web-fetch-playwright/node_modules/playwright/cli.js install ch
 
 ### 最小配置
 
-加载 web 服务、为抓取选中本提供方，再挂载本提供方；可配置上限都有安全默认值，并在插件构造时验证，因此无效值会响亮地失败，而不是构造出上限荒谬的提供方。
+在已加载 settings 提供方的前提下，加载 web 服务，为搜索和抓取选中本提供方，再挂载它。无效的资源上限会在插件构造时失败。
 
 ```yaml
 - name: '@deepseek-ai/dsh-web'
-  with:
+  config:
+    searchProvider: playwright
     fetchProvider: playwright
 - name: '@deepseek-ai/dsh-web-fetch-playwright'
 ```
@@ -62,9 +63,15 @@ node packages/web/web-fetch-playwright/node_modules/playwright/cli.js install ch
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-web-fetch-playwright)是每个受支持字段及其 JSDoc 的穷尽式真源。
 
+插件在构造提供方之前读取持久化设置。保存的更改在重启或重新挂载后生效。浏览器可用性来自安装探测，并通过设置 API 传递到两个后端选择器；仅输入可执行文件路径不会把浏览器报告为可用。
+
 ### 抓取返回什么
 
 成功调用产生 `WebFetchResult`：导航（含重定向）之后页面的最终 URL、主导航的 HTTP 状态码（合成导航报告 `200`）、以 `html` 正文分类的序列化 DOM，以及文档超过 `maxBodyChars` 时的 `truncated` 标志。非 2xx 状态是结果而非错误——`WebError` 只用于启动、导航或序列化失败。
+
+### 搜索返回什么
+
+搜索访问 Bing 的公开结果页，并从有界渲染 HTML 中提取自然搜索结果卡片。引用 URL 直接从 Bing 结果链接解码，无需访问跟踪重定向。重复 URL 会被移除；`maxResults` 限制返回来源数量，`truncated` 也记录 DOM 上限。搜索不生成回答。`WEB_SEARCH_CHALLENGE` 表示识别到人工验证页面；`WEB_SEARCH_UNAVAILABLE` 表示 HTTP 失败或无法识别的结果页。这些失败不会切换提供方。可通过 `bunx vitest run --config vitest.e2e.config.ts packages/web/web-fetch-playwright/tests/search.e2e.ts` 执行真实 Chromium 检查。
 
 ### 渲染行为
 
@@ -106,6 +113,7 @@ node packages/web/web-fetch-playwright/node_modules/playwright/cli.js install ch
 |---|---|
 | [`src/index.ts`](src/index.ts) | 插件入口：配置模式、上限验证、提供方注册、销毁时关闭浏览器 |
 | [`src/provider.ts`](src/provider.ts) | `PlaywrightFetchProvider`：共享浏览器生命周期、隐身渲染、DOM 序列化 |
+| [`src/search.ts`](src/search.ts) | Bing 导航 URL 和有界自然搜索结果提取 |
 | [`src/policy.ts`](src/policy.ts) | 目标策略：逐请求、逐重定向跳转与逐 WebSocket 的放行判定、每主机名一次判定，以及两个拦截器处理器 |
 | [`src/browser.ts`](src/browser.ts) | 提供方依赖的浏览器端口、Chromium 启动与安装探测、解析出的安装命令，以及页面内 DOM 序列化函数 |
 | [`src/invariant.ts`](src/invariant.ts) | 不变量伴随文件（无运行时不变量；上限在提供方中强制执行） |
@@ -161,7 +169,7 @@ node packages/web/web-fetch-playwright/node_modules/playwright/cli.js install ch
 <a id="model-experience"></a>
 ## 模型体验
 
-间接地，通过 `dsh-tool-web`：该工具把本提供方经 `maxBodyChars` 限制的序列化 DOM 转换为 markdown 置于抓取结果内。
+间接地，通过 `dsh-tool-web`：该工具把有界 DOM 转为 markdown 抓取结果，并呈现自然搜索引用。浏览器搜索不会增加模型调用。
 
 #### KV Cache 影响
 

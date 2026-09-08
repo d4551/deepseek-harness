@@ -61,6 +61,7 @@ export function apply(ctx: Context): void {
   ctx.effect(() => {
     const disposers = [
       ctx.remote.$on('settings/document-updated', () => { void mirror.load() }),
+      ctx.remote.$on('settings/availability-updated', () => mirror.load()),
       ctx.on('connection/reset', () => { void mirror.load() }),
     ]
     // The first connection also emits connection/reset, so startup normally

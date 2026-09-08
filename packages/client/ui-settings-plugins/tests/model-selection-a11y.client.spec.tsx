@@ -1,5 +1,3 @@
-// @vitest-environment jsdom
-
 import { cleanup, fireEvent, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
@@ -35,6 +33,8 @@ describe('model-selection card accessibility', () => {
     fireEvent.click(screen.getByText(en.subagentModelSelectionTitle))
     const multiple = await auditSurface('SubagentModelSelectionCard', document.body)
 
+    expect(single.incomplete).toEqual([])
+    expect(multiple.incomplete).toEqual([])
     expect(accessibilityFailures([single, multiple], MINIMUM_ACCESSIBILITY_SCORE)).toBe('')
   })
 })

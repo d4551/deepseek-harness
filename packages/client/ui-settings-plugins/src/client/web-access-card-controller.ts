@@ -15,7 +15,7 @@ import type { SettingsDescribeFace, SettingsScope } from '@deepseek-ai/dsh-clien
 import { CardForm, type CardActions, type CardFieldState, type CardShell } from './card-form.ts'
 import { textField } from './card-field-spec.ts'
 import type { PluginsSettingsLocaleKey } from './locales.ts'
-import { webProvidersFor, type WebCapability, type WebProviderSpec } from './web-provider-catalog.ts'
+import { WEB_PROVIDERS, webProvidersFor, type WebCapability, type WebProviderSpec } from './web-provider-catalog.ts'
 
 /**
  * Namespace of the web seam's own selection settings. Spelled here rather than
@@ -177,21 +177,18 @@ export class WebAccessCardController {
   }
 
   /**
-   * Whether a selected rendering backend has no browser behind it. The
-   * composition layer of the rendering backend's own section carries the
-   * executable the Host confirmed at mount, so its absence there — while the
-   * namespace is served — is the deployment reporting that it found none.
+   * Whether a selected browser capability lacks the Host's runtime readiness signal.
    */
   private browserMissing(): boolean {
-    const rendering = webProvidersFor('fetch').find(provider => provider.browserField !== undefined)
-    if (rendering === undefined) return false
-    const selected = this.form.field(FETCH_FIELD).text
-    if (selected !== rendering.providerId) return false
-    const view = this.describeFace.getSnapshot().view?.namespaces.find(entry => entry.ns === rendering.ns)
-    if (view === undefined) return false
-    const base = view.base
-    if (typeof base !== 'object' || base === null || Array.isArray(base)) return true
-    const confirmed = Reflect.get(base, rendering.browserField as string) as unknown
-    return typeof confirmed !== 'string' || confirmed.length === 0
+    return WEB_PROVIDERS.some((provider) => {
+      const browserField = provider.browserField
+      if (browserField === undefined) return false
+      const selected = provider.capabilities.some(capability =>
+        this.form.field(capability === 'search' ? SEARCH_FIELD : FETCH_FIELD).text === provider.providerId)
+      if (!selected) return false
+      const view = this.describeFace.getSnapshot().view?.namespaces.find(entry => entry.ns === provider.ns)
+      if (view === undefined) return false
+      return view.available !== true
+    })
   }
 }

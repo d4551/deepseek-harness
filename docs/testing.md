@@ -37,7 +37,7 @@ E2e assertions rerun commands or reread files externally; agent-output keywords 
 
 ## Test resolution: source plane only
 
-- Every vitest config points vite-tsconfig-paths at `tsconfig.base.json`; bare workspace imports resolve to `src` ([layout](development.md#typescript-project-layout)), never through package `exports` to built `lib/` — stale artifacts there load a second copy of module singletons. Built artifacts are consumed only explicitly: `lib`-mode subprocesses and the built smokes below.
+- Vitest uses Vite's native `resolve.tsconfigPaths` with the source mappings inherited from `tsconfig.base.json`; bare workspace imports resolve to `src` ([layout](development.md#typescript-project-layout)). Built artifacts are consumed explicitly by `lib`-mode subprocesses and the built smokes below.
 
 ## Test subprocess launch modes
 

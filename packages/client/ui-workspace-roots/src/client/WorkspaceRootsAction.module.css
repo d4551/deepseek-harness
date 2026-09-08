@@ -111,7 +111,7 @@
 
 .alertText {
   flex: 1;
-  color: var(--dsw-alias-state-error-primary);
+  color: var(--dsw-alias-label-error);
   font-size: 12px;
 }
 

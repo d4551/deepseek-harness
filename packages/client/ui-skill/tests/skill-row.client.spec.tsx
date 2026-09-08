@@ -1,5 +1,3 @@
-// @vitest-environment jsdom
-
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
@@ -53,7 +51,7 @@ describe('SkillRow', () => {
   it('renders a compact Bash-shaped summary and discloses the exact instructions', () => {
     const inspect = vi.fn()
     const view = render(<SkillRow {...props(settled(), inspect)} />)
-    const row = screen.getByRole('button', { name: 'Skilldsh-manage-issues' })
+    const row = screen.getByRole('button', { name: 'Skill dsh-manage-issues' })
     expect(row.getAttribute('aria-expanded')).toBe('false')
     expect(view.container.querySelector('[data-tool="skill"]')?.getAttribute('data-state')).toBe('ok')
     expect(view.container.querySelector('[data-tool="skill"] svg')?.getAttribute('width')).toBe('14')
@@ -97,7 +95,7 @@ describe('SkillRow', () => {
       isError: true,
       error: { name: 'SkillError', code: 'missing' },
     }))} />)
-    const row = screen.getByRole('button', { name: 'skill 加载失败SkillSkillError: missing resource' })
+    const row = screen.getByRole('button', { name: 'skill 加载失败 Skill SkillError: missing resource' })
     expect(view.container.querySelector('[data-tool="skill"]')?.getAttribute('data-state')).toBe('error')
     expect(row.textContent).not.toContain('Check SKILL.md.')
     fireEvent.click(row)
@@ -126,7 +124,7 @@ describe('SkillRow', () => {
       isError: true,
       error: { name: 'SkillError', code: 'missing' },
     }))} />)
-    const errorRow = screen.getByRole('button', { name: 'skill 加载失败SkillSkillError: missing' })
+    const errorRow = screen.getByRole('button', { name: 'skill 加载失败 Skill SkillError: missing' })
     fireEvent.click(errorRow)
     expect(screen.getAllByText('SkillError: missing')).toHaveLength(2)
   })
@@ -158,7 +156,7 @@ describe('skill row accessibility', () => {
     const audits: SurfaceAudit[] = []
     const collapsed = render(<main><SkillRow {...props(settled())} /></main>)
     audits.push(await auditSurface('SkillRow collapsed', collapsed.baseElement))
-    fireEvent.click(collapsed.getByRole('button', { name: 'Skilldsh-manage-issues' }))
+    fireEvent.click(collapsed.getByRole('button', { name: 'Skill dsh-manage-issues' }))
     audits.push(await auditSurface('SkillRow disclosed', collapsed.baseElement))
     expect(accessibilityFailures(audits, MINIMUM_ACCESSIBILITY_SCORE)).toBe('')
   })

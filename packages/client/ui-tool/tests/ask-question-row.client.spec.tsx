@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * ask_user_question toolview acceptance: `waiting` summary while running,
  * answered-count from the result JSON once settled (skipped answers
@@ -276,7 +275,7 @@ describe('ask-question row accessibility', () => {
     for (const audit of audits) {
       expect(audit.passed + audit.failed, `${audit.surface} decided no checks`).toBeGreaterThan(0)
     }
-    expect([...new Set(audits.flatMap(audit => audit.undecidedRules))]).toEqual(['color-contrast'])
+    expect(audits.flatMap(audit => audit.incomplete)).toEqual([])
     expect(accessibilityFailures(audits, MINIMUM_ACCESSIBILITY_SCORE)).toBe('')
   })
 })

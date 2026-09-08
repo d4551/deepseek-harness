@@ -162,6 +162,22 @@ describe('BashCard', () => {
     expect(screen.queryByLabelText(en.bashTimeoutMs)).toBeNull()
   })
 
+  it('returns keyboard focus to the disclosure after a successful save removes the form', () => {
+    const { store } = renderBashCard({ dirty: true })
+    fireEvent.click(screen.getByText(en.bashTitle))
+    const header = screen.getByRole('button', { name: `${en.collapse}: ${en.bashTitle}` })
+    const bodyId = header.getAttribute('aria-controls')
+    expect(bodyId).toBeTruthy()
+    const save = screen.getByRole('button', { name: en.save })
+    save.focus()
+    fireEvent.click(save)
+    act(() => { store.set({ ...store.getSnapshot(), saving: true }) })
+    expect(bodyId === null ? null : document.getElementById(bodyId)?.getAttribute('aria-busy')).toBe('true')
+    act(() => { store.set({ ...store.getSnapshot(), dirty: false, saving: false }) })
+    expect(document.activeElement).toBe(header)
+    expect(header.getAttribute('aria-expanded')).toBe('false')
+  })
+
   it('keeps a failed save open', () => {
     const { store } = renderBashCard({ dirty: true })
     fireEvent.click(screen.getByText(en.bashTitle))

@@ -1,12 +1,11 @@
 /**
- * axe-core accessibility auditing for the jsdom client lane.
+ * axe-core accessibility auditing for the native browser client lane.
  *
  * A surface is one rendered DOM subtree. Auditing reports the rule-node checks
  * that passed and failed, so a suite can both reject individual violations and
  * report one aggregate score across every surface it rendered. Incomplete
- * results — checks axe cannot decide without a real layout engine, such as
- * colour contrast under jsdom — are reported separately and count toward
- * neither side, because scoring them either way would misstate the audit.
+ * results carry their affected nodes and diagnostic data separately, so
+ * suites can reject undecided checks as well as violations.
  * @module @deepseek-ai/dsh-client-a11y
  */
 import axe from 'axe-core'
@@ -46,6 +45,8 @@ export interface SurfaceAudit {
    * would leave the score untouched instead of failing.
    */
   readonly undecidedRules: readonly string[]
+  /** Unresolved checks with axe's diagnostic data and affected nodes. */
+  readonly incomplete: readonly Result[]
 }
 
 /** Total nodes across a rule result list. */
@@ -87,6 +88,7 @@ export async function auditSurface(surface: string, context: ElementContext): Pr
     failed: nodeCount(results.violations),
     undecided: nodeCount(results.incomplete),
     undecidedRules: results.incomplete.map(result => result.id),
+    incomplete: results.incomplete,
   }
 }
 
@@ -115,18 +117,25 @@ export function formatViolations(audit: SurfaceAudit): string {
 }
 
 /**
- * Why a set of audits fails the client floor: a surface that decided nothing
- * (which would score 100 for free), any violated node, or an aggregate below
- * `minScore`. Empty string means the floor holds.
+ * Reject an empty audit set, silent surfaces, violations, unresolved checks,
+ * and aggregates below `minScore`. Empty string means the floor holds.
  * @param audits - every surface the suite rendered.
  * @param minScore - minimum {@link accessibilityScore}; the lane's recorded floor is 100.
  * @returns a non-empty failure report, or `''` when the audits meet the floor.
  */
 export function accessibilityFailures(audits: readonly SurfaceAudit[], minScore: number): string {
+  if (audits.length === 0) return 'No surfaces were audited'
   const silent = audits.filter(audit => audit.passed + audit.failed === 0).map(audit => audit.surface)
   if (silent.length > 0) return `${silent.join(', ')} decided no checks`
   const violations = audits.map(formatViolations).filter(text => text !== '').join('\n')
   if (violations !== '') return violations
+  const incomplete = audits.filter(audit => audit.undecided > 0)
+    .map((audit) => {
+      const reasons = audit.incomplete.flatMap(result => result.nodes.map(node =>
+        `${result.id} at ${node.target.join(' ')}: ${node.failureSummary ?? result.help}`)).join('\n')
+      return `${audit.surface}: unresolved checks (${audit.undecidedRules.join(', ')})${reasons === '' ? '' : `\n${reasons}`}`
+    }).join('\n')
+  if (incomplete !== '') return incomplete
   const score = accessibilityScore(audits)
   return score < minScore ? `score ${score} < ${minScore}` : ''
 }

@@ -60,20 +60,20 @@
    shown line agree, and so the sign reads without relying on color alone. */
 .del::before {
   content: '- ';
-  color: var(--dsw-alias-state-error-primary);
+  color: var(--dsw-alias-label-error);
 }
 
 .del {
-  color: var(--dsw-alias-state-error-primary);
+  color: var(--dsw-alias-label-error);
 }
 
 .add::before {
   content: '+ ';
-  color: var(--dsw-alias-state-success-primary);
+  color: var(--dsw-alias-label-success);
 }
 
 .add {
-  color: var(--dsw-alias-state-success-primary);
+  color: var(--dsw-alias-label-success);
 }
 
 /* The change summary, dim under the body: `└ +A -R · N file(s)`, the same

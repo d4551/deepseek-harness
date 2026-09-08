@@ -139,6 +139,7 @@ export const ROOT_DEPENDENCY_FLOORS: Readonly<Record<string, SemVer>> = Object.f
   '@types/mdast': { major: 4, minor: 0, patch: 4 },
   '@types/node': TYPES_NODE_FLOOR,
   '@types/spdx-expression-parse': { major: 4, minor: 0, patch: 0 },
+  '@vitest/browser-playwright': VITEST_FLOOR,
   '@vitest/coverage-v8': VITEST_FLOOR,
   '@yarnpkg/cli-dist': { major: 4, minor: 18, patch: 0 },
   execa: EXECA_FLOOR,
@@ -166,7 +167,6 @@ export const ROOT_DEPENDENCY_FLOORS: Readonly<Record<string, SemVer>> = Object.f
   typescript: TYPESCRIPT_FLOOR,
   vite: VITE_FLOOR,
   vitest: VITEST_FLOOR,
-  'vite-tsconfig-paths': { major: 6, minor: 1, patch: 1 },
 })
 
 /**

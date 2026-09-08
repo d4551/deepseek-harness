@@ -1,5 +1,5 @@
 import { availableParallelism } from 'node:os'
-import tsconfigPaths from 'vite-tsconfig-paths'
+import { existsSync } from 'node:fs'
 import { defineConfig } from 'vitest/config'
 import { standardDecoratorPlugin, vitestExecArgv } from './vitest.shared.ts'
 
@@ -26,21 +26,13 @@ const snapshotMaxConcurrency = positiveIntFromEnv(
 // `record` calls the real API and updates fixtures and expected outputs; `refresh` replays committed scripts
 // and updates current expected outputs. Replay/refresh never load `.env`; only record reads a key from the
 // environment or root `.env`.
-if (process.env.DSH_SNAPSHOT === 'record') {
-  try {
-    process.loadEnvFile(new URL('.env', import.meta.url).pathname)
-  } catch (error) {
-    // ENOENT (no .env) is fine — the key may already be in the environment.
-    // Surface any other failure rather than silently recording with wrong env.
-    if ((error as NodeJS.ErrnoException | null)?.code !== 'ENOENT') throw error
-  }
+if (process.env.DSH_SNAPSHOT === 'record' && existsSync(new URL('.env', import.meta.url))) {
+  process.loadEnvFile(new URL('.env', import.meta.url).pathname)
 }
 
 export default defineConfig({
-  // Same resolution note as vitest.config.ts: bare workspace names resolve
-  // through the tsconfig.base.json paths facade; the native option cannot do
-  // this (the root tsconfig is a solution file with no paths).
-  plugins: [tsconfigPaths({ projects: ['./tsconfig.base.json'] }), standardDecoratorPlugin()],
+  resolve: { tsconfigPaths: true },
+  plugins: [standardDecoratorPlugin()],
   test: {
     execArgv: vitestExecArgv,
     setupFiles: ['./scripts/test-invariants.ts'],

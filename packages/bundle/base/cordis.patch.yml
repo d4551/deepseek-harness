@@ -474,12 +474,9 @@
 
     # Every mode enables the stable model-facing web_search tool. The Web app's
     # per-agent presets additionally enable web_fetch; other products opt in by
-    # overriding tool-web. DeepSeek search resolves the same DEEPSEEK_API_KEY
-    # credential the Models page manages for chat, at each search; its Messages
-    # endpoint is separate from the chat-completions endpoint, so it takes its own
-    # base-URL override. Search is a full auxiliary model request with server-side
-    # retrieval, so this shipped DeepSeek route gets 60s while the
-    # provider-neutral tool default remains 30s.
+    # configuring tool-web. Search reads Bing results through Playwright without
+    # a search API key. Search and fetch share browser capacity and destination
+    # checks; each request receives a fresh context.
     #
     # Fetch renders the page. A model reading a modern site through a raw HTTP
     # body sees an empty shell, so the shipped route is Playwright Chromium in a
@@ -490,7 +487,7 @@
     #
     # THE RENDERED ROUTE NEEDS A BROWSER THIS INSTALL DOES NOT DOWNLOAD.
     # `playwright` ships no postinstall, so a host that has not run
-    # `playwright install chromium` fails every web_fetch with
+    # `playwright install chromium` fails browser search and fetch with
     # WEB_PROVIDER_CONFIGURED_UNAVAILABLE. The plugin warns at mount and names
     # the exact command; the base bundle README states the step.
     #
@@ -516,7 +513,7 @@
     - id: web
       name: '@deepseek-ai/dsh-web'
       config:
-        searchProvider: deepseek-official
+        searchProvider: playwright
         fetchProvider: playwright
 
     - id: web-search-deepseek
@@ -524,14 +521,8 @@
       config:
         apiKeyEnv: DEEPSEEK_API_KEY
 
-    # Exa and Perplexity are mounted for the same reason `web-fetch-http` is:
-    # a backend nobody can select is a backend nobody has. Each reads its own
-    # key from the environment and reports itself unusable without one, so an
-    # unkeyed host mounts two inert registrations and keeps the pinned
-    # DeepSeek route; selection is pinned above, so a keyed host never becomes
-    # ambiguous either. Mounted, they carry a settings section, which is what
-    # lets the Web app name them, state which one serves, and switch between
-    # them without editing a composition file.
+    # API providers remain explicit choices in Plugins settings. Credentials
+    # alone do not change the selected search provider.
     - id: web-search-exa
       name: '@deepseek-ai/dsh-web-search-exa'
 
@@ -542,7 +533,7 @@
       name: '@deepseek-ai/dsh-web-fetch-http'
 
     # Chromium comes from the `playwright` package's own browser download, not
-    # from this dependency: a host without it fails the first fetch with the
+    # from this dependency: a host without it fails browser requests with the
     # install command named, and the plugin warns at mount.
     - id: web-fetch-playwright
       name: '@deepseek-ai/dsh-web-fetch-playwright'

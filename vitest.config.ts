@@ -2,9 +2,9 @@ import { spawnSync } from 'node:child_process'
 import { availableParallelism } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { loadEnv } from 'vite'
-import tsconfigPaths from 'vite-tsconfig-paths'
 import { defineConfig } from 'vitest/config'
 import { standardDecoratorPlugin, vitestExecArgv } from './vitest.shared.ts'
+import { clientBrowserTests } from './vitest.client-browser.ts'
 import { COVERAGE_EXEMPT_ENV, coverageExemptHeavySuites } from './scripts/coverage-exempt.ts'
 import { COVERAGE_PARTITION_MODE_ENV } from './scripts/coverage-partitions.ts'
 import { resolvePwshPath } from './packages/shell/pwsh-local/src/resolve.ts'
@@ -15,19 +15,6 @@ import { nonLinuxTests, processBoundTests as inventoryProcessBoundTests, windows
 // threshold ERRORs name only the file. Absolute path because istanbul-reports
 // require()s custom reporters (which is also why the reporter is CJS).
 const uncoveredLocationsReporter = fileURLToPath(new URL('./scripts/coverage-uncovered-locations.cjs', import.meta.url))
-
-// Resolution facade shared by every plugin instance below: tsconfig.base.json
-// has no include, which vite-tsconfig-paths treats as match-all, so its paths
-// map applies to every test file. paths must win over package exports so built
-// lib/ never loads a second module-singleton copy.
-//
-// Vite 8 prints a startup notice recommending its own resolve.tsconfigPaths in
-// place of this plugin. It is not a swap here: the native option applies a
-// config's paths only to the files that config matches through `files` or
-// `include`, and tsconfig.base.json declares neither, so its 589 mappings would
-// reach nothing. The match-all reading of a config without `include` is the
-// behaviour this repository depends on, and only the plugin has it.
-const pathsPlugin = (): ReturnType<typeof tsconfigPaths> => tsconfigPaths({ projects: ['./tsconfig.base.json'] })
 
 // Win32 fact entries beyond the package list (which lives in
 // vitest-inventory.ts with its rationale): these suites' oracle is the host's
@@ -143,7 +130,8 @@ const processBoundTests = [
 const MAX_TEST_FORKS = Math.max(2, Math.min(availableParallelism(), 8))
 
 export default defineConfig({
-  plugins: [pathsPlugin(), standardDecoratorPlugin()],
+  resolve: { tsconfigPaths: true },
+  plugins: [standardDecoratorPlugin()],
   test: {
     setupFiles: ['./scripts/test-invariants.ts'],
     // Every other lane declares its own budget (e2e/expected/snapshot 120s, web
@@ -155,12 +143,12 @@ export default defineConfig({
     // .tsx: client component specs (jsdom via per-file @vitest-environment pragma).
     include: testIncludes,
     exclude: platformUnsupportedTests,
-    // One coverage invocation aggregates both projects. Every suite forks for
-    // Node stability; process-bound suites stay separate for inventory control.
+    // One coverage invocation aggregates Node and native browser projects.
     projects: [
       {
         extends: false,
-        plugins: [pathsPlugin(), standardDecoratorPlugin()],
+        resolve: { tsconfigPaths: true },
+        plugins: [standardDecoratorPlugin()],
         test: {
           name: 'thread-safe',
           execArgv: vitestExecArgv,
@@ -181,12 +169,14 @@ export default defineConfig({
             ...platformUnsupportedTests,
             ...processBoundTests,
             ...coverageExemptExcludes,
+            ...clientBrowserTests,
           ],
         },
       },
       {
         extends: false,
-        plugins: [pathsPlugin(), standardDecoratorPlugin()],
+        resolve: { tsconfigPaths: true },
+        plugins: [standardDecoratorPlugin()],
         test: {
           name: 'process-bound',
           execArgv: vitestExecArgv,
@@ -204,9 +194,11 @@ export default defineConfig({
           exclude: [
             ...platformUnsupportedTests,
             ...coverageExemptExcludes,
+            ...clientBrowserTests,
           ],
         },
       },
+      './vitest.client-browser.config.ts',
     ],
     coverage: {
       provider: 'v8',

@@ -13,7 +13,7 @@ import { WebAccessCardController, type WebAccessSettings } from '../src/client/w
 import { acceptWrites, setOp } from './scope-stubs.client.ts'
 
 /** One served namespace as the mirror reports it. */
-function view(ns: string, base?: Record<string, JsonValue>): SettingsNamespaceView {
+function view(ns: string, base?: Record<string, JsonValue>, available?: boolean): SettingsNamespaceView {
   return {
     ns,
     schema: {},
@@ -22,6 +22,7 @@ function view(ns: string, base?: Record<string, JsonValue>): SettingsNamespaceVi
     secrets: [],
     revision: 0,
     ...base === undefined ? {} : { base },
+    ...available === undefined ? {} : { available },
   }
 }
 
@@ -51,7 +52,7 @@ function describeFace(namespaces: SettingsNamespaceView[]): SettingsDescribeFace
 
 /** The seam's shipped pins over a deployment that mounts everything. */
 function boot(served: SettingsNamespaceView[], section: WebAccessSettings = {
-  searchProvider: 'deepseek-official',
+  searchProvider: 'playwright',
   fetchProvider: 'playwright',
 }) {
   const host = stubSettingsScope<WebAccessSettings>()
@@ -68,7 +69,7 @@ const ALL_MOUNTED = [
   view('web-search-exa'),
   view('web-search-perplexity'),
   view('web-fetch-http'),
-  view('web-fetch-playwright', { executablePath: '/opt/chromium' }),
+  view('web-fetch-playwright', { executablePath: '/opt/chromium' }, true),
 ]
 
 describe('WebAccessCardController', () => {
@@ -77,9 +78,9 @@ describe('WebAccessCardController', () => {
 
     const state = card.hooks.webAccessCard.getSnapshot()
     expect(state.search.choices.map(choice => choice.id))
-      .toEqual(['deepseek-official', 'exa', 'perplexity'])
+      .toEqual(['deepseek-official', 'exa', 'perplexity', 'playwright'])
     expect(state.fetch.choices.map(choice => choice.id)).toEqual(['http', 'playwright'])
-    expect(state.search.choices.find(choice => choice.selected)?.id).toBe('deepseek-official')
+    expect(state.search.choices.find(choice => choice.selected)?.id).toBe('playwright')
     expect(state.fetch.choices.find(choice => choice.selected)?.id).toBe('playwright')
     expect(state.search.automatic).toBe(false)
     expect(state.browserMissing).toBe(false)
@@ -88,15 +89,16 @@ describe('WebAccessCardController', () => {
   it('lists a backend this deployment did not mount last, naming the package that mounts it', () => {
     const { card } = boot([view('web-search-deepseek'), view('web-fetch-http'), view('web-fetch-playwright', {
       executablePath: '/opt/chromium',
-    })])
+    }, true)])
 
     const search = card.hooks.webAccessCard.getSnapshot().search
     expect(search.choices.map(choice => ({ id: choice.id, mounted: choice.mounted }))).toEqual([
       { id: 'deepseek-official', mounted: true },
+      { id: 'playwright', mounted: true },
       { id: 'exa', mounted: false },
       { id: 'perplexity', mounted: false },
     ])
-    expect(search.choices[1]?.moduleName).toBe('@deepseek-ai/dsh-web-search-exa')
+    expect(search.choices[2]?.moduleName).toBe('@deepseek-ai/dsh-web-search-exa')
   })
 
   it('reports an unpinned capability as automatic', () => {
@@ -110,9 +112,10 @@ describe('WebAccessCardController', () => {
     const { card, face } = boot(ALL_MOUNTED)
     expect(card.hooks.webAccessCard.getSnapshot().search.choices[0]?.mounted).toBe(true)
 
-    face.publish([view('web-fetch-playwright', { executablePath: '/opt/chromium' })])
+    face.publish([view('web-fetch-playwright', { executablePath: '/opt/chromium' }, true)])
 
-    expect(card.hooks.webAccessCard.getSnapshot().search.choices.every(choice => !choice.mounted)).toBe(true)
+    expect(card.hooks.webAccessCard.getSnapshot().search.choices.filter(choice => choice.mounted).map(choice => choice.id))
+      .toEqual(['playwright'])
   })
 
   it('stages a pin and writes it on save', async () => {
@@ -126,7 +129,7 @@ describe('WebAccessCardController', () => {
     expect(host.mutate).toHaveBeenCalledWith([setOp('searchProvider', 'exa')])
   })
 
-  it('reports a missing browser only while the rendering backend is the pinned one', () => {
+  it('reports a missing browser while either selected capability requires it', () => {
     const withoutBrowser = [
       view('web-search-deepseek'),
       view('web-fetch-http'),
@@ -136,6 +139,8 @@ describe('WebAccessCardController', () => {
     expect(card.hooks.webAccessCard.getSnapshot().browserMissing).toBe(true)
 
     card.edit('fetchProvider', 'http')
+    expect(card.hooks.webAccessCard.getSnapshot().browserMissing).toBe(true)
+    card.edit('searchProvider', 'deepseek-official')
 
     expect(card.hooks.webAccessCard.getSnapshot().browserMissing).toBe(false)
   })

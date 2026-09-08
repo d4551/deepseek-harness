@@ -7,11 +7,11 @@
 :root {
   --shiki-foreground: var(--dsw-alias-label-primary);
   --shiki-background: var(--dsw-alias-markdown-code-block);
-  --shiki-token-constant: #1c7ed6;
-  --shiki-token-string: #2f9e44;
-  --shiki-token-comment: #868e96;
-  --shiki-token-keyword: #d6336c;
-  --shiki-token-parameter: #e8590c;
+  --shiki-token-constant: var(--dsw-static-blue-800);
+  --shiki-token-string: var(--dsw-alias-label-success);
+  --shiki-token-comment: var(--dsw-alias-label-tertiary);
+  --shiki-token-keyword: var(--dsw-alias-label-error);
+  --shiki-token-parameter: var(--dsw-alias-state-warn-label);
   --shiki-token-function: #6741d9;
   --shiki-token-string-expression: #2b8a3e;
   --shiki-token-punctuation: #495057;

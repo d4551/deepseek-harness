@@ -1,5 +1,5 @@
 ---
-description: "axe-core accessibility auditing for the jsdom client lane, for test authors holding rendered UI to WCAG 2.2 A/AA."
+description: "axe-core accessibility auditing in real browsers, for test authors holding rendered UI to WCAG 2.2 A/AA."
 kind: "package-library"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-client-a11y` runs axe-core over a DOM a client suite already rendered and reports what it found: the violated rules, the rule-node checks that passed and failed, and one aggregate score across every surface a suite audited. The rule set is fixed here — WCAG 2.0, 2.1, and 2.2 levels A and AA plus axe's best-practice tags — so no suite can narrow the bar it is held to. It is a separate package rather than part of [`dsh-client-test-runtime`](../client-runtime/README.md) because axe-core touches jsdom globals when it loads: importing it into the shared bench put it in front of every client spec and moved unrelated layout measurements.
+`dsh-client-a11y` audits rendered client components against WCAG 2.0, 2.1, and 2.2 levels A and AA plus axe's best-practice rules. Chromium computes layout, contrast, and pseudo-elements using the product theme. Reports include violations, decided-check counts, and unresolved checks with their diagnostic data. The fixed rule set applies to every audited component.
 
 ## Table of Contents
 
@@ -25,7 +25,7 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-The workspace installs jsdom's `canvas` peer with its native build enabled. The owning test verifies pixel reads and writes, so a missing canvas backend fails validation. Browser tests remain required for layout and contrast.
+Run `bunx vitest run --config vitest.client-browser.config.ts packages/test-support/client-a11y` to verify the browser audit engine. The browser lane discovers client suites that import this package and files named `*.browser.spec.ts` or `*.browser.spec.tsx`. Unit suites use jsdom where layout is unnecessary; a separate pixel regression verifies its installed native `canvas` peer.
 
 Render a surface, audit it, and hold the floor with `accessibilityFailures`:
 
@@ -34,9 +34,10 @@ const { baseElement } = render(<main><Button>Send</Button></main>)
 const audit = await auditSurface('Button', baseElement)
 
 expect(accessibilityFailures([audit], 100)).toBe('')
+expect(audit.incomplete).toEqual([])
 ```
 
-`auditSurface(surface, context)` returns the violated rules plus `passed`, `failed`, and `undecided` node counts, and `undecidedRules` — the rules those undecided checks belong to. `accessibilityFailures(audits, 100)` is the floor: silent surfaces, violated nodes, and a score below 100 each fail. `accessibilityScore(audits)` is the percentage of *decided* checks that passed; `formatViolations(audit)` renders one line per offending node, naming the rule, its impact, and the element.
+`auditSurface(surface, context)` returns violations, `passed`, `failed`, and `undecided` node counts, `undecidedRules`, and full `incomplete` results. `accessibilityFailures(audits, 100)` rejects empty audit sets, silent surfaces, violated nodes, unresolved checks, and scores below 100. An assertion on `incomplete` prints the full diagnostic data. `accessibilityScore(audits)` measures decided checks; `formatViolations(audit)` names each violated rule and affected element.
 
 ### Render inside a landmark
 
@@ -48,7 +49,7 @@ A hand-written list of audited components silently stops covering the next one. 
 
 ### What can go wrong
 
-- **Colour contrast reports as undecided** — jsdom computes no layout, so contrast checks decide nothing and count toward neither side of the score. A contrast regression needs the browser lane. Assert `undecidedRules` rather than only the score: a rule that becomes undecidable would otherwise leave the number untouched instead of failing.
+- **A check reports as undecided** — inspect `incomplete` for the affected nodes and reason. Overlapping text, obscuring animations, or unresolved image backgrounds can prevent a decision even in a browser. Repair the rendered state and rerun the audit.
 - **A portaled surface escapes the landmark** — content rendered into `document.body` sits outside the wrapper. Give it the role it actually has (a modal overlay is a `dialog`) instead of excluding the rule.
 
 -----
@@ -100,7 +101,7 @@ None; this package neither assembles nor sends a provider request.
 
 These limits define how the auditing is consumed. They are current package constraints, not a task backlog.
 
-- **jsdom decides no colour contrast** — those checks return incomplete and are excluded from the score. Contrast is the browser lane's to prove.
+- **Automated checks cover part of accessibility** — keyboard journeys, screen-reader behavior, and understandable content also require interaction review.
 - **One surface at a time** — the module audits a DOM subtree a caller already rendered. It mounts nothing and knows nothing about slots, so a suite decides what a surface is and how to build it.
 
 <a id="dev-note"></a>

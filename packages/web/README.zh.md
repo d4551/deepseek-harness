@@ -9,7 +9,7 @@ kind: "package-group"
 
 ## 概述
 
-`web/` 组为 harness 提供 web 访问能力——搜索 web 与抓取 URL——通过一个与提供方无关的服务（`ctx.web`）以及使用它的后端和工具。部署可以挂载一个或多个后端——搜索用 Exa、Perplexity 或 DeepSeek，抓取用匿名 HTTP(S)——服务按操作挑选可用的提供方，因此后端来来去去，面向模型的工具保持稳定。六个包构成该家族：负责提供方选择与错误的 `web/` 服务、三个搜索后端、一个抓取后端，以及向模型公开 `web_search` 与 `web_fetch` 的 `tool-web/`。该组只拥有 web 访问本身：没有浏览或提取，没有逐 URL 策略，各后端保留自己的资源上限。搜索与抓取有意共用一项服务，使选择、取消、错误与配置只有一个归属方。
+`web/` 组让 Agent 通过 `web_search` 和 `web_fetch` 搜索网络与抓取网页。本地 Playwright Chromium 提供无需付费搜索 API 的浏览器搜索，并抓取渲染页面。Exa、Perplexity 和 DeepSeek 提供其他搜索后端；HTTP 提供匿名字节抓取。共享的 `ctx.web` 服务拥有提供方选择、取消和错误。提供方拥有目标检查和资源上限。
 
 ## 目录
 
@@ -22,7 +22,7 @@ kind: "package-group"
 <a id="packages"></a>
 ## 包
 
-六个包分别承担 web 角色；子系统参考文档拥有穷尽式词汇与约定。
+七个包负责 web 访问；子系统参考文档描述它们的共享契约。
 
 | 包 | 职责 | ctx 键 |
 |---|---|---|
@@ -31,7 +31,7 @@ kind: "package-group"
 | [`web-search-perplexity/`](web-search-perplexity/README.zh.md) | 通过 Perplexity 搜索 web | 注册到 `ctx.web` |
 | [`web-search-deepseek/`](web-search-deepseek/README.zh.md) | 通过 DeepSeek 原生搜索搜索 web | 注册到 `ctx.web` |
 | [`web-fetch-http/`](web-fetch-http/README.zh.md) | 匿名抓取公共 HTTP(S) 页面 | 注册到 `ctx.web` |
-| [`web-fetch-playwright/`](web-fetch-playwright/README.zh.md) | 在无头 Chromium 中渲染公共页面并返回渲染后的 DOM | 注册到 `ctx.web` |
+| [`web-fetch-playwright/`](web-fetch-playwright/README.zh.md) | 通过本地 Chromium 搜索 Bing 并抓取渲染页面 | 注册到 `ctx.web` |
 | [`tool-web/`](tool-web/README.zh.md) | 向模型公开 `web_search` 与 `web_fetch` | 注册到 `ctx.tools` |
 
 -----

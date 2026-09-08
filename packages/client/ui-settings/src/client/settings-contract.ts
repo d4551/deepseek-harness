@@ -6,6 +6,8 @@ import type { SettingsPathOpView, SettingsSecretView } from '@deepseek-ai/dsh-ap
 
 /** Client-side sync state of one settings namespace. */
 export interface SettingsScopeSnapshot<T> {
+  /** Owner-reported runtime capability readiness; absent when the owner does not report it. */
+  available?: boolean
   /**
    * `loading` until the first accepted section, `ready` while one stands, and
    * `unavailable` when the namespace is not exposed to this client or the

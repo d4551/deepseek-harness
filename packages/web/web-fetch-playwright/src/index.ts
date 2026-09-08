@@ -1,12 +1,11 @@
 /**
- * Opt-in Playwright Chromium `WebFetchProvider` plugin. It contributes a rendered-page
- * fetcher to the `ctx.web` registry without owning the service.
+ * Playwright Chromium search and rendered-page retrieval plugin for `ctx.web`.
  * @module @deepseek-ai/dsh-web-fetch-playwright
  */
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-web'
 import { chromiumAccess, chromiumInstallCommand, PlaywrightFetchProvider } from './provider.ts'
 import type { BrowserAccess, PlaywrightFetchLimits } from './provider.ts'
@@ -40,7 +39,7 @@ export type {
 export const name = 'web-fetch-playwright'
 
 /** The web seam this provider registers into. */
-export const inject = ['web']
+export const inject = ['web', 'settings']
 
 /** Plugin config: the provider's render, identity, concurrency, and time limits, plus the browser to run. */
 export interface Config {
@@ -54,10 +53,8 @@ export interface Config {
   userAgent?: string
   /**
    * Browser executable to render with; omitted uses the installation
-   * `playwright` resolves for itself. In the settings section's composition
-   * layer this field is present exactly when the mount-time probe confirmed a
-   * browser there, so a configuration surface reads its absence as "no browser
-   * installation was found".
+   * `playwright` resolves for itself. Runtime readiness is reported separately
+   * by the settings descriptor's `available` field.
    */
   executablePath?: string
 }
@@ -73,25 +70,22 @@ export const Config: z<Config> = z.object({
 /** Settings namespace carrying this provider's render limits and browser selection. */
 export const WEB_FETCH_PLAYWRIGHT_SETTINGS_NAMESPACE = settingsNamespace('web-fetch-playwright')
 
-/** Complete config after schemastery applies every field default. */
-type ResolvedConfig = Required<Config>
-
 /** A render limit (char cap or time budget) must be a positive finite number. */
-function assertPositiveFinite(name: string, value: number): void {
-  if (!Number.isFinite(value) || value <= 0) {
+function assertPositiveFinite(name: string, value: number | undefined): asserts value is number {
+  if (value === undefined || !Number.isFinite(value) || value <= 0) {
     throw new Error(`web-fetch-playwright: ${name} must be a positive finite number`)
   }
 }
 
 /** A render slot is a whole browser context, so the cap must be a positive integer. */
-function assertPositiveInteger(name: string, value: number): void {
-  if (!Number.isSafeInteger(value) || value <= 0) {
+function assertPositiveInteger(name: string, value: number | undefined): asserts value is number {
+  if (value === undefined || !Number.isSafeInteger(value) || value <= 0) {
     throw new Error(`web-fetch-playwright: ${name} must be a positive integer`)
   }
 }
 
 /** Node coerces larger timer delays to 1 ms, so reject them at configuration time. */
-function assertTimeoutMs(value: number): void {
+function assertTimeoutMs(value: number | undefined): asserts value is number {
   assertPositiveFinite('timeoutMs', value)
   if (value > MAX_TIMER_DELAY_MS) {
     throw new Error(`web-fetch-playwright: timeoutMs must be no greater than ${MAX_TIMER_DELAY_MS}`)
@@ -109,17 +103,24 @@ function assertTimeoutMs(value: number): void {
  * @returns nothing once the provider is registered.
  */
 export async function apply(ctx: Context, config: Config, access: BrowserAccess = chromiumAccess): Promise<void> {
-  // schemastery (Config) has already filled every defaulted field.
-  const resolved = config as ResolvedConfig
+  const settings = ctx.get('settings')
+  if (settings === undefined) throw new Error('web-fetch-playwright requires a settings provider')
+  const scope = settings.register(WEB_FETCH_PLAYWRIGHT_SETTINGS_NAMESPACE, Config, {
+    base: config,
+    applies: 'restart',
+    available: false,
+  })
+  const resolved = scope.get()
   assertPositiveFinite('maxBodyChars', resolved.maxBodyChars)
   assertTimeoutMs(resolved.timeoutMs)
   assertPositiveInteger('maxConcurrentRenders', resolved.maxConcurrentRenders)
+  if (resolved.userAgent === undefined) throw new Error('web-fetch-playwright requires a userAgent')
   const limits: PlaywrightFetchLimits = {
     maxBodyChars: resolved.maxBodyChars,
     timeoutMs: resolved.timeoutMs,
     maxConcurrentRenders: resolved.maxConcurrentRenders,
     userAgent: resolved.userAgent,
-    ...config.executablePath === undefined ? {} : { executablePath: config.executablePath },
+    ...resolved.executablePath === undefined ? {} : { executablePath: resolved.executablePath },
   }
   const provider = new PlaywrightFetchProvider(limits, access)
   // The disposer is armed before the probe so a provider that launches a browser
@@ -128,31 +129,11 @@ export async function apply(ctx: Context, config: Config, access: BrowserAccess 
   ctx.effect(function* () {
     yield () => provider.dispose()
   }, 'web-fetch-playwright: shared browser')
-  if (!await provider.resolveAvailability()) {
-    ctx.logger.warn('web-fetch-playwright: no browser installation found; install one with: %s', chromiumInstallCommand())
+  const available = await provider.resolveAvailability()
+  scope.setAvailable(available)
+  if (!available) {
+    ctx.logger.warn('web-fetch-playwright: no browser installation found; install one with: %s', await chromiumInstallCommand())
   }
-  // The section is registered after the probe so its composition layer carries
-  // the confirmed executable: the render slots bind a capacity gate at
-  // construction, so a stored change waits for the next boot.
-  installSettingsSection(ctx, WEB_FETCH_PLAYWRIGHT_SETTINGS_NAMESPACE, Config, confirmedEntry(config, provider), {
-    applies: 'restart',
-    setSource: () => {},
-    onChange: () => {},
-  })
   ctx.web.registerFetchProvider(provider)
-}
-
-/**
- * The composition layer this plugin publishes: its entry config, with
- * `executablePath` replaced by the browser the probe confirmed and removed when
- * it confirmed none. A configured path that does not exist must not read as a
- * working installation.
- * @param config - the plugin's composition entry.
- * @param provider - the provider whose probe already ran.
- * @returns the entry to publish as the settings composition layer.
- */
-function confirmedEntry(config: Config, provider: PlaywrightFetchProvider): Config {
-  const { executablePath: _configured, ...rest } = config
-  const confirmed = provider.browserExecutable()
-  return confirmed === undefined ? rest : { ...rest, executablePath: confirmed }
+  ctx.web.registerSearchProvider(provider)
 }

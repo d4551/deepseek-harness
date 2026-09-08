@@ -203,6 +203,8 @@ export class SettingsScopeController<T> implements SettingsScope<T> {
       draft.writable = writable
       draft.secrets = view.secrets
       draft.applies = view.applies
+      if (view.available === undefined) delete draft.available
+      else draft.available = view.available
       if (decoded === undefined) return
       draft.status = 'ready'
       draft.value = decoded

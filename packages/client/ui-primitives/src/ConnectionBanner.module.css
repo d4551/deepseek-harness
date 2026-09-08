@@ -8,6 +8,7 @@
   text-align: center;
   font-size: 12px;
   line-height: 18px;
-  background: var(--dsw-alias-state-error-primary);
-  color: var(--dsw-alias-label-primary-foreground);
+  background: var(--dsw-alias-bg-layer-3);
+  color: var(--dsw-alias-label-error);
+  border-bottom: 1px solid var(--dsw-alias-label-error);
 }

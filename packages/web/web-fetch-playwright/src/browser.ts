@@ -214,17 +214,6 @@ const quoted = (path: string): string => `"${path}"`
 /** Resolves one module specifier to a file path, or throws when it resolves to nothing. */
 export type ModuleResolver = (specifier: string) => string
 
-/** The `playwright` manifest path for one installation, or undefined when it has none. */
-function resolvedPlaywrightManifest(resolve: ModuleResolver): string | undefined {
-  try {
-    return resolve('playwright/package.json')
-  } catch {
-    // Node throws MODULE_NOT_FOUND for a package that is not installed; resolution
-    // reports every other outcome by returning a path.
-    return undefined
-  }
-}
-
 /**
  * The command that installs the browser this provider renders with. `playwright` is a
  * dependency of this package rather than of any working directory, so a bare
@@ -239,18 +228,24 @@ function resolvedPlaywrightManifest(resolve: ModuleResolver): string | undefined
  * @param resolve - resolves `playwright/package.json` for the installation to name.
  * @returns a runnable install command for that installation.
  */
-export function playwrightInstallCommand(resolve: ModuleResolver): string {
-  const manifest = resolvedPlaywrightManifest(resolve)
-  if (manifest === undefined) return INSTALL_PACKAGE_AND_BROWSER
-  const cli = join(dirname(manifest), PLAYWRIGHT_CLI_ENTRY)
+export async function playwrightInstallCommand(resolve: ModuleResolver): Promise<string> {
+  const [manifest] = await Promise.allSettled([Promise.resolve().then(() => resolve('playwright/package.json'))])
+  if (manifest.status === 'rejected') {
+    const error: unknown = manifest.reason
+    if (error instanceof Error && 'code' in error && error.code === 'MODULE_NOT_FOUND') {
+      return INSTALL_PACKAGE_AND_BROWSER
+    }
+    throw error
+  }
+  const cli = join(dirname(manifest.value), PLAYWRIGHT_CLI_ENTRY)
   return `${quoted(process.execPath)} ${quoted(cli)} install chromium`
 }
 
 /**
  * The install command for the `playwright` installation this package itself resolves.
- * @returns a runnable install command; never throws, whatever the installation is.
+ * @returns the installation command; unexpected module-resolution failures reject.
  */
-export function chromiumInstallCommand(): string {
+export function chromiumInstallCommand(): Promise<string> {
   return playwrightInstallCommand(specifier => createRequire(import.meta.url).resolve(specifier))
 }
 
@@ -298,11 +293,10 @@ export async function probeExecutable(locate: ExecutableLocator): Promise<string
  * @param selection - the executable to confirm; omitted confirms Playwright's own.
  * @returns the confirmed executable path; rejects when nothing is installed there.
  */
-export const probeChromium: BrowserProbe = selection => probeExecutable(
-  selection.executablePath === undefined
-    ? chromiumExecutablePath
-    : () => Promise.resolve(selection.executablePath as string),
-)
+export const probeChromium: BrowserProbe = (selection) => {
+  const executablePath = selection.executablePath
+  return probeExecutable(executablePath === undefined ? chromiumExecutablePath : () => Promise.resolve(executablePath))
+}
 
 /** Production browser access: headless Chromium through the `playwright` package. */
 export const chromiumAccess: BrowserAccess = { launch: launchChromium, probe: probeChromium }

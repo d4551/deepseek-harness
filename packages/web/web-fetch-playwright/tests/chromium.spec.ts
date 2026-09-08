@@ -88,8 +88,8 @@ afterAll(async () => {
 })
 
 describe('Playwright browser access', () => {
-  it('names an install command that runs this package\'s own resolved CLI', () => {
-    const command = chromiumInstallCommand()
+  it('names an install command that runs this package\'s own resolved CLI', async () => {
+    const command = await chromiumInstallCommand()
     // A workspace install keeps `playwright` out of the repository root, so a bare
     // `playwright install chromium` is not runnable where this message is read.
     const manifest = JSON.parse(readFileSync(playwrightManifest, 'utf8')) as { bin: { playwright: string } }
@@ -98,17 +98,19 @@ describe('Playwright browser access', () => {
     expect(command).toBe(`"${process.execPath}" "${cli}" install chromium`)
   })
 
-  it('names the package as well as the browser when playwright itself is missing', () => {
+  it('names the package as well as the browser when playwright itself is missing', async () => {
     const uninstalled: ModuleResolver = () => {
       // What Node's resolver throws for a package that is not installed. `playwright`
       // is a peer dependency, so a deployment reaches this while mounting the plugin.
       throw Object.assign(new Error("Cannot find package 'playwright'"), { code: 'MODULE_NOT_FOUND' })
     }
     // Downloading the browser alone would leave the provider unable to launch it.
-    expect(playwrightInstallCommand(uninstalled)).toBe('npm install playwright && npx playwright install chromium')
+    await expect(playwrightInstallCommand(uninstalled)).resolves.toBe('npm install playwright && npx playwright install chromium')
     // Every caller sits on a failure path a missing `playwright` produces — the plugin's
     // apply-time warning among them — so the command itself must never throw.
-    expect(() => chromiumInstallCommand()).not.toThrow()
+    await expect(chromiumInstallCommand()).resolves.toContain('install chromium')
+    const failure = new Error('module resolution failed')
+    await expect(playwrightInstallCommand(() => { throw failure })).rejects.toBe(failure)
   })
 
   it('resolves the Chromium executable path from the installation', async () => {

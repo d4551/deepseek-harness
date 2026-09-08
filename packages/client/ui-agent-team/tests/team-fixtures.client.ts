@@ -1,12 +1,11 @@
-import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { TeamTaskId, TeamTaskView as TeamTask, TeamView } from '@deepseek-ai/dsh-agent-team/client'
+import { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { TeamTaskView as TeamTask, TeamView } from '@deepseek-ai/dsh-agent-team/client'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { zh } from '../src/client/locales.ts'
 import { TeamAction } from '../src/client/TeamAction.tsx'
-import { TeamActivity } from '../../../subagent/agent-team/src/activity.ts'
-import { TeamId } from '../../../subagent/agent-team/src/types.ts'
+import { TeamTaskId } from '../../../subagent/agent-team/src/types.ts'
 import type {
   TeamActionInjected, TeamActionProps, TeamActionResult, TeamTaskActionResult,
 } from '../src/client/TeamAction.tsx'
@@ -14,9 +13,9 @@ import type {
 export { TeamAction }
 export type { TeamActionInjected, TeamActionResult, TeamTaskActionResult }
 
-export const SESSION = 'lead' as SessionId
-const TASK_1 = 'task-1' as TeamTaskId
-export const TASK_2 = 'task-2' as TeamTaskId
+export const SESSION = SessionId('lead')
+const TASK_1 = TeamTaskId('task-1')
+export const TASK_2 = TeamTaskId('task-2')
 export const task: TeamTask = {
   id: TASK_1,
   revision: 1,
@@ -33,7 +32,7 @@ export const view: TeamView = {
   members: [
     { id: SESSION, name: 'lead', role: 'lead', status: 'idle', model: 'model-a', diagnostics: [] },
     {
-      id: 'worker-id' as SessionId,
+      id: SessionId('worker-id'),
       name: 'worker',
       role: 'teammate',
       status: 'inactive',
@@ -67,23 +66,29 @@ export function remoteFailure(message: string): { ok: false; error: { code: 'int
 }
 
 export function actions(overrides: Partial<TeamActionInjected> = {}): TeamActionInjected {
-  const activity = new TeamActivity()
   return {
-    changes: (sessionId, signal) => activity.changes(TeamId(sessionId), signal),
+    changes: async function* (_sessionId, signal) {
+      signal.throwIfAborted()
+      yield 0
+      await new Promise<void>((resolve) => {
+        if (signal.aborted) resolve()
+        else signal.addEventListener('abort', () => { resolve() }, { once: true })
+      })
+    },
     load: () => Promise.resolve({ ok: true, value: view }),
     createTask: () => Promise.resolve(taskSuccess({ ...task, id: TASK_2, subject: 'New task' })),
     updateTask: () => Promise.resolve({
       ok: true,
       value: { ok: true, value: { ...task, revision: 2 } },
     }),
-    openTeammate: () => Promise.resolve(),
+    openTeammate: () => Promise.reject(new Error('Test must supply teammate navigation')),
     ...overrides,
   }
 }
 
-// The action reads none of the framework hooks; stub them as never-called so
-// props() is a fully typed TeamActionProps with no widened cast.
-const neverHook = (() => { throw new Error('TeamAction must not read framework hooks') }) as never
+function neverHook(): never {
+  throw new Error('TeamAction must not read framework hooks')
+}
 
 export function props(injected: TeamActionInjected, sessionId: SessionId = SESSION): TeamActionProps {
   return {
@@ -92,7 +97,13 @@ export function props(injected: TeamActionInjected, sessionId: SessionId = SESSI
     useProjection: neverHook,
     useConversation: neverHook,
     useInput: neverHook,
-    inputActions: neverHook,
+    inputActions: {
+      setDraft: neverHook,
+      addImages: neverHook,
+      removeImage: neverHook,
+      pruneImages: neverHook,
+      submit: neverHook,
+    },
     useSessions: neverHook,
     useSessionPendingInteraction: neverHook,
     useWorkspaces: neverHook,

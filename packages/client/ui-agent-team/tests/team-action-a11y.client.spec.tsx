@@ -1,9 +1,8 @@
-// @vitest-environment jsdom
-
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { TeamTaskId, TeamView } from '@deepseek-ai/dsh-agent-team/client'
+import { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { TeamView } from '@deepseek-ai/dsh-agent-team/client'
+import { TeamTaskId } from '../../../subagent/agent-team/src/types.ts'
 import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import { TeamAction, actions, props, task, taskSuccess, view, type TeamTaskActionResult } from './team-fixtures.client.ts'
 import type { TeamActionInjected } from '../src/client/TeamAction.tsx'
@@ -21,6 +20,7 @@ async function assertPanelAccessible(load: TeamActionInjected['load']): Promise<
     await auditSurface('team toggle', toggle),
     await auditSurface('team panel', screen.getByRole('dialog')),
   ]
+  for (const audit of audits) expect(audit.incomplete).toEqual([])
   expect(accessibilityFailures(audits, MINIMUM_ACCESSIBILITY_SCORE)).toBe('')
 }
 
@@ -80,9 +80,9 @@ describe('TeamAction accessibility', () => {
     const richView: TeamView = {
       ...view,
       tasks: [
-        { ...unownedTask, id: 'ready-task' as TeamTaskId, subject: 'Ready task', status: 'pending', ready: true },
-        { ...unownedTask, id: 'blocked-task' as TeamTaskId, subject: 'Blocked task', status: 'pending', ready: false },
-        { ...task, id: 'completed-task' as TeamTaskId, subject: 'Completed task', status: 'completed' },
+        { ...unownedTask, id: TeamTaskId('ready-task'), subject: 'Ready task', status: 'pending', ready: true },
+        { ...unownedTask, id: TeamTaskId('blocked-task'), subject: 'Blocked task', status: 'pending', ready: false },
+        { ...task, id: TeamTaskId('completed-task'), subject: 'Completed task', status: 'completed' },
       ],
     }
     await assertPanelAccessible(() => Promise.resolve({ ok: true, value: richView }))
@@ -97,7 +97,7 @@ describe('TeamAction accessibility', () => {
       members: [
         ...view.members,
         {
-          id: 'failed-id' as SessionId,
+          id: SessionId('failed-id'),
           name: 'failed-worker',
           role: 'teammate',
           status: 'failed',

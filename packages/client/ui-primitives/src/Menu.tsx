@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
@@ -71,9 +71,9 @@ const MEASURE_STYLE: CSSProperties = { visibility: 'hidden', left: 0, top: 0 }
  * @returns every row, including the pinned footer's.
  */
 function menuItems(list: HTMLElement | null): HTMLButtonElement[] {
-  /* v8 ignore next -- the ref is attached in the same commit that opens the list. */
   if (list === null) return []
   return [...list.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]')]
+    .filter(row => row.closest('[role="menu"]') === list)
 }
 
 /**
@@ -137,6 +137,8 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
 }) {
   const rootRef = useRef<HTMLSpanElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const menuId = useId()
+  const focusSubmenu = useRef(false)
   const [openSubmenuId, setOpenSubmenuId] = useState<string | null>(null)
   const [fixedPos, setFixedPos] = useState<CSSProperties | null>(null)
   const { arm: armClose, cancel: cancelClose } = usePointerGrace(onClose)
@@ -153,7 +155,6 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
       if (getAnchorRect !== undefined) {
         r = getAnchorRect()
       } else {
-        /* v8 ignore next 2 -- the ref is attached before the layout effect runs and the listeners die with it. */
         r = rootRef.current?.getBoundingClientRect() ?? null
       }
       if (r === null) return
@@ -207,7 +208,7 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
       onClose()
     }
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !e.defaultPrevented) {
         // Mark it handled so an outer dismissal — a list selection, a dialog —
         // does not act on the same keystroke that only closed this menu.
         e.preventDefault()
@@ -230,7 +231,6 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
     const restore = document.activeElement
     menuItems(listRef.current)[0]?.focus()
     return () => {
-      /* v8 ignore next -- the keyboard gesture that opened the list left the focus on an element of this document. */
       if (!(restore instanceof HTMLElement)) return
       restore.focus()
     }
@@ -243,7 +243,10 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
   useEffect(() => {
     if (!open) return
     const onKeyDown = (e: KeyboardEvent) => {
-      const rows = menuItems(listRef.current)
+      if (e.defaultPrevented) return
+      const active = document.activeElement
+      if (!(active instanceof HTMLElement) || !listRef.current?.contains(active)) return
+      const rows = menuItems(active.closest<HTMLElement>('[role="menu"]'))
       const at = rows.findIndex(row => row === document.activeElement)
       if (at === -1) return
       // The list is a portal at the end of the document, so Tab out of a row
@@ -296,10 +299,13 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
         key={entry.id}
         className={css.itemWrap}
         onMouseEnter={() => { setOpenSubmenuId(hasSub ? entry.id : null) }}
-        onMouseLeave={() => { setOpenSubmenuId(null) }}
+        onMouseLeave={(event) => {
+          if (!event.currentTarget.contains(document.activeElement)) setOpenSubmenuId(null)
+        }}
       >
         <button
           type="button"
+          id={`${menuId}-${entry.id}`}
           role="menuitem"
           // The menu pattern keeps its rows out of the tab sequence: the arrows
           // move between them and Tab leaves the menu entirely.
@@ -312,6 +318,17 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
           aria-haspopup={hasSub ? 'menu' : undefined}
           aria-expanded={hasSub ? subOpen : undefined}
           onFocus={() => { setOpenSubmenuId(hasSub ? entry.id : null) }}
+          onKeyDown={(event) => {
+            if (!hasSub || !['ArrowRight', 'Enter', ' '].includes(event.key)) return
+            event.preventDefault()
+            focusSubmenu.current = true
+            setOpenSubmenuId(entry.id)
+            const submenu = event.currentTarget.nextElementSibling
+            if (submenu instanceof HTMLElement) {
+              menuItems(submenu)[0]?.focus()
+              focusSubmenu.current = false
+            }
+          }}
           onClick={() => {
             if (entry.disabled === true) return
             if (hasSub) {
@@ -327,7 +344,24 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
           {selected && <IconCheckOutline16 className={css.check} />}
         </button>
         {subOpen && entry.submenu !== undefined && (
-          <div className={clsx(css.submenu, compact && css.compactList)} role="menu">
+          <div
+            className={clsx(css.submenu, compact && css.compactList)}
+            role="menu"
+            aria-labelledby={`${menuId}-${entry.id}`}
+            ref={(node) => {
+              if (node === null || !focusSubmenu.current) return
+              focusSubmenu.current = false
+              menuItems(node)[0]?.focus()
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== 'ArrowLeft' && event.key !== 'Escape') return
+              event.preventDefault()
+              event.stopPropagation()
+              const parent = event.currentTarget.previousElementSibling
+              if (parent instanceof HTMLElement) parent.focus()
+              setOpenSubmenuId(null)
+            }}
+          >
             {entry.submenu.map(sub => (
               <button
                 key={sub.id}

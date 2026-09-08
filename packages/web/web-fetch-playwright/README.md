@@ -1,5 +1,5 @@
 ---
-description: "The Playwright Chromium rendered-page fetch backend for ctx.web: how deployments mount DOM-rendering URL retrieval with anonymous incognito contexts, one shared browser process, and bounded output."
+description: "Browser search and rendered-page retrieval for ctx.web through local Chromium, with anonymous contexts, shared capacity and bounded output."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-With `dsh-web-fetch-playwright`, the harness can fetch JavaScript-rendered pages through the web service (`ctx.web`): it loads each URL in a headless Chromium browser, waits for the DOM, and returns the serialized document. Choose it when a composition needs what plain HTTP retrieval cannot produce — the client-rendered DOM of single-page applications, pages that build their content with scripts, or any document whose meaningful markup exists only after execution. It stays anonymous like the HTTP backend: no credentials, no cookies carried between fetches, each render isolated in a fresh incognito context. Every destination a page reaches — main frame, subresources, each hop a redirect names, and every WebSocket its page and frames open — passes the shared fetch URL policy and is admitted only for a public unicast destination; unlike the HTTP backend, the browser resolves each hostname again when it connects, so that check admits a destination instead of pinning one. The model-facing `web_fetch` tool lives in `dsh-tool-web`, which renders this provider's bodies.
+Search Bing and retrieve rendered webpages through local Chromium without a paid search API. Each operation uses a fresh anonymous context in one shared browser. The model receives organic source titles, direct citation URLs and snippets through `web_search`, or rendered page content through `web_fetch`. Browser installation is required; search challenges and changed result markup produce explicit errors.
 
 ## Table of Contents
 
@@ -26,7 +26,7 @@ With `dsh-web-fetch-playwright`, the harness can fetch JavaScript-rendered pages
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount the provider in a composition that already loads the web service; it registers as the `playwright` fetch provider. It is the shipped fetch route: the `dsh` base bundle pins `fetchProvider: playwright`, so every profile built on that core renders. A composition that wants the plain HTTP backend instead — because it cannot install a browser, or because it needs address pinning — states `fetchProvider: http` on the `web` row.
+Mount the provider in a composition that already loads the web and settings services; it registers as `playwright` for both search and fetch. Both capabilities share browser settings and capacity. Settings → Plugins exposes one **Browser search and fetch** card and offers this provider in both backend selectors.
 
 ### When to choose it
 
@@ -44,11 +44,12 @@ The path is explicit because `playwright` is a workspace dependency of this pack
 
 ### Minimal configuration
 
-Load the web service, select this provider for fetch, and mount the provider; configurable limits have safe defaults and validate at plugin construction, so an invalid value fails loudly instead of building a provider with nonsensical caps.
+With a settings provider loaded, load the web service, select this provider for search and fetch, and mount it. Invalid resource limits fail at plugin construction.
 
 ```yaml
 - name: '@deepseek-ai/dsh-web'
-  with:
+  config:
+    searchProvider: playwright
     fetchProvider: playwright
 - name: '@deepseek-ai/dsh-web-fetch-playwright'
 ```
@@ -62,9 +63,15 @@ Load the web service, select this provider for fetch, and mount the provider; co
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-web-fetch-playwright) is the exhaustive source for every accepted field and its JSDoc.
 
+The plugin reads persisted settings before constructing the provider. Saved changes apply after restart or remount. Browser availability comes from the installation probe and travels through the settings API to both backend selectors; entering an executable path alone does not report the browser as available.
+
 ### What a fetch returns
 
 A successful call yields a `WebFetchResult`: the page's final URL after navigation (redirects included), the HTTP status of the main navigation (a synthetic navigation reports `200`), the serialized DOM as an `html` body, and a `truncated` flag when the document exceeds `maxBodyChars`. A non-2xx status is a result, not an error — `WebError` is reserved for failures to launch, navigate, or serialize.
+
+### What a search returns
+
+Search navigates Bing's public results page and extracts organic cards from the bounded rendered HTML. Citation URLs are decoded directly from Bing's result links without visiting tracking redirects. Duplicate URLs are removed; `maxResults` bounds the returned sources, and `truncated` also records the DOM cap. Search returns no generated answer. `WEB_SEARCH_CHALLENGE` reports recognized human-verification pages; `WEB_SEARCH_UNAVAILABLE` reports an HTTP failure or an unrecognized results page. These failures do not switch providers. A live Chromium check is available with `bunx vitest run --config vitest.e2e.config.ts packages/web/web-fetch-playwright/tests/search.e2e.ts`.
 
 ### Render behavior
 
@@ -106,6 +113,7 @@ The package is built on one separation and one layered timeout:
 |---|---|
 | [`src/index.ts`](src/index.ts) | Plugin entry: config schema, limit validation, provider registration, browser close on dispose |
 | [`src/provider.ts`](src/provider.ts) | The `PlaywrightFetchProvider`: shared-browser lifecycle, incognito renders, DOM serialization |
+| [`src/search.ts`](src/search.ts) | Bing navigation URL and bounded organic result extraction |
 | [`src/policy.ts`](src/policy.ts) | Destination policy: per-request, per-redirect-hop and per-WebSocket admission, one decision per hostname, and both interceptor handlers |
 | [`src/browser.ts`](src/browser.ts) | Browser ports the provider depends on, Chromium launch and install probe, the resolved install command, and the in-page DOM serializer |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; limits are enforced in the provider) |
@@ -161,7 +169,7 @@ None.
 <a id="model-experience"></a>
 ## Model Experience
 
-Indirectly, through `dsh-tool-web`, which renders the `maxBodyChars`-bounded DOM as markdown in its fetch result.
+Indirectly, through `dsh-tool-web`, which renders the bounded DOM as markdown for fetch and organic citations for search. Browser search makes no additional model call.
 
 #### KV Cache effect
 

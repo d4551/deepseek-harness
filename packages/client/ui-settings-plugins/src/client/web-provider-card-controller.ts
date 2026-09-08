@@ -108,16 +108,11 @@ export class WebProviderCardController {
   }
 
   /**
-   * Whether the composition layer names the browser the Host confirmed at
-   * mount. The Host publishes that field there only after its probe passed, so
-   * an absent one is the deployment reporting it found no installation.
+   * Runtime browser readiness published by the Host independently of configuration.
    */
   private browserConfirmed(): boolean {
     const { browserField } = this.spec
     if (browserField === undefined) return false
-    const base = this.scope.getSnapshot().base
-    if (typeof base !== 'object' || base === null || Array.isArray(base)) return false
-    const confirmed = Reflect.get(base, browserField) as unknown
-    return typeof confirmed === 'string' && confirmed.length > 0
+    return this.scope.getSnapshot().available === true
   }
 }

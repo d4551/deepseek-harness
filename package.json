@@ -247,6 +247,7 @@
     "@types/mdast": "^4.0.4",
     "@types/node": "^26.4.0",
     "@types/spdx-expression-parse": "^4.0.0",
+    "@vitest/browser-playwright": "5.0.0",
     "@vitest/coverage-v8": "^5.0.0",
     "@yarnpkg/cli-dist": "4.18.0",
     "canvas": "3.2.3",
@@ -274,7 +275,6 @@
     "tsx": "^4.23.13",
     "typescript": "^7.0.2",
     "vite": "^8.2.2",
-    "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^5.0.0"
   },
   "trustedDependencies": [

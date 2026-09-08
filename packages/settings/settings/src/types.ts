@@ -31,6 +31,8 @@ export interface SettingsSecretView {
  * because the Remote boundary admits no unconstrained data.
  */
 export interface SettingsNamespaceView {
+  /** Runtime capability readiness reported by the owner, independent of saved settings. */
+  available?: boolean
   /** Namespace key (`llm-deepseek`, `llm-pi-ai`, …). */
   ns: string
   /** Serialized schemastery schema envelope (`schema.toJSON()`); rehydrate with `new Schema(json)`. */
@@ -74,6 +76,8 @@ export interface SettingsDescribeValue {
 
 declare module '@deepseek-ai/cordis' {
   interface Events {
+    /** Runtime capability readiness changed without a settings-document edit. @mode emit */
+    'settings/availability-updated'(ns: SettingsNamespace, available: boolean): void
     /**
      * Committed change to one registered namespace's resolved value. Emitted
      * after the provider persisted (for `update`) or published (`provider`)

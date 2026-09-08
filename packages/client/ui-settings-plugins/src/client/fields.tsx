@@ -7,6 +7,7 @@
  */
 
 import { createElement, type ChangeEvent } from 'react'
+import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './fields.module.css'
 
 /** What every field control needs regardless of its value type. */
@@ -45,10 +46,10 @@ function OverrideBadge(props: Pick<FieldProps,
       { className: css.badges },
       createElement('span', { className: css.badge }, props.overriddenLabel),
       createElement(
-        'button',
+        Button,
         {
           type: 'button',
-          className: css.reset,
+          size: 'sm',
           disabled: props.disabled,
           onClick: props.onReset,
         },
@@ -78,11 +79,10 @@ export function ValueField(props: FieldProps & {
         <label className={css.label} htmlFor={props.id}>{props.label}</label>
         {createElement(OverrideBadge, props)}
       </div>
-      <input
+      <Input
         id={props.id}
-        className={`${css.input}${props.invalid ? ` ${css.inputInvalid}` : ''}`}
         type="text"
-        {...props.numeric === true ? { inputMode: 'numeric' as const } : {}}
+        inputMode={props.numeric === true ? 'numeric' : undefined}
         {...props.invalid ? { 'aria-invalid': true } : {}}
         aria-describedby={hintId}
         value={props.text}
@@ -211,16 +211,16 @@ export function SecretField(props: Pick<FieldProps, 'id' | 'label' | 'hint' | 't
           <span className={props.configured ? css.badge : css.badgeMuted}>{props.stateLabel}</span>
         </span>
       </div>
-      <input
+      <Input
         id={props.id}
-        className={css.input}
         type="password"
+        aria-describedby={`${props.id}-hint`}
         autoComplete="off"
         value={props.text}
         disabled={props.disabled}
         onChange={(event) => { props.onEdit(event.target.value) }}
       />
-      <p className={css.hint}>{props.hint}</p>
+      <p className={css.hint} id={`${props.id}-hint`}>{props.hint}</p>
     </div>
   )
 }

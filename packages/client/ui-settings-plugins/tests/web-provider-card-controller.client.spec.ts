@@ -30,10 +30,11 @@ function boot(ns: string, snapshot: Partial<Parameters<ReturnType<typeof stubSet
 }
 
 describe('web provider catalogue', () => {
-  it('splits the catalogue by the half of the seam each backend serves', () => {
+  it('offers both browser capabilities through one settings card', () => {
     expect(webProvidersFor('search').map(provider => provider.providerId))
-      .toEqual(['deepseek-official', 'exa', 'perplexity'])
+      .toEqual(['deepseek-official', 'exa', 'perplexity', 'playwright'])
     expect(webProvidersFor('fetch').map(provider => provider.providerId)).toEqual(['http', 'playwright'])
+    expect(WEB_PROVIDERS.filter(provider => provider.providerId === 'playwright')).toHaveLength(1)
   })
 })
 
@@ -89,10 +90,12 @@ describe('WebProviderCardController', () => {
     expect(card.hooks.webProviderCard.getSnapshot().secretConfigured).toBe(false)
   })
 
-  it('confirms the browser the composition layer names', () => {
-    const { card } = boot('web-fetch-playwright', { base: { executablePath: '/opt/chromium' } })
+  it('uses runtime readiness independently of the configured executable', () => {
+    const { card } = boot('web-fetch-playwright', { available: true })
 
     expect(card.hooks.webProviderCard.getSnapshot().browserConfirmed).toBe(true)
+    expect(boot('web-fetch-playwright', { available: false, base: { executablePath: '/configured/chromium' } })
+      .card.hooks.webProviderCard.getSnapshot().browserConfirmed).toBe(false)
   })
 
   it('confirms no browser when the composition layer names none, or none at all', () => {

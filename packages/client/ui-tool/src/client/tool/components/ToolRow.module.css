@@ -12,34 +12,7 @@
 }
 
 .row {
-  position: relative; /* sweep-glare overlay anchor */
   overflow: hidden;
-}
-
-/* Running sweep (deepsuite ShimmerText pattern): a fixed-width glare band —
-   theme background at 60% — glides over the row content from off-left to
-   off-right, washing glyphs and icon toward the background as it passes.
-   ease-out with a 10% end hold gives each pass a beat before the next. */
-.root[data-state='running'] .row::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 300px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    color-mix(in srgb, var(--dsw-alias-bg-base) 60%, transparent) 55%,
-    transparent 100%
-  );
-  animation: dsh-tool-row-sweep 2.6s ease-out infinite;
-  pointer-events: none;
-}
-
-@keyframes dsh-tool-row-sweep {
-  0% { left: -300px; }
-  90%, 100% { left: 100%; }
 }
 
 .leading {
@@ -203,7 +176,7 @@
 
 /* A failed call's OUT text shares the collapsed summary's error color. */
 .ioText[data-error] {
-  color: var(--dsw-alias-state-error-primary);
+  color: var(--dsw-alias-label-error);
 }
 
 /* The block-shaped expanded bodies: the code variant's run_code program
@@ -248,14 +221,4 @@
   --dsl-terminal-line-height: 18px;
   --dsl-terminal-output-max-height: 224px;
   border: 1px solid var(--dsw-alias-border-l1);
-}
-
-/* An `animation` shorthand carries its own literal duration, so the theme's
-   reduced-motion collapse of `--ds-transition-duration*` never reaches it. An
-   indefinite loop is exactly the motion that setting asks to stop. */
-@media (prefers-reduced-motion: reduce) {
-  .root[data-state='running'] .row::after {
-    animation: none;
-    display: none;
-  }
 }

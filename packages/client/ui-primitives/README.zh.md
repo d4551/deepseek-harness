@@ -31,6 +31,10 @@ kind: "package-library"
 
 `Button`、`Pill`、`Input`、`Menu`、`Modal`、`Tooltip`、`DisclosureRow`、`StateDot`、`HoverCard`、`Toast`、`ConnectionBanner`、`RiskConfirmation` 与首次运行接管层 `OnboardingSurface` 覆盖常见的交互形态。`ic_ds_*` 图标集与 `FishLogo`/`CatLogo`/`BrandWordmark` 标记填充品牌与行内图标 slot。`useAnchoredPosition` 与 `useAnchoredMaxHeight` 让浮动面板与底部锚定浮层始终钳制在视口内并跟随锚点。`HoverCard` 通过指针离开宽限期让采用 portal 的预览在跨过锚点间隙时仍可触及，并可通过 `copyText` prop 提供复制按钮。 `Toast` 的停留时长由使用方通过 `holdMs` 指定，因为横幅该留多久取决于有多少内容要读；同一个值同时驱动它的卸载定时器与样式表的淡出延迟，两者不可能再错位。 焦点落在 `Menu` 的某个条目上之后，方向键即在条目间移动；其 `autoFocus` prop 在菜单打开时把焦点带入列表、关闭时再交还——采用 portal 的列表位于文档末尾，因此从键盘打开它的调用方必须把焦点一并送过去。它的条目不进入 Tab 顺序，Tab 会关闭列表而不是越过文档其余部分；`ariaLabel` 为列表命名——一旦被 portal 移离触发器，就再没有别的东西能为它命名。`disabled` 的条目带的是 `aria-disabled` 而非原生属性，因此方向键仍能到达它、读屏软件仍会念出它；该条目转而拒绝自身的激活，也不打开子菜单。
 
+在菜单内，上下方向键与 Home/End 在当前菜单的条目间移动。右方向键、Enter 或空格打开子菜单并聚焦首个条目；左方向键或 Escape 返回父条目。子菜单的无障碍名称来自该父条目。子菜单包含键盘焦点时，指针移出不会将其关闭。
+
+`Input` 根据原生 `aria-invalid` 属性展示共享的焦点与校验样式。通过 `aria-describedby` 关联字段说明，包括密码输入框。Markdown 链接在未悬停时也显示下划线，重连横幅会向辅助技术通告状态。
+
 ### 对话流行
 
 `FlowRow` 是对话行所在的 24px 行：它为整行浮层充当锚点并裁剪之，行高随 Settings 字号增量移动。`DisclosureRow` 在其上绘制前导字形、标题与展开行为；调用方用 `RowSeparator`（元信息圆点）与 `RowSummary`（占据剩余宽度并截断为一行的摘要文本）填满该行的其余部分。`InspectPill` 是悬停时显现的调用轨迹记录入口——它静止时透明，由所属卡片自己的悬停规则将其显现——`ResultText` 则把调用的扁平化结果渲染为代码面板。`GlyphButton` 是透明填充上的纯图标按钮；其 `surface` prop 指明它采用的盒子与墨色，因为侧边栏、面板标题、底栏与消息行这四处实例是设计尚未统一的四套几何，各自的所有者把悬停、聚焦与禁用规则保留在其传入的 class 上。

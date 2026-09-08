@@ -1,6 +1,7 @@
 /** Model-directory request state shown above a model-selection route list. */
 
 import type { ModelCatalogStatus } from './model-route.ts'
+import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './model-selection-card.module.css'
 
 /** Props the owning card binds for the directory request state. */
@@ -19,7 +20,6 @@ export interface ModelCatalogStatusNoticesProps {
   partialNotice: string
   /** Whether the card forbids reopening the directory request right now. */
   retryDisabled: boolean
-  /** Reopen the directory request. */
   /** Retry action; a caller may return the settlement of the underlying reload. */
   onRetry: () => unknown
 }
@@ -39,9 +39,9 @@ export function ModelCatalogStatusNotices(props: ModelCatalogStatusNoticesProps)
         ? (
           <div className={css.catalogError} role="alert">
             <span>{props.loadFailedNotice}</span>
-            <button type="button" disabled={props.retryDisabled} onClick={props.onRetry}>
+            <Button size="sm" disabled={props.retryDisabled} onClick={props.onRetry}>
               {props.retryLabel}
-            </button>
+            </Button>
           </div>
         )
         : null}

@@ -21,6 +21,8 @@
     "packages/client/*/tests/**/*.tsx",
     "packages/*/*/tests/**/*.client.spec.ts",
     "packages/*/*/tests/**/*.client.spec.tsx",
+    "packages/*/*/tests/**/*.browser.spec.ts",
+    "packages/*/*/tests/**/*.browser.spec.tsx",
     "packages/*/*/tests/**/*.client.tsx",
     "packages/*/*/tests/**/*.client.ts",
     // Client package outside packages/client with a local CSS module face.

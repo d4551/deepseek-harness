@@ -109,6 +109,7 @@ export function PopupSelectView({ popup, t }: PopupSelectViewProps) {
         <div
           ref={cardRef}
           className={css.card}
+          role="dialog"
           style={{ maxHeight }}
           aria-label={t('overlay.aria', { command: String(state.command) })}
           onKeyDown={onKeyDown}
@@ -135,7 +136,7 @@ export function PopupSelectView({ popup, t }: PopupSelectViewProps) {
           {state.submitting && <div className={css.status}>{t('status.applying')}</div>}
           {state.status === 'ready' && rows.length === 0 && <div className={css.status}>{t('status.empty')}</div>}
           {state.status === 'ready' && (
-            <div role="listbox" aria-label={t('listbox.aria', { command: String(state.command) })} className={css.viewport}>
+            <div role="listbox" tabIndex={0} aria-label={t('listbox.aria', { command: String(state.command) })} className={css.viewport}>
               {rows.map((option, index) => (
                 <div
                   key={option.id}

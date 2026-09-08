@@ -19,24 +19,13 @@ export { WorkspaceMoveInvalidError } from './entity.ts'
 import { realpathNormalize } from './paths.ts'
 import { workspaceDomainSpec } from './spec.ts'
 import type { WorkspaceDomainState, WorkspaceRecord } from './spec.ts'
-import type { Workspace, WorkspaceId as WorkspaceIdBrand } from './types.ts'
+import { WorkspaceId, type Workspace } from './types.ts'
 
 export type { Workspace } from './types.ts'
+export { WorkspaceId } from './types.ts'
 export { workspaceDomainState, workspaceRecord, workspaceDomainSpec } from './spec.ts'
 export type { WorkspaceDomainState, WorkspaceRecord } from './spec.ts'
 export { realpathNormalize } from './paths.ts'
-
-/** Identifies one workspace record (see `src/types.ts` for the brand rationale). */
-export type WorkspaceId = WorkspaceIdBrand
-
-/**
- * Brand a string as a {@link WorkspaceId}.
- * @param id - Raw workspace id string.
- * @returns the same string, branded at compile time.
- */
-export function WorkspaceId(id: string): WorkspaceId {
-  return id as WorkspaceId
-}
 
 /**
  * An archiveSession request named a session neither live nor in session

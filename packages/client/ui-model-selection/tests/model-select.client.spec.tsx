@@ -1,25 +1,15 @@
-// @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import type { ModelSelection } from '@deepseek-ai/dsh-api-session-controller/types'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type { ComponentProps } from 'react'
+import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import type { ModelDirectoryState } from '../src/client/directory.ts'
 import { ModelSelect } from '../src/client/ModelSelect.tsx'
 import { zh } from '../src/client/locales.ts'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 
-// The seat's key domain is model ∪ common; the stub mirrors the real lookup
-// chain: package dictionary, then common vocabulary, then the key.
-const t: ComponentProps<typeof ModelSelect>['t'] = (key, params) => {
-  const template = (zh as Record<string, string>)[key]
-    ?? (commonZh as Record<string, string>)[key]
-    ?? key
-  return params === undefined
-    ? template
-    : template.replace(/\{(\w+)\}/g, (match, name: string) => name in params ? String(params[name]) : match)
-}
+const t = makeTranslate(zh, commonZh)
 
 const reasoning = {
   efforts: [
@@ -276,6 +266,11 @@ describe('model select accessibility', () => {
     fireEvent.click(screen.getByRole('button', {
       name: '选择模型，当前 DeepSeek-V4-Flash，推理等级 High',
     }))
+    const menuBounds = screen.getByRole('menu').getBoundingClientRect()
+    expect(menuBounds.top).toBeGreaterThanOrEqual(0)
+    expect(menuBounds.left).toBeGreaterThanOrEqual(0)
+    expect(menuBounds.bottom).toBeLessThanOrEqual(window.innerHeight)
+    expect(menuBounds.right).toBeLessThanOrEqual(window.innerWidth)
     audits.push(await auditSurface('ModelSelect open', closed.baseElement))
     expect(accessibilityFailures(audits, MINIMUM_ACCESSIBILITY_SCORE)).toBe('')
   })

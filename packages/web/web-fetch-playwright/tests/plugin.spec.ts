@@ -6,6 +6,7 @@ import { WEB_FETCH_USER_AGENT } from '@deepseek-ai/dsh-web'
 import { PLAYWRIGHT_FETCH_PROVIDER_ID } from '../src/provider.ts'
 import { fakeBrowser } from './fakes.ts'
 import * as playwrightPlugin from '../src/index.ts'
+import { MemorySettings } from './settings-provider.ts'
 
 /** Minimal stand-in provider used to probe the web seam's registry state. */
 function stubProvider(id: string): WebFetchProvider {
@@ -32,6 +33,7 @@ function throughSeam(ctx: Context): (url: string) => Promise<WebFetchResult> {
 describe('web-fetch-playwright plugin', () => {
   it('registers through apply, holds the seam id, and closes the browser on fiber dispose', async () => {
     const ctx = new Context()
+    await ctx.plugin(MemorySettings)
     await ctx.plugin(WebRuntime, { fetchProvider: PLAYWRIGHT_FETCH_PROVIDER_ID })
     const { access, browser } = fakeBrowser()
     const fiber = await ctx.plugin({
@@ -56,6 +58,7 @@ describe('web-fetch-playwright plugin', () => {
 
   it('defaults the rendered user agent to the shared product agent', async () => {
     const ctx = new Context()
+    await ctx.plugin(MemorySettings)
     await ctx.plugin(WebRuntime, { fetchProvider: PLAYWRIGHT_FETCH_PROVIDER_ID })
     const { access, browser } = fakeBrowser()
     await ctx.plugin({
@@ -71,6 +74,7 @@ describe('web-fetch-playwright plugin', () => {
 
   it('leaves the provider unusable when no browser installation is found', async () => {
     const ctx = new Context()
+    await ctx.plugin(MemorySettings)
     await ctx.plugin(WebRuntime, { fetchProvider: PLAYWRIGHT_FETCH_PROVIDER_ID })
     await ctx.plugin({
       name: 'web-fetch-playwright-missing-browser',
@@ -88,6 +92,7 @@ describe('web-fetch-playwright plugin', () => {
 
   it('rejects a non-positive maxBodyChars at plugin apply time', async () => {
     const ctx = new Context()
+    await ctx.plugin(MemorySettings)
     await ctx.plugin(WebRuntime, { fetchProvider: PLAYWRIGHT_FETCH_PROVIDER_ID })
     await expect(ctx.plugin(playwrightPlugin, { maxBodyChars: 0 }))
       .rejects.toThrow(/maxBodyChars must be a positive finite number/)
@@ -95,6 +100,7 @@ describe('web-fetch-playwright plugin', () => {
 
   it('rejects a timeoutMs above the Node timer ceiling at plugin apply time', async () => {
     const ctx = new Context()
+    await ctx.plugin(MemorySettings)
     await ctx.plugin(WebRuntime, { fetchProvider: PLAYWRIGHT_FETCH_PROVIDER_ID })
     await expect(ctx.plugin(playwrightPlugin, { timeoutMs: 2_147_483_648 }))
       .rejects.toThrow(/timeoutMs must be no greater than/)
@@ -102,6 +108,7 @@ describe('web-fetch-playwright plugin', () => {
 
   it('rejects a fractional or non-positive maxConcurrentRenders at plugin apply time', async () => {
     const ctx = new Context()
+    await ctx.plugin(MemorySettings)
     await ctx.plugin(WebRuntime, { fetchProvider: PLAYWRIGHT_FETCH_PROVIDER_ID })
     await expect(ctx.plugin(playwrightPlugin, { maxConcurrentRenders: 1.5 }))
       .rejects.toThrow(/maxConcurrentRenders must be a positive integer/)
