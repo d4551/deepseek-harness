@@ -106,7 +106,11 @@ class RemoteEventQueue {
     try {
       while (true) {
         if (this.done || signal.aborted) return
-        while (this.buffer.length > 0) yield this.buffer.shift() as TypertRemoteEventDispatch
+        const dispatch = this.buffer.shift()
+        if (dispatch !== undefined) {
+          yield dispatch
+          continue
+        }
         await new Promise<void>((resolve) => { this.waiter = resolve })
         this.waiter = undefined
       }
