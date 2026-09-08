@@ -59,6 +59,8 @@ The last command starts the Web UI at `http://127.0.0.1:3080` by default and ope
 
 For swarm coordination in the browser, run `bun run dsh --profile swarm-web`. The Team panel shows live roster and task updates; teammate rows open their conversations, and session hierarchy controls connect parents, children, and siblings. See [Team controls](packages/client/ui-agent-team/README.md) for supported actions.
 
+Use named teammates for persistent collaboration. Ordinary `subagent` and `subagent_fork` calls complete once; background calls return jobs collected with `job_output` or stopped with `job_kill`. Team messaging and follow-up tools address named Team members.
+
 Chromium enables rendered `web_fetch` in the standard Web preset. `web_search` uses the configured search provider; its default is DeepSeek search. Browser fetching does not replace that search service or provide interactive browser-control tools. See [browser setup](packages/web/web-fetch-playwright/README.md).
 
 ## Community and support

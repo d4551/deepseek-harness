@@ -25,6 +25,8 @@ kind: "package-library"
 <a id="use-this-package"></a>
 ## 使用本包
 
+工作区安装 jsdom 的 `canvas` peer，并启用其原生构建。所属测试验证像素读写，因此缺少 canvas backend 会导致验证失败。布局与对比度仍需通过浏览器测试验证。
+
 渲染一个 surface（受审面）、审计它，并用 `accessibilityFailures` 守住下限：
 
 ```text

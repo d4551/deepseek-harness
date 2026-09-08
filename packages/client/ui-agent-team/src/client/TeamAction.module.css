@@ -1,21 +1,17 @@
 .root {
   position: relative;
+  anchor-scope: --team-trigger;
 }
 
 .trigger {
+  anchor-name: --team-trigger;
   display: inline-flex;
   align-items: center;
-  min-height: 24px;
   border: 0;
   border-radius: 6px;
   background: transparent;
   color: var(--dsw-alias-label-secondary);
   cursor: pointer;
-}
-
-.trigger {
-  display: inline-flex;
-  align-items: center;
   gap: 5px;
   min-height: 28px;
   padding: 3px 7px;
@@ -39,10 +35,15 @@
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
 
   position: fixed;
+  position-anchor: --team-trigger;
+  position-area: bottom span-all;
+  align-self: start;
+  top: 5px;
+  left: clamp(16px, anchor(left), calc(100vw - min(560px, calc(100vw - 32px)) - 16px));
   z-index: var(--dsw-z-popover-2);
   box-sizing: border-box;
   width: min(560px, calc(100vw - 32px));
-  max-height: min(680px, calc(100vh - 120px));
+  max-height: min(680px, calc(100% - 21px));
   padding: 10px;
   overflow: auto;
   border: 1px solid var(--dsw-alias-border-l2);

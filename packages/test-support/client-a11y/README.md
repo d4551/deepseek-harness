@@ -25,6 +25,8 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
+The workspace installs jsdom's `canvas` peer with its native build enabled. The owning test verifies pixel reads and writes, so a missing canvas backend fails validation. Browser tests remain required for layout and contrast.
+
 Render a surface, audit it, and hold the floor with `accessibilityFailures`:
 
 ```text

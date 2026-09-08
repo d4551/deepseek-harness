@@ -14,9 +14,9 @@ Team 服务、其作用域内的工具、Agent Teams 面板和 Agent team 设置
 
 `dsh-base` 为每个 profile 挂载 `agent-team` 与 `tool-agent-team`，采用委派策略、八人名册以及 swarm 层曾重述的同一组 mailbox 与 disposal 限额。该策略告诉模型只在用户要求时才创建 teammate，因此普通会话读到 Team 工具，却不会被引向 swarm。`dsh-web-app` 在 `ui-subagent` 之后挂载 `ui-agent-team`，于是每个 Web profile 都渲染 roster、任务板与 teammate 导航；插件设置页上的 Agent team 卡片在 `agent-team` 命名空间被服务的任何地方渲染，而现在它无处不在。有一个 agent preset 留在外面：`minimal` 承诺恰好只有持久 bash 与字符串编辑器，因此 `tool-agent-team` 新增 `excludePresets`，base 把它设为 `minimal`，会话 header 指明该 preset 的 Agent 既不接收 Team 工具也不接收策略段落。Web bundle 的其他 preset 自行选择委派工具并保留 Team。
 
-`dsh-base` 不再挂载 `tool-subagent-control` 与 `tool-subagent-list-agents`：Team 工具在每个 Agent 自身的 scope 中注册 `send_message`、`list_agents` 与 `interrupt_agent`，遮蔽同名的全局控制，因此那些行已没有任何可达的工具。可续的 `subagent` 行与 `tool-subagent-report` 保留，因为可续 child 仍通过 `report` 回答其父级，Web 或 SDK 客户端仍通过宿主自己的后续操作界面继续它；该工具的可续模式描述不再承诺 `send_message` 能到达这样的 child。Web bundle 自己的 agent preset 保留它那份控制副本，Team 工具对它们的遮蔽与 `swarm-web` 下完全一样。
+普通 `subagent` 和 `subagent_fork` 工具在 base 以及 `standard`、`ptc`、`cordis` preset 中使用一次性执行。前台调用返回结果；后台调用返回由 `job_output` 和 `job_kill` 控制的 job。`spawn_teammate` 使用全新或 fork 的上下文创建命名且持久的会话。Team 工具负责 `send_message`、`followup_task`、`list_agents`、`wait_agent` 与 `interrupt_agent`。Base 和 preset 不在这些名称下注册相互竞争的普通 child 控制。Host 为可续 child 保留 `tool-subagent-report`；Team 导航和人类后续消息使用 addressed-child 会话路径。
 
-`swarm-profile` 现在只是对 base 行的重新调校，不插入任何东西：它为 `subagent` 行设界，把 `subagent` 设为一次性，以十六人名册重述 `agent-team`，并以 `coordination: swarm` 重述 `tool-agent-team`。其套件断言每一行都针对一个 base id，每一行只改变其记录在案的值并重述其他所有键，且重新调校后的行能启动成 swarm。`agent-team-profile` 与 `agent-team-web-profile` 已删除；`swarm-web` 模板为 `dsh-base`、`dsh-web-app`、`dsh-swarm-profile`；面板与插件配置的浏览器场景不带任何 overlay 地启动随发布的 bundle。
+`swarm-profile` 修改三个 base 设置：并发一次性 run 上限变为八，保留的 teammate 名称上限变为十六，协作模式变为 `swarm`。其套件断言每行都针对一个 base id，只修改记录在案的值，并重述其他所有键。委派工具的执行模式属于 base。`swarm-web` 模板组合 `dsh-base`、`dsh-web-app` 与 `dsh-swarm-profile`；面板和插件配置的浏览器场景启动随发布的 bundle。
 
 每个录制会话现在都携带 Team 策略段落与十一个 Team 工具 schema，因此无密钥 golden 已全部刷新。两个 sdk 场景被退役而非刷新：`subagent-continuable` 让模型带着 subagent id 调用全局 `send_message`，`subagent-list-agents` 让模型调用全局 `list_agents`；这两个工具在每个随发布 profile 中现在都是 Team 的，`packages/subagent/subagent/tests/` 与 `packages/subagent/tool-subagent-control/tests/` 下的包套件继续承担那些 transcript 曾展示的行为。引用这两个场景的三份 note 都已如实说明。两个精选组合有意把 Team 排除在外，正如它们排除大多数 base 工具那样：`persistent-tools` sdk 场景在其 patch 中禁用这两行，Python 运行时 smoke 的自定义 profile 把它们列入禁用行，因此其已提交的预期输出仍描述录制时的那组工具。
 
@@ -26,7 +26,7 @@ Team 服务、其作用域内的工具、Agent Teams 面板和 Agent team 设置
 
 **在 `dsh-base` 中把 `tool-subagent-control` 与 `tool-subagent-list-agents` 保留在 Team 工具旁边。** 否决：Team 工具在每个 root scope 中都遮蔽它们，它们会处于挂载却不可达的状态，而那两个退役场景照样会坏掉。
 
-**像 swarm 层那样在 `dsh-base` 中把 `subagent` 设为一次性。** 暂不采纳：可续 child 仍是 SDK 与 Web 客户端的持久控制路径，切换随发布的模式会让每个启动后台 child 的录制场景作废。swarm 层保留其一次性覆盖，因为它的运行上限约束的是前台委派。
+**在 swarm 层重述一次性委派。** Base 已负责该设置。重复行会增加第二个配置归属方，却不改变 swarm 行为。
 
 **把 `coordination` 做成 Agent team 卡片上的用户设置。** 推迟：策略文本今天是组合决策，一个在会话中途改写系统提示词的设置需要自己的日志事件。两种随发布的协作模式仍是 profile 层。
 

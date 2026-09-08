@@ -63,6 +63,8 @@ bun run dsh web
 
 在浏览器中使用 swarm 协作，请运行 `bun run dsh --profile swarm-web`。Team 面板实时显示成员与任务更新；点击 teammate 行可打开其会话，会话层级控件连接父会话、子会话与同级会话。支持的操作见 [Team 控件](packages/client/ui-agent-team/README.zh.md)。
 
+需要持久协作时，请使用命名 teammate。普通 `subagent` 和 `subagent_fork` 调用只完成一次；后台调用返回可通过 `job_output` 收集或通过 `job_kill` 停止的 job。Team 消息与后续任务工具以命名 Team member 为目标。
+
 Chromium 为标准 Web preset 提供渲染式 `web_fetch`。`web_search` 使用配置的搜索提供方，默认为 DeepSeek 搜索。浏览器抓取不会替代该搜索服务，也不提供交互式浏览器控制工具。详见[浏览器设置](packages/web/web-fetch-playwright/README.zh.md)。
 
 ## 社区与支持

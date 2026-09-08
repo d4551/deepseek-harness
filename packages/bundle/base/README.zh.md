@@ -49,6 +49,8 @@ kind: "package-bundle"
 
 开箱即用，基于本核心构建的每个 profile 都提供：DeepSeek 模型连接（provider 与模型可配置，你还可以在设置中启用额外 provider）、完整工具集——文件编辑、shell 命令、web 搜索、subagent、带共享任务板的 agent team、任务与目标跟踪——可跨重启存活的持久会话，以及默认权限策略：把文件写入限制在工作区内，危险操作前征询许可。遥测默认关闭，除非你主动开启。
 
+普通的 `subagent` 和 `subagent_fork` 调用只执行一次。默认等待结果；`run_in_background: true` 返回可通过 `job_output` 收集或通过 `job_kill` 停止的 job。需要命名且持久的会话时，使用 `spawn_teammate`，并通过 Team 消息、后续任务、roster 与中断工具控制。
+
 ### 安装 fetch 工具所需的浏览器
 
 有一项随发行版交付的默认值需要本安装不会执行的步骤。`web_fetch` 路由到 Playwright Chromium 后端，因为模型通过原始 HTTP 正文阅读现代站点看到的只是一具空壳——但 `playwright` 不带 postinstall 步骤，浏览器不会被自动下载。在下载之前，插件会在挂载期告警，并且**每次 `web_fetch` 调用都会失败**，报 `WEB_PROVIDER_CONFIGURED_UNAVAILABLE`。每台主机安装一次：

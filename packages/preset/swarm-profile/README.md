@@ -45,7 +45,7 @@ That profile must already contain `@deepseek-ai/dsh-base`, whose Subagent servic
 
 ### What you get
 
-The layer retunes the Team rows `dsh-base` mounts for every profile: `coordination: swarm` selects pull-based guidance in place of the delegated policy, `maxMembers: 16` widens the roster, `subagent` becomes a one-shot delegation tool beside the one-shot `subagent_fork`, and `ctx.subagents` gets a `maxConcurrentRuns` ceiling.
+The layer changes three base settings: `coordination: swarm` selects pull-based guidance, `maxMembers: 16` widens the roster, and `maxConcurrentRuns: 8` bounds concurrent one-shot delegations. Both `subagent` and `subagent_fork` use the base profile's one-shot execution mode.
 
 ### Tuning the team from Settings
 
@@ -63,7 +63,7 @@ The layer retunes the Team rows `dsh-base` mounts for every profile: `coordinati
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The package's runtime content is [`cordis.patch.yml`](cordis.patch.yml). Applied after `dsh-base`, the patch bounds the `subagent` row, sets the fresh Subagent row to `one-shot`, and restates the `agent-team` and `tool-agent-team` rows base mounts with a wider roster and the swarm coordination mode; it inserts no row of its own.
+The package's runtime content is [`cordis.patch.yml`](cordis.patch.yml). Applied after `dsh-base`, the patch bounds the `subagent` row and restates the `agent-team` and `tool-agent-team` rows with a wider roster and swarm coordination. The base profile owns delegation-tool execution modes.
 
 | File | Role |
 |---|---|

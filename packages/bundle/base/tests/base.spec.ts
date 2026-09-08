@@ -61,6 +61,11 @@ describe('dsh-base bundle', () => {
     expect(rows.find(row => row.id === 'approval-adversary')?.disabled).toBeUndefined()
     expect(rows.filter(row => row.id === 'subagent-codex')).toHaveLength(0)
     expect(rows.filter(row => row.id === 'subagent-claude-code')).toHaveLength(0)
+    expect(rows.find(row => row.id === 'tool-subagent')?.config).toEqual({
+      provider: 'spawn', toolName: 'subagent', backgroundMode: 'one-shot',
+    })
+    expect(rows.some(row => row.id === 'tool-subagent-control')).toBe(false)
+    expect(rows.some(row => row.id === 'tool-subagent-list-agents')).toBe(false)
     // Fetch renders the page: a model reading a modern site through a raw HTTP
     // body sees an empty shell. Both providers are mounted and the route is
     // named, because the seam refuses to guess when two are usable. The rendered

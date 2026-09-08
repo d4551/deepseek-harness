@@ -260,3 +260,44 @@ it('lets a preset producer reach the background-job registry', async () => {
     await handle.dispose()
   }
 }, 120_000)
+
+it.each(['standard', 'ptc', 'cordis'])('mounts %s with one-shot delegation and named Team controls', async (preset) => {
+  scaffold = await launchWebScaffold()
+  const ctx = scaffold.ctx
+  const handle = await ctx.agents.create({
+    sessionId: SessionId(`shipped-delegation-${preset}`),
+    meta: { cwd: scaffold.workspaceCwd },
+    setup: async (agentCtx) => {
+      await ctx.agentPresets.mount(agentCtx, preset)
+    },
+  })
+  try {
+    const schemas = ctx.tools.schemas(handle.agent)
+    for (const name of ['subagent', 'subagent_fork']) {
+      const tool = schemas.find(schema => schema.name === name)
+      expect(tool?.description).toContain('This call waits for the result by default.')
+      expect(tool?.description).toContain('collect with `job_output` and stop with `job_kill`')
+    }
+    for (const name of ['spawn_teammate', 'send_message', 'followup_task', 'list_agents', 'wait_agent', 'interrupt_agent']) {
+      expect(schemas.map(schema => schema.name)).toContain(name)
+    }
+    const listed = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: ToolCallId(`shipped-team-list-${preset}`),
+      name: preset === 'ptc' ? 'run_code' : 'list_agents',
+      arguments: preset === 'ptc'
+        ? { code: 'return JSON.stringify(await tools.list_agents({}))', description: 'Read the Team roster' }
+        : {},
+      agent: handle.agent,
+    })
+    expect(listed.isError).toBe(false)
+    expect(listed.content).toHaveLength(1)
+    const block = listed.content[0]
+    if (block?.type !== 'text') throw new Error('Team roster must render as text')
+    expect(block.text).toContain('lead')
+    expect(block.text).toContain('role')
+    expect(block.text).toContain('idle')
+  } finally {
+    await handle.dispose()
+  }
+}, 120_000)

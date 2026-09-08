@@ -11,12 +11,6 @@
   config:
     maxConcurrentRuns: 8
 
-- id: tool-subagent
-  config:
-    provider: spawn
-    toolName: subagent
-    backgroundMode: one-shot
-
 - id: agent-team
   config:
     maxMembers: 16

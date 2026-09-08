@@ -45,7 +45,7 @@ dsh plugin --profile <name> add @deepseek-ai/dsh-swarm-profile
 
 ### 你会得到什么
 
-本层重新调校 `dsh-base` 为每个 profile 挂载的 Team 行：`coordination: swarm` 以拉取式指引取代委派式策略，`maxMembers: 16` 放宽名册，`subagent` 变成与一次性的 `subagent_fork` 并列的一次性委派工具，并为 `ctx.subagents` 设定 `maxConcurrentRuns` 上限。
+本层修改三个 base 设置：`coordination: swarm` 选择拉取式指引，`maxMembers: 16` 放宽名册，`maxConcurrentRuns: 8` 限制并发的一次性委派。`subagent` 和 `subagent_fork` 都使用 base profile 的一次性执行模式。
 
 ### 从设置调整团队
 
@@ -63,7 +63,7 @@ dsh plugin --profile <name> add @deepseek-ai/dsh-swarm-profile
 <details>
 <summary>实现内部细节——点击展开</summary>
 
-本包的运行时内容就是 [`cordis.patch.yml`](cordis.patch.yml)。它在 `dsh-base` 之后应用：为 `subagent` 行设定上限，把 fresh Subagent 行设为 `one-shot`，并以更宽的名册与 swarm 协作模式重述 base 挂载的 `agent-team` 与 `tool-agent-team` 行；它自己不插入任何行。
+本包的运行时内容就是 [`cordis.patch.yml`](cordis.patch.yml)。它在 `dsh-base` 之后应用：为 `subagent` 行设定上限，并以更宽的名册与 swarm 协作模式重述 `agent-team` 和 `tool-agent-team` 行。委派工具的执行模式由 base profile 负责。
 
 | 文件 | 职责 |
 |---|---|

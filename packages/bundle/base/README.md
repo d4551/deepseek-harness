@@ -49,6 +49,8 @@ Run `dsh --profile my-profile "your task"` and you get a working agent with mode
 
 Out of the box, every profile built on this core provides: a DeepSeek model connection (the provider and model are configurable, and you can enable extra providers from your settings), the full tool set — file editing, shell commands, web search, subagents, an agent team with a shared task board, task and goal tracking — durable sessions that survive restarts, and the default permission policy that confines file writes to your workspace and asks before risky actions. Telemetry stays off unless you opt in.
 
+Ordinary `subagent` and `subagent_fork` calls finish once. They wait for results by default; `run_in_background: true` returns a job collected through `job_output` or stopped through `job_kill`. Use `spawn_teammate` for named, persistent conversations controlled by Team messaging, follow-up, roster, and interruption tools.
+
 ### Install the browser the fetch tool needs
 
 One shipped default needs a step this install does not perform. `web_fetch` is routed to the Playwright Chromium backend, because a model reading a modern site through a raw HTTP body sees an empty shell — but `playwright` ships no postinstall, so the browser is not downloaded for you. Until it is, the plugin warns at mount and **every `web_fetch` call fails** with `WEB_PROVIDER_CONFIGURED_UNAVAILABLE`. Install it once per host:

@@ -68,11 +68,14 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
     await action.getByText('No shared tasks yet').waitFor()
     await action.getByText('lead').waitFor()
     await assertPageAccessibility(page)
-    await page.setViewportSize({ width: 840, height: 1000 })
-    await expect.poll(async () => {
-      const panel = await action.getByRole('dialog', { name: 'Agent Team' }).boundingBox()
-      return panel !== null && panel.x >= 0 && panel.x + panel.width <= 840
-    }).toBe(true)
+    for (const viewport of [{ width: 840, height: 1000 }, { width: 600, height: 480 }]) {
+      await page.setViewportSize(viewport)
+      await expect.poll(async () => {
+        const panel = await action.getByRole('dialog', { name: 'Agent Team' }).boundingBox()
+        return panel !== null && panel.x >= 0 && panel.y >= 0
+          && panel.x + panel.width <= viewport.width && panel.y + panel.height <= viewport.height
+      }).toBe(true)
+    }
     await page.setViewportSize({ width: 1680, height: 1000 })
 
     await action.getByRole('button', { name: 'New task' }).click()

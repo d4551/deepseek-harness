@@ -20,7 +20,7 @@ Teammate navigation uses the existing `{ parentSessionId, childSessionId, mode: 
 
 `dsh-web-app` mounts the UI as its `ui-agent-team` row after `ui-subagent`, over the `ctx.agentTeams` service and model tools that `dsh-base` mounts ([Agent Teams ship in every profile](../architecture/2026-09-07-agent-teams-in-every-profile.md)).
 
-Web presets also register continuable Subagent controls inside their preset scope. Team tools registered in each Agent's own scope shadow those preset controls, so the roster the model sees is the Team's. The duplicated registrations remain a composition defect.
+The `standard`, `ptc`, and `cordis` presets expose one-shot `subagent` and `subagent_fork` delegation. Named Team members own durable follow-up work through `spawn_teammate` and Team controls; the presets register no competing Subagent control or roster tools.
 
 ## Boundaries
 

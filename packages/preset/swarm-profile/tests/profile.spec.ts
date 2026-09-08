@@ -51,7 +51,6 @@ const manifest = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf
 /** The value each retuned row changes; every other key must restate `dsh-base`. */
 const DOCUMENTED_DELTAS: Record<string, Record<string, unknown>> = {
   'subagent': { maxConcurrentRuns: 8 },
-  'tool-subagent': { backgroundMode: 'one-shot' },
   'agent-team': { maxMembers: 16 },
   'tool-agent-team': { coordination: 'swarm' },
 }
@@ -185,6 +184,9 @@ describe('swarm profile bundle', () => {
     // the value base composed. Each row is therefore compared to base's own.
     const patches = await shippedPatch()
     const base = baseRows()
+    expect(base.find(row => row.id === 'tool-subagent')?.config).toEqual({
+      provider: 'spawn', toolName: 'subagent', backgroundMode: 'one-shot',
+    })
     for (const row of patches) {
       const composed = base.find(entry => entry.id === row.id)?.config ?? {}
       const retuned = row.config ?? {}

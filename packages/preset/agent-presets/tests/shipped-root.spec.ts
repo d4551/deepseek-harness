@@ -109,4 +109,36 @@ describe('the shipped preset root', () => {
       expect(toolWeb.config.fetch, id).toBe(true)
     }
   })
+
+  it('keeps preset delegation one-shot and leaves persistent controls to Teams', async () => {
+    for (const id of ['cordis', 'ptc', 'standard']) {
+      const source = await readFile(join(SHIPPED_PRESET_ROOT, id, 'agent.cordis.yml'), 'utf8')
+      const entries: unknown = yaml.load(source, { schema: entryListSchema })
+      if (!Array.isArray(entries)) throw new TypeError(`${id} preset must contain a Cordis entry list`)
+      const delegation: unknown = entries.find((entry: unknown) =>
+        typeof entry === 'object' && entry !== null && 'id' in entry && entry.id === 'delegation')
+      if (typeof delegation !== 'object' || delegation === null || !('config' in delegation)
+        || !Array.isArray(delegation.config)) {
+        throw new TypeError(`${id} preset must configure delegation`)
+      }
+      const tools: string[] = []
+      const children: unknown[] = delegation.config
+      for (const entry of children) {
+        if (typeof entry !== 'object' || entry === null || !('name' in entry)) {
+          throw new TypeError(`${id} delegation must contain named entries`)
+        }
+        expect(entry.name, id).not.toBe('@deepseek-ai/dsh-tool-subagent-control')
+        expect(entry.name, id).not.toBe('@deepseek-ai/dsh-tool-subagent-list-agents')
+        if (entry.name !== '@deepseek-ai/dsh-tool-subagent' || ('disabled' in entry && entry.disabled)) continue
+        if (!('config' in entry) || typeof entry.config !== 'object' || entry.config === null
+          || !('backgroundMode' in entry.config) || !('toolName' in entry.config)
+          || typeof entry.config.toolName !== 'string') {
+          throw new TypeError(`${id} delegation must declare its tool name and execution mode`)
+        }
+        expect(entry.config.backgroundMode, `${id}/${entry.config.toolName}`).toBe('one-shot')
+        tools.push(entry.config.toolName)
+      }
+      expect(tools.sort(), id).toEqual(['subagent', 'subagent_fork'])
+    }
+  })
 })

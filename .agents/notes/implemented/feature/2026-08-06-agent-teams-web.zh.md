@@ -20,7 +20,7 @@ Teammate navigation 使用既有 `{ parentSessionId, childSessionId, mode: 'cont
 
 `dsh-web-app` 在 `ui-subagent` 之后以 `ui-agent-team` 行挂载该 UI，位于 `dsh-base` 挂载的 `ctx.agentTeams` 服务与模型工具之上（[Agent Teams 随每个 profile 交付](../architecture/2026-09-07-agent-teams-in-every-profile.zh.md)）。
 
-Web preset 还会在自身 preset scope 内注册 continuable Subagent control。注册在每个 Agent 自身 scope 中的 Team 工具会遮蔽这些 control，因此模型看到的 roster 是 Team 的。重复注册仍是组合配置缺陷。
+`standard`、`ptc` 和 `cordis` preset 提供一次性的 `subagent` 与 `subagent_fork` 委派。命名 Team member 通过 `spawn_teammate` 和 Team control 承担持久的后续工作；preset 不注册与之竞争的 Subagent control 或 roster 工具。
 
 ## 边界
 
