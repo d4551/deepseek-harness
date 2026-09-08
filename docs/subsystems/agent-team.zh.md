@@ -228,6 +228,14 @@ tryMembership(agent: Agent): TeamMembership | undefined
 @Remote('view') remoteView(agent: Agent): TeamView
 
 /**
+ * Follow Team activity through the generated Remote stream.
+ * @param agent - exact live Team member authorizing the subscription.
+ * @param signal - Remote subscription cancellation.
+ * @returns an initial revision followed by coalesced changes requiring a fresh view.
+ */
+@Remote({ mode: 'stream' }) async *changes(agent: Agent, signal: AbortSignal): AsyncIterable<number>
+
+/**
  * Create one shared task through the generated Remote API.
  * @param agent - exact live Team member creating the task.
  * @param request - task text, blockers, and advisory write scopes.

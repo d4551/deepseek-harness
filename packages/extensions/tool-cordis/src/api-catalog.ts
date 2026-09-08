@@ -421,6 +421,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'detached current roster and task views.',
       },
       {
+        signature: '@Remote({ mode: \'stream\' }) async *changes(agent: Agent, signal: AbortSignal): AsyncIterable<number>',
+        description: 'Follow Team activity through the generated Remote stream.',
+        parameters: [{ name: 'agent', description: 'exact live Team member authorizing the subscription.' }, { name: 'signal', description: 'Remote subscription cancellation.' }],
+        returns: 'an initial revision followed by coalesced changes requiring a fresh view.',
+      },
+      {
         signature: '@Remote(\'createTask\') remoteCreateTask(agent: Agent, request: CreateTeamTaskRequest): Promise<TeamTaskMutationResult>',
         description: 'Create one shared task through the generated Remote API.',
         parameters: [{ name: 'agent', description: 'exact live Team member creating the task.' }, { name: 'request', description: 'task text, blockers, and advisory write scopes.' }],
