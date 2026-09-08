@@ -106,6 +106,8 @@ bun run build
 
 语法规则使用包管理的 Babel parser、遍历工具与节点守卫。[TypeScript 导入审计器](../scripts/typescript-module-imports.ts)检查静态导入、重新导出、字面量模块加载和导入类型，包括转义模块名。它在内存中解析所有指定文件，并拒绝错误语法。Babel 不解析跨文件类型。
 
+`bun run verify-client-domain-graph` 对每个 Client domain 源文件执行语法解析后的导入检查，涵盖副作用导入、动态字面量导入、CommonJS 加载和导入类型。它拒绝同级 domain 之间的导入；共享 contract 与装配文件遵循[检查器](../scripts/verify-client-domain-graph.ts)定义的分层。文件名标记不会豁免源文件。此检查已纳入仓库门禁清单。
+
 分析符号与类型时，请显式选择所属的 TypeScript project：
 
 ```sh
@@ -141,7 +143,7 @@ lefthook 在 `lefthook.yml` 中配置，作为快速的本地检查点：
 
 vendor manifest 守卫检查 `vendor/*/src` 下的改动是否连同对应的 `vendor/README.md` manifest 更新一起暂存。请在编辑 vendor 代码前先阅读 `vendor/README.md`。
 
-除限定范围的暂存记录校验外，这些钩子有意不运行测试、快照、文档检查、构建或 `hygiene`。贡献者只运行一次[与改动行为相关的检查](../AGENTS.md#run-relevant-checks-locally)；CI 负责全量覆盖率门禁、构建产物冒烟测试，以及 Node 22.19、24 和 26 兼容性矩阵。
+除限定范围的暂存记录校验外，这些钩子不运行测试、快照、文档检查、构建或 `hygiene`。钩子之外的验证遵循[仓库执行规则](../AGENTS.md)；CI 还运行覆盖率、构建产物冒烟测试，以及 Node 22.19、24 和 26 矩阵。
 
 贡献者可以选择运行 `bun run check:all`，执行全面的本地门禁集。该命令独立于 Git 钩子，也不是对 agent 的指令。
 
@@ -151,7 +153,7 @@ keyless [CI 工作流](../.github/workflows/ci.yml) 将独立门禁分组到若�
 
 ### 日常命令
 
-根目录的[贡献者说明](../AGENTS.md#commands)概述常用命令，[`package.json`](../package.json) 与 [scripts/run-gates.ts](../scripts/run-gates.ts) 则负责当前脚本和门禁清单。请选择覆盖变更表面的最小检查集。文档变更使用 `bun run doc-sync`；包公开行为变更还需更新所属 README 或 JSDoc，而基于构建产物的检查需要先运行 `bun run build`。
+[`package.json`](../package.json) 与 [scripts/run-gates.ts](../scripts/run-gates.ts) 负责当前脚本和门禁清单。执行要求遵循 [AGENTS.md](../AGENTS.md)。文档变更使用 `bun run doc-sync`；包公开行为变更还需更新所属 README 或 JSDoc，而基于构建产物的检查需要先运行 `bun run build`。
 
 ### Profile 运行
 
@@ -173,15 +175,9 @@ PTC mode 演示启用代码式工具展示，并运行同一个 headless profile
 bun run demo:ptc -- "summarize this workspace"
 ```
 
-### TODO 标记
+### 缺陷与验证
 
-请使用以下三种注释标签之一标记代码中的已知问题，按紧急程度排序：
-
-- `FIXME`：应当阻塞新版本发布的问题。除非评审者明确同意该更改可以合并，否则发布版本不应包含未解决的 `FIXME`；
-- `TODO`：应当尽快修复的问题，等资源到位即可处理；
-- `XXX`：也许某天会修复的问题，优先级最低，不作承诺。
-
-请选择与紧急程度匹配的标签，让浏览代码的人一眼分清「发布阻塞」和「有空再说」。
+修复缺陷并验证受影响的行为。[AGENTS.md](../AGENTS.md) 禁止债务标记和弱化检查；注释不能授予例外。文档必须描述已实现的系统，并准确报告验证缺口。
 
 <a id="documenting-types-verbatim-ts-type-equiv"></a>
 

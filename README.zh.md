@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Node](https://img.shields.io/badge/node-%E2%89%A524-339933?logo=node.js&logoColor=white)](package.json) [![bun 1.4](https://img.shields.io/badge/bun-1.4-deadck?logo=bun)](package.json) [![TypeScript 7](https://img.shields.io/badge/TypeScript-7-3178c6?logo=typescript&logoColor=white)](package.json) [![Status: developer preview](https://img.shields.io/badge/status-developer%20preview-orange)](SAFETY.zh.md)
+[MIT 许可证](LICENSE) · [Node.js、bun 1.4、TypeScript 7](package.json) · [开发者预览](SAFETY.zh.md)
 
 ## 像给五岁小孩一样解释
 
@@ -46,12 +46,13 @@ DeepSeek Harness 处于 _开发者预览_ 阶段，正在快速迭代。**未来
 
 ### 从源码运行
 
-安装 `Node.js`，然后运行：
+安装 Node.js 与 [package.json](package.json) 指定的 bun 版本，然后运行：
 
 ```sh
 git clone https://github.com/d4551/deepseek-harness.git
 cd deepseek-harness
 bun install
+node packages/web/web-fetch-playwright/node_modules/playwright/cli.js install chromium
 bun run build
 bun run dsh web
 ```
@@ -60,28 +61,15 @@ bun run dsh web
 
 最后一条命令默认会在 `http://127.0.0.1:3080` 启动 Web UI，本机启动时还会用默认浏览器打开页面。通过 SSH 启动时只打印宿主机 URL，因为本地转发地址由 SSH 客户端或编辑器持有。传入 `--no-open` 可仅运行服务器而不打开浏览器。详见 [Web UI 指南](docs/user/guide/index.zh.md)。
 
+在浏览器中使用 swarm 协作，请运行 `bun run dsh --profile swarm-web`。Team 面板实时显示成员与任务更新；点击 teammate 行可打开其会话，会话层级控件连接父会话、子会话与同级会话。支持的操作见 [Team 控件](packages/client/ui-agent-team/README.zh.md)。
+
+Chromium 为标准 Web preset 提供渲染式 `web_fetch`。`web_search` 使用配置的搜索提供方，默认为 DeepSeek 搜索。浏览器抓取不会替代该搜索服务，也不提供交互式浏览器控制工具。详见[浏览器设置](packages/web/web-fetch-playwright/README.zh.md)。
+
 ## 社区与支持
 
 - 通过 [GitHub Discussions](https://github.com/deepseek-ai/deepseek-harness/discussions) 提交反馈或 bug 报告。
 - 为你的插件仓库添加 [`dsh-plugin`](https://github.com/topics/dsh-plugin) 话题，便于被发现。
-- 欢迎加入 DeepSeek Harness 企微群：扫码添加企微小助手并填写入群问卷，完成后小助手会邀请你入群。
-
-<table>
-  <thead>
-    <tr>
-      <th align="center">企微小助手</th>
-      <th align="center">入群问卷</th>
-      <th align="center">微信公众号</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td align="center"><img src="https://cdn.deepseek.com/harness/readme/community-wecom-assistant.png" alt="DeepSeek Harness 企微小助手二维码" width="180" height="180"></td>
-      <td align="center"><a href="https://trtgsjkv6r.feishu.cn/share/base/form/shrcnIt5twSVdLGD52KJBckGCgg"><img src="https://cdn.deepseek.com/harness/readme/community-wecom-survey.png" alt="DeepSeek Harness 入群问卷二维码" width="180" height="180"></a></td>
-      <td align="center"><img src="https://cdn.deepseek.com/harness/readme/community-wechat-official-account.png" alt="DeepSeek Harness 团队微信公众号二维码" width="180" height="180"></td>
-    </tr>
-  </tbody>
-</table>
+- 欢迎加入 [DeepSeek Harness Discord 社区](https://discord.gg/Ycq5dCaS4)。
 
 ## 参与贡献
 
@@ -90,6 +78,8 @@ bun run dsh web
 ## 开发
 
 请先阅读[开发指南](docs/development.zh.md)与[架构文档](docs/architecture.zh.md)。
+
+[源码分析](docs/development.zh.md#source-analysis)介绍 Babel 语法审计，以及通过 `bun run analyze:typescript <tsconfig> <source-file>` 查询 TypeScript 7 符号、导入别名、声明位置、推断类型与诊断。
 
 面向 agent：请遵循 [AGENTS.md](AGENTS.md)。
 

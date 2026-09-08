@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Node](https://img.shields.io/badge/node-%E2%89%A524-339933?logo=node.js&logoColor=white)](package.json) [![bun 1.4](https://img.shields.io/badge/bun-1.4-deadck?logo=bun)](package.json) [![TypeScript 7](https://img.shields.io/badge/TypeScript-7-3178c6?logo=typescript&logoColor=white)](package.json) [![Status: developer preview](https://img.shields.io/badge/status-developer%20preview-orange)](SAFETY.md)
+[MIT license](LICENSE) · [Node.js, bun 1.4, TypeScript 7](package.json) · [Developer preview](SAFETY.md)
 
 ## Explain it like I'm five
 
@@ -42,12 +42,13 @@ Review the [safety notice](SAFETY.md) before running the project.
 
 ### Run from source
 
-Install `Node.js`, then run:
+Install Node.js and the bun version listed in [package.json](package.json), then run:
 
 ```sh
 git clone https://github.com/d4551/deepseek-harness.git
 cd deepseek-harness
 bun install
+node packages/web/web-fetch-playwright/node_modules/playwright/cli.js install chromium
 bun run build
 bun run dsh web
 ```
@@ -55,6 +56,10 @@ bun run dsh web
 `bun run build` prepares the repository artifacts. `bun run dsh web` uses those built artifacts without rebuilding.
 
 The last command starts the Web UI at `http://127.0.0.1:3080` by default and opens it in the default browser for a local launch. An SSH launch only prints the host URL because the SSH client or editor owns the local forwarded address. Pass `--no-open` to run the server without opening a browser. See [Web UI guide](docs/user/guide/index.md).
+
+For swarm coordination in the browser, run `bun run dsh --profile swarm-web`. The Team panel shows live roster and task updates; teammate rows open their conversations, and session hierarchy controls connect parents, children, and siblings. See [Team controls](packages/client/ui-agent-team/README.md) for supported actions.
+
+Chromium enables rendered `web_fetch` in the standard Web preset. `web_search` uses the configured search provider; its default is DeepSeek search. Browser fetching does not replace that search service or provide interactive browser-control tools. See [browser setup](packages/web/web-fetch-playwright/README.md#install-the-browser).
 
 ## Community and support
 
@@ -69,6 +74,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 ## Development
 
 Start with the [development guide](docs/development.md) and [architecture documentation](docs/architecture.md).
+
+[Source analysis](docs/development.md#source-analysis) covers Babel syntax auditing and `bun run analyze:typescript <tsconfig> <source-file>` for TypeScript 7 symbols, imported aliases, declaration locations, inferred types, and diagnostics.
 
 For agents, follow [AGENTS.md](AGENTS.md).
 

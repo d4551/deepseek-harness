@@ -35,6 +35,8 @@ Opening the panel subscribes to `agentTeams/changes` and reads `agentTeams/view`
 
 The task board shows task identity, owner, blockers, readiness, advisory write scopes, and overlap warnings. A user can create, edit, assign or unassign, complete, reopen, and delete tasks through `agentTeams/createTask` and `agentTeams/updateTask`. Every update sends the displayed revision, and create or update rejections remain explicit business results.
 
+Task forms retain visible field labels after typing and support Enter submission from single-line fields. Inputs and actions are disabled while saving. Escape, Close, or clicking outside dismisses the panel; Escape and Close return focus to its trigger.
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -53,6 +55,7 @@ The live subscription coalesces activity while a view read is pending. Closing t
 |---|---|
 | [`src/client/mount.ts`](src/client/mount.ts) | Generated Remote, locale, navigation, and slot registrations |
 | [`src/client/TeamAction.tsx`](src/client/TeamAction.tsx) | Roster and task-board interaction state |
+| [`src/client/TaskForm.tsx`](src/client/TaskForm.tsx) | Labeled task editing through shared input and button primitives |
 | [`src/client/observe-team.ts`](src/client/observe-team.ts) | Bounded activity consumption and subscription cancellation |
 | [`src/client/locales.ts`](src/client/locales.ts) | English and Chinese panel copy |
 | [`src/index.ts`](src/index.ts) | Inert Host entry |

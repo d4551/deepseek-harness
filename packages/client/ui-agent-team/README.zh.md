@@ -35,6 +35,8 @@ kind: "package-reference"
 
 任务板展示 task identity、owner、blocker、readiness、提示性 write scope 与重叠 warning。用户可以通过 `agentTeams/createTask` 与 `agentTeams/updateTask` 创建、编辑、分配或取消分配、完成、重开和删除任务。每次 update 都发送当前显示的 revision，create 或 update rejection 都保留为显式 business result。
 
+任务表单在输入后保留可见字段标签，并支持在单行字段中按 Enter 提交。保存期间会禁用输入与操作。按 Escape、点击关闭或点击面板外部可关闭面板；Escape 与关闭按钮会将焦点返回触发按钮。
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -53,6 +55,7 @@ Client export 挂载来自 [`@deepseek-ai/dsh-agent-team/remote`](../../subagent
 |---|---|
 | [`src/client/mount.ts`](src/client/mount.ts) | 生成式 Remote、locale、导航与 slot registration |
 | [`src/client/TeamAction.tsx`](src/client/TeamAction.tsx) | Roster 与任务板交互状态 |
+| [`src/client/TaskForm.tsx`](src/client/TaskForm.tsx) | 通过共享输入与按钮组件编辑带标签的任务字段 |
 | [`src/client/observe-team.ts`](src/client/observe-team.ts) | 有界活动消费与订阅取消 |
 | [`src/client/locales.ts`](src/client/locales.ts) | 中英文 panel 文案 |
 | [`src/index.ts`](src/index.ts) | 不执行行为的 Host entry |

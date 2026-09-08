@@ -5,7 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { TeamTaskId, TeamView } from '@deepseek-ai/dsh-agent-team/client'
 import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
-import { TeamAction, actions, props, task, view } from './team-fixtures.client.ts'
+import { TeamAction, actions, props, task, taskSuccess, view, type TeamTaskActionResult } from './team-fixtures.client.ts'
 import type { TeamActionInjected } from '../src/client/TeamAction.tsx'
 import { zh } from '../src/client/locales.ts'
 
@@ -40,6 +40,39 @@ describe('TeamAction accessibility', () => {
     await waitFor(() => { expect(document.activeElement).toBe(dialog) })
     fireEvent.click(screen.getByRole('button', { name: zh.close }))
     expect(document.activeElement).toBe(toggle)
+  })
+
+  it('labels populated fields and prevents changes or duplicate submission during a save', async () => {
+    const saved = Promise.withResolvers<TeamTaskActionResult>()
+    let submissions = 0
+    render(<TeamAction {...props(actions({ createTask: () => {
+      submissions += 1
+      return saved.promise
+    } }))} />)
+    fireEvent.click(screen.getByRole('button', { name: /Agent Team/u }))
+    await screen.findByText('Implement runtime')
+    fireEvent.click(screen.getByRole('button', { name: zh.create }))
+    const subject = screen.getByRole<HTMLInputElement>('textbox', { name: zh.subject })
+    const description = screen.getByRole<HTMLTextAreaElement>('textbox', { name: zh.description })
+    fireEvent.change(subject, { target: { value: 'Labeled task' } })
+    fireEvent.change(description, { target: { value: 'Keyboard submission' } })
+    const form = subject.form
+    if (form === null) throw new Error('Task fields must belong to a form')
+    fireEvent.submit(form)
+    expect(submissions).toBe(1)
+    for (const field of screen.getAllByRole<HTMLInputElement>('textbox')) expect(field.disabled).toBe(true)
+    fireEvent.submit(form)
+    expect(submissions).toBe(1)
+    saved.resolve(taskSuccess(task))
+    await waitFor(() => { expect(screen.queryByRole('textbox', { name: zh.subject })).toBeNull() })
+  })
+
+  it('dismisses the panel when the user points outside it', async () => {
+    render(<TeamAction {...props(actions())} />)
+    fireEvent.click(screen.getByRole('button', { name: /Agent Team/u }))
+    await screen.findByText('Implement runtime')
+    fireEvent.pointerDown(document.body)
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 
   it('renders ready, blocked, and completed task variants accessibly', async () => {

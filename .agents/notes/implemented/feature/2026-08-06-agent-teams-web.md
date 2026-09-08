@@ -1,4 +1,4 @@
-# Agent Note: Experimental Agent Teams Web controls
+# Agent Note: Agent Teams Web controls
 
 Status: implemented
 
@@ -6,19 +6,21 @@ English | [中文](2026-08-06-agent-teams-web.zh.md)
 
 ## Problem
 
-The durable Agent Teams runtime owns roster, mailbox, and task state but exposes only model tools and Host service methods. Web users need to inspect teammate activity, manage shared tasks with the same compare-and-set rules, and open a teammate conversation. Agent Teams is still experimental, so these capabilities must not add Team-specific contracts or dependencies to the stable API Proxy, Session Controller, Client UI packages, or Web bundle.
+The durable Agent Teams runtime owns roster, mailbox, and task state. Web users need to inspect teammate activity, manage shared tasks with the same compare-and-set rules, and open a teammate conversation. The Team service must own these operations without duplicating its contracts in the API Proxy or Session Controller.
 
 ## Decision
 
 The private `ctx.agentTeams` service owns generated `agentTeams/view`, `agentTeams/createTask`, and `agentTeams/updateTask` Remote methods beside its domain operations. The Team package owns the browser-safe view and mutation-result types. Views contain roster and current task state but omit pending mailbox content and deleted task tombstones. Create and update rejections cross Remote as closed business results; stale update revisions preserve `team-task-conflict`, while other Team rejections preserve `team-rejected`. Unexpected failures remain ordinary `RemoteResult` failures.
 
-`@deepseek-ai/dsh-experimental-client-ui-agent-team` mounts the `@deepseek-ai/dsh-experimental-agent-team/remote` contribution through the stable `ctx.remote` service, then consumes the generated `ctx.remote.agentTeams` methods without an additional Client result wrapper. It displays roster status, model and diagnostics and supports task create, edit, dependency update, assignment, completion, reopen, and deletion. Every update sends the displayed revision. Each create or update owns an independent pending token, invalidates older refreshes before starting, and reloads the complete Team view after success. A conflict asks the user to review only after its reload succeeds; a reload failure remains visible. Overlapping refreshes publish only the latest request for the selected Session.
+`@deepseek-ai/dsh-client-ui-agent-team` mounts the `@deepseek-ai/dsh-agent-team/remote` contribution through `ctx.remote`, then consumes the generated `ctx.remote.agentTeams` methods directly. It displays roster status, model and diagnostics and supports task create, edit, dependency update, assignment, completion, reopen, and deletion. Every update sends the displayed revision. Each create or update owns an independent pending token, invalidates older refreshes before starting, and reloads the complete Team view after success. A conflict asks the user to review only after its reload succeeds; a reload failure remains visible. Overlapping refreshes publish only the latest request for the selected Session.
+
+While open, the panel subscribes to `agentTeams/changes` and coalesces activity during view reads. Closing, switching conversations, or unmounting cancels the subscription and invalidates outstanding reads. Task forms use shared inputs and buttons with persistent labels, native Enter submission, and disabled fields during saves. Escape and Close restore trigger focus; outside pointer dismissal preserves the clicked target's focus.
 
 Teammate navigation uses the existing `{ parentSessionId, childSessionId, mode: 'continuable' }` Subagent address without a Team tag. The UI refreshes the direct-child catalog, rechecks the selected Session, and opens the addressed conversation. History and later human prompts follow the stable Subagent path; the Team mailbox remains reserved for Team peer delivery from Team tools.
 
 `dsh-web-app` mounts the UI as its `ui-agent-team` row after `ui-subagent`, over the `ctx.agentTeams` service and model tools that `dsh-base` mounts ([Agent Teams ship in every profile](../architecture/2026-09-07-agent-teams-in-every-profile.md)).
 
-Stable Web presets still register continuable Subagent controls inside their preset scope. Top-level Agent Teams profile overrides cannot replace those registrations, so this experimental composition may expose both the Team roster and legacy child controls. A Team-aware Web preset is deferred; Team tools registered in each Agent's own scope shadow those preset controls, so the roster the model sees is the Team's.
+Web presets also register continuable Subagent controls inside their preset scope. Team tools registered in each Agent's own scope shadow those preset controls, so the roster the model sees is the Team's. The duplicated registrations remain a composition defect.
 
 ## Boundaries
 
@@ -26,18 +28,18 @@ The Web UI has no mailbox timeline, worktree or Git controls, teammate creation,
 
 ## Alternatives considered
 
-**Extend the legacy API Proxy Team RPC map.** Rejected because it would put an experimental domain in a stable wire package and duplicate the generated Remote vocabulary and validation.
+**Extend the API Proxy Team RPC map.** Rejected because it would duplicate the generated Remote vocabulary and validation in a second wire package.
 
 **Introduce a separate browser Remote service.** Rejected because the methods have no state, lifecycle, or policy owner distinct from `ctx.agentTeams`; a second Cordis service would duplicate Team injection and require another package for the same Typert namespace.
 
-**Add Team metadata to the stable Subagent address and prompt routing.** Rejected because ordinary child navigation already identifies the conversation. A Team tag would couple stable Client and Subagent contracts to experimental mailbox policy.
+**Add Team metadata to the Subagent address and prompt routing.** Rejected because ordinary child navigation already identifies the conversation. A Team tag would couple Client and Subagent contracts to mailbox policy.
 
-**Put disabled Team rows in the stable Web bundle.** Rejected because a disabled row still creates release dependencies and makes the experimental package part of shipped composition.
+**Put disabled Team rows in the Web bundle.** Disabled rows would leave users without the controls despite including their dependencies. The [profile composition decision](../architecture/2026-09-07-agent-teams-in-every-profile.md) mounts active Team controls and their service together.
 
 ## Testing
 
-Team-service unit tests, generation, and a plain-Node built-artifact smoke verify the direct Remote methods, error mapping, and exported descriptors. Client typechecking and browser component tests cover the mounted namespace, Lead routing, raw generated results, every task action, independent pending operations, complete-board reloads, successful and failed conflict reloads, stale async results, navigation, disposal, and status or error presentation. A Web end-to-end test asserts that its overlay equals both shipped experimental profile layers, then exercises the real Host Remote flow.
+Team-service tests and built-artifact checks verify the Remote methods, error mapping, and exported descriptors. Client tests cover namespace mounting, Lead routing, task actions, pending operations, conflict reloads, stale replies, navigation, disposal, status presentation, persistent labels and keyboard submission. Assembled browser tests exercise the real Host Remote flow, live updates and child conversations, and run full-page axe checks in light and dark themes. These keyless tests do not establish real-model behavior.
 
 ## Consequences
 
-The Team service is the single Cordis owner for both domain state and the Remote operations that expose selected Team values. The stable API Proxy, Session Controller, Client UI packages, and Web bundle remain Team-agnostic. Source-checkout users must add two ordered experimental profile layers to a Web profile. Promotion renames the experimental npm packages but does not require a new generated namespace.
+The Team service owns domain state and the Remote operations that expose selected Team values. API Proxy and Session Controller retain ordinary conversation contracts. Every Web profile mounts the Team controls through the Web bundle; users do not need additional profile layers.

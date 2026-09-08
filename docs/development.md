@@ -100,6 +100,8 @@ bun run build
 
 Use Babel's package-managed parser, traversal and node guards for syntax rules. The [TypeScript import auditor](../scripts/typescript-module-imports.ts) checks static imports, re-exports, literal module loads and import types, including escaped specifiers. It parses every supplied file in memory and rejects malformed syntax. Babel does not resolve cross-file types.
 
+`bun run verify-client-domain-graph` applies parsed import checks to every Client domain source, including side-effect imports, dynamic literal imports, CommonJS loads and import types. It rejects imports between sibling domains; shared contracts and assembly files follow the layers defined in the [checker](../scripts/verify-client-domain-graph.ts). Filename markers do not exempt source files. This check is part of the repository gate inventory.
+
 For symbols and types, select the owning TypeScript project explicitly:
 
 ```sh
@@ -135,7 +137,7 @@ lefthook is configured in `lefthook.yml` as a fast local checkpoint:
 
 The vendor manifest guard checks that changes under `vendor/*/src` are staged with the matching `vendor/README.md` manifest update. See `vendor/README.md` before editing vendored code.
 
-Apart from the scoped staged-record verification, the hooks intentionally do not run tests, snapshots, documentation checks, builds, or hygiene. Contributors run the [checks relevant to the changed behavior](../AGENTS.md#run-relevant-checks-locally) once; CI owns exhaustive coverage, built-artifact smokes, and the Node 22.19, 24, and 26 compatibility matrix.
+Apart from the scoped staged-record verification, the hooks do not run tests, snapshots, documentation checks, builds, or hygiene. Follow the [repository execution rules](../AGENTS.md) for validation beyond hooks; CI also runs coverage, built-artifact smokes, and the Node 22.19, 24, and 26 matrix.
 
 Contributors can opt into the comprehensive local gate set with `bun run check:all`. The command is independent of the Git hooks and is not an agent instruction.
 
@@ -145,7 +147,7 @@ The keyless [CI workflow](../.github/workflows/ci.yml) groups independent gates 
 
 ### Daily commands
 
-The root [contributor instructions](../AGENTS.md#commands) summarize common commands, while [`package.json`](../package.json) and [scripts/run-gates.ts](../scripts/run-gates.ts) own the current script and gate inventories. Select the smallest checks that cover the changed surface. Documentation changes use `bun run doc-sync`; package-public behavior changes also update the owning README or JSDoc, and built-artifact checks require `bun run build` first.
+[`package.json`](../package.json) and [scripts/run-gates.ts](../scripts/run-gates.ts) own the current script and gate inventories. Follow [AGENTS.md](../AGENTS.md) for execution requirements. Documentation changes use `bun run doc-sync`; package-public behavior changes also update the owning README or JSDoc, and built-artifact checks require `bun run build` first.
 
 ### Profile runs
 
@@ -167,15 +169,9 @@ The PTC mode demo runs the same headless profile with code presentation enabled:
 bun run demo:ptc -- "summarize this workspace"
 ```
 
-### TODO markers
+### Defects and validation
 
-Use one of three comment tags to flag known issues in the code, ordered by urgency:
-
-- `FIXME` — an issue that should block a new release. A release should not ship with an open `FIXME` unless reviewers explicitly agree the change can be merged anyway.
-- `TODO` — an issue that should be fixed soon, once we have the resources.
-- `XXX` — an issue that we may fix someday; lowest priority, no commitment.
-
-Pick the tag that matches the urgency so anyone scanning the code can tell a release blocker from a someday-maybe.
+Repair defects and verify the affected behavior. [AGENTS.md](../AGENTS.md) prohibits debt markers and weakening checks; comments do not grant exceptions. Documentation must describe the implemented system and report verification gaps accurately.
 
 ### Documenting types verbatim (`ts type-equiv`)
 

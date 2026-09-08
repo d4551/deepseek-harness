@@ -11,12 +11,13 @@ import type {
 import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import {
   IconCheckOutline14, IconCloseOutline16, IconEditOutline16, IconPlusOutline16,
-  IconRefreshOutline14, IconTrashOutline16, IconUserOutline16, StateDot, useAnchoredPosition,
+  IconRefreshOutline14, IconTrashOutline16, IconUserOutline16, StateDot, useAnchoredPosition, useDismissOnOutsidePointer,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { NS, type TeamKey } from './locales.ts'
 import { observeTeamActivity } from './observe-team.ts'
+import { TaskForm, type TaskDraft } from './TaskForm.tsx'
 import css from './TeamAction.module.css'
 
 /** Generated Remote result consumed directly by the Team UI. */
@@ -52,14 +53,7 @@ export interface TeamActionInjected {
 export type TeamActionProps =
   PropsRuntime<'conversation.session.header.actions'> & TeamActionInjected & PropsLocale<typeof NS>
 
-interface Draft {
-  subject: string
-  description: string
-  blockers: string
-  scopes: string
-}
-
-const EMPTY_DRAFT: Draft = { subject: '', description: '', blockers: '', scopes: '' }
+const EMPTY_DRAFT: TaskDraft = { subject: '', description: '', blockers: '', scopes: '' }
 
 function items(value: string): string[] {
   return [...new Set(value.split(',').map(item => item.trim()).filter(Boolean))]
@@ -78,8 +72,7 @@ function statusKey(status: TeamTask['status']): TeamKey {
     case 'pending': return 'status.pending'
     case 'in_progress': return 'status.in_progress'
     case 'completed': return 'status.completed'
-    /* v8 ignore next -- Team views omit deleted task tombstones. */
-    case 'deleted': return 'status.completed'
+    case 'deleted': return 'status.deleted'
   }
 }
 
@@ -102,12 +95,14 @@ export function TeamAction({
   const [view, setView] = useState<TeamView | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
-  const [createDraft, setCreateDraft] = useState<Draft>(EMPTY_DRAFT)
+  const [createDraft, setCreateDraft] = useState<TaskDraft>(EMPTY_DRAFT)
   const [editing, setEditing] = useState<string | null>(null)
-  const [editDraft, setEditDraft] = useState<Draft>(EMPTY_DRAFT)
+  const [editDraft, setEditDraft] = useState<TaskDraft>(EMPTY_DRAFT)
   const [pendingTasks, setPendingTasks] = useState<ReadonlySet<string>>(() => new Set())
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  useDismissOnOutsidePointer(rootRef, open, setOpen)
   const panelPosition = useAnchoredPosition({ open, anchorRef: triggerRef, panelRef, gap: 5, margin: 16 })
   const sessionRef = useRef(sessionId)
   const refreshGeneration = useRef(0)
@@ -213,8 +208,6 @@ export function TeamAction({
   const submitCreate = async (): Promise<void> => {
     const subject = createDraft.subject.trim()
     const description = createDraft.description.trim()
-    /* v8 ignore next -- TaskForm disables Save while either normalized field is empty. */
-    if (subject === '' || description === '') return
     const created = await settleTask('create', () => createTask(sessionId, {
       subject,
       description,
@@ -277,7 +270,7 @@ export function TeamAction({
   }
 
   return (
-    <div className={css.root} data-team-action onKeyDown={onKeyDown}>
+    <div ref={rootRef} className={css.root} data-team-action onKeyDown={onKeyDown}>
       <button
         ref={triggerRef}
         type="button"
@@ -428,31 +421,6 @@ export function TeamAction({
           )}
         </div>
       )}
-    </div>
-  )
-}
-
-interface TaskFormProps {
-  draft: Draft
-  setDraft: (draft: Draft) => void
-  pending: boolean
-  onSave: () => void
-  onCancel: () => void
-  t: TeamActionProps['t']
-}
-
-function TaskForm({ draft, setDraft, pending, onSave, onCancel, t }: TaskFormProps) {
-  const field = (key: keyof Draft, value: string): void => { setDraft({ ...draft, [key]: value }) }
-  return (
-    <div className={css.form}>
-      <input value={draft.subject} placeholder={t('subject')} onChange={(event: ChangeEvent<HTMLInputElement>) => { field('subject', event.target.value) }} />
-      <textarea value={draft.description} placeholder={t('description')} onChange={(event: ChangeEvent<HTMLTextAreaElement>) => { field('description', event.target.value) }} />
-      <input value={draft.blockers} placeholder={t('blockers')} onChange={(event: ChangeEvent<HTMLInputElement>) => { field('blockers', event.target.value) }} />
-      <input value={draft.scopes} placeholder={t('scopes')} onChange={(event: ChangeEvent<HTMLInputElement>) => { field('scopes', event.target.value) }} />
-      <div className={css.formActions}>
-        <button type="button" disabled={pending || draft.subject.trim() === '' || draft.description.trim() === ''} onClick={onSave}>{t('save')}</button>
-        <button type="button" disabled={pending} onClick={onCancel}>{t('cancel')}</button>
-      </div>
     </div>
   )
 }

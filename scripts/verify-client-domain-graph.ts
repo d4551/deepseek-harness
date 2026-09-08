@@ -14,8 +14,11 @@
  *   bun x tsx scripts/verify-client-domain-graph.ts
  */
 
-import { globSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { globSync, readFileSync } from 'node:fs'
 import { join, posix, resolve, sep } from 'node:path'
+import { parse, type ParserPlugin } from '@babel/parser'
+import traverse from '@babel/traverse'
+import * as t from '@babel/types'
 
 const root = resolve(import.meta.dirname, '..')
 const CLIENT_DIR = join(root, 'packages/client')
@@ -31,7 +34,6 @@ interface Violation { file: string; imported: string; reason: string }
 function listSources(dir: string): string[] {
   return globSync('**/*.{ts,tsx}', { cwd: dir })
     .map(rel => rel.split(sep).join('/'))
-    .filter(rel => !/\.legacy\./.test(rel.slice(rel.lastIndexOf('/') + 1)))
     .sort()
 }
 
@@ -51,45 +53,68 @@ export function resolveClientImport(file: string, specifier: string): string {
   return posix.normalize(posix.join(posix.dirname(file), specifier))
 }
 
-function checkPackage(pkgName: string, clientDir: string): Violation[] {
+/**
+ * Check complete TypeScript or TSX source against the client domain layers.
+ * @param file - Source path relative to the package's client directory.
+ * @param source - Complete source text; invalid syntax throws.
+ * @returns Disallowed relative module references, including dynamic and type imports.
+ */
+export function clientDomainViolations(file: string, source: string): Violation[] {
   const violations: Violation[] = []
-  const files = listSources(clientDir)
-  for (const rel of files) {
-    const fromDomain = domainOf(rel)
-    const isAssembly = fromDomain === '' && ASSEMBLY_FILES.has(rel)
-    if (isAssembly) continue
-    const source = readFileSync(join(clientDir, rel), 'utf8')
-    for (const match of source.matchAll(/from\s+['"](\.[^'"]+)['"]/g)) {
-      const spec = match[1]
-      if (spec === undefined) continue
-      const target = resolveClientImport(rel, spec)
-      if (target === '..' || target.startsWith('../')) continue // package-level rules govern
-      const toDomain = domainOf(target)
-      if (toDomain === '' || CONTRACT_DIRS.has(toDomain)) continue // top-level shared file or contract layer
-      if (fromDomain === toDomain) continue // inside one domain
-      violations.push({
-        file: `${pkgName}/src/client/${rel}`,
-        imported: spec,
-        reason: fromDomain === ''
-          ? `top-level non-assembly file imports domain "${toDomain}" (only apply/index may assemble)`
-          : `domain "${fromDomain}" imports sibling domain "${toDomain}" (route shared API through contract/)`,
-      })
+  const fromDomain = domainOf(file)
+  const isAssembly = fromDomain === '' && ASSEMBLY_FILES.has(file)
+  const plugins: ParserPlugin[] = ['typescript', 'decorators']
+  if (file.endsWith('.tsx')) plugins.push('jsx')
+  const ast = parse(source, { sourceFilename: file, sourceType: 'unambiguous', plugins })
+  function record(node: t.Node | undefined): void {
+    const spec = t.isStringLiteral(node) ? node.value
+      : t.isTemplateLiteral(node) && node.expressions.length === 0 ? node.quasis[0]?.value.cooked
+        : undefined
+    if (isAssembly || spec === undefined || spec === null || !spec.startsWith('.')) return
+    const target = resolveClientImport(file, spec)
+    if (target === '..' || target.startsWith('../')) return
+    const toDomain = domainOf(target)
+    if (toDomain === '' || CONTRACT_DIRS.has(toDomain) || fromDomain === toDomain) return
+    violations.push({
+      file,
+      imported: spec,
+      reason: fromDomain === ''
+        ? `top-level non-assembly file imports domain "${toDomain}" (only apply/index may assemble)`
+        : `domain "${fromDomain}" imports sibling domain "${toDomain}" (route shared API through contract/)`,
+    })
+  }
+  function call(node: t.CallExpression | t.OptionalCallExpression): void {
+    if (t.isIdentifier(node.callee, { name: 'require' })
+      || ((t.isMemberExpression(node.callee) || t.isOptionalMemberExpression(node.callee))
+        && t.isIdentifier(node.callee.object, { name: 'require' }))) {
+      record(node.arguments[0])
     }
   }
+  traverse(ast, {
+    ImportDeclaration({ node }) { record(node.source) },
+    ExportNamedDeclaration({ node }) { if (node.source !== null) record(node.source) },
+    ExportAllDeclaration({ node }) { record(node.source) },
+    ImportExpression({ node }) { record(node.source) },
+    TSImportType({ node }) { record(node.source) },
+    TSImportEqualsDeclaration({ node }) {
+      if (t.isTSExternalModuleReference(node.moduleReference)) record(node.moduleReference.expression)
+    },
+    CallExpression({ node }) { call(node) },
+    OptionalCallExpression({ node }) { call(node) },
+  })
   return violations
 }
 
 function main(): void {
   const violations: Violation[] = []
-  for (const pkg of readdirSync(CLIENT_DIR)) {
-    const clientDir = join(CLIENT_DIR, pkg, 'src/client')
-    try {
-      if (!statSync(clientDir).isDirectory()) continue
-    } catch {
-      // No client half in this package — nothing to layer-check.
-      continue
+  for (const clientPath of globSync('*/src/client', { cwd: CLIENT_DIR }).sort()) {
+    const clientDir = join(CLIENT_DIR, clientPath)
+    for (const file of listSources(clientDir)) {
+      const source = readFileSync(join(clientDir, file), 'utf8')
+      for (const violation of clientDomainViolations(file, source)) {
+        violations.push({ ...violation, file: `${clientPath}/${file}` })
+      }
     }
-    violations.push(...checkPackage(pkg, clientDir))
   }
 
   if (violations.length > 0) {

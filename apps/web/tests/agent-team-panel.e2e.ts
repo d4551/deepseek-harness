@@ -77,10 +77,11 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
 
     await action.getByRole('button', { name: 'New task' }).click()
     await assertPageAccessibility(page)
-    await action.getByPlaceholder('Task subject').fill('Browser task')
-    await action.getByPlaceholder('Task description').fill('Created through the assembled browser')
-    await action.getByPlaceholder(/Write scopes/iu).fill('src/web')
-    await action.getByRole('button', { name: 'Save' }).click()
+    await action.getByRole('textbox', { name: 'Task subject', exact: true }).fill('Browser task')
+    await action.getByRole('textbox', { name: 'Task description', exact: true }).fill('Created through the assembled browser')
+    await action.getByRole('textbox', { name: /Write scopes/iu }).fill('src/web')
+    await assertPageAccessibility(page)
+    await action.getByRole('textbox', { name: 'Task subject', exact: true }).press('Enter')
     await action.getByText('Browser task').waitFor()
 
     const snapshot = await captureStableAria(page, '[data-team-action]', scaffold.workspaceCwd)
