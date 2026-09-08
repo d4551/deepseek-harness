@@ -90,7 +90,7 @@ describe('Remote event Host source', () => {
     if (buffered) emitRaw(ctx, 'settings/document-updated', ['ui-theme', 2])
     abort.abort(new Error('conversation disconnected between pulls'))
     await expect(iterator.next()).resolves.toEqual({ done: true, value: undefined })
-    expect(() => emitRaw(ctx, 'settings/document-updated', ['ui-theme', 1n])).not.toThrow()
+    expect(() => { emitRaw(ctx, 'settings/document-updated', ['ui-theme', 1n]) }).not.toThrow()
     await ctx.fiber.dispose()
   })
 

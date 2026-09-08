@@ -13,6 +13,7 @@ export default {
   eventReporter: { baseDir: '.artifacts/mutation/events' },
   mutate: [
     'packages/util/*/src/**/*.ts',
+    'packages/api/remotes/src/index.ts',
     'packages/api/session-controller/src/control.ts',
     'packages/api/session-controller/src/client/sessions/manager.ts',
     'packages/api/session-controller/src/client/sessions/list-mutations.ts',

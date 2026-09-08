@@ -10,6 +10,7 @@ export default defineConfig({
     setupFiles: ['./scripts/test-invariants.ts'],
     include: [
       'packages/util/*/tests/**/*.spec.ts',
+      'packages/api/remotes/tests/**/*.spec.ts',
       'packages/api/session-controller/tests/**/*.spec.{ts,tsx}',
       'packages/subagent/agent-team/tests/**/*.spec.ts',
       'packages/client/ui-agent-team/tests/**/*.spec.{ts,tsx}',
