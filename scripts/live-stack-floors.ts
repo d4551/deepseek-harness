@@ -124,9 +124,12 @@ const RAILWAY_FLOOR: SemVer = { major: 3, minor: 11, patch: 0 }
  */
 export const ROOT_DEPENDENCY_FLOORS: Readonly<Record<string, SemVer>> = Object.freeze({
   '@babel/core': { major: 8, minor: 0, patch: 1 },
+  '@babel/parser': { major: 8, minor: 0, patch: 4 },
   '@babel/plugin-proposal-decorators': { major: 8, minor: 0, patch: 2 },
   '@babel/plugin-syntax-jsx': { major: 8, minor: 0, patch: 1 },
   '@babel/preset-typescript': { major: 8, minor: 0, patch: 1 },
+  '@babel/traverse': { major: 8, minor: 0, patch: 4 },
+  '@babel/types': { major: 8, minor: 0, patch: 4 },
   '@stryker-mutator/api': { major: 10, minor: 0, patch: 0 },
   '@stryker-mutator/core': { major: 10, minor: 0, patch: 0 },
   '@stylistic/eslint-plugin': { major: 5, minor: 10, patch: 0 },
@@ -449,6 +452,7 @@ export function toolchainMisses(manifests: readonly { file: string; source: stri
  * this map does not name.
  */
 export const PINNED_PRODUCT_FLOORS: Readonly<Record<string, SemVer>> = Object.freeze({
+  '@axe-core/playwright': AXE_FLOOR,
   '@agentclientprotocol/sdk': { major: 1, minor: 4, patch: 0 },
   '@types/ws': { major: 8, minor: 18, patch: 1 },
   '@anthropic-ai/claude-agent-sdk': { major: 0, minor: 3, patch: 259 },

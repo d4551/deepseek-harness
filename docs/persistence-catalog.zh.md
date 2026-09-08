@@ -785,7 +785,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 类型：[TeamId](subsystems/agent-team.zh.md) · [TeamMemberSnapshot](subsystems/agent-team.zh.md)
 
-来源：[`packages/subagent/agent-team/src/types.ts:223`](../packages/subagent/agent-team/src/types.ts)
+来源：[`packages/subagent/agent-team/src/types.ts:248`](../packages/subagent/agent-team/src/types.ts)
 
 <a id="teammessagedelivered--log-only"></a>
 
@@ -803,7 +803,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 类型：[TeamId](subsystems/agent-team.zh.md) · [TeamMessageId](subsystems/agent-team.zh.md)
 
-来源：[`packages/subagent/agent-team/src/types.ts:229`](../packages/subagent/agent-team/src/types.ts)
+来源：[`packages/subagent/agent-team/src/types.ts:254`](../packages/subagent/agent-team/src/types.ts)
 
 <a id="teammessagequeued--log-only"></a>
 
@@ -816,7 +816,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 类型：[TeamId](subsystems/agent-team.zh.md) · [TeamMessageSnapshot](subsystems/agent-team.zh.md)
 
-来源：[`packages/subagent/agent-team/src/types.ts:227`](../packages/subagent/agent-team/src/types.ts)
+来源：[`packages/subagent/agent-team/src/types.ts:252`](../packages/subagent/agent-team/src/types.ts)
 
 <a id="teamtask--log-only"></a>
 
@@ -829,7 +829,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 类型：[TeamId](subsystems/agent-team.zh.md) · [TeamTaskSnapshot](subsystems/agent-team.zh.md)
 
-来源：[`packages/subagent/agent-team/src/types.ts:225`](../packages/subagent/agent-team/src/types.ts)
+来源：[`packages/subagent/agent-team/src/types.ts:250`](../packages/subagent/agent-team/src/types.ts)
 
 ### `todo/*`
 
@@ -1066,7 +1066,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'web/deepseek-search-llm-request': DeepSeekSearchLlmRequest
 ```
 
-来源：[`packages/web/web-search-deepseek/src/provider.ts:83`](../packages/web/web-search-deepseek/src/provider.ts)
+来源：[`packages/web/web-search-deepseek/src/provider.ts:80`](../packages/web/web-search-deepseek/src/provider.ts)
 
 ### `workspace/*`
 

@@ -90,6 +90,7 @@ export function validatePresetId(value: string, field: 'agentPreset' | 'from'): 
  * @param error - the rejection a roster operation produced, whatever it threw.
  * @param agentPreset - the preset id the operation was about.
  * @param internalMessage - the message for a rejection outside the preset vocabulary.
+ * @returns never; this operation always throws.
  * @throws {TypertRemoteFailure} always.
  */
 export function rejectPreset(error: Thrown, agentPreset: string, internalMessage: string): never {

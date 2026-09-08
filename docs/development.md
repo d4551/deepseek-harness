@@ -96,6 +96,20 @@ bun run build
 
 `knip.json` excludes knip's `duplicates` issue type, because a Cordis plugin module exports its Service class by name and as `default` and knip counts that as one binding under two names. `bun run verify-duplicate-exports`, also in the hygiene lane, runs that same detector and classifies what it reports: the plugin convention and the file-scoped aliases named in `scripts/knip-duplicate-exports.ts` pass, and any other module exporting one binding under two names fails.
 
+### Source analysis
+
+Use Babel's package-managed parser, traversal and node guards for syntax rules. The [TypeScript import auditor](../scripts/typescript-module-imports.ts) checks static imports, re-exports, literal module loads and import types, including escaped specifiers. It parses every supplied file in memory and rejects malformed syntax. Babel does not resolve cross-file types.
+
+For symbols and types, select the owning TypeScript project explicitly:
+
+```sh
+bun run analyze:typescript tsconfig.host.json scripts/typescript-semantics.ts
+```
+
+The command writes JSON containing identifier offsets, resolved symbol names, original declaration locations, inferred types and compiler diagnostics. Imported aliases follow re-export chains to their definitions. Type names use the spelling visible at the reference. Missing symbols and error types appear as `null`; compiler errors produce exit status 1. Offsets are zero-based UTF-16 positions. Files outside the selected project are rejected. This report covers the selected file; `bun run typecheck` checks both complete aggregates.
+
+The [semantic analyzer](../scripts/typescript-semantics.ts) uses the installed TypeScript 7 `project.checker` API and closes its compiler process after each report. Its [integration tests](../scripts/typescript-semantics.spec.ts) verify cross-file aliases, generic inference, unresolved imports and type errors. The [Compiler API wiki](https://github.com/microsoft/TypeScript/wiki/Using-the-Compiler-API) describes TypeScript 6 and earlier; use the installed `typescript/unstable/sync` declarations for TypeScript 7 signatures.
+
 ### Environment variables
 
 The real DeepSeek adapter and key-backed agent demos read credentials from the environment or from a gitignored `.env` at the repo root:

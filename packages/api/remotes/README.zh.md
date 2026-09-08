@@ -29,7 +29,7 @@ kind: "package-reference"
 
 Client 组合挂载 Commands、凭据、settings、Goal、动态 Cordis、文件与 Session 引用、只读 Host 插件清单、消息反馈、Session Controller 和 Workspace Controller contribution。该组合卸载时，Cordis effect 的所有权机制会撤回所有贡献；`@deepseek-ai/dsh-api-gateway/client` 负责描述符校验、可追踪 namespace Service、直接与作用域方法、调用、流与取消。Client 入口通过 Cordis 消费共享的 `TypertClientRemote` 接口，不导入具体 Gateway；它只以 type-only 形式重新导出 Gateway Client face 的声明合并，因此消费端经由本外观取到转发事件词汇时，运行时不会多出一条通往 Gateway 实现的边。
 
-本包不拥有物理传输或 Host 服务发现。它只把应用选择投影为生成的 Remote contribution 和唯一的 Host Cordis event source；API Gateway 负责 endpoint、carrier、取消与重连。Web 或未来的 TUI 只要提供同一份不依赖 React 的 `ctx.remote` 约定，均可复用其 Client face。
+本包不拥有物理传输或 Host 服务发现。它把应用选择投影为生成的 Remote contribution，并为每个 Client 提供独立的 Host event source；API Gateway 负责 endpoint、carrier、取消与重连。Web 或未来的 TUI 只要提供同一份不依赖 React 的 `ctx.remote` 约定，均可复用其 Client face。
 
 -----
 
@@ -68,7 +68,7 @@ Host entry 为每条 Client stream 独立注册 allowlist listener 和队列，�
 
 - 能力集合由构建时显式导入的值固定确定；Client 不会在运行时发现 Host 中已启用的服务或 Remote 定义。
 - 若要增加能力，必须显式导入相应的 `/remote` 值并在此组合中挂载。
-- 只有仍在等待的作用域 waterfall 会在重连后重放；单向通知仍是相互隔离的 best-effort 投递。
+- 待处理的作用域 waterfall 会向替换后的 Client generation 重放。普通转发事件不重放；需要可靠恢复的状态必须由其所属模块提供 query、cursor 或 opening baseline。
 
 
 <a id="dev-note"></a>

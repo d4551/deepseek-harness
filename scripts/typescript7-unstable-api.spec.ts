@@ -75,6 +75,12 @@ describe('mandated typescript 7 compiler API', () => {
     ['const ts = require(`typescript`)', 1],
     ["const ts = createRequire(import.meta.url)('typescript')", 1],
     ["import { x } from 'typescript/unstable/../lib/typescript.js'", 1],
+    [String.raw`import ts from '\u0074ypescript'`, 1],
+    ["import ts = require('typescript')", 1],
+    ["type Compiler = import('typescript').Compiler", 1],
+    ["require?.('typescript')", 1],
+    ["export * as compiler from 'typescript'", 1],
+    ["import { version as installed } from 'typescript'", 0],
     // `'typescript'` is also an LSP languageId; a value is not a module load.
     ["expect(runtime.language).toBe('typescript')", 0],
   ])('classifies %j as %i violation(s)', (text, expected) => {
@@ -82,18 +88,18 @@ describe('mandated typescript 7 compiler API', () => {
   })
 
   it('keeps the 6.0 Strada compiler API out of every tracked source file', () => {
-    // Parsed, not grepped: the receiver is an arbitrary alias, a clause may span
-    // lines, and the specifier may carry a subpath, so no pattern over the text
-    // can be complete. `.cjs` and `.jsx` are in scope because no tsconfig sets
-    // `allowJs`, which leaves this the only check those files get.
     const listed = spawnSync('git', [
       'ls-files', '--',
       '*.ts', '*.tsx', '*.mts', '*.cts', '*.js', '*.mjs', '*.cjs', '*.jsx',
-      ':(exclude)scripts/typescript7-unstable-api.spec.ts',
     ], { cwd: root, encoding: 'utf8' })
+    expect(listed.status).toBe(0)
     const files = listed.stdout.split('\n').filter(entry => entry !== '')
     expect(files.length).toBeGreaterThan(2000)
     expect(typescriptImportViolationsForPaths(root, files)).toEqual([])
+  })
+
+  it('rejects malformed source before classifying module references', () => {
+    expect(() => typescriptImportViolations([{ file: 'broken.ts', text: 'const =' }])).toThrow()
   })
 
   it('keeps the 6.0 Strada compatibility package out of the tree', () => {

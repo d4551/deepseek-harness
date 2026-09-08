@@ -27,7 +27,9 @@ kind: "package-reference"
 
 每个 endpoint 都声明自己的激活策略。列表、搜索、附件、历史页、日志跟随、skill 发现和工作区路径打开可以在不激活 Agent 的情况下检查 persistence；`canOpenWorkspacePath()` 无需指定 Session 即可报告原生打开能力。queue 变更与取消要求 live 状态；模型、重命名、prompt 和文件引用操作可以解析或恢复普通 Session。只有 create 与 fork 会直接创建新 Agent。skill 目录则优先使用已有 live Agent，否则使用所记录 preset 的常驻 scope，因此列表查询绝不会启动 Agent。
 
-Client adapter 提供 `SessionEventStream`，即绑定到一个普通 Session 或 direct subagent address 的 Gateway `RemoteJournalStream`。它在读取首个 page 前打开 follow，只发布连续的 `replace`、`prepend` 和 `append` 变更，并通过 tail page 修复重连或 seq 缺口。普通 record 覆盖 `[event.seq, event.seq]`，packed row 覆盖 `[event.seq, event.seq + memberCount - 1]`。业务、persistence 或无法恢复的连续性错误会终止 stream，只有物理载体断开才触发自动恢复。`SessionControlStream` 是 Gateway `RemoteSnapshotStream`；每代都以完整的进程本地 baseline 开始，因此重连会替换 queue、jobs 和 projection 状态，而不会把瞬态值当作 durable event。
+`SessionEventStream` 将 Gateway `RemoteJournalStream` 绑定到一个普通 Session 或 direct subagent address。每代 follow 都携带 opening snapshot；seq 缺口会触发 tail-page 读取。stream 只发布连续的 `replace`、`prepend` 和 `append` 变更。普通 record 覆盖 `[event.seq, event.seq]`，packed row 覆盖 `[event.seq, event.seq + memberCount - 1]`。业务、persistence 或无法恢复的连续性错误会终止 stream，物理载体断开则触发自动恢复。`SessionControlStream` 每代都以包含 queue、jobs 和 projection 的完整进程本地 baseline 开始。
+
+Client session manager 保留从目录选中的子会话的 direct-parent address，因此 worker 脱离后仍可访问其 durable conversation。成员变更会刷新选中子会话的同级目录及已打开的分支。重复且未改变内容的 summary 事件保留列表 snapshot；running 到 idle 的转换仍会更新完成提醒。销毁会取消其拥有的读取，并等待待处理操作和驻留 session 完成清理。
 
 Session 对象还承载本地提交回显：`session.beginSubmission` 在调用方序列化与 prompt 之前，同步把一条回显写入 `SessionSnapshot.pendingSubmissions`，会话 UI 因此能在点击提交的当帧显示消息。prompt 的 `requestId` 就是关联标识，Host 本就把它回显为 durable user source 的 `rpcId`，queue occurrence 也把它投影为 `SessionQueuedItem.rpcId`。回显在观察到其 durable event 或 queue occurrence 后延迟一个动画帧退休（该延迟保证 transcript 节点可渲染之前回显仍在），带标识的 prompt 失败或被放弃时立即退休，销毁时按 failed 退休；每次退休恰好触发一次注册的 `onRetire` 回调。回显只存在于 Client 内存，刷新与重连只从 durable event 重建会话。
 

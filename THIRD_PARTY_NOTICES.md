@@ -146,6 +146,9 @@ External packages **directly declared** only by repository tooling, test infrast
 | Package | License |
 | --- | --- |
 | [`@axe-core/playwright`](https://github.com/dequelabs/axe-core-npm) | MPL-2.0 |
+| [`@babel/parser`](https://github.com/babel/babel) | MIT |
+| [`@babel/traverse`](https://github.com/babel/babel) | MIT |
+| [`@babel/types`](https://github.com/babel/babel) | MIT |
 | [`@braintree/sanitize-url`](https://github.com/braintree/sanitize-url) | MIT |
 | [`@lexical/headless`](https://github.com/facebook/lexical) | MIT |
 | [`@modelcontextprotocol/server-everything`](https://github.com/modelcontextprotocol/servers) | MIT / Apache-2.0 |

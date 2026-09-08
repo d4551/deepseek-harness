@@ -783,7 +783,7 @@ Source: [`packages/subagent/tool-subagent/src/model-selection-state.ts:14`](../p
 
 Types: [TeamId](subsystems/agent-team.md) · [TeamMemberSnapshot](subsystems/agent-team.md)
 
-Source: [`packages/subagent/agent-team/src/types.ts:245`](../packages/subagent/agent-team/src/types.ts)
+Source: [`packages/subagent/agent-team/src/types.ts:248`](../packages/subagent/agent-team/src/types.ts)
 
 <a id="teammessagedelivered--log-only"></a>
 
@@ -801,7 +801,7 @@ Source: [`packages/subagent/agent-team/src/types.ts:245`](../packages/subagent/a
 
 Types: [TeamId](subsystems/agent-team.md) · [TeamMessageId](subsystems/agent-team.md)
 
-Source: [`packages/subagent/agent-team/src/types.ts:251`](../packages/subagent/agent-team/src/types.ts)
+Source: [`packages/subagent/agent-team/src/types.ts:254`](../packages/subagent/agent-team/src/types.ts)
 
 <a id="teammessagequeued--log-only"></a>
 
@@ -814,7 +814,7 @@ Source: [`packages/subagent/agent-team/src/types.ts:251`](../packages/subagent/a
 
 Types: [TeamId](subsystems/agent-team.md) · [TeamMessageSnapshot](subsystems/agent-team.md)
 
-Source: [`packages/subagent/agent-team/src/types.ts:249`](../packages/subagent/agent-team/src/types.ts)
+Source: [`packages/subagent/agent-team/src/types.ts:252`](../packages/subagent/agent-team/src/types.ts)
 
 <a id="teamtask--log-only"></a>
 
@@ -827,7 +827,7 @@ Source: [`packages/subagent/agent-team/src/types.ts:249`](../packages/subagent/a
 
 Types: [TeamId](subsystems/agent-team.md) · [TeamTaskSnapshot](subsystems/agent-team.md)
 
-Source: [`packages/subagent/agent-team/src/types.ts:247`](../packages/subagent/agent-team/src/types.ts)
+Source: [`packages/subagent/agent-team/src/types.ts:250`](../packages/subagent/agent-team/src/types.ts)
 
 ### `todo/*`
 
@@ -1064,7 +1064,7 @@ Source: [`packages/core/session/src/types.ts:249`](../packages/core/session/src/
 'web/deepseek-search-llm-request': DeepSeekSearchLlmRequest
 ```
 
-Source: [`packages/web/web-search-deepseek/src/provider.ts:83`](../packages/web/web-search-deepseek/src/provider.ts)
+Source: [`packages/web/web-search-deepseek/src/provider.ts:80`](../packages/web/web-search-deepseek/src/provider.ts)
 
 ### `workspace/*`
 

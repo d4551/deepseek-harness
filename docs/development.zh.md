@@ -100,6 +100,22 @@ bun run build
 
 `knip.json` 排除了 knip 的 `duplicates` 问题类型，因为 Cordis 插件模块既按名字导出其 Service 类，又将其作为 `default` 导出，而 knip 会把这算作同一个绑定的两个名字。同在 hygiene 通道中的 `bun run verify-duplicate-exports` 会运行同一个检测器并对其报告分类：插件约定以及 `scripts/knip-duplicate-exports.ts` 中按文件列名的别名通过，任何其他把一个绑定用两个名字导出的模块都会失败。
 
+<a id="source-analysis"></a>
+
+### 源码分析
+
+语法规则使用包管理的 Babel parser、遍历工具与节点守卫。[TypeScript 导入审计器](../scripts/typescript-module-imports.ts)检查静态导入、重新导出、字面量模块加载和导入类型，包括转义模块名。它在内存中解析所有指定文件，并拒绝错误语法。Babel 不解析跨文件类型。
+
+分析符号与类型时，请显式选择所属的 TypeScript project：
+
+```sh
+bun run analyze:typescript tsconfig.host.json scripts/typescript-semantics.ts
+```
+
+该命令输出 JSON，包含标识符偏移量、解析后的符号名、原始声明位置、推断类型和编译器诊断。导入别名沿重新导出链解析到定义。类型名使用引用位置可见的名称。缺失符号和错误类型显示为 `null`；编译器错误使退出状态为 1。偏移量是从零开始的 UTF-16 位置。不属于所选 project 的文件会被拒绝。报告覆盖所选文件；`bun run typecheck` 检查两个完整的 aggregate。
+
+[语义分析器](../scripts/typescript-semantics.ts)使用已安装 TypeScript 7 的 `project.checker` API，每次生成报告后关闭编译器进程。[集成测试](../scripts/typescript-semantics.spec.ts)验证跨文件别名、泛型推断、未解析导入和类型错误。[Compiler API wiki](https://github.com/microsoft/TypeScript/wiki/Using-the-Compiler-API)介绍 TypeScript 6 及更早版本；TypeScript 7 的签名请以已安装的 `typescript/unstable/sync` 声明为准。
+
 ### 环境变量
 
 真实的 DeepSeek 适配器和需要密钥的 agent 演示从环境变量或仓库根目录一个被 gitignore 的 `.env` 文件读取凭证：

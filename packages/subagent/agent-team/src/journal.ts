@@ -67,17 +67,13 @@ export class TeamJournal {
   /**
    * Append and checkpoint one root-owned Team event before publication.
    *
-   * `append` commits to the session's authoritative in-memory log and `flush`
-   * is the durability boundary, which is the seam's ordering everywhere. A
-   * rejected flush therefore reaches the caller with the event already folded
-   * into Team state: the operation is visible to this process and will not
-   * survive a restart, and `onCommit` does not run, so nothing downstream
-   * observes it as committed.
-   * @param root - exact live Lead whose Session owns the event.
-   * @param type - Team event discriminant.
-   * @param data - payload correlated with the event type.
+   * If flush rejects, the event remains in the in-memory log, its durability
+   * is unconfirmed, and `onCommit` is not called.
+   * @param event - exact live Lead, Team event type, and its correlated payload.
+   * @returns after the flush and commit notification succeed.
    */
-  async appendAndFlush(...[root, type, data]: TeamAppend): Promise<void> {
+  async appendAndFlush(...event: TeamAppend): Promise<void> {
+    const [root, type, data] = event
     root.session.append<TeamEventType>(type, data)
     await this.ctx.sessions.flush(root.session)
     this.onCommit(root)

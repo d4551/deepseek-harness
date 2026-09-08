@@ -68,7 +68,7 @@ No direct effect; mounted Host capabilities own any model-visible behavior they 
 
 - The capability set is fixed by explicit build-time value imports; the Client does not discover the Host's active Services or Remote definitions at runtime.
 - Additional capabilities require an explicit `/remote` value import and mount in this assembly.
-- Ordinary forwarded events are not replayed; state that requires reliable recovery needs an owner-provided query, cursor, or opening baseline.
+- Pending scoped waterfalls replay to a replacement Client generation. Ordinary forwarded events are not replayed; state that requires reliable recovery needs an owner-provided query, cursor, or opening baseline.
 
 
 <a id="dev-note"></a>
