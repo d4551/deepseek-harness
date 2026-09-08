@@ -10,6 +10,8 @@
  */
 import axe from 'axe-core'
 import type { ElementContext, Result, RunOptions } from 'axe-core'
+import { completePopupReviews } from './popup-review.ts'
+import type { CompletedPopupReview } from './popup-review.ts'
 
 /**
  * Rule tags every audited client surface is held to: WCAG 2.0/2.1/2.2 levels A
@@ -47,6 +49,8 @@ export interface SurfaceAudit {
   readonly undecidedRules: readonly string[]
   /** Unresolved checks with axe's diagnostic data and affected nodes. */
   readonly incomplete: readonly Result[]
+  /** Native DOM evidence for completed popup-reference reviews; raw axe results remain intact. */
+  readonly completedReviews: readonly CompletedPopupReview[]
 }
 
 /** Total nodes across a rule result list. */
@@ -66,6 +70,7 @@ export function clientAxeRunOptions(): RunOptions {
     rules[rule.ruleId] = { enabled: true }
   }
   return {
+    elementRef: true,
     runOnly: { type: 'tag', values: [...CLIENT_AXE_TAGS] },
     resultTypes: ['violations', 'incomplete', 'passes'],
     rules,
@@ -89,6 +94,7 @@ export async function auditSurface(surface: string, context: ElementContext): Pr
     undecided: nodeCount(results.incomplete),
     undecidedRules: results.incomplete.map(result => result.id),
     incomplete: results.incomplete,
+    completedReviews: completePopupReviews(results.incomplete),
   }
 }
 
@@ -129,9 +135,10 @@ export function accessibilityFailures(audits: readonly SurfaceAudit[], minScore:
   if (silent.length > 0) return `${silent.join(', ')} decided no checks`
   const violations = audits.map(formatViolations).filter(text => text !== '').join('\n')
   if (violations !== '') return violations
-  const incomplete = audits.filter(audit => audit.undecided > 0)
+  const incomplete = audits.filter(audit => audit.undecided > audit.completedReviews.length)
     .map((audit) => {
-      const reasons = audit.incomplete.flatMap(result => result.nodes.map(node =>
+      const reasons = audit.incomplete.flatMap(result => result.nodes.filter(node =>
+        !audit.completedReviews.some(review => review.rule === result.id && review.node === node)).map(node =>
         `${result.id} at ${node.target.join(' ')}: ${node.failureSummary ?? result.help}`)).join('\n')
       return `${audit.surface}: unresolved checks (${audit.undecidedRules.join(', ')})${reasons === '' ? '' : `\n${reasons}`}`
     }).join('\n')

@@ -25,7 +25,7 @@ With `dsh-web-fetch-http`, the harness can fetch public HTTP(S) pages through th
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount the provider in a composition that already loads the web service; it registers as the `http` fetch provider, so `ctx.web.fetch()` resolves it automatically when it is the only usable fetch backend — or pin it with `fetchProvider: http`.
+Mount the provider in a composition that already loads the web and settings services; it registers as the `http` fetch provider, so `ctx.web.fetch()` resolves it automatically when it is the only usable fetch backend — or pin it with `fetchProvider: http`.
 
 ### When to choose it
 
@@ -33,7 +33,7 @@ Choose this backend when a deployment must fetch public pages with bounded outpu
 
 ### Minimal configuration
 
-Load the web service and the provider; configurable limits have safe defaults and validate at plugin construction, so an invalid value fails loudly instead of building a provider with nonsensical caps. The URL security limit is fixed at 2,048 characters.
+With a settings provider loaded, load the web service and the provider. Persisted settings resolve above composition values before provider construction; saved changes apply after restart or remount. Resource limits validate at construction. The URL security limit is fixed at 2,048 characters.
 
 ```yaml
 - name: '@deepseek-ai/dsh-web'
@@ -108,7 +108,7 @@ A fetch validates the URL, resolves the hostname once, rejects the complete answ
 Read these pages when the package-level contract is not enough. They move from the shared vocabulary to the service, the model-facing tools, and the design rationale.
 
 - [Web subsystem](../../../docs/subsystems/web.md) — the exhaustive fetch request/result vocabulary and error codes.
-- [Web package map](../README.md) — the six-package family and each role.
+- [Web package map](../README.md) — the seven-package family and each role.
 - [dsh-web](../web/README.md) — the web service this provider registers into.
 - [dsh-tool-web](../tool-web/README.md) — the model-facing `web_fetch` tool that renders this provider's bodies.
 - [Generated configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-web-fetch-http) — every accepted config field and its source declaration.

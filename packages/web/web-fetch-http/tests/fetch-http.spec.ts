@@ -6,6 +6,7 @@ import WebRuntime from '@deepseek-ai/dsh-web'
 import { HttpFetchProvider, LOCAL_FETCH_PROVIDER_ID } from '@deepseek-ai/dsh-web-fetch-http'
 import type { HttpFetchLimits, HttpFetchResolver } from '@deepseek-ai/dsh-web-fetch-http'
 import * as fetchPlugin from '@deepseek-ai/dsh-web-fetch-http'
+import { MemorySettings } from './settings-provider.ts'
 import { createPinnedLookup, isPublicIpAddress, publicHttpNetwork, requestPinned, resolvePublicAddresses } from '../src/network.ts'
 import {
   classifyContentType,
@@ -572,6 +573,7 @@ describe('HttpFetchProvider body cancellation on error paths', () => {
 describe('web-fetch-http plugin registration', () => {
   it('registers the provider into ctx.web (HMR-safe)', async () => {
     const ctx = new Context()
+    await ctx.plugin(MemorySettings)
     await ctx.plugin(WebRuntime, { fetchProvider: LOCAL_FETCH_PROVIDER_ID })
     const fiber = await ctx.plugin(fetchPlugin, {})
     await expect(ctx.web.fetch({ url: `${base}/` }))
@@ -587,6 +589,7 @@ describe('web-fetch-http plugin registration', () => {
 
   it('rejects a non-positive resource limit at construction', async () => {
     const ctx = new Context()
+    await ctx.plugin(MemorySettings)
     await ctx.plugin(WebRuntime, { fetchProvider: LOCAL_FETCH_PROVIDER_ID })
     await expect(ctx.plugin(fetchPlugin, { maxResponseBytes: -1 }))
       .rejects.toThrow(/maxResponseBytes must be a positive finite number/)
@@ -594,6 +597,7 @@ describe('web-fetch-http plugin registration', () => {
 
   it('rejects a zero timeout at construction', async () => {
     const ctx = new Context()
+    await ctx.plugin(MemorySettings)
     await ctx.plugin(WebRuntime, { fetchProvider: LOCAL_FETCH_PROVIDER_ID })
     await expect(ctx.plugin(fetchPlugin, { timeoutMs: 0 }))
       .rejects.toThrow(/timeoutMs must be a positive finite number/)
@@ -601,6 +605,7 @@ describe('web-fetch-http plugin registration', () => {
 
   it('rejects a timeout beyond Node timer range at construction', async () => {
     const ctx = new Context()
+    await ctx.plugin(MemorySettings)
     await ctx.plugin(WebRuntime, { fetchProvider: LOCAL_FETCH_PROVIDER_ID })
     await expect(ctx.plugin(fetchPlugin, { timeoutMs: 2_147_483_648 }))
       .rejects.toThrow(/timeoutMs must be no greater than 2147483647/)
@@ -608,6 +613,7 @@ describe('web-fetch-http plugin registration', () => {
 
   it('rejects a fractional redirect cap at construction', async () => {
     const ctx = new Context()
+    await ctx.plugin(MemorySettings)
     await ctx.plugin(WebRuntime, { fetchProvider: LOCAL_FETCH_PROVIDER_ID })
     await expect(ctx.plugin(fetchPlugin, { maxRedirects: 1.5 }))
       .rejects.toThrow(/maxRedirects must be a non-negative integer/)
@@ -615,6 +621,7 @@ describe('web-fetch-http plugin registration', () => {
 
   it('rejects a negative redirect cap at construction', async () => {
     const ctx = new Context()
+    await ctx.plugin(MemorySettings)
     await ctx.plugin(WebRuntime, { fetchProvider: LOCAL_FETCH_PROVIDER_ID })
     await expect(ctx.plugin(fetchPlugin, { maxRedirects: -1 }))
       .rejects.toThrow(/maxRedirects must be a non-negative integer/)
@@ -622,10 +629,40 @@ describe('web-fetch-http plugin registration', () => {
 
   it('accepts maxRedirects: 0 (follow no redirects) as valid config', async () => {
     const ctx = new Context()
+    await ctx.plugin(MemorySettings)
     await ctx.plugin(WebRuntime, { fetchProvider: LOCAL_FETCH_PROVIDER_ID })
     const fiber = await ctx.plugin(fetchPlugin, { maxRedirects: 0 })
     await expect(ctx.web.fetch({ url: `${base}/` }))
       .resolves.toMatchObject({ statusCode: 200 })
     await fiber.dispose()
+  })
+
+  it('applies persisted character caps and user agent after remount', async () => {
+    const ctx = new Context()
+    await ctx.plugin(MemorySettings)
+    await ctx.plugin(WebRuntime, { fetchProvider: LOCAL_FETCH_PROVIDER_ID })
+    let seenUserAgent: string | undefined
+    handler = (req, res) => {
+      seenUserAgent = req.headers['user-agent']
+      res.writeHead(200, { 'content-type': 'text/plain' })
+      res.end('abcdefghij')
+    }
+    const initial = await ctx.plugin(fetchPlugin, { maxBodyChars: 10, userAgent: 'initial-agent' })
+    await ctx.settings.update(fetchPlugin.WEB_FETCH_HTTP_SETTINGS_NAMESPACE, {
+      maxBodyChars: 3,
+      userAgent: 'saved-agent',
+    })
+    const before = await ctx.web.fetch({ url: base })
+    expect(before.body.content).toBe('abcdefghij')
+    expect(before.truncated).toBe(false)
+    expect(seenUserAgent).toBe('initial-agent')
+    await initial.dispose()
+    const remounted = await ctx.plugin(fetchPlugin, { maxBodyChars: 10, userAgent: 'initial-agent' })
+    const after = await ctx.web.fetch({ url: base })
+    expect(after.body.content).toBe('abc')
+    expect(after.truncated).toBe(true)
+    expect(seenUserAgent).toBe('saved-agent')
+    await remounted.dispose()
+    await ctx.dispose()
   })
 })

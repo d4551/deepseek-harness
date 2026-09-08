@@ -25,7 +25,7 @@ function violation(id: string, help: string, targets: string[][], impact?: Resul
 }
 
 function audit(surface: string, over: Partial<SurfaceAudit> = {}): SurfaceAudit {
-  return { surface, violations: [], passed: 0, failed: 0, undecided: 0, undecidedRules: [], incomplete: [], ...over }
+  return { surface, violations: [], passed: 0, failed: 0, undecided: 0, undecidedRules: [], incomplete: [], completedReviews: [], ...over }
 }
 
 describe('accessibilityScore', () => {

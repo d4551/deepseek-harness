@@ -10,6 +10,39 @@ afterEach(() => {
 })
 
 describe('auditSurface against axe-core', () => {
+  it.each(['visible', 'missing-id', 'wrong-role', 'hidden-popup', 'duplicate-id'])('verifies popup references: %s', async (state) => {
+    const main = document.createElement('main')
+    const trigger = document.createElement('button')
+    trigger.textContent = 'Choose action'
+    trigger.setAttribute('aria-haspopup', 'menu')
+    trigger.setAttribute('aria-expanded', 'true')
+    trigger.setAttribute('aria-controls', 'actions')
+    const popup = document.createElement('div')
+    popup.id = state === 'missing-id' ? 'other-actions' : 'actions'
+    popup.setAttribute('role', state === 'wrong-role' ? 'group' : 'menu')
+    popup.setAttribute('aria-label', 'Actions')
+    popup.hidden = state === 'hidden-popup'
+    const item = document.createElement('button')
+    item.textContent = 'Open'
+    item.setAttribute('role', 'menuitem')
+    popup.append(item)
+    main.append(trigger, popup)
+    if (state === 'duplicate-id') main.append(popup.cloneNode(true))
+    document.body.append(main)
+    const audit = await auditSurface(`popup-${state}`, main)
+    expect(audit.incomplete.some(result => result.id === 'aria-valid-attr-value')).toBe(true)
+    if (state === 'visible') {
+      expect(audit.completedReviews).toHaveLength(1)
+      expect(audit.completedReviews[0]).toMatchObject({
+        rule: 'aria-valid-attr-value', controlledIds: ['actions'], popupRole: 'menu', expanded: true,
+      })
+      expect(accessibilityFailures([audit], 100)).toBe('')
+    } else {
+      expect(audit.completedReviews).toEqual([])
+      expect(accessibilityFailures([audit], 100)).not.toBe('')
+    }
+  })
+
   it('fails a control with no accessible name', async () => {
     const main = document.createElement('main')
     const control = document.createElement('button')
