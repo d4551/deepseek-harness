@@ -6,8 +6,7 @@ import { TeamError } from './error.ts'
 import type { TeamFoldState } from './fold.ts'
 import type { TeamJournal } from './journal.ts'
 import { resolveActiveMember } from './roster.ts'
-import { assertTaskGraphCandidate, TeamTaskGraphError } from './task-graph.ts'
-import type { TeamTaskGraphViolation } from './task-graph.ts'
+import { assertTaskGraphCandidate } from './task-graph.ts'
 import { TeamId, TeamTaskId } from './types.ts'
 import type {
   ClaimNextTeamTaskResult,
@@ -21,12 +20,6 @@ import { requiredText, writeScope } from './validation.ts'
 /** Whether two normalized file or directory prefixes overlap on path components. */
 function scopesOverlap(left: string, right: string): boolean {
   return left === right || left.startsWith(`${right}/`) || right.startsWith(`${left}/`)
-}
-
-const TASK_GRAPH_ERROR_CODES: Record<TeamTaskGraphViolation, string> = {
-  missing: 'TEAM_TASK_NOT_FOUND',
-  duplicate: 'TEAM_INVALID_ARGUMENT',
-  cycle: 'TEAM_TASK_DEPENDENCY_CYCLE',
 }
 
 /** Owns Team task limits, authorization, transitions, and derived views. */
@@ -70,7 +63,7 @@ export class TeamTaskBoard {
         blockedBy: this.dependencies(request.blockedBy ?? [], state),
         writeScopes: this.writeScopes(request.writeScopes ?? []),
       }
-      this.assertTaskGraph(state, task)
+      assertTaskGraphCandidate(state.tasks, task)
       await this.journal.appendAndFlush(root, 'team/task', { version: 1, teamId: TeamId(root.id), task })
       return this.taskView(root, state, task)
     })
@@ -259,7 +252,6 @@ export class TeamTaskBoard {
           next = { ...current, status: 'deleted' }
           break
         }
-        /* v8 ignore next 2 -- TeamTaskAction is closed and every member is handled above. */
         default:
           throw new TeamError(`unsupported task action ${String(request.action)}`, 'TEAM_INVALID_ARGUMENT')
       }
@@ -267,7 +259,7 @@ export class TeamTaskBoard {
         ...next,
         revision: current.revision + 1,
       }
-      this.assertTaskGraph(state, task)
+      assertTaskGraphCandidate(state.tasks, task)
       // The write-scope exclusion is decided here, at the commit that leaves a
       // task in progress, so `claim`, `reassign`, and a scope-widening `edit`
       // are bound by it exactly as `claimNextReady` is.
@@ -301,17 +293,6 @@ export class TeamTaskBoard {
   /** Normalize and de-duplicate task write scopes. */
   private writeScopes(values: readonly string[]): string[] {
     return [...new Set(values.map(writeScope))]
-  }
-
-  /** Map shared task-graph validation onto stable command error codes. */
-  private assertTaskGraph(state: TeamFoldState, candidate: TeamTaskSnapshot): void {
-    try {
-      assertTaskGraphCandidate(state.tasks, candidate)
-    } catch (error: unknown) {
-      /* v8 ignore next -- the shared validator is the only statement in the try and throws this exact error. */
-      if (!(error instanceof TeamTaskGraphError)) throw error
-      throw new TeamError(error.message, TASK_GRAPH_ERROR_CODES[error.violation], { cause: error })
-    }
   }
 
   /**

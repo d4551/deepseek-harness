@@ -1,14 +1,13 @@
-- button "Agent Team" [expanded]:
-  - img
-  - text: Agent Team
 - dialog "Agent Team":
   - heading "Agent Team" [level=2]
-  - button "Refresh Team":
-    - img
   - button "Close":
     - img
+  - button "Refresh Team":
+    - img
   - heading "Members" [level=3]
-  - 'button "lead Idle · Model: deepseek-v4-flash" [disabled]'
+  - article:
+    - button "lead" [disabled]
+    - paragraph: "Idle · Model: deepseek-v4-flash"
   - region "Subagent conversations":
     - heading "Subagent conversations" [level=3]
     - paragraph: No subagent conversations yet
@@ -23,7 +22,11 @@
     - strong: Browser task
     - text: Pending
     - paragraph: Created through the assembled browser
-    - text: "task-1 Ready Write scopes: src/web Owner"
+    - list:
+      - listitem: task-1
+      - listitem: Ready
+      - listitem: "Write scopes: src/web"
+    - text: Owner
     - combobox "Owner":
       - option "Unowned" [selected]
       - option "lead"

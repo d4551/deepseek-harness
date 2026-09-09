@@ -15,9 +15,11 @@ afterEach(cleanup)
 async function assertPanelAccessible(load: TeamActionInjected['load']): Promise<void> {
   render(<TeamAction {...props(actions({ load }))} />)
   const toggle = screen.getByRole('button', { name: /Agent Team/u })
+  const toggleAudit = await auditSurface('team toggle', toggle)
   fireEvent.click(toggle)
+  expect(toggle.closest('[inert]')).not.toBeNull()
   const audits = [
-    await auditSurface('team toggle', toggle),
+    toggleAudit,
     await auditSurface('team panel', screen.getByRole('dialog')),
   ]
   for (const audit of audits) expect(audit.incomplete).toEqual([])
@@ -34,6 +36,7 @@ describe('TeamAction accessibility', () => {
   it('moves focus into the dialog and restores it when closed', async () => {
     render(<TeamAction {...props(actions())} />)
     const toggle = screen.getByRole('button', { name: /Agent Team/u })
+    toggle.focus()
     fireEvent.click(toggle)
 
     const dialog = screen.getByRole('dialog')

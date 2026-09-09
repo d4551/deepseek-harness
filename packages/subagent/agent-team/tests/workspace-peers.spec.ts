@@ -38,6 +38,8 @@ it('discovers registered workspace conversations and admits durable messages onl
   const lead = (await ctx.agents.create({ sessionId: SessionId('first'), meta: { cwd }, agentOptions: {} })).agent
   const peer = (await ctx.agents.create({ sessionId: SessionId('second'), meta: { cwd }, agentOptions: {} })).agent
   const foreign = (await ctx.agents.create({ sessionId: SessionId('foreign'), meta: { cwd: elsewhere }, agentOptions: {} })).agent
+  const inactive = ctx.sessions.create(SessionId('inactive'), { meta: { cwd } })
+  await ctx.sessions.flush(inactive)
   expect(ctx.agentTeams.listMembers(lead).map(member => member.id)).toEqual([lead.id])
   await ctx.plugin(Storage)
   await ctx.plugin(StorageSqlite, { path: join(root, 'workspaces.sqlite') })
@@ -46,6 +48,7 @@ it('discovers registered workspace conversations and admits durable messages onl
   const workspace = await ctx.workspaceRegistry.create(cwd)
   await workspace.attachSession(lead.id)
   await workspace.attachSession(peer.id)
+  await workspace.attachSession(inactive.id)
   const otherWorkspace = await ctx.workspaceRegistry.create(elsewhere)
   await otherWorkspace.attachSession(foreign.id)
   expect(ctx.agentTeams.listMembers(lead).map(member => member.id)).toEqual([lead.id, peer.id])

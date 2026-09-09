@@ -474,6 +474,21 @@ describe('Menu', () => {
 })
 
 describe('Modal', () => {
+  it('contains focus and restores the caller and background when closed', () => {
+    const background = render(<Button>Open dialog</Button>)
+    const trigger = screen.getByRole('button', { name: 'Open dialog' })
+    trigger.focus()
+    const modal = render(<Modal open onClose={vi.fn()} title="Task" closeLabel="Close" />)
+    const dialog = screen.getByRole('dialog', { name: 'Task' })
+    expect(document.activeElement).toBe(dialog)
+    expect(background.container.inert).toBe(true)
+    trigger.focus()
+    expect(document.activeElement).toBe(dialog)
+    modal.unmount()
+    expect(background.container.inert).not.toBe(true)
+    expect(document.activeElement).toBe(trigger)
+  })
+
   it('is absent while closed; Escape and mask click call onClose', () => {
     const onClose = vi.fn()
     const { rerender } = render(

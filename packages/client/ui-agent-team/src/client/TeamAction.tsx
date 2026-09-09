@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type MouseEvent } from 'react'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {
   TeamMemberView as TeamRosterMember,
@@ -11,7 +11,7 @@ import type {
 import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import {
   Button, Modal, Pill, IconCheckOutline14, IconEditOutline16, IconPlusOutline16,
-  IconRefreshOutline14, IconTrashOutline16, IconUserOutline16, StateDot, useDismissOnOutsidePointer,
+  IconRefreshOutline14, IconTrashOutline16, IconUserOutline16, StateDot,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -100,9 +100,6 @@ export function TeamAction({
   const [editing, setEditing] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState<TaskDraft>(EMPTY_DRAFT)
   const [pendingTasks, setPendingTasks] = useState<ReadonlySet<string>>(() => new Set())
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  const panelRef = useRef<HTMLDivElement>(null)
-  useDismissOnOutsidePointer(panelRef, open, setOpen)
   const sessionRef = useRef(sessionId)
   const refreshGeneration = useRef(0)
   sessionRef.current = sessionId
@@ -119,10 +116,6 @@ export function TeamAction({
     setEditDraft(EMPTY_DRAFT)
     setPendingTasks(new Set())
   }, [sessionId])
-
-  useEffect(() => {
-    if (open) panelRef.current?.focus()
-  }, [open])
 
   const refresh = useCallback(async (): Promise<boolean> => {
     const requestedSession = sessionId
@@ -263,32 +256,26 @@ export function TeamAction({
     && member.status !== 'failed' && member.status !== 'provisioning') ?? []
   const closePanel = (): void => {
     setOpen(false)
-    triggerRef.current?.focus()
   }
 
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-    if (event.key !== 'Escape' || !open) return
-    event.preventDefault()
-    closePanel()
+  const togglePanel = (event: MouseEvent<HTMLButtonElement>): void => {
+    event.currentTarget.focus()
+    setOpen(current => !current)
   }
 
   return (
-    <div data-team-action onKeyDown={onKeyDown}>
+    <div data-team-action>
       <Button
-        ref={triggerRef}
         type="button"
         aria-expanded={open}
-        onClick={() => {
-          const next = !open
-          setOpen(next)
-        }}
+        onClick={togglePanel}
       >
         <IconUserOutline16 />
         <span>{t('trigger')}</span>
         {conversationCount > 0 && <Pill>{conversationCount}</Pill>}
       </Button>
       {open && (
-        <Modal ref={panelRef} open={open} onClose={closePanel} title={t('trigger')} closeLabel={t('close')}>
+        <Modal open={open} onClose={closePanel} title={t('trigger')} closeLabel={t('close')}>
           <div>
             <Button size="sm" aria-label={t('refresh')} onClick={() => { void refresh() }}>
               <IconRefreshOutline14 />

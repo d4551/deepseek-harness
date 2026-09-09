@@ -201,6 +201,7 @@ describe('web e2e: long Chat interaction contract', () => {
     const initialTurnButtons = turnNavigation.getByRole('menuitem')
     const initialTurnCount = await initialTurnButtons.count()
     expect(initialTurnCount).toBeGreaterThan(1)
+    await page.screenshot({ path: '.artifacts/finish/turn-menu.png' })
     const targets = await initialTurnButtons.evaluateAll(buttons => buttons.map((button) => {
       const { width, height, top, bottom } = button.getBoundingClientRect()
       return { width, height, top, bottom }

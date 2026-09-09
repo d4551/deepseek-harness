@@ -222,9 +222,7 @@ export class TeamMailbox {
         this.activeDispatches.delete(targetId)
       }
     }
-    /* v8 ignore next -- dispatch tails absorb rejection, so the recovery callback is a fail-safe backstop. */
     const run = prior.then(dispatch, dispatch)
-    /* v8 ignore next -- dispatchOnce contains delivery failures and serializeDispatch itself does not throw. */
     const tail = run.then(() => undefined, () => undefined)
     this.dispatchTails.set(targetId, tail)
     try {

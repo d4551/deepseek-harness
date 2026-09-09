@@ -23,67 +23,80 @@
     - tab "插件配置" [selected]
     - tab "插件列表"
   - tabpanel "插件配置":
-    - region "网页搜索与访问":
-      - heading "网页搜索与访问" [level=3]
-      - paragraph: 先在网页访问中选择搜索与抓取后端，再在下方配置凭据和限制。配置提供方不会自动选用它；浏览器搜索和抓取可以同时承担两种能力。
-      - list:
-        - listitem:
-          - 'button "展开设置: 网页访问"':
-            - text: 网页访问 由哪个后端提供网页搜索，由哪个后端抓取网页。
-            - img
-        - listitem:
-          - 'button "展开设置: DeepSeek 搜索"':
-            - text: DeepSeek 搜索 通过 DeepSeek 托管检索搜索，按 DeepSeek 密钥计费。
-            - img
-        - listitem:
-          - 'button "展开设置: Exa 搜索"':
-            - text: Exa 搜索 通过 Exa 搜索，返回带高亮片段的来源。
-            - img
-        - listitem:
-          - 'button "展开设置: Perplexity 搜索"':
-            - text: Perplexity 搜索 通过 Perplexity 搜索，返回带引用的生成式回答。
-            - img
-        - listitem:
-          - 'button "展开设置: HTTP 抓取"':
-            - text: HTTP 抓取 通过 HTTP 获取响应字节，不执行页面中的任何脚本。
-            - img
-        - listitem:
-          - 'button "展开设置: 浏览器搜索和抓取"':
-            - text: 浏览器搜索和抓取 使用本地 Chromium 搜索 Bing 并渲染网页，无需付费搜索 API。搜索引擎可能要求人工验证。
-            - img
-    - region "审批流程":
-      - heading "审批流程" [level=3]
-      - paragraph: 请求先经过已启用的审批检查。通过的请求交给已启用的模型评审者，否则交给配置的应答者。模型裁决替代人工决定；未能裁决时执行配置的未决请求策略。
-      - list:
-        - listitem:
-          - 'button "展开设置: 审批审计"':
-            - text: 审批审计 第一阶段：基于规则检查理由，可以拒绝请求，但不能批准操作。
-            - img
-        - listitem:
-          - 'button "展开设置: 对抗式审批评审"':
-            - text: 对抗式审批评审 第二阶段：可选模型评审者代替人工，允许或拒绝通过检查的请求。
-            - img
-    - region "智能体与执行设置":
-      - heading "智能体与执行设置" [level=3]
-      - paragraph: 配置模型、委派和执行限制。
-      - list:
-        - listitem:
-          - 'button "展开设置: 终端"':
-            - text: 终端 限制 agent 运行的每一条命令。
-            - img
-        - listitem:
-          - 'button "展开设置: Agent 循环"':
-            - text: Agent 循环 Agent 如何派发工具调用。
-            - img
-        - listitem:
-          - 'button "展开设置: Subagent"':
-            - text: Subagent 控制 Agent 为 Subagent 选择模型的权限。
-            - img
-        - listitem:
-          - 'button "展开设置: 默认模型"':
-            - text: 默认模型 新会话未显式选择模型时使用的模型。
-            - img
-        - listitem:
-          - 'button "展开设置: 智能体团队"':
-            - text: 智能体团队 一个团队在处理同一请求时最多可以有多大。
-            - img
+    - button "网页搜索与访问" [expanded]:
+      - img
+      - text: 网页搜索与访问
+    - list:
+      - listitem:
+        - 'button "展开设置: 网页访问"':
+          - img
+          - img
+          - text: 网页访问
+      - listitem:
+        - 'button "展开设置: DeepSeek 搜索"':
+          - img
+          - img
+          - text: DeepSeek 搜索
+      - listitem:
+        - 'button "展开设置: Exa 搜索"':
+          - img
+          - img
+          - text: Exa 搜索
+      - listitem:
+        - 'button "展开设置: Perplexity 搜索"':
+          - img
+          - img
+          - text: Perplexity 搜索
+      - listitem:
+        - 'button "展开设置: HTTP 抓取"':
+          - img
+          - img
+          - text: HTTP 抓取
+      - listitem:
+        - 'button "展开设置: 浏览器搜索和抓取"':
+          - img
+          - img
+          - text: 浏览器搜索和抓取
+    - button "审批流程" [expanded]:
+      - img
+      - text: 审批流程
+    - list:
+      - listitem:
+        - 'button "展开设置: 审批审计"':
+          - img
+          - img
+          - text: 审批审计
+      - listitem:
+        - 'button "展开设置: 对抗式审批评审"':
+          - img
+          - img
+          - text: 对抗式审批评审
+    - button "智能体与执行设置" [expanded]:
+      - img
+      - text: 智能体与执行设置
+    - list:
+      - listitem:
+        - 'button "展开设置: 终端"':
+          - img
+          - img
+          - text: 终端
+      - listitem:
+        - 'button "展开设置: Agent 循环"':
+          - img
+          - img
+          - text: Agent 循环
+      - listitem:
+        - 'button "展开设置: Subagent"':
+          - img
+          - img
+          - text: Subagent
+      - listitem:
+        - 'button "展开设置: 默认模型"':
+          - img
+          - img
+          - text: 默认模型
+      - listitem:
+        - 'button "展开设置: 智能体团队"':
+          - img
+          - img
+          - text: 智能体团队

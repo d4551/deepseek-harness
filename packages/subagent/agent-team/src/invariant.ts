@@ -22,7 +22,6 @@ const install: InvariantInstaller = Object.assign((ctx: Context, fail: Invariant
       const state = foldTeam(session.id, session.events)
       applyTeamEvent(state, event)
     } catch (error: unknown) {
-      /* v8 ignore next -- the strict Team fold throws Error instances. */
       const message = error instanceof Error ? error.message : String(error)
       fail(`session event ${event.seq} violates the Agent Teams stream: ${message}`)
     }

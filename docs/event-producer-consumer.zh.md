@@ -75,6 +75,7 @@
 | `workflow/log` | `emit` | [`packages/workflow/workflow/src/index.ts:58`](../packages/workflow/workflow/src/index.ts) | [`workflow`](../packages/workflow/workflow) (`events.dispatch`) | - |
 | `workflow/phase` | `emit` | [`packages/workflow/workflow/src/index.ts:51`](../packages/workflow/workflow/src/index.ts) | [`workflow`](../packages/workflow/workflow) (`events.dispatch`) | - |
 | `workflow/start` | `emit` | [`packages/workflow/workflow/src/index.ts:43`](../packages/workflow/workflow/src/index.ts) | [`workflow`](../packages/workflow/workflow) (`events.dispatch`) | [`workflow`](../packages/workflow/workflow) |
+| `workspace/updated` | `emit` | [`packages/workspace/workspace/src/types.ts:15`](../packages/workspace/workspace/src/types.ts) | [`workspace`](../packages/workspace/workspace) (`emit`) | [`agent-team`](../packages/subagent/agent-team) |
 
 ## 包源码中出现的非 harness 或未声明事件字符串
 

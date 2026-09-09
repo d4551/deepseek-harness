@@ -1772,7 +1772,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
   "properties": {
     "target": {
       "type": "string",
-      "description": "Team member name, or lead."
+      "description": "Exact name from list_agents, including session-qualified workspace peers, or lead."
     },
     "message": {
       "type": "string",
@@ -1811,7 +1811,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 
 ### `list_agents`
 
-列出 Lead 与所有持久 teammate，以及各自当前的运行时状态。
+列出 Lead、持久 teammate，以及同一已注册工作区内仍处于 live 状态的会话 Lead，并提供各自当前的运行时状态与消息目标。
 
 ```json
 {
@@ -1832,7 +1832,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
   "properties": {
     "target": {
       "type": "string",
-      "description": "Team member name, or lead."
+      "description": "Exact name from list_agents, including session-qualified workspace peers, or lead."
     },
     "message": {
       "type": "string",

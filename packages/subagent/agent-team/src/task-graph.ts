@@ -1,27 +1,13 @@
 /** Complete dependency validation for current Team task snapshots. */
 
 import type { TeamTaskId, TeamTaskSnapshot } from './types.ts'
-
-/** Task dependency relation rejected by the shared graph validator. */
-export type TeamTaskGraphViolation = 'missing' | 'duplicate' | 'cycle'
-
-/** Package-private task dependency failure retained for command error mapping. */
-export class TeamTaskGraphError extends Error {
-  /**
-   * @param message - concrete invalid dependency relation.
-   * @param violation - stable relation category used by Team commands.
-   */
-  constructor(message: string, readonly violation: TeamTaskGraphViolation) {
-    super(message)
-    this.name = 'TeamTaskGraphError'
-  }
-}
+import { TeamError } from './error.ts'
 
 /**
  * Validate the complete active task graph after replacing one candidate snapshot.
  * @param current - current task snapshots before the candidate event.
  * @param candidate - new or next-revision task snapshot.
- * @throws {TeamTaskGraphError} when an active dependency is missing, duplicated, self-referential, or cyclic.
+ * @throws {TeamError} when an active dependency is missing, duplicated, self-referential, or cyclic.
  */
 export function assertTaskGraphCandidate(
   current: ReadonlyMap<TeamTaskId, TeamTaskSnapshot>,
@@ -35,16 +21,16 @@ export function assertTaskGraphCandidate(
     const seen = new Set<TeamTaskId>()
     for (const blockerId of task.blockedBy) {
       if (blockerId === task.id) {
-        throw new TeamTaskGraphError(`team task "${task.id}" cannot block itself`, 'cycle')
+        throw new TeamError(`team task "${task.id}" cannot block itself`, 'TEAM_TASK_DEPENDENCY_CYCLE')
       }
       if (seen.has(blockerId)) {
-        throw new TeamTaskGraphError(`team task "${task.id}" repeats blocker "${blockerId}"`, 'duplicate')
+        throw new TeamError(`team task "${task.id}" repeats blocker "${blockerId}"`, 'TEAM_INVALID_ARGUMENT')
       }
       const blocker = tasks.get(blockerId)
       if (blocker === undefined || blocker.status === 'deleted') {
-        throw new TeamTaskGraphError(
+        throw new TeamError(
           `blocker task "${blockerId}" for "${task.id}" is missing or deleted`,
-          'missing',
+          'TEAM_TASK_NOT_FOUND',
         )
       }
       seen.add(blockerId)
@@ -55,7 +41,7 @@ export function assertTaskGraphCandidate(
   const visited = new Set<TeamTaskId>()
   const visit = (id: TeamTaskId): void => {
     if (visiting.has(id)) {
-      throw new TeamTaskGraphError(`task dependency cycle includes "${id}"`, 'cycle')
+      throw new TeamError(`task dependency cycle includes "${id}"`, 'TEAM_TASK_DEPENDENCY_CYCLE')
     }
     if (visited.has(id)) return
     const task = tasks.get(id)

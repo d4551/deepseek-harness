@@ -37,6 +37,13 @@ async function openPlugins(page: Page) {
   await expect
     .poll(() => dialog.getByRole('tab', { name: '插件配置', exact: true }).getAttribute('aria-selected'), { timeout: 5_000 })
     .toBe('true')
+  for (const name of ['网页搜索与访问', '审批流程', '智能体与执行设置']) {
+    const flow = dialog.getByRole('button', { name, exact: true })
+    await flow.waitFor()
+    expect(await flow.getAttribute('aria-expanded')).toBe('false')
+    await flow.click()
+    expect(await flow.getAttribute('aria-expanded')).toBe('true')
+  }
   return dialog
 }
 
@@ -97,7 +104,7 @@ describe('web e2e: plugin configuration section', () => {
     const snapshot = await captureStableAria(page, '[role="dialog"]', scaffold.workspaceCwd)
     await compareOrRefreshGolden(SECTION_EXPECTED, snapshot, MODE)
     await page.screenshot({ path: '.artifacts/finish/settings-groups.png' })
-    await dialog.getByRole('heading', { name: '审批流程', exact: true }).scrollIntoViewIfNeeded()
+    await dialog.getByRole('button', { name: '审批流程', exact: true }).scrollIntoViewIfNeeded()
     await dialog.getByRole('button', { name: '展开设置: 对抗式审批评审' }).scrollIntoViewIfNeeded()
     await page.screenshot({ path: '.artifacts/finish/approval-stages.png' })
     await assertPageAccessibility(page)

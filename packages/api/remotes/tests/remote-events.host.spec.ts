@@ -1,4 +1,4 @@
-import { Context } from '@deepseek-ai/cordis'
+import { Context, FiberState } from '@deepseek-ai/cordis'
 import type { Fiber } from '@deepseek-ai/cordis'
 import type {
   RemoteEventHostInfo,
@@ -79,6 +79,15 @@ function invocationOf(value: unknown): TypertRemoteEventInvocation {
 }
 
 describe('Remote event Host source', () => {
+  it('waits for the Gateway before registering its event source', async () => {
+    const ctx = new Context()
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber
+    expect(fiber.state).toBe(FiberState.PENDING)
+    await ctx.fiber.dispose()
+    expect(fiber.state).toBe(FiberState.DISPOSED)
+  })
+
   it.each([false, true])('settles cancellation between pulls with buffered events: %s', async (buffered) => {
     const { ctx, gateway } = await setup()
     const abort = new AbortController()

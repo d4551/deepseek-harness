@@ -40,7 +40,6 @@ export function workspacePeerIds(ctx: Context, rootId: SessionId): SessionId[] {
   if (registry === undefined || registry.archivedSessionIds.includes(rootId)) return []
   const workspaces = registry.list().filter(workspace => workspace.sessionIds.includes(rootId))
   if (workspaces.length !== 1) return []
-  const workspace = workspaces[0]
-  if (workspace === undefined) return []
-  return workspace.sessionIds.filter(id => id !== rootId && !registry.archivedSessionIds.includes(id))
+  return workspaces.flatMap(workspace =>
+    workspace.sessionIds.filter(id => id !== rootId && !registry.archivedSessionIds.includes(id)))
 }

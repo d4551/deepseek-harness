@@ -68,6 +68,13 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
     const panel = page.getByRole('dialog', { name: 'Agent Team' })
     await panel.getByText('No shared tasks yet').waitFor()
     await panel.getByText('lead', { exact: true }).waitFor()
+    const close = panel.getByRole('button', { name: 'Close', exact: true })
+    const newTask = panel.getByRole('button', { name: 'New task', exact: true })
+    await close.focus()
+    await close.press('Shift+Tab')
+    expect(await newTask.evaluate(button => document.activeElement === button)).toBe(true)
+    await newTask.press('Tab')
+    expect(await close.evaluate(button => document.activeElement === button)).toBe(true)
     await assertPageAccessibility(page)
     for (const viewport of [{ width: 840, height: 1000 }, { width: 600, height: 480 }]) {
       await page.setViewportSize(viewport)

@@ -56,10 +56,11 @@ export function Modal({
     }
     dialog.focus()
     const containFocus = (event: FocusEvent) => {
+      if (root.inert) return
       if (event.target instanceof Node && !root.contains(event.target)) dialog.focus()
     }
     const cycleFocus = (event: KeyboardEvent) => {
-      if (event.key !== 'Tab') return
+      if (event.key !== 'Tab' || root.inert) return
       const controls = [...dialog.querySelectorAll<HTMLElement>(
         'button, input, select, textarea, a[href], [tabindex]',
       )].filter(element => element.tabIndex >= 0 && !element.matches(':disabled')
@@ -89,10 +90,20 @@ export function Modal({
   useEffect(() => {
     if (!open) return
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape' && !rootRef.current?.inert) onClose()
+    }
+    const onPointerDown = (event: PointerEvent) => {
+      const root = rootRef.current
+      const dialog = root?.querySelector('[role="dialog"]')
+      if (root === null || root.inert || dialog == null) return
+      if (event.target instanceof Node && !dialog.contains(event.target)) onClose()
     }
     document.addEventListener('keydown', onKeyDown)
-    return () => { document.removeEventListener('keydown', onKeyDown) }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      document.removeEventListener('pointerdown', onPointerDown)
+    }
   }, [open, onClose])
 
   if (!open) return null
