@@ -81,33 +81,35 @@ export function mapExaResponse(response: ExaSearchResponse): WebSearchResult {
 export class ExaSearchProvider implements WebSearchProvider {
   readonly id = EXA_PROVIDER_ID
 
-  constructor(private readonly options: ExaSearchProviderOptions) {}
+  constructor(private readonly readOptions: () => ExaSearchProviderOptions) {}
 
   available(): boolean {
-    return this.options.apiKey.length > 0
-      && isValidBaseUrl(this.options.baseURL)
-      && isPositiveInteger(this.options.highlightsPerResult)
-      && (this.options.numResults === undefined || isPositiveInteger(this.options.numResults))
+    const options = this.readOptions()
+    return options.apiKey.length > 0
+      && isValidBaseUrl(options.baseURL)
+      && isPositiveInteger(options.highlightsPerResult)
+      && (options.numResults === undefined || isPositiveInteger(options.numResults))
   }
 
   async search(request: WebSearchRequest, signal?: AbortSignal): Promise<WebSearchResult> {
+    const options = this.readOptions()
     // A per-request bound wins over the configured default; either may be absent.
-    const numResults = request.maxResults ?? this.options.numResults
+    const numResults = request.maxResults ?? options.numResults
     let response: Response
     try {
-      response = await fetch(`${this.options.baseURL}/search`, {
+      response = await fetch(`${options.baseURL}/search`, {
         method: 'POST',
         redirect: 'error',
         headers: {
-          'authorization': `Bearer ${this.options.apiKey}`,
+          'authorization': `Bearer ${options.apiKey}`,
           'content-type': 'application/json',
           'accept': 'application/json',
           'user-agent': WEB_USER_AGENT,
         },
         body: JSON.stringify({
           query: request.query,
-          type: this.options.searchType,
-          contents: { highlights: { highlightsPerUrl: this.options.highlightsPerResult } },
+          type: options.searchType,
+          contents: { highlights: { highlightsPerUrl: options.highlightsPerResult } },
           ...numResults !== undefined ? { numResults } : {},
         }),
         ...signal !== undefined ? { signal } : {},

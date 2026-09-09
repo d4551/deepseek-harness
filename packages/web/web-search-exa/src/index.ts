@@ -59,14 +59,16 @@ export const WEB_SEARCH_EXA_SETTINGS_NAMESPACE = settingsNamespace('web-search-e
 
 /** Register the Exa search provider with `ctx.web`. */
 export function apply(ctx: Context, config: Config): void {
-  // The provider binds its options once, so a stored change waits for the next boot.
+  let current = () => config
   installSettingsSection(ctx, WEB_SEARCH_EXA_SETTINGS_NAMESPACE, Config, config, {
     flow: WEB_SETTINGS_NAMESPACE,
-    applies: 'restart',
-    setSource: () => {},
-    onChange: () => {},
+    setSource: (source) => { current = source },
   })
-  ctx.web.registerSearchProvider(new ExaSearchProvider({
+  ctx.web.registerSearchProvider(new ExaSearchProvider(() => resolveOptions(ctx, current())))
+}
+
+function resolveOptions(ctx: Context, config: Config) {
+  return {
     // Every environment layer may name this key: the product trusts the
     // project it is launched in, and the managed store is not involved here.
     apiKey: config.apiKey ?? launchEnvironmentOf(ctx).get('EXA_API_KEY')?.value ?? '',
@@ -74,5 +76,5 @@ export function apply(ctx: Context, config: Config): void {
     searchType: config.searchType ?? EXA_DEFAULT_SEARCH_TYPE,
     highlightsPerResult: config.highlightsPerResult ?? EXA_DEFAULT_HIGHLIGHTS_PER_RESULT,
     ...config.numResults !== undefined ? { numResults: config.numResults } : {},
-  }))
+  }
 }

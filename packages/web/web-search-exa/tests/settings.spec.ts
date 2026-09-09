@@ -1,6 +1,8 @@
 /** The `web-search-exa` settings section layered over the composition entry. */
 
-import { describe, expect, it } from 'vitest'
+import { once } from 'node:events'
+import { createServer } from 'node:http'
+import { describe, expect, it, onTestFinished } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { SettingsProvider } from '@deepseek-ai/dsh-settings'
 import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
@@ -48,11 +50,53 @@ function section(ctx: Context) {
 }
 
 describe('web-search-exa settings', () => {
-  it('publishes its options and declares that a change waits for the next boot', async () => {
+  it('publishes its options as live settings', async () => {
     const ctx = await boot({ baseURL: 'https://exa.entry.test', searchType: 'keyword', highlightsPerResult: 2 })
 
     expect(section(ctx)?.base).toMatchObject({ baseURL: 'https://exa.entry.test', searchType: 'keyword', highlightsPerResult: 2 })
-    expect(section(ctx)?.applies).toBe('restart')
+    expect(section(ctx)?.applies).toBe('live')
+  })
+
+  it('uses committed credentials, endpoint and retrieval settings on the next request', async () => {
+    const requests: Array<{ url: string | undefined; authorization: string | undefined }> = []
+    const bodies: Promise<string>[] = []
+    await using server = createServer((request, response) => {
+      requests.push({ url: request.url, authorization: request.headers.authorization })
+      bodies.push(Array.fromAsync(request, chunk => String(chunk)).then(chunks => chunks.join('')))
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify({ results: [] }))
+    })
+    const listening = once(server, 'listening')
+    server.listen(0, '127.0.0.1')
+    await listening
+    const address = server.address()
+    if (address === null || typeof address === 'string') throw new Error('HTTP listener has no TCP address')
+    const origin = `http://127.0.0.1:${address.port}`
+    const ctx = await boot({ apiKey: 'entry-key', baseURL: `${origin}/entry` })
+    onTestFinished(() => ctx.dispose())
+
+    await ctx.web.search({ query: 'before' })
+    await ctx.settings.update(WEB_SEARCH_EXA_SETTINGS_NAMESPACE, {
+      apiKey: 'changed-key', baseURL: `${origin}/changed`, searchType: 'neural',
+      numResults: 7, highlightsPerResult: 3,
+    })
+    await ctx.web.search({ query: 'after' })
+    await ctx.settings.replace(WEB_SEARCH_EXA_SETTINGS_NAMESPACE, {})
+    await ctx.web.search({ query: 'reset' })
+
+    expect(requests).toEqual([
+      { url: '/entry/search', authorization: 'Bearer entry-key' },
+      { url: '/changed/search', authorization: 'Bearer changed-key' },
+      { url: '/entry/search', authorization: 'Bearer entry-key' },
+    ])
+    expect((await Promise.all(bodies)).map(body => JSON.parse(body))).toEqual([
+      { query: 'before', type: 'auto', contents: { highlights: { highlightsPerUrl: 1 } } },
+      { query: 'after', type: 'neural', numResults: 7, contents: { highlights: { highlightsPerUrl: 3 } } },
+      { query: 'reset', type: 'auto', contents: { highlights: { highlightsPerUrl: 1 } } },
+    ])
+    await ctx.settings.update(WEB_SEARCH_EXA_SETTINGS_NAMESPACE, { apiKey: '' })
+    await expect(ctx.web.search({ query: 'disabled' })).rejects.toMatchObject({ code: 'WEB_PROVIDER_UNAVAILABLE' })
+    expect(requests).toHaveLength(3)
   })
 
   it('reports a configured key as a secret slot and never rides its value', async () => {
