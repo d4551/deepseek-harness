@@ -6,7 +6,8 @@
  * Naming contract (see the mcp-client Agent Note "Naming invariants"): every MCP tool
  * has the stable identity `(serverName, rawName)`; the model-facing public name
  * is `mcp__<serverName>__<rawName>`, normalized to the DeepSeek function-name
- * constraints. The raw name is only ever sent on the wire (`tools/call`); the
+ * constraints, with an identity hash when the namespace boundary is ambiguous.
+ * The raw name is only ever sent on the wire (`tools/call`); the
  * public name is never parsed to recover it.
  *
  * @module
@@ -100,7 +101,8 @@ function callToolUncached(
  * Deterministic pure function of `(serverName, rawName)`: the clean case is
  * `mcp__<serverName>__<rawName>` verbatim. When character replacement or
  * truncation to the DeepSeek function-name contract (64 chars,
- * `[A-Za-z0-9_-]`) changes the name, a 12-hex-char SHA-256 hash of the
+ * `[A-Za-z0-9_-]`) changes the name, or underscores obscure the namespace
+ * boundary, a 12-hex-char SHA-256 hash of the
  * identity is appended so distinct MCP identities never collapse into the
  * same public name.
  *
@@ -111,7 +113,8 @@ function callToolUncached(
 export function publicToolName(serverName: string, rawName: string): string {
   const joined = `mcp__${serverName}__${rawName}`
   const normalized = joined.replace(INVALID_NAME_CHARS, '_')
-  if (normalized === joined && normalized.length <= MAX_PUBLIC_NAME_LENGTH) return normalized
+  const ambiguousBoundary = serverName.includes('__') || serverName.endsWith('_') || rawName.startsWith('_')
+  if (normalized === joined && normalized.length <= MAX_PUBLIC_NAME_LENGTH && !ambiguousBoundary) return normalized
   const hash = createHash('sha256').update(`${serverName}\0${rawName}`).digest('hex').slice(0, HASH_LENGTH)
   return `${normalized.slice(0, MAX_PUBLIC_NAME_LENGTH - HASH_LENGTH - 1)}_${hash}`
 }
@@ -148,8 +151,15 @@ export async function syncTools(
 ): Promise<ToolDisposers> {
   // Phase 1: fetch and build the next generation without touching the registry.
   const definitions = new Map<string, ToolDefinition>()
+  const cursors = new Set<string>()
   let cursor: string | undefined
   do {
+    if (cursor !== undefined) {
+      if (cursors.has(cursor)) {
+        throw new Error(`mcp-client(${opts.serverName}): pagination cursor repeated — invalid tool list`)
+      }
+      cursors.add(cursor)
+    }
     const response = await listToolsUncached(client, cursor)
     for (const tool of response.tools) {
       const publicName = publicToolName(opts.serverName, tool.name)
@@ -171,7 +181,7 @@ export async function syncTools(
       ))
     }
     cursor = response.nextCursor
-  } while (cursor)
+  } while (cursor !== undefined)
 
   // Phase 2: swap generations.
   for (const dispose of previous.values()) dispose()
