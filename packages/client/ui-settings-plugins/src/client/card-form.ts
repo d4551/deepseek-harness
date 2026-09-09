@@ -16,17 +16,23 @@
  * override equal to the composition default is still an override.
  */
 
-import type { JsonValue, SettingsPathOpView } from '@deepseek-ai/dsh-api-remotes/client'
+import type { SettingsPathOpView } from '@deepseek-ai/dsh-api-remotes/client'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import { CLEAR_WRITE, type CardFieldSpec, type SettingValue } from './card-field-spec.ts'
 
 /** Read one field from one settings layer; an absent layer carries no field. */
 function fieldOf(layer: object | undefined, field: string): SettingValue | undefined {
-  // `Reflect.get` returns `any`; field names come from the card's own specs,
-  // and the settings document is string-addressed, so the result is the
-  // declared JSON value or its absence.
-  return layer === undefined ? undefined : Reflect.get(layer, field) as SettingValue | undefined
+  if (layer === undefined) return undefined
+  const value: unknown = Reflect.get(layer, field)
+  if (value === undefined || typeof value === 'boolean' || typeof value === 'number' || typeof value === 'string') {
+    return value
+  }
+  if (Array.isArray(value)) {
+    const entries: readonly unknown[] = value
+    if (entries.every(entry => typeof entry === 'string')) return entries
+  }
+  throw new TypeError(`settings field ${field} has an unsupported value`)
 }
 
 /**
@@ -238,6 +244,7 @@ export class CardForm<T extends object> {
     if (plan.length === 0 || this.saving || plan.some(item => item.kind === 'invalid')) return
     this.saving = true
     this.failed = false
+    const submitted = new Map(this.staged)
     this.publish()
     let landed = true
     const section = plan.flatMap(item => item.kind === 'op' ? [item] : [])
@@ -248,7 +255,11 @@ export class CardForm<T extends object> {
     for (const item of plan) {
       if (item.kind === 'secret') landed = await item.run() && landed
     }
-    if (landed) this.staged.clear()
+    if (landed) {
+      for (const [field, draft] of submitted) {
+        if (this.staged.get(field) === draft) this.staged.delete(field)
+      }
+    }
     this.saving = false
     this.failed = !landed
     this.publish()
@@ -278,7 +289,10 @@ export class CardForm<T extends object> {
       const write = spec.parse(staged.text)
       if (write === undefined) plan.push({ kind: 'invalid', field })
       else if (write.kind === 'clear') plan.push({ kind: 'op', field, op: { op: 'unset', path: [field] } })
-      else plan.push({ kind: 'op', field, op: { op: 'set', path: [field], value: write.value as JsonValue } })
+      else plan.push({
+        kind: 'op', field,
+        op: { op: 'set', path: [field], value: typeof write.value === 'object' ? [...write.value] : write.value },
+      })
     }
     return plan
   }

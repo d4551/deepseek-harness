@@ -181,13 +181,18 @@ describe('Remote event Host source', () => {
     const agent = { ctx: agentCtx }
     const target = scopeTarget(ctx, agent)
     const request = { questions: [], agent }
+    let hostCalls = 0
+    const hostAnswer = (): Promise<string> => {
+      hostCalls += 1
+      return Promise.resolve('host answer')
+    }
 
     const claimed = waterfallRaw(
       ctx,
       target,
       'user-questions/request',
       [request],
-      () => Promise.resolve('host fallback'),
+      hostAnswer,
     )
     const claimedDispatch = invocationOf((await iterator.next()).value)
     expect(claimedDispatch).toMatchObject({
@@ -197,17 +202,19 @@ describe('Remote event Host source', () => {
     })
     claimedDispatch.resolve({ kind: 'result', value: 'client answer' })
     await expect(claimed).resolves.toBe('client answer')
+    expect(hostCalls).toBe(0)
 
     const delegated = waterfallRaw(
       ctx,
       target,
       'user-questions/request',
       [request],
-      () => Promise.resolve('host fallback'),
+      hostAnswer,
     )
     const delegatedDispatch = invocationOf((await iterator.next()).value)
     delegatedDispatch.resolve({ kind: 'next' })
-    await expect(delegated).resolves.toBe('host fallback')
+    await expect(delegated).resolves.toBe('host answer')
+    expect(hostCalls).toBe(1)
 
     const rejection = Object.assign(new Error('the user cancelled ask_user_question'), {
       code: 'ASK_CANCELLED',
@@ -217,12 +224,13 @@ describe('Remote event Host source', () => {
       target,
       'user-questions/request',
       [request],
-      () => Promise.resolve('host fallback'),
+      hostAnswer,
     )
     const rejectedAssertion = expect(rejected).rejects.toBe(rejection)
     const rejectedDispatch = invocationOf((await iterator.next()).value)
     rejectedDispatch.reject(rejection)
     await rejectedAssertion
+    expect(hostCalls).toBe(1)
 
     const done = iterator.next()
     abort.abort()

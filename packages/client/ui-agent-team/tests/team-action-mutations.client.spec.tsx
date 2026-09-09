@@ -115,11 +115,11 @@ describe('TeamAction task mutations', () => {
             revision,
             subject: input.subject ?? current.subject,
             description: input.description ?? current.description,
-            writeScopes: input.writeScopes ?? current.writeScopes,
+            writeScopes: input.writeScopes === undefined ? current.writeScopes : [...input.writeScopes],
           }
           break
         case 'set_dependencies':
-          current = { ...current, revision, blockedBy: input.blockedBy ?? [] }
+          current = { ...current, revision, blockedBy: [...input.blockedBy ?? []] }
           break
         case 'complete':
           current = { ...current, revision, status: 'completed' }

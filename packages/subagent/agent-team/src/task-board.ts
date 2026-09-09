@@ -1,7 +1,8 @@
 /** Shared Team task DAG commands and runtime-enriched views. */
 
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import type { TeamMembership } from './roster.ts'
+import type { Context } from '@deepseek-ai/cordis'
+import type { TeamMembership, TeamRoster } from './roster.ts'
 import { TeamError } from './error.ts'
 import type { TeamFoldState } from './fold.ts'
 import type { TeamJournal } from './journal.ts'
@@ -16,6 +17,7 @@ import type {
   UpdateTeamTaskRequest,
 } from './types.ts'
 import { requiredText, writeScope } from './validation.ts'
+import { workspacePeerName, workspacePeers } from './workspace-peers.ts'
 
 /** Whether two normalized file or directory prefixes overlap on path components. */
 function scopesOverlap(left: string, right: string): boolean {
@@ -25,12 +27,16 @@ function scopesOverlap(left: string, right: string): boolean {
 /** Owns Team task limits, authorization, transitions, and derived views. */
 export class TeamTaskBoard {
   /**
+   * @param ctx - Host registry used to discover workspace conversations.
+   * @param roster - Exact live Team membership authority.
    * @param journal - authoritative Lead-log transaction owner.
    * @param maxTasks - reads the maximum non-deleted tasks retained by one
    *   Team, at each creation, so a stored settings change bounds the next
    *   task without touching the board already built.
    */
   constructor(
+    private readonly ctx: Context,
+    private readonly roster: TeamRoster,
     private readonly journal: TeamJournal,
     private readonly maxTasks: () => number,
   ) {}
@@ -128,7 +134,7 @@ export class TeamTaskBoard {
           blocked += 1
           continue
         }
-        if (this.busyOverlaps(state, candidate).length > 0) {
+        if (this.busyOverlaps(root, state, candidate).length > 0) {
           deferred.push(candidate.id)
           continue
         }
@@ -263,7 +269,7 @@ export class TeamTaskBoard {
       // The write-scope exclusion is decided here, at the commit that leaves a
       // task in progress, so `claim`, `reassign`, and a scope-widening `edit`
       // are bound by it exactly as `claimNextReady` is.
-      if (task.status === 'in_progress') this.assertBusyScopesFree(state, task)
+      if (task.status === 'in_progress') this.assertBusyScopesFree(root, state, task)
       await this.journal.appendAndFlush(root, 'team/task', { version: 1, teamId: TeamId(root.id), task })
       return this.taskView(root, state, task)
     })
@@ -296,22 +302,27 @@ export class TeamTaskBoard {
   }
 
   /**
-   * The in-progress tasks already writing paths this task would write. The
-   * task itself is excluded so its own scopes never block its own transitions.
+   * Identify overlapping work across the local board and live workspace peers.
+   * Session-qualified peer task names distinguish independent task counters.
    */
-  private busyOverlaps(state: TeamFoldState, task: TeamTaskSnapshot): TeamTaskSnapshot[] {
-    return [...state.tasks.values()].filter(other =>
-      other.id !== task.id
-      && other.status === 'in_progress'
-      && task.writeScopes.some(scope => other.writeScopes.some(busy => scopesOverlap(scope, busy))))
+  private busyOverlaps(root: Agent, state: TeamFoldState, task: TeamTaskSnapshot): string[] {
+    const boards = [
+      { root, state },
+      ...workspacePeers(this.ctx, this.roster, root).map(peer => ({ root: peer, state: this.journal.state(peer) })),
+    ]
+    return boards.flatMap(board => [...board.state.tasks.values()]
+      .filter(other => (board.root !== root || other.id !== task.id)
+        && other.status === 'in_progress'
+        && task.writeScopes.some(scope => other.writeScopes.some(busy => scopesOverlap(scope, busy))))
+      .map(other => board.root === root ? other.id : `${workspacePeerName(board.root.id)}/${other.id}`))
   }
 
   /** Refuse a commit that would leave two owners writing the same paths. */
-  private assertBusyScopesFree(state: TeamFoldState, task: TeamTaskSnapshot): void {
-    const [conflict] = this.busyOverlaps(state, task)
+  private assertBusyScopesFree(root: Agent, state: TeamFoldState, task: TeamTaskSnapshot): void {
+    const [conflict] = this.busyOverlaps(root, state, task)
     if (conflict !== undefined) {
       throw new TeamError(
-        `team task "${task.id}" write scopes overlap in-progress task "${conflict.id}"`,
+        `team task "${task.id}" write scopes overlap in-progress task "${conflict}"`,
         'TEAM_TASK_WRITE_SCOPE_CONFLICT',
       )
     }
@@ -350,7 +361,7 @@ export class TeamTaskBoard {
       writeScopes: structuredClone(task.writeScopes),
       ...ownerName === undefined ? {} : { ownerName },
       ready: task.status === 'pending' && this.taskReady(state, task),
-      writeScopeWarnings: this.busyOverlaps(state, task).map(other => `write scopes overlap with ${other.id}`),
+      writeScopeWarnings: this.busyOverlaps(root, state, task).map(other => `write scopes overlap with ${other}`),
     }
   }
 }

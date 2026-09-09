@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type MouseEvent } from 'react'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {
+  CreateTeamTaskRequest,
   TeamMemberView as TeamRosterMember,
-  TeamTaskAction,
-  TeamTaskId,
   TeamTaskMutationResult,
   TeamTaskView as TeamTask,
   TeamView,
+  UpdateTeamTaskRequest,
 } from '@deepseek-ai/dsh-agent-team/client'
+import { TeamTaskId } from '@deepseek-ai/dsh-agent-team/types'
 import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import {
   Button, Modal, Pill, IconCheckOutline14, IconEditOutline16, IconPlusOutline16,
@@ -30,22 +31,8 @@ export type TeamTaskActionResult = RemoteResult<TeamTaskMutationResult>
 export interface TeamActionInjected {
   changes: (sessionId: SessionId, signal: AbortSignal) => AsyncIterable<number>
   load: (sessionId: SessionId) => Promise<TeamActionResult<TeamView>>
-  createTask: (sessionId: SessionId, input: {
-    subject: string
-    description: string
-    blockedBy: TeamTaskId[]
-    writeScopes: string[]
-  }) => Promise<TeamTaskActionResult>
-  updateTask: (sessionId: SessionId, input: {
-    taskId: TeamTaskId
-    expectedRevision: number
-    action: TeamTaskAction
-    subject?: string
-    description?: string
-    blockedBy?: TeamTaskId[]
-    writeScopes?: string[]
-    owner?: string
-  }) => Promise<TeamTaskActionResult>
+  createTask: (sessionId: SessionId, input: CreateTeamTaskRequest) => Promise<TeamTaskActionResult>
+  updateTask: (sessionId: SessionId, input: UpdateTeamTaskRequest) => Promise<TeamTaskActionResult>
   openTeammate: (sessionId: SessionId, member: TeamRosterMember) => Promise<void>
   openSubagent: (sessionId: SessionId, entry: TeamConversation) => Promise<void>
 }
@@ -61,7 +48,7 @@ function items(value: string): string[] {
 }
 
 function taskIds(value: string): TeamTaskId[] {
-  return items(value) as TeamTaskId[]
+  return items(value).map(TeamTaskId)
 }
 
 function failureText(error: Pick<RemoteFailure, 'code' | 'message'>): string {
@@ -164,8 +151,7 @@ export function TeamAction({
     const requestedSession = sessionId
     invalidateRefresh()
     setPendingTasks(current => new Set(current).add(taskId))
-    try {
-      const result = await operation()
+    return await Promise.try(operation).then(async (result): Promise<TeamTask | undefined> => {
       if (sessionRef.current !== requestedSession) return undefined
       if (!result.ok) {
         setError(failureText(result.error))
@@ -186,7 +172,7 @@ export function TeamAction({
       await refresh()
       if (sessionRef.current !== requestedSession) return undefined
       return task
-    } finally {
+    }).finally(() => {
       if (sessionRef.current === requestedSession) {
         setPendingTasks((current) => {
           const next = new Set(current)
@@ -194,7 +180,7 @@ export function TeamAction({
           return next
         })
       }
-    }
+    })
   }, [invalidateRefresh, refresh, sessionId, t])
 
   const submitCreate = async (): Promise<void> => {

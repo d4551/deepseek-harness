@@ -72,7 +72,7 @@ Only the Lead can create teammates or interrupt them.
 
 ### Workspace conversations
 
-When the workspace registry is mounted, the roster also shows live conversation leads registered in the same workspace with role `peer`. Their `session:<id>` names are message targets. Discovery excludes archived sessions and requires validated registry membership; sharing a directory alone does not grant access. Quiet messages retain their durable receipt without starting an idle peer. Each conversation owns its task board, so peers coordinate responsibilities through messages.
+When the workspace registry is mounted, the roster also shows live conversation leads registered in the same workspace with role `peer`. Their `session:<id>` names are message targets. Discovery excludes archived sessions and requires validated registry membership; sharing a directory alone does not grant access. Quiet messages retain their durable receipt without starting an idle peer. Each conversation owns its task board and coordinates responsibilities through messages. Live peer boards in the same host participate in workspace write-scope checks; conflicts identify the owning conversation and task.
 
 ### Messages between teammates
 
@@ -86,7 +86,7 @@ Any member can add a task with a title, details, optional dependencies on other 
 
 Tasks have an owner: a member claims a task to start work, completes it when done, releases it back, or reopens it; the Lead can assign a task to any member. Every change is compare-and-set: an update based on an outdated copy is rejected, so two members cannot silently overwrite each other's work.
 
-File hints produce warnings when two in-progress tasks plan to touch overlapping paths — they never block anything. Deleted tasks remain in history but disappear from the active list.
+Write scopes prevent overlapping tasks from running concurrently on the local board or live peer boards in the same registered workspace. A conflicting claim, reassignment, or scope change is rejected; automatic task selection waits for overlapping work to finish. These checks govern task ownership and do not restrict filesystem writes. Deleted tasks remain in history but disappear from the active list.
 
 ### Waiting and interruption
 

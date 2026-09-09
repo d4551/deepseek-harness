@@ -210,6 +210,30 @@ describe('CardForm', () => {
     expect(host.mutate).toHaveBeenCalledTimes(1)
   })
 
+  it('retains edits made while an earlier credential save is settling', async () => {
+    const host = stubSettingsScope<Section>()
+    const receipt = Promise.withResolvers<boolean>()
+    const written: string[] = []
+    const subject = new CardForm(host.scope, [textField('baseURL')], [{
+      field: 'apiKey',
+      write: (text) => {
+        written.push(text)
+        return receipt.promise
+      },
+    }])
+    host.publish({ status: 'ready', writable: true, value: {}, user: {} })
+    subject.actions().edit('apiKey', 'first-key')
+    const saving = subject.save()
+    expect(written).toEqual(['first-key'])
+    subject.actions().edit('apiKey', 'second-key')
+    subject.actions().edit('baseURL', 'https://search.test/new')
+    receipt.resolve(true)
+    await saving
+    expect(subject.field('apiKey').text).toBe('second-key')
+    expect(subject.field('baseURL').text).toBe('https://search.test/new')
+    expect(subject.shell()).toMatchObject({ dirty: true, saving: false, failed: false })
+  })
+
   it('publishes a projection whenever the scope or a draft changes', () => {
     const { host, subject } = form()
     const store = subject.bind(() => subject.field('timeoutMs').text)

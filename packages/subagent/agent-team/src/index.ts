@@ -179,7 +179,7 @@ export class TeamService extends TypertRemoteService {
       this.config.maxPendingMessagesPerMember,
       this.config.maxMessageBytes,
     )
-    this.tasks = new TeamTaskBoard(this.journal, () => this.settings().maxTasks)
+    this.tasks = new TeamTaskBoard(ctx, this.roster, this.journal, () => this.settings().maxTasks)
 
     ctx.on('session/event', (session, event) => { this.mailbox.observeSessionEvent(session, event) })
     ctx.on('agent/session-start', ({ agent }) => { this.scheduleRecovery(agent) })

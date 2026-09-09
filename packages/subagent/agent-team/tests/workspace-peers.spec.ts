@@ -57,6 +57,34 @@ it('discovers registered workspace conversations and admits durable messages onl
   })
   expect(ctx.agentTeams.listMembers(peer).map(member => member.id)).toEqual([peer.id, lead.id])
   expect(ctx.agentTeams.listMembers(foreign).map(member => member.id)).toEqual([foreign.id])
+  const work = { subject: 'Update settings', description: 'Coordinate the shared settings directory', writeScopes: ['src/settings'] }
+  const leadTask = await ctx.agentTeams.createTask(lead, work)
+  const peerTask = await ctx.agentTeams.createTask(peer, { ...work, writeScopes: ['src/settings/menu.ts'] })
+  await ctx.agentTeams.createTask(foreign, work)
+  expect((await ctx.agentTeams.claimNextReadyTask(foreign)).outcome).toBe('claimed')
+  const claims = await Promise.all([
+    ctx.agentTeams.claimNextReadyTask(lead),
+    ctx.agentTeams.claimNextReadyTask(peer),
+  ])
+  expect(claims.map(claim => claim.outcome).sort()).toEqual(['claimed', 'none'])
+  const owner = claims[0].outcome === 'claimed' ? lead : peer
+  const waiting = owner === lead ? peer : lead
+  const activeTask = ctx.agentTeams.getTask(owner, owner === lead ? leadTask.id : peerTask.id)
+  const waitingTask = ctx.agentTeams.getTask(waiting, waiting === lead ? leadTask.id : peerTask.id)
+  expect(waitingTask.writeScopeWarnings).toEqual([
+    `write scopes overlap with ${workspacePeerName(owner.id)}/${activeTask.id}`,
+  ])
+  await expect(ctx.agentTeams.updateTask(waiting, {
+    taskId: waitingTask.id, expectedRevision: waitingTask.revision, action: 'claim',
+  })).rejects.toMatchObject({ code: 'TEAM_TASK_WRITE_SCOPE_CONFLICT' })
+  expect(await ctx.agentTeams.claimNextReadyTask(waiting)).toEqual({
+    outcome: 'none', reason: 'write-scope-conflict', deferred: [waitingTask.id],
+  })
+  await ctx.agentTeams.updateTask(owner, {
+    taskId: activeTask.id, expectedRevision: activeTask.revision, action: 'complete',
+  })
+  expect(ctx.agentTeams.getTask(waiting, waitingTask.id).writeScopeWarnings).toEqual([])
+  expect((await ctx.agentTeams.claimNextReadyTask(waiting)).outcome).toBe('claimed')
   const signal = new AbortController().signal
   const message = {
     target: workspacePeerName(peer.id),
