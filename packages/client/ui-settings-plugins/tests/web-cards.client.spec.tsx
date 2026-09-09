@@ -85,7 +85,7 @@ function renderWebAccess(state: Partial<WebAccessCardState> = {}) {
     t,
     useWebAccessCard: bindSnapshotSelector(store),
   } as never as WebAccessCardProps
-  render(<main><ul><WebAccessCard {...props} /></ul></main>)
+  render(<main><WebAccessCard {...props} /></main>)
   return { actions, store }
 }
 
@@ -107,7 +107,7 @@ function renderWebProvider(ns: string, state: Partial<WebProviderCardState> = {}
     spec: entry,
     useWebProviderCard: bindSnapshotSelector(store),
   } as never as WebProviderCardProps
-  render(<main><ul><WebProviderCard {...props} /></ul></main>)
+  render(<main><WebProviderCard {...props} /></main>)
   return { actions, store }
 }
 
@@ -115,12 +115,11 @@ describe('WebAccessCard', () => {
   it('renders nothing while its namespace is unavailable', () => {
     renderWebAccess({ available: false })
 
-    expect(screen.queryByText(en.webAccessTitle)).toBeNull()
+    expect(screen.queryByRole('radio')).toBeNull()
   })
 
   it('offers one radio per backend and stages the picked id', () => {
     const { actions } = renderWebAccess()
-    fireEvent.click(screen.getByText(en.webAccessTitle))
 
     const radios = screen.getAllByRole('radio')
     expect(radios).toHaveLength(4)
@@ -136,7 +135,6 @@ describe('WebAccessCard', () => {
         choice('exa', { mounted: false }),
       ]),
     })
-    fireEvent.click(screen.getByText(en.webAccessTitle))
 
     const radios = screen.getAllByRole('radio') as HTMLInputElement[]
     expect(radios[1]?.disabled).toBe(true)
@@ -145,14 +143,12 @@ describe('WebAccessCard', () => {
 
   it('explains automatic selection while nothing is pinned', () => {
     renderWebAccess({ search: capability('', [choice('deepseek-official')]) })
-    fireEvent.click(screen.getByText(en.webAccessTitle))
 
     expect(screen.getAllByText(en.webProviderAutomatic).length).toBeGreaterThan(0)
   })
 
   it('states plainly that no browser was found when the pinned rendering backend has none', () => {
     renderWebAccess({ browserMissing: true })
-    fireEvent.click(screen.getByText(en.webAccessTitle))
 
     expect(screen.getByRole('alert').textContent).toBe(en.webFetchBrowserMissing)
   })
@@ -165,7 +161,6 @@ describe('WebAccessCard', () => {
         automatic: false,
       },
     })
-    fireEvent.click(screen.getByText(en.webAccessTitle))
 
     fireEvent.click(screen.getAllByText(en.reset)[0] as HTMLElement)
 
@@ -174,7 +169,6 @@ describe('WebAccessCard', () => {
 
   it('renders both radio groups with no accessibility violations', async () => {
     renderWebAccess({ browserMissing: true })
-    fireEvent.click(screen.getByText(en.webAccessTitle))
 
     const audit = await auditSurface('WebAccessCard', document.body)
     expect(audit.passed + audit.failed).toBeGreaterThan(0)
@@ -185,7 +179,6 @@ describe('WebAccessCard', () => {
 describe('WebProviderCard', () => {
   it('renders one control per catalogued field and stages its draft', () => {
     const { actions } = renderWebProvider('web-fetch-http')
-    fireEvent.click(screen.getByText(en.webFetchHttpTitle))
 
     fireEvent.change(screen.getByLabelText(en.webFetchTimeoutMs), { target: { value: '2500' } })
 
@@ -194,36 +187,25 @@ describe('WebProviderCard', () => {
 
   it('renders a key as a write-only control reporting whether one is configured', () => {
     renderWebProvider('web-search-exa', { secretConfigured: true })
-    fireEvent.click(screen.getByText(en.webSearchExaTitle))
 
     expect(screen.getByText(en.webApiKeySet)).toBeTruthy()
     expect(screen.getByLabelText(en.webApiKey).getAttribute('type')).toBe('password')
   })
 
-  it('says a change waits for the next boot when the Host declares restart', () => {
-    renderWebProvider('web-search-perplexity', { restartRequired: true })
-    fireEvent.click(screen.getByText(en.webSearchPerplexityTitle))
-
-    expect(screen.getByText(en.appliesRestart)).toBeTruthy()
-  })
-
   it('states plainly that no browser was found on the backend that needs one', () => {
     renderWebProvider('web-fetch-playwright', { browserConfirmed: false })
-    fireEvent.click(screen.getByText(en.webFetchPlaywrightTitle))
 
     expect(screen.getByRole('alert').textContent).toBe(en.webFetchBrowserMissing)
   })
 
   it('says nothing about a browser on a backend that renders no page', () => {
     renderWebProvider('web-fetch-http', { browserConfirmed: false })
-    fireEvent.click(screen.getByText(en.webFetchHttpTitle))
 
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('renders a blank control for a field the snapshot omits', () => {
     renderWebProvider('web-fetch-http', { fields: {} })
-    fireEvent.click(screen.getByText(en.webFetchHttpTitle))
 
     expect(screen.getByLabelText<HTMLInputElement>(en.webFetchUserAgent).value).toBe('')
   })
@@ -232,7 +214,6 @@ describe('WebProviderCard', () => {
     const { actions } = renderWebProvider('web-fetch-playwright', {
       fields: { executablePath: field('/opt/chrome', { overridden: true }) },
     })
-    fireEvent.click(screen.getByText(en.webFetchPlaywrightTitle))
 
     fireEvent.click(screen.getByText(en.reset))
 
@@ -241,7 +222,6 @@ describe('WebProviderCard', () => {
 
   it('renders a backend card with no accessibility violations', async () => {
     renderWebProvider('web-fetch-playwright', { browserConfirmed: false, restartRequired: true })
-    fireEvent.click(screen.getByText(en.webFetchPlaywrightTitle))
 
     const audit = await auditSurface('WebProviderCard', document.body)
     expect(audit.passed + audit.failed).toBeGreaterThan(0)

@@ -32,7 +32,7 @@ describe('ApprovalAssessorCardController', () => {
 
     face.edit('enabled', 'false')
     face.edit('extraPhrases', ' first \n\n second ')
-    face.save()
+    await face.save()
     await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledTimes(1) })
 
     expect(host.mutate.mock.calls).toEqual([[[
@@ -56,7 +56,7 @@ describe('ApprovalAssessorCardController', () => {
     const face = controller.inject()
 
     face.resetField('extraPhrases')
-    face.save()
+    await face.save()
     await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledOnce() })
 
     expect(host.mutate).toHaveBeenCalledWith([unsetOp('extraPhrases')])

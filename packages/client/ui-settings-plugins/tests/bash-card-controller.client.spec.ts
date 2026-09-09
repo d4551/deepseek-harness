@@ -33,7 +33,7 @@ describe('BashCardController', () => {
     face.edit('maxOutputBytes', '1024')
     expect(face.hooks.bashCard.getSnapshot().dirty).toBe(true)
 
-    face.save()
+    await face.save()
     await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledTimes(1) })
 
     expect(host.mutate.mock.calls).toEqual([[[setOp('timeoutMs', 9_000), setOp('maxOutputBytes', 1_024)]]])
@@ -56,7 +56,7 @@ describe('BashCardController', () => {
     face.resetField('timeoutMs')
     expect(face.hooks.bashCard.getSnapshot().timeoutMs.text).toBe('60000')
 
-    face.save()
+    await face.save()
     await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledWith([unsetOp('timeoutMs')]) })
 
     expect(face.hooks.bashCard.getSnapshot()).toMatchObject({

@@ -123,7 +123,7 @@ describe('WebAccessCardController', () => {
 
     card.edit('searchProvider', 'exa')
     expect(card.hooks.webAccessCard.getSnapshot().search.choices.find(choice => choice.selected)?.id).toBe('exa')
-    card.save()
+    await card.save()
     await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledOnce() })
 
     expect(host.mutate).toHaveBeenCalledWith([setOp('searchProvider', 'exa')])

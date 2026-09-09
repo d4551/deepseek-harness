@@ -11,7 +11,6 @@
 
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { ChoiceField, type ChoiceOption } from './fields.tsx'
-import { PluginCard } from './PluginCard.tsx'
 import css from './fields.module.css'
 import type { WebAccessCardFace, WebCapabilityState, WebProviderChoice } from './web-access-card-controller.ts'
 import type { PluginsSettingsLocaleKey } from './locales.ts'
@@ -51,16 +50,10 @@ function optionsOf(
 export function WebAccessCard(props: WebAccessCardProps) {
   const { t } = props
   const state = props.useWebAccessCard(snapshot => snapshot)
+  if (!state.available) return null
   const disabled = !state.writable
   return (
-    <PluginCard
-      t={t}
-      titleKey="webAccessTitle"
-      descriptionKey="webAccessDescription"
-      state={state}
-      onSave={props.save}
-      onDiscard={props.discard}
-    >
+    <>
       <ChoiceField
         id="plugin-config-web-search-provider"
         name="plugin-config-web-search-provider"
@@ -90,6 +83,6 @@ export function WebAccessCard(props: WebAccessCardProps) {
       {state.browserMissing
         ? <p className={css.notice} role="alert">{t('webFetchBrowserMissing')}</p>
         : null}
-    </PluginCard>
+    </>
   )
 }

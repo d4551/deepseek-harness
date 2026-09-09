@@ -23,7 +23,7 @@ describe('AgentLoopCardController', () => {
     const face = controller.inject()
 
     face.edit('maxParallelToolCalls', '4')
-    face.save()
+    await face.save()
     await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledWith([setOp('maxParallelToolCalls', 4)]) })
 
     expect(face.hooks.agentLoopCard.getSnapshot()).toMatchObject({

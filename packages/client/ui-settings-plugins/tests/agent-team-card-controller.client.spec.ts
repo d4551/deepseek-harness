@@ -39,7 +39,7 @@ describe('AgentTeamCardController', () => {
 
     face.edit('maxMembers', ' 24 ')
     face.edit('maxTasks', '512')
-    face.save()
+    await face.save()
     await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledTimes(1) })
 
     expect(host.mutate.mock.calls).toEqual([[[setOp('maxMembers', 24), setOp('maxTasks', 512)]]])
@@ -60,7 +60,7 @@ describe('AgentTeamCardController', () => {
     const face = controller.inject()
 
     face.resetField('maxMembers')
-    face.save()
+    await face.save()
     await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledOnce() })
 
     expect(host.mutate).toHaveBeenCalledWith([unsetOp('maxMembers')])

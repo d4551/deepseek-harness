@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
 import { CardForm } from '../src/client/card-form.ts'
 import { numberField, textField } from '../src/client/card-field-spec.ts'
+import { discardSettingsFlow, saveSettingsFlow, settingsFlowState } from '../src/client/settings-flow.ts'
 import { acceptWrites, type Section, setOp, unsetOp } from './scope-stubs.client.ts'
 
 function form() {
@@ -234,6 +235,54 @@ describe('CardForm', () => {
     expect(subject.shell()).toMatchObject({ dirty: true, saving: false, failed: false })
   })
 
+  it('returns the pending save to every caller and permits retry after rejection', async () => {
+    const { host, subject } = form()
+    const receipt = Promise.withResolvers<Awaited<ReturnType<typeof host.scope.mutate>>>()
+    host.mutate.mockReturnValueOnce(receipt.promise)
+    subject.actions().edit('timeoutMs', '9000')
+    const saving = subject.actions().save()
+    expect(subject.actions().save()).toBe(saving)
+    expect(subject.saveChain).toBe(saving)
+    expect(subject.shell().saving).toBe(true)
+
+    receipt.reject(new Error('connection closed'))
+    await expect(saving).resolves.toBe('failed')
+
+    expect(subject.shell()).toMatchObject({ dirty: true, saving: false, failed: true })
+    expect(subject.field('timeoutMs').text).toBe('9000')
+    acceptWrites(host)
+    await expect(subject.actions().save()).resolves.toBe('saved')
+    expect(subject.shell()).toMatchObject({ dirty: false, saving: false, failed: false })
+    expect(host.mutate).toHaveBeenCalledTimes(2)
+  })
+
+  it('retains a rejected credential draft and clears the pending state', async () => {
+    const host = stubSettingsScope<Section>()
+    const subject = new CardForm(host.scope, [], [{
+      field: 'apiKey',
+      write: () => Promise.reject(new Error('credential write refused')),
+    }])
+    host.publish({ status: 'ready', writable: true, value: {}, user: {} })
+    subject.actions().edit('apiKey', 'new-key')
+
+    await subject.actions().save()
+
+    expect(subject.field('apiKey').text).toBe('new-key')
+    expect(subject.shell()).toMatchObject({ dirty: true, saving: false, failed: true })
+  })
+
+  it('denies a staged write when the document becomes read-only', async () => {
+    const { host, subject } = form()
+    subject.actions().edit('timeoutMs', '9000')
+    host.publish({ writable: false })
+
+    await subject.actions().save()
+
+    expect(host.mutate).not.toHaveBeenCalled()
+    expect(subject.shell()).toMatchObject({ writable: false, dirty: true, saving: false })
+    expect(subject.field('timeoutMs').text).toBe('9000')
+  })
+
   it('publishes a projection whenever the scope or a draft changes', () => {
     const { host, subject } = form()
     const store = subject.bind(() => subject.field('timeoutMs').text)
@@ -270,5 +319,79 @@ describe('CardForm', () => {
     host.publish({ status: 'unavailable' })
 
     expect(subject.shell()).toMatchObject({ available: false, writable: false })
+  })
+})
+
+describe('Settings flow', () => {
+  function flow() {
+    const first = form()
+    const second = form()
+    const editors = [first, second].map(({ subject }) => ({
+      state: subject.bind(() => subject.shell()),
+      ...subject.actions(),
+    }))
+    return { first, second, editors }
+  }
+
+  it('saves both namespaces through one action and clears the combined draft', async () => {
+    const { first, second, editors } = flow()
+    acceptWrites(first.host)
+    acceptWrites(second.host)
+    first.subject.actions().edit('timeoutMs', '9000')
+    second.subject.actions().edit('baseURL', 'https://review.test')
+
+    expect(settingsFlowState(editors).dirty).toBe(true)
+    await saveSettingsFlow(editors)
+
+    expect(first.host.mutate).toHaveBeenCalledWith([setOp('timeoutMs', 9000)])
+    expect(second.host.mutate).toHaveBeenCalledWith([setOp('baseURL', 'https://review.test')])
+    expect(settingsFlowState(editors)).toMatchObject({ dirty: false, failed: false, saving: false })
+  })
+
+  it('validates the whole flow before writing its first namespace', async () => {
+    const { first, second, editors } = flow()
+    first.subject.actions().edit('timeoutMs', '9000')
+    second.subject.actions().edit('timeoutMs', 'invalid')
+
+    await saveSettingsFlow(editors)
+
+    expect(first.host.mutate).not.toHaveBeenCalled()
+    expect(second.host.mutate).not.toHaveBeenCalled()
+    expect(settingsFlowState(editors)).toMatchObject({ dirty: true, invalid: true })
+  })
+
+  it('stops after a refused namespace and preserves the complete remaining draft', async () => {
+    const { first, second, editors } = flow()
+    first.subject.actions().edit('timeoutMs', '9000')
+    second.subject.actions().edit('baseURL', 'https://review.test')
+
+    await saveSettingsFlow(editors)
+
+    expect(first.subject.field('timeoutMs').text).toBe('9000')
+    expect(second.subject.field('baseURL').text).toBe('https://review.test')
+    expect(second.host.mutate).not.toHaveBeenCalled()
+    expect(settingsFlowState(editors)).toMatchObject({ dirty: true, failed: true, saving: false })
+    discardSettingsFlow(editors)
+    expect(settingsFlowState(editors)).toMatchObject({ dirty: false, failed: false })
+  })
+
+  it('keeps both drafts while a flow save is pending and denies a duplicate write', async () => {
+    const { first, second, editors } = flow()
+    const receipt = Promise.withResolvers<Awaited<ReturnType<typeof first.host.scope.mutate>>>()
+    first.host.mutate.mockReturnValueOnce(receipt.promise)
+    first.subject.actions().edit('timeoutMs', '9000')
+    second.subject.actions().edit('baseURL', 'https://review.test')
+    const saving = saveSettingsFlow(editors)
+
+    discardSettingsFlow(editors)
+    await saveSettingsFlow(editors)
+
+    expect(first.subject.field('timeoutMs').text).toBe('9000')
+    expect(second.subject.field('baseURL').text).toBe('https://review.test')
+    expect(first.host.mutate).toHaveBeenCalledTimes(1)
+    expect(second.host.mutate).not.toHaveBeenCalled()
+    receipt.reject(new Error('connection closed'))
+    await saving
+    expect(settingsFlowState(editors)).toMatchObject({ dirty: true, failed: true, saving: false })
   })
 })

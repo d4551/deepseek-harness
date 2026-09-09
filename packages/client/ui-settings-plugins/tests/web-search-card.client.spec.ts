@@ -40,7 +40,7 @@ describe('WebSearchCardController', () => {
       ok: true as const,
       value: { DEEPSEEK_API_KEY: { configured: true, writable: true } },
     }))
-    face.save()
+    await face.save()
     await vi.waitFor(() => { expect(credentials.set).toHaveBeenCalled() })
 
     expect(credentials.set).toHaveBeenCalledWith('DEEPSEEK_API_KEY', 'ds-secret')
@@ -50,7 +50,7 @@ describe('WebSearchCardController', () => {
     })
   })
 
-  it('keeps the stored key when the draft is left blank', () => {
+  it('keeps the stored key when the draft is left blank', async () => {
     const host = stubSettingsScope<WebSearchSettings>()
     const credentials = credentialsApi(true)
     const controller = new WebSearchCardController(host.scope, credentials.api)
@@ -60,7 +60,7 @@ describe('WebSearchCardController', () => {
     face.edit('apiKey', '   ')
 
     expect(face.hooks.webSearchCard.getSnapshot().dirty).toBe(false)
-    face.save()
+    await face.save()
 
     expect(credentials.set).not.toHaveBeenCalled()
   })
@@ -97,7 +97,7 @@ describe('WebSearchCardController', () => {
     const face = controller.inject()
 
     face.edit('apiKey', 'ds-secret')
-    face.save()
+    await face.save()
     await vi.waitFor(() => { expect(credentials.set).toHaveBeenCalled() })
 
     expect(credentials.set).toHaveBeenCalledWith('SEARCH_KEY', 'ds-secret')
@@ -111,7 +111,7 @@ describe('WebSearchCardController', () => {
     const face = controller.inject()
 
     face.edit('apiKey', 'ds-secret')
-    face.save()
+    await face.save()
 
     await vi.waitFor(() => {
       expect(face.hooks.webSearchCard.getSnapshot()).toMatchObject({ failed: true, dirty: true })
@@ -128,7 +128,7 @@ describe('WebSearchCardController', () => {
 
     host.publish({ status: 'ready', writable: true, value: { baseURL: 'https://search.test/v1' }, user: {} })
     face.edit('apiKey', 'ds-secret')
-    face.save()
+    await face.save()
     await vi.waitFor(() => { expect(set).toHaveBeenCalled() })
 
     expect(face.hooks.webSearchCard.getSnapshot()).toMatchObject({
@@ -160,7 +160,7 @@ describe('WebSearchCardController', () => {
 
     face.edit('baseURL', 'https://other.test')
     face.edit('maxUses', '3')
-    face.save()
+    await face.save()
     await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledTimes(1) })
 
     expect(host.mutate.mock.calls).toEqual([[[setOp('baseURL', 'https://other.test'), setOp('maxUses', 3)]]])

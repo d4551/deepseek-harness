@@ -83,13 +83,16 @@ export interface CardShell {
 }
 
 /** The write actions every plugin card's slot entry injects. */
+export type CardSaveResult = 'saved' | 'unchanged' | 'blocked' | 'failed'
+
+/** The write actions every plugin card's slot entry injects. */
 export interface CardActions {
   /** Stage draft text for one field. */
   edit: (field: string, text: string) => void
   /** Stage a clear, so saving lets the field re-inherit the composition layer. */
   resetField: (field: string) => void
   /** Write every staged edit, then re-seed from what the Host accepted. */
-  save: () => void
+  save: () => Promise<CardSaveResult>
   /** Drop every staged edit. */
   discard: () => void
 }
@@ -139,7 +142,7 @@ export class CardForm<T extends object> {
    * await the write instead of polling for `saving` to clear. The form's own
    * writes never reject — a refusal lands as `failed` on the next read-back.
    */
-  saveChain: Promise<void> = Promise.resolve()
+  saveChain: Promise<CardSaveResult> = Promise.resolve('unchanged')
 
   /**
    * @param scope - the bound settings scope for this card's namespace.
@@ -217,7 +220,7 @@ export class CardForm<T extends object> {
       resetField: (field) => {
         this.stage(field, { text: this.spec(field).format(this.baseValue(field)), clear: true })
       },
-      save: () => { this.saveChain = this.save() },
+      save: () => this.save(),
       discard: () => {
         if (this.staged.size === 0 && !this.failed) return
         this.staged.clear()
@@ -239,13 +242,32 @@ export class CardForm<T extends object> {
    * controls write after the section, each on its own.
    * @returns settlement after every write and the read-back.
    */
-  async save(): Promise<void> {
+  save(): Promise<CardSaveResult> {
+    if (this.saving) return this.saveChain
     const plan = this.plan()
-    if (plan.length === 0 || this.saving || plan.some(item => item.kind === 'invalid')) return
+    if (plan.length === 0) return Promise.resolve('unchanged')
+    if (!this.scope.getSnapshot().writable || plan.some(item => item.kind === 'invalid')) {
+      return Promise.resolve('blocked')
+    }
     this.saving = true
     this.failed = false
     const submitted = new Map(this.staged)
     this.publish()
+    this.saveChain = this.write(plan).then(
+      (landed) => {
+        if (landed) {
+          for (const [field, draft] of submitted) {
+            if (this.staged.get(field) === draft) this.staged.delete(field)
+          }
+        }
+        return this.settle(landed)
+      },
+      () => this.settle(false),
+    )
+    return this.saveChain
+  }
+
+  private async write(plan: readonly PlannedWrite[]): Promise<boolean> {
     let landed = true
     const section = plan.flatMap(item => item.kind === 'op' ? [item] : [])
     if (section.length > 0) {
@@ -255,14 +277,14 @@ export class CardForm<T extends object> {
     for (const item of plan) {
       if (item.kind === 'secret') landed = await item.run() && landed
     }
-    if (landed) {
-      for (const [field, draft] of submitted) {
-        if (this.staged.get(field) === draft) this.staged.delete(field)
-      }
-    }
+    return landed
+  }
+
+  private settle(landed: boolean): CardSaveResult {
     this.saving = false
     this.failed = !landed
     this.publish()
+    return landed ? 'saved' : 'failed'
   }
 
   /**

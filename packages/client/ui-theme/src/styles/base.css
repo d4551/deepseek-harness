@@ -12,6 +12,24 @@
   --ds-transition-duration: 0.2s;
   --ds-transition-duration-fast: 0.1s;
   --ds-transition-duration-slow: 0.3s;
+  --dsw-space-control: 0.5rem;
+  --dsw-space-section: 1rem;
+  --dsw-touch-target: 2.75rem;
+  --dsw-border-width: 1px;
+  --dsw-radius-surface: 1rem;
+  --dsw-weight-heading: 600;
+}
+
+body {
+  --dsw-material-background: color-mix(in srgb, var(--dsw-alias-bg-layer-2) 92%, transparent);
+  --dsw-material-filter: blur(1rem);
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active) {
+  body {
+    --dsw-material-background: var(--dsw-alias-bg-layer-2);
+    --dsw-material-filter: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

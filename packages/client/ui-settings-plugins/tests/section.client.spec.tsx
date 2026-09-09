@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import { ConfigurablePluginsTab } from '../src/client/ConfigurablePluginsTab.tsx'
 import type { ConfigurablePluginsTabProps } from '../src/client/ConfigurablePluginsTab.tsx'
@@ -9,10 +9,24 @@ import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import type { ConfigurablePluginsTabState } from '../src/client/tab-store.ts'
 import { en } from '../src/client/locales.ts'
-import { t } from './section-support.client.tsx'
+import { settled, t } from './section-support.client.tsx'
+import type { SettingsFlowView } from '../src/client/flow-directory.ts'
 import { cardProps } from './props.client.ts'
 
 afterEach(cleanup)
+
+const flowViews: readonly SettingsFlowView[] = [
+  {
+    id: 'web', titleKey: 'webGroupTitle', descriptionKey: 'webFlowDescription', state: settled,
+    members: [{ ns: 'web', titleKey: 'webAccessTitle', descriptionKey: 'webAccessDescription' }],
+  },
+  {
+    id: 'agent-review', titleKey: 'approvalGroupTitle', descriptionKey: 'reviewFlowDescription', state: settled,
+    members: [{
+      ns: 'approval-adversary', titleKey: 'approvalAdversaryTitle', descriptionKey: 'approvalAdversaryDescription',
+    }],
+  },
+]
 
 function renderSection(rows: readonly PluginsSettingsTabEntry[]) {
   const renderSlotStub = ((_key: string, _owner: object, opts?: { only?: string }) => (
@@ -26,14 +40,21 @@ function renderSection(rows: readonly PluginsSettingsTabEntry[]) {
   render(<PluginsSettingsSection {...props} />)
 }
 
-function renderConfigurable(namespaces: string[], cards: Record<string, string> = {}, loaded = true) {
+function renderConfigurable(
+  namespaces: string[], cards: Record<string, string> = {}, loaded = true,
+  flows: readonly SettingsFlowView[] = [],
+) {
   const store = createSnapshotStore<ConfigurablePluginsTabState>({ loaded, namespaces })
+  const flowStore = createSnapshotStore(flows)
   const props = cardProps<ConfigurablePluginsTabProps>({
     t,
     useConfigurablePlugins: bindSnapshotSelector(store),
+    useSettingsFlows: bindSnapshotSelector(flowStore),
+    saveFlow: vi.fn().mockResolvedValue(undefined),
+    discardFlow: vi.fn(),
     renderSlot: (_name: string, _owner: object, opts?: { entryKey?: string }) => {
       const card = opts?.entryKey === undefined ? undefined : cards[opts.entryKey]
-      return card === undefined ? null : <li>{card}</li>
+      return card === undefined ? null : <input aria-label={card} />
     },
   })
   render(<main><ConfigurablePluginsTab {...props} /></main>)
@@ -128,9 +149,8 @@ describe('ConfigurablePluginsTab', () => {
   it('dispatches one card per namespace, keyed by it', () => {
     renderConfigurable(['bash', 'agent-loop'], { bash: 'shell', 'agent-loop': 'loop' })
 
-    expect(screen.queryByRole('listitem')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: en.otherGroupTitle }))
-    expect(screen.getAllByRole('listitem').map(item => item.textContent)).toEqual(['shell', 'loop'])
+    expect(screen.getAllByRole('textbox').map(item => item.getAttribute('aria-label'))).toEqual(['shell', 'loop'])
+    expect(screen.queryByRole('button')).toBeNull()
     expect(screen.queryByText(en.empty)).toBeNull()
   })
 
@@ -138,28 +158,28 @@ describe('ConfigurablePluginsTab', () => {
     renderConfigurable(['web', 'approval-adversary'], {
       web: 'search configuration',
       'approval-adversary': 'review configuration',
-    })
+    }, true, flowViews)
 
-    const search = screen.getByRole('button', { name: en.webGroupTitle })
-    const reviews = screen.getByRole('button', { name: en.approvalGroupTitle })
+    const search = screen.getByRole('button', { name: `${en.expand}: ${en.webGroupTitle}` })
+    const reviews = screen.getByRole('button', { name: `${en.expand}: ${en.approvalGroupTitle}` })
     expect(search.getAttribute('aria-expanded')).toBe('false')
     expect(reviews.getAttribute('aria-expanded')).toBe('false')
-    expect(screen.queryByRole('listitem')).toBeNull()
+    expect(screen.queryByRole('textbox')).toBeNull()
 
-    fireEvent.keyDown(search, { key: 'Enter' })
-    const card = screen.getByRole('listitem')
-    expect(card.textContent).toBe('search configuration')
+    expect(search.tagName).toBe('BUTTON')
+    fireEvent.click(search)
+    const card = screen.getByRole('textbox', { name: 'search configuration' })
     expect(search.getAttribute('aria-expanded')).toBe('true')
     expect(reviews.getAttribute('aria-expanded')).toBe('false')
 
-    fireEvent.keyDown(search, { key: ' ' })
-    expect(screen.queryByRole('listitem')).toBeNull()
+    fireEvent.click(search)
+    expect(screen.queryByRole('textbox')).toBeNull()
     expect(card.isConnected).toBe(true)
     fireEvent.click(search)
-    expect(screen.getByRole('listitem')).toBe(card)
+    expect(screen.getByRole('textbox')).toBe(card)
 
     fireEvent.click(reviews)
-    expect(screen.getAllByRole('listitem').map(item => item.textContent)).toEqual([
+    expect(screen.getAllByRole('textbox').map(item => item.getAttribute('aria-label'))).toEqual([
       'search configuration', 'review configuration',
     ])
   })
@@ -168,9 +188,9 @@ describe('ConfigurablePluginsTab', () => {
     renderConfigurable(['web', 'approval-adversary'], {
       web: 'search configuration',
       'approval-adversary': 'review configuration',
-    })
+    }, true, flowViews)
     const closed = await auditSurface('Settings flows closed', document.body)
-    for (const control of screen.getAllByRole('button')) fireEvent.click(control)
+    for (const control of screen.getAllByRole('button', { name: /^Show settings:/ })) fireEvent.click(control)
     const expanded = await auditSurface('Settings flows expanded', document.body)
 
     for (const audit of [closed, expanded]) {
@@ -178,5 +198,45 @@ describe('ConfigurablePluginsTab', () => {
       expect(audit.passed + audit.failed).toBeGreaterThan(0)
     }
     expect(accessibilityFailures([closed, expanded], 100)).toBe('')
+  })
+
+  it('presents multiple search editors inside one disclosure with one Save and Discard', () => {
+    renderConfigurable(['web', 'provider-one', 'provider-two'], {
+      web: 'routing', 'provider-one': 'first provider', 'provider-two': 'second provider',
+    }, true, [{
+      id: 'web', titleKey: 'webGroupTitle', descriptionKey: 'webFlowDescription', state: settled,
+      members: [
+        { ns: 'web', titleKey: 'webAccessTitle', descriptionKey: 'webAccessDescription' },
+        { ns: 'provider-one', titleKey: 'webSearchExaTitle', descriptionKey: 'webSearchExaDescription' },
+        { ns: 'provider-two', titleKey: 'webSearchPerplexityTitle', descriptionKey: 'webSearchPerplexityDescription' },
+      ],
+    }])
+
+    expect(screen.getAllByRole('button')).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: `${en.expand}: ${en.webGroupTitle}` }))
+
+    expect(screen.getAllByRole('textbox')).toHaveLength(3)
+    expect(screen.getAllByRole('button', { name: en.save })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: en.discard })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: /^Hide settings:/ })).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: /^Show settings:/ })).toBeNull()
+  })
+
+  it.each([
+    { writable: false, invalid: false },
+    { writable: true, invalid: true },
+  ])('blocks a flow save for its permission or validation state: %j', (state) => {
+    renderConfigurable(['approval-adversary'], { 'approval-adversary': 'review fields' }, true, [{
+      id: 'agent-review', titleKey: 'approvalGroupTitle', descriptionKey: 'reviewFlowDescription',
+      state: { ...settled, ...state, dirty: true, restartRequired: true },
+      members: [{
+        ns: 'approval-adversary', titleKey: 'approvalAdversaryTitle', descriptionKey: 'approvalAdversaryDescription',
+      }],
+    }])
+    fireEvent.click(screen.getByRole('button', { name: `${en.expand}: ${en.approvalGroupTitle}` }))
+
+    expect(screen.getByRole('button', { name: en.save })).toHaveProperty('disabled', true)
+    expect(screen.getByText(en.appliesRestart)).toBeTruthy()
+    if (!state.writable) expect(screen.getByText(en.readOnly)).toBeTruthy()
   })
 })

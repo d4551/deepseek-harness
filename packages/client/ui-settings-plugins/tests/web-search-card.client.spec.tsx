@@ -32,7 +32,6 @@ function renderWebSearch(state: Partial<WebSearchCardState> = {}) {
 describe('WebSearchCard', () => {
   it('reports whether a key is configured without ever showing one', () => {
     renderWebSearch({ apiKeyConfigured: true })
-    fireEvent.click(screen.getByText(en.webSearchTitle))
 
     expect(screen.getByText(en.webSearchApiKeySet)).toBeTruthy()
     expect(screen.getByLabelText(en.webSearchApiKey)).toHaveProperty('type', 'password')
@@ -40,7 +39,6 @@ describe('WebSearchCard', () => {
 
   it('keeps the key control usable while the settings document is read-only', () => {
     const actions = renderWebSearch({ writable: false })
-    fireEvent.click(screen.getByText(en.webSearchTitle))
 
     const key = screen.getByLabelText(en.webSearchApiKey)
     expect(key).toHaveProperty('disabled', false)
@@ -55,7 +53,6 @@ describe('WebSearchCard', () => {
     // A key coming from the process environment: the settings document is
     // writable, the credential is not.
     renderWebSearch({ apiKeyConfigured: true, apiKeyWritable: false })
-    fireEvent.click(screen.getByText(en.webSearchTitle))
 
     expect(screen.getByLabelText(en.webSearchApiKey)).toHaveProperty('disabled', true)
     expect(screen.getByLabelText(en.webSearchBaseUrl)).toHaveProperty('disabled', false)
@@ -66,7 +63,6 @@ describe('WebSearchCard', () => {
       baseURL: field('https://search.test/v1', { overridden: true }),
       maxUses: field('3', { overridden: true }),
     })
-    fireEvent.click(screen.getByText(en.webSearchTitle))
 
     fireEvent.change(screen.getByLabelText(en.webSearchBaseUrl), { target: { value: 'https://other.test' } })
     fireEvent.change(screen.getByLabelText(en.webSearchMaxUses), { target: { value: '4' } })

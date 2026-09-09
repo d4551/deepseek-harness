@@ -13,6 +13,7 @@
 import type { SettingsDescribeFace } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { StoredEntry } from '@deepseek-ai/dsh-client-ui-slots'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
+import { SettingsFlowDirectory, type SettingsFlowView } from './flow-directory.ts'
 
 /** What the section renders. */
 export interface ConfigurablePluginsTabState {
@@ -36,14 +37,18 @@ export interface ConfigurablePluginsTabState {
 
 /** The registration-side face the tab's slot entry injects. */
 export interface ConfigurablePluginsTabFace {
+  saveFlow: SettingsFlowDirectory['save']
+  discardFlow: SettingsFlowDirectory['discard']
   hooks: {
     /** Section snapshot bound by the renderer as usePluginConfigSection. */
     configurablePlugins: SnapshotStore<ConfigurablePluginsTabState>
+    settingsFlows: SnapshotStore<readonly SettingsFlowView[]>
   }
 }
 
 /** Derives the served namespaces from the shared describe mirror and pairs them with the cards that claim them. */
 export class ConfigurablePluginsTabController {
+  readonly flows: SettingsFlowDirectory
   private readonly store = createSnapshotStore<ConfigurablePluginsTabState>({ loaded: false, namespaces: [] })
   private disposed = false
   private readonly unsubscribe: () => void
@@ -62,6 +67,7 @@ export class ConfigurablePluginsTabController {
     private readonly describeFace: SettingsDescribeFace,
     private readonly entries: () => readonly StoredEntry[],
   ) {
+    this.flows = new SettingsFlowDirectory(describeFace, () => this.store.getSnapshot().namespaces)
     this.unsubscribe = describeFace.subscribe(() => { this.publish() })
     this.mirrorChain = describeFace.ensure()
     this.publish()
@@ -77,6 +83,7 @@ export class ConfigurablePluginsTabController {
   dispose(): void {
     this.disposed = true
     this.unsubscribe()
+    this.flows.dispose()
   }
 
   /**
@@ -84,7 +91,11 @@ export class ConfigurablePluginsTabController {
    * @returns the tab's snapshot source.
    */
   inject(): ConfigurablePluginsTabFace {
-    return { hooks: { configurablePlugins: this.store } }
+    return {
+      hooks: { configurablePlugins: this.store, settingsFlows: this.flows.store },
+      saveFlow: id => this.flows.save(id),
+      discardFlow: id => this.flows.discard(id),
+    }
   }
 
   private publish(): void {
@@ -103,5 +114,6 @@ export class ConfigurablePluginsTabController {
       && previous.namespaces.length === namespaces.length
       && previous.namespaces.every((ns, index) => ns === namespaces[index])) return
     this.store.set({ loaded, namespaces })
+    this.flows.refresh()
   }
 }

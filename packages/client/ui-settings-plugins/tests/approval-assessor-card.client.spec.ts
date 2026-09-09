@@ -26,34 +26,33 @@ function renderCard(state: Partial<ApprovalAssessorCardState> = {}) {
     t,
     useApprovalAssessorCard: bindSnapshotSelector(store),
   })
-  render(createElement('main', {}, createElement('ul', {}, createElement(ApprovalAssessorCard, props))))
+  render(createElement('main', {}, createElement(ApprovalAssessorCard, props)))
   return actions
 }
 
 describe('ApprovalAssessorCard', () => {
   it('stages enforcement and additional phrases', () => {
     const actions = renderCard({ dirty: true })
-    fireEvent.click(screen.getByText(en.approvalAssessorTitle))
 
     fireEvent.click(screen.getByRole('radio', { name: new RegExp(en.approvalAssessorEnabledOff) }))
     fireEvent.change(screen.getByLabelText(en.approvalAssessorExtraPhrases), {
       target: { value: 'skip this\ndefer that' },
     })
-    fireEvent.click(screen.getByRole('button', { name: en.save }))
+    expect(screen.queryByRole('button', { name: en.save })).toBeNull()
 
     expect(actions.edit).toHaveBeenCalledWith('enabled', 'false')
     expect(actions.edit).toHaveBeenCalledWith('extraPhrases', 'skip this\ndefer that')
-    expect(actions.save).toHaveBeenCalledOnce()
+    expect(actions.save).not.toHaveBeenCalled()
   })
 
   it('renders nothing before the namespace is served', () => {
     renderCard({ available: false })
-    expect(screen.queryByText(en.approvalAssessorTitle)).toBeNull()
+    expect(screen.queryByRole('radio')).toBeNull()
+    expect(screen.queryByRole('textbox')).toBeNull()
   })
 
   it('has no accessibility violations when expanded', async () => {
     renderCard({ extraPhrases: field('custom', { overridden: true }) })
-    fireEvent.click(screen.getByText(en.approvalAssessorTitle))
 
     const audit = await auditSurface('ApprovalAssessorCard', document.body)
     expect(audit.incomplete).toEqual([])
@@ -68,7 +67,6 @@ describe('ApprovalAssessorCard', () => {
       enabled: field('true', { overridden: true }),
       extraPhrases: field('custom', { overridden: true }),
     })
-    fireEvent.click(screen.getByText(en.approvalAssessorTitle))
 
     const group = screen.getByRole('group', { name: en.approvalAssessorEnabled })
     const hintId = group.getAttribute('aria-describedby')
@@ -78,6 +76,6 @@ describe('ApprovalAssessorCard', () => {
     expect(screen.getByLabelText(en.approvalAssessorExtraPhrases)).toHaveProperty('disabled', true)
     expect(screen.getAllByRole('button', { name: en.reset })
       .every(control => control.hasAttribute('disabled'))).toBe(true)
-    expect(screen.getByRole('button', { name: en.save })).toHaveProperty('disabled', true)
+    expect(screen.queryByRole('button', { name: en.save })).toBeNull()
   })
 })

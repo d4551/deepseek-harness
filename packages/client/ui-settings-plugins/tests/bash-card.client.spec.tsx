@@ -42,8 +42,8 @@ describe('BashCard', () => {
   it('shows the plugin and reveals its fields only once expanded', () => {
     renderBash()
     expect(screen.getByText(en.bashTitle)).toBeTruthy()
-    expect(screen.queryByText(en.bashDescription)).toBeNull()
-    expect(screen.queryByLabelText(en.bashTimeoutMs)).toBeNull()
+    expect(screen.getByText(en.bashDescription).closest('[hidden]')).toBeTruthy()
+    expect(screen.getByLabelText(en.bashTimeoutMs).closest('[hidden]')).toBeTruthy()
 
     fireEvent.click(screen.getByText(en.bashTitle))
 
@@ -149,7 +149,7 @@ describe('BashCard', () => {
 
     fireEvent.click(screen.getByText(en.bashTitle))
 
-    expect(screen.queryByLabelText(en.bashTimeoutMs)).toBeNull()
+    expect(screen.getByLabelText(en.bashTimeoutMs).closest('[hidden]')).toBeTruthy()
   })
 
   it('collapses after a successful save settles', () => {
@@ -161,7 +161,7 @@ describe('BashCard', () => {
     act(() => { store.set({ ...store.getSnapshot(), saving: true }) })
     act(() => { store.set({ ...store.getSnapshot(), dirty: false, saving: false }) })
 
-    expect(screen.queryByLabelText(en.bashTimeoutMs)).toBeNull()
+    expect(screen.getByLabelText(en.bashTimeoutMs).closest('[hidden]')).toBeTruthy()
   })
 
   it('returns keyboard focus to the disclosure after a successful save removes the form', () => {

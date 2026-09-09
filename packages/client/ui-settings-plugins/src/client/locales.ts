@@ -3,6 +3,7 @@
 /** Locale keys these surfaces render. */
 export type PluginsSettingsLocaleKey =
   | 'webGroupTitle' | 'approvalGroupTitle' | 'otherGroupTitle'
+  | 'webFlowDescription' | 'reviewFlowDescription'
   | 'nav' | 'title' | 'intro' | 'tabs' | 'configurableTab' | 'empty'
   | 'overridden' | 'reset' | 'readOnly' | 'expand' | 'collapse'
   | 'save' | 'saving' | 'discard' | 'unsaved' | 'saveFailed' | 'invalidNumber'
@@ -70,8 +71,10 @@ export type PluginsSettingsLocaleKey =
 
 /** English copy. */
 export const en: Record<PluginsSettingsLocaleKey, string> = {
-  webGroupTitle: 'Web search and page access',
-  approvalGroupTitle: 'Approval flow',
+  webGroupTitle: 'Search',
+  approvalGroupTitle: 'Agent Review',
+  webFlowDescription: 'Choose search and page retrieval providers and configure their access.',
+  reviewFlowDescription: 'Configure approval screening, model review, and the policy for undecided requests.',
   otherGroupTitle: 'Agent and execution settings',
   nav: 'Plugins',
   title: 'Plugins',
@@ -238,6 +241,8 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
 export const zh: Record<PluginsSettingsLocaleKey, string> = {
   webGroupTitle: '网页搜索与访问',
   approvalGroupTitle: '审批流程',
+  webFlowDescription: '选择搜索和网页抓取提供方，并配置访问方式。',
+  reviewFlowDescription: '配置审批筛查、模型评审和未决请求的处理策略。',
   otherGroupTitle: '智能体与执行设置',
   nav: '插件',
   title: '插件',

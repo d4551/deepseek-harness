@@ -65,7 +65,7 @@ describe('WebProviderCardController', () => {
     const { card, host } = boot('web-fetch-http', {})
 
     card.edit('timeoutMs', '2500')
-    card.save()
+    await card.save()
     await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledOnce() })
 
     expect(host.mutate).toHaveBeenCalledWith([setOp('timeoutMs', 2500)])

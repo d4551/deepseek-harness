@@ -31,14 +31,13 @@ function renderCard(state: Partial<ApprovalAdversaryCardState> = {}) {
     t,
     useApprovalAdversaryCard: bindSnapshotSelector(store),
   })
-  render(<main><ul><ApprovalAdversaryCard {...props} /></ul></main>)
+  render(<main><ApprovalAdversaryCard {...props} /></main>)
   return actions
 }
 
 describe('ApprovalAdversaryCard', () => {
   it('stages the reviewer switch, the route, the fallback, the caps, and the instructions', () => {
     const actions = renderCard({ dirty: true })
-    fireEvent.click(screen.getByText(en.approvalAdversaryTitle))
 
     fireEvent.click(screen.getByRole('radio', { name: new RegExp(en.approvalAdversaryEnabledOn) }))
     fireEvent.change(screen.getByLabelText(en.approvalAdversaryProvider), { target: { value: 'deepseek-official' } })
@@ -50,7 +49,7 @@ describe('ApprovalAdversaryCard', () => {
     fireEvent.change(screen.getByLabelText(en.approvalAdversaryInstructions), {
       target: { value: 'Deny anything that touches production.' },
     })
-    fireEvent.click(screen.getByRole('button', { name: en.save }))
+    expect(screen.queryByRole('button', { name: en.save })).toBeNull()
 
     expect(actions.edit.mock.calls).toEqual([
       ['enabled', 'true'],
@@ -62,7 +61,7 @@ describe('ApprovalAdversaryCard', () => {
       ['maxExcerptChars', '2000'],
       ['instructions', 'Deny anything that touches production.'],
     ])
-    expect(actions.save).toHaveBeenCalledOnce()
+    expect(actions.save).not.toHaveBeenCalled()
   })
 
   it('offers a reset for every overridden field and stages each clear', () => {
@@ -77,7 +76,6 @@ describe('ApprovalAdversaryCard', () => {
       maxExcerptChars: field('2000', { overridden: true }),
       instructions: field('custom', { overridden: true }),
     })
-    fireEvent.click(screen.getByText(en.approvalAdversaryTitle))
 
     const resets = screen.getAllByRole('button', { name: en.reset })
     expect(resets).toHaveLength(8)
@@ -90,19 +88,17 @@ describe('ApprovalAdversaryCard', () => {
 
   it('offers no reset for an inherited field', () => {
     renderCard({ instructions: field('custom', { overridden: true }) })
-    fireEvent.click(screen.getByText(en.approvalAdversaryTitle))
 
     expect(screen.getAllByRole('button', { name: en.reset })).toHaveLength(1)
   })
 
-  it('explains an incomplete route and blocks saving it', () => {
+  it('marks both fields of an incomplete route and explains how to correct them', () => {
     renderCard({
       dirty: true,
       invalid: true,
       provider: field('deepseek-official', { invalid: true }),
       model: field('', { invalid: true }),
     })
-    fireEvent.click(screen.getByText(en.approvalAdversaryTitle))
 
     const provider = screen.getByLabelText(en.approvalAdversaryProvider)
     const model = screen.getByLabelText(en.approvalAdversaryModel)
@@ -112,14 +108,15 @@ describe('ApprovalAdversaryCard', () => {
       .toBe(en.approvalAdversaryProviderHint)
     expect(document.getElementById(model.getAttribute('aria-describedby') ?? '')?.textContent)
       .toBe(en.approvalAdversaryModelHint)
-    expect(screen.getByRole('button', { name: en.save })).toHaveProperty('disabled', true)
+    expect(screen.queryByRole('button', { name: en.save })).toBeNull()
     expect(screen.getByText(en.approvalAdversaryProviderHint)).toBeTruthy()
     expect(screen.getByText(en.approvalAdversaryModelHint)).toBeTruthy()
   })
 
   it('renders nothing before the namespace is served', () => {
     renderCard({ available: false })
-    expect(screen.queryByText(en.approvalAdversaryTitle)).toBeNull()
+    expect(screen.queryByRole('radio')).toBeNull()
+    expect(screen.queryByRole('textbox')).toBeNull()
   })
 
   it('has no accessibility violations when expanded', async () => {
@@ -128,7 +125,6 @@ describe('ApprovalAdversaryCard', () => {
       timeoutMs: field('soon', { invalid: true }),
       instructions: field('custom', { overridden: true }),
     })
-    fireEvent.click(screen.getByText(en.approvalAdversaryTitle))
 
     const audit = await auditSurface('ApprovalAdversaryCard', document.body)
     expect(audit.incomplete).toEqual([])
@@ -143,17 +139,15 @@ describe('ApprovalAdversaryCard', () => {
       enabled: field('true', { overridden: true }),
       provider: field('deepseek-official', { overridden: true }),
     })
-    fireEvent.click(screen.getByText(en.approvalAdversaryTitle))
 
     const group = screen.getByRole('group', { name: en.approvalAdversaryEnabled })
     const hintId = group.getAttribute('aria-describedby')
     expect(hintId).toBeTruthy()
     expect(document.getElementById(hintId ?? '')?.textContent).toBe(en.approvalAdversaryEnabledHint)
-    expect(screen.getByText(en.readOnly)).toBeTruthy()
     expect(screen.getAllByRole('radio').every(control => control.hasAttribute('disabled'))).toBe(true)
     expect(screen.getAllByRole('textbox').every(control => control.hasAttribute('disabled'))).toBe(true)
     expect(screen.getAllByRole('button', { name: en.reset })
       .every(control => control.hasAttribute('disabled'))).toBe(true)
-    expect(screen.getByRole('button', { name: en.save })).toHaveProperty('disabled', true)
+    expect(screen.queryByRole('button', { name: en.save })).toBeNull()
   })
 })

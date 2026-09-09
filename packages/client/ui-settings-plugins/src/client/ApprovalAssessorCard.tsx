@@ -1,7 +1,6 @@
 import { createElement } from 'react'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { ChoiceField, MultilineField } from './fields.tsx'
-import { PluginCard } from './PluginCard.tsx'
 import type { ApprovalAssessorCardFace } from './approval-assessor-card-controller.ts'
 import type {} from './slot-contract.ts'
 
@@ -13,6 +12,7 @@ export type ApprovalAssessorCardProps =
 export function ApprovalAssessorCard(props: ApprovalAssessorCardProps) {
   const { t } = props
   const state = props.useApprovalAssessorCard(snapshot => snapshot)
+  if (!state.available) return null
   const choices = [
     {
       value: 'true',
@@ -58,16 +58,5 @@ export function ApprovalAssessorCard(props: ApprovalAssessorCardProps) {
       onReset: () => { props.resetField('extraPhrases') },
     }),
   ]
-  return createElement(
-    PluginCard,
-    {
-      t,
-      titleKey: 'approvalAssessorTitle',
-      descriptionKey: 'approvalAssessorDescription',
-      state,
-      onSave: props.save,
-      onDiscard: props.discard,
-      children: controls,
-    },
-  )
+  return controls
 }

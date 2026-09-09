@@ -54,6 +54,7 @@ import { WEB_ACCESS_NS, WebAccessCardController } from './web-access-card-contro
 import { WebProviderCardController } from './web-provider-card-controller.ts'
 import { WEB_PROVIDERS } from './web-provider-catalog.ts'
 import { en, zh } from './locales.ts'
+import { registerSettingsFlows } from './register-settings-flows.ts'
 
 export type { PluginsSettingsSectionInjected } from './PluginsSettingsSection.tsx'
 export type { ConfigurablePluginsTabFace } from './tab-store.ts'
@@ -146,6 +147,9 @@ export function apply(ctx: ClientContext): void {
   // The shared SettingsScope mirror updates after document commits and reconnects.
   const configurable = new ConfigurablePluginsTabController(
     ctx.settingsScope.describe(), () => ctx.slots.entries('settings.plugin.item'))
+  ctx.effect(() => registerSettingsFlows(configurable.flows, {
+    webAccess, webSearch, webProviders, approvalAssessor, approvalAdversary,
+  }), 'ui-settings-plugins: flow editors')
   ctx.effect(() => () => { configurable.dispose() }, 'ui-settings-plugins: tab directory')
   // A card registered after the first read joins the list without a wire call.
   ctx.effect(

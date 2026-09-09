@@ -27,7 +27,7 @@ describe('two Bash cards over one shared scope', () => {
     const { host, first, second } = pair(true)
 
     first.edit('timeoutMs', '9000')
-    first.save()
+    await first.save()
     await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledWith([setOp('timeoutMs', 9_000)]) })
 
     expect(first.hooks.bashCard.getSnapshot()).toMatchObject({ dirty: false, failed: false })
@@ -43,7 +43,7 @@ describe('two Bash cards over one shared scope', () => {
 
     second.edit('timeoutMs', '7000')
     first.edit('timeoutMs', '9000')
-    first.save()
+    await first.save()
     await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledWith([setOp('timeoutMs', 9_000)]) })
 
     // The staged draft survives the sibling's save: only its own save or a
@@ -65,7 +65,7 @@ describe('two Bash cards over one shared scope', () => {
 
     first.edit('timeoutMs', '9000')
     second.edit('maxOutputBytes', '1024')
-    first.save()
+    await first.save()
     // Generous budget: the write's round trip resolves on a loaded fork pool.
     await vi.waitFor(() => { expect(first.hooks.bashCard.getSnapshot().failed).toBe(true) }, { timeout: 5_000 })
 
@@ -82,25 +82,26 @@ describe('two Bash cards over one shared scope', () => {
     expect(host.mutate).toHaveBeenCalledTimes(1)
   })
 
-  it('delegates a read-only flip to the Host: no card hides the write it staged', async () => {
+  it('denies a write after a read-only flip and retains both drafts', async () => {
     const { host, first, second } = pair(false)
 
     first.edit('timeoutMs', '9000')
     second.edit('maxOutputBytes', '1024')
     host.publish({ status: 'ready', writable: false, value: { timeoutMs: 5_000 }, user: {} })
 
-    // Read-only is a projection both cards show, not a gate the form enforces:
-    // the write still leaves, and the rejecting Host keeps the draft staged.
     expect(first.hooks.bashCard.getSnapshot().writable).toBe(false)
     expect(second.hooks.bashCard.getSnapshot().writable).toBe(false)
 
-    first.save()
-    await vi.waitFor(() => { expect(first.hooks.bashCard.getSnapshot().failed).toBe(true) }, { timeout: 5_000 })
+    await first.save()
 
-    expect(host.mutate).toHaveBeenCalledTimes(1)
+    expect(host.mutate).not.toHaveBeenCalled()
     expect(first.hooks.bashCard.getSnapshot()).toMatchObject({
       dirty: true,
       timeoutMs: { text: '9000' },
+    })
+    expect(second.hooks.bashCard.getSnapshot()).toMatchObject({
+      dirty: true,
+      maxOutputBytes: { text: '1024' },
     })
   })
 })

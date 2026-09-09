@@ -37,12 +37,10 @@ async function openPlugins(page: Page) {
   await expect
     .poll(() => dialog.getByRole('tab', { name: '插件配置', exact: true }).getAttribute('aria-selected'), { timeout: 5_000 })
     .toBe('true')
-  for (const name of ['网页搜索与访问', '审批流程', '智能体与执行设置']) {
-    const flow = dialog.getByRole('button', { name, exact: true })
+  for (const name of ['网页搜索与访问', '审批流程']) {
+    const flow = dialog.getByRole('button', { name: `展开设置: ${name}`, exact: true })
     await flow.waitFor()
     expect(await flow.getAttribute('aria-expanded')).toBe('false')
-    await flow.click()
-    expect(await flow.getAttribute('aria-expanded')).toBe('true')
   }
   return dialog
 }
@@ -76,7 +74,7 @@ describe('web e2e: plugin configuration section', () => {
     await scaffold?.close()
   })
 
-  it('shows one card per exposed host-plane namespace', async () => {
+  it('shows one Search card and one Agent Review card with their discovered editors', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-plugin-config-cards'))
     const dialog = await openPlugins(page)
 
@@ -87,28 +85,32 @@ describe('web e2e: plugin configuration section', () => {
     expect(await dialog.getByRole('button', { name: '展开设置: Subagent' }).count()).toBe(1)
     await dialog.getByText('终端', { exact: true }).waitFor({ timeout: 10_000 })
     expect(await dialog.getByText('Agent 循环', { exact: true }).count()).toBe(1)
-    const approvalAssessor = dialog.getByRole('button', { name: '展开设置: 审批审计' })
-    await approvalAssessor.waitFor({ timeout: 10_000 })
-    expect(await approvalAssessor.count()).toBe(1)
+    expect(await dialog.getByRole('button', { name: '展开设置: 审批审计' }).count()).toBe(0)
     // The adversary ships mounted but off; its card renders because the base
     // serves the namespace, and enabling it is this page's job.
-    const approvalAdversary = dialog.getByRole('button', { name: '展开设置: 对抗式审批评审' })
-    await approvalAdversary.waitFor({ timeout: 10_000 })
-    expect(await approvalAdversary.count()).toBe(1)
+    expect(await dialog.getByRole('button', { name: '展开设置: 对抗式审批评审' }).count()).toBe(0)
     expect(await dialog.getByRole('button', { name: '展开设置: 智能体团队' }).count()).toBe(1)
     expect(await dialog.getByText('DeepSeek 搜索', { exact: true }).count()).toBe(1)
-    expect(await dialog.getByRole('button', { name: '展开设置: 浏览器搜索和抓取' }).count()).toBe(1)
+    expect(await dialog.getByRole('button', { name: '展开设置: 浏览器搜索和抓取' }).count()).toBe(0)
     // Collapsed: a card's fields appear only once it is expanded.
-    expect(await dialog.getByLabel('命令超时（毫秒）').count()).toBe(0)
+    expect(await dialog.getByLabel('命令超时（毫秒）').isVisible()).toBe(false)
+
+    await dialog.getByRole('button', { name: '展开设置: 网页搜索与访问', exact: true }).click()
+    expect(await dialog.getByRole('button', { name: '保存', exact: true }).count()).toBe(1)
+    expect(await dialog.getByRole('button', { name: '放弃修改', exact: true }).count()).toBe(1)
+    await dialog.getByRole('button', { name: '展开设置: 审批流程', exact: true }).click()
+    expect(await dialog.getByRole('button', { name: '保存', exact: true }).count()).toBe(2)
+    expect(await dialog.getByRole('group', { name: '审批审计', exact: true }).isVisible()).toBe(true)
+    expect(await dialog.getByRole('group', { name: '对抗式审批评审', exact: true }).isVisible()).toBe(true)
 
     const snapshot = await captureStableAria(page, '[role="dialog"]', scaffold.workspaceCwd)
-    await compareOrRefreshGolden(SECTION_EXPECTED, snapshot, MODE)
     await page.screenshot({ path: '.artifacts/finish/settings-groups.png' })
-    await dialog.getByRole('button', { name: '审批流程', exact: true }).scrollIntoViewIfNeeded()
-    await dialog.getByRole('button', { name: '展开设置: 对抗式审批评审' }).scrollIntoViewIfNeeded()
+    await dialog.getByRole('button', { name: '收起设置: 审批流程', exact: true }).scrollIntoViewIfNeeded()
+    await dialog.getByRole('group', { name: '对抗式审批评审', exact: true }).scrollIntoViewIfNeeded()
     await page.screenshot({ path: '.artifacts/finish/approval-stages.png' })
     await assertPageAccessibility(page)
     expect(tripwire.pageErrors).toEqual([])
+    await compareOrRefreshGolden(SECTION_EXPECTED, snapshot, MODE)
   }, 60_000)
 
   it('persists selected adapter routes as the subagent model allowlist', async () => {
@@ -244,7 +246,7 @@ describe('web e2e: plugin configuration section', () => {
   it('commits the review route as a pair and refuses half of one', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-plugin-config-approval-adversary'))
     const dialog = await openPlugins(page)
-    const expand = dialog.getByRole('button', { name: '展开设置: 对抗式审批评审' })
+    const expand = dialog.getByRole('button', { name: '展开设置: 审批流程' })
     await expand.waitFor({ timeout: 10_000 })
     await expand.click()
     const provider = dialog.getByRole('textbox', { name: '评审提供方', exact: true })
@@ -382,16 +384,13 @@ describe('web e2e: Team and browser plugin configuration', () => {
   it('selects browser search and fetch and persists their shared browser capacity', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-plugin-config-browser'))
     const dialog = await openPlugins(page)
-    await dialog.getByRole('button', { name: '展开设置: 网页访问' }).click()
+    const browserCard = dialog.getByRole('button', { name: '展开设置: 网页搜索与访问' })
+    await browserCard.click()
     const search = dialog.locator('input[name="plugin-config-web-search-provider"][value="playwright"]')
     const fetch = dialog.locator('input[name="plugin-config-web-fetch-provider"][value="playwright"]')
     expect(await search.isChecked()).toBe(true)
     expect(await fetch.isChecked()).toBe(true)
     expect(await dialog.getByRole('alert').count()).toBe(0)
-    await dialog.getByRole('button', { name: '收起设置: 网页访问' }).click()
-
-    const browserCard = dialog.getByRole('button', { name: '展开设置: 浏览器搜索和抓取' })
-    await browserCard.click()
     expect(await dialog.getByRole('alert').count()).toBe(0)
     const capacity = dialog.getByRole('textbox', { name: '并发渲染数', exact: true })
     await capacity.fill('3')

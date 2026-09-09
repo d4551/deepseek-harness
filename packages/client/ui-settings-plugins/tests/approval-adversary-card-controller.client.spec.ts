@@ -53,7 +53,7 @@ describe('ApprovalAdversaryCardController', () => {
     face.edit('maxOutputTokens', '128')
     face.edit('maxExcerptChars', '2000')
     face.edit('instructions', ' Deny anything that touches production. ')
-    face.save()
+    await face.save()
     await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledTimes(1) })
 
     // One mutation carries the whole section, so the Host's paired-route
@@ -116,7 +116,7 @@ describe('ApprovalAdversaryCardController', () => {
 
     face.resetField('provider')
     face.resetField('model')
-    face.save()
+    await face.save()
     await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledOnce() })
 
     expect(host.mutate.mock.calls).toEqual([[[unsetOp('provider'), unsetOp('model')]]])

@@ -6,7 +6,6 @@
 
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { SecretField, ValueField } from './fields.tsx'
-import { PluginCard } from './PluginCard.tsx'
 import type { WebSearchCardFace } from './web-search-card-controller.ts'
 import type {} from './slot-contract.ts'
 
@@ -24,16 +23,10 @@ export type WebSearchCardProps =
 export function WebSearchCard(props: WebSearchCardProps) {
   const { t } = props
   const state = props.useWebSearchCard(snapshot => snapshot)
+  if (!state.available) return null
   const disabled = !state.writable
   return (
-    <PluginCard
-      t={t}
-      titleKey="webSearchTitle"
-      descriptionKey="webSearchDescription"
-      state={state}
-      onSave={props.save}
-      onDiscard={props.discard}
-    >
+    <>
       <SecretField
         id="plugin-config-web-search-key"
         label={t('webSearchApiKey')}
@@ -73,6 +66,6 @@ export function WebSearchCard(props: WebSearchCardProps) {
         onEdit={(text) => { props.edit('maxUses', text) }}
         onReset={() => { props.resetField('maxUses') }}
       />
-    </PluginCard>
+    </>
   )
 }

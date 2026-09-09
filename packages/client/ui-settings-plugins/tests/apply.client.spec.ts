@@ -147,7 +147,8 @@ describe('ui-settings-plugins apply', () => {
 
     const tab = slots.entries('settings.plugins.tab')[0]!
     const tabFaceHooks = tabFace(tab).hooks
-    expect(Object.keys(tabFaceHooks)).toEqual(['configurablePlugins'])
+    expect(Object.keys(tabFaceHooks)).toEqual(['configurablePlugins', 'settingsFlows'])
+    expect(tabFaceHooks.settingsFlows.getSnapshot()).toEqual([])
     for (const entry of slots.entries('settings.plugin.item')) {
       const face = cardFace(entry)
       // Each card injects exactly one snapshot store plus its own actions.

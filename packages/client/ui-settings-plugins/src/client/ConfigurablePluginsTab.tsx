@@ -7,12 +7,12 @@
  * which keys to dispatch.
  */
 
-import { Fragment, useState } from 'react'
-import { DisclosureRow, IconChevronDownOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Fragment } from 'react'
+import { SettingsFields } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from './slot-contract.ts'
 import type { ConfigurablePluginsTabFace } from './tab-store.ts'
-import { settingsGroups } from './settings-groups.ts'
+import { PluginCard } from './PluginCard.tsx'
 
 /** Props the renderer binds for the configurable tab. */
 export type ConfigurablePluginsTabProps =
@@ -29,38 +29,31 @@ export type ConfigurablePluginsTabProps =
 export function ConfigurablePluginsTab(props: ConfigurablePluginsTabProps) {
   const { t, renderSlot } = props
   const { loaded, namespaces } = props.useConfigurablePlugins(snapshot => snapshot)
-  const [openFlows, setOpenFlows] = useState<ReadonlySet<string>>(() => new Set())
+  const flows = props.useSettingsFlows(snapshot => snapshot)
+  const members = new Set(flows.flatMap(flow => flow.members.map(member => member.ns)))
   if (namespaces.length > 0) {
     return (
-      <div>
-        {settingsGroups(namespaces).map((group) => {
-          const toggleFlow = () => {
-            setOpenFlows((previous) => {
-              const next = new Set(previous)
-              if (next.has(group.title)) next.delete(group.title)
-              else next.add(group.title)
-              return next
-            })
-          }
-          return (
-            <DisclosureRow
-              key={group.title}
-              title={t(group.title)}
-              icon={<IconChevronDownOutline14 />}
-              open={openFlows.has(group.title)}
-              expandable
-              expandOnRowClick
-              keepMounted
-              onToggle={toggleFlow}
-            >
-              <div role="list">
-                {group.namespaces.map(ns => (
-                  <Fragment key={ns}>{renderSlot('settings.plugin.item', {}, { entryKey: ns })}</Fragment>
-                ))}
-              </div>
-            </DisclosureRow>
-          )
-        })}
+      <div role="list">
+        {flows.map(flow => (
+          <PluginCard
+            key={flow.id}
+            t={t}
+            titleKey={flow.titleKey}
+            descriptionKey={flow.descriptionKey}
+            state={flow.state}
+            onSave={() => props.saveFlow(flow.id)}
+            onDiscard={() => { props.discardFlow(flow.id) }}
+          >
+            {flow.members.map(member => (
+              <SettingsFields key={member.ns} title={t(member.titleKey)} description={t(member.descriptionKey)}>
+                {renderSlot('settings.plugin.item', {}, { entryKey: member.ns })}
+              </SettingsFields>
+            ))}
+          </PluginCard>
+        ))}
+        {namespaces.filter(ns => !members.has(ns)).map(ns => (
+          <Fragment key={ns}>{renderSlot('settings.plugin.item', {}, { entryKey: ns })}</Fragment>
+        ))}
       </div>
     )
   }

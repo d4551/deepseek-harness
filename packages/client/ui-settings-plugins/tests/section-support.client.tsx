@@ -13,7 +13,7 @@ import { SubagentModelSelectionCard } from '../src/client/SubagentModelSelection
 import type { SubagentModelSelectionCardProps } from '../src/client/SubagentModelSelectionCard.tsx'
 import type { SubagentModelSelectionCardState } from '../src/client/subagent-model-selection-card-controller.ts'
 import type { ModelRouteCandidate } from '../src/client/model-route.ts'
-import type { CardFieldState, CardShell } from '../src/client/card-form.ts'
+import type { CardActions, CardFieldState, CardShell } from '../src/client/card-form.ts'
 import { en } from '../src/client/locales.ts'
 import { cardProps } from './props.client.ts'
 
@@ -38,13 +38,13 @@ export function field(text: string, rest: Partial<CardFieldState> = {}): CardFie
 export function cardActions(): {
   edit: Mock<(field: string, text: string) => void>
   resetField: Mock<(field: string) => void>
-  save: Mock<() => void>
+  save: Mock<CardActions['save']>
   discard: Mock<() => void>
 } {
   return {
     edit: vi.fn(),
     resetField: vi.fn(),
-    save: vi.fn(),
+    save: vi.fn<CardActions['save']>().mockResolvedValue('unchanged'),
     discard: vi.fn(),
   }
 }

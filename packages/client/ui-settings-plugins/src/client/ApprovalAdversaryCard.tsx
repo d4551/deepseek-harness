@@ -2,7 +2,6 @@
 
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { ChoiceField, MultilineField, ValueField } from './fields.tsx'
-import { PluginCard } from './PluginCard.tsx'
 import type { ApprovalAdversaryCardFace } from './approval-adversary-card-controller.ts'
 import type {} from './slot-contract.ts'
 
@@ -20,20 +19,14 @@ export type ApprovalAdversaryCardProps =
 export function ApprovalAdversaryCard(props: ApprovalAdversaryCardProps) {
   const { t } = props
   const state = props.useApprovalAdversaryCard(snapshot => snapshot)
+  if (!state.available) return null
   const shared = {
     overriddenLabel: t('overridden'),
     resetLabel: t('reset'),
     disabled: !state.writable,
   }
   return (
-    <PluginCard
-      t={t}
-      titleKey="approvalAdversaryTitle"
-      descriptionKey="approvalAdversaryDescription"
-      state={state}
-      onSave={props.save}
-      onDiscard={props.discard}
-    >
+    <>
       <ChoiceField
         id="plugin-config-approval-adversary-enabled"
         name="plugin-config-approval-adversary-enabled"
@@ -149,6 +142,6 @@ export function ApprovalAdversaryCard(props: ApprovalAdversaryCardProps) {
         onEdit={(text) => { props.edit('instructions', text) }}
         onReset={() => { props.resetField('instructions') }}
       />
-    </PluginCard>
+    </>
   )
 }

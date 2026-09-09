@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Button, DisclosureRow, Pill, IconChevronDownOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, SettingsDisclosure, Pill } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { CardShell } from './card-form.ts'
 import type { PluginsSettingsLocaleKey } from './locales.ts'
 
@@ -68,17 +68,17 @@ export function PluginCard(props: PluginCardProps) {
   const blocked = !state.writable || !state.dirty || state.invalid || state.saving
   return (
     <div role="listitem" ref={rootRef}>
-      <DisclosureRow
+      <SettingsDisclosure
         title={title}
         toggleLabel={`${props.t(open ? 'collapse' : 'expand')}: ${title}`}
-        icon={<IconChevronDownOutline14 />}
         open={open}
-        expandable
-        expandOnRowClick
-        keepContentWhenOpen
         busy={state.saving}
-        collapsedContent={state.dirty ? <Pill>{props.t('unsaved')}</Pill> : undefined}
-        onToggle={() => { setOpen(!open) }}
+        status={state.dirty ? <Pill>{props.t('unsaved')}</Pill> : null}
+        onToggle={() => {
+          const next = !open
+          setOpen(next)
+          return next
+        }}
       >
         <div ref={bodyRef}>
           <p>{props.t(props.descriptionKey)}</p>
@@ -110,7 +110,7 @@ export function PluginCard(props: PluginCardProps) {
             </Button>
           </div>
         </div>
-      </DisclosureRow>
+      </SettingsDisclosure>
     </div>
   )
 }

@@ -6,7 +6,6 @@
 
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { SecretField, ValueField } from './fields.tsx'
-import { PluginCard } from './PluginCard.tsx'
 import css from './fields.module.css'
 import type { WebProviderCardFace } from './web-provider-card-controller.ts'
 import type {} from './slot-contract.ts'
@@ -25,16 +24,10 @@ export type WebProviderCardProps =
 export function WebProviderCard(props: WebProviderCardProps) {
   const { spec, t } = props
   const state = props.useWebProviderCard(snapshot => snapshot)
+  if (!state.available) return null
   const disabled = !state.writable
   return (
-    <PluginCard
-      t={t}
-      titleKey={spec.titleKey}
-      descriptionKey={spec.descriptionKey}
-      state={state}
-      onSave={props.save}
-      onDiscard={props.discard}
-    >
+    <>
       {spec.browserField === undefined || state.browserConfirmed
         ? null
         : <p className={css.notice} role="alert">{t('webFetchBrowserMissing')}</p>}
@@ -73,6 +66,6 @@ export function WebProviderCard(props: WebProviderCardProps) {
           />
         )
       })}
-    </PluginCard>
+    </>
   )
 }

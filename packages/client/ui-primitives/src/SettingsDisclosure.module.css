@@ -1,0 +1,64 @@
+.surface {
+  min-inline-size: 0;
+  margin-block-end: var(--dsw-space-section);
+  border: var(--dsw-border-width) solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-surface);
+  background: var(--dsw-material-background);
+  backdrop-filter: var(--dsw-material-filter);
+}
+
+.heading {
+  margin: 0;
+  font: inherit;
+}
+
+.trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--dsw-space-control);
+  min-block-size: var(--dsw-touch-target);
+  inline-size: 100%;
+  padding: var(--dsw-space-control) var(--dsw-space-section);
+  border: 0;
+  border-radius: inherit;
+  color: var(--dsw-alias-label-primary);
+  background: transparent;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.trigger > svg {
+  flex: none;
+}
+
+.title {
+  flex: 1;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.panel {
+  padding: var(--dsw-space-section);
+  border-block-start: var(--dsw-border-width) solid var(--dsw-alias-border-l2);
+}
+
+.fields {
+  min-inline-size: 0;
+  margin: 0;
+  margin-block-end: var(--dsw-space-section);
+  padding: 0;
+  border: 0;
+}
+
+.legend {
+  padding: 0;
+  color: var(--dsw-alias-label-primary);
+  font-weight: var(--dsw-weight-heading);
+}
+
+.description {
+  margin-block: var(--dsw-space-control) var(--dsw-space-section);
+  color: var(--dsw-alias-label-secondary);
+  overflow-wrap: anywhere;
+}
