@@ -153,6 +153,20 @@ describe('the settings Remote namespace a configuration page calls', () => {
     expect(view && 'user' in view).toBe(false)
   })
 
+  it('carries plugin-owned flow membership through reads and write receipts', async () => {
+    const { controller, ctx } = await boot()
+    const namespace = settingsNamespace('research-provider')
+    ctx.settings.register(namespace, Profile, { flow: 'research' })
+    expect(controller.describe().namespaces.find(view => view.ns === namespace)?.flow).toBe('research')
+    const receipt = await controller.mutate(namespace, [
+      { op: 'set', path: ['apiKey'], value: 'private-provider-key' },
+    ], 0)
+    expect(receipt.flow).toBe('research')
+    expect(receipt.secrets).toEqual([{ path: ['apiKey'], set: true }])
+    expect(JSON.stringify(receipt)).not.toContain('private-provider-key')
+    await ctx.fiber.dispose()
+  })
+
   it('declares an empty slot list when the provider names no secrets', async () => {
     const { controller } = await boot(SlotlessSettings)
     const [view] = controller.describe().namespaces
