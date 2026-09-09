@@ -45,6 +45,8 @@ API Gateway Client registers the internal `$events` logical stream as the sole g
 
 An ended `$events` stream, a Remote stream error, a non-ready opening item, or a malformed event item invalidates the current generation. The controller immediately withdraws the generation, publishes `reconnecting`, and reopens `$events` after backoff. Gateway mux reconnects the physical WebSocket; Connection generation reopens the logical stream and establishes the next baseline starting point.
 
+Readiness has a bounded deadline. Expiry aborts the generation and starts backoff even if the carrier has not settled; late readiness from that generation cannot publish Host state. Stopping cancels both the current generation and its retry wait. A subsequent start owns a separate loop, so an earlier loop cannot resume alongside it.
+
 <a id="model-experience"></a>
 ## Model Experience
 

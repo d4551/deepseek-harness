@@ -44,6 +44,8 @@ Absolute executable paths are verified; bare names resolve against the scrubbed 
 
 Collect mode keeps the last `maxBytes` of a stream in memory — errors and final results cluster at the end — and, when a `spill` cap is configured, appends the complete stream to a private file under a per-process directory in the OS temp dir (a `0700` directory, `0600` random-named files). A stream larger than the spill cap discards its incomplete spill and returns only the marked truncated tail. Reads are offset-based and non-consuming, so background and batch readers coexist before and after exit.
 
+A collected-stream error or a failed spill-file open or write terminates the process tree and rejects `done` with the original error. The caller receives the failure through the subprocess handle; the host stays running.
+
 ### Running terminal sessions
 
 `spawnTerminal` allocates a real PTY and bridges UTF-8 text; you can inspect and signal the current foreground process group and await a `terminate()` that settles every session member the provider can still observe. On Linux, an exact input wait requires a foreground thread whose fd 0 identifies the shell's controlling terminal and whose current syscall waits on that fd. If the kernel denies the syscall probe, the provider reports no exact wait and leaves the higher PTY backend to its idle inference; process sleep state is not evidence. On Windows, SIGINT is delivered as a Ctrl-C input write, SIGTSTP and SIGHUP are unsupported, and teardown verifies the shell's termination through the process table because an externally killed shell may never fire the PTY exit notification.

@@ -45,6 +45,8 @@ API Gateway Client 把内部 `$events` logical stream 注册为唯一 generation
 
 `$events` 结束、返回 Remote stream error、收到非 ready 首项或畸形事件项，都会使当前 generation 失效。Controller 立即撤回 generation、发布 `reconnecting`，并在退避后重开 `$events`。Gateway mux 自己负责重建底层 WebSocket；Connection generation 负责重开 logical stream 并建立下一次 baseline 起点。
 
+Readiness 有明确的等待期限。到期会中止 generation 并开始退避，即使 carrier 尚未结算；该 generation 迟到的 readiness 不能发布 Host 状态。停止会同时取消当前 generation 和重试等待。再次启动拥有独立的循环，因此先前的循环不能与它并行恢复。
+
 <a id="model-experience"></a>
 ## 模型体验
 

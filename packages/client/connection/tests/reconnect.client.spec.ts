@@ -15,7 +15,7 @@ it('retries a readiness timeout even when the carrier has not settled after abor
       signal.addEventListener('abort', () => { resolve() }, { once: true })
     })
   }, { onConnected: (host) => { homes.push(host.home) } }, config)
-  onTestFinished(() => { controller.stop(); stalled.resolve() })
+  onTestFinished(() => { controller.stop(); stalled.resolve(undefined) })
   controller.start()
   await vi.waitFor(() => { expect(homes).toEqual(['/connected']) })
   expect(signals).toHaveLength(2)
