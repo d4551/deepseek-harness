@@ -4,35 +4,37 @@
     - img
   - button "Refresh Team":
     - img
+    - text: Refresh Team
   - heading "Members" [level=3]
   - article:
     - button "lead" [disabled]
     - paragraph: "Idle · Model: deepseek-v4-flash"
+  - heading "Shared tasks" [level=3]
+  - button "New task":
+    - img
+    - text: New task
+  - article "Browser task":
+    - group "Browser task":
+      - text: Browser task
+      - paragraph: Created through the assembled browser
+      - text: Pending
+      - list:
+        - listitem: task-1
+        - listitem: Ready
+        - listitem: "Write scopes: src/web"
+      - text: Owner
+      - combobox "Owner":
+        - option "Unowned" [selected]
+        - option "lead"
+      - button "Edit":
+        - img
+        - text: Edit
+      - button "Delete":
+        - img
+        - text: Delete
   - region "Subagent conversations":
     - heading "Subagent conversations" [level=3]
     - paragraph: No subagent conversations yet
   - region "Messages between members":
     - heading "Messages between members" [level=3]
     - paragraph: No messages between members yet
-  - heading "Shared tasks" [level=3]
-  - button "New task":
-    - img
-    - text: New task
-  - article:
-    - strong: Browser task
-    - text: Pending
-    - paragraph: Created through the assembled browser
-    - list:
-      - listitem: task-1
-      - listitem: Ready
-      - listitem: "Write scopes: src/web"
-    - text: Owner
-    - combobox "Owner":
-      - option "Unowned" [selected]
-      - option "lead"
-    - button "Edit":
-      - img
-      - text: Edit
-    - button "Delete":
-      - img
-      - text: Delete

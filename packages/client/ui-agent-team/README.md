@@ -35,9 +35,9 @@ The conversation list includes nested subagents with their direct parents and cu
 
 ### Manage the task board
 
-The task board shows task identity, owner, blockers, readiness, advisory write scopes, and overlap warnings. A user can create, edit, assign or unassign, complete, reopen, and delete tasks through `agentTeams/createTask` and `agentTeams/updateTask`. Every update sends the displayed revision, and create or update rejections remain explicit business results.
+The task board groups each task's identity, owner, blockers, readiness, advisory write scopes, and overlap warnings. A user can create, edit, assign or unassign, complete, reopen, and delete tasks through `agentTeams/createTask` and `agentTeams/updateTask`. An unavailable owner remains visible in the owner selector. Edits retain the revision opened by the user; live updates cannot silently advance it. After a conflict, the draft remains available to copy; cancel and reopen the editor to review the latest task before editing again. Create or update rejections remain explicit business results.
 
-Task forms retain visible field labels after typing and support Enter submission from single-line fields. Inputs and actions are disabled while saving. Escape, Close, or clicking outside dismisses the panel; Escape and Close return focus to its trigger.
+Opening a task form focuses its subject. Forms retain visible field labels after typing and support Enter submission from single-line fields. Inputs and actions are disabled while saving. Escape, Close, or clicking outside dismisses the panel; Escape and Close return focus to its trigger.
 
 -----
 

@@ -54,7 +54,7 @@ export function Modal({
         element.inert = true
       }
     }
-    dialog.focus()
+    if (!dialog.contains(document.activeElement)) dialog.focus()
     const containFocus = (event: FocusEvent) => {
       if (root.inert) return
       if (event.target instanceof Node && !root.contains(event.target)) dialog.focus()

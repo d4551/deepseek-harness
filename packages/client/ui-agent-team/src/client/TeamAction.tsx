@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent, type MouseEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {
   CreateTeamTaskRequest,
@@ -10,14 +10,14 @@ import type {
 } from '@deepseek-ai/dsh-agent-team/client'
 import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import {
-  Button, Modal, Pill, Select, IconCheckOutline14, IconEditOutline16, IconPlusOutline16,
-  IconRefreshOutline14, IconTrashOutline16, IconUserOutline16, StateDot,
+  Button, Modal, Pill, IconPlusOutline16, IconRefreshOutline14, IconUserOutline16, StateDot,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { NS, type TeamKey } from './locales.ts'
 import { observeTeamActivity } from './observe-team.ts'
 import { TaskForm, type TaskDraft } from './TaskForm.tsx'
+import { TaskCard } from './TaskCard.tsx'
 import { TeamConversations, type TeamConversation } from './TeamConversations.tsx'
 
 /** Generated Remote result consumed directly by the Team UI. */
@@ -50,15 +50,6 @@ function failureText(error: Pick<RemoteFailure, 'code' | 'message'>): string {
   return `${error.message} (${error.code})`
 }
 
-function statusKey(status: TeamTask['status']): TeamKey {
-  switch (status) {
-    case 'pending': return 'status.pending'
-    case 'in_progress': return 'status.in_progress'
-    case 'completed': return 'status.completed'
-    case 'deleted': return 'status.deleted'
-  }
-}
-
 function memberStatusKey(status: TeamRosterMember['status']): TeamKey {
   switch (status) {
     case 'running': return 'memberStatus.running'
@@ -79,7 +70,7 @@ export function TeamAction({
   const [error, setError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [createDraft, setCreateDraft] = useState<TaskDraft>(EMPTY_DRAFT)
-  const [editing, setEditing] = useState<string | null>(null)
+  const [editing, setEditing] = useState<TeamTask | null>(null)
   const [editDraft, setEditDraft] = useState<TaskDraft>(EMPTY_DRAFT)
   const [pendingTasks, setPendingTasks] = useState<ReadonlySet<string>>(() => new Set())
   const sessionRef = useRef(sessionId)
@@ -209,7 +200,7 @@ export function TeamAction({
   }
 
   const startEdit = (task: TeamTask): void => {
-    setEditing(task.id)
+    setEditing(task)
     setEditDraft({
       subject: task.subject,
       description: task.description,
@@ -229,6 +220,7 @@ export function TeamAction({
       writeScopes: items(editDraft.scopes),
     }))
     if (edited === undefined) return false
+    setEditing(edited)
     const blockedBy = items(editDraft.blockers)
     if (blockedBy.length === edited.blockedBy.length
       && blockedBy.every((blocker, index) => blocker === edited.blockedBy[index])) {
@@ -265,6 +257,7 @@ export function TeamAction({
     <div data-team-action>
       <Button
         type="button"
+        aria-haspopup="dialog"
         aria-expanded={open}
         onClick={togglePanel}
       >
@@ -276,11 +269,11 @@ export function TeamAction({
         <Modal open={open} onClose={closePanel} title={t('trigger')} closeLabel={t('close')}>
           <div>
             <Button size="sm" aria-label={t('refresh')} onClick={() => { refresh().then(undefined, reportError) }}>
-              <IconRefreshOutline14 />
+              <IconRefreshOutline14 /> {t('refresh')}
             </Button>
           </div>
           {error !== null && <div role="alert">{error}</div>}
-          {loading && view === null && <p>{t('loading')}</p>}
+          {loading && <p role="status">{t('loading')}</p>}
           {view !== null && (
             <>
               <section>
@@ -294,7 +287,7 @@ export function TeamAction({
                           disabled={member.id === sessionId || member.status === 'failed' || member.status === 'provisioning'}
                           title={t('open')}
                           onClick={() => {
-                            openTeammate(sessionId, member).then(undefined, (reason: unknown) => { setError(String(reason)) })
+                            openTeammate(sessionId, member).then(undefined, reportError)
                           }}
                         >{member.name}</Button>
                       </div>
@@ -304,14 +297,10 @@ export function TeamAction({
                   ))}
                 </div>
               </section>
-              <TeamConversations
-                view={view} t={t} open={entry => openSubagent(sessionId, entry)}
-                reportError={(reason) => { setError(String(reason)) }}
-              />
               <section>
                 <div>
                   <h3>{t('tasks')}</h3>
-                  <Button size="sm" onClick={() => { setCreating(true) }}>
+                  <Button size="sm" disabled={creating} onClick={() => { setCreating(true) }}>
                     <IconPlusOutline16 /> {t('create')}
                   </Button>
                 </div>
@@ -327,79 +316,33 @@ export function TeamAction({
                 )}
                 {view.tasks.length === 0 && !creating && <p>{t('empty')}</p>}
                 <div>
-                  {view.tasks.map(task => editing === task.id
+                  {view.tasks.map(task => editing?.id === task.id
                     ? (
                       <TaskForm
                         key={task.id}
                         draft={editDraft}
                         setDraft={setEditDraft}
                         pending={pendingTasks.has(task.id)}
-                        onSave={() => { submitEdit(task).then(undefined, reportError) }}
+                        onSave={() => { submitEdit(editing).then(undefined, reportError) }}
                         onCancel={() => { setEditing(null) }}
                         t={t}
                       />
                     )
                     : (
-                      <article key={task.id}>
-                        <div>
-                          <strong>{task.subject}</strong>
-                          <Pill>{t(statusKey(task.status))}</Pill>
-                        </div>
-                        <p>{task.description}</p>
-                        <ul>
-                          <li>{task.id}</li>
-                          {task.status === 'pending' && <li>{task.ready ? t('ready') : t('blocked')}</li>}
-                          {task.blockedBy.length > 0 && <li>{t('blockedBy')}: {task.blockedBy.join(', ')}</li>}
-                          {task.writeScopes.length > 0 && <li>{t('writeScopes')}: {task.writeScopes.join(', ')}</li>}
-                          {task.writeScopeWarnings.map(warning => <li key={warning}>{warning}</li>)}
-                        </ul>
-                        <div>
-                          <label>
-                            {t('owner')}
-                            <Select
-                              value={task.ownerName ?? ''}
-                              disabled={pendingTasks.has(task.id) || task.status === 'completed'}
-                              onChange={(event: ChangeEvent<HTMLSelectElement>) => {
-                                const owner = event.target.value
-                                settleTask(task.id, () => updateTask(sessionId, {
-                                  taskId: task.id,
-                                  expectedRevision: task.revision,
-                                  action: 'reassign',
-                                  ...owner === '' ? {} : { owner },
-                                })).then(undefined, reportError)
-                              }}
-                            >
-                              <option value="">{t('unowned')}</option>
-                              {assignable.map(member => <option key={member.id} value={member.name}>{member.name}</option>)}
-                            </Select>
-                          </label>
-                          <Button size="sm" onClick={() => { startEdit(task) }} disabled={pendingTasks.has(task.id)}>
-                            <IconEditOutline16 /> {t('edit')}
-                          </Button>
-                          {task.status === 'in_progress' && (
-                            <Button size="sm" disabled={pendingTasks.has(task.id)} onClick={() => {
-                              settleTask(task.id, () => updateTask(sessionId, {
-                                taskId: task.id, expectedRevision: task.revision, action: 'complete',
-                              })).then(undefined, reportError)
-                            }}><IconCheckOutline14 /> {t('complete')}</Button>
-                          )}
-                          {task.status === 'completed' && (
-                            <Button size="sm" disabled={pendingTasks.has(task.id)} onClick={() => {
-                              settleTask(task.id, () => updateTask(sessionId, {
-                                taskId: task.id, expectedRevision: task.revision, action: 'reopen',
-                              })).then(undefined, reportError)
-                            }}>{t('reopen')}</Button>
-                          )}
-                          <Button size="sm" disabled={pendingTasks.has(task.id)} onClick={() => {
-                            settleTask(task.id, () => updateTask(sessionId, {
-                              taskId: task.id, expectedRevision: task.revision, action: 'delete',
-                            })).then(undefined, reportError)
-                          }}><IconTrashOutline16 /> {t('delete')}</Button>
-                        </div>
-                      </article>
+                      <TaskCard
+                        key={task.id} task={task} members={assignable} pending={pendingTasks.has(task.id)}
+                        edit={() => { startEdit(task) }} t={t}
+                        update={(input) => {
+                          settleTask(task.id, () => updateTask(sessionId, input)).then(undefined, reportError)
+                        }}
+                      />
                     ))}
                 </div>
               </section>
+              <TeamConversations
+                view={view} t={t} open={entry => openSubagent(sessionId, entry)}
+                reportError={reportError}
+              />
             </>
           )}
         </Modal>

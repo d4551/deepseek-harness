@@ -1,4 +1,4 @@
-import type { ChangeEvent, SubmitEvent } from 'react'
+import { useEffect, useRef, type ChangeEvent, type SubmitEvent } from 'react'
 import { Button, Input, Textarea } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TeamActionProps } from './TeamAction.tsx'
 
@@ -21,10 +21,12 @@ interface TaskFormProps {
 
 /** Labeled task editor with native keyboard submission and pending-state protection. */
 export function TaskForm({ draft, setDraft, pending, onSave, onCancel, t }: TaskFormProps) {
+  const formRef = useRef<HTMLFormElement>(null)
+  useEffect(() => { formRef.current?.querySelector('input')?.focus() }, [])
   const field = (key: keyof TaskDraft, value: string): void => { setDraft({ ...draft, [key]: value }) }
   const invalid = draft.subject.trim() === '' || draft.description.trim() === ''
   return (
-    <form onSubmit={(event: SubmitEvent<HTMLFormElement>) => {
+    <form ref={formRef} aria-busy={pending} onSubmit={(event: SubmitEvent<HTMLFormElement>) => {
       event.preventDefault()
       if (!pending && !invalid) onSave()
     }}>

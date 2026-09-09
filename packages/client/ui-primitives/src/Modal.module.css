@@ -20,6 +20,8 @@
 
 /* Dialog card: r24, shadow-lv3, layer-2 fill, inverted border, pb 24. */
 .dialog {
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
   position: relative;
   z-index: var(--dsw-z-raised);
   display: flex;

@@ -35,9 +35,9 @@ kind: "package-reference"
 
 ### 管理任务板
 
-任务板展示 task identity、owner、blocker、readiness、提示性 write scope 与重叠 warning。用户可以通过 `agentTeams/createTask` 与 `agentTeams/updateTask` 创建、编辑、分配或取消分配、完成、重开和删除任务。每次 update 都发送当前显示的 revision，create 或 update rejection 都保留为显式 business result。
+任务板按任务分组展示 task identity、owner、blocker、readiness、提示性 write scope 与重叠 warning。用户可以通过 `agentTeams/createTask` 与 `agentTeams/updateTask` 创建、编辑、分配或取消分配、完成、重开和删除任务。不可用的 owner 仍显示在负责人选择框中。编辑会保留用户打开表单时的 revision，实时更新不会自动推进该版本。发生冲突后，草稿仍可供复制；取消并重新打开编辑器，检查最新任务后再编辑。Create 或 update rejection 都保留为显式 business result。
 
-任务表单在输入后保留可见字段标签，并支持在单行字段中按 Enter 提交。保存期间会禁用输入与操作。按 Escape、点击关闭或点击面板外部可关闭面板；Escape 与关闭按钮会将焦点返回触发按钮。
+打开任务表单时，焦点移至任务标题。表单在输入后保留可见字段标签，并支持在单行字段中按 Enter 提交。保存期间会禁用输入与操作。按 Escape、点击关闭或点击面板外部可关闭面板；Escape 与关闭按钮会将焦点返回触发按钮。
 
 -----
 
