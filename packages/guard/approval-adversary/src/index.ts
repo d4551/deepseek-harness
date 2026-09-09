@@ -18,7 +18,7 @@ import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { deadline, MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval'
-import type { ApprovalRequestEvent, ApprovalRequestId } from '@deepseek-ai/dsh-user-approval/types'
+import { AGENT_REVIEW_SETTINGS_FLOW, type ApprovalRequestEvent, type ApprovalRequestId } from '@deepseek-ai/dsh-user-approval/types'
 
 export const name = 'approval-adversary'
 export const inject = ['approval', 'llm']
@@ -476,6 +476,7 @@ export function apply(ctx: Context, config: Config = {}): void {
     APPROVAL_ADVERSARY_SETTINGS_SCHEMA,
     entry,
     {
+      flow: AGENT_REVIEW_SETTINGS_FLOW,
       setSource: (current) => { source = current },
       validate: assertRoutePair,
       onChange: () => {},

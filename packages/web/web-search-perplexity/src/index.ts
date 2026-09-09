@@ -9,7 +9,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
 import z from '@deepseek-ai/schemastery'
 import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
-import type {} from '@deepseek-ai/dsh-web'
+import { WEB_SETTINGS_NAMESPACE } from '@deepseek-ai/dsh-web'
 import { PerplexitySearchProvider, PERPLEXITY_DEFAULT_BASE_URL, PERPLEXITY_DEFAULT_MAX_TOKENS, PERPLEXITY_DEFAULT_MODEL } from './provider.ts'
 
 export {
@@ -56,6 +56,7 @@ export const WEB_SEARCH_PERPLEXITY_SETTINGS_NAMESPACE = settingsNamespace('web-s
 export function apply(ctx: Context, config: Config): void {
   // The provider binds its options once, so a stored change waits for the next boot.
   installSettingsSection(ctx, WEB_SEARCH_PERPLEXITY_SETTINGS_NAMESPACE, Config, config, {
+    flow: WEB_SETTINGS_NAMESPACE,
     applies: 'restart',
     setSource: () => {},
     onChange: () => {},

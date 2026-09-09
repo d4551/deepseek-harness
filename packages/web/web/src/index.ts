@@ -131,6 +131,7 @@ export class WebRuntime extends Service {
     // Selection is resolved at every call, so a committed section takes effect
     // on the next search or fetch with no provider re-registration.
     installSettingsSection(ctx, WEB_SETTINGS_NAMESPACE, WebRuntime.Config, config, {
+      flow: WEB_SETTINGS_NAMESPACE,
       setSource: (current) => {
         this.selection = current
       },

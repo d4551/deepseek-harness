@@ -52,6 +52,7 @@ describe('web selection settings', () => {
 
     expect(descriptor?.base).toEqual({ searchProvider: 'deepseek-official', fetchProvider: 'playwright' })
     expect(descriptor?.applies).toBe('live')
+    expect(descriptor?.flow).toBe(WEB_SETTINGS_NAMESPACE)
   })
 
   it('serves the next search through a provider the stored section names', async () => {

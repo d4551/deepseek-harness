@@ -20,6 +20,7 @@ describe('settings capability readiness', () => {
         scope = owner.settings.register(namespace, z.object({ path: z.string().default('/configured') }), {
           available: false,
           applies: 'restart',
+          flow: 'web',
         })
       },
     })
@@ -27,13 +28,23 @@ describe('settings capability readiness', () => {
     expect(ctx.settings.describe()[0]?.available).toBe(false)
     scope.setAvailable(true)
     expect(ctx.settings.describe({ redactSecrets: true })[0]).toMatchObject({
-      available: true, revision: 0, value: { path: '/configured' },
+      available: true, revision: 0, value: { path: '/configured' }, flow: 'web',
     })
     scope.setAvailable(true)
     expect(events).toEqual([true])
     await registration.dispose()
     scope.setAvailable(false)
     expect(events).toEqual([true])
+    expect(ctx.settings.describe()).toEqual([])
+    await ctx.fiber.dispose()
+  })
+
+  it('rejects malformed flow identities before publishing a registration', async () => {
+    const ctx = new Context()
+    await ctx.plugin(MemorySettings)
+    const namespace = settingsNamespace('flow-owner')
+    expect(() => ctx.settings.register(namespace, z.object({}), { flow: 'Review settings' }))
+      .toThrow('must use lowercase kebab-case')
     expect(ctx.settings.describe()).toEqual([])
     await ctx.fiber.dispose()
   })

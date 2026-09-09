@@ -12,7 +12,7 @@ import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
 import type {} from '@deepseek-ai/dsh-session'
-import type {} from '@deepseek-ai/dsh-web'
+import { WEB_SETTINGS_NAMESPACE } from '@deepseek-ai/dsh-web'
 import {
   DeepSeekSearchProvider,
   DEEPSEEK_DEFAULT_API_VERSION,
@@ -127,6 +127,7 @@ function resolveOptions(ctx: Context, config: Config): DeepSeekSearchProviderOpt
 export function apply(ctx: Context, config: Config): void {
   let current: () => Config = () => config
   installSettingsSection(ctx, WEB_SEARCH_DEEPSEEK_SETTINGS_NAMESPACE, Config, config, {
+    flow: WEB_SETTINGS_NAMESPACE,
     setSource: (source) => {
       current = source
     },

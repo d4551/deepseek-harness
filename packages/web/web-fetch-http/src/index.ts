@@ -8,11 +8,10 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
-import type {} from '@deepseek-ai/dsh-web'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { HttpFetchProvider } from './provider.ts'
 import type { HttpFetchLimits } from './provider.ts'
-import { WEB_FETCH_USER_AGENT } from '@deepseek-ai/dsh-web'
+import { WEB_FETCH_USER_AGENT, WEB_SETTINGS_NAMESPACE } from '@deepseek-ai/dsh-web'
 
 export {
   LOCAL_FETCH_PROVIDER_ID,
@@ -78,6 +77,7 @@ export function apply(ctx: Context, config: Config): void {
   const settings = ctx.get('settings')
   if (!settings) throw new Error('web-fetch-http requires the settings service')
   const scope = settings.register(WEB_FETCH_HTTP_SETTINGS_NAMESPACE, Config, {
+    flow: WEB_SETTINGS_NAMESPACE,
     base: config,
     applies: 'restart',
   })

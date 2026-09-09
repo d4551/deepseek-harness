@@ -10,6 +10,9 @@ import type { Scoped } from '@deepseek-ai/dsh-scope'
 import type { Agent } from '@deepseek-ai/dsh-agent/types'
 import type { ToolCallId } from '@deepseek-ai/dsh-llm/brand'
 
+/** Settings flow shared by plugins that review approval requests. */
+export const AGENT_REVIEW_SETTINGS_FLOW = 'agent-review'
+
 /**
  * Pairs one `approval/asked` audit event with its `approval/decided`.
  * Service-issued (one fresh id per {@link ApprovalService.request} call).

@@ -30,7 +30,7 @@ export interface SettingsSecretView {
  * JSON-valued fields are `JsonValue` rather than the descriptor's `unknown`
  * because the Remote boundary admits no unconstrained data.
  */
-export interface SettingsNamespaceView {
+export interface SettingsNamespaceView extends SettingsFlowMembership {
   /** Runtime capability readiness reported by the owner, independent of saved settings. */
   available?: boolean
   /** Namespace key (`llm-deepseek`, `llm-pi-ai`, …). */
@@ -53,6 +53,11 @@ export interface SettingsNamespaceView {
    * than silently overwriting a concurrent change.
    */
   revision: number
+}
+
+/** Plugin-declared membership in a settings flow; omission leaves an independent editor. */
+export interface SettingsFlowMembership {
+  readonly flow?: string
 }
 
 /**

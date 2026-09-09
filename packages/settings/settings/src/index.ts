@@ -10,7 +10,7 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import type z from '@deepseek-ai/schemastery'
 import { redactSecrets } from './redact.ts'
 import type { RedactedSecret } from './redact.ts'
-import type { SettingsNamespace, SettingsUpdateSource } from './types.ts'
+import type { SettingsFlowMembership, SettingsNamespace, SettingsUpdateSource } from './types.ts'
 
 export { redactSecrets } from './redact.ts'
 export type { RedactedSecret, RedactedValue } from './redact.ts'
@@ -34,7 +34,7 @@ export function settingsNamespace(value: string): SettingsNamespace {
 export type SettingsApplies = 'live' | 'restart'
 
 /** Registration options beyond the namespace schema. */
-export interface SettingsRegisterOptions<T> {
+export interface SettingsRegisterOptions<T> extends SettingsFlowMembership {
   /** Runtime capability readiness, independent of configured values. */
   available?: boolean
   /** Composition-layer values resolved below the user layer (entry-config subset). */
@@ -64,7 +64,7 @@ export interface SettingsRegisterOptions<T> {
 }
 
 /** One registered namespace as surfaced to configuration UIs. */
-export interface SettingsDescriptor {
+export interface SettingsDescriptor extends SettingsFlowMembership {
   /** Owner-reported runtime readiness, when the namespace configures a capability. */
   available?: boolean
   // TODO(settings-namespace-vocabulary): Rename `ns` to `namespace` across the
@@ -337,7 +337,7 @@ interface SettingsWatcher {
 }
 
 /** One live namespace registration owned by a registrant fiber. */
-interface SettingsRegistration {
+interface SettingsRegistration extends SettingsFlowMembership {
   available?: boolean
   ns: SettingsNamespace
   schema: z<unknown>
@@ -450,10 +450,14 @@ export abstract class SettingsProvider extends Service {
    * @returns the owner scope for reads, observation, and updates.
    */
   register<T>(ns: SettingsNamespace, schema: z<T>, options?: SettingsRegisterOptions<T>): SettingsScope<T> {
+    if (options?.flow !== undefined && !NAMESPACE_PATTERN.test(options.flow)) {
+      throw new TypeError(`settings flow "${options.flow}" must use lowercase kebab-case`)
+    }
     if (this.registrations.has(ns)) {
       throw new Error(`settings namespace "${ns}" is already registered`)
     }
     const registration: SettingsRegistration = {
+      ...options?.flow === undefined ? {} : { flow: options.flow },
       ...options?.available === undefined ? {} : { available: options.available },
       ns,
       schema: schema as z<unknown>,
@@ -524,6 +528,7 @@ export abstract class SettingsProvider extends Service {
       const base = registration.base === undefined ? undefined : structuredClone(registration.base)
       const detachedUser = user === undefined ? undefined : structuredClone(user)
       const descriptor: SettingsDescriptor = {
+        ...registration.flow === undefined ? {} : { flow: registration.flow },
         ...registration.available === undefined ? {} : { available: registration.available },
         ns: registration.ns,
         schema: registration.schema.toJSON(),
@@ -875,7 +880,7 @@ function isUnloading(ctx: Context): boolean {
 }
 
 /** Hooks and registration options a consumer hands to {@link installSettingsSection}. */
-export interface SettingsSectionHooks<T> {
+export interface SettingsSectionHooks<T> extends SettingsFlowMembership {
   /**
    * When this consumer applies a committed change; defaults to `live`. A
    * consumer that binds its config once — at construction, or into a resource
@@ -926,6 +931,7 @@ export function installSettingsSection<T>(
   ctx.inject(['settings'], (sctx) => {
     const scope = sctx.settings.register(ns, schema, {
       base: entry,
+      ...hooks.flow === undefined ? {} : { flow: hooks.flow },
       ...hooks.applies === undefined ? {} : { applies: hooks.applies },
       ...hooks.validate === undefined ? {} : { validate: hooks.validate },
     })

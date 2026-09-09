@@ -6,11 +6,10 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
-import type {} from '@deepseek-ai/dsh-web'
 import { chromiumAccess, chromiumInstallCommand, PlaywrightFetchProvider } from './provider.ts'
 import type { BrowserAccess, PlaywrightFetchLimits } from './provider.ts'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
-import { WEB_FETCH_USER_AGENT } from '@deepseek-ai/dsh-web'
+import { WEB_FETCH_USER_AGENT, WEB_SETTINGS_NAMESPACE } from '@deepseek-ai/dsh-web'
 
 export {
   chromiumAccess,
@@ -106,6 +105,7 @@ export async function apply(ctx: Context, config: Config, access: BrowserAccess 
   const settings = ctx.get('settings')
   if (settings === undefined) throw new Error('web-fetch-playwright requires a settings provider')
   const scope = settings.register(WEB_FETCH_PLAYWRIGHT_SETTINGS_NAMESPACE, Config, {
+    flow: WEB_SETTINGS_NAMESPACE,
     base: config,
     applies: 'restart',
     available: false,
