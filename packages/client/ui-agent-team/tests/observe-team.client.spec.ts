@@ -3,6 +3,29 @@ import { observeTeamActivity } from '../src/client/observe-team.ts'
 import { TeamActivity } from '../../../subagent/agent-team/src/activity.ts'
 import { TeamId } from '../../../subagent/agent-team/src/types.ts'
 
+it('cancels an outstanding view read when the panel closes', async () => {
+  const activity = new TeamActivity()
+  const controller = new AbortController()
+  const started = Promise.withResolvers<AbortSignal>()
+  const reason = new Error('Panel closed during discovery')
+  const observed = observeTeamActivity(
+    signal => activity.changes(TeamId('closing-discovery'), signal),
+    (signal) => {
+      started.resolve(signal)
+      return new Promise<boolean>((_resolve, reject) => {
+        signal.addEventListener('abort', () => { reject(reason) }, { once: true })
+      })
+    },
+    controller.signal,
+  )
+  const result = expect(observed).rejects.toBe(reason)
+  const signal = await started.promise
+  controller.abort(reason)
+  await result
+  expect(signal.aborted).toBe(true)
+  expect(signal.reason).toBe(reason)
+})
+
 it('denies source admission when the caller has already cancelled', async () => {
   const controller = new AbortController()
   const reason = new Error('Panel closed')

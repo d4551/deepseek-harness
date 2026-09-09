@@ -53,7 +53,7 @@ describe('web-fetch-playwright plugin', () => {
     await fiber.dispose()
     expect(browser.closeCount).toBe(1)
     const disposer = ctx.web.registerFetchProvider(stubProvider(PLAYWRIGHT_FETCH_PROVIDER_ID))
-    disposer()
+    await disposer()
   })
 
   it('defaults the rendered user agent to the shared product agent', async () => {

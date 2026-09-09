@@ -12,7 +12,7 @@ type ActivityEdge =
  */
 export async function observeTeamActivity(
   changes: (signal: AbortSignal) => AsyncIterable<number>,
-  refresh: () => Promise<boolean>,
+  refresh: (signal: AbortSignal) => Promise<boolean>,
   signal: AbortSignal,
 ): Promise<void> {
   const controller = new AbortController()
@@ -42,7 +42,7 @@ export async function observeTeamActivity(
       }
       if (dirty && read === undefined) {
         dirty = false
-        read = refresh().then((): ActivityEdge => ({ type: 'read' }))
+        read = refresh(subscriptionSignal).then((): ActivityEdge => ({ type: 'read' }))
       }
     }
   }

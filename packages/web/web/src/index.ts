@@ -156,7 +156,7 @@ export class WebRuntime extends Service {
    * @param provider - the provider; its `id` is the registry key.
    * @returns the disposer that unregisters the provider.
    */
-  registerSearchProvider(provider: WebSearchProvider): () => void {
+  registerSearchProvider(provider: WebSearchProvider) {
     return this.registerProvider(this.searchProviders, provider)
   }
 
@@ -167,21 +167,18 @@ export class WebRuntime extends Service {
    * @param provider - the provider; its `id` is the registry key.
    * @returns the disposer that unregisters the provider.
    */
-  registerFetchProvider(provider: WebFetchProvider): () => void {
+  registerFetchProvider(provider: WebFetchProvider) {
     return this.registerProvider(this.fetchProviders, provider)
   }
 
-  private registerProvider<P extends { readonly id: string }>(store: Map<string, P>, provider: P): () => void {
+  private registerProvider<P extends { readonly id: string }>(store: Map<string, P>, provider: P) {
     if (store.has(provider.id)) {
       throw new WebError(`a web provider with id "${provider.id}" is already registered`, 'WEB_DUPLICATE_PROVIDER')
     }
-    const dispose = this.ctx.effect(function* () {
+    return this.ctx.effect(function* () {
       store.set(provider.id, provider)
       yield () => store.delete(provider.id)
     }, 'web.registerProvider()')
-    // ctx.effect's disposer returns Promise<void>; our disposer API is
-    // synchronous fire-and-forget — discard the (always-resolved) promise.
-    return () => void dispose()
   }
 
   /**

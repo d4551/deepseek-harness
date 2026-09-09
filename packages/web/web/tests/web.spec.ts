@@ -50,7 +50,7 @@ describe('WebRuntime registration', () => {
     const dispose = web.registerSearchProvider(makeSearchProvider('exa', available, () => Promise.resolve(searchResult('exa'))))
     await expect(web.search({ query: 'q' })).resolves.toMatchObject({ content: 'exa' })
 
-    dispose()
+    await dispose()
     await expect(web.search({ query: 'q' })).rejects.toThrow(expect.objectContaining({ code: 'WEB_PROVIDER_UNAVAILABLE' }))
   })
 

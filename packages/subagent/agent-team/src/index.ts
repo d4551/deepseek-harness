@@ -346,12 +346,15 @@ export class TeamService extends TypertRemoteService {
   /**
    * Read the Team roster, task board, descendant conversations, and peer messages.
    * @param agent - exact live Team member used as the authority credential.
+   * @param signal - cancellation for descendant discovery and view publication.
    * @returns detached Team state with current descendant activity and message delivery.
    */
   @Remote('view')
-  async remoteView(agent: Agent): Promise<TeamView> {
+  async remoteView(agent: Agent, signal?: AbortSignal): Promise<TeamView> {
+    signal?.throwIfAborted()
     const membership = this.roster.membership(agent)
-    const descendants = await this.ctx.subagents.listDescendants(membership.root.id)
+    const descendants = await this.ctx.subagents.listDescendants(membership.root.id, signal)
+    signal?.throwIfAborted()
     this.roster.membership(agent)
     const state = this.journal.state(membership.root)
     return {

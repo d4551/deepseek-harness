@@ -49,8 +49,8 @@ function registerUi(ctx: ClientContext): void {
     changes(sessionId, signal): AsyncIterable<number> {
       return ctx.remote.agentTeams.changes(leadSessionId(sessionId), signal)
     },
-    async load(sessionId): Promise<TeamActionResult<TeamView>> {
-      return await ctx.remote.agentTeams.view(leadSessionId(sessionId))
+    async load(sessionId, signal): Promise<TeamActionResult<TeamView>> {
+      return await ctx.remote.agentTeams.view(leadSessionId(sessionId), signal)
     },
     async createTask(sessionId, input): Promise<TeamTaskActionResult> {
       return await ctx.remote.agentTeams.createTask(leadSessionId(sessionId), input)

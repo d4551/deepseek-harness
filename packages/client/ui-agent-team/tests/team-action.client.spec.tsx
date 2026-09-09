@@ -81,7 +81,7 @@ describe('TeamAction load and refresh ordering', () => {
     const injected = actions({ load })
     const rendered = render(<TeamAction {...props(injected)} />)
     fireEvent.click(screen.getByRole('button', { name: /Agent Team/u }))
-    await waitFor(() => { expect(load).toHaveBeenCalledWith(SESSION) })
+    await waitFor(() => { expect(load).toHaveBeenCalledWith(SESSION, expect.any(AbortSignal)) })
 
     rendered.rerender(<TeamAction {...props(injected, nextSession)} />)
     fireEvent.click(screen.getByRole('button', { name: /Agent Team/u }))

@@ -14,6 +14,16 @@ import { zh } from '../src/client/locales.ts'
 afterEach(cleanup)
 
 describe('TeamAction failure containment and session-switch staleness', () => {
+  it('replaces initial loading with the failed discovery result', async () => {
+    render(<TeamAction {...props(actions({
+      load: () => Promise.reject(new Error('Discovery disconnected')),
+    }))} />)
+    fireEvent.click(screen.getByRole('button', { name: /Agent Team/u }))
+    expect((await screen.findByRole('alert')).textContent).toBe('Error: Discovery disconnected')
+    expect(screen.queryByText(zh.loading)).toBeNull()
+    expect(screen.getByRole('button', { name: zh.refresh })).toBeTruthy()
+  })
+
   it('reports rejected task operations and releases the pending control', async () => {
     const updateTask = vi.fn(() => Promise.reject(new Error('connection closed')))
     render(<TeamAction {...props(actions({ updateTask }))} />)

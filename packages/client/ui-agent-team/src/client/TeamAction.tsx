@@ -29,7 +29,7 @@ export type TeamTaskActionResult = RemoteResult<TeamTaskMutationResult>
 /** Business actions injected by the browser plugin. */
 export interface TeamActionInjected {
   changes: (sessionId: SessionId, signal: AbortSignal) => AsyncIterable<number>
-  load: (sessionId: SessionId) => Promise<TeamActionResult<TeamView>>
+  load: (sessionId: SessionId, signal?: AbortSignal) => Promise<TeamActionResult<TeamView>>
   createTask: (sessionId: SessionId, input: CreateTeamTaskRequest) => Promise<TeamTaskActionResult>
   updateTask: (sessionId: SessionId, input: UpdateTeamTaskRequest) => Promise<TeamTaskActionResult>
   openTeammate: (sessionId: SessionId, member: TeamRosterMember) => Promise<void>
@@ -108,11 +108,11 @@ export function TeamAction({
     setPendingTasks(new Set())
   }, [sessionId])
 
-  const refresh = useCallback(async (): Promise<boolean> => {
+  const refresh = useCallback(async (signal?: AbortSignal): Promise<boolean> => {
     const requestedSession = sessionId
     const generation = ++refreshGeneration.current
     setLoading(true)
-    const result = await load(requestedSession)
+    const result = await load(requestedSession, signal)
     if (sessionRef.current !== requestedSession || refreshGeneration.current !== generation) return false
     setLoading(false)
     if (result.ok) {
@@ -129,11 +129,17 @@ export function TeamAction({
     if (!open) return
     const controller = new AbortController()
     const reportFailure = (reason: unknown): void => {
-      if (!controller.signal.aborted) setError(String(reason))
+      if (!controller.signal.aborted) {
+        setLoading(false)
+        setError(String(reason))
+      }
     }
     observeTeamActivity(signal => changes(sessionId, signal), refresh, controller.signal).then(
       () => {
-        if (!controller.signal.aborted) setError(t('disconnected'))
+        if (!controller.signal.aborted) {
+          setLoading(false)
+          setError(t('disconnected'))
+        }
       },
       reportFailure,
     )
