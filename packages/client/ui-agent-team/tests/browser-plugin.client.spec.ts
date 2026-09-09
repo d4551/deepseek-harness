@@ -1,6 +1,6 @@
 import { Context, Service } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
-import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { SessionId } from '@deepseek-ai/dsh-session/types'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {
@@ -46,7 +46,7 @@ interface TeamAddress {
   mode: 'continuable'
 }
 
-type TeamNavigation = ['refresh', SessionId] | ['open', TeamAddress]
+type TeamNavigation = ['refresh', SessionId] | ['open', TeamAddress] | ['select', SessionId]
 
 const isTeamActionInjected = <T extends object>(value: T): value is T & TeamActionInjected =>
   'changes' in value && 'load' in value && 'createTask' in value && 'updateTask' in value && 'openTeammate' in value
@@ -89,6 +89,8 @@ async function bench(options: {
   registrationFailure?: boolean
   remoteFailure?: 'view' | 'update'
   refreshGate?: Promise<void>
+  parents?: ReadonlyMap<SessionId, SessionId>
+  current?: SessionId
 } = {}) {
   const ctx = new Context()
   const calls: TeamRpcCall[] = []
@@ -135,15 +137,17 @@ async function bench(options: {
     },
   })
   const navigation: TeamNavigation[] = []
-  let current = options.addressed === true ? CHILD : SESSION
+  let current = options.current ?? (options.addressed === true ? CHILD : SESSION)
+  const parentOf = (id: SessionId): SessionId | undefined =>
+    options.parents?.get(id) ?? (options.addressed === true && id === CHILD ? SESSION : undefined)
   ctx.provide('sessions', {
     list: { getSnapshot: () => ({ current, byId: {} }) },
-    binding: (id: SessionId) => options.addressed === true && id === CHILD
+    binding: (id: SessionId) => parentOf(id) !== undefined
       ? { session: { getSnapshot: () => ({
         subagent: {
           address: {
-            parentSessionId: SESSION,
-            childSessionId: CHILD,
+            parentSessionId: parentOf(id),
+            childSessionId: id,
             mode: 'continuable' as const,
           },
         },
@@ -154,6 +158,7 @@ async function bench(options: {
       return options.refreshGate ?? Promise.resolve()
     },
     openSubagent: (address: TeamAddress) => { navigation.push(['open', address]) },
+    open: (id: SessionId) => { navigation.push(['select', id]) },
   })
   ctx.provide('conversation', {})
   ctx.provide('locale', new LocaleRuntime(ctx))
@@ -339,6 +344,25 @@ describe('ui-team browser plugin', () => {
     refresh.resolve(undefined)
     await opening
     expect(b.navigation).toEqual([['refresh', SESSION]])
+  })
+
+  it('resolves nested Team conversations to their Lead and opens exact child addresses', async () => {
+    const nested = SessionId('nested-worker')
+    const b = await bench({ current: nested, parents: new Map([[nested, CHILD], [CHILD, SESSION]]) })
+    await b.actions().load(nested)
+    expect(b.calls).toEqual([{ method: 'agentTeams/view', args: [SESSION] }])
+    const lead = VIEW.members[0]
+    if (lead === undefined) throw new Error('Team test requires its Lead')
+    await b.actions().openTeammate(nested, lead)
+    expect(b.navigation).toEqual([['select', SESSION]])
+    await b.actions().openSubagent(nested, {
+      kind: 'child', id: nested, parentId: CHILD, depth: 2,
+      mode: 'continuable', label: 'Nested worker', activity: 'inactive', hasChildren: false,
+    })
+    expect(b.navigation.slice(1)).toEqual([
+      ['refresh', CHILD], ['open', { parentSessionId: CHILD, childSessionId: nested, mode: 'continuable' }],
+    ])
+    await b.fiber.dispose()
   })
 
   it('re-registers after the conversation header slot is collapsed and declared again', async () => {

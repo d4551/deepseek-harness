@@ -783,7 +783,7 @@ Source: [`packages/subagent/tool-subagent/src/model-selection-state.ts:14`](../p
 
 Types: [TeamId](subsystems/agent-team.md) · [TeamMemberSnapshot](subsystems/agent-team.md)
 
-Source: [`packages/subagent/agent-team/src/types.ts:248`](../packages/subagent/agent-team/src/types.ts)
+Source: [`packages/subagent/agent-team/src/types.ts:251`](../packages/subagent/agent-team/src/types.ts)
 
 <a id="teammessagedelivered--log-only"></a>
 
@@ -801,7 +801,7 @@ Source: [`packages/subagent/agent-team/src/types.ts:248`](../packages/subagent/a
 
 Types: [TeamId](subsystems/agent-team.md) · [TeamMessageId](subsystems/agent-team.md)
 
-Source: [`packages/subagent/agent-team/src/types.ts:254`](../packages/subagent/agent-team/src/types.ts)
+Source: [`packages/subagent/agent-team/src/types.ts:257`](../packages/subagent/agent-team/src/types.ts)
 
 <a id="teammessagequeued--log-only"></a>
 
@@ -814,7 +814,7 @@ Source: [`packages/subagent/agent-team/src/types.ts:254`](../packages/subagent/a
 
 Types: [TeamId](subsystems/agent-team.md) · [TeamMessageSnapshot](subsystems/agent-team.md)
 
-Source: [`packages/subagent/agent-team/src/types.ts:252`](../packages/subagent/agent-team/src/types.ts)
+Source: [`packages/subagent/agent-team/src/types.ts:255`](../packages/subagent/agent-team/src/types.ts)
 
 <a id="teamtask--log-only"></a>
 
@@ -827,7 +827,7 @@ Source: [`packages/subagent/agent-team/src/types.ts:252`](../packages/subagent/a
 
 Types: [TeamId](subsystems/agent-team.md) · [TeamTaskSnapshot](subsystems/agent-team.md)
 
-Source: [`packages/subagent/agent-team/src/types.ts:250`](../packages/subagent/agent-team/src/types.ts)
+Source: [`packages/subagent/agent-team/src/types.ts:253`](../packages/subagent/agent-team/src/types.ts)
 
 ### `todo/*`
 

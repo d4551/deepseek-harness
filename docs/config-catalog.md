@@ -278,7 +278,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/subagent/agent-team/src/types.ts:131`](../packages/subagent/agent-team/src/types.ts)
+Source: [`packages/subagent/agent-team/src/types.ts:134`](../packages/subagent/agent-team/src/types.ts)
 
 <a id="deepseek-aidsh-agent-tool-presentation"></a>
 
@@ -3464,7 +3464,7 @@ Source: [`packages/bundle/web-app/src/index.ts:45`](../packages/bundle/web-app/s
 
 ## `@deepseek-ai/dsh-web-fetch-http`
 
-Requires: `web`
+Requires: `web` · `settings`
 
 ```ts config-catalog
 /** Plugin config: the provider's transport and size limits plus its `User-Agent` (all defaulted). */
@@ -3488,7 +3488,7 @@ Source: [`packages/web/web-fetch-http/src/index.ts:30`](../packages/web/web-fetc
 
 ## `@deepseek-ai/dsh-web-fetch-playwright`
 
-Requires: `web`
+Requires: `web` · `settings`
 
 ```ts config-catalog
 /** Plugin config: the provider's render, identity, concurrency, and time limits, plus the browser to run. */
@@ -3503,16 +3503,14 @@ export interface Config {
   userAgent?: string
   /**
    * Browser executable to render with; omitted uses the installation
-   * `playwright` resolves for itself. In the settings section's composition
-   * layer this field is present exactly when the mount-time probe confirmed a
-   * browser there, so a configuration surface reads its absence as "no browser
-   * installation was found".
+   * `playwright` resolves for itself. Runtime readiness is reported separately
+   * by the settings descriptor's `available` field.
    */
   executablePath?: string
 }
 ```
 
-Source: [`packages/web/web-fetch-playwright/src/index.ts:46`](../packages/web/web-fetch-playwright/src/index.ts)
+Source: [`packages/web/web-fetch-playwright/src/index.ts:45`](../packages/web/web-fetch-playwright/src/index.ts)
 
 <a id="deepseek-aidsh-web-search-deepseek"></a>
 

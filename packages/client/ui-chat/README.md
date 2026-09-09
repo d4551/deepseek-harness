@@ -55,7 +55,7 @@ None; Chat presentation does not assemble or mutate provider requests.
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **The view reflects the loaded Session window** — older transcript nodes become available only after Session Controller loads the preceding event page. Turn navigation likewise represents only loaded Turns; loading an earlier page preserves existing Turn marks and redistributes the complete loaded set in a compact rail without an unloaded-history placeholder. Marks stay 10px apart until the loaded set exceeds the available height, then compress to fit.
+- **The view reflects the loaded Session window** — older transcript nodes become available only after Session Controller loads the preceding event page. Turn navigation represents only loaded Turns; loading an earlier page preserves existing Turn marks. Each mark has a separate 28px pointer and keyboard target. Long lists scroll within the available transcript height, and hovering or focusing a mark previews its loaded prompt and response.
 
 
 <a id="dev-note"></a>

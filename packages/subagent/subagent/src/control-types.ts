@@ -78,11 +78,15 @@ export type SubagentListEntry =
     readonly reason: 'corrupt' | 'unsupported' | 'unavailable'
   }
 
-/** One descendant with its durable parent and distance from the catalog root. */
+/**
+ * One entry of a descendant listing: the interpreted subagent facts plus its
+ * position in the complete session tree. `parentId` is the durable direct
+ * parent from the enumerated header, and `depth` counts edges from the root.
+ */
 export type SubagentDescendantListEntry = SubagentListEntry & {
-  /** Durable direct parent of this candidate. */
+  /** Durable direct parent of this candidate in the enumerated tree. */
   readonly parentId: SessionId
-  /** Edge distance from the requested root; direct children are one. */
+  /** Edge distance from the requested root; direct children are `1`. */
   readonly depth: number
 }
 

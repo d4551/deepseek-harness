@@ -200,6 +200,20 @@ describe('web e2e: long Chat interaction contract', () => {
     const initialTurnCount = await initialTurnButtons.count()
     expect(initialTurnCount).toBeGreaterThan(1)
     expect(await initialTurnButtons.last().getAttribute('aria-current')).toBe('true')
+    const targets = await initialTurnButtons.evaluateAll(buttons => buttons.map((button) => {
+      const { width, height, top, bottom } = button.getBoundingClientRect()
+      return { width, height, top, bottom }
+    }))
+    for (const [index, target] of targets.entries()) {
+      expect(target.width).toBeGreaterThanOrEqual(24)
+      expect(target.height).toBeGreaterThanOrEqual(24)
+      const previous = targets[index - 1]
+      if (previous !== undefined) expect(target.top).toBeGreaterThanOrEqual(previous.bottom)
+    }
+    await initialTurnButtons.last().scrollIntoViewIfNeeded()
+    await initialTurnButtons.last().hover()
+    await expect.poll(() => page.getByRole('tooltip').textContent())
+      .toContain(FIXTURE.markers.assistant(FIXTURE.turns))
     const firstTurnButton = initialTurnButtons.first()
     const firstTurnLabel = await firstTurnButton.getAttribute('aria-label')
     if (firstTurnLabel === null) throw new Error('first Turn navigation mark has no accessible label')
@@ -213,9 +227,9 @@ describe('web e2e: long Chat interaction contract', () => {
     expect(await preview.textContent()).toContain(`Turn ${String(firstTurn)}`)
     expect(await preview.textContent()).toContain(FIXTURE.markers.assistant(firstTurn))
     const firstTurnPosition = await firstTurnButton.evaluate(button => (
-      button.parentElement?.style.getPropertyValue('--turn-position') ?? ''
+      button.parentElement?.style.getPropertyValue('--turn-natural-position') ?? ''
     ))
-    expect(firstTurnPosition).toBe('0%')
+    expect(firstTurnPosition).toBe('0px')
 
     const loadEarlier = page.getByRole('button', { name: 'Load earlier', exact: true })
     await loadEarlier.click()
@@ -223,7 +237,7 @@ describe('web e2e: long Chat interaction contract', () => {
       .toBeGreaterThan(initialTurnCount)
     const stableFirstTurnButton = turnNavigation.getByRole('button', { name: firstTurnLabel })
     expect(await stableFirstTurnButton.evaluate(button => (
-      button.parentElement?.style.getPropertyValue('--turn-position') ?? ''
+      button.parentElement?.style.getPropertyValue('--turn-natural-position') ?? ''
     ))).not.toBe(firstTurnPosition)
     await stableFirstTurnButton.focus()
     await expect.poll(() => preview.textContent(), { timeout: 5_000 })

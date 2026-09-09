@@ -319,7 +319,7 @@ export function TeamAction({
                         openTeammate(sessionId, member).then(undefined, (reason: unknown) => { setError(String(reason)) })
                       }}
                     >
-                      <StateDot state={member.status === 'running' ? 'ongoing' : member.status === 'failed' ? 'error' : 'done'} />
+                      <StateDot state={member.status === 'running' ? 'ongoing' : member.status === 'failed' ? 'error' : 'inactive'} />
                       <span className={css.memberText}>
                         <span>{member.name}</span>
                         <small>{t(memberStatusKey(member.status))}{member.model === undefined ? '' : ` · ${t('model')}: ${member.model}`}</small>

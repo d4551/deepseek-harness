@@ -2009,6 +2009,7 @@
         "@deepseek-ai/dsh-invariants": "workspace:^",
         "@deepseek-ai/dsh-settings": "workspace:^",
         "@types/react": "~19.2.18",
+        "@types/react-dom": "~19.2.5",
         "react": "^19.2.8",
         "react-dom": "^19.2.8",
       },

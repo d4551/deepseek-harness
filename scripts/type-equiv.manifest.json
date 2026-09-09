@@ -1554,7 +1554,7 @@
     {
       "doc": "docs/subsystems/subagent.md",
       "symbol": "SubagentDescendantListEntry",
-      "source": "packages/subagent/subagent/src/list-children.ts"
+      "source": "packages/subagent/subagent/src/control-types.ts"
     },
     {
       "doc": "docs/subsystems/subagent.md",

@@ -221,11 +221,11 @@ interrupt(caller: Agent, targetName: string): { previousStatus: 'running' | 'idl
 tryMembership(agent: Agent): TeamMembership | undefined
 
 /**
- * Read the current roster and non-deleted task board through the generated Remote API.
+ * Read the Team roster, task board, descendant conversations, and peer messages.
  * @param agent - exact live Team member used as the authority credential.
- * @returns detached current roster and task views.
+ * @returns detached Team state with current descendant activity and message delivery.
  */
-@Remote('view') remoteView(agent: Agent): TeamView
+@Remote('view') async remoteView(agent: Agent): Promise<TeamView>
 
 /**
  * Follow Team activity through the generated Remote stream.

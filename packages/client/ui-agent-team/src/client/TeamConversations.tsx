@@ -31,7 +31,7 @@ export function TeamConversations({ view, t, open, reportError }: TeamConversati
             ? <p key={entry.id} className={css.error}>{entry.id}: {t('conversationUnavailable')} ({entry.reason})</p>
             : (
               <Button key={entry.id} className={css.member} onClick={() => { open(entry).then(undefined, reportError) }}>
-                <StateDot state={entry.activity === 'running' ? 'ongoing' : 'done'} />
+                <StateDot state={entry.activity === 'running' ? 'ongoing' : 'inactive'} />
                 <span className={css.memberText}>
                   <span>{entry.label ?? nameOf(entry.id)}</span>
                   <small>{t('parent')}: {nameOf(entry.parentId)} · {t(entry.activity === 'running' ? 'memberStatus.running' : 'memberStatus.inactive')}</small>

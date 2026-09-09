@@ -280,7 +280,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/subagent/agent-team/src/types.ts:131`](../packages/subagent/agent-team/src/types.ts)
+来源：[`packages/subagent/agent-team/src/types.ts:134`](../packages/subagent/agent-team/src/types.ts)
 
 <a id="deepseek-aidsh-agent-tool-presentation"></a>
 
@@ -3466,7 +3466,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-web-fetch-http`
 
-需要：`web`
+需要：`web` · `settings`
 
 ```ts config-catalog
 /** Plugin config: the provider's transport and size limits plus its `User-Agent` (all defaulted). */
@@ -3490,7 +3490,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-web-fetch-playwright`
 
-需要：`web`
+需要：`web` · `settings`
 
 ```ts config-catalog
 /** Plugin config: the provider's render, identity, concurrency, and time limits, plus the browser to run. */
@@ -3505,16 +3505,14 @@ export interface Config {
   userAgent?: string
   /**
    * Browser executable to render with; omitted uses the installation
-   * `playwright` resolves for itself. In the settings section's composition
-   * layer this field is present exactly when the mount-time probe confirmed a
-   * browser there, so a configuration surface reads its absence as "no browser
-   * installation was found".
+   * `playwright` resolves for itself. Runtime readiness is reported separately
+   * by the settings descriptor's `available` field.
    */
   executablePath?: string
 }
 ```
 
-来源：[`packages/web/web-fetch-playwright/src/index.ts:46`](../packages/web/web-fetch-playwright/src/index.ts)
+来源：[`packages/web/web-fetch-playwright/src/index.ts:45`](../packages/web/web-fetch-playwright/src/index.ts)
 
 <a id="deepseek-aidsh-web-search-deepseek"></a>
 

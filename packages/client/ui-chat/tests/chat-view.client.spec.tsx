@@ -550,16 +550,21 @@ describe('ChatView', () => {
     const h = makeHarness({}, {}, snapshot)
     const view = render(<h.ChatView {...h.props} />)
     const navigation = view.getByRole('navigation', { name: '轮次导航' })
-    expect(navigation.style.getPropertyValue('--turn-natural-height')).toBe('22px')
+    expect(navigation.style.getPropertyValue('--turn-natural-height')).toBe('56px')
     const first = view.getByRole('button', { name: '跳转到第 1 轮' })
     const second = view.getByRole('button', { name: '跳转到第 2 轮' })
     expect(first.parentElement?.style.getPropertyValue('--turn-natural-position')).toBe('0px')
-    expect(second.parentElement?.style.getPropertyValue('--turn-natural-position')).toBe('10px')
+    expect(second.parentElement?.style.getPropertyValue('--turn-natural-position')).toBe('28px')
     expect(second.getAttribute('aria-current')).toBe('true')
     fireEvent.focus(first)
     const preview = view.getByRole('tooltip')
     expect(preview.textContent).toContain('first prompt')
     expect(preview.textContent).toContain('first response')
+    act(() => { first.focus() })
+    const marks = navigation.firstElementChild
+    if (marks === null) throw new Error('turn navigation has no mark list')
+    fireEvent.scroll(marks)
+    expect(view.getByRole('tooltip')).toBe(preview)
   })
 
   it('jumps to a turn anchor and reflows stable marks after an older page arrives', () => {
@@ -571,7 +576,7 @@ describe('ChatView', () => {
     const view = render(<h.ChatView {...h.props} />)
     const second = view.getByRole('button', { name: '跳转到第 2 轮' })
     const secondPosition = second.parentElement as HTMLElement
-    expect(secondPosition.style.getPropertyValue('--turn-position')).toBe('0%')
+    expect(secondPosition.style.getPropertyValue('--turn-natural-position')).toBe('0px')
 
     const scroller = view.container.querySelector('[class*="scroll"]') as HTMLDivElement
     const metrics = installScrollMetrics(scroller, 1_000, 300)
@@ -591,8 +596,9 @@ describe('ChatView', () => {
     })
     const movedSecond = view.getByRole('button', { name: '跳转到第 2 轮' })
     expect(movedSecond.parentElement).toBe(secondPosition)
-    expect(secondPosition.style.getPropertyValue('--turn-natural-position')).toBe('10px')
-    expect(secondPosition.style.getPropertyValue('--turn-position')).toBe('50%')
+    expect(secondPosition.style.getPropertyValue('--turn-natural-position')).toBe('28px')
+    expect(secondPosition.previousElementSibling?.querySelector('button')?.getAttribute('aria-label'))
+      .toBe('跳转到第 1 轮')
   })
 
   it('hands a windowless tool result to the Tool seat with an empty tool name', () => {

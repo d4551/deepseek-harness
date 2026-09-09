@@ -32,6 +32,10 @@
   color: var(--dsw-alias-state-success-primary);
 }
 
+.dot[data-state='inactive'] {
+  color: var(--dsw-alias-label-tertiary);
+}
+
 .dot[data-state='warning'] {
   color: var(--dsw-alias-state-warn-primary);
 }

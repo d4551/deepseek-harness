@@ -1,5 +1,5 @@
 - dialog "设置":
-  - navigation:
+  - navigation "设置":
     - text: 设置
     - button "通用设置":
       - img

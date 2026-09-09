@@ -415,10 +415,10 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'Team membership, or undefined for non-Team subagents and stale identities.',
       },
       {
-        signature: '@Remote(\'view\') remoteView(agent: Agent): TeamView',
-        description: 'Read the current roster and non-deleted task board through the generated Remote API.',
+        signature: '@Remote(\'view\') async remoteView(agent: Agent): Promise<TeamView>',
+        description: 'Read the Team roster, task board, descendant conversations, and peer messages.',
         parameters: [{ name: 'agent', description: 'exact live Team member used as the authority credential.' }],
-        returns: 'detached current roster and task views.',
+        returns: 'detached Team state with current descendant activity and message delivery.',
       },
       {
         signature: '@Remote({ mode: \'stream\' }) async *changes(agent: Agent, signal: AbortSignal): AsyncIterable<number>',
@@ -5703,6 +5703,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type TeamMessageId = Branded<\'TeamMessageId\'>;',
   },
   {
+    name: 'TeamMessageSnapshot',
+    declaration: 'export interface TeamMessageSnapshot {\n    readonly id: TeamMessageId;\n    readonly senderId: SessionId;\n    readonly senderName: string;\n    readonly targetId: SessionId;\n    readonly delivery: \'quiet\' | \'wakeup\';\n    readonly content: ContentBlock[];\n}',
+  },
+  {
     name: 'TeamTaskAction',
     declaration: 'export type TeamTaskAction = \'claim\' | \'release\' | \'edit\' | \'set_dependencies\' | \'complete\' | \'reopen\' | \'reassign\' | \'delete\';',
   },
@@ -5728,7 +5732,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'TeamView',
-    declaration: 'export interface TeamView {\n    readonly members: TeamMemberView[];\n    readonly tasks: TeamTaskView[];\n}',
+    declaration: 'export interface TeamView {\n    readonly members: TeamMemberView[];\n    readonly tasks: TeamTaskView[];\n    readonly subagents: SubagentDescendantListEntry[];\n    readonly messages: (TeamMessageSnapshot & {\n        readonly delivered: boolean;\n    })[];\n}',
   },
   {
     name: 'TeamWaitResult',

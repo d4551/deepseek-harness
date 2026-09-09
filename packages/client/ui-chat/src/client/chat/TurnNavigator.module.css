@@ -24,9 +24,7 @@
      padding, so the rail gives that inset back and keeps 12px of its own. */
   right: calc(12px - (var(--dsh-composer-side-clearance) + 16px));
   width: 28px;
-  /* Never taller than the band it centers in: a short window (a tall composer,
-     a low viewport) shrinks the rail instead of pushing marks under the
-     composer or above the scrollport. */
+  /* Long histories scroll within the available transcript band. */
   height: min(
     var(--turn-natural-height),
     max(0px, calc(var(--turn-rail-band) - 64px)),
@@ -40,34 +38,27 @@
 
 .marks {
   position: absolute;
-  inset: var(--turn-rail-inset) 0;
+  inset: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
 }
 
 .markPosition {
   position: absolute;
-  top: min(var(--turn-natural-position), var(--turn-position));
+  top: var(--turn-natural-position);
   right: 0;
   left: 0;
-  height: 10px;
-  transform: translateY(-50%);
+  height: 28px;
   transition: top var(--ds-transition-duration) cubic-bezier(0.2, 0.8, 0.2, 1);
   animation: dsh-turn-mark-enter var(--ds-transition-duration) ease-out;
 }
 
-/* The rail owns pointer input for the whole column, so a mark is a keyboard
-   destination that paints one tick — never a mouse target of its own. */
-.mark {
+.mark.mark {
   position: absolute;
-  /* As wide as the longest tick, right-aligned with it: the focus ring below
-     then wraps the tick instead of the rail's full pointer column. */
   inset: 0 0 0 auto;
-  width: 20px;
   padding: 0;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  cursor: pointer;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .mark::before {
@@ -108,16 +99,7 @@
 
 .preview {
   position: absolute;
-  /* Centered on its mark (mark positions are measured inside the rail inset),
-     then held clear of both rail ends. */
-  top: clamp(
-    0px,
-    calc(
-      min(var(--turn-natural-position), var(--turn-position))
-      + var(--turn-rail-inset) - var(--turn-preview-height) / 2
-    ),
-    calc(100% - var(--turn-preview-height))
-  );
+  top: max(0px, calc(50% - var(--turn-preview-height) / 2));
   right: calc(100% + 10px);
   box-sizing: border-box;
   width: min(300px, calc(100cqw - 120px));

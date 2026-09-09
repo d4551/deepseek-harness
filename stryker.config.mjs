@@ -25,6 +25,6 @@ export default {
   ignorePatterns: ['.claude', '.agents/worktrees', '.cache', 'coverage', '.artifacts', 'dist-exe', '.dsh-build', '.audit-tmp'],
   timeoutMS: 60000,
   concurrency: 4,
-  tempDirName: 'node_modules/.stryker-tmp',
+  tempDirName: '.artifacts/mutation/sandbox',
   cleanTempDir: true,
 }

@@ -57,7 +57,7 @@ The section is one extension point and one dispatch rule: feature plugins own th
 
 ### The tab extension point
 
-The section declares `settings.plugins.tab`, a root list slot whose labels become ordered tabs; a tab stays mounted after its first selection so local drafts and read-only snapshots survive tab switches. The package registers its own `configurable` contribution, which declares the nested `settings.plugin.item` slot — keyed on the settings namespace a card edits. A plugin that ships a browser half registers its own card under its own namespace and owns every part of it: chrome, controls, and copy. Tabs follow the contribution's `order`; cards follow registration order.
+The section declares `settings.plugins.tab`, a root list slot whose labels become ordered tabs; a tab stays mounted after its first selection so local drafts and read-only snapshots survive tab switches. The package registers its own `configurable` contribution, which declares the nested `settings.plugin.item` slot — keyed on the settings namespace a card edits. A plugin that ships a browser half registers its own card under its own namespace and owns every part of it: chrome, controls, and copy. Tabs follow the contribution's `order`; web routing precedes provider configuration, approval stages follow their execution order, and other cards retain their served order.
 
 ### The write path
 
