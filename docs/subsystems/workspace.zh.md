@@ -317,4 +317,24 @@ async resolveByPath(path: string): Promise<Workspace | undefined>
 Types: [SessionId](core.zh.md)
 
 Source: [`packages/workspace/workspace/src/index.ts`](../../packages/workspace/workspace/src/index.ts)
+
+<a id="workspace-events"></a>
+
+### `workspace/*` events
+
+<a id="workspaceupdated--emit"></a>
+
+#### `workspace/updated` — emit
+
+A durable workspace mutation is reflected in the registry's public projection.
+
+```ts cordis-catalog
+/**
+ * A durable workspace mutation is reflected in the registry's public projection.
+ * @mode emit
+ */
+'workspace/updated'(): void
+```
+
+Source: [`packages/workspace/workspace/src/types.ts`](../../packages/workspace/workspace/src/types.ts)
 <!-- END GENERATED cordis-surface -->

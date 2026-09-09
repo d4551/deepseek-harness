@@ -1,7 +1,7 @@
 // Button: token-styled button atom. Variants map to the --dsw-alias-button-*
 // fill families; no framework imports, all behavior via props.
 
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import type { ComponentPropsWithRef, ReactNode } from 'react'
 import clsx from 'clsx'
 import css from './Button.module.css'
 
@@ -21,7 +21,7 @@ export function Button({ variant = 'ghost', size = 'md', icon, className, childr
   icon?: ReactNode
   className?: string | undefined
   children?: ReactNode
-} & ButtonHTMLAttributes<HTMLButtonElement>) {
+} & ComponentPropsWithRef<'button'>) {
   return (
     <button type="button" className={clsx(css.button, css[variant], css[size], className)} {...rest}>
       {icon != null && <span className={css.icon}>{icon}</span>}

@@ -63,7 +63,7 @@ function registerUi(ctx: ClientContext): void {
       })
     },
     async openTeammate(sessionId: SessionId, member: TeamRosterMember): Promise<void> {
-      if (member.role === 'lead') {
+      if (member.role !== 'teammate') {
         if (member.id === sessionId) return
         sessions.open(member.id)
         return

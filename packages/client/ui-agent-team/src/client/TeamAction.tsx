@@ -10,7 +10,7 @@ import type {
 } from '@deepseek-ai/dsh-agent-team/client'
 import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import {
-  Button, IconCheckOutline14, IconCloseOutline16, IconEditOutline16, IconPlusOutline16,
+  Button, Modal, Pill, IconCheckOutline14, IconEditOutline16, IconPlusOutline16,
   IconRefreshOutline14, IconTrashOutline16, IconUserOutline16, StateDot, useDismissOnOutsidePointer,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -19,7 +19,6 @@ import { NS, type TeamKey } from './locales.ts'
 import { observeTeamActivity } from './observe-team.ts'
 import { TaskForm, type TaskDraft } from './TaskForm.tsx'
 import { TeamConversations, type TeamConversation } from './TeamConversations.tsx'
-import css from './TeamAction.module.css'
 
 /** Generated Remote result consumed directly by the Team UI. */
 export type TeamActionResult<T> = RemoteResult<T>
@@ -102,9 +101,8 @@ export function TeamAction({
   const [editDraft, setEditDraft] = useState<TaskDraft>(EMPTY_DRAFT)
   const [pendingTasks, setPendingTasks] = useState<ReadonlySet<string>>(() => new Set())
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const rootRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
-  useDismissOnOutsidePointer(rootRef, open, setOpen)
+  useDismissOnOutsidePointer(panelRef, open, setOpen)
   const sessionRef = useRef(sessionId)
   const refreshGeneration = useRef(0)
   sessionRef.current = sessionId
@@ -258,10 +256,11 @@ export function TeamAction({
   }
 
   const conversationCount = new Set([
-    ...view?.members.filter(member => member.role === 'teammate').map(member => member.id) ?? [],
+    ...view?.members.filter(member => member.role !== 'lead').map(member => member.id) ?? [],
     ...view?.subagents.filter(entry => entry.kind === 'child').map(entry => entry.id) ?? [],
   ]).size
-  const assignable = view?.members.filter(member => member.status !== 'failed' && member.status !== 'provisioning') ?? []
+  const assignable = view?.members.filter(member => member.role !== 'peer'
+    && member.status !== 'failed' && member.status !== 'provisioning') ?? []
   const closePanel = (): void => {
     setOpen(false)
     triggerRef.current?.focus()
@@ -274,58 +273,49 @@ export function TeamAction({
   }
 
   return (
-    <div ref={rootRef} className={css.root} data-team-action onKeyDown={onKeyDown}>
-      <button
+    <div data-team-action onKeyDown={onKeyDown}>
+      <Button
         ref={triggerRef}
         type="button"
-        className={css.trigger}
         aria-expanded={open}
         onClick={() => {
           const next = !open
           setOpen(next)
         }}
       >
-        <IconUserOutline16 size={14} />
+        <IconUserOutline16 />
         <span>{t('trigger')}</span>
-        {conversationCount > 0 && <span className={css.count}>{conversationCount}</span>}
-      </button>
+        {conversationCount > 0 && <Pill>{conversationCount}</Pill>}
+      </Button>
       {open && (
-        <div ref={panelRef} className={css.panel} role="dialog" aria-label={t('trigger')} tabIndex={-1}>
-          <div className={css.toolbar}>
-            <h2>{t('trigger')}</h2>
-            <span className={css.spacer} />
+        <Modal ref={panelRef} open={open} onClose={closePanel} title={t('trigger')} closeLabel={t('close')}>
+          <div>
             <Button size="sm" aria-label={t('refresh')} onClick={() => { void refresh() }}>
               <IconRefreshOutline14 />
             </Button>
-            <Button size="sm" aria-label={t('close')} onClick={closePanel}>
-              <IconCloseOutline16 size={14} />
-            </Button>
           </div>
-          {error !== null && <div className={css.error} role="alert">{error}</div>}
-          {loading && view === null && <div className={css.notice}>{t('loading')}</div>}
+          {error !== null && <div role="alert">{error}</div>}
+          {loading && view === null && <p>{t('loading')}</p>}
           {view !== null && (
             <>
               <section>
                 <h3>{t('roster')}</h3>
-                <div className={css.roster}>
+                <div>
                   {view.members.map(member => (
-                    <button
-                      key={member.id}
-                      type="button"
-                      className={css.member}
-                      disabled={member.id === sessionId || member.status === 'failed' || member.status === 'provisioning'}
-                      title={t('open')}
-                      onClick={() => {
-                        openTeammate(sessionId, member).then(undefined, (reason: unknown) => { setError(String(reason)) })
-                      }}
-                    >
-                      <StateDot state={member.status === 'running' ? 'ongoing' : member.status === 'failed' ? 'error' : 'inactive'} />
-                      <span className={css.memberText}>
-                        <span>{member.name}</span>
-                        <small>{t(memberStatusKey(member.status))}{member.model === undefined ? '' : ` · ${t('model')}: ${member.model}`}</small>
-                        {member.diagnostics.map(diagnostic => <small key={diagnostic} className={css.diagnostic}>{diagnostic}</small>)}
-                      </span>
-                    </button>
+                    <article key={member.id}>
+                      <div>
+                        <StateDot state={member.status === 'running' ? 'ongoing' : member.status === 'failed' ? 'error' : 'inactive'} />
+                        <Button
+                          disabled={member.id === sessionId || member.status === 'failed' || member.status === 'provisioning'}
+                          title={t('open')}
+                          onClick={() => {
+                            openTeammate(sessionId, member).then(undefined, (reason: unknown) => { setError(String(reason)) })
+                          }}
+                        >{member.name}</Button>
+                      </div>
+                      <p>{t(memberStatusKey(member.status))}{member.model === undefined ? '' : ` · ${t('model')}: ${member.model}`}</p>
+                      {member.diagnostics.map(diagnostic => <p key={diagnostic}>{diagnostic}</p>)}
+                    </article>
                   ))}
                 </div>
               </section>
@@ -334,10 +324,10 @@ export function TeamAction({
                 reportError={(reason) => { setError(String(reason)) }}
               />
               <section>
-                <div className={css.sectionTitle}>
+                <div>
                   <h3>{t('tasks')}</h3>
-                  <Button size="sm" className={css.createButton} onClick={() => { setCreating(true) }}>
-                    <IconPlusOutline16 size={13} /> {t('create')}
+                  <Button size="sm" onClick={() => { setCreating(true) }}>
+                    <IconPlusOutline16 /> {t('create')}
                   </Button>
                 </div>
                 {creating && (
@@ -350,8 +340,8 @@ export function TeamAction({
                     t={t}
                   />
                 )}
-                {view.tasks.length === 0 && !creating && <div className={css.notice}>{t('empty')}</div>}
-                <div className={css.tasks}>
+                {view.tasks.length === 0 && !creating && <p>{t('empty')}</p>}
+                <div>
                   {view.tasks.map(task => editing === task.id
                     ? (
                       <TaskForm
@@ -365,20 +355,20 @@ export function TeamAction({
                       />
                     )
                     : (
-                      <article key={task.id} className={css.task}>
-                        <div className={css.taskTitle}>
+                      <article key={task.id}>
+                        <div>
                           <strong>{task.subject}</strong>
-                          <span>{t(statusKey(task.status))}</span>
+                          <Pill>{t(statusKey(task.status))}</Pill>
                         </div>
                         <p>{task.description}</p>
-                        <div className={css.meta}>
-                          <span>{task.id}</span>
-                          {task.status === 'pending' && <span>{task.ready ? t('ready') : t('blocked')}</span>}
-                          {task.blockedBy.length > 0 && <span>{t('blockedBy')}: {task.blockedBy.join(', ')}</span>}
-                          {task.writeScopes.length > 0 && <span>{t('writeScopes')}: {task.writeScopes.join(', ')}</span>}
-                          {task.writeScopeWarnings.map(warning => <span key={warning} className={css.warning}>{warning}</span>)}
-                        </div>
-                        <div className={css.taskActions}>
+                        <ul>
+                          <li>{task.id}</li>
+                          {task.status === 'pending' && <li>{task.ready ? t('ready') : t('blocked')}</li>}
+                          {task.blockedBy.length > 0 && <li>{t('blockedBy')}: {task.blockedBy.join(', ')}</li>}
+                          {task.writeScopes.length > 0 && <li>{t('writeScopes')}: {task.writeScopes.join(', ')}</li>}
+                          {task.writeScopeWarnings.map(warning => <li key={warning}>{warning}</li>)}
+                        </ul>
+                        <div>
                           <label>
                             {t('owner')}
                             <select
@@ -399,7 +389,7 @@ export function TeamAction({
                             </select>
                           </label>
                           <Button size="sm" onClick={() => { startEdit(task) }} disabled={pendingTasks.has(task.id)}>
-                            <IconEditOutline16 size={13} /> {t('edit')}
+                            <IconEditOutline16 /> {t('edit')}
                           </Button>
                           {task.status === 'in_progress' && (
                             <Button size="sm" disabled={pendingTasks.has(task.id)} onClick={() => {
@@ -419,7 +409,7 @@ export function TeamAction({
                             void settleTask(task.id, () => updateTask(sessionId, {
                               taskId: task.id, expectedRevision: task.revision, action: 'delete',
                             }))
-                          }}><IconTrashOutline16 size={13} /> {t('delete')}</Button>
+                          }}><IconTrashOutline16 /> {t('delete')}</Button>
                         </div>
                       </article>
                     ))}
@@ -427,7 +417,7 @@ export function TeamAction({
               </section>
             </>
           )}
-        </div>
+        </Modal>
       )}
     </div>
   )

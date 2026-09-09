@@ -15,6 +15,7 @@ import { TeamMailbox } from './mailbox.ts'
 import { TeamRoster } from './roster.ts'
 import type { TeamMembership } from './roster.ts'
 import { TeamTaskBoard } from './task-board.ts'
+import { workspacePeerIds, workspacePeerName, workspacePeers } from './workspace-peers.ts'
 import { TeamId, TeamTaskId } from './types.ts'
 import type {
   ClaimNextTeamTaskResult,
@@ -168,7 +169,7 @@ export class TeamService extends TypertRemoteService {
 
     this.activity = new TeamActivity()
     this.lifecycle = new TeamRuntimeLifecycle(this.config.disposalTimeoutMs)
-    this.journal = new TeamJournal(ctx, (root) => { this.activity.notify(TeamId(root.id)) })
+    this.journal = new TeamJournal(ctx, (root) => { this.notifyLifecycleChange(root) })
     this.roster = new TeamRoster(ctx, this.journal, this.lifecycle, () => this.settings().maxMembers)
     this.mailbox = new TeamMailbox(
       ctx,
@@ -185,6 +186,12 @@ export class TeamService extends TypertRemoteService {
     ctx.on('agent/created', ({ agent }) => { this.notifyLifecycleChange(agent) })
     ctx.on('agent/disposed', ({ agent }) => { this.notifyLifecycleChange(agent) })
     ctx.on('agent/status', ({ agent }) => { this.notifyLifecycleChange(agent) })
+    ctx.on('workspace/updated', () => {
+      for (const agent of ctx.agents.list()) {
+        this.activity.notify(TeamId(agent.id))
+        this.scheduleRecovery(agent)
+      }
+    })
     ctx.effect(() => () => this.disposeRuntime(), 'agentTeams.runtimeLifecycle()')
     for (const agent of ctx.agents.list()) this.scheduleRecovery(agent)
   }
@@ -199,12 +206,23 @@ export class TeamService extends TypertRemoteService {
   }
 
   /**
-   * List the runtime-enriched roster visible to one Team member.
+   * List the Team roster and live peers in its registered workspace.
    * @param agent - exact live Team member.
-   * @returns Lead and teammate rows in creation order.
+   * @returns Lead and teammate rows followed by workspace peers in registry order.
    */
   listMembers(agent: Agent): TeamMemberView[] {
-    return this.roster.list(this.roster.membership(agent))
+    const membership = this.roster.membership(agent)
+    return [
+      ...this.roster.list(membership),
+      ...workspacePeers(this.ctx, this.roster, membership.root).map((peer): TeamMemberView => ({
+        id: peer.id,
+        name: workspacePeerName(peer.id),
+        role: 'peer',
+        status: peer.status,
+        ...peer.options.model === undefined ? {} : { model: peer.options.model },
+        diagnostics: [],
+      })),
+    ]
   }
 
   /**
@@ -397,8 +415,9 @@ export class TeamService extends TypertRemoteService {
     }
   }
 
-  /** Notify the owning Team when a member enters or leaves the live registry. */
+  /** Notify the owning Team and workspace peers after activity or membership changes. */
   private notifyLifecycleChange(agent: Agent): void {
+    for (const id of workspacePeerIds(this.ctx, agent.id)) this.activity.notify(TeamId(id))
     const seen = new Set<SessionId>()
     let current: Agent | undefined = agent
     while (current !== undefined && !seen.has(current.id)) {

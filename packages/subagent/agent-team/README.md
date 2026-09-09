@@ -70,6 +70,10 @@ The roster shows every member with its role (`lead` or `teammate`) and current s
 
 Only the Lead can create teammates or interrupt them.
 
+### Workspace conversations
+
+When the workspace registry is mounted, the roster also shows live conversation leads registered in the same workspace with role `peer`. Their `session:<id>` names are message targets. Discovery excludes archived sessions and requires validated registry membership; sharing a directory alone does not grant access. Quiet messages retain their durable receipt without starting an idle peer. Each conversation owns its task board, so peers coordinate responsibilities through messages.
+
 ### Messages between teammates
 
 Any member can send a message to any other member or to the Lead. A live member receives it immediately; an offline member's messages queue and arrive when it resumes. Messages are never lost and never delivered twice.

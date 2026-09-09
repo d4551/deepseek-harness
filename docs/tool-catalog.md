@@ -1766,7 +1766,7 @@ Send a durable follow-up task to another Team member and start a turn when neede
   "properties": {
     "target": {
       "type": "string",
-      "description": "Team member name, or lead."
+      "description": "Exact name from list_agents, including session-qualified workspace peers, or lead."
     },
     "message": {
       "type": "string",
@@ -1805,7 +1805,7 @@ Source: [`packages/subagent/tool-agent-team/src/index.ts`](../packages/subagent/
 
 ### `list_agents`
 
-List the Lead and every durable teammate with current runtime status.
+List the Lead, durable teammates, and live conversation leads in the same registered workspace with current runtime status and message targets.
 
 ```json
 {
@@ -1826,7 +1826,7 @@ Send durable information to another Team member without starting an idle member.
   "properties": {
     "target": {
       "type": "string",
-      "description": "Team member name, or lead."
+      "description": "Exact name from list_agents, including session-qualified workspace peers, or lead."
     },
     "message": {
       "type": "string",

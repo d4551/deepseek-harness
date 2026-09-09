@@ -102,7 +102,7 @@ const MEMBER_VIEW_SCHEMA = {
   properties: {
     id: { type: 'string', required: true },
     name: { type: 'string', required: true },
-    role: { type: 'string', required: true, enum: ['lead', 'teammate'] },
+    role: { type: 'string', required: true, enum: ['lead', 'teammate', 'peer'] },
     status: { type: 'string', required: true, enum: ['running', 'idle', 'inactive', 'provisioning', 'failed'] },
     description: { type: 'string' },
     provider: { type: 'string' },
@@ -242,7 +242,8 @@ function install(agent: Agent, ctx: Context, config: Required<Config>): () => vo
       order: FIRST_PARTY_SECTION_ORDER.TEAM_POLICY,
       text: () => {
         const membership = ctx.agentTeams.membership(agent)
-        return `${policy}\n\nYour Team role is ${membership.role}; your Team name is ${membership.name}; Team id is ${membership.id}.`
+        const members = ctx.agentTeams.listMembers(agent)
+        return `${policy}\n\nYour Team role is ${membership.role}; your Team name is ${membership.name}; Team id is ${membership.id}.\n\nCurrent agents: ${JSON.stringify(members)}\nIndependent workspace conversations have session-qualified names. Use their exact names with send_message or followup_task to coordinate shared files and responsibilities. Each conversation owns its task board; agree on disjoint work before editing.`
       },
     }))
 
@@ -281,7 +282,7 @@ function install(agent: Agent, ctx: Context, config: Required<Config>): () => vo
           ? 'Send durable information to another Team member without starting an idle member.'
           : 'Send a durable follow-up task to another Team member and start a turn when needed.',
         parameters: {
-          target: { type: 'string', required: true, description: 'Team member name, or lead.' },
+          target: { type: 'string', required: true, description: 'Exact name from list_agents, including session-qualified workspace peers, or lead.' },
           message: { type: 'string', required: true, description: 'Self-contained message for the target.' },
         },
         output: jsonOutput(SEND_VALUE_SCHEMA),
@@ -300,7 +301,7 @@ function install(agent: Agent, ctx: Context, config: Required<Config>): () => vo
 
     register(scoped.tools.register(defineTool({
       name: 'list_agents',
-      description: 'List the Lead and every durable teammate with current runtime status.',
+      description: 'List the Lead, durable teammates, and live conversation leads in the same registered workspace with current runtime status and message targets.',
       parameters: {},
       output: jsonOutput(MEMBER_LIST_VALUE_SCHEMA),
       // A roster read changes no Team state, so a swarm's members may take it

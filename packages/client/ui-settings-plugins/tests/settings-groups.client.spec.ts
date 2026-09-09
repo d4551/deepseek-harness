@@ -20,6 +20,6 @@ it('keeps routing before provider setup and screening before model decisions', (
 it('renders only served settings and omits empty groups', () => {
   expect(settingsGroups([])).toEqual([])
   expect(settingsGroups([APPROVAL_ADVERSARY_NS])).toEqual([{
-    title: 'approvalGroupTitle', description: 'approvalGroupDescription', namespaces: [APPROVAL_ADVERSARY_NS],
+    title: 'approvalGroupTitle', namespaces: [APPROVAL_ADVERSARY_NS],
   }])
 })

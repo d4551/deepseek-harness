@@ -236,7 +236,7 @@ describe('TeamAction failure containment and session-switch staleness', () => {
     expect(screen.getByRole<HTMLButtonElement>('button', { name: /failed-worker/u }).disabled).toBe(true)
     expect(screen.getByRole<HTMLButtonElement>('button', { name: /provisioning-worker/u }).disabled).toBe(true)
 
-    fireEvent.click(screen.getByRole('button', { name: /^worker运行中/u }))
+    fireEvent.click(screen.getByRole('button', { name: /^worker$/u }))
     expect(await screen.findByText('Error: navigation failed')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: zh.refresh }))
     await waitFor(() => { expect(load).toHaveBeenCalledTimes(2) })

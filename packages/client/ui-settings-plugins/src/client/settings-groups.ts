@@ -6,7 +6,6 @@ import type { PluginsSettingsLocaleKey } from './locales.ts'
 
 interface SettingsGroup {
   title: PluginsSettingsLocaleKey
-  description: PluginsSettingsLocaleKey
   namespaces: string[]
 }
 
@@ -15,10 +14,10 @@ export function settingsGroups(namespaces: readonly string[]): SettingsGroup[] {
   const web = [WEB_ACCESS_NS, ...WEB_PROVIDERS.map(provider => provider.ns)]
   const approval = [APPROVAL_ASSESSOR_NS, APPROVAL_ADVERSARY_NS]
   const groups: SettingsGroup[] = [
-    { title: 'webGroupTitle', description: 'webGroupDescription', namespaces: web.filter(ns => namespaces.includes(ns)) },
-    { title: 'approvalGroupTitle', description: 'approvalGroupDescription', namespaces: approval.filter(ns => namespaces.includes(ns)) },
+    { title: 'webGroupTitle', namespaces: web.filter(ns => namespaces.includes(ns)) },
+    { title: 'approvalGroupTitle', namespaces: approval.filter(ns => namespaces.includes(ns)) },
     {
-      title: 'otherGroupTitle', description: 'otherGroupDescription',
+      title: 'otherGroupTitle',
       namespaces: namespaces.filter(ns => !web.includes(ns) && !approval.includes(ns)),
     },
   ]

@@ -1,7 +1,6 @@
-// @vitest-environment jsdom
-
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
+import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import { ConfigurablePluginsTab } from '../src/client/ConfigurablePluginsTab.tsx'
 import type { ConfigurablePluginsTabProps } from '../src/client/ConfigurablePluginsTab.tsx'
 import { PluginsSettingsSection } from '../src/client/PluginsSettingsSection.tsx'
@@ -37,7 +36,7 @@ function renderConfigurable(namespaces: string[], cards: Record<string, string> 
       return card === undefined ? null : <li>{card}</li>
     },
   })
-  render(<ConfigurablePluginsTab {...props} />)
+  render(<main><ConfigurablePluginsTab {...props} /></main>)
 }
 
 describe('PluginsSettingsSection', () => {
@@ -129,7 +128,55 @@ describe('ConfigurablePluginsTab', () => {
   it('dispatches one card per namespace, keyed by it', () => {
     renderConfigurable(['bash', 'agent-loop'], { bash: 'shell', 'agent-loop': 'loop' })
 
+    expect(screen.queryByRole('listitem')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: en.otherGroupTitle }))
     expect(screen.getAllByRole('listitem').map(item => item.textContent)).toEqual(['shell', 'loop'])
     expect(screen.queryByText(en.empty)).toBeNull()
+  })
+
+  it('reveals only the selected flow and keeps mounted cards when it closes', () => {
+    renderConfigurable(['web', 'approval-adversary'], {
+      web: 'search configuration',
+      'approval-adversary': 'review configuration',
+    })
+
+    const search = screen.getByRole('button', { name: en.webGroupTitle })
+    const reviews = screen.getByRole('button', { name: en.approvalGroupTitle })
+    expect(search.getAttribute('aria-expanded')).toBe('false')
+    expect(reviews.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByRole('listitem')).toBeNull()
+
+    fireEvent.keyDown(search, { key: 'Enter' })
+    const card = screen.getByRole('listitem')
+    expect(card.textContent).toBe('search configuration')
+    expect(search.getAttribute('aria-expanded')).toBe('true')
+    expect(reviews.getAttribute('aria-expanded')).toBe('false')
+
+    fireEvent.keyDown(search, { key: ' ' })
+    expect(screen.queryByRole('listitem')).toBeNull()
+    expect(card.isConnected).toBe(true)
+    fireEvent.click(search)
+    expect(screen.getByRole('listitem')).toBe(card)
+
+    fireEvent.click(reviews)
+    expect(screen.getAllByRole('listitem').map(item => item.textContent)).toEqual([
+      'search configuration', 'review configuration',
+    ])
+  })
+
+  it('has no accessibility violations with flows closed or expanded', async () => {
+    renderConfigurable(['web', 'approval-adversary'], {
+      web: 'search configuration',
+      'approval-adversary': 'review configuration',
+    })
+    const closed = await auditSurface('Settings flows closed', document.body)
+    for (const control of screen.getAllByRole('button')) fireEvent.click(control)
+    const expanded = await auditSurface('Settings flows expanded', document.body)
+
+    for (const audit of [closed, expanded]) {
+      expect(audit.incomplete).toEqual([])
+      expect(audit.passed + audit.failed).toBeGreaterThan(0)
+    }
+    expect(accessibilityFailures([closed, expanded], 100)).toBe('')
   })
 })

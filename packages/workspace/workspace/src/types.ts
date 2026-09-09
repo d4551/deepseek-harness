@@ -6,6 +6,16 @@
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 
+declare module '@deepseek-ai/cordis' {
+  interface Events {
+    /**
+     * A durable workspace mutation is reflected in the registry's public projection.
+     * @mode emit
+     */
+    'workspace/updated'(): void
+  }
+}
+
 /**
  * Identifies one workspace record. A generated uuid, never the path: path
  * normalization rewrites paths, and a reference anchor must stay stable.

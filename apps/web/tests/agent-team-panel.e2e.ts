@@ -65,29 +65,30 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
     onTestFailed(() => saveFailureShot(page, 'web-e2e-agent-team-panel'))
     const action = page.locator('[data-team-action]')
     await action.getByRole('button', { name: /Agent Team/iu }).click()
-    await action.getByText('No shared tasks yet').waitFor()
-    await action.getByText('lead').waitFor()
+    const panel = page.getByRole('dialog', { name: 'Agent Team' })
+    await panel.getByText('No shared tasks yet').waitFor()
+    await panel.getByText('lead', { exact: true }).waitFor()
     await assertPageAccessibility(page)
     for (const viewport of [{ width: 840, height: 1000 }, { width: 600, height: 480 }]) {
       await page.setViewportSize(viewport)
       await expect.poll(async () => {
-        const panel = await action.getByRole('dialog', { name: 'Agent Team' }).boundingBox()
-        return panel !== null && panel.x >= 0 && panel.y >= 0
-          && panel.x + panel.width <= viewport.width && panel.y + panel.height <= viewport.height
+        const bounds = await panel.boundingBox()
+        return bounds !== null && bounds.x >= 0 && bounds.y >= 0
+          && bounds.x + bounds.width <= viewport.width && bounds.y + bounds.height <= viewport.height
       }).toBe(true)
     }
     await page.setViewportSize({ width: 1680, height: 1000 })
 
-    await action.getByRole('button', { name: 'New task' }).click()
+    await panel.getByRole('button', { name: 'New task' }).click()
     await assertPageAccessibility(page)
-    await action.getByRole('textbox', { name: 'Task subject', exact: true }).fill('Browser task')
-    await action.getByRole('textbox', { name: 'Task description', exact: true }).fill('Created through the assembled browser')
-    await action.getByRole('textbox', { name: /Write scopes/iu }).fill('src/web')
+    await panel.getByRole('textbox', { name: 'Task subject', exact: true }).fill('Browser task')
+    await panel.getByRole('textbox', { name: 'Task description', exact: true }).fill('Created through the assembled browser')
+    await panel.getByRole('textbox', { name: /Write scopes/iu }).fill('src/web')
     await assertPageAccessibility(page)
-    await action.getByRole('textbox', { name: 'Task subject', exact: true }).press('Enter')
-    await action.getByText('Browser task').waitFor()
+    await panel.getByRole('textbox', { name: 'Task subject', exact: true }).press('Enter')
+    await panel.getByText('Browser task').waitFor()
 
-    const snapshot = await captureStableAria(page, '[data-team-action]', scaffold.workspaceCwd)
+    const snapshot = await captureStableAria(page, '[role="dialog"][aria-label="Agent Team"]', scaffold.workspaceCwd)
     await compareOrRefreshGolden(PANEL_EXPECTED, snapshot, MODE)
     const lead = scaffold.ctx.agents.list()[0]
     if (lead === undefined) throw new Error('Team lead is unavailable')
@@ -95,17 +96,17 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
       subject: 'Task created outside the panel',
       description: 'Live update from another Team client',
     })
-    await action.getByText('Task created outside the panel', { exact: true }).waitFor()
+    await panel.getByText('Task created outside the panel', { exact: true }).waitFor()
     await scaffold.ctx.agentTeams.updateTask(lead, {
       taskId: external.id,
       expectedRevision: external.revision,
       action: 'edit',
       subject: 'Task updated outside the panel',
     })
-    await action.getByText('Task updated outside the panel', { exact: true }).waitFor()
-    await action.getByRole('button', { name: 'Close', exact: true }).click()
+    await panel.getByText('Task updated outside the panel', { exact: true }).waitFor()
+    await panel.getByRole('button', { name: 'Close', exact: true }).click()
     await action.getByRole('button', { name: /Agent Team/iu }).click()
-    await action.getByText('Task updated outside the panel', { exact: true }).waitFor()
+    await panel.getByText('Task updated outside the panel', { exact: true }).waitFor()
     expect(tripwire.pageErrors).toEqual([])
     await assertPageAccessibility(page)
     expect(tripwire.warnings).toEqual([])

@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-client-ui-settings-plugins` is the **Plugins** settings section of the dsh web client: users edit host-plane plugin configuration on its **Plugin configuration** tab, and feature plugins contribute their own pages through `settings.plugins.tab`. This package's own tab shows one expandable card per Host plugin whose configuration a user owns: a card shows the plugin's name and what it governs, and expanding it reveals hand-written controls bound to that plugin's settings namespace, each field marking whether the user overrode it and offering a reset back to the value the deployment composed. Cards stage edits locally and write only on save, with every write fenced by the namespace revision the form read.
+The **Plugins** settings section groups available plugin editors into collapsed flows. Expand a flow, then a card to read its description and edit its controls. Collapsing a flow retains its drafts. Cards write only on save, with every write fenced by the namespace revision the form read. Feature plugins contribute additional pages through `settings.plugins.tab`.
 
 ## Table of Contents
 

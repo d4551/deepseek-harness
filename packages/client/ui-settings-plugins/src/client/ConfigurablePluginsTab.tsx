@@ -7,12 +7,12 @@
  * which keys to dispatch.
  */
 
-import { Fragment } from 'react'
+import { Fragment, useState } from 'react'
+import { DisclosureRow, IconChevronDownOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from './slot-contract.ts'
 import type { ConfigurablePluginsTabFace } from './tab-store.ts'
 import { settingsGroups } from './settings-groups.ts'
-import css from './PluginsSettingsSection.module.css'
 
 /** Props the renderer binds for the configurable tab. */
 export type ConfigurablePluginsTabProps =
@@ -29,22 +29,40 @@ export type ConfigurablePluginsTabProps =
 export function ConfigurablePluginsTab(props: ConfigurablePluginsTabProps) {
   const { t, renderSlot } = props
   const { loaded, namespaces } = props.useConfigurablePlugins(snapshot => snapshot)
+  const [openFlows, setOpenFlows] = useState<ReadonlySet<string>>(() => new Set())
   if (namespaces.length > 0) {
     return (
-      <div className={css.section}>
-        {settingsGroups(namespaces).map(group => (
-          <section key={group.title} className={css.section} aria-label={t(group.title)}>
-            <h3 className={css.heading}>{t(group.title)}</h3>
-            <p className={css.intro}>{t(group.description)}</p>
-            <div className={css.cards} role="list">
-              {group.namespaces.map(ns => (
-                <Fragment key={ns}>{renderSlot('settings.plugin.item', {}, { entryKey: ns })}</Fragment>
-              ))}
-            </div>
-          </section>
-        ))}
+      <div>
+        {settingsGroups(namespaces).map((group) => {
+          const toggleFlow = () => {
+            setOpenFlows((previous) => {
+              const next = new Set(previous)
+              if (next.has(group.title)) next.delete(group.title)
+              else next.add(group.title)
+              return next
+            })
+          }
+          return (
+            <DisclosureRow
+              key={group.title}
+              title={t(group.title)}
+              icon={<IconChevronDownOutline14 />}
+              open={openFlows.has(group.title)}
+              expandable
+              expandOnRowClick
+              keepMounted
+              onToggle={toggleFlow}
+            >
+              <div role="list">
+                {group.namespaces.map(ns => (
+                  <Fragment key={ns}>{renderSlot('settings.plugin.item', {}, { entryKey: ns })}</Fragment>
+                ))}
+              </div>
+            </DisclosureRow>
+          )
+        })}
       </div>
     )
   }
-  return loaded ? <p className={css.empty}>{t('empty')}</p> : null
+  return loaded ? <p>{t('empty')}</p> : null
 }

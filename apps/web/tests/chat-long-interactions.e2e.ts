@@ -196,10 +196,11 @@ describe('web e2e: long Chat interaction contract', () => {
 
     const turnNavigation = page.getByRole('navigation', { name: 'Turn navigation' })
     await turnNavigation.waitFor({ state: 'visible', timeout: 15_000 })
-    const initialTurnButtons = turnNavigation.getByRole('button')
+    const toggle = turnNavigation.getByRole('button', { name: 'Turn navigation', exact: true })
+    await toggle.click()
+    const initialTurnButtons = turnNavigation.getByRole('menuitem')
     const initialTurnCount = await initialTurnButtons.count()
     expect(initialTurnCount).toBeGreaterThan(1)
-    expect(await initialTurnButtons.last().getAttribute('aria-current')).toBe('true')
     const targets = await initialTurnButtons.evaluateAll(buttons => buttons.map((button) => {
       const { width, height, top, bottom } = button.getBoundingClientRect()
       return { width, height, top, bottom }
@@ -211,48 +212,43 @@ describe('web e2e: long Chat interaction contract', () => {
       if (previous !== undefined) expect(target.top).toBeGreaterThanOrEqual(previous.bottom)
     }
     await initialTurnButtons.last().scrollIntoViewIfNeeded()
-    await initialTurnButtons.last().hover()
-    await expect.poll(() => page.getByRole('tooltip').textContent())
+    await expect.poll(() => initialTurnButtons.last().textContent())
       .toContain(FIXTURE.markers.assistant(FIXTURE.turns))
     const firstTurnButton = initialTurnButtons.first()
-    const firstTurnLabel = await firstTurnButton.getAttribute('aria-label')
+    const firstTurnLabel = await firstTurnButton.textContent()
     if (firstTurnLabel === null) throw new Error('first Turn navigation mark has no accessible label')
-    const firstTurn = Number(firstTurnLabel.match(/^Jump to turn (\d+)$/)?.[1])
+    const firstTurn = Number(firstTurnLabel.match(/^Jump to turn (\d+):/)?.[1])
     expect(Number.isSafeInteger(firstTurn)).toBe(true)
     await firstTurnButton.focus()
-    const preview = page.getByRole('tooltip')
-    await preview.waitFor({ state: 'visible', timeout: 5_000 })
+    const preview = firstTurnButton
     // The first loaded Turn may begin mid-Turn at a page boundary. Its mark is
     // still useful with the loaded response and gains the prompt after prepend.
     expect(await preview.textContent()).toContain(`Turn ${String(firstTurn)}`)
     expect(await preview.textContent()).toContain(FIXTURE.markers.assistant(firstTurn))
-    const firstTurnPosition = await firstTurnButton.evaluate(button => (
-      button.parentElement?.style.getPropertyValue('--turn-natural-position') ?? ''
-    ))
-    expect(firstTurnPosition).toBe('0px')
+    await firstTurnButton.press('Escape')
+    expect(await toggle.evaluate(button => document.activeElement === button)).toBe(true)
 
     const loadEarlier = page.getByRole('button', { name: 'Load earlier', exact: true })
     await loadEarlier.click()
-    await expect.poll(() => turnNavigation.getByRole('button').count(), { timeout: 15_000 })
+    await toggle.click()
+    await expect.poll(() => turnNavigation.getByRole('menuitem').count(), { timeout: 15_000 })
       .toBeGreaterThan(initialTurnCount)
-    const stableFirstTurnButton = turnNavigation.getByRole('button', { name: firstTurnLabel })
-    expect(await stableFirstTurnButton.evaluate(button => (
-      button.parentElement?.style.getPropertyValue('--turn-natural-position') ?? ''
-    ))).not.toBe(firstTurnPosition)
+    const stableFirstTurnButton = turnNavigation.getByRole('menuitem', { name: new RegExp(`^Jump to turn ${String(firstTurn)}:`) })
     await stableFirstTurnButton.focus()
-    await expect.poll(() => preview.textContent(), { timeout: 5_000 })
+    await expect.poll(() => stableFirstTurnButton.textContent(), { timeout: 5_000 })
       .toContain(FIXTURE.markers.user(firstTurn))
-    expect(await preview.textContent()).toContain(FIXTURE.markers.assistant(firstTurn))
+    expect(await stableFirstTurnButton.textContent()).toContain(FIXTURE.markers.assistant(firstTurn))
     await stableFirstTurnButton.press('Enter')
-    await expect.poll(() => stableFirstTurnButton.getAttribute('aria-current'), { timeout: 5_000 }).toBe('true')
+    expect(await toggle.getAttribute('aria-expanded')).toBe('false')
     await expect.poll(
       () => page.locator(`[data-chat-turn="${String(firstTurn)}"][data-chat-flow-kind="user"]`).count(),
       { timeout: 5_000 },
     ).toBe(1)
 
-    // Desktop-only affordance: a narrow Chat container hides the rail outright.
     await page.setViewportSize({ width: 800, height: 900 })
-    await turnNavigation.waitFor({ state: 'hidden', timeout: 5_000 })
+    await toggle.click()
+    await stableFirstTurnButton.waitFor({ state: 'visible', timeout: 5_000 })
+    await stableFirstTurnButton.press('Escape')
     await page.setViewportSize({ width: 1_680, height: 900 })
     await turnNavigation.waitFor({ state: 'visible', timeout: 5_000 })
 

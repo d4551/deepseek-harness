@@ -46,6 +46,9 @@
     },
     {
       "path": "../../util/keyed-lock"
+    },
+    {
+      "path": "../../workspace/workspace"
     }
   ]
 }

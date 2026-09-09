@@ -1,4 +1,4 @@
-import { type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
+import { useId, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import clsx from 'clsx'
 import { FlowRow } from './FlowRow.tsx'
 import { IconChevronDownOutline14 } from './icons/index.tsx'
@@ -8,6 +8,8 @@ import css from './DisclosureRow.module.css'
 export interface DisclosureRowProps {
   icon: ReactNode
   title: string
+  /** Accessible action name when it differs from the visible title. */
+  toggleLabel?: string | undefined
   open: boolean
   expandable: boolean
   onToggle: () => void
@@ -17,6 +19,10 @@ export interface DisclosureRowProps {
   previewChevron?: boolean | undefined
   /** Keeps `collapsedContent` inline while open. */
   keepContentWhenOpen?: boolean | undefined
+  /** Retain child controls and their drafts while the disclosure is closed. */
+  keepMounted?: boolean | undefined
+  /** Announces pending work in the controlled body. */
+  busy?: boolean | undefined
   collapsedContent?: ReactNode
   children?: ReactNode
   className?: string | undefined
@@ -34,12 +40,15 @@ export interface DisclosureRowProps {
 export function DisclosureRow({
   icon,
   title,
+  toggleLabel,
   open,
   expandable,
   onToggle,
   expandOnRowClick = false,
   previewChevron = expandable,
   keepContentWhenOpen = false,
+  keepMounted = false,
+  busy,
   collapsedContent,
   children,
   className,
@@ -48,6 +57,7 @@ export function DisclosureRow({
   chevronClassName,
   titleClassName,
 }: DisclosureRowProps) {
+  const bodyId = useId()
   const rowExpands = expandable && expandOnRowClick
   const toggleFromLeading = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation()
@@ -79,6 +89,8 @@ export function DisclosureRow({
         role={rowExpands ? 'button' : undefined}
         tabIndex={rowExpands ? 0 : undefined}
         aria-expanded={rowExpands ? open : undefined}
+        aria-label={rowExpands ? toggleLabel : undefined}
+        aria-controls={rowExpands && (keepMounted || open) ? bodyId : undefined}
         onClick={rowExpands ? onToggle : undefined}
         onKeyDown={rowExpands ? toggleFromKeyboard : undefined}
       >
@@ -89,8 +101,9 @@ export function DisclosureRow({
             // The button's only content is a chevron, so the row's own title is
             // what names it; without this it reaches assistive technology as an
             // unnamed control.
-            aria-label={title}
+            aria-label={toggleLabel ?? title}
             aria-expanded={open}
+            aria-controls={keepMounted || open ? bodyId : undefined}
             onClick={toggleFromLeading}
           >
             {leading}
@@ -103,7 +116,7 @@ export function DisclosureRow({
         <span className={clsx(css.title, titleClassName)}>{title}</span>
         {(keepContentWhenOpen || !open) && collapsedContent}
       </FlowRow>
-      {open && children}
+      {(keepMounted || open) && <div id={bodyId} hidden={!open} aria-busy={busy}>{children}</div>}
     </div>
   )
 }

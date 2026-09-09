@@ -13,6 +13,7 @@ import type { TeamRuntimeLifecycle } from './lifecycle.ts'
 import type { TeamRoster } from './roster.ts'
 import { resolveActiveMember } from './roster.ts'
 import { messageAccepted } from './session-message.ts'
+import { workspacePeerName, workspacePeers } from './workspace-peers.ts'
 import { TeamId, TeamMessageId } from './types.ts'
 import type {
   SendTeamMessageRequest,
@@ -85,15 +86,20 @@ export class TeamMailbox {
     signal.throwIfAborted()
     const membership = this.roster.tryMembership(agent)
     if (membership === undefined) return
-    const state = this.journal.state(membership.root)
-    const messages = [...state.messages.values()].filter(message =>
-      !state.delivered.has(message.id)
-      && (membership.role === 'lead' || message.targetId === agent.id))
-    for (const message of messages) {
-      signal.throwIfAborted()
-      if (membership.role === 'lead' && message.delivery === 'quiet'
-        && message.targetId !== membership.root.id && this.ctx.agents.get(message.targetId) === undefined) continue
-      await this.tryDispatch(membership.root, message, signal)
+    const roots = membership.role === 'lead'
+      ? [membership.root, ...workspacePeers(this.ctx, this.roster, membership.root)]
+      : [membership.root]
+    for (const root of roots) {
+      const state = this.journal.state(root)
+      const messages = [...state.messages.values()].filter(message =>
+        !state.delivered.has(message.id)
+        && ((root === membership.root && membership.role === 'lead') || message.targetId === agent.id))
+      for (const message of messages) {
+        signal.throwIfAborted()
+        if (membership.role === 'lead' && message.delivery === 'quiet'
+          && message.targetId !== root.id && this.ctx.agents.get(message.targetId) === undefined) continue
+        await this.tryDispatch(root, message, signal)
+      }
     }
   }
 
@@ -116,8 +122,13 @@ export class TeamMailbox {
     const content = structuredClone(request.content)
     const queued = await this.journal.transact(root.id, async () => {
       request.signal.throwIfAborted()
+      this.roster.membership(caller)
       const state = this.journal.state(root)
-      const target = resolveActiveMember(root, state, request.target)
+      const peer = workspacePeers(this.ctx, this.roster, root)
+        .find(candidate => workspacePeerName(candidate.id) === request.target.trim())
+      const target = peer === undefined
+        ? resolveActiveMember(root, state, request.target)
+        : { id: peer.id, name: workspacePeerName(peer.id) }
       if (target.id === caller.id) throw new TeamError('a Team member cannot message itself', 'TEAM_SELF_MESSAGE')
       const pendingForTarget = [...state.messages.values()].filter(candidate =>
         candidate.targetId === target.id && !state.delivered.has(candidate.id)).length
@@ -130,7 +141,7 @@ export class TeamMailbox {
       const queued: TeamMessageSnapshot = {
         id: TeamMessageId(`team-message-${randomUUID()}`),
         senderId: caller.id,
-        senderName: membership.name,
+        senderName: peer === undefined ? membership.name : workspacePeerName(root.id),
         targetId: target.id,
         delivery: request.delivery,
         content,
@@ -238,6 +249,15 @@ export class TeamMailbox {
         senderName: message.senderName,
       }
       const content = this.deliveryContent(message)
+      if (message.targetId !== root.id && !this.journal.state(root).members.has(message.targetId)) {
+        const peer = workspacePeers(this.ctx, this.roster, root)
+          .find(candidate => candidate.id === message.targetId)
+        if (peer === undefined) return false
+        const input = createUserMessage({ content, source })
+        if (message.delivery === 'wakeup') peer.followup(input)
+        else peer.inject(input)
+        return await this.checkpointDelivered(root, peer.session, message.id)
+      }
       if (message.targetId === root.id) {
         const input = createUserMessage({ content, source })
         if (message.delivery === 'wakeup') {

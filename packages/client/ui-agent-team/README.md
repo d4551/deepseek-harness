@@ -53,7 +53,7 @@ Starting a create or update invalidates older refreshes. Success reloads the com
 
 The live subscription coalesces activity while a view read is pending. Closing the panel, changing conversations, or unmounting cancels it and invalidates outstanding reads. An interrupted stream displays an error; reopening the panel establishes a new subscription and reads current state.
 
-Native CSS anchor positioning keeps the panel attached to its trigger and constrains its scrollable content to the viewport. Panel positioning requires current browsers with CSS anchor positioning support.
+The shared Modal primitive provides the panel surface and viewport-constrained scrolling. Shared buttons, inputs, pills, and activity dots provide its controls without a panel stylesheet or inline styling.
 
 | File | Role |
 |---|---|

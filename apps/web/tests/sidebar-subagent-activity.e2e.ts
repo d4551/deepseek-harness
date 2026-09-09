@@ -157,7 +157,8 @@ describe('web e2e: sidebar subagent activity', () => {
   it('shows the child in Team and clears running indicators when its turn ends', async () => {
     const action = page.locator('[data-team-action]')
     await action.getByRole('button', { name: /Agent Team/u }).click()
-    const conversations = action.getByRole('region', { name: 'Subagent conversations' })
+    const conversations = page.getByRole('dialog', { name: 'Agent Team' })
+      .getByRole('region', { name: 'Subagent conversations' })
     await conversations.getByRole('button', { name: /sidebar activity child/u }).waitFor()
     expect(await conversations.locator('[data-state="ongoing"]').count()).toBe(1)
     await page.screenshot({ path: '.artifacts/finish/team-running.png' })

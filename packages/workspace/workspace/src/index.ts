@@ -91,6 +91,7 @@ export class WorkspaceRegistry extends Service {
   private operationTail: Promise<void> = Promise.resolve()
 
   private readonly host: WorkspaceEntityHost = {
+    updated: () => { this.ctx.emit('workspace/updated') },
     table: () => this.requireTable(),
     sessionPath: id => this.sessionPaths.get(id),
     readSessionHeader: id => this.readSessionHeader(id),
@@ -629,10 +630,13 @@ export class WorkspaceRegistry extends Service {
 
   private enqueueOperation<T>(operation: () => Promise<T>): Promise<T> {
     const result = this.operationTail.then(async () => {
+      const previous = this.state
       // A committed delete may leave only its marker cleanup pending. Retry
       // recovery before another create/delete can overwrite that pending operation record.
       await this.recoverPendingMutation()
-      return await operation()
+      const value = await operation()
+      if (previous !== this.state) this.ctx.emit('workspace/updated')
+      return value
     })
     this.operationTail = result.then(() => {}, () => {})
     return result

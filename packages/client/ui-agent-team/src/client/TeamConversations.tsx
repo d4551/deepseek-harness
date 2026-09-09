@@ -1,7 +1,6 @@
 import type { TeamView } from '@deepseek-ai/dsh-agent-team/client'
 import { Button, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TeamKey } from './locales.ts'
-import css from './TeamAction.module.css'
 
 /** A descriptor-backed conversation returned by the Team service. */
 export type TeamConversation = Extract<TeamView['subagents'][number], { kind: 'child' }>
@@ -25,28 +24,28 @@ export function TeamConversations({ view, t, open, reportError }: TeamConversati
     <>
       <section aria-label={t('conversations')}>
         <h3>{t('conversations')}</h3>
-        {view.subagents.length === 0 && <p className={css.notice}>{t('noSubagents')}</p>}
-        <div className={css.tasks}>
+        {view.subagents.length === 0 && <p>{t('noSubagents')}</p>}
+        <div>
           {view.subagents.map(entry => entry.kind === 'diagnostic'
-            ? <p key={entry.id} className={css.error}>{entry.id}: {t('conversationUnavailable')} ({entry.reason})</p>
+            ? <p key={entry.id} role="alert">{entry.id}: {t('conversationUnavailable')} ({entry.reason})</p>
             : (
-              <Button key={entry.id} className={css.member} onClick={() => { open(entry).then(undefined, reportError) }}>
-                <StateDot state={entry.activity === 'running' ? 'ongoing' : 'inactive'} />
-                <span className={css.memberText}>
-                  <span>{entry.label ?? nameOf(entry.id)}</span>
-                  <small>{t('parent')}: {nameOf(entry.parentId)} · {t(entry.activity === 'running' ? 'memberStatus.running' : 'memberStatus.inactive')}</small>
-                </span>
-              </Button>
+              <article key={entry.id}>
+                <div>
+                  <StateDot state={entry.activity === 'running' ? 'ongoing' : 'inactive'} />
+                  <Button onClick={() => { open(entry).then(undefined, reportError) }}>{entry.label ?? nameOf(entry.id)}</Button>
+                </div>
+                <p>{t('parent')}: {nameOf(entry.parentId)} · {t(entry.activity === 'running' ? 'memberStatus.running' : 'memberStatus.inactive')}</p>
+              </article>
             ))}
         </div>
       </section>
       <section aria-label={t('messages')}>
         <h3>{t('messages')}</h3>
-        {view.messages.length === 0 && <p className={css.notice}>{t('noMessages')}</p>}
-        <div className={css.tasks}>
+        {view.messages.length === 0 && <p>{t('noMessages')}</p>}
+        <div>
           {view.messages.map(message => (
-            <article key={message.id} className={css.task}>
-              <div className={css.taskTitle}>
+            <article key={message.id}>
+              <div>
                 <strong>{message.senderName} → {nameOf(message.targetId)}</strong>
                 <span>{t(message.delivered ? 'delivered' : 'queued')}</span>
               </div>

@@ -549,34 +549,30 @@ describe('ChatView', () => {
     ])
     const h = makeHarness({}, {}, snapshot)
     const view = render(<h.ChatView {...h.props} />)
-    const navigation = view.getByRole('navigation', { name: '轮次导航' })
-    expect(navigation.style.getPropertyValue('--turn-natural-height')).toBe('56px')
-    const first = view.getByRole('button', { name: '跳转到第 1 轮' })
-    const second = view.getByRole('button', { name: '跳转到第 2 轮' })
-    expect(first.parentElement?.style.getPropertyValue('--turn-natural-position')).toBe('0px')
-    expect(second.parentElement?.style.getPropertyValue('--turn-natural-position')).toBe('28px')
-    expect(second.getAttribute('aria-current')).toBe('true')
-    fireEvent.focus(first)
-    const preview = view.getByRole('tooltip')
-    expect(preview.textContent).toContain('first prompt')
-    expect(preview.textContent).toContain('first response')
-    act(() => { first.focus() })
-    const marks = navigation.firstElementChild
-    if (marks === null) throw new Error('turn navigation has no mark list')
-    fireEvent.scroll(marks)
-    expect(view.getByRole('tooltip')).toBe(preview)
+    const toggle = view.getByRole('button', { name: '轮次导航' })
+    act(() => { toggle.focus() })
+    fireEvent.click(toggle)
+    const first = view.getByRole('menuitem', { name: /跳转到第 1 轮/ })
+    const second = view.getByRole('menuitem', { name: /跳转到第 2 轮/ })
+    expect(first.textContent).toContain('first prompt')
+    expect(first.textContent).toContain('first response')
+    expect(document.activeElement).toBe(first)
+    fireEvent.keyDown(first, { key: 'End' })
+    expect(document.activeElement).toBe(second)
+    fireEvent.keyDown(second, { key: 'Escape' })
+    expect(view.queryByRole('menu')).toBeNull()
+    expect(document.activeElement).toBe(toggle)
   })
 
-  it('jumps to a turn anchor and reflows stable marks after an older page arrives', () => {
+  it('jumps to a turn anchor and preserves menu entries after an older page arrives', () => {
     const later = [
       userInTurn(4, 'second prompt', 2), assistant(5, 'second response', 2),
       userInTurn(7, 'third prompt', 3), assistant(8, 'third response', 3),
     ]
     const h = makeHarness({ nodes: later }, { hasMore: true })
     const view = render(<h.ChatView {...h.props} />)
-    const second = view.getByRole('button', { name: '跳转到第 2 轮' })
-    const secondPosition = second.parentElement as HTMLElement
-    expect(secondPosition.style.getPropertyValue('--turn-natural-position')).toBe('0px')
+    fireEvent.click(view.getByRole('button', { name: '轮次导航' }))
+    const second = view.getByRole('menuitem', { name: /跳转到第 2 轮/ })
 
     const scroller = view.container.querySelector('[class*="scroll"]') as HTMLDivElement
     const metrics = installScrollMetrics(scroller, 1_000, 300)
@@ -586,7 +582,9 @@ describe('ChatView', () => {
     vi.spyOn(secondRow, 'getBoundingClientRect').mockReturnValue({ top: -500, bottom: -440 } as DOMRect)
     fireEvent.click(second)
     expect(scroller.scrollTop).toBe(176)
-    expect(second.getAttribute('aria-current')).toBe('true')
+    expect(view.queryByRole('menu')).toBeNull()
+    fireEvent.click(view.getByRole('button', { name: '轮次导航' }))
+    const beforePrepend = view.getByRole('menuitem', { name: /跳转到第 2 轮/ })
 
     act(() => {
       h.setChat({
@@ -594,11 +592,13 @@ describe('ChatView', () => {
         turnTimings: new Map([[1, { startTime: 1_000 }], [2, { startTime: 4_000 }], [3, { startTime: 7_000 }]]),
       })
     })
-    const movedSecond = view.getByRole('button', { name: '跳转到第 2 轮' })
-    expect(movedSecond.parentElement).toBe(secondPosition)
-    expect(secondPosition.style.getPropertyValue('--turn-natural-position')).toBe('28px')
-    expect(secondPosition.previousElementSibling?.querySelector('button')?.getAttribute('aria-label'))
-      .toBe('跳转到第 1 轮')
+    const movedSecond = view.getByRole('menuitem', { name: /跳转到第 2 轮/ })
+    expect(movedSecond).toBe(beforePrepend)
+    expect(view.getAllByRole('menuitem').map(item => item.textContent)).toEqual([
+      '跳转到第 1 轮: first prompt first response',
+      '跳转到第 2 轮: second prompt second response',
+      '跳转到第 3 轮: third prompt third response',
+    ])
   })
 
   it('hands a windowless tool result to the Tool seat with an empty tool name', () => {

@@ -55,7 +55,7 @@ None; Chat presentation does not assemble or mutate provider requests.
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **The view reflects the loaded Session window** — older transcript nodes become available only after Session Controller loads the preceding event page. Turn navigation represents only loaded Turns; loading an earlier page preserves existing Turn marks. Each mark has a separate 28px pointer and keyboard target. Long lists scroll within the available transcript height, and hovering or focusing a mark previews its loaded prompt and response.
+- **The view reflects the loaded Session window** — older transcript nodes become available only after Session Controller loads the preceding event page. Turn navigation lists loaded Turns in the shared Menu primitive, with each entry named by its Turn, loaded prompt, and response. Loading an earlier page preserves existing entries. Arrow keys, Home, and End move between entries; Enter navigates and Escape returns focus to the menu button. The menu remains available in narrow layouts.
 
 
 <a id="dev-note"></a>

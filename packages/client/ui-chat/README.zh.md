@@ -55,7 +55,7 @@ Chat 会为每个非空的初始或恢复请求、显式消息序列起点或真
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **视图只反映已加载的 Session 窗口**——只有 Session Controller 加载前一页 event 后，更早的 transcript node 才会出现。轮次导航只表示已加载的 Turn；加载更早一页时，已有 Turn 刻度保持身份不变。每个刻度都有独立的 28px 指针与键盘操作区域。长列表在 transcript 可用高度内滚动，悬停或聚焦刻度可预览该轮次已加载的提示与回复。
+- **视图只反映已加载的 Session 窗口**——只有 Session Controller 加载前一页 event 后，更早的 transcript node 才会出现。轮次导航通过共享 Menu 组件列出已加载的 Turn，每项名称包含轮次、已加载的提示与回复。加载更早一页时，已有条目保持身份不变。方向键、Home 与 End 在条目间移动；Enter 跳转，Escape 将焦点返回菜单按钮。菜单在窄屏布局中仍然可用。
 
 
 <a id="dev-note"></a>

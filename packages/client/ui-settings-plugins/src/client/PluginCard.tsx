@@ -10,12 +10,10 @@
  * disabled card the user cannot act on.
  */
 
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import clsx from 'clsx'
-import { Button, IconChevronDownOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Button, DisclosureRow, Pill, IconChevronDownOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { CardShell } from './card-form.ts'
 import type { PluginsSettingsLocaleKey } from './locales.ts'
-import css from './PluginCard.module.css'
 
 /** Card chrome shared by every plugin section. */
 export interface PluginCardProps {
@@ -42,8 +40,7 @@ export interface PluginCardProps {
  */
 export function PluginCard(props: PluginCardProps) {
   const [open, setOpen] = useState(false)
-  const bodyId = useId()
-  const headerRef = useRef<HTMLButtonElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const saveStarted = useRef(false)
   const saveHadFocus = useRef(false)
@@ -60,7 +57,7 @@ export function PluginCard(props: PluginCardProps) {
     if (!state.dirty && !state.failed) {
       const active = document.activeElement
       if (bodyRef.current?.contains(active) || (saveHadFocus.current && active === document.body)) {
-        headerRef.current?.focus()
+        rootRef.current?.querySelector<HTMLElement>('[data-disclosure-row]')?.focus()
       }
       setOpen(false)
     }
@@ -70,56 +67,50 @@ export function PluginCard(props: PluginCardProps) {
   const title = props.t(props.titleKey)
   const blocked = !state.writable || !state.dirty || state.invalid || state.saving
   return (
-    <div role="listitem" className={clsx(css.card, open && css.cardOpen)}>
-      <button
-        ref={headerRef}
-        type="button"
-        className={css.header}
-        aria-expanded={open}
-        aria-controls={open ? bodyId : undefined}
-        aria-label={`${props.t(open ? 'collapse' : 'expand')}: ${title}`}
-        onClick={() => { setOpen(!open) }}
+    <div role="listitem" ref={rootRef}>
+      <DisclosureRow
+        title={title}
+        toggleLabel={`${props.t(open ? 'collapse' : 'expand')}: ${title}`}
+        icon={<IconChevronDownOutline14 />}
+        open={open}
+        expandable
+        expandOnRowClick
+        keepContentWhenOpen
+        busy={state.saving}
+        collapsedContent={state.dirty ? <Pill>{props.t('unsaved')}</Pill> : undefined}
+        onToggle={() => { setOpen(!open) }}
       >
-        <span className={css.headText}>
-          <span className={css.name}>{title}</span>
-          <span className={css.description}>{props.t(props.descriptionKey)}</span>
-        </span>
-        {state.dirty ? <span className={css.pending}>{props.t('unsaved')}</span> : null}
-        <IconChevronDownOutline14 className={clsx(css.chevron, open && css.chevronOpen)} />
-      </button>
-      {open
-        ? (
-          <div ref={bodyRef} id={bodyId} className={css.body} aria-busy={state.saving}>
-            {!state.writable ? <p className={css.readOnly} role="status">{props.t('readOnly')}</p> : null}
-            {state.restartRequired
-              ? <p className={css.readOnly} role="status">{props.t('appliesRestart')}</p>
-              : null}
-            {props.children}
-            <div className={css.footer}>
-              {state.failed ? <p className={css.failed} role="status">{props.t('saveFailed')}</p> : null}
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={!state.dirty || state.saving}
-                onClick={props.onDiscard}
-              >
-                {props.t('discard')}
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                disabled={blocked}
-                onClick={() => {
-                  saveHadFocus.current = bodyRef.current?.contains(document.activeElement) === true
-                  return props.onSave()
-                }}
-              >
-                {props.t(state.saving ? 'saving' : 'save')}
-              </Button>
-            </div>
+        <div ref={bodyRef}>
+          <p>{props.t(props.descriptionKey)}</p>
+          {!state.writable ? <p role="status">{props.t('readOnly')}</p> : null}
+          {state.restartRequired
+            ? <p role="status">{props.t('appliesRestart')}</p>
+            : null}
+          {props.children}
+          <div>
+            {state.failed ? <p role="status">{props.t('saveFailed')}</p> : null}
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!state.dirty || state.saving}
+              onClick={props.onDiscard}
+            >
+              {props.t('discard')}
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={blocked}
+              onClick={() => {
+                saveHadFocus.current = bodyRef.current?.contains(document.activeElement) === true
+                return props.onSave()
+              }}
+            >
+              {props.t(state.saving ? 'saving' : 'save')}
+            </Button>
           </div>
-        )
-        : null}
+        </div>
+      </DisclosureRow>
     </div>
   )
 }

@@ -53,7 +53,7 @@ Client export 挂载来自 [`@deepseek-ai/dsh-agent-team/remote`](../../subagent
 
 实时订阅会在 view 读取尚未完成时合并活动通知。关闭 panel、切换会话或卸载会取消订阅，并使未完成的读取失效。流中断时会显示错误；重新打开 panel 会建立新订阅并读取当前状态。
 
-原生 CSS anchor positioning 使面板保持在触发按钮旁，并将可滚动内容限制在视口内。面板定位需要使用支持 CSS anchor positioning 的当前浏览器。
+共享 Modal 组件提供面板表层与视口内滚动。共享按钮、输入框、标签与活动状态点构成面板控件，无需面板样式表或行内样式。
 
 | 文件 | 职责 |
 |---|---|

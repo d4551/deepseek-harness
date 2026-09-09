@@ -42,12 +42,14 @@ describe('BashCard', () => {
   it('shows the plugin and reveals its fields only once expanded', () => {
     renderBash()
     expect(screen.getByText(en.bashTitle)).toBeTruthy()
+    expect(screen.queryByText(en.bashDescription)).toBeNull()
     expect(screen.queryByLabelText(en.bashTimeoutMs)).toBeNull()
 
     fireEvent.click(screen.getByText(en.bashTitle))
 
     expect(screen.getByLabelText(en.bashTimeoutMs)).toBeTruthy()
     expect(screen.getByLabelText(en.bashMaxOutputBytes)).toBeTruthy()
+    expect(screen.getByText(en.bashDescription)).toBeTruthy()
   })
 
   it('stages an edit instead of writing it', () => {

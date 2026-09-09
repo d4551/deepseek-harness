@@ -2,8 +2,7 @@
 
 /** Locale keys these surfaces render. */
 export type PluginsSettingsLocaleKey =
-  | 'webGroupTitle' | 'webGroupDescription' | 'approvalGroupTitle' | 'approvalGroupDescription'
-  | 'otherGroupTitle' | 'otherGroupDescription'
+  | 'webGroupTitle' | 'approvalGroupTitle' | 'otherGroupTitle'
   | 'nav' | 'title' | 'intro' | 'tabs' | 'configurableTab' | 'empty'
   | 'overridden' | 'reset' | 'readOnly' | 'expand' | 'collapse'
   | 'save' | 'saving' | 'discard' | 'unsaved' | 'saveFailed' | 'invalidNumber'
@@ -72,11 +71,8 @@ export type PluginsSettingsLocaleKey =
 /** English copy. */
 export const en: Record<PluginsSettingsLocaleKey, string> = {
   webGroupTitle: 'Web search and page access',
-  webGroupDescription: 'Choose a search backend and a page-fetch backend in Web access. Configure their credentials and limits below. Configuring a provider does not select it; browser search and fetch can serve both choices.',
   approvalGroupTitle: 'Approval flow',
-  approvalGroupDescription: 'Requests pass through enabled approval screening first. Requests it accepts reach the model reviewer when enabled, or the configured answerer otherwise. A reviewer verdict replaces the human decision; an undecided review follows its configured policy.',
   otherGroupTitle: 'Agent and execution settings',
-  otherGroupDescription: 'Configure models, delegation, and execution limits.',
   nav: 'Plugins',
   title: 'Plugins',
   intro: 'Configure and inspect the plugins installed in this deployment.',
@@ -241,11 +237,8 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
 /** Simplified Chinese copy. */
 export const zh: Record<PluginsSettingsLocaleKey, string> = {
   webGroupTitle: '网页搜索与访问',
-  webGroupDescription: '先在网页访问中选择搜索与抓取后端，再在下方配置凭据和限制。配置提供方不会自动选用它；浏览器搜索和抓取可以同时承担两种能力。',
   approvalGroupTitle: '审批流程',
-  approvalGroupDescription: '请求先经过已启用的审批检查。通过的请求交给已启用的模型评审者，否则交给配置的应答者。模型裁决替代人工决定；未能裁决时执行配置的未决请求策略。',
   otherGroupTitle: '智能体与执行设置',
-  otherGroupDescription: '配置模型、委派和执行限制。',
   nav: '插件',
   title: '插件',
   intro: '配置和查看本部署已安装的插件。',

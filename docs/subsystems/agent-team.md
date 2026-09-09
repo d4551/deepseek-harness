@@ -121,9 +121,9 @@ Agent Teams service backed by the exact live Lead Session log.
 membership(agent: Agent): TeamMembership
 
 /**
- * List the runtime-enriched roster visible to one Team member.
+ * List the Team roster and live peers in its registered workspace.
  * @param agent - exact live Team member.
- * @returns Lead and teammate rows in creation order.
+ * @returns Lead and teammate rows followed by workspace peers in registry order.
  */
 listMembers(agent: Agent): TeamMemberView[]
 

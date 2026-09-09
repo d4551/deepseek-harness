@@ -59,7 +59,7 @@ export interface TeamMemberSnapshot {
 export interface TeamMemberView {
   readonly id: SessionId
   readonly name: string
-  readonly role: 'lead' | 'teammate'
+  readonly role: 'lead' | 'teammate' | 'peer'
   readonly status: 'running' | 'idle' | 'inactive' | 'provisioning' | 'failed'
   readonly description?: string
   readonly provider?: string
