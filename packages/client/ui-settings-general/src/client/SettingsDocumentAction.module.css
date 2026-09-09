@@ -2,15 +2,14 @@
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 8px;
+  gap: var(--dsw-space-control);
 }
 
 .error {
   max-width: 180px;
   overflow: hidden;
   color: var(--dsw-alias-state-error-primary);
-  font-size: 12px;
-  line-height: 18px;
+  font: var(--dsw-font-caption);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

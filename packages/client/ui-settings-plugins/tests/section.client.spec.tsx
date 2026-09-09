@@ -148,9 +148,12 @@ describe('ConfigurablePluginsTab', () => {
 
   it('dispatches one card per namespace, keyed by it', () => {
     renderConfigurable(['bash', 'agent-loop'], { bash: 'shell', 'agent-loop': 'loop' })
-
+    const group = screen.getByRole('button', { name: en.otherGroupTitle })
+    expect(group.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByRole('textbox')).toBeNull()
+    fireEvent.click(group)
     expect(screen.getAllByRole('textbox').map(item => item.getAttribute('aria-label'))).toEqual(['shell', 'loop'])
-    expect(screen.queryByRole('button')).toBeNull()
+    expect(group.getAttribute('aria-expanded')).toBe('true')
     expect(screen.queryByText(en.empty)).toBeNull()
   })
 

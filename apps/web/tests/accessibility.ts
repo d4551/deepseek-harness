@@ -22,6 +22,19 @@ export async function assertPageAccessibility(page: Page): Promise<void> {
     const directory = await mkdtemp(join(artifacts, 'accessibility-'))
     await writeFile(join(directory, 'audit.json'), JSON.stringify(audit, null, 2))
     await writeFile(join(directory, 'page.html'), await page.content())
+    const paragraphs = await page.locator('[role="dialog"] p').evaluateAll(elements => elements.map((element) => {
+      const bounds = element.getBoundingClientRect()
+      const x = bounds.x + bounds.width / 2
+      const y = bounds.y + bounds.height / 2
+      return {
+        text: element.textContent,
+        bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
+        layers: document.elementsFromPoint(x, y).map(layer => ({
+          tag: layer.tagName, class: layer.className, background: getComputedStyle(layer).backgroundColor,
+        })),
+      }
+    }))
+    await writeFile(join(directory, 'layout.json'), JSON.stringify(paragraphs, null, 2))
     await page.screenshot({ path: join(directory, 'page.png'), fullPage: true })
   }
   expect(audit.violations).toEqual([])

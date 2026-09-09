@@ -22,6 +22,12 @@
   --dsw-panel-min-width: 20rem;
   --dsw-space-layout: 1.5rem;
   --dsw-line-height-body: 1.5;
+  --dsw-font-body: 400 0.875rem/1.5 var(--dsw-font-family);
+  --dsw-font-title: 600 1rem/1.5 var(--dsw-font-family);
+  --dsw-font-caption: 400 0.75rem/1.5 var(--dsw-font-family);
+  --dsw-status-size: 0.625rem;
+  --dsw-status-size-large: 0.75rem;
+  --dsw-status-cycle: 1s;
 }
 
 body {

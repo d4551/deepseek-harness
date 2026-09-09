@@ -27,6 +27,8 @@ English | [中文](README.zh.md)
 
 Users reach the shell through the sidebar's bottom Settings control; feature plugins contribute their pages and onboarding steps through the slot ledgers this shell projects. The shell renders the modal panel, the navigation built from `settings.section` entries, and exactly one mounted onboarding step at a time.
 
+Settings and Agent Team use the shared Modal primitive and theme typography. Section controls wrap on narrow screens, the header remains visible while content scrolls, and keyboard focus stays inside the dialog until it closes.
+
 ### The General section
 
 The General section holds rows registered into `settings.general.item` by feature packages — it has no built-in rows. Feature plugins own the row copy and behavior; the shell only provides the section and its slot. The Appearance row, for example, lives in ui-theme.

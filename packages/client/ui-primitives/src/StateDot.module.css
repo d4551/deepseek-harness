@@ -6,9 +6,16 @@
 /* Solid states: same-color halo via a 0.10-opacity outer layer (::before)
  * with a 6/10-scale solid core. Layer color rides currentColor set per state. */
 .dot {
+  width: var(--dsw-status-size);
+  height: var(--dsw-status-size);
   position: relative;
   display: inline-block;
   flex: none;
+}
+
+.dot[data-size='12'] {
+  width: var(--dsw-status-size-large);
+  height: var(--dsw-status-size-large);
 }
 
 .dot::before {
@@ -46,8 +53,7 @@
 
 /* Pixel chase: each outer cell holds a discrete brightness step (flat keyframe
  * holds, no tweening — the retro feel), peaking when the chase hits it and
- * decaying over the next three cells. Phase offsets come from per-rect
- * animation-delay (index * -125ms) set inline by the component. */
+ * decaying over the next three cells. */
 .matrix {
   flex: none;
   color: var(--dsh-state-ongoing);
@@ -56,8 +62,17 @@
 .cell {
   fill: currentColor;
   opacity: 0.15;
-  animation: dsh-state-dot-chase 1s infinite;
+  animation: dsh-state-dot-chase var(--dsw-status-cycle) infinite;
 }
+
+.cell:nth-child(1) { animation-delay: calc(var(--dsw-status-cycle) * -1); }
+.cell:nth-child(2) { animation-delay: calc(var(--dsw-status-cycle) * -0.875); }
+.cell:nth-child(3) { animation-delay: calc(var(--dsw-status-cycle) * -0.75); }
+.cell:nth-child(4) { animation-delay: calc(var(--dsw-status-cycle) * -0.625); }
+.cell:nth-child(5) { animation-delay: calc(var(--dsw-status-cycle) * -0.5); }
+.cell:nth-child(6) { animation-delay: calc(var(--dsw-status-cycle) * -0.375); }
+.cell:nth-child(7) { animation-delay: calc(var(--dsw-status-cycle) * -0.25); }
+.cell:nth-child(8) { animation-delay: calc(var(--dsw-status-cycle) * -0.125); }
 
 @keyframes dsh-state-dot-chase {
   0%, 12.4% { opacity: 1; }

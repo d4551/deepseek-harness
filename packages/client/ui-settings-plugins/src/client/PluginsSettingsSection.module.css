@@ -10,13 +10,12 @@
 
 .heading {
   margin: 0;
-  font-size: 18px;
-  font-weight: 600;
+  font: var(--dsw-font-title);
 }
 
 .intro {
   margin: 0;
-  font-size: 13px;
+  font: var(--dsw-font-body);
   color: var(--dsw-alias-label-tertiary);
 }
 
@@ -34,9 +33,7 @@
   padding: 7px 1px 9px;
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
-  font: inherit;
-  font-size: 13px;
-  line-height: 20px;
+  font: var(--dsw-font-body);
   cursor: pointer;
 }
 
@@ -80,6 +77,6 @@
 
 .empty {
   margin: 0;
-  font-size: 13px;
+  font: var(--dsw-font-body);
   color: var(--dsw-alias-label-tertiary);
 }

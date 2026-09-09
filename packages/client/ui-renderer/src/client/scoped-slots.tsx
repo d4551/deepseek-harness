@@ -15,6 +15,7 @@ import {
   keyedObservableHook, maybeObservableHook, observableHook, useHost, useRootBinding,
   useScopeBinding,
 } from './bindings.tsx'
+import css from './scoped-slots.module.css'
 
 type InjectedProps = Record<string, unknown>
 
@@ -677,14 +678,6 @@ function StrictSessionEntry({ slotKey, entry, ownerProps, slotInjected, hookCont
   )
 }
 
-/**
- * Anchor style shared by every outlet wrapper: `display:contents` keeps the
- * wrapper out of layout (grid/flex parents see the slot's own children), so
- * the anchor is purely addressable surface. Module-level constant — a stable
- * reference so the wrapper never diffs its style prop.
- */
-const ANCHOR_STYLE = { display: 'contents' } as const
-
 function SlotOutlet({ slotKey, ownerProps, opts }: {
   slotKey: string
   ownerProps: object
@@ -707,7 +700,7 @@ function SlotOutlet({ slotKey, ownerProps, opts }: {
   // undeclared-empty states all render inside it, so the anchor's presence
   // never flickers with registration churn.
   return (
-    <div data-slot={slotKey} style={ANCHOR_STYLE}>
+    <div data-slot={slotKey} className={css.anchor}>
       {renderOutletContent(host, slotKey, ownerProps, opts, scopeBinding)}
     </div>
   )
@@ -877,7 +870,8 @@ function renderChainResult(
     <>
       <div
         data-chain-overlay-fallback={slotKey}
-        style={{ display: elected === null ? 'contents' : 'none' }}
+        className={elected === null ? css.anchor : undefined}
+        hidden={elected !== null}
       >
         {opts.fallback ?? null}
       </div>
@@ -905,7 +899,7 @@ function RootOutlet({ ownerProps }: { ownerProps: object }) {
   // Same anchor contract as SlotOutlet: 'root' is a slot like any other, and
   // display:contents keeps the wrapper out of the shell's layout.
   return (
-    <div data-slot="root" style={ANCHOR_STYLE}>
+    <div data-slot="root" className={css.anchor}>
       <SlotErrorBoundary
         slotKey="root"
         key={entryKeyOf(entry)}

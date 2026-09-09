@@ -126,17 +126,20 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
     const sender = scaffold.ctx.agentTeams.listMembers(peer).find(member => member.id === lead.id)
     if (target === undefined || sender === undefined) throw new Error('Registered Team peers are unavailable')
     const signal = new AbortController().signal
-    await scaffold.ctx.agentTeams.sendMessage(lead, {
+    const request = await scaffold.ctx.agentTeams.sendMessage(lead, {
       target: target.name, content: [{ type: 'text', text: 'Please review the task changes.\nCheck keyboard navigation too.' }],
       delivery: 'quiet', signal,
     })
-    await scaffold.ctx.agentTeams.sendMessage(peer, {
+    const reply = await scaffold.ctx.agentTeams.sendMessage(peer, {
       target: sender.name, content: [{ type: 'text', text: 'Review complete. Keyboard navigation works.' }],
       delivery: 'quiet', signal,
     })
+    expect(request.status).toBe('accepted')
+    expect(reply.status).toBe('accepted')
     const messages = panel.getByRole('log', { name: 'Messages between members' })
     await messages.getByText('Review complete. Keyboard navigation works.', { exact: true }).waitFor()
-    expect(await messages.getByText('Delivered', { exact: true }).count()).toBe(2)
+    await expect.poll(() => messages.getByText('Delivered', { exact: true }).count()).toBe(2)
+    expect(await messages.getByText('Queued', { exact: true }).count()).toBe(0)
     expect(await messages.innerText()).toContain('Please review the task changes.\nCheck keyboard navigation too.')
     expect(await messages.innerText()).toContain(`${target.name} → lead`)
     await assertPageAccessibility(page)
@@ -151,6 +154,61 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
     await assertPageAccessibility(page)
     expect(await panel.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
     await page.screenshot({ path: `.artifacts/finish/team-tasks-mobile-${colorScheme}.png` })
+    const conversations = panel.getByRole('region', { name: 'Subagent conversations', exact: true })
+    await conversations.scrollIntoViewIfNeeded()
+    const headingBounds = await conversations.getByRole('heading').boundingBox()
+    const refreshBounds = await conversations.getByRole('button', { name: 'Refresh conversations' }).boundingBox()
+    if (headingBounds === null || refreshBounds === null) throw new Error('Conversation controls are not visible')
+    expect(refreshBounds.y).toBeGreaterThanOrEqual(headingBounds.y + headingBounds.height)
+    await page.screenshot({ path: `.artifacts/finish/team-tasks-mobile-controls-${colorScheme}.png` })
+    const teamTypography = await panel.getByRole('heading', { name: 'Agent Team', exact: true }).evaluate((element) => {
+      const style = getComputedStyle(element)
+      return [style.fontFamily, style.fontSize, style.fontWeight, style.lineHeight]
+    })
+    expect(await close.isVisible()).toBe(true)
+    expect(await panel.locator('[style]').evaluateAll(elements => elements.map(element => element.outerHTML))).toEqual([])
+    const slotDisplays = await page.locator('[data-slot]').evaluateAll(elements =>
+      elements.map(element => getComputedStyle(element).display))
+    expect(slotDisplays.length).toBeGreaterThan(0)
+    expect(new Set(slotDisplays)).toEqual(new Set(['contents']))
+    await close.click()
+    await page.setViewportSize({ width: 1680, height: 1000 })
+    const settingsTrigger = page.getByRole('button', { name: 'Settings', exact: true })
+    await settingsTrigger.click()
+    const settings = page.getByRole('dialog', { name: 'Settings', exact: true })
+    const settingsTypography = await settings.getByRole('heading', { name: 'Settings', exact: true }).evaluate((element) => {
+      const style = getComputedStyle(element)
+      return [style.fontFamily, style.fontSize, style.fontWeight, style.lineHeight]
+    })
+    expect(settingsTypography).toEqual(teamTypography)
+    expect(await settings.locator('[style]').count()).toBe(0)
+    await assertPageAccessibility(page)
+    await page.screenshot({ path: `.artifacts/finish/settings-${colorScheme}.png` })
+    const settingsBounds = await settings.getByRole('button', { name: 'General', exact: true }).boundingBox()
+    for (const section of ['Models', 'Plugins', 'Agent presets']) {
+      await settings.getByRole('button', { name: section, exact: true }).click()
+      expect(await settings.getByRole('button', { name: 'General', exact: true }).boundingBox()).toEqual(settingsBounds)
+      await assertPageAccessibility(page)
+      expect(await settings.locator('[style]').evaluateAll(elements => elements.map(element => element.outerHTML))).toEqual([])
+      await page.screenshot({ path: `.artifacts/finish/settings-${section.replaceAll(' ', '-')}-${colorScheme}.png` })
+    }
+    await settings.getByRole('button', { name: 'General', exact: true }).click()
+    await settings.press('Tab')
+    expect(await settings.evaluate(element => element.contains(document.activeElement))).toBe(true)
+    await settings.press('Shift+Tab')
+    expect(await settings.evaluate(element => element.contains(document.activeElement))).toBe(true)
+    await settings.press('Escape')
+    await settings.waitFor({ state: 'detached' })
+    expect(await settingsTrigger.evaluate(element => element === document.activeElement)).toBe(true)
+    await settingsTrigger.click()
+    await page.setViewportSize({ width: 390, height: 844 })
+    await assertPageAccessibility(page)
+    expect(await settings.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
+    await page.screenshot({ path: `.artifacts/finish/settings-mobile-${colorScheme}.png` })
+    await settings.press('Escape')
+    await settings.waitFor({ state: 'detached' })
+    await page.setViewportSize({ width: 1680, height: 1000 })
+    await action.getByRole('button', { name: /Agent Team/iu }).click()
   }, 60_000)
 
   it('assigns, completes, reopens, edits and deletes a task, then opens the peer conversation', async () => {

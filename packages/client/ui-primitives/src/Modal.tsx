@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useId, useRef } from 'react'
 import type { ReactNode, Ref } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
@@ -9,18 +9,18 @@ interface ModalBaseProps {
   ref?: Ref<HTMLDivElement>
   open: boolean
   onClose: () => void
-  title: string
   description?: string
   children?: ReactNode
   footer?: ReactNode
+  headerActions?: ReactNode
   className?: string
   contentClassName?: string
   size?: 'compact' | 'workspace'
 }
 
 type ModalProps = ModalBaseProps & (
-  | { headless: true; closeLabel?: never }
-  | { headless?: false; closeLabel: string }
+  | { headless: true; title: string; closeLabel?: never; initialFocus?: never }
+  | { headless?: false; title: ReactNode; closeLabel: ReactNode; initialFocus?: 'dialog' | 'close' }
 )
 
 /**
@@ -28,7 +28,7 @@ type ModalProps = ModalBaseProps & (
  * @param props.open - whether the dialog is showing.
  * @param props.ref - dialog element for focus and imperative accessibility checks.
  * @param props.onClose - Escape or mask click.
- * @param props.title - dialog heading (aria-label in every mode).
+ * @param props.title - visible heading, or accessible name in headless mode.
  * @param props.closeLabel - localized accessible close-button label.
  * @param props.description - optional supporting sentence under the title.
  * @param props.children - body (inputs, etc.).
@@ -39,9 +39,12 @@ type ModalProps = ModalBaseProps & (
  * @returns null when closed; otherwise the overlay tree.
  */
 export function Modal({
-  open, onClose, title, closeLabel, description, children, footer, className, contentClassName, ref, headless = false, size = 'compact',
+  open, onClose, title, closeLabel, description, children, footer, headerActions,
+  className, contentClassName, ref, headless = false, size = 'compact', initialFocus = 'dialog',
 }: ModalProps) {
+  const titleId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
+  const closeRef = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     if (!open) return
     const root = rootRef.current
@@ -55,7 +58,10 @@ export function Modal({
         element.inert = true
       }
     }
-    if (!dialog.contains(document.activeElement)) dialog.focus()
+    if (!dialog.contains(document.activeElement)) {
+      const target = initialFocus === 'close' ? closeRef.current : dialog
+      target?.focus()
+    }
     const containFocus = (event: FocusEvent) => {
       if (root.inert) return
       if (event.target instanceof Node && !root.contains(event.target)) dialog.focus()
@@ -87,7 +93,7 @@ export function Modal({
       for (const [element, inert] of siblings) element.inert = inert
       if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus()
     }
-  }, [open])
+  }, [open, initialFocus])
   useEffect(() => {
     if (!open) return
     const onKeyDown = (e: KeyboardEvent) => {
@@ -117,20 +123,29 @@ export function Modal({
         className={clsx(css.dialog, size === 'workspace' && css.workspace, className)}
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-label={typeof title === 'string' ? title : undefined}
+        aria-labelledby={typeof title === 'string' ? undefined : titleId}
         tabIndex={-1}
       >
         {headless
           ? children
           : (
             <>
+              <div className={css.header}>
+                <h2 id={titleId} className={css.title}>{title}</h2>
+                {headerActions}
+                <button
+                  ref={closeRef}
+                  type="button"
+                  className={css.close}
+                  aria-label={typeof closeLabel === 'string' ? closeLabel : undefined}
+                  onClick={onClose}
+                >
+                  <IconCloseOutline16 size={14} />
+                  {typeof closeLabel !== 'string' && <span className="dsw-visually-hidden">{closeLabel}</span>}
+                </button>
+              </div>
               <div className={clsx(css.content, contentClassName)}>
-                <div className={css.header}>
-                  <h2 className={css.title}>{title}</h2>
-                  <button type="button" className={css.close} aria-label={closeLabel} onClick={onClose}>
-                    <IconCloseOutline16 size={14} />
-                  </button>
-                </div>
                 {description !== undefined && description !== '' && (
                   <p className={css.description}>{description}</p>
                 )}

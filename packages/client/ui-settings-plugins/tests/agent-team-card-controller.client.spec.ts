@@ -9,7 +9,7 @@ import { AgentTeamCardController, type AgentTeamSettings } from '../src/client/a
 import { acceptWrites, setOp, unsetOp } from './scope-stubs.client.ts'
 
 describe('AgentTeamCardController', () => {
-  it('renders the served capacities and rejects a non-numeric draft', () => {
+  it('renders the served capacities and blocks invalid capacity writes', async () => {
     const host = stubSettingsScope<AgentTeamSettings>()
     const controller = new AgentTeamCardController(host.scope)
     host.publish({
@@ -28,6 +28,12 @@ describe('AgentTeamCardController', () => {
     const blocked = face.hooks.agentTeamCard.getSnapshot()
     expect(blocked.maxMembers.invalid).toBe(true)
     expect(blocked.invalid).toBe(true)
+    for (const text of ['0', '-1', '1.5', String(Number.MAX_SAFE_INTEGER + 1)]) {
+      face.edit('maxMembers', text)
+      expect(face.hooks.agentTeamCard.getSnapshot().invalid).toBe(true)
+      expect(await face.save()).toBe('blocked')
+    }
+    expect(host.mutate).not.toHaveBeenCalled()
   })
 
   it('saves both capacities together', async () => {

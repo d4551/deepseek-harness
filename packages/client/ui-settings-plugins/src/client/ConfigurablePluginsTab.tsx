@@ -7,8 +7,8 @@
  * which keys to dispatch.
  */
 
-import { Fragment } from 'react'
-import { SettingsFields } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Fragment, useState } from 'react'
+import { SettingsDisclosure, SettingsFields } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from './slot-contract.ts'
 import type { ConfigurablePluginsTabFace } from './tab-store.ts'
@@ -28,9 +28,11 @@ export type ConfigurablePluginsTabProps =
  */
 export function ConfigurablePluginsTab(props: ConfigurablePluginsTabProps) {
   const { t, renderSlot } = props
+  const [otherOpen, setOtherOpen] = useState(false)
   const { loaded, namespaces } = props.useConfigurablePlugins(snapshot => snapshot)
   const flows = props.useSettingsFlows(snapshot => snapshot)
   const members = new Set(flows.flatMap(flow => flow.members.map(member => member.ns)))
+  const independent = namespaces.filter(ns => !members.has(ns))
   if (namespaces.length > 0) {
     return (
       <div role="list">
@@ -51,9 +53,28 @@ export function ConfigurablePluginsTab(props: ConfigurablePluginsTabProps) {
             ))}
           </PluginCard>
         ))}
-        {namespaces.filter(ns => !members.has(ns)).map(ns => (
-          <Fragment key={ns}>{renderSlot('settings.plugin.item', {}, { entryKey: ns })}</Fragment>
-        ))}
+        {independent.length > 0 && (
+          <div role="listitem">
+            <SettingsDisclosure
+              title={t('otherGroupTitle')}
+              toggleLabel={t('otherGroupTitle')}
+              open={otherOpen}
+              busy={false}
+              status={null}
+              onToggle={() => {
+                const next = !otherOpen
+                setOtherOpen(next)
+                return next
+              }}
+            >
+              <div role="list">
+                {independent.map(ns => (
+                  <Fragment key={ns}>{renderSlot('settings.plugin.item', {}, { entryKey: ns })}</Fragment>
+                ))}
+              </div>
+            </SettingsDisclosure>
+          </div>
+        )}
       </div>
     )
   }

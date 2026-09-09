@@ -46,7 +46,9 @@ export class AgentTeamCardController {
 
   /** @param scope - the bound settings scope for the `agent-team` namespace. */
   constructor(scope: SettingsScope<AgentTeamSettings>) {
-    this.form = new CardForm(scope, [numberField('maxMembers'), numberField('maxTasks')])
+    this.form = new CardForm(scope, [
+      numberField('maxMembers', 'positive-integer'), numberField('maxTasks', 'positive-integer'),
+    ])
     this.store = this.form.bind(() => this.projection())
   }
 

@@ -10,8 +10,7 @@
   border: none;
   border-radius: 18px;
   cursor: pointer;
-  font-size: 14px;
-  line-height: 22px;
+  font: var(--dsw-font-body);
   color: var(--dsw-alias-label-primary);
   background: transparent;
   padding: 0 14px;
@@ -31,15 +30,13 @@
   min-inline-size: var(--dsw-touch-target);
   padding: var(--dsw-space-control) var(--dsw-space-section);
   border-radius: var(--dsw-radius-surface);
-  font: inherit;
 }
 
 /* Compact height for dense rows; no dedicated figma node (Icon_container
  * 28x28 is the icon-only form) — geometry is ours. */
 .sm {
   height: 28px;
-  font-size: 12px;
-  line-height: 18px;
+  font: var(--dsw-font-caption);
   padding: 0 10px;
   border-radius: 14px;
 }

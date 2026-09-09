@@ -29,10 +29,12 @@ export interface SettingsSuite {
 export async function launchSettingsSuite(): Promise<SettingsSuite> {
   const scaffold = await launchWebScaffold({})
   const browser = await chromium.launch()
-  const page = await browser.newPage({ viewport: { width: 1680, height: 1000 }, locale: ZH_BROWSER_LOCALE })
+  const context = await browser.newContext({ viewport: { width: 1680, height: 1000 }, locale: ZH_BROWSER_LOCALE })
+  const page = await context.newPage()
+  const tripwire = watchConsole(page)
   await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
   await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
-  return { scaffold, browser, page, tripwire: watchConsole(page) }
+  return { scaffold, browser, page, tripwire }
 }
 
 /** Absolute paths of the settings surface's committed goldens. */
@@ -74,7 +76,8 @@ export interface SecondScaffoldPage {
  */
 export async function launchSharedHomeScaffold(browser: Browser, first: WebScaffold): Promise<SecondScaffoldPage> {
   const scaffold = await launchWebScaffold({ harnessHome: first.harnessHome })
-  const page = await browser.newPage({ viewport: { width: 1680, height: 1000 }, locale: ZH_BROWSER_LOCALE })
+  const context = await browser.newContext({ viewport: { width: 1680, height: 1000 }, locale: ZH_BROWSER_LOCALE })
+  const page = await context.newPage()
   const tripwire = watchConsole(page)
   await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
   await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
@@ -83,7 +86,7 @@ export async function launchSharedHomeScaffold(browser: Browser, first: WebScaff
     page,
     tripwire,
     close: async () => {
-      await page.close()
+      await context.close()
       await scaffold.close()
     },
   }

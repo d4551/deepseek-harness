@@ -8,13 +8,12 @@
 
 .title {
   margin: 0;
-  font-size: 18px;
-  font-weight: 600;
+  font: var(--dsw-font-title);
 }
 
 .intro {
   margin: 0;
-  font-size: 13px;
+  font: var(--dsw-font-body);
   color: var(--dsw-alias-label-tertiary);
 }
 
@@ -223,9 +222,9 @@
 
 .cardId {
   margin-top: auto;
-  font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: 11px;
-  color: var(--dsw-alias-label-dimmed);
+  font: var(--dsw-font-caption);
+  font-family: var(--ds-font-family-code);
+  color: var(--dsw-alias-label-secondary);
 }
 
 .cardFoot {

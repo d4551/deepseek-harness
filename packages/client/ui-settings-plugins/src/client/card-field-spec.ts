@@ -52,12 +52,12 @@ export function booleanField(field: string): CardFieldSpec {
 }
 
 /**
- * A whole-number field. An empty draft clears the field; any other draft that
- * is not a finite number blocks the save.
+ * A numeric field. Empty text clears the field; the numeric domain constrains edits.
  * @param field - field name inside the namespace section.
+ * @param domain - finite numbers or positive safe integers.
  * @returns the field's conversion spec.
  */
-export function numberField(field: string): CardFieldSpec {
+export function numberField(field: string, domain: 'finite' | 'positive-integer' = 'finite'): CardFieldSpec {
   return {
     field,
     // A section that carries no number for this field renders empty rather
@@ -67,6 +67,7 @@ export function numberField(field: string): CardFieldSpec {
       const trimmed = text.trim()
       if (trimmed === '') return CLEAR_WRITE
       const parsed = Number(trimmed)
+      if (domain === 'positive-integer' && (!Number.isSafeInteger(parsed) || parsed <= 0)) return undefined
       return Number.isFinite(parsed) ? { kind: 'set', value: parsed } : undefined
     },
   }

@@ -18,7 +18,7 @@ const MATRIX_CELLS: readonly (readonly [number, number])[] = [
  */
 export function StateDot({ state, size = 10, className }: {
   state: StateDotState
-  size?: number | undefined
+  size?: 10 | 12 | undefined
   className?: string | undefined
 }) {
   if (state === 'ongoing') {
@@ -32,7 +32,7 @@ export function StateDot({ state, size = 10, className }: {
         shapeRendering="crispEdges"
         aria-hidden="true"
       >
-        {MATRIX_CELLS.map(([x, y], index) => (
+        {MATRIX_CELLS.map(([x, y]) => (
           <rect
             key={`${x}-${y}`}
             className={css.cell}
@@ -40,8 +40,6 @@ export function StateDot({ state, size = 10, className }: {
             y={y}
             width="2"
             height="2"
-            /* Negative delay phases the chase so every cell animates from mount. */
-            style={{ animationDelay: `${(index - MATRIX_CELLS.length) * 125}ms` }}
           />
         ))}
       </svg>
@@ -51,7 +49,7 @@ export function StateDot({ state, size = 10, className }: {
     <span
       className={clsx(css.dot, className)}
       data-state={state}
-      style={{ width: size, height: size }}
+      data-size={size}
       aria-hidden="true"
     />
   )
