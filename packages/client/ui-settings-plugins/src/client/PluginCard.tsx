@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Button, SettingsDisclosure, Pill } from '@deepseek-ai/dsh-client-ui-primitives'
+import { SettingsActions, SettingsDisclosure, Pill } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { CardShell } from './card-form.ts'
 import type { PluginsSettingsLocaleKey } from './locales.ts'
 
@@ -89,25 +89,17 @@ export function PluginCard(props: PluginCardProps) {
           {props.children}
           <div>
             {state.failed ? <p role="status">{props.t('saveFailed')}</p> : null}
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!state.dirty || state.saving}
-              onClick={props.onDiscard}
-            >
-              {props.t('discard')}
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={blocked}
-              onClick={() => {
+            <SettingsActions
+              discardLabel={props.t('discard')}
+              saveLabel={props.t(state.saving ? 'saving' : 'save')}
+              discardDisabled={!state.dirty || state.saving}
+              saveDisabled={blocked}
+              onDiscard={props.onDiscard}
+              onSave={() => {
                 saveHadFocus.current = bodyRef.current?.contains(document.activeElement) === true
                 return props.onSave()
               }}
-            >
-              {props.t(state.saving ? 'saving' : 'save')}
-            </Button>
+            />
           </div>
         </div>
       </SettingsDisclosure>

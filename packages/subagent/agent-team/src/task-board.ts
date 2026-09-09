@@ -277,13 +277,14 @@ export class TeamTaskBoard {
 
   /** Validate and de-duplicate dependency ids against the current task graph. */
   private dependencies(
-    values: readonly TeamTaskId[],
+    values: readonly string[],
     state: TeamFoldState,
     self?: TeamTaskId,
   ): TeamTaskId[] {
     const seen = new Set<TeamTaskId>()
     const result: TeamTaskId[] = []
-    for (const id of values) {
+    for (const value of values) {
+      const id = TeamTaskId(value)
       if (id === self) throw new TeamError('a team task cannot block itself', 'TEAM_TASK_DEPENDENCY_CYCLE')
       if (seen.has(id)) throw new TeamError(`duplicate blocker "${id}"`, 'TEAM_INVALID_ARGUMENT')
       const task = state.tasks.get(id)

@@ -181,7 +181,11 @@ export class TeamService extends TypertRemoteService {
     )
     this.tasks = new TeamTaskBoard(ctx, this.roster, this.journal, () => this.settings().maxTasks)
 
-    ctx.on('session/event', (session, event) => { this.mailbox.observeSessionEvent(session, event) })
+    ctx.on('session/event', (session, event) => {
+      this.mailbox.observeSessionEvent(session, event)?.then(undefined, (error: unknown) => {
+        this.ctx.logger.warn(`Team message acknowledgement for "${session.id}" failed: ${errorMessage(error)}`)
+      })
+    })
     ctx.on('agent/session-start', ({ agent }) => { this.scheduleRecovery(agent) })
     ctx.on('agent/created', ({ agent }) => { this.notifyLifecycleChange(agent) })
     ctx.on('agent/disposed', ({ agent }) => { this.notifyLifecycleChange(agent) })
@@ -432,7 +436,7 @@ export class TeamService extends TypertRemoteService {
   private scheduleRecovery(agent: Agent): void {
     queueMicrotask(() => {
       if (this.lifecycle.disposed) return
-      void this.recoverFor(agent).catch((error: unknown) => {
+      this.recoverFor(agent).then(undefined, (error: unknown) => {
         if (this.lifecycle.disposed) return
         this.ctx.logger.warn(`Agent Teams recovery for "${agent.id}" failed: ${errorMessage(error)}`)
       })

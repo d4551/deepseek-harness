@@ -17,7 +17,7 @@ export type ButtonVariant = 'primary' | 'ghost' | 'outline' | 'toolbar'
  */
 export function Button({ variant = 'ghost', size = 'md', icon, className, children, ...rest }: {
   variant?: ButtonVariant
-  size?: 'md' | 'sm'
+  size?: 'md' | 'sm' | 'touch'
   icon?: ReactNode
   className?: string | undefined
   children?: ReactNode

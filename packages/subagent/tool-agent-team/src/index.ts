@@ -83,7 +83,6 @@ function policyText(coordination: TeamCoordination): string {
   switch (coordination) {
     case 'delegated': return DELEGATED_POLICY
     case 'swarm': return SWARM_POLICY
-    /* v8 ignore next 2 -- TeamCoordination is closed and the loader schema rejects any other value. */
     default: return assertNever(coordination, 'team coordination mode')
   }
 }
@@ -225,7 +224,6 @@ function jsonOutput<const S extends ValueSchemaSpec>(schema: S): {
 
 /** Recover the exact caller guaranteed by Agent-scoped tool discovery. */
 function callingAgent(agent: Agent | undefined, toolName: string): Agent {
-  /* v8 ignore next 2 -- Team tools are registered only in an exact Agent scope, so discovery supplies this carrier. */
   if (agent === undefined) throw new Error(`${toolName} requires a calling Agent`)
   return agent
 }
@@ -380,7 +378,7 @@ function install(agent: Agent, ctx: Context, config: Required<Config>): () => vo
         return await ctx.agentTeams.createTask(callingAgent(exec.agent, 'team_task_create'), {
           subject: args.subject,
           description: args.description,
-          ...args.blocked_by === undefined ? {} : { blockedBy: args.blocked_by.map(TeamTaskId) },
+          ...args.blocked_by === undefined ? {} : { blockedBy: args.blocked_by },
           ...args.write_scopes === undefined ? {} : { writeScopes: args.write_scopes },
         })
       },
@@ -473,18 +471,18 @@ function install(agent: Agent, ctx: Context, config: Required<Config>): () => vo
           action: args.action,
           ...args.subject === undefined ? {} : { subject: args.subject },
           ...args.description === undefined ? {} : { description: args.description },
-          ...args.blocked_by === undefined ? {} : { blockedBy: args.blocked_by.map(TeamTaskId) },
+          ...args.blocked_by === undefined ? {} : { blockedBy: args.blocked_by },
           ...args.write_scopes === undefined ? {} : { writeScopes: args.write_scopes },
           ...args.owner === undefined ? {} : { owner: args.owner },
         })
       },
     })))
   } catch (error: unknown) {
-    for (const dispose of disposers.reverse()) void dispose()
+    for (const dispose of disposers.reverse()) dispose()
     throw error
   }
   return () => {
-    for (const dispose of disposers.reverse()) void dispose()
+    for (const dispose of disposers.reverse()) dispose()
   }
 }
 

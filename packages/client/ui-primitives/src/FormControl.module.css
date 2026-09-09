@@ -1,0 +1,35 @@
+.textarea,
+.select {
+  box-sizing: border-box;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  min-block-size: var(--dsw-touch-target);
+  padding: var(--dsw-space-control);
+  border: var(--dsw-border-width) solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-surface);
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+}
+
+.textarea {
+  display: block;
+  inline-size: 100%;
+  resize: vertical;
+}
+
+.textarea:focus-visible,
+.select:focus-visible {
+  outline: var(--dsw-border-width) solid var(--dsw-alias-brand-primary);
+  outline-offset: var(--dsw-border-width);
+}
+
+.textarea:disabled,
+.select:disabled {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.textarea[aria-invalid='true'],
+.select[aria-invalid='true'] {
+  border-color: var(--dsw-alias-label-error);
+}

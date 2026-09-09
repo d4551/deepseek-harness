@@ -62,3 +62,10 @@
   color: var(--dsw-alias-label-secondary);
   overflow-wrap: anywhere;
 }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--dsw-space-control);
+  margin-block-start: var(--dsw-space-section);
+}

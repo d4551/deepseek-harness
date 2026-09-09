@@ -1,5 +1,6 @@
 import { cleanup, render } from '@testing-library/react'
 import type { ReactElement } from 'react'
+import { useState } from 'react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import type { SurfaceAudit } from '@deepseek-ai/dsh-client-a11y'
@@ -27,8 +28,33 @@ const {
   BrandWordmark, Button, CatLogo, CodeBlock, ConnectionBanner, DiffBlock, DisclosureRow, FishLogo, FlowRow,
   GlyphButton, HoverCard, Input, InspectPill, JsonBlock, JsonTree, MarkdownText, Menu, MessageText, Modal,
   OnboardingSurface, Pill, ReadBlock, ReferenceIcon, ResultText, RiskConfirmation, RowSeparator, RowSummary,
-  SearchBlock, StateDot, TerminalBlock, Toast, Tooltip, WebBlock,
+  SearchBlock, Select, SettingsActions, SettingsDisclosure, SettingsFields, StateDot, TerminalBlock, Textarea, Toast, Tooltip, WebBlock,
 } = primitives
+
+function SettingsDisclosureSurface() {
+  const [open, setOpen] = useState(true)
+  return (
+    <SettingsDisclosure title="Search" toggleLabel="Search settings" open={open} busy={false} status={null}
+      onToggle={() => {
+        setOpen(!open)
+        return !open
+      }}>
+      <p>Search provider configuration</p>
+    </SettingsDisclosure>
+  )
+}
+
+function SettingsActionsSurface() {
+  const [draft, setDraft] = useState('Search')
+  const [saved, setSaved] = useState('')
+  return (
+    <>
+      <Input aria-label="Settings name" value={draft} onChange={(event) => { setDraft(event.target.value) }} />
+      <SettingsActions saveLabel="Save" discardLabel="Discard" saveDisabled={draft === saved} discardDisabled={draft === saved}
+        onSave={() => { setSaved(draft) }} onDiscard={() => { setDraft(saved) }} />
+    </>
+  )
+}
 
 /**
  * One render per exported component. Every entry opens the component in the
@@ -131,10 +157,15 @@ const SURFACES: Readonly<Record<string, () => ReactElement>> = {
   SearchBlock: () => (
     <SearchBlock kind="paths" paths={['src/index.ts', 'src/plugin.ts']} total={2} truncated={false} labels={searchBlockLabels} />
   ),
+  Select: () => <Select aria-label="Task owner"><option value="lead">Lead</option></Select>,
+  SettingsActions: () => <SettingsActionsSurface />,
+  SettingsDisclosure: () => <SettingsDisclosureSurface />,
+  SettingsFields: () => <SettingsFields title="Provider" description="Search provider settings"><Input aria-label="Provider name" /></SettingsFields>,
   StateDot: () => <StateDot state="ongoing" />,
   TerminalBlock: () => (
     <TerminalBlock command="ls -la" cwd="/repo" output="total 0" exitCode={0} labels={terminalBlockLabels} />
   ),
+  Textarea: () => <Textarea aria-label="Task description" defaultValue="Review the settings flow" />,
   Toast: () => <Toast text="Copied" onDone={() => {}} />,
   Tooltip: () => <Tooltip label="Run"><button type="button">Run</button></Tooltip>,
   WebBlock: () => (

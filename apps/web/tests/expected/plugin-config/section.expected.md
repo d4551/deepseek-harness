@@ -23,80 +23,237 @@
     - tab "插件配置" [selected]
     - tab "插件列表"
   - tabpanel "插件配置":
-    - button "网页搜索与访问" [expanded]:
-      - img
-      - text: 网页搜索与访问
     - list:
       - listitem:
-        - 'button "展开设置: 网页访问"':
-          - img
-          - img
+        - 'heading "收起设置: 网页搜索与访问" [level=3]':
+          - 'button "收起设置: 网页搜索与访问" [expanded]':
+            - img
+            - text: 网页搜索与访问
+        - paragraph: 选择搜索和网页抓取提供方，并配置访问方式。
+        - status: 该插件只读取这些值一次，保存后的修改将在本部署下次启动时生效。
+        - group "网页访问":
           - text: 网页访问
-      - listitem:
-        - 'button "展开设置: DeepSeek 搜索"':
-          - img
-          - img
+          - paragraph: 由哪个后端提供网页搜索，由哪个后端抓取网页。
+          - group "搜索后端":
+            - text: 搜索后端
+            - radio "DeepSeek 搜索 通过 DeepSeek 托管检索搜索，按 DeepSeek 密钥计费。"
+            - text: DeepSeek 搜索 通过 DeepSeek 托管检索搜索，按 DeepSeek 密钥计费。
+            - radio "Exa 搜索 通过 Exa 搜索，返回带高亮片段的来源。"
+            - text: Exa 搜索 通过 Exa 搜索，返回带高亮片段的来源。
+            - radio "Perplexity 搜索 通过 Perplexity 搜索，返回带引用的生成式回答。"
+            - text: Perplexity 搜索 通过 Perplexity 搜索，返回带引用的生成式回答。
+            - radio "浏览器搜索和抓取 使用本地 Chromium 搜索 Bing 并渲染网页，无需付费搜索 API。搜索引擎可能要求人工验证。" [checked]
+            - text: 浏览器搜索和抓取 使用本地 Chromium 搜索 Bing 并渲染网页，无需付费搜索 API。搜索引擎可能要求人工验证。
+          - paragraph: web_search 使用的后端。
+          - group "抓取后端":
+            - text: 抓取后端
+            - radio "HTTP 抓取 通过 HTTP 获取响应字节，不执行页面中的任何脚本。"
+            - text: HTTP 抓取 通过 HTTP 获取响应字节，不执行页面中的任何脚本。
+            - radio "浏览器搜索和抓取 使用本地 Chromium 搜索 Bing 并渲染网页，无需付费搜索 API。搜索引擎可能要求人工验证。" [checked]
+            - text: 浏览器搜索和抓取 使用本地 Chromium 搜索 Bing 并渲染网页，无需付费搜索 API。搜索引擎可能要求人工验证。
+          - paragraph: web_fetch 使用的后端。渲染方式会执行页面自身的脚本，HTTP 方式不会。
+        - group "DeepSeek 搜索":
           - text: DeepSeek 搜索
-      - listitem:
-        - 'button "展开设置: Exa 搜索"':
-          - img
-          - img
+          - paragraph: 通过 DeepSeek 托管检索搜索，按 DeepSeek 密钥计费。
+          - text: API Key 未配置密钥；配置之前搜索不可用。
+          - textbox "API Key"
+          - paragraph: 不写入设置文件。留空表示保持当前密钥。
+          - text: 接口地址
+          - textbox "接口地址":
+            - /placeholder: ""
+          - paragraph: 留空则使用提供方默认地址。
+          - text: 单次请求最多搜索次数
+          - textbox "单次请求最多搜索次数":
+            - /placeholder: ""
+            - text: "5"
+          - paragraph: 一次请求在必须作答前最多可以搜索多少次。
+        - group "Exa 搜索":
           - text: Exa 搜索
-      - listitem:
-        - 'button "展开设置: Perplexity 搜索"':
-          - img
-          - img
+          - paragraph: 通过 Exa 搜索，返回带高亮片段的来源。
+          - text: API Key 未配置密钥；配置之前该后端不可用。
+          - textbox "API Key"
+          - paragraph: 保存在设置文件中。留空则回退到 $EXA_API_KEY。
+          - text: 接口地址
+          - textbox "接口地址":
+            - /placeholder: ""
+          - paragraph: 留空则使用提供方默认地址。
+          - text: 检索模式
+          - textbox "检索模式":
+            - /placeholder: ""
+          - paragraph: auto、keyword 或 neural。留空则使用提供方默认值。
+          - text: 默认结果数
+          - textbox "默认结果数":
+            - /placeholder: ""
+          - paragraph: 当请求自身未给出上限时使用。
+          - text: 每条结果的高亮数
+          - textbox "每条结果的高亮数":
+            - /placeholder: ""
+          - paragraph: 每个来源返回多少段高亮内容。
+        - group "Perplexity 搜索":
           - text: Perplexity 搜索
-      - listitem:
-        - 'button "展开设置: HTTP 抓取"':
-          - img
-          - img
+          - paragraph: 通过 Perplexity 搜索，返回带引用的生成式回答。
+          - text: API Key 未配置密钥；配置之前该后端不可用。
+          - textbox "API Key"
+          - paragraph: 保存在设置文件中。留空则回退到 $PERPLEXITY_API_KEY。
+          - text: 接口地址
+          - textbox "接口地址":
+            - /placeholder: ""
+          - paragraph: 留空则使用提供方默认地址。
+          - text: 搜索模型
+          - textbox "搜索模型":
+            - /placeholder: ""
+          - paragraph: 留空则使用提供方默认值。
+          - text: 回答 token 上限
+          - textbox "回答 token 上限":
+            - /placeholder: ""
+          - paragraph: 该后端返回的生成式回答的上限。
+          - text: 时间范围
+          - textbox "时间范围":
+            - /placeholder: ""
+          - paragraph: day、week、month 或 year。留空则不做过滤。
+        - group "HTTP 抓取":
           - text: HTTP 抓取
-      - listitem:
-        - 'button "展开设置: 浏览器搜索和抓取"':
-          - img
-          - img
+          - paragraph: 通过 HTTP 获取响应字节，不执行页面中的任何脚本。
+          - text: 响应上限（字节）
+          - textbox "响应上限（字节）":
+            - /placeholder: ""
+            - text: "5000000"
+          - paragraph: 超过该大小的响应会直接失败，而不是被读取。
+          - text: 正文上限（字符）
+          - textbox "正文上限（字符）":
+            - /placeholder: ""
+            - text: "100000"
+          - paragraph: 超出部分会被截断，并在结果中说明。
+          - text: 抓取超时（毫秒）
+          - textbox "抓取超时（毫秒）":
+            - /placeholder: ""
+            - text: "30000"
+          - paragraph: 单次抓取在被放弃前允许耗时多久。
+          - text: 重定向跳数
+          - textbox "重定向跳数":
+            - /placeholder: ""
+            - text: "5"
+          - paragraph: 单次抓取最多跟随多少次同源重定向。0 表示不跟随。
+          - text: User-Agent
+          - textbox "User-Agent":
+            - /placeholder: ""
+            - text: deepseek-harness/0.1.2-alpha.1 (+https://github.com/deepseek-ai)
+          - paragraph: 每个请求携带的 User-Agent 头。
+        - group "浏览器搜索和抓取":
           - text: 浏览器搜索和抓取
-    - button "审批流程" [expanded]:
-      - img
-      - text: 审批流程
-    - list:
+          - paragraph: 使用本地 Chromium 搜索 Bing 并渲染网页，无需付费搜索 API。搜索引擎可能要求人工验证。
+          - text: 正文上限（字符）
+          - textbox "正文上限（字符）":
+            - /placeholder: ""
+            - text: "100000"
+          - paragraph: 超出部分会被截断，并在结果中说明。
+          - text: 抓取超时（毫秒）
+          - textbox "抓取超时（毫秒）":
+            - /placeholder: ""
+            - text: "30000"
+          - paragraph: 单次抓取在被放弃前允许耗时多久。
+          - text: 并发渲染数
+          - textbox "并发渲染数":
+            - /placeholder: ""
+            - text: "2"
+          - paragraph: 最多允许多少次搜索和抓取同时占用浏览器上下文。
+          - text: User-Agent
+          - textbox "User-Agent":
+            - /placeholder: ""
+            - text: deepseek-harness/0.1.2-alpha.1 (+https://github.com/deepseek-ai)
+          - paragraph: 每个请求携带的 User-Agent 头。
+          - text: 浏览器可执行文件
+          - textbox "浏览器可执行文件":
+            - /placeholder: ""
+          - paragraph: 该后端运行的浏览器程序。留空则使用 Playwright 解析出的安装。
+        - button "放弃修改" [disabled]
+        - button "保存" [disabled]
       - listitem:
-        - 'button "展开设置: 审批审计"':
-          - img
-          - img
+        - 'heading "收起设置: 审批流程" [level=3]':
+          - 'button "收起设置: 审批流程" [expanded]':
+            - img
+            - text: 审批流程
+        - paragraph: 配置审批筛查、模型评审和未决请求的处理策略。
+        - group "审批审计":
           - text: 审批审计
-      - listitem:
-        - 'button "展开设置: 对抗式审批评审"':
-          - img
-          - img
+          - paragraph: 第一阶段：基于规则检查理由，可以拒绝请求，但不能批准操作。
+          - group "规避工作检查":
+            - text: 规避工作检查
+            - radio "启用 拒绝缺少理由或匹配配置规则的请求。" [checked]
+            - text: 启用 拒绝缺少理由或匹配配置规则的请求。
+            - radio "停用 不经本审计，直接将审批请求交给已配置的处理程序。"
+            - text: 停用 不经本审计，直接将审批请求交给已配置的处理程序。
+          - paragraph: 审批请求抵达处理程序之前是否接受检查。
+          - text: 附加拒绝短语
+          - textbox "附加拒绝短语"
+          - paragraph: 每行一个不区分大小写的字面短语，最多 64 条，每条最多 256 个字符。启用检查时，内置规则仍然生效。
+        - group "对抗式审批评审":
           - text: 对抗式审批评审
-    - button "智能体与执行设置" [expanded]:
-      - img
-      - text: 智能体与执行设置
-    - list:
+          - paragraph: 第二阶段：可选模型评审者代替人工，允许或拒绝通过检查的请求。
+          - group "评审者":
+            - text: 评审者
+            - radio "由评审者决定 有效裁决直接允许或拒绝请求，无需提示人工。评审失败或未决时使用下方策略。"
+            - text: 由评审者决定 有效裁决直接允许或拒绝请求，无需提示人工。评审失败或未决时使用下方策略。
+            - radio "关闭 审批请求继续交给已配置的应答者。" [checked]
+            - text: 关闭 审批请求继续交给已配置的应答者。
+          - paragraph: 原本会提示人工的审批请求是否改由对抗式评审者决定。
+          - text: 评审提供方
+          - textbox "评审提供方":
+            - /placeholder: ""
+          - paragraph: 评审调用使用的提供方路由。两个路由字段都留空时，使用 Agent 自己的模型评审。
+          - text: 评审模型
+          - textbox "评审模型":
+            - /placeholder: ""
+          - paragraph: 评审调用使用的模型 ID；需与提供方一起设置。
+          - group "未决请求":
+            - text: 未决请求
+            - radio "委托 把请求交给下一个应答者，例如审批提示。" [checked]
+            - text: 委托 把请求交给下一个应答者，例如审批提示。
+            - radio "拒绝 拒绝该请求，并告知模型评审无法作出决定。"
+            - text: 拒绝 拒绝该请求，并告知模型评审无法作出决定。
+          - paragraph: 评审超时、失败或未给出裁决时的处理方式。
+          - text: 评审超时（毫秒）
+          - textbox "评审超时（毫秒）":
+            - /placeholder: ""
+            - text: "30000"
+          - paragraph: 一次评审调用最多可持续多久，超过即视为未决。
+          - text: 裁决 token 上限
+          - textbox "裁决 token 上限":
+            - /placeholder: ""
+            - text: "256"
+          - paragraph: 评审者输出两行裁决时最多可用的输出 token 数。
+          - text: 摘录上限（字符）
+          - textbox "摘录上限（字符）":
+            - /placeholder: ""
+            - text: "4000"
+          - paragraph: 评审者读取、拒绝通知引用的指令、工具参数或理由摘录的最大长度。
+          - text: 附加评审指令
+          - textbox "附加评审指令"
+          - paragraph: 追加在内置评审指令之后，最多 4096 个字符。内置指令与裁决格式仍然生效。
+        - button "放弃修改" [disabled]
+        - button "保存" [disabled]
       - listitem:
-        - 'button "展开设置: 终端"':
-          - img
-          - img
-          - text: 终端
+        - 'heading "展开设置: 终端" [level=3]':
+          - 'button "展开设置: 终端"':
+            - img
+            - text: 终端
       - listitem:
-        - 'button "展开设置: Agent 循环"':
-          - img
-          - img
-          - text: Agent 循环
+        - 'heading "展开设置: Agent 循环" [level=3]':
+          - 'button "展开设置: Agent 循环"':
+            - img
+            - text: Agent 循环
       - listitem:
-        - 'button "展开设置: Subagent"':
-          - img
-          - img
-          - text: Subagent
+        - 'heading "展开设置: Subagent" [level=3]':
+          - 'button "展开设置: Subagent"':
+            - img
+            - text: Subagent
       - listitem:
-        - 'button "展开设置: 默认模型"':
-          - img
-          - img
-          - text: 默认模型
+        - 'heading "展开设置: 默认模型" [level=3]':
+          - 'button "展开设置: 默认模型"':
+            - img
+            - text: 默认模型
       - listitem:
-        - 'button "展开设置: 智能体团队"':
-          - img
-          - img
-          - text: 智能体团队
+        - 'heading "展开设置: 智能体团队" [level=3]':
+          - 'button "展开设置: 智能体团队"':
+            - img
+            - text: 智能体团队

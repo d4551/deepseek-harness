@@ -26,6 +26,14 @@
   height: 36px;
 }
 
+.touch {
+  min-block-size: var(--dsw-touch-target);
+  min-inline-size: var(--dsw-touch-target);
+  padding: var(--dsw-space-control) var(--dsw-space-section);
+  border-radius: var(--dsw-radius-surface);
+  font: inherit;
+}
+
 /* Compact height for dense rows; no dedicated figma node (Icon_container
  * 28x28 is the icon-only form) — geometry is ours. */
 .sm {

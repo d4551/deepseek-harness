@@ -8,7 +8,7 @@ import { readFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import type { Browser, Page } from 'playwright'
-import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, onTestFailed, onTestFinished } from 'vitest'
 import { join } from 'node:path'
 import {
   assertFixtureInventory, captureStableAria, compareOrRefreshGolden,
@@ -90,12 +90,12 @@ describe('web e2e: plugin configuration section', () => {
     // serves the namespace, and enabling it is this page's job.
     expect(await dialog.getByRole('button', { name: '展开设置: 对抗式审批评审' }).count()).toBe(0)
     expect(await dialog.getByRole('button', { name: '展开设置: 智能体团队' }).count()).toBe(1)
-    expect(await dialog.getByText('DeepSeek 搜索', { exact: true }).count()).toBe(1)
     expect(await dialog.getByRole('button', { name: '展开设置: 浏览器搜索和抓取' }).count()).toBe(0)
     // Collapsed: a card's fields appear only once it is expanded.
     expect(await dialog.getByLabel('命令超时（毫秒）').isVisible()).toBe(false)
 
     await dialog.getByRole('button', { name: '展开设置: 网页搜索与访问', exact: true }).click()
+    expect(await dialog.getByRole('group', { name: 'DeepSeek 搜索', exact: true }).count()).toBe(1)
     expect(await dialog.getByRole('button', { name: '保存', exact: true }).count()).toBe(1)
     expect(await dialog.getByRole('button', { name: '放弃修改', exact: true }).count()).toBe(1)
     await dialog.getByRole('button', { name: '展开设置: 审批流程', exact: true }).click()
@@ -111,6 +111,40 @@ describe('web e2e: plugin configuration section', () => {
     await assertPageAccessibility(page)
     expect(tripwire.pageErrors).toEqual([])
     await compareOrRefreshGolden(SECTION_EXPECTED, snapshot, MODE)
+  }, 60_000)
+
+  it.each([
+    { width: 390, height: 844 },
+    { width: 820, height: 1180 },
+  ])('keeps settings flows usable at $width by $height', async (viewport) => {
+    const context = await browser.newContext({ viewport, locale: ZH_BROWSER_LOCALE })
+    onTestFinished(() => context.close())
+    const responsivePage = await context.newPage()
+    const consoleState = watchConsole(responsivePage)
+    await responsivePage.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
+    await responsivePage.waitForSelector('[class*="frame"]', { timeout: 30_000 })
+    await responsivePage.getByRole('button', { name: '打开侧边栏', exact: true }).click()
+    const dialog = await openPlugins(responsivePage)
+    for (const name of ['网页搜索与访问', '审批流程']) {
+      const heading = dialog.getByRole('button', { name: `展开设置: ${name}`, exact: true })
+      await heading.focus()
+      await responsivePage.keyboard.press('Enter')
+      const expanded = dialog.getByRole('button', { name: `收起设置: ${name}`, exact: true })
+      expect(await expanded.getAttribute('aria-expanded')).toBe('true')
+      const box = await expanded.boundingBox()
+      if (box === null) throw new Error('Expanded settings heading has no layout box')
+      expect(box.height).toBeGreaterThanOrEqual(44)
+      expect(box.x).toBeGreaterThanOrEqual(0)
+      expect(box.x + box.width).toBeLessThanOrEqual(viewport.width)
+      await assertPageAccessibility(responsivePage)
+      await expanded.focus()
+      await responsivePage.keyboard.press('Space')
+      expect(await heading.getAttribute('aria-expanded')).toBe('false')
+    }
+    expect(await responsivePage.evaluate(() => document.documentElement.scrollWidth))
+      .toBeLessThanOrEqual(viewport.width)
+    expect(consoleState.pageErrors).toEqual([])
+    expect(consoleState.warnings).toEqual([])
   }, 60_000)
 
   it('persists selected adapter routes as the subagent model allowlist', async () => {

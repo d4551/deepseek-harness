@@ -8,10 +8,9 @@ import type {
   TeamView,
   UpdateTeamTaskRequest,
 } from '@deepseek-ai/dsh-agent-team/client'
-import { TeamTaskId } from '@deepseek-ai/dsh-agent-team/types'
 import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import {
-  Button, Modal, Pill, IconCheckOutline14, IconEditOutline16, IconPlusOutline16,
+  Button, Modal, Pill, Select, IconCheckOutline14, IconEditOutline16, IconPlusOutline16,
   IconRefreshOutline14, IconTrashOutline16, IconUserOutline16, StateDot,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -45,10 +44,6 @@ const EMPTY_DRAFT: TaskDraft = { subject: '', description: '', blockers: '', sco
 
 function items(value: string): string[] {
   return [...new Set(value.split(',').map(item => item.trim()).filter(Boolean))]
-}
-
-function taskIds(value: string): TeamTaskId[] {
-  return items(value).map(TeamTaskId)
 }
 
 function failureText(error: Pick<RemoteFailure, 'code' | 'message'>): string {
@@ -90,6 +85,15 @@ export function TeamAction({
   const sessionRef = useRef(sessionId)
   const refreshGeneration = useRef(0)
   sessionRef.current = sessionId
+
+  const reportError = (reason: unknown): string => {
+    const message = String(reason)
+    if (sessionRef.current === sessionId) {
+      setLoading(false)
+      setError(message)
+    }
+    return message
+  }
 
   useEffect(() => {
     refreshGeneration.current += 1
@@ -183,18 +187,19 @@ export function TeamAction({
     })
   }, [invalidateRefresh, refresh, sessionId, t])
 
-  const submitCreate = async (): Promise<void> => {
+  const submitCreate = async (): Promise<boolean> => {
     const subject = createDraft.subject.trim()
     const description = createDraft.description.trim()
     const created = await settleTask('create', () => createTask(sessionId, {
       subject,
       description,
-      blockedBy: taskIds(createDraft.blockers),
+      blockedBy: items(createDraft.blockers),
       writeScopes: items(createDraft.scopes),
     }))
-    if (created === undefined) return
+    if (created === undefined) return false
     setCreateDraft(EMPTY_DRAFT)
     setCreating(false)
+    return true
   }
 
   const startEdit = (task: TeamTask): void => {
@@ -207,7 +212,7 @@ export function TeamAction({
     })
   }
 
-  const submitEdit = async (task: TeamTask): Promise<void> => {
+  const submitEdit = async (task: TeamTask): Promise<boolean> => {
     const requestedSession = sessionId
     const edited = await settleTask(task.id, () => updateTask(requestedSession, {
       taskId: task.id,
@@ -217,12 +222,12 @@ export function TeamAction({
       description: editDraft.description.trim(),
       writeScopes: items(editDraft.scopes),
     }))
-    if (edited === undefined) return
-    const blockedBy = taskIds(editDraft.blockers)
+    if (edited === undefined) return false
+    const blockedBy = items(editDraft.blockers)
     if (blockedBy.length === edited.blockedBy.length
       && blockedBy.every((blocker, index) => blocker === edited.blockedBy[index])) {
       setEditing(null)
-      return
+      return true
     }
     const dependencyTask = await settleTask(task.id, () => updateTask(requestedSession, {
       taskId: task.id,
@@ -230,8 +235,9 @@ export function TeamAction({
       action: 'set_dependencies',
       blockedBy,
     }))
-    if (dependencyTask === undefined) return
+    if (dependencyTask === undefined) return false
     setEditing(null)
+    return true
   }
 
   const conversationCount = new Set([
@@ -263,7 +269,7 @@ export function TeamAction({
       {open && (
         <Modal open={open} onClose={closePanel} title={t('trigger')} closeLabel={t('close')}>
           <div>
-            <Button size="sm" aria-label={t('refresh')} onClick={() => { void refresh() }}>
+            <Button size="sm" aria-label={t('refresh')} onClick={() => { refresh().then(undefined, reportError) }}>
               <IconRefreshOutline14 />
             </Button>
           </div>
@@ -308,7 +314,7 @@ export function TeamAction({
                     draft={createDraft}
                     setDraft={setCreateDraft}
                     pending={pendingTasks.has('create')}
-                    onSave={() => { void submitCreate() }}
+                    onSave={() => { submitCreate().then(undefined, reportError) }}
                     onCancel={() => { setCreating(false) }}
                     t={t}
                   />
@@ -322,7 +328,7 @@ export function TeamAction({
                         draft={editDraft}
                         setDraft={setEditDraft}
                         pending={pendingTasks.has(task.id)}
-                        onSave={() => { void submitEdit(task) }}
+                        onSave={() => { submitEdit(task).then(undefined, reportError) }}
                         onCancel={() => { setEditing(null) }}
                         t={t}
                       />
@@ -344,44 +350,44 @@ export function TeamAction({
                         <div>
                           <label>
                             {t('owner')}
-                            <select
+                            <Select
                               value={task.ownerName ?? ''}
                               disabled={pendingTasks.has(task.id) || task.status === 'completed'}
                               onChange={(event: ChangeEvent<HTMLSelectElement>) => {
                                 const owner = event.target.value
-                                void settleTask(task.id, () => updateTask(sessionId, {
+                                settleTask(task.id, () => updateTask(sessionId, {
                                   taskId: task.id,
                                   expectedRevision: task.revision,
                                   action: 'reassign',
                                   ...owner === '' ? {} : { owner },
-                                }))
+                                })).then(undefined, reportError)
                               }}
                             >
                               <option value="">{t('unowned')}</option>
                               {assignable.map(member => <option key={member.id} value={member.name}>{member.name}</option>)}
-                            </select>
+                            </Select>
                           </label>
                           <Button size="sm" onClick={() => { startEdit(task) }} disabled={pendingTasks.has(task.id)}>
                             <IconEditOutline16 /> {t('edit')}
                           </Button>
                           {task.status === 'in_progress' && (
                             <Button size="sm" disabled={pendingTasks.has(task.id)} onClick={() => {
-                              void settleTask(task.id, () => updateTask(sessionId, {
+                              settleTask(task.id, () => updateTask(sessionId, {
                                 taskId: task.id, expectedRevision: task.revision, action: 'complete',
-                              }))
+                              })).then(undefined, reportError)
                             }}><IconCheckOutline14 /> {t('complete')}</Button>
                           )}
                           {task.status === 'completed' && (
                             <Button size="sm" disabled={pendingTasks.has(task.id)} onClick={() => {
-                              void settleTask(task.id, () => updateTask(sessionId, {
+                              settleTask(task.id, () => updateTask(sessionId, {
                                 taskId: task.id, expectedRevision: task.revision, action: 'reopen',
-                              }))
+                              })).then(undefined, reportError)
                             }}>{t('reopen')}</Button>
                           )}
                           <Button size="sm" disabled={pendingTasks.has(task.id)} onClick={() => {
-                            void settleTask(task.id, () => updateTask(sessionId, {
+                            settleTask(task.id, () => updateTask(sessionId, {
                               taskId: task.id, expectedRevision: task.revision, action: 'delete',
-                            }))
+                            })).then(undefined, reportError)
                           }}><IconTrashOutline16 /> {t('delete')}</Button>
                         </div>
                       </article>

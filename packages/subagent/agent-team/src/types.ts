@@ -177,7 +177,7 @@ export interface SendTeamMessageResult {
 export interface CreateTeamTaskRequest {
   readonly subject: string
   readonly description: string
-  readonly blockedBy?: readonly TeamTaskId[]
+  readonly blockedBy?: readonly string[]
   readonly writeScopes?: readonly string[]
 }
 
@@ -199,7 +199,7 @@ export interface UpdateTeamTaskRequest {
   readonly action: TeamTaskAction
   readonly subject?: string
   readonly description?: string
-  readonly blockedBy?: readonly TeamTaskId[]
+  readonly blockedBy?: readonly string[]
   readonly writeScopes?: readonly string[]
   readonly owner?: string
 }

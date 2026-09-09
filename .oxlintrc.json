@@ -148,7 +148,7 @@
         "typescript/unbound-method": "error",
         "typescript/unified-signatures": "error",
         "typescript/use-unknown-in-catch-callback-variable": "error",
-        "no-void": "off" // void foo() marks deliberate fire-and-forget arrow listeners.
+        "no-void": "error"
       },
       "plugins": [
         "typescript"

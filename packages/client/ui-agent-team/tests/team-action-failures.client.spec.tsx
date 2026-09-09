@@ -14,6 +14,50 @@ import { zh } from '../src/client/locales.ts'
 afterEach(cleanup)
 
 describe('TeamAction failure containment and session-switch staleness', () => {
+  it('reports rejected task operations and releases the pending control', async () => {
+    const updateTask = vi.fn(() => Promise.reject(new Error('connection closed')))
+    render(<TeamAction {...props(actions({ updateTask }))} />)
+    fireEvent.click(screen.getByRole('button', { name: /Agent Team/u }))
+    await screen.findByText('Implement runtime')
+    const complete = screen.getByRole<HTMLButtonElement>('button', { name: /完成/u })
+    fireEvent.click(complete)
+    expect((await screen.findByRole('alert')).textContent).toBe('Error: connection closed')
+    expect(complete.disabled).toBe(false)
+    expect(updateTask).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports a rejected manual refresh and permits another refresh', async () => {
+    const load = vi.fn()
+      .mockResolvedValueOnce({ ok: true, value: view })
+      .mockRejectedValueOnce(new Error('refresh disconnected'))
+      .mockResolvedValueOnce({ ok: true, value: view })
+    render(<TeamAction {...props(actions({ load }))} />)
+    fireEvent.click(screen.getByRole('button', { name: /Agent Team/u }))
+    await screen.findByText('Implement runtime')
+    fireEvent.click(screen.getByRole('button', { name: zh.refresh }))
+    expect((await screen.findByRole('alert')).textContent).toBe('Error: refresh disconnected')
+    fireEvent.click(screen.getByRole('button', { name: zh.refresh }))
+    await waitFor(() => { expect(screen.queryByRole('alert')).toBeNull() })
+    expect(load).toHaveBeenCalledTimes(3)
+  })
+
+  it('keeps a rejected operation from publishing into a different session', async () => {
+    const pending = Promise.withResolvers<TeamTaskActionResult>()
+    const updateTask = vi.fn(() => pending.promise)
+    const rendered = render(<TeamAction {...props(actions({ updateTask }))} />)
+    fireEvent.click(screen.getByRole('button', { name: /Agent Team/u }))
+    await screen.findByText('Implement runtime')
+    fireEvent.click(screen.getByRole('button', { name: /完成/u }))
+    await waitFor(() => { expect(updateTask).toHaveBeenCalledTimes(1) })
+    const nextSession = view.members[1]
+    if (nextSession === undefined) throw new Error('Team fixture requires a second session')
+    rendered.rerender(<TeamAction {...props(actions(), nextSession.id)} />)
+    pending.reject(new Error('previous session disconnected'))
+    fireEvent.click(screen.getByRole('button', { name: /Agent Team/u }))
+    await screen.findByText('Implement runtime')
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it('keeps task and create failures newer than an in-flight refresh', async () => {
     const staleTask = Promise.withResolvers<TeamActionResult<TeamView>>()
     const taskLoad = vi.fn()

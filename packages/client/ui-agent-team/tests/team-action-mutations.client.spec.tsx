@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { TeamTaskView as TeamTask } from '@deepseek-ai/dsh-agent-team/client'
+import { TeamTaskId } from '@deepseek-ai/dsh-agent-team/types'
 import {
   SESSION, TASK_2, TeamAction, actions, props, task, taskSuccess, view,
   type TeamActionInjected, type TeamTaskActionResult,
@@ -119,7 +120,7 @@ describe('TeamAction task mutations', () => {
           }
           break
         case 'set_dependencies':
-          current = { ...current, revision, blockedBy: [...input.blockedBy ?? []] }
+          current = { ...current, revision, blockedBy: (input.blockedBy ?? []).map(TeamTaskId) }
           break
         case 'complete':
           current = { ...current, revision, status: 'completed' }

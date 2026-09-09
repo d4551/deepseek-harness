@@ -25,7 +25,7 @@ import type {
 export class TeamMailbox {
   private readonly dispatchTails = new Map<SessionId, Promise<void>>()
   private readonly activeDispatches = new Map<SessionId, TeamMessageSnapshot>()
-  private readonly inFlightMessages = new Set<TeamMessageId>()
+  private readonly inFlightMessages = new Map<TeamMessageId, Promise<boolean>>()
   private readonly inFlightDispatches = new Set<Promise<unknown>>()
 
   /**
@@ -65,16 +65,14 @@ export class TeamMailbox {
    * @param session - exact target Session receiving the event.
    * @param event - newly appended Session event.
    */
-  observeSessionEvent(session: Session, event: SessionEvent): void {
+  observeSessionEvent(session: Session, event: SessionEvent): Promise<boolean> | undefined {
     if (this.lifecycle.disposed || event.type !== 'user/message' || event.data.source.kind !== 'team-message') return
     const source = event.data.source
     const acknowledgement = Promise.resolve().then(async () => {
       const root = this.ctx.agents.get(SessionId(source.teamId))
-      if (root !== undefined) await this.checkpointDelivered(root, session, source.messageId)
-    }).catch((error: unknown) => {
-      this.ctx.logger.warn(`Team message "${source.messageId}" acknowledgement failed: ${errorMessage(error)}`)
+      return root !== undefined && await this.checkpointDelivered(root, session, source.messageId)
     })
-    void this.trackDispatch(acknowledgement)
+    return this.trackDispatch(acknowledgement)
   }
 
   /**
@@ -165,8 +163,8 @@ export class TeamMailbox {
   /** Attempt one queued message exactly once in this process at a time. */
   private tryDispatch(root: Agent, message: TeamMessageSnapshot, signal: AbortSignal): Promise<boolean> {
     if (this.lifecycle.disposed) return Promise.resolve(false)
-    if (this.inFlightMessages.has(message.id)) return Promise.resolve(false)
-    this.inFlightMessages.add(message.id)
+    const pending = this.inFlightMessages.get(message.id)
+    if (pending !== undefined) return pending
     const operation = this.trackDispatch(
       this.tryDispatchAdmitted(
         root,
@@ -174,17 +172,18 @@ export class TeamMailbox {
         AbortSignal.any([signal, this.lifecycle.signal]),
       ),
     )
+    this.inFlightMessages.set(message.id, operation)
     const forget = (): void => {
       this.inFlightMessages.delete(message.id)
     }
-    void operation.then(forget, forget)
+    operation.then(forget, forget)
     return operation
   }
 
   /** Track one dispatch transaction through delivery admission or contained failure. */
   private trackDispatch<T>(operation: Promise<T>): Promise<T> {
     this.inFlightDispatches.add(operation)
-    void operation.then(() => {
+    operation.then(() => {
       this.inFlightDispatches.delete(operation)
     }, () => {
       this.inFlightDispatches.delete(operation)

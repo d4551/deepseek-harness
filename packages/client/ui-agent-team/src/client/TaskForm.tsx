@@ -1,5 +1,5 @@
 import type { ChangeEvent, SubmitEvent } from 'react'
-import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Input, Textarea } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TeamActionProps } from './TeamAction.tsx'
 
 /** Editable task fields before submission to the Team service. */
@@ -34,7 +34,7 @@ export function TaskForm({ draft, setDraft, pending, onSave, onCancel, t }: Task
       </label></p>
       <p><label>
         {t('description')}
-        <textarea required disabled={pending} value={draft.description} placeholder={t('description')} onChange={(event: ChangeEvent<HTMLTextAreaElement>) => { field('description', event.target.value) }} />
+        <Textarea required disabled={pending} value={draft.description} placeholder={t('description')} onChange={(event: ChangeEvent<HTMLTextAreaElement>) => { field('description', event.target.value) }} />
       </label></p>
       <p><label>
         {t('blockers')}
