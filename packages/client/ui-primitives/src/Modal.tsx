@@ -15,6 +15,7 @@ interface ModalBaseProps {
   footer?: ReactNode
   className?: string
   contentClassName?: string
+  size?: 'compact' | 'workspace'
 }
 
 type ModalProps = ModalBaseProps & (
@@ -38,7 +39,7 @@ type ModalProps = ModalBaseProps & (
  * @returns null when closed; otherwise the overlay tree.
  */
 export function Modal({
-  open, onClose, title, closeLabel, description, children, footer, className, contentClassName, ref, headless = false,
+  open, onClose, title, closeLabel, description, children, footer, className, contentClassName, ref, headless = false, size = 'compact',
 }: ModalProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -113,7 +114,7 @@ export function Modal({
       <div className={css.mask} aria-hidden="true" onClick={onClose} />
       <div
         ref={ref}
-        className={clsx(css.dialog, className)}
+        className={clsx(css.dialog, size === 'workspace' && css.workspace, className)}
         role="dialog"
         aria-modal="true"
         aria-label={title}

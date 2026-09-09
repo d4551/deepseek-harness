@@ -78,6 +78,7 @@ export function actions(overrides: Partial<TeamActionInjected> = {}): TeamAction
       })
     },
     load: () => Promise.resolve({ ok: true, value: view }),
+    loadConversations: () => Promise.resolve({ ok: true, value: view.subagents }),
     createTask: () => Promise.resolve(taskSuccess({ ...task, id: TASK_2, subject: 'New task' })),
     updateTask: () => Promise.resolve({
       ok: true,

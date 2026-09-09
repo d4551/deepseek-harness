@@ -44,6 +44,10 @@
   overflow-y: auto;
 }
 
+.workspace {
+  width: min(var(--dsw-workspace-width), 100%);
+}
+
 /* Header row (figma Title row): pad l24/t22/r14/b12, SPACE_BETWEEN —
  * title left, close button right. */
 .header {

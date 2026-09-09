@@ -26,6 +26,7 @@ import type {
   SpawnTeammateRequest,
   SpawnTeammateResult,
   TeamMemberView,
+  TeamOverview,
   TeamTaskMutationResult,
   TeamTaskView,
   TeamView,
@@ -351,22 +352,35 @@ export class TeamService extends TypertRemoteService {
    */
   @Remote('view')
   async remoteView(agent: Agent, signal?: AbortSignal): Promise<TeamView> {
+    const subagents = await this.remoteConversations(agent, signal)
+    return { ...this.remoteOverview(agent), subagents }
+  }
+
+  /** Read live Team work and mailbox state without enumerating stored sessions. */
+  @Remote('overview')
+  remoteOverview(agent: Agent): TeamOverview {
+    const membership = this.roster.membership(agent)
+    const state = this.journal.state(membership.root)
+    return {
+      members: this.listMembers(agent),
+      tasks: this.listTasks(agent),
+      messages: [...state.messages.values()].map(message => ({
+        ...structuredClone(message), delivered: state.delivered.has(message.id),
+      })),
+    }
+  }
+
+  /** Discover durable descendant conversations independently of live Team work. */
+  @Remote('conversations')
+  async remoteConversations(agent: Agent, signal?: AbortSignal): Promise<TeamView['subagents']> {
     signal?.throwIfAborted()
     const membership = this.roster.membership(agent)
     const descendants = await this.ctx.subagents.listDescendants(membership.root.id, signal)
     signal?.throwIfAborted()
     this.roster.membership(agent)
-    const state = this.journal.state(membership.root)
-    return {
-      members: this.listMembers(agent),
-      tasks: this.listTasks(agent),
-      subagents: descendants.map(entry => entry.kind === 'child'
-        ? { ...entry, activity: this.ctx.agents.get(entry.id)?.status === 'running' ? 'running' : 'inactive' }
-        : entry),
-      messages: [...state.messages.values()].map(message => ({
-        ...structuredClone(message), delivered: state.delivered.has(message.id),
-      })),
-    }
+    return descendants.map(entry => entry.kind === 'child'
+      ? { ...entry, activity: this.ctx.agents.get(entry.id)?.status === 'running' ? 'running' : 'inactive' }
+      : entry)
   }
 
   /**

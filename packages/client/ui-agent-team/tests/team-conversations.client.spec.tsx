@@ -21,10 +21,10 @@ it('shows nested worker status and both delivered and queued peer messages', asy
     id: TeamMessageId('message-1'), senderId: parent, senderName: 'worker', targetId: SessionId('lead'),
     delivery: 'quiet', content: [{ type: 'text', text: 'Review complete' }], delivered: true,
   } satisfies (typeof view.messages)[number]
-  render(<TeamConversations view={{ ...view, subagents: [child], messages: [
+  render(<TeamConversations load={() => Promise.resolve({ ok: true, value: [child] })} view={{ ...view, messages: [
     message, { ...message, id: TeamMessageId('message-2'), delivered: false },
   ] }} t={key => en[key]} open={async (entry) => { opened.push(entry) }} reportError={(reason) => { errors.push(reason) }} />)
-  expect(screen.getByText('Parent: worker · Inactive')).toBeTruthy()
+  expect(await screen.findByText('Parent: worker · Inactive')).toBeTruthy()
   expect(screen.getByText('Delivered')).toBeTruthy()
   expect(screen.getByText('Queued')).toBeTruthy()
   expect(screen.getAllByText('worker → lead')).toHaveLength(2)

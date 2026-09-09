@@ -3,6 +3,7 @@
 export type {
   CreateTeamTaskRequest,
   TeamMemberView,
+  TeamOverview,
   TeamTaskAction,
   TeamTaskId,
   TeamTaskMutationResult,

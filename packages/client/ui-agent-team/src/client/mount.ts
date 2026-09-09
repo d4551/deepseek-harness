@@ -2,7 +2,7 @@
 
 import type {
   TeamMemberView as TeamRosterMember,
-  TeamView,
+  TeamOverview,
 } from '@deepseek-ai/dsh-agent-team/client'
 import type {} from '@deepseek-ai/dsh-agent-team/remote'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
@@ -49,8 +49,11 @@ function registerUi(ctx: ClientContext): void {
     changes(sessionId, signal): AsyncIterable<number> {
       return ctx.remote.agentTeams.changes(leadSessionId(sessionId), signal)
     },
-    async load(sessionId, signal): Promise<TeamActionResult<TeamView>> {
-      return await ctx.remote.agentTeams.view(leadSessionId(sessionId), signal)
+    async load(sessionId, signal): Promise<TeamActionResult<TeamOverview>> {
+      return await ctx.remote.agentTeams.overview(leadSessionId(sessionId), signal)
+    },
+    async loadConversations(sessionId, signal) {
+      return await ctx.remote.agentTeams.conversations(leadSessionId(sessionId), signal)
     },
     async createTask(sessionId, input): Promise<TeamTaskActionResult> {
       return await ctx.remote.agentTeams.createTask(leadSessionId(sessionId), input)

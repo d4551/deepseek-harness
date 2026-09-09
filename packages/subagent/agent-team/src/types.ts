@@ -98,11 +98,15 @@ export interface TeamTaskView {
 }
 
 /** Point-in-time roster and task-board projection returned to browser clients. */
-export interface TeamView {
+export interface TeamOverview {
   readonly members: TeamMemberView[]
   readonly tasks: TeamTaskView[]
-  readonly subagents: SubagentDescendantListEntry[]
   readonly messages: (TeamMessageSnapshot & { readonly delivered: boolean })[]
+}
+
+/** Complete Team overview and durable descendant conversation directory. */
+export interface TeamView extends TeamOverview {
+  readonly subagents: SubagentDescendantListEntry[]
 }
 
 /** One peer message retained until its target Session records it. */

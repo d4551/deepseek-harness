@@ -6,11 +6,13 @@ import type {
   TeamTaskMutationResult,
   TeamTaskView as TeamTask,
   TeamView,
+  TeamOverview,
   UpdateTeamTaskRequest,
 } from '@deepseek-ai/dsh-agent-team/client'
 import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import {
-  Button, Modal, Pill, IconPlusOutline16, IconRefreshOutline14, IconUserOutline16, StateDot,
+  Button, Modal, Pill, PanelLayout, PanelStack, PanelSection, PanelEntry, PanelActions,
+  IconPlusOutline16, IconRefreshOutline14, IconUserOutline16, StateDot,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -29,7 +31,8 @@ export type TeamTaskActionResult = RemoteResult<TeamTaskMutationResult>
 /** Business actions injected by the browser plugin. */
 export interface TeamActionInjected {
   changes: (sessionId: SessionId, signal: AbortSignal) => AsyncIterable<number>
-  load: (sessionId: SessionId, signal?: AbortSignal) => Promise<TeamActionResult<TeamView>>
+  load: (sessionId: SessionId, signal?: AbortSignal) => Promise<TeamActionResult<TeamOverview>>
+  loadConversations: (sessionId: SessionId, signal: AbortSignal) => Promise<TeamActionResult<TeamView['subagents']>>
   createTask: (sessionId: SessionId, input: CreateTeamTaskRequest) => Promise<TeamTaskActionResult>
   updateTask: (sessionId: SessionId, input: UpdateTeamTaskRequest) => Promise<TeamTaskActionResult>
   openTeammate: (sessionId: SessionId, member: TeamRosterMember) => Promise<void>
@@ -62,11 +65,11 @@ function memberStatusKey(status: TeamRosterMember['status']): TeamKey {
 
 /** Render the live Team roster and compare-and-set task board. */
 export function TeamAction({
-  sessionId, changes, load, createTask, updateTask, openTeammate, openSubagent, t,
+  sessionId, changes, load, loadConversations, createTask, updateTask, openTeammate, openSubagent, t,
 }: TeamActionProps) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [view, setView] = useState<TeamView | null>(null)
+  const [view, setView] = useState<TeamOverview | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [createDraft, setCreateDraft] = useState<TaskDraft>(EMPTY_DRAFT)
@@ -76,6 +79,7 @@ export function TeamAction({
   const sessionRef = useRef(sessionId)
   const refreshGeneration = useRef(0)
   sessionRef.current = sessionId
+  const loadDirectory = useCallback((signal: AbortSignal) => loadConversations(sessionId, signal), [loadConversations, sessionId])
 
   const reportError = (reason: unknown): string => {
     const message = String(reason)
@@ -238,10 +242,7 @@ export function TeamAction({
     return true
   }
 
-  const conversationCount = new Set([
-    ...view?.members.filter(member => member.role !== 'lead').map(member => member.id) ?? [],
-    ...view?.subagents.filter(entry => entry.kind === 'child').map(entry => entry.id) ?? [],
-  ]).size
+  const conversationCount = view?.members.filter(member => member.role !== 'lead').length ?? 0
   const assignable = view?.members.filter(member => member.role !== 'peer'
     && member.status !== 'failed' && member.status !== 'provisioning') ?? []
   const closePanel = (): void => {
@@ -266,7 +267,7 @@ export function TeamAction({
         {conversationCount > 0 && <Pill>{conversationCount}</Pill>}
       </Button>
       {open && (
-        <Modal open={open} onClose={closePanel} title={t('trigger')} closeLabel={t('close')}>
+        <Modal open={open} onClose={closePanel} title={t('trigger')} description={t('overview')} closeLabel={t('close')} size="workspace">
           <div>
             <Button size="sm" aria-label={t('refresh')} onClick={() => { refresh().then(undefined, reportError) }}>
               <IconRefreshOutline14 /> {t('refresh')}
@@ -275,13 +276,17 @@ export function TeamAction({
           {error !== null && <div role="alert">{error}</div>}
           {loading && <p role="status">{t('loading')}</p>}
           {view !== null && (
-            <>
-              <section>
-                <h3>{t('roster')}</h3>
-                <div>
+            <PanelLayout>
+              <TeamConversations
+                view={view} t={t} open={entry => openSubagent(sessionId, entry)}
+                reportError={reportError}
+                load={loadDirectory}
+              />
+              <PanelStack>
+                <PanelSection title={t('roster')} actions={<Pill>{view.members.length}</Pill>}>
                   {view.members.map(member => (
-                    <article key={member.id}>
-                      <div>
+                    <PanelEntry key={member.id}>
+                      <PanelActions>
                         <StateDot state={member.status === 'running' ? 'ongoing' : member.status === 'failed' ? 'error' : 'inactive'} />
                         <Button
                           disabled={member.id === sessionId || member.status === 'failed' || member.status === 'provisioning'}
@@ -290,60 +295,55 @@ export function TeamAction({
                             openTeammate(sessionId, member).then(undefined, reportError)
                           }}
                         >{member.name}</Button>
-                      </div>
+                      </PanelActions>
+                      {member.description !== undefined && <p>{member.description}</p>}
                       <p>{t(memberStatusKey(member.status))}{member.model === undefined ? '' : ` · ${t('model')}: ${member.model}`}</p>
                       {member.diagnostics.map(diagnostic => <p key={diagnostic}>{diagnostic}</p>)}
-                    </article>
+                    </PanelEntry>
                   ))}
-                </div>
-              </section>
-              <section>
-                <div>
-                  <h3>{t('tasks')}</h3>
+                </PanelSection>
+                <PanelSection title={t('tasks')} actions={(
                   <Button size="sm" disabled={creating} onClick={() => { setCreating(true) }}>
                     <IconPlusOutline16 /> {t('create')}
                   </Button>
-                </div>
-                {creating && (
-                  <TaskForm
-                    draft={createDraft}
-                    setDraft={setCreateDraft}
-                    pending={pendingTasks.has('create')}
-                    onSave={() => { submitCreate().then(undefined, reportError) }}
-                    onCancel={() => { setCreating(false) }}
-                    t={t}
-                  />
-                )}
-                {view.tasks.length === 0 && !creating && <p>{t('empty')}</p>}
-                <div>
-                  {view.tasks.map(task => editing?.id === task.id
-                    ? (
-                      <TaskForm
-                        key={task.id}
-                        draft={editDraft}
-                        setDraft={setEditDraft}
-                        pending={pendingTasks.has(task.id)}
-                        onSave={() => { submitEdit(editing).then(undefined, reportError) }}
-                        onCancel={() => { setEditing(null) }}
-                        t={t}
-                      />
-                    )
-                    : (
-                      <TaskCard
-                        key={task.id} task={task} members={assignable} pending={pendingTasks.has(task.id)}
-                        edit={() => { startEdit(task) }} t={t}
-                        update={(input) => {
-                          settleTask(task.id, () => updateTask(sessionId, input)).then(undefined, reportError)
-                        }}
-                      />
-                    ))}
-                </div>
-              </section>
-              <TeamConversations
-                view={view} t={t} open={entry => openSubagent(sessionId, entry)}
-                reportError={reportError}
-              />
-            </>
+                )}>
+                  {creating && (
+                    <TaskForm
+                      draft={createDraft}
+                      setDraft={setCreateDraft}
+                      pending={pendingTasks.has('create')}
+                      onSave={() => { submitCreate().then(undefined, reportError) }}
+                      onCancel={() => { setCreating(false) }}
+                      t={t}
+                    />
+                  )}
+                  {view.tasks.length === 0 && !creating && <p>{t('empty')}</p>}
+                  <div>
+                    {view.tasks.map(task => editing?.id === task.id
+                      ? (
+                        <TaskForm
+                          key={task.id}
+                          draft={editDraft}
+                          setDraft={setEditDraft}
+                          pending={pendingTasks.has(task.id)}
+                          onSave={() => { submitEdit(editing).then(undefined, reportError) }}
+                          onCancel={() => { setEditing(null) }}
+                          t={t}
+                        />
+                      )
+                      : (
+                        <TaskCard
+                          key={task.id} task={task} members={assignable} pending={pendingTasks.has(task.id)}
+                          edit={() => { startEdit(task) }} t={t}
+                          update={(input) => {
+                            settleTask(task.id, () => updateTask(sessionId, input)).then(undefined, reportError)
+                          }}
+                        />
+                      ))}
+                  </div>
+                </PanelSection>
+              </PanelStack>
+            </PanelLayout>
           )}
         </Modal>
       )}
