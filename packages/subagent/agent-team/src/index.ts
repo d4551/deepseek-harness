@@ -358,7 +358,8 @@ export class TeamService extends TypertRemoteService {
 
   /** Read live Team work and mailbox state without enumerating stored sessions. */
   @Remote('overview')
-  remoteOverview(agent: Agent): TeamOverview {
+  remoteOverview(agent: Agent, signal?: AbortSignal): TeamOverview {
+    signal?.throwIfAborted()
     const membership = this.roster.membership(agent)
     const state = this.journal.state(membership.root)
     return {

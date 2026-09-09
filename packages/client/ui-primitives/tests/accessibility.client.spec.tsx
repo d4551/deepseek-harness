@@ -27,7 +27,8 @@ const MINIMUM_ACCESSIBILITY_SCORE = 100
 const {
   BrandWordmark, Button, CatLogo, CodeBlock, ConnectionBanner, DiffBlock, DisclosureRow, FishLogo, FlowRow,
   GlyphButton, HoverCard, Input, InspectPill, JsonBlock, JsonTree, MarkdownText, Menu, MessageText, Modal,
-  OnboardingSurface, Pill, ReadBlock, ReferenceIcon, ResultText, RiskConfirmation, RowSeparator, RowSummary,
+  OnboardingSurface, PanelLayout, PanelStack, PanelSection, PanelEntry, PanelActions, MessageBody,
+  Pill, ReadBlock, ReferenceIcon, ResultText, RiskConfirmation, RowSeparator, RowSummary,
   SearchBlock, Select, SettingsActions, SettingsDisclosure, SettingsFields, StateDot, TerminalBlock, Textarea, Toast, Tooltip, WebBlock,
 } = primitives
 
@@ -109,6 +110,12 @@ const SURFACES: Readonly<Record<string, () => ReactElement>> = {
     />
   ),
   MessageText: () => <MessageText text="Plain user message" />,
+  MessageBody: () => <MessageBody>Review complete.</MessageBody>,
+  PanelLayout: () => <PanelLayout><p>Messages</p><p>Tasks</p></PanelLayout>,
+  PanelStack: () => <PanelStack><p>Members</p><p>Tasks</p></PanelStack>,
+  PanelSection: () => <PanelSection title="Team messages" description="Requests and progress"><p>Review complete.</p></PanelSection>,
+  PanelEntry: () => <PanelEntry><h3>Reviewer</h3><p>Review complete.</p></PanelEntry>,
+  PanelActions: () => <PanelActions><Button>Open conversation</Button><Pill>Delivered</Pill></PanelActions>,
   Modal: () => (
     <Modal open onClose={() => {}} title="Create session" closeLabel="Close" description="Pick a workspace">
       <p>Body</p>
