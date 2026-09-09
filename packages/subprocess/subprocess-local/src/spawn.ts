@@ -426,7 +426,7 @@ function signalTree(
 /**
  * Spawn one isolated detached process tree with the spec's per-stream stdio
  * dispositions. Runtime exits resolve `done` as {@link SubprocessOutcome};
- * only spawn failures reject.
+ * spawn and output collection failures reject.
  * @param spec - fully resolved argv, cwd, stdio, grace, cancellation, environment.
  * @param internals - test-only spill-directory, platform, Job, warning-sink, and taskkill overrides.
  * @returns live subprocess handle.
@@ -471,10 +471,17 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
     detached: platform !== 'win32',
   })
 
+  let collectionFailure: Error | undefined
   const collectStream = (mode: SubprocessOutputMode, stream: Readable | null, label: string): OutputCollector | undefined => {
     if (!isCollect(mode) || stream === null) return undefined
     const collector = new OutputCollector(mode.maxBytes, mode.spill?.maxBytes, label, spillDir)
-    stream.on('data', (chunk: Buffer) => { collector.push(chunk) })
+    stream.on('data', (chunk: Buffer) => {
+      new Promise<void>((resolve) => {
+        collector.push(chunk)
+        resolve()
+      }).then(undefined, failCollection)
+    })
+    stream.on('error', failCollection)
     return collector
   }
   const stdoutCollector = collectStream(outMode, child.stdout, 'stdout')
@@ -580,6 +587,13 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
     kill('SIGKILL')
   }
 
+  function failCollection(error: Error): void {
+    collectionFailure ??= error
+    terminate()
+    if (stdoutCollector !== undefined) child.stdout?.destroy()
+    if (stderrCollector !== undefined) child.stderr?.destroy()
+  }
+
   // The caller owns timeout classification; this layer only reacts to abort.
   const onAbort = (): void => { terminate() }
   spec.signal?.addEventListener('abort', onAbort, { once: true })
@@ -603,7 +617,8 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
       stdoutCollector?.seal()
       stderrCollector?.seal()
       cleanup()
-      resolve({ exitCode, signal })
+      if (collectionFailure !== undefined) reject(collectionFailure)
+      else resolve({ exitCode, signal })
     }
     child.on('error', (error) => {
       // No meaningful close outcome follows a spawn failure.

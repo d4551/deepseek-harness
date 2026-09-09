@@ -33,6 +33,7 @@ const CONNECTION_DEFAULTS: Required<ConnectionConfig> = {
 }
 
 function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.resolve()
   return new Promise((resolve) => {
     const t = setTimeout(done, ms)
     signal.addEventListener('abort', done, { once: true })
@@ -79,7 +80,7 @@ export class ConnectionController {
   private generation = 0
   private attempt = 0
   private current: AbortController | null = null
-  private running = false
+  private run: AbortController | null = null
   private lastState: ConnectionState | null = null
   private readonly config: Required<ConnectionConfig>
 
@@ -93,14 +94,15 @@ export class ConnectionController {
 
   /** Idempotent: begin the connect/pump/reconnect loop. */
   start(): void {
-    if (this.running) return
-    this.running = true
-    void this.loop()
+    if (this.run !== null) return
+    this.run = new AbortController()
+    void this.loop(this.run.signal)
   }
 
   /** Stop the loop and abort the current generation source. */
   stop(): void {
-    this.running = false
+    this.run?.abort()
+    this.run = null
     this.current?.abort()
     this.current = null
   }
@@ -111,18 +113,17 @@ export class ConnectionController {
     return cap / 2 + Math.random() * (cap / 2)
   }
 
-  /** Read through a method: stop() flips the flag across awaits, so narrowing from the loop condition must not stick. */
-  private isRunning(): boolean {
-    return this.running
-  }
-
   /** Re-read both mutable liveness guards after a potentially reentrant sink. */
   private isGenerationActive(controller: AbortController): boolean {
-    return this.isRunning() && !controller.signal.aborted
+    return this.current === controller && !controller.signal.aborted
   }
 
-  private async loop(): Promise<void> {
-    while (this.running) {
+  private isRunActive(run: AbortSignal): boolean {
+    return this.run?.signal === run && !run.aborted
+  }
+
+  private async loop(run: AbortSignal): Promise<void> {
+    while (this.isRunActive(run)) {
       const gen = ++this.generation
       const ac = new AbortController()
       this.current = ac
@@ -139,18 +140,24 @@ export class ConnectionController {
         rejectSourceLost = reject
       })
       const reportReady = (host: ConnectionHostInfo): void => {
-        if (sourceReady) return
+        if (sourceReady || ac.signal.aborted) return
         sourceReady = true
         resolveReady(host)
       }
 
       const failed = new Promise<void>((resolve) => {
+        const aborted = (): void => { resolve() }
+        ac.signal.addEventListener('abort', aborted, { once: true })
         const settle = (): void => {
+          ac.signal.removeEventListener('abort', aborted)
           if (gen === this.generation && !ac.signal.aborted) ac.abort()
           resolve()
         }
         void Promise.resolve()
-          .then(() => this.source(ac.signal, reportReady))
+          .then(() => {
+            ac.signal.throwIfAborted()
+            return this.source(ac.signal, reportReady)
+          })
           .then(
             () => {
               const error = new Error('connection generation ended')
@@ -187,12 +194,11 @@ export class ConnectionController {
       }
 
       await failed
-      if (!this.isRunning()) return
+      if (!this.isRunActive(run)) return
       this.emitState('reconnecting')
       this.attempt += 1
       console.warn(`[connection] connection lost, retry #${this.attempt}`)
-      const idle = new AbortController()
-      await sleep(this.backoffDelay(this.attempt), idle.signal)
+      await sleep(this.backoffDelay(this.attempt), run)
     }
   }
 
@@ -232,10 +238,11 @@ function waitForReady<T>(ready: Promise<T>, timeoutMs: number, signal: AbortSign
       else resolve(outcome.value)
     }
     signal.addEventListener('abort', aborted, { once: true })
+    if (signal.aborted) aborted()
     void ready.then(
       (value) => { finish({ value }) },
       (error: unknown) => {
-        finish({ error: error as Error })
+        finish({ error: error instanceof Error ? error : new Error('connection readiness failed', { cause: error }) })
       },
     )
   })
