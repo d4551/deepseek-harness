@@ -32,8 +32,17 @@ function registerUi(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'client-ui-agent-team: dictionaries')
   const sessions = ctx.sessions
   const leadSessionId = (sessionId: SessionId): SessionId => {
-    const address = sessions.binding(sessionId)?.session.getSnapshot().subagent?.address
-    return address?.parentSessionId ?? sessionId
+    const seen = new Set<SessionId>()
+    let current = sessionId
+    while (!seen.has(current)) {
+      seen.add(current)
+      const address = sessions.binding(current)?.session.getSnapshot().subagent?.address
+      const summary = sessions.list.getSnapshot().byId[current]
+      const parentId = address?.parentSessionId ?? (summary?.origin === 'subagent' ? summary.parentId : undefined)
+      if (parentId === undefined) return current
+      current = parentId
+    }
+    throw new Error('Cyclic Team conversation ancestry')
   }
 
   const actions: TeamActionInjected = {
@@ -54,7 +63,11 @@ function registerUi(ctx: ClientContext): void {
       })
     },
     async openTeammate(sessionId: SessionId, member: TeamRosterMember): Promise<void> {
-      if (member.role !== 'teammate') return
+      if (member.role === 'lead') {
+        if (member.id === sessionId) return
+        sessions.open(member.id)
+        return
+      }
       const parentSessionId = leadSessionId(sessionId)
       await sessions.refreshSubagents(parentSessionId)
       if (sessions.list.getSnapshot().current !== sessionId) return
@@ -63,6 +76,11 @@ function registerUi(ctx: ClientContext): void {
         childSessionId: member.id,
         mode: 'continuable',
       })
+    },
+    async openSubagent(sessionId, entry): Promise<void> {
+      await sessions.refreshSubagents(entry.parentId)
+      if (sessions.list.getSnapshot().current !== sessionId) return
+      sessions.openSubagent({ parentSessionId: entry.parentId, childSessionId: entry.id, mode: entry.mode })
     },
   }
 

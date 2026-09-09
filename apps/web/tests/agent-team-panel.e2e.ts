@@ -109,6 +109,7 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
     expect(tripwire.pageErrors).toEqual([])
     await assertPageAccessibility(page)
     expect(tripwire.warnings).toEqual([])
+    await page.screenshot({ path: `.artifacts/finish/team-tasks-${colorScheme}.png` })
   }, 60_000)
 
   it.skipIf(MODE === 'record')('keeps the fixture inventory closed', async () => {

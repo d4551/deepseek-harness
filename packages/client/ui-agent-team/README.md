@@ -31,6 +31,8 @@ This package adds an Agent Teams action to the Web conversation header, where a 
 
 Opening the panel subscribes to `agentTeams/changes` and reads `agentTeams/view` for its initial state and subsequent updates. Roster rows show durable names, runtime status, model, and diagnostics. Selecting a healthy teammate refreshes the existing direct-child catalog and opens the ordinary `{ parentSessionId, childSessionId, mode: 'continuable' }` address. History and later human prompts continue through the stable addressed-subagent conversation path; this package adds no Team-specific address field.
 
+The conversation list includes nested subagents with their direct parents and current activity. Completed turns display as inactive even when their sessions remain resident. Selecting a descendant opens its exact parent-child address; the Lead row returns to the root conversation. Messages between members show their sender, recipient, content, and queued or delivered state.
+
 ### Manage the task board
 
 The task board shows task identity, owner, blockers, readiness, advisory write scopes, and overlap warnings. A user can create, edit, assign or unassign, complete, reopen, and delete tasks through `agentTeams/createTask` and `agentTeams/updateTask`. Every update sends the displayed revision, and create or update rejections remain explicit business results.
@@ -88,7 +90,6 @@ No direct effect; the Team tools and ordinary conversation submission own any la
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Mailbox history** — the panel shows the live roster and task board but has no mailbox timeline.
 - **Ordinary child continuation** — a human message sent after navigation uses the stable addressed-subagent prompt path, not the Team peer mailbox.
 - **No lifecycle or workspace controls** — the panel cannot spawn, rename, delete, or interrupt teammates, and write scopes remain advisory metadata.
 

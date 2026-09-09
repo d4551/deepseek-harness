@@ -29,6 +29,8 @@ export const task: TeamTask = {
   writeScopeWarnings: ['write scopes overlap with task-2'],
 }
 export const view: TeamView = {
+  subagents: [],
+  messages: [],
   members: [
     { id: SESSION, name: 'lead', role: 'lead', status: 'idle', model: 'model-a', diagnostics: [] },
     {
@@ -82,6 +84,7 @@ export function actions(overrides: Partial<TeamActionInjected> = {}): TeamAction
       value: { ok: true, value: { ...task, revision: 2 } },
     }),
     openTeammate: () => Promise.reject(new Error('Test must supply teammate navigation')),
+    openSubagent: () => Promise.reject(new Error('Test must supply subagent navigation')),
     ...overrides,
   }
 }

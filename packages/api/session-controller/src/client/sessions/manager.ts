@@ -810,7 +810,7 @@ export class SessionManager {
     const selectedAddress = this.selected === undefined ? undefined : this.addresses.get(this.selected)
     if (selectedAddress !== undefined) void this.refreshSubagents(selectedAddress.parentSessionId)
     if (this.selected !== undefined) void this.refreshSubagents(this.selected)
-    for (const parentSessionId of this.openCatalogs) void this.refreshSubagents(parentSessionId)
+    for (const parentSessionId of this.catalogs.keys()) void this.refreshSubagents(parentSessionId)
   }
 
   /** Selected child conversations also consume their parent's sibling catalog. */

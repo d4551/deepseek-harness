@@ -31,6 +31,8 @@ kind: "package-reference"
 
 打开 panel 会订阅 `agentTeams/changes`，并通过 `agentTeams/view` 读取初始状态和后续更新。Roster row 展示持久 name、运行时 status、model 与 diagnostics。选择健康 teammate 时，系统刷新既有直接 child catalog，并打开普通的 `{ parentSessionId, childSessionId, mode: 'continuable' }` address。History 与后续人类 prompt 继续使用稳定 addressed-subagent 会话路径；本包不会添加 Team 专用 address 字段。
 
+会话列表包含嵌套子智能体，并显示其直接父会话与当前活动。已完成的轮次显示为未运行，即使会话仍驻留在内存中。选择后代会话会打开其精确的父子地址；Lead 行可返回根会话。成员间消息显示发送者、接收者、内容以及待送达或已送达状态。
+
 ### 管理任务板
 
 任务板展示 task identity、owner、blocker、readiness、提示性 write scope 与重叠 warning。用户可以通过 `agentTeams/createTask` 与 `agentTeams/updateTask` 创建、编辑、分配或取消分配、完成、重开和删除任务。每次 update 都发送当前显示的 revision，create 或 update rejection 都保留为显式 business result。
@@ -88,7 +90,6 @@ Client export 挂载来自 [`@deepseek-ai/dsh-agent-team/remote`](../../subagent
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Mailbox 历史**——panel 展示实时 roster 与任务板，但没有 mailbox timeline。
 - **普通 child continuation**——导航后发送的人类消息使用稳定 addressed-subagent prompt 路径，而不是 Team peer mailbox。
 - **没有 lifecycle 或 workspace control**——panel 不能 spawn、rename、delete 或 interrupt teammate，write scope 仍只是提示性 metadata。
 

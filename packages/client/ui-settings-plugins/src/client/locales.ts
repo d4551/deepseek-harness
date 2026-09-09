@@ -2,6 +2,8 @@
 
 /** Locale keys these surfaces render. */
 export type PluginsSettingsLocaleKey =
+  | 'webGroupTitle' | 'webGroupDescription' | 'approvalGroupTitle' | 'approvalGroupDescription'
+  | 'otherGroupTitle' | 'otherGroupDescription'
   | 'nav' | 'title' | 'intro' | 'tabs' | 'configurableTab' | 'empty'
   | 'overridden' | 'reset' | 'readOnly' | 'expand' | 'collapse'
   | 'save' | 'saving' | 'discard' | 'unsaved' | 'saveFailed' | 'invalidNumber'
@@ -69,6 +71,12 @@ export type PluginsSettingsLocaleKey =
 
 /** English copy. */
 export const en: Record<PluginsSettingsLocaleKey, string> = {
+  webGroupTitle: 'Web search and page access',
+  webGroupDescription: 'Choose a search backend and a page-fetch backend in Web access. Configure their credentials and limits below. Configuring a provider does not select it; browser search and fetch can serve both choices.',
+  approvalGroupTitle: 'Approval flow',
+  approvalGroupDescription: 'Requests pass through enabled approval screening first. Requests it accepts reach the model reviewer when enabled, or the configured answerer otherwise. A reviewer verdict replaces the human decision; an undecided review follows its configured policy.',
+  otherGroupTitle: 'Agent and execution settings',
+  otherGroupDescription: 'Configure models, delegation, and execution limits.',
   nav: 'Plugins',
   title: 'Plugins',
   intro: 'Configure and inspect the plugins installed in this deployment.',
@@ -97,7 +105,7 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
   agentLoopMaxParallel: 'Parallel tool calls',
   agentLoopMaxParallelHint: 'Upper bound on parallel-safe calls running at once within one step.',
   approvalAssessorTitle: 'Approval audit',
-  approvalAssessorDescription: 'Screens approval reasons for attempts to avoid authorized work.',
+  approvalAssessorDescription: 'First stage: rule-based screening can reject a justification, but cannot approve an action.',
   approvalAssessorEnabled: 'Work-avoidance screening',
   approvalAssessorEnabledHint: 'Whether approval requests are checked before they reach an answerer.',
   approvalAssessorEnabledOn: 'Enforce',
@@ -108,11 +116,11 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
   approvalAssessorExtraPhrasesHint: 'One case-insensitive literal phrase per line, up to 64 phrases and 256 characters each. Built-in rules remain active while enforcement is on.',
   approvalAssessorExtraPhrasesInvalid: 'Enter no more than 64 phrases of at most 256 characters each.',
   approvalAdversaryTitle: 'Adversarial approval review',
-  approvalAdversaryDescription: 'A model reviewer decides approval requests in place of a person.',
+  approvalAdversaryDescription: 'Second stage: an optional model reviewer allows or denies requests that pass screening, in place of a person.',
   approvalAdversaryEnabled: 'Reviewer',
   approvalAdversaryEnabledHint: 'Whether approval requests that would prompt a person are decided by the adversarial reviewer instead.',
   approvalAdversaryEnabledOn: 'Decide',
-  approvalAdversaryEnabledOnHint: 'Every request the approval audit passes is allowed or denied by the reviewer; nobody is prompted.',
+  approvalAdversaryEnabledOnHint: 'A valid verdict allows or denies the request without prompting a person. A failed or undecided review uses the policy below.',
   approvalAdversaryEnabledOff: 'Off',
   approvalAdversaryEnabledOffHint: 'Approval requests continue to the configured answerer.',
   approvalAdversaryProvider: 'Review provider',
@@ -232,6 +240,12 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
 
 /** Simplified Chinese copy. */
 export const zh: Record<PluginsSettingsLocaleKey, string> = {
+  webGroupTitle: '网页搜索与访问',
+  webGroupDescription: '先在网页访问中选择搜索与抓取后端，再在下方配置凭据和限制。配置提供方不会自动选用它；浏览器搜索和抓取可以同时承担两种能力。',
+  approvalGroupTitle: '审批流程',
+  approvalGroupDescription: '请求先经过已启用的审批检查。通过的请求交给已启用的模型评审者，否则交给配置的应答者。模型裁决替代人工决定；未能裁决时执行配置的未决请求策略。',
+  otherGroupTitle: '智能体与执行设置',
+  otherGroupDescription: '配置模型、委派和执行限制。',
   nav: '插件',
   title: '插件',
   intro: '配置和查看本部署已安装的插件。',
@@ -260,7 +274,7 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
   agentLoopMaxParallel: '并行工具调用数',
   agentLoopMaxParallelHint: '同一步内最多同时运行多少个可并行的调用。',
   approvalAssessorTitle: '审批审计',
-  approvalAssessorDescription: '检查审批理由是否试图规避已授权的工作。',
+  approvalAssessorDescription: '第一阶段：基于规则检查理由，可以拒绝请求，但不能批准操作。',
   approvalAssessorEnabled: '规避工作检查',
   approvalAssessorEnabledHint: '审批请求抵达处理程序之前是否接受检查。',
   approvalAssessorEnabledOn: '启用',
@@ -271,11 +285,11 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
   approvalAssessorExtraPhrasesHint: '每行一个不区分大小写的字面短语，最多 64 条，每条最多 256 个字符。启用检查时，内置规则仍然生效。',
   approvalAssessorExtraPhrasesInvalid: '最多输入 64 条短语，每条不超过 256 个字符。',
   approvalAdversaryTitle: '对抗式审批评审',
-  approvalAdversaryDescription: '由模型评审者代替人工决定审批请求。',
+  approvalAdversaryDescription: '第二阶段：可选模型评审者代替人工，允许或拒绝通过检查的请求。',
   approvalAdversaryEnabled: '评审者',
   approvalAdversaryEnabledHint: '原本会提示人工的审批请求是否改由对抗式评审者决定。',
   approvalAdversaryEnabledOn: '由评审者决定',
-  approvalAdversaryEnabledOnHint: '通过审批审计的每个请求都由评审者允许或拒绝；不再提示任何人。',
+  approvalAdversaryEnabledOnHint: '有效裁决直接允许或拒绝请求，无需提示人工。评审失败或未决时使用下方策略。',
   approvalAdversaryEnabledOff: '关闭',
   approvalAdversaryEnabledOffHint: '审批请求继续交给已配置的应答者。',
   approvalAdversaryProvider: '评审提供方',

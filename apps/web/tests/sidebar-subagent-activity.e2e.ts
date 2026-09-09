@@ -19,6 +19,7 @@ import {
   type WebScaffold,
 } from './scaffold.ts'
 import { connectFreshWorkspace, launchBrowser, newEnglishPage, saveFailureShot } from './support.ts'
+import { assertPageAccessibility } from './accessibility.ts'
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('./expected/sidebar-subagent-activity', import.meta.url))
 const RUNNING_OWNER_EXPECTED = join(SNAPSHOT_DIR, 'owner-running.expected.md')
@@ -149,6 +150,26 @@ describe('web e2e: sidebar subagent activity', () => {
     await runningTrigger.waitFor({ timeout: 10_000 })
     expect(await runningTrigger.locator('[data-state="ongoing"]').count()).toBe(1)
     await assertFixtureInventory(SNAPSHOT_DIR, ['owner-running.expected.md'])
+    expect(tripwire.pageErrors).toEqual([])
+    expect(tripwire.warnings).toEqual([])
+  })
+
+  it('shows the child in Team and clears running indicators when its turn ends', async () => {
+    const action = page.locator('[data-team-action]')
+    await action.getByRole('button', { name: /Agent Team/u }).click()
+    const conversations = action.getByRole('region', { name: 'Subagent conversations' })
+    await conversations.getByRole('button', { name: /sidebar activity child/u }).waitFor()
+    expect(await conversations.locator('[data-state="ongoing"]').count()).toBe(1)
+    await page.screenshot({ path: '.artifacts/finish/team-running.png' })
+
+    scaffold.ctx.subagents.interrupt(childId, { kind: 'user', parentSessionId: parentHandle.agent.id })
+    await conversations.getByText(/Inactive/u).waitFor()
+    expect(await conversations.locator('[data-state="ongoing"]').count()).toBe(0)
+    expect(await page.getByRole('button', { name: '1 subagent running', exact: true }).count()).toBe(0)
+    await page.screenshot({ path: '.artifacts/finish/team-inactive.png' })
+    await assertPageAccessibility(page)
+    await conversations.getByRole('button', { name: /sidebar activity child/u }).click()
+    await expect.poll(() => page.getByRole('textbox').count()).toBeGreaterThan(0)
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])
   })

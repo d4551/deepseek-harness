@@ -2010,6 +2010,7 @@
         "@deepseek-ai/dsh-settings": "workspace:^",
         "@types/react": "~19.2.18",
         "react": "^19.2.8",
+        "react-dom": "^19.2.8",
       },
       "peerDependencies": {
         "@deepseek-ai/cordis": "workspace:^",

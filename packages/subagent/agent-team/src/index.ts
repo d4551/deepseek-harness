@@ -3,6 +3,7 @@
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import type { SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-persistence'
 import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
@@ -183,10 +184,7 @@ export class TeamService extends TypertRemoteService {
     ctx.on('agent/session-start', ({ agent }) => { this.scheduleRecovery(agent) })
     ctx.on('agent/created', ({ agent }) => { this.notifyLifecycleChange(agent) })
     ctx.on('agent/disposed', ({ agent }) => { this.notifyLifecycleChange(agent) })
-    ctx.on('agent/status', ({ agent }) => {
-      const membership = this.roster.tryMembership(agent)
-      if (membership !== undefined) this.activity.notify(membership.id)
-    })
+    ctx.on('agent/status', ({ agent }) => { this.notifyLifecycleChange(agent) })
     ctx.effect(() => () => this.disposeRuntime(), 'agentTeams.runtimeLifecycle()')
     for (const agent of ctx.agents.list()) this.scheduleRecovery(agent)
   }
@@ -324,15 +322,25 @@ export class TeamService extends TypertRemoteService {
   }
 
   /**
-   * Read the current roster and non-deleted task board through the generated Remote API.
+   * Read the Team roster, task board, descendant conversations, and peer messages.
    * @param agent - exact live Team member used as the authority credential.
-   * @returns detached current roster and task views.
+   * @returns detached Team state with current descendant activity and message delivery.
    */
   @Remote('view')
-  remoteView(agent: Agent): TeamView {
+  async remoteView(agent: Agent): Promise<TeamView> {
+    const membership = this.roster.membership(agent)
+    const descendants = await this.ctx.subagents.listDescendants(membership.root.id)
+    this.roster.membership(agent)
+    const state = this.journal.state(membership.root)
     return {
       members: this.listMembers(agent),
       tasks: this.listTasks(agent),
+      subagents: descendants.map(entry => entry.kind === 'child'
+        ? { ...entry, activity: this.ctx.agents.get(entry.id)?.status === 'running' ? 'running' : 'inactive' }
+        : entry),
+      messages: [...state.messages.values()].map(message => ({
+        ...structuredClone(message), delivered: state.delivered.has(message.id),
+      })),
     }
   }
 
@@ -391,12 +399,13 @@ export class TeamService extends TypertRemoteService {
 
   /** Notify the owning Team when a member enters or leaves the live registry. */
   private notifyLifecycleChange(agent: Agent): void {
-    this.activity.notify(TeamId(agent.id))
-    const parentId = agent.session.header.parentSession
-    if (parentId === undefined) return
-    const parent = this.ctx.agents.get(parentId)
-    if (parent !== undefined && this.journal.state(parent).members.has(agent.id)) {
-      this.activity.notify(TeamId(parent.id))
+    const seen = new Set<SessionId>()
+    let current: Agent | undefined = agent
+    while (current !== undefined && !seen.has(current.id)) {
+      seen.add(current.id)
+      this.activity.notify(TeamId(current.id))
+      const parentId: SessionId | undefined = current.session.header.parentSession
+      current = parentId === undefined ? undefined : this.ctx.agents.get(parentId)
     }
   }
 

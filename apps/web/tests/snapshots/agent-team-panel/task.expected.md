@@ -9,6 +9,12 @@
     - img
   - heading "Members" [level=3]
   - 'button "lead Idle · Model: deepseek-v4-flash" [disabled]'
+  - region "Subagent conversations":
+    - heading "Subagent conversations" [level=3]
+    - paragraph: No subagent conversations yet
+  - region "Messages between members":
+    - heading "Messages between members" [level=3]
+    - paragraph: No messages between members yet
   - heading "Shared tasks" [level=3]
   - button "New task":
     - img

@@ -10,7 +10,7 @@ The durable Agent Teams runtime owns roster, mailbox, and task state. Web users 
 
 ## Decision
 
-The private `ctx.agentTeams` service owns generated `agentTeams/view`, `agentTeams/createTask`, and `agentTeams/updateTask` Remote methods beside its domain operations. The Team package owns the browser-safe view and mutation-result types. Views contain roster and current task state but omit pending mailbox content and deleted task tombstones. Create and update rejections cross Remote as closed business results; stale update revisions preserve `team-task-conflict`, while other Team rejections preserve `team-rejected`. Unexpected failures remain ordinary `RemoteResult` failures.
+The private `ctx.agentTeams` service owns generated `agentTeams/view`, `agentTeams/createTask`, and `agentTeams/updateTask` Remote methods beside its domain operations. The Team package owns the browser-safe view and mutation-result types. Views contain roster, current tasks, descendant conversations, and peer messages with delivery state; deleted task tombstones remain omitted. Descendant activity comes from the live Agent driver, while parent relationships and messages come from durable state. Create and update rejections cross Remote as closed business results; stale update revisions preserve `team-task-conflict`, while other Team rejections preserve `team-rejected`. Unexpected failures remain ordinary `RemoteResult` failures.
 
 `@deepseek-ai/dsh-client-ui-agent-team` mounts the `@deepseek-ai/dsh-agent-team/remote` contribution through `ctx.remote`, then consumes the generated `ctx.remote.agentTeams` methods directly. It displays roster status, model and diagnostics and supports task create, edit, dependency update, assignment, completion, reopen, and deletion. Every update sends the displayed revision. Each create or update owns an independent pending token, invalidates older refreshes before starting, and reloads the complete Team view after success. A conflict asks the user to review only after its reload succeeds; a reload failure remains visible. Overlapping refreshes publish only the latest request for the selected Session.
 
@@ -24,7 +24,7 @@ The `standard`, `ptc`, and `cordis` presets expose one-shot `subagent` and `suba
 
 ## Boundaries
 
-The Web UI has no mailbox timeline, worktree or Git controls, teammate creation, rename, deletion, interruption, or automatic merge behavior. It does not infer filesystem authority from task ownership or write scopes. A human continuation after teammate navigation is an ordinary addressed-child prompt, not a Team mailbox message.
+The Web UI has no worktree or Git controls, teammate creation, rename, deletion, interruption, or automatic merge behavior. It does not infer filesystem authority from task ownership or write scopes. A human continuation after teammate navigation is an ordinary addressed-child prompt, not a Team mailbox message.
 
 ## Alternatives considered
 

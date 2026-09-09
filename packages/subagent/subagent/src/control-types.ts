@@ -78,6 +78,14 @@ export type SubagentListEntry =
     readonly reason: 'corrupt' | 'unsupported' | 'unavailable'
   }
 
+/** One descendant with its durable parent and distance from the catalog root. */
+export type SubagentDescendantListEntry = SubagentListEntry & {
+  /** Durable direct parent of this candidate. */
+  readonly parentId: SessionId
+  /** Edge distance from the requested root; direct children are one. */
+  readonly depth: number
+}
+
 /** Complete direct-child catalog plus the delivery-time parent availability hint. */
 export interface SubagentCatalog {
   readonly entries: readonly SubagentListEntry[]

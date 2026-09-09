@@ -3,7 +3,28 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import { JobId } from '@deepseek-ai/dsh-jobs/brand'
 import type { SessionSummary } from '../src/types.ts'
 import { SessionManager } from '../src/client/sessions/manager.ts'
-import { FakeApiClient, fakeRemote, ok } from './fake-api.client.ts'
+import { FakeApiClient, fakeRemote, ok, remoteOk } from './fake-api.client.ts'
+
+it('reconciles closed subagent catalogs after missing a completion while disconnected', async () => {
+  const parent = SessionId('reconnected-parent')
+  const child = SessionId('reconnected-child')
+  const api = new FakeApiClient()
+  let running = true
+  api.onSubagentList = async () => remoteOk({
+    parentAvailable: true,
+    entries: [{ kind: 'child', id: child, mode: 'continuable', label: 'worker',
+      activity: running ? 'running' : 'inactive', hasChildren: false }],
+  })
+  const manager = new SessionManager(fakeRemote(api))
+  await manager.refreshSubagents(parent)
+  expect(manager.getListSnapshot().subagentsByParent[parent]?.entries[0]).toMatchObject({ activity: 'running' })
+  running = false
+  manager.handleConnected()
+  await manager.refreshSubagents(parent)
+  expect(api.callsOf('subagents.list')).toEqual([parent, parent])
+  expect(manager.getListSnapshot().subagentsByParent[parent]?.entries[0]).toMatchObject({ activity: 'inactive' })
+  await manager.dispose()
+})
 
 it('preserves the swarm list for repeated events and still observes completion edges', async () => {
   const parent = SessionId('steady-parent')

@@ -11,6 +11,7 @@ import { Fragment } from 'react'
 import type { InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from './slot-contract.ts'
 import type { ConfigurablePluginsTabFace } from './tab-store.ts'
+import { settingsGroups } from './settings-groups.ts'
 import css from './PluginsSettingsSection.module.css'
 
 /** Props the renderer binds for the configurable tab. */
@@ -30,13 +31,19 @@ export function ConfigurablePluginsTab(props: ConfigurablePluginsTabProps) {
   const { loaded, namespaces } = props.useConfigurablePlugins(snapshot => snapshot)
   if (namespaces.length > 0) {
     return (
-      <ul className={css.cards}>
-        {namespaces.map(ns => (
-          // One dispatch per namespace, so the list identity is the namespace
-          // rather than a position that shifts as cards arrive.
-          <Fragment key={ns}>{renderSlot('settings.plugin.item', {}, { entryKey: ns })}</Fragment>
+      <div className={css.section}>
+        {settingsGroups(namespaces).map(group => (
+          <section key={group.title} className={css.section} aria-label={t(group.title)}>
+            <h3 className={css.heading}>{t(group.title)}</h3>
+            <p className={css.intro}>{t(group.description)}</p>
+            <div className={css.cards} role="list">
+              {group.namespaces.map(ns => (
+                <Fragment key={ns}>{renderSlot('settings.plugin.item', {}, { entryKey: ns })}</Fragment>
+              ))}
+            </div>
+          </section>
         ))}
-      </ul>
+      </div>
     )
   }
   return loaded ? <p className={css.empty}>{t('empty')}</p> : null

@@ -10,6 +10,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { SessionId, type Session } from '@deepseek-ai/dsh-session'
 import { sessionWorkspaceRoots, setAdditionalWorkspaceRoots } from '@deepseek-ai/dsh-session/workspace-roots'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SubagentService from '@deepseek-ai/dsh-subagent'
 import * as SubagentFork from '@deepseek-ai/dsh-subagent-fork-in-process'
 import * as SubagentSpawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
@@ -50,6 +51,7 @@ async function setup(
   const storageRoot = mkdtempSync(join(tmpdir(), 'dsh-team-'))
   roots.push(storageRoot)
   await ctx.plugin(JsonlSessionPersistence, { root: storageRoot })
+  await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(TestSessionQuery)
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(SubagentService)
@@ -109,7 +111,7 @@ function spawn(
 }
 
 async function waitNoAgent(ctx: Context, id: SessionId): Promise<void> {
-  await vi.waitFor(() => { expect(ctx.agents.get(id)).toBeUndefined() }, { timeout: 5_000 })
+  await vi.waitFor(() => { expect(ctx.agents.get(id) === undefined, `Agent ${id} must be released`).toBe(true) }, { timeout: 5_000 })
 }
 
 async function waitRunning(ctx: Context, id: SessionId): Promise<Agent> {
@@ -1030,9 +1032,11 @@ describe('Team Remote API', () => {
   it('exports Team views and task mutations from the owning service', async () => {
     const { ctx, lead } = await setup([])
     expect(ctx.agentTeams.typertRemote).toMatchObject({ serviceKey: 'agentTeams', namespace: 'agentTeams' })
-    expect(ctx.agentTeams.remoteView(lead)).toEqual({
+    expect(await ctx.agentTeams.remoteView(lead)).toEqual({
       members: [expect.objectContaining({ name: 'lead', role: 'lead', status: 'idle' })],
       tasks: [],
+      subagents: [],
+      messages: [],
     })
 
     const createdResult = await ctx.agentTeams.remoteCreateTask(lead, {
@@ -1052,7 +1056,47 @@ describe('Team Remote API', () => {
       ok: true,
       value: { id: created.id, revision: 2, ownerName: 'lead' },
     })
-    expect(ctx.agentTeams.remoteView(lead).tasks).toHaveLength(1)
+    expect((await ctx.agentTeams.remoteView(lead)).tasks).toHaveLength(1)
+  })
+
+  it('includes nested conversations, current activity, and durable message delivery', async () => {
+    const { ctx, lead, teamFiber } = await setup(['hang', 'hang'])
+    const started = await spawn(ctx, lead, 'worker')
+    const worker = await waitRunning(ctx, started.member.id)
+    const nested = await ctx.subagents.startContinuable({
+      provider: 'spawn', label: 'nested reviewer',
+      request: { prompt: content('review'), parent: worker }, signal: SIGNAL,
+    })
+    const nestedAgent = await waitRunning(ctx, nested.childId)
+    const delivered = await ctx.agentTeams.sendMessage(worker, {
+      target: 'lead', content: content('review request'), delivery: 'quiet', signal: SIGNAL,
+    })
+    const running = await ctx.agentTeams.remoteView(lead)
+    expect(running.subagents).toEqual([
+      expect.objectContaining({ id: worker.id, parentId: lead.id, depth: 1, activity: 'running' }),
+      expect.objectContaining({ id: nested.childId, parentId: worker.id, depth: 2, activity: 'running' }),
+    ])
+    expect(running.messages).toEqual([expect.objectContaining({
+      id: delivered.messageId, senderId: worker.id, targetId: lead.id,
+      content: content('review request'), delivered: true,
+    })])
+    const changed = ctx.agentTeams.waitForChange(lead, 10_000, SIGNAL)
+    ctx.subagents.interrupt(nested.childId, { kind: 'user', parentSessionId: worker.id })
+    await expect(changed).resolves.toEqual({ timedOut: false })
+    await nestedAgent.whenIdle()
+    expect((await ctx.agentTeams.remoteView(lead)).subagents).toContainEqual(
+      expect.objectContaining({ id: nested.childId, activity: 'inactive' }),
+    )
+    ctx.agentTeams.interrupt(lead, 'worker')
+    worker.cancel({ kind: 'parent' })
+    await waitNoAgent(ctx, worker.id)
+    const queued = await ctx.agentTeams.sendMessage(lead, {
+      target: 'worker', content: content('next review'), delivery: 'quiet', signal: SIGNAL,
+    })
+    expect((await ctx.agentTeams.remoteView(lead)).messages).toContainEqual(
+      expect.objectContaining({ id: queued.messageId, delivered: false }),
+    )
+    await teamFiber.dispose()
   })
 
   it('preserves Team task rejections and propagates unexpected failures', async () => {

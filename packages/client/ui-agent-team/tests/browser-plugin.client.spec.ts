@@ -75,6 +75,8 @@ const CARRIER_FAILURE: TeamActionResult<never> = {
 }
 
 const VIEW: TeamView = {
+  subagents: [],
+  messages: [],
   members: [{
     id: SESSION, name: 'lead', role: 'lead', status: 'idle', diagnostics: [],
   }],
@@ -135,7 +137,7 @@ async function bench(options: {
   const navigation: TeamNavigation[] = []
   let current = options.addressed === true ? CHILD : SESSION
   ctx.provide('sessions', {
-    list: { getSnapshot: () => ({ current }) },
+    list: { getSnapshot: () => ({ current, byId: {} }) },
     binding: (id: SessionId) => options.addressed === true && id === CHILD
       ? { session: { getSnapshot: () => ({
         subagent: {

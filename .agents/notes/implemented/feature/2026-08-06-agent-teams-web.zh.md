@@ -10,7 +10,7 @@ Status: implemented
 
 ## 决策
 
-私有 `ctx.agentTeams` service 除 domain operation 外，还直接负责生成式 `agentTeams/view`、`agentTeams/createTask` 与 `agentTeams/updateTask` Remote method。Team package 负责浏览器安全的 view 与 mutation-result type。View 包含 roster 与当前 task 状态，但不包含 pending mailbox 内容或已删除 task tombstone。Create 与 update rejection 通过封闭 business result 跨越 Remote；过期的 update revision 保留为 `team-task-conflict`，其他 Team rejection 保留为 `team-rejected`。意外 failure 仍是普通 `RemoteResult` failure。
+私有 `ctx.agentTeams` service 除 domain operation 外，还直接负责生成式 `agentTeams/view`、`agentTeams/createTask` 与 `agentTeams/updateTask` Remote method。Team package 负责浏览器安全的 view 与 mutation-result type。View 包含 roster、当前任务、后代会话以及带送达状态的成员间消息；已删除的任务仍不包含在内。后代活动来自实时 Agent driver，父子关系与消息来自持久状态。Create 与 update rejection 通过封闭 business result 跨越 Remote；过期的 update revision 保留为 `team-task-conflict`，其他 Team rejection 保留为 `team-rejected`。意外 failure 仍是普通 `RemoteResult` failure。
 
 `@deepseek-ai/dsh-client-ui-agent-team` 通过 `ctx.remote` 挂载 `@deepseek-ai/dsh-agent-team/remote` contribution，随后直接消费生成式 `ctx.remote.agentTeams` method。它展示 roster status、model 与 diagnostics，并支持 task create、edit、dependency update、assignment、completion、reopen 与 deletion。每次 update 都发送当前显示的 revision。每个 create 或 update 都独立持有 pending token，在开始前使更早的 refresh 失效，并在成功后重新读取完整 Team view。Conflict 仅在其 reload 成功后要求用户检查；如果重新读取失败，则保留该错误。重叠 refresh 只发布所选 Session 的最新请求。
 
@@ -24,7 +24,7 @@ Teammate navigation 使用既有 `{ parentSessionId, childSessionId, mode: 'cont
 
 ## 边界
 
-Web UI 不提供 mailbox timeline、worktree 或 Git control、teammate creation、rename、deletion、interrupt 或自动 merge。它不会从 task ownership 或 write scope 推断文件系统权限。导航到 teammate 后的人类 continuation 是普通 addressed-child prompt，不是 Team mailbox message。
+Web UI 不提供 worktree 或 Git control、teammate creation、rename、deletion、interrupt 或自动 merge。它不会从 task ownership 或 write scope 推断文件系统权限。导航到 teammate 后的人类 continuation 是普通 addressed-child prompt，不是 Team mailbox message。
 
 ## 考虑过的替代方案
 

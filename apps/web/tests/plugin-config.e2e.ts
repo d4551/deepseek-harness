@@ -15,6 +15,7 @@ import {
   launchWebScaffold, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
 import { launchBrowser, saveFailureShot, ZH_BROWSER_LOCALE } from './support.ts'
+import { assertPageAccessibility } from './accessibility.ts'
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('./expected/plugin-config', import.meta.url))
 const SECTION_EXPECTED = join(SNAPSHOT_DIR, 'section.expected.md')
@@ -56,7 +57,8 @@ describe('web e2e: plugin configuration section', () => {
     browser = await launchBrowser()
     // Chinese browser: the section asserts the localized copy the client
     // derives from it, as the rest of the settings surface does.
-    page = await browser.newPage({ viewport: { width: 1680, height: 1000 }, locale: ZH_BROWSER_LOCALE })
+    const context = await browser.newContext({ viewport: { width: 1680, height: 1000 }, locale: ZH_BROWSER_LOCALE })
+    page = await context.newPage()
     tripwire = watchConsole(page)
     await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
     await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
@@ -94,6 +96,8 @@ describe('web e2e: plugin configuration section', () => {
 
     const snapshot = await captureStableAria(page, '[role="dialog"]', scaffold.workspaceCwd)
     await compareOrRefreshGolden(SECTION_EXPECTED, snapshot, MODE)
+    await page.screenshot({ path: '.artifacts/finish/settings-groups.png' })
+    await assertPageAccessibility(page)
     expect(tripwire.pageErrors).toEqual([])
   }, 60_000)
 
@@ -300,7 +304,8 @@ describe('web e2e: Team and browser plugin configuration', () => {
   beforeAll(async () => {
     scaffold = await launchWebScaffold()
     browser = await launchBrowser()
-    page = await browser.newPage({ viewport: { width: 1680, height: 1000 }, locale: ZH_BROWSER_LOCALE })
+    const context = await browser.newContext({ viewport: { width: 1680, height: 1000 }, locale: ZH_BROWSER_LOCALE })
+    page = await context.newPage()
     tripwire = watchConsole(page)
     await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
     await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })

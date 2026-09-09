@@ -21,11 +21,12 @@ import type { Session, SessionHeader, SessionId } from '@deepseek-ai/dsh-session
 import type { SessionProjectionRegistry } from '@deepseek-ai/dsh-session-projection'
 import type { SessionProjectionCache } from '@deepseek-ai/dsh-session-projection-cache'
 import type { SessionObservation, SessionQueryEngine } from '@deepseek-ai/dsh-session-query'
-import type { SubagentListEntry } from './control-types.ts'
+import type { SubagentDescendantListEntry, SubagentListEntry } from './control-types.ts'
 import { SubagentError } from './error.ts'
 import type { SubagentIdentityProjection } from './projection-types.ts'
 
 export type { SubagentListEntry } from './control-types.ts'
+export type { SubagentDescendantListEntry } from './control-types.ts'
 
 /**
  * Concurrent cold observations per explicit catalog listing. Current Session
@@ -33,18 +34,6 @@ export type { SubagentListEntry } from './control-types.ts'
  * a validated deployment setting.
  */
 const COLD_READ_CONCURRENCY = 4
-
-/**
- * One entry of a descendant listing: the interpreted subagent facts plus its
- * position in the complete session tree. `parentId` is the durable direct
- * parent from the enumerated header, and `depth` counts edges from the root.
- */
-export type SubagentDescendantListEntry = SubagentListEntry & {
-  /** Durable direct parent of this candidate in the enumerated tree. */
-  readonly parentId: SessionId
-  /** Edge distance from the requested root; direct children are `1`. */
-  readonly depth: number
-}
 
 type CorpusRecord = { readonly header: SessionHeader; readonly live: Session | undefined }
 

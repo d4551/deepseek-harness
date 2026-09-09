@@ -18,6 +18,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { NS, type TeamKey } from './locales.ts'
 import { observeTeamActivity } from './observe-team.ts'
 import { TaskForm, type TaskDraft } from './TaskForm.tsx'
+import { TeamConversations, type TeamConversation } from './TeamConversations.tsx'
 import css from './TeamAction.module.css'
 
 /** Generated Remote result consumed directly by the Team UI. */
@@ -47,6 +48,7 @@ export interface TeamActionInjected {
     owner?: string
   }) => Promise<TeamTaskActionResult>
   openTeammate: (sessionId: SessionId, member: TeamRosterMember) => Promise<void>
+  openSubagent: (sessionId: SessionId, entry: TeamConversation) => Promise<void>
 }
 
 /** Full props of the Team conversation-header action. */
@@ -88,7 +90,7 @@ function memberStatusKey(status: TeamRosterMember['status']): TeamKey {
 
 /** Render the live Team roster and compare-and-set task board. */
 export function TeamAction({
-  sessionId, changes, load, createTask, updateTask, openTeammate, t,
+  sessionId, changes, load, createTask, updateTask, openTeammate, openSubagent, t,
 }: TeamActionProps) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -255,7 +257,10 @@ export function TeamAction({
     setEditing(null)
   }
 
-  const teammates = view?.members.filter(member => member.role === 'teammate') ?? []
+  const conversationCount = new Set([
+    ...view?.members.filter(member => member.role === 'teammate').map(member => member.id) ?? [],
+    ...view?.subagents.filter(entry => entry.kind === 'child').map(entry => entry.id) ?? [],
+  ]).size
   const assignable = view?.members.filter(member => member.status !== 'failed' && member.status !== 'provisioning') ?? []
   const closePanel = (): void => {
     setOpen(false)
@@ -282,7 +287,7 @@ export function TeamAction({
       >
         <IconUserOutline16 size={14} />
         <span>{t('trigger')}</span>
-        {teammates.length > 0 && <span className={css.count}>{teammates.length}</span>}
+        {conversationCount > 0 && <span className={css.count}>{conversationCount}</span>}
       </button>
       {open && (
         <div ref={panelRef} className={css.panel} role="dialog" aria-label={t('trigger')} tabIndex={-1}>
@@ -308,10 +313,10 @@ export function TeamAction({
                       key={member.id}
                       type="button"
                       className={css.member}
-                      disabled={member.role === 'lead' || member.status === 'failed' || member.status === 'provisioning'}
-                      title={member.role === 'teammate' ? t('open') : undefined}
+                      disabled={member.id === sessionId || member.status === 'failed' || member.status === 'provisioning'}
+                      title={t('open')}
                       onClick={() => {
-                        void openTeammate(sessionId, member).catch((reason: unknown) => { setError(String(reason)) })
+                        openTeammate(sessionId, member).then(undefined, (reason: unknown) => { setError(String(reason)) })
                       }}
                     >
                       <StateDot state={member.status === 'running' ? 'ongoing' : member.status === 'failed' ? 'error' : 'done'} />
@@ -324,6 +329,10 @@ export function TeamAction({
                   ))}
                 </div>
               </section>
+              <TeamConversations
+                view={view} t={t} open={entry => openSubagent(sessionId, entry)}
+                reportError={(reason) => { setError(String(reason)) }}
+              />
               <section>
                 <div className={css.sectionTitle}>
                   <h3>{t('tasks')}</h3>

@@ -3,6 +3,7 @@
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm/types'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { SubagentDescendantListEntry } from '@deepseek-ai/dsh-subagent/client'
 
 /** Identifies the implicit team rooted at one top-level Session. */
 export type TeamId = Branded<'TeamId'>
@@ -100,6 +101,8 @@ export interface TeamTaskView {
 export interface TeamView {
   readonly members: TeamMemberView[]
   readonly tasks: TeamTaskView[]
+  readonly subagents: SubagentDescendantListEntry[]
+  readonly messages: (TeamMessageSnapshot & { readonly delivered: boolean })[]
 }
 
 /** One peer message retained until its target Session records it. */
