@@ -2,6 +2,7 @@
 
 import { once } from 'node:events'
 import { createServer } from 'node:http'
+import { text as readText } from 'node:stream/consumers'
 import { describe, expect, it, onTestFinished } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { SettingsProvider } from '@deepseek-ai/dsh-settings'
@@ -62,7 +63,7 @@ describe('web-search-exa settings', () => {
     const bodies: Promise<string>[] = []
     await using server = createServer((request, response) => {
       requests.push({ url: request.url, authorization: request.headers.authorization })
-      bodies.push(Array.fromAsync(request, chunk => String(chunk)).then(chunks => chunks.join('')))
+      bodies.push(readText(request))
       response.setHeader('content-type', 'application/json')
       response.end(JSON.stringify({ results: [] }))
     })
@@ -73,7 +74,7 @@ describe('web-search-exa settings', () => {
     if (address === null || typeof address === 'string') throw new Error('HTTP listener has no TCP address')
     const origin = `http://127.0.0.1:${address.port}`
     const ctx = await boot({ apiKey: 'entry-key', baseURL: `${origin}/entry` })
-    onTestFinished(() => ctx.dispose())
+    onTestFinished(() => ctx.fiber.dispose())
 
     await ctx.web.search({ query: 'before' })
     await ctx.settings.update(WEB_SEARCH_EXA_SETTINGS_NAMESPACE, {
@@ -89,7 +90,12 @@ describe('web-search-exa settings', () => {
       { url: '/changed/search', authorization: 'Bearer changed-key' },
       { url: '/entry/search', authorization: 'Bearer entry-key' },
     ])
-    expect((await Promise.all(bodies)).map(body => JSON.parse(body))).toEqual([
+    const payloads: unknown[] = []
+    for (const body of await Promise.all(bodies)) {
+      const payload: unknown = JSON.parse(body)
+      payloads.push(payload)
+    }
+    expect(payloads).toEqual([
       { query: 'before', type: 'auto', contents: { highlights: { highlightsPerUrl: 1 } } },
       { query: 'after', type: 'neural', numResults: 7, contents: { highlights: { highlightsPerUrl: 3 } } },
       { query: 'reset', type: 'auto', contents: { highlights: { highlightsPerUrl: 1 } } },

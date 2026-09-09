@@ -784,7 +784,7 @@ export abstract class SettingsProvider extends Service {
       try {
         const returned = listener(ns, revision)
         if (returned != null && typeof (returned as PromiseLike<unknown>).then === 'function') {
-          void Promise.resolve(returned as PromiseLike<unknown>).then(undefined, (error: unknown) => {
+          Promise.resolve(returned as PromiseLike<unknown>).then(undefined, (error: unknown) => {
             this.warnListenerFailure(ns, error)
           })
         }
@@ -821,7 +821,9 @@ export abstract class SettingsProvider extends Service {
         })
       watcher.tail = segment
       this.pendingTails.add(segment)
-      void segment.then(() => this.pendingTails.delete(segment))
+      segment.finally(() => this.pendingTails.delete(segment)).then(undefined, (error: unknown) => {
+        this.warnWatcherFailure(registration.ns, error)
+      })
     }
     // Fan the event out one listener at a time (the plain emit stops at the
     // first throwing listener, starving the rest). Invariant violations are
@@ -837,7 +839,7 @@ export abstract class SettingsProvider extends Service {
           // An emit listener may still be an async function; its rejection
           // cannot reach the synchronous INVARIANT rethrow below, so it is
           // contained here instead of becoming an unhandled rejection.
-          void Promise.resolve(returned as PromiseLike<unknown>).then(undefined, (error: unknown) => {
+          Promise.resolve(returned as PromiseLike<unknown>).then(undefined, (error: unknown) => {
             this.warnListenerFailure(registration.ns, error)
           })
         }
@@ -899,7 +901,7 @@ export interface SettingsSectionHooks<T> extends SettingsFlowMembership {
    * Re-judge anything derived from the source — registration-level facts,
    * memoized resolutions — after an attach, a detach, or a committed change.
    */
-  onChange(): void
+  onChange?(): void
   /**
    * Reject a resolved section this consumer could not act on, for constraints
    * its schema cannot express. See {@link SettingsRegisterOptions.validate}.
@@ -945,17 +947,19 @@ export function installSettingsSection<T>(
       // pointless and the notification actively harmful.
       if (isUnloading(ctx)) return
       hooks.setSource(() => entry)
-      hooks.onChange()
+      hooks.onChange?.()
     })
-    hooks.onChange()
-    scope.watch(() => {
-      // A stored change landing while the consumer unloads reaches the watcher
-      // before the registration is released, and `onChange` is exactly as
-      // harmful here as in the disposer above: it re-registers routes against
-      // a fiber whose resources are being let go.
-      if (isUnloading(ctx)) return
-      hooks.onChange()
-    })
+    hooks.onChange?.()
+    if (hooks.onChange !== undefined) {
+      scope.watch(() => {
+        // A stored change landing while the consumer unloads reaches the watcher
+        // before the registration is released, and `onChange` is exactly as
+        // harmful here as in the disposer above: it re-registers routes against
+        // a fiber whose resources are being let go.
+        if (isUnloading(ctx)) return
+        hooks.onChange?.()
+      })
+    }
   })
 }
 

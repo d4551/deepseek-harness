@@ -52,6 +52,8 @@ Load the web service and the provider; the API key falls back to `$EXA_API_KEY` 
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-web-search-exa) is the exhaustive source for every accepted field and its JSDoc.
 
+Changes saved to the `web-search-exa` settings section apply to the next search request. Resetting the section restores the composition values and defaults. An explicitly empty API key disables the provider. Each request retains the configuration it read when it started.
+
 ### What a search returns
 
 Each Exa result maps to a `WebSearchSource`: `url`, `title`, the first non-blank highlight as `snippet`, and `publishedDate` as `publishedAt`; a result with no highlight has no portable snippet and is dropped. A request's `maxResults` wins over the configured `numResults` default and is sent to Exa as a cost and latency optimization — the final bound is enforced by the service, which truncates and flags. Exa returns no generated answer, so the result carries no `content`.
