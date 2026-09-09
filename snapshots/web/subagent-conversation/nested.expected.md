@@ -1,10 +1,9 @@
 - main:
   - navigation "Session hierarchy":
     - button "Ask a research subagent to"
-    - text: /
     - 'button "Switch subagent: event-sourcing researcher"': event-sourcing researcher
-    - text: /
-    - 'button "Switch subagent: example editor"': example editor
+    - heading "example editor" [level=1]:
+      - 'button "Switch subagent: example editor"': example editor
   - 'button "Workspace folders: 1"':
     - img
     - text: Folders 1

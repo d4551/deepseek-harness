@@ -287,7 +287,7 @@ export function TeamAction({
       {open && (
         <div ref={panelRef} className={css.panel} role="dialog" aria-label={t('trigger')} tabIndex={-1}>
           <div className={css.toolbar}>
-            <strong>{t('trigger')}</strong>
+            <h2>{t('trigger')}</h2>
             <span className={css.spacer} />
             <Button size="sm" aria-label={t('refresh')} onClick={() => { void refresh() }}>
               <IconRefreshOutline14 />

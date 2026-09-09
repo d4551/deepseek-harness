@@ -19,6 +19,7 @@ import {
   launchWebScaffold, recordFixture, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
 import { connectFreshWorkspace, launchBrowser, newEnglishPage, saveFailureShot } from './support.ts'
+import { assertPageAccessibility } from './accessibility.ts'
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('../../../snapshots/web/plan-review', import.meta.url))
 const FIXTURE = join(SNAPSHOT_DIR, 'session.jsonl')
@@ -29,6 +30,7 @@ const SIDEBAR_EXPECTED = join(SNAPSHOT_DIR, 'sidebar.expected.md')
 const APPROVED_EXPECTED = join(SNAPSHOT_DIR, 'approved.expected.md')
 const APPROVED_EXPANDED_EXPECTED = join(SNAPSHOT_DIR, 'approved-expanded.expected.md')
 const MODE = webSnapshotMode()
+const COLOR_SCHEMES: Array<'light' | 'dark'> = ['light', 'dark']
 
 // One command line: /plan enters plan mode and submits the rest as the turn's
 // message. The task is deliberately self-contained (nothing to explore in a
@@ -39,7 +41,7 @@ const TASK = 'Plan a small change: add a --greeting flag to a CLI. Do not read o
   + 'Once the plan is approved, reply with the single word DONE and stop.'
 const LINE = `/plan ${TASK}`
 
-describe('web e2e: plan review takeover round trip', () => {
+describe.each(COLOR_SCHEMES)('web e2e: plan review takeover round trip (%s)', (colorScheme) => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page
@@ -53,9 +55,11 @@ describe('web e2e: plan review takeover round trip', () => {
     // English page: the decision copy is the surface under test, and the
     // golden pins one language.
     page = await newEnglishPage(browser)
+    await page.emulateMedia({ colorScheme })
     tripwire = watchConsole(page)
     await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
     await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
+    expect(await page.locator('body').getAttribute('data-ds-dark-theme')).toBe(colorScheme === 'dark' ? '' : null)
     await connectFreshWorkspace(page, scaffold.workspaceCwd)
   }, 120_000)
 
@@ -84,14 +88,15 @@ describe('web e2e: plan review takeover round trip', () => {
     expect(await page.locator('[data-question-key]').count()).toBe(0)
     await expect.poll(() => card.getByText('Plan review').count(), { timeout: 10_000 }).toBeGreaterThan(0)
 
-    const selectedRow = page.locator('[role="treeitem"][aria-selected="true"]')
-    await expect.poll(() => selectedRow.locator('[data-state="warning"]').count(), { timeout: 10_000 }).toBe(1)
-    await expect.poll(() => selectedRow.getByText('Plan awaiting review', { exact: true }).count(), { timeout: 10_000 }).toBe(1)
+    const currentRow = page.locator('[role="treeitem"][aria-current="true"]')
+    await expect.poll(() => currentRow.locator('[data-state="warning"]').count(), { timeout: 10_000 }).toBe(1)
+    await expect.poll(() => currentRow.getByText('Plan awaiting review', { exact: true }).count(), { timeout: 10_000 }).toBe(1)
+    await assertPageAccessibility(page)
 
     if (MODE !== 'record') {
       const snapshot = await captureStableAria(page, '[data-plan-review-key]', scaffold.workspaceCwd)
       await compareOrRefreshGolden(REVIEW_EXPECTED, snapshot, MODE)
-      const sidebar = await captureStableAria(page, '[role="treeitem"][aria-selected="true"]', scaffold.workspaceCwd)
+      const sidebar = await captureStableAria(page, '[role="treeitem"][aria-current="true"]', scaffold.workspaceCwd)
       await compareOrRefreshGolden(SIDEBAR_EXPECTED, sidebar, MODE)
     }
 
@@ -108,8 +113,9 @@ describe('web e2e: plan review takeover round trip', () => {
     await expect.poll(() => page.getByText('DONE', { exact: true }).count(), { timeout: 15_000 }).toBeGreaterThanOrEqual(1)
     // Card gone; regular input restored.
     expect(await page.locator('[data-plan-review-key]').count()).toBe(0)
-    expect(await selectedRow.locator('[data-state="warning"]').count()).toBe(0)
+    expect(await currentRow.locator('[data-state="warning"]').count()).toBe(0)
     await expect.poll(() => page.locator('[data-composer-input]').first().isEnabled(), { timeout: 10_000 }).toBe(true)
+    await assertPageAccessibility(page)
     const snapshot = await captureStableAria(page, '[class*="centerCol"]', scaffold.workspaceCwd)
     await compareOrRefreshGolden(APPROVED_EXPECTED, snapshot, MODE)
     const expanded = await captureExpandedTurnProcessAria(

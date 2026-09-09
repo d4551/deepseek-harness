@@ -142,15 +142,16 @@
   box-sizing: border-box;
   font: var(--dsw-font-markdown-code);
   font-family: var(--ds-font-family-code);
-  font-size: 0.875em !important;
+  font-size: 0.875em;
   background-color: var(--dsw-alias-markdown-inline-code);
   border-radius: 6px;
   padding: 0 5px;
 }
 
-.markdown :where(h1, h2, h3, h4, h5, h6) code {
+.markdown :is(h1, h2, h3, h4, h5, h6) code {
   font: inherit;
   font-family: var(--ds-font-family-code);
+  font-size: 0.875em;
 }
 
 .markdown :global(.katex-display) {

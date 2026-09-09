@@ -75,6 +75,8 @@
 }
 
 .crumbSeg {
+  margin: 0;
+  font: inherit;
   display: inline-flex;
   align-items: center;
   gap: 4px;

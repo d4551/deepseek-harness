@@ -88,6 +88,7 @@ export function ConversationSessionHeader({
               <nav className={css.crumbs} aria-label={t('session.hierarchy')}>
                 {ancestry.map((summary, index) => {
                   const last = index === ancestry.length - 1
+                  const Segment = last ? 'h1' : 'span'
                   const title = (
                     <button
                       type="button"
@@ -109,8 +110,8 @@ export function ConversationSessionHeader({
                     ...last ? {} : { openTitle: () => { open(summary.id) } },
                   }
                   return (
-                    <span key={summary.id} className={css.crumbSeg}>
-                      {index > 0 && <span className={css.crumbSep}>/</span>}
+                    <Segment key={summary.id} className={css.crumbSeg} aria-label={last ? summary.displayTitle : undefined}>
+                      {index > 0 && <span className={css.crumbSep} aria-hidden="true">/</span>}
                       {lineage
                         ? summary.subagent
                           ? renderSlot(
@@ -129,10 +130,10 @@ export function ConversationSessionHeader({
                             </>
                           )
                         : title}
-                    </span>
+                    </Segment>
                   )
                 })}
-                {ancestry.length === 0 && <span className={css.crumbCurrent}>{sessionId}</span>}
+                {ancestry.length === 0 && <h1 className={clsx(css.crumbSeg, css.crumbCurrent)}>{sessionId}</h1>}
               </nav>
               <div className={css.headerActions}>
                 {renderSlot('conversation.session.header.actions', {})}

@@ -2,7 +2,7 @@
   - img
   - text: Agent Team
 - dialog "Agent Team":
-  - strong: Agent Team
+  - heading "Agent Team" [level=2]
   - button "Refresh Team":
     - img
   - button "Close":

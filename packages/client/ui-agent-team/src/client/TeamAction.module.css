@@ -66,6 +66,11 @@
   min-height: 28px;
 }
 
+.toolbar h2 {
+  margin: 0;
+  font: var(--dsw-font-s-strong-14);
+}
+
 .spacer {
   flex: 1;
 }

@@ -9,9 +9,10 @@
 
 ---
 
-- banner:
+- main:
   - navigation "Session hierarchy":
-    - button "Review deepseek-harness/deepseek-harness#314" [disabled]
+    - heading "Review deepseek-harness/deepseek-harness#314" [level=1]:
+      - button "Review deepseek-harness/deepseek-harness#314" [disabled]
   - img
   - text: Standard mode
   - 'button "Workspace folders: 1"':
@@ -26,29 +27,29 @@
   - tablist:
     - tab "Chat" [selected]
     - tab "Trajectory"
-- button "System prompt":
-  - img
-  - img
-  - text: System prompt
-- button "Thought for a while":
-  - text: Thought for a while
-  - img
-- paragraph: "Review complete: no actionable findings."
-- button "Copy":
-  - img
-- button "Good response":
-  - img
-- button "Bad response":
-  - img
-- button "Branch into a new conversation":
-  - img
-- text: {{clock}} Ran for {{duration}}
-- textbox "Message or run a task... / commands, @ files or sessions"
-- button "Commands":
-  - img
-- 'button "Access mode, current: Read Only"': Read Only
-- button "Select model, current github-webhook-review-test/reply":
-  - text: github-webhook-review-test/reply
-  - img
-- button "Send message" [disabled]
-- text: 1 turns · 1 steps LLM {{duration}}
+  - button "System prompt":
+    - img
+    - img
+    - text: System prompt
+  - button "Thought for a while":
+    - text: Thought for a while
+    - img
+  - paragraph: "Review complete: no actionable findings."
+  - button "Copy":
+    - img
+  - button "Good response":
+    - img
+  - button "Bad response":
+    - img
+  - button "Branch into a new conversation":
+    - img
+  - text: {{clock}} Ran for {{duration}}
+  - textbox "Message or run a task... / commands, @ files or sessions"
+  - button "Commands":
+    - img
+  - 'button "Access mode, current: Read Only"': Read Only
+  - button "Select model, current github-webhook-review-test/reply":
+    - text: github-webhook-review-test/reply
+    - img
+  - button "Send message" [disabled]
+  - text: 1 turns · 1 steps LLM {{duration}}

@@ -218,6 +218,7 @@ describe('title projection across assembled surfaces', () => {
     const runtime = await bench()
     const view = runtime.renderRoot()
     const hierarchy = view.getByRole('navigation', { name: '会话层级' })
+    expect(within(hierarchy).getByRole('heading', { level: 1, name: 'S' })).toBeTruthy()
     expect(within(hierarchy).getByRole('button', { name: 'S' }).hasAttribute('disabled')).toBe(true)
 
     await runtime.sessions.updateSummary(SID, { displayTitle: '修订标题', title: '修订标题' })
@@ -225,6 +226,7 @@ describe('title projection across assembled surfaces', () => {
       expect(within(hierarchy).getByRole('button', { name: '修订标题' }).hasAttribute('disabled')).toBe(true)
     })
     expect(within(hierarchy).queryByRole('button', { name: 'S' })).toBeNull()
+    expect(within(hierarchy).getByRole('heading', { level: 1, name: '修订标题' })).toBeTruthy()
     await runtime.dispose()
   })
 })
