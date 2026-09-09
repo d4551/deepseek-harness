@@ -36,7 +36,8 @@ type UpdateTaskInput = Parameters<TeamActionInjected['updateTask']>[1]
 
 type TeamRpcCall =
   | { method: 'agentTeams/changes'; args: [sessionId: SessionId] }
-  | { method: 'agentTeams/view'; args: [sessionId: SessionId] }
+  | { method: 'agentTeams/overview'; args: [sessionId: SessionId] }
+  | { method: 'agentTeams/conversations'; args: [sessionId: SessionId] }
   | { method: 'agentTeams/createTask'; args: [sessionId: SessionId, input: CreateTaskInput] }
   | { method: 'agentTeams/updateTask'; args: [sessionId: SessionId, input: UpdateTaskInput] }
 
@@ -115,11 +116,15 @@ async function bench(options: {
       calls.push({ method: 'agentTeams/changes', args: [sessionId] })
       return activity.changes(TeamId(sessionId), signal)
     },
-    view: (sessionId: SessionId): Promise<TeamActionResult<TeamView>> => {
-      calls.push({ method: 'agentTeams/view', args: [sessionId] })
+    overview: (sessionId: SessionId): Promise<TeamActionResult<TeamView>> => {
+      calls.push({ method: 'agentTeams/overview', args: [sessionId] })
       return Promise.resolve(options.remoteFailure === 'view'
         ? CARRIER_FAILURE
         : { ok: true as const, value: VIEW })
+    },
+    conversations: (sessionId: SessionId): Promise<TeamActionResult<TeamView['subagents']>> => {
+      calls.push({ method: 'agentTeams/conversations', args: [sessionId] })
+      return Promise.resolve({ ok: true, value: VIEW.subagents })
     },
     createTask: (sessionId: SessionId, input: CreateTaskInput): Promise<TeamTaskActionResult> => {
       calls.push({ method: 'agentTeams/createTask', args: [sessionId, input] })
@@ -227,7 +232,7 @@ describe('ui-team browser plugin', () => {
       taskId: TASK_ID, expectedRevision: 2, action: 'reassign', owner: 'worker',
     })).ok).toBe(true)
     expect(b.calls.map(call => call.method)).toEqual([
-      'agentTeams/view', 'agentTeams/createTask', 'agentTeams/updateTask', 'agentTeams/updateTask',
+      'agentTeams/overview', 'agentTeams/createTask', 'agentTeams/updateTask', 'agentTeams/updateTask',
     ])
     expect(b.calls.at(-1)?.args[1]).toMatchObject({ owner: 'worker' })
 
@@ -318,7 +323,7 @@ describe('ui-team browser plugin', () => {
       status: 'inactive',
       diagnostics: [],
     })
-    expect(b.calls[1]).toEqual({ method: 'agentTeams/view', args: [SESSION] })
+    expect(b.calls[1]).toEqual({ method: 'agentTeams/overview', args: [SESSION] })
     expect(b.navigation).toEqual([
       ['refresh', SESSION],
       ['open', {
@@ -350,7 +355,9 @@ describe('ui-team browser plugin', () => {
     const nested = SessionId('nested-worker')
     const b = await bench({ current: nested, parents: new Map([[nested, CHILD], [CHILD, SESSION]]) })
     await b.actions().load(nested)
-    expect(b.calls).toEqual([{ method: 'agentTeams/view', args: [SESSION] }])
+    expect(b.calls).toEqual([{ method: 'agentTeams/overview', args: [SESSION] }])
+    await b.actions().loadConversations(nested, new AbortController().signal)
+    expect(b.calls[1]).toEqual({ method: 'agentTeams/conversations', args: [SESSION] })
     const lead = VIEW.members[0]
     if (lead === undefined) throw new Error('Team test requires its Lead')
     await b.actions().openTeammate(nested, lead)
