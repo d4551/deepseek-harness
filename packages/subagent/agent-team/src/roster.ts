@@ -355,19 +355,16 @@ export class TeamRoster {
         )
       }
 
-      const progress = Promise.withResolvers<void>()
-      // Abort can win while the durability flush is still pending; mark the
-      // later-awaited rejection handled without changing its eventual result.
-      void progress.promise.catch(() => undefined)
+      const progress = Promise.withResolvers<Error | undefined>()
       const stopEvent = this.ctx.on('session/event', (candidate) => {
-        if (candidate === session) progress.resolve()
+        if (candidate === session) progress.resolve(undefined)
       })
       const stopDisposed = this.ctx.on('session/disposed', (candidate) => {
-        if (candidate === session) progress.resolve()
+        if (candidate === session) progress.resolve(undefined)
       })
-      const onAbort = (): void => {
+      const onAbort = () => {
         const reason: unknown = signal.reason
-        progress.reject(reason instanceof Error
+        progress.resolve(reason instanceof Error
           ? reason
           : new TeamError(`teammate creation aborted: ${errorMessage(reason)}`, 'TEAM_DISPOSED'))
       }
@@ -375,10 +372,13 @@ export class TeamRoster {
       try {
         signal.throwIfAborted()
         await this.ctx.sessions.flush(session)
-        const suffix = session.events.slice(session.header.seedLength ?? 0)
-        if (messageAccepted(suffix, message => message.id === messageId)) return
-        if (this.ctx.sessions.get(childId) !== session) continue
-        await progress.promise
+        if (!signal.aborted) {
+          const suffix = session.events.slice(session.header.seedLength ?? 0)
+          if (messageAccepted(suffix, message => message.id === messageId)) return
+          if (this.ctx.sessions.get(childId) !== session) continue
+        }
+        const cancellation = await progress.promise
+        if (cancellation !== undefined) throw cancellation
       } finally {
         signal.removeEventListener('abort', onAbort)
         stopDisposed()
