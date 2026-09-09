@@ -36,11 +36,11 @@ export function TeamConversations({ view, load, t, open, reportError }: TeamConv
     })
     return () => { controller.abort() }
   }, [load, revision])
-  const nameOf = (id: string): string => {
+  const nameOf = (id: string, recordedName = id): string => {
     const member = view.members.find(candidate => candidate.id === id)
     if (member !== undefined) return member.name
     const entry = directory.status === 'ready' ? directory.entries.find(candidate => candidate.id === id) : undefined
-    return entry?.kind === 'child' ? entry.label ?? id : id
+    return entry?.kind === 'child' ? entry.label ?? recordedName : recordedName
   }
   return (
     <PanelStack>
@@ -50,7 +50,7 @@ export function TeamConversations({ view, load, t, open, reportError }: TeamConv
           {view.messages.map(message => (
             <PanelEntry key={message.id}>
               <PanelActions>
-                <strong>{message.senderName} → {nameOf(message.targetId)}</strong>
+                <strong>{nameOf(message.senderId, message.senderName)} → {nameOf(message.targetId)}</strong>
                 <Pill>{t(message.delivered ? 'delivered' : 'queued')}</Pill>
               </PanelActions>
               <MessageBody>{message.content.flatMap(block => block.type === 'text' ? [block.text] : []).join('\n')}</MessageBody>

@@ -29,9 +29,9 @@ kind: "package-reference"
 
 ### 检查并导航 roster
 
-打开 panel 会订阅 `agentTeams/changes`，并通过 `agentTeams/view` 读取初始状态和后续更新。Roster row 展示持久 name、运行时 status、model 与 diagnostics。选择健康 teammate 时，系统刷新既有直接 child catalog，并打开普通的 `{ parentSessionId, childSessionId, mode: 'continuable' }` address。History 与后续人类 prompt 继续使用稳定 addressed-subagent 会话路径；本包不会添加 Team 专用 address 字段。
+打开 panel 会订阅 `agentTeams/changes`，并通过 `agentTeams/overview` 读取初始状态和后续更新。Roster row 展示持久 name、description、运行时 status、model 与 diagnostics。选择健康 teammate 时，系统刷新既有直接 child catalog，并打开普通的 `{ parentSessionId, childSessionId, mode: 'continuable' }` address。History 与后续人类 prompt 继续使用稳定 addressed-subagent 会话路径；本包不会添加 Team 专用 address 字段。
 
-会话列表包含嵌套子智能体，并显示其直接父会话与当前活动。已完成的轮次显示为未运行，即使会话仍驻留在内存中。选择后代会话会打开其精确的父子地址；Lead 行可返回根会话。成员间消息显示发送者、接收者、内容以及待送达或已送达状态。
+消息位于主面板，显示发送者、接收者、保留段落的内容以及待送达或已送达状态。已注册工作区成员的回复与发出的消息一起按日志事件时间排列。独立的 `agentTeams/conversations` 读取会列出嵌套子智能体及其直接父会话和活动状态。历史记录加载或失败时，消息与任务仍可使用；刷新会话会重试目录读取。选择后代会话会打开其精确的父子地址；Lead 行可返回根会话。
 
 ### 管理任务板
 
@@ -49,11 +49,11 @@ kind: "package-reference"
 
 Client export 挂载来自 [`@deepseek-ai/dsh-agent-team/remote`](../../subagent/agent-team/README.zh.md) 的生成式 `ctx.remote.agentTeams` contribution，然后通过 Cordis effect 注册 locale dictionary 与一个 conversation-header slot。Dispose plugin fiber 会移除这两项 registration。
 
-开始 create 或 update 会让更早的 refresh 失效。成功后会重新读取完整 Team view，使每个 task 的派生字段保持最新。`team-task-conflict` 结果仅在重新读取成功后显示状态陈旧提示；如果重新读取失败，则保留该错误。由于 Team service 把任务文本或 scope 编辑与 dependency 修改公开为独立 action，两者使用两个连续的 compare-and-set mutation。
+开始 create 或 update 会让更早的 refresh 失效。成功后会重新读取 Team overview，使每个 task 的派生字段保持最新。`team-task-conflict` 结果仅在重新读取成功后显示状态陈旧提示；如果重新读取失败，则保留该错误。由于 Team service 把任务文本或 scope 编辑与 dependency 修改公开为独立 action，两者使用两个连续的 compare-and-set mutation。
 
 实时订阅会在 view 读取尚未完成时合并活动通知。关闭 panel、切换会话或卸载会取消订阅，并使未完成的读取失效。流中断时会显示错误；重新打开 panel 会建立新订阅并读取当前状态。
 
-共享 Modal 组件提供面板表层与视口内滚动。共享按钮、输入框、标签与活动状态点构成面板控件，无需面板样式表或行内样式。
+共享的工作区尺寸 Modal 与 PanelLayout 组件提供响应式分栏与视口内滚动。共享按钮、输入框、标签、消息正文与活动状态点构成面板控件，无需面板样式表或行内样式。
 
 | 文件 | 职责 |
 |---|---|

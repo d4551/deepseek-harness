@@ -105,6 +105,22 @@ it('discovers registered workspace conversations and admits durable messages onl
   expect((await ctx.agentTeams.remoteView(lead)).messages).toEqual([
     expect.objectContaining({ id: sent.messageId, targetId: peer.id, delivered: true }),
   ])
+  const reply = await ctx.agentTeams.sendMessage(peer, {
+    ...message, target: workspacePeerName(lead.id), content: [{ type: 'text', text: 'I will review the settings changes.' }],
+  })
+  expect(ctx.agentTeams.remoteOverview(lead).messages.map(item => item.id)).toEqual([sent.messageId, reply.messageId])
+  expect(ctx.agentTeams.remoteOverview(peer).messages.map(item => item.id)).toEqual([sent.messageId, reply.messageId])
+  expect(ctx.agentTeams.remoteOverview(foreign).messages).toEqual([])
+  const otherPeer = (await ctx.agents.create({ sessionId: SessionId('other-peer'), meta: { cwd }, agentOptions: {} })).agent
+  await workspace.attachSession(otherPeer.id)
+  await ctx.agentTeams.sendMessage(peer, {
+    ...message, target: workspacePeerName(otherPeer.id), content: [{ type: 'text', text: 'Separate review conversation.' }],
+  })
+  expect(ctx.agentTeams.remoteOverview(lead).messages.map(item => item.id)).toEqual([sent.messageId, reply.messageId])
+  await workspace.detachSession(otherPeer.id)
+  const controller = new AbortController()
+  controller.abort(new Error('Overview cancelled'))
+  expect(() => ctx.agentTeams.remoteOverview(lead, controller.signal)).toThrow('Overview cancelled')
   await expect(ctx.agentTeams.sendMessage(foreign, message)).rejects.toMatchObject({ code: 'TEAM_MEMBER_NOT_FOUND' })
   const detached = ctx.agentTeams.waitForChange(lead, 10_000, signal)
   await workspace.detachSession(peer.id)
@@ -136,6 +152,7 @@ it('discovers registered workspace conversations and admits durable messages onl
   await vi.waitFor(async () => {
     expect((await ctx.agentTeams.remoteView(lead)).messages).toEqual([
       expect.objectContaining({ id: sent.messageId, delivered: true }),
+      expect.objectContaining({ id: reply.messageId, delivered: true }),
       expect.objectContaining({ id: pendingId, delivered: true }),
     ])
   })

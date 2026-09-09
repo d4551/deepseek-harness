@@ -5,9 +5,10 @@ import { join } from 'node:path'
 import type { Browser, Page } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
 import { createMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
+import { SessionId } from '@deepseek-ai/dsh-session'
 import {
   assertFixtureInventory, captureStableAria, compareOrRefreshGolden,
-  launchWebScaffold, watchConsole, webSnapshotMode, type WebScaffold,
+  launchWebScaffold, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
 import { connectFreshWorkspace, launchBrowser, newEnglishPage, saveFailureShot } from './support.ts'
 import { assertPageAccessibility } from './accessibility.ts'
@@ -21,14 +22,17 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page
-  let tripwire: ReturnType<typeof watchConsole>
+  const tripwire: { warnings: string[]; pageErrors: string[] } = { warnings: [], pageErrors: [] }
 
   beforeAll(async () => {
     scaffold = await launchWebScaffold()
     browser = await launchBrowser()
     page = await newEnglishPage(browser)
     await page.emulateMedia({ colorScheme })
-    tripwire = watchConsole(page)
+    page.on('console', (message) => {
+      if (message.type() === 'warning' || message.type() === 'error') tripwire.warnings.push(message.text())
+    })
+    page.on('pageerror', (error) => { tripwire.pageErrors.push(String(error)) })
     await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
     await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
     expect(await page.locator('body').getAttribute('data-ds-dark-theme')).toBe(colorScheme === 'dark' ? '' : null)
@@ -111,6 +115,31 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
       subject: 'Task updated outside the panel',
     })
     await panel.getByText('Task updated outside the panel', { exact: true }).waitFor()
+    const workspace = scaffold.ctx.workspaceRegistry.list().find(entry => entry.sessionIds.includes(lead.id))
+    if (workspace === undefined) throw new Error('Team workspace is unavailable')
+    const peer = (await scaffold.ctx.agents.create({
+      sessionId: SessionId(`team-reviewer-${colorScheme}`),
+      meta: { cwd: workspace.path }, agentOptions: {},
+    })).agent
+    await workspace.attachSession(peer.id)
+    const target = scaffold.ctx.agentTeams.listMembers(lead).find(member => member.id === peer.id)
+    const sender = scaffold.ctx.agentTeams.listMembers(peer).find(member => member.id === lead.id)
+    if (target === undefined || sender === undefined) throw new Error('Registered Team peers are unavailable')
+    const signal = new AbortController().signal
+    await scaffold.ctx.agentTeams.sendMessage(lead, {
+      target: target.name, content: [{ type: 'text', text: 'Please review the task changes.\nCheck keyboard navigation too.' }],
+      delivery: 'quiet', signal,
+    })
+    await scaffold.ctx.agentTeams.sendMessage(peer, {
+      target: sender.name, content: [{ type: 'text', text: 'Review complete. Keyboard navigation works.' }],
+      delivery: 'quiet', signal,
+    })
+    const messages = panel.getByRole('log', { name: 'Messages between members' })
+    await messages.getByText('Review complete. Keyboard navigation works.', { exact: true }).waitFor()
+    expect(await messages.getByText('Delivered', { exact: true }).count()).toBe(2)
+    expect(await messages.innerText()).toContain('Please review the task changes.\nCheck keyboard navigation too.')
+    expect(await messages.innerText()).toContain(`${target.name} → lead`)
+    await assertPageAccessibility(page)
     await panel.getByRole('button', { name: 'Close', exact: true }).click()
     await action.getByRole('button', { name: /Agent Team/iu }).click()
     await panel.getByText('Task updated outside the panel', { exact: true }).waitFor()
@@ -118,6 +147,40 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
     await assertPageAccessibility(page)
     expect(tripwire.warnings).toEqual([])
     await page.screenshot({ path: `.artifacts/finish/team-tasks-${colorScheme}.png` })
+    await page.setViewportSize({ width: 390, height: 844 })
+    await assertPageAccessibility(page)
+    expect(await panel.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
+    await page.screenshot({ path: `.artifacts/finish/team-tasks-mobile-${colorScheme}.png` })
+  }, 60_000)
+
+  it('assigns, completes, reopens, edits and deletes a task, then opens the peer conversation', async () => {
+    onTestFailed(() => saveFailureShot(page, 'web-e2e-agent-team-actions'))
+    await page.setViewportSize({ width: 1680, height: 1000 })
+    const panel = page.getByRole('dialog', { name: 'Agent Team' })
+    const task = panel.getByRole('article', { name: 'Browser task', exact: true })
+    await task.getByRole('combobox', { name: 'Owner' }).selectOption('lead')
+    await task.getByText('In progress', { exact: true }).waitFor()
+    await task.getByRole('button', { name: 'Complete', exact: true }).click()
+    await task.getByText('Completed', { exact: true }).waitFor()
+    expect(await task.getByRole('combobox', { name: 'Owner' }).isDisabled()).toBe(true)
+    await task.getByRole('button', { name: 'Reopen', exact: true }).click()
+    await task.getByText('Pending', { exact: true }).waitFor()
+    expect(await task.getByRole('combobox', { name: 'Owner' }).inputValue()).toBe('')
+    await task.getByRole('button', { name: 'Edit', exact: true }).click()
+    const subject = panel.getByRole('textbox', { name: 'Task subject', exact: true })
+    expect(await subject.evaluate(element => element === document.activeElement)).toBe(true)
+    await subject.fill('Reviewed browser task')
+    await subject.press('Enter')
+    const edited = panel.getByRole('article', { name: 'Reviewed browser task', exact: true })
+    await edited.waitFor()
+    await assertPageAccessibility(page)
+    await edited.getByRole('button', { name: 'Delete', exact: true }).click()
+    await edited.waitFor({ state: 'detached' })
+    await panel.getByRole('region', { name: 'Members', exact: true })
+      .getByRole('button', { name: `session:team-reviewer-${colorScheme}`, exact: true }).click()
+    await panel.waitFor({ state: 'detached' })
+    expect(tripwire.pageErrors).toEqual([])
+    expect(tripwire.warnings).toEqual([])
   }, 60_000)
 
   it.skipIf(MODE === 'record')('keeps the fixture inventory closed', async () => {

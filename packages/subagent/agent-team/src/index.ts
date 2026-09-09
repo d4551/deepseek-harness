@@ -12,6 +12,7 @@ import { errorMessage, TeamError } from './error.ts'
 import { TeamJournal } from './journal.ts'
 import { TeamRuntimeLifecycle } from './lifecycle.ts'
 import { TeamMailbox } from './mailbox.ts'
+import { teamMessageView } from './message-view.ts'
 import { TeamRoster } from './roster.ts'
 import type { TeamMembership } from './roster.ts'
 import { TeamTaskBoard } from './task-board.ts'
@@ -361,13 +362,10 @@ export class TeamService extends TypertRemoteService {
   remoteOverview(agent: Agent, signal?: AbortSignal): TeamOverview {
     signal?.throwIfAborted()
     const membership = this.roster.membership(agent)
-    const state = this.journal.state(membership.root)
     return {
       members: this.listMembers(agent),
       tasks: this.listTasks(agent),
-      messages: [...state.messages.values()].map(message => ({
-        ...structuredClone(message), delivered: state.delivered.has(message.id),
-      })),
+      messages: teamMessageView(membership.root, workspacePeers(this.ctx, this.roster, membership.root), this.journal),
     }
   }
 

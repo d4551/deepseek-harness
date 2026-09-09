@@ -2,39 +2,47 @@
   - heading "Agent Team" [level=2]
   - button "Close":
     - img
+  - paragraph: Follow your team’s work, conversations, and shared tasks in one place.
   - button "Refresh Team":
     - img
     - text: Refresh Team
-  - heading "Members" [level=3]
-  - article:
-    - button "lead" [disabled]
-    - paragraph: "Idle · Model: deepseek-v4-flash"
-  - heading "Shared tasks" [level=3]
-  - button "New task":
-    - img
-    - text: New task
-  - article "Browser task":
-    - group "Browser task":
-      - text: Browser task
-      - paragraph: Created through the assembled browser
-      - text: Pending
-      - list:
-        - listitem: task-1
-        - listitem: Ready
-        - listitem: "Write scopes: src/web"
-      - text: Owner
-      - combobox "Owner":
-        - option "Unowned" [selected]
-        - option "lead"
-      - button "Edit":
-        - img
-        - text: Edit
-      - button "Delete":
-        - img
-        - text: Delete
-  - region "Subagent conversations":
-    - heading "Subagent conversations" [level=3]
-    - paragraph: No subagent conversations yet
   - region "Messages between members":
     - heading "Messages between members" [level=3]
+    - text: "0"
+    - paragraph: Follow requests, progress, and handoffs between agents. New messages appear live.
     - paragraph: No messages between members yet
+    - log "Messages between members"
+  - region "Subagent conversations":
+    - heading "Subagent conversations" [level=3]
+    - button "Refresh conversations"
+    - paragraph: No subagent conversations yet
+  - region "Members":
+    - heading "Members" [level=3]
+    - text: "1"
+    - article:
+      - button "lead" [disabled]
+      - paragraph: "Idle · Model: deepseek-v4-flash"
+  - region "Shared tasks":
+    - heading "Shared tasks" [level=3]
+    - button "New task":
+      - img
+      - text: New task
+    - article "Browser task":
+      - group "Browser task":
+        - text: Browser task
+        - paragraph: Created through the assembled browser
+        - text: Pending
+        - list:
+          - listitem: task-1
+          - listitem: Ready
+          - listitem: "Write scopes: src/web"
+        - text: Owner
+        - combobox "Owner":
+          - option "Unowned" [selected]
+          - option "lead"
+        - button "Edit":
+          - img
+          - text: Edit
+        - button "Delete":
+          - img
+          - text: Delete

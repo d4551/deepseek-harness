@@ -40,7 +40,7 @@
 .description {
   margin: 0;
   color: var(--dsw-alias-label-secondary);
-  line-height: 1.5;
+  line-height: var(--dsw-line-height-body);
   overflow-wrap: anywhere;
 }
 
@@ -58,7 +58,7 @@
   color: var(--dsw-alias-label-primary);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  line-height: 1.5;
+  line-height: var(--dsw-line-height-body);
 }
 
 .actions {

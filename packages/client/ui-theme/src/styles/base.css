@@ -21,6 +21,7 @@
   --dsw-workspace-width: 72rem;
   --dsw-panel-min-width: 20rem;
   --dsw-space-layout: 1.5rem;
+  --dsw-line-height-body: 1.5;
 }
 
 body {

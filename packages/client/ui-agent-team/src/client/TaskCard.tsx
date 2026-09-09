@@ -1,7 +1,7 @@
-import type { ChangeEvent } from 'react'
+import { useId, type ChangeEvent } from 'react'
 import type { TeamMemberView, TeamTaskView, UpdateTeamTaskRequest } from '@deepseek-ai/dsh-agent-team/client'
 import {
-  Button, Pill, Select, SettingsFields, IconCheckOutline14, IconEditOutline16, IconTrashOutline16,
+  Button, Pill, Select, SettingsFields, PanelEntry, PanelActions, IconCheckOutline14, IconEditOutline16, IconTrashOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TeamKey } from './locales.ts'
 
@@ -25,11 +25,12 @@ function statusKey(status: TeamTaskView['status']): TeamKey {
 
 /** One task's status, ownership, dependencies, and revision-bound controls. */
 export function TaskCard({ task, members, pending, edit, update, t }: TaskCardProps) {
+  const ownerId = useId()
   const transition = (action: UpdateTeamTaskRequest['action']): void => {
     update({ taskId: task.id, expectedRevision: task.revision, action })
   }
   return (
-    <article aria-label={task.subject} aria-busy={pending}>
+    <PanelEntry aria-label={task.subject} aria-busy={pending}>
       <SettingsFields title={task.subject} description={task.description}>
         <Pill>{t(statusKey(task.status))}</Pill>
         <ul>
@@ -39,9 +40,10 @@ export function TaskCard({ task, members, pending, edit, update, t }: TaskCardPr
           {task.writeScopes.length > 0 && <li>{t('writeScopes')}: {task.writeScopes.join(', ')}</li>}
           {task.writeScopeWarnings.map(warning => <li key={warning}>{warning}</li>)}
         </ul>
-        <label>
-          {t('owner')}
+        <PanelActions>
+          <label htmlFor={ownerId}>{t('owner')}</label>
           <Select
+            id={ownerId}
             value={task.ownerName ?? ''}
             disabled={pending || task.status === 'completed'}
             onChange={(event: ChangeEvent<HTMLSelectElement>) => {
@@ -60,8 +62,8 @@ export function TaskCard({ task, members, pending, edit, update, t }: TaskCardPr
             )}
             {members.map(member => <option key={member.id} value={member.name}>{member.name}</option>)}
           </Select>
-        </label>
-        <div>
+        </PanelActions>
+        <PanelActions>
           <Button size="sm" onClick={edit} disabled={pending}>
             <IconEditOutline16 /> {t('edit')}
           </Button>
@@ -76,8 +78,8 @@ export function TaskCard({ task, members, pending, edit, update, t }: TaskCardPr
           <Button size="sm" disabled={pending} onClick={() => { transition('delete') }}>
             <IconTrashOutline16 /> {t('delete')}
           </Button>
-        </div>
+        </PanelActions>
       </SettingsFields>
-    </article>
+    </PanelEntry>
   )
 }

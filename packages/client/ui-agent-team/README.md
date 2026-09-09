@@ -29,9 +29,9 @@ This package adds an Agent Teams action to the Web conversation header, where a 
 
 ### Inspect and navigate the roster
 
-Opening the panel subscribes to `agentTeams/changes` and reads `agentTeams/view` for its initial state and subsequent updates. Roster rows show durable names, runtime status, model, and diagnostics. Selecting a healthy teammate refreshes the existing direct-child catalog and opens the ordinary `{ parentSessionId, childSessionId, mode: 'continuable' }` address. History and later human prompts continue through the stable addressed-subagent conversation path; this package adds no Team-specific address field.
+Opening the panel subscribes to `agentTeams/changes` and reads `agentTeams/overview` for its initial state and subsequent updates. Roster rows show durable names, descriptions, runtime status, model, and diagnostics. Selecting a healthy teammate refreshes the existing direct-child catalog and opens the ordinary `{ parentSessionId, childSessionId, mode: 'continuable' }` address. History and later human prompts continue through the stable addressed-subagent conversation path; this package adds no Team-specific address field.
 
-The conversation list includes nested subagents with their direct parents and current activity. Completed turns display as inactive even when their sessions remain resident. Selecting a descendant opens its exact parent-child address; the Lead row returns to the root conversation. Messages between members show their sender, recipient, content, and queued or delivered state.
+Messages occupy the primary panel, showing sender, recipient, preserved paragraphs, and queued or delivered state. Registered workspace peers' incoming replies appear with outgoing messages, ordered by journal event time. The independent `agentTeams/conversations` read lists nested subagents with their direct parents and activity. History loading or failure leaves messages and tasks available; Refresh conversations retries the directory. Selecting a descendant opens its exact parent-child address; the Lead row returns to the root conversation.
 
 ### Manage the task board
 
@@ -49,11 +49,11 @@ Opening a task form focuses its subject. Forms retain visible field labels after
 
 The Client export mounts the generated `ctx.remote.agentTeams` contribution from [`@deepseek-ai/dsh-agent-team/remote`](../../subagent/agent-team/README.md), then registers its locale dictionaries and one conversation-header slot through Cordis effects. Disposing the plugin fiber removes both registrations.
 
-Starting a create or update invalidates older refreshes. Success reloads the complete Team view so every task's derived fields stay current. A `team-task-conflict` result displays a stale-state notice only after that reload succeeds; a reload failure remains visible instead. Editing task text or scopes and changing dependencies use two sequential compare-and-set mutations because the Team service exposes them as separate actions.
+Starting a create or update invalidates older refreshes. Success reloads the Team overview so every task's derived fields stay current. A `team-task-conflict` result displays a stale-state notice only after that reload succeeds; a reload failure remains visible instead. Editing task text or scopes and changing dependencies use two sequential compare-and-set mutations because the Team service exposes them as separate actions.
 
 The live subscription coalesces activity while a view read is pending. Closing the panel, changing conversations, or unmounting cancels it and invalidates outstanding reads. An interrupted stream displays an error; reopening the panel establishes a new subscription and reads current state.
 
-The shared Modal primitive provides the panel surface and viewport-constrained scrolling. Shared buttons, inputs, pills, and activity dots provide its controls without a panel stylesheet or inline styling.
+The shared workspace-sized Modal and PanelLayout primitives provide responsive columns and viewport-constrained scrolling. Shared buttons, inputs, pills, message bodies, and activity dots provide its controls without a panel stylesheet or inline styling.
 
 | File | Role |
 |---|---|
