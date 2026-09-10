@@ -335,6 +335,17 @@ describe('the preset list', () => {
 
     expect(actions.load).toHaveBeenCalledTimes(2)
   })
+
+  it('reports a rejected action and lets the user reload the roster', async () => {
+    const actions = renderSection()
+    actions.view.mockRejectedValueOnce(new Error('Connection lost'))
+
+    fireEvent.click(screen.getByRole('button', { name: `${en.view}: ${en.presetStandardName}` }))
+    await waitFor(() => { expect(screen.getByRole('alert').textContent).toContain('Connection lost') })
+    fireEvent.click(screen.getByRole('button', { name: en.retry }))
+    expect(actions.load).toHaveBeenCalledTimes(2)
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
 })
 
 describe('the copy dialog', () => {
@@ -393,6 +404,18 @@ describe('the copy dialog', () => {
     fireEvent.click(within(screen.getByRole('dialog')).getByText(en.creating))
 
     expect(actions.confirmCopy).not.toHaveBeenCalled()
+  })
+
+  it('keeps a rejected copy error inside its dialog and clears it on retry', async () => {
+    const actions = renderSection({ copy: { ...draft, id: 'my-agent' } })
+    actions.confirmCopy.mockRejectedValueOnce(new Error('Connection lost'))
+    const dialog = within(screen.getByRole('dialog'))
+
+    fireEvent.click(dialog.getByRole('button', { name: en.create }))
+    await waitFor(() => { expect(dialog.getByRole('alert').textContent).toBe('Connection lost') })
+    fireEvent.click(dialog.getByRole('button', { name: en.create }))
+    expect(dialog.queryByRole('alert')).toBeNull()
+    expect(actions.confirmCopy).toHaveBeenCalledTimes(2)
   })
 
   it('dismisses on Escape', () => {

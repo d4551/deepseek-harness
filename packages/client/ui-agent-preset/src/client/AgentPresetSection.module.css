@@ -301,28 +301,6 @@
   white-space: nowrap;
 }
 
-.secondaryButton {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  border: none;
-  border-radius: 7px;
-  padding: 5px 8px;
-  background: none;
-  color: var(--dsw-alias-label-secondary);
-  font: var(--dsw-font-caption);
-  cursor: pointer;
-}
-
-.secondaryButton:hover:not(:disabled) {
-  background: var(--dsw-alias-bg-layer-1);
-}
-
-.secondaryButton:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
 .field {
   display: flex;
   flex-direction: column;

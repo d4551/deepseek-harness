@@ -10,7 +10,7 @@
  * mounted once at session creation and nothing re-reads the file.
  */
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   Button, IconBrowseOutline16, IconCopyOutline16, IconFolderOpenOutline16, IconPlusOutline16, IconTrashOutline16, Modal, Tooltip,
@@ -18,6 +18,7 @@ import {
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { draftBlocker, type AgentPresetSectionState } from './section-store.ts'
+import { messageOf } from './settings-store.ts'
 import { presetDisplayText, type AgentPresetSettingsKey } from './locales.ts'
 import css from './AgentPresetSection.module.css'
 
@@ -74,9 +75,11 @@ interface CopyDialogProps {
 }
 
 function CopyDialog({ state, t, actions }: CopyDialogProps): ReactNode {
+  const [submissionError, setSubmissionError] = useState<string | null>(null)
+  const reportSubmissionError = (reason: unknown) => { setSubmissionError(messageOf(reason)) }
   const draft = state.copy
   const blocker = draft === null ? undefined : draftBlocker(draft, state.rows)
-  const message = draft === null ? null : draft.error ?? (blocker === undefined ? null : t(blocker))
+  const message = draft === null ? null : draft.error ?? submissionError ?? (blocker === undefined ? null : t(blocker))
   const source = draft === null ? undefined : state.rows.find(row => row.id === draft.from)
   const sourceTitle = source === undefined ? draft?.fromTitle : presetDisplayText(source, t).name
   return (
@@ -98,7 +101,10 @@ function CopyDialog({ state, t, actions }: CopyDialogProps): ReactNode {
           </Button>
           <Button
             disabled={draft === null || draft.saving || blocker !== undefined}
-            onClick={() => actions.confirmCopy()}
+            onClick={() => {
+              setSubmissionError(null)
+              actions.confirmCopy().then(undefined, reportSubmissionError)
+            }}
           >
             {draft?.saving === true ? t('creating') : t('create')}
           </Button>
@@ -177,6 +183,8 @@ function CardDescription({ text }: { text: string }): ReactNode {
 export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
   const { useAgentPresetSection, t, load } = props
   const state = useAgentPresetSection(snapshot => snapshot)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const reportActionError = useCallback((reason: unknown) => { setActionError(messageOf(reason)) }, [])
   const viewedId = state.view?.id
   const viewedRow = viewedId === undefined ? undefined : state.rows.find(row => row.id === viewedId)
   const viewedTitle = state.view === null
@@ -184,20 +192,23 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
     : viewedRow === undefined ? state.view.title : presetDisplayText(viewedRow, t).name
 
   useEffect(() => {
-    load()
-  }, [load])
+    load().then(undefined, reportActionError)
+  }, [load, reportActionError])
 
   // A deployment that composes no presets has nothing to manage: every
   // session shares the host composition and the page would be an empty list.
   if (state.status === 'unavailable') return null
-  if (state.status === 'error') {
-    const detail = state.error ?? ''
+  if (state.status === 'error' || actionError !== null) {
+    const detail = actionError ?? state.error ?? ''
     return (
       <div className={css.section}>
         <p className={css.error} role="alert">{`${t('error')} ${detail}`}</p>
-        <button type="button" className={css.secondaryButton} onClick={() => load()}>
+        <Button onClick={() => {
+          setActionError(null)
+          load().then(undefined, reportActionError)
+        }}>
           {t('retry')}
-        </button>
+        </Button>
       </div>
     )
   }
@@ -278,7 +289,7 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
                       title={row.broken !== undefined ? t('brokenBadge') : row.isDefault ? t('inUse') : t('setDefault')}
                       onClick={() => {
                         if (row.broken !== undefined) return
-                        return props.makeDefault(row.id)
+                        props.makeDefault(row.id).then(undefined, reportActionError)
                       }}
                     >
                       <span className={css.cardHead}>
@@ -326,7 +337,7 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
                               className={css.iconButton}
                               data-tip={t('view')}
                               aria-label={`${t('view')}: ${text.name}`}
-                              onClick={() => props.view(row.id)}
+                              onClick={() => { props.view(row.id).then(undefined, reportActionError) }}
                             >
                               <IconBrowseOutline16 />
                             </button>
@@ -338,7 +349,7 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
                             className={css.iconButton}
                             data-tip={state.hasDocument ? t('openLocation') : t('showLocation')}
                             aria-label={`${state.hasDocument ? t('openLocation') : t('showLocation')}: ${text.name}`}
-                            onClick={() => props.openLocation(row.id)}
+                            onClick={() => { props.openLocation(row.id).then(undefined, reportActionError) }}
                           >
                             <IconFolderOpenOutline16 />
                           </button>
@@ -385,7 +396,7 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
           </section>
         )
       })}
-      <CopyDialog
+      {state.copy !== null && <CopyDialog
         state={state}
         t={t}
         actions={{
@@ -394,7 +405,7 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
           setCopyId: props.setCopyId,
           setCopyName: props.setCopyName,
         }}
-      />
+      />}
       <Modal
         open={state.view !== null}
         onClose={() => { props.closeView() }}
@@ -433,7 +444,7 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
               variant="outline"
               className={css.deleteConfirm}
               disabled={state.deleting}
-              onClick={() => props.remove()}
+              onClick={() => { props.remove().then(undefined, reportActionError) }}
             >
               {state.deleting ? t('deleting') : t('deleteConfirm')}
             </Button>

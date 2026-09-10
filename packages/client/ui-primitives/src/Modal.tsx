@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef } from 'react'
-import type { ReactNode, Ref } from 'react'
+import type { HTMLAttributes, ReactNode, Ref } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import { IconCloseOutline16 } from './icons/index.tsx'
@@ -14,7 +14,7 @@ interface ModalBaseProps {
   footer?: ReactNode
   headerActions?: ReactNode
   navigation?: ReactNode
-  className?: string
+  className?: HTMLAttributes<HTMLDivElement>['className']
   contentClassName?: string
   size?: 'compact' | 'workspace'
 }
