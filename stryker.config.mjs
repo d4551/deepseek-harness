@@ -7,7 +7,7 @@ export default {
   testRunner: 'vitest',
   plugins: [import.meta.resolve('@stryker-mutator/vitest-runner')],
   vitest: { configFile: 'vitest.mutation.config.ts', related: false },
-  coverageAnalysis: 'off',
+  coverageAnalysis: 'perTest',
   disableTypeChecks: false,
   reporters: ['progress', 'clear-text', 'json', 'event-recorder'],
   jsonReporter: { fileName: '.artifacts/mutation/mutation.json' },

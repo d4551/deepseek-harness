@@ -1,0 +1,53 @@
+diff --git a/dist/src/stryker-setup.js b/dist/src/stryker-setup.js
+index aecfacbe47b285c272c47e54b3d66a716adfdc41..d7ac0c5d706313c6b472cde8f59677698ca59e32 100644
+--- a/dist/src/stryker-setup.js
++++ b/dist/src/stryker-setup.js
+@@ -63,7 +63,7 @@ function collectTestName({ name, suite, }) {
+         nameParts.unshift(currentSuite.name);
+         currentSuite = currentSuite.suite;
+     }
+-    return nameParts.join(' ').trim();
++    return nameParts.join(' > ').trim();
+ }
+ function toRawTestId(test) {
+     return `${test.file?.filepath ?? 'unknown.js'}#${collectTestName(test)}`;
+diff --git a/dist/src/test-helpers.js b/dist/src/test-helpers.js
+index 56cc786f30c524ae18ce87eef1a67fdf26b703c5..42821a859ec9f388dbbd66010bfa314761a5c9e0 100644
+--- a/dist/src/test-helpers.js
++++ b/dist/src/test-helpers.js
+@@ -8,7 +8,7 @@ export function collectTestName({ name, suite, }) {
+         nameParts.unshift(currentSuite.name);
+         currentSuite = currentSuite.suite;
+     }
+-    return nameParts.join(' ').trim();
++    return nameParts.join(' > ').trim();
+ }
+ export function toRawTestId(test) {
+     return `${test.file?.filepath ?? 'unknown.js'}#${collectTestName(test)}`;
+diff --git a/dist/src/vitest-test-runner.js b/dist/src/vitest-test-runner.js
+index 84f1ca026503b8e92b7adc952ec6c6a401943656..167ed5d7184f726a51ef9dcea2d29d5337b81e2a 100644
+--- a/dist/src/vitest-test-runner.js
++++ b/dist/src/vitest-test-runner.js
+@@ -111,7 +111,7 @@ export class VitestTestRunner {
+             !options.testFiles) {
+             this.log.warn('Vitest failed to find test files related to mutated files. Either disable `vitest.related` or import your source files directly from your test files. See https://stryker-mutator.io/docs/stryker-js/troubleshooting/#vitest-failed-to-find-test-files-related-to-mutated-files');
+         }
+-        const mutantCoverage = this.readMutantCoverage();
++        const mutantCoverage = this.options.coverageAnalysis === 'off' ? undefined : this.readMutantCoverage();
+         if (testResult.status === DryRunStatus.Complete) {
+             return {
+                 status: testResult.status,
+@@ -131,6 +131,13 @@ export class VitestTestRunner {
+             relatedFiles: [options.sandboxFileName],
+         });
+         const hitCount = this.readHitCount();
++        if (dryRunResult.status === DryRunStatus.Complete &&
++            !dryRunResult.tests.some((test) => test.status !== TestStatus.Skipped)) {
++            return toMutantRunResult({
++                status: DryRunStatus.Error,
++                errorMessage: 'Mutation run completed without executing a test.',
++            });
++        }
+         const timeOut = determineHitLimitReached(hitCount, options.hitLimit);
+         return toMutantRunResult(timeOut ?? dryRunResult);
+     }

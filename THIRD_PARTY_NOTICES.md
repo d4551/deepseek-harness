@@ -123,6 +123,7 @@ bun applies local patches to the following packages at install time, so shipped 
 
 - `node-pty@1.2.0-beta.15` — [`patches/node-pty@1.2.0-beta.15.patch`](patches/node-pty@1.2.0-beta.15.patch)
 - `@stryker-mutator/core@10.0.0` — [`patches/@stryker-mutator%2Fcore@10.0.0.patch`](patches/@stryker-mutator%2Fcore@10.0.0.patch)
+- `@stryker-mutator/vitest-runner@10.0.0` — [`patches/@stryker-mutator%2Fvitest-runner@10.0.0.patch`](patches/@stryker-mutator%2Fvitest-runner@10.0.0.patch)
 
 ## Official Claude Code platform payloads
 
