@@ -8,7 +8,7 @@
  * new-session screen ({@link AgentPresetSeat}).
  */
 
-import { useEffect } from 'react'
+import { useEffect, useTransition } from 'react'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { IconAgentPresetOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -48,12 +48,13 @@ export function AgentPresetLabel({
     return typeof value === 'string' ? value : undefined
   })
   const options = useAgentPresets(state => state.options)
+  const [, startTransition] = useTransition()
 
   useEffect(() => {
     // Deployments that compose no presets never label anything, so the roster
     // is only worth a request once a session reports one.
-    if (preset !== undefined) void load()
-  }, [preset, load])
+    if (preset !== undefined) startTransition(load)
+  }, [preset, load, startTransition])
 
   if (preset === undefined) return null
 

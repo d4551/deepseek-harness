@@ -1,6 +1,6 @@
 /** Optional settings-header action for opening a file-backed Host document. */
 
-import { useEffect } from 'react'
+import { useEffect, useTransition } from 'react'
 import type { ReactNode } from 'react'
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -28,10 +28,11 @@ export type SettingsDocumentActionProps =
  */
 export function SettingsDocumentAction({ controller, useSnapshot, t }: SettingsDocumentActionProps): ReactNode {
   const state = useSnapshot(snapshot => snapshot)
+  const [, startTransition] = useTransition()
 
   useEffect(() => {
-    void controller.load()
-  }, [controller])
+    startTransition(() => controller.load())
+  }, [controller, startTransition])
 
   if (state.status !== 'ready') return null
 
@@ -42,7 +43,7 @@ export function SettingsDocumentAction({ controller, useSnapshot, t }: SettingsD
         variant="outline"
         size="sm"
         disabled={state.opening}
-        onClick={() => { void controller.open() }}
+        onClick={() => { startTransition(() => controller.open()) }}
       >
         {t('openDocument')}
       </Button>

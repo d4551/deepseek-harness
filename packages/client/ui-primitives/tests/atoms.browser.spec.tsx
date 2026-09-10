@@ -487,6 +487,37 @@ describe('Menu', () => {
 })
 
 describe('Modal', () => {
+  it('keeps blocking steps focused until their own action completes', () => {
+    const background = render(<Button>Application</Button>)
+    const trigger = screen.getByRole('button', { name: 'Application' })
+    trigger.focus()
+    function BlockingStep() {
+      const [open, setOpen] = useState(true)
+      return (
+        <Modal open={open} dismissible={false} title="Required step" closeLabel="Close" initialFocus="close">
+          <Button onClick={() => { setOpen(false) }}>Continue</Button>
+        </Modal>
+      )
+    }
+    render(<BlockingStep />)
+    const dialog = screen.getByRole('dialog', { name: 'Required step' })
+    expect(document.activeElement).toBe(dialog)
+    expect(background.container.inert).toBe(true)
+    expect(screen.queryByRole('button', { name: 'Close' })).toBeNull()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    const mask = dialog.previousElementSibling
+    if (mask === null) throw new Error('Modal backdrop is missing')
+    fireEvent.pointerDown(mask)
+    fireEvent.click(mask)
+    expect(screen.getByRole('dialog')).toBe(dialog)
+    trigger.focus()
+    expect(document.activeElement).toBe(dialog)
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(background.container.inert).toBe(false)
+    expect(document.activeElement).toBe(trigger)
+  })
+
   it('keeps portaled menu selection and Escape inside the owning dialog', () => {
     const close = vi.fn()
     const select = vi.fn()

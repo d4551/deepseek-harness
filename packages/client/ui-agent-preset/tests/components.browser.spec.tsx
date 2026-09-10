@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * The three conversation-adjacent surfaces: the General-settings row naming the
  * default for later sessions, the new-session chip naming the next one's, and
@@ -320,65 +319,60 @@ describe('the chip introduce cue', () => {
     vi.unstubAllGlobals()
   })
 
-  /** Character spans carry inline animation delays; nothing else does. */
+  /** Characters participating in the preset introduction. */
   function delayedChars(): HTMLElement[] {
-    return Array.from(screen.getByRole('button').querySelectorAll<HTMLElement>('[style]'))
+    return Array.from(screen.getByRole('button').querySelectorAll<HTMLElement>('[data-character-index]'))
   }
 
-  it('reveals a long Latin name inside the shared window, then acknowledges', () => {
+  it('reveals a long Latin name inside the shared window, then acknowledges', async () => {
     vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false })))
-    vi.useFakeTimers()
     const actions = renderSeat({
       current: 'creator',
       options: [{ id: 'creator', trust: 'user', name: 'CreatorMode' }],
       introduce: true,
     })
 
-    // Eleven characters split the 200ms window into 20ms steps, where the
-    // fixed 40ms tick would have doubled the run for a Latin name.
     const chars = delayedChars()
     expect(chars.map(span => span.textContent).join('')).toBe('CreatorMode')
-    expect(chars[0]!.style.animationDelay).toBe('150ms')
-    expect(chars[1]!.style.animationDelay).toBe('170ms')
-    expect(chars[10]!.style.animationDelay).toBe('350ms')
-
-    // 150 delay + 200 window + 400 fade: acknowledged only once the last
-    // character has settled, and the label is plain text again after.
-    act(() => { vi.advanceTimersByTime(749) })
+    expect(screen.getByRole('button').querySelector('[style]')).toBeNull()
+    expect(getComputedStyle(chars[0]!).animationDelay).toBe('0.2s')
+    expect(getComputedStyle(chars[1]!).animationDelay).toBe('0.22s')
+    expect(getComputedStyle(chars[10]!).animationDelay).toBe('0.4s')
+    expect(getComputedStyle(chars[10]!).animationDuration).toBe('0.3s')
+    const animations = chars.flatMap(span => span.getAnimations())
+    expect(animations).toHaveLength(11)
+    for (const animation of animations) animation.pause()
+    fireEvent.animationEnd(chars[0]!)
     expect(actions.introduced).not.toHaveBeenCalled()
-    act(() => { vi.advanceTimersByTime(1) })
-    expect(actions.introduced).toHaveBeenCalledTimes(1)
+    for (const animation of animations) animation.finish()
+    await waitFor(() => { expect(actions.introduced).toHaveBeenCalledTimes(1) })
     expect(delayedChars()).toHaveLength(0)
   })
 
   it('keeps the per-tick cap for a short CJK name', () => {
     vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false })))
-    vi.useFakeTimers()
     renderSeat({
       current: 'creator',
       options: [{ id: 'creator', trust: 'user', name: '创造模式' }],
       introduce: true,
     })
 
-    // Four characters fit under the window, so the 40ms tick applies as-is.
     const chars = delayedChars()
     expect(chars).toHaveLength(4)
-    expect(chars[1]!.style.animationDelay).toBe('190ms')
-    expect(chars[3]!.style.animationDelay).toBe('270ms')
+    expect(Number.parseFloat(getComputedStyle(chars[1]!).animationDelay)).toBeCloseTo(0.2 + 0.2 / 3)
+    expect(getComputedStyle(chars[3]!).animationDelay).toBe('0.4s')
   })
 
-  it('starts a one-character name with no stagger at all', () => {
+  it('starts a one-character name with no stagger at all', async () => {
     vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false })))
-    vi.useFakeTimers()
     const actions = renderSeat({
       current: 'creator',
       options: [{ id: 'creator', trust: 'user', name: 'C' }],
       introduce: true,
     })
 
-    expect(delayedChars()[0]!.style.animationDelay).toBe('150ms')
-    act(() => { vi.advanceTimersByTime(550) })
-    expect(actions.introduced).toHaveBeenCalledTimes(1)
+    expect(getComputedStyle(delayedChars()[0]!).animationDelay).toBe('0.2s')
+    await waitFor(() => { expect(actions.introduced).toHaveBeenCalledTimes(1) })
   })
 
   it('skips the run under reduced motion and acknowledges at once', () => {

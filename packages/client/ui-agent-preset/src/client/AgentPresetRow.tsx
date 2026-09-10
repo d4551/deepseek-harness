@@ -4,7 +4,7 @@
  * disturbs work in progress.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { AgentPresetSettingsState } from './settings-store.ts'
@@ -37,10 +37,11 @@ export type AgentPresetRowProps =
 export function AgentPresetRow({ load, select, useAgentPreset, t }: AgentPresetRowProps) {
   const state = useAgentPreset(snapshot => snapshot)
   const [open, setOpen] = useState(false)
+  const [, startTransition] = useTransition()
 
   useEffect(() => {
-    void load()
-  }, [load])
+    startTransition(load)
+  }, [load, startTransition])
 
   useEffect(() => {
     if (state.writable && state.status !== 'unavailable') return
@@ -72,7 +73,7 @@ export function AgentPresetRow({ load, select, useAgentPreset, t }: AgentPresetR
         disabled={busy || !state.writable || state.options.length === 0}
         open={open}
         onOpenChange={setOpen}
-        onSelect={(id) => { void select(id) }}
+        onSelect={(id) => { startTransition(() => select(id)) }}
       />
     </div>
   )

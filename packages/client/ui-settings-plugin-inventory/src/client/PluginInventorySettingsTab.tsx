@@ -70,7 +70,7 @@ export function PluginInventorySettingsTab({ list, t }: PluginInventorySettingsT
 
   useEffect(() => {
     let current = true
-    void Promise.resolve().then(() => list()).then(
+    Promise.resolve().then(() => list()).then(
       (snapshot) => { if (current) setState({ status: 'ready', snapshot }) },
       () => { if (current) setState({ status: 'error' }) },
     )

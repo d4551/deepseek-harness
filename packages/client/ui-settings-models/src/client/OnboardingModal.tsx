@@ -5,8 +5,6 @@ import type { ReactNode } from 'react'
 import { Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './OnboardingModal.module.css'
 
-const ignoreImplicitDismiss = (): void => {}
-
 /**
  * Render a blocking onboarding dialog and keep the application root inert.
  * @param props.title - accessible and visible dialog title.
@@ -24,14 +22,6 @@ export function OnboardingModal({
   const titleRef = useRef<HTMLHeadingElement | null>(null)
 
   useEffect(() => {
-    const appRoot = document.getElementById('root')
-    if (appRoot === null) return
-    const previous = appRoot.inert
-    appRoot.inert = true
-    return () => { appRoot.inert = previous }
-  }, [])
-
-  useEffect(() => {
     if (focusTitle) titleRef.current?.focus()
   }, [focusTitle])
 
@@ -39,9 +29,9 @@ export function OnboardingModal({
     <Modal
       open
       title={title}
-      onClose={ignoreImplicitDismiss}
+      dismissible={false}
       headless
-      className={css.dialog as string}
+      className={css.dialog}
     >
       <div className={css.content}>
         <h2 ref={titleRef} className={css.title} tabIndex={focusTitle ? -1 : undefined}>{title}</h2>

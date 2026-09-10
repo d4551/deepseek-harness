@@ -8,7 +8,6 @@ import css from './Modal.module.css'
 interface ModalBaseProps {
   ref?: Ref<HTMLDivElement>
   open: boolean
-  onClose: () => void
   description?: string
   children?: ReactNode
   footer?: ReactNode
@@ -20,6 +19,9 @@ interface ModalBaseProps {
 }
 
 type ModalProps = ModalBaseProps & (
+  | { dismissible?: true; onClose: () => void }
+  | { dismissible: false; onClose?: never }
+) & (
   | { headless: true; title: string; closeLabel?: never; initialFocus?: never }
   | { headless?: false; title: ReactNode; closeLabel: ReactNode; initialFocus?: 'dialog' | 'close' }
 )
@@ -29,6 +31,7 @@ type ModalProps = ModalBaseProps & (
  * @param props.open - whether the dialog is showing.
  * @param props.ref - dialog element for focus and imperative accessibility checks.
  * @param props.onClose - Escape or mask click.
+ * @param props.dismissible - whether Escape, backdrop, and close controls can dismiss the dialog.
  * @param props.title - visible heading, or accessible name in headless mode.
  * @param props.closeLabel - localized accessible close-button label.
  * @param props.description - optional supporting sentence under the title.
@@ -40,7 +43,7 @@ type ModalProps = ModalBaseProps & (
  * @returns null when closed; otherwise the overlay tree.
  */
 export function Modal({
-  open, onClose, title, closeLabel, description, children, footer, headerActions, navigation,
+  open, onClose, dismissible = true, title, closeLabel, description, children, footer, headerActions, navigation,
   className, contentClassName, ref, headless = false, size = 'compact', initialFocus = 'dialog',
 }: ModalProps) {
   const titleId = useId()
@@ -60,7 +63,7 @@ export function Modal({
       }
     }
     if (!dialog.contains(document.activeElement)) {
-      const target = initialFocus === 'close' ? closeRef.current : dialog
+      const target = initialFocus === 'close' && dismissible ? closeRef.current : dialog
       target?.focus()
     }
     const containFocus = (event: FocusEvent) => {
@@ -94,9 +97,9 @@ export function Modal({
       for (const [element, inert] of siblings) element.inert = inert
       if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus()
     }
-  }, [open, initialFocus])
+  }, [open, initialFocus, dismissible])
   useEffect(() => {
-    if (!open) return
+    if (!open || !dismissible || onClose === undefined) return
     const onKeyDown = (e: KeyboardEvent) => {
       const root = rootRef.current
       if (e.key === 'Escape' && !e.defaultPrevented && !root?.inert
@@ -114,13 +117,13 @@ export function Modal({
       document.removeEventListener('keydown', onKeyDown)
       document.removeEventListener('pointerdown', onPointerDown)
     }
-  }, [open, onClose])
+  }, [open, onClose, dismissible])
 
   if (!open) return null
 
   return createPortal((
     <div ref={rootRef} className={css.root} role="presentation">
-      <div className={css.mask} aria-hidden="true" onClick={onClose} />
+      <div className={css.mask} aria-hidden="true" onClick={dismissible ? onClose : undefined} />
       <div
         ref={ref}
         className={clsx(css.dialog, size === 'workspace' && css.workspace, className)}
@@ -137,16 +140,18 @@ export function Modal({
               <div className={css.header}>
                 <h2 id={titleId} className={css.title}>{title}</h2>
                 {headerActions}
-                <button
-                  ref={closeRef}
-                  type="button"
-                  className={css.close}
-                  aria-label={typeof closeLabel === 'string' ? closeLabel : undefined}
-                  onClick={onClose}
-                >
-                  <IconCloseOutline16 size={14} />
-                  {typeof closeLabel !== 'string' && <span className="dsw-visually-hidden">{closeLabel}</span>}
-                </button>
+                {dismissible && (
+                  <button
+                    ref={closeRef}
+                    type="button"
+                    className={css.close}
+                    aria-label={typeof closeLabel === 'string' ? closeLabel : undefined}
+                    onClick={onClose}
+                  >
+                    <IconCloseOutline16 size={14} />
+                    {typeof closeLabel !== 'string' && <span className="dsw-visually-hidden">{closeLabel}</span>}
+                  </button>
+                )}
               </div>
               {navigation !== undefined && <div className={css.navigation}>{navigation}</div>}
               <div className={clsx(css.content, contentClassName)}>

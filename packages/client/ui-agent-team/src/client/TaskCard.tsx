@@ -32,14 +32,14 @@ export function TaskCard({ task, members, pending, edit, update, t }: TaskCardPr
   return (
     <PanelEntry aria-label={task.subject} aria-busy={pending}>
       <SettingsFields title={task.subject} description={task.description}>
-        <Pill>{t(statusKey(task.status))}</Pill>
-        <ul>
-          <li>{task.id}</li>
-          {task.status === 'pending' && <li>{task.ready ? t('ready') : t('blocked')}</li>}
-          {task.blockedBy.length > 0 && <li>{t('blockedBy')}: {task.blockedBy.join(', ')}</li>}
-          {task.writeScopes.length > 0 && <li>{t('writeScopes')}: {task.writeScopes.join(', ')}</li>}
-          {task.writeScopeWarnings.map(warning => <li key={warning}>{warning}</li>)}
-        </ul>
+        <PanelActions>
+          <Pill>{t(statusKey(task.status))}</Pill>
+          <Pill>{task.id}</Pill>
+          {task.status === 'pending' && <Pill>{task.ready ? t('ready') : t('blocked')}</Pill>}
+        </PanelActions>
+        {task.blockedBy.length > 0 && <p>{t('blockedBy')}: {task.blockedBy.join(', ')}</p>}
+        {task.writeScopes.length > 0 && <p>{t('writeScopes')}: {task.writeScopes.join(', ')}</p>}
+        {task.writeScopeWarnings.map(warning => <p key={warning} role="alert">{warning}</p>)}
         <PanelActions>
           <label htmlFor={ownerId}>{t('owner')}</label>
           <Select
@@ -64,18 +64,18 @@ export function TaskCard({ task, members, pending, edit, update, t }: TaskCardPr
           </Select>
         </PanelActions>
         <PanelActions>
-          <Button size="sm" onClick={edit} disabled={pending}>
+          <Button size="touch" onClick={edit} disabled={pending}>
             <IconEditOutline16 /> {t('edit')}
           </Button>
           {task.status === 'in_progress' && (
-            <Button size="sm" disabled={pending} onClick={() => { transition('complete') }}>
+            <Button size="touch" disabled={pending} onClick={() => { transition('complete') }}>
               <IconCheckOutline14 /> {t('complete')}
             </Button>
           )}
           {task.status === 'completed' && (
-            <Button size="sm" disabled={pending} onClick={() => { transition('reopen') }}>{t('reopen')}</Button>
+            <Button size="touch" disabled={pending} onClick={() => { transition('reopen') }}>{t('reopen')}</Button>
           )}
-          <Button size="sm" disabled={pending} onClick={() => { transition('delete') }}>
+          <Button size="touch" disabled={pending} onClick={() => { transition('delete') }}>
             <IconTrashOutline16 /> {t('delete')}
           </Button>
         </PanelActions>
