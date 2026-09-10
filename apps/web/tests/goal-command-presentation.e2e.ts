@@ -48,6 +48,11 @@ describe('web e2e: /goal human transcript presentation', () => {
       timeout: 15_000,
     }).toBe(1)
     const input = page.locator('[data-composer-input]').first()
+    await input.fill('/')
+    const goalOption = page.getByRole('option', { name: 'goal set or view the goal for a long-running task', exact: true })
+    await goalOption.waitFor()
+    expect(await goalOption.isVisible()).toBe(true)
+    await page.screenshot({ path: '.artifacts/finish/goal-command-preview.png' })
     await input.fill('/goal')
     await input.press('Enter')
     await expect.poll(() => input.textContent()).toBe('/goal ')

@@ -1,6 +1,7 @@
-- banner:
+- main:
   - navigation "Session hierarchy":
-    - button "workspace" [disabled]
+    - heading "workspace" [level=1]:
+      - button "workspace" [disabled]
   - img
   - text: Standard mode
   - 'button "Workspace folders: 1"':
@@ -15,16 +16,16 @@
   - tablist:
     - tab "Chat" [selected]
     - tab "Trajectory"
-- group "Command input": /goal
-- 'button "goal No goal is currently set. Usage: /goal [<objective>|clear|edit <objective>|pause|resume]"':
-  - img
-  - img
-  - text: "goal No goal is currently set. Usage: /goal [<objective>|clear|edit <objective>|pause|resume]"
-- textbox "Message or run a task... / commands, @ files or sessions"
-- button "Commands":
-  - img
-- 'button "Access mode, current: Workspace Write"': Workspace Write
-- button "Select model, current DeepSeek-V4-Flash":
-  - text: DeepSeek-V4-Flash
-  - img
-- button "Send message" [disabled]
+  - group "Command input": /goal
+  - 'button "goal No goal is currently set. Usage: /goal [<objective>|clear|edit <objective>|pause|resume]"':
+    - img
+    - img
+    - text: "goal No goal is currently set. Usage: /goal [<objective>|clear|edit <objective>|pause|resume]"
+  - textbox "Message or run a task... / commands, @ files or sessions"
+  - button "Commands":
+    - img
+  - 'button "Access mode, current: Workspace Write"': Workspace Write
+  - button "Select model, current DeepSeek-V4-Flash":
+    - text: DeepSeek-V4-Flash
+    - img
+  - button "Send message" [disabled]

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import type { Browser, Page } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
-import { createMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
+import { createMessage, createUserMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import {
   assertFixtureInventory, captureStableAria, compareOrRefreshGolden,
@@ -23,6 +23,17 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
   let browser: Browser
   let page: Page
   const tripwire: { warnings: string[]; pageErrors: string[] } = { warnings: [], pageErrors: [] }
+  let toolCall = 0
+
+  async function execute(name: string, args: object): Promise<void> {
+    const agent = scaffold.ctx.agents.list()[0]
+    if (agent === undefined) throw new Error('Team lead is unavailable')
+    const result = await scaffold.ctx.tools.execute({
+      agent, name, arguments: args, callId: ToolCallId(`panel-${++toolCall}`),
+      signal: new AbortController().signal,
+    })
+    expect(result.isError).not.toBe(true)
+  }
 
   beforeAll(async () => {
     scaffold = await launchWebScaffold()
@@ -65,7 +76,7 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
     await scaffold?.close()
   })
 
-  it('loads the roster and creates one shared task through generated Remote', async () => {
+  it('loads the roster and follows agent-owned tasks through generated Remote', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-agent-team-panel'))
     const action = page.locator('[data-team-action]')
     await action.getByRole('button', { name: /Agent Team/iu }).click()
@@ -73,11 +84,11 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
     await panel.getByText('No shared tasks yet').waitFor()
     await panel.getByText('lead', { exact: true }).waitFor()
     const close = panel.getByRole('button', { name: 'Close', exact: true })
-    const newTask = panel.getByRole('button', { name: 'New task', exact: true })
+    const refresh = panel.getByRole('button', { name: 'Refresh Team', exact: true })
     await close.focus()
     await close.press('Shift+Tab')
-    expect(await newTask.evaluate(button => document.activeElement === button)).toBe(true)
-    await newTask.press('Tab')
+    expect(await refresh.evaluate(button => document.activeElement === button)).toBe(true)
+    await refresh.press('Tab')
     expect(await close.evaluate(button => document.activeElement === button)).toBe(true)
     await assertPageAccessibility(page)
     for (const viewport of [{ width: 840, height: 1000 }, { width: 600, height: 480 }]) {
@@ -90,13 +101,11 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
     }
     await page.setViewportSize({ width: 1680, height: 1000 })
 
-    await panel.getByRole('button', { name: 'New task' }).click()
-    await assertPageAccessibility(page)
-    await panel.getByRole('textbox', { name: 'Task subject', exact: true }).fill('Browser task')
-    await panel.getByRole('textbox', { name: 'Task description', exact: true }).fill('Created through the assembled browser')
-    await panel.getByRole('textbox', { name: /Write scopes/iu }).fill('src/web')
-    await assertPageAccessibility(page)
-    await panel.getByRole('textbox', { name: 'Task subject', exact: true }).press('Enter')
+    expect(await panel.getByRole('textbox').count()).toBe(0)
+    expect(await panel.getByRole('combobox').count()).toBe(0)
+    await execute('team_task_create', {
+      subject: 'Browser task', description: 'Created by the agent through Team tools', write_scopes: ['src/web'],
+    })
     await panel.getByText('Browser task').waitFor()
 
     const snapshot = await captureStableAria(page, '[role="dialog"][aria-label="Agent Team"]', scaffold.workspaceCwd)
@@ -157,9 +166,10 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
     const conversations = panel.getByRole('region', { name: 'Subagent conversations', exact: true })
     await conversations.scrollIntoViewIfNeeded()
     const headingBounds = await conversations.getByRole('heading').boundingBox()
-    const refreshBounds = await conversations.getByRole('button', { name: 'Refresh conversations' }).boundingBox()
-    if (headingBounds === null || refreshBounds === null) throw new Error('Conversation controls are not visible')
-    expect(refreshBounds.y).toBeGreaterThanOrEqual(headingBounds.y + headingBounds.height)
+    if (headingBounds === null) throw new Error('Conversation heading is not visible')
+    expect(headingBounds.x).toBeGreaterThanOrEqual(0)
+    expect(headingBounds.x + headingBounds.width).toBeLessThanOrEqual(390)
+    expect(await conversations.getByRole('button', { name: 'Refresh conversations' }).count()).toBe(0)
     await page.screenshot({ path: `.artifacts/finish/team-tasks-mobile-controls-${colorScheme}.png` })
     const teamTypography = await panel.getByRole('heading', { name: 'Agent Team', exact: true }).evaluate((element) => {
       const style = getComputedStyle(element)
@@ -211,28 +221,32 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
     await action.getByRole('button', { name: /Agent Team/iu }).click()
   }, 60_000)
 
-  it('assigns, completes, reopens, edits and deletes a task, then opens the peer conversation', async () => {
+  it('observes agent assignment, completion, reopening, editing and deletion, then opens the peer conversation', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-agent-team-actions'))
     await page.setViewportSize({ width: 1680, height: 1000 })
     const panel = page.getByRole('dialog', { name: 'Agent Team' })
     const task = panel.getByRole('article', { name: 'Browser task', exact: true })
-    await task.getByRole('combobox', { name: 'Owner' }).selectOption('lead')
+    const lead = scaffold.ctx.agents.list()[0]
+    if (lead === undefined) throw new Error('Team lead is unavailable')
+    const created = scaffold.ctx.agentTeams.listTasks(lead).find(entry => entry.subject === 'Browser task')
+    if (created === undefined) throw new Error('Browser task is unavailable')
+    const update = async (action: string, fields: object = {}): Promise<void> => {
+      const current = scaffold.ctx.agentTeams.getTask(lead, created.id)
+      await execute('team_task_update', { task_id: current.id, expected_revision: current.revision, action, ...fields })
+    }
+    await update('reassign', { owner: 'lead' })
     await task.getByText('In progress', { exact: true }).waitFor()
-    await task.getByRole('button', { name: 'Complete', exact: true }).click()
+    await update('complete')
     await task.getByText('Completed', { exact: true }).waitFor()
-    expect(await task.getByRole('combobox', { name: 'Owner' }).isDisabled()).toBe(true)
-    await task.getByRole('button', { name: 'Reopen', exact: true }).click()
+    expect(await task.getByRole('combobox').count()).toBe(0)
+    await update('reopen')
     await task.getByText('Pending', { exact: true }).waitFor()
-    expect(await task.getByRole('combobox', { name: 'Owner' }).inputValue()).toBe('')
-    await task.getByRole('button', { name: 'Edit', exact: true }).click()
-    const subject = panel.getByRole('textbox', { name: 'Task subject', exact: true })
-    expect(await subject.evaluate(element => element === document.activeElement)).toBe(true)
-    await subject.fill('Reviewed browser task')
-    await subject.press('Enter')
+    expect(await task.getByText('Owner: Unowned', { exact: true }).isVisible()).toBe(true)
+    await update('edit', { subject: 'Reviewed browser task' })
     const edited = panel.getByRole('article', { name: 'Reviewed browser task', exact: true })
     await edited.waitFor()
     await assertPageAccessibility(page)
-    await edited.getByRole('button', { name: 'Delete', exact: true }).click()
+    await update('delete')
     await edited.waitFor({ state: 'detached' })
     await panel.getByRole('region', { name: 'Members', exact: true })
       .getByRole('button', { name: `session:team-reviewer-${colorScheme}`, exact: true }).click()
