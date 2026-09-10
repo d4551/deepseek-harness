@@ -69,7 +69,7 @@ describe('web e2e: settings appearance preferences', () => {
     const warningStart = tripwire.warnings.length
     const reload = page.reload({ waitUntil: 'domcontentloaded' })
     const [observed] = await Promise.allSettled([(async (): Promise<BootObservation> => {
-      const loading = page.getByText('Loading plugins…', { exact: true })
+      const loading = page.getByText('正在加载插件…', { exact: true })
       await loading.waitFor({ timeout: 10_000 })
       return await loading.evaluate((element) => {
         const boot = element.parentElement?.parentElement

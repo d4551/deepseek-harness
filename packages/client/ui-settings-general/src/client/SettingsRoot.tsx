@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import {
-  Button, Modal, PanelActions, PanelStack, IconAgentPresetOutline16, IconDataOutline16,
+  Button, Modal, PanelActions, IconAgentPresetOutline16, IconDataOutline16,
   IconPersonalizationOutline16, IconSettingsOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SettingsRootComponentProps, SettingsSectionRow } from './shell-contract.ts'
@@ -35,24 +35,26 @@ function SettingsPanel({ rows, renderSlot, activeId, onSelect, onClose }: PanelP
       closeLabel={<>{renderSlot('settings.close', {})}</>}
       headerActions={renderSlot('settings.action', {})}
       onClose={onClose}
+      navigation={(
+        <nav>
+          <PanelActions>
+            {rows.map(row => (
+              <Button
+                key={row.id}
+                size="touch"
+                icon={navIcon(row.id)}
+                variant={row.id === active ? 'toolbar' : 'ghost'}
+                aria-current={row.id === active ? 'true' : undefined}
+                onClick={() => { onSelect(row.id) }}
+              >
+                {row.label}
+              </Button>
+            ))}
+          </PanelActions>
+        </nav>
+      )}
     >
-      <PanelStack>
-        <PanelActions>
-          {rows.map(row => (
-            <Button
-              key={row.id}
-              size="touch"
-              icon={navIcon(row.id)}
-              variant={row.id === active ? 'toolbar' : 'ghost'}
-              aria-current={row.id === active ? 'true' : undefined}
-              onClick={() => { onSelect(row.id) }}
-            >
-              {row.label}
-            </Button>
-          ))}
-        </PanelActions>
-        {active !== undefined && renderSlot('settings.section', { close: onClose }, { only: active })}
-      </PanelStack>
+      {active !== undefined && renderSlot('settings.section', { close: onClose }, { only: active })}
     </Modal>
   )
 }

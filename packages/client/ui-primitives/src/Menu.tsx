@@ -87,10 +87,9 @@ function menuItems(list: HTMLElement | null): HTMLButtonElement[] {
  * @param props.onClose - invoked on outside click or Escape.
  * @param props.align - list alignment against the anchor (default 'start').
  * @param props.side - open below (`bottom`, default) or above (`top`) the anchor.
- * @param props.portal - render the list into document.body, fixed-positioned
- * from the anchor rect (repositions on scroll/resize while open). Use when an
- * ancestor's overflow clipping would crop the in-place list; default false
- * keeps the pure-CSS in-place behavior.
+ * @param props.portal - render a fixed list inside its owning dialog or the document body.
+ * CSS anchors track the trigger through scrolling and resizing. A supplied
+ * getAnchorRect positions a list whose trigger is owned by another component.
  * @param props.closeOnPointerLeave - close the list once the pointer has left
  * both trigger and list for the pointer grace (default false keeps it open
  * until outside click/Escape/selection). The grace makes the 4px trigger->list
@@ -141,22 +140,15 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
   const focusSubmenu = useRef(false)
   const [openSubmenuId, setOpenSubmenuId] = useState<string | null>(null)
   const [fixedPos, setFixedPos] = useState<CSSProperties | null>(null)
+  const [portalHost, setPortalHost] = useState<HTMLElement>(() => document.body)
   const { arm: armClose, cancel: cancelClose } = usePointerGrace(onClose)
 
-  // Portal mode: fixed-position the list from the anchor rect before paint;
-  // track the anchor while open (capture-phase scroll catches nested panes).
-  // getAnchorRect trumps measuring the wrapper span: a child layout effect
-  // runs before the parent's, so a wrapper the host positions in its own
-  // effect measures stale here — the host callback owns the truth instead.
   useLayoutEffect(() => {
     if (!open || !portal) { setFixedPos(null); return }
+    setPortalHost(rootRef.current?.closest<HTMLElement>('[role="dialog"]') ?? document.body)
+    if (getAnchorRect === undefined) return
     const place = () => {
-      let r: DOMRect | null
-      if (getAnchorRect !== undefined) {
-        r = getAnchorRect()
-      } else {
-        r = rootRef.current?.getBoundingClientRect() ?? null
-      }
+      const r = getAnchorRect()
       if (r === null) return
       const MARGIN = 12
       const vw = window.innerWidth
@@ -389,8 +381,11 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
   const list = open && (
     <div
       ref={listRef}
-      className={clsx(css.list, dense && css.denseList, compact && css.compactList, scrollable && css.scrollable, portal && css.portal, side === 'top' && !portal && css.sideTop, align === 'end' && !portal && css.alignEnd)}
-      style={portal ? fixedPos ?? MEASURE_STYLE : undefined}
+      className={clsx(css.list, dense && css.denseList, compact && css.compactList, scrollable && css.scrollable, portal && css.portal, portal && getAnchorRect === undefined && css.anchored, side === 'top' && !portal && css.sideTop, align === 'end' && !portal && css.alignEnd)}
+      style={portal && getAnchorRect !== undefined ? fixedPos ?? MEASURE_STYLE : undefined}
+      data-menu-anchor={`--menu-${menuId.replaceAll(':', '')}`}
+      data-side={side}
+      data-align={align}
       role="menu"
       {...ariaLabel === undefined ? {} : { 'aria-label': ariaLabel }}
       // React portals bubble synthetic events through the REACT tree: without
@@ -417,11 +412,12 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
     <span
       ref={rootRef}
       className={clsx(css.root, className)}
+      data-menu-anchor={`--menu-${menuId.replaceAll(':', '')}`}
       onPointerEnter={closeOnPointerLeave ? cancelClose : undefined}
       onPointerLeave={closeOnPointerLeave ? () => { if (open) armClose() } : undefined}
     >
       {anchor}
-      {portal ? (list !== false && createPortal(list, document.body)) : list}
+      {portal ? (list !== false && createPortal(list, portalHost)) : list}
     </span>
   )
 }

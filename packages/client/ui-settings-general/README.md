@@ -27,7 +27,7 @@ English | [中文](README.zh.md)
 
 Users reach the shell through the sidebar's bottom Settings control; feature plugins contribute their pages and onboarding steps through the slot ledgers this shell projects. The shell renders the modal panel, the navigation built from `settings.section` entries, and exactly one mounted onboarding step at a time.
 
-Settings and Agent Team use the shared Modal primitive and theme typography. Section controls wrap on narrow screens, the header remains visible while content scrolls, and keyboard focus stays inside the dialog until it closes.
+Settings and Agent Team use the shared Modal primitive and theme typography. Section controls wrap on narrow screens, the header and Settings navigation remain visible while content scrolls, and keyboard focus stays inside the dialog until it closes. Settings menus stay inside their owning dialog; selecting an option keeps Settings open, and Escape closes an open menu before closing the dialog.
 
 ### The General section
 

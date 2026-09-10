@@ -86,7 +86,7 @@ function CopyDialog({ state, t, actions }: CopyDialogProps): ReactNode {
       title={draft === null ? t('copyTitle') : `${t('copyTitle')} · ${t('copyOf')} ${sourceTitle}`}
       closeLabel={t('close')}
       description={t('copyIntro')}
-      className={css.dialog as string}
+      className={css.dialog}
       footer={(
         <>
           <Button
@@ -98,7 +98,7 @@ function CopyDialog({ state, t, actions }: CopyDialogProps): ReactNode {
           </Button>
           <Button
             disabled={draft === null || draft.saving || blocker !== undefined}
-            onClick={() => { void actions.confirmCopy() }}
+            onClick={() => actions.confirmCopy()}
           >
             {draft?.saving === true ? t('creating') : t('create')}
           </Button>
@@ -149,7 +149,6 @@ function CardDescription({ text }: { text: string }): ReactNode {
   const [truncated, setTruncated] = useState(false)
   useLayoutEffect(() => {
     const el = ref.current
-    /* v8 ignore next -- the ref is attached before layout effects run. */
     if (el === null) return
     const measure = () => { setTruncated(el.scrollHeight > el.clientHeight) }
     measure()
@@ -185,19 +184,18 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
     : viewedRow === undefined ? state.view.title : presetDisplayText(viewedRow, t).name
 
   useEffect(() => {
-    void load()
+    load()
   }, [load])
 
   // A deployment that composes no presets has nothing to manage: every
   // session shares the host composition and the page would be an empty list.
   if (state.status === 'unavailable') return null
   if (state.status === 'error') {
-    /* v8 ignore next -- an error status always carries text; the fallback satisfies the nullable type */
     const detail = state.error ?? ''
     return (
       <div className={css.section}>
         <p className={css.error} role="alert">{`${t('error')} ${detail}`}</p>
-        <button type="button" className={css.secondaryButton} onClick={() => { void load() }}>
+        <button type="button" className={css.secondaryButton} onClick={() => load()}>
           {t('retry')}
         </button>
       </div>
@@ -231,6 +229,7 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
     <div className={css.section}>
       <h2 className={css.title}>{t('nav')}</h2>
       <p className={css.intro}>{t('sectionIntro')}</p>
+      {(state.status === 'idle' || state.status === 'loading') && <p role="status">{t('loading')}</p>}
       {state.error === null ? null : <p className={css.error} role="alert">{state.error}</p>}
       {([['system', t('builtInGroup')], ['user', t('customGroup')]] as const).map(([trust, heading]) => {
         const group = state.rows
@@ -279,7 +278,7 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
                       title={row.broken !== undefined ? t('brokenBadge') : row.isDefault ? t('inUse') : t('setDefault')}
                       onClick={() => {
                         if (row.broken !== undefined) return
-                        void props.makeDefault(row.id)
+                        return props.makeDefault(row.id)
                       }}
                     >
                       <span className={css.cardHead}>
@@ -327,7 +326,7 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
                               className={css.iconButton}
                               data-tip={t('view')}
                               aria-label={`${t('view')}: ${text.name}`}
-                              onClick={() => { void props.view(row.id) }}
+                              onClick={() => props.view(row.id)}
                             >
                               <IconBrowseOutline16 />
                             </button>
@@ -339,7 +338,7 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
                             className={css.iconButton}
                             data-tip={state.hasDocument ? t('openLocation') : t('showLocation')}
                             aria-label={`${state.hasDocument ? t('openLocation') : t('showLocation')}: ${text.name}`}
-                            onClick={() => { void props.openLocation(row.id) }}
+                            onClick={() => props.openLocation(row.id)}
                           >
                             <IconFolderOpenOutline16 />
                           </button>
@@ -402,7 +401,7 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
         title={state.view === null ? '' : `${t('view')} · ${viewedTitle}`}
         closeLabel={t('close')}
         description={t('composition')}
-        className={css.dialog as string}
+        className={css.dialog}
         footer={(
           <Button variant="outline" autoFocus onClick={() => { props.closeView() }}>
             {t('close')}
@@ -419,7 +418,7 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
         title={t('deleteTitle')}
         closeLabel={t('close')}
         description={t('deleteDescription')}
-        className={css.deleteDialog as string}
+        className={css.deleteDialog}
         footer={(
           <>
             <Button
@@ -434,7 +433,7 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
               variant="outline"
               className={css.deleteConfirm}
               disabled={state.deleting}
-              onClick={() => { void props.remove() }}
+              onClick={() => props.remove()}
             >
               {state.deleting ? t('deleting') : t('deleteConfirm')}
             </Button>

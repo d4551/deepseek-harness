@@ -48,6 +48,11 @@
   overflow-y: auto;
 }
 
+.navigation {
+  flex: none;
+  padding-inline: var(--dsw-space-layout);
+}
+
 .workspace {
   align-self: flex-start;
   width: min(var(--dsw-workspace-width), 100%);

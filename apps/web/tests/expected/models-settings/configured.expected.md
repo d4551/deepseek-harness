@@ -1,6 +1,10 @@
 - dialog "设置":
+  - heading "设置" [level=2]
+  - button "打开配置文件"
+  - button "关闭":
+    - img
+    - text: 关闭
   - navigation:
-    - text: 设置
     - button "通用设置":
       - img
       - text: 通用设置
@@ -13,10 +17,6 @@
     - button "Agent 预设":
       - img
       - text: Agent 预设
-  - button "打开配置文件"
-  - button "关闭":
-    - img
-    - text: 关闭
   - heading "模型" [level=2]
   - paragraph: 填入各提供方的 API 密钥即可使用其模型。
   - status: 已保存 minimax-cn。

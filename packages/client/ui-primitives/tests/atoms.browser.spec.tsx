@@ -1,6 +1,6 @@
-// @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { useState } from 'react'
 import { Button, ConnectionBanner, Input, Menu, Modal, Pill } from '@deepseek-ai/dsh-client-ui-primitives'
 import { POINTER_GRACE_MS } from '../src/pointer-grace.ts'
 
@@ -376,7 +376,9 @@ describe('Menu', () => {
     // Outside the anchor wrapper subtree — overflow-clipping ancestors can't crop it.
     expect(container.contains(menu)).toBe(false)
     expect(menu.parentElement).toBe(document.body)
-    expect(menu.style.top).not.toBe('')
+    expect(menu.getAttribute('style')).toBeNull()
+    expect(getComputedStyle(menu).position).toBe('fixed')
+    expect(menu.getBoundingClientRect().y).toBeGreaterThanOrEqual(0)
     fireEvent.click(screen.getByRole('menuitem', { name: 'Alpha' }))
     expect(onSelect).toHaveBeenCalledWith('a')
     fireEvent.pointerDown(menu)
@@ -394,10 +396,12 @@ describe('Menu', () => {
     render(
       <Menu portal open align="end" side="top" anchor={<span>trigger</span>} items={items} onSelect={() => {}} onClose={() => {}} />)
     const menu = screen.getByRole('menu')
-    expect(menu.style.left).not.toBe('')
-    expect(menu.style.top).not.toBe('')
-    expect(menu.style.right).toBe('')
-    expect(menu.style.bottom).toBe('')
+    expect(menu.getAttribute('style')).toBeNull()
+    const bounds = menu.getBoundingClientRect()
+    expect(bounds.x).toBeGreaterThanOrEqual(0)
+    expect(bounds.y).toBeGreaterThanOrEqual(0)
+    expect(bounds.right).toBeLessThanOrEqual(window.innerWidth)
+    expect(bounds.bottom).toBeLessThanOrEqual(window.innerHeight)
   })
 
   it('renders footer rows in a pinned section below the items; they still select', () => {
@@ -474,6 +478,41 @@ describe('Menu', () => {
 })
 
 describe('Modal', () => {
+  it('keeps portaled menu selection and Escape inside the owning dialog', () => {
+    const close = vi.fn()
+    const select = vi.fn()
+    function SettingsMenu() {
+      const [open, setOpen] = useState(false)
+      return (
+        <Modal open title="Settings" closeLabel="Close" onClose={close}>
+          <Menu
+            open={open}
+            portal
+            anchor={<Button onClick={() => { setOpen(true) }}>Language</Button>}
+            items={[{ id: 'en', label: 'English' }]}
+            onSelect={select}
+            onClose={() => { setOpen(false) }}
+          />
+        </Modal>
+      )
+    }
+    render(<SettingsMenu />)
+    fireEvent.click(screen.getByRole('button', { name: 'Language' }))
+    const item = screen.getByRole('menuitem', { name: 'English' })
+    expect(screen.getByRole('dialog').contains(item)).toBe(true)
+    item.focus()
+    expect(document.activeElement).toBe(item)
+    fireEvent.pointerDown(item)
+    fireEvent.click(item)
+    expect(select).toHaveBeenCalledWith('en')
+    expect(close).not.toHaveBeenCalled()
+    fireEvent.keyDown(item, { key: 'Escape' })
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(close).not.toHaveBeenCalled()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(close).toHaveBeenCalledTimes(1)
+  })
+
   it('contains focus and restores the caller and background when closed', () => {
     const background = render(<Button>Open dialog</Button>)
     const trigger = screen.getByRole('button', { name: 'Open dialog' })

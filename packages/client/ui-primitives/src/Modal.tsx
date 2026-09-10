@@ -13,6 +13,7 @@ interface ModalBaseProps {
   children?: ReactNode
   footer?: ReactNode
   headerActions?: ReactNode
+  navigation?: ReactNode
   className?: string
   contentClassName?: string
   size?: 'compact' | 'workspace'
@@ -39,7 +40,7 @@ type ModalProps = ModalBaseProps & (
  * @returns null when closed; otherwise the overlay tree.
  */
 export function Modal({
-  open, onClose, title, closeLabel, description, children, footer, headerActions,
+  open, onClose, title, closeLabel, description, children, footer, headerActions, navigation,
   className, contentClassName, ref, headless = false, size = 'compact', initialFocus = 'dialog',
 }: ModalProps) {
   const titleId = useId()
@@ -97,7 +98,9 @@ export function Modal({
   useEffect(() => {
     if (!open) return
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !rootRef.current?.inert) onClose()
+      const root = rootRef.current
+      if (e.key === 'Escape' && !e.defaultPrevented && !root?.inert
+        && root?.querySelector('[role="menu"]') === null) onClose()
     }
     const onPointerDown = (event: PointerEvent) => {
       const root = rootRef.current
@@ -145,6 +148,7 @@ export function Modal({
                   {typeof closeLabel !== 'string' && <span className="dsw-visually-hidden">{closeLabel}</span>}
                 </button>
               </div>
+              {navigation !== undefined && <div className={css.navigation}>{navigation}</div>}
               <div className={clsx(css.content, contentClassName)}>
                 {description !== undefined && description !== '' && (
                   <p className={css.description}>{description}</p>

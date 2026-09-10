@@ -1,6 +1,10 @@
 - dialog "Settings":
+  - heading "Settings" [level=2]
+  - button "Open configuration file"
+  - button "Close":
+    - img
+    - text: Close
   - navigation:
-    - text: Settings
     - button "General":
       - img
       - text: General
@@ -13,10 +17,6 @@
     - button "Agent presets":
       - img
       - text: Agent presets
-  - button "Open configuration file"
-  - button "Close":
-    - img
-    - text: Close
   - text: Agent preset Applies to sessions you start from now on. Running sessions keep the preset they began with.
   - button "Standard mode":
     - text: Standard mode

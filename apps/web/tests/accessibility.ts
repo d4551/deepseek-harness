@@ -26,11 +26,19 @@ export async function assertPageAccessibility(page: Page): Promise<void> {
       const bounds = element.getBoundingClientRect()
       const x = bounds.x + bounds.width / 2
       const y = bounds.y + bounds.height / 2
+      const range = document.createRange()
+      range.selectNodeContents(element)
       return {
         text: element.textContent,
         bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
         layers: document.elementsFromPoint(x, y).map(layer => ({
           tag: layer.tagName, class: layer.className, background: getComputedStyle(layer).backgroundColor,
+        })),
+        lines: [...range.getClientRects()].map(rect => ({
+          x: rect.x, y: rect.y, width: rect.width, height: rect.height,
+          layers: document.elementsFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2).map(layer => ({
+            tag: layer.tagName, class: layer.className, background: getComputedStyle(layer).backgroundColor,
+          })),
         })),
       }
     }))

@@ -79,6 +79,7 @@ describe('web e2e: Models settings page configures a dormant provider', () => {
     await dialog.getByRole('textbox', { name: 'API 密钥', exact: true }).waitFor({ timeout: 10_000 })
     const snapshot = await captureStableAria(page, '[role="dialog"]', scaffold.workspaceCwd)
     await compareOrRefreshGolden(EMPTY_EXPECTED, snapshot, MODE)
+    await page.screenshot({ path: '.artifacts/finish/verified-model-add.png' })
   }, 60_000)
 
   it('refuses a key no HTTP header can carry before anything is written', async () => {
@@ -175,6 +176,7 @@ describe('web e2e: Models settings page configures a dormant provider', () => {
     expect(document).toContain('apiKeyEnv: MINIMAX_CN_API_KEY')
     const snapshot = await captureStableAria(page, '[role="dialog"]', scaffold.workspaceCwd)
     await compareOrRefreshGolden(CONFIGURED_EXPECTED, snapshot, MODE)
+    await page.screenshot({ path: '.artifacts/finish/verified-model-configured.png' })
     expect(tripwire.pageErrors).toEqual([])
   }, 60_000)
 
@@ -205,6 +207,7 @@ describe('web e2e: Models settings page configures a dormant provider', () => {
       scaffold.workspaceCwd,
     )
     await compareOrRefreshGolden(MODEL_PICKER_EXPECTED, snapshot, MODE)
+    await page.screenshot({ path: '.artifacts/finish/verified-model-picker.png' })
 
     await picker.getByRole('button', { name: '全选' }).click()
     expect(await boxes.evaluateAll(nodes => nodes.map(node => (node as HTMLInputElement).checked))).toEqual(
@@ -262,6 +265,7 @@ describe('web e2e: Models settings page configures a dormant provider', () => {
     expect(await name.inputValue()).toBe('Acme Gateway')
     const snapshot = await captureStableAria(page, '[role="dialog"]', scaffold.workspaceCwd)
     await compareOrRefreshGolden(DECLARED_EDIT_EXPECTED, snapshot, MODE)
+    await page.screenshot({ path: '.artifacts/finish/verified-model-edit.png' })
 
     await protocol.selectOption('anthropic-messages')
     await name.fill('Acme 网关')
@@ -293,6 +297,7 @@ describe('web e2e: Models settings page configures a dormant provider', () => {
       scaffold.workspaceCwd,
     )
     await compareOrRefreshGolden(DELETE_EXPECTED, snapshot, MODE)
+    await page.screenshot({ path: '.artifacts/finish/verified-model-delete.png' })
 
     await deleteDialog.getByRole('button', { name: '取消', exact: true }).click()
     expect(await readFile(join(scaffold.harnessHome, 'settings.yaml'), 'utf8')).toContain('minimax-cn:')

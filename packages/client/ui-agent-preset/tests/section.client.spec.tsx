@@ -79,6 +79,13 @@ function rowFor(id: string): HTMLElement {
 }
 
 describe('the preset list', () => {
+  it.each(['idle', 'loading'] as const)('announces the %s roster state', (status) => {
+    renderSection({ status, rows: [] })
+
+    expect(screen.getByRole('status').textContent).toBe(en.loading)
+    expect(screen.queryByRole('list')).toBeNull()
+  })
+
   it('reads the roster once when it first renders', async () => {
     const actions = renderSection()
 

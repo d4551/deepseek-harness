@@ -5,7 +5,7 @@
  * the native `:disabled` state the row no longer carries. jsdom has no layout
  * and does not apply CSS-module rules, so the coupling between the rendered
  * attribute and the selectors that answer it is read here and asserted against
- * the rendered row in `atoms.client.spec.tsx`.
+ * the rendered row in `atoms.browser.spec.tsx`.
  */
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
