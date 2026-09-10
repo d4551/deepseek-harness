@@ -69,6 +69,19 @@
 .card[aria-disabled='true'] { cursor: default; }
 .card:focus-visible { outline-offset: calc(-1 * var(--dsw-focus-offset)); }
 
+.row {
+  width: 100%;
+  height: auto;
+  justify-content: space-between;
+  gap: var(--dsw-space-section);
+  padding: var(--dsw-space-section);
+  text-align: start;
+  border-radius: inherit;
+}
+.row:hover:not(:disabled),
+.row[aria-expanded='true'] { background: var(--dsw-alias-interactive-bg-hover); }
+.row:focus-visible { outline-offset: calc(-1 * var(--dsw-focus-offset)); }
+
 .icon {
   display: inline-flex;
   width: var(--dsw-icon-size);

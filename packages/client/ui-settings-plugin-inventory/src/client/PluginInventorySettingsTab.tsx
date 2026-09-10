@@ -3,6 +3,7 @@ import type { PluginInventorySnapshot } from '@deepseek-ai/dsh-api-remotes/clien
 import {
   IconChevronDownOutline14,
   IconSearchOutline16,
+  Button, Input, StateDot, type StateDotState,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { PluginInventoryLocaleKey } from './locales.ts'
@@ -28,20 +29,20 @@ type ViewState =
   | { readonly status: 'error' }
   | { readonly status: 'ready'; readonly snapshot: PluginInventorySnapshot }
 
-const PHASE_KEYS = {
-  pending: 'pending',
-  loading: 'loadingPhase',
-  active: 'active',
-  failed: 'failed',
-  unloading: 'unloading',
-} satisfies Record<Exclude<PluginFiberPhase, null>, PluginInventoryLocaleKey>
+const PHASE_PRESENTATION = {
+  pending: { label: 'pending', state: 'ongoing' },
+  loading: { label: 'loadingPhase', state: 'ongoing' },
+  active: { label: 'active', state: 'done' },
+  failed: { label: 'failed', state: 'error' },
+  unloading: { label: 'unloading', state: 'ongoing' },
+} satisfies Record<Exclude<PluginFiberPhase, null>, { label: PluginInventoryLocaleKey; state: StateDotState }>
 
 /** Localized accessible label for one root Fiber phase. */
 function phaseLabel(
   phase: PluginFiberPhase,
   t: PluginInventorySettingsTabProps['t'],
 ): string {
-  return phase === null ? t('unobserved') : t(PHASE_KEYS[phase])
+  return phase === null ? t('unobserved') : t(PHASE_PRESENTATION[phase].label)
 }
 
 /** Compact a module specifier without guessing whether its Loader id was generated. */
@@ -102,22 +103,19 @@ export function PluginInventorySettingsTab({ list, t }: PluginInventorySettingsT
       {state.status === 'error' ? (
         <div className={css.failure}>
           <p role="alert">{t('error')}</p>
-          <button type="button" onClick={retry}>{t('retry')}</button>
+          <Button variant="outline" size="touch" onClick={retry}>{t('retry')}</Button>
         </div>
       ) : null}
       {state.status === 'ready' ? (
         <div className={css.catalog}>
-          <label className={css.search}>
-            <IconSearchOutline16 aria-hidden="true" />
-            <span className="dsw-visually-hidden">{t('search')}</span>
-            <input
-              type="search"
-              value={query}
-              placeholder={t('search')}
-              aria-label={t('search')}
-              onChange={(event) => { setQuery(event.currentTarget.value) }}
-            />
-          </label>
+          <Input
+            icon={<IconSearchOutline16 aria-hidden="true" />}
+            type="search"
+            value={query}
+            placeholder={t('search')}
+            aria-label={t('search')}
+            onChange={(event) => { setQuery(event.currentTarget.value) }}
+          />
           <div className={css.catalogHeading}>
             <h3>{t('catalog')}</h3>
             <span data-plugin-count={filteredEntries.length}>{filteredEntries.length}</span>
@@ -141,9 +139,9 @@ export function PluginInventorySettingsTab({ list, t }: PluginInventorySettingsT
                     data-plugin-entry={entry.entryId}
                     data-open={open ? 'true' : undefined}
                   >
-                    <button
-                      className={css.cardContent}
-                      type="button"
+                    <Button
+                      variant="row"
+                      size="touch"
                       aria-expanded={open}
                       aria-controls={detailId}
                       aria-label={entry.enabled ? `${title}, ${status}, ${configuration}` : `${title}, ${configuration}`}
@@ -155,19 +153,20 @@ export function PluginInventorySettingsTab({ list, t }: PluginInventorySettingsT
                       <span className={css.cardTrailing}>
                         {entry.enabled ? (
                           <span
-                            className={css.statusDot}
                             data-phase={entry.fiberPhase ?? 'unobserved'}
                             role="img"
                             aria-label={status}
                             title={status}
-                          />
+                          >
+                            <StateDot state={entry.fiberPhase === null ? 'inactive' : PHASE_PRESENTATION[entry.fiberPhase].state} />
+                          </span>
                         ) : null}
                         <span className={css.configTag} data-enabled={entry.enabled ? 'true' : 'false'}>
                           {configuration}
                         </span>
-                        <IconChevronDownOutline14 className={css.chevron} size={12} aria-hidden="true" />
+                        <IconChevronDownOutline14 className={css.chevron} aria-hidden="true" />
                       </span>
-                    </button>
+                    </Button>
                     {open ? (
                       <div className={css.cardDetails} id={detailId}>
                         <code className={css.entryValue} data-loader-entry>{entry.entryId}</code>
