@@ -53,6 +53,13 @@ describe('web e2e: /goal human transcript presentation', () => {
     const goalOption = page.getByRole('option', { name: 'goal set or view the goal for a long-running task', exact: true })
     await goalOption.waitFor()
     expect(await goalOption.isVisible()).toBe(true)
+    const commandNames = ['compact', 'export', 'feedback', 'goal', 'model', 'permission', 'plan', 'swarm']
+    for (const name of commandNames) {
+      const option = page.getByRole('option').filter({ has: page.getByText(name, { exact: true }) })
+      await option.waitFor()
+      expect(await option.isVisible()).toBe(true)
+    }
+    expect(await page.getByRole('option').count()).toBe(commandNames.length)
     await page.screenshot({ path: '.artifacts/finish/goal-command-preview.png' })
     await input.pressSequentially('goal')
     await input.press('Enter')
@@ -84,6 +91,7 @@ describe('web e2e: /goal human transcript presentation', () => {
     expect(await resultRow.getByText('goal', { exact: true }).count()).toBe(1)
     await expect.poll(() => page.locator('[data-phase="active"]').count()).toBe(1)
     expect(await page.getByText('Into the Unknown', { exact: false }).count()).toBe(0)
+    await page.screenshot({ path: '.artifacts/finish/default-web-goal-result.png' })
 
     const run = events.find(event => event.type === 'command/run')
     expect(run).toMatchObject({
