@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
-  Button, IconBrowseOutline16, IconCopyOutline16, IconFolderOpenOutline16, IconPlusOutline16, IconTrashOutline16, Modal, Tooltip,
+  Button, Input, IconBrowseOutline16, IconCopyOutline16, IconFolderOpenOutline16, IconPlusOutline16, IconTrashOutline16, Modal, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -117,8 +117,7 @@ function CopyDialog({ state, t, actions }: CopyDialogProps): ReactNode {
           <div className={css.dialogFields}>
             <label className={css.field}>
               <span className={css.fieldLabel}>{t('presetId')}</span>
-              <input
-                className={css.input}
+              <Input
                 value={draft.id}
                 autoFocus
                 spellCheck={false}
@@ -128,8 +127,7 @@ function CopyDialog({ state, t, actions }: CopyDialogProps): ReactNode {
             </label>
             <label className={css.field}>
               <span className={css.fieldLabel}>{t('displayName')}</span>
-              <input
-                className={css.input}
+              <Input
                 value={draft.name}
                 spellCheck={false}
                 placeholder={t('displayNamePlaceholder')}
@@ -167,7 +165,7 @@ function CardDescription({ text }: { text: string }): ReactNode {
   return (
     // Capped near the card's own width: the default half-viewport bubble would
     // spill a description out of the settings dialog and across the app behind it.
-    <Tooltip label={text} side="bottom" delayMs={400} disabled={!truncated} maxWidth={360}>
+    <Tooltip label={text} side="bottom" disabled={!truncated} constrainToAnchor>
       {/* The empty title stops the card body's native tooltip from climbing to
         this span: a cut-off description answers with one bubble, not two. */}
       <span ref={ref} className={css.cardDesc} title="">{text}</span>
@@ -220,9 +218,9 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
      never be discovered, so the reason rides the disabled button. */
   const creatorButton = props.startCreatorDraft !== undefined && state.rows.some(row => row.id === 'cordis')
     ? (
-      <button
-        type="button"
-        className={css.creatorButton}
+      <Button
+        variant="dashed"
+        size="touch"
         disabled={!state.authorable}
         title={state.authorable ? undefined : t('duplicateUnavailable')}
         onClick={() => {
@@ -232,7 +230,7 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
       >
         <IconPlusOutline16 size={14} />
         {t('creatorDraft')}
-      </button>
+      </Button>
     )
     : null
 
@@ -270,57 +268,53 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
                       refuses the pick; the reason rides the badge rather than
                       the card face, which stays the preset's own
                       description. */}
-                    <button
-                      type="button"
-                      className={css.cardMain}
-                      aria-pressed={row.isDefault}
-                      // Broken says so through `aria-disabled` rather than
-                      // `disabled`, which would take the card out of the tab
-                      // order. With the reason moved onto the badge, that is
-                      // the only way anyone without a pointer reaches it.
-                      disabled={row.isDefault}
-                      aria-disabled={row.broken !== undefined}
-                      // Without this the name is the whole card read aloud —
-                      // title, badge, description, id.
-                      aria-label={`${row.broken !== undefined ? t('brokenBadge') : row.isDefault ? t('inUse') : t('setDefault')}: ${text.name}`}
-                      // The reason rides the badge, not the whole card: two
-                      // tooltips over one target would race, and the card's
-                      // own label answers what clicking it would do.
-                      title={row.broken !== undefined ? t('brokenBadge') : row.isDefault ? t('inUse') : t('setDefault')}
-                      onClick={() => {
-                        if (row.broken !== undefined) return
-                        props.makeDefault(row.id).then(undefined, reportActionError)
-                      }}
-                    >
-                      <span className={css.cardHead}>
-                        <span className={css.cardName}>{text.name}</span>
-                        {row.broken !== undefined
-                          ? (
-                            <span className={css.brokenBadge}>
-                              {t('brokenBadge')}
-                              {/* Pointer-only, hence `aria-hidden`: the same
-                                reason reaches assistive technology through the
-                                alert below, and a second copy inside the card's
-                                own text would be read out twice. */}
-                              <span className={css.brokenTip} aria-hidden="true">{row.broken}</span>
-                            </span>
-                          )
-                          : null}
-                        <span className={css.badge}>
-                          {row.trust === 'user' ? t('userTrust') : t('builtIn')}
+                    <Tooltip label={row.broken ?? ''} disabled={row.broken === undefined} side="bottom" constrainToAnchor>
+                      <Button
+                        variant="card"
+                        aria-pressed={row.isDefault}
+                        // Broken says so through `aria-disabled` rather than
+                        // `disabled`, which would take the card out of the tab
+                        // order. With the reason moved onto the badge, that is
+                        // the only way anyone without a pointer reaches it.
+                        disabled={row.isDefault}
+                        aria-disabled={row.broken !== undefined}
+                        // Without this the name is the whole card read aloud —
+                        // title, badge, description, id.
+                        aria-label={`${row.broken !== undefined ? t('brokenBadge') : row.isDefault ? t('inUse') : t('setDefault')}: ${text.name}`}
+                        // The reason rides the badge, not the whole card: two
+                        // tooltips over one target would race, and the card's
+                        // own label answers what clicking it would do.
+                        title={row.broken !== undefined ? undefined : row.isDefault ? t('inUse') : t('setDefault')}
+                        onClick={() => {
+                          if (row.broken !== undefined) return
+                          props.makeDefault(row.id).then(undefined, reportActionError)
+                        }}
+                      >
+                        <span className={css.cardHead}>
+                          <span className={css.cardName}>{text.name}</span>
+                          {row.broken !== undefined
+                            ? (
+                              <span className={css.brokenBadge}>
+                                {t('brokenBadge')}
+                              </span>
+                            )
+                            : null}
+                          <span className={css.badge}>
+                            {row.trust === 'user' ? t('userTrust') : t('builtIn')}
+                          </span>
+                          {row.isDefault ? <span className={css.inUse}>{t('inUse')}</span> : null}
                         </span>
-                        {row.isDefault ? <span className={css.inUse}>{t('inUse')}</span> : null}
-                      </span>
-                      <CardDescription text={text.description ?? t('noDescription')} />
-                      {/* Visually hidden, deliberately: the pointer path is the
+                        <CardDescription text={text.description ?? t('noDescription')} />
+                        {/* Visually hidden, deliberately: the pointer path is the
                         badge's tooltip, and a disabled card body is out of the
                         tab order, so this is the only reading a screen reader
                         or a keyboard-only user gets. */}
-                      {row.broken === undefined
-                        ? null
-                        : <span className="dsw-visually-hidden" role="alert">{row.broken}</span>}
-                      <code className={css.cardId}>{row.id}</code>
-                    </button>
+                        {row.broken === undefined
+                          ? null
+                          : <span className="dsw-visually-hidden" role="alert">{row.broken}</span>}
+                        <code className={css.cardId}>{row.id}</code>
+                      </Button>
+                    </Tooltip>
                     <div className={css.cardFoot}>
                       {/* Shipped presets are the compositions a copy starts
                         from, so READING one is the point; a custom preset is
@@ -332,51 +326,46 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
                       {row.trust === 'system'
                         ? row.broken === undefined
                           ? (
-                            <button
-                              type="button"
-                              className={css.iconButton}
-                              data-tip={t('view')}
+                            <Button
+                              size="touch"
+                              title={t('view')}
                               aria-label={`${t('view')}: ${text.name}`}
                               onClick={() => { props.view(row.id).then(undefined, reportActionError) }}
                             >
                               <IconBrowseOutline16 />
-                            </button>
+                            </Button>
                           )
                           : null
                         : (
-                          <button
-                            type="button"
-                            className={css.iconButton}
-                            data-tip={state.hasDocument ? t('openLocation') : t('showLocation')}
+                          <Button
+                            size="touch"
+                            title={state.hasDocument ? t('openLocation') : t('showLocation')}
                             aria-label={`${state.hasDocument ? t('openLocation') : t('showLocation')}: ${text.name}`}
                             onClick={() => { props.openLocation(row.id).then(undefined, reportActionError) }}
                           >
                             <IconFolderOpenOutline16 />
-                          </button>
+                          </Button>
                         )}
-                      <button
-                        type="button"
-                        className={css.iconButton}
+                      <Button
+                        size="touch"
+                        title={row.broken !== undefined ? t('brokenNoCopy') : state.authorable ? t('duplicate') : t('duplicateUnavailable')}
                         disabled={!state.authorable || row.broken !== undefined}
-                        data-tip={row.broken !== undefined
-                          ? t('brokenNoCopy')
-                          : state.authorable ? t('duplicate') : t('duplicateUnavailable')}
                         aria-label={`${t('duplicate')}: ${text.name}`}
                         onClick={() => { props.beginCopy(row.id) }}
                       >
                         <IconCopyOutline16 />
-                      </button>
+                      </Button>
                       {row.trust === 'user'
                         ? (
-                          <button
-                            type="button"
-                            className={`${css.iconButton} ${css.iconDanger}`}
-                            data-tip={t('delete')}
+                          <Button
+                            size="touch"
+                            variant="danger"
+                            title={t('delete')}
                             aria-label={`${t('delete')}: ${text.name}`}
                             onClick={() => { props.confirmDelete(row.id) }}
                           >
                             <IconTrashOutline16 />
-                          </button>
+                          </Button>
                         )
                         : null}
                     </div>
@@ -441,8 +430,7 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
               {t('cancel')}
             </Button>
             <Button
-              variant="outline"
-              className={css.deleteConfirm}
+              variant="danger"
               disabled={state.deleting}
               onClick={() => { props.remove().then(undefined, reportActionError) }}
             >

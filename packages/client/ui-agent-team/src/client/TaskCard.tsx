@@ -39,7 +39,7 @@ export function TaskCard({ task, members, pending, edit, update, t }: TaskCardPr
         </PanelActions>
         {task.blockedBy.length > 0 && <p>{t('blockedBy')}: {task.blockedBy.join(', ')}</p>}
         {task.writeScopes.length > 0 && <p>{t('writeScopes')}: {task.writeScopes.join(', ')}</p>}
-        {task.writeScopeWarnings.map(warning => <p key={warning} role="alert">{warning}</p>)}
+        {task.writeScopeWarnings.map(warning => <p key={warning}>{warning}</p>)}
         <PanelActions>
           <label htmlFor={ownerId}>{t('owner')}</label>
           <Select

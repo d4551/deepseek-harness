@@ -1,29 +1,24 @@
-/* Capsule geometry from the figma Button component (1:155 instances:
- * h36, pad 14/7, gap 4, r18; the wide New Session form is r24 at h38 —
- * owners with the wide form set their own radius/width). */
 .button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 24px;
-  gap: 4px;
+  min-height: var(--dsw-control-height-compact);
+  gap: var(--dsw-space-tight);
   border: none;
-  border-radius: 18px;
+  border-radius: var(--dsw-radius-pill);
   cursor: pointer;
   font: var(--dsw-font-body);
   color: var(--dsw-alias-label-primary);
   background: transparent;
-  padding: 0 14px;
+  padding: 0 var(--dsw-space-section);
 }
 
 .button:disabled {
   cursor: not-allowed;
-  opacity: 0.4;
+  opacity: var(--dsw-control-disabled-opacity);
 }
 
-.md {
-  height: 36px;
-}
+.md { height: var(--dsw-control-height); }
 
 .touch {
   min-block-size: var(--dsw-touch-target);
@@ -32,54 +27,52 @@
   border-radius: var(--dsw-radius-surface);
 }
 
-/* Compact height for dense rows; no dedicated figma node (Icon_container
- * 28x28 is the icon-only form) — geometry is ours. */
 .sm {
-  height: 28px;
+  height: var(--dsw-control-height-compact);
   font: var(--dsw-font-caption);
-  padding: 0 10px;
-  border-radius: 14px;
+  padding: 0 var(--dsw-space-control);
 }
 
 .primary {
   background: var(--dsw-alias-button-primary-fill);
   color: var(--dsw-alias-label-primary-foreground);
 }
+.primary:hover:not(:disabled) { background: var(--dsw-alias-button-primary-hover); }
+.ghost:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
+.ghost:active:not(:disabled) { background: var(--dsw-alias-interactive-bg-active); }
 
-.primary:hover:not(:disabled) {
-  background: var(--dsw-alias-button-primary-hover);
+.outline,
+.dashed {
+  border: var(--dsw-border-width) solid var(--dsw-alias-border-l2);
 }
+.dashed { border-style: dashed; }
+.outline:hover:not(:disabled),
+.dashed:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
 
-.ghost:hover:not(:disabled) {
-  background: var(--dsw-alias-interactive-bg-hover);
-}
+.danger { color: var(--dsw-alias-label-error); }
+.danger:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover-danger); }
+.toolbar { background: var(--dsw-alias-button-tool-bar-fill); }
+.toolbar:hover:not(:disabled) { background: var(--dsw-alias-button-tool-bar-hover); }
 
-.ghost:active:not(:disabled) {
-  background: var(--dsw-alias-interactive-bg-active);
+.card {
+  flex: 1;
+  height: auto;
+  align-items: stretch;
+  justify-content: flex-start;
+  flex-direction: column;
+  gap: var(--dsw-space-control);
+  padding: var(--dsw-space-section);
+  border-radius: var(--dsw-radius-surface) var(--dsw-radius-surface) 0 0;
+  text-align: start;
 }
-
-/* Dialog Cancel (figma 451:18655): bordered capsule on transparent fill. */
-.outline {
-  border: 1px solid var(--dsw-alias-border-l2);
-  background: transparent;
-}
-
-.outline:hover:not(:disabled) {
-  background: var(--dsw-alias-interactive-bg-hover);
-}
-
-.toolbar {
-  background: var(--dsw-alias-button-tool-bar-fill);
-}
-
-.toolbar:hover:not(:disabled) {
-  background: var(--dsw-alias-button-tool-bar-hover);
-}
+.card:disabled { opacity: 1; cursor: default; }
+.card[aria-disabled='true'] { cursor: default; }
+.card:focus-visible { outline-offset: calc(-1 * var(--dsw-focus-offset)); }
 
 .icon {
   display: inline-flex;
-  width: 16px;
-  height: 16px;
+  width: var(--dsw-icon-size);
+  height: var(--dsw-icon-size);
   align-items: center;
   justify-content: center;
 }

@@ -1,34 +1,40 @@
+[data-tooltip-trigger] {
+  anchor-name: attr(data-tooltip-trigger type(<custom-ident>));
+}
+
 .bubble {
   position: fixed;
+  position-anchor: attr(data-tooltip-anchor type(<custom-ident>));
+  position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
   z-index: var(--dsw-z-popover);
-  /* Fixed-position shrink-to-fit measures only the space from `left` to the
-     viewport edge, so anchors near the right edge would wrap early;
-     max-content sizes by the label alone, capped at half the viewport. */
   width: max-content;
-  max-width: 50vw;
-  padding: 3px 7px;
-  border-radius: 8px;
+  max-width: min(var(--dsw-panel-min-width), calc(100vw - var(--dsw-space-section) * 2));
+  margin: var(--dsw-space-control);
+  padding: var(--dsw-space-control);
+  border-radius: var(--dsw-radius-surface);
   background: var(--dsw-alias-tooltip-bg);
   color: var(--dsw-static-neutral-bluish-00);
-  font-size: 13px;
-  line-height: 20px;
+  font: var(--dsw-font-caption);
   white-space: pre-line;
-  /* Unbreakable tokens (URLs, paths) must not push past max-width. */
-  overflow-wrap: break-word;
-  pointer-events: none;
+  overflow-wrap: anywhere;
+  pointer-events: auto;
   animation: tooltip-in var(--ds-transition-duration) var(--ds-ease-in-out);
 }
 
+.bubble[data-constrained] {
+  max-width: min(anchor-size(width), calc(100vw - var(--dsw-space-section) * 2));
+}
+
 .bubble[data-side='right'] {
-  transform: translateY(-50%);
+  position-area: right;
 }
 
 .bubble[data-side='bottom'] {
-  transform: translateX(-50%);
+  position-area: bottom;
 }
 
 .bubble[data-side='top'] {
-  transform: translate(-50%, -100%);
+  position-area: top;
 }
 
 @keyframes tooltip-in {

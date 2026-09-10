@@ -1,0 +1,14 @@
+.tooltip-test-center,
+.tooltip-test-top,
+.tooltip-test-bottom,
+.tooltip-test-left,
+.tooltip-test-right {
+  position: fixed;
+  width: 12rem;
+  height: 3rem;
+}
+.tooltip-test-center { top: 40%; left: 40%; }
+.tooltip-test-top { top: 0; left: 40%; }
+.tooltip-test-bottom { bottom: 0; left: 40%; }
+.tooltip-test-left { top: 40%; left: 0; }
+.tooltip-test-right { top: 40%; right: 0; }

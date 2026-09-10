@@ -1,354 +1,90 @@
 .section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  max-width: 720px;
+  gap: var(--dsw-space-section);
   color: var(--dsw-alias-label-primary);
 }
-
-.title {
-  margin: 0;
-  font: var(--dsw-font-title);
-}
-
-.intro {
-  margin: 0;
-  font: var(--dsw-font-body);
-  color: var(--dsw-alias-label-tertiary);
-}
-
-/* Cards, not rows: a preset is a thing you pick, and the description is the
-   part that tells them apart — a row would bury it beside the actions. */
-.group {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-/* Group-to-group breathing room: the section's 12px gap plus 20px reads the
-   two rosters as separate blocks (32px total). */
-.group + .group {
-  margin-top: 20px;
-}
-
+.title { margin: 0; font: var(--dsw-font-title); }
+.intro { margin: 0; font: var(--dsw-font-body); color: var(--dsw-alias-label-tertiary); }
+.group { display: flex; flex-direction: column; gap: var(--dsw-space-control); }
+.group + .group { margin-top: var(--dsw-space-section); }
 .groupHead {
   margin: 0;
   font: var(--dsw-font-caption);
   font-weight: var(--dsw-weight-heading);
-  letter-spacing: .06em;
-  text-transform: uppercase;
   color: var(--dsw-alias-label-tertiary);
 }
-
 .cards {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
-  /* Every row the same height, so a short description does not make its card
-     shorter than the one beside it. */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--dsw-panel-min-width)), 1fr));
   grid-auto-rows: 1fr;
-  gap: 12px;
+  gap: var(--dsw-space-section);
 }
-
 .card {
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 12px;
+  border: var(--dsw-border-width) solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-surface);
   display: flex;
   flex-direction: column;
   background: var(--dsw-alias-bg-layer-3);
   transition: border-color var(--ds-transition-duration), background var(--ds-transition-duration);
 }
-
-.card:hover:not(.cardActive) {
-  border-color: var(--dsw-alias-label-dimmed);
-}
-
-/* The default preset reads as selected, not merely badged. */
-.cardActive {
-  background: var(--dsw-alias-bg-layer-2);
-  border-color: var(--dsw-alias-label-primary);
-}
-
-/* A broken preset reads as damaged before anything else: the card cannot be
-   picked, so its border carries the warning the disabled body cannot. */
-.cardBroken {
-  border-color: var(--dsw-alias-state-error-primary);
-}
-
-.cardBroken:hover {
-  border-color: var(--dsw-alias-state-error-primary);
-}
-
+.card:hover:not(.cardActive) { border-color: var(--dsw-alias-label-tertiary); }
+.cardActive { background: var(--dsw-alias-bg-layer-2); border-color: var(--dsw-alias-label-primary); }
+.cardBroken,
+.cardBroken:hover { border-color: var(--dsw-alias-state-error-primary); }
 .brokenBadge {
-  border-radius: 999px;
-  padding: 1px 8px;
+  border-radius: var(--dsw-radius-pill);
+  padding: var(--dsw-border-width) var(--dsw-space-control);
   font: var(--dsw-font-caption);
   white-space: nowrap;
-  background: var(--dsw-alias-state-error-primary);
+  background: var(--dsw-alias-label-error);
   color: var(--dsw-alias-bg-layer-3);
 }
-
-/* The discovery-reported reason, verbatim: it names the rows and the fix.
-   A real element rather than the icon row's `data-tip` pseudo-element, for two
-   reasons: generated content joins the card's accessible text, where this would
-   repeat what the alert already carries, and that tooltip is one `nowrap` line
-   for an icon label while this names package specifiers one per line. */
-.brokenTip {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: var(--dsw-z-raised);
-  width: max-content;
-  max-width: 100%;
-  padding: 6px 8px;
-  border-radius: 6px;
-  background: var(--dsw-alias-label-primary);
-  color: var(--dsw-alias-bg-layer-3);
-  font: var(--dsw-font-caption);
-  text-align: left;
-  white-space: pre-line;
-  overflow-wrap: anywhere;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--ds-transition-duration-fast);
-}
-
-/* Focusing the card reveals it too: a broken card keeps its place in the tab
-   order (`aria-disabled`, not `disabled`), so this is the keyboard path to a
-   reason the card face no longer shows. */
-.brokenBadge:hover .brokenTip,
-.cardMain:focus-visible .brokenTip {
-  opacity: 1;
-}
-
-.cardMain[aria-disabled='true'] {
-  cursor: default;
-}
-
-.cardMain:focus-visible {
-  outline: 2px solid var(--dsw-alias-brand-primary);
-  outline-offset: -2px;
-}
-
-/* The card body is the control that picks the preset. */
-.cardMain {
-  flex: 1;
-  appearance: none;
-  border: 0;
-  background: none;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 14px 16px 12px;
-  border-radius: 12px 12px 0 0;
-}
-
-.cardMain:disabled {
-  cursor: default;
-}
-
 .cardHead {
   display: flex;
   align-items: center;
-  gap: 8px;
-  /* Anchors the broken badge's tooltip: the badge itself stays unpositioned so
-     its `::after` resolves against the card's own width instead of against a
-     badge that sits partway across it. A tooltip grown from the badge would
-     run past the card, and past the section for a card in the last column. */
-  position: relative;
+  flex-wrap: wrap;
+  gap: var(--dsw-space-control);
 }
-
-.cardName {
-  font: var(--dsw-font-title);
-}
-
+.cardName { font: var(--dsw-font-title); }
 .badge,
 .inUse {
-  border-radius: 999px;
-  padding: 1px 8px;
+  border-radius: var(--dsw-radius-pill);
+  padding: var(--dsw-border-width) var(--dsw-space-control);
   font: var(--dsw-font-caption);
   white-space: nowrap;
 }
-
-.badge {
-  border: 1px solid var(--dsw-alias-border-l2);
-  color: var(--dsw-alias-label-tertiary);
-}
-
-.inUse {
-  margin-left: auto;
-  background: var(--dsw-alias-label-primary);
-  color: var(--dsw-alias-bg-layer-3);
-}
-
-/* Bounded to four lines. A preset publishes its own description, so one long
-   one would otherwise stretch every card in its grid row (`.cards` sizes rows
-   1fr). Clamping is CSS alone: the whole text stays in the DOM for assistive
-   tech, and the card offers it on hover when it is actually cut off. The
-   description does not grow to fill the card — `-webkit-line-clamp` on a
-   flex-stretched box leaves the clamp height and the box height disagreeing,
-   so `.cardId` takes the free space with an auto margin instead. */
+.badge { border: var(--dsw-border-width) solid var(--dsw-alias-border-l2); color: var(--dsw-alias-label-tertiary); }
+.inUse { margin-left: auto; background: var(--dsw-alias-label-primary); color: var(--dsw-alias-bg-layer-3); }
 .cardDesc {
   font: var(--dsw-font-body);
   color: var(--dsw-alias-label-secondary);
-  min-height: 42px;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 4;
   overflow: hidden;
-  /* A user-authored description may carry an unbreakable path or URL. */
   overflow-wrap: anywhere;
 }
-
-.cardId {
-  margin-top: auto;
-  font: var(--dsw-font-caption);
-  font-family: var(--ds-font-family-code);
-  color: var(--dsw-alias-label-secondary);
-}
-
-.cardFoot {
-  display: flex;
-  justify-content: flex-end;
-  gap: 2px;
-  padding: 6px 10px;
-  border-top: 1px solid var(--dsw-alias-border-l2);
-}
-
-/* Icon-only actions: the label rides `title` so the row stays quiet until
-   someone reaches for it. */
-.iconButton {
-  position: relative;
-  appearance: none;
-  border: 0;
-  border-radius: 7px;
-  padding: 6px;
-  background: none;
-  color: var(--dsw-alias-label-tertiary);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-}
-
-.iconButton:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.iconButton:hover:not(:disabled) {
-  background: var(--dsw-alias-bg-layer-1);
-  color: var(--dsw-alias-label-primary);
-}
-
-.iconButton:focus-visible {
-  outline: 2px solid var(--dsw-alias-brand-primary);
-  outline-offset: -1px;
-}
-
-.iconButton::after {
-  content: attr(data-tip);
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 3px 8px;
-  border-radius: 6px;
-  background: var(--dsw-alias-label-primary);
-  color: var(--dsw-alias-bg-layer-3);
-  font: var(--dsw-font-caption);
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--ds-transition-duration-fast);
-}
-
-.iconButton:hover::after,
-.iconButton:focus-visible::after {
-  opacity: 1;
-}
-
-.iconDanger:hover:not(:disabled) {
-  background: var(--dsw-alias-interactive-bg-hover-danger);
-  color: var(--dsw-alias-state-error-primary);
-}
-
-/* Where the host has no desktop opener, the row answers with the directory
-   itself — text to copy, not a control that would spawn into nothing. */
-.revealedPath {
-  margin: 0;
-  padding: 6px 16px 10px;
-  font: var(--dsw-font-caption);
-  color: var(--dsw-alias-label-tertiary);
-  display: flex;
-  gap: 6px;
-  align-items: baseline;
-}
-
-.revealedPath code {
-  font-family: var(--ds-font-family-code);
-  color: var(--dsw-alias-label-secondary);
-  user-select: all;
-  overflow-wrap: anywhere;
-}
-
-.revealedPathLabel {
-  white-space: nowrap;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.fieldLabel {
-  font: var(--dsw-font-caption);
-  color: var(--dsw-alias-label-secondary);
-}
-
-.input {
-  box-sizing: border-box;
-  padding: 9px 12px;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 10px;
-  font: var(--dsw-font-body);
-  background: var(--dsw-alias-bg-layer-1);
-  color: var(--dsw-alias-label-primary);
-}
-
-.input:focus {
-  outline: none;
-  border-color: var(--dsw-alias-brand-primary);
-}
-
-.input::placeholder {
-  color: var(--dsw-alias-label-dimmed);
-}
-
-.dialog {
-  width: min(560px, 100%);
-}
-
-.dialogFields {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-/* A shipped composition can be long; the dialog scrolls it rather than grow. */
+.cardId { margin-top: auto; font: var(--dsw-font-caption); font-family: var(--ds-font-family-code); color: var(--dsw-alias-label-secondary); }
+.cardFoot { display: flex; justify-content: flex-end; gap: var(--dsw-space-tight); padding: var(--dsw-space-control); border-top: var(--dsw-border-width) solid var(--dsw-alias-border-l2); }
+.revealedPath { margin: 0; padding: var(--dsw-space-control) var(--dsw-space-section); font: var(--dsw-font-caption); color: var(--dsw-alias-label-tertiary); display: flex; gap: var(--dsw-space-control); align-items: baseline; }
+.revealedPath code { font-family: var(--ds-font-family-code); color: var(--dsw-alias-label-secondary); user-select: all; overflow-wrap: anywhere; }
+.revealedPathLabel { white-space: nowrap; }
+.field { display: flex; flex-direction: column; gap: var(--dsw-space-control); }
+.fieldLabel { font: var(--dsw-font-caption); color: var(--dsw-alias-label-secondary); }
+.dialog,
+.deleteDialog { width: min(var(--dsw-dialog-width), 100%); }
+.dialogFields { display: flex; flex-direction: column; gap: var(--dsw-space-section); }
 .viewerCode {
   margin: 0;
-  padding: 12px;
-  max-height: min(52vh, 480px);
+  padding: var(--dsw-space-section);
+  max-height: min(50dvh, var(--dsw-reader-height));
   overflow: auto;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 10px;
+  border: var(--dsw-border-width) solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-control);
   background: var(--dsw-alias-bg-layer-2);
   color: var(--dsw-alias-label-secondary);
   font: var(--dsw-font-caption);
@@ -358,50 +94,4 @@
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
 }
-
-.error {
-  margin: 0;
-  font: var(--dsw-font-caption);
-  color: var(--dsw-alias-state-error-primary);
-}
-
-.deleteDialog {
-  width: min(480px, 100%);
-}
-
-.deleteConfirm:not(:disabled) {
-  border-color: var(--dsw-alias-state-error-primary);
-  color: var(--dsw-alias-state-error-primary);
-}
-
-.deleteConfirm:hover:not(:disabled) {
-  background: var(--dsw-alias-interactive-bg-hover-danger);
-}
-
-/* The conversational authoring entry, after the card grid in the spot the
-   create button vacated. Dashed like the Models page's add affordances: it
-   reads as a place a preset will appear, not a command. */
-.creatorButton {
-  box-sizing: border-box;
-  align-self: stretch;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 44px;
-  border: 1px dashed var(--dsw-alias-border-l3);
-  border-radius: 12px;
-  font: var(--dsw-font-body);
-  background: transparent;
-  color: var(--dsw-alias-label-primary);
-  cursor: pointer;
-}
-
-.creatorButton:hover:not(:disabled) {
-  background: var(--dsw-alias-interactive-bg-hover);
-}
-
-.creatorButton:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
+.error { margin: 0; font: var(--dsw-font-caption); color: var(--dsw-alias-label-error); }

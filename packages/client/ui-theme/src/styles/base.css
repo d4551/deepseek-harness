@@ -13,13 +13,24 @@
   --ds-transition-duration-fast: 0.1s;
   --ds-transition-duration-slow: 0.3s;
   --dsw-space-control: 0.5rem;
+  --dsw-space-tight: 0.25rem;
   --dsw-space-section: 1rem;
   --dsw-touch-target: 2.75rem;
+  --dsw-control-height: 2.25rem;
+  --dsw-control-height-compact: 1.75rem;
+  --dsw-control-disabled-opacity: 0.4;
+  --dsw-icon-size: 1rem;
   --dsw-border-width: 1px;
+  --dsw-focus-width: 2px;
+  --dsw-focus-offset: 2px;
   --dsw-radius-surface: 1rem;
+  --dsw-radius-control: 0.5rem;
+  --dsw-radius-pill: 999rem;
   --dsw-weight-heading: 600;
   --dsw-workspace-width: 72rem;
   --dsw-panel-min-width: 20rem;
+  --dsw-dialog-width: 36rem;
+  --dsw-reader-height: 30rem;
   --dsw-space-layout: 1.5rem;
   --dsw-line-height-body: 1.5;
   --dsw-font-body: 400 0.875rem/1.5 var(--dsw-font-family);
@@ -66,6 +77,6 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 summary:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary);
-  outline-offset: 2px;
+  outline: var(--dsw-focus-width) solid var(--dsw-alias-state-business-primary);
+  outline-offset: var(--dsw-focus-offset);
 }

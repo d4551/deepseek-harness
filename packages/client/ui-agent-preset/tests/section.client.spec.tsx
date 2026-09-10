@@ -73,7 +73,6 @@ function renderSection(
 function rowFor(id: string): HTMLElement {
   const key = screen.getAllByText(id).find(node => node.tagName === 'CODE')
   const row = key?.closest('li') ?? null
-  /* v8 ignore next -- every rendered card prints its id */
   if (row === null) throw new Error(`no card for ${id}`)
   return row
 }
@@ -176,7 +175,7 @@ describe('the preset list', () => {
 
     const duplicate = within(rowFor('standard')).getByRole('button', { name: `${en.duplicate}: ${en.presetStandardName}` })
     expect(duplicate).toHaveProperty('disabled', true)
-    expect(duplicate.getAttribute('data-tip')).toBe(en.duplicateUnavailable)
+    expect(duplicate.getAttribute('title')).toBe(en.duplicateUnavailable)
   })
 
   it('marks a broken custom preset: unselectable, uncopyable, still deletable', () => {
@@ -191,10 +190,7 @@ describe('the preset list', () => {
     })
 
     const ghost = rowFor('ghost')
-    // The badge carries the reason for a pointer, and the body cannot pick
-    // what cannot mount.
-    expect(within(ghost).getByText(en.brokenBadge).textContent)
-      .toBe(`${en.brokenBadge}the composition file agent.cordis.yml is missing`)
+    expect(within(ghost).getByText(en.brokenBadge).textContent).toBe(en.brokenBadge)
     // A picker card keeps showing what the preset is; a package specifier in
     // its place would tell a chooser nothing they can act on there.
     expect(within(ghost).getByText('我自己写的')).toBeTruthy()
@@ -207,13 +203,16 @@ describe('the preset list', () => {
     const body = within(ghost).getByRole('button', { name: `${en.brokenBadge}: 幽灵预设` })
     expect(body).toHaveProperty('disabled', false)
     expect(body.getAttribute('aria-disabled')).toBe('true')
+    fireEvent.focus(body)
+    expect(screen.getByRole('tooltip').textContent).toBe('the composition file agent.cordis.yml is missing')
+    expect(body.getAttribute('aria-describedby')).toContain(screen.getByRole('tooltip').id)
     fireEvent.click(body)
     expect(actions.makeDefault).not.toHaveBeenCalled()
     // Copying a broken preset would only mint another broken one; deleting
     // and the location remain — the files are where it gets fixed.
     const duplicate = within(ghost).getByRole('button', { name: `${en.duplicate}: 幽灵预设` })
     expect(duplicate).toHaveProperty('disabled', true)
-    expect(duplicate.getAttribute('data-tip')).toBe(en.brokenNoCopy)
+    expect(duplicate.getAttribute('title')).toBe(en.brokenNoCopy)
     expect(within(ghost).getByRole('button', { name: `${en.delete}: 幽灵预设` })).toBeTruthy()
     expect(within(ghost).getByRole('button', { name: `${en.openLocation}: 幽灵预设` })).toBeTruthy()
   })
