@@ -13,6 +13,14 @@
 
 # ── surface-specific values the base deliberately omits ─────────────────────
 
+# Web leads coordinate shared tasks as a swarm and expose `/swarm` in the composer.
+- id: tool-agent-team
+  config:
+    freshProvider: spawn
+    forkProvider: fork
+    coordination: swarm
+    excludePresets: [minimal]
+
 - id: system-prompt
   config:
     persona: >-

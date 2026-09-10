@@ -18,7 +18,7 @@ import type {} from '@deepseek-ai/dsh-system-prompt'
 import { launchWebScaffold, type WebScaffold } from './scaffold.ts'
 import { connectFreshWorkspace, launchBrowser, newEnglishPage, REPO_ROOT } from './support.ts'
 
-/** The template under test: the profile that makes swarm mode reachable from a browser. */
+/** The profile with expanded swarm capacity. */
 const TEMPLATE_NAME = 'swarm-web'
 
 /**
@@ -115,8 +115,7 @@ it('composes the shipped swarm-web template into the swarm bounds and browser ro
   const patchPaths = bundles.map(packageName => bundlePatchPath(packageName, dirs))
   const composed = composeEntries(patchPaths.map(path => loadOverlayPatches(TEMPLATE_NAME, path)))
 
-  // The effective entry list the launcher would mount: the swarm deltas that
-  // distinguish this template from the delegated Agent Teams layer.
+  // The effective entry list the launcher would mount, including expanded capacity.
   expect(rowConfig(composed, 'subagent').maxConcurrentRuns).toBe(8)
   expect(rowConfig(composed, 'agent-team').maxMembers).toBe(16)
   expect(rowConfig(composed, 'tool-agent-team').coordination).toBe('swarm')
@@ -149,7 +148,7 @@ it('composes the shipped swarm-web template into the swarm bounds and browser ro
   // The browser roster the Host serves: both rows resolved to real client bundles.
   const clientRows = ctx.clientModules.graph().entries.map(entry => entry.id)
   for (const row of REQUIRED_CLIENT_ROWS) expect(clientRows).toContain(row)
-  await exerciseSwarmComposer(scaffold)
+  await exerciseSwarmComposer(scaffold, 'swarm')
 
   // What the swarm composition puts in front of the model. `coordination: swarm`
   // selects a different policy than the delegated layer any other test exercises,
@@ -211,7 +210,13 @@ it('composes the shipped swarm-web template into the swarm bounds and browser ro
   expect(ctx.commands.find(handle.agent, 'swarm')).toBeUndefined()
 }, 180_000)
 
-async function exerciseSwarmComposer(host: WebScaffold): Promise<void> {
+it('shows and submits swarm commands in the default web profile', async () => {
+  expect(PROFILE_TEMPLATES.web?.bundles).toEqual(SCAFFOLD_BUNDLES)
+  scaffold = await launchWebScaffold()
+  await exerciseSwarmComposer(scaffold, 'default-web-swarm')
+}, 180_000)
+
+async function exerciseSwarmComposer(host: WebScaffold, screenshotName: string): Promise<void> {
   const browser = await launchBrowser()
   onTestFinished(() => browser.close())
   const page = await newEnglishPage(browser)
@@ -233,11 +238,12 @@ async function exerciseSwarmComposer(host: WebScaffold): Promise<void> {
   await goalOption.waitFor()
   expect(await swarmOption.isVisible()).toBe(true)
   expect(await goalOption.isVisible()).toBe(true)
-  await page.screenshot({ path: '.artifacts/finish/swarm-goal-command-preview.png' })
+  await page.screenshot({ path: `.artifacts/finish/${screenshotName}-goal-command-preview.png` })
   await input.pressSequentially('swarm')
   await swarmOption.waitFor()
   await input.press('Enter')
   await expect.poll(() => input.textContent()).toBe('/swarm ')
+  await page.screenshot({ path: `.artifacts/finish/${screenshotName}-command-selected.png` })
   expect(agent.inbox.hasPending).toBe(false)
   const maintenance = Promise.withResolvers<undefined>()
   const held = agent.runMaintenance((signal) => {
@@ -252,7 +258,7 @@ async function exerciseSwarmComposer(host: WebScaffold): Promise<void> {
   await input.press('End')
   await input.pressSequentially('Review the Settings and Agent Team journeys')
   await input.press('Enter')
-  await page.screenshot({ path: '.artifacts/finish/swarm-command-submitted.png' })
+  await page.screenshot({ path: `.artifacts/finish/${screenshotName}-command-submitted.png` })
   await expect.poll(() => agent.inbox.nextTurn.map(message => message.content)).toEqual([
     [{ type: 'text', text: 'Review the Settings and Agent Team journeys' }],
   ])
@@ -262,7 +268,7 @@ async function exerciseSwarmComposer(host: WebScaffold): Promise<void> {
   const queuedRequest = page.getByText('Review the Settings and Agent Team journeys', { exact: true })
   await queuedRequest.waitFor()
   expect(await queuedRequest.isVisible()).toBe(true)
-  await page.screenshot({ path: '.artifacts/finish/verified-swarm-command.png' })
+  await page.screenshot({ path: `.artifacts/finish/verified-${screenshotName}-command.png` })
   expect(errors).toEqual([])
   agent.inbox.clear()
   maintenance.resolve(undefined)
