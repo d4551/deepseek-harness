@@ -9,6 +9,7 @@ import { assertNever } from '@deepseek-ai/dsh-llm'
 import { FIRST_PARTY_SECTION_ORDER } from '@deepseek-ai/dsh-system-prompt'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { InferValue, ValueSchemaSpec } from '@deepseek-ai/dsh-tools'
+import { installSwarmCommand } from './swarm-command.ts'
 
 /** Cordis plugin name. */
 export const name = 'tool-agent-team'
@@ -235,6 +236,7 @@ function install(agent: Agent, ctx: Context, config: Required<Config>): () => vo
   const disposers: Array<() => unknown> = []
   const register = (disposer: () => unknown): void => { disposers.push(disposer) }
   try {
+    if (config.coordination === 'swarm') register(installSwarmCommand(agent))
     register(scoped.systemPrompt.section({
       name: 'team:policy',
       order: FIRST_PARTY_SECTION_ORDER.TEAM_POLICY,

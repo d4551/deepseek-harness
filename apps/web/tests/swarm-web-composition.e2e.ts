@@ -1,18 +1,8 @@
-// Boots the shipped `swarm-web` profile template — every bundle its
-// PROFILE_TEMPLATES tuple names, resolved to the layer files those packages
-// publish — and asserts what that composition produces: the swarm bounds and
-// the swarm policy the model reads, plus the browser rows the roster serves.
-//
-// No browser and no model call. The rendered Agent Team panel already has a
-// browser case (agent-team-panel.e2e.ts) and the workspace-roots header has
-// its own (workspace-management.e2e.ts); neither runs the shipped `swarm-web`
-// layers, and neither would notice the swarm deltas — coordination, roster
-// ceiling, run ceiling — because those reach the model, not the DOM. This is
-// the boundary that holds them.
+// Real swarm-web composition, browser command submission, and durable queue.
 import { readFileSync } from 'node:fs'
 import { readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, onTestFinished } from 'vitest'
 import type { EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
 import { assembleContextFor } from '@deepseek-ai/dsh-agent'
 import { composeEntries, loadOverlayPatches, PROFILE_TEMPLATES } from '@deepseek-ai/dsh-app-boot'
@@ -22,10 +12,11 @@ import { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-agent-presets'
 import type {} from '@deepseek-ai/dsh-agent-team'
 import type {} from '@deepseek-ai/dsh-client-modules'
+import type {} from '@deepseek-ai/dsh-commands'
 import type {} from '@deepseek-ai/dsh-subagent'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import { launchWebScaffold, type WebScaffold } from './scaffold.ts'
-import { REPO_ROOT } from './support.ts'
+import { connectFreshWorkspace, launchBrowser, newEnglishPage, REPO_ROOT } from './support.ts'
 
 /** The template under test: the profile that makes swarm mode reachable from a browser. */
 const TEMPLATE_NAME = 'swarm-web'
@@ -158,6 +149,7 @@ it('composes the shipped swarm-web template into the swarm bounds and browser ro
   // The browser roster the Host serves: both rows resolved to real client bundles.
   const clientRows = ctx.clientModules.graph().entries.map(entry => entry.id)
   for (const row of REQUIRED_CLIENT_ROWS) expect(clientRows).toContain(row)
+  await exerciseSwarmComposer(scaffold)
 
   // What the swarm composition puts in front of the model. `coordination: swarm`
   // selects a different policy than the delegated layer any other test exercises,
@@ -170,13 +162,96 @@ it('composes the shipped swarm-web template into the swarm bounds and browser ro
   })
   try {
     expect(ctx.agentTeams.membership(handle.agent).role).toBe('lead')
+    await expect.poll(() => ctx.commands.list(handle.agent).map(command => command.name)).toContain('swarm')
+    const signal = new AbortController().signal
+    expect((await ctx.commands.execute(handle.agent, '/swarm   ', [], signal))?.result).toEqual({
+      kind: 'error', text: 'Describe the work after /swarm.',
+    })
+    expect(handle.agent.inbox.hasPending).toBe(false)
+    const maintenance = Promise.withResolvers<undefined>()
+    const held = handle.agent.runMaintenance((signal) => {
+      signal.addEventListener('abort', () => { maintenance.resolve(undefined) }, { once: true })
+      return maintenance.promise
+    })
+    onTestFinished(async () => {
+      handle.agent.inbox.clear()
+      maintenance.resolve(undefined)
+      await held
+    })
+    expect((await ctx.commands.execute(handle.agent, '/swarm Review keyboard navigation', [], signal))?.result).toEqual({
+      kind: 'success', text: 'Swarm request queued.',
+    })
+    expect(handle.agent.inbox.nextTurn).toHaveLength(1)
+    expect(handle.agent.inbox.nextTurn[0]?.content).toEqual([{ type: 'text', text: 'Review keyboard navigation' }])
+    expect(handle.agent.inbox.nextTurn[0]?.source).toEqual({ kind: 'user' })
+    handle.agent.inbox.clear()
+    maintenance.resolve(undefined)
+    await held
     const assembled = await ctx.systemPrompt.assemble(assembleContextFor(handle.agent))
     expect(assembled.tools.map(schema => schema.name)).toContain('team_task_claim_next')
     const prompt = renderPrompt(assembled)
     expect(prompt).toContain('This session runs as a swarm')
     expect(prompt).toContain('Do not name a specific task in a teammate\'s prompt')
     expect(prompt).not.toContain('create teammates only when the user explicitly asks')
+    const excluded = await ctx.agents.create({
+      sessionId: SessionId('swarm-excluded-preset'),
+      meta: { cwd: scaffold.workspaceCwd, agentPreset: 'minimal' },
+      agentOptions: {},
+    })
+    onTestFinished(() => excluded.dispose())
+    expect(ctx.commands.find(excluded.agent, 'swarm')).toBeUndefined()
+    expect(await ctx.commands.execute(excluded.agent, '/swarm Work', [], signal)).toBeUndefined()
+    const entry = [...ctx.loader.entries()].find(row => row.options.id === 'tool-agent-team')
+    if (entry?.fiber === undefined) throw new Error('Swarm tool plugin has no live fiber')
+    await entry.fiber.dispose()
+    await expect.poll(() => ctx.commands.find(handle.agent, 'swarm')).toBeUndefined()
   } finally {
     await handle.dispose()
   }
+  expect(ctx.commands.find(handle.agent, 'swarm')).toBeUndefined()
 }, 180_000)
+
+async function exerciseSwarmComposer(host: WebScaffold): Promise<void> {
+  const browser = await launchBrowser()
+  onTestFinished(() => browser.close())
+  const page = await newEnglishPage(browser)
+  const errors: string[] = []
+  page.on('pageerror', (error) => { errors.push(error.message) })
+  page.on('console', (message) => {
+    if (message.type() === 'error' || message.type() === 'warning') errors.push(message.text())
+  })
+  await page.goto(host.authenticatedUrl, { waitUntil: 'load' })
+  await connectFreshWorkspace(page, host.workspaceCwd)
+  const agent = host.ctx.agents.list()[0]
+  if (agent === undefined) throw new Error('The browser workspace has no lead')
+  const input = page.locator('[data-composer-input]').first()
+  await input.fill('/swarm')
+  await input.press('Enter')
+  await expect.poll(() => input.textContent()).toBe('/swarm ')
+  expect(agent.inbox.hasPending).toBe(false)
+  const maintenance = Promise.withResolvers<undefined>()
+  const held = agent.runMaintenance((signal) => {
+    signal.addEventListener('abort', () => { maintenance.resolve(undefined) }, { once: true })
+    return maintenance.promise
+  })
+  onTestFinished(async () => {
+    agent.inbox.clear()
+    maintenance.resolve(undefined)
+    await held
+  })
+  await input.press('End')
+  await input.pressSequentially('Review the Settings and Agent Team journeys')
+  await input.press('Enter')
+  await page.screenshot({ path: '.artifacts/finish/swarm-command-submitted.png' })
+  await expect.poll(() => agent.inbox.nextTurn.map(message => message.content)).toEqual([
+    [{ type: 'text', text: 'Review the Settings and Agent Team journeys' }],
+  ])
+  await expect.poll(() => input.textContent()).toBe('')
+  expect(agent.session.events.some(event => event.type === 'command/done'
+    && event.data.kind === 'success' && event.data.text === 'Swarm request queued.')).toBe(true)
+  await page.screenshot({ path: '.artifacts/finish/verified-swarm-command.png' })
+  expect(errors).toEqual([])
+  agent.inbox.clear()
+  maintenance.resolve(undefined)
+  await held
+}

@@ -6,6 +6,7 @@
   },
   "include": ["src"],
   "references": [
+    { "path": "../../interaction/commands" },
     { "path": "../../../vendor/cosmokit" },
     { "path": "../../../vendor/schemastery" },
     { "path": "../../../vendor/cordis" },

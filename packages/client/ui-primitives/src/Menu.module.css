@@ -37,16 +37,23 @@
   max-width: 360px;
 }
 
-/* Portal mode: fixed in the viewport, coordinates supplied inline from the
- * anchor rect (side/align resolved in JS, the in-place offset rules above
- * don't apply). Portaled lists must layer above the modal plane
- * (--dsw-z-modal) —
- * an anchor inside a dialog still expects its menu on top. */
+/* Portaled menus remain above their owning dialog. */
 .portal {
   position: fixed;
   top: auto;
   left: auto;
   z-index: var(--dsw-z-above-modal);
+}
+
+.external {
+  left: attr(data-menu-left px);
+  top: attr(data-menu-top px);
+}
+
+.external:not([data-menu-left]) {
+  visibility: hidden;
+  left: 0;
+  top: 0;
 }
 
 .anchored {

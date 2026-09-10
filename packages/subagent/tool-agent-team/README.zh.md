@@ -1,5 +1,5 @@
 ---
-description: "十个让模型创建、发消息与协调 teammate 的工具，供组合 Team 插件的部署方阅读。"
+description: "十一个让模型创建、发消息与协调 teammate 的工具，供组合 Team 插件的部署方阅读。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`@deepseek-ai/dsh-tool-agent-team` 在团队领域包之上给模型一套团队工具：创建具名 teammate、给它们发消息或后续任务、查看谁在线、等待进展、中断卡住的 teammate，以及管理共享任务板——共十个工具。每个成员的提示词中都有一段简短策略，教模型何时组建团队（只有你要求时）以及如何在共享工作区协作。挂载它会用同名的团队工具取代旧版 subagent 控件，因此想同时使用两者的组合必须禁用旧定义。它以 prerelease 形式发布、不承诺稳定性，并且只有你明确要求组建团队时才会创建 teammate。
+`@deepseek-ai/dsh-tool-agent-team` 提供十一个 scoped 工具，用于创建 teammate、交换消息、检查进展与管理共享任务板。默认的 `delegated` 策略要求用户明确请求团队。`swarm` 策略让 Lead 创建任务和 teammate，由成员领取就绪工作。两种策略都协调共享工作区中的编辑。本包以 prerelease 形式发布，不承诺稳定性。
 
 ## 目录
 
@@ -25,11 +25,11 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-当模型应该通过工具运行一支团队时，在 `@deepseek-ai/dsh-agent-team` 之上挂载本包。挂载后，每个团队成员——Lead 与每个 teammate——都会获得相同的十个工具，外加一段说明自身角色与名字的策略段落。
+当模型应该通过工具运行一支团队时，在 `@deepseek-ai/dsh-agent-team` 之上挂载本包。挂载后，每个团队成员——Lead 与每个 teammate——都会获得相同的十一个工具，外加一段说明自身角色与名字的策略段落。
 
 ### 何时选择
 
-当模型应该自行创建与协调 teammate、而不是由人来操作 subagent 控件时，选择它。当同名的旧全局 subagent 工具必须继续可用时，请不要选择：团队工具会为团队成员取代它们，因此想同时使用两者的组合必须禁用旧定义。固定策略只在明确要求团队或 teammate 时创建成员，因此普通任务永远不会自行触发委派。
+当模型应该创建与协调 teammate 时，选择它。Team 作用域内的工具优先于同名全局工具。需要明确的委派请求时选择 `delegated`；通过任务板分配工作时选择 `swarm`。
 
 ### 最小工作示例
 
@@ -52,16 +52,18 @@ kind: "package-reference"
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-tool-agent-team)是每个受支持字段及其 JSDoc 的穷尽式真源。
 
+设置 `coordination: swarm` 后，Lead 将工作拆分为共享任务，teammate 通过 `team_task_claim_next` 领取就绪任务。挂载命令注册表时，`/swarm <request>` 会将新请求提交到 Lead 的普通轮次队列。请求必须包含文本，也可以附带图片。委派组合、排除的 preset 和 teammate 作用域中没有此命令。
+
 试试这样要求 Lead 模型：「创建一个名为 reviewer 的 teammate 检查 diff，再把变更摘要发给 reviewer」。模型会调用创建工具，然后调用消息工具。
 
 ### 模型能做什么
 
-十个工具分为四类能力：
+十一个工具分为四类能力：
 
 - **创建 teammate**——`spawn_teammate` 接收名字、描述与初始任务；只有 Lead 可以调用它。
 - **发送消息**——`send_message` 在不唤醒 idle teammate 的情况下传达信息；`followup_task` 让消息成为接收方的下一个轮次，并在需要时唤醒它。
 - **查看与等待**——`list_agents` 显示带实时状态的 roster；`wait_agent` 等待下一次团队变化；`interrupt_agent` 停止 teammate 的当前轮次（仅限 Lead）。
-- **管理任务板**——`team_task_create`、`team_task_list`、`team_task_get` 与 `team_task_update` 添加、浏览、读取与更新共享任务。
+- **管理任务板**——`team_task_create`、`team_task_list`、`team_task_get` 与 `team_task_update` 添加、浏览、读取与更新共享任务。`team_task_claim_next` 领取下一个就绪任务，避免与进行中任务的写入范围重叠。
 
 任何成员都可以给任何其他成员发消息并使用任务板；只有 Lead 可以创建与中断 teammate。任务更新保留领域的 owner 与 revision 校验，因此过期的编辑会被拒绝，而不是覆盖更新的成果。
 
@@ -93,12 +95,13 @@ kind: "package-reference"
 
 | 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | 插件入口：配置、固定策略文本与十个 scoped 工具注册 |
+| [`src/index.ts`](src/index.ts) | 插件入口：配置、协作策略与十一个 scoped 工具注册 |
+| [`src/swarm-command.ts`](src/swarm-command.ts) | 通过命令注册表提交 Lead 作用域内的请求 |
 | [`src/invariant.ts`](src/invariant.ts) | 不变式伴生插件（无运行时不变式；委托只能通过 `ctx.agentTeams` 观察） |
 
 ### 策略与工具
 
-member scope 上的一个 `team:policy` 段落教每个成员自己的角色与协作规则；固定文本与十个工具注册都声明在 [`src/index.ts`](src/index.ts)。十个工具 schema 只出现在 Team member scope 中，因此非 Team subagent 保持默认目录。与旧全局 continuable-subagent 控件同名的 scoped 注册只会为团队成员覆盖这些全局控件。
+一个 `team:policy` 段落教每个成员自己的角色与配置的协作规则。策略文本与十一个工具注册声明在 [`src/index.ts`](src/index.ts)。工具 schema 只出现在 Team member scope 中，并优先于同名全局工具。
 
 ### 按作用域注册与拆除
 
@@ -127,7 +130,7 @@ member scope 上的一个 `team:policy` 段落教每个成员自己的角色与�
 
 #### 模型看到什么
 
-一段稳定策略会说明确切 Team role／name／id、显式 delegation 要求、共享 cwd 行为、文件 stale-version 恢复、Bash／formatter／codegen 风险、task／write-scope 协调、quiet 与 waking 投递区别、mailbox 不重试规则，以及 Lead 必须在回答前等待。`spawn_teammate` 到 `team_task_update` 的十个 Team schema 只出现在 Team member scope。
+一段策略会说明 Team role／name／id、配置的协作策略、共享 cwd 行为、文件 stale-version 恢复、Bash／formatter／codegen 风险、task／write-scope 协调、quiet 与 waking 投递区别、mailbox 不重试规则，以及 Lead 必须在回答前等待。`spawn_teammate` 到 `team_task_update` 的十一个 Team schema 只出现在 Team member scope。
 
 #### Token 影响
 
@@ -145,7 +148,7 @@ Team 插件 generation、配置、member role／name 与 schema 不变时，前�
 这些限制说明策略与工具无法为一支团队保证什么。它们是当前包约束，不是与其他协作表面的对比。
 
 - **提示词策略只负责协调，不负责 confinement**——它无法阻止 Bash 或外部进程写入重叠文件。
-- **不会自主创建 Team**——除非用户明确要求，普通任务不会触发 delegation。
+- **委派遵循配置策略**——`delegated` 要求用户明确请求团队；`swarm` 指示 Lead 创建任务与 teammate 来并行工作。
 - **没有 Web 控制功能**——浏览器 roster 与任务板呈现不属于该运行时包。
 - **Prerelease，无稳定性承诺**——本包以 `0.x` alpha 发布，schema 仍可自由变更。
 

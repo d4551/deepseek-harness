@@ -1,5 +1,5 @@
 ---
-description: "Ten tools that let the model create, message, and coordinate teammates, for compositions mounting the Team plugins."
+description: "Eleven tools that let the model create, message, and coordinate teammates, for compositions mounting the Team plugins."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`@deepseek-ai/dsh-tool-agent-team` gives the model a team toolset on top of the team domain package: create named teammates, send them messages or follow-up work, see who is available, wait for progress, interrupt a stuck teammate, and manage a shared task board — ten tools in total. A short policy section in every member's prompt teaches the model when to form a team (only when you ask for one) and how to coordinate on a shared workspace. Mounting it replaces legacy subagent controls with the same tool names, so a composition that wants both must disable the legacy definitions. It publishes as a prerelease without a stability promise, and creates teammates only when you explicitly ask for a team.
+`@deepseek-ai/dsh-tool-agent-team` provides eleven scoped tools for creating teammates, exchanging messages, checking progress, and managing a shared task board. The default `delegated` policy requires an explicit team request. The `swarm` policy has the Lead create tasks and teammates that claim ready work. Both policies coordinate edits in a shared workspace. The package publishes as a prerelease without a stability promise.
 
 ## Table of Contents
 
@@ -25,11 +25,11 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Add this package on top of `@deepseek-ai/dsh-agent-team` when the model should run a team through tools. Once mounted, every team member — the Lead and each teammate — gets the same ten tools plus a policy paragraph that states its own role and name.
+Add this package on top of `@deepseek-ai/dsh-agent-team` when the model should run a team through tools. Once mounted, every team member — the Lead and each teammate — gets the same eleven tools plus a policy paragraph that states its own role and name.
 
 ### When to choose it
 
-Choose it when the model should create and coordinate teammates by itself rather than a human driving subagent controls. Avoid it when the legacy global subagent tools with the same names must stay available: the team tools replace them for team members, so a composition that wants both must disable the legacy definitions. The fixed policy creates teammates only when you explicitly ask for a team or teammates, so ordinary tasks never trigger delegation on their own.
+Choose it when the model should create and coordinate teammates. Team-scoped tools take precedence over global tools with the same names. Choose `delegated` for explicit delegation requests or `swarm` for work distributed through the task board.
 
 ### Smallest working example
 
@@ -52,16 +52,18 @@ The smallest addition to an existing composition is the two-package fragment fro
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-tool-agent-team) is the exhaustive source for every accepted field and its JSDoc.
 
+With `coordination: swarm`, the Lead decomposes work into shared tasks and teammates claim ready tasks with `team_task_claim_next`. When the command registry is mounted, `/swarm <request>` submits a new request to the Lead's normal turn queue. The request must contain text and may include images. The command is absent from delegated compositions, excluded presets, and teammate scopes.
+
 Try it by asking the Lead model: "create a teammate named reviewer to check the diff, then send reviewer the change summary". The model calls the creation tool and then the messaging tool.
 
 ### What the model can do
 
-The ten tools group into four capabilities:
+The eleven tools group into four capabilities:
 
 - **Create a teammate** — `spawn_teammate` takes a name, a description, and the initial task; only the Lead can call it.
 - **Send messages** — `send_message` delivers information without waking an idle teammate; `followup_task` makes the message the recipient's next turn and wakes it when needed.
 - **See and wait** — `list_agents` shows the roster with live status; `wait_agent` waits for the next team change; `interrupt_agent` stops a teammate's current turn (Lead only).
-- **Manage the task board** — `team_task_create`, `team_task_list`, `team_task_get`, and `team_task_update` add, browse, read, and update shared tasks.
+- **Manage the task board** — `team_task_create`, `team_task_list`, `team_task_get`, and `team_task_update` add, browse, read, and update shared tasks. `team_task_claim_next` claims the next ready task without overlapping an active task's write scopes.
 
 Any member can message any other member and use the task board; only the Lead creates and interrupts teammates. Task updates keep the domain's owner and revision checks, so an outdated edit is rejected instead of overwriting newer work.
 
@@ -93,12 +95,13 @@ The [Agent Teams Agent Note](../../../.agents/notes/implemented/feature/2026-08-
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Plugin entry: config, the fixed policy text, and the ten scoped tool registrations |
+| [`src/index.ts`](src/index.ts) | Plugin entry: config, coordination policies, and eleven scoped tool registrations |
+| [`src/swarm-command.ts`](src/swarm-command.ts) | Lead-scoped request submission through the command registry |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; delegation is observable only through `ctx.agentTeams`) |
 
 ### Policy and tools
 
-One `team:policy` section on the member scope teaches each member its role and the coordination rules; the fixed text and the ten tool registrations are declared in [`src/index.ts`](src/index.ts). The ten tool schemas appear only in Team member scopes, so non-Team subagents keep the default catalog. Scoped registrations with the same names as the legacy global continuable-subagent controls shadow those globals for team members only.
+One `team:policy` section teaches each member its role and configured coordination rules. The policy text and eleven tool registrations are declared in [`src/index.ts`](src/index.ts). Tool schemas appear only in Team member scopes and take precedence over global tools with matching names.
 
 ### Scoped registration and teardown
 
@@ -127,7 +130,7 @@ Read these pages when the package-level contract is not enough. They move from t
 
 #### What the model sees
 
-One stable policy section states the exact Team role/name/id, the explicit-delegation requirement, shared-cwd behavior, filesystem stale-version recovery, Bash/formatter/codegen risk, task and write-scope coordination, quiet versus waking delivery, the no-retry mailbox rule, and the Lead's duty to wait before answering. The ten Team schemas from `spawn_teammate` through `team_task_update` appear only in Team member scopes.
+One policy section states the Team role/name/id, configured coordination policy, shared-cwd behavior, filesystem stale-version recovery, Bash/formatter/codegen risk, task and write-scope coordination, quiet versus waking delivery, the no-retry mailbox rule, and the Lead's duty to wait before answering. The eleven Team schemas from `spawn_teammate` through `team_task_update` appear only in Team member scopes.
 
 #### Token effect
 
@@ -145,7 +148,7 @@ Prefix-stable while the Team plugin generation, configuration, member role/name,
 These limits describe what the policy and tools cannot guarantee for a team. They are current package constraints, not a comparison with other collaboration surfaces.
 
 - **Prompt policy is coordination, not confinement** — it cannot stop Bash or external processes from writing overlapping files.
-- **No autonomous team creation** — ordinary tasks do not trigger delegation unless the user explicitly requests it.
+- **Delegation follows the configured policy** — `delegated` requires an explicit team request; `swarm` instructs the Lead to create tasks and teammates for parallel work.
 - **No Web controls** — browser roster and task-board presentation is outside this runtime package.
 - **Prerelease with no stability promise** — the package publishes at `0.x` alpha and its schemas still change freely.
 

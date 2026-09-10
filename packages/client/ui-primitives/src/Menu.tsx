@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
-import type { CSSProperties, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import { IconCheckOutline16 } from './icons/index.tsx'
@@ -59,9 +59,6 @@ function opensSubmenu(entry: MenuEntry): boolean {
   return entry.disabled !== true && entry.submenu !== undefined && entry.submenu.length > 0
 }
 
-/** Unplaced portal list: hidden but laid out at a fixed origin so offsetWidth/offsetHeight are real. */
-const MEASURE_STYLE: CSSProperties = { visibility: 'hidden', left: 0, top: 0 }
-
 /**
  * The rows a keyboard can land on, in list order. A disabled row is one of
  * them: the menu pattern keeps its inert rows focusable so the operator can
@@ -101,7 +98,7 @@ function menuItems(list: HTMLElement | null): HTMLButtonElement[] {
  * Menu's own wrapper span. Required when the wrapper isn't itself laid out at
  * the trigger (render-prop anchors, effect-positioned proxies — measuring the
  * wrapper there races the host's layout effects). Called on open and on every
- * scroll/resize; return null to skip placement for that frame.
+ * scroll/resize; return null to hide the list until the anchor is available.
  * @param props.footer - rows pinned below the scrolling items area, separated
  * by a hairline; they stay visible while the items above scroll.
  * @param props.autoFocus - take the focus into the list when it opens and give
@@ -139,7 +136,7 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
   const menuId = useId()
   const focusSubmenu = useRef(false)
   const [openSubmenuId, setOpenSubmenuId] = useState<string | null>(null)
-  const [fixedPos, setFixedPos] = useState<CSSProperties | null>(null)
+  const [fixedPos, setFixedPos] = useState<{ left: number; top: number } | null>(null)
   const [portalHost, setPortalHost] = useState<HTMLElement>(() => document.body)
   const { arm: armClose, cancel: cancelClose } = usePointerGrace(onClose)
 
@@ -149,7 +146,7 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
     if (getAnchorRect === undefined) return
     const place = () => {
       const r = getAnchorRect()
-      if (r === null) return
+      if (r === null) { setFixedPos(null); return }
       const MARGIN = 12
       const vw = window.innerWidth
       const vh = window.innerHeight
@@ -381,8 +378,9 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
   const list = open && (
     <div
       ref={listRef}
-      className={clsx(css.list, dense && css.denseList, compact && css.compactList, scrollable && css.scrollable, portal && css.portal, portal && getAnchorRect === undefined && css.anchored, side === 'top' && !portal && css.sideTop, align === 'end' && !portal && css.alignEnd)}
-      style={portal && getAnchorRect !== undefined ? fixedPos ?? MEASURE_STYLE : undefined}
+      className={clsx(css.list, dense && css.denseList, compact && css.compactList, scrollable && css.scrollable, portal && css.portal, portal && (getAnchorRect === undefined ? css.anchored : css.external), side === 'top' && !portal && css.sideTop, align === 'end' && !portal && css.alignEnd)}
+      data-menu-left={fixedPos?.left}
+      data-menu-top={fixedPos?.top}
       data-menu-anchor={`--menu-${menuId.replaceAll(':', '')}`}
       data-side={side}
       data-align={align}

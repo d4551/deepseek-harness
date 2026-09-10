@@ -336,7 +336,7 @@ describe('Menu', () => {
   })
 
   it('portal mode prefers getAnchorRect over measuring its own wrapper', () => {
-    const rect = { left: 40, right: 72, top: 100, bottom: 128, width: 32, height: 28, x: 40, y: 100, toJSON: () => ({}) } as DOMRect
+    let rect: DOMRect | null = new DOMRect(40, 100, 32, 28)
     render(
       <Menu
         portal
@@ -349,8 +349,17 @@ describe('Menu', () => {
       />)
     const menu = screen.getByRole('menu')
     // side=bottom, align=start: below the host-supplied rect, left-aligned.
-    expect(menu.style.left).toBe('40px')
-    expect(menu.style.top).toBe('132px')
+    expect(menu.hasAttribute('style')).toBe(false)
+    expect(getComputedStyle(menu).left).toBe('40px')
+    expect(getComputedStyle(menu).top).toBe('132px')
+    rect = null
+    fireEvent.resize(window)
+    expect(screen.queryByRole('menu')).toBeNull()
+    rect = new DOMRect(80, 200, 32, 28)
+    fireEvent.resize(window)
+    expect(screen.getByRole('menu')).toBe(menu)
+    expect(getComputedStyle(menu).left).toBe('80px')
+    expect(getComputedStyle(menu).top).toBe('232px')
   })
 
   it('portal mode skips the frame when getAnchorRect returns null (no menu until a rect exists)', () => {
