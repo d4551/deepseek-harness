@@ -96,10 +96,6 @@
 .cardDesc {
   font: var(--dsw-font-body);
   color: var(--dsw-alias-label-secondary);
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
-  overflow: hidden;
   overflow-wrap: anywhere;
 }
 .cardId {

@@ -1035,6 +1035,7 @@ describe('Team Remote API', () => {
     expect(await ctx.agentTeams.remoteView(lead)).toEqual({
       members: [expect.objectContaining({ name: 'lead', role: 'lead', status: 'idle' })],
       tasks: [],
+      workspaceTasks: [],
       subagents: [],
       messages: [],
     })
@@ -1590,13 +1591,14 @@ describe('Team mailbox and waiting', () => {
       return await flush(session)
     })
     let waitSettled = false
-    void changed.finally(() => { waitSettled = true })
+    const observedChange = changed.finally(() => { waitSettled = true })
     const creating = service.createTask(lead, { subject: 'wake', description: 'wake waiter' })
     await flushEntered.promise
     expect(waitSettled).toBe(false)
     releaseFlush.resolve(undefined)
     await creating
     await expect(changed).resolves.toEqual({ timedOut: false })
+    await observedChange
 
     const controller = new AbortController()
     const cancelled = service.waitForChange(lead, 10_000, controller.signal)
@@ -1689,10 +1691,11 @@ describe('Team mailbox and waiting', () => {
     const internal = teamInternals(ctx)
     const cleanupFailure = new Error('creation cleanup failed')
     const rejected = Promise.reject(cleanupFailure)
-    void rejected.catch(() => undefined)
+    const observedFailure = expect(rejected).rejects.toBe(cleanupFailure)
     internal.roster.inFlightCreations.add(rejected)
 
     await expect(internal.disposeRuntime()).rejects.toMatchObject({ errors: [cleanupFailure] })
+    await observedFailure
   })
 
   it('recognizes wrapped and coded runtime cancellation during disposal settlement', async () => {
@@ -1767,15 +1770,15 @@ describe('Team mailbox and waiting', () => {
     const release = Promise.withResolvers<undefined>()
     vi.spyOn(ctx.subagents, 'followup').mockImplementation(async (_parent, _childId, _content, options) => {
       entered.resolve(undefined)
-      return await new Promise<never>((_resolve, reject) => {
+      await new Promise<void>((resolve) => {
         options.signal.addEventListener('abort', () => {
           aborted.resolve(undefined)
-          void release.promise.then(() => {
-            const reason: unknown = options.signal.reason
-            reject(reason instanceof Error ? reason : new Error(String(reason)))
-          })
+          resolve()
         }, { once: true })
       })
+      await release.promise
+      const reason: unknown = options.signal.reason
+      throw reason instanceof Error ? reason : new Error(String(reason))
     })
 
     const sending = ctx.agentTeams.sendMessage(lead, {

@@ -101,6 +101,7 @@ export interface TeamTaskView {
 export interface TeamOverview {
   readonly members: TeamMemberView[]
   readonly tasks: TeamTaskView[]
+  readonly workspaceTasks: { readonly sessionId: SessionId; readonly tasks: TeamTaskView[] }[]
   readonly messages: (TeamMessageSnapshot & { readonly delivered: boolean })[]
 }
 

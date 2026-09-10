@@ -7,7 +7,7 @@ import { zh } from '../src/client/locales.ts'
 
 afterEach(cleanup)
 
-it('keeps messages and task editing available while history is pending and cancels it on close', async () => {
+it('keeps messages and tracked tasks available while history is pending and cancels it on close', async () => {
   const history = Promise.withResolvers<TeamActionResult<TeamView['subagents']>>()
   const signals: AbortSignal[] = []
   render(<TeamAction {...props(actions({
@@ -21,8 +21,8 @@ it('keeps messages and task editing available while history is pending and cance
   expect(screen.getByRole('log', { name: zh.messages })).toBeTruthy()
   expect(screen.getByText(zh.loadingConversations)).toBeTruthy()
   expect(screen.queryByText(zh.noSubagents)).toBeNull()
-  fireEvent.click(screen.getByRole('button', { name: zh.edit }))
-  expect(document.activeElement).toBe(screen.getByRole('textbox', { name: zh.subject }))
+  expect(screen.queryByRole('textbox')).toBeNull()
+  expect(screen.queryByRole('combobox')).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: zh.close }))
   expect(signals).toHaveLength(1)
   expect(signals[0]?.aborted).toBe(true)

@@ -41,6 +41,11 @@ export function PanelActions({ children }: { children: ReactNode }) {
   return <div className={css.actions}>{children}</div>
 }
 
+/** A full-width control with its label above it at every panel width. */
+export function PanelField({ label, children }: { label: string; children: ReactNode }) {
+  return <label className={css.field}><span>{label}</span>{children}</label>
+}
+
 /** Message text retaining the sender's paragraph and line boundaries. */
 export function MessageBody({ children }: { children: ReactNode }) {
   return <div className={css.message}>{children}</div>

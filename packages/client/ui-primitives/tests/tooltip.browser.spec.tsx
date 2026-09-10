@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { page } from 'vitest/browser'
-import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Modal, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import { POINTER_GRACE_MS } from '../src/pointer-grace.ts'
 import './tooltip-layout.css'
 
@@ -20,6 +20,40 @@ function fitsViewport() {
 }
 
 describe('Tooltip', () => {
+  it('dismisses its description before the containing dialog on Escape', () => {
+    const onClose = vi.fn()
+    render(
+      <Modal open title="Settings" closeLabel="Close" onClose={onClose}>
+        <Tooltip label="Setting details"><button type="button">setting</button></Tooltip>
+      </Modal>,
+    )
+    const anchor = screen.getByRole('button', { name: 'setting' })
+    act(() => { anchor.focus() })
+    expect(screen.getByRole('tooltip').textContent).toBe('Setting details')
+    fireEvent.keyDown(anchor, { key: 'Escape' })
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    expect(onClose).not.toHaveBeenCalled()
+    expect(document.activeElement).toBe(anchor)
+    fireEvent.keyDown(anchor, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('leaves Escape to the active dialog when its tooltip belongs to an inert dialog', () => {
+    const closeParent = vi.fn()
+    const closeChild = vi.fn()
+    render(
+      <Modal open title="Settings" closeLabel="Close settings" onClose={closeParent}>
+        <Tooltip label="Setting details"><button type="button">setting</button></Tooltip>
+      </Modal>,
+    )
+    fireEvent.mouseEnter(screen.getByRole('button', { name: 'setting' }))
+    expect(screen.getByRole('tooltip').textContent).toBe('Setting details')
+    render(<Modal open title="Edit setting" closeLabel="Close editor" onClose={closeChild} />)
+    fireEvent.keyDown(screen.getByRole('dialog', { name: 'Edit setting' }), { key: 'Escape' })
+    expect(closeChild).toHaveBeenCalledOnce()
+    expect(closeParent).not.toHaveBeenCalled()
+  })
+
   it('resolves lazy labels only after the bubble becomes visible', () => {
     vi.useFakeTimers()
     const label = vi.fn(() => 'Timing details')

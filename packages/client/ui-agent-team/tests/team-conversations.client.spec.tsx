@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { SessionId } from '@deepseek-ai/dsh-session/types'
 import { TeamMessageId } from '../../../subagent/agent-team/src/types.ts'
 import { TeamConversations, type TeamConversation } from '../src/client/TeamConversations.tsx'
+import { TeamMessages } from '../src/client/TeamMessages.tsx'
 import { en } from '../src/client/locales.ts'
 import { view } from './team-fixtures.client.ts'
 
@@ -21,9 +22,14 @@ it('shows nested worker status and both delivered and queued peer messages', asy
     id: TeamMessageId('message-1'), senderId: parent, senderName: 'worker', targetId: SessionId('lead'),
     delivery: 'quiet', content: [{ type: 'text', text: 'Review complete' }], delivered: true,
   } satisfies (typeof view.messages)[number]
-  render(<TeamConversations load={() => Promise.resolve({ ok: true, value: [child] })} view={{ ...view, messages: [
+  const current = { ...view, messages: [
     message, { ...message, id: TeamMessageId('message-2'), delivered: false },
-  ] }} t={key => en[key]} open={async (entry) => { opened.push(entry) }} reportError={(reason) => { errors.push(reason) }} />)
+  ] }
+  render(<>
+    <TeamMessages view={current} t={key => en[key]} />
+    <TeamConversations load={() => Promise.resolve({ ok: true, value: [child] })} view={current}
+      t={key => en[key]} open={async (entry) => { opened.push(entry) }} reportError={(reason) => { errors.push(reason) }} />
+  </>)
   expect(await screen.findByText('Parent: worker · Inactive')).toBeTruthy()
   expect(screen.getByText('Delivered')).toBeTruthy()
   expect(screen.getByText('Queued')).toBeTruthy()

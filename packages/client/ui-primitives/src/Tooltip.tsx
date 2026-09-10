@@ -38,6 +38,7 @@ export function Tooltip({ label, side = 'right', delayMs = 0, disabled = false, 
   const id = useId()
   const anchorName = `--tooltip-${id.replaceAll(':', '')}`
   const [visible, setVisible] = useState(false)
+  const bubbleRef = useRef<HTMLSpanElement>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const triggers = useRef({ hover: false, focus: false })
   const { arm: scheduleHide, cancel: cancelHide } = usePointerGrace(() => { setVisible(false) })
@@ -60,13 +61,13 @@ export function Tooltip({ label, side = 'right', delayMs = 0, disabled = false, 
   useEffect(() => {
     if (!visible) return
     const dismiss = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
+      if (event.key !== 'Escape' || event.defaultPrevented || bubbleRef.current?.closest('[inert]')) return
       event.preventDefault()
       cancelHide()
       setVisible(false)
     }
-    document.addEventListener('keydown', dismiss)
-    return () => { document.removeEventListener('keydown', dismiss) }
+    document.addEventListener('keydown', dismiss, true)
+    return () => { document.removeEventListener('keydown', dismiss, true) }
   }, [cancelHide, visible])
 
   const showAfterHoverDelay = () => {
@@ -109,6 +110,7 @@ export function Tooltip({ label, side = 'right', delayMs = 0, disabled = false, 
       })}
       {visible && (
         <span
+          ref={bubbleRef}
           id={id}
           className={css.bubble}
           data-tooltip-anchor={anchorName}

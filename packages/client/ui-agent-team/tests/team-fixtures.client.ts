@@ -7,11 +7,11 @@ import { zh } from '../src/client/locales.ts'
 import { TeamAction } from '../src/client/TeamAction.tsx'
 import { TeamTaskId } from '../../../subagent/agent-team/src/types.ts'
 import type {
-  TeamActionInjected, TeamActionProps, TeamActionResult, TeamTaskActionResult,
+  TeamActionInjected, TeamActionProps, TeamActionResult,
 } from '../src/client/TeamAction.tsx'
 
 export { TeamAction }
-export type { TeamActionInjected, TeamActionResult, TeamTaskActionResult }
+export type { TeamActionInjected, TeamActionResult }
 
 export const SESSION = SessionId('lead')
 const TASK_1 = TeamTaskId('task-1')
@@ -29,6 +29,7 @@ export const task: TeamTask = {
   writeScopeWarnings: ['write scopes overlap with task-2'],
 }
 export const view: TeamView = {
+  workspaceTasks: [],
   subagents: [],
   messages: [],
   members: [
@@ -43,24 +44,6 @@ export const view: TeamView = {
     },
   ],
   tasks: [task],
-}
-
-export function taskSuccess(value: TeamTask): TeamTaskActionResult {
-  return { ok: true, value: { ok: true, value } }
-}
-
-export function taskConflict(message: string): TeamTaskActionResult {
-  return {
-    ok: true,
-    value: { ok: false, error: { code: 'team-task-conflict', message } },
-  }
-}
-
-export function taskRejected(message: string): TeamTaskActionResult {
-  return {
-    ok: true,
-    value: { ok: false, error: { code: 'team-rejected', message } },
-  }
 }
 
 export function remoteFailure(message: string): { ok: false; error: { code: 'internal'; message: string; details: {} } } {
@@ -79,11 +62,6 @@ export function actions(overrides: Partial<TeamActionInjected> = {}): TeamAction
     },
     load: () => Promise.resolve({ ok: true, value: view }),
     loadConversations: () => Promise.resolve({ ok: true, value: view.subagents }),
-    createTask: () => Promise.resolve(taskSuccess({ ...task, id: TASK_2, subject: 'New task' })),
-    updateTask: () => Promise.resolve({
-      ok: true,
-      value: { ok: true, value: { ...task, revision: 2 } },
-    }),
     openTeammate: () => Promise.reject(new Error('Test must supply teammate navigation')),
     openSubagent: () => Promise.reject(new Error('Test must supply subagent navigation')),
     ...overrides,

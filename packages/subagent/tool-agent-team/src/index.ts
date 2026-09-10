@@ -243,7 +243,8 @@ function install(agent: Agent, ctx: Context, config: Required<Config>): () => vo
       text: () => {
         const membership = ctx.agentTeams.membership(agent)
         const members = ctx.agentTeams.listMembers(agent)
-        return `${policy}\n\nYour Team role is ${membership.role}; your Team name is ${membership.name}; Team id is ${membership.id}.\n\nCurrent agents: ${JSON.stringify(members)}\nIndependent workspace conversations have session-qualified names. Use their exact names with send_message or followup_task to coordinate shared files and responsibilities. Each conversation owns its task board; agree on disjoint work before editing.`
+        const workspaceTasks = ctx.agentTeams.workspaceTasks(agent)
+        return `${policy}\n\nYour Team role is ${membership.role}; your Team name is ${membership.name}; Team id is ${membership.id}.\n\nCurrent agents: ${JSON.stringify(members)}\n\nOther workspace conversations' task boards: ${JSON.stringify(workspaceTasks)}\nIndependent workspace conversations have session-qualified names. Use their exact names with send_message or followup_task to coordinate shared files and responsibilities. Each conversation owns its task board; agree on disjoint work before editing. Maintain task descriptions, ownership, dependencies, and write scopes with the Team tools as work changes. Pass handoffs directly to the responsible agent with the relevant task and session context. Do not ask the user to copy task ids, assign owners, or enter file scopes for agent coordination.`
       },
     }))
 

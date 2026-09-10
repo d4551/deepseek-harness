@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This package adds an Agent Teams action to the Web conversation header, where a user can inspect the current roster, manage the shared task board, and navigate into a teammate's conversation. It reads authoritative Team state through the generated `ctx.remote.agentTeams` contribution and keeps ordinary child-history navigation on the stable addressed-subagent path. The Web bundle mounts it in every Web profile, over the Team that every profile's base mounts. The browser projection does not extend the stable API Proxy, store Team state, or register model-facing input.
+This package adds an Agent Teams action to the Web conversation header for following agent-owned tasks, messages, and activity and opening member conversations. It reads authoritative Team state through the generated `ctx.remote.agentTeams` contribution and keeps child-history navigation on the addressed-subagent path. The Web bundle mounts it in every Web profile. The browser projection does not store Team state or register model-facing input.
 
 ## Table of Contents
 
@@ -33,11 +33,11 @@ Opening the panel subscribes to `agentTeams/changes` and reads `agentTeams/overv
 
 Messages occupy the primary panel, showing sender, recipient, preserved paragraphs, and queued or delivered state. Registered workspace peers' incoming replies appear with outgoing messages, ordered by journal event time. The independent `agentTeams/conversations` read lists nested subagents with their direct parents and activity. History loading or failure leaves messages and tasks available; Refresh conversations retries the directory. Selecting a descendant opens its exact parent-child address; the Lead row returns to the root conversation.
 
-### Manage the task board
+### Follow agent-owned work
 
-The task board groups each task's identity, owner, blockers, readiness, advisory write scopes, and overlap warnings. A user can create, edit, assign or unassign, complete, reopen, and delete tasks through `agentTeams/createTask` and `agentTeams/updateTask`. An unavailable owner remains visible in the owner selector. Edits retain the revision opened by the user; live updates cannot silently advance it. After a conflict, the draft remains available to copy; cancel and reopen the editor to review the latest task before editing again. Create or update rejections remain explicit business results.
+The task board displays agent-managed work, ownership, dependencies, readiness, write scopes, and overlap warnings. Other live conversations' task boards come from registered workspace membership and update with Team activity. Agents receive these boards in their coordination guidance and maintain tasks and handoffs through Team tools. The panel has no task-entry, assignment, or editing controls. It displays committed task state; an idle member is not evidence that its task is completed.
 
-Opening a task form focuses its subject. Forms retain visible field labels after typing and support Enter submission from single-line fields. Inputs and actions are disabled while saving. Escape, Close, or clicking outside dismisses the panel; Escape and Close return focus to its trigger.
+Escape, Close, or clicking outside dismisses the panel; Escape and Close return focus to its trigger.
 
 -----
 
@@ -49,17 +49,19 @@ Opening a task form focuses its subject. Forms retain visible field labels after
 
 The Client export mounts the generated `ctx.remote.agentTeams` contribution from [`@deepseek-ai/dsh-agent-team/remote`](../../subagent/agent-team/README.md), then registers its locale dictionaries and one conversation-header slot through Cordis effects. Disposing the plugin fiber removes both registrations.
 
-Starting a create or update invalidates older refreshes. Success reloads the Team overview so every task's derived fields stay current. A `team-task-conflict` result displays a stale-state notice only after that reload succeeds; a reload failure remains visible instead. Editing task text or scopes and changing dependencies use two sequential compare-and-set mutations because the Team service exposes them as separate actions.
+Each published overview also refreshes the descendant directory. Directory failures have an independent retry action and leave task and message observations available.
 
 The live subscription coalesces activity while a view read is pending. Closing the panel, changing conversations, or unmounting cancels it and invalidates outstanding reads. An interrupted stream displays an error; reopening the panel establishes a new subscription and reads current state.
 
-The shared workspace-sized Modal and PanelLayout primitives provide responsive columns and viewport-constrained scrolling. Shared buttons, inputs, pills, message bodies, and activity dots provide its controls without a panel stylesheet or inline styling.
+The shared workspace-sized Modal and PanelLayout primitives provide aligned responsive rows and viewport-constrained scrolling. Shared buttons, pills, message bodies, and activity dots provide its controls without a panel stylesheet or inline styling.
 
 | File | Role |
 |---|---|
 | [`src/client/mount.ts`](src/client/mount.ts) | Generated Remote, locale, navigation, and slot registrations |
 | [`src/client/TeamAction.tsx`](src/client/TeamAction.tsx) | Roster and task-board interaction state |
-| [`src/client/TaskForm.tsx`](src/client/TaskForm.tsx) | Labeled task editing through shared input and button primitives |
+| [`src/client/TaskCard.tsx`](src/client/TaskCard.tsx) | Agent-owned task progress, ownership, and dependencies |
+| [`src/client/TeamMessages.tsx`](src/client/TeamMessages.tsx) | Durable interagent messages and delivery state |
+| [`src/client/TeamConversations.tsx`](src/client/TeamConversations.tsx) | Live descendant directory and navigation |
 | [`src/client/observe-team.ts`](src/client/observe-team.ts) | Bounded activity consumption and subscription cancellation |
 | [`src/client/locales.ts`](src/client/locales.ts) | English and Chinese panel copy |
 | [`src/index.ts`](src/index.ts) | Inert Host entry |
@@ -80,7 +82,7 @@ The shared workspace-sized Modal and PanelLayout primitives provide responsive c
 <a id="model-experience"></a>
 ## Model Experience
 
-None, as this browser projection and task control surface registers no model-facing input.
+None, as this browser projection registers no model-facing input.
 
 #### KV Cache effect
 

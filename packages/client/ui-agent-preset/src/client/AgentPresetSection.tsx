@@ -10,7 +10,7 @@
  * mounted once at session creation and nothing re-reads the file.
  */
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   Button, Input, IconBrowseOutline16, IconCopyOutline16, IconFolderOpenOutline16, IconPlusOutline16, IconTrashOutline16, Modal, Tooltip,
@@ -138,38 +138,6 @@ function CopyDialog({ state, t, actions }: CopyDialogProps): ReactNode {
           </div>
         )}
     </Modal>
-  )
-}
-
-/**
- * Render one card's description, clamped by CSS and offered in full on hover.
- * The tooltip is attached only while the text is actually cut off, so a short
- * description does not answer a hover with a bubble repeating the card.
- * @param props.text - the description as rendered, already localized.
- * @returns the description element, tooltip-anchored while it overflows.
- */
-function CardDescription({ text }: { text: string }): ReactNode {
-  const ref = useRef<HTMLSpanElement | null>(null)
-  const [truncated, setTruncated] = useState(false)
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (el === null) return
-    const measure = () => { setTruncated(el.scrollHeight > el.clientHeight) }
-    measure()
-    // Card width follows the settings pane, which resizes with the window.
-    if (typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(measure)
-    observer.observe(el)
-    return () => { observer.disconnect() }
-  }, [text])
-  return (
-    // Capped near the card's own width: the default half-viewport bubble would
-    // spill a description out of the settings dialog and across the app behind it.
-    <Tooltip label={text} side="bottom" disabled={!truncated} constrainToAnchor>
-      {/* The empty title stops the card body's native tooltip from climbing to
-        this span: a cut-off description answers with one bubble, not two. */}
-      <span ref={ref} className={css.cardDesc} title="">{text}</span>
-    </Tooltip>
   )
 }
 
@@ -304,7 +272,7 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
                           </span>
                           {row.isDefault ? <span className={css.inUse}>{t('inUse')}</span> : null}
                         </span>
-                        <CardDescription text={text.description ?? t('noDescription')} />
+                        <span className={css.cardDesc}>{text.description ?? t('noDescription')}</span>
                         {/* Visually hidden, deliberately: the pointer path is the
                         badge's tooltip, and a disabled card body is out of the
                         tab order, so this is the only reading a screen reader

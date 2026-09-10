@@ -1,13 +1,15 @@
 import { expect, it, onTestFinished } from 'vitest'
-import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
+import { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
+import { assembleContextFor, type Agent } from '@deepseek-ai/dsh-agent'
 import { launchWebScaffold } from './scaffold.ts'
 import { connectFreshWorkspace, launchBrowser, newEnglishPage } from './support.ts'
 import { assertPageAccessibility } from './accessibility.ts'
 
 const themes: Array<'light' | 'dark'> = ['light', 'dark']
 
-it.each(themes)('exercises Team messages and task transitions in %s', async (theme) => {
+it.each(themes)('tracks agent-owned work and messages without manual task controls in %s', async (theme) => {
   const scaffold = await launchWebScaffold()
   onTestFinished(() => scaffold.close())
   const browser = await launchBrowser()
@@ -34,17 +36,47 @@ it.each(themes)('exercises Team messages and task transitions in %s', async (the
   const dialog = page.getByRole('dialog', { name: 'Agent Team', exact: true })
   await dialog.getByText('No shared tasks yet', { exact: true }).waitFor()
   await page.screenshot({ path: `.artifacts/finish/verified-team-empty-${theme}.png` })
-  await dialog.getByRole('button', { name: 'New task', exact: true }).click()
-  await dialog.getByRole('textbox', { name: 'Task subject', exact: true }).fill('Review keyboard navigation')
-  await dialog.getByRole('textbox', { name: 'Task description', exact: true }).fill('Verify focus, menus, and Settings persistence.')
-  await dialog.getByRole('textbox', { name: 'Task subject', exact: true }).press('Enter')
-  const task = dialog.getByRole('article', { name: 'Review keyboard navigation', exact: true })
-  await task.getByRole('combobox', { name: 'Owner' }).selectOption('lead')
+  expect(await dialog.getByRole('textbox').count()).toBe(0)
+  expect(await dialog.getByRole('combobox').count()).toBe(0)
+  expect(await dialog.getByRole('button', { name: /New task|Manage this conversation/u }).count()).toBe(0)
+  const panels = await dialog.getByRole('region').evaluateAll(elements => elements.map((element) => {
+    const rect = element.getBoundingClientRect()
+    return { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right }
+  }))
+  expect(panels).toHaveLength(4)
+  expect(panels[0]?.top).toBe(panels[1]?.top)
+  expect(panels[0]?.bottom).toBe(panels[1]?.bottom)
+  expect(panels[2]?.top).toBe(panels[3]?.top)
+  expect(panels[2]?.bottom).toBe(panels[3]?.bottom)
+  expect(panels[0]?.left).toBe(panels[2]?.left)
+  expect(panels[1]?.right).toBe(panels[3]?.right)
+  const headings = await dialog.getByRole('heading', { level: 3 }).evaluateAll(elements =>
+    elements.map(element => element.getBoundingClientRect().top))
+  expect(headings[0]).toBe(headings[1])
+  expect(headings[2]).toBe(headings[3])
+
+  let call = 0
+  const execute = async (agent: Agent, name: string, args: object): Promise<void> => {
+    const result = await scaffold.ctx.tools.execute({
+      agent, name, arguments: args, callId: ToolCallId(`team-journey-${++call}`), signal: new AbortController().signal,
+    })
+    expect(result.isError).not.toBe(true)
+  }
+  await execute(lead, 'team_task_create', {
+    subject: 'Coordinate workspace review', description: 'Share review responsibilities between workspace conversations.',
+    write_scopes: ['src/coordination'],
+  })
+  const created = scaffold.ctx.agentTeams.listTasks(lead)[0]
+  if (created === undefined) throw new Error('Agent tool did not create a task')
+  const task = dialog.getByRole('article', { name: created.subject, exact: true })
+  await task.waitFor()
+  await execute(lead, 'team_task_claim_next', {})
   await task.getByText('In progress', { exact: true }).waitFor()
-  await task.getByRole('button', { name: 'Complete', exact: true }).click()
+  expect(await task.getByText('Owner: lead', { exact: true }).isVisible()).toBe(true)
+  const claimed = scaffold.ctx.agentTeams.getTask(lead, created.id)
+  await execute(lead, 'team_task_update', { task_id: claimed.id, expected_revision: claimed.revision, action: 'complete' })
   await task.getByText('Completed', { exact: true }).waitFor()
-  await task.getByRole('button', { name: 'Reopen', exact: true }).click()
-  await task.getByText('Pending', { exact: true }).waitFor()
+  await page.screenshot({ path: `.artifacts/finish/verified-team-agent-work-${theme}.png` })
 
   const workspace = scaffold.ctx.workspaceRegistry.list().find(entry => entry.sessionIds.includes(lead.id))
   if (workspace === undefined) throw new Error('Team lead has no registered workspace')
@@ -52,16 +84,24 @@ it.each(themes)('exercises Team messages and task transitions in %s', async (the
     sessionId: SessionId(`visual-reviewer-${theme}`), meta: { cwd: workspace.path }, agentOptions: {},
   })).agent
   await workspace.attachSession(peer.id)
+  await execute(peer, 'team_task_create', {
+    subject: 'Review settings accessibility', description: 'Check focus containment and report to the originating conversation.',
+    write_scopes: ['src/settings'],
+  })
+  const peerTask = scaffold.ctx.agentTeams.listTasks(peer)[0]
+  if (peerTask === undefined) throw new Error('Peer tool did not create a task')
+  const peerWork = dialog.getByRole('article', { name: peerTask.subject, exact: true })
+  await peerWork.waitFor()
+  const guidance = renderPrompt(await scaffold.ctx.systemPrompt.assemble(assembleContextFor(lead)))
+  expect(guidance).toContain(JSON.stringify({ sessionId: peer.id, tasks: [peerTask] }))
+  expect(guidance).toContain('Do not ask the user to copy task ids, assign owners, or enter file scopes')
+  expect(await peerWork.getByRole('combobox').count()).toBe(0)
+  expect(await peerWork.getByRole('button').count()).toBe(0)
   const target = scaffold.ctx.agentTeams.listMembers(lead).find(member => member.id === peer.id)
   const sender = scaffold.ctx.agentTeams.listMembers(peer).find(member => member.id === lead.id)
   if (target === undefined || sender === undefined) throw new Error('Registered peers are not discoverable')
-  const signal = new AbortController().signal
-  await scaffold.ctx.agentTeams.sendMessage(lead, {
-    target: target.name, content: [{ type: 'text', text: 'Review the task.\nCheck keyboard navigation.' }], delivery: 'quiet', signal,
-  })
-  await scaffold.ctx.agentTeams.sendMessage(peer, {
-    target: sender.name, content: [{ type: 'text', text: 'Review complete. Focus stays inside Settings.' }], delivery: 'quiet', signal,
-  })
+  await execute(lead, 'send_message', { target: target.name, message: 'Review the task.\nCheck keyboard navigation.' })
+  await execute(peer, 'send_message', { target: sender.name, message: 'Review complete. Focus stays inside Settings.' })
   const messages = dialog.getByRole('log', { name: 'Messages between members' })
   await messages.getByText('Review complete. Focus stays inside Settings.', { exact: true }).waitFor()
   await expect.poll(() => messages.getByText('Delivered', { exact: true }).count()).toBe(2)
@@ -69,14 +109,9 @@ it.each(themes)('exercises Team messages and task transitions in %s', async (the
   await page.screenshot({ path: `.artifacts/finish/verified-team-messages-${theme}.png` })
   await page.setViewportSize({ width: 390, height: 844 })
   expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
+  expect(await dialog.getByRole('textbox').count()).toBe(0)
   await page.screenshot({ path: `.artifacts/finish/verified-team-messages-mobile-${theme}.png` })
-  await task.getByRole('button', { name: 'Edit', exact: true }).click()
-  await dialog.getByRole('textbox', { name: 'Task subject', exact: true }).fill('Keyboard review complete')
-  await dialog.getByRole('textbox', { name: 'Task subject', exact: true }).press('Enter')
-  const edited = dialog.getByRole('article', { name: 'Keyboard review complete', exact: true })
-  await edited.getByRole('button', { name: 'Delete', exact: true }).click()
-  await edited.waitFor({ state: 'detached' })
-  expect(await dialog.locator('[style]').evaluateAll(elements => elements.every(element => element.getAttribute('style') === ''))).toBe(true)
+  expect(await dialog.locator('[style]').count()).toBe(0)
   await dialog.getByRole('button', { name: 'Close', exact: true }).click()
   await page.setViewportSize({ width: 1680, height: 1000 })
   await trigger.click()

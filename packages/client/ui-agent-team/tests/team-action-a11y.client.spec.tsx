@@ -4,7 +4,7 @@ import { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { TeamView } from '@deepseek-ai/dsh-agent-team/client'
 import { TeamTaskId } from '../../../subagent/agent-team/src/types.ts'
 import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
-import { TeamAction, actions, props, task, taskSuccess, view, type TeamTaskActionResult } from './team-fixtures.client.ts'
+import { TeamAction, actions, props, task, view } from './team-fixtures.client.ts'
 import type { TeamActionInjected } from '../src/client/TeamAction.tsx'
 import { zh } from '../src/client/locales.ts'
 
@@ -30,7 +30,9 @@ describe('TeamAction accessibility', () => {
   it('renders an accessible toggle and open panel', async () => {
     await assertPanelAccessible(actions().load)
     await screen.findByText('Implement runtime')
-    expect(screen.getByRole('combobox', { name: zh.owner })).toBeTruthy()
+    expect(screen.queryByRole('combobox', { name: zh.owner })).toBeNull()
+    expect(screen.getByText(`${zh.owner}: lead`)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '管理当前会话任务' })).toBeNull()
   })
 
   it('moves focus into the dialog and restores it when closed', async () => {
@@ -45,29 +47,15 @@ describe('TeamAction accessibility', () => {
     expect(document.activeElement).toBe(toggle)
   })
 
-  it('labels populated fields and prevents changes or duplicate submission during a save', async () => {
-    const saved = Promise.withResolvers<TeamTaskActionResult>()
-    let submissions = 0
-    render(<TeamAction {...props(actions({ createTask: () => {
-      submissions += 1
-      return saved.promise
-    } }))} />)
+  it('shows agent-owned task state without manual coordination controls', async () => {
+    render(<TeamAction {...props(actions())} />)
     fireEvent.click(screen.getByRole('button', { name: /Agent Team/u }))
     await screen.findByText('Implement runtime')
-    fireEvent.click(screen.getByRole('button', { name: zh.create }))
-    const subject = screen.getByRole<HTMLInputElement>('textbox', { name: zh.subject })
-    const description = screen.getByRole<HTMLTextAreaElement>('textbox', { name: zh.description })
-    fireEvent.change(subject, { target: { value: 'Labeled task' } })
-    fireEvent.change(description, { target: { value: 'Keyboard submission' } })
-    const form = subject.form
-    if (form === null) throw new Error('Task fields must belong to a form')
-    fireEvent.submit(form)
-    expect(submissions).toBe(1)
-    for (const field of screen.getAllByRole<HTMLInputElement>('textbox')) expect(field.disabled).toBe(true)
-    fireEvent.submit(form)
-    expect(submissions).toBe(1)
-    saved.resolve(taskSuccess(task))
-    await waitFor(() => { expect(screen.queryByRole('textbox', { name: zh.subject })).toBeNull() })
+    expect(screen.queryByRole('textbox')).toBeNull()
+    expect(screen.queryByRole('combobox')).toBeNull()
+    expect(screen.queryByRole('button', { name: '新建任务' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '编辑' })).toBeNull()
+    expect(screen.getByText(`${zh.owner}: lead`)).toBeTruthy()
   })
 
   it('dismisses the panel when the user points outside it', async () => {

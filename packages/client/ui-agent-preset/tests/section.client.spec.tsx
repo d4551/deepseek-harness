@@ -6,8 +6,8 @@
  * action follows the host's desktop capability.
  */
 
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { AgentPresetSection } from '../src/client/AgentPresetSection.tsx'
@@ -497,66 +497,24 @@ describe('deleting a preset', () => {
 })
 
 describe('a long card description', () => {
-  /** jsdom has no ResizeObserver; the description watches its own box through one. */
-  class ResizeObserverStub {
-    observe(): void {}
-    unobserve(): void {}
-    disconnect(): void {}
-  }
-
   const LONG = '始终用简体中文交流的友好通用助手，提供持久 bash 与文件编辑能力。'.repeat(8)
-
-  /** Force the clamp to report an overflow: jsdom lays nothing out, so both heights are 0. */
-  function clamp(overflowing: boolean): void {
-    vi.spyOn(Element.prototype, 'scrollHeight', 'get').mockReturnValue(overflowing ? 400 : 80)
-    vi.spyOn(Element.prototype, 'clientHeight', 'get').mockReturnValue(80)
-  }
-
-  beforeEach(() => { vi.stubGlobal('ResizeObserver', ResizeObserverStub) })
-  afterEach(() => {
-    vi.unstubAllGlobals()
-    vi.restoreAllMocks()
+  it('keeps the whole description on the card without requiring hover', () => {
+    renderSection({ rows: [{ id: 'zh', trust: 'user', isDefault: false, name: '中文助手', description: LONG }] })
+    const description = within(rowFor('zh')).getByText(LONG)
+    expect(description.textContent).toBe(LONG)
+    expect(description.closest('[hidden]')).toBeNull()
+    fireEvent.mouseEnter(description)
+    expect(screen.queryByRole('tooltip')).toBeNull()
   })
-
-  it('offers the whole description on hover once the card cuts it off', () => {
-    clamp(true)
-    vi.useFakeTimers()
-    try {
-      renderSection({ rows: [{ id: 'zh', trust: 'user', isDefault: false, name: '中文助手', description: LONG }] })
-
-      fireEvent.mouseEnter(within(rowFor('zh')).getByText(LONG))
-      act(() => { vi.advanceTimersByTime(400) })
-
-      expect(screen.getByRole('tooltip').textContent).toBe(LONG)
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
   it('stays quiet when the description already fits', () => {
-    clamp(false)
-    vi.useFakeTimers()
-    try {
-      renderSection({ rows: [{ id: 'zh', trust: 'user', isDefault: false, name: '中文助手', description: '短描述。' }] })
-
-      fireEvent.mouseEnter(within(rowFor('zh')).getByText('短描述。'))
-      act(() => { vi.advanceTimersByTime(400) })
-
-      // A bubble repeating what is already fully on the card is noise.
-      expect(screen.queryByRole('tooltip')).toBeNull()
-    } finally {
-      vi.useRealTimers()
-    }
+    renderSection({ rows: [{ id: 'zh', trust: 'user', isDefault: false, name: '中文助手', description: '短描述。' }] })
+    fireEvent.mouseEnter(within(rowFor('zh')).getByText('短描述。'))
+    expect(screen.queryByRole('tooltip')).toBeNull()
   })
-
-  it('renders where the runtime has no ResizeObserver', () => {
-    vi.unstubAllGlobals()
-    clamp(true)
-
-    expect(() => {
-      renderSection({ rows: [{ id: 'zh', trust: 'user', isDefault: false, description: LONG }] })
-    }).not.toThrow()
-    // The first measurement does not depend on the observer.
-    expect(within(rowFor('zh')).getByText(LONG).getAttribute('title')).toBe('')
+  it('keeps a long description readable on the selected disabled card', () => {
+    renderSection({ rows: [{ id: 'zh', trust: 'user', isDefault: true, name: '中文助手', description: LONG }] })
+    const selected = within(rowFor('zh')).getByRole('button', { name: `${en.inUse}: 中文助手` })
+    expect(selected).toHaveProperty('disabled', true)
+    expect(within(selected).getByText(LONG).textContent).toBe(LONG)
   })
 })

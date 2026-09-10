@@ -6,10 +6,10 @@
   min-block-size: var(--dsw-touch-target);
   padding: var(--dsw-space-control);
   border: var(--dsw-border-width) solid var(--dsw-alias-border-l2);
-  border-radius: var(--dsw-radius-surface);
+  border-radius: var(--dsw-radius-control);
   background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-primary);
-  font: inherit;
+  font: var(--dsw-font-body);
 }
 
 .textarea {
@@ -20,8 +20,8 @@
 
 .textarea:focus-visible,
 .select:focus-visible {
-  outline: var(--dsw-border-width) solid var(--dsw-alias-brand-primary);
-  outline-offset: var(--dsw-border-width);
+  outline: var(--dsw-focus-width) solid var(--dsw-alias-brand-primary);
+  outline-offset: var(--dsw-focus-offset);
 }
 
 .textarea:disabled,
@@ -29,7 +29,7 @@
   color: var(--dsw-alias-label-tertiary);
 }
 
-.textarea[aria-invalid='true'],
-.select[aria-invalid='true'] {
+.textarea[aria-invalid="true"],
+.select[aria-invalid="true"] {
   border-color: var(--dsw-alias-label-error);
 }

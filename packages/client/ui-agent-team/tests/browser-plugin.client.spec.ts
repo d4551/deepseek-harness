@@ -6,17 +6,15 @@ import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {
   TeamMemberView as TeamRosterMember,
   TeamTaskId,
-  TeamTaskMutationResult,
   TeamTaskView,
   TeamView,
 } from '@deepseek-ai/dsh-agent-team/client'
 import type {} from '@deepseek-ai/dsh-agent-team/remote'
-import type { RemoteFailure, RemoteResult, TypertRemoteContribution } from '@deepseek-ai/dsh-typert-protocol'
+import type { RemoteFailure, TypertRemoteContribution } from '@deepseek-ai/dsh-typert-protocol'
 import {
   TeamAction,
   type TeamActionInjected,
   type TeamActionResult,
-  type TeamTaskActionResult,
 } from '../src/client/TeamAction.tsx'
 import { inject, mountAgentTeamUi } from '../src/client/mount.ts'
 import { apply as nodeApply } from '../src/index.ts'
@@ -31,15 +29,10 @@ const REMOTE: TypertRemoteContribution = {
   descriptors: [],
 }
 
-type CreateTaskInput = Parameters<TeamActionInjected['createTask']>[1]
-type UpdateTaskInput = Parameters<TeamActionInjected['updateTask']>[1]
-
 type TeamRpcCall =
   | { method: 'agentTeams/changes'; args: [sessionId: SessionId] }
   | { method: 'agentTeams/overview'; args: [sessionId: SessionId] }
   | { method: 'agentTeams/conversations'; args: [sessionId: SessionId] }
-  | { method: 'agentTeams/createTask'; args: [sessionId: SessionId, input: CreateTaskInput] }
-  | { method: 'agentTeams/updateTask'; args: [sessionId: SessionId, input: UpdateTaskInput] }
 
 interface TeamAddress {
   parentSessionId: SessionId
@@ -50,7 +43,7 @@ interface TeamAddress {
 type TeamNavigation = ['refresh', SessionId] | ['open', TeamAddress] | ['select', SessionId]
 
 const isTeamActionInjected = <T extends object>(value: T): value is T & TeamActionInjected =>
-  'changes' in value && 'load' in value && 'createTask' in value && 'updateTask' in value && 'openTeammate' in value
+  'changes' in value && 'load' in value && 'loadConversations' in value && 'openTeammate' in value
 
 const TASK: TeamTaskView = {
   id: TASK_ID,
@@ -76,6 +69,7 @@ const CARRIER_FAILURE: TeamActionResult<never> = {
 }
 
 const VIEW: TeamView = {
+  workspaceTasks: [],
   subagents: [],
   messages: [],
   members: [{
@@ -86,9 +80,8 @@ const VIEW: TeamView = {
 
 async function bench(options: {
   addressed?: boolean
-  conflict?: boolean
   registrationFailure?: boolean
-  remoteFailure?: 'view' | 'update'
+  remoteFailure?: 'view'
   refreshGate?: Promise<void>
   parents?: ReadonlyMap<SessionId, SessionId>
   current?: SessionId
@@ -109,8 +102,6 @@ async function bench(options: {
     }
   }
   const remote = new RemoteService(ctx)
-  const mutation = (value: TeamTaskMutationResult): RemoteResult<TeamTaskMutationResult> =>
-    ({ ok: true as const, value })
   ctx.provide('remote.agentTeams', {
     changes: (sessionId: SessionId, signal: AbortSignal): AsyncIterable<number> => {
       calls.push({ method: 'agentTeams/changes', args: [sessionId] })
@@ -125,20 +116,6 @@ async function bench(options: {
     conversations: (sessionId: SessionId): Promise<TeamActionResult<TeamView['subagents']>> => {
       calls.push({ method: 'agentTeams/conversations', args: [sessionId] })
       return Promise.resolve({ ok: true, value: VIEW.subagents })
-    },
-    createTask: (sessionId: SessionId, input: CreateTaskInput): Promise<TeamTaskActionResult> => {
-      calls.push({ method: 'agentTeams/createTask', args: [sessionId, input] })
-      return Promise.resolve(mutation({ ok: true as const, value: TASK }))
-    },
-    updateTask: (sessionId: SessionId, input: UpdateTaskInput): Promise<TeamTaskActionResult> => {
-      calls.push({ method: 'agentTeams/updateTask', args: [sessionId, input] })
-      if (options.remoteFailure === 'update') return Promise.resolve(CARRIER_FAILURE)
-      return Promise.resolve(mutation(options.conflict
-        ? {
-          ok: false as const,
-          error: { code: 'team-task-conflict' as const, message: 'stale' },
-        }
-        : { ok: true as const, value: { ...TASK, revision: 2 } }))
     },
   })
   const navigation: TeamNavigation[] = []
@@ -211,7 +188,7 @@ async function bench(options: {
 }
 
 describe('ui-team browser plugin', () => {
-  it('registers one disposable header action with RPC-backed task operations', async () => {
+  it('registers one disposable read-only header action with live Remote observations', async () => {
     const b = await bench()
     expect(inject).toEqual(['sessions', 'remote', 'slots', 'locale'])
     expect(b.entry()).toMatchObject({
@@ -222,19 +199,12 @@ describe('ui-team browser plugin', () => {
     expect(b.remote.mount).toHaveBeenCalledWith(REMOTE)
     const actions = b.actions()
     expect((await actions.load(SESSION)).ok).toBe(true)
-    expect((await actions.createTask(SESSION, {
-      subject: 'Task', description: 'Description', blockedBy: [], writeScopes: [],
-    })).ok).toBe(true)
-    expect((await actions.updateTask(SESSION, {
-      taskId: TASK_ID, expectedRevision: 1, action: 'complete',
-    })).ok).toBe(true)
-    expect((await actions.updateTask(SESSION, {
-      taskId: TASK_ID, expectedRevision: 2, action: 'reassign', owner: 'worker',
-    })).ok).toBe(true)
+    expect('createTask' in actions).toBe(false)
+    expect('updateTask' in actions).toBe(false)
+    expect((await actions.loadConversations(SESSION, new AbortController().signal)).ok).toBe(true)
     expect(b.calls.map(call => call.method)).toEqual([
-      'agentTeams/overview', 'agentTeams/createTask', 'agentTeams/updateTask', 'agentTeams/updateTask',
+      'agentTeams/overview', 'agentTeams/conversations',
     ])
-    expect(b.calls.at(-1)?.args[1]).toMatchObject({ owner: 'worker' })
 
     await actions.openTeammate(SESSION, {
       id: SESSION,
@@ -257,19 +227,6 @@ describe('ui-team browser plugin', () => {
     expect(b.remote.disposeMount).toHaveBeenCalledOnce()
   })
 
-  it('returns the generated task business result without a Client transport envelope', async () => {
-    const b = await bench({ conflict: true })
-    await expect(b.actions().updateTask(SESSION, {
-      taskId: TASK_ID, expectedRevision: 1, action: 'delete',
-    })).resolves.toEqual({
-      ok: true,
-      value: {
-        ok: false,
-        error: { code: 'team-task-conflict', message: 'stale' },
-      },
-    })
-  })
-
   it('returns Remote carrier failures unchanged', async () => {
     const view = await bench({ remoteFailure: 'view' })
     await expect(view.actions().load(SESSION)).resolves.toEqual({
@@ -277,13 +234,6 @@ describe('ui-team browser plugin', () => {
       error: { code: 'internal', message: 'offline', details: {} },
     })
 
-    const update = await bench({ remoteFailure: 'update' })
-    await expect(update.actions().updateTask(SESSION, {
-      taskId: TASK_ID, expectedRevision: 1, action: 'delete',
-    })).resolves.toEqual({
-      ok: false,
-      error: { code: 'internal', message: 'offline', details: {} },
-    })
   })
 
   it('refreshes the descriptor catalog before opening a continuable teammate address', async () => {

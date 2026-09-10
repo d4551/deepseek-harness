@@ -30,19 +30,19 @@ type ViewState =
   | { readonly status: 'ready'; readonly snapshot: PluginInventorySnapshot }
 
 const PHASE_PRESENTATION = {
-  pending: { label: 'pending', state: 'ongoing' },
-  loading: { label: 'loadingPhase', state: 'ongoing' },
-  active: { label: 'active', state: 'done' },
-  failed: { label: 'failed', state: 'error' },
-  unloading: { label: 'unloading', state: 'ongoing' },
-} satisfies Record<Exclude<PluginFiberPhase, null>, { label: PluginInventoryLocaleKey; state: StateDotState }>
+  pending: { labelKey: 'pending', state: 'ongoing' },
+  loading: { labelKey: 'loadingPhase', state: 'ongoing' },
+  active: { labelKey: 'active', state: 'done' },
+  failed: { labelKey: 'failed', state: 'error' },
+  unloading: { labelKey: 'unloading', state: 'ongoing' },
+} satisfies Record<Exclude<PluginFiberPhase, null>, { labelKey: PluginInventoryLocaleKey; state: StateDotState }>
 
 /** Localized accessible label for one root Fiber phase. */
 function phaseLabel(
   phase: PluginFiberPhase,
   t: PluginInventorySettingsTabProps['t'],
 ): string {
-  return phase === null ? t('unobserved') : t(PHASE_PRESENTATION[phase].label)
+  return phase === null ? t('unobserved') : t(PHASE_PRESENTATION[phase].labelKey)
 }
 
 /** Compact a module specifier without guessing whether its Loader id was generated. */

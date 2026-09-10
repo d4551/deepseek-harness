@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-本包向 Web 会话页头添加 Agent Teams action，让用户检查当前 roster、管理共享任务板并导航到 teammate 会话。它通过生成的 `ctx.remote.agentTeams` contribution 读取权威 Team 状态，并让普通 child history 导航继续使用稳定的 addressed-subagent 路径。Web bundle 在每个 Web profile 中都挂载本包，位于每个 profile 的 base 所挂载的 Team 之上。这个浏览器 projection 不扩展稳定 API Proxy、不存储 Team 状态，也不注册面向模型的输入。
+本包向 Web 会话页头添加 Agent Teams action，用于查看智能体维护的任务、消息与活动，并打开成员会话。它通过生成的 `ctx.remote.agentTeams` contribution 读取权威 Team 状态，子会话历史导航使用 addressed-subagent 路径。Web bundle 在每个 Web profile 中都挂载本包。浏览器视图不存储 Team 状态，也不注册面向模型的输入。
 
 ## 目录
 
@@ -33,11 +33,11 @@ kind: "package-reference"
 
 消息位于主面板，显示发送者、接收者、保留段落的内容以及待送达或已送达状态。已注册工作区成员的回复与发出的消息一起按日志事件时间排列。独立的 `agentTeams/conversations` 读取会列出嵌套子智能体及其直接父会话和活动状态。历史记录加载或失败时，消息与任务仍可使用；刷新会话会重试目录读取。选择后代会话会打开其精确的父子地址；Lead 行可返回根会话。
 
-### 管理任务板
+### 跟踪智能体维护的工作
 
-任务板按任务分组展示 task identity、owner、blocker、readiness、提示性 write scope 与重叠 warning。用户可以通过 `agentTeams/createTask` 与 `agentTeams/updateTask` 创建、编辑、分配或取消分配、完成、重开和删除任务。不可用的 owner 仍显示在负责人选择框中。编辑会保留用户打开表单时的 revision，实时更新不会自动推进该版本。发生冲突后，草稿仍可供复制；取消并重新打开编辑器，检查最新任务后再编辑。Create 或 update rejection 都保留为显式 business result。
+任务板显示智能体管理的工作、负责人、依赖、可执行状态、写入范围和重叠警告。其他运行中会话的任务板来自已注册的工作区成员关系，并随 Team 活动更新。智能体会在协调指引中收到这些任务板，通过 Team 工具维护任务和交接。面板没有任务录入、分配或编辑控件，只显示已提交的任务状态；成员空闲不代表任务已经完成。
 
-打开任务表单时，焦点移至任务标题。表单在输入后保留可见字段标签，并支持在单行字段中按 Enter 提交。保存期间会禁用输入与操作。按 Escape、点击关闭或点击面板外部可关闭面板；Escape 与关闭按钮会将焦点返回触发按钮。
+按 Escape、点击关闭或点击面板外部可关闭面板；Escape 与关闭按钮会将焦点返回触发按钮。
 
 -----
 
@@ -49,17 +49,19 @@ kind: "package-reference"
 
 Client export 挂载来自 [`@deepseek-ai/dsh-agent-team/remote`](../../subagent/agent-team/README.zh.md) 的生成式 `ctx.remote.agentTeams` contribution，然后通过 Cordis effect 注册 locale dictionary 与一个 conversation-header slot。Dispose plugin fiber 会移除这两项 registration。
 
-开始 create 或 update 会让更早的 refresh 失效。成功后会重新读取 Team overview，使每个 task 的派生字段保持最新。`team-task-conflict` 结果仅在重新读取成功后显示状态陈旧提示；如果重新读取失败，则保留该错误。由于 Team service 把任务文本或 scope 编辑与 dependency 修改公开为独立 action，两者使用两个连续的 compare-and-set mutation。
+每次发布 overview 后都会刷新后代会话目录。目录读取失败时提供独立重试操作，任务与消息仍可查看。
 
 实时订阅会在 view 读取尚未完成时合并活动通知。关闭 panel、切换会话或卸载会取消订阅，并使未完成的读取失效。流中断时会显示错误；重新打开 panel 会建立新订阅并读取当前状态。
 
-共享的工作区尺寸 Modal 与 PanelLayout 组件提供响应式分栏与视口内滚动。共享按钮、输入框、标签、消息正文与活动状态点构成面板控件，无需面板样式表或行内样式。
+共享的工作区尺寸 Modal 与 PanelLayout 组件提供行对齐的响应式布局与视口内滚动。共享按钮、标签、消息正文与活动状态点构成面板控件，无需面板样式表或行内样式。
 
 | 文件 | 职责 |
 |---|---|
 | [`src/client/mount.ts`](src/client/mount.ts) | 生成式 Remote、locale、导航与 slot registration |
 | [`src/client/TeamAction.tsx`](src/client/TeamAction.tsx) | Roster 与任务板交互状态 |
-| [`src/client/TaskForm.tsx`](src/client/TaskForm.tsx) | 通过共享输入与按钮组件编辑带标签的任务字段 |
+| [`src/client/TaskCard.tsx`](src/client/TaskCard.tsx) | 智能体维护的任务进展、负责人和依赖 |
+| [`src/client/TeamMessages.tsx`](src/client/TeamMessages.tsx) | 持久的智能体间消息与送达状态 |
+| [`src/client/TeamConversations.tsx`](src/client/TeamConversations.tsx) | 实时后代会话目录与导航 |
 | [`src/client/observe-team.ts`](src/client/observe-team.ts) | 有界活动消费与订阅取消 |
 | [`src/client/locales.ts`](src/client/locales.ts) | 中英文 panel 文案 |
 | [`src/index.ts`](src/index.ts) | 不执行行为的 Host entry |
@@ -80,7 +82,7 @@ Client export 挂载来自 [`@deepseek-ai/dsh-agent-team/remote`](../../subagent
 <a id="model-experience"></a>
 ## 模型体验
 
-无直接影响，因为该浏览器 projection 与任务控制界面不注册面向模型的输入。
+无直接影响，因为该浏览器视图不注册面向模型的输入。
 
 #### KV Cache 影响
 

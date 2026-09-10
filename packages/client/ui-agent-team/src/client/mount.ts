@@ -14,7 +14,7 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { TypertRemoteContribution } from '@deepseek-ai/dsh-typert-protocol'
 import {
-  TeamAction, type TeamActionInjected, type TeamActionResult, type TeamTaskActionResult,
+  TeamAction, type TeamActionInjected, type TeamActionResult,
 } from './TeamAction.tsx'
 import { en, NS, zh, type TeamKey } from './locales.ts'
 
@@ -54,16 +54,6 @@ function registerUi(ctx: ClientContext): void {
     },
     async loadConversations(sessionId, signal) {
       return await ctx.remote.agentTeams.conversations(leadSessionId(sessionId), signal)
-    },
-    async createTask(sessionId, input): Promise<TeamTaskActionResult> {
-      return await ctx.remote.agentTeams.createTask(leadSessionId(sessionId), input)
-    },
-    async updateTask(sessionId, input) {
-      const { owner, ...rest } = input
-      return await ctx.remote.agentTeams.updateTask(leadSessionId(sessionId), {
-        ...rest,
-        ...owner === undefined ? {} : { owner },
-      })
     },
     async openTeammate(sessionId: SessionId, member: TeamRosterMember): Promise<void> {
       if (member.role !== 'teammate') {

@@ -2,10 +2,10 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { TeamTaskId, TeamView } from '@deepseek-ai/dsh-agent-team/client'
 import {
-  TeamAction, SESSION, actions, props, task, taskSuccess, view,
+  TeamAction, SESSION, actions, props, task, view,
 } from './team-fixtures.client.ts'
 import { zh } from '../src/client/locales.ts'
 import { TeamActivity } from '../../../subagent/agent-team/src/activity.ts'
@@ -14,6 +14,29 @@ import { TeamId } from '../../../subagent/agent-team/src/types.ts'
 afterEach(cleanup)
 
 describe('TeamAction load and refresh ordering', () => {
+  it('populates descendant conversations from Team activity without a refresh gesture', async () => {
+    const activity = new TeamActivity()
+    let descendants: TeamView['subagents'] = []
+    render(<TeamAction {...props(actions({
+      changes: (session, signal) => activity.changes(TeamId(session), signal),
+      load: () => Promise.resolve({ ok: true, value: { ...view } }),
+      loadConversations: () => Promise.resolve({ ok: true, value: descendants }),
+    }))} />)
+    fireEvent.click(screen.getByRole('button', { name: /Agent Team/u }))
+    await screen.findByText(zh.noSubagents)
+    expect(screen.queryByRole('button', { name: zh.refreshConversations })).toBeNull()
+    descendants = [{
+      kind: 'child', id: SessionId('new-worker'), parentId: SESSION, depth: 1,
+      mode: 'continuable', activity: 'running', label: 'Automatic review', hasChildren: false,
+    }]
+    activity.notify(TeamId(SESSION))
+    expect(await screen.findByRole('button', { name: 'Automatic review' })).toBeTruthy()
+    expect(screen.getByText(`${zh.parent}: lead · ${zh['memberStatus.running']}`)).toBeTruthy()
+    descendants = descendants.map(entry => entry.kind === 'child' ? { ...entry, activity: 'inactive' } : entry)
+    activity.notify(TeamId(SESSION))
+    expect(await screen.findByText(`${zh.parent}: lead · ${zh['memberStatus.inactive']}`)).toBeTruthy()
+  })
+
   it('refreshes external Team changes and stops the subscription when closed', async () => {
     const activity = new TeamActivity()
     let current = view
@@ -122,6 +145,9 @@ describe('TeamAction load and refresh ordering', () => {
 
     const refresh = screen.getByRole('button', { name: zh.refresh })
     fireEvent.click(refresh)
+    expect(refresh.getAttribute('aria-busy')).toBe('true')
+    expect(screen.queryByText(zh.loading)).toBeNull()
+    expect(screen.getByText('Implement runtime')).toBeTruthy()
     fireEvent.click(refresh)
     newer.resolve({ ok: true, value: newestView })
     expect(await screen.findByText('Newest task')).toBeTruthy()
@@ -132,53 +158,4 @@ describe('TeamAction load and refresh ordering', () => {
     expect(screen.queryByText('Implement runtime')).toBeNull()
   })
 
-  it('keeps a successful task mutation newer than an in-flight refresh', async () => {
-    const stale = Promise.withResolvers<{ ok: true; value: TeamView }>()
-    const completedView = { ...view, tasks: [{ ...task, revision: 2, status: 'completed' as const }] }
-    const load = vi.fn()
-      .mockResolvedValueOnce({ ok: true, value: view })
-      .mockImplementationOnce(() => stale.promise)
-      .mockResolvedValueOnce({ ok: true, value: completedView })
-    const updateTask = vi.fn(() => Promise.resolve(
-      taskSuccess({ ...task, revision: 2, status: 'completed' }),
-    ))
-    render(<TeamAction {...props(actions({ load, updateTask }))} />)
-    fireEvent.click(screen.getByRole('button', { name: /Agent Team/u }))
-    await screen.findByText('Implement runtime')
-
-    fireEvent.click(screen.getByRole('button', { name: zh.refresh }))
-    fireEvent.click(screen.getByRole('button', { name: /完成/u }))
-    expect(await screen.findByRole('button', { name: /重开/u })).toBeTruthy()
-
-    stale.resolve({ ok: true, value: view })
-    await Promise.resolve()
-    expect(screen.getByRole('button', { name: /重开/u })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: /完成/u })).toBeNull()
-  })
-
-  it('keeps a created task newer than an in-flight refresh', async () => {
-    const stale = Promise.withResolvers<{ ok: true; value: TeamView }>()
-    const createdTask = { ...task, id: 'task-2' as TeamTaskId, subject: 'New task' }
-    const load = vi.fn()
-      .mockResolvedValueOnce({ ok: true, value: view })
-      .mockImplementationOnce(() => stale.promise)
-      .mockResolvedValueOnce({ ok: true, value: { ...view, tasks: [...view.tasks, createdTask] } })
-    render(<TeamAction {...props(actions({
-      load,
-      createTask: () => Promise.resolve(taskSuccess(createdTask)),
-    }))} />)
-    fireEvent.click(screen.getByRole('button', { name: /Agent Team/u }))
-    await screen.findByText('Implement runtime')
-
-    fireEvent.click(screen.getByRole('button', { name: zh.refresh }))
-    fireEvent.click(screen.getByRole('button', { name: /新建任务/u }))
-    fireEvent.change(screen.getByPlaceholderText('任务标题'), { target: { value: 'New task' } })
-    fireEvent.change(screen.getByPlaceholderText('任务描述'), { target: { value: 'Details' } })
-    fireEvent.click(screen.getByRole('button', { name: '保存' }))
-    expect(await screen.findByText('New task')).toBeTruthy()
-
-    stale.resolve({ ok: true, value: view })
-    await Promise.resolve()
-    expect(screen.getByText('New task')).toBeTruthy()
-  })
 })

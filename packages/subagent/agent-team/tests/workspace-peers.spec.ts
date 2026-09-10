@@ -60,6 +60,8 @@ it('discovers registered workspace conversations and admits durable messages onl
   const work = { subject: 'Update settings', description: 'Coordinate the shared settings directory', writeScopes: ['src/settings'] }
   const leadTask = await ctx.agentTeams.createTask(lead, work)
   const peerTask = await ctx.agentTeams.createTask(peer, { ...work, writeScopes: ['src/settings/menu.ts'] })
+  expect(ctx.agentTeams.remoteOverview(lead).workspaceTasks).toEqual([{ sessionId: peer.id, tasks: [peerTask] }])
+  expect(ctx.agentTeams.workspaceTasks(peer)).toEqual([{ sessionId: lead.id, tasks: [leadTask] }])
   await ctx.agentTeams.createTask(foreign, work)
   expect((await ctx.agentTeams.claimNextReadyTask(foreign)).outcome).toBe('claimed')
   const claims = await Promise.all([
@@ -126,6 +128,7 @@ it('discovers registered workspace conversations and admits durable messages onl
   await workspace.detachSession(peer.id)
   expect(await detached).toEqual({ timedOut: false })
   expect(ctx.agentTeams.listMembers(lead).map(member => member.id)).toEqual([lead.id])
+  expect(ctx.agentTeams.workspaceTasks(lead)).toEqual([])
   await expect(ctx.agentTeams.sendMessage(lead, message)).rejects.toMatchObject({ code: 'TEAM_MEMBER_NOT_FOUND' })
   const pendingId = TeamMessageId('workspace-recovery-message')
   lead.session.append('team/message/queued', {

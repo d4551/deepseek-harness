@@ -280,6 +280,15 @@ export class TeamService extends TypertRemoteService {
     return this.tasks.list(this.roster.membership(caller))
   }
 
+  /** Read task boards owned by other live conversations in the registered workspace. */
+  workspaceTasks(caller: Agent): TeamOverview['workspaceTasks'] {
+    const { root } = this.roster.membership(caller)
+    return workspacePeers(this.ctx, this.roster, root).map(peer => ({
+      sessionId: peer.id,
+      tasks: this.tasks.list(this.roster.membership(peer)),
+    }))
+  }
+
   /**
    * Take ownership of the first ready task whose write scopes are free, in one
    * atomic Lead transaction. A member pulls work with this instead of being
@@ -365,6 +374,7 @@ export class TeamService extends TypertRemoteService {
     return {
       members: this.listMembers(agent),
       tasks: this.listTasks(agent),
+      workspaceTasks: this.workspaceTasks(agent),
       messages: teamMessageView(membership.root, workspacePeers(this.ctx, this.roster, membership.root), this.journal),
     }
   }
