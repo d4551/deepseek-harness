@@ -3,7 +3,7 @@
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import type { Browser, Page } from 'playwright'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, onTestFailed } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, onTestFailed, onTestFinished } from 'vitest'
 import { createMessage, createUserMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import {
@@ -103,6 +103,68 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
     await assertPageAccessibility(page)
   })
 
+  it('keeps long peer identities readable with shared typography and aligned navigation', async () => {
+    const lead = scaffold.ctx.agents.list()[0]
+    if (lead === undefined) throw new Error('Team lead is unavailable')
+    const workspace = scaffold.ctx.workspaceRegistry.list().find(entry => entry.sessionIds.includes(lead.id))
+    if (workspace === undefined) throw new Error('Team workspace is unavailable')
+    const handle = await scaffold.ctx.agents.create({
+      sessionId: SessionId(`session-d1fe04f5-0374-4c4e-b448-6be7ceef04ef-${colorScheme}`),
+      meta: { cwd: workspace.path }, agentOptions: { model: 'TheGreatBao' },
+    })
+    onTestFinished(async () => {
+      await workspace.detachSession(handle.agent.id)
+      await handle.dispose()
+    })
+    await workspace.attachSession(handle.agent.id)
+    const panel = page.getByRole('dialog', { name: 'Agent Team' })
+    const members = panel.getByRole('region', { name: 'Members', exact: true })
+    await members.getByText('Untitled conversation', { exact: true }).waitFor()
+    scaffold.ctx.sessionTitle.rename(handle.agent.session, 'Review Settings accessibility')
+    const title = members.getByText('Review Settings accessibility', { exact: true })
+    await title.waitFor()
+    const memberTypography = await title.evaluate((element) => {
+      const style = getComputedStyle(element)
+      return [style.fontFamily, style.fontSize, style.fontWeight, style.lineHeight]
+    })
+    const row = members.getByRole('article').filter({ has: page.getByText('Review Settings accessibility', { exact: true }) })
+    const metadataTypography = await row.locator('.dsw-settings-cell-desc').evaluateAll(elements => elements.map((element) => {
+      const style = getComputedStyle(element)
+      return [style.fontFamily, style.fontSize, style.fontWeight, style.lineHeight]
+    }))
+    expect(metadataTypography).toHaveLength(3)
+    for (const typography of metadataTypography) {
+      expect(typography).toEqual([memberTypography[0], '12px', '400', '18px'])
+    }
+    for (const viewport of [{ width: 1680, height: 1000 }, { width: 390, height: 844 }]) {
+      await page.setViewportSize(viewport)
+      await row.scrollIntoViewIfNeeded()
+      const titleBox = await title.boundingBox()
+      const actionBox = await row.getByRole('button').boundingBox()
+      if (titleBox === null || actionBox === null) throw new Error('Member controls are not visible')
+      expect(actionBox.x).toBeGreaterThan(titleBox.x + titleBox.width)
+      expect(Math.abs(actionBox.y - titleBox.y)).toBeLessThan(actionBox.height)
+      expect(await panel.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
+      const typography = await title.evaluate((element) => {
+        const style = getComputedStyle(element)
+        return [style.fontSize, style.fontWeight, style.lineHeight]
+      })
+      expect(typography).toEqual(['14px', '400', '21px'])
+      await page.screenshot({ path: `.artifacts/finish/team-member-${colorScheme}-${viewport.width}.png` })
+    }
+    await page.setViewportSize({ width: 1680, height: 1000 })
+    await panel.press('Escape')
+    await page.getByRole('button', { name: 'Settings', exact: true }).click()
+    const settings = page.getByRole('dialog', { name: 'Settings', exact: true })
+    const settingsTypography = await settings.locator('.dsw-settings-cell-title').first().evaluate((element) => {
+      const style = getComputedStyle(element)
+      return [style.fontFamily, style.fontSize, style.fontWeight, style.lineHeight]
+    })
+    expect(memberTypography).toEqual(settingsTypography)
+    expect(tripwire.pageErrors).toEqual([])
+    expect(tripwire.warnings).toEqual([])
+  })
+
   it('follows agent-owned tasks and messages through generated Remote', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-agent-team-panel'))
     const panel = page.getByRole('dialog', { name: 'Agent Team' })
@@ -165,7 +227,7 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
     await expect.poll(() => messages.getByText('Delivered', { exact: true }).count()).toBe(2)
     expect(await messages.getByText('Queued', { exact: true }).count()).toBe(0)
     expect(await messages.innerText()).toContain('Please review the task changes.\nCheck keyboard navigation too.')
-    expect(await messages.innerText()).toContain(`${target.name} → lead`)
+    expect(await messages.innerText()).toContain('Untitled conversation → lead')
     await assertPageAccessibility(page)
   }, 60_000)
 
@@ -296,7 +358,7 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
     })
     await edited.waitFor({ state: 'detached' })
     await panel.getByRole('region', { name: 'Members', exact: true })
-      .getByRole('button', { name: `session:team-reviewer-${colorScheme}`, exact: true }).click()
+      .getByRole('button', { name: 'Open member conversation: Untitled conversation', exact: true }).click()
     await panel.waitFor({ state: 'detached' })
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])

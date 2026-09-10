@@ -14,8 +14,8 @@ function statusKey(status: TeamTaskView['status']): TeamKey {
 /** Current agent-owned task state from the durable workspace board. */
 export function TaskCard({ task, t }: { task: TeamTaskView; t: (key: TeamKey) => string }) {
   return <PanelEntry aria-label={task.subject}>
-    <strong>{task.subject}</strong>
-    <p>{task.description}</p>
+    <span className="dsw-settings-cell-title">{task.subject}</span>
+    <p className="dsw-settings-cell-desc">{task.description}</p>
     <PanelActions>
       <Pill>{t(statusKey(task.status))}</Pill>
       <Pill>{task.id}</Pill>

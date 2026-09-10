@@ -3,6 +3,7 @@ import type { TeamOverview, TeamView } from '@deepseek-ai/dsh-agent-team/client'
 import type { TeamActionResult } from './TeamAction.tsx'
 import { Button, StateDot, PanelSection, PanelEntry, PanelActions } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TeamKey } from './locales.ts'
+import { memberLabel } from './member-label.ts'
 
 /** A descriptor-backed conversation returned by the Team service. */
 export type TeamConversation = Extract<TeamView['subagents'][number], { kind: 'child' }>
@@ -37,7 +38,7 @@ export function TeamConversations({ view, load, t, open, reportError }: TeamConv
   }, [load, revision, view])
   const nameOf = (id: string, recordedName = id): string => {
     const member = view.members.find(candidate => candidate.id === id)
-    if (member !== undefined) return member.name
+    if (member !== undefined) return memberLabel(member, t)
     const entry = directory.status === 'ready' ? directory.entries.find(candidate => candidate.id === id) : undefined
     return entry?.kind === 'child' ? entry.label ?? recordedName : recordedName
   }

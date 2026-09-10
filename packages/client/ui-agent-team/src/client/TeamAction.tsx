@@ -13,6 +13,7 @@ import { observeTeamActivity } from './observe-team.ts'
 import { TaskCard } from './TaskCard.tsx'
 import { TeamConversations, type TeamConversation } from './TeamConversations.tsx'
 import { TeamMessages } from './TeamMessages.tsx'
+import { memberLabel } from './member-label.ts'
 
 /** Generated Remote result consumed directly by the Team UI. */
 export type TeamActionResult<T> = RemoteResult<T>
@@ -124,22 +125,27 @@ export function TeamAction({ sessionId, changes, load, loadConversations, openTe
             {view.tasks.length === 0 && view.workspaceTasks.every(board => board.tasks.length === 0) && <p>{t('empty')}</p>}
             {view.tasks.map(task => <TaskCard key={task.id} task={task} t={t} />)}
             {view.workspaceTasks.map(board => board.tasks.length > 0 && <PanelEntry key={board.sessionId}>
-              <strong>{view.members.find(member => member.id === board.sessionId)?.name ?? board.sessionId}</strong>
+              <span className="dsw-settings-cell-title">{memberLabel(view.members.find(member => member.id === board.sessionId), t)}</span>
               {board.tasks.map(task => <TaskCard key={task.id} task={task} t={t} />)}
             </PanelEntry>)}
           </PanelSection>
           <PanelSection title={t('roster')} actions={<Pill>{view.members.length}</Pill>}>
-            {view.members.map(member => <PanelEntry key={member.id}>
+            {view.members.map(member => <PanelEntry key={member.id} actions={
+              member.id !== sessionId && member.status !== 'failed' && member.status !== 'provisioning'
+                ? <Button size="touch" title={t('open')} aria-label={`${t('open')}: ${memberLabel(member, t)}`}
+                  onClick={() => { openTeammate(sessionId, member).then(undefined, reportError) }}
+                ><IconRightUpOutline16 /></Button> : undefined
+            }>
               <PanelActions>
                 <StateDot state={member.status === 'running' ? 'ongoing' : member.status === 'failed' ? 'error' : 'inactive'} />
-                <strong>{member.name}</strong><Pill>{t(memberStatusKey(member.status))}</Pill>
-                {member.id !== sessionId && member.status !== 'failed' && member.status !== 'provisioning'
-                  && <Button size="touch" title={t('open')} aria-label={member.name}
-                    onClick={() => { openTeammate(sessionId, member).then(undefined, reportError) }}
-                  ><IconRightUpOutline16 /></Button>}
+                <span className="dsw-settings-cell-title" title={member.name}>
+                  {memberLabel(member, t)}
+                </span>
+                <span className="dsw-settings-cell-desc">{t(memberStatusKey(member.status))}</span>
               </PanelActions>
-              {member.description !== undefined && <p>{member.description}</p>}
-              {member.model !== undefined && <p>{t('model')}: {member.model}</p>}
+              {member.role === 'peer' && <p className="dsw-settings-cell-desc" title={member.id}>{member.id}</p>}
+              {member.description !== undefined && <p className="dsw-settings-cell-desc">{member.description}</p>}
+              {member.model !== undefined && <p className="dsw-settings-cell-desc">{t('model')}: {member.model}</p>}
               {member.diagnostics.map(diagnostic => <p key={diagnostic}>{diagnostic}</p>)}
             </PanelEntry>)}
           </PanelSection>

@@ -69,9 +69,22 @@
 }
 
 .section > p,
-.entry > p {
+.entryContent > p {
   margin: 0;
   line-height: var(--dsw-line-height-body);
+}
+
+.entryWithActions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.entryContent {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  gap: var(--dsw-space-control);
 }
 
 .entry:first-child {

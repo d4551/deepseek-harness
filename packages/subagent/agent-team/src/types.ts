@@ -59,6 +59,8 @@ export interface TeamMemberSnapshot {
 export interface TeamMemberView {
   readonly id: SessionId
   readonly name: string
+  /** Human-readable conversation title, independent of the message-routing name. */
+  readonly title?: string
   readonly role: 'lead' | 'teammate' | 'peer'
   readonly status: 'running' | 'idle' | 'inactive' | 'provisioning' | 'failed'
   readonly description?: string

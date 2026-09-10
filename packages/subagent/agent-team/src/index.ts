@@ -5,6 +5,7 @@ import z from '@deepseek-ai/schemastery'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-persistence'
+import type {} from '@deepseek-ai/dsh-session-title'
 import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { TeamActivity } from './activity.ts'
@@ -184,6 +185,10 @@ export class TeamService extends TypertRemoteService {
     this.tasks = new TeamTaskBoard(ctx, this.roster, this.journal, () => this.settings().maxTasks)
 
     ctx.on('session/event', (session, event) => {
+      if (event.type === 'session/title') {
+        const agent = ctx.agents.get(session.id)
+        if (agent !== undefined) this.notifyLifecycleChange(agent)
+      }
       this.mailbox.observeSessionEvent(session, event)?.then(undefined, (error: unknown) => {
         this.ctx.logger.warn(`Team message acknowledgement for "${session.id}" failed: ${errorMessage(error)}`)
       })
@@ -220,14 +225,18 @@ export class TeamService extends TypertRemoteService {
     const membership = this.roster.membership(agent)
     return [
       ...this.roster.list(membership),
-      ...workspacePeers(this.ctx, this.roster, membership.root).map((peer): TeamMemberView => ({
-        id: peer.id,
-        name: workspacePeerName(peer.id),
-        role: 'peer',
-        status: peer.status,
-        ...peer.options.model === undefined ? {} : { model: peer.options.model },
-        diagnostics: [],
-      })),
+      ...workspacePeers(this.ctx, this.roster, membership.root).map((peer): TeamMemberView => {
+        const title = this.ctx.get('sessionTitle')?.get(peer.session)?.title
+        return {
+          id: peer.id,
+          name: workspacePeerName(peer.id),
+          ...(title === undefined ? {} : { title }),
+          role: 'peer',
+          status: peer.status,
+          ...peer.options.model === undefined ? {} : { model: peer.options.model },
+          diagnostics: [],
+        }
+      }),
     ]
   }
 

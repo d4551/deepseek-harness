@@ -32,8 +32,11 @@ export function PanelSection({ title, description, actions, children }: {
 }
 
 /** A distinct item within a named panel. */
-export function PanelEntry({ className, ...props }: HTMLAttributes<HTMLElement>) {
-  return <article className={clsx(css.entry, className)} {...props} />
+export function PanelEntry({ className, actions, children, ...props }: HTMLAttributes<HTMLElement> & { actions?: ReactNode }) {
+  return <article className={clsx(css.entry, actions !== undefined && css.entryWithActions, className)} {...props}>
+    <div className={css.entryContent}>{children}</div>
+    {actions}
+  </article>
 }
 
 /** Wrapping controls and status metadata. */

@@ -6053,6 +6053,7 @@
         "@deepseek-ai/dsh-session-persistence-sqlite": "workspace:^",
         "@deepseek-ai/dsh-session-projection": "workspace:^",
         "@deepseek-ai/dsh-session-query-sqlite": "workspace:^",
+        "@deepseek-ai/dsh-session-title": "workspace:^",
         "@deepseek-ai/dsh-settings": "workspace:^",
         "@deepseek-ai/dsh-settings-file": "workspace:^",
         "@deepseek-ai/dsh-storage": "workspace:^",

@@ -15,7 +15,7 @@
     - heading "Shared tasks" [level=3]
     - paragraph: Agents maintain tasks, ownership, and handoffs from workspace conversations. Progress appears here live.
     - article "Browser task":
-      - strong: Browser task
+      - text: Browser task
       - paragraph: Created by the agent through Team tools
       - text: Pending task-1 Ready
       - paragraph: "Owner: Unowned"
@@ -24,8 +24,7 @@
     - heading "Members" [level=3]
     - text: "1"
     - article:
-      - strong: lead
-      - text: Idle
+      - text: lead Idle
       - paragraph: "Model: deepseek-v4-flash"
   - region "Subagent conversations":
     - heading "Subagent conversations" [level=3]
