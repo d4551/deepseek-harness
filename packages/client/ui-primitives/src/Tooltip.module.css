@@ -5,10 +5,16 @@
 .bubble {
   position: fixed;
   position-anchor: attr(data-tooltip-anchor type(<custom-ident>));
-  position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
+  position-try-fallbacks:
+    flip-block,
+    flip-inline,
+    flip-block flip-inline;
   z-index: var(--dsw-z-popover);
   width: max-content;
-  max-width: min(var(--dsw-panel-min-width), calc(100vw - var(--dsw-space-section) * 2));
+  max-width: min(
+    var(--dsw-panel-min-width),
+    calc(100vw - var(--dsw-space-section) * 2)
+  );
   margin: var(--dsw-space-control);
   padding: var(--dsw-space-control);
   border-radius: var(--dsw-radius-surface);
@@ -22,23 +28,28 @@
 }
 
 .bubble[data-constrained] {
-  max-width: min(anchor-size(width), calc(100vw - var(--dsw-space-section) * 2));
+  max-width: min(
+    anchor-size(width),
+    calc(100vw - var(--dsw-space-section) * 2)
+  );
 }
 
-.bubble[data-side='right'] {
+.bubble[data-side="right"] {
   position-area: right;
 }
 
-.bubble[data-side='bottom'] {
+.bubble[data-side="bottom"] {
   position-area: bottom;
 }
 
-.bubble[data-side='top'] {
+.bubble[data-side="top"] {
   position-area: top;
 }
 
 @keyframes tooltip-in {
-  from { opacity: 0; }
+  from {
+    opacity: 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
