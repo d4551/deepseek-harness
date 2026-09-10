@@ -1,48 +1,32 @@
 - dialog "Agent Team":
   - heading "Agent Team" [level=2]
+  - button "Refresh Team":
+    - img
   - button "Close":
     - img
   - paragraph: Follow your team’s work, conversations, and shared tasks in one place.
-  - button "Refresh Team":
-    - img
-    - text: Refresh Team
   - region "Messages between members":
     - heading "Messages between members" [level=3]
     - text: "0"
     - paragraph: Follow requests, progress, and handoffs between agents. New messages appear live.
     - paragraph: No messages between members yet
     - log "Messages between members"
-  - region "Subagent conversations":
-    - heading "Subagent conversations" [level=3]
-    - button "Refresh conversations"
-    - paragraph: No subagent conversations yet
+  - region "Shared tasks":
+    - heading "Shared tasks" [level=3]
+    - paragraph: Agents maintain tasks, ownership, and handoffs from workspace conversations. Progress appears here live.
+    - article "Browser task":
+      - strong: Browser task
+      - paragraph: Created by the agent through Team tools
+      - text: Pending task-1 Ready
+      - paragraph: "Owner: Unowned"
+      - paragraph: "Write scopes: src/web"
   - region "Members":
     - heading "Members" [level=3]
     - text: "1"
     - article:
-      - button "lead" [disabled]
-      - paragraph: "Idle · Model: deepseek-v4-flash"
-  - region "Shared tasks":
-    - heading "Shared tasks" [level=3]
-    - button "New task":
-      - img
-      - text: New task
-    - article "Browser task":
-      - group "Browser task":
-        - text: Browser task
-        - paragraph: Created through the assembled browser
-        - text: Pending
-        - list:
-          - listitem: task-1
-          - listitem: Ready
-          - listitem: "Write scopes: src/web"
-        - text: Owner
-        - combobox "Owner":
-          - option "Unowned" [selected]
-          - option "lead"
-        - button "Edit":
-          - img
-          - text: Edit
-        - button "Delete":
-          - img
-          - text: Delete
+      - strong: lead
+      - text: Idle
+      - paragraph: "Model: deepseek-v4-flash"
+  - region "Subagent conversations":
+    - heading "Subagent conversations" [level=3]
+    - paragraph: No subagent conversations yet

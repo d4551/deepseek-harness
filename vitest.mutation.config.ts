@@ -32,8 +32,6 @@ export default defineConfig({
         test: {
           name: 'mutation-browser',
           include: mutationTests.filter(file => clientBrowserTests.includes(file)),
-          provide: { strykerActiveMutant: process.env.__STRYKER_ACTIVE_MUTANT__ },
-          setupFiles: ['./scripts/mutation-browser-setup.ts'],
         },
       },
     ],

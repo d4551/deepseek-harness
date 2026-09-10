@@ -4,8 +4,9 @@
  * @type {import('@stryker-mutator/api/core').PartialStrykerOptions}
  */
 export default {
-  testRunner: 'command',
-  commandRunner: { command: 'bunx vitest run --config vitest.mutation.config.ts' },
+  testRunner: 'vitest',
+  plugins: [import.meta.resolve('@stryker-mutator/vitest-runner')],
+  vitest: { configFile: 'vitest.mutation.config.ts', related: false },
   coverageAnalysis: 'off',
   disableTypeChecks: false,
   reporters: ['progress', 'clear-text', 'json', 'event-recorder'],

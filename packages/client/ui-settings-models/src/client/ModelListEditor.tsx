@@ -334,7 +334,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
           title={props.probeBlocked !== undefined
             ? t(props.probeBlocked)
             : askable ? undefined : t('fetchNeedsBaseUrl')}
-          onClick={() => { void fetchModels() }}
+          onClick={() => { fetchModels().then(undefined, (reason: unknown) => { setFailure(messageOf(reason)) }) }}
         >
           {busy ? t('fetching') : t('fetchModels')}
         </button>
@@ -446,7 +446,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
         title={t('fetchTitle')}
         closeLabel={t('close')}
         description={t('fetchDescription')}
-        className={styles['fetchDialog'] as string}
+        className={styles['fetchDialog']}
         footer={(
           <>
             <Button variant="outline" onClick={closePicker}>{t('cancel')}</Button>

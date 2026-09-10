@@ -1,3 +1,4 @@
+import { getEventListeners } from 'node:events'
 import { Context, FiberState } from '@deepseek-ai/cordis'
 import type { Fiber } from '@deepseek-ai/cordis'
 import type {
@@ -111,6 +112,34 @@ describe('Remote event Host source', () => {
     expect(gateway.host).toBeUndefined()
   })
 
+  it('delegates requests arriving after cancellation before the next stream pull', async () => {
+    const { ctx, gateway } = await setup()
+    const abort = new AbortController()
+    const iterator = sourceOf(gateway)(abort.signal)[Symbol.asyncIterator]()
+    emitRaw(ctx, 'commands/change', [])
+    await expect(iterator.next()).resolves.toEqual({
+      done: false, value: { event: 'commands/change', args: [] },
+    })
+    abort.abort(new Error('client disconnected between pulls'))
+    expect(getEventListeners(abort.signal, 'abort')).toHaveLength(0)
+    const agent = { ctx: ctx.extend() }
+    let hostCalls = 0
+    const answer = waterfallRaw(
+      ctx,
+      scopeTarget(ctx, agent),
+      'user-questions/request',
+      [{ questions: [], agent }],
+      () => {
+        hostCalls += 1
+        return Promise.resolve('host answer after cancellation')
+      },
+    )
+    await expect(answer).resolves.toBe('host answer after cancellation')
+    expect(hostCalls).toBe(1)
+    await expect(iterator.next()).resolves.toEqual({ done: true, value: undefined })
+    await ctx.fiber.dispose()
+  })
+
   it('gives each Client stream an independent allowlisted event queue', async () => {
     const { ctx, gateway, fiber } = await setup()
     const firstAbort = new AbortController()
@@ -144,6 +173,32 @@ describe('Remote event Host source', () => {
     await fiber.dispose()
     expect(gateway.source).toBeUndefined()
     expect(gateway.removals).toBe(1)
+    await ctx.fiber.dispose()
+  })
+
+  it('rejects pending requests when a client closes its stream without aborting', async () => {
+    const { ctx, gateway } = await setup()
+    const controller = new AbortController()
+    const iterator = sourceOf(gateway)(controller.signal)[Symbol.asyncIterator]()
+    emitRaw(ctx, 'commands/change', [])
+    await expect(iterator.next()).resolves.toEqual({
+      done: false, value: { event: 'commands/change', args: [] },
+    })
+    const agent = { ctx: ctx.extend() }
+    const request = waterfallRaw(
+      ctx,
+      scopeTarget(ctx, agent),
+      'user-questions/request',
+      [{ questions: [], agent }],
+      () => Promise.resolve('host answer'),
+    )
+    const rejected = expect(request).rejects.toThrow('api-remotes: forwarded Remote event source ended')
+    if (iterator.return === undefined) throw new Error('Remote event source cannot be closed')
+    await expect(iterator.return()).resolves.toEqual({ done: true, value: undefined })
+    await rejected
+    expect(controller.signal.aborted).toBe(false)
+    expect(getEventListeners(controller.signal, 'abort')).toHaveLength(0)
+    expect(() => { emitRaw(ctx, 'settings/document-updated', ['ui-theme', 1n]) }).not.toThrow()
     await ctx.fiber.dispose()
   })
 

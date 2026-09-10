@@ -12,7 +12,7 @@
  * re-renders from pushed invalidations or the post-apply reload.
  */
 
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Button, IconPlusOutline16, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
@@ -218,11 +218,22 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
   const [declaring, setDeclaring] = useState(false)
   const [dismissedSetup, setDismissedSetup] = useState<ReadonlySet<string>>(() => new Set())
 
+  const reportLoadFailure = useCallback((reason: unknown): void => {
+    controller.store.update((snapshot) => {
+      snapshot.status = 'error'
+      snapshot.error = messageOf(reason)
+    })
+  }, [controller])
+
+  useEffect(() => {
+    if (state.status === 'idle') controller.load().then(undefined, reportLoadFailure)
+  }, [controller, state.status, reportLoadFailure])
+
   const announceSaved = (target: ProviderIdentity): void => {
     // Announced only once the refreshed directory is in the snapshot the
     // notice reads its name from: an apply can rename the route, and the
     // target captured when the card opened still carries the old name.
-    void controller.load().then(() => { setSavedTarget(target) })
+    controller.load().then(() => { setSavedTarget(target) }, reportLoadFailure)
   }
 
   const closeEditor = (changed: boolean, target: ProviderIdentity): void => {
@@ -255,7 +266,7 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
     if (deleteTarget === undefined || deleting) return
     setDeleting(true)
     setDeleteFailure(undefined)
-    void removeProviderProfile(api, controller, deleteTarget)
+    removeProviderProfile(api, controller, deleteTarget)
       .then((failure) => {
         if (failure !== undefined) {
           setDeleteFailure(failure)
@@ -264,16 +275,17 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
         setDeleteTarget(undefined)
       })
       .finally(() => { setDeleting(false) })
+      .then(undefined, (reason: unknown) => { setDeleteFailure(messageOf(reason)) })
   }
 
-  if (state.status === 'idle') void controller.load()
   if (state.status === 'error') {
     /* v8 ignore next -- an error status always carries text; the fallback satisfies the nullable type */
     const errorText = state.error ?? ''
     return (
       <div className={styles['section']}>
         <p className={styles['error']}>{`${t('loadFailed')}: ${errorText}`}</p>
-        <button type="button" className={styles['secondaryButton']} onClick={() => { void controller.load() }}>
+        <button type="button" className={styles['secondaryButton']}
+          onClick={() => { controller.load().then(undefined, reportLoadFailure) }}>
           {t('retry')}
         </button>
       </div>
@@ -498,7 +510,7 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
                   readOnly={!state.writable}
                   onClose={(changed) => {
                     setDeclaring(false)
-                    if (changed) void controller.load()
+                    if (changed) controller.load().then(undefined, reportLoadFailure)
                   }}
                 />
               </div>
@@ -557,7 +569,7 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
               : t('deleteDescriptionWithCredential'),
             deleteTarget,
           )}
-        className={styles['deleteDialog'] as string}
+        className={styles['deleteDialog']}
         footer={(
           <>
             <Button variant="outline" autoFocus disabled={deleting} onClick={closeDelete}>

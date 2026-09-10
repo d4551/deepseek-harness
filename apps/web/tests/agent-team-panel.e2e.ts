@@ -3,7 +3,7 @@
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import type { Browser, Page } from 'playwright'
-import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, onTestFailed } from 'vitest'
 import { createMessage, createUserMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import {
@@ -76,10 +76,17 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
     await scaffold?.close()
   })
 
-  it('loads the roster and follows agent-owned tasks through generated Remote', async () => {
+  beforeEach(async () => {
+    await page.setViewportSize({ width: 1680, height: 1000 })
+    await page.locator('[data-team-action]').getByRole('button', { name: /Agent Team/iu }).click()
+  })
+
+  afterEach(async () => {
+    await page.keyboard.press('Escape')
+  })
+
+  it('loads the roster and contains keyboard focus', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-agent-team-panel'))
-    const action = page.locator('[data-team-action]')
-    await action.getByRole('button', { name: /Agent Team/iu }).click()
     const panel = page.getByRole('dialog', { name: 'Agent Team' })
     await panel.getByText('No shared tasks yet').waitFor()
     await panel.getByText('lead', { exact: true }).waitFor()
@@ -90,7 +97,15 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
     expect(await refresh.evaluate(button => document.activeElement === button)).toBe(true)
     await refresh.press('Tab')
     expect(await close.evaluate(button => document.activeElement === button)).toBe(true)
+  })
+
+  it('passes accessibility checks with an empty team', async () => {
     await assertPageAccessibility(page)
+  })
+
+  it('follows agent-owned tasks and messages through generated Remote', async () => {
+    onTestFailed(() => saveFailureShot(page, 'web-e2e-agent-team-panel'))
+    const panel = page.getByRole('dialog', { name: 'Agent Team' })
     for (const viewport of [{ width: 840, height: 1000 }, { width: 600, height: 480 }]) {
       await page.setViewportSize(viewport)
       await expect.poll(async () => {
@@ -152,6 +167,11 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
     expect(await messages.innerText()).toContain('Please review the task changes.\nCheck keyboard navigation too.')
     expect(await messages.innerText()).toContain(`${target.name} → lead`)
     await assertPageAccessibility(page)
+  }, 60_000)
+
+  it('retains team state when reopened and passes accessibility checks', async () => {
+    const panel = page.getByRole('dialog', { name: 'Agent Team' })
+    const action = page.locator('[data-team-action]')
     await panel.getByRole('button', { name: 'Close', exact: true }).click()
     await action.getByRole('button', { name: /Agent Team/iu }).click()
     await panel.getByText('Task updated outside the panel', { exact: true }).waitFor()
@@ -159,10 +179,20 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
     await assertPageAccessibility(page)
     expect(tripwire.warnings).toEqual([])
     await page.screenshot({ path: `.artifacts/finish/team-tasks-${colorScheme}.png` })
+  })
+
+  it('fits the mobile viewport and passes accessibility checks', async () => {
+    const panel = page.getByRole('dialog', { name: 'Agent Team' })
     await page.setViewportSize({ width: 390, height: 844 })
-    await assertPageAccessibility(page)
     expect(await panel.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
     await page.screenshot({ path: `.artifacts/finish/team-tasks-mobile-${colorScheme}.png` })
+    await assertPageAccessibility(page)
+  })
+
+  it('shares navigation, typography and responsive controls with Settings', async () => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    const panel = page.getByRole('dialog', { name: 'Agent Team' })
+    const close = panel.getByRole('button', { name: 'Close', exact: true })
     const conversations = panel.getByRole('region', { name: 'Subagent conversations', exact: true })
     await conversations.scrollIntoViewIfNeeded()
     const headingBounds = await conversations.getByRole('heading').boundingBox()
@@ -202,6 +232,13 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
       expect(await settings.locator('[style]').evaluateAll(elements => elements.map(element => element.outerHTML))).toEqual([])
       await page.screenshot({ path: `.artifacts/finish/settings-${section.replaceAll(' ', '-')}-${colorScheme}.png` })
     }
+  }, 60_000)
+
+  it('contains Settings keyboard focus and fits mobile screens', async () => {
+    await page.getByRole('dialog', { name: 'Agent Team' }).getByRole('button', { name: 'Close', exact: true }).click()
+    const settingsTrigger = page.getByRole('button', { name: 'Settings', exact: true })
+    await settingsTrigger.click()
+    const settings = page.getByRole('dialog', { name: 'Settings', exact: true })
     await settings.getByRole('button', { name: 'General', exact: true }).click()
     await settings.press('Tab')
     expect(await settings.evaluate(element => element.contains(document.activeElement))).toBe(true)
@@ -218,10 +255,9 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
     await settings.press('Escape')
     await settings.waitFor({ state: 'detached' })
     await page.setViewportSize({ width: 1680, height: 1000 })
-    await action.getByRole('button', { name: /Agent Team/iu }).click()
   }, 60_000)
 
-  it('observes agent assignment, completion, reopening, editing and deletion, then opens the peer conversation', async () => {
+  it('observes agent assignment, completion, reopening and editing', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-agent-team-actions'))
     await page.setViewportSize({ width: 1680, height: 1000 })
     const panel = page.getByRole('dialog', { name: 'Agent Team' })
@@ -246,7 +282,18 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
     const edited = panel.getByRole('article', { name: 'Reviewed browser task', exact: true })
     await edited.waitFor()
     await assertPageAccessibility(page)
-    await update('delete')
+  }, 60_000)
+
+  it('observes deletion and opens the peer conversation', async () => {
+    const panel = page.getByRole('dialog', { name: 'Agent Team' })
+    const edited = panel.getByRole('article', { name: 'Reviewed browser task', exact: true })
+    const lead = scaffold.ctx.agents.list()[0]
+    if (lead === undefined) throw new Error('Team lead is unavailable')
+    const current = scaffold.ctx.agentTeams.listTasks(lead).find(entry => entry.subject === 'Reviewed browser task')
+    if (current === undefined) throw new Error('Reviewed browser task is unavailable')
+    await execute('team_task_update', {
+      task_id: current.id, expected_revision: current.revision, action: 'delete',
+    })
     await edited.waitFor({ state: 'detached' })
     await panel.getByRole('region', { name: 'Members', exact: true })
       .getByRole('button', { name: `session:team-reviewer-${colorScheme}`, exact: true }).click()
@@ -255,7 +302,8 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
     expect(tripwire.warnings).toEqual([])
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('keeps the fixture inventory closed', async () => {
-    await assertFixtureInventory(SNAPSHOT_DIR, ['task.expected.md'])
-  })
+})
+
+it.skipIf(MODE === 'record')('keeps the Agent Team fixture inventory closed', async () => {
+  await assertFixtureInventory(SNAPSHOT_DIR, ['task.expected.md'])
 })
