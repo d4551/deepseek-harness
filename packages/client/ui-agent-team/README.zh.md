@@ -31,7 +31,9 @@ kind: "package-reference"
 
 打开 panel 会订阅 `agentTeams/changes`，并通过 `agentTeams/overview` 读取初始状态和后续更新。Roster row 展示持久 name、description、运行时 status、model 与 diagnostics。选择健康 teammate 时，系统刷新既有直接 child catalog，并打开普通的 `{ parentSessionId, childSessionId, mode: 'continuable' }` address。History 与后续人类 prompt 继续使用稳定 addressed-subagent 会话路径；本包不会添加 Team 专用 address 字段。
 
-消息位于主面板，显示发送者、接收者、保留段落的内容以及待送达或已送达状态。已注册工作区成员的回复与发出的消息一起按日志事件时间排列。独立的 `agentTeams/conversations` 读取会列出嵌套子智能体及其直接父会话和活动状态。历史记录加载或失败时，消息与任务仍可使用；刷新会话会重试目录读取。选择后代会话会打开其精确的父子地址；Lead 行可返回根会话。
+消息表将每个会话的双向消息归为一组，并按最新活动排列各行。选择一行可阅读最新消息，再使用上一条消息与下一条消息浏览历史。搜索消息内容可缩小历史范围；阅读旧消息时，新消息到达不会改变当前选择。每条消息保留段落，并显示发送者、接收者与送达状态。
+
+子智能体会话表列出后代会话及其直接父会话和活动状态。历史记录加载或失败时，消息与任务仍可使用；刷新会话会重试目录读取。选择后代会话会打开其精确的父子地址；Lead 行可返回根会话。
 
 ### 跟踪智能体维护的工作
 
@@ -53,7 +55,7 @@ Client export 挂载来自 [`@deepseek-ai/dsh-agent-team/remote`](../../subagent
 
 实时订阅会在 view 读取尚未完成时合并活动通知。关闭 panel、切换会话或卸载会取消订阅，并使未完成的读取失效。流中断时会显示错误；重新打开 panel 会建立新订阅并读取当前状态。
 
-共享的工作区尺寸 Modal 与 PanelLayout 组件提供行对齐的响应式布局与视口内滚动。共享按钮、标签、消息正文与活动状态点构成面板控件，无需面板样式表或行内样式。
+共享的工作区尺寸 Modal 与 PanelLayout 组件提供行对齐的响应式布局与视口内滚动。PanelTable 为消息索引与后代会话目录提供语义化的列标题和行标题。共享按钮、标签、消息正文与活动状态点构成控件。
 
 | 文件 | 职责 |
 |---|---|

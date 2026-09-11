@@ -10,16 +10,6 @@
     - text: "0"
     - paragraph: Follow requests, progress, and handoffs between agents. New messages appear live.
     - paragraph: No messages between members yet
-    - log "Messages between members"
-  - region "Shared tasks":
-    - heading "Shared tasks" [level=3]
-    - paragraph: Agents maintain tasks, ownership, and handoffs from workspace conversations. Progress appears here live.
-    - article "Browser task":
-      - text: Browser task
-      - paragraph: Created by the agent through Team tools
-      - text: Pending task-1 Ready
-      - paragraph: "Owner: Unowned"
-      - paragraph: "Write scopes: src/web"
   - region "Members":
     - heading "Members" [level=3]
     - text: "1"
@@ -29,3 +19,12 @@
   - region "Subagent conversations":
     - heading "Subagent conversations" [level=3]
     - paragraph: No subagent conversations yet
+  - region "Shared tasks":
+    - heading "Shared tasks" [level=3]
+    - paragraph: Agents maintain tasks, ownership, and handoffs from workspace conversations. Progress appears here live.
+    - article "Browser task":
+      - text: Browser task
+      - paragraph: Created by the agent through Team tools
+      - text: Pending task-1 Ready
+      - paragraph: "Owner: Unowned"
+      - paragraph: "Write scopes: src/web"

@@ -44,16 +44,15 @@ it.each(themes)('tracks agent-owned work and messages without manual task contro
     return { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right }
   }))
   expect(panels).toHaveLength(4)
-  expect(panels[0]?.top).toBe(panels[1]?.top)
-  expect(panels[0]?.bottom).toBe(panels[1]?.bottom)
-  expect(panels[2]?.top).toBe(panels[3]?.top)
-  expect(panels[2]?.bottom).toBe(panels[3]?.bottom)
+  expect(panels[0]?.top).toBe(panels[3]?.top)
+  expect(panels[1]?.top).toBeGreaterThan(panels[0]?.bottom ?? 0)
+  expect(panels[2]?.top).toBeGreaterThan(panels[1]?.bottom ?? 0)
+  expect(panels[0]?.left).toBe(panels[1]?.left)
   expect(panels[0]?.left).toBe(panels[2]?.left)
-  expect(panels[1]?.right).toBe(panels[3]?.right)
+  expect(panels[3]?.left).toBeGreaterThan(panels[0]?.right ?? 0)
   const headings = await dialog.getByRole('heading', { level: 3 }).evaluateAll(elements =>
     elements.map(element => element.getBoundingClientRect().top))
-  expect(headings[0]).toBe(headings[1])
-  expect(headings[2]).toBe(headings[3])
+  expect(headings[0]).toBe(headings[3])
 
   let call = 0
   const execute = async (agent: Agent, name: string, args: object): Promise<void> => {
@@ -102,7 +101,8 @@ it.each(themes)('tracks agent-owned work and messages without manual task contro
   if (target === undefined || sender === undefined) throw new Error('Registered peers are not discoverable')
   await execute(lead, 'send_message', { target: target.name, message: 'Review the task.\nCheck keyboard navigation.' })
   await execute(peer, 'send_message', { target: sender.name, message: 'Review complete. Focus stays inside Settings.' })
-  const messages = dialog.getByRole('log', { name: 'Messages between members' })
+  const messages = dialog.getByRole('region', { name: 'Messages between members' })
+  expect(await messages.getByRole('table', { name: 'Messages between members' }).getByRole('row').count()).toBe(2)
   const thread = messages.getByRole('button', { name: 'Untitled conversation ↔ lead', exact: true })
   await thread.click()
   await messages.getByText('Review complete. Focus stays inside Settings.', { exact: true }).waitFor()

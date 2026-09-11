@@ -31,7 +31,9 @@ This package adds an Agent Teams action to the Web conversation header for follo
 
 Opening the panel subscribes to `agentTeams/changes` and reads `agentTeams/overview` for its initial state and subsequent updates. Roster rows show durable names, descriptions, runtime status, model, and diagnostics. Selecting a healthy teammate refreshes the existing direct-child catalog and opens the ordinary `{ parentSessionId, childSessionId, mode: 'continuable' }` address. History and later human prompts continue through the stable addressed-subagent conversation path; this package adds no Team-specific address field.
 
-Messages occupy the primary panel, showing sender, recipient, preserved paragraphs, and queued or delivered state. Registered workspace peers' incoming replies appear with outgoing messages, ordered by journal event time. The independent `agentTeams/conversations` read lists nested subagents with their direct parents and activity. History loading or failure leaves messages and tasks available; Refresh conversations retries the directory. Selecting a descendant opens its exact parent-child address; the Lead row returns to the root conversation.
+The message table groups both directions of each conversation and orders rows by latest activity. Select a row to read its latest message, then use Older message and Newer message to browse its history. Search message text narrows the history; reading an older message keeps that selection when new messages arrive. Each message preserves paragraphs and shows its sender, recipient, and delivery state.
+
+The subagent conversation table lists descendants with their direct parents and activity. History loading or failure leaves messages and tasks available; Refresh conversations retries the directory. Selecting a descendant opens its exact parent-child address; the Lead row returns to the root conversation.
 
 ### Follow agent-owned work
 
@@ -53,7 +55,7 @@ Each published overview also refreshes the descendant directory. Directory failu
 
 The live subscription coalesces activity while a view read is pending. Closing the panel, changing conversations, or unmounting cancels it and invalidates outstanding reads. An interrupted stream displays an error; reopening the panel establishes a new subscription and reads current state.
 
-The shared workspace-sized Modal and PanelLayout primitives provide aligned responsive rows and viewport-constrained scrolling. Shared buttons, pills, message bodies, and activity dots provide its controls without a panel stylesheet or inline styling.
+The shared workspace-sized Modal and PanelLayout primitives provide aligned responsive rows and viewport-constrained scrolling. PanelTable supplies semantic column and row headers for the message index and descendant directory. Shared buttons, pills, message bodies, and activity dots provide the controls.
 
 | File | Role |
 |---|---|

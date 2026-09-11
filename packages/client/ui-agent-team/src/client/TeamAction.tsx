@@ -3,7 +3,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { TeamMemberView, TeamOverview, TeamView } from '@deepseek-ai/dsh-agent-team/client'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import {
-  Button, Modal, Pill, PanelLayout, PanelSection, PanelEntry, PanelActions,
+  Button, Modal, Pill, PanelLayout, PanelStack, PanelSection, PanelEntry, PanelActions,
   IconRefreshOutline14, IconUserOutline16, IconRightUpOutline16, StateDot,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -120,7 +120,30 @@ export function TeamAction({ sessionId, changes, load, loadConversations, openTe
         {error !== null && <p role="alert">{error}</p>}
         {loading && view === null && <p role="status">{t('loading')}</p>}
         {view !== null && <PanelLayout>
-          <TeamMessages view={view} t={t} />
+          <PanelStack>
+            <TeamMessages view={view} t={t} />
+            <PanelSection title={t('roster')} actions={<Pill>{view.members.length}</Pill>}>
+              {view.members.map(member => <PanelEntry key={member.id} actions={
+                member.id !== sessionId && member.status !== 'failed' && member.status !== 'provisioning'
+                  ? <Button size="touch" title={t('open')} aria-label={`${t('open')}: ${memberLabel(member, t)}`}
+                    onClick={() => { openTeammate(sessionId, member).then(undefined, reportError) }}
+                  ><IconRightUpOutline16 /></Button> : undefined
+              }>
+                <PanelActions>
+                  <StateDot state={member.status === 'running' ? 'ongoing' : member.status === 'failed' ? 'error' : 'inactive'} />
+                  <span className="dsw-settings-cell-title" title={member.name}>
+                    {memberLabel(member, t)}
+                  </span>
+                  <span className="dsw-settings-cell-desc">{t(memberStatusKey(member.status))}</span>
+                </PanelActions>
+                {member.description !== undefined && <p className="dsw-settings-cell-desc">{member.description}</p>}
+                {member.model !== undefined && <p className="dsw-settings-cell-desc">{t('model')}: {member.model}</p>}
+                {member.diagnostics.map(diagnostic => <p key={diagnostic}>{diagnostic}</p>)}
+              </PanelEntry>)}
+            </PanelSection>
+            <TeamConversations view={view} t={t} open={entry => openSubagent(sessionId, entry)}
+              reportError={reportError} load={loadDirectory} />
+          </PanelStack>
           <PanelSection title={t('tasks')} description={t('tasksDescription')}>
             {view.tasks.length === 0 && view.workspaceTasks.every(board => board.tasks.length === 0) && <p>{t('empty')}</p>}
             {view.tasks.map(task => <TaskCard key={task.id} task={task} t={t} />)}
@@ -129,28 +152,6 @@ export function TeamAction({ sessionId, changes, load, loadConversations, openTe
               {board.tasks.map(task => <TaskCard key={task.id} task={task} t={t} />)}
             </PanelEntry>)}
           </PanelSection>
-          <PanelSection title={t('roster')} actions={<Pill>{view.members.length}</Pill>}>
-            {view.members.map(member => <PanelEntry key={member.id} actions={
-              member.id !== sessionId && member.status !== 'failed' && member.status !== 'provisioning'
-                ? <Button size="touch" title={t('open')} aria-label={`${t('open')}: ${memberLabel(member, t)}`}
-                  onClick={() => { openTeammate(sessionId, member).then(undefined, reportError) }}
-                ><IconRightUpOutline16 /></Button> : undefined
-            }>
-              <PanelActions>
-                <StateDot state={member.status === 'running' ? 'ongoing' : member.status === 'failed' ? 'error' : 'inactive'} />
-                <span className="dsw-settings-cell-title" title={member.name}>
-                  {memberLabel(member, t)}
-                </span>
-                <span className="dsw-settings-cell-desc">{t(memberStatusKey(member.status))}</span>
-              </PanelActions>
-              {member.role === 'peer' && <p className="dsw-settings-cell-desc" title={member.id}>{member.id}</p>}
-              {member.description !== undefined && <p className="dsw-settings-cell-desc">{member.description}</p>}
-              {member.model !== undefined && <p className="dsw-settings-cell-desc">{t('model')}: {member.model}</p>}
-              {member.diagnostics.map(diagnostic => <p key={diagnostic}>{diagnostic}</p>)}
-            </PanelEntry>)}
-          </PanelSection>
-          <TeamConversations view={view} t={t} open={entry => openSubagent(sessionId, entry)}
-            reportError={reportError} load={loadDirectory} />
         </PanelLayout>}
       </Modal>}
     </div>

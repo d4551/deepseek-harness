@@ -132,7 +132,7 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
       const style = getComputedStyle(element)
       return [style.fontFamily, style.fontSize, style.fontWeight, style.lineHeight]
     }))
-    expect(metadataTypography).toHaveLength(3)
+    expect(metadataTypography).toHaveLength(2)
     for (const typography of metadataTypography) {
       expect(typography).toEqual([memberTypography[0], '12px', '400', '18px'])
     }
@@ -222,7 +222,8 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
     })
     expect(request.status).toBe('accepted')
     expect(reply.status).toBe('accepted')
-    const messages = panel.getByRole('log', { name: 'Messages between members' })
+    const messages = panel.getByRole('region', { name: 'Messages between members' })
+    expect(await messages.getByRole('table', { name: 'Messages between members' }).getByRole('row').count()).toBe(2)
     await messages.getByRole('button', { name: 'Untitled conversation ↔ lead', exact: true }).click()
     await messages.getByText('Review complete. Keyboard navigation works.', { exact: true }).waitFor()
     await expect.poll(() => messages.getByText('Delivered', { exact: true }).count()).toBe(1)

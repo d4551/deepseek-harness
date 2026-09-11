@@ -27,7 +27,7 @@ const MINIMUM_ACCESSIBILITY_SCORE = 100
 const {
   BrandWordmark, Button, CatLogo, CodeBlock, ConnectionBanner, DiffBlock, DisclosureRow, FishLogo, FlowRow,
   GlyphButton, HoverCard, Input, InspectPill, JsonBlock, JsonTree, MarkdownText, Menu, MessageText, Modal,
-  OnboardingSurface, PanelLayout, PanelStack, PanelSection, PanelEntry, PanelActions, PanelField, MessageBody,
+  OnboardingSurface, PanelLayout, PanelStack, PanelSection, PanelEntry, PanelActions, PanelField, PanelTable, MessageBody,
   Pill, ReadBlock, ReferenceIcon, ResultText, RiskConfirmation, RowSeparator, RowSummary,
   SearchBlock, Select, SettingsActions, SettingsDisclosure, SettingsFields, StateDot, TerminalBlock, Textarea, Toast, Tooltip, WebBlock,
 } = primitives
@@ -117,6 +117,9 @@ const SURFACES: Readonly<Record<string, () => ReactElement>> = {
   PanelEntry: () => <PanelEntry><h3>Reviewer</h3><p>Review complete.</p></PanelEntry>,
   PanelActions: () => <PanelActions><Button>Open conversation</Button><Pill>Delivered</Pill></PanelActions>,
   PanelField: () => <PanelField label="Task subject"><Input required /></PanelField>,
+  PanelTable: () => <PanelTable label="Conversations" columns={['Conversation', 'Messages']}>
+    <tr><th scope="row"><Button>Lead and reviewer</Button></th><td>2</td></tr>
+  </PanelTable>,
   Modal: () => (
     <Modal open onClose={() => {}} title="Create session" closeLabel="Close" description="Pick a workspace">
       <p>Body</p>

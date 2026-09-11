@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { TeamTaskId, TeamView } from '@deepseek-ai/dsh-agent-team/client'
 import {
@@ -31,10 +31,12 @@ describe('TeamAction load and refresh ordering', () => {
     }]
     activity.notify(TeamId(SESSION))
     expect(await screen.findByRole('button', { name: `${zh.open}: Automatic review` })).toBeTruthy()
-    expect(screen.getByText(`${zh.parent}: lead · ${zh['memberStatus.running']}`)).toBeTruthy()
+    const conversations = screen.getByRole('table', { name: zh.conversations })
+    expect(within(conversations).getByRole('cell', { name: 'lead' })).toBeTruthy()
+    expect(within(conversations).getByText(zh['memberStatus.running'])).toBeTruthy()
     descendants = descendants.map(entry => entry.kind === 'child' ? { ...entry, activity: 'inactive' } : entry)
     activity.notify(TeamId(SESSION))
-    expect(await screen.findByText(`${zh.parent}: lead · ${zh['memberStatus.inactive']}`)).toBeTruthy()
+    expect(await within(conversations).findByText(zh['memberStatus.inactive'])).toBeTruthy()
   })
 
   it('refreshes external Team changes and stops the subscription when closed', async () => {

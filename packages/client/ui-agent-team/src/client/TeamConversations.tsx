@@ -56,9 +56,9 @@ export function TeamConversations({ view, load, t, open, reportError }: TeamConv
           : (
             <tr key={entry.id}>
               <th scope="row">
-                <Button aria-label={`${t('open')}: ${entry.label ?? nameOf(entry.id)}`}
+                <Button aria-label={`${t('open')}: ${nameOf(entry.id)}`}
                   onClick={() => { open(entry).then(undefined, reportError) }}>
-                  <span>{entry.label ?? nameOf(entry.id)}</span><IconRightUpOutline16 />
+                  <span>{nameOf(entry.id)}</span><IconRightUpOutline16 />
                 </Button>
                 <PanelActions>
                   <StateDot state={entry.activity === 'running' ? 'ongoing' : 'inactive'} />

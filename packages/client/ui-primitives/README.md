@@ -37,6 +37,8 @@ Within a menu, Up/Down and Home/End move among that menu's rows. Right, Enter, o
 
 ### Conversation flow rows
 
+`PanelTable` presents related records with localized column headers and an accessible table name. Consumers supply native body rows and row headers; the primitive owns shared spacing, borders, and typography.
+
 `FlowRow` is the 24px line a conversation row sits on: it anchors and clips a row-wide overlay and moves its height with the Settings font-size delta. `DisclosureRow` draws the leading glyph, title, and disclosure behaviour on one; its callers fill the rest of the line with `RowSeparator`, the meta dot, and `RowSummary`, the summary text that takes the remaining width and truncates to one line. `InspectPill` is the hover-revealed jump to a call's trajectory record — it rests transparent and the owning card's own hover rule reveals it — and `ResultText` renders a call's flattened result as a code panel. `GlyphButton` is the icon-only button on a transparent fill; its `surface` prop names the box and ink it takes, because the sidebar, panel-header, dock-bar, and message-row instances are four geometries the design has not reconciled, and each owner keeps its own hover, focus, and disabled rules on the class it passes.
 
 ### Rendering agent output
