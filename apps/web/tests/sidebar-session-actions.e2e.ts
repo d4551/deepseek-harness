@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import { chromium, webkit, type Browser, type Page } from 'playwright'
+import { chromium, webkit, type Browser, type Locator, type Page } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
 import AxeBuilder from '@axe-core/playwright'
 import { SessionId } from '@deepseek-ai/dsh-session'
@@ -16,6 +16,7 @@ describe.each([
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page
+  let secondaryGesture: Parameters<Locator['click']>[0]
   const consoleErrors: string[] = []
   const pageErrors: string[] = []
 
@@ -31,6 +32,9 @@ describe.each([
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'en-US' })
     page = await context.newPage()
     page.setDefaultTimeout(5_000)
+    secondaryGesture = await page.evaluate(() => navigator.platform.startsWith('Mac') || navigator.platform.startsWith('iP'))
+      ? { modifiers: ['Control'] }
+      : { button: 'right' }
     page.on('console', (message) => {
       if (message.type() === 'error' || message.type() === 'warning') consoleErrors.push(message.text())
     })
@@ -38,7 +42,8 @@ describe.each([
     await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
     const group = page.getByRole('treeitem').first()
     await group.waitFor()
-    if (await group.getAttribute('aria-expanded') === 'false') await group.click()
+    await group.press('ArrowRight')
+    await page.locator(`[data-row-key="session:${sourceId}"]`).waitFor()
   }, 120_000)
 
   afterAll(async () => {
@@ -49,7 +54,7 @@ describe.each([
   })
 
   it('keeps the requested menu open across repeated sidebar context gestures', async () => {
-    onTestFailed(() => page.screenshot({ path: `.artifacts/finish/sidebar-context-failure-${engine.name()}.png` }))
+    onTestFailed(async () => { await page.screenshot({ path: `.artifacts/finish/sidebar-context-failure-${engine.name()}.png` }) })
     const row = page.locator(`[data-row-key="session:${sourceId}"]`)
     await row.click()
     const group = page.getByRole('treeitem').first()
@@ -62,21 +67,21 @@ describe.each([
     expect(await page.getByRole('menu').count()).toBe(1)
     await page.keyboard.press('Escape')
     await page.getByRole('menu').waitFor({ state: 'hidden' })
-    await row.click({ modifiers: ['Control'], position: { x: 100, y: 16 } })
+    await row.click({ ...secondaryGesture, position: { x: 100, y: 16 } })
     await page.getByRole('menuitem', { name: 'Fork session' }).waitFor({ timeout: 5_000 })
     await page.keyboard.press('Escape')
     await page.getByRole('menu').waitFor({ state: 'hidden' })
     const actions = row.getByRole('button', { name: /Session actions/ })
-    await actions.click({ modifiers: ['Control'] })
+    await actions.click(secondaryGesture)
     await page.getByRole('menuitem', { name: 'Fork session' }).waitFor({ timeout: 5_000 })
     await page.keyboard.press('Escape')
     await page.getByRole('menu').waitFor({ state: 'hidden' })
-    await group.click({ modifiers: ['Control'], position: { x: 100, y: 16 } })
+    await group.click({ ...secondaryGesture, position: { x: 100, y: 16 } })
     await page.getByRole('menuitem', { name: 'Delete workspace' }).waitFor({ timeout: 5_000 })
     await page.keyboard.press('Escape')
     await page.getByRole('menu').waitFor({ state: 'hidden' })
     const workspaceActions = group.getByRole('button', { name: /Workspace actions/ })
-    await workspaceActions.click({ modifiers: ['Control'] })
+    await workspaceActions.click(secondaryGesture)
     await page.getByRole('menuitem', { name: 'Delete workspace' }).waitFor({ timeout: 5_000 })
     expect(await group.getAttribute('aria-expanded')).toBe(expanded)
     expect(await page.locator('[role="treeitem"][aria-current="true"]').getAttribute('data-row-key')).toBe(current)
@@ -86,6 +91,7 @@ describe.each([
     await page.getByRole('menuitem', { name: 'Delete workspace' }).waitFor({ timeout: 5_000 })
     await workspaceActions.click()
     await page.getByRole('menu').waitFor({ state: 'hidden' })
+    await row.hover()
     await actions.click()
     await page.getByRole('menuitem', { name: 'Fork session' }).waitFor({ timeout: 5_000 })
     await actions.click()
@@ -95,6 +101,81 @@ describe.each([
     await page.getByRole('textbox', { name: 'Message' }).click()
     await page.getByRole('menu').waitFor({ state: 'hidden' })
   }, 20_000)
+
+  it('reserves the workspace create button secondary press for its menu', async () => {
+    onTestFailed(async () => { await page.screenshot({ path: `.artifacts/finish/sidebar-create-failure-${engine.name()}.png` }) })
+    const row = page.locator(`[data-row-key="session:${sourceId}"]`)
+    await row.click()
+    const group = page.getByRole('treeitem').first()
+    const expanded = await group.getAttribute('aria-expanded')
+    const current = await page.locator('[role="treeitem"][aria-current="true"]').getAttribute('data-row-key')
+    const count = await page.getByRole('treeitem').count()
+    await group.hover()
+    await group.getByRole('button', { name: /New session in/ }).click(secondaryGesture)
+    await page.getByRole('menuitem', { name: 'Delete workspace' }).waitFor()
+    expect(await group.getAttribute('aria-expanded')).toBe(expanded)
+    expect(await page.locator('[role="treeitem"][aria-current="true"]').getAttribute('data-row-key')).toBe(current)
+    expect(await page.getByRole('treeitem').count()).toBe(count)
+    await page.keyboard.press('Escape')
+    await page.getByRole('menu').waitFor({ state: 'hidden' })
+  })
+
+  it('keeps context and keyboard menus available while the pointer moves', async () => {
+    onTestFailed(async () => { await page.screenshot({ path: `.artifacts/finish/sidebar-persistence-failure-${engine.name()}.png` }) })
+    const session = page.locator(`[data-row-key="session:${sourceId}"]`)
+    await session.click()
+    const group = page.getByRole('treeitem').first()
+    for (const row of [group, session]) {
+      await row.click({ button: 'right', position: { x: 100, y: 16 } })
+      const menu = page.getByRole('menu')
+      await menu.waitFor()
+      await menu.hover({ position: { x: 10, y: 10 } })
+      await row.hover({ position: { x: 20, y: 16 } })
+      await page.waitForTimeout(300)
+      expect(await menu.isVisible()).toBe(true)
+      await page.keyboard.press('Escape')
+      await menu.waitFor({ state: 'hidden' })
+      const actions = row.getByRole('button', { name: /actions for/ })
+      await actions.focus()
+      await page.keyboard.press('Enter')
+      await menu.waitFor()
+      expect(await menu.getByRole('menuitem').first().evaluate(element => element === document.activeElement)).toBe(true)
+      await menu.hover({ position: { x: 10, y: 10 } })
+      await page.mouse.move(1400, 20)
+      await page.waitForTimeout(300)
+      expect(await menu.isVisible()).toBe(true)
+      await page.keyboard.press('Escape')
+      await menu.waitFor({ state: 'hidden' })
+      expect(await actions.evaluate(element => element === document.activeElement)).toBe(true)
+      await page.keyboard.press('Space')
+      await menu.waitFor()
+      await page.keyboard.press('Escape')
+      await menu.waitFor({ state: 'hidden' })
+    }
+  })
+
+  it('hands focus from keyboard row menus to their Rename dialogs', async () => {
+    const session = page.locator(`[data-row-key="session:${sourceId}"]`)
+    const group = page.getByRole('treeitem').first()
+    const inertCount = await page.locator('[inert]').count()
+    for (const row of [group, session, group, session]) {
+      await row.focus()
+      await row.getByRole('button', { name: /actions for/ }).press('Enter')
+      const rename = page.getByRole('menuitem', { name: 'Rename', exact: true })
+      await rename.waitFor()
+      await rename.press('Enter')
+      const dialog = page.getByRole('dialog')
+      const input = dialog.getByRole('textbox')
+      await input.waitFor()
+      expect(await input.evaluate(element => document.activeElement === element)).toBe(true)
+      expect(await page.getByRole('menu').count()).toBe(0)
+      await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+      await dialog.waitFor({ state: 'hidden' })
+      expect(await page.evaluate(() => document.body.inert)).toBe(false)
+      expect(await page.locator('[inert]').count()).toBe(inertCount)
+      expect(await row.isVisible()).toBe(true)
+    }
+  })
 
   it('positions the right-click menu and commits Rename and Fork through the host', async () => {
     const row = page.locator(`[data-row-key="session:${sourceId}"]`)

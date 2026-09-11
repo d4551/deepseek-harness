@@ -77,6 +77,8 @@ kind: "package-library"
 
 ### 几何与溢出
 
+采用 portal 的 `Menu` 列表与消息反馈面板共用 `useAnchoredPosition`。该钩子返回 `data-anchored-position` 标识，并持有仅包含实测 `left`、`top` 坐标的构造样式表；关闭时只移除自己的样式表，不改变其他已采用的样式表。定位跟随滚动、视口变化、portal 重新挂载和面板尺寸变化。以按钮为锚点的菜单在钳制前先尝试另一侧，避免溢出菜单覆盖触发器。外部锚点不可用时，菜单保持隐藏且不可交互，直到能够测量。
+
 输出卡片共享同一套几何模型：`white-space: pre` 并横向滚动，让按列对齐的内容保持对齐；超过 `maxLines`（默认 16）时折叠为头部切片加尾部切片，由展开按钮控制，长正文不会撑高卡片。`TerminalBlock` 把 ANSI 解析为 React span，并带逐行列缓冲处理光标移动，遵循行内擦除、制表位与字符宽度。
 
 </details>
@@ -125,6 +127,6 @@ kind: "package-library"
 <details>
 <summary>维护者的工作上下文——点击展开</summary>
 
-无。
+原生 Safari 26.4 未实现菜单坐标与锚点标识此前使用的带类型 CSS `attr()` 表达式。较新的 Playwright WebKit 构建可能已经支持这些表达式，因此仅通过 WebKit 自动化不能证明已安装 Safari 的行为。菜单定位现使用标准[构造样式表 API](https://developer.mozilla.org/en-US/docs/Web/API/Document/adoptedStyleSheets)，不使用行内 style 属性。应同时在自动化浏览器与已安装浏览器中验证坐标、指针和键盘操作流程。
 
 </details>

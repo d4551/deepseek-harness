@@ -77,6 +77,8 @@ While a reply streams, `MarkdownText` parses incrementally: all but the trailing
 
 ### Geometry and overflow
 
+Portaled `Menu` lists and message-feedback panels use `useAnchoredPosition`. The hook returns a `data-anchored-position` identity and owns a constructed stylesheet containing only measured `left` and `top` coordinates; closing removes that sheet without changing other adopted sheets. Placement follows scrolling, viewport changes, portal remounts, and panel resizing. Button-anchored menus try the opposite edge before clamping, so an overflowing menu does not cover its trigger. An unavailable external anchor keeps the menu hidden and inert until it can be measured.
+
 The output cards share one geometry model: `white-space: pre` with horizontal scrolling so column-aligned content keeps its alignment, and a head-plus-tail slice behind an expand button past `maxLines` (default 16) so a long body never stretches the card. `TerminalBlock` parses ANSI into React spans with a per-line column buffer for cursor movement, honoring erase-in-line, tab stops, and character width.
 
 </details>
@@ -125,6 +127,6 @@ These limits define how the atoms behave at the edges; they are current package 
 <details>
 <summary>Working context for maintainers — click to expand</summary>
 
-None.
+Native Safari 26.4 does not implement the typed CSS `attr()` expressions previously used for menu coordinates and anchor identifiers. A newer Playwright WebKit build can support those expressions, so passing WebKit automation alone does not establish installed Safari behavior. Menu positioning now uses the standard [constructed stylesheet API](https://developer.mozilla.org/en-US/docs/Web/API/Document/adoptedStyleSheets), with no inline style attributes. Validate coordinates, pointer and keyboard journeys in both automated browsers and the installed browser.
 
 </details>

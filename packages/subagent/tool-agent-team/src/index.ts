@@ -54,6 +54,8 @@ export const Config: z<Config> = z.object({
 /** Model-facing collaboration guidance for a Lead that hands work to named teammates. */
 const DELEGATED_POLICY = `Agent Teams is available in this session, but create teammates only when the user explicitly asks to use Agent Teams or teammates.
 
+As the Lead, record each delegated responsibility with team_task_create before spawning its teammate. Include the task id, acceptance criteria, and expected result in that teammate's prompt. The teammate must read the task with team_task_get, claim it with team_task_update using its current revision, perform the work, then complete it and send_message the result to the Lead. If an assigned responsibility has no task record, create and claim one before doing the work. A spawn description is roster metadata; it does not create a shared task. The Lead owns decomposition, assignment, recovery, and synthesis; do not ask the user to operate the task board.
+
 The Team Lead and all teammates share the same working directory and filesystem. Edits are immediately visible to every member. Split write work into disjoint scopes, record expected write scopes on shared tasks, and use task dependencies when work must be ordered. Claiming a task whose write scopes overlap a task already in progress is refused; complete or release that task first.
 
 Prefer read/edit/write for file changes. If a file operation returns FS_STALE_VERSION, read the current file, rebase your intended change onto the new content, and retry. Bash, formatters, code generators, and scripts are not fully protected by the filesystem version guard; coordinate them explicitly and have the Lead review the final diff and run tests.
@@ -65,9 +67,11 @@ const SWARM_POLICY = `This session runs as a swarm: several teammates work one r
 
 The Team Lead and all teammates share the same working directory and filesystem. Edits are immediately visible to every member. Give every task the write scopes it will touch, keep those scopes disjoint between tasks that may run at once, and use blocked_by when work must be ordered. A task whose write scopes overlap a task already in progress cannot be claimed until that task completes or is released.
 
-As the Lead, decompose first and spawn second. Create one task per independently completable unit of work with team_task_create: a self-contained description that a member with no other context can execute, the write scopes it will modify, and blocked_by for anything it must wait on. Then spawn one teammate per stream of concurrent work and tell each to claim from the board. Do not name a specific task in a teammate's prompt; the board decides who gets what.
+As the Lead, decompose first and spawn second. Create one task per independently completable unit of work with team_task_create: a self-contained description that a member with no other context can execute, acceptance criteria, the write scopes it will modify, and blocked_by for anything it must wait on. A spawn description is roster metadata; it does not create a shared task. Then spawn one teammate per stream of concurrent work and tell each to claim from the board. When the user assigns named teammates specific responsibilities, preserve those assignments: create their tasks first, include each task id in the corresponding teammate's prompt, and instruct that teammate to read and claim that exact task using team_task_get and team_task_update. Use team_task_claim_next for work without a named assignment.
 
-As a teammate, call team_task_claim_next to take work. It either hands you the task you now own or reports that there is nothing to take, and the reason says what to do next. no-ready-task means every remaining pending task is blocked by work still in progress, and write-scope-conflict means the remaining ready tasks would write where another member is already writing and lists them: in both cases use wait_agent, then claim again. no-pending-task means no pending task remains, every task is completed or owned by another member, and nothing becomes claimable until the Lead creates a task or an owner releases one: end your turn with a short report of what you completed instead of waiting. No none result is a failure. Perform the claimed work, complete it with team_task_update, and immediately claim the next one. Release a task you cannot finish so another member can take it.
+As a teammate, inspect the current board before acting. Read and claim an explicitly assigned task before performing it. If the Lead assigned a responsibility without a task record, create and claim one for that responsibility. If a task already names you as its owner and is in_progress, continue that task instead of claiming another. Only the Lead may spawn teammates or reassign tasks; send_message the Lead when work needs further delegation. After completing a task, send_message the Lead its result and verification evidence, then check for more work.
+
+When you have no owned or explicitly assigned task, call team_task_claim_next to take work. It either hands you the task you now own or reports that there is nothing to take, and the reason says what to do next. no-ready-task means every remaining pending task is blocked by work still in progress, and write-scope-conflict means the remaining ready tasks would write where another member is already writing and lists them: in both cases use wait_agent, then claim again. no-pending-task means no pending task remains, every task is completed or owned by another member, and nothing becomes claimable until the Lead creates a task or an owner releases one: end your turn with a short report of what you completed instead of waiting. No none result is a failure. Perform the claimed work, complete it with team_task_update, and immediately claim the next one. Release a task you cannot finish so another member can take it.
 
 team_task_claim_next never returns a task another member owns and never gives the same task to two members, so every member may claim whenever it is free.
 
@@ -243,8 +247,9 @@ function install(agent: Agent, ctx: Context, config: Config & { coordination: Te
       text: () => {
         const membership = ctx.agentTeams.membership(agent)
         const members = ctx.agentTeams.listMembers(agent)
+        const tasks = ctx.agentTeams.listTasks(agent)
         const workspaceTasks = ctx.agentTeams.workspaceTasks(agent)
-        return `${policy}\n\nYour Team role is ${membership.role}; your Team name is ${membership.name}; Team id is ${membership.id}.\n\nCurrent agents: ${JSON.stringify(members)}\n\nOther workspace conversations' task boards: ${JSON.stringify(workspaceTasks)}\nIndependent workspace conversations have session-qualified names. Use their exact names with send_message or followup_task to coordinate shared files and responsibilities. Each conversation owns its task board; agree on disjoint work before editing. Maintain task descriptions, ownership, dependencies, and write scopes with the Team tools as work changes. Pass handoffs directly to the responsible agent with the relevant task and session context. Do not ask the user to copy task ids, assign owners, or enter file scopes for agent coordination.`
+        return `${policy}\n\nYour Team role is ${membership.role}; your Team name is ${membership.name}; Team id is ${membership.id}.\n\nCurrent agents: ${JSON.stringify(members)}\n\nYour team's current task board: ${JSON.stringify(tasks)}\n\nOther workspace conversations' task boards: ${JSON.stringify(workspaceTasks)}\nIndependent workspace conversations have session-qualified names. Use their exact names with send_message or followup_task to coordinate shared files and responsibilities. Each conversation owns its task board; agree on disjoint work before editing. Maintain task descriptions, ownership, dependencies, and write scopes with the Team tools as work changes. Pass handoffs directly to the responsible agent with the relevant task and session context. Do not ask the user to copy task ids, assign owners, or enter file scopes for agent coordination.`
       },
     }))
 
@@ -487,7 +492,8 @@ function install(agent: Agent, ctx: Context, config: Config & { coordination: Te
 /** Install Team tools in every live or subsequently published Team member scope. */
 export function apply(ctx: Context, config: Config = {}): void {
   const resolved = {
-    ...config,
+    ...(config.freshProvider === undefined ? {} : { freshProvider: config.freshProvider }),
+    ...(config.forkProvider === undefined ? {} : { forkProvider: config.forkProvider }),
     coordination: config.coordination ?? 'delegated',
     excludePresets: config.excludePresets ?? [],
   }

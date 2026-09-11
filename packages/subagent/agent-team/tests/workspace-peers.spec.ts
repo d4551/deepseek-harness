@@ -55,6 +55,10 @@ it('discovers registered workspace conversations and admits durable messages onl
   expect(ctx.agentTeams.listMembers(lead)[1]).toEqual({
     id: peer.id, name: workspacePeerName(peer.id), role: 'peer', status: 'idle', diagnostics: [],
   })
+  peer.session.append('request/header', {
+    reason: 'initial', header: { config: { provider: 'selected', model: 'peer-selected-model' } },
+  })
+  expect(ctx.agentTeams.listMembers(lead)[1]?.model).toBe('peer-selected-model')
   expect(ctx.agentTeams.listMembers(peer).map(member => member.id)).toEqual([peer.id, lead.id])
   expect(ctx.agentTeams.listMembers(foreign).map(member => member.id)).toEqual([foreign.id])
   const work = { subject: 'Update settings', description: 'Coordinate the shared settings directory', writeScopes: ['src/settings'] }

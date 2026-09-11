@@ -45,14 +45,18 @@ kind: "package-reference"
 
 | 字段 | 默认值 | 含义 |
 |---|---|---|
-| `freshProvider` | `spawn` | 启动 fresh teammate 的 provider |
-| `forkProvider` | `fork` | 启动 fork teammate 的 provider |
+| `freshProvider` | 自动发现 | 唯一已注册且可启动 fresh teammate 的 continuation provider |
+| `forkProvider` | 自动发现 | 唯一已注册且可继承 Lead 上下文的 continuation provider |
 | `coordination` | `delegated` | 成员收到的指引：`delegated` 或 `swarm` |
 | `excludePresets` | `[]` | 其 Agent 保持 preset 自身精确工具集、不接收 Team 工具的 agent preset id |
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-tool-agent-team)是每个受支持字段及其 JSDoc 的穷尽式真源。
 
+如果每种请求的上下文模式都恰好有一个已注册 provider 支持，可以省略 provider 设置。多个 provider 匹配时，必须明确指定。provider 缺失或上下文不匹配会在保留 teammate 名字或占用容量之前拒绝创建。
+
 设置 `coordination: swarm` 后，Lead 将工作拆分为共享任务，teammate 通过 `team_task_claim_next` 领取就绪任务。挂载命令注册表时，`/swarm <request>` 会将新请求提交到 Lead 的普通轮次队列。请求必须包含文本，也可以附带图片。委派组合、排除的 preset 和 teammate 作用域中没有此命令。
+
+两种策略都要求 Lead 在创建 teammate 前建立任务记录，并要求成员领取、完成和报告分配的工作。Swarm 指引保留用户对具名 teammate 的明确分工；未分配的工作使用原子的下一任务领取。创建成员不会自动建立任务记录。每次组装提示词都包含本团队的当前任务板和其他工作区会话的任务板。
 
 试试这样要求 Lead 模型：「创建一个名为 reviewer 的 teammate 检查 diff，再把变更摘要发给 reviewer」。模型会调用创建工具，然后调用消息工具。
 
@@ -134,11 +138,11 @@ kind: "package-reference"
 
 #### Token 影响
 
-每次 Team member 请求都有固定策略与 schema 成本。工具调用会增加紧凑 JSON roster、task、wait 或 receipt 结果。Peer 内容由 Team 领域保留在 target 历史中。
+每次 Team member 请求都包含策略、schema 和当前 roster 与任务板快照。快照大小随团队和工作区任务板增长。工具调用会增加紧凑 JSON roster、task、wait 或 receipt 结果。Peer 内容由 Team 领域保留在 target 历史中。
 
 #### KV Cache 影响
 
-Team 插件 generation、配置、member role／name 与 schema 不变时，前缀保持稳定。每个成员的身份行不同。工具结果与 peer 消息追加在可复用请求前缀之后。
+Team 插件 generation 与配置不变时，策略和 schema 前缀保持稳定。身份因成员而异；roster 和任务板文本随已提交状态变化。工具结果与 peer 消息追加到会话历史。
 
 ## 已知限制与延期工作
 

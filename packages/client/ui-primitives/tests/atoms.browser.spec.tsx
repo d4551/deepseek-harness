@@ -350,6 +350,8 @@ describe('Menu', () => {
     const menu = screen.getByRole('menu')
     // side=bottom, align=start: below the host-supplied rect, left-aligned.
     expect(menu.hasAttribute('style')).toBe(false)
+    expect(menu.getBoundingClientRect().x).toBe(40)
+    expect(menu.getBoundingClientRect().y).toBe(132)
     expect(getComputedStyle(menu).left).toBe('40px')
     expect(getComputedStyle(menu).top).toBe('132px')
     rect = null
@@ -386,6 +388,7 @@ describe('Menu', () => {
     expect(container.contains(menu)).toBe(false)
     expect(menu.parentElement).toBe(document.body)
     expect(menu.getAttribute('style')).toBeNull()
+    expect(menu.getBoundingClientRect().y).toBe(Math.max(12, screen.getByText('trigger').getBoundingClientRect().bottom + 4))
     expect(getComputedStyle(menu).position).toBe('fixed')
     expect(menu.getBoundingClientRect().y).toBeGreaterThanOrEqual(0)
     fireEvent.click(screen.getByRole('menuitem', { name: 'Alpha' }))
@@ -401,12 +404,14 @@ describe('Menu', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('portal mode resolves align=end / side=top to clamped left/top coordinates', () => {
+  it('portal mode flips an overflowing top menu below its trigger and keeps it inside the viewport', () => {
     render(
       <Menu portal open align="end" side="top" anchor={<span>trigger</span>} items={items} onSelect={() => {}} onClose={() => {}} />)
     const menu = screen.getByRole('menu')
-    expect(menu.getAttribute('style')).toBeNull()
     const bounds = menu.getBoundingClientRect()
+    expect(menu.getAttribute('style')).toBeNull()
+    expect(bounds.x).toBe(Math.max(12, screen.getByText('trigger').getBoundingClientRect().right - bounds.width))
+    expect(bounds.y).toBe(screen.getByText('trigger').getBoundingClientRect().bottom + 4)
     expect(bounds.x).toBeGreaterThanOrEqual(0)
     expect(bounds.y).toBeGreaterThanOrEqual(0)
     expect(bounds.right).toBeLessThanOrEqual(window.innerWidth)

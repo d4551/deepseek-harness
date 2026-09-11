@@ -14,6 +14,28 @@ import { TeamId } from '../../../subagent/agent-team/src/types.ts'
 afterEach(cleanup)
 
 describe('TeamAction load and refresh ordering', () => {
+  it('distinguishes teammates from workspace conversations and preserves their navigation', async () => {
+    const peer = {
+      id: SessionId('workspace-peer'), name: 'session:workspace-peer', title: 'Workspace review',
+      role: 'peer', status: 'idle', diagnostics: [],
+    } satisfies TeamView['members'][number]
+    const openTeammate = vi.fn(() => Promise.resolve())
+    render(<TeamAction {...props(actions({
+      load: () => Promise.resolve({ ok: true, value: { ...view, members: [...view.members, peer] } }),
+      openTeammate,
+    }))} />)
+    const trigger = screen.getByRole('button', { name: zh.trigger })
+    fireEvent.click(trigger)
+    const peers = await screen.findByRole('table', { name: zh.workspacePeers })
+    const roster = screen.getByRole('table', { name: zh.roster })
+    expect(within(roster).getByRole('button', { name: `${zh.open}: worker` })).toBeTruthy()
+    expect(within(roster).queryByText('Workspace review')).toBeNull()
+    expect(within(peers).getByText(zh.modelUnavailable)).toBeTruthy()
+    fireEvent.click(within(peers).getByRole('button', { name: `${zh.open}: Workspace review` }))
+    await waitFor(() => { expect(openTeammate).toHaveBeenCalledWith(SESSION, peer) })
+    expect(trigger.textContent).toBe(zh.trigger)
+  })
+
   it('populates descendant conversations from Team activity without a refresh gesture', async () => {
     const activity = new TeamActivity()
     let descendants: TeamView['subagents'] = []

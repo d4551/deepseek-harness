@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import { page } from 'vitest/browser'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { TeamView } from '@deepseek-ai/dsh-agent-team/client'
@@ -27,6 +28,34 @@ async function assertPanelAccessible(load: TeamActionInjected['load']): Promise<
 }
 
 describe('TeamAction accessibility', () => {
+  it('keeps empty work panels compact and member tables within narrow and wide viewports', async () => {
+    const rosterView: TeamView = {
+      ...view,
+      tasks: [],
+      members: [...view.members, ...Array.from({ length: 4 }, (_, index) => ({
+        id: SessionId(`reviewer-${index}`), name: `reviewer-${index}`, role: 'teammate',
+        status: 'inactive', model: 'Configured model', diagnostics: [],
+      } satisfies TeamView['members'][number]))],
+    }
+    render(<TeamAction {...props(actions({ load: () => Promise.resolve({ ok: true, value: rosterView }) }))} />)
+    await page.viewport(1100, 947)
+    await page.getByRole('button', { name: zh.trigger, exact: true }).click()
+    await screen.findByText(zh.empty)
+    const tasks = screen.getByRole('region', { name: zh.tasks })
+    const members = screen.getByRole('region', { name: zh.roster })
+    expect(tasks.getBoundingClientRect().height).toBeLessThan(members.getBoundingClientRect().height)
+    await page.getByRole('dialog').screenshot({ path: '../../../../.artifacts/agent-team-desktop.png' })
+    await page.viewport(390, 844)
+    const dialog = screen.getByRole('dialog')
+    expect(dialog.getBoundingClientRect().left).toBeGreaterThanOrEqual(0)
+    expect(dialog.getBoundingClientRect().right).toBeLessThanOrEqual(window.innerWidth)
+    expect(members.scrollWidth).toBeLessThanOrEqual(members.clientWidth)
+    const audit = await auditSurface('narrow team panel', dialog)
+    expect(audit.incomplete).toEqual([])
+    expect(accessibilityFailures([audit], MINIMUM_ACCESSIBILITY_SCORE)).toBe('')
+    await page.getByRole('dialog').screenshot({ path: '../../../../.artifacts/agent-team-mobile.png' })
+  })
+
   it('renders an accessible toggle and open panel', async () => {
     await assertPanelAccessible(actions().load)
     await screen.findByText('Implement runtime')

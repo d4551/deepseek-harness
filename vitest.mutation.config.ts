@@ -8,6 +8,7 @@ const mutationTests = globSync([
   'packages/api/remotes/tests/**/*.spec.ts',
   'packages/api/session-controller/tests/**/*.spec.{ts,tsx}',
   'packages/subagent/agent-team/tests/**/*.spec.ts',
+  'packages/subagent/tool-agent-team/tests/**/*.spec.ts',
   'packages/client/ui-agent-team/tests/**/*.spec.{ts,tsx}',
   'packages/client/ui-subagent/tests/**/*.spec.{ts,tsx}',
   'packages/guard/approval-adversary/tests/**/*.spec.ts',

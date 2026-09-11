@@ -1,0 +1,5 @@
+.menu-position-edge-anchor {
+  position: fixed;
+  left: calc(100vw - 100px);
+  top: calc(100vh - 48px);
+}

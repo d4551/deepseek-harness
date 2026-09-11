@@ -9,7 +9,7 @@
  * range skips still carry verbs of their own. Like the selection, the seat is
  * transient view state and dies with the mounted list.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { isHeaderRowKey } from './selection.ts'
 import type { RowKey } from './selection.ts'
@@ -155,20 +155,18 @@ export function useRowFocus(
   // this list's to recover rather than a page state to leave alone. The two
   // document listeners below keep it live.
   const held = useRef(false)
+  const leave = useEffectEvent((event: FocusEvent): void => {
+    if (!(event.target instanceof HTMLElement)) return
+    const key = event.target.closest<HTMLElement>('[data-row-key]')?.dataset['rowKey']
+    // Native focusout can precede DOM removal. The committed row account
+    // distinguishes removal from a deliberate blur of a retained row.
+    if (!event.target.isConnected || (key !== undefined && !renderedKeys.includes(key))) return
+    if (event.relatedTarget === null) held.current = false
+  })
   useEffect(() => {
     const list = listRef.current
-    /* v8 ignore next -- the ref is attached to the element these rows render into. */
     if (list === null) return
     const arrive = (): void => { held.current = list.contains(document.activeElement) }
-    const leave = (event: FocusEvent): void => {
-      // A row that leaves takes the focus with it without saying where it
-      // went: a browser reports that blur with the row already detached, and
-      // jsdom reports none at all, so neither reading gives the recovery up.
-      // A focus dropped on purpose blurs an element still in the document.
-      /* v8 ignore next -- jsdom fires no focusout for a removed row; a browser fires one already detached. */
-      if (!(event.target as Node).isConnected) return
-      if (event.relatedTarget === null) held.current = false
-    }
     arrive()
     document.addEventListener('focusin', arrive)
     document.addEventListener('focusout', leave)

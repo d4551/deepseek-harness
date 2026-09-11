@@ -1,9 +1,10 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import { IconCheckOutline16 } from './icons/index.tsx'
 import { usePointerGrace } from './pointer-grace.ts'
+import { useAnchoredPosition } from './useAnchoredPosition.ts'
 import css from './Menu.module.css'
 
 /** Selectable row (optionally with a nested submenu). */
@@ -85,7 +86,7 @@ function menuItems(list: HTMLElement | null): HTMLButtonElement[] {
  * @param props.align - list alignment against the anchor (default 'start').
  * @param props.side - open below (`bottom`, default) or above (`top`) the anchor.
  * @param props.portal - render a fixed list inside its owning dialog or page landmark.
- * CSS anchors track the trigger through scrolling and resizing. A supplied
+ * The shared positioning hook tracks the trigger through scrolling and resizing. A supplied
  * getAnchorRect positions a list whose trigger is owned by another component.
  * @param props.closeOnPointerLeave - close the list once the pointer has left
  * both trigger and list for the pointer grace (default false keeps it open
@@ -136,56 +137,38 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
   const menuId = useId()
   const focusSubmenu = useRef(false)
   const [openSubmenuId, setOpenSubmenuId] = useState<string | null>(null)
-  const [fixedPos, setFixedPos] = useState<{ left: number; top: number } | null>(null)
   const [portalHost, setPortalHost] = useState<HTMLElement>(() => document.body)
-  const awaitingAnchor = portal && getAnchorRect !== undefined && fixedPos === null
-  const { arm: armClose, cancel: cancelClose } = usePointerGrace(onClose)
+  const fixedPos = useAnchoredPosition({
+    open: open && portal,
+    anchorRef: rootRef,
+    panelRef: listRef,
+    portalHost,
+    getAnchorRect,
+    side,
+    align,
+    flip: getAnchorRect === undefined,
+    gap: 4,
+    margin: 12,
+  })
+  const awaitingAnchor = portal && fixedPos === null
+  const restoreFocus = useRef<HTMLElement | null>(null)
+  const returnFocus = useCallback(() => {
+    const target = restoreFocus.current
+    restoreFocus.current = null
+    target?.focus()
+  }, [])
+  const close = useCallback(() => {
+    returnFocus()
+    onClose()
+  }, [onClose, returnFocus])
+  const { arm: armClose, cancel: cancelClose } = usePointerGrace(close)
 
   useLayoutEffect(() => {
-    if (!open || !portal) { setFixedPos(null); return }
+    if (!open || !portal) return
     setPortalHost(rootRef.current?.closest<HTMLElement>(
       'dialog, [role="dialog"], main, [role="main"], nav, [role="navigation"], aside, [role="complementary"], [role="region"]',
     ) ?? document.body)
-    if (getAnchorRect === undefined) return
-    const place = () => {
-      const r = getAnchorRect()
-      if (r === null) { setFixedPos(null); return }
-      const MARGIN = 12
-      const vw = window.innerWidth
-      const vh = window.innerHeight
-      const listEl = listRef.current
-      const lw = listEl?.offsetWidth ?? 0
-      const lh = listEl?.offsetHeight ?? 0
-
-      let x: number
-      let y: number
-      if (side === 'right') {
-        x = r.right + 4
-        y = r.top
-      } else if (align === 'start') {
-        x = r.left
-        y = side === 'bottom' ? r.bottom + 4 : r.top - lh - 4
-      } else {
-        x = r.right - lw
-        y = side === 'bottom' ? r.bottom + 4 : r.top - lh - 4
-      }
-
-      if (lw > 0) x = Math.min(Math.max(x, MARGIN), vw - lw - MARGIN)
-      if (lh > 0) y = Math.min(Math.max(y, MARGIN), vh - lh - MARGIN)
-
-      setFixedPos({ left: x, top: y })
-    }
-    // First run measures the hidden pre-render (same commit as `open`), so
-    // end/top alignment and clamping use real dimensions before anything
-    // paints — no visible jump from a zero-size first guess.
-    place()
-    window.addEventListener('scroll', place, true)
-    window.addEventListener('resize', place)
-    return () => {
-      window.removeEventListener('scroll', place, true)
-      window.removeEventListener('resize', place)
-    }
-  }, [open, portal, align, side, getAnchorRect])
+  }, [open, portal])
 
   useEffect(() => {
     if (!open) {
@@ -197,14 +180,14 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
       // The portaled list is outside the anchor subtree; check both.
       if (rootRef.current?.contains(e.target) === true) return
       if (listRef.current?.contains(e.target) === true) return
-      onClose()
+      close()
     }
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !e.defaultPrevented) {
         // Mark it handled so an outer dismissal — a list selection, a dialog —
         // does not act on the same keystroke that only closed this menu.
         e.preventDefault()
-        onClose()
+        close()
       }
     }
     document.addEventListener('pointerdown', onPointerDown)
@@ -213,7 +196,7 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
       document.removeEventListener('pointerdown', onPointerDown)
       document.removeEventListener('keydown', onKeyDown)
     }
-  }, [open, onClose])
+  }, [open, close])
 
   // Keyboard-opened lists take the focus and hand it back. The list is a
   // portal at the end of the document, so leaving the focus on the anchor would
@@ -221,12 +204,10 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
   useEffect(() => {
     if (!open || !autoFocus || awaitingAnchor) return
     const restore = document.activeElement
+    restoreFocus.current = restore instanceof HTMLElement ? restore : null
     menuItems(listRef.current)[0]?.focus()
-    return () => {
-      if (!(restore instanceof HTMLElement)) return
-      restore.focus()
-    }
-  }, [open, autoFocus, awaitingAnchor])
+    return returnFocus
+  }, [open, autoFocus, awaitingAnchor, returnFocus])
 
   // The arrows walk the rows once the focus is on one of them — the menu
   // pattern's own navigation. A list the pointer opened keeps the arrows for
@@ -246,7 +227,7 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
       // hands the focus back to whatever opened the list.
       if (e.key === 'Tab') {
         e.preventDefault()
-        onClose()
+        close()
         return
       }
       let next: number
@@ -262,15 +243,15 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
     }
     document.addEventListener('keydown', onKeyDown)
     return () => { document.removeEventListener('keydown', onKeyDown) }
-  }, [open, onClose])
+  }, [open, close])
 
   // A close from selection/Escape/outside click outruns a pending grace close;
   // left armed it would shut a list reopened inside the grace window. Its own
   // effect, not the listener effect above: that one re-runs on every `onClose`
   // identity change and would cancel the grace mid-transit.
   useEffect(() => {
-    if (!open) cancelClose()
-  }, [open, cancelClose])
+    if (!open || !closeOnPointerLeave) cancelClose()
+  }, [open, closeOnPointerLeave, cancelClose])
 
   // The submenu card is absolutely positioned outside the list box; the
   // scroll clip would crop it, so only submenu-free menus get the height cap.
@@ -327,6 +308,7 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
               setOpenSubmenuId(entry.id)
               return
             }
+            returnFocus()
             onSelect(entry.id)
           }}
         >
@@ -362,7 +344,11 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
                 tabIndex={-1}
                 className={css.item}
                 {...sub.disabled === true ? { 'aria-disabled': true } : {}}
-                onClick={() => { if (sub.disabled !== true) onSelect(sub.id) }}
+                onClick={() => {
+                  if (sub.disabled === true) return
+                  returnFocus()
+                  onSelect(sub.id)
+                }}
               >
                 {sub.icon !== undefined && <span className={css.itemIcon}>{sub.icon}</span>}
                 <span className={css.itemLabel}>{sub.label}</span>
@@ -381,12 +367,8 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
   const list = open && (
     <div
       ref={listRef}
-      className={clsx(css.list, dense && css.denseList, compact && css.compactList, scrollable && css.scrollable, portal && css.portal, portal && (getAnchorRect === undefined ? css.anchored : css.external), side === 'top' && !portal && css.sideTop, align === 'end' && !portal && css.alignEnd)}
-      data-menu-left={fixedPos?.left}
-      data-menu-top={fixedPos?.top}
-      data-menu-anchor={`--menu-${menuId.replaceAll(':', '')}`}
-      data-side={side}
-      data-align={align}
+      className={clsx(css.list, dense && css.denseList, compact && css.compactList, scrollable && css.scrollable, portal && css.portal, side === 'top' && !portal && css.sideTop, align === 'end' && !portal && css.alignEnd)}
+      data-anchored-position={fixedPos ?? undefined}
       role="menu"
       aria-hidden={awaitingAnchor || undefined}
       inert={awaitingAnchor}
@@ -415,7 +397,6 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
     <span
       ref={rootRef}
       className={clsx(css.root, className)}
-      data-menu-anchor={`--menu-${menuId.replaceAll(':', '')}`}
       onPointerEnter={closeOnPointerLeave ? cancelClose : undefined}
       onPointerLeave={closeOnPointerLeave ? () => { if (open) armClose() } : undefined}
     >

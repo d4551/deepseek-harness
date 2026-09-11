@@ -10,7 +10,7 @@ import SubagentService from '@deepseek-ai/dsh-subagent'
 import * as SubagentSpawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
 import * as SubagentFork from '@deepseek-ai/dsh-subagent-fork-in-process'
 import { expect, it, onTestFinished } from 'vitest'
-import TeamService, { foldTeam, type SpawnTeammateRequest, TeamId } from '../src/index.ts'
+import TeamService, { foldTeam, type SpawnTeammateRequest, TeamId, type TeamMemberSnapshot } from '../src/index.ts'
 
 async function team() {
   const root = await mkdtemp(join(tmpdir(), 'dsh-roster-routing-'))
@@ -52,7 +52,7 @@ it('publishes request model changes and never assigns the lead model to an unloa
   const { ctx, lead } = await team()
   expect(ctx.agentTeams.listMembers(lead)[0]?.model).toBe('initial-model')
   const controller = new AbortController()
-  onTestFinished(() => controller.abort())
+  onTestFinished(() => { controller.abort() })
   const changes = ctx.agentTeams.changes(lead, controller.signal)[Symbol.asyncIterator]()
   expect(await changes.next()).toEqual({ value: 0, done: false })
   const updated = changes.next()
@@ -64,7 +64,7 @@ it('publishes request model changes and never assigns the lead model to an unloa
   const member = {
     id: SessionId('unloaded-child'), name: 'reviewer', description: 'Review code',
     provider: 'fresh-worker', context: 'fresh', phase: 'provisioning',
-  } satisfies Parameters<typeof lead.session.append<'team/member'>>[1]['member']
+  } satisfies TeamMemberSnapshot
   lead.session.append('team/member', { version: 1, teamId: TeamId(lead.id), member })
   expect(ctx.agentTeams.listMembers(lead)[1]).not.toHaveProperty('model')
   await ctx.sessions.flush(lead.session)

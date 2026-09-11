@@ -12,7 +12,6 @@
 
 import {
   useCallback, useEffect, useRef, useState,
-  type CSSProperties,
 } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -27,14 +26,6 @@ const PANEL_MARGIN = 12
 
 /** Distance between the trigger's bottom edge and the panel's top. */
 const PANEL_GAP = 4
-
-/**
- * Unplaced portal panel: hidden but laid out so `offsetWidth` is real for the
- * clamp. The explicit insets match `Menu`'s measure style — a `position: fixed`
- * element with auto insets otherwise sits at its static position, a different
- * origin than the one the first placement measures from.
- */
-const MEASURE_STYLE: CSSProperties = { visibility: 'hidden', left: 0, top: 0 }
 
 /**
  * One message's feedback controls.
@@ -65,7 +56,7 @@ export function MessageFeedbackActions({ messageId, ensure, rate, toggle, clearN
   const seed = useCallback(() => {
     if (seeded.current) return
     seeded.current = true
-    void ensure()
+    ensure().then(undefined, reportError)
   }, [ensure])
 
   const alive = useRef(true)
@@ -101,7 +92,7 @@ export function MessageFeedbackActions({ messageId, ensure, rate, toggle, clearN
     // click that lands before the first list read still toggles the stored
     // value instead of this render's empty view.
     closeNote()
-    void toggle(messageId, next).then(settleRating)
+    toggle(messageId, next).then(settleRating, reportError)
   }, [closeNote, messageId, settleRating, toggle])
 
   // The rating is a parameter because only the note editor's render site can
@@ -123,7 +114,7 @@ export function MessageFeedbackActions({ messageId, ensure, rate, toggle, clearN
     const settled = trimmed.length === 0
       ? clearNote(messageId)
       : rate(messageId, current, trimmed)
-    void settled.then((result) => {
+    settled.then((result) => {
       if (!alive.current) return
       // `pending` tracks the request in flight, not the editing session, so it
       // is released either way; all three of like, dislike and Save read
@@ -159,7 +150,7 @@ export function MessageFeedbackActions({ messageId, ensure, rate, toggle, clearN
       if (generation === noteGeneration.current || !noteOpenRef.current) {
         setNoteFailure(errorCopy(result))
       }
-    })
+    }, reportError)
   }, [clearNote, draft, errorCopy, item?.note, messageId, noteOpenRef, rate])
 
   // The trigger toggles: while closed it opens the popover (seeding the draft
@@ -186,7 +177,7 @@ export function MessageFeedbackActions({ messageId, ensure, rate, toggle, clearN
   // with the trigger on scroll/resize, the same anchoring `Menu` uses for its
   // portal mode.
   const pos = useAnchoredPosition({
-    open: noteOpen,
+    open: noteOpen && rating !== undefined,
     anchorRef: triggerRef,
     panelRef,
     gap: PANEL_GAP,
@@ -291,7 +282,7 @@ export function MessageFeedbackActions({ messageId, ensure, rate, toggle, clearN
           className={css.notePanel}
           role="dialog"
           aria-label={t('note.dialog')}
-          style={pos ?? MEASURE_STYLE}
+          data-anchored-position={pos ?? undefined}
         >
           <textarea
             ref={inputRef}

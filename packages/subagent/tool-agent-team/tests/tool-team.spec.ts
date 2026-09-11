@@ -64,14 +64,14 @@ async function setup(script: ConstructorParameters<typeof MockAdapter>[0], legac
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(SubagentService)
   if (legacyControl) await ctx.plugin(ToolSubagentControl)
-  await ctx.plugin(SubagentSpawn, { providerName: 'spawn' })
-  await ctx.plugin(SubagentFork, { providerName: 'fork' })
+  const spawnProvider = await ctx.plugin(SubagentSpawn, { providerName: 'spawn' })
+  const forkProvider = await ctx.plugin(SubagentFork, { providerName: 'fork' })
   await ctx.plugin(TeamService)
   const fiber = await ctx.plugin(toolTeam)
   const adapter = new MockAdapter(script)
   ctx.llm.registerAdapter(['mock'], adapter)
   const lead = ctx.agentLoop.create(SessionId('tool-team-lead'), { provider: 'mock', model: 'mock' })
-  return { ctx, lead, fiber }
+  return { ctx, lead, fiber, spawnProvider, forkProvider }
 }
 
 function execute(
@@ -247,6 +247,10 @@ describe('dsh-tool-team', () => {
       write_scopes: ['src/team'],
     })
     const task = JSON.parse(text(created)) as { id: string; revision: number }
+    expect(renderPrompt(await assembly(ctx, lead)))
+      .toContain(`Your team's current task board: ${JSON.stringify(ctx.agentTeams.listTasks(lead))}`)
+    expect(renderPrompt(await assembly(ctx, child)))
+      .toContain(`Your team's current task board: ${JSON.stringify(ctx.agentTeams.listTasks(lead))}`)
     const listed = await execute(ctx, child, 'team_task_list', { ready: true, limit: 1 })
     expect(JSON.parse(text(listed))).toMatchObject({ tasks: [{ id: task.id, ready: true }] })
     const read = await execute(ctx, child, 'team_task_get', { task_id: task.id })
@@ -257,6 +261,8 @@ describe('dsh-tool-team', () => {
       action: 'claim',
     })
     expect(JSON.parse(text(claimed))).toMatchObject({ status: 'in_progress', ownerName: 'json-worker' })
+    expect(renderPrompt(await assembly(ctx, lead)))
+      .toContain(`Your team's current task board: ${JSON.stringify(ctx.agentTeams.listTasks(child))}`)
     const stale = await execute(ctx, lead, 'team_task_update', {
       task_id: task.id,
       expected_revision: task.revision,
@@ -266,17 +272,17 @@ describe('dsh-tool-team', () => {
     expect(text(stale)).toContain('stale team task')
 
     const wait = execute(ctx, lead, 'wait_agent', { timeout_ms: 10_000 })
-    const completedCall = new Promise<Awaited<ReturnType<typeof execute>>>((resolve, reject) => {
-      setTimeout(() => {
-        void execute(ctx, child, 'team_task_update', {
-          task_id: task.id,
-          expected_revision: 2,
-          action: 'complete',
-        }).then(resolve, reject)
-      }, 0)
-    })
+    const completedCall = new Promise(resolve => setTimeout(resolve, 0)).then(() =>
+      execute(ctx, child, 'team_task_update', {
+        task_id: task.id,
+        expected_revision: 2,
+        action: 'complete',
+      }))
     await expect(wait).resolves.toMatchObject({ isError: false })
     expect((await completedCall).isError).toBe(false)
+    expect(ctx.agentTeams.listTasks(lead)).toMatchObject([{ id: task.id, status: 'completed', ownerName: 'json-worker' }])
+    expect(renderPrompt(await assembly(ctx, lead)))
+      .toContain(`Your team's current task board: ${JSON.stringify(ctx.agentTeams.listTasks(lead))}`)
 
     const childInterrupt = await execute(ctx, child, 'interrupt_agent', { target: 'json-worker' })
     expect(childInterrupt.isError).toBe(true)
@@ -345,13 +351,10 @@ describe('dsh-tool-team', () => {
     })).isError).toBe(true)
 
     const wait = execute(ctx, lead, 'wait_agent', {})
-    const wake = new Promise<Awaited<ReturnType<typeof execute>>>((resolve, reject) => {
-      setTimeout(() => {
-        void execute(ctx, lead, 'team_task_create', {
-          subject: 'wake', description: 'wake default wait',
-        }).then(resolve, reject)
-      }, 0)
-    })
+    const wake = new Promise(resolve => setTimeout(resolve, 0)).then(() =>
+      execute(ctx, lead, 'team_task_create', {
+        subject: 'wake', description: 'wake default wait',
+      }))
     expect((await wait).isError).toBe(false)
     expect((await wake).isError).toBe(false)
 
@@ -455,6 +458,28 @@ describe('dsh-tool-team', () => {
     expect('default' in toolTeam).toBe(false)
     expect(toolTeam.name).toBe('tool-agent-team')
     expect(toolTeam.inject).toEqual(['agents', 'agentTeams', 'tools', 'systemPrompt'])
+  })
+
+  it('discovers fresh and fork providers through the tool after registry replacement', async () => {
+    const { ctx, lead, spawnProvider, forkProvider } = await setup([
+      textResponse('fresh result'), textResponse('fork result'),
+    ])
+    await spawnProvider.dispose()
+    await forkProvider.dispose()
+    await ctx.plugin(SubagentSpawn, { providerName: 'team-fresh' })
+    await ctx.plugin(SubagentFork, { providerName: 'team-history' })
+    const routes: { context: 'fresh' | 'fork'; provider: string }[] = [
+      { context: 'fresh', provider: 'team-fresh' },
+      { context: 'fork', provider: 'team-history' },
+    ]
+    for (const route of routes) {
+      const result = await execute(ctx, lead, 'spawn_teammate', {
+        name: route.provider, description: 'Verify discovered provider', prompt: 'Report completion', context: route.context,
+      })
+      expect(result.isError).toBe(false)
+      expect(JSON.parse(text(result))).toMatchObject({ member: { provider: route.provider, context: route.context } })
+      await waitNoAgent(ctx, spawnedChildId(result))
+    }
   })
 
   it('uses configured fresh and fork provider names', async () => {

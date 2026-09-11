@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactElement, ReactNode } from 'react'
@@ -48,15 +47,18 @@ const workspaceState = (
   archivedSessionIds: readonly SessionId[] = [],
 ): WorkspaceSnapshot => ({ items, archivedSessionIds, state: 'idle', phase: 'ready', error: null })
 const noPendingInteraction: SessionPendingInteractionSnapshot = new Map()
+const additivePress = navigator.platform.startsWith('Mac') || navigator.platform.startsWith('iP')
+  ? { metaKey: true } : { ctrlKey: true }
 function hook<T>(snapshot: T) {
   return function select<S>(selector: (state: T) => S): S { return selector(snapshot) }
 }
 
-/** jsdom lacks DragEvent — the fireEvent fallback drops clientY, so pin it on the built event. */
+/** Dispatch native drag events at an explicit boundary coordinate. */
 function fireDrag(row: HTMLElement, kind: 'dragOver' | 'drop', clientY: number): void {
-  const event = kind === 'dragOver' ? createEvent.dragOver(row) : createEvent.drop(row)
-  Object.defineProperty(event, 'clientY', { value: clientY })
-  Object.defineProperty(event, 'dataTransfer', { value: { effectAllowed: '', dropEffect: '' } })
+  const dataTransfer = new DataTransfer()
+  const event = kind === 'dragOver'
+    ? createEvent.dragOver(row, { clientY, dataTransfer })
+    : createEvent.drop(row, { clientY, dataTransfer })
   fireEvent(row, event)
 }
 
@@ -65,8 +67,8 @@ function marked(label: string): boolean {
   return screen.getByText(label).closest('[role="treeitem"]')?.className.includes('multiSelected') === true
 }
 
-function dragData(): Pick<DataTransfer, 'effectAllowed' | 'dropEffect' | 'setData'> {
-  return { effectAllowed: 'uninitialized', dropEffect: 'none', setData: vi.fn() }
+function dragData(): DataTransfer {
+  return new DataTransfer()
 }
 
 function mount(
@@ -457,6 +459,7 @@ describe('WorkspaceBrowser', () => {
       archiveSession,
     })
     fireEvent.click(screen.getByText('alpha'))
+    screen.getByText('gone-s').closest<HTMLElement>('[role="treeitem"]')?.focus()
     fireEvent.click(screen.getByRole('button', { name: '会话“gone-s”的操作' }), { detail: 1 })
     fireEvent.click(screen.getByRole('menuitem', { name: '归档会话' }))
     expect(archiveSession).toHaveBeenCalledWith(sid('gone-s'))
@@ -528,7 +531,7 @@ describe('WorkspaceBrowser', () => {
     })
     const seated = screen.getAllByRole('treeitem').find(node => node.tabIndex === 0)
     seated?.focus()
-    fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'a', ctrlKey: true })
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'a', ...additivePress })
     expect(screen.getByRole('status').textContent).toBe('已选择 3 个会话')
 
     fireEvent.contextMenu(document.activeElement as HTMLElement)
@@ -549,7 +552,7 @@ describe('WorkspaceBrowser', () => {
 
     const seated = screen.getAllByRole('treeitem').find(node => node.tabIndex === 0)
     seated?.focus()
-    fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'a', ctrlKey: true })
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'a', ...additivePress })
     expect(screen.getByRole('status').textContent).toBe('已选择 3 个会话')
 
     fireEvent.contextMenu(document.activeElement as HTMLElement)
@@ -571,7 +574,7 @@ describe('WorkspaceBrowser', () => {
 
     const seated = screen.getAllByRole('treeitem').find(node => node.tabIndex === 0)
     seated?.focus()
-    fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'a', ctrlKey: true })
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'a', ...additivePress })
     expect(screen.getByRole('status').textContent).toBe('已选择 2 个会话')
 
     fireEvent.contextMenu(document.activeElement as HTMLElement)
@@ -756,6 +759,7 @@ describe('WorkspaceBrowser', () => {
 
     // The archive-set echo removes the rows the focus was standing on; the seat
     // has already fallen back, so the focus follows it instead of the body.
+    expect(document.activeElement).toBe(rowOf('a2'))
     rerender(b, {
       useSessions: hook(sessionState([summary('a3', 1)])),
       useWorkspaces: hook(workspaceState([workspace('alpha', ['a1', 'a2', 'a3'])], [sid('a1'), sid('a2')])),
@@ -774,7 +778,7 @@ describe('WorkspaceBrowser', () => {
     })
     fireEvent.click(screen.getByText('alpha'))
     // Ctrl-picking the open project marks the rows its bulk archive reaches.
-    fireEvent.click(screen.getByText('alpha'), { ctrlKey: true })
+    fireEvent.click(screen.getByText('alpha'), additivePress)
     expect(['alpha', 'a1', 'a2', 'beta'].map(marked)).toEqual([true, true, true, false])
     expect(screen.getByRole('status').textContent).toBe('已选择 2 个会话')
     // One picked row keeps the per-row Workspace verbs.
@@ -791,14 +795,14 @@ describe('WorkspaceBrowser', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: '视图选项' }))
     fireEvent.click(screen.getByRole('menuitem', { name: '单列表' }))
-    fireEvent.click(screen.getByText('one'), { ctrlKey: true })
-    fireEvent.click(screen.getByText('three'), { ctrlKey: true })
+    fireEvent.click(screen.getByText('one'), additivePress)
+    fireEvent.click(screen.getByText('three'), additivePress)
     expect(screen.getByRole('status').textContent).toBe('已选择 2 个会话')
 
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.getByRole('status').textContent).toBe('')
 
-    fireEvent.click(screen.getByText('two'), { ctrlKey: true })
+    fireEvent.click(screen.getByText('two'), additivePress)
     expect(screen.getByRole('status').textContent).toBe('已选择 1 个会话')
     // One picked row keeps the per-row verbs: nothing to widen the menu for.
     fireEvent.contextMenu(screen.getByText('two'), { button: 2, clientX: 5, clientY: 5 })
@@ -817,6 +821,7 @@ describe('WorkspaceBrowser', () => {
         archiveSession,
       })
       fireEvent.click(screen.getByText('alpha'))
+      screen.getByText('alpha-s').closest<HTMLElement>('[role="treeitem"]')?.focus()
       fireEvent.click(screen.getByRole('button', { name: '会话“alpha-s”的操作' }), { detail: 1 })
       fireEvent.click(screen.getByRole('menuitem', { name: '归档会话' }))
       await Promise.resolve()
@@ -852,6 +857,7 @@ describe('WorkspaceBrowser', () => {
       expect(b.store.getSnapshot().groupExpansion).toEqual({ alpha: true })
     })
     expect(screen.queryByText('alpha-s')).toBeNull()
+    screen.getByText('alpha').closest<HTMLElement>('[role="treeitem"]')?.focus()
     fireEvent.click(screen.getByRole('button', { name: '在“alpha”中新建会话' }))
     expect(b.store.getSnapshot().groupExpansion).toEqual({ alpha: true })
     expect(screen.getByText('alpha-s')).toBeTruthy()
@@ -868,6 +874,7 @@ describe('WorkspaceBrowser', () => {
     // The loose session's group is UNGROUPED_KEY: expanded by the effect.
     expect(screen.getByText('loose')).toBeTruthy()
     expect(screen.queryByRole('button', { name: '工作区“未分组”的操作' })).toBeNull()
+    screen.getByText('未分组').closest<HTMLElement>('[role="treeitem"]')?.focus()
     fireEvent.click(screen.getByRole('button', { name: '在“未分组”中新建会话' }))
     expect(startSession).not.toHaveBeenCalled()
   })
@@ -935,6 +942,7 @@ describe('WorkspaceBrowser', () => {
     startSession.mockImplementation(() => {
       rerender(b, { useSessions: hook(sessionState(items, { current: sid('blank') })) })
     })
+    screen.getByText('alpha').closest<HTMLElement>('[role="treeitem"]')?.focus()
     fireEvent.click(screen.getByRole('button', { name: '在“alpha”中新建会话' }))
     expect(startSession).toHaveBeenCalledWith(wid('alpha'))
     await waitFor(() => {
@@ -1602,6 +1610,7 @@ describe('WorkspaceBrowser', () => {
       useWorkspaces: hook(workspaceState([workspace('alpha', [], 'Alpha'), workspace('beta', [], 'Beta')])),
       renameWorkspace,
     })
+    screen.getByText('Alpha').closest<HTMLElement>('[role="treeitem"]')?.focus()
     fireEvent.click(screen.getByRole('button', { name: '工作区“Alpha”的操作' }), { detail: 1 })
     fireEvent.click(screen.getByRole('menuitem', { name: '重命名' }))
     const input = screen.getByLabelText<HTMLInputElement>('工作区名称')
@@ -1631,6 +1640,7 @@ describe('WorkspaceBrowser', () => {
       useWorkspaces: hook(workspaceState([workspace('alpha', [], 'Alpha')])),
       renameWorkspace,
     })
+    screen.getByText('Alpha').closest<HTMLElement>('[role="treeitem"]')?.focus()
     fireEvent.click(screen.getByRole('button', { name: '工作区“Alpha”的操作' }), { detail: 1 })
     fireEvent.click(screen.getByRole('menuitem', { name: '重命名' }))
     const input = screen.getByLabelText<HTMLInputElement>('工作区名称')
@@ -1655,6 +1665,7 @@ describe('WorkspaceBrowser', () => {
       useWorkspaces: hook(workspaceState([workspace('alpha', [], 'Alpha')])),
       renameWorkspace,
     })
+    screen.getByText('Alpha').closest<HTMLElement>('[role="treeitem"]')?.focus()
     fireEvent.click(screen.getByRole('button', { name: '工作区“Alpha”的操作' }), { detail: 1 })
     fireEvent.click(screen.getByRole('menuitem', { name: '重命名' }))
     fireEvent.change(screen.getByLabelText('工作区名称'), { target: { value: 'Other' } })
@@ -1669,6 +1680,7 @@ describe('WorkspaceBrowser', () => {
       useWorkspaces: hook(workspaceState([workspace('alpha', ['session'], 'Alpha')])),
       deleteWorkspace,
     })
+    screen.getByText('Alpha').closest<HTMLElement>('[role="treeitem"]')?.focus()
     fireEvent.click(screen.getByRole('button', { name: '工作区“Alpha”的操作' }), { detail: 1 })
     fireEvent.click(screen.getByRole('menuitem', { name: '删除工作区' }))
     const dialog = screen.getByRole('dialog', { name: '删除工作区' })
@@ -1707,6 +1719,7 @@ describe('WorkspaceBrowser', () => {
       useWorkspaces: hook(workspaceState([workspace('alpha', [], 'Alpha')])),
       deleteWorkspace,
     })
+    screen.getByText('Alpha').closest<HTMLElement>('[role="treeitem"]')?.focus()
     fireEvent.click(screen.getByRole('button', { name: '工作区“Alpha”的操作' }), { detail: 1 })
     fireEvent.click(screen.getByRole('menuitem', { name: '删除工作区' }))
     fireEvent.click(screen.getByRole('button', { name: '删除工作区' }))
@@ -1725,6 +1738,7 @@ describe('WorkspaceBrowser', () => {
       deleteWorkspace,
     })
     const open = () => {
+      screen.getByText('Alpha').closest<HTMLElement>('[role="treeitem"]')?.focus()
       fireEvent.click(screen.getByRole('button', { name: '工作区“Alpha”的操作' }), { detail: 1 })
       fireEvent.click(screen.getByRole('menuitem', { name: '删除工作区' }))
     }

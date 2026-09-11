@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * Roving tab seat: one tab stop per list, arrow moves that clamp at both ends,
  * and the step out to a Workspace header a session row sits under.

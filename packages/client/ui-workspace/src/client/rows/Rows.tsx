@@ -507,7 +507,7 @@ export function ProjectRowItem({ group, onToggle, onCreate, actions, seat, selec
               else actions.delete()
             }}
             portal
-            closeOnPointerLeave
+            closeOnPointerLeave={menu.anchorProps.getAnchorRect === undefined && !menu.autoFocus}
             autoFocus={menu.autoFocus}
             ariaLabel={t('actions.workspace.aria', { name: label })}
             {...menu.anchorProps}
@@ -529,7 +529,11 @@ export function ProjectRowItem({ group, onToggle, onCreate, actions, seat, selec
           type="button"
           className={css.iconButton}
           aria-label={t('actions.newSession.aria', { name: label })}
-          onClick={(e) => { e.stopPropagation(); onCreate() }}
+          onClick={(e) => {
+            e.stopPropagation()
+            if (secondaryPress(e)) return
+            onCreate()
+          }}
         >
           <IconPlusOutline16 />
         </button>
@@ -861,7 +865,7 @@ export function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork
               if (id === 'archive') onArchive(node.id)
             }}
             portal
-            closeOnPointerLeave
+            closeOnPointerLeave={menu.anchorProps.getAnchorRect === undefined && !menu.autoFocus}
             autoFocus={menu.autoFocus}
             ariaLabel={t('actions.session.aria', { name: title })}
             {...menu.anchorProps}

@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, createEvent, fireEvent, render, screen } from '@testing-library/react'
 import type { WorkspaceId } from '@deepseek-ai/dsh-api-workspace-controller/client'
@@ -15,6 +14,8 @@ afterEach(cleanup)
 const t = makeTranslate(zh, commonZh) as never
 
 const HOST_PLATFORM = navigator.platform
+const additivePress = HOST_PLATFORM.startsWith('Mac') || HOST_PLATFORM.startsWith('iP')
+  ? { metaKey: true } : { ctrlKey: true }
 
 /**
  * Answer `navigator.platform` with one host's reading, which decides whether
@@ -35,7 +36,7 @@ function seatOf(rowKey = 'session:row', level = 1): RowSeat {
 const sid = (id: string) => id as SessionId
 const wid = (id: string) => id as WorkspaceId
 
-/** Half detection reads the row rect; jsdom rects are all-zero by default. */
+/** A precise rectangle for upper/lower drag boundary assertions. */
 function stubRect(row: HTMLElement): void {
   row.getBoundingClientRect = () => ({
     top: 100, bottom: 134, left: 0, right: 200, width: 200, height: 34,
@@ -64,13 +65,13 @@ function installClipboard(writeText: (text: string) => Promise<void>): () => voi
   }
 }
 
-const dataTransfer = { effectAllowed: '', dropEffect: '', setData: vi.fn() }
+const dataTransfer = new DataTransfer()
 
-/** jsdom lacks DragEvent — the fireEvent fallback drops clientY, so pin it on the built event. */
+/** Dispatch native drag events at an explicit boundary coordinate. */
 function fireDrag(row: HTMLElement, kind: 'dragOver' | 'drop', clientY: number): void {
-  const event = kind === 'dragOver' ? createEvent.dragOver(row) : createEvent.drop(row)
-  Object.defineProperty(event, 'clientY', { value: clientY })
-  Object.defineProperty(event, 'dataTransfer', { value: { ...dataTransfer } })
+  const event = kind === 'dragOver'
+    ? createEvent.dragOver(row, { clientY, dataTransfer })
+    : createEvent.drop(row, { clientY, dataTransfer })
   fireEvent(row, event)
 }
 
@@ -178,6 +179,7 @@ describe('workspace browser rows', () => {
     render(<ProjectRowItem seat={seatOf()} group={group} onToggle={onToggle} onCreate={onCreate} t={t} />)
 
     expect(screen.getByRole('treeitem').getAttribute('aria-expanded')).toBe('true')
+    screen.getByRole('treeitem').focus()
     fireEvent.click(screen.getByRole('button', { name: '在“Project”中新建会话' }))
     expect(onCreate).toHaveBeenCalledOnce()
     expect(onToggle).not.toHaveBeenCalled()
@@ -321,6 +323,7 @@ describe('workspace browser rows', () => {
       group={group} onToggle={onToggle} onCreate={vi.fn()}
       actions={{ rename: onRename, delete: onDelete }} t={t}
     />)
+    screen.getByRole('treeitem').focus()
     fireEvent.click(screen.getByRole('button', { name: '工作区“Project”的操作' }), { detail: 1 })
     // Opening the menu neither toggles the group nor renames yet.
     expect(onToggle).not.toHaveBeenCalled()
@@ -465,6 +468,7 @@ describe('workspace browser rows', () => {
     }
     render(<SessionNodeItem seat={seatOf()} node={node} currentId={undefined} now={0} onOpen={onOpen}
       onRename={onRename} onFork={onFork} onArchive={onArchive} t={t} />)
+    screen.getByRole('treeitem').focus()
     fireEvent.click(screen.getByRole('button', { name: '会话“One”的操作' }), { detail: 1 })
     expect(onOpen).not.toHaveBeenCalled()
     // Archive is not destructive (log and accounting slot remain): no danger styling.
@@ -508,6 +512,7 @@ describe('workspace browser rows', () => {
       expect(screen.getAllByText('进行中')).toHaveLength(2)
       fireEvent.pointerLeave(wrapper)
       // Menu open (disabled=true) suppresses the card for the same hover.
+      screen.getByRole('treeitem').focus()
       fireEvent.click(screen.getByRole('button', { name: '会话“Hovered”的操作' }), { detail: 1 })
       fireEvent.pointerEnter(wrapper)
       act(() => { vi.advanceTimersByTime(1000) })
@@ -646,8 +651,8 @@ describe('workspace row context menus', () => {
     // Right-click opens the same list the ... button does, without toggling the group.
     expect(onToggle).not.toHaveBeenCalled()
     const list = screen.getByRole('menu')
-    expect(list.dataset['menuLeft']).toBe('120')
-    expect(list.dataset['menuTop']).toBe('244')
+    expect(list.getBoundingClientRect().left).toBe(120)
+    expect(list.getBoundingClientRect().top).toBe(244)
     fireEvent.click(screen.getByRole('menuitem', { name: '重命名' }))
     expect(onRename).toHaveBeenCalledOnce()
 
@@ -670,16 +675,20 @@ describe('workspace row context menus', () => {
       onRename={vi.fn()} onFork={vi.fn()} onArchive={onArchive} t={t} />)
     fireEvent.contextMenu(screen.getByText('One'), { button: 2, clientX: 40, clientY: 60 })
     const list = screen.getByRole('menu')
-    expect(list.dataset['menuLeft']).toBe('40')
+    expect(list.getBoundingClientRect().left).toBe(40)
     fireEvent.click(screen.getByRole('menuitem', { name: '归档会话' }))
     expect(onArchive).toHaveBeenCalledWith(sid('one'))
 
     // Reopening from the ... button drops the pointer anchor for the wrapper rect.
+    screen.getByRole('treeitem').focus()
     const trigger = screen.getByRole('button', { name: '会话“One”的操作' })
     fireEvent.click(trigger, { detail: 1 })
     const anchoredMenu = screen.getByRole('menu')
-    expect(anchoredMenu.dataset['menuLeft']).toBeUndefined()
-    expect(anchoredMenu.dataset['menuAnchor']).toBe(trigger.closest('[data-menu-anchor]')?.getAttribute('data-menu-anchor'))
+    expect(anchoredMenu.getBoundingClientRect().left).toBe(Math.min(
+      trigger.getBoundingClientRect().left, window.innerWidth - anchoredMenu.offsetWidth - 12,
+    ))
+    expect(anchoredMenu.getBoundingClientRect().top).toBe(trigger.getBoundingClientRect().bottom + 4)
+    expect(anchoredMenu.hasAttribute('style')).toBe(false)
 
     view.rerender(<SessionNodeItem seat={seatOf()} node={{ ...node, blank: true }} currentId={undefined} now={0}
       onOpen={vi.fn()} onRename={vi.fn()} onFork={vi.fn()} onArchive={onArchive} t={t} />)
@@ -706,7 +715,7 @@ describe('workspace row context menus', () => {
     const row = screen.getByRole('treeitem')
     row.focus()
     fireEvent.contextMenu(row, { button: 0, ctrlKey: true, clientX: 40, clientY: 60 })
-    expect(screen.getByRole('menu').dataset['menuLeft']).toBe('40')
+    expect(screen.getByRole('menu').getBoundingClientRect().left).toBe(40)
     expect(document.activeElement).toBe(row)
 
     fireEvent.click(row, { ctrlKey: true })
@@ -764,7 +773,7 @@ describe('workspace row context menus', () => {
       onRename={vi.fn()} onFork={vi.fn()} onArchive={onOne} selection={selection} t={t} />)
     const row = screen.getByText('One')
     fireEvent.click(row, { shiftKey: true })
-    fireEvent.click(row, { ctrlKey: true })
+    fireEvent.click(row, additivePress)
     expect(selection.extend).toHaveBeenCalledOnce()
     expect(selection.toggle).toHaveBeenCalledOnce()
     expect(onOpen).not.toHaveBeenCalled()
@@ -811,7 +820,7 @@ describe('workspace row context menus', () => {
     />)
     const row = screen.getByText('Project')
     fireEvent.click(row, { shiftKey: true })
-    fireEvent.click(row, { ctrlKey: true })
+    fireEvent.click(row, additivePress)
     expect(selection.extend).toHaveBeenCalledOnce()
     expect(selection.toggle).toHaveBeenCalledOnce()
     // A modified click edits the range instead of folding the group.
@@ -1001,7 +1010,7 @@ describe('workspace rows keyboard', () => {
     const seat = spiedSeat()
     const selection = account()
     const row = sessionRow(seat, selection)
-    const event = createEvent.keyDown(row, { key: 'a', ctrlKey: true })
+    const event = createEvent.keyDown(row, { key: 'a', ...additivePress })
     fireEvent(row, event)
     expect(selection.selectAll).toHaveBeenCalledOnce()
     // The browser's own select-all would otherwise take the whole page with it.
@@ -1009,14 +1018,14 @@ describe('workspace rows keyboard', () => {
     expect(seat.typeAhead).not.toHaveBeenCalled()
 
     // Shift+A is a different keystroke and still reaches the range.
-    fireEvent.keyDown(row, { key: 'A', ctrlKey: true })
+    fireEvent.keyDown(row, { key: 'A', ...additivePress })
     expect(selection.selectAll).toHaveBeenCalledTimes(2)
   })
 
   it('leaves the additive A alone on a row no range reaches', () => {
     const seat = spiedSeat()
     const row = sessionRow(seat, undefined)
-    const event = createEvent.keyDown(row, { key: 'a', ctrlKey: true })
+    const event = createEvent.keyDown(row, { key: 'a', ...additivePress })
     fireEvent(row, event)
     expect(event.defaultPrevented).toBe(false)
     expect(seat.typeAhead).not.toHaveBeenCalled()
@@ -1039,7 +1048,7 @@ describe('workspace rows keyboard', () => {
     const seat = spiedSeat()
     const selection = account()
     const row = sessionRow(seat, selection)
-    for (const key of [{ key: 'F5' }, { key: 'a', metaKey: true }, { key: 'a', altKey: true }]) {
+    for (const key of [{ key: 'F5' }, { key: 'a', ctrlKey: !additivePress.ctrlKey, metaKey: !additivePress.metaKey }, { key: 'a', altKey: true }]) {
       const event = createEvent.keyDown(row, key)
       fireEvent(row, event)
       expect(event.defaultPrevented).toBe(false)
@@ -1096,6 +1105,7 @@ describe('workspace rows keyboard', () => {
     const selection = account()
     const onOpen = vi.fn()
     sessionRow(seat, selection, onOpen)
+    screen.getByRole('treeitem').focus()
     const trailing = screen.getByRole('button', { name: '会话“One”的操作' })
     // The ... button answers Enter and Space itself, and the menu it opens is a
     // React child of the row, so both would otherwise reach the row's handler.
@@ -1118,6 +1128,7 @@ describe('workspace rows keyboard', () => {
     render(<ProjectRowItem seat={spiedSeat({ rowKey: 'workspace:project', level: 1 })} group={project}
       onToggle={onToggle} onCreate={vi.fn()}
       actions={{ rename: vi.fn(), delete: vi.fn() }} selection={selection} t={t} />)
+    screen.getByRole('treeitem').focus()
     const create = screen.getByRole('button', { name: '在“Project”中新建会话' })
     for (const key of ['ArrowRight', 'ArrowLeft', 'Enter']) {
       fireEvent.keyDown(create, { key })
@@ -1133,8 +1144,8 @@ describe('workspace rows keyboard', () => {
     // with no pointer button behind it.
     fireEvent.contextMenu(row)
     const list = screen.getByRole('menu')
-    expect(list.dataset['menuLeft']).toBe('0')
-    expect(list.dataset['menuTop']).toBe('4')
+    expect(list.getBoundingClientRect().left).toBe(Math.max(12, row.getBoundingClientRect().left))
+    expect(list.getBoundingClientRect().top).toBe(row.getBoundingClientRect().bottom + 4)
     expect(document.activeElement).toBe(screen.getAllByRole('menuitem')[0])
 
     // The arrows walk the list once the focus is inside it.
@@ -1164,7 +1175,7 @@ describe('workspace rows keyboard', () => {
     const row = sessionRow(spiedSeat(), account())
     expect(document.activeElement).not.toBe(row)
     fireEvent.contextMenu(row)
-    expect(screen.getByRole('menu').dataset['menuTop']).toBe('4')
+    expect(screen.getByRole('menu').getBoundingClientRect().top).toBe(row.getBoundingClientRect().bottom + 4)
     expect(document.activeElement).toBe(document.body)
   })
 
@@ -1172,7 +1183,7 @@ describe('workspace rows keyboard', () => {
     const row = sessionRow(spiedSeat(), account())
     row.focus()
     fireEvent.contextMenu(row, { button: 2, clientX: 40, clientY: 60 })
-    expect(screen.getByRole('menu').dataset['menuLeft']).toBe('40')
+    expect(screen.getByRole('menu').getBoundingClientRect().left).toBe(40)
     expect(document.activeElement).toBe(row)
   })
 
@@ -1199,6 +1210,7 @@ describe('workspace rows keyboard', () => {
 
   it('hands the list its first row when the menu keys arrive from the trailing button', () => {
     const row = sessionRow(spiedSeat(), account())
+    row.focus()
     const trailing = screen.getByRole('button', { name: '会话“One”的操作' })
     // The button is itself a tab stop, so Shift+F10 routinely arrives while the
     // focus sits on it rather than on the row.
@@ -1208,7 +1220,7 @@ describe('workspace rows keyboard', () => {
   })
 
   it('names the open list and keeps its rows out of the tab sequence', () => {
-    sessionRow(spiedSeat(), account())
+    sessionRow(spiedSeat(), account()).focus()
     const trailing = screen.getByRole('button', { name: '会话“One”的操作' })
     trailing.focus()
     fireEvent.click(trailing, { detail: 0 })
@@ -1224,7 +1236,7 @@ describe('workspace rows keyboard', () => {
   })
 
   it('announces the trailing button as a menu trigger and reflects its open state', () => {
-    sessionRow(spiedSeat(), account())
+    sessionRow(spiedSeat(), account()).focus()
     const trailing = screen.getByRole('button', { name: '会话“One”的操作' })
     // The menu-button pattern: without these a screen reader announces only a
     // button, never that a menu exists or that it opened.
@@ -1236,7 +1248,7 @@ describe('workspace rows keyboard', () => {
   })
 
   it('hands the list its first row when the trailing button is activated from the keyboard', () => {
-    sessionRow(spiedSeat(), account())
+    sessionRow(spiedSeat(), account()).focus()
     const trailing = screen.getByRole('button', { name: '会话“One”的操作' })
     trailing.focus()
     // Enter and Space on a focused button synthesize a click carrying no pointer
@@ -1247,7 +1259,7 @@ describe('workspace rows keyboard', () => {
   })
 
   it('leaves the focus on the trailing button when a pointer opened its list', () => {
-    sessionRow(spiedSeat(), account())
+    sessionRow(spiedSeat(), account()).focus()
     const trailing = screen.getByRole('button', { name: '会话“One”的操作' })
     trailing.focus()
     fireEvent.click(trailing, { detail: 1 })

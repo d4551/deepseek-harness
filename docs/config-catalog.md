@@ -2871,9 +2871,9 @@ Requires: `agents` · `agentTeams` · `tools` · `systemPrompt`
 ```ts config-catalog
 /** Tool routing configuration. */
 export interface Config {
-  /** Continuable-subagent provider used for fresh teammates. */
+  /** Fresh continuation provider; omitted to discover a unique registered match. */
   readonly freshProvider?: string
-  /** Continuable-subagent provider used for completed-prefix fork teammates. */
+  /** Fork continuation provider; omitted to discover a unique registered match. */
   readonly forkProvider?: string
   /**
    * Work distribution this deployment runs. `delegated` keeps the Lead handing

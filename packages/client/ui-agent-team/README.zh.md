@@ -31,6 +31,8 @@ kind: "package-reference"
 
 打开 panel 会订阅 `agentTeams/changes`，并通过 `agentTeams/overview` 读取初始状态和后续更新。Roster row 展示持久 name、description、运行时 status、model 与 diagnostics。选择健康 teammate 时，系统刷新既有直接 child catalog，并打开普通的 `{ parentSessionId, childSessionId, mode: 'continuable' }` address。History 与后续人类 prompt 继续使用稳定 addressed-subagent 会话路径；本包不会添加 Team 专用 address 字段。
 
+紧凑的页头按钮打开面板，分别以表格展示本团队成员和其他工作区会话。计数分别属于对应表格。模型不可用时显示尚未报告。任务和消息面板按内容确定高度；空任务板说明智能体需要单独记录任务，创建成员不会自动生成任务。
+
 消息表将每个会话的双向消息归为一组，并按最新活动排列各行。选择一行可阅读最新消息，再使用上一条消息与下一条消息浏览历史。搜索消息内容可缩小历史范围；阅读旧消息时，新消息到达不会改变当前选择。每条消息保留段落，并显示发送者、接收者与送达状态。
 
 子智能体会话表列出后代会话及其直接父会话和活动状态。历史记录加载或失败时，消息与任务仍可使用；刷新会话会重试目录读取。选择后代会话会打开其精确的父子地址；Lead 行可返回根会话。
@@ -61,6 +63,8 @@ Client export 挂载来自 [`@deepseek-ai/dsh-agent-team/remote`](../../subagent
 |---|---|
 | [`src/client/mount.ts`](src/client/mount.ts) | 生成式 Remote、locale、导航与 slot registration |
 | [`src/client/TeamAction.tsx`](src/client/TeamAction.tsx) | Roster 与任务板交互状态 |
+| [`src/client/TeamMembers.tsx`](src/client/TeamMembers.tsx) | 团队与工作区会话表格 |
+| [`src/client/TeamTasks.tsx`](src/client/TeamTasks.tsx) | 当前团队与工作区任务板呈现 |
 | [`src/client/TaskCard.tsx`](src/client/TaskCard.tsx) | 智能体维护的任务进展、负责人和依赖 |
 | [`src/client/TeamMessages.tsx`](src/client/TeamMessages.tsx) | 持久的智能体间消息与送达状态 |
 | [`src/client/TeamConversations.tsx`](src/client/TeamConversations.tsx) | 实时后代会话目录与导航 |

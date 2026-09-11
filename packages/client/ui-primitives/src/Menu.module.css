@@ -1,7 +1,6 @@
 .root {
   position: relative;
   display: inline-flex;
-  anchor-name: attr(data-menu-anchor type(<custom-ident>));
 }
 
 /* Dropdown card (figma MenuDropdown 122:9481 / 419:16920): menu surface,
@@ -43,39 +42,14 @@
   top: auto;
   left: auto;
   z-index: var(--dsw-z-above-modal);
+  min-width: min(218px, calc(100vw - 24px));
+  max-width: min(360px, calc(100vw - 24px));
 }
 
-.external {
-  left: attr(data-menu-left px);
-  top: attr(data-menu-top px);
-}
-
-.external:not([data-menu-left]) {
+.portal[aria-hidden='true'] {
   visibility: hidden;
   left: 0;
   top: 0;
-}
-
-.anchored {
-  position-anchor: attr(data-menu-anchor type(<custom-ident>));
-  top: calc(anchor(bottom) + var(--dsw-space-control) / 2);
-  left: anchor(left);
-  position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
-}
-
-.anchored[data-align='end'] {
-  left: auto;
-  right: anchor(right);
-}
-
-.anchored[data-side='top'] {
-  top: auto;
-  bottom: calc(anchor(top) + var(--dsw-space-control) / 2);
-}
-
-.anchored[data-side='right'] {
-  top: anchor(top);
-  left: calc(anchor(right) + var(--dsw-space-control) / 2);
 }
 
 /* Open above the anchor (empty-state workspace chip: figma 122:9481). */

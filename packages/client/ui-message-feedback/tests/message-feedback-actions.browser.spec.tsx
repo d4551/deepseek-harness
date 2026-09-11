@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * MessageFeedbackActions rendering and gestures: the rating buttons reflect the
  * shared view, re-clicking the active rating retracts it, the note editor
@@ -62,7 +61,14 @@ function mount(options: {
     useSyncExternalStore(() => () => {}, () => select(view))) as never
   const props = { messageId: MSG, ensure, rate, toggle, clearNote, clear, useFeedback, t } as unknown as
     Parameters<typeof MessageFeedbackActions>[0]
-  return { ...render(<MessageFeedbackActions {...props} />), ensure, rate, clear, toggle, clearNote }
+  const rendered = render(<MessageFeedbackActions {...props} />)
+  return {
+    ...rendered, ensure, rate, clear, toggle, clearNote,
+    setCurrent: (current: MessageFeedbackItem | undefined) => {
+      view.items = new Map(current === undefined ? [] : [[MSG, current]])
+      rendered.rerender(<MessageFeedbackActions {...props} />)
+    },
+  }
 }
 
 describe('MessageFeedbackActions', () => {
@@ -257,6 +263,7 @@ describe('MessageFeedbackActions', () => {
     // rather than inline inside the component's own container.
     const panel = ui.getByRole('dialog')
     expect(panel).toBeTruthy()
+    expect(panel.hasAttribute('style')).toBe(false)
     expect(ui.container.querySelector('[role="dialog"]')).toBeNull()
     expect(document.body.contains(panel)).toBe(true)
   })
@@ -270,6 +277,28 @@ describe('MessageFeedbackActions', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
 
     expect(ui.queryByRole('dialog')).toBeNull()
+  })
+
+  it('rebinds placement when a recorded rating disappears and returns during note editing', async () => {
+    const baseline = [...document.adoptedStyleSheets]
+    const ui = mount({ current: item() })
+    fireEvent.click(ui.getByText(zh['note.open']))
+    const previous = ui.getByRole('dialog')
+    expect(previous.hasAttribute('style')).toBe(false)
+    expect(document.adoptedStyleSheets).toHaveLength(baseline.length + 1)
+    ui.setCurrent(undefined)
+    expect(ui.queryByRole('dialog')).toBeNull()
+    expect(document.adoptedStyleSheets).toEqual(baseline)
+    ui.setCurrent(item())
+    const panel = ui.getByRole('dialog')
+    expect(panel).not.toBe(previous)
+    expect(panel.getBoundingClientRect().left).toBeGreaterThanOrEqual(12)
+    const input = ui.getByLabelText<HTMLTextAreaElement>(zh['note.aria'])
+    input.rows = 100
+    await expect.poll(() => panel.getBoundingClientRect().bottom).toBe(window.innerHeight - 12)
+    expect(panel.hasAttribute('style')).toBe(false)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(document.adoptedStyleSheets).toEqual(baseline)
   })
 
   it('closes the note popover on an outside pointer-down', () => {

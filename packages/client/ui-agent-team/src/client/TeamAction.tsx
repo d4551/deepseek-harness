@@ -3,17 +3,17 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { TeamMemberView, TeamOverview, TeamView } from '@deepseek-ai/dsh-agent-team/client'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import {
-  Button, Modal, Pill, PanelLayout, PanelStack, PanelSection, PanelEntry, PanelActions,
-  IconRefreshOutline14, IconUserOutline16, IconRightUpOutline16, StateDot,
+  Button, Modal, PanelLayout, PanelStack,
+  IconRefreshOutline14, IconUserOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { NS, type TeamKey } from './locales.ts'
+import { NS } from './locales.ts'
 import { observeTeamActivity } from './observe-team.ts'
-import { TaskCard } from './TaskCard.tsx'
+import { TeamTasks } from './TeamTasks.tsx'
+import { TeamMembers } from './TeamMembers.tsx'
 import { TeamConversations, type TeamConversation } from './TeamConversations.tsx'
 import { TeamMessages } from './TeamMessages.tsx'
-import { memberLabel } from './member-label.ts'
 
 /** Generated Remote result consumed directly by the Team UI. */
 export type TeamActionResult<T> = RemoteResult<T>
@@ -29,16 +29,6 @@ export interface TeamActionInjected {
 
 /** Full props of the Team conversation-header action. */
 export type TeamActionProps = PropsRuntime<'conversation.session.header.actions'> & TeamActionInjected & PropsLocale<typeof NS>
-
-function memberStatusKey(status: TeamMemberView['status']): TeamKey {
-  switch (status) {
-    case 'running': return 'memberStatus.running'
-    case 'idle': return 'memberStatus.idle'
-    case 'inactive': return 'memberStatus.inactive'
-    case 'provisioning': return 'memberStatus.provisioning'
-    case 'failed': return 'memberStatus.failed'
-  }
-}
 
 function useTeamObservation({ sessionId, changes, load, t }: Pick<TeamActionProps, 'sessionId' | 'changes' | 'load' | 't'>) {
   const [open, setOpen] = useState(false)
@@ -104,16 +94,14 @@ function useTeamObservation({ sessionId, changes, load, t }: Pick<TeamActionProp
 export function TeamAction({ sessionId, changes, load, loadConversations, openTeammate, openSubagent, t }: TeamActionProps) {
   const { open, setOpen, loading, view, error, refresh, reportError } = useTeamObservation({ sessionId, changes, load, t })
   const loadDirectory = useCallback((signal: AbortSignal) => loadConversations(sessionId, signal), [loadConversations, sessionId])
-  const conversationCount = view?.members.filter(member => member.role !== 'lead').length ?? 0
   const togglePanel = (event: MouseEvent<HTMLButtonElement>): void => {
     event.currentTarget.focus()
     setOpen(current => !current)
   }
   return (
     <div data-team-action>
-      <Button type="button" aria-haspopup="dialog" aria-expanded={open} onClick={togglePanel}>
+      <Button size="sm" aria-haspopup="dialog" aria-expanded={open} onClick={togglePanel}>
         <IconUserOutline16 /><span>{t('trigger')}</span>
-        {conversationCount > 0 && <Pill>{conversationCount}</Pill>}
       </Button>
       {open && <Modal open onClose={() => { setOpen(false) }} title={t('trigger')} description={t('overview')}
         closeLabel={t('close')} size="workspace" headerActions={(
@@ -125,37 +113,15 @@ export function TeamAction({ sessionId, changes, load, loadConversations, openTe
         {loading && view === null && <p role="status">{t('loading')}</p>}
         {view !== null && <PanelLayout>
           <PanelStack>
-            <TeamMessages view={view} t={t} />
-            <PanelSection title={t('roster')} actions={<Pill>{view.members.length}</Pill>}>
-              {view.members.map(member => <PanelEntry key={member.id} actions={
-                member.id !== sessionId && member.status !== 'failed' && member.status !== 'provisioning'
-                  ? <Button size="touch" title={t('open')} aria-label={`${t('open')}: ${memberLabel(member, t)}`}
-                    onClick={() => { openTeammate(sessionId, member).then(undefined, reportError) }}
-                  ><IconRightUpOutline16 /></Button> : undefined
-              }>
-                <PanelActions>
-                  <StateDot state={member.status === 'running' ? 'ongoing' : member.status === 'failed' ? 'error' : 'inactive'} />
-                  <span className="dsw-settings-cell-title" title={member.name}>
-                    {memberLabel(member, t)}
-                  </span>
-                  <span className="dsw-settings-cell-desc">{t(memberStatusKey(member.status))}</span>
-                </PanelActions>
-                {member.description !== undefined && <p className="dsw-settings-cell-desc">{member.description}</p>}
-                {member.model !== undefined && <p className="dsw-settings-cell-desc">{t('model')}: {member.model}</p>}
-                {member.diagnostics.map(diagnostic => <p key={diagnostic}>{diagnostic}</p>)}
-              </PanelEntry>)}
-            </PanelSection>
+            <TeamMembers members={view.members} sessionId={sessionId} t={t}
+              open={member => openTeammate(sessionId, member)} reportError={reportError} />
             <TeamConversations view={view} t={t} open={entry => openSubagent(sessionId, entry)}
               reportError={reportError} load={loadDirectory} />
           </PanelStack>
-          <PanelSection title={t('tasks')} description={t('tasksDescription')}>
-            {view.tasks.length === 0 && view.workspaceTasks.every(board => board.tasks.length === 0) && <p>{t('empty')}</p>}
-            {view.tasks.map(task => <TaskCard key={task.id} task={task} t={t} />)}
-            {view.workspaceTasks.map(board => board.tasks.length > 0 && <PanelEntry key={board.sessionId}>
-              <span className="dsw-settings-cell-title">{memberLabel(view.members.find(member => member.id === board.sessionId), t)}</span>
-              {board.tasks.map(task => <TaskCard key={task.id} task={task} t={t} />)}
-            </PanelEntry>)}
-          </PanelSection>
+          <PanelStack>
+            <TeamTasks view={view} t={t} />
+            <TeamMessages view={view} t={t} />
+          </PanelStack>
         </PanelLayout>}
       </Modal>}
     </div>

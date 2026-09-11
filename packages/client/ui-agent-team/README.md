@@ -31,6 +31,8 @@ This package adds an Agent Teams action to the Web conversation header for follo
 
 Opening the panel subscribes to `agentTeams/changes` and reads `agentTeams/overview` for its initial state and subsequent updates. Roster rows show durable names, descriptions, runtime status, model, and diagnostics. Selecting a healthy teammate refreshes the existing direct-child catalog and opens the ordinary `{ parentSessionId, childSessionId, mode: 'continuable' }` address. History and later human prompts continue through the stable addressed-subagent conversation path; this package adds no Team-specific address field.
 
+The compact header action opens separate tables for this team's members and other workspace conversations. Counts belong to their respective tables. An unavailable model is labeled as unreported. Task and message panels fit their content; an empty board explains that agents must record tasks separately from member creation.
+
 The message table groups both directions of each conversation and orders rows by latest activity. Select a row to read its latest message, then use Older message and Newer message to browse its history. Search message text narrows the history; reading an older message keeps that selection when new messages arrive. Each message preserves paragraphs and shows its sender, recipient, and delivery state.
 
 The subagent conversation table lists descendants with their direct parents and activity. History loading or failure leaves messages and tasks available; Refresh conversations retries the directory. Selecting a descendant opens its exact parent-child address; the Lead row returns to the root conversation.
@@ -61,6 +63,8 @@ The shared workspace-sized Modal and PanelLayout primitives provide aligned resp
 |---|---|
 | [`src/client/mount.ts`](src/client/mount.ts) | Generated Remote, locale, navigation, and slot registrations |
 | [`src/client/TeamAction.tsx`](src/client/TeamAction.tsx) | Roster and task-board interaction state |
+| [`src/client/TeamMembers.tsx`](src/client/TeamMembers.tsx) | Team and workspace-conversation tables |
+| [`src/client/TeamTasks.tsx`](src/client/TeamTasks.tsx) | Current and workspace task-board presentation |
 | [`src/client/TaskCard.tsx`](src/client/TaskCard.tsx) | Agent-owned task progress, ownership, and dependencies |
 | [`src/client/TeamMessages.tsx`](src/client/TeamMessages.tsx) | Durable interagent messages and delivery state |
 | [`src/client/TeamConversations.tsx`](src/client/TeamConversations.tsx) | Live descendant directory and navigation |

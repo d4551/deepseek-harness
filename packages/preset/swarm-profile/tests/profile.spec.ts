@@ -216,7 +216,8 @@ describe('swarm profile bundle', () => {
     const prompt = renderPrompt(assembled)
     expect(prompt).toContain('This session runs as a swarm')
     expect(prompt).toContain('team_task_claim_next')
-    expect(prompt).toContain('Do not name a specific task in a teammate\'s prompt')
+    expect(prompt).toContain('When the user assigns named teammates specific responsibilities, preserve those assignments')
+    expect(prompt).toContain('Use team_task_claim_next for work without a named assignment')
     expect(prompt).not.toContain('create teammates only when the user explicitly asks')
 
     // The board is live in the booted composition, not merely registered.

@@ -47,6 +47,8 @@ dsh plugin --profile <name> add @deepseek-ai/dsh-swarm-profile
 
 本层修改三个 base 设置：`coordination: swarm` 选择拉取式指引，`maxMembers: 16` 放宽名册，`maxConcurrentRuns: 8` 限制并发的一次性委派。`subagent` 和 `subagent_fork` 都使用 base profile 的一次性执行模式。
 
+对具名队友的明确分工仍由对应队友执行。Lead 创建任务记录，并在分配的提示词中包含任务 id；成员行动前先读取并领取这些任务。没有具名分工的工作使用 `team_task_claim_next`。成员完成任务后向 Lead 报告结果，每次提示词都包含当前任务板。
+
 ### 从设置调整团队
 
 `agent-team` 行上的 `maxMembers` 与 `maxTasks` 同时是设置分区，运行中的部署可以从 Web 应用插件设置页的**智能体团队**卡片重新调整，而无需改动本层。本层的 `maxMembers: 16` 是卡片的组合起点，存储值叠加其上。本层设置的其余各项都是组合决定并留在这里：`coordination: swarm` 选择本 profile 存在的意义所在——那套模型可见的拉取式策略；`freshProvider`／`forkProvider` 指名本层挂载的 Subagent provider 行；邮箱预算与拆卸截止时间约束单次投递与单次拆卸的开销。

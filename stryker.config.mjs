@@ -19,6 +19,7 @@ export default {
     'packages/api/session-controller/src/client/sessions/manager.ts',
     'packages/api/session-controller/src/client/sessions/list-mutations.ts',
     'packages/subagent/agent-team/src/**/*.ts',
+    'packages/subagent/tool-agent-team/src/**/*.ts',
     'packages/client/ui-agent-team/src/client/**/*.{ts,tsx}',
     'packages/client/ui-subagent/src/client/SubagentHeaderLineage.tsx',
     'packages/guard/approval-adversary/src/**/*.ts',

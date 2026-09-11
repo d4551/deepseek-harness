@@ -45,14 +45,18 @@ The smallest addition to an existing composition is the two-package fragment fro
 
 | Field | Default | Meaning |
 |---|---|---|
-| `freshProvider` | `spawn` | Provider that starts fresh teammates |
-| `forkProvider` | `fork` | Provider that starts fork teammates |
+| `freshProvider` | Discovered | Unique registered continuation provider that starts fresh teammates |
+| `forkProvider` | Discovered | Unique registered continuation provider that inherits the Lead's context |
 | `coordination` | `delegated` | Guidance the members receive: `delegated` or `swarm` |
 | `excludePresets` | `[]` | Agent preset ids whose Agents keep their preset's exact tool set and receive no Team tools |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-tool-agent-team) is the exhaustive source for every accepted field and its JSDoc.
 
+Omit the provider settings when exactly one registered provider supports each requested context mode. Set them explicitly when several providers match. Missing providers and context mismatches reject creation before reserving a teammate name or consuming capacity.
+
 With `coordination: swarm`, the Lead decomposes work into shared tasks and teammates claim ready tasks with `team_task_claim_next`. When the command registry is mounted, `/swarm <request>` submits a new request to the Lead's normal turn queue. The request must contain text and may include images. The command is absent from delegated compositions, excluded presets, and teammate scopes.
+
+Both policies instruct the Lead to create task records before spawning teammates and instruct members to claim, complete, and report their assigned work. Swarm guidance preserves explicit assignments to named teammates; unassigned work uses the atomic next-task claim. Spawning a member does not create a task record. Each prompt assembly includes the team's current board as well as other workspace conversations' boards.
 
 Try it by asking the Lead model: "create a teammate named reviewer to check the diff, then send reviewer the change summary". The model calls the creation tool and then the messaging tool.
 
@@ -134,11 +138,11 @@ One policy section states the Team role/name/id, configured coordination policy,
 
 #### Token effect
 
-Fixed policy and schema cost on every Team member request. Tool calls add compact JSON roster, task, wait, or receipt results. Peer content is retained by the Team domain in the target's history.
+Each Team member request includes policy, schemas, and current roster and task-board snapshots. Snapshot size grows with the team and its workspace boards. Tool calls add compact JSON roster, task, wait, or receipt results. Peer content is retained by the Team domain in the target's history.
 
 #### KV Cache effect
 
-Prefix-stable while the Team plugin generation, configuration, member role/name, and schemas remain unchanged. The per-member identity line differs across Agents. Tool results and peer messages append after the reusable request prefix.
+The policy and schema prefix stays stable while the Team plugin generation and configuration remain unchanged. Identity differs across members; roster and task-board text changes with committed state. Tool results and peer messages append to the conversation history.
 
 ## Known Limitations and Deferred Work
 

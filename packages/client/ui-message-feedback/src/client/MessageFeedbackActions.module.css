@@ -38,8 +38,8 @@
   color: var(--dsw-alias-label-secondary);
 }
 
-/* Portal surface: fixed in the viewport, left/top supplied inline from the
-   trigger rect. Portaled panels must layer above the modal plane
+/* Portal surface: fixed in the viewport, positioned by the shared anchor sheet.
+   Portaled panels must layer above the modal plane
    (--dsw-z-modal). */
 .notePanel {
   position: fixed;
@@ -64,6 +64,12 @@
   box-shadow: var(--dsw-shadow-lv3);
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+.notePanel:not([data-anchored-position]) {
+  visibility: hidden;
+  left: 0;
+  top: 0;
 }
 
 .noteInput {

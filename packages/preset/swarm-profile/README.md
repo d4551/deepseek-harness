@@ -47,6 +47,8 @@ That profile must already contain `@deepseek-ai/dsh-base`, whose Subagent servic
 
 The layer changes three base settings: `coordination: swarm` selects pull-based guidance, `maxMembers: 16` widens the roster, and `maxConcurrentRuns: 8` bounds concurrent one-shot delegations. Both `subagent` and `subagent_fork` use the base profile's one-shot execution mode.
 
+Explicit assignments to named teammates stay with those teammates. The Lead creates task records and includes their ids in the assigned prompts; members read and claim those tasks before acting. Work without a named assignment uses `team_task_claim_next`. Members complete tasks and report results to the Lead, and each prompt includes the current task board.
+
 ### Tuning the team from Settings
 
 `maxMembers` and `maxTasks` on the `agent-team` row are also a settings section, so a running deployment retunes them from the Web app's Plugins settings page (the **Agent team** card) instead of editing this layer. This layer's `maxMembers: 16` is the composition floor the card starts from, and a stored value layers over it. Everything else the layer sets is a composition decision and stays here: `coordination: swarm` selects the model-visible pull-based policy that this profile exists to install, `freshProvider`/`forkProvider` name the Subagent provider rows this layer mounts, and the mailbox budgets and disposal deadline bound what one delivery and one teardown cost.

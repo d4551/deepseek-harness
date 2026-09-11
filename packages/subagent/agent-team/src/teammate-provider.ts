@@ -4,7 +4,12 @@ import { TeamError } from './error.ts'
 import type { SpawnTeammateRequest } from './types.ts'
 import { requiredText } from './validation.ts'
 
-/** Resolve a continuation provider before reserving a durable teammate name. */
+/**
+ * Resolve a continuation provider before reserving a durable teammate name.
+ * @param ctx - Runtime containing the provider registry.
+ * @param request - Requested context mode and optional provider selection.
+ * @returns The registered provider that supports the requested continuation.
+ */
 export function teammateProvider(
   ctx: Context,
   request: Pick<SpawnTeammateRequest, 'context' | 'provider'>,
