@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
@@ -151,17 +151,7 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
     margin: 12,
   })
   const awaitingAnchor = portal && fixedPos === null
-  const restoreFocus = useRef<HTMLElement | null>(null)
-  const returnFocus = useCallback(() => {
-    const target = restoreFocus.current
-    restoreFocus.current = null
-    target?.focus()
-  }, [])
-  const close = useCallback(() => {
-    returnFocus()
-    onClose()
-  }, [onClose, returnFocus])
-  const { arm: armClose, cancel: cancelClose } = usePointerGrace(close)
+  const { arm: armClose, cancel: cancelClose } = usePointerGrace(onClose)
 
   useLayoutEffect(() => {
     if (!open || !portal) return
@@ -180,14 +170,14 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
       // The portaled list is outside the anchor subtree; check both.
       if (rootRef.current?.contains(e.target) === true) return
       if (listRef.current?.contains(e.target) === true) return
-      close()
+      onClose()
     }
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !e.defaultPrevented) {
         // Mark it handled so an outer dismissal — a list selection, a dialog —
         // does not act on the same keystroke that only closed this menu.
         e.preventDefault()
-        close()
+        onClose()
       }
     }
     document.addEventListener('pointerdown', onPointerDown)
@@ -196,18 +186,19 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
       document.removeEventListener('pointerdown', onPointerDown)
       document.removeEventListener('keydown', onKeyDown)
     }
-  }, [open, close])
+  }, [open, onClose])
 
   // Keyboard-opened lists take the focus and hand it back. The list is a
   // portal at the end of the document, so leaving the focus on the anchor would
   // put every other focusable element between the operator and these rows.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open || !autoFocus || awaitingAnchor) return
     const restore = document.activeElement
-    restoreFocus.current = restore instanceof HTMLElement ? restore : null
     menuItems(listRef.current)[0]?.focus()
-    return returnFocus
-  }, [open, autoFocus, awaitingAnchor, returnFocus])
+    return () => {
+      if (restore instanceof HTMLElement) restore.focus()
+    }
+  }, [open, autoFocus, awaitingAnchor, portalHost])
 
   // The arrows walk the rows once the focus is on one of them — the menu
   // pattern's own navigation. A list the pointer opened keeps the arrows for
@@ -227,7 +218,7 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
       // hands the focus back to whatever opened the list.
       if (e.key === 'Tab') {
         e.preventDefault()
-        close()
+        onClose()
         return
       }
       let next: number
@@ -243,7 +234,7 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
     }
     document.addEventListener('keydown', onKeyDown)
     return () => { document.removeEventListener('keydown', onKeyDown) }
-  }, [open, close])
+  }, [open, onClose])
 
   // A close from selection/Escape/outside click outruns a pending grace close;
   // left armed it would shut a list reopened inside the grace window. Its own
@@ -308,7 +299,6 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
               setOpenSubmenuId(entry.id)
               return
             }
-            returnFocus()
             onSelect(entry.id)
           }}
         >
@@ -346,7 +336,6 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
                 {...sub.disabled === true ? { 'aria-disabled': true } : {}}
                 onClick={() => {
                   if (sub.disabled === true) return
-                  returnFocus()
                   onSelect(sub.id)
                 }}
               >

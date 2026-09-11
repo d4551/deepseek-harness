@@ -129,4 +129,6 @@ kind: "package-library"
 
 原生 Safari 26.4 未实现菜单坐标与锚点标识此前使用的带类型 CSS `attr()` 表达式。较新的 Playwright WebKit 构建可能已经支持这些表达式，因此仅通过 WebKit 自动化不能证明已安装 Safari 的行为。菜单定位现使用标准[构造样式表 API](https://developer.mozilla.org/en-US/docs/Web/API/Document/adoptedStyleSheets)，不使用行内 style 属性。应同时在自动化浏览器与已安装浏览器中验证坐标、指针和键盘操作流程。
 
+菜单与锚定面板的交互测试在原生浏览器通道中运行，直接执行已采用的样式表、布局和 `ResizeObserver`。标准 GUI 与覆盖率命令均包含这些测试。菜单关闭时在布局清理阶段交还焦点；受控菜单选择条目后仍保持打开时，焦点继续留在菜单内。侧边栏检查覆盖 macOS Control-click、重复次要按钮按下、指针移动、键盘重新打开、对话框焦点和真实会话操作。
+
 </details>

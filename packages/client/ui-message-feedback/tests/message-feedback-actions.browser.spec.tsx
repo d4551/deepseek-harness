@@ -293,7 +293,8 @@ describe('MessageFeedbackActions', () => {
     const panel = ui.getByRole('dialog')
     expect(panel).not.toBe(previous)
     expect(panel.getBoundingClientRect().left).toBeGreaterThanOrEqual(12)
-    const input = ui.getByLabelText<HTMLTextAreaElement>(zh['note.aria'])
+    const input = ui.getByLabelText(zh['note.aria'])
+    if (!(input instanceof HTMLTextAreaElement)) throw new Error('Note editor is not a textarea')
     input.rows = 100
     await expect.poll(() => panel.getBoundingClientRect().bottom).toBe(window.innerHeight - 12)
     expect(panel.hasAttribute('style')).toBe(false)

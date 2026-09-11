@@ -129,4 +129,6 @@ These limits define how the atoms behave at the edges; they are current package 
 
 Native Safari 26.4 does not implement the typed CSS `attr()` expressions previously used for menu coordinates and anchor identifiers. A newer Playwright WebKit build can support those expressions, so passing WebKit automation alone does not establish installed Safari behavior. Menu positioning now uses the standard [constructed stylesheet API](https://developer.mozilla.org/en-US/docs/Web/API/Document/adoptedStyleSheets), with no inline style attributes. Validate coordinates, pointer and keyboard journeys in both automated browsers and the installed browser.
 
+Menu and anchored-panel interaction suites run in the native browser lane, where adopted stylesheets, layout and `ResizeObserver` execute directly. The canonical GUI and coverage commands include these suites. Focus returns during layout cleanup when the menu closes; selecting an item in a controlled menu that stays open retains focus within that menu. Sidebar checks cover macOS Control-click, repeated secondary presses, pointer travel, keyboard reopening, dialog focus and real session actions.
+
 </details>

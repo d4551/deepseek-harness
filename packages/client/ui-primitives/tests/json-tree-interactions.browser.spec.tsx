@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { userEvent } from 'vitest/browser'
 import type { ComponentProps } from 'react'
 import { JsonTree as LocalizedJsonTree } from '@deepseek-ai/dsh-client-ui-primitives'
 import { jsonTreeLabels } from './labels.client.ts'
@@ -252,11 +253,11 @@ describe('JsonTree', () => {
   })
 
   it('reports clipboard failure, resets feedback, and clears a prior timer', async () => {
-    vi.useFakeTimers()
     writeText.mockRejectedValue(new Error('denied'))
     const view = render(<JsonTree data={{ value: 'x' }} />)
     const row = screen.getByRole('treeitem')
-    fireEvent.mouseOver(row)
+    await userEvent.hover(row)
+    vi.useFakeTimers()
     fireEvent.click(screen.getByRole('button', { name: 'Copy value' }))
     await act(async () => { await Promise.resolve() })
     expect(screen.getByRole('button', { name: 'Copy failed' })).toBeDefined()
