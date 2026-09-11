@@ -34,7 +34,7 @@ it.each(themes)('tracks agent-owned work and messages without manual task contro
   const trigger = page.locator('[data-team-action]').getByRole('button', { name: /Agent Team/u })
   await trigger.click()
   const dialog = page.getByRole('dialog', { name: 'Agent Team', exact: true })
-  await dialog.getByText('No shared tasks yet', { exact: true }).waitFor()
+  await dialog.getByText('This team has no recorded shared tasks. Agents create and maintain tasks; creating a member does not create a task.', { exact: true }).waitFor()
   await page.screenshot({ path: `.artifacts/finish/verified-team-empty-${theme}.png` })
   expect(await dialog.getByRole('textbox').count()).toBe(0)
   expect(await dialog.getByRole('combobox').count()).toBe(0)
@@ -44,15 +44,15 @@ it.each(themes)('tracks agent-owned work and messages without manual task contro
     return { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right }
   }))
   expect(panels).toHaveLength(4)
-  expect(panels[0]?.top).toBe(panels[3]?.top)
+  expect(panels[0]?.top).toBe(panels[2]?.top)
   expect(panels[1]?.top).toBeGreaterThan(panels[0]?.bottom ?? 0)
-  expect(panels[2]?.top).toBeGreaterThan(panels[1]?.bottom ?? 0)
+  expect(panels[3]?.top).toBeGreaterThan(panels[2]?.bottom ?? 0)
   expect(panels[0]?.left).toBe(panels[1]?.left)
-  expect(panels[0]?.left).toBe(panels[2]?.left)
-  expect(panels[3]?.left).toBeGreaterThan(panels[0]?.right ?? 0)
+  expect(panels[2]?.left).toBe(panels[3]?.left)
+  expect(panels[2]?.left).toBeGreaterThan(panels[0]?.right ?? 0)
   const headings = await dialog.getByRole('heading', { level: 3 }).evaluateAll(elements =>
     elements.map(element => element.getBoundingClientRect().top))
-  expect(headings[0]).toBe(headings[3])
+  expect(headings[0]).toBe(headings[2])
 
   let call = 0
   const execute = async (agent: Agent, name: string, args: object): Promise<void> => {

@@ -88,7 +88,7 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
   it('loads the roster and contains keyboard focus', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-agent-team-panel'))
     const panel = page.getByRole('dialog', { name: 'Agent Team' })
-    await panel.getByText('No shared tasks yet').waitFor()
+    await panel.getByText('This team has no recorded shared tasks. Agents create and maintain tasks; creating a member does not create a task.', { exact: true }).waitFor()
     await panel.getByText('lead', { exact: true }).waitFor()
     const close = panel.getByRole('button', { name: 'Close', exact: true })
     const refresh = panel.getByRole('button', { name: 'Refresh Team', exact: true })
@@ -118,7 +118,7 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
     })
     await workspace.attachSession(handle.agent.id)
     const panel = page.getByRole('dialog', { name: 'Agent Team' })
-    const members = panel.getByRole('region', { name: 'Members', exact: true })
+    const members = panel.getByRole('region', { name: 'Other workspace conversations', exact: true })
     await members.getByText('Untitled conversation', { exact: true }).waitFor()
     scaffold.ctx.sessionTitle.rename(handle.agent.session, 'Review Settings accessibility')
     const title = members.getByText('Review Settings accessibility', { exact: true })
@@ -127,14 +127,18 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
       const style = getComputedStyle(element)
       return [style.fontFamily, style.fontSize, style.fontWeight, style.lineHeight]
     })
-    const row = members.getByRole('article').filter({ has: page.getByText('Review Settings accessibility', { exact: true }) })
-    const metadataTypography = await row.locator('.dsw-settings-cell-desc').evaluateAll(elements => elements.map((element) => {
+    const row = members.getByRole('row').filter({ has: page.getByText('Review Settings accessibility', { exact: true }) })
+    const tableTypography = await members.getByRole('table').evaluate((element) => {
+      const style = getComputedStyle(element)
+      return [style.fontFamily, style.fontSize, style.fontWeight, style.lineHeight]
+    })
+    const metadataTypography = await row.getByRole('cell').evaluateAll(elements => elements.map((element) => {
       const style = getComputedStyle(element)
       return [style.fontFamily, style.fontSize, style.fontWeight, style.lineHeight]
     }))
     expect(metadataTypography).toHaveLength(2)
     for (const typography of metadataTypography) {
-      expect(typography).toEqual([memberTypography[0], '12px', '400', '18px'])
+      expect(typography).toEqual(tableTypography)
     }
     for (const viewport of [{ width: 1680, height: 1000 }, { width: 390, height: 844 }]) {
       await page.setViewportSize(viewport)
@@ -142,25 +146,23 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
       const titleBox = await title.boundingBox()
       const actionBox = await row.getByRole('button').boundingBox()
       if (titleBox === null || actionBox === null) throw new Error('Member controls are not visible')
-      expect(actionBox.x).toBeGreaterThan(titleBox.x + titleBox.width)
-      expect(Math.abs(actionBox.y - titleBox.y)).toBeLessThan(actionBox.height)
+      expect(actionBox).toEqual(titleBox)
+      expect(actionBox.height).toBeGreaterThanOrEqual(24)
       expect(await panel.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
       const typography = await title.evaluate((element) => {
         const style = getComputedStyle(element)
         return [style.fontSize, style.fontWeight, style.lineHeight]
       })
-      expect(typography).toEqual(['14px', '400', '21px'])
+      expect(typography).toEqual(memberTypography.slice(1))
       await page.screenshot({ path: `.artifacts/finish/team-member-${colorScheme}-${viewport.width}.png` })
     }
     await page.setViewportSize({ width: 1680, height: 1000 })
     await panel.press('Escape')
-    await page.getByRole('button', { name: 'Settings', exact: true }).click()
-    const settings = page.getByRole('dialog', { name: 'Settings', exact: true })
-    const settingsTypography = await settings.locator('.dsw-settings-cell-title').first().evaluate((element) => {
+    const headerTypography = await page.locator('[data-team-action]').getByRole('button').evaluate((element) => {
       const style = getComputedStyle(element)
       return [style.fontFamily, style.fontSize, style.fontWeight, style.lineHeight]
     })
-    expect(memberTypography).toEqual(settingsTypography)
+    expect(memberTypography).toEqual(headerTypography)
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])
   })
@@ -361,7 +363,7 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
       task_id: current.id, expected_revision: current.revision, action: 'delete',
     })
     await edited.waitFor({ state: 'detached' })
-    await panel.getByRole('region', { name: 'Members', exact: true })
+    await panel.getByRole('region', { name: 'Other workspace conversations', exact: true })
       .getByRole('button', { name: 'Open member conversation: Untitled conversation', exact: true }).click()
     await panel.waitFor({ state: 'detached' })
     expect(tripwire.pageErrors).toEqual([])

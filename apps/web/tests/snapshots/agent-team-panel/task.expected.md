@@ -5,22 +5,26 @@
   - button "Close":
     - img
   - paragraph: Follow your team’s work, conversations, and shared tasks in one place.
-  - region "Messages between members":
-    - heading "Messages between members" [level=3]
-    - text: "0"
-    - paragraph: Follow requests, progress, and handoffs between agents. New messages appear live.
-    - paragraph: No messages between members yet
   - region "Members":
     - heading "Members" [level=3]
     - text: "1"
-    - article:
-      - text: lead Idle
-      - paragraph: "Model: deepseek-v4-flash"
+    - table "Members":
+      - rowgroup:
+        - row "Member Activity Model":
+          - columnheader "Member"
+          - columnheader "Activity"
+          - columnheader "Model"
+      - rowgroup:
+        - row "lead Idle deepseek-v4-flash":
+          - rowheader "lead"
+          - cell "Idle"
+          - cell "deepseek-v4-flash"
   - region "Subagent conversations":
     - heading "Subagent conversations" [level=3]
     - paragraph: No subagent conversations yet
   - region "Shared tasks":
     - heading "Shared tasks" [level=3]
+    - text: "1"
     - paragraph: Agents maintain tasks, ownership, and handoffs from workspace conversations. Progress appears here live.
     - article "Browser task":
       - text: Browser task
@@ -28,3 +32,8 @@
       - text: Pending task-1 Ready
       - paragraph: "Owner: Unowned"
       - paragraph: "Write scopes: src/web"
+  - region "Messages between members":
+    - heading "Messages between members" [level=3]
+    - text: "0"
+    - paragraph: Follow requests, progress, and handoffs between agents. New messages appear live.
+    - paragraph: No messages between members yet
