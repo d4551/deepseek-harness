@@ -14,6 +14,7 @@
     "apps/cli/tests/**/*.ts",
     "packages/*/*/tests/**/*.ts",
     "scripts/**/*.ts",
+    "vitest.client-browser.ts",
     "website/**/*.ts",
     "website/.vitepress/**/*.ts"
   ],
