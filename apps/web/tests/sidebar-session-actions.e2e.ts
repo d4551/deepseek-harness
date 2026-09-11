@@ -3,7 +3,7 @@ import { chromium, webkit, type Browser, type Page } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import AxeBuilder from '@axe-core/playwright'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import { launchWebScaffold, seedSession, watchConsole, type WebScaffold } from './scaffold.ts'
+import { launchWebScaffold, seedSession, type WebScaffold } from './scaffold.ts'
 
 const sourceId = SessionId('sidebar-source')
 const unavailableId = SessionId('sidebar-unavailable')
@@ -16,7 +16,8 @@ describe.each([
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page
-  let consoleState: ReturnType<typeof watchConsole>
+  const consoleErrors: string[] = []
+  const pageErrors: string[] = []
 
   beforeAll(async () => {
     scaffold = await launchWebScaffold()
@@ -26,7 +27,10 @@ describe.each([
     browser = await engine.launch()
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'en-US' })
     page = await context.newPage()
-    consoleState = watchConsole(page)
+    page.on('console', (message) => {
+      if (message.type() === 'error' || message.type() === 'warning') consoleErrors.push(message.text())
+    })
+    page.on('pageerror', error => pageErrors.push(String(error)))
     await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
     const group = page.getByRole('treeitem').first()
     await group.waitFor()
@@ -36,6 +40,8 @@ describe.each([
   afterAll(async () => {
     await browser?.close()
     await scaffold?.close()
+    expect(consoleErrors).toEqual([])
+    expect(pageErrors).toEqual([])
   })
 
   it('positions the right-click menu and commits Rename and Fork through the host', async () => {
@@ -91,7 +97,28 @@ describe.each([
     await page.screenshot({ path: `.artifacts/finish/sidebar-fork-error-${engine.name()}.png` })
     await error.getByRole('button', { name: 'Close', exact: true }).click()
     await error.waitFor({ state: 'hidden' })
-    expect(consoleState.pageErrors).toEqual([])
-    expect(consoleState.warnings).toEqual([])
+  })
+
+  it('retains the rename draft and displays the host refusal', async () => {
+    const current = await page.locator('[role="treeitem"][aria-current="true"]').getAttribute('data-row-key')
+    const row = page.locator(`[data-row-key="session:${unavailableId}"]`)
+    const title = await row.textContent()
+    await row.click({ button: 'right' })
+    await page.getByRole('menuitem', { name: 'Rename', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Rename session' })
+    const input = dialog.getByRole('textbox', { name: 'Session name' })
+    await input.fill('Retained rename draft')
+    await dialog.getByRole('button', { name: 'Rename', exact: true }).click()
+    await dialog.getByRole('alert').waitFor()
+    expect(await dialog.getByRole('alert').textContent()).toContain('removed-preset')
+    expect(await input.inputValue()).toBe('Retained rename draft')
+    expect(await row.textContent()).toBe(title)
+    expect(await page.locator('[role="treeitem"][aria-current="true"]').getAttribute('data-row-key')).toBe(current)
+    const audit = await new AxeBuilder({ page }).analyze()
+    expect(audit.violations).toEqual([])
+    expect(audit.incomplete).toEqual([])
+    await page.screenshot({ path: `.artifacts/finish/sidebar-rename-error-${engine.name()}.png` })
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await dialog.waitFor({ state: 'hidden' })
   })
 })
