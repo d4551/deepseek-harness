@@ -21,9 +21,9 @@ export function TaskCard({ task, t }: { task: TeamTaskView; t: (key: TeamKey) =>
       <Pill>{task.id}</Pill>
       {task.status === 'pending' && <Pill>{task.ready ? t('ready') : t('blocked')}</Pill>}
     </PanelActions>
-    <p>{t('owner')}: {task.ownerName ?? t('unowned')}</p>
-    {task.blockedBy.length > 0 && <p>{t('blockedBy')}: {task.blockedBy.join(', ')}</p>}
-    {task.writeScopes.length > 0 && <p>{t('writeScopes')}: {task.writeScopes.join(', ')}</p>}
+    <p className="dsw-settings-cell-desc">{t('owner')}: {task.ownerName ?? t('unowned')}</p>
+    {task.blockedBy.length > 0 && <p className="dsw-settings-cell-desc">{t('blockedBy')}: {task.blockedBy.join(', ')}</p>}
+    {task.writeScopes.length > 0 && <p className="dsw-settings-cell-desc">{t('writeScopes')}: {task.writeScopes.join(', ')}</p>}
     {task.writeScopeWarnings.map(warning => <p key={warning}>{warning}</p>)}
   </PanelEntry>
 }

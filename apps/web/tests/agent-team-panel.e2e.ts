@@ -223,11 +223,14 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
     expect(request.status).toBe('accepted')
     expect(reply.status).toBe('accepted')
     const messages = panel.getByRole('log', { name: 'Messages between members' })
+    await messages.getByRole('button', { name: 'Untitled conversation ↔ lead', exact: true }).click()
     await messages.getByText('Review complete. Keyboard navigation works.', { exact: true }).waitFor()
-    await expect.poll(() => messages.getByText('Delivered', { exact: true }).count()).toBe(2)
+    await expect.poll(() => messages.getByText('Delivered', { exact: true }).count()).toBe(1)
     expect(await messages.getByText('Queued', { exact: true }).count()).toBe(0)
-    expect(await messages.innerText()).toContain('Please review the task changes.\nCheck keyboard navigation too.')
     expect(await messages.innerText()).toContain('Untitled conversation → lead')
+    await messages.getByRole('button', { name: 'Older message', exact: true }).click()
+    expect(await messages.innerText()).toContain('Please review the task changes.\nCheck keyboard navigation too.')
+    expect(await messages.getByText('Delivered', { exact: true }).count()).toBe(1)
     await assertPageAccessibility(page)
   }, 60_000)
 
@@ -240,14 +243,14 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
     expect(tripwire.pageErrors).toEqual([])
     await assertPageAccessibility(page)
     expect(tripwire.warnings).toEqual([])
-    await page.screenshot({ path: `.artifacts/finish/team-tasks-${colorScheme}.png` })
+    await page.screenshot({ caret: 'initial', path: `.artifacts/finish/team-tasks-${colorScheme}.png` })
   })
 
   it('fits the mobile viewport and passes accessibility checks', async () => {
     const panel = page.getByRole('dialog', { name: 'Agent Team' })
     await page.setViewportSize({ width: 390, height: 844 })
     expect(await panel.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
-    await page.screenshot({ path: `.artifacts/finish/team-tasks-mobile-${colorScheme}.png` })
+    await page.screenshot({ caret: 'initial', path: `.artifacts/finish/team-tasks-mobile-${colorScheme}.png` })
     await assertPageAccessibility(page)
   })
 
@@ -262,7 +265,7 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
     expect(headingBounds.x).toBeGreaterThanOrEqual(0)
     expect(headingBounds.x + headingBounds.width).toBeLessThanOrEqual(390)
     expect(await conversations.getByRole('button', { name: 'Refresh conversations' }).count()).toBe(0)
-    await page.screenshot({ path: `.artifacts/finish/team-tasks-mobile-controls-${colorScheme}.png` })
+    await page.screenshot({ caret: 'initial', path: `.artifacts/finish/team-tasks-mobile-controls-${colorScheme}.png` })
     const teamTypography = await panel.getByRole('heading', { name: 'Agent Team', exact: true }).evaluate((element) => {
       const style = getComputedStyle(element)
       return [style.fontFamily, style.fontSize, style.fontWeight, style.lineHeight]

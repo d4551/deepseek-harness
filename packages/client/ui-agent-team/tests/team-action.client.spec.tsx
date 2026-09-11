@@ -30,7 +30,7 @@ describe('TeamAction load and refresh ordering', () => {
       mode: 'continuable', activity: 'running', label: 'Automatic review', hasChildren: false,
     }]
     activity.notify(TeamId(SESSION))
-    expect(await screen.findByRole('button', { name: 'Automatic review' })).toBeTruthy()
+    expect(await screen.findByRole('button', { name: `${zh.open}: Automatic review` })).toBeTruthy()
     expect(screen.getByText(`${zh.parent}: lead · ${zh['memberStatus.running']}`)).toBeTruthy()
     descendants = descendants.map(entry => entry.kind === 'child' ? { ...entry, activity: 'inactive' } : entry)
     activity.notify(TeamId(SESSION))

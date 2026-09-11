@@ -118,3 +118,27 @@
   flex-wrap: wrap;
   gap: var(--dsw-space-control);
 }
+
+.table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font: inherit;
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+.table th,
+.table td {
+  padding: var(--dsw-space-control);
+  border-block-end: var(--dsw-border-width) solid var(--dsw-alias-border-l2);
+  text-align: start;
+  vertical-align: top;
+}
+
+.table th {
+  font-weight: var(--dsw-weight-heading);
+}
+
+.table tbody th {
+  font-weight: inherit;
+}

@@ -181,7 +181,7 @@ it('composes the shipped swarm-web template into the swarm bounds and browser ro
       kind: 'success', text: 'Swarm request queued.',
     })
     expect(handle.agent.inbox.nextTurn).toHaveLength(1)
-    expect(handle.agent.inbox.nextTurn[0]?.content).toEqual([{ type: 'text', text: 'Review keyboard navigation' }])
+    expect(handle.agent.inbox.nextTurn[0]?.content).toEqual([{ type: 'text', text: '/swarm Review keyboard navigation' }])
     expect(handle.agent.inbox.nextTurn[0]?.source).toEqual({ kind: 'user' })
     handle.agent.inbox.clear()
     maintenance.resolve(undefined)
@@ -260,12 +260,12 @@ async function exerciseSwarmComposer(host: WebScaffold, screenshotName: string):
   await input.press('Enter')
   await page.screenshot({ path: `.artifacts/finish/${screenshotName}-command-submitted.png` })
   await expect.poll(() => agent.inbox.nextTurn.map(message => message.content)).toEqual([
-    [{ type: 'text', text: 'Review the Settings and Agent Team journeys' }],
+    [{ type: 'text', text: '/swarm Review the Settings and Agent Team journeys' }],
   ])
   await expect.poll(() => input.textContent()).toBe('')
   expect(agent.session.events.some(event => event.type === 'command/done'
     && event.data.kind === 'success' && event.data.text === 'Swarm request queued.')).toBe(true)
-  const queuedRequest = page.getByText('Review the Settings and Agent Team journeys', { exact: true })
+  const queuedRequest = page.getByText('/swarm Review the Settings and Agent Team journeys', { exact: true })
   await queuedRequest.waitFor()
   expect(await queuedRequest.isVisible()).toBe(true)
   await page.screenshot({ path: `.artifacts/finish/verified-${screenshotName}-command.png` })

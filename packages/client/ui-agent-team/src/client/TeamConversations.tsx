@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { TeamOverview, TeamView } from '@deepseek-ai/dsh-agent-team/client'
 import type { TeamActionResult } from './TeamAction.tsx'
-import { Button, StateDot, PanelSection, PanelEntry, PanelActions } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconRightUpOutline16, StateDot, PanelSection, PanelTable, PanelActions } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TeamKey } from './locales.ts'
 import { memberLabel } from './member-label.ts'
 
@@ -36,11 +36,11 @@ export function TeamConversations({ view, load, t, open, reportError }: TeamConv
     })
     return () => { controller.abort() }
   }, [load, revision, view])
-  const nameOf = (id: string, recordedName = id): string => {
+  const nameOf = (id: string): string => {
     const member = view.members.find(candidate => candidate.id === id)
     if (member !== undefined) return memberLabel(member, t)
     const entry = directory.status === 'ready' ? directory.entries.find(candidate => candidate.id === id) : undefined
-    return entry?.kind === 'child' ? entry.label ?? recordedName : recordedName
+    return entry?.kind === 'child' && entry.label !== undefined ? entry.label : t('untitledConversation')
   }
   return (
     <PanelSection title={t('conversations')} actions={directory.status === 'error' && (
@@ -49,17 +49,26 @@ export function TeamConversations({ view, load, t, open, reportError }: TeamConv
       {directory.status === 'loading' && <p role="status">{t('loadingConversations')}</p>}
       {directory.status === 'error' && <p role="alert">{directory.message}</p>}
       {directory.status === 'ready' && directory.entries.length === 0 && <p>{t('noSubagents')}</p>}
-      {directory.status === 'ready' && directory.entries.map(entry => entry.kind === 'diagnostic'
-        ? <p key={entry.id} role="alert">{entry.id}: {t('conversationUnavailable')} ({entry.reason})</p>
-        : (
-          <PanelEntry key={entry.id}>
-            <PanelActions>
-              <StateDot state={entry.activity === 'running' ? 'ongoing' : 'inactive'} />
-              <Button onClick={() => { open(entry).then(undefined, reportError) }}>{entry.label ?? nameOf(entry.id)}</Button>
-            </PanelActions>
-            <p>{t('parent')}: {nameOf(entry.parentId)} · {t(entry.activity === 'running' ? 'memberStatus.running' : 'memberStatus.inactive')}</p>
-          </PanelEntry>
-        ))}
+      {directory.status === 'ready' && directory.entries.length > 0 && <PanelTable label={t('conversations')}
+        columns={[t('conversation'), t('parent')]}>
+        {directory.entries.map(entry => entry.kind === 'diagnostic'
+          ? <tr key={entry.id}><td colSpan={2}><p role="alert">{entry.id}: {t('conversationUnavailable')} ({entry.reason})</p></td></tr>
+          : (
+            <tr key={entry.id}>
+              <th scope="row">
+                <Button aria-label={`${t('open')}: ${entry.label ?? nameOf(entry.id)}`}
+                  onClick={() => { open(entry).then(undefined, reportError) }}>
+                  <span>{entry.label ?? nameOf(entry.id)}</span><IconRightUpOutline16 />
+                </Button>
+                <PanelActions>
+                  <StateDot state={entry.activity === 'running' ? 'ongoing' : 'inactive'} />
+                  <span className="dsw-settings-cell-desc">{t(entry.activity === 'running' ? 'memberStatus.running' : 'memberStatus.inactive')}</span>
+                </PanelActions>
+              </th>
+              <td>{nameOf(entry.parentId)}</td>
+            </tr>
+          ))}
+      </PanelTable>}
     </PanelSection>
   )
 }

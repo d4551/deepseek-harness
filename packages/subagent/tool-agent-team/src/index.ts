@@ -61,7 +61,7 @@ Prefer read/edit/write for file changes. If a file operation returns FS_STALE_VE
 Use send_message for quiet information that must not start an idle teammate. Use followup_task when the target should run another turn. A delivered peer item starts with its stable message id and sender name. A successful send is already durable even when its result says queued; do not resend it. Shared-task workflow is list, get, claim with the current revision, perform the work, then complete. Task readiness never starts an owner. Before wait_agent, use list_agents and make sure another required member is running or provisioning; use followup_task first when the required member is inactive. wait_agent observes only changes after that call starts, never wakes a member, and returns noProgress immediately when no other member can produce a change. Re-list after wakeup or timeout. The Lead must wait for required teammates before giving the final answer.`
 
 /** Model-facing guidance for many members working one request off the shared board. */
-const SWARM_POLICY = `This session runs as a swarm: several teammates work one request at the same time and take their work from the shared task board instead of being told what to do.
+const SWARM_POLICY = `This session runs as a swarm: several teammates work one request at the same time and take their work from the shared task board instead of being told what to do. A /swarm request explicitly authorizes multiple teammates working concurrently; preserve that intent when planning and executing the request.
 
 The Team Lead and all teammates share the same working directory and filesystem. Edits are immediately visible to every member. Give every task the write scopes it will touch, keep those scopes disjoint between tasks that may run at once, and use blocked_by when work must be ordered. A task whose write scopes overlap a task already in progress cannot be claimed until that task completes or is released.
 
@@ -149,7 +149,7 @@ const SEND_VALUE_SCHEMA = {
   },
 } as const
 
-/** `noProgress` is present only on the model-only shortcut that skips the wait. */
+/** Wait outcome, including the reason no peer can produce activity. */
 const WAIT_VALUE_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -305,8 +305,6 @@ function install(agent: Agent, ctx: Context, config: Required<Config>): () => vo
       description: 'List the Lead, durable teammates, and live conversation leads in the same registered workspace with current runtime status and message targets.',
       parameters: {},
       output: jsonOutput(MEMBER_LIST_VALUE_SCHEMA),
-      // A roster read changes no Team state, so a swarm's members may take it
-      // beside each other's calls instead of serializing the whole step.
       isConcurrencySafe: () => true,
       async execute(_args, exec) {
         return Promise.resolve(ctx.agentTeams.listMembers(callingAgent(exec.agent, 'list_agents')))
@@ -326,8 +324,6 @@ function install(agent: Agent, ctx: Context, config: Required<Config>): () => vo
       async execute(args, exec) {
         const caller = callingAgent(exec.agent, 'wait_agent')
         const timeoutMs = args.timeout_ms ?? 30_000
-        // Preserve TeamService's authoritative timeout validation before the
-        // model-only no-progress shortcut.
         if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 10_000 || timeoutMs > 3_600_000) {
           return await ctx.agentTeams.waitForChange(caller, timeoutMs, exec.signal)
         }
@@ -402,7 +398,6 @@ function install(agent: Agent, ctx: Context, config: Required<Config>): () => vo
         limit: { type: 'integer', description: 'Number of rows, 1 through 100. Defaults to 50.' },
       },
       output: jsonOutput(TASK_LIST_VALUE_SCHEMA),
-      // Board reads change no Team state; only the mutating tools stay exclusive.
       isConcurrencySafe: () => true,
       execute(args, exec) {
         const status = args.status
@@ -428,7 +423,6 @@ function install(agent: Agent, ctx: Context, config: Required<Config>): () => vo
         task_id: { type: 'string', required: true, description: 'Shared task id.' },
       },
       output: jsonOutput(TASK_VIEW_SCHEMA),
-      // Board reads change no Team state; only the mutating tools stay exclusive.
       isConcurrencySafe: () => true,
       async execute(args, exec) {
         return Promise.resolve(ctx.agentTeams.getTask(
@@ -498,9 +492,6 @@ export function apply(ctx: Context, config: Config = {}): void {
     excludePresets: config.excludePresets ?? [],
   }
   const excludedPresets = new Set(resolved.excludePresets)
-  // The session header records the preset an Agent was composed from before
-  // `agent/created` announces it, so the exclusion reads the header rather than
-  // the preset service, which a deployment need not mount.
   const keepsPresetToolSet = (agent: Agent): boolean => {
     const preset = agent.session.header.agentPreset
     return preset !== undefined && excludedPresets.has(preset)

@@ -24,7 +24,7 @@ export function installSwarmCommand(owner: Agent): () => Promise<void> {
           return { kind: 'error', text: 'Describe the work after /swarm.' }
         }
         agent.followup(createUserMessage({
-          content: [...attachments, { type: 'text', text: request }],
+          content: [...attachments, { type: 'text', text: `/swarm ${request}` }],
           source: { kind: 'user' },
         }))
         return { kind: 'success', text: 'Swarm request queued.' }

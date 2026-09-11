@@ -49,6 +49,14 @@ export function PanelField({ label, children }: { label: string; children: React
   return <label className={css.field}><span>{label}</span>{children}</label>
 }
 
+/** A compact data table with explicit column headers and shared panel typography. */
+export function PanelTable({ label, columns, children }: { label: string; columns: readonly string[]; children: ReactNode }) {
+  return <table className={css.table} aria-label={label}>
+    <thead><tr>{columns.map(column => <th key={column} scope="col">{column}</th>)}</tr></thead>
+    <tbody>{children}</tbody>
+  </table>
+}
+
 /** Message text retaining the sender's paragraph and line boundaries. */
 export function MessageBody({ children }: { children: ReactNode }) {
   return <div className={css.message}>{children}</div>
