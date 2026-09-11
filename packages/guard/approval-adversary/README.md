@@ -23,7 +23,13 @@ Enable automatic review to have a model judge tool approvals against the human's
 <a id="use-this-package"></a>
 ## Use this package
 
-Every `dsh-base` profile mounts the reviewer after [approval screening](../approval-assessor/README.md), disabled by default. Enable it in Plugins settings under Agent Review. The form saves the review route and other fields together. While enabled, the reviewer owns the decision: only an explicit allow proceeds, and undecided requests never pass to another answerer.
+Every `dsh-base` profile mounts the reviewer after [approval screening](../approval-assessor/README.md), disabled by default. Enable it through the Web UI:
+
+1. Open **Settings → Plugins → Agent Review** and set **Reviewer** to **Decide**.
+2. Leave **Review provider** and **Review model** both empty to use the agent's latest logged route, or supply both identifiers for a separate reviewer.
+3. Set the review bounds and additional restrictions, then select **Save**. The form saves all review fields together.
+
+The selected provider receives the complete human instruction history, tool arguments, and justification. While enabled, the reviewer owns the decision: only an explicit allow proceeds, and undecided requests never pass to another answerer.
 
 ### Configuration
 

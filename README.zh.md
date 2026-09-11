@@ -6,7 +6,7 @@
 
 ## 像给五岁小孩一样解释
 
-DeepSeek Harness 是一个机器人助手的工具箱。你用大白话告诉机器人要做什么。机器人从箱子里挑工具——读文件、跑命令、搜网页——一步步完成工作，并把做过的一切展示给你。如果它想做有风险的事，会先征求你的同意。这个工具箱有一扇窗户（Web UI），你可以在里面看机器人干活并和它对话；它甚至能召唤更多机器人，一起共享一张待办清单（Agent Teams）。
+DeepSeek Harness 是一个机器人助手的工具箱。你用大白话告诉机器人要做什么。机器人从箱子里挑工具——读文件、跑命令、搜网页——一步步完成工作，并把做过的一切展示给你。当工具需要审批时，由你或可选的评审者决定能否继续。这个工具箱有一扇窗户（Web UI），你可以在里面看机器人干活并和它对话；它甚至能召唤更多机器人，一起共享一张待办清单（Agent Teams）。
 
 DeepSeek Harness（`dsh`）是由 [DeepSeek AI](https://deepseek.com) 开发的开源 agent harness（智能体框架）。
 
@@ -18,10 +18,10 @@ DeepSeek Harness（`dsh`）是由 [DeepSeek AI](https://deepseek.com) 开发的�
 
 本仓库在上游 harness 之上扩展了 npm 包里拿不到的能力与工具链：
 
-- **多智能体 swarm** —— 运行一个共享持久名册、任务看板与邮箱的智能体团队。一个 profile（`dsh --profile swarm`）即可无界面运行；`swarm-web` 把同一个团队带进 Web UI，并渲染实时 Team 行。
+- **多智能体 swarm** —— 在默认 Web 会话中使用 `/swarm <request>`，通过持久名册、任务看板与邮箱协调并发 teammate。[Team 控件](packages/client/ui-agent-team/README.zh.md)展示实时活动，并可打开 teammate 会话。
 - **展示真实状态的 Web UI** —— 在浏览器里管理 workspace 根目录、通过生成的卡片编辑每个插件的设置，并用 diff、搜索、todo、轨迹卡片跟进工作。
 - **浏览器搜索与网页阅读** —— 模型通过 Chromium 搜索 Bing 并读取 JavaScript 渲染的页面，无需搜索 API 密钥。浏览器可执行文件、user agent 与并发数均可配置。
-- **强化的审批** —— 每次工具审批都必须给出理由，试图跳过或弱化用户指令的理由会被自动拒绝。
+- **强化的审批** —— 默认筛查会拒绝缺少理由或命中规避工作短语的请求。可选的[对抗式评审者](packages/guard/approval-adversary/README.zh.md)根据完整人类指令历史评估精确工具调用，并拒绝无法决定的请求。
 - **现代化工具链** —— bun 1.4 workspace、TypeScript 7、Node 24+（CI 验证），取代上游的 npm/yarn 时代配置。
 
 ## 获取本仓库的代码
@@ -61,7 +61,11 @@ bun run dsh web
 
 最后一条命令默认会在 `http://127.0.0.1:3080` 启动 Web UI，本机启动时还会用默认浏览器打开页面。通过 SSH 启动时只打印宿主机 URL，因为本地转发地址由 SSH 客户端或编辑器持有。传入 `--no-open` 可仅运行服务器而不打开浏览器。详见 [Web UI 指南](docs/user/guide/index.zh.md)。
 
-在浏览器中使用 swarm 协作，请运行 `bun run dsh --profile swarm-web`。Team 面板实时显示成员与任务更新；点击 teammate 行可打开其会话，会话层级控件连接父会话、子会话与同级会话。支持的操作见 [Team 控件](packages/client/ui-agent-team/README.zh.md)。
+在默认 Web 会话中输入 `/`，即可预览可用命令及其说明。提交 `/swarm <request>` 可请求并发 teammate。打开 **Agent Team**，即可跟进成员活动与任务、搜索按对话分组的成员消息，并打开子会话。支持的操作见 [Team 控件](packages/client/ui-agent-team/README.zh.md)。
+
+使用 `/goal <objective>` 启动持久目标。提交 `/goal` 可查看目标，以及编辑、暂停、恢复或清除目标的命令。详见[目标命令](packages/goal/command-goal/README.zh.md)。
+
+自动审批评审默认关闭。要启用它，请打开**设置 → 插件 → 审批流程**，将**评审者**设为**由评审者决定**，然后保存。评审者通过所选模型提供方接收完整人类指令历史、精确工具参数和理由。只有明确允许才会授权操作一次；拒绝裁决、证据不完整或评审失败都会拒绝请求。详见[评审配置与限制](packages/guard/approval-adversary/README.zh.md)。
 
 需要持久协作时，请使用命名 teammate。普通 `subagent` 和 `subagent_fork` 调用只完成一次；后台调用返回可通过 `job_output` 收集或通过 `job_kill` 停止的 job。Team 消息与后续任务工具以命名 Team member 为目标。
 

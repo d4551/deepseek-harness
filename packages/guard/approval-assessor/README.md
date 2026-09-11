@@ -1,5 +1,5 @@
 ---
-description: "Mandatory approval-stage audit that rejects missing or work-avoidance justifications and redirects the model to the user's instructions."
+description: "Default approval screening that rejects missing or matching work-avoidance justifications and redirects the model to the user's instructions."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Every tool-approval request receives a mandatory audit. A missing justification or a justification that asks to skip, defer, or soften user-authorized work is rejected before an answerer can decide it. The rejection appends a short redirect that quotes the most recent human instruction. A non-evasive, non-empty justification reaches the normal approval flow only after that audit.
+Screen tool-approval requests before an answerer can decide them. Screening is enabled by default and rejects missing justifications or reasons that match rules for skipping, deferring, or softening user-authorized work. A rejection redirects the model to the most recent human instruction. A non-empty justification that passes screening continues to the configured answerer.
 
 ## Table of Contents
 
@@ -29,14 +29,16 @@ Every `dsh-base` profile mounts this plugin ahead of the product approval answer
 
 | Field | Default | Meaning |
 |---|---|---|
-| `enabled` | `true` | Reject missing and matching work-avoidance reasons; `false` delegates every request unchanged. |
+| `enabled` | `true` | Reject missing and matching work-avoidance reasons; `false` delegates active requests unchanged. |
 | `extraPhrases` | `[]` | Add up to 64 case-insensitive literal phrases of at most 256 characters each. Regular-expression syntax has no special meaning. |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-approval-assessor) is the exhaustive source for the composition fields. The Host settings section uses the same fields under the `approval-assessor` namespace and applies persisted or externally published changes to later requests.
 
 ### What you get
 
-A request with a missing or work-avoidance justification is rejected, and the model receives a plugin-attributed message quoting the user's last instruction. Only a human message qualifies as that instruction: the user-role log also carries plugin snapshots such as the runtime-context notice, and quoting one of those would point the model at plugin text. `bash`, `pwsh`, `write`, and `edit` use the same mandatory audit as every other tool.
+A request with a missing justification or a matching work-avoidance phrase is rejected, and the model receives a plugin-attributed message quoting the user's last instruction. Only a human message qualifies as that instruction. `bash`, `pwsh`, `write`, and `edit` use the same screening policy as every other tool.
+
+A request withdrawn before screening resolves `cancelled` without a redirect or downstream decision, even when screening is disabled.
 
 -----
 
@@ -47,6 +49,7 @@ The plugin listens on the `approval/request` waterfall before user-facing answer
 
 The enabled audit applies to every approval request. Missing justification and built-in or configured work-avoidance patterns reject. Matching normalizes Unicode to NFKC, removes default-ignorable code points, and folds whitespace and case for both reasons and configured phrases. A session with no human message still receives the rejection without an instruction quote.
 
+<a id="model-experience"></a>
 ## Model Experience
 
 ### Rejection redirect message
@@ -72,6 +75,8 @@ Zero tokens until a rejection. Each rejection adds one retained-history message 
 Append-only; the redirect follows the denied approval request in history and does not invalidate existing KV-cache entries.
 
 ## Known Limitations and Deferred Work
+
+<a id="known-limitations-and-deferred-work"></a>
 
 These limits define when the audit is a poor fit. They are current package constraints, not a task backlog.
 
