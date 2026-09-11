@@ -40,8 +40,7 @@ function memberStatusKey(status: TeamMemberView['status']): TeamKey {
   }
 }
 
-/** Observe agent-owned work, messages, and conversation activity. */
-export function TeamAction({ sessionId, changes, load, loadConversations, openTeammate, openSubagent, t }: TeamActionProps) {
+function useTeamObservation({ sessionId, changes, load, t }: Pick<TeamActionProps, 'sessionId' | 'changes' | 'load' | 't'>) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [view, setView] = useState<TeamOverview | null>(null)
@@ -49,7 +48,6 @@ export function TeamAction({ sessionId, changes, load, loadConversations, openTe
   const sessionRef = useRef(sessionId)
   const refreshGeneration = useRef(0)
   sessionRef.current = sessionId
-  const loadDirectory = useCallback((signal: AbortSignal) => loadConversations(sessionId, signal), [loadConversations, sessionId])
   const reportError = (reason: unknown): void => {
     if (sessionRef.current === sessionId) {
       setLoading(false)
@@ -99,7 +97,13 @@ export function TeamAction({ sessionId, changes, load, loadConversations, openTe
     )
     return () => { controller.abort(); refreshGeneration.current += 1 }
   }, [changes, open, refresh, sessionId, t])
+  return { open, setOpen, loading, view, error, refresh, reportError }
+}
 
+/** Observe agent-owned work, messages, and conversation activity. */
+export function TeamAction({ sessionId, changes, load, loadConversations, openTeammate, openSubagent, t }: TeamActionProps) {
+  const { open, setOpen, loading, view, error, refresh, reportError } = useTeamObservation({ sessionId, changes, load, t })
+  const loadDirectory = useCallback((signal: AbortSignal) => loadConversations(sessionId, signal), [loadConversations, sessionId])
   const conversationCount = view?.members.filter(member => member.role !== 'lead').length ?? 0
   const togglePanel = (event: MouseEvent<HTMLButtonElement>): void => {
     event.currentTarget.focus()

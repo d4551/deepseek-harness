@@ -57,7 +57,24 @@ describe('web e2e: /goal human transcript presentation', () => {
     for (const name of commandNames) {
       const option = page.getByRole('option').filter({ has: page.getByText(name, { exact: true }) })
       await option.waitFor()
-      expect(await option.isVisible()).toBe(true)
+      expect(await option.count()).toBe(1)
+    }
+    expect(await page.getByRole('option').count()).toBe(commandNames.length)
+    for (let index = 0; index < commandNames.length; index++) {
+      const option = page.getByRole('option').nth(index)
+      await expect.poll(() => option.getAttribute('aria-selected')).toBe('true')
+      await expect.poll(async () => {
+        const row = await option.boundingBox()
+        const viewport = await page.getByRole('listbox').boundingBox()
+        if (row === null || viewport === null) return false
+        return row.y >= viewport.y && row.y + row.height <= viewport.y + viewport.height
+      }).toBe(true)
+      for (const name of ['goal', 'swarm', 'model']) {
+        if (await option.getByText(name, { exact: true }).count() === 1) {
+          await page.screenshot({ path: `.artifacts/finish/default-commands-${name}-keyboard.png` })
+        }
+      }
+      await input.press('ArrowDown')
     }
     expect(await page.getByRole('option').count()).toBe(commandNames.length)
     await page.screenshot({ path: '.artifacts/finish/goal-command-preview.png' })

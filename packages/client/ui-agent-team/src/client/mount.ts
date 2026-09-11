@@ -99,17 +99,10 @@ export async function mountAgentTeamUi(
   ctx: ClientContext,
   contribution: TypertRemoteContribution,
 ): Promise<() => Promise<void>> {
-  const disposeRemote = await ctx.remote.$mount(contribution)
-  const ui = ctx.inject(['sessions', 'remote.agentTeams', 'slots', 'locale'], registerUi)
-  try {
+  return await ctx.effect(async function* () {
+    yield await ctx.remote.$mount(contribution)
+    const ui = ctx.inject(['sessions', 'remote.agentTeams', 'slots', 'locale'], registerUi)
+    yield () => ui.dispose()
     await ui
-  } catch (error) {
-    await ui.dispose()
-    await disposeRemote()
-    throw error
-  }
-  return async () => {
-    await ui.dispose()
-    await disposeRemote()
-  }
+  }, 'client-ui-agent-team: remote and UI')
 }
