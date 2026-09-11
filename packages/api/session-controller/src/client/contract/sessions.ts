@@ -91,10 +91,9 @@ export interface ISessions {
    *   cut (the boundary is the first turn/end at or after it; an in-log
    *   anchor in an open turn is unavailable rather than clipped backward),
    *   and whether to increment an inherited durable title before resolving.
-   * @returns the child session id.
-   * @throws when the fork fails, or when a requested child-title rename fails after creation.
+   * @returns the child session id or the structured operation failure.
    */
-  fork(opts: { sessionId: SessionId; atSeq?: number; increaseTitle?: boolean }): Promise<SessionId>
+  fork(opts: { sessionId: SessionId; atSeq?: number; increaseTitle?: boolean }): Promise<ClientResult<SessionId>>
   /**
    * Resolve an Agent-scoped context view (use-and-discard).
    * @param id - session id.

@@ -26,7 +26,7 @@ async function bench() {
   }))
   const renameSession = vi.fn(async (title: string) => ({ ok: true, value: { title, seq: 1 } }))
   const binding = vi.fn(() => ({ session: { rename: renameSession } }))
-  const fork = vi.fn(async () => 'forked' as never)
+  const fork = vi.fn(async () => ({ ok: true, value: 'forked' }))
   const subscribe = () => () => {}
   ctx.provide('workspaces', {
     list: {
@@ -134,7 +134,7 @@ describe('ui-workspace apply', () => {
     await browser.renameSession('session' as never, 'renamed session')
     expect(b.binding).toHaveBeenCalledWith('session')
     expect(b.renameSession).toHaveBeenCalledWith('renamed session')
-    browser.forkSession('session' as never)
+    await browser.forkSession('session' as never)
     await vi.waitFor(() => {
       expect(b.open).toHaveBeenCalledWith('forked')
     })

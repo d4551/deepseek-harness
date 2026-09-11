@@ -885,7 +885,7 @@ describe('TrajectoryTable', () => {
     expect(screen.getByText('API key is invalid')).toBeTruthy()
   })
 
-  it('shows the custom role tooltip only from the responsive icon', () => {
+  it('shows the role tooltip from its responsive icon and keeps it reachable by pointer', async () => {
     const view = render(<TrajectoryTable turns={TURNS} {...FOLD_PROPS} />)
     const toolTag = view.container.querySelector<HTMLElement>('[data-role-kind="tool"]')
     const toolIcon = toolTag?.querySelector<HTMLElement>('[data-role-icon="wrench"]')
@@ -901,7 +901,10 @@ describe('TrajectoryTable', () => {
     expect(tooltip.textContent).toBe('TOOL')
     expect(tooltip.getAttribute('data-side')).toBe('right')
     fireEvent.mouseLeave(toolIcon as HTMLElement)
-    expect(screen.queryByRole('tooltip')).toBeNull()
+    fireEvent.mouseEnter(tooltip)
+    expect(screen.getByRole('tooltip')).toBe(tooltip)
+    fireEvent.mouseLeave(tooltip)
+    await waitFor(() => { expect(screen.queryByRole('tooltip')).toBeNull() })
   })
 
   it('uses information and compression glyphs for injected and compacted context', () => {

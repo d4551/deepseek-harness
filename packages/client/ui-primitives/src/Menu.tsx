@@ -84,7 +84,7 @@ function menuItems(list: HTMLElement | null): HTMLButtonElement[] {
  * @param props.onClose - invoked on outside click or Escape.
  * @param props.align - list alignment against the anchor (default 'start').
  * @param props.side - open below (`bottom`, default) or above (`top`) the anchor.
- * @param props.portal - render a fixed list inside its owning dialog or the document body.
+ * @param props.portal - render a fixed list inside its owning dialog or page landmark.
  * CSS anchors track the trigger through scrolling and resizing. A supplied
  * getAnchorRect positions a list whose trigger is owned by another component.
  * @param props.closeOnPointerLeave - close the list once the pointer has left
@@ -138,11 +138,14 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
   const [openSubmenuId, setOpenSubmenuId] = useState<string | null>(null)
   const [fixedPos, setFixedPos] = useState<{ left: number; top: number } | null>(null)
   const [portalHost, setPortalHost] = useState<HTMLElement>(() => document.body)
+  const awaitingAnchor = portal && getAnchorRect !== undefined && fixedPos === null
   const { arm: armClose, cancel: cancelClose } = usePointerGrace(onClose)
 
   useLayoutEffect(() => {
     if (!open || !portal) { setFixedPos(null); return }
-    setPortalHost(rootRef.current?.closest<HTMLElement>('[role="dialog"]') ?? document.body)
+    setPortalHost(rootRef.current?.closest<HTMLElement>(
+      'dialog, [role="dialog"], main, [role="main"], nav, [role="navigation"], aside, [role="complementary"], [role="region"]',
+    ) ?? document.body)
     if (getAnchorRect === undefined) return
     const place = () => {
       const r = getAnchorRect()
@@ -216,14 +219,14 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
   // portal at the end of the document, so leaving the focus on the anchor would
   // put every other focusable element between the operator and these rows.
   useEffect(() => {
-    if (!open || !autoFocus) return
+    if (!open || !autoFocus || awaitingAnchor) return
     const restore = document.activeElement
     menuItems(listRef.current)[0]?.focus()
     return () => {
       if (!(restore instanceof HTMLElement)) return
       restore.focus()
     }
-  }, [open, autoFocus])
+  }, [open, autoFocus, awaitingAnchor])
 
   // The arrows walk the rows once the focus is on one of them — the menu
   // pattern's own navigation. A list the pointer opened keeps the arrows for
@@ -385,6 +388,8 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
       data-side={side}
       data-align={align}
       role="menu"
+      aria-hidden={awaitingAnchor || undefined}
+      inert={awaitingAnchor}
       {...ariaLabel === undefined ? {} : { 'aria-label': ariaLabel }}
       // React portals bubble synthetic events through the REACT tree: without
       // this stop, an item click re-fires the anchor row's own onClick

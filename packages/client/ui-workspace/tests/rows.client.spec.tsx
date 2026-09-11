@@ -646,8 +646,8 @@ describe('workspace row context menus', () => {
     // Right-click opens the same list the ... button does, without toggling the group.
     expect(onToggle).not.toHaveBeenCalled()
     const list = screen.getByRole('menu')
-    expect(list.style.left).toBe('120px')
-    expect(list.style.top).toBe('244px')
+    expect(list.dataset['menuLeft']).toBe('120')
+    expect(list.dataset['menuTop']).toBe('244')
     fireEvent.click(screen.getByRole('menuitem', { name: '重命名' }))
     expect(onRename).toHaveBeenCalledOnce()
 
@@ -670,13 +670,16 @@ describe('workspace row context menus', () => {
       onRename={vi.fn()} onFork={vi.fn()} onArchive={onArchive} t={t} />)
     fireEvent.contextMenu(screen.getByText('One'), { button: 2, clientX: 40, clientY: 60 })
     const list = screen.getByRole('menu')
-    expect(list.style.left).toBe('40px')
+    expect(list.dataset['menuLeft']).toBe('40')
     fireEvent.click(screen.getByRole('menuitem', { name: '归档会话' }))
     expect(onArchive).toHaveBeenCalledWith(sid('one'))
 
     // Reopening from the ... button drops the pointer anchor for the wrapper rect.
-    fireEvent.click(screen.getByRole('button', { name: '会话“One”的操作' }), { detail: 1 })
-    expect(screen.getByRole('menu').style.left).toBe('0px')
+    const trigger = screen.getByRole('button', { name: '会话“One”的操作' })
+    fireEvent.click(trigger, { detail: 1 })
+    const anchoredMenu = screen.getByRole('menu')
+    expect(anchoredMenu.dataset['menuLeft']).toBeUndefined()
+    expect(anchoredMenu.dataset['menuAnchor']).toBe(trigger.closest('[data-menu-anchor]')?.getAttribute('data-menu-anchor'))
 
     view.rerender(<SessionNodeItem seat={seatOf()} node={{ ...node, blank: true }} currentId={undefined} now={0}
       onOpen={vi.fn()} onRename={vi.fn()} onFork={vi.fn()} onArchive={onArchive} t={t} />)
@@ -703,7 +706,7 @@ describe('workspace row context menus', () => {
     const row = screen.getByRole('treeitem')
     row.focus()
     fireEvent.contextMenu(row, { button: 0, ctrlKey: true, clientX: 40, clientY: 60 })
-    expect(screen.getByRole('menu').style.left).toBe('40px')
+    expect(screen.getByRole('menu').dataset['menuLeft']).toBe('40')
     expect(document.activeElement).toBe(row)
 
     fireEvent.click(row, { ctrlKey: true })
@@ -1130,8 +1133,8 @@ describe('workspace rows keyboard', () => {
     // with no pointer button behind it.
     fireEvent.contextMenu(row)
     const list = screen.getByRole('menu')
-    expect(list.style.left).toBe('0px')
-    expect(list.style.top).toBe('4px')
+    expect(list.dataset['menuLeft']).toBe('0')
+    expect(list.dataset['menuTop']).toBe('4')
     expect(document.activeElement).toBe(screen.getAllByRole('menuitem')[0])
 
     // The arrows walk the list once the focus is inside it.
@@ -1161,7 +1164,7 @@ describe('workspace rows keyboard', () => {
     const row = sessionRow(spiedSeat(), account())
     expect(document.activeElement).not.toBe(row)
     fireEvent.contextMenu(row)
-    expect(screen.getByRole('menu').style.top).toBe('4px')
+    expect(screen.getByRole('menu').dataset['menuTop']).toBe('4')
     expect(document.activeElement).toBe(document.body)
   })
 
@@ -1169,7 +1172,7 @@ describe('workspace rows keyboard', () => {
     const row = sessionRow(spiedSeat(), account())
     row.focus()
     fireEvent.contextMenu(row, { button: 2, clientX: 40, clientY: 60 })
-    expect(screen.getByRole('menu').style.left).toBe('40px')
+    expect(screen.getByRole('menu').dataset['menuLeft']).toBe('40')
     expect(document.activeElement).toBe(row)
   })
 

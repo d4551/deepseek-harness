@@ -124,7 +124,7 @@ export function apply(ctx: Context): void {
             })
             if (!result.ok) throw new Error(`path open failed: ${result.error.message}`)
           },
-          loadOlder: () => { void session.loadOlder() },
+          loadOlder: () => session.loadOlder(),
           loadImage: Object.assign(
             (attachment: ImageAttachmentRef) => ctx.uiConversation.imageUrl(sessionId, attachment),
             { peek: (attachment: ImageAttachmentRef) => ctx.uiConversation.peekImageUrl(sessionId, attachment) },
@@ -136,12 +136,10 @@ export function apply(ctx: Context): void {
             },
             read: () => chatScrollPositions.get(sessionId) ?? null,
           },
-          forkAt: (seq) => {
-            ctx.sessions.fork({ sessionId, atSeq: seq, increaseTitle: true })
-              .then((childId) => { ctx.sessions.open(childId) })
-              .catch(() => {
-                // Fork or child-title failure leaves the source view unchanged.
-              })
+          forkAt: async (seq) => {
+            const result = await ctx.sessions.fork({ sessionId, atSeq: seq, increaseTitle: true })
+            if (result.ok) ctx.sessions.open(result.value)
+            return result
           },
         }
       },

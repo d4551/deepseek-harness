@@ -9,7 +9,7 @@
  * menu in between; the flow and its error dialog live in WorkspacePicker
  * (same package — direct composition, no slot between them).
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import clsx from 'clsx'
 import {
   Button, GlyphButton, IconCloseFill14, IconPersonalizationOutline16,
@@ -31,6 +31,7 @@ import { overflowRowKey, sessionRowKey, UNGROUPED_ROW_KEY, useRowSelection, work
 import type { RowKey, RowSelection } from '../selection.ts'
 import { FLAT_SESSION_ORDER_KEY } from '../stores.ts'
 import { WorkspacePickFlow } from '../WorkspacePicker.tsx'
+import { SessionRenameDialog, type SessionRenameTarget } from './SessionRenameDialog.tsx'
 import css from './WorkspaceBrowser.module.css'
 
 /**
@@ -402,9 +403,10 @@ function workspaceGroupHalf(e: { clientY: number; currentTarget: HTMLElement }):
 
 type SessionTreeProps = Pick<
   WorkspaceBrowserProps,
-  'useSessions' | 'useSessionPendingInteraction' | 'startSession' | 'open' | 'forkSession'
+  'useSessions' | 'useSessionPendingInteraction' | 'startSession' | 'open'
   | 'insertWorkspaceBefore' | 'insertSessionBefore' | 't'
 > & {
+  forkSession: SessionRowWiring['onFork']
   /** Host account home for POSIX hover-path abbreviation. */
   home?: string | undefined
   workspaces: readonly WorkspaceView[]
@@ -1299,37 +1301,17 @@ export function WorkspaceBrowser({
     })
   }
 
-  // Session rename dialog (same browser-owned pattern as workspace rename;
-  // sessions have no client-side name-conflict rule — the host normalizes).
-  // Unlike workspace rename, an unchanged title is NOT blocked: confirming
-  // the current automatic title is the gesture that pins it.
-  const [sessionRenameTarget, setSessionRenameTarget] = useState<{ sessionId: SessionNode['id']; currentTitle: string } | null>(null)
-  const [sessionRenameDraft, setSessionRenameDraft] = useState('')
-  const [sessionRenaming, setSessionRenaming] = useState(false)
-  const [sessionRenameError, setSessionRenameError] = useState<string | null>(null)
-  const sessionRenameTrimmed = sessionRenameDraft.trim()
-  const sessionRenameBlocked = sessionRenaming || sessionRenameTrimmed === '' || sessionRenameTarget === null
-  const closeSessionRename = () => {
-    if (sessionRenaming) return
-    setSessionRenameTarget(null)
-    setSessionRenameError(null)
-  }
-  const confirmSessionRename = () => {
-    if (sessionRenameBlocked) return
-    setSessionRenaming(true)
-    setSessionRenameError(null)
-    renameSession(sessionRenameTarget.sessionId, sessionRenameTrimmed).then(() => {
-      setSessionRenaming(false)
-      setSessionRenameTarget(null)
-    }).catch((reason: unknown) => {
-      setSessionRenaming(false)
-      setSessionRenameError(reason instanceof Error ? reason.message : String(reason))
-    })
-  }
+  const [sessionRenameTarget, setSessionRenameTarget] = useState<SessionRenameTarget | null>(null)
   const onSessionRename = (sessionId: SessionNode['id'], currentTitle: string) => {
     setSessionRenameTarget({ sessionId, currentTitle })
-    setSessionRenameDraft(currentTitle)
-    setSessionRenameError(null)
+  }
+  const [forkError, setForkError] = useState<string | null>(null)
+  const [, startFork] = useTransition()
+  const onSessionFork: SessionRowWiring['onFork'] = (sessionId) => {
+    startFork(async () => {
+      const result = await forkSession(sessionId)
+      if (!result.ok) setForkError(result.error.message)
+    })
   }
 
   // Archive is dialog-free: not destructive (the log and the accounting slot
@@ -1531,7 +1513,7 @@ export function WorkspaceBrowser({
             ? (
               <FlatList
                 useSessions={useSessions} useSessionPendingInteraction={useSessionPendingInteraction}
-                open={open} forkSession={forkSession}
+                open={open} forkSession={onSessionFork}
                 onSessionRename={onSessionRename} onSessionsArchive={onSessionsArchive}
                 archivedSessionIds={archivedSessionIds}
                 orderBy={orderBy}
@@ -1548,7 +1530,7 @@ export function WorkspaceBrowser({
                 useSessionPendingInteraction={useSessionPendingInteraction}
                 onSessionRename={onSessionRename}
                 onSessionsArchive={onSessionsArchive}
-                forkSession={forkSession}
+                forkSession={onSessionFork}
                 workspaces={workspaces}
                 groupExpansion={groupExpansion}
                 setGroupExpanded={actions.setGroupExpanded}
@@ -1612,36 +1594,22 @@ export function WorkspaceBrowser({
         {renameError !== null && <div className={css.renameError} role="alert">{renameError}</div>}
       </Modal>
 
-      <Modal
-        open={sessionRenameTarget !== null}
-        onClose={closeSessionRename}
-        closeLabel={t('close')}
-        title={t('rename.session.title')}
-        footer={(
-          <>
-            <Button variant="outline" disabled={sessionRenaming} onClick={closeSessionRename}>{t('cancel')}</Button>
-            <Button variant="primary" disabled={sessionRenameBlocked} onClick={confirmSessionRename}>{t('rename')}</Button>
-          </>
-        )}
-      >
-        <input
-          className={css.renameInput}
-          value={sessionRenameDraft}
-          aria-label={t('field.sessionName')}
-          autoFocus
-          disabled={sessionRenaming}
-          onFocus={(e) => { e.target.select() }}
-          onChange={(e) => { setSessionRenameDraft(e.target.value); setSessionRenameError(null) }}
-          onCompositionStart={() => { composingRef.current = true }}
-          onCompositionEnd={() => { composingRef.current = false }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !composingRef.current) {
-              e.preventDefault()
-              confirmSessionRename()
-            }
-          }}
+      {sessionRenameTarget !== null && (
+        <SessionRenameDialog
+          key={sessionRenameTarget.sessionId}
+          target={sessionRenameTarget}
+          onClose={() => { setSessionRenameTarget(null) }}
+          renameSession={renameSession}
+          t={t}
         />
-        {sessionRenameError !== null && <div className={css.renameError} role="alert">{sessionRenameError}</div>}
+      )}
+      <Modal
+        open={forkError !== null}
+        onClose={() => { setForkError(null) }}
+        closeLabel={t('close')}
+        title={t('fork.error')}
+      >
+        <div role="alert">{forkError}</div>
       </Modal>
       <Modal
         open={deleteTarget !== null}

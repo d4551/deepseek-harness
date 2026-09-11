@@ -55,6 +55,8 @@ The plugin needs a `default` preset id and scans `roots` for presets:
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-agent-presets) is the exhaustive source for every accepted field and its JSDoc.
 
+Each root contains directories named by preset id. To register `meowbao`, provide `<root>/meowbao/agent.cordis.yml`; pointing the root at an installation directory registers its immediate children instead. A linked preset directory retains the link name as its id and resolves composition-relative imports from its physical target. Existing sessions require their recorded preset id to remain registered when they resume or fork.
+
 The shipped root is prepended before every configured root, so the built-in set remains available and wins duplicate ids even when a patch replaces the roster configuration. `includeShippedRoot: false` drops that built-in set for deployments that supply all presets themselves. `includeUserRoot: false` drops the derived writable root; tests that pin an exact roster disable both derived roots.
 
 ### Choosing the default preset

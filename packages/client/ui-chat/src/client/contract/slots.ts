@@ -1,5 +1,6 @@
 /** Chat-owned Slot declarations and composed component props. */
 import type { MessageId } from '@deepseek-ai/dsh-llm/brand'
+import type { ISession, ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
 import type {
   ConversationTurnDataMap, MessageImageLoader, MessageImagesOwnerProps, RenderMessageImages, TurnLocation,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -120,13 +121,13 @@ export interface ChatViewInjected {
   }
   openDetails: (target: SelectionTarget) => void
   openFile: (path: string) => Promise<void>
-  loadOlder: () => void
+  loadOlder: ISession['loadOlder']
   loadImage: MessageImageLoader
   chatScroll: {
     save: (position: ChatScrollPosition | null) => void
     read: () => ChatScrollPosition | null
   }
-  forkAt: (seq: number) => void
+  forkAt: (seq: number) => ReturnType<ISessions['fork']>
   fileMentions: (owner: TurnTailOwnerProps) => MarkdownFileMentions | undefined
 }
 

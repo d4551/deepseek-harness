@@ -265,7 +265,7 @@ describe('Agent scope disposal lifecycle', () => {
           let opened = false
           return {
             [Symbol.asyncIterator]: () => ({
-              next: () => {
+              next: async (): Promise<IteratorResult<SessionFollowFrame>> => {
                 if (!opened) {
                   opened = true
                   return Promise.resolve({
@@ -286,16 +286,16 @@ describe('Agent scope disposal lifecycle', () => {
                     } as const,
                   })
                 }
-                return new Promise((_resolve, reject) => {
+                await new Promise<void>((resolve) => {
                   signal.addEventListener('abort', () => {
                     abortObserved()
-                    void closeGate.promise.then(() => {
-                      reject(signal.reason instanceof Error
-                        ? signal.reason
-                        : new Error(String(signal.reason)))
-                    })
+                    resolve()
                   }, { once: true })
                 })
+                await closeGate.promise
+                throw signal.reason instanceof Error
+                  ? signal.reason
+                  : new Error(String(signal.reason))
               },
             }),
           }
@@ -340,7 +340,7 @@ describe('Agent scope disposal lifecycle', () => {
           let opened = false
           return {
             [Symbol.asyncIterator]: () => ({
-              next: () => {
+              next: async (): Promise<IteratorResult<SessionFollowFrame>> => {
                 if (!opened) {
                   opened = true
                   return Promise.resolve({
@@ -355,16 +355,16 @@ describe('Agent scope disposal lifecycle', () => {
                     } as const,
                   })
                 }
-                return new Promise<IteratorResult<SessionFollowFrame>>((_resolve, reject) => {
+                await new Promise<void>((resolve) => {
                   signal.addEventListener('abort', () => {
                     aborted.add(sessionId)
-                    void closeGate.promise.then(() => {
-                      reject(signal.reason instanceof Error
-                        ? signal.reason
-                        : new Error(String(signal.reason)))
-                    })
+                    resolve()
                   }, { once: true })
                 })
+                await closeGate.promise
+                throw signal.reason instanceof Error
+                  ? signal.reason
+                  : new Error(String(signal.reason))
               },
             }),
           }
@@ -686,7 +686,7 @@ describe('fork', () => {
 
     await expect(b.svc.fork({
       sessionId: sid('source'), atSeq: 7, increaseTitle: true,
-    })).resolves.toBe('child')
+    })).resolves.toEqual({ ok: true, value: 'child' })
 
     expect(b.api.callsOf('session.fork')).toEqual([{ sessionId: 'source', atSeq: 7 }])
     expect(b.api.callsOf('session.rename')).toEqual([{ sessionId: 'child', title: childTitle }])
@@ -704,7 +704,8 @@ describe('fork', () => {
     b.api.onFork = () => Promise.resolve(ok({ sessionId: sid('child') }))
 
     // The frozen node of an interrupted turn carries turnEnd.seq - 0.9.
-    await expect(b.svc.fork({ sessionId: sid('source'), atSeq: 41.1 })).resolves.toBe('child')
+    await expect(b.svc.fork({ sessionId: sid('source'), atSeq: 41.1 }))
+      .resolves.toEqual({ ok: true, value: 'child' })
 
     expect(b.api.callsOf('session.fork')).toEqual([{ sessionId: 'source', atSeq: 41 }])
   })
@@ -713,15 +714,17 @@ describe('fork', () => {
     const b = bench()
     await feedList(b, [{ id: 'source', cwd: '/work' }])
     b.api.onFork = () => Promise.resolve(ok({ sessionId: sid('child') }))
-    await expect(b.svc.fork({ sessionId: sid('source'), increaseTitle: true })).resolves.toBe('child')
+    await expect(b.svc.fork({ sessionId: sid('source'), increaseTitle: true }))
+      .resolves.toEqual({ ok: true, value: 'child' })
     expect(b.api.callsOf('session.rename')).toEqual([])
 
     b.api.onFork = () => Promise.resolve(ok({ sessionId: sid('child-2') }))
-    await expect(b.svc.fork({ sessionId: sid('source') })).resolves.toBe('child-2')
+    await expect(b.svc.fork({ sessionId: sid('source') }))
+      .resolves.toEqual({ ok: true, value: 'child-2' })
     expect(b.api.callsOf('session.rename')).toEqual([])
   })
 
-  it('rejects when child rename fails while keeping the published child addressable', async () => {
+  it('returns the child rename failure while keeping the published child addressable', async () => {
     const b = bench()
     b.svc.handleControlFrame({
       type: 'projection', sessionId: sid('source'), key: 'title', value: 'Roadmap', seq: 2,
@@ -733,7 +736,10 @@ describe('fork', () => {
     } as never))
 
     await expect(b.svc.fork({ sessionId: sid('source'), increaseTitle: true }))
-      .rejects.toThrow('fork child rename failed: title-invalid: rejected')
+      .resolves.toEqual({
+        ok: false,
+        error: { code: 'title-invalid', message: 'rejected', details: { sessionId: 'child' } },
+      })
     expect(b.svc.binding(sid('child'))).toBeDefined()
   })
 })

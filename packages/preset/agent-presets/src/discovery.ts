@@ -22,7 +22,7 @@
  */
 
 import { existsSync } from 'node:fs'
-import { readdir, readFile, stat } from 'node:fs/promises'
+import { readdir, readFile, realpath, stat } from 'node:fs/promises'
 import { isBuiltin } from 'node:module'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -314,7 +314,8 @@ export async function scanRoot(root: PresetRoot, harnessBase: string): Promise<A
     const directory = join(dir, child.name)
     const directoryStat = await stat(directory).catch(() => undefined)
     if (directoryStat === undefined || !directoryStat.isDirectory()) continue
-    const path = join(directory, COMPOSITION_FILE)
+    const compositionDirectory = child.isSymbolicLink() ? await realpath(directory) : directory
+    const path = join(compositionDirectory, COMPOSITION_FILE)
     const broken = await isFile(path)
       ? await compositionProblem(path, harnessBase)
       : `the composition file ${COMPOSITION_FILE} is missing — the directory still occupies the id; delete it or restore the file`

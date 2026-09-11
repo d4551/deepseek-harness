@@ -1,7 +1,7 @@
 // An enclosing `[data-conversation-scroll]` owns scrolling when present;
 // otherwise this view owns it. Each row subscribes to one stable node key.
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from 'react'
 import type {
   ConversationTimelineSnapshot, RenderMessageImages,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -227,6 +227,16 @@ export function ChatView({
   }, [openView])
   const [fileOpenError, setFileOpenError] = useState<{ path: string; message: string } | null>(null)
   const [fileOpenBusy, setFileOpenBusy] = useState(false)
+  const [forkError, setForkError] = useState<string | null>(null)
+  const [, startFork] = useTransition()
+  const [, startFileOpen] = useTransition()
+  const [, startLoadOlder] = useTransition()
+  const requestFork = useCallback((seq: number) => {
+    startFork(async () => {
+      const result = await forkAt(seq)
+      if (!result.ok) setForkError(result.error.message)
+    })
+  }, [forkAt, startFork])
   // Close/retry must ignore a settlement that started before the latest
   // gesture; otherwise a cancelled in-flight refusal reopens the dialog.
   const fileOpenRequest = useRef(0)
@@ -234,25 +244,23 @@ export function ChatView({
   const requestOpenFile = useCallback((path: string) => {
     const id = ++fileOpenRequest.current
     setFileOpenBusy(true)
-    void openFile(path).then(
-      () => {
-        if (id !== fileOpenRequest.current) return
+    startFileOpen(async () => {
+      const [result] = await Promise.allSettled([openFile(path)])
+      if (id !== fileOpenRequest.current) return
+      if (result.status === 'fulfilled') {
         setFileOpenError(null)
-        setFileOpenBusy(false)
-      },
-      (error: unknown) => {
-        if (id !== fileOpenRequest.current) return
+      } else {
         setFileOpenError({
           path,
           message: openFailureMessage(
-            error,
+            result.reason,
             t(isFolderOpenPath(path) ? 'fileOpen.folderUnknown' : 'fileOpen.unknown'),
           ),
         })
-        setFileOpenBusy(false)
-      },
-    )
-  }, [openFile, t])
+      }
+      setFileOpenBusy(false)
+    })
+  }, [openFile, startFileOpen, t])
 
   const closeFileOpenError = useCallback(() => {
     fileOpenRequest.current += 1
@@ -542,7 +550,7 @@ export function ChatView({
         }
       }
     }
-    loadOlder()
+    startLoadOlder(loadOlder)
   }
 
   // Identity feeds the memoized rail; a fresh closure per render would defeat it.
@@ -605,7 +613,7 @@ export function ChatView({
               cwd={cwd}
               openFile={requestOpenFile}
               inspectCall={inspectCall}
-              forkAt={forkAt}
+              forkAt={requestFork}
               renderMessageImages={renderMessageImages}
               fileMentions={fileMentions}
               renderSlot={renderSlot}
@@ -652,6 +660,14 @@ export function ChatView({
           </div>
         )}
       </div>
+      <Modal
+        open={forkError !== null}
+        onClose={() => { setForkError(null) }}
+        closeLabel={t('close')}
+        title={t('message.branchError')}
+      >
+        <div role="alert">{forkError}</div>
+      </Modal>
       {fileOpenError !== null && (
         <FileOpenErrorDialog
           path={fileOpenError.path}

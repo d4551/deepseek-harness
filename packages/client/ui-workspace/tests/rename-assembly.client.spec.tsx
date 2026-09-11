@@ -133,8 +133,6 @@ describe('session rename through the assembled browser', () => {
     fireEvent.change(input, { target: { value: '新名' } })
     fireEvent.click(view.getByRole('button', { name: '重命名' }))
 
-    // Failure: the injected hop rethrows the business error; the dialog
-    // stays open with the alert and the row keeps its title.
     const alert = await view.findByRole('alert')
     expect(alert.textContent).toContain('title write failed')
     expect(view.getByLabelText('会话名称')).toBeTruthy()

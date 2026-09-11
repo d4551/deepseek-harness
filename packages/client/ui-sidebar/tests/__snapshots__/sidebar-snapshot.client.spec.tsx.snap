@@ -2,8 +2,8 @@
 
 exports[`sidebar shell snapshots > renders the collapsed rail after the crossfade settles, in place 1`] = `
 <div
+  class="anchor"
   data-slot="sidebar"
-  style="display: contents;"
 >
   <div
     class="root collapsed railIn quietBars"
@@ -15,6 +15,7 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
       <button
         aria-label="Open sidebar"
         class="root sidebar iconButton toggle"
+        data-tooltip-trigger="--tooltip-_r_4_"
         type="button"
       >
         <span
@@ -22,8 +23,8 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
           class="railMark"
         >
           <div
+            class="anchor"
             data-slot="sidebar.brand.mark"
-            style="display: contents;"
           >
             <svg
               aria-hidden="true"
@@ -49,6 +50,7 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
     <button
       aria-label="New session"
       class="newSession"
+      data-tooltip-trigger="--tooltip-_r_5_"
       type="button"
     >
       <svg
@@ -64,8 +66,8 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
       class="regionArea"
     >
       <div
+        class="anchor"
         data-slot="sidebar.workspaces"
-        style="display: contents;"
       />
     </div>
     <div
@@ -75,16 +77,16 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
         class="footerActions"
       >
         <div
+          class="anchor"
           data-slot="sidebar.footer.action"
-          style="display: contents;"
         />
       </div>
       <div
         class="settingsArea"
       >
         <div
+          class="anchor"
           data-slot="sidebar.settings"
-          style="display: contents;"
         />
       </div>
     </div>
@@ -94,8 +96,8 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
 
 exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsule, empty holes) 1`] = `
 <div
+  class="anchor"
   data-slot="sidebar"
-  style="display: contents;"
 >
   <div
     class="root quietBars"
@@ -117,8 +119,8 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
             class="brandMark"
           >
             <div
+              class="anchor"
               data-slot="sidebar.brand.mark"
-              style="display: contents;"
             >
               <svg
                 aria-hidden="true"
@@ -134,8 +136,8 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
             class="brandName"
           >
             <div
+              class="anchor"
               data-slot="sidebar.brand.name"
-              style="display: contents;"
             >
               <span
                 class="localBuildBrand"
@@ -158,6 +160,7 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
       <button
         aria-label="Collapse sidebar"
         class="root sidebar iconButton toggle"
+        data-tooltip-trigger="--tooltip-_r_2_"
         type="button"
       >
         <svg
@@ -174,6 +177,7 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
     <button
       aria-label="New session"
       class="newSession"
+      data-tooltip-trigger="--tooltip-_r_3_"
       type="button"
     >
       <svg
@@ -194,8 +198,8 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
       class="regionArea"
     >
       <div
+        class="anchor"
         data-slot="sidebar.workspaces"
-        style="display: contents;"
       />
     </div>
     <div
@@ -205,16 +209,16 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
         class="footerActions"
       >
         <div
+          class="anchor"
           data-slot="sidebar.footer.action"
-          style="display: contents;"
         />
       </div>
       <div
         class="settingsArea"
       >
         <div
+          class="anchor"
           data-slot="sidebar.settings"
-          style="display: contents;"
         />
       </div>
     </div>
@@ -224,8 +228,8 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
 
 exports[`sidebar shell snapshots > renders the expanded column in the default locale (zh, no setLocale) 1`] = `
 <div
+  class="anchor"
   data-slot="sidebar"
-  style="display: contents;"
 >
   <div
     class="root quietBars"
@@ -247,8 +251,8 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
             class="brandMark"
           >
             <div
+              class="anchor"
               data-slot="sidebar.brand.mark"
-              style="display: contents;"
             >
               <svg
                 aria-hidden="true"
@@ -264,8 +268,8 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
             class="brandName"
           >
             <div
+              class="anchor"
               data-slot="sidebar.brand.name"
-              style="display: contents;"
             >
               <span
                 class="localBuildBrand"
@@ -288,6 +292,7 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
       <button
         aria-label="收起侧边栏"
         class="root sidebar iconButton toggle"
+        data-tooltip-trigger="--tooltip-_r_0_"
         type="button"
       >
         <svg
@@ -304,6 +309,7 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
     <button
       aria-label="新建会话"
       class="newSession"
+      data-tooltip-trigger="--tooltip-_r_1_"
       type="button"
     >
       <svg
@@ -324,8 +330,8 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
       class="regionArea"
     >
       <div
+        class="anchor"
         data-slot="sidebar.workspaces"
-        style="display: contents;"
       />
     </div>
     <div
@@ -335,16 +341,16 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
         class="footerActions"
       >
         <div
+          class="anchor"
           data-slot="sidebar.footer.action"
-          style="display: contents;"
         />
       </div>
       <div
         class="settingsArea"
       >
         <div
+          class="anchor"
           data-slot="sidebar.settings"
-          style="display: contents;"
         />
       </div>
     </div>

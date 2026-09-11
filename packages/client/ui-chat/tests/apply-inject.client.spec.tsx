@@ -2,7 +2,7 @@
 /** Chat inject factories exercised over independently mounted Conversation and Chat plugins. */
 import { describe, expect, it, vi } from 'vitest'
 import { AttachmentId } from '@deepseek-ai/dsh-attachment'
-import type { ISession } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { ClientFailure, ISession } from '@deepseek-ai/dsh-api-session-controller/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import {
   SlotTestRuntime, TestRemote, stubSettingsScope, usePinnedBrowserLanguages,
@@ -89,10 +89,10 @@ describe('Chat inject API', () => {
   it('loads older history and forks through the Session Controller', async () => {
     const b = await bench()
     const { injected } = b.chatViewApi(ROOT)
-    injected.loadOlder()
+    await injected.loadOlder()
     expect(b.session.loadOlder).toHaveBeenCalledOnce()
 
-    injected.forkAt(17)
+    await expect(injected.forkAt(17)).resolves.toEqual({ ok: true, value: ROOT })
     await vi.waitFor(() => {
       expect(b.runtime.sessions.calls).toContainEqual({ method: 'open', args: [ROOT] })
     })
@@ -100,8 +100,9 @@ describe('Chat inject API', () => {
       method: 'fork', args: [{ sessionId: ROOT, atSeq: 17, increaseTitle: true }],
     })
 
-    const fork = vi.spyOn(b.runtime.sessions, 'fork').mockRejectedValueOnce(new Error('fork failed'))
-    injected.forkAt(18)
+    const failure: ClientFailure = { code: 'internal', message: 'fork failed', details: {} }
+    const fork = vi.spyOn(b.runtime.sessions, 'fork').mockResolvedValueOnce({ ok: false, error: failure })
+    await expect(injected.forkAt(18)).resolves.toEqual({ ok: false, error: failure })
     await vi.waitFor(() => {
       expect(fork).toHaveBeenCalledWith({ sessionId: ROOT, atSeq: 18, increaseTitle: true })
     })

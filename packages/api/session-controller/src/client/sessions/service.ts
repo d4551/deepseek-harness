@@ -108,22 +108,6 @@ export class SessionCreateError extends Error {
   }
 }
 
-/** Structured session-fork failure. */
-export class SessionForkError extends Error {
-  override readonly name = 'SessionForkError'
-
-  /**
-   * @param rpcError - Host business or folded transport error.
-   * @param sourceSessionId - the session the fork was cut from.
-   */
-  constructor(
-    readonly rpcError: ClientFailure,
-    readonly sourceSessionId: SessionId,
-  ) {
-    super(`session fork failed: ${rpcError.code}: ${rpcError.message}`)
-  }
-}
-
 /** Identity-stable logical binding for one materialized Client Session. */
 export interface SessionBinding {
   readonly sessionId: SessionId
@@ -176,6 +160,7 @@ interface ScopeRecord {
   binding: SessionBinding
   /** The concrete Session for runtime-internal entry points (staging open()); the binding carries only the outward face. */
   session: Session
+  opening?: Promise<void>
 }
 
 /** Root sessions service: list store, current selection, object-layer manager, scope tree, bindings, and breadcrumb routes. */
@@ -421,15 +406,13 @@ export class ClientSessions implements ISessions {
    *   A fractional anchor floors to a real event seq: the frozen nodes of an
    *   interrupted turn carry flow-ordering seqs between two events, and the
    *   wire takes integers only.
-   * @returns the child session id.
-   * @throws {SessionForkError} with the source id.
-   * @throws {Error} when a requested child-title rename fails after creation.
+   * @returns the child session id or the structured operation failure.
    */
   async fork(opts: {
     sessionId: SessionId
     atSeq?: number
     increaseTitle?: boolean
-  }): Promise<SessionId> {
+  }): Promise<ClientResult<SessionId>> {
     const sourceTitle = opts.increaseTitle
       ? this.list.getSnapshot().byId[opts.sessionId]?.title
       : undefined
@@ -440,16 +423,19 @@ export class ClientSessions implements ISessions {
       // on that turn — never clipped back to the previous one.
       ...(opts.atSeq === undefined ? {} : { atSeq: Math.floor(opts.atSeq) }),
     })
-    if (!result.ok) throw new SessionForkError(result.error, opts.sessionId)
+    if (!result.ok) return result
     this.projectList()
     const childId = result.value.sessionId
     if (sourceTitle !== undefined) {
       const child = this.binding(childId)?.session
-      if (child === undefined) throw new Error(`fork child "${childId}" is not locally addressable`)
+      if (child === undefined) return {
+        ok: false,
+        error: { code: 'internal', message: `fork child "${childId}" is not locally addressable`, details: {} },
+      }
       const renamed = await child.rename(increasedForkTitle(sourceTitle))
-      if (!renamed.ok) throw new Error(`fork child rename failed: ${renamed.error.code}: ${renamed.error.message}`)
+      if (!renamed.ok) return renamed
     }
-    return childId
+    return { ok: true, value: childId }
   }
 
   /**
@@ -531,8 +517,21 @@ export class ClientSessions implements ISessions {
      * validates and the projection masks absent selections), so resolve
      * cannot miss; kept so a future current writer cannot crash the notify. */
     if (record !== undefined) {
-      void record.session.open()
-      void this.manager.refreshSubagents(current)
+      record.opening = this.openScope(current, record)
+    }
+  }
+
+  private async openScope(id: SessionId, record: ScopeRecord): Promise<void> {
+    const results = await Promise.allSettled([
+      record.session.open(),
+      this.manager.refreshSubagents(id),
+    ])
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        this.manager.handleSessionError(id, result.reason instanceof Error
+          ? result.reason.message
+          : String(result.reason))
+      }
     }
   }
 
@@ -664,7 +663,7 @@ export class ClientSessions implements ISessions {
   private startScopeDrop(id: SessionId, record: ScopeRecord): void {
     const drop = this.dropScope(id, record)
     this.scopeDrops.add(drop)
-    void drop.then(
+    drop.then(
       () => { this.scopeDrops.delete(drop) },
       () => { this.scopeDrops.delete(drop) },
     )
@@ -690,6 +689,7 @@ export class ClientSessions implements ISessions {
     await Promise.allSettled([
       record.fiber.dispose(),
       this.manager.drop(id),
+      record.opening,
     ])
   }
 
