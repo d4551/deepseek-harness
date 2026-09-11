@@ -27,7 +27,49 @@ function PositionedMenu({ extraItems = 0, ...props }: Placement & { extraItems?:
   </main>
 }
 
+function PersistentSelectionMenu() {
+  const [open, setOpen] = useState(false)
+  const [selected, setSelected] = useState('None')
+  return <main>
+    <Menu
+      open={open}
+      portal
+      autoFocus
+      ariaLabel="Options"
+      anchor={<button type="button" onClick={() => { setOpen(true) }}>Options</button>}
+      items={[{ id: 'first', label: 'First' }, { id: 'more', label: 'More', submenu: [{ id: 'second', label: 'Second' }] }]}
+      onSelect={setSelected}
+      onClose={() => { setOpen(false) }}
+    />
+    <output aria-label="Selection">{selected}</output>
+  </main>
+}
+
 describe('Menu placement', () => {
+  it('keeps focus inside a controlled menu whose selection leaves it open', () => {
+    render(<PersistentSelectionMenu />)
+    const trigger = screen.getByRole('button', { name: 'Options' })
+    trigger.focus()
+    fireEvent.click(trigger)
+    const first = screen.getByRole('menuitem', { name: 'First' })
+    expect(document.activeElement).toBe(first)
+    fireEvent.click(first)
+    expect(screen.getByLabelText('Selection').textContent).toBe('first')
+    expect(screen.getByRole('menu', { name: 'Options' })).toBeDefined()
+    expect(document.activeElement).toBe(first)
+    fireEvent.keyDown(screen.getByRole('menuitem', { name: 'More' }), { key: 'ArrowRight' })
+    const second = screen.getByRole('menuitem', { name: 'Second' })
+    expect(document.activeElement).toBe(second)
+    fireEvent.click(second)
+    expect(screen.getByLabelText('Selection').textContent).toBe('second')
+    expect(document.activeElement).toBe(second)
+    fireEvent.keyDown(second, { key: 'Escape' })
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'More' }))
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(document.activeElement).toBe(trigger)
+  })
+
   it.each<Required<Pick<Placement, 'side' | 'align'>>>([
     { side: 'bottom', align: 'start' },
     { side: 'bottom', align: 'end' },
