@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { SessionId } from '@deepseek-ai/dsh-session/types'
 import { TeamMessageId } from '../../../subagent/agent-team/src/types.ts'
 import { TeamConversations, type TeamConversation } from '../src/client/TeamConversations.tsx'
@@ -79,4 +79,93 @@ it('groups both directions and keeps the selected historical message stable when
   expect(screen.queryByText('Report 100')).toBeNull()
   fireEvent.change(screen.getByRole('textbox', { name: 'Search message text' }), { target: { value: 'Absent phrase' } })
   expect(screen.getByRole('status').textContent).toBe('No matching messages')
+})
+
+it('indexes separate conversations by latest activity and announces the reader position and boundaries', () => {
+  const message = (id: string, sender: string, text: string): (typeof view.messages)[number] => ({
+    id: TeamMessageId(id), senderId: SessionId(sender), senderName: sender,
+    targetId: SessionId('lead'), delivery: 'quiet', delivered: true, content: [{ type: 'text', text }],
+  })
+  render(<TeamMessages view={{ ...view, messages: [
+    message('one', 'worker-id', 'First report'),
+    message('two', 'archived-worker', 'Archived report'),
+    message('three', 'worker-id', 'Latest report'),
+  ] }} t={key => en[key]} />)
+  const region = screen.getByRole('region', { name: en.messages })
+  expect(within(region).queryByText(en.noMessages)).toBeNull()
+  expect(within(region).queryByRole('status')).toBeNull()
+  const table = screen.getByRole('table', { name: en.messages })
+  expect(within(table).getAllByRole('columnheader').map(header => header.textContent)).toEqual(['Conversation', 'Messages'])
+  expect(within(table).getAllByRole('rowheader').map(header => header.textContent)).toEqual([
+    'lead ↔ worker', 'archived-worker ↔ lead',
+  ])
+  expect(within(table).getAllByRole('cell').map(cell => cell.textContent)).toEqual(['2', '1'])
+  const thread = screen.getByRole('button', { name: 'lead ↔ worker', expanded: false })
+  fireEvent.click(thread)
+  expect(thread.getAttribute('aria-expanded')).toBe('true')
+  const detailId = thread.getAttribute('aria-controls')
+  if (detailId === null) throw new Error('Conversation control has no reader association')
+  expect(document.getElementById(detailId)?.textContent).toContain('Latest report')
+  expect(screen.getByText('2 / 2')).toBeTruthy()
+  const older = screen.getByRole('button', { name: en.olderMessage })
+  const newer = screen.getByRole('button', { name: en.newerMessage })
+  expect(older.hasAttribute('disabled')).toBe(false)
+  expect(newer.hasAttribute('disabled')).toBe(true)
+  expect(older.getAttribute('title')).toBe(en.olderMessage)
+  expect(newer.getAttribute('title')).toBe(en.newerMessage)
+  fireEvent.click(older)
+  expect(screen.getByText('1 / 2')).toBeTruthy()
+  expect(screen.getByRole('button', { name: en.olderMessage }).hasAttribute('disabled')).toBe(true)
+  expect(screen.getByRole('button', { name: en.newerMessage }).hasAttribute('disabled')).toBe(false)
+  fireEvent.click(thread)
+  expect(screen.queryByText('First report')).toBeNull()
+  expect(thread.getAttribute('aria-expanded')).toBe('false')
+  fireEvent.click(thread)
+  expect(screen.getByText('Latest report')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'archived-worker ↔ lead' }))
+  expect(screen.getByText('Archived report')).toBeTruthy()
+  expect(screen.queryByText('Latest report')).toBeNull()
+  expect(screen.getByText('1 / 1')).toBeTruthy()
+})
+
+it('searches visible text across blocks, preserves paragraphs, and identifies non-text content', () => {
+  const first: (typeof view.messages)[number] = {
+    id: TeamMessageId('mixed-content'), senderId: SessionId('departed'), senderName: 'Departed reviewer',
+    targetId: SessionId('missing-recipient'), delivery: 'quiet', delivered: true,
+    content: [
+      { type: 'text', text: 'First paragraph' },
+      { type: 'reasoning', text: 'Internal analysis' },
+      { type: 'text', text: 'Second paragraph' },
+    ],
+  }
+  const last: (typeof view.messages)[number] = {
+    ...first, id: TeamMessageId('latest-content'), content: [{ type: 'text', text: 'Latest report' }],
+  }
+  render(<TeamMessages view={{ ...view, messages: [first, last] }} t={key => en[key]} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Departed reviewer ↔ Untitled conversation' }))
+  expect(screen.queryByText(en.messageAttachments)).toBeNull()
+  const search = screen.getByRole('textbox', { name: en.searchMessages })
+  fireEvent.change(search, { target: { value: '  SECOND PARAGRAPH  ' } })
+  expect(screen.getByText('First paragraph Second paragraph').textContent).toBe('First paragraph\nSecond paragraph')
+  expect(screen.getByText(en.messageAttachments)).toBeTruthy()
+  expect(screen.queryByText('Internal analysis')).toBeNull()
+  expect(screen.queryByRole('status')).toBeNull()
+  fireEvent.change(search, { target: { value: 'Internal analysis' } })
+  expect(screen.getByRole('status').textContent).toBe(en.noMatchingMessages)
+  expect(screen.queryByRole('table')).toBeNull()
+  fireEvent.change(search, { target: { value: '' } })
+  fireEvent.click(screen.getByRole('button', { name: en.olderMessage }))
+  expect(screen.getByText(en.messageAttachments)).toBeTruthy()
+  fireEvent.change(search, { target: { value: 'report' } })
+  fireEvent.change(search, { target: { value: '' } })
+  expect(screen.getByText('Latest report')).toBeTruthy()
+})
+
+it('keeps an empty message panel distinct from an empty search result', () => {
+  render(<TeamMessages view={view} t={key => en[key]} />)
+  expect(screen.getByRole('region', { name: en.messages })).toBeTruthy()
+  expect(screen.getByText(en.noMessages)).toBeTruthy()
+  expect(screen.queryByRole('table')).toBeNull()
+  expect(screen.queryByRole('textbox')).toBeNull()
+  expect(screen.queryByRole('status')).toBeNull()
 })
