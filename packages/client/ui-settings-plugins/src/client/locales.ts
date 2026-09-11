@@ -22,12 +22,9 @@ export type PluginsSettingsLocaleKey =
   | 'approvalAdversaryEnabledOff' | 'approvalAdversaryEnabledOffHint'
   | 'approvalAdversaryProvider' | 'approvalAdversaryProviderHint'
   | 'approvalAdversaryModel' | 'approvalAdversaryModelHint'
-  | 'approvalAdversaryFallback' | 'approvalAdversaryFallbackHint'
-  | 'approvalAdversaryFallbackDelegate' | 'approvalAdversaryFallbackDelegateHint'
-  | 'approvalAdversaryFallbackReject' | 'approvalAdversaryFallbackRejectHint'
   | 'approvalAdversaryTimeoutMs' | 'approvalAdversaryTimeoutMsHint'
   | 'approvalAdversaryMaxOutputTokens' | 'approvalAdversaryMaxOutputTokensHint'
-  | 'approvalAdversaryMaxExcerptChars' | 'approvalAdversaryMaxExcerptCharsHint'
+  | 'approvalAdversaryMaxEvidenceChars' | 'approvalAdversaryMaxEvidenceCharsHint'
   | 'approvalAdversaryInstructions' | 'approvalAdversaryInstructionsHint'
   | 'approvalAdversaryInstructionsInvalid'
   | 'webSearchTitle' | 'webSearchDescription'
@@ -74,7 +71,7 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
   webGroupTitle: 'Search',
   approvalGroupTitle: 'Agent Review',
   webFlowDescription: 'Choose search and page retrieval providers and configure their access.',
-  reviewFlowDescription: 'Configure approval screening, model review, and the policy for undecided requests.',
+  reviewFlowDescription: 'Configure approval screening and model review. Enabled reviews reject undecided requests.',
   otherGroupTitle: 'Agent and execution settings',
   nav: 'Plugins',
   title: 'Plugins',
@@ -119,25 +116,19 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
   approvalAdversaryEnabled: 'Reviewer',
   approvalAdversaryEnabledHint: 'Whether approval requests that would prompt a person are decided by the adversarial reviewer instead.',
   approvalAdversaryEnabledOn: 'Decide',
-  approvalAdversaryEnabledOnHint: 'A valid verdict allows or denies the request without prompting a person. A failed or undecided review uses the policy below.',
+  approvalAdversaryEnabledOnHint: 'Only an explicit approval allows the request. Missing evidence, failed reviews, and undecided replies reject it.',
   approvalAdversaryEnabledOff: 'Off',
   approvalAdversaryEnabledOffHint: 'Approval requests continue to the configured answerer.',
   approvalAdversaryProvider: 'Review provider',
   approvalAdversaryProviderHint: 'Provider route for the review call. Leave both route fields blank to review on the agent\'s own model.',
   approvalAdversaryModel: 'Review model',
   approvalAdversaryModelHint: 'Model id for the review call; set it together with the provider.',
-  approvalAdversaryFallback: 'Undecided requests',
-  approvalAdversaryFallbackHint: 'What happens when the review times out, fails, or gives no verdict.',
-  approvalAdversaryFallbackDelegate: 'Delegate',
-  approvalAdversaryFallbackDelegateHint: 'Pass the request on to the next answerer, such as the approval prompt.',
-  approvalAdversaryFallbackReject: 'Reject',
-  approvalAdversaryFallbackRejectHint: 'Deny the request and tell the model the review could not decide.',
   approvalAdversaryTimeoutMs: 'Review timeout (ms)',
   approvalAdversaryTimeoutMsHint: 'How long one review call may take before it counts as undecided.',
   approvalAdversaryMaxOutputTokens: 'Verdict token cap',
   approvalAdversaryMaxOutputTokensHint: 'Output tokens the reviewer may spend on its two-line verdict.',
-  approvalAdversaryMaxExcerptChars: 'Excerpt cap (characters)',
-  approvalAdversaryMaxExcerptCharsHint: 'Longest instruction, tool-argument, or justification excerpt the reviewer reads and a denial quotes.',
+  approvalAdversaryMaxEvidenceChars: 'Evidence cap (characters)',
+  approvalAdversaryMaxEvidenceCharsHint: 'Maximum size of the complete review record. Requests exceeding this limit are rejected; evidence is never shortened.',
   approvalAdversaryInstructions: 'Additional review instructions',
   approvalAdversaryInstructionsHint: 'Appended after the built-in reviewer instruction, up to 4096 characters. The built-in instruction and verdict format stay in force.',
   approvalAdversaryInstructionsInvalid: 'Enter at most 4096 characters.',
@@ -242,7 +233,7 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
   webGroupTitle: '网页搜索与访问',
   approvalGroupTitle: '审批流程',
   webFlowDescription: '选择搜索和网页抓取提供方，并配置访问方式。',
-  reviewFlowDescription: '配置审批筛查、模型评审和未决请求的处理策略。',
+  reviewFlowDescription: '配置审批筛查与模型评审。启用的评审会拒绝未决请求。',
   otherGroupTitle: '智能体与执行设置',
   nav: '插件',
   title: '插件',
@@ -287,25 +278,19 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
   approvalAdversaryEnabled: '评审者',
   approvalAdversaryEnabledHint: '原本会提示人工的审批请求是否改由对抗式评审者决定。',
   approvalAdversaryEnabledOn: '由评审者决定',
-  approvalAdversaryEnabledOnHint: '有效裁决直接允许或拒绝请求，无需提示人工。评审失败或未决时使用下方策略。',
+  approvalAdversaryEnabledOnHint: '只有明确批准才能允许请求。证据缺失、评审失败或未决回复都会拒绝请求。',
   approvalAdversaryEnabledOff: '关闭',
   approvalAdversaryEnabledOffHint: '审批请求继续交给已配置的应答者。',
   approvalAdversaryProvider: '评审提供方',
   approvalAdversaryProviderHint: '评审调用使用的提供方路由。两个路由字段都留空时，使用 Agent 自己的模型评审。',
   approvalAdversaryModel: '评审模型',
   approvalAdversaryModelHint: '评审调用使用的模型 ID；需与提供方一起设置。',
-  approvalAdversaryFallback: '未决请求',
-  approvalAdversaryFallbackHint: '评审超时、失败或未给出裁决时的处理方式。',
-  approvalAdversaryFallbackDelegate: '委托',
-  approvalAdversaryFallbackDelegateHint: '把请求交给下一个应答者，例如审批提示。',
-  approvalAdversaryFallbackReject: '拒绝',
-  approvalAdversaryFallbackRejectHint: '拒绝该请求，并告知模型评审无法作出决定。',
   approvalAdversaryTimeoutMs: '评审超时（毫秒）',
   approvalAdversaryTimeoutMsHint: '一次评审调用最多可持续多久，超过即视为未决。',
   approvalAdversaryMaxOutputTokens: '裁决 token 上限',
   approvalAdversaryMaxOutputTokensHint: '评审者输出两行裁决时最多可用的输出 token 数。',
-  approvalAdversaryMaxExcerptChars: '摘录上限（字符）',
-  approvalAdversaryMaxExcerptCharsHint: '评审者读取、拒绝通知引用的指令、工具参数或理由摘录的最大长度。',
+  approvalAdversaryMaxEvidenceChars: '证据上限（字符）',
+  approvalAdversaryMaxEvidenceCharsHint: '完整评审记录的大小上限。超过上限的请求会被拒绝，证据不会被截短。',
   approvalAdversaryInstructions: '附加评审指令',
   approvalAdversaryInstructionsHint: '追加在内置评审指令之后，最多 4096 个字符。内置指令与裁决格式仍然生效。',
   approvalAdversaryInstructionsInvalid: '最多输入 4096 个字符。',
