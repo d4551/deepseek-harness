@@ -21,7 +21,7 @@ Registration binds a schemastery schema to a namespace on the calling plugin's f
 
 ```ts type-equiv
 /** Registration options beyond the namespace schema. */
-interface SettingsRegisterOptions<T> {
+interface SettingsRegisterOptions<T> extends SettingsFlowMembership {
   /** Runtime capability readiness, independent of configured values. */
   available?: boolean
   /** Composition-layer values resolved below the user layer (entry-config subset). */
@@ -103,7 +103,7 @@ interface SettingsScope<T> {
 
 ```ts type-equiv
 /** One registered namespace as surfaced to configuration UIs. */
-interface SettingsDescriptor {
+interface SettingsDescriptor extends SettingsFlowMembership {
   /** Owner-reported runtime readiness, when the namespace configures a capability. */
   available?: boolean
   /** The registered namespace. */

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-01-platform-gestures-and-menu-reach.md
-2026-09-01-platform-gestures-and-menu-reach.md: c079c205c62e24d8c8c2dccd14a1f7a520469728
-2026-09-01-platform-gestures-and-menu-reach.zh.md: 8946a48be8ffcb9553d1eb14d7ea60c58586f1f3
+2026-09-01-platform-gestures-and-menu-reach.md: e20f0ddf96d8fca614553c04f7ed2b2b55739961
+2026-09-01-platform-gestures-and-menu-reach.zh.md: 1c73c19b26e13b183befc85a056df275d561f6da

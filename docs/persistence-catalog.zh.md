@@ -133,13 +133,13 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 #### `approval/adversary-request` — log-only
 
 ```ts persistence-catalog
-/** Log-only pre-dispatch record of one adversarial approval review request. */
+/** Exact review request committed before provider dispatch. */
 'approval/adversary-request': ApprovalAdversaryRequestEventData
 ```
 
 类型：[ApprovalAdversaryRequestEventData](subsystems/approval.zh.md)
 
-来源：[`packages/guard/approval-adversary/src/index.ts:91`](../packages/guard/approval-adversary/src/index.ts)
+来源：[`packages/guard/approval-adversary/src/review.ts:38`](../packages/guard/approval-adversary/src/review.ts)
 
 <a id="approvalasked--log-only"></a>
 
@@ -164,7 +164,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 类型：[ToolCallId](subsystems/core.zh.md)
 
-来源：[`packages/interaction/user-approval/src/types.ts:44`](../packages/interaction/user-approval/src/types.ts)
+来源：[`packages/interaction/user-approval/src/types.ts:47`](../packages/interaction/user-approval/src/types.ts)
 
 <a id="approvaldecided--log-only"></a>
 
@@ -182,7 +182,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }
 ```
 
-来源：[`packages/interaction/user-approval/src/types.ts:55`](../packages/interaction/user-approval/src/types.ts)
+来源：[`packages/interaction/user-approval/src/types.ts:58`](../packages/interaction/user-approval/src/types.ts)
 
 <a id="approvalpolicy--log-only"></a>
 
@@ -785,7 +785,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 类型：[TeamId](subsystems/agent-team.zh.md) · [TeamMemberSnapshot](subsystems/agent-team.zh.md)
 
-来源：[`packages/subagent/agent-team/src/types.ts:251`](../packages/subagent/agent-team/src/types.ts)
+来源：[`packages/subagent/agent-team/src/types.ts:258`](../packages/subagent/agent-team/src/types.ts)
 
 <a id="teammessagedelivered--log-only"></a>
 
@@ -803,7 +803,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 类型：[TeamId](subsystems/agent-team.zh.md) · [TeamMessageId](subsystems/agent-team.zh.md)
 
-来源：[`packages/subagent/agent-team/src/types.ts:257`](../packages/subagent/agent-team/src/types.ts)
+来源：[`packages/subagent/agent-team/src/types.ts:264`](../packages/subagent/agent-team/src/types.ts)
 
 <a id="teammessagequeued--log-only"></a>
 
@@ -816,7 +816,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 类型：[TeamId](subsystems/agent-team.zh.md) · [TeamMessageSnapshot](subsystems/agent-team.zh.md)
 
-来源：[`packages/subagent/agent-team/src/types.ts:255`](../packages/subagent/agent-team/src/types.ts)
+来源：[`packages/subagent/agent-team/src/types.ts:262`](../packages/subagent/agent-team/src/types.ts)
 
 <a id="teamtask--log-only"></a>
 
@@ -829,7 +829,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 类型：[TeamId](subsystems/agent-team.zh.md) · [TeamTaskSnapshot](subsystems/agent-team.zh.md)
 
-来源：[`packages/subagent/agent-team/src/types.ts:253`](../packages/subagent/agent-team/src/types.ts)
+来源：[`packages/subagent/agent-team/src/types.ts:260`](../packages/subagent/agent-team/src/types.ts)
 
 ### `todo/*`
 

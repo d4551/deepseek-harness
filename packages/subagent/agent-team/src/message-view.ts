@@ -3,7 +3,13 @@ import type { TeamJournal } from './journal.ts'
 import type { TeamOverview } from './types.ts'
 import { TeamId } from './types.ts'
 
-/** Project outgoing messages and authorized peer replies from their owning journals. */
+/**
+ * Project outgoing messages and authorized peer replies from their owning journals.
+ * @param root - Team Lead owning the recipient roster.
+ * @param peers - authorized workspace conversations whose replies may be visible.
+ * @param journal - durable mailbox state for each conversation.
+ * @returns messages in chronological order with current delivery state.
+ */
 export function teamMessageView(root: Agent, peers: readonly Agent[], journal: TeamJournal): TeamOverview['messages'] {
   const owned = journal.state(root)
   const recipients = new Set([root.id, ...owned.members.keys()])

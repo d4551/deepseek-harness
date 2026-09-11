@@ -167,6 +167,13 @@ getTask(caller: Agent, id: TeamTaskId): TeamTaskView
 listTasks(caller: Agent): TeamTaskView[]
 
 /**
+ * Read task boards owned by other live conversations in the registered workspace.
+ * @param caller - live Team member authorizing workspace discovery.
+ * @returns peer session identities and their current task boards.
+ */
+workspaceTasks(caller: Agent): TeamOverview['workspaceTasks']
+
+/**
  * Take ownership of the first ready task whose write scopes are free, in one
  * atomic Lead transaction. A member pulls work with this instead of being
  * assigned it; concurrent callers therefore receive disjoint tasks. A ready
@@ -223,9 +230,26 @@ tryMembership(agent: Agent): TeamMembership | undefined
 /**
  * Read the Team roster, task board, descendant conversations, and peer messages.
  * @param agent - exact live Team member used as the authority credential.
+ * @param signal - cancellation for descendant discovery and view publication.
  * @returns detached Team state with current descendant activity and message delivery.
  */
-@Remote('view') async remoteView(agent: Agent): Promise<TeamView>
+@Remote('view') async remoteView(agent: Agent, signal?: AbortSignal): Promise<TeamView>
+
+/**
+ * Read live Team work and mailbox state without enumerating stored sessions.
+ * @param agent - live Team member authorizing the view.
+ * @param signal - cancellation before the view is read.
+ * @returns current roster, task boards, and authorized messages.
+ */
+@Remote('overview') remoteOverview(agent: Agent, signal?: AbortSignal): TeamOverview
+
+/**
+ * Discover durable descendant conversations independently of live Team work.
+ * @param agent - live Team member authorizing descendant discovery.
+ * @param signal - cancellation for discovery and publication.
+ * @returns stored descendants with current live activity.
+ */
+@Remote('conversations') async remoteConversations(agent: Agent, signal?: AbortSignal): Promise<TeamView['subagents']>
 
 /**
  * Follow Team activity through the generated Remote stream.

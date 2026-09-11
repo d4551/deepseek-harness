@@ -19,12 +19,7 @@ export const name = 'approval-assessor'
 export const inject = ['approval']
 
 /** Composition values inherited by the approval-assessor settings section. */
-export interface Config {
-  /** Whether the assessor rejects work-avoidance approval reasons. */
-  enabled?: boolean
-  /** Additional case-insensitive literal phrases to screen. */
-  extraPhrases?: string[]
-}
+export type Config = Partial<ApprovalAssessorSettings>
 
 /** User-owned approval-assessor policy, applied to every approval request. */
 export interface ApprovalAssessorSettings {
@@ -42,7 +37,7 @@ const extraPhrasesSchema = z.array(
 ).max(MAX_EXTRA_PHRASES).default([])
 
 /** Plugin configuration schema with the mandatory audit enabled by default. */
-export const Config: z<Config> = z.object({
+export const Config: z<Config, ApprovalAssessorSettings> = z.object({
   enabled: z.boolean().default(true),
   extraPhrases: extraPhrasesSchema,
 })
@@ -51,38 +46,35 @@ export const Config: z<Config> = z.object({
 export const APPROVAL_ASSESSOR_SETTINGS_NAMESPACE = settingsNamespace('approval-assessor')
 
 /** Schema for the complete user-owned approval-assessor policy. */
-export const APPROVAL_ASSESSOR_SETTINGS_SCHEMA: z<ApprovalAssessorSettings> = z.object({
-  enabled: z.boolean().default(true),
-  extraPhrases: extraPhrasesSchema,
-})
+export const APPROVAL_ASSESSOR_SETTINGS_SCHEMA: z<ApprovalAssessorSettings> = Config
 
 /**
  * Evasion patterns in approval reasons: phrases that signal the agent is
  * asking permission to avoid work the user already instructed it to do.
- * Each pattern is matched case-insensitively against the approval reason.
+ * Reasons have canonical Unicode, lowercase letters, and single spaces.
  */
 const EVASION_PATTERNS: readonly RegExp[] = [
-  /\bshould\s+i\s+(skip|defer|postpone|avoid|omit)\b/i,
-  /\bcan\s+i\s+(skip|defer|postpone|avoid|omit)\b/i,
-  /\bmay\s+i\s+(skip|defer|postpone|avoid|omit)\b/i,
-  /\bdo\s+you\s+want\s+me\s+to\s+(skip|defer|postpone|avoid|omit)\b/i,
-  /\bwould\s+you\s+like\s+me\s+to\s+(skip|defer|postpone|avoid|omit)\b/i,
-  /\bshall\s+i\s+(skip|defer|postpone|avoid|omit)\b/i,
-  /\bis\s+it\s+ok(?:ay)?\s+to\s+(skip|defer|postpone|avoid|omit)\b/i,
-  /\bpermission\s+to\s+(skip|defer|postpone|avoid|omit)\b/i,
-  /\bask(ing)?\s+(for\s+)?permission\b/i,
-  /\bnot\s+(my|mine)\b.*\b(code|change|fix|work|task)\b/i,
-  /\bpre[- ]?existing\b.*\b(issue|problem|bug|error|violation)\b/i,
-  /\bout\s+of\s+scope\b/i,
-  /\balready\s+(exists?|done|handled|fixed|implemented)\b/i,
-  /\bknown\s+(limitation|issue|problem|bug)\b/i,
-  /\bfuture\s+work\b/i,
-  /\bseparate\s+ticket\b/i,
-  /\btoo\s+risky\b/i,
-  /\bnot\s+worth\s+fixing\b/i,
-  /\bgood\s+enough\b/i,
-  /\bleave\s+(?:(?:it|this|that|them)\s+)?as[- ]?is\b/i,
-  /\bskip\s+for\s+now\b/i,
+  /\bshould i (skip|defer|postpone|avoid|omit)\b/u,
+  /\bcan i (skip|defer|postpone|avoid|omit)\b/u,
+  /\bmay i (skip|defer|postpone|avoid|omit)\b/u,
+  /\bdo you want me to (skip|defer|postpone|avoid|omit)\b/u,
+  /\bwould you like me to (skip|defer|postpone|avoid|omit)\b/u,
+  /\bshall i (skip|defer|postpone|avoid|omit)\b/u,
+  /\bis it ok(?:ay)? to (skip|defer|postpone|avoid|omit)\b/u,
+  /\bpermission to (skip|defer|postpone|avoid|omit)\b/u,
+  /\bask(ing)? (for )?permission\b/u,
+  /\bnot (my|mine)\b.*\b(code|change|fix|work|task)\b/u,
+  /\bpre[- ]?existing\b.*\b(issue|problem|bug|error|violation)\b/u,
+  /\bout of scope\b/u,
+  /\balready (exists?|done|handled|fixed|implemented)\b/u,
+  /\bknown (limitation|issue|problem|bug)\b/u,
+  /\bfuture work\b/u,
+  /\bseparate ticket\b/u,
+  /\btoo risky\b/u,
+  /\bnot worth fixing\b/u,
+  /\bgood enough\b/u,
+  /\bleave (?:(?:it|this|that|them) )?as[- ]?is\b/u,
+  /\bskip for now\b/u,
 ]
 
 /** Compiled policy used by the request waterfall. */
@@ -136,9 +128,7 @@ function compilePolicy(settings: ApprovalAssessorSettings): ApprovalPolicy {
  * @returns the last human instruction text, or undefined.
  */
 function lastUserInstruction(events: readonly SessionEvent[]): string | undefined {
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    const event = events[index]
-    if (event === undefined) continue
+  for (const event of events.toReversed()) {
     if (event.type !== 'user/message') continue
     if (event.data.source.kind !== 'user') continue
     const textBlock = event.data.content.find(block => block.type === 'text')
@@ -187,15 +177,9 @@ function rejectionMessage(toolName: string, instruction: string | undefined): st
  * @param config - initial policy inherited by the user-owned settings section.
  */
 export function apply(ctx: Context, config: Config = {}): void {
-  const entry: ApprovalAssessorSettings = {
-    enabled: config.enabled ?? true,
-    extraPhrases: config.extraPhrases ?? [],
-  }
+  const entry = Config(config)
   let source: () => ApprovalAssessorSettings = () => entry
-  let policy = compilePolicy(entry)
-  const refreshPolicy = (): void => {
-    policy = compilePolicy(source())
-  }
+  compilePolicy(entry)
 
   installSettingsSection(
     ctx,
@@ -206,20 +190,15 @@ export function apply(ctx: Context, config: Config = {}): void {
       flow: AGENT_REVIEW_SETTINGS_FLOW,
       setSource: (current) => { source = current },
       validate: (settings) => { compilePolicy(settings) },
-      onChange: refreshPolicy,
     },
   )
 
   ctx.on('approval/request', async (req: ApprovalRequestEvent, next): Promise<ApprovalOutcome> => {
     if (req.signal?.aborted) return 'cancelled'
-    refreshPolicy()
-    if (!isRejectedByAudit(req, policy)) return next()
+    if (!isRejectedByAudit(req, compilePolicy(source()))) return next()
 
     const instruction = lastUserInstruction(req.agent.session.events)
 
-    // Inject the rejection as model-visible context so the agent sees WHY
-    // it was denied and what to do instead. The waterfall outcome is
-    // 'rejected' — the approval service logs the asked/decided audit pair.
     req.agent.inject(createUserMessage({
       content: [{ type: 'text', text: rejectionMessage(req.toolName, instruction) }],
       source: { kind: 'plugin', plugin: 'approval-assessor', form: 'notice', summary: 'mandatory-audit-rejected' },

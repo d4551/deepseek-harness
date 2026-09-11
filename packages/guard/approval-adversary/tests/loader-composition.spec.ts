@@ -58,10 +58,9 @@ const CONFIG = [
   "- name: '@deepseek-ai/dsh-approval-adversary'",
   '  config:',
   '    enabled: true',
-  '    fallback: delegate',
   '    timeoutMs: 30000',
   '    maxOutputTokens: 256',
-  '    maxExcerptChars: 4000',
+  '    maxEvidenceChars: 4000',
   "- name: 'dsh-approval-adversary/tests/fixtures/reviewed-tool'",
   '',
 ].join('\n')
@@ -184,7 +183,7 @@ describe('approval-adversary in a real Loader composition', () => {
     expect(reviewerCalls).toHaveLength(1)
     const record = reviewerCalls[0]!.messages[0]!.content
       .flatMap(block => block.type === 'text' ? [block.text] : []).join('')
-    expect(record).toContain('"instruction":"Remove the stale build output and rebuild."')
+    expect(record).toContain('"instructions":[["Remove the stale build output and rebuild."]]')
     expect(record).toContain(`"call":{"name":"${Fixture.FIXTURE_TOOL}","arguments":"{\\"justification\\":\\"the user asked to remove stale build output before rebuilding\\"}"}`)
     expect(record).toContain('"justification":"escalate sandbox to danger-full-access: the user asked to remove stale build output before rebuilding"')
 
@@ -220,8 +219,7 @@ describe('approval-adversary in a real Loader composition', () => {
     expect(adversaryNotices(events).map(notice => notice.text)).toEqual([
       `Adversarial approval review denied "${Fixture.FIXTURE_TOOL}": disabling tests hides failures instead of fixing them\n`
       + 'Do not resubmit the same request with a reworded justification. '
-      + 'Return to the user\'s instructions and take the direct step they asked for.'
-      + '\n\nUser instruction: Fix every failing test in the suite.',
+      + 'Return to the user\'s instructions and take the direct step they asked for.',
     ])
   })
 })

@@ -92,19 +92,19 @@ interface ApprovalRequest extends ApprovalRequestEvent {
 部署启用后，[dsh-approval-adversary](../../packages/guard/approval-adversary) 以模型评审回答该 waterfall。它在分发前追加精确的评审请求，因此评审者作出的决定可以从日志中、紧邻其所属的审计事件对重建；裁决本身在 `approval/decided` 之后作为插件通知追加并抵达模型。
 
 ```ts type-equiv
-/** Exact model-visible request recorded before one adversarial review dispatch. */
+/** Durable request committed before a reviewer provider receives evidence. */
 interface ApprovalAdversaryRequestEventData {
-  /** The approval question under review, when its audit record is identifiable. */
-  readonly approvalId?: ApprovalRequestId
-  /** Tool the question is about. */
+  /** Approval question whose evidence is being reviewed. */
+  readonly approvalId: ApprovalRequestId
+  /** Tool named by the approval question and its recorded call. */
   readonly toolName: string
-  /** Exact auxiliary LLM route. */
+  /** Provider and model receiving this request. */
   readonly route: { readonly provider: string; readonly model: string }
-  /** Exact auxiliary system prompt. */
+  /** Complete authorization policy sent to the reviewer. */
   readonly system: string
-  /** Exact auxiliary message list. */
+  /** Complete framed evidence sent to the reviewer. */
   readonly messages: Message[]
-  /** Exact auxiliary output-token cap. */
+  /** Maximum reviewer output tokens. */
   readonly maxTokens: number
 }
 ```

@@ -14,18 +14,23 @@ export const REVIEW_INSTRUCTIONS = [
 /** Maximum complete reviewer stream size, including framing and reasoning. */
 export const MAX_REVIEW_CHARS = 32_768
 
+/** Settled model review or the reason no verdict was available. */
 export interface ReviewResult {
   verdict: 'allowed' | 'denied' | 'unavailable'
   reason: string
 }
 
-/** Accept only a complete verdict; malformed output never grants approval. */
+/**
+ * Accept only a complete verdict; malformed output never grants approval.
+ * @param text - complete text returned by the reviewer.
+ * @returns a parsed decision or an unavailable result.
+ */
 export function parseVerdict(text: string): ReviewResult {
-  const match = /^VERDICT: (ALLOW|DENY)\nREASON: ([^\r\n\u2028\u2029]+)$/.exec(text)
-  const word = match?.[1]
-  const reason = match?.[2]
-  if (word === undefined || reason === undefined || reason.trim().length === 0 || match?.[0] !== text) {
+  const [decision, detail, ...extra] = text.split('\n')
+  if ((decision !== 'VERDICT: ALLOW' && decision !== 'VERDICT: DENY')
+    || detail === undefined || !detail.startsWith('REASON: ') || extra.length > 0
+    || /[\r\u2028\u2029]/u.test(detail) || detail.slice(8).trim().length === 0) {
     return { verdict: 'unavailable', reason: 'review model did not follow the exact two-line verdict protocol' }
   }
-  return { verdict: word === 'ALLOW' ? 'allowed' : 'denied', reason }
+  return { verdict: decision === 'VERDICT: ALLOW' ? 'allowed' : 'denied', reason: detail.slice(8) }
 }

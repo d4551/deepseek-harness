@@ -1,9 +1,14 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, onTestFinished } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
+import AgentRegistry from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { createUserMessage, type UserMessage } from '@deepseek-ai/dsh-llm'
+import AgentLoop from '@deepseek-ai/dsh-agent-loop'
+import LlmRuntime, { createUserMessage, type UserMessage } from '@deepseek-ai/dsh-llm'
+import { scopeTarget } from '@deepseek-ai/dsh-scope'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import SessionStore, { Session } from '@deepseek-ai/dsh-session'
+import SessionStore from '@deepseek-ai/dsh-session'
+import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { SettingsProvider } from '@deepseek-ai/dsh-settings'
 import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import ApprovalService from '@deepseek-ai/dsh-user-approval'
@@ -48,29 +53,25 @@ interface SeedEvent {
   data: UserMessage
 }
 
-/** Minimal agent stand-in with a real session for event lookups. */
-function sessionAgent(id: string, seedEvents: SeedEvent[] = []): Agent {
-  const session = Session.create(SessionId(id))
+/** Create a real idle agent with a durable instruction history. */
+async function sessionAgent(ctx: Context, id: string, seedEvents: SeedEvent[] = []): Promise<Agent> {
+  const { agent } = await ctx.agents.create({ sessionId: SessionId(id), agentOptions: { provider: 'reviewer', model: 'm' } })
+  const session = agent.session
   session.append('turn/start', { turn: 1 })
   for (const event of seedEvents) {
     session.append('user/message', event.data, { surfaceOp: 'append' })
   }
-  return {
-    id,
-    session,
-    inject(message: Parameters<Agent['inject']>[0]) {
-      session.append('user/message', message, { surfaceOp: 'append' })
-    },
-  } as Agent
+  return agent
+}
+
+function redirects(agent: Agent): string[] {
+  return agent.inbox.nextStep.flatMap(message => message.source.kind === 'plugin' && message.source.plugin === 'approval-assessor'
+    ? message.content.flatMap(block => block.type === 'text' ? [block.text] : []) : [])
 }
 
 /** Mount the approval service and the mandatory assessor. */
 async function harness(): Promise<Context> {
-  const ctx = new Context()
-  await ctx.plugin(SessionStore)
-  await ctx.plugin(ApprovalService)
-  await ctx.plugin(ApprovalAssessor)
-  return ctx
+  return (await settingsHarness()).ctx
 }
 
 /** Mount the assessor with a real in-memory settings provider. */
@@ -79,12 +80,20 @@ async function settingsHarness(config?: { doc?: Record<string, unknown> }): Prom
   provider: MemorySettings
 }> {
   const ctx = new Context()
+  onTestFinished(() => ctx.fiber.dispose())
   await ctx.plugin(SessionStore)
+  await ctx.plugin(LlmRuntime)
+  await ctx.plugin(SystemPrompt)
+  await ctx.plugin(ToolRuntime)
+  await ctx.plugin(AgentRegistry)
+  await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(ApprovalService)
   const providerFiber = ctx.plugin(MemorySettings, config ?? {})
   await providerFiber
   await ctx.plugin(ApprovalAssessor)
-  return { ctx, provider: ctx.settings as MemorySettings }
+  const provider = ctx.settings
+  if (!(provider instanceof MemorySettings)) throw new Error('Settings provider did not mount')
+  return { ctx, provider }
 }
 
 describe('plugin mounting', () => {
@@ -92,7 +101,7 @@ describe('plugin mounting', () => {
     const ctx = await harness()
     // Verify the listener is registered by checking that a non-evasion request
     // still delegates (proving the listener ran and chose to delegate)
-    const agent = sessionAgent('mount-check')
+    const agent = await sessionAgent(ctx, 'mount-check')
     let listenerRan = false
     // Register AFTER the assessor — if the assessor's listener runs first and
     // delegates, this one runs second
@@ -106,6 +115,23 @@ describe('plugin mounting', () => {
 })
 
 describe('settings policy', () => {
+  it('rejects an empty normalized composition phrase without a settings provider', async () => {
+    const ctx = new Context()
+    onTestFinished(() => ctx.fiber.dispose())
+    await ctx.plugin(ApprovalService)
+    await expect(ctx.plugin(ApprovalAssessor, { extraPhrases: ['\u200b'] })).rejects.toThrow('extraPhrases[0] must contain text')
+  })
+
+  it('keeps one schema for composition and persisted policy', () => {
+    expect(ApprovalAssessor.name).toBe('approval-assessor')
+    expect(ApprovalAssessor.inject).toEqual(['approval'])
+    expect(ApprovalAssessor.APPROVAL_ASSESSOR_SETTINGS_NAMESPACE).toBe('approval-assessor')
+    expect(ApprovalAssessor.APPROVAL_ASSESSOR_SETTINGS_SCHEMA).toBe(ApprovalAssessor.Config)
+    expect(ApprovalAssessor.Config({})).toEqual({ enabled: true, extraPhrases: [] })
+    const extraPhrases = Array.from({ length: 64 }, (_, index) => String(index).padEnd(256, 'x'))
+    expect(ApprovalAssessor.Config({ extraPhrases })).toEqual({ enabled: true, extraPhrases })
+    expect(() => ApprovalAssessor.Config({ extraPhrases: [''] })).toThrow()
+  })
   it('registers enabled defaults and an empty extra-phrase list', async () => {
     const { ctx } = await settingsHarness()
     const descriptor = ctx.settings.describe().find(row => String(row.ns) === 'approval-assessor')
@@ -132,7 +158,7 @@ describe('settings policy', () => {
 
   it('screens a literal extra phrase and supports disabling the assessor', async () => {
     const { ctx } = await settingsHarness()
-    const agent = sessionAgent('settings-extra')
+    const agent = await sessionAgent(ctx, 'settings-extra')
 
     await ctx.settings.update(ApprovalAssessor.APPROVAL_ASSESSOR_SETTINGS_NAMESPACE, {
       extraPhrases: ['(do-not-ship)+$'],
@@ -159,7 +185,7 @@ describe('settings policy', () => {
 
   it('refreshes policy from provider-backed document updates', async () => {
     const { ctx, provider } = await settingsHarness()
-    const agent = sessionAgent('settings-provider')
+    const agent = await sessionAgent(ctx, 'settings-provider')
     const namespace = String(ApprovalAssessor.APPROVAL_ASSESSOR_SETTINGS_NAMESPACE)
 
     provider.pushExternal({ [namespace]: { enabled: false } })
@@ -180,9 +206,62 @@ describe('settings policy', () => {
 })
 
 describe('evasion detection', () => {
+  it.each([
+    'should i skip this', 'can i defer this', 'may i postpone this', 'shall i omit this',
+    'do you want me to avoid this', 'would you like me to skip this',
+    'is it ok to defer this', 'is it okay to postpone this', 'permission to omit this',
+    'ask permission', 'asking permission', 'ask for permission', 'asking for permission',
+    'not my code', 'not mine to fix', 'preexisting issue', 'pre-existing error', 'pre existing violation',
+    'preexisting build pipeline issue',
+    'out of scope', 'already exist', 'already exists', 'already done', 'already handled', 'already fixed', 'already implemented',
+    'known bug', 'future work', 'separate ticket', 'too risky', 'not worth fixing', 'good enough',
+    'leave asis', 'leave as-is', 'leave as is', 'leave it as-is', 'leave them as is', 'skip for now',
+  ])('blocks the screened justification before a granting answerer: %s', async (reason) => {
+    const ctx = await harness()
+    const agent = await sessionAgent(ctx, 'screen')
+    let calls = 0
+    ctx.on('approval/request', () => { calls += 1; return Promise.resolve<ApprovalOutcome>('allowed-once') })
+    await expect(ctx.approval.request({ agent, toolName: 'bash', reason })).resolves.toBe('rejected')
+    expect(calls).toBe(0)
+    expect(redirects(agent)).toHaveLength(1)
+    expect(agent.inbox.nextStep[0]?.source).toEqual({ kind: 'plugin', plugin: 'approval-assessor', form: 'notice', summary: 'mandatory-audit-rejected' })
+  })
+
+  it.each(['The task requires reading the file.', 'Run the entire validation suite.', 'Use the configured build command.'])('leaves authorized-action review to the answerer: %s', async (reason) => {
+    const ctx = await harness()
+    const agent = await sessionAgent(ctx, 'clear')
+    ctx.on('approval/request', () => Promise.resolve<ApprovalOutcome>('allowed-once'))
+    await expect(ctx.approval.request({ agent, toolName: 'bash', reason })).resolves.toBe('allowed-once')
+    expect(redirects(agent)).toEqual([])
+  })
+  it.each([
+    'Ｓｈｏｕｌｄ Ｉ ｓｋｉｐ the tests?',
+    'Should I sk\u200bip the tests?',
+    'pre-existing\n\nviolation',
+    'out\t of\n scope',
+    '\u200b\u2060\ufeff',
+  ])('rejects Unicode and multiline evasion before a downstream grant: %s', async (reason) => {
+    const ctx = await harness()
+    const agent = await sessionAgent(ctx, 'normalized')
+    let downstream = 0
+    ctx.on('approval/request', () => { downstream += 1; return Promise.resolve<ApprovalOutcome>('allowed-once') })
+    await expect(ctx.approval.request({ agent, toolName: 'bash', reason })).resolves.toBe('rejected')
+    expect(downstream).toBe(0)
+    await ctx.fiber.dispose()
+  })
+
+  it('normalizes configured phrases and reasons identically', async () => {
+    const { ctx } = await settingsHarness()
+    await ctx.settings.update(ApprovalAssessor.APPROVAL_ASSESSOR_SETTINGS_NAMESPACE, { extraPhrases: ['Ｄｅｌａｙ\t\ttests'] })
+    await expect(ctx.approval.request({ agent: await sessionAgent(ctx, 'normalized-extra'), toolName: 'bash', reason: 'de\u200blay\n tests' }))
+      .resolves.toBe('rejected')
+    await expect(ctx.settings.update(ApprovalAssessor.APPROVAL_ASSESSOR_SETTINGS_NAMESPACE, { extraPhrases: ['\u200b'] }))
+      .rejects.toThrow('must contain text')
+    await ctx.fiber.dispose()
+  })
   it('rejects an approval request whose reason matches a work-avoidance pattern', async () => {
     const ctx = await harness()
-    const agent = sessionAgent('evade-1')
+    const agent = await sessionAgent(ctx, 'evade-1')
 
     const outcome = await ctx.approval.request({
       agent,
@@ -195,7 +274,7 @@ describe('evasion detection', () => {
 
   it('rejects "out of scope" evasion', async () => {
     const ctx = await harness()
-    const agent = sessionAgent('evade-2')
+    const agent = await sessionAgent(ctx, 'evade-2')
 
     const outcome = await ctx.approval.request({
       agent,
@@ -208,7 +287,7 @@ describe('evasion detection', () => {
 
   it('rejects "known limitation" evasion', async () => {
     const ctx = await harness()
-    const agent = sessionAgent('evade-3')
+    const agent = await sessionAgent(ctx, 'evade-3')
 
     const outcome = await ctx.approval.request({
       agent,
@@ -221,7 +300,7 @@ describe('evasion detection', () => {
 
   it('rejects "leave as-is" evasion', async () => {
     const ctx = await harness()
-    const agent = sessionAgent('evade-4')
+    const agent = await sessionAgent(ctx, 'evade-4')
 
     const outcome = await ctx.approval.request({
       agent,
@@ -234,7 +313,7 @@ describe('evasion detection', () => {
 
   it('rejects a request without a justification', async () => {
     const ctx = await harness()
-    const agent = sessionAgent('no-reason')
+    const agent = await sessionAgent(ctx, 'no-reason')
     // Missing justification cannot pass the mandatory audit.
     const outcome = await ctx.approval.request({ agent, toolName: 'read' })
     expect(outcome).toBe('rejected')
@@ -242,14 +321,14 @@ describe('evasion detection', () => {
 
   it('rejects a request with only whitespace as its justification', async () => {
     const ctx = await harness()
-    const agent = sessionAgent('blank-reason')
+    const agent = await sessionAgent(ctx, 'blank-reason')
     const outcome = await ctx.approval.request({ agent, toolName: 'read', reason: '   \n\t' })
     expect(outcome).toBe('rejected')
   })
 
   it('passes through when reason does not match any evasion pattern', async () => {
     const ctx = await harness()
-    const agent = sessionAgent('legit-reason')
+    const agent = await sessionAgent(ctx, 'legit-reason')
     const outcome = await ctx.approval.request({
       agent,
       toolName: 'read',
@@ -263,7 +342,7 @@ describe('evasion detection', () => {
 describe('elevated-tool auditing', () => {
   it('rejects bash approval requests with work-avoidance justification', async () => {
     const ctx = await harness()
-    const agent = sessionAgent('bash-gate')
+    const agent = await sessionAgent(ctx, 'bash-gate')
     const outcome = await ctx.approval.request({
       agent,
       toolName: 'bash',
@@ -274,7 +353,7 @@ describe('elevated-tool auditing', () => {
 
   it('rejects write approval requests with work-avoidance justification', async () => {
     const ctx = await harness()
-    const agent = sessionAgent('write-gate')
+    const agent = await sessionAgent(ctx, 'write-gate')
     const outcome = await ctx.approval.request({
       agent,
       toolName: 'write',
@@ -285,7 +364,7 @@ describe('elevated-tool auditing', () => {
 
   it('rejects edit approval requests with work-avoidance justification', async () => {
     const ctx = await harness()
-    const agent = sessionAgent('edit-gate')
+    const agent = await sessionAgent(ctx, 'edit-gate')
     const outcome = await ctx.approval.request({
       agent,
       toolName: 'edit',
@@ -296,21 +375,35 @@ describe('elevated-tool auditing', () => {
 })
 
 describe('user instruction quoting', () => {
+  it('keeps an instruction at the excerpt bound complete', async () => {
+    const ctx = await harness()
+    const instruction = 'x'.repeat(500)
+    const agent = await sessionAgent(ctx, 'exact-quote', [{ type: 'user/message', data: createUserMessage({
+      content: [{ type: 'text', text: instruction }], source: { kind: 'user' },
+    }) }])
+    await ctx.approval.request({ agent, toolName: 'bash', reason: 'out of scope' })
+    expect(redirects(agent).join('')).toContain(`User instruction: ${instruction}`)
+    expect(redirects(agent).join('')).not.toContain('…')
+  })
+
+  it('uses the newest human text instruction when later content has no text block', async () => {
+    const ctx = await harness()
+    const agent = await sessionAgent(ctx, 'non-text-quote', [
+      { type: 'user/message', data: createUserMessage({ content: [{ type: 'text', text: 'Read the complete file.' }], source: { kind: 'user' } }) },
+      { type: 'user/message', data: createUserMessage({ content: [{ type: 'reasoning', text: 'not a text instruction' }], source: { kind: 'user' } }) },
+    ])
+    await ctx.approval.request({ agent, toolName: 'bash', reason: 'out of scope' })
+    expect(redirects(agent).join('')).toContain('User instruction: Read the complete file.')
+    expect(redirects(agent).join('')).not.toContain('not a text instruction')
+  })
   it('includes the last user instruction in the rejection context', async () => {
     const ctx = await harness()
-    const session = Session.create(SessionId('quote-1'))
-    session.append('turn/start', { turn: 1 })
+    const agent = await sessionAgent(ctx, 'quote-1')
+    const session = agent.session
     session.append('user/message', createUserMessage({
       content: [{ type: 'text', text: 'Fix all lint violations in src/utils.ts' }],
       source: { kind: 'user' },
     }), { surfaceOp: 'append' })
-    const agent = {
-      id: 'quote-1',
-      session,
-      inject(message: Parameters<Agent['inject']>[0]) {
-        session.append('user/message', message, { surfaceOp: 'append' })
-      },
-    } as Agent
 
     await ctx.approval.request({
       agent,
@@ -318,14 +411,8 @@ describe('user instruction quoting', () => {
       reason: 'Should I skip this pre-existing issue?',
     })
 
-    // The rejection injects a user message into the agent's session
-    const injected = session.events.filter(
-      e => e.type === 'user/message'
-        && (e.data as { source?: { kind?: string } }).source?.kind === 'plugin',
-    )
-    expect(injected.length).toBeGreaterThanOrEqual(1)
-    const lastInjected = injected.at(-1) as { data: { content: Array<{ text?: string }> } }
-    const text = lastInjected.data.content.map(b => b.text ?? '').join('')
+    expect(redirects(agent)).toHaveLength(1)
+    const text = redirects(agent).join('')
     expect(text).toContain('Fix all lint violations in src/utils.ts')
     expect(text).toContain('Mandatory approval audit denied')
   })
@@ -335,8 +422,8 @@ describe('user instruction quoting', () => {
     // with the human's messages; both are `user/message` rows. Quoting the
     // newest row would redirect the model to a plugin's own text.
     const ctx = await harness()
-    const session = Session.create(SessionId('quote-2'))
-    session.append('turn/start', { turn: 1 })
+    const agent = await sessionAgent(ctx, 'quote-2')
+    const session = agent.session
     session.append('user/message', createUserMessage({
       content: [{ type: 'text', text: 'Delete every dead export.' }],
       source: { kind: 'user' },
@@ -345,21 +432,10 @@ describe('user instruction quoting', () => {
       content: [{ type: 'text', text: 'Current runtime context. Approval policy: ask.' }],
       source: { kind: 'plugin', plugin: 'runtime-context', form: 'snapshot', sections: [] },
     }), { surfaceOp: 'append' })
-    const agent = {
-      id: 'quote-2',
-      session,
-      inject(message: Parameters<Agent['inject']>[0]) {
-        session.append('user/message', message, { surfaceOp: 'append' })
-      },
-    } as Agent
 
     await ctx.approval.request({ agent, toolName: 'read', reason: 'Known limitation; leave it as-is.' })
 
-    const injected = session.events.filter(
-      e => e.type === 'user/message'
-        && (e.data as { source?: { plugin?: string } }).source?.plugin === 'approval-assessor',
-    ).at(-1) as { data: { content: Array<{ text?: string }> } }
-    const text = injected.data.content.map(block => block.text ?? '').join('')
+    const text = redirects(agent).join('')
     expect(text).toContain('User instruction: Delete every dead export.')
     expect(text).not.toContain('Current runtime context')
   })
@@ -367,27 +443,16 @@ describe('user instruction quoting', () => {
   it('ellipsizes an instruction longer than the excerpt bound', async () => {
     const ctx = await harness()
     const instruction = 'x'.repeat(640)
-    const session = Session.create(SessionId('quote-long'))
-    session.append('turn/start', { turn: 1 })
+    const agent = await sessionAgent(ctx, 'quote-long')
+    const session = agent.session
     session.append('user/message', createUserMessage({
       content: [{ type: 'text', text: instruction }],
       source: { kind: 'user' },
     }), { surfaceOp: 'append' })
-    const agent = {
-      id: 'quote-long',
-      session,
-      inject(message: Parameters<Agent['inject']>[0]) {
-        session.append('user/message', message, { surfaceOp: 'append' })
-      },
-    } as Agent
 
     await ctx.approval.request({ agent, toolName: 'read', reason: 'This is out of scope.' })
 
-    const injected = session.events.filter(
-      e => e.type === 'user/message'
-        && (e.data as { source?: { plugin?: string } }).source?.plugin === 'approval-assessor',
-    ).at(-1) as { data: { content: Array<{ text?: string }> } }
-    const text = injected.data.content.map(block => block.text ?? '').join('')
+    const text = redirects(agent).join('')
     expect(text).toContain(`User instruction: ${'x'.repeat(500)}\u2026`)
     expect(text).not.toContain('x'.repeat(501))
   })
@@ -395,35 +460,36 @@ describe('user instruction quoting', () => {
   it('omits the quote when the session carries no human instruction', async () => {
     // A delegated subagent turn starts from a plugin-authored prompt.
     const ctx = await harness()
-    const session = Session.create(SessionId('quote-3'))
-    session.append('turn/start', { turn: 1 })
+    const agent = await sessionAgent(ctx, 'quote-3')
+    const session = agent.session
     session.append('user/message', createUserMessage({
       content: [{ type: 'text', text: 'Delegated task body.' }],
       source: { kind: 'plugin', plugin: 'subagent', form: 'snapshot', sections: [] },
     }), { surfaceOp: 'append' })
-    const agent = {
-      id: 'quote-3',
-      session,
-      inject(message: Parameters<Agent['inject']>[0]) {
-        session.append('user/message', message, { surfaceOp: 'append' })
-      },
-    } as Agent
 
     await ctx.approval.request({ agent, toolName: 'read', reason: 'This is out of scope.' })
 
-    const injected = session.events.filter(
-      e => e.type === 'user/message'
-        && (e.data as { source?: { plugin?: string } }).source?.plugin === 'approval-assessor',
-    ).at(-1) as { data: { content: Array<{ text?: string }> } }
-    const text = injected.data.content.map(block => block.text ?? '').join('')
+    const text = redirects(agent).join('')
     expect(text).not.toContain('User instruction:')
   })
 })
 
 describe('downstream delegation', () => {
+  it('cancels a withdrawn direct request before screening or delegation', async () => {
+    const ctx = await harness()
+    const agent = await sessionAgent(ctx, 'cancelled')
+    let downstream = 0
+    ctx.on('approval/request', () => { downstream += 1; return Promise.resolve<ApprovalOutcome>('allowed-once') })
+    await expect(ctx.waterfall(scopeTarget(agent, agent), 'approval/request', {
+      agent, toolName: 'bash', reason: 'Run the build.', signal: AbortSignal.abort(),
+    }, () => Promise.resolve<ApprovalOutcome>('unavailable'))).resolves.toBe('cancelled')
+    expect(downstream).toBe(0)
+    expect(agent.inbox.nextStep).toEqual([])
+  })
+
   it('lets a downstream answerer decide when the request is not evasion', async () => {
     const ctx = await harness()
-    const agent = sessionAgent('delegate-1')
+    const agent = await sessionAgent(ctx, 'delegate-1')
     ctx.on('approval/request', () => Promise.resolve<ApprovalOutcome>('allowed-once'))
 
     const outcome = await ctx.approval.request({
@@ -437,7 +503,7 @@ describe('downstream delegation', () => {
 
   it('does not reach downstream when evasion is detected', async () => {
     const ctx = await harness()
-    const agent = sessionAgent('no-delegate-1')
+    const agent = await sessionAgent(ctx, 'no-delegate-1')
     let downstreamCalled = false
     ctx.on('approval/request', () => {
       downstreamCalled = true

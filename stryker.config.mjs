@@ -21,6 +21,8 @@ export default {
     'packages/subagent/agent-team/src/**/*.ts',
     'packages/client/ui-agent-team/src/client/**/*.{ts,tsx}',
     'packages/client/ui-subagent/src/client/SubagentHeaderLineage.tsx',
+    'packages/guard/approval-adversary/src/**/*.ts',
+    'packages/guard/approval-assessor/src/**/*.ts',
   ],
   thresholds: { high: 100, low: 99, break: 99 },
   ignorePatterns: ['.claude', '.agents/worktrees', '.cache', 'coverage', '.artifacts', 'dist-exe', '.dsh-build', '.audit-tmp'],

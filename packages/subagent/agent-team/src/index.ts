@@ -156,18 +156,12 @@ export class TeamService extends TypertRemoteService {
     const entry: AgentTeamSettings = { maxMembers: this.config.maxMembers, maxTasks: this.config.maxTasks }
     this.settings = () => entry
     installSettingsSection(ctx, AGENT_TEAM_SETTINGS_NAMESPACE, AGENT_TEAM_SETTINGS_SCHEMA, entry, {
-      // The schema admits any integer above zero; `positiveLimit` owns the
-      // whole rule, so refusing here keeps the running Team on its last good
-      // capacities instead of failing at the next spawn.
       validate: (section) => {
         assertOwnedFields(section)
         positiveLimit('maxMembers', section.maxMembers)
         positiveLimit('maxTasks', section.maxTasks)
       },
       setSource: (current) => { this.settings = current },
-      // Nothing is derived from the capacities: the admission checks below are
-      // the only readers, and each reads at the moment it bounds.
-      onChange: () => {},
     })
 
     this.activity = new TeamActivity()
@@ -289,7 +283,11 @@ export class TeamService extends TypertRemoteService {
     return this.tasks.list(this.roster.membership(caller))
   }
 
-  /** Read task boards owned by other live conversations in the registered workspace. */
+  /**
+   * Read task boards owned by other live conversations in the registered workspace.
+   * @param caller - live Team member authorizing workspace discovery.
+   * @returns peer session identities and their current task boards.
+   */
   workspaceTasks(caller: Agent): TeamOverview['workspaceTasks'] {
     const { root } = this.roster.membership(caller)
     return workspacePeers(this.ctx, this.roster, root).map(peer => ({
@@ -375,7 +373,12 @@ export class TeamService extends TypertRemoteService {
     return { ...this.remoteOverview(agent), subagents }
   }
 
-  /** Read live Team work and mailbox state without enumerating stored sessions. */
+  /**
+   * Read live Team work and mailbox state without enumerating stored sessions.
+   * @param agent - live Team member authorizing the view.
+   * @param signal - cancellation before the view is read.
+   * @returns current roster, task boards, and authorized messages.
+   */
   @Remote('overview')
   remoteOverview(agent: Agent, signal?: AbortSignal): TeamOverview {
     signal?.throwIfAborted()
@@ -388,7 +391,12 @@ export class TeamService extends TypertRemoteService {
     }
   }
 
-  /** Discover durable descendant conversations independently of live Team work. */
+  /**
+   * Discover durable descendant conversations independently of live Team work.
+   * @param agent - live Team member authorizing descendant discovery.
+   * @param signal - cancellation for discovery and publication.
+   * @returns stored descendants with current live activity.
+   */
   @Remote('conversations')
   async remoteConversations(agent: Agent, signal?: AbortSignal): Promise<TeamView['subagents']> {
     signal?.throwIfAborted()

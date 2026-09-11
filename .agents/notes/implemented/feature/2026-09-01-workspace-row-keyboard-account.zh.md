@@ -34,4 +34,4 @@ Shift+F10 与 ContextMenu 键抵达行的方式与右击相同，都是那个 `c
 
 一次 Tab 即可抵达浏览区域，而指针在其中能做的事键盘都能做：走遍这棵树、操作项目的展开状态、打开会话、跨项目建立范围、并从行菜单提交批量归档。屏幕阅读器用户拿到了先前就已许诺的停靠位与 `aria-selected` 标记，另加一圈焦点环——否则选择填充会把光标所在之处遮住。`Menu` 增加了一个选择性加入的 prop 和条目间的方向键导航，现有调用方无需改动即可继承，因为方向键只在焦点已经落在某个条目上时才起作用。
 
-覆盖：`tests/row-focus.client.spec.tsx` 钉住停靠位、被钳制的移动、退回分组头，以及停靠行不再渲染时的回退；`tests/rows.client.spec.tsx` 钉住两种行上的按键路由、Tab 停靠位属性、被排除在计数之外的行，以及每一种菜单来源各自的焦点行为，包括由键盘与由指针打开的尾部按钮；`tests/workspace-browser.client.spec.tsx` 完全用键盘建立并归档一段项目范围，并走遍组装后的树；`tests/browser-styles.client.spec.ts` 钉住两种行都带有该标记、焦点会显现尾部操作项、以及停靠位被画了出来；`packages/client/ui-primitives/tests/atoms.client.spec.tsx` 钉住 `autoFocus`、焦点的交还，以及指针打开的列表对两者都不干预。这棵树扁平的分组结构仍未被覆盖，因为它仍未改变；`aria-level` 在两种行上都已钉住。
+覆盖：`tests/row-focus.client.spec.tsx` 钉住停靠位、被钳制的移动、退回分组头，以及停靠行不再渲染时的回退；`tests/rows.client.spec.tsx` 钉住两种行上的按键路由、Tab 停靠位属性、被排除在计数之外的行，以及每一种菜单来源各自的焦点行为，包括由键盘与由指针打开的尾部按钮；`tests/workspace-browser.client.spec.tsx` 完全用键盘建立并归档一段项目范围，并走遍组装后的树；`tests/browser-styles.client.spec.ts` 钉住两种行都带有该标记、焦点会显现尾部操作项、以及停靠位被画了出来；`packages/client/ui-primitives/tests/atoms.browser.spec.tsx` 钉住 `autoFocus`、焦点的交还，以及指针打开的列表对两者都不干预。这棵树扁平的分组结构仍未被覆盖，因为它仍未改变；`aria-level` 在两种行上都已钉住。

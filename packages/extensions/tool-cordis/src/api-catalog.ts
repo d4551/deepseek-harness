@@ -385,6 +385,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'detached current task views.',
       },
       {
+        signature: 'workspaceTasks(caller: Agent): TeamOverview[\'workspaceTasks\']',
+        description: 'Read task boards owned by other live conversations in the registered workspace.',
+        parameters: [{ name: 'caller', description: 'live Team member authorizing workspace discovery.' }],
+        returns: 'peer session identities and their current task boards.',
+      },
+      {
         signature: 'async claimNextReadyTask(caller: Agent): Promise<ClaimNextTeamTaskResult>',
         description: 'Take ownership of the first ready task whose write scopes are free, in one atomic Lead transaction. A member pulls work with this instead of being assigned it; concurrent callers therefore receive disjoint tasks. A ready task writing where in-progress work does is deferred here and refused by updateTask, so no route hands two owners the same paths.\n\nThe transaction serializes callers inside one host process. Membership requires the exact live `Agent` this process holds, so a second process running against the same session log is outside the exclusion.',
         parameters: [{ name: 'caller', description: 'exact live Team member taking ownership.' }],
@@ -415,10 +421,22 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'Team membership, or undefined for non-Team subagents and stale identities.',
       },
       {
-        signature: '@Remote(\'view\') async remoteView(agent: Agent): Promise<TeamView>',
+        signature: '@Remote(\'view\') async remoteView(agent: Agent, signal?: AbortSignal): Promise<TeamView>',
         description: 'Read the Team roster, task board, descendant conversations, and peer messages.',
-        parameters: [{ name: 'agent', description: 'exact live Team member used as the authority credential.' }],
+        parameters: [{ name: 'agent', description: 'exact live Team member used as the authority credential.' }, { name: 'signal', description: 'cancellation for descendant discovery and view publication.' }],
         returns: 'detached Team state with current descendant activity and message delivery.',
+      },
+      {
+        signature: '@Remote(\'overview\') remoteOverview(agent: Agent, signal?: AbortSignal): TeamOverview',
+        description: 'Read live Team work and mailbox state without enumerating stored sessions.',
+        parameters: [{ name: 'agent', description: 'live Team member authorizing the view.' }, { name: 'signal', description: 'cancellation before the view is read.' }],
+        returns: 'current roster, task boards, and authorized messages.',
+      },
+      {
+        signature: '@Remote(\'conversations\') async remoteConversations(agent: Agent, signal?: AbortSignal): Promise<TeamView[\'subagents\']>',
+        description: 'Discover durable descendant conversations independently of live Team work.',
+        parameters: [{ name: 'agent', description: 'live Team member authorizing descendant discovery.' }, { name: 'signal', description: 'cancellation for discovery and publication.' }],
+        returns: 'stored descendants with current live activity.',
       },
       {
         signature: '@Remote({ mode: \'stream\' }) async *changes(agent: Agent, signal: AbortSignal): AsyncIterable<number>',
@@ -2738,13 +2756,13 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     description: 'The web access service. Registered as `ctx.web` (one instance per context).\n\nSelection semantics (resolved at execution time, never order-dependent):\n\n- A configured id that is registered and `available()` → that provider.\n- A configured id not registered → `WEB_PROVIDER_CONFIGURED_MISSING`.\n- A configured id registered but unavailable → `WEB_PROVIDER_CONFIGURED_UNAVAILABLE`.\n- No id configured, exactly one registered usable provider → that provider.\n- No id configured, multiple usable providers → `WEB_PROVIDER_AMBIGUOUS`.\n- No id configured, no usable provider → `WEB_PROVIDER_UNAVAILABLE`.',
     methods: [
       {
-        signature: 'registerSearchProvider(provider: WebSearchProvider): () => void',
+        signature: 'registerSearchProvider(provider: WebSearchProvider): Disposable<Promise<void>>',
         description: 'Register a search provider. Throws WebError `WEB_DUPLICATE_PROVIDER` if its id is already registered for search. Returns a disposer; disposed with the calling fiber.',
         parameters: [{ name: 'provider', description: 'the provider; its `id` is the registry key.' }],
         returns: 'the disposer that unregisters the provider.',
       },
       {
-        signature: 'registerFetchProvider(provider: WebFetchProvider): () => void',
+        signature: 'registerFetchProvider(provider: WebFetchProvider): Disposable<Promise<void>>',
         description: 'Register a fetch provider. Throws WebError `WEB_DUPLICATE_PROVIDER` if its id is already registered for fetch. Returns a disposer; disposed with the calling fiber.',
         parameters: [{ name: 'provider', description: 'the provider; its `id` is the registry key.' }],
         returns: 'the disposer that unregisters the provider.',
@@ -3928,7 +3946,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CreateTeamTaskRequest',
-    declaration: 'export interface CreateTeamTaskRequest {\n    readonly subject: string;\n    readonly description: string;\n    readonly blockedBy?: readonly TeamTaskId[];\n    readonly writeScopes?: readonly string[];\n}',
+    declaration: 'export interface CreateTeamTaskRequest {\n    readonly subject: string;\n    readonly description: string;\n    readonly blockedBy?: readonly string[];\n    readonly writeScopes?: readonly string[];\n}',
   },
   {
     name: 'CredentialInfo',
@@ -5348,11 +5366,15 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SettingsDescriptor',
-    declaration: 'export interface SettingsDescriptor {\n    available?: boolean;\n    ns: SettingsNamespace;\n    schema: unknown;\n    value: unknown;\n    revision: number;\n    base?: unknown;\n    user?: unknown;\n    applies: SettingsApplies;\n    secrets?: RedactedSecret[];\n}',
+    declaration: 'export interface SettingsDescriptor extends SettingsFlowMembership {\n    available?: boolean;\n    ns: SettingsNamespace;\n    schema: unknown;\n    value: unknown;\n    revision: number;\n    base?: unknown;\n    user?: unknown;\n    applies: SettingsApplies;\n    secrets?: RedactedSecret[];\n}',
   },
   {
     name: 'SettingsDocumentOpenValue',
     declaration: 'export interface SettingsDocumentOpenValue {\n    readonly opened: true;\n}',
+  },
+  {
+    name: 'SettingsFlowMembership',
+    declaration: 'export interface SettingsFlowMembership {\n    readonly flow?: string;\n}',
   },
   {
     name: 'SettingsNamespace',
@@ -5360,7 +5382,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SettingsNamespaceView',
-    declaration: 'export interface SettingsNamespaceView {\n    available?: boolean;\n    ns: string;\n    schema: JsonValue;\n    value: JsonValue;\n    base?: JsonValue;\n    user?: JsonValue;\n    applies: \'live\' | \'restart\';\n    secrets: SettingsSecretView[];\n    revision: number;\n}',
+    declaration: 'export interface SettingsNamespaceView extends SettingsFlowMembership {\n    available?: boolean;\n    ns: string;\n    schema: JsonValue;\n    value: JsonValue;\n    base?: JsonValue;\n    user?: JsonValue;\n    applies: \'live\' | \'restart\';\n    secrets: SettingsSecretView[];\n    revision: number;\n}',
   },
   {
     name: 'SettingsPathOp',
@@ -5372,7 +5394,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SettingsRegisterOptions',
-    declaration: 'export interface SettingsRegisterOptions<T> {\n    available?: boolean;\n    base?: Partial<T>;\n    applies?: SettingsApplies;\n    validate?: (value: T) => void;\n}',
+    declaration: 'export interface SettingsRegisterOptions<T> extends SettingsFlowMembership {\n    available?: boolean;\n    base?: Partial<T>;\n    applies?: SettingsApplies;\n    validate?: (value: T) => void;\n}',
   },
   {
     name: 'SettingsSecretView',
@@ -5704,7 +5726,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'TeamMemberView',
-    declaration: 'export interface TeamMemberView {\n    readonly id: SessionId;\n    readonly name: string;\n    readonly role: \'lead\' | \'teammate\' | \'peer\';\n    readonly status: \'running\' | \'idle\' | \'inactive\' | \'provisioning\' | \'failed\';\n    readonly description?: string;\n    readonly provider?: string;\n    readonly context?: \'fresh\' | \'fork\';\n    readonly model?: string;\n    readonly diagnostics: string[];\n}',
+    declaration: 'export interface TeamMemberView {\n    readonly id: SessionId;\n    readonly name: string;\n    readonly title?: string;\n    readonly role: \'lead\' | \'teammate\' | \'peer\';\n    readonly status: \'running\' | \'idle\' | \'inactive\' | \'provisioning\' | \'failed\';\n    readonly description?: string;\n    readonly provider?: string;\n    readonly context?: \'fresh\' | \'fork\';\n    readonly model?: string;\n    readonly diagnostics: string[];\n}',
   },
   {
     name: 'TeamMessageId',
@@ -5713,6 +5735,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'TeamMessageSnapshot',
     declaration: 'export interface TeamMessageSnapshot {\n    readonly id: TeamMessageId;\n    readonly senderId: SessionId;\n    readonly senderName: string;\n    readonly targetId: SessionId;\n    readonly delivery: \'quiet\' | \'wakeup\';\n    readonly content: ContentBlock[];\n}',
+  },
+  {
+    name: 'TeamOverview',
+    declaration: 'export interface TeamOverview {\n    readonly members: TeamMemberView[];\n    readonly tasks: TeamTaskView[];\n    readonly workspaceTasks: {\n        readonly sessionId: SessionId;\n        readonly tasks: TeamTaskView[];\n    }[];\n    readonly messages: (TeamMessageSnapshot & {\n        readonly delivered: boolean;\n    })[];\n}',
   },
   {
     name: 'TeamTaskAction',
@@ -5740,7 +5766,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'TeamView',
-    declaration: 'export interface TeamView {\n    readonly members: TeamMemberView[];\n    readonly tasks: TeamTaskView[];\n    readonly subagents: SubagentDescendantListEntry[];\n    readonly messages: (TeamMessageSnapshot & {\n        readonly delivered: boolean;\n    })[];\n}',
+    declaration: 'export interface TeamView extends TeamOverview {\n    readonly subagents: SubagentDescendantListEntry[];\n}',
   },
   {
     name: 'TeamWaitResult',
@@ -6060,7 +6086,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'UpdateTeamTaskRequest',
-    declaration: 'export interface UpdateTeamTaskRequest {\n    readonly taskId: TeamTaskId;\n    readonly expectedRevision: number;\n    readonly action: TeamTaskAction;\n    readonly subject?: string;\n    readonly description?: string;\n    readonly blockedBy?: readonly TeamTaskId[];\n    readonly writeScopes?: readonly string[];\n    readonly owner?: string;\n}',
+    declaration: 'export interface UpdateTeamTaskRequest {\n    readonly taskId: TeamTaskId;\n    readonly expectedRevision: number;\n    readonly action: TeamTaskAction;\n    readonly subject?: string;\n    readonly description?: string;\n    readonly blockedBy?: readonly string[];\n    readonly writeScopes?: readonly string[];\n    readonly owner?: string;\n}',
   },
   {
     name: 'UserMessage',

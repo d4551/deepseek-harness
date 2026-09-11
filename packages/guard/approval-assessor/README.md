@@ -45,7 +45,7 @@ A request with a missing or work-avoidance justification is rejected, and the mo
 
 The plugin listens on the `approval/request` waterfall before user-facing answerers; `dsh-base` mounts it before layers that add those answerers. It reads the current Host settings, rejects a missing reason or a reason that matches a built-in or configured work-avoidance pattern, injects a redirect with source `plugin: approval-assessor`, and resolves `rejected` without calling `next()`. A disabled policy or non-evasive justification delegates after the audit. The redirect reaches the log through the agent inbox as a later `user/message`. The `./invariant` companion ensures committed redirects never outnumber rejected approval decisions.
 
-The enabled audit applies to every approval request. Missing justification and built-in or configured work-avoidance patterns reject. A session with no human message still receives the rejection without an instruction quote.
+The enabled audit applies to every approval request. Missing justification and built-in or configured work-avoidance patterns reject. Matching normalizes Unicode to NFKC, removes default-ignorable code points, and folds whitespace and case for both reasons and configured phrases. A session with no human message still receives the rejection without an instruction quote.
 
 ## Model Experience
 
@@ -75,7 +75,7 @@ Append-only; the redirect follows the denied approval request in history and doe
 
 These limits define when the audit is a poor fit. They are current package constraints, not a task backlog.
 
-- **Rule matching only** — a paraphrased evasion that matches neither a built-in rule nor an `extraPhrases` entry passes the audit. Learned or model-assisted detection is rejected pending evidence of need.
+- **Rule matching only** — a paraphrased evasion that matches neither a built-in rule nor an `extraPhrases` entry passes screening. Enable the [adversarial reviewer](../approval-adversary/README.md) for model-based authorization review after this stage.
 - **Built-in rules are English** — other languages require deployment-specific entries in `extraPhrases`.
 - **One user-owned policy** — the Host settings namespace applies one enabled state and phrase list to every approval request; it does not select policy by tool or session.
 

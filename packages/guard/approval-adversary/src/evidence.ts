@@ -3,27 +3,37 @@
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type { ApprovalRequestEvent, ApprovalRequestId } from '@deepseek-ai/dsh-user-approval/types'
 
+/** Audit identity and complete model-visible authorization evidence. */
 export interface ReviewEvidence {
+  /** Open approval question owning this evidence. */
   approvalId: ApprovalRequestId
+  /** Serialized human instructions, exact tool call, and justification. */
   text: string
 }
 
-/** Bind a review to one open question, its exact call, and every human instruction. */
+/**
+ * Bind a review to one open question, its exact call, and every human instruction.
+ * @param req - approval request and its owning agent.
+ * @param maxChars - maximum complete serialized evidence length.
+ * @returns complete evidence, or the reason it cannot support review.
+ */
 export function reviewEvidence(req: ApprovalRequestEvent, maxChars: number): ReviewEvidence | string {
+  if ([...req.agent.inbox.nextTurn, ...req.agent.inbox.nextStep].some(message => message.source.kind === 'user')) {
+    return 'human instructions are waiting to be processed'
+  }
   const events = req.agent.session.events
-  const decided = new Set(events.flatMap(event => event.type === 'approval/decided' ? [event.data.id] : []))
-  const questions = events.filter(event => event.type === 'approval/asked'
-    && !decided.has(event.data.id) && event.data.toolName === req.toolName
+  const decided = new Set(events.filter(event => event.type === 'approval/decided').map(event => event.data.id))
+  const [question, ...otherQuestions] = events.filter(event => event.type === 'approval/asked')
+    .filter(event => !decided.has(event.data.id) && event.data.toolName === req.toolName
     && event.data.callId === req.callId && event.data.reason === req.reason)
-  const question = questions[0]
-  if (questions.length !== 1 || question?.type !== 'approval/asked') return 'approval question is missing or ambiguous'
+  if (question === undefined || otherQuestions.length > 0) return 'approval question is missing or ambiguous'
   if (req.callId === undefined) return 'exact tool call is missing'
-  const calls = events.filter(event => event.type === 'tool/call' && event.data.callId === req.callId)
-  const call = calls[0]
-  if (calls.length !== 1 || call?.type !== 'tool/call' || call.data.name !== req.toolName) {
+  const [call, ...otherCalls] = events.filter(event => event.type === 'tool/call')
+    .filter(event => event.data.callId === req.callId)
+  if (call === undefined || otherCalls.length > 0 || call.data.name !== req.toolName) {
     return 'tool identity is missing or ambiguous'
   }
-  if (call.seq >= question.seq) return 'tool call was not recorded before the approval question'
+  if (call.seq > question.seq) return 'tool call was not recorded before the approval question'
   if (req.reason === undefined || req.reason.trim().length === 0) return 'approval justification is missing'
   const instructions = humanInstructions(events)
   if (typeof instructions === 'string') return instructions

@@ -42,6 +42,10 @@ async function openPlugins(page: Page) {
     await flow.waitFor()
     expect(await flow.getAttribute('aria-expanded')).toBe('false')
   }
+  const other = dialog.getByRole('button', { name: '智能体与执行设置', exact: true })
+  expect(await other.getAttribute('aria-expanded')).toBe('false')
+  await other.click()
+  expect(await other.getAttribute('aria-expanded')).toBe('true')
   return dialog
 }
 
@@ -287,8 +291,8 @@ describe('web e2e: plugin configuration section', () => {
     const model = dialog.getByRole('textbox', { name: '评审模型', exact: true })
     const decide = dialog.getByText('由评审者决定', { exact: true })
       .locator('..').locator('..').getByRole('radio')
-    const reject = dialog.getByText('拒绝', { exact: true })
-      .locator('..').locator('..').getByRole('radio')
+    const evidence = dialog.getByRole('textbox', { name: '证据上限（字符）', exact: true })
+    expect(await dialog.getByRole('group', { name: '未决请求', exact: true }).count()).toBe(0)
     const save = dialog.getByRole('button', { name: '保存', exact: true })
     expect(await provider.inputValue()).toBe('')
     expect(await model.inputValue()).toBe('')
@@ -308,21 +312,26 @@ describe('web e2e: plugin configuration section', () => {
     // The complete pair lands in one mutation.
     await model.fill('reviewer-model')
     await decide.check()
-    await reject.check()
+    await evidence.fill('8000')
     await save.click()
     await expand.waitFor({ timeout: 10_000 })
     await expect.poll(async () => await settingsDocument(scaffold), { timeout: 10_000 })
       .toContain('provider: reviewer-route')
     expect(await settingsDocument(scaffold)).toContain('model: reviewer-model')
     expect(await settingsDocument(scaffold)).toContain('enabled: true')
-    expect(await settingsDocument(scaffold)).toContain('fallback: reject')
+    expect(await settingsDocument(scaffold)).toContain('maxEvidenceChars: 8000')
+    expect(await settingsDocument(scaffold)).not.toContain('fallback:')
 
     // Clearing both returns the review to the agent's own route.
     await expand.click()
     expect(await provider.inputValue()).toBe('reviewer-route')
     expect(await model.inputValue()).toBe('reviewer-model')
     expect(await decide.isChecked()).toBe(true)
-    expect(await reject.isChecked()).toBe(true)
+    expect(await evidence.inputValue()).toBe('8000')
+    await provider.scrollIntoViewIfNeeded()
+    await page.screenshot({ path: '.artifacts/finish/hardened-approval-review.png' })
+    await evidence.scrollIntoViewIfNeeded()
+    await page.screenshot({ path: '.artifacts/finish/hardened-approval-evidence.png' })
     const resets = dialog.getByRole('button', { name: '恢复默认', exact: true })
     expect(await resets.count()).toBe(4)
     await resets.nth(2).click()
@@ -377,10 +386,11 @@ describe('web e2e: Team and browser plugin configuration', () => {
 
     await members.fill('0')
     const save = dialog.getByRole('button', { name: '保存', exact: true })
-    await expect.poll(() => save.isEnabled(), { timeout: 5_000 }).toBe(true)
-    await save.click()
-    await dialog.getByText('本部署没有接受这些值，已保留供你修改。', { exact: true })
-      .waitFor({ timeout: 10_000 })
+    await expect.poll(() => save.isDisabled(), { timeout: 5_000 }).toBe(true)
+    expect(await members.getAttribute('aria-invalid')).toBe('true')
+    const invalidDescription = await members.getAttribute('aria-describedby')
+    if (invalidDescription === null) throw new Error('Invalid capacity has no accessible description')
+    expect(await dialog.locator('[id="' + invalidDescription + '"]').isVisible()).toBe(true)
     expect(await settingsDocument(scaffold)).not.toContain('maxMembers: 0')
 
     await members.fill('12')

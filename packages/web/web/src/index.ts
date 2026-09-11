@@ -12,6 +12,7 @@
 
 import { createRequire } from 'node:module'
 import { Context, Service } from '@deepseek-ai/cordis'
+import type { Disposable } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
 // The package's own manifest is the single source of the version, so the
@@ -135,7 +136,6 @@ export class WebRuntime extends Service {
       setSource: (current) => {
         this.selection = current
       },
-      onChange: () => {},
     })
   }
 
@@ -156,7 +156,7 @@ export class WebRuntime extends Service {
    * @param provider - the provider; its `id` is the registry key.
    * @returns the disposer that unregisters the provider.
    */
-  registerSearchProvider(provider: WebSearchProvider) {
+  registerSearchProvider(provider: WebSearchProvider): Disposable<Promise<void>> {
     return this.registerProvider(this.searchProviders, provider)
   }
 
@@ -167,7 +167,7 @@ export class WebRuntime extends Service {
    * @param provider - the provider; its `id` is the registry key.
    * @returns the disposer that unregisters the provider.
    */
-  registerFetchProvider(provider: WebFetchProvider) {
+  registerFetchProvider(provider: WebFetchProvider): Disposable<Promise<void>> {
     return this.registerProvider(this.fetchProviders, provider)
   }
 

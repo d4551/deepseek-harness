@@ -18,10 +18,9 @@ function renderCard(state: Partial<ApprovalAdversaryCardState> = {}) {
     enabled: field('false'),
     provider: field(''),
     model: field(''),
-    fallback: field('delegate'),
     timeoutMs: field('30000'),
     maxOutputTokens: field('256'),
-    maxExcerptChars: field('4000'),
+    maxEvidenceChars: field('4000'),
     instructions: field(''),
     ...state,
   })
@@ -36,16 +35,15 @@ function renderCard(state: Partial<ApprovalAdversaryCardState> = {}) {
 }
 
 describe('ApprovalAdversaryCard', () => {
-  it('stages the reviewer switch, the route, the fallback, the caps, and the instructions', () => {
+  it('stages the reviewer switch, the route, the caps, and the instructions', () => {
     const actions = renderCard({ dirty: true })
 
     fireEvent.click(screen.getByRole('radio', { name: new RegExp(en.approvalAdversaryEnabledOn) }))
     fireEvent.change(screen.getByLabelText(en.approvalAdversaryProvider), { target: { value: 'deepseek-official' } })
     fireEvent.change(screen.getByLabelText(en.approvalAdversaryModel), { target: { value: 'deepseek-v4-flash' } })
-    fireEvent.click(screen.getByRole('radio', { name: new RegExp(en.approvalAdversaryFallbackReject) }))
     fireEvent.change(screen.getByLabelText(en.approvalAdversaryTimeoutMs), { target: { value: '15000' } })
     fireEvent.change(screen.getByLabelText(en.approvalAdversaryMaxOutputTokens), { target: { value: '128' } })
-    fireEvent.change(screen.getByLabelText(en.approvalAdversaryMaxExcerptChars), { target: { value: '2000' } })
+    fireEvent.change(screen.getByLabelText(en.approvalAdversaryMaxEvidenceChars), { target: { value: '2000' } })
     fireEvent.change(screen.getByLabelText(en.approvalAdversaryInstructions), {
       target: { value: 'Deny anything that touches production.' },
     })
@@ -55,10 +53,9 @@ describe('ApprovalAdversaryCard', () => {
       ['enabled', 'true'],
       ['provider', 'deepseek-official'],
       ['model', 'deepseek-v4-flash'],
-      ['fallback', 'reject'],
       ['timeoutMs', '15000'],
       ['maxOutputTokens', '128'],
-      ['maxExcerptChars', '2000'],
+      ['maxEvidenceChars', '2000'],
       ['instructions', 'Deny anything that touches production.'],
     ])
     expect(actions.save).not.toHaveBeenCalled()
@@ -70,19 +67,18 @@ describe('ApprovalAdversaryCard', () => {
       enabled: field('true', { overridden: true }),
       provider: field('deepseek-official', { overridden: true }),
       model: field('deepseek-v4-flash', { overridden: true }),
-      fallback: field('reject', { overridden: true }),
       timeoutMs: field('15000', { overridden: true }),
       maxOutputTokens: field('128', { overridden: true }),
-      maxExcerptChars: field('2000', { overridden: true }),
+      maxEvidenceChars: field('2000', { overridden: true }),
       instructions: field('custom', { overridden: true }),
     })
 
     const resets = screen.getAllByRole('button', { name: en.reset })
-    expect(resets).toHaveLength(8)
+    expect(resets).toHaveLength(7)
     for (const reset of resets) fireEvent.click(reset)
 
     expect(actions.resetField.mock.calls.map(([name]) => name)).toEqual([
-      'enabled', 'provider', 'model', 'fallback', 'timeoutMs', 'maxOutputTokens', 'maxExcerptChars', 'instructions',
+      'enabled', 'provider', 'model', 'timeoutMs', 'maxOutputTokens', 'maxEvidenceChars', 'instructions',
     ])
   })
 

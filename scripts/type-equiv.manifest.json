@@ -29,7 +29,7 @@
     {
       "doc": "docs/subsystems/approval.md",
       "symbol": "ApprovalAdversaryRequestEventData",
-      "source": "packages/guard/approval-adversary/src/index.ts"
+      "source": "packages/guard/approval-adversary/src/review.ts"
     },
     {
       "doc": "docs/subsystems/approval.md",

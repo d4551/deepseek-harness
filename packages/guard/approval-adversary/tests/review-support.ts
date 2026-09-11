@@ -77,7 +77,7 @@ export function loggedReviews(agent: Agent) {
   return agent.session.events.filter(event => event.type === 'approval/adversary-request')
 }
 
-export async function harness(config: Config = EXPLICIT, response: StreamChunk[] | ReviewScript = reply(ALLOW_TEXT)) {
+export async function harness(config: Config = EXPLICIT, response: StreamChunk[] | ReviewScript = reply(ALLOW_TEXT), human = true) {
   const ctx = new Context()
   onTestFinished(() => ctx.fiber.dispose())
   await ctx.plugin(SessionStore)
@@ -95,7 +95,7 @@ export async function harness(config: Config = EXPLICIT, response: StreamChunk[]
   ctx.llm.registerAdapter(['reviewer', 'agent-route'], reviewer)
   const { agent } = await ctx.agents.create({ sessionId: SessionId(randomUUID()), agentOptions: { provider: 'agent-route', model: 'm' } })
   agent.session.append('turn/start', { turn: 1 })
-  instruction(agent, 'Rebuild the project. Do not change or remove tests.')
+  if (human) instruction(agent, 'Rebuild the project. Do not change or remove tests.')
   const call = toolCall(agent, 'call-1')
   const req = { agent, toolName: 'bash', callId: call.data.callId, reason: 'run the requested build' }
   const downstream = { calls: 0 }

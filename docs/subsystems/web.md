@@ -176,7 +176,7 @@ Selection semantics (resolved at execution time, never order-dependent):
  * @param provider - the provider; its `id` is the registry key.
  * @returns the disposer that unregisters the provider.
  */
-registerSearchProvider(provider: WebSearchProvider): () => void
+registerSearchProvider(provider: WebSearchProvider): Disposable<Promise<void>>
 
 /**
  * Register a fetch provider. Throws {@link WebError} `WEB_DUPLICATE_PROVIDER`
@@ -185,7 +185,7 @@ registerSearchProvider(provider: WebSearchProvider): () => void
  * @param provider - the provider; its `id` is the registry key.
  * @returns the disposer that unregisters the provider.
  */
-registerFetchProvider(provider: WebFetchProvider): () => void
+registerFetchProvider(provider: WebFetchProvider): Disposable<Promise<void>>
 
 /**
  * Run one search through the selected provider. Resolves the provider at call

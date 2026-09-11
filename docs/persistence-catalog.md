@@ -131,13 +131,13 @@ Source: [`packages/preset/agent-presets/src/session.ts:28`](../packages/preset/a
 #### `approval/adversary-request` — log-only
 
 ```ts persistence-catalog
-/** Log-only pre-dispatch record of one adversarial approval review request. */
+/** Exact review request committed before provider dispatch. */
 'approval/adversary-request': ApprovalAdversaryRequestEventData
 ```
 
 Types: [ApprovalAdversaryRequestEventData](subsystems/approval.md)
 
-Source: [`packages/guard/approval-adversary/src/index.ts:91`](../packages/guard/approval-adversary/src/index.ts)
+Source: [`packages/guard/approval-adversary/src/review.ts:38`](../packages/guard/approval-adversary/src/review.ts)
 
 <a id="approvalasked--log-only"></a>
 
@@ -162,7 +162,7 @@ Source: [`packages/guard/approval-adversary/src/index.ts:91`](../packages/guard/
 
 Types: [ToolCallId](subsystems/core.md)
 
-Source: [`packages/interaction/user-approval/src/types.ts:44`](../packages/interaction/user-approval/src/types.ts)
+Source: [`packages/interaction/user-approval/src/types.ts:47`](../packages/interaction/user-approval/src/types.ts)
 
 <a id="approvaldecided--log-only"></a>
 
@@ -180,7 +180,7 @@ Source: [`packages/interaction/user-approval/src/types.ts:44`](../packages/inter
 }
 ```
 
-Source: [`packages/interaction/user-approval/src/types.ts:55`](../packages/interaction/user-approval/src/types.ts)
+Source: [`packages/interaction/user-approval/src/types.ts:58`](../packages/interaction/user-approval/src/types.ts)
 
 <a id="approvalpolicy--log-only"></a>
 
@@ -783,7 +783,7 @@ Source: [`packages/subagent/tool-subagent/src/model-selection-state.ts:14`](../p
 
 Types: [TeamId](subsystems/agent-team.md) · [TeamMemberSnapshot](subsystems/agent-team.md)
 
-Source: [`packages/subagent/agent-team/src/types.ts:251`](../packages/subagent/agent-team/src/types.ts)
+Source: [`packages/subagent/agent-team/src/types.ts:258`](../packages/subagent/agent-team/src/types.ts)
 
 <a id="teammessagedelivered--log-only"></a>
 
@@ -801,7 +801,7 @@ Source: [`packages/subagent/agent-team/src/types.ts:251`](../packages/subagent/a
 
 Types: [TeamId](subsystems/agent-team.md) · [TeamMessageId](subsystems/agent-team.md)
 
-Source: [`packages/subagent/agent-team/src/types.ts:257`](../packages/subagent/agent-team/src/types.ts)
+Source: [`packages/subagent/agent-team/src/types.ts:264`](../packages/subagent/agent-team/src/types.ts)
 
 <a id="teammessagequeued--log-only"></a>
 
@@ -814,7 +814,7 @@ Source: [`packages/subagent/agent-team/src/types.ts:257`](../packages/subagent/a
 
 Types: [TeamId](subsystems/agent-team.md) · [TeamMessageSnapshot](subsystems/agent-team.md)
 
-Source: [`packages/subagent/agent-team/src/types.ts:255`](../packages/subagent/agent-team/src/types.ts)
+Source: [`packages/subagent/agent-team/src/types.ts:262`](../packages/subagent/agent-team/src/types.ts)
 
 <a id="teamtask--log-only"></a>
 
@@ -827,7 +827,7 @@ Source: [`packages/subagent/agent-team/src/types.ts:255`](../packages/subagent/a
 
 Types: [TeamId](subsystems/agent-team.md) · [TeamTaskSnapshot](subsystems/agent-team.md)
 
-Source: [`packages/subagent/agent-team/src/types.ts:253`](../packages/subagent/agent-team/src/types.ts)
+Source: [`packages/subagent/agent-team/src/types.ts:260`](../packages/subagent/agent-team/src/types.ts)
 
 ### `todo/*`
 

@@ -10,6 +10,8 @@ const mutationTests = globSync([
   'packages/subagent/agent-team/tests/**/*.spec.ts',
   'packages/client/ui-agent-team/tests/**/*.spec.{ts,tsx}',
   'packages/client/ui-subagent/tests/**/*.spec.{ts,tsx}',
+  'packages/guard/approval-adversary/tests/**/*.spec.ts',
+  'packages/guard/approval-assessor/tests/**/*.spec.ts',
 ]).map(file => file.replaceAll('\\', '/'))
 
 /** Tests owning the utility and conversation-linked Team mutation scope. */

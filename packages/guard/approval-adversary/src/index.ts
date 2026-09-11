@@ -5,10 +5,11 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { installSettingsSection } from '@deepseek-ai/dsh-settings'
 import { AGENT_REVIEW_SETTINGS_FLOW, type ApprovalOutcome, type ApprovalRequestEvent } from '@deepseek-ai/dsh-user-approval/types'
-import { APPROVAL_ADVERSARY_SETTINGS_NAMESPACE, APPROVAL_ADVERSARY_SETTINGS_SCHEMA, assertRoutePair, type Config } from './policy.ts'
+import { APPROVAL_ADVERSARY_SETTINGS_NAMESPACE, APPROVAL_ADVERSARY_SETTINGS_SCHEMA, assertRoutePair, Config } from './policy.ts'
 import type { ReviewResult } from './protocol.ts'
 import { APPROVAL_ADVERSARY_PLUGIN, review } from './review.ts'
 
@@ -21,6 +22,7 @@ export type { ApprovalAdversaryRequestEventData } from './review.ts'
 export const name = 'approval-adversary'
 export const inject = ['approval', 'llm']
 
+/** Decision classes carried by model-visible review notices. */
 export type AdversaryVerdict = ReviewResult['verdict']
 
 /** Stable notice summaries consumed by the runtime invariant. */
@@ -40,8 +42,10 @@ function noticeText(tool: string, result: ReviewResult): string {
 
 /** Register user-owned policy and the automatic answerer. */
 export function apply(ctx: Context, config: Config = {}): void {
-  const entry = APPROVAL_ADVERSARY_SETTINGS_SCHEMA(config)
+  const entry = Config(config)
   assertRoutePair(entry)
+  const lifecycle = new AbortController()
+  ctx.effect(() => () => { lifecycle.abort() }, 'approval-adversary.lifecycle')
   let source = () => entry
   installSettingsSection(ctx, APPROVAL_ADVERSARY_SETTINGS_NAMESPACE, APPROVAL_ADVERSARY_SETTINGS_SCHEMA, entry, {
     flow: AGENT_REVIEW_SETTINGS_FLOW,
@@ -53,8 +57,9 @@ export function apply(ctx: Context, config: Config = {}): void {
     const settings = source()
     if (!settings.enabled) return next()
     const policy = JSON.stringify(settings)
-    let result = await review(ctx, req, settings)
-    if (req.signal?.aborted) return 'cancelled'
+    const signal = req.signal === undefined ? lifecycle.signal : AbortSignal.any([req.signal, lifecycle.signal])
+    let result = await review(ctx, { ...req, signal }, settings)
+    if (signal.aborted) return 'cancelled'
     if (JSON.stringify(source()) !== policy) result = { verdict: 'unavailable', reason: 'approval policy changed during review' }
     req.agent.inject(createUserMessage({
       content: [{ type: 'text', text: noticeText(req.toolName, result) }],

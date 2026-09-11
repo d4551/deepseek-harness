@@ -1,6 +1,10 @@
 - dialog "设置":
-  - navigation "设置":
-    - text: 设置
+  - heading "设置" [level=2]
+  - button "打开配置文件"
+  - button "关闭":
+    - img
+    - text: 关闭
+  - navigation:
     - button "通用设置":
       - img
       - text: 通用设置
@@ -13,10 +17,6 @@
     - button "Agent 预设":
       - img
       - text: Agent 预设
-  - button "打开配置文件"
-  - button "关闭":
-    - img
-    - text: 关闭
   - heading "插件" [level=2]
   - paragraph: 配置和查看本部署已安装的插件。
   - tablist "插件视图":
@@ -173,7 +173,7 @@
           - 'button "收起设置: 审批流程" [expanded]':
             - img
             - text: 审批流程
-        - paragraph: 配置审批筛查、模型评审和未决请求的处理策略。
+        - paragraph: 配置审批筛查与模型评审。启用的评审会拒绝未决请求。
         - group "审批审计":
           - text: 审批审计
           - paragraph: 第一阶段：基于规则检查理由，可以拒绝请求，但不能批准操作。
@@ -192,8 +192,8 @@
           - paragraph: 第二阶段：可选模型评审者代替人工，允许或拒绝通过检查的请求。
           - group "评审者":
             - text: 评审者
-            - radio "由评审者决定 有效裁决直接允许或拒绝请求，无需提示人工。评审失败或未决时使用下方策略。"
-            - text: 由评审者决定 有效裁决直接允许或拒绝请求，无需提示人工。评审失败或未决时使用下方策略。
+            - radio "由评审者决定 只有明确批准才能允许请求。证据缺失、评审失败或未决回复都会拒绝请求。"
+            - text: 由评审者决定 只有明确批准才能允许请求。证据缺失、评审失败或未决回复都会拒绝请求。
             - radio "关闭 审批请求继续交给已配置的应答者。" [checked]
             - text: 关闭 审批请求继续交给已配置的应答者。
           - paragraph: 原本会提示人工的审批请求是否改由对抗式评审者决定。
@@ -205,13 +205,6 @@
           - textbox "评审模型":
             - /placeholder: ""
           - paragraph: 评审调用使用的模型 ID；需与提供方一起设置。
-          - group "未决请求":
-            - text: 未决请求
-            - radio "委托 把请求交给下一个应答者，例如审批提示。" [checked]
-            - text: 委托 把请求交给下一个应答者，例如审批提示。
-            - radio "拒绝 拒绝该请求，并告知模型评审无法作出决定。"
-            - text: 拒绝 拒绝该请求，并告知模型评审无法作出决定。
-          - paragraph: 评审超时、失败或未给出裁决时的处理方式。
           - text: 评审超时（毫秒）
           - textbox "评审超时（毫秒）":
             - /placeholder: ""
@@ -222,38 +215,44 @@
             - /placeholder: ""
             - text: "256"
           - paragraph: 评审者输出两行裁决时最多可用的输出 token 数。
-          - text: 摘录上限（字符）
-          - textbox "摘录上限（字符）":
+          - text: 证据上限（字符）
+          - textbox "证据上限（字符）":
             - /placeholder: ""
             - text: "4000"
-          - paragraph: 评审者读取、拒绝通知引用的指令、工具参数或理由摘录的最大长度。
+          - paragraph: 完整评审记录的大小上限。超过上限的请求会被拒绝，证据不会被截短。
           - text: 附加评审指令
           - textbox "附加评审指令"
           - paragraph: 追加在内置评审指令之后，最多 4096 个字符。内置指令与裁决格式仍然生效。
         - button "放弃修改" [disabled]
         - button "保存" [disabled]
       - listitem:
-        - 'heading "展开设置: 终端" [level=3]':
-          - 'button "展开设置: 终端"':
+        - heading "智能体与执行设置" [level=3]:
+          - button "智能体与执行设置" [expanded]:
             - img
-            - text: 终端
-      - listitem:
-        - 'heading "展开设置: Agent 循环" [level=3]':
-          - 'button "展开设置: Agent 循环"':
-            - img
-            - text: Agent 循环
-      - listitem:
-        - 'heading "展开设置: Subagent" [level=3]':
-          - 'button "展开设置: Subagent"':
-            - img
-            - text: Subagent
-      - listitem:
-        - 'heading "展开设置: 默认模型" [level=3]':
-          - 'button "展开设置: 默认模型"':
-            - img
-            - text: 默认模型
-      - listitem:
-        - 'heading "展开设置: 智能体团队" [level=3]':
-          - 'button "展开设置: 智能体团队"':
-            - img
-            - text: 智能体团队
+            - text: 智能体与执行设置
+        - list:
+          - listitem:
+            - 'heading "展开设置: 终端" [level=3]':
+              - 'button "展开设置: 终端"':
+                - img
+                - text: 终端
+          - listitem:
+            - 'heading "展开设置: Agent 循环" [level=3]':
+              - 'button "展开设置: Agent 循环"':
+                - img
+                - text: Agent 循环
+          - listitem:
+            - 'heading "展开设置: Subagent" [level=3]':
+              - 'button "展开设置: Subagent"':
+                - img
+                - text: Subagent
+          - listitem:
+            - 'heading "展开设置: 默认模型" [level=3]':
+              - 'button "展开设置: 默认模型"':
+                - img
+                - text: 默认模型
+          - listitem:
+            - 'heading "展开设置: 智能体团队" [level=3]':
+              - 'button "展开设置: 智能体团队"':
+                - img
+                - text: 智能体团队

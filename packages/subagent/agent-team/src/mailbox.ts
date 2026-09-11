@@ -64,6 +64,7 @@ export class TeamMailbox {
    * Observe target-side durable receipts and checkpoint their Lead-log acknowledgement.
    * @param session - exact target Session receiving the event.
    * @param event - newly appended Session event.
+   * @returns receipt checkpoint completion, or undefined for unrelated events.
    */
   observeSessionEvent(session: Session, event: SessionEvent): Promise<boolean> | undefined {
     if (this.lifecycle.disposed || event.type !== 'user/message' || event.data.source.kind !== 'team-message') return

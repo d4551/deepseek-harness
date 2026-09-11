@@ -280,7 +280,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/subagent/agent-team/src/types.ts:134`](../packages/subagent/agent-team/src/types.ts)
+来源：[`packages/subagent/agent-team/src/types.ts:141`](../packages/subagent/agent-team/src/types.ts)
 
 <a id="deepseek-aidsh-agent-tool-presentation"></a>
 
@@ -361,31 +361,29 @@ export interface Config {
 需要：`approval` · `llm`
 
 ```ts config-catalog
-/** Composition values inherited by the approval-adversary settings section. */
-export interface Config {
-  /** Whether the adversary decides approval requests instead of delegating them. */
-  enabled?: boolean
-  /** Explicit provider route for the review call; paired with `model`. Absent: the requesting agent's own route. */
-  provider?: string
-  /** Explicit model id for the review call; paired with `provider`. */
-  model?: string
-  /** What happens to a request the review could not decide. */
-  fallback?: AdversaryFallback
-  /** End-to-end review call deadline in milliseconds. */
-  timeoutMs?: number
-  /** Output-token cap for the verdict. */
-  maxOutputTokens?: number
-  /** Character cap for each excerpt the reviewer reads and each excerpt a notice quotes. */
-  maxExcerptChars?: number
-  /** Deployment instruction appended after the built-in review instruction. */
-  instructions?: string
-}
+/** Composition values resolved through the persisted policy schema. */
+export type Config = Partial<ApprovalAdversarySettings>
 
-/** What the adversary does with a request it could not decide. */
-export type AdversaryFallback = 'delegate' | 'reject'
+/** User-owned authorization review policy. */
+export interface ApprovalAdversarySettings {
+  /** Whether automatic review owns approval decisions. */
+  enabled: boolean
+  /** Explicit review route; both fields must be supplied together. */
+  provider?: string
+  /** Model on the explicit provider route; supplied with provider. */
+  model?: string
+  /** End-to-end review deadline in milliseconds. */
+  timeoutMs: number
+  /** Output-token cap for the verdict. */
+  maxOutputTokens: number
+  /** Maximum length of the complete serialized evidence message. */
+  maxEvidenceChars: number
+  /** Additional restrictions on approval, at most 4096 characters. */
+  instructions: string
+}
 ```
 
-来源：[`packages/guard/approval-adversary/src/index.ts:33`](../packages/guard/approval-adversary/src/index.ts)
+来源：[`packages/guard/approval-adversary/src/policy.ts:26`](../packages/guard/approval-adversary/src/policy.ts)
 
 <a id="deepseek-aidsh-approval-assessor"></a>
 
@@ -395,11 +393,14 @@ export type AdversaryFallback = 'delegate' | 'reject'
 
 ```ts config-catalog
 /** Composition values inherited by the approval-assessor settings section. */
-export interface Config {
+export type Config = Partial<ApprovalAssessorSettings>
+
+/** User-owned approval-assessor policy, applied to every approval request. */
+export interface ApprovalAssessorSettings {
   /** Whether the assessor rejects work-avoidance approval reasons. */
-  enabled?: boolean
+  enabled: boolean
   /** Additional case-insensitive literal phrases to screen. */
-  extraPhrases?: string[]
+  extraPhrases: string[]
 }
 ```
 
@@ -2898,7 +2899,7 @@ export interface Config {
 export type TeamCoordination = 'delegated' | 'swarm'
 ```
 
-来源：[`packages/subagent/tool-agent-team/src/index.ts:25`](../packages/subagent/tool-agent-team/src/index.ts)
+来源：[`packages/subagent/tool-agent-team/src/index.ts:26`](../packages/subagent/tool-agent-team/src/index.ts)
 
 <a id="deepseek-aidsh-tool-fs"></a>
 
@@ -3433,7 +3434,7 @@ export interface WebRuntimeConfig {
 }
 ```
 
-来源：[`packages/web/web/src/index.ts:93`](../packages/web/web/src/index.ts)
+来源：[`packages/web/web/src/index.ts:94`](../packages/web/web/src/index.ts)
 
 <a id="deepseek-aidsh-web-app"></a>
 
@@ -3484,7 +3485,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/web/web-fetch-http/src/index.ts:30`](../packages/web/web-fetch-http/src/index.ts)
+来源：[`packages/web/web-fetch-http/src/index.ts:29`](../packages/web/web-fetch-http/src/index.ts)
 
 <a id="deepseek-aidsh-web-fetch-playwright"></a>
 
@@ -3512,7 +3513,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/web/web-fetch-playwright/src/index.ts:45`](../packages/web/web-fetch-playwright/src/index.ts)
+来源：[`packages/web/web-fetch-playwright/src/index.ts:44`](../packages/web/web-fetch-playwright/src/index.ts)
 
 <a id="deepseek-aidsh-web-search-deepseek"></a>
 

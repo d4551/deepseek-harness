@@ -16,29 +16,27 @@ describe('ApprovalAdversaryCardController', () => {
         enabled: true,
         provider: 'deepseek-official',
         model: 'deepseek-v4-flash',
-        fallback: 'reject',
         timeoutMs: 30_000,
         maxOutputTokens: 256,
-        maxExcerptChars: 4000,
+        maxEvidenceChars: 4000,
         instructions: 'Deny anything that touches production.',
       },
-      base: { enabled: false, fallback: 'delegate', timeoutMs: 30_000, maxOutputTokens: 256, maxExcerptChars: 4000, instructions: '' },
-      user: { enabled: true, provider: 'deepseek-official', model: 'deepseek-v4-flash', fallback: 'reject', instructions: 'Deny anything that touches production.' },
+      base: { enabled: false, timeoutMs: 30_000, maxOutputTokens: 256, maxEvidenceChars: 4000, instructions: '' },
+      user: { enabled: true, provider: 'deepseek-official', model: 'deepseek-v4-flash', instructions: 'Deny anything that touches production.' },
     })
 
     expect(controller.inject().hooks.approvalAdversaryCard.getSnapshot()).toMatchObject({
       enabled: { text: 'true', overridden: true },
       provider: { text: 'deepseek-official', overridden: true },
       model: { text: 'deepseek-v4-flash', overridden: true },
-      fallback: { text: 'reject', overridden: true },
       timeoutMs: { text: '30000', overridden: false },
       maxOutputTokens: { text: '256', overridden: false },
-      maxExcerptChars: { text: '4000', overridden: false },
+      maxEvidenceChars: { text: '4000', overridden: false },
       instructions: { text: 'Deny anything that touches production.', overridden: true },
     })
   })
 
-  it('saves the reviewer switch, the route pair, the fallback, and the caps together', async () => {
+  it('saves the reviewer switch, the route pair, and the caps together', async () => {
     const host = stubSettingsScope<ApprovalAdversarySettings>()
     acceptWrites(host)
     const controller = new ApprovalAdversaryCardController(host.scope)
@@ -48,10 +46,9 @@ describe('ApprovalAdversaryCardController', () => {
     face.edit('enabled', 'true')
     face.edit('provider', ' deepseek-official ')
     face.edit('model', 'deepseek-v4-flash')
-    face.edit('fallback', 'reject')
     face.edit('timeoutMs', '15000')
     face.edit('maxOutputTokens', '128')
-    face.edit('maxExcerptChars', '2000')
+    face.edit('maxEvidenceChars', '2000')
     face.edit('instructions', ' Deny anything that touches production. ')
     await face.save()
     await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledTimes(1) })
@@ -62,10 +59,9 @@ describe('ApprovalAdversaryCardController', () => {
       setOp('enabled', true),
       setOp('provider', 'deepseek-official'),
       setOp('model', 'deepseek-v4-flash'),
-      setOp('fallback', 'reject'),
       setOp('timeoutMs', 15_000),
       setOp('maxOutputTokens', 128),
-      setOp('maxExcerptChars', 2000),
+      setOp('maxEvidenceChars', 2000),
       setOp('instructions', 'Deny anything that touches production.'),
     ]]])
     expect(face.hooks.approvalAdversaryCard.getSnapshot()).toMatchObject({ dirty: false, failed: false })

@@ -1,5 +1,6 @@
 /** Bounded, tool-free model review over immutable approval evidence. */
 
+import { addAbortListener } from 'node:events'
 import type { Context } from '@deepseek-ai/cordis'
 import { BlockAssembler, createUserMessage, deepFreeze } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, Message } from '@deepseek-ai/dsh-llm'
@@ -10,15 +11,24 @@ import { reviewEvidence } from './evidence.ts'
 import type { ApprovalAdversarySettings } from './policy.ts'
 import { MAX_REVIEW_CHARS, parseVerdict, REVIEW_INSTRUCTIONS, type ReviewResult } from './protocol.ts'
 
+/** Cancellation reason for an expired review deadline. */
 export const APPROVAL_ADVERSARY_TIMEOUT_CODE = 'APPROVAL_ADVERSARY_TIMEOUT'
+/** Origin attributed to reviewer requests and notices. */
 export const APPROVAL_ADVERSARY_PLUGIN = 'approval-adversary'
 
+/** Durable request committed before a reviewer provider receives evidence. */
 export interface ApprovalAdversaryRequestEventData {
+  /** Approval question whose evidence is being reviewed. */
   readonly approvalId: ApprovalRequestId
+  /** Tool named by the approval question and its recorded call. */
   readonly toolName: string
+  /** Provider and model receiving this request. */
   readonly route: { readonly provider: string; readonly model: string }
+  /** Complete authorization policy sent to the reviewer. */
   readonly system: string
+  /** Complete framed evidence sent to the reviewer. */
   readonly messages: Message[]
+  /** Maximum reviewer output tokens. */
   readonly maxTokens: number
 }
 
@@ -32,7 +42,9 @@ declare module '@deepseek-ai/dsh-session/types' {
 function resolveRoute(settings: ApprovalAdversarySettings, session: Session) {
   if (settings.provider && settings.model) return { provider: settings.provider, model: settings.model }
   const header = session.events.findLast(event => event.type === 'request/header')
-  return header?.type === 'request/header' ? header.data.header.config : undefined
+  if (header?.type !== 'request/header') return undefined
+  const { provider, model } = header.data.header.config
+  return { provider, model }
 }
 
 /** Require an explicit successful terminal event and enforce a complete-stream bound. */
@@ -41,7 +53,6 @@ async function consume(ctx: Context, options: GenerateOptions): Promise<ReviewRe
   let finished = false
   let size = 0
   for await (const chunk of ctx.llm.stream(options)) {
-    if (options.signal?.aborted) return { verdict: 'unavailable', reason: 'review was cancelled or exceeded timeoutMs' }
     size += JSON.stringify(chunk).length
     if (size > MAX_REVIEW_CHARS) return { verdict: 'unavailable', reason: 'review stream exceeded its size limit' }
     if (finished) return { verdict: 'unavailable', reason: 'review stream continued after its terminal event' }
@@ -58,7 +69,13 @@ async function consume(ctx: Context, options: GenerateOptions): Promise<ReviewRe
   return parseVerdict(assembler.blocks().flatMap(block => block.type === 'text' ? [block.text] : []).join('\n'))
 }
 
-/** Decide only evidence that remains unchanged through the entire review. */
+/**
+ * Decide only evidence that remains unchanged through the entire review.
+ * @param ctx - runtime providing tool-free model calls.
+ * @param req - approval request and its owning agent.
+ * @param settings - complete validated authorization policy.
+ * @returns a verdict over current evidence or the reason review was unavailable.
+ */
 export async function review(ctx: Context, req: ApprovalRequestEvent, settings: ApprovalAdversarySettings): Promise<ReviewResult> {
   const session = req.agent.session
   const evidence = reviewEvidence(req, settings.maxEvidenceChars)
@@ -74,14 +91,12 @@ export async function review(ctx: Context, req: ApprovalRequestEvent, settings: 
     route: { provider: route.provider, model: route.model }, system, messages, maxTokens: settings.maxOutputTokens })
   const expired: ReviewResult = { verdict: 'unavailable', reason: 'review was cancelled or exceeded timeoutMs' }
   const cancellation = Promise.withResolvers<ReviewResult>()
-  const onAbort = () => { cancellation.resolve(expired) }
-  lifetime.signal.addEventListener('abort', onAbort, { once: true })
-  if (lifetime.signal.aborted) onAbort()
-  const result = await Promise.race([consume(ctx, options), cancellation.promise])
-    .finally(() => { lifetime.signal.removeEventListener('abort', onAbort) })
+  const subscription = addAbortListener(lifetime.signal, () => { cancellation.resolve(expired) })
+  const result = await (lifetime.signal.aborted ? cancellation.promise : Promise.race([consume(ctx, options), cancellation.promise]))
+    .finally(() => { subscription[Symbol.dispose]() })
   if (lifetime.signal.aborted) return expired
   const current = reviewEvidence(req, settings.maxEvidenceChars)
-  if (typeof current === 'string' || current.approvalId !== evidence.approvalId || current.text !== evidence.text) {
+  if (JSON.stringify(current) !== JSON.stringify(evidence)) {
     return { verdict: 'unavailable', reason: 'approval evidence changed during review' }
   }
   return result

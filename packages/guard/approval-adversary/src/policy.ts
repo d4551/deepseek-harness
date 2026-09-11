@@ -4,11 +4,13 @@ import z from '@deepseek-ai/schemastery'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 
+/** User-owned authorization review policy. */
 export interface ApprovalAdversarySettings {
   /** Whether automatic review owns approval decisions. */
   enabled: boolean
   /** Explicit review route; both fields must be supplied together. */
   provider?: string
+  /** Model on the explicit provider route; supplied with provider. */
   model?: string
   /** End-to-end review deadline in milliseconds. */
   timeoutMs: number
@@ -20,11 +22,14 @@ export interface ApprovalAdversarySettings {
   instructions: string
 }
 
+/** Composition values resolved through the persisted policy schema. */
 export type Config = Partial<ApprovalAdversarySettings>
 
+/** Settings namespace exposed by the approval-review editor. */
 export const APPROVAL_ADVERSARY_SETTINGS_NAMESPACE = settingsNamespace('approval-adversary')
 
-export const APPROVAL_ADVERSARY_SETTINGS_SCHEMA: z<ApprovalAdversarySettings> = z.object({
+/** Bounds and defaults shared by composition and persisted settings. */
+export const Config: z<Config, ApprovalAdversarySettings> = z.object({
   enabled: z.boolean().default(false),
   provider: z.string(),
   model: z.string(),
@@ -34,9 +39,13 @@ export const APPROVAL_ADVERSARY_SETTINGS_SCHEMA: z<ApprovalAdversarySettings> = 
   instructions: z.string().max(4096).default(''),
 })
 
-export const Config: z<Config> = APPROVAL_ADVERSARY_SETTINGS_SCHEMA
+/** Complete policy schema installed in the settings service. */
+export const APPROVAL_ADVERSARY_SETTINGS_SCHEMA: z<ApprovalAdversarySettings> = Config
 
-/** Reject whitespace route identifiers and incomplete explicit route pairs. */
+/**
+ * Reject whitespace route identifiers and incomplete explicit route pairs.
+ * @param settings - schema-resolved policy to validate.
+ */
 export function assertRoutePair(settings: ApprovalAdversarySettings): void {
   for (const route of [settings.provider, settings.model]) {
     if (route !== undefined && route.trim() !== route) throw new Error('approval-adversary: route identifiers must not contain surrounding whitespace')

@@ -92,19 +92,19 @@ The audit events are log-only and do not enter the model transcript. Model-visib
 [dsh-approval-adversary](../../packages/guard/approval-adversary) answers the waterfall with a model review when a deployment enables it. It appends the exact review request before dispatch, so a decision the reviewer made is reconstructable from the log beside the audit pair it belongs to; the verdict itself reaches the model as a plugin notice appended after `approval/decided`.
 
 ```ts type-equiv
-/** Exact model-visible request recorded before one adversarial review dispatch. */
+/** Durable request committed before a reviewer provider receives evidence. */
 interface ApprovalAdversaryRequestEventData {
-  /** The approval question under review, when its audit record is identifiable. */
-  readonly approvalId?: ApprovalRequestId
-  /** Tool the question is about. */
+  /** Approval question whose evidence is being reviewed. */
+  readonly approvalId: ApprovalRequestId
+  /** Tool named by the approval question and its recorded call. */
   readonly toolName: string
-  /** Exact auxiliary LLM route. */
+  /** Provider and model receiving this request. */
   readonly route: { readonly provider: string; readonly model: string }
-  /** Exact auxiliary system prompt. */
+  /** Complete authorization policy sent to the reviewer. */
   readonly system: string
-  /** Exact auxiliary message list. */
+  /** Complete framed evidence sent to the reviewer. */
   readonly messages: Message[]
-  /** Exact auxiliary output-token cap. */
+  /** Maximum reviewer output tokens. */
   readonly maxTokens: number
 }
 ```
