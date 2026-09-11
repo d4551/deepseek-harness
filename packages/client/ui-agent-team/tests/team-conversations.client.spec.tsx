@@ -92,6 +92,7 @@ it('indexes separate conversations by latest activity and announces the reader p
     message('three', 'worker-id', 'Latest report'),
   ] }} t={key => en[key]} />)
   const region = screen.getByRole('region', { name: en.messages })
+  expect(within(region).getByText(en.messagesDescription)).toBeTruthy()
   expect(within(region).queryByText(en.noMessages)).toBeNull()
   expect(within(region).queryByRole('status')).toBeNull()
   const table = screen.getByRole('table', { name: en.messages })
@@ -113,6 +114,8 @@ it('indexes separate conversations by latest activity and announces the reader p
   expect(newer.hasAttribute('disabled')).toBe(true)
   expect(older.getAttribute('title')).toBe(en.olderMessage)
   expect(newer.getAttribute('title')).toBe(en.newerMessage)
+  expect(older.getAttribute('aria-label')).toBe(en.olderMessage)
+  expect(newer.getAttribute('aria-label')).toBe(en.newerMessage)
   fireEvent.click(older)
   expect(screen.getByText('1 / 2')).toBeTruthy()
   expect(screen.getByRole('button', { name: en.olderMessage }).hasAttribute('disabled')).toBe(true)
@@ -168,4 +171,26 @@ it('keeps an empty message panel distinct from an empty search result', () => {
   expect(screen.queryByRole('table')).toBeNull()
   expect(screen.queryByRole('textbox')).toBeNull()
   expect(screen.queryByRole('status')).toBeNull()
+})
+
+it('includes messages without text until the reader searches and refreshes member titles live', () => {
+  const messages: typeof view.messages = [{
+    id: TeamMessageId('attachment-only'), senderId: SessionId('worker-id'), senderName: 'worker',
+    targetId: SessionId('lead'), delivery: 'quiet', delivered: true,
+    content: [{ type: 'reasoning', text: 'Private analysis' }],
+  }]
+  const rendered = render(<TeamMessages view={{ ...view, messages }} t={key => en[key]} />)
+  fireEvent.click(screen.getByRole('button', { name: 'lead ↔ worker' }))
+  expect(screen.getByText(en.messageAttachments)).toBeTruthy()
+  expect(screen.queryByText('Private analysis')).toBeNull()
+  rendered.rerender(<TeamMessages view={{ ...view, messages, members: view.members.map(member => ({
+    ...member, name: `${member.name} renamed`,
+  })) }} t={key => en[key]} />)
+  expect(screen.getByRole('button', { name: 'lead renamed ↔ worker renamed', expanded: true })).toBeTruthy()
+  expect(screen.getByText('worker renamed → lead renamed')).toBeTruthy()
+  fireEvent.change(screen.getByRole('textbox', { name: en.searchMessages }), { target: { value: 'Private analysis' } })
+  expect(screen.getByRole('status').textContent).toBe(en.noMatchingMessages)
+  expect(screen.queryByText(en.messageAttachments)).toBeNull()
+  fireEvent.change(screen.getByRole('textbox', { name: en.searchMessages }), { target: { value: '' } })
+  expect(screen.getByText(en.messageAttachments)).toBeTruthy()
 })
