@@ -262,10 +262,9 @@
       name: '@deepseek-ai/dsh-approval-adversary'
       config:
         enabled: false
-        fallback: delegate
         timeoutMs: 30000
         maxOutputTokens: 256
-        maxExcerptChars: 4000
+        maxEvidenceChars: 4000
 
     - id: shell-env
       name: '@deepseek-ai/dsh-shell-env'

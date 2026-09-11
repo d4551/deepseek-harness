@@ -99,12 +99,17 @@ interface ApprovalPolicy {
  */
 function normalizeExtraPhrases(phrases: readonly string[]): readonly string[] {
   return phrases.map((phrase, index) => {
-    const normalized = phrase.trim().toLowerCase()
+    const normalized = normalizeReason(phrase)
     if (normalized.length === 0) {
       throw new Error(`approval-assessor: extraPhrases[${String(index)}] must contain text`)
     }
     return normalized
   })
+}
+
+/** Match equivalent Unicode text and multiline reasons against the same policy. */
+function normalizeReason(reason: string): string {
+  return reason.normalize('NFKC').replace(/\p{Default_Ignorable_Code_Point}/gu, '').replace(/\s+/gu, ' ').trim().toLowerCase()
 }
 
 /**
@@ -153,9 +158,10 @@ function lastUserInstruction(events: readonly SessionEvent[]): string | undefine
 function isRejectedByAudit(req: ApprovalRequestEvent, policy: ApprovalPolicy): boolean {
   if (!policy.enabled) return false
   const reason = req.reason
-  if (reason === undefined || reason.trim().length === 0) return true
-  const normalizedReason = reason.toLowerCase()
-  return policy.patterns.some(pattern => pattern.test(reason))
+  if (reason === undefined) return true
+  const normalizedReason = normalizeReason(reason)
+  if (normalizedReason.length === 0) return true
+  return policy.patterns.some(pattern => pattern.test(normalizedReason))
     || policy.phrases.some(phrase => normalizedReason.includes(phrase))
 }
 
@@ -205,6 +211,7 @@ export function apply(ctx: Context, config: Config = {}): void {
   )
 
   ctx.on('approval/request', async (req: ApprovalRequestEvent, next): Promise<ApprovalOutcome> => {
+    if (req.signal?.aborted) return 'cancelled'
     refreshPolicy()
     if (!isRejectedByAudit(req, policy)) return next()
 

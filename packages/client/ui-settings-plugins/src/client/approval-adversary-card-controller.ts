@@ -19,14 +19,12 @@ export interface ApprovalAdversarySettings {
   provider?: string
   /** Explicit model id for the review call; paired with `provider`. */
   model?: string
-  /** What happens to a request the review could not decide. */
-  fallback?: 'delegate' | 'reject'
   /** End-to-end review call deadline in milliseconds. */
   timeoutMs?: number
   /** Output-token cap for the verdict. */
   maxOutputTokens?: number
-  /** Character cap for each excerpt the reviewer reads and each excerpt a notice quotes. */
-  maxExcerptChars?: number
+  /** Maximum length of the complete serialized evidence message. */
+  maxEvidenceChars?: number
   /** Deployment instruction appended after the built-in review instruction. */
   instructions?: string
 }
@@ -36,10 +34,9 @@ export interface ApprovalAdversaryCardState extends CardShell {
   enabled: CardFieldState
   provider: CardFieldState
   model: CardFieldState
-  fallback: CardFieldState
   timeoutMs: CardFieldState
   maxOutputTokens: CardFieldState
-  maxExcerptChars: CardFieldState
+  maxEvidenceChars: CardFieldState
   instructions: CardFieldState
 }
 
@@ -62,10 +59,9 @@ export class ApprovalAdversaryCardController {
       booleanField('enabled'),
       textField('provider'),
       textField('model'),
-      textField('fallback'),
       numberField('timeoutMs'),
       numberField('maxOutputTokens'),
-      numberField('maxExcerptChars'),
+      numberField('maxEvidenceChars'),
       textField('instructions'),
     ])
     this.store = this.form.bind(() => this.projection())
@@ -82,10 +78,9 @@ export class ApprovalAdversaryCardController {
       enabled: this.form.field('enabled'),
       provider: { ...provider, invalid: provider.invalid || incompleteRoute },
       model: { ...model, invalid: model.invalid || incompleteRoute },
-      fallback: this.form.field('fallback'),
       timeoutMs: this.form.field('timeoutMs'),
       maxOutputTokens: this.form.field('maxOutputTokens'),
-      maxExcerptChars: this.form.field('maxExcerptChars'),
+      maxEvidenceChars: this.form.field('maxEvidenceChars'),
       instructions: this.form.field('instructions'),
     }
   }

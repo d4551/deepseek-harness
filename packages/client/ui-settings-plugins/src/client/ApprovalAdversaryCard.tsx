@@ -73,32 +73,6 @@ export function ApprovalAdversaryCard(props: ApprovalAdversaryCardProps) {
         onEdit={(text) => { props.edit('model', text) }}
         onReset={() => { props.resetField('model') }}
       />
-      <ChoiceField
-        id="plugin-config-approval-adversary-fallback"
-        name="plugin-config-approval-adversary-fallback"
-        label={t('approvalAdversaryFallback')}
-        hint={t('approvalAdversaryFallbackHint')}
-        {...shared}
-        overridden={state.fallback.overridden}
-        options={[
-          {
-            value: 'delegate',
-            label: t('approvalAdversaryFallbackDelegate'),
-            description: t('approvalAdversaryFallbackDelegateHint'),
-            selected: state.fallback.text === 'delegate',
-            pickable: true,
-          },
-          {
-            value: 'reject',
-            label: t('approvalAdversaryFallbackReject'),
-            description: t('approvalAdversaryFallbackRejectHint'),
-            selected: state.fallback.text === 'reject',
-            pickable: true,
-          },
-        ]}
-        onPick={(value) => { props.edit('fallback', value) }}
-        onReset={() => { props.resetField('fallback') }}
-      />
       <ValueField
         id="plugin-config-approval-adversary-timeout-ms"
         label={t('approvalAdversaryTimeoutMs')}
@@ -122,15 +96,15 @@ export function ApprovalAdversaryCard(props: ApprovalAdversaryCardProps) {
         onReset={() => { props.resetField('maxOutputTokens') }}
       />
       <ValueField
-        id="plugin-config-approval-adversary-max-excerpt-chars"
-        label={t('approvalAdversaryMaxExcerptChars')}
-        hint={t('approvalAdversaryMaxExcerptCharsHint')}
+        id="plugin-config-approval-adversary-max-evidence-chars"
+        label={t('approvalAdversaryMaxEvidenceChars')}
+        hint={t('approvalAdversaryMaxEvidenceCharsHint')}
         invalidLabel={t('invalidNumber')}
         numeric
         {...shared}
-        {...state.maxExcerptChars}
-        onEdit={(text) => { props.edit('maxExcerptChars', text) }}
-        onReset={() => { props.resetField('maxExcerptChars') }}
+        {...state.maxEvidenceChars}
+        onEdit={(text) => { props.edit('maxEvidenceChars', text) }}
+        onReset={() => { props.resetField('maxEvidenceChars') }}
       />
       <MultilineField
         id="plugin-config-approval-adversary-instructions"
