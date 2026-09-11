@@ -94,14 +94,14 @@ function measurePopover(page: Page, width: number, editorOpen: boolean): Promise
      * @param element - the row whose items to read.
      * @returns the real flex-item boxes, in flex/DOM order.
      */
-    const flexItemBoxes = (element: HTMLElement): DOMRect[] => {
+    const flexItemBoxes = (element: Element): DOMRect[] => {
       const boxes: DOMRect[] = []
       for (const child of Array.from(element.children)) {
-        const el = child as HTMLElement
-        const rect = el.getBoundingClientRect()
-        if (el.style.display === 'contents') {
-          boxes.push(...flexItemBoxes(el))
-        } else if (rect.height > 0 && rect.width > 0) {
+        const style = getComputedStyle(child)
+        const rect = child.getBoundingClientRect()
+        if (style.display === 'contents') {
+          boxes.push(...flexItemBoxes(child))
+        } else if (style.position !== 'absolute' && style.position !== 'fixed' && rect.height > 0 && rect.width > 0) {
           boxes.push(rect)
         }
       }
@@ -327,6 +327,31 @@ describe('web e2e: the feedback note editor floats above the column', () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-message-feedback-layout-golden'))
     await compareOrRefreshGolden(GEOMETRY_EXPECTED, renderGeometry(await sweep()), MODE)
   }, 180_000)
+
+  it('keeps one actions line while the rating tooltip is visible outside the row', async () => {
+    await sweep()
+    await settleAt(700, true)
+    const rated = page.getByRole('button', { name: 'Remove rating' }).first()
+    await rated.hover()
+    const tooltip = page.getByRole('tooltip', { name: 'Remove rating' })
+    await tooltip.waitFor({ state: 'visible' })
+    expect(await tooltip.evaluate(element => getComputedStyle(element).position)).toBe('fixed')
+    const row = await rated.evaluate((element) => {
+      const actions = element.closest('div[class*="actions"]')
+      if (actions === null) throw new Error('Feedback actions row is missing')
+      const { bottom, height } = actions.getBoundingClientRect()
+      return { bottom, height }
+    })
+    const bounds = await tooltip.boundingBox()
+    if (bounds === null) throw new Error('Visible rating tooltip has no bounds')
+    expect(bounds.y).toBeGreaterThanOrEqual(row.bottom)
+    expect(row.height).toBe(28)
+    const measured = await measurePopover(page, 700, true)
+    expect(measured.rowLines).toBe(1)
+    expect(measured.rowOverflowOpen).toBe(0)
+    expect(measured.itemsOutsideColumnOpen).toBe(0)
+    expect(measured.panelWithinViewport).toBe(true)
+  })
 
   it('kept the console clean', () => {
     expect(tripwire.pageErrors).toEqual([])
