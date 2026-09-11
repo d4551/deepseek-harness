@@ -24,9 +24,9 @@ export type TeamCoordination = 'delegated' | 'swarm'
 
 /** Tool routing configuration. */
 export interface Config {
-  /** Continuable-subagent provider used for fresh teammates. */
+  /** Fresh continuation provider; omitted to discover a unique registered match. */
   readonly freshProvider?: string
-  /** Continuable-subagent provider used for completed-prefix fork teammates. */
+  /** Fork continuation provider; omitted to discover a unique registered match. */
   readonly forkProvider?: string
   /**
    * Work distribution this deployment runs. `delegated` keeps the Lead handing
@@ -45,8 +45,8 @@ export interface Config {
 
 /** Loader schema for the Team tool plugin. */
 export const Config: z<Config> = z.object({
-  freshProvider: z.string().default('spawn'),
-  forkProvider: z.string().default('fork'),
+  freshProvider: z.string().min(1),
+  forkProvider: z.string().min(1),
   coordination: z.union(['delegated', 'swarm']).default('delegated'),
   excludePresets: z.array(z.string()).default([]),
 })
@@ -230,7 +230,7 @@ function callingAgent(agent: Agent | undefined, toolName: string): Agent {
 }
 
 /** Register the complete Team tool set in one exact Agent scope. */
-function install(agent: Agent, ctx: Context, config: Required<Config>): () => void {
+function install(agent: Agent, ctx: Context, config: Config & { coordination: TeamCoordination }): () => void {
   const scoped = agent.ctx
   const policy = policyText(config.coordination)
   const disposers: Array<() => unknown> = []
@@ -265,12 +265,13 @@ function install(agent: Agent, ctx: Context, config: Required<Config>): () => vo
       async execute(args, exec) {
         const agent = callingAgent(exec.agent, 'spawn_teammate')
         const context = args.context ?? 'fresh'
+        const provider = context === 'fork' ? config.forkProvider : config.freshProvider
         return await ctx.agentTeams.spawnTeammate(agent, {
           name: args.name,
           description: args.description,
           prompt: [{ type: 'text', text: args.prompt }],
           context,
-          provider: context === 'fork' ? config.forkProvider : config.freshProvider,
+          ...provider === undefined ? {} : { provider },
           signal: exec.signal,
         })
       },
@@ -485,9 +486,8 @@ function install(agent: Agent, ctx: Context, config: Required<Config>): () => vo
 
 /** Install Team tools in every live or subsequently published Team member scope. */
 export function apply(ctx: Context, config: Config = {}): void {
-  const resolved: Required<Config> = {
-    freshProvider: config.freshProvider ?? 'spawn',
-    forkProvider: config.forkProvider ?? 'fork',
+  const resolved = {
+    ...config,
     coordination: config.coordination ?? 'delegated',
     excludePresets: config.excludePresets ?? [],
   }

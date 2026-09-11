@@ -3,6 +3,7 @@
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import { parentAgentOptionsForDelegation } from '@deepseek-ai/dsh-subagent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-persistence'
 import type {} from '@deepseek-ai/dsh-session-title'
@@ -179,7 +180,7 @@ export class TeamService extends TypertRemoteService {
     this.tasks = new TeamTaskBoard(ctx, this.roster, this.journal, () => this.settings().maxTasks)
 
     ctx.on('session/event', (session, event) => {
-      if (event.type === 'session/title') {
+      if (event.type === 'session/title' || event.type === 'request/header') {
         const agent = ctx.agents.get(session.id)
         if (agent !== undefined) this.notifyLifecycleChange(agent)
       }
@@ -221,13 +222,14 @@ export class TeamService extends TypertRemoteService {
       ...this.roster.list(membership),
       ...workspacePeers(this.ctx, this.roster, membership.root).map((peer): TeamMemberView => {
         const title = this.ctx.get('sessionTitle')?.get(peer.session)?.title
+        const model = parentAgentOptionsForDelegation(peer).model
         return {
           id: peer.id,
           name: workspacePeerName(peer.id),
           ...(title === undefined ? {} : { title }),
           role: 'peer',
           status: peer.status,
-          ...peer.options.model === undefined ? {} : { model: peer.options.model },
+          ...model === undefined ? {} : { model },
           diagnostics: [],
         }
       }),

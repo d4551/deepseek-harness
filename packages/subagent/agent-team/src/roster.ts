@@ -5,7 +5,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { MessageId } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import { foldSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
+import { foldSubagentDescriptor, parentAgentOptionsForDelegation } from '@deepseek-ai/dsh-subagent'
 import type { ContinuableStart } from '@deepseek-ai/dsh-subagent'
 import { errorMessage, TeamError } from './error.ts'
 import type { TeamFoldState } from './fold.ts'
@@ -20,6 +20,7 @@ import type {
   TeamMemberView,
 } from './types.ts'
 import { requiredText } from './validation.ts'
+import { teammateProvider } from './teammate-provider.ts'
 
 const MEMBER_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u
 
@@ -130,17 +131,18 @@ export class TeamRoster {
   list(membership: TeamMembership): TeamMemberView[] {
     const { root } = membership
     const state = this.journal.state(root)
+    const leadModel = parentAgentOptionsForDelegation(root).model
     const result: TeamMemberView[] = [{
       id: root.id,
       name: 'lead',
       role: 'lead',
       status: root.status,
-      ...root.options.model === undefined ? {} : { model: root.options.model },
+      ...leadModel === undefined ? {} : { model: leadModel },
       diagnostics: [],
     }]
     for (const member of state.members.values()) {
       const live = this.ctx.agents.get(member.id)
-      const model = live?.options.model ?? root.options.model
+      const model = live === undefined ? undefined : parentAgentOptionsForDelegation(live).model
       result.push({
         id: member.id,
         name: member.name,
@@ -256,12 +258,13 @@ export class TeamRoster {
     const root = membership.root
     const name = this.memberName(request.name)
     const description = requiredText(request.description, 'description', 200)
+    const provider = teammateProvider(this.ctx, request)
     const childId = SessionId(randomUUID())
     const member: TeamMemberSnapshot = {
       id: childId,
       name,
       description,
-      provider: requiredText(request.provider, 'provider', 200),
+      provider: provider.name,
       context: request.context,
       phase: 'provisioning',
     }
@@ -282,7 +285,7 @@ export class TeamRoster {
     try {
       started = await this.ctx.subagents.startContinuable({
         childId,
-        provider: request.provider,
+        provider: provider.name,
         label: description,
         request: {
           prompt: request.prompt,
@@ -435,6 +438,7 @@ export class TeamRoster {
   /** Build one runtime member row after successful creation. */
   private memberView(member: TeamMemberSnapshot & { readonly phase: 'active' }): TeamMemberView {
     const live = this.ctx.agents.get(member.id)
+    const model = live === undefined ? undefined : parentAgentOptionsForDelegation(live).model
     return {
       id: member.id,
       name: member.name,
@@ -443,7 +447,7 @@ export class TeamRoster {
       description: member.description,
       provider: member.provider,
       context: member.context,
-      ...live?.options.model === undefined ? {} : { model: live.options.model },
+      ...model === undefined ? {} : { model },
       diagnostics: [],
     }
   }

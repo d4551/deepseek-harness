@@ -157,7 +157,8 @@ export interface SpawnTeammateRequest {
   readonly description: string
   readonly prompt: ContentBlock[]
   readonly context: 'fresh' | 'fork'
-  readonly provider: string
+  /** Registered continuation provider; omitted when exactly one matches the context mode. */
+  readonly provider?: string
   readonly signal: AbortSignal
 }
 

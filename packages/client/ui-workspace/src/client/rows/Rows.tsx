@@ -167,6 +167,7 @@ function useRowMenu(): RowMenu {
     },
     toggle: (event) => {
       event.stopPropagation()
+      if (secondaryPress(event)) return
       // The button anchors its own list, so the placement override stays empty.
       // Enter and Space on a focused button synthesize a click that carries no
       // pointer detail; that click's operator is in the keyboard, so the list

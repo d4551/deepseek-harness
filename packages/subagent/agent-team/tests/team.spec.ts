@@ -291,12 +291,16 @@ describe('Team identity and provisioning', () => {
 
   it('records failed provisioning durably, reserves its name, and counts it against the limit', async () => {
     const { ctx, lead } = await setup([], { maxMembers: 1 })
-    await expect(spawn(ctx, lead, 'failed-worker', { provider: 'missing' })).rejects.toThrow()
+    const stop = ctx.on('agent/created', ({ agent }) => {
+      if (agent.session.header.parentSession === lead.id) throw new Error('child publication denied')
+    })
+    await expect(spawn(ctx, lead, 'failed-worker')).rejects.toThrow('child publication denied')
+    stop()
 
     expect(ctx.agentTeams.listMembers(lead)[1]).toMatchObject({
       name: 'failed-worker',
       status: 'failed',
-      provider: 'missing',
+      provider: 'spawn',
     })
     await expect(spawn(ctx, lead, 'failed-worker')).rejects.toMatchObject({ code: 'TEAM_MEMBER_NAME_TAKEN' })
     await expect(spawn(ctx, lead, 'other-worker')).rejects.toMatchObject({ code: 'TEAM_MEMBER_LIMIT' })
