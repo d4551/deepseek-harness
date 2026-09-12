@@ -665,7 +665,7 @@ export class SkillRegistry extends Service {
     for (const callback of this.ctx.events.dispatch('emit', ['skills/change'])) {
       try {
         const returned: unknown = callback()
-        void Promise.resolve(returned).catch((error: unknown) => {
+        Promise.resolve(returned).catch((error: unknown) => {
           this.ctx.logger.warn(`skills/change listener rejected: ${errorMessage(error)}`)
         })
       } catch (error: unknown) {
@@ -843,7 +843,7 @@ function waitWithAbort<T>(promise: Promise<T>, signal: AbortSignal | undefined):
       reject(toError(signal.reason))
     }
     signal.addEventListener('abort', onAbort, { once: true })
-    void promise.then(
+    promise.then(
       (value) => {
         cleanup()
         resolve(value)

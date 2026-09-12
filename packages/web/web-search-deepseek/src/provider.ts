@@ -308,7 +308,7 @@ function abortable<T>(operation: Promise<T>, signal?: AbortSignal): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const onAbort = (): void => { reject(searchAborted(signal)) }
     signal.addEventListener('abort', onAbort, { once: true })
-    void operation.then(
+    operation.then(
       (value) => {
         signal.removeEventListener('abort', onAbort)
         resolve(value)

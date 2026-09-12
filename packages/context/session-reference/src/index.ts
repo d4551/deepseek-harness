@@ -384,7 +384,7 @@ function settleWithCancellation<T>(work: Promise<T>, signal: AbortSignal | undef
   return new Promise<T>((resolve, reject) => {
     const onAbort = (): void => { reject(cancelled(signal)) }
     signal.addEventListener('abort', onAbort, { once: true })
-    void work.then(
+    work.then(
       (value) => {
         signal.removeEventListener('abort', onAbort)
         resolve(value)

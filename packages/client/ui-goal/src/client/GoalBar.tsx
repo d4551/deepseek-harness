@@ -8,7 +8,7 @@
  * the injected face.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
 import type { GoalSnapshot } from '@deepseek-ai/dsh-goal/client'
 import {
   GlyphButton, IconCheckOutline16, IconCloseOutline16, IconEditOutline16, IconGoalOutline16,
@@ -88,7 +88,7 @@ export function GoalBar({ goal, onEdit, onPause, onResume, onClear, t }: GoalBar
             value={draft}
             onChange={(e) => { setDraft(e.target.value) }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') void handleEdit()
+              if (e.key === 'Enter') startTransition(handleEdit)
               if (e.key === 'Escape') setEditing(false)
             }}
             autoFocus
@@ -99,7 +99,7 @@ export function GoalBar({ goal, onEdit, onPause, onResume, onClear, t }: GoalBar
               <GlyphButton
                 surface="bar"
                 className={css.iconBtn}
-                onClick={() => { void handleEdit() }}
+                onClick={() => { startTransition(handleEdit) }}
                 disabled={pending || draft.trim() === ''}
                 aria-label={t('action.save')}
               >
@@ -138,7 +138,7 @@ export function GoalBar({ goal, onEdit, onPause, onResume, onClear, t }: GoalBar
                 surface="bar"
                 className={css.iconBtn}
                 disabled={pending}
-                onClick={() => { void runAction(onPause) }}
+                onClick={() => { startTransition(async () => { await runAction(onPause) }) }}
                 aria-label={t('action.pause')}
               >
                 <IconPauseOutline16 size={14} />
@@ -151,7 +151,7 @@ export function GoalBar({ goal, onEdit, onPause, onResume, onClear, t }: GoalBar
                 surface="bar"
                 className={css.iconBtn}
                 disabled={pending}
-                onClick={() => { void runAction(onResume) }}
+                onClick={() => { startTransition(async () => { await runAction(onResume) }) }}
                 aria-label={t('action.resume')}
               >
                 <IconPlayOutline16 size={14} />
@@ -174,7 +174,7 @@ export function GoalBar({ goal, onEdit, onPause, onResume, onClear, t }: GoalBar
               surface="bar"
               className={css.iconBtn}
               disabled={pending}
-              onClick={() => { void handleClear(goal.id) }}
+              onClick={() => { startTransition(() => handleClear(goal.id)) }}
               aria-label={t('action.clear')}
             >
               <IconTrashOutline16 size={14} />

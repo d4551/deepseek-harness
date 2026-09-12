@@ -289,7 +289,7 @@ export abstract class CredentialProvider extends Service {
       try {
         const returned = listener(subject)
         if (returned != null && typeof (returned as PromiseLike<unknown>).then === 'function') {
-          void Promise.resolve(returned as PromiseLike<unknown>).then(undefined, (error: unknown) => {
+          Promise.resolve(returned as PromiseLike<unknown>).then(undefined, (error: unknown) => {
             this.warnListenerFailure(event, subject, error)
           })
         }

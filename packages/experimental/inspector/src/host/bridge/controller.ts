@@ -268,7 +268,7 @@ export async function startInspector(options: InspectorOptions = {}): Promise<In
     } catch (closeError) {
       console.error('dsh inspector: Host source cleanup after Worker failure failed', closeError)
     }
-    void fetchObserver?.stop().catch((stopError: unknown) => {
+    fetchObserver?.stop().catch((stopError: unknown) => {
       console.error('dsh inspector: fetch cleanup after Worker failure failed', stopError)
     })
     console.error('dsh inspector: Worker stopped unexpectedly', error)

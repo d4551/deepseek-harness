@@ -390,7 +390,7 @@ function invokeContainedSessionObservers(
   for (const callback of callbacks) {
     try {
       const returned: unknown = callback(...args)
-      void Promise.resolve(returned).catch((error: unknown) => {
+      Promise.resolve(returned).catch((error: unknown) => {
         ctx.logger.warn(`session "${id}": ${name} listener rejected: ${String(error)}`)
       })
     } catch (error: unknown) {
@@ -986,7 +986,7 @@ export class SessionStore extends Service {
         // promise: rejection is too late to roll back and must be logged instead
         // of becoming unhandled.
         const returned: unknown = callback(...callbackArgs)
-        void Promise.resolve(returned).catch((error: unknown) => {
+        Promise.resolve(returned).catch((error: unknown) => {
           this.ctx.logger.warn(`session "${entry.id}": session/created listener rejected: ${String(error)}`)
         })
       }

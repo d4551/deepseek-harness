@@ -115,7 +115,7 @@ export class ScheduleRuntime {
       return
     }
     this.run = run
-    void run.then(
+    run.then(
       () => { this.retire(run) },
       (error: unknown) => {
         if (this.isLive()) {
@@ -188,7 +188,7 @@ export class ScheduleRuntime {
     if (this.idleWait !== undefined) return
     const wait = Promise.race([this.agent.whenIdle(), this.stop.promise])
     this.idleWait = wait
-    void wait.then(
+    wait.then(
       () => {
         this.idleWait = undefined
         this.requestDrive()

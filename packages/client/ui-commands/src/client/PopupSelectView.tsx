@@ -9,7 +9,7 @@
  * target takes focus). Closed state renders null; the overlay slot stays
  * mounted. The card height clamps to the space above the composer.
  */
-import { useEffect, useRef } from 'react'
+import { startTransition, useEffect, useRef } from 'react'
 import { useSyncExternalStore } from 'react'
 import clsx from 'clsx'
 import { IconCheckOutline16, RiskConfirmation, useAnchoredMaxHeight } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -93,7 +93,7 @@ export function PopupSelectView({ popup, t }: PopupSelectViewProps) {
         return
       case 'Enter':
         ev.preventDefault()
-        void popup.select(state.active)
+        startTransition(() => popup.select(state.active))
         return
       case 'Escape':
         ev.preventDefault()
@@ -146,7 +146,7 @@ export function PopupSelectView({ popup, t }: PopupSelectViewProps) {
                   // mousedown would race the document capture listener; the shell
                   // owns focus anyway, so a plain click (inside the card → no
                   // dismiss) works.
-                  onClick={() => { void popup.select(index) }}
+                  onClick={() => { startTransition(() => popup.select(index)) }}
                   onMouseEnter={() => { popup.highlight(index) }}
                 >
                   <span className={css.label}>{option.label}</span>
@@ -170,7 +170,7 @@ export function PopupSelectView({ popup, t }: PopupSelectViewProps) {
           acknowledged={state.acknowledged}
           onAcknowledgedChange={(value) => { popup.acknowledge(value) }}
           onCancel={() => { popup.cancelConfirmation() }}
-          onConfirm={() => { void popup.confirm() }}
+          onConfirm={() => { startTransition(() => popup.confirm()) }}
         />
       )}
     </>

@@ -172,7 +172,7 @@ export class LspConnection {
       this.pending.set(id, { resolve, reject })
       // `write()` records either synchronous or callback-delivered failures on the connection and
       // rejects every pending request. This handler only consumes the write promise itself.
-      void this.write({ jsonrpc: '2.0', id, method, params }).catch(() => {})
+      this.write({ jsonrpc: '2.0', id, method, params }).catch(() => {})
     })
     // A caller that stops awaiting (e.g. an aborted query) can leave this promise to reject later
     // when the process closes; a benign no-op handler keeps that from surfacing as an unhandled
@@ -198,7 +198,7 @@ export class LspConnection {
   cancel(requestId: number): void {
     // The server is already gone or unwritable when this rejects; `write()` has recorded the fatal
     // connection failure and rejected the pending request, so cancellation remains best-effort.
-    void this.write({ jsonrpc: '2.0', method: '$/cancelRequest', params: { id: requestId } }).catch(() => {})
+    this.write({ jsonrpc: '2.0', method: '$/cancelRequest', params: { id: requestId } }).catch(() => {})
   }
 
   /**
@@ -247,7 +247,7 @@ export class LspConnection {
       // A response-write failure has already invalidated the connection in `write()`.
       /* v8 ignore next -- protocol tests exercise response writes; only a simultaneous connection
          failure makes this consumption handler run. */
-      void this.handleServerRequest(id, method, frame.params).catch(() => {})
+      this.handleServerRequest(id, method, frame.params).catch(() => {})
       return
     }
     if (typeof method === 'string') {

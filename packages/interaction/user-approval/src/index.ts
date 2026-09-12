@@ -293,19 +293,14 @@ export class ApprovalService extends Service {
       () => 'unavailable',
     )
     if (signal === undefined) return answer
-    return await new Promise<ApprovalOutcome>((resolve) => {
-      const onAbort = () => {
-        signal.removeEventListener('abort', onAbort)
-        resolve('cancelled')
-      }
-      signal.addEventListener('abort', onAbort, { once: true })
-      void answer.then((outcome) => {
-        signal.removeEventListener('abort', onAbort)
-        // After an abort won the race this resolve is a settled-promise no-op:
-        // the late answer is discarded by construction.
-        resolve(outcome)
-      })
-    })
+    // The race discards a late answer by construction: once the abort has
+    // won, the answerer's outcome has no consumer.
+    const cancelled = Promise.withResolvers<ApprovalOutcome>()
+    const onAbort = (): void => { cancelled.resolve('cancelled') }
+    signal.addEventListener('abort', onAbort, { once: true })
+    const outcome = await Promise.race([answer, cancelled.promise])
+    signal.removeEventListener('abort', onAbort)
+    return outcome
   }
 }
 

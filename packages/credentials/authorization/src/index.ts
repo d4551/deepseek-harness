@@ -214,7 +214,9 @@ export class AuthorizationService extends Service {
         this.running.get(flow.key)?.controller.abort()
       }
     }.bind(this), 'authorization.registerFlow()')
-    return () => void dispose()
+    return () => {
+      Promise.resolve(dispose()).then(undefined, (error: unknown) => { this.ctx.logger.error(error) })
+    }
   }
 
   /**
@@ -331,7 +333,7 @@ export class AuthorizationService extends Service {
       try {
         const returned = listener(key, settlement)
         if (returned != null && typeof (returned as PromiseLike<unknown>).then === 'function') {
-          void Promise.resolve(returned as PromiseLike<unknown>).then(undefined, (error: unknown) => {
+          Promise.resolve(returned as PromiseLike<unknown>).then(undefined, (error: unknown) => {
             this.warnSettledListenerFailure(key, error)
           })
         }
@@ -405,7 +407,7 @@ export class AuthorizationService extends Service {
         if (await Promise.race([running.then(() => 'ran' as const), withdrawn]) === 'withdrawn') {
           // Nothing awaits the orphan any more, so its eventual failure has to be
           // marked handled or it would take down the process.
-          void running.catch(() => { this.ctx.logger.debug('authorization: withdrawn flow failed after the fact') })
+          running.catch(() => { this.ctx.logger.debug('authorization: withdrawn flow failed after the fact') })
           return { status: 'cancelled' }
         }
       } catch (error) {

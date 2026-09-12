@@ -524,7 +524,7 @@ export class AgentRegistry extends Service {
     for (const callback of this.ctx.events.dispatch('emit', args)) {
       try {
         const returned: unknown = callback(...args)
-        void Promise.resolve(returned).catch((error: unknown) => {
+        Promise.resolve(returned).catch((error: unknown) => {
           this.ctx.logger.warn(`agent "${entry.id}": agent/disposed listener rejected: ${String(error)}`)
         })
       } catch (error: unknown) {
@@ -559,7 +559,7 @@ export class AgentRegistry extends Service {
         // Returned-promise rejection happens after this synchronous boundary, so
         // observe and report it instead of leaking an unhandled rejection.
         const returned: unknown = callback(...args)
-        void Promise.resolve(returned).catch((error: unknown) => {
+        Promise.resolve(returned).catch((error: unknown) => {
           this.ctx.logger.warn(`agent "${entry.id}": agent/created listener rejected: ${String(error)}`)
         })
       }
@@ -647,11 +647,11 @@ export class AgentRegistry extends Service {
     }
     if (isPromise(result)) {
       try {
-        void Promise.prototype.then.call(
+        Promise.prototype.then.call(
           result,
           () => { this.releaseInitiatorRun(run) },
           () => { this.releaseInitiatorRun(run) },
-        )
+        ).then(undefined, (error: unknown) => { this.ctx.logger.error(error) })
       } catch {
         // A branded Promise may expose a failing @@species. Observer setup did
         // not attach, so preserve the exact return without leaking the run.

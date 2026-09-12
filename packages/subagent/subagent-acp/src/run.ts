@@ -478,7 +478,7 @@ export async function startAcpRun(request: SubagentStartRequest, spec: AcpRunSpe
     // Best-effort ACP cancel; process teardown remains authoritative.
     /* v8 ignore next */
     if (sessionId !== undefined) {
-      void agent.notify(methods.agent.session.cancel, { sessionId }).catch(() => { /* child gone / no session */ })
+      agent.notify(methods.agent.session.cancel, { sessionId }).catch(() => { /* child gone / no session */ })
     }
   }
   const onAbort = (): void => { requestCancel() }

@@ -178,7 +178,7 @@ export class SessionController extends TypertRemoteService {
       this.ctx.logger.error(`session-controller: background activation for "${sessionId}" failed: ${errorChain(error)}`)
     })
     this.promotions.add(task)
-    void task.finally(() => { this.promotions.delete(task) })
+    task.then(() => { this.promotions.delete(task) }, () => { this.promotions.delete(task) })
   }
 
   /**

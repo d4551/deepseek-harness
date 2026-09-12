@@ -80,7 +80,7 @@ export class CdpSession implements NetworkSink {
       } else if (request.method === 'DSHInspector.getSources') {
         result = { sources: this.sources.describe() }
       } else if (request.method === 'DSHInspector.getCordisTree') {
-        void this.cordisTrees.getTree().then(
+        this.cordisTrees.getTree().then(
           (tree) => { this.transport.send({ id: request.id, result: { tree } }) },
           (error: unknown) => {
             this.transport.send(cdpError(request.id, -32000, error instanceof Error ? error.message : String(error)))

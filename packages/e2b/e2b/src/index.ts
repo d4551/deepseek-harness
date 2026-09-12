@@ -103,7 +103,7 @@ export class E2BRuntime extends Service {
     this.ready = this.open()
     // A deployment may load the owner before any adapter uses it. Keep a
     // failed eager connection observed; getSandbox() still returns the error.
-    void this.ready.catch(() => {})
+    this.ready.catch(() => {})
 
     ctx.effect(() => async () => {
       this.disposed = true

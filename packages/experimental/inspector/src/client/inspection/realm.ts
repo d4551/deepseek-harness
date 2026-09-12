@@ -107,7 +107,7 @@ function tryClaimSourceId(
   return new Promise((resolve, reject) => {
     let release!: () => void
     const held = new Promise<void>((released) => { release = released })
-    void locks.request(`${CLIENT_SOURCE_LOCK_PREFIX}${sourceId}`, { ifAvailable: true }, async (lock) => {
+    locks.request(`${CLIENT_SOURCE_LOCK_PREFIX}${sourceId}`, { ifAvailable: true }, async (lock) => {
       if (lock === null) {
         resolve(undefined)
         return

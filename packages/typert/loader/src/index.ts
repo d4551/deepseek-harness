@@ -385,7 +385,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     pending.set(entryName, task)
     // Two-armed settle: a bare .finally() would mint a second, unhandled rejection.
     const settle = (): void => { pending.delete(entryName) }
-    void task.then(settle, settle)
+    task.then(settle, settle)
     return task
   }
 
@@ -417,7 +417,9 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     queueMicrotask(() => {
       flushQueued = false
       if (!active) return
-      for (const task of flush((err) => { ctx.logger.error(err) })) void task
+      Promise.all(flush((err) => { ctx.logger.error(err) })).then(undefined, (error: unknown) => {
+        ctx.logger.error(error)
+      })
     })
   })
 

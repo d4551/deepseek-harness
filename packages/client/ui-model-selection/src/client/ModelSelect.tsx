@@ -12,7 +12,7 @@
  * card; the in-menu strip with Retry remains the catalog-load surface.
  */
 import {
-  useEffect, useId, useMemo, useRef, useState, useSyncExternalStore,
+  startTransition, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore,
   type KeyboardEvent, type FocusEvent,
 } from 'react'
 import clsx from 'clsx'
@@ -175,7 +175,7 @@ export function ModelSelect(
       return
     }
     lastActionRef.current = 'select'
-    void select(selection).then(settleSelection)
+    startTransition(async () => { settleSelection(await select(selection)) })
   }
 
   const chooseEffort = (effort: string | undefined): void => {
@@ -190,7 +190,7 @@ export function ModelSelect(
       ...effort === undefined ? {} : { reasoningEffort: effort },
     }
     lastActionRef.current = 'select'
-    void select(selection).then(settleSelection)
+    startTransition(async () => { settleSelection(await select(selection)) })
   }
 
   const waiting = state.current === null && state.status === 'loading'

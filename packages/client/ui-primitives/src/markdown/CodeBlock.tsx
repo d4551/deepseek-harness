@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { Fragment, startTransition, useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
 import clsx from 'clsx'
 import { writeClipboard } from '../clipboard.ts'
@@ -92,8 +92,8 @@ export function CodeBlock({ code, lang, streaming, className, copyLabel, copiedL
     /* v8 ignore next -- both arms always mount a <pre>; trimmed is the
        typed fallback if the DOM shape ever diverges. */
     const text = rootRef.current?.querySelector('pre')?.textContent ?? trimmed
-    void writeClipboard(text).then((ok) => {
-      if (!ok) return
+    startTransition(async () => {
+      if (!await writeClipboard(text)) return
       setCopied(true)
       window.setTimeout(() => { setCopied(false) }, 1000)
     })

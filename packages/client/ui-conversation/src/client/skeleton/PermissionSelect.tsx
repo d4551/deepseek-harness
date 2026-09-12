@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { startTransition, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import clsx from 'clsx'
 import type { PermissionSelect as PermissionSelectValue } from '@deepseek-ai/dsh-permission-presets/client'
@@ -100,9 +100,11 @@ export function PermissionSelect({ value, locked, command, t }: PermissionSelect
 
   const submit = (id: string): void => {
     setPick(id)
-    void command(`/permission ${id}`)
-      .catch(() => false)
-      .then(() => { setPick(null) })
+    // The host command logs its own outcome; the pick highlight clears once the submission settled either way.
+    startTransition(async () => {
+      await Promise.allSettled([command(`/permission ${id}`)])
+      setPick(null)
+    })
   }
 
   const choose = (id: string): void => {

@@ -127,7 +127,7 @@ export function agentEvents(ctx: Context, agent: Agent, carrier: Scoped<Agent> =
       for (const callback of callbacks) {
         try {
           const returned: unknown = callback(...args)
-          void Promise.resolve(returned).catch((error: unknown) => {
+          Promise.resolve(returned).catch((error: unknown) => {
             ctx.logger.warn(`agent event "${name}" listener rejected: ${String(error)}`)
           })
         } catch (error: unknown) {

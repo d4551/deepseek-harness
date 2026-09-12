@@ -78,7 +78,7 @@ export function runShellProcess(start: ShellStartFrame, scope: ProcessScope): vo
   const run = start.script === undefined
     ? runShellProgram(start.argv, options)
     : runShellCommand(start.script, options)
-  void run.then(
+  run.then(
     (outcome) => {
       scope.postMessage({ t: 'shell-exit', code: outcome.exitCode })
       scope.close()

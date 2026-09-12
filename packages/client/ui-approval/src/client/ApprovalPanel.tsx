@@ -25,7 +25,7 @@ function ApprovalFlow({ pending, detail, t }: {
   const [answered, setAnswered] = useState(false)
   const answer = (outcome: 'allowed-once' | 'rejected'): void => {
     setAnswered(true)
-    void pending.answer(outcome).catch(() => { setAnswered(false) })
+    pending.answer(outcome).catch(() => { setAnswered(false) })
   }
   return (
     <div className={css.root} data-approval-key={pending.key}>

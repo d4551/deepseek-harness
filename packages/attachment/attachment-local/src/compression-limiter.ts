@@ -23,7 +23,7 @@ export class CompressionLimiter {
           this.active -= 1
           this.waiting.shift()?.()
         }
-        void Promise.resolve().then(task).then(
+        Promise.resolve().then(task).then(
           (value) => {
             release()
             resolve(value)

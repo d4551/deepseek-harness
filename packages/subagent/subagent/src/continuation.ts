@@ -340,9 +340,8 @@ class ChildLock {
     // cannot reject an unrelated later caller.
     const tail = result.then(() => undefined, () => undefined)
     this.tails.set(childId, tail)
-    void tail.then(() => {
-      if (this.tails.get(childId) === tail) this.tails.delete(childId)
-    })
+    const forget = (): void => { if (this.tails.get(childId) === tail) this.tails.delete(childId) }
+    tail.then(forget, forget)
     return result
   }
 }
@@ -801,7 +800,7 @@ export class SubagentContinuationManager {
     // handle release remains child-first.
     for (const activation of targets) {
       const disposal = this.dispose(activation)
-      void disposal.catch(() => undefined)
+      disposal.catch(() => undefined)
     }
 
     await Promise.all(materializations.map(materialization => materialization.settled))
@@ -839,7 +838,7 @@ export class SubagentContinuationManager {
     // across the selected roots in one synchronous span.
     for (const activation of targets) {
       const disposal = this.dispose(activation)
-      void disposal.catch(() => undefined)
+      disposal.catch(() => undefined)
     }
     await this.disposeRoots(targets, 'selected activation(s)')
   }
@@ -1303,7 +1302,7 @@ export class SubagentContinuationManager {
    * returns it to `running`, so this re-observes rather than settling early.
    */
   private watchSettlement(activation: Activation): void {
-    void (async () => {
+    const watching = (async () => {
       while (disposalOf(activation) === undefined) {
         const poked = activation.poke.promise
         await Promise.race([activation.handle.agent.whenIdle(), poked])
@@ -1327,16 +1326,15 @@ export class SubagentContinuationManager {
           if (activation.handle.agent.status !== 'running') await poked
           continue
         }
-        try {
-          await settling.done
-        } catch (error: unknown) {
-          this.ctx.logger.warn(
-            `subagent "${activation.childId}" activation teardown failed: ${errorChain(error)}`,
-          )
-        }
+        await settling.done
         return
       }
     })()
+    watching.then(undefined, (error: unknown) => {
+      this.ctx.logger.warn(
+        `subagent "${activation.childId}" settlement failed: ${errorChain(error)}`,
+      )
+    })
   }
 
   /**
@@ -1357,7 +1355,7 @@ export class SubagentContinuationManager {
     // Presence is the admission cutoff. Assign it before the async helper starts
     // because that helper cancels Agents and may synchronously re-enter callers.
     activation.disposal = completion.promise
-    void this.finishDisposal(activation).then(completion.resolve, completion.reject)
+    this.finishDisposal(activation).then(completion.resolve, completion.reject)
     return completion.promise
   }
 

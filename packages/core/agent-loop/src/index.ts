@@ -65,7 +65,7 @@ class FactoryOwnership {
   trackStartup(job: Promise<void>): void {
     this.startupTasks.add(job)
     const forget = () => { this.startupTasks.delete(job) }
-    void job.then(forget, forget)
+    job.then(forget, forget)
   }
 
   /** Join one public create/resume continuation; factory dispose awaits its settlement. */
@@ -123,7 +123,7 @@ async function raceAbortCall<T>(
   } catch (error: unknown) {
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the signal can abort while the operation is awaited.
     if (signal.aborted && releaseAbandoned !== undefined) {
-      void pending.then(releaseAbandoned, () => undefined)
+      pending.then(releaseAbandoned, () => undefined)
     }
     throw error
   }
@@ -337,7 +337,7 @@ export class AgentLoop extends Service implements AgentFactory {
       // The schema admits any integer above zero; `resolveMaxParallelToolCalls`
       // owns the whole rule, so refusing here keeps the running scheduler on
       // its last good cap instead of failing at the next tool group.
-      validate: value => void resolveMaxParallelToolCalls(value.maxParallelToolCalls),
+      validate: (value) => { resolveMaxParallelToolCalls(value.maxParallelToolCalls) },
       setSource: (current) => {
         source = current
       },
@@ -370,7 +370,7 @@ export class AgentLoop extends Service implements AgentFactory {
       }
       ctx.effect(() => {
         const fiber = ctx.inject(['sessionPersistence'], (childCtx: Context) => {
-          void this.resumeWith(ctx, childCtx.sessionPersistence, {
+          this.resumeWith(ctx, childCtx.sessionPersistence, {
             resumeSessionId,
             agentOptions: options,
           }).catch((error: unknown) => {
@@ -395,7 +395,7 @@ export class AgentLoop extends Service implements AgentFactory {
     for (const callback of this.ctx.events.dispatch('emit', args)) {
       try {
         const returned: unknown = callback(...args)
-        void Promise.resolve(returned).catch((listenerError: unknown) => {
+        Promise.resolve(returned).catch((listenerError: unknown) => {
           this.ctx.logger.warn(`agent "${configId}": config-start-failed listener rejected: ${errorChain(listenerError)}`)
         })
       } catch (listenerError: unknown) {
@@ -573,7 +573,7 @@ export class AgentLoop extends Service implements AgentFactory {
       }
     } catch (error: unknown) {
       machineReady.resolve()
-      void dispose()
+      dispose().then(undefined, (cleanupError: unknown) => { loopCtx.logger.error(cleanupError) })
       throw error
     }
   }
@@ -593,7 +593,7 @@ export class AgentLoop extends Service implements AgentFactory {
     try {
       return prepared.publish('startup').agent
     } catch (error: unknown) {
-      void prepared.dispose()
+      prepared.dispose().then(undefined, (cleanupError: unknown) => { this.ctx.logger.error(cleanupError) })
       throw error
     }
   }

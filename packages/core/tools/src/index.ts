@@ -1667,7 +1667,7 @@ export class ToolRuntime extends Service {
     for (const callback of callbacks) {
       try {
         const returned: unknown = callback(exec, result)
-        void Promise.resolve(returned).catch(reportFailure)
+        Promise.resolve(returned).catch(reportFailure)
       } catch (error: unknown) {
         reportFailure(error)
       }

@@ -94,28 +94,15 @@ async function waitForBootstrapOutput(
   signal?: AbortSignal,
 ): Promise<void> {
   signal?.throwIfAborted()
-  await new Promise<void>((resolve, reject) => {
-    let settled = false
-    let removeAbort: (() => void) | undefined
-    const finish = (complete: () => void): void => {
-      if (settled) return
-      settled = true
-      removeAbort?.()
-      complete()
-    }
-    const onExit = (): void => {
-      finish(() => { reject(new Error('subprocess-e2b: terminal exited before publishing its output boundary')) })
-    }
-    if (signal !== undefined) {
-      const onAbort = (): void => {
-        finish(() => { reject(asError(signal.reason)) })
-      }
-      signal.addEventListener('abort', onAbort, { once: true })
-      removeAbort = () => { signal.removeEventListener('abort', onAbort) }
-    }
-    void ready.then(() => { finish(resolve) })
-    void completion.then(onExit, onExit)
-  })
+  // Whichever settles first wins: the boundary, an early exit, or the caller's abort.
+  const exitedEarly = (): never => {
+    throw new Error('subprocess-e2b: terminal exited before publishing its output boundary')
+  }
+  const aborted = Promise.withResolvers<never>()
+  const onAbort = (): void => { aborted.reject(asError(signal?.reason)) }
+  signal?.addEventListener('abort', onAbort, { once: true })
+  const detach = (): void => { signal?.removeEventListener('abort', onAbort) }
+  await Promise.race([ready, completion.then(exitedEarly, exitedEarly), aborted.promise]).finally(detach)
 }
 
 function parsePositiveId(value: string, message: string): number {
@@ -204,7 +191,7 @@ async function rollbackUnpublishedTerminal(
   pollMs: number,
 ): Promise<void> {
   let topLevelExited = false
-  void completion.then(
+  completion.then(
     () => { topLevelExited = true },
     () => { topLevelExited = true },
   )
@@ -339,7 +326,7 @@ export class E2BTerminalHandle implements SubprocessTerminalHandle {
     this.operationController.abort(new Error('subprocess-e2b: terminal is terminating'))
     const cleanup = this.closeAfterOperations()
     this.cleanup = cleanup
-    void cleanup.catch((_cleanupFailure: unknown) => {
+    cleanup.catch((_cleanupFailure: unknown) => {
       this.cleanup = undefined
     })
     return cleanup
@@ -374,7 +361,7 @@ export class E2BTerminalHandle implements SubprocessTerminalHandle {
     }
     const pending = operation(this.operationController.signal)
     this.operations.add(pending)
-    void pending.then(
+    pending.then(
       () => { this.operations.delete(pending) },
       () => { this.operations.delete(pending) },
     )
@@ -506,7 +493,7 @@ export async function spawnE2BTerminal(
       onData: (data) => { outputFilter.push(data) },
     })
     completion = handle.wait()
-    void completion.catch(() => {})
+    completion.catch(() => {})
     spec.signal?.throwIfAborted()
     if (!Number.isSafeInteger(handle.pid) || handle.pid <= 0) {
       throw new Error(`subprocess-e2b: E2B returned invalid terminal pid ${handle.pid}`)

@@ -82,7 +82,7 @@ export class ManagedClaudeCodeProcess implements SpawnedProcess {
     // The SDK attaches its listener synchronously after custom spawn returns,
     // while this no-op also contains an already-rejected spawn handle.
     this.events.on('error', () => {})
-    void child.done.then(
+    child.done.then(
       (outcome) => {
         this.outcomeValue = outcome
         this.events.emit('exit', outcome.exitCode, outcome.signal)

@@ -1,7 +1,7 @@
 // Shared IconActions chrome for user and assistant messages: copy
 // live, optional branch wiring, and an optional date-aware clock.
 
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { startTransition, useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import {
   GlyphButton, IconBranchOutline16, IconCheckOutline16, IconCopyOutline16, Tooltip, writeClipboard,
 } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -64,7 +64,8 @@ export function MessageIconActions({
     if (copied || copyPending.current) return
     const epoch = copyEpoch.current
     copyPending.current = true
-    void writeClipboard(text).then((ok) => {
+    startTransition(async () => {
+      const ok = await writeClipboard(text)
       if (epoch !== copyEpoch.current) return
       copyPending.current = false
       if (!ok) return

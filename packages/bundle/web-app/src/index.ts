@@ -282,7 +282,7 @@ export function apply(ctx: Context, config: Config): void {
         }
         if (handoffBrowser) {
           console.log('dsh web: opening the default browser; pass --no-open to disable')
-          void internals.openBrowser(authenticatedUrl).catch((error: unknown) => {
+          internals.openBrowser(authenticatedUrl).catch((error: unknown) => {
             const reason = error instanceof Error ? error.message : String(error)
             console.error(`web-app: could not open the default browser because ${reason}; use the dsh web URL printed at startup`)
           })
@@ -294,7 +294,7 @@ export function apply(ctx: Context, config: Config): void {
       const settled = connectionCtx.get('loader')?.await()
       if (settled === undefined) announceReady()
       else {
-        void settled.then(() => {
+        settled.then(() => {
           // The tree can be disposed while the boot was in flight (early
           // SIGTERM); a URL line or browser tab for a dead server would only
           // mislead, and reading torn-down services would turn a clean shutdown

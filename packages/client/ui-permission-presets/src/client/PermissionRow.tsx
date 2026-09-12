@@ -4,7 +4,7 @@
  * control.
  */
 
-import { useEffect, useState } from 'react'
+import { startTransition, useEffect, useState } from 'react'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
@@ -44,7 +44,7 @@ export function PermissionRow({ load, select, usePermission, t }: PermissionRowP
   const [acknowledged, setAcknowledged] = useState(false)
 
   useEffect(() => {
-    void load()
+    startTransition(load)
   }, [load])
 
   useEffect(() => {
@@ -87,7 +87,7 @@ export function PermissionRow({ load, select, usePermission, t }: PermissionRowP
               setConfirmingFullAccess(true)
               return
             }
-            void select(id)
+            startTransition(() => select(id))
           }}
           align="end"
           portal
@@ -124,7 +124,7 @@ export function PermissionRow({ load, select, usePermission, t }: PermissionRowP
         onConfirm={() => {
           setAcknowledged(false)
           setConfirmingFullAccess(false)
-          void select(FULL_ACCESS_PRESET)
+          startTransition(() => select(FULL_ACCESS_PRESET))
         }}
       />
     </>

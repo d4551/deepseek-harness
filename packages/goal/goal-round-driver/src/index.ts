@@ -233,7 +233,7 @@ export function apply(ctx: Context): void {
       state.run = undefined
       if (state.requested && !state.stopping) requestDrive(state)
     }
-    void run.then(retire, (error: unknown) => {
+    run.then(retire, (error: unknown) => {
       ctx.logger.warn(`goal-round-driver: driver task rejected for agent "${state.agent.id}": ${renderThrown(error)}`)
       disarm(state)
       retire()

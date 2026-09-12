@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { startTransition, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { writeClipboard } from './clipboard.ts'
@@ -157,14 +157,14 @@ export function HoverCard({
               if (selection.getRangeAt(i).intersectsNode(e.currentTarget)) return
             }
           }
-          void copy(copyText)
+          startTransition(() => copy(copyText))
         }
         : undefined}
       onKeyDown={copyable
         ? (e) => {
           if (e.key !== 'Enter' && e.key !== ' ') return
           e.preventDefault()
-          void copy(copyText)
+          startTransition(() => copy(copyText))
         }
         : undefined}
     >

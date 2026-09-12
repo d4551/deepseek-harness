@@ -688,7 +688,7 @@ export class SessionTitleService extends Service {
       if (!this.serviceActive()) return
       await task()
     })
-    void this.track(run)
+    this.track(run).then(undefined, (error: unknown) => { this.ctx.logger.error(error) })
   }
 
   /** Retain one promise until settlement for service and optional provider teardown. */
@@ -699,7 +699,7 @@ export class SessionTitleService extends Service {
       this.inFlight.delete(run)
       registration?.active.delete(run)
     }
-    void run.then(settled, settled)
+    run.then(settled, settled)
     return run
   }
 

@@ -429,7 +429,7 @@ export class RuntimeDomainSession {
     if (event.type === 'opened') {
       if (this.enabled) {
         this.pendingAnnouncements++
-        void this.announceRealm(event.session)
+        this.announceRealm(event.session).then(() => { this.settleAnnouncement() }, () => { this.settleAnnouncement() })
       }
       return
     }
@@ -466,12 +466,8 @@ export class RuntimeDomainSession {
   }
 
   private async announceRealm(realm: InspectorRealmSession): Promise<void> {
-    try {
-      const admitted = await this.admitRealm(realm)
-      if (admitted !== undefined) this.announce(admitted)
-    } finally {
-      this.settleAnnouncement()
-    }
+    const admitted = await this.admitRealm(realm)
+    if (admitted !== undefined) this.announce(admitted)
   }
 
   private settleAnnouncement(): void {
@@ -501,7 +497,7 @@ export class RuntimeDomainSession {
     const subscription = this.consoleSubscriptions.get(realmId)
     if (subscription === undefined) return
     this.consoleSubscriptions.delete(realmId)
-    void subscription.then(
+    subscription.then(
       (dispose) => { dispose() },
       () => {
         // A subscription the realm never established retains nothing to release.

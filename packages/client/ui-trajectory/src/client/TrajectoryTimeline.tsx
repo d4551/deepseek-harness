@@ -1,7 +1,7 @@
 /** Chrome-Network-style overview timeline for focusing the trajectory ledger. */
 
 import {
-  memo, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent,
+  memo, startTransition, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent,
   type PointerEvent,
 } from 'react'
 import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -335,7 +335,7 @@ export const TrajectoryTimeline = memo(function TrajectoryTimeline({
     ? undefined
     : () => {
       setLoadingEarlier(true)
-      void onLoadEarlier().finally(() => { setLoadingEarlier(false) })
+      startTransition(async () => { await onLoadEarlier(); setLoadingEarlier(false) })
     }
   const projectedDomainStyle = model === null
     ? undefined

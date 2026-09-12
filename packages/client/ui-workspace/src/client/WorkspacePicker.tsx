@@ -7,7 +7,7 @@
  * surface.
  */
 import type { ReactNode, RefObject } from 'react'
-import { useCallback, useEffect, useState } from 'react'
+import { startTransition, useCallback, useEffect, useState } from 'react'
 import {
   Button, IconFolderClose16, IconPlusOutline16, Menu, Modal, type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -157,7 +157,11 @@ export function WorkspacePickFlow({
     busy: pickingFolder,
     onPicked: (path) => {
       setPickingFolder(true)
-      void adoptDirectory(path).finally(() => { setPickingFolder(false) })
+      // adoptDirectory settles every outcome into the dialog, so the flow is free again once it resolves.
+      startTransition(async () => {
+        await adoptDirectory(path)
+        setPickingFolder(false)
+      })
     },
     onCancel: () => { setFlowOpen(false) },
     onError: (message) => {

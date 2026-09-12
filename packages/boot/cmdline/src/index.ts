@@ -214,8 +214,8 @@ function configureExitAndOutput(command: Command): void {
   command
     .exitOverride()
     .configureOutput({
-      writeOut: text => void internals.stdout.write(text),
-      writeErr: text => void internals.stderr.write(text),
+      writeOut: (text) => { internals.stdout.write(text) },
+      writeErr: (text) => { internals.stderr.write(text) },
     })
   for (const child of command.commands) configureExitAndOutput(child)
 }

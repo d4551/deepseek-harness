@@ -175,7 +175,7 @@ export class LocalJobRegistry extends JobRegistry {
     }
     this.store.set(id, job)
 
-    void hooks.done.then(
+    hooks.done.then(
       (outcome) => { this.settle(job, outcome) },
       (error: unknown) => {
         // Contain a producer contract violation (`done` rejected) so cleanup and waiters cannot hang.
@@ -430,7 +430,7 @@ export class LocalJobRegistry extends JobRegistry {
     for (const listener of this.listenersFor(job.owner)) {
       try {
         const returned = listener(snapshot, job.owner)
-        void Promise.resolve(returned).catch((error: unknown) => {
+        Promise.resolve(returned).catch((error: unknown) => {
           this.selfCtx.logger.warn(`jobs: onJobDone listener rejected for ${job.id}: ${String(error)}`)
         })
       } catch (error: unknown) {

@@ -117,9 +117,8 @@ export class SubagentActivationSetupRegistry {
       // Keep the installer failure authoritative, but attempt every rollback.
       try {
         this.releaseAll([...state.installations], 'setup rollback')
-      } catch (releaseFailure: unknown) {
+      } catch (_releaseFailure) {
         /* v8 ignore next -- requires independent installer and rollback faults. */
-        void releaseFailure
       }
       throw error
     }

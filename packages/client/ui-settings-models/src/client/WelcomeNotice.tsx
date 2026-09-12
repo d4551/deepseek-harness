@@ -1,6 +1,6 @@
 /** Product-wide, versioned internal-testing notice. */
 
-import { useCallback, useEffect, useRef } from 'react'
+import { startTransition, useCallback, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -42,7 +42,7 @@ export function WelcomeNotice(props: WelcomeNoticeProps): ReactNode {
   }, [complete])
 
   useEffect(() => {
-    if (state.status === 'idle') void controller.load()
+    if (state.status === 'idle') startTransition(() => controller.load())
   }, [controller, state.status])
 
   useEffect(() => {
@@ -67,7 +67,7 @@ export function WelcomeNotice(props: WelcomeNoticeProps): ReactNode {
           variant="primary"
           className={css.primary}
           disabled={state.status === 'saving'}
-          onClick={() => { void acknowledge() }}
+          onClick={() => { startTransition(acknowledge) }}
         >
           {t('welcomeContinue')}
         </Button>

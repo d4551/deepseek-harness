@@ -172,7 +172,7 @@ export class ClientInspectorSource extends InspectorSourceConnection {
             socket.close(1008, 'source rejected')
           },
           runtime: (request) => {
-            void this.executeRuntime(socket, generation, request).catch((error: unknown) => {
+            this.executeRuntime(socket, generation, request).catch((error: unknown) => {
               console.error('[inspector] Client Runtime transport failed:', error)
               socket.close(1011, 'Client Runtime transport failed')
             })
@@ -192,7 +192,7 @@ export class ClientInspectorSource extends InspectorSourceConnection {
           },
           consoleDisabled: (disabled) => { this.console.disable(disabled.sessionId) },
           sources: (request) => {
-            void this.executeSourceRequest(socket, generation, request).catch((error: unknown) => {
+            this.executeSourceRequest(socket, generation, request).catch((error: unknown) => {
               console.error('[inspector] Client Sources transport failed:', error)
               socket.close(1011, 'Client Sources transport failed')
             })

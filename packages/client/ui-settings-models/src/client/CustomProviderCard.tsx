@@ -21,7 +21,7 @@
  * levels instead.
  */
 
-import { useState } from 'react'
+import { startTransition, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { JsonValue } from '@deepseek-ai/dsh-api-remotes/client'
 import { apiKeyFailure } from './apiKey.ts'
@@ -289,7 +289,7 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
         submitLabelKey="create"
         submitBusyLabelKey="creating"
         onCancel={() => { props.onClose(committed) }}
-        onSubmit={() => { void create() }}
+        onSubmit={() => { startTransition(create) }}
       />
     </div>
   )

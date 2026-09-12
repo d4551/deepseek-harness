@@ -133,7 +133,9 @@ export class TerminalSessionService extends Service {
         if (this.backends.get(backend.type) === backend) this.backends.delete(backend.type)
       }
     }, 'pty.registerBackend()')
-    return () => void dispose()
+    return () => {
+      Promise.resolve(dispose()).then(undefined, (error: unknown) => { this.ctx.logger.error(error) })
+    }
   }
 
   /**
@@ -246,7 +248,7 @@ export class TerminalSessionService extends Service {
     if (record.active !== undefined) throw new TerminalError(`PTY session ${id} already has an active send`, 'SEND_ACTIVE')
     const operation = record.session.startSend(request)
     record.active = operation
-    void operation.done.then(
+    operation.done.then(
       () => { record.active = undefined },
       () => { record.active = undefined },
     )

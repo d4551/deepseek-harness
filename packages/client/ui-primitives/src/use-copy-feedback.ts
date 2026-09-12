@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { startTransition, useCallback, useState } from 'react'
 import { writeClipboard } from './clipboard.ts'
 
 /** How long the `copied` flag stays true after a successful write, in ms. */
@@ -21,8 +21,8 @@ export function useCopyFeedback(text: string): CopyFeedback {
   const [copied, setCopied] = useState(false)
   const onCopy = useCallback(() => {
     if (copied) return
-    void writeClipboard(text).then((ok) => {
-      if (!ok) return
+    startTransition(async () => {
+      if (!await writeClipboard(text)) return
       setCopied(true)
       window.setTimeout(() => { setCopied(false) }, COPIED_FEEDBACK_MS)
     })

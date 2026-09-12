@@ -193,7 +193,7 @@ export async function disposeCodexChild(
 
   if (child.pid > 0) {
     let outcome: SubprocessOutcome | undefined
-    void child.done.then(
+    child.done.then(
       (value) => { outcome = value },
       /* v8 ignore next -- a positive pid excludes spawn-level done rejection. */
       () => {},

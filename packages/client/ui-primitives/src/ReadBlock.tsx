@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, useSyncExternalStore } from 'react'
+import { startTransition, useCallback, useMemo, useState, useSyncExternalStore } from 'react'
 import clsx from 'clsx'
 import { FoldToggle } from './FoldToggle.tsx'
 import { writeClipboard } from './clipboard.ts'
@@ -85,8 +85,8 @@ export function ReadBlock({
 
   const onCopy = useCallback(() => {
     if (copied) return
-    void writeClipboard(raw).then((ok) => {
-      if (!ok) return
+    startTransition(async () => {
+      if (!await writeClipboard(raw)) return
       setCopied(true)
       window.setTimeout(() => { setCopied(false) }, 1000)
     })

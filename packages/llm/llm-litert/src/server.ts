@@ -243,7 +243,7 @@ export class LitertServer {
     const url = `${this.spec.baseURL}/models`
     let exit: CompletedRun | undefined
     let startFailure: unknown
-    void handle.done.then(
+    handle.done.then(
       (outcome) => { exit = { ...outcome, ...this.collectedOutput(handle) } },
       (failure: unknown) => { startFailure = failure },
     )

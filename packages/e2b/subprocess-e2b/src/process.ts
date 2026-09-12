@@ -54,14 +54,14 @@ class DeferredStdin extends Writable {
   }
 
   override _write(chunk: string | Buffer, _encoding: BufferEncoding, callback: (error?: Error | null) => void): void {
-    void this.ready.then(handle => handle.sendStdin(chunk)).then(
+    this.ready.then(handle => handle.sendStdin(chunk)).then(
       () => { callback() },
       (error: unknown) => { callback(asError(error)) },
     )
   }
 
   override _final(callback: (error?: Error | null) => void): void {
-    void this.ready.then(handle => handle.closeStdin()).then(
+    this.ready.then(handle => handle.closeStdin()).then(
       () => { callback() },
       (error: unknown) => { callback(asError(error)) },
     )
@@ -80,14 +80,12 @@ type CommandSettlement =
   | { kind: 'result'; result: CommandResult }
   | { kind: 'error'; error: unknown }
 
-function withinMs(settlement: Promise<CommandSettlement>, timeoutMs: number): Promise<CommandSettlement | undefined> {
-  return new Promise<CommandSettlement | undefined>((resolve) => {
-    const timer = setTimeout(() => { resolve(undefined) }, timeoutMs)
-    void settlement.then((value) => {
-      clearTimeout(timer)
-      resolve(value)
-    })
-  })
+async function withinMs(settlement: Promise<CommandSettlement>, timeoutMs: number): Promise<CommandSettlement | undefined> {
+  const expiry = Promise.withResolvers<undefined>()
+  const timer = setTimeout(() => { expiry.resolve(undefined) }, timeoutMs)
+  const value = await Promise.race([settlement, expiry.promise])
+  clearTimeout(timer)
+  return value
 }
 
 function commandText(spec: SubprocessSpawnSpec, paths: RemotePaths): string {
@@ -140,19 +138,15 @@ function commandText(spec: SubprocessSpawnSpec, paths: RemotePaths): string {
 
 const WAIT_ABORTED = Symbol('wait aborted')
 
-function waitWithSignal<T>(promise: Promise<T>, signal: AbortSignal | undefined): Promise<T | typeof WAIT_ABORTED> {
+async function waitWithSignal<T>(promise: Promise<T>, signal: AbortSignal | undefined): Promise<T | typeof WAIT_ABORTED> {
   if (signal === undefined) return promise
-  if (signal.aborted) return Promise.resolve(WAIT_ABORTED)
-  return new Promise<T | typeof WAIT_ABORTED>((resolve) => {
-    const onAbort = (): void => { cleanup(); resolve(WAIT_ABORTED) }
-    const cleanup = (): void => { signal.removeEventListener('abort', onAbort) }
-    signal.addEventListener('abort', onAbort, { once: true })
-    if (signal.aborted) {
-      onAbort()
-      return
-    }
-    void promise.then((value) => { cleanup(); resolve(value) })
-  })
+  if (signal.aborted) return WAIT_ABORTED
+  const aborted = Promise.withResolvers<typeof WAIT_ABORTED>()
+  const onAbort = (): void => { aborted.resolve(WAIT_ABORTED) }
+  signal.addEventListener('abort', onAbort, { once: true })
+  const value = await Promise.race([promise, aborted.promise])
+  signal.removeEventListener('abort', onAbort)
+  return value
 }
 
 /** E2B-backed subprocess handle with deferred remote PID acquisition. */
@@ -218,10 +212,10 @@ export class E2BSubprocessHandle implements SubprocessHandle {
       ...(this.stderrReader !== undefined ? { stderr: this.stderrReader } : {}),
     }
     this.stdin = spec.stdio.stdin === 'pipe' ? new DeferredStdin(this.readyState.promise) : undefined
-    void this.readyState.promise.catch(() => {})
+    this.readyState.promise.catch(() => {})
     spec.signal?.addEventListener('abort', this.onAbort, { once: true })
     this.done = this.run()
-    void this.done.catch(() => {})
+    this.done.catch(() => {})
     if (spec.signal?.aborted === true) this.terminate()
   }
 
@@ -239,7 +233,7 @@ export class E2BSubprocessHandle implements SubprocessHandle {
     this.terminationFailure = undefined
     const attempt = this.terminateRemote()
     this.terminationAttempt = attempt
-    void attempt.then(
+    attempt.then(
       () => { this.terminationAttempt = undefined },
       (error: unknown) => {
         if (!this.quiescenceProven) this.terminationFailure = asError(error)
@@ -331,7 +325,7 @@ export class E2BSubprocessHandle implements SubprocessHandle {
         },
       )
       const completion = handle.wait()
-      void completion.catch(() => {})
+      completion.catch(() => {})
       if (!isValidProcessId(handle.pid)) {
         const invalidPid = new Error(`subprocess-e2b: E2B returned invalid command pid ${handle.pid}`)
         try {

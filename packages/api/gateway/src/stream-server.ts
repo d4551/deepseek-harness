@@ -48,7 +48,8 @@ export class RemoteStreamMuxServer {
       const connection = new RemoteStreamMuxConnection(websocket, this.open, this.failure)
       const done = connection.run()
       this.connections.add(done)
-      void done.then(() => { this.connections.delete(done) })
+      const forget = (): void => { this.connections.delete(done) }
+      done.then(forget, forget)
     })
   }
 
@@ -133,7 +134,7 @@ class RemoteStreamMuxConnection {
     const done = this.pump(message.streamId, message.endpoint, message.payload, active)
     active.done = done
     const remove = (): void => { this.streams.delete(message.streamId) }
-    void done.then(remove, remove)
+    done.then(remove, remove)
   }
 
   private async pump(

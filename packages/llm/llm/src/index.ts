@@ -353,7 +353,7 @@ export class LlmRuntime extends TypertRemoteService {
           // An emit listener may still be an async function; its rejection
           // cannot reach the synchronous INVARIANT rethrow below, so it is
           // contained here instead of becoming an unhandled rejection.
-          void Promise.resolve(returned as PromiseLike<unknown>).then(undefined, (error: unknown) => {
+          Promise.resolve(returned as PromiseLike<unknown>).then(undefined, (error: unknown) => {
             this.warnAdaptersListenerFailure(error)
           })
         }
@@ -399,9 +399,9 @@ export class LlmRuntime extends TypertRemoteService {
         this.emitAdaptersUpdated()
       }
     }.bind(this), 'llm.registerAdapter()')
-    // ctx.effect's disposer returns Promise<void>; our disposer API is
-    // synchronous fire-and-forget — discard the (always-resolved) promise.
-    const handle = (() => void dispose()) as AdapterRegistrationHandle
+    const handle = (): void => {
+      Promise.resolve(dispose()).then(undefined, (error: unknown) => { this.ctx.logger.error(error) })
+    }
     handle.replace = (next: string[]): void => {
       // Registering here would leak: the effect's disposer already ran, so
       // nothing remains to release whatever this call would put in the map.
@@ -528,7 +528,9 @@ export class LlmRuntime extends TypertRemoteService {
       }
     }.bind(this), 'llm.registerConfigurableProviders()')
 
-    const handle = ((): void => void dispose()) as DirectoryRegistrationHandle
+    const handle = (): void => {
+      Promise.resolve(dispose()).then(undefined, (error: unknown) => { this.ctx.logger.error(error) })
+    }
     handle.replace = (next: readonly LlmConfigurableProvider[]): void => {
       if (disposed) {
         throw new LlmError('this configurable-provider registration was disposed', 'REGISTRATION_DISPOSED')
@@ -576,7 +578,9 @@ export class LlmRuntime extends TypertRemoteService {
         this.discoveries.delete(settingsNs)
       }
     }.bind(this), 'llm.registerModelDiscovery()')
-    return () => void dispose()
+    return () => {
+      Promise.resolve(dispose()).then(undefined, (error: unknown) => { this.ctx.logger.error(error) })
+    }
   }
 
   /**

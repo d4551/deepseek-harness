@@ -677,7 +677,7 @@ export function apply(ctx: Context, config: Config): void {
     if (fiber === undefined) return
     scopedInstalls.delete(candidate)
     /* v8 ignore next 3 -- Cordis Fiber disposal contains registration cleanup failures; this is the final diagnostic sink. */
-    void fiber.dispose().catch((error: unknown) => {
+    fiber.dispose().catch((error: unknown) => {
       ctx.logger.warn(`tool-subagent: failed to remove recomposed Agent "${candidate.id}" definitions: ${String(error)}`)
     })
   }

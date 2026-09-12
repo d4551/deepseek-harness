@@ -21,7 +21,7 @@
  * see instead of rebuilding the whole subtree from a partial descriptor.
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { startTransition, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type {
   CredentialInfo, JsonValue, SettingsNamespaceView, SettingsPathOpView,
@@ -190,7 +190,7 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
     // neither a business rejection nor a transport failure may reach the
     // browser as an unhandled rejection, so the card simply renders without
     // the "already configured" hint.
-    void api.credentials.describe([keyRef]).then(
+    api.credentials.describe([keyRef]).then(
       (response) => {
         if (stale || !response.ok) return
         setKeyState(response.value[keyRef])
@@ -515,7 +515,7 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
         submitBusyLabelKey={props.submitBusyLabelKey ?? 'applying'}
         {...props.cancelLabelKey === undefined ? {} : { cancelLabelKey: props.cancelLabelKey }}
         onCancel={() => { props.onClose(false) }}
-        onSubmit={() => { void apply() }}
+        onSubmit={() => { startTransition(apply) }}
       />
     </div>
   )

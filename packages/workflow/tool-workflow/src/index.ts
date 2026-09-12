@@ -169,9 +169,7 @@ function presentWorkflowCall(args: WorkflowCallArgs): ToolCallView {
 }
 
 /** The completed-state card: keep the pending title; render the result content as-is. */
-function presentWorkflowResult(args: WorkflowCallArgs, result: { content: ContentBlock[]; isError: boolean }): ToolResultView {
-  void args
-  void result
+function presentWorkflowResult(_args: WorkflowCallArgs, _result: { content: ContentBlock[]; isError: boolean }): ToolResultView {
   return { card: 'generic' }
 }
 

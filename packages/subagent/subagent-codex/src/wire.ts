@@ -216,7 +216,7 @@ function abortError(signal: AbortSignal): Error {
 
 async function raceAbort<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
   if (signal.aborted) {
-    void pending.catch(() => {})
+    pending.catch(() => {})
     throw abortError(signal)
   }
   let rejectAbort!: (error: Error) => void
@@ -277,7 +277,7 @@ export class CodexAppServerWire {
     // Fatal protocol state can arrive after the current guarded operation has
     // already settled. Keep the shared rejection observed without inserting
     // another promise-adoption hop into active races.
-    void this.fatal.promise.catch(() => {})
+    this.fatal.promise.catch(() => {})
     this.transport.onRequest((method, params) => this.handleServerRequest(method, params))
     this.transport.onNotification((method, params) => {
       try {
@@ -438,7 +438,7 @@ export class CodexAppServerWire {
    */
   interrupt(): void {
     if (this.threadId === undefined || this.turnId === undefined || this.closed) return
-    void this.transport.request('turn/interrupt', {
+    this.transport.request('turn/interrupt', {
       threadId: this.threadId,
       turnId: this.turnId,
     }).catch(() => {})

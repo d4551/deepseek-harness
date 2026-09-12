@@ -36,7 +36,7 @@ export function PlanReviewPanel({ pending, review, t }: PlanReviewPanelProps) {
   const settle = (send: () => Promise<void>): void => {
     setBusy(true)
     setError(null)
-    void send().catch((cause: unknown) => {
+    send().catch((cause: unknown) => {
       setBusy(false)
       setError(cause instanceof Error ? cause.message : String(cause))
     })

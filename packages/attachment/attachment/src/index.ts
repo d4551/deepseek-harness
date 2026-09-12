@@ -110,30 +110,27 @@ export abstract class AttachmentStore extends Service {
 
   /**
    * Locate the provider-owned normalized object in the harness host filesystem.
-   * @param ref - durable normalized attachment reference.
+   * @param _ref - durable normalized attachment reference.
    * @returns an absolute host path, or undefined when this backend is not host-file-backed.
    * @throws an AttachmentError when the durable reference is invalid.
    */
-  imageHostPath(ref: ImageAttachmentRef): string | undefined {
-    void ref
+  imageHostPath(_ref: ImageAttachmentRef): string | undefined {
     return undefined
   }
 
   /**
    * Generate or read one deterministic model-request version from the stored normalized image.
-   * @param ref - durable provider-independent normalized attachment reference.
-   * @param policy - exact route pixel budget and encoded-byte target; a target no ladder quality meets yields the smallest ladder output.
+   * @param _ref - durable provider-independent normalized attachment reference.
+   * @param _policy - exact route pixel budget and encoded-byte target; a target no ladder quality meets yields the smallest ladder output.
    * @param signal - optional cancellation.
    * @returns request bytes and the cache/upload identity covering every transform input.
    */
   readImageRequest(
-    ref: ImageAttachmentRef,
-    policy: ImageRequestPolicy,
+    _ref: ImageAttachmentRef,
+    _policy: ImageRequestPolicy,
     signal?: AbortSignal,
   ): Promise<RequestImageAttachment> {
     signal?.throwIfAborted()
-    void ref
-    void policy
     return Promise.reject(new AttachmentError(
       'The mounted attachment provider cannot derive model-request images.',
       'ATTACHMENT_PROJECTION_UNSUPPORTED',

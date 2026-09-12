@@ -1,3 +1,4 @@
+import { startTransition } from 'react'
 import type { ReactNode } from 'react'
 import { IconDownloadOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { SessionLogDownloadDialog, type SessionLogDownloadDialogProps } from './Dialog.tsx'
@@ -20,7 +21,7 @@ export function SessionLogDownloadHeaderAction(props: SessionLogDownloadDialogPr
         className={css.sessionLogButton}
         disabled={busy}
         aria-busy={busy}
-        onClick={() => { void request(sessionId) }}
+        onClick={() => { startTransition(() => request(sessionId)) }}
       >
         <span>{t('header.action')}</span>
         <IconDownloadOutline16 size={12} />

@@ -154,7 +154,7 @@ export class E2BSubprocessRuntime extends SubprocessRuntime {
       await handle.waitForExit()
       this.live.delete(handle)
     }
-    void handle.done.then(release, release).catch((_automaticReleaseFailure: unknown) => {
+    handle.done.then(release, release).catch((_automaticReleaseFailure: unknown) => {
       // Retain the handle so service disposal can retry its cleanup transaction.
     })
     return handle
@@ -194,7 +194,7 @@ export class E2BSubprocessRuntime extends SubprocessRuntime {
         await terminal.terminate()
         this.terminals.delete(terminal)
       }
-      void terminal.done.then(release, release).catch((_automaticReleaseFailure: unknown) => {
+      terminal.done.then(release, release).catch((_automaticReleaseFailure: unknown) => {
         // Retain the terminal so service disposal can retry its cleanup transaction.
       })
       return terminal

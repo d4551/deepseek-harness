@@ -197,7 +197,7 @@ export class WorkerRun implements WorkflowRun {
       // workflow/end.
       this.endStrandedAgents()
       this.settleResult(this.cancelledResult(this.hostStarted))
-      void this.worker.terminate()
+      this.worker.terminate().then(undefined, (error: unknown) => { this.ctx.logger.error(error) })
     }, this.disposeGraceMs)
     // unref'd: an armed grace timer must never hold the process open.
     this.graceTimer.unref()
@@ -225,7 +225,7 @@ export class WorkerRun implements WorkflowRun {
     // join this promise rather than start a second traversal.
     const claimed = Promise.withResolvers<undefined>()
     this.disposed = claimed.promise
-    void (async () => {
+    const disposing = (async () => {
       this.detachInputSignal()
       this.cancel('workflow disposed')
       // cancel() deliberately becomes a no-op after terminal settlement, but
@@ -243,7 +243,8 @@ export class WorkerRun implements WorkflowRun {
       ])
       await this.worker.terminate()
       this.reapChildren('workflow disposed')
-    })().then(
+    })()
+    disposing.then(
       () => { claimed.resolve(undefined) },
       /* v8 ignore next -- result/quiescence never reject and Worker.terminate is the only external promise */
       (error: unknown) => { claimed.reject(error) },
@@ -338,7 +339,7 @@ export class WorkerRun implements WorkflowRun {
     this.hostStarted += 1
     const task = this.startChild(callId, request)
     this.pendingStarts.add(task)
-    void task.then(
+    task.then(
       () => { this.finishPendingStart(task) },
       /* v8 ignore next -- startChild contains provider and cleanup failures */
       () => { this.finishPendingStart(task) },
@@ -387,7 +388,7 @@ export class WorkerRun implements WorkflowRun {
     // Attach result forwarding before publishing the child handle. Because the
     // callback itself runs in a later microtask, ChildStarted is still posted
     // first even for an already-settled scripted provider.
-    const forwardResult = run.result.then<() => void, () => void>(
+    run.result.then(
       (result) => {
         try {
           const snapshot = snapshotJsonValue<ChildResult>({
@@ -396,19 +397,18 @@ export class WorkerRun implements WorkflowRun {
             stopReason: result.stopReason,
           })
           if (snapshot === undefined) throw new TypeError('child result is not losslessly JSON-serializable')
-          return () => { this.post(HostToWorkerType.ChildSettled, { callId, result: snapshot }) }
+          this.post(HostToWorkerType.ChildSettled, { callId, result: snapshot })
         } catch (error: unknown) {
           const rendered = `workflow child result could not cross the worker boundary: ${renderThrown(error)}`
-          return () => { this.post(HostToWorkerType.ChildFailed, { callId, rendered }) }
+          this.post(HostToWorkerType.ChildFailed, { callId, rendered })
         }
       },
       (error: unknown) => {
         const rendered = renderThrown(error)
-        return () => { this.post(HostToWorkerType.ChildFailed, { callId, rendered }) }
+        this.post(HostToWorkerType.ChildFailed, { callId, rendered })
       },
     )
     this.post(HostToWorkerType.ChildStarted, { callId, childId: run.id })
-    void forwardResult.then((forward) => { forward() })
   }
 
   private onChildDispose(callId: number): void {
@@ -419,8 +419,8 @@ export class WorkerRun implements WorkflowRun {
       this.post(HostToWorkerType.ChildDisposed, { callId })
       return
     }
-    // disposeChild never rejects (containment is inside), so the ack always follows.
-    void this.disposeChild(callId, record).then(() => { this.post(HostToWorkerType.ChildDisposed, { callId }) })
+    const ack = (): void => { this.post(HostToWorkerType.ChildDisposed, { callId }) }
+    this.disposeChild(callId, record).then(ack, ack) // disposeChild never rejects (containment is inside): the ack always follows
   }
 
   /**
@@ -474,7 +474,7 @@ export class WorkerRun implements WorkflowRun {
   private reapChildren(reason: string): void {
     this.abortChildren(this.cancelReason ?? reason)
     for (const [callId, record] of [...this.children]) {
-      void this.disposeChild(callId, record)
+      record.disposal = this.disposeChild(callId, record)
     }
   }
 
@@ -546,7 +546,7 @@ export class WorkerRun implements WorkflowRun {
     // precede `exit`. Admission is already closed, so this final sweep only
     // joins/starts disposal for registry survivors; it deliberately does not
     // repeat explicit provider cancellation.
-    for (const [callId, record] of [...this.children]) void this.disposeChild(callId, record)
+    for (const [callId, record] of [...this.children]) record.disposal = this.disposeChild(callId, record)
     this.endStrandedAgents()
   }
 

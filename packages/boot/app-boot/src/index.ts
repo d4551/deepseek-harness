@@ -84,7 +84,7 @@ export function resolveConfigPath(
  */
 export function loadEnv(
   binName: string, dir: string = process.cwd(),
-  warn: (line: string) => void = line => void process.stderr.write(line),
+  warn: (line: string) => void = (line) => { process.stderr.write(line) },
 ): void {
   try {
     process.loadEnvFile(resolve(dir, '.env'))
@@ -183,7 +183,7 @@ function readEnvLayer(
  */
 export function loadLayeredEnv(
   binName: string, cwd: string = process.cwd(),
-  warn: (line: string) => void = line => void process.stderr.write(line),
+  warn: (line: string) => void = (line) => { process.stderr.write(line) },
 ): LaunchEnvironmentSnapshot {
   const home = resolveDshHome()
   const inherited = { ...process.env } as Record<string, string>
@@ -330,7 +330,7 @@ export async function watchUserPatches(
   const cleanup: Array<() => unknown> = []
   try {
     cleanup.push(ctx.effect(() => {
-      const timer = setInterval(() => void reconcile().catch(report), repairInterval)
+      const timer = setInterval(() => { reconcile().then(undefined, report) }, repairInterval)
       // A repair cadence must never be why a finished process stays alive.
       timer.unref()
       return () => { clearInterval(timer) }
@@ -492,7 +492,7 @@ export function renderConfigDump(
   binName: string,
   absoluteConfigPath: string,
   layers: ConfigDumpLayer[],
-  warn: (line: string) => void = line => void process.stderr.write(`${line}\n`),
+  warn: (line: string) => void = (line) => { process.stderr.write(`${line}\n`) },
 ): string {
   let content: string
   try {
@@ -736,26 +736,16 @@ export function installFailLoud(
       proc.exit(1)
       return
     }
-    void (async () => {
-      // Definitely assigned: the timeout promise's executor runs synchronously
-      // while the race is being constructed, before the first await.
-      let timer!: ReturnType<typeof setTimeout>
-      try {
-        await Promise.race([
-          (async () => release())(),
-          new Promise<void>((resolve) => {
-            timer = setTimeout(resolve, FAIL_LOUD_RELEASE_TIMEOUT_MS)
-          }),
-        ])
-      } catch {
-        // The terminal release failed; the fatal exit below is the outcome that
-        // matters, and no reporter runs after it.
-      }
+    const released = (async () => release())()
+    const timeout = Promise.withResolvers<void>()
+    const timer = setTimeout(timeout.resolve, FAIL_LOUD_RELEASE_TIMEOUT_MS)
+    const exit = (): void => {
       clearTimeout(timer)
       proc.exit(1)
-    })()
+    }
+    Promise.race([released, timeout.promise]).then(exit, exit)
   }
-  const uninstall = (): void => void proc.off('unhandledRejection', handler)
+  const uninstall = (): void => { proc.off('unhandledRejection', handler) }
   proc.on('unhandledRejection', handler)
   return uninstall
 }

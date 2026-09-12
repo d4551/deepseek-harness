@@ -366,7 +366,7 @@ export class SessionInputShell implements SessionInput {
         const flight = this.imageFlightSeq
         this.imageFlights.set(flight, { controller, imageIds })
         this.commitSend(imageIds)
-        void this.deps.defaultSink('', imageIds, mode, controller.signal).then((outcome) => {
+        this.deps.defaultSink('', imageIds, mode, controller.signal).then((outcome) => {
           if (this.disposed || !this.imageFlights.delete(flight)) return
           if (outcome.kind === 'success') return
           this.restoreImages(imageIds)
@@ -533,14 +533,13 @@ export class SessionInputShell implements SessionInput {
    * decoration, never state.
    * @param text - the plain reference text to splice in (e.g. `/name `).
    * @param span - pick-time span snapshot (detect coordinates).
-   * @param keepCompleting - contract passenger; completion re-opening is
+   * @param _keepCompleting - contract passenger; completion re-opening is
    * automatic here (the update listener re-tracks at the settled caret, so an
    * open token — a directory pick's trailing slash — reopens the menu without
    * an explicit re-track).
    * @returns whether the text was applied.
    */
-  insertText(text: string, span: TokenSpan, keepCompleting = false): boolean {
-    void keepCompleting
+  insertText(text: string, span: TokenSpan, _keepCompleting = false): boolean {
     if (span.draftRev !== this.rev) return false
     let applied = false
     this.applyEdit(() => {
@@ -701,7 +700,7 @@ export class SessionInputShell implements SessionInput {
       return
     }
     const inputTriggers = this.deps.inputTriggers?.()
-    void Promise.all(occurrences.map(async (o) => {
+    Promise.all(occurrences.map(async (o) => {
       if (inputTriggers === undefined) throw new Error(`no serializer for reference source "${o.source}"`)
       return {
         offset: o.offset,

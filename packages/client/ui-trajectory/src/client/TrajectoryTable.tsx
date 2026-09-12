@@ -1,6 +1,6 @@
 /** Turn-aware trajectory event ledger with a local record inspector. */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
@@ -2255,9 +2255,9 @@ export function TrajectoryTable({
       scrollHeight: pane.scrollHeight,
       scrollTop: pane.scrollTop,
     }
-    void onLoadOlder().then((advanced) => {
+    startTransition(async () => {
+      const advanced = await onLoadOlder()
       if (!advanced) olderLoadAnchor.current = null
-    }).finally(() => {
       loadingOlder.current = false
       setOlderLoading(false)
     })

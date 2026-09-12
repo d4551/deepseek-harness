@@ -445,7 +445,7 @@ export class CommandRuntime extends TypertRemoteService {
     for (const callback of this.ctx.events.dispatch('emit', ['commands/change'])) {
       try {
         const returned: unknown = callback()
-        void Promise.resolve(returned).catch((error: unknown) => {
+        Promise.resolve(returned).catch((error: unknown) => {
           this.ctx.logger.warn(`commands/change listener rejected: ${renderThrown(error)}`)
         })
       } catch (error: unknown) {

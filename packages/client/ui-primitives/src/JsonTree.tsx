@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { useEffect, useId, useRef, useState } from 'react'
+import { startTransition, useEffect, useId, useRef, useState } from 'react'
 import type {
   KeyboardEvent as ReactKeyboardEvent,
   MouseEvent as ReactMouseEvent,
@@ -614,7 +614,7 @@ export function JsonTree({
                 data-state={copyState}
                 aria-label={copyTitle}
                 title={labels.copyButtonTitle(copyTitle)}
-                onClick={() => void copy(defaultCopyMode)}
+                onClick={() => { startTransition(() => copy(defaultCopyMode)) }}
                 onContextMenu={(event) => {
                   event.preventDefault()
                   event.stopPropagation()
@@ -629,7 +629,7 @@ export function JsonTree({
             )}
             items={copyTargetIsObject ? objectCopyMenuItems(labels) : valueCopyMenuItems(labels)}
             onSelect={(id) => {
-              void copy(id as 'json' | 'path' | 'prettyJson' | 'value')
+              startTransition(() => copy(id as 'json' | 'path' | 'prettyJson' | 'value'))
               copyMenuOpenRef.current = false
               setCopyMenuOpen(false)
             }}

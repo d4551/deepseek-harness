@@ -92,7 +92,7 @@ export async function pickWin32Directory(
       // runs so a child that never reports cannot dangle the pick. A
       // rejected close attempt (EnumThreadWindows/PostMessageW refusing) is
       // discarded: the interval retries it and kill is the backstop.
-      if (dialogThreadId !== undefined) void closeWindows(dialogThreadId).catch(() => undefined)
+      if (dialogThreadId !== undefined) closeWindows(dialogThreadId).catch(() => undefined)
     }
 
     // Sole caller: the once-registered abort listener, so no re-entry guard.

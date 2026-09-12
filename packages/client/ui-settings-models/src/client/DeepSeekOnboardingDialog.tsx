@@ -6,7 +6,7 @@
  * the onboarding plugin's shared modal, so the key is entered once.
  */
 
-import { useEffect } from 'react'
+import { startTransition, useEffect } from 'react'
 import type { ReactNode } from 'react'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -55,7 +55,7 @@ export function DeepSeekOnboardingDialog(props: DeepSeekOnboardingDialogProps): 
   const readiness = onboardingReadiness(state)
 
   useEffect(() => {
-    if (state.status === 'idle') void controller.load()
+    if (state.status === 'idle') startTransition(() => controller.load())
   }, [controller, state.status])
 
   useEffect(() => {
@@ -92,7 +92,7 @@ export function DeepSeekOnboardingDialog(props: DeepSeekOnboardingDialogProps): 
       complete()
       return
     }
-    void controller.load()
+    startTransition(() => controller.load())
   }
 
   return (

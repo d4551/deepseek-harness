@@ -237,7 +237,7 @@ export class DebuggerDomainSession {
 
   private receiveRealm(event: InspectorRealmSessionEvent): void {
     if (event.type === 'opened') {
-      if (this.enabled) void this.enableRealm(event.session).catch((error: unknown) => {
+      if (this.enabled) this.enableRealm(event.session).catch((error: unknown) => {
         console.error(`Inspector could not enable Debugger realm ${event.session.descriptor.label}:`, error)
       })
       return

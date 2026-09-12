@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { startTransition, useCallback, useMemo, useState } from 'react'
 import clsx from 'clsx'
 import { FoldToggle } from './FoldToggle.tsx'
 import { writeClipboard } from './clipboard.ts'
@@ -144,8 +144,8 @@ export function DiffBlock({ diffs, labels, maxLines = DEFAULT_DIFF_MAX_LINES, cl
 
   const onCopy = useCallback(() => {
     if (copied) return
-    void writeClipboard(copyText(rows)).then((ok) => {
-      if (!ok) return
+    startTransition(async () => {
+      if (!await writeClipboard(copyText(rows))) return
       setCopied(true)
       window.setTimeout(() => { setCopied(false) }, 1000)
     })

@@ -274,7 +274,7 @@ export class HarnessSdkJsonRpcServer {
     if (pending) return pending
     const creation = this.createSession(sessionId)
     this.sessionCreations.set(sessionId, creation)
-    void creation.then(
+    creation.then(
       () => { this.sessionCreations.delete(sessionId) },
       () => { this.sessionCreations.delete(sessionId) },
     )

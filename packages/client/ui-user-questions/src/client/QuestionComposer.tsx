@@ -168,7 +168,7 @@ function QuestionFlow({ pending, t, useStore, actions }: QuestionFlowProps) {
   const cancelFlow = (): void => {
     setBusy('cancel')
     setError(null)
-    void pending.cancel()
+    pending.cancel()
       .then(() => { actions.clear(pending.key) })
       .catch((cause: unknown) => {
         setBusy(null)
@@ -223,7 +223,7 @@ function QuestionFlow({ pending, t, useStore, actions }: QuestionFlowProps) {
     }
     setBusy('answer')
     setError(null)
-    void pending.answer(answer)
+    pending.answer(answer)
       .then(() => { actions.clear(pending.key) })
       .catch((cause: unknown) => {
         setBusy(null)

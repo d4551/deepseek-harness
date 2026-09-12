@@ -139,10 +139,10 @@ export function apply(ctx: ClientContext): void {
         return {}
       },
     }, AppFrame)
-    return () => {
+    return async () => {
       disposeRegistration()
-      // provide()'s disposer settles asynchronously; teardown is synchronous fire-and-forget.
-      void disposeService()
+      // provide()'s disposer settles asynchronously; the effect waits for it so the frame's teardown is quiescent.
+      await disposeService()
     }
   }, 'ui-layout: service + root registration')
 

@@ -245,7 +245,7 @@ export default class BrowseDirectoryPicker extends DirectoryPicker {
         // race against opendir's own rejection has nothing to close, and
         // the close's own failure is swallowed — the request already
         // returned, so a cleanup error has no consumer.)
-        void opening.then(dir => dir.close().catch(swallowCloseFailure), () => {
+        opening.then(dir => dir.close().catch(swallowCloseFailure), () => {
           // Already rejected: raceAbort surfaced or swallowed it.
         })
         throw error

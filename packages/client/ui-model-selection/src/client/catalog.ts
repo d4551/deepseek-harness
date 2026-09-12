@@ -76,12 +76,12 @@ export class ModelCatalogDirectory {
   /** Invalidate and reload the catalog after a Host-side model input changes. */
   refresh(): void {
     this.invalidate()
-    void this.load().catch(() => { /* the selector exposes the shared error */ })
+    this.load().catch(() => { /* the selector exposes the shared error */ })
   }
 
   /** Clear Host-specific values and load the replacement Host generation. */
   resetGeneration(): void {
     this.invalidate(true)
-    void this.load().catch(() => { /* the selector exposes the shared error */ })
+    this.load().catch(() => { /* the selector exposes the shared error */ })
   }
 }

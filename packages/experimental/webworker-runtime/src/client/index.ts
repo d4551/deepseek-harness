@@ -85,7 +85,7 @@ function holdWorkerHostBoot(): void {
   const ready = bootReadyGate()
   // A chooser may remain open indefinitely; if a later connection fails before
   // the stock entry subscribes, retain the rejection without browser noise.
-  void ready.promise.catch(() => {})
+  ready.promise.catch(() => {})
 }
 
 /**
@@ -135,7 +135,7 @@ export async function connectWorkerHost(worker: Worker, options?: WorkerHostConn
   const ready = bootReadyGate()
   // The handshake may fail before any entry awaits the promise; this no-op
   // subscription keeps that from surfacing as an unhandled rejection.
-  void ready.promise.catch(() => {})
+  ready.promise.catch(() => {})
   try {
     const tunnel = new WorkerTunnel(worker)
     tunnel.init(

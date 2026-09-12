@@ -98,7 +98,7 @@ export class HistoricalImageCache {
     // Seed begins the durable read before a transcript image necessarily
     // mounts. Keep that legitimate no-consumer path from becoming an
     // unhandled rejection; resolve() still returns the rejecting promise.
-    void entry.pending.catch(() => {})
+    entry.pending.catch(() => {})
     return true
   }
 
@@ -151,7 +151,9 @@ export class HistoricalImageCache {
       this.scopeDisposers.delete(sessionId)
       this.release(sessionId)
     }, 'ui-conversation historical image scope')
-    this.scopeDisposers.set(sessionId, () => { void dispose() })
+    this.scopeDisposers.set(sessionId, () => {
+      Promise.resolve(dispose()).then(undefined, (error: unknown) => { scope.logger.error(error) })
+    })
   }
 
   private release(sessionId: SessionId): void {

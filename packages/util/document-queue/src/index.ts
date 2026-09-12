@@ -190,7 +190,7 @@ export class DocumentQueue {
    * absorbed so one poisoned commit cannot silently end hot reloading forever.
    */
   queueReload(): void {
-    void this.enqueue(() => this.reload()).catch((error: unknown) => {
+    this.enqueue(() => this.reload()).catch((error: unknown) => {
       this.options.logger.error('%s: reload commit failed at %s', this.options.label, this.options.filename)
       this.options.logger.error(error)
     })

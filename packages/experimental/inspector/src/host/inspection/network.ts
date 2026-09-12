@@ -49,7 +49,7 @@ export function installFetchObserver(
 
   const track = (promise: Promise<void>): void => {
     pending.add(promise)
-    void promise.then(
+    promise.then(
       () => { pending.delete(promise) },
       () => { pending.delete(promise) },
     )
@@ -171,7 +171,7 @@ async function captureBody(
 ): Promise<CaptureOutcome> {
   if (body === null) return { capturedBytes: 0, truncated: false }
   const reader = body.getReader()
-  const abort = (): void => { void reader.cancel(signal.reason).catch(() => undefined) }
+  const abort = (): void => { reader.cancel(signal.reason).catch(() => undefined) }
   signal.addEventListener('abort', abort, { once: true })
   let capturedBytes = 0
   let truncated = false
@@ -184,7 +184,7 @@ async function captureBody(
         const remaining = limit - capturedBytes
         if (remaining <= 0) {
           truncated = true
-          void reader.cancel('inspector body capture limit reached').catch(() => undefined)
+          reader.cancel('inspector body capture limit reached').catch(() => undefined)
           return { capturedBytes, truncated }
         }
         const size = Math.min(chunkLimit, remaining, item.value.byteLength - offset)
@@ -195,7 +195,7 @@ async function captureBody(
       }
     }
     if (signal.aborted) {
-      void reader.cancel(signal.reason).catch(() => undefined)
+      reader.cancel(signal.reason).catch(() => undefined)
       return { capturedBytes, truncated, captureError: 'inspector stopped during body capture' }
     }
     return { capturedBytes, truncated }

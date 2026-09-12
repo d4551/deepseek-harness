@@ -150,11 +150,11 @@ function forwardWaterfall(
         settled.resolve(outcome.value)
         return
       }
-      void Promise.resolve().then(next).then(settled.resolve, settled.reject)
+      Promise.resolve().then(next).then(settled.resolve, settled.reject)
     },
     reject: settled.reject,
   }
-  if (!queue.push(dispatch)) void Promise.resolve().then(next).then(settled.resolve, settled.reject)
+  if (!queue.push(dispatch)) Promise.resolve().then(next).then(settled.resolve, settled.reject)
   return settled.promise
 }
 

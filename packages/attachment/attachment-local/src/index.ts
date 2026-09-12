@@ -117,7 +117,7 @@ class SharedRequest<T> {
         reject(abortReason(signal))
       }
       signal.addEventListener('abort', abort, { once: true })
-      void this.promise.then((value) => {
+      this.promise.then((value) => {
         signal.removeEventListener('abort', abort)
         release(false)
         resolve(value)
@@ -256,7 +256,7 @@ export class LocalAttachmentStore extends AttachmentStore {
       }))
       operation = shared
       this.requestInflight.set(key, shared)
-      void shared.promise.finally(() => {
+      shared.promise.finally(() => {
         if (this.requestInflight.get(key) === shared) this.requestInflight.delete(key)
       }).catch(() => {})
     }

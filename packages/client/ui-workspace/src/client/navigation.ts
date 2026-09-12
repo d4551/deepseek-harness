@@ -128,7 +128,7 @@ class UiWorkspaceService extends Service implements UiWorkspace {
       this.sessions.clear()
       return
     }
-    void this.connectWorkspace(target).then(
+    this.connectWorkspace(target).then(
       (sessionId) => { this.sessions.open(sessionId) },
       (reason: unknown) => { console.warn('new session failed:', reason) },
     )
@@ -176,7 +176,7 @@ class UiWorkspaceService extends Service implements UiWorkspace {
         return
       }
       initial = 'connecting'
-      void this.connectWorkspace(target).then(
+      this.connectWorkspace(target).then(
         (sessionId) => {
           if (disposed) return
           if (this.sessions.list.getSnapshot().current === undefined) {

@@ -281,7 +281,7 @@ export class LocalPtySession implements TerminalBackendSession {
           || this.protocolWorkPending())
       }
     }, this.config.timeoutMs)
-    void this.beginSend(operation, request)
+    this.beginSend(operation, request).then(undefined, (error: unknown) => { this.onTransportFailure(error) })
     return operation
   }
 
@@ -450,7 +450,7 @@ export class LocalPtySession implements TerminalBackendSession {
     this.statusValue = { kind: 'exited', exitCode: null, signal: null }
     this.closeEmulator()
     this.failActive(failure)
-    void this.terminal.terminate().catch(() => {})
+    this.terminal.terminate().catch(() => {})
   }
 
   private appendOutput(text: string): void {
@@ -465,7 +465,7 @@ export class LocalPtySession implements TerminalBackendSession {
     if (this.activeTimer !== undefined) clearTimeout(this.activeTimer)
     this.activeTimer = setTimeout(() => {
       this.activeTimer = undefined
-      void this.pollReadiness(operation)
+      this.pollReadiness(operation).then(undefined, (error: unknown) => { this.onTransportFailure(error) })
     }, delayMs)
   }
 
@@ -664,7 +664,7 @@ export class LocalPtySession implements TerminalBackendSession {
     if (this.active !== operation) return
     this.interrupting = operation
     this.stopReadinessPolling()
-    void this.interruptOnce(operation)
+    this.interruptOnce(operation).then(undefined, (error: unknown) => { this.onTransportFailure(error) })
   }
 
   private async interruptOnce(operation: LocalSendOperation): Promise<void> {

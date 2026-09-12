@@ -80,7 +80,7 @@ function waitForUpload(operation: SharedUpload, signal: AbortSignal | undefined)
       reject(reason)
     }
     signal.addEventListener('abort', abort, { once: true })
-    void operation.promise.then((value) => {
+    operation.promise.then((value) => {
       signal.removeEventListener('abort', abort)
       release()
       resolve(value)
@@ -169,7 +169,7 @@ export class DeepSeekFileStore {
       throw uploadFailure(error)
     })
     this.inflight.set(key, shared)
-    void shared.promise.finally(() => {
+    shared.promise.finally(() => {
       if (this.inflight.get(key) === shared) this.inflight.delete(key)
     }).catch(() => {})
     return waitForUpload(shared, signal)

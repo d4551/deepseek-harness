@@ -150,7 +150,7 @@ export class CordisRunOrchestrator {
   open(request: CordisRunRequest): void {
     this.requests.set(request.requestId, request)
     if (!request.requiresApproval) {
-      void this.orchestrate({
+      this.orchestrate({
         agentId: request.agentId,
         pluginId: request.pluginId,
         packageId: request.packageId,

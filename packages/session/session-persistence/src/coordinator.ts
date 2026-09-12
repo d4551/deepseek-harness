@@ -1107,9 +1107,8 @@ export class PersistenceCoordinator<TornMarker = unknown> {
     this.chains.set(id, tail)
     // Settled tails carry no serialization value. Delete only the exact tail
     // installed above: a later operation may already have replaced it.
-    void tail.then(() => {
-      if (this.chains.get(id) === tail) this.chains.delete(id)
-    })
+    const forget = (): void => { if (this.chains.get(id) === tail) this.chains.delete(id) }
+    tail.then(forget, forget)
     return signal === undefined ? next : observeQueuedAbort(next, signal, () => started)
   }
 
@@ -1194,7 +1193,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
 
     // Capture the header on creation and persist a fork's seed once.
     ctx.on('session/created', (session) => {
-      void this.initFor(session)
+      this.initFor(session)
     })
 
     // Keep a persistence-owned copy of each frozen event and start its bounded window.
@@ -1210,7 +1209,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
     ctx.on('session/disposed', (session) => { this.retire(session) })
 
     // HMR does not replay session/created, so seed existing live sessions.
-    for (const session of ctx.sessions.list()) void this.initFor(session)
+    for (const session of ctx.sessions.list()) this.initFor(session)
   }
 
   /** Start and observe one disposed session's final drain. */
@@ -1221,8 +1220,8 @@ export class PersistenceCoordinator<TornMarker = unknown> {
     const forget = (): void => {
       if (this.retirements.get(session.id) === retirement) this.retirements.delete(session.id)
     }
-    void retirement.then(forget, forget)
-    void retirement.catch((error: unknown) => {
+    retirement.then(forget, forget)
+    retirement.catch((error: unknown) => {
       this.ctx.logger.warn(`${this.backend.name}: session "${session.id}" retirement failed: ${String(error)}`)
     })
   }

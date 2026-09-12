@@ -177,7 +177,9 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
       contributions.set(contribution.name, contribution)
       return () => { contributions.delete(contribution.name) }
     }, 'command.register()')
-    return () => { void dispose() }
+    return () => {
+      Promise.resolve(dispose()).then(undefined, (error: unknown) => { this.ctx.logger.error(error) })
+    }
   }
 
   /**
@@ -195,7 +197,9 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
       decorations.set(decoration.name, decoration)
       return () => { decorations.delete(decoration.name) }
     }, 'command.decorate()')
-    return () => { void dispose() }
+    return () => {
+      Promise.resolve(dispose()).then(undefined, (error: unknown) => { this.ctx.logger.error(error) })
+    }
   }
 
   /**
@@ -421,7 +425,7 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
       try {
         const returned = listener(sessionId, name, result)
         if (returned != null && typeof (returned as PromiseLike<unknown>).then === 'function') {
-          void Promise.resolve(returned as PromiseLike<unknown>).then(undefined, (error: unknown) => {
+          Promise.resolve(returned as PromiseLike<unknown>).then(undefined, (error: unknown) => {
             this.warnExecutedListenerFailure(name, error)
           })
         }
@@ -446,7 +450,7 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
    * the composer notice as immediate feedback.
    */
   private runDetached(desc: CommandDescriptor, session: ClientSessionContext, line: string): void {
-    void this.execute(session, line).then(
+    this.execute(session, line).then(
       (outcome) => {
         // matched:false maps to an error outcome with no logged lifecycle.
         if (outcome.kind === 'error') this.noticeFor(session.sessionId, 'error', outcome.text ?? `/${desc.name} failed`)

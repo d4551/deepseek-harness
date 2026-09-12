@@ -113,7 +113,7 @@ export class ClientRemoteEvents {
 
   /** Deliver one notification through Cordis while containing listener failures. */
   private deliver(frame: RemoteEventEmitFrame): void {
-    void privateEvents(this.ownerCtx)
+    privateEvents(this.ownerCtx)
       .parallel(this.eventKey(frame.event), ...frame.args)
       .catch((error: unknown) => { this.reportError(frame.event, error) })
   }

@@ -164,7 +164,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
       )
     }
     names.add(config.serverName)
-    return () => void names.delete(config.serverName)
+    return () => { names.delete(config.serverName) }
   }, 'mcp-client.serverName')
 
   // The supervisor owns the client/transport generations, the reconnect

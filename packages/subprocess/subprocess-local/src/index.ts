@@ -237,7 +237,7 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
       await handle.terminate()
       this.terminals.delete(handle)
     }
-    void handle.done.then(release, release).catch(() => {})
+    handle.done.then(release, release).catch(() => {})
     return handle
   }
 }

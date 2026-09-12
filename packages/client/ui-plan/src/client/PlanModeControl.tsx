@@ -37,7 +37,7 @@ export function PlanChip({ useProjection, locked, exitPlanMode, t }: PlanChipPro
     // No leaving/locked guard: both disable the button, so no click arrives.
     setLeaving(true)
     setError(null)
-    void exitPlanMode().then((failure) => {
+    exitPlanMode().then((failure) => {
       if (!aliveRef.current) return
       setLeaving(false)
       setError(failure)

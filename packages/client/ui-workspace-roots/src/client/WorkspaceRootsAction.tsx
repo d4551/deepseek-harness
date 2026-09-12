@@ -136,7 +136,7 @@ export function WorkspaceRootsAction({
   // conversation nobody opens the panel on costs no request.
   useEffect(() => {
     if (!open || origin !== undefined) return
-    void loadOrigin().then((result) => {
+    loadOrigin().then((result) => {
       if (!aliveRef.current) return
       setOrigin(result.ok ? result.value : null)
     }, () => {
@@ -149,7 +149,7 @@ export function WorkspaceRootsAction({
     setError(null)
     setFieldError(false)
     setRetry(null)
-    void setRoots(sessionId, next).then((result) => {
+    setRoots(sessionId, next).then((result) => {
       if (!aliveRef.current || sessionRef.current !== sessionId) return
       setSaving(false)
       if (result.ok) {
@@ -196,7 +196,7 @@ export function WorkspaceRootsAction({
   const browse = (): void => {
     setError(null)
     setFieldError(false)
-    void pickDirectory().then((chosen) => {
+    pickDirectory().then((chosen) => {
       if (!aliveRef.current || sessionRef.current !== sessionId || chosen === null) return
       setDraft(chosen)
     }, (reason: unknown) => {

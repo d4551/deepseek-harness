@@ -208,7 +208,7 @@ export class SessionProjectionCache extends Service {
     const restored = this.ctx.sessionProjections.restore(this.recordFor(meta.id, identityOf(meta))?.rows ?? {}, events, 0, meta)
     // Refresh the row so the next cold read seeds from it; fail-soft and
     // fire-and-forget — a failed write-back only costs a longer tail replay.
-    void this.put(meta.id, identityOf(meta), restored.checkpoint).catch((error: unknown) => {
+    this.put(meta.id, identityOf(meta), restored.checkpoint).catch((error: unknown) => {
       this.ctx.logger.warn(`session projection cache: cold-read write-back for "${meta.id}" failed (cache stays stale): ${String(error)}`)
     })
     return restored.snapshot
@@ -223,18 +223,18 @@ export class SessionProjectionCache extends Service {
     // one), count/interval throttle the in-turn stream.
     this.ctx.on('session/event', (session: Session, event: SessionEvent) => {
       if (event.type === 'turn/end') {
-        void this.flushSoft(session, 'turn/end')
+        this.flushSoft(session, 'turn/end')
         return
       }
       const state = this.dirty.get(session) ?? { pending: 0, timer: undefined }
       this.dirty.set(session, state)
       state.pending += 1
       if (state.pending >= this.config.writeEveryEvents) {
-        void this.flushSoft(session, 'count threshold')
+        this.flushSoft(session, 'count threshold')
         return
       }
       state.timer ??= setTimeout(() => {
-        void this.flushSoft(session, 'interval')
+        this.flushSoft(session, 'interval')
       }, this.config.writeIntervalMs)
     })
 
@@ -244,7 +244,7 @@ export class SessionProjectionCache extends Service {
     // the store, would leave the seed-derived values (the title) unreadable
     // on the cold list. The creation write captures the seed-derived cut.
     this.ctx.on('session/created', (session: Session) => {
-      void this.flushSoft(session, 'create')
+      this.flushSoft(session, 'create')
     })
 
     // Detach (the live-to-cold moment): the final mandatory point. After
@@ -252,7 +252,7 @@ export class SessionProjectionCache extends Service {
     // flushSoft's synchronous prefix reads and resets the dirty state, so
     // dropping it (timer already cleared by markClean) right after is safe.
     this.ctx.on('session/disposed', (session: Session) => {
-      void this.flushSoft(session, 'detach')
+      this.flushSoft(session, 'detach')
       this.markClean(session)
       this.dirty.delete(session)
     })
@@ -275,12 +275,10 @@ export class SessionProjectionCache extends Service {
    * the throttle triggers only fire dirty (markClean clears the timer with
    * the counter) and the mandatory points write unconditionally.
    */
-  private async flushSoft(session: Session, trigger: string): Promise<void> {
-    try {
-      await this.write(session)
-    } catch (error) {
+  private flushSoft(session: Session, trigger: string): void {
+    this.write(session).then(undefined, (error: unknown) => {
       this.ctx.logger.warn(`session projection cache: ${trigger} write for "${session.id}" failed (cache stays stale): ${String(error)}`)
-    }
+    })
   }
 
   /** Reset one session's dirty bookkeeping (its checkpoint is being written). */
@@ -304,7 +302,6 @@ export class SessionProjectionCache extends Service {
   }
 
   private requireTable(): KvTable<SessionId, CheckpointRecord> {
-    /* v8 ignore next -- Service.init assigns the table before the service becomes injectable */
     if (this.table === undefined) throw new Error('session projection cache is not initialized')
     return this.table
   }

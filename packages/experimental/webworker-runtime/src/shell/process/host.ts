@@ -117,7 +117,7 @@ function startWorkerProcess(options: ProcessStartOptions): RunningProcess {
       settle(frame.code)
       return
     }
-    void serveFilesystemCall(fs, frame.op, frame.args).then(
+    serveFilesystemCall(fs, frame.op, frame.args).then(
       (value) => { worker.postMessage({ t: 'fs-reply', id: frame.id, value }) },
       (error: unknown) => {
         const failure = {
@@ -165,7 +165,7 @@ function startInlineProcess(options: ProcessStartOptions): RunningProcess {
   const run = options.script === undefined
     ? runShellProgram(options.argv, runOptions)
     : runShellCommand(options.script, runOptions)
-  void run.then(
+  run.then(
     (outcome) => { options.onExit(outcome.exitCode) },
     (error: unknown) => {
       options.onOutput('stderr', `bash: ${String(error)}\n`)

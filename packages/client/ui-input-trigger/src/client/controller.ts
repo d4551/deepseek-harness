@@ -441,7 +441,7 @@ export class InputTriggerController {
       if (hit === null || !this.menu.getSnapshot().open || hit.trigger !== source.trigger) return
       // Let every source process the same invalidation before rebuilding the
       // open menu, so one source cannot contribute its previous catalog.
-      void Promise.resolve().then(() => {
+      queueMicrotask(() => {
         if (this.disposed || this.hit !== hit || !this.menu.getSnapshot().open) return
         this.fetchCandidates(hit, this.deps.roster.sources(hit.trigger))
       })
@@ -464,7 +464,7 @@ export class InputTriggerController {
     generation: number,
     signal: AbortSignal,
   ): void {
-    void source
+    source
       .candidates(this.project(), {
         query: hit.query,
         quoted: hit.quoted,

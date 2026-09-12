@@ -266,8 +266,10 @@ export class TunnelServer {
   }
 
   private dispatchFrame(frame: QueuedFrame): void {
-    if (frame.t === 'stream-open') void this.serveStream(frame)
-    else void this.serveRequest(frame)
+    const serving = frame.t === 'stream-open' ? this.serveStream(frame) : this.serveRequest(frame)
+    serving.then(undefined, (error: unknown) => {
+      console.error('webworker tunnel: response delivery failed', error)
+    })
   }
 
   private async serveStream(frame: TunnelStreamOpenFrame): Promise<void> {
@@ -367,7 +369,7 @@ export class TunnelServer {
       listener(exchange.req, exchange.res)
       return exchange
     }
-    void this.whenListener().then((resolved) => {
+    this.whenListener().then((resolved) => {
       // A page that gave up while the server was still binding has nothing to answer.
       if (!exchange.aborted) resolved(exchange.req, exchange.res)
     }, (reason: unknown) => {
@@ -464,7 +466,7 @@ export class TunnelServer {
     this.inFlight.set(frame.id, {
       abort: () => {
         controller.abort()
-        void reader.cancel().catch(() => {
+        reader.cancel().catch(() => {
           // Cancelling an already-errored stream has nothing left to release.
         })
       },

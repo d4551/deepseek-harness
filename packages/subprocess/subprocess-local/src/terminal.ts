@@ -121,7 +121,7 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
     if (this.cleanup !== undefined) return this.cleanup
     const cleanup = this.closeOnce()
     this.cleanup = cleanup
-    void cleanup.catch(() => { this.cleanup = undefined })
+    cleanup.catch(() => { this.cleanup = undefined })
     return cleanup
   }
 

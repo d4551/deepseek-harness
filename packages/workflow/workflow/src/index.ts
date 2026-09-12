@@ -176,7 +176,7 @@ export abstract class WorkflowEngine extends Service {
     for (const callback of this.ctx.events.dispatch('emit', [name, ...args])) {
       try {
         const returned: unknown = (callback as (...payload: unknown[]) => unknown)(...args)
-        void Promise.resolve(returned).catch((error: unknown) => {
+        Promise.resolve(returned).catch((error: unknown) => {
           this.ctx.logger.warn(`workflow: ${name} listener rejected: ${renderListenerError(error)}`)
         })
       } catch (error: unknown) {

@@ -394,9 +394,7 @@ function presentCall(args: RalphCallArgs): ToolCallView {
   return { card: 'generic', title: 'ralph', rawInput: args.objective }
 }
 
-function presentResult(args: RalphCallArgs, result: { content: ContentBlock[]; isError: boolean }): ToolResultView {
-  void args
-  void result
+function presentResult(_args: RalphCallArgs, _result: { content: ContentBlock[]; isError: boolean }): ToolResultView {
   return { card: 'generic' }
 }
 
@@ -441,7 +439,7 @@ export function apply(ctx: Context, config: Config): void {
       const objective = args.objective.trim()
       if (objective.length === 0) throw new Error('Ralph objective must be a non-empty string')
       const maxRounds = resolveMaxRounds(args.maxRounds, resolved.maxRounds)
-      void requireFreshProvider(ctx, resolved.subagentProvider)
+      requireFreshProvider(ctx, resolved.subagentProvider)
 
       const run: WorkflowRun = ctx.workflowEngine.start({
         script: RALPH_SCRIPT,

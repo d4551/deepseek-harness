@@ -112,7 +112,7 @@ export function createLifecycleEmitter(
     for (const callback of ctx.events.dispatch('emit', dispatchArgs)) {
       try {
         const returned: unknown = callback(info)
-        void Promise.resolve(returned).catch((error: unknown) => {
+        Promise.resolve(returned).catch((error: unknown) => {
           ctx.logger.warn(`subagent: ${name} listener rejected: ${renderThrown(error)}`)
         })
       } catch (error: unknown) {
@@ -144,7 +144,7 @@ export function observeRun(
   }
   // Attach the terminal observer before dispatching start. Promise reactions
   // still run after this synchronous start emission, preserving start → end.
-  void run.result.then(
+  run.result.then(
     (result) => {
       emit('subagent/end', {
         ...identity,

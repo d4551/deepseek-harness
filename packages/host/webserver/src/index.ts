@@ -241,7 +241,7 @@ export class WebServer extends Service {
     // never a process exit.
     this.server = createServer((req, res) => {
       const next = (): void => {
-        void handle(req, res).catch((err: unknown) => {
+        handle(req, res).catch((err: unknown) => {
           this.ctx.logger.warn(err instanceof Error ? err : new Error(String(err)))
           if (res.headersSent) {
             res.destroy()

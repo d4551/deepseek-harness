@@ -156,7 +156,7 @@ export function launchAcpTestAgent(options: AcpTestLaunchOptions): LaunchedAcpTe
   // `spawned` is public and close() also awaits it, but a caller may ignore both.
   // Keep that misuse from turning the already-observed child error into an
   // unhandled promise rejection.
-  void spawned.catch(() => undefined)
+  spawned.catch(() => undefined)
 
   const stderrChunks: string[] = []
   child.stderr.setEncoding('utf8')
@@ -192,7 +192,7 @@ export function launchAcpTestAgent(options: AcpTestLaunchOptions): LaunchedAcpTe
     const pending = Promise.resolve().then(callback)
     inFlightClientCallbacks.add(pending)
     const untrack = (): void => { inFlightClientCallbacks.delete(pending) }
-    void pending.then(untrack, untrack)
+    pending.then(untrack, untrack)
     return pending
   }
   const requestPermission = options.requestPermission
@@ -256,7 +256,7 @@ export function launchAcpTestAgent(options: AcpTestLaunchOptions): LaunchedAcpTe
   // A caller may await a pending update without calling close(). Make natural
   // stream exhaustion terminal for those waiters too, but only after the
   // parser has dispatched every buffered frame.
-  void connection.closed.then(closeUpdateStream)
+  connection.closed.then(closeUpdateStream, closeUpdateStream)
 
   return {
     child,

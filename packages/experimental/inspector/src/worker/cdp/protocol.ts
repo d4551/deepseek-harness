@@ -75,7 +75,7 @@ export function respondToCdpRequest(
   request: CdpRequest,
   operation: () => Promise<object>,
 ): void {
-  void operation().then(
+  operation().then(
     (result) => { transport.send({ id: request.id, result }) },
     (error: unknown) => { sendCdpFailure(transport, request, error) },
   )

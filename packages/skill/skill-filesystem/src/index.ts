@@ -164,7 +164,9 @@ export class FileSystemSkillProvider implements SkillProvider {
     this.agentsHome = resolve(config.agentsHome ?? process.env.DSH_AGENTS_HOME ?? join(homedir(), '.agents'))
     this.customSkillDirs = (config.customSkillDirs ?? []).map(root => resolve(root))
     this.watchManager = new SkillWatchManager(ctx, control.invalidate, resolveWatchConfig(config))
-    control.signal.addEventListener('abort', () => { void this.dispose() }, { once: true })
+    control.signal.addEventListener('abort', () => {
+      this.dispose().then(undefined, (error: unknown) => { this.ctx.logger.error(error) })
+    }, { once: true })
     // The environment bundled root is a default root: an isolated provider
     // must see only its explicit roots, or every such provider would
     // re-discover the app's bundled skills under its own provider name.
@@ -389,7 +391,7 @@ class SkillWatchManager {
     if (state.opening !== undefined) return state.opening
     const opening = this.ensureCurrentWatcher(state)
     state.opening = opening
-    void opening.then(
+    opening.then(
       () => {
         state.opening = undefined
       },
@@ -461,7 +463,9 @@ class SkillWatchManager {
 
   private openAncestorWatcher(state: RootWatchState, mode: Extract<RootWatchMode, { kind: 'ancestor' }>): WatchHandle {
     const listener = (_current: Stats, _previous: Stats): void => {
-      void this.handleAncestorWatchEvent(state, mode)
+      this.handleAncestorWatchEvent(state, mode).then(undefined, (error: unknown) => {
+        this.handleWatcherError(state, error)
+      })
     }
     watchFile(mode.nextPath, {
       persistent: false,
@@ -574,16 +578,11 @@ class SkillWatchManager {
 
   private scheduleRewatch(state: RootWatchState): void {
     const currentOpening = state.opening ?? Promise.resolve()
-    void (async () => {
-      await settleWatcherOpening(currentOpening)
-      try {
-        await this.ensureWatcher(state)
-      } catch {
-        // Watch startup logged the retry failure; the next incomplete discovery retries it again.
-        return
-      }
-      this.queueInvalidation()
-    })()
+    settleWatcherOpening(currentOpening)
+      .then(() => this.ensureWatcher(state))
+      .then(() => { this.queueInvalidation() }, (error: unknown) => {
+        this.ctx.logger.warn(`skill-filesystem: rewatch of ${state.root.path} failed: ${errorMessage(error)}`)
+      })
   }
 
   private queueInvalidation(): void {

@@ -1,5 +1,5 @@
 import type { Context } from '@deepseek-ai/cordis'
-import { useEffect, useId, useMemo, useState } from 'react'
+import { startTransition, useEffect, useId, useMemo, useState } from 'react'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import {
@@ -109,7 +109,7 @@ export function QueueDock({ useSession, updateQueue, notify, t }: QueueDockProps
                       }
                       if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
                         event.preventDefault()
-                        void saveEdit()
+                        startTransition(saveEdit)
                       }
                     }}
                   />
@@ -125,7 +125,7 @@ export function QueueDock({ useSession, updateQueue, notify, t }: QueueDockProps
                           className={css.action}
                           aria-label={t('queue.save')}
                           disabled={busy !== null || editing.text.trim() === ''}
-                          onClick={() => { void saveEdit() }}
+                          onClick={() => { startTransition(saveEdit) }}
                         >
                           <IconCheckOutline16 size={14} />
                         </button>
@@ -168,11 +168,9 @@ export function QueueDock({ useSession, updateQueue, notify, t }: QueueDockProps
                           aria-label={t('queue.remove')}
                           disabled={busy !== null}
                           onClick={() => {
-                            void applyAction(
-                              row.id,
-                              { kind: 'remove' },
-                              t('queue.removeFailed'),
-                            )
+                            startTransition(async () => {
+                              await applyAction(row.id, { kind: 'remove' }, t('queue.removeFailed'))
+                            })
                           }}
                         >
                           <IconTrashOutline16 size={14} />
@@ -186,11 +184,9 @@ export function QueueDock({ useSession, updateQueue, notify, t }: QueueDockProps
                           title={running ? undefined : t('queue.steer.unavailable')}
                           disabled={busy !== null || !running}
                           onClick={() => {
-                            void applyAction(
-                              row.id,
-                              { kind: 'steer' },
-                              t('queue.steerFailed'),
-                            )
+                            startTransition(async () => {
+                              await applyAction(row.id, { kind: 'steer' }, t('queue.steerFailed'))
+                            })
                           }}
                         >
                           <IconSendOutline14 />

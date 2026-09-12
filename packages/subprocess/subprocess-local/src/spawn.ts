@@ -571,7 +571,7 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
     if (treeExitObserved || graceTimer !== undefined) return
     // Observe from the first termination tier onward, even when inherited
     // pipes delay `done` and no consumer has begun its own teardown wait.
-    void observeTreeExit()
+    treeExitObservation = observeTreeExit()
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- observer can record absence before its first await.
     if (treeExitObserved) return
     kill('SIGTERM')

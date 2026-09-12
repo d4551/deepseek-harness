@@ -285,9 +285,10 @@ export function apply(ctx: Context, config: Config): void {
         if (!projectionLifecycle.signal.aborted) ctx.logger.warn('workspace instruction refresh failed: %o', error)
       })
     projectionTails.set(agent, current)
-    void current.then(() => {
+    const forget = (): void => {
       if (projectionTails.get(agent) === current) projectionTails.delete(agent)
-    })
+    }
+    current.then(forget, forget)
   }
 
   const waitForProjections = async (agent: Agent): Promise<void> => {

@@ -124,7 +124,9 @@ export class AsyncLocalStorage<T> {
       // `then.call` on the caller's own promise: no species construction, and the
       // rejection stays the caller's to observe (both handlers are attached, so
       // this observation never becomes an unhandled rejection itself).
-      void nativeThen.call(result, removeBoundary, removeBoundary)
+      nativeThen.call(result, removeBoundary, removeBoundary).then(undefined, (error: unknown) => {
+        console.error('webworker async context: boundary release failed', error)
+      })
     } catch {
       // A branded promise may expose a failing @@species; the boundary then ends
       // here rather than leaking an entry that nothing would ever remove.

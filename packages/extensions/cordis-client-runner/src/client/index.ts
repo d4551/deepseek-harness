@@ -226,7 +226,7 @@ export function apply(ctx: Context): void {
     // belongs to was answered before it ever rendered, so nothing waits on this
     // and a failed report must not turn one crash into two.
     reportRenderFailure: (agentId, pluginId, pluginRunId, failure) => {
-      void ctx.remote.dynamicCordisRunner.reportRenderFailure(agentId, pluginId, pluginRunId, failure).then((result) => {
+      ctx.remote.dynamicCordisRunner.reportRenderFailure(agentId, pluginId, pluginRunId, failure).then((result) => {
         if (!result.ok) {
           console.error(`[cordis-client-runner] reporting a render failure of ${pluginId} failed:`, result.error)
         }
@@ -235,7 +235,7 @@ export function apply(ctx: Context): void {
       })
     },
     reportGuardFailure: (agentId, pluginId, pluginRunId, failure) => {
-      void ctx.remote.dynamicCordisRunner.reportClientGuardFailure(agentId, pluginId, pluginRunId, failure).then((result) => {
+      ctx.remote.dynamicCordisRunner.reportClientGuardFailure(agentId, pluginId, pluginRunId, failure).then((result) => {
         if (!result.ok) {
           console.error(`[cordis-client-runner] reporting a guard failure of ${pluginId} failed:`, result.error)
         }
@@ -288,7 +288,7 @@ export function apply(ctx: Context): void {
     isLoaded: id => runner.isLoaded(id),
   }
   ctx.provide('dynamicCordisRunner', face)
-  ctx.effect(() => () => { void runner.dispose() }, 'cordis-client-runner: dynamic package runner')
+  ctx.effect(() => () => runner.dispose(), 'cordis-client-runner: dynamic package runner')
 
   // Forwarded Host events: `$on` hands the listener the Host's own argument list,
   // so these read the request itself rather than a transport envelope.
@@ -300,7 +300,7 @@ export function apply(ctx: Context): void {
     runner.retract(retracted.pluginId, retracted.pluginRunId)
   })
   ctx.remote.$on('cordis/inspect-query', (request) => {
-    void inspect.query(request).catch((error: unknown) => {
+    inspect.query(request).catch((error: unknown) => {
       console.error(`[cordis-client-runner] inspect query ${request.provider}.${request.method} failed:`, error)
     })
   })
