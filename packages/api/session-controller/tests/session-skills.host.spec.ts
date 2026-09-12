@@ -44,6 +44,19 @@ async function context(): Promise<Context> {
 }
 
 describe('SessionSkillCatalog', () => {
+  it('rejects an already-aborted request before accessing Session services', async () => {
+    const ctx = await context()
+    const catalog = new SessionSkillCatalog(ctx)
+    const reason = new Error('caller cancelled the catalog request')
+
+    await expect(catalog.list(
+      { sessionId: SessionId('cancelled-skills') },
+      AbortSignal.abort(reason),
+    )).rejects.toBe(reason)
+    expect(ctx.agents.list()).toEqual([])
+    await ctx.fiber.dispose()
+  })
+
   it('reads a cold Session catalog without resuming an Agent', async () => {
     const ctx = await context()
     const sessionId = SessionId('cold-skills')
