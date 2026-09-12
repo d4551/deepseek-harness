@@ -153,7 +153,7 @@ class ClientRemoteService extends Service implements ClientRemote {
     }
     const loader = ctx.get('loader') as LoaderReadiness | undefined
     if (loader === undefined) start()
-    else void loader.await().then(start, () => {})
+    else loader.await().then(start, () => {})
     ctx.effect(() => async () => {
       disposed = true
       loop?.stop()

@@ -71,7 +71,7 @@ export function createProcessShutdown(
         forceExitOnce(code)
         return
       }
-      void start(code, true)
+      pending = start(code, true)
     },
   }
 }

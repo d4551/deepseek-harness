@@ -426,7 +426,7 @@ export function apply(ctx: Context, config: AcpConfig): void {
   }
 
   /* v8 ignore start -- production transport rejection and teardown failure. */
-  void connection.closed
+  connection.closed
     .catch((error: unknown) => {
       logger.warn(`acp: connection closed with an error: ${String(error)}`)
     })
