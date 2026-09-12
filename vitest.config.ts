@@ -8,7 +8,7 @@ import { clientBrowserTests } from './vitest.client-browser.ts'
 import { COVERAGE_EXEMPT_ENV, coverageExemptHeavySuites } from './scripts/coverage-exempt.ts'
 import { COVERAGE_PARTITION_MODE_ENV } from './scripts/coverage-partitions.ts'
 import { resolvePwshPath } from './packages/shell/pwsh-local/src/resolve.ts'
-import { nonLinuxTests, processBoundTests as inventoryProcessBoundTests, windowsPackageTestExclusions, windowsUnsupportedPackages } from './scripts/vitest-inventory.ts'
+import { PWSH_COVERAGE_SOURCES, WINDOWS_ONLY_COVERAGE_SOURCES, WINDOWS_RUNNER_COVERAGE_SOURCES, nonLinuxTests, processBoundTests as inventoryProcessBoundTests, windowsTestExclusions, windowsUnsupportedPackages } from './scripts/vitest-inventory.ts'
 
 // Prints exact `path:line:col` records for every uncovered statement, branch
 // path, and function when a file misses the per-file 100% gate — the built-in
@@ -16,36 +16,10 @@ import { nonLinuxTests, processBoundTests as inventoryProcessBoundTests, windows
 // require()s custom reporters (which is also why the reporter is CJS).
 const uncoveredLocationsReporter = fileURLToPath(new URL('./scripts/coverage-uncovered-locations.cjs', import.meta.url))
 
-// Win32 fact entries beyond the package list (which lives in
-// vitest-inventory.ts with its rationale): these suites' oracle is the host's
-// own POSIX semantics or the fixed-linux worker face, so Windows cannot host
-// them. Every entry states the concrete Windows fact that keeps it out.
-const windowsUnsupportedTests = process.platform === 'win32'
-  ? [
-      ...windowsPackageTestExclusions,
-      // Oracle-diff suites: they compare the worker's POSIX path/url faces
-      // and its implemented built-ins against the host Node's own answers,
-      // which are win32 semantics on Windows. The worker always speaks POSIX;
-      // the Linux lanes hold the diff. The glob covers path-diff, the
-      // built-ins diff, and the crypto/url/util diff suites.
-      'packages/experimental/webworker-runtime/tests/node/*-diff.spec.ts',
-      // The subprocess ladder over the worker's child_process face: its kill
-      // rung reaches the in-worker process table through `process.kill`,
-      // which the ladder's win32 branch replaces with taskkill-by-real-pid —
-      // undeliverable to a table pid. The worker host always reports 'linux',
-      // so the Linux lanes hold the ladder.
-      'packages/experimental/webworker-runtime/tests/node/child-process.spec.ts',
-    ]
-  : []
-
-// These suites compare against or assemble the Worker's fixed Linux platform;
-// the two entries live in vitest-inventory.ts. Host-native Windows and macOS
-// behavior is not their oracle.
-const nonLinuxWebWorkerTests = process.platform === 'linux'
-  ? []
-  : nonLinuxTests
-
-const platformUnsupportedTests = windowsUnsupportedTests.concat(nonLinuxWebWorkerTests)
+// The win32 lane's suite exclusions and the off-Linux webworker suites live
+// in vitest-inventory.ts with their reasons; each list is empty on the
+// platforms it does not concern.
+const platformUnsupportedTests = windowsTestExclusions.concat(nonLinuxTests)
 // Coverage follows the test lane: a package qualifies here only because NO
 // suite of its own runs on win32 (the same list, with the same reasons), so
 // its sources cannot be covered there. A package whose suites do run states a
@@ -59,7 +33,7 @@ const windowsUnsupportedCoveragePackages = process.platform === 'win32'
 // The Windows dev/CI lane exercises them through the probe/runner suites; the
 // per-file 100% gate must not fail on their Linux-uncovered paths.
 const windowsOnlyCoverageExclusions = process.platform !== 'win32'
-  ? ['packages/sandbox/sandbox-windows-acl/src/**/*.ts']
+  ? WINDOWS_ONLY_COVERAGE_SOURCES
   : []
 
 // The confinement runner entry executes exclusively as a spawned child
@@ -68,22 +42,19 @@ const windowsOnlyCoverageExclusions = process.platform !== 'win32'
 // vitest's v8 coverage never measures child processes. Its behavior is pinned
 // end-to-end by tests/runner.spec.ts, which spawns the real entry through tsx.
 const windowsRunnerCoverageExclusions = process.platform === 'win32'
-  ? ['packages/sandbox/sandbox-windows-acl/src/runner.ts']
+  ? WINDOWS_RUNNER_COVERAGE_SOURCES
   : []
 
 // pwsh-local's run/start/lifecycle suites self-skip without a real pwsh
-// (executor.spec.ts hasPwsh), leaving this file
+// (executor.spec.ts hasPwsh), leaving these files
 // far below per-file 100% on pwsh-less hosts; the exemption keeps those hosts
 // green while CI runners ship pwsh and still enforce the full bar. The probe
 // runs the suites' own resolution (the dependency-free resolve.ts module),
 // so the exemption is active exactly when the suites skip — a mismatched
-// narrower probe could exempt the file on hosts whose suites actually run.
+// narrower probe could exempt the files on hosts whose suites actually run.
 const pwshCoverageExclusions = spawnSync(resolvePwshPath(), ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', '$true'], { encoding: 'utf8' }).status === 0
   ? []
-  : [
-      'packages/shell/pwsh-local/src/index.ts',
-      'packages/shell/pwsh-sandbox/src/**/*.ts',
-    ]
+  : PWSH_COVERAGE_SOURCES
 
 const testIncludes = [
   'packages/*/*/tests/**/*.spec.{ts,tsx}',
@@ -110,6 +81,15 @@ if (coveragePartitionRaw !== undefined && coveragePartitionRaw !== '' && coverag
   throw new Error(`vitest config: ${COVERAGE_PARTITION_MODE_ENV} must be '1' or unset, got ${JSON.stringify(coveragePartitionRaw)}.`)
 }
 const coveragePartitionMode = coveragePartitionRaw === '1'
+
+// Transformed modules persist under node_modules between runs on a developer
+// host, where the transform was the largest share of a scoped rerun's wall
+// clock. Vitest keys each entry by file content and by the environment
+// config, and its v8 provider bypasses the cache inside workers, so the
+// coverage gate measures uncached source either way. CI starts from a fresh
+// checkout, where nothing survives to be reused; `vitest --clearCache`
+// discards the entries by hand. Projects extend nothing, so each declares it.
+const persistTransforms = gateEnv.CI === undefined
 
 // Process-bound selection: the shared inventory (vitest-inventory.ts) lists
 // the suites exercising process-global state, process APIs, or timing-
@@ -140,6 +120,7 @@ export default defineConfig({
     // parallelism while still failing fast on a real hang.
     testTimeout: 30_000,
     maxWorkers: MAX_TEST_FORKS,
+    fsModuleCache: persistTransforms,
     // .tsx: client component specs (jsdom via per-file @vitest-environment pragma).
     include: testIncludes,
     exclude: platformUnsupportedTests,
@@ -164,6 +145,7 @@ export default defineConfig({
           // Projects do not inherit the root lane budget; see the note there.
           testTimeout: 30_000,
           maxWorkers: MAX_TEST_FORKS,
+          fsModuleCache: persistTransforms,
           include: testIncludes,
           exclude: [
             ...platformUnsupportedTests,
@@ -190,6 +172,7 @@ export default defineConfig({
           // running two of them together spends the budget on contention, which
           // reports as a timeout in whichever suite lost the race.
           maxWorkers: 1,
+          fsModuleCache: persistTransforms,
           include: processBoundTests,
           exclude: [
             ...platformUnsupportedTests,
@@ -216,17 +199,19 @@ export default defineConfig({
       include: ['packages/*/*/src/**/*.{ts,tsx}'],
       // Types-only files have no runtime coverage. Importing self-executing bins/workers would boot
       // them inside the unit process, so real subprocess/Worker tests cover their thin entry glue.
+      // `bun run verify-coverage-debt` reads this list back (structural or marked, naming files,
+      // not covered by another entry); `bun run measure-coverage-debt` measures the debt.
       exclude: [
         'packages/*/*/src/types.ts',
         'packages/*/*/src/bin.ts',
         'packages/*/*/src/worker.ts',
         // A killed executable lint-contract test can leave a non-product source probe behind.
         'packages/*/*/src/oxlint-contract-*.ts',
-        // TODO(gui): client/web UI files whose remaining branches need a
+        // DEBT(gui): client/web UI files whose remaining branches need a
         // browser-grade harness the jsdom lane does not cover; the client test
         // lane maturing removes these entries.
         'packages/client/ui-trajectory/src/*',
-        // TODO(gui): Trajectory's compact Markdown projection and the surfaces
+        // DEBT(gui): Trajectory's compact Markdown projection and the surfaces
         // below retain deferred branch coverage on the same lane.
         'packages/client/ui-primitives/src/markdown/plain-text.ts',
         'packages/client/ui-user-questions/src/client/QuestionComposer.tsx',
@@ -235,17 +220,14 @@ export default defineConfig({
         'packages/client/ui-workspace/src/client/WorkspacePicker.tsx',
         'packages/client/ui-workspace/src/client/rows/WorkspaceBrowser.tsx',
         'packages/client/ui-renderer/src/client/*',
-        // TODO(gui): Session object internals retain the runtime GUI debt
-        // exemption; the Controller entry, transport, Agent scope, and adapters
-        // stay gated.
+        // DEBT(gui): Session object internals retain the runtime GUI debt
+        // exemption; the Controller entry, transport, and Agent scope stay
+        // gated.
         'packages/api/session-controller/src/client/sessions/*',
-        'packages/api/session-controller/src/client/ordered-baseline.ts',
-        'packages/api/session-controller/src/client/time-zone.ts',
-        // TODO(gui): the browser conversation tree keeps its GUI debt
+        // DEBT(gui): the browser conversation tree keeps its GUI debt
         // exemption while the stateful Host half and vocabulary stay gated.
         'packages/client/ui-conversation/src/client/*',
-        'packages/client/ui-conversation/src/invariant.ts',
-        // TODO(gui): chat presentation and assembly keep the same GUI debt
+        // DEBT(gui): chat presentation and assembly keep the same GUI debt
         // exemption; package wiring and the approval-detail module stay gated.
         'packages/client/ui-chat/src/client/chat/!(ApprovalCommand).{ts,tsx}',
         'packages/client/ui-chat/src/client/conversation-nodes/*',
@@ -258,7 +240,7 @@ export default defineConfig({
         'packages/client/ui-layout/src/*',
         'packages/client/web/src/*',
         'packages/host/webserver/src/*',
-        // TODO(webworker): the browser-worker runtime and its image packer.
+        // DEBT(webworker): the browser-worker runtime and its image packer.
         // The executing composition is a real dedicated Worker driven by the web
         // browser lane (apps/web/tests/preview-boot.e2e.ts), which unit-process
         // V8 coverage cannot observe. Unit specs cover the algorithmic cores and
@@ -276,7 +258,7 @@ export default defineConfig({
         'packages/experimental/inspector/src/worker/cdp/**',
         'packages/experimental/inspector/src/worker/realms/**',
         'packages/experimental/inspector/src/worker/{entry,server}.ts',
-        // TODO(inspector): already-complete Inspector modules stay under the
+        // DEBT(inspector): already-complete Inspector modules stay under the
         // per-file gate; the remaining direct-test debt is enumerated rather
         // than exempting src/**. Closing these branch gaps removes the entries
         // below.
@@ -288,12 +270,11 @@ export default defineConfig({
         'packages/experimental/inspector/src/worker/inspection/{cordis-store,query-router,realm-store}.ts',
         'packages/client/modules/src/client/system.ts',
         'packages/client/hmr/src/client/index.ts',
-        // TODO(gui): the host-side web-transport halves, whose remaining
+        // DEBT(gui): the host-side web-transport halves, whose remaining
         // branches need real-composition/process harnesses; the client test lane
         // maturing removes these entries.
         'packages/client/modules/src/index.ts',
         'packages/client/modules/src/invariant.ts',
-        'packages/client/modules/src/client/index.ts',
         'packages/client/modules/src/client/manifest.ts',
         'packages/client/hmr/src/index.ts',
         'packages/client/hmr/src/invariant.ts',
@@ -306,15 +287,13 @@ export default defineConfig({
         // The Team browser entry binds its source-covered mount lifecycle to
         // the generated Team Remote contribution, which likewise exists only in lib.
         'packages/client/ui-agent-team/src/client/index.ts',
-        // TODO(gui): slash/command/input per-file gaps, deferred with the same
+        // DEBT(gui): slash/command/input per-file gaps, deferred with the same
         // client-lane debt; that lane maturing removes these entries.
         'packages/client/connection/src/client/fixture.ts',
         'packages/client/ui-commands/src/index.ts',
         'packages/client/ui-skill/src/index.ts',
         'packages/client/ui-input-trigger/src/index.ts',
         'packages/client/ui-subagent/src/index.ts',
-        'packages/client/ui-commands/src/client/popup.ts',
-        'packages/client/ui-commands/src/client/directory.ts',
         'packages/client/ui-commands/src/client/service.ts',
         'packages/client/ui-commands/src/client/PopupSelectView.tsx',
         'packages/client/ui-model-selection/src/index.ts',
@@ -326,15 +305,11 @@ export default defineConfig({
         'packages/client/ui-input-trigger/src/client/controller.ts',
         'packages/client/ui-input-trigger/src/client/service.ts',
         'packages/client/ui-input-trigger/src/core/menu.ts',
-        'packages/client/ui-input-trigger/src/core/detect.ts',
-        'packages/client/ui-sidebar/src/client/index.ts',
         'packages/client/ui-skill/src/client/index.ts',
         'packages/client/ui-workspace/src/client/index.ts',
-        'packages/test-support/client-runtime/src/translate.ts',
         'packages/client/ui-primitives/src/JsonTree.tsx',
         'packages/client/ui-settings-models/src/client/DeepSeekOnboardingDialog.tsx',
-        'packages/client/ui-settings-models/src/client/welcome-store.ts',
-        // TODO(gui): the Cordis extension group's per-file gaps, enumerated rather than
+        // DEBT(gui): the Cordis extension group's per-file gaps, enumerated rather than
         // matched by a `packages/extensions/*` glob. The glob sat at the tail
         // of the client slash/command block and inherited a comment that
         // described none of it, so an entire package group left the gate
@@ -342,7 +317,6 @@ export default defineConfig({
         // 57.91% statements over 45 files, 12 of them already meeting every
         // threshold and now gated. Deleting an entry is how a file rejoins.
         'packages/extensions/cordis-client-runner/src/client/api-catalog.ts',
-        'packages/extensions/cordis-client-runner/src/client/guard.ts',
         'packages/extensions/cordis-client-runner/src/client/index.ts',
         'packages/extensions/cordis-client-runner/src/client/inspect-registry.ts',
         'packages/extensions/cordis-client-runner/src/client/orchestrator.ts',
@@ -352,9 +326,7 @@ export default defineConfig({
         'packages/extensions/cordis-host-runner/src/guard.ts',
         'packages/extensions/cordis-host-runner/src/index.ts',
         'packages/extensions/cordis-host-runner/src/inspect-registry.ts',
-        'packages/extensions/cordis-host-runner/src/registry.ts',
         'packages/extensions/cordis-host-runner/src/sandbox.ts',
-        'packages/extensions/cordis-host-runner/src/wire-values.ts',
         'packages/extensions/tool-cordis/src/api-catalog.ts',
         'packages/extensions/tool-cordis/src/fiber-state.ts',
         'packages/extensions/tool-cordis/src/index.ts',
@@ -366,12 +338,8 @@ export default defineConfig({
         'packages/extensions/ui-cordis/src/client/CordisDefineRow.tsx',
         'packages/extensions/ui-cordis/src/client/CordisPanel.tsx',
         'packages/extensions/ui-cordis/src/client/CordisRunRow.tsx',
-        'packages/extensions/ui-cordis/src/client/card-model.ts',
         'packages/extensions/ui-cordis/src/client/index.ts',
-        'packages/extensions/ui-cordis/src/client/inventory.ts',
         'packages/extensions/ui-cordis/src/client/locales.ts',
-        'packages/extensions/ui-cordis/src/client/run-card-index.ts',
-        'packages/extensions/ui-cordis/src/client/status.ts',
         'packages/extensions/ui-cordis/src/index.ts',
         'packages/extensions/ui-cordis/src/invariant.ts',
         // Typert generator: correctness is pinned by its fixture suites and
@@ -379,15 +347,10 @@ export default defineConfig({
         // would put whole-workspace compiler analysis under v8
         // instrumentation — the coverage lane's longest tail.
         'packages/typert/generator/src/*.ts',
-        // TODO(webworker): experimental webworker-runtime is outside the
-        // coverage requirement by decision; its correctness signal is its
-        // uninstrumented suite and the packer's end-to-end image spec.
-        'packages/experimental/webworker-runtime/src/**/*.ts',
-        // TODO(gui): executor lifecycle branches and the registry's drive
+        // DEBT(gui): executor lifecycle branches and the registry's drive
         // tails need the same maturing lanes; those lanes maturing removes
         // these entries.
         'packages/interaction/commands/src/index.ts',
-        'packages/interaction/commands/src/invariant.ts',
         'packages/session/session-projection/src/index.ts',
         ...windowsUnsupportedCoveragePackages.map(path => `${path}/src/**/*.ts`),
         ...windowsOnlyCoverageExclusions,

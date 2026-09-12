@@ -144,9 +144,34 @@ describe('facade surface', () => {
     const bench = await boot(['flag'], { flag: 'on' })
     expect(bench.facade.flag).toBe('on')
   })
+
+  it('admits the timer verbs to `has` only once the plugin declares the timer service', async () => {
+    const declared = await boot(['timer'], { timer: { setTimeout: () => 0 } })
+    expect('timeout' in declared.facade).toBe(true)
+    expect('setTimeout' in declared.facade).toBe(true)
+    const undeclared = await boot([])
+    expect('timeout' in undeclared.facade).toBe(false)
+    expect('effect' in undeclared.facade).toBe(true)
+  })
 })
 
 describe('slots seat', () => {
+  it('binds the Package business view to this Package and refuses any other key', async () => {
+    const bench = await boot(['slots'])
+    const slots = bench.facade.slots as { register(options: object, component: object): () => void }
+    // The Package-owned slot is declared by the Cordis panel's own entry, which
+    // this bench does not mount; the registry seam records what the guard hands
+    // it, the way the priority test reads `spec` off the same seam.
+    const register = vi.spyOn(bench.slots, 'register').mockImplementation(() => () => {})
+    expect(() => slots.register({ name: 'tool.view.cordis', key: 'theirs' }, C))
+      .toThrow(/tool\.view\.cordis only accepts key "self"/)
+    expect(register).not.toHaveBeenCalled()
+    slots.register({ name: 'tool.view.cordis', key: 'self' }, C)
+    expect(register).toHaveBeenCalledExactlyOnceWith({ name: 'tool.view.cordis', key: 'dyn-1.pkg-1', priority: -1 }, C)
+    register.mockRestore()
+    expect(bench.ledger).toEqual([{ slot: 'tool.view.cordis', priority: -1 }])
+  })
+
   it('assigns a descending shadowing priority per registration and ledgers it', async () => {
     const bench = await boot(['slots'])
     const slots = bench.facade.slots as { register(options: object, component: unknown): () => void }

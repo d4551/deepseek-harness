@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from 'vitest'
 import type { RunningToolCall, ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
-import { cordisActionCard, cordisDefineCard } from '../src/client/card-model.ts'
+import { cordisActionCard, cordisDefineCard, cordisRunCard } from '../src/client/card-model.ts'
 
 const ARGS = '{"name":"clock","purpose":"顶栏时钟","code":{"client":"return {}","host":"harness.handle(\'now\', () => Date.now())"}}'
 
@@ -100,6 +100,75 @@ describe('cordisActionCard', () => {
       output: 'Stopped clock-1.',
       errorSummary: null,
       state: 'ok',
+    })
+  })
+
+  it('takes the Plugin identity from a bare `id` argument while the call is still running', () => {
+    expect(cordisActionCard(running({ name: 'cordis_undefine', argsRaw: '{"id":"clock-1"}' }))).toEqual({
+      pluginId: 'clock-1',
+      output: null,
+      errorSummary: null,
+      state: 'running',
+    })
+  })
+
+  it('summarizes a failed action by its first output line and names no Plugin when the call head is gone', () => {
+    const card = cordisActionCard(settled({
+      call: null,
+      isError: true,
+      content: [{ type: 'text', text: 'Plugin clock-9 is not running.\n  at stop' }],
+      meta: undefined,
+    }))
+    expect(card).toEqual({
+      pluginId: null,
+      output: 'Plugin clock-9 is not running.\n  at stop',
+      errorSummary: 'Plugin clock-9 is not running.',
+      state: 'error',
+    })
+  })
+})
+
+describe('cordisRunCard', () => {
+  it('reads every identity from the result meta when the call head is gone', () => {
+    const card = cordisRunCard(settled({
+      call: null,
+      content: [{ type: 'text', text: 'running' }],
+      meta: { pluginId: 'clock-1', packageId: 'pkg-2', pluginRunId: 'run-3' },
+    }))
+    expect(card).toEqual({
+      pluginId: 'clock-1',
+      packageId: 'pkg-2',
+      pluginRunId: 'run-3',
+      mode: null,
+      seq: 2,
+      output: 'running',
+      errorSummary: null,
+      state: 'ok',
+    })
+  })
+
+  it('falls back to the call arguments for identities the meta omits, and drops an unknown mode', () => {
+    const card = cordisRunCard(settled({
+      call: { name: 'cordis_run', argsRaw: '{"pluginId":"clock-1","packageId":"pkg-2","mode":"replay"}' },
+      content: [{ type: 'text', text: 'running' }],
+      meta: { pluginRunId: 'run-3' },
+    }))
+    expect(card).toMatchObject({ pluginId: 'clock-1', packageId: 'pkg-2', pluginRunId: 'run-3', mode: null })
+  })
+
+  it('summarizes a failed activation by its first output line', () => {
+    const card = cordisRunCard(settled({
+      call: { name: 'cordis_run', argsRaw: '{"pluginId":"clock-1","packageId":"pkg-2","mode":"run"}' },
+      isError: true,
+      content: [{ type: 'text', text: 'Activation failed: host half threw\n  at apply' }],
+    }))
+    expect(card).toMatchObject({
+      pluginId: 'clock-1',
+      packageId: 'pkg-2',
+      pluginRunId: null,
+      mode: 'run',
+      errorSummary: 'Activation failed: host half threw',
+      state: 'error',
     })
   })
 })

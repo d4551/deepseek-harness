@@ -43,7 +43,7 @@ class Reviewer extends LlmAdapter {
   }
 }
 
-export class MemorySettings extends SettingsProvider {
+class MemorySettings extends SettingsProvider {
   doc: Record<string, unknown> = {}
   get writable() { return true }
   protected load() { return Promise.resolve(structuredClone(this.doc)) }

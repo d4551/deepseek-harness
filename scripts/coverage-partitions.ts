@@ -207,8 +207,13 @@ export class CoveragePartitionCoordinator {
   }
 }
 
-/** Spawn one bun-backed command without a platform shell. */
-function runCoverageCommand(command: CoverageCommand): Promise<CoverageCommandResult> {
+/**
+ * Spawn one bun-backed command without a platform shell, streaming its output
+ * through and keeping a bounded tail for the failure report.
+ * @param command - the child to run.
+ * @returns its completion, never a rejection.
+ */
+export function runCoverageCommand(command: CoverageCommand): Promise<CoverageCommandResult> {
   return new Promise((resolveCommand) => {
     let outputTail = ''
     const env = { ...process.env }

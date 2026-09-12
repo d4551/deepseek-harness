@@ -179,7 +179,7 @@ describe('sessions', () => {
     expect(runtime.sessions.list.getSnapshot().current).toBeUndefined()
     await expect(runtime.sessions.fork({
       sessionId: 's1' as SessionId, atSeq: 7, increaseTitle: true,
-    })).resolves.toBe('s1')
+    })).resolves.toEqual({ ok: true, value: 's1' })
     expect(runtime.sessions.calls).toEqual([
       { method: 'openSubagent', args: [address] },
       { method: 'setSubagentCatalogOpen', args: ['s2', true] },

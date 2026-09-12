@@ -255,14 +255,6 @@ export class DynamicCordisRegistry {
   }
 
   /**
-   * Cancel one pending approval.
-   * @param id - approval request ID to remove.
-   */
-  disarmRequest(id: ApprovalRequestId): void {
-    this.pendingRequests.delete(id)
-  }
-
-  /**
    * Find a pending approval for one Plugin.
    * @param pluginId - stable Plugin ID.
    * @returns its approval request ID, or `undefined` when none is pending.

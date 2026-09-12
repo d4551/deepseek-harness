@@ -8,11 +8,16 @@
  * lane that does not exist yet. `docs/testing.md` says the debt is marked, so
  * this reads the markers back and fails when the list stops matching that
  * claim — including when an entry names a path no longer in the tree, which
- * exempts nothing while still reading as an exemption.
+ * exempts nothing while still reading as an exemption, and when an entry
+ * names only files another entry already hides, which counts one debt twice.
+ * The platform-conditional lists `vitest-inventory.ts` feeds the same config
+ * are read back too, so a rename cannot leave one of them excusing nothing on
+ * the one platform where it applies.
  */
 
-import { globSync, readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { globSync, readFileSync, statSync } from 'node:fs'
+import { join, relative, resolve, sep } from 'node:path'
+import { CONDITIONAL_LANE_ENTRIES } from './vitest-inventory.ts'
 
 const ROOT = resolve(import.meta.dirname, '..')
 
@@ -21,7 +26,7 @@ const ROOT = resolve(import.meta.dirname, '..')
  * this list; a marker outside it, or one this list names and the config never
  * uses, means the two have drifted.
  */
-export const COVERAGE_DEBT_MARKERS: readonly string[] = ['TODO(gui)', 'TODO(inspector)', 'TODO(webworker)']
+export const COVERAGE_DEBT_MARKERS: readonly string[] = ['DEBT(gui)', 'DEBT(inspector)', 'DEBT(webworker)']
 
 /**
  * Globs that legitimately match nothing in a clean tree.
@@ -68,13 +73,23 @@ export interface CoverageExclusion {
   marker: string | undefined
 }
 
+/** One source file the debt entries hide from the gate. */
+export interface DebtFile {
+  /** Repository-relative path. */
+  file: string
+  /** The lane marker of the first entry hiding it. */
+  marker: string
+  /** Every debt glob naming it, in source order. */
+  globs: string[]
+}
+
 /**
  * Read the coverage exclusion list out of the Vitest config.
  *
  * An entry belongs to the nearest comment above it, so a marker governs every
  * glob down to the next comment. Spread entries (`...windowsOnlyCoverageExclusions`)
  * are platform-conditional and computed above the list, so they carry no glob
- * to read here.
+ * to read here; {@link staleLaneExclusions} reads their sources instead.
  * @param source - `vitest.config.ts` text.
  * @returns one entry per glob literal, in source order.
  */
@@ -114,6 +129,28 @@ export function coverageExclusions(source: string): CoverageExclusion[] {
 }
 
 /**
+ * Files one glob names in the tree, brace alternations expanded and
+ * directories left out: `src/**` matches directories too, and the gate only
+ * ever measures files.
+ * @param glob - the glob as written.
+ * @param root - repository root.
+ * @returns repository-relative file paths, sorted.
+ */
+export function exclusionFiles(glob: string, root: string = ROOT): string[] {
+  const files = new Set<string>()
+  // Node's glob has no brace expansion, so a braced alternation is expanded
+  // here before matching; an unexpanded one would read as matching nothing.
+  for (const expanded of expandBraces(glob)) {
+    for (const entry of globSync(expanded, { cwd: root, withFileTypes: true })) {
+      const path = join(entry.parentPath, entry.name)
+      if (!entry.isFile() && !(entry.isSymbolicLink() && statSync(path).isFile())) continue
+      files.add(relative(root, path).split(sep).join('/'))
+    }
+  }
+  return [...files].sort()
+}
+
+/**
  * Exclusions whose glob matches no file in the tree.
  *
  * An exemption for a path that no longer exists measures nothing while still
@@ -129,9 +166,48 @@ export function staleCoverageExclusions(
 ): string[] {
   return entries
     .filter(entry => !TRANSIENT_EXCLUSIONS.includes(entry.glob))
-    // Node's glob has no brace expansion, so a braced alternation is expanded
-    // here before matching; an unexpanded one would read as matching nothing.
-    .filter(entry => expandBraces(entry.glob).every(glob => globSync(glob, { cwd: root }).length === 0))
+    .filter(entry => exclusionFiles(entry.glob, root).length === 0)
+    .map(entry => entry.glob)
+}
+
+/**
+ * Platform- and host-conditional lane entries naming nothing in the tree.
+ *
+ * `vitest.config.ts` spreads these lists in under a platform test, so the
+ * literal list above never shows them; on every other platform they are
+ * empty, and a rename would leave one excusing a path that is gone exactly
+ * where it applies.
+ * @param root - repository root.
+ * @returns every conditional entry matching nothing, in declaration order.
+ */
+export function staleLaneExclusions(root: string = ROOT): string[] {
+  return CONDITIONAL_LANE_ENTRIES.filter(glob => exclusionFiles(glob, root).length === 0)
+}
+
+/**
+ * Exclusions another single exclusion already covers whole.
+ *
+ * Such an entry excludes nothing on its own while still counting as debt, so
+ * the printed inventory overstates by one and deleting it changes no gate
+ * outcome. Two entries naming the same files flag the later one, so every
+ * flagged glob can be deleted on its own; an entry naming nothing is
+ * {@link staleCoverageExclusions}' finding, not this one.
+ * @param entries - the exclusion list.
+ * @param root - repository root.
+ * @returns every covered glob, in source order.
+ */
+export function redundantCoverageExclusions(
+  entries: readonly CoverageExclusion[],
+  root: string = ROOT,
+): string[] {
+  const sets = entries.map(entry => ({ glob: entry.glob, files: exclusionFiles(entry.glob, root) }))
+  return sets
+    .filter((entry, index) => entry.files.length > 0 && sets.some((other, otherIndex) => {
+      if (otherIndex === index) return false
+      const superset = new Set(other.files)
+      if (!entry.files.every(file => superset.has(file))) return false
+      return other.files.length > entry.files.length || otherIndex < index
+    }))
     .map(entry => entry.glob)
 }
 
@@ -171,6 +247,41 @@ export function debtInventory(entries: readonly CoverageExclusion[]): Record<str
     if (marker === undefined) continue
     counts[marker] = (counts[marker] ?? 0) + 1
   }
+  return counts
+}
+
+/**
+ * Every source file the debt entries hide, with the entries hiding it.
+ *
+ * One glob can stand for a whole package, so the entry count understates
+ * what a lane would unlock; `coverage-debt-measure.ts` reports against this
+ * list and names the entry to delete once its files meet the bar.
+ * @param entries - the exclusion list.
+ * @param root - repository root.
+ * @returns the hidden files, sorted by path.
+ */
+export function debtFiles(entries: readonly CoverageExclusion[], root: string = ROOT): DebtFile[] {
+  const byFile = new Map<string, DebtFile>()
+  for (const { glob, marker } of entries) {
+    if (marker === undefined) continue
+    for (const file of exclusionFiles(glob, root)) {
+      const existing = byFile.get(file)
+      if (existing === undefined) byFile.set(file, { file, marker, globs: [glob] })
+      else existing.globs.push(glob)
+    }
+  }
+  return [...byFile.values()].sort((a, b) => a.file.localeCompare(b.file))
+}
+
+/**
+ * How many source files each marker hides from the gate.
+ * @param entries - the exclusion list.
+ * @param root - repository root.
+ * @returns marker to hidden-file count, for every marker in use.
+ */
+export function debtFileInventory(entries: readonly CoverageExclusion[], root: string = ROOT): Record<string, number> {
+  const counts: Record<string, number> = {}
+  for (const { marker } of debtFiles(entries, root)) counts[marker] = (counts[marker] ?? 0) + 1
   return counts
 }
 
@@ -219,14 +330,19 @@ if (process.argv[1] !== undefined && import.meta.url.endsWith(process.argv[1].sp
     ...unmarkedDebtExclusions(entries).map(glob => `${glob}: coverage debt with no ${COVERAGE_DEBT_MARKERS.join('/')} marker`),
     ...unusedStructuralExclusions(entries).map(glob => `${glob}: declared structural but the config no longer excludes it`),
     ...staleCoverageExclusions(entries).map(glob => `${glob}: excludes nothing; no file in the tree matches it`),
+    ...staleLaneExclusions().map(glob => `${glob}: conditional lane entry excludes nothing; no file in the tree matches it`),
+    ...redundantCoverageExclusions(entries).map(glob => `${glob}: every file it names is already excluded by another entry`),
     ...unusedDebtMarkers(entries).map(marker => `${marker}: documented marker no exclusion carries`),
   ]
   if (problems.length > 0) {
     for (const problem of problems) process.stderr.write(`${problem}\n`)
     process.exit(1)
   }
-  const inventory = debtInventory(entries)
-  const counted = Object.entries(inventory).map(([marker, count]) => `${marker} ${count}`).join(', ')
+  const globs = debtInventory(entries)
+  const files = debtFileInventory(entries)
+  const counted = Object.entries(globs)
+    .map(([marker, count]) => `${marker} ${count} glob(s) hiding ${files[marker] ?? 0} file(s)`)
+    .join(', ')
   process.stdout.write(
     `coverage-debt: ${entries.length} exclusion(s), ${STRUCTURAL_EXCLUSIONS.length} structural, debt ${counted}\n`,
   )

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/testing/2026-09-06-coverage-debt-markers.md
-2026-09-06-coverage-debt-markers.md: d0a62bc6360a727c4abdbffb624529a653c94a36
-2026-09-06-coverage-debt-markers.zh.md: 248cf392143150c0c5b4c2c4e01dd6f6e80f82cf
+2026-09-06-coverage-debt-markers.md: 4b4b9f0510cc064d5094f0241e72900f1ca9f800
+2026-09-06-coverage-debt-markers.zh.md: 06fb6bf4c56a7ba420878019a66cb270c277add5

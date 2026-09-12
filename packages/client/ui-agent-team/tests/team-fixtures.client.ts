@@ -15,7 +15,6 @@ export type { TeamActionInjected, TeamActionResult }
 
 export const SESSION = SessionId('lead')
 const TASK_1 = TeamTaskId('task-1')
-export const TASK_2 = TeamTaskId('task-2')
 export const task: TeamTask = {
   id: TASK_1,
   revision: 1,

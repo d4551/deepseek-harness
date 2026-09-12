@@ -8,7 +8,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { Browser, Page } from 'playwright'
+import type { Browser, BrowserContext, Page } from 'playwright'
 import { chromium } from 'playwright'
 import { launchWebScaffold, watchConsole, type WebScaffold } from './tests/scaffold.ts'
 import { ZH_BROWSER_LOCALE } from './tests/support.ts'
@@ -21,6 +21,29 @@ export interface SettingsSuite {
   tripwire: ReturnType<typeof watchConsole>
 }
 
+/** One Chinese-locale page on a scaffold's authenticated frame, with its console tripwire. */
+interface AuthenticatedPage {
+  context: BrowserContext
+  page: Page
+  tripwire: ReturnType<typeof watchConsole>
+}
+
+/**
+ * Open a Chinese-locale page in its own context and wait for the
+ * authenticated frame to mount.
+ * @param browser - the Chromium instance the context belongs to.
+ * @param scaffold - the running host whose authenticated URL the page loads.
+ * @returns the context, the mounted page, and its console tripwire.
+ */
+async function openAuthenticatedPage(browser: Browser, scaffold: WebScaffold): Promise<AuthenticatedPage> {
+  const context = await browser.newContext({ viewport: { width: 1680, height: 1000 }, locale: ZH_BROWSER_LOCALE })
+  const page = await context.newPage()
+  const tripwire = watchConsole(page)
+  await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
+  await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
+  return { context, page, tripwire }
+}
+
 /**
  * Boot the settings suite: a real host scaffold, one Chromium instance, and
  * the shared Chinese-locale page navigated to the authenticated frame.
@@ -29,11 +52,7 @@ export interface SettingsSuite {
 export async function launchSettingsSuite(): Promise<SettingsSuite> {
   const scaffold = await launchWebScaffold({})
   const browser = await chromium.launch()
-  const context = await browser.newContext({ viewport: { width: 1680, height: 1000 }, locale: ZH_BROWSER_LOCALE })
-  const page = await context.newPage()
-  const tripwire = watchConsole(page)
-  await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
-  await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
+  const { page, tripwire } = await openAuthenticatedPage(browser, scaffold)
   return { scaffold, browser, page, tripwire }
 }
 
@@ -76,11 +95,7 @@ export interface SecondScaffoldPage {
  */
 export async function launchSharedHomeScaffold(browser: Browser, first: WebScaffold): Promise<SecondScaffoldPage> {
   const scaffold = await launchWebScaffold({ harnessHome: first.harnessHome })
-  const context = await browser.newContext({ viewport: { width: 1680, height: 1000 }, locale: ZH_BROWSER_LOCALE })
-  const page = await context.newPage()
-  const tripwire = watchConsole(page)
-  await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
-  await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
+  const { context, page, tripwire } = await openAuthenticatedPage(browser, scaffold)
   return {
     scaffold,
     page,

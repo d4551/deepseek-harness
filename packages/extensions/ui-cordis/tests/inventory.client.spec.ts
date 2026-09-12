@@ -140,3 +140,38 @@ describe('a reconnect while a read is in flight', () => {
     expect(inventory.getSnapshot()).toEqual({ rows: [], removed: new Set(), read: false })
   })
 })
+
+describe('rows that leave the registry', () => {
+  const live = (pluginId: string): CordisInventoryRow => ({
+    pluginId: pluginId as CordisInventoryRow['pluginId'],
+    agentId: 'sess-1' as CordisInventoryRow['agentId'],
+    packages: [],
+  })
+
+  it('remembers a row that vanished between two reads, so its historical cards keep their identity', async () => {
+    let answer: readonly CordisInventoryRow[] = [live('dyn-1'), live('dyn-2')]
+    const seam = port(() => Promise.resolve(answer))
+    const inventory = createCordisInventory(seam.port, vi.fn())
+    inventory.refresh()
+    await vi.waitFor(() => { expect(inventory.getSnapshot().read).toBe(true) })
+
+    answer = [live('dyn-2')]
+    inventory.refresh()
+    await vi.waitFor(() => { expect(inventory.getSnapshot().rows).toEqual([live('dyn-2')]) })
+    expect(inventory.getSnapshot().removed).toEqual(new Set(['dyn-1']))
+  })
+
+  it('retires a row at once on an explicit remove, ahead of the next read', async () => {
+    const seam = port(() => Promise.resolve([live('dyn-1'), live('dyn-2')]))
+    const inventory = createCordisInventory(seam.port, vi.fn())
+    inventory.refresh()
+    await vi.waitFor(() => { expect(inventory.getSnapshot().read).toBe(true) })
+
+    const seen = vi.fn()
+    inventory.subscribe(seen)
+    inventory.retire('dyn-1' as CordisInventoryRow['pluginId'])
+    expect(seen).toHaveBeenCalledTimes(1)
+    expect(inventory.getSnapshot()).toEqual({ rows: [live('dyn-2')], removed: new Set(['dyn-1']), read: true })
+    expect(seam.reads()).toBe(1)
+  })
+})

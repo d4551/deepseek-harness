@@ -110,6 +110,40 @@ describe('Cordis run-card ownership', () => {
     expect(store.getSnapshot().get(key)?.callId).toBe('new')
     expect(changed).toHaveBeenCalledTimes(1)
   })
+
+  it('serves one snapshot per change and one Store per session', () => {
+    const registry = new CordisRunCardRegistry()
+    const sessionId = 'session-1' as DynamicCordisInventoryRow['agentId']
+    const store = registry.forSession(sessionId)
+    expect(registry.forSession(sessionId)).toBe(store)
+    expect(registry.forSession('session-2' as DynamicCordisInventoryRow['agentId'])).not.toBe(store)
+
+    const empty = store.getSnapshot()
+    expect(empty.size).toBe(0)
+    // A read between changes returns the same Map, so React's snapshot
+    // comparison sees no change; a change replaces it.
+    expect(store.getSnapshot()).toBe(empty)
+    const key = cordisToolViewKey(PLUGIN, PACKAGE)
+    store.observe({ key, callId: 'first', seq: 1, pluginRunId: RUN })
+    const changed = store.getSnapshot()
+    expect(changed).not.toBe(empty)
+    expect(changed.get(key)?.callId).toBe('first')
+    // A superseded observation leaves the snapshot untouched.
+    store.observe({ key, callId: 'stale', seq: 0, pluginRunId: RUN })
+    expect(store.getSnapshot()).toBe(changed)
+  })
+
+  it('stops notifying a listener once it unsubscribes', () => {
+    const store = new CordisRunCardRegistry().forSession('session-1' as DynamicCordisInventoryRow['agentId'])
+    const listener = vi.fn()
+    const off = store.subscribe(listener)
+    const key = cordisToolViewKey(PLUGIN, PACKAGE)
+    store.observe({ key, callId: 'first', seq: 1, pluginRunId: RUN })
+    off()
+    store.observe({ key, callId: 'second', seq: 2, pluginRunId: RUN })
+    expect(listener).toHaveBeenCalledTimes(1)
+    expect(store.getSnapshot().get(key)?.callId).toBe('second')
+  })
 })
 
 describe('Cordis visible status', () => {
@@ -125,5 +159,14 @@ describe('Cordis visible status', () => {
       styleCount: 0,
     }]
     expect(cordisVisibleStatus(row(true), PACKAGE, loaded)).toBe('running')
+  })
+
+  it('reads idle for a Plugin with no run and for a Package another run is active on', () => {
+    const { activeRun: _active, ...stopped } = row(true)
+    expect(cordisVisibleStatus(stopped, PACKAGE, [])).toBe('idle')
+    const other = { ...row(true), activeRun: { packageId: 'pkg-2' as CordisDynamicPackageId, pluginRunId: RUN } }
+    expect(cordisVisibleStatus(other, PACKAGE, [])).toBe('idle')
+    // The active Package is not in the row's package list: the Client half is unknown, so it reads running.
+    expect(cordisVisibleStatus(other, 'pkg-2' as CordisDynamicPackageId, [])).toBe('running')
   })
 })

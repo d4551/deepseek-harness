@@ -11,7 +11,8 @@
  * require() outside the tsx/ESM pipeline (istanbul-reports index.js create()),
  * so this file can be neither TypeScript nor ESM. Wired into vitest.config.ts
  * by absolute path — require() would resolve a relative specifier against
- * istanbul-reports' own directory.
+ * istanbul-reports' own directory. `coverage-uncovered-locations.d.cts` is the
+ * declaration `coverage-uncovered-locations.spec.ts` drives it through.
  */
 
 const path = require('node:path');
@@ -45,6 +46,49 @@ function endSuffix(loc) {
   return ` (to ${end.line}:${end.column + 1})`;
 }
 
+/**
+ * Every uncovered record of one file, in source order.
+ * @param {object} fc - istanbul file coverage: statementMap/s, fnMap/f, branchMap/b.
+ * @param {string} rel - project-relative path each record starts with.
+ * @returns {string[]} one line per uncovered statement, function, and branch path.
+ */
+function uncoveredRecords(fc, rel) {
+  const items = [];
+  const add = (loc, text) => items.push({ line: loc.start.line, column: loc.start.column, text });
+
+  for (const id of Object.keys(fc.statementMap)) {
+    if (fc.s[id] !== 0) continue;
+    const loc = fc.statementMap[id];
+    if (!usable(loc)) continue;
+    add(loc, `${rel}:${pos(loc)} uncovered statement${endSuffix(loc)}`);
+  }
+
+  for (const id of Object.keys(fc.fnMap)) {
+    if (fc.f[id] !== 0) continue;
+    const fn = fc.fnMap[id];
+    const loc = usable(fn.decl) ? fn.decl : fn.loc;
+    if (!usable(loc)) continue;
+    const name = fn.name ? ` ${fn.name}` : '';
+    add(loc, `${rel}:${pos(loc)} uncovered function${name}`);
+  }
+
+  for (const id of Object.keys(fc.branchMap)) {
+    const counts = fc.b[id];
+    const branch = fc.branchMap[id];
+    for (let i = 0; i < counts.length; i += 1) {
+      if (counts[i] !== 0) continue;
+      // Implicit arms (e.g. a missing else) may carry an empty location;
+      // fall back to the branch's own span so the record stays clickable.
+      const loc = usable(branch.locations && branch.locations[i]) ? branch.locations[i] : branch.loc;
+      if (!usable(loc)) continue;
+      add(loc, `${rel}:${pos(loc)} uncovered branch (${branch.type}, path ${i + 1}/${counts.length})`);
+    }
+  }
+
+  items.sort((a, b) => a.line - b.line || a.column - b.column);
+  return items.map(item => item.text);
+}
+
 class UncoveredLocationsReport extends ReportBase {
   constructor(opts = {}) {
     super(opts);
@@ -60,49 +104,21 @@ class UncoveredLocationsReport extends ReportBase {
   onDetail(node) {
     const fc = node.getFileCoverage();
     const rel = path.relative(this.projectRoot, fc.path).split(path.sep).join('/');
-    const items = [];
-    const add = (loc, text) => items.push({ line: loc.start.line, column: loc.start.column, text });
-
-    for (const id of Object.keys(fc.statementMap)) {
-      if (fc.s[id] !== 0) continue;
-      const loc = fc.statementMap[id];
-      if (!usable(loc)) continue;
-      add(loc, `${rel}:${pos(loc)} uncovered statement${endSuffix(loc)}`);
-    }
-
-    for (const id of Object.keys(fc.fnMap)) {
-      if (fc.f[id] !== 0) continue;
-      const fn = fc.fnMap[id];
-      const loc = usable(fn.decl) ? fn.decl : fn.loc;
-      if (!usable(loc)) continue;
-      const name = fn.name ? ` ${fn.name}` : '';
-      add(loc, `${rel}:${pos(loc)} uncovered function${name}`);
-    }
-
-    for (const id of Object.keys(fc.branchMap)) {
-      const counts = fc.b[id];
-      const branch = fc.branchMap[id];
-      for (let i = 0; i < counts.length; i += 1) {
-        if (counts[i] !== 0) continue;
-        // Implicit arms (e.g. a missing else) may carry an empty location;
-        // fall back to the branch's own span so the record stays clickable.
-        const loc = usable(branch.locations && branch.locations[i]) ? branch.locations[i] : branch.loc;
-        if (!usable(loc)) continue;
-        add(loc, `${rel}:${pos(loc)} uncovered branch (${branch.type}, path ${i + 1}/${counts.length})`);
-      }
-    }
-
-    if (items.length === 0) return;
-    items.sort((a, b) => a.line - b.line || a.column - b.column);
-    for (const item of items) this.records.push(item.text);
+    this.records.push(...uncoveredRecords(fc, rel));
   }
 
-  onEnd() {
+  onEnd(_root, context) {
     if (this.records.length === 0) return;
-    console.log(`\nUncovered locations (per-file 100% gate): ${this.records.length}`);
-    for (const record of this.records) console.log(record);
-    console.log('');
+    // istanbul's writer for `null` is its console writer, the outlet the
+    // built-in text reporter prints its table through.
+    const out = context.writer.writeFile(null);
+    out.println(`\nUncovered locations (per-file 100% gate): ${this.records.length}`);
+    for (const record of this.records) out.println(record);
+    out.println('');
+    out.close();
   }
 }
+
+UncoveredLocationsReport.uncoveredRecords = uncoveredRecords;
 
 module.exports = UncoveredLocationsReport;

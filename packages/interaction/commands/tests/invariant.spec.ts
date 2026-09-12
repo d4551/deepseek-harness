@@ -86,4 +86,32 @@ describe('command lifecycle invariants', () => {
       packageName: '@deepseek-ai/dsh-commands',
     })
   })
+
+  it('rejects a command/run that repeats a commandId already run in this log', async () => {
+    const { session } = await mount()
+    appendRun(session, 'cmd-twice')
+
+    const repeat = (): void => { appendRun(session, 'cmd-twice') }
+    expect(repeat).toThrow('command/run repeats commandId "cmd-twice"')
+    expect(repeat).toThrow(expect.objectContaining<Partial<InvariantError>>({
+      code: 'INVARIANT',
+      packageName: '@deepseek-ai/dsh-commands',
+    }))
+  })
+
+  it('rejects a command/done that pairs no prior command/run in this log', async () => {
+    const { session } = await mount()
+
+    const orphan = (): void => {
+      session.append('command/done', {
+        commandId: CommandId('cmd-orphan'),
+        kind: 'success',
+      })
+    }
+    expect(orphan).toThrow('command/done "cmd-orphan" pairs no prior command/run in this log')
+    expect(orphan).toThrow(expect.objectContaining<Partial<InvariantError>>({
+      code: 'INVARIANT',
+      packageName: '@deepseek-ai/dsh-commands',
+    }))
+  })
 })

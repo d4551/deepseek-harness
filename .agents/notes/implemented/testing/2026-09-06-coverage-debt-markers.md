@@ -14,11 +14,11 @@ Five of those entries named paths no longer in the tree: `packages/self-modifica
 
 An exclusion is structural or it is marked debt. `STRUCTURAL_EXCLUSIONS` in [`coverage-debt.ts`](../../../../scripts/coverage-debt.ts) lists the fifteen globs that are structural — no runtime coverage to measure, an executing composition in a Worker, browser realm, or subprocess that unit-process V8 cannot observe, or generated Host-for-Client code that exists only in `lib` and is executed by the post-build smoke. Everything else is debt by default and has to carry one of the three documented markers, so a new exclusion joins the debt inventory rather than the structural set by omission.
 
-`bun run verify-coverage-debt` runs in the static lane and fails on four conditions, each the same shape as the others: a debt entry with no marker, a structural glob the config no longer excludes, a glob matching nothing in the tree, and a documented marker nothing uses. It prints the count per lane on success — 94 `TODO(gui)`, 8 `TODO(inspector)`, 3 `TODO(webworker)` — which is the number a ratchet moves.
+`bun run verify-coverage-debt` runs in the static lane and fails on conditions of one shape: a debt entry with no marker, a structural glob the config no longer excludes, a glob matching nothing in the tree, a documented marker nothing uses, and — since [the measurement note](2026-09-12-coverage-debt-measurement.md) — an entry another entry already covers whole and a platform-conditional lane entry matching nothing. It prints the count per lane on success, in globs and in files, which is the number a ratchet moves. The markers were first spelled `TODO(...)`; that note renamed them to `DEBT(gui)`, `DEBT(inspector)`, and `DEBT(webworker)` because the contract forbids the old word inside a gate, and `bun run measure-coverage-debt` is the reading that says which entries can go.
 
 Braced alternations are expanded before matching, because Node's glob has none and every braced exclusion would otherwise report as matching nothing. `packages/*/*/src/oxlint-contract-*.ts` is named as a transient: a killed executable lint-contract test can leave a source probe behind, and matching nothing is what a clean tree looks like.
 
-Closing order for the `TODO(gui)` debt runs largest first: `packages/client/ui-tool`, `ui-slots`, `ui-layout`, `packages/client/web`, and `packages/host/webserver` are whole-package exemptions, and each is one glob rather than a file list.
+Closing order for the `DEBT(gui)` debt runs largest first: `packages/client/ui-tool`, `ui-slots`, `ui-layout`, `packages/client/web`, and `packages/host/webserver` are whole-package exemptions, and each is one glob rather than a file list.
 
 ## Alternatives considered
 
