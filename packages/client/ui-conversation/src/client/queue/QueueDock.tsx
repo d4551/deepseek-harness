@@ -109,7 +109,8 @@ export function QueueDock({ useSession, updateQueue, notify, t }: QueueDockProps
                       }
                       if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
                         event.preventDefault()
-                        startTransition(saveEdit)
+                        const saving = saveEdit()
+                        startTransition(() => saving)
                       }
                     }}
                   />
@@ -125,7 +126,10 @@ export function QueueDock({ useSession, updateQueue, notify, t }: QueueDockProps
                           className={css.action}
                           aria-label={t('queue.save')}
                           disabled={busy !== null || editing.text.trim() === ''}
-                          onClick={() => { startTransition(saveEdit) }}
+                          onClick={() => {
+                            const saving = saveEdit()
+                            startTransition(() => saving)
+                          }}
                         >
                           <IconCheckOutline16 size={14} />
                         </button>
@@ -168,8 +172,9 @@ export function QueueDock({ useSession, updateQueue, notify, t }: QueueDockProps
                           aria-label={t('queue.remove')}
                           disabled={busy !== null}
                           onClick={() => {
+                            const removing = applyAction(row.id, { kind: 'remove' }, t('queue.removeFailed'))
                             startTransition(async () => {
-                              await applyAction(row.id, { kind: 'remove' }, t('queue.removeFailed'))
+                              await removing
                             })
                           }}
                         >
@@ -184,8 +189,9 @@ export function QueueDock({ useSession, updateQueue, notify, t }: QueueDockProps
                           title={running ? undefined : t('queue.steer.unavailable')}
                           disabled={busy !== null || !running}
                           onClick={() => {
+                            const steering = applyAction(row.id, { kind: 'steer' }, t('queue.steerFailed'))
                             startTransition(async () => {
-                              await applyAction(row.id, { kind: 'steer' }, t('queue.steerFailed'))
+                              await steering
                             })
                           }}
                         >
