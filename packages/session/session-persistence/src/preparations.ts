@@ -303,7 +303,7 @@ export class SessionPreparations<Source extends PreparedSource, CommitState> {
       deferred.reject(error)
       return entry
     }
-    void loading.then((source) => {
+    loading.then((source) => {
       if (this.entries.get(id) === entry) {
         entry.source = source
         this.makeReady(entry)

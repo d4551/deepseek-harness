@@ -48,7 +48,7 @@ export function createDetachedRuns(): DetachedRuns {
     track(run: Promise<unknown>): void {
       inflight.add(run)
       const settled = (): void => { inflight.delete(run) }
-      void run.then(settled, settled)
+      run.then(settled, settled)
     },
     async drain(): Promise<void> {
       controller.abort(new Error('hook bridge disposed'))
