@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-command-goal` gives the human `/goal` command over the persisted goal service: a user can create, edit, pause, resume, clear, and inspect the current goal directly from the UI, without involving the model. The command registers in its Cordis scope, so command adapters reading that scope discover and execute it, while command text and output stay in the UI — they never enter model requests. Every accepted mutation persists through the goal service's durable `goal/change` event. Image attachments may accompany a create or edit and are submitted as one ordinary user message so later goal rounds see them. Choose it for interactive deployments with a command adapter; headless and automation apps without one do not need it.
+`dsh-command-goal` gives the human `/goal` command over the persisted goal service: a user can create, edit, pause, resume, clear, and inspect the current goal directly from the UI. The command registers in its Cordis scope, so command adapters reading that scope discover and execute it. Every accepted mutation persists through the goal service's durable `goal/change` event. Successful create, edit, and resume commands also queue the human instruction for the next goal step; admitted images accompany that same message. Status, pause, clear, and error output stay in the UI. Choose it for interactive deployments with a command adapter; headless and automation apps without one do not need it.
 
 ## Table of Contents
 
@@ -46,7 +46,7 @@ Control words (`clear`, `pause`, `resume`, `edit`) are recognized only when they
 
 ### Image attachments
 
-`/goal` declares image support, so a composer may attach images to an invocation. Attachments only accompany an objective: on a successful create or edit the command submits one user followup carrying the admitted image blocks plus the fixed text `Reference images for the goal objective.`, so later goal rounds read them from ordinary session history without the goal domain storing attachment state. Every other sub-command, and any refused create or edit, returns a direct error and submits nothing, so the dispatching composer keeps the images.
+`/goal` declares image support, so a composer may attach images to an invocation. Attachments only accompany an objective: a successful create or edit queues one user message containing the admitted image blocks followed by the exact command text. The message enters `next-step` without waking the agent. The goal driver supplies its round prompt and wake, so both inputs reach one model step. A paused edit remains pending until later work wakes the agent. Every other sub-command rejects attached images, and refused mutations submit nothing, so the dispatching composer keeps the images.
 
 ### Compose it
 
@@ -77,7 +77,7 @@ This section explains how the command parses input and renders output; the obser
 
 - **Grammar, not free text.** The parser recognizes only the exact control words (`clear`, `pause`, `resume`, `edit`) when they fill the whole input; every other non-empty suffix is an objective. `edit` alone is invalid, and `edit` refuses to replace an unfinished goal directly.
 - **Domain rejections become stable errors.** `GoalError` outcomes are converted into direct command errors with a fixed message; unexpected failures rethrow so adapters report a command failure rather than a domain result. Rendered output never exposes branded ids or revisions.
-- **Attachments ride the objective.** On a successful create or edit the command submits one user followup carrying the admitted image blocks plus the fixed text `Reference images for the goal objective.`; every other path submits nothing, so the dispatching composer keeps the images.
+- **Human work joins its goal step.** Successful create, edit, and resume commands queue their exact text as user input without waking the driver. Create and edit include admitted images. The goal driver claims this input with its next round; a deployment can authenticate the live human insertion and durably account for the ensuing model request. Rejected commands publish no work input.
 
 ### Source map
 
@@ -108,15 +108,15 @@ The command is a thin adapter over the goal domain; read these pages for the sta
 
 #### What the model sees
 
-The slash input, mutation, and direct status/error output are absent from model requests. The goal domain records the mutation as `goal/change`; an enabled same-session driver may expose the resulting state in a later continuation prompt. Presentation text is never logged. When a create or edit carries image attachments, the model sees one ordinary user message: the image blocks followed by the text `Reference images for the goal objective.`; it precedes the next goal round in session history.
+The goal domain records mutations as `goal/change`. Successful create, edit, and resume commands also provide one ordinary user message containing the exact command text and, for create or edit, admitted image blocks before that text. This message joins the goal driver's next step. Status, pause, clear, and direct error output add no model-facing message.
 
 #### Token effect
 
-Reading status, mutating a goal, or receiving a direct command error adds no model tokens. An enabled same-session driver may add later goal-round prompts. An objective's image attachments add one user message billed like any image prompt.
+Reading status, pausing, clearing, or receiving a direct command error adds no model tokens. Successful create, edit, and resume instructions join ordinary request history; image attachments are billed with that user message. Queuing this input does not create a separate model request.
 
 #### KV Cache effect
 
-Command discovery, mutations, and direct output do not affect the cache. Later continuation prompts follow the driver's ordinary request history.
+Command discovery and direct output do not affect the cache. Accepted human work and later continuation prompts append to ordinary request history; the system policy remains stable.
 
 ## Known Limitations and Deferred Work
 

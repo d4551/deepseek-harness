@@ -84,6 +84,12 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 
 `ctx.tools.guard(guard)` registers a monotonic synchronous guard after the extensible `tools/pre-execute` waterfall: a returned reason denies the call, and no later listener can turn that denial back into permission. The pipeline's events give plugins more control — `tools/pre-execute` decides allow/deny/ask, `tools/execute` wraps dispatch for timeout or retry, `tools/post-execute` inspects or replaces the result, and `tools/result` observes the frozen final outcome.
 
+### Registered workspace effects
+
+Tools that only update session state or read job output can declare `directWorkspaceEffect: 'none'`. The registry retains the declaration with the registered implementation and exposes it as an immutable execution field to guards. Model arguments and schemas never carry this authority. Each call retains its exact registration lifetime; removing, replacing, hiding, or collapsing that registration before dispatch rejects the call. Undeclared effects remain subject to the host's normal file inspection.
+
+Registration snapshots parameter and output schemas and retains executable methods with their original receiver. Later schema or callback mutation cannot change that registered contract. Policy-authored values must validate against the same still-active registration; invalid JSON schemas are rejected before publication.
+
 ### Host presentation descriptors
 
 A tool can retain pure `presentCall()` and `presentResult()` methods for Host-local consumers. The built-in Web Client does not consume those values. It selects a renderer through `tool.call.toolview` and derives card props from raw call arguments, result content, failure state, and persisted metadata. The [Client-derived presentation decision](../../../.agents/notes/implemented/architecture/2026-08-23-client-derived-tool-presentation.md) owns this transport split.

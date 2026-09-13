@@ -70,6 +70,10 @@ export class LspConnection {
   private readonly pending = new Map<number, Pending>()
   private nextId = 1
   private closeReason: Error | undefined
+  private readonly protocolWork = new Set<Promise<void>>()
+  private readonly protocolFailures: Error[] = []
+  private readonly writes = new Set<Promise<[PromiseSettledResult<void>]>>()
+  private incoming: Promise<void> = Promise.resolve()
   /** Set once the process has fully exited; the instance awaits it during teardown. */
   readonly closed: Promise<void>
 
@@ -102,44 +106,33 @@ export class LspConnection {
       // configured credential or DSH_* fact reaches the child deliberately.
       env: spec.env,
     })
-    /* v8 ignore start -- 'pipe' dispositions expose both streams by the seam contract; defensive. */
     if (this.handle.stdin === undefined || this.handle.stdout === undefined) {
       throw new Error('lsp-stdio: subprocess implementation dropped a piped protocol stream')
     }
-    /* v8 ignore stop */
     this.stdin = this.handle.stdin
-    this.closed = new Promise<void>((resolve) => {
-      const close = (): void => {
-        const reason = this.closeReason ?? new Error(this.exitMessage())
-        // Record the reason so any request issued AFTER close rejects immediately instead of hanging
-        // (a closed process sends no further responses).
-        this.closeReason = reason
-        this.failAll(reason)
-        resolve()
-      }
-      this.handle.done.then(close, (error: unknown) => {
-        // A spawn-level failure never produces a close event; the rejection is
-        // the fatal cause and the close boundary at once.
-        this.fail(asError(error))
-        close()
-      })
-    })
+    this.closed = this.finishClose()
     // Child stdin can fail while the process itself remains alive (for example, a server closes fd
     // 0). Treat that as a fatal connection error so pending requests reject immediately instead of
     // waiting for a process-close event that may never arrive.
-    this.stdin.on('error', (error) => { this.fail(error) })
-    this.handle.stdout.on('data', (chunk: Buffer) => { this.onStdout(chunk) })
+    this.stdin.on('error', (error) => {
+      this.ownProtocolWork(Promise.resolve().then(() => { this.breakConnection(error) }))
+    })
+    this.handle.stdout.on('data', (chunk: Buffer) => {
+      this.incoming = Promise.allSettled([this.incoming.then(() => this.onStdout(chunk))])
+        .then(([outcome]) => { this.recordProtocolFailure(outcome) })
+    })
   }
 
-  /** The child's pid, or `-1` when the spawn produced no pid (so signalling is a no-op). */
+  /** The child's pid, or `-1` when the spawn produced no pid. */
   get pid(): number {
     return this.handle.pid
   }
 
   /** The retained stderr tail, for diagnostics on a failed server. */
   get stderrTail(): string {
-    /* v8 ignore next -- the collect disposition always exposes a stderr reader; defensive. */
-    return this.handle.collected.stderr?.readFrom(0).text ?? ''
+    const stderr = this.handle.collected.stderr
+    if (stderr === undefined) throw new Error('lsp-stdio: subprocess implementation dropped collected stderr')
+    return stderr.readFrom(0).text
   }
 
   /** Whether the transport has failed even if the child close event has not arrived yet. */
@@ -162,23 +155,16 @@ export class LspConnection {
    * @param params - the request params.
    * @returns the response result; rejects on an error response, write failure, or close.
    */
-  request(method: string, params: unknown): Promise<unknown> {
+  async request(method: string, params: unknown): Promise<unknown> {
+    if (this.closeReason !== undefined) throw this.closeReason
     const id = this.nextId++
-    const promise = new Promise<unknown>((resolve, reject) => {
-      if (this.closeReason !== undefined) {
-        reject(this.closeReason)
-        return
-      }
-      this.pending.set(id, { resolve, reject })
-      // `write()` records either synchronous or callback-delivered failures on the connection and
-      // rejects every pending request. This handler only consumes the write promise itself.
-      this.write({ jsonrpc: '2.0', id, method, params }).catch(() => {})
-    })
-    // A caller that stops awaiting (e.g. an aborted query) can leave this promise to reject later
-    // when the process closes; a benign no-op handler keeps that from surfacing as an unhandled
-    // rejection. The returned promise still delivers the rejection to the caller's own await/catch.
-    promise.catch(() => {})
-    return promise
+    const response = Promise.withResolvers<unknown>()
+    this.pending.set(id, response)
+    const [result] = await Promise.all([
+      response.promise,
+      this.write({ jsonrpc: '2.0', id, method, params }),
+    ])
+    return result
   }
 
   /**
@@ -192,13 +178,12 @@ export class LspConnection {
   }
 
   /**
-   * Send a `$/cancelRequest` for an in-flight request id (best-effort; ignores write failure).
+   * Send a `$/cancelRequest` for an in-flight request id and await its write.
    * @param requestId - the numeric id of the request to cancel.
+   * @returns completion of the cancellation write; rejects when the connection cannot send it.
    */
-  cancel(requestId: number): void {
-    // The server is already gone or unwritable when this rejects; `write()` has recorded the fatal
-    // connection failure and rejected the pending request, so cancellation remains best-effort.
-    this.write({ jsonrpc: '2.0', method: '$/cancelRequest', params: { id: requestId } }).catch(() => {})
+  cancel(requestId: number): Promise<void> {
+    return this.write({ jsonrpc: '2.0', method: '$/cancelRequest', params: { id: requestId } })
   }
 
   /**
@@ -223,46 +208,39 @@ export class LspConnection {
     return await this.handle.waitForExit(signal)
   }
 
-  private onStdout(chunk: Buffer): void {
-    let messages: unknown[]
-    try {
-      messages = this.decoder.push(chunk)
-    } catch (error) {
-      // A framing/JSON failure corrupts the stream position irrecoverably: fail the instance and
-      // terminate the whole group so helper processes don't outlive the leader (SIGTERM first, then
-      // the kill grace's SIGKILL — a misbehaving server still gets its bounded flush window).
-      this.fail(asError(error))
-      this.handle.terminate()
+  private async onStdout(chunk: Buffer): Promise<void> {
+    const [decoded] = await Promise.allSettled([Promise.resolve().then(() => this.decoder.push(chunk))])
+    if (decoded.status === 'rejected') {
+      this.breakConnection(asError(decoded.reason))
       return
     }
-    for (const message of messages) this.dispatch(message)
+    for (const message of decoded.value) this.dispatch(message)
   }
 
   private dispatch(message: unknown): void {
-    if (message === null || typeof message !== 'object') return
-    const frame = message as Record<string, unknown>
+    if (!isRecord(message)) return
+    const frame = message
     const id = frame.id
     const method = frame.method
     if (typeof method === 'string' && (typeof id === 'number' || typeof id === 'string')) {
-      // A response-write failure has already invalidated the connection in `write()`.
-      /* v8 ignore next -- protocol tests exercise response writes; only a simultaneous connection
-         failure makes this consumption handler run. */
-      this.handleServerRequest(id, method, frame.params).catch(() => {})
+      this.ownProtocolWork(this.handleServerRequest(id, method, frame.params))
       return
     }
     if (typeof method === 'string') {
-      // A server→client notification (e.g. diagnostics, logs): ignored by this MVP host.
+      // Notifications have no JSON-RPC response id.
       return
     }
     if (typeof id === 'number') this.handleResponse(id, frame)
   }
 
   private async handleServerRequest(id: number | string, method: string, params: unknown): Promise<void> {
-    try {
-      const result = await this.onServerRequest(method, params)
-      await this.write({ jsonrpc: '2.0', id, result })
-    } catch (error) {
-      await this.write({ jsonrpc: '2.0', id, error: { code: -32601, message: asError(error).message } })
+    const [response] = await Promise.allSettled([Promise.resolve().then(() => this.onServerRequest(method, params))])
+    const message = response.status === 'fulfilled'
+      ? { jsonrpc: '2.0', id, result: response.value }
+      : { jsonrpc: '2.0', id, error: { code: -32601, message: asError(response.reason).message } }
+    const [written] = await Promise.allSettled([this.write(message)])
+    if (written.status === 'rejected') {
+      this.breakConnection(asError(written.reason))
     }
   }
 
@@ -271,36 +249,56 @@ export class LspConnection {
     if (!pending) return
     this.pending.delete(id)
     const error = frame.error
-    if (error !== null && typeof error === 'object') {
-      const record = error as Record<string, unknown>
-      pending.reject(new Error(typeof record.message === 'string' ? record.message : 'LSP error response'))
+    if (isRecord(error)) {
+      pending.reject(new Error(typeof error.message === 'string' ? error.message : 'LSP error response'))
       return
     }
     pending.resolve(frame.result)
   }
 
-  private write(message: unknown): Promise<void> {
-    if (this.closeReason !== undefined) return Promise.reject(this.closeReason)
-    return new Promise<void>((resolve, reject) => {
+  private async write(message: unknown): Promise<void> {
+    if (this.closeReason !== undefined) throw this.closeReason
+    const writing = Promise.allSettled([new Promise<void>((resolve, reject) => {
       const done = (error?: Error | null): void => {
         if (error === undefined || error === null) {
           resolve()
           return
         }
-        this.fail(error)
         reject(error)
       }
-      try {
-        this.writer(this.stdin, message, done)
-      /* v8 ignore start -- Node stream write failures are callback-delivered; this guards a
-         nonconforming Writable implementation throwing synchronously. */
-      } catch (error) {
-        const failure = asError(error)
-        this.fail(failure)
-        reject(failure)
-      }
-      /* v8 ignore stop */
+      this.writer(this.stdin, message, done)
+    })])
+    this.writes.add(writing)
+    const [written] = await writing
+    this.writes.delete(writing)
+    if (written.status === 'rejected') {
+      const failure = asError(written.reason)
+      this.breakConnection(failure)
+      throw failure
+    }
+  }
+
+  private ownProtocolWork(work: Promise<void>): void {
+    const owned = Promise.allSettled([work]).then(([outcome]) => {
+      this.recordProtocolFailure(outcome)
+      this.protocolWork.delete(owned)
     })
+    this.protocolWork.add(owned)
+  }
+
+  private recordProtocolFailure(outcome: PromiseSettledResult<void>): void {
+    if (outcome.status === 'rejected') this.protocolFailures.push(asError(outcome.reason))
+  }
+
+  private async finishClose(): Promise<void> {
+    const [process] = await Promise.allSettled([this.handle.done])
+    await this.incoming
+    this.fail(process.status === 'rejected' ? asError(process.reason) : this.closeReason ?? new Error(this.exitMessage()))
+    await Promise.all(this.protocolWork)
+    await Promise.all(this.writes)
+    if (this.protocolFailures.length > 0) {
+      throw new AggregateError(this.protocolFailures, 'LSP protocol work failed during close')
+    }
   }
 
   /** The exit-close error message, appending the retained stderr tail when the server wrote any. */
@@ -310,9 +308,13 @@ export class LspConnection {
   }
 
   private fail(error: Error): void {
-    /* v8 ignore next -- the second arm (closeReason already set) needs two fail() calls before close; defensive. */
     if (this.closeReason === undefined) this.closeReason = error
     this.failAll(error)
+  }
+
+  private breakConnection(error: Error): void {
+    this.fail(error)
+    this.handle.terminate()
   }
 
   private failAll(error: Error): void {
@@ -324,6 +326,10 @@ export class LspConnection {
 
 /** Coerce an unknown thrown value to an `Error`. */
 function asError(value: unknown): Error {
-  /* v8 ignore next -- the non-Error branch guards against a non-Error throw, which our paths never produce. */
   return value instanceof Error ? value : new Error(String(value))
+}
+
+/** Validate the JSON object boundary before selecting protocol fields. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
 }

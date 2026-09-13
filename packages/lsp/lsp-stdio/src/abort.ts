@@ -35,13 +35,14 @@ export function throwIfAborted(signal?: AbortSignal): void {
  */
 export function abortable<T>(work: Promise<T>, signal?: AbortSignal): Promise<T> {
   if (signal === undefined) return work
-  if (signal.aborted) return Promise.reject(abortError(signal))
+  if (signal.aborted) return Promise.race([Promise.reject(abortError(signal)), work])
   const canceled = Promise.withResolvers<never>()
   const onAbort = (): void => { canceled.reject(abortError(signal)) }
   signal.addEventListener('abort', onAbort, { once: true })
-  const normalized = work.catch((error: unknown) => {
-    /* v8 ignore next -- owned LSP promises reject with Error; coercion defends the generic helper. */
-    throw error instanceof Error ? error : new Error(String(error))
+  const normalized = Promise.allSettled([work]).then(([outcome]) => {
+    if (outcome.status === 'fulfilled') return outcome.value
+    const failure: unknown = outcome.reason
+    throw failure instanceof Error ? failure : new Error(String(failure))
   })
   return Promise.race([normalized, canceled.promise])
     .finally(() => { signal.removeEventListener('abort', onAbort) })

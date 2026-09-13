@@ -366,6 +366,39 @@ describe('the copy blocker', () => {
 })
 
 describe('submitting a copy', () => {
+  it('awaits roster convergence before opening the copied directory', async () => {
+    const synchronized = Promise.withResolvers<undefined>()
+    const announced = Promise.withResolvers<undefined>()
+    const calls: Recorded[] = []
+    const controller = new AgentPresetSectionController(fakeRemote(seed(), { id: 'standard' }, { calls }), () => {
+      announced.resolve(undefined)
+      return synchronized.promise
+    })
+    await controller.load()
+    controller.beginCopy('standard')
+    controller.setCopyId('my-copy')
+    const copy = controller.confirmCopy()
+    await announced.promise
+    expect(calls.some(call => call.method === 'openAgentPresetDirectory')).toBe(false)
+    synchronized.resolve(undefined)
+    await copy
+    expect(calls.filter(call => call.method === 'openAgentPresetDirectory')).toEqual([
+      { method: 'openAgentPresetDirectory', payload: { agentPreset: 'my-copy' } },
+    ])
+  })
+
+  it('reports roster convergence failure after the copy dialog has closed', async () => {
+    const controller = new AgentPresetSectionController(fakeRemote(seed(), { id: 'standard' }),
+      () => Promise.reject(new Error('sibling roster unavailable')))
+    await controller.load()
+    controller.beginCopy('standard')
+    controller.setCopyId('my-copy')
+    await controller.confirmCopy()
+    expect(controller.store.getSnapshot().copy).toBeNull()
+    expect(controller.store.getSnapshot().error).toBe('sibling roster unavailable')
+    expect(controller.store.getSnapshot().rows.map(row => row.id)).toContain('my-copy')
+  })
+
   it('copies, re-reads the roster, announces the change, and opens the files', async () => {
     const { controller, calls, rosterChanges } = harness()
     await controller.load()

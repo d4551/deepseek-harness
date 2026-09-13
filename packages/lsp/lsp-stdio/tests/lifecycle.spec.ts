@@ -482,14 +482,13 @@ async function waitFor(condition: () => Promise<boolean>, timeoutMs = 3000): Pro
 }
 
 /** Hold one fake provider operation until cancellation, optionally behind a cleanup gate. */
-function rejectWhenAborted<T>(signal: AbortSignal, release: Promise<unknown> = Promise.resolve()): Promise<T> {
-  return new Promise((_resolve, reject) => {
-    const onAbort = (): void => {
-      void release.then(() => {
-        reject(signal.reason instanceof Error ? signal.reason : new Error(String(signal.reason)))
-      })
-    }
-    signal.addEventListener('abort', onAbort, { once: true })
-    if (signal.aborted) onAbort()
-  })
+async function rejectWhenAborted<T>(signal: AbortSignal, release: Promise<unknown> = Promise.resolve()): Promise<T> {
+  const aborted = Promise.withResolvers<undefined>()
+  const onAbort = (): void => { aborted.resolve(undefined) }
+  signal.addEventListener('abort', onAbort, { once: true })
+  if (signal.aborted) onAbort()
+  await aborted.promise
+  signal.removeEventListener('abort', onAbort)
+  await release
+  throw signal.reason instanceof Error ? signal.reason : new Error(String(signal.reason))
 }

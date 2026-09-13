@@ -87,7 +87,7 @@ export class Lsp extends Service implements LspService {
     super(ctx, 'lsp')
   }
 
-  registerProvider(provider: LspProvider): () => void {
+  registerProvider(provider: LspProvider): () => Promise<void> {
     // Validate and conflict-check everything BEFORE any mutation: an invalid or conflicting
     // registration must publish nothing (fail-loud, all-or-nothing).
     const id = provider.id
@@ -127,7 +127,7 @@ export class Lsp extends Service implements LspService {
 
     // All checks passed: reserve id and every extension in one lifecycle controller so disposal
     // releases them together.
-    const dispose = this.ctx.effect(function* (this: Lsp) {
+    return this.ctx.effect(function* (this: Lsp) {
       this.providerIds.add(id)
       for (const [ext, route] of pending) this.routes.set(ext, route)
       yield () => {
@@ -135,9 +135,6 @@ export class Lsp extends Service implements LspService {
         for (const ext of pending.keys()) this.routes.delete(ext)
       }
     }.bind(this), 'lsp.registerProvider()')
-    // ctx.effect's disposer returns Promise<void>; our disposer API is synchronous
-    // fire-and-forget — discard the (always-resolved) promise.
-    return () => void dispose()
   }
 
   async query(request: LspQueryRequest, signal?: AbortSignal): Promise<LspQueryResult> {

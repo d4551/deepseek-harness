@@ -105,10 +105,10 @@ export class ShellEnvRegistry extends Service {
    * Register one environment contributor. Names and keys are unique; built-in
    * keys are reserved. Registration is disposed with the calling plugin fiber.
    * @param contributor - declared key ownership and per-execution resolver.
-   * @returns the disposer that unregisters the contribution.
+   * @returns the owning effect disposer; await it to observe complete removal of the contribution.
    */
-  register(contributor: BashEnvContributor): () => void {
-    const dispose = this.ctx.effect(function* (this: ShellEnvRegistry) {
+  register(contributor: BashEnvContributor): () => Promise<void> {
+    return this.ctx.effect(function* (this: ShellEnvRegistry) {
       if (contributor.name.trim().length === 0) {
         throw new Error('bash env contributor name must be non-empty')
       }
@@ -141,7 +141,6 @@ export class ShellEnvRegistry extends Service {
         for (const [key] of variables) this.keyOwners.delete(key)
       }
     }.bind(this), 'bashEnv.register()')
-    return () => void dispose()
   }
 
   /**

@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
+import type { Disposable } from '@deepseek-ai/cordis'
 import { createUserMessage, ToolCallId  } from '@deepseek-ai/dsh-llm'
 import { createScope } from '@deepseek-ai/dsh-scope'
 import type { Scope } from '@deepseek-ai/dsh-scope'
@@ -1832,7 +1833,11 @@ describe('per-agent presentation', () => {
     const { scope, agent } = await mintAgentScope(ctx)
     const dispose = scope.ctx.tools.presentAs('ptc')
 
-    dispose()
+    expectTypeOf(dispose).toEqualTypeOf<Disposable<Promise<void>>>()
+    const before = await systemPrompt.assemble({ scope: agent })
+    expect(before.tools.map(tool => tool.name)).toEqual([RUN_CODE_NAME])
+    expect(before.sections.some(section => section.name === 'tools:sdk')).toBe(true)
+    await dispose()
 
     const assembly = await systemPrompt.assemble({ scope: agent })
     expect(assembly.tools.map(tool => tool.name)).toEqual(['echo'])

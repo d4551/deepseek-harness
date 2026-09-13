@@ -330,7 +330,7 @@ describe('LocalJobRegistry reads and settlement', () => {
     const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => {})
     const seen: JobSnapshot[] = []
     ctx.jobs.onJobDone(() => { throw new Error('listener boom') })
-    ctx.jobs.onJobDone(snapshot => void seen.push(snapshot))
+    ctx.jobs.onJobDone((snapshot) => { seen.push(snapshot) })
 
     const p = producer()
     const id = ctx.jobs.start(p.spec)
@@ -347,7 +347,7 @@ describe('LocalJobRegistry reads and settlement', () => {
     const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => {})
     const seen: JobId[] = []
     ctx.jobs.onJobDone(async () => { throw new Error('async listener boom') })
-    ctx.jobs.onJobDone(snapshot => void seen.push(snapshot.id))
+    ctx.jobs.onJobDone((snapshot) => { seen.push(snapshot.id) })
 
     const p = producer()
     const id = ctx.jobs.start(p.spec)
@@ -375,11 +375,11 @@ describe('LocalJobRegistry reads and settlement', () => {
     const ctx = await harness()
     const seen: string[] = []
     const fiber = await ctx.plugin(Object.assign((inner: Context) => {
-      inner.jobs.onJobDone(snapshot => void seen.push(snapshot.id))
+      inner.jobs.onJobDone((snapshot) => { seen.push(snapshot.id) })
     }, { inject: ['jobs'] }))
     await fiber.dispose()
     // The returned disposer detaches too (the non-fiber path).
-    const detach = ctx.jobs.onJobDone(snapshot => void seen.push(snapshot.id))
+    const detach = ctx.jobs.onJobDone((snapshot) => { seen.push(snapshot.id) })
     detach()
 
     const p = producer()
@@ -394,7 +394,7 @@ describe('LocalJobRegistry.kill', () => {
   it('cancels a live job with the forwarded reason and suppresses the notice', async () => {
     const ctx = await harness()
     const seen: JobSnapshot[] = []
-    ctx.jobs.onJobDone(snapshot => void seen.push(snapshot))
+    ctx.jobs.onJobDone((snapshot) => { seen.push(snapshot) })
     const p = producer()
     const id = ctx.jobs.start(p.spec)
 
@@ -421,7 +421,7 @@ describe('LocalJobRegistry.kill', () => {
   it('propagates a throwing producer cancel and leaves the job untouched', async () => {
     const ctx = await harness()
     const seen: JobSnapshot[] = []
-    ctx.jobs.onJobDone(snapshot => void seen.push(snapshot))
+    ctx.jobs.onJobDone((snapshot) => { seen.push(snapshot) })
     let broken = true
     let settle!: (outcome: JobOutcome) => void
     const id = ctx.jobs.start({
@@ -449,7 +449,7 @@ describe('LocalJobRegistry.wait', () => {
   it('resolves with the terminal snapshot when the job settles, marked reported', async () => {
     const ctx = await harness()
     const seen: JobSnapshot[] = []
-    ctx.jobs.onJobDone(snapshot => void seen.push(snapshot))
+    ctx.jobs.onJobDone((snapshot) => { seen.push(snapshot) })
     const p = producer()
     const id = ctx.jobs.start(p.spec)
 
@@ -520,7 +520,7 @@ describe('LocalJobRegistry.wait', () => {
   it('an abort racing settlement in the same tick does not swallow the notice', async () => {
     const ctx = await harness()
     const seen: JobSnapshot[] = []
-    ctx.jobs.onJobDone(snapshot => void seen.push(snapshot))
+    ctx.jobs.onJobDone((snapshot) => { seen.push(snapshot) })
     const p = producer()
     const id = ctx.jobs.start(p.spec)
 
@@ -697,8 +697,8 @@ describe('LocalJobRegistry owner cleanup', () => {
     ctx.jobs.start(p.spec)
     // Registered after start so only the settlement's notifications are ordered.
     const order: string[] = []
-    ctx.jobs.onJobsChanged(() => void order.push('changed'))
-    ctx.jobs.onJobDone(() => void order.push('done'))
+    ctx.jobs.onJobsChanged(() => { order.push('changed') })
+    ctx.jobs.onJobDone(() => { order.push('done') })
 
     p.settle({ status: 'completed' })
     await tick()
@@ -714,7 +714,7 @@ describe('LocalJobRegistry owner cleanup', () => {
     const owner = stubAgent(ctx, 'owner')
     ctx.agents.register(owner)
     const seen: JobSnapshot[] = []
-    ctx.jobs.onJobDone(snapshot => void seen.push(snapshot))
+    ctx.jobs.onJobDone((snapshot) => { seen.push(snapshot) })
 
     let settle!: (outcome: JobOutcome) => void
     ctx.jobs.start({
@@ -816,7 +816,7 @@ describe('LocalJobRegistry owner cleanup', () => {
     const owner = stubAgent(ctx, 'owner')
     ctx.agents.register(owner)
     const seen: JobSnapshot[] = []
-    ctx.jobs.onJobDone(snapshot => void seen.push(snapshot))
+    ctx.jobs.onJobDone((snapshot) => { seen.push(snapshot) })
 
     let settle!: (outcome: JobOutcome) => void
     ctx.jobs.start({
@@ -829,9 +829,8 @@ describe('LocalJobRegistry owner cleanup', () => {
       }),
     })
 
-    const drain = disposeAgentScope(owner)
     let drained = false
-    void drain.then(() => { drained = true })
+    const drain = disposeAgentScope(owner).then(() => { drained = true })
     await tick()
     const drainedWithoutProducerDone = drained
     if (!drainedWithoutProducerDone) {
@@ -858,13 +857,12 @@ describe('LocalJobRegistry disposal', () => {
     const ctx = new Context()
     await ctx.plugin(AgentRegistry)
     const fiber = await ctx.plugin(LocalJobRegistry)
-    const controller = await ctx.plugin(Object.assign((inner: Context) => {
+    await ctx.plugin(Object.assign((inner: Context) => {
       inner.jobs.attachController('test-controller')
     }, { inject: ['jobs'] }))
-    void controller
 
     const seen: string[] = []
-    ctx.jobs.onJobDone(snapshot => void seen.push(snapshot.id))
+    ctx.jobs.onJobDone((snapshot) => { seen.push(snapshot.id) })
     let settle!: (outcome: JobOutcome) => void
     const cancels: (string | undefined)[] = []
     ctx.jobs.start({
@@ -889,7 +887,7 @@ describe('LocalJobRegistry disposal', () => {
     ctx.jobs.attachController('test-controller')
     const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => {})
     const seen: JobSnapshot[] = []
-    ctx.jobs.onJobDone(snapshot => void seen.push(snapshot))
+    ctx.jobs.onJobDone((snapshot) => { seen.push(snapshot) })
 
     let settle!: (outcome: JobOutcome) => void
     ctx.jobs.start({
@@ -901,9 +899,8 @@ describe('LocalJobRegistry disposal', () => {
       }),
     })
 
-    const disposal = fiber.dispose()
     let disposed = false
-    void disposal.then(() => { disposed = true })
+    const disposal = fiber.dispose().then(() => { disposed = true })
     await tick()
     const disposedWithoutProducerDone = disposed
     if (!disposedWithoutProducerDone) {
@@ -995,7 +992,7 @@ describe('LocalJobRegistry.onJobsChanged', () => {
     const owner = stubAgent(ctx, 'alice')
     ctx.agents.register(owner)
     const seen: (string | undefined)[] = []
-    ctx.jobs.onJobsChanged(changed => void seen.push(changed?.id))
+    ctx.jobs.onJobsChanged((changed) => { seen.push(changed?.id) })
 
     const p = producer({ owner })
     const id = ctx.jobs.start(p.spec)
@@ -1017,7 +1014,7 @@ describe('LocalJobRegistry.onJobsChanged', () => {
   it('reports an unowned change as undefined, since every caller can see it', async () => {
     const ctx = await harness()
     const seen: (string | undefined)[] = []
-    ctx.jobs.onJobsChanged(changed => void seen.push(changed?.id))
+    ctx.jobs.onJobsChanged((changed) => { seen.push(changed?.id) })
 
     ctx.jobs.start(producer().spec)
     expect(seen).toEqual([undefined])
@@ -1033,7 +1030,7 @@ describe('LocalJobRegistry.onJobsChanged', () => {
     ctx.jobs.start(p.spec)
 
     const seen: (string | undefined)[] = []
-    ctx.jobs.onJobsChanged(changed => void seen.push(changed?.id))
+    ctx.jobs.onJobsChanged((changed) => { seen.push(changed?.id) })
     p.settle({ status: 'completed' })
     await tick()
     expect(seen).toEqual(['alice'])
@@ -1052,7 +1049,7 @@ describe('LocalJobRegistry.onJobsChanged', () => {
     const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => {})
     const seen: (string | undefined)[] = []
     ctx.jobs.onJobsChanged(() => { throw new Error('observer boom') })
-    ctx.jobs.onJobsChanged(changed => void seen.push(changed?.id))
+    ctx.jobs.onJobsChanged((changed) => { seen.push(changed?.id) })
 
     const id = ctx.jobs.start(producer().spec)
     expect(id).toBe('bash-1')
@@ -1063,9 +1060,9 @@ describe('LocalJobRegistry.onJobsChanged', () => {
   it('unregisters through its disposer and with its fiber (HMR safety)', async () => {
     const ctx = await harness()
     const seen: number[] = []
-    const detach = ctx.jobs.onJobsChanged(() => void seen.push(1))
+    const detach = ctx.jobs.onJobsChanged(() => { seen.push(1) })
     const fiber = await ctx.plugin(Object.assign((inner: Context) => {
-      inner.jobs.onJobsChanged(() => void seen.push(2))
+      inner.jobs.onJobsChanged(() => { seen.push(2) })
     }, { inject: ['jobs'] }))
 
     ctx.jobs.start(producer().spec)
@@ -1088,7 +1085,7 @@ describe('LocalJobRegistry teardown change notifications', () => {
     const owner = stubAgent(ctx, 'alice')
     ctx.agents.register(owner)
     const p = producer({ owner })
-    const id = ctx.jobs.start(p.spec)
+    ctx.jobs.start(p.spec)
 
     const statuses: (string | undefined)[] = []
     ctx.jobs.onJobsChanged((changed) => {
@@ -1106,7 +1103,6 @@ describe('LocalJobRegistry teardown change notifications', () => {
     // Settlement, then the removal that empties the visible set.
     expect(statuses).toEqual(['stopping', 'killed', undefined])
     expect(ctx.jobs.list(owner)).toEqual([])
-    void id
   })
 
   it('announces the emptied set to a listener registered outside this service (reload safety)', async () => {
@@ -1118,7 +1114,7 @@ describe('LocalJobRegistry teardown change notifications', () => {
     // The api-proxy carrier registers from its own stream context, not the
     // registry's fiber, so it is still listening when the registry unloads.
     const seen: (string | undefined)[] = []
-    ctx.jobs.onJobsChanged(changed => void seen.push(changed?.id))
+    ctx.jobs.onJobsChanged((changed) => { seen.push(changed?.id) })
     let settle!: (outcome: JobOutcome) => void
     ctx.jobs.start({
       kind: 'bash',

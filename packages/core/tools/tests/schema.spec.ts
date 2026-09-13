@@ -1,5 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
+  defineTool,
   JsonSchemaError,
   parameterSchemaSpecToJsonSchema,
   valueSchemaSpecToJsonSchema,
@@ -113,10 +114,16 @@ describe('the unified author schema DSL', () => {
 
   it('compiles deeply nested author unions without using the JavaScript call stack', () => {
     const depth = 5_000
-    let spec: unknown = { type: 'string' }
+    let spec: ValueSchemaSpec = { type: 'string' }
     for (let index = 0; index < depth; index++) spec = { oneOf: [spec, { type: 'null' }] }
 
-    const compiled = valueSchemaSpecToJsonSchema(spec as ValueSchemaSpec)
+    const compiled = valueSchemaSpecToJsonSchema(spec)
+    const definition = defineTool({
+      name: 'deep_schema', description: 'Deep schema validation', parameters: { value: spec },
+      output: { schema: { type: 'null' }, render: () => [{ type: 'text', text: 'null' }] },
+      execute: () => Promise.resolve(null),
+    })
+    expect(Object.isFrozen(definition.parameters)).toBe(true)
 
     let cursor = compiled
     let layers = 0

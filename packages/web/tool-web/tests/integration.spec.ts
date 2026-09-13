@@ -10,7 +10,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { AddressInfo } from 'node:net'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
+import FileSettingsProvider from '@deepseek-ai/dsh-settings-file'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { type ToolExecutionResult } from '@deepseek-ai/dsh-tools'
@@ -29,7 +33,7 @@ let server: Server
 let base: string
 let handler: Handler
 let ctx: Context
-let fiber: Awaited<ReturnType<Context['plugin']>>
+let settingsRoot: string
 
 beforeEach(async () => {
   vi.spyOn(publicHttpNetwork, 'resolve').mockResolvedValue([{ address: '127.0.0.1', family: 4 }])
@@ -39,6 +43,8 @@ beforeEach(async () => {
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
 
   ctx = new Context()
+  settingsRoot = mkdtempSync(join(tmpdir(), 'dsh-web-settings-'))
+  await ctx.plugin(FileSettingsProvider, { path: join(settingsRoot, 'settings.json') })
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(WebRuntime, { searchProvider: WebSearchExa.EXA_PROVIDER_ID, fetchProvider: WebFetchLocal.LOCAL_FETCH_PROVIDER_ID })
@@ -49,14 +55,15 @@ beforeEach(async () => {
   // the zero-config timeout-policy plugin, set above the provider backstop so the
   // policy normally wins.
   await ctx.plugin(TimeoutPolicy)
-  fiber = await ctx.plugin(ToolWeb)
+  await ctx.plugin(ToolWeb)
 })
 
 afterEach(async () => {
-  await fiber.dispose()
+  await ctx.fiber.dispose()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
   await new Promise<void>(resolve => server.close(() => { resolve() }))
+  rmSync(settingsRoot, { recursive: true, force: true })
 })
 
 let counter = 0
@@ -124,7 +131,7 @@ describe('tool-call timeout returns TOOL_TIMEOUT (deadline wins over a slow fetc
   let slowBase: string
   let openSockets: ServerResponse[]
   let tctx: Context
-  let tfiber: Awaited<ReturnType<Context['plugin']>>
+  let timeoutSettingsRoot: string
 
   beforeEach(async () => {
     // A server that never responds: it holds the connection open until the
@@ -136,6 +143,8 @@ describe('tool-call timeout returns TOOL_TIMEOUT (deadline wins over a slow fetc
     slowBase = `http://127.0.0.1:${(slowServer.address() as AddressInfo).port}`
 
     tctx = new Context()
+    timeoutSettingsRoot = mkdtempSync(join(tmpdir(), 'dsh-web-timeout-settings-'))
+    await tctx.plugin(FileSettingsProvider, { path: join(timeoutSettingsRoot, 'settings.json') })
     await tctx.plugin(SystemPrompt)
     await tctx.plugin(ToolRuntime)
     await tctx.plugin(WebRuntime, { fetchProvider: WebFetchLocal.LOCAL_FETCH_PROVIDER_ID })
@@ -143,13 +152,14 @@ describe('tool-call timeout returns TOOL_TIMEOUT (deadline wins over a slow fetc
     await tctx.plugin(WebFetchLocal, { timeoutMs: 30_000 })
     await tctx.plugin(TimeoutPolicy)
     // The tool-call budget is declared by tool-web config, enforced by the policy.
-    tfiber = await tctx.plugin(ToolWeb, { fetchTimeoutMs: 50 })
+    await tctx.plugin(ToolWeb, { fetchTimeoutMs: 50 })
   })
 
   afterEach(async () => {
     for (const res of openSockets) res.destroy()
-    await tfiber.dispose()
+    await tctx.fiber.dispose()
     await new Promise<void>(resolve => slowServer.close(() => { resolve() }))
+    rmSync(timeoutSettingsRoot, { recursive: true, force: true })
   })
 
   it('returns a structured TOOL_TIMEOUT (not the provider WEB_FETCH_TIMEOUT) when the tool-call budget wins', async () => {

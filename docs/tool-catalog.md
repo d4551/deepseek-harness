@@ -1945,6 +1945,10 @@ Read the complete latest value of one shared task before changing or executing i
     "task_id": {
       "type": "string",
       "description": "Shared task id."
+    },
+    "session_id": {
+      "type": "string",
+      "description": "Optional exact workspace peer id from list_agents; omitted for your own Team board."
     }
   },
   "required": [
@@ -1963,6 +1967,10 @@ List shared tasks, including readiness, owner, revision, blockers, and write-sco
 {
   "type": "object",
   "properties": {
+    "session_id": {
+      "type": "string",
+      "description": "Optional exact workspace peer id from list_agents; omitted for your own Team board."
+    },
     "status": {
       "type": "string",
       "description": "Optional exact status filter.",
@@ -2063,7 +2071,7 @@ Source: [`packages/subagent/tool-agent-team/src/index.ts`](../packages/subagent/
 
 ### `wait_agent`
 
-Wait for the next teammate status, mailbox, or shared-task change after this call starts. This never wakes inactive members and returns noProgress immediately when no other member is running or provisioning. Re-list after wakeup or timeout instead of polling.
+Wait for meaningful progress on Team work. Waiting members and unrelated workspace conversations cannot satisfy admission. Returns an activity cursor and noProgress when no productive member exists or an unchanged-cursor wait fails the bounded extension rule: at least twice the prior expired duration, within one hour cumulative quiet waiting. Inspect and repair stalled work instead of repeating that wait. This never wakes members or declares their work complete.
 
 ```json
 {

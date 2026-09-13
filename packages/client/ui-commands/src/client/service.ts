@@ -143,6 +143,7 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
       if (!result.ok) throw new Error(`command.list failed: ${result.error.code}: ${result.error.message}`)
       return result.value
     })
+    ctx.effect(() => () => this.directory.dispose(), 'command: directory lifetime')
     const inputTriggers = ctx.get('inputTriggers')
     if (inputTriggers === undefined) throw new Error('ui-commands: slash service unavailable')
     ctx.effect(() => inputTriggers.registerSource({

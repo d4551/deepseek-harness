@@ -21,7 +21,7 @@ import type {
   SubprocessTerminalHandle,
   SubprocessTerminalSpawnSpec,
 } from '@deepseek-ai/dsh-subprocess'
-import { childEnv, spawnSubprocess } from './spawn.ts'
+import { childEnv, LOCAL_ENVIRONMENT_ISOLATION_SUPPORTED, spawnSubprocess } from './spawn.ts'
 import type { LocalSubprocessHandle, SpawnInternals } from './spawn.ts'
 import { createProcessInspector } from './process-inspector.ts'
 import type { ProcessInspector } from './process-inspector.ts'
@@ -88,6 +88,8 @@ async function assertExecutable(candidate: string, env: NodeJS.ProcessEnv): Prom
  * JavaScript-observable host exit.
  */
 export class LocalSubprocessRuntime extends SubprocessRuntime {
+  override readonly supportsEnvironmentIsolation = LOCAL_ENVIRONMENT_ISOLATION_SUPPORTED
+
   /** Live handles retained for normal disposal and synchronous host-exit finalization. */
   private live = new Set<LocalSubprocessHandle>()
   /** Live terminals retained through normal quiescence or host-exit finalization. */
@@ -215,30 +217,31 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
   }
 
   // Local PTY allocation is synchronous, but the provider contract permits remote asynchronous allocation.
-  // oxlint-disable-next-line typescript/require-await -- Preserve promise rejection semantics at the async provider contract.
-  async spawnTerminal(spec: SubprocessTerminalSpawnSpec): Promise<SubprocessTerminalHandle> {
-    const file = spec.argv[0]
-    if (file === undefined || file.length === 0) {
-      throw new Error('subprocess-local: terminal argv must contain a program')
-    }
-    spec.signal?.throwIfAborted()
-    const options: IPtyForkOptions = {
-      name: 'dumb',
-      rows: spec.rows,
-      cols: spec.cols,
-      cwd: spec.cwd,
-      env: childEnv(spec.env),
-    }
-    const inspector = this.terminalInspector ?? createProcessInspector()
-    const terminal = nodePty.spawn(file, [...spec.argv.slice(1)], options)
-    const handle = new LocalTerminalHandle(terminal, inspector, spec.graceMs)
-    this.terminals.add(handle)
-    const release = async (): Promise<void> => {
-      await handle.terminate()
-      this.terminals.delete(handle)
-    }
-    handle.done.then(release, release).catch(() => {})
-    return handle
+  spawnTerminal(spec: SubprocessTerminalSpawnSpec): Promise<SubprocessTerminalHandle> {
+    return new Promise((resolve) => {
+      const file = spec.argv[0]
+      if (file === undefined || file.length === 0) {
+        throw new Error('subprocess-local: terminal argv must contain a program')
+      }
+      spec.signal?.throwIfAborted()
+      const options: IPtyForkOptions = {
+        name: 'dumb',
+        rows: spec.rows,
+        cols: spec.cols,
+        cwd: spec.cwd,
+        env: childEnv(spec.env),
+      }
+      const inspector = this.terminalInspector ?? createProcessInspector()
+      const terminal = nodePty.spawn(file, [...spec.argv.slice(1)], options)
+      const handle = new LocalTerminalHandle(terminal, inspector, spec.graceMs)
+      this.terminals.add(handle)
+      const release = async (): Promise<void> => {
+        await handle.terminate()
+        this.terminals.delete(handle)
+      }
+      handle.done.then(release, release).catch(() => {})
+      resolve(handle)
+    })
   }
 }
 

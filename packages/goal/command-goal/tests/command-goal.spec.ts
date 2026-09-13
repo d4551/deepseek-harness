@@ -29,7 +29,10 @@ function stubAgent(ctx: Context, id: string): { agent: Agent; session: Session }
     inbox,
     ctx: new Context(),
     get status() { return status },
-    send: () => {},
+    send(input, target, wakeup) {
+      if (wakeup) throw new Error('Goal command must leave waking to the round driver')
+      inbox.append(target, input)
+    },
     followup: () => {},
     steer: () => {},
     inject(input) { inbox.append('next-step', input) },
@@ -125,7 +128,10 @@ describe('/goal human command', () => {
     expect(created.text).toContain('Rounds: 0/256')
     expect(created.text).toContain('Activation: armed')
     expect(test.ctx.goals.get(test.agent)?.objective).toBe('finish the release')
-    expect(domainEvents(test.session).map(event => event.type)).toEqual(['goal/change'])
+    expect(domainEvents(test.session).map(event => event.type)).toEqual(['goal/change', 'agent/inbox/spliced'])
+    expect(test.agent.inbox.nextStep).toHaveLength(1)
+    expect(test.agent.inbox.nextStep[0]?.content).toEqual([{ type: 'text', text: '/goal\n  finish the release  ' }])
+    expect(test.agent.inbox.nextTurn).toEqual([])
 
     const count = domainEvents(test.session).length
     await expect(run(test, ' replacement')).resolves.toEqual({
@@ -272,40 +278,42 @@ describe('/goal image attachments', () => {
     return execution.result
   }
 
-  it('submits one user followup carrying the admitted images ahead of the round prompt', async () => {
+  it('queues one human instruction carrying the admitted images in the same step as the round prompt', async () => {
     const test = await harness()
     provideStore(test)
-    const followup = vi.fn()
-    ;(test.agent as unknown as { followup: typeof followup }).followup = followup
+    const send = vi.spyOn(test.agent, 'send')
     const result = await runWithImages(test, ' rebuild the cathedral', 2)
     expect(result.kind).toBe('success')
-    expect(followup).toHaveBeenCalledTimes(1)
-    const message = followup.mock.calls[0]?.[0] as {
-      content: ReadonlyArray<Record<string, unknown>>
-      source: { kind: string }
-    }
+    expect(send).toHaveBeenCalledTimes(1)
+    expect(test.agent.inbox.nextStep).toHaveLength(1)
+    expect(test.agent.inbox.nextTurn).toEqual([])
+    const message = test.agent.inbox.nextStep[0]
+    if (message === undefined) throw new Error('Expected the admitted human command')
+    expect(send).toHaveBeenCalledWith(message, 'next-step', false)
     expect(message.source).toEqual({ kind: 'user' })
     expect(message.content.map(block => block.type)).toEqual(['image', 'image', 'text'])
-    expect(message.content.at(-1)).toEqual({ type: 'text', text: 'Reference images for the goal objective.' })
-    expect((message.content[0] as { attachment: { name: string } }).attachment.name).toBe('ref-1.png')
+    expect(message.content.at(-1)).toEqual({ type: 'text', text: '/goal rebuild the cathedral' })
+    const first = message.content[0]
+    if (first?.type !== 'image') throw new Error('Expected the first admitted image')
+    expect(first.attachment?.name).toBe('ref-1.png')
   })
 
   it('accompanies an edit and a post-complete recreate the same way', async () => {
     const test = await harness()
     provideStore(test)
-    const followup = vi.fn()
-    ;(test.agent as unknown as { followup: typeof followup }).followup = followup
+    const send = vi.spyOn(test.agent, 'send')
     test.ctx.goals.create(test.agent, { objective: 'initial objective' })
     const result = await runWithImages(test, ' edit refined objective', 1)
     expect(result.kind).toBe('success')
-    expect(followup).toHaveBeenCalledTimes(1)
+    expect(send).toHaveBeenCalledTimes(1)
+    expect(test.agent.inbox.nextStep).toHaveLength(1)
+    expect(test.agent.inbox.nextStep[0]?.content.at(-1)).toEqual({ type: 'text', text: '/goal edit refined objective' })
   })
 
   it('rejects attachments on sub-commands that cannot use them, leaving the domain untouched', async () => {
     const test = await harness()
     provideStore(test)
-    const followup = vi.fn()
-    ;(test.agent as unknown as { followup: typeof followup }).followup = followup
+    const send = vi.spyOn(test.agent, 'send')
     test.ctx.goals.create(test.agent, { objective: 'active objective' })
     for (const suffix of [' pause', '', ' clear']) {
       const result = await runWithImages(test, suffix, 1)
@@ -314,18 +322,19 @@ describe('/goal image attachments', () => {
         text: 'Image attachments only accompany a goal objective: /goal <objective> or /goal edit <objective>.',
       })
     }
-    expect(followup).not.toHaveBeenCalled()
+    expect(send).not.toHaveBeenCalled()
+    expect(test.agent.inbox.nextStep).toEqual([])
     expect(test.ctx.goals.get(test.agent)?.phase).toBe('active')
   })
 
   it('does not submit attachments when goal creation is refused', async () => {
     const test = await harness()
     provideStore(test)
-    const followup = vi.fn()
-    ;(test.agent as unknown as { followup: typeof followup }).followup = followup
+    const send = vi.spyOn(test.agent, 'send')
     test.ctx.goals.create(test.agent, { objective: 'existing objective' })
     const result = await runWithImages(test, ' replacement objective', 1)
     expect(result.kind).toBe('error')
-    expect(followup).not.toHaveBeenCalled()
+    expect(send).not.toHaveBeenCalled()
+    expect(test.agent.inbox.nextStep).toEqual([])
   })
 })

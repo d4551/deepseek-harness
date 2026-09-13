@@ -201,16 +201,16 @@ type RosterMessageFrames = Exclude<WireFrameShapes[keyof WireFrameShapes], Names
  * (`MessageFrames extends RosterMessageFrames`) catches a frame added to a union
  * without a roster entry; reverse (`RosterMessageFrames extends MessageFrames`)
  * catches a frame removed from a union while the roster still lists it (e.g.
- * dropping `ReplyErr` from `ReplyMessage`). Either divergence makes an alias
- * `false`, failing the assignment below. Type-only; the `const`s emit nothing
- * meaningful at runtime.
+ * dropping `ReplyErr` from `ReplyMessage`). Either divergence makes the
+ * required field-role type `never`, so the real wire roster cannot compile.
  */
 type UnionSubsetOfRoster = [MessageFrames] extends [RosterMessageFrames] ? true : false
 type RosterSubsetOfUnion = [RosterMessageFrames] extends [MessageFrames] ? true : false
-const _unionSubsetOfRoster: UnionSubsetOfRoster = true
-const _rosterSubsetOfUnion: RosterSubsetOfUnion = true
-void _unionSubsetOfRoster
-void _rosterSubsetOfUnion
+type VerifiedFrameFieldRoles = UnionSubsetOfRoster extends true
+  ? RosterSubsetOfUnion extends true
+    ? { [K in keyof WireFrameShapes]: FrameFieldRoles<WireFrameShapes[K]> }
+    : never
+  : never
 
 /**
  * Each frame's wire fields tagged by required/optional, keyed by field name so
@@ -233,7 +233,7 @@ const WIRE_FRAME_FIELD_ROLES = {
   ErrorClass: { name: 'required', memberNameProperty: 'required' },
   ReplyOk: { type: 'required', id: 'required', ok: 'required', value: 'required' },
   ReplyErr: { type: 'required', id: 'required', ok: 'required', message: 'required' },
-} as const satisfies { [K in keyof WireFrameShapes]: FrameFieldRoles<WireFrameShapes[K]> }
+} as const satisfies VerifiedFrameFieldRoles
 
 /**
  * The wire field names of each frame, split into sorted required and optional

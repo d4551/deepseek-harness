@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -94,6 +94,14 @@ function text(result: Awaited<ReturnType<typeof execute>>): string {
   return result.content.flatMap(block => block.type === 'text' ? [block.text] : []).join('')
 }
 
+function waitCursor(result: Awaited<ReturnType<typeof execute>>): string {
+  const value: unknown = JSON.parse(text(result))
+  if (typeof value !== 'object' || value === null || !('cursor' in value) || typeof value.cursor !== 'string') {
+    throw new Error('wait result must contain an activity cursor')
+  }
+  return value.cursor
+}
+
 function spawnedChildId(result: Awaited<ReturnType<typeof execute>>): SessionId {
   const parsed: unknown = JSON.parse(text(result))
   if (typeof parsed !== 'object' || parsed === null || !('member' in parsed)) {
@@ -142,6 +150,118 @@ const MUTATING_CALLS: [string, Record<string, unknown>][] = [
 ]
 
 describe('dsh-tool-team', () => {
+  it('admits boardless delegated work, refuses circular waits, and exposes only meaningful progress', async () => {
+    const { ctx, lead } = await setup(['hang', 'hang'])
+    onTestFinished(async () => { await ctx.fiber.dispose() })
+    const first = await execute(ctx, lead, 'spawn_teammate', {
+      name: 'first-worker', description: 'first responsibility', prompt: 'stay active',
+    })
+    const second = await execute(ctx, lead, 'spawn_teammate', {
+      name: 'second-worker', description: 'second responsibility', prompt: 'stay active',
+    })
+    const firstAgent = await waitRunning(ctx, spawnedChildId(first))
+    const secondAgent = await waitRunning(ctx, spawnedChildId(second))
+    const boardless = execute(ctx, lead, 'wait_agent', {})
+    await vi.waitFor(() => { expect(ctx.agentTeams.listMembers(lead)[0]?.status).toBe('waiting') })
+    await ctx.agentTeams.createTask(lead, { subject: 'Required work', description: 'Keep unresolved work visible' })
+    const boardlessResult = await boardless
+    expect(boardlessResult.isError).toBe(false)
+    expect(JSON.parse(text(boardlessResult))).toMatchObject({ timedOut: false })
+    expect(JSON.parse(text(boardlessResult))).not.toHaveProperty('noProgress')
+    let settled = false
+    const waiting = execute(ctx, firstAgent, 'wait_agent', { timeout_ms: 10_000 }).then((result) => {
+      settled = true
+      return result
+    })
+    await vi.waitFor(() => { expect(ctx.agentTeams.listMembers(lead)[1]?.status).toBe('waiting') })
+    const roster = await execute(ctx, lead, 'list_agents', {})
+    expect(roster.isError).toBe(false)
+    expect(JSON.parse(text(roster))).toContainEqual(expect.objectContaining({ id: firstAgent.id, status: 'waiting' }))
+    const circular = await execute(ctx, secondAgent, 'wait_agent', { timeout_ms: 10_000 })
+    expect(circular.isError).toBe(false)
+    expect(JSON.parse(text(circular))).toMatchObject({ timedOut: false, noProgress: { reason: 'no-active-peer' } })
+    const duplicate = await execute(ctx, firstAgent, 'wait_agent', {})
+    expect(duplicate.isError).toBe(true)
+    expect(text(duplicate)).toContain('already has a coordination wait')
+    const changes = ctx.agentTeams.changes(lead, SIGNAL)[Symbol.asyncIterator]()
+    await changes.next()
+    const viewChanged = changes.next()
+    secondAgent.session.append('request/header', {
+      reason: 'initial', header: { config: { provider: 'mock', model: 'new-worker-model' } },
+    })
+    await expect(viewChanged).resolves.toMatchObject({ done: false })
+    secondAgent.session.append('session/title', { title: 'Worker title', source: { kind: 'user' }, messageSeqs: [] })
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    await ctx.agentTeams.sendMessage(secondAgent, {
+      target: 'first-worker', content: [{ type: 'text', text: 'The required result is ready for review.' }],
+      delivery: 'quiet', signal: SIGNAL,
+    })
+    const woke = await waiting
+    expect(woke.isError).toBe(false)
+    expect(JSON.parse(text(woke))).toEqual({ timedOut: false, cursor: waitCursor(woke) })
+    expect(JSON.parse(text(woke))).not.toHaveProperty('noProgress')
+    expect(ctx.agentTeams.listMembers(lead)[1]?.status).toBe('running')
+    expect(ctx.agentTeams.listTasks(lead)[0]?.status).toBe('pending')
+    await changes.return?.()
+  })
+
+  it('refuses repeated timeouts at the same activity cursor and permits waiting after task progress', async () => {
+    const { ctx, lead } = await setup(['hang'])
+    onTestFinished(async () => {
+      vi.useRealTimers()
+      await ctx.fiber.dispose()
+    })
+    const spawned = await execute(ctx, lead, 'spawn_teammate', {
+      name: 'working-owner', description: 'required responsibility', prompt: 'stay active',
+    })
+    const child = await waitRunning(ctx, spawnedChildId(spawned))
+    await ctx.agentTeams.createTask(lead, { subject: 'Required work', description: 'Must remain unresolved until verified' })
+    const claimed = await ctx.agentTeams.claimNextReadyTask(child)
+    if (claimed.outcome !== 'claimed') throw new Error('required task was not claimed')
+    vi.useFakeTimers()
+    const firstWait = execute(ctx, lead, 'wait_agent', { timeout_ms: 10_000 })
+    await vi.advanceTimersByTimeAsync(10_000)
+    const firstResult = await firstWait
+    expect(firstResult.isError).toBe(false)
+    const firstValue = { timedOut: true, cursor: waitCursor(firstResult) }
+    expect(JSON.parse(text(firstResult))).toEqual(firstValue)
+    child.session.append('request/header', {
+      reason: 'initial', header: { config: { provider: 'mock', model: 'renamed-model' } },
+    })
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const repeated = await execute(ctx, lead, 'wait_agent', { timeout_ms: 10_000 })
+      expect(repeated.isError).toBe(false)
+      expect(JSON.parse(text(repeated))).toMatchObject({
+        timedOut: false, cursor: firstValue.cursor,
+        noProgress: { reason: 'unchanged-progress', minimumTimeoutMs: 20_000, remainingTimeoutMs: 3_590_000 },
+      })
+    }
+    expect(ctx.agentTeams.getTask(lead, claimed.task.id)).toEqual(claimed.task)
+    const afterProgress = execute(ctx, lead, 'wait_agent', { timeout_ms: 20_000 })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(ctx.agentTeams.listMembers(lead)[0]?.status).toBe('waiting')
+    vi.useRealTimers()
+    await ctx.agentTeams.updateTask(child, {
+      taskId: claimed.task.id, expectedRevision: claimed.task.revision, action: 'complete',
+    })
+    const completed = await afterProgress
+    expect(completed.isError).toBe(false)
+    expect(JSON.parse(text(completed))).toMatchObject({ timedOut: false })
+    expect(JSON.parse(text(completed))).not.toHaveProperty('noProgress')
+    const pending = await ctx.agentTeams.createTask(lead, { subject: 'New responsibility', description: 'Keep pending after quiet budget' })
+    vi.useFakeTimers()
+    const wholeBudget = execute(ctx, lead, 'wait_agent', { timeout_ms: 3_600_000 })
+    await vi.advanceTimersByTimeAsync(3_600_000)
+    expect(JSON.parse(text(await wholeBudget))).toMatchObject({ timedOut: true })
+    const exhausted = await execute(ctx, lead, 'wait_agent', { timeout_ms: 3_600_000 })
+    expect(exhausted.isError).toBe(false)
+    expect(JSON.parse(text(exhausted))).toMatchObject({
+      timedOut: false, noProgress: { reason: 'unchanged-progress', remainingTimeoutMs: 0 },
+    })
+    expect(ctx.agentTeams.getTask(lead, pending.id)).toEqual(pending)
+  })
+
   it('installs the complete scoped schema and shared-checkout policy for roots and teammates', async () => {
     const { ctx, lead } = await setup(['hang'])
     const leadAssembly = await assembly(ctx, lead)
@@ -188,9 +308,10 @@ describe('dsh-tool-team', () => {
     expect(noProgress.isError).toBe(false)
     expect(JSON.parse(text(noProgress))).toEqual({
       timedOut: false,
+      cursor: waitCursor(noProgress),
       noProgress: {
         reason: 'no-active-peer',
-        message: 'No other Team member is running or provisioning. wait_agent cannot make progress or wake inactive teammates. Re-list with list_agents and team_task_list, then use followup_task to wake each required inactive teammate before waiting again.',
+        message: 'No required Team member can currently make progress: other members are waiting or inactive. Read the task board, perform ready work, or wake the required owner with followup_task. Do not repeat this wait without a concrete state change.',
       },
     })
     for (const timeout_ms of [9_999, 3_600_001, Number.MAX_SAFE_INTEGER + 1]) {
@@ -247,10 +368,10 @@ describe('dsh-tool-team', () => {
       write_scopes: ['src/team'],
     })
     const task = JSON.parse(text(created)) as { id: string; revision: number }
-    expect(renderPrompt(await assembly(ctx, lead)))
-      .toContain(`Your team's current task board: ${JSON.stringify(ctx.agentTeams.listTasks(lead))}`)
-    expect(renderPrompt(await assembly(ctx, child)))
-      .toContain(`Your team's current task board: ${JSON.stringify(ctx.agentTeams.listTasks(lead))}`)
+    expect(JSON.parse(text(await execute(ctx, lead, 'team_task_list', {}))))
+      .toEqual({ tasks: ctx.agentTeams.listTasks(lead) })
+    expect(JSON.parse(text(await execute(ctx, child, 'team_task_list', {}))))
+      .toEqual({ tasks: ctx.agentTeams.listTasks(lead) })
     const listed = await execute(ctx, child, 'team_task_list', { ready: true, limit: 1 })
     expect(JSON.parse(text(listed))).toMatchObject({ tasks: [{ id: task.id, ready: true }] })
     const read = await execute(ctx, child, 'team_task_get', { task_id: task.id })
@@ -261,8 +382,8 @@ describe('dsh-tool-team', () => {
       action: 'claim',
     })
     expect(JSON.parse(text(claimed))).toMatchObject({ status: 'in_progress', ownerName: 'json-worker' })
-    expect(renderPrompt(await assembly(ctx, lead)))
-      .toContain(`Your team's current task board: ${JSON.stringify(ctx.agentTeams.listTasks(child))}`)
+    expect(JSON.parse(text(await execute(ctx, lead, 'team_task_list', {}))))
+      .toEqual({ tasks: ctx.agentTeams.listTasks(child) })
     const stale = await execute(ctx, lead, 'team_task_update', {
       task_id: task.id,
       expected_revision: task.revision,
@@ -281,8 +402,8 @@ describe('dsh-tool-team', () => {
     await expect(wait).resolves.toMatchObject({ isError: false })
     expect((await completedCall).isError).toBe(false)
     expect(ctx.agentTeams.listTasks(lead)).toMatchObject([{ id: task.id, status: 'completed', ownerName: 'json-worker' }])
-    expect(renderPrompt(await assembly(ctx, lead)))
-      .toContain(`Your team's current task board: ${JSON.stringify(ctx.agentTeams.listTasks(lead))}`)
+    expect(JSON.parse(text(await execute(ctx, lead, 'team_task_list', {}))))
+      .toEqual({ tasks: ctx.agentTeams.listTasks(lead) })
 
     const childInterrupt = await execute(ctx, child, 'interrupt_agent', { target: 'json-worker' })
     expect(childInterrupt.isError).toBe(true)

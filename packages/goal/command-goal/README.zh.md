@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-command-goal` 为用户提供基于持久 goal 服务的 `/goal` 命令：用户可以直接在 UI 中创建、编辑、暂停、恢复、清除并查看当前 goal，无需模型参与。命令在其 Cordis scope 中注册，因此读取该 scope 的命令适配器能发现并执行它；命令文本与输出都留在 UI 中——绝不进入模型请求。每项被接受的变更都会通过 goal 服务的持久 `goal/change` 事件落盘。图片附件可以随 create 或 edit 一起提交，并以一条普通用户消息发出，供后续 Goal Round 读取。为挂载了命令适配器的交互式部署选择它；没有适配器的无头与自动化应用不需要它。
+`dsh-command-goal` 为用户提供基于持久 goal 服务的 `/goal` 命令：用户可以直接在 UI 中创建、编辑、暂停、恢复、清除并查看当前 goal。命令在其 Cordis scope 中注册，读取该 scope 的命令适配器能发现并执行它。每项被接受的变更都会通过持久 `goal/change` 事件落盘。成功的 create、edit 和 resume 还会将用户指令排入下一个 goal 步骤；已准入的图片附在同一条消息中。状态、暂停、清除和错误输出留在 UI 中。为挂载了命令适配器的交互式部署选择它；没有适配器的无头与自动化应用不需要它。
 
 ## 目录
 
@@ -46,7 +46,7 @@ kind: "package-reference"
 
 ### 图片附件
 
-`/goal` 声明了图片支持，因此 composer 可以随调用附加图片。附件只随目标本身：create 或 edit 成功时，命令提交一条用户 followup 消息，携带已准入的图片块加固定文本 `Reference images for the goal objective.`，后续 Goal Round 从普通会话历史读取它们，goal 领域不存储附件状态。其他任何子命令、以及被拒绝的 create 或 edit，都直接返回错误且不提交任何消息，分发方 composer 保留图片。
+`/goal` 声明了图片支持。附件只随目标本身：create 或 edit 成功时，一条用户消息携带已准入的图片块和完整命令文本，排入 `next-step`，但不会唤醒 agent。goal 驱动器提供轮次提示词并唤醒 agent，两条输入进入同一个模型步骤。暂停状态下的 edit 会等待后续唤醒。其他子命令拒绝图片，被拒绝的变更不提交工作消息，分发方 composer 保留图片。
 
 ### 组合方式
 
@@ -77,7 +77,7 @@ kind: "package-reference"
 
 - **语法，而非自由文本。** 解析器只在控制词（`clear`、`pause`、`resume`、`edit`）填满整个输入时识别它们；其他任何非空后缀都是目标。单独的 `edit` 无效，且 `edit` 拒绝直接替换未完成的 goal。
 - **领域拒绝变成稳定错误。** `GoalError` 结果会转换为带固定消息的直接命令错误；意外失败会重新抛出，使适配器报告命令失败而非领域结果。渲染输出绝不暴露带品牌类型的 id 或 revision。
-- **附件随目标而行。** create 或 edit 成功时，命令提交一条用户 followup 消息，携带已准入的图片块加固定文本 `Reference images for the goal objective.`；其他路径都不提交任何消息，因此分发方 composer 保留图片。
+- **用户指令加入 goal 步骤。** 成功的 create、edit 和 resume 将完整命令作为用户输入排队，不主动唤醒驱动器。create 和 edit 同时携带已准入的图片。goal 驱动器在下一轮领取这些输入；部署策略可以验证实时用户提交并持久记录对应模型请求。被拒绝的命令不发布工作输入。
 
 ### 源码地图
 
@@ -108,15 +108,15 @@ kind: "package-reference"
 
 #### 模型看到的内容
 
-斜杠输入、变更以及直接状态／错误输出不会进入模型请求。goal 领域把变更记录为 `goal/change`；已启用的同会话驱动器可以在后续续行提示词中暴露结果状态。呈现文本绝不会记录到日志中。当 create 或 edit 携带图片附件时，模型会看到一条普通用户消息：图片块后跟文本 `Reference images for the goal objective.`，在会话历史中位于下一个 Goal Round 之前。
+goal 领域把变更记录为 `goal/change`。成功的 create、edit 和 resume 还提供一条普通用户消息，包含完整命令文本；create 和 edit 的图片块位于文本之前。该消息加入 goal 驱动器的下一个步骤。状态、暂停、清除和直接错误输出不增加模型消息。
 
 #### Token 影响
 
-读取状态、变更 goal 或收到直接命令错误不会增加模型 token。已启用的同会话驱动器可能增加后续 Goal Round 提示词。目标携带的图片附件会增加一条用户消息，其计费与任何图片提示词相同。
+读取状态、暂停、清除或收到直接命令错误不会增加模型 token。成功的 create、edit 和 resume 指令进入普通请求历史，图片随该用户消息计费。排入这条输入不会单独产生模型请求。
 
 #### KV Cache 影响
 
-命令发现、变更与直接输出不会影响缓存。后续续行提示词遵循驱动器的普通请求历史。
+命令发现与直接输出不影响缓存。被接受的用户指令和后续轮次提示词追加到普通请求历史，系统策略保持稳定。
 
 ## 已知限制与延期工作
 

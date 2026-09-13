@@ -4,14 +4,229 @@ import type { Events } from '@deepseek-ai/cordis'
 import { bindScopeParent, createScope } from '@deepseek-ai/dsh-scope'
 import type { Scope } from '@deepseek-ai/dsh-scope'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
-import ToolRuntime from '@deepseek-ai/dsh-tools'
-import type { PreToolDecision, ToolDefinition, ToolExecution, ToolExecutionInput, ToolExecutionToken } from '@deepseek-ai/dsh-tools'
+import ToolRuntime, { defineTool } from '@deepseek-ai/dsh-tools'
+import type { JsonSchemaNode, PreToolDecision, ToolDefinition, ToolExecution, ToolExecutionInput, ToolExecutionToken, ToolOutputDefinition } from '@deepseek-ai/dsh-tools'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 
 const testToolSignal = new AbortController().signal
+
+describe('registration-owned workspace effects', () => {
+  it('seals the reserved code transport against public effect, body and output mutation', async () => {
+    const ctx = await mount()
+    const { scope, key } = await mintAgentScope(ctx, 'sealed-code-transport')
+    scope.ctx.tools.presentAs('both')
+    const definition = ctx.tools.get('run_code', key)
+    if (definition === undefined) throw new Error('missing reserved code transport')
+    expect(Reflect.set(definition, 'directWorkspaceEffect', 'none')).toBe(false)
+    expect(Reflect.set(definition, 'execute', () => Promise.resolve('replacement'))).toBe(false)
+    expect(Reflect.set(definition.output, 'render', () => [{ type: 'text', text: 'replacement' }])).toBe(false)
+    expect(Reflect.set(definition.output.schema, 'type', 'string')).toBe(false)
+    const effects: (string | undefined)[] = []
+    ctx.on('tools/pre-execute', (exec, next) => { effects.push(exec.directWorkspaceEffect); return next() })
+    expect(await run(ctx, 'run_code', key)).toContain('invalid arguments')
+    expect(effects).toEqual([undefined])
+    expect(ctx.tools.get('run_code', key)).toBe(definition)
+  })
+
+  it('retains the typed argument validator when public and original schema objects are mutated', async () => {
+    const ctx = await mount()
+    const path = { type: 'string', required: true } satisfies { type: 'string'; required: true }
+    const definition = defineTool({
+      name: 'typed_contract', description: 'typed contract', parameters: { path },
+      output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
+      execute: args => Promise.resolve(args.path),
+    })
+    ctx.tools.register(definition)
+    const properties: unknown = Reflect.get(definition.parameters, 'properties')
+    if (properties === null || typeof properties !== 'object') throw new Error('missing parameter properties')
+    const compiledPath: unknown = Reflect.get(properties, 'path')
+    if (compiledPath === null || typeof compiledPath !== 'object') throw new Error('missing path schema')
+    expect(Reflect.set(compiledPath, 'type', 'number')).toBe(false)
+    expect(Reflect.set(path, 'type', 'number')).toBe(true)
+    const accepted = await ctx.tools.execute({
+      signal: testToolSignal, callId: ToolCallId('valid-typed'), name: 'typed_contract', arguments: { path: 'expected' },
+    })
+    expect(accepted).toEqual({ isError: false, value: 'expected', content: [{ type: 'text', text: 'expected' }] })
+    const denied = await ctx.tools.execute({
+      signal: testToolSignal, callId: ToolCallId('invalid-typed'), name: 'typed_contract', arguments: { path: 42 },
+    })
+    expect(denied).toMatchObject({
+      isError: true,
+      error: { message: 'invalid arguments: "path" must be a string', info: { code: 'INVALID_ARGS', name: 'ToolArgsError' } },
+    })
+    expect(ctx.tools.schemas()[0]?.parameters).toEqual({
+      type: 'object', properties: { path: { type: 'string' } }, required: ['path'],
+    })
+  })
+
+  it('retains one immutable host declaration through every stage and excludes it from schemas', async () => {
+    const ctx = await mount()
+    const observed: (string | undefined)[] = []
+    const inspect = (exec: ToolExecution): void => {
+      observed.push(exec.directWorkspaceEffect)
+      expect(Reflect.set(exec, 'directWorkspaceEffect', 'write')).toBe(false)
+      expect(Reflect.deleteProperty(exec, 'directWorkspaceEffect')).toBe(false)
+      expect(Reflect.defineProperty(exec, 'directWorkspaceEffect', { value: 'write' })).toBe(false)
+    }
+    ctx.tools.register(defineTool({
+      name: 'state_create', description: 'Store session state', directWorkspaceEffect: 'none', parameters: {},
+      output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
+      execute: (_args, exec) => { inspect(exec); return Promise.resolve('stored') },
+    }))
+    ctx.on('tools/pre-execute', (exec, next) => { inspect(exec); return next() })
+    ctx.on('tools/execute', (exec, next) => { inspect(exec); return next() })
+    ctx.on('tools/post-execute', (exec, _result, next) => { inspect(exec); return next() })
+    ctx.on('tools/result', (exec) => { inspect(exec) })
+    expect(await run(ctx, 'state_create')).toBe('stored')
+    expect(observed).toEqual(['none', 'none', 'none', 'none', 'none'])
+    expect(ctx.tools.schemas()).toEqual([{
+      name: 'state_create', description: 'Store session state', parameters: { type: 'object', properties: {} },
+    }])
+  })
+
+  it('takes authority from the selected scope rather than a same-name global declaration', async () => {
+    const ctx = await mount()
+    const { scope, key } = await mintAgentScope(ctx, 'effects')
+    ctx.tools.register({ ...tool('global_marked'), directWorkspaceEffect: 'none' })
+    scope.ctx.tools.register(tool('global_marked'))
+    ctx.tools.register(tool('local_marked'))
+    scope.ctx.tools.register({ ...tool('local_marked'), directWorkspaceEffect: 'none' })
+    ctx.tools.register({ ...tool('hidden'), directWorkspaceEffect: 'none' })
+    scope.ctx.tools.restrict({ deny: ['hidden'] })
+    const effects: (string | undefined)[] = []
+    ctx.on('tools/pre-execute', (exec, next) => { effects.push(exec.directWorkspaceEffect); return next() })
+    await run(ctx, 'global_marked', key)
+    await run(ctx, 'local_marked', key)
+    expect(await run(ctx, 'hidden', key)).toBe('Error: unknown tool "hidden"')
+    await run(ctx, 'global_marked')
+    expect(effects).toEqual([undefined, 'none', undefined, 'none'])
+  })
+
+  it('does not trust caller metadata, argument metadata, or later definition mutation', async () => {
+    const ctx = await mount()
+    const definition = tool('unmarked_create')
+    ctx.tools.register(definition)
+    Reflect.set(definition, 'directWorkspaceEffect', 'none')
+    const effects: (string | undefined)[] = []
+    ctx.on('tools/pre-execute', (exec, next) => { effects.push(exec.directWorkspaceEffect); return next() })
+    const input = {
+      signal: testToolSignal, callId: ToolCallId('forged-effect'), name: 'unmarked_create',
+      arguments: { directWorkspaceEffect: 'none' }, directWorkspaceEffect: 'none',
+    }
+    expect((await ctx.tools.execute(input)).isError).toBe(false)
+    expect(effects).toEqual([undefined])
+    Reflect.set(definition, 'execute', () => Promise.resolve('replacement body'))
+    expect(await run(ctx, 'unmarked_create')).toBe('ran:unmarked_create')
+  })
+
+  it.each(['pre', 'around'])('rejects a removed and re-registered implementation during %s even with the same object', async (phase) => {
+    const ctx = await mount()
+    let bodies = 0
+    const definition = {
+      ...tool('state_create'), directWorkspaceEffect: 'none',
+      execute: () => { bodies += 1; return Promise.resolve('stored') },
+    } satisfies ToolDefinition
+    const dispose = ctx.tools.register(definition)
+    const change = (): void => { dispose(); ctx.tools.register(definition) }
+    if (phase === 'pre') ctx.on('tools/pre-execute', (_exec, next) => { change(); return next() })
+    else ctx.on('tools/execute', (_exec, next) => { change(); return next() })
+    expect(await run(ctx, 'state_create')).toBe('Error: unknown tool "state_create"')
+    expect(bodies).toBe(0)
+  })
+
+  it.each(['shadow', 'restrict', 'collapse'])('rejects a newly %s registration at dispatch', async (change) => {
+    const ctx = await mount()
+    const { scope, key } = await mintAgentScope(ctx, 'dispatch-change')
+    let bodies = 0
+    ctx.tools.register({
+      ...tool('state_create'), directWorkspaceEffect: 'none',
+      execute: () => { bodies += 1; return Promise.resolve('stored') },
+    })
+    ctx.on('tools/execute', (_exec, next) => {
+      if (change === 'shadow') scope.ctx.tools.register(tool('state_create', 'untrusted replacement'))
+      else if (change === 'restrict') scope.ctx.tools.restrict({ deny: ['state_create'] })
+      else scope.ctx.tools.presentAs('ptc')
+      return next()
+    })
+    expect(await run(ctx, 'state_create', key)).toBe('Error: unknown tool "state_create"')
+    expect(bodies).toBe(0)
+  })
+
+  it('rejects invalid registered effect metadata before publishing the tool', async () => {
+    const ctx = await mount()
+    const definition = tool('invalid_create')
+    Reflect.set(definition, 'directWorkspaceEffect', 'read')
+    expect(() => ctx.tools.register(definition)).toThrow('directWorkspaceEffect must be none when declared')
+    expect(ctx.tools.get('invalid_create')).toBeUndefined()
+  })
+
+  it('retains nested input and output schema contracts independently of the original objects', async () => {
+    const ctx = await mount()
+    const parameter = { type: 'string' }
+    const schema: JsonSchemaNode = { type: 'object', properties: { value: { type: 'string' } } }
+    ctx.tools.register({
+      ...tool('contract'), parameters: { type: 'object', properties: { value: parameter } },
+      output: { schema, render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }] },
+      execute: () => Promise.resolve({ value: 42 }),
+    })
+    Reflect.set(parameter, 'type', 'number')
+    if (schema.properties === undefined) throw new Error('missing test schema properties')
+    Reflect.set(schema.properties, 'value', { type: 'number' })
+    expect(ctx.tools.schemas()[0]?.parameters).toEqual({ type: 'object', properties: { value: { type: 'string' } } })
+    expect(await run(ctx, 'contract')).toContain('returned invalid output')
+  })
+
+  it('retains class methods and their original receiver for execution and output projection', async () => {
+    const ctx = await mount()
+    class Output implements ToolOutputDefinition {
+      schema: JsonSchemaNode = { type: 'string' }
+      #prefix = 'rendered:'
+      render(_args: unknown, value: unknown): { type: 'text'; text: string }[] {
+        return [{ type: 'text', text: `${this.#prefix}${String(value)}` }]
+      }
+    }
+    class Definition implements ToolDefinition {
+      name = 'class_tool'
+      description = 'class registration'
+      parameters = { type: 'object', properties: {} }
+      output = new Output()
+      #reply = 'class result'
+      execute(): Promise<string> { return Promise.resolve(this.#reply) }
+    }
+    ctx.tools.register(new Definition())
+    expect(await run(ctx, 'class_tool')).toBe('rendered:class result')
+  })
+
+  it.each([
+    ['post', 'reregister'], ['post', 'shadow'], ['around', 'reregister'], ['around', 'shadow'],
+  ])('rejects a %s-authored success after a %s changes the registration owner', async (phase, change) => {
+    const ctx = await mount()
+    const { scope, key } = await mintAgentScope(ctx, 'result-owner')
+    const definition = { ...tool('owned_result'), directWorkspaceEffect: 'none' } satisfies ToolDefinition
+    const dispose = ctx.tools.register(definition)
+    const replace = (): void => {
+      if (change === 'reregister') { dispose(); ctx.tools.register(definition) }
+      else scope.ctx.tools.register(tool('owned_result'))
+    }
+    if (phase === 'post') {
+      ctx.on('tools/post-execute', (exec) => {
+        expect(exec.directWorkspaceEffect).toBe('none')
+        replace()
+        return Promise.resolve({ kind: 'accept', value: 'replacement' })
+      })
+    } else {
+      ctx.on('tools/execute', (exec) => {
+        expect(exec.directWorkspaceEffect).toBe('none')
+        replace()
+        return Promise.resolve({ isError: false, value: 'replacement', content: [] })
+      })
+    }
+    expect(await run(ctx, 'owned_result', key)).toBe('Error: unknown tool "owned_result"')
+  })
+})
 
 /** Mount the registry (with its systemPrompt dependency) on a fresh context. */
 async function mount(): Promise<Context> {

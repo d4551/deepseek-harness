@@ -7,10 +7,24 @@ interface Waiter {
   readonly resolve: () => void
 }
 
+/** Maximum duration of one coordination wait or one unchanged-progress budget. */
+export const MAX_TEAM_WAIT_MS = 3_600_000
+
+/**
+ * Validate the shared one-shot wait duration before admission.
+ * @param timeoutMs - requested duration in milliseconds.
+ */
+export function assertWaitTimeout(timeoutMs: number): void {
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 10_000 || timeoutMs > MAX_TEAM_WAIT_MS) {
+    throw new TeamError('timeoutMs must be an integer from 10000 through 3600000', 'TEAM_INVALID_TIMEOUT')
+  }
+}
+
 /** Owns current Team change waiters and releases each at most once. */
 export class TeamActivity {
   private readonly waiters = new Map<TeamId, Set<Waiter>>()
   private readonly observers = new Map<TeamId, Set<() => void>>()
+  private readonly revisions = new Map<TeamId, number>()
   private closed = false
 
   /**
@@ -77,9 +91,7 @@ export class TeamActivity {
    * @returns whether the wait ended by timeout.
    */
   async wait(id: TeamId, timeoutMs: number, signal: AbortSignal): Promise<TeamWaitResult> {
-    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 10_000 || timeoutMs > 3_600_000) {
-      throw new TeamError('timeoutMs must be an integer from 10000 through 3600000', 'TEAM_INVALID_TIMEOUT')
-    }
+    assertWaitTimeout(timeoutMs)
     signal.throwIfAborted()
     if (this.closed) return { timedOut: false }
     const changed = await new Promise<boolean>((resolve, reject) => {
@@ -125,11 +137,29 @@ export class TeamActivity {
    * @param id - Team whose current waiters observe the change.
    */
   notify(id: TeamId): void {
-    for (const observer of this.observers.get(id) ?? []) observer()
+    this.revisions.set(id, this.revision(id) + 1)
+    this.invalidate(id)
     const waiters = this.waiters.get(id)
     if (waiters === undefined) return
     this.waiters.delete(id)
     for (const waiter of waiters) waiter.resolve()
+  }
+
+  /**
+   * Refresh Remote views without claiming that coordination work progressed.
+   * @param id - Team whose views need a new projection.
+   */
+  invalidate(id: TeamId): void {
+    for (const observer of this.observers.get(id) ?? []) observer()
+  }
+
+  /**
+   * Read the latest meaningful activity cursor for one Team.
+   * @param id - Team whose progress is observed.
+   * @returns the number of meaningful activity notifications for that Team.
+   */
+  revision(id: TeamId): number {
+    return this.revisions.get(id) ?? 0
   }
 
   /** Close admission and wake every current waiter during runtime disposal. */

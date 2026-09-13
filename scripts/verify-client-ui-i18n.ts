@@ -8,7 +8,7 @@
  */
 
 import { globSync, readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { basename, resolve } from 'node:path'
 import type {
   BindingName,
   CallExpression,
@@ -51,7 +51,7 @@ import {
   isTemplateExpression,
   isVariableDeclaration,
 } from 'typescript/unstable/ast/is'
-import { createSourceFile } from './ts7-session.ts'
+import { callDeclarationOrigin, createSourceFile } from './ts7-session.ts'
 
 const root = resolve(import.meta.dirname, '..')
 const MINIMUM_CLIENT_UI_SOURCES = 450
@@ -247,6 +247,15 @@ const TEXT_SINK_METHODS = new Map([
 
 /** Methods that paint every string argument they are handed. */
 const TEXT_SINK_VARIADICS = new Set(['append', 'prepend', 'replaceChildren', 'before', 'after'])
+
+/** DOM selector arguments locate elements; the returned element or boolean carries no copy. */
+function hasDomSelectorArgument(node: CallExpression): boolean {
+  if (!isPropertyAccessExpression(node.expression)
+    || !['closest', 'matches', 'querySelector', 'querySelectorAll'].includes(node.expression.name.text)) return false
+  const origin = callDeclarationOrigin(node)
+  return origin?.defaultLibrary === true
+    && basename(origin.declaration.getSourceFile().fileName) === 'lib.dom.d.ts'
+}
 
 /**
  * Text a call paints, if it paints any.
@@ -584,6 +593,11 @@ export function findUiI18nViolations(file: string, sourceText: string): UiI18nVi
         && /^use\w*State$/.test(node.expression.getText(source))
       if (isCallExpression(node) && (isSetterCall || isStateSeed)) {
         const literals = (inner: Node): void => {
+          if (isCallExpression(inner) && hasDomSelectorArgument(inner)) {
+            literals(inner.expression)
+            for (const argument of inner.arguments.slice(1)) literals(argument)
+            return
+          }
           if ((isStringLiteral(inner) || isNoSubstitutionTemplateLiteral(inner))
             && !isMachineToken(inner.text)) {
             report(inner, inner.text, `${node.expression.getText(source)}() state copy`, true)

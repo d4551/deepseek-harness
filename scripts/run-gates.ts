@@ -213,9 +213,9 @@ function bunExec(id: string, args: string[], options: Partial<Gate> = {}): Gate 
 export function gatesForMode(selected: Mode): Gate[] {
   switch (selected) {
     case 'ci-primary':
-      return ciPrimaryGates()
+      return orderMutationSnapshot(ciPrimaryGates())
     case 'ci-linux-primary':
-      return [...ciPrimaryGates(), webSnapshotGate(['built-package-invariants'])]
+      return orderMutationSnapshot([...ciPrimaryGates(), webSnapshotGate(['built-package-invariants'])])
     case 'ci-static':
       return ciStaticGates({ ownsBuild: false })
     case 'ci-lint-contracts-ready':
@@ -240,7 +240,7 @@ export function gatesForMode(selected: Mode): Gate[] {
     case 'node-compat':
       return nodeCompatGates()
     case 'check-all':
-      return [
+      return orderMutationSnapshot([
         bunScript('runtime-closure', 'verify-runtime-closure', { label: 'runtime closure' }),
         bunScript('cordis-config', 'verify-cordis-config', { label: 'Cordis config' }),
         bunScript('client-domain-graph', 'verify-client-domain-graph', { label: 'client domain graph' }),
@@ -259,7 +259,7 @@ export function gatesForMode(selected: Mode): Gate[] {
           docTypecheckScript: 'doc-typecheck:contracts-ready',
         }),
         bunScript('module-graph', 'verify-module-graph', { label: 'module graph' }),
-      ]
+      ])
     case 'hygiene':
       return [
         ...hygieneLeafGates(),
@@ -272,6 +272,18 @@ export function gatesForMode(selected: Mode): Gate[] {
     case 'doc-quick':
       return docQuickLeafGates()
   }
+}
+
+/**
+ * Stryker copies the checkout, including generated documentation and build
+ * outputs. Every sibling must settle before that snapshot begins; failed
+ * writers remain failures while mutation still receives a stable tree.
+ */
+function orderMutationSnapshot(gates: Gate[]): Gate[] {
+  const mutation = gates.find(gate => gate.id === 'mutation')
+  if (mutation === undefined) throw new Error('run-gates: mutation snapshot gate is missing.')
+  mutation.after = gates.filter(gate => gate !== mutation).map(gate => gate.id)
+  return gates
 }
 
 function ciSharedStaticGates(): Gate[] {

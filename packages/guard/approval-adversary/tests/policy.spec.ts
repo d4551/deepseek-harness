@@ -17,7 +17,7 @@ it('publishes stable plugin identity and verdict accounting metadata', () => {
 
 it('resolves omitted composition settings through the persisted schema', () => {
   expect(Config({})).toEqual({ enabled: false, timeoutMs: 30_000, maxOutputTokens: 256, maxEvidenceChars: 4000, instructions: '' })
-  expect(Adversary.APPROVAL_ADVERSARY_SETTINGS_SCHEMA).toBe(Config)
+  expect(Adversary.Config).toBe(Config)
 })
 
 it.each([

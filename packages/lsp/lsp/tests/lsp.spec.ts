@@ -66,7 +66,7 @@ describe('Lsp registration', () => {
     await expect(lsp.query(query('a.ts'))).resolves.toEqual({ kind: 'locations', locations: [], resolvedWorkspaceUri: 'file:///ws' })
     expect(provider.seen[0]).toMatchObject({ filePath: 'a.ts', languageId: 'typescript' })
 
-    dispose()
+    await dispose()
     await expect(lsp.query(query('a.ts'))).rejects.toThrow(expect.objectContaining({ code: 'LSP_UNAVAILABLE' }))
   })
 
@@ -135,7 +135,7 @@ describe('Lsp registration', () => {
   it('releases every extension and the id together on dispose', async () => {
     const { lsp } = await mountLsp()
     const dispose = lsp.registerProvider(makeProvider('multi', { '.ts': 'typescript', '.tsx': 'typescriptreact' }))
-    dispose()
+    await dispose()
     await expect(lsp.query(query('a.ts'))).rejects.toThrow(expect.objectContaining({ code: 'LSP_UNAVAILABLE' }))
     await expect(lsp.query(query('a.tsx'))).rejects.toThrow(expect.objectContaining({ code: 'LSP_UNAVAILABLE' }))
     // The id is free again after release.

@@ -260,7 +260,7 @@ describe('the session-persistence Agent Note: AgentLoop factory create/resume', 
     const adapter1 = new MockAdapter([textResponse('a')])
     const { ctx: ctx1, root } = await persistentHarness(adapter1)
     const sources1: string[] = []
-    ctx1.on('agent/session-start', ({ source }) => void sources1.push(source))
+    ctx1.on('agent/session-start', ({ source }) => { sources1.push(source) })
     const a1 = (await ctx1.agents.create({ sessionId: SessionId('start-sess') })).agent
     expect(sources1).toEqual(['startup'])
     a1.followup(createUserMessage({ content: [{ type: 'text', text: 'q' }], source: { kind: 'user' } }))
@@ -279,7 +279,7 @@ describe('the session-persistence Agent Note: AgentLoop factory create/resume', 
     await ctx2.plugin(JsonlSessionPersistence, { root })
     ctx2.llm.registerAdapter(['mock'], adapter2)
     const sources2: string[] = []
-    ctx2.on('agent/session-start', ({ source }) => void sources2.push(source))
+    ctx2.on('agent/session-start', ({ source }) => { sources2.push(source) })
     await ctx2.agents.resume({ resumeSessionId: SessionId('start-sess') })
     expect(sources2).toEqual(['resume'])
     await ctx2.fiber.dispose()
@@ -314,8 +314,8 @@ describe('the session-persistence Agent Note: AgentLoop factory create/resume', 
         expect(agentCtx.agent?.id).toBe(sessionId)
         // The two persisted events plus the end-seed marker.
         expect(agentCtx.agent?.session.events).toHaveLength(3)
-        agentCtx.on('session/created', () => void order.push('setup-listener:session/created'))
-        agentCtx.on('agent/created', () => void order.push('setup-listener:agent/created'))
+        agentCtx.on('session/created', () => { order.push('setup-listener:session/created') })
+        agentCtx.on('agent/created', () => { order.push('setup-listener:agent/created') })
         order.push('setup:start')
         setupStarted.resolve(undefined)
         await gate.promise
@@ -372,9 +372,9 @@ describe('the session-persistence Agent Note: AgentLoop factory create/resume', 
     const root = await persistSession(sessionId)
     const ctx = await mountPersistentHarness(root, new MockAdapter([textResponse('next')]))
     const published: string[] = []
-    ctx.on('session/created', () => void published.push('session/created'))
-    ctx.on('agent/created', () => void published.push('agent/created'))
-    ctx.on('agent/session-start', () => void published.push('agent/session-start'))
+    ctx.on('session/created', () => { published.push('session/created') })
+    ctx.on('agent/created', () => { published.push('agent/created') })
+    ctx.on('agent/session-start', () => { published.push('agent/session-start') })
 
     await expect(ctx.agents.resume({
       resumeSessionId: sessionId,
@@ -401,8 +401,8 @@ describe('the session-persistence Agent Note: AgentLoop factory create/resume', 
     const root = await persistSession(sessionId)
     const ctx = await mountPersistentHarness(root, new MockAdapter([textResponse('next')]))
     const published: string[] = []
-    ctx.on('session/created', () => void published.push('session/created'))
-    ctx.on('agent/created', () => void published.push('agent/created'))
+    ctx.on('session/created', () => { published.push('session/created') })
+    ctx.on('agent/created', () => { published.push('agent/created') })
 
     await expect(ctx.agents.resume({
       resumeSessionId: sessionId,
@@ -430,8 +430,8 @@ describe('the session-persistence Agent Note: AgentLoop factory create/resume', 
     const gate = Promise.withResolvers<undefined>()
     const setupStarted = Promise.withResolvers<undefined>()
     const published: string[] = []
-    ctx.on('session/created', () => void published.push('session/created'))
-    ctx.on('agent/created', () => void published.push('agent/created'))
+    ctx.on('session/created', () => { published.push('session/created') })
+    ctx.on('agent/created', () => { published.push('agent/created') })
 
     let resuming!: ReturnType<typeof ctx.agents.resume>
     const owner = await ctx.plugin(Object.assign((inner: Context) => {
@@ -479,9 +479,9 @@ describe('the session-persistence Agent Note: AgentLoop factory create/resume', 
     }
 
     const published: string[] = []
-    ctx.on('session/created', () => void published.push('session/created'))
-    ctx.on('agent/created', () => void published.push('agent/created'))
-    ctx.on('agent/session-start', () => void published.push('agent/session-start'))
+    ctx.on('session/created', () => { published.push('session/created') })
+    ctx.on('agent/created', () => { published.push('agent/created') })
+    ctx.on('agent/session-start', () => { published.push('agent/session-start') })
 
     let resuming!: ReturnType<typeof ctx.agents.resume>
     const owner = await ctx.plugin(Object.assign((inner: Context) => {
@@ -539,8 +539,8 @@ describe('the session-persistence Agent Note: AgentLoop factory create/resume', 
       return latePreparation.promise
     }
     const published: string[] = []
-    ctx.on('session/created', () => void published.push('session/created'))
-    ctx.on('agent/created', () => void published.push('agent/created'))
+    ctx.on('session/created', () => { published.push('session/created') })
+    ctx.on('agent/created', () => { published.push('agent/created') })
 
     const resuming = ctx.agents.resume({ resumeSessionId: sessionId, agentOptions: { provider: 'mock', model: 'mock' } })
     await preparationStarted.promise

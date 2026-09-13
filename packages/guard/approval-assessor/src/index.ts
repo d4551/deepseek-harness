@@ -45,9 +45,6 @@ export const Config: z<Config, ApprovalAssessorSettings> = z.object({
 /** Settings namespace served to Host configuration surfaces. */
 export const APPROVAL_ASSESSOR_SETTINGS_NAMESPACE = settingsNamespace('approval-assessor')
 
-/** Schema for the complete user-owned approval-assessor policy. */
-export const APPROVAL_ASSESSOR_SETTINGS_SCHEMA: z<ApprovalAssessorSettings> = Config
-
 /**
  * Evasion patterns in approval reasons: phrases that signal the agent is
  * asking permission to avoid work the user already instructed it to do.
@@ -184,7 +181,7 @@ export function apply(ctx: Context, config: Config = {}): void {
   installSettingsSection(
     ctx,
     APPROVAL_ASSESSOR_SETTINGS_NAMESPACE,
-    APPROVAL_ASSESSOR_SETTINGS_SCHEMA,
+    Config,
     entry,
     {
       flow: AGENT_REVIEW_SETTINGS_FLOW,

@@ -1,8 +1,9 @@
 /** Unified JSON-value schema DSL, inference, compilation, and typed tool helper. @module dsh-tools/schema */
 
-import { HarnessError } from '@deepseek-ai/dsh-llm'
+import { deepFreeze, HarnessError } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { JsonValue } from '@deepseek-ai/dsh-session'
+import { snapshotJsonValue } from '@deepseek-ai/dsh-session'
 import type { ToolDefinition, ToolExecution, ToolExecutionResult, ToolRunContext, ToolResult } from './index.ts'
 import { assertSupportedJsonSchema, isJsonSchemaRecord, isPlainJsonArray, JsonSchemaError, validateJsonSchemaValue } from './json-schema.ts'
 import type { JsonSchemaNode, JsonSchemaScalar, ObjectJsonSchema } from './json-schema.ts'
@@ -481,6 +482,8 @@ export function validateArgs(spec: ParameterSchemaSpec, args: unknown): string[]
 
 /** Options for {@link defineTool}. */
 export interface DefineToolOptions<S extends ParameterSchemaSpec, O extends ValueSchemaSpec> {
+  /** Host declaration retained by the registry, never included in model arguments or schemas. */
+  readonly directWorkspaceEffect?: ToolDefinition['directWorkspaceEffect']
   /** Tool name (must be unique). */
   readonly name: string
   /** Human-readable description sent to the model. */
@@ -545,31 +548,27 @@ export interface DefineToolOptions<S extends ParameterSchemaSpec, O extends Valu
 export function defineTool<const S extends ParameterSchemaSpec, const O extends ValueSchemaSpec>(
   options: DefineToolOptions<S, O>,
 ): ToolDefinition {
-  // Object-literal methods do not use `this`; retaining references is safe.
-  // oxlint-disable-next-line typescript/unbound-method
-  const userExecute = options.execute
-  // oxlint-disable-next-line typescript/unbound-method
-  const userFinalizeContent = options.finalizeContent
-  // oxlint-disable-next-line typescript/unbound-method
-  const userRender = options.output.render
-  // oxlint-disable-next-line typescript/unbound-method
-  const userPresentationMeta = options.output.presentationMeta
-  // oxlint-disable-next-line typescript/unbound-method
-  const userPresentCall = options.presentCall
-  // oxlint-disable-next-line typescript/unbound-method
-  const userPresentResult = options.presentResult
-  // oxlint-disable-next-line typescript/unbound-method
-  const userIsConcurrencySafe = options.isConcurrencySafe
+  const output = options.output
+  const userExecute = options.execute.bind(options)
+  const userFinalizeContent = options.finalizeContent?.bind(options)
+  const userRender = output.render.bind(output)
+  const userPresentationMeta = output.presentationMeta?.bind(output)
+  const userPresentCall = options.presentCall?.bind(options)
+  const userPresentResult = options.presentResult?.bind(options)
+  const userIsConcurrencySafe = options.isConcurrencySafe?.bind(options)
   if (options.timeoutMs !== undefined && (!Number.isFinite(options.timeoutMs) || options.timeoutMs <= 0)) {
     throw new Error(`defineTool(${options.name}): timeoutMs must be a positive finite number`)
   }
-  const parameters = parameterSchemaSpecToJsonSchema(options.parameters)
-  const outputSchema = valueSchemaSpecToJsonSchema(options.output.schema)
+  const parameters = deepFreeze(snapshotJsonValue(parameterSchemaSpecToJsonSchema(options.parameters))
+    ?? authorError('parameters must be lossless JSON'))
+  const outputSchema = deepFreeze(snapshotJsonValue(valueSchemaSpecToJsonSchema(output.schema))
+    ?? authorError('output schema must be lossless JSON'))
   const validate = (args: unknown): string[] => validateJsonSchemaValue(parameters, args, '')
   const tool: ToolDefinition = {
     name: options.name,
     description: options.description,
     parameters,
+    ...(options.directWorkspaceEffect !== undefined ? { directWorkspaceEffect: options.directWorkspaceEffect } : {}),
     output: {
       schema: outputSchema,
       render(args: unknown, value: JsonValue): ContentBlock[] {

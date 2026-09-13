@@ -272,20 +272,66 @@ describe('LspInstance query and abort', () => {
     await expect(run(instance, 'goToDefinition', controller.signal)).rejects.toThrow(/server refused/)
   })
 
-  it('keeps a settled result but awaits teardown when didClose cannot be written', async () => {
+  it('rejects the query after teardown when didClose cannot be written', async () => {
     const instance = makeInstance({
       LSP_FAKE_DEF: 'null',
     }, { shutdownTimeoutMs: 100, killGraceMs: 100 }, failingWriter('textDocument/didClose'))
-    await expect(run(instance, 'goToDefinition')).resolves.toEqual({
-      kind: 'locations',
-      locations: [],
-      resolvedWorkspaceUri: pathToFileURL(ws).href,
+    await expect(run(instance, 'goToDefinition')).rejects.toThrow('fixture textDocument/didClose failure')
+    expect(instance.dead).toBe(true)
+    expect(instance.terminationOutcome?.processTreeExited).toBe(true)
+  })
+
+  it('retains both the server error and a failed document close after proven process exit', async () => {
+    const instance = makeInstance({ LSP_FAKE_ERROR: '1' }, {
+      shutdownTimeoutMs: 100,
+      killGraceMs: 100,
+    }, failingWriter('textDocument/didClose'))
+    await expect(run(instance, 'goToDefinition')).rejects.toMatchObject({
+      errors: [
+        expect.objectContaining({ message: 'server refused the request' }),
+        expect.objectContaining({ message: 'fixture textDocument/didClose failure' }),
+      ],
     })
     expect(instance.dead).toBe(true)
+    expect(instance.terminationOutcome?.processTreeExited).toBe(true)
+  })
+
+  it('bounds a held didClose write and rejects only after real process termination', async () => {
+    const entered = Promise.withResolvers<undefined>()
+    const marker = join(root, 'held-document-close.log')
+    const instance = makeInstance({ LSP_FAKE_DEF: 'null', LSP_FAKE_EXIT_MARKER: marker }, {
+      shutdownTimeoutMs: 100,
+      killGraceMs: 100,
+    }, heldWriter('textDocument/didClose', () => { entered.resolve(undefined) }))
+    const pending = run(instance, 'goToDefinition')
+    await entered.promise
+    await expect(pending).rejects.toMatchObject({ code: 'LSP_DOCUMENT_CLOSE' })
+    expect(instance.terminationOutcome?.processTreeExited).toBe(true)
+    expect(await readFile(marker, 'utf8')).toMatch(/CLEAN|TERM/)
   })
 })
 
 describe('LspInstance disposal', () => {
+  it('bounds a held exit write and retains the shutdown deadline after real termination', async () => {
+    const entered = Promise.withResolvers<undefined>()
+    const marker = join(root, 'held-protocol-exit.log')
+    const instance = makeInstance({ LSP_FAKE_DEF: 'null', LSP_FAKE_EXIT_MARKER: marker }, {
+      shutdownTimeoutMs: 100,
+      killGraceMs: 100,
+    }, heldWriter('exit', () => { entered.resolve(undefined) }))
+    await run(instance, 'goToDefinition')
+    const disposing = instance.dispose()
+    await entered.promise
+    await disposing
+    const termination = instance.terminationOutcome
+    if (termination === undefined) throw new Error('held exit write left the process tree unconfirmed')
+    expect(termination.processTreeExited).toBe(true)
+    expect(termination.gracefulShutdown.status).toBe('rejected')
+    if (termination.gracefulShutdown.status !== 'rejected') throw new Error('held exit write reported completion')
+    expect(termination.gracefulShutdown.reason).toMatchObject({ code: 'LSP_SHUTDOWN' })
+    expect(await readFile(marker, 'utf8')).toBe('TERM\n')
+  })
+
   it('lets a server finish protocol exit before signal escalation', async () => {
     const marker = join(root, 'graceful-exit.log')
     const instance = makeInstance({
@@ -296,13 +342,19 @@ describe('LspInstance disposal', () => {
     await run(instance, 'goToDefinition')
     await instance.dispose()
     expect(await readFile(marker, 'utf8')).toBe('EXIT\nCLEAN\n')
+    expect(instance.terminationOutcome).toEqual({
+      gracefulShutdown: { status: 'fulfilled', value: undefined },
+      processTreeExited: true,
+    })
   })
 
   it('is idempotent — a second dispose awaits close without error', async () => {
     const instance = makeInstance({ LSP_FAKE_DEF: 'null' })
     await run(instance, 'goToDefinition')
     await instance.dispose()
+    const outcome = instance.terminationOutcome
     await expect(instance.dispose()).resolves.toBeUndefined()
+    expect(instance.terminationOutcome).toBe(outcome)
   })
 
   it('rejects a query after disposal', async () => {
@@ -325,6 +377,12 @@ describe('LspInstance disposal', () => {
     const instance = scriptInstance(script, { shutdownTimeoutMs: 100, killGraceMs: 100 })
     await run(instance, 'goToDefinition')
     await expect(instance.dispose()).resolves.toBeUndefined()
+    const termination = instance.terminationOutcome
+    if (termination === undefined) throw new Error('process exit did not publish its shutdown evidence')
+    expect(termination.processTreeExited).toBe(true)
+    expect(termination.gracefulShutdown.status).toBe('rejected')
+    if (termination.gracefulShutdown.status !== 'rejected') throw new Error('unresponsive server reported a graceful shutdown')
+    expect(termination.gracefulShutdown.reason).toMatchObject({ code: 'LSP_SHUTDOWN' })
   })
 
   it('awaits a surviving process-tree helper on every concurrent dispose', async () => {
@@ -391,6 +449,18 @@ function failingWriter(method: string): ConnectionWriter {
   return (stdin, message, done) => {
     if ((message as { method?: unknown }).method === method) {
       queueMicrotask(() => { done(new Error(`fixture ${method} failure`)) })
+      return
+    }
+    stdin.write(encodeMessage(message), done)
+  }
+}
+
+/** Hold one protocol write until the real child pipe closes during teardown. */
+function heldWriter(method: string, entered: () => void): ConnectionWriter {
+  return (stdin, message, done) => {
+    if (typeof message === 'object' && message !== null && 'method' in message && message.method === method) {
+      stdin.once('close', () => { done(new Error(`held ${method} write ended with process close`)) })
+      entered()
       return
     }
     stdin.write(encodeMessage(message), done)

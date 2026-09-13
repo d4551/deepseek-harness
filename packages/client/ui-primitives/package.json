@@ -44,16 +44,16 @@
     "micromark-util-sanitize-uri": "^2.0.1",
     "micromark-util-symbol": "^2.0.1",
     "micromark-util-types": "^2.0.2",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "shiki": "^4.3.1"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/dsh-client-a11y": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
-    "@types/react": "~19.2.18",
-    "@types/react-dom": "~19.2.5"
+    "@types/react": "~19.3.0",
+    "@types/react-dom": "~19.3.0"
   },
   "files": [
     "lib/index.js",

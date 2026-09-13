@@ -1951,6 +1951,10 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
     "task_id": {
       "type": "string",
       "description": "Shared task id."
+    },
+    "session_id": {
+      "type": "string",
+      "description": "Optional exact workspace peer id from list_agents; omitted for your own Team board."
     }
   },
   "required": [
@@ -1969,6 +1973,10 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 {
   "type": "object",
   "properties": {
+    "session_id": {
+      "type": "string",
+      "description": "Optional exact workspace peer id from list_agents; omitted for your own Team board."
+    },
     "status": {
       "type": "string",
       "description": "Optional exact status filter.",
@@ -2069,7 +2077,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 
 ### `wait_agent`
 
-等待本次调用开始后下一次 teammate 状态、mailbox 或共享任务变更。它绝不会唤醒 inactive member；若没有其他 member 正在 running 或 provisioning，则立即返回 noProgress。唤醒或超时后应重新列出状态，而不是轮询。
+等待 Team 工作取得实质进展。正在等待的成员和工作区内无关的会话不能满足等待准入条件。返回活动游标；若没有正在推进工作的成员，或游标未变时的等待不符合有界延长规则，则返回 noProgress：等待时长须至少为上次超时时长的两倍，且无进展等待累计不得超过一小时。应检查并修复停滞的工作，而不是重复该等待。此工具绝不会唤醒成员，也不会宣告其工作完成。
 
 ```json
 {

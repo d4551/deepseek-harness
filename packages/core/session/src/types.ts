@@ -12,6 +12,7 @@ import type {
   UserMessage,
 } from '@deepseek-ai/dsh-llm'
 import type { JsonValue } from './json.ts'
+import type {} from './request-budget-types.ts'
 
 // The lossless-JSON payload type belongs to this client-safe face too: a wire
 // contract carrying JSON data must not import the root entry, which merges

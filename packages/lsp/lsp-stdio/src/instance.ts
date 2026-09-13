@@ -16,6 +16,7 @@ import type {
 import { deadline } from '@deepseek-ai/dsh-timeout'
 import { abortable, abortError } from './abort.ts'
 import { LspConnection } from './connection.ts'
+import { finishLspOperation } from './outcome.ts'
 import type { ConnectionSpawner, ConnectionSpec, ConnectionWriter } from './connection.ts'
 import type { HostSource } from './host.ts'
 import type { WireInitializeResult, WireServerCapabilities } from './protocol.ts'
@@ -38,6 +39,14 @@ export interface InstanceSpec extends ConnectionSpec {
   readonly shutdownTimeoutMs: number
 }
 
+/** The attempted protocol shutdown and the proven process-tree cleanup. */
+export interface LspTerminationOutcome {
+  /** Exact protocol shutdown outcome, including a deadline or transport failure. */
+  readonly gracefulShutdown: PromiseSettledResult<void>
+  /** Published only after the subprocess provider confirms whole-tree exit. */
+  readonly processTreeExited: true
+}
+
 /**
  * A single initialized server process. Not exported as a provider — the provider single-flights and
  * pools these. `query()` serializes; `dispose()` rejects queued work and tears the process down.
@@ -50,10 +59,13 @@ export class LspInstance {
   private disposed = false
   /** The one teardown transaction shared by abort, failure, and explicit disposal. */
   private teardownPromise: Promise<void> | undefined
+  private terminationResult: LspTerminationOutcome | undefined
   /** Set once the process closes, so the pool can synchronously skip a dead instance. */
   private processClosed = false
-  /** Populated once `initialize` succeeds; a failed handshake rejects every query. */
-  private readonly ready: Promise<void>
+  /** The observed close includes the synchronous liveness publication. */
+  private readonly closed: Promise<PromiseSettledResult<void>>
+  /** Retains the handshake outcome until a query or teardown joins it. */
+  private readonly ready: Promise<PromiseSettledResult<void>>
 
   /**
    * @param spec - the launch, initialize, and teardown parameters.
@@ -62,16 +74,21 @@ export class LspInstance {
    */
   constructor(private readonly spec: InstanceSpec, spawner: ConnectionSpawner, writer?: ConnectionWriter) {
     this.connection = new LspConnection(spec, spawner, (method, params) => this.answerServerRequest(method, params), writer)
-    this.ready = this.initialize()
-    // A handshake rejection must not surface as an unhandled rejection before the first query awaits
-    // it; queries attach the real handler.
-    this.ready.catch(() => {})
-    void this.connection.closed.then(() => { this.processClosed = true })
+    this.ready = Promise.allSettled([this.initialize()]).then(([outcome]) => outcome)
+    this.closed = Promise.allSettled([this.connection.closed]).then(([outcome]) => {
+      this.processClosed = true
+      return outcome
+    })
   }
 
   /** Synchronous liveness check: true once the process has closed or the instance was disposed. */
   get dead(): boolean {
     return this.processClosed || this.disposed || this.connection.failed
+  }
+
+  /** Completed shutdown evidence; absent until whole-tree cleanup succeeds. */
+  get terminationOutcome(): LspTerminationOutcome | undefined {
+    return this.terminationResult
   }
 
   /**
@@ -94,17 +111,22 @@ export class LspInstance {
     // Serialize behind prior work, but observe abort DURING the queue wait too: if an earlier query
     // hangs (e.g. a signal-less service caller), a later tool's timeout must still be able to give up
     // rather than block on the shared tail forever.
-    const run = abortable(this.queue, signal)
-      .then(() => this.runQuery(request, source, signal))
-      .catch(async (error: unknown) => {
-        if (this.isTransportFailure(error)) await this.startTeardown()
-        throw error
-      })
+    const run = this.finishQuery(abortable(this.queue, signal)
+      .then(() => this.runQuery(request, source, signal)))
     // Keep the tail alive regardless of this query's outcome so the next caller still serializes. The
     // tail follows the ACTUAL prior work (this.queue), not the abortable view, so a caller giving up
     // on the wait does not deserialize the queue.
-    this.queue = this.queue.then(() => run).then(() => undefined, () => undefined)
+    this.queue = Promise.allSettled([this.queue, run])
     return run
+  }
+
+  private async finishQuery(work: Promise<LspQueryResult>): Promise<LspQueryResult> {
+    const [result] = await Promise.allSettled([work])
+    if (result.status === 'rejected' && this.isTransportFailure(result.reason)) {
+      const [cleanup] = await Promise.allSettled([this.startTeardown()])
+      return finishLspOperation(result, cleanup)
+    }
+    return finishLspOperation(result)
   }
 
   private async initialize(): Promise<void> {
@@ -126,22 +148,18 @@ export class LspInstance {
 
   private async runQuery(request: LspProviderQuery, source: HostSource, signal?: AbortSignal): Promise<LspQueryResult> {
     if (this.disposed) throw new LspError('LSP instance was disposed', 'LSP_DISPOSED')
-    /* v8 ignore next -- the abortable queue wait rejects a pre-aborted signal before runQuery; this is a belt-and-suspenders guard. */
     if (signal?.aborted) throw abortError(signal)
     // Observe abort during the handshake wait, and never pool a poisoned instance: if the wait ends
     // in failure — an abort on a still-pending handshake, OR `initialize` rejecting (utf-8
     // negotiation, malformed result) without the process exiting — tear the instance down so a
     // permanently-rejecting/pending `ready` can't make every later query for this workspace fail.
-    try {
-      await abortable(this.ready, signal)
-    } catch (error) {
-      if (!this.dead) {
-        await this.startTeardown()
-      }
-      throw error
+    const [waited] = await Promise.allSettled([abortable(this.ready, signal)])
+    const ready = waited.status === 'fulfilled' ? waited.value : waited
+    if (ready.status === 'rejected') {
+      const [cleanup] = await Promise.allSettled([this.startTeardown()])
+      finishLspOperation(ready, cleanup)
     }
     const capabilities = this.capabilities
-    /* v8 ignore next -- `ready` resolves only after capabilities are set, else it rejects above; defensive. */
     if (capabilities === undefined) throw new Error('LSP instance is not initialized')
     if (!supportsOperation(capabilities, request.operation)) {
       throw new LspError(`server does not support ${request.operation}`, 'LSP_UNSUPPORTED_OPERATION')
@@ -151,41 +169,32 @@ export class LspInstance {
     }
 
     const uri = source.fileUrl
-    let opened = false
-    try {
-      /* v8 ignore next -- guards an abort landing between the ready wait and didOpen; not deterministically reproducible. */
-      if (signal?.aborted) throw abortError(signal)
-      try {
-        await abortable(this.connection.notify('textDocument/didOpen', {
-          textDocument: { uri, languageId: request.languageId, version: 1, text: source.text },
-        }), signal)
-      } catch (error) {
-        // A canceled backpressured write or failed stdin leaves the protocol stream unusable before
-        // `opened` can arm the didClose cleanup. Teardown here makes the pool evict the instance.
-        await this.startTeardown()
-        throw error
-      }
-      opened = true
-      const payload = await this.sendRequest(request.operation, uri, request.position, signal)
-      return this.normalize(request.operation, payload)
-    } finally {
-      // A disposed or closed instance (e.g. an aborted request whose server ignored
-      // `$/cancelRequest`) is already tearing down; sending didClose would race that teardown and let
-      // the next queued query's document lifecycle overlap the still-active request.
-      if (opened && !this.dead) {
-        try {
-          await this.connection.notify('textDocument/didClose', { textDocument: { uri } })
-        } catch {
-          // A close-write failure does not replace the settled result/error, but the instance can no
-          // longer be trusted: invalidate it and await bounded process termination.
-          try {
-            await this.startTeardown()
-          } catch {
-            /* v8 ignore next -- teardown owns all expected process races; this only preserves the
-               already-settled query outcome if an unexpected cleanup primitive itself rejects. */
-          }
-        }
-      }
+    if (signal?.aborted) throw abortError(signal)
+    const [opened] = await Promise.allSettled([abortable(this.connection.notify('textDocument/didOpen', {
+      textDocument: { uri, languageId: request.languageId, version: 1, text: source.text },
+    }), signal)])
+    if (opened.status === 'rejected') {
+      const [cleanup] = await Promise.allSettled([this.startTeardown()])
+      finishLspOperation(opened, cleanup)
+    }
+    const [result] = await Promise.allSettled([
+      this.sendRequest(request.operation, uri, request.position, signal)
+        .then(payload => this.normalize(request.operation, payload)),
+    ])
+    const [cleanup] = await Promise.allSettled([
+      this.dead ? this.startTeardown() : this.closeDocument(uri),
+    ])
+    return finishLspOperation(result, cleanup)
+  }
+
+  private async closeDocument(uri: string): Promise<void> {
+    using cleanupDeadline = deadline(undefined, this.spec.shutdownTimeoutMs, 'LSP_DOCUMENT_CLOSE')
+    const [closed] = await Promise.allSettled([
+      abortable(this.connection.notify('textDocument/didClose', { textDocument: { uri } }), cleanupDeadline.signal),
+    ])
+    if (closed.status === 'rejected') {
+      const [cleanup] = await Promise.allSettled([this.startTeardown()])
+      finishLspOperation(closed, cleanup)
     }
   }
 
@@ -214,30 +223,20 @@ export class LspInstance {
    * instance so the still-active request cannot overlap the next queued query's document lifecycle.
    */
   private async raceAbort(send: Promise<unknown>, requestId: number, signal: AbortSignal): Promise<unknown> {
-    try {
-      return await abortable(send, signal)
-    } catch (error) {
-      if (!signal.aborted) throw error
-      this.connection.cancel(requestId)
-      // Wait, bounded, for the server to honor the cancellation. If it does not, the request is still
-      // running: terminate the instance (disposal awaits process close) so nothing outlives the query.
-      const grace = deadline(undefined, this.spec.killGraceMs, 'LSP_CANCEL_GRACE')
-      try {
-        // `settled` is true if the request finished (either outcome) before the grace elapsed.
-        const settled = await Promise.race([
-          send.then(markSettled, markSettled),
-          new Promise<boolean>((resolve) => {
-            /* v8 ignore next -- the cancel-grace deadline signal is freshly armed and not yet aborted here; defensive. */
-            if (grace.signal.aborted) { resolve(false); return }
-            grace.signal.addEventListener('abort', () => { resolve(false) }, { once: true })
-          }),
-        ])
-        if (!settled) await this.startTeardown()
-      } finally {
-        grace[Symbol.dispose]()
-      }
-      throw error
+    const [result] = await Promise.allSettled([abortable(send, signal)])
+    if (result.status === 'fulfilled' || !signal.aborted) return finishLspOperation(result)
+    using grace = deadline(undefined, this.spec.killGraceMs, 'LSP_CANCEL_GRACE')
+    const [canceled] = await Promise.allSettled([abortable(this.connection.cancel(requestId), grace.signal)])
+    if (canceled.status === 'rejected') {
+      const [cleanup] = await Promise.allSettled([this.startTeardown()])
+      return finishLspOperation(result, canceled, cleanup)
     }
+    const [acknowledged] = await Promise.allSettled([abortable(Promise.allSettled([send]), grace.signal)])
+    if (acknowledged.status === 'rejected') {
+      const [cleanup] = await Promise.allSettled([this.startTeardown()])
+      return finishLspOperation(result, cleanup)
+    }
+    return finishLspOperation(result)
   }
 
   private normalize(operation: LspOperation, payload: unknown): LspQueryResult {
@@ -252,10 +251,10 @@ export class LspInstance {
   private answerServerRequest(method: string, params: unknown): Promise<unknown> {
     if (method === 'workspace/configuration') {
       // Answer every requested item with the one static configuration value.
-      const record = params as { items?: unknown[] } | null
-      /* v8 ignore next -- a configuration request always carries an items array; the empty fallback is defensive. */
-      const items = Array.isArray(record?.items) ? record.items : []
-      return Promise.resolve(items.map(() => this.spec.configuration))
+      if (params === null || typeof params !== 'object' || !('items' in params) || !Array.isArray(params.items)) {
+        return Promise.reject(new Error('workspace/configuration requires an items array'))
+      }
+      return Promise.resolve(params.items.map(() => this.spec.configuration))
     }
     if (LIFECYCLE_NOOP_METHODS.has(method)) {
       // Accept lifecycle bookkeeping requests with an empty result; we register nothing dynamic.
@@ -284,22 +283,18 @@ export class LspInstance {
   }
 
   private async tearDown(): Promise<void> {
-    const shutdownDeadline = deadline(undefined, this.spec.shutdownTimeoutMs, 'LSP_SHUTDOWN')
-    try {
-      await this.gracefulShutdown(shutdownDeadline.signal)
-    } catch {
-      // Graceful shutdown failed or timed out; process-tree cleanup below remains authoritative.
-    } finally {
-      shutdownDeadline[Symbol.dispose]()
-    }
+    using shutdownDeadline = deadline(undefined, this.spec.shutdownTimeoutMs, 'LSP_SHUTDOWN')
+    const [shutdown] = await Promise.allSettled([this.gracefulShutdown(shutdownDeadline.signal)])
     await this.forceTerminate()
+    this.terminationResult = { gracefulShutdown: shutdown, processTreeExited: true }
   }
 
   /** Best-effort LSP `shutdown`/`exit`, including process close, bounded by `signal`. */
   private async gracefulShutdown(signal: AbortSignal): Promise<void> {
     await abortable(this.connection.request('shutdown', null), signal)
-    await this.connection.notify('exit', null)
-    await abortable(this.connection.closed, signal)
+    await abortable(this.connection.notify('exit', null), signal)
+    const closed = await abortable(this.closed, signal)
+    finishLspOperation(closed)
   }
 
   /**
@@ -310,10 +305,14 @@ export class LspInstance {
    */
   private async forceTerminate(): Promise<void> {
     this.connection.terminate()
-    await Promise.all([
-      this.connection.closed,
+    const [closed, initialized, tree] = await Promise.allSettled([
+      this.closed,
+      this.ready,
       this.connection.waitForProcessTreeExit(),
     ])
+    const closedOutcome = closed.status === 'fulfilled' ? closed.value : closed
+    const exited = finishLspOperation(tree, closedOutcome, initialized)
+    if (!exited) throw new Error('LSP subprocess provider did not confirm whole-tree exit')
   }
 }
 
@@ -323,11 +322,6 @@ const LIFECYCLE_NOOP_METHODS = new Set([
   'client/registerCapability',
   'client/unregisterCapability',
 ])
-
-/** Mark a settled request in the cancel-grace race (either outcome means the request finished). */
-function markSettled(): boolean {
-  return true
-}
 
 /**
  * The client capabilities advertised at `initialize`: UTF-16 positions, workspace folders and

@@ -1955,16 +1955,17 @@ describe('ToolRuntime', () => {
     expect(cursor).toEqual({ type: 'string' })
   })
 
-  it('rejects schema projection when a raw registration is not lossless JSON', async () => {
+  it('rejects a raw non-lossless schema before registration or projection', async () => {
     const ctx = await setup()
-    ctx.tools.register({
+    expect(() => ctx.tools.register({
       ...echoTool,
       name: 'lossy-schema',
       parameters: { type: 'object', default: Number.NaN },
-    })
-
-    expect(() => ctx.tools.schemas())
+    }))
       .toThrow('tool "lossy-schema" parameters must be lossless JSON before schema projection')
+    expect(ctx.tools.get('lossy-schema')).toBeUndefined()
+    expect(ctx.tools.schemas()).toEqual([])
+    expect((await ctx.systemPrompt.assemble()).tools).toEqual([])
   })
 
   it('rejects a non-positive or non-finite registration timeout', async () => {
@@ -2145,21 +2146,23 @@ describe('defineTool / schema DSL', () => {
     expect(result.content).toEqual([{ type: 'text', text: 'HELLO' }])
   })
 
-  it('type-level: InferArgs maps required properties to non-optional', () => {
-    // Compile-time check: if this compiles, InferArgs is correct.
-    // args.a is string (required), args.b is number|undefined (optional).
+  it('InferArgs preserves required properties in types and real execution', async () => {
+    const ctx = await setup()
     const tool = defineTool({
       name: 'type-check',
       description: '',
-      parameters: { a: { type: 'string' as const, required: true as const }, b: { type: 'number' as const } },
+      parameters: { a: { type: 'string', required: true }, b: { type: 'number' } },
       output: { schema: { type: 'string' }, render: () => [] },
       async execute(args) {
+        expectTypeOf(args).toEqualTypeOf<{ a: string; b?: number }>()
         expect(typeof args.a).toBe('string')
-        void args
         return args.a
       },
     })
-    void tool
+    ctx.tools.register(tool)
+    expect(await ctx.tools.execute({
+      signal: testToolSignal, callId: ToolCallId('typed-required'), name: 'type-check', arguments: { a: 'typed' },
+    })).toEqual({ isError: false, value: 'typed', content: [] })
   })
 
   it('registry round-trips a defineTool definition (register→schemas→execute)', async () => {

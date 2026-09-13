@@ -29,6 +29,17 @@ import type {} from '@deepseek-ai/dsh-user-approval'
 import type {} from '@deepseek-ai/dsh-agent-presets'
 import { delegationDepthOf } from './depth.ts'
 
+const DELEGATING_PARENTS = new WeakMap<Agent, Agent>()
+
+/**
+ * Read the exact parent bound before this child composed its deployment policy.
+ * @param child - exact child Agent whose delegation is inspected.
+ * @returns its recorded parent, or undefined for an Agent without this binding.
+ */
+export function delegatingParentOf(child: Agent): Agent | undefined {
+  return DELEGATING_PARENTS.get(child)
+}
+
 /** Thrown when starting a child would exceed the requested depth cap. */
 export class SubagentDepthError extends Error {
   constructor(public readonly attemptedDepth: number, public readonly maxDepth: number) {
@@ -202,6 +213,13 @@ export function applyChildComposition(
   parent: Agent,
   composition: ChildComposition,
 ): void {
+  const child = childCtx.agent
+  if (child === undefined || child === parent) throw new Error('child composition requires a distinct child Agent')
+  const existingParent = DELEGATING_PARENTS.get(child)
+  if (existingParent !== undefined && existingParent !== parent) {
+    throw new Error('child composition cannot replace its delegating parent')
+  }
+  DELEGATING_PARENTS.set(child, parent)
   childCtx.get('agentPresets')?.composeFrom(childCtx, parent.ctx)
   // Order 120: after the sandbox:policy (110) and approval:policy (115) sentences.
   childCtx.systemPrompt.context({ name: 'subagent:delegation', order: 120, text: SUBAGENT_DELEGATION_CONTEXT })

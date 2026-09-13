@@ -81,6 +81,7 @@ import { listChildren as listSubagentChildren, listDescendants as listSubagentDe
 import type { SubagentDescendantListEntry, SubagentListEntry } from './list-children.ts'
 import { snapshotSubagentDescriptor } from './descriptor.ts'
 import { subagentIdentityProjectionDefinition, subagentTimingProjectionDefinition } from './projection.ts'
+import { delegatingParentOf } from './child-agent.ts'
 
 export { NO_START_CAPABILITIES, assertPositiveFinite, assertTimerBound, assertUsableCwd, resolveChildCwd, resolveChildWorkspaceRoots, resolveOneShotProviderConfig, settleRunResult, subprocessRunHandle, toError, validateConfiguredCwd } from './out-of-process.ts'
 export type { OneShotProviderConfig, OneShotProviderDefaults, OneShotRunConfig, ResolvedOneShotProvider, RunResultSettlement, SubprocessRunHandleParts } from './out-of-process.ts'
@@ -254,6 +255,15 @@ export class SubagentRuntime extends TypertRemoteService {
       projectionCtx.sessionProjections.register(subagentTimingProjectionDefinition)
       projectionCtx.sessionProjections.register(subagentIdentityProjectionDefinition)
     })
+  }
+
+  /**
+   * Read creation-time delegation independently of structural lifecycle ownership.
+   * @param child - exact Agent whose child composition established the binding.
+   * @returns the exact delegating parent, or undefined for an unbound Agent.
+   */
+  delegatingParent(child: Agent): Agent | undefined {
+    return delegatingParentOf(child)
   }
 
   /**

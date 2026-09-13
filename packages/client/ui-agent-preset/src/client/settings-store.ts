@@ -85,7 +85,7 @@ const EMPTY_ROSTER: AgentPresetRoster = { presets: [], authorable: false }
  * @param remote - the agent-preset Remote namespace.
  * @returns the roster, or the message to show in its place.
  */
-export async function readRoster(remote: Pick<ClientRemote, 'agentPresets'>): Promise<RosterRead> {
+export async function readRoster(remote: { agentPresets: Pick<ClientRemote['agentPresets'], 'list'> }): Promise<RosterRead> {
   try {
     const result = await remote.agentPresets.list()
     if (result.ok) return { ok: true, value: result.value }

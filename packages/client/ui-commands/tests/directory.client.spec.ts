@@ -123,11 +123,15 @@ describe('epoch guard (per key)', () => {
   it('epochs are per key: one session supersede leaves another session epoch alone', async () => {
     const { dir, pull } = bench()
     const one = dir.refresh(S1)
-    void dir.refresh(S2)
-    void dir.refresh(S2) // supersedes the s2 pull only
+    const older = dir.refresh(S2)
+    const newer = dir.refresh(S2)
     pull(S1, 0).resolve(CMDS)
     await one
     expect(dir.status(S1)).toBe('ready')
+    pull(S2, 0).resolve(CMDS)
+    pull(S2, 1).resolve(S2_CMDS)
+    await Promise.all([older, newer])
+    expect(dir.resolve(S2, 'attach')).toBeDefined()
   })
 })
 
@@ -147,9 +151,7 @@ describe('invalidateAll (commands-changed soft)', () => {
     expect(dir.resolve(S2, 'attach')).toBeDefined()
 
     pull(S1, 1).resolve([{ name: 'fresh', description: 'new world' }])
-    await Promise.resolve()
-    await Promise.resolve()
-    expect(dir.resolve(S1, 'fresh')).toBeDefined()
+    await expect.poll(() => dir.resolve(S1, 'fresh')).toEqual({ name: 'fresh', description: 'new world' })
     expect(dir.resolve(S1, 'plan')).toBeUndefined()
   })
 
@@ -180,8 +182,8 @@ describe('resetConnected (reconnect hard)', () => {
 
     pull(S1, 1).resolve(CMDS)
     pull(S2, 1).resolve(S2_CMDS)
-    await Promise.resolve()
-    await Promise.resolve()
+    await dir.ensureReady(S1, new AbortController().signal)
+    await dir.ensureReady(S2, new AbortController().signal)
     expect(dir.status(S1)).toBe('ready')
     expect(dir.resolve(S2, 'attach')).toBeDefined()
   })
@@ -205,8 +207,7 @@ describe('resetSession (preset-change hard)', () => {
     expect(countOf(S2)).toBe(1)
 
     pull(S1, 1).resolve([{ name: 'fresh', description: 'new composition' }])
-    await Promise.resolve()
-    await Promise.resolve()
+    await dir.ensureReady(S1, new AbortController().signal)
     expect(dir.resolve(S1, 'fresh')).toBeDefined()
   })
 })
@@ -220,15 +221,12 @@ describe('warm', () => {
     expect(countOf(S1)).toBe(1)
 
     pull(S1, 0).reject(new Error('boom'))
-    await Promise.resolve()
-    await Promise.resolve()
-    expect(dir.status(S1)).toBe('failed')
+    await expect.poll(() => dir.status(S1)).toBe('failed')
     dir.warm(S1) // failed → retry
     expect(countOf(S1)).toBe(2)
 
     pull(S1, 1).resolve(CMDS)
-    await Promise.resolve()
-    await Promise.resolve()
+    await dir.ensureReady(S1, new AbortController().signal)
     dir.warm(S1) // ready → no-op
     expect(countOf(S1)).toBe(2)
   })
@@ -243,6 +241,23 @@ describe('warm', () => {
 
 describe('ensureReady (per key)', () => {
   const signal = () => new AbortController().signal
+
+  it('reports a synchronous fetch failure without losing the settlement', async () => {
+    const dir = new CommandDirectory(() => { throw new Error('synchronous directory failure') })
+    await expect(dir.ensureReady(S1, signal())).rejects.toThrow(
+      'command directory warmup failed: synchronous directory failure',
+    )
+    expect(dir.status(S1)).toBe('failed')
+  })
+
+  it('does not start a host read for an already-aborted attempt', async () => {
+    const { dir, calls } = bench()
+    const controller = new AbortController()
+    controller.abort(new Error('attempt ended'))
+    await expect(dir.ensureReady(S1, controller.signal)).rejects.toThrow('attempt ended')
+    expect(calls).toEqual([])
+    expect(dir.status(S1)).toBe('cold')
+  })
 
   it('returns the hot snapshot at once when ready', async () => {
     const { dir, pull, countOf } = bench()
@@ -264,11 +279,12 @@ describe('ensureReady (per key)', () => {
 
   it('joins a flying pull instead of starting a second one', async () => {
     const { dir, pull, countOf } = bench()
-    void dir.refresh(S1)
+    const refresh = dir.refresh(S1)
     const wait = dir.ensureReady(S1, signal())
     expect(countOf(S1)).toBe(1)
     pull(S1, 0).resolve(CMDS)
     await expect(wait).resolves.toEqual(CMDS)
+    await refresh
   })
 
   it('rejects when the awaited pull fails (no silent downgrade)', async () => {
@@ -309,9 +325,38 @@ describe('ensureReady (per key)', () => {
   it('keeps waiting across a superseded pull and settles on the winner', async () => {
     const { dir, pull } = bench()
     const wait = dir.ensureReady(S1, signal())
-    void dir.refresh(S1) // supersedes pull #0 with pull #1
+    const refresh = dir.refresh(S1)
     pull(S1, 0).resolve([{ name: 'stale', description: 'loser' }])
     pull(S1, 1).resolve(CMDS)
     await expect(wait).resolves.toEqual(CMDS)
+    await refresh
+  })
+})
+
+describe('directory disposal', () => {
+  it('drains superseded and current pulls before completing and keeps disposed catalogs unavailable', async () => {
+    const { dir, pull, calls } = bench()
+    const first = dir.refresh(S1)
+    const second = dir.refresh(S1)
+    const wait = dir.ensureReady(S1, new AbortController().signal)
+    const closing = dir.dispose()
+    expect(dir.dispose()).toBe(closing)
+    await expect(wait).rejects.toThrow('command directory disposed')
+    let closed = false
+    const observed = closing.then(() => { closed = true })
+    pull(S1, 1).resolve(CMDS)
+    await second
+    expect(closed).toBe(false)
+    pull(S1, 0).reject(new Error('superseded pull failed'))
+    await Promise.all([first, observed])
+    expect(closed).toBe(true)
+    expect(dir.status(S1)).toBe('failed')
+    expect(dir.resolve(S1, 'plan')).toBeUndefined()
+    expect(() => { dir.warm(S1) }).toThrow('command directory disposed')
+    expect(() => { dir.resetSession(S1) }).toThrow('command directory disposed')
+    expect(() => { dir.resetConnected() }).toThrow('command directory disposed')
+    expect(dir.status(S1)).toBe('failed')
+    await expect(dir.ensureReady(S2, new AbortController().signal)).rejects.toThrow('command directory disposed')
+    expect(calls).toEqual([S1, S1])
   })
 })

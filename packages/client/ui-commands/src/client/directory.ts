@@ -33,6 +33,9 @@ class Entry {
 /** The session-keyed directory cache. Plain class — the owning service wires events and RPC. */
 export class CommandDirectory {
   private readonly entries = new Map<SessionId, Entry>()
+  private readonly pulls = new Map<symbol, Promise<void>>()
+  private stopped: Error | undefined
+  private closing: Promise<void> | undefined
 
   constructor(private readonly fetchCommands: FetchCommands) {}
 
@@ -59,7 +62,7 @@ export class CommandDirectory {
 
   /** Soft invalidation (commands-changed): background repull on every touched key; ready snapshots keep serving. */
   invalidateAll(): void {
-    for (const key of this.entries.keys()) void this.refresh(key)
+    for (const key of this.entries.keys()) this.launch(key)
   }
 
   /**
@@ -71,7 +74,7 @@ export class CommandDirectory {
     entry.state = 'cold'
     entry.commands = []
     entry.lastError = undefined
-    void this.refresh(sessionId)
+    this.launch(sessionId)
   }
 
   /**
@@ -79,21 +82,17 @@ export class CommandDirectory {
    * may have changed shape across the generation) and prewarms.
    */
   resetConnected(): void {
-    for (const [key, entry] of this.entries) {
-      entry.state = 'cold'
-      entry.commands = []
-      void this.refresh(key)
-    }
+    for (const key of this.entries.keys()) this.resetSession(key)
   }
 
   /**
-   * Fire-and-forget prewarm of one session (the command source's scope-birth
-   * warm hook lands here).
+   * Prewarm one session under this directory's lifetime. The service drains
+   * every outstanding pull when it disposes the directory.
    * @param sessionId - session key.
    */
   warm(sessionId: SessionId): void {
     const entry = this.entry(sessionId)
-    if (entry.state === 'cold' || entry.state === 'failed') void this.refresh(sessionId)
+    if (entry.state === 'cold' || entry.state === 'failed') this.launch(sessionId)
   }
 
   /**
@@ -103,24 +102,51 @@ export class CommandDirectory {
    * @param sessionId - session key.
    * @returns settled when this pull's outcome is published or discarded.
    */
-  async refresh(sessionId: SessionId): Promise<void> {
+  refresh(sessionId: SessionId): Promise<void> {
+    return this.launch(sessionId).done
+  }
+
+  private launch(sessionId: SessionId): { done: Promise<void> } {
     const entry = this.entry(sessionId)
     const epoch = ++entry.epoch
     if (entry.state !== 'ready') entry.state = 'pending'
-    try {
-      const commands = await this.fetchCommands(sessionId)
-      if (epoch !== entry.epoch) return
-      entry.commands = commands
-      entry.state = 'ready'
-      entry.lastError = undefined
-    } catch (error) {
-      if (epoch !== entry.epoch) return
+    const key = Symbol()
+    const done = this.pull(sessionId, entry, epoch, key)
+    this.pulls.set(key, done)
+    return { done }
+  }
+
+  private async pull(sessionId: SessionId, entry: Entry, epoch: number, key: symbol): Promise<void> {
+    const [result] = await Promise.allSettled([Promise.try(() => this.fetchCommands(sessionId))])
+    if (epoch === entry.epoch) {
+      entry.commands = result.status === 'fulfilled' ? result.value : []
+      entry.state = result.status === 'fulfilled' ? 'ready' : 'failed'
+      entry.lastError = result.status === 'rejected' ? result.reason : undefined
+      notifyWaiters(entry)
+    }
+    this.pulls.delete(key)
+  }
+
+  /**
+   * Refuse new work, release catalog waiters, and drain every admitted pull.
+   * @returns the same settlement for concurrent disposal callers.
+   */
+  dispose(): Promise<void> {
+    if (this.closing !== undefined) return this.closing
+    this.stopped = new Error('command directory disposed')
+    for (const entry of this.entries.values()) {
+      entry.epoch += 1
       entry.commands = []
       entry.state = 'failed'
-      entry.lastError = error
-    } finally {
-      if (epoch === entry.epoch) notifyWaiters(entry)
+      entry.lastError = this.stopped
+      notifyWaiters(entry)
     }
+    this.closing = this.drain()
+    return this.closing
+  }
+
+  private async drain(): Promise<void> {
+    await Promise.all(this.pulls.values())
   }
 
   /**
@@ -133,10 +159,12 @@ export class CommandDirectory {
    * @returns the hot command snapshot.
    */
   async ensureReady(sessionId: SessionId, signal: AbortSignal): Promise<readonly CommandDescriptor[]> {
+    if (signal.aborted) throw abortReason(signal)
+    if (this.stopped !== undefined) throw this.stopped
     const entry = this.entry(sessionId)
     while (true) {
       if (entry.state === 'ready') return entry.commands
-      if (entry.state !== 'pending') void this.refresh(sessionId)
+      if (entry.state !== 'pending') this.launch(sessionId)
       await settled(entry, signal)
       if (entry.state === 'failed') {
         throw new Error(`command directory warmup failed: ${entry.lastError instanceof Error ? entry.lastError.message : String(entry.lastError)}`)
@@ -146,6 +174,7 @@ export class CommandDirectory {
   }
 
   private entry(sessionId: SessionId): Entry {
+    if (this.stopped !== undefined) throw this.stopped
     let entry = this.entries.get(sessionId)
     if (entry === undefined) {
       entry = new Entry()

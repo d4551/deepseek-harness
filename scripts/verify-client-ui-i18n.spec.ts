@@ -104,6 +104,28 @@ describe('Client UI i18n source check', () => {
     expect(caught("el.innerHTML = `<form aria-labelledby='source-title'></form>`")).toBe(0)
   })
 
+  it('distinguishes declared DOM selector arguments from state text and same-named helpers', () => {
+    expect(messages(`
+      declare function useState<T>(initial?: T): [T, (value: T) => void]
+      const [portal, setPortal] = useState<Element | null>(null)
+      setPortal(document.body.closest('dialog, [role="dialog"], main'))
+      const [items, setItems] = useState<NodeListOf<Element>>()
+      setItems(document.querySelectorAll('main > button'))
+      const [matched, setMatched] = useState<boolean>()
+      setMatched(document.body.matches('body > main'))
+    `)).toEqual([])
+    expect(messages(`
+      declare function useState<T>(initial?: T): [T, (value: T) => void]
+      const [text, setText] = useState<string>()
+      const helper = { closest(value: string) { return value } }
+      setText(helper.closest('Keep this visible'))
+      setText('dialog, [role="dialog"], main')
+      setText(document.querySelector('main > button')?.textContent ?? 'No matching item')
+      setText(document.querySelector('main > button') ? 'Ready to continue' : 'Nothing selected')
+      setText(document.querySelector(document.body.textContent = 'Visible untranslated text')?.textContent ?? text)
+    `)).toEqual(['Keep this visible', 'dialog, [role="dialog"], main', 'No matching item', 'Ready to continue', 'Nothing selected', 'Visible untranslated text'])
+  })
+
   it('exempts listed diagnostic text and nothing else in the same file', () => {
     const runner = 'packages/extensions/cordis-client-runner/src/client/runtime.ts'
     expect(isNonCopyDiagnostic(runner, 'your entry in slot "" crashed while React rendered it:')).toBe(true)

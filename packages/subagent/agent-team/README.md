@@ -66,7 +66,7 @@ The section carries only those two fields. `maxPendingMessagesPerMember` and `ma
 
 Ask the Lead to create a teammate: give it a unique lowercase name such as `reviewer` and describe its job. A teammate starts fresh with no memory of the Lead's conversation, or as a fork that inherits the Lead's completed turns; the creation request chooses which. Teammate names are permanent — even a teammate whose creation failed keeps its name, and no name is ever reused.
 
-The roster shows every member with its role (`lead` or `teammate`) and current status: `running`, `idle`, `inactive` (a member that exists but is not loaded), `provisioning`, or `failed`. Live members report the model from their latest request, or their initial configuration before the first request. Unloaded members have no reported model and receive their messages when they wake.
+The roster shows every member with its role (`lead` or `teammate`) and current status: `running`, `waiting`, `idle`, `inactive` (a member that exists but is not loaded), `provisioning`, or `failed`. Live members report the model from their latest request, or their initial configuration before the first request. Unloaded members have no reported model and receive their messages when they wake.
 
 Only the Lead can create teammates or interrupt them.
 
@@ -90,7 +90,7 @@ Write scopes prevent overlapping tasks from running concurrently on the local bo
 
 ### Waiting and interruption
 
-A member can wait for the next team change — a teammate's status, an incoming message, or a task update — instead of polling repeatedly; the wait reports only whether it timed out, and the caller re-reads the current state afterward.
+Model coordination waits require a productive member in the same Team or an active workspace owner whose write scopes block local work. Members already waiting do not qualify. Boardless delegated work remains waitable. Results retain an activity cursor; unchanged timeouts require progressively longer waits within one cumulative hour, then explicit recovery. No refusal completes tasks or releases their owners. Titles and request headers refresh the UI without waking model waits.
 
 The Lead can stop a teammate's current turn without deleting its queued messages; task ownership is unchanged.
 
@@ -130,7 +130,8 @@ The [Agent Teams Agent Note](../../../.agents/notes/implemented/feature/2026-08-
 | [`src/task-board.ts`](src/task-board.ts) | Task CAS commands, DAG validation, and derived views |
 | [`src/journal.ts`](src/journal.ts) | Serialized Lead-log transactions and commit notification |
 | [`src/fold.ts`](src/fold.ts) | Strict replay fold that decodes and validates Team events |
-| [`src/activity.ts`](src/activity.ts) | One-shot change waiters and disposal release |
+| [`src/activity.ts`](src/activity.ts) | Domain activity cursors, UI invalidation, one-shot observers, and disposal release |
+| [`src/progress.ts`](src/progress.ts) | Model wait admission, visible waiting state, and bounded timeout extensions |
 | [`src/lifecycle.ts`](src/lifecycle.ts) | Shared admission cutoff and bounded settlement |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion that replays candidate events before append |
 
@@ -148,7 +149,7 @@ Tasks are complete versioned snapshots; every mutation carries `expectedRevision
 
 ### Waiting and interruption
 
-`waitForChange()` waits for one roster, task, mailbox, or live-status edge that occurs after registration, from ten seconds through one hour, and reports only whether it timed out; runtime disposal releases current waits. Cancellation preserves an Error reason or reports a non-Error reason through `TEAM_WAIT_ABORTED`. `interrupt()` is Lead-only and delegates to the continuable-subagent interrupt path, which cancels only a live teammate's current turn with `keepInbox`; it neither releases task ownership nor deletes durable mail.
+`waitForProgress()` owns model admission, excludes waiting members and unrelated workspace leads, and bounds unchanged-cursor timeout extensions. `waitForChange()` remains the domain observer for one roster, task, mailbox, or live-status edge that occurs after registration, from ten seconds through one hour, and reports only whether it timed out; runtime disposal releases current waits. Cancellation preserves an Error reason or reports a non-Error reason through `TEAM_WAIT_ABORTED`. `interrupt()` is Lead-only and delegates to the continuable-subagent interrupt path, which cancels only a live teammate's current turn with `keepInbox`; it neither releases task ownership nor deletes durable mail.
 
 ### Durability model
 

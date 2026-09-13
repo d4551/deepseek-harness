@@ -5,6 +5,7 @@
 import type { SubagentAddress, SubagentCatalog } from '@deepseek-ai/dsh-subagent/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
+import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type {
   SessionControlBaseline,
   SessionControlFrame,
@@ -73,8 +74,13 @@ function catalogAvailability(parentAvailable: boolean | undefined): {
   return parentAvailable === undefined ? {} : { parentAvailable }
 }
 
-interface CatalogInflight {
+interface RefreshRequest {
   readonly promise: Promise<void>
+  /** Observed immediately and inspected during disposal, including publication failures. */
+  readonly outcome: Promise<[PromiseSettledResult<void>]>
+}
+
+interface CatalogInflight extends RefreshRequest {
   readonly expandableRows: Set<SessionId>
   readonly activityRows: Map<SessionId, 'running' | 'inactive'>
   /** Removal-time invalidation replayed over the response this request predates. */
@@ -108,7 +114,7 @@ export class SessionManager {
   /** Arrival phase; the pending → ready edge fires on the first successful pull (see SessionListPhase). */
   private listPhase: SessionListPhase = 'pending'
   private listError: ClientFailure | null = null
-  private listInflight: Promise<void> | null = null
+  private listInflight: RefreshRequest | null = null
   /** Mutations arriving after a list request starts are replayed over its response. */
   private listMutations: SessionListMutation[] | null = null
   private readonly addresses = new Map<SessionId, SubagentAddress>()
@@ -178,7 +184,7 @@ export class SessionManager {
     this.selected = sessionId
     // Looking at the session consumes its completion reminder (dot clears).
     this.completedNotifications.delete(sessionId)
-    void this.refreshSubagents(sessionId)
+    this.startCatalogRefresh(sessionId)
     this.notifier.notifyNow()
   }
 
@@ -255,18 +261,23 @@ export class SessionManager {
     this.openCatalogs.clear()
     const sessions = [...this.sessions.values()]
     this.sessions.clear()
-    const results = await Promise.allSettled([
-      ...this.sessionDisposals,
-      ...this.pendingRequests,
-      ...sessions.map(session => this.startSessionDisposal(session)),
-      ...[...this.catalogInflight.values()].map(request => request.promise),
+    const refreshes = [
+      ...this.catalogInflight.values(),
       ...(this.listInflight === null ? [] : [this.listInflight]),
+    ]
+    const [results, refreshResults] = await Promise.all([
+      Promise.allSettled([
+        ...this.sessionDisposals,
+        ...this.pendingRequests,
+        ...sessions.map(session => this.startSessionDisposal(session)),
+      ]),
+      Promise.all(refreshes.map(request => request.outcome)),
     ])
     this.catalogInflight.clear()
     this.listInflight = null
     this.listMutations = null
     const failures: unknown[] = []
-    for (const result of results) {
+    for (const result of [...results, ...refreshResults.flat()]) {
       if (result.status === 'rejected') failures.push(result.reason)
     }
     if (failures.length > 0) throw new AggregateError(failures, 'Session manager disposal failed')
@@ -278,6 +289,17 @@ export class SessionManager {
     const [result] = await Promise.allSettled([disposal])
     this.sessionDisposals.delete(disposal)
     if (result.status === 'rejected') throw result.reason
+  }
+
+  /** Track each request until settlement so disposal joins all owned work. */
+  private async settleRequest<T>(operation: Promise<RemoteResult<T>>): Promise<ClientResult<T>> {
+    const request = Promise.allSettled([operation])
+    this.pendingRequests.add(request)
+    const [outcome] = await request
+    this.pendingRequests.delete(request)
+    return outcome.status === 'fulfilled'
+      ? toSessionResult(outcome.value)
+      : transportResult(outcome.reason)
   }
 
   /**
@@ -355,9 +377,14 @@ export class SessionManager {
    * @param parentSessionId - catalog owner.
    */
   refreshSubagents(parentSessionId: SessionId): Promise<void> {
+    return this.startCatalogRefresh(parentSessionId).promise
+  }
+
+  /** Admit a catalog read whose operation and outcome remain owned by this manager. */
+  private startCatalogRefresh(parentSessionId: SessionId): CatalogInflight {
     this.lifetime.signal.throwIfAborted()
     const existing = this.catalogInflight.get(parentSessionId)
-    if (existing !== undefined) return existing.promise
+    if (existing !== undefined) return existing
     const previous = this.catalogs.get(parentSessionId)
     const expandableRows = new Set<SessionId>()
     const activityRows = new Map<SessionId, 'running' | 'inactive'>()
@@ -372,7 +399,7 @@ export class SessionManager {
     this.notifier.markDirty()
     const operation = (async () => {
       const [outcome] = await Promise.allSettled([
-        this.remote.subagents.list(parentSessionId, this.lifetime.signal),
+        Promise.try(() => this.remote.subagents.list(parentSessionId, this.lifetime.signal)),
       ])
       if (this.lifetime.signal.aborted) return
       const result = outcome.status === 'fulfilled'
@@ -416,16 +443,18 @@ export class SessionManager {
       // Re-arm the trailing pull before the dirty notify: the response the
       // caller observed predates the stale-marking change, so the follow-up
       // refresh is the only carrier of that change.
-      if (this.catalogStale.delete(parentSessionId)) void this.refreshSubagents(parentSessionId)
+      if (this.catalogStale.delete(parentSessionId)) this.startCatalogRefresh(parentSessionId)
       this.notifier.markDirty()
     })()
-    this.catalogInflight.set(parentSessionId, {
+    const request: CatalogInflight = {
       promise: operation,
+      outcome: Promise.allSettled([operation]),
       expandableRows,
       activityRows,
       parentAvailableOverride: undefined,
-    })
-    return operation
+    }
+    this.catalogInflight.set(parentSessionId, request)
+    return request
   }
 
   /**
@@ -437,7 +466,7 @@ export class SessionManager {
     this.lifetime.signal.throwIfAborted()
     if (open) {
       this.openCatalogs.add(parentSessionId)
-      void this.refreshSubagents(parentSessionId)
+      this.startCatalogRefresh(parentSessionId)
     } else {
       this.openCatalogs.delete(parentSessionId)
       const timer = this.catalogDebounce.get(parentSessionId)
@@ -452,6 +481,11 @@ export class SessionManager {
 
   /** Full refresh via session.list (single-flight: an in-flight call is reused). */
   refreshList(): Promise<void> {
+    return this.startListRefresh().promise
+  }
+
+  /** Admit a list read whose operation and outcome remain owned by this manager. */
+  private startListRefresh(): RefreshRequest {
     this.lifetime.signal.throwIfAborted()
     if (this.listInflight !== null) return this.listInflight
     this.listState = 'loading'
@@ -460,9 +494,9 @@ export class SessionManager {
     const mutations: SessionListMutation[] = []
     this.listMutations = mutations
     this.notifier.markDirty()
-    this.listInflight = (async () => {
+    const promise = (async () => {
       const [outcome] = await Promise.allSettled([
-        this.remote.session.list({}, this.lifetime.signal),
+        Promise.try(() => this.remote.session.list({}, this.lifetime.signal)),
       ])
       if (this.lifetime.signal.aborted) return
       const result = outcome.status === 'fulfilled'
@@ -515,6 +549,7 @@ export class SessionManager {
       this.listInflight = null
       this.notifier.markDirty()
     })()
+    this.listInflight = { promise, outcome: Promise.allSettled([promise]) }
     return this.listInflight
   }
 
@@ -530,14 +565,9 @@ export class SessionManager {
     signal: AbortSignal,
   ): Promise<ClientResult<{ items: SessionSearchResultItem[]; hasMore: boolean }>> {
     this.lifetime.signal.throwIfAborted()
-    const request = Promise.allSettled([
+    const result = await this.settleRequest(
       this.remote.session.search({ query }, AbortSignal.any([signal, this.lifetime.signal])),
-    ])
-    this.pendingRequests.add(request)
-    const [outcome] = await request
-    this.pendingRequests.delete(request)
-    if (outcome.status === 'rejected') return transportResult(outcome.reason)
-    const result = toSessionResult(outcome.value)
+    )
     if (!result.ok) return result
     return {
       ok: true,
@@ -567,14 +597,7 @@ export class SessionManager {
     const payload = opts.workspaceId !== undefined
       ? { workspaceId: opts.workspaceId, ...shared }
       : { ...(opts.cwd === undefined ? {} : { cwd: opts.cwd }), ...shared }
-    const request = Promise.allSettled([
-      this.remote.session.create(payload),
-    ])
-    this.pendingRequests.add(request)
-    const [outcome] = await request
-    this.pendingRequests.delete(request)
-    if (outcome.status === 'rejected') return transportResult(outcome.reason)
-    const result = toSessionResult(outcome.value)
+    const result = await this.settleRequest(this.remote.session.create(payload))
     if (this.lifetime.signal.aborted) return result
     if (result.ok) {
       this.recordMutation({ kind: 'upsert', summary: {
@@ -612,17 +635,12 @@ export class SessionManager {
   ): Promise<ClientResult<{ sessionId: SessionId }>> {
     this.lifetime.signal.throwIfAborted()
     const source = this.summaries.find(s => s.sessionId === opts.sessionId)
-    const request = Promise.allSettled([
+    const result = await this.settleRequest(
       this.remote.session.fork({
         sessionId: opts.sessionId,
         ...opts.atSeq === undefined ? {} : { atSeq: opts.atSeq },
       }),
-    ])
-    this.pendingRequests.add(request)
-    const [outcome] = await request
-    this.pendingRequests.delete(request)
-    if (outcome.status === 'rejected') return transportResult(outcome.reason)
-    const result = toSessionResult(outcome.value)
+    )
     if (this.lifetime.signal.aborted) return result
     const childId = result.ok
       ? result.value.sessionId
@@ -806,11 +824,11 @@ export class SessionManager {
    * Opened Session follow streams resume independently through API Gateway.
    */
   handleConnected(): void {
-    void this.refreshList()
+    this.startListRefresh()
     const selectedAddress = this.selected === undefined ? undefined : this.addresses.get(this.selected)
-    if (selectedAddress !== undefined) void this.refreshSubagents(selectedAddress.parentSessionId)
-    if (this.selected !== undefined) void this.refreshSubagents(this.selected)
-    for (const parentSessionId of this.catalogs.keys()) void this.refreshSubagents(parentSessionId)
+    if (selectedAddress !== undefined) this.startCatalogRefresh(selectedAddress.parentSessionId)
+    if (this.selected !== undefined) this.startCatalogRefresh(this.selected)
+    for (const parentSessionId of this.catalogs.keys()) this.startCatalogRefresh(parentSessionId)
   }
 
   /** Selected child conversations also consume their parent's sibling catalog. */
@@ -833,7 +851,7 @@ export class SessionManager {
         this.catalogStale.add(parentSessionId)
         return
       }
-      void this.refreshSubagents(parentSessionId)
+      this.startCatalogRefresh(parentSessionId)
     }, 50)
     this.catalogDebounce.set(parentSessionId, timer)
   }
@@ -988,7 +1006,7 @@ function workspaceAttachSessionId(error: ClientFailure): SessionId | undefined {
 
 /** Narrow a generated Session Remote failure to its service-owned error vocabulary. */
 function toSessionResult<T>(
-  result: import('@deepseek-ai/dsh-typert-protocol').RemoteResult<T>,
+  result: RemoteResult<T>,
 ): ClientResult<T> {
   return result.ok ? result : { ok: false, error: result.error as SessionError }
 }

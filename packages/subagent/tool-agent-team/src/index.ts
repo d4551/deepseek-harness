@@ -4,7 +4,6 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { TeamTaskId } from '@deepseek-ai/dsh-agent-team'
-import type { TeamMemberView } from '@deepseek-ai/dsh-agent-team'
 import { assertNever } from '@deepseek-ai/dsh-llm'
 import { FIRST_PARTY_SECTION_ORDER } from '@deepseek-ai/dsh-system-prompt'
 import { defineTool } from '@deepseek-ai/dsh-tools'
@@ -60,7 +59,7 @@ The Team Lead and all teammates share the same working directory and filesystem.
 
 Prefer read/edit/write for file changes. If a file operation returns FS_STALE_VERSION, read the current file, rebase your intended change onto the new content, and retry. Bash, formatters, code generators, and scripts are not fully protected by the filesystem version guard; coordinate them explicitly and have the Lead review the final diff and run tests.
 
-Use send_message for quiet information that must not start an idle teammate. Use followup_task when the target should run another turn. A delivered peer item starts with its stable message id and sender name. A successful send is already durable even when its result says queued; do not resend it. Shared-task workflow is list, get, claim with the current revision, perform the work, then complete. Task readiness never starts an owner. Before wait_agent, use list_agents and make sure another required member is running or provisioning; use followup_task first when the required member is inactive. wait_agent observes only changes after that call starts, never wakes a member, and returns noProgress immediately when no other member can produce a change. Re-list after wakeup or timeout. The Lead must wait for required teammates before giving the final answer.`
+Use send_message for quiet information that must not start an idle teammate. Use followup_task when the target should run another turn. A delivered peer item starts with its stable message id and sender name. A successful send is already durable even when its result says queued; do not resend it. Shared-task workflow is list, get, claim with the current revision, perform the work, then complete. Task readiness never starts an owner. Before wait_agent, read list_agents and the task board. A waiting member cannot produce progress; unrelated workspace conversations do not justify waiting. Wake a required inactive owner with followup_task. wait_agent returns noProgress immediately when no productive member remains, and refuses repeated short waits at a previously timed-out activity cursor. A longer wait for a verified running owner must at least double the previous expired duration and fit the remaining one-hour quiet budget; the result reports both bounds. Meaningful progress resets that budget. Inspect or repair stalled work after timeout or noProgress; do not repeat a wait or claim loop without a concrete change. Never mark unresolved work complete. The Lead must wait for required teammates before giving the final answer.`
 
 /** Model-facing guidance for many members working one request off the shared board. */
 const SWARM_POLICY = `This session runs as a swarm: several teammates work one request at the same time and take their work from the shared task board instead of being told what to do. A /swarm request explicitly authorizes multiple teammates working concurrently; preserve that intent when planning and executing the request.
@@ -71,13 +70,13 @@ As the Lead, decompose first and spawn second. Create one task per independently
 
 As a teammate, inspect the current board before acting. Read and claim an explicitly assigned task before performing it. If the Lead assigned a responsibility without a task record, create and claim one for that responsibility. If a task already names you as its owner and is in_progress, continue that task instead of claiming another. Only the Lead may spawn teammates or reassign tasks; send_message the Lead when work needs further delegation. After completing a task, send_message the Lead its result and verification evidence, then check for more work.
 
-When you have no owned or explicitly assigned task, call team_task_claim_next to take work. It either hands you the task you now own or reports that there is nothing to take, and the reason says what to do next. no-ready-task means every remaining pending task is blocked by work still in progress, and write-scope-conflict means the remaining ready tasks would write where another member is already writing and lists them: in both cases use wait_agent, then claim again. no-pending-task means no pending task remains, every task is completed or owned by another member, and nothing becomes claimable until the Lead creates a task or an owner releases one: end your turn with a short report of what you completed instead of waiting. No none result is a failure. Perform the claimed work, complete it with team_task_update, and immediately claim the next one. Release a task you cannot finish so another member can take it.
+When you have no owned or explicitly assigned task, call team_task_claim_next to take work. It either hands you the task you now own or reports that there is nothing to take, and the reason says what to do next. no-ready-task means every remaining pending task is blocked by work still in progress, and write-scope-conflict means the remaining ready tasks would write where another member is already writing and lists them: in both cases inspect the blocking owner, use wait_agent only while it can progress, then claim again after a meaningful change. no-pending-task means no pending task remains, every task is completed or owned by another member, and nothing becomes claimable until the Lead creates a task or an owner releases one: end your turn with a short report of what you completed instead of waiting. No none result is a failure. Perform the claimed work, complete it with team_task_update, and immediately claim the next one. Release a task you cannot finish so another member can take it.
 
 team_task_claim_next never returns a task another member owns and never gives the same task to two members, so every member may claim whenever it is free.
 
 Prefer read/edit/write for file changes. If a file operation returns FS_STALE_VERSION, read the current file, rebase your intended change onto the new content, and retry. Bash, formatters, code generators, and scripts are not fully protected by the filesystem version guard; keep them inside your claimed task's write scopes and have the Lead review the final diff and run tests.
 
-Use send_message for quiet information that must not start an idle teammate. Use followup_task when the target should run another turn. A delivered peer item starts with its stable message id and sender name. A successful send is already durable even when its result says queued; do not resend it. Before wait_agent, use list_agents and make sure another required member is running or provisioning; use followup_task first when the required member is inactive. wait_agent observes only changes after that call starts, never wakes a member, and returns noProgress immediately when no other member can produce a change. Re-list after wakeup or timeout. The Lead collects: keep waiting and re-listing until every task is completed, then give the final answer. A teammate ends its turn once no pending task remains, so wake it with followup_task when you create more tasks afterwards, and release or reassign a task whose owner is inactive, because it will not complete on its own.`
+Use send_message for quiet information that must not start an idle teammate. Use followup_task when the target should run another turn. A delivered peer item starts with its stable message id and sender name. A successful send is already durable even when its result says queued; do not resend it. Before wait_agent, read list_agents and the task board. A waiting member cannot produce progress; unrelated workspace conversations do not justify waiting. Wake a required inactive owner with followup_task. wait_agent returns noProgress immediately when no productive member remains, and refuses repeated short waits at a previously timed-out activity cursor. A longer wait for a verified running owner must at least double the previous expired duration and fit the remaining one-hour quiet budget; the result reports both bounds. Meaningful progress resets that budget. Inspect or repair stalled work after timeout or noProgress; do not repeat a wait or claim loop without a concrete change. Never mark unresolved work complete. The Lead collects verified results until every required task is completed; recover stalled ownership or report the unresolved blocker when waiting cannot help, then give the final answer only when the task outcome is established. A teammate ends its turn once no pending task remains, so wake it with followup_task when you create more tasks afterwards, and release or reassign a task whose owner is inactive, because it will not complete on its own.`
 
 /**
  * Select the guidance one deployment's members receive.
@@ -92,9 +91,6 @@ function policyText(coordination: TeamCoordination): string {
   }
 }
 
-const ACTIVE_WAIT_STATUSES: ReadonlySet<TeamMemberView['status']> = new Set(['running', 'provisioning'])
-const NO_ACTIVE_PEER_MESSAGE = 'No other Team member is running or provisioning. wait_agent cannot make progress or wake inactive teammates. Re-list with list_agents and team_task_list, then use followup_task to wake each required inactive teammate before waiting again.'
-
 /**
  * One roster row, matching `TeamMemberView`. The Lead pseudo-row omits the
  * teammate-only provisioning fields, so only identity, role, status, and
@@ -106,8 +102,9 @@ const MEMBER_VIEW_SCHEMA = {
   properties: {
     id: { type: 'string', required: true },
     name: { type: 'string', required: true },
+    title: { type: 'string' },
     role: { type: 'string', required: true, enum: ['lead', 'teammate', 'peer'] },
-    status: { type: 'string', required: true, enum: ['running', 'idle', 'inactive', 'provisioning', 'failed'] },
+    status: { type: 'string', required: true, enum: ['running', 'waiting', 'idle', 'inactive', 'provisioning', 'failed'] },
     description: { type: 'string' },
     provider: { type: 'string' },
     context: { type: 'string', enum: ['fresh', 'fork'] },
@@ -159,12 +156,15 @@ const WAIT_VALUE_SCHEMA = {
   additionalProperties: false,
   properties: {
     timedOut: { type: 'boolean', required: true },
+    cursor: { type: 'string', required: true },
     noProgress: {
       type: 'object',
       additionalProperties: false,
       properties: {
-        reason: { type: 'string', required: true, const: 'no-active-peer' },
+        reason: { type: 'string', required: true, enum: ['no-active-peer', 'unchanged-progress'] },
         message: { type: 'string', required: true },
+        minimumTimeoutMs: { type: 'integer' },
+        remainingTimeoutMs: { type: 'integer' },
       },
     },
   },
@@ -246,10 +246,7 @@ function install(agent: Agent, ctx: Context, config: Config & { coordination: Te
       order: FIRST_PARTY_SECTION_ORDER.TEAM_POLICY,
       text: () => {
         const membership = ctx.agentTeams.membership(agent)
-        const members = ctx.agentTeams.listMembers(agent)
-        const tasks = ctx.agentTeams.listTasks(agent)
-        const workspaceTasks = ctx.agentTeams.workspaceTasks(agent)
-        return `${policy}\n\nYour Team role is ${membership.role}; your Team name is ${membership.name}; Team id is ${membership.id}.\n\nCurrent agents: ${JSON.stringify(members)}\n\nYour team's current task board: ${JSON.stringify(tasks)}\n\nOther workspace conversations' task boards: ${JSON.stringify(workspaceTasks)}\nIndependent workspace conversations have session-qualified names. Use their exact names with send_message or followup_task to coordinate shared files and responsibilities. Each conversation owns its task board; agree on disjoint work before editing. Maintain task descriptions, ownership, dependencies, and write scopes with the Team tools as work changes. Pass handoffs directly to the responsible agent with the relevant task and session context. Do not ask the user to copy task ids, assign owners, or enter file scopes for agent coordination.`
+        return `${policy}\n\nYour Team role is ${membership.role}; your Team name is ${membership.name}; Team id is ${membership.id}.\n\nUse list_agents for the current roster and registered workspace conversations. Read current tasks with team_task_list and complete details with team_task_get; pass a workspace peer's exact id as session_id to read its board. Read every returned page using nextCursor when present. Completed tasks retain their full details in these tools. Independent workspace conversations have session-qualified names. Use their exact names with send_message or followup_task to coordinate shared files and responsibilities. Each conversation owns its task board; agree on disjoint work before editing. Maintain task descriptions, ownership, dependencies, and write scopes with the Team tools as work changes. Pass handoffs directly to the responsible agent with the relevant task and session context. Do not ask the user to copy task ids, assign owners, or enter file scopes for agent coordination.`
       },
     }))
 
@@ -319,7 +316,7 @@ function install(agent: Agent, ctx: Context, config: Config & { coordination: Te
 
     register(scoped.tools.register(defineTool({
       name: 'wait_agent',
-      description: 'Wait for the next teammate status, mailbox, or shared-task change after this call starts. This never wakes inactive members and returns noProgress immediately when no other member is running or provisioning. Re-list after wakeup or timeout instead of polling.',
+      description: 'Wait for meaningful progress on Team work. Waiting members and unrelated workspace conversations cannot satisfy admission. Returns an activity cursor and noProgress when no productive member exists or an unchanged-cursor wait fails the bounded extension rule: at least twice the prior expired duration, within one hour cumulative quiet waiting. Inspect and repair stalled work instead of repeating that wait. This never wakes members or declares their work complete.',
       parameters: {
         timeout_ms: {
           type: 'integer',
@@ -330,23 +327,7 @@ function install(agent: Agent, ctx: Context, config: Config & { coordination: Te
       async execute(args, exec) {
         const caller = callingAgent(exec.agent, 'wait_agent')
         const timeoutMs = args.timeout_ms ?? 30_000
-        if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 10_000 || timeoutMs > 3_600_000) {
-          return await ctx.agentTeams.waitForChange(caller, timeoutMs, exec.signal)
-        }
-        // The active-peer read and waiter registration must remain one synchronous
-        // span; awaiting between them can lose the only peer-status edge.
-        const hasActivePeer = ctx.agentTeams.listMembers(caller).some(member =>
-          member.id !== caller.id && ACTIVE_WAIT_STATUSES.has(member.status))
-        if (!hasActivePeer) {
-          return {
-            timedOut: false,
-            noProgress: {
-              reason: 'no-active-peer' as const,
-              message: NO_ACTIVE_PEER_MESSAGE,
-            },
-          }
-        }
-        return await ctx.agentTeams.waitForChange(caller, timeoutMs, exec.signal)
+        return await ctx.agentTeams.waitForProgress(caller, timeoutMs, exec.signal)
       },
     })))
 
@@ -367,6 +348,7 @@ function install(agent: Agent, ctx: Context, config: Config & { coordination: Te
 
     register(scoped.tools.register(defineTool({
       name: 'team_task_create',
+      directWorkspaceEffect: 'none',
       description: 'Create one unowned pending task on the shared Team task board.',
       parameters: {
         subject: { type: 'string', required: true, description: 'Concise task title.' },
@@ -393,6 +375,7 @@ function install(agent: Agent, ctx: Context, config: Config & { coordination: Te
       name: 'team_task_list',
       description: 'List shared tasks, including readiness, owner, revision, blockers, and write-scope warnings.',
       parameters: {
+        session_id: { type: 'string', description: 'Optional exact workspace peer id from list_agents; omitted for your own Team board.' },
         status: {
           type: 'string',
           enum: ['pending', 'in_progress', 'completed'],
@@ -407,7 +390,7 @@ function install(agent: Agent, ctx: Context, config: Config & { coordination: Te
       isConcurrencySafe: () => true,
       execute(args, exec) {
         const status = args.status
-        const filtered = ctx.agentTeams.listTasks(callingAgent(exec.agent, 'team_task_list')).filter(task =>
+        const filtered = ctx.agentTeams.listTasks(callingAgent(exec.agent, 'team_task_list'), args.session_id).filter(task =>
           (status === undefined || task.status === status)
           && (args.owner === undefined || (args.owner === 'unowned' ? task.ownerName === undefined : task.ownerName === args.owner))
           && (args.ready === undefined || task.ready === args.ready))
@@ -427,6 +410,7 @@ function install(agent: Agent, ctx: Context, config: Config & { coordination: Te
       description: 'Read the complete latest value of one shared task before changing or executing it.',
       parameters: {
         task_id: { type: 'string', required: true, description: 'Shared task id.' },
+        session_id: { type: 'string', description: 'Optional exact workspace peer id from list_agents; omitted for your own Team board.' },
       },
       output: jsonOutput(TASK_VIEW_SCHEMA),
       isConcurrencySafe: () => true,
@@ -434,12 +418,14 @@ function install(agent: Agent, ctx: Context, config: Config & { coordination: Te
         return Promise.resolve(ctx.agentTeams.getTask(
           callingAgent(exec.agent, 'team_task_get'),
           TeamTaskId(args.task_id),
+          args.session_id,
         ))
       },
     })))
 
     register(scoped.tools.register(defineTool({
       name: 'team_task_claim_next',
+      directWorkspaceEffect: 'none',
       description: 'Take ownership of the next ready task on the shared board: the first unblocked pending task whose write scopes no in-progress task is already writing. Returns outcome claimed with the task you now own, or outcome none with a reason: no-pending-task when no pending task remains, so nothing becomes claimable until a task is created, released, or reopened; no-ready-task when every pending task is blocked by work still in progress; write-scope-conflict, plus the deferred task ids, when the ready work would write where work in progress already writes. No none result is a failure. Two members can never claim the same task.',
       parameters: {},
       output: jsonOutput(CLAIM_NEXT_VALUE_SCHEMA),
@@ -450,6 +436,7 @@ function install(agent: Agent, ctx: Context, config: Config & { coordination: Te
 
     register(scoped.tools.register(defineTool({
       name: 'team_task_update',
+      directWorkspaceEffect: 'none',
       description: 'Compare-and-set a shared task action using the latest revision from team_task_get or team_task_list. claim, reassign, and a scope-widening edit are refused when the write scopes overlap a task already in progress.',
       parameters: {
         task_id: { type: 'string', required: true, description: 'Shared task id.' },

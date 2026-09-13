@@ -171,20 +171,13 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     }
   })()
 
-  ctx.effect(() => {
-    const disposers: Array<() => void> = []
-    try {
-      for (const provider of providers) disposers.push(ctx.lsp.registerProvider(provider))
-    } catch (error) {
-      for (const dispose of disposers.reverse()) dispose()
-      throw error
-    }
-    return async () => {
-      // Remove every route before process teardown so no new query can enter a draining provider.
-      for (const dispose of disposers.reverse()) dispose()
+  ctx.effect(function* () {
+    // LIFO teardown removes every route before draining the processes.
+    yield async () => {
       const results = await Promise.allSettled(providers.map(provider => provider.disposeAll()))
       throwTeardownFailures(results, 'lsp-stdio provider teardown failed')
     }
+    for (const provider of providers) yield ctx.lsp.registerProvider(provider)
   }, 'lsp-stdio.registerProviders')
 }
 
@@ -311,11 +304,11 @@ class LocalLspProvider implements LspProvider {
     const result = abortable(previous, signal).then(run)
     // The tail follows the actual prior work even when this caller aborts its wait. It never rejects,
     // so later callers serialize without inheriting an earlier query's outcome.
-    const tail = previous.then(() => result).then(() => undefined, () => undefined)
-    this.queues.set(workspace, tail)
-    void tail.then(() => {
+    const retire = (): void => {
       if (this.queues.get(workspace) === tail) this.queues.delete(workspace)
-    })
+    }
+    const tail = previous.then(() => result).then(retire, retire)
+    this.queues.set(workspace, tail)
     return result
   }
 
