@@ -241,7 +241,7 @@
     },
     "packages/*/*": {
       "entry": [
-        "tests/**/*.spec.ts"
+        "tests/**/*.{spec,e2e}.ts"
       ],
       "project": [
         "src/**/*.ts",

@@ -107,6 +107,8 @@ Creation is one rollback-covered transaction: construct a private session, concr
 
 ### Turn and step flow
 
+After the synchronous inbox claim, the driver awaits `agent/prepare-step` before assembling the request once. Providers can publish freshly verified capabilities or remove revoked ones for that same request. Preparation failure ends the turn before model dispatch; cancellation waits for the provider's owned work to settle. The subsequent `agent/pre-step` waterfall still controls admitted messages.
+
 The driver owns one agent for its lifetime and runs inside `ctx.agents.withInitiator(agent, ...)`. At a turn boundary it opens the durable turn, then atomically claims pending next-step input plus one queued prompt; between steps it claims only next-step input. `agent/pre-step` decides what enters the step; each successful model call appends one `assistant/message` anchor citing its chunk seqs, and a cancelled stream appends an `interrupted: true` anchor with the delivered prefix so the next request contains what the user saw. Within a step, exclusive calls form barriers and parallel-safe calls use the bounded rolling pool; policy, durable results, and result context remain model-ordered.
 
 ### Failure and cancellation

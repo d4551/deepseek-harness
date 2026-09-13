@@ -5,6 +5,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { GoalView } from '@deepseek-ai/dsh-goal'
 import { HarnessError } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import type {} from '@deepseek-ai/dsh-subagent'
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 
 type TurnStartEvent = Extract<SessionEvent, { type: 'turn/start' }>
@@ -69,6 +70,7 @@ export function goalToolExecution(ctx: Context, exec: ToolRunContext): GoalToolE
  */
 function hasDirectHumanInput(ctx: Context, execution: GoalToolExecution): boolean {
   if (!ctx.agents.roots().includes(execution.agent)) return false
+  if (ctx.get('subagents')?.delegatingParent(execution.agent) !== undefined) return false
   return execution.events.some(event =>
     event.type === 'user/message' && event.data.source.kind === 'user')
 }

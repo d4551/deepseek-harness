@@ -7,7 +7,7 @@
 ## 层级
 
 - **单元测试**（`bun run test`）：Vitest 运行所属代码旁的包/示例 `tests/**` 与 `scripts/**/*.spec.ts`。注册表测试释放贡献 fiber，并断言 HMR 清理。覆盖边界情况、错误、事件顺序、并发竞态和约定回归（`packages/core/agent-loop/tests/contract-regressions.spec.ts`）。每个导出的 client UI 组件都使用 axe-core 审计 WCAG 2.0/2.1/2.2 A、AA 和最佳实践规则（[dsh-client-a11y](../packages/test-support/client-a11y/README.zh.md)）。
-- **覆盖率门禁**（`bun run test:coverage`）：门禁级运行，对 `packages/*/*/src` 按文件 100% 覆盖。未覆盖的行往往是门禁正确标记出的死代码（应删除），而非需要补写的测试。行覆盖率只证明行被执行过，不证明功能按交付预期工作。`vitest.config.ts` 承载该标准未覆盖的部分，且每条都附有理由：没有运行时覆盖率可测量的文件；执行组合位于 Worker、浏览器 realm 或子进程中、单元进程的 V8 无法观测的代码；以及一份带标记的欠债清单（`DEBT(gui)`、`DEBT(inspector)`、`DEBT(webworker)`），等待浏览器级测试通道。`bun run verify-coverage-debt` 会把这些标记读回来：没有携带标记的欠债条目、匹配不到任何文件的 glob（无论在该清单中，还是在 `scripts/vitest-inventory.ts` 的平台条件通道清单中）、已被另一条目整体覆盖的条目，或没有任何条目使用的标记，都会失败；该命令还会按通道打印欠债的 glob 数与文件数，以便逐步收敛。`bun run measure-coverage-debt` 会在解除欠债排除的情况下运行该通道，报告每个欠债文件与标准的差距，并点名文件已全部达标的条目；尾随参数可把运行范围缩小到某个包自己的测试套件。
+- **覆盖率门禁**（`bun run test:coverage`）：要求 `packages/*/*/src` 按文件达到 100%。未覆盖行可能是应删除的死代码；执行过的行本身不能证明交付行为。`vitest.config.ts` 记录每项排除及理由：无可测运行时覆盖率、在单元进程 V8 不可见的 Worker／浏览器 realm／子进程中执行，或标为 `DEBT(gui)`、`DEBT(inspector)`、`DEBT(webworker)` 的浏览器通道欠债。`bun run verify-coverage-debt` 拒绝未标记欠债、空 glob、完全冗余条目和未使用标记，也检查 `scripts/vitest-inventory.ts` 中的平台条件清单；它报告各通道的 glob 数与文件数，供逐步减少欠债。`bun run measure-coverage-debt` 在测量时移除欠债排除，报告每个文件的差距并指出已达标条目；尾随参数选择单个包的测试套件。
 - **真实 API e2e**（`bun run test:e2e`）：带密钥测试调用真实提供方 API，包括 DeepSeek 模型以及各提供方特有的冒烟测试；这些测试各自由自己的密钥控制（`EXA_API_KEY`、`PERPLEXITY_API_KEY` 等），缺少密钥时套件会自动跳过，使 keyless CI 保持绿色（[真实 API e2e Agent Note](../.agents/notes/implemented/testing/2026-06-19-real-api-e2e-ci.zh.md)）。
 - **所属位置的预期输出**（`bun run test:expected`）：无录制会话往返的无密钥组装 CLI/进程预期。驱动使用 `*.expected.e2e.ts`，并与 `tests/expected/` 同属一处；CI 针对构建产物运行。包/脚本预期使用 `test`，浏览器预期使用 `test:web`。
 - **快照**（`bun run test:snapshot`）：顶层场景的录制 `session.jsonl` 同时提供用户输入和模型回放，并作为持久化结果的预期值。进程级场景都通过 `dsh` 启动：headless 负责一次性行为，SDK 负责持久控制，ACP 负责自动化协议行为，Web 在同一会话旁保留浏览器与 ARIA 证据。`snapshot.yml` 声明 profile、组合与请求头类别、录制策略、例外回放或输入元数据以及工作区事实。带类型的 token 保留父子身份关系；只有请求头 pin 拥有提示词/schema sidecar。变更工作区的场景会独立比较完整的 `workspace.expected/` 目录，record 与 refresh 绝不改写该目录。当模型 transcript（文本记录）变化时使用 `test:snapshot:record`，回放输入仍有效时使用 `test:snapshot:refresh`；请审查所有结果差异。
@@ -18,7 +18,7 @@
 
 ## 带密钥策略：推理（inference）在这里很便宜
 
-我们是 DeepSeek，不要吝惜真实 API 测试。无密钥测试只能证明底层通路；只有带密钥运行才能证明 agent（智能体）能对接真实模型正常工作。覆盖文件写入提示词、包含多个轮次的对话、工具使用和流中取消。价值最高的是**冒烟测试**：启动已交付的 `dsh` profile、发送一条提示词，并检查外部世界；它们能捕获「单元测试全绿、产品却坏了」这一类 mock 无法发现的问题（[事故复盘 0001](postmortem/0001-acp-default-export-drops-inject.zh.md)）。自动跳过让无密钥 CI 和无密钥贡献者不受阻塞；它不是成本信号。Profile 级集成测试位于 `apps/cli/tests/profiles/`；包专属组合留在对应包的测试目录中。
+不要吝惜真实 API 测试。无密钥测试证明底层通路；带密钥运行证明真实模型行为。覆盖文件写入提示词、多轮对话、工具使用和流中取消。**冒烟测试**启动已交付的 `dsh` profile、发送提示词并检查外部世界，捕获绿色单元测试背后的产品故障（[事故复盘 0001](postmortem/0001-acp-default-export-drops-inject.zh.md)）。自动跳过让无密钥 CI 和贡献者不受阻塞；它不是成本信号。Profile 集成测试位于 `apps/cli/tests/profiles/`；包组合留在所属包的测试目录中。
 
 ## 优先使用真实实现而非 mock
 

@@ -108,8 +108,8 @@
     "@deepseek-ai/dsh-token-meter": "workspace:^",
     "@deepseek-ai/dsh-tools": "workspace:^",
     "@deepseek-ai/dsh-util-workspace-path": "workspace:^",
-    "@types/react": "~19.2.18",
-    "react": "^19.2.8"
+    "@types/react": "~19.3.0",
+    "react": "^19.3.0"
   },
   "dependencies": {
     "@deepseek-ai/schemastery": "workspace:^"

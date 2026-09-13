@@ -62,7 +62,7 @@ export interface TeamMemberView {
   /** Human-readable conversation title, independent of the message-routing name. */
   readonly title?: string
   readonly role: 'lead' | 'teammate' | 'peer'
-  readonly status: 'running' | 'idle' | 'inactive' | 'provisioning' | 'failed'
+  readonly status: 'running' | 'waiting' | 'idle' | 'inactive' | 'provisioning' | 'failed'
   readonly description?: string
   readonly provider?: string
   readonly context?: 'fresh' | 'fork'
@@ -251,6 +251,17 @@ export type TeamTaskMutationResult =
 /** Result of waiting for Team activity. */
 export interface TeamWaitResult {
   readonly timedOut: boolean
+}
+
+/** Coordination wait outcome with an explicit activity cursor and refusal reason. */
+export interface TeamProgressResult extends TeamWaitResult {
+  readonly cursor: string
+  readonly noProgress?: {
+    readonly reason: 'no-active-peer' | 'unchanged-progress'
+    readonly message: string
+    readonly minimumTimeoutMs?: number
+    readonly remainingTimeoutMs?: number
+  }
 }
 
 declare module '@deepseek-ai/dsh-session/types' {

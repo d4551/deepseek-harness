@@ -122,11 +122,13 @@ describe('settings policy', () => {
     await expect(ctx.plugin(ApprovalAssessor, { extraPhrases: ['\u200b'] })).rejects.toThrow('extraPhrases[0] must contain text')
   })
 
-  it('keeps one schema for composition and persisted policy', () => {
+  it('keeps one schema for composition and persisted policy', async () => {
     expect(ApprovalAssessor.name).toBe('approval-assessor')
     expect(ApprovalAssessor.inject).toEqual(['approval'])
     expect(ApprovalAssessor.APPROVAL_ASSESSOR_SETTINGS_NAMESPACE).toBe('approval-assessor')
-    expect(ApprovalAssessor.APPROVAL_ASSESSOR_SETTINGS_SCHEMA).toBe(ApprovalAssessor.Config)
+    const { ctx } = await settingsHarness()
+    const descriptor = ctx.settings.describe().find(row => row.ns === ApprovalAssessor.APPROVAL_ASSESSOR_SETTINGS_NAMESPACE)
+    expect(descriptor?.schema).toEqual(ApprovalAssessor.Config.toJSON())
     expect(ApprovalAssessor.Config({})).toEqual({ enabled: true, extraPhrases: [] })
     const extraPhrases = Array.from({ length: 64 }, (_, index) => String(index).padEnd(256, 'x'))
     expect(ApprovalAssessor.Config({ extraPhrases })).toEqual({ enabled: true, extraPhrases })

@@ -206,17 +206,14 @@ describe('lsp-stdio provider resolution', () => {
     vi.spyOn(ctx.subprocess, 'resolveExecutable').mockImplementation(async (command, _env, signal) => {
       if (signal === undefined) throw new Error('missing setup signal')
       if (command === 'slow-lsp') {
-        return await new Promise<string>((_resolve, reject) => {
-          const onAbort = (): void => {
-            slowAborted.resolve(undefined)
-            void releaseCleanup.promise.then(() => {
-              reject(signal.reason instanceof Error ? signal.reason : new Error(String(signal.reason)))
-            })
-          }
-          signal.addEventListener('abort', onAbort, { once: true })
-          slowStarted.resolve(undefined)
-          if (signal.aborted) onAbort()
-        })
+        const onAbort = (): void => { slowAborted.resolve(undefined) }
+        signal.addEventListener('abort', onAbort, { once: true })
+        slowStarted.resolve(undefined)
+        if (signal.aborted) onAbort()
+        await slowAborted.promise
+        signal.removeEventListener('abort', onAbort)
+        await releaseCleanup.promise
+        throw signal.reason instanceof Error ? signal.reason : new Error(String(signal.reason))
       }
       await slowStarted.promise
       throw new Error('lookup failed')
@@ -230,12 +227,12 @@ describe('lsp-stdio provider resolution', () => {
     })
     await slowAborted.promise
     let settled = false
-    void loading.then(() => { settled = true }, () => { settled = true })
+    const observedLoading = Promise.resolve(loading).finally(() => { settled = true })
     await new Promise<void>((resolve) => { setImmediate(resolve) })
     expect(settled).toBe(false)
 
     releaseCleanup.resolve(undefined)
-    await expect(loading).rejects.toThrow('lookup failed')
+    await expect(observedLoading).rejects.toThrow('lookup failed')
     await ctx.fiber.dispose()
   })
 

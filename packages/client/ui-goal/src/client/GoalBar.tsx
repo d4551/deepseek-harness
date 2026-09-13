@@ -8,7 +8,7 @@
  * the injected face.
  */
 
-import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import type { GoalSnapshot } from '@deepseek-ai/dsh-goal/client'
 import {
   GlyphButton, IconCheckOutline16, IconCloseOutline16, IconEditOutline16, IconGoalOutline16,
@@ -34,7 +34,7 @@ const PHASE_LABELS = {
 export function GoalBar({ goal, onEdit, onPause, onResume, onClear, t }: GoalBarProps & PropsLocale<'goal'>) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
-  const [pending, setPending] = useState(false)
+  const [pending, startTransition] = useTransition()
   const [actionError, setActionError] = useState<string | null>(null)
   const [clearedGoalId, setClearedGoalId] = useState<GoalSnapshot['id'] | null>(null)
   const pendingRef = useRef(false)
@@ -48,19 +48,17 @@ export function GoalBar({ goal, onEdit, onPause, onResume, onClear, t }: GoalBar
     setClearedGoalId(null)
   }, [goalId])
 
-  // React state disables the controls on the next render; the ref closes the
+  // Transition state disables controls while the action runs; the ref closes the
   // same-render window so rapid clicks cannot submit the same CAS twice.
   const runAction = useCallback(async (action: () => Promise<GoalActionResult>): Promise<GoalActionResult | undefined> => {
     if (pendingRef.current) return undefined
     pendingRef.current = true
-    setPending(true)
     setActionError(null)
     const result = await action()
     pendingRef.current = false
-    setPending(false)
-    if (!result.ok) setActionError(`${result.error.message} (${result.error.code})`)
+    if (!result.ok) startTransition(() => { setActionError(`${result.error.message} (${result.error.code})`) })
     return result
-  }, [])
+  }, [startTransition])
 
   const handleEdit = useCallback(async () => {
     const trimmed = draft.trim()

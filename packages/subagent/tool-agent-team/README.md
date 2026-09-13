@@ -56,7 +56,7 @@ Omit the provider settings when exactly one registered provider supports each re
 
 With `coordination: swarm`, the Lead decomposes work into shared tasks and teammates claim ready tasks with `team_task_claim_next`. When the command registry is mounted, `/swarm <request>` submits a new request to the Lead's normal turn queue. The request must contain text and may include images. The command is absent from delegated compositions, excluded presets, and teammate scopes.
 
-Both policies instruct the Lead to create task records before spawning teammates and instruct members to claim, complete, and report their assigned work. Swarm guidance preserves explicit assignments to named teammates; unassigned work uses the atomic next-task claim. Spawning a member does not create a task record. Each prompt assembly includes the team's current board as well as other workspace conversations' boards.
+Both policies instruct the Lead to create task records before spawning teammates and instruct members to claim, complete, and report their assigned work. Swarm guidance preserves explicit assignments to named teammates; unassigned work uses the atomic next-task claim. Spawning a member does not create a task record. The policy prefix stays stable. Members discover current rosters through `list_agents` and complete task records through `team_task_list` and `team_task_get`. An optional exact `session_id` selects a currently registered workspace peer board; writes remain on the caller’s own board. Pagination preserves every task, including complete descriptions of completed work.
 
 Try it by asking the Lead model: "create a teammate named reviewer to check the diff, then send reviewer the change summary". The model calls the creation tool and then the messaging tool.
 
@@ -73,7 +73,7 @@ Any member can message any other member and use the task board; only the Lead cr
 
 ### What success and failure look like
 
-Sending a message succeeds as soon as it is safely stored: the result is `accepted` (delivered now) or `queued` (waiting), and a queued message must not be resent. `wait_agent` returns `noProgress` right away when no other member is running or provisioning, telling the caller to wake a teammate first; otherwise it waits for the next change and the caller re-reads state afterward. Task edits based on an outdated revision are rejected rather than overwriting newer work.
+Sending a message succeeds as soon as it is safely stored: the result is `accepted` (delivered now) or `queued` (waiting), and a queued message must not be resent. `wait_agent` returns `noProgress` when every relevant member is inactive or already waiting. An unrelated workspace lead cannot justify waiting; a registered owner blocking a local write scope can. The result includes an activity cursor. After a timeout with no progress, a longer wait must at least double the previous duration and fit the remaining one-hour cumulative quiet budget. The refusal reports those bounds and preserves unresolved work. Task or mailbox commits and relevant member lifecycle changes advance progress; titles, request headers, and waiting-status display updates do not. Task edits based on an outdated revision are rejected rather than overwriting newer work.
 
 -----
 
@@ -138,11 +138,11 @@ One policy section states the Team role/name/id, configured coordination policy,
 
 #### Token effect
 
-Each Team member request includes policy, schemas, and current roster and task-board snapshots. Snapshot size grows with the team and its workspace boards. Tool calls add compact JSON roster, task, wait, or receipt results. Peer content is retained by the Team domain in the target's history.
+Each Team member request includes stable policy, identity, and schemas. Mutable roster and task boards are fetched through typed tools when needed; completed descriptions are not repeatedly inserted into the system prefix. Tool calls add compact JSON roster, task, wait, or receipt results. Peer content is retained by the Team domain in the target's history.
 
 #### KV Cache effect
 
-The policy and schema prefix stays stable while the Team plugin generation and configuration remain unchanged. Identity differs across members; roster and task-board text changes with committed state. Tool results and peer messages append to the conversation history.
+The policy and schema prefix stays stable while the Team plugin generation and configuration remain unchanged. Identity differs across members; roster and task-board changes leave the policy prefix unchanged. Tool results and peer messages append to the conversation history.
 
 ## Known Limitations and Deferred Work
 

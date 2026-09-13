@@ -169,7 +169,7 @@ class FakeSandbox {
 
   finish(exitCode = 0): void {
     this.alive = false
-    void this.completeOutput().then(
+    this.completeOutput().then(
       () => {
         if (exitCode === 0) this.handle.succeed(0)
         else this.handle.fail(exitCode)
@@ -588,7 +588,7 @@ describe('E2BSubprocessHandle', () => {
     fake.exitStatus = '0\n'
 
     let settled = false
-    void handle.done.then(() => { settled = true })
+    const settlement = handle.done.then(() => { settled = true })
     await new Promise(resolve => setTimeout(resolve, 50))
     expect(settled).toBe(false)
     expect(fake.handle.disconnects).toBe(0)
@@ -598,6 +598,8 @@ describe('E2BSubprocessHandle', () => {
     fake.finish()
     await expect(handle.done).resolves.toEqual({ exitCode: 0, signal: null })
     expect(output).toBe('complete protocol frame')
+    await settlement
+    expect(settled).toBe(true)
     expect(fake.statusReads).toBe(1)
   })
 
@@ -1626,6 +1628,37 @@ describe('E2BSubprocessRuntime', () => {
     const fiber = await ctx.plugin(E2BSubprocessRuntime)
     return { ctx, fiber }
   }
+
+  it.each([{}, { EXPLICIT: 'kept', DSH_SESSION_ID: 'intentional' }])(
+    'isolates the remote process environment from all ambient entries %j',
+    async (env) => {
+      const fake = new FakeSandbox()
+      const { ctx, fiber } = await service(fake)
+      const request = spec({ env, environmentPolicy: 'isolated' })
+      const handle = ctx.subprocess.spawn(request)
+      expect(ctx.subprocess.supportsEnvironmentIsolation).toBe(true)
+      await flush()
+      const environmentFiles = [...fake.writtenFileData].filter(([path]) => path.endsWith('/environment'))
+      expect(environmentFiles).toHaveLength(1)
+      expect(environmentFiles[0]?.[1]).toBe(Object.entries(env).map(([key, value]) => `${key}=${value}\0`).join(''))
+      expect(fake.commandsSeen.find(value => value.includes('exec "$dsh_e2b_env_bin" -i')))
+        .toContain('exec "$dsh_e2b_env_bin" -i -- "${dsh_e2b_env[@]}"')
+      fake.finish()
+      await expect(handle.done).resolves.toEqual({ exitCode: 0, signal: null })
+      await expect(handle.waitForExit()).resolves.toBe(true)
+      await fiber.dispose()
+    },
+  )
+
+  it('rejects an unrecognized environment policy before a remote request', async () => {
+    const fake = new FakeSandbox()
+    const { ctx, fiber } = await service(fake)
+    const request = spec()
+    Reflect.set(request, 'environmentPolicy', 'unrecognized')
+    expect(() => ctx.subprocess.spawn(request)).toThrow('subprocess: invalid environment policy')
+    expect(fake.commandsSeen).toEqual([])
+    await fiber.dispose()
+  })
 
   it('registers handles and disposal terminates and joins live remote groups regardless of sandbox policy', async () => {
     const fake = new FakeSandbox()

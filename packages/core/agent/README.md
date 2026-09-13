@@ -82,6 +82,8 @@ The package is built on one separation: the public `Agent` surface and registry 
 
 ### Step admission
 
+`agent/prepare-step` runs serially after the inbox claim and before prompt and tool assembly. Capability providers finish authorization, discovery, registration, and revocation there under the turn's cancellation signal. A rejected preparation records a turn error before a model request. The later `agent/pre-step` waterfall retains its message-admission contract.
+
 `PreStepDecision` is either `{ kind: 'reject' }` or `{ kind: 'enter', messages, startsRequestSeries? }`. The enter branch contains the complete identified, frozen message batch. `startsRequestSeries: true` declares a distinct model-message series; a wrapping listener preserves that declaration and the batch unless it intentionally replaces either one. Claiming removes offered messages from the inbox, while messages inserted after the claim remain pending for a later boundary.
 
 ### Source map

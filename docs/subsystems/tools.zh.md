@@ -25,6 +25,8 @@ interface ToolOutputDefinition {
 ```ts type-equiv
 /** A registered tool: its schema plus the execution function. */
 interface ToolDefinition extends ToolSchema {
+  /** Host declaration that this implementation does not directly change workspace files. */
+  readonly directWorkspaceEffect?: 'none' | undefined
   /** Mandatory canonical output declaration. */
   readonly output: ToolOutputDefinition
   /**
@@ -289,6 +291,8 @@ interface PtcDispatchLog {
  * observers run.
  */
 interface ToolExecution extends ToolExecutionInput {
+  /** Immutable effect declaration from the exact registration selected before policy. */
+  readonly directWorkspaceEffect?: 'none'
   /** Root model-requested call, resolved for every root and nested execution. */
   readonly rootCallId: ToolCallId
   /** Registry-assigned identity shared with nested calls only as their opaque `parent` token. */
@@ -493,7 +497,7 @@ Tool registry and execution pipeline. Scoped registrations shadow globals; one v
  * @param mode - the presentation the covered agents' models see.
  * @returns the exact disposer that restores the deployment default.
  */
-presentAs(mode: ToolPresentationMode): () => void
+presentAs(mode: ToolPresentationMode): Disposable<Promise<void>>
 
 /**
  * Register globally or in the calling agent scope. Scoped tools shadow

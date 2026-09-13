@@ -134,15 +134,15 @@ view.activation                        // 'armed' | 'disarmed' — not persisted
 
 #### 模型看到什么
 
-Goal 变更不会注入模型上下文。`get_goal` 等工具返回当前状态；续行消费方可以在调度模型工作时渲染目标与 Round 状态。
+领域变更不会注入模型上下文。成功的人类 Remote create、edit 和 resume 操作将已接受的目标与 Round 上限作为用户输入排入下一个准入步骤，不单独唤醒驱动器。Agent 发起的 Remote 工作会在变更前被拒绝。Pause、complete 和 clear 不发布用户输入。`get_goal` 等工具返回当前状态；续行消费方可以在调度模型工作时渲染目标与 Round 状态。
 
 #### Token 影响
 
-Goal 变更事件本身不增加模型 token。工具结果与续行调度提示词各自暴露的状态会分别计入 token 用量。
+Goal 变更事件不增加模型 token。人类 Remote 工作增加一条用户消息；工具结果与续行调度提示词各自暴露的状态会分别计入 token 用量。
 
 #### KV Cache 影响
 
-在其他组件把 goal 状态暴露为模型可见输入之前，不会影响 KV Cache。
+人类 Remote 输入追加到已接受的对话历史，保留其既有前缀。领域变更本身不影响 KV Cache。
 
 ## 已知限制与延期工作
 

@@ -148,9 +148,9 @@ interface LspService {
    * or invalid input publishes nothing and throws `LspError`; the returned disposer releases all
    * reservations. Disposed with the calling fiber.
    * @param provider - the backend to register.
-   * @returns a synchronous disposer releasing the id and all extension reservations.
+   * @returns the owning effect disposer; await it to observe complete release of the id and all extension reservations.
    */
-  registerProvider(provider: LspProvider): () => void
+  registerProvider(provider: LspProvider): () => Promise<void>
   /**
    * Select a provider by the file's extension and run one query. Selection is per-query and
    * order-independent; no match throws `LspError` `LSP_UNAVAILABLE`.

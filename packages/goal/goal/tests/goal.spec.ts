@@ -4,6 +4,7 @@ import AgentRegistry, { agentEvents, Inbox } from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage, HarnessError } from '@deepseek-ai/dsh-llm'
 import SessionStore, { Session, SessionId, type UserMessage } from '@deepseek-ai/dsh-session'
+import { remoteMethods } from '@deepseek-ai/dsh-typert-protocol'
 import GoalService, {
   GoalError,
   GoalId,
@@ -38,7 +39,10 @@ function stubAgentForSession(session: Session): StubAgent {
     inbox,
     ctx: new Context(),
     status: 'idle',
-    send: () => {},
+    send(input, lane, wakeup = true) {
+      if (wakeup) throw new Error('Goal Remote input must join the driver without a separate wakeup')
+      inbox.append(lane, input)
+    },
     followup: () => {},
     steer: () => {},
     inject(input) { inbox.append('next-step', input) },
@@ -245,20 +249,60 @@ describe('GoalService creation and replay', () => {
 })
 
 describe('GoalService mutations', () => {
-  it('adapts Remote creation and reuses business methods for later mutations', async () => {
+  it('records human Remote work and preserves every lifecycle mutation', async () => {
     const { ctx, agent } = await harness()
+    expect(remoteMethods(ctx.goals).map(marker => [marker.exportName ?? marker.method, marker.method])).toEqual([
+      ['create', 'remoteExportCreate'], ['edit', 'remoteExportEdit'], ['resume', 'remoteExportResume'],
+      ['pause', 'remoteExportPause'], ['complete', 'remoteExportComplete'], ['clear', 'remoteExportClear'],
+    ])
     const created = ctx.goals.remoteExportCreate(agent, { objective: 'remote lifecycle' })
-    const edited = ctx.goals.edit(agent, created.ref, { objective: 'edited remotely' })
-    const paused = ctx.goals.pause(agent, edited)
-    const resumed = ctx.goals.resume(agent, paused)
-    const completed = ctx.goals.complete(agent, resumed)
-    const cleared = ctx.goals.clear(agent, completed)
+    const edited = ctx.goals.remoteExportEdit(agent, created.ref, { objective: 'edited remotely' })
+    const paused = ctx.goals.remoteExportPause(agent, edited)
+    const resumed = ctx.goals.remoteExportResume(agent, paused)
+    const completed = ctx.goals.remoteExportComplete(agent, resumed)
+    const cleared = ctx.goals.remoteExportClear(agent, completed)
 
     expect(edited).toMatchObject({ objective: 'edited remotely', revision: 2 })
     expect(paused).toMatchObject({ phase: 'paused', revision: 3 })
     expect(resumed).toMatchObject({ phase: 'active', revision: 4 })
     expect(completed).toMatchObject({ phase: 'complete', revision: 5 })
     expect(cleared).toEqual({ id: created.ref.id, revision: 6 })
+    expect(agent.inbox.nextStep.map(input => ({ source: input.source, content: input.content }))).toEqual([
+      { source: { kind: 'user' }, content: [{ type: 'text', text: 'Goal create: remote lifecycle\nMaximum goal rounds: 256' }] },
+      { source: { kind: 'user' }, content: [{ type: 'text', text: 'Goal edit: edited remotely\nMaximum goal rounds: 256' }] },
+      { source: { kind: 'user' }, content: [{ type: 'text', text: 'Goal resume: edited remotely\nMaximum goal rounds: 256' }] },
+    ])
+    expect(agent.inbox.nextTurn).toEqual([])
+  })
+
+  it('rejects Agent-origin Remote work before mutation and does not publish refused human input', async () => {
+    const { ctx, agent, session } = await harness()
+    const denied = { code: 'GOAL_HUMAN_INVOCATION_REQUIRED' }
+    expect(() => ctx.agents.withInitiator(agent, () =>
+      ctx.goals.remoteExportCreate(agent, { objective: 'Agent-origin creation' }))).toThrow(expect.objectContaining(denied))
+    expect(ctx.goals.get(agent)).toBeUndefined()
+    const goal = ctx.goals.create(agent, { objective: 'Domain-created goal' })
+    const activeEvents = [...session.events]
+    expect(() => ctx.agents.withInitiator(agent, () =>
+      ctx.goals.remoteExportPause(agent, goal))).toThrow(expect.objectContaining(denied))
+    expect(() => ctx.agents.withInitiator(agent, () =>
+      ctx.goals.remoteExportComplete(agent, goal))).toThrow(expect.objectContaining(denied))
+    expect(() => ctx.agents.withInitiator(agent, () =>
+      ctx.goals.remoteExportClear(agent, goal))).toThrow(expect.objectContaining(denied))
+    expect(session.events).toEqual(activeEvents)
+    const paused = ctx.goals.pause(agent, goal)
+    const before = [...session.events]
+    expect(() => ctx.agents.withInitiator(agent, () =>
+      ctx.goals.remoteExportEdit(agent, paused, { objective: 'Agent-origin edit' }))).toThrow(expect.objectContaining(denied))
+    expect(() => ctx.agents.withInitiator(agent, () =>
+      ctx.goals.remoteExportResume(agent, paused))).toThrow(expect.objectContaining(denied))
+    expect(() => ctx.goals.remoteExportCreate(agent, { objective: 'Duplicate' })).toThrow(GoalError)
+    expect(() => ctx.goals.remoteExportEdit(agent, goal, { objective: 'Stale edit' })).toThrow(GoalError)
+    expect(() => ctx.goals.remoteExportEdit(agent, paused, {})).toThrow(GoalError)
+    expect(() => ctx.goals.remoteExportResume(agent, goal)).toThrow(GoalError)
+    expect(session.events).toEqual(before)
+    expect(agent.inbox.nextStep).toEqual([])
+    expect(agent.inbox.nextTurn).toEqual([])
   })
 
   it('edits with compare-and-set revisions and rejects empty edits', async () => {

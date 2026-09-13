@@ -18,6 +18,7 @@ import { teamMessageView } from './message-view.ts'
 import { TeamRoster } from './roster.ts'
 import type { TeamMembership } from './roster.ts'
 import { TeamTaskBoard } from './task-board.ts'
+import { TeamProgress } from './progress.ts'
 import { workspacePeerIds, workspacePeerName, workspacePeers } from './workspace-peers.ts'
 import { TeamId, TeamTaskId } from './types.ts'
 import type {
@@ -30,6 +31,7 @@ import type {
   SpawnTeammateResult,
   TeamMemberView,
   TeamOverview,
+  TeamProgressResult,
   TeamTaskMutationResult,
   TeamTaskView,
   TeamView,
@@ -37,7 +39,7 @@ import type {
   UpdateTeamTaskRequest,
 } from './types.ts'
 
-export type { ClaimNextTeamTaskResult, Config, CreateTeamTaskRequest, SendTeamMessageRequest, SendTeamMessageResult, SpawnTeammateRequest, SpawnTeammateResult, TeamMemberPhase, TeamMemberSnapshot, TeamMemberView, TeamMessageSnapshot, TeamMessageSource, TeamTaskAction, TeamTaskClaimUnavailable, TeamTaskMutationResult, TeamTaskSnapshot, TeamTaskStatus, TeamTaskView, TeamView, TeamWaitResult, UpdateTeamTaskRequest } from './types.ts'
+export type { ClaimNextTeamTaskResult, Config, CreateTeamTaskRequest, SendTeamMessageRequest, SendTeamMessageResult, SpawnTeammateRequest, SpawnTeammateResult, TeamMemberPhase, TeamMemberSnapshot, TeamMemberView, TeamMessageSnapshot, TeamMessageSource, TeamProgressResult, TeamTaskAction, TeamTaskClaimUnavailable, TeamTaskMutationResult, TeamTaskSnapshot, TeamTaskStatus, TeamTaskView, TeamView, TeamWaitResult, UpdateTeamTaskRequest } from './types.ts'
 export type { TeamMembership } from './roster.ts'
 export { TeamId, TeamMessageId, TeamTaskId } from './types.ts'
 export { TeamError } from './error.ts'
@@ -137,6 +139,7 @@ export class TeamService extends TypertRemoteService {
   private readonly roster: TeamRoster
   private readonly mailbox: TeamMailbox
   private readonly tasks: TeamTaskBoard
+  private readonly progress: TeamProgress
 
   constructor(ctx: Context, config: Config = {}) {
     super(ctx, 'agentTeams')
@@ -178,11 +181,14 @@ export class TeamService extends TypertRemoteService {
       this.config.maxMessageBytes,
     )
     this.tasks = new TeamTaskBoard(ctx, this.roster, this.journal, () => this.settings().maxTasks)
+    this.progress = new TeamProgress(ctx, this.activity, this.roster, this.tasks, (root) => {
+      this.notifyLifecycleChange(root, false)
+    })
 
     ctx.on('session/event', (session, event) => {
       if (event.type === 'session/title' || event.type === 'request/header') {
         const agent = ctx.agents.get(session.id)
-        if (agent !== undefined) this.notifyLifecycleChange(agent)
+        if (agent !== undefined) this.notifyLifecycleChange(agent, false)
       }
       this.mailbox.observeSessionEvent(session, event)?.then(undefined, (error: unknown) => {
         this.ctx.logger.warn(`Team message acknowledgement for "${session.id}" failed: ${errorMessage(error)}`)
@@ -219,7 +225,9 @@ export class TeamService extends TypertRemoteService {
   listMembers(agent: Agent): TeamMemberView[] {
     const membership = this.roster.membership(agent)
     return [
-      ...this.roster.list(membership),
+      ...this.roster.list(membership).map((member): TeamMemberView => this.progress.isWaiting(member.id)
+        ? { ...member, status: 'waiting' }
+        : member),
       ...workspacePeers(this.ctx, this.roster, membership.root).map((peer): TeamMemberView => {
         const title = this.ctx.get('sessionTitle')?.get(peer.session)?.title
         const model = parentAgentOptionsForDelegation(peer).model
@@ -228,7 +236,7 @@ export class TeamService extends TypertRemoteService {
           name: workspacePeerName(peer.id),
           ...(title === undefined ? {} : { title }),
           role: 'peer',
-          status: peer.status,
+          status: this.progress.isWaiting(peer.id) ? 'waiting' : peer.status,
           ...model === undefined ? {} : { model },
           diagnostics: [],
         }
@@ -270,19 +278,21 @@ export class TeamService extends TypertRemoteService {
    * Return one task, including a deleted tombstone.
    * @param caller - exact live Team member reading the task.
    * @param id - Team-local task identity.
+   * @param sessionId - optional own-Team or registered workspace Lead identity.
    * @returns the latest task value and derived readiness diagnostics.
    */
-  getTask(caller: Agent, id: TeamTaskId): TeamTaskView {
-    return this.tasks.get(this.roster.membership(caller), id)
+  getTask(caller: Agent, id: TeamTaskId, sessionId?: string): TeamTaskView {
+    return this.tasks.get(this.taskBoardMembership(caller, sessionId), id)
   }
 
   /**
    * List current non-deleted tasks in numeric creation order.
    * @param caller - exact live Team member reading the board.
+   * @param sessionId - optional own-Team or registered workspace Lead identity.
    * @returns detached current task views.
    */
-  listTasks(caller: Agent): TeamTaskView[] {
-    return this.tasks.list(this.roster.membership(caller))
+  listTasks(caller: Agent, sessionId?: string): TeamTaskView[] {
+    return this.tasks.list(this.taskBoardMembership(caller, sessionId))
   }
 
   /**
@@ -296,6 +306,17 @@ export class TeamService extends TypertRemoteService {
       sessionId: peer.id,
       tasks: this.tasks.list(this.roster.membership(peer)),
     }))
+  }
+
+  /** Resolve read authority for the caller's board or an exact registered workspace peer. */
+  private taskBoardMembership(caller: Agent, sessionId?: string): TeamMembership {
+    const membership = this.roster.membership(caller)
+    if (sessionId === undefined || sessionId === membership.id) return membership
+    const peer = workspacePeers(this.ctx, this.roster, membership.root).find(agent => agent.id === sessionId)
+    if (peer === undefined) {
+      throw new TeamError(`workspace Team "${sessionId}" not found`, 'TEAM_MEMBER_NOT_FOUND')
+    }
+    return this.roster.membership(peer)
   }
 
   /**
@@ -342,6 +363,17 @@ export class TeamService extends TypertRemoteService {
   async waitForChange(caller: Agent, timeoutMs: number, signal: AbortSignal): Promise<TeamWaitResult> {
     const membership = this.roster.membership(caller)
     return await this.activity.wait(membership.id, timeoutMs, signal)
+  }
+
+  /**
+   * Coordinate unfinished work with a productive member and a fresh activity cursor.
+   * @param caller - exact live Team member requesting model suspension.
+   * @param timeoutMs - validated duration from ten seconds through one hour.
+   * @param signal - cancellation for this wait only.
+   * @returns progress, timeout, or an explicit reason waiting cannot help.
+   */
+  waitForProgress(caller: Agent, timeoutMs: number, signal: AbortSignal): Promise<TeamProgressResult> {
+    return this.progress.wait(caller, this.roster.membership(caller), timeoutMs, signal)
   }
 
   /**
@@ -465,13 +497,19 @@ export class TeamService extends TypertRemoteService {
   }
 
   /** Notify the owning Team and workspace peers after activity or membership changes. */
-  private notifyLifecycleChange(agent: Agent): void {
-    for (const id of workspacePeerIds(this.ctx, agent.id)) this.activity.notify(TeamId(id))
+  private notifyLifecycleChange(agent: Agent, productive = true): void {
+    for (const id of workspacePeerIds(this.ctx, agent.id)) this.activity.invalidate(TeamId(id))
     const seen = new Set<SessionId>()
     let current: Agent | undefined = agent
     while (current !== undefined && !seen.has(current.id)) {
       seen.add(current.id)
-      this.activity.notify(TeamId(current.id))
+      const id = TeamId(current.id)
+      if (productive) {
+        this.activity.notify(id)
+        this.progress.notifySource(id)
+      } else {
+        this.activity.invalidate(id)
+      }
       const parentId: SessionId | undefined = current.session.header.parentSession
       current = parentId === undefined ? undefined : this.ctx.agents.get(parentId)
     }

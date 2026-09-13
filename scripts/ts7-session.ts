@@ -9,7 +9,7 @@ import { basename, join, resolve } from 'node:path'
 import { parse as parseJsonc, type ParseError } from 'jsonc-parser'
 import { flattenDiagnosticMessage } from '@deepseek-ai/dsh-diagnostic-text'
 import { API } from 'typescript/unstable/sync'
-import type { Node, SourceFile } from 'typescript/unstable/ast'
+import type { CallExpression, Node, SourceFile } from 'typescript/unstable/ast'
 
 let api: API | undefined
 let textRoot: string | undefined
@@ -42,6 +42,23 @@ export function parsePath(file: string): SourceFile {
   const sourceFile = parsed.get(file)
   if (sourceFile === undefined) throw new Error(`ts7: missing source file ${file}`)
   return sourceFile
+}
+
+/** Resolve a call to its declared signature and report the compiler-owned library origin. */
+export function callDeclarationOrigin(call: CallExpression): {
+  readonly declaration: Node
+  readonly defaultLibrary: boolean
+} | undefined {
+  const file = call.getSourceFile().fileName
+  const snapshot = compiler().updateSnapshot({ openFiles: [file] })
+  const project = snapshot.getDefaultProjectForFile(file)
+  if (project === undefined) throw new Error(`ts7: no project for ${file}`)
+  const declaration = project.checker.getResolvedSignature(call)?.declaration?.resolve()
+  if (declaration === undefined) return undefined
+  return {
+    declaration,
+    defaultLibrary: project.program.isSourceFileDefaultLibrary(declaration.getSourceFile()),
+  }
 }
 
 /**

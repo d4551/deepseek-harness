@@ -15,6 +15,7 @@ interface TeamMembersProps {
 function memberStatusKey(status: TeamMemberView['status']): TeamKey {
   switch (status) {
     case 'running': return 'memberStatus.running'
+    case 'waiting': return 'memberStatus.waiting'
     case 'idle': return 'memberStatus.idle'
     case 'inactive': return 'memberStatus.inactive'
     case 'provisioning': return 'memberStatus.provisioning'

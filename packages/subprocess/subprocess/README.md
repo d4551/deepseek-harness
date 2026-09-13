@@ -72,6 +72,8 @@ For interactive programs, `spawnTerminal` allocates a real PTY: write text, read
 
 Children never inherit the harness's ambient secrets: credential-shaped names and ambient `DSH_*` facts are scrubbed, and the caller's explicit `env` merges after that scrub. A deliberately forwarded credential or a current `DSH_*` deployment fact still reaches the child; an explicit `undefined` tombstone removes an ordinary ambient entry.
 
+For a replacement environment, require `supportsEnvironmentIsolation === true` and pass `environmentPolicy: 'isolated'`. The workload then receives exactly the supplied `env` entries; omitted or `inherit` retains the scrubbed parent policy. The local provider supports replacement on POSIX and rejects it before spawning on Windows, where Node restores omitted parent entries. E2B uses its existing final environment reset with the exact serialized entries; its separate control bootstrap still follows the sandbox control environment contract. This capability applies to ordinary `spawn`, not terminal allocation.
+
 ### What can go wrong
 
 An executable that cannot be resolved fails loud with a stable error. A spawn that never starts rejects `done`; there is no buffered output for a process that never ran. A daemonized child that leaves its tree or session can outlive termination — provider READMEs document their observability limits. When a transport owns its own spawn (the SDK client, MCP), route around the service and import `scrubbedParentEnv` directly so environment policy stays single-sourced.

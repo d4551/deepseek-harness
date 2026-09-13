@@ -142,7 +142,7 @@ export class AgentPresetSectionController {
      * and the new-session chip has no other way to learn a preset it should
      * offer now exists.
      */
-    private readonly rosterChanged: () => void = () => {},
+    private readonly rosterChanged?: () => void | Promise<void>,
   ) {}
 
   private set(patch: Partial<AgentPresetSectionState>): void {
@@ -277,12 +277,13 @@ export class AgentPresetSectionController {
       }
       this.set({ copy: null })
       await this.load()
-      this.rosterChanged()
+      await this.rosterChanged?.()
       // A preset is its files from here on (the dialog collected nothing
       // else), so landing in them is the completion, not a follow-up.
       await this.openLocation(draft.id)
     } catch (error) {
-      this.patchCopy({ saving: false, error: messageOf(error) })
+      if (this.store.getSnapshot().copy === null) this.set({ error: messageOf(error) })
+      else this.patchCopy({ saving: false, error: messageOf(error) })
     }
   }
 
@@ -335,7 +336,7 @@ export class AgentPresetSectionController {
       }
       this.set({ deleting: false, pendingDelete: null })
       await this.load()
-      this.rosterChanged()
+      await this.rosterChanged?.()
     } catch (error) {
       this.set({ deleting: false, pendingDelete: null, error: messageOf(error) })
     }

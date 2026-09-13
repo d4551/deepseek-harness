@@ -51,9 +51,11 @@ export class AgentPresetSeatController {
 
   /** Set while a pick is waiting for a session; cleared once applied. */
   private staged: string | undefined
+  private stagedRevision = 0
+  private applying: Promise<string | undefined> | undefined
 
   constructor(
-    private readonly remote: Pick<ClientRemote, 'agentPresets'>,
+    private readonly remote: { agentPresets: Pick<ClientRemote['agentPresets'], 'list' | 'select'> },
     /** The session the hero is about to hand over to, when there is one. */
     private readonly currentSession: () => Pick<
       SessionSummary,
@@ -106,8 +108,7 @@ export class AgentPresetSeatController {
   async select(id: string): Promise<string | undefined> {
     if (this.store.getSnapshot().busy) return undefined
     this.stage(id)
-    await this.apply()
-    return this.store.getSnapshot().error ?? undefined
+    return await this.apply()
   }
 
   /**
@@ -122,6 +123,7 @@ export class AgentPresetSeatController {
    * chip should announce itself on the session it lands on.
    */
   stage(id: string, introduce = false): void {
+    this.stagedRevision += 1
     this.staged = id
     this.set({ current: id, error: null, introduce })
   }
@@ -137,53 +139,59 @@ export class AgentPresetSeatController {
    *
    * Called both by `select()` and by whoever observes the current session
    * changing, because the session may appear either before or after the pick.
-   * @returns once the switch settled, or immediately when there is nothing to do.
+   * @returns this selection's refusal, or undefined after successful reconciliation.
    */
-  async apply(): Promise<void> {
+  apply(): Promise<string | undefined> {
+    if (this.applying !== undefined) return this.applying
     const staged = this.staged
     const session = this.currentSession()
     if (staged === undefined) {
       const current = session === undefined ? this.fallback : presetOf(session) ?? ''
       if (current !== this.store.getSnapshot().current) this.set({ current })
-      return
+      return Promise.resolve(undefined)
     }
-    if (session === undefined) return
+    if (session === undefined) return Promise.resolve(undefined)
     // A started session's history was produced under its own composition; the
     // host refuses the swap, so the stage is no longer meaningful.
     if (!session.blank || presetOf(session) === staged) {
       this.staged = undefined
-      return
+      return Promise.resolve(undefined)
     }
+    const revision = this.stagedRevision
+    this.applying = Promise.resolve().then(() => this.selectPreset(session, staged, revision))
     this.set({ busy: true, error: null })
-    try {
-      const result = await this.remote.agentPresets.select(session.id, staged)
-      this.staged = undefined
-      if (!result.ok) {
-        const { error } = result
-        this.set({
-          busy: false,
-          // A refusal carries its cause twice: `message` wraps it in the
-          // roster's own frame, which names the preset the surface reporting
-          // this already names, and a `reason` detail holds the same cause
-          // without it. Read by the detail rather than by the code, because
-          // every refusal that has a cause to give names it the same way.
-          error: 'reason' in error.details && typeof error.details.reason === 'string'
-            ? error.details.reason
-            : error.message,
-          current: presetOf(session) ?? '',
-        })
-        return
-      }
-      // Consumed: the next new session opens on the deployment default again.
-      this.set({ busy: false, current: result.value })
-    } catch (error) {
-      this.staged = undefined
-      this.set({
-        busy: false,
-        error: messageOf(error),
-        current: presetOf(session) ?? '',
-      })
+    return this.applying
+  }
+
+  private async selectPreset(
+    session: Pick<SessionSummary, 'id' | 'blank' | 'projectionValues'>,
+    staged: string,
+    revision: number,
+  ): Promise<string | undefined> {
+    const [outcome] = await Promise.allSettled([
+      Promise.try(() => this.remote.agentPresets.select(session.id, staged)),
+    ])
+    this.applying = undefined
+    if (revision === this.stagedRevision) this.staged = undefined
+    let refusal: string | undefined
+    let selected: string | undefined
+    if (outcome.status === 'rejected') {
+      refusal = messageOf(outcome.reason)
+    } else if (outcome.value.ok) {
+      selected = outcome.value.value
+    } else {
+      const { error } = outcome.value
+      refusal = 'reason' in error.details && typeof error.details.reason === 'string'
+        ? error.details.reason
+        : error.message
     }
+    const currentSession = this.currentSession()
+    const current = this.staged ?? (currentSession === undefined
+      ? this.fallback
+      : currentSession.id === session.id && selected !== undefined ? selected : presetOf(currentSession) ?? '')
+    this.set({ busy: false, current, error: refusal ?? null })
+    if (this.staged !== undefined) await this.apply()
+    return refusal
   }
 }
 

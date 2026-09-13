@@ -18,6 +18,9 @@ export type DshEnvironmentKey = `${typeof DSH_ENV_PREFIX}${string}`
 /** Trusted DeepSeek Harness variables for one child-process execution. */
 export type DshEnvironment = Readonly<Record<DshEnvironmentKey, string>>
 
+/** Whether explicit child environment entries overlay the scrubbed parent or replace it. */
+export type SubprocessEnvironmentPolicy = 'inherit' | 'isolated'
+
 /** One captured stream: the (possibly truncated) text plus recovery info. */
 export interface CollectedOutput {
   /** Collected text — the TAIL of the stream when truncated. */
@@ -93,6 +96,8 @@ export interface SubprocessSpawnSpec {
    * only reacts to the abort.
    */
   signal?: AbortSignal | undefined
+  /** `isolated` supplies only `env`; omitted or `inherit` retains the scrubbed parent base. */
+  environmentPolicy?: SubprocessEnvironmentPolicy | undefined
   /**
    * Explicit environment entries merged onto the implementation's scrubbed
    * parent base (see `scrubbedParentEnv`), with no namespace validation. A

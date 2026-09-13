@@ -27,8 +27,8 @@ const ROOT_MANIFEST = {
 
 const WEB_MANIFEST = {
   devDependencies: {
-    react: '~19.2.8',
-    'react-dom': '~19.2.8',
+    react: '~19.3.0',
+    'react-dom': '~19.3.0',
     playwright: '^1.62.1',
   },
 }
@@ -37,7 +37,7 @@ describe('rangeMeetsFloor', () => {
   it('accepts the current toolchain ranges', () => {
     for (const [range, floor] of [
       ['^7.0.2', TOOLCHAIN_FLOORS['typescript']],
-      ['~19.2.8', TOOLCHAIN_FLOORS['react']],
+      ['~19.3.0', TOOLCHAIN_FLOORS['react']],
       ['^1.62.1', TOOLCHAIN_FLOORS['playwright']],
       ['^4.23.13', TOOLCHAIN_FLOORS['tsx']],
       ['^5.0.0', TOOLCHAIN_FLOORS['vitest']],
@@ -50,6 +50,8 @@ describe('rangeMeetsFloor', () => {
   it('rejects old-major and old-minor bases and unparsable ranges', () => {
     expect(rangeMeetsFloor('^6.9.9', TOOLCHAIN_FLOORS['typescript'])).toBe(false)
     expect(rangeMeetsFloor('^8.1.9', TOOLCHAIN_FLOORS['vite'])).toBe(false)
+    expect(rangeMeetsFloor('^19.2.8', TOOLCHAIN_FLOORS['react'])).toBe(false)
+    expect(rangeMeetsFloor('^19.2.8', TOOLCHAIN_FLOORS['react-dom'])).toBe(false)
     expect(rangeMeetsFloor('^4.1.11', TOOLCHAIN_FLOORS['vitest'])).toBe(false)
     expect(rangeMeetsFloor('^4.1.11', TOOLCHAIN_FLOORS['@vitest/coverage-v8'])).toBe(false)
     expect(rangeMeetsFloor('workspace:^', TOOLCHAIN_FLOORS['vitest'])).toBe(false)

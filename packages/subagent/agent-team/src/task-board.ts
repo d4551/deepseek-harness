@@ -1,6 +1,7 @@
 /** Shared Team task DAG commands and runtime-enriched views. */
 
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { Context } from '@deepseek-ai/cordis'
 import type { TeamMembership, TeamRoster } from './roster.ts'
 import { TeamError } from './error.ts'
@@ -100,6 +101,21 @@ export class TeamTaskBoard {
     return [...state.tasks.values()]
       .filter(task => task.status !== 'deleted')
       .map(task => this.taskView(root, state, task))
+  }
+
+  /**
+   * Discover exact workspace owners whose active write scopes block pending local work.
+   * @param membership - caller's current Team membership.
+   * @returns blocking owner identities and their Teams.
+   */
+  blockingMembers(membership: TeamMembership): { readonly id: SessionId; readonly teamId: TeamId }[] {
+    const state = this.journal.state(membership.root)
+    return [...state.tasks.values()]
+      .filter(task => task.status === 'pending')
+      .flatMap(task => this.busyOverlaps(membership.root, state, task))
+      .flatMap(({ root, task }) => root !== membership.root && task.ownerId !== undefined
+        ? [{ id: task.ownerId, teamId: TeamId(root.id) }]
+        : [])
   }
 
   /**
@@ -306,7 +322,7 @@ export class TeamTaskBoard {
    * Identify overlapping work across the local board and live workspace peers.
    * Session-qualified peer task names distinguish independent task counters.
    */
-  private busyOverlaps(root: Agent, state: TeamFoldState, task: TeamTaskSnapshot): string[] {
+  private busyOverlaps(root: Agent, state: TeamFoldState, task: TeamTaskSnapshot): { root: Agent; task: TeamTaskSnapshot }[] {
     const boards = [
       { root, state },
       ...workspacePeers(this.ctx, this.roster, root).map(peer => ({ root: peer, state: this.journal.state(peer) })),
@@ -315,7 +331,7 @@ export class TeamTaskBoard {
       .filter(other => (board.root !== root || other.id !== task.id)
         && other.status === 'in_progress'
         && task.writeScopes.some(scope => other.writeScopes.some(busy => scopesOverlap(scope, busy))))
-      .map(other => board.root === root ? other.id : `${workspacePeerName(board.root.id)}/${other.id}`))
+      .map(other => ({ root: board.root, task: other })))
   }
 
   /** Refuse a commit that would leave two owners writing the same paths. */
@@ -323,10 +339,15 @@ export class TeamTaskBoard {
     const [conflict] = this.busyOverlaps(root, state, task)
     if (conflict !== undefined) {
       throw new TeamError(
-        `team task "${task.id}" write scopes overlap in-progress task "${conflict}"`,
+        `team task "${task.id}" write scopes overlap in-progress task "${this.taskName(root, conflict)}"`,
         'TEAM_TASK_WRITE_SCOPE_CONFLICT',
       )
     }
+  }
+
+  /** Preserve Team-local identities while qualifying independent workspace task counters. */
+  private taskName(root: Agent, other: { root: Agent; task: TeamTaskSnapshot }): string {
+    return other.root === root ? other.task.id : `${workspacePeerName(other.root.id)}/${other.task.id}`
   }
 
   /** Whether all current blockers completed. */
@@ -362,7 +383,7 @@ export class TeamTaskBoard {
       writeScopes: structuredClone(task.writeScopes),
       ...ownerName === undefined ? {} : { ownerName },
       ready: task.status === 'pending' && this.taskReady(state, task),
-      writeScopeWarnings: this.busyOverlaps(root, state, task).map(other => `write scopes overlap with ${other}`),
+      writeScopeWarnings: this.busyOverlaps(root, state, task).map(other => `write scopes overlap with ${this.taskName(root, other)}`),
     }
   }
 }

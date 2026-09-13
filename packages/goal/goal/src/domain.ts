@@ -91,6 +91,7 @@ export interface GoalChanged {
 
 /** Stable error codes for rejected goal reads and mutations. */
 export type GoalErrorCode =
+  | 'GOAL_HUMAN_INVOCATION_REQUIRED'
   | 'GOAL_AGENT_NOT_LIVE'
   | 'GOAL_NOT_FOUND'
   | 'GOAL_ALREADY_EXISTS'

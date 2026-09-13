@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto'
 import { posix } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
+import { requireEnvironmentPolicy, SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import type {
   SubprocessHandle,
@@ -50,6 +50,8 @@ function requireRepresentableGrace(graceMs: number): void {
 
 /** E2B command manager registered as `ctx.subprocess`. */
 export class E2BSubprocessRuntime extends SubprocessRuntime {
+  override readonly supportsEnvironmentIsolation = true
+
   static inject = ['e2b']
 
   static Config: z<Config> = z.object({
@@ -138,6 +140,7 @@ export class E2BSubprocessRuntime extends SubprocessRuntime {
 
   /** @inheritdoc */
   spawn(spec: SubprocessSpawnSpec): SubprocessHandle {
+    requireEnvironmentPolicy(spec.environmentPolicy)
     if (this.disposing) throw new Error('subprocess-e2b: service is disposing')
     const program = spec.argv[0]
     if (program === undefined || program.length === 0) {
@@ -184,8 +187,7 @@ export class E2BSubprocessRuntime extends SubprocessRuntime {
         this.pollMs,
       )
       this.terminals.add(terminal)
-      // oxlint-disable-next-line typescript/no-unnecessary-condition -- Remote allocation yields to disposal.
-      if (this.disposing) {
+      if (setup.controller.signal.aborted) {
         await terminal.terminate()
         this.terminals.delete(terminal)
         throw new Error('subprocess-e2b: service disposed during terminal setup')

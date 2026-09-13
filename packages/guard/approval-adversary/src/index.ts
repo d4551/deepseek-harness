@@ -9,11 +9,11 @@ import type {} from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { installSettingsSection } from '@deepseek-ai/dsh-settings'
 import { AGENT_REVIEW_SETTINGS_FLOW, type ApprovalOutcome, type ApprovalRequestEvent } from '@deepseek-ai/dsh-user-approval/types'
-import { APPROVAL_ADVERSARY_SETTINGS_NAMESPACE, APPROVAL_ADVERSARY_SETTINGS_SCHEMA, assertRoutePair, Config } from './policy.ts'
+import { APPROVAL_ADVERSARY_SETTINGS_NAMESPACE, assertRoutePair, Config } from './policy.ts'
 import type { ReviewResult } from './protocol.ts'
 import { APPROVAL_ADVERSARY_PLUGIN, review } from './review.ts'
 
-export { Config, APPROVAL_ADVERSARY_SETTINGS_NAMESPACE, APPROVAL_ADVERSARY_SETTINGS_SCHEMA } from './policy.ts'
+export { Config, APPROVAL_ADVERSARY_SETTINGS_NAMESPACE } from './policy.ts'
 export type { ApprovalAdversarySettings } from './policy.ts'
 export { REVIEW_INSTRUCTIONS } from './protocol.ts'
 export { APPROVAL_ADVERSARY_PLUGIN, APPROVAL_ADVERSARY_TIMEOUT_CODE } from './review.ts'
@@ -47,7 +47,7 @@ export function apply(ctx: Context, config: Config = {}): void {
   const lifecycle = new AbortController()
   ctx.effect(() => () => { lifecycle.abort() }, 'approval-adversary.lifecycle')
   let source = () => entry
-  installSettingsSection(ctx, APPROVAL_ADVERSARY_SETTINGS_NAMESPACE, APPROVAL_ADVERSARY_SETTINGS_SCHEMA, entry, {
+  installSettingsSection(ctx, APPROVAL_ADVERSARY_SETTINGS_NAMESPACE, Config, entry, {
     flow: AGENT_REVIEW_SETTINGS_FLOW,
     setSource: (current) => { source = current },
     validate: assertRoutePair,

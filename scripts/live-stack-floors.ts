@@ -41,13 +41,13 @@ const ROOT = resolve(import.meta.dirname, '..')
 /** TypeScript compile pin (not `@typescript/typescript6`, which is Strada). */
 export const TYPESCRIPT_FLOOR: SemVer = { major: 7, minor: 0, patch: 2 }
 /** React product pin. */
-export const REACT_FLOOR: SemVer = { major: 19, minor: 2, patch: 8 }
+export const REACT_FLOOR: SemVer = { major: 19, minor: 3, patch: 0 }
 /** react-dom product pin. */
-const REACT_DOM_FLOOR: SemVer = { major: 19, minor: 2, patch: 8 }
+const REACT_DOM_FLOOR: SemVer = REACT_FLOOR
 /** @types/react product pin. */
-const TYPES_REACT_FLOOR: SemVer = { major: 19, minor: 2, patch: 18 }
+const TYPES_REACT_FLOOR: SemVer = REACT_FLOOR
 /** @types/react-dom product pin. */
-const TYPES_REACT_DOM_FLOOR: SemVer = { major: 19, minor: 2, patch: 5 }
+const TYPES_REACT_DOM_FLOOR: SemVer = REACT_FLOOR
 /** Vite pin for the web app and the repo root (VitePress on the website is exempt). */
 export const VITE_FLOOR: SemVer = { major: 8, minor: 2, patch: 2 }
 /** @vitejs/plugin-react pin for the web app. */
@@ -132,6 +132,7 @@ export const ROOT_DEPENDENCY_FLOORS: Readonly<Record<string, SemVer>> = Object.f
   '@babel/types': { major: 8, minor: 0, patch: 4 },
   '@stryker-mutator/api': { major: 10, minor: 0, patch: 0 },
   '@stryker-mutator/core': { major: 10, minor: 0, patch: 0 },
+  '@stryker-mutator/vitest-runner': { major: 10, minor: 0, patch: 0 },
   '@stylistic/eslint-plugin': { major: 5, minor: 10, patch: 0 },
   '@testing-library/dom': { major: 10, minor: 4, patch: 1 },
   '@testing-library/react': TESTING_LIBRARY_REACT_FLOOR,
@@ -142,6 +143,7 @@ export const ROOT_DEPENDENCY_FLOORS: Readonly<Record<string, SemVer>> = Object.f
   '@vitest/browser-playwright': VITEST_FLOOR,
   '@vitest/coverage-v8': VITEST_FLOOR,
   '@yarnpkg/cli-dist': { major: 4, minor: 18, patch: 0 },
+  canvas: { major: 3, minor: 2, patch: 3 },
   execa: EXECA_FLOOR,
   'fast-check': { major: 4, minor: 9, patch: 0 },
   'istanbul-lib-report': { major: 3, minor: 0, patch: 1 },

@@ -34,6 +34,7 @@ import { AgentPresetSection } from './AgentPresetSection.tsx'
 import type { AgentPresetSectionInjected } from './AgentPresetSection.tsx'
 import { AgentPresetSeatController } from './seat-store.ts'
 import { AgentPresetSectionController } from './section-store.ts'
+import { AgentPresetSurfaceUpdates } from './surface-updates.ts'
 import { en, zh } from './locales.ts'
 import { AGENT_PRESET_SETTINGS_NS, AgentPresetSettingsController } from './settings-store.ts'
 
@@ -62,10 +63,13 @@ export function apply(ctx: ClientContext): void {
   const controller = new AgentPresetSettingsController(settingsWire, ctx.remote, ctx.settingsScope.describe())
   // One roster, four surfaces. The chip is registered in a later scope, so it
   // subscribes here rather than being reached from this one.
-  const rosterReaders = new Set<() => void>()
-  const section = new AgentPresetSectionController(ctx.remote, () => {
-    void controller.load()
-    for (const read of rosterReaders) read()
+  const rosterReaders = new Set<() => Promise<void>>()
+  const section = new AgentPresetSectionController(ctx.remote, async () => {
+    const results = await Promise.allSettled([controller.load(), ...[...rosterReaders].map(read => read())])
+    const failures = results.filter(result => result.status === 'rejected')
+    if (failures.length > 0) {
+      throw new AggregateError(failures.map((result): unknown => result.reason), 'Agent preset roster convergence failed')
+    }
   })
 
   ctx.effect(() => ctx.locale.register('settings.agentPreset', { zh, en }), 'ui-agent-preset: settings row dictionaries')
@@ -77,13 +81,14 @@ export function apply(ctx: ClientContext): void {
   })
 
   ctx.effect(() => {
+    const updates = new AgentPresetSurfaceUpdates()
     // The roster is a live directory and the default is a settings field, so
     // both an external settings edit and a reconnect can move this row.
     const refresh = (): void => {
-      void controller.load()
+      updates.load(controller)
       // The section reads the same roster and marks the same default, so a
       // change made from either surface converges both.
-      if (section.store.getSnapshot().status !== 'idle') void section.load()
+      if (section.store.getSnapshot().status !== 'idle') updates.load(section)
     }
     const disposers = [
       ctx.remote.$on('settings/document-updated', (ns) => {
@@ -92,7 +97,10 @@ export function apply(ctx: ClientContext): void {
       }),
       ctx.on('connection/reset', () => { refresh() }),
     ]
-    return () => { for (const dispose of disposers) dispose() }
+    return async () => {
+      for (const dispose of disposers) dispose()
+      await updates.dispose()
+    }
   }, 'ui-agent-preset: settings refresh')
 
   // The settings section's conversational authoring entry: stage the
@@ -123,10 +131,11 @@ export function apply(ctx: ClientContext): void {
     })
 
     scope.effect(() => {
+      const updates = new AgentPresetSurfaceUpdates()
       // Connecting a workspace either creates a blank session or reuses one,
       // and either way the chip's pick predates it — so the stage is applied
       // when the session arrives, not when it was made.
-      const stop = scope.sessions.list.subscribe(() => { void seat.apply() })
+      const stop = scope.sessions.list.subscribe(() => { updates.apply(seat) })
       // The chip opens on the deployment default, so a default changed from
       // the settings surface moves it too — otherwise the screen that starts
       // the next session keeps offering the previous default until a reload,
@@ -134,13 +143,13 @@ export function apply(ctx: ClientContext): void {
       // pick survives: `load()` prefers it over the refreshed fallback.
       const settingsMoved = scope.remote.$on('settings/document-updated', (ns) => {
         if (ns !== AGENT_PRESET_SETTINGS_NS) return
-        void seat.load()
+        updates.load(seat)
       })
       // Authoring writes a FILE, not a setting, so nothing on the wire
       // announces it — without this the screen that starts the next session
       // keeps offering the roster as it stood when the chip first loaded, and
       // a preset authored to be used is missing from the one place it is used.
-      const readRoster = (): void => { void seat.load() }
+      const readRoster = (): Promise<void> => seat.load()
       rosterReaders.add(readRoster)
       // Stage WITHOUT applying — the still-current running session would
       // refuse the swap and drop the stage — then start the session it lands
@@ -165,13 +174,14 @@ export function apply(ctx: ClientContext): void {
         locale: 'settings.agentPreset',
         inject: labelInjected,
       }, AgentPresetLabel)
-      return () => {
+      return async () => {
         stop()
         settingsMoved()
         rosterReaders.delete(readRoster)
         creatorDraft = undefined
         chip()
         label()
+        await updates.dispose()
       }
     }, 'ui-agent-preset: new-session chip and header label')
   })

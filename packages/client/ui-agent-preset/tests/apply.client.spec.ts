@@ -578,6 +578,73 @@ describe('ui-agent-preset apply', () => {
 })
 
 describe('AgentPresetSeatController reconciliation', () => {
+  it.each([false, true])('preserves a newer stage on a different session while the prior selection settles (failure=%s)', async (fails) => {
+    const pending = Promise.withResolvers<{ ok: true; value: string }>()
+    const calls: Array<{ sessionId: SessionId; preset: string }> = []
+    const state = { current: { id: SessionId('first'), blank: true, projectionValues: { agentPreset: 'standard' } } }
+    const controller = new AgentPresetSeatController({ agentPresets: {
+      list: () => Promise.resolve({ ok: true, value: { presets: [], authorable: false } }),
+      select: (sessionId, preset) => {
+        calls.push({ sessionId, preset })
+        return sessionId === SessionId('first') ? pending.promise : Promise.resolve({ ok: true, value: preset })
+      },
+    } }, () => state.current)
+    const first = controller.select('minimal')
+    await vi.waitFor(() => { expect(calls).toHaveLength(1) })
+    state.current = { id: SessionId('second'), blank: true, projectionValues: { agentPreset: 'standard' } }
+    controller.stage('minimal')
+    const current = controller.apply()
+    if (fails) pending.reject(new Error('first session could not mount'))
+    else pending.resolve({ ok: true, value: 'minimal' })
+    expect(await first).toBe(fails ? 'first session could not mount' : undefined)
+    await current
+    expect(calls).toEqual([
+      { sessionId: SessionId('first'), preset: 'minimal' },
+      { sessionId: SessionId('second'), preset: 'minimal' },
+    ])
+    expect(controller.store.getSnapshot()).toMatchObject({ current: 'minimal', busy: false, error: null })
+  })
+
+  it('uses the actual current session after an earlier session selection completes', async () => {
+    const pending = Promise.withResolvers<{ ok: true; value: string }>()
+    const state = { current: { id: SessionId('first'), blank: true, projectionValues: { agentPreset: 'standard' } } }
+    const controller = new AgentPresetSeatController({ agentPresets: {
+      list: () => Promise.resolve({ ok: true, value: { presets: [], authorable: false } }),
+      select: () => pending.promise,
+    } }, () => state.current)
+    const selecting = controller.select('minimal')
+    state.current = { id: SessionId('second'), blank: true, projectionValues: { agentPreset: 'current-session-preset' } }
+    const reconciling = controller.apply()
+    pending.resolve({ ok: true, value: 'minimal' })
+    await Promise.all([selecting, reconciling])
+    expect(controller.store.getSnapshot()).toMatchObject({ current: 'current-session-preset', busy: false, error: null })
+  })
+
+  it('joins repeated list notifications while one selection is pending', async () => {
+    const selection = Promise.withResolvers<{ ok: true; value: string }>()
+    const calls: string[] = []
+    const controller = new AgentPresetSeatController({
+      agentPresets: {
+        list: () => Promise.resolve({ ok: true, value: { presets: [], authorable: false } }),
+        select: (_sessionId: SessionId, preset: string) => {
+          calls.push(preset)
+          return selection.promise
+        },
+      },
+    }, () => ({ id: SessionId('pending'), blank: true }))
+    await controller.load()
+    controller.stage('minimal')
+    const first = controller.apply()
+    const second = controller.apply()
+    const third = controller.apply()
+    await vi.waitFor(() => { expect(calls).toEqual(['minimal']) })
+    expect(controller.store.getSnapshot().busy).toBe(true)
+    selection.resolve({ ok: true, value: 'minimal' })
+    await Promise.all([first, second, third])
+    expect(calls).toEqual(['minimal'])
+    expect(controller.store.getSnapshot()).toMatchObject({ busy: false, error: null, current: 'minimal' })
+  })
+
   it('uses the deployment default without a Session and clears it for an uncomposed Session', async () => {
     const state: { current?: { id: SessionId; blank: boolean } } = {}
     const controller = new AgentPresetSeatController({

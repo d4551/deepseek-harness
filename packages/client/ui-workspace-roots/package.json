@@ -77,9 +77,9 @@
     "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/dsh-typert-protocol": "workspace:^",
     "@testing-library/react": "^16.3.3",
-    "@types/react": "~19.2.18",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "@types/react": "~19.3.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
   },
   "files": [
     "lib/index.js",

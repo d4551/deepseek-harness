@@ -19,6 +19,7 @@ import { snapshotJsonValue } from './json.ts'
 import { deriveEventMessage, SurfaceManager } from './surface.ts'
 import type { SessionSurface } from './surface.ts'
 import { foldRequestHeader } from './request-header.ts'
+import { SessionRequestBudgets } from './request-budget.ts'
 
 export { SESSION_FORMAT_VERSION, SessionId } from './types.ts'
 export type { AgentCancelCause, CreateSessionOptions, EpochHeader, PrepareSessionOptions, RequestContext, RequestHeaderReason, RestoredSessionOptions, SessionEvent, SessionEventMap, SessionEventType, SessionHeader, SurfaceEvent, SurfaceEventType, SurfaceIntent, SurfaceOp, TurnEndCancelCause, TurnEndReason, TurnEndReasonMap } from './types.ts'
@@ -793,6 +794,8 @@ export class SessionForkError extends Error {
 export class SessionStore extends Service {
   private store = new Map<SessionId, SessionEntry>()
   private counter = 0
+  /** Durable request reservations shared by exact root and actor Sessions. */
+  readonly requestBudgets: SessionRequestBudgets = new SessionRequestBudgets(this)
 
   constructor(ctx: Context) {
     super(ctx, 'sessions')
@@ -1024,16 +1027,7 @@ export class SessionStore extends Service {
     const { carrier } = this.liveEntryFor(session)
     const callbackArgs: unknown[] = [session]
     const callbacks = collectSessionCallbacks(this.ctx, [carrier, 'session/flush', session])
-    const results = await Promise.allSettled(callbacks.map((callback) => {
-      try {
-        return callback(...callbackArgs)
-      } catch (error: unknown) {
-        // Preserve the listener's exact rejection value; flush is a caller-owned
-        // failure boundary, and Cordis listeners may throw arbitrary values.
-        // oxlint-disable-next-line typescript/prefer-promise-reject-errors
-        return Promise.reject(error)
-      }
-    }))
+    const results = await Promise.allSettled(callbacks.map(async callback => await callback(...callbackArgs)))
     const failure = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
     if (failure !== undefined) throw failure.reason
     return callbacks.length > 0

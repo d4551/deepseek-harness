@@ -54,6 +54,7 @@ describe('SubprocessRuntime seam', () => {
   it('a concrete subclass registers as ctx.subprocess and serves the abstract API', async () => {
     const ctx = new Context()
     await ctx.plugin(StubSubprocessRuntime)
+    expect(ctx.subprocess.supportsEnvironmentIsolation).toBe(false)
     const handle = ctx.subprocess.spawn({
       argv: ['true'],
       cwd: '/stub',

@@ -84,6 +84,12 @@ ctx.tools.register(defineTool({
 
 `ctx.tools.guard(guard)` 在可扩展的 `tools/pre-execute` waterfall（瀑布式事件）之后注册单调同步守卫：返回的理由会拒绝调用，后续监听器无法把该拒绝重新变为允许。流水线事件给插件更多控制——`tools/pre-execute` 决定允许／拒绝／询问，`tools/execute` 为超时或重试包装分发，`tools/post-execute` 检查或替换结果，`tools/result` 观测冻结的最终结果。
 
+### 注册工作区效果
+
+仅更新会话状态或读取后台任务输出的工具可以声明 `directWorkspaceEffect: 'none'`。注册表将该声明与已注册实现一同保留，并以不可变的执行字段提供给守卫。模型参数和 schema 不携带该权限。每次调用保留确切的注册生命周期；分发前删除、替换、隐藏或收束该注册会拒绝调用。未声明的效果仍受宿主常规文件检查约束。
+
+注册时对参数与输出 schema 创建快照，并保留执行方法及其原始接收对象。之后修改 schema 或回调不会改变已注册的约定。策略提供的新值必须通过同一且仍有效的注册约定校验；非合法 JSON 的 schema 在发布前即被拒绝。
+
 ### Host 展示描述
 
 工具可以为 Host 本地消费方保留纯函数 `presentCall()` 与 `presentResult()` 方法。内置 Web Client 不消费这些值，而是通过 `tool.call.toolview` 选择 renderer，并从原始调用参数、结果内容、失败状态与持久 metadata 派生 card props。[Client 派生展示决策](../../../.agents/notes/implemented/architecture/2026-08-23-client-derived-tool-presentation.zh.md)负责该 transport 拆分。

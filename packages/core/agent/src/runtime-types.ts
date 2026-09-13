@@ -224,6 +224,18 @@ declare module '@deepseek-ai/cordis' {
 
     // ---- the machine's extension points ----
     /**
+     * Prepare the agent's capabilities after claiming input and before assembling a proposed step.
+     * Every listener must finish its owned work and observe cancellation. A rejection ends the
+     * turn before a model request and retains the normal claimed-input lifecycle.
+     * @param payload.agent - the agent proposing the step.
+     * @param payload.turn - the open turn number.
+     * @param payload.step - the proposed step number.
+     * @param payload.signal - the current turn's cancellation signal.
+     * Scope-filtered dispatch: listeners receive only their own agent.
+     * @mode serial
+     */
+    'agent/prepare-step'(this: Scoped<Agent>, payload: { agent: Agent; turn: number; step: number; signal: AbortSignal }): Promise<void> | void
+    /**
      * Reject a proposed step or replace the messages that enter it. Calling
      * `next()` preserves the current messages.
      * @param payload.agent - the agent proposing the step.

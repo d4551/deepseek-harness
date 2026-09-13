@@ -18,21 +18,23 @@ interface Profile {
 // snapshot; they do not re-evaluate that deleted baseline or track its preset.
 // The counts dropped by the eight `sonarjs/*` rules the TypeScript 7 lint
 // toolchain cannot load; the Agent Note names their replacement coverage.
+// Commit 79711728bcfe9a8a084f4af246612ec0652490fb enabled no-void in all
+// three profiles; every other normalized rule retained its prior fingerprint.
 const profiles = {
   source: {
-    count: 82,
+    count: 83,
     indexes: [0, 1, 4, 5],
-    sha256: 'f59d2370e435fb25505fec7da1dfccb5d8f2e5bf9815d154a07ad3ac4c7ebd7a',
+    sha256: 'df9baf14cf974f83cd850b8068d1a1b30fe855cc15c4e577cda19dc6bffdff6b',
   },
   example: {
-    count: 81,
+    count: 82,
     indexes: [0, 1, 2, 4, 5],
-    sha256: 'b0362beaa44c013a61dd1a4a5f338eb09a4b21ec729de95de7bb39b1fa8f1d48',
+    sha256: 'dc1f88c06e8013c7fc5c135a986bf411c52c9a996793e6d9ac502f5d96c609cc',
   },
   test: {
-    count: 77,
+    count: 78,
     indexes: [0, 3, 4, 5],
-    sha256: 'cdbebccc854b31a1ef96816597bf8e829a0fb8c7b54e73e0f5e5e853de03943d',
+    sha256: '10fa619bca1b6520197cf5c4ddc2d179cc1c9ed5ce63e1cac6adf2d784ea0498',
   },
 } as const satisfies Record<string, Profile>
 
@@ -96,5 +98,6 @@ describe('Oxlint repository rule fingerprint', () => {
 
     expect(Object.keys(rules)).toHaveLength(profile.count)
     expect(fingerprint).toBe(profile.sha256)
+    expect(rules['no-void']).toEqual([2])
   })
 })

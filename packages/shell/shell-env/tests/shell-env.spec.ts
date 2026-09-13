@@ -186,7 +186,7 @@ describe('ShellEnvRegistry', () => {
     expect(registry.collect(execution())).not.toHaveProperty('DSH_TEMPORARY')
   })
 
-  it('returns an explicit contributor disposer', () => {
+  it('returns an explicit contributor disposer', async () => {
     const registry = new ShellEnvRegistry(new Context(), { dshHome: './test-dsh-home' })
     const dispose = registry.register({
       name: 'explicit-disposal',
@@ -195,7 +195,7 @@ describe('ShellEnvRegistry', () => {
     })
 
     expect(registry.collect(execution()).DSH_EXPLICIT_DISPOSAL).toBe('present')
-    dispose()
+    await dispose()
     expect(registry.collect(execution())).not.toHaveProperty('DSH_EXPLICIT_DISPOSAL')
   })
 

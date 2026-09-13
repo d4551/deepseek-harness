@@ -20,6 +20,7 @@ export type {
   DshEnvironmentKey,
   SubprocessCollect,
   SubprocessCollectedOutputs,
+  SubprocessEnvironmentPolicy,
   SubprocessHandle,
   SubprocessOutcome,
   SubprocessOutputMode,
@@ -42,6 +43,16 @@ export type {
  * after the scrub.
  */
 export const SENSITIVE_ENV_PATTERN = /KEY|PASSWORD|SECRET|TOKEN/i
+
+/**
+ * Validate the environment policy before a provider starts work.
+ * @param policy - caller-supplied environment policy.
+ */
+export function requireEnvironmentPolicy(policy: unknown): void {
+  if (policy !== undefined && policy !== 'inherit' && policy !== 'isolated') {
+    throw new Error('subprocess: invalid environment policy')
+  }
+}
 
 /**
  * The ambient parent environment minus credential-shaped names and minus all
@@ -100,6 +111,9 @@ declare module '@deepseek-ai/cordis' {
  *   when the top-level process exits.
  */
 export abstract class SubprocessRuntime extends Service {
+  /** True only when this provider enforces the spawn spec's isolated environment. */
+  readonly supportsEnvironmentIsolation: boolean = false
+
   constructor(ctx: Context) {
     super(ctx, 'subprocess')
   }

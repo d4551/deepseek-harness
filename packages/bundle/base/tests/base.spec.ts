@@ -54,9 +54,10 @@ describe('dsh-base bundle', () => {
     // for the served namespace, and enabling it is a user's decision.
     expect(rows.indexOf(rows.find(row => row.id === 'approval-adversary')!))
       .toBe(rows.indexOf(rows.find(row => row.id === 'approval-assessor')!) + 1)
-    expect(rows.find(row => row.id === 'approval-adversary')).toMatchObject({
+    expect(rows.find(row => row.id === 'approval-adversary')).toEqual({
+      id: 'approval-adversary',
       name: '@deepseek-ai/dsh-approval-adversary',
-      config: { enabled: false, fallback: 'delegate', timeoutMs: 30000, maxOutputTokens: 256, maxExcerptChars: 4000 },
+      config: { enabled: false, timeoutMs: 30000, maxOutputTokens: 256, maxEvidenceChars: 4000 },
     })
     expect(rows.find(row => row.id === 'approval-adversary')?.disabled).toBeUndefined()
     expect(rows.filter(row => row.id === 'subagent-codex')).toHaveLength(0)

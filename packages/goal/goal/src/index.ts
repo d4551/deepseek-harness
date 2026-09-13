@@ -11,6 +11,7 @@ import { z as zod } from 'zod'
 import type { ZodType } from 'zod'
 import { agentEvents } from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
 // Type-only: resolves ctx.sessionProjections for the optional unit child.
@@ -273,7 +274,6 @@ export class GoalService extends TypertRemoteService {
    * @param request - at least one replacement field.
    * @returns the edited view.
    */
-  @Remote('edit')
   edit(agent: Agent, ref: GoalRef, request: EditGoalRequest): GoalView {
     const cache = this.prepareMutation(agent)
     const current = this.expectCurrent(cache, ref)
@@ -295,7 +295,6 @@ export class GoalService extends TypertRemoteService {
    * @param ref - expected current revision.
    * @returns the paused view.
    */
-  @Remote('pause')
   pause(agent: Agent, ref: GoalRef): GoalView {
     return this.transition(agent, ref, 'pause', ['active'], 'paused', 'disarmed')
   }
@@ -307,7 +306,6 @@ export class GoalService extends TypertRemoteService {
    * @param ref - expected current revision.
    * @returns the active view.
    */
-  @Remote('resume')
   resume(agent: Agent, ref: GoalRef): GoalView {
     const cache = this.prepareMutation(agent)
     const current = this.expectCurrent(cache, ref)
@@ -333,7 +331,6 @@ export class GoalService extends TypertRemoteService {
    * @param ref - expected current revision.
    * @returns the completed view.
    */
-  @Remote('complete')
   complete(agent: Agent, ref: GoalRef): GoalView {
     return this.transition(
       agent,
@@ -373,7 +370,6 @@ export class GoalService extends TypertRemoteService {
    * @param ref - expected current revision.
    * @returns the tombstone ref whose revision is one past the cleared snapshot.
    */
-  @Remote('clear')
   clear(agent: Agent, ref: GoalRef): GoalRef {
     const cache = this.prepareMutation(agent)
     const current = this.expectCurrent(cache, ref)
@@ -584,8 +580,93 @@ export class GoalService extends TypertRemoteService {
    */
   @Remote('create')
   remoteExportCreate(agent: Agent, request: CreateGoalRequest): CreateGoalResult {
+    this.assertHumanInvocation()
     const view = this.create(agent, request)
+    this.submitRemoteWork(agent, 'create', view)
     return { ref: { id: view.id, revision: view.revision } }
+  }
+
+  /**
+   * Record a successful human Remote edit as input for the next admitted step.
+   * @param agent - exact live Agent resolved from the wire identity.
+   * @param ref - expected current revision.
+   * @param request - objective or round-cap replacement.
+   * @returns the committed edited Goal view.
+   */
+  @Remote('edit')
+  remoteExportEdit(agent: Agent, ref: GoalRef, request: EditGoalRequest): GoalView {
+    this.assertHumanInvocation()
+    const view = this.edit(agent, ref, request)
+    this.submitRemoteWork(agent, 'edit', view)
+    return view
+  }
+
+  /**
+   * Record a successful human Remote resume before the Goal driver continues.
+   * @param agent - exact live Agent resolved from the wire identity.
+   * @param ref - expected current revision.
+   * @returns the committed active Goal view.
+   */
+  @Remote('resume')
+  remoteExportResume(agent: Agent, ref: GoalRef): GoalView {
+    this.assertHumanInvocation()
+    const view = this.resume(agent, ref)
+    this.submitRemoteWork(agent, 'resume', view)
+    return view
+  }
+
+  /**
+   * Pause through the human Remote boundary without publishing work input.
+   * @param agent - exact live Agent resolved from the wire identity.
+   * @param ref - expected current revision.
+   * @returns the committed paused Goal view.
+   */
+  @Remote('pause')
+  remoteExportPause(agent: Agent, ref: GoalRef): GoalView {
+    this.assertHumanInvocation()
+    return this.pause(agent, ref)
+  }
+
+  /**
+   * Complete through the human Remote boundary without publishing work input.
+   * @param agent - exact live Agent resolved from the wire identity.
+   * @param ref - expected current revision.
+   * @returns the committed complete Goal view.
+   */
+  @Remote('complete')
+  remoteExportComplete(agent: Agent, ref: GoalRef): GoalView {
+    this.assertHumanInvocation()
+    return this.complete(agent, ref)
+  }
+
+  /**
+   * Clear through the human Remote boundary without publishing work input.
+   * @param agent - exact live Agent resolved from the wire identity.
+   * @param ref - expected current revision.
+   * @returns the committed tombstone revision.
+   */
+  @Remote('clear')
+  remoteExportClear(agent: Agent, ref: GoalRef): GoalRef {
+    this.assertHumanInvocation()
+    return this.clear(agent, ref)
+  }
+
+  /** Refuse Agent execution at a human input producer before its domain mutation. */
+  private assertHumanInvocation(): void {
+    if (this.ctx.agents.currentInitiator() !== undefined) {
+      throw new GoalError('Goal Remote work requires a human invocation', 'GOAL_HUMAN_INVOCATION_REQUIRED')
+    }
+  }
+
+  /** Publish accepted Remote intent without independently waking the Goal driver. */
+  private submitRemoteWork(agent: Agent, operation: 'create' | 'edit' | 'resume', view: GoalView): void {
+    agent.send(createUserMessage({
+      source: { kind: 'user' },
+      content: [{
+        type: 'text',
+        text: `Goal ${operation}: ${view.objective}\nMaximum goal rounds: ${view.maxGoalRounds}`,
+      }],
+    }), 'next-step', false)
   }
 }
 

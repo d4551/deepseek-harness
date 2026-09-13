@@ -846,7 +846,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/goal/goal/src/index.ts:116`](../packages/goal/goal/src/index.ts)
+Source: [`packages/goal/goal/src/index.ts:117`](../packages/goal/goal/src/index.ts)
 
 <a id="deepseek-aidsh-headless"></a>
 
@@ -2513,7 +2513,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/subagent/subagent/src/index.ts:190`](../packages/subagent/subagent/src/index.ts)
+Source: [`packages/subagent/subagent/src/index.ts:191`](../packages/subagent/subagent/src/index.ts)
 
 <a id="deepseek-aidsh-subagent-acp"></a>
 
@@ -2897,7 +2897,7 @@ export interface Config {
 export type TeamCoordination = 'delegated' | 'swarm'
 ```
 
-Source: [`packages/subagent/tool-agent-team/src/index.ts:26`](../packages/subagent/tool-agent-team/src/index.ts)
+Source: [`packages/subagent/tool-agent-team/src/index.ts:25`](../packages/subagent/tool-agent-team/src/index.ts)
 
 <a id="deepseek-aidsh-tool-fs"></a>
 
@@ -3360,7 +3360,7 @@ export interface Config {
 export type ToolPresentationMode = 'native' | 'ptc' | 'both'
 ```
 
-Source: [`packages/core/tools/src/index.ts:655`](../packages/core/tools/src/index.ts)
+Source: [`packages/core/tools/src/index.ts:659`](../packages/core/tools/src/index.ts)
 
 <a id="deepseek-aidsh-typert-loader"></a>
 

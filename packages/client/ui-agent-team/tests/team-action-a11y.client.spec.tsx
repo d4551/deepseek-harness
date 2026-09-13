@@ -28,6 +28,16 @@ async function assertPanelAccessible(load: TeamActionInjected['load']): Promise<
 }
 
 describe('TeamAction accessibility', () => {
+  it('renders waiting as a distinct accessible member activity', async () => {
+    const waitingView: TeamView = {
+      ...view,
+      members: view.members.map(member => ({ ...member, status: 'waiting' })),
+    }
+    await assertPanelAccessible(() => Promise.resolve({ ok: true, value: waitingView }))
+    expect(await screen.findAllByText(zh['memberStatus.waiting'])).toHaveLength(waitingView.members.length)
+    expect(screen.queryByText(zh['memberStatus.running'])).toBeNull()
+  })
+
   it('keeps empty work panels compact and member tables within narrow and wide viewports', async () => {
     const rosterView: TeamView = {
       ...view,

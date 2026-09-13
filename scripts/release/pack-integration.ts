@@ -1,28 +1,22 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import {
   createIntegrationRelease,
-  INTEGRATION_CONTROL_FILE,
-  INTEGRATION_PACK_FILE,
   type IntegrationFamily,
   type IntegrationPackageInput,
 } from './integration-release-contract.ts'
-import { packFamily } from './pack.ts'
+import { releaseFamily } from './families.ts'
+import { IntegrationSource } from './integration-source.ts'
 import { attempt, capture, isEntry, runConcurrent } from './process.ts'
 import { readPublishOrder } from './tarball.ts'
 
-const DEFAULT_OUTPUT = 'dist/integration'
+const DEFAULT_OUTPUT = join(tmpdir(), 'dsh-integration-release')
 const NATIVE_ROOT = 'native/landlock-run'
 const NATIVE_ENTRY = '@deepseek-ai/node-addon-landlock-run'
 const DSH_ENTRY = '@deepseek-ai/dsh'
 const SHELL_TOOL = '@deepseek-ai/dsh-tool-shell'
-const RELEASE_STATUS_PATHS = [
-  ':(top)**',
-  ':(top,exclude).agents/**',
-  ':(top,exclude)goal/**',
-] as const
 
 interface RootManifest {
   readonly engine: string
@@ -103,19 +97,6 @@ function readFamily(family: IntegrationFamily, directory: string): readonly Pack
   return readPublishOrder(directory).map(filename => readPackedPackage(family, directory, filename))
 }
 
-function sourceIdentity(root: string): { readonly commit: string; readonly tree: string } {
-  const status = capture(
-    'git',
-    ['status', '--porcelain=v1', '--untracked-files=all', '--', ...RELEASE_STATUS_PATHS],
-    { cwd: root },
-  )
-  if (status !== '') throw new Error(`integration release requires a clean source tree:\n${status}`)
-  return {
-    commit: capture('git', ['rev-parse', 'HEAD'], { cwd: root }),
-    tree: capture('git', ['rev-parse', 'HEAD^{tree}'], { cwd: root }),
-  }
-}
-
 function nodeRules(engine: string): {
   readonly minimumExactMajor: number
   readonly minimumExactMinor: number
@@ -175,7 +156,13 @@ function runtimeManifest(packages: readonly PackedPackage[], rootManifest: RootM
   }, null, 2)}\n`)
 }
 
-function createLock(root: string, directory: string, manifest: Buffer, packages: readonly PackedPackage[]): Buffer {
+function createLock(
+  root: string,
+  source: IntegrationSource,
+  directory: string,
+  manifest: Buffer,
+  packages: readonly PackedPackage[],
+): Buffer {
   writeFileSync(join(directory, 'package.json'), manifest, { flag: 'wx' })
   const packageDirectory = join(directory, 'packages')
   mkdirSync(packageDirectory)
@@ -183,14 +170,14 @@ function createLock(root: string, directory: string, manifest: Buffer, packages:
     const target = join(packageDirectory, basename(entry.file))
     writeFileSync(target, entry.bytes, { flag: 'wx' })
   }
-  const result = attempt('bun', [
+  const result = attempt(source.bun, [
     'install',
     '--lockfile-only',
     '--save-text-lockfile',
     '--ignore-scripts',
     '--backend=copyfile',
     '--no-progress',
-  ], { cwd: directory })
+  ], { ...source.processOptions, cwd: directory })
   if (result.status !== 0) {
     throw new Error(`integration lock generation failed:\n${result.stdout}\n${result.stderr}`)
   }
@@ -198,33 +185,32 @@ function createLock(root: string, directory: string, manifest: Buffer, packages:
   if (!existsSync(lockPath)) throw new Error('integration lock generation produced no bun.lock')
   const lock = readFileSync(lockPath)
   const text = lock.toString('utf8')
-  if (text.includes('workspace:') || text.includes(root) || text.includes(directory)) {
+  if (text.includes('workspace:') || text.includes(root) || text.includes(source.directory) || text.includes(directory)) {
     throw new Error('integration lock is not relocatable')
   }
   return lock
 }
 
-function prepareOutput(output: string): void {
-  if (existsSync(output)) {
-    const entries = readdirSync(output)
-    if (entries.length !== 0) throw new Error(`integration release output is not empty: ${output}`)
-    return
-  }
-  mkdirSync(output, { recursive: true })
-}
-
 export async function packIntegration(outputValue = DEFAULT_OUTPUT): Promise<void> {
   const root = process.cwd()
-  const source = sourceIdentity(root)
-  const rootManifest = readRootManifest(root)
   const working = mkdtempSync(join(tmpdir(), 'dsh-integration-release-'))
   try {
+    const source = IntegrationSource.capture(root, working)
+    const rootManifest = readRootManifest(source.directory)
+    await source.build(rootManifest.packageManager)
+    source.retainBuildInputs([
+      ...releaseFamily('dsh').members(source.directory).map(member => member.directory),
+      ...releaseFamily('vendor').members(source.directory).map(member => member.directory),
+      NATIVE_ROOT,
+    ])
     const dshDirectory = join(working, 'dsh')
     const vendorDirectory = join(working, 'vendor')
     const nativeDirectory = join(working, 'native')
-    await packFamily('dsh', dshDirectory)
-    await packFamily('vendor', vendorDirectory)
-    await runConcurrent('node', [join(root, NATIVE_ROOT, 'scripts/pack-release.mjs'), nativeDirectory, '--current-platform-only'])
+    const options = source.processOptions
+    await runConcurrent(source.bun, ['run', 'release:pack', '--family', 'dsh', '--out', dshDirectory], options)
+    await runConcurrent(source.bun, ['run', 'release:pack', '--family', 'vendor', '--out', vendorDirectory], options)
+    await runConcurrent(source.node, [join(source.directory, NATIVE_ROOT, 'scripts/pack-release.mjs'), nativeDirectory, '--current-platform-only'], options)
+    source.verify()
     const packages = [
       ...readFamily('dsh', dshDirectory),
       ...readFamily('native', nativeDirectory),
@@ -234,7 +220,7 @@ export async function packIntegration(outputValue = DEFAULT_OUTPUT): Promise<voi
     const manifest = runtimeManifest(packages, rootManifest, entry.version)
     const lockDirectory = join(working, 'runtime')
     mkdirSync(lockDirectory)
-    const lock = createLock(root, lockDirectory, manifest, packages)
+    const lock = createLock(root, source, lockDirectory, manifest, packages)
     const rules = nodeRules(rootManifest.engine)
     const release = createIntegrationRelease({
       files: [
@@ -251,12 +237,10 @@ export async function packIntegration(outputValue = DEFAULT_OUTPUT): Promise<voi
         platform: `${process.platform}-${process.arch}`,
         toolPackage: SHELL_TOOL,
       },
-      source,
+      source: source.identity,
     })
     const output = resolve(root, outputValue)
-    prepareOutput(output)
-    writeFileSync(join(output, INTEGRATION_CONTROL_FILE), release.controlBytes, { flag: 'wx' })
-    writeFileSync(join(output, INTEGRATION_PACK_FILE), release.packBytes, { flag: 'wx' })
+    source.publish(output, release.controlBytes, release.packBytes)
     console.log(`integration release: ${String(packages.length)} packages for ${process.platform}-${process.arch} in ${output}`)
   } finally {
     rmSync(working, { recursive: true, force: true })

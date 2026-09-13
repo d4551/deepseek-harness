@@ -373,15 +373,15 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the revision-one task view.',
       },
       {
-        signature: 'getTask(caller: Agent, id: TeamTaskId): TeamTaskView',
+        signature: 'getTask(caller: Agent, id: TeamTaskId, sessionId?: string): TeamTaskView',
         description: 'Return one task, including a deleted tombstone.',
-        parameters: [{ name: 'caller', description: 'exact live Team member reading the task.' }, { name: 'id', description: 'Team-local task identity.' }],
+        parameters: [{ name: 'caller', description: 'exact live Team member reading the task.' }, { name: 'id', description: 'Team-local task identity.' }, { name: 'sessionId', description: 'optional own-Team or registered workspace Lead identity.' }],
         returns: 'the latest task value and derived readiness diagnostics.',
       },
       {
-        signature: 'listTasks(caller: Agent): TeamTaskView[]',
+        signature: 'listTasks(caller: Agent, sessionId?: string): TeamTaskView[]',
         description: 'List current non-deleted tasks in numeric creation order.',
-        parameters: [{ name: 'caller', description: 'exact live Team member reading the board.' }],
+        parameters: [{ name: 'caller', description: 'exact live Team member reading the board.' }, { name: 'sessionId', description: 'optional own-Team or registered workspace Lead identity.' }],
         returns: 'detached current task views.',
       },
       {
@@ -407,6 +407,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Wait for the next Team-domain or member-status change.',
         parameters: [{ name: 'caller', description: 'exact live Team member waiting for activity.' }, { name: 'timeoutMs', description: 'bounded wait duration from ten seconds through one hour.' }, { name: 'signal', description: 'caller cancellation for the wait only.' }],
         returns: 'one observed change or a timeout result.',
+      },
+      {
+        signature: 'waitForProgress(caller: Agent, timeoutMs: number, signal: AbortSignal): Promise<TeamProgressResult>',
+        description: 'Coordinate unfinished work with a productive member and a fresh activity cursor.',
+        parameters: [{ name: 'caller', description: 'exact live Team member requesting model suspension.' }, { name: 'timeoutMs', description: 'validated duration from ten seconds through one hour.' }, { name: 'signal', description: 'cancellation for this wait only.' }],
+        returns: 'progress, timeout, or an explicit reason waiting cannot help.',
       },
       {
         signature: 'interrupt(caller: Agent, targetName: string): { previousStatus: \'running\' | \'idle\' | \'inactive\' }',
@@ -519,16 +525,16 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         throws: ['the signal reason when aborted, or a storage error when verification fails.'],
       },
       {
-        signature: 'imageHostPath(ref: ImageAttachmentRef): string | undefined',
+        signature: 'imageHostPath(_ref: ImageAttachmentRef): string | undefined',
         description: 'Locate the provider-owned normalized object in the harness host filesystem.',
-        parameters: [{ name: 'ref', description: 'durable normalized attachment reference.' }],
+        parameters: [{ name: '_ref', description: 'durable normalized attachment reference.' }],
         returns: 'an absolute host path, or undefined when this backend is not host-file-backed.',
         throws: ['an AttachmentError when the durable reference is invalid.'],
       },
       {
-        signature: 'readImageRequest( ref: ImageAttachmentRef, policy: ImageRequestPolicy, signal?: AbortSignal, ): Promise<RequestImageAttachment>',
+        signature: 'readImageRequest( _ref: ImageAttachmentRef, _policy: ImageRequestPolicy, signal?: AbortSignal, ): Promise<RequestImageAttachment>',
         description: 'Generate or read one deterministic model-request version from the stored normalized image.',
-        parameters: [{ name: 'ref', description: 'durable provider-independent normalized attachment reference.' }, { name: 'policy', description: 'exact route pixel budget and encoded-byte target; a target no ladder quality meets yields the smallest ladder output.' }, { name: 'signal', description: 'optional cancellation.' }],
+        parameters: [{ name: '_ref', description: 'durable provider-independent normalized attachment reference.' }, { name: '_policy', description: 'exact route pixel budget and encoded-byte target; a target no ladder quality meets yields the smallest ladder output.' }, { name: 'signal', description: 'optional cancellation.' }],
         returns: 'request bytes and the cache/upload identity covering every transform input.',
       },
     ],
@@ -891,9 +897,9 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'an absolute path in the backend\'s execution world.',
       },
       {
-        signature: 'processPathFromHostPath(hostPath: string): string | undefined',
+        signature: 'processPathFromHostPath(_hostPath: string): string | undefined',
         description: 'Map an absolute path from the harness host into this filesystem\'s execution world when both paths identify the same file. The base provider exposes no mapping; host-backed or explicitly shared backends override it.',
-        parameters: [{ name: 'hostPath', description: 'absolute path in the harness host filesystem.' }],
+        parameters: [{ name: '_hostPath', description: 'absolute path in the harness host filesystem.' }],
         returns: 'the process path for the same file, or undefined when this execution world cannot read that host file.',
       },
       {
@@ -983,25 +989,25 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the created live view.',
       },
       {
-        signature: '@Remote(\'edit\') edit(agent: Agent, ref: GoalRef, request: EditGoalRequest): GoalView',
+        signature: 'edit(agent: Agent, ref: GoalRef, request: EditGoalRequest): GoalView',
         description: 'Edit objective and/or round cap without changing phase.',
         parameters: [{ name: 'agent', description: 'owning live agent.' }, { name: 'ref', description: 'expected current revision.' }, { name: 'request', description: 'at least one replacement field.' }],
         returns: 'the edited view.',
       },
       {
-        signature: '@Remote(\'pause\') pause(agent: Agent, ref: GoalRef): GoalView',
+        signature: 'pause(agent: Agent, ref: GoalRef): GoalView',
         description: 'Pause an active goal and disarm automatic continuation.',
         parameters: [{ name: 'agent', description: 'owning live agent.' }, { name: 'ref', description: 'expected current revision.' }],
         returns: 'the paused view.',
       },
       {
-        signature: '@Remote(\'resume\') resume(agent: Agent, ref: GoalRef): GoalView',
+        signature: 'resume(agent: Agent, ref: GoalRef): GoalView',
         description: 'Resume and arm a stopped goal, or rearm an active goal after a session-start edge, while its round budget still has capacity.',
         parameters: [{ name: 'agent', description: 'owning live agent.' }, { name: 'ref', description: 'expected current revision.' }],
         returns: 'the active view.',
       },
       {
-        signature: '@Remote(\'complete\') complete(agent: Agent, ref: GoalRef): GoalView',
+        signature: 'complete(agent: Agent, ref: GoalRef): GoalView',
         description: 'Mark a current non-complete goal complete and disarm it.',
         parameters: [{ name: 'agent', description: 'owning live agent.' }, { name: 'ref', description: 'expected current revision.' }],
         returns: 'the completed view.',
@@ -1013,7 +1019,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the blocked view with its durable reason.',
       },
       {
-        signature: '@Remote(\'clear\') clear(agent: Agent, ref: GoalRef): GoalRef',
+        signature: 'clear(agent: Agent, ref: GoalRef): GoalRef',
         description: 'Clear the current goal while retaining a durable tombstone and history.',
         parameters: [{ name: 'agent', description: 'owning live agent.' }, { name: 'ref', description: 'expected current revision.' }],
         returns: 'the tombstone ref whose revision is one past the cleared snapshot.',
@@ -1023,6 +1029,36 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Create one Goal through the remote boundary.',
         parameters: [{ name: 'agent', description: 'exact live Agent resolved from the wire identity.' }, { name: 'request', description: 'objective and optional round cap.' }],
         returns: 'the created Goal identity.',
+      },
+      {
+        signature: '@Remote(\'edit\') remoteExportEdit(agent: Agent, ref: GoalRef, request: EditGoalRequest): GoalView',
+        description: 'Record a successful human Remote edit as input for the next admitted step.',
+        parameters: [{ name: 'agent', description: 'exact live Agent resolved from the wire identity.' }, { name: 'ref', description: 'expected current revision.' }, { name: 'request', description: 'objective or round-cap replacement.' }],
+        returns: 'the committed edited Goal view.',
+      },
+      {
+        signature: '@Remote(\'resume\') remoteExportResume(agent: Agent, ref: GoalRef): GoalView',
+        description: 'Record a successful human Remote resume before the Goal driver continues.',
+        parameters: [{ name: 'agent', description: 'exact live Agent resolved from the wire identity.' }, { name: 'ref', description: 'expected current revision.' }],
+        returns: 'the committed active Goal view.',
+      },
+      {
+        signature: '@Remote(\'pause\') remoteExportPause(agent: Agent, ref: GoalRef): GoalView',
+        description: 'Pause through the human Remote boundary without publishing work input.',
+        parameters: [{ name: 'agent', description: 'exact live Agent resolved from the wire identity.' }, { name: 'ref', description: 'expected current revision.' }],
+        returns: 'the committed paused Goal view.',
+      },
+      {
+        signature: '@Remote(\'complete\') remoteExportComplete(agent: Agent, ref: GoalRef): GoalView',
+        description: 'Complete through the human Remote boundary without publishing work input.',
+        parameters: [{ name: 'agent', description: 'exact live Agent resolved from the wire identity.' }, { name: 'ref', description: 'expected current revision.' }],
+        returns: 'the committed complete Goal view.',
+      },
+      {
+        signature: '@Remote(\'clear\') remoteExportClear(agent: Agent, ref: GoalRef): GoalRef',
+        description: 'Clear through the human Remote boundary without publishing work input.',
+        parameters: [{ name: 'agent', description: 'exact live Agent resolved from the wire identity.' }, { name: 'ref', description: 'expected current revision.' }],
+        returns: 'the committed tombstone revision.',
       },
     ],
   },
@@ -1215,10 +1251,10 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     description: 'The LSP capability seam (`ctx.lsp`). Owns provider registration/selection and normalized query execution; exposes exactly the four operations and no protocol escape hatch.',
     methods: [
       {
-        signature: 'registerProvider(provider: LspProvider): () => void',
+        signature: 'registerProvider(provider: LspProvider): () => Promise<void>',
         description: 'Register a provider, atomically reserving its id and every normalized extension. Any conflict or invalid input publishes nothing and throws `LspError`; the returned disposer releases all reservations. Disposed with the calling fiber.',
         parameters: [{ name: 'provider', description: 'the backend to register.' }],
-        returns: 'a synchronous disposer releasing the id and all extension reservations.',
+        returns: 'the owning effect disposer; await it to observe complete release of the id and all extension reservations.',
       },
       {
         signature: 'query(request: LspQueryRequest, signal?: AbortSignal): Promise<LspQueryResult>',
@@ -1869,6 +1905,11 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     description: 'In-memory session store (`ctx.sessions`).\n\nPersistence is intentionally not implemented here — persistence plugins subscribe to `session/event` and flush on `session/flush` / dispose.',
     methods: [
       {
+        signature: 'readonly requestBudgets: SessionRequestBudgets = new SessionRequestBudgets(this)',
+        description: 'Durable request reservations shared by exact root and actor Sessions.',
+        parameters: [],
+      },
+      {
         signature: 'create(id?: SessionId, options?: CreateSessionOptions): Session',
         description: 'Create a session owned by the calling fiber: disposing that fiber stops event notification and removes the session from the store. `options.seed` populates the session with a copy of those events (replay/fork); `options.meta` attaches creation metadata (validated absolute `cwd`, seed and parent lineage, and delegation depth) as the immutable SessionHeader (the store fills `version`/`id`/`createdAt`).\n\nFor an agent whose session must be torn down IN ORDER with its loop (so the loop\'s final events are published before the store attachment ends), do NOT use this — fold the session lifecycle into the agent\'s own effect via prepare + enter + announce (see `dsh-agent-loop`\'s creation transaction).',
         parameters: [{ name: 'id', description: 'the session id; omitted, the store mints `session-<n>`.' }, { name: 'options', description: 'seed events and/or creation metadata for the header.' }],
@@ -1930,7 +1971,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       {
         signature: '@Remote async list(request: SkillListRequest, signal: AbortSignal): Promise<SkillListValue>',
         description: 'List the user-invocable skills visible to one Session composition.',
-        parameters: [{ name: 'request', description: 'Session identity whose cwd and preset select the catalog view.' }, { name: 'signal', description: 'caller lifetime carried by the Remote transport; admitted catalog reads retain their existing completion semantics.' }],
+        parameters: [{ name: 'request', description: 'Session identity whose cwd and preset select the catalog view.' }, { name: 'signal', description: 'caller lifetime carried by the Remote transport.' }],
         returns: 'user-invocable skill metadata without loading skill bodies.',
         throws: ['TypertRemoteFailure when the Session cannot be inspected or no registry can serve it.'],
       },
@@ -2133,10 +2174,10 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     description: 'Registry (`ctx.shellEnv`) for trusted, per-execution `DSH_*` variables. The namespace is rebuilt for every model shell call: ambient `DSH_*` values are discarded by the executor, then the registry\'s current snapshot is injected. Built-in shell facts remain owned by the registry itself while plugins can register additional, enumerable facts with effect-scoped disposal.',
     methods: [
       {
-        signature: 'register(contributor: BashEnvContributor): () => void',
+        signature: 'register(contributor: BashEnvContributor): () => Promise<void>',
         description: 'Register one environment contributor. Names and keys are unique; built-in keys are reserved. Registration is disposed with the calling plugin fiber.',
         parameters: [{ name: 'contributor', description: 'declared key ownership and per-execution resolver.' }],
-        returns: 'the disposer that unregisters the contribution.',
+        returns: 'the owning effect disposer; await it to observe complete removal of the contribution.',
       },
       {
         signature: 'collect(execution: ToolExecution): DshEnvironment',
@@ -2270,6 +2311,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     description: 'Named provider registry with one-shot runs, durable discovery, and continuable-child operations.',
     methods: [
       {
+        signature: 'delegatingParent(child: Agent): Agent | undefined',
+        description: 'Read creation-time delegation independently of structural lifecycle ownership.',
+        parameters: [{ name: 'child', description: 'exact Agent whose child composition established the binding.' }],
+        returns: 'the exact delegating parent, or undefined for an unbound Agent.',
+      },
+      {
         signature: 'async startContinuable(spec: ContinuableStartSpec): Promise<ContinuableStart>',
         description: 'Establish one durable continuable child and deliver its initial prompt. Resolves when the child\'s inbox accepts that prompt, without waiting for the turn to start or for the message to reach the Session log; any earlier failure rejects with no ids and rolls back the child entirely.',
         parameters: [{ name: 'spec', description: 'provider, delegation request, and caller cancellation.' }],
@@ -2389,6 +2436,11 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     summary: 'Abstract subprocess service.',
     description: 'Abstract subprocess service. Subclass, implement spawn, and load the subclass as a plugin — it registers as `ctx.subprocess` (one implementation per context; loading a second throws, which is cordis\' standard duplicate-service behavior).\n\nImplementations must honor these semantics:\n\n- Executable paths belong to one execution world shared with the mounted filesystem provider.\n- spawn returns immediately with a live handle; `done` resolves at process close with exit facts and rejects only for spawn-level failures.\n- Collect-mode readers are offset-based and non-consuming, so independent readers never consume one another\'s output; lossy reads report truncation and the spill file holding the complete stream when one exists. Piped streams are handed to the caller raw and never buffered here.\n- SubprocessHandle.terminate (and the spec\'s abort signal) escalates SIGTERM→grace→SIGKILL — the only termination verb — tree-scoped on every platform. SubprocessHandle.waitForExit observes whole-tree liveness, so a consumer-owned teardown ladder can hold each tier on real quiescence.\n- Disposal of the service terminates all still-running managed processes and awaits their exit.\n- spawnTerminal owns terminal allocation, text transport, foreground groups, signalling, and whole-session quiescence behind one awaited termination method; readiness and persistent-shell policy stay in the PTY consumer. Its output stream ends after queued terminal output when the top-level process exits.',
     methods: [
+      {
+        signature: 'readonly supportsEnvironmentIsolation: boolean = false',
+        description: 'True only when this provider enforces the spawn spec\'s isolated environment.',
+        parameters: [],
+      },
       {
         signature: 'abstract resolveExecutable( command: string, env?: Readonly<Record<string, string>>, signal?: AbortSignal, ): Promise<string>',
         description: 'Resolve one configured executable in this provider\'s execution world. Absolute paths are verified; bare names use the provider\'s scrubbed PATH plus explicit environment overrides. Relative paths containing separators are rejected: the resolution base is undefined, so providers fail loud instead of guessing.',
@@ -2606,7 +2658,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     description: 'Tool registry and execution pipeline. Scoped registrations shadow globals; one visibility resolver feeds presentation, lookup, and dispatch.',
     methods: [
       {
-        signature: 'presentAs(mode: ToolPresentationMode): () => void',
+        signature: 'presentAs(mode: ToolPresentationMode): Disposable<Promise<void>>',
         description: 'Present the calling scope\'s tools in `mode` instead of the deployment default. Nearest scope on the chain wins, so a preset\'s standing declaration covers every agent joined under it.\n\nScoped only, and one declaration per scope: this is how an agent preset composes PTC mode agents beside native ones in the same process, and a process-global override would be the `mode` config field instead.',
         parameters: [{ name: 'mode', description: 'the presentation the covered agents\' models see.' }],
         returns: 'the exact disposer that restores the deployment default.',
@@ -3035,6 +3087,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     summary: 'Reject a proposed step or replace the messages that enter it.',
     description: 'Reject a proposed step or replace the messages that enter it. Calling `next()` preserves the current messages.',
     parameters: [{ name: 'payload', description: '.signal - the current turn\'s cancellation signal. Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): agent-scoped listeners receive only that agent.' }],
+  },
+  {
+    name: 'agent/prepare-step',
+    mode: 'serial',
+    signature: '\'agent/prepare-step\'(this: Scoped<Agent>, payload: { agent: Agent; turn: number; step: number; signal: AbortSignal }): Promise<void> | void',
+    summary: 'Prepare the agent\'s capabilities after claiming input and before assembling a proposed step.',
+    description: 'Prepare the agent\'s capabilities after claiming input and before assembling a proposed step. Every listener must finish its owned work and observe cancellation. A rejection ends the turn before a model request and retains the normal claimed-input lifecycle.',
+    parameters: [{ name: 'payload', description: '.signal - the current turn\'s cancellation signal. Scope-filtered dispatch: listeners receive only their own agent.' }],
   },
   {
     name: 'agent/request',
@@ -4785,8 +4845,20 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface ReplayEnvelope {\n    response: unknown;\n    blocks?: readonly unknown[];\n}',
   },
   {
+    name: 'RequestAttempt',
+    declaration: 'export interface RequestAttempt extends RequestEpisode {\n    readonly actorSessionId: SessionId;\n    readonly actorAttempt: number;\n    readonly rootAttempt: number;\n}',
+  },
+  {
+    name: 'RequestBudgetPolicy',
+    declaration: 'export interface RequestBudgetPolicy {\n    readonly policyId: string;\n    readonly maxAgentAttempts: number;\n    readonly maxRootAttempts: number;\n}',
+  },
+  {
     name: 'RequestContext',
     declaration: 'export interface RequestContext {\n    provider: string;\n    model: string;\n    contextWindow?: number;\n}',
+  },
+  {
+    name: 'RequestEpisode',
+    declaration: 'export interface RequestEpisode {\n    readonly version: 1;\n    readonly policyId: string;\n    readonly rootSessionId: SessionId;\n    readonly userMessageId: MessageId;\n}',
   },
   {
     name: 'RequestErrorAction',
@@ -5209,6 +5281,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface SessionRenameValue {\n    readonly title: string;\n    readonly seq: number;\n}',
   },
   {
+    name: 'SessionRequestBudgets',
+    declaration: 'export class SessionRequestBudgets {\n    constructor(private readonly sessions: SessionStore);\n    offer(root: Session, policy: RequestBudgetPolicy, userMessageId: MessageId): void;\n    discard(root: Session, policy: RequestBudgetPolicy, userMessageId: MessageId): void;\n    admit(root: Session, policy: RequestBudgetPolicy, userMessageId: MessageId): void;\n    async reserve(root: Session, actor: Session, policy: RequestBudgetPolicy, signal: AbortSignal): Promise<RequestAttempt>;\n}',
+  },
+  {
     name: 'SessionRequestId',
     declaration: 'export type SessionRequestId = Branded<\'session-request-id\'>;',
   },
@@ -5263,6 +5339,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SessionStartSource',
     declaration: 'export type SessionStartSource = \'startup\' | \'resume\' | \'clear\' | \'compact\';',
+  },
+  {
+    name: 'SessionStore',
+    declaration: 'export class SessionStore extends Service {\n    readonly requestBudgets: SessionRequestBudgets;\n    constructor(ctx: Context);\n    create(id?: SessionId, options?: CreateSessionOptions): Session;\n    prepare(id?: SessionId, options?: PrepareSessionOptions): Session;\n    enter(session: Session): () => void;\n    announce(session: Session): void;\n    async flush(session: Session): Promise<boolean>;\n    get(id: SessionId): Session | undefined;\n    list(): Session[];\n    fork(source: SessionForkSource, boundary?: number, childSessionId?: SessionId): Session;\n}',
   },
   {
     name: 'SessionSummary',
@@ -5618,7 +5698,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SubagentRuntime',
-    declaration: 'export class SubagentRuntime extends TypertRemoteService {\n    static Config: z<Config>;\n    constructor(ctx: Context, config: Config);\n    async startContinuable(spec: ContinuableStartSpec): Promise<ContinuableStart>;\n    async followup(parent: Agent, childId: SessionId, content: ContentBlock[], options: SubagentFollowupOptions): Promise<MessageId>;\n    interrupt(targetSessionId: SessionId, authority: SubagentInterruptAuthority): void;\n    async reportFrom(child: Agent, content: ContentBlock[], options: SubagentReportOptions): Promise<MessageId>;\n    registerContinuableSetup(contribution: ContinuableSetupContribution): Disposable;\n    async drainContinuableDescendants(parents: readonly Agent[]): Promise<void>;\n    async drainContinuableChildren(parent: Agent, childIds: readonly SessionId[]): Promise<void>;\n    listChildren(parentSessionId: SessionId, signal?: AbortSignal): Promise<SubagentListEntry[]>;\n    listDescendants(rootSessionId: SessionId, signal?: AbortSignal): Promise<SubagentDescendantListEntry[]>;\n    @Remote(\'list\')\n    async remoteExportList(parentSessionId: SessionId, signal: AbortSignal): Promise<SubagentCatalog>;\n    @Remote(\'prompt\')\n    async prompt(request: SubagentPromptRequest, signal: AbortSignal): Promise<SubagentPromptReceipt>;\n    @Remote(\'interruptByParent\')\n    interruptByParent(childSessionId: SessionId, parentSessionId: SessionId, mode: \'continuable\'): SubagentInterruptReceipt;\n    registerProvider(provider: SubagentProvider): Disposable;\n    ge /* …truncated — full shape in source */',
+    declaration: 'export class SubagentRuntime extends TypertRemoteService {\n    static Config: z<Config>;\n    constructor(ctx: Context, config: Config);\n    delegatingParent(child: Agent): Agent | undefined;\n    async startContinuable(spec: ContinuableStartSpec): Promise<ContinuableStart>;\n    async followup(parent: Agent, childId: SessionId, content: ContentBlock[], options: SubagentFollowupOptions): Promise<MessageId>;\n    interrupt(targetSessionId: SessionId, authority: SubagentInterruptAuthority): void;\n    async reportFrom(child: Agent, content: ContentBlock[], options: SubagentReportOptions): Promise<MessageId>;\n    registerContinuableSetup(contribution: ContinuableSetupContribution): Disposable;\n    async drainContinuableDescendants(parents: readonly Agent[]): Promise<void>;\n    async drainContinuableChildren(parent: Agent, childIds: readonly SessionId[]): Promise<void>;\n    listChildren(parentSessionId: SessionId, signal?: AbortSignal): Promise<SubagentListEntry[]>;\n    listDescendants(rootSessionId: SessionId, signal?: AbortSignal): Promise<SubagentDescendantListEntry[]>;\n    @Remote(\'list\')\n    async remoteExportList(parentSessionId: SessionId, signal: AbortSignal): Promise<SubagentCatalog>;\n    @Remote(\'prompt\')\n    async prompt(request: SubagentPromptRequest, signal: AbortSignal): Promise<SubagentPromptReceipt>;\n    @Remote(\'interruptByParent\')\n    interruptByParent(childSessionId: SessionId, parentSessionId: SessionId, mode: \'continuable\'): SubagentInterruptReceipt;\n    registerP /* …truncated — full shape in source */',
   },
   {
     name: 'SubagentStartRequest',
@@ -5639,6 +5719,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SubprocessCollectedOutputs',
     declaration: 'export interface SubprocessCollectedOutputs {\n    readonly stdout?: SubprocessOutputReader;\n    readonly stderr?: SubprocessOutputReader;\n}',
+  },
+  {
+    name: 'SubprocessEnvironmentPolicy',
+    declaration: 'export type SubprocessEnvironmentPolicy = \'inherit\' | \'isolated\';',
   },
   {
     name: 'SubprocessHandle',
@@ -5662,7 +5746,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SubprocessSpawnSpec',
-    declaration: 'export interface SubprocessSpawnSpec {\n    argv: readonly string[];\n    cwd: string;\n    stdio: SubprocessStdio;\n    graceMs: number;\n    signal?: AbortSignal | undefined;\n    env?: NodeJS.ProcessEnv | undefined;\n}',
+    declaration: 'export interface SubprocessSpawnSpec {\n    argv: readonly string[];\n    cwd: string;\n    stdio: SubprocessStdio;\n    graceMs: number;\n    signal?: AbortSignal | undefined;\n    environmentPolicy?: SubprocessEnvironmentPolicy | undefined;\n    env?: NodeJS.ProcessEnv | undefined;\n}',
   },
   {
     name: 'SubprocessStdinMode',
@@ -5726,7 +5810,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'TeamMemberView',
-    declaration: 'export interface TeamMemberView {\n    readonly id: SessionId;\n    readonly name: string;\n    readonly title?: string;\n    readonly role: \'lead\' | \'teammate\' | \'peer\';\n    readonly status: \'running\' | \'idle\' | \'inactive\' | \'provisioning\' | \'failed\';\n    readonly description?: string;\n    readonly provider?: string;\n    readonly context?: \'fresh\' | \'fork\';\n    readonly model?: string;\n    readonly diagnostics: string[];\n}',
+    declaration: 'export interface TeamMemberView {\n    readonly id: SessionId;\n    readonly name: string;\n    readonly title?: string;\n    readonly role: \'lead\' | \'teammate\' | \'peer\';\n    readonly status: \'running\' | \'waiting\' | \'idle\' | \'inactive\' | \'provisioning\' | \'failed\';\n    readonly description?: string;\n    readonly provider?: string;\n    readonly context?: \'fresh\' | \'fork\';\n    readonly model?: string;\n    readonly diagnostics: string[];\n}',
   },
   {
     name: 'TeamMessageId',
@@ -5739,6 +5823,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'TeamOverview',
     declaration: 'export interface TeamOverview {\n    readonly members: TeamMemberView[];\n    readonly tasks: TeamTaskView[];\n    readonly workspaceTasks: {\n        readonly sessionId: SessionId;\n        readonly tasks: TeamTaskView[];\n    }[];\n    readonly messages: (TeamMessageSnapshot & {\n        readonly delivered: boolean;\n    })[];\n}',
+  },
+  {
+    name: 'TeamProgressResult',
+    declaration: 'export interface TeamProgressResult extends TeamWaitResult {\n    readonly cursor: string;\n    readonly noProgress?: {\n        readonly reason: \'no-active-peer\' | \'unchanged-progress\';\n        readonly message: string;\n        readonly minimumTimeoutMs?: number;\n        readonly remainingTimeoutMs?: number;\n    };\n}',
   },
   {
     name: 'TeamTaskAction',
@@ -5878,7 +5966,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ToolDefinition',
-    declaration: 'export interface ToolDefinition extends ToolSchema {\n    readonly output: ToolOutputDefinition;\n    execute(args: unknown, exec: ToolRunContext): Promise<unknown>;\n    finalizeContent?(exec: Readonly<ToolExecution>, result: Readonly<ToolExecutionResult>): ContentBlock[] | undefined;\n    timeoutMs?: number;\n    isConcurrencySafe?(args: unknown): boolean;\n    presentCall?(args: unknown): ToolCallView | undefined;\n    presentResult?(args: unknown, result: ToolResult): ToolResultView | undefined;\n}',
+    declaration: 'export interface ToolDefinition extends ToolSchema {\n    readonly directWorkspaceEffect?: \'none\' | undefined;\n    readonly output: ToolOutputDefinition;\n    execute(args: unknown, exec: ToolRunContext): Promise<unknown>;\n    finalizeContent?(exec: Readonly<ToolExecution>, result: Readonly<ToolExecutionResult>): ContentBlock[] | undefined;\n    timeoutMs?: number;\n    isConcurrencySafe?(args: unknown): boolean;\n    presentCall?(args: unknown): ToolCallView | undefined;\n    presentResult?(args: unknown, result: ToolResult): ToolResultView | undefined;\n}',
   },
   {
     name: 'ToolDispatchExecution',
@@ -5890,7 +5978,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ToolExecution',
-    declaration: 'export interface ToolExecution extends ToolExecutionInput {\n    readonly rootCallId: ToolCallId;\n    readonly token: ToolExecutionToken;\n}',
+    declaration: 'export interface ToolExecution extends ToolExecutionInput {\n    readonly directWorkspaceEffect?: \'none\';\n    readonly rootCallId: ToolCallId;\n    readonly token: ToolExecutionToken;\n}',
   },
   {
     name: 'ToolExecutionFailure',
@@ -5966,7 +6054,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ToolRuntime',
-    declaration: 'export class ToolRuntime extends Service {\n    static inject;\n    static Config: z<Config>;\n    readonly [TOOL_RUNTIME_SCHEDULER]: ToolRuntimeScheduler;\n    constructor(ctx: Context, config: Config = {});\n    presentAs(mode: ToolPresentationMode): () => void;\n    register(definition: ToolDefinition): () => void;\n    restrict(filter: ToolRestriction): () => void;\n    guard(guard: ToolGuard): () => void;\n    get(name: string, scope?: ScopeKey): ToolDefinition | undefined;\n    schemas(scope?: ScopeKey): ToolSchema[];\n    executionMode(exec: ToolExecutionInput): ToolExecutionMode;\n    async execute(exec: ToolExecutionInput): Promise<ToolExecutionResult>;\n}',
+    declaration: 'export class ToolRuntime extends Service {\n    static inject;\n    static Config: z<Config>;\n    readonly [TOOL_RUNTIME_SCHEDULER]: ToolRuntimeScheduler;\n    constructor(ctx: Context, config: Config = {});\n    presentAs(mode: ToolPresentationMode): Disposable<Promise<void>>;\n    register(definition: ToolDefinition): () => void;\n    restrict(filter: ToolRestriction): () => void;\n    guard(guard: ToolGuard): () => void;\n    get(name: string, scope?: ScopeKey): ToolDefinition | undefined;\n    schemas(scope?: ScopeKey): ToolSchema[];\n    executionMode(exec: ToolExecutionInput): ToolExecutionMode;\n    async execute(exec: ToolExecutionInput): Promise<ToolExecutionResult>;\n}',
   },
   {
     name: 'ToolRuntimeScheduler',

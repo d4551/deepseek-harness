@@ -39,9 +39,6 @@ export const Config: z<Config, ApprovalAdversarySettings> = z.object({
   instructions: z.string().max(4096).default(''),
 })
 
-/** Complete policy schema installed in the settings service. */
-export const APPROVAL_ADVERSARY_SETTINGS_SCHEMA: z<ApprovalAdversarySettings> = Config
-
 /**
  * Reject whitespace route identifiers and incomplete explicit route pairs.
  * @param settings - schema-resolved policy to validate.

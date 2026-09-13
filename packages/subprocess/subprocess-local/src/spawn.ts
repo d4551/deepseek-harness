@@ -14,11 +14,12 @@ import { closeSync, mkdtempSync, openSync, unlinkSync, writeSync } from 'node:fs
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { setTimeout as sleepMs } from 'node:timers/promises'
-import { scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess'
+import { requireEnvironmentPolicy, scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import type {
   CollectedOutput,
   SubprocessCollect,
+  SubprocessEnvironmentPolicy,
   SubprocessHandle,
   SubprocessOutcome,
   SubprocessOutputMode,
@@ -28,16 +29,24 @@ import { linuxProcessGroupHasLiveMembers } from './process-inspector.ts'
 import { createWindowsProcessJob } from './windows-job.ts'
 import type { WindowsJobFactory, WindowsProcessJob } from './windows-job.ts'
 
+/** Node's Windows process launcher restores omitted environment entries from its parent. */
+export const LOCAL_ENVIRONMENT_ISOLATION_SUPPORTED = process.platform !== 'win32'
+
 /**
  * Build a child environment: explicit caller entries override the scrubbed
  * parent base using the target platform's environment-key semantics. A string
  * deliberately restores or overrides an entry; an explicit `undefined`
  * tombstone removes an ordinary ambient entry.
  * @param extra - explicit caller entries and tombstones, merged after the scrub.
+ * @param policy - whether the scrubbed parent is retained or removed entirely.
  * @returns the environment to hand to `spawn` for the child process.
  */
-export function childEnv(extra?: Readonly<NodeJS.ProcessEnv>): NodeJS.ProcessEnv {
-  const env = scrubbedParentEnv()
+export function childEnv(extra?: Readonly<NodeJS.ProcessEnv>, policy?: SubprocessEnvironmentPolicy): NodeJS.ProcessEnv {
+  requireEnvironmentPolicy(policy)
+  if (policy === 'isolated' && !LOCAL_ENVIRONMENT_ISOLATION_SUPPORTED) {
+    throw new Error('subprocess-local: exact environment isolation is unavailable on this host')
+  }
+  const env = policy === 'isolated' ? {} : scrubbedParentEnv()
   if (process.platform !== 'win32') return { ...env, ...extra }
   let entries: [string, string | undefined][] = Object.entries(env)
   for (const [key, value] of Object.entries(extra ?? {})) {
@@ -457,7 +466,7 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
   const errMode = spec.stdio.stderr
   const stdinMode = spec.stdio.stdin
 
-  const env = childEnv(spec.env)
+  const env = childEnv(spec.env, spec.environmentPolicy)
   const child = spawn(program, args, {
     cwd: spec.cwd,
     env,
@@ -572,8 +581,7 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
     // Observe from the first termination tier onward, even when inherited
     // pipes delay `done` and no consumer has begun its own teardown wait.
     treeExitObservation = observeTreeExit()
-    // oxlint-disable-next-line typescript/no-unnecessary-condition -- observer can record absence before its first await.
-    if (treeExitObserved) return
+    if (!treeAlive()) return
     kill('SIGTERM')
     // The escalation must survive direct-child settlement — the leader dying
     // does not mean the tree died — so settle does not clear this timer, and

@@ -72,6 +72,8 @@ const output = handle.collected.stdout?.readFrom(0)
 
 子进程永远不会隐式继承 harness 的环境秘密：形似凭据的名称与环境中的 `DSH_*` 事实都会被清除，调用方显式的 `env` 在该清除之后合并。有意转发的凭据或当前的 `DSH_*` 部署事实仍会到达子进程；显式的 `undefined` 墓碑值则移除一个普通的环境项。
 
+需要完整替换环境时，调用方必须确认 `supportsEnvironmentIsolation === true`，并传入 `environmentPolicy: 'isolated'`。工作进程只接收显式 `env` 项；省略该策略或使用 `inherit` 时仍保留经过清理的父环境。本地提供方在 POSIX 上支持替换，在 Windows 上于启动前拒绝该请求，因为 Node 会补回省略的父环境项。E2B 使用已有的最终环境重置步骤加载精确序列化的环境项；独立的控制启动阶段仍遵守沙箱控制环境约定。此能力仅适用于普通 `spawn`，不适用于终端分配。
+
 ### 可能出错的地方
 
 无法解析的可执行文件会以稳定的错误快速失败。从未启动成功的 spawn 会让 `done` reject；从未运行过的进程没有任何缓冲输出。脱离进程树或会话的 daemon 化子进程可能比终止更长寿——提供方 README 会记录各自的可观察性限制。当传输拥有自己的 spawn（SDK 客户端、MCP）时，请绕开本服务并直接导入 `scrubbedParentEnv`，让环境策略保持单一来源。

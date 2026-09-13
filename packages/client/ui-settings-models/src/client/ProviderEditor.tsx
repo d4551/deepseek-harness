@@ -21,7 +21,7 @@
  * see instead of rebuilding the whole subtree from a partial descriptor.
  */
 
-import { startTransition, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import type { ReactNode } from 'react'
 import type {
   CredentialInfo, JsonValue, SettingsNamespaceView, SettingsPathOpView,
@@ -159,7 +159,7 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
   const [draft, setDraft] = useState<Record<string, unknown>>(() => draftAt(schema, namespace, settingsPath))
   const [keyDraft, setKeyDraft] = useState('')
   const [keyState, setKeyState] = useState<CredentialInfo | undefined>(undefined)
-  const [busy, setBusy] = useState(false)
+  const [busy, startTransition] = useTransition()
   const [failure, setFailure] = useState<string | undefined>(undefined)
   // A settings success advances both retry baselines immediately. Keeping the
   // derived fields in the draft prevents a pushed namespace refresh from
@@ -301,23 +301,10 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
   }
 
   const apply = async (): Promise<void> => {
-    setBusy(true)
     setFailure(undefined)
-    try {
-      const failure = await applyOnce()
-      if (failure !== undefined) {
-        setFailure(failure)
-        return
-      }
-      props.onClose(true)
-    } catch (error) {
-      // A transport failure (disconnect, a request the host refuses) rejects
-      // rather than answering; without this the card would stay busy forever
-      // with no error shown.
-      setFailure(messageOf(error))
-    } finally {
-      setBusy(false)
-    }
+    const failure = await applyOnce().then(undefined, messageOf)
+    if (failure !== undefined) setFailure(failure)
+    else props.onClose(true)
   }
 
   if (node === undefined) {

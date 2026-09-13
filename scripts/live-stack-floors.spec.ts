@@ -110,6 +110,20 @@ describe('injected floor misses', () => {
       .toEqual(['^1.12.0'])
   })
 
+  it.each([
+    ['react', '^19.2.8'],
+    ['react-dom', '^19.2.8'],
+    ['@types/react', '~19.2.18'],
+    ['@types/react-dom', '~19.2.5'],
+  ])('rejects the previous %s range and accepts the current release', (name, range) => {
+    expect(reactMisses([{
+      file: 'apps/web/package.json', source: JSON.stringify({ devDependencies: { [name]: range } }),
+    }])).toEqual([{ file: 'apps/web/package.json', name, range, floor: REACT_FLOOR }])
+    expect(reactMisses([{
+      file: 'apps/web/package.json', source: JSON.stringify({ devDependencies: { [name]: '^19.3.0' } }),
+    }])).toEqual([])
+  })
+
   it('fails Vite 6 on the web app', () => {
     const misses = rangeMisses('apps/web/package.json', '{"devDependencies":{"vite":"^6.0.0"}}', { vite: VITE_FLOOR })
     expect(misses.map(m => m.range)).toEqual(['^6.0.0'])
@@ -150,7 +164,8 @@ describe('injected floor misses', () => {
 
   it('does not treat a missing name as a pass that hid a pin', () => {
     expect(declaredRange('{"devDependencies":{}}', 'typescript')).toBeUndefined()
-    expect(rangeMeetsFloor('^19.2.8', REACT_FLOOR)).toBe(true)
+    expect(rangeMeetsFloor('^19.3.0', REACT_FLOOR)).toBe(true)
+    expect(rangeMeetsFloor('^19.2.8', REACT_FLOOR)).toBe(false)
   })
 })
 
@@ -184,7 +199,7 @@ describe('live workspace floors', () => {
     expect(typescriptCompileMisses(manifests)).toEqual([])
   })
 
-  it('holds React 19.2.8, Vite 8.2.2 (except VitePress), axe-core 4.13, and MCP SDK 1.30', () => {
+  it('holds React 19.3.0, Vite 8.2.2 (except VitePress), axe-core 4.13, and MCP SDK 1.30', () => {
     expect(reactMisses(manifests)).toEqual([])
     expect(viteMisses(manifests)).toEqual([])
     expect(auditStackMisses(manifests)).toEqual([])
@@ -253,8 +268,8 @@ describe('live workspace floors', () => {
       },
     }, {
       devDependencies: {
-        react: '~19.2.8',
-        'react-dom': '~19.2.8',
+        react: '~19.3.0',
+        'react-dom': '~19.3.0',
         playwright: '^1.62.1',
       },
     })
@@ -278,8 +293,8 @@ describe('live workspace floors', () => {
       },
     }, {
       devDependencies: {
-        react: '~19.2.8',
-        'react-dom': '~19.2.8',
+        react: '~19.3.0',
+        'react-dom': '~19.3.0',
         playwright: '^1.62.1',
       },
     })
@@ -332,6 +347,17 @@ describe('injected root manifest misses', () => {
       range: '1.0.0',
       floor: ROOT_DEPENDENCY_FLOORS['oxlint'],
     }])
+  })
+
+  it.each([
+    ['@stryker-mutator/vitest-runner', '9.6.1', '10.0.0'],
+    ['canvas', '3.2.2', '3.2.3'],
+  ])('holds the declared and installed %s dependency at its reviewed floor', (name, stale, current) => {
+    expect(rootDependencyMisses(JSON.stringify({ devDependencies: { [name]: stale } }))).toEqual([{
+      file: 'package.json', name, range: stale, floor: ROOT_DEPENDENCY_FLOORS[name],
+    }])
+    expect(rootDependencyMisses(JSON.stringify({ devDependencies: { [name]: current } }))).toEqual([])
+    expect(installedNamedVersion(name)).toBe(current)
   })
 
   it('rejects a manifest whose dependency group is not an object', () => {

@@ -108,17 +108,15 @@ function missingGoal(action: string): CommandResult {
 }
 
 /**
- * Submit the invocation's admitted composer images as one model-visible user
- * message ahead of the goal's next round. The images precede a fixed text
- * block naming their role, so a later goal round reads them from ordinary
- * session history without the goal domain storing attachment state.
+ * Queue the accepted human command and its images for the goal's next step.
+ * The goal driver supplies the wake and round message; this input joins that
+ * same step and records the human instruction in ordinary session history.
  */
-function submitObjectiveAttachments(invocation: CommandInvocation): void {
-  if (invocation.attachments.length === 0) return
-  invocation.agent.followup(createUserMessage({
-    content: [...invocation.attachments, { type: 'text', text: 'Reference images for the goal objective.' }],
+function submitGoalWork(invocation: CommandInvocation): void {
+  invocation.agent.send(createUserMessage({
+    content: [...invocation.attachments, { type: 'text', text: `/goal${invocation.rawInput}` }],
     source: { kind: 'user' },
-  }))
+  }), 'next-step', false)
 }
 
 /** Execute one parsed human command through the domain that owns persistence. */
@@ -147,26 +145,29 @@ function executeGoalCommand(ctx: Context, invocation: CommandInvocation): Comman
           }
         }
         const created = ctx.goals.create(invocation.agent, { objective: command.objective })
-        submitObjectiveAttachments(invocation)
+        submitGoalWork(invocation)
         return renderGoal('Goal created', created)
       }
       case 'edit': {
         if (current === undefined) return missingGoal('edit')
         if (current.phase === 'complete') {
           const replaced = ctx.goals.create(invocation.agent, { objective: command.objective })
-          submitObjectiveAttachments(invocation)
+          submitGoalWork(invocation)
           return renderGoal('Goal created', replaced)
         }
         const edited = ctx.goals.edit(invocation.agent, goalRef(current), { objective: command.objective })
-        submitObjectiveAttachments(invocation)
+        submitGoalWork(invocation)
         return renderGoal('Goal updated', edited)
       }
       case 'pause':
         if (current === undefined) return missingGoal('pause')
         return renderGoal('Goal paused', ctx.goals.pause(invocation.agent, goalRef(current)))
-      case 'resume':
+      case 'resume': {
         if (current === undefined) return missingGoal('resume')
-        return renderGoal('Goal resumed', ctx.goals.resume(invocation.agent, goalRef(current)))
+        const resumed = ctx.goals.resume(invocation.agent, goalRef(current))
+        submitGoalWork(invocation)
+        return renderGoal('Goal resumed', resumed)
+      }
       case 'clear':
         if (current === undefined) return { kind: 'success', text: 'No goal to clear.' }
         ctx.goals.clear(invocation.agent, goalRef(current))

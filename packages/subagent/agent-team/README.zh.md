@@ -66,7 +66,7 @@ kind: "package-reference"
 
 请 Lead 创建 teammate：给它一个唯一的小写名字（例如 `reviewer`）并描述其职责。teammate 可以 fresh 启动（不携带 Lead 对话的任何记忆），也可以作为 fork 启动（继承 Lead 已完成的轮次）；创建请求决定用哪种。teammate 名字是永久的——即使创建失败的 teammate 也保留其名字，任何名字都不会被复用。
 
-roster 显示每个成员的职责（`lead` 或 `teammate`）与当前状态：`running`、`idle`、`inactive`（存在但未加载的成员）、`provisioning` 或 `failed`。实时成员报告最新请求中的模型；首次请求前使用初始配置。未加载的成员不报告模型，并在唤醒后收到其消息。
+roster 显示每个成员的职责（`lead` 或 `teammate`）与当前状态：`running`、`waiting`、`idle`、`inactive`（存在但未加载的成员）、`provisioning` 或 `failed`。实时成员报告最新请求中的模型；首次请求前使用初始配置。未加载的成员不报告模型，并在唤醒后收到其消息。
 
 只有 Lead 可以创建 teammate 或中断它们。
 
@@ -90,7 +90,7 @@ roster 显示每个成员的职责（`lead` 或 `teammate`）与当前状态：`
 
 ### 等待与中断
 
-成员可以等待下一次团队变化——teammate 的状态、新消息或任务更新——而不必反复轮询；等待只报告是否超时，调用方随后重新读取当前状态。
+模型协作等待要求同一 Team 中有可推进工作的成员，或工作区中有写入范围阻塞本地任务的活动 owner。已在等待的成员不符合条件；没有任务板记录的委派工作仍可等待。结果保留活动 cursor；同一 cursor 超时后必须逐步延长等待，并受累计一小时约束，之后需要明确恢复。拒绝不会完成任务或释放 owner。标题与请求 header 仅刷新 UI，不唤醒模型等待。
 
 Lead 可以停止 teammate 的当前轮次，而不会删除其排队的消息；任务归属不变。
 
@@ -130,7 +130,8 @@ Lead 可以停止 teammate 的当前轮次，而不会删除其排队的消息�
 | [`src/task-board.ts`](src/task-board.ts) | 任务 CAS 命令、DAG 校验与派生视图 |
 | [`src/journal.ts`](src/journal.ts) | 串行化的 Lead 日志事务与提交通知 |
 | [`src/fold.ts`](src/fold.ts) | 解码并校验 Team 事件的严格回放折叠 |
-| [`src/activity.ts`](src/activity.ts) | 一次性变更等待者与 dispose 释放 |
+| [`src/activity.ts`](src/activity.ts) | 领域活动 cursor、UI 更新、一次性观察与 dispose 释放 |
+| [`src/progress.ts`](src/progress.ts) | 模型等待准入、可见等待状态与有界超时延长 |
 | [`src/lifecycle.ts`](src/lifecycle.ts) | 共享准入截止与有界结算 |
 | [`src/invariant.ts`](src/invariant.ts) | 在 append 前回放候选事件的不变式伴生插件 |
 
@@ -148,7 +149,7 @@ Lead 可以停止 teammate 的当前轮次，而不会删除其排队的消息�
 
 ### 等待与中断
 
-`waitForChange()` 等待注册之后发生的下一条 roster、task、mailbox 或实时状态边，时长从 10 秒到 1 小时，并且只报告是否超时；运行时 dispose 会释放当前等待。取消会保留 Error reason；非 Error reason 则通过 `TEAM_WAIT_ABORTED` 报告。`interrupt()` 仅限 Lead，委托 continuable-subagent 的 interrupt 路径，以 `keepInbox` 只取消 live teammate 的当前 turn；它既不释放任务 owner，也不删除持久 mail。
+`waitForProgress()` 负责模型准入，排除已在等待的成员和无关工作区 Lead，并约束同一 cursor 的超时延长。`waitForChange()` 仍用于观察注册之后发生的下一条 roster、task、mailbox 或实时状态边，时长从 10 秒到 1 小时，并且只报告是否超时；运行时 dispose 会释放当前等待。取消会保留 Error reason；非 Error reason 则通过 `TEAM_WAIT_ABORTED` 报告。`interrupt()` 仅限 Lead，委托 continuable-subagent 的 interrupt 路径，以 `keepInbox` 只取消 live teammate 的当前 turn；它既不释放任务 owner，也不删除持久 mail。
 
 ### 持久性模型
 

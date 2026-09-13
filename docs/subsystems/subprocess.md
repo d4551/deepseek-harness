@@ -118,6 +118,8 @@ interface SubprocessSpawnSpec {
    * only reacts to the abort.
    */
   signal?: AbortSignal | undefined
+  /** `isolated` supplies only `env`; omitted or `inherit` retains the scrubbed parent base. */
+  environmentPolicy?: SubprocessEnvironmentPolicy | undefined
   /**
    * Explicit environment entries merged onto the implementation's scrubbed
    * parent base (see `scrubbedParentEnv`), with no namespace validation. A

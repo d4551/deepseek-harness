@@ -14,6 +14,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
+import FileSettingsProvider from '@deepseek-ai/dsh-settings-file'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
@@ -48,6 +49,7 @@ beforeEach(async () => {
   spillRoot = mkdtempSync(join(tmpdir(), 'dsh-spill-web-'))
 
   ctx = new Context()
+  await ctx.plugin(FileSettingsProvider, { path: join(spillRoot, 'settings.json') })
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(WebRuntime, { fetchProvider: WebFetchLocal.LOCAL_FETCH_PROVIDER_ID })
@@ -60,6 +62,7 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
+  await ctx.fiber.dispose()
   vi.restoreAllMocks()
   await new Promise<void>(resolve => server.close(() => { resolve() }))
   rmSync(spillRoot, { recursive: true, force: true })

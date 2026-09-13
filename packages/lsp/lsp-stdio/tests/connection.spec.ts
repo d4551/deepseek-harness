@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { fileURLToPath } from 'node:url'
 import { LspConnection } from '@deepseek-ai/dsh-lsp-stdio'
 import type { ConnectionWriter } from '@deepseek-ai/dsh-lsp-stdio/src/connection.ts'
+import { encodeMessage } from '@deepseek-ai/dsh-lsp-stdio'
 import { scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess'
 import { spawnSubprocess } from '@deepseek-ai/dsh-subprocess-local/src/spawn.ts'
 
@@ -25,6 +26,7 @@ function connect(
   env: Record<string, string>,
   onServerRequest: (method: string, params: unknown) => Promise<unknown> = () => Promise.resolve(null),
   seen?: SeenRequest[],
+  writer?: ConnectionWriter,
 ): LspConnection {
   const conn = new LspConnection({
     command: process.execPath,
@@ -38,7 +40,7 @@ function connect(
   }, spawnSubprocess, (method, params) => {
     seen?.push({ method, params })
     return onServerRequest(method, params)
-  })
+  }, writer)
   open.push(conn)
   return conn
 }
@@ -128,12 +130,16 @@ describe('LspConnection', () => {
     await expect(conn.request('textDocument/hover', {})).rejects.toThrow(/exited|closed/)
   })
 
-  it('cancel is a no-op-safe write after close', async () => {
+  it('rejects cancellation after close with the retained connection failure', async () => {
     const conn = connect({})
     await conn.request('initialize', { capabilities: {} })
     conn.terminate()
     await conn.closed
-    expect(() => { conn.cancel(1) }).not.toThrow()
+    const cancellation = conn.cancel(1)
+    await expect(cancellation).rejects.toThrow(/exited|closed/)
+    const [outcome] = await Promise.allSettled([cancellation])
+    expect(outcome.status).toBe('rejected')
+    if (outcome.status === 'rejected') expect(conn.failedWith(outcome.reason)).toBe(true)
   })
 
   it('caps the retained stderr tail', async () => {
@@ -237,6 +243,81 @@ describe('LspConnection edge behavior', () => {
     }
     const conn = connectScript('setInterval(()=>{}, 1000)', 100_000, writer)
     await expect(conn.request('initialize', {})).rejects.toThrow(/fixture stdin failure/)
+  })
+
+  it('retains a synchronously thrown writer failure and closes its process', async () => {
+    const failure = new Error('synchronous writer failure')
+    const conn = connectScript('setInterval(()=>{}, 1000)', 100_000, () => { throw failure })
+    await expect(conn.request('initialize', {})).rejects.toBe(failure)
+    await conn.closed
+    expect(conn.failedWith(failure)).toBe(true)
+    expect(await conn.waitForProcessTreeExit()).toBe(true)
+  })
+
+  it('normalizes a non-Error writer failure without losing the fatal connection state', async () => {
+    const conn = connectScript('setInterval(()=>{}, 1000)', 100_000, () => { throw 'writer stopped' })
+    const request = conn.request('initialize', {})
+    await expect(request).rejects.toThrow('writer stopped')
+    await conn.closed
+    const [outcome] = await Promise.allSettled([request])
+    expect(outcome.status).toBe('rejected')
+    if (outcome.status === 'rejected') expect(conn.failedWith(outcome.reason)).toBe(true)
+  })
+
+  it('awaits a cancellation write and retains its exact callback failure', async () => {
+    const failure = new Error('cancellation write failed')
+    const writer: ConnectionWriter = (stdin, message, done) => {
+      if (typeof message === 'object' && message !== null && 'method' in message && message.method === '$/cancelRequest') {
+        queueMicrotask(() => { done(failure) })
+        return
+      }
+      stdin.write(encodeMessage(message), done)
+    }
+    const conn = connect({}, undefined, undefined, writer)
+    await conn.request('initialize', {})
+    await expect(conn.cancel(1)).rejects.toBe(failure)
+    await conn.closed
+    expect(conn.failedWith(failure)).toBe(true)
+    expect(await conn.waitForProcessTreeExit()).toBe(true)
+  })
+
+  it('owns a server reply write failure and closes before accepting another request', async () => {
+    const failure = new Error('server reply write failed')
+    const writer: ConnectionWriter = (stdin, message, done) => {
+      if (typeof message === 'object' && message !== null && 'id' in message && message.id === 10_000) {
+        queueMicrotask(() => { done(failure) })
+        return
+      }
+      stdin.write(encodeMessage(message), done)
+    }
+    const conn = connect({ LSP_FAKE_ON_OPEN: 'configuration' }, undefined, undefined, writer)
+    await conn.request('initialize', {})
+    await conn.notify('textDocument/didOpen', { textDocument: { uri: 'file:///x', languageId: 'ts', version: 1, text: '' } })
+    await conn.closed
+    expect(conn.failedWith(failure)).toBe(true)
+    expect(await conn.waitForProcessTreeExit()).toBe(true)
+    await expect(conn.request('textDocument/hover', {})).rejects.toBe(failure)
+  })
+
+  it('joins a server handler already running when process exit begins', async () => {
+    const entered = Promise.withResolvers<undefined>()
+    const release = Promise.withResolvers<null>()
+    const conn = connect({ LSP_FAKE_ON_OPEN: 'configuration' }, () => {
+      entered.resolve(undefined)
+      return release.promise
+    })
+    await conn.request('initialize', {})
+    await conn.notify('textDocument/didOpen', { textDocument: { uri: 'file:///x', languageId: 'ts', version: 1, text: '' } })
+    await entered.promise
+    let closed = false
+    const observedClose = conn.closed.then(() => { closed = true })
+    conn.terminate()
+    expect(await conn.waitForProcessTreeExit()).toBe(true)
+    await Promise.resolve()
+    expect(closed).toBe(false)
+    release.resolve(null)
+    await observedClose
+    expect(closed).toBe(true)
   })
 
   it('ignores a frame that is neither a valid request nor a numeric-id response', async () => {

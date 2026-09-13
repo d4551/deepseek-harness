@@ -56,7 +56,7 @@ kind: "package-reference"
 
 设置 `coordination: swarm` 后，Lead 将工作拆分为共享任务，teammate 通过 `team_task_claim_next` 领取就绪任务。挂载命令注册表时，`/swarm <request>` 会将新请求提交到 Lead 的普通轮次队列。请求必须包含文本，也可以附带图片。委派组合、排除的 preset 和 teammate 作用域中没有此命令。
 
-两种策略都要求 Lead 在创建 teammate 前建立任务记录，并要求成员领取、完成和报告分配的工作。Swarm 指引保留用户对具名 teammate 的明确分工；未分配的工作使用原子的下一任务领取。创建成员不会自动建立任务记录。每次组装提示词都包含本团队的当前任务板和其他工作区会话的任务板。
+两种策略都要求 Lead 在创建 teammate 前建立任务记录，并要求成员领取、完成和报告分配的工作。Swarm 指引保留用户对具名 teammate 的明确分工；未分配的工作使用原子的下一任务领取。创建成员不会自动建立任务记录。策略前缀保持稳定。成员通过 `list_agents` 发现当前 roster，通过 `team_task_list` 与 `team_task_get` 读取完整任务。可选的精确 `session_id` 选择当前注册的工作区 peer 任务板；写入仍限于调用方自己的任务板。分页保留全部任务，包括已完成工作的完整描述。
 
 试试这样要求 Lead 模型：「创建一个名为 reviewer 的 teammate 检查 diff，再把变更摘要发给 reviewer」。模型会调用创建工具，然后调用消息工具。
 
@@ -73,7 +73,7 @@ kind: "package-reference"
 
 ### 成功与失败的表现
 
-发送消息在安全存储后即成功：结果为 `accepted`（已送达）或 `queued`（等待中），排队的消息绝不能重发。当没有其他成员 running 或 provisioning 时，`wait_agent` 会立即返回 `noProgress`，提示调用方先唤醒 teammate；否则它会等待下一次变化，调用方随后重新读取状态。基于过期 revision 的任务编辑会被拒绝，而不是覆盖更新的成果。
+发送消息在安全存储后即成功：结果为 `accepted`（已送达）或 `queued`（等待中），排队的消息绝不能重发。`wait_agent` 在全部相关成员均未运行或已在等待时返回 `noProgress`。无关工作区 Lead 不能成为等待理由；阻塞本地写入范围的已注册 owner 可以。结果包含活动 cursor。同一 cursor 超时后，延长等待必须至少为上次时长的两倍，且不能超过累计一小时静默等待的剩余预算；拒绝结果给出这些边界，并保留未解决工作。任务、消息提交和相关成员生命周期变化推进进展；标题、请求 header 与等待状态的显示更新不会推进进展。基于过期 revision 的任务编辑会被拒绝，而不是覆盖更新的成果。
 
 -----
 
@@ -138,11 +138,11 @@ kind: "package-reference"
 
 #### Token 影响
 
-每次 Team member 请求都包含策略、schema 和当前 roster 与任务板快照。快照大小随团队和工作区任务板增长。工具调用会增加紧凑 JSON roster、task、wait 或 receipt 结果。Peer 内容由 Team 领域保留在 target 历史中。
+每次 Team member 请求都包含稳定策略、身份与 schema。可变 roster 和任务板按需通过类型化工具读取；已完成任务的描述不会重复插入 system 前缀。工具调用会增加紧凑 JSON roster、task、wait 或 receipt 结果。Peer 内容由 Team 领域保留在 target 历史中。
 
 #### KV Cache 影响
 
-Team 插件 generation 与配置不变时，策略和 schema 前缀保持稳定。身份因成员而异；roster 和任务板文本随已提交状态变化。工具结果与 peer 消息追加到会话历史。
+Team 插件 generation 与配置不变时，策略和 schema 前缀保持稳定。身份因成员而异；roster 与任务板的变化不会改变策略前缀。工具结果与 peer 消息追加到会话历史。
 
 ## 已知限制与延期工作
 

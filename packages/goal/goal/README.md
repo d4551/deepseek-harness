@@ -134,15 +134,15 @@ The package-level contract is enough for most consumers; read these when you nee
 
 #### What the model sees
 
-Goal mutations do not inject model context. Tools such as `get_goal` return the current state, and a continuation consumer may render the objective and round state when it schedules model work.
+Domain mutations do not inject model context. Successful human Remote create, edit and resume operations enqueue the accepted objective and round cap as user input for the next admitted step, without a separate wakeup. Agent-origin Remote work is rejected before mutation. Pause, completion and clear publish no user input. Tools such as `get_goal` return the current state, and a continuation consumer may render the objective and round state when it schedules model work.
 
 #### Token effect
 
-Goal mutation events add no model tokens by themselves. Tool results and scheduled continuation prompts account for their own visible state.
+Goal mutation events add no model tokens. Human Remote work adds one user message; tool results and scheduled continuation prompts account for their own visible state.
 
 #### KV Cache effect
 
-There is no KV-cache effect until another component exposes goal state in model-visible input.
+Human Remote input appends to the accepted conversation history and preserves its existing prefix. Domain mutations alone do not affect KV Cache.
 
 ## Known Limitations and Deferred Work
 
