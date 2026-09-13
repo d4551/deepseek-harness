@@ -92,6 +92,7 @@ export default defineConfig({
         bootstrap: src('./src/preview.ts'),
       },
       output: {
+        strictExecutionOrder: true,
         // The worker-preview surface groups under dist/preview/ (the page
         // itself stays at dist/preview.html), so the published payload can
         // exclude it as one directory.
