@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, realpath, symlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -109,8 +109,11 @@ describe('preset discovery', () => {
 
   it('discovers a symlinked preset directory', async () => {
     const target = join(SYSTEM.path, 'standard')
-    const root = await mkdtemp(join(tmpdir(), 'dsh-preset-link-'))
+    const home = await mkdtemp(join(tmpdir(), 'dsh-preset-link-'))
+    const root = join(home, 'presets')
+    await mkdir(root)
     await symlink(target, join(root, 'linked'))
+    await symlink(join(FIXTURES, 'plugins'), join(home, 'plugins'))
 
     const found = await scanRoot({ path: root, trust: 'user' }, HARNESS)
 
@@ -118,7 +121,7 @@ describe('preset discovery', () => {
     expect(found[0]).toEqual({
       id: 'linked',
       trust: 'user',
-      path: join(await realpath(target), COMPOSITION_FILE),
+      path: join(root, 'linked', COMPOSITION_FILE),
     })
   })
 

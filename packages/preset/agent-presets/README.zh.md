@@ -55,7 +55,7 @@ kind: "package-reference"
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-agent-presets)是每个受支持字段及其 JSDoc 的穷尽式真源。
 
-每个根目录包含以 preset id 命名的目录。要注册 `meowbao`，应提供 `<root>/meowbao/agent.cordis.yml`；若根目录指向安装目录，注册的将是该目录的直接子目录。符号链接形式的 preset 目录保留链接名称作为 id，并从实际目标目录解析组装中的相对导入。既有会话在恢复或 fork 时，仍需要注册其记录的 preset id。
+每个根目录包含以 preset id 命名的目录。要注册 `meowbao`，应提供 `<root>/meowbao/agent.cordis.yml`；若根目录指向安装目录，注册的将是该目录的直接子目录。符号链接形式的 preset 目录保留链接名称作为 id。相对插件名称和被包含的组装路径从注册目录解析，因此部署必须在这些路径提供依赖。既有会话在恢复或 fork 时，仍需要注册其记录的 preset id。
 
 随附根目录前置在全部已配置根目录之前，因此即使补丁替换 roster 配置，内置集合仍然可用并赢得重复 id。`includeShippedRoot: false` 会为完全自行提供 preset 的部署移除内置集合。`includeUserRoot: false` 会移除推导出的可写根目录；钉住确切 roster 的测试会同时关闭两个推导根目录。
 
