@@ -51,6 +51,8 @@ function toStopReason(reason: TurnEndReason | undefined): SubagentStopReason {
       return 'completed'
     case 'max-tokens':
       return 'max-tokens'
+    case 'request-budget':
+      return 'request-budget'
     case 'aborted':
       return 'aborted'
     // A pre-step rejection discarded the claimed prompt: the task was

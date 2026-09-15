@@ -157,6 +157,8 @@ export function sdkChildOutcome(
       return { stopReason: 'completed' }
     case 'max-tokens':
       return { stopReason: 'max-tokens' }
+    case 'request-budget':
+      return { stopReason: 'request-budget' }
     case 'aborted':
       return reason.reason.kind === 'disposed'
         ? {

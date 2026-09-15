@@ -8,6 +8,7 @@ import type { ContentBlock } from '@deepseek-ai/dsh-llm/types'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type { LlmRetryEventData } from '@deepseek-ai/dsh-llm-retry/types'
 import type { TodoItem } from '@deepseek-ai/dsh-tool-todo/client'
+import type { TurnEndReason } from '@deepseek-ai/dsh-session/types'
 import type { ContextProvenanceView, KnownContextForm } from './context-provenance.ts'
 export type { TodoItem }
 
@@ -151,6 +152,16 @@ export interface TurnMaxTokensNode {
   step: number
 }
 
+/** Durable host request limit, requiring explicit human continuation. */
+export interface TurnRequestBudgetNode {
+  kind: 'turn-request-budget'
+  seq: number
+  time: number
+  turn: number
+  step: number
+  budget: Extract<TurnEndReason, { kind: 'request-budget' }>['budget']
+}
+
 /** A tool result paired (when in-window) with its call head. */
 export interface ToolResultNode {
   kind: 'tool-result'
@@ -255,6 +266,7 @@ export type ConversationNode =
   | ModelRetryNode
   | TurnErrorNode
   | TurnMaxTokensNode
+  | TurnRequestBudgetNode
   | ToolResultNode
   | CommandNode
   | CompactionSummaryNode

@@ -1,12 +1,11 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type {
-  ConversationMatch, ConversationNodeContext, ConversationNodeDefinition,
+  ConversationMatch, ConversationNodeDefinition,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 // The declaring package, not the local barrel: a Typert-modeled reference must
 // name the package that owns the type so the generated import can point at it.
 import type { TurnMaxTokensNode } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { SYNTHETIC_SEQ_OFFSETS } from '@deepseek-ai/dsh-client-ui-projection'
-import { chatNode } from './common.ts'
+import { chatNode, turnNoticePosition } from './common.ts'
 
 declare module '../contract/chat-nodes.ts' {
   interface ChatNodeDataMap {
@@ -19,27 +18,6 @@ interface TurnMaxTokensState {
   readonly turn: number
   readonly seq: number
   readonly time: number
-}
-
-function lastStep(context: ConversationNodeContext<TurnMaxTokensState>): number {
-  const location = context.start?.location ?? context.matches[0]?.location
-  if (location?.kind !== 'turn' && location?.kind !== 'step') return 0
-  return location.turn.steps.at(-1)?.step ?? 0
-}
-
-/**
- * Anchor the notice between the closing Assistant and the turn-tail so the
- * tail stays the turn's last Chat node and keeps its branch action enabled.
- * Without a closing text Assistant there is no branch action to protect, and
- * the turn/end seq keeps the notice at the truncation point.
- */
-function noticeAnchor(context: ConversationNodeContext<TurnMaxTokensState>, seq: number): number {
-  const location = context.start?.location ?? context.matches[0]?.location
-  if (location?.kind !== 'turn' && location?.kind !== 'step') return seq
-  const closing = location.turn.data.get('turn-tail')?.closing
-  return closing === null || closing === undefined
-    ? seq
-    : closing.finalNode.seq + SYNTHETIC_SEQ_OFFSETS.maxTokensNotice
 }
 
 function stateFrom(match: ConversationMatch): TurnMaxTokensState | undefined {
@@ -66,14 +44,15 @@ export const turnMaxTokensDefinition: ConversationNodeDefinition<TurnMaxTokensSt
   buildViewNode: (context) => {
     const state = context.state
     if (state === undefined) return null
+    const position = turnNoticePosition(context, state.seq)
     const node: TurnMaxTokensNode = {
       kind: 'turn-max-tokens',
       seq: state.seq,
       time: state.time,
       turn: state.turn,
-      step: lastStep(context),
+      step: position.step,
     }
-    return chatNode(context, 'turn-max-tokens', noticeAnchor(context, state.seq), node)
+    return chatNode(context, 'turn-max-tokens', position.anchor, node)
   },
 }
 

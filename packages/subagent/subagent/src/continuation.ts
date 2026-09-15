@@ -304,6 +304,8 @@ function settlementSummary(childId: SessionId, stopReason: SubagentResult['stopR
       return `${subject} was stopped before it finished.`
     case 'max-tokens':
       return `${subject} ran out of room before it finished.`
+    case 'request-budget':
+      return `${subject} paused at the host request limit before it finished. Prior work remains recorded. An explicit human follow-up in the root conversation is required to authorize more requests.`
     // A pre-step rejection — a hook deny, a policy plugin — discarded input
     // the child had claimed, so the parent must not treat the task as done.
     case 'refusal':

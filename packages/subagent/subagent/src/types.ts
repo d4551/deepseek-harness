@@ -214,6 +214,8 @@ export interface SubagentStopReasonMap {
   error: 'error'
   /** The child hit its token ceiling before finishing. */
   'max-tokens': 'max-tokens'
+  /** Host request allowance exhausted; only new authenticated human work can renew it. */
+  'request-budget': 'request-budget'
   /** The child declined the task. */
   refusal: 'refusal'
 }

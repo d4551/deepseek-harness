@@ -94,8 +94,8 @@ describe('ACP subagent cwd inheritance through a real cordis.yml', () => {
     })
     expect(stderr).not.toContain('UNHANDLED')
     expect(toolResultText(events)).toBe(
-      'Error: subagent run failed\n'
-      + 'Diagnostic: Subagent failure (provider: ACP; stage: prompt; category: remote-limit; stop reason: max_turn_requests)\n'
+      'Error: subagent paused at its host request limit; a human follow-up in the root conversation is required to authorize more work\n'
+      + 'Diagnostic: Subagent paused (provider: ACP; stage: prompt; category: remote-limit; stop reason: max_turn_requests)\n'
       + 'Partial output before the run ended:\npartial loader answer',
     )
   }, LOADER_SMOKE_TEST_TIMEOUT_MS)

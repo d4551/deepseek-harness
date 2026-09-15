@@ -164,6 +164,8 @@ function stopReasonError(result: SubagentResult): string | undefined {
       return 'subagent run failed'
     case 'max-tokens':
       return 'subagent run hit its token limit before finishing'
+    case 'request-budget':
+      return 'subagent paused at its host request limit; a human follow-up in the root conversation is required to authorize more work'
     case 'refusal':
       return 'subagent declined the task'
     // Merge-extensible union: a backend may add stop reasons. Treat an unknown

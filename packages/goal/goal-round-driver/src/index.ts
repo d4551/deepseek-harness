@@ -315,7 +315,7 @@ export function apply(ctx: Context): void {
           }
           return
         case 'turn/end':
-          if (event.data.reason.kind === 'max-tokens') {
+          if (event.data.reason.kind === 'max-tokens' || event.data.reason.kind === 'request-budget') {
             disarm(state)
             return
           }

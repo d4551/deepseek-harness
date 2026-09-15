@@ -23,7 +23,21 @@ export interface RequestAttempt extends RequestEpisode {
   readonly rootAttempt: number
 }
 
+/** Exact usage at a denied provider reservation; no new attempt was charged. */
+export interface RequestBudgetExhaustion extends RequestEpisode {
+  readonly actorSessionId: SessionId
+  readonly actorAttempts: number
+  readonly rootAttempts: number
+  readonly maxAgentAttempts: number
+  readonly maxRootAttempts: number
+}
+
 declare module '@deepseek-ai/dsh-session/types' {
+  interface TurnEndReasonMap {
+    /** Work awaits a new host-authenticated human message; prior charges remain. */
+    'request-budget': { kind: 'request-budget'; budget: RequestBudgetExhaustion }
+  }
+
   interface SessionEventMap {
     /**
      * Host admission of a new human work episode. The referenced root user

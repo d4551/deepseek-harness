@@ -57,6 +57,10 @@ Surface events (`user/message`, `assistant/message`, `tool/result`) must declare
 
 `ctx.sessions.flush(session)` dispatches the awaited durability checkpoint: every persistence listener flushes and the call settles after all of them. A producer that needs an immediate durability barrier awaits it instead of assuming the write-behind drained.
 
+### Pause at the host request limit
+
+Host-admitted work episodes record each model-request attempt before dispatch. Reaching the configured agent or root-task limit raises `RequestBudgetExhausted`; the loop records a `request-budget` turn ending with exact usage, preserves prior work and charges, and pauses automatic goal rounds. The conversation displays the limit and asks for an explicit human follow-up in the root conversation. Only host admission of that new human message authorizes another episode; retries, child messages, and automatic continuation cannot renew it. Missing authorization and failed durability remain errors, and pending verification remains unfinished.
+
 -----
 
 <a id="understand-the-implementation"></a>

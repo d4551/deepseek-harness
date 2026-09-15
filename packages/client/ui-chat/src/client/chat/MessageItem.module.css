@@ -249,9 +249,9 @@
   font: var(--dsw-font-markdown-code-block-small);
 }
 
-.maxTokensTitle {
+.turnLimitTitle {
   margin-right: 6px;
-  color: var(--dsw-alias-state-warn-primary);
+  color: var(--dsw-alias-label-primary);
   font-weight: 600;
 }
 

@@ -1,7 +1,22 @@
 import type { MessageId } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionStore } from './index.ts'
 import type { SessionId } from './types.ts'
-import type { RequestAttempt, RequestBudgetPolicy, RequestEpisode } from './request-budget-types.ts'
+import type { RequestAttempt, RequestBudgetExhaustion, RequestBudgetPolicy, RequestEpisode } from './request-budget-types.ts'
+
+/** Host-owned exhaustion signal, distinct from broken accounting or authorization. */
+export class RequestBudgetExhausted extends Error {
+  readonly budget: RequestBudgetExhaustion
+
+  constructor(budget: RequestBudgetExhaustion) {
+    super(
+      `HOST_REQUEST_BUDGET: agent ${budget.actorSessionId} used ${budget.actorAttempts}/${budget.maxAgentAttempts}; `
+      + `root ${budget.rootSessionId} used ${budget.rootAttempts}/${budget.maxRootAttempts} attempts for ${budget.userMessageId}. `
+      + 'Automatic work paused. Submit an explicit human follow-up to authorize more work. Prior work and charges remain recorded.',
+    )
+    this.name = 'RequestBudgetExhausted'
+    this.budget = Object.freeze({ ...budget })
+  }
+}
 
 interface EpisodeState {
   readonly identity: RequestEpisode
@@ -189,11 +204,14 @@ export class SessionRequestBudgets {
     if (episode === undefined) throw new Error('HOST_REQUEST_BUDGET: a new authenticated human work message is required')
     const actorCount = episode.actors.get(actor.id) ?? 0
     if (actorCount >= policy.maxAgentAttempts || episode.total >= policy.maxRootAttempts) {
-      throw new Error(
-        `HOST_REQUEST_BUDGET: agent ${actor.id} used ${actorCount}/${policy.maxAgentAttempts}; `
-        + `root ${root.id} used ${episode.total}/${policy.maxRootAttempts} attempts for ${episode.identity.userMessageId}. `
-        + 'Automatic work stopped; existing quality debt remains uncertified and unpaid. Submit an explicit human follow-up to authorize more work.',
-      )
+      throw new RequestBudgetExhausted({
+        ...episode.identity,
+        actorSessionId: actor.id,
+        actorAttempts: actorCount,
+        rootAttempts: episode.total,
+        maxAgentAttempts: policy.maxAgentAttempts,
+        maxRootAttempts: policy.maxRootAttempts,
+      })
     }
     const attempt: RequestAttempt = {
       ...episode.identity, actorSessionId: actor.id, actorAttempt: actorCount + 1, rootAttempt: episode.total + 1,

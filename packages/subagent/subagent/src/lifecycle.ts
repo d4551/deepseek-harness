@@ -237,6 +237,8 @@ function epochStopReason(events: readonly SessionEvent[]): SubagentResult['stopR
   switch (end?.data.reason.kind) {
     case 'max-tokens':
       return 'max-tokens'
+    case 'request-budget':
+      return 'request-budget'
     case 'aborted':
     case 'interrupted':
       return 'aborted'

@@ -27,7 +27,7 @@ import {
 import type { Scope } from '@deepseek-ai/dsh-scope'
 import { createScope } from '@deepseek-ai/dsh-scope'
 import type { AgentCancelCause, EpochHeader, RequestContext, Session, SessionId, TurnEndReason, UserMessage } from '@deepseek-ai/dsh-session'
-import { canonicalHeader, headerEquals } from '@deepseek-ai/dsh-session'
+import { canonicalHeader, headerEquals, RequestBudgetExhausted } from '@deepseek-ai/dsh-session'
 import { joinContextSections, renderContextSections, renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import type { PromptAssembly } from '@deepseek-ai/dsh-system-prompt'
 import type { Context } from '@deepseek-ai/cordis'
@@ -312,15 +312,19 @@ export class ReactLoopAgent implements Agent {
         turnEnds = { kind: 'aborted', reason: signal.reason as AgentCancelCause }
         throw error
       }
-      // Every failure is structured: an `LlmError` keeps its facts, anything
-      // else flattens to `errorChain` text under the `UNKNOWN` code.
-      turnEnds = {
-        kind: 'error',
-        error: error instanceof LlmError
-          ? error.failure
-          : { message: errorChain(error), code: 'UNKNOWN' },
+      if (error instanceof RequestBudgetExhausted) {
+        turnEnds = { kind: 'request-budget', budget: error.budget }
+      } else {
+        // Every failure is structured: an `LlmError` keeps its facts, anything
+        // else flattens to `errorChain` text under the `UNKNOWN` code.
+        turnEnds = {
+          kind: 'error',
+          error: error instanceof LlmError
+            ? error.failure
+            : { message: errorChain(error), code: 'UNKNOWN' },
+        }
+        this.throwError(error)
       }
-      this.throwError(error)
     } finally {
       try {
         // oxlint-disable-next-line typescript/no-non-null-assertion -- every exit assigns a turn ending

@@ -84,6 +84,8 @@ function expectedFailure(fields: string): string {
   return `Subagent failure (provider: ACP; ${fields})`
 }
 
+const expectedRequestPause = 'Subagent paused (provider: ACP; stage: prompt; category: remote-limit; stop reason: max_turn_requests)'
+
 function expectedPermission(policy: 'allow' | 'reject', requestKind: string, decision: 'allowed' | 'denied'): string {
   return `ACP unattended decision (policy: ${policy}; request: ${requestKind}; decision: ${decision})`
 }
@@ -205,7 +207,7 @@ describe('acpStopReason', () => {
     expect(acpStopReason('max_tokens')).toBe('max-tokens')
     expect(acpStopReason('refusal')).toBe('refusal')
     expect(acpStopReason('cancelled')).toBe('aborted')
-    expect(acpStopReason('max_turn_requests')).toBe('error')
+    expect(acpStopReason('max_turn_requests')).toBe('request-budget')
   })
 
   it('treats an unknown terminal reason as an error', () => {
@@ -674,8 +676,8 @@ describe('dsh-subagent-acp', () => {
     const result = await run.result
     expect(result).toEqual({
       output: [{ type: 'text', text: 'partial' }],
-      diagnostic: expectedFailure('stage: prompt; category: remote-limit; stop reason: max_turn_requests'),
-      stopReason: 'error',
+      diagnostic: expectedRequestPause,
+      stopReason: 'request-budget',
     })
     await run.dispose()
   })
@@ -1072,7 +1074,7 @@ describe('dsh-subagent-acp', () => {
     await run.dispose()
   })
 
-  it('appends a rejected permission fact to a later remote failure', async () => {
+  it('appends a rejected permission fact to a later remote request pause', async () => {
     const ctx = await setup({
       MOCK_PERMISSION: '1',
       MOCK_PERMISSION_IGNORE_DECISION: '1',
@@ -1081,15 +1083,15 @@ describe('dsh-subagent-acp', () => {
     }, 'reject')
     const run = await ctx.subagents.start('acp', request())
     const result = await run.result
-    expect(result.stopReason).toBe('error')
+    expect(result.stopReason).toBe('request-budget')
     expect(result.diagnostic).toBe(
-      `${expectedFailure('stage: prompt; category: remote-limit; stop reason: max_turn_requests')}\n`
+      `${expectedRequestPause}\n`
       + expectedPermission('reject', 'edit', 'denied'),
     )
     await run.dispose()
   })
 
-  it('appends an allowed permission fact only when the run later fails', async () => {
+  it('appends an allowed permission fact when the run later pauses at its request limit', async () => {
     const ctx = await setup({
       MOCK_PERMISSION: '1',
       MOCK_PERMISSION_IGNORE_DECISION: '1',
@@ -1098,9 +1100,9 @@ describe('dsh-subagent-acp', () => {
     }, 'allow')
     const run = await ctx.subagents.start('acp', request())
     const result = await run.result
-    expect(result.stopReason).toBe('error')
+    expect(result.stopReason).toBe('request-budget')
     expect(result.diagnostic).toBe(
-      `${expectedFailure('stage: prompt; category: remote-limit; stop reason: max_turn_requests')}\n`
+      `${expectedRequestPause}\n`
       + expectedPermission('allow', 'execute', 'allowed'),
     )
     await run.dispose()

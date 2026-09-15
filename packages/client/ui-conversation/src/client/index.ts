@@ -22,7 +22,7 @@ export type {
   AssistantBlock, AssistantMessageNode, AssistantProvenanceView, AssistantRequestConfig,
   AssistantTiming, CommandNode, CompactionSummaryNode, ContextMessageNode, ConversationNode,
   ModelRetryNode, PartialAssistant, RunningToolCall, SteeringMessageNode, TodoItem,
-  ToolCallBlock, ToolResultNode, TurnErrorNode, TurnMaxTokensNode, UnknownSurfaceNode,
+  ToolCallBlock, ToolResultNode, TurnErrorNode, TurnMaxTokensNode, TurnRequestBudgetNode, UnknownSurfaceNode,
   UserMessageNode,
 } from './contract/records.ts'
 export type {

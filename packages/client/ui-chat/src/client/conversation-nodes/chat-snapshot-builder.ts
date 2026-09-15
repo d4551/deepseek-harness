@@ -413,6 +413,7 @@ function legacyContribution(raw: ChatConversationViewNode): LegacyContribution {
     case 'compaction':
     case 'turn-error':
     case 'turn-max-tokens':
+    case 'turn-request-budget':
     case 'unknown':
       return { anchorSeq: node.anchorSeq, nodes: [node.data], partial: null, running: null }
     case 'assistant-step': {

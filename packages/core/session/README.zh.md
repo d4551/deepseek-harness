@@ -57,6 +57,10 @@ session.deriveMessages()         // the derived model history
 
 `ctx.sessions.flush(session)` 分发需等待完成的持久性检查点：每个持久化监听器都会刷新，调用在所有监听器结算后完成。需要立即持久性屏障的生产方应等待它，而不是假定写后刷新已完成。
 
+### 达到宿主请求上限时暂停
+
+宿主授权的工作周期会在发送前记录每次模型请求尝试。达到配置的 agent 或根任务上限时会抛出 `RequestBudgetExhausted`；循环记录带准确用量的 `request-budget` 轮次结束，保留已完成工作与请求计数，并暂停自动目标轮次。对话会显示上限，提示用户在根对话中明确发送后续消息。只有宿主对这条新用户消息的授权才能开启下一周期；重试、子 agent 消息与自动继续均不能续期。缺少授权和持久化失败仍属于错误，尚未完成的验证仍须完成。
+
 -----
 
 <a id="understand-the-implementation"></a>

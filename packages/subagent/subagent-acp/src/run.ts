@@ -134,7 +134,8 @@ function failureDiagnostic(facts: AcpFailureFacts): string {
   if (facts.outcome?.signal !== null && facts.outcome?.signal !== undefined) {
     fields.push(`signal: ${facts.outcome.signal}`)
   }
-  return `Subagent failure (${fields.join('; ')})`
+  const outcome = facts.category === 'remote-limit' ? 'Subagent paused' : 'Subagent failure'
+  return `${outcome} (${fields.join('; ')})`
 }
 
 /** Fixed permission fact; ACP tool titles and option text never enter it. */
@@ -227,8 +228,8 @@ export async function disposeAcpChild(child: SubprocessHandle, eofGraceMs: numbe
 /**
  * Map an ACP {@link StopReason} to a harness {@link SubagentStopReason}.
  * @param reason - the terminal reason from the child's `session/prompt` response.
- * @returns the harness equivalent; `max_turn_requests` and any unknown future
- * variant map to `error`, so an unclean stop is never reported as `completed`.
+ * @returns the harness equivalent; request limits remain pauses, and an unknown
+ * future variant remains an error rather than being reported as completed.
  */
 export function acpStopReason(reason: StopReason): SubagentStopReason {
   switch (reason) {
@@ -240,12 +241,8 @@ export function acpStopReason(reason: StopReason): SubagentStopReason {
       return 'refusal'
     case 'cancelled':
       return 'aborted'
-    // `max_turn_requests` (the child hit its turn-request budget) has no direct
-    // harness equivalent and means the task did NOT finish cleanly — surface it
-    // as a generic failure so the consumer maps it to an isError result rather
-    // than reporting a partial answer as success.
     case 'max_turn_requests':
-      return 'error'
+      return 'request-budget'
     // ACP StopReason is a closed wire union, but a future SDK could add a
     // variant; treat an unknown terminal reason as a failure (never silently
     // 'completed').
