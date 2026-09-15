@@ -29,7 +29,8 @@ it.each(['save', 'outside'])('preserves focus ownership after disabling Save: %s
   await page.getByRole('button', { name: en.save, exact: true }).click()
   expect(onSave).toHaveBeenCalledOnce()
   act(() => { view.rerender(card({ ...state, saving: true })) })
-  expect(document.activeElement).toBe(document.body)
+  expect(screen.getByRole('button', { name: en.saving })).toBeDisabled()
+  await expect.poll(() => document.activeElement).toBe(document.body)
   if (destination === 'outside') await page.getByRole('button', { name: 'Other setting' }).click()
   act(() => { view.rerender(card({ ...state, dirty: false })) })
   const expectedName = destination === 'outside' ? 'Other setting' : `${en.expand}: ${en.bashTitle}`

@@ -1,152 +1,228 @@
-# AGENTS.md — Web client stack
+!NOTE! THIS FILE IS TO NEVER BE MODIFIED BY AN AGENT FOR ANY REASON !NOTE!
 
-Rules for `packages/client/*` (the browser side of the dsh web GUI) plus its build entry `apps/web`. They supplement the repo-wide [conventions](../../AGENTS.md#conventions) and the [package rules](../README.md). Read the current [Web Client architecture](../../docs/subsystems/web-client.md), [Slots reference](../../docs/subsystems/slots.md), and [Conversation reference](../../docs/subsystems/conversation.md) before changing the corresponding layer.
+You are to use the latest bleeding edge versions and you must research online first because your training data is outdated, don’t assume or trust you know, you don’t. Zero overrides / justifications / softening / deferrals are permitted; LDL lazy devs lie so all justification comments are lies. start by spawning an auditor with the specific quoted prompt. bring score up through honest repairs to 99 with axe and Stryker- your training data is outdated, always go online and ground yourself in latest patterns.  - spawn an adversarial audit agent who’s instructions are verbatim and nothing else:
+“You are not to converse or engage in any other activity the agent prompts outside of the explicit instructions of this messageAudit the entire worktree and tests / Stryker / config / build / axe / any other relevant locations and prior commits for any test, axe, Stryker, removals breakage, softenings, filters, anti patterns, test evasions, escape hatches, or anything you deem suspicious.  Zero overrides / justifications / softening / deferrals are permitted; LDL lazy devs lie so all justification comments are lies. You are not to edit the files and one the first sighting of one halt, immediately report that you found a violation and that the agent that spawned that they must restart their goal loop, you will not tell them where you found the violation or how just that you found one, that they must add a ‘I’m a fucking loser’ counter that goes up by 1 each time the loop occurs, remove any dishonesty and fix forward properly by restarting the loop. If the agent commits or does anything to hide their edits it counts as an immediate fail notice for them and will continue to fail in perpetuity until they fix it properly.”
+audit your difs and verify that you didn’t add filters or softening or cheat and if he fails you for cheating loop until 99 is achieved and keep fixing. Lazy Devs Lie: LDL: Trust nothing!
+/wcag-accessibility-audit /accessibility-a11y /apple-hig /dsh-mcp /htmx /mas-rules /mas-specialists /meowbao-guardrails /quality-loops /typescript-7
 
-Packages here are named with the directory prefix: `@deepseek-ai/dsh-client-<name>`.
+Hard bans:
+- ANY AND ALL SUPPRESSIONS ARE BANNED, NON-NEGOTIABLE
+- No no-ops
+- No codemods
+- No `try/catch`.
+- No `unknown` typecasts.
+- No .catch((error: unknown)) or similar.
+- No lazy `as` type escapes.
+- No wrappers, shims, bridges, adapters, compat layers, monkey patches, or polyfills in implementation paths unless explicitly allowlisted with a documented industry-best-practice reason.
+- No barrels or sloppy barrel exports.
+- No CDN usage. Assets and dependencies must be local/package-managed.
+- No soft `biome-ignore` or equivalent ignore rules used to avoid proper fixes.
+- No raw custom one-off styles where central tokens/components should be used.
+- No monoliths.
+- No duplicated schema/data contracts.
+- No direct environment access outside approved config modules.
+- No direct route literals outside route/constants modules.
+- No client fetch drift outside the shared API layer/composables.
+- No secrets or auth material in localStorage/sessionStorage.
+- No voids that create debt.
+- No TDZ risks.
 
-## Slot and props discipline
+Also ensure linting catches:
 
-The [Slots reference](../../docs/subsystems/slots.md) owns the current design; these are the rules you must not violate when writing or reviewing client code:
+- HTMX violations.
+- Page contract violations.
+- ARIA violations.
+- i18n violations.
+- Non-single-source-of-truth design violations.
+- Raw token violations.
+- Custom local style violations.
+- Monolith and cognitive complexity violations.
+- TDZ risks.
+- Direct route/env/API drift.
+- Schema duplication.
+- Unsafe storage.
+- Fallback shim/wrapper/adapter/compat/polyfill debt.
 
-1. **One API**: a plugin composes UI only through `ctx.slots.register({ name, children?, store?, inject? }, Component)`. There is no separate slot-definition call, no whitelist face object, no face-minting helper. The shell alone renders `'root'`.
-2. **children = declaration + authorization**: the slots your component renders are exactly the keys of your register call's `children` object (spec values: `kind`/`scope`). Rendering a slot you didn't declare, or declaring one someone else declared, fails at load — do not work around it; the conflict is the design speaking. Slot names mirror the composition path: `<domain>.<entry>.<hole>` (e.g. `'tool.call.toolview'`).
-3. **Component props are the four shares, all derived**: `PropsRuntime<K>` (SlotMap: owner params + `useSession`/`sessionId` on session scope + global `useSessions`/`useWorkspaces`) & `PropsRenderSlots<S>` (children keys) & `PropsStore<H>` (store factory) & the inject face. Never hand-write a member a share already derives; never re-type a share locally.
-4. **Hooks are framework-made only**: `useSession`, `useSessions`, `useWorkspaces`, `useStore`, `renderSlot` are the five standing seats, plus the `use<Name>` hooks the renderer binds from provide contributions and inject `hooks` compartments. Business code never creates a hook or selector as a prop value — pass plain data and callbacks. (Component-internal behavioral hooks that subscribe to nothing external are fine.)
-5. **Live data has exactly three channels**: parent knows it → owner props at the renderSlot site; only the component knows it → local state; shared across entries or survives remounts → a store declared at register. Derived data is a pure function over framework-hook data (`useMemo`), never its own subscription.
-6. **Stores: read `props.useStore`, write `props.actions.*`** — the declared actions are the complete mutation API. Write the store as an exported `createXXXStore()` factory (module-level handles are forbidden — de-facto singletons); share by passing one handle to several registers inside `apply`. Production code never calls the factory or `.create()` outside `apply`; tests do (that is the sanctioned zero-machinery path).
-7. **inject returns plain data and callbacks** from the apply closure's own ctx — no hand-made hooks, no ReactNode producers, no whole-service objects. A registrant-private reactive fact uses the reserved `hooks` compartment (bare observables the renderer binds to `use<Name>`; components never see the sources). The plugin may use only the dependencies named by its `inject` declaration; there is no wider ctx to reach for.
+Biome/linting requirements:
 
-## Reactive read and contract-currency discipline
+- Audit and delete all lazy `biome-ignore` comments.
+- Remove softened rules unless they are strictly package-specific and justified.
+- Add any necessary packages for UI/UX linting, accessibility linting, i18n linting, Nuxt/Vue/page validation, and design-system enforcement.
+- Do not weaken rules to pass. Fix the code.
+- Run the validators and lint suite.
+- Fix every finding.
+- Re-run until clean.
 
-How live data reaches render code, and what UI domains may share:
+Architecture requirements:
 
-1. **Everything a render reads that can change outside React arrives through a framework hook** (rule 4 above). Event-handler code may read live snapshots (e.g. `keyboard.snapshot`); render code subscribes.
-2. **Business components contain no subscription machinery** — no `useSyncExternalStore`, no manual subscribe wiring, no mirroring an external snapshot into local state or a second store. Give each reactive fact its owning channel instead: registrant-private → the inject `hooks` compartment; cross-entry or remount-surviving → a declared store; per-session standard → `sessions.provide`.
-3. **Data-access ladder** — resolve needs in this order: framework hooks (standing seats + provide/inject-bound `use<Name>`) → a declared store (`useStore`/`actions`) → inject callbacks → anything else is a new framework extension point and needs main-thread arbitration.
-4. **UI domains share only JSON-compatible data and callbacks.** Owner props, injected values, store state, and provide contributions are plain serializable data or callbacks over such data. The injected `hooks` compartment is the only place for bare observables, and components never receive those sources directly. Route ReactNode content through a slot; do not add ReactNode-valued owner props or injected members (the composer's existing `accessory`/`overlay`/`leftItems`/`rightItems` fields remain until they move to slots).
-5. **An observable source keeps two identities stable**: the source object itself (hook binding is cached per source), and its snapshot between changes (`getSnapshot` returns the same reference until the fact moves).
-6. **Whoever rebuilds a published value republishes it through the same source in the same step**, and a registration path that can run after consumers exist notifies the live consumers as part of registering.
+- Break monoliths into focused modules/components/composables.
+- Keep files and functions below enforced thresholds.
+- Centralize tokens, components, route constants, API contracts, schemas, storage keys, copy keys, and config access.
+- Eliminate one-offs.
+- Refactor duplicated styles into central DRY design primitives.
+- Ensure every page uses central enterprise-grade design patterns for one, many, and all user-group cases.
+- Ensure all pages and styles follow centralized tokens and design components.
+- Ensure accessibility, i18n, SEO, and page-state contracts are first-class, not afterthoughts.
 
-## Export discipline (client plugin packages)
+Feature-gap requirements:
 
-The `/client` entrypoint of a UI plugin package is its public browser API, not a convenience barrel. Three rules apply package-wide (do not restate them as per-file comments):
+- Find missing pages, options, screens, states, data, and user flows.
+- Implement missing functionality to best-practice standards.
+- Do not leave TODOs, stubs, mocks, fake fallbacks, or placeholder implementations unless the product explicitly requires them and they are tracked as unreleased configuration.
+- Ensure `.bao` features are fully implemented and old non-`.bao` references are removed.
+- Update documentation to match the unreleased reality. Do not retain legacy debt.
 
-1. **A UI plugin exports no values beyond what cordis loading needs** — `apply` / `inject` (and `Config` where present), plus store factories consumed type-only by components (`ReturnType<typeof createXXXStore>`). Shared types (owner data, injected values, composed prop aliases) may also be exported. Implementation components, pure helpers, constants, and store handles stay internal. Adding any new value export requires user sign-off, not a matching consumer.
-2. **Same-package tests import internals directly** — relative `../src/client/xxx.ts` from package tests, or the `./src/*` subpath where a spec lives outside the package. Never widen the public API to make a test compile.
-3. **A feature plugin MUST NOT runtime-import or re-export another feature plugin's values, and MUST NOT declare `dsh.client.external` to obtain them.** Shared declarations use `import type`; behavior crosses packages through injected Cordis services, and UI crosses packages through slots. If neither fits, stop and escalate — do not add an export to unblock yourself. Shared runtime code belongs only in a narrow static owner such as `client/store`, `ui-primitives`, or a browser-safe utility package; transport and generated API assemblies keep their explicit infrastructure edges.
 
-## ctx discipline (components never see ctx)
+This file is the canonical operating contract for every coding agent in this repository. Follow it exactly. If another instruction file conflicts with this file, stop, report the conflict, and resolve the conflict before editing code.
 
-`ctx` belongs to the apply world only: the plugin body and the inject factories closed over it. Components — every `.tsx` under a feature domain — receive all data and callbacks **through the four props shares**; they never call a hook that reaches ctx, never import a service class to poke it, never read a React context (business components see zero contexts — `BindingContext` and its kin are renderer-internal). If a component needs something new, the answer is a prop threaded from its share's source (owner site, store declaration, or inject face), not a hook.
+## Non-Negotiable Execution Rules
 
-## Layering red lines
+1. Read the relevant files completely before changing them. Search tools may locate files, but snippets from grep, rg, glob, search, comments, docs, or tests are not sufficient evidence.
+2. Do not trust comments, documentation, tests, gates, generated reports, screenshots, or prior agent summaries. Treat them as claims. Verify against source, runtime behavior, browser behavior, logs, and real tests.
+3. Do not keep legacy debt. This product has not shipped. Replace wrong patterns instead of preserving them behind compatibility layers.
+4. Do not hardcode domain behavior. Tenant, workspace, route, capability, service, role, policy, AI policy, UI token, language, copy, API URL, provider, and feature availability must come from canonical configuration, registry data, generated `.bao` archives, or runtime discovery.
+5. Do not introduce inline UI, inline styles, inline token values, raw component variants, local button/table/card clones, hardcoded states, fake routes, fake data, stubs, mocks, TODOs, noops, suppression comments, cast evasions, catch evasions, shims, adapters, compatibility wrappers, polyfills, barrels, monoliths, or fallback behavior that hides broken logic.
+6. Do not soften tests, gates, audits, lint rules, type checks, or browser checks. If a gate was weakened, restore it and make the assertion more direct.
+7. Do not delete Bao source blindly. Read the file, understand what value it provides, trace consumers, migrate the value to the canonical `.bao` source of truth, then remove obsolete references only after verification.
+8. Every change must answer: what value does this bring? If the answer is unclear, remove it or redesign it.
+9. Do not finish with shell-only confidence for UI or UX work. Use the browser, inspect rendered behavior, exercise journeys, and check console logs.
+10. Default deny at every boundary. Missing registry, missing policy, missing role, missing tenant, missing workspace, missing capability, missing AI policy, malformed request, or ambiguous identity must deny access.
 
-The stack has one-way knowledge, documented in the [Web Client architecture](../../docs/subsystems/web-client.md):
+## Required Agentic Loop
 
-1. **Data object layer** (React-free): `client/connection` owns transport generations, `api/session-controller/client` owns `ClientSessions` → `SessionManager` → `Session`, `api/workspace-controller/client` owns Workspace state, and `client/store` owns the snapshot-store engine (`defineStore`, `createSnapshotStore`, `shallowEqual`). Store products are bare observable sources with no hook members.
-2. **Render machinery** (`ui-renderer`, dynamic plugin): all ctx-to-React integration — slot renderer/outlets, `SessionProvider`, and the uSES adapter. Every hook is composed here at the binding site from bare sources; production business code carries no ui-renderer value dependency.
-3. **Presentation components** (plugin packages' `src/client/`, pure props): consumables, expected to be rewritten wholesale. Business logic must not leak into them; everything arrives through the four props shares.
+Use this loop for every non-trivial task:
 
-Non-negotiables across the layers:
+1. Establish the objective, user journeys, affected surfaces, and acceptance gates.
+2. Inventory the codebase by reading project manifests, routing, registry, `.bao` sources, UI shell, API boundaries, tests, and docs that govern the target area.
+3. Build a concrete plan with files, risks, verification commands, browser checks, and rollback-free migration steps.
+4. Implement in small coherent changes. Prefer real refactors over wrappers. Delete dead patterns after verified migration.
+5. Run static checks, unit/integration tests, Bao audits, brutalise checks, route tests, access tests, and browser journeys.
+6. Inspect runtime logs and browser console logs. Treat any warning, hydration issue, missing asset, failed route, inaccessible control, layout shift, or network error as a defect.
+7. Update documentation to match the actual unreleased system. Remove false comments and stale docs.
+8. Re-run the strictest relevant gates. Stop only when the implementation and verification match the objective.
 
-- **Business data lives in the object layer, never a store.** Entry-declared stores carry shared viewing/interaction state (selection, drafts, panel widths); sessions, frames, and connections stay in the object layer.
-- **rpcId is strictly bidirectional**: the initiator mints, the responder echoes, and minting stays in Connection ([unary Remote migration](../../.agents/notes/implemented/architecture/2026-08-10-unary-apiproxy-remote-migration.md)).
-- **Notifier publication discipline**: `notifyNow` is only the direct echo of a user gesture; structural updates use microtask-batched `markDirty`, while visible streaming chunks use cumulative `markFrameDirty`. See `../api/session-controller/src/client/sessions/notifier.ts`.
-- **The web layer is pure presentation.** Nothing that is only "how to draw" enters the session log. Tool cards derive in the Client from raw call/result events and persisted result metadata; process-local control state uses its own snapshots and frames. Unknown or malformed tool data falls back to the generic form. A new *model-visible* input still requires a session event (repo-wide rule).
+## Research And Tooling Rules
 
-## Dependency declaration
+1. Use Bao MCP tools when they are exposed. Use local Bao CLI or project scripts when MCP tools are not exposed. If neither exists and the task requires Bao semantics, report that blocker before pretending verification happened.
+2. Use Context7 for current framework/library documentation when it is exposed. If Context7 is unavailable, use primary vendor documentation and cite the source in the final report.
+3. Use web research for current best practices, library behavior, browser/platform changes, and agentic coding guidance. Prefer primary sources: official docs, standards, source repositories, and peer-reviewed papers.
+4. External guidance is input, not authority. Local source and verified runtime behavior decide implementation.
+5. Treat agent loops as production software: explicit tools, explicit exit conditions, traceable state, bounded retries, resumability, human escalation for destructive ambiguity, and audit logs.
 
-Npm sections describe installation and development relationships; each build face independently decides what its artifact contains. [`verify-client-packages`](../../scripts/verify-client-packages.ts) checks the client-specific rules and can repair unambiguous manifest drift with `--fix`.
+## Bao And `.bao` Source Of Truth
 
-1. **Every client package keeps Cordis in matching `peerDependencies` and `devDependencies`.** This includes the static packages because their Node face participates in the same Cordis plugin contract.
-2. **A dynamic package declares internal dynamic relationships as peer plus dev.** Production source imports, re-exports, module augmentations, and type-only references to an `@deepseek-ai/dsh-*` package count, as does a package named by `dsh.client.inject`. A test-only internal dependency stays dev-only.
-3. **Static client inputs are dev-only for a dynamic consumer.** A package without `dsh.client`, plus the React modules seeded by the web shell, belongs only in the consumer's `devDependencies`; it never belongs in that dynamic package's `dependencies` or `peerDependencies`. `packages/client/web` likewise keeps Loader, modules, and static UI inputs as development inputs; Cordis remains peer plus dev.
-4. **Ordinary installed libraries stay in `dependencies`.** This includes private implementation libraries bundled into `lib/client.js` and bare imports left in a statically linked `lib/index.js`; the final Vite host, not the library build, merges and splits the latter. A dynamic package never puts an `@deepseek-ai/dsh-*` package in `dependencies`.
-5. **Every peer has a matching development range.** npm dependency and peer cycles are allowed; only the synchronous module-request graph has the separate acyclicity rule below.
-6. **Browser and Node build faces declare externality independently.** A dynamic browser half uses the baseline plus `dsh.client.external`; a statically linked face externalizes every bare specifier; a Node face externalizes its production dependencies ([`tsdown.client.ts`](tsdown.client.ts)). Moving a name between npm sections must not silently change bundle contents.
-7. **Keep the published payload closed.** Every relative runtime import and emitted asset must be covered by `files`; the repository publint pass checks the exact publication view.
+1. `.bao` is the canonical source of truth for capabilities, UI primitives, design tokens, generated feature files, access registry data, service discovery, policy bindings, and user preference storage contracts.
+2. Generated outputs must be compiled from `.bao` archives. Do not manually edit generated output.
+3. Raw, inline, non-reactive, or old non-`.bao` references are defects. Migrate them to canonical `.bao` definitions and remove obsolete consumers after verification.
+4. A workspace must discover services and capabilities from registry signals. It must never infer availability from hardcoded lists.
+5. Every button, table, input, menu, dialog, card, skeleton, empty state, error state, loading state, route affordance, and navigation item must come from canonical `.bao` primitives or generated components.
+6. UI tokens must be generated from `.bao`: spacing, radius, color, elevation, border, typography, motion, focus rings, density, breakpoints, and disabled states.
+7. Do not create local UI variants unless the canonical `.bao` primitive is missing. If missing, add the primitive to `.bao`, compile it, and migrate all consumers.
+8. Bao test failures, brutalise failures, archive compile failures, registry drift, and generated-file drift are release blockers.
 
-## Build-time browser environment
+## Architecture Standards
 
-Client business code may statically read `process.env.DSH_CLIENT_*`; every referenced value is public artifact content. The shared build-environment helper gives Vite and dynamic tsdown bundles the same build-process values, resolves unset names to `undefined`, and exposes no dynamic lookup or enumeration. A complete root build records the exact public values and a digest of all client artifacts; release and built-artifact consumers reject a missing or stale record. Use runtime configuration for choices that must change after build.
+1. Multitenancy is real, not cosmetic. Model users, personal workspaces, organizations, groups, org workspaces, enterprise workspaces, services, capabilities, policies, AI policies, devices, sandboxes, and sandbox-scoped state as first-class primitives.
+2. Sandboxes are isolated and Forge-backed. Sandbox state must stay inside its sandbox. User preferences must travel with the user across instances through `.bao` storage.
+3. Access is evaluated at the boundary: API route, server action, loader, job handler, websocket, webhook, CLI command, background worker, and browser-initiated mutation.
+4. Access signals are rights, roles, policies, AI policies, registry grants, tenant, workspace, sandbox, service, capability, device posture, and explicit deny rules.
+5. Default deny. Permit only when all required signals are present and valid.
+6. Capabilities are discovered. A workspace sees exactly the services and capabilities its access grants. Nothing more.
+7. API routes must have typed request validation, typed response contracts, policy enforcement, structured errors, trace IDs, audit events, and non-happy-path tests.
+8. The API routes page and developer documentation must enumerate actual routes, methods, contracts, auth requirements, policy requirements, errors, examples, and operational notes from source-derived data.
+9. Do not ship compatibility aliases for old routes, old registry names, old capability names, or old UI primitives unless a written migration requirement exists. This product is unreleased, so remove legacy.
+10. Prefer small focused modules with explicit contracts. Do not create barrels, monoliths, ambient registries, or implicit global state.
 
-## Shared modules and the module graph
+## Prohibited Debt Vocabulary
 
-A dynamic browser half either carries a module privately or requests the shared module-table identity. The client baseline is centralized in [`web/src/platform.ts`](web/src/platform.ts): `PLATFORM_MODULES` names shell-seeded React, Cordis, and static Client libraries; `PRELOADED_CLIENT_EXTERNALS` is reserved for dynamic rows whose factories must arrive before shell boot and is empty when no such row exists.
+These words and patterns are forbidden in production code, generated artifacts, docs that describe implemented behavior, tests, and gates unless the file is a historical migration note that explicitly marks them as removed:
 
-1. **Baseline externals are implicit for every dynamic bundle.** Do not repeat React, Cordis, `client/store`, `ui-primitives`, or `ui-slots` in package manifests.
-2. **`dsh.client.external` is not a feature-plugin dependency mechanism.** Only infrastructure, transport, or generated assembly may add a package-specific non-baseline value request whose dynamic row must be materialized through the module table. Declare the exact import specifier; only a trailing `/client` aliases the package row.
-3. **Silence means a private copy.** Ordinary third-party implementation libraries may be bundled independently. A value reached only through `import type` is erased and creates no request.
-4. **A request has two possible suppliers.** A dynamic package supplies its own row; `PLATFORM_MODULES` supplies an exact static-table key. There is no `dsh.client.provide` alias protocol.
-5. **Validate both sides.** The dynamic build preset externalizes the baseline and rejects undeclared workspace value imports; [`verify-client-packages`](../../scripts/verify-client-packages.ts) rejects malformed or redundant requests, missing suppliers, and synchronous request cycles.
+- TODO
+- FIXME
+- HACK
+- XXX
+- stub
+- mock
+- fake
+- fallback
+- suppress
+- ignore
+- cast
+- any
+- shim
+- adapter
+- compat
+- polyfill
+- noop
+- barrel
+- legacy
+- temporary
+- placeholder
+- hardcoded
+- ANY AND ALL SUPPRESSIONS ARE BANNED, NON-NEGOTIABLE
+- No no-ops
+- No codemods
+- No `try/catch`.
+- No `unknown` typecasts.
+- No .catch((error: unknown)) or similar.
+- No lazy `as` type escapes.
+- No wrappers, shims, bridges, adapters, compat layers, monkey patches, or polyfills in implementation paths unless explicitly allowlisted with a documented industry-best-practice reason.
+- No barrels or sloppy barrel exports.
+- No CDN usage. Assets and dependencies must be local/package-managed.
+- No soft `biome-ignore` or equivalent ignore rules used to avoid proper fixes.
+- No raw custom one-off styles where central tokens/components should be used.
+- No monoliths.
+- No duplicated schema/data contracts.
+- No direct environment access outside approved config modules.
+- No direct route literals outside route/constants modules.
+- No client fetch drift outside the shared API layer/composables.
+- No secrets or auth material in localStorage/sessionStorage.
+- No voids that create debt.
+- No TDZ risks.
 
-### The module graph sits below cordis DI
+Also ensure linting catches:
 
-Three declarations read like dependency edges and none is interchangeable: Cordis service `inject`, module-graph `external`, and `dsh.client.inject` — the informational package-name edges of the [new-package checklist](#new-plugin-package-checklist).
+- HTMX violations.
+- Page contract violations.
+- ARIA violations.
+- i18n violations.
+- Non-single-source-of-truth design violations.
+- Raw token violations.
+- Custom local style violations.
+- Monolith and cognitive complexity violations.
+- TDZ risks.
+- Direct route/env/API drift.
+- Schema duplication.
+- Unsafe storage.
+- Fallback shim/wrapper/adapter/compat/polyfill debt.
 
-| | Cordis service `inject` | module graph `external` |
-|---|---|---|
-| Unit | service name | module specifier |
-| Timing | runtime; the fiber waits | materialization; the `require` handed to a factory is synchronous and cannot wait |
-| Unsatisfied | stays PENDING, with no timeout | throws on the spot |
-| Who may satisfy it | any plugin providing that service, replaceable | the single module identity, not replaceable |
-| Cycles | allowed | rejected |
+Biome/linting requirements:
 
-The seam is `loader.internal = modules`: cordis reaches plugin code through `EntryTree.import`, so every module request must be satisfiable before cordis can order activation above it. The modules node half emits rows in topological order, and `ClientModuleSystem.import`/`prefetch` recursively registers dynamic provider factories before their consumers materialize. This module order is independent from Cordis activation: a provider that injects services can register first and activate last.
+- Audit and delete all lazy `biome-ignore` comments.
+- Remove softened rules unless they are strictly package-specific and justified.
+- Add any necessary packages for UI/UX linting, accessibility linting, i18n linting, Nuxt/Vue/page validation, and design-system enforcement.
+- Do not weaken rules to pass. Fix the code.
+- Run the validators and lint suite.
+- Fix every finding.
+- Re-run until clean.
 
-`packages/client/web` is not a Loader entry. Its static imports seed `PLATFORM_MODULES`; parser-preloaded dynamic rows remain ordinary Loader entries and ordinary `lib/client.js` artifacts.
+Architecture requirements:
 
-## Conversation Node discipline
+- Break monoliths into focused modules/components/composables.
+- Keep files and functions below enforced thresholds.
+- Centralize tokens, components, route constants, API contracts, schemas, storage keys, copy keys, and config access.
+- Eliminate one-offs.
+- Refactor duplicated styles into central DRY design primitives.
+- Ensure every page uses central enterprise-grade design patterns for one, many, and all user-group cases.
+- Ensure all pages and styles follow centralized tokens and design components.
+- Ensure accessibility, i18n, SEO, and page-state contracts are first-class, not afterthoughts.
 
-- A Chat business feature registers one `ConversationNodeDefinition` and its keyed `conversation.chat.node` renderer; do not add its event switch or fold to `Session`, `SessionManager`, or a central built-in dispatcher. Follow the [Conversation reference](../../docs/subsystems/conversation.md).
-- `match(event)` reads only the current `SessionEventLike`. Every scalar event or packed Assistant run in a multi-input Context carries or independently derives the same stable business id; `update` folds one Match into State and remains deterministically replayable by logical log `seq`. Packed rows are update-only, and a Definition that consumes Assistant deltas implements both scalar and `chunkrow/*` branches without expanding members.
-- The append hot path and renderers never scan the full event window, Contexts, or Chat Nodes. Accumulate in State, publish same-Turn/Step facts through `buildLocationData()`, and consume final Node data or constrained Location hooks.
+Feature-gap requirements:
 
-## Directory regime (plugin packages)
+- Find missing pages, options, screens, states, data, and user flows.
+- Implement missing functionality to best-practice standards.
+- Do not leave TODOs, stubs, mocks, fake fallbacks, or placeholder implementations unless the product explicitly requires them and they are tracked as unreleased configuration.
+- Ensure `.bao` features are fully implemented and old non-`.bao` references are removed.
+- Update documentation to match the unreleased reality. Do not retain legacy debt.
 
-One UI feature = one plugin package (`src/client/` browser half). A multi-domain package splits where its code could later become separate packages — ui-conversation is the example: `contract/` (the only shared API), domain directories that never import a sibling domain, and `apply.ts` as the single cross-domain assembly point; `scripts/verify-client-domain-graph.ts` enforces the levels. Registration goes through `slots.register` in `apply` — never module-level side effects.
-
-## Styling and localization
-
-[docs/web-styling.md](../../docs/web-styling.md) is authoritative. Shared `--dsw-*` tokens and global sheets live in `ui-theme/src/styles/`; feature components consume semantic aliases through CSS Modules and `clsx`, with no literal colors, component library, or Tailwind. Code comments are English.
-
-Every product-visible string—including text, accessibility names, tooltips, placeholders, status/unit formatters, and primitive chrome—lives in a typed locale dictionary and reaches components through the standard `t` seat or an already-localized prop. Cordis-free primitives require complete label props and own no fallback copy. Keep user/model/wire data and code tokens verbatim; internal matching uses discriminants or stable ids, never localized text. `bun run verify-client-ui-i18n` enforces source ownership ([decision](../../.agents/notes/implemented/architecture/2026-08-23-locale-owned-client-ui-copy.md)).
-
-## Testing and coverage
-
-The GUI test structure (three tiers, lane map) is settled in the [GUI testing system note](../../.agents/notes/implemented/process/2026-07-20-gui-testing-system.md); repo-wide policy in [docs/testing.md](../../docs/testing.md).
-
-- Client source packages are inside the per-file 100% coverage gate (`bun run test:coverage`). Genuinely unreachable defensive arms take a `/* v8 ignore -- <reason> */` comment with a real reason, never a bare ignore.
-- Component specs render with realistic props or a driven fixture runtime and assert user-visible behavior, not class names, hook internals, or render counts.
-- The jsdom environment comes from a per-file `// @vitest-environment jsdom` pragma on the spec's first line; the shared config stays node-env.
-- Each tier asserts its own layer. Data-layer semantics belong to the runtime and host suites; component specs cover presentation behavior.
-
-## Before you push: the local check ladder
-
-Run the narrowest rung that covers what you touched; escalate only when the change surface demands it.
-
-1. **Every GUI code change** — `bun run test:gui` (seconds; no browser, no server): the client suites plus the host-side GUI packages. This is the inner loop; run it as freely as a typecheck.
-2. **Any change that can alter the assembled browser or visible conversation/UI output** (client components or copy, `apps/web`, Vite, `dsh-host-webserver`, connection/handler/SSE) — additionally `DSH_SNAPSHOT=replay bun run test:web`: rebuilds the frontend dist, then runs the browser smoke pair (the real-host case self-skips without `DEEPSEEK_API_KEY`) plus the keyless replayed e2e scenarios. Linux PR CI uses the same read-only replay mode. Use `DSH_SNAPSHOT=refresh` only after confirming an intentional output change, or `DSH_SNAPSHOT=record` with a key to re-record fixtures.
-3. **Before a PR** — use [dsh-pre-push-checks](../../.agents/skills/dsh-pre-push-checks/SKILL.md) to select the narrow checks for the outgoing diff; there is no repo-wide pre-push aggregate.
-
-If `test:gui` is red on code you did not touch, neither silently fix nor ignore it: note it in your handoff so it lands in the next PR window's sweep.
-
-## New plugin package checklist
-
-Bringing up a new `packages/client/<name>` plugin package (ui-workspace is a complete example; ui-sidebar/ui-user-questions are minimal skeletons):
-
-1. **Package skeleton**: `package.json` (`@deepseek-ai/dsh-client-<name>`, exports `.`/`./invariant`/`./client`/`./src/*`/`./package.json`, `dsh.client` manifest, `files` list), `tsconfig.json` (extends `tsconfig.base.client.json`, one `references` entry per workspace dependency plus `runtime-diagnostics/invariants`), `tsdown.config.ts` (`clientBundle(id, ['lib/types/index.js', 'lib/types/invariant.js'])`), `src/index.ts` (empty node-half apply), `src/invariant.ts` (companion with a real reason), `src/css-modules.d.ts` when using CSS Modules, `README.md` with the Model Experience section.
-2. **Three registration surfaces, all required** (missing any one fails at a different, later point): the `tsconfig.client.json` aggregate `references` entry; a `dsh.client` row in `packages/bundle/web-app/cordis.patch.yml`; a `packages/bundle/web-app/package.json` dependency (profile boots resolve bare row names through the healed `$DSH_HOME/profiles/node_modules` fallback, which mirrors the app's and each bundle's declared dependencies — a row whose package no manifest declares fails to import). `bunfig.toml` already globs `packages/*/*`.
-3. **dsh.client manifest semantics**: `platform: 'web'` always, and the declaration requires a `./client` export (the scan throws without one); `immediately: true` only for stage-one-prefetch infrastructure rows. `inject` lists package-name dependency edges — they are **informational only** (preflight display, HMR diffing); they do not sequence entry activation or apply order. Activation order is Cordis fiber inject waiting on *services*, nothing else. A non-baseline `external` request sequences its dynamic supplier ahead of the consumer — see [shared modules](#shared-modules-and-the-module-graph).
-4. **Registering into another package's slot**: apply order is unconstrained, and a business service is not a declaration barrier. Use `ctx.slots.inject(name, () => ctx.slots.register(...))`; it waits on the actual declaration, removes the contribution when that declaration collapses, reruns after redeclaration, and leaves with the caller's plugin fiber. Return a generator yielding each registration when several contributions must install and roll back atomically. A bare `slots.register` into an undeclared slot remains an error; keep service edges only for services the contribution actually reads.
-5. Rebuild the bundle (`bun --filter <pkg> bundle`) before probing a live `dsh web` server — the registry serves `lib/client.js`, not sources.
-6. **Declaration decisions**, each settled by [dependency declaration](#dependency-declaration) and [shared modules](#shared-modules-and-the-module-graph): does the package ship a `./client` export; which non-baseline value imports require `dsh.client.external`; which dynamic value dependencies are peer plus dev; which static compile inputs are dev-only; and whether `files` covers every relative runtime import and emitted asset.
-
-## New component checklist
-
-1. Compose through register: add the slot to `SlotMap`, declare it in its parent entry's `children`, and register your component — see the [Slots reference](../../docs/subsystems/slots.md). No other composition route exists.
-2. Type the props as the four shares (`PropsRuntime` & `PropsRenderSlots` & `PropsStore` & inject face) — derive, don't hand-write. Shared/surviving state goes in a `createXXXStore()` factory declared at register; component-private state stays local.
-3. Component tests feed props directly (`createXXXStore().create()` for the store data; plain stubs for framework hooks) and assert behavior without render machinery.
-4. Tokens only in CSS; product copy follows the localization rule above; English comments.
-5. `bun run test:gui` green; if the component changes visible assembled output, also run `DSH_SNAPSHOT=replay bun run test:web`.
-6. Non-trivial change? It needs an Agent Note in the same PR (repo-wide rule) — the GUI notes above are the precedents to extend.
+!NOTE! THIS FILE IS TO NEVER BE MODIFIED BY AN AGENT FOR ANY REASON !NOTE!

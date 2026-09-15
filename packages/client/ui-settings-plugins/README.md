@@ -43,7 +43,7 @@ Card actions and single-line fields use shared `Button` and `Input` controls. Th
 
 ### Secret-role fields
 
-A key control starts blank, reports only whether one is configured, and writes through the credentials domain rather than the settings section; a blank draft writes nothing and keeps the stored key.
+A key control starts blank, reports only whether one is configured, and writes through the credentials domain rather than the settings section; a blank draft writes nothing and keeps the stored key. When a save includes settings and credentials, the settings must be accepted before credentials are written. A refused settings change retains both drafts for retry.
 
 -----
 

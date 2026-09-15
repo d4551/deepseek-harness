@@ -23,6 +23,7 @@ it('copies current source content and tracked deletions into an independent Git 
   execFileSync('git', ['add', '.'], { cwd: source })
   await writeFile(join(source, 'edited.ts'), 'export const value = 2\n')
   await rm(join(source, 'removed.ts'))
+  await rm(join(source, 'packages', 'leaf', 'package.json'))
   await writeFile(join(source, 'new.ts'), 'export const added = true\n')
   await symlink('edited.ts', join(source, 'linked.ts'))
 
@@ -32,6 +33,7 @@ it('copies current source content and tracked deletions into an independent Git 
   await expect(readFile(join(target, 'new.ts'), 'utf8')).resolves.toBe('export const added = true\n')
   await expect(readlink(join(target, 'linked.ts'))).resolves.toBe('edited.ts')
   expect(existsSync(join(target, 'removed.ts'))).toBe(false)
+  expect(existsSync(join(target, 'packages', 'leaf', 'package.json'))).toBe(false)
   expect(existsSync(join(target, '.git'))).toBe(true)
   await expect(readFile(join(target, 'packages', 'leaf', 'node_modules', 'dependency', 'index.js'), 'utf8'))
     .resolves.toBe('export const installed = true\n')

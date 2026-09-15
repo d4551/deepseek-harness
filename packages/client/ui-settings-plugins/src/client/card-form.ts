@@ -239,7 +239,7 @@ export class CardForm<T extends object> {
    * constraints no schema can express — so the outcome is read back from the
    * section rather than predicted here. A save that did not land keeps its
    * drafts, so the user can correct them instead of retyping. Write-only
-   * controls write after the section, each on its own.
+   * controls write only after the section is accepted, each on its own.
    * @returns settlement after every write and the read-back.
    */
   save(): Promise<CardSaveResult> {
@@ -273,6 +273,7 @@ export class CardForm<T extends object> {
     if (section.length > 0) {
       await this.scope.mutate(section.map(item => item.op))
       landed = section.every(item => this.landed(item.field, item.op))
+      if (!landed) return false
     }
     for (const item of plan) {
       if (item.kind === 'secret') landed = await item.run() && landed

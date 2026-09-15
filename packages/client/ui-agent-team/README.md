@@ -55,7 +55,7 @@ The Client export mounts the generated `ctx.remote.agentTeams` contribution from
 
 Each published overview also refreshes the descendant directory. Directory failures have an independent retry action and leave task and message observations available.
 
-The live subscription coalesces activity while a view read is pending. Closing the panel, changing conversations, or unmounting cancels it and invalidates outstanding reads. An interrupted stream displays an error; reopening the panel establishes a new subscription and reads current state.
+The live subscription coalesces activity while a view read is pending. Only the newest refresh can publish its result or error. A failed overview read leaves activity observation running, so the next activity update can recover the view. Closing the panel, changing conversations, or unmounting cancels it and invalidates outstanding reads. An interrupted stream displays an error; reopening the panel establishes a new subscription and reads current state.
 
 The shared workspace-sized Modal and PanelLayout primitives provide aligned responsive rows and viewport-constrained scrolling. PanelTable supplies semantic column and row headers for the message index and descendant directory. Shared buttons, pills, message bodies, and activity dots provide the controls.
 

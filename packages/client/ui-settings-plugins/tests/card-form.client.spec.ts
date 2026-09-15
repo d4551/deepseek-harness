@@ -24,6 +24,33 @@ function form() {
 }
 
 describe('CardForm', () => {
+  it('retains credentials until the section write is accepted, then saves both on retry', async () => {
+    const { host } = form()
+    const written: string[] = []
+    const subject = new CardForm(host.scope, [textField('baseURL')], [{
+      field: 'apiKey',
+      write: (text) => {
+        written.push(text)
+        return Promise.resolve(true)
+      },
+    }])
+    subject.actions().edit('baseURL', 'https://new-provider.test')
+    subject.actions().edit('apiKey', 'new-provider-key')
+
+    await expect(subject.save()).resolves.toBe('failed')
+    expect(written).toEqual([])
+    expect(subject.field('apiKey').text).toBe('new-provider-key')
+    expect(subject.field('baseURL').text).toBe('https://new-provider.test')
+    expect(subject.shell()).toMatchObject({ dirty: true, failed: true, saving: false })
+
+    acceptWrites(host)
+    await expect(subject.save()).resolves.toBe('saved')
+    expect(written).toEqual(['new-provider-key'])
+    expect(subject.field('apiKey').text).toBe('')
+    expect(subject.field('baseURL').text).toBe('https://new-provider.test')
+    expect(subject.shell()).toMatchObject({ dirty: false, failed: false, saving: false })
+  })
+
   it('shows the effective value and stays clean until something is staged', () => {
     const { subject } = form()
 

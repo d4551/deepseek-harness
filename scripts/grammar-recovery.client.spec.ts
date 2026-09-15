@@ -9,14 +9,14 @@ import axe from 'axe-core'
 import { clientAxeRunOptions } from '@deepseek-ai/dsh-client-a11y'
 import { en } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 
-import { populateTestWorkspace } from '../../../scripts/test-workspace-copy.ts'
+import { populateTestWorkspace } from './test-workspace-copy.ts'
 declare global {
   interface Window {
     axe: typeof axe
   }
 }
 
-const sourceRoot = fileURLToPath(new URL('../../../', import.meta.url))
+const sourceRoot = fileURLToPath(new URL('../', import.meta.url))
 let root: string
 
 beforeAll(async () => {

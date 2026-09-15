@@ -56,9 +56,14 @@ function useTeamObservation({ sessionId, changes, load, t }: Pick<TeamActionProp
   const refresh = useCallback(async (signal?: AbortSignal): Promise<boolean> => {
     const generation = ++refreshGeneration.current
     setLoading(true)
-    const result = await load(sessionId, signal)
+    const [outcome] = await Promise.allSettled([load(sessionId, signal)])
     if (sessionRef.current !== sessionId || refreshGeneration.current !== generation) return false
     setLoading(false)
+    if (outcome.status === 'rejected') {
+      setError(String(outcome.reason))
+      return false
+    }
+    const result = outcome.value
     if (result.ok) {
       setView(result.value)
       setError(null)

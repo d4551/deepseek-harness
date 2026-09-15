@@ -18,6 +18,8 @@
         "@deepseek-ai/dsh-attachment-local": "workspace:*",
         "@deepseek-ai/dsh-bash-local": "workspace:*",
         "@deepseek-ai/dsh-bash-sandbox": "workspace:*",
+        "@deepseek-ai/dsh-client-a11y": "workspace:*",
+        "@deepseek-ai/dsh-client-locale": "workspace:*",
         "@deepseek-ai/dsh-command-goal": "workspace:*",
         "@deepseek-ai/dsh-compaction-basic": "workspace:*",
         "@deepseek-ai/dsh-cordis-host-runner": "workspace:*",
@@ -93,6 +95,7 @@
         "@vitest/browser-playwright": "5.0.0",
         "@vitest/coverage-v8": "^5.0.0",
         "@yarnpkg/cli-dist": "4.18.0",
+        "axe-core": "^4.13.0",
         "canvas": "3.2.3",
         "execa": "^10.0.1",
         "fast-check": "^4.9.0",
@@ -110,6 +113,7 @@
         "micromark-extension-gfm": "^3.0.0",
         "oxlint": "1.81.0",
         "oxlint-tsgolint": "7.0.2001",
+        "playwright": "^1.63.0",
         "publint": "^0.3.24",
         "railway": "^3.11.0",
         "smol-toml": "^1.8.0",
@@ -269,7 +273,7 @@
         "axe-core": "^4.13.0",
         "fflate": "^0.8.3",
         "http-server": "^14.1.1",
-        "playwright": "^1.62.1",
+        "playwright": "^1.63.0",
         "react": "^19.3.0",
         "react-dom": "^19.3.0",
         "typescript": "^7.0.2",
@@ -3269,7 +3273,7 @@
         "@deepseek-ai/dsh-host-webserver": "workspace:^",
         "@deepseek-ai/dsh-invariants": "workspace:^",
         "@types/ws": "^8.18.1",
-        "playwright": "^1.62.1",
+        "playwright": "^1.63.0",
         "tsx": "^4.23.13",
       },
       "peerDependencies": {
@@ -7236,7 +7240,7 @@
         "@deepseek-ai/dsh-timeout": "workspace:^",
         "@deepseek-ai/dsh-web": "workspace:^",
         "@deepseek-ai/dsh-web-fetch-http": "workspace:^",
-        "playwright": "^1.62.1",
+        "playwright": "^1.63.0",
       },
       "peerDependencies": {
         "@deepseek-ai/cordis": "workspace:^",
@@ -7246,7 +7250,7 @@
         "@deepseek-ai/dsh-timeout": "workspace:^",
         "@deepseek-ai/dsh-web": "workspace:^",
         "@deepseek-ai/dsh-web-fetch-http": "workspace:^",
-        "playwright": "^1.62.1",
+        "playwright": "^1.63.0",
       },
     },
     "packages/web/web-search-deepseek": {
@@ -10514,9 +10518,9 @@
 
     "platform": ["platform@1.3.6", "", {}, "sha512-fnWVljUchTro6RiCFvCXBbNhJc2NijN7oIQxbwsyL0buWJPG85v81ehlHI9fXrJsMNgTofEoWIQeClKpgxFLrg=="],
 
-    "playwright": ["playwright@1.62.1", "", { "dependencies": { "playwright-core": "1.62.1" }, "optionalDependencies": { "fsevents": "2.3.2" }, "bin": { "playwright": "cli.js" } }, "sha512-0M+L3LAD8/nm554LOla9Ayx0j0tmFZ0FBcoQ7F1VuVHpM/XpiC8RcDzBQB8W5+hA8L22THxELzeF+2WcUzvcLg=="],
+    "playwright": ["playwright@1.63.0", "", { "dependencies": { "playwright-core": "1.63.0" }, "bin": { "playwright": "cli.js" } }, "sha512-+7ziBLidS4NaNCdt57SUDT+wYmmd5fmiQejUic/kb+YsYSCPyOOE9sebzMjNmQrsnNpDJqd4WHvV/8lfKfUDUg=="],
 
-    "playwright-core": ["playwright-core@1.62.1", "", { "bin": { "playwright-core": "cli.js" } }, "sha512-wPYSwEBJY9GHraISXqyqtx0na0LpO3XEX7jNDhntbex7tzUS7kLnZsOlFruFJB4Hi/rhDMjXGqHewDZ68nYZVw=="],
+    "playwright-core": ["playwright-core@1.63.0", "", { "bin": { "playwright-core": "cli.js" } }, "sha512-rYCsBF/M5HjUch52bbtVONEFjv6Xu8sm8h72dNlR5bzIE1fvC/bxgspzkjSfU+MweEMmPM8KJebG6nnyxo5mCg=="],
 
     "pngjs": ["pngjs@7.0.0", "", {}, "sha512-LKWqWJRhstyYo9pGvgor/ivk2w94eSjE3RGVuzLGlr3NmD8bf7RcYGze1mNdEHRP6TRP6rMuDHk5t44hnTRyow=="],
 
@@ -11059,8 +11063,6 @@
     "mdast-util-find-and-replace/escape-string-regexp": ["escape-string-regexp@5.0.0", "", {}, "sha512-/veY75JbMK4j1yjvuUxuVsiS/hr/4iHs9FTT6cgTexxdE0Ly/glccBAkloH/DofkjRbZU3bnoj38mOmhkZ0lHw=="],
 
     "parse5/entities": ["entities@8.0.0", "", {}, "sha512-zwfzJecQ/Uej6tusMqwAqU/6KL2XaB2VZ2Jg54Je6ahNBGNH6Ek6g3jjNCF0fG9EWQKGZNddNjU5F1ZQn/sBnA=="],
-
-    "playwright/fsevents": ["fsevents@2.3.2", "", { "os": "darwin" }, "sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA=="],
 
     "proxy-addr/ipaddr.js": ["ipaddr.js@1.9.1", "", {}, "sha512-0KI/607xoxSToH7GjN1FfSbLoU0+btTicjsQSWQlh/hZykN8KpmMf7uYwPW3R+akZ6R/w18ZlXSHBYXiYUPO3g=="],
 

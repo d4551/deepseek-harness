@@ -20,7 +20,9 @@ export interface CodeBlockProps {
    * a per-instance {@link StreamingHighlightSession}, which re-tokenizes only
    * appended text and keeps completed lines' elements (and DOM) untouched.
    * The caller must keep the component instance stable across growth (a
-   * stream-stable React key); settled callers omit this and get shiki's HTML.
+   * stream-stable React key). The token tree stays mounted after streaming
+   * finishes, preserving focus, selection, and scroll position. Callers that
+   * render only completed code omit this and get shiki's HTML.
    */
   streaming?: boolean | undefined
   /** Extra class merged onto the wrapper (callers position; this component draws). */
@@ -34,10 +36,8 @@ export interface CodeBlockProps {
 }
 
 /**
- * The `pre` attributes shiki's HTML arm emits for the css-variables theme,
- * mirrored so the streaming arm's tree is interchangeable with the settled
- * swap (`tests/streaming-code-block.client.spec.tsx` pins the two arms'
- * parity).
+ * Match Shiki's static HTML attributes so incremental and completed-only
+ * code blocks share the same theme and keyboard focus behavior.
  */
 const SHIKI_PRE_PROPS = {
   className: 'shiki css-variables',
@@ -51,21 +51,13 @@ export function CodeBlock({ code, lang, streaming, className, copyLabel, copiedL
   // text while its language's grammar imported picks up highlighting. The
   // snapshot value is opaque; only its change across renders drives the memo.
   const loaded = useSyncExternalStore(subscribeGrammarChanges, grammarLoadCount, grammarLoadCount)
-  const html = useMemo(
-    () => (streaming === true ? undefined : highlightToHtml(trimmed, lang)),
-    [streaming, trimmed, lang, loaded],
-  )
   // Streaming state lives in refs mutated inside the memo (the MarkdownText
   // streaming-cache pattern): the session's caches carry across chunks only
   // because the owner keys this instance stably while the fence grows.
   const sessionRef = useRef<StreamingHighlightSession | null>(null)
   const lineCacheRef = useRef<{ lines: readonly HighlightSpan[][]; elements: ReactNode[] } | null>(null)
   const streamedBody = useMemo(() => {
-    if (streaming !== true) {
-      sessionRef.current = null
-      lineCacheRef.current = null
-      return undefined
-    }
+    if (streaming !== true && sessionRef.current === null) return undefined
     sessionRef.current ??= new StreamingHighlightSession()
     const lines = sessionRef.current.update(trimmed, lang)
     if (lines === undefined) {
@@ -88,6 +80,10 @@ export function CodeBlock({ code, lang, streaming, className, copyLabel, copiedL
     lineCacheRef.current = { lines, elements }
     return <pre {...SHIKI_PRE_PROPS}><code>{elements}</code></pre>
   }, [streaming, trimmed, lang, loaded])
+  const html = useMemo(
+    () => (streaming === true || streamedBody !== undefined ? undefined : highlightToHtml(trimmed, lang)),
+    [streaming, streamedBody, trimmed, lang, loaded],
+  )
   const [copied, setCopied] = useState(false)
 
   const onCopy = useCallback(() => {

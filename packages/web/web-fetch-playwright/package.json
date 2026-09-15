@@ -38,7 +38,7 @@
     "@deepseek-ai/dsh-timeout": "workspace:^",
     "@deepseek-ai/dsh-web": "workspace:^",
     "@deepseek-ai/dsh-web-fetch-http": "workspace:^",
-    "playwright": "^1.62.1",
+    "playwright": "^1.63.0",
     "@deepseek-ai/dsh-settings": "workspace:^"
   },
   "devDependencies": {
@@ -48,7 +48,7 @@
     "@deepseek-ai/dsh-timeout": "workspace:^",
     "@deepseek-ai/dsh-web": "workspace:^",
     "@deepseek-ai/dsh-web-fetch-http": "workspace:^",
-    "playwright": "^1.62.1",
+    "playwright": "^1.63.0",
     "@deepseek-ai/dsh-settings": "workspace:^"
   },
   "dependencies": {

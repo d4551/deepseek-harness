@@ -14,6 +14,7 @@ import { version, versionMajorMinor } from 'typescript'
 import { describe, expect, it } from 'vitest'
 import { closeCompiler, createSourceFile } from './ts7-session.ts'
 import { typescriptImportViolations, typescriptImportViolationsForPaths } from './typescript-module-imports.ts'
+import { gitWorktreeFiles } from './git-worktree-files.ts'
 
 const root = resolve(import.meta.dirname, '..')
 
@@ -87,13 +88,10 @@ describe('mandated typescript 7 compiler API', () => {
     expect(typescriptImportViolations([{ file: 'probe.ts', text }])).toHaveLength(expected)
   })
 
-  it('keeps the 6.0 Strada compiler API out of every tracked source file', () => {
-    const listed = spawnSync('git', [
-      'ls-files', '--',
+  it('keeps the 6.0 Strada compiler API out of every current tracked and untracked source file', () => {
+    const { files } = gitWorktreeFiles(root, [
       '*.ts', '*.tsx', '*.mts', '*.cts', '*.js', '*.mjs', '*.cjs', '*.jsx',
-    ], { cwd: root, encoding: 'utf8' })
-    expect(listed.status).toBe(0)
-    const files = listed.stdout.split('\n').filter(entry => entry !== '')
+    ])
     expect(files.length).toBeGreaterThan(2000)
     expect(typescriptImportViolationsForPaths(root, files)).toEqual([])
   })
