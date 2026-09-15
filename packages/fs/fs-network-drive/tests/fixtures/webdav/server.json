@@ -1,0 +1,28 @@
+{
+  "image": "rclone/rclone@sha256:71eef7dc06b5c258a3b28b80d18d57ba33026ba9028ecd67ba5d9b38a1c26c89",
+  "version": "v1.76.0-beta.10361.976d05e1d",
+  "windows": {
+    "x64": {
+      "archive": "rclone-v1.76.0-beta.10361.976d05e1d-windows-amd64.zip",
+      "archiveSha256": "75bfcb2fc8783af57a2a0818c451b2b1c4827da6dbb85de6f41de77add480fa3",
+      "executableSha256": "b258d616a081536a438eaa72f2766eeb6cd8dc8fda0ed28bd6bf8249510c211e"
+    },
+    "arm64": {
+      "archive": "rclone-v1.76.0-beta.10361.976d05e1d-windows-arm64.zip",
+      "archiveSha256": "11ca3a20c7de9dbac74ba1b58cc53d8d344d8414b976bd84dec0a28f2d6e026b",
+      "executableSha256": "d50ae632b8d586e6a37a88e9688b689a12bc6095642a9b121be166fb03b7898b"
+    }
+  },
+  "darwin": {
+    "arm64": {
+      "archive": "rclone-v1.76.0-beta.10361.976d05e1d-osx-arm64.zip",
+      "archiveSha256": "57afefdbf69ce1b72b4066d8e16316c0921204227c86a576087225aba1f60395",
+      "executableSha256": "1dcc6f9b8a8a45485aa5a4c1f26b9bd79157b44a84f57774e5c9cf874fdae0f5"
+    },
+    "x64": {
+      "archive": "rclone-v1.76.0-beta.10361.976d05e1d-osx-amd64.zip",
+      "archiveSha256": "acccf11a06862444d21a15861bdc3efcd24d77eb2602657d7a80696a3fa64205",
+      "executableSha256": "be2c9ba46448699db2eb72db714f0599a3c900dbf2bc6926cd5e624e7ceb9d5a"
+    }
+  }
+}

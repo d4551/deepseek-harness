@@ -106,6 +106,9 @@ jobs:
       - name: Prepare bubblewrap (unrestrict userns)
         run: bash scripts/prepare-ci-bubblewrap.sh
 
+      - name: Prepare pinned WebDAV server
+        run: bun run test:prepare:network-drive
+
       - name: Run complete unsharded primary Node CI serially
         env:
           DSH_ARCHIVE_BASE_REF: ${{ github.event.before }}
@@ -143,6 +146,9 @@ jobs:
 
       - name: Install Playwright Chromium
         run: bun run --filter @deepseek-ai/dsh-web-frontend playwright:install
+
+      - name: Prepare pinned WebDAV server
+        run: bun run test:prepare:network-drive
 
       - name: Run complete unsharded primary Node CI serially
         env:
@@ -195,6 +201,10 @@ jobs:
       - name: Install Playwright Chromium
         shell: pwsh
         run: bun run --filter @deepseek-ai/dsh-web-frontend playwright:install
+
+      - name: Prepare pinned native WebDAV server
+        shell: pwsh
+        run: bun run test:prepare:network-drive
 
       - name: Run complete unsharded Windows gate inventory serially
         shell: pwsh
@@ -398,6 +408,10 @@ jobs:
       - name: Install Playwright Chromium and hosted dependencies
         if: matrix.platform == 'linux'
         run: bun run --filter @deepseek-ai/dsh-web-frontend playwright:install:deps
+
+      - name: Prepare pinned WebDAV server
+        if: matrix.platform == 'linux'
+        run: bun run test:prepare:network-drive
 
       - name: Run complete unsharded primary Node CI concurrently
         if: matrix.platform == 'linux'

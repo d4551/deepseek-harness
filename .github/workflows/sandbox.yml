@@ -93,6 +93,10 @@ jobs:
       # in the workflow, so run it here too — the platform-dependent unit
       # expectations (Seatbelt path canonicalization: /tmp IS /private/tmp)
       # take their darwin branch only on this runner.
+      - name: Prepare pinned native WebDAV server
+        if: matrix.runner == 'seatbelt'
+        run: bun run test:prepare:network-drive
+
       - name: Unit tests (darwin parity)
         if: matrix.runner == 'seatbelt'
         run: bun run test

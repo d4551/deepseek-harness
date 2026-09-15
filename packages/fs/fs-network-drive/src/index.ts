@@ -34,7 +34,7 @@ import { DriveAddressing, infoOfPlacement } from './addressing.ts'
 import type { ResolvedConfig } from './addressing.ts'
 import { drivePathOf, localInfo } from './materialization.ts'
 import { DriveTransfer } from './transfer.ts'
-import { assertNotAborted, fsTypeOfLocal, localToken } from './vocabulary.ts'
+import { assertNotAborted, fsTypeOfLocal, landing, localToken, mapError } from './vocabulary.ts'
 
 /** Configuration for the drive-backed filesystem provider. */
 export interface Config {
@@ -115,22 +115,10 @@ export class NetworkDriveFileSystem extends FileSystem {
     return { kind: 'network-drive' }
   }
 
-  override resolve(path: string, opts?: { cwd?: string; signal?: AbortSignal }): Promise<FsTarget> {
-    // Addressing is synchronous, but the seam declares `resolve`
-    // promise-returning and every caller awaits it, so a rejected path has to
-    // settle the returned promise. A synchronous throw escapes a `.catch()` on
-    // the result; `identity.spec.ts` pins that a blocked path rejects.
-    try {
-      assertNotAborted(opts?.signal, 'resolve')
-      if (path.trim().length === 0) throw new FsError('file_path must be a non-empty string', 'FS_NOT_FOUND')
-      return Promise.resolve(this.addressing.targetOf(path, opts?.cwd, 'resolve'))
-    } catch (rejection: unknown) {
-      // Everything thrown above is an `FsError`; `assertNotAborted` and the
-      // empty-path guard construct one, and `targetOf` throws only `FsError`.
-      return Promise.reject(rejection instanceof Error
-        ? rejection
-        : new FsError(`cannot resolve "${path}"`, 'FS_PERMISSION_DENIED', { cause: rejection }))
-    }
+  override async resolve(path: string, opts?: { cwd?: string; signal?: AbortSignal }): Promise<FsTarget> {
+    assertNotAborted(opts?.signal, 'resolve')
+    if (path.trim().length === 0) throw new FsError('file_path must be a non-empty string', 'FS_NOT_FOUND')
+    return this.addressing.targetOf(path, opts?.cwd, 'resolve')
   }
 
   override processPath(target: FsTarget): string {
@@ -155,7 +143,9 @@ export class NetworkDriveFileSystem extends FileSystem {
     assertNotAborted(signal, 'lstat')
     if (path.trim().length === 0) throw new FsError('file_path must be a non-empty string', 'FS_NOT_FOUND')
     const target = this.addressing.targetOf(path, opts?.cwd, 'lstat')
-    const local = await localInfo(this.addressing.processPath(target))
+    const inspected = await landing(localInfo(this.addressing.processPath(target)))
+    if (!inspected.ok) throw mapError(inspected.reason, 'lstat', target.displayPath, signal)
+    const local = inspected.value
     // Only the local probe can see a link, and seeing one is the whole point of
     // lstat: report it before any drive lookup follows it to a target.
     if (local?.type === 'symlink') return { version: localToken('symlink'), type: 'symlink' }

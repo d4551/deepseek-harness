@@ -14,9 +14,9 @@
  * @module @deepseek-ai/dsh-fs-network-drive/materialization
  */
 
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import { constants, createReadStream } from 'node:fs'
-import { lstat, mkdir, open, readFile, rename, rm } from 'node:fs/promises'
+import { lstat, mkdir, mkdtemp, open, readFile, rename, rm } from 'node:fs/promises'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import type { DrivePath, DriveVersion } from '@deepseek-ai/dsh-network-drive/types'
 import { driveVersion } from '@deepseek-ai/dsh-network-drive/identity'
@@ -209,15 +209,16 @@ export async function publishBytes(
   const staging = join(stateRootOf(materializationRoot), 'staging')
   await mkdir(staging, { recursive: true, mode: 0o700 })
   await using staged = {
-    path: join(staging, randomUUID()),
-    [Symbol.asyncDispose]() { return rm(this.path, { force: true }) },
+    path: await mkdtemp(join(staging, 'publish-')),
+    [Symbol.asyncDispose]() { return rm(this.path, { recursive: true, force: true }) },
   }
+  const contentPath = join(staged.path, 'content')
   {
-    await using handle = await open(staged.path, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, mode)
+    await using handle = await open(contentPath, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, mode)
     await handle.writeFile(bytes)
     await handle.sync()
   }
-  await rename(staged.path, target)
+  await rename(contentPath, target)
 }
 
 /**

@@ -19,7 +19,7 @@ async function workspace(): Promise<string> {
 it('distinguishes absent entries from traversal and metadata failures', async () => {
   const root = await workspace()
   await writeFile(join(root, 'file'), 'bytes')
-  await symlink('cycle', join(root, 'cycle'))
+  await symlink('cycle', join(root, 'cycle'), 'dir')
   await expect(localInfo(join(root, 'missing'))).resolves.toBeUndefined()
   await expect(localInfo(join(root, 'file', 'child'))).rejects.toMatchObject({ code: 'ENOTDIR' })
   await expect(localInfo(join(root, 'cycle', 'child'))).rejects.toMatchObject({ code: 'ELOOP' })
@@ -28,13 +28,17 @@ it('distinguishes absent entries from traversal and metadata failures', async ()
   await expect(localInfo(join(root, 'file'))).resolves.toEqual({ type: 'file', size: 5 })
 })
 
-it('reports a native socket as a non-file entry without reading it', async () => {
+it('reports native special files as non-file entries without reading them', async () => {
   const root = await workspace()
-  await using server = createServer()
-  const socket = join(root, 'socket')
-  server.listen(socket)
-  await once(server, 'listening')
-  await expect(localInfo(socket)).resolves.toEqual({ type: 'other' })
+  let special = String.raw`\\.\NUL`
+  if (process.platform !== 'win32') {
+    const server = createServer()
+    onTestFinished(() => server[Symbol.asyncDispose]())
+    special = join(root, 'socket')
+    server.listen(special)
+    await once(server, 'listening')
+  }
+  await expect(localInfo(special)).resolves.toEqual({ type: 'other' })
 })
 
 it('publishes complete bytes, replaces the previous file and drains staging', async () => {
@@ -54,7 +58,7 @@ it('removes staged bytes after native publication failures and preserves the des
   const target = join(root, 'directory')
   await mkdir(target)
   await writeFile(join(target, 'retained'), 'existing')
-  await expect(publishBytes(root, target, Buffer.from('new'), 0o600)).rejects.toMatchObject({ code: 'EISDIR' })
+  await expect(publishBytes(root, target, Buffer.from('new'), 0o600)).rejects.toMatchObject({ code: process.platform === 'win32' ? 'EPERM' : 'EISDIR' })
   await expect(readFile(join(target, 'retained'), 'utf8')).resolves.toBe('existing')
   await expect(readdir(join(stateRootOf(root), 'staging'))).resolves.toEqual([])
   await expect(publishBytes(root, join(root, 'missing', 'child'), Buffer.from('new'), 0o600))

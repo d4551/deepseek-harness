@@ -44,12 +44,12 @@ export interface ResolvedConfig {
 export function infoOfPlacement<T extends FsInfo['type'] | FsPathInfo['type']>(
   placement: Placement,
   localType: (type: LocalPathInfo['type']) => T,
-): { version: FsVersion; type: T; size?: number } | undefined {
+): { version: FsVersion; type: T | FsInfo['type']; size?: number } | undefined {
   switch (placement.kind) {
     case 'drive':
       return {
         version: driveToken(placement.remote.version),
-        type: fsType(placement.remote.type) as T,
+        type: fsType(placement.remote.type),
         ...placement.remote.size === undefined ? {} : { size: placement.remote.size },
       }
     case 'local':
@@ -171,7 +171,9 @@ export class DriveAddressing {
     if (!stat.ok) throw mapError(stat.reason, 'stat', target.displayPath, signal)
     assertNotAborted(signal, 'stat')
     if (stat.value !== undefined) return { kind: 'drive', remote: stat.value }
-    const info = await localInfo(this.processPath(target))
+    const inspected = await landing(localInfo(this.processPath(target)))
+    if (!inspected.ok) throw mapError(inspected.reason, 'stat', target.displayPath, signal)
+    const info = inspected.value
     if (info === undefined) return { kind: 'absent' }
     return { kind: 'local', info, version: await this.localVersion(target, info) }
   }
@@ -242,7 +244,9 @@ export class DriveAddressing {
     for (const name of await this.localChildren(workspacePath)) {
       if (entries.has(name)) continue
       const child = driveChildPath(workspacePath, name)
-      const info = await localInfo(localPathOf(this.config.materializationRoot, child))
+      const inspected = await landing(localInfo(localPathOf(this.config.materializationRoot, child)))
+      if (!inspected.ok) throw mapError(inspected.reason, 'list', target.displayPath, signal)
+      const info = inspected.value
       if (info === undefined) continue
       entries.set(name, {
         name,

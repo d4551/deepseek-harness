@@ -2,7 +2,6 @@
 import { readFileSync } from 'node:fs'
 import { extname, resolve } from 'node:path'
 import { parse, type ParserPlugin } from '@babel/parser'
-import traverse from '@babel/traverse'
 import * as t from '@babel/types'
 
 const VERSION_EXPORTS: readonly string[] = ['version', 'versionMajorMinor']
@@ -88,20 +87,15 @@ function collect(file: string, text: string): TypescriptImportViolation[] {
       || t.isCallExpression(callee)
     if (loads) record(node.arguments[0])
   }
-  traverse(source, {
-    noScope: true,
-    ImportDeclaration({ node }) { record(node.source, declarationNames(node.specifiers)) },
-    ExportNamedDeclaration({ node }) {
+  t.traverseFast(source, (node) => {
+    if (t.isImportDeclaration(node)) record(node.source, declarationNames(node.specifiers))
+    else if (t.isExportNamedDeclaration(node)) {
       if (node.source !== null) record(node.source, declarationNames(node.specifiers))
-    },
-    ExportAllDeclaration({ node }) { record(node.source) },
-    ImportExpression({ node }) { record(node.source) },
-    TSImportEqualsDeclaration({ node }) {
+    } else if (t.isExportAllDeclaration(node) || t.isImportExpression(node)) record(node.source)
+    else if (t.isTSImportEqualsDeclaration(node)) {
       if (t.isTSExternalModuleReference(node.moduleReference)) record(node.moduleReference.expression)
-    },
-    TSImportType({ node }) { record(node.source) },
-    CallExpression({ node }) { call(node) },
-    OptionalCallExpression({ node }) { call(node) },
+    } else if (t.isTSImportType(node)) record(node.source)
+    else if (t.isCallExpression(node) || t.isOptionalCallExpression(node)) call(node)
   })
   return found
 }

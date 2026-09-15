@@ -141,6 +141,9 @@ jobs:
         if: vars.DSH_CI_FAILOVER_LINUX == 'selfhosted' && github.event.pull_request.user.login != 'dependabot[bot]'
         run: bun run --filter @deepseek-ai/dsh-web-frontend playwright:install
 
+      - name: Prepare pinned WebDAV server
+        run: bun run test:prepare:network-drive
+
       - name: Run exhaustive coverage
         run: bun run check:ci:coverage
 
@@ -459,6 +462,9 @@ jobs:
       - name: Build before coverage
         shell: pwsh
         run: bun run build
+      - name: Prepare pinned native WebDAV server
+        shell: pwsh
+        run: bun run test:prepare:network-drive
       - name: Run Windows coverage
         shell: pwsh
         run: bun run check:ci:coverage

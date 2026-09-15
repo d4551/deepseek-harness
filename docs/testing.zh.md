@@ -6,6 +6,8 @@
 
 ## 层级
 
+`bun run test` 和 `bun run test:coverage` 中的网络盘文件系统集成测试需要固定版本的官方 rclone WebDAV 服务器。运行前执行 `bun run test:prepare:network-drive`。在 Windows 和 macOS 上，准备命令下载 x64 或 arm64 原生可执行文件，按 `packages/fs/fs-network-drive/tests/fixtures/webdav/server.json` 校验压缩包与可执行文件的 SHA-256，并存放于 `node_modules/.cache/network-drive-tests`。Linux 需要运行中的 Docker 守护进程；准备命令下载以不可变摘要固定的官方镜像。所有平台使用同一上游修订。原生准备命令也接受已下载官方压缩包的路径作为唯一参数，并执行相同的校验。测试不会下载前置依赖：原生文件在启动前校验，容器使用 `--pull=never`。每个测试独立拥有原生进程或容器、回环端口和磁盘目录，在释放 Cordis 上下文后清理。参见官方 [rclone 下载](https://rclone.org/downloads/#beta-releases)与 [Docker 安装](https://rclone.org/install/#docker-installation)。
+
 - **单元测试**（`bun run test`）：Vitest 运行所属代码旁的包/示例 `tests/**` 与 `scripts/**/*.spec.ts`。注册表测试释放贡献 fiber，并断言 HMR 清理。覆盖边界情况、错误、事件顺序、并发竞态和约定回归（`packages/core/agent-loop/tests/contract-regressions.spec.ts`）。每个导出的 client UI 组件都使用 axe-core 审计 WCAG 2.0/2.1/2.2 A、AA 和最佳实践规则（[dsh-client-a11y](../packages/test-support/client-a11y/README.zh.md)）。
 - **覆盖率门禁**（`bun run test:coverage`）：要求 `packages/*/*/src` 按文件达到 100%。未覆盖行可能是应删除的死代码；执行过的行本身不能证明交付行为。`vitest.config.ts` 记录每项排除及理由：无可测运行时覆盖率、在单元进程 V8 不可见的 Worker／浏览器 realm／子进程中执行，或标为 `DEBT(gui)`、`DEBT(inspector)`、`DEBT(webworker)` 的浏览器通道欠债。`bun run verify-coverage-debt` 拒绝未标记欠债、空 glob、完全冗余条目和未使用标记，也检查 `scripts/vitest-inventory.ts` 中的平台条件清单；它报告各通道的 glob 数与文件数，供逐步减少欠债。`bun run measure-coverage-debt` 在测量时移除欠债排除，报告每个文件的差距并指出已达标条目；尾随参数选择单个包的测试套件。
 - **真实 API e2e**（`bun run test:e2e`）：带密钥测试调用真实提供方 API，包括 DeepSeek 模型以及各提供方特有的冒烟测试；这些测试各自由自己的密钥控制（`EXA_API_KEY`、`PERPLEXITY_API_KEY` 等），缺少密钥时套件会自动跳过，使 keyless CI 保持绿色（[真实 API e2e Agent Note](../.agents/notes/implemented/testing/2026-06-19-real-api-e2e-ci.zh.md)）。
