@@ -51,7 +51,7 @@ The package realizes one ownership rule: the browser keeps one shared mirror of 
 
 ### The describe mirror
 
-The plugin injects `connection` and `remote` and owns the one `settings.describe` reader in the browser: a shared mirror refreshed on every forwarded `settings/document-updated` event and on `connection/reset` (the first connection included, closing the window where a commit lands between the eager read and the SSE subscription). Cross-namespace surfaces read it through `ctx.settingsScope.describe()`, a read/fold face (`getSnapshot`/`subscribe`/`ensure`, plus `acceptView` folding a write answer in).
+The plugin injects `connection` and `remote` and owns the one `settings.describe` reader in the browser: a shared mirror refreshed on forwarded `settings/document-updated`, `settings/availability-updated`, and `settings/registry-updated` events, and on `connection/reset` (the first connection included, closing the window where a change lands between the eager read and the event subscription). Namespace owners therefore appear and disappear without a document write or page reload. Cross-namespace surfaces read it through `ctx.settingsScope.describe()`, a read/fold face (`getSnapshot`/`subscribe`/`ensure`, plus `acceptView` folding a write answer in).
 
 ### Scope derivation
 

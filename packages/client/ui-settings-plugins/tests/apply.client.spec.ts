@@ -164,7 +164,7 @@ describe('ui-settings-plugins apply', () => {
 
     expect(slots.entries('settings.plugin.item').map(entry => entry.options.key))
       .toEqual([
-        'shell', 'agent-loop', 'approval-assessor', 'approval-adversary', 'subagent-model-selection', 'agent-default-model',
+        'shell', 'agent-loop', 'request-budget', 'approval-assessor', 'approval-adversary', 'subagent-model-selection', 'agent-default-model',
         'web-search-deepseek', 'agent-team',
         'web', 'web-search-exa', 'web-search-perplexity', 'web-fetch-http', 'web-fetch-playwright',
       ])
@@ -272,7 +272,7 @@ describe('ui-settings-plugins apply', () => {
     declareRoot(slots)
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
-    expect(slots.entries('settings.plugin.item')).toHaveLength(13)
+    expect(slots.entries('settings.plugin.item')).toHaveLength(14)
 
     await fiber.dispose()
 

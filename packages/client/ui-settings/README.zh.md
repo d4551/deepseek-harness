@@ -51,7 +51,7 @@ kind: "package-reference"
 
 ### Describe 镜像
 
-插件注入 `connection` 与 `remote`，并持有浏览器中唯一的 `settings.describe` 读取方：一面共享镜像，在每次转发的 `settings/document-updated` 事件与 `connection/reset` 时刷新（首次连接也包含在内，关闭「提交落在急切读取与 SSE 订阅之间」的窗口）。跨命名空间表面通过 `ctx.settingsScope.describe()` 读它，这是一个读取/折叠面（`getSnapshot`/`subscribe`/`ensure`，另有把写应答折入的 `acceptView`）。
+插件注入 `connection` 与 `remote`，并持有浏览器中唯一的 `settings.describe` 读取方：一面共享镜像，在转发的 `settings/document-updated`、`settings/availability-updated`、`settings/registry-updated` 事件以及 `connection/reset` 时刷新（首次连接也包含在内，关闭「变化落在急切读取与事件订阅之间」的窗口）。因此，命名空间拥有方会自动出现或消失，无需写入文档或重新加载页面。跨命名空间表面通过 `ctx.settingsScope.describe()` 读它，这是一个读取/折叠面（`getSnapshot`/`subscribe`/`ensure`，另有把写应答折入的 `acceptView`）。
 
 ### Scope 派生
 

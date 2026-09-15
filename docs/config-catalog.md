@@ -94,6 +94,8 @@ Requires: `agents` · `sessions` · `llm` · `tools` · `systemPrompt`
 ```ts config-catalog
 /** Agent-loop plugin configuration. */
 export interface Config {
+  /** Deployment request policy; users may change its limits through Settings. */
+  requestBudget?: RequestBudgetPolicy
   /**
    * Maximum parallel-safe calls in flight per agent step. `1` is serial;
    * omission defaults to {@link DEFAULT_MAX_PARALLEL_TOOL_CALLS}.
@@ -113,9 +115,9 @@ export interface Config {
 }
 ```
 
-Depends on: [`AgentOptions`](subsystems/core.md) · [`SessionId`](subsystems/core.md)
+Depends on: [`AgentOptions`](subsystems/core.md) · [`RequestBudgetPolicy`](subsystems/session.md) · [`SessionId`](subsystems/core.md)
 
-Source: [`packages/core/agent-loop/src/index.ts:255`](../packages/core/agent-loop/src/index.ts)
+Source: [`packages/core/agent-loop/src/index.ts:268`](../packages/core/agent-loop/src/index.ts)
 
 <a id="deepseek-aidsh-agent-presets"></a>
 
@@ -197,6 +199,8 @@ export interface Config {
   agents?: AgentLoopConfig['agents']
   /** Agent-loop concurrency cap; `1` is serial. */
   maxParallelToolCalls?: AgentLoopConfig['maxParallelToolCalls']
+  /** Deployment request policy forwarded to the agent-loop owner. */
+  requestBudget?: AgentLoopConfig['requestBudget']
   /** Whether the system prompt includes the fixed Harness identity (default true). */
   includeHarnessIdentity?: SystemPromptConfig['includeHarnessIdentity']
   /** Whether model history includes dynamic runtime-context snapshots (default true). */

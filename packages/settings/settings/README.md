@@ -75,6 +75,8 @@ Every write rejects non-JSON-compatible data (a `Date`, `Map`, `BigInt`, non-fin
 
 ### Events and failures
 
+`settings/registry-updated (ns)` announces a namespace registration or its completed release. Consumers re-read `describe()` to obtain the current directory. Registering and releasing leave stored sections, revisions, and capability readiness unchanged; the release notification follows the owned watchers' completion.
+
 Owners can publish runtime readiness with the registration's optional `available` value and `scope.setAvailable(boolean)`. Descriptors and the settings API carry this metadata separately from editable configuration. A changed value emits `settings/availability-updated (ns, available)` without writing the user document or advancing its revision. Disposed registrations cannot publish availability.
 
 `settings/updated (ns, next, prev, source)` fires after each committed change — an in-process write (`source: 'update'`) or an externally observed edit (`source: 'provider'`) — and never when the resolved value is deep-equal. `settings/document-updated (ns, revision)` fires whenever the raw user section changed, even when the resolved value did not, which is what an open editor needs to learn that a field went from inherited to overridden. A stored section the schema rejects keeps the namespace's last good value and warns on reload; at registration the same failure rejects the registration itself.

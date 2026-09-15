@@ -10,7 +10,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Browser, BrowserContext, Page } from 'playwright'
 import { chromium } from 'playwright'
-import { launchWebScaffold, watchConsole, type WebScaffold } from './tests/scaffold.ts'
+import { launchWebScaffold, watchConsole, type LaunchOptions, type WebScaffold } from './tests/scaffold.ts'
 import { ZH_BROWSER_LOCALE } from './tests/support.ts'
 
 /** One running settings suite: the scaffold, its browser, and the shared page. */
@@ -47,10 +47,11 @@ async function openAuthenticatedPage(browser: Browser, scaffold: WebScaffold): P
 /**
  * Boot the settings suite: a real host scaffold, one Chromium instance, and
  * the shared Chinese-locale page navigated to the authenticated frame.
+ * @param options - the real Host composition and isolated persistence options.
  * @returns the suite handles for the file's beforeAll.
  */
-export async function launchSettingsSuite(): Promise<SettingsSuite> {
-  const scaffold = await launchWebScaffold({})
+export async function launchSettingsSuite(options: LaunchOptions = {}): Promise<SettingsSuite> {
+  const scaffold = await launchWebScaffold(options)
   const browser = await chromium.launch()
   const { page, tripwire } = await openAuthenticatedPage(browser, scaffold)
   return { scaffold, browser, page, tripwire }

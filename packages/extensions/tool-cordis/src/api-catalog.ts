@@ -1399,6 +1399,19 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'requestBudgetPolicy',
+    summary: 'Host-owned request policy read at every model reservation.',
+    description: 'Host-owned request policy read at every model reservation.',
+    methods: [
+      {
+        signature: 'get(): RequestBudgetPolicy',
+        description: 'Read the deployment identity and currently committed finite limits.',
+        parameters: [],
+        returns: 'the immutable policy without changing the episode or its charges.',
+      },
+    ],
+  },
+  {
     key: 'sandbox',
     summary: 'Abstract process-sandbox service.',
     description: 'Abstract process-sandbox service. confine must return enforcing argv or fail closed at wrap or runner-execution time; silent unconfined passthrough is forbidden. Functional probes arbitrate multi-runner chains and may be skipped for a sole candidate, whose own refusal remains the fail-closed end.',
@@ -3377,6 +3390,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [{ name: 'ns', description: 'the namespace whose stored section changed.' }, { name: 'revision', description: 'the namespace\'s new revision.' }],
   },
   {
+    name: 'settings/registry-updated',
+    mode: 'emit',
+    signature: '\'settings/registry-updated\'(ns: SettingsNamespace): void',
+    summary: 'A namespace owner registered or finished releasing its registration.',
+    description: 'A namespace owner registered or finished releasing its registration. Describing settings now reflects the changed namespace directory; the stored document, revision, and capability readiness are unchanged.',
+    parameters: [{ name: 'ns', description: 'the namespace whose registration changed.' }],
+  },
+  {
     name: 'settings/updated',
     mode: 'emit',
     signature: '\'settings/updated\'(ns: SettingsNamespace, next: unknown, prev: unknown, source: SettingsUpdateSource): void',
@@ -4849,8 +4870,12 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface RequestAttempt extends RequestEpisode {\n    readonly actorSessionId: SessionId;\n    readonly actorAttempt: number;\n    readonly rootAttempt: number;\n}',
   },
   {
+    name: 'RequestBudgetLimits',
+    declaration: 'export interface RequestBudgetLimits {\n    readonly maxAgentAttempts: number;\n    readonly maxRootAttempts: number;\n}',
+  },
+  {
     name: 'RequestBudgetPolicy',
-    declaration: 'export interface RequestBudgetPolicy {\n    readonly policyId: string;\n    readonly maxAgentAttempts: number;\n    readonly maxRootAttempts: number;\n}',
+    declaration: 'export interface RequestBudgetPolicy extends RequestBudgetLimits {\n    readonly policyId: string;\n}',
   },
   {
     name: 'RequestContext',

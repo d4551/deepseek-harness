@@ -29,6 +29,8 @@ Open the Plugins section in Settings and select the **Plugin configuration** tab
 
 The tab reads which settings namespaces the Host serves and dispatches one slot key per namespace, so what renders is the intersection of two ledgers: the namespaces a live Host plugin registered, and the cards registered under those keys. A served namespace no card claims renders nothing, and a card whose namespace this deployment does not serve is never dispatched. The empty line waits for the Host's first answer, so an unanswered read never reads as "this deployment configures no plugin".
 
+The shared settings mirror re-reads after namespace registration changes, document commits, capability readiness changes, and connection resets. A newly registered owner joins the list, and a released owner leaves it, without a settings write or page reload.
+
 ### Editing and saving
 
 Web access groups the search and fetch selectors with their provider settings. Select the route in Web access, then configure its provider; saving provider credentials or capacity does not select that provider. Approval groups the rule-based assessor before the optional model reviewer: the assessor can reject a request but cannot approve it, while an enabled reviewer replaces the human decision for a valid verdict. An undecided review follows its configured reject-or-delegate policy.
@@ -40,6 +42,8 @@ The Subagent card stages its permission switch and exact model checkboxes togeth
 The Default model card stages one exact route. Saving submits `provider`, `model`, and a clear of `reasoningEffort` in one mutation fenced by the revision where that draft began, because an effort stored for the previous model does not describe the new one; a newer Host revision marks the draft conflicted instead of writing over it. The route the section already stores stays selectable even once the catalog stops advertising it. A failed directory read offers a retry in place, and both model cards group available routes by provider and list saved-but-unadvertised routes last.
 
 Card actions and single-line fields use shared `Button` and `Input` controls. The disclosure identifies its expanded body, which announces when a save is busy. A successful save returns focus from the collapsing form to its disclosure button; focus elsewhere stays where the user placed it. Save and discard actions wrap within narrow cards.
+
+The Model request budget card appears when the Host serves `request-budget`. It stages the whole-task ceiling shared by the main agent and every delegate, plus the individual delegated-agent ceiling. Both accept positive safe integers; the Host rejects a delegated ceiling above the task ceiling atomically. Defaults and reset values come from the deployment. Saved limits apply on the next request against the current episode's retained charges, including retries and failures. Saving never resumes paused work; a follow-up message authorizes another work episode.
 
 ### Secret-role fields
 
@@ -95,7 +99,6 @@ These boundaries define which plugins appear and how fresh the list is; they are
 
 - **Only host-plane plugins appear** — a plugin an agent preset mounts carries its configuration inline in that preset's `agent.cordis.yml` and cannot register a settings namespace at all, so this section lists nothing for it. Editing those values remains the preset editor's job.
 - **A card still needs a browser bundle** — the browser half must be a `dsh.client` package built in the client module system's lazy-CJS factory format, and the `clientBundle` preset that emits it lives in `../../../packages/client/tsdown.client.ts` rather than a published package, so a plugin outside this repository has to reproduce that build itself.
-- **The served namespaces re-read on two signals only** — the wire announces settings-document commits and connection resets, not registrations, so a namespace whose owner registers after the tab's read joins the list on the next document commit or reconnect.
 - **The shell card follows the composed executor** — the POSIX and PowerShell executor families share the `bash` namespace because a host composes exactly one of them, so the served schema differs by platform (PowerShell adds `pwshPath`) even though the card edits the same two fields on both.
 
 <a id="dev-note"></a>

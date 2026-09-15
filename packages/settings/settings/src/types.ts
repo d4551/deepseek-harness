@@ -82,6 +82,14 @@ export interface SettingsDescribeValue {
 declare module '@deepseek-ai/cordis' {
   interface Events {
     /**
+     * A namespace owner registered or finished releasing its registration.
+     * Describing settings now reflects the changed namespace directory; the
+     * stored document, revision, and capability readiness are unchanged.
+     * @param ns - the namespace whose registration changed.
+     * @mode emit
+     */
+    'settings/registry-updated'(ns: SettingsNamespace): void
+    /**
      * Runtime capability readiness changed without a settings-document edit.
      * @param ns - the namespace whose runtime readiness changed.
      * @param available - whether the owner's capability is ready.

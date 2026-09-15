@@ -18,11 +18,14 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
+import { REQUEST_BUDGET_SETTINGS_NAMESPACE } from '@deepseek-ai/dsh-session/types'
 // Type-only: the ctx.remote Context merge and the forwarded-event key face.
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { AgentLoopCard } from './AgentLoopCard.tsx'
 import { AgentDefaultModelCard } from './AgentDefaultModelCard.tsx'
 import { AgentTeamCard } from './AgentTeamCard.tsx'
+import { RequestBudgetCard } from './RequestBudgetCard.tsx'
+import { RequestBudgetCardController } from './request-budget-card-controller.ts'
 import { ApprovalAdversaryCard } from './ApprovalAdversaryCard.tsx'
 import { ApprovalAssessorCard } from './ApprovalAssessorCard.tsx'
 import { BashCard } from './BashCard.tsx'
@@ -81,6 +84,9 @@ export function apply(ctx: ClientContext): void {
 
   const bash = new BashCardController(ctx.settingsScope.bind({ namespace: SHELL_NS }))
   const agentLoop = new AgentLoopCardController(ctx.settingsScope.bind({ namespace: AGENT_LOOP_NS }))
+  const requestBudget = new RequestBudgetCardController(
+    ctx.settingsScope.bind({ namespace: REQUEST_BUDGET_SETTINGS_NAMESPACE }),
+  )
   const approvalAssessor = new ApprovalAssessorCardController(
     ctx.settingsScope.bind({ namespace: APPROVAL_ASSESSOR_NS }),
   )
@@ -231,6 +237,12 @@ export function apply(ctx: ClientContext): void {
       locale: NS,
       inject: () => agentLoop.inject(),
     }, AgentLoopCard)
+    yield ctx.slots.register({
+      name: 'settings.plugin.item',
+      key: REQUEST_BUDGET_SETTINGS_NAMESPACE,
+      locale: NS,
+      inject: () => requestBudget.inject(),
+    }, RequestBudgetCard)
     yield ctx.slots.register({
       name: 'settings.plugin.item',
       key: APPROVAL_ASSESSOR_NS,

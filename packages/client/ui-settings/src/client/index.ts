@@ -3,7 +3,8 @@
  * settings-namespace scope service every preference row binds its durable
  * section through, and owns the one `settings.describe` reader in the browser:
  * the describe mirror, whose invalidation subscriptions
- * (`settings/document-updated`, `settings/availability-updated`, `connection/reset`) live here so every derived
+ * (`settings/document-updated`, `settings/availability-updated`,
+ * `settings/registry-updated`, `connection/reset`) live here so every derived
  * surface refreshes from a single wire read. It depends on no `ui-*`
  * presentation package, so any feature that owns a preference can reach it:
  * the settings SHELL — the `sidebar.settings` occupant, its navigation, and
@@ -44,8 +45,8 @@ export const inject = ['connection', 'remote', 'remote.settings']
 
 /**
  * Provide the settings-namespace scope service over one shared describe
- * mirror, and refresh it on document commits, provider availability changes,
- * and reconnects.
+ * mirror, and refresh it on document commits, capability readiness changes,
+ * namespace registration changes, and reconnects.
  *
  * Constructing the service in this plugin's fiber keeps its traced methods
  * bound to each consuming plugin's context.
@@ -64,6 +65,7 @@ export function apply(ctx: Context): void {
     const disposers = [
       ctx.remote.$on('settings/document-updated', refresh),
       ctx.remote.$on('settings/availability-updated', refresh),
+      ctx.remote.$on('settings/registry-updated', refresh),
       ctx.on('connection/reset', refresh),
     ]
     // The first connection also emits connection/reset, so startup normally

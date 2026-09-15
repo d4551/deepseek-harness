@@ -485,8 +485,10 @@ export abstract class SettingsProvider extends Service {
         })
         registration.watchers.clear()
         await Promise.all(tails)
+        this.ctx.emit('settings/registry-updated', ns)
       }
     }, `settings.register(${JSON.stringify(String(ns))})`)
+    this.ctx.emit('settings/registry-updated', ns)
     return {
       setAvailable: (available) => {
         if (this.registrations.get(ns) !== registration || registration.available === available) return

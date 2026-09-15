@@ -66,7 +66,7 @@ it('renders exact usage and explicit human continuation text as a persistent sta
     anchorSeq: 5, location: { kind: 'unresolved' }, visibility: 'visible',
     data: {
       kind: 'turn-request-budget', seq: 5, time: 100, turn: 1, step: 1,
-      budget: { version: 1, policyId: 'test/ui-budget', actorSessionId: id, rootSessionId: id,
+      budget: { version: 1, policyId: 'test/ui-budget', actorSessionId: SessionId('budget-child'), rootSessionId: id,
         userMessageId: human.id, actorAttempts: 32, maxAgentAttempts: 32, rootAttempts: 48, maxRootAttempts: 64 },
     },
   }
@@ -77,4 +77,25 @@ it('renders exact usage and explicit human continuation text as a persistent sta
   expect(view.getByRole('status').textContent).toContain('Send an explicit follow-up in the root conversation')
   expect(view.queryByText('This turn failed')).toBeNull()
   expect(view.queryByRole('button')).toBeNull()
+})
+
+it.each([
+  { actorAttempts: 128, rootAttempts: 128, expected: 'This agent: 128/128 requests; whole task: 128/128 requests.' },
+  { actorAttempts: 96, rootAttempts: 128, expected: 'This agent: 96/128 requests; whole task: 128/128 requests.' },
+  { actorAttempts: 32, rootAttempts: 32, expected: 'This agent: 32/32 requests; whole task: 32/128 requests.' },
+])('preserves the effective root ceiling for retained usage $actorAttempts/$rootAttempts', ({ actorAttempts, rootAttempts, expected }) => {
+  onTestFinished(cleanup)
+  const id = SessionId('budget-root')
+  const human = createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: 'Work' }] })
+  const node: ChatNode<'turn-request-budget'> = {
+    key: 'budget-root', kind: 'turn-request-budget', id: '1', target: 'chat',
+    anchorSeq: 5, location: { kind: 'unresolved' }, visibility: 'visible',
+    data: {
+      kind: 'turn-request-budget', seq: 5, time: 100, turn: 1, step: 1,
+      budget: { version: 1, policyId: 'test/ui-budget', actorSessionId: id, rootSessionId: id,
+        userMessageId: human.id, actorAttempts, maxAgentAttempts: 32, rootAttempts, maxRootAttempts: 128 },
+    },
+  }
+  const view = render(<TurnRequestBudgetNodeView node={node} t={makeTranslate(en, commonEn)} />)
+  expect(view.getByRole('status').textContent).toContain(expected)
 })

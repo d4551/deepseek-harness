@@ -1,11 +1,20 @@
 import type { MessageId } from '@deepseek-ai/dsh-llm'
 import type { SessionId } from './types.ts'
 
-/** Deployment-owned request limits; model input cannot supply this policy. */
-export interface RequestBudgetPolicy {
-  readonly policyId: string
+/** Host settings namespace for finite model-request limits. */
+export const REQUEST_BUDGET_SETTINGS_NAMESPACE = 'request-budget'
+
+/** Finite request ceilings, applied to the current episode's retained charges. */
+export interface RequestBudgetLimits {
+  /** Maximum requests by each delegated agent in one human-admitted episode. */
   readonly maxAgentAttempts: number
+  /** Maximum requests shared by the root and every delegated agent in that episode. */
   readonly maxRootAttempts: number
+}
+
+/** Deployment-owned policy identity with host-validated request limits. */
+export interface RequestBudgetPolicy extends RequestBudgetLimits {
+  readonly policyId: string
 }
 
 /** One host-admitted human work episode, retained in its root Session log. */

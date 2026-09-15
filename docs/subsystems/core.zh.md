@@ -790,6 +790,24 @@ roots(): Agent[]
 
 Source: [`packages/core/agent/src/index.ts`](../../packages/core/agent/src/index.ts)
 
+<a id="ctxrequestbudgetpolicy--requestbudgetpolicyprovider"></a>
+
+### `ctx.requestBudgetPolicy` — `RequestBudgetPolicyProvider`
+
+Host-owned request policy read at every model reservation.
+
+```ts cordis-catalog
+/**
+ * Read the deployment identity and currently committed finite limits.
+ * @returns the immutable policy without changing the episode or its charges.
+ */
+get(): RequestBudgetPolicy
+```
+
+Types: [RequestBudgetPolicy](session.zh.md)
+
+Source: [`packages/core/agent-loop/src/index.ts`](../../packages/core/agent-loop/src/index.ts)
+
 <a id="agent-events"></a>
 
 ### `agent/*` events

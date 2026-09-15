@@ -18,6 +18,8 @@ import type {} from './request-budget-types.ts'
 // contract carrying JSON data must not import the root entry, which merges
 // `ctx.sessions` (a Host-only SessionStore) into every consumer's program.
 export type { JsonValue } from './json.ts'
+export { REQUEST_BUDGET_SETTINGS_NAMESPACE } from './request-budget-types.ts'
+export type { RequestBudgetLimits, RequestBudgetPolicy } from './request-budget-types.ts'
 
 /** Identifies one session in the store (and its persistence artifacts). */
 export type SessionId = Branded<'SessionId'>
