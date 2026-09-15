@@ -1978,12 +1978,14 @@ export interface JsonRpcConfig {
   output?: Writable
   /** Process-exit override; production uses `process.exit`. */
   exit?: (code: number) => void
+  /** Terminal failure sink; production writes the complete error to stderr. */
+  reportError?: (error: Error) => void | Promise<void>
 }
 ```
 
 依赖：`Readable`（`node:stream`）· `Writable`（`node:stream`）
 
-来源：[`packages/sdk/server/src/index.ts:25`](../packages/sdk/server/src/index.ts)
+来源：[`packages/sdk/server/src/index.ts:27`](../packages/sdk/server/src/index.ts)
 
 <a id="deepseek-aidsh-session-log-deepseek"></a>
 
@@ -3362,7 +3364,7 @@ export interface Config {
 export type ToolPresentationMode = 'native' | 'ptc' | 'both'
 ```
 
-来源：[`packages/core/tools/src/index.ts:659`](../packages/core/tools/src/index.ts)
+来源：[`packages/core/tools/src/index.ts:660`](../packages/core/tools/src/index.ts)
 
 <a id="deepseek-aidsh-typert-loader"></a>
 

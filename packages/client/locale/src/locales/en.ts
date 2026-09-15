@@ -40,6 +40,8 @@ export const en = {
   'json.expandNode': 'Expand JSON node',
   'json.label': 'JSON',
   'markdown.footnotes': 'Footnotes',
+  'code.highlightFailed': 'Syntax highlighting could not load. Code remains available.',
+  'code.reloadPage': 'Reload page',
   'markdown.truncatedCharacters': '… truncated at {total} characters',
   'number.thousand': '{value}K',
   'number.million': '{value}M',

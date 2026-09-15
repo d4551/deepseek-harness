@@ -570,9 +570,9 @@ describe('HarnessClient', () => {
     const client = processClient(fakeLaunch())
     await client.initialize({ cwd: process.cwd(), provider: 'p', model: 'm' })
     const subscription = client.subscribe()
-    const parked = subscription.next()
+    const parked = expect(subscription.next()).rejects.toThrow(TransportClosedError)
     await client.close()
-    await expect(parked).rejects.toThrow(TransportClosedError)
+    await parked
   })
 
   it('scopes the session tree across multi-hop lineage and ignores foreign sessions', async () => {

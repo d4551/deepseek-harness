@@ -5,6 +5,7 @@ import { MessageText } from '@deepseek-ai/dsh-client-ui-primitives'
 import { JsonBlock, MarkdownText } from './markdown-test-components.tsx'
 import { cjkFriendlyStrong } from '../src/markdown/cjkFriendlyStrong.ts'
 import { mathCompatibility } from '../src/markdown/mathCompatibility.ts'
+import { markdownLabels } from './labels.client.ts'
 
 afterEach(cleanup)
 
@@ -267,7 +268,7 @@ describe('MarkdownText', () => {
   })
 
   it('forwards localized labels to fenced code blocks', () => {
-    render(<MarkdownText text={'```ts\nconst answer = 42\n```'} codeLabels={{ copyLabel: 'Copy code', copiedLabel: 'Copied' }} />)
+    render(<MarkdownText text={'```ts\nconst answer = 42\n```'} codeLabels={{ ...markdownLabels.code, copyLabel: 'Copy code', copiedLabel: 'Copied' }} />)
     expect(screen.getByRole('button', { name: 'Copy code' })).toBeTruthy()
   })
 

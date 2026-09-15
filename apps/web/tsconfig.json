@@ -20,6 +20,12 @@
   ],
   "references": [
     {
+      "path": "../../packages/test-support/client-a11y"
+    },
+    {
+      "path": "../../packages/client/locale"
+    },
+    {
       "path": "../../packages/client/store"
     },
     {

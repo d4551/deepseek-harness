@@ -34,6 +34,8 @@
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
     "@deepseek-ai/cordis-plugin-group": "workspace:^",
+    "@deepseek-ai/dsh-client-a11y": "workspace:^",
+    "@deepseek-ai/dsh-client-locale": "workspace:^",
     "@deepseek-ai/dsh-client-modules": "workspace:^",
     "@deepseek-ai/dsh-client-store": "workspace:^",
     "@deepseek-ai/dsh-client-ui-primitives": "workspace:^",

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import { DEFAULT_READ_MAX_LINES, ReadBlock as LocalizedReadBlock, type ReadBlockLine } from '../src/index.ts'
-import { grammarLoadCount, highlightLines, subscribeGrammarLoaded } from '../src/markdown/highlight.ts'
+import { grammarLoadCount, highlightLines, subscribeGrammarChanges } from '../src/markdown/highlight.ts'
 import { readBlockLabels } from './labels.client.ts'
 
 function ReadBlock(props: Omit<ComponentProps<typeof LocalizedReadBlock>, 'labels'>) {
@@ -73,7 +73,7 @@ describe('highlightLines', () => {
     // not, so the first call renders plain and imports the grammar, and a
     // subscriber fires once it registers, after which the same call highlights.
     let notified = 0
-    const stop = subscribeGrammarLoaded(() => { notified += 1 })
+    const stop = subscribeGrammarChanges(() => { notified += 1 })
     // First touch: grammar not loaded yet, so plain fallback while it imports.
     expect(highlightLines('def f(): pass', 'py')).toBeUndefined()
     // The import + loadLanguageSync resolve on a microtask; wait for the notify.

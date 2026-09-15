@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write docs/subsystems/agent-team.md
-agent-team.md: 52ec71fa036417026dc125a51d50038594c2fc99
-agent-team.zh.md: 4363a3fd17bf911ade192e41fbc9beebf797aa5c
+agent-team.md: 33059bca5d8a94d9f4825295f7d71ba0a38cf70c
+agent-team.zh.md: dbca8c976220009b158004908826376bc4d09507

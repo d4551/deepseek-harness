@@ -5,9 +5,11 @@ import { writeClipboard } from './clipboard.ts'
 import {
   grammarLoadCount,
   highlightLines,
-  subscribeGrammarLoaded,
+  subscribeGrammarChanges,
   type HighlightSpan,
 } from './markdown/highlight.ts'
+import { GrammarRecovery } from './markdown/GrammarRecovery.tsx'
+import type { GrammarRecoveryLabels } from './markdown/GrammarRecovery.tsx'
 import css from './ReadBlock.module.css'
 
 /**
@@ -44,6 +46,7 @@ export interface ReadBlockProps {
 
 /** Localized chrome for {@link ReadBlock}. */
 export interface ReadBlockLabels {
+  recovery: GrammarRecoveryLabels
   window: (shown: number, total: number) => string
   copy: string
   copied: string
@@ -78,7 +81,7 @@ export function ReadBlock({
   // Re-render when a lazy grammar finishes loading, so a read card that showed
   // plain text while its language's grammar imported picks up highlighting. The
   // snapshot value is opaque; only its change across renders drives the memo.
-  const loaded = useSyncExternalStore(subscribeGrammarLoaded, grammarLoadCount, grammarLoadCount)
+  const loaded = useSyncExternalStore(subscribeGrammarChanges, grammarLoadCount, grammarLoadCount)
   const highlighted = useMemo(() => highlightLines(raw, lang), [raw, lang, loaded])
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -130,6 +133,7 @@ export function ReadBlock({
           )}
         </div>
       </div>
+      <GrammarRecovery lang={lang} labels={labels.recovery} />
       <div className={css.body}>
         {rows(capped ? paired.slice(0, headLines) : paired)}
         {hidden > 0 && (

@@ -3,9 +3,11 @@ import type { ReactNode } from 'react'
 import clsx from 'clsx'
 import { writeClipboard } from '../clipboard.ts'
 import {
-  StreamingHighlightSession, grammarLoadCount, highlightToHtml, subscribeGrammarLoaded,
+  StreamingHighlightSession, grammarLoadCount, highlightToHtml, subscribeGrammarChanges,
 } from './highlight.ts'
 import type { HighlightSpan } from './highlight.ts'
+import { GrammarRecovery } from './GrammarRecovery.tsx'
+import type { GrammarRecoveryLabels } from './GrammarRecovery.tsx'
 import css from './CodeBlock.module.css'
 
 export interface CodeBlockProps {
@@ -27,6 +29,8 @@ export interface CodeBlockProps {
   copyLabel: string
   /** Copy-button label during the post-copy confirmation window. */
   copiedLabel: string
+  /** Localized explanation and explicit reload control after grammar loading fails. */
+  recovery: GrammarRecoveryLabels
 }
 
 /**
@@ -41,12 +45,12 @@ const SHIKI_PRE_PROPS = {
   tabIndex: 0,
 } as const
 
-export function CodeBlock({ code, lang, streaming, className, copyLabel, copiedLabel }: CodeBlockProps) {
+export function CodeBlock({ code, lang, streaming, className, copyLabel, copiedLabel, recovery }: CodeBlockProps) {
   const trimmed = code.endsWith('\n') ? code.slice(0, -1) : code
   // Re-render when a lazy grammar finishes loading, so a fence that showed plain
   // text while its language's grammar imported picks up highlighting. The
   // snapshot value is opaque; only its change across renders drives the memo.
-  const loaded = useSyncExternalStore(subscribeGrammarLoaded, grammarLoadCount, grammarLoadCount)
+  const loaded = useSyncExternalStore(subscribeGrammarChanges, grammarLoadCount, grammarLoadCount)
   const html = useMemo(
     () => (streaming === true ? undefined : highlightToHtml(trimmed, lang)),
     [streaming, trimmed, lang, loaded],
@@ -84,16 +88,12 @@ export function CodeBlock({ code, lang, streaming, className, copyLabel, copiedL
     lineCacheRef.current = { lines, elements }
     return <pre {...SHIKI_PRE_PROPS}><code>{elements}</code></pre>
   }, [streaming, trimmed, lang, loaded])
-  const rootRef = useRef<HTMLDivElement>(null)
   const [copied, setCopied] = useState(false)
 
   const onCopy = useCallback(() => {
     if (copied) return
-    /* v8 ignore next -- both arms always mount a <pre>; trimmed is the
-       typed fallback if the DOM shape ever diverges. */
-    const text = rootRef.current?.querySelector('pre')?.textContent ?? trimmed
     startTransition(async () => {
-      if (!await writeClipboard(text)) return
+      if (!await writeClipboard(trimmed)) return
       setCopied(true)
       window.setTimeout(() => { setCopied(false) }, 1000)
     })
@@ -113,7 +113,7 @@ export function CodeBlock({ code, lang, streaming, className, copyLabel, copiedL
       )
 
   return (
-    <div ref={rootRef} className={clsx(css.block, 'md-code-block', className)}>
+    <div className={clsx(css.block, 'md-code-block', className)}>
       <div className={css.bannerWrap}>
         <div className={css.banner}>
           <div className={css.infostring}>{lang ?? ''}</div>
@@ -124,6 +124,7 @@ export function CodeBlock({ code, lang, streaming, className, copyLabel, copiedL
           </div>
         </div>
       </div>
+      <GrammarRecovery lang={lang} labels={recovery} />
       {body}
     </div>
   )

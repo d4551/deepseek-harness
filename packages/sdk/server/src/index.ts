@@ -2,7 +2,7 @@
  * SDK-facing JSON-RPC plugin over stdio. The selected dsh profile decides
  * whether to load it; see the single-launch Agent Note and package README.
  * Stdout is reserved for protocol frames, so the tree must not load a stdout logger.
- * This plugin answers `shutdown`, disposes the complete root runtime, and exits 0; the app bin
+ * This plugin answers `shutdown`, disposes the complete root runtime, and exits with its outcome; the app bin
  * owns EOF and signal exits. Keep named plugin exports with no default export so
  * Loader `unwrapExports` preserves `name`, `inject`, `Config`, and `apply`.
  *
@@ -11,6 +11,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { Readable, Writable } from 'node:stream'
+import { inspect } from 'node:util'
 import Schema from '@deepseek-ai/schemastery'
 import { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
 import { HarnessSdkJsonRpcServer } from './server.ts'
@@ -32,16 +33,27 @@ export interface JsonRpcConfig {
   output?: Writable
   /** Process-exit override; production uses `process.exit`. */
   exit?: (code: number) => void
+  /** Terminal failure sink; production writes the complete error to stderr. */
+  reportError?: (error: Error) => void | Promise<void>
 }
 
 export const Config: Schema<JsonRpcConfig> = Schema.object({
   maxTokensAsSuccess: Schema.boolean().default(false),
 })
 
+function reportStderr(error: Error): Promise<void> {
+  return new Promise((resolve, reject) => {
+    process.stderr.write(`${inspect(error, { depth: null, colors: false, customInspect: false })}\n`, (failure) => {
+      if (failure) reject(failure)
+      else resolve()
+    })
+  })
+}
+
 /**
  * Serve SDK requests over the configured streams. Effect disposal shuts down
  * SDK-created agents and closes the transport. A `shutdown` response is flushed
- * before the root runtime is disposed and the process exits 0; the app bin
+ * before the root runtime is disposed and the process exits with its outcome; the app bin
  * owns root-context disposal for EOF and signals.
  */
 export function apply(ctx: Context, config: JsonRpcConfig): void {
@@ -56,6 +68,7 @@ export function apply(ctx: Context, config: JsonRpcConfig): void {
   const output = config.output ?? process.stdout
   /* v8 ignore next -- production exit wiring; tests always inject the runtime hooks */
   const exit = config.exit ?? ((code: number): void => { process.exit(code) })
+  const reportError = config.reportError ?? reportStderr
 
   const transport = new JsonRpcLineTransport(input, output)
   const server = new HarnessSdkJsonRpcServer(ctx, transport, {
@@ -65,14 +78,37 @@ export function apply(ctx: Context, config: JsonRpcConfig): void {
   // Share one exit task so racing shutdown requests cannot dispose the root or
   // exit the process more than once.
   let exitTask: Promise<void> | undefined
-  const disposeAndExit = (): Promise<void> => {
-    exitTask ??= (async () => {
-      await Promise.allSettled([Promise.resolve().then(() => transport.flush())])
-      await Promise.allSettled([Promise.resolve().then(() => rootFiber.dispose())])
-      exit(0)
-    })()
-    return exitTask
+  const failures: Error[] = []
+  const retainFailure = (reason: unknown): void => {
+    const error = reason instanceof Error ? reason : new Error(String(reason), { cause: reason })
+    if (!failures.includes(error)) failures.push(error)
   }
+  const disposeAndExit = (): void => {
+    exitTask ??= (async () => {
+      const flushed = await Promise.allSettled([Promise.resolve().then(() => transport.flush())])
+      for (const outcome of flushed) if (outcome.status === 'rejected') retainFailure(outcome.reason)
+      const disposed = await Promise.allSettled([Promise.resolve().then(() => rootFiber.dispose())])
+      for (const outcome of disposed) if (outcome.status === 'rejected') retainFailure(outcome.reason)
+      const joined = await Promise.allSettled([Promise.resolve().then(() => rootFiber.await())])
+      for (const outcome of joined) if (outcome.status === 'rejected') retainFailure(outcome.reason)
+      transport.close()
+      const drained = await transport.closed
+      if (drained instanceof AggregateError) retainFailure(drained)
+      const [firstFailure] = failures
+      if (firstFailure !== undefined) {
+        const error = failures.length === 1 ? firstFailure : new AggregateError(failures, 'SDK transport shutdown failed')
+        const reported = await Promise.allSettled([Promise.resolve().then(() => reportError(error))])
+        for (const outcome of reported) if (outcome.status === 'rejected') retainFailure(outcome.reason)
+      }
+      exit(failures.length === 0 ? 0 : 1)
+    })()
+  }
+  const closingObserved = transport.closing.then(({ kind, reason }) => {
+    if (kind === 'failure') {
+      retainFailure(reason)
+      disposeAndExit()
+    }
+  })
 
   transport.onRequest(async (method, params) => {
     // `initialize` is the SDK's readiness boundary. This plugin can activate
@@ -88,7 +124,7 @@ export function apply(ctx: Context, config: JsonRpcConfig): void {
     const result = await server.handleRequest(method, params)
     if (method === 'shutdown') {
       // Run after the handler result is written; the task then flushes, disposes, and exits.
-      setImmediate(() => { void disposeAndExit() })
+      setImmediate(disposeAndExit)
     }
     return result
   })
@@ -96,8 +132,15 @@ export function apply(ctx: Context, config: JsonRpcConfig): void {
   ctx.effect(() => {
     transport.start()
     return async () => {
-      await server.shutdown()
+      const outcomes = await Promise.allSettled([server.shutdown()])
+      for (const outcome of outcomes) if (outcome.status === 'rejected') retainFailure(outcome.reason)
       transport.close()
+      await closingObserved
+      const drained = await transport.closed
+      if (drained instanceof AggregateError) retainFailure(drained)
+      if (outcomes.some(outcome => outcome.status === 'rejected')) {
+        throw new AggregateError(failures, 'SDK server disposal failed')
+      }
     }
   }, 'jsonrpc.serve')
 }

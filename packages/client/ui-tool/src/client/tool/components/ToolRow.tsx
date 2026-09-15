@@ -11,7 +11,7 @@ import {
   localizeTerminalCardModel, terminalBlockLabels, type TerminalCardModel,
 } from '../models/terminal-card-model.ts'
 import {
-  diffBlockLabels, readBlockLabels, searchBlockLabels, webBlockLabels,
+  diffBlockLabels, markdownLabels, readBlockLabels, searchBlockLabels, webBlockLabels,
 } from '../models/primitive-labels.ts'
 import type { AskQuestionCardModel } from '../models/ask-question-card-model.ts'
 import type { ToolRowState, ToolRowVariant } from '../models/tool-call-model.ts'
@@ -224,7 +224,7 @@ export function ToolRow({
                         <>
                           {variant === 'code' && body !== null && (
                             <div className={css.bodyScroll}>
-                              <CodeBlock code={body} lang="typescript" copyLabel={t('copy')} copiedLabel={t('copied')} className={css.codeBody} />
+                              <CodeBlock code={body} lang="typescript" {...markdownLabels(t).code} className={css.codeBody} />
                             </div>
                           )}
                           {(cardBody !== null || outputText !== null) && (

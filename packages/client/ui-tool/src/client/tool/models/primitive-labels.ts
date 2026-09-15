@@ -18,7 +18,11 @@ type T = TranslateNS<'conversation'>
  */
 export function markdownLabels(t: T): MarkdownLabels {
   return {
-    code: { copyLabel: t('copy'), copiedLabel: t('copied') },
+    code: {
+      copyLabel: t('copy'),
+      copiedLabel: t('copied'),
+      recovery: { failed: t('code.highlightFailed'), reload: t('code.reloadPage') },
+    },
     footnotes: t('markdown.footnotes'),
   }
 }
@@ -50,6 +54,7 @@ export function readBlockLabels(t: T): ReadBlockLabels {
     window: (shown, total) => t('read.window', { shown, total }),
     copy: t('copy'),
     copied: t('copied'),
+    recovery: { failed: t('code.highlightFailed'), reload: t('code.reloadPage') },
     collapseAria: t('read.collapseAria'),
     expandAria: count => t('read.expandAria', { count }),
     collapse: t('collapse'),

@@ -155,16 +155,18 @@ async createTask(caller: Agent, request: CreateTeamTaskRequest): Promise<TeamTas
  * Return one task, including a deleted tombstone.
  * @param caller - exact live Team member reading the task.
  * @param id - Team-local task identity.
+ * @param sessionId - optional own-Team or registered workspace Lead identity.
  * @returns the latest task value and derived readiness diagnostics.
  */
-getTask(caller: Agent, id: TeamTaskId): TeamTaskView
+getTask(caller: Agent, id: TeamTaskId, sessionId?: string): TeamTaskView
 
 /**
  * List current non-deleted tasks in numeric creation order.
  * @param caller - exact live Team member reading the board.
+ * @param sessionId - optional own-Team or registered workspace Lead identity.
  * @returns detached current task views.
  */
-listTasks(caller: Agent): TeamTaskView[]
+listTasks(caller: Agent, sessionId?: string): TeamTaskView[]
 
 /**
  * Read task boards owned by other live conversations in the registered workspace.
@@ -211,6 +213,15 @@ async updateTask(caller: Agent, request: UpdateTeamTaskRequest): Promise<TeamTas
  * @returns one observed change or a timeout result.
  */
 async waitForChange(caller: Agent, timeoutMs: number, signal: AbortSignal): Promise<TeamWaitResult>
+
+/**
+ * Coordinate unfinished work with a productive member and a fresh activity cursor.
+ * @param caller - exact live Team member requesting model suspension.
+ * @param timeoutMs - validated duration from ten seconds through one hour.
+ * @param signal - cancellation for this wait only.
+ * @returns progress, timeout, or an explicit reason waiting cannot help.
+ */
+waitForProgress(caller: Agent, timeoutMs: number, signal: AbortSignal): Promise<TeamProgressResult>
 
 /**
  * Interrupt one live teammate turn without clearing its pending inbox.

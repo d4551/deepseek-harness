@@ -7,7 +7,7 @@ import { CodeBlock as LocalizedCodeBlock } from '../src/markdown/CodeBlock.tsx'
 import { highlightToHtml } from '../src/markdown/highlight.ts'
 import { markdownLabels } from './labels.client.ts'
 
-function CodeBlock(props: Omit<ComponentProps<typeof LocalizedCodeBlock>, 'copyLabel' | 'copiedLabel'>) {
+function CodeBlock(props: Omit<ComponentProps<typeof LocalizedCodeBlock>, keyof typeof markdownLabels.code>) {
   return <LocalizedCodeBlock {...props} {...markdownLabels.code} />
 }
 
@@ -73,7 +73,7 @@ describe('CodeBlock', () => {
     expect(view.getByText('plain text')).toBeTruthy()
   })
 
-  it('shows the language banner and copies the pre textContent', async () => {
+  it('shows the language banner and copies the displayed source text', async () => {
     vi.useFakeTimers()
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', {

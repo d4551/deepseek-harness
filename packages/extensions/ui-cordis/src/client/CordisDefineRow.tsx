@@ -146,6 +146,7 @@ export function CordisDefineRow({
                   lang="javascript"
                   copyLabel={t('body.copy')}
                   copiedLabel={t('body.copied')}
+                  recovery={{ failed: t('code.highlightFailed'), reload: t('code.reloadPage') }}
                   className={css.sourceCode}
                 />
               </div>

@@ -38,6 +38,8 @@ export const zh = {
   'json.expandNode': '展开 JSON 节点',
   'json.label': 'JSON',
   'markdown.footnotes': '脚注',
+  'code.highlightFailed': '语法高亮加载失败，代码仍可查看。',
+  'code.reloadPage': '重新加载页面',
   'markdown.truncatedCharacters': '… 已截断，共 {total} 字符',
   'number.thousand': '{value}K',
   'number.million': '{value}M',

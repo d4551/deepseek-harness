@@ -23,17 +23,13 @@ import type * as Md from 'mdast'
 import type {} from 'mdast-util-math'
 import { normalizeUri } from 'micromark-util-sanitize-uri'
 import { CodeBlock } from './CodeBlock.tsx'
+import type { CodeBlockProps } from './CodeBlock.tsx'
 import { renderTexToReact } from './katex.tsx'
 import type { PositionedBlock } from './incremental.ts'
 import css from './MarkdownText.module.css'
 
 /** Copy-button labels forwarded to fence CodeBlocks (this package is cordis-free, so copy arrives via props). */
-export interface MarkdownCodeLabels {
-  /** Copy-button idle label. */
-  copyLabel: string
-  /** Copy-button label during the post-copy confirmation window. */
-  copiedLabel: string
-}
+export type MarkdownCodeLabels = Pick<CodeBlockProps, 'copyLabel' | 'copiedLabel' | 'recovery'>
 
 /** Localized chrome for a Markdown document. */
 export interface MarkdownLabels {
@@ -343,6 +339,7 @@ function renderCode(node: Md.Code, key: Key, context: MarkdownRenderContext): Re
       streaming={context.streaming}
       copyLabel={context.labels.code.copyLabel}
       copiedLabel={context.labels.code.copiedLabel}
+      recovery={context.labels.code.recovery}
     />
   )
 }

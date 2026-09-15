@@ -368,6 +368,8 @@ interface SubagentStopReasonMap {
   error: 'error'
   /** The child hit its token ceiling before finishing. */
   'max-tokens': 'max-tokens'
+  /** Host request allowance exhausted; only new authenticated human work can renew it. */
+  'request-budget': 'request-budget'
   /** The child declined the task. */
   refusal: 'refusal'
 }
@@ -538,6 +540,13 @@ Source: [`packages/subagent/tool-subagent/src/model-selection-settings.ts`](../.
 Named provider registry with one-shot runs, durable discovery, and continuable-child operations.
 
 ```ts cordis-catalog
+/**
+ * Read creation-time delegation independently of structural lifecycle ownership.
+ * @param child - exact Agent whose child composition established the binding.
+ * @returns the exact delegating parent, or undefined for an unbound Agent.
+ */
+delegatingParent(child: Agent): Agent | undefined
+
 /**
  * Establish one durable continuable child and deliver its initial prompt.
  * Resolves when the child's inbox accepts that prompt, without waiting for the

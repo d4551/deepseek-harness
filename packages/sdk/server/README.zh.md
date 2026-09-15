@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-sdk-jsonrpc-server` 通过 stdio 服务 SDK 协议格式，使进程外客户端能够驱动 harness agent（智能体）：它为每个 `sessionId` 打开一个会话、把用户提示词排入队列，并把每个会话事件与 agent 状态转换实时流回客户端。把它作为 `jsonrpc` 插件挂载到 Loader 组合中；外围插件树提供其余一切——agent、模型适配器、持久化与工具。Stdout 只承载 JSON-RPC 帧，因此部署不得组合 stdout logger。它通过 dispose（资源释放）根运行时并以 0 退出应答 `shutdown`；EOF 与信号退出归 app bin 负责。
+`dsh-sdk-jsonrpc-server` 通过 stdio 服务 SDK 协议格式，使进程外客户端能够驱动 harness agent（智能体）：它为每个 `sessionId` 打开一个会话、把用户提示词排入队列，并把每个会话事件与 agent 状态转换实时流回客户端。把它作为 `jsonrpc` 插件挂载到 Loader 组合中；外围插件树提供其余一切——agent、模型适配器、持久化与工具。Stdout 只承载 JSON-RPC 帧，因此部署不得组合 stdout logger。它通过 dispose（资源释放）根运行时应答 `shutdown`，成功时以 0 退出，失败时以 1 退出；EOF 与信号退出归 app bin 负责。
 
 ## 目录
 
@@ -37,7 +37,7 @@ kind: "package-reference"
 |---|---|---|
 | `maxTokensAsSuccess` | `false` | 把 max-token 轮次/subagent 终止报告为成功的 SDK 结果 |
 
-profile 组合拥有每个根 agent 的工具。`input`、`output` 与 `exit` 是仅供测试的运行时传输钩子；生产环境使用进程 stdio 与 `process.exit`。生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-sdk-jsonrpc-server)是每个受支持字段的穷尽式真源。
+profile 组合拥有每个根 agent 的工具。`input`、`output`、`exit` 与 `reportError` 是仅供测试的运行时传输钩子；生产环境使用进程 stdio，将完整终止错误写入 stderr，并调用 `process.exit`。生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-sdk-jsonrpc-server)是每个受支持字段的穷尽式真源。
 
 ### stdout 即协议
 
@@ -49,7 +49,7 @@ Stdout 只承载 JSON-RPC 帧，客户端可以逐字节解析；诊断信息应
 
 ### 关闭与退出
 
-插件应答 `shutdown`，刷新响应并 dispose 根上下文，使 SDK 持有的 agent、订阅与持久化达到完全停稳，然后以 0 退出。EOF 与信号退出归 app bin 负责，后者也会 dispose 根上下文。仅卸载此插件会停止服务，但不会退出进程。
+插件应答 `shutdown`，刷新响应并 dispose 根上下文，使 SDK 持有的 agent、订阅与持久化达到完全停稳；只有这些操作全部成功才以 0 退出。刷新、传输或资源释放失败会保留其原因，报告到 stderr，并以 1 退出。传输失败会直接启动清理，无须等待 shutdown 请求。单次退出之前，清理会等待根生命周期和已分发的传输处理器全部完成。EOF 与信号退出归 app bin 负责，后者也会 dispose 根上下文。仅卸载此插件会停止服务，但不会退出进程。
 
 -----
 
@@ -75,7 +75,7 @@ Stdout 只承载 JSON-RPC 帧，客户端可以逐字节解析；诊断信息应
 
 ### 请求流程
 
-每个协议方法在行动前都会校验输入并解析其拥有的状态——`initialize` 保存 SDK 路由，`session/prompt` 解析存活的 agent+会话对并排入消息，`shutdown` 在刷新响应并以 0 退出前把服务器持有的状态 dispose 到完全停稳——共享退出任务确保竞争的 shutdown 请求绝不会重复 dispose 或退出。分发逻辑位于 [src/index.ts](src/index.ts) 与 [src/server.ts](src/server.ts)。
+每个协议方法在行动前都会校验输入并解析其拥有的状态——`initialize` 保存 SDK 路由，`session/prompt` 解析存活的 agent+会话对并排入消息，`shutdown` 把服务器持有的状态 dispose 到完全停稳，刷新响应，再按实际结果退出——共享退出任务确保竞争的 shutdown 请求绝不会重复 dispose 或退出。分发逻辑位于 [src/index.ts](src/index.ts) 与 [src/server.ts](src/server.ts)。
 
 ### 清理
 

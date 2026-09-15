@@ -37,7 +37,6 @@ export function parseRecommendedLabel(label: string): { label: string; recommend
 /** Return whether a text-field key event belongs to an active IME composition. */
 function isComposing(event: KeyboardEvent<HTMLTextAreaElement>): boolean {
   // keyCode 229 is the legacy IME-composition signal engines emit without isComposing.
-  // oxlint-disable-next-line typescript/no-deprecated
   return event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229
 }
 
@@ -132,7 +131,11 @@ type QuestionFlowProps =
 function QuestionFlow({ pending, t, useStore, actions }: QuestionFlowProps) {
   const questions = pending.questions
   const markdownLabels = useMemo(() => ({
-    code: { copyLabel: t('copy'), copiedLabel: t('copied') },
+    code: {
+      copyLabel: t('copy'),
+      copiedLabel: t('copied'),
+      recovery: { failed: t('code.highlightFailed'), reload: t('code.reloadPage') },
+    },
     footnotes: t('markdown.footnotes'),
   }), [t])
   const initialProgress = useMemo<QuestionDraftProgress>(() => ({

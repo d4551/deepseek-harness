@@ -264,7 +264,7 @@ Host service backing `ctx.remote.skills` without activating a cold Agent.
 /**
  * List the user-invocable skills visible to one Session composition.
  * @param request - Session identity whose cwd and preset select the catalog view.
- * @param signal - caller lifetime carried by the Remote transport; admitted catalog reads retain their existing completion semantics.
+ * @param signal - caller lifetime carried by the Remote transport.
  * @returns user-invocable skill metadata without loading skill bodies.
  * @throws TypertRemoteFailure when the Session cannot be inspected or no registry can serve it.
  */

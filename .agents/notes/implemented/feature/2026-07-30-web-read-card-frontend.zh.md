@@ -20,7 +20,9 @@ Status: implemented
 
 整行折叠/展开（把每个工具调用默认折叠）归[统一展开与检视 note](2026-07-30-web-tool-row-unified-expand-and-inspect.zh.md)所有，它已一次性翻转每张常驻卡片；本 note 的卡片是常驻的，与它旁边的终端卡片一致。
 
-**读取卡片的语法按需 lazy 加载，只有 boot 三种保持 eager。** `highlight.ts` 是 `ui-primitives` 在每次 Web 启动都加载的平台 seed，其预热会无条件构建 shiki 单例。读取卡片的 `langFromPath` 提示覆盖完整的源码/配置/标记扩展集（python、rust、yaml、html……）；把它们全部 eager 注册会给启动 chunk 增加约 1.6 MB 的语法模块、并把它们的同步初始化摊给每个会话，包括从不打开读取卡片的会话。因此只有每个会话本就渲染的三种语法 —— TypeScript、shell、JSON（markdown 围栏与 `run_code` 语言）—— 在 boot 时加载。每种读取卡片扩展语法置于 `LAZY_GRAMMARS` 中一个动态 `import()` 之后，以其别名解析到的语法 id 为键。对某个 lazy 语言首次调用 `highlightLines`/`highlightToHtml` 时，`ensureGrammar` 启动 import（仅一次）并返回未就绪，于是卡片该帧渲染纯文本；import 解析后用 `loadLanguageSync` 注册该语法、递增一个加载计数、并通知订阅者。`ReadBlock` 与 `CodeBlock` 通过 `useSyncExternalStore(subscribeGrammarLoaded, grammarLoadCount)` 订阅，因此语法就绪的那一刻卡片就重渲染带上高亮。未知/缺省语言仍同步返回 undefined（纯文本，绝不报错）。
+**读取卡片的语法按需 lazy 加载，只有 boot 三种保持 eager。** `highlight.ts` 随 `ui-primitives` 加载，并在延后的浏览器任务中预热 Shiki 单例。TypeScript、shell 与 JSON 在启动时服务共享的 markdown 围栏和 `run_code` 路径。若提前注册所有读取卡片扩展语法，从不显示这些语言的会话也会承担下载与初始化成本。语法和别名映射位于 `highlight-grammars.ts`；`GrammarLoads` 在当前文档中为每种语法拥有一次导入和注册尝试。并发请求保持纯文本，直到 `loadLanguageSync` 完成且请求的语法确实已注册。成功时递增 `grammarLoadCount` 并通知 `subscribeGrammarChanges` 订阅者。未知或缺省语言保持纯文本且不报错。
+
+失败的尝试保留原始原因，报告一次浏览器错误，并通知卡片共享的 `GrammarRecovery` 组件。代码仍可阅读，旁边显示本地化失败说明与**重新加载页面**按钮。后续渲染不会重复尝试或报告同一失败导入：浏览器在当前文档中缓存模块导入失败。只有显式重新加载操作才会替换该文档并再次请求语法。失败控件与成功高亮共享同一份订阅的语法状态。
 
 **空窗口的复制控件被隐藏，与 `TerminalBlock` 对齐。** 成功读取一个空文件会返回 `lines: []`、`totalLines: 0`，且 `presentResult` 仍投出 `card: 'read'`，因此空窗口分支是可达的。故 `ReadBlock` 在 `lines` 为空时隐藏复制控件，正如 `TerminalBlock` 对空输出隐藏复制，使按钮绝不会用空字符串清空剪贴板。
 
@@ -40,7 +42,7 @@ Web 聊天里的读取行现在常驻承载文件内容，是相对纯摘要行�
 
 ## Testing
 
-`packages/client/ui-primitives/tests/read-block.client.spec.tsx` 固定 primitive 与 token 路径：`highlightLines` 的逐行 css-variables 片段、它对尾部终止行的丢弃与真正空白末行的情形、它对未知/缺省语言返回 `undefined`、以及它的 lazy 路径（lazy 语法首次触碰返回纯文本，import 注册且订阅者触发后再高亮）；还有 `ReadBlock` 的带行号行保留文件自身编号、高亮与纯文本两条内容分支、横幅（标签、语言、仅当读取是窗口时的计数提示）、头/尾高度上限及其 `aria-expanded` 切换、复制控件在接受与拒绝两条剪贴板路径上写入窗口原始文本、以及空窗口分支隐藏复制控件。`code-block.spec.tsx` 覆盖 `highlightToHtml`，含它对每种读取卡片语法的 lazy 路径（每个动态 import thunk 各触碰一次）。`ReadBlock.tsx`、`highlight.ts`（及 `CodeBlock.tsx`）在这两个 spec 上均保持每文件 100% 覆盖。
+`packages/client/ui-primitives/tests/read-block.client.spec.tsx` 固定 primitive 与 token 路径：`highlightLines` 的逐行 css-variables 片段、它对尾部终止行的丢弃与真正空白末行的情形、它对未知/缺省语言返回 `undefined`、以及它的 lazy 路径（lazy 语法首次触碰返回纯文本，import 注册且订阅者触发后再高亮）；还有 `ReadBlock` 的带行号行保留文件自身编号、高亮与纯文本两条内容分支、横幅（标签、语言、仅当读取是窗口时的计数提示）、头/尾高度上限及其 `aria-expanded` 切换、复制控件在接受与拒绝两条剪贴板路径上写入窗口原始文本、以及空窗口分支隐藏复制控件。`code-block.client.spec.tsx` 覆盖 `highlightToHtml`，包括每种读取卡片语法的 lazy 路径。`highlight-loads.client.spec.ts` 验证真实 Shiki 注册、并发请求、保留的异步与同步失败，以及拒绝未注册请求语法的模块。浏览器恢复流程中断语法下载，检查两种卡片的代码仍可阅读且提供无障碍恢复控件，再通过键盘激活重新加载并验证两种卡片恢复高亮。
 
 `packages/client/ui-tool/tests/read-card.client.spec.tsx` 固定每个渲染点的接线：`readCardModel` 的派生与每条 null 分支（运行中读取、无视图、通用视图、未知卡片）、结果标题替换化简后的路径、路径相对工作区的化简、冻结行数组的复制而非别名；`GenericToolCard` 回退中与 keyed `ReadRow` 中的常驻卡片（外加其路径链接打开宿主、其 running/error/stopped 状态、以及其 `read` 键注册）；还有面板 Output 区段以全高渲染读取卡片同时保留 JSON Input 区段，含运行中读取占位与非读取摊平 pre 两条分支。该文件位于覆盖 `exclude` 列表（`ui-tool/src/*`），因此不承受门槛压力。
 

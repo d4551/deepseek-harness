@@ -42,14 +42,20 @@ describe('web e2e: workspace management (create / rename / flat view / hover aff
   let tripwire: ReturnType<typeof watchConsole>
 
   /**
-   * Choose the region header's workspace action, then choose its directory
-   * entry and drive the dialog through the path-edit affordance.
+   * Open the header's directory flow directly when no workspace exists, or
+   * choose Add from the complete workspace menu, then edit the dialog path.
    */
   async function browseTo(path: string): Promise<Locator> {
+    const titles = scaffold.ctx.workspaceRegistry.list().map(workspace => workspace.title)
     await page.getByRole('button', { name: 'New session or add workspace' }).click()
-    await page.getByRole('menuitem', { name: 'Add workspace…' }).click()
+    if (titles.length > 0) {
+      await page.getByRole('menuitem', { name: 'Add workspace…' }).waitFor()
+      expect(await page.getByRole('menuitem').allTextContents()).toEqual([...titles, 'Add workspace…'])
+      await page.getByRole('menuitem', { name: 'Add workspace…' }).click()
+    }
     const dialog = page.getByRole('dialog', { name: 'Select Workspace Directory' })
     await dialog.waitFor({ timeout: 10_000 })
+    expect(await page.getByRole('menuitem').count()).toBe(0)
     await dialog.getByRole('button', { name: 'Edit path' }).click()
     const pathInput = dialog.locator('input[aria-label="Edit path"]')
     await pathInput.fill(path)
@@ -181,29 +187,23 @@ describe('web e2e: workspace management (create / rename / flat view / hover aff
   it('deletes only the Workspace registration and keeps its current Session, folder, and log', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-ws-delete'))
     const slotConsoleErrors: string[] = []
-    const transientSlotErrors: string[] = []
     page.on('console', (message) => {
       if (message.type() === 'error' && /slot entry crashed/i.test(message.text())) {
         slotConsoleErrors.push(message.text())
       }
     })
-    await page.exposeFunction('recordDshSlotError', (key: string) => {
-      if (!transientSlotErrors.includes(key)) transientSlotErrors.push(key)
-    })
-    await page.evaluate(() => {
-      const target = window as unknown as { recordDshSlotError(key: string): Promise<void> }
+    const slotErrors = await page.evaluateHandle(() => {
       const seen = new Set<string>()
       const collect = (): void => {
         for (const node of document.querySelectorAll<HTMLElement>('[data-slot-error]')) {
           const key = node.dataset.slotError ?? ''
-          if (!seen.has(key)) {
-            seen.add(key)
-            void target.recordDshSlotError(key)
-          }
+          seen.add(key)
         }
       }
-      new MutationObserver(collect).observe(document.documentElement, { childList: true, subtree: true })
+      const observer = new MutationObserver(collect)
+      observer.observe(document.documentElement, { childList: true, subtree: true })
       collect()
+      return { seen, observer }
     })
     // Register the scaffold's existing project directory through the real UI.
     await adoptDirectory(scaffold.workspaceCwd, { waitForAgent: true })
@@ -233,9 +233,9 @@ describe('web e2e: workspace management (create / rename / flat view / hover aff
       }
       return await groupSection.locator('[role="treeitem"]').count()
     }, { timeout: 10_000 }).toBeGreaterThanOrEqual(2)
-    const seededRow = groupSection.locator('[role="treeitem"]').nth(1)
+    const seededRow = groupSection.locator(`[role="treeitem"][data-row-key="session:${SEED_ID}"]`)
     await seededRow.click()
-    await expect.poll(() => seededRow.getAttribute('aria-selected'), { timeout: 10_000 }).toBe('true')
+    await expect.poll(() => seededRow.getAttribute('aria-current'), { timeout: 10_000 }).toBe('true')
 
     await clickHoverAction(groupRow, `Workspace actions for ${workspace.title}`)
     await page.getByRole('menuitem', { name: 'Delete workspace' }).click()
@@ -256,7 +256,7 @@ describe('web e2e: workspace management (create / rename / flat view / hover aff
     await expect.poll(() => page.getByText('Ungrouped', { exact: true }).count(), { timeout: 10_000 })
       .toBeGreaterThanOrEqual(1)
     await expect.poll(
-      () => page.locator('[role="treeitem"][aria-selected="true"]').count(),
+      () => page.locator('[role="treeitem"][aria-current="true"]').count(),
       { timeout: 10_000 },
     ).toBe(1)
     expect(await readFile(join(scaffold.workspaceCwd, 'workspace', 'a.txt'), 'utf8')).toBe('alpha\n')
@@ -295,6 +295,11 @@ describe('web e2e: workspace management (create / rename / flat view / hover aff
       { timeout: 10_000 },
     ).toBe(0)
 
+    const transientSlotErrors = await slotErrors.evaluate(({ seen, observer }) => {
+      observer.disconnect()
+      return [...seen]
+    })
+    await slotErrors.dispose()
     const warningStart = tripwire.warnings.length
     await page.reload({ waitUntil: 'load' })
     await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
@@ -302,7 +307,7 @@ describe('web e2e: workspace management (create / rename / flat view / hover aff
     await expect.poll(() => page.getByText('Ungrouped', { exact: true }).count(), { timeout: 15_000 })
       .toBeGreaterThanOrEqual(1)
     await expect.poll(
-      () => page.locator('[role="treeitem"][aria-selected="true"]').count(),
+      () => page.locator('[role="treeitem"][aria-current="true"]').count(),
       { timeout: 15_000 },
     ).toBe(1)
     expect(scaffold.ctx.workspaceRegistry.get(workspace.id)).toBeUndefined()
@@ -320,26 +325,22 @@ describe('web e2e: workspace management (create / rename / flat view / hover aff
     const title = 'same-name'
     const oldPath = join(scaffold.workspaceCwd, 'adopted', title)
     await mkdir(oldPath, { recursive: true })
-    const transientErrors: string[] = []
     const consoleErrors: string[] = []
     page.on('console', (message) => {
       if (message.type() === 'error') consoleErrors.push(message.text())
     })
-    await page.exposeFunction('recordDshTransientWorkspaceError', (message: string) => {
-      if (!transientErrors.includes(message)) transientErrors.push(message)
-    })
-    await page.evaluate(() => {
-      const target = window as unknown as {
-        recordDshTransientWorkspaceError(message: string): Promise<void>
-      }
+    const workspaceErrors = await page.evaluateHandle(() => {
+      const seen = new Set<string>()
       const collect = (): void => {
         for (const node of document.querySelectorAll<HTMLElement>('[data-slot-error], [role="alert"]')) {
           const message = node.dataset.slotError ?? node.textContent?.trim() ?? ''
-          if (message !== '') void target.recordDshTransientWorkspaceError(message)
+          if (message !== '') seen.add(message)
         }
       }
-      new MutationObserver(collect).observe(document.documentElement, { childList: true, subtree: true })
+      const observer = new MutationObserver(collect)
+      observer.observe(document.documentElement, { childList: true, subtree: true })
       collect()
+      return { seen, observer }
     })
 
     await adoptDirectory(oldPath)
@@ -362,6 +363,11 @@ describe('web e2e: workspace management (create / rename / flat view / hover aff
     expect(fresh?.id).toBeDefined()
     expect(fresh?.id).not.toBe(oldWorkspace.id)
     expect(fresh?.path).toBe(join(scaffold.workspaceCwd, title))
+    const transientErrors = await workspaceErrors.evaluate(({ seen, observer }) => {
+      observer.disconnect()
+      return [...seen]
+    })
+    await workspaceErrors.dispose()
     expect(transientErrors).toEqual([])
     expect(consoleErrors).toEqual([])
     expect(tripwire.pageErrors).toEqual([])

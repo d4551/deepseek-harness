@@ -9,7 +9,10 @@ import type {
 } from '../src/index.ts'
 
 export const markdownLabels: MarkdownLabels = {
-  code: { copyLabel: '复制', copiedLabel: '复制成功' },
+  code: {
+    copyLabel: '复制', copiedLabel: '复制成功',
+    recovery: { failed: '语法高亮加载失败，代码仍可阅读。', reload: '重新加载页面' },
+  },
   footnotes: 'Footnotes',
 }
 
@@ -21,6 +24,7 @@ export const diffBlockLabels: DiffBlockLabels = {
 }
 
 export const readBlockLabels: ReadBlockLabels = {
+  recovery: markdownLabels.code.recovery,
   window: (shown, total) => `显示 ${shown} / ${total} 行`,
   copy: '复制', copied: '复制成功', collapseAria: '收起内容',
   expandAria: hidden => `展开其余 ${hidden} 行`,

@@ -47,7 +47,9 @@ Within a menu, Up/Down and Home/End move among that menu's rows. Right, Enter, o
 
 ### Localizing copy
 
-The atoms cannot read the application locale, so every piece of user-facing copy arrives through required label props. `HoverCard`, `TerminalBlock`, `JsonTree`, `CodeBlock`, `MarkdownText`, `JsonBlock`, `ConnectionBanner`, `Modal`, `DiffBlock`, `ReadBlock`, `SearchBlock`, and `WebBlock` accept complete localized labels. The package owns no language fallback; omission fails typechecking, and each feature maps its typed `t` seat into the primitive's label interface.
+Code fences and file-read cards retain readable code if a syntax grammar cannot load. The card displays a localized failure message and a **Reload page** button; only activating that button reloads the document and retries the download. A failed import stays recorded because browsers cache module failures for the document. Re-rendering or streaming more code does not repeat the failed request or its browser error report.
+
+The atoms cannot read the application locale, so every piece of user-facing copy arrives through required label props. `HoverCard`, `TerminalBlock`, `JsonTree`, `CodeBlock`, `MarkdownText`, `JsonBlock`, `ConnectionBanner`, `Modal`, `DiffBlock`, `ReadBlock`, `SearchBlock`, and `WebBlock` accept complete localized labels, including grammar-failure and reload copy. Omission fails typechecking, and each feature maps its typed `t` seat into the primitive's label interface.
 
 -----
 

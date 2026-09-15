@@ -569,7 +569,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'request/attempt': RequestAttempt
 ```
 
-来源：[`packages/core/session/src/request-budget-types.ts:40`](../packages/core/session/src/request-budget-types.ts)
+来源：[`packages/core/session/src/request-budget-types.ts:54`](../packages/core/session/src/request-budget-types.ts)
 
 <a id="requestcontext--log-only"></a>
 
@@ -598,7 +598,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'request/episode': RequestEpisode
 ```
 
-来源：[`packages/core/session/src/request-budget-types.ts:33`](../packages/core/session/src/request-budget-types.ts)
+来源：[`packages/core/session/src/request-budget-types.ts:47`](../packages/core/session/src/request-budget-types.ts)
 
 <a id="requestheader--log-only"></a>
 

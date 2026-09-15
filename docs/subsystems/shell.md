@@ -279,9 +279,9 @@ Registry (`ctx.shellEnv`) for trusted, per-execution `DSH_*` variables. The name
  * Register one environment contributor. Names and keys are unique; built-in
  * keys are reserved. Registration is disposed with the calling plugin fiber.
  * @param contributor - declared key ownership and per-execution resolver.
- * @returns the disposer that unregisters the contribution.
+ * @returns the owning effect disposer; await it to observe complete removal of the contribution.
  */
-register(contributor: BashEnvContributor): () => void
+register(contributor: BashEnvContributor): () => Promise<void>
 
 /**
  * Build the trusted `DSH_*` snapshot for one shell tool execution.

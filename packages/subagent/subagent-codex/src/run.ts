@@ -217,6 +217,10 @@ export async function disposeCodexChild(
   } else {
     await child.done.catch(() => {})
   }
+  const drained = await wire.waitForClosure()
+  if (drained instanceof AggregateError) {
+    throw new CodexRunFailure({ stage: 'teardown', category: 'transport' }, drained)
+  }
 }
 
 /**

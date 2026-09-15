@@ -5,6 +5,7 @@ import type { RequestAttempt, RequestBudgetExhaustion, RequestBudgetPolicy, Requ
 
 /** Host-owned exhaustion signal, distinct from broken accounting or authorization. */
 export class RequestBudgetExhausted extends Error {
+  /** Immutable episode identity and counters that caused automatic work to pause. */
   readonly budget: RequestBudgetExhaustion
 
   constructor(budget: RequestBudgetExhaustion) {

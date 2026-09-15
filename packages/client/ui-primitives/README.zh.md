@@ -47,7 +47,9 @@ kind: "package-library"
 
 ### 本地化文案
 
-这些原子组件无法读取应用 locale，因此每段面向用户的文案都必须通过 label prop 提供。`HoverCard`、`TerminalBlock`、`JsonTree`、`CodeBlock`、`MarkdownText`、`JsonBlock`、`ConnectionBanner`、`Modal`、`DiffBlock`、`ReadBlock`、`SearchBlock` 与 `WebBlock` 接收完整的本地化 label。本包不拥有语言回退；遗漏会导致类型检查失败，各功能会把带类型的 `t` 席位映射到 primitive 的 label 接口。
+代码围栏和文件读取卡片在语法加载失败时仍保留可读代码。卡片显示本地化的失败说明与**重新加载页面**按钮；只有激活该按钮才会重新加载文档并重试下载。由于浏览器会在当前文档内缓存模块加载失败，失败记录会一直保留。重新渲染或继续流式输出代码不会重复失败的请求或浏览器错误报告。
+
+这些原子组件无法读取应用 locale，因此每段面向用户的文案都必须通过 label prop 提供。`HoverCard`、`TerminalBlock`、`JsonTree`、`CodeBlock`、`MarkdownText`、`JsonBlock`、`ConnectionBanner`、`Modal`、`DiffBlock`、`ReadBlock`、`SearchBlock` 与 `WebBlock` 接收完整的本地化 label，包括语法加载失败说明与重新加载文案。遗漏会导致类型检查失败，各功能会把带类型的 `t` 席位映射到 primitive 的 label 接口。
 
 -----
 

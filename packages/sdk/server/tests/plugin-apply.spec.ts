@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { PassThrough, Writable } from 'node:stream'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Context } from '@deepseek-ai/cordis'
+import { Context, FiberState } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import * as agentCore from '@deepseek-ai/dsh-agent-spine-demo'
 import { LlmAdapter } from '@deepseek-ai/dsh-llm'
@@ -33,6 +33,7 @@ interface ApplyHarness {
   /** Frames, write completions, and exits in observation order. */
   events: WireEvent[]
   outputErrors: Error[]
+  reportedErrors: Error[]
   send(frame: Record<string, unknown>): void
   sendRaw(text: string): void
   frames(): Record<string, unknown>[]
@@ -70,6 +71,8 @@ async function mountPlugin(
   options: {
     writeDelayMs?: number
     failFlush?: boolean
+    failWrite?: boolean
+    rootDisposeFailure?: Error
     beforeServer?: (ctx: Context) => Promise<void> | void
   } = {},
 ): Promise<ApplyHarness> {
@@ -82,6 +85,13 @@ async function mountPlugin(
   const input = new PassThrough()
   const events: WireEvent[] = []
   const outputErrors: Error[] = []
+  const reportedErrors: Error[] = []
+  const rootDisposeFailure = options.rootDisposeFailure
+  if (rootDisposeFailure !== undefined) {
+    ctx.on('internal/status', (fiber) => {
+      if (fiber === ctx.root.fiber && fiber.state === FiberState.UNLOADING) throw rootDisposeFailure
+    })
+  }
   let pendingOutput = ''
   // Record frame admission separately from write completion so delayed output
   // tests the flush barrier.
@@ -101,6 +111,10 @@ async function mountPlugin(
         }
       }
       const complete = (): void => {
+        if (options.failWrite === true && chunk.length > 0) {
+          callback(new Error('response write failed'))
+          return
+        }
         if (options.failFlush === true && chunk.length === 0) {
           callback(new Error('flush callback failed'))
           return
@@ -120,6 +134,7 @@ async function mountPlugin(
     input,
     output,
     exit,
+    reportError: (error: Error) => { reportedErrors.push(error) },
   })
 
   const frames = (): Record<string, unknown>[] =>
@@ -129,6 +144,7 @@ async function mountPlugin(
     fiber,
     events,
     outputErrors,
+    reportedErrors,
     send: (frame) => { input.write(`${JSON.stringify(frame)}\n`) },
     sendRaw: (text) => { input.write(text) },
     frames,
@@ -329,7 +345,7 @@ describe('dsh-sdk-jsonrpc-server plugin apply', () => {
     }
   })
 
-  it('still disposes and exits once when the flush callback fails', async () => {
+  it('reports the flush failure and disposes before exiting 1 exactly once', async () => {
     const storageDir = await mkdtemp(join(tmpdir(), 'dsh-jsonrpc-apply-flush-failure-'))
     const harness = await mountPlugin(storageDir, { failFlush: true })
     try {
@@ -337,9 +353,10 @@ describe('dsh-sdk-jsonrpc-server plugin apply', () => {
 
       await waitFor(() => harness.exits().length > 0 ? true : undefined, 'exit after flush failure')
       await settle()
-      expect(harness.exits()).toEqual([0])
+      expect(harness.exits()).toEqual([1])
       expect(harness.events.filter(event => event.kind === 'root-disposed')).toHaveLength(1)
       expect(harness.outputErrors.map(error => error.message)).toEqual(['flush callback failed'])
+      expect(harness.reportedErrors).toEqual(harness.outputErrors)
 
       const before = harness.frames().length
       harness.send({ jsonrpc: '2.0', id: 'after-flush-failure', method: 'initialize', params: { cwd: storageDir, provider: 'deepseek-official', model: 'x' } })
@@ -349,6 +366,58 @@ describe('dsh-sdk-jsonrpc-server plugin apply', () => {
       await harness.dispose()
       await rm(storageDir, { recursive: true, force: true })
     }
+  })
+
+  it.each([false, true])('retains a root-disposal failure with concurrent flush failure %s', async (failFlush) => {
+    const storageDir = await mkdtemp(join(tmpdir(), 'dsh-jsonrpc-apply-root-failure-'))
+    const rootDisposeFailure = new Error('root status observer rejected disposal')
+    await using owner = {
+      harness: await mountPlugin(storageDir, { failFlush, rootDisposeFailure }),
+      async [Symbol.asyncDispose]() {
+        await this.harness.dispose()
+        await rm(storageDir, { recursive: true, force: true })
+      },
+    }
+    const { harness } = owner
+    harness.send({ jsonrpc: '2.0', id: 'shutdown-root-failure', method: 'shutdown' })
+    await waitFor(() => harness.exits().length > 0 ? true : undefined, 'exit after root disposal failure')
+    expect(harness.exits()).toEqual([1])
+    expect(harness.events.filter(event => event.kind === 'root-disposed')).toHaveLength(1)
+    const exitIndex = harness.events.findIndex(event => event.kind === 'exit')
+    const rootDisposed = harness.events.findIndex(event => event.kind === 'root-disposed')
+    expect(exitIndex).toBeGreaterThan(rootDisposed)
+    if (failFlush) {
+      expect(harness.reportedErrors).toHaveLength(1)
+      const error = harness.reportedErrors[0]
+      expect(error).toBeInstanceOf(AggregateError)
+      if (!(error instanceof AggregateError)) throw new Error('combined failure is absent')
+      expect(error.errors).toEqual([...harness.outputErrors, rootDisposeFailure])
+    } else expect(harness.reportedErrors).toEqual([rootDisposeFailure])
+    await settle()
+    expect(harness.exits()).toEqual([1])
+  })
+
+  it('owns a response write failure without waiting for a shutdown request', async () => {
+    const storageDir = await mkdtemp(join(tmpdir(), 'dsh-jsonrpc-apply-write-failure-'))
+    await using owner = {
+      harness: await mountPlugin(storageDir, { failWrite: true }),
+      async [Symbol.asyncDispose]() {
+        await this.harness.dispose()
+        await rm(storageDir, { recursive: true, force: true })
+      },
+    }
+    const { harness } = owner
+    harness.send({ jsonrpc: '2.0', id: 'failing-response', method: 'nope/unknown' })
+    await waitFor(() => harness.exits().length > 0 ? true : undefined, 'exit after response write failure')
+    expect(harness.exits()).toEqual([1])
+    expect(harness.reportedErrors).toEqual(harness.outputErrors)
+    expect(harness.reportedErrors.map(error => error.message)).toEqual(['response write failed'])
+    expect(harness.events.filter(event => event.kind === 'root-disposed')).toHaveLength(1)
+    const exitIndex = harness.events.findIndex(event => event.kind === 'exit')
+    const rootDisposed = harness.events.findIndex(event => event.kind === 'root-disposed')
+    expect(exitIndex).toBeGreaterThan(rootDisposed)
+    await settle()
+    expect(harness.exits()).toEqual([1])
   })
 
   it('stops serving on a bare fiber dispose (HMR-style unload) without calling exit', async () => {

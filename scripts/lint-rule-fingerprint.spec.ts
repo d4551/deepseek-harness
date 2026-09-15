@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { parseConfigFileTextToJson } from './ts7-session.ts'
+import { assertLintScopeIntegrity, readLintScope } from './lint-scope-integrity.ts'
 
 type Rules = Record<string, unknown>
 
@@ -90,6 +91,7 @@ describe('Oxlint repository rule fingerprint', () => {
 
   it('pins every override field', () => {
     expect(overrides).toHaveLength(9)
+    assertLintScopeIntegrity(readLintScope(fileURLToPath(new URL('..', import.meta.url))))
   })
 
   it.each(Object.entries(profiles))('pins the %s rule profile', (_name, profile) => {

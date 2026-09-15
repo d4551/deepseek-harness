@@ -567,7 +567,7 @@ Source: [`packages/plan/plan-mode/src/index.ts:53`](../packages/plan/plan-mode/s
 'request/attempt': RequestAttempt
 ```
 
-Source: [`packages/core/session/src/request-budget-types.ts:40`](../packages/core/session/src/request-budget-types.ts)
+Source: [`packages/core/session/src/request-budget-types.ts:54`](../packages/core/session/src/request-budget-types.ts)
 
 <a id="requestcontext--log-only"></a>
 
@@ -596,7 +596,7 @@ Source: [`packages/core/session/src/types.ts:302`](../packages/core/session/src/
 'request/episode': RequestEpisode
 ```
 
-Source: [`packages/core/session/src/request-budget-types.ts:33`](../packages/core/session/src/request-budget-types.ts)
+Source: [`packages/core/session/src/request-budget-types.ts:47`](../packages/core/session/src/request-budget-types.ts)
 
 <a id="requestheader--log-only"></a>
 

@@ -238,7 +238,9 @@ async function raceAbort<T>(pending: Promise<T>, signal: AbortSignal): Promise<T
  */
 export class CodexAppServerWire {
   private readonly transport: JsonRpcLineTransport
-  private readonly fatal = Promise.withResolvers<never>()
+  private readonly fatal = Promise.withResolvers<Error>()
+  private fatalFailure: { readonly error: Error; readonly order: number } | undefined
+  private readonly transportClosing: Promise<void>
   private threadId: string | undefined
   private turnId: string | undefined
   private pendingTurnId: string | undefined
@@ -265,6 +267,7 @@ export class CodexAppServerWire {
   } | undefined
   private inputEnded = false
   private terminalObserved = false
+  private terminalOrder: number | undefined
   private closed = false
 
   constructor(
@@ -274,10 +277,6 @@ export class CodexAppServerWire {
     private readonly model?: string,
   ) {
     this.transport = new JsonRpcLineTransport(input, output)
-    // Fatal protocol state can arrive after the current guarded operation has
-    // already settled. Keep the shared rejection observed without inserting
-    // another promise-adoption hop into active races.
-    this.fatal.promise.catch(() => {})
     this.transport.onRequest((method, params) => this.handleServerRequest(method, params))
     this.transport.onNotification((method, params) => {
       try {
@@ -286,6 +285,7 @@ export class CodexAppServerWire {
         this.fail(thrown(error))
       }
     })
+    this.transportClosing = this.transport.closing.then(({ reason }) => { this.fail(reason) })
     this.input.on('error', this.onInputError)
     this.input.on('end', this.onInputEnd)
     // Pipe errors can race protocol closure and process teardown. Retain both
@@ -480,13 +480,32 @@ export class CodexAppServerWire {
     this.transport.close()
   }
 
+  /**
+   * Join transport handlers after the subprocess owner has cancelled its work.
+   * @returns a promise fulfilled with the first terminal reason after dispatched
+   * handlers settle; subsequent frame failures are aggregated with that reason.
+   */
+  async waitForClosure(): Promise<Error> {
+    await this.transportClosing
+    return this.transport.closed
+  }
+
   private async guarded<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
-    const withFatal = Promise.race([this.fatal.promise, pending])
-    return raceAbort(withFatal, signal)
+    const withFatal = Promise.race([
+      this.fatal.promise.then((reason) => { throw reason }),
+      pending,
+    ])
+    const result = await raceAbort(withFatal, signal)
+    const failure = this.fatalFailure
+    if (failure !== undefined && (this.terminalOrder === undefined || failure.order < this.terminalOrder)) {
+      throw failure.error
+    }
+    return result
   }
 
   private fail(error: Error): void {
-    this.fatal.reject(error)
+    this.fatalFailure ??= { error, order: this.nextObservationOrder() }
+    this.fatal.resolve(this.fatalFailure.error)
   }
 
   private readonly onInputError = (error: Error): void => {
@@ -754,9 +773,10 @@ export class CodexAppServerWire {
     if (!['completed', 'interrupted', 'failed'].includes(String(turn.status))) {
       throw new Error(`subagent-codex: app-server returned invalid terminal turn status ${String(turn.status)}`)
     }
+    this.terminalOrder = order ?? this.nextObservationOrder()
     turnCompleted.resolve({
       params,
-      order: order ?? this.nextObservationOrder(),
+      order: this.terminalOrder,
     })
   }
 }

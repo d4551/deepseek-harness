@@ -3,6 +3,7 @@ import { CodeBlock, GlyphButton, ResultText } from '@deepseek-ai/dsh-client-ui-p
 import { shallowEqual } from '@deepseek-ai/dsh-client-store'
 import type { DetailsSlotProps } from '../contract/slots.ts'
 import type { ChatSnapshot, RunningToolCall, ToolCallBlock, ToolResultNode } from '../contract/snapshot.ts'
+import { markdownLabels } from '../markdown-labels.ts'
 import { findToolCall } from './tool-node-reader.ts'
 import css from './DetailsPanel.module.css'
 
@@ -81,7 +82,7 @@ export function DetailsPanel({ useChat, useSessions, sessionId, useStore, render
                 {material.argsRaw !== null && (
                   <section className={css.section}>
                     <div className={css.sectionLabel}>{t('details.input')}</div>
-                    <CodeBlock code={pretty(material.argsRaw)} lang="json" copyLabel={t('copy')} copiedLabel={t('copied')} />
+                    <CodeBlock code={pretty(material.argsRaw)} lang="json" {...markdownLabels(t).code} />
                   </section>
                 )}
                 <section className={css.section}>

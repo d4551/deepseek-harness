@@ -65,7 +65,7 @@ function SettingsActionsSurface() {
 const SURFACES: Readonly<Record<string, () => ReactElement>> = {
   BrandWordmark: () => <BrandWordmark size={24} />,
   Button: () => <Button variant="primary">Send</Button>,
-  CodeBlock: () => <CodeBlock code="const answer = 42\n" lang="ts" copyLabel="Copy" copiedLabel="Copied" />,
+  CodeBlock: () => <CodeBlock code="const answer = 42\n" lang="ts" {...markdownLabels.code} />,
   ConnectionBanner: () => <ConnectionBanner reconnecting label="Reconnecting to the session" />,
   DiffBlock: () => (
     <DiffBlock

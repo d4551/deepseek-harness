@@ -192,7 +192,7 @@ create(agent: Agent, request: CreateGoalRequest): GoalView
  * @param request - at least one replacement field.
  * @returns the edited view.
  */
-@Remote('edit') edit(agent: Agent, ref: GoalRef, request: EditGoalRequest): GoalView
+edit(agent: Agent, ref: GoalRef, request: EditGoalRequest): GoalView
 
 /**
  * Pause an active goal and disarm automatic continuation.
@@ -200,7 +200,7 @@ create(agent: Agent, request: CreateGoalRequest): GoalView
  * @param ref - expected current revision.
  * @returns the paused view.
  */
-@Remote('pause') pause(agent: Agent, ref: GoalRef): GoalView
+pause(agent: Agent, ref: GoalRef): GoalView
 
 /**
  * Resume and arm a stopped goal, or rearm an active goal after a
@@ -209,7 +209,7 @@ create(agent: Agent, request: CreateGoalRequest): GoalView
  * @param ref - expected current revision.
  * @returns the active view.
  */
-@Remote('resume') resume(agent: Agent, ref: GoalRef): GoalView
+resume(agent: Agent, ref: GoalRef): GoalView
 
 /**
  * Mark a current non-complete goal complete and disarm it.
@@ -217,7 +217,7 @@ create(agent: Agent, request: CreateGoalRequest): GoalView
  * @param ref - expected current revision.
  * @returns the completed view.
  */
-@Remote('complete') complete(agent: Agent, ref: GoalRef): GoalView
+complete(agent: Agent, ref: GoalRef): GoalView
 
 /**
  * Mark an active goal blocked and disarm it.
@@ -234,7 +234,7 @@ block(agent: Agent, ref: GoalRef, reason: GoalBlockReason): GoalView
  * @param ref - expected current revision.
  * @returns the tombstone ref whose revision is one past the cleared snapshot.
  */
-@Remote('clear') clear(agent: Agent, ref: GoalRef): GoalRef
+clear(agent: Agent, ref: GoalRef): GoalRef
 
 /**
  * Create one Goal through the remote boundary.
@@ -243,6 +243,47 @@ block(agent: Agent, ref: GoalRef, reason: GoalBlockReason): GoalView
  * @returns the created Goal identity.
  */
 @Remote('create') remoteExportCreate(agent: Agent, request: CreateGoalRequest): CreateGoalResult
+
+/**
+ * Record a successful human Remote edit as input for the next admitted step.
+ * @param agent - exact live Agent resolved from the wire identity.
+ * @param ref - expected current revision.
+ * @param request - objective or round-cap replacement.
+ * @returns the committed edited Goal view.
+ */
+@Remote('edit') remoteExportEdit(agent: Agent, ref: GoalRef, request: EditGoalRequest): GoalView
+
+/**
+ * Record a successful human Remote resume before the Goal driver continues.
+ * @param agent - exact live Agent resolved from the wire identity.
+ * @param ref - expected current revision.
+ * @returns the committed active Goal view.
+ */
+@Remote('resume') remoteExportResume(agent: Agent, ref: GoalRef): GoalView
+
+/**
+ * Pause through the human Remote boundary without publishing work input.
+ * @param agent - exact live Agent resolved from the wire identity.
+ * @param ref - expected current revision.
+ * @returns the committed paused Goal view.
+ */
+@Remote('pause') remoteExportPause(agent: Agent, ref: GoalRef): GoalView
+
+/**
+ * Complete through the human Remote boundary without publishing work input.
+ * @param agent - exact live Agent resolved from the wire identity.
+ * @param ref - expected current revision.
+ * @returns the committed complete Goal view.
+ */
+@Remote('complete') remoteExportComplete(agent: Agent, ref: GoalRef): GoalView
+
+/**
+ * Clear through the human Remote boundary without publishing work input.
+ * @param agent - exact live Agent resolved from the wire identity.
+ * @param ref - expected current revision.
+ * @returns the committed tombstone revision.
+ */
+@Remote('clear') remoteExportClear(agent: Agent, ref: GoalRef): GoalRef
 ```
 
 Types: [Agent](core.md)

@@ -38,8 +38,8 @@ const STREAM_SETTLE_MS = 100
  */
 export class TransportClosedError extends Error {
   /** @param message - the failure description, including any stderr tail. */
-  constructor(message: string) {
-    super(message)
+  constructor(message: string, cause?: Error) {
+    super(message, cause === undefined ? undefined : { cause })
     this.name = 'TransportClosedError'
   }
 }
@@ -196,6 +196,9 @@ export class HarnessClient {
   private spawnError: Error | undefined
   private streamsSettled: Promise<void> = Promise.resolve()
   private closeTask: Promise<void> | undefined
+  private transportFailure: Error | undefined
+  private transportClosing: Promise<void> | undefined
+  private transportDisposal: Promise<PromiseSettledResult<void>[]> | undefined
 
   /** @param options - dsh profile, patch, home, process, environment, and timeout options. */
   constructor(options?: HarnessClientOptions)
@@ -264,6 +267,16 @@ export class HarnessClient {
     })
     const transport = new JsonRpcLineTransport(child.stdout, child.stdin)
     transport.onNotification((method, params) => { this.dispatchNotification({ method, params }) })
+    this.transportClosing = transport.closing.then(({ reason }) => {
+      this.transportFailure = reason
+      this.failSubscriptions(this.closedError(reason.message, reason))
+      if (this.closeTask === undefined && this.exitCode === undefined && this.spawnError === undefined) {
+        this.transportDisposal = Promise.allSettled([disposeRuntimeProcess(child, {
+          disposeEofGraceMs: this.runtime.disposeEofGraceMs ?? 6_000,
+          disposeGraceMs: this.runtime.disposeGraceMs ?? 3_000,
+        })])
+      }
+    })
     transport.start()
     this.transport = transport
   }
@@ -352,8 +365,9 @@ export class HarnessClient {
     const id = String(this.subscriptionSerial++)
     const state: SubscriptionState = { queue: [], waiters: [], filter, failure: undefined }
     const subscription = new NotificationSubscriptionImpl(state, () => { this.subscriptions.delete(id) })
-    if (this.closeTask !== undefined || this.exitCode !== undefined || this.spawnError !== undefined) {
-      subscription.fail(this.closedError('DeepSeek Harness runtime closed'))
+    if (this.closeTask !== undefined || this.exitCode !== undefined
+      || this.spawnError !== undefined || this.transportFailure !== undefined) {
+      subscription.fail(this.closedError(this.transportFailure?.message ?? 'DeepSeek Harness runtime closed', this.transportFailure))
       return subscription
     }
     this.subscriptions.set(id, subscription)
@@ -401,12 +415,19 @@ export class HarnessClient {
       // for a runtime that cannot answer shutdown anymore.
       this.appendStderr([`shutdown request failed: ${errorMessage(error)}`])
     }
-    await disposeRuntimeProcess(child, {
+    const disposal = this.transportDisposal ?? Promise.allSettled([disposeRuntimeProcess(child, {
       disposeEofGraceMs: this.runtime.disposeEofGraceMs ?? 6_000,
       disposeGraceMs: this.runtime.disposeGraceMs ?? 3_000,
-    })
+    })])
+    const outcomes = await disposal
     this.transport?.close()
+    await this.transportClosing
+    const drained = await this.transport?.closed
     this.failSubscriptions(this.closedError('DeepSeek Harness runtime closed'))
+    const failures: unknown[] = []
+    for (const outcome of outcomes) if (outcome.status === 'rejected') failures.push(outcome.reason)
+    if (drained instanceof AggregateError) failures.push(drained)
+    if (failures.length > 0) throw new AggregateError(failures, 'DeepSeek Harness runtime cleanup failed')
   }
 
   private dispatchNotification(notification: HarnessNotification): void {
@@ -457,12 +478,12 @@ export class HarnessClient {
     ])
   }
 
-  private closedError(reason: string): TransportClosedError {
+  private closedError(reason: string, cause?: Error): TransportClosedError {
     const parts = [`${this.runtime.description}: ${reason}`]
     if (this.spawnError !== undefined) parts.push(`spawn error: ${this.spawnError.message}`)
     if (this.exitCode !== undefined) parts.push(`exit code: ${String(this.exitCode)}`)
     if (this.stderrTail.length > 0) parts.push(`stderr tail:\n${this.stderrTail.join('\n')}`)
-    return new TransportClosedError(parts.join('\n'))
+    return new TransportClosedError(parts.join('\n'), cause)
   }
 }
 

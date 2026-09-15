@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-sdk-jsonrpc-server` serves the SDK wire protocol over stdio so out-of-process clients can drive harness agents: it opens one session per `sessionId`, queues user prompts, and streams every session event and agent status transition back to the client. Mount it as the `jsonrpc` plugin in a Loader composition; the surrounding tree supplies everything else — agents, model adapters, persistence, and tools. Stdout carries only JSON-RPC frames, so a deployment must not compose a stdout logger. It answers `shutdown` by disposing the root runtime and exiting 0; the app bin owns EOF and signal exits.
+`dsh-sdk-jsonrpc-server` serves the SDK wire protocol over stdio so out-of-process clients can drive harness agents: it opens one session per `sessionId`, queues user prompts, and streams every session event and agent status transition back to the client. Mount it as the `jsonrpc` plugin in a Loader composition; the surrounding tree supplies everything else — agents, model adapters, persistence, and tools. Stdout carries only JSON-RPC frames, so a deployment must not compose a stdout logger. It answers `shutdown` by disposing the root runtime and exiting 0 on success or 1 on failure; the app bin owns EOF and signal exits.
 
 ## Table of Contents
 
@@ -37,7 +37,7 @@ The plugin creates one agent per `sessionId` on first use. A registered model ad
 |---|---|---|
 | `maxTokensAsSuccess` | `false` | Report max-token turn/subagent termination as a successful SDK result |
 
-The profile composition owns each root agent's tools. `input`, `output`, and `exit` are runtime-only transport hooks for tests; production uses process stdio and `process.exit`. The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-sdk-jsonrpc-server) is the exhaustive source for every accepted field.
+The profile composition owns each root agent's tools. `input`, `output`, `exit`, and `reportError` are runtime-only transport hooks for tests; production uses process stdio, writes complete terminal errors to stderr, and calls `process.exit`. The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-sdk-jsonrpc-server) is the exhaustive source for every accepted field.
 
 ### stdout is the protocol
 
@@ -49,7 +49,7 @@ Stdout carries only JSON-RPC frames, so clients can parse every byte; diagnostic
 
 ### Shutdown and exit
 
-The plugin answers `shutdown`, flushes the response, disposes the root context so SDK-owned agents, subscriptions, and persistence reach quiescence, then exits 0. EOF and signal exits belong to the app bin, which also disposes the root context. Unloading only this plugin stops serving without exiting the process.
+The plugin answers `shutdown`, flushes the response, disposes the root context so SDK-owned agents, subscriptions, and persistence reach quiescence, then exits 0 only if these operations succeeded. Flush, transport, or disposal failures retain their causes, are reported to stderr, and produce exit code 1. A transport failure starts this cleanup without waiting for a shutdown request. Cleanup joins the root lifecycle and dispatched transport handlers before the single exit. EOF and signal exits belong to the app bin, which also disposes the root context. Unloading only this plugin stops serving without exiting the process.
 
 -----
 
@@ -75,7 +75,7 @@ The plugin is a thin presentation adapter: [`HarnessSdkJsonRpcServer`](src/serve
 
 ### Request flow
 
-Each protocol method validates its inputs and resolves the owning state before acting — `initialize` stores the SDK route, `session/prompt` resolves the live agent+session pair and queues the message, and `shutdown` disposes server-owned state to quiescence before flushing the response and exiting 0 — and a shared exit task guarantees that racing `shutdown` requests never dispose or exit twice. The dispatch lives in [src/index.ts](src/index.ts) and [src/server.ts](src/server.ts).
+Each protocol method validates its inputs and resolves the owning state before acting — `initialize` stores the SDK route, `session/prompt` resolves the live agent+session pair and queues the message, and `shutdown` disposes server-owned state to quiescence before flushing the response and exiting with the actual outcome — and a shared exit task guarantees that racing `shutdown` requests never dispose or exit twice. The dispatch lives in [src/index.ts](src/index.ts) and [src/server.ts](src/server.ts).
 
 ### Teardown
 
