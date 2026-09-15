@@ -100,6 +100,27 @@ describe('mandated typescript 7 compiler API', () => {
     expect(() => typescriptImportViolations([{ file: 'broken.ts', text: 'const =' }])).toThrow()
   })
 
+  it('inspects module loads within nested functions, classes, and type declarations', () => {
+    const text = `
+      export function outer() {
+        function inner() { return require('typescript') }
+        class CompilerOwner {
+          static load = () => import('typescript/lib/typescript.js')
+          metadata() { return import('typescript/unstable/sync') }
+        }
+        type Compiler = import('typescript').Compiler
+        return { inner, CompilerOwner }
+      }
+    `
+    expect(typescriptImportViolations([{ file: 'nested.ts', text }])).toEqual([
+      { file: 'nested.ts', specifier: 'typescript', reason: "only { version, versionMajorMinor } may come from 'typescript'" },
+      { file: 'nested.ts', specifier: 'typescript/lib/typescript.js', reason: "'typescript/lib/typescript.js' is a TypeScript 6 entry point; import from 'typescript/unstable/*'" },
+      { file: 'nested.ts', specifier: 'typescript', reason: "only { version, versionMajorMinor } may come from 'typescript'" },
+    ])
+    expect(() => typescriptImportViolations([{ file: 'duplicate.ts', text: 'const value = 1; const value = 2' }]))
+      .toThrow()
+  })
+
   it('keeps the 6.0 Strada compatibility package out of the tree', () => {
     const result = spawnSync('git', [
       'grep',

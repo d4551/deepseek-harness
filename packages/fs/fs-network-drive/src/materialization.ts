@@ -19,6 +19,8 @@ import { constants, createReadStream } from 'node:fs'
 import { lstat, mkdir, open, readFile, rename, rm } from 'node:fs/promises'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import type { DrivePath, DriveVersion } from '@deepseek-ai/dsh-network-drive/types'
+import { driveVersion } from '@deepseek-ai/dsh-network-drive/identity'
+import { landing } from './vocabulary.ts'
 
 /** Directory inside the materialization root holding provider-private state. */
 export const STATE_DIRECTORY = '.dsh-network-drive'
@@ -137,28 +139,16 @@ export async function readRecord(
   materializationRoot: string,
   path: DrivePath,
 ): Promise<MaterializationRecord | undefined> {
-  let raw: string
-  try {
-    raw = await readFile(recordPath(materializationRoot, path), 'utf8')
-  } catch (_recordAbsent) {
-    // A missing or unreadable record is exactly a cache miss; the caller
-    // transfers the bytes again, which is the same outcome a stale record has.
-    return undefined
-  }
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(raw)
-  } catch (_recordUnparsable) {
-    // The record file is durable state written by an earlier process, so it is
-    // a parser boundary: a truncated write reads as a cache miss.
-    return undefined
-  }
+  const raw = await landing(readFile(recordPath(materializationRoot, path), 'utf8'))
+  if (!raw.ok) return undefined
+  const decoded = await landing(Promise.resolve(raw.value).then((text): unknown => JSON.parse(text)))
+  if (!decoded.ok) return undefined
+  const parsed = decoded.value
   if (typeof parsed !== 'object' || parsed === null) return undefined
-  const candidate = parsed as Partial<Record<keyof MaterializationRecord, unknown>>
-  if (typeof candidate.version !== 'string' || candidate.version === '') return undefined
-  if (typeof candidate.digest !== 'string' || !/^[a-f0-9]{64}$/.test(candidate.digest)) return undefined
-  if (typeof candidate.bytes !== 'number' || !Number.isSafeInteger(candidate.bytes) || candidate.bytes < 0) return undefined
-  return { version: candidate.version as DriveVersion, digest: candidate.digest, bytes: candidate.bytes }
+  if (!('version' in parsed) || typeof parsed.version !== 'string' || parsed.version === '') return undefined
+  if (!('digest' in parsed) || typeof parsed.digest !== 'string' || !/^[a-f0-9]{64}$/.test(parsed.digest)) return undefined
+  if (!('bytes' in parsed) || typeof parsed.bytes !== 'number' || !Number.isSafeInteger(parsed.bytes) || parsed.bytes < 0) return undefined
+  return { version: driveVersion(parsed.version), digest: parsed.digest, bytes: parsed.bytes }
 }
 
 /**
@@ -194,17 +184,9 @@ export async function verifiedCopy(
 ): Promise<number | undefined> {
   const record = await readRecord(materializationRoot, path)
   if (record === undefined || record.version !== version) return undefined
-  let bytes: Uint8Array
-  try {
-    // The recorded length bounds the read: a copy that outgrew it is not the
-    // recorded content, and the one byte past proves that without holding the
-    // rest of a file the local execution world may have grown to any size.
-    bytes = await readBounded(localPathOf(materializationRoot, path), record.bytes)
-  } catch (_copyAbsentOrUnreadable) {
-    // The workspace copy is gone or is no longer a readable regular file; the
-    // caller transfers again, which is what a missing copy already means.
-    return undefined
-  }
+  const copy = await landing(readBounded(localPathOf(materializationRoot, path), record.bytes))
+  if (!copy.ok) return undefined
+  const bytes = copy.value
   if (bytes.byteLength !== record.bytes || digestOf(bytes) !== record.digest) return undefined
   return bytes.byteLength
 }
@@ -226,25 +208,16 @@ export async function publishBytes(
 ): Promise<void> {
   const staging = join(stateRootOf(materializationRoot), 'staging')
   await mkdir(staging, { recursive: true, mode: 0o700 })
-  const temporary = join(staging, randomUUID())
-  let handle
-  try {
-    handle = await open(temporary, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, mode)
+  await using staged = {
+    path: join(staging, randomUUID()),
+    [Symbol.asyncDispose]() { return rm(this.path, { force: true }) },
+  }
+  {
+    await using handle = await open(staged.path, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, mode)
     await handle.writeFile(bytes)
     await handle.sync()
-    await handle.close()
-    handle = undefined
-    await rename(temporary, target)
-  } catch (error: unknown) {
-    if (handle !== undefined) {
-      await handle.close().catch(
-        /* v8 ignore next -- reached only when the failing write also fails to close its own descriptor. */
-        () => {},
-      )
-    }
-    await rm(temporary, { force: true })
-    throw error
   }
+  await rename(staged.path, target)
 }
 
 /**
@@ -291,14 +264,12 @@ export interface LocalPathInfo {
  * @returns the entry's kind and size, or `undefined` when nothing is there.
  */
 export async function localInfo(localPath: string): Promise<LocalPathInfo | undefined> {
-  let info
-  try {
-    info = await lstat(localPath)
-  } catch (_localPathAbsent) {
-    // Absence is the answer this probe reports; no other failure can reach a
-    // caller that only distinguishes present from absent.
-    return undefined
+  const result = await landing(lstat(localPath))
+  if (!result.ok) {
+    if ('code' in result.reason && result.reason.code === 'ENOENT') return undefined
+    throw result.reason
   }
+  const info = result.value
   if (info.isSymbolicLink()) return { type: 'symlink' }
   if (info.isFile()) return { type: 'file', size: info.size }
   if (info.isDirectory()) return { type: 'directory' }

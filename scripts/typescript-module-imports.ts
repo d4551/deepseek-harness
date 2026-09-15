@@ -89,6 +89,7 @@ function collect(file: string, text: string): TypescriptImportViolation[] {
     if (loads) record(node.arguments[0])
   }
   traverse(source, {
+    noScope: true,
     ImportDeclaration({ node }) { record(node.source, declarationNames(node.specifiers)) },
     ExportNamedDeclaration({ node }) {
       if (node.source !== null) record(node.source, declarationNames(node.specifiers))

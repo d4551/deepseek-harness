@@ -38,7 +38,8 @@ export function targetKeyFor(workspacePath: string): string {
  */
 export function isProviderVersion(version: FsVersion): boolean {
   const value = String(version)
-  return value.startsWith(DRIVE_VERSION_PREFIX) || value.startsWith(LOCAL_VERSION_PREFIX)
+  return (value.startsWith(DRIVE_VERSION_PREFIX) && value.length > DRIVE_VERSION_PREFIX.length)
+    || (value.startsWith(LOCAL_VERSION_PREFIX) && value.length > LOCAL_VERSION_PREFIX.length)
 }
 
 /**
@@ -48,6 +49,9 @@ export function isProviderVersion(version: FsVersion): boolean {
  * @returns the workspace-relative drive path.
  */
 export function workspacePathOfKey(targetKey: string): string {
+  if (!targetKey.startsWith(TARGET_KEY_PREFIX)) {
+    throw new FsError('target key does not belong to the network-drive filesystem', 'FS_PERMISSION_DENIED')
+  }
   return targetKey.slice(TARGET_KEY_PREFIX.length)
 }
 

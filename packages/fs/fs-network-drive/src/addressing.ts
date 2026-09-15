@@ -78,9 +78,7 @@ export class DriveAddressing {
 
   /**
    * The local process path a target materializes at.
-   * @param target - a target this provider minted; the key encoding is private,
-   * so one from another backend either fails the drive-path check or names an
-   * unrelated file.
+   * @param target - a target this provider minted; foreign key authorities are rejected.
    * @returns the absolute path under the materialization root that ripgrep, a
    * shell, or a language server opens. Addressing only: the file need not exist,
    * and hydration is what puts bytes there.
