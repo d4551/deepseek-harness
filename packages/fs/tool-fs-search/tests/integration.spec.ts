@@ -25,6 +25,8 @@ const testToolSignal = new AbortController().signal
 
 let dir: string
 let ctx: Context
+const ownedContexts: Context[] = []
+let exitListeners = process.listeners('exit')
 
 let callCounter = 0
 function call(name: string, args: unknown, agentObj?: object) {
@@ -46,6 +48,7 @@ const agent = () => ({ session: { header: { id: 'session-int', cwd: dir }, event
 
 describe('search tools over the real subprocess service + the packaged rg', () => {
   beforeEach(async () => {
+    exitListeners = process.listeners('exit')
     dir = await mkdtemp(join(tmpdir(), 'dsh-search-int-'))
     await mkdir(join(dir, 'src'), { recursive: true })
     await mkdir(join(dir, '.git'), { recursive: true })
@@ -61,6 +64,7 @@ describe('search tools over the real subprocess service + the packaged rg', () =
     await utimes(join(dir, 'src', 'beta.ts'), new Date(2020, 0, 1), new Date(2020, 0, 1))
 
     ctx = new Context()
+    ownedContexts.push(ctx)
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(LocalSubprocessRuntime)
@@ -68,7 +72,9 @@ describe('search tools over the real subprocess service + the packaged rg', () =
   })
 
   afterEach(async () => {
+    for (const context of ownedContexts.splice(0).reverse()) await context.fiber.dispose()
     await rm(dir, { recursive: true, force: true })
+    expect(process.listeners('exit')).toEqual(exitListeners)
   })
 
   describe('glob', () => {

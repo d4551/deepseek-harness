@@ -1,7 +1,7 @@
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { ShellExecutor, carriedShellFields, renderShellResult } from '@deepseek-ai/dsh-shell'
@@ -25,10 +25,20 @@ import * as BashEnvPlugin from '@deepseek-ai/dsh-shell-env'
 const testToolSignal = new AbortController().signal
 
 const spillDir = mkdtempSync(join(tmpdir(), 'dsh-tool-shell-bash-spec-'))
+const contexts: Context[] = []
+let exitListeners = process.listeners('exit')
+beforeEach(() => { exitListeners = process.listeners('exit') })
+afterEach(async () => {
+  for (const ctx of contexts.splice(0).reverse()) await ctx.fiber.dispose()
+  expect(process.listeners('exit')).toEqual(exitListeners)
+})
+afterAll(() => { rmSync(spillDir, { recursive: true, force: true }) })
+
 
 /** Foreground-only harness: no job runtime (backgrounding fails loud here). */
 async function setup() {
   const ctx = new Context()
+  contexts.push(ctx)
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(AgentRegistry)
@@ -43,6 +53,7 @@ async function setup() {
 /** Full harness: the generic job runtime + its controller, then the bash tool. */
 async function setupWithTasks() {
   const ctx = new Context()
+  contexts.push(ctx)
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(AgentRegistry)
@@ -181,6 +192,7 @@ class CountingStartExecutor extends ShellExecutor {
 
 async function setupSandboxed(withApproval = false) {
   const ctx = new Context()
+  contexts.push(ctx)
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(AgentRegistry)
@@ -278,6 +290,7 @@ describe('bash tool', () => {
 
   it('reports truncation with the spill path', async () => {
     const ctx = new Context()
+    contexts.push(ctx)
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(LocalSubprocessRuntime)
@@ -399,6 +412,7 @@ describe('bash tool', () => {
 
   it('unregisters everything when the plugin fiber is disposed (HMR safety)', async () => {
     const ctx = new Context()
+    contexts.push(ctx)
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(LocalSubprocessRuntime)
@@ -415,6 +429,7 @@ describe('bash tool', () => {
 
   it('tools depend on the executor: no registration without ctx.shell', async () => {
     const ctx = new Context()
+    contexts.push(ctx)
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     // inject: ['tools', 'bash'] keeps the plugin pending until bash exists.
@@ -431,6 +446,7 @@ describe('bash tool', () => {
     // Bypasses the schemastery defaults on purpose: apply() must stand on its
     // own `?? true` fallback when embedded programmatically without the schema.
     const ctx = new Context()
+    contexts.push(ctx)
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(LocalSubprocessRuntime)
@@ -503,6 +519,7 @@ describe('background execution through the job runtime', () => {
 
   it('a pre-aborted call is skipped before the process starts', async () => {
     const ctx = new Context()
+    contexts.push(ctx)
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(AgentRegistry)
@@ -532,6 +549,7 @@ describe('background execution through the job runtime', () => {
   it('never spawns the process when tasks.start preflight throws (no orphan, by construction)', async () => {
     // With no job controller, preflight fails before the executor can spawn.
     const ctx = new Context()
+    contexts.push(ctx)
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(AgentRegistry)
@@ -549,6 +567,7 @@ describe('background execution through the job runtime', () => {
 
   it('enableRunInBackground: false removes the parameter and flips the description', async () => {
     const ctx = new Context()
+    contexts.push(ctx)
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(LocalSubprocessRuntime)
@@ -584,6 +603,7 @@ describe('sandbox escalation through the generic task producer', () => {
 
   it('fails load when a confining executor has no shared sandbox-policy resolver', async () => {
     const ctx = new Context()
+    contexts.push(ctx)
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(RecordingSandboxExecutor)
@@ -957,6 +977,7 @@ describe('the model-facing bash tool builds its request from named args only (no
 
   async function setupRecording(withJsonl = false) {
     const ctx = new Context()
+    contexts.push(ctx)
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(AgentRegistry)

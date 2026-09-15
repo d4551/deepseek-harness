@@ -1,5 +1,5 @@
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -26,7 +26,14 @@ import { hookProgram, plugHostShell } from '../../hook-protocol/tests/hook-progr
  */
 
 const dirs: string[] = []
-afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
+const contexts: Context[] = []
+let exitListeners = process.listeners('exit')
+beforeEach(() => { exitListeners = process.listeners('exit') })
+afterEach(async () => {
+  for (const ctx of contexts.splice(0).reverse()) await ctx.fiber.dispose()
+  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
+  expect(process.listeners('exit')).toEqual(exitListeners)
+})
 
 function subagentCarrier(ctx: Context) {
   return scopeTarget(ctx as unknown as SubagentRuntime, undefined)
@@ -51,6 +58,7 @@ async function harnessWithFiber(
   beforeHooks?: (ctx: Context) => void,
 ): Promise<{ ctx: Context; hooks: Fiber }> {
   const ctx = new Context()
+  contexts.push(ctx)
   await mountAgentLoopTestDependencies(ctx)
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(LocalSubprocessRuntime)
@@ -323,6 +331,7 @@ describe('hooks-claude-code bridge — load resilience', () => {
   it('a missing config file registers no hooks and does not crash the loop', async () => {
     const adapter = new MockAdapter([textResponse('fine')])
     const ctx = new Context()
+    contexts.push(ctx)
     await mountAgentLoopTestDependencies(ctx)
     await ctx.plugin(AgentLoop, { agents: [] })
     await ctx.plugin(LocalSubprocessRuntime)
@@ -383,6 +392,7 @@ describe('hooks-claude-code bridge — load resilience', () => {
     const dir = writeConfig({ UserPromptSubmit: [{ hooks: [{ type: 'command', command: 'exit 2' }] }] })
     const adapter = new MockAdapter([textResponse('ok')])
     const ctx = new Context()
+    contexts.push(ctx)
     await mountAgentLoopTestDependencies(ctx)
     await ctx.plugin(AgentLoop, { agents: [] })
     await ctx.plugin(LocalSubprocessRuntime)

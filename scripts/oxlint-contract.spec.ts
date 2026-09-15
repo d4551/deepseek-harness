@@ -1,15 +1,27 @@
 import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { populateTestWorkspace } from './test-workspace-copy.ts'
 import { parseConfigFileTextToJson } from './ts7-session.ts'
 
-const repositoryRoot = fileURLToPath(new URL('..', import.meta.url))
+const sourceRoot = fileURLToPath(new URL('..', import.meta.url))
+let repositoryRoot: string
 const oxlintCli = fileURLToPath(new URL('../node_modules/oxlint/bin/oxlint', import.meta.url))
 const tsxCli = fileURLToPath(new URL('../node_modules/tsx/dist/cli.mjs', import.meta.url))
+
+beforeAll(async () => {
+  repositoryRoot = await realpath(await mkdtemp(join(tmpdir(), 'dsh-oxlint-')))
+  await populateTestWorkspace(sourceRoot, repositoryRoot)
+}, 90_000)
+
+afterAll(async () => {
+  if (repositoryRoot !== undefined) await rm(repositoryRoot, { recursive: true, force: true })
+})
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -46,8 +58,8 @@ async function writeContractConfig(suffix: string): Promise<string> {
 }
 
 /**
- * Lint one temporary probe module under a contract config that ignores nothing.
- * @param source - probe module text written beside the repository's own scripts.
+ * Lint one probe module in the isolated project with the complete rule set.
+ * @param source - probe module text written beside the copied scripts.
  * @returns oxlint's normalized output for the probe, once it reported diagnostics.
  */
 async function lintContractProbe(source: string): Promise<string> {
@@ -78,6 +90,20 @@ async function lintContractProbe(source: string): Promise<string> {
 }
 
 describe('Oxlint executable contract', () => {
+  it('isolates source writes and removals from repository audit readers', async () => {
+    expect(relative(sourceRoot, repositoryRoot).startsWith('..')).toBe(true)
+    const path = 'packages/client/ui-primitives/src/oxlint-contract-isolation.ts'
+    const original = join(sourceRoot, path)
+    const isolated = join(repositoryRoot, path)
+    expect(existsSync(original)).toBe(false)
+    await writeFile(isolated, 'export const isolated = true\n')
+    expect(existsSync(original)).toBe(false)
+    await expect(readFile(isolated, 'utf8')).resolves.toBe('export const isolated = true\n')
+    await rm(isolated)
+    expect(existsSync(original)).toBe(false)
+    expect(existsSync(isolated)).toBe(false)
+  })
+
   it('discovers the owning TypeScript project for every file class', async () => {
     const suffix = randomUUID()
     const configPath = await writeContractConfig(suffix)

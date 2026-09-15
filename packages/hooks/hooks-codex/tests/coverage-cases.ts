@@ -1,5 +1,5 @@
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -18,7 +18,14 @@ export { MockAdapter, textResponse, toolCallResponse }
 const testToolSignal = new AbortController().signal
 
 const dirs: string[] = []
-afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
+const ownedContexts: Context[] = []
+let exitListeners = process.listeners('exit')
+beforeEach(() => { exitListeners = process.listeners('exit') })
+afterEach(async () => {
+  for (const ctx of ownedContexts.splice(0).reverse()) await ctx.fiber.dispose()
+  for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true })
+  expect(process.listeners('exit')).toEqual(exitListeners)
+})
 export function dir(): string { const d = mkdtempSync(join(tmpdir(), 'dsh-hx-cov-')); dirs.push(d); return d }
 export function hooks(d: string, h: object): string {
   writeFileSync(join(d, 'hooks.json'), JSON.stringify({ hooks: h })); return join(d, 'hooks.json')
@@ -27,6 +34,7 @@ export function hooks(d: string, h: object): string {
 type HarnessOpts = { stderrSummaryMaxChars?: number; sessionRoot?: string }
 export async function harness(configPath: string, model: MockAdapter, opts: HarnessOpts = {}): Promise<Context> {
   const ctx = new Context()
+  ownedContexts.push(ctx)
   await mountAgentLoopTestDependencies(ctx)
   if (opts.sessionRoot !== undefined) await ctx.plugin(JsonlSessionPersistence, { root: opts.sessionRoot })
   await ctx.plugin(AgentLoop, { agents: [] })
@@ -310,6 +318,7 @@ export function defineCoverageCases(groups: CoverageGroup | readonly CoverageGro
       const warn = vi.fn()
       const adapter = new MockAdapter([textResponse('ok')])
       const ctx = new Context()
+      ownedContexts.push(ctx)
       await mountAgentLoopTestDependencies(ctx)
       await ctx.plugin(AgentLoop, { agents: [] })
       await ctx.plugin(LocalSubprocessRuntime)
@@ -618,6 +627,7 @@ export function defineCoverageCases(groups: CoverageGroup | readonly CoverageGro
       hooks(serverDir, { PreToolUse: [{ hooks: [{ type: 'command', command: 'pwd > where' }] }] })
       const adapter = new MockAdapter([toolCallResponse('c1', 'Bash', { command: 'x' }), textResponse('done')])
       const ctx = new Context()
+      ownedContexts.push(ctx)
       await mountAgentLoopTestDependencies(ctx)
       await ctx.plugin(AgentLoop, { agents: [] })
       await ctx.plugin(LocalSubprocessRuntime)

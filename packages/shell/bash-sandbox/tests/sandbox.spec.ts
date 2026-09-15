@@ -8,7 +8,7 @@
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import type { ShellRunResult, CollectedOutput } from '@deepseek-ai/dsh-shell'
 import { SANDBOX_UNAVAILABLE, SandboxProvider, SandboxUnavailableError } from '@deepseek-ai/dsh-sandbox'
@@ -21,6 +21,14 @@ import { classifyDenial, classifyRunnerFailure, isRunnerSpawnFailure } from '@de
 import type { Config } from '@deepseek-ai/dsh-bash-sandbox'
 
 const spillDir = mkdtempSync(join(tmpdir(), 'dsh-bash-sandbox-spec-'))
+const ownedContexts: Context[] = []
+let exitListeners = process.listeners('exit')
+beforeEach(() => { exitListeners = process.listeners('exit') })
+afterEach(async () => {
+  for (const ctx of ownedContexts.splice(0).reverse()) await ctx.fiber.dispose()
+  expect(process.listeners('exit')).toEqual(exitListeners)
+})
+afterAll(() => { rmSync(spillDir, { recursive: true, force: true }) })
 
 /** One recorded provider call: the argv handed over and the policy it rode with. */
 interface ConfineCall {
@@ -62,6 +70,7 @@ async function setup(
     }
   }
   const ctx = new Context()
+  ownedContexts.push(ctx)
   await ctx.plugin(FakeSandboxProvider)
   await ctx.plugin(SandboxPolicyService, {
     ...mode !== undefined ? { mode } : {},

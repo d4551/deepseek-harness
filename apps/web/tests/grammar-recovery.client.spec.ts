@@ -1,20 +1,35 @@
+import { mkdtemp, realpath, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { expect, it, onTestFinished } from 'vitest'
+import { afterAll, beforeAll, expect, it, onTestFinished } from 'vitest'
 import { chromium } from 'playwright'
 import { createServer } from 'vite'
 import axe from 'axe-core'
 import { clientAxeRunOptions } from '@deepseek-ai/dsh-client-a11y'
 import { en } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 
+import { populateTestWorkspace } from '../../../scripts/test-workspace-copy.ts'
 declare global {
   interface Window {
     axe: typeof axe
   }
 }
 
+const sourceRoot = fileURLToPath(new URL('../../../', import.meta.url))
+let root: string
+
+beforeAll(async () => {
+  root = await realpath(await mkdtemp(join(tmpdir(), 'dsh-grammar-recovery-')))
+  await populateTestWorkspace(sourceRoot, root)
+}, 90_000)
+
+afterAll(async () => {
+  if (root) await rm(root, { recursive: true, force: true })
+})
+
 // A separate browser observes pageerror without changing Vitest's own error handling.
 it('retains a failed module download and restores both readable cards through explicit keyboard reload', async () => {
-  const root = fileURLToPath(new URL('../../../', import.meta.url))
   const entry = 'packages/client/ui-primitives/tests/fixtures/grammar-recovery/index.html'
   const server = await createServer({
     configFile: false,

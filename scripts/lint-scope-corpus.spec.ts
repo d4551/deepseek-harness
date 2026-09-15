@@ -1,13 +1,16 @@
 import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { writeFile, rm } from 'node:fs/promises'
+import { mkdtemp, realpath, writeFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { assertLintScopeIntegrity, readLintScope } from './lint-scope-integrity.ts'
+import { populateTestWorkspace } from './test-workspace-copy.ts'
 
-const root = fileURLToPath(new URL('..', import.meta.url))
-const oxlintCli = join(root, 'node_modules/oxlint/bin/oxlint')
+const sourceRoot = fileURLToPath(new URL('..', import.meta.url))
+let root: string
+const oxlintCli = join(sourceRoot, 'node_modules/oxlint/bin/oxlint')
 const suffix = randomUUID()
 const probes = [
   ['packages/fs/fs-observation-policy/src', '.ts'],
@@ -44,12 +47,14 @@ function diagnostics(output: string): readonly unknown[] {
 
 describe('repository lint directory discovery', () => {
   beforeAll(async () => {
+    root = await realpath(await mkdtemp(join(tmpdir(), 'dsh-lint-corpus-')))
+    await populateTestWorkspace(sourceRoot, root)
     assertLintScopeIntegrity(readLintScope(root))
     await Promise.all(probes.map(path => writeFile(join(root, path), 'export const lintScopeValue = void 0\n', { flag: 'wx' })))
-  })
+  }, 90_000)
 
   afterAll(async () => {
-    await Promise.all(probes.map(path => rm(join(root, path), { force: true })))
+    if (root !== undefined) await rm(root, { recursive: true, force: true })
   })
 
   it('discovers every probe through the unchanged root configuration and exclusions', () => {

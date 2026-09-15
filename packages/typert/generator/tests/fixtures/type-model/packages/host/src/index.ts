@@ -16,20 +16,22 @@ export class Agent<State extends object = { ready: boolean }> implements Entity 
   state: State
   protected readonly generation: number = 1
   private readonly secret: string = 'fixture'
+  private displayLabel: string
 
   constructor(id: string, state: State) {
     this.id = id
     this.state = state
+    this.displayLabel = id
   }
 
   /** Read the public display label. */
   get label(): string {
-    return this.id
+    return this.displayLabel
   }
 
   /** Accept a public display label. */
   set label(value: string) {
-    void value
+    this.displayLabel = value
   }
 
   /** Run one typed input. */
@@ -64,6 +66,8 @@ export class DemoService extends Service {
   protected readonly generation: number = 1
   private readonly secret: string = 'fixture'
 
+  private phase: AgentPhase | undefined
+
   /** Inspect one agent without flattening its generic state. */
   inspect(agent: Agent<{ ready: true }>, flags: Flags<Payload>): Present<Payload> {
     return { name: agent.id, count: Object.keys(flags).length }
@@ -71,22 +75,22 @@ export class DemoService extends Service {
 
   /** Keep an npm-owned type as External. */
   acceptsExternal(schema: ZodType<string>): void {
-    void schema
+    schema.parse(this.secret)
   }
 
   /** Accept a developer-authored enum without flattening it. */
   setPhase(phase: AgentPhase): void {
-    void phase
+    this.phase = phase
   }
 
   /** Exercise every retained type-graph shape from a public boundary. */
   inspectSyntax(zoo: SyntaxZoo): void {
-    void zoo
+    zoo.guards.assertEntity(zoo.intersection)
   }
 
   /** Preserve async source metadata without changing its type signature. */
   async inspectAsync(zoo: SyntaxZoo): Promise<void> {
-    void zoo
+    await zoo.callback.call(zoo.intersection, zoo.intersection)
   }
 
   /** Retain an authored binding-pattern parameter. */

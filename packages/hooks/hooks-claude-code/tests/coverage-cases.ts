@@ -1,5 +1,5 @@
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -23,7 +23,14 @@ const testToolSignal = new AbortController().signal
  * fallbacks, contextFrom-empty, and the detached-listener catch handlers. */
 
 const dirs: string[] = []
-afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
+const ownedContexts: Context[] = []
+let exitListeners = process.listeners('exit')
+beforeEach(() => { exitListeners = process.listeners('exit') })
+afterEach(async () => {
+  for (const ctx of ownedContexts.splice(0).reverse()) await ctx.fiber.dispose()
+  for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true })
+  expect(process.listeners('exit')).toEqual(exitListeners)
+})
 
 function subagentCarrier(ctx: Context) {
   return scopeTarget(ctx as unknown as SubagentRuntime, undefined)
@@ -37,6 +44,7 @@ export function hooks(d: string, h: object): string {
 type HarnessOpts = { pluginRoot?: string; projectDir?: string; stderrSummaryMaxChars?: number; sessionRoot?: string }
 export async function harness(configPath: string, model: MockAdapter, opts: HarnessOpts = {}): Promise<Context> {
   const ctx = new Context()
+  ownedContexts.push(ctx)
   await mountAgentLoopTestDependencies(ctx)
   if (opts.sessionRoot !== undefined) await ctx.plugin(JsonlSessionPersistence, { root: opts.sessionRoot })
   await ctx.plugin(AgentLoop, { agents: [] })
@@ -364,6 +372,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
       hooks(d, { UserPromptSubmit: [{ hooks: [{ type: 'command', command: s }] }] })
       const adapter = new MockAdapter([textResponse('ok')])
       const ctx = new Context()
+      ownedContexts.push(ctx)
       await mountAgentLoopTestDependencies(ctx)
       await ctx.plugin(AgentLoop, { agents: [] })
       await ctx.plugin(LocalSubprocessRuntime)
@@ -662,6 +671,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
       hooks(serverDir, { PreToolUse: [{ hooks: [{ type: 'command', command: 'pwd > where' }] }] })
       const adapter = new MockAdapter([toolCallResponse('c1', 'echo', {}), textResponse('done')])
       const ctx = new Context()
+      ownedContexts.push(ctx)
       await mountAgentLoopTestDependencies(ctx)
       await ctx.plugin(AgentLoop, { agents: [] })
       // Executor default cwd = serverDir (deliberately NOT the session cwd).
@@ -691,6 +701,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
       const payload = join(childDir, 'stoppayload')
       hooks(serverDir, { SubagentStop: [{ hooks: [{ type: 'command', command: 'cat > stoppayload.tmp; mv stoppayload.tmp stoppayload; pwd > stopwhere.tmp; mv stopwhere.tmp stopwhere' }] }] })
       const ctx = new Context()
+      ownedContexts.push(ctx)
       await mountAgentLoopTestDependencies(ctx)
       await ctx.plugin(AgentLoop, { agents: [] })
       // Executor default cwd = serverDir (deliberately NOT the child session cwd).

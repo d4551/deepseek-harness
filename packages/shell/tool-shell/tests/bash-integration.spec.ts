@@ -1,5 +1,5 @@
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -28,6 +28,7 @@ vi.setConfig({ testTimeout: 120_000 })
  */
 async function harness(adapter: MockAdapter, sessionRoot?: string, dshHome?: string) {
   const ctx = new Context()
+  ownedContexts.push(ctx)
   await mountAgentLoopTestDependencies(ctx)
   if (sessionRoot !== undefined) {
     // A batching window far longer than any turn: the write-behind deadline
@@ -51,9 +52,14 @@ async function harness(adapter: MockAdapter, sessionRoot?: string, dshHome?: str
 }
 
 const dirs: string[] = []
-afterEach(() => {
+const ownedContexts: Context[] = []
+let exitListeners = process.listeners('exit')
+beforeEach(() => { exitListeners = process.listeners('exit') })
+afterEach(async () => {
+  for (const ctx of ownedContexts.splice(0).reverse()) await ctx.fiber.dispose()
   vi.unstubAllEnvs()
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
+  expect(process.listeners('exit')).toEqual(exitListeners)
 })
 
 function waitForIdle(ctx: Context, agent: Agent): Promise<void> {

@@ -35,8 +35,13 @@ describe('dsh-tool-fs-search real-load-path guard', () => {
     expect(typeof unwrapped.apply).toBe('function')
   })
 
-  it('boots over ctx.subprocess through the unwrapped module without an inject error', async () => {
+  it('boots over ctx.subprocess through the unwrapped module without an inject error', async ({ onTestFinished }) => {
+    const exitListeners = process.listeners('exit')
     const ctx = new Context()
+    onTestFinished(async () => {
+      await ctx.fiber.dispose()
+      expect(process.listeners('exit')).toEqual(exitListeners)
+    })
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(LocalSubprocessRuntime)

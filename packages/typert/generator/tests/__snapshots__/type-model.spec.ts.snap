@@ -446,20 +446,20 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
                 "abstract": false,
                 "async": false,
                 "description": "Read the public display label.",
-                "id": "packages/host/src/index.ts#Agent#label@748",
+                "id": "packages/host/src/index.ts#Agent#label@806",
                 "jsDoc": "/** Read the public display label. */",
                 "kind": "getter",
                 "location": {
                   "column": 3,
                   "file": "packages/host/src/index.ts",
-                  "line": 26,
+                  "line": 28,
                 },
                 "name": "label",
                 "optional": false,
                 "readonly": false,
                 "signature": {
                   "parameters": [],
-                  "returns": "packages/host/src/index.ts:26:16#0",
+                  "returns": "packages/host/src/index.ts:28:16#0",
                   "typeParameters": [],
                 },
                 "static": false,
@@ -472,13 +472,13 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
                 "abstract": false,
                 "async": false,
                 "description": "Accept a public display label.",
-                "id": "packages/host/src/index.ts#Agent#label@836",
+                "id": "packages/host/src/index.ts#Agent#label@904",
                 "jsDoc": "/** Accept a public display label. */",
                 "kind": "setter",
                 "location": {
                   "column": 3,
                   "file": "packages/host/src/index.ts",
-                  "line": 31,
+                  "line": 33,
                 },
                 "name": "label",
                 "optional": false,
@@ -491,10 +491,10 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
                       "optional": false,
                       "receiver": false,
                       "rest": false,
-                      "type": "packages/host/src/index.ts:31:20#0",
+                      "type": "packages/host/src/index.ts:33:20#0",
                     },
                   ],
-                  "returns": "packages/host/src/index.ts:31:3#0",
+                  "returns": "packages/host/src/index.ts:33:3#0",
                   "typeParameters": [],
                 },
                 "static": false,
@@ -507,13 +507,13 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
                 "abstract": false,
                 "async": false,
                 "description": "Run one typed input.",
-                "id": "packages/host/src/index.ts#Agent#run@915",
+                "id": "packages/host/src/index.ts#Agent#run@998",
                 "jsDoc": "/** Run one typed input. */",
                 "kind": "method",
                 "location": {
                   "column": 3,
                   "file": "packages/host/src/index.ts",
-                  "line": 36,
+                  "line": 38,
                 },
                 "name": "run",
                 "optional": false,
@@ -526,14 +526,14 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
                       "optional": false,
                       "receiver": false,
                       "rest": false,
-                      "type": "packages/host/src/index.ts:36:21#0",
+                      "type": "packages/host/src/index.ts:38:21#0",
                     },
                   ],
-                  "returns": "packages/host/src/index.ts:36:34#0",
+                  "returns": "packages/host/src/index.ts:38:34#0",
                   "typeParameters": [
                     {
                       "const": false,
-                      "id": "packages/host/src/index.ts:36:7#Value",
+                      "id": "packages/host/src/index.ts:38:7#Value",
                       "name": "Value",
                     },
                   ],
@@ -583,7 +583,7 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
             "description": "Service exported only through a non-default alias.",
             "exported": false,
             "extends": [
-              "packages/host/src/index.ts:44:30#0",
+              "packages/host/src/index.ts:46:30#0",
             ],
             "id": "packages/host/src/index.ts#AliasedService",
             "implements": [],
@@ -592,27 +592,27 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
             "location": {
               "column": 1,
               "file": "packages/host/src/index.ts",
-              "line": 44,
+              "line": 46,
             },
             "members": [
               {
                 "abstract": false,
                 "async": false,
                 "description": "Report readiness.",
-                "id": "packages/host/src/index.ts#AliasedService#ready@1194",
+                "id": "packages/host/src/index.ts#AliasedService#ready@1277",
                 "jsDoc": "/** Report readiness. */",
                 "kind": "method",
                 "location": {
                   "column": 3,
                   "file": "packages/host/src/index.ts",
-                  "line": 46,
+                  "line": 48,
                 },
                 "name": "ready",
                 "optional": false,
                 "readonly": false,
                 "signature": {
                   "parameters": [],
-                  "returns": "packages/host/src/index.ts:46:12#0",
+                  "returns": "packages/host/src/index.ts:48:12#0",
                   "typeParameters": [],
                 },
                 "static": false,
@@ -636,7 +636,7 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
             "description": "Service exported only through the package default.",
             "exported": false,
             "extends": [
-              "packages/host/src/index.ts:54:34#0",
+              "packages/host/src/index.ts:56:34#0",
             ],
             "id": "packages/host/src/index.ts#DefaultOnlyService",
             "implements": [],
@@ -645,27 +645,27 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
             "location": {
               "column": 1,
               "file": "packages/host/src/index.ts",
-              "line": 54,
+              "line": 56,
             },
             "members": [
               {
                 "abstract": false,
                 "async": false,
                 "description": "Report readiness.",
-                "id": "packages/host/src/index.ts#DefaultOnlyService#ready@1417",
+                "id": "packages/host/src/index.ts#DefaultOnlyService#ready@1500",
                 "jsDoc": "/** Report readiness. */",
                 "kind": "method",
                 "location": {
                   "column": 3,
                   "file": "packages/host/src/index.ts",
-                  "line": 56,
+                  "line": 58,
                 },
                 "name": "ready",
                 "optional": false,
                 "readonly": false,
                 "signature": {
                   "parameters": [],
-                  "returns": "packages/host/src/index.ts:56:12#0",
+                  "returns": "packages/host/src/index.ts:58:12#0",
                   "typeParameters": [],
                 },
                 "static": false,
@@ -689,7 +689,7 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
             "description": "Fixture service with generic, mapped, and truly external boundary types.",
             "exported": true,
             "extends": [
-              "packages/host/src/index.ts:62:34#0",
+              "packages/host/src/index.ts:64:34#0",
             ],
             "id": "packages/host/src/index.ts#DemoService",
             "implements": [],
@@ -698,20 +698,20 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
             "location": {
               "column": 1,
               "file": "packages/host/src/index.ts",
-              "line": 62,
+              "line": 64,
             },
             "members": [
               {
                 "abstract": false,
                 "async": false,
                 "description": "Inspect one agent without flattening its generic state.",
-                "id": "packages/host/src/index.ts#DemoService#inspect@1780",
+                "id": "packages/host/src/index.ts#DemoService#inspect@1904",
                 "jsDoc": "/** Inspect one agent without flattening its generic state. */",
                 "kind": "method",
                 "location": {
                   "column": 3,
                   "file": "packages/host/src/index.ts",
-                  "line": 68,
+                  "line": 72,
                 },
                 "name": "inspect",
                 "optional": false,
@@ -724,7 +724,7 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
                       "optional": false,
                       "receiver": false,
                       "rest": false,
-                      "type": "packages/host/src/index.ts:68:18#0",
+                      "type": "packages/host/src/index.ts:72:18#0",
                     },
                     {
                       "binding": "identifier",
@@ -732,10 +732,10 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
                       "optional": false,
                       "receiver": false,
                       "rest": false,
-                      "type": "packages/host/src/index.ts:68:49#0",
+                      "type": "packages/host/src/index.ts:72:49#0",
                     },
                   ],
-                  "returns": "packages/host/src/index.ts:68:66#0",
+                  "returns": "packages/host/src/index.ts:72:66#0",
                   "typeParameters": [],
                 },
                 "static": false,
@@ -748,13 +748,13 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
                 "abstract": false,
                 "async": false,
                 "description": "Keep an npm-owned type as External.",
-                "id": "packages/host/src/index.ts#DemoService#acceptsExternal@1978",
+                "id": "packages/host/src/index.ts#DemoService#acceptsExternal@2102",
                 "jsDoc": "/** Keep an npm-owned type as External. */",
                 "kind": "method",
                 "location": {
                   "column": 3,
                   "file": "packages/host/src/index.ts",
-                  "line": 73,
+                  "line": 77,
                 },
                 "name": "acceptsExternal",
                 "optional": false,
@@ -767,10 +767,10 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
                       "optional": false,
                       "receiver": false,
                       "rest": false,
-                      "type": "packages/host/src/index.ts:73:27#0",
+                      "type": "packages/host/src/index.ts:77:27#0",
                     },
                   ],
-                  "returns": "packages/host/src/index.ts:73:45#0",
+                  "returns": "packages/host/src/index.ts:77:45#0",
                   "typeParameters": [],
                 },
                 "static": false,
@@ -783,13 +783,13 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
                 "abstract": false,
                 "async": false,
                 "description": "Accept a developer-authored enum without flattening it.",
-                "id": "packages/host/src/index.ts#DemoService#setPhase@2115",
+                "id": "packages/host/src/index.ts#DemoService#setPhase@2253",
                 "jsDoc": "/** Accept a developer-authored enum without flattening it. */",
                 "kind": "method",
                 "location": {
                   "column": 3,
                   "file": "packages/host/src/index.ts",
-                  "line": 78,
+                  "line": 82,
                 },
                 "name": "setPhase",
                 "optional": false,
@@ -802,10 +802,10 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
                       "optional": false,
                       "receiver": false,
                       "rest": false,
-                      "type": "packages/host/src/index.ts:78:19#0",
+                      "type": "packages/host/src/index.ts:82:19#0",
                     },
                   ],
-                  "returns": "packages/host/src/index.ts:78:32#0",
+                  "returns": "packages/host/src/index.ts:82:32#0",
                   "typeParameters": [],
                 },
                 "static": false,
@@ -818,13 +818,13 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
                 "abstract": false,
                 "async": false,
                 "description": "Exercise every retained type-graph shape from a public boundary.",
-                "id": "packages/host/src/index.ts#DemoService#inspectSyntax@2247",
+                "id": "packages/host/src/index.ts#DemoService#inspectSyntax@2393",
                 "jsDoc": "/** Exercise every retained type-graph shape from a public boundary. */",
                 "kind": "method",
                 "location": {
                   "column": 3,
                   "file": "packages/host/src/index.ts",
-                  "line": 83,
+                  "line": 87,
                 },
                 "name": "inspectSyntax",
                 "optional": false,
@@ -837,10 +837,10 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
                       "optional": false,
                       "receiver": false,
                       "rest": false,
-                      "type": "packages/host/src/index.ts:83:22#0",
+                      "type": "packages/host/src/index.ts:87:22#0",
                     },
                   ],
-                  "returns": "packages/host/src/index.ts:83:34#0",
+                  "returns": "packages/host/src/index.ts:87:34#0",
                   "typeParameters": [],
                 },
                 "static": false,
@@ -853,13 +853,13 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
                 "abstract": false,
                 "async": true,
                 "description": "Preserve async source metadata without changing its type signature.",
-                "id": "packages/host/src/index.ts#DemoService#inspectAsync@2382",
+                "id": "packages/host/src/index.ts#DemoService#inspectAsync@2561",
                 "jsDoc": "/** Preserve async source metadata without changing its type signature. */",
                 "kind": "method",
                 "location": {
                   "column": 3,
                   "file": "packages/host/src/index.ts",
-                  "line": 88,
+                  "line": 92,
                 },
                 "name": "inspectAsync",
                 "optional": false,
@@ -872,10 +872,10 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
                       "optional": false,
                       "receiver": false,
                       "rest": false,
-                      "type": "packages/host/src/index.ts:88:27#0",
+                      "type": "packages/host/src/index.ts:92:27#0",
                     },
                   ],
-                  "returns": "packages/host/src/index.ts:88:39#0",
+                  "returns": "packages/host/src/index.ts:92:39#0",
                   "typeParameters": [],
                 },
                 "static": false,
@@ -888,13 +888,13 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
                 "abstract": false,
                 "async": false,
                 "description": "Retain an authored binding-pattern parameter.",
-                "id": "packages/host/src/index.ts#DemoService#destructure@2509",
+                "id": "packages/host/src/index.ts#DemoService#destructure@2739",
                 "jsDoc": "/** Retain an authored binding-pattern parameter. */",
                 "kind": "method",
                 "location": {
                   "column": 3,
                   "file": "packages/host/src/index.ts",
-                  "line": 93,
+                  "line": 97,
                 },
                 "name": "destructure",
                 "optional": false,
@@ -907,7 +907,7 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
                       "optional": false,
                       "receiver": false,
                       "rest": false,
-                      "type": "packages/host/src/index.ts:93:25#0",
+                      "type": "packages/host/src/index.ts:97:25#0",
                     },
                     {
                       "binding": "array",
@@ -915,10 +915,10 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
                       "optional": false,
                       "receiver": false,
                       "rest": false,
-                      "type": "packages/host/src/index.ts:93:44#0",
+                      "type": "packages/host/src/index.ts:97:44#0",
                     },
                   ],
-                  "returns": "packages/host/src/index.ts:93:55#0",
+                  "returns": "packages/host/src/index.ts:97:55#0",
                   "typeParameters": [],
                 },
                 "static": false,
@@ -2799,116 +2799,6 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
         ],
         "nodes": [
           {
-            "arguments": [
-              "packages/host/src/index.ts:116:31#0",
-            ],
-            "id": "packages/host/src/index.ts:116:25#0",
-            "kind": "reference",
-            "name": "Agent",
-            "target": {
-              "kind": "declaration",
-              "symbol": "packages/host/src/index.ts#Agent",
-            },
-          },
-          {
-            "id": "packages/host/src/index.ts:116:31#0",
-            "kind": "object",
-            "members": [
-              {
-                "abstract": false,
-                "async": false,
-                "id": "packages/host/src/index.ts:116:31#0#ready@3064",
-                "kind": "property",
-                "location": {
-                  "column": 33,
-                  "file": "packages/host/src/index.ts",
-                  "line": 116,
-                },
-                "name": "ready",
-                "optional": false,
-                "readonly": false,
-                "static": false,
-                "tags": [],
-                "text": "ready: true",
-                "type": "packages/host/src/index.ts:116:40#0",
-                "visibility": "public",
-              },
-            ],
-          },
-          {
-            "id": "packages/host/src/index.ts:116:40#0",
-            "kind": "literal",
-            "text": "true",
-            "value": true,
-          },
-          {
-            "id": "packages/host/src/index.ts:116:5#0",
-            "kind": "function",
-            "signature": {
-              "parameters": [
-                {
-                  "binding": "identifier",
-                  "name": "agent",
-                  "optional": false,
-                  "receiver": false,
-                  "rest": false,
-                  "type": "packages/host/src/index.ts:116:25#0",
-                },
-                {
-                  "binding": "identifier",
-                  "name": "payload",
-                  "optional": false,
-                  "receiver": false,
-                  "rest": false,
-                  "type": "packages/host/src/index.ts:116:58#0",
-                },
-              ],
-              "returns": "packages/host/src/index.ts:116:73#0",
-              "typeParameters": [],
-            },
-          },
-          {
-            "arguments": [
-              "packages/host/src/index.ts:116:62#0",
-            ],
-            "id": "packages/host/src/index.ts:116:58#0",
-            "kind": "reference",
-            "name": "Box",
-            "target": {
-              "kind": "declaration",
-              "symbol": "packages/host/src/models.ts#Box",
-            },
-          },
-          {
-            "arguments": [],
-            "id": "packages/host/src/index.ts:116:62#0",
-            "kind": "reference",
-            "name": "Payload",
-            "target": {
-              "kind": "declaration",
-              "symbol": "packages/host/src/models.ts#Payload",
-            },
-          },
-          {
-            "id": "packages/host/src/index.ts:116:73#0",
-            "kind": "keyword",
-            "name": "void",
-          },
-          {
-            "id": "packages/host/src/index.ts:118:25#0",
-            "kind": "keyword",
-            "name": "void",
-          },
-          {
-            "id": "packages/host/src/index.ts:118:5#0",
-            "kind": "function",
-            "signature": {
-              "parameters": [],
-              "returns": "packages/host/src/index.ts:118:25#0",
-              "typeParameters": [],
-            },
-          },
-          {
             "id": "packages/host/src/index.ts:12:34#0",
             "kind": "keyword",
             "name": "object",
@@ -2954,76 +2844,10 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
             },
           },
           {
-            "id": "packages/host/src/index.ts:120:22#0",
-            "kind": "function",
-            "signature": {
-              "parameters": [
-                {
-                  "binding": "identifier",
-                  "name": "payload",
-                  "optional": false,
-                  "receiver": false,
-                  "rest": false,
-                  "type": "packages/host/src/index.ts:120:32#0",
-                },
-              ],
-              "returns": "packages/host/src/index.ts:120:44#0",
-              "typeParameters": [],
-            },
-          },
-          {
-            "arguments": [],
-            "id": "packages/host/src/index.ts:120:32#0",
-            "kind": "reference",
-            "name": "Payload",
-            "target": {
-              "kind": "declaration",
-              "symbol": "packages/host/src/models.ts#Payload",
-            },
-          },
-          {
-            "id": "packages/host/src/index.ts:120:44#0",
-            "kind": "keyword",
-            "name": "void",
-          },
-          {
-            "id": "packages/host/src/index.ts:123:29#0",
-            "kind": "function",
-            "signature": {
-              "parameters": [
-                {
-                  "binding": "identifier",
-                  "name": "payload",
-                  "optional": false,
-                  "receiver": false,
-                  "rest": false,
-                  "type": "packages/host/src/index.ts:123:39#0",
-                },
-              ],
-              "returns": "packages/host/src/index.ts:123:51#0",
-              "typeParameters": [],
-            },
-          },
-          {
-            "arguments": [],
-            "id": "packages/host/src/index.ts:123:39#0",
-            "kind": "reference",
-            "name": "Payload",
-            "target": {
-              "kind": "declaration",
-              "symbol": "packages/host/src/models.ts#Payload",
-            },
-          },
-          {
-            "id": "packages/host/src/index.ts:123:51#0",
-            "kind": "keyword",
-            "name": "void",
-          },
-          {
             "arguments": [
-              "packages/host/src/index.ts:139:31#0",
+              "packages/host/src/index.ts:120:31#0",
             ],
-            "id": "packages/host/src/index.ts:139:25#0",
+            "id": "packages/host/src/index.ts:120:25#0",
             "kind": "reference",
             "name": "Agent",
             "target": {
@@ -3032,18 +2856,18 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
             },
           },
           {
-            "id": "packages/host/src/index.ts:139:31#0",
+            "id": "packages/host/src/index.ts:120:31#0",
             "kind": "object",
             "members": [
               {
                 "abstract": false,
                 "async": false,
-                "id": "packages/host/src/index.ts:139:31#0#ready@3515",
+                "id": "packages/host/src/index.ts:120:31#0#ready@3294",
                 "kind": "property",
                 "location": {
                   "column": 33,
                   "file": "packages/host/src/index.ts",
-                  "line": 139,
+                  "line": 120,
                 },
                 "name": "ready",
                 "optional": false,
@@ -3051,19 +2875,19 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
                 "static": false,
                 "tags": [],
                 "text": "ready: true",
-                "type": "packages/host/src/index.ts:139:40#0",
+                "type": "packages/host/src/index.ts:120:40#0",
                 "visibility": "public",
               },
             ],
           },
           {
-            "id": "packages/host/src/index.ts:139:40#0",
+            "id": "packages/host/src/index.ts:120:40#0",
             "kind": "literal",
             "text": "true",
             "value": true,
           },
           {
-            "id": "packages/host/src/index.ts:139:5#0",
+            "id": "packages/host/src/index.ts:120:5#0",
             "kind": "function",
             "signature": {
               "parameters": [
@@ -3073,7 +2897,7 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
                   "optional": false,
                   "receiver": false,
                   "rest": false,
-                  "type": "packages/host/src/index.ts:139:25#0",
+                  "type": "packages/host/src/index.ts:120:25#0",
                 },
                 {
                   "binding": "identifier",
@@ -3081,18 +2905,18 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
                   "optional": false,
                   "receiver": false,
                   "rest": false,
-                  "type": "packages/host/src/index.ts:139:58#0",
+                  "type": "packages/host/src/index.ts:120:58#0",
                 },
               ],
-              "returns": "packages/host/src/index.ts:139:73#0",
+              "returns": "packages/host/src/index.ts:120:73#0",
               "typeParameters": [],
             },
           },
           {
             "arguments": [
-              "packages/host/src/index.ts:139:62#0",
+              "packages/host/src/index.ts:120:62#0",
             ],
-            "id": "packages/host/src/index.ts:139:58#0",
+            "id": "packages/host/src/index.ts:120:58#0",
             "kind": "reference",
             "name": "Box",
             "target": {
@@ -3102,7 +2926,7 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
           },
           {
             "arguments": [],
-            "id": "packages/host/src/index.ts:139:62#0",
+            "id": "packages/host/src/index.ts:120:62#0",
             "kind": "reference",
             "name": "Payload",
             "target": {
@@ -3111,7 +2935,183 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
             },
           },
           {
-            "id": "packages/host/src/index.ts:139:73#0",
+            "id": "packages/host/src/index.ts:120:73#0",
+            "kind": "keyword",
+            "name": "void",
+          },
+          {
+            "id": "packages/host/src/index.ts:122:25#0",
+            "kind": "keyword",
+            "name": "void",
+          },
+          {
+            "id": "packages/host/src/index.ts:122:5#0",
+            "kind": "function",
+            "signature": {
+              "parameters": [],
+              "returns": "packages/host/src/index.ts:122:25#0",
+              "typeParameters": [],
+            },
+          },
+          {
+            "id": "packages/host/src/index.ts:124:22#0",
+            "kind": "function",
+            "signature": {
+              "parameters": [
+                {
+                  "binding": "identifier",
+                  "name": "payload",
+                  "optional": false,
+                  "receiver": false,
+                  "rest": false,
+                  "type": "packages/host/src/index.ts:124:32#0",
+                },
+              ],
+              "returns": "packages/host/src/index.ts:124:44#0",
+              "typeParameters": [],
+            },
+          },
+          {
+            "arguments": [],
+            "id": "packages/host/src/index.ts:124:32#0",
+            "kind": "reference",
+            "name": "Payload",
+            "target": {
+              "kind": "declaration",
+              "symbol": "packages/host/src/models.ts#Payload",
+            },
+          },
+          {
+            "id": "packages/host/src/index.ts:124:44#0",
+            "kind": "keyword",
+            "name": "void",
+          },
+          {
+            "id": "packages/host/src/index.ts:127:29#0",
+            "kind": "function",
+            "signature": {
+              "parameters": [
+                {
+                  "binding": "identifier",
+                  "name": "payload",
+                  "optional": false,
+                  "receiver": false,
+                  "rest": false,
+                  "type": "packages/host/src/index.ts:127:39#0",
+                },
+              ],
+              "returns": "packages/host/src/index.ts:127:51#0",
+              "typeParameters": [],
+            },
+          },
+          {
+            "arguments": [],
+            "id": "packages/host/src/index.ts:127:39#0",
+            "kind": "reference",
+            "name": "Payload",
+            "target": {
+              "kind": "declaration",
+              "symbol": "packages/host/src/models.ts#Payload",
+            },
+          },
+          {
+            "id": "packages/host/src/index.ts:127:51#0",
+            "kind": "keyword",
+            "name": "void",
+          },
+          {
+            "arguments": [
+              "packages/host/src/index.ts:143:31#0",
+            ],
+            "id": "packages/host/src/index.ts:143:25#0",
+            "kind": "reference",
+            "name": "Agent",
+            "target": {
+              "kind": "declaration",
+              "symbol": "packages/host/src/index.ts#Agent",
+            },
+          },
+          {
+            "id": "packages/host/src/index.ts:143:31#0",
+            "kind": "object",
+            "members": [
+              {
+                "abstract": false,
+                "async": false,
+                "id": "packages/host/src/index.ts:143:31#0#ready@3745",
+                "kind": "property",
+                "location": {
+                  "column": 33,
+                  "file": "packages/host/src/index.ts",
+                  "line": 143,
+                },
+                "name": "ready",
+                "optional": false,
+                "readonly": false,
+                "static": false,
+                "tags": [],
+                "text": "ready: true",
+                "type": "packages/host/src/index.ts:143:40#0",
+                "visibility": "public",
+              },
+            ],
+          },
+          {
+            "id": "packages/host/src/index.ts:143:40#0",
+            "kind": "literal",
+            "text": "true",
+            "value": true,
+          },
+          {
+            "id": "packages/host/src/index.ts:143:5#0",
+            "kind": "function",
+            "signature": {
+              "parameters": [
+                {
+                  "binding": "identifier",
+                  "name": "agent",
+                  "optional": false,
+                  "receiver": false,
+                  "rest": false,
+                  "type": "packages/host/src/index.ts:143:25#0",
+                },
+                {
+                  "binding": "identifier",
+                  "name": "payload",
+                  "optional": false,
+                  "receiver": false,
+                  "rest": false,
+                  "type": "packages/host/src/index.ts:143:58#0",
+                },
+              ],
+              "returns": "packages/host/src/index.ts:143:73#0",
+              "typeParameters": [],
+            },
+          },
+          {
+            "arguments": [
+              "packages/host/src/index.ts:143:62#0",
+            ],
+            "id": "packages/host/src/index.ts:143:58#0",
+            "kind": "reference",
+            "name": "Box",
+            "target": {
+              "kind": "declaration",
+              "symbol": "packages/host/src/models.ts#Box",
+            },
+          },
+          {
+            "arguments": [],
+            "id": "packages/host/src/index.ts:143:62#0",
+            "kind": "reference",
+            "name": "Payload",
+            "target": {
+              "kind": "declaration",
+              "symbol": "packages/host/src/models.ts#Payload",
+            },
+          },
+          {
+            "id": "packages/host/src/index.ts:143:73#0",
             "kind": "keyword",
             "name": "void",
           },
@@ -3131,25 +3131,25 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
             },
           },
           {
-            "id": "packages/host/src/index.ts:26:16#0",
+            "id": "packages/host/src/index.ts:28:16#0",
             "kind": "keyword",
             "name": "string",
           },
           {
-            "id": "packages/host/src/index.ts:31:20#0",
+            "id": "packages/host/src/index.ts:33:20#0",
             "kind": "keyword",
             "name": "string",
           },
           {
-            "id": "packages/host/src/index.ts:31:3#0",
+            "id": "packages/host/src/index.ts:33:3#0",
             "kind": "keyword",
             "name": "void",
           },
           {
             "arguments": [
-              "packages/host/src/index.ts:36:25#0",
+              "packages/host/src/index.ts:38:25#0",
             ],
-            "id": "packages/host/src/index.ts:36:21#0",
+            "id": "packages/host/src/index.ts:38:21#0",
             "kind": "reference",
             "name": "Box",
             "target": {
@@ -3159,19 +3159,19 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
           },
           {
             "arguments": [],
-            "id": "packages/host/src/index.ts:36:25#0",
+            "id": "packages/host/src/index.ts:38:25#0",
             "kind": "reference",
             "name": "Value",
             "target": {
               "kind": "type-parameter",
-              "parameter": "packages/host/src/index.ts:36:7#Value",
+              "parameter": "packages/host/src/index.ts:38:7#Value",
             },
           },
           {
             "arguments": [
-              "packages/host/src/index.ts:36:42#0",
+              "packages/host/src/index.ts:38:42#0",
             ],
-            "id": "packages/host/src/index.ts:36:34#0",
+            "id": "packages/host/src/index.ts:38:34#0",
             "kind": "reference",
             "name": "Promise",
             "target": {
@@ -3181,9 +3181,9 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
           },
           {
             "arguments": [
-              "packages/host/src/index.ts:36:50#0",
+              "packages/host/src/index.ts:38:50#0",
             ],
-            "id": "packages/host/src/index.ts:36:42#0",
+            "id": "packages/host/src/index.ts:38:42#0",
             "kind": "reference",
             "name": "Present",
             "target": {
@@ -3193,17 +3193,17 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
           },
           {
             "arguments": [],
-            "id": "packages/host/src/index.ts:36:50#0",
+            "id": "packages/host/src/index.ts:38:50#0",
             "kind": "reference",
             "name": "Value",
             "target": {
               "kind": "type-parameter",
-              "parameter": "packages/host/src/index.ts:36:7#Value",
+              "parameter": "packages/host/src/index.ts:38:7#Value",
             },
           },
           {
             "arguments": [],
-            "id": "packages/host/src/index.ts:44:30#0",
+            "id": "packages/host/src/index.ts:46:30#0",
             "kind": "reference",
             "name": "Service",
             "target": {
@@ -3214,13 +3214,13 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
             },
           },
           {
-            "id": "packages/host/src/index.ts:46:12#0",
+            "id": "packages/host/src/index.ts:48:12#0",
             "kind": "keyword",
             "name": "boolean",
           },
           {
             "arguments": [],
-            "id": "packages/host/src/index.ts:54:34#0",
+            "id": "packages/host/src/index.ts:56:34#0",
             "kind": "reference",
             "name": "Service",
             "target": {
@@ -3231,13 +3231,13 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
             },
           },
           {
-            "id": "packages/host/src/index.ts:56:12#0",
+            "id": "packages/host/src/index.ts:58:12#0",
             "kind": "keyword",
             "name": "boolean",
           },
           {
             "arguments": [],
-            "id": "packages/host/src/index.ts:62:34#0",
+            "id": "packages/host/src/index.ts:64:34#0",
             "kind": "reference",
             "name": "Service",
             "target": {
@@ -3249,9 +3249,9 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
           },
           {
             "arguments": [
-              "packages/host/src/index.ts:68:24#0",
+              "packages/host/src/index.ts:72:24#0",
             ],
-            "id": "packages/host/src/index.ts:68:18#0",
+            "id": "packages/host/src/index.ts:72:18#0",
             "kind": "reference",
             "name": "Agent",
             "target": {
@@ -3260,18 +3260,18 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
             },
           },
           {
-            "id": "packages/host/src/index.ts:68:24#0",
+            "id": "packages/host/src/index.ts:72:24#0",
             "kind": "object",
             "members": [
               {
                 "abstract": false,
                 "async": false,
-                "id": "packages/host/src/index.ts:68:24#0#ready@1803",
+                "id": "packages/host/src/index.ts:72:24#0#ready@1927",
                 "kind": "property",
                 "location": {
                   "column": 26,
                   "file": "packages/host/src/index.ts",
-                  "line": 68,
+                  "line": 72,
                 },
                 "name": "ready",
                 "optional": false,
@@ -3279,22 +3279,22 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
                 "static": false,
                 "tags": [],
                 "text": "ready: true",
-                "type": "packages/host/src/index.ts:68:33#0",
+                "type": "packages/host/src/index.ts:72:33#0",
                 "visibility": "public",
               },
             ],
           },
           {
-            "id": "packages/host/src/index.ts:68:33#0",
+            "id": "packages/host/src/index.ts:72:33#0",
             "kind": "literal",
             "text": "true",
             "value": true,
           },
           {
             "arguments": [
-              "packages/host/src/index.ts:68:55#0",
+              "packages/host/src/index.ts:72:55#0",
             ],
-            "id": "packages/host/src/index.ts:68:49#0",
+            "id": "packages/host/src/index.ts:72:49#0",
             "kind": "reference",
             "name": "Flags",
             "target": {
@@ -3304,7 +3304,7 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
           },
           {
             "arguments": [],
-            "id": "packages/host/src/index.ts:68:55#0",
+            "id": "packages/host/src/index.ts:72:55#0",
             "kind": "reference",
             "name": "Payload",
             "target": {
@@ -3314,9 +3314,9 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
           },
           {
             "arguments": [
-              "packages/host/src/index.ts:68:74#0",
+              "packages/host/src/index.ts:72:74#0",
             ],
-            "id": "packages/host/src/index.ts:68:66#0",
+            "id": "packages/host/src/index.ts:72:66#0",
             "kind": "reference",
             "name": "Present",
             "target": {
@@ -3326,7 +3326,7 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
           },
           {
             "arguments": [],
-            "id": "packages/host/src/index.ts:68:74#0",
+            "id": "packages/host/src/index.ts:72:74#0",
             "kind": "reference",
             "name": "Payload",
             "target": {
@@ -3336,9 +3336,9 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
           },
           {
             "arguments": [
-              "packages/host/src/index.ts:73:35#0",
+              "packages/host/src/index.ts:77:35#0",
             ],
-            "id": "packages/host/src/index.ts:73:27#0",
+            "id": "packages/host/src/index.ts:77:27#0",
             "kind": "reference",
             "name": "ZodType",
             "target": {
@@ -3349,18 +3349,18 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
             },
           },
           {
-            "id": "packages/host/src/index.ts:73:35#0",
+            "id": "packages/host/src/index.ts:77:35#0",
             "kind": "keyword",
             "name": "string",
           },
           {
-            "id": "packages/host/src/index.ts:73:45#0",
+            "id": "packages/host/src/index.ts:77:45#0",
             "kind": "keyword",
             "name": "void",
           },
           {
             "arguments": [],
-            "id": "packages/host/src/index.ts:78:19#0",
+            "id": "packages/host/src/index.ts:82:19#0",
             "kind": "reference",
             "name": "AgentPhase",
             "target": {
@@ -3369,13 +3369,13 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
             },
           },
           {
-            "id": "packages/host/src/index.ts:78:32#0",
+            "id": "packages/host/src/index.ts:82:32#0",
             "kind": "keyword",
             "name": "void",
           },
           {
             "arguments": [],
-            "id": "packages/host/src/index.ts:83:22#0",
+            "id": "packages/host/src/index.ts:87:22#0",
             "kind": "reference",
             "name": "SyntaxZoo",
             "target": {
@@ -3384,13 +3384,13 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
             },
           },
           {
-            "id": "packages/host/src/index.ts:83:34#0",
+            "id": "packages/host/src/index.ts:87:34#0",
             "kind": "keyword",
             "name": "void",
           },
           {
             "arguments": [],
-            "id": "packages/host/src/index.ts:88:27#0",
+            "id": "packages/host/src/index.ts:92:27#0",
             "kind": "reference",
             "name": "SyntaxZoo",
             "target": {
@@ -3400,9 +3400,9 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
           },
           {
             "arguments": [
-              "packages/host/src/index.ts:88:47#0",
+              "packages/host/src/index.ts:92:47#0",
             ],
-            "id": "packages/host/src/index.ts:88:39#0",
+            "id": "packages/host/src/index.ts:92:39#0",
             "kind": "reference",
             "name": "Promise",
             "target": {
@@ -3411,13 +3411,13 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
             },
           },
           {
-            "id": "packages/host/src/index.ts:88:47#0",
+            "id": "packages/host/src/index.ts:92:47#0",
             "kind": "keyword",
             "name": "void",
           },
           {
             "arguments": [],
-            "id": "packages/host/src/index.ts:93:25#0",
+            "id": "packages/host/src/index.ts:97:25#0",
             "kind": "reference",
             "name": "Payload",
             "target": {
@@ -3430,19 +3430,19 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
               {
                 "optional": false,
                 "rest": false,
-                "type": "packages/host/src/index.ts:93:45#0",
+                "type": "packages/host/src/index.ts:97:45#0",
               },
             ],
-            "id": "packages/host/src/index.ts:93:44#0",
+            "id": "packages/host/src/index.ts:97:44#0",
             "kind": "tuple",
           },
           {
-            "id": "packages/host/src/index.ts:93:45#0",
+            "id": "packages/host/src/index.ts:97:45#0",
             "kind": "keyword",
             "name": "string",
           },
           {
-            "id": "packages/host/src/index.ts:93:55#0",
+            "id": "packages/host/src/index.ts:97:55#0",
             "kind": "keyword",
             "name": "string",
           },
@@ -5283,10 +5283,10 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
               "location": {
                 "column": 5,
                 "file": "packages/host/src/index.ts",
-                "line": 120,
+                "line": 124,
               },
               "name": "demo/property",
-              "signature": "packages/host/src/index.ts:120:22#0",
+              "signature": "packages/host/src/index.ts:124:22#0",
               "tags": [],
               "text": "'demo/property': (payload: Payload) => void",
             },
@@ -5301,11 +5301,11 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
               "location": {
                 "column": 5,
                 "file": "packages/host/src/index.ts",
-                "line": 116,
+                "line": 120,
               },
               "mode": "emit",
               "name": "demo/ready",
-              "signature": "packages/host/src/index.ts:116:5#0",
+              "signature": "packages/host/src/index.ts:120:5#0",
               "summary": "A generic fixture event.",
               "tags": [
                 {
@@ -5335,11 +5335,11 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
               "location": {
                 "column": 5,
                 "file": "packages/host/src/index.ts",
-                "line": 123,
+                "line": 127,
               },
               "mode": "serial",
               "name": "demo/serial-property",
-              "signature": "packages/host/src/index.ts:123:29#0",
+              "signature": "packages/host/src/index.ts:127:29#0",
               "tags": [
                 {
                   "comment": "serial",
@@ -5353,10 +5353,10 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
               "location": {
                 "column": 5,
                 "file": "packages/host/src/index.ts",
-                "line": 118,
+                "line": 122,
               },
               "name": "demo/unmodeled",
-              "signature": "packages/host/src/index.ts:118:5#0",
+              "signature": "packages/host/src/index.ts:122:5#0",
               "tags": [],
               "text": "'demo/unmodeled'(): void",
             },
@@ -5709,10 +5709,10 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
               "location": {
                 "column": 5,
                 "file": "packages/host/src/index.ts",
-                "line": 101,
+                "line": 105,
               },
               "members": [
-                "packages/host/src/index.ts#AliasedService#ready@1194",
+                "packages/host/src/index.ts#AliasedService#ready@1277",
               ],
               "summary": "Service exported only through a non-default alias.",
               "symbol": "packages/host/src/index.ts#AliasedService",
@@ -5734,10 +5734,10 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
               "location": {
                 "column": 5,
                 "file": "packages/host/src/index.ts",
-                "line": 102,
+                "line": 106,
               },
               "members": [
-                "packages/host/src/index.ts#DefaultOnlyService#ready@1417",
+                "packages/host/src/index.ts#DefaultOnlyService#ready@1500",
               ],
               "summary": "Service exported only through the package default.",
               "symbol": "packages/host/src/index.ts#DefaultOnlyService",
@@ -5758,15 +5758,15 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
               "location": {
                 "column": 5,
                 "file": "packages/host/src/index.ts",
-                "line": 100,
+                "line": 104,
               },
               "members": [
-                "packages/host/src/index.ts#DemoService#inspect@1780",
-                "packages/host/src/index.ts#DemoService#acceptsExternal@1978",
-                "packages/host/src/index.ts#DemoService#setPhase@2115",
-                "packages/host/src/index.ts#DemoService#inspectSyntax@2247",
-                "packages/host/src/index.ts#DemoService#inspectAsync@2382",
-                "packages/host/src/index.ts#DemoService#destructure@2509",
+                "packages/host/src/index.ts#DemoService#inspect@1904",
+                "packages/host/src/index.ts#DemoService#acceptsExternal@2102",
+                "packages/host/src/index.ts#DemoService#setPhase@2253",
+                "packages/host/src/index.ts#DemoService#inspectSyntax@2393",
+                "packages/host/src/index.ts#DemoService#inspectAsync@2561",
+                "packages/host/src/index.ts#DemoService#destructure@2739",
               ],
               "summary": "Fixture service with generic, mapped, and truly external boundary types.",
               "symbol": "packages/host/src/index.ts#DemoService",

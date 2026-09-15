@@ -1,5 +1,5 @@
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -22,7 +22,14 @@ import { hookProgram, plugHostShell } from '../../hook-protocol/tests/hook-progr
  */
 
 const dirs: string[] = []
-afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
+const contexts: Context[] = []
+let exitListeners = process.listeners('exit')
+beforeEach(() => { exitListeners = process.listeners('exit') })
+afterEach(async () => {
+  for (const ctx of contexts.splice(0).reverse()) await ctx.fiber.dispose()
+  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
+  expect(process.listeners('exit')).toEqual(exitListeners)
+})
 
 function configDir(): string {
   const dir = mkdtempSync(join(tmpdir(), 'dsh-hooks-codex-'))
@@ -35,6 +42,7 @@ function writeHooks(dir: string, hooks: unknown): void {
 
 async function harness(dir: string, adapter: MockAdapter, beforeHooks?: (ctx: Context) => void): Promise<Context> {
   const ctx = new Context()
+  contexts.push(ctx)
   await mountAgentLoopTestDependencies(ctx)
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(LocalSubprocessRuntime)
@@ -175,6 +183,7 @@ describe('hooks-codex bridge', () => {
     writeHooks(dir, { UserPromptSubmit: [{ hooks: [{ type: 'command', command: deny }] }] })
     const adapter = new MockAdapter([textResponse('ok')])
     const ctx = new Context()
+    contexts.push(ctx)
     await mountAgentLoopTestDependencies(ctx)
     await ctx.plugin(AgentLoop, { agents: [] })
     await ctx.plugin(LocalSubprocessRuntime)
@@ -198,6 +207,7 @@ describe('hooks-codex bridge', () => {
     const slow = hookProgram(dir, 'slow', `write(${JSON.stringify(pidFile)}, String(process.pid))\ntouch(${JSON.stringify(marker)})\nsleep(30)\n`)
     writeHooks(dir, { SessionStart: [{ hooks: [{ type: 'command', command: slow }] }] })
     const ctx = new Context()
+    contexts.push(ctx)
     await mountAgentLoopTestDependencies(ctx)
     await ctx.plugin(AgentLoop, { agents: [] })
     await ctx.plugin(LocalSubprocessRuntime)
