@@ -1,6 +1,7 @@
-- banner:
+- main:
   - navigation "Session hierarchy":
-    - button "Stream one TypeScript fence for" [disabled]
+    - heading "Stream one TypeScript fence for" [level=1]:
+      - button "Stream one TypeScript fence for" [disabled]
   - img
   - text: Standard mode
   - 'button "Workspace folders: 1"':
@@ -15,29 +16,29 @@
   - tablist:
     - tab "Chat" [selected]
     - tab "Trajectory"
-- button "System prompt":
-  - img
-  - img
-  - text: System prompt
-- text: Stream one TypeScript fence for the highlighting snapshot. {{clock}}
-- button "Copy":
-  - img
-- button "Context injection @deepseek-ai/dsh-system-prompt":
-  - img
-  - img
-  - text: Context injection @deepseek-ai/dsh-system-prompt
-- text: ts
-- button "Copy"
-- code: "const first: number = 1 const second = \"two\" let tail"
-- status: Deep diving...
-- textbox "Message or run a task... / commands, @ files or sessions"
-- button "Commands":
-  - img
-- 'button "Access mode, current: Workspace Write"': Workspace Write
-- button "Select model, current streaming-fence-highlight-test/streaming-fence":
-  - text: streaming-fence-highlight-test/streaming-fence
-  - img
-- button "Stop generating"
+  - button "System prompt":
+    - img
+    - img
+    - text: System prompt
+  - text: Stream one TypeScript fence for the highlighting snapshot. {{clock}}
+  - button "Copy":
+    - img
+  - button "Context injection @deepseek-ai/dsh-system-prompt":
+    - img
+    - img
+    - text: Context injection @deepseek-ai/dsh-system-prompt
+  - text: ts
+  - button "Copy"
+  - code: "const first: number = 1 const second = \"two\" let tail"
+  - status: Deep diving...
+  - textbox "Message or run a task... / commands, @ files or sessions"
+  - button "Commands":
+    - img
+  - 'button "Access mode, current: Workspace Write"': Workspace Write
+  - button "Select model, current streaming-fence-highlight-test/streaming-fence":
+    - text: streaming-fence-highlight-test/streaming-fence
+    - img
+  - button "Stop generating"
 
 ---
 

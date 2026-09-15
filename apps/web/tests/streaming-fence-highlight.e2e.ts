@@ -132,12 +132,31 @@ describe.skipIf(MODE === 'record')('web e2e: streaming code-fence highlighting',
       MODE,
     )
 
+    const pre = await block.locator('pre.shiki').elementHandle()
+    if (pre === null) throw new Error('Streaming code must remain mounted')
+    const selected = await pre.evaluate((element) => {
+      const token = element.querySelector('.line span')?.firstChild
+      const selection = window.getSelection()
+      if (!(element instanceof HTMLPreElement) || token == null || selection === null) {
+        throw new Error('Streaming code must expose selectable text')
+      }
+      element.focus()
+      const range = document.createRange()
+      range.selectNodeContents(token)
+      selection.removeAllRanges()
+      selection.addRange(range)
+      return selection.toString()
+    })
+    expect(selected).toBe('const')
+
     adapter.continue()
     await settled
     await expect.poll(() => page.locator('[data-streaming="true"]').count(), { timeout: 10_000 }).toBe(0)
     const settledBlock = page.locator('.md-code-block').filter({ hasText: 'const first' })
     await settledBlock.locator('pre.shiki').waitFor({ timeout: 10_000 })
     expect(await fenceTree(settledBlock)).toEqual(midTree)
+    expect(await pre.evaluate(element => element.isConnected && document.activeElement === element)).toBe(true)
+    expect(await page.evaluate(() => window.getSelection()?.toString())).toBe(selected)
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])
     await assertFixtureInventory(SNAPSHOT_DIR, ['mid-stream.expected.md'])

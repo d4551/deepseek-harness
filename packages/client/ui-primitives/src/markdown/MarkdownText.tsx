@@ -43,7 +43,11 @@ function renderSettled(
     footnoteCounts: new Map(),
   }
   const blocks = wrapBlockChildren(
-    renderBlocks(root.children.map((node, index) => ({ node, key: index })), context),
+    renderBlocks(root.children.map((node) => {
+      const key = node.position?.start.offset
+      if (key === undefined) throw new Error('Markdown blocks require source positions')
+      return { node, key }
+    }), context),
     false,
   )
   const section = renderFootnoteSection(context)
