@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { createServer } from 'node:net'
@@ -11,7 +11,7 @@ import {
 } from '../src/materialization.ts'
 
 async function workspace(): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), 'drive-store-'))
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'drive-store-')))
   onTestFinished(() => rm(root, { recursive: true, force: true }))
   return root
 }
@@ -117,4 +117,45 @@ it('rejects corrupt persisted records before trusting workspace bytes', async ()
   }
   await writeRecord(root, path, record)
   await expect(readRecord(root, path)).resolves.toEqual(record)
+})
+
+it('rejects provider-private state redirected outside the workspace', async () => {
+  const root = await workspace()
+  const outside = await workspace()
+  await writeFile(join(outside, 'retained'), 'private content')
+  await symlink(outside, stateRootOf(root), 'dir')
+  const path = drivePath('entry')
+  const version = driveVersion('revision')
+  const record = { version, digest: digestOf(Buffer.from('new')), bytes: 3 }
+  await expect(readRecord(root, path)).rejects.toMatchObject({ code: 'FS_PERMISSION_DENIED' })
+  await expect(writeRecord(root, path, record)).rejects.toMatchObject({ code: 'FS_PERMISSION_DENIED' })
+  await expect(publishBytes(root, join(root, 'entry'), Buffer.from('new'), 0o600))
+    .rejects.toMatchObject({ code: 'FS_PERMISSION_DENIED' })
+  await expect(readdir(outside)).resolves.toEqual(['retained'])
+  await expect(readFile(join(outside, 'retained'), 'utf8')).resolves.toBe('private content')
+  await expect(readFile(join(root, 'entry'))).rejects.toMatchObject({ code: 'ENOENT' })
+})
+
+it('rejects a cached file replaced by a link outside the workspace', async () => {
+  const root = await workspace()
+  const outside = await workspace()
+  const path = drivePath('entry')
+  const version = driveVersion('revision')
+  await materialize(root, path, Buffer.from('stored'), version)
+  await writeFile(join(outside, 'private'), 'stored')
+  await rm(join(root, path))
+  await symlink(join(outside, 'private'), join(root, path), 'file')
+  await expect(verifiedCopy(root, path, version)).rejects.toMatchObject({ code: 'FS_PERMISSION_DENIED' })
+  await expect(readFile(join(outside, 'private'), 'utf8')).resolves.toBe('stored')
+})
+
+it('rejects publication outside its root and detects a root removed before publication', async () => {
+  const root = await workspace()
+  const outside = await workspace()
+  await expect(publishBytes(root, join(outside, 'entry'), Buffer.from('denied'), 0o600))
+    .rejects.toMatchObject({ code: 'FS_PERMISSION_DENIED' })
+  await expect(readdir(outside)).resolves.toEqual([])
+  await rm(root, { recursive: true })
+  await expect(publishBytes(root, join(root, 'entry'), Buffer.from('denied'), 0o600))
+    .rejects.toMatchObject({ code: 'ENOENT' })
 })

@@ -23,6 +23,7 @@ import { digestOfFile, drivePathOf, localInfo, localPathOf, materializeDirectory
 import type { LocalPathInfo } from './materialization.ts'
 import { assertNotAborted, driveToken, fsType, fsTypeOfLocal, landing, localToken, mapError, targetKeyFor, workspacePathOfKey } from './vocabulary.ts'
 import type { Placement } from './vocabulary.ts'
+import { assertMaterializationPath } from './path-ownership.ts'
 
 /** The validated configuration every addressing read consults. */
 export interface ResolvedConfig {
@@ -165,6 +166,8 @@ export class DriveAddressing {
    */
   async placementOf(target: FsTarget, signal: AbortSignal | undefined): Promise<Placement> {
     assertNotAborted(signal, 'stat')
+    const owned = await landing(assertMaterializationPath(this.config.materializationRoot, this.processPath(target)))
+    if (!owned.ok) throw mapError(owned.reason, 'stat', target.displayPath, signal)
     const stat = await landing<DriveStat | undefined>(
       this.drive().stat(this.drivePathOfTarget(target), signal),
     )
@@ -240,8 +243,11 @@ export class DriveAddressing {
     // Working files the local execution world created are listed beside the
     // drive's own children, so a shell-created file is visible before any seam
     // write has published it.
-    await materializeDirectory(this.config.materializationRoot, workspacePath)
-    for (const name of await this.localChildren(workspacePath)) {
+    const local = await landing(
+      materializeDirectory(this.config.materializationRoot, workspacePath).then(() => this.localChildren(workspacePath)),
+    )
+    if (!local.ok) throw mapError(local.reason, 'list', target.displayPath, signal)
+    for (const name of local.value) {
       if (entries.has(name)) continue
       const child = driveChildPath(workspacePath, name)
       const inspected = await landing(localInfo(localPathOf(this.config.materializationRoot, child)))
@@ -269,6 +275,7 @@ export class DriveAddressing {
    */
   async localChildren(workspacePath: DrivePath): Promise<string[]> {
     const local = localPathOf(this.config.materializationRoot, workspacePath)
+    await assertMaterializationPath(this.config.materializationRoot, local)
     const names = await readdir(local)
     return workspacePath.length === 0 ? names.filter(name => name !== STATE_DIRECTORY) : names
   }

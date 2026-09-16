@@ -21,6 +21,7 @@ import { dirname, join, relative, resolve, sep } from 'node:path'
 import type { DrivePath, DriveVersion } from '@deepseek-ai/dsh-network-drive/types'
 import { driveVersion } from '@deepseek-ai/dsh-network-drive/identity'
 import { landing } from './vocabulary.ts'
+import { assertMaterializationPath } from './path-ownership.ts'
 
 /** Directory inside the materialization root holding provider-private state. */
 export const STATE_DIRECTORY = '.dsh-network-drive'
@@ -139,7 +140,9 @@ export async function readRecord(
   materializationRoot: string,
   path: DrivePath,
 ): Promise<MaterializationRecord | undefined> {
-  const raw = await landing(readFile(recordPath(materializationRoot, path), 'utf8'))
+  const target = recordPath(materializationRoot, path)
+  await assertMaterializationPath(materializationRoot, target)
+  const raw = await landing(readFile(target, 'utf8'))
   if (!raw.ok) return undefined
   const decoded = await landing(Promise.resolve(raw.value).then((text): unknown => JSON.parse(text)))
   if (!decoded.ok) return undefined
@@ -163,6 +166,7 @@ export async function writeRecord(
   record: MaterializationRecord,
 ): Promise<void> {
   const target = recordPath(materializationRoot, path)
+  await assertMaterializationPath(materializationRoot, target, false)
   await mkdir(dirname(target), { recursive: true, mode: 0o700 })
   await publishBytes(materializationRoot, target, new TextEncoder().encode(JSON.stringify(record)), 0o600)
 }
@@ -184,7 +188,9 @@ export async function verifiedCopy(
 ): Promise<number | undefined> {
   const record = await readRecord(materializationRoot, path)
   if (record === undefined || record.version !== version) return undefined
-  const copy = await landing(readBounded(localPathOf(materializationRoot, path), record.bytes))
+  const target = localPathOf(materializationRoot, path)
+  await assertMaterializationPath(materializationRoot, target)
+  const copy = await landing(readBounded(target, record.bytes))
   if (!copy.ok) return undefined
   const bytes = copy.value
   if (bytes.byteLength !== record.bytes || digestOf(bytes) !== record.digest) return undefined
@@ -207,6 +213,8 @@ export async function publishBytes(
   mode: number,
 ): Promise<void> {
   const staging = join(stateRootOf(materializationRoot), 'staging')
+  await assertMaterializationPath(materializationRoot, staging)
+  await assertMaterializationPath(materializationRoot, target, false)
   await mkdir(staging, { recursive: true, mode: 0o700 })
   await using staged = {
     path: await mkdtemp(join(staging, 'publish-')),
@@ -218,6 +226,7 @@ export async function publishBytes(
     await handle.writeFile(bytes)
     await handle.sync()
   }
+  await assertMaterializationPath(materializationRoot, target, false)
   await rename(contentPath, target)
 }
 
@@ -236,6 +245,7 @@ export async function materialize(
   version: DriveVersion,
 ): Promise<void> {
   const target = localPathOf(materializationRoot, path)
+  await assertMaterializationPath(materializationRoot, target, false)
   await mkdir(dirname(target), { recursive: true })
   await publishBytes(materializationRoot, target, bytes, 0o600)
   await writeRecord(materializationRoot, path, { version, digest: digestOf(bytes), bytes: bytes.byteLength })
@@ -248,7 +258,9 @@ export async function materialize(
  * @param path - the drive directory to create locally.
  */
 export async function materializeDirectory(materializationRoot: string, path: DrivePath): Promise<void> {
-  await mkdir(localPathOf(materializationRoot, path), { recursive: true })
+  const target = localPathOf(materializationRoot, path)
+  await assertMaterializationPath(materializationRoot, target)
+  await mkdir(target, { recursive: true })
 }
 
 /** Local metadata about one path without following a final symbolic link. */

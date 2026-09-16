@@ -34,6 +34,7 @@ import { DriveAddressing, infoOfPlacement } from './addressing.ts'
 import type { ResolvedConfig } from './addressing.ts'
 import { drivePathOf, localInfo } from './materialization.ts'
 import { DriveTransfer } from './transfer.ts'
+import { assertMaterializationPath } from './path-ownership.ts'
 import { assertNotAborted, fsTypeOfLocal, landing, localToken, mapError } from './vocabulary.ts'
 
 /** Configuration for the drive-backed filesystem provider. */
@@ -115,10 +116,12 @@ export class NetworkDriveFileSystem extends FileSystem {
     return { kind: 'network-drive' }
   }
 
-  override async resolve(path: string, opts?: { cwd?: string; signal?: AbortSignal }): Promise<FsTarget> {
-    assertNotAborted(opts?.signal, 'resolve')
-    if (path.trim().length === 0) throw new FsError('file_path must be a non-empty string', 'FS_NOT_FOUND')
-    return this.addressing.targetOf(path, opts?.cwd, 'resolve')
+  override resolve(path: string, opts?: { cwd?: string; signal?: AbortSignal }): Promise<FsTarget> {
+    return Promise.resolve().then(() => {
+      assertNotAborted(opts?.signal, 'resolve')
+      if (path.trim().length === 0) throw new FsError('file_path must be a non-empty string', 'FS_NOT_FOUND')
+      return this.addressing.targetOf(path, opts?.cwd, 'resolve')
+    })
   }
 
   override processPath(target: FsTarget): string {
@@ -143,7 +146,10 @@ export class NetworkDriveFileSystem extends FileSystem {
     assertNotAborted(signal, 'lstat')
     if (path.trim().length === 0) throw new FsError('file_path must be a non-empty string', 'FS_NOT_FOUND')
     const target = this.addressing.targetOf(path, opts?.cwd, 'lstat')
-    const inspected = await landing(localInfo(this.addressing.processPath(target)))
+    const inspected = await landing(
+      assertMaterializationPath(this.materializationRoot, this.addressing.processPath(target), false)
+        .then(() => localInfo(this.addressing.processPath(target))),
+    )
     if (!inspected.ok) throw mapError(inspected.reason, 'lstat', target.displayPath, signal)
     const local = inspected.value
     // Only the local probe can see a link, and seeing one is the whole point of

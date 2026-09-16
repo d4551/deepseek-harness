@@ -21,6 +21,7 @@ import { materialize, readBounded, verifiedCopy } from './materialization.ts'
 import type { DriveAddressing, ResolvedConfig } from './addressing.ts'
 import { assertNotAborted, driveToken, fsType, fsTypeOfLocal, landing, mapError } from './vocabulary.ts'
 import type { Placement } from './vocabulary.ts'
+import { assertMaterializationPath } from './path-ownership.ts'
 
 /**
  * One drive-backed transfer: hydration and publication across the addressing
@@ -137,7 +138,8 @@ export class DriveTransfer {
    */
   async readLocal(target: FsTarget, operation: string): Promise<Uint8Array> {
     const file = await landing<Uint8Array>(
-      readBounded(this.addressing.processPath(target), this.config.maxFileBytes),
+      assertMaterializationPath(this.config.materializationRoot, this.addressing.processPath(target))
+        .then(() => readBounded(this.addressing.processPath(target), this.config.maxFileBytes)),
     )
     if (!file.ok) throw mapError(file.reason, operation, target.displayPath)
     if (file.value.byteLength > this.config.maxFileBytes) throw this.tooLarge(operation, target, 'content')
@@ -183,10 +185,13 @@ export class DriveTransfer {
     await this.hydrated(target, 'read', signal)
     const localPath = this.addressing.processPath(target)
     const displayPath = target.displayPath
+    const root = this.config.materializationRoot
     return {
       [Symbol.asyncIterator](): AsyncIterator<string> {
-        const stream = createReadStream(localPath, signal === undefined ? {} : { signal })
+        let stream: ReturnType<typeof createReadStream> | undefined
         async function* byteChunks(): AsyncGenerator<Uint8Array> {
+          await assertMaterializationPath(root, localPath)
+          stream = createReadStream(localPath, signal === undefined ? {} : { signal })
           for await (const chunk of stream) {
             assertNotAborted(signal, 'read')
             yield chunk as Uint8Array
@@ -194,7 +199,7 @@ export class DriveTransfer {
         }
         const text = decodeTextStream(byteChunks(), displayPath, BINARY_SAMPLE_BYTES)[Symbol.asyncIterator]()
         const release = (): void => {
-          stream.destroy()
+          stream?.destroy()
         }
         return {
           async next(): Promise<IteratorResult<string>> {

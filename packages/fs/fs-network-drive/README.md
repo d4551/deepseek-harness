@@ -28,7 +28,9 @@ The `ctx.fs` backend that projects a [network drive](../network-drive/README.md)
 
 So this provider keeps a **materialization root**: a real local directory the drive's subtree is mirrored into on demand. `processPath()` returns a path inside it, and ripgrep, the shell, and the language servers see an ordinary workspace.
 
-Reads hydrate: `resolve`, `stat`, `read`, and `list` fetch what they need and answer from the local copy, revalidating against the drive's `DriveVersion` rather than a timestamp. Writes are write-through, drive first: the bytes reach the drive **before** the local file is replaced and before the write reports success, so a failed publish fails the write and leaves both sides on the previous revision instead of diverging.
+Address resolution assigns an identity without transferring content. Reads hydrate on demand and revalidate against the drive's `DriveVersion` rather than a timestamp. Writes commit to the drive before replacing the local copy. A rejected remote commit leaves the previous revision intact. If local publication fails after a successful remote commit, the operation reports the error and a later read can hydrate the committed bytes.
+
+Local operations verify existing path ancestry against the canonical materialization root. Links that leave the workspace are denied, including links redirecting private staging or cache records; internal links remain usable. `lstat` can still report a final link itself. Stream readers repeat ownership checks when consumption begins.
 
 ## Configuration
 
@@ -49,6 +51,8 @@ Indirectly, through the `read`, `write`, `edit`, `glob`, and `grep` tools, which
 None: the backend contributes no prompt text and reorders no request.
 
 ## Known Limitations and Deferred Work
+
+- **Path checks are not atomic with local I/O.** Native path resolution detects existing symlink escapes, but another process can rename directories between a check and a subsequent filesystem operation. Hostile concurrent writers require operating-system confinement; this provider does not implement descriptor-relative atomic traversal.
 
 - **One writer per drive subtree.** A second harness pointed at the same remote root can publish between this one's version check and its write. Every drive serves a version — the WebDAV provider falls back to modification time and size when a collection omits ETags — so the compare-and-set check always runs; what a missing ETag costs is the *atomic* remote guard (`If-Match`), leaving a window between the check and the `PUT` rather than removing the check.
 - **A shell `rm` or `mv` in the workspace does not reach the drive.** The `ctx.fs` seam has no unlink or rename, so deletions and renames happen through the shell against the materialization root. The drive still holds the file, and the next hydration brings it back. Closing this needs the drive seam's `remove` and `move`, which exist for it and have no consumer yet.

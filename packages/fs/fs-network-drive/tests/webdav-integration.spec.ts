@@ -82,7 +82,7 @@ it('keeps the remote file intact when obtaining the edit basis fails locally', a
   await writeFile(join(remote, 'nested/file'), 'server content')
   await writeFile(join(workspace, 'nested'), 'local obstruction')
   const target = await ctx.fs.resolve('nested/file')
-  await expect(ctx.fs.writeText(target, 'replacement')).rejects.toMatchObject({ code: 'FS_IO_ERROR', cause: { code: 'EEXIST' } })
+  await expect(ctx.fs.writeText(target, 'replacement')).rejects.toMatchObject({ code: 'FS_IO_ERROR', cause: { code: 'ENOTDIR' } })
   await expect(readFile(join(remote, 'nested/file'), 'utf8')).resolves.toBe('server content')
   await expect(readFile(join(workspace, 'nested'), 'utf8')).resolves.toBe('local obstruction')
 })
@@ -122,4 +122,19 @@ it('reports a local publication failure after the remote commit and recovers the
   await rm(state)
   await expect(ctx.fs.readText(target)).resolves.toBe('committed')
   await expect(readFile(join(workspace, 'committed.txt'), 'utf8')).resolves.toBe('committed')
+})
+
+it('propagates disappearance of local content after its placement was observed', async () => {
+  const { ctx, workspace, remote } = await bootWebDav()
+  const config = { materializationRoot: workspace, remoteRoot: drivePath(''), maxFileBytes: 1024 }
+  const addressing = new DriveAddressing(config, () => ctx.networkDrive)
+  const transfer = new DriveTransfer(config, addressing, () => ctx.networkDrive)
+  const target = addressing.targetFor(drivePath('entry'))
+  await writeFile(join(workspace, 'entry'), 'local content')
+  const observed = await addressing.placementOf(target, undefined)
+  expect(observed).toMatchObject({ kind: 'local', info: { type: 'file', size: 13 } })
+  await rm(join(workspace, 'entry'))
+  await expect(transfer.hydrated(target, 'read', undefined, observed)).rejects.toMatchObject({ code: 'FS_NOT_FOUND' })
+  await expect(transfer.diffBasis(target, observed, undefined)).rejects.toMatchObject({ code: 'FS_NOT_FOUND' })
+  await expect(readFile(join(remote, 'entry'))).rejects.toMatchObject({ code: 'ENOENT' })
 })

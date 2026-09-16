@@ -85,7 +85,8 @@ export function assertNotAborted(signal: AbortSignal | undefined, operation: str
  * @returns the typed filesystem error to raise. A `node:fs` `ENOENT` reports the
  * same `FS_NOT_FOUND` a missing drive path does, because a caller distinguishes
  * a workspace copy that is gone from a workspace it cannot read at all, and the
- * other seam providers name that failure the same way.
+ * other seam providers name that failure the same way. Native access denials
+ * retain their permission classification.
  */
 export function mapError(error: FsError | DriveError | Error, operation: string, displayPath: string, signal?: AbortSignal): FsError {
   if (error instanceof FsError) return error
@@ -93,6 +94,9 @@ export function mapError(error: FsError | DriveError | Error, operation: string,
   if (!(error instanceof DriveError)) {
     if ('code' in error && error.code === 'ENOENT') {
       return new FsError(`cannot ${operation} "${displayPath}": not found`, 'FS_NOT_FOUND', { cause: error })
+    }
+    if ('code' in error && (error.code === 'EACCES' || error.code === 'EPERM')) {
+      return new FsError(`cannot ${operation} "${displayPath}": permission denied`, 'FS_PERMISSION_DENIED', { cause: error })
     }
     return new FsError(`cannot ${operation} "${displayPath}": ${String(error)}`, 'FS_IO_ERROR', { cause: error })
   }

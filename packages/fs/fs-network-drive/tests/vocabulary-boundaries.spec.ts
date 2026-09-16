@@ -33,6 +33,10 @@ it('retains typed failures and their causes while applying cancellation priority
   expect(mapError(denied, 'read', 'entry', signal)).toMatchObject({ code: 'FS_ABORTED', cause: denied })
   const unavailable = new Error('disk unavailable')
   expect(mapError(unavailable, 'write', 'entry')).toMatchObject({ code: 'FS_IO_ERROR', cause: unavailable })
+  for (const code of ['EACCES', 'EPERM']) {
+    const denied = Object.assign(new Error('native access denied'), { code })
+    expect(mapError(denied, 'read', 'entry')).toMatchObject({ code: 'FS_PERMISSION_DENIED', cause: denied })
+  }
   const missing = Object.assign(new Error('gone'), { code: 'ENOENT' })
   expect(mapError(missing, 'read', 'entry')).toMatchObject({ code: 'FS_NOT_FOUND', cause: missing })
   await expect(landing(Promise.reject(denied))).resolves.toEqual({ ok: false, reason: denied })
