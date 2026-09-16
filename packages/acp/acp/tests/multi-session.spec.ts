@@ -91,7 +91,10 @@ describe('ACP multi-session isolation', () => {
     })
 
     await harness.acpFiber.dispose()
-    await prompts
+    expect(await prompts).toEqual([
+      { status: 'fulfilled', value: { stopReason: 'cancelled' } },
+      { status: 'fulfilled', value: { stopReason: 'cancelled' } },
+    ])
     expect(harness.ctx.agents.get(SessionId(a))).toBeUndefined()
     expect(harness.ctx.agents.get(SessionId(b))).toBeUndefined()
   })
