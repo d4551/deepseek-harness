@@ -414,7 +414,7 @@ describe('ACP prompt lifecycle', () => {
     const cancellations: Promise<void>[] = []
     vi.spyOn(harness.attachments!, 'saveImages').mockImplementationOnce(async (inputs) => {
       const refs = await saveImages(inputs)
-      queueMicrotask(() => { cancellations.push(harness!.client.cancel({ sessionId })) })
+      queueMicrotask(() => { cancellations.push(Promise.resolve(harness!.client.cancel({ sessionId }))) })
       return refs
     })
 

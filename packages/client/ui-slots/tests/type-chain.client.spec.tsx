@@ -130,7 +130,7 @@ fp.SessionProvider({ empty: () => null, children: null })
 const rejectedCalls = [
   ['child scope matches SlotMap', 2322,
     "core.register({ name: 'chain.frame', children: { 'chain.conv': { kind: 'single', scope: 'root' } } }, Blind)"],
-  ['contextual child requires common injection', 2741,
+  ['contextual child requires common injection', 2322,
     "core.register({ name: 'chain.frame', children: { 'chain.context': { kind: 'single', scope: 'session' } } }, ContextOwner)"],
   ['component cannot widen declared children', 2345,
     "core.register({ name: 'chain.frame', children: { 'chain.side': { kind: 'single', scope: 'root' } } }, Over)"],
@@ -158,7 +158,7 @@ const rejectedCalls = [
     "chainSlots.renderSlot('chain.takeover', { items: [] })"],
   ['ordinary slots use ordinary dispatch', 2345,
     "chainSlots.renderSlotChain('chain.conv', {})"],
-  ['ordinary child sets have no chain seat', 2339,
+  ['ordinary child sets have no chain seat', 2551,
     'export type NoChainSeat = typeof fp.renderSlotChain'],
   ['owner share requires width', 2345,
     "fp.renderSlot('chain.side', { collapsed: false })"],
