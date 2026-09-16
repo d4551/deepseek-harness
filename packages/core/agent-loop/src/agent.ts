@@ -45,6 +45,10 @@ type Phase =
   | { kind: 'running'; abort: AbortController; turn: number; step: number; wakeRequested: boolean }
 
 type StepEndReason = Extract<TurnEndReason, { kind: 'completed' | 'max-tokens' }>
+type RunningPhase = Extract<Phase, { kind: 'running' }>
+type TurnOutcome =
+  | { kind: 'finished'; reason: TurnEndReason; continueDriver: boolean }
+  | { kind: 'failed'; reason: TurnEndReason; error: unknown; report: boolean }
 
 type PreparedStep =
   | { kind: 'reject' }
@@ -188,14 +192,15 @@ export class ReactLoopAgent implements Agent {
     }
     const driver = Promise.withResolvers<void>()
     this.activityDone = driver.promise
-    this.setPhase({
+    const phase: RunningPhase = {
       kind: 'running',
       abort: new AbortController(),
       turn: this.phase.lastTurn,
       step: 0,
       wakeRequested: false,
-    })
-    this.loopCtx.agents.withInitiator(this, () => this.kick()).then(driver.resolve, driver.reject)
+    }
+    this.setPhase(phase)
+    this.loopCtx.agents.withInitiator(this, () => this.kick(phase)).then(driver.resolve, driver.reject)
   }
 
   async whenIdle(): Promise<void> {
@@ -213,25 +218,19 @@ export class ReactLoopAgent implements Agent {
     throw error
   }
 
-  private async kick(): Promise<void> {
+  private async kick(phase: RunningPhase): Promise<void> {
     try {
       while (await this.turn()) {}
     } catch (_error) {
       // Reported failures and cancellation are contained at the driver boundary.
     } finally {
-      /* v8 ignore next -- kick owns a running phase until this driver boundary */
-      if (this.phase.kind === 'running') {
-        const { turn, wakeRequested } = this.phase
-        this.setPhase({ kind: 'idle', lastTurn: turn })
-        if (wakeRequested && this.inbox.hasPending) this.wakeDriver()
-      }
+      const { turn, wakeRequested } = phase
+      this.setPhase({ kind: 'idle', lastTurn: turn })
+      if (wakeRequested && this.inbox.hasPending) this.wakeDriver()
     }
   }
 
-  private async preStep(target: InboxTarget, position: { turn: number; step: number }): Promise<PreparedStep> {
-    /* v8 ignore next -- private callers establish the running phase before proposing a step */
-    if (this.phase.kind !== 'running') throw new Error(`agent "${this.id}": pre-step outside running phase`)
-    const signal = this.phase.abort.signal
+  private async preStep(target: InboxTarget, position: { turn: number; step: number }, signal: AbortSignal): Promise<PreparedStep> {
     const claimed = this.inbox.claim(target, position.turn)
     await this.dispatch.serial('agent/prepare-step', { ...position, signal })
     signal.throwIfAborted()
@@ -265,75 +264,44 @@ export class ReactLoopAgent implements Agent {
       this.throwError(error)
     }
     phase.turn = turn
-    let turnEnds: TurnEndReason | null = null
-    let target: InboxTarget = 'next-turn'
+    let outcome: TurnOutcome
     try {
-      while (true) {
-        signal.throwIfAborted()
-        const step = phase.step + 1
-        const decision = await this.preStep(target, { turn, step })
-        if (decision.kind === 'reject') {
-          turnEnds = { kind: 'blocked' }
-          return false
-        }
-        if (turnEnds && decision.messages.length === 0) break
-        // A removed waking message or an enter decision rewritten to empty
-        // still owns the initial turn boundary, but it spends no model call.
-        if (phase.step === 0 && decision.messages.length === 0) {
-          turnEnds = { kind: 'completed' }
-          return false
-        }
-        signal.throwIfAborted()
-        this.session.append('step/start', { turn, step })
-        phase.step = step
-        try {
-          for (const message of decision.messages) {
-            this.session.append('user/message', message, { surfaceOp: 'append' })
-          }
-          // max-tokens is sticky: once any step hits the ceiling, later steps
-          // that complete normally must not downgrade the turn outcome.
-          const stepEnd = await this.step(decision.assembly, decision.startsRequestSeries === true)
-          // max-tokens stays sticky: a later completed step must not
-          // downgrade the turn outcome.
-          if (turnEnds === null || turnEnds.kind !== 'max-tokens') turnEnds = stepEnd
-        } finally {
-          this.session.append('step/end', { turn, step })
-        }
-        signal.throwIfAborted()
-        if (turnEnds && this.inbox.nextStep.length === 0) {
-          await this.dispatch.serial('agent/turn-stopping', { turn, signal })
-          signal.throwIfAborted()
-        }
-        if (turnEnds && this.inbox.nextStep.length === 0) break
-        target = 'next-step'
-      }
+      outcome = await this.runSteps(phase)
+      signal.throwIfAborted()
     } catch (error: unknown) {
       if (signal.aborted) {
-        turnEnds = { kind: 'aborted', reason: signal.reason as AgentCancelCause }
-        throw error
-      }
-      if (error instanceof RequestBudgetExhausted) {
-        turnEnds = { kind: 'request-budget', budget: error.budget }
+        outcome = { kind: 'failed', reason: { kind: 'aborted', reason: signal.reason as AgentCancelCause }, error, report: false }
+      } else if (error instanceof RequestBudgetExhausted) {
+        outcome = { kind: 'finished', reason: { kind: 'request-budget', budget: error.budget }, continueDriver: true }
       } else {
         // Every failure is structured: an `LlmError` keeps its facts, anything
         // else flattens to `errorChain` text under the `UNKNOWN` code.
-        turnEnds = {
-          kind: 'error',
-          error: error instanceof LlmError
-            ? error.failure
-            : { message: errorChain(error), code: 'UNKNOWN' },
+        outcome = {
+          kind: 'failed',
+          reason: {
+            kind: 'error',
+            error: error instanceof LlmError
+              ? error.failure
+              : { message: errorChain(error), code: 'UNKNOWN' },
+          },
+          error,
+          report: true,
         }
-        this.throwError(error)
+      }
+    }
+    try {
+      if (outcome.kind === 'failed') {
+        if (outcome.report) this.throwError(outcome.error)
+        throw outcome.error
       }
     } finally {
       try {
-        // oxlint-disable-next-line typescript/no-non-null-assertion -- every exit assigns a turn ending
-        this.session.append('turn/end', { turn, reason: turnEnds! })
+        this.session.append('turn/end', { turn, reason: outcome.reason })
       } catch (error: unknown) {
         this.throwError(error)
       }
     }
-    if (!this.inbox.hasPending) return false
+    if (!outcome.continueDriver || !this.inbox.hasPending) return false
     phase.abort = new AbortController()
     // A fresh controller makes a latch set on the old one stale: the live driver claims the queue itself.
     phase.wakeRequested = false
@@ -341,10 +309,45 @@ export class ReactLoopAgent implements Agent {
     return true
   }
 
-  private async step(assembly: PromptAssembly, startsRequestSeries: boolean): Promise<StepEndReason | null> {
-    /* v8 ignore next -- private callers establish the running phase before executing a step */
-    if (this.phase.kind !== 'running') throw new Error(`agent "${this.id}": step outside running phase`)
-    const { turn, step, abort: { signal } } = this.phase
+  private async runSteps(phase: RunningPhase): Promise<Extract<TurnOutcome, { kind: 'finished' }>> {
+    const { turn, abort: { signal } } = phase
+    let turnEnds: StepEndReason | null = null
+    let target: InboxTarget = 'next-turn'
+    while (true) {
+      signal.throwIfAborted()
+      const step = phase.step + 1
+      const decision = await this.preStep(target, { turn, step }, signal)
+      if (decision.kind === 'reject') return { kind: 'finished', reason: { kind: 'blocked' }, continueDriver: false }
+      if (turnEnds && decision.messages.length === 0) return { kind: 'finished', reason: turnEnds, continueDriver: true }
+      // An empty first step closes its admitted turn without spending a request.
+      if (phase.step === 0 && decision.messages.length === 0) {
+        return { kind: 'finished', reason: { kind: 'completed' }, continueDriver: false }
+      }
+      signal.throwIfAborted()
+      this.session.append('step/start', { turn, step })
+      phase.step = step
+      try {
+        for (const message of decision.messages) {
+          this.session.append('user/message', message, { surfaceOp: 'append' })
+        }
+        const stepEnd = await this.step(phase, decision.assembly, decision.startsRequestSeries === true)
+        // A later completed step cannot downgrade a max-tokens outcome.
+        if (turnEnds === null || turnEnds.kind !== 'max-tokens') turnEnds = stepEnd
+      } finally {
+        this.session.append('step/end', { turn, step })
+      }
+      signal.throwIfAborted()
+      if (turnEnds && this.inbox.nextStep.length === 0) {
+        await this.dispatch.serial('agent/turn-stopping', { turn, signal })
+        signal.throwIfAborted()
+      }
+      if (turnEnds && this.inbox.nextStep.length === 0) return { kind: 'finished', reason: turnEnds, continueDriver: true }
+      target = 'next-step'
+    }
+  }
+
+  private async step(phase: RunningPhase, assembly: PromptAssembly, startsRequestSeries: boolean): Promise<StepEndReason | null> {
+    const { turn, step, abort: { signal } } = phase
     signal.throwIfAborted()
     const system = renderPrompt(assembly)
 
@@ -468,16 +471,20 @@ export class ReactLoopAgent implements Agent {
       : undefined
     const reasoningEffort = this.options.reasoningEffort ?? persistedReasoningEffort
     const maxTokens = this.options.maxTokens
-    const seedConfig = deepFreeze(structuredClone(
-      this.requestHeaderLogged
-        // oxlint-disable-next-line typescript/no-non-null-assertion -- the instance logged the header it now folds
-        ? requestProposal(persistedHeader!)
-        : {
-          ...route,
-          ...reasoningEffort === undefined ? {} : { reasoningEffort },
-          ...maxTokens === undefined ? {} : { maxTokens },
-        },
-    ))
+    let proposal: LlmCallConfig
+    if (this.requestHeaderLogged) {
+      if (persistedHeader === undefined) {
+        throw new Error(`agent "${this.id}": committed request header is missing from the session`)
+      }
+      proposal = requestProposal(persistedHeader)
+    } else {
+      proposal = {
+        ...route,
+        ...reasoningEffort === undefined ? {} : { reasoningEffort },
+        ...maxTokens === undefined ? {} : { maxTokens },
+      }
+    }
+    const seedConfig = deepFreeze(structuredClone(proposal))
     const proposedConfig = await this.dispatch.waterfall(
       'agent/request', { turn, step, signal },
       () => Promise.resolve(seedConfig),

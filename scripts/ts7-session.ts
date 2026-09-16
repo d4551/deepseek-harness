@@ -79,12 +79,13 @@ export function printInFile(file: string, node: Node): string {
 /**
  * Parse many on-disk TypeScript files in one snapshot update.
  * @param files - paths that already exist.
+ * @param session - caller-owned compiler; omission uses the process session.
  * @returns path → bound source file.
  */
-export function parsePaths(files: readonly string[]): Map<string, SourceFile> {
+export function parsePaths(files: readonly string[], session?: API): Map<string, SourceFile> {
   const result = new Map<string, SourceFile>()
   if (files.length === 0) return result
-  const snapshot = compiler().updateSnapshot({ openFiles: [...files] })
+  const snapshot = (session ?? compiler()).updateSnapshot({ openFiles: [...files] })
   for (const file of files) {
     const project = snapshot.getDefaultProjectForFile(file)
     if (project === undefined) throw new Error(`ts7: no project for ${file}`)

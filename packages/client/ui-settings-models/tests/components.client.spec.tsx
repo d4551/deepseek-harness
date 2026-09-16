@@ -1144,16 +1144,25 @@ describe('ModelsSection', () => {
   })
 
   it('keeps the card usable when the write rejects instead of answering', async () => {
-    // A transport failure (disconnect, or the 403 a non-loopback browser now
-    // gets on the whole configuration plane) rejects rather than returning a
-    // failed envelope: without a catch the card would stay busy forever.
-    await mountDeepSeekCard({ mutate: vi.fn(() => Promise.reject(new Error('connection lost'))) })
+    const { mutate } = await mountDeepSeekCard({ mutate: vi.fn(() => Promise.reject(new Error('connection lost'))) })
     fireEvent.click(screen.getByText(en.customized))
     fireEvent.change(screen.getByLabelText<HTMLInputElement>(en.baseUrl), { target: { value: 'https://next' } })
     fireEvent.click(screen.getByText(en.apply))
     await screen.findByText('connection lost')
-    // Not stuck in `applying…`: the finally cleared busy, so Apply is live again.
-    expect(screen.getByText(en.apply)).toBeTruthy()
+    await waitFor(() => {
+      expect(screen.getByRole<HTMLButtonElement>('button', { name: en.apply }).disabled).toBe(false)
+    })
+    expect(mutate).toHaveBeenCalledOnce()
+    expect(screen.getByLabelText<HTMLInputElement>(en.baseUrl).value).toBe('https://next')
+
+    fireEvent.click(screen.getByRole('button', { name: en.apply }))
+    await waitFor(() => { expect(mutate).toHaveBeenCalledTimes(2) })
+    expect(await screen.findByText('connection lost')).toBeTruthy()
+    await waitFor(() => {
+      expect(screen.getByRole<HTMLButtonElement>('button', { name: en.apply }).disabled).toBe(false)
+    })
+    expect(mutate.mock.calls[1]).toEqual(mutate.mock.calls[0])
+    expect(screen.getByLabelText<HTMLInputElement>(en.baseUrl).value).toBe('https://next')
   })
 
   it('surfaces a shadowed credential write on the card', async () => {

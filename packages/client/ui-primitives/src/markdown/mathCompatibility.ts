@@ -4,24 +4,12 @@ import { factorySpace } from 'micromark-factory-space'
 import type {} from 'micromark-extension-math'
 import { markdownLineEnding } from 'micromark-util-character'
 import { codes, constants, types } from 'micromark-util-symbol'
-import type { Construct, Extension, Previous, State, Tokenizer } from 'micromark-util-types'
-
-// oxlint-disable typescript/no-this-alias -- micromark binds tokenizer context only on the outer callback.
-
-const previousBackslash: Previous = function (code) {
-  if (code !== codes.backslash) return true
-  const tail = this.events.at(-1)
-  /* v8 ignore next -- a previous code necessarily has a preceding event. */
-  if (tail === undefined) return false
-  return tail[1].type === types.characterEscape
-}
+import type { Construct, Extension, State, Tokenizer } from 'micromark-util-types'
 
 const tokenizeBackslashMathText: Tokenizer = function (effects, ok, nok) {
   return start
 
   function start(code: number | null): State | undefined {
-    /* v8 ignore next -- the text construct is dispatched only for a backslash. */
-    if (code !== codes.backslash) return nok(code)
     effects.enter('mathText')
     effects.enter('mathTextSequence')
     effects.consume(code)
@@ -85,8 +73,6 @@ const tokenizeBackslashMathText: Tokenizer = function (effects, ok, nok) {
     return slash
 
     function slash(code: number | null): State | undefined {
-      /* v8 ignore next -- this partial construct is attempted only at a backslash. */
-      if (code !== codes.backslash) return closeNok(code)
       closeEffects.enter('mathTextSequence')
       closeEffects.consume(code)
       return parenthesis
@@ -104,8 +90,6 @@ const tokenizeBackslashMathText: Tokenizer = function (effects, ok, nok) {
     return slash
 
     function slash(code: number | null): State | undefined {
-      /* v8 ignore next -- the opening check follows a failed close attempt at a backslash. */
-      if (code !== codes.backslash) return openNok(code)
       openEffects.enter(types.chunkString)
       openEffects.consume(code)
       return parenthesis
@@ -122,9 +106,8 @@ const tokenizeBackslashMathText: Tokenizer = function (effects, ok, nok) {
 
 function createMathFlow(marker: number, openMarker: number, closeMarker: number, multiline: boolean): Construct {
   const tokenize: Tokenizer = function (effects, ok, nok) {
-    const self = this
     let oddBackslashRun = false
-    const tail = self.events.at(-1)
+    const tail = this.events.at(-1)
     const initialSize = tail?.[1].type === types.linePrefix
       ? tail[2].sliceSerialize(tail[1], true).length
       : 0
@@ -132,8 +115,6 @@ function createMathFlow(marker: number, openMarker: number, closeMarker: number,
     return start
 
     function start(code: number | null): State | undefined {
-      /* v8 ignore next -- the flow construct is dispatched only for its marker. */
-      if (code !== marker) return nok(code)
       effects.enter('mathFlow')
       effects.enter('mathFlowFence')
       effects.enter('mathFlowFenceSequence')
@@ -260,8 +241,6 @@ function createMathFlow(marker: number, openMarker: number, closeMarker: number,
       return sequenceStart
 
       function sequenceStart(code: number | null): State | undefined {
-        /* v8 ignore next -- the opening check follows a failed close attempt at the marker. */
-        if (code !== marker) return openNok(code)
         openEffects.enter(types.chunkString)
         openEffects.consume(code)
         return sequenceEnd
@@ -284,23 +263,15 @@ function createMathFlow(marker: number, openMarker: number, closeMarker: number,
 }
 
 const tokenizeNonLazyContinuation: Tokenizer = function (effects, ok, nok) {
-  const self = this
+  const lineStart: State = code => this.parser.lazy[this.now().line] ? nok(code) : ok(code)
 
   return start
 
   function start(code: number | null): State | undefined {
-    /* v8 ignore next -- continuation constructs are attempted only after a line ending. */
-    if (code === codes.eof) return ok(code)
-    /* v8 ignore next -- continuation constructs are attempted only after a line ending. */
-    if (!markdownLineEnding(code)) return nok(code)
     effects.enter(types.lineEnding)
     effects.consume(code)
     effects.exit(types.lineEnding)
     return lineStart
-  }
-
-  function lineStart(code: number | null): State | undefined {
-    return self.parser.lazy[self.now().line] ? nok(code) : ok(code)
   }
 }
 
@@ -311,7 +282,6 @@ const nonLazyContinuation: Construct = {
 
 const backslashMathText: Construct = {
   name: 'backslashMathText',
-  previous: previousBackslash,
   tokenize: tokenizeBackslashMathText,
 }
 

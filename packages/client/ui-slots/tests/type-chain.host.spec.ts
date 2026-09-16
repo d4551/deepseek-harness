@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { analyzeTypescriptFile } from '../../../../scripts/typescript-semantics.ts'
 
 const declarations = `
 import { expectTypeOf } from 'vitest'
@@ -174,7 +175,7 @@ const rejectedCalls = [
     'export type NoSessionProvider = typeof sideOnly.SessionProvider'],
 ] satisfies readonly (readonly [string, number, string])[]
 
-function checkConsumer(body: string, expectedStatus: number) {
+function checkConsumer(body: string) {
   const directory = mkdtempSync(join(tmpdir(), 'dsh-slot-types-'))
   const repository = resolve(import.meta.dirname, '../../../..')
   try {
@@ -190,18 +191,7 @@ function checkConsumer(body: string, expectedStatus: number) {
       files: ['consumer.ts'],
     }))
     writeFileSync(sourceFile, `${declarations}\n${body}\n`)
-    const result = spawnSync(process.execPath, [
-      '--import', 'tsx', join(repository, 'scripts/analyze-typescript.ts'), configFile, sourceFile,
-    ], { cwd: repository, encoding: 'utf8', timeout: 20_000, maxBuffer: 4 * 1024 * 1024 })
-    expect(result.error).toBeUndefined()
-    expect(result.signal).toBeNull()
-    expect(result.status, result.stderr).toBe(expectedStatus)
-    expect(result.stderr).toBe('')
-    const report: unknown = JSON.parse(result.stdout)
-    assert.ok(typeof report === 'object' && report !== null
-      && 'diagnostics' in report && Array.isArray(report.diagnostics))
-    const diagnostics: unknown[] = report.diagnostics
-    return { diagnostics, file: sourceFile, bodyStart: declarations.length + 1 }
+    return { ...analyzeTypescriptFile(configFile, sourceFile), bodyStart: declarations.length + 1 }
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }
@@ -209,20 +199,15 @@ function checkConsumer(body: string, expectedStatus: number) {
 
 describe('slot registration type inference', () => {
   it('compiles the complete positive chain against the actual source contracts', () => {
-    expect(checkConsumer(positiveChain, 0).diagnostics).toEqual([])
+    expect(checkConsumer(positiveChain).diagnostics).toEqual([])
   })
 
   it.each(rejectedCalls)('%s', (_obligation, code, source) => {
-    const report = checkConsumer(source, 1)
+    const report = checkConsumer(source)
     expect(report.diagnostics).toHaveLength(1)
     const diagnostic = report.diagnostics[0]
     expect(diagnostic).toMatchObject({ code, category: 1, fileName: report.file })
-    assert.ok(typeof diagnostic === 'object' && diagnostic !== null
-      && 'pos' in diagnostic && typeof diagnostic.pos === 'number'
-      && 'end' in diagnostic && typeof diagnostic.end === 'number')
-    expect(diagnostic.pos).toBeGreaterThanOrEqual(report.bodyStart)
-    expect(diagnostic.end).toBeLessThanOrEqual(report.bodyStart + source.length)
+    expect(diagnostic?.pos).toBeGreaterThanOrEqual(report.bodyStart)
+    expect(diagnostic?.end).toBeLessThanOrEqual(report.bodyStart + source.length)
   })
 })
-import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'

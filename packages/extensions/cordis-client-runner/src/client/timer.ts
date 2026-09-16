@@ -3,17 +3,6 @@
 import { Service } from '@deepseek-ai/cordis'
 import type { Context } from '@deepseek-ai/cordis'
 
-/*
- * The browser Service preserves the vendored Host TimerService's erased callback tuples and arbitrary
- * async-iterator return and rejection values, so narrowing these positions would change the public API.
- */
-/* oxlint-disable typescript/no-explicit-any -- Exact Host TimerService API compatibility; see above. */
-/* oxlint-disable typescript/no-unsafe-argument -- The erased callback tuples pass through unchanged. */
-/* oxlint-disable typescript/no-unsafe-assignment -- The erased callback tuples pass through unchanged. */
-/* oxlint-disable typescript/no-unsafe-member-access -- The returned wrapper retains its dispose property. */
-/* oxlint-disable typescript/no-unsafe-return -- The erased generic return values pass through unchanged. */
-/* oxlint-disable typescript/prefer-promise-reject-errors -- Async iterators preserve arbitrary throw reasons. */
-
 declare module '@deepseek-ai/cordis' {
   interface Context extends Pick<ClientTimerService, 'interval' | 'timeout' | 'throttle' | 'debounce' | 'setTimeout' | 'setInterval'> {
     /** Browser timer Service used by the mixed-in Context helpers. */
@@ -21,12 +10,15 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-type WithDispose<T> = T & { dispose: () => void }
+type TimerArguments = [delay: number] | [callback: () => void, delay: number]
 
-// These `any` positions mirror the Host TimerService's overload erasure: generic callback tuples and async-iterator
-// return/rejection values must pass through without narrowing them to one caller's invocation.
+/** Cancel pending timer work; await the result to observe completion of owned cleanup. */
+export type TimerDisposer = () => void | Promise<void>
 
-/** Browser timer Service with the same public API as the Host Cordis TimerService. */
+/** Schedule callback arguments without returning its result; dispose cancels pending work. */
+export type Scheduled<Args extends unknown[]> = ((...args: Args) => void) & { dispose: TimerDisposer }
+
+/** Browser timer Service whose pending work belongs to the calling Fiber. */
 export class ClientTimerService extends Service {
   /** Register the Service and mix its lifecycle-safe helpers onto Context. */
   constructor(ctx: Context) {
@@ -41,7 +33,7 @@ export class ClientTimerService extends Service {
    * @returns Disposer that cancels the pending callback early.
    * @deprecated Use `ctx.timeout()` instead.
    */
-  setTimeout(callback: () => void, delay: number): () => void {
+  setTimeout(callback: () => void, delay: number): TimerDisposer {
     return this.timeout(callback, delay)
   }
 
@@ -52,7 +44,7 @@ export class ClientTimerService extends Service {
    * @returns Disposer that stops the interval early.
    * @deprecated Use `ctx.interval()` instead.
    */
-  setInterval(callback: () => void, delay: number): () => void {
+  setInterval(callback: () => void, delay: number): TimerDisposer {
     return this.interval(callback, delay)
   }
 
@@ -62,17 +54,16 @@ export class ClientTimerService extends Service {
    * @param delay - delay in milliseconds.
    * @returns disposer that cancels the callback.
    */
-  timeout(callback: () => void, delay: number): () => void
+  timeout(callback: () => void, delay: number): TimerDisposer
   /**
    * Wait for a delay.
    * @param delay - delay in milliseconds.
-   * @returns promise resolved after the delay.
+   * @returns promise resolved after the delay; rejects if the calling Fiber is disposed first.
    */
   timeout(delay: number): Promise<void>
-  timeout(...args: any[]): any {
-    const callback = typeof args[0] === 'function' ? args.shift() as () => void : undefined
-    const delay = args[0] as number
-    if (callback !== undefined) {
+  timeout(...args: TimerArguments): TimerDisposer | Promise<void> {
+    if (args.length === 2) {
+      const [callback, delay] = args
       const dispose = this.ctx.effect(() => {
         const timer = globalThis.setTimeout(() => {
           Promise.resolve(dispose()).then(undefined, console.error)
@@ -83,6 +74,7 @@ export class ClientTimerService extends Service {
       return dispose
     }
 
+    const [delay] = args
     const { promise, resolve, reject } = Promise.withResolvers<void>()
     const dispose = this.ctx.effect(() => {
       const timer = globalThis.setTimeout(resolve, delay)
@@ -91,7 +83,12 @@ export class ClientTimerService extends Service {
         reject(new Error('Context has been disposed'))
       }
     }, 'ctx.timeout()')
-    return promise.finally(() => { Promise.resolve(dispose()).then(undefined, console.error) })
+    return promise.then(async () => {
+      await dispose()
+    }, async (reason: unknown) => {
+      await dispose()
+      throw reason
+    })
   }
 
   /**
@@ -100,25 +97,27 @@ export class ClientTimerService extends Service {
    * @param delay - interval in milliseconds.
    * @returns disposer that stops the interval.
    */
-  interval(callback: () => void, delay: number): () => void
+  interval(callback: () => void, delay: number): TimerDisposer
   /**
    * Iterate over timer ticks.
    * @param delay - interval in milliseconds.
-   * @returns async iterator of ticks.
+   * @returns async iterator of ticks. Its `throw()` keeps an Error's identity;
+   * an omitted reason becomes an Error, and other values become a TypeError with the original cause.
+   * Disposing the calling Fiber rejects pending and subsequent `next()` calls.
    */
-  interval<R = any>(delay: number): AsyncIterableIterator<void, R, void>
-  interval(...args: any[]): any {
-    const callback = typeof args[0] === 'function' ? args.shift() as () => void : undefined
-    const delay = args[0] as number
-    if (callback !== undefined) {
+  interval<R = unknown>(delay: number): AsyncIterableIterator<void, R, void>
+  interval(...args: TimerArguments): TimerDisposer | AsyncIterableIterator<void, unknown, void> {
+    if (args.length === 2) {
+      const [callback, delay] = args
       return this.ctx.effect(() => {
         const timer = globalThis.setInterval(callback, delay)
         return () => { globalThis.clearInterval(timer) }
       }, 'ctx.interval()')
     }
 
-    let done: { kind: 'return'; value: any } | { kind: 'throw'; reason: any } | undefined
-    let nextTask: PromiseWithResolvers<IteratorResult<void>> | undefined
+    const [delay] = args
+    let done: { kind: 'return'; value: unknown } | { kind: 'throw'; reason: Error } | undefined
+    let nextTask: PromiseWithResolvers<IteratorResult<void, unknown>> | undefined
     const dispose = this.ctx.effect(() => {
       const timer = globalThis.setInterval(() => {
         nextTask?.resolve({ done: false, value: undefined })
@@ -132,17 +131,18 @@ export class ClientTimerService extends Service {
     }, 'ctx.interval()')
     return {
       next: () => {
-        if (done === undefined) return (nextTask = Promise.withResolvers()).promise
+        if (done === undefined) return (nextTask = Promise.withResolvers<IteratorResult<void, unknown>>()).promise
         if (done.kind === 'return') return Promise.resolve({ done: true, value: done.value })
         return Promise.reject(done.reason)
       },
-      return: async (value: any) => {
+      return: async (value: unknown) => {
         if (done === undefined) done = { kind: 'return', value }
         nextTask?.resolve({ done: true, value })
         await dispose()
         return { done: true, value }
       },
-      throw: async (reason: any) => {
+      throw: async (input: unknown = new Error('Timer iteration interrupted')) => {
+        const reason = input instanceof Error ? input : new TypeError('Timer iterator throw() requires an Error', { cause: input })
         if (done === undefined) done = { kind: 'throw', reason }
         nextTask?.reject(reason)
         await dispose()
@@ -151,41 +151,44 @@ export class ClientTimerService extends Service {
       [Symbol.asyncIterator]() {
         return this
       },
-    } satisfies AsyncIterableIterator<void>
+    } satisfies AsyncIterableIterator<void, unknown, void>
   }
 
   /** Build a delayed wrapper whose pending callback belongs to the calling Fiber. */
-  private schedule(label: string, trigger: (args: any[], disposed: boolean) => number | undefined, disposed = false): any {
-    let timer: number | undefined
+  private schedule<Args extends unknown[]>(
+    label: string,
+    trigger: (args: Args, disposed: boolean) => ReturnType<typeof globalThis.setTimeout> | undefined,
+    disposed = false,
+  ): Scheduled<Args> {
+    let timer: ReturnType<typeof globalThis.setTimeout> | undefined
     const dispose = this.ctx.effect(() => () => {
       disposed = true
       globalThis.clearTimeout(timer)
     }, label)
-    const wrapper: any = (...args: any[]): void => {
+    const scheduled = (...args: Args): void => {
       globalThis.clearTimeout(timer)
       timer = trigger(args, disposed)
     }
-    wrapper.dispose = dispose
-    return wrapper
+    return Object.assign(scheduled, { dispose })
   }
 
   /**
    * Return a throttled function whose timer is disposed with the calling Fiber.
    * @param callback - Function to throttle.
    * @param delay - Minimum interval between calls in milliseconds.
-   * @param noTrailing - Whether to suppress a delayed trailing call.
+   * @param noTrailing - Whether to omit a delayed trailing call.
    * @returns Throttled function with an early disposer.
    */
-  throttle<F extends (...args: any[]) => void>(callback: F, delay: number, noTrailing?: boolean): WithDispose<F> {
+  throttle<Args extends unknown[]>(callback: (...args: Args) => void, delay: number, noTrailing?: boolean): Scheduled<Args> {
     let lastCall = -Infinity
-    const execute = (...args: Parameters<F>): void => {
+    const execute = (...args: Args): void => {
       lastCall = Date.now()
       callback(...args)
     }
-    return this.schedule('ctx.throttle()', (args, disposed) => {
+    return this.schedule<Args>('ctx.throttle()', (args, disposed) => {
       const remaining = delay - Date.now() + lastCall
       if (remaining <= 0) {
-        execute(...args as Parameters<F>)
+        execute(...args)
       } else if (!disposed) {
         return globalThis.setTimeout(execute, remaining, ...args)
       }
@@ -198,8 +201,8 @@ export class ClientTimerService extends Service {
    * @param delay - Quiet period in milliseconds.
    * @returns Debounced function with an early disposer.
    */
-  debounce<F extends (...args: any[]) => void>(callback: F, delay: number): WithDispose<F> {
-    return this.schedule('ctx.debounce()', (args, disposed) => {
+  debounce<Args extends unknown[]>(callback: (...args: Args) => void, delay: number): Scheduled<Args> {
+    return this.schedule<Args>('ctx.debounce()', (args, disposed) => {
       if (disposed) return
       return globalThis.setTimeout(callback, delay, ...args)
     })

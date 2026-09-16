@@ -254,7 +254,7 @@ describe('document validation', () => {
       /record "llm-pi-ai\/codex" .* must be a mapping/],
     ['a record with no kind', 'version: 1\nrecords:\n  llm-pi-ai/codex:\n    payload: 1\n', /has no kind/],
     ['a record with an unknown kind', 'version: 1\nrecords:\n  llm-pi-ai/codex:\n    kind: token\n',
-      /unknown kind "token"/],
+      /unknown kind; expected api-key or grant/],
     ['a record with an unknown field', 'version: 1\nrecords:\n  llm-pi-ai/codex:\n    kind: grant\n'
       + '    payload: 1\n    extra: 2\n', /unknown field "extra"/],
     ['a grant with no payload', 'version: 1\nrecords:\n  llm-pi-ai/codex:\n    kind: grant\n', /has no payload/],
@@ -288,17 +288,13 @@ describe('document validation', () => {
     // this document is the secret itself. Boot stderr and the watcher's logger
     // both receive whatever this throws.
     await writeCredentials(path, `DSH_CRED_TEST: "${secret}\n`)
-    let failure: unknown
-    try {
-      await new Context().plugin(LocalCredentialProvider, { path, watch: false })
-    } catch (error) {
-      failure = error
-    }
-    expect(String(failure)).toMatch(/invalid document/)
-    // The position survives; the line's contents do not.
-    expect(String(failure)).toMatch(/line 2, column 1/)
-    expect(String(failure)).not.toContain(secret)
-    expect((failure as Error).stack ?? '').not.toContain(secret)
+    const ctx = new Context()
+    const fiber = ctx.plugin(LocalCredentialProvider, { path, watch: false })
+    cleanups.push(async () => { await fiber.dispose() })
+    await expect(fiber).rejects.toThrow(/invalid document/)
+    await expect(fiber).rejects.toThrow(/line 2, column 1/)
+    await expect(fiber).rejects.toHaveProperty('message', expect.not.stringContaining(secret))
+    await expect(fiber).rejects.toHaveProperty('stack', expect.not.stringContaining(secret))
   })
 
   it('reads an empty document as an empty store', async () => {

@@ -10,6 +10,7 @@
 import { existsSync, globSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve, sep } from 'node:path'
 import type { Expression, ModuleBlock, Node, SourceFile } from 'typescript/unstable/ast'
+import type { API } from 'typescript/unstable/sync'
 import { SyntaxKind } from 'typescript/unstable/ast'
 import {
   isCallExpression,
@@ -31,12 +32,6 @@ import { parsePaths } from './ts7-session.ts'
 
 /** The module whose `SlotMap` / standard-kit interfaces every slot owner merges into. */
 const SLOTS_MODULE = '@deepseek-ai/dsh-client-ui-slots'
-
-/** Cheap textual prefilter for a slot-contract merge, quote-style agnostic. */
-const MERGE_HEAD = /declare module ['"]@deepseek-ai\/dsh-client-ui-slots['"]/
-
-/** Cheap textual prefilter for a registration call site. */
-const REGISTER_HEAD = /\.register\(/
 
 /** One `SlotMap` member: the slot's contract as its owning package declares it. */
 export interface SlotDeclaration {
@@ -101,25 +96,18 @@ export interface ScannedFile {
 }
 
 /**
- * Parse every file matching `patterns`, keeping the ones that carry a slot
- * contract merge or a registration call. Files without either are skipped so
- * the scan stays cheap over the whole workspace.
+ * Parse every file matching `patterns` for slot and exported-type discovery.
  * @param scanRoot - repository root the patterns resolve against.
  * @param patterns - glob(s) selecting the TypeScript/TSX files to scan.
- * @returns one entry per interesting file, in path order.
+ * @param session - compiler owned by the caller until all AST consumers finish.
+ * @returns one entry per source file, in path order.
  */
-export function scanSlotFiles(scanRoot: string, patterns: readonly string[]): ScannedFile[] {
+export function scanSlotFiles(scanRoot: string, patterns: readonly string[], session: API): ScannedFile[] {
   const names = new Map<string, string>()
-  const selected: { rel: string; abs: string }[] = []
   const rels = [...new Set(patterns.flatMap(pattern => globSync(pattern, { cwd: scanRoot }))
     .map(path => path.split(sep).join('/')))].sort()
-  for (const rel of rels) {
-    const abs = resolve(scanRoot, rel)
-    const text = readFileSync(abs, 'utf8')
-    if (!MERGE_HEAD.test(text) && !REGISTER_HEAD.test(text)) continue
-    selected.push({ rel, abs })
-  }
-  const parsed = parsePaths(selected.map(entry => entry.abs))
+  const selected = rels.map(rel => ({ rel, abs: resolve(scanRoot, rel) }))
+  const parsed = parsePaths(selected.map(entry => entry.abs), session)
   return selected.map((entry) => {
     const sf = parsed.get(entry.abs)
     if (sf === undefined) throw new Error(`ts7: missing source file ${entry.abs}`)
@@ -136,22 +124,13 @@ export function scanSlotFiles(scanRoot: string, patterns: readonly string[]): Sc
  * The catalog resolves owner-props and inject-face shapes through this index
  * instead of a type-checker program: the declaration text with its member
  * documentation IS the teaching material a registrant needs.
- * @param scanRoot - repository root the patterns resolve against.
- * @param patterns - glob(s) selecting the TypeScript/TSX files to index.
+ * @param files - complete parsed source corpus shared with slot discovery.
  * @returns name → declaration, with names declared more than once dropped as ambiguous.
  */
-export function indexExportedTypes(scanRoot: string, patterns: readonly string[]): Map<string, TypeDeclaration> {
+export function indexExportedTypes(files: readonly ScannedFile[]): Map<string, TypeDeclaration> {
   const index = new Map<string, TypeDeclaration>()
   const ambiguous = new Set<string>()
-  const rels = [...new Set(patterns.flatMap(pattern => globSync(pattern, { cwd: scanRoot }))
-    .map(path => path.split(sep).join('/')))].sort()
-  const absByRel = new Map(rels.map(rel => [rel, resolve(scanRoot, rel)]))
-  const parsed = parsePaths([...absByRel.values()])
-  for (const rel of rels) {
-    const abs = absByRel.get(rel)
-    if (abs === undefined) continue
-    const sf = parsed.get(abs)
-    if (sf === undefined) throw new Error(`ts7: missing source file ${abs}`)
+  for (const { rel, sf } of files) {
     for (const statement of sf.statements) {
       if (!isInterfaceDeclaration(statement) && !isTypeAliasDeclaration(statement)) continue
       if (!statement.modifiers?.some(modifier => modifier.kind === SyntaxKind.ExportKeyword)) continue
@@ -224,7 +203,7 @@ export function slotRegistrations(file: ScannedFile): SlotRegistration[] {
     if (isCallExpression(node)
       && isPropertyAccessExpression(node.expression)
       && node.expression.name.text === 'register'
-      && isSlotsReceiver(node.expression.expression, file.sf)
+      && isSlotsReceiver(node.expression.expression)
       && node.arguments.length >= 1) {
       const options = node.arguments[0]
       if (options !== undefined && isObjectLiteralExpression(options)) {
@@ -329,9 +308,9 @@ function slotModuleBodies(sf: SourceFile): ModuleBlock[] {
  * takes an options object with a `name`, so the receiver is what separates a
  * slot occupancy fact from an unrelated registration.
  */
-function isSlotsReceiver(receiver: Expression, sf: SourceFile): boolean {
-  const text = receiver.getText(sf)
-  return text === 'slots' || text.endsWith('.slots')
+function isSlotsReceiver(receiver: Expression): boolean {
+  return (isIdentifier(receiver) && receiver.text === 'slots')
+    || (isPropertyAccessExpression(receiver) && receiver.name.text === 'slots')
 }
 
 /** The workspace package name owning a repo-relative file, memoized per package root. */

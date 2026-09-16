@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import type { FC } from 'react'
 import type { SlotComponent, StoreHandle } from '@deepseek-ai/dsh-client-ui-slots'
 import { SlotCore } from '@deepseek-ai/dsh-client-ui-slots'
@@ -138,9 +138,9 @@ describe('kind semantics', () => {
     mountFrame(core)
     core.register({ name: 'test.keyed', key: 'a' }, Comp)
     expect(() => core.register({ name: 'test.keyed', key: 'a' }, Comp)).toThrow('key "a"')
-    // Statically rejected (KindOptions); runtime guard stays for dynamic callers.
-    // @ts-expect-error keyed registration requires options.key
-    expect(() => core.register({ name: 'test.keyed' }, Comp)).toThrow('requires options.key')
+    expectTypeOf<{ name: 'test.keyed' }>().not.toExtend<Parameters<typeof core.register<'test.keyed'>>[0]>()
+    expect(() => { Reflect.apply(core.register.bind(core), undefined, [{ name: 'test.keyed' }, Comp]) })
+      .toThrow('requires options.key')
     expect(() => core.register({ name: 'test.keyed', key: 'b' }, Comp)).not.toThrow()
   })
 
@@ -151,17 +151,18 @@ describe('kind semantics', () => {
     core.register({ name: 'test.list', id: 'a' }, Comp)
     core.register({ name: 'test.list', id: 'b' }, Comp)
     expect(() => core.register({ name: 'test.list', id: 'a' }, Comp)).toThrow('id "a"')
-    // @ts-expect-error list registration requires options.id
-    expect(() => core.register({ name: 'test.list' }, Comp)).toThrow('requires options.id')
+    expectTypeOf<{ name: 'test.list' }>().not.toExtend<Parameters<typeof core.register<'test.list'>>[0]>()
+    expect(() => { Reflect.apply(core.register.bind(core), undefined, [{ name: 'test.list' }, Comp]) })
+      .toThrow('requires options.id')
     expect(core.entries('test.list').map(e => e.options.id)).toEqual(['a', 'b', 'c'])
   })
 
   it('chain: missing select throws; select and priority land on the stored entry', () => {
     const core = new SlotCore()
     mountFrame(core)
-    // Statically rejected (KindOptions); runtime guard stays for dynamic callers.
-    // @ts-expect-error chain registration requires options.select
-    expect(() => core.register({ name: 'test.chain' }, Comp)).toThrow('requires options.select')
+    expectTypeOf<{ name: 'test.chain' }>().not.toExtend<Parameters<typeof core.register<'test.chain'>>[0]>()
+    expect(() => { Reflect.apply(core.register.bind(core), undefined, [{ name: 'test.chain' }, Comp]) })
+      .toThrow('requires options.select')
     const select = ({ tags }: { tags: string[] }) => tags[0] ?? null
     core.register({ name: 'test.chain', select, priority: 5 }, Comp as never)
     const entry = core.entries('test.chain')[0]!
@@ -306,22 +307,16 @@ describe('subscription API', () => {
 
   it('commits sibling declarations before notifying declaration subscribers', () => {
     const core = new SlotCore()
-    let duplicateDeclaration: unknown
     const unsubscribe = core.subscribeDeclaration('test.single', () => {
       core.register({ name: 'test.list', id: 'from-listener' }, Comp)
-      try {
-        core.register({
-          name: 'test.single',
-          children: { 'test.list': { kind: 'list', scope: 'root' } },
-        }, Comp as never)
-      } catch (error) {
-        duplicateDeclaration = error
-      }
+      expect(() => core.register({
+        name: 'test.single',
+        children: { 'test.list': { kind: 'list', scope: 'root' } },
+      }, Comp as never)).toThrow('already declared')
     })
 
     const disposeFrame = mountFrame(core)
     expect(core.entries('test.list')).toHaveLength(1)
-    expect(String(duplicateDeclaration)).toContain('already declared')
     unsubscribe()
     disposeFrame()
     expect(core.specDynamic('test.list')).toBeUndefined()

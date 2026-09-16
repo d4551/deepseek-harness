@@ -34,10 +34,12 @@ type Script = ConstructorParameters<typeof MockAdapter>[0]
 
 const roots: string[] = []
 const projCacheRoots: string[] = []
+const contexts: Context[] = []
 
-afterEach(() => {
+afterEach(async () => {
+  for (const ctx of contexts.splice(0).reverse()) await ctx.fiber.dispose()
   for (const root of projCacheRoots.splice(0)) rmSync(root, { recursive: true, force: true })
-  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
 
 /** Boot the continuable stack with real JSONL session persistence. */
@@ -46,6 +48,7 @@ async function setup(
   options: { sessionProjections?: boolean; projectionCache?: boolean } = {},
 ) {
   const ctx = new Context()
+  contexts.push(ctx)
   await mountAgentLoopTestDependencies(ctx)
   const root = mkdtempSync(join(tmpdir(), 'dsh-subagent-list-'))
   roots.push(root)
@@ -166,6 +169,7 @@ const hostileProjectionDefinition = {
 describe('SubagentRuntime.listChildren', () => {
   it('lists live children without persistence or the continuation runtime', async () => {
     const ctx = new Context()
+    contexts.push(ctx)
     await ctx.plugin(SessionStore)
     await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(TestSessionQuery)
@@ -202,6 +206,7 @@ describe('SubagentRuntime.listChildren', () => {
 
   it('fails loud when the session store is not mounted', async () => {
     const ctx = new Context()
+    contexts.push(ctx)
     await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(SubagentRuntime)
     await expect(ctx.subagents.listChildren(SessionId('no-store-parent'))).rejects.toThrow(
@@ -211,6 +216,7 @@ describe('SubagentRuntime.listChildren', () => {
 
   it('fails loud when the Session query service is not mounted', async () => {
     const ctx = new Context()
+    contexts.push(ctx)
     await ctx.plugin(SessionStore)
     await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(SubagentRuntime)
@@ -1065,9 +1071,9 @@ describe('SubagentRuntime.listChildren', () => {
 
   it('SubagentError from listChildren is typed with its stable code', async () => {
     const { ctx, parent } = await setup([], { sessionProjections: false })
-    const caught: unknown = await ctx.subagents.listChildren(parent.id).catch((error: unknown) => error)
-    expect(caught).toBeInstanceOf(SubagentError)
-    expect((caught as SubagentError).code).toBe('SUBAGENT_CONTROL_PROJECTIONS_UNAVAILABLE')
+    const listing = ctx.subagents.listChildren(parent.id)
+    await expect(listing).rejects.toBeInstanceOf(SubagentError)
+    await expect(listing).rejects.toMatchObject({ code: 'SUBAGENT_CONTROL_PROJECTIONS_UNAVAILABLE' })
   })
 })
 

@@ -40,7 +40,7 @@ import z from '@deepseek-ai/schemastery'
 import { mkdir, readFile, stat } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { isDeepStrictEqual } from 'node:util'
-import { Document, isMap, isScalar, parseDocument, type YAMLError } from 'yaml'
+import { isMap, isScalar, LineCounter, parseDocument, type YAMLError } from 'yaml'
 import { withFileLock, writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { DocumentQueue, DocumentQueueConfigFields, isENOENT, readDocumentText, resolveDocumentSpec, type DocumentSpec } from '@deepseek-ai/dsh-document-queue'
 import { canonicalizeWatchPath } from '@deepseek-ai/dsh-home-paths'
@@ -57,6 +57,7 @@ import type {
   ResolvedCredential,
 } from '@deepseek-ai/dsh-credentials'
 import type { LaunchEnvironmentEntry } from '@deepseek-ai/dsh-launch-environment'
+import { renderCredentialEdit } from './document-edit.ts'
 
 /** Basename of the credentials document inside the harness home. */
 export const CREDENTIALS_FILENAME = '.credentials.yaml'
@@ -125,7 +126,6 @@ async function assertOwnerOnly(filename: string): Promise<void> {
     await canonicalizeWatchPath(filename)
     return
   }
-  /* v8 ignore next 2 -- native Windows coverage takes this arm; POSIX coverage takes the peer below. */
   if (process.platform === 'win32') return assertWindowsOwnerOnly(filename)
   const offending = mode & GROUP_OTHER_BITS
   if (offending === 0) return
@@ -142,7 +142,6 @@ async function assertOwnerOnly(filename: string): Promise<void> {
  * @param filename - absolute path of the document.
  * @throws when the document has no DACL, or grants read access beyond its owner.
  */
-/* v8 ignore start -- runs only on win32; the win32-only credentials suite proves it there. */
 async function assertWindowsOwnerOnly(filename: string): Promise<void> {
   const { FILE_READ_ACCESS, auditPathAccessWin32, describeWin32Exposure } = await import('@deepseek-ai/dsh-win32-process/file-security')
   const exposure = describeWin32Exposure(auditPathAccessWin32(filename, FILE_READ_ACCESS))
@@ -152,19 +151,17 @@ async function assertWindowsOwnerOnly(filename: string): Promise<void> {
     + ` run "icacls ${JSON.stringify(filename)} /inheritance:r /grant:r "%USERNAME%":F" before starting again`,
   )
 }
-/* v8 ignore stop */
 
 /**
  * Describe one YAML parse failure without quoting the source. The parser's own
  * message embeds the offending line, which here holds a secret.
  * @param error - the parser's error.
+ * @param counter - source positions recorded during parsing.
  * @returns the error code with its line and column.
  */
-function describeYamlError(error: YAMLError): string {
-  const at = error.linePos?.[0]
-  /* v8 ignore next -- `prettyErrors` populates linePos on every error; the guard answers its optional type */
-  const where = at === undefined ? '' : ` at line ${String(at.line)}, column ${String(at.col)}`
-  return `${error.code}${where}`
+function describeYamlError(error: YAMLError, counter: LineCounter): string {
+  const at = counter.linePos(error.pos[0])
+  return `${error.code} at line ${String(at.line)}, column ${String(at.col)}`
 }
 
 /** The document layout this build reads and writes. */
@@ -190,15 +187,12 @@ export interface CredentialsDocument {
  * @returns the parsed references and records.
  */
 export function parseCredentialsDocument(text: string, filename: string): CredentialsDocument {
-  // `prettyErrors` is on only for `linePos`; `error.message` is never used,
-  // because the parser quotes the offending source line and in this document
-  // that line is a secret. Only the code and position leave this function, and
-  // the same rule governs every other diagnostic here — a key name is safe to
-  // print, a value is not.
-  const document = parseDocument(text, { prettyErrors: true, uniqueKeys: true })
+  // Source excerpts and parser messages can contain credential values.
+  const lineCounter = new LineCounter()
+  const document = parseDocument(text, { lineCounter, prettyErrors: false, uniqueKeys: true })
   if (document.errors.length > 0) {
     throw new Error(`credentials-local: invalid document at ${filename}: ${
-      document.errors.map(describeYamlError).join('; ')}`)
+      document.errors.map(error => describeYamlError(error, lineCounter)).join('; ')}`)
   }
   const root: unknown = document.toJS() ?? {}
   if (typeof root !== 'object' || root === null || Array.isArray(root)) {
@@ -218,7 +212,7 @@ export function parseCredentialsDocument(text: string, filename: string): Creden
   }
   if (fields['version'] !== DOCUMENT_VERSION) {
     throw new Error(
-      `credentials-local: ${filename} declares version ${JSON.stringify(fields['version'])};`
+      `credentials-local: ${filename} declares an unsupported version;`
       + ` this build reads version ${DOCUMENT_VERSION}`,
     )
   }
@@ -358,7 +352,7 @@ function parseRecord(key: string, value: unknown, filename: string): CredentialR
     return { kind: 'grant', payload: fields['payload'] }
   }
   if (kind === undefined) throw new Error(`credentials-local: record "${key}" in ${filename} has no kind`)
-  throw new Error(`credentials-local: record "${key}" in ${filename} has unknown kind ${JSON.stringify(kind)}`)
+  throw new Error(`credentials-local: record "${key}" in ${filename} has an unknown kind; expected api-key or grant`)
 }
 
 /** Reject a field the tag does not define, so a typo is not silently dropped. */
@@ -417,80 +411,6 @@ function assertJsonValue(where: string, value: unknown, seen: Set<object>): void
     }
   }
   throw new TypeError(`credentials-local: ${where} holds a value JSON cannot represent`)
-}
-
-/**
- * The comment-preserving mutable tree one edit renders from. Editing the
- * parsed document rather than rebuilding it keeps comments and the formatting
- * of every untouched entry; an absent document starts a fresh one.
- * @param text - the current document text, `undefined` while the file is absent.
- * @returns the tree to edit, carrying this build's version stamp.
- */
-function mutableDocument(text: string | undefined): Document {
-  // `text` only ever caches content that parsed successfully, so this re-parse
-  // for the mutable comment-preserving tree cannot fail.
-  const document = text === undefined ? new Document({}) : parseDocument(text)
-  // Stamped on every edit so a document this provider creates is readable by
-  // the same parser that admitted the one it edits; an existing stamp is
-  // rewritten to the identical value.
-  document.setIn(['version'], DOCUMENT_VERSION)
-  return document
-}
-
-/**
- * Render the next document text with one reference set or deleted.
- * @param text - the current document text, `undefined` while the file is absent.
- * @param ref - the reference to write.
- * @param value - the new value, or `undefined` to delete the key.
- * @returns the text to persist.
- */
-function renderRef(text: string | undefined, ref: CredentialRef, value: string | undefined): string {
-  const document = mutableDocument(text)
-  if (value === undefined) deleteSectionEntry(document, 'refs', ref)
-  else document.setIn(['refs', ref], value)
-  return document.toString()
-}
-
-/**
- * Render the next document text with one record written or deleted. The record
- * node is replaced wholesale rather than edited field by field: records are
- * machine-written, so there is no hand formatting inside one to preserve.
- * @param text - the current document text, `undefined` while the file is absent.
- * @param key - the record to write.
- * @param record - the new record, or `undefined` to delete it.
- * @returns the text to persist.
- */
-function renderRecord(text: string | undefined, key: CredentialKey, record: CredentialRecord | undefined): string {
-  const document = mutableDocument(text)
-  if (record === undefined) deleteSectionEntry(document, 'records', key)
-  else document.setIn(['records', key], record)
-  return document.toString()
-}
-
-/**
- * Remove one entry from a section, taking its annotation with it. A comment
- * block written above a section's first entry annotates that entry, but the
- * parser attaches it to the section's map rather than to the pair — leaving it
- * behind would move it onto whichever entry became first, which reads as an
- * annotation of a credential nobody wrote it for.
- * @param document - the mutable tree being edited.
- * @param section - the section holding the entry.
- * @param key - the entry to remove.
- */
-function deleteSectionEntry(document: Document, section: 'refs' | 'records', key: string): void {
-  const map: unknown = document.get(section, true)
-  /* v8 ignore next -- both callers render a delete only for an entry they just
-     found in the parsed snapshot, so the section it lives in is always a map;
-     the guard is what narrows `get`'s `unknown`. */
-  if (isMap(map)) {
-    const first = map.items[0]
-    /* v8 ignore next -- a map that holds the entry has a first item, and the
-       parser admits only scalar keys, so only the identity test can be false. */
-    if (first !== undefined && isScalar(first.key) && first.key.value === key) {
-      map.commentBefore = null
-    }
-  }
-  document.deleteIn([section, key])
 }
 
 /** File-backed credentials provider (`$DSH_HOME/.credentials.yaml`). */
@@ -637,7 +557,7 @@ export class LocalCredentialProvider extends CredentialProvider {
         // next boot rejects, and a value refused here has not been stored.
         if (next.kind === 'grant') assertJsonValue(`record "${key}" payload`, next.payload, new Set())
         else assertStorableApiKey(key, next)
-        const nextText = renderRecord(this.text, key, next)
+        const nextText = renderCredentialEdit(this.text, 'records', key, next, DOCUMENT_VERSION)
         // 0600: a document holding secrets is never world-readable.
         await writeFileAtomic(this.spec.filename, nextText, { mode: 0o600, dirMode: 0o700 })
         this.text = nextText
@@ -659,7 +579,7 @@ export class LocalCredentialProvider extends CredentialProvider {
       await withFileLock(this.spec.filename, async () => {
         await this.reconcileFromDisk()
         if (!this.records.has(key)) return
-        const nextText = renderRecord(this.text, key, undefined)
+        const nextText = renderCredentialEdit(this.text, 'records', key, undefined, DOCUMENT_VERSION)
         await writeFileAtomic(this.spec.filename, nextText, { mode: 0o600, dirMode: 0o700 })
         this.text = nextText
         this.records.delete(key)
@@ -692,7 +612,7 @@ export class LocalCredentialProvider extends CredentialProvider {
         await this.reconcileFromDisk()
         const existing = this.values.get(ref)
         if (value === undefined && existing === undefined) return
-        const nextText = renderRef(this.text, ref, value)
+        const nextText = renderCredentialEdit(this.text, 'refs', ref, value, DOCUMENT_VERSION)
         // 0600: a document holding secrets is never world-readable.
         await writeFileAtomic(this.spec.filename, nextText, { mode: 0o600, dirMode: 0o700 })
         this.text = nextText
@@ -754,11 +674,6 @@ export class LocalCredentialProvider extends CredentialProvider {
     return withFileLock(this.spec.filename, async () => {
       const current = await readFile(this.spec.filename, 'utf8')
       const migrated = renderFlatLayoutMigration(current)
-      /* v8 ignore next 2 -- the losing side of the cross-process migration race:
-         another boot rewrote the document between the unlocked recognize and
-         this lock. That interleaving cannot be scheduled deterministically
-         through a whole boot (migration.spec drives it best-effort); the
-         decision itself is the recognizer's covered versioned-document decline. */
       if (migrated === undefined) return current
       // 0600: a document holding secrets is never world-readable.
       await writeFileAtomic(this.spec.filename, migrated, { mode: 0o600, dirMode: 0o700 })

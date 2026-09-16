@@ -72,6 +72,38 @@ describe('scanSuppressions', () => {
     expect(scan('const output = `${(() => { try { run() } catch { return 0 } })()}`')[0]?.kind).toBe('catch-clause')
   })
 
+  it.each([
+    'task.catch((error: unknown) => report(error))',
+    'task["catch"](report)',
+    'task[`catch`](report)',
+    'task?.catch(report)',
+    'task.catch?.(report)',
+    'task?.["catch"]?.(report)',
+    'const reject = task.catch.bind(task)',
+    'const reject = task["catch"]',
+  ])('rejects catch-handler access %s', (content) => {
+    const findings = scan(content)
+    expect(findings).toHaveLength(1)
+    expect(findings[0]).toMatchObject({
+      file: 'packages/x/y/src/index.ts', line: 1, kind: 'catch-handler',
+    })
+  })
+
+  it('does not mistake unrelated property access or catch-handler text for handler access', () => {
+    expect(scan([
+      'const name = "status"',
+      'const described = "task.catch(report)"',
+      'const pattern = /\\.catch\\(/',
+      'const value = object[name]',
+    ].join('\n'))).toEqual([])
+  })
+
+  it('reports the handler property line across a multiline chain', () => {
+    expect(scan('task\n  .catch(report)')).toEqual([
+      { file: 'packages/x/y/src/index.ts', line: 2, kind: 'catch-handler', text: 'catch(report)' },
+    ])
+  })
+
   it('accepts supported JSX, declarations, decorators and CommonJS syntax', () => {
     expect(scan('export const view = <p title="@ts-ignore">catch {"{}"}</p>', 'source.tsx')).toEqual([])
     expect(scan('export declare const value: string', 'source.d.ts')).toEqual([])
@@ -146,7 +178,7 @@ describe('loadSuppressionCorpus', () => {
 })
 
 describe('live authored source', () => {
-  it('contains no diagnostic directives or catch clauses', () => {
+  it('contains no diagnostic directives, catch clauses or catch-handler access', () => {
     const corpus = loadSuppressionCorpus()
     expect(corpus.length).toBeGreaterThan(3000)
     expect(scanSuppressions(corpus)).toEqual([])

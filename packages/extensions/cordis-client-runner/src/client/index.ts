@@ -49,6 +49,7 @@ export type { DynamicCordisClosureEnv, DynamicCordisEvaluatedPlugin } from './ev
 export { dynamicCordisContext } from './guard.ts'
 export type { DynamicCordisGuardEnv, DynamicCordisSlotLedgerRow } from './guard.ts'
 export { ClientTimerService } from './timer.ts'
+export type { Scheduled, TimerDisposer } from './timer.ts'
 // Re-exported so consumers of the service face and the two events can name
 // their subjects without reaching into the wire contract themselves.
 export type {

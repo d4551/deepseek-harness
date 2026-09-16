@@ -46,8 +46,6 @@ export interface ResumeAcpSessionOptions extends AcpSessionBuildOptions {
 }
 
 interface InflightPrompt {
-  resolve: (reason: StopReason) => void
-  reject: (error: Error) => void
   messageId: string | undefined
   messageQueued: boolean
   turn: number | undefined
@@ -56,7 +54,6 @@ interface InflightPrompt {
   finishAdmission: () => void
   admissionController: AbortController
   cancelRequested: boolean
-  settlementStarted: boolean
   outputError: Error | undefined
   agentError: Error | undefined
 }
@@ -158,7 +155,6 @@ export class AcpSession {
       signal: options.signal,
       setup: async (agentCtx) => {
         const agent = agentCtx.agent
-        /* v8 ignore next -- Agent factory setup always carries its unpublished Agent. */
         if (agent === undefined) throw new Error('acp: resumed Agent is absent during setup')
         modelControl = new AcpModelControl(
           ctx.llm,
@@ -168,12 +164,10 @@ export class AcpSession {
         await mountAcpMcpServers(agentCtx, options.mcpServers, options.cwd)
       },
     })
-    /* v8 ignore start -- a fulfilled Agent resume necessarily ran setup to completion. */
     if (modelControl === undefined) {
       await handle.dispose()
       throw internalError('session/resume did not compose model selection')
     }
-    /* v8 ignore stop */
     return new AcpSession(ctx, handle, modelControl, options.notify)
   }
 
@@ -240,17 +234,13 @@ export class AcpSession {
             sessionId: this.agent.session.id,
             update: { sessionUpdate: 'config_option_update', configOptions },
           }))
-          /* v8 ignore start -- the bridge notifier contains transport failure. */
           .catch((error: unknown) => {
             this.ctx.logger.warn(`acp: config-option update failed: ${errorChain(error)}`)
           })
-        /* v8 ignore stop */
       })
-      /* v8 ignore start -- option discovery contains per-provider failure. */
       .catch((error: unknown) => {
         this.ctx.logger.warn(`acp: config-option update failed: ${errorChain(error)}`)
       })
-    /* v8 ignore stop */
   }
 
   /**
@@ -267,12 +257,9 @@ export class AcpSession {
   ): Promise<PromptResponse> {
     this.assertActive()
     if (this.inflight !== undefined) throw invalidParams('a prompt is already in flight for this session')
-    const completion = Promise.withResolvers<StopReason>()
     const admission = Promise.withResolvers<void>()
     const admissionController = new AbortController()
     const inflight: InflightPrompt = {
-      resolve: completion.resolve,
-      reject: completion.reject,
       messageId: undefined,
       messageQueued: false,
       turn: undefined,
@@ -281,14 +268,12 @@ export class AcpSession {
       finishAdmission: admission.resolve,
       admissionController,
       cancelRequested: false,
-      settlementStarted: false,
       outputError: undefined,
       agentError: undefined,
     }
     this.inflight = inflight
     const onRequestAbort = (): void => { this.cancelPrompt('ACP prompt request cancelled') }
     requestSignal?.addEventListener('abort', onRequestAbort, { once: true })
-    /* v8 ignore next -- the SDK dispatches a live signal, then notifies abort through its listener. */
     if (requestSignal?.aborted === true) onRequestAbort()
     try {
       let admissionFailure: unknown
@@ -329,23 +314,21 @@ export class AcpSession {
       }
 
       if (inflight.cancelRequested) {
-        this.settleAfterQuiescence(inflight)
-        return { stopReason: await completion.promise }
+        return { stopReason: await this.settleAfterQuiescence(inflight) }
       }
       if (admissionFailure !== undefined) {
-        this.inflight = undefined
         if (admissionFailure instanceof AcpContentError) {
           throw admissionFailure.kind === 'invalid'
             ? invalidParams(admissionFailure.message)
             : internalError(admissionFailure.message)
         }
         if (admissionFailure instanceof RequestError) throw admissionFailure
-        throw internalError(`prompt was not queued: ${(admissionFailure as Error).message}`)
+        throw internalError(`prompt was not queued: ${errorChain(admissionFailure)}`)
       }
 
-      this.settleAfterQuiescence(inflight)
-      return { stopReason: await completion.promise }
+      return { stopReason: await this.settleAfterQuiescence(inflight) }
     } finally {
+      this.inflight = undefined
       requestSignal?.removeEventListener('abort', onRequestAbort)
     }
   }
@@ -381,11 +364,9 @@ export class AcpSession {
         const previous = this.outputTail
         this.outputTail = previous
           .then(() => this.notify({ sessionId: this.agent.session.id, update: toolCallUpdate(event) }))
-          /* v8 ignore start -- the bridge notifier contains transport rejection. */
           .catch((error: unknown) => {
             this.ctx.logger.warn(`acp: tool-call update delivery failed: ${errorChain(error)}`)
           })
-        /* v8 ignore stop */
       } else if (event.type === 'tool/result') {
         const previous = this.outputTail
         this.outputTail = previous
@@ -393,11 +374,9 @@ export class AcpSession {
             sessionId: this.agent.session.id,
             update: await toolResultUpdate(this.ctx, event),
           }))
-          /* v8 ignore start -- supplemental-content conversion failure is contained and cannot fail Agent work. */
           .catch((error: unknown) => {
             this.ctx.logger.warn(`acp: tool-result update delivery failed: ${errorChain(error)}`)
           })
-        /* v8 ignore stop */
       }
     } finally {
       const inflight = this.inflight
@@ -432,7 +411,6 @@ export class AcpSession {
     // reads that exact error reason. This slot records interval failures outside it.
     if (inflight.turn === turn) return
     inflight.agentError = new Error(errorChain(error))
-    this.settleAfterQuiescence(inflight)
   }
 
   /** Await every update queued before this call. */
@@ -478,11 +456,9 @@ export class AcpSession {
       }
       this.pendingSelections.clear()
       if (failures.length === 1) throw failures[0]
-      /* v8 ignore start -- independent teardown failures can aggregate only under multiple simultaneous provider faults. */
       if (failures.length > 1) {
         throw new AggregateError(failures, `ACP session teardown failed: ${failures.map(errorChain).join('; ')}`)
       }
-      /* v8 ignore stop */
     })()
     return this.closing
   }
@@ -496,49 +472,27 @@ export class AcpSession {
     if (inflight === undefined) return
     inflight.cancelRequested = true
     inflight.admissionController.abort(new Error(detail))
-    this.settleAfterQuiescence(inflight)
     if (inflight.messageQueued) this.agent.cancel({ kind: 'user' })
   }
 
-  private settleAfterQuiescence(inflight: InflightPrompt): void {
-    if (inflight.settlementStarted) return
-    inflight.settlementStarted = true
-    ;(async () => {
-      await inflight.admissionDone
-      if (inflight.messageQueued) {
-        await this.agent.whenIdle()
-        await this.outputTail
-      }
-      /* v8 ignore next -- this prompt owns the slot until this exact settlement clears it. */
-      if (this.inflight !== inflight) return
-      this.inflight = undefined
-      if (inflight.cancelRequested) {
-        inflight.resolve('cancelled')
-        return
-      }
-      if (inflight.outputError !== undefined) {
-        inflight.reject(internalError(`assistant output delivery failed: ${inflight.outputError.message}`))
-        return
-      }
-      if (inflight.agentError !== undefined) {
-        inflight.reject(internalError(`turn failed: ${inflight.agentError.message}`))
-        return
-      }
-      const end = inflight.endReason
-      if (end === undefined) {
-        inflight.resolve('cancelled')
-      } else if (end.kind === 'error') {
-        inflight.reject(internalError(`turn failed: ${end.error.message}`))
-      } else {
-        inflight.resolve(turnEndToStopReason(end))
-      }
-    })()
-      /* v8 ignore start -- admissionDone only resolves; idle/output gates contain their own failures. */
-      .catch((error: unknown) => {
-        if (this.inflight !== inflight) return
-        this.inflight = undefined
-        inflight.reject(internalError(`prompt settlement failed: ${errorChain(error)}`))
-      })
-    /* v8 ignore stop */
+  private async settleAfterQuiescence(inflight: InflightPrompt): Promise<StopReason> {
+    if (inflight.messageQueued) {
+      await this.agent.whenIdle()
+        .then(() => this.outputTail)
+        .catch((error: unknown) => {
+          throw internalError(`prompt settlement failed: ${errorChain(error)}`)
+        })
+    }
+    if (inflight.cancelRequested) return 'cancelled'
+    if (inflight.outputError !== undefined) {
+      throw internalError(`assistant output delivery failed: ${inflight.outputError.message}`)
+    }
+    if (inflight.agentError !== undefined) {
+      throw internalError(`turn failed: ${inflight.agentError.message}`)
+    }
+    const end = inflight.endReason
+    if (end === undefined) return 'cancelled'
+    if (end.kind === 'error') throw internalError(`turn failed: ${end.error.message}`)
+    return turnEndToStopReason(end)
   }
 }

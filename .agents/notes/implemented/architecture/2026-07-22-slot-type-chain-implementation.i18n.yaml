@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-07-22-slot-type-chain-implementation.md
-2026-07-22-slot-type-chain-implementation.md: 3c67bcfbe10796ac59e644fdb24686dcf45c116a
-2026-07-22-slot-type-chain-implementation.zh.md: be6ca66a653f79e108939794713596d85cbc9ad0
+2026-07-22-slot-type-chain-implementation.md: 95880eb0d90365a3b64e40b5eeab01ec6dc67873
+2026-07-22-slot-type-chain-implementation.zh.md: 0061db3f8ac29da0cd70c8e76035d71e6b1e4d25

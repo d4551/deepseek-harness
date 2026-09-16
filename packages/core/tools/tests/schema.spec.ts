@@ -195,18 +195,10 @@ describe('the unified author schema DSL', () => {
 
   it('makes invalid author forms compile-time errors', () => {
     const symbolKey = Symbol('parameter')
-    const invalidObjects = {
-      // @ts-expect-error explicit object schemas require an openness decision
-      object: { type: 'object' } satisfies ValueSchemaSpec,
-      // @ts-expect-error oneOf requires at least two branches
-      oneOf: { oneOf: [{ type: 'string' }] } satisfies ValueSchemaSpec,
-      // @ts-expect-error scalar enum values must match the node type
-      enum: { type: 'number', enum: ['1'] } satisfies ValueSchemaSpec,
-      // @ts-expect-error parameter requiredness is true-or-absent
-      required: { value: { type: 'string', required: false } } satisfies ParameterSchemaSpec,
-      // @ts-expect-error parameter maps accept string keys only
-      symbol: { [symbolKey]: { type: 'string' } } satisfies ParameterSchemaSpec,
-    }
-    expect(Object.keys(invalidObjects)).toHaveLength(5)
+    expectTypeOf<{ type: 'object' }>().not.toExtend<ValueSchemaSpec>()
+    expectTypeOf<{ oneOf: [{ type: 'string' }] }>().not.toExtend<ValueSchemaSpec>()
+    expectTypeOf<{ type: 'number'; enum: ['1'] }>().not.toExtend<ValueSchemaSpec>()
+    expectTypeOf<{ value: { type: 'string'; required: false } }>().not.toExtend<ParameterSchemaSpec>()
+    expectTypeOf<{ [symbolKey]: { type: 'string' } }>().not.toExtend<ParameterSchemaSpec>()
   })
 })

@@ -10,7 +10,6 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { FsError } from '@deepseek-ai/dsh-fs'
 import type { FsObservation, FsTarget, FsVersion, FsWriteIntent } from '@deepseek-ai/dsh-fs'
-import type { FsObservationActor } from './types.ts'
 
 export type { FsObservationActor } from './types.ts'
 
@@ -33,11 +32,12 @@ class ObservedStateGate {
    * direct tool call with no agent); such calls read freely but cannot satisfy
    * the write/edit prior-observation policy.
    */
-  private owner(actor: object | undefined): object | undefined {
-    // tsgolint treats object as assignable to weak FsObservationActor, while tsc still requires the structural cast for property access.
-    // See the analyzer-divergence consequence in .agents/notes/implemented/process/2026-07-29-oxlint-linter.md.
-    // oxlint-disable-next-line typescript/no-unnecessary-type-assertion -- The analyzers disagree on this weak type.
-    return (actor as FsObservationActor | undefined)?.agent?.session
+  private owner(actor: unknown): object | undefined {
+    if (actor === null || (typeof actor !== 'object' && typeof actor !== 'function') || !('agent' in actor)) return undefined
+    const agent = actor.agent
+    if (agent === null || (typeof agent !== 'object' && typeof agent !== 'function') || !('session' in agent)) return undefined
+    const session = agent.session
+    return session !== null && (typeof session === 'object' || typeof session === 'function') ? session : undefined
   }
 
   private get(owner: object, targetKey: string): FsObservation | undefined {

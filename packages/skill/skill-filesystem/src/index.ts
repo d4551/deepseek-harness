@@ -297,7 +297,6 @@ class SkillWatchManager {
   private readonly roots = new Map<string, RootWatchState>()
   private readonly projects = new Map<string, Set<string>>()
   private readonly lifecycle = new AbortController()
-  private closing = false
   private invalidationQueued = false
 
   constructor(
@@ -307,7 +306,7 @@ class SkillWatchManager {
   ) {}
 
   async observeRoots(roots: readonly SkillRoot[]): Promise<void> {
-    if (this.closing) return
+    if (this.lifecycle.signal.aborted) return
     const projectRoots = new Map<string, SkillRoot[]>()
     const pending: Promise<void>[] = []
     for (const root of roots) {
@@ -329,7 +328,6 @@ class SkillWatchManager {
     let evictedProject = false
     while (this.projects.size > this.config.maxProjects) {
       const oldest = this.projects.entries().next()
-      /* v8 ignore next -- the loop condition proves one project exists. */
       if (oldest.done) break
       const [projectRoot, paths] = oldest.value
       this.projects.delete(projectRoot)
@@ -342,14 +340,13 @@ class SkillWatchManager {
   }
 
   observeHostMutation(path: string): void {
-    if (this.closing) return
+    if (this.lifecycle.signal.aborted) return
     const normalized = resolve(path)
     if (![...this.roots.values()].some(state => isPotentialSkillPath(state.root, normalized))) return
     this.invalidate()
   }
 
   async dispose(): Promise<void> {
-    this.closing = true
     this.lifecycle.abort(new Error('skill-filesystem watcher disposed'))
     const states = [...this.roots.values()]
     this.roots.clear()
@@ -374,7 +371,6 @@ class SkillWatchManager {
 
   private async releaseRoot(path: string, owner: string): Promise<void> {
     const state = this.roots.get(path)
-    /* v8 ignore next -- Concurrent cwd observations can evict the same shared root before this release settles. */
     if (state === undefined) return
     state.owners.delete(owner)
     if (state.owners.size > 0) return
@@ -386,8 +382,7 @@ class SkillWatchManager {
   }
 
   private ensureWatcher(state: RootWatchState): Promise<void> {
-    /* v8 ignore next -- A scheduled rewatch can reach this guard only when teardown wins its await. */
-    if (this.closing || !this.config.enabled) return Promise.resolve()
+    if (this.lifecycle.signal.aborted || !this.config.enabled) return Promise.resolve()
     if (state.opening !== undefined) return state.opening
     const opening = this.ensureCurrentWatcher(state)
     state.opening = opening
@@ -404,11 +399,11 @@ class SkillWatchManager {
 
   private async ensureCurrentWatcher(state: RootWatchState): Promise<void> {
     const watcher = state.watcher
-    if (watcher !== undefined && !state.unhealthy) {
+    const wasHealthy = !state.unhealthy
+    if (watcher !== undefined && wasHealthy) {
       const current = await resolveRootWatchMode(state.root.path, this.config.followSymlinks)
       // A child unlink can publish an empty catalog before root unlinkDir arrives.
       // Discovery therefore revalidates the retained handle independently.
-      // oxlint-disable-next-line typescript/no-unnecessary-condition -- watcher callbacks can mark unhealthy while the probe awaits
       if (!state.unhealthy && sameWatchMode(watcher.mode, current)) return
     }
     await this.replaceWatcher(state)
@@ -418,24 +413,17 @@ class SkillWatchManager {
     const previous = state.watcher
     state.watcher = undefined
     if (previous !== undefined) await this.closeWatcher(previous)
-    /* v8 ignore next -- Teardown can win while an unhealthy watcher is still closing. */
-    if (this.closing || state.owners.size === 0) return
     try {
       const watcher = await this.openStableWatcher(state)
-      /* v8 ignore next -- The loop returns no handle only when teardown wins between awaited probes. */
       if (watcher === undefined) return
-      /* v8 ignore start -- Post-open teardown is timing-dependent; the disposal race has an explicit integration test. */
-      // oxlint-disable-next-line typescript/no-unnecessary-condition -- teardown can race awaited watcher startup
-      if (this.closing || state.owners.size === 0) {
+      if (this.lifecycle.signal.aborted || state.owners.size === 0) {
         await this.closeWatcher(watcher)
         return
       }
-      /* v8 ignore stop */
       state.watcher = watcher
       state.unhealthy = false
     } catch (error) {
-      // oxlint-disable-next-line typescript/no-unnecessary-condition -- teardown can race awaited watcher startup
-      if (!this.closing) {
+      if (!this.lifecycle.signal.aborted) {
         state.unhealthy = true
         this.ctx.logger.warn(`skill-filesystem: failed to watch ${state.root.path}: ${errorMessage(error)}`)
       }
@@ -446,18 +434,22 @@ class SkillWatchManager {
   // TODO(file-watch-service): Extract Chokidar and missing-root observation below into a Cordis
   // service; keep skill filtering and invalidation here.
   private async openStableWatcher(state: RootWatchState): Promise<WatchHandle | undefined> {
-    while (!this.closing && state.owners.size > 0) {
+    while (!this.lifecycle.signal.aborted && state.owners.size > 0) {
       const mode = await resolveRootWatchMode(state.root.path, this.config.followSymlinks)
       const watcher = mode.kind === 'ancestor'
         ? this.openAncestorWatcher(state, mode)
         : await this.openRootWatcher(state, mode)
-      const current = await resolveRootWatchMode(state.root.path, this.config.followSymlinks)
-      /* v8 ignore else -- A host path transition between the two probes is timing-dependent. */
-      if (sameWatchMode(mode, current)) return watcher
-      /* v8 ignore next -- Covered by the same host path transition guard. */
-      await this.closeWatcher(watcher)
+      let retained = false
+      try {
+        const current = await resolveRootWatchMode(state.root.path, this.config.followSymlinks)
+        if (sameWatchMode(mode, current)) {
+          retained = true
+          return watcher
+        }
+      } finally {
+        if (!retained) await this.closeWatcher(watcher)
+      }
     }
-    /* v8 ignore next -- The loop exits only when teardown wins between awaited probes. */
     return undefined
   }
 
@@ -487,12 +479,10 @@ class SkillWatchManager {
     try {
       current = await resolveRootWatchMode(state.root.path, this.config.followSymlinks)
     } catch (error) {
-      /* v8 ignore start -- Non-absence stat failures need a platform permission or I/O fault. */
-      if (!this.closing && state.owners.size > 0) this.handleWatcherError(state, error)
+      if (!this.lifecycle.signal.aborted && state.owners.size > 0) this.handleWatcherError(state, error)
       return
-      /* v8 ignore stop */
     }
-    if (this.closing || state.owners.size === 0 || sameWatchMode(mode, current)) return
+    if (this.lifecycle.signal.aborted || state.owners.size === 0 || sameWatchMode(mode, current)) return
     this.queueInvalidation()
     state.unhealthy = true
     this.scheduleRewatch(state)
@@ -560,7 +550,7 @@ class SkillWatchManager {
     path: string,
   ): void {
     const target = resolve(path)
-    if (this.closing || !isRelevantWatchEvent({ ...state.root, path: mode.anchor }, event, target)) return
+    if (this.lifecycle.signal.aborted || !isRelevantWatchEvent({ ...state.root, path: mode.anchor }, event, target)) return
     this.queueInvalidation()
     if (target === mode.anchor && event === 'unlinkDir') {
       state.unhealthy = true
@@ -569,7 +559,7 @@ class SkillWatchManager {
   }
 
   private handleWatcherError(state: RootWatchState, error: unknown): void {
-    if (this.closing) return
+    if (this.lifecycle.signal.aborted) return
     this.ctx.logger.warn(`skill-filesystem: watcher for ${state.root.path} failed: ${errorMessage(error)}`)
     state.unhealthy = true
     this.queueInvalidation()
@@ -586,12 +576,11 @@ class SkillWatchManager {
   }
 
   private queueInvalidation(): void {
-    if (this.closing || this.invalidationQueued) return
+    if (this.lifecycle.signal.aborted || this.invalidationQueued) return
     this.invalidationQueued = true
     queueMicrotask(() => {
       this.invalidationQueued = false
-      /* v8 ignore next -- Effect teardown can win this queued microtask before provider disposal emits. */
-      if (this.closing) return
+      if (this.lifecycle.signal.aborted) return
       this.invalidate()
     })
   }
@@ -643,16 +632,13 @@ async function resolveRootWatchMode(root: string, followSymlinks: boolean): Prom
         const anchor = preserveRootLink ? resolve(candidate) : await canonicalizeWatchPath(candidate)
         if (candidate === root) return { kind: 'root', anchor }
         const firstSegment = relative(candidate, root).split(sep)[0]
-        /* v8 ignore next -- candidate is a strict ancestor of root. */
         if (firstSegment === undefined || firstSegment.length === 0) return { kind: 'root', anchor }
         return { kind: 'ancestor', anchor, nextPath: join(anchor, firstSegment) }
       }
     } catch (error) {
-      /* v8 ignore next -- Non-absence stat failures are platform/permission-specific and propagate as incomplete discovery. */
       if (!isAbsentPathError(error)) throw error
     }
     const parent = dirname(candidate)
-    /* v8 ignore next -- Traversal reaches the existing filesystem root before this fallback. */
     if (parent === candidate) return { kind: 'ancestor', anchor: candidate, nextPath: root }
     candidate = parent
   }
@@ -784,9 +770,7 @@ async function listSkillRootEntriesFromNode(root: SkillRoot, ctx: Context): Prom
   try {
     entries = await readdir(root.path, { withFileTypes: true, encoding: 'utf8' })
   } catch (error) {
-    /* v8 ignore else -- Native non-absence directory failures are provider-dependent; the ctx.fs path pins incomplete discovery. */
     if (isAbsentSkillPathError(error)) return []
-    /* v8 ignore next -- Same native error branch as above. */
     throw error
   }
 
@@ -900,14 +884,11 @@ function fsReadErrorMessage(target: FsTarget, error: unknown): string {
 async function nodeEntryKind(fullPath: string, entry: { isDirectory(): boolean; isFile(): boolean; isSymbolicLink(): boolean }, ctx: Context): Promise<'directory' | 'file' | undefined> {
   if (entry.isDirectory()) return 'directory'
   if (entry.isFile()) return 'file'
-  /* v8 ignore next -- Non-file directory entries such as FIFOs are platform-specific and intentionally skipped. */
   if (!entry.isSymbolicLink()) return undefined
   try {
     const info = await stat(fullPath)
     if (info.isDirectory()) return 'directory'
-    /* v8 ignore else -- the special-file symlink branch relies on POSIX /dev/null. */
     if (info.isFile()) return 'file'
-    /* v8 ignore next -- The special-file symlink fixture relies on POSIX /dev/null. */
     return undefined
   } catch (error) {
     ctx.logger.warn(`skill entry ${fullPath} ignored: failed to follow symbolic link: ${errorMessage(error)}`)

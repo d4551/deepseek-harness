@@ -14,6 +14,7 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
+import { API } from 'typescript/unstable/sync'
 import {
   declaredTypes,
   indexExportedTypes,
@@ -130,21 +131,26 @@ export interface SlotEntry {
  * @throws when any declared slot is unteachable or the scan contradicts itself.
  */
 export function collectSlotEntries(scanRoot: string): SlotEntry[] {
-  const files = scanSlotFiles(scanRoot, SOURCE_GLOBS)
-  const declarations = files.flatMap(file => slotDeclarations(file))
-  const registrations = files.flatMap(file => slotRegistrations(file))
-  const types = indexExportedTypes(scanRoot, SOURCE_GLOBS)
-  const problems = validateSlotContracts(declarations, registrations, types)
-  if (problems.length > 0) {
-    throw new Error(`gen-client-catalog: ${String(problems.length)} contract violation(s):\n${problems.map(problem => `  ${problem}`).join('\n')}`)
+  const session = new API({ cwd: scanRoot })
+  try {
+    const files = scanSlotFiles(scanRoot, SOURCE_GLOBS, session)
+    const declarations = files.flatMap(file => slotDeclarations(file))
+    const registrations = files.flatMap(file => slotRegistrations(file))
+    const types = indexExportedTypes(files)
+    const problems = validateSlotContracts(declarations, registrations, types)
+    if (problems.length > 0) {
+      throw new Error(`gen-client-catalog: ${String(problems.length)} contract violation(s):\n${problems.map(problem => `  ${problem}`).join('\n')}`)
+    }
+    const entries = resolveSlotEntries(declarations, registrations, types, standardKits(files))
+    const oversized = oversizedSlotReports(entries)
+    if (oversized.length > 0) {
+      throw new Error(`gen-client-catalog: ${String(oversized.length)} slot(s) exceed the per-slot report budget `
+        + `of ${String(MAX_ENTRY_LINES)} lines:\n${oversized.map(problem => `  ${problem}`).join('\n')}`)
+    }
+    return entries
+  } finally {
+    session.close()
   }
-  const entries = resolveSlotEntries(declarations, registrations, types, standardKits(files))
-  const oversized = oversizedSlotReports(entries)
-  if (oversized.length > 0) {
-    throw new Error(`gen-client-catalog: ${String(oversized.length)} slot(s) exceed the per-slot report budget `
-      + `of ${String(MAX_ENTRY_LINES)} lines:\n${oversized.map(problem => `  ${problem}`).join('\n')}`)
-  }
-  return entries
 }
 
 /**

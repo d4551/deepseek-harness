@@ -23,11 +23,5 @@ export function providerForOpenStep(
   )
   if (stepStartIndex < 0 || events.slice(stepStartIndex + 1).some(event =>
     event.type === 'step/end' || event.type === 'turn/end')) return undefined
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    // The loop bounds prove this indexed read exists.
-    // oxlint-disable-next-line typescript/no-non-null-assertion
-    const event = events[index]!
-    if (event.type === 'request/header') return event.data.header.config.provider
-  }
-  return undefined
+  return events.findLast(event => event.type === 'request/header')?.data.header.config.provider
 }

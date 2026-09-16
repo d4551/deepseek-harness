@@ -39,6 +39,12 @@ kind: "package-reference"
 
 装载是幂等的：要求装载这一页已在运行的 revision 不会改变任何东西，更新的 revision 顶替已装载的那个，同一 revision 在 retract 之后再装则重新装载。同一定义的操作串行执行。刷新按设计从干净状态开始——host 仍持有定义，本页在再次被要求之前不运行它。
 
+### 定时器
+
+浏览器插件在 `inject` 中声明 `timer`，即可调度由调用方 fiber 持有的工作。销毁该 fiber 会取消待执行的定时器，并以 `Context has been disposed` 拒绝尚未完成的 timeout 或 interval tick。等待提前销毁函数的返回值即可确认清理完成。节流与防抖函数保留回调的参数类型，但不返回回调结果。
+
+interval 迭代器的 `return(value)` 会先用该值结算待完成的 tick，再完成清理 promise。要以失败状态停止活动中的迭代器，`throw(error)` 使用传入的 `Error` 拒绝当前及后续 tick；省略原因时使用 `Timer iteration interrupted`，传入非 Error 原因时则产生 `TypeError`，并在 `cause` 中保留原值。
+
 -----
 
 <a id="understand-the-implementation"></a>

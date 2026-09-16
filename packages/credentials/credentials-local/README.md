@@ -110,6 +110,10 @@ You can edit the file directly — the store reloads it automatically and picks 
 
 A key's value can be any text, multi-line values included — no quoting tricks needed. An empty value means "no key", which is why an empty string in the file is rejected: removing a key deletes it, it does not blank it. A `grant` payload must survive a JSON round trip, enforced on the way in and on the way out, so the store refuses a value it could not read back exactly as written. If the file on disk no longer parses, saving fails instead of overwriting content the product could not read.
 
+YAML aliases may share credential values in the file. Editing or removing one credential preserves the values of other credentials that reference its anchors; the affected aliases become independent values with their comments retained. Unrelated anchors and entry formatting remain intact.
+
+For YAML 1.1 merge keys, removing a credential also removes it from each contributing mapping in the edited section. Removing an explicit override therefore cannot reveal an older inherited credential. A merge source shared with another credential remains unchanged. If a root-level merge supplies the whole section, the write moves the effective section to the root and removes its obsolete entries from owned merge contributors. Values still used by another credential remain stored for that credential.
+
 ### Who can read the file
 
 Only your OS user can read the file: the product creates it with owner-only permissions, and on POSIX it refuses to load a file that any other user can read — the error tells you to run `chmod 600`. Windows has no mode bits, so the same question goes to the file's access-control list instead: a document another account can read is refused, and the error tells you the `icacls` command that repairs it. The agent is not another user: its tool processes run as you, so they can read the file like any other file you own. The product never hands the agent the file's path and never loads the file into the environment, so reaching a value takes a deliberate read of a path the agent was not given. That is discretion, not a boundary: a deployment that must keep provider keys away from its own agent cannot get there with file permissions.
@@ -143,6 +147,7 @@ This section explains the design decisions behind the provider and points at the
 | File | Role |
 |---|---|
 | [`src/index.ts`](src/index.ts) | Provider: layer resolution, strict document parse, reference and record write paths under the writer lock, document-queue wiring, permissions check |
+| [`src/document-edit.ts`](src/document-edit.ts) | Credential document edits, alias ownership, and removal from merged mappings |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; the seam companion owns the event lifecycle contract) |
 
 ### Resolution and write paths
@@ -157,7 +162,7 @@ The operation chain, the watcher, and the warn-and-keep reload policy come from 
 
 ### Document versioning
 
-The document carries `version: 1`, stamped on every write. A boot that recognizes the pre-release flat layout — a bare mapping of reference names with no `version` — upgrades the document in place under the writer lock, nesting the original lines under `refs:` so values, comments, and spellings survive byte for byte; any other unversioned shape is refused by name rather than read as an empty store. A live reload never migrates: a flat document restored mid-run keeps the last good snapshot until the next boot.
+The document carries `version: 1`; the first write to an empty store adds the stamp. A boot that recognizes the pre-release flat layout — a bare mapping of reference names with no `version` — upgrades the document in place under the writer lock, nesting the original lines under `refs:` so values, comments, and spellings survive byte for byte; any other unversioned shape is refused by name rather than read as an empty store. A live reload never migrates: a flat document restored mid-run keeps the last good snapshot until the next boot.
 
 ### Diagnostics never quote a value
 

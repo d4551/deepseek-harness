@@ -1,6 +1,6 @@
 /** Event-level policy tests; no filesystem provider is needed because the plugin performs no I/O. */
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, onTestFinished } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { FsTargetKey, FsVersion } from '@deepseek-ai/dsh-fs'
 import type { FsObservation, FsTarget, FsWriteIntent } from '@deepseek-ai/dsh-fs'
@@ -32,7 +32,7 @@ async function setup() {
 describe('registration / disposal', () => {
   it('registers no service API (it is a plugin, not ctx.fsPolicy)', async () => {
     const { ctx } = await setup()
-    expect((ctx as Context & { fsPolicy?: unknown }).fsPolicy).toBeUndefined()
+    expect(ctx).not.toHaveProperty('fsPolicy')
   })
 
   it('mounts with no inject (reads no services)', async () => {
@@ -152,6 +152,45 @@ describe('observed-state is the prior-observation record', () => {
 })
 
 describe('multi-owner isolation', () => {
+  it.each([null, 0, 'actor', false, Symbol('actor')])('denies an invalid outer actor %s without throwing from observation', async (actor) => {
+    const { ctx } = await setup()
+    onTestFinished(() => ctx.fiber.dispose())
+    const file = target('a.txt')
+    const emit = ctx.emit.bind(ctx)
+    const waterfall = ctx.waterfall.bind(ctx)
+    expect(() => { Reflect.apply(emit, ctx, ['fs/observed', file, present('v0'), actor]) }).not.toThrow()
+    const editing: unknown = Reflect.apply(waterfall, ctx, ['fs/edit-intent', file, actor, () => undefined])
+    await expect(editing).rejects.toMatchObject({ code: 'FS_NOT_OBSERVED' })
+    const writing: unknown = Reflect.apply(waterfall, ctx, ['fs/write-intent', file, actor, () => undefined])
+    await expect(writing).resolves.toEqual({ kind: 'createIfAbsent' })
+  })
+
+  it.each([
+    ['null agent', { agent: null }],
+    ['scalar agent', { agent: 'session' }],
+    ['null session', { agent: { session: null } }],
+    ['string session', { agent: { session: 'owner' } }],
+    ['number session', { agent: { session: 1 } }],
+    ['symbol session', { agent: { session: Symbol('owner') } }],
+  ])('does not grant prior-observation authority to a %s', async (_label, actor) => {
+    const { ctx } = await setup()
+    onTestFinished(() => ctx.fiber.dispose())
+    const file = target('a.txt')
+    ctx.emit('fs/observed', file, present('v0'), actor)
+    await expect(editIntent(ctx, file, actor)).rejects.toMatchObject({ code: 'FS_NOT_OBSERVED' })
+    await expect(writeIntent(ctx, file, actor)).resolves.toEqual({ kind: 'createIfAbsent' })
+  })
+
+  it('uses callable object identities without executing them', async () => {
+    const { ctx } = await setup()
+    onTestFinished(() => ctx.fiber.dispose())
+    const session = () => { throw new Error('session identity must not be invoked') }
+    const actor = Object.assign(() => { throw new Error('agent identity must not be invoked') }, { session })
+    const file = target('a.txt')
+    ctx.emit('fs/observed', file, present('v0'), { agent: actor })
+    await expect(editIntent(ctx, file, { agent: actor })).resolves.toEqual({ version: 'v0' })
+  })
+
   it('owner A observing does not grant owner B edit authority', async () => {
     const { ctx } = await setup()
     const a = ownerExec({})

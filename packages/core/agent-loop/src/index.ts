@@ -110,19 +110,16 @@ async function raceAbortCall<T>(
   operation: () => PromiseLike<T> | T,
   signal: AbortSignal,
   id: SessionId,
-  releaseAbandoned?: (value: T) => void,
+  releaseAbandoned: (value: T) => void,
 ): Promise<T> {
-  if (signal.aborted) {
-    throw signal.reason instanceof Error
-      ? signal.reason
-      : new Error(`agent "${id}" creation aborted`, { cause: signal.reason })
-  }
-  const pending = Promise.resolve().then(operation)
+  const pending = Promise.resolve().then(() => {
+    signal.throwIfAborted()
+    return operation()
+  })
   try {
     return await raceAbort(pending, signal, id)
   } catch (error: unknown) {
-    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the signal can abort while the operation is awaited.
-    if (signal.aborted && releaseAbandoned !== undefined) {
+    if (signal.aborted) {
       pending.then(releaseAbandoned, () => undefined)
     }
     throw error
@@ -460,10 +457,6 @@ export class AgentLoop extends Service implements AgentFactory {
   private prepare(ownerCtx: Context, id: SessionId, options: AgentOptions, session: Session, callerSignal?: AbortSignal): PreparedAgent {
     assertAgentOptions(options)
     ownerCtx.fiber.assertActive()
-    // Every caller reaches prepare() synchronously from a service method
-    // whose Cordis dispatch already requires the live factory fiber, or
-    // re-checks ownership itself after its awaits (resume's load barrier).
-    /* v8 ignore next -- unreachable backstop, see above */
     if (!this.ownership.isActive()) throw new Error('agent loop is not active')
     if (callerSignal?.aborted) {
       throw callerSignal.reason instanceof Error
@@ -529,22 +522,14 @@ export class AgentLoop extends Service implements AgentFactory {
         abort.abort(new Error(`agent "${id}" setup aborted: owner disposed during setup`))
         return dispose(true)
       }, `agentLoop.lifecycle(${id})`)
-      /* v8 ignore start -- ctx.effect throws only on an inactive fiber, which assertActive() above already rejected */
     } catch (error: unknown) {
       untrack()
       callerSignal?.removeEventListener('abort', onCallerAbort)
       this.ownership.signal.removeEventListener('abort', onFactoryTeardown)
       throw error
     }
-    /* v8 ignore stop */
-
     const assertLive = (): void => {
-      if (!abort.signal.aborted) return
-      // Every fused abort source carries an Error reason: onCallerAbort and
-      // raceAbort wrap non-Error caller reasons, and the factory/lifecycle
-      // owners abort with constructed Errors.
-      /* v8 ignore next -- unreachable String() arm, see above */
-      throw abort.signal.reason instanceof Error ? abort.signal.reason : new Error(String(abort.signal.reason))
+      abort.signal.throwIfAborted()
     }
     try {
       const agent = machine = new ReactLoopAgent(loopCtx, id, options, session)

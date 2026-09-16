@@ -90,7 +90,7 @@ describe.skipIf(skip)('a hook run through a pwsh ctx.shell', () => {
   it('carries a blocking exit code and its stderr reason back out of PowerShell', async () => {
     const ctx = await pwshShell()
     const dir = tempDir()
-    const command = hookProgram(dir, 'deny', 'err(\'denied by policy\')\nprocess.exit(2)\n')
+    const command = `${hookProgram(dir, 'deny', 'err(\'denied by policy\')\nprocess.exit(2)\n')}; exit $LASTEXITCODE`
 
     const result = await runHook(
       ctx.shell,

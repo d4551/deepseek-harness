@@ -39,6 +39,12 @@ A run surface can answer a pending host request — approving it, optionally cov
 
 Loading is idempotent: asking to load a revision this page already runs changes nothing, a newer revision replaces the loaded one, and the same revision after a retract loads afresh. Operations on a definition serialize. A refresh starts clean by design — the host still holds the definition, this page does not run it until asked again.
 
+### Timers
+
+A browser plugin declares `timer` in `inject` to schedule work owned by its calling fiber. Disposing that fiber cancels pending timers and rejects a pending timeout or interval tick with `Context has been disposed`. Await an early disposer to observe completion. Throttled and debounced functions retain the callback's argument types and return no callback result.
+
+An interval iterator's `return(value)` settles its pending tick with that value before its cleanup promise completes. To stop an active iterator with a failure, `throw(error)` rejects pending and later ticks with the supplied `Error`; an omitted reason uses `Timer iteration interrupted`, and a non-Error reason produces a `TypeError` whose `cause` retains the original value.
+
 -----
 
 <a id="understand-the-implementation"></a>

@@ -7,9 +7,13 @@
  * make a stale or undocumented contract fail loudly instead of shipping.
  */
 
-import { describe, expect, it } from 'vitest'
-import { collectSlotEntries, oversizedSlotReports, resolveSlotEntries, validateSlotContracts } from './gen-client-catalog.ts'
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { describe, expect, it, onTestFinished } from 'vitest'
+import { collectSlotEntries, oversizedSlotReports, renderClientCatalog, resolveSlotEntries, validateSlotContracts } from './gen-client-catalog.ts'
 import type { SlotDeclaration, SlotRegistration, TypeDeclaration } from './slot-walk.ts'
+import { closeCompiler, syntacticDiagnostics } from './ts7-session.ts'
 
 /** A declaration with every field the catalog needs, overridable per case. */
 function declaration(over: Partial<SlotDeclaration> = {}): SlotDeclaration {
@@ -197,7 +201,7 @@ describe('the per-slot report budget', () => {
 })
 
 describe('the real workspace surface', () => {
-  it('collects every declared slot with a teachable contract', { timeout: 30_000 }, () => {
+  it('collects every declared slot with a teachable contract', { timeout: 30_000 }, async () => {
     const entries = collectSlotEntries(process.cwd())
     expect(entries.length).toBeGreaterThan(30)
     for (const entry of entries) {
@@ -210,5 +214,102 @@ describe('the real workspace surface', () => {
     const root = entries.find(entry => entry.key === 'root')
     expect(root?.replaceRisk).toBe('shadows-shipped-ui')
     expect(root?.occupants.join(' ')).toContain('AppFrame')
+    expect(renderClientCatalog(entries)).toBe(await readFile(
+      join(process.cwd(), 'packages/extensions/cordis-client-runner/src/client/slot-catalog.ts'), 'utf8',
+    ))
+  })
+})
+
+describe('native source spelling discovery', () => {
+  it.each([
+    ['spaces', "declare  module  '@deepseek-ai/dsh-client-ui-slots'", 'ctx . slots . register  '],
+    ['line breaks', "declare module '@deepseek-ai/dsh-client-ui-slots'\n", 'ctx\n. slots\n. register\n'],
+    ['comments', "declare /* contract */ module /* owner */ '@deepseek-ai/dsh-client-ui-slots'", 'ctx /* root */ . slots /* service */ . register /* entry */ '],
+  ])('collects declarations, owner props and registrations separated by %s', async (_name, moduleHead, receiver) => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-slot-discovery-'))
+    onTestFinished(async () => {
+      closeCompiler()
+      await rm(root, { recursive: true, force: true })
+    })
+    const directory = join(root, 'packages/client/demo/src')
+    await mkdir(directory, { recursive: true })
+    await writeFile(join(root, 'tsconfig.json'), JSON.stringify({ include: ['packages/**/*.ts', 'packages/**/*.tsx'] }))
+    await writeFile(join(directory, '../package.json'), JSON.stringify({ name: '@deepseek-ai/dsh-client-demo' }))
+    await writeFile(join(directory, 'owner.tsx'), [
+      '/** The width supplied by the slot owner. */',
+      'export interface DemoOwnerProps {',
+      '  /** Column width. */',
+      '  width: number',
+      '}',
+    ].join('\n'))
+    await writeFile(join(directory, 'slots.ts'), [
+      `${moduleHead} {`,
+      '  interface SlotMap {',
+      '    /** The owner supplies the column width. A new entry replaces the occupant. */',
+      "    'demo.seat': { kind: 'single'; scope: 'root'; owner: DemoOwnerProps }",
+      '  }',
+      '}',
+      `${receiver}({ name: 'demo.seat' }, DemoSeat)`,
+    ].join('\n'))
+
+    const entries = collectSlotEntries(root)
+    expect(entries).toHaveLength(1)
+    expect(entries[0]).toMatchObject({
+      key: 'demo.seat',
+      kind: 'single',
+      scope: 'root',
+      occupants: ['client-demo DemoSeat'],
+      replaceRisk: 'shadows-shipped-ui',
+    })
+    expect(entries[0]?.ownerProps.join('\n')).toContain('Column width.')
+    expect(entries[0]?.ownerProps.join('\n')).toContain('width: number')
+    expect(syntacticDiagnostics(join(directory, 'slots.ts'))).toEqual([])
+    expect(syntacticDiagnostics(join(directory, 'owner.tsx'))).toEqual([])
+  })
+
+  it('observes source edits, new contracts and deletions across collections in one process', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-slot-freshness-'))
+    onTestFinished(() => rm(root, { recursive: true, force: true }))
+    const directory = join(root, 'packages/client/demo/src')
+    await mkdir(directory, { recursive: true })
+    await writeFile(join(root, 'tsconfig.json'), JSON.stringify({ include: ['packages/**/*.ts'] }))
+    await writeFile(join(directory, '../package.json'), JSON.stringify({ name: '@deepseek-ai/dsh-client-demo' }))
+    const ownerPath = join(directory, 'owner.ts')
+    const slotPath = join(directory, 'slots.ts')
+    const addedPath = join(directory, 'added.ts')
+    await writeFile(ownerPath, 'export interface DemoOwnerProps { width: number }')
+    await writeFile(slotPath, [
+      "declare module '@deepseek-ai/dsh-client-ui-slots' {",
+      '  interface SlotMap {',
+      '    /** The owner supplies this seat. */',
+      "    'demo.seat': { kind: 'single'; scope: 'root'; owner: DemoOwnerProps }",
+      '  }',
+      '}',
+    ].join('\n'))
+    const first = collectSlotEntries(root)
+    expect(first.map(entry => entry.key)).toEqual(['demo.seat'])
+    expect(first[0]?.ownerProps.join('\n')).toContain('width: number')
+
+    await writeFile(ownerPath, 'export interface DemoOwnerProps { height: number }')
+    const edited = collectSlotEntries(root)
+    expect(edited[0]?.ownerProps.join('\n')).toContain('height: number')
+    expect(edited[0]?.ownerProps.join('\n')).not.toContain('width: number')
+
+    await writeFile(addedPath, [
+      "declare module '@deepseek-ai/dsh-client-ui-slots' {",
+      '  interface SlotMap {',
+      '    /** Additional entries render beside the existing entries. */',
+      "    'demo.added': { kind: 'list'; scope: 'root' }",
+      '  }',
+      '}',
+    ].join('\n'))
+    expect(collectSlotEntries(root).map(entry => entry.key)).toEqual(['demo.added', 'demo.seat'])
+    await rm(addedPath)
+    expect(collectSlotEntries(root).map(entry => entry.key)).toEqual(['demo.seat'])
+
+    await rm(ownerPath)
+    expect(() => collectSlotEntries(root)).toThrow(/DemoOwnerProps.*no exported declaration/)
+    await writeFile(ownerPath, 'export interface DemoOwnerProps { depth: number }')
+    expect(collectSlotEntries(root)[0]?.ownerProps.join('\n')).toContain('depth: number')
   })
 })

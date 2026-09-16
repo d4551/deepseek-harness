@@ -100,7 +100,7 @@ register 签名里的三条硬化裁定之所以存在，是因为显然的替�
 
 1. **注册位用 `SlotComponent<P>`（裸调用签名）而非 `FC<P>`。** React 的 `FC` 携带静态字段（`propTypes`、`defaultProps`），其类型在协变位引用 `P`；两个 `FC` 实例化之间的可赋性检查连这些静态位一起查，会拒绝设计本想接受的组件。裸调用签名只走干净的形参逆变检查；组件仍是普通函数。
 2. **`InjectSeat` 在单个 `register` 签名内，从组件反推出 `inject` 的必需性。** 业务份额没法像 `M` 那样钉住：写成 `(sessionId) => …` 的 inject 工厂形参未标注类型，因而是语境敏感的，它的返回类型晚一轮才进入推断——组件位上的 `NoInfer<I>` 会先把 `I` 固定在 `object` 缺省值上，于是每个调用都会拒绝它拿到的那个接口。所以 `I` 从组件位推导，而选项上的席位再把这份需求读回来：只要 `FrameworkProps<…>`（业务接口为空的合成 props）仍能满足组件形参，`inject` 就保持可选；框架份额未覆盖的第一个成员会让工厂变为必填，并把它的返回类型钉到 `I`。漂移的组件照样会加宽 `I`——而正是这次加宽让席位索要一个该调用并不具备的工厂，于是漂移以选项实参上缺失 `inject` 的形式暴露出来，而不是被吸收掉。
-3. **一个签名，而非一对重载。** 该席位取代了两个 `register` 重载，二者唯一的差别就是 inject 份额；重载之间无法共享类型参数列表，于是这一对就成了 `bun run duplication` 报出的自克隆。负样本 spec 钉住这次折叠没有放松任何严格性：一旦席位被摊平成普通的可选 `inject`，`packages/client/ui-slots/tests/type-chain.client.spec.tsx` 与 `packages/client/ui-conversation/tests/views-type-chain.client.spec.tsx` 便会因 `@ts-expect-error` 指令未被使用而变红。
+3. **一个签名，而非一对重载。** 该席位取代了两个 `register` 重载，二者唯一的差别就是 inject 份额；重载之间无法共享类型参数列表，于是这一对就成了 `bun run duplication` 报出的自克隆。`packages/client/ui-slots/tests/type-chain.host.spec.ts` 针对源码约定编译完整的合法类型链，并要求每个非法调用产生预期的编译器诊断，其中包括有业务 props 却缺少 `inject` 的调用。`packages/client/ui-conversation/tests/views-type-chain.client.spec.tsx` 检查会话组件的类型链。
 
 ## 后果
 

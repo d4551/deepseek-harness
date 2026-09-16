@@ -24,6 +24,8 @@ interface PlannedCall {
 
 /** Settled dispatch awaiting model-order finalization. */
 interface Slot {
+  block: ToolCallBlock
+  callSeq: number
   exec: ToolRunContext
   result: ToolExecutionResult
   needsPost: boolean
@@ -81,10 +83,9 @@ export async function executeToolCalls(
 
   let next = 0
   let concluded = false
-  while (next < planned.length) {
+  for (const [index, first] of planned.entries()) {
+    if (index < next) continue
     // Commit before classifying again so registry changes affect unstarted calls.
-    // oxlint-disable-next-line typescript/no-non-null-assertion -- bounded by the loop condition
-    const first = planned[next]!
     const mode = ctx.tools.executionMode(first.exec).kind
     const group = mode === 'parallel' ? planned.slice(next) : [first]
     const outcome = await runGroup(
@@ -129,10 +130,9 @@ async function runGroup(
 ): Promise<GroupOutcome> {
   const { session } = ctx.agents.requireInitiator()
   const { maxParallelToolCalls } = ctx.agentLoop.config
-  const slots: (Slot | undefined)[] = group.map(() => undefined)
-  // Started slots retain their `tool/call` seq so the result can cite it.
-  const callSeqs: number[] = group.map(() => -1)
-  let nextToStart = 0
+  const slots = new Map<number, Slot>()
+  const pending = group.entries()
+  let nextCall = pending.next()
   let committed = 0
   let started = 0
   let aborted: boolean = signal.aborted
@@ -145,26 +145,23 @@ async function runGroup(
   // `committed` advances only across contiguous model-order slots.
   const commitReady = async (): Promise<void> => {
     while (committed < group.length) {
-      const slot = slots[committed]
+      const slot = slots.get(committed)
       if (slot === undefined) break
-      const call = group[committed]
       const result = slot.needsPost
         ? await ctx.tools[TOOL_RUNTIME_SCHEDULER].finalize(slot.exec, slot.result)
         : ctx.tools[TOOL_RUNTIME_SCHEDULER].finish(slot.exec, slot.result)
-      // oxlint-disable-next-line typescript/no-non-null-assertion -- bounded index
-      appendToolResult(session, turn, step, call!.block, result, callSeqs[committed]!)
+      appendToolResult(session, turn, step, slot.block, result, slot.callSeq)
       for (const context of result.additionalContexts ?? []) acceptContext(context)
       concluded ||= result.concludesTurn === true
+      slots.delete(committed)
       committed++
     }
   }
 
   const inFlight = new Map<number, Promise<number>>()
 
-  const startCall = async (index: number): Promise<void> => {
-    // oxlint-disable-next-line typescript/no-non-null-assertion -- bounded index
-    const call = group[index]!
-    callSeqs[index] = appendToolCall(session, turn, step, call.block)
+  const startCall = async (index: number, call: PlannedCall): Promise<void> => {
+    const callSeq = appendToolCall(session, turn, step, call.block)
     started++
     const prepared = await ctx.tools[TOOL_RUNTIME_SCHEDULER].prepare(call.exec)
     throwSchedulerFailure()
@@ -172,7 +169,7 @@ async function runGroup(
       case 'dispatch': {
         const promise = ctx.tools[TOOL_RUNTIME_SCHEDULER].dispatch(prepared.exec).then(
           (outcome) => {
-            slots[index] = { exec: prepared.exec, result: outcome.result, needsPost: outcome.kind === 'post-result' }
+            slots.set(index, { block: call.block, callSeq, exec: prepared.exec, result: outcome.result, needsPost: outcome.kind === 'post-result' })
             return index
           },
           (error: unknown) => {
@@ -184,26 +181,24 @@ async function runGroup(
         break
       }
       case 'post-result':
-        slots[index] = { exec: prepared.exec, result: prepared.result, needsPost: true }
+        slots.set(index, { block: call.block, callSeq, exec: prepared.exec, result: prepared.result, needsPost: true })
         break
       case 'final-result':
-        slots[index] = { exec: prepared.exec, result: prepared.result, needsPost: false }
+        slots.set(index, { block: call.block, callSeq, exec: prepared.exec, result: prepared.result, needsPost: false })
         break
-      /* v8 ignore next -- closed-union exhaustiveness guard */
       default:
         assertNever(prepared, 'tool-call scheduler prepare result')
     }
   }
 
   const fillPool = async (): Promise<void> => {
-    while (!aborted && nextToStart < group.length && inFlight.size < maxParallelToolCalls) {
+    while (!aborted && !nextCall.done && inFlight.size < maxParallelToolCalls) {
       // Re-read later modes after ordered commits so registry changes can create a barrier.
-      // oxlint-disable-next-line typescript/no-non-null-assertion -- bounded by the loop condition
-      const nextCall = group[nextToStart]!
-      if (nextToStart > 0 && mode === 'parallel'
-        && ctx.tools.executionMode(nextCall.exec).kind !== 'parallel') break
-      await startCall(nextToStart)
-      nextToStart++
+      const [index, call] = nextCall.value
+      if (index > 0 && mode === 'parallel'
+        && ctx.tools.executionMode(call.exec).kind !== 'parallel') break
+      await startCall(index, call)
+      nextCall = pending.next()
       throwSchedulerFailure()
       await commitReady()
       throwSchedulerFailure()
@@ -240,7 +235,6 @@ async function runGroup(
     for (const call of group.slice(started)) appendSkippedToolCall(session, turn, step, call.block)
     return { consumed: group.length, aborted: true, concluded }
   }
-  /* v8 ignore next -- unreachable: a non-aborted group commits every started call */
   if (committed !== started) throw new Error('tool-call scheduler: uncommitted settled calls')
   return { consumed: started, aborted: false, concluded }
 }

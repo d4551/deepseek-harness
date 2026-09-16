@@ -1,8 +1,9 @@
-/** Reject diagnostic directives and catch clauses throughout authored source and tests. */
+/** Reject diagnostic directives and catch clauses/handlers throughout authored source and tests. */
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { parse, type ParserPlugin } from '@babel/parser'
 import traverse from '@babel/traverse'
+import type { MemberExpression, OptionalMemberExpression } from '@babel/types'
 import { gitWorktreeFiles } from './git-worktree-files.ts'
 
 const ROOT = resolve(import.meta.dirname, '..')
@@ -27,7 +28,7 @@ const LINT_DIRECTIVE =
 export interface SuppressionViolation {
   file: string
   line: number
-  kind: 'lint-directive' | 'typescript-directive' | 'coverage-directive' | 'mutation-directive' | 'catch-clause' | 'parse-error'
+  kind: 'lint-directive' | 'typescript-directive' | 'coverage-directive' | 'mutation-directive' | 'catch-clause' | 'catch-handler' | 'parse-error'
   text: string
 }
 
@@ -52,7 +53,7 @@ function directiveKind(text: string): SuppressionViolation['kind'] | undefined {
 }
 
 /**
- * Inspect actual comments and catch nodes, including directives carrying explanations.
+ * Inspect actual comments and catch clauses/handlers, including directives carrying explanations.
  * @param sources - Complete authored source files.
  * @returns Violations sorted by path and line. Empty inputs and unrecoverable syntax errors throw.
  */
@@ -75,8 +76,27 @@ export function scanSuppressions(sources: readonly SuppressionSource[]): Suppres
         if (kind !== undefined) violations.push({ file, line: comment.loc.start.line + offset, kind, text: line.trim() })
       }
     }
+    const recordCatchHandler = (node: MemberExpression | OptionalMemberExpression): void => {
+      const property = node.property
+      const name = node.computed
+        ? property.type === 'StringLiteral'
+          ? property.value
+          : property.type === 'TemplateLiteral' && property.expressions.length === 0
+            ? property.quasis[0]?.value.cooked
+            : undefined
+        : property.type === 'Identifier' ? property.name : undefined
+      if (name !== 'catch') return
+      if (property.loc === undefined || property.loc === null || property.start === null || property.start === undefined) {
+        throw new Error(`${file}: catch-handler location is missing`)
+      }
+      const end = source.content.indexOf('\n', property.start)
+      const text = source.content.slice(property.start, end < 0 ? source.content.length : end).trim()
+      violations.push({ file, line: property.loc.start.line, kind: 'catch-handler', text })
+    }
     traverse(ast, {
       noScope: true,
+      MemberExpression({ node }) { recordCatchHandler(node) },
+      OptionalMemberExpression({ node }) { recordCatchHandler(node) },
       CatchClause({ node }) {
         if (node.loc === undefined || node.loc === null || node.start === null || node.start === undefined) {
           throw new Error(`${file}: catch location is missing`)

@@ -2,6 +2,42 @@ import { describe, expect, it } from 'vitest'
 import { EVENT_API, queryServiceApi, SERVICE_API } from '../src/client/api-catalog.ts'
 
 describe('Client Cordis inspect catalog', () => {
+  it('publishes the browser timer overloads and their lifecycle contracts', () => {
+    const timers = SERVICE_API.filter(service => service.key === 'timer')
+    expect(timers).toHaveLength(1)
+    expect(timers[0]?.methods.map(method => method.signature)).toEqual([
+      'timeout(callback: () => void, delay: number): TimerDisposer',
+      'timeout(delay: number): Promise<void>',
+      'interval(callback: () => void, delay: number): TimerDisposer',
+      'interval<R = unknown>(delay: number): AsyncIterableIterator<void, R, void>',
+      'throttle<Args extends unknown[]>(callback: (...args: Args) => void, delay: number, noTrailing?: boolean): Scheduled<Args>',
+      'debounce<Args extends unknown[]>(callback: (...args: Args) => void, delay: number): Scheduled<Args>',
+    ])
+    expect(timers[0]?.description).toBe('Browser timer Service whose pending work belongs to the calling Fiber.')
+    expect(timers[0]?.methods[3]).toEqual({
+      signature: 'interval<R = unknown>(delay: number): AsyncIterableIterator<void, R, void>',
+      description: 'Iterate over timer ticks.',
+      parameters: [{ name: 'delay', description: 'interval in milliseconds.' }],
+      returns: "async iterator of ticks. Its `throw()` keeps an Error's identity;"
+        + ' an omitted reason becomes an Error, and other values become a TypeError with the original cause.'
+        + ' Disposing the calling Fiber rejects pending and subsequent `next()` calls.',
+    })
+  })
+
+  it('includes both timer result types in the inspected coding contract', () => {
+    expect(queryServiceApi('timer')).toMatchObject({
+      mode: 'service',
+      referencedTypes: [
+        {
+          name: 'Scheduled',
+          declaration: 'export type Scheduled<Args extends unknown[]> = ((...args: Args) => void) & {\n'
+            + '    dispose: TimerDisposer;\n};',
+        },
+        { name: 'TimerDisposer', declaration: 'export type TimerDisposer = () => void | Promise<void>;' },
+      ],
+    })
+  })
+
   it('publishes the split Workspace Controller and UI navigation services', () => {
     expect(SERVICE_API.find(service => service.key === 'workspaces')?.methods.map(method => method.signature))
       .toEqual([
