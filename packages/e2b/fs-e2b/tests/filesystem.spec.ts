@@ -460,14 +460,14 @@ describe('E2BFileSystem identity, metadata, and reads', () => {
 
     remote.streamChunks = [bytes([0xff])]
     const invalid = await fs.streamText(await fs.resolve('invalid'))
-    await expect((async () => { for await (const _chunk of invalid) void _chunk })()).rejects.toMatchObject({ code: 'FS_NOT_TEXT' })
+    await expect(Array.fromAsync(invalid)).rejects.toMatchObject({ code: 'FS_NOT_TEXT' })
     remote.streamChunks = [bytes([0])]
     const binary = await fs.streamText(await fs.resolve('binary'))
-    await expect((async () => { for await (const _chunk of binary) void _chunk })()).rejects.toMatchObject({ code: 'FS_NOT_TEXT' })
+    await expect(Array.fromAsync(binary)).rejects.toMatchObject({ code: 'FS_NOT_TEXT' })
 
     remote.streamChunks = [bytes([0xe2])]
     const incomplete = await fs.streamText(await fs.resolve('invalid'))
-    await expect((async () => { for await (const _chunk of incomplete) void _chunk })()).rejects.toMatchObject({ code: 'FS_NOT_TEXT' })
+    await expect(Array.fromAsync(incomplete)).rejects.toMatchObject({ code: 'FS_NOT_TEXT' })
 
     const raced = await fs.resolve('invalid')
     remote.nextReadError = new FileNotFoundError('gone after stat')

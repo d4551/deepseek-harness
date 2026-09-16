@@ -485,7 +485,7 @@ export class TypertGatewayService extends Service implements TypertGateway {
           },
           `api-gateway: Remote event ${JSON.stringify(source.event)}`,
         )
-        releaseContext = () => { dispose().then(undefined, this.ctx.logger.error.bind(this.ctx.logger)) }
+        releaseContext = () => { Promise.resolve(dispose()).then(undefined, this.ctx.logger.error.bind(this.ctx.logger)) }
       } catch {
         source.resolve({ kind: 'next' })
         return

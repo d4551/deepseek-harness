@@ -112,7 +112,7 @@ class FakeTerminal implements SubprocessTerminalHandle {
     if (this.cleanup !== undefined) return this.cleanup
     const cleanup = this.terminateOnce()
     this.cleanup = cleanup
-    void cleanup.catch(() => { this.cleanup = undefined })
+    cleanup.catch(() => { this.cleanup = undefined })
     return cleanup
   }
 
@@ -492,7 +492,7 @@ describe('LocalPtySession readiness and output', () => {
     terminal.inspectForeground = async () => await inspection.promise
     const operation = session.startSend({ text: 'long-running-command', submit: true })
     let settled = false
-    void operation.done.then(() => { settled = true })
+    const completion = operation.done.then((result) => { settled = true; return result })
 
     terminal.emitData('\x1b]133;D;0\x07dsh> ')
     inspection.resolve({ processGroupId: 456, inputWaiting: true })
@@ -502,7 +502,7 @@ describe('LocalPtySession readiness and output', () => {
 
     terminal.emitData('\x1b]133;D;0\x07dsh> ')
     await vi.advanceTimersByTimeAsync(10)
-    expect((await operation.done).waitReason).toBe('stdin_read')
+    expect((await completion).waitReason).toBe('stdin_read')
   })
 
   it('captures prompt MOTD, writes submit explicitly, and settles exact stdin waits', async () => {
@@ -535,7 +535,7 @@ describe('LocalPtySession readiness and output', () => {
     inspector.waiting = true
     const operation = session.startSend({ text: 'echo ready', submit: true })
     let settled = false
-    void operation.done.then(() => { settled = true })
+    const completion = operation.done.then((result) => { settled = true; return result })
     await vi.advanceTimersByTimeAsync(20)
     expect(settled).toBe(false)
 
@@ -544,7 +544,7 @@ describe('LocalPtySession readiness and output', () => {
     expect(settled).toBe(false)
     inspector.waiting = true
     await vi.advanceTimersByTimeAsync(10)
-    expect((await operation.done).waitReason).toBe('stdin_read')
+    expect((await completion).waitReason).toBe('stdin_read')
   })
 
   it('tracks a pre-write wait exit before exact probing begins', async () => {
@@ -561,7 +561,7 @@ describe('LocalPtySession readiness and output', () => {
     inspector.waiting = true
     const operation = session.startSend({ text: 'fast command', submit: true })
     let settled = false
-    void operation.done.then(() => { settled = true })
+    const completion = operation.done.then((result) => { settled = true; return result })
     inspector.waiting = false
     await vi.advanceTimersByTimeAsync(10)
     inspector.waiting = true
@@ -569,7 +569,7 @@ describe('LocalPtySession readiness and output', () => {
     expect(settled).toBe(false)
     await vi.advanceTimersByTimeAsync(10)
     expect(settled).toBe(true)
-    expect((await operation.done).waitReason).toBe('stdin_read')
+    expect((await completion).waitReason).toBe('stdin_read')
   })
 
   it('distinguishes inferred idle, timeout, exit signal, and operation reads', async () => {
@@ -759,7 +759,7 @@ describe('LocalPtySession readiness and output', () => {
     await vi.advanceTimersByTimeAsync(50)
     expect(operation.cancel()).toBe(true)
     let settled = false
-    void operation.done.then(() => { settled = true })
+    const completion = operation.done.then((result) => { settled = true; return result })
 
     readiness.resolve({ processGroupId: 456, inputWaiting: true })
     await Promise.resolve()
@@ -771,7 +771,7 @@ describe('LocalPtySession readiness and output', () => {
     expect(await signalled.promise).toBe(456)
     expect(inspector.groups).toContainEqual([456, 'SIGINT'])
     await session.close('test complete')
-    expect((await operation.done).waitReason).toBe('session_exit')
+    expect((await completion).waitReason).toBe('session_exit')
   })
 
   it('does not let an in-flight readiness failure release a canceled send before signalling settles', async () => {
@@ -807,7 +807,7 @@ describe('LocalPtySession readiness and output', () => {
     expect(inspections).toBe(2)
     expect(operation.cancel()).toBe(true)
     let settled = false
-    void operation.done.then(() => { settled = true })
+    const completion = operation.done.then((result) => { settled = true; return result })
 
     readiness.reject(new Error('inspection failed during cancellation'))
     await Promise.resolve()
@@ -819,7 +819,7 @@ describe('LocalPtySession readiness and output', () => {
     expect(await signalled.promise).toBe(456)
     expect(inspector.groups).toContainEqual([456, 'SIGINT'])
     await session.close('test complete')
-    expect((await operation.done).waitReason).toBe('session_exit')
+    expect((await completion).waitReason).toBe('session_exit')
   })
 
   it('signals only after an in-flight provider write lands', async () => {
@@ -1129,7 +1129,7 @@ describe('LocalPtySession readiness and output', () => {
 
     const operation = session.startSend({ text: "printf 'PID=%s\\n' \"$!\"", submit: true })
     let settled = false
-    void operation.done.then(() => { settled = true })
+    const completion = operation.done.then((result) => { settled = true; return result })
     await Promise.resolve()
     await Promise.resolve()
 
@@ -1139,7 +1139,7 @@ describe('LocalPtySession readiness and output', () => {
 
     terminal.emitData('PID=123\r\n\x1b]133;D;0\x07dsh> ')
     await vi.advanceTimersByTimeAsync(10)
-    expect(await operation.done).toMatchObject({ waitReason: 'stdin_read' })
+    expect(await completion).toMatchObject({ waitReason: 'stdin_read' })
   })
 
   it('retains a prompt marker until the startup shell regains the foreground group', async () => {
@@ -1151,7 +1151,7 @@ describe('LocalPtySession readiness and output', () => {
 
     const operation = session.startSend({ text: 'run', submit: true })
     let settled = false
-    void operation.done.then(() => { settled = true })
+    const completion = operation.done.then((result) => { settled = true; return result })
     await Promise.resolve()
     await Promise.resolve()
     inspector.pgid = 789
@@ -1162,7 +1162,7 @@ describe('LocalPtySession readiness and output', () => {
     inspector.pgid = 456
     await vi.advanceTimersByTimeAsync(10)
     expect(settled).toBe(true)
-    expect((await operation.done).waitReason).toBe('stdin_read')
+    expect((await completion).waitReason).toBe('stdin_read')
   })
 
   it('holds the idle fallback for the configured handoff grace, not one poll', async () => {
@@ -1174,7 +1174,7 @@ describe('LocalPtySession readiness and output', () => {
 
     const operation = session.startSend({ text: 'run', submit: true })
     let settled = false
-    void operation.done.then(() => { settled = true })
+    const completion = operation.done.then((result) => { settled = true; return result })
     await Promise.resolve()
     await Promise.resolve()
     inspector.pgid = 789
@@ -1185,7 +1185,7 @@ describe('LocalPtySession readiness and output', () => {
 
     inspector.pgid = 456
     await vi.advanceTimersByTimeAsync(10)
-    expect((await operation.done).waitReason).toBe('stdin_read')
+    expect((await completion).waitReason).toBe('stdin_read')
   })
 
   it('falls back to inferred idle when a foreground child emits an inherited prompt marker', async () => {
@@ -1592,7 +1592,7 @@ describe('LocalPtySession bounds, signals, and teardown', () => {
     }
     const closing = session.close('in-flight readiness')
     let settled = false
-    void operation.done.then(() => { settled = true })
+    const completion = operation.done.then((result) => { settled = true; return result })
     inspection.resolve({ processGroupId: 456, inputWaiting: true })
     await Promise.resolve()
     await Promise.resolve()
@@ -1600,7 +1600,7 @@ describe('LocalPtySession bounds, signals, and teardown', () => {
 
     termination.resolve(undefined)
     await closing
-    expect((await operation.done).waitReason).toBe('session_exit')
+    expect((await completion).waitReason).toBe('session_exit')
   })
 
 })

@@ -205,7 +205,8 @@ async function respond(
  * @returns The origin to navigate, and its teardown.
  */
 async function serveDist(overrides: ReadonlyMap<string, string>): Promise<Site> {
-  const server = createServer((request, response) => { void respond(request, response, overrides) })
+  const responses: Promise<void>[] = []
+  const server = createServer((request, response) => { responses.push(respond(request, response, overrides)) })
   await new Promise<void>((listening) => { server.listen(0, '127.0.0.1', listening) })
   const address = server.address()
   if (address === null || typeof address === 'string') throw new Error('preview boot: the static server bound no port')
@@ -219,6 +220,7 @@ async function serveDist(overrides: ReadonlyMap<string, string>): Promise<Site> 
           else reject(error)
         })
       })
+      await Promise.all(responses)
     },
   }
 }

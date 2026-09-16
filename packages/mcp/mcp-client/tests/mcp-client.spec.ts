@@ -310,6 +310,7 @@ describe('syncTools', () => {
 
   it('owns output validation independently of the SDK per-page cache', async () => {
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+    const replies: Promise<void>[] = []
     serverTransport.onmessage = (message) => {
       if (!('id' in message) || !('method' in message)) return
       const params = 'params' in message ? message.params : undefined
@@ -354,7 +355,7 @@ describe('syncTools', () => {
       } else {
         result = {}
       }
-      void serverTransport.send({ jsonrpc: '2.0', id: message.id, result })
+      replies.push(serverTransport.send({ jsonrpc: '2.0', id: message.id, result }))
     }
     await serverTransport.start()
     const client = new Client({ name: 'cache-independent-test', version: '1' })
@@ -380,6 +381,7 @@ describe('syncTools', () => {
         structuredContent: ['kept', { nested: true }],
       })
     } finally {
+      await Promise.all(replies)
       await client.close()
     }
   })

@@ -463,6 +463,7 @@ describe('streamable-http — in-process MCP server', () => {
   let baseUrl: string
   /** Authorization header values observed by the HTTP server, in arrival order. */
   const seenAuth: Array<string | undefined> = []
+  const cleanups: Promise<void>[] = []
 
   /**
    * Stateless Streamable HTTP endpoint: a fresh McpServer + server transport
@@ -491,7 +492,7 @@ describe('streamable-http — in-process MCP server', () => {
     // explicit-undefined identically; exactOptionalPropertyTypes forbids the
     // SDK-documented explicit `sessionIdGenerator: undefined` spelling).
     const transport = new StreamableHTTPServerTransport({})
-    res.on('close', () => { void transport.close(); void server.close() })
+    res.on('close', () => { cleanups.push(transport.close(), server.close()) })
     // Same exactOptionalPropertyTypes mismatch the client transport factory
     // documents (src/transport.ts): the SDK types optional callbacks without
     // `| undefined`. The SDK constructed the object; the cast is safe.
@@ -530,6 +531,7 @@ describe('streamable-http — in-process MCP server', () => {
     const closed: PromiseWithResolvers<void> = Promise.withResolvers()
     httpServer.close(() => { closed.resolve() })
     await closed.promise
+    await Promise.all(cleanups)
   })
 
   it('discovers tools under the server namespace over HTTP', () => {

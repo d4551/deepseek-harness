@@ -75,7 +75,7 @@ export class ClientTimerService extends Service {
     if (callback !== undefined) {
       const dispose = this.ctx.effect(() => {
         const timer = globalThis.setTimeout(() => {
-          dispose().then(undefined, console.error)
+          Promise.resolve(dispose()).then(undefined, console.error)
           callback()
         }, delay)
         return () => { globalThis.clearTimeout(timer) }
@@ -91,7 +91,7 @@ export class ClientTimerService extends Service {
         reject(new Error('Context has been disposed'))
       }
     }, 'ctx.timeout()')
-    return promise.finally(() => { dispose().then(undefined, console.error) })
+    return promise.finally(() => { Promise.resolve(dispose()).then(undefined, console.error) })
   }
 
   /**

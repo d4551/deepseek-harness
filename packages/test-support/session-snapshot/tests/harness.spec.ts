@@ -92,7 +92,7 @@ describe('runScenario', () => {
     let stdioClosed = false
     let clientClosed = false
     launched.child.once('close', () => { stdioClosed = true })
-    void launched.client.closed.then(
+    launched.client.closed.then(
       () => { clientClosed = true },
       () => { clientClosed = true },
     )
@@ -130,9 +130,10 @@ describe('runScenario', () => {
     expect(launched.updates.some(update => update.sessionUpdate === 'agent_message_chunk')).toBe(true)
     expect(launched.rawStdout()).toContain('permission:{\\"outcome\\":\\"cancelled\\"}')
     expect(launched.stderr()).toContain('launcher stderr')
-    void laterChunk.catch(() => undefined)
+    const laterClosed = expect(laterChunk).rejects.toThrow(/update stream closed/)
     const unmatched = expect(launched.waitForUpdate(() => false)).rejects.toThrow(/update stream closed/)
     await launched.close()
+    await laterClosed
     await unmatched
     await expect(launched.waitForUpdate(() => true)).rejects.toThrow(/update stream closed/)
     await launched.close('SIGKILL')
@@ -266,13 +267,10 @@ describe('runScenario', () => {
       update.sessionUpdate === 'agent_message_chunk'
       && update.content.type === 'text'
       && update.content.text === 'late inherited stdout')
-    // Arm rejection handling before close may exhaust the stream; the later assertion still
-    // observes the original promise and turns a missing inherited frame into the test failure.
-    void lateUpdate.catch(() => undefined)
-
-    await launched.close()
-
-    await expect(lateUpdate).resolves.toMatchObject({ sessionUpdate: 'agent_message_chunk' })
+    await Promise.all([
+      launched.close(),
+      expect(lateUpdate).resolves.toMatchObject({ sessionUpdate: 'agent_message_chunk' }),
+    ])
     expect(launched.rawStdout()).toContain('late inherited stdout')
     expect(launched.stderr()).toContain('late inherited stderr')
   })
@@ -447,7 +445,7 @@ describe('runScenario', () => {
     })
     await launched.client.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} })
     const { sessionId } = await launched.client.newSession({ cwd: dir, mcpServers: [] })
-    void launched.client.prompt({ sessionId, prompt: [{ type: 'text', text: 'go' }] }).catch(() => undefined)
+    const prompt = Promise.allSettled([launched.client.prompt({ sessionId, prompt: [{ type: 'text', text: 'go' }] })])
     await permissionStarted
 
     const childClosed = once(launched.child, 'close')
@@ -459,6 +457,7 @@ describe('runScenario', () => {
 
     releasePermission?.()
     await closing
+    expect(await prompt).toMatchObject([{ status: 'rejected' }])
     expect(permissionFinished).toBe(true)
   })
 

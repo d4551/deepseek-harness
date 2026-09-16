@@ -672,10 +672,11 @@ describe('experimental Inspector real Worker', () => {
     const continueResponse = Promise.withResolvers<true>()
     const firstChunk = 'data: first\n\n'
     const laterChunk = 'event: update\nid: 2\ndata: second\ndata: line\n\n'
+    const responses: Promise<void>[] = []
     server = createServer((_request, response) => {
       response.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8' })
       response.write(firstChunk)
-      void continueResponse.promise.then(() => { response.end(laterChunk) })
+      responses.push(continueResponse.promise.then(() => { response.end(laterChunk) }))
     })
     await new Promise<void>((resolve) => { server!.listen(0, '127.0.0.1', () => { resolve() }) })
     const port = (server.address() as import('node:net').AddressInfo).port
@@ -741,6 +742,7 @@ describe('experimental Inspector real Worker', () => {
       expect(Buffer.from(String(body.result?.body), 'base64').toString('utf8')).toBe(firstChunk + laterChunk)
     } finally {
       continueResponse.resolve(true)
+      await Promise.all(responses)
     }
   })
 

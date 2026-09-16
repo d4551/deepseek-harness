@@ -135,8 +135,7 @@ function fakeChild(options: FakeChildOptions = {}): FakeChild {
     resolveDone = resolve
     rejectDone = reject
   })
-  // Individual tests deliberately exercise rejected and still-pending handles.
-  void done.catch(() => {})
+  const completion = done.then(() => true, () => true)
   const settle = (
     outcome: SubprocessOutcome = { exitCode: 0, signal: null },
   ): void => {
@@ -158,23 +157,13 @@ function fakeChild(options: FakeChildOptions = {}): FakeChild {
       throw options.waitForExitError
     }
     if (exited) return true
-    if (signal === undefined) {
-      await done.catch(() => {})
-      return true
-    }
-    return await new Promise<boolean>((resolve) => {
-      const onAbort = (): void => { resolve(false) }
-      signal.addEventListener('abort', onAbort, { once: true })
-      void done.then(
-        () => {
-          signal.removeEventListener('abort', onAbort)
-          resolve(true)
-        },
-        () => {
-          signal.removeEventListener('abort', onAbort)
-          resolve(true)
-        },
-      )
+    if (signal === undefined) return completion
+    if (signal.aborted) return false
+    const aborted = Promise.withResolvers<boolean>()
+    const onAbort = (): void => { aborted.resolve(false) }
+    signal.addEventListener('abort', onAbort, { once: true })
+    return await Promise.race([completion, aborted.promise]).finally(() => {
+      signal.removeEventListener('abort', onAbort)
     })
   })
   const handle: SubprocessHandle = {
@@ -486,10 +475,10 @@ describe('task admission and package contracts', () => {
     const started: string[] = []
     const ended: string[] = []
     const removed: string[] = []
-    ctx.on('subagent/provider-added', provider => void added.push(provider.name))
-    ctx.on('subagent/start', info => void started.push(info.provider))
-    ctx.on('subagent/end', info => void ended.push(info.provider))
-    ctx.on('subagent/provider-removed', providerName => void removed.push(providerName))
+    ctx.on('subagent/provider-added', (provider) => { added.push(provider.name) })
+    ctx.on('subagent/start', (info) => { started.push(info.provider) })
+    ctx.on('subagent/end', (info) => { ended.push(info.provider) })
+    ctx.on('subagent/provider-removed', (providerName) => { removed.push(providerName) })
     const safeFiber = await ctx.plugin(claudeCode, {
       providerName: 'claude-safe',
       model: 'claude-safe-model',

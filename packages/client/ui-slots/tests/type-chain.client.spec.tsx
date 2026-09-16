@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -179,7 +179,10 @@ function checkConsumer(body: string) {
   const directory = mkdtempSync(join(tmpdir(), 'dsh-slot-types-'))
   const repository = resolve(import.meta.dirname, '../../../..')
   try {
-    symlinkSync(join(repository, 'node_modules'), join(directory, 'node_modules'), 'junction')
+    const modules = join(directory, 'node_modules')
+    mkdirSync(join(modules, '@types'), { recursive: true })
+    symlinkSync(join(repository, 'node_modules/vitest'), join(modules, 'vitest'), 'junction')
+    symlinkSync(join(import.meta.dirname, '../node_modules/@types/react'), join(modules, '@types/react'), 'junction')
     const sourceFile = join(directory, 'consumer.ts')
     const configFile = join(directory, 'tsconfig.json')
     writeFileSync(configFile, JSON.stringify({
@@ -202,7 +205,8 @@ describe('slot registration type inference', () => {
   it.each(rejectedCalls)('%s', (_obligation, code, source) => {
     const report = checkConsumer(source)
     expect(report.diagnostics).toHaveLength(1)
-    expect(report.diagnostics[0]).toMatchObject({ code, file: report.file })
-    expect(report.diagnostics[0]?.start).toBeGreaterThanOrEqual(report.bodyStart)
+    expect(report.diagnostics[0]).toMatchObject({ code, fileName: report.file })
+    expect(report.diagnostics[0]?.pos).toBeGreaterThanOrEqual(report.bodyStart)
+    expect(report.diagnostics[0]?.end).toBeLessThanOrEqual(report.bodyStart + source.length)
   })
 })

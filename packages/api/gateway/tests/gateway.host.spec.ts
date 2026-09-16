@@ -49,6 +49,7 @@ class GoalService extends Service {
   readonly typertRemote = bindTypertRemote(this, 'goals')
   readonly calls: string[] = []
   lastSignal: AbortSignal | undefined
+  failedRequest: unknown
   nextResult: unknown = undefined
   businessError: Error | undefined
 
@@ -87,7 +88,7 @@ class GoalService extends Service {
 
   @Remote
   fail(request: unknown): never {
-    void request
+    this.failedRequest = request
     this.calls.push('fail')
     throw this.businessError ?? new Error('fixture business failure')
   }
@@ -155,7 +156,7 @@ function fakeHttpServer(routes: WebRoute[]): Pick<WebServer, 'register' | 'tapIn
 
 async function serveRoute(route: WebRoute): Promise<{ readonly origin: string; close(): Promise<void> }> {
   const server = createServer((request, response) => {
-    void route.handler(request, response)
+    Promise.resolve(route.handler(request, response)).catch(response.destroy.bind(response))
   })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   const address = server.address() as AddressInfo
@@ -957,6 +958,7 @@ describe('TypertGatewayService', () => {
       method: 'fail',
       args: { request: { reason: 'fixture' } },
     })).rejects.toBe(failure)
+    expect(service.failedRequest).toEqual({ reason: 'fixture' })
   })
 
   it('reports an absent endpoint without retaining receiver state', async () => {

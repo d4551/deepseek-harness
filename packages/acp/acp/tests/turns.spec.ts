@@ -411,9 +411,10 @@ describe('ACP prompt lifecycle', () => {
     harness = await makeBridgeHarness({ imageCapable: true, script: [] })
     const sessionId = await newSession(harness)
     const saveImages = harness.attachments!.saveImages.bind(harness.attachments!)
+    const cancellations: Promise<void>[] = []
     vi.spyOn(harness.attachments!, 'saveImages').mockImplementationOnce(async (inputs) => {
       const refs = await saveImages(inputs)
-      queueMicrotask(() => { void harness!.client.cancel({ sessionId }) })
+      queueMicrotask(() => { cancellations.push(harness!.client.cancel({ sessionId })) })
       return refs
     })
 
@@ -421,6 +422,7 @@ describe('ACP prompt lifecycle', () => {
       sessionId,
       prompt: [{ type: 'image', data: 'AQ==', mimeType: 'image/png' }],
     })).resolves.toEqual({ stopReason: 'cancelled' })
+    await Promise.all(cancellations)
     expect(harness.adapter.requests).toEqual([])
   })
 

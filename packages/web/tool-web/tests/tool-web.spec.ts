@@ -643,7 +643,7 @@ describe('tool-web execution through the real registry', () => {
     const { fiber, call } = await mountTools({ webConfig: { searchProvider: 'stub-search' }, search: provider })
     const pending = call('web_search', { queries: ['one', 'two'] })
     let callSettled = false
-    void pending.then(() => { callSettled = true })
+    const observedCall = pending.then(() => { callSettled = true })
     try {
       await vi.waitFor(() => { expect(siblingAborted).toBe(true) })
       await Promise.resolve()
@@ -653,6 +653,7 @@ describe('tool-web execution through the real registry', () => {
     }
     const out = await pending
     expect(out.isError).toBe(true)
+    await observedCall
     expect(out.content).toEqual([{ type: 'text', text: 'Error: first search failed' }])
     await fiber.dispose()
   })

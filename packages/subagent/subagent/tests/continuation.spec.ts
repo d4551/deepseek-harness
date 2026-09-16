@@ -355,7 +355,7 @@ describe('SubagentRuntime.startContinuable', () => {
   it('rolls an unpublished Activation back when lifecycle publication fails', async () => {
     const { ctx, parent } = await setup([textResponse('unused')])
     const ends: SubagentRunEndInfo[] = []
-    ctx.on('subagent/end', info => void ends.push(info))
+    ctx.on('subagent/end', (info) => { ends.push(info) })
     ctx.on('internal/dispatch', (_mode, eventName) => {
       if (eventName === 'subagent/start') throw new Error('start publication failed')
     }, { global: true })
@@ -584,8 +584,8 @@ describe('SubagentRuntime.followup residency routing', () => {
     })
     const starts: SubagentRunInfo[] = []
     const ends: SubagentRunEndInfo[] = []
-    ctx.on('subagent/start', info => void starts.push(info))
-    ctx.on('subagent/end', info => void ends.push(info))
+    ctx.on('subagent/start', (info) => { starts.push(info) })
+    ctx.on('subagent/end', (info) => { ends.push(info) })
 
     const started = await ctx.subagents.startContinuable(startSpec(parent, 'retired'))
     await waitNoActivation(ctx, started.childId)
@@ -802,7 +802,7 @@ describe('continuable durability and teardown', () => {
     const ends: SubagentRunEndInfo[] = []
     let peerFlushed = false
     ctx.logger.warn = (message: string) => { warnings.push(message) }
-    ctx.on('subagent/end', info => void ends.push(info))
+    ctx.on('subagent/end', (info) => { ends.push(info) })
     ctx.on('session/flush', (session) => {
       if (session.header.parentSession !== undefined) throw new Error('disk full')
     })
@@ -1480,7 +1480,7 @@ describe('continuable review regressions', () => {
     const adapter = new GatedAdapter([{ chunks: textResponse('answer'), gate: hold.promise }])
     const { ctx, parent } = await setupWith(adapter)
     const ends: SubagentRunEndInfo[] = []
-    ctx.on('subagent/end', info => void ends.push(info))
+    ctx.on('subagent/end', (info) => { ends.push(info) })
 
     const started = await ctx.subagents.startContinuable(startSpec(parent))
     const manager = (ctx.subagents as unknown as {
@@ -2366,17 +2366,15 @@ describe('continuable errors', () => {
   it('rejects a parent that is no longer the live registry entry', async () => {
     const { ctx, parent } = await setup([textResponse('first')])
     const started = await ctx.subagents.startContinuable(startSpec(parent))
-    const child = await vi.waitFor(() => {
+    await vi.waitFor(() => {
       const found = ctx.agents.get(started.childId)
       expect(found).toBeDefined()
-      return found!
     })
     // A stale parent reference: same id, not the exact live entry.
     const stale = { ...parent, id: parent.id } as unknown as Agent
 
     await expect(followup(ctx, stale, started.childId, message('stale')))
       .rejects.toMatchObject({ code: 'UNAUTHORIZED' })
-    void child
   })
 
   it('rejects establishing a child under a parent whose disposal already began', async () => {

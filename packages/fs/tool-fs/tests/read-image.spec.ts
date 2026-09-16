@@ -210,7 +210,7 @@ describe('read_image happy path', () => {
     await writeFile(join(dir, 'red.png'), PNG_1X1)
     const ctx = await setup()
     const observed: string[] = []
-    ctx.on('fs/observed', target => void observed.push(target.displayPath))
+    ctx.on('fs/observed', (target) => { observed.push(target.displayPath) })
     await readImage(ctx, { file_path: 'red.png' }, agentOn('vision-model'))
     expect(observed).toEqual([join(dir, 'red.png')])
   })
@@ -465,7 +465,7 @@ describe('image admission failures', () => {
     await mkdir(join(dir, 'folder.png'))
     const ctx = await setup()
     const observed: { path: string; kind: string }[] = []
-    ctx.on('fs/observed', (target, observation) => void observed.push({ path: target.displayPath, kind: observation.kind }))
+    ctx.on('fs/observed', (target, observation) => { observed.push({ path: target.displayPath, kind: observation.kind }) })
     const missing = await readImage(ctx, { file_path: 'absent.png' }, agentOn('vision-model'))
     expect(missing.isError).toBe(true)
     expect(text(missing)).toContain('not found')

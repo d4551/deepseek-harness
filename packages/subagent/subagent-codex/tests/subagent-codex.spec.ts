@@ -197,6 +197,7 @@ function fakeChild(options: FakeChildOptions = {}): FakeChild {
     resolveDone = resolve
     rejectDone = reject
   })
+  const completion = done.then(() => true, () => true)
   const settle = (
     outcome: SubprocessOutcome = { exitCode: 0, signal: null },
   ): void => {
@@ -218,23 +219,13 @@ function fakeChild(options: FakeChildOptions = {}): FakeChild {
       throw options.waitForExitError
     }
     if (exited) return true
-    if (signal === undefined) {
-      await done.catch(() => {})
-      return true
-    }
-    return await new Promise<boolean>((resolve) => {
-      const onAbort = (): void => { resolve(false) }
-      signal.addEventListener('abort', onAbort, { once: true })
-      void done.then(
-        () => {
-          signal.removeEventListener('abort', onAbort)
-          resolve(true)
-        },
-        () => {
-          signal.removeEventListener('abort', onAbort)
-          resolve(true)
-        },
-      )
+    if (signal === undefined) return completion
+    if (signal.aborted) return false
+    const aborted = Promise.withResolvers<boolean>()
+    const onAbort = (): void => { aborted.resolve(false) }
+    signal.addEventListener('abort', onAbort, { once: true })
+    return await Promise.race([completion, aborted.promise]).finally(() => {
+      signal.removeEventListener('abort', onAbort)
     })
   })
   const handle: SubprocessHandle = {
@@ -504,10 +495,10 @@ describe('task admission and package contracts', () => {
     const started: string[] = []
     const ended: string[] = []
     const removed: string[] = []
-    ctx.on('subagent/provider-added', provider => void added.push(provider.name))
-    ctx.on('subagent/start', info => void started.push(info.provider))
-    ctx.on('subagent/end', info => void ended.push(info.provider))
-    ctx.on('subagent/provider-removed', providerName => void removed.push(providerName))
+    ctx.on('subagent/provider-added', (provider) => { added.push(provider.name) })
+    ctx.on('subagent/start', (info) => { started.push(info.provider) })
+    ctx.on('subagent/end', (info) => { ended.push(info.provider) })
+    ctx.on('subagent/provider-removed', (providerName) => { removed.push(providerName) })
     const safeFiber = await ctx.plugin(codex, {
       providerName: 'codex-safe',
       model: 'codex-safe-model',
@@ -1715,7 +1706,7 @@ describe('run lifecycle and quiescence', () => {
       runSpec(child, { env: { OPENAI_API_KEY: 'fake' }, spawn }),
     )
     let published = false
-    void starting.then(() => { published = true })
+    const publication = starting.then(() => { published = true })
     const initialize = await child.peer.nextMethod('initialize')
     expect(published).toBe(false)
     child.peer.respond(initialize, { userAgent: 'codex-cli 0.153.0' })
@@ -1724,6 +1715,7 @@ describe('run lifecycle and quiescence', () => {
     expect(published).toBe(false)
     child.peer.respond(threadStart, { thread: { id: 'thread-1', ephemeral: true } })
     const run = await starting
+    await publication
     expect(spawn).toHaveBeenCalledWith({
       argv: codexAppServerArgv(),
       cwd: process.cwd(),
