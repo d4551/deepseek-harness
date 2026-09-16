@@ -460,14 +460,26 @@ describe('E2BFileSystem identity, metadata, and reads', () => {
 
     remote.streamChunks = [bytes([0xff])]
     const invalid = await fs.streamText(await fs.resolve('invalid'))
-    await expect(Array.fromAsync(invalid)).rejects.toMatchObject({ code: 'FS_NOT_TEXT' })
+    const invalidChunks: string[] = []
+    await expect((async () => {
+      for await (const chunk of invalid) invalidChunks.push(chunk)
+    })()).rejects.toMatchObject({ code: 'FS_NOT_TEXT' })
+    expect(invalidChunks).toEqual([])
     remote.streamChunks = [bytes([0])]
     const binary = await fs.streamText(await fs.resolve('binary'))
-    await expect(Array.fromAsync(binary)).rejects.toMatchObject({ code: 'FS_NOT_TEXT' })
+    const binaryChunks: string[] = []
+    await expect((async () => {
+      for await (const chunk of binary) binaryChunks.push(chunk)
+    })()).rejects.toMatchObject({ code: 'FS_NOT_TEXT' })
+    expect(binaryChunks).toEqual([])
 
     remote.streamChunks = [bytes([0xe2])]
     const incomplete = await fs.streamText(await fs.resolve('invalid'))
-    await expect(Array.fromAsync(incomplete)).rejects.toMatchObject({ code: 'FS_NOT_TEXT' })
+    const incompleteChunks: string[] = []
+    await expect((async () => {
+      for await (const chunk of incomplete) incompleteChunks.push(chunk)
+    })()).rejects.toMatchObject({ code: 'FS_NOT_TEXT' })
+    expect(incompleteChunks).toEqual([])
 
     const raced = await fs.resolve('invalid')
     remote.nextReadError = new FileNotFoundError('gone after stat')

@@ -494,7 +494,7 @@ describe('dsh-subagent-spawn-in-process', () => {
     ctx.on('agent/created', () => { published.push('agent/created') })
     ctx.on('agent/session-start', () => { published.push('agent/session-start') })
     let teardownStarted = false
-    let teardown: void | Promise<void>
+    let teardown: Promise<void> | undefined
     ctx.on('internal/plugin', (fiber) => {
       if (teardownStarted || fiber.name !== 'scope') return
       teardownStarted = true
@@ -509,6 +509,7 @@ describe('dsh-subagent-spawn-in-process', () => {
     // parent context owns that transaction, so disposal wins without an
     // observer ever seeing the child.
     await expect(starting).rejects.toThrow(/owner disposed during setup|inactive context/)
+    expect(teardown).toBeDefined()
     await teardown
     await parentHandle.dispose()
 
