@@ -225,7 +225,7 @@ export class AcpSession {
   /** Resolve topology state off-chain, then serialize its notification without blocking execution updates. */
   topologyChanged(): void {
     if (this.closing !== undefined) return
-    void this.modelControl.options()
+    this.modelControl.options()
       .then((configOptions) => {
         if (this.closing !== undefined) return
         // Adapter registration raises this for every live session, so a
@@ -503,7 +503,7 @@ export class AcpSession {
   private settleAfterQuiescence(inflight: InflightPrompt): void {
     if (inflight.settlementStarted) return
     inflight.settlementStarted = true
-    void (async () => {
+    ;(async () => {
       await inflight.admissionDone
       if (inflight.messageQueued) {
         await this.agent.whenIdle()

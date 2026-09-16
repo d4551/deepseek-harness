@@ -39,7 +39,7 @@ The boot page uses plain DOM and local CSS, so bundle and plugin-activation fail
 
 ### The shared module table
 
-`PLATFORM_MODULES` (in `src/platform.ts`) names the shell-seeded shared modules — React, Cordis, and static UI libraries — and together with `PRELOADED_CLIENT_EXTERNALS` (the parser-preloaded runtime row) defines the implicit external baseline every dynamic bundle resolves against. `dsh.client.external` adds only exact non-baseline requests; see [shared modules and the module graph](../AGENTS.md#shared-modules-and-the-module-graph). The seeded table also answers `@deepseek-ai/dsh-client-runtime` and `@deepseek-ai/dsh-client-runtime/client` with the `dsh-client-store` singleton so already-built out-of-tree bundles that imported that specifier keep resolving; those keys are not `PLATFORM_MODULES` words and there is no `dsh.client.provide` alias.
+`PLATFORM_MODULES` (in `src/platform.ts`) names the shell-seeded shared modules — React, Cordis, and static UI libraries — and together with `PRELOADED_CLIENT_EXTERNALS` (the parser-preloaded runtime row) defines the implicit external baseline every dynamic bundle resolves against. `dsh.client.external` adds only exact non-baseline requests; see [shared modules and the module graph](../modules/README.md). The seeded table also answers `@deepseek-ai/dsh-client-runtime` and `@deepseek-ai/dsh-client-runtime/client` with the `dsh-client-store` singleton so already-built out-of-tree bundles that imported that specifier keep resolving; those keys are not `PLATFORM_MODULES` words and there is no `dsh.client.provide` alias.
 
 ### Configuration
 
@@ -89,7 +89,6 @@ Read these when the boot contract is not enough: the module system it boots, the
 - [Client module system](../modules/README.md) — the lazy module table and boot graph this kernel consumes.
 - [UI renderer](../ui-renderer/README.md) — receives the mount point and binds slot data to React.
 - [Client modules subsystem](../../../docs/subsystems/client-modules.md) — the web plugin table, boot graph wire, and bundle route.
-- [Client authoring rules](../AGENTS.md#shared-modules-and-the-module-graph) — the shared-module baseline and `dsh.client.external` semantics.
 - [Client group map](../README.md) — the browser half this package belongs to.
 
 -----

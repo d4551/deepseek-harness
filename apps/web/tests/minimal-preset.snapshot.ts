@@ -138,7 +138,7 @@ describe('minimal agent preset', () => {
   })
 
   it.skipIf(MODE === 'record')('expands the completed persistent Bash call in the Web conversation', async () => {
-    onTestFailed(() => { if (page !== undefined) void saveFailureShot(page, 'web-minimal-persistent-bash-card') })
+    onTestFailed(async () => { if (page !== undefined) await saveFailureShot(page, 'web-minimal-persistent-bash-card') })
     browser = await launchBrowser()
     page = await newEnglishPage(browser)
     tripwire = watchConsole(page)

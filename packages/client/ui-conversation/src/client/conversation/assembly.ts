@@ -199,7 +199,7 @@ export class UiConversation extends Service {
       () => () => { this.drop(record, false) },
       'ui-conversation binding',
     )
-    record.disposeScope = () => { void disposeScope() }
+    record.disposeScope = () => { Promise.resolve(disposeScope()).catch(owner.ctx.logger().error) }
     return binding
   }
 

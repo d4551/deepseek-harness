@@ -1,7 +1,7 @@
 import { availableParallelism } from 'node:os'
 import { existsSync } from 'node:fs'
 import { defineConfig } from 'vitest/config'
-import { standardDecoratorPlugin, vitestExecArgv } from './vitest.shared.ts'
+import { standardDecoratorPlugin, vitestCacheDir, vitestExecArgv, vitestFsModuleCachePath } from './vitest.shared.ts'
 
 const DEFAULT_SNAPSHOT_MAX_CONCURRENCY = 5
 
@@ -31,9 +31,11 @@ if (process.env.DSH_SNAPSHOT === 'record' && existsSync(new URL('.env', import.m
 }
 
 export default defineConfig({
+  cacheDir: vitestCacheDir,
   resolve: { tsconfigPaths: true },
   plugins: [standardDecoratorPlugin()],
   test: {
+    fsModuleCachePath: vitestFsModuleCachePath,
     execArgv: vitestExecArgv,
     setupFiles: ['./scripts/test-invariants.ts'],
     include: [

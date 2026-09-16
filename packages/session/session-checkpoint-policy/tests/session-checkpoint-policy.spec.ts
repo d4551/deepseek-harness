@@ -114,7 +114,7 @@ describe('session-checkpoint-policy request boundary', () => {
     ctx.llm.registerAdapter(['mock'], new RecordingAdapter(order))
     await expect(drain(ctx.llm.stream({
       provider: 'mock', model: 'mock', messages: [], sessionId: session.id,
-    }))).rejects.toThrow('disk unavailable')
+    }))).rejects.toMatchObject({ name: 'AggregateError', errors: [new Error('disk unavailable')] })
     expect(order).toEqual([])
   })
 })

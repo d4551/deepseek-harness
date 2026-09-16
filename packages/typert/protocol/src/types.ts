@@ -142,13 +142,16 @@ type TypertScopedClientEventListener<Event extends TypertRemoteEvent> =
 
 /**
  * Listener derived from one selected Cordis event declaration. Scoped Host
- * subjects become the resolved Client `Context`; one-way notifications retain
- * their declaration unchanged.
+ * subjects become the resolved Client `Context`; one-way notifications preserve
+ * their arguments and receiver and may complete asynchronously.
  * @template Event - selected Remote Event name.
  */
 export type TypertClientEventListener<Event extends TypertRemoteEvent> =
   unknown extends ThisParameterType<Events[Event]>
-    ? Events[Event]
+    ? (
+      this: ThisParameterType<Events[Event]>,
+      ...args: TypertEventParameters<Event>
+    ) => TypertEventResult<Event> | Promise<TypertEventResult<Event>>
     : TypertScopedClientEventListener<Event>
 
 /**

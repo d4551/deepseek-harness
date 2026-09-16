@@ -6,7 +6,7 @@ English | [中文](2026-08-27-built-image-vitest-lane.zh.md)
 
 ## Problem
 
-`packages/experimental/webworker-packer/tests/image-loadable.spec.ts` did two unrelated jobs in one file inside the unit lane: fast source-tree assertions over repository knowledge (workspace indexing, config trees, preview fixtures, pack reporting) and slow fixtures that materialize emitted `lib/` and load it through the real runtime image loader. The [coverage-exempt roster](2026-07-31-coverage-exempt-heavy-suites.md) exempted the whole file as heavy, so a broken unit assertion and a missing emitted bundle were indistinguishable, and the unit half paid an instrumentation tax it never needed.
+`packages/experimental/webworker-packer/tests/image-loadable.spec.ts` did two unrelated jobs in one file inside the unit lane: fast source-tree assertions over repository knowledge (workspace indexing, config trees, preview fixtures, pack reporting) and slow fixtures that materialize emitted `lib/` and load it through the real runtime image loader. The [archived coverage-exempt roster](../../archived/process/2026-07-31-coverage-exempt-heavy-suites.md) exempted the whole file as heavy, so a broken unit assertion and a missing emitted bundle were indistinguishable, and the unit half paid an instrumentation tax it never needed.
 
 ## Decision
 

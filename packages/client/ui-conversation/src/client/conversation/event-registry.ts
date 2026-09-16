@@ -39,7 +39,7 @@ export class ConversationEventRegistry extends ConversationDefinitionRegistry<Co
         this.refresh()
       }
     }, `uiConversation.events.registerFallback(${JSON.stringify(definition.kind)})`)
-    return () => { void dispose() }
+    return () => { Promise.resolve(dispose()).catch(this.ctx.logger().error) }
   }
 
   /**

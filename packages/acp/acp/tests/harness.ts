@@ -205,7 +205,7 @@ export interface BridgeHarness {
   persistenceRoot: string
   onPermission: (request: RequestPermissionRequest) => RequestPermissionResponse
   onSessionUpdateError: (() => void) | undefined
-  registerCatalogProvider: (provider: string) => () => void
+  registerCatalogProvider: (provider: string) => () => void | Promise<void>
   replacePrimaryProviders: (providers: string[]) => void
   closeClientTransport: () => Promise<void>
   abortClientTransport: () => Promise<void>
@@ -264,8 +264,15 @@ export async function makeBridgeHarness(options: {
     client: undefined as unknown as BridgeClient,
     acpFiber: undefined as unknown as BridgeHarness['acpFiber'],
     loopFiber,
-    closeClientTransport: async () => { await clientToAgentWriter.close() },
-    abortClientTransport: async () => { await clientToAgentWriter.abort(new Error('client transport failed')) },
+    closeClientTransport: async () => {
+      await clientToAgentWriter.close()
+      clientConnection.close()
+    },
+    abortClientTransport: async () => {
+      const error = new Error('client transport failed')
+      await clientToAgentWriter.abort(error)
+      clientConnection.close(error)
+    },
     dispose: async () => {
       await ctx.fiber.dispose()
       if (ownsPersistenceRoot) await rm(persistenceRoot, { recursive: true, force: true })

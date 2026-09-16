@@ -75,7 +75,7 @@ export class ClientTimerService extends Service {
     if (callback !== undefined) {
       const dispose = this.ctx.effect(() => {
         const timer = globalThis.setTimeout(() => {
-          void dispose()
+          dispose().then(undefined, console.error)
           callback()
         }, delay)
         return () => { globalThis.clearTimeout(timer) }
@@ -91,7 +91,7 @@ export class ClientTimerService extends Service {
         reject(new Error('Context has been disposed'))
       }
     }, 'ctx.timeout()')
-    return promise.finally(() => { void dispose() })
+    return promise.finally(() => { dispose().then(undefined, console.error) })
   }
 
   /**
@@ -136,17 +136,17 @@ export class ClientTimerService extends Service {
         if (done.kind === 'return') return Promise.resolve({ done: true, value: done.value })
         return Promise.reject(done.reason)
       },
-      return: (value: any) => {
+      return: async (value: any) => {
         if (done === undefined) done = { kind: 'return', value }
         nextTask?.resolve({ done: true, value })
-        void dispose()
-        return Promise.resolve({ done: true, value })
+        await dispose()
+        return { done: true, value }
       },
-      throw: (reason: any) => {
+      throw: async (reason: any) => {
         if (done === undefined) done = { kind: 'throw', reason }
         nextTask?.reject(reason)
-        void dispose()
-        return Promise.resolve({ done: true, value: undefined })
+        await dispose()
+        return { done: true, value: undefined }
       },
       [Symbol.asyncIterator]() {
         return this

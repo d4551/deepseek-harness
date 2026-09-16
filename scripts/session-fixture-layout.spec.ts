@@ -174,6 +174,6 @@ it('keeps every session-format JSONL fixture projected into canonical packed lay
     .map(fixture => fixture.path)
   expect(
     nonCanonical,
-    'Run `bun run migrate:packed-session-fixtures` and commit the mechanical fixture rewrite.',
+    'Session fixtures must use the canonical packed layout emitted by scrubSessionSnapshot; inspect the listed fixture writers.',
   ).toEqual([])
 })

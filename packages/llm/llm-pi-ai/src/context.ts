@@ -4,12 +4,11 @@
  * @module dsh-llm-pi-ai/context
  */
 
-import { ToolCallId, contentHasImage, LlmError, offloadedImageText, offloadRequestImagesWithPolicy, requestImageHandleText } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, contentHasImage, LlmError, offloadedImageText, offloadRequestImagesWithPolicy, prepareRequestImages, requestImageHandleText } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, GenerateOptions, ImageAttachmentAccessResolver, Message } from '@deepseek-ai/dsh-llm'
 import type {
   AttachmentId,
   AttachmentStore,
-  ImageAttachmentRef,
   ImageRequestPolicy,
   RequestImageAttachment,
 } from '@deepseek-ai/dsh-attachment'
@@ -86,35 +85,6 @@ async function userContent(
   }
   if (content.every(block => block.type === 'text')) return content.map(block => block.text).join('')
   return content
-}
-
-function collectImageRefs(
-  blocks: readonly ContentBlock[],
-  refs: Map<AttachmentId, ImageAttachmentRef>,
-): void {
-  for (const block of blocks) {
-    if (block.type === 'image') refs.set(block.attachment.attachmentId, block.attachment)
-    else if (block.type === 'tool-result') collectImageRefs(block.content, refs)
-  }
-}
-
-async function prepareRequestImages(
-  messages: readonly Message[],
-  attachments: AttachmentStore,
-  policy: ImageRequestPolicy,
-  signal?: AbortSignal,
-): Promise<Map<AttachmentId, RequestImageAttachment>> {
-  const refs = new Map<AttachmentId, ImageAttachmentRef>()
-  for (const message of messages) collectImageRefs(message.content, refs)
-  const orderedRefs = [...refs.values()]
-  const prepared = await Promise.all(orderedRefs.map(
-    ref => attachments.readImageRequest(ref, policy, signal),
-  ))
-  const versions = new Map<AttachmentId, RequestImageAttachment>()
-  for (const [index, ref] of orderedRefs.entries()) {
-    versions.set(ref.attachmentId, prepared[index] as RequestImageAttachment)
-  }
-  return versions
 }
 
 function toolsOf(options: GenerateOptions): PiTool[] | undefined {

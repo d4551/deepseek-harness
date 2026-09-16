@@ -158,7 +158,10 @@ export class InspectorQueryPeer {
       return true
     }
     this.inFlight.set(frame.requestId, accepted)
-    void this.execute(frame, accepted)
+    const executionFailed = (error: unknown): void => {
+      this.rejectTransport(1011, renderError(error).message)
+    }
+    this.execute(frame, accepted).then(undefined, executionFailed)
     return true
   }
 

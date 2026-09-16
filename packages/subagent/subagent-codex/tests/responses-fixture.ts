@@ -258,10 +258,11 @@ export async function startResponsesFixture(
   const exhausted: string[] = []
   const started = Promise.withResolvers<undefined>()
   const openResponses = new Set<ServerResponse>()
+  const pending: Promise<void>[] = []
   const server = createServer((request, response) => {
     openResponses.add(response)
     response.on('close', () => { openResponses.delete(response) })
-    void readRequest(request).then((body) => {
+    pending.push(readRequest(request).then((body) => {
       const parsedBody = JSON.parse(body) as Record<string, unknown>
       requests.push({
         method: request.method,
@@ -320,7 +321,7 @@ export async function startResponsesFixture(
       response.end('data: [DONE]\n\n')
     }).catch((error: unknown) => {
       response.destroy(error instanceof Error ? error : new Error(String(error)))
-    })
+    }))
   })
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
@@ -341,6 +342,7 @@ export async function startResponsesFixture(
     async close(): Promise<void> {
       for (const response of openResponses) response.destroy()
       await closeServer(server)
+      await Promise.all(pending)
     },
   }
 }

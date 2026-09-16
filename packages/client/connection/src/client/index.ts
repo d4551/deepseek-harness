@@ -117,23 +117,24 @@ export interface ConnectionHandle {
    * Register the sole source defining Host generations. The source reports
    * ready only after its incremental listeners are attached.
    * @param source - long-lived generation source owned by the push carrier.
-   * @returns disposer withdrawing the source and stopping an active loop.
+   * @returns disposer withdrawing the source immediately and awaiting its started generations.
    */
-  registerGenerationSource(source: ConnectionGenerationSource): () => void
+  registerGenerationSource(source: ConnectionGenerationSource): () => Promise<void>
   /**
    * Start the connect/reconnect loop with the consumer's state callbacks.
    * API Gateway owns the loop; a second call throws.
    * @param sinks - connection-state callbacks.
    * @param config - reconnect/backoff tunables.
-   * @returns stop handle for the loop.
+   * @returns handle that cancels immediately and awaits the loop and its retiring generations.
    */
-  start(sinks: ConnectionSinks, config?: ConnectionConfig): { stop(): void }
+  start(sinks: ConnectionSinks, config?: ConnectionConfig): { stop(): Promise<void> }
 }
 
 interface ConnectionOwner {
   readonly token: object
   readonly source: ConnectionGenerationSource
   readonly controller: ConnectionController
+  readonly dispose: () => Promise<void>
 }
 
 /**
@@ -146,7 +147,10 @@ export function apply(ctx: Context): void {
   const fixtureRpc = fixture ? createFixtureConnectionRpc() : undefined
   const transport = (globalThis as ClientTransportGlobal).__DSH_TRANSPORT__
   const rpc = fixtureRpc ?? createWebConnectionRpc(transport?.fetch, transport?.openStream)
-  let generationSource: ConnectionGenerationSource | undefined
+  let generationSource: {
+    readonly source: ConnectionGenerationSource
+    readonly owners: Map<object, ConnectionOwner>
+  } | undefined
   let owner: ConnectionOwner | undefined
   let generationId = 0
   let generation: ConnectionGeneration | undefined
@@ -162,11 +166,9 @@ export function apply(ctx: Context): void {
       }
     }
   }
-  const releaseOwner = (current: ConnectionOwner): void => {
-    if (owner !== current) return
-    owner = undefined
-    current.controller.stop()
-    publishGeneration(undefined)
+  const releaseOwner = async (current: ConnectionOwner): Promise<void> => {
+    await current.dispose()
+    await current.controller.stop()
   }
   const handle: ConnectionHandle = {
     isLoopback: transport?.ownsHost === true || pageLocation === undefined || isLoopbackHostname(pageLocation.hostname),
@@ -182,18 +184,22 @@ export function apply(ctx: Context): void {
       if (generationSource !== undefined) {
         throw new Error('connection: a generation source is already registered')
       }
-      generationSource = source
-      return () => {
-        if (generationSource !== source) return
-        generationSource = undefined
-        const current = owner
-        if (current?.source === source) releaseOwner(current)
+      const registration = { source, owners: new Map<object, ConnectionOwner>() }
+      generationSource = registration
+      return async () => {
+        if (generationSource === registration) generationSource = undefined
+        const results = await Promise.allSettled([...registration.owners.values()].map(releaseOwner))
+        const failures = results.filter(result => result.status === 'rejected')
+        if (failures.length > 0) {
+          throw new AggregateError(failures.map((result): unknown => result.reason), 'connection source disposal failed')
+        }
       }
     },
     start(sinks, config) {
       if (owner !== undefined) throw new Error('connection: the stream loop is already owned by another consumer')
-      const source = generationSource
-      if (source === undefined) throw new Error('connection: no generation source is registered')
+      const registration = generationSource
+      if (registration === undefined) throw new Error('connection: no generation source is registered')
+      const { source } = registration
       const token = {}
       const ownsGeneration = (): boolean => owner?.token === token
       const controller = new ConnectionController(source, {
@@ -212,11 +218,19 @@ export function apply(ctx: Context): void {
           sinks.onStateChange?.(state)
         },
       }, config ?? {})
-      const current = { token, source, controller }
+      const dispose = ctx.effect(() => () => {
+        if (ownsGeneration()) {
+          owner = undefined
+          publishGeneration(undefined)
+        }
+        return controller.stop().finally(() => { registration.owners.delete(token) })
+      }, 'connection.generation')
+      const current = { token, source, controller, dispose }
+      registration.owners.set(token, current)
       owner = current
       controller.start()
       return {
-        stop: () => { releaseOwner(current) },
+        stop: () => releaseOwner(current),
       }
     },
   }

@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { defineConfig } from 'vitest/config'
-import { standardDecoratorPlugin, vitestExecArgv } from './vitest.shared.ts'
+import { standardDecoratorPlugin, vitestCacheDir, vitestExecArgv, vitestFsModuleCachePath } from './vitest.shared.ts'
 
 // Real-API suite, separate because it spends tokens. Each test self-skips without
 // its provider credential for keyless CI; credentialed workflows preflight the
@@ -26,9 +26,11 @@ function positiveIntFromEnv(name: string, fallback: number): number {
 const e2eMaxWorkers = positiveIntFromEnv('DSH_E2E_MAX_WORKERS', DEFAULT_E2E_MAX_WORKERS)
 
 export default defineConfig({
+  cacheDir: vitestCacheDir,
   resolve: { tsconfigPaths: true },
   plugins: [standardDecoratorPlugin()],
   test: {
+    fsModuleCachePath: vitestFsModuleCachePath,
     execArgv: vitestExecArgv,
     setupFiles: ['./scripts/test-invariants.ts'],
     // apps/cli only, not apps/*: apps/web/tests/*.e2e.ts needs the built

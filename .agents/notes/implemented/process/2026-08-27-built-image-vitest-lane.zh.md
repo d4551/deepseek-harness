@@ -6,7 +6,7 @@ Status: implemented
 
 ## 问题
 
-`packages/experimental/webworker-packer/tests/image-loadable.spec.ts` 在单元车道内一个文件里承担了两件不相关的工作：对仓库知识的快速源码树断言（工作区索引、配置树、preview fixture、pack 报告），以及物化已输出的 `lib/` 并通过真实 runtime 镜像 loader 加载的慢速 fixture。[覆盖率豁免名单](2026-07-31-coverage-exempt-heavy-suites.zh.md)把整个文件当作重型套件豁免，于是"单元断言坏了"与"构建产物缺失"无法区分，单元那一半还白付了自己从不需要的插桩开销。
+`packages/experimental/webworker-packer/tests/image-loadable.spec.ts` 在单元车道内一个文件里承担了两件不相关的工作：对仓库知识的快速源码树断言（工作区索引、配置树、preview fixture、pack 报告），以及物化已输出的 `lib/` 并通过真实 runtime 镜像 loader 加载的慢速 fixture。[已归档的覆盖率豁免名单](../../archived/process/2026-07-31-coverage-exempt-heavy-suites.md)把整个文件当作重型套件豁免，于是"单元断言坏了"与"构建产物缺失"无法区分，单元那一半还白付了自己从不需要的插桩开销。
 
 ## 决策
 

@@ -42,7 +42,7 @@ describe('agent-presets invariants', () => {
     const ctx = await harness()
     const handle = await ctx.agents.create({
       sessionId: SessionId('inv-live'),
-      setup: async (agentCtx: Context) => void await ctx.agentPresets.mount(agentCtx, 'standard'),
+      setup: async (agentCtx: Context) => { await ctx.agentPresets.mount(agentCtx, 'standard') },
     })
 
     expect(livePresetMounts().map(mount => mount.presetId)).toContain('standard')
@@ -55,7 +55,7 @@ describe('agent-presets invariants', () => {
     // A second agent reuses the same mount rather than adding one.
     await ctx.agents.create({
       sessionId: SessionId('inv-live-2'),
-      setup: async (agentCtx: Context) => void await ctx.agentPresets.mount(agentCtx, 'standard'),
+      setup: async (agentCtx: Context) => { await ctx.agentPresets.mount(agentCtx, 'standard') },
     })
     expect(livePresetMounts().filter(mount => mount.presetId === 'standard')).toHaveLength(1)
 
@@ -68,7 +68,7 @@ describe('agent-presets invariants', () => {
     const ctx = await harness()
     await ctx.agents.create({
       sessionId: SessionId('inv-late'),
-      setup: async (agentCtx: Context) => void await ctx.agentPresets.mount(agentCtx, 'late'),
+      setup: async (agentCtx: Context) => { await ctx.agentPresets.mount(agentCtx, 'late') },
     })
     const publishLate = (globalThis as { __PUBLISH_LATE__?: () => void }).__PUBLISH_LATE__
     expect(publishLate).toBeTypeOf('function')
@@ -81,7 +81,7 @@ describe('agent-presets invariants', () => {
 
     await expect(ctx.agents.create({
       sessionId: SessionId('inv-isolated'),
-      setup: async (agentCtx: Context) => void await ctx.agentPresets.mount(agentCtx, 'isolated'),
+      setup: async (agentCtx: Context) => { await ctx.agentPresets.mount(agentCtx, 'isolated') },
     })).resolves.toBeDefined()
   })
 
@@ -123,7 +123,7 @@ describe('agent-presets invariants', () => {
     const ctx = await harness()
     const handle = await ctx.agents.create({
       sessionId: SessionId('inv-joined'),
-      setup: async (agentCtx: Context) => void await ctx.agentPresets.mount(agentCtx, 'standard'),
+      setup: async (agentCtx: Context) => { await ctx.agentPresets.mount(agentCtx, 'standard') },
     })
 
     await expect(ctx.systemPrompt.assemble(assembleContextFor(handle.agent))).resolves.toBeDefined()

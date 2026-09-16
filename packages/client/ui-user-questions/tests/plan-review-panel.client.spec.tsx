@@ -144,7 +144,7 @@ function wait(items: QuestionWait['questions'] = questions()) {
   const carrier = new PendingQuestion(SID, items)
   const answer = vi.spyOn(carrier, 'answer')
   const cancel = vi.spyOn(carrier, 'cancel')
-  void carrier.result.catch(() => {})
+  carrier.result.catch(() => {})
   return { carrier, answer, cancel }
 }
 

@@ -264,7 +264,7 @@ export function spawn(
   // writes standard input right after `spawn()` — the subprocess service does
   // exactly that — is never racing the first output.
   queueMicrotask(() => {
-    void (async () => {
+    ;(async () => {
       const cwd = options.cwd ?? DSH_ROOT
       let commandArgv: readonly string[] = argv
       let filesystem: ShellFileSystem | undefined

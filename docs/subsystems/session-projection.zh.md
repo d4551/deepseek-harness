@@ -101,6 +101,8 @@ type ProjectionChangeListener = (
 
 `SessionProjectionRegistry`（[签名](#ctxsessionprojections--sessionprojectionregistry)）拥有驱动权：一份 `session/event` 订阅、对每个已注册单元即时调用 `apply`，以及每会话每单元的水位线（watermark）cell。cell 惰性构建：在事件流过之后才注册的单元，或比注册表更早的会话，都在首次触达（事件或读取）时从 `init` 出发在内存日志上折叠。注册是一个 effect，其 disposer 随调用方 fiber 走：领域插件卸载后，其 key（连同缓存的 cell）从后续驱动与快照中消失，客户端将其读作能力缺失；key 以不同 `stateVersion` 重复时直接 throw，同版本注册方则共享一个单元并被计数。领域插件在 `ctx.inject(['sessionProjections'], …)` 下注册，因此不带注册表的 headless 组装完全不受影响。
 
+`register` 和 `onChanged` 返回 Cordis `Disposable<Promise<void>>` 句柄。显式释放注册或订阅时，应调用返回的 disposer 并等待其完成；fiber 的 dispose（资源释放）也会等待这些 effect。
+
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
 <a id="cordis-surface"></a>
@@ -188,7 +190,7 @@ Source: [`packages/session/session-projection-cache/src/index.ts`](../../package
  * @param definition - key, state schema, pure unit functions, and stateVersion.
  * @returns the exact disposer that unregisters this unit.
  */
-register< K extends keyof SessionProjectionMap, S extends SessionProjectionStateMap[K], >( definition: Omit<ProjectionDefinition<K, S>, 'wire'> & { wire: NonNullable<ProjectionDefinition<K, S>['wire']> }, ): () => void
+register< K extends keyof SessionProjectionMap, S extends SessionProjectionStateMap[K], >( definition: Omit<ProjectionDefinition<K, S>, 'wire'> & { wire: NonNullable<ProjectionDefinition<K, S>['wire']> }, ): Disposable<Promise<void>>
 
 /**
  * Register one host-only unit. Its state is omitted from client snapshots
@@ -196,7 +198,7 @@ register< K extends keyof SessionProjectionMap, S extends SessionProjectionState
  * @param definition - key, state schema, pure unit functions, and stateVersion.
  * @returns the exact disposer that unregisters this unit.
  */
-register< K extends Exclude<keyof SessionProjectionStateMap, keyof SessionProjectionMap>, S extends SessionProjectionStateMap[K], >( definition: Omit<ProjectionDefinition<K, S>, 'wire'>, ): () => void
+register< K extends Exclude<keyof SessionProjectionStateMap, keyof SessionProjectionMap>, S extends SessionProjectionStateMap[K], >( definition: Omit<ProjectionDefinition<K, S>, 'wire'>, ): Disposable<Promise<void>>
 
 /**
  * Subscribe to the change feed. The registration is an effect on the
@@ -204,7 +206,7 @@ register< K extends Exclude<keyof SessionProjectionStateMap, keyof SessionProjec
  * @param listener - called once per client-visible unit whose state reference changed, per committed event.
  * @returns the exact disposer that unsubscribes.
  */
-onChanged(listener: ProjectionChangeListener): () => void
+onChanged(listener: ProjectionChangeListener): Disposable<Promise<void>>
 
 /**
  * Read one unit's current host state after materializing every registered

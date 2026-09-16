@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-client-ui-primitives` is the web client's shared React component library: every feature plugin composes its UI from these atoms, and nothing here depends on Cordis or the slot system. It provides the control set (buttons, pills, inputs, menus, modals, toast banners, disclosure rows, hover cards, connection banners), the icon glyphs and brand marks, positioning hooks for anchored overlays, and the content renderers for agent output: markdown with TeX math, terminal output, file reads, diffs, search results, web retrieval, and JSON inspection. The renderers are built for untrusted model output — raw HTML is dropped, links are neutralized or opened safely, and ANSI escape sequences are parsed rather than passed through. User-facing copy is supplied through label props; the feature plugin that composes an atom owns localization.
+`dsh-client-ui-primitives` is the web client's shared React component library: every feature plugin composes its UI from these atoms, and nothing here depends on Cordis or the slot system. It provides the control set (buttons, pills, inputs, menus, modals, toast banners, disclosure rows, hover cards, connection banners), the icon glyphs and brand marks, positioning hooks for anchored overlays, and the content renderers for agent output: markdown with TeX math, terminal output, file reads, diffs, search results, web retrieval, and JSON inspection. The renderers are built for untrusted model output — raw HTML stays literal text, links are neutralized or opened safely, and ANSI escape sequences are parsed rather than passed through. User-facing copy is supplied through label props; the feature plugin that composes an atom owns localization.
 
 ## Table of Contents
 
@@ -44,6 +44,8 @@ Within a menu, Up/Down and Home/End move among that menu's rows. Right, Enter, o
 ### Rendering agent output
 
 `MarkdownText` renders untrusted GFM and TeX math, blocks unsafe links and images, and can turn resolved file mentions into explicit controls. While a reply streams, it freezes completed blocks and highlights a growing fence from saved Shiki grammar state; the final render uses the same span tree ([incremental renderer](../../../.agents/notes/implemented/architecture/2026-08-06-web-markdown-incremental-ast-renderer.md), [streaming fence highlighting](../../../.agents/notes/implemented/feature/2026-08-20-web-streaming-fence-highlight.md)). `TerminalBlock`, `ReadBlock`, `DiffBlock`, `SearchBlock`, and `WebBlock` render the matching tool-result intent with copy controls, overflow handling, and ANSI processing where applicable. `JsonTree` and `JsonBlock` inspect JSON values read-only, while `MessageText` remains the literal-text primitive for user-authored content.
+
+For compact labels and summaries, [`extractMarkdownPlainText`](src/markdown/plain-text.ts) preserves link labels, image alt text, code text, and literal HTML while removing Markdown presentation syntax. It separates blocks, including paragraphs and code inside footnotes, so adjacent words remain distinct. The default `all` mode returns the complete projection; `first-line` returns its first visible line, and `first-paragraph` selects its first nonempty paragraph or the first visible line when none exists. Content with no visible text returns an empty string.
 
 ### Localizing copy
 

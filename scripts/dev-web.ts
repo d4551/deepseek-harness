@@ -179,10 +179,14 @@ function spawnStage(stage: string, command: string, args: readonly string[], loc
     reject: false,
   })
   stages.push({ kill: () => { child.kill() } })
-  void child.then((result) => {
+  const stageFailed = (error: unknown): never => {
+    console.error(`dev-web: ${stage} failed`, error)
+    process.exit(1)
+  }
+  child.then((result) => {
     console.error(`dev-web: ${stage} exited (code ${String(result.exitCode)}); the artifact chain is now stale`)
     process.exit(1)
-  })
+  }, stageFailed)
 }
 
 /** The only capability this script needs from a live watcher process. */

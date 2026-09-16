@@ -44,7 +44,7 @@ describe('createScope', () => {
     let scope!: Scope
     await ctx.plugin((inner: Context) => {
       scope = createScope(inner, { name: 'sync' })
-      scope.ctx.effect(() => () => void events.push('disposed'))
+      scope.ctx.effect(() => () => { events.push('disposed') })
       events.push('registered')
     })
     expect(events).toEqual(['registered'])
@@ -77,11 +77,11 @@ describe('createScope', () => {
     let dispose!: () => Promise<void> | void
     await ctx.plugin((inner: Context) => {
       dispose = inner.effect(function* () {
-        yield () => void order.push('outer')
+        yield () => { order.push('outer') }
         const scope = createScope(inner, { name: 'nested' })
-        scope.ctx.effect(() => () => void order.push('scope'))
+        scope.ctx.effect(() => () => { order.push('scope') })
         yield scope.rawDispose
-        yield () => void order.push('inner')
+        yield () => { order.push('inner') }
       })
     })
     await dispose()
@@ -97,9 +97,9 @@ describe('scopeTarget', () => {
     const scopeA = await mintScope(ctx, keyA)
     const scopeB = await mintScope(ctx, keyB)
     const heard: string[] = []
-    ctx.on('scope-test/ping', value => void heard.push(`global:${value}`))
-    scopeA.ctx.on('scope-test/ping', value => void heard.push(`A:${value}`))
-    scopeB.ctx.on('scope-test/ping', value => void heard.push(`B:${value}`))
+    ctx.on('scope-test/ping', (value) => { heard.push(`global:${value}`) })
+    scopeA.ctx.on('scope-test/ping', (value) => { heard.push(`A:${value}`) })
+    scopeB.ctx.on('scope-test/ping', (value) => { heard.push(`B:${value}`) })
 
     ctx.emit(scopeTarget(ctx, keyA), 'scope-test/ping', 'a')
     ctx.emit(scopeTarget(ctx, keyB), 'scope-test/ping', 'b')
@@ -114,8 +114,8 @@ describe('scopeTarget', () => {
     const key = { name: 'A' }
     const scope = await mintScope(ctx, key)
     const heard: string[] = []
-    ctx.on('scope-test/ping', value => void heard.push(`global:${value}`))
-    scope.ctx.on('scope-test/ping', value => void heard.push(`A:${value}`))
+    ctx.on('scope-test/ping', (value) => { heard.push(`global:${value}`) })
+    scope.ctx.on('scope-test/ping', (value) => { heard.push(`A:${value}`) })
     let receiverMatches = false
     const base = {
       [Context.filter](this: object): boolean {
@@ -134,7 +134,7 @@ describe('scopeTarget', () => {
     const ctx = new Context()
     const scope = await mintScope(ctx, { name: 'A' })
     const heard: string[] = []
-    scope.ctx.on('scope-test/ping', value => void heard.push(value), { global: true })
+    scope.ctx.on('scope-test/ping', (value) => { heard.push(value) }, { global: true })
     ctx.emit(scopeTarget(ctx, { name: 'other' }), 'scope-test/ping', 'foreign')
     ctx.emit(scopeTarget(ctx, undefined), 'scope-test/ping', 'none')
     expect(heard).toEqual(['foreign', 'none'])
@@ -187,8 +187,7 @@ describe('scope parent chain', () => {
     expect(scopeChainOf(agent)).toEqual([agent, presetB])
     // The rebind keeps the cycle check: a parent may not adopt its ancestor.
     const child = { id: 'child' }
-    const childBinding = bindScopeParent(child, agent)
-    void childBinding
+    bindScopeParent(child, agent)
     expect(() => { binding.rebind(child) }).toThrow(/cycle/)
   })
 

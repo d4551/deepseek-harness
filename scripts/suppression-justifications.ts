@@ -1,107 +1,105 @@
-/**
- * Scan shipped package source for suppressions that carry no reason.
- *
- * Two repository rules are stated in `AGENTS.md` and gated nowhere else: a
- * linter exception must be narrow and justified, and an empty `catch` must name
- * what it swallows. Both are checkable from the text around the suppression, so
- * an undocumented one is a defect a reader cannot evaluate.
- */
-
+/** Reject diagnostic directives and catch clauses throughout authored source and tests. */
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { uniqueRepoFiles } from './repo-files.ts'
+import { parse, type ParserPlugin } from '@babel/parser'
+import traverse from '@babel/traverse'
+import { gitWorktreeFiles } from './git-worktree-files.ts'
 
 const ROOT = resolve(import.meta.dirname, '..')
+const SOURCE_EXTENSIONS = ['ts', 'tsx', 'js', 'jsx', 'mts', 'cts', 'mjs', 'cjs']
+const SOURCE_GROUPS = [
+  /^packages\/[^/]+\/[^/]+\/src\//,
+  /^packages\/[^/]+\/[^/]+\/tests\//,
+  /^apps\/[^/]+\/src\//,
+  /^apps\/[^/]+\/tests\//,
+  /^scripts\//,
+  /^snapshots\//,
+  /^vendor\//,
+  /^native\//,
+  /^website\//,
+  /^\.github\//,
+  /^[^/]+$/,
+]
+const LINT_DIRECTIVE =
+  /^(?:(?:oxlint|eslint|tslint)-disable(?:-next-line|-line)?\b|biome-ignore(?:-all|-start)?\b|(?:prettier|dprint)-ignore\b)/
 
-/** A suppression whose reason a reader cannot find. */
+/** One prohibited directive, catch clause or unreadable source construct. */
 export interface SuppressionViolation {
-  /** Repository-relative file holding the suppression. */
   file: string
-  /** 1-based line of the suppression itself. */
   line: number
-  /** Which rule the suppression failed. */
-  kind: 'lint-directive' | 'empty-catch'
-  /** The suppressing text, trimmed for the failure message. */
+  kind: 'lint-directive' | 'typescript-directive' | 'coverage-directive' | 'mutation-directive' | 'catch-clause' | 'parse-error'
   text: string
 }
 
-/** One scanned source file. */
+/** Complete source input; paths are normalized before reporting. */
 export interface SuppressionSource {
-  /** Repository-relative path. */
   file: string
-  /** Complete file text. */
   content: string
 }
 
-const DIRECTIVE = /(?:oxlint|eslint)-disable(?:-next-line)?|biome-ignore/
-const DIRECTIVE_HEAD = /^.*?(?:(?:oxlint|eslint)-disable(?:-next-line)?|biome-ignore)\s*[\w@/-]*/
-const COMMENT_START = /^\s*(?:\/\/|\/\*|\*)/
-/** `catch {` or `catch (e) {`, capturing everything up to the next brace of any kind. */
-const CATCH_BLOCK = /\bcatch\s*(?:\([^)]*\))?\s*\{([^{}]*)\}/g
-
-/**
- * Whether a directive line, or the comment above its run, states a reason.
- *
- * A reason is written after the rule name, or once above a run of directives.
- * A `-next-line` run alternates directives with the single line each annotates,
- * so the walk upward steps over both.
- * @param lines - Every line of the file.
- * @param index - 0-based line of the directive.
- * @returns Whether a reader can find why the rule is suppressed here.
- */
-function directiveIsJustified(lines: readonly string[], index: number): boolean {
-  const tail = (lines[index] ?? '').replace(DIRECTIVE_HEAD, '').trim()
-  // `--` opens the reason, which a block comment may continue on later lines.
-  if (tail.startsWith('--') || tail.replace(/[:*/\s]+$/, '') !== '') return true
-  let above = index - 1
-  while (above >= 0 && (DIRECTIVE.test(lines[above] ?? '') || DIRECTIVE.test(lines[above - 1] ?? ''))) {
-    above -= 1
+function directiveKind(text: string): SuppressionViolation['kind'] | undefined {
+  const directive = text.trimStart().replace(/^\*\s*/, '')
+  if (LINT_DIRECTIVE.test(directive)) {
+    return 'lint-directive'
   }
-  return above >= 0 && COMMENT_START.test(lines[above] ?? '')
+  if (/^(?:eslint|oxlint)\s/.test(directive) && /:\s*(?:0\b|['"]off['"]|\[\s*(?:0\b|['"]off['"]))/i.test(directive)) {
+    return 'lint-directive'
+  }
+  if (/^@ts-(?:ignore|expect-error|nocheck)\b/.test(directive)) return 'typescript-directive'
+  if (/^(?:istanbul|c8|v8|node:coverage)\s+(?:ignore|disable)\b/.test(directive)) return 'coverage-directive'
+  if (/^Stryker\s+disable(?:\s|$)/.test(directive)) return 'mutation-directive'
+  return undefined
 }
 
 /**
- * Collect every suppression that states no reason.
- * @param sources - Files to scan, as path and complete text.
- * @returns One violation per undocumented suppression, in file then line order.
+ * Inspect actual comments and catch nodes, including directives carrying explanations.
+ * @param sources - Complete authored source files.
+ * @returns Violations sorted by path and line. Empty inputs and unrecoverable syntax errors throw.
  */
 export function scanSuppressions(sources: readonly SuppressionSource[]): SuppressionViolation[] {
+  if (sources.length === 0) throw new Error('suppression scan: source corpus must be nonempty')
   const violations: SuppressionViolation[] = []
-  for (const { file, content } of sources) {
-    const lines = content.split('\n')
-    for (const [index, line] of lines.entries()) {
-      if (!DIRECTIVE.test(line) || directiveIsJustified(lines, index)) continue
-      violations.push({ file, line: index + 1, kind: 'lint-directive', text: line.trim() })
+  for (const source of sources) {
+    const file = source.file.replaceAll('\\', '/')
+    const plugins: ParserPlugin[] = ['decorators', 'decoratorAutoAccessors']
+    if (/\.[cm]?tsx?$/.test(file)) plugins.push(['typescript', { dts: /\.d\.[cm]?ts$/.test(file) }])
+    if (/\.[jt]sx$/.test(file)) plugins.push('jsx')
+    const ast = parse(source.content, { sourceFilename: file, sourceType: 'unambiguous', plugins, errorRecovery: true })
+    for (const error of ast.errors) {
+      violations.push({ file, line: error.loc.line, kind: 'parse-error', text: error.message })
     }
-    for (const match of content.matchAll(CATCH_BLOCK)) {
-      const body = match[1] ?? ''
-      // A body holding a statement handles the failure; only a body that drops
-      // it silently has to say what it drops.
-      if (body.split('\n').some(entry => entry.trim() !== '' && !COMMENT_START.test(entry))) continue
-      if (body.includes('//') || body.includes('/*')) continue
-      violations.push({
-        file,
-        line: content.slice(0, match.index).split('\n').length,
-        kind: 'empty-catch',
-        text: match[0].split('\n')[0]?.trim() ?? 'catch {',
-      })
+    for (const comment of ast.comments ?? []) {
+      if (comment.loc === undefined) throw new Error(`${file}: comment location is missing`)
+      for (const [offset, line] of comment.value.split('\n').entries()) {
+        const kind = directiveKind(line)
+        if (kind !== undefined) violations.push({ file, line: comment.loc.start.line + offset, kind, text: line.trim() })
+      }
     }
+    traverse(ast, {
+      noScope: true,
+      CatchClause({ node }) {
+        if (node.loc === undefined || node.loc === null || node.start === null || node.start === undefined) {
+          throw new Error(`${file}: catch location is missing`)
+        }
+        const end = source.content.indexOf('\n', node.start)
+        const text = source.content.slice(node.start, end < 0 ? source.content.length : end).trim()
+        violations.push({ file, line: node.loc.start.line, kind: 'catch-clause', text })
+      },
+    })
   }
-  return violations
+  return violations.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.kind.localeCompare(b.kind))
 }
 
 /**
- * Load the shipped package source the suppression scan covers.
+ * Load tracked and untracked repository JavaScript and TypeScript, including configuration and vendored source.
  * @param root - Repository root.
- * @returns Repository-relative path plus content for every scanned file.
+ * @returns Full corpus; an absent source group fails rather than narrowing the scan.
  */
 export function loadSuppressionCorpus(root: string = ROOT): SuppressionSource[] {
-  return uniqueRepoFiles(
-    root,
-    ['packages/*/*/src/**/*.{ts,tsx}'],
-    relativePath => relativePath.includes('node_modules/') || relativePath.includes('/lib/'),
-  ).map(({ abs }) => ({
-    file: abs.slice(root.length + 1).split('\\').join('/'),
-    content: readFileSync(abs, 'utf8'),
-  }))
+  const { files } = gitWorktreeFiles(root, SOURCE_EXTENSIONS.map(extension => `*.${extension}`))
+  const sources = files.map(file => ({ file, content: readFileSync(resolve(root, file), 'utf8') }))
+  for (const group of SOURCE_GROUPS) {
+    if (!sources.some(source => group.test(source.file))) throw new Error(`suppression scan: no authored source found in ${group}`)
+  }
+  return sources.sort((a, b) => a.file.localeCompare(b.file))
 }

@@ -810,7 +810,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/fs/fs-network-drive/src/index.ts:40`](../packages/fs/fs-network-drive/src/index.ts)
+Source: [`packages/fs/fs-network-drive/src/index.ts:41`](../packages/fs/fs-network-drive/src/index.ts)
 
 <a id="deepseek-aidsh-fs-sandbox"></a>
 
@@ -2428,7 +2428,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/storage/storage-domain/src/index.ts:52`](../packages/storage/storage-domain/src/index.ts)
+Source: [`packages/storage/storage-domain/src/index.ts:53`](../packages/storage/storage-domain/src/index.ts)
 
 <a id="deepseek-aidsh-storage-json"></a>
 
@@ -2444,12 +2444,12 @@ Requires: `storage`
  * location explicitly.
  */
 export interface Config {
-  /** Directory holding one `<unit>.json` file (or `<unit>/` tree) per unit. */
+  /** Directory holding one `<unit>.json` file (or `<unit>/` tree) per unit, resolved at backend construction. */
   root: string
 }
 ```
 
-Source: [`packages/storage/storage-json/src/index.ts:28`](../packages/storage/storage-json/src/index.ts)
+Source: [`packages/storage/storage-json/src/index.ts:29`](../packages/storage/storage-json/src/index.ts)
 
 <a id="deepseek-aidsh-storage-sqlite"></a>
 

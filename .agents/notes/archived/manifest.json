@@ -382,6 +382,9 @@
     "process/2026-07-27-wine-windows-gates-experiment.i18n.yaml": "sha256:6f4cbc12ee9cddbb297bf7e138ccabcd204f66898a0f7411b1633f03d5a9eab5",
     "process/2026-07-27-wine-windows-gates-experiment.md": "sha256:8d37dcdab058098c7de3da1de00ce61bef92bbc8d6ee71add959474c6fb3e936",
     "process/2026-07-27-wine-windows-gates-experiment.zh.md": "sha256:77fbf04df36af09e55007a93bd6b22d08ff99869efe8de3e97dac5b4701e0a9e",
+    "process/2026-07-31-coverage-exempt-heavy-suites.i18n.yaml": "sha256:29ab4a9ff161750f6acbdec75d5a7418eda894d2a76471122a200f0b59816bdc",
+    "process/2026-07-31-coverage-exempt-heavy-suites.md": "sha256:316b3d962bb400a7438d9146b97e9a2bc32bfaa9f757cbecc3956553bbd18260",
+    "process/2026-07-31-coverage-exempt-heavy-suites.zh.md": "sha256:53b97579a9df12714be3f585a4ee1d96a92d4874f541edc010837b3c7c79ad4a",
     "process/2026-07-31-installer-adopts-existing-checkout.i18n.yaml": "sha256:e7d072856cd3df3b717d94647be4ea05db087b114df4b11d68a171677b94c970",
     "process/2026-07-31-installer-adopts-existing-checkout.md": "sha256:d97e39d07bde30d534417a406fc6c56ee6765dbc7b671888d17ef2cac9a7c6dc",
     "process/2026-07-31-installer-adopts-existing-checkout.zh.md": "sha256:ab445493c1aacf3f8dc091bdbd765ad56c551ae613e0d8156610f0c4614a7431",
@@ -394,6 +397,9 @@
     "process/2026-08-12-documentation-site-navigation-and-chrome.i18n.yaml": "sha256:dde0041399b253e3758045f0858488db8178ffc563ce889c8b396c87af6c3730",
     "process/2026-08-12-documentation-site-navigation-and-chrome.md": "sha256:56cb836ed862378afd33eb5c1a9dc159958b35a0aed3bf4336fcf26ab0b84b8b",
     "process/2026-08-12-documentation-site-navigation-and-chrome.zh.md": "sha256:f2dd4adde38a09fe312866a1e6dad0f465684d809287862f40f1a488acd4fe18",
+    "process/2026-08-18-in-job-partitioned-coverage.i18n.yaml": "sha256:f890784222b3b2dff2f825beef3509b60866d1454137266d4e908150bbd2c81f",
+    "process/2026-08-18-in-job-partitioned-coverage.md": "sha256:b286e9cb758cf3aac74e912612e95fcce17a072857345ad6ababffe054a9c4ab",
+    "process/2026-08-18-in-job-partitioned-coverage.zh.md": "sha256:e4701db2881fbb01f35334b67397321cf627d3bfdde2ae874ccdb65c7fbd28d1",
     "simplification/2026-06-20-drop-unconsumed-llm-adapter-change-event.i18n.yaml": "sha256:ad3d1263cb0051b885173bf064de62065e2c646ccaae2d7250723da3b4eab90c",
     "simplification/2026-06-20-drop-unconsumed-llm-adapter-change-event.md": "sha256:8fb061d51c8c23b47d2367814bab3623c6d5b972f38d207a273caa9030b579bd",
     "simplification/2026-06-20-drop-unconsumed-llm-adapter-change-event.zh.md": "sha256:2ffeaca91f82844a5616d6dcce6b4af514bb8a7c46f78e47f668b204ac6edc04",
@@ -516,6 +522,12 @@
     "testing/2026-07-26-execa-for-test-subprocess-plumbing.zh.md": "sha256:8a24bdc8376373d7a97f65cefc07078824bf918d6a9934056a025ecfafe8634b",
     "testing/2026-08-12-required-python-runtime-pull-request-ci.i18n.yaml": "sha256:741e7e58e5e8a9c82d901c4a16a70cea9bd256eac0e94179b5a24a231bb9fe1f",
     "testing/2026-08-12-required-python-runtime-pull-request-ci.md": "sha256:1f1273d7a550667533e29c76efd148aebf57581a91729c877b44a5e43a52d9ad",
-    "testing/2026-08-12-required-python-runtime-pull-request-ci.zh.md": "sha256:6b9bf126c6b83d9b21e135d38df677c0d5623168b4353c6ddb706f76762c2193"
+    "testing/2026-08-12-required-python-runtime-pull-request-ci.zh.md": "sha256:6b9bf126c6b83d9b21e135d38df677c0d5623168b4353c6ddb706f76762c2193",
+    "testing/2026-09-06-coverage-debt-markers.i18n.yaml": "sha256:f6761fa1362fa460ed946afa30b476ea71e47c091b7a9ed398d68a54e14d44bb",
+    "testing/2026-09-06-coverage-debt-markers.md": "sha256:c24339683e7b67e78c5340ab97495694d5009bda185796ea3a4cb7016e8eb8c1",
+    "testing/2026-09-06-coverage-debt-markers.zh.md": "sha256:a31cb77cf69d0ed8cd54ef21854dfbf72c1172c423348f52f85fb4ba0ae0a978",
+    "testing/2026-09-12-coverage-debt-measurement.i18n.yaml": "sha256:4d328e4e2bed383ed00f278df2481f93cd3de9a8416eebdf0c8e5bb036998f66",
+    "testing/2026-09-12-coverage-debt-measurement.md": "sha256:c2d7367f8647508bc452d4dcfb12e46cba5c5bc776d8d55f2714d951bb6558e8",
+    "testing/2026-09-12-coverage-debt-measurement.zh.md": "sha256:6cb80bb8af89e8ba695353655355f955090508e0dfbb35d26047604762c8bc42"
   }
 }

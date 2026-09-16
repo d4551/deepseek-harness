@@ -24,17 +24,11 @@ The JSONL backend packs each durable append batch. Raw `compression: 'none'` and
 
 ### Canonical snapshot fixtures
 
-Every committed session-format JSONL fixture uses the canonical packed representation. `scripts/session-fixture-layout.snapshot.ts` discovers tracked `*.jsonl` files and unignored untracked additions repository-wide, selects those whose first record is a `session` header, decodes all body records, and rejects content that differs from `packChunkRuns()` output. The inventory therefore includes ACP, headless, TUI, `apps/web`, parent sessions, child sessions, and future fixture names without a maintained path list.
+Every committed session-format JSONL fixture uses the canonical packed representation. `scripts/session-fixture-layout.spec.ts` discovers tracked `*.jsonl` files and unignored untracked additions repository-wide, selects those whose first record is a `session` header, decodes all body records, and rejects content that differs from `packChunkRuns()` output. The inventory therefore includes ACP, headless, TUI, `apps/web`, parent sessions, child sessions, and future fixture names without a maintained path list.
 
 ACP and headless snapshot runs harvest the default JSONL backend output. TUI and web record-mode writers apply `packChunkRuns()` to their in-memory events before writing fixtures. The authored `packed-chunks` ACP scenario runs under the ordinary config and retains all three packed row kinds; its contract decodes both its independent source fixture and target fixture before asserting event-for-event equality.
 
 Focused package tests keep unpacked and mixed-layout inputs for reader compatibility. They do not opt the default snapshot corpus out of the canonical layout.
-
-### In-flight branch convergence
-
-The temporary [`scripts/migrate-packed-session-fixtures.ts`](../../../../scripts/migrate-packed-session-fixtures.ts) command lets in-flight branches converge after merging current `master`: `bun run migrate:packed-session-fixtures` discovers the same repository-wide fixture set as the permanent gate, preserves each header line, decodes existing mixed records, writes the canonical packed body, proves decoded equality, and proves idempotence. It never calls a model or regenerates transcript and presentation outputs.
-
-The command remains linked from the testing policy and ACP snapshot README while older branches may carry fixture edits. The [removal proposal](../../proposed/process/2026-07-26-remove-packed-session-fixture-migrator.md) deletes the CLI, package command, this transitional section, and the documentation links, then replaces the permanent gate's command-specific remediation text once a live open-PR inventory shows that every affected branch is merged, closed, or canonical. The shared canonicalizer and snapshot gate remain permanent.
 
 ### Verification contract
 
@@ -50,10 +44,10 @@ JSONL persistence tests prove that omission writes a packed row, explicit `false
 
 **Batch chunks as logical session events.** This reduces event count, but it delays or reshapes live delivery, renumbers the chunk seqs cited by assistant messages, and requires every UI and replay consumer to understand another streaming unit. Physical packing obtains the storage benefit behind the existing persistence interface.
 
-**Keep the branch migrator permanently.** The read-only canonicalizer and snapshot gate own continuing enforcement. A mutation command has value only while in-flight branches still carry the former fixture layout, so its lifetime is explicitly bounded by the removal proposal.
+**Keep the branch migrator permanently.** The read-only canonicalizer and layout tests own continuing enforcement. The [removal decision](../process/2026-07-26-remove-packed-session-fixture-migrator.md) closes the branch transition after a live pull-request inventory proves it has no open consumers.
 
 ## Consequences
 
 Ordinary JSONL writes and committed fixtures use fewer physical rows while preserving the exact logical event stream. Runtime readers accept every existing layout, and operators retain a deliberate unpacked diagnostic mode. Raw files are less convenient for per-token line processing, and external tools that incorrectly treat every post-header row as a `SessionEvent` encounter storage tags more often; supported readers call `decodeStorageRecord()`.
 
-The repository carries a large mechanical fixture diff, reviewed through decoded equality and the canonical-layout gate rather than token-by-token line inspection. It also temporarily carries one branch migration command and its links; the separate removal proposal prevents that transition aid from becoming permanent process surface.
+Fixture changes are reviewed through decoded equality and the canonical-layout check as well as their visible output. The normal fixture projection and independent check own maintenance without a separate branch-conversion command.

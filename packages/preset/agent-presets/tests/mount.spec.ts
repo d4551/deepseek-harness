@@ -103,7 +103,7 @@ describe('composing an agent from a preset', () => {
   it('unwinds one session\'s composition without touching another\'s', async () => {
     const handle = await ctx.agents.create({
       sessionId: SessionId('sess-gone'),
-      setup: async (agentCtx: Context) => void await ctx.agentPresets.mount(agentCtx, 'standard'),
+      setup: async (agentCtx: Context) => { await ctx.agentPresets.mount(agentCtx, 'standard') },
     })
     const survivor = await agentOn(ctx, 'sess-stays', 'minimal')
     expect(toolNames(ctx, handle.agent)).toEqual(['alpha'])
@@ -121,7 +121,7 @@ describe('composing a child agent from its parent', () => {
   async function childOf(ctx: Context, id: string, parent: Agent): Promise<Agent> {
     const handle = await ctx.agents.create({
       sessionId: SessionId(id),
-      setup: (childCtx: Context) => void ctx.agentPresets.composeFrom(childCtx, parent.ctx),
+      setup: (childCtx: Context) => { ctx.agentPresets.composeFrom(childCtx, parent.ctx) },
     })
     return handle.agent
   }
@@ -150,7 +150,7 @@ describe('composing a child agent from its parent', () => {
   it('keeps the child composed after its parent is disposed', async () => {
     const parentHandle = await ctx.agents.create({
       sessionId: SessionId('sess-dying-parent'),
-      setup: async (agentCtx: Context) => void await ctx.agentPresets.mount(agentCtx, 'standard'),
+      setup: async (agentCtx: Context) => { await ctx.agentPresets.mount(agentCtx, 'standard') },
     })
     const child = await childOf(ctx, 'sess-orphan', parentHandle.agent)
 
@@ -410,7 +410,7 @@ describe('the preset file is an input, never a persistence target', () => {
 
     await scoped.agents.create({
       sessionId: SessionId('sess-self-dispose'),
-      setup: async (agentCtx: Context) => void await scoped.agentPresets.mount(agentCtx),
+      setup: async (agentCtx: Context) => { await scoped.agentPresets.mount(agentCtx) },
     })
     await (globalThis as { __SELF_DISPOSED__?: Promise<unknown> }).__SELF_DISPOSED__
     // Slack past the deterministic signal above, not a race the number has to
@@ -432,7 +432,7 @@ describe('attributing a service to a subtree', () => {
   it('attributes nothing to a subtree that is already torn down', async () => {
     const handle = await ctx.agents.create({
       sessionId: SessionId('sess-torn'),
-      setup: async (agentCtx: Context) => void await ctx.agentPresets.mount(agentCtx, 'standard'),
+      setup: async (agentCtx: Context) => { await ctx.agentPresets.mount(agentCtx, 'standard') },
     })
     const [mount] = livePresetMounts().filter(entry => entry.presetId === 'standard')
     expect(mount).toBeDefined()
@@ -462,7 +462,7 @@ describe('replacing a composition', () => {
     const keeper = await agentOn(ctx, 'sess-keeper', 'standard')
     const handle = await ctx.agents.create({
       sessionId: SessionId('sess-swap'),
-      setup: async (agentCtx: Context) => void await ctx.agentPresets.mount(agentCtx, 'standard'),
+      setup: async (agentCtx: Context) => { await ctx.agentPresets.mount(agentCtx, 'standard') },
     })
     expect(toolNames(ctx, handle.agent)).toEqual(['alpha'])
 
@@ -476,7 +476,7 @@ describe('replacing a composition', () => {
   it('notifies tool views after reparenting and contains notification failures', async () => {
     const handle = await ctx.agents.create({
       sessionId: SessionId('sess-tool-change'),
-      setup: async (agentCtx: Context) => void await ctx.agentPresets.mount(agentCtx, 'standard'),
+      setup: async (agentCtx: Context) => { await ctx.agentPresets.mount(agentCtx, 'standard') },
     })
     await ctx.agentPresets.standingKeyFor('minimal')
     let changes = 0
@@ -497,7 +497,7 @@ describe('replacing a composition', () => {
   it('leaves the agent on its previous composition when the new one is unknown', async () => {
     const handle = await ctx.agents.create({
       sessionId: SessionId('sess-unknown'),
-      setup: async (agentCtx: Context) => void await ctx.agentPresets.mount(agentCtx, 'standard'),
+      setup: async (agentCtx: Context) => { await ctx.agentPresets.mount(agentCtx, 'standard') },
     })
 
     await expect(ctx.agentPresets.recompose(handle.agent.ctx, 'nope'))
@@ -510,7 +510,7 @@ describe('replacing a composition', () => {
   it('restores the previous composition when the new one fails to mount', async () => {
     const handle = await ctx.agents.create({
       sessionId: SessionId('sess-restore'),
-      setup: async (agentCtx: Context) => void await ctx.agentPresets.mount(agentCtx, 'standard'),
+      setup: async (agentCtx: Context) => { await ctx.agentPresets.mount(agentCtx, 'standard') },
     })
 
     await expect(ctx.agentPresets.recompose(handle.agent.ctx, 'broken'))
@@ -596,7 +596,7 @@ describe('replacing a composition', () => {
     await scoped.plugin(AgentPresets, { default: 'first', roots: [{ path: root, trust: 'user' as const }], includeShippedRoot: false, includeUserRoot: false })
     const handle = await scoped.agents.create({
       sessionId: SessionId('sess-restore-gone'),
-      setup: async (agentCtx: Context) => void await scoped.agentPresets.mount(agentCtx, 'first'),
+      setup: async (agentCtx: Context) => { await scoped.agentPresets.mount(agentCtx, 'first') },
     })
 
     // The roster is a live directory: the composition the agent came from can

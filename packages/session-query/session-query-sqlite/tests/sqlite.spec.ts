@@ -1490,7 +1490,7 @@ describe('SQLite schema, cancellation, and real persistence integration', () => 
     const pending = ctx.sessionQuery.searchSessions({ query: 'needle' }, { signal: controller.signal })
     expect(await started.promise).toBe(controller.signal)
     let settled = false
-    void pending.then(
+    pending.then(
       () => { settled = true },
       () => { settled = true },
     )
@@ -1522,13 +1522,13 @@ describe('SQLite schema, cancellation, and real persistence integration', () => 
     await started.promise
     let firstSettled = false
     let secondSettled = false
-    void first.then(
+    first.then(
       () => { firstSettled = true },
       () => { firstSettled = true },
     )
     controller.abort(new Error('ignored list cancellation'))
     const second = ctx.sessionQuery.searchEvents({ sessionId: durable.id, query: 'needle' })
-    void second.then(
+    second.then(
       () => { secondSettled = true },
       () => { secondSettled = true },
     )
@@ -1565,7 +1565,7 @@ describe('SQLite schema, cancellation, and real persistence integration', () => 
     const pending = ctx.sessionQuery.searchSessions({ query: 'needle' }, { signal: controller.signal })
     expect(await started.promise).toBe(controller.signal)
     let settled = false
-    void pending.then(
+    pending.then(
       () => { settled = true },
       () => { settled = true },
     )
@@ -1637,7 +1637,7 @@ describe('SQLite schema, cancellation, and real persistence integration', () => 
     await activeStarted
     activeController.abort()
     let activeSettled = false
-    void active.then(
+    active.then(
       () => { activeSettled = true },
       () => { activeSettled = true },
     )

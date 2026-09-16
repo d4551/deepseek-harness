@@ -46,7 +46,7 @@ async function setupPresetHost(): Promise<{ ctx: Context; adapter: MockAdapter; 
   const handle = await ctx.agents.create({
     sessionId: SessionId('parent'),
     agentOptions: { provider: 'mock', model: 'mock' },
-    setup: async (agentCtx: Context) => void await ctx.agentPresets.mount(agentCtx, 'coding'),
+    setup: async (agentCtx: Context) => { await ctx.agentPresets.mount(agentCtx, 'coding') },
   })
   return { ctx, adapter, parent: handle.agent }
 }

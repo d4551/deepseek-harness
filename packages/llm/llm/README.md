@@ -42,7 +42,7 @@ Mount the service and at least one adapter, then select the provider by name in 
     apiKeyEnv: DEEPSEEK_API_KEY
 ```
 
-A stream returns token-level chunks and always ends with one terminal `finish` chunk; `BlockAssembler` turns the chunks into content blocks and messages, and the loop logs each chunk for replay:
+A dispatched model attempt returns token-level chunks and ends with one terminal `finish` chunk; `BlockAssembler` turns the chunks into content blocks and messages, and the loop logs each chunk for replay:
 
 ```text
 for await (const chunk of ctx.llm.stream({
@@ -66,7 +66,9 @@ After a successful mount, `ctx.llm.listProviders()` reports the registered route
 
 ### Failures and recovery
 
-Every stream ends in exactly one terminal `finish` chunk: `{ kind: 'error', failure }` on failure, `{ kind: 'aborted', failure }` on cancellation. Failures carry stable codes such as `NO_ADAPTER`, `MISSING_CREDENTIAL`, `AUTH`, `RATE_LIMIT`, and `CONTEXT_WINDOW_EXCEEDED`; consumers route on the code, never on message text. A request naming an unregistered provider fails with `NO_ADAPTER`, and a malformed credential fails with `INVALID_CREDENTIAL` instead of surfacing as an opaque fetch error. This service never re-runs a request: retrying is the job of `dsh-llm-retry` at the agent's failed-step extension point.
+Adapter failures produce a terminal `finish` chunk: `{ kind: 'error', failure }` on failure, `{ kind: 'aborted', failure }` on cancellation. Failures carry stable codes such as `NO_ADAPTER`, `MISSING_CREDENTIAL`, `AUTH`, `RATE_LIMIT`, and `CONTEXT_WINDOW_EXCEEDED`; consumers route on the code, never on message text. A request naming an unregistered provider fails with `NO_ADAPTER`, and a malformed credential fails with `INVALID_CREDENTIAL` instead of surfacing as an opaque fetch error. Readiness failures reject iteration with an `AggregateError` after every readiness listener settles; middleware and consumer failures also remain thrown. This service never re-runs a request: retrying is the job of `dsh-llm-retry` at the agent's failed-step extension point.
+
+Direct and prepared streams begin work on first iteration. The mandatory `llm/request-ready` event runs before streaming middleware is constructed, so replay cannot bypass durability listeners. Predispatch cancellation returns an `ABORTED` finish without invoking streaming middleware; cancellation during readiness still drains accepted listeners, whose failures take precedence. A prepared handle reserves its single use synchronously when `stream()` is called, even if the returned stream is never iterated or readiness fails. Replay binds and advances at dispatch: reverse iteration consumes entries in reverse construction order, and failed readiness consumes none.
 
 -----
 

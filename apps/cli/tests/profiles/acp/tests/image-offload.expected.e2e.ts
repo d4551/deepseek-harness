@@ -26,7 +26,7 @@ it('pins native DeepSeek Files offload and inline fallback in assembled requests
     const chunks: Buffer[] = []
     request.on('data', (chunk: Buffer) => { chunks.push(chunk) })
     request.on('end', () => {
-      void (async () => {
+      (async () => {
         const url = new URL(request.url ?? '/', 'http://localhost')
         const body = Buffer.concat(chunks)
         if (url.pathname === '/files' && request.method === 'POST') {

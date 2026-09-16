@@ -1,13 +1,15 @@
 import { globSync } from 'node:fs'
 import { defineConfig } from 'vitest/config'
-import { standardDecoratorPlugin, vitestExecArgv } from './vitest.shared.ts'
+import { standardDecoratorPlugin, vitestCacheDir, vitestExecArgv, vitestFsModuleCachePath } from './vitest.shared.ts'
 import { clientBrowserTests } from './vitest.client-browser.ts'
 
 const tests = globSync('packages/client/{ui-primitives,ui-agent-team,ui-settings-plugins}/tests/**/*.spec.{ts,tsx}')
 export default defineConfig({
+  cacheDir: vitestCacheDir,
   resolve: { tsconfigPaths: true },
   plugins: [standardDecoratorPlugin()],
   test: {
+    fsModuleCachePath: vitestFsModuleCachePath,
     execArgv: vitestExecArgv,
     setupFiles: ['./scripts/test-invariants.ts'],
     projects: [

@@ -1,6 +1,6 @@
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
-import LlmRuntime, { createUserMessage, deepFreeze, markAgentLoopRequest  } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { createUserMessage, deepFreeze, markAgentLoopRequest, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import SessionTitleService, {
   SessionTitleProviderId,
@@ -201,11 +201,11 @@ describe('SessionTitleService Provider lifecycle', () => {
     const disposal = dispose()
     expect(observedSignal?.aborted).toBe(true)
     let disposed = false
-    void disposal.then(() => { disposed = true })
+    const observedDisposal = disposal.then(() => { disposed = true })
     await settle()
     expect(disposed).toBe(false)
     pending.resolve({ title: 'stale provider result', messageSeqs: [message.seq] })
-    await disposal
+    await observedDisposal
     expect(disposed).toBe(true)
     expect(ctx.sessionTitle.get(session)?.source.kind).toBe('fallback')
 
@@ -295,12 +295,18 @@ describe('SessionTitleService Provider lifecycle', () => {
     const second = appendHumanPrompt(session, 'Second prompt on the same route')
     await settle()
     session.append('step/start', { turn: 2, step: 1 })
-    void ctx.llm.stream(markAgentLoopRequest(deepFreeze({
+    const chunks: StreamChunk[] = []
+    for await (const chunk of ctx.llm.stream(markAgentLoopRequest(deepFreeze({
       provider: 'main-route',
       model: 'chat-model',
       messages: session.deriveMessages(),
       sessionId: session.id,
-    })))
+    })))) chunks.push(chunk)
+    expect(chunks).toEqual([{
+      type: 'finish', reason: {
+        kind: 'error', failure: { code: 'NO_ADAPTER', message: 'no adapter registered for provider "main-route"' },
+      },
+    }])
     await settle()
 
     expect(session.events.filter(event => event.type === 'request/header')).toHaveLength(1)
@@ -330,17 +336,27 @@ describe('SessionTitleService Provider lifecycle', () => {
     })
     const options = { provider: 'main-route', model: 'chat-model', messages: [] }
 
-    void ctx.llm.stream(deepFreeze(options))
-    void ctx.llm.stream(markAgentLoopRequest(deepFreeze({ ...options, sessionId: SessionId('missing') })))
     const quiet = ctx.sessions.create(SessionId('quiet'))
-    void ctx.llm.stream(markAgentLoopRequest(deepFreeze({ ...options, sessionId: quiet.id })))
     const pending = ctx.sessions.create(SessionId('unmatched-boundary'))
     pending.append('turn/start', {
       turn: 1,
     })
     appendHumanPrompt(pending, 'Wait for a matching request boundary')
     await settle()
-    void ctx.llm.stream(markAgentLoopRequest(deepFreeze({ ...options, sessionId: pending.id })))
+    for (const request of [
+      deepFreeze(options),
+      markAgentLoopRequest(deepFreeze({ ...options, sessionId: SessionId('missing') })),
+      markAgentLoopRequest(deepFreeze({ ...options, sessionId: quiet.id })),
+      markAgentLoopRequest(deepFreeze({ ...options, sessionId: pending.id })),
+    ]) {
+      const chunks: StreamChunk[] = []
+      for await (const chunk of ctx.llm.stream(request)) chunks.push(chunk)
+      expect(chunks).toEqual([{
+        type: 'finish', reason: {
+          kind: 'error', failure: { code: 'NO_ADAPTER', message: 'no adapter registered for provider "main-route"' },
+        },
+      }])
+    }
     await settle()
 
     expect(generate).not.toHaveBeenCalled()

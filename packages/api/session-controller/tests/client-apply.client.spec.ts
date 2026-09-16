@@ -60,8 +60,8 @@ async function mount(initialGeneration?: ConnectionGeneration): Promise<Bench> {
     rpc: {
       call: () => Promise.reject(new Error('unexpected generic RPC call')),
     },
-    registerGenerationSource: () => () => {},
-    start: () => ({ stop: () => {} }),
+    registerGenerationSource: () => { throw new Error('unexpected generation registration') },
+    start: () => { throw new Error('unexpected connection loop start') },
   }
   ctx.reflect.provide('connection', connection)
   ctx.reflect.provide('remote', {

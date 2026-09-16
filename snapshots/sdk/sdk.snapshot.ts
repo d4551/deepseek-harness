@@ -84,10 +84,6 @@ const dshSdkChildConfig = fileURLToPath(new URL(
   import.meta.url,
 ))
 
-function dirOf(url: string): string {
-  return fileURLToPath(new URL('.', url))
-}
-
 interface SdkAssertions {
   /** Environment overrides passed to the runtime subprocess. */
   environment?: Readonly<Record<string, string>>

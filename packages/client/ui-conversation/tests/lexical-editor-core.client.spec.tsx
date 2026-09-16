@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest'
 import { createHeadlessEditor } from '@lexical/headless'
 import type { LexicalEditor, NodeKey, ParagraphNode } from 'lexical'
 import {
-  $createLineBreakNode, $createParagraphNode, $createTextNode, $getRoot, $getSelection,
+  $createLineBreakNode, $createParagraphNode, $createTextNode, $getRoot,
   $isTextNode, $setSelection,
 } from 'lexical'
 import type { ReferenceInsert } from '../src/client/contract/input.ts'
@@ -191,7 +191,7 @@ describe('$projectComposer', () => {
 
   it('marks invalid chips and keeps ids stable across projections', () => {
     const editor = makeEditor()
-    const chipKey = seedMixed(editor)
+    seedMixed(editor)
     const idOf = idAssigner()
     editor.read(() => {
       expect($projectComposer(idOf).occurrences[0]?.occurrenceId).toBe(1)
@@ -205,7 +205,6 @@ describe('$projectComposer', () => {
       const projection = $projectComposer(idOf)
       expect(projection.occurrences[0]?.occurrenceId).toBe(1)
       expect(projection.occurrences[0]?.invalid).toBe(true)
-      void chipKey
     })
   })
 
@@ -260,8 +259,6 @@ describe('$projectComposer', () => {
       // Element point at child index 1 = right before the chip (detect 4).
       const p = $getRoot().getFirstChild()
       if (p === null) throw new Error('paragraph missing')
-      const selection = $getSelection()
-      void selection
       const paragraph = p as ParagraphNode
       paragraph.select(1, 1)
     }, { discrete: true })

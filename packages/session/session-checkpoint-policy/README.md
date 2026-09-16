@@ -45,11 +45,13 @@ No configuration fields exist; the plugin is a single load beside one persistenc
 
 ### What becomes durable
 
-Three barriers are checkpointed. The model request is flushed before the adapter stream is constructed, so a crash before a response cannot replay an unpersisted request. A top-level tool call is flushed before the tool body runs, so a recorded call is durable before any external side effect; nested tool dispatches reuse the outer call's checkpoint. At each `agent/pre-step` boundary, everything the preceding step committed — its response and ordered tool results — is flushed before the next request is derived.
+Three barriers are checkpointed. On first iteration of a direct or prepared model stream, the live session's request prefix is flushed before streaming middleware is constructed. Replay cannot bypass this checkpoint, regardless of listener registration order. A top-level tool call is flushed before the tool body runs, so a recorded call is durable before any external side effect; nested tool dispatches reuse the outer call's checkpoint. At each `agent/pre-step` boundary, everything the preceding step committed — its response and ordered tool results — is flushed before the next request is derived.
 
 ### Observable behavior and failures
 
 After a checkpoint, the checkpointed work is durable: resume restores it from the store like any persisted session. If cancellation lands while a tool checkpoint flush is pending, the wrapper returns the canonical `ABORTED_BEFORE_DISPATCH` result and never enters the tool body. A checkpoint rejection is fail-closed at both boundaries — the adapter or top-level tool body does not run — and a step-boundary rejection fails the turn before another request starts.
+
+Model readiness waits for every listener to settle. A failed checkpoint is retained in the thrown `AggregateError`; it consumes no replay entry. Cancellation before readiness returns an `ABORTED` finish without starting a checkpoint. Cancellation during readiness waits for the accepted work: a checkpoint failure remains thrown, while successful readiness returns an `ABORTED` finish without dispatch. Requests without a live session do not trigger a session checkpoint.
 
 -----
 
@@ -63,7 +65,7 @@ This section explains how the policy joins the loop and the persistence seam; th
 
 ### Design concept
 
-The plugin is a listener-only composition over three seams, with no state of its own: it wraps `llm/stream` so the downstream stream is not constructed until the live session's buffered request events are durable, wraps `tools/execute` after pre-execute policy and guards so a top-level tool body runs only after its recorded call is durable, and listens to `agent/pre-step` to persist the preceding response/result batch before request derivation. The session store's flush is the shared durability barrier; concurrent tool checkpoints serialize through it and cannot duplicate sequence numbers.
+The plugin joins the mandatory parallel `llm/request-ready` event, wraps `tools/execute` after pre-execute policy and guards, and listens to `agent/pre-step`. The session store's flush is the shared durability barrier; concurrent tool checkpoints serialize through it and cannot duplicate sequence numbers. Streaming middleware can route or answer a request only after model readiness succeeds.
 
 ### Source map
 

@@ -81,6 +81,7 @@ export class ConnectionController {
   private attempt = 0
   private current: AbortController | null = null
   private run: AbortController | null = null
+  private completion: Promise<void> = Promise.resolve()
   private lastState: ConnectionState | null = null
   private readonly config: Required<ConnectionConfig>
 
@@ -96,15 +97,21 @@ export class ConnectionController {
   start(): void {
     if (this.run !== null) return
     this.run = new AbortController()
-    void this.loop(this.run.signal)
+    this.completion = Promise.allSettled([this.completion, this.loop(this.run.signal)]).then((results) => {
+      const failures = results.filter(result => result.status === 'rejected')
+      if (failures.length > 0) {
+        throw new AggregateError(failures.map((result): unknown => result.reason), 'connection loop failed')
+      }
+    })
   }
 
-  /** Stop the loop and abort the current generation source. */
-  stop(): void {
+  /** Abort immediately, then await every started generation, including retiring sources. */
+  stop(): Promise<void> {
     this.run?.abort()
     this.run = null
     this.current?.abort()
     this.current = null
+    return this.completion
   }
 
   private backoffDelay(attempt: number): number {
@@ -123,6 +130,15 @@ export class ConnectionController {
   }
 
   private async loop(run: AbortSignal): Promise<void> {
+    const sources = new Set<Promise<void>>()
+    try {
+      await this.pump(run, sources)
+    } finally {
+      await Promise.all(sources)
+    }
+  }
+
+  private async pump(run: AbortSignal, sources: Set<Promise<void>>): Promise<void> {
     while (this.isRunActive(run)) {
       const gen = ++this.generation
       const ac = new AbortController()
@@ -153,7 +169,7 @@ export class ConnectionController {
           if (gen === this.generation && !ac.signal.aborted) ac.abort()
           resolve()
         }
-        void Promise.resolve()
+        const task = Promise.resolve()
           .then(() => {
             ac.signal.throwIfAborted()
             return this.source(ac.signal, reportReady)
@@ -173,7 +189,8 @@ export class ConnectionController {
               rejectSourceLost(failure)
               settle()
             },
-          )
+          ).finally(() => { sources.delete(task) })
+        sources.add(task)
       })
 
       try {
@@ -220,30 +237,20 @@ export class ConnectionController {
 }
 
 /** Await source readiness without letting a stalled carrier wedge startup forever. */
-function waitForReady<T>(ready: Promise<T>, timeoutMs: number, signal: AbortSignal): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    let settled = false
-    const timeout = setTimeout(() => {
-      finish({ error: new Error(`connection generation was not ready within ${String(timeoutMs)}ms`) })
-    }, timeoutMs)
-    const aborted = (): void => {
-      finish({ error: new Error('connection generation aborted', { cause: signal.reason }) })
-    }
-    const finish = (outcome: { readonly value: T } | { readonly error: Error }): void => {
-      if (settled) return
-      settled = true
-      clearTimeout(timeout)
-      signal.removeEventListener('abort', aborted)
-      if ('error' in outcome) reject(outcome.error)
-      else resolve(outcome.value)
-    }
-    signal.addEventListener('abort', aborted, { once: true })
-    if (signal.aborted) aborted()
-    void ready.then(
-      (value) => { finish({ value }) },
-      (error: unknown) => {
-        finish({ error: error instanceof Error ? error : new Error('connection readiness failed', { cause: error }) })
-      },
-    )
-  })
+async function waitForReady<T>(ready: Promise<T>, timeoutMs: number, signal: AbortSignal): Promise<T> {
+  const deadline = Promise.withResolvers<never>()
+  const timeout = setTimeout(() => {
+    deadline.reject(new Error(`connection generation was not ready within ${String(timeoutMs)}ms`))
+  }, timeoutMs)
+  const aborted = (): void => {
+    deadline.reject(new Error('connection generation aborted', { cause: signal.reason }))
+  }
+  signal.addEventListener('abort', aborted, { once: true })
+  if (signal.aborted) aborted()
+  try {
+    return await Promise.race([ready, deadline.promise])
+  } finally {
+    clearTimeout(timeout)
+    signal.removeEventListener('abort', aborted)
+  }
 }

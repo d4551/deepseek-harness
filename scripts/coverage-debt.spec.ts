@@ -2,255 +2,142 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, onTestFinished } from 'vitest'
-import {
-  COVERAGE_DEBT_MARKERS,
-  STRUCTURAL_EXCLUSIONS,
-  coverageExclusions,
-  debtFileInventory,
-  debtFiles,
-  debtInventory,
-  exclusionFiles,
-  expandBraces,
-  redundantCoverageExclusions,
-  staleCoverageExclusions,
-  staleLaneExclusions,
-  unmarkedDebtExclusions,
-  unusedDebtMarkers,
-  unusedStructuralExclusions,
-  vitestConfigSource,
-} from './coverage-debt.ts'
-import { CONDITIONAL_LANE_ENTRIES } from './vitest-inventory.ts'
+import { COVERAGE_SOURCE_GLOB, coveragePolicyProblems, coverageSourceFiles, vitestConfigSource } from './coverage-debt.ts'
 
-function config(...lines: string[]): string {
-  return `export default { test: { coverage: {\n      exclude: [\n${lines.join('\n')}\n      ],\n    } } }\n`
+function config(coverage: string = '', thresholds: string = ''): string {
+  return `export default { test: { coverage: {
+    provider: 'v8', reportOnFailure: true, autoAttachSubprocess: true,
+    include: ['${COVERAGE_SOURCE_GLOB}'],
+    thresholds: { perFile: true, statements: 100, branches: 100, functions: 100, lines: 100 ${thresholds} }
+    ${coverage}
+  } } }`
 }
 
-/** One exclusion line as the config writes it. */
-function globLine(glob: string): string {
-  return `        '${glob}',`
-}
-
-/** One comment line as the config writes it. */
-function noteLine(text: string): string {
-  return `        // ${text}`
-}
-
-/** A throwaway package tree: `packages/a/b/src/{x.ts,y.ts,nested/z.tsx}` plus a directory and a symlink. */
 async function sourceTree(): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), 'dsh-coverage-debt-'))
+  const root = await mkdtemp(join(tmpdir(), 'dsh-coverage-policy-'))
   onTestFinished(() => rm(root, { recursive: true, force: true }))
-  const src = join(root, 'packages/a/b/src')
-  await mkdir(join(src, 'nested'), { recursive: true })
-  await writeFile(join(src, 'x.ts'), 'export const x = 1\n')
-  await writeFile(join(src, 'y.ts'), 'export const y = 2\n')
-  await writeFile(join(src, 'nested/z.tsx'), 'export const z = 3\n')
-  await symlink(join(src, 'x.ts'), join(src, 'linked.ts'), 'file')
+  await mkdir(join(root, 'packages/a/b/src/nested'), { recursive: true })
   return root
 }
 
-describe('the live coverage exclusion list', () => {
-  it('marks every debt exclusion with the lane it waits on', () => {
-    // docs/testing.md tells a reader the debt carries these markers. It said so
-    // while none existed anywhere in the tree; this is what makes that true.
-    expect(unmarkedDebtExclusions(coverageExclusions(vitestConfigSource()))).toEqual([])
-  })
-
-  it('carries every structural glob this file classifies', () => {
-    expect(unusedStructuralExclusions(coverageExclusions(vitestConfigSource()))).toEqual([])
-  })
-
-  it('excludes nothing that no longer exists', () => {
-    // Five entries named paths deleted or renamed out of the tree, exempting
-    // nothing while still reading as an exemption.
-    expect(staleCoverageExclusions(coverageExclusions(vitestConfigSource()))).toEqual([])
-  })
-
-  it('keeps every conditional lane entry naming something in the tree', () => {
-    expect(staleLaneExclusions()).toEqual([])
-  })
-
-  it('names no entry another entry already covers whole', () => {
-    // The webworker runtime was excluded twice, once as `src/**` and once as
-    // `src/**/*.ts`; the second counted as debt while excluding nothing.
-    expect(redundantCoverageExclusions(coverageExclusions(vitestConfigSource()))).toEqual([])
-  })
-
-  it('uses every marker it documents', () => {
-    expect(unusedDebtMarkers(coverageExclusions(vitestConfigSource()))).toEqual([])
-  })
-
-  it('counts the debt in globs and in files so it can be ratcheted down', () => {
-    const entries = coverageExclusions(vitestConfigSource())
-    const globs = debtInventory(entries)
-    const files = debtFileInventory(entries)
-    expect(Object.keys(globs).sort()).toEqual([...COVERAGE_DEBT_MARKERS].sort())
-    expect(Object.keys(files).sort()).toEqual([...COVERAGE_DEBT_MARKERS].sort())
-    for (const marker of COVERAGE_DEBT_MARKERS) {
-      // Every glob names at least one file, so the file count is never below the glob count.
-      expect(files[marker]).toBeGreaterThanOrEqual(globs[marker] ?? Number.POSITIVE_INFINITY)
-    }
-  })
-})
-
-describe('coverageExclusions', () => {
-  it('attributes each glob to the comment block above it', () => {
-    expect(coverageExclusions(config(
-      noteLine('DEBT(gui): the client lane.'),
-      noteLine('A continuation line keeps the marker.'),
-      globLine('a.ts'),
-      globLine('b.ts'),
-    ))).toEqual([
-      { glob: 'a.ts', marker: 'DEBT(gui)' },
-      { glob: 'b.ts', marker: 'DEBT(gui)' },
-    ])
-  })
-
-  it('does not let a marker leak into the next comment block', () => {
-    // The block that follows a glob is a new one; without this a structural
-    // entry inherits the previous block's lane and reads as marked debt.
-    expect(coverageExclusions(config(
-      noteLine('DEBT(gui): the client lane.'),
-      globLine('a.ts'),
-      noteLine('Generated code that exists only in lib.'),
-      globLine('b.ts'),
-    ))).toEqual([
-      { glob: 'a.ts', marker: 'DEBT(gui)' },
-      { glob: 'b.ts', marker: undefined },
-    ])
-  })
-
-  it('ends a block at a spread entry', () => {
-    expect(coverageExclusions(config(
-      noteLine('DEBT(gui): the client lane.'),
-      globLine('a.ts'),
-      '        ...windowsOnlyCoverageExclusions,',
-      globLine('b.ts'),
-    ))).toEqual([
-      { glob: 'a.ts', marker: 'DEBT(gui)' },
-      { glob: 'b.ts', marker: undefined },
-    ])
-  })
-
-  it('rejects a config whose coverage exclude list it cannot read', () => {
-    expect(() => coverageExclusions('export default {}')).toThrow(/declares no coverage block/)
-    expect(() => coverageExclusions('coverage: {')).toThrow(/declares no exclude list/)
-    expect(() => coverageExclusions('coverage: {\n exclude: [')).toThrow(/unterminated/)
-  })
-})
-
-describe('injected exclusion-list misses', () => {
-  it('reports a debt exclusion nothing marks', () => {
-    const entries = coverageExclusions(config(globLine('packages/client/ui-new/src/Thing.tsx')))
-    expect(unmarkedDebtExclusions(entries)).toEqual(['packages/client/ui-new/src/Thing.tsx'])
-  })
-
-  it('accepts an unmarked glob this file classifies as structural', () => {
-    const entries = coverageExclusions(config(globLine(STRUCTURAL_EXCLUSIONS[0] ?? '')))
-    expect(unmarkedDebtExclusions(entries)).toEqual([])
-  })
-
-  it('reports a structural classification the config dropped', () => {
-    const entries = coverageExclusions(config(globLine('packages/client/ui-new/src/Thing.tsx')))
-    expect(unusedStructuralExclusions(entries)).toEqual([...STRUCTURAL_EXCLUSIONS])
-  })
-
-  it('reports a glob that matches nothing, and spares the named transient', () => {
-    const entries = coverageExclusions(config(
-      noteLine('DEBT(gui): a deleted surface.'),
-      globLine('packages/client/ui-gone/src/Gone.tsx'),
-      globLine('packages/*/*/src/oxlint-contract-*.ts'),
-      globLine('packages/*/*/src/types.ts'),
-    ))
-    expect(staleCoverageExclusions(entries)).toEqual(['packages/client/ui-gone/src/Gone.tsx'])
-  })
-
-  it('reports a documented marker the list stopped using', () => {
-    const entries = coverageExclusions(config(
-      noteLine('DEBT(gui): the client lane.'),
-      globLine('a.ts'),
-    ))
-    expect(unusedDebtMarkers(entries)).toEqual(['DEBT(inspector)', 'DEBT(webworker)'])
-  })
-
-  it('reports every conditional lane entry when the tree holds none of them', async () => {
+describe('coverage source discovery', () => {
+  it('includes all source extensions, declarations, entrypoints and file links', async () => {
     const root = await sourceTree()
-    expect(staleLaneExclusions(root)).toEqual([...CONDITIONAL_LANE_ENTRIES])
+    const names = ['x.ts', 'x.tsx', 'x.js', 'x.jsx', 'x.mts', 'x.cts', 'x.mjs', 'x.cjs', 'types.d.ts', 'bin.ts', 'worker.ts', 'nested/z.ts']
+    for (const name of names) await writeFile(join(root, 'packages/a/b/src', name), 'export const value = 1\n')
+    await writeFile(join(root, 'packages/a/b/src/asset.css'), 'body {}\n')
+    await symlink(join(root, 'packages/a/b/src/x.ts'), join(root, 'packages/a/b/src/linked.ts'), 'file')
+    expect(coverageSourceFiles(root)).toEqual([...names, 'linked.ts'].map(name => `packages/a/b/src/${name}`).sort())
+  })
+
+  it('rejects an empty corpus', async () => {
+    const root = await sourceTree()
+    expect(() => coverageSourceFiles(root)).toThrow('no package source files')
   })
 })
 
-describe('exclusionFiles', () => {
-  it('lists files only, follows file symlinks, and expands brace alternations', async () => {
-    const root = await sourceTree()
-    // `src/**` matches the `nested` directory too; a directory is not a coverage subject.
-    expect(exclusionFiles('packages/a/b/src/**', root)).toEqual([
-      'packages/a/b/src/linked.ts',
-      'packages/a/b/src/nested/z.tsx',
-      'packages/a/b/src/x.ts',
-      'packages/a/b/src/y.ts',
-    ])
-    expect(exclusionFiles('packages/a/b/src/{x,y}.ts', root)).toEqual(['packages/a/b/src/x.ts', 'packages/a/b/src/y.ts'])
-    expect(exclusionFiles('packages/a/b/src/gone.ts', root)).toEqual([])
-  })
-})
-
-describe('redundantCoverageExclusions', () => {
-  it('flags an entry a broader entry already covers, and the later of two equal entries', async () => {
-    const root = await sourceTree()
-    const entries = coverageExclusions(config(
-      noteLine('DEBT(gui): one file inside the package glob below.'),
-      globLine('packages/a/b/src/x.ts'),
-      globLine('packages/a/b/src/*'),
-      noteLine('DEBT(webworker): the same tree twice.'),
-      globLine('packages/a/b/src/**'),
-      globLine('packages/a/b/src/**/*.{ts,tsx}'),
-    ))
-    // `src/*` sits inside `src/**` as well, so it is covered too; `src/**`
-    // and `src/**/*.{ts,tsx}` name the same files, and only the later flags.
-    expect(redundantCoverageExclusions(entries, root)).toEqual([
-      'packages/a/b/src/x.ts',
-      'packages/a/b/src/*',
-      'packages/a/b/src/**/*.{ts,tsx}',
-    ])
+describe('coverage policy', () => {
+  it('validates the live configuration and discovers its sources', () => {
+    expect(coveragePolicyProblems(vitestConfigSource())).toEqual([])
+    expect(coverageSourceFiles().length).toBeGreaterThan(0)
   })
 
-  it('leaves overlapping entries alone when neither contains the other, and ignores an empty one', async () => {
-    const root = await sourceTree()
-    const entries = coverageExclusions(config(
-      noteLine('DEBT(gui): two overlapping selections.'),
-      globLine('packages/a/b/src/{x,y}.ts'),
-      globLine('packages/a/b/src/{y,linked}.ts'),
-      globLine('packages/a/b/src/gone.ts'),
-    ))
-    expect(redundantCoverageExclusions(entries, root)).toEqual([])
+  it('accepts literal policy with absent or empty exclusions', () => {
+    expect(coveragePolicyProblems(config())).toEqual([])
+    expect(coveragePolicyProblems(config(', exclude: []'))).toEqual([])
   })
-})
 
-describe('debtFiles', () => {
-  it('lists every hidden file once with each debt glob naming it, skipping structural entries', async () => {
-    const root = await sourceTree()
-    const entries = coverageExclusions(config(
-      globLine('packages/*/*/src/types.ts'),
-      noteLine('DEBT(gui): the whole package.'),
-      globLine('packages/a/b/src/*'),
-      noteLine('DEBT(inspector): one file again.'),
-      globLine('packages/a/b/src/y.ts'),
-    ))
-    expect(debtFiles(entries, root)).toEqual([
-      { file: 'packages/a/b/src/linked.ts', marker: 'DEBT(gui)', globs: ['packages/a/b/src/*'] },
-      { file: 'packages/a/b/src/x.ts', marker: 'DEBT(gui)', globs: ['packages/a/b/src/*'] },
-      { file: 'packages/a/b/src/y.ts', marker: 'DEBT(gui)', globs: ['packages/a/b/src/*', 'packages/a/b/src/y.ts'] },
-    ])
-    expect(debtFileInventory(entries, root)).toEqual({ 'DEBT(gui)': 3 })
+  it('reads named imports and quoted properties without matching comments or string contents', () => {
+    const source = config().replace(`'${COVERAGE_SOURCE_GLOB}'`, 'sourcePattern').replace('coverage:', '"coverage":')
+    expect(coveragePolicyProblems(`
+      import { COVERAGE_SOURCE_GLOB as sourcePattern } from './scripts/coverage-debt.ts'
+      import { defineConfig } from 'vitest/config'
+      const text = 'coverage: { exclude: ["hidden"] }'
+      // coverage: { exclude: ['hidden'] }
+      ${source.replace('export default {', 'export default defineConfig({')})
+    `)).toEqual([])
   })
-})
 
-describe('expandBraces', () => {
-  it('expands each alternation so a braced glob is matched, not read as empty', () => {
-    // Node's glob has no brace expansion, so an unexpanded alternation matches
-    // nothing and every braced exclusion would report as stale.
-    expect(expandBraces('src/{a,b}.ts')).toEqual(['src/a.ts', 'src/b.ts'])
-    expect(expandBraces('src/{a,b}/{c,d}.ts'))
-      .toEqual(['src/a/c.ts', 'src/a/d.ts', 'src/b/c.ts', 'src/b/d.ts'])
-    expect(expandBraces('src/plain.ts')).toEqual(['src/plain.ts'])
+  it.each(["['packages/a/b/src/x.ts']", '[...platformFiles]', 'exclusions', 'enabled ? [] : ["x"]'])('rejects exclusions %s', (value) => {
+    expect(coveragePolicyProblems(config(`, exclude: ${value}`))).toContain('coverage.exclude must be absent or an empty literal array')
+  })
+
+  it.each(["['packages/a/b/src/**/*.ts']", '[]', '[sourcePattern]', "['!packages/a/b/src/x.ts']"])('rejects narrowed source selection %s', (value) => {
+    const source = config().replace(`['${COVERAGE_SOURCE_GLOB}']`, value)
+    expect(coveragePolicyProblems(source)).toContain(`coverage.include must contain exactly ${COVERAGE_SOURCE_GLOB}`)
+  })
+
+  it.each(['perFile: false', 'statements: 99', 'branches: 0', 'functions: -1', 'lines: minimum'])('rejects weakened metric %s', (replacement) => {
+    const key = replacement.split(':')[0]
+    const source = config().replace(new RegExp(`${key}: (true|100)`), replacement)
+    expect(coveragePolicyProblems(source)).toHaveLength(1)
+  })
+
+  it('rejects threshold groups and automatic updates', () => {
+    expect(coveragePolicyProblems(config('', ", 'packages/**': { lines: 0 }, autoUpdate: true"))).toHaveLength(2)
+  })
+
+  it.each(['false', 'enabled'])('rejects disabling or conditionally enabling coverage with %s', (value) => {
+    expect(coveragePolicyProblems(config(`, enabled: ${value}`))).toContain('coverage.enabled must be absent or true')
+  })
+
+  it.each(["['constructor']", '[...methods]', 'methods'])('rejects omitted class methods %s', (value) => {
+    expect(coveragePolicyProblems(config(`, ignoreClassMethods: ${value}`)))
+      .toContain('coverage.ignoreClassMethods must be absent or an empty literal array')
+  })
+
+  it.each(['true', "'main'", 'changed'])('rejects changed-file coverage %s', (value) => {
+    expect(coveragePolicyProblems(config(`, changed: ${value}`))).toContain('coverage.changed must be absent or false')
+    const source = config(', changed: false').replace('test: {', `test: { changed: ${value},`)
+    expect(coveragePolicyProblems(source)).toContain('test.changed must be absent or false')
+  })
+
+  it('requires fresh measurements on reruns and subprocess collection', () => {
+    expect(coveragePolicyProblems(config(', cleanOnRerun: false'))).toContain('coverage.cleanOnRerun must be absent or true')
+    expect(coveragePolicyProblems(config().replace('autoAttachSubprocess: true', 'autoAttachSubprocess: false')))
+      .toContain('coverage.autoAttachSubprocess must be true')
+    expect(coveragePolicyProblems(config().replace(', autoAttachSubprocess: true', '')))
+      .toContain('coverage.autoAttachSubprocess must be true')
+  })
+
+  it('accepts explicit complete-measurement settings and presentation options', () => {
+    expect(coveragePolicyProblems(config(`,
+      enabled: true, changed: false, cleanOnRerun: true, ignoreClassMethods: [],
+      processingConcurrency: 2, watermarks: { lines: [80, 95] }, skipFull: true
+    `))).toEqual([])
+  })
+
+  it('accepts a renamed defineConfig value import from Vitest', () => {
+    const source = config().replace('export default {', 'export default configure({')
+    expect(coveragePolicyProblems(`import { defineConfig as configure } from 'vitest/config'\n${source})`)).toEqual([])
+  })
+
+  it.each([
+    "import { defineConfig } from './other-config.ts'",
+    'function defineConfig(value) { value.test.coverage.include = []; return value }',
+    "import type { defineConfig } from 'vitest/config'",
+    "import { type defineConfig } from 'vitest/config'",
+    '',
+  ])('rejects an unverified config factory %s', (declaration) => {
+    const source = config().replace('export default {', 'export default defineConfig({')
+    expect(() => coveragePolicyProblems(`${declaration}\n${source})`)).toThrow('defineConfig value import from vitest/config')
+  })
+
+  it.each([
+    'export default {}',
+    config().replace('coverage: {', 'coverage: { ...extra,'),
+    config().replace('coverage: {', 'coverage: { [key]: [],'),
+    config().replace('coverage: {', 'coverage: { get exclude() { return [] },'),
+    config().replace('perFile: true', 'perFile: true, perFile: false'),
+    config().replace('thresholds: {', 'thresholds: enabled ? undefined : {'),
+    config().replace('coverage: {', 'coverage: extra || {'),
+  ])('rejects unreadable or ambiguous policy', (source) => {
+    expect(() => coveragePolicyProblems(source)).toThrow()
+  })
+
+  it('rejects absent exports, disabled failure reporting and another provider', () => {
+    expect(() => coveragePolicyProblems('const configuration = {}')).toThrow('requires a default export')
+    expect(coveragePolicyProblems(config().replace("provider: 'v8'", "provider: 'custom'"))).toContain('coverage.provider must be v8')
+    expect(coveragePolicyProblems(config().replace('reportOnFailure: true', 'reportOnFailure: false'))).toContain('coverage.reportOnFailure must be true')
   })
 })

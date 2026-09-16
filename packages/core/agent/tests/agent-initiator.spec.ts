@@ -67,9 +67,9 @@ describe('AgentRegistry initiator scope', () => {
     const { service, dispose } = await harness()
     const initiator = agent('overridden-then')
     const release = Promise.withResolvers<boolean>()
-    void Object.defineProperty(release.promise, 'then', {
+    expect(Object.defineProperty(release.promise, 'then', {
       value: () => { throw new Error('overridden then called') },
-    })
+    })).toBe(release.promise)
 
     const pending = service.withInitiator(initiator, () => release.promise)
     expect(pending).toBe(release.promise)
@@ -80,9 +80,7 @@ describe('AgentRegistry initiator scope', () => {
     expect(disposed).toBe(false)
 
     release.resolve(true)
-    await new Promise<void>((resolve, reject) => {
-      void Promise.prototype.then.call(pending, resolve, reject)
-    })
+    await Promise.prototype.then.call(pending)
     await disposal
     expect(disposed).toBe(true)
   })
@@ -95,7 +93,7 @@ describe('AgentRegistry initiator scope', () => {
     Object.defineProperty(constructor, Symbol.species, {
       get: () => { throw new Error('invalid species') },
     })
-    void Object.defineProperty(promise, 'constructor', { value: constructor })
+    expect(Object.defineProperty(promise, 'constructor', { value: constructor })).toBe(promise)
 
     expect(service.withInitiator(initiator, () => promise)).toBe(promise)
     await dispose()
@@ -251,14 +249,14 @@ describe('AgentRegistry initiator scope', () => {
       await ctx.fiber.dispose()
     })
     let disposed = false
-    void returned.then(() => { disposed = true })
+    const observed = returned.then(() => { disposed = true })
     await Promise.resolve()
     await Promise.resolve()
     expect(disposed).toBe(false)
 
     release.resolve(true)
     await pending
-    await promptly(returned)
+    await promptly(observed)
 
     expect(() => service.currentInitiator()).toThrow('agent initiator scope is disposed')
   })

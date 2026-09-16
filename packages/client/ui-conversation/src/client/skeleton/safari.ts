@@ -30,13 +30,13 @@ export function repairSafariTextareaLayout(input: HTMLTextAreaElement | null): v
 
   const inputHeight = input.style.height
   input.style.height = `${String(input.clientHeight + 1)}px`
-  void input.offsetHeight
+  input.getBoundingClientRect()
   input.style.height = inputHeight
-  void input.offsetHeight
+  input.getBoundingClientRect()
 
   const scrollportHeight = scrollport.style.height
   scrollport.style.height = `${String(scrollport.clientHeight + 1)}px`
-  void scrollport.offsetHeight
+  scrollport.getBoundingClientRect()
   scrollport.style.height = scrollportHeight
-  void scrollport.offsetHeight
+  scrollport.getBoundingClientRect()
 }

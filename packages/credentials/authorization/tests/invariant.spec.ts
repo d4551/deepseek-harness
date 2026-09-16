@@ -37,16 +37,17 @@ describe('authorization invariant companion', () => {
     await ctx.plugin(MemoryCredentials)
     await ctx.plugin(AuthorizationService)
     const started = Promise.withResolvers<undefined>()
+    const completed = Promise.withResolvers<undefined>()
     ctx.authorization.registerFlow({
       key: KEY,
       label: 'ChatGPT (Codex)',
       methods: [{ id: 'oauth', label: 'Sign in' }],
       run: () => {
         started.resolve(undefined)
-        return new Promise(() => {})
+        return completed.promise
       },
     })
-    void ctx.authorization.begin({
+    const attempt = ctx.authorization.begin({
       key: KEY,
       interaction: { notify: () => {}, prompt: () => Promise.reject(new Error('unused')) },
     })
@@ -54,6 +55,9 @@ describe('authorization invariant companion', () => {
 
     expect(() => { ctx.emit('authorization/settled', KEY, 'authorized') })
       .toThrow(/left the key in flight/)
+    ctx.authorization.cancel(KEY)
+    completed.resolve(undefined)
+    await expect(attempt).resolves.toEqual({ status: 'cancelled' })
   })
 
   it('fails a settlement emitted without a live service', async () => {

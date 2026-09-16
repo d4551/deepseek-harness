@@ -707,7 +707,7 @@ function defineOwn(target: any, key: keyof any, value: any) {
 
 function property(data: any, key: keyof any, schema: Schema, options: Schemastery.Options) {
   try {
-    const [value, adapted] = Schema.resolve(data[key], schema, {
+    const [value, adapted] = Schema.resolve(Object.hasOwn(data, key) ? data[key] : undefined, schema, {
       ...options,
       path: [...options.path || [], key],
     })

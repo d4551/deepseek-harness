@@ -7,9 +7,11 @@ import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { createGitHubWebhookHandler } from '../src/handler.ts'
 
 const servers: Server[] = []
+const requests: Promise<void>[] = []
 
 afterEach(async () => {
   await Promise.all(servers.splice(0).map(server => new Promise<void>(resolve => server.close(() => { resolve() }))))
+  await Promise.all(requests.splice(0))
 })
 
 /** One mutable fake for credential rotation and dispatch observation. */
@@ -43,7 +45,7 @@ async function serve(ctx: Context, maxBodyBytes = 1024): Promise<string> {
     secretEnv: credentialRef('DSH_GITHUB_WEBHOOK_SECRET'),
     maxBodyBytes,
   })
-  const server = createServer((request, response) => { void handler(request, response) })
+  const server = createServer((request, response) => { requests.push(handler(request, response)) })
   servers.push(server)
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   const port = (server.address() as AddressInfo).port

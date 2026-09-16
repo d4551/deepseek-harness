@@ -63,11 +63,15 @@ scope.update({ density: 'compact' })   // merges into the user section and persi
 
 `get(ns)` 以深冻结快照返回解析值，namespace 未注册时为 `undefined`。`watch(callback)` 在每次已提交变更后以 `(next, prev)` 调用回调：同一回调的调用按提交顺序逐个执行，异常被隔离并记入日志，因此慢或抛错的观察者绝不会阻塞或破坏其他观察者。
 
+释放注册方会阻止排队中的 watcher 回调启动，并等待已经运行的回调结束，包括启动后被取消订阅的回调。如果写入在替代注册接管 namespace 后才完成持久化，替代注册会按自己的 schema 解析该存储分节；存储数据无效时保留其最后可用值并报告警告。
+
 ### 写入值
 
 `update(ns, patch)` 把普通对象 patch 深合并进用户分节——绝不进 `base`——校验解析候选值、经提供方持久化后提交。`replace(ns, section)` 整体替换用户分节，是删除/重置路径：`replace({})` 重新继承 `base` 与 schema 默认值。`mutate(ns, ops)` 在写入排到队首那一刻的分节上按序施加 `{ op: 'set' | 'unset', path }` 编辑——这是持有不完整（例如脱敏后）视图的调用方的删除路径，因为按协议接口返回的内容重建分节再整体替换，会删掉协议从未回传的每个字段。
 
 每次写入都会拒绝与 JSON 不兼容的数据（`Date`、`Map`、`BigInt`、非有限数或循环引用会在任何内容持久化前以 `$` 为根的路径报错）、拒绝只读提供方上的写入，并可接受可选的 `expectedRevision`：把 descriptor 中的 `revision` 传回，namespace 已越过该值时写入会被 `SettingsConflictError` 拒绝，而不是覆盖先完成写入的一方。
+
+`__proto__`、`constructor` 与 `toString` 这类分节键在校验、持久化与 descriptor 脱敏过程中始终保持为自有数据，不会改变对象的原型。脱敏仍会移除这些键下由 schema 声明的机密字段；未提供的机密字段保持未设置状态，即使其名称与继承属性相同。
 
 ### 配置界面
 
@@ -160,6 +164,6 @@ scope.update({ density: 'compact' })   // merges into the user section and persi
 <details>
 <summary>维护者的工作上下文——点击展开</summary>
 
-本开发备注是维护者的工作上下文：尚未决定的开放设计方向。它明确非权威——已发布的行为、限制与已接受的理由见上文各节与包代码。代码 TODO 中记录的开放方向：把公开的 `ns` 参数更名为 `namespace`（API、提供方约定、实现、测试与消费方同步）；注册释放时停用所有 watcher 并等待其 tail，让回调不越过 registrant fiber 存活；替换注册从持久化分节重新解析，让进行中的旧写入不会把它留成陈旧值；改用属性安全的对象构造，让 `__proto__` 这类合法 JSON 键保持为自有数据。fail-closed 的 `describeForWire()` 净化器是上文脱敏限制的暂缓答案。
+本开发备注是维护者的工作上下文：尚未决定的开放设计方向。它明确非权威——已发布的行为、限制与已接受的理由见上文各节与包代码。公开的 `ns` 参数仍需在 API、提供方约定、实现、测试与消费方中协调更名为 `namespace`。fail-closed 的 `describeForWire()` 净化器是上文脱敏限制的暂缓答案。
 
 </details>

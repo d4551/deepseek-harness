@@ -314,12 +314,12 @@ describe('SessionTitleService configuration and refresh boundaries', () => {
 
     const disposal = fiber.dispose()
     let disposed = false
-    void disposal.then(() => { disposed = true })
+    const observedDisposal = disposal.then(() => { disposed = true })
     await settle()
     expect(requests[0]?.signal.aborted).toBe(true)
     expect(disposed).toBe(false)
     result.resolve({ title: 'Ignored service abort', messageSeqs: [activeMessage.seq] })
-    await disposal
+    await observedDisposal
 
     expect(disposed).toBe(true)
     await expect(refreshOutcome).resolves.toEqual(expect.objectContaining({ message: 'session-title service disposed' }))

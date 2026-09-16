@@ -392,7 +392,7 @@ export class WorkerThreadCodeRuntime extends CodeRuntime {
       stderr: true,
     })
 
-    return new Promise<CodeRunResult>((resolve) => {
+    return new Promise<CodeRunResult>((resolve, reject) => {
       let settled = false
       const answered = new Set<number>()
       const logs: string[] = []
@@ -421,6 +421,10 @@ export class WorkerThreadCodeRuntime extends CodeRuntime {
       // logs captured before timeout, abort, or failure remain in the result.
       let finishResolve!: () => void
       const finished = new Promise<void>((done) => { finishResolve = done })
+      const finishFailed = (error: unknown): void => {
+        finishResolve()
+        reject(error instanceof Error ? error : new Error('code runtime teardown failed', { cause: error }))
+      }
       const finish = (finalize: CodeRunResult | (() => CodeRunResult)): void => {
         if (settled) return
         settled = true
@@ -430,14 +434,14 @@ export class WorkerThreadCodeRuntime extends CodeRuntime {
         this.live.delete(live)
         // Let the poll phase deliver pipe bytes already queued independently
         // of the terminal port message before termination closes the streams.
-        void new Promise<void>((resume) => { setImmediate(resume) }).then(async () => {
+        new Promise<void>((resume) => { setImmediate(resume) }).then(async () => {
           const stdoutDrained = waitForPipeDrain(worker.stdout)
           const stderrDrained = waitForPipeDrain(worker.stderr)
           await Promise.all([worker.terminate(), stdoutDrained, stderrDrained])
           const result = terminalOverride ?? (typeof finalize === 'function' ? finalize() : finalize)
           finishResolve()
           resolve(result)
-        })
+        }).then(undefined, finishFailed)
       }
 
       const onDone = (message: WorkerToHost): void => {
@@ -486,7 +490,10 @@ export class WorkerThreadCodeRuntime extends CodeRuntime {
           reply({ type: 'reply', id: message.id, ok: false, message: 'binding arguments must be lossless JSON' })
           return
         }
-        void (async () => {
+        const replyFailed = (error: unknown): void => {
+          finish(() => output.failure([...logs, ...strayLogs], { kind: 'worker-exit', message: messageOf(error) }))
+        }
+        ;(async () => {
           try {
             const resolved = await fn(args)
             let value: CodeJsonValue | undefined
@@ -503,7 +510,7 @@ export class WorkerThreadCodeRuntime extends CodeRuntime {
           } catch (error: unknown) {
             reply({ type: 'reply', id: message.id, ok: false, message: messageOf(error) })
           }
-        })()
+        })().then(undefined, replyFailed)
       }
 
       worker.on('message', (raw: unknown) => {

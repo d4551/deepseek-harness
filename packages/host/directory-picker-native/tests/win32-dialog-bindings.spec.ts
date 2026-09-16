@@ -126,7 +126,7 @@ function installFakeKoffi(world: ComWorld): void {
       }),
       proto: (declaration: string) => ({ declaration }),
       pointer: (type: unknown) => type,
-      sizeof: (type: string) => { void type; return FAKE_POINTER_SIZE },
+      sizeof: (type: string) => { expect(type).toBe('void *'); return FAKE_POINTER_SIZE },
       view: (value: unknown, len: number): ArrayBuffer => {
         const bytes = Buffer.alloc(len)
         bytes.write((value as FakePtr).text as string, 'utf16le')

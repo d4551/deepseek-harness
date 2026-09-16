@@ -101,6 +101,8 @@ type ProjectionChangeListener = (
 
 `SessionProjectionRegistry` ([signatures](#ctxsessionprojections--sessionprojectionregistry)) owns the drive: one `session/event` subscription, eager `apply` over every registered unit, and per-session per-unit watermark cells. Cells build lazily — a unit registered after events flowed, or a session older than the registry, folds `init` over the in-memory log on first touch (event or read). Registration is an effect whose disposer rides the calling fiber: an unloaded domain plugin's key (with its cached cells) disappears from subsequent drives and snapshots, and clients read that as capability absence; a duplicate key with a different `stateVersion` throws, while same-version registrants share one unit and are counted. Domain plugins register under `ctx.inject(['sessionProjections'], …)` so headless assemblies without the registry stay unaffected.
 
+`register` and `onChanged` return Cordis `Disposable<Promise<void>>` handles. Call and await the returned disposer when explicitly releasing a registration or subscription; fiber disposal also waits for these effects.
+
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
 <a id="cordis-surface"></a>
@@ -188,7 +190,7 @@ Source: [`packages/session/session-projection-cache/src/index.ts`](../../package
  * @param definition - key, state schema, pure unit functions, and stateVersion.
  * @returns the exact disposer that unregisters this unit.
  */
-register< K extends keyof SessionProjectionMap, S extends SessionProjectionStateMap[K], >( definition: Omit<ProjectionDefinition<K, S>, 'wire'> & { wire: NonNullable<ProjectionDefinition<K, S>['wire']> }, ): () => void
+register< K extends keyof SessionProjectionMap, S extends SessionProjectionStateMap[K], >( definition: Omit<ProjectionDefinition<K, S>, 'wire'> & { wire: NonNullable<ProjectionDefinition<K, S>['wire']> }, ): Disposable<Promise<void>>
 
 /**
  * Register one host-only unit. Its state is omitted from client snapshots
@@ -196,7 +198,7 @@ register< K extends keyof SessionProjectionMap, S extends SessionProjectionState
  * @param definition - key, state schema, pure unit functions, and stateVersion.
  * @returns the exact disposer that unregisters this unit.
  */
-register< K extends Exclude<keyof SessionProjectionStateMap, keyof SessionProjectionMap>, S extends SessionProjectionStateMap[K], >( definition: Omit<ProjectionDefinition<K, S>, 'wire'>, ): () => void
+register< K extends Exclude<keyof SessionProjectionStateMap, keyof SessionProjectionMap>, S extends SessionProjectionStateMap[K], >( definition: Omit<ProjectionDefinition<K, S>, 'wire'>, ): Disposable<Promise<void>>
 
 /**
  * Subscribe to the change feed. The registration is an effect on the
@@ -204,7 +206,7 @@ register< K extends Exclude<keyof SessionProjectionStateMap, keyof SessionProjec
  * @param listener - called once per client-visible unit whose state reference changed, per committed event.
  * @returns the exact disposer that unsubscribes.
  */
-onChanged(listener: ProjectionChangeListener): () => void
+onChanged(listener: ProjectionChangeListener): Disposable<Promise<void>>
 
 /**
  * Read one unit's current host state after materializing every registered

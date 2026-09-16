@@ -11,4 +11,9 @@ import type { WorkerInit } from './types.ts'
 
 // workerData is `any` at the node:worker_threads boundary; the engine is the
 // only spawner and always provides a WorkerInit.
-void runWorkerSession(requireParentPort(parentPort), workerData as WorkerInit)
+function failWorker(error: unknown): never {
+  console.error(error)
+  process.exit(1)
+}
+
+runWorkerSession(requireParentPort(parentPort), workerData as WorkerInit).then(undefined, failWorker)

@@ -9,7 +9,7 @@ kind: "package-library"
 
 ## 概述
 
-`dsh-client-ui-primitives` 是 Web 客户端共享的 React 组件库：每个功能插件都用这些原子组件拼装自己的 UI，而这里没有任何内容依赖 Cordis 或 slot 系统。它提供控件集（按钮、胶囊、输入框、菜单、模态框、Toast 横幅、折叠行、悬浮卡片、连接横幅）、图标字形与品牌标记、锚定浮层用的定位钩子，以及 agent 输出的内容渲染器：带 TeX 公式的 markdown、终端输出、文件读取、差异、搜索结果、网页检索与 JSON 检查。这些渲染器为不受信任的模型输出而设计——原始 HTML 会被丢弃、链接会被失效或安全打开、ANSI 转义序列会被解析而非透传。面向用户的文案通过 label prop 提供；拼装某个原子组件的功能插件负责本地化。
+`dsh-client-ui-primitives` 是 Web 客户端共享的 React 组件库：每个功能插件都用这些原子组件拼装自己的 UI，而这里没有任何内容依赖 Cordis 或 slot 系统。它提供控件集（按钮、胶囊、输入框、菜单、模态框、Toast 横幅、折叠行、悬浮卡片、连接横幅）、图标字形与品牌标记、锚定浮层用的定位钩子，以及 agent 输出的内容渲染器：带 TeX 公式的 markdown、终端输出、文件读取、差异、搜索结果、网页检索与 JSON 检查。这些渲染器为不受信任的模型输出而设计——原始 HTML 保持为字面文本、链接会被失效或安全打开、ANSI 转义序列会被解析而非透传。面向用户的文案通过 label prop 提供；拼装某个原子组件的功能插件负责本地化。
 
 ## 目录
 
@@ -44,6 +44,8 @@ kind: "package-library"
 ### 渲染 agent 输出
 
 `MarkdownText` 渲染不可信的 GFM 与 TeX 公式、阻止不安全的链接与图片，并可把已解析的文件提及转换为显式控件。回复流式输出时，它冻结已完成的块，并从保存的 Shiki grammar state 为不断增长的 fence 增量高亮；最终渲染使用相同的 span 树（[增量渲染器](../../../.agents/notes/implemented/architecture/2026-08-06-web-markdown-incremental-ast-renderer.zh.md)、[流式 fence 高亮](../../../.agents/notes/implemented/feature/2026-08-20-web-streaming-fence-highlight.zh.md)）。`TerminalBlock`、`ReadBlock`、`DiffBlock`、`SearchBlock` 与 `WebBlock` 把对应的工具结果意图渲染为带复制控件、溢出处理及适用时 ANSI 处理的卡片。`JsonTree` 与 `JsonBlock` 以只读方式检查 JSON 值；`MessageText` 仍是用户创作内容的字面文本原语。
+
+需要紧凑标签与摘要时，[`extractMarkdownPlainText`](src/markdown/plain-text.ts) 会在移除 Markdown 展示语法的同时保留链接标签、图片替代文本、代码文本与字面 HTML。它分隔各个块，包括脚注中的段落与代码，避免相邻词语粘连。默认的 `all` 模式返回完整投影；`first-line` 返回首个可见行；`first-paragraph` 选择首个非空段落，不存在段落时返回首个可见行。没有可见文本的内容返回空字符串。
 
 ### 本地化文案
 

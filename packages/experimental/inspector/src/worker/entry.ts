@@ -31,15 +31,19 @@ const stop = (): Promise<void> => {
   return stopping
 }
 
+const reportFailure = (error: unknown): void => {
+  controlPort.postMessage({
+    type: 'failure',
+    message: error instanceof Error ? error.message : String(error),
+  } satisfies InspectorWorkerControl)
+}
+
 controlPort.on('message', (message: unknown) => {
   try {
     parseInspectorHostControl(message)
-    void stop()
+    stop().then(undefined, reportFailure)
   } catch (error) {
-    controlPort.postMessage({
-      type: 'failure',
-      message: error instanceof Error ? error.message : String(error),
-    } satisfies InspectorWorkerControl)
+    reportFailure(error)
   }
 })
 
@@ -47,9 +51,6 @@ try {
   runtime = await startInspectorWorker(boot)
   controlPort.postMessage({ type: 'ready', ...runtime.endpoint } satisfies InspectorWorkerControl)
 } catch (error) {
-  controlPort.postMessage({
-    type: 'failure',
-    message: error instanceof Error ? error.message : String(error),
-  } satisfies InspectorWorkerControl)
+  reportFailure(error)
   await stop()
 }

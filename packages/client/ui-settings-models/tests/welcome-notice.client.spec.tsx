@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { Context } from '@deepseek-ai/cordis'
@@ -79,7 +79,8 @@ function mount(
     schemaService,
   )
   const controller = new WelcomeNoticeStore(scope)
-  void mirror.load()
+  const initialRead = mirror.load()
+  onTestFinished(async () => { await initialRead })
   const complete = vi.fn()
   const unusedHook = (() => { throw new Error('unused standard hook') }) as never
   const props: WelcomeNoticeProps = {

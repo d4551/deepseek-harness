@@ -83,7 +83,7 @@ async function harness(
 async function agentOn(ctx: Context, id: string, presetId?: string): Promise<Agent> {
   const handle = await ctx.agents.create({
     sessionId: SessionId(id),
-    setup: async (agentCtx: Context) => void await ctx.agentPresets.mount(agentCtx, presetId),
+    setup: async (agentCtx: Context) => { await ctx.agentPresets.mount(agentCtx, presetId) },
   })
   return handle.agent
 }

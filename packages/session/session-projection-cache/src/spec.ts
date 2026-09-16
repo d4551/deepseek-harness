@@ -64,11 +64,13 @@ export type CheckpointRecord = z.infer<typeof checkpointRecord>
  * bumps per session: after a bump, a stale session document is discarded on
  * open (cache semantics — a stale or unreadable cache costs a longer tail
  * replay, never a wrong value) while the rest of the domain stays usable,
- * instead of rejecting the whole medium.
+ * instead of rejecting the whole medium. The sessions table is explicitly
+ * rebuildable: schema-invalid records are deleted at open, and consumers
+ * supply authoritative session history to reconstruct the missing cut.
  */
 export const projectionCacheDomainSpec = defineDomain({
   name: 'session_projcache',
   version: 4,
   layout: 'per-record',
-  tables: { sessions: domainTable<SessionId, CheckpointRecord>(checkpointRecord) },
+  tables: { sessions: domainTable<SessionId, CheckpointRecord>(checkpointRecord, { rebuildable: true }) },
 })

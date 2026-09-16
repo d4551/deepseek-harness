@@ -3,7 +3,7 @@
 import { join, resolve } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { AttachmentStore } from '@deepseek-ai/dsh-attachment'
+import { AttachmentStore, imageAttachmentRefKey } from '@deepseek-ai/dsh-attachment'
 import type {
   ImageAttachmentLimits,
   ImageAttachmentRef,
@@ -111,23 +111,15 @@ class SharedRequest<T> {
       released = true
       this.release(cancelled, signal)
     }
-    return new Promise<T>((resolve, reject) => {
-      const abort = (): void => {
-        release(true)
-        reject(abortReason(signal))
-      }
-      signal.addEventListener('abort', abort, { once: true })
-      this.promise.then((value) => {
-        signal.removeEventListener('abort', abort)
-        release(false)
-        resolve(value)
-      }, (error: unknown) => {
-        signal.removeEventListener('abort', abort)
-        release(false)
-        // CompressionLimiter normalizes task rejections before this handler.
-        // oxlint-disable-next-line typescript/prefer-promise-reject-errors
-        reject(error)
-      })
+    const cancelled = Promise.withResolvers<never>()
+    const abort = (): void => {
+      release(true)
+      cancelled.reject(abortReason(signal))
+    }
+    signal.addEventListener('abort', abort, { once: true })
+    return Promise.race([this.promise, cancelled.promise]).finally(() => {
+      signal.removeEventListener('abort', abort)
+      release(false)
     })
   }
 
@@ -227,38 +219,31 @@ export class LocalAttachmentStore extends AttachmentStore {
     policy: ImageRequestPolicy,
     signal?: AbortSignal,
   ): Promise<RequestImageAttachment> {
-    return this.requestVersion(ref, policy, undefined, signal)
-  }
-
-  private requestVersion(
-    ref: ImageAttachmentRef,
-    policy: ImageRequestPolicy,
-    stored: StoredImageAttachment | undefined,
-    signal: AbortSignal | undefined,
-  ): Promise<RequestImageAttachment> {
     signal?.throwIfAborted()
     const variantId = requestImageVariantId(ref, policy)
-    const key = String(variantId)
+    const key = JSON.stringify([variantId, imageAttachmentRefKey(ref)])
     let operation = this.requestInflight.get(key)
     if (operation?.controller.signal.aborted) {
       this.requestInflight.delete(key)
       operation = undefined
     }
     if (operation === undefined) {
-      const shared = new SharedRequest<RequestImageAttachment>(sharedSignal => this.compression.run(async () => {
-        const request = await readRequestImageFile(
-          this.root,
-          stored ?? await this.readImage(ref, sharedSignal),
-          policy,
-          sharedSignal,
-        )
-        return request
-      }))
+      const shared = new SharedRequest<RequestImageAttachment>(async (sharedSignal) => {
+        try {
+          return await this.compression.run(async () => readRequestImageFile(
+            this.root,
+            await this.readImage(ref, sharedSignal),
+            policy,
+            sharedSignal,
+          ))
+        } finally {
+          if (this.requestInflight.get(key)?.controller.signal === sharedSignal) {
+            this.requestInflight.delete(key)
+          }
+        }
+      })
       operation = shared
       this.requestInflight.set(key, shared)
-      shared.promise.finally(() => {
-        if (this.requestInflight.get(key) === shared) this.requestInflight.delete(key)
-      }).catch(() => {})
     }
     return operation.wait(signal)
   }

@@ -54,27 +54,30 @@ export function parse(text: string, descriptor: KvUnitDescriptor): UnitState {
   if (typeof document !== 'object' || document === null) {
     throw new StorageError('malformed-medium', `unit '${descriptor.name}': file is not a JSON object`)
   }
-  const { unit, global: globalValue, tables } = document as Record<string, unknown>
-  if (
-    typeof unit !== 'object' || unit === null ||
-    (unit as Record<string, unknown>)['name'] !== descriptor.name ||
-    typeof (unit as Record<string, unknown>)['version'] !== 'number'
-  ) {
+  const fields = new Map<string, unknown>(Object.entries(document))
+  const unit = fields.get('unit')
+  if (typeof unit !== 'object' || unit === null) {
     throw new StorageError('malformed-medium', `unit '${descriptor.name}': missing or foreign unit header`)
   }
-  const version = (unit as Record<string, unknown>)['version'] as number
+  const header = new Map<string, unknown>(Object.entries(unit))
+  const version = header.get('version')
+  if (header.get('name') !== descriptor.name || typeof version !== 'number') {
+    throw new StorageError('malformed-medium', `unit '${descriptor.name}': missing or foreign unit header`)
+  }
   if (version !== descriptor.version) {
     throw new StorageError(
       'version-mismatch',
       `unit '${descriptor.name}': stored version ${version} != expected ${descriptor.version}`,
     )
   }
+  const tables = fields.get('tables')
   if (typeof tables !== 'object' || tables === null) {
     throw new StorageError('malformed-medium', `unit '${descriptor.name}': tables is not an object`)
   }
-  const state: UnitState = { version, global: globalValue ?? null, tables: new Map() }
+  const declaredTables = new Map<string, unknown>(Object.entries(tables))
+  const state: UnitState = { version, global: fields.get('global') ?? null, tables: new Map() }
   for (const table of descriptor.tables) {
-    const records = (tables as Record<string, unknown>)[table]
+    const records = declaredTables.get(table)
     if (records === undefined) {
       state.tables.set(table, new Map())
       continue
@@ -82,7 +85,7 @@ export function parse(text: string, descriptor: KvUnitDescriptor): UnitState {
     if (typeof records !== 'object' || records === null || Array.isArray(records)) {
       throw new StorageError('malformed-medium', `unit '${descriptor.name}': table '${table}' is not an object`)
     }
-    state.tables.set(table, new Map(Object.entries(records as Record<string, unknown>)))
+    state.tables.set(table, new Map(Object.entries(records)))
   }
   return state
 }
@@ -96,6 +99,15 @@ export function parse(text: string, descriptor: KvUnitDescriptor): UnitState {
  */
 export function serializeRecord(version: number, value: unknown): string {
   return `${JSON.stringify({ version, record: value }, null, 2)}\n`
+}
+
+/**
+ * Serialize durable absence without retaining the deleted record's value.
+ * @param version - Unit format version stamped into the deletion document.
+ * @returns pretty-printed deletion document with a trailing newline.
+ */
+export function serializeDeletion(version: number): string {
+  return `${JSON.stringify({ version, deleted: true }, null, 2)}\n`
 }
 
 /**
@@ -117,7 +129,8 @@ export function parseRecord(text: string, version: number): unknown {
     return undefined
   }
   if (typeof document !== 'object' || document === null) return undefined
-  const { version: stamped, record } = document as Record<string, unknown>
-  if (stamped !== version) return undefined
-  return record
+  const fields = new Map<string, unknown>(Object.entries(document))
+  if (fields.get('version') !== version) return undefined
+  if (fields.get('deleted') === true) return undefined
+  return fields.get('record')
 }

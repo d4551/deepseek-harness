@@ -39,7 +39,7 @@ describe('Connection generation facts', () => {
         else signal.addEventListener('abort', () => { resolve() }, { once: true })
       })
     }
-    connection.registerGenerationSource(source)
+    const unregister = connection.registerGenerationSource(source)
     const seen: Array<string | undefined> = []
     const stopListening = connection.generation.subscribe(() => {
       seen.push(connection.generation.getSnapshot()?.host.home)
@@ -57,9 +57,11 @@ describe('Connection generation facts', () => {
         host: { home: '/home/from-ready' },
       })
     })
-    loop.stop()
+    const stopping = loop.stop()
     expect(connection.generation.getSnapshot()).toBeUndefined()
     expect(seen).toEqual(['/home/from-ready', undefined])
     stopListening()
+    await stopping
+    await unregister()
   })
 })

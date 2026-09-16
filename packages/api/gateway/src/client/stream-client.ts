@@ -53,7 +53,7 @@ interface SocketWaiter {
 /** Keep one physical WebSocket and share it among independently cancellable Remote streams. */
 export class RemoteStreamMuxClient {
   private socket: WebSocket | undefined
-  private cancelCandidate: ((error: Error) => void) | undefined
+  /** Disposal awaits this driver across connection attempts, active sockets, and backoff. */
   private keepAlive: Promise<void> | undefined
   private keepAliveAbort: AbortController | undefined
   private readonly streams = new Map<string, StreamInbox>()
@@ -65,7 +65,9 @@ export class RemoteStreamMuxClient {
   start(): void {
     if (this.running || this.disposed) return
     this.running = true
-    this.maintain()
+    const abort = new AbortController()
+    this.keepAliveAbort = abort
+    this.keepAlive = this.reconnect(abort.signal)
   }
 
   /**
@@ -127,67 +129,62 @@ export class RemoteStreamMuxClient {
       this.disposed = true
       this.running = false
       const error = new Error('api gateway: Remote stream client disposed')
-      this.keepAliveAbort?.abort(error)
-      this.keepAliveAbort = undefined
       this.failAll(error)
       for (const waiter of [...this.waiters]) waiter.reject(error)
-      this.cancelCandidate?.(error)
-      const socket = this.socket
-      this.socket = undefined
-      socket?.close(1000, 'disposed')
+      this.keepAliveAbort?.abort(error)
+      this.keepAliveAbort = undefined
     }
     await this.keepAlive
   }
 
-  private connect(): Promise<WebSocket> {
+  private connect(signal: AbortSignal): Promise<{ opened: boolean; failure: Error }> {
     const socket = new WebSocket(remoteStreamUrl())
-    const connecting = new Promise<WebSocket>((resolve, reject) => {
-      let settled = false
-      const rejectCandidate = (error: Error): void => {
-        settled = true
+    return new Promise((resolve) => {
+      let didOpen = false
+      const finish = (failure: Error): void => {
         socket.removeEventListener('open', opened)
         socket.removeEventListener('error', failed)
         socket.removeEventListener('message', received)
         socket.removeEventListener('close', closed)
-        this.cancelCandidate = undefined
-        socket.close()
-        reject(error)
+        signal.removeEventListener('abort', aborted)
+        if (this.socket === socket) {
+          this.socket = undefined
+          this.failAll(failure)
+        }
+        resolve({ opened: didOpen, failure })
       }
       const opened = (): void => {
-        settled = true
-        this.cancelCandidate = undefined
+        didOpen = true
         this.socket = socket
         for (const waiter of [...this.waiters]) waiter.resolve(socket)
-        resolve(socket)
       }
       const failed = (): void => {
-        if (!settled) {
-          rejectCandidate(new RemoteStreamCarrierError(
-            'api gateway: Remote stream WebSocket failed to open',
-          ))
-          return
-        }
-        const error = new RemoteStreamCarrierError('api gateway: Remote stream WebSocket failed')
-        this.lost(socket, error)
+        finish(new RemoteStreamCarrierError(didOpen
+          ? 'api gateway: Remote stream WebSocket failed'
+          : 'api gateway: Remote stream WebSocket failed to open'))
         socket.close()
       }
       const closed = (): void => {
-        if (!settled) {
-          rejectCandidate(new RemoteStreamCarrierError(
-            'api gateway: Remote stream WebSocket closed before opening',
-          ))
-          return
-        }
-        this.lost(socket)
+        finish(new RemoteStreamCarrierError(didOpen
+          ? 'api gateway: Remote stream WebSocket closed'
+          : 'api gateway: Remote stream WebSocket closed before opening'))
       }
-      const received = (event: MessageEvent): void => { this.receive(socket, event.data) }
-      this.cancelCandidate = rejectCandidate
+      const received = (event: MessageEvent): void => {
+        const failure = this.receive(socket, event.data)
+        if (failure === undefined) return
+        finish(failure)
+        socket.close(4002, 'invalid Remote stream frame')
+      }
+      const aborted = (): void => {
+        finish(new RemoteStreamCarrierError('api gateway: Remote stream connection cancelled'))
+        socket.close(1000, 'disposed')
+      }
       socket.addEventListener('open', opened, { once: true })
       socket.addEventListener('error', failed, { once: true })
       socket.addEventListener('message', received)
       socket.addEventListener('close', closed, { once: true })
+      signal.addEventListener('abort', aborted, { once: true })
     })
-    return connecting
   }
 
   private waitForSocket(signal: AbortSignal): Promise<WebSocket> {
@@ -218,52 +215,21 @@ export class RemoteStreamMuxClient {
     })
   }
 
-  private receive(socket: WebSocket, data: unknown): void {
+  private receive(socket: WebSocket, data: unknown): RemoteStreamCarrierError | undefined {
     if (socket !== this.socket) return
     try {
       if (typeof data !== 'string') throw new Error('api gateway: Remote stream WebSocket requires text messages')
       const frame = parseRemoteStreamServerMessage(data)
       this.streams.get(frame.streamId)?.push(frame)
     } catch (error) {
-      const failure = new RemoteStreamCarrierError('api gateway: invalid Remote stream frame', { cause: error })
-      this.failAll(failure)
-      this.lost(socket, failure)
-      socket.close(4002, 'invalid Remote stream frame')
+      return new RemoteStreamCarrierError('api gateway: invalid Remote stream frame', { cause: error })
     }
   }
 
-  private lost(
-    socket: WebSocket,
-    error: RemoteStreamCarrierError = new RemoteStreamCarrierError(
-      'api gateway: Remote stream WebSocket closed',
-    ),
-  ): void {
-    if (this.socket !== socket) return
-    this.socket = undefined
-    this.failAll(error)
-    this.maintain(error)
-  }
-
-  private maintain(previousFailure?: Error): void {
-    if (!this.running) return
-    if (this.keepAlive !== undefined) {
-      void this.keepAlive.then(() => { this.maintain(previousFailure) })
-      return
-    }
-    const abort = new AbortController()
-    this.keepAliveAbort = abort
-    const task = this.reconnect(abort.signal, previousFailure)
-    this.keepAlive = task
-    void task.then(() => {
-      this.keepAlive = undefined
-      this.keepAliveAbort = undefined
-    })
-  }
-
-  private async reconnect(signal: AbortSignal, previousFailure?: Error): Promise<void> {
+  private async reconnect(signal: AbortSignal): Promise<void> {
     let attempt = 0
-    let failure = previousFailure
-    while (this.isRunning(signal) && this.socket?.readyState !== WebSocket.OPEN) {
+    let failure: Error | undefined
+    while (this.isRunning(signal)) {
       if (failure !== undefined) {
         attempt += 1
         console.warn(`[api-gateway] Remote stream connection unavailable, retry #${String(attempt)}`, failure)
@@ -271,11 +237,12 @@ export class RemoteStreamMuxClient {
         if (!this.isRunning(signal)) return
       }
       try {
-        await this.connect()
-        return
+        const outcome = await this.connect(signal)
+        if (outcome.opened) attempt = 0
+        failure = outcome.failure
       } catch (error) {
         if (!this.isRunning(signal)) return
-        failure = error as Error
+        failure = error instanceof Error ? error : new Error(String(error), { cause: error })
       }
     }
   }

@@ -421,8 +421,8 @@ Registering an adapter returns a handle: the disposer, plus the atomic route rep
  * atomic route replacement for the same adapter instance.
  */
 interface AdapterRegistrationHandle {
-  /** Release every route this registration currently holds. */
-  (): void
+  /** Release owned routes immediately and return the native effect's cleanup settlement. */
+  (): void | Promise<void>
   /**
    * Replace this registration's routes with `providers`, keeping the same
    * adapter instance. The candidate set is validated in full first — a
@@ -735,7 +735,9 @@ The [wire reference](../deepseek-llm-api-wire-extensions.md) defines the exact r
 
 ## Service and provider contracts
 
-`LlmAdapter` is the provider contract: subclass, implement `stream()`, and register one adapter instance with `ctx.llm.registerAdapter(providers, adapter)`. `GenerateOptions.provider` selects the registered adapter; `GenerateOptions.model` is passed to that adapter and need not be registered at lifecycle start. Duplicate provider routes fail atomically. Optional `providerRetryPolicy()` is captured per route with normal defaults, while `providerInfo()` and asynchronous `listModels()` feed `LlmRuntime.listProviders()` / `listModels()` with detached selector metadata. That catalog is advisory rather than a request whitelist: the adapter remains authoritative and may accept unlisted model ids. One asynchronous `resolveModel()` query returns exact model identity plus optional correctness-sensitive context capacity, an adapter-configured `defaultMaxTokens`, and ordered model-owned reasoning ids with an optional deployment default; absent fields mean unavailable metadata or provider-owned behavior, not invalid catalog membership. The resolver receives optional cancellation and must settle promptly after abort. `LlmRuntime.resolveModelInfo()` validates and detaches the aggregate. At the final adapter boundary, `resolveCallConfig()` materializes the output default only when `maxTokens` is absent and validates and materializes reasoning, so direct calls cannot bypass either configured behavior; direct dispatch captures one registration before awaiting that resolution. The agent loop instead uses `prepareCall()` to keep the same registration across model resolution, durable header logging, and dispatch, retain detached context metadata from that exact lookup, and report which config fields the adapter defaulted. Adapter lookup happens at the terminal continuation of the `llm/stream` waterfall, so a listener may short-circuit the call or route a mutable one-shot request before lookup. AgentLoop observes a request attempt once the outer waterfall returns a stream handle; that limited boundary does not prove a lazy terminal adapter was constructed or began provider I/O. The `block-start` / `block-end` `index` correlation and the assembler together mean an adapter only has to emit well-formed chunks — block reassembly is not each adapter's problem. [architecture.md](../architecture.md#turn-flow) shows where `ctx.llm.stream()` and the `llm/stream` waterfall sit in one turn.
+Direct and prepared stream handles defer work until first iteration. Before constructing the `llm/stream` waterfall, the runtime awaits every parallel `llm/request-ready` listener; failures are thrown together as an `AggregateError` after all listeners settle. The checkpoint policy flushes the live session here, so replay cannot bypass durable readiness. Cancellation before readiness starts emits an `ABORTED` finish immediately; cancellation during readiness waits for accepted work and emits that finish only if readiness succeeds. A prepared handle reserves its one use synchronously at `stream()` construction. Replay assignment and cursor advancement follow dispatch order after readiness, including when callers iterate streams in reverse construction order. Readiness failure consumes no replay entry.
+
+`LlmAdapter` is the provider contract: subclass, implement `stream()`, and register one adapter instance with `ctx.llm.registerAdapter(providers, adapter)`. `GenerateOptions.provider` selects the registered adapter; `GenerateOptions.model` is passed to that adapter and need not be registered at lifecycle start. Duplicate provider routes fail atomically. Optional `providerRetryPolicy()` is captured per route with normal defaults, while `providerInfo()` and asynchronous `listModels()` feed `LlmRuntime.listProviders()` / `listModels()` with detached selector metadata. That catalog is advisory rather than a request whitelist: the adapter remains authoritative and may accept unlisted model ids. One asynchronous `resolveModel()` query returns exact model identity plus optional correctness-sensitive context capacity, an adapter-configured `defaultMaxTokens`, and ordered model-owned reasoning ids with an optional deployment default; absent fields mean unavailable metadata or provider-owned behavior, not invalid catalog membership. The resolver receives optional cancellation and must settle promptly after abort. `LlmRuntime.resolveModelInfo()` validates and detaches the aggregate. At the final adapter boundary, `resolveCallConfig()` materializes the output default only when `maxTokens` is absent and validates and materializes reasoning, so direct calls cannot bypass either configured behavior; direct dispatch captures one registration before awaiting that resolution. The agent loop instead uses `prepareCall()` to keep the same registration across model resolution, durable header logging, and dispatch, retain detached context metadata from that exact lookup, and report which config fields the adapter defaulted. Adapter lookup happens at the terminal continuation of the `llm/stream` waterfall, so a listener may short-circuit the call or route a mutable one-shot request before lookup. AgentLoop observes a request attempt when it receives the stream handle; readiness, middleware construction, and provider I/O begin only when that handle is iterated. The `block-start` / `block-end` `index` correlation and the assembler together mean an adapter only has to emit well-formed chunks — block reassembly is not each adapter's problem. [architecture.md](../architecture.md#turn-flow) shows where `ctx.llm.stream()` and the `llm/stream` waterfall sit in one turn.
 
 ```ts type-equiv
 /** One model call whose config and adapter registration were resolved together. */
@@ -916,9 +918,9 @@ registerConfigurableProviders(entries: readonly LlmConfigurableProvider[]): Dire
  * Disposed with the fiber.
  * @param settingsNs - the namespace whose profiles this discovery serves.
  * @param discover - interrogates one endpoint and must honor the supplied signal.
- * @returns the disposer that withdraws the offer.
+ * @returns the native effect disposer; withdrawal is immediate and its cleanup settlement is returned.
  */
-registerModelDiscovery( settingsNs: string, discover: ( request: LlmModelDiscoveryRequest, signal?: AbortSignal, ) => Promise<readonly LlmDiscoveredModel[]>, ): () => void
+registerModelDiscovery( settingsNs: string, discover: ( request: LlmModelDiscoveryRequest, signal?: AbortSignal, ) => Promise<readonly LlmDiscoveredModel[]>, ): () => void | Promise<void>
 
 /**
  * Interrogate one provider endpoint for the models it advertises. The
@@ -1009,6 +1011,9 @@ async prepareCall(config: LlmCallConfig, signal?: AbortSignal): Promise<Prepared
  * dispatch, and iteration failures become terminal `error` or `aborted`
  * finish chunks; middleware, nested-call, cleanup, and consumer failures
  * remain thrown.
+ * Listener construction starts on first iteration, after every
+ * `llm/request-ready` listener settles. Readiness failures remain thrown;
+ * predispatch cancellation produces an aborted finish without dispatch.
  * @param options - the full request; `options.provider` selects the adapter.
  * @returns the chunk stream, possibly wrapped by `llm/stream` listeners.
  */
@@ -1041,6 +1046,25 @@ The provider topology changed: an adapter registered or unregistered routes, or 
 ```
 
 Source: [`packages/llm/llm/src/types.ts`](../../packages/llm/llm/src/types.ts)
+
+<a id="llmrequest-ready--parallel"></a>
+
+#### `llm/request-ready` — parallel
+
+Awaited admission barrier before streaming middleware is constructed. Every listener must settle before dispatch; failure prevents the request. Runs on first iteration for direct and prepared calls.
+
+```ts cordis-catalog
+/**
+ * Awaited admission barrier before streaming middleware is constructed.
+ * Every listener must settle before dispatch; failure prevents the request.
+ * Runs on first iteration for direct and prepared calls.
+ * @param options - the request whose durable prefix must be ready.
+ * @mode parallel
+ */
+'llm/request-ready'(this: LlmRuntime, options: GenerateOptions): Promise<void> | void
+```
+
+Source: [`packages/llm/llm/src/index.ts`](../../packages/llm/llm/src/index.ts)
 
 <a id="llmstream--waterfall"></a>
 

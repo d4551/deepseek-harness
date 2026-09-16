@@ -91,10 +91,7 @@ jobs:
     name: node 24 / coverage
     env:
       BUN_INSTALL: ${{ runner.temp }}/bun-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
-      # Partitioning replaces the instrumented share; this budget gives the
-      # exempt-heavy gate two workers on both hosted and failover runners.
       DSH_COVERAGE_MAX_WORKERS: '6'
-      DSH_COVERAGE_PARTITIONS: '4'
       DSH_GATE_CONCURRENCY: '3'
     steps:
       - uses: actions/checkout@v6
@@ -158,7 +155,6 @@ jobs:
     env:
       BUN_INSTALL: ${{ runner.temp }}/bun-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
       DSH_GATE_CONCURRENCY: '10'
-      DSH_NODE_COMPAT_SKIP_TYPECHECK: '1'
       DSH_OXLINT_THREADS: '8'
       DSH_PUBLINT_CONCURRENCY: '8'
       DSH_WEB_SNAPSHOT_WORKERS: '6'
@@ -234,7 +230,6 @@ jobs:
     env:
       BUN_INSTALL: ${{ runner.temp }}/bun-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
       DSH_GATE_CONCURRENCY: ${{ matrix.gate_concurrency }}
-      DSH_NODE_COMPAT_SKIP_TYPECHECK: '1'
     strategy:
       fail-fast: false
       matrix:
@@ -384,8 +379,8 @@ jobs:
   # Every pull request also gets real Windows-kernel signals. The former
   # monolithic windows-native job is split into smaller jobs so one slow
   # coverage gate does not hold up build/static results, while the total
-  # per-job process count stays lower. Observational checks are non-blocking,
-  # so this job also runs the built-bin smoke: starting the shipped binary and
+  # per-job process count stays lower. This job also runs the built-bin smoke:
+  # starting the shipped binary and
   # resolving package names to their `lib/` entrypoints is the one Windows
   # verdict Linux cannot stand in for, and it must be able to fail the branch.
   # Dependabot PRs are excluded from the self-hosted pool and stay queued for
@@ -435,7 +430,6 @@ jobs:
     env:
       BUN_INSTALL: ${{ runner.temp }}/bun-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
       DSH_COVERAGE_MAX_WORKERS: '6'
-      DSH_COVERAGE_PARTITIONS: '4'
       DSH_COVERAGE_TEST_TIMEOUT_MS: '90000'
       DSH_GATE_CONCURRENCY: '3'
     steps:
@@ -537,7 +531,6 @@ jobs:
 
   windows-observational:
     if: github.event_name == 'pull_request'
-    continue-on-error: true
     runs-on: >-
       ${{ vars.DSH_CI_FAILOVER_WINDOWS == 'selfhosted'
           && github.event.pull_request.user.login != 'dependabot[bot]'
@@ -576,13 +569,8 @@ jobs:
   # `needs`. The required Wine job is listed as `windows`; the native Windows
   # build, coverage, and targeted-process jobs are listed too, so a Windows-only
   # regression fails the pull request instead of staying red beside a green
-  # verdict. `windows-observational` stays out: what remains in it is static,
-  # documentation, package, and built-artifact analysis whose verdict does not
-  # vary by platform, and Linux already blocks on all of it, so its failure
-  # would gate the branch on a second opinion about the same facts. The one
-  # gate there that was NOT a second opinion — the built-bin smoke, the only
-  # proof the shipped binary starts on Windows — now runs in the blocking
-  # `windows-build` job instead of being observed.
+  # verdict. Static, documentation, package, and built-artifact analysis on
+  # Windows also participates in the required verdict.
   # (`needs` cannot reach across workflow files; the master-only jobs in
   # ci-master.yml are intentionally not part of this PR verdict.)
   # `if: always()` is load-bearing: without it a failed dependency
@@ -602,7 +590,7 @@ jobs:
           && github.event.pull_request.user.login != 'dependabot[bot]'
           && fromJSON('["self-hosted", "linux", "x64", "vm-backup"]')
           || 'ubuntu-latest' }}
-    needs: [node-24, node-24-coverage, node-24-consumers, node-compat, python-sdk, python-runtime, windows, windows-build, windows-coverage, windows-native-tests]
+    needs: [node-24, node-24-coverage, node-24-consumers, node-compat, python-sdk, python-runtime, windows, windows-build, windows-coverage, windows-native-tests, windows-observational]
     if: always() && github.event_name == 'pull_request'
     steps:
       - name: Fail if any needed job did not succeed

@@ -587,7 +587,7 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
             },
           })
           wakeup()
-          void drive()
+          drive().then(undefined, reject)
         })
         // A budget expiry or outer cancel that occurs while this call was in
         // flight already aborted the dispatch; stop the program now rather

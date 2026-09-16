@@ -89,6 +89,10 @@ describe('CI workflow', () => {
     if (!Array.isArray(windows.steps) || !Array.isArray(aggregate.needs)) {
       throw new TypeError('Windows job must define steps and the aggregate must define needs')
     }
+    const aggregateNeeds: unknown[] = aggregate.needs
+    if (!aggregateNeeds.every((name): name is string => typeof name === 'string')) {
+      throw new TypeError('CI aggregate dependencies must be job names')
+    }
     const commandSteps = windows.steps.filter((step): step is Record<string, unknown> & { run: string } => (
       isRecord(step) && typeof step.run === 'string'
     ))
@@ -118,9 +122,11 @@ describe('CI workflow', () => {
     ))
     expect(buildCommands.map(step => step.run)).toContain('bun run check:ci:windows-blocking')
 
-    // windows-coverage uses the lower 4-partition profile.
     expect(windowsCoverage.name).toBe('windows node 24 / coverage')
-    expect(windowsCoverage.env).toMatchObject({ DSH_COVERAGE_PARTITIONS: '4' })
+    for (const job of [node24Coverage, windowsCoverage]) {
+      expect(job.env).toMatchObject({ DSH_COVERAGE_MAX_WORKERS: '6' })
+      expect(job.env).not.toHaveProperty('DSH_COVERAGE_PARTITIONS')
+    }
     const coverageSteps = windowsCoverage.steps as unknown[]
     const coverageCommands = coverageSteps.filter((step): step is Record<string, unknown> & { run: string } => (
       isRecord(step) && typeof step.run === 'string'
@@ -139,9 +145,8 @@ describe('CI workflow', () => {
     expect(nativeTestCommand).toContain('tool-shell/tests/pwsh-loader.spec.ts')
     expect(nativeTestCommand).toContain('workflow-worker-thread.spec.ts')
 
-    // windows-observational is non-blocking.
     expect(windowsObservational.name).toBe('windows node 24 / observational')
-    expect(windowsObservational['continue-on-error']).toBe(true)
+    expect(windowsObservational['continue-on-error']).toBeUndefined()
 
     // wine-apt-cache: master-only, seeds the Wine apt cache, lives in ci-master.
     expect(wineAptCache.if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/master'")
@@ -152,16 +157,23 @@ describe('CI workflow', () => {
     expect(serialWindows['runs-on']).toEqual(['self-hosted', 'dsh-win-ci', 'windows'])
     expect(serialWindows.name).toBe('serial / windows (self-hosted standby)')
 
-    // Aggregate: Wine and the required native jobs are needed. Coverage is one
-    // of them — a red Windows coverage result beside a green verdict is a
-    // Windows regression the branch accepted. Observational stays out: Linux
-    // owns the blocking static and documentation verdicts it repeats.
+    // Every pull-request job must contribute to the required verdict.
     expect(aggregate.needs).toContain('windows')
     expect(aggregate.needs).toContain('windows-build')
     expect(aggregate.needs).toContain('windows-coverage')
     expect(aggregate.needs).toContain('windows-native-tests')
-    expect(aggregate.needs).not.toContain('windows-observational')
+    expect(aggregate.needs).toContain('windows-observational')
     expect(aggregate.needs).not.toContain('serial-windows')
+    expect([...aggregateNeeds].sort()).toEqual(Object.keys(workflow.jobs).filter(name => name !== 'all-checks-passed').sort())
+    for (const [name, job] of Object.entries(workflow.jobs)) {
+      if (!isRecord(job)) throw new TypeError(`${name} must define a job`)
+      expect(job['continue-on-error'], name).toBeUndefined()
+      if (!Array.isArray(job.steps)) continue
+      for (const step of job.steps) {
+        if (!isRecord(step)) throw new TypeError(`${name} must define step objects`)
+        expect(step['continue-on-error'], `${name}: ${String(step.name)}`).toBeUndefined()
+      }
+    }
 
     // Linux failover is a separate switch: the three required Linux workers
     // and the verdict job resolve their pool through DSH_CI_FAILOVER_LINUX,

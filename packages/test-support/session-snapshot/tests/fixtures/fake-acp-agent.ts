@@ -95,6 +95,7 @@ let parkedPromptId: number | string | null = null
 let parkedTurnLog: string | undefined
 /** Resolvers for outbound permission responses, keyed by request id. */
 const pendingOutbound = new Map<number, (result: unknown) => void>()
+const prompts: Promise<void>[] = []
 
 function send(frame: Record<string, unknown>): void {
   process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', ...frame })}\n`)
@@ -225,7 +226,7 @@ function handleFrame(frame: Record<string, unknown>): void {
       return
     }
     case 'session/prompt':
-      void handlePrompt(id as number | string)
+      prompts.push(handlePrompt(id as number | string))
       return
     case 'session/cancel':
       if (parkedPromptId !== null) {
@@ -285,8 +286,9 @@ function flushLogsAndExit(): void {
 }
 
 const rl = createInterface({ input: process.stdin })
-rl.on('line', (line) => {
-  if (line.trim().length === 0) return
+for await (const line of rl) {
+  if (line.trim().length === 0) continue
   handleFrame(JSON.parse(line) as Record<string, unknown>)
-})
-rl.on('close', () => { flushLogsAndExit() })
+}
+await Promise.all(prompts)
+flushLogsAndExit()

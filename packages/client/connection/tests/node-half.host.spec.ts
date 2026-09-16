@@ -451,7 +451,7 @@ describe('connection node half over a real HTTP server', () => {
   /** Serve the registered prefix route from a real server and return its port. */
   async function serve(routes: WebRoute[]): Promise<{ port: number; close: () => Promise<void> }> {
     const server = createServer((request, response) => {
-      void routes[0]!.handler(request, response)
+      Promise.resolve(routes[0]!.handler(request, response)).catch(response.destroy.bind(response))
     })
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
     const address = server.address() as AddressInfo

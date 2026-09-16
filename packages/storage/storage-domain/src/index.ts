@@ -8,6 +8,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import type { ZodType } from 'zod'
 import z from '@deepseek-ai/schemastery'
 import { storageBackendServiceKey } from '@deepseek-ai/dsh-storage'
 import { DomainError } from './error.ts'
@@ -88,7 +89,10 @@ export class DomainFacility {
    * (`facet-unsupported`); open the unit projected from the spec (backend
    * `version-mismatch`/`malformed-medium` pass through); load and validate
    * every stored record against the spec's zod schemas (`invalid-record`
-   * with the offending table and key); construct the domain.
+   * with the offending table and key). Explicitly rebuildable tables delete
+   * schema-invalid records durably and log their locations before publishing
+   * the domain; deletion failures reject open. Globals always reject invalid
+   * data. Construct the domain only after validation and recovery finish.
    *
    * Lifecycle: the CALLER owns the returned handle and closes it via
    * `Domain.close()` (typically as its own `ctx.effect` disposer) — the
@@ -118,7 +122,15 @@ export class DomainFacility {
         for (const [table, tableSpec] of Object.entries(spec.tables)) {
           const records = new Map<string, unknown>()
           for (const [key, raw] of Object.entries(snapshot.tables[table] ?? {})) {
-            records.set(key, parseRecord(spec.name, table, key, () => tableSpec.valueSchema.parse(raw)))
+            const parsed = tableSpec.valueSchema.safeParse(raw)
+            if (parsed.success) {
+              records.set(key, parsed.data)
+            } else if (tableSpec.rebuildable === true) {
+              await unit.deleteRecord(table, key)
+              this.ctx.logger.warn(`domain '${spec.name}': removed schema-invalid rebuildable record '${key}' in table '${table}'`)
+            } else {
+              throw invalidRecord(spec.name, table, key, parsed.error)
+            }
           }
           tables.set(table, records)
         }
@@ -129,7 +141,7 @@ export class DomainFacility {
           ? undefined
           : snapshot.global === null
             ? globalSpec.initial
-            : parseRecord(spec.name, '', '', () => globalSpec.schema.parse(snapshot.global))
+            : parseGlobal(spec.name, globalSpec.schema, snapshot.global)
         // The onClosed hook runs strictly after teardown completes: writes
         // landing during the drain still emit domain/changed, and the domain
         // stays resolvable (the package invariant cross-checks each event)
@@ -177,18 +189,21 @@ export class DomainFacility {
   }
 }
 
-/** Run one zod parse, translating failure to `invalid-record` with its location. */
-function parseRecord<T>(domain: string, table: string, key: string, parse: () => T): T {
-  try {
-    return parse()
-  } catch (error) {
-    const slot = table === '' ? 'global' : `record '${key}' in table '${table}'`
-    throw new DomainError(
-      'invalid-record',
-      `domain '${domain}': stored ${slot} does not match its schema`,
-      { detail: { table, key }, cause: error },
-    )
-  }
+/** Validate the authoritative singleton; invalid data always rejects open. */
+function parseGlobal<T>(domain: string, schema: ZodType<T>, raw: unknown): T {
+  const parsed = schema.safeParse(raw)
+  if (!parsed.success) throw invalidRecord(domain, '', '', parsed.error)
+  return parsed.data
+}
+
+/** Name the durable slot whose value failed validation. */
+function invalidRecord(domain: string, table: string, key: string, cause: Error): DomainError {
+  const slot = table === '' ? 'global' : `record '${key}' in table '${table}'`
+  return new DomainError(
+    'invalid-record',
+    `domain '${domain}': stored ${slot} does not match its schema`,
+    { detail: { table, key }, cause },
+  )
 }
 
 /**

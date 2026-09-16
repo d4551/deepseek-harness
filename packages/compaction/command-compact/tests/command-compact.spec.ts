@@ -275,8 +275,7 @@ describe('/compact human command', () => {
     await expect(execution).rejects.toBe(abort)
 
     let disposed = false
-    const disposal = test.plugin.dispose()
-    void disposal.then(() => { disposed = true })
+    const disposal = test.plugin.dispose().then(() => { disposed = true })
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(test.ctx.commands.find(test.agent, 'compact')).toBeUndefined()
     expect(disposed).toBe(false)

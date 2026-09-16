@@ -542,7 +542,7 @@ describe('agent/session-start', () => {
     const ctx = await harness(adapter)
 
     const sources: SessionStartSource[] = []
-    ctx.on('agent/session-start', ({ source }) => void sources.push(source))
+    ctx.on('agent/session-start', ({ source }) => { sources.push(source) })
 
     const agent = ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
     // fires synchronously at create, before any turn

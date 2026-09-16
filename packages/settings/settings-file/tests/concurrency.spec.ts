@@ -8,6 +8,7 @@ import z from '@deepseek-ai/schemastery'
 import { chmod, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { setTimeout } from 'node:timers/promises'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { FileSettingsProvider } from '../src/index.ts'
 
@@ -64,9 +65,8 @@ describe('writer lock', () => {
     const ctx = await boot({ path, watch: false })
     const scope = ctx.settings.register(settingsNamespace('alpha'), AlphaSchema)
     await writeFile(`${path}.lock`, 'holder\n')
-    const release = setTimeout(() => { void rm(`${path}.lock`, { force: true }) }, 120)
-    cleanups.push(async () => { clearTimeout(release) })
-    await scope.update({ value: 7 })
+    const release = setTimeout(120).then(() => rm(`${path}.lock`, { force: true }))
+    await Promise.all([scope.update({ value: 7 }), release])
     expect(await readFile(path, 'utf8')).toContain('value: 7')
   })
 

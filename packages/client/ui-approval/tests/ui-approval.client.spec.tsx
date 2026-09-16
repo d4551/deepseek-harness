@@ -90,7 +90,7 @@ function setupPlugin(): PluginBench {
   })
   const injectSlot = vi.fn((_name: string, mount: () => () => void) => {
     const dispose = ctx.effect(() => mount())
-    return () => { void dispose() }
+    return dispose
   })
   ctx.provide('remote', {
     $on: (_event: string, callback: ApprovalListener) => {

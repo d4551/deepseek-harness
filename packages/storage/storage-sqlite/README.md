@@ -33,7 +33,7 @@ Choose it when writes are frequent and point-sized — each key maps to exactly 
 
 ### Configuration
 
-Two fields: the database path and the journal mode. `:memory:` opens an in-process database whose contents disappear with the process.
+Configure the database path, journal mode, and lock-wait budget. `:memory:` opens an in-process database whose contents disappear with the process.
 
 ```yaml
 - name: '@deepseek-ai/dsh-storage'
@@ -49,12 +49,15 @@ Two fields: the database path and the journal mode. `:memory:` opens an in-proce
 |---|---|---|
 | `path` | required | SQLite database file path, or `:memory:` |
 | `journalMode` | `wal` | Journal mode: `wal`, `delete`, `truncate`, or `persist` |
+| `busyTimeoutMs` | `5000` | Maximum lock wait in milliseconds; `0` rejects contention immediately |
 
 `wal` suits local disks; a rollback-journal mode (`delete`/`truncate`/`persist`) fits filesystems where WAL's shared-memory files do not work, such as network mounts. The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-storage-sqlite) is the exhaustive source for every accepted field and its JSDoc.
 
 ### Observable behavior
 
 Missing directories and database files are created owner-only (`0o700`/`0o600`); an existing database keeps its modes. A unit whose stored format version differs from its descriptor rejects `version-mismatch`, and a database stamped with a physical layout version other than the current one rejects outright — no migration, pre-release stance. Failures carry stable `StorageError` codes, and writes are durable once resolved.
+
+Plugin disposal withdraws its lifecycle service and waits for dependent consumers to drain queued writes before unregistering the backend and closing the database. The same ordering applies to whole-composition disposal.
 
 -----
 
@@ -75,13 +78,13 @@ The backend is a document-per-row layout over one `node:sqlite` connection, desi
 
 ### Open sequence
 
-Opening the database mirrors the session-persistence SQLite backend: `mkdir` the parent `0o700`, exclusively create a missing file `0o600`, apply `PRAGMA foreign_keys = ON` and the journal mode, check `user_version`, create the `units` and `unit_globals` metadata tables, and stamp fresh databases last so a failure leaves the medium unstamped.
+The [shared SQLite connection owner](../../util/sqlite-connection/README.md) prepares private paths, configures schema trust and memory mapping, selects the journal mode within the lock-wait budget, and verifies full synchronous durability. This package enables foreign keys, validates `user_version`, creates its `units` and `unit_globals` tables, and stamps the current storage layout. An opening failure closes the connection.
 
 ### Source map
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Plugin entry: backend registration, `path`/`journalMode` config, unit table |
+| [`src/index.ts`](src/index.ts) | Plugin entry: backend registration and disposal, connection config, unit table |
 | [`src/schema.ts`](src/schema.ts) | Open sequence, physical layout version, metadata tables, record table naming |
 | [`src/unit.ts`](src/unit.ts) | One opened unit: prepared statements, JSON value parse, close |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant: versions are open-time checks) |
@@ -127,9 +130,7 @@ None — the backend never touches live request prefixes.
 These limits define when this backend is a poor fit or needs special operational care. They are current package constraints, not a task backlog.
 
 - **Synchronous driver blocks the event loop** — each write is a synchronous `DatabaseSync` call; the block lasts a single statement, which is acceptable at domain-data scale.
-- **No busy-wait or retry policy** — a competing connection holding a write lock rejects the operation immediately instead of waiting; the domain layer's write chain serializes writes within one process, and cross-process coordination is out of scope.
 - **Only the current physical layout version opens** — any other stamped `user_version` is rejected rather than migrated (pre-release stance).
-- **Open sequence duplicated from the session packages** — `openDatabase` mirrors the session-persistence SQLite open sequence; extraction into a shared medium layer is deferred to the planned session-backend migration.
 
 <a id="dev-note"></a>
 ### Dev Note

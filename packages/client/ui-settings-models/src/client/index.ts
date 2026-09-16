@@ -52,7 +52,7 @@ export type {
  */
 export function refreshIfLoaded(controller: ModelsSettingsStore): void {
   if (controller.store.getSnapshot().status === 'idle') return
-  void controller.load()
+  controller.load().catch(console.error)
 }
 
 /**

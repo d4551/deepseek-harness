@@ -1,43 +1,25 @@
 // Target-neutral View-ring type chain and runtime ledger projection.
 import { Context } from '@deepseek-ai/cordis'
-import { describe, expect, it } from 'vitest'
-import type { ReactNode } from 'react'
+import { describe, expect, expectTypeOf, it, onTestFinished } from 'vitest'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { ConvViewProps } from '../src/client/contract/slots.ts'
 
-describe('view-ring type negatives (compile-time; body never runs)', () => {
-  it('holds the negative samples as expect-error sites', () => {
-    const negatives = (slots: SlotRegistry) => {
-      // 1. List-kind registration requires the id shape field.
-      // @ts-expect-error missing `id` on a list-slot registration
-      slots.register({ name: 'conversation.view', order: 1 }, (_p: ConvViewProps) => null)
-      // 2. A keyed-kind shape field is rejected on the list slot.
-      slots.register(
-        // @ts-expect-error `key` belongs to keyed slots, not the list ring
-        { name: 'conversation.view', id: 'x', key: 'k' },
-        (_p: ConvViewProps) => null)
-      // 3. Component props must stay within the composed contract: an
-      //    undeclared member cannot be required.
-      slots.register(
-        // @ts-expect-error component demands a prop no share supplies
-        { name: 'conversation.view', id: 'y' },
-        (_p: ConvViewProps & { phantom: number }) => null)
-      // 4. Views receive no renderSlot — the ring's entries declare no children.
-      const renderless = (props: ConvViewProps): ReactNode => {
-        // @ts-expect-error views receive no renderSlot — no sub-slot delegation
-        void props.renderSlot
-        return null
-      }
-      void renderless
-      return null as ReactNode
-    }
-    expect(negatives).toBeTypeOf('function')
+describe('Conversation view type chain', () => {
+  it('requires list identity and rejects unsupplied component props', () => {
+    type ViewRegistration = Parameters<typeof SlotRegistry.prototype.register<'conversation.view'>>
+    expectTypeOf<{ name: 'conversation.view'; order: number }>().not.toExtend<ViewRegistration[0]>()
+    expectTypeOf<ViewRegistration[0]>().toHaveProperty('id').toEqualTypeOf<string>()
+    expectTypeOf<ViewRegistration[0]>().not.toHaveProperty('key')
+    expectTypeOf<(props: ConvViewProps & { phantom: number }) => null>()
+      .not.toExtend<ViewRegistration[1]>()
+    expectTypeOf<ConvViewProps>().not.toHaveProperty('renderSlot')
   })
 })
 
 describe('view-ring runtime dual (real ledger)', () => {
   function bench() {
     const ctx = new Context()
+    onTestFinished(() => ctx.fiber.dispose())
     const slots = new SlotRegistry(ctx)
     // The conversation entry's role: declare the ring (declaring is claiming).
     slots.register({

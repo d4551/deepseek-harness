@@ -57,7 +57,7 @@ export abstract class ConversationDefinitionRegistry<Definition> {
         this.refresh()
       }
     }, effectName)
-    return () => { void dispose() }
+    return () => { Promise.resolve(dispose()).catch(owner.logger().error) }
   }
 
   /** Refresh cached entries and synchronously invalidate subscribers. */

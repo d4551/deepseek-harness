@@ -55,7 +55,7 @@ describe('the credentials seam through the memory provider', () => {
   it('stores through set, removes through unset, and emits the committed change', async () => {
     const ctx = await boot()
     const events: CredentialRef[] = []
-    ctx.on('credentials/reference-updated', ref => void events.push(ref))
+    ctx.on('credentials/reference-updated', (ref) => { events.push(ref) })
 
     await ctx.credentials.set(REF, 'sk-live')
     expect(await ctx.credentials.resolve(REF)).toEqual({ value: 'sk-live', source: 'memory' })
@@ -67,7 +67,7 @@ describe('the credentials seam through the memory provider', () => {
   it('rejects an empty set and keeps an absent unset silent', async () => {
     const ctx = await boot()
     const events: CredentialRef[] = []
-    ctx.on('credentials/reference-updated', ref => void events.push(ref))
+    ctx.on('credentials/reference-updated', (ref) => { events.push(ref) })
 
     await expect(ctx.credentials.set(REF, '')).rejects.toThrow(/empty value/)
     await ctx.credentials.unset(REF)

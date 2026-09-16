@@ -35,10 +35,14 @@ try {
       randomSeed: server.randomSeed,
     })}\n`)
     let closing = false
+    const closeFailed = (error: unknown): never => {
+      console.error(error)
+      process.exit(1)
+    }
     const close = (code: number): void => {
       if (closing) return
       closing = true
-      void server.close().finally(() => { process.exit(code) })
+      server.close().then(() => { process.exit(code) }, closeFailed)
     }
     process.on('SIGINT', () => { close(130) })
     process.on('SIGTERM', () => { close(143) })

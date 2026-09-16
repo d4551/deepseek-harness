@@ -139,8 +139,8 @@ export interface ReplayConfig {
  * into a crisp diagnostic at teardown.
  */
 export interface ReplayHandle {
-  /** Remove the registered adapter or waterfall listener (HMR safety). Freestanding closure — safe to destructure. */
-  dispose(this: void): void
+  /** Remove registration; listeners return removal status, adapters return cleanup settlement. Safe to destructure. */
+  dispose(this: void): boolean | void | Promise<void>
   /**
    * Throw unless every recorded script was bound to a live session and every
    * bound cursor consumed its full entry list. Call at scenario teardown.

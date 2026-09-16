@@ -13,7 +13,7 @@ import type { KvUnitDescriptor } from '@deepseek-ai/dsh-storage'
 export abstract class JsonUnitLifecycle {
   private closed = false
   /** In-flight durable writes; close() drains them before releasing the unit. */
-  private readonly inFlight = new Set<Promise<void>>()
+  private readonly inFlight = new Set<Promise<unknown>>()
 
   /**
    * @param descriptor - Static identity and shape of the unit.
@@ -52,13 +52,14 @@ export abstract class JsonUnitLifecycle {
   /**
    * Track one durable write so `close` drains it.
    * @param write - the durable write the caller still awaits.
-   * @returns the same promise, so the caller keeps observing its rejection.
+   * @returns completion of the write, preserving its rejection for the caller.
    */
-  protected tracked(write: Promise<void>): Promise<void> {
+  protected async tracked<T>(write: Promise<T>): Promise<T> {
     this.inFlight.add(write)
-    // Swallow only on the tracking branch: the caller still awaits `write`
-    // itself, so rejections stay observed exactly once.
-    write.catch(() => {}).finally(() => this.inFlight.delete(write))
-    return write
+    try {
+      return await write
+    } finally {
+      this.inFlight.delete(write)
+    }
   }
 }

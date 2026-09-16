@@ -219,9 +219,9 @@ function fakeAgent(
 /** Service over a store-detached session for failure classification. */
 function detachedService(): { ctx: Context; compact: GatedCompactionEngine; flushes: () => number } {
   const ctx = new Context()
-  void new LlmRuntime(ctx)
-  void new SessionStore(ctx)
-  void new TokenMeter(ctx)
+  new LlmRuntime(ctx)
+  new SessionStore(ctx)
+  new TokenMeter(ctx)
   ctx.llm.registerAdapter([MODEL], new TextAdapter())
   let flushes = 0
   vi.spyOn(ctx.sessions, 'flush').mockImplementation(() => {
@@ -718,13 +718,9 @@ describe('compactNow transaction and failure classification', () => {
       const controller = new AbortController()
       controller.abort(reason)
 
-      let thrown: unknown
-      try {
-        void compact.compactNow(agent, controller.signal)
-      } catch (error: unknown) {
-        thrown = error
-      }
-      expect(thrown).toBe(reason)
+      const invoke = vi.fn(() => compact.compactNow(agent, controller.signal))
+      expect(invoke).toThrow()
+      expect(invoke.mock.results[0]?.value).toBe(reason)
       expect(reserve).not.toHaveBeenCalled()
       expect(measure).not.toHaveBeenCalled()
       expect(compact.calls).toHaveLength(0)
@@ -790,12 +786,9 @@ describe('compactNow transaction and failure classification', () => {
     let released = 0
     const agent = fakeAgent(session, () => () => { released += 1 })
 
-    const running = compact.compactNow(agent, controller.signal)
     let settled = false
-    void running.then(
-      () => { settled = true },
-      () => { settled = true },
-    )
+    const running = compact.compactNow(agent, controller.signal).finally(() => { settled = true })
+    const failure = expect(running).rejects.toBe(reason)
     await vi.waitFor(() => {
       expect(flush).toHaveBeenCalledWith(session)
     })
@@ -805,7 +798,7 @@ describe('compactNow transaction and failure classification', () => {
     expect(released).toBe(0)
 
     flushGate.resolve(false)
-    await expect(running).rejects.toBe(reason)
+    await failure
     expect(released).toBe(1)
   })
 

@@ -188,7 +188,7 @@ export class WorkspaceFileSearch {
     const settled = this.settled
     if (settled === undefined) return waitForPromise(this.ensureIndex(), signal)
     if (settled.startedAt < this.invalidations) {
-      void this.ensureIndex().catch(() => {
+      this.ensureIndex().catch(() => {
         // A background refresh failure is not this caller's error: the stale
         // entries still answer and `settled.startedAt` stays behind, so the
         // next bare query starts a fresh attempt.

@@ -28,7 +28,7 @@ describe('Cordis effect ownership', () => {
     }, 'reentrant-restart')
 
     let settled = false
-    void restarted.then(() => { settled = true })
+    const observedRestart = restarted.then(() => { settled = true })
     await Promise.resolve()
     expect(settled).toBe(false)
 
@@ -39,7 +39,7 @@ describe('Cordis effect ownership', () => {
     expect(settled).toBe(false)
 
     cleanupGate.resolve(undefined)
-    await restarted
+    await observedRestart
     expect(cleanupFinished).toBe(true)
     expect(ctx.fiber.getEffects()).toEqual([])
   })
@@ -74,12 +74,12 @@ describe('Cordis effect ownership', () => {
 
     await cleanupStarted.promise
     let settled = false
-    void restarted.then(() => { settled = true })
+    const observedRestart = restarted.then(() => { settled = true })
     await Promise.resolve()
     expect(settled).toBe(false)
 
     cleanupGate.resolve(undefined)
-    await restarted
+    await observedRestart
     expect(ctx.fiber.getEffects()).toEqual([])
   })
 
@@ -224,12 +224,12 @@ describe('Cordis child publication ownership', () => {
 
     await cleanupStarted.promise
     let ownerSettled = false
-    void ownerDisposal.then(() => { ownerSettled = true })
+    const observedDisposal = ownerDisposal.then(() => { ownerSettled = true })
     await Promise.resolve()
     expect(ownerSettled).toBe(false)
 
     cleanupGate.resolve(undefined)
-    await Promise.all([ownerDisposal, childDisposal, ownerMount])
+    await Promise.all([observedDisposal, childDisposal, ownerMount])
     expect(childFiber.uid).toBeNull()
     expect(ownerFiber.uid).toBeNull()
   })
@@ -273,12 +273,12 @@ describe('Cordis child publication ownership', () => {
 
     await cleanupStarted.promise
     let settled = false
-    void parentDisposal.then(() => { settled = true })
+    const observedDisposal = parentDisposal.then(() => { settled = true })
     await Promise.resolve()
     expect(settled).toBe(false)
 
     cleanupGate.resolve(undefined)
-    await parentDisposal
+    await observedDisposal
     expect(cleanupFinished).toBe(true)
     expect(childApplyCalls).toBe(0)
     expect(child.uid).toBeNull()

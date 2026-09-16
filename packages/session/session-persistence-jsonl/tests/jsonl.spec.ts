@@ -516,7 +516,7 @@ describe('JsonlSessionPersistence: durability and crash semantics', () => {
     const pending = ctx.sessionPersistence.listSnapshots(controller.signal)
     expect(await started.promise).toBe(controller.signal)
     let settled = false
-    void pending.then(
+    pending.then(
       () => { settled = true },
       () => { settled = true },
     )

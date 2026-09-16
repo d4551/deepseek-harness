@@ -155,14 +155,16 @@ describe('SessionProjectionRegistry drive', () => {
     const second = ctx.sessionProjections.register(marksUnit())
     mark(session, ['kept'])
 
-    first()
+    const firstDisposal = first()
 
     // The regression this counts against: without last-release semantics, one
     // session ending strips the projection from every other live session,
     // because the first registrant owns the only disposer.
     expect(ctx.sessionProjections.snapshot(session).values['test/marks']).toEqual({ marks: ['kept'] })
-    second()
+    const secondDisposal = second()
     expect(ctx.sessionProjections.snapshot(session).values).toEqual({})
+    await firstDisposal
+    await secondDisposal
   })
 
   it('refuses to share a key across a stateVersion change', async () => {
@@ -185,12 +187,38 @@ describe('SessionProjectionRegistry drive', () => {
   it('register() disposer removes the key (with its cells) and frees it for re-registration', async () => {
     const { ctx, session } = await harness()
     const dispose = ctx.sessionProjections.register(marksUnit())
+    expect(Reflect.get(dispose, Context.effect)).toEqual({ label: 'sessionProjections.register()', children: [] })
     mark(session, ['cached'])
-    dispose()
+    const disposal = dispose()
     expect(ctx.sessionProjections.snapshot(session).values).toEqual({})
     ctx.sessionProjections.register(marksUnit())
     // Fresh registration rebuilds from the log, not from a stale cell.
     expect(ctx.sessionProjections.snapshot(session).values['test/marks']).toEqual({ marks: ['cached'] })
+    await disposal
+  })
+
+  it('the returned change-feed disposer removes only its listener before the next event', async () => {
+    const { ctx, session } = await harness()
+    ctx.sessionProjections.register(marksUnit())
+    const removed: number[] = []
+    const retained: number[] = []
+    const dispose = ctx.sessionProjections.onChanged((_session, _key, _value, seq) => {
+      removed.push(seq)
+    })
+    ctx.sessionProjections.onChanged((_session, _key, _value, seq) => {
+      retained.push(seq)
+    })
+    expect(Reflect.get(dispose, Context.effect)).toEqual({ label: 'sessionProjections.onChanged()', children: [] })
+    const before = mark(session, ['before'])
+
+    const disposal = dispose()
+    const after = mark(session, ['after'])
+
+    expect(removed).toEqual([before.seq])
+    expect(retained).toEqual([before.seq, after.seq])
+    expect(ctx.sessionProjections.snapshot(session).values['test/marks']).toEqual({ marks: ['after'] })
+    await disposal
+    await ctx.fiber.dispose()
   })
 
   it('removes registrations and change listeners when their owning fiber unloads (HMR safety)', async () => {

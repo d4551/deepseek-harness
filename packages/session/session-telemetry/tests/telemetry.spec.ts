@@ -286,7 +286,7 @@ describe('SessionTelemetryCoordinator adoption', () => {
     await ctx.plugin({
       name: 'fake-telemetry',
       inject: ['sessions'],
-      apply: (inner: Context) => void new SessionTelemetryCoordinator(inner, backend),
+      apply: (inner: Context) => { new SessionTelemetryCoordinator(inner, backend) },
     })
     const child = ctx.sessions.prepare(SessionId('seeded'), { seed: [...parent.events], meta: {} })
     child.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
@@ -311,7 +311,7 @@ describe('SessionTelemetryCoordinator adoption', () => {
     await ctx.plugin({
       name: 'fake-telemetry',
       inject: ['sessions'],
-      apply: (inner: Context) => void new SessionTelemetryCoordinator(inner, backend),
+      apply: (inner: Context) => { new SessionTelemetryCoordinator(inner, backend) },
     })
     const ofResumed = () => backend.ledger()
       .filter(r => r.attributes['session.id'] === 'resumed')
@@ -341,7 +341,7 @@ describe('SessionTelemetryCoordinator adoption', () => {
     await ctx.plugin({
       name: 'fake-telemetry',
       inject: ['sessions'],
-      apply: (inner: Context) => void new SessionTelemetryCoordinator(inner, backend),
+      apply: (inner: Context) => { new SessionTelemetryCoordinator(inner, backend) },
     })
     child.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
     const record = backend.ledger().find(r => r.attributes['session.id'] === 'stitch-child')!
@@ -363,7 +363,7 @@ describe('SessionTelemetryCoordinator adoption', () => {
     await ctx.plugin({
       name: 'fake-telemetry',
       inject: ['sessions'],
-      apply: (inner: Context) => void new SessionTelemetryCoordinator(inner, backend),
+      apply: (inner: Context) => { new SessionTelemetryCoordinator(inner, backend) },
     })
     expect(backend.ledger()).toHaveLength(2)
     ctx.sessions.announce(session)
@@ -387,7 +387,7 @@ describe('SessionTelemetryCoordinator adoption', () => {
     await ctx.plugin({
       name: 'fake-telemetry-2',
       inject: ['sessions'],
-      apply: (inner: Context) => void new SessionTelemetryCoordinator(inner, second),
+      apply: (inner: Context) => { new SessionTelemetryCoordinator(inner, second) },
     })
     // Only the window events past the cursor are re-handed, and the mid-step
     // continuation is re-dropped because ≤cursor events rebuilt the projection.
@@ -410,7 +410,7 @@ describe('SessionTelemetryCoordinator adoption', () => {
     await ctx.plugin({
       name: 'fake-telemetry',
       inject: ['sessions'],
-      apply: (inner: Context) => void new SessionTelemetryCoordinator(inner, backend),
+      apply: (inner: Context) => { new SessionTelemetryCoordinator(inner, backend) },
     })
     expect(backend.ledger().map(r => r.attributes['event.seq'])).toEqual([0, 2])
     expect(warn).toHaveBeenCalled()
@@ -425,7 +425,7 @@ describe('SessionTelemetryCoordinator adoption', () => {
     await ctx.plugin({
       name: 'fake-telemetry',
       inject: ['sessions'],
-      apply: (inner: Context) => void new SessionTelemetryCoordinator(inner, backend),
+      apply: (inner: Context) => { new SessionTelemetryCoordinator(inner, backend) },
     })
     expect(backend.ledger().map(r => r.attributes['event.seq'])).toEqual([0, 1])
   })
@@ -436,13 +436,16 @@ describe('SessionTelemetryCoordinator lifecycle and containment', () => {
     const { ctx, backend } = await setup()
     const session = liveSession(ctx)
     let settled = false
+    const flushes: Promise<void>[] = []
     backend.flush.mockImplementation(() => {
       // The backend may kick off arbitrary async work; the loop's parallel must not wait for it.
-      void new Promise(resolve => setTimeout(resolve, 50)).then(() => { settled = true })
+      flushes.push(new Promise(resolve => setTimeout(resolve, 50)).then(() => { settled = true }))
     })
     await ctx.parallel('session/flush', session)
     expect(backend.flush).toHaveBeenCalledTimes(1)
     expect(settled).toBe(false)
+    await Promise.all(flushes)
+    expect(settled).toBe(true)
   })
 
   it('ignores flush hints for sessions it never adopted', async () => {
@@ -466,7 +469,7 @@ describe('SessionTelemetryCoordinator lifecycle and containment', () => {
     await ctx.plugin({
       name: 'fake-telemetry',
       inject: ['sessions'],
-      apply: (inner: Context) => void new SessionTelemetryCoordinator(inner, backend),
+      apply: (inner: Context) => { new SessionTelemetryCoordinator(inner, backend) },
     })
     expect(() => ctx.sessions.create(SessionId('vetoed'), { meta: {} })).toThrow('vetoed')
     expect(backend.records.filter(r => r.channel === 'ops')).toHaveLength(0)

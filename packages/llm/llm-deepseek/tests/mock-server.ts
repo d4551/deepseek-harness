@@ -45,7 +45,7 @@ export async function mockServer(script: Behavior[]): Promise<MockServer> {
     const chunks: Buffer[] = []
     request.on('data', (chunk: Buffer) => { chunks.push(chunk) })
     request.on('end', () => {
-      void (async () => {
+      (async () => {
         const url = new URL(request.url ?? '/', 'http://localhost')
         const body = Buffer.concat(chunks)
         if (url.pathname === '/files' && request.method === 'POST') {

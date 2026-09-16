@@ -156,13 +156,29 @@ function wait(questions: PendingQuestion['questions'] = QUESTIONS) {
   const carrier = new PendingQuestion(SID, questions)
   const answer = vi.spyOn(carrier, 'answer')
   const cancel = vi.spyOn(carrier, 'cancel')
-  void carrier.result.catch(() => {})
+  carrier.result.catch(() => {})
   return { carrier, answer, cancel }
 }
 
 const answerBatch = (answers: object[]) => ({ answers })
 
 describe('QuestionComposer', () => {
+  it('rejects a stored progress index outside the question batch', () => {
+    const carrier = new PendingQuestion(SID, [{ id: 'detail', question: 'Describe the result' }])
+    kit.actions.replace(carrier.key, {
+      index: 1,
+      drafts: [{ selected: [], custom: 'A result', skipped: false }],
+    })
+    expect(() => render(<QuestionComposer matched={carrier} {...kit} />))
+      .toThrow('Question progress index 1 has no matching question and draft')
+  })
+
+  it('rejects a question batch with no question to present', () => {
+    const carrier = new PendingQuestion(SID, [])
+    expect(() => render(<QuestionComposer matched={carrier} {...kit} />))
+      .toThrow('Question progress index 0 has no matching question and draft')
+  })
+
   it('collects single, custom, and multi-select answers before one batch submit', () => {
     const { carrier, answer } = wait()
     render(<QuestionComposer matched={carrier} {...kit} />)
@@ -245,7 +261,7 @@ describe('QuestionComposer', () => {
     ]))
   })
 
-  it('keeps IME Enter inside the custom input until composition finishes', () => {
+  it('keeps IME Enter inside the custom input until composition finishes', async () => {
     const { carrier, answer } = wait()
     render(<QuestionComposer matched={carrier} {...kit} />)
 
@@ -257,10 +273,13 @@ describe('QuestionComposer', () => {
     expect(screen.getByText('2 / 3')).toBeTruthy()
     expect(answer).not.toHaveBeenCalled()
 
-    fireEvent.keyDown(custom, { key: 'Enter', keyCode: 229 })
+    fireEvent.compositionStart(custom)
+    fireEvent.compositionEnd(custom, { data: '中文输入' })
+    fireEvent.keyDown(custom, { key: 'Enter', isComposing: false })
     expect(screen.getByText('2 / 3')).toBeTruthy()
     expect(answer).not.toHaveBeenCalled()
 
+    await new Promise(resolve => setTimeout(resolve, 0))
     fireEvent.keyDown(custom, { key: 'Enter' })
     expect(screen.getByText('3 / 3')).toBeTruthy()
   })

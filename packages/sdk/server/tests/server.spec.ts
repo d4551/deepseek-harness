@@ -1049,7 +1049,7 @@ describe('HarnessSdkJsonRpcServer', () => {
       expect((server as unknown as { sessions: Map<string, unknown> }).sessions.size).toBe(0)
       await server.shutdown()
     } finally {
-      disposeAdapter()
+      await disposeAdapter()
       await ctx.fiber.dispose()
       await rm(storageDir, { recursive: true, force: true })
     }
@@ -1088,7 +1088,7 @@ describe('HarnessSdkJsonRpcServer', () => {
       await server.shutdown()
     } finally {
       resolution.resolve(resolvedModel)
-      disposeAdapter()
+      await disposeAdapter()
       await ctx.fiber.dispose()
       await rm(storageDir, { recursive: true, force: true })
     }

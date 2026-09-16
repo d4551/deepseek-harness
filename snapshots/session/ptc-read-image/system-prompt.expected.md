@@ -7,13 +7,17 @@ Verify your work by running the code or tests. Keep answers brief and factual.
 
 Agent Teams is available in this session, but create teammates only when the user explicitly asks to use Agent Teams or teammates.
 
+As the Lead, record each delegated responsibility with team_task_create before spawning its teammate. Include the task id, acceptance criteria, and expected result in that teammate's prompt. The teammate must read the task with team_task_get, claim it with team_task_update using its current revision, perform the work, then complete it and send_message the result to the Lead. If an assigned responsibility has no task record, create and claim one before doing the work. A spawn description is roster metadata; it does not create a shared task. The Lead owns decomposition, assignment, recovery, and synthesis; do not ask the user to operate the task board.
+
 The Team Lead and all teammates share the same working directory and filesystem. Edits are immediately visible to every member. Split write work into disjoint scopes, record expected write scopes on shared tasks, and use task dependencies when work must be ordered. Claiming a task whose write scopes overlap a task already in progress is refused; complete or release that task first.
 
 Prefer read/edit/write for file changes. If a file operation returns FS_STALE_VERSION, read the current file, rebase your intended change onto the new content, and retry. Bash, formatters, code generators, and scripts are not fully protected by the filesystem version guard; coordinate them explicitly and have the Lead review the final diff and run tests.
 
-Use send_message for quiet information that must not start an idle teammate. Use followup_task when the target should run another turn. A delivered peer item starts with its stable message id and sender name. A successful send is already durable even when its result says queued; do not resend it. Shared-task workflow is list, get, claim with the current revision, perform the work, then complete. Task readiness never starts an owner. Before wait_agent, use list_agents and make sure another required member is running or provisioning; use followup_task first when the required member is inactive. wait_agent observes only changes after that call starts, never wakes a member, and returns noProgress immediately when no other member can produce a change. Re-list after wakeup or timeout. The Lead must wait for required teammates before giving the final answer.
+Use send_message for quiet information that must not start an idle teammate. Use followup_task when the target should run another turn. A delivered peer item starts with its stable message id and sender name. A successful send is already durable even when its result says queued; do not resend it. Shared-task workflow is list, get, claim with the current revision, perform the work, then complete. Task readiness never starts an owner. Before wait_agent, read list_agents and the task board. A waiting member cannot produce progress; unrelated workspace conversations do not justify waiting. Wake a required inactive owner with followup_task. wait_agent returns noProgress immediately when no productive member remains, and refuses repeated short waits at a previously timed-out activity cursor. A longer wait for a verified running owner must at least double the previous expired duration and fit the remaining one-hour quiet budget; the result reports both bounds. Meaningful progress resets that budget. Inspect or repair stalled work after timeout or noProgress; do not repeat a wait or claim loop without a concrete change. Never mark unresolved work complete. The Lead must wait for required teammates before giving the final answer.
 
 Your Team role is lead; your Team name is lead; Team id is {{sessionId}}.
+
+Use list_agents for the current roster and registered workspace conversations. Read current tasks with team_task_list and complete details with team_task_get; pass a workspace peer's exact id as session_id to read its board. Read every returned page using nextCursor when present. Completed tasks retain their full details in these tools. Independent workspace conversations have session-qualified names. Use their exact names with send_message or followup_task to coordinate shared files and responsibilities. Each conversation owns its task board; agree on disjoint work before editing. Maintain task descriptions, ownership, dependencies, and write scopes with the Team tools as work changes. Pass handoffs directly to the responsible agent with the relevant task and session context. Do not ask the user to copy task ids, assign owners, or enter file scopes for agent coordination.
 
 `run_code` is the only tool you can call directly — a tool call naming any other tool fails. Reach every tool the SDK declares below from inside the program.
 
@@ -106,7 +110,7 @@ interface ToolArgsMap {
   } & Record<string, JsonValue>;
   /** Send a durable follow-up task to another Team member and start a turn when needed. */
   followup_task: {
-    /** Team member name, or lead. */
+    /** Exact name from list_agents, including session-qualified workspace peers, or lead. */
     target: string;
     /** Self-contained message for the target. */
     message: string;
@@ -152,7 +156,7 @@ interface ToolArgsMap {
     /** Max wait in milliseconds (only meaningful with wait: true). Defaults to the configured wait timeout; capped by the configured maximum. */
     timeout_ms?: number;
   } & Record<string, JsonValue>;
-  /** List the Lead and every durable teammate with current runtime status. */
+  /** List the Lead, durable teammates, and live conversation leads in the same registered workspace with current runtime status and message targets. */
   list_agents: Record<string, JsonValue>;
   /** Run a foreground fresh-agent Ralph loop toward one immutable objective. Use only when the direct human explicitly asks for Ralph or fresh-agent iteration. Each round opens a new child with no parent conversation or prior child session; the shared workspace is long-term memory, and only a bounded structured report crosses rounds. The call returns when a worker reports completion or a concrete blocker, or at the round limit. Ordinary long-running same-session work belongs to goal tools. */
   ralph: {
@@ -177,7 +181,7 @@ interface ToolArgsMap {
   } & Record<string, JsonValue>;
   /** Send durable information to another Team member without starting an idle member. */
   send_message: {
-    /** Team member name, or lead. */
+    /** Exact name from list_agents, including session-qualified workspace peers, or lead. */
     target: string;
     /** Self-contained message for the target. */
     message: string;
@@ -248,9 +252,13 @@ interface ToolArgsMap {
   team_task_get: {
     /** Shared task id. */
     task_id: string;
+    /** Optional exact workspace peer id from list_agents; omitted for your own Team board. */
+    session_id?: string;
   } & Record<string, JsonValue>;
   /** List shared tasks, including readiness, owner, revision, blockers, and write-scope warnings. */
   team_task_list: {
+    /** Optional exact workspace peer id from list_agents; omitted for your own Team board. */
+    session_id?: string;
     /** Optional exact status filter. */
     status?: "pending" | "in_progress" | "completed";
     /** Optional member-name filter; use unowned for tasks without an owner. */
@@ -306,7 +314,7 @@ interface ToolArgsMap {
     /** Concrete blocking condition; required only with action blocked. */
     blocked_reason?: string;
   } & Record<string, JsonValue>;
-  /** Wait for the next teammate status, mailbox, or shared-task change after this call starts. This never wakes inactive members and returns noProgress immediately when no other member is running or provisioning. Re-list after wakeup or timeout instead of polling. */
+  /** Wait for meaningful progress on Team work. Waiting members and unrelated workspace conversations cannot satisfy admission. Returns an activity cursor and noProgress when no productive member exists or an unchanged-cursor wait fails the bounded extension rule: at least twice the prior expired duration, within one hour cumulative quiet waiting. Inspect and repair stalled work instead of repeating that wait. This never wakes members or declares their work complete. */
   wait_agent: {
     /** Wait duration in milliseconds, from 10000 through 3600000. Defaults to 30000. */
     timeout_ms?: number;
@@ -480,8 +488,9 @@ interface ToolOutputMap {
   list_agents: ({
     id: string;
     name: string;
-    role: "lead" | "teammate";
-    status: "running" | "idle" | "inactive" | "provisioning" | "failed";
+    title?: string;
+    role: "lead" | "teammate" | "peer";
+    status: "running" | "waiting" | "idle" | "inactive" | "provisioning" | "failed";
     description?: string;
     provider?: string;
     context?: "fresh" | "fork";
@@ -540,8 +549,9 @@ interface ToolOutputMap {
     member: {
       id: string;
       name: string;
-      role: "lead" | "teammate";
-      status: "running" | "idle" | "inactive" | "provisioning" | "failed";
+      title?: string;
+      role: "lead" | "teammate" | "peer";
+      status: "running" | "waiting" | "idle" | "inactive" | "provisioning" | "failed";
       description?: string;
       provider?: string;
       context?: "fresh" | "fork";
@@ -672,9 +682,12 @@ interface ToolOutputMap {
   };
   wait_agent: {
     timedOut: boolean;
+    cursor: string;
     noProgress?: {
-      reason: "no-active-peer";
+      reason: "no-active-peer" | "unchanged-progress";
       message: string;
+      minimumTimeoutMs?: number;
+      remainingTimeoutMs?: number;
     };
   };
   web_search: {

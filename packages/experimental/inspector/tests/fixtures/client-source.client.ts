@@ -73,7 +73,7 @@ const service = createInspectorService(source)
 let addedFiber: Fiber | undefined
 
 port.on('message', (message: ClientFixtureRequest) => {
-  void dispatch(message).then(
+  dispatch(message).then(
     (value) => {
       port.postMessage({ type: 'response', id: message.id, ok: true, value })
       if (message.op === 'close') port.close()

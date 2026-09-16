@@ -1,6 +1,7 @@
 import { access, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { setImmediate as nextTurn } from 'node:timers/promises'
 import { Context } from '@deepseek-ai/cordis'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 
@@ -72,6 +73,7 @@ if (trigger === 'dispose') {
   setImmediate(() => { throw new Error('host-exit-uncaught-exception') })
   await new Promise(() => {})
 } else {
-  void Promise.reject(new Error('host-exit-unhandled-rejection'))
-  await new Promise(() => {})
+  const rejection = Promise.reject(new Error('host-exit-unhandled-rejection'))
+  await nextTurn()
+  await rejection
 }

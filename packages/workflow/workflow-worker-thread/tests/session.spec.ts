@@ -129,11 +129,12 @@ describe('runWorkerSession over an in-process MessageChannel', () => {
 
   it('agent({schema}) forwards the schema on the start request and returns the structured value', async () => {
     const host = fakeHost({ reply: () => ({ output: [], structured: { files: ['x.ts'] }, stopReason: 'completed' }) })
-    void runWorkerSession(host.port, init(`
+    const session = runWorkerSession(host.port, init(`
       const found = await agent('list files', { schema: { type: 'object', properties: { files: { type: 'array', items: { type: 'string' } } } }, model: 'deepseek-v4-pro' })
       return { first: found.files[0] }
     `))
     const result = await host.result()
+    await session
     expect(result.value).toEqual({ first: 'x.ts' })
     const start = host.ofType(WorkerToHostType.ChildStart)[0]!
     expect(start.request.schema).toEqual({ type: 'object', properties: { files: { type: 'array', items: { type: 'string' } } } })
@@ -143,8 +144,9 @@ describe('runWorkerSession over an in-process MessageChannel', () => {
 
   it('agent({provider}) forwards a provider without inventing a model', async () => {
     const host = fakeHost({ reply: () => text('ok') })
-    void runWorkerSession(host.port, init("return await agent('route me', { provider: 'openai' })"))
+    const session = runWorkerSession(host.port, init("return await agent('route me', { provider: 'openai' })"))
     const result = await host.result()
+    await session
     expect(result.value).toBe('ok')
     const start = host.ofType(WorkerToHostType.ChildStart)[0]!
     expect(start.request.provider).toBe('openai')
@@ -154,8 +156,9 @@ describe('runWorkerSession over an in-process MessageChannel', () => {
 
   it('a schema child completing WITHOUT a structured value resolves null with a failed outcome', async () => {
     const host = fakeHost({ reply: () => text('prose, no structure') })
-    void runWorkerSession(host.port, init("return await agent('p', { schema: { type: 'object' } })"))
+    const session = runWorkerSession(host.port, init("return await agent('p', { schema: { type: 'object' } })"))
     const result = await host.result()
+    await session
     expect(result.value).toBeNull()
     expect(host.ofType(WorkerToHostType.AgentEnd)[0]!.info.outcome).toBe('failed')
     host.close()
@@ -163,8 +166,9 @@ describe('runWorkerSession over an in-process MessageChannel', () => {
 
   it('a child settling non-completed resolves null (scripts filter), never throwing into the script', async () => {
     const host = fakeHost({ reply: (_request, index) => index === 0 ? { output: [], stopReason: 'error' } : text('ok') })
-    void runWorkerSession(host.port, init("return await parallel([() => agent('one'), () => agent('two')])"))
+    const session = runWorkerSession(host.port, init("return await parallel([() => agent('one'), () => agent('two')])"))
     const result = await host.result()
+    await session
     expect(result.value).toEqual([null, 'ok'])
     expect(host.ofType(WorkerToHostType.AgentEnd).map(m => m.info.outcome)).toEqual(expect.arrayContaining(['failed', 'completed']))
     host.close()
@@ -172,8 +176,9 @@ describe('runWorkerSession over an in-process MessageChannel', () => {
 
   it('a start refusal (child-start-error) is a fatal AGENT_START that kills the script through a combinator', async () => {
     const host = fakeHost({ refuse: () => 'no provider here' })
-    void runWorkerSession(host.port, init("return await pipeline([1], () => agent('p'))"))
+    const session = runWorkerSession(host.port, init("return await pipeline([1], () => agent('p'))"))
     const result = await host.result()
+    await session
     expect(result.stopReason).toBe('error')
     expect(result.error).toContain('agent() could not start a child')
     expect(result.error).toContain('no provider here')
@@ -182,7 +187,7 @@ describe('runWorkerSession over an in-process MessageChannel', () => {
 
   it('a child-failed message (infrastructure rejection) is fatal AGENT_RESULT with the paired failed outcome', async () => {
     const host = fakeHost()
-    void runWorkerSession(host.port, init(`
+    const session = runWorkerSession(host.port, init(`
       try { await agent('p'); return 'unreachable' } catch (e) { return { name: e.name, code: e.code, fatal: e.fatal } }
     `))
     await vi.waitFor(() => { expect(host.ofType(WorkerToHostType.ChildStart).length).toBe(1) })
@@ -190,6 +195,7 @@ describe('runWorkerSession over an in-process MessageChannel', () => {
     host.send({ type: HostToWorkerType.ChildStarted, callId, childId: 'child-0' })
     host.send({ type: HostToWorkerType.ChildFailed, callId, rendered: 'backend exploded' })
     const result = await host.result()
+    await session
     expect(result.value).toMatchObject({ name: 'WorkflowError', code: 'AGENT_RESULT', fatal: true })
     expect(host.ofType(WorkerToHostType.AgentEnd)[0]!.info.outcome).toBe('failed')
     host.close()
@@ -214,8 +220,9 @@ describe('runWorkerSession over an in-process MessageChannel', () => {
 
   it('a script with no return value resolves value: null', async () => {
     const host = fakeHost({ reply: () => text('ok') })
-    void runWorkerSession(host.port, init("await agent('p')"))
+    const session = runWorkerSession(host.port, init("await agent('p')"))
     const result = await host.result()
+    await session
     expect(result.stopReason).toBe('completed')
     expect(result.value).toBeNull()
     host.close()
@@ -223,7 +230,7 @@ describe('runWorkerSession over an in-process MessageChannel', () => {
 
   it('cancel mid-run: hooks throw at entry and the run reports cancelled', async () => {
     const host = fakeHost()
-    void runWorkerSession(host.port, init(`
+    const session = runWorkerSession(host.port, init(`
       phase('before')
       try { await agent('x') } catch (e) {}
       try { phase('after') } catch (e) {}
@@ -238,6 +245,7 @@ describe('runWorkerSession over an in-process MessageChannel', () => {
     host.send({ type: HostToWorkerType.Cancel, reason: 'stop everything' })
     host.send({ type: HostToWorkerType.ChildSettled, callId, result: { output: [], stopReason: 'aborted' } })
     const result = await host.result()
+    await session
     expect(result.stopReason).toBe('cancelled')
     expect(result.error).toContain('stop everything')
     expect(host.ofType(WorkerToHostType.AgentEnd)[0]!.info.outcome).toBe('cancelled')
@@ -249,7 +257,7 @@ describe('runWorkerSession over an in-process MessageChannel', () => {
 
   it('cancellation between a queued waiter and its slot: the waiter rejects without a child-start', async () => {
     const host = fakeHost({ go: true })
-    void runWorkerSession(host.port, init(
+    const session = runWorkerSession(host.port, init(
       "return await parallel([() => agent('a'), () => agent('b')])",
       undefined,
       { maxConcurrentAgents: 1 },
@@ -257,6 +265,7 @@ describe('runWorkerSession over an in-process MessageChannel', () => {
     await vi.waitFor(() => { expect(host.ofType(WorkerToHostType.ChildStart).length).toBe(1) })
     host.send({ type: HostToWorkerType.Cancel, reason: 'raced' })
     const result = await host.result()
+    await session
     expect(result.stopReason).toBe('cancelled')
     // Only the first agent ever reached the host.
     expect(host.ofType(WorkerToHostType.ChildStart).length).toBe(1)
@@ -269,11 +278,12 @@ describe('runWorkerSession over an in-process MessageChannel', () => {
     process.on('unhandledRejection', onUnhandled)
     try {
       const host = fakeHost()
-      void runWorkerSession(host.port, init(`
+      const session = runWorkerSession(host.port, init(`
         agent('stray, never awaited')
         return 'done without awaiting'
       `))
       const result = await host.result()
+      await session
       expect(result.stopReason).toBe('completed')
       await vi.waitFor(() => { expect(host.ofType(WorkerToHostType.ChildStart).length).toBe(1) })
       const callId = host.ofType(WorkerToHostType.ChildStart)[0]!.callId
@@ -300,8 +310,9 @@ describe('runWorkerSession over an in-process MessageChannel', () => {
 
   it('a synchronous spin in the initial slice dies by the in-worker vm timeout', async () => {
     const host = fakeHost()
-    void runWorkerSession(host.port, init('while (true) {}', undefined, { syncTimeoutMs: 50 }))
+    const session = runWorkerSession(host.port, init('while (true) {}', undefined, { syncTimeoutMs: 50 }))
     const result = await host.result()
+    await session
     expect(result.stopReason).toBe('error')
     expect(result.error?.toLowerCase()).toContain('timed out')
     host.close()
@@ -309,8 +320,9 @@ describe('runWorkerSession over an in-process MessageChannel', () => {
 
   it('a non-JSON return value fails loud as RESULT_UNSERIALIZABLE', async () => {
     const host = fakeHost()
-    void runWorkerSession(host.port, init('return { when: new Date(0) }'))
+    const session = runWorkerSession(host.port, init('return { when: new Date(0) }'))
     const result = await host.result()
+    await session
     expect(result.stopReason).toBe('error')
     expect(result.error).toContain('not plain JSON data')
     host.close()
@@ -318,13 +330,14 @@ describe('runWorkerSession over an in-process MessageChannel', () => {
 
   it('tolerates replies for unknown callIds (a teardown race): nothing crashes, the run completes', async () => {
     const host = fakeHost({ reply: () => text('fine') })
-    void runWorkerSession(host.port, init("return await agent('p')"))
+    const session = runWorkerSession(host.port, init("return await agent('p')"))
     host.send({ type: HostToWorkerType.ChildStarted, callId: 999, childId: 'ghost' })
     host.send({ type: HostToWorkerType.ChildStartError, callId: 999, rendered: 'ghost' })
     host.send({ type: HostToWorkerType.ChildSettled, callId: 999, result: text('ghost') })
     host.send({ type: HostToWorkerType.ChildFailed, callId: 999, rendered: 'ghost' })
     host.send({ type: HostToWorkerType.ChildDisposed, callId: 999 })
     const result = await host.result()
+    await session
     expect(result.stopReason).toBe('completed')
     expect(result.value).toBe('fine')
     host.close()
@@ -352,8 +365,9 @@ describe('runWorkerSession over an in-process MessageChannel', () => {
     ]
     for (const [body, expected] of cases) {
       const host = fakeHost({ reply: () => text('ok') })
-      void runWorkerSession(host.port, init(body, undefined, { maxItemsPerCall: 2 }))
+      const session = runWorkerSession(host.port, init(body, undefined, { maxItemsPerCall: 2 }))
       const result = await host.result()
+      await session
       expect(result.stopReason).toBe('error')
       expect(result.error).toContain(expected)
       host.close()
@@ -362,7 +376,7 @@ describe('runWorkerSession over an in-process MessageChannel', () => {
 
   it('combinator semantics: thunk/stage throws null the item; a forged fatal-shaped object stays null; real fatals propagate', async () => {
     const host = fakeHost({ reply: () => text('fine') })
-    void runWorkerSession(host.port, init(`
+    const session = runWorkerSession(host.port, init(`
       const viaParallel = await parallel([
         () => { throw new Error('boom') },
         () => agent('fine'),
@@ -375,6 +389,7 @@ describe('runWorkerSession over an in-process MessageChannel', () => {
       return { viaParallel, viaPipeline }
     `))
     const result = await host.result()
+    await session
     expect(result.stopReason).toBe('completed')
     expect(result.value).toEqual({
       viaParallel: [null, 'fine', 'plain value', null],
@@ -385,8 +400,9 @@ describe('runWorkerSession over an in-process MessageChannel', () => {
 
   it('trips the total-agent cap with a message naming the config knob', async () => {
     const host = fakeHost({ reply: () => text('ok') })
-    void runWorkerSession(host.port, init("await agent('1'); await agent('2'); await agent('3')", undefined, { maxTotalAgents: 2 }))
+    const session = runWorkerSession(host.port, init("await agent('1'); await agent('2'); await agent('3')", undefined, { maxTotalAgents: 2 }))
     const result = await host.result()
+    await session
     expect(result.stopReason).toBe('error')
     expect(result.error).toContain('total agent cap (2)')
     expect(result.error).toContain('applicable maxTotalAgents limit')
@@ -396,19 +412,20 @@ describe('runWorkerSession over an in-process MessageChannel', () => {
 
   it('queued agents proceed through the concurrency semaphore in FIFO order', async () => {
     const host = fakeHost({ reply: request => text(`ok:${request.prompt}`) })
-    void runWorkerSession(host.port, init(
+    const session = runWorkerSession(host.port, init(
       "return await parallel([1, 2, 3].map((n) => () => agent('job ' + n)))",
       undefined,
       { maxConcurrentAgents: 1 },
     ))
     const result = await host.result()
+    await session
     expect(result.value).toEqual(['ok:job 1', 'ok:job 2', 'ok:job 3'])
     host.close()
   })
 
   it('labels default from the prompt first line, truncated; explicit label/phase options win', async () => {
     const host = fakeHost({ reply: () => text('ok') })
-    void runWorkerSession(host.port, init(`
+    const session = runWorkerSession(host.port, init(`
       phase('Find')
       await agent('a prompt that is quite long and will surely get truncated down to a display label\\n'
         + 'with a second line the label must not include')
@@ -416,6 +433,7 @@ describe('runWorkerSession over an in-process MessageChannel', () => {
       return null
     `))
     await host.result()
+    await session
     const starts = host.ofType(WorkerToHostType.AgentStart).map(m => m.info)
     expect(starts[0]).toMatchObject({ seq: 1, phase: 'Find' })
     expect(starts[0]!.label.length).toBeLessThanOrEqual(48)
@@ -435,21 +453,23 @@ describe('runWorkerSession over an in-process MessageChannel', () => {
         stopReason: 'completed',
       }),
     })
-    void runWorkerSession(host.port, init("return await agent('p')"))
+    const session = runWorkerSession(host.port, init("return await agent('p')"))
     const result = await host.result()
+    await session
     expect(result.value).toBe('first second')
     host.close()
   })
 
   it('a cancel landing DURING the start round-trip disposes the fresh child and dies cancelled', async () => {
     const host = fakeHost({ manual: true })
-    void runWorkerSession(host.port, init("return await agent('p')"))
+    const session = runWorkerSession(host.port, init("return await agent('p')"))
     await vi.waitFor(() => { expect(host.ofType(WorkerToHostType.ChildStart).length).toBe(1) })
     const callId = host.ofType(WorkerToHostType.ChildStart)[0]!.callId
     // Simulate a teardown race by delivering cancellation before a stale start reply.
     host.send({ type: HostToWorkerType.Cancel, reason: 'raced the start' })
     host.send({ type: HostToWorkerType.ChildStarted, callId, childId: 'child-0' })
     const result = await host.result()
+    await session
     expect(result.stopReason).toBe('cancelled')
     await vi.waitFor(() => {
       expect(host.ofType(WorkerToHostType.ChildDispose).map(m => m.callId)).toContain(callId)
@@ -461,7 +481,7 @@ describe('runWorkerSession over an in-process MessageChannel', () => {
 
   it('a start refusal arriving after a cancel reads as the cancellation, not a broken seam', async () => {
     const host = fakeHost({ manual: true })
-    void runWorkerSession(host.port, init(`
+    const session = runWorkerSession(host.port, init(`
       try { await agent('p'); return 'unreachable' } catch (e) { return { code: e.code } }
     `))
     await vi.waitFor(() => { expect(host.ofType(WorkerToHostType.ChildStart).length).toBe(1) })
@@ -469,6 +489,7 @@ describe('runWorkerSession over an in-process MessageChannel', () => {
     host.send({ type: HostToWorkerType.Cancel, reason: 'stopping' })
     host.send({ type: HostToWorkerType.ChildStartError, callId, rendered: 'workflow run cancelled: stopping' })
     const result = await host.result()
+    await session
     // The run reports cancelled (the script died of CANCELLED, not AGENT_START).
     expect(result.stopReason).toBe('cancelled')
     host.close()
@@ -476,7 +497,7 @@ describe('runWorkerSession over an in-process MessageChannel', () => {
 
   it('a child result rejection while cancelled pairs a cancelled agent-end, and the run reports cancelled', async () => {
     const host = fakeHost({ manual: true })
-    void runWorkerSession(host.port, init("return await agent('doomed')"))
+    const session = runWorkerSession(host.port, init("return await agent('doomed')"))
     await vi.waitFor(() => { expect(host.ofType(WorkerToHostType.ChildStart).length).toBe(1) })
     const callId = host.ofType(WorkerToHostType.ChildStart)[0]!.callId
     host.send({ type: HostToWorkerType.ChildStarted, callId, childId: 'child-0' })
@@ -484,6 +505,7 @@ describe('runWorkerSession over an in-process MessageChannel', () => {
     host.send({ type: HostToWorkerType.Cancel, reason: 'user aborted' })
     host.send({ type: HostToWorkerType.ChildFailed, callId, rendered: 'backend crashed on abort' })
     const result = await host.result()
+    await session
     expect(result.stopReason).toBe('cancelled')
     expect(host.ofType(WorkerToHostType.AgentEnd)[0]!.info.outcome).toBe('cancelled')
     host.close()

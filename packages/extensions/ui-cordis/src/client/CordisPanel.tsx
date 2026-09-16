@@ -276,10 +276,10 @@ export function CordisPanel({
                   label={t('action.approveOnce')}
                   data-cordis-approve={awaiting}
                   disabled={busy}
-                  onClick={() => { void runAction(pluginId, async () => {
+                  onClick={() => { runAction(pluginId, async () => {
                     await onApprove(awaiting, false)
                     setOpen(false)
-                  }) }}
+                  }).then(undefined, console.error) }}
                 >
                   <IconCheckOutline16 size={14} />
                 </RowAction>
@@ -287,10 +287,10 @@ export function CordisPanel({
                   label={t('action.approvePlugin')}
                   data-cordis-approve-plugin={awaiting}
                   disabled={busy}
-                  onClick={() => { void runAction(pluginId, async () => {
+                  onClick={() => { runAction(pluginId, async () => {
                     await onApprove(awaiting, true)
                     setOpen(false)
-                  }) }}
+                  }).then(undefined, console.error) }}
                 >
                   <DoubleCheckIcon />
                 </RowAction>
@@ -298,10 +298,10 @@ export function CordisPanel({
                   label={t('action.decline')}
                   data-cordis-decline={awaiting}
                   disabled={busy}
-                  onClick={() => { void runAction(pluginId, async () => {
+                  onClick={() => { runAction(pluginId, async () => {
                     await onDecline(awaiting)
                     setOpen(false)
-                  }) }}
+                  }).then(undefined, console.error) }}
                 >
                   <IconCloseOutline16 size={14} />
                 </RowAction>
@@ -313,13 +313,13 @@ export function CordisPanel({
                 label={t('action.run')}
                 data-cordis-switch="run"
                 disabled={busy}
-                onClick={() => { void runAction(pluginId, () => onRun({
+                onClick={() => { runAction(pluginId, () => onRun({
                   agentId: listed.agentId,
                   pluginId,
                   packageId: selectedPackageId,
                   mode: runMode,
                   hasClientHalf: selectedPackage?.hasClientHalf === true,
-                })) }}
+                })).then(undefined, console.error) }}
               >
                 <IconPlayOutline16 size={14} />
               </RowAction>
@@ -330,13 +330,13 @@ export function CordisPanel({
                 label={t('action.run')}
                 data-cordis-switch="run"
                 disabled={busy}
-                onClick={() => { void runAction(pluginId, () => onRun({
+                onClick={() => { runAction(pluginId, () => onRun({
                   agentId: listed.agentId,
                   pluginId,
                   packageId: selectedPackage.packageId,
                   mode: runMode,
                   hasClientHalf: selectedPackage.hasClientHalf,
-                })) }}
+                })).then(undefined, console.error) }}
               >
                 <IconPlayOutline16 size={14} />
               </RowAction>
@@ -347,13 +347,13 @@ export function CordisPanel({
                 label={t('action.run')}
                 data-cordis-switch="run"
                 disabled={busy}
-                onClick={() => { void runAction(pluginId, () => onRun({
+                onClick={() => { runAction(pluginId, () => onRun({
                   agentId: listed.agentId,
                   pluginId,
                   packageId: activePackage.packageId,
                   mode: 'run',
                   hasClientHalf: true,
-                })) }}
+                })).then(undefined, console.error) }}
               >
                 <IconPlayOutline16 size={14} />
               </RowAction>
@@ -363,7 +363,7 @@ export function CordisPanel({
                 label={t('action.stop')}
                 data-cordis-switch="stop"
                 disabled={busy}
-                onClick={() => { void runAction(pluginId, () => onStop(listed.agentId, pluginId)) }}
+                onClick={() => { runAction(pluginId, () => onStop(listed.agentId, pluginId)).then(undefined, console.error) }}
               >
                 <IconStopFill16 size={14} />
               </RowAction>
@@ -373,7 +373,7 @@ export function CordisPanel({
                 label={t('action.remove')}
                 data-cordis-remove={pluginId}
                 disabled={busy}
-                onClick={() => { void runAction(pluginId, () => onRemove(listed.agentId, pluginId)) }}
+                onClick={() => { runAction(pluginId, () => onRemove(listed.agentId, pluginId)).then(undefined, console.error) }}
               >
                 <IconTrashOutline16 size={14} />
               </RowAction>
@@ -388,25 +388,25 @@ export function CordisPanel({
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => { void runAction(pluginId, () => onRun({
+                onClick={() => { runAction(pluginId, () => onRun({
                   agentId: listed.agentId,
                   pluginId,
                   packageId: nextPackageId,
                   mode: currentPackageId === undefined ? 'run' : 'update',
                   hasClientHalf: packageOf(listed, nextPackageId)?.hasClientHalf === true,
-                })) }}
+                })).then(undefined, console.error) }}
               >{t('action.retry')}</button>
               {currentPackageId !== undefined && (
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => { void runAction(pluginId, () => onRun({
+                  onClick={() => { runAction(pluginId, () => onRun({
                     agentId: listed.agentId,
                     pluginId,
                     packageId: currentPackageId,
                     mode: 'run',
                     hasClientHalf: packageOf(listed, currentPackageId)?.hasClientHalf === true,
-                  })) }}
+                  })).then(undefined, console.error) }}
                 >{t('action.rollback')}</button>
               )}
             </div>

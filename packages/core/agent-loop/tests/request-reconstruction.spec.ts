@@ -367,7 +367,7 @@ describe('request stability across the loop', () => {
 
     send(agent, 'go')
     await started.promise
-    disposeFirst()
+    await disposeFirst()
     ctx.llm.registerAdapter(['mock'], second)
     reasoning.resolve({
       efforts: [{ id: ReasoningEffortId('high'), name: 'High' }],

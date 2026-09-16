@@ -389,7 +389,7 @@ describe('SystemPrompt', () => {
     await ctx.plugin(SystemPrompt)
 
     let changeCount = 0
-    ctx.on('system-prompt/change', () => void changeCount++)
+    ctx.on('system-prompt/change', () => { changeCount++ })
 
     const dispose = ctx.systemPrompt.tools(() => ({ schemas: [] }))
     // registration emits change
@@ -404,7 +404,7 @@ describe('SystemPrompt', () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     let changeCount = 0
-    ctx.on('system-prompt/change', () => void changeCount++)
+    ctx.on('system-prompt/change', () => { changeCount++ })
     const dispose = ctx.systemPrompt.context({ name: 'policy', order: 0, text: 'current' })
     expect(changeCount).toBe(1)
     dispose()
@@ -451,7 +451,7 @@ describe('SystemPrompt', () => {
       const ctx = new Context()
       await ctx.plugin(SystemPrompt)
       let changeCount = 0
-      ctx.on('system-prompt/change', () => void changeCount++)
+      ctx.on('system-prompt/change', () => { changeCount++ })
 
       const dispose = ctx.systemPrompt.variable('who', context => (context as { who?: string }).who)
       expect(changeCount).toBe(1)

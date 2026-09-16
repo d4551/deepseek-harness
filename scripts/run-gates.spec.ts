@@ -134,19 +134,15 @@ describe('gate graph validation', () => {
       .filter(gate => gate.id !== 'build' && gate.id !== 'docs-site-build')
     const byId = new Map(complete.map(subject => [subject.id, subject]))
 
-    expect(byId.get('coverage')?.allowFailure).not.toBe(true)
+    expect(byId.get('coverage')).not.toHaveProperty('allowFailure')
     expect(byId.get('coverage')?.needs).toContain('build')
-    expect(byId.get('coverage-exempt-heavy')?.allowFailure).not.toBe(true)
-    expect(byId.get('coverage')?.needs).toContain('build')
-    expect(byId.get('coverage-exempt-heavy')?.needs).toContain('build')
+    expect(byId.has('coverage-exempt-heavy')).toBe(false)
     expect(observational).not.toHaveLength(0)
     for (const gate of observational) {
       const completeGate = byId.get(gate.id)
-      expect(completeGate?.allowFailure).toBe(true)
-      expect(completeGate?.after).toEqual(expect.arrayContaining([
-        'coverage',
-        'coverage-exempt-heavy',
-      ]))
+      expect(completeGate).toBeDefined()
+      expect(completeGate).not.toHaveProperty('allowFailure')
+      expect(completeGate?.after).toContain('coverage')
       expect(completeGate?.needs).toEqual(gate.needs)
     }
   })
@@ -163,11 +159,11 @@ describe('gate graph validation', () => {
 
     const blockingBuiltBin = blocking.find(gate => gate.id === 'built-bin-smoke')
     expect(blockingBuiltBin).toBeDefined()
-    expect(blockingBuiltBin?.allowFailure).not.toBe(true)
+    expect(blockingBuiltBin).not.toHaveProperty('allowFailure')
     expect(observational.map(gate => gate.id)).not.toContain('built-bin-smoke')
 
     const completeBuiltBin = complete.find(gate => gate.id === 'built-bin-smoke')
-    expect(completeBuiltBin?.allowFailure).not.toBe(true)
+    expect(completeBuiltBin).not.toHaveProperty('allowFailure')
     expect(completeBuiltBin?.after).toContain('windows-site')
     expect(completeBuiltBin?.after).not.toContain('docs-site-build')
   })
@@ -184,30 +180,26 @@ describe('gate graph validation', () => {
 
     const completeBuiltBin = withBunEntrypoint(() => gatesForMode('ci-windows-complete'))
       .find(gate => gate.id === 'built-bin-smoke')
-    expect(completeBuiltBin?.after).toEqual(expect.arrayContaining(['coverage', 'coverage-exempt-heavy']))
+    expect(completeBuiltBin?.after).toEqual(['coverage', 'windows-site'])
   })
 
-  it('applies one configured test and polling timeout to both coverage gates', () => {
+  it('applies one configured test and polling timeout to coverage', () => {
     const gates = withEnv('DSH_COVERAGE_TEST_TIMEOUT_MS', '15000', () =>
       withBunEntrypoint(() => gatesForMode('ci-windows-complete')))
 
-    for (const id of ['coverage', 'coverage-exempt-heavy']) {
-      expect(gates.find(subject => subject.id === id)?.args).toEqual(expect.arrayContaining([
-        '--testTimeout=15000',
-        '--expect.poll.timeout=15000',
-      ]))
-    }
+    expect(gates.find(subject => subject.id === 'coverage')?.args).toEqual(expect.arrayContaining([
+      '--testTimeout=15000',
+      '--expect.poll.timeout=15000',
+    ]))
   })
 
   it('keeps Vitest timeout defaults when the coverage override is absent', () => {
     const gates = withEnv('DSH_COVERAGE_TEST_TIMEOUT_MS', undefined, () =>
       withBunEntrypoint(() => gatesForMode('ci-windows-complete')))
 
-    for (const id of ['coverage', 'coverage-exempt-heavy']) {
-      expect(gates.find(subject => subject.id === id)?.args).not.toEqual(expect.arrayContaining([
-        expect.stringMatching(/^--(?:testTimeout|expect\.poll\.timeout)=/),
-      ]))
-    }
+    expect(gates.find(subject => subject.id === 'coverage')?.args).not.toEqual(expect.arrayContaining([
+      expect.stringMatching(/^--(?:testTimeout|expect\.poll\.timeout)=/),
+    ]))
   })
 
   it('rejects an invalid coverage timeout before starting a gate', () => {
@@ -216,23 +208,29 @@ describe('gate graph validation', () => {
       .toThrow('DSH_COVERAGE_TEST_TIMEOUT_MS must be a positive integer')
   })
 
-  it('selects partitioned coverage only when explicitly configured', () => {
-    const coverage = withEnv('DSH_COVERAGE_PARTITIONS', '3', () =>
-      withBunEntrypoint(() => gatesForMode('ci-windows-complete').find(subject => subject.id === 'coverage')))
+  it.each([undefined, '3', '1', 'invalid'])('runs the complete suite even with retired partition selector %s', (partitions) => {
+    const gates = withEnv('DSH_COVERAGE_PARTITIONS', partitions, () =>
+      withEnv('DSH_COVERAGE_TEST_TIMEOUT_MS', undefined, () =>
+        withEnv('DSH_COVERAGE_MAX_WORKERS', '6', () =>
+          withBunEntrypoint(() => gatesForMode('ci-coverage')))))
 
-    expect(coverage).toMatchObject({
-      displayCommand: 'DSH_COVERAGE_PARTITIONS=3 bun run test:coverage:partitioned',
+    expect(gates).toEqual([{
+      id: 'coverage',
+      label: 'test:coverage',
+      displayCommand: 'bun x vitest run --coverage --maxWorkers=6',
       command: '/private/bun',
-      args: ['run', 'test:coverage:partitioned'],
-      env: { DSH_COVERAGE_EXEMPT_HEAVY: '1' },
-      streamOutput: true,
-    })
+      args: ['x', 'vitest', 'run', '--coverage', '--maxWorkers=6'],
+    }])
   })
 
-  it('rejects an invalid coverage partition count before starting a gate', () => {
-    expect(() => withEnv('DSH_COVERAGE_PARTITIONS', '1', () =>
-      withBunEntrypoint(() => gatesForMode('ci-windows-complete'))))
-      .toThrow('DSH_COVERAGE_PARTITIONS must be an integer greater than 1')
+  it('always typechecks the Node execution graph', () => {
+    const gates = withEnv('DSH_NODE_COMPAT_SKIP_TYPECHECK', '1', () =>
+      withBunEntrypoint(() => gatesForMode('node-compat')))
+
+    expect(gates[0]).toMatchObject({
+      id: 'typecheck',
+      args: ['run', 'typecheck'],
+    })
   })
 
   it.each([
@@ -293,6 +291,17 @@ describe('gate graph validation', () => {
 })
 
 describe('gate process outcomes', () => {
+  it.each([1, 23])('reports a real child exit code %s', async (exitCode) => {
+    const result = await runGate(gate('nonzero-exit', {
+      args: ['-e', `process.exitCode = ${exitCode}`],
+    }))
+
+    expect(result.status).toBe('failed')
+    expect(result.exitCode).toBe(exitCode)
+    expect(result.signalCode).toBeNull()
+    expect(formatGateResultReason(result)).toBe(`exit code ${exitCode}`)
+  })
+
   it('streams selected gate output without retaining it', async () => {
     const write = vi.spyOn(process.stdout, 'write').mockReturnValue(true)
     const result = await runGate(gate('streamed', {

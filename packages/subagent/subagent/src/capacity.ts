@@ -30,7 +30,7 @@ import type { SubagentRun } from './types.ts'
 export function holdSlotUntilSettled(run: SubagentRun, release: CapacityRelease): SubagentRun {
   // Attaching to `result` covers the ordinary path even when a holder never
   // disposes, and the seam's own contract says a rejected result is terminal.
-  void run.result.then(release, release)
+  run.result.then(release, release)
   const teardown = async (): Promise<void> => {
     try {
       await run.dispose()

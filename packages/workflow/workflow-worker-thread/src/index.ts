@@ -67,7 +67,7 @@ function assertBodyParses(body: string, name: string): void {
   }
   try {
     // Parse only — the script object is discarded, nothing executes.
-    void new vm.Script(`(async () => {\n${body}\n})()`, { filename: `workflow:${name}`, lineOffset: -1 })
+    new vm.Script(`(async () => {\n${body}\n})()`, { filename: `workflow:${name}`, lineOffset: -1 })
   } catch (error: unknown) {
     throw new WorkflowError(`workflow script does not parse: ${String(error)}`, 'SCRIPT_PARSE', { cause: error })
   }
@@ -190,13 +190,13 @@ class WorkerThreadWorkflowEngine extends WorkflowEngine {
     this.emitWorkflowEvent('workflow/start', info)
     // `workflow/end` fires as the (never-rejecting) result settles, with the
     // outcome DATA only — the value stays with the run's holder.
-    void workerRun.result.then((settled) => {
+    workerRun.result.then((settled) => {
       this.emitWorkflowEvent('workflow/end', info, {
         stopReason: settled.stopReason,
         ...settled.error !== undefined ? { error: settled.error } : {},
         agentsStarted: settled.agentsStarted,
       })
-    })
+    }).then(undefined, this.ctx.logger.error.bind(this.ctx.logger))
 
     return workerRun
   }

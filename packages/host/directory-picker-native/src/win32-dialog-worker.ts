@@ -39,7 +39,12 @@ const post = (message: Win32DialogWorkerMessage): void => {
 process.on('disconnect', () => process.exit(0))
 
 // No top-level await: the built worker ships as CJS, which cannot carry TLA.
-void (async () => {
+function failWorker(error: unknown): never {
+  console.error(error)
+  process.exit(1)
+}
+
+;(async () => {
   try {
     const bindings = await loadWin32DialogBindings()
     const path = runFolderDialog(bindings, title, (threadId) => {
@@ -50,4 +55,4 @@ void (async () => {
     const message = error instanceof Error ? (error.stack ?? error.message) : String(error)
     post({ kind: 'error', message } satisfies Win32DialogWorkerMessage)
   }
-})()
+})().then(undefined, failWorker)

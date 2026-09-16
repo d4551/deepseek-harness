@@ -312,8 +312,17 @@ describe('typert-protocol Remote declarations', () => {
 
     expectTypeOf<TypertClientEventListener<'meta-fixture/waterfall'>>()
       .toEqualTypeOf<ExpectedListener>()
-    expectTypeOf<TypertClientEventListener<'meta-fixture/forwardable'>>()
-      .toEqualTypeOf<(value: string) => void>()
+  })
+
+  it('preserves notification arguments and receiver while owning asynchronous completion', () => {
+    type Listener = TypertClientEventListener<'meta-fixture/forwardable'>
+    expectTypeOf<Parameters<Listener>>().toEqualTypeOf<[value: string]>()
+    expectTypeOf<ThisParameterType<Listener>>().toEqualTypeOf<unknown>()
+    expectTypeOf<ReturnType<Listener>>().toEqualTypeOf<void | Promise<void>>()
+    expectTypeOf<(value: string) => void>().toExtend<Listener>()
+    expectTypeOf<(value: string) => Promise<void>>().toExtend<Listener>()
+    expectTypeOf<(value: number) => Promise<void>>().not.toExtend<Listener>()
+    expectTypeOf<(value: string) => Promise<string>>().not.toExtend<Listener>()
   })
 })
 

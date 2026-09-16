@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This package provides the local storage and image-processing backend for attachments: source images are validated, oriented, stripped of metadata and color profiles, normalized to 8-bit sRGB/sRGBA, and saved below `DSH_HOME`; route-specific request versions are derived and cached separately. It is what the shipped `dsh` composition uses, so durable image attachments work without configuration. Identical normalized images are stored only once, concurrent reads of one request variant share work, and stored images stay readable after later admission-limit changes. Storage is local to this machine — other hosts cannot read these images — and objects are never deleted automatically.
+This package provides the local storage and image-processing backend for attachments: source images are validated, oriented, stripped of metadata and color profiles, normalized to 8-bit sRGB/sRGBA, and saved below `DSH_HOME`; route-specific request versions are derived and cached separately. It is what the shipped `dsh` composition uses, so durable image attachments work without configuration. Identical normalized images are stored only once, concurrent reads with matching reference metadata and request variants share work, and stored images stay readable after later admission-limit changes. Storage is local to this machine — other hosts cannot read these images — and objects are never deleted automatically.
 
 ## Table of Contents
 
@@ -58,6 +58,8 @@ Attached images are kept below `<DSH_HOME>/attachments/v1` on this machine. Stor
 
 Attach an image and its source limits, media, dimensions, and pixels are checked before it is normalized and saved. EXIF orientation is applied, metadata and color profiles are removed, transparency is preserved, and the raster is reduced under a total-pixel budget plus a long-edge cap. Alpha images use WebP and opaque images use JPEG on the shared 85/75/60 quality ladder; the smallest output is retained when every candidate exceeds the byte target. An accepted image reappears in history and later turns, including after restart; the selected model route receives a cached request version and, when its filesystem maps the host object, a read-only execution-world path.
 
+Concurrent request reads share work only when all attachment-reference metadata and the request variant match. Each result retains its reference's name and original dimensions. A reference whose declared byte count, media type, width, or height disagrees with the stored image rejects with `ATTACHMENT_CORRUPT`, independently of concurrent reads using a valid reference to the same image.
+
 ### What can go wrong
 
 An image can be refused when you attach it: unsupported format, over the byte, pixel, or per-side dimension limits, or bytes that do not match their declared type. On a later read, an image that was deleted or corrupted on disk fails with a clear error. Each failure carries a stable code so the client and protocol adapters can explain it in their own words.
@@ -81,20 +83,20 @@ This section explains the durability and verification design behind the storage,
 
 ### Write and read paths
 
-Objects land at `<DSH_HOME>/attachments/v1/objects/<sha256-prefix>/<sha256>`; equal bytes deduplicate to one object and one `sha256:` id. Before the first write, the process syncs every ancestor directory of the home down to the filesystem root once, so a directory another process created but has not yet synced is never mistaken for a safe boundary. Writes then stage bytes in `v1/tmp`, sync the temporary file, publish with an atomic exclusive hard link, and sync the publication directories — on Windows, filesystem metadata journaling owns entry durability. Once the save resolves, the reported reference is durable.
+Objects land at `<DSH_HOME>/attachments/v1/objects/<sha256-prefix>/<sha256>`; equal bytes deduplicate to one object and one `sha256:` id. Before the first POSIX write, the process syncs every ancestor directory of the home down to the filesystem root once, so a directory another process created but has not yet synced is never mistaken for a safe boundary. Writes stage bytes in `v1/tmp` and sync the staging file. POSIX publishes with an atomic exclusive hard link and syncs the publication directories; Windows uses the [shared write-through helpers](../../util/atomic-write/src/win32.ts) to create missing directories and move new objects without replacing existing destinations. Once the save resolves, the reported reference is durable.
 
 Admission accepts up to 20 images and 200 MiB of source bytes per message; one source may use up to 20 MiB, 64 million pixels, and 8192 pixels per side. It applies orientation, removes metadata and color profiles, and normalizes under a 2048×2048 total-pixel budget, an 8192-pixel long edge, and a 4 MiB encoded-byte target. Extreme aspect ratios therefore retain their short-edge resolution. Clean single-frame 8-bit sRGB/sRGBA PNG, JPEG, or WebP input already within those limits passes through byte-identically; GIF, animation, metadata, orientation, 16-bit PNG, and incompatible color spaces force conversion.
 
-Request versions live below `<DSH_HOME>/attachments/v1/request-images/`. `readImageRequest` scales without enlargement to a route pixel budget, then applies a separate encoded-byte target through the same alpha routing and quality ladder. Its cache identity includes the attachment id, transform version, budgets, and fixed encoder settings; cached bytes are header-probed for format, 8-bit sRGB/sRGBA, dimensions, and alpha facts, and a mismatch regenerates the entry. Concurrent callers share one transform and cache write, while cancellation stops shared work only when no waiter remains. `imageHostPath` derives the normalized object's host path, and the mounted filesystem may map that path into its execution world without writing it to durable history.
+Request versions live below `<DSH_HOME>/attachments/v1/request-images/`. `readImageRequest` scales without enlargement to a route pixel budget, then applies a separate encoded-byte target through the same alpha routing and quality ladder. Its cache identity includes the attachment id, transform version, budgets, and fixed encoder settings; cached bytes are header-probed for format, 8-bit sRGB/sRGBA, dimensions, and alpha facts, and a mismatch regenerates the entry. Callers with matching reference metadata and request variants share one transform and cache write, while cancellation stops shared work only when no waiter remains. `imageHostPath` derives the normalized object's host path, and the mounted filesystem may map that path into its execution world without writing it to durable history.
 
 ### Source map
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Plugin entry: `LocalAttachmentStore`, `Config` schema, defaults |
+| [`src/index.ts`](src/index.ts) | Plugin entry: `LocalAttachmentStore`, `Config` schema, defaults, shared request work |
 | [`src/store.ts`](src/store.ts) | Content-addressed write and verified read: staging, hard-link publish, fsync chain, digest verification |
 | [`src/normalization.ts`](src/normalization.ts) + [`src/encoding.ts`](src/encoding.ts) | Provider-independent normalization and bounded format/quality candidates |
-| [`src/request-image.ts`](src/request-image.ts) | Route-specific request transforms, cache identity, and singleflight |
+| [`src/request-image.ts`](src/request-image.ts) | Route-specific request transforms and cache identity |
 | [`src/image.ts`](src/image.ts) | Full raster decode and metadata verification |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; immutable writes and verified reads enforced at the backend boundary) |
 

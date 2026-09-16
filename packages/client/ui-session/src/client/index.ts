@@ -308,7 +308,7 @@ export class UiSession extends Service {
         this.rebuildBindings()
       }
     }, 'uiSession.provide()')
-    return () => { void dispose() }
+    return () => { Promise.resolve(dispose()).catch(this.ctx.logger().error) }
   }
 
   /**
@@ -435,7 +435,7 @@ export class UiSession extends Service {
     const record: MaterializedBinding = {
       owner,
       value,
-      release: () => { void releaseEffect() },
+      release: () => { Promise.resolve(releaseEffect()).catch(owner.ctx.logger().error) },
     }
     return record
   }

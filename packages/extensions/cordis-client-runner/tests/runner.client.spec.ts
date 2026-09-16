@@ -77,7 +77,7 @@ interface Bench {
  * failing package would also surface as an unhandled rejection.
  */
 function seated<T>(fiber: T): T {
-  void Promise.resolve(fiber).catch(() => {})
+  Promise.resolve(fiber).catch(() => {})
   return fiber
 }
 

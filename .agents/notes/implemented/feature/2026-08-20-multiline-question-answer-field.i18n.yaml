@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-20-multiline-question-answer-field.md
-2026-08-20-multiline-question-answer-field.md: 207a7e5303b6558d7f09fc2684940db4e81ff452
-2026-08-20-multiline-question-answer-field.zh.md: 3c7644675a85e740ad0cb5c299e1f591adbfbac6
+2026-08-20-multiline-question-answer-field.md: f1072c6129c21097abceec76a6555d0ca64c5e6b
+2026-08-20-multiline-question-answer-field.zh.md: 47160048fffda1f1ed6235eaa0a1fa8f4a98f7e6

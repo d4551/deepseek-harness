@@ -114,8 +114,7 @@ describe('writer-lock failure cleanup', () => {
     const preparing = settings.prepareDocument()
     await started
     let disposed = false
-    const disposing = fiber.dispose()
-    void disposing.then(() => { disposed = true })
+    const disposing = fiber.dispose().then(() => { disposed = true })
     await vi.waitFor(() => {
       // Teardown flips the document queue's refuse-new-work flag before the
       // in-flight create settles; the provider itself keeps no such field.

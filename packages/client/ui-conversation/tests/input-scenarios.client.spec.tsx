@@ -61,6 +61,8 @@ function commandSource(
   })
   const executed: string[] = []
   const envelopes: SubmitEnvelope[] = []
+  const executions: Promise<SubmitOutcome>[] = []
+  onTestFinished(async () => { await Promise.all(executions) })
   return {
     executed,
     envelopes,
@@ -77,7 +79,7 @@ function commandSource(
         if (desc === undefined) return undefined
         if (desc.input !== undefined) return { claim: leadingClaim(desc) }
         executed.push(`/${desc.name}`)
-        void execute(`/${desc.name}`)
+        executions.push(execute(`/${desc.name}`))
         return 'handled'
       },
       matchSpace: (_session: ClientSessionContext, token: string): PickOutcome => {
@@ -85,7 +87,9 @@ function commandSource(
         if (desc?.input === undefined) return undefined
         return { claim: leadingClaim(desc) }
       },
-      matchEnter: (_session: ClientSessionContext, line: string, _signal: AbortSignal, envelope: SubmitEnvelope): Promise<PickOutcome> => {
+      matchEnter: async (
+        _session: ClientSessionContext, line: string, _signal: AbortSignal, envelope: SubmitEnvelope,
+      ): Promise<PickOutcome> => {
         envelopes.push(envelope)
         const trimmed = line.trim()
         const ws = trimmed.search(/\s/)
@@ -95,7 +99,7 @@ function commandSource(
         if (desc.input !== undefined) return Promise.resolve({ claim: leadingClaim(desc) })
         if (ws !== -1) return Promise.resolve(undefined) // execute with trailing → default sink
         executed.push(trimmed)
-        void execute(trimmed)
+        await execute(trimmed)
         return Promise.resolve('handled')
       },
     },

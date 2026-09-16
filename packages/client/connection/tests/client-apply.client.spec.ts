@@ -10,6 +10,7 @@ import {
   type ConnectionGenerationSource,
   type ConnectionHandle,
 } from '../src/client/index.ts'
+import { serveGenerations } from './generation-network.client.ts'
 
 type Win = {
   location?: { hostname: string; search: string; origin?: string }
@@ -59,6 +60,31 @@ async function mount(): Promise<ConnectionHandle> {
 }
 
 describe('connection client apply', () => {
+  it('withdraws a source only after its stopped owner and active replacement finish cleanup', async () => {
+    const network = await serveGenerations()
+    const handle = await mount()
+    const unregister = handle.registerGenerationSource(network.source)
+    network.owners.push(unregister)
+    const firstReady = Promise.withResolvers<undefined>()
+    const first = handle.start({ onConnected: () => { firstReady.resolve(undefined) } })
+    await firstReady.promise
+    const firstStop = first.stop()
+    const firstRetiring = await network.request('/retire/1')
+    const secondReady = Promise.withResolvers<undefined>()
+    const second = handle.start({ onConnected: () => { secondReady.resolve(undefined) } })
+    await secondReady.promise
+    let withdrawn = false
+    const withdrawing = unregister().then(() => { withdrawn = true })
+    expect(handle.generation.getSnapshot()).toBeUndefined()
+    const secondRetiring = await network.request('/retire/2')
+    secondRetiring.end('released')
+    await second.stop()
+    expect(withdrawn).toBe(false)
+    firstRetiring.end('released')
+    await Promise.all([firstStop, withdrawing])
+    expect(withdrawn).toBe(true)
+  })
+
   it('treats a runtime without browser location as local', async () => {
     delete (globalThis as Win).location
     expect((await mount()).isLoopback).toBe(true)
@@ -92,17 +118,18 @@ describe('connection client apply', () => {
     const unregisterFirst = handle.registerGenerationSource(first.source)
     expect(() => { handle.registerGenerationSource(second.source) })
       .toThrow('a generation source is already registered')
-    unregisterFirst()
+    await unregisterFirst()
     const unregisterSecond = handle.registerGenerationSource(second.source)
-    unregisterFirst()
+    await unregisterFirst()
 
     const loop = handle.start({})
     await vi.waitFor(() => {
       expect(handle.generation.getSnapshot()?.host.home).toBe('/h')
     })
-    unregisterSecond()
+    const withdrawing = unregisterSecond()
     expect(handle.generation.getSnapshot()).toBeUndefined()
-    loop.stop()
+    await withdrawing
+    await loop.stop()
   })
 
   it('start() hands out one loop, rejects a second consumer, and stop() aborts the generation', async () => {
@@ -123,8 +150,9 @@ describe('connection client apply', () => {
     await vi.waitFor(() => {
       expect(handle.generation.getSnapshot()?.host.home).toBe('/h')
     })
-    loop.stop() // teardown must not throw; the fixture streams abort quietly
+    const stopping = loop.stop()
     expect(handle.generation.getSnapshot()).toBeUndefined()
+    await stopping
     expect(generations).toEqual(['/h', undefined])
     expect(connected).toBe(1)
     expect(errorSpy).toHaveBeenCalledTimes(2)
@@ -142,17 +170,18 @@ describe('connection client apply', () => {
     await vi.waitFor(() => {
       expect(handle.generation.getSnapshot()?.host.home).toBe('/h')
     })
-    first.stop()
+    const firstStop = first.stop()
     expect(handle.generation.getSnapshot()).toBeUndefined()
 
     const second = handle.start({})
     await vi.waitFor(() => {
       expect(handle.generation.getSnapshot()?.host.home).toBe('/h')
     })
-    first.stop()
+    await first.stop()
+    await firstStop
     expect(handle.generation.getSnapshot()?.host.home).toBe('/h')
 
-    second.stop()
+    await second.stop()
     generation.end()
   })
 
@@ -161,11 +190,12 @@ describe('connection client apply', () => {
     const handle = await mount()
     installGeneration(handle)
     const owner: { loop?: ReturnType<ConnectionHandle['start']> } = {}
+    let stopping: Promise<void> | undefined
     let sawGeneration = false
     const stopGeneration = handle.generation.subscribe(() => {
       if (handle.generation.getSnapshot() === undefined) return
       sawGeneration = true
-      owner.loop?.stop()
+      stopping = owner.loop?.stop()
     })
     const connected = vi.fn()
     const loop = handle.start({ onConnected: connected })
@@ -176,7 +206,8 @@ describe('connection client apply', () => {
       expect(connected).not.toHaveBeenCalled()
     } finally {
       stopGeneration()
-      loop.stop()
+      await stopping
+      await loop.stop()
     }
   })
 
@@ -208,7 +239,7 @@ describe('connection client apply', () => {
       expect(handle.generation.getSnapshot()?.host.home).toBe('/h')
     } finally {
       stopGeneration()
-      loop.stop()
+      await loop.stop()
       warnSpy.mockRestore()
     }
   })
@@ -218,11 +249,12 @@ describe('connection client apply', () => {
     const handle = await mount()
     const generation = installGeneration(handle)
     const owner: { loop?: ReturnType<ConnectionHandle['start']> } = {}
+    let stopping: Promise<void> | undefined
     let stoppedOnRetraction = false
     const stopGeneration = handle.generation.subscribe(() => {
       if (handle.generation.getSnapshot() !== undefined || owner.loop === undefined) return
       stoppedOnRetraction = true
-      owner.loop.stop()
+      stopping = owner.loop.stop()
     })
     const states: string[] = []
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
@@ -241,7 +273,8 @@ describe('connection client apply', () => {
       expect(states).toEqual(['connected'])
     } finally {
       stopGeneration()
-      loop.stop()
+      await stopping
+      await loop.stop()
       warnSpy.mockRestore()
     }
   })

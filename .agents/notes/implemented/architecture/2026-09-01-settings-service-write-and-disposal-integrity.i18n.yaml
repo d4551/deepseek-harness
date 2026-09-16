@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-01-settings-service-write-and-disposal-integrity.md
-2026-09-01-settings-service-write-and-disposal-integrity.md: 0cdb2f52062144007e56a3246c8c6d7ce9c9db9d
-2026-09-01-settings-service-write-and-disposal-integrity.zh.md: f809b963f0715981a4210d02765a889c142ac046
+2026-09-01-settings-service-write-and-disposal-integrity.md: baf105d388ebd48c88236468f6f4b49233b32b78
+2026-09-01-settings-service-write-and-disposal-integrity.zh.md: 80dc89be972f57020a5b19bb3c95b27c0bfd8265

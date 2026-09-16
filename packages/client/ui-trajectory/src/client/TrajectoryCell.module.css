@@ -6,10 +6,10 @@
   align-items: center;
   box-sizing: border-box;
   height: 38px;
-  padding: 0 8px 0 20px;
-  gap: 24px;
-  border-radius: 8px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  padding: 0 var(--dsw-space-control) 0 20px;
+  gap: var(--dsw-space-layout);
+  border-radius: var(--dsw-radius-control);
+  border: var(--dsw-border-width) solid var(--dsw-alias-border-l2);
   background: var(--dsw-alias-bg-layer-3);
   min-width: 0;
 }
@@ -40,7 +40,7 @@
   box-sizing: border-box;
   height: 22px;
   max-width: 100%;
-  padding: 0 4px;
+  padding: 0 var(--dsw-space-tight);
   border-radius: 6px;
   font: var(--dsw-font-xs-strong-13);
   white-space: nowrap;
@@ -66,11 +66,7 @@
 }
 
 .tagMessage {
-  color: color-mix(
-    in srgb,
-    var(--dsw-alias-brand-primary-new-colorprimary-new-color) 60%,
-    var(--dsw-alias-state-error-secondary)
-  );
+  color: var(--dsw-alias-label-primary);
   background: color-mix(
     in srgb,
     color-mix(

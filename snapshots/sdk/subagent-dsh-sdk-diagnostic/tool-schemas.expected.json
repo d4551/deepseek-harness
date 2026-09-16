@@ -131,7 +131,7 @@
         "properties": {
           "target": {
             "type": "string",
-            "description": "Team member name, or lead."
+            "description": "Exact name from list_agents, including session-qualified workspace peers, or lead."
           },
           "message": {
             "type": "string",
@@ -266,7 +266,7 @@
     },
     {
       "name": "list_agents",
-      "description": "List the Lead and every durable teammate with current runtime status.",
+      "description": "List the Lead, durable teammates, and live conversation leads in the same registered workspace with current runtime status and message targets.",
       "parameters": {
         "type": "object",
         "properties": {}
@@ -340,7 +340,7 @@
         "properties": {
           "target": {
             "type": "string",
-            "description": "Team member name, or lead."
+            "description": "Exact name from list_agents, including session-qualified workspace peers, or lead."
           },
           "message": {
             "type": "string",
@@ -640,6 +640,10 @@
           "task_id": {
             "type": "string",
             "description": "Shared task id."
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Optional exact workspace peer id from list_agents; omitted for your own Team board."
           }
         },
         "required": [
@@ -653,6 +657,10 @@
       "parameters": {
         "type": "object",
         "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "Optional exact workspace peer id from list_agents; omitted for your own Team board."
+          },
           "status": {
             "type": "string",
             "description": "Optional exact status filter.",
@@ -829,7 +837,7 @@
     },
     {
       "name": "wait_agent",
-      "description": "Wait for the next teammate status, mailbox, or shared-task change after this call starts. This never wakes inactive members and returns noProgress immediately when no other member is running or provisioning. Re-list after wakeup or timeout instead of polling.",
+      "description": "Wait for meaningful progress on Team work. Waiting members and unrelated workspace conversations cannot satisfy admission. Returns an activity cursor and noProgress when no productive member exists or an unchanged-cursor wait fails the bounded extension rule: at least twice the prior expired duration, within one hour cumulative quiet waiting. Inspect and repair stalled work instead of repeating that wait. This never wakes members or declares their work complete.",
       "parameters": {
         "type": "object",
         "properties": {

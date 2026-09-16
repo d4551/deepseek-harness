@@ -87,7 +87,7 @@ async function completeWithDeepSeek(
     }),
   })
   if (!response.ok) {
-    void response.body?.cancel()
+    await response.body?.cancel()
     throw new Error(`DeepSeek bridge upstream returned HTTP ${response.status}`)
   }
   const payload = await response.json() as {
@@ -121,10 +121,11 @@ export async function startDeepSeekResponsesBridge(
   let seenRequests = 0
   let completedRequests = 0
   const openResponses = new Set<ServerResponse>()
+  const pending: Promise<void>[] = []
   const server = createServer((request, response) => {
     openResponses.add(response)
     response.on('close', () => { openResponses.delete(response) })
-    void (async () => {
+    pending.push((async () => {
       if (request.method !== 'POST' || request.url !== '/v1/responses') {
         response.writeHead(404)
         response.end()
@@ -166,7 +167,7 @@ export async function startDeepSeekResponsesBridge(
         response.writeHead(502, { 'content-type': 'application/json' })
       }
       response.end(JSON.stringify({ error: { message: 'DeepSeek bridge request failed' } }))
-    })
+    }))
   })
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
@@ -185,6 +186,7 @@ export async function startDeepSeekResponsesBridge(
     async close(): Promise<void> {
       for (const response of openResponses) response.destroy()
       await closeServer(server)
+      await Promise.all(pending)
     },
   }
 }

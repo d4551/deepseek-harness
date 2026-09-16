@@ -1,7 +1,7 @@
 /**
  * SQLite storage backend for the storage hub: one database file hosts every
  * routed unit, document-per-row (`key TEXT` / `value TEXT` JSON). Registers
- * as backend `sqlite`; the disposer unregisters first, then closes the medium.
+ * as backend `sqlite`; disposal drains consumers before closing the medium.
  * @module @deepseek-ai/dsh-storage-sqlite
  */
 
@@ -161,19 +161,19 @@ export class SqliteStorageBackend implements StorageBackend {
 }
 
 /**
- * Register the SQLite backend as `sqlite` on the storage hub. The disposer
- * unregisters the name first, then closes the backend.
+ * Register the SQLite backend as `sqlite` on the storage hub. Disposal withdraws
+ * its lifecycle service and drains consumers before unregistering and closing it.
  * @param ctx - Plugin context (must inject `storage`).
  * @param config - Validated plugin configuration.
  */
 export function apply(ctx: Context, config: Config) {
   const backend = new SqliteStorageBackend(config)
-  ctx.effect(() => {
+  ctx.effect(function* () {
     const dispose = ctx.storage.backend.register('sqlite', backend)
-    return async () => {
+    yield async () => {
       dispose()
       await backend.close()
     }
+    yield ctx.provide(storageBackendServiceKey('sqlite'), backend)
   }, 'storage-sqlite.registerBackend')
-  ctx.provide(storageBackendServiceKey('sqlite'), backend)
 }

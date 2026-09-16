@@ -10,13 +10,10 @@ import { availableParallelism } from 'node:os'
 import { resolve } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { CLIENT_BUILD_PROFILE_SELECTOR } from './client-build-environment.ts'
-import { COVERAGE_EXEMPT_ENV, coverageExemptHeavySuites } from './coverage-exempt.ts'
 import {
-  COVERAGE_PARTITIONS_ENV,
   COVERAGE_TEST_TIMEOUT_ENV,
   coverageTestTimeoutArgs,
-  parseCoveragePartitionCount,
-} from './coverage-partitions.ts'
+} from './coverage-command.ts'
 import { bunInvocation } from './bun-invocation.ts'
 
 /** A named aggregate exposed by the gate runner. */
@@ -54,8 +51,6 @@ export interface Gate {
   env?: Record<string, string | undefined>
   /** Include this leaf in the build-free documentation aggregate. */
   quick?: boolean
-  /** Keep a failure visible without failing the aggregate. */
-  allowFailure?: boolean
   /** Write child output as it arrives instead of buffering it until completion. */
   streamOutput?: boolean
 }
@@ -108,7 +103,7 @@ async function main(args: string[]): Promise<number> {
 
   const results = await runGates(gates, maxConcurrency, runGate, printResult)
   printSummary(results, performance.now() - startedAt)
-  return results.some(result => result.gate.allowFailure !== true && (result.status === 'failed' || result.status === 'skipped'))
+  return results.some(result => result.status === 'failed' || result.status === 'skipped')
     ? 1
     : 0
 }
@@ -352,16 +347,14 @@ function ciPrimaryGates(): Gate[] {
 }
 
 function nodeCompatGates(): Gate[] {
-  const typecheck = flagEnabled('DSH_NODE_COMPAT_SKIP_TYPECHECK')
-    ? []
-    : [bunScript('typecheck', 'typecheck')]
+  const typecheck = bunScript('typecheck', 'typecheck')
   if (runningNodeMajor() !== 22) {
-    return [...typecheck, ...nodeCompatSmokeGates()]
+    return [typecheck, ...nodeCompatSmokeGates()]
   }
   return [
-    ...typecheck,
+    typecheck,
     bunScript('build', 'build', {
-      ...typecheck.length === 0 ? {} : { needs: ['typecheck'] },
+      needs: ['typecheck'],
     }),
     bunScript('build:web', 'build:web', {
       label: 'Web frontend build',
@@ -544,7 +537,6 @@ function ciWindowsCompleteGates(): Gate[] {
     .filter(gate => gate.id !== 'build' && gate.id !== 'docs-site-build')
     .map(gate => ({
       ...gate,
-      allowFailure: true,
       after: [...new Set([
         ...coverageAfter,
         ...(gate.after ?? []).map(id => id === 'docs-site-build' ? 'windows-site' : id),
@@ -597,67 +589,18 @@ function lintGate(options: { needs?: string[] } = {}): Gate {
   })
 }
 
-// The heavy suites run uninstrumented beside the thresholded gate: their
-// compiler- and subprocess-bound fixtures pay a multiple of their runtime
-// under v8 instrumentation while contributing nothing the thresholds need
-// (membership rules in scripts/coverage-exempt.ts).
-//
-// DSH_COVERAGE_MAX_WORKERS is the ordinary lane's worker budget, so the two
-// parallel gates split it instead of each claiming it whole. When
-// DSH_COVERAGE_PARTITIONS is set, its single-worker processes replace the
-// instrumented share while this budget still sizes the exempt gate. The exempt
-// gate's wall clock is dominated by its longest single file, so it takes the
-// small share. A budget of 1 gives each gate 1 worker; lanes that need a strict
-// total of one (the serial reference jobs) also set DSH_GATE_CONCURRENCY=1,
-// which keeps the gates from overlapping at all.
-// DSH_COVERAGE_TEST_TIMEOUT_MS raises Vitest's per-test and expect.poll
-// defaults together for instrumented lanes whose scheduling overhead exceeds
-// those defaults. Explicit fixture timeouts remain authoritative.
-function coverageWorkerArgs(): { instrumented: string[]; exempt: string[] } {
-  const [flag] = positiveIntArg('DSH_COVERAGE_MAX_WORKERS', '--maxWorkers')
-  if (flag === undefined) return { instrumented: [], exempt: [] }
-  const total = Number.parseInt(flag.split('=')[1] ?? '', 10)
-  const exempt = Math.max(1, Math.floor(total / 3))
-  const instrumented = Math.max(1, total - exempt)
-  return {
-    instrumented: [`--maxWorkers=${String(instrumented)}`],
-    exempt: [`--maxWorkers=${String(exempt)}`],
-  }
-}
-
 function coverageGates(): Gate[] {
-  const workers = coverageWorkerArgs()
+  const workers = positiveIntArg('DSH_COVERAGE_MAX_WORKERS', '--maxWorkers')
   const timeouts = coverageTestTimeoutArgs(process.env[COVERAGE_TEST_TIMEOUT_ENV])
-  const partitions = parseCoveragePartitionCount(process.env[COVERAGE_PARTITIONS_ENV])
-  const instrumented = partitions === undefined
-    ? bunExec('coverage', [
-      'vitest',
-      'run',
-      '--coverage',
-      ...workers.instrumented,
-      ...timeouts,
-    ], {
-      label: 'test:coverage',
-      env: { [COVERAGE_EXEMPT_ENV]: '1' },
-    })
-    : bunScript('coverage', 'test:coverage:partitioned', {
-      label: 'test:coverage',
-      displayCommand: `${COVERAGE_PARTITIONS_ENV}=${partitions} bun run test:coverage:partitioned`,
-      env: { [COVERAGE_EXEMPT_ENV]: '1' },
-      streamOutput: true,
-    })
-  return [
-    instrumented,
-    bunExec('coverage-exempt-heavy', [
-      'vitest',
-      'run',
-      ...coverageExemptHeavySuites.map(suite => suite.filter),
-      ...workers.exempt,
-      ...timeouts,
-    ], {
-      label: 'test:coverage-exempt-heavy',
-    }),
-  ]
+  return [bunExec('coverage', [
+    'vitest',
+    'run',
+    '--coverage',
+    ...workers,
+    ...timeouts,
+  ], {
+    label: 'test:coverage',
+  })]
 }
 
 // Recorded-session adapters boot process scenarios in `lib` mode. Callers wait
@@ -734,13 +677,6 @@ function positiveIntArg(envName: string, flag: string): string[] {
     throw new Error(`run-gates: ${envName} must be a positive integer, got ${JSON.stringify(raw)}.`)
   }
   return [`${flag}=${raw}`]
-}
-
-function flagEnabled(envName: string): boolean {
-  const raw = process.env[envName]
-  if (raw === undefined || raw === '') return false
-  if (raw !== '1') throw new Error(`run-gates: ${envName} must be 1 when set, got ${JSON.stringify(raw)}.`)
-  return true
 }
 
 function hygieneLeafGates(options: { artifactNeeds?: string[] } = {}): Gate[] {
@@ -929,7 +865,7 @@ export async function runGates(
   gates: Gate[],
   maxActive: number,
   execute: GateExecutor,
-  observe: ResultObserver = () => {},
+  observe?: ResultObserver,
 ): Promise<GateResult[]> {
   validateGateGraph(gates)
   if (!Number.isSafeInteger(maxActive) || maxActive < 1) {
@@ -967,7 +903,7 @@ export async function runGates(
       }
       states.set(gate.id, 'skipped')
       results.set(gate.id, result)
-      observe(result)
+      observe?.(result)
       continue
     }
 
@@ -976,7 +912,7 @@ export async function runGates(
       running.splice(running.indexOf(settled.item), 1)
       states.set(settled.item.gate.id, settled.result.status)
       results.set(settled.item.gate.id, settled.result)
-      observe(settled.result)
+      observe?.(settled.result)
     }
   }
 
@@ -1061,7 +997,7 @@ export async function runGate(gate: Gate): Promise<GateResult> {
 export function formatGateResultReason(result: GateResult): string {
   const facts: string[] = []
   if (result.error !== undefined) facts.push(result.error)
-  if (result.exitCode !== null) facts.push(`exit ${result.exitCode}`)
+  if (result.exitCode !== null) facts.push(`exit code ${result.exitCode}`)
   if (result.signalCode !== null) facts.push(`signal ${result.signalCode}`)
   return facts.length === 0 ? 'no exit code or signal' : facts.join(', ')
 }
@@ -1098,8 +1034,7 @@ function printSummary(results: GateResult[], durationMs: number): void {
   for (const result of unsuccessful) {
     const duration = (result.durationMs / 1000).toFixed(2)
     const reason = formatGateResultReason(result)
-    const disposition = result.gate.allowFailure === true ? 'NON-BLOCKING ' : ''
-    console.error(`  - ${disposition}${result.status.toUpperCase()} ${result.gate.label} (${duration}s, ${reason})`)
+    console.error(`  - ${result.status.toUpperCase()} ${result.gate.label} (${duration}s, ${reason})`)
     console.error(`    ${result.gate.displayCommand}`)
   }
 }

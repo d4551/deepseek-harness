@@ -203,7 +203,7 @@ export class SlotRegistry extends Service {
         // generator callbacks the same transactional setup, reverse teardown,
         // diagnostics tree, and idempotence as every other plugin effect.
         const disposeEffect = ctx.effect(callback, `slots.inject(${JSON.stringify(key)}): declaration`)
-        active = () => { void disposeEffect() }
+        active = () => { Promise.resolve(disposeEffect()).catch(ctx.logger().error) }
         activeEpoch = epoch
       }
 
@@ -230,7 +230,7 @@ export class SlotRegistry extends Service {
       }
       return stop
     }, `slots.inject(${JSON.stringify(key)})`)
-    return () => { void disposeController() }
+    return () => { Promise.resolve(disposeController()).catch(ctx.logger().error) }
   }
 
   /**
@@ -288,7 +288,7 @@ export class SlotRegistry extends Service {
         this.rebuildRootBinding()
       }
     }, 'slots.provideRoot()')
-    return () => { void dispose() }
+    return () => { Promise.resolve(dispose()).catch(this.ctx.logger().error) }
   }
 
   /**

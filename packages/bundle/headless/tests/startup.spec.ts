@@ -70,7 +70,7 @@ export const apply = ctx => globalThis.__headlessStartupApply(ctx)
   const ctx = new Context()
   await ctx.plugin(Loader)
   ctx.loader.builtins.include = Include
-  provideCmdline(ctx, { args, exit: code => void observed.exits.push(code) })
+  provideCmdline(ctx, { args, exit: (code) => { observed.exits.push(code) } })
   await ctx.loader.create({ name: 'cordis:include', config: { path: pathToFileURL(join(dir, 'cordis.yml')).href } })
   await ctx.loader.await()
   disposers.push(async () => { await ctx.fiber.dispose() })

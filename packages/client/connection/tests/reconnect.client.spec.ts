@@ -15,7 +15,11 @@ it('retries a readiness timeout even when the carrier has not settled after abor
       signal.addEventListener('abort', () => { resolve() }, { once: true })
     })
   }, { onConnected: (host) => { homes.push(host.home) } }, config)
-  onTestFinished(() => { controller.stop(); stalled.resolve(undefined) })
+  onTestFinished(async () => {
+    const stopping = controller.stop()
+    stalled.resolve(undefined)
+    await stopping
+  })
   controller.start()
   await vi.waitFor(() => { expect(homes).toEqual(['/connected']) })
   expect(signals).toHaveLength(2)
@@ -33,11 +37,12 @@ it('keeps exactly one generation after stopping and immediately restarting', asy
       signal.addEventListener('abort', () => { resolve() }, { once: true })
     })
   }, { onConnected: (host) => { homes.push(host.home) } }, config)
-  onTestFinished(() => { controller.stop() })
+  onTestFinished(() => controller.stop())
   controller.start()
   await vi.waitFor(() => { expect(homes).toHaveLength(1) })
-  controller.stop()
+  const stopping = controller.stop()
   controller.start()
+  await stopping
   await new Promise(resolve => setTimeout(resolve, 80))
   expect(signals).toHaveLength(2)
   expect(signals.filter(signal => !signal.aborted)).toHaveLength(1)

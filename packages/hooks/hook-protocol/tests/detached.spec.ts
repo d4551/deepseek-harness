@@ -43,10 +43,11 @@ describe('createDetachedRuns', () => {
     detached.track(first.promise)
     // The late run enters the registry from the first run's own continuation —
     // after drain() snapshotted its first wave.
-    void first.promise.then(() => { detached.track(second.promise) })
+    const trackingSecond = first.promise.then(() => { detached.track(second.promise) })
     let drained = false
     const draining = detached.drain().then(() => { drained = true })
     first.resolve()
+    await trackingSecond
     await new Promise(resolve => setTimeout(resolve, 10))
     expect(drained).toBe(false)
     second.resolve()

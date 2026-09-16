@@ -79,7 +79,7 @@ describe('the default preset as a user setting', () => {
 
     const handle = await ctx.agents.create({
       sessionId: SessionId('settings-default'),
-      setup: async (agentCtx: Context) => void await ctx.agentPresets.mount(agentCtx),
+      setup: async (agentCtx: Context) => { await ctx.agentPresets.mount(agentCtx) },
     })
     try {
       expect(toolNames(ctx, handle.agent)).toEqual(['beta'])
@@ -92,7 +92,7 @@ describe('the default preset as a user setting', () => {
     const { ctx } = await harness()
     const running = await ctx.agents.create({
       sessionId: SessionId('settings-running'),
-      setup: async (agentCtx: Context) => void await ctx.agentPresets.mount(agentCtx),
+      setup: async (agentCtx: Context) => { await ctx.agentPresets.mount(agentCtx) },
     })
     try {
       expect(toolNames(ctx, running.agent)).toEqual(['alpha'])

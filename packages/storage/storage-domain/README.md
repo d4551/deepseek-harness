@@ -35,6 +35,8 @@ Choose it for any host-side data that must survive restarts and stay valid again
 
 The owning package declares the domain once with `defineDomain` — name, version, and zod record schemas — and exports it. `defineDomain` fails loud at module load on a bad name, a non-integer version, or a global schema that accepts `null`.
 
+Tables reject schema-invalid stored records by default. Only an owner that can reconstruct every record from an authoritative source should declare `domainTable(schema, { rebuildable: true })`. On open, that table still validates with the declared schema, but durably deletes each rejected record through the backend before publishing the domain and logs its domain, table, and key. Valid records remain unchanged. Deletion and other backend failures propagate; globals always reject schema-invalid data. The owner supplies reconstruction after open. The session projection cache uses this declaration for checkpoints derived from session history; workspace records and message feedback retain the default rejection policy.
+
 ```text
 // Owning package, once:
 const workspaceSpec = defineDomain({
@@ -91,7 +93,7 @@ The domain layer is a single implementation, not an abstracted seam: consumers d
 
 ### Open sequence
 
-`DomainFacility.open(spec)` runs a strict sequence, each step failing the whole call: reject a name already open or still closing (`already-open`); resolve the route (`backend-not-found`); require the `kv` facet (`facet-unsupported`); open the unit (backend `version-mismatch`/`malformed-medium` pass through); load and validate every stored record and the global against the spec's schemas (`invalid-record`); construct the domain. The caller owns the handle; the facility closes any domain left open when it unmounts, and a closed domain's name frees for reopening only after teardown completes.
+`DomainFacility.open(spec)` runs a strict sequence: reject a name already open or still closing (`already-open`); resolve the route (`backend-not-found`); require the `kv` facet (`facet-unsupported`); open the unit (backend `version-mismatch`/`malformed-medium` pass through); load and validate every stored record and the global against the spec's schemas; durably remove invalid records only in explicitly rebuildable tables, otherwise reject with `invalid-record`; construct the domain. A recovery deletion failure also rejects open. The caller owns the handle; the facility closes domains left open when it unmounts, and a closed domain's name frees for reopening only after teardown completes.
 
 ### Source map
 

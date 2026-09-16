@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { defineConfig } from 'vitest/config'
-import { standardDecoratorPlugin, vitestExecArgv } from './vitest.shared.ts'
+import { standardDecoratorPlugin, vitestCacheDir, vitestExecArgv, vitestFsModuleCachePath } from './vitest.shared.ts'
 
 // Web browser lane: real host entry points, built-client interaction snapshots,
 // and replayed keyless e2e scenarios outside the unit/e2e includes. Linux PR CI
@@ -11,9 +11,11 @@ if (existsSync(new URL('.env', import.meta.url))) {
 }
 
 export default defineConfig({
+  cacheDir: vitestCacheDir,
   resolve: { tsconfigPaths: true },
   plugins: [standardDecoratorPlugin()],
   test: {
+    fsModuleCachePath: vitestFsModuleCachePath,
     execArgv: vitestExecArgv,
     include: [
       'apps/web/tests/**/*.e2e.ts',

@@ -97,7 +97,7 @@ describe('ACP connection ownership', () => {
     await harness.client.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} })
     const { sessionId } = await harness.client.newSession({ cwd: process.cwd(), mcpServers: [] })
     const agent = harness.ctx.agents.get(SessionId(sessionId))!
-    void harness.client.prompt({ sessionId, prompt: [{ type: 'text', text: 'go' }] }).catch(() => {})
+    const prompt = harness.client.prompt({ sessionId, prompt: [{ type: 'text', text: 'go' }] })
     await vi.waitFor(() => { expect(agent.status).toBe('running') })
     const cancel = agent.cancel.bind(agent)
     let cancelObserved = false
@@ -116,6 +116,7 @@ describe('ACP connection ownership', () => {
     expect(order).toEqual(['parent cancelled', 'drain started'])
     release.resolve(undefined)
     await disposal
+    await expect(prompt).resolves.toEqual({ stopReason: 'cancelled' })
     expect(harness.ctx.agents.get(SessionId(sessionId))).toBeUndefined()
   })
 
@@ -203,11 +204,12 @@ describe('ACP connection ownership', () => {
     await harness.client.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} })
     const { sessionId } = await harness.client.newSession({ cwd: process.cwd(), mcpServers: [] })
     const agent = harness.ctx.agents.get(SessionId(sessionId))!
-    void harness.client.prompt({ sessionId, prompt: [{ type: 'text', text: 'go' }] }).catch(() => {})
+    const prompt = Promise.allSettled([harness.client.prompt({ sessionId, prompt: [{ type: 'text', text: 'go' }] })])
     await vi.waitFor(() => { expect(agent.status).toBe('running') })
 
     await harness.closeClientTransport()
     await harness.acpFiber.dispose()
+    await prompt
     expect(agent.status).toBe('idle')
     expect(harness.ctx.agents.get(SessionId(sessionId))).toBeUndefined()
     expect(harness.ctx.sessions.get(SessionId(sessionId))).toBeUndefined()
@@ -218,10 +220,11 @@ describe('ACP connection ownership', () => {
     await harness.client.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} })
     const { sessionId } = await harness.client.newSession({ cwd: process.cwd(), mcpServers: [] })
     const agent = harness.ctx.agents.get(SessionId(sessionId))!
-    void harness.client.prompt({ sessionId, prompt: [{ type: 'text', text: 'go' }] }).catch(() => {})
+    const prompt = Promise.allSettled([harness.client.prompt({ sessionId, prompt: [{ type: 'text', text: 'go' }] })])
     await vi.waitFor(() => { expect(agent.status).toBe('running') })
 
     await harness.abortClientTransport()
+    await prompt
     await vi.waitFor(() => {
       expect(harness!.ctx.agents.get(SessionId(sessionId)) === undefined).toBe(true)
     })
@@ -233,10 +236,11 @@ describe('ACP connection ownership', () => {
     await harness.client.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} })
     const { sessionId } = await harness.client.newSession({ cwd: process.cwd(), mcpServers: [] })
     const agent = harness.ctx.agents.get(SessionId(sessionId))!
-    void harness.client.prompt({ sessionId, prompt: [{ type: 'text', text: 'go' }] }).catch(() => {})
+    const prompt = Promise.allSettled([harness.client.prompt({ sessionId, prompt: [{ type: 'text', text: 'go' }] })])
     await vi.waitFor(() => { expect(agent.status).toBe('running') })
 
     await Promise.all([harness.closeClientTransport(), harness.acpFiber.dispose()])
+    await prompt
     expect(agent.status).toBe('idle')
     expect(harness.ctx.agents.get(SessionId(sessionId))).toBeUndefined()
   })

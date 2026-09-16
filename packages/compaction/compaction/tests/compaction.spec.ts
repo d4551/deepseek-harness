@@ -93,7 +93,7 @@ describe('CompactionEngine seam', () => {
 
   it('registers as ctx.compaction', () => {
     const ctx = new Context()
-    void new StubCompactionEngine(ctx)
+    new StubCompactionEngine(ctx)
     expect(ctx.compaction).toBeDefined()
     expect(ctx.compaction).toBeInstanceOf(StubCompactionEngine)
   })

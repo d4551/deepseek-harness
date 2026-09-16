@@ -171,8 +171,4 @@ These limits define when the project list is a poor fit or needs special operati
 
 This Dev Note is working context for maintainers: open questions and directions that are not decided. It is explicitly non-authoritative — shipped behavior, limits, and accepted rationale live in the sections above, the package code, and the linked Agent Notes.
 
-#### Open: the `create(path, title?)` title parameter
-
-The `title` parameter has no production caller since the gateway's create-by-name branch was removed; a code TODO proposes dropping the parameter and its `@param` clause together ([note](../../../.agents/notes/implemented/simplification/2026-07-31-one-route-to-add-a-workspace.md)).
-
 </details>

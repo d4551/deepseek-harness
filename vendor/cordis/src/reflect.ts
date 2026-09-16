@@ -313,19 +313,17 @@ export class ReflectService {
    */
   notify(names: string[], filter = (ctx: Context, name: string) => ctx[symbols.isolate][name] === this.ctx[symbols.isolate][name]) {
     const fibers: Fiber[] = []
-    for (const runtime of this.ctx.registry.values()) {
-      for (const fiber of runtime.fibers) {
-        let hasUpdate = false
-        for (const name of names) {
-          if (!(name in fiber.inject)) continue
-          if (!filter(fiber.ctx, name)) continue
-          hasUpdate = true
-          fiber._checkImpl(name)
-        }
-        if (!hasUpdate) continue
-        fiber._refresh()
-        fibers.push(fiber)
+    for (const fiber of this.ctx.registry.lifetimes) {
+      let hasUpdate = false
+      for (const name of names) {
+        if (!(name in fiber.inject)) continue
+        if (!filter(fiber.ctx, name)) continue
+        hasUpdate = true
+        if (fiber.uid !== null) fiber._checkImpl(name)
       }
+      if (!hasUpdate) continue
+      if (fiber.uid !== null) fiber._refresh()
+      if (fiber !== this.ctx.fiber) fibers.push(fiber)
     }
     for (const name of names) {
       const self: Context = Object.create(this.ctx)

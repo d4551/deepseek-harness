@@ -65,7 +65,7 @@ export class ComposerSubmissionPolicy {
   setBusyEnter(behavior: BusyEnterBehavior): void {
     if (this.busyEnter.getSnapshot() === behavior) return
     this.busyEnter.set(behavior)
-    void this.host?.set(BUSY_ENTER_FIELD, behavior)
+    this.host?.set(BUSY_ENTER_FIELD, behavior).catch(console.error)
   }
 
   /**

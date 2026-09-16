@@ -8,9 +8,8 @@
  * @module dsh-llm-deepseek/adapter
  */
 
-import { attributionHeaders, contentHasImage, CONTEXT_WINDOW_EXCEEDED_CODE, isContextWindowExceededError, isQuotaExceededError, LlmAdapter, LlmError, offloadedImageText, offloadRequestImagesWithPolicy, ProviderRequestId, QUOTA_EXCEEDED_CODE, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
+import { attributionHeaders, contentHasImage, CONTEXT_WINDOW_EXCEEDED_CODE, isContextWindowExceededError, isQuotaExceededError, LlmAdapter, LlmError, offloadedImageText, offloadRequestImagesWithPolicy, prepareRequestImages, ProviderRequestId, QUOTA_EXCEEDED_CODE, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type {
-  ContentBlock,
   GenerateOptions,
   ImageAttachmentAccess,
   LlmModelInfo,
@@ -35,7 +34,7 @@ import type {
   DeepSeekLlmApiJson,
   PreparedDeepSeekLlmApiExtensions,
 } from '@deepseek-ai/dsh-deepseek-llm-api-extensions'
-import { serializeRequest, serializeRequestWithImages } from './serialize.ts'
+import { assertSupportedImageRoles, serializeRequest, serializeRequestWithImages } from './serialize.ts'
 import type { ImageWireLocation, RequestDefaults } from './serialize.ts'
 import { deepSeekImageRequestPricing, resolveRequestImagePolicy } from './request-pricing.ts'
 import { DeepSeekFileStore } from './file-store.ts'
@@ -198,34 +197,6 @@ class FileResolutionFailure extends Error {
     super('DeepSeek Files API could not resolve a request image.', { cause })
     this.name = 'FileResolutionFailure'
   }
-}
-
-function collectImageRefs(
-  content: readonly ContentBlock[],
-  refs: Map<AttachmentId, ImageAttachmentRef>,
-): void {
-  for (const block of content) {
-    if (block.type === 'image') refs.set(block.attachment.attachmentId, block.attachment)
-    else if (block.type === 'tool-result') collectImageRefs(block.content, refs)
-  }
-}
-
-async function prepareRequestImages(
-  options: GenerateOptions,
-  attachments: AttachmentStore,
-  model: DeepSeekCatalogModel,
-  signal: AbortSignal,
-): Promise<Map<AttachmentId, RequestImageAttachment>> {
-  const refs = new Map<AttachmentId, ImageAttachmentRef>()
-  for (const message of options.messages) collectImageRefs(message.content, refs)
-  const policy = resolveRequestImagePolicy(model)
-  const orderedRefs = [...refs.values()]
-  const projected = await Promise.all(orderedRefs.map(
-    ref => attachments.readImageRequest(ref, policy, signal),
-  ))
-  return new Map(orderedRefs.map((ref, index) => (
-    [ref.attachmentId, projected[index] as RequestImageAttachment]
-  )))
 }
 
 function providerRejectedNormalizedImage(detail: string): boolean {
@@ -465,6 +436,7 @@ export class DeepSeekAdapter extends LlmAdapter {
     const hasImages = options.messages.some(message => contentHasImage(message.content))
     let attachments: AttachmentStore | undefined
     if (hasImages) {
+      assertSupportedImageRoles(options.messages)
       const model = connection.models.find(entry => entry.id === options.model)
       if (model?.inputModalities?.includes('image') !== true) {
         throw new LlmError(
@@ -571,9 +543,9 @@ export class DeepSeekAdapter extends LlmAdapter {
       placeholder: ref => offloadedImageText(ref, resolveImageAccess?.(ref)),
     })
     const requestOptions = requestMessages === options.messages ? options : { ...options, messages: [...requestMessages] }
-    const requestImages = attachments === undefined || model === undefined
+    const requestImages = attachments === undefined || policy === undefined
       ? new Map<AttachmentId, RequestImageAttachment>()
-      : await prepareRequestImages(requestOptions, attachments, model, signal)
+      : await prepareRequestImages(requestOptions.messages, attachments, policy, signal)
     let representation: 'file' | 'base64' = 'file'
     let fileAttempt = 0
     while (true) {

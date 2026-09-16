@@ -14,6 +14,8 @@ import type {
   TypertContextWire,
   TypertContext,
   TypertLookup,
+  TypertClientEventListener,
+  TypertRemoteEvent,
   TypertRemoteScopeApi,
   TypertRemoteNamespace,
 } from '@deepseek-ai/dsh-typert-protocol'
@@ -111,25 +113,6 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
 type FixtureContext = Omit<Context, 'remote'> & {
   readonly remote: ClientRemote & TypertRemoteScopeApi<'fixture'>
 }
-
-// Compile-time contract of `$on`: the key face is the forwarding selection and
-// the listener signature is the owning package's own Cordis declaration.
-function remoteEventContracts(remote: ClientRemote): void {
-  remote.$on('fixture/changed', (namespace) => { void namespace })
-  remote.$on('fixture/approval', async function (request, next) {
-    expectTypeOf(this).toEqualTypeOf<Context>()
-    expectTypeOf(request.agent).toEqualTypeOf<Context>()
-    expectTypeOf(request.signal).toEqualTypeOf<AbortSignal | undefined>()
-    return request.prompt === '' ? next() : 'allowed'
-  })
-  // @ts-expect-error -- declared in Events but outside the forwarding selection.
-  remote.$on('fixture/unselected', () => {})
-  // @ts-expect-error -- not declared in Events at all.
-  remote.$on('fixture/absent', () => {})
-  // @ts-expect-error -- the listener signature comes from the event declaration.
-  remote.$on('fixture/changed', (count: number) => { void count })
-}
-void remoteEventContracts
 
 const idSchema = z.string().min(1)
 const requestSchema = z.object({ objective: z.string().min(1) })
@@ -317,7 +300,7 @@ async function benchFiber(
   ctx.provide('connection', {
     rpc,
     registerGenerationSource: generation.register,
-    start: () => ({ stop: () => {} }),
+    start: () => ({ stop: () => generation.stop() }),
   } as unknown as ConnectionHandle)
   const client = ctx.plugin({ inject, apply })
   await client
@@ -338,16 +321,22 @@ interface GenerationRun {
 class GenerationHarness {
   private source: ConnectionGenerationSource | undefined
   private active: AbortController | undefined
+  private readonly tasks = new Map<Promise<void>, Promise<PromiseSettledResult<void>[]>>()
 
-  readonly register = (source: ConnectionGenerationSource): (() => void) => {
+  readonly register = (source: ConnectionGenerationSource): (() => Promise<void>) => {
     if (this.source !== undefined) throw new Error('fixture generation source already registered')
     this.source = source
-    return () => {
+    return async () => {
       if (this.source !== source) return
       this.source = undefined
-      this.active?.abort(new Error('fixture generation source removed'))
-      this.active = undefined
+      await this.stop()
     }
+  }
+
+  async stop(): Promise<void> {
+    this.active?.abort(new Error('fixture generation source removed'))
+    this.active = undefined
+    await Promise.all(this.tasks.values())
   }
 
   start(): GenerationRun {
@@ -362,8 +351,9 @@ class GenerationHarness {
       .then(() => source(controller.signal, reportReady))
       .finally(() => {
         if (this.active === controller) this.active = undefined
+        this.tasks.delete(done)
       })
-    void done.catch(() => undefined)
+    this.tasks.set(done, Promise.allSettled([done]))
     return {
       signal: controller.signal,
       ready,
@@ -379,7 +369,8 @@ class GenerationHarness {
     const ready = new Promise<void>((resolve) => { reportReady = resolve })
     const done = Promise.resolve().then(() => this.source?.(controller.signal, reportReady))
       .then(() => undefined)
-    void done.catch(() => undefined)
+      .finally(() => { this.tasks.delete(done) })
+    this.tasks.set(done, Promise.allSettled([done]))
     return {
       signal: controller.signal,
       ready,
@@ -406,12 +397,12 @@ function deferredReadiness(): {
 async function loaderReadinessBench(readiness: Promise<unknown>): Promise<{
   readonly client: Fiber
   readonly start: ReturnType<typeof vi.fn<ConnectionHandle['start']>>
-  readonly stop: ReturnType<typeof vi.fn<() => void>>
+  readonly stop: ReturnType<typeof vi.fn<() => Promise<void>>>
 }> {
   const ctx = new Context()
   await ctx.plugin(TypertRegistry)
   const generation = new GenerationHarness()
-  const stop = vi.fn<() => void>()
+  const stop = vi.fn(() => generation.stop())
   const start = vi.fn<ConnectionHandle['start']>(() => ({ stop }))
   ctx.provide('connection', {
     rpc: {
@@ -587,6 +578,23 @@ describe('Client Remote transport readiness', () => {
 })
 
 describe('Client Typert API', () => {
+  it('derives forwarded event keys and listener contracts from their owning declarations', () => {
+    expectTypeOf<'fixture/changed'>().toExtend<TypertRemoteEvent>()
+    expectTypeOf<'fixture/approval'>().toExtend<TypertRemoteEvent>()
+    expectTypeOf<'fixture/unselected'>().not.toExtend<TypertRemoteEvent>()
+    expectTypeOf<'fixture/absent'>().not.toExtend<TypertRemoteEvent>()
+    expectTypeOf<(count: number) => void>().not.toExtend<TypertClientEventListener<'fixture/changed'>>()
+    expectTypeOf<Parameters<TypertClientEventListener<'fixture/changed'>>>()
+      .toEqualTypeOf<[namespace: string]>()
+    type ApprovalListener = TypertClientEventListener<'fixture/approval'>
+    type ApprovalRequest = Parameters<ApprovalListener>[0]
+    expectTypeOf<ThisParameterType<ApprovalListener>>().toEqualTypeOf<Context>()
+    expectTypeOf<ApprovalRequest['agent']>().toEqualTypeOf<Context>()
+    expectTypeOf<ApprovalRequest['signal']>().toEqualTypeOf<AbortSignal | undefined>()
+    expectTypeOf<Parameters<ApprovalListener>[1]>().toEqualTypeOf<() => Promise<FixtureApprovalOutcome>>()
+    expectTypeOf<ReturnType<ApprovalListener>>().toEqualTypeOf<Promise<FixtureApprovalOutcome>>()
+  })
+
   it('mounts concrete direct methods, validates inputs, and withdraws retained handles', async () => {
     const call = vi.fn<ConnectionHandle['rpc']['call']>()
       .mockResolvedValue({ ok: true, value: { ref: 'goal-1' } })
@@ -1303,7 +1311,7 @@ describe('Client Typert API', () => {
     const { ctx, client, carrier } = await eventBench()
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const seen: string[] = []
-    const failingListener = (namespace: string): unknown => {
+    const failingListener = (namespace: string): Promise<never> => {
       if (namespace === 'sync') throw new Error('fixture listener failure')
       return Promise.reject(new Error('fixture async failure'))
     }

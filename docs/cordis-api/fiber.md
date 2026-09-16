@@ -34,7 +34,7 @@ Register a cleanup-aware effect on this fiber.
 
 **Returns** a disposer that tears the effect down and settles once done.
 
-[Source](../../vendor/cordis/src/fiber.ts#L415)
+[Source](../../vendor/cordis/src/fiber.ts#L420)
 
 ### ctx.fiber
 
@@ -141,7 +141,7 @@ get name()
 
 The plugin's display name, inherited from the nearest named ancestor, else `'root'`.
 
-[Source](../../vendor/cordis/src/fiber.ts#L336)
+[Source](../../vendor/cordis/src/fiber.ts#L341)
 
 ### fiber.assertActive()
 
@@ -159,7 +159,7 @@ Throw if the fiber has already been disposed.
 
 **Returns** nothing when the fiber is still active.
 
-[Source](../../vendor/cordis/src/fiber.ts#L351)
+[Source](../../vendor/cordis/src/fiber.ts#L356)
 
 ### fiber.effect(execute, label?)
 
@@ -190,7 +190,7 @@ Register a cleanup-aware effect on this fiber.
 
 **Returns** a disposer that tears the effect down and settles once done.
 
-[Source](../../vendor/cordis/src/fiber.ts#L415)
+[Source](../../vendor/cordis/src/fiber.ts#L420)
 
 ### fiber.getEffects()
 
@@ -207,7 +207,7 @@ Return metadata for currently registered effects.
 
 **Returns** one `EffectMeta` tree per labeled live effect.
 
-[Source](../../vendor/cordis/src/fiber.ts#L568)
+[Source](../../vendor/cordis/src/fiber.ts#L573)
 
 ### fiber.await()
 
@@ -225,7 +225,7 @@ Wait for current lifecycle work and rethrow startup errors.
 
 **Returns** this fiber, once it has settled into a stable state.
 
-[Source](../../vendor/cordis/src/fiber.ts#L704)
+[Source](../../vendor/cordis/src/fiber.ts#L709)
 
 ### fiber.restart()
 
@@ -243,7 +243,7 @@ Dispose and immediately reload this plugin with its current config.
 
 **Returns** a promise resolving once the reload settled.
 
-[Source](../../vendor/cordis/src/fiber.ts#L718)
+[Source](../../vendor/cordis/src/fiber.ts#L723)
 
 ### fiber.update(config, noSave?)
 
@@ -271,7 +271,7 @@ Runs the `internal/update` waterfall first, so update hooks (and HMR) can veto o
 
 **Returns** the update waterfall result; the default restart returns a promise.
 
-[Source](../../vendor/cordis/src/fiber.ts#L736)
+[Source](../../vendor/cordis/src/fiber.ts#L741)
 
 ## Effect
 

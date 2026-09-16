@@ -119,8 +119,11 @@ function assertTextOnly(blocks: readonly ContentBlock[]): void {
   }
 }
 
-/** Reject roles whose DeepSeek history format cannot carry image input. */
-function assertSupportedImageRoles(messages: readonly Message[]): void {
+/**
+ * Reject roles whose DeepSeek history format cannot carry image input.
+ * @param messages - request history before image limits are applied.
+ */
+export function assertSupportedImageRoles(messages: readonly Message[]): void {
   for (const message of messages) {
     if (message.role !== 'user' && contentHasImage(message.content)) {
       throw new LlmError(

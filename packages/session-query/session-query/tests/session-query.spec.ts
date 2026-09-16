@@ -222,7 +222,7 @@ describe.each(cancellableSessionListings)('$name cancellation', ({ run }) => {
 
     const pending = run(ctx, controller.signal)
     let settled = false
-    void pending.then(
+    pending.then(
       () => { settled = true },
       () => { settled = true },
     )
@@ -305,7 +305,7 @@ describe.each(cancellableExactReads)('$name cancellation', ({ inspects, run }) =
 
     const pending = run(ctx, persisted.id, controller.signal)
     let settled = false
-    void pending.then(
+    pending.then(
       () => { settled = true },
       () => { settled = true },
     )
@@ -354,7 +354,7 @@ describe.each(cancellableExactReads)('$name cancellation', ({ inspects, run }) =
 
     const pending = run(ctx, persisted.id, controller.signal)
     let settled = false
-    void pending.then(
+    pending.then(
       () => { settled = true },
       () => { settled = true },
     )
@@ -403,7 +403,7 @@ describe.each(cancellableExactReads.filter(read => read.inspects))(
 
       const pending = run(ctx, persisted.id, controller.signal)
       let settled = false
-      void pending.then(
+      pending.then(
         () => { settled = true },
         () => { settled = true },
       )
@@ -688,7 +688,7 @@ describe('session-query exact reads', () => {
       controller.signal,
     )
     let batchSettled = false
-    void pending.then(
+    pending.then(
       () => { batchSettled = true },
       () => { batchSettled = true },
     )

@@ -31,7 +31,7 @@ async function setup() {
   const fiber = await ctx.plugin({
     name: 'fake-telemetry',
     inject: ['sessions'],
-    apply: (inner: Context) => void new SessionTelemetryCoordinator(inner, backend),
+    apply: (inner: Context) => { new SessionTelemetryCoordinator(inner, backend) },
   })
   return { ctx, backend, fiber }
 }

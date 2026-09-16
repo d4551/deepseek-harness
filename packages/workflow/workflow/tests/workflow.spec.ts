@@ -6,12 +6,11 @@ import WorkflowEngineDefault, {
   WorkflowRunId,
   WorkflowEngine,
 } from '../src/index.ts'
-import type { WorkflowRun, WorkflowRunInfo, WorkflowStartRequest } from '../src/index.ts'
+import type { WorkflowRun, WorkflowRunInfo } from '../src/index.ts'
 
 /** A minimal concrete subclass exposing the protected emit helper for tests. */
 class StubEngine extends WorkflowEngine {
-  start(request: WorkflowStartRequest): WorkflowRun {
-    void request
+  start(): WorkflowRun {
     throw new Error('not under test')
   }
 

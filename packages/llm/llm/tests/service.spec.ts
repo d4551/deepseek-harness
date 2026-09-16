@@ -239,7 +239,7 @@ describe('LlmRuntime', () => {
     }(oldFailure))
     const prepared = await ctx.llm.prepareCall({ provider: 'route', model: 'model' })
 
-    disposeOld()
+    await disposeOld()
     ctx.llm.registerAdapter(['route'], new class extends ScriptedAdapter {
       override providerRetryPolicy(): typeof newPolicy {
         return newPolicy
@@ -410,7 +410,7 @@ describe('LlmRuntime', () => {
     })
   })
 
-  it('maps adapter failure to aborted when the request signal is aborted', async () => {
+  it('returns cancellation before dispatch when the request signal is already aborted', async () => {
     const controller = new AbortController()
     controller.abort('cancelled')
     const ctx = new Context()
@@ -426,7 +426,7 @@ describe('LlmRuntime', () => {
 
     expect(chunks.at(-1)).toMatchObject({
       type: 'finish',
-      reason: { kind: 'aborted', failure: { message: 'stopped' } },
+      reason: { kind: 'aborted', failure: { message: 'cancelled', code: 'ABORTED' } },
     })
   })
 
@@ -827,7 +827,7 @@ describe('LlmRuntime', () => {
     })()
 
     await started.promise
-    disposeFirst()
+    await disposeFirst()
     const second = new RecordingAdapter(SCRIPT)
     ctx.llm.registerAdapter(['route'], second)
     reasoning.resolve({
@@ -1272,7 +1272,7 @@ describe('LlmRuntime', () => {
 
     const dispose = ctx.llm.registerAdapter(['m1'], new ScriptedAdapter(SCRIPT))
     expect(ctx.llm.listProviders()).toEqual([{ id: 'm1', name: 'm1' }])
-    dispose()
+    await dispose()
     expect(ctx.llm.listProviders()).toEqual([])
   })
 
@@ -1307,13 +1307,13 @@ describe('LlmRuntime', () => {
 
     const dispose = ctx.llm.registerAdapter(['m1'], new ScriptedAdapter(SCRIPT))
     expect(ctx.llm.listProviders()).toEqual([{ id: 'm1', name: 'm1' }])
-    dispose()
+    await dispose()
     expect(ctx.llm.listProviders()).toEqual([])
 
     // The duplicate check is not wedged: the same model registers cleanly again.
     const disposeAgain = ctx.llm.registerAdapter(['m1'], new ScriptedAdapter(SCRIPT))
     expect(ctx.llm.listProviders()).toEqual([{ id: 'm1', name: 'm1' }])
-    disposeAgain()
+    await disposeAgain()
     expect(ctx.llm.listProviders()).toEqual([])
   })
 
@@ -1324,7 +1324,7 @@ describe('LlmRuntime', () => {
     await ctx.plugin(LlmRuntime)
 
     const handle = ctx.llm.registerAdapter(['m1'], new ScriptedAdapter(SCRIPT))
-    handle()
+    await handle()
     expect(() => { handle.replace(['leaked']) })
       .toThrow(/disposed adapter registration cannot replace its routes/)
     expect(ctx.llm.listProviders()).toEqual([])
@@ -1341,7 +1341,7 @@ describe('LlmRuntime', () => {
     expect(ctx.llm.listProviders()).toEqual([])
     handle.replace(['m2'])
     expect(ctx.llm.listProviders()).toEqual([{ id: 'm2', name: 'm2' }])
-    handle()
+    await handle()
     expect(ctx.llm.listProviders()).toEqual([])
   })
 })

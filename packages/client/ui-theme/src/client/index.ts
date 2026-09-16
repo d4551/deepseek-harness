@@ -234,7 +234,7 @@ export class ThemeRuntime {
     }
     if (this.preference === id) return
     this.preference = id as ThemePreference
-    if (isThemePreference(id)) void this.host.set(THEME_PREFERENCE_FIELD, id)
+    if (isThemePreference(id)) this.host.set(THEME_PREFERENCE_FIELD, id).catch(this.ctx.logger().error)
     this.publish()
   }
 
@@ -250,7 +250,7 @@ export class ThemeRuntime {
     }
     if (this.fontSize === px) return
     this.fontSize = px
-    void this.host.set(FONT_SIZE_FIELD, px)
+    this.host.set(FONT_SIZE_FIELD, px).catch(this.ctx.logger().error)
     this.publish()
   }
 

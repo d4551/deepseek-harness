@@ -42,7 +42,7 @@ kind: "package-reference"
     apiKeyEnv: DEEPSEEK_API_KEY
 ```
 
-流会返回 token 级分片，并始终以一个终止 `finish` 分片结束；`BlockAssembler` 把分片组装为内容块与消息，loop 记录每个分片以供回放：
+已分派的模型尝试会返回 token 级分片，并以一个终止 `finish` 分片结束；`BlockAssembler` 把分片组装为内容块与消息，loop 记录每个分片以供回放：
 
 ```text
 for await (const chunk of ctx.llm.stream({
@@ -66,7 +66,9 @@ for await (const chunk of ctx.llm.stream({
 
 ### 失败与恢复
 
-每个流都恰好以一个终止 `finish` 分片结束：失败为 `{ kind: 'error', failure }`，取消为 `{ kind: 'aborted', failure }`。失败携带稳定 code，如 `NO_ADAPTER`、`MISSING_CREDENTIAL`、`AUTH`、`RATE_LIMIT` 与 `CONTEXT_WINDOW_EXCEEDED`；消费方依据 code 路由，绝不解析消息文本。点名未注册提供方的请求会以 `NO_ADAPTER` 失败，格式错误的凭据会以 `INVALID_CREDENTIAL` 失败，而不是表现为不透明的 fetch 错误。本服务从不自行重跑请求：重试是 `dsh-llm-retry` 在 agent 失败步骤扩展点上的职责。
+适配器失败会产生终止 `finish` 分片：失败为 `{ kind: 'error', failure }`，取消为 `{ kind: 'aborted', failure }`。失败携带稳定 code，如 `NO_ADAPTER`、`MISSING_CREDENTIAL`、`AUTH`、`RATE_LIMIT` 与 `CONTEXT_WINDOW_EXCEEDED`；消费方依据 code 路由，绝不解析消息文本。点名未注册提供方的请求会以 `NO_ADAPTER` 失败，格式错误的凭据会以 `INVALID_CREDENTIAL` 失败，而不是表现为不透明的 fetch 错误。就绪失败会在所有就绪监听器结算后以 `AggregateError` 拒绝迭代；中间件与消费方失败也仍然抛出。本服务从不自行重跑请求：重试是 `dsh-llm-retry` 在 agent 失败步骤扩展点上的职责。
+
+直接与已准备的流在首次迭代时开始工作。强制执行的 `llm/request-ready` 事件先于流式中间件构造，因此回放无法绕过持久性监听器。分派前取消会返回 `ABORTED` 结束分片，不调用流式中间件；就绪期间取消仍会等待已接受监听器完成，并优先抛出其失败。已准备句柄在调用 `stream()` 时同步占用唯一一次使用机会，即使返回的流从未迭代或就绪失败也是如此。回放在分派时绑定并推进：按构造顺序的逆序迭代会以同一逆序消耗条目，就绪失败则不消耗条目。
 
 -----
 

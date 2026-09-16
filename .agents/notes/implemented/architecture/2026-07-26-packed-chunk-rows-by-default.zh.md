@@ -24,17 +24,11 @@ JSONL 后端会打包每个持久追加批次。原始模式 `compression: 'none
 
 ### 规范快照 fixture
 
-每个签入仓库的会话格式 JSONL fixture 都使用规范打包表示。`scripts/session-fixture-layout.snapshot.ts` 会在整个仓库中发现已跟踪的 `*.jsonl` 文件，以及未被忽略的新增未跟踪 JSONL 文件，选择首条记录为 `session` header 的文件，解码所有正文记录，并拒绝与 `packChunkRuns()` 输出不同的内容。因此，该清单无需维护路径列表即可覆盖 ACP、headless、TUI、`apps/web`、父会话、子会话以及未来的 fixture 名称。
+每个签入仓库的会话格式 JSONL fixture 都使用规范打包表示。`scripts/session-fixture-layout.spec.ts` 会在整个仓库中发现已跟踪的 `*.jsonl` 文件，以及未被忽略的新增未跟踪 JSONL 文件，选择首条记录为 `session` header 的文件，解码所有正文记录，并拒绝与 `packChunkRuns()` 输出不同的内容。因此，该清单无需维护路径列表即可覆盖 ACP、headless、TUI、`apps/web`、父会话、子会话以及未来的 fixture 名称。
 
 ACP 和 headless 快照运行会采集默认 JSONL 后端的输出。TUI 和 web 的记录模式写入器会在写入 fixture 前，对内存事件应用 `packChunkRuns()`。人工编写的 `packed-chunks` ACP 场景在普通配置下运行，并保留全部 3 种打包行类型；其约定先解码独立的源 fixture 和目标 fixture，再断言二者逐事件相等。
 
 聚焦的包测试保留非打包和混合布局输入，以验证读取器兼容性。这些测试不会让默认快照语料库豁免规范布局要求。
-
-### 在途分支收敛
-
-临时命令 [`scripts/migrate-packed-session-fixtures.ts`](../../../../scripts/migrate-packed-session-fixtures.ts) 让在途分支合并当前 `master` 后可以完成收敛：`bun run migrate:packed-session-fixtures` 会发现与永久门禁相同的仓库级 fixture 集合，保留各文件的 header 行，解码现有混合记录，写入规范打包正文，并证明解码结果相等且操作具有幂等性。该命令绝不会调用模型，也不会重新生成 transcript（文本记录）与呈现输出。
-
-只要较旧分支仍可能携带 fixture 改动，测试政策和 ACP 快照 README 就会继续链接该命令。最新的开放 PR（Pull Request）清单确认每个受影响分支均已合并、关闭或符合规范后，[移除提案](../../proposed/process/2026-07-26-remove-packed-session-fixture-migrator.zh.md)会删除该 CLI、包命令、本过渡章节和文档链接，并替换永久门禁中仅适用于该命令的修复指引。共享规范布局转换器与快照门禁保持永久存在。
 
 ### 验证约定
 
@@ -50,10 +44,10 @@ JSONL 持久化测试证明：省略选项时会写入打包行，显式传入 `
 
 **把分片批量合并为逻辑会话事件。** 这会减少事件数量，但也会延迟或重塑实时传递，重新编号助手消息引用的分片 seq，并要求每个 UI 和回放消费方理解另一种流式单位。物理打包在现有持久化接口背后实现，从而获得存储收益。
 
-**永久保留分支迁移器。** 只读的规范布局转换器与快照门禁负责持续强制执行。只有在途分支仍携带旧 fixture 布局时，会修改仓库内容的命令才有价值，因此移除提案明确限定了其生命周期。
+**永久保留分支迁移器。** 只读规范布局转换器与布局测试负责持续强制执行。[移除决策](../process/2026-07-26-remove-packed-session-fixture-migrator.zh.md)在实时拉取请求清单证明没有开放消费分支后，结束该分支过渡。
 
 ## 后果
 
 常规 JSONL 写入与签入仓库的 fixture 使用更少的物理行，同时精确保留逻辑事件流。运行时读取器接受所有现有布局，操作方也保留显式的非打包诊断模式。按 token 逐行处理原始文件较为不便；错误地将 header 后每一行都视为 `SessionEvent` 的外部工具会更频繁地遇到存储标签，受支持的读取器则会调用 `decodeStorageRecord()`。
 
-仓库会产生大规模机械 fixture diff；评审应依据解码结果相等这一事实和规范布局门禁，而不是逐行、逐 token 检查。仓库还会暂时保留一个分支迁移命令及其链接；单独的移除提案会防止这项过渡辅助机制成为永久的流程接口。
+fixture 改动既要评审可见输出，也要依据解码结果相等与规范布局检查。常规 fixture 投影和独立检查负责维护，无需独立的分支转换命令。

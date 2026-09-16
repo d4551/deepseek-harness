@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { isSafariBrowser, repairSafariTextareaLayout } from '../src/client/skeleton/safari.ts'
 
 describe('Safari browser detection', () => {
@@ -82,12 +82,10 @@ describe('Safari textarea layout recovery', () => {
     Object.defineProperty(input, 'scrollHeight', {
       get: () => inputRepaired ? 28 : 52,
     })
-    Object.defineProperty(input, 'offsetHeight', {
-      get: () => {
-        inputLayouts.push(input.style.height)
-        if (input.style.height === '100%') inputRepaired = true
-        return input.clientHeight
-      },
+    vi.spyOn(input, 'getBoundingClientRect').mockImplementation(() => {
+      inputLayouts.push(input.style.height)
+      if (input.style.height === '100%') inputRepaired = true
+      return new DOMRect(0, 0, 0, input.clientHeight)
     })
     Object.defineProperty(scrollport, 'clientHeight', {
       get: () => {
@@ -96,12 +94,10 @@ describe('Safari textarea layout recovery', () => {
         return 28
       },
     })
-    Object.defineProperty(scrollport, 'offsetHeight', {
-      get: () => {
-        scrollportLayouts.push(scrollport.style.height)
-        if (scrollport.style.height === '100%') scrollportRepaired = true
-        return scrollport.clientHeight
-      },
+    vi.spyOn(scrollport, 'getBoundingClientRect').mockImplementation(() => {
+      scrollportLayouts.push(scrollport.style.height)
+      if (scrollport.style.height === '100%') scrollportRepaired = true
+      return new DOMRect(0, 0, 0, scrollport.clientHeight)
     })
 
     repairSafariTextareaLayout(input)

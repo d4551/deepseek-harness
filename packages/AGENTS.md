@@ -1,6 +1,6 @@
 # AGENTS.md — Harness Packages
 
-These package-specific rules supplement the repo-wide [conventions](../AGENTS.md#conventions).
+These package-specific rules supplement the repo-wide [conventions](../AGENTS.md).
 
 - **Plugin exports:** service packages default-export their service class; function plugins named-export `name` / `inject` / `Config` / `apply` and have no default export. Mixing the forms makes the Loader discard the function plugin's namespace ([postmortem](../docs/postmortem/0001-acp-default-export-drops-inject.md)).
 - **Optional services use `ctx.get(name)`.** Reserve `ctx.<name>` for declared injections; the property proxy is topology-sensitive, while strict `ctx.get` reads the global service store ([postmortem](../docs/postmortem/0001-acp-default-export-drops-inject.md)).

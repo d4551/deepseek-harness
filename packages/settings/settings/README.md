@@ -63,11 +63,15 @@ scope.update({ density: 'compact' })   // merges into the user section and persi
 
 `get(ns)` returns the resolved value as a deep-frozen snapshot, `undefined` while the namespace is unregistered. `watch(callback)` invokes the callback after each committed change with `(next, prev)`: invocations of one callback run one at a time in commit order, and failures are contained and logged, so a slow or throwing observer never blocks or breaks other observers.
 
+Disposing the registrant stops queued watcher callbacks and waits for callbacks already running, including a callback unsubscribed after it started. If a write finishes persisting after a replacement takes the namespace, the replacement resolves that stored section against its own schema; invalid stored data keeps its last good value and reports a warning.
+
 ### Writing values
 
 `update(ns, patch)` deep-merges a plain-object patch into the user section only — never into `base` — validates the resolved candidate, persists through the provider, then commits. `replace(ns, section)` sets the user section wholesale, which is the removal/reset path: `replace({})` re-inherits `base` and schema defaults. `mutate(ns, ops)` applies ordered `{ op: 'set' | 'unset', path }` edits to the section as it stands when the write reaches the front of the queue — the removal path for a caller holding an incomplete (for example redacted) view, because rebuilding a section from what a wire surface returned and replacing it wholesale would delete every field the wire never sent back.
 
 Every write rejects non-JSON-compatible data (a `Date`, `Map`, `BigInt`, non-finite number, or circular reference fails with its `$`-rooted path before anything persists), rejects on a read-only provider, and accepts an optional `expectedRevision`: pass back the `revision` from a descriptor, and a namespace that moved past it refuses the write with `SettingsConflictError` instead of overwriting the writer that landed first.
+
+Section keys such as `__proto__`, `constructor`, and `toString` remain own data through validation, persistence, and descriptor redaction. They do not change an object's prototype. Redaction still removes schema-declared secrets beneath those keys, and an absent secret field remains unset even when its name matches an inherited property.
 
 ### Configuration surfaces
 
@@ -160,6 +164,6 @@ These limits define when the service is a poor fit or needs special care. They a
 <details>
 <summary>Working context for maintainers — click to expand</summary>
 
-This Dev Note is working context for maintainers: open design directions that are not decided. It is explicitly non-authoritative — shipped behavior, limits, and accepted rationale live in the sections above and the package code. Open directions, tracked in code TODOs: rename the public `ns` parameter to `namespace` across the API, provider contract, implementations, tests, and consumers; deactivate watchers and await their tails on registration disposal so callbacks cannot outlive the registrant fiber; re-resolve a replacement registration from its persisted section so an in-flight old write cannot leave it stale; and use property-safe object construction so valid JSON keys such as `__proto__` remain own data. The fail-closed `describeForWire()` sanitizer is the deferred answer to the redaction limitation above.
+This Dev Note is working context for maintainers: open design directions that are not decided. It is explicitly non-authoritative — shipped behavior, limits, and accepted rationale live in the sections above and the package code. The public `ns` parameter still needs a coordinated rename to `namespace` across the API, provider contract, implementations, tests, and consumers. The fail-closed `describeForWire()` sanitizer is the deferred answer to the redaction limitation above.
 
 </details>

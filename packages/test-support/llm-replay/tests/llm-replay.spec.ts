@@ -700,7 +700,7 @@ describe('installLlmReplay (through the real LlmRuntime)', () => {
     })
     expect(await drain(ctx.llm.stream({ provider: 'deepseek', model: 'pro', messages: [] }))).toEqual(TEXT_CHUNKS)
 
-    dispose()
+    await dispose()
     expect(ctx.llm.listProviders()).toEqual([])
   })
 
@@ -860,15 +860,16 @@ describe('installLlmReplay (through the real LlmRuntime)', () => {
     await expect(drain(ctx.llm.stream({ provider: 'm', model: 'm', messages: [] }))).rejects.toThrow(/exhausted/)
   })
 
-  it('aborts mid-replay when the signal is already set', async () => {
+  it('does not enter replay when the signal is already set', async () => {
     writeLog(TEXT_CHUNKS)
     const ctx = new Context()
     await ctx.plugin(LlmRuntime)
-    installLlmReplay(ctx, { file })
+    const replay = installLlmReplay(ctx, { file })
     const controller = new AbortController()
-    controller.abort()
+    controller.abort('cancelled before replay')
     await expect(drain(ctx.llm.stream({ provider: 'm', model: 'm', messages: [], signal: controller.signal })))
-      .rejects.toThrow('aborted')
+      .resolves.toEqual([{ type: 'finish', reason: { kind: 'aborted', failure: { message: 'cancelled before replay', code: 'ABORTED' } } }])
+    expect(() => { replay.assertConsumed() }).toThrow('never bound to a live session')
   })
 
   it('removes the waterfall listener when the owning fiber is disposed (HMR safety)', async () => {
@@ -929,7 +930,7 @@ describe('installLlmReplay (through the real LlmRuntime)', () => {
     await expect(pending).rejects.toThrow('aborted')
   })
 
-  it('aborts mid-replay of a throw-entry prefix when the signal is set', async () => {
+  it('does not enter a throw-entry prefix when the signal is already set', async () => {
     writeFileSync(file, sessionJsonl([]), 'utf8')
     const overrideFile = join(dir, 'replay.override.json')
     const partial: StreamChunk[] = [{ type: 'block-start', index: 0, blockType: 'text' }]
@@ -938,13 +939,12 @@ describe('installLlmReplay (through the real LlmRuntime)', () => {
     ]), 'utf8')
     const ctx = new Context()
     await ctx.plugin(LlmRuntime)
-    installLlmReplay(ctx, { file, overrideFile })
+    const replay = installLlmReplay(ctx, { file, overrideFile })
     const controller = new AbortController()
-    controller.abort()
-    // Already aborted: the throw-entry's prefix loop surfaces 'aborted' before
-    // it can reach the recorded LlmError.
+    controller.abort('cancelled before replay')
     await expect(drain(ctx.llm.stream({ provider: 'm', model: 'm', messages: [], signal: controller.signal })))
-      .rejects.toThrow('aborted')
+      .resolves.toEqual([{ type: 'finish', reason: { kind: 'aborted', failure: { message: 'cancelled before replay', code: 'ABORTED' } } }])
+    expect(() => { replay.assertConsumed() }).toThrow('never bound to a live session')
   })
 
   it('surfaces an already-aborted signal on a hang entry before waiting', async () => {
@@ -953,14 +953,15 @@ describe('installLlmReplay (through the real LlmRuntime)', () => {
     writeFileSync(overrideFile, JSON.stringify([{ kind: 'hang' }]), 'utf8')
     const ctx = new Context()
     await ctx.plugin(LlmRuntime)
-    installLlmReplay(ctx, { file, overrideFile })
+    const replay = installLlmReplay(ctx, { file, overrideFile })
     const controller = new AbortController()
-    controller.abort()
-    // The two pre-hang chunks still flow; the abort surfaces at the await.
+    controller.abort('cancelled before replay')
     const iterator = ctx.llm.stream({ provider: 'm', model: 'm', messages: [], signal: controller.signal })[Symbol.asyncIterator]()
-    await iterator.next()
-    await iterator.next()
-    await expect(iterator.next()).rejects.toThrow('aborted')
+    expect(await iterator.next()).toEqual({ done: false, value: {
+      type: 'finish', reason: { kind: 'aborted', failure: { message: 'cancelled before replay', code: 'ABORTED' } },
+    } })
+    expect(await iterator.next()).toEqual({ done: true, value: undefined })
+    expect(() => { replay.assertConsumed() }).toThrow('never bound to a live session')
   })
 
   it('rejects a paceMs that is not a non-negative integer', async () => {

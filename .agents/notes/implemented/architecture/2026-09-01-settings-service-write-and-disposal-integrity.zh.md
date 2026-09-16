@@ -16,9 +16,11 @@ Status: implemented
 
 ## Decision
 
-**文档键以自有数据形式存储。** `defineOwn` 辅助函数以 writable、enumerable、configurable 的描述符经 `Object.defineProperty` 写入，两处重建位置均改用它。`mergeLayers` 以 `Object.hasOwn` 而非 `in` 判断存在性，因此继承而来的方法名是一个不存在的键，而不是合并目标。
+**文档键以自有数据形式存储。** `defineOwn` 辅助函数以 writable、enumerable、configurable 的描述符经 `Object.defineProperty` 写入，两处重建位置均改用它。`mergeLayers` 以 `Object.hasOwn` 而非 `in` 判断存在性，因此继承而来的方法名是一个不存在的键，而不是合并目标。机密脱敏通过 `Object.fromEntries` 构建对象与字典条目，保留相同的自有数据语义和普通原型。schema 校验与脱敏均仅读取自有字段值，因此继承属性不能充当缺失值，也不能让未提供的机密字段被标记为已设置。
 
-**释放达到静默。** 注册释放器改为异步。它删除注册表条目，停用该注册所拥有的每一个 watcher，清空集合，然后等待此前捕获的 tail。这个顺序正是[防御式模式](../../../../docs/defensive-patterns.zh.md)所述：先关闭通知登记表，使排队中的调用在其开始时读到 `active` 并静默返回，再等待已开始的调用，从而不会有回调比注册方 fiber 活得更久。
+**释放达到静默。** 注册释放器为异步。它删除注册表条目，停用该注册所拥有的每一个 watcher，清空观察者集合，然后等待每个尚未结束的调用 tail。即使 watcher 取消订阅，这些 tail 仍由注册持有，直至结束。某个 tail 被拒绝不能结束对其他 tail 的等待；全部结束后，被拒绝的结果作为一个 `AggregateError` 一起重新抛出。这个顺序正是[防御式模式](../../../../docs/defensive-patterns.zh.md)所述：先关闭通知登记表，使排队中的调用在其开始时读到 `active` 并静默返回，再等待已开始的调用，从而不会有回调比注册方 fiber 活得更久。
+
+**watcher 队列包含诊断恢复。** exporter 在报告回调失败时出错，清理路径会报告该 exporter 错误。下一次调用接在恢复之后，因此已恢复的日志失败不会丢弃下一次已提交更新。
 
 **已持久化的写入总会抵达 namespace 的持有者。** 提交步骤只解析一次当前持有者。持有者即写入方时，按原方式提交。当持有者是替代者时，则依据真正落盘的 section、按替代者自己的 schema 重新解析并提交。若该 section 无法通过替代者的 schema，则保留其上一个良好值并告警，与 `publish` 处理无效存储 section 的既有方式一致。
 
@@ -39,4 +41,10 @@ Status: implemented
 
 ## Testing
 
-`packages/settings/settings/tests/settings.spec.ts` 新增三组用例。原型冲突键：一次写入将 `__proto__` 以自有数据记入持久化 section，所报告的 `user` 层保留其自有性且原型不变，继承方法名被解析为普通键。释放静默：在已开始的回调阻塞期间释放保持挂起，并在其结束后落定；在释放开始时仍处于排队中的调用绝不运行。替代者重解析：在被挂起的 `persist` 期间接手 namespace 的替代者会依据已持久化的 section 重新解析，而 schema 无法接受该 section 的替代者则保留其上一个良好值并告警。三处修复均在原位被逐一回退，并在恢复之前观察到对应用例失败。该文件保持逐文件 100% 的语句、分支、函数与行覆盖。
+`packages/settings/settings/tests/settings.spec.ts` 覆盖三组用例。原型冲突键：一次写入将 `__proto__` 以自有数据记入持久化 section，所报告的 `user` 层保留其自有性且原型不变，继承方法名被解析为普通键。释放静默：在已开始的回调阻塞期间释放保持挂起，并在其结束后落定；在释放开始时仍处于排队中的调用绝不运行。替代者重解析：在被挂起的 `persist` 期间接手 namespace 的替代者会依据已持久化的 section 重新解析，而 schema 无法接受该 section 的替代者则保留其上一个良好值并告警。
+
+`packages/settings/settings/tests/json-properties.spec.ts` 检查未声明与 schema 已声明的键、每个脱敏层中的字典键、缺失字段的默认值与必填检查、未提供的机密 slot，以及真实 JSON 文件提供方写入后经全新 Loader 组合重新加载的流程。测试同时检查公开数据的保留与机密值的移除，包括自有属性描述符和对象原型不变。
+
+`packages/settings/settings/tests/registration-disposal.spec.ts` 启动一个回调，取消其订阅，并在回调阻塞期间释放其所有者。释放必须等待该回调结束，后续写入也不能启动另一次调用。双回调用例检查错误路径：报告一个回调的拒绝时发生真实日志 I/O 失败，不能让释放在另一个回调结束前完成；随后仍可从释放日志中观察到该失败。
+
+`packages/settings/settings/tests/consumer-settings.spec.ts` 验证 flow 与生效时机元数据、持久化前的 owner 校验、无变更回调时的实时读取，以及提供方卸载后恢复组合配置。文件系统日志 exporter 在报告 watcher 失败时遇到目录缺失，在目录恢复后恢复写入并记录 I/O 错误，下一次已提交更新仍会抵达 watcher。

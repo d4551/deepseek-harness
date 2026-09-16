@@ -169,13 +169,17 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
 
   /** Wait for the transport-owned close signal without letting a broken transport wedge teardown forever. */
   function waitForClose(closed: Promise<void>): Promise<boolean> {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => { resolve(false) }, GENERATION_CLOSE_TIMEOUT_MS)
       timeout.unref()
-      void closed.then(() => {
+      const closeFailed = (error: unknown): void => {
+        clearTimeout(timeout)
+        reject(error instanceof Error ? error : new Error('MCP transport close failed', { cause: error }))
+      }
+      closed.then(() => {
         clearTimeout(timeout)
         resolve(true)
-      })
+      }, closeFailed)
     })
   }
 

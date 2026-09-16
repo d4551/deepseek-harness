@@ -35,6 +35,8 @@ kind: "package-reference"
 
 所属包用 `defineDomain` 声明一次领域——名称、版本与 zod 记录 schema——并导出它。名称非法、版本不是非负整数、或全局 schema 接受 `null` 时，`defineDomain` 会在模块加载时明确报错。
 
+表默认拒绝不符合 schema 的已存记录。只有能够从权威来源重建每条记录的所属方，才应声明 `domainTable(schema, { rebuildable: true })`。打开时，该表仍按声明的 schema 校验，但会在发布领域前通过后端持久删除每条被拒记录，并记录其领域、表与键。有效记录保持不变。删除失败与其他后端失败会透传；全局数据始终拒绝不符合 schema 的值。所属方在打开后负责重建。会话投影缓存对从会话历史派生的检查点使用此声明；工作区记录与消息反馈保留默认拒绝策略。
+
 ```text
 // Owning package, once:
 const workspaceSpec = defineDomain({
@@ -91,7 +93,7 @@ domain.table('workspaces').update(id, (r) => ({ ...r, path: newPath }))
 
 ### 打开顺序
 
-`DomainFacility.open(spec)` 按严格顺序执行，任一步骤失败都会让整个调用失败：拒绝已打开或仍在关闭的名称（`already-open`）；解析路由（`backend-not-found`）；要求 `kv` 分面（`facet-unsupported`）；打开单元（后端 `version-mismatch`／`malformed-medium` 透传）；加载并根据 spec 的 schema 校验每条已存记录与全局（`invalid-record`）；构造领域。调用方持有句柄；设施会在卸载时关闭任何仍打开的领域，已关闭领域的名称只在 teardown 完成后才能重新打开。
+`DomainFacility.open(spec)` 按严格顺序执行：拒绝已打开或仍在关闭的名称（`already-open`）；解析路由（`backend-not-found`）；要求 `kv` 分面（`facet-unsupported`）；打开单元（后端 `version-mismatch`／`malformed-medium` 透传）；加载并根据 spec 的 schema 校验每条已存记录与全局；仅对显式声明可重建的表持久删除无效记录，否则以 `invalid-record` 拒绝；构造领域。恢复期间的删除失败也会拒绝打开。调用方持有句柄；设施会在卸载时关闭仍打开的领域，已关闭领域的名称只在 teardown 完成后才能重新打开。
 
 ### 源码地图
 

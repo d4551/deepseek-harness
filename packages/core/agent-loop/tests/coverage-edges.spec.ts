@@ -99,7 +99,7 @@ describe('thrown-value propagation', () => {
     })
 
     const errors: unknown[] = []
-    ctx.on('agent/error', ({ error }) => void errors.push(error))
+    ctx.on('agent/error', ({ error }) => { errors.push(error) })
 
     send(agent, 'fails before turn start')
     send(agent, 'survives as the next item')
@@ -484,7 +484,6 @@ describe('driver bookkeeping edges', () => {
   })
 
   it('a request failure that concludes recovery after step/end closed keeps the boundary balanced', async () => {
-    const { LlmError } = await import('@deepseek-ai/dsh-llm')
     // The failure finish-chunk path returns request-failed AFTER step() has
     // already appended step/end, so the request-failed branch's own
     // step-close guard must see stepOpen === false and skip the append.
@@ -496,7 +495,6 @@ describe('driver bookkeeping edges', () => {
     ])
     const ctx = await harness(adapter)
     const agent = ctx.agentLoop.create(SessionId('finish-after-close'), { provider: 'mock', model: 'mock' })
-    void LlmError
 
     send(agent, 'go')
     await agent.whenIdle()

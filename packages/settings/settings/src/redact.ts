@@ -79,27 +79,28 @@ function walk(node: SchemaNode | undefined, value: unknown, path: string[], secr
     case 'object': {
       const properties = node.dict ?? {}
       const source = isRecord(value) ? value : undefined
-      const rebuilt: Record<string, unknown> = {}
+      const entries: [string, unknown][] = []
       if (source !== undefined) {
         for (const [key, entry] of Object.entries(source)) {
-          if (key in properties) continue
-          rebuilt[key] = entry
+          if (Object.hasOwn(properties, key)) continue
+          entries.push([key, entry])
         }
       }
       for (const [key, child] of Object.entries(properties)) {
-        const stripped = walk(child, source?.[key], [...path, key], secrets)
-        if (stripped !== undefined) rebuilt[key] = stripped
+        const entry = source !== undefined && Object.hasOwn(source, key) ? source[key] : undefined
+        const stripped = walk(child, entry, [...path, key], secrets)
+        if (stripped !== undefined) entries.push([key, stripped])
       }
-      return source === undefined && Object.keys(rebuilt).length === 0 ? value : rebuilt
+      return source === undefined && entries.length === 0 ? value : Object.fromEntries<unknown>(entries)
     }
     case 'dict': {
       if (!isRecord(value)) return value
-      const rebuilt: Record<string, unknown> = {}
+      const entries: [string, unknown][] = []
       for (const [key, entry] of Object.entries(value)) {
         const stripped = walk(node.inner, entry, [...path, key], secrets)
-        if (stripped !== undefined) rebuilt[key] = stripped
+        if (stripped !== undefined) entries.push([key, stripped])
       }
-      return rebuilt
+      return Object.fromEntries<unknown>(entries)
     }
     case 'array': {
       if (!Array.isArray(value)) return value

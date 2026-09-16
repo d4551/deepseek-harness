@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/process/2026-06-11-quality-gates.md
-2026-06-11-quality-gates.md: 7d1eff281ec05a82c1eb22b63180c6c017929f1d
-2026-06-11-quality-gates.zh.md: 1a0ff509ee006b97f9bcf5138ac1934b92116e2a
+2026-06-11-quality-gates.md: 42f0ea0ad871d2940bda0b9caa7567ffb7ebf66c
+2026-06-11-quality-gates.zh.md: acbcfd31157ad97274e193235330f1148214b7cf

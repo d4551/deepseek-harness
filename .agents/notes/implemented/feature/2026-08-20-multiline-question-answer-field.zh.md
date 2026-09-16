@@ -18,7 +18,7 @@ Status: implemented
 
 增高在镜像 `max-height` 的六行处停止，此后由 textarea 自身滚动。镜像用 `box-sizing: content-box` 覆盖卡片范围内的 `border-box`，使该上限计量的是文本行而不是「文本加内边距」：无选项变体带 16px 纵向内边距，在 `border-box` 下这会吃掉三分之二行、并把最后一行变成 8px 残条，而 inline 变体没有内边距，同一条声明会落到不同的行数上。它是这个结构里唯一的滚动容器：与聊天输入框不同，本输入框自己绘制字形，因此不存在第二个需要对齐滚动偏移的图层。
 
-Enter 继续流程并在最后一题提交整批，Shift+Enter 换行，IME 保护不变——组合输入期间按 Enter 只确认候选，不前进。`variant` 属性指明该输入框采用两种外观中的哪一种，因此外观归输入框自己所有，任何调用方都不必用类名拼装。
+Enter 继续流程并在最后一题提交整批；Shift+Enter 换行。输入框从 `compositionstart` 开始跟踪组合状态，直到包含 `compositionend` 的原生任务结束，因此即使确认用的 keydown 出现在 compositionend 之后，Enter 也不会推进流程。零延迟任务释放该状态；新组合输入或卸载会取消待执行的释放。原生 `isComposing` 标志也保护未收到开始事件时的按键。`variant` 属性指明该输入框采用两种外观中的哪一种，因此外观归输入框自己所有，任何调用方都不必用类名拼装。
 
 ## Alternatives considered
 
@@ -34,9 +34,13 @@ Enter 继续流程并在最后一题提交整批，Shift+Enter 换行，IME 保�
 
 **按变体各自吸收内边距的上限。** 否决，因为那会把行数与某个内边距值耦合：改动 `.customBlock` 的内边距会悄悄改变输入框能长到几行。`content-box` 只需声明一次意图，且与上限本身的单位一致。
 
+**仅使用 `KeyboardEvent.isComposing`。** WebKit 曾在 compositionend 之后发出确认用的 keydown，且该标志为 false（[浏览器问题](https://bugs.webkit.org/show_bug.cgi?id=165004)）。跟踪组合输入生命周期可以保留确认边界，无需已弃用的数字按键码。
+
 ## Testing
 
 组件测试固定了整条往返：两种形状都渲染 textarea、镜像跟随草稿、Shift+Enter 绝不前进流程、换行原样进入答案批次。组装后的 `question-composer` web e2e 则在真实引擎上测量——软换行的草稿把输入框撑高而不滚动，两次 Shift+Enter 之后 `"\n\n"` 留在更高的输入框里且问题仍未关闭，超过上限的草稿在两种变体下都恰好于六行文本处改为滚动而不再增高。
+
+原生 Chromium 组件测试用真实草稿存储和待答结果结算覆盖两种输入框变体。它们重放两种键盘与组合事件顺序、释放任务执行前开始新组合输入的情形以及 Shift+Enter，并要求 axe 违规和未完成检查均为零。这些事件序列回归测试并未自动操作系统级 IME。无效的已存索引和空问题批次会显式失败，而不是解引用不存在的问题或草稿。
 
 ## Consequences
 

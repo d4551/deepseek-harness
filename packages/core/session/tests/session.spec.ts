@@ -1090,8 +1090,8 @@ describe('SessionStore', () => {
 
     const created: Session[] = []
     const events: [Session, SessionEvent][] = []
-    ctx.on('session/created', session => void created.push(session))
-    ctx.on('session/event', (session, event) => void events.push([session, event]))
+    ctx.on('session/created', (session) => { created.push(session) })
+    ctx.on('session/event', (session, event) => { events.push([session, event]) })
 
     const session = ctx.sessions.create()
     expect(created).toEqual([session])
@@ -1142,7 +1142,7 @@ describe('SessionStore', () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)
     const created: Session[] = []
-    ctx.on('session/created', session => void created.push(session))
+    ctx.on('session/created', (session) => { created.push(session) })
 
     const session = ctx.sessions.prepare(SessionId('lifecycle'))
     // prepare alone does NOT enter the store.
@@ -1237,11 +1237,14 @@ describe('SessionStore', () => {
     let ownerCtx!: Context
     const owner = await ctx.plugin(Object.assign((inner: Context) => { ownerCtx = inner }, { inject: ['sessions'] }))
     const id = SessionId('create-unload-race')
+    let disposal: Promise<void> | undefined
     ctx.on('session/created', (session) => {
-      if (session.id === id) void owner.dispose()
+      if (session.id === id) disposal = owner.dispose()
     })
 
     ownerCtx.sessions.create(id)
+    expect(disposal).toBeDefined()
+    await disposal
     await owner.dispose()
     expect(ctx.sessions.get(id)).toBeUndefined()
   })
@@ -1338,7 +1341,7 @@ describe('SessionStore', () => {
     expect(ctx.sessions.get(SessionId('scoped'))).toBe(session)
 
     let observed = 0
-    ctx.on('session/event', () => void observed++)
+    ctx.on('session/event', () => { observed++ })
 
     await fiber.dispose()
     expect(ctx.sessions.get(SessionId('scoped'))).toBeUndefined()
@@ -1367,7 +1370,7 @@ describe('SessionStore', () => {
     // A subsequent create of the SAME id succeeds (the already-exists check is
     // not wedged) and its store-owned publication hooks are correctly wired.
     const events: SessionEvent[] = []
-    ctx.on('session/event', (_session, event) => void events.push(event))
+    ctx.on('session/event', (_session, event) => { events.push(event) })
     const session = ctx.sessions.create(SessionId('fixed'))
     expect(ctx.sessions.get(SessionId('fixed'))).toBe(session)
     session.append('turn/start', { turn: 1 })

@@ -6,6 +6,7 @@
  * keeps its source text.
  */
 
+import type { Nodes } from 'mdast'
 import { parseGfm } from './parse.ts'
 
 /** Amount of parsed Markdown content returned by the extractor. */
@@ -17,79 +18,57 @@ export interface MarkdownPlainTextOptions {
   mode?: MarkdownPlainTextMode
 }
 
-interface MarkdownNode {
-  type: string
-  value?: string
-  alt?: string
-  children?: MarkdownNode[]
-}
-
-function inlineText(node: MarkdownNode): string {
-  switch (node.type) {
-    case 'text':
-    case 'inlineCode':
-    case 'code':
-      return node.value ?? ''
-    case 'image':
-    case 'imageReference':
-      return node.alt ?? ''
-    case 'break':
-      return '\n'
-    case 'html':
-      return node.value ?? ''
-    default:
-      return node.children?.map(inlineText).join('') ?? ''
-  }
-}
-
 function compactInline(text: string): string {
   return text.replace(/\s+/g, ' ').trim()
 }
 
-function blockText(node: MarkdownNode): string {
+function nodeText(node: Nodes): string {
   switch (node.type) {
     case 'root':
     case 'blockquote':
-      return node.children?.map(blockText).filter(Boolean).join('\n\n') ?? ''
+    case 'footnoteDefinition':
+      return node.children.map(nodeText).filter(Boolean).join('\n\n')
     case 'paragraph':
     case 'heading':
-      return compactInline(inlineText(node))
-    case 'code':
-      return node.value?.trim() ?? ''
-    case 'list':
-      return node.children?.map(blockText).filter(Boolean).join('\n') ?? ''
-    case 'listItem':
-      return node.children?.map(blockText).filter(Boolean).join(' ') ?? ''
-    case 'table':
-      return node.children?.map(blockText).filter(Boolean).join('\n') ?? ''
-    case 'tableRow':
-      return node.children?.map(blockText).join('\t') ?? ''
     case 'tableCell':
-      return compactInline(inlineText(node))
+      return compactInline(node.children.map(nodeText).join(''))
+    case 'code':
+      return node.value.trim()
+    case 'list':
+    case 'table':
+      return node.children.map(nodeText).filter(Boolean).join('\n')
+    case 'listItem':
+      return node.children.map(nodeText).filter(Boolean).join(' ')
+    case 'tableRow':
+      return node.children.map(nodeText).join('\t')
+    case 'text':
+    case 'inlineCode':
     case 'html':
-      return node.value ?? ''
-    case 'thematicBreak':
-    case 'definition':
-      return ''
+      return node.value
+    case 'image':
+    case 'imageReference':
+      return node.alt || ''
+    case 'break':
+      return '\n'
     default:
-      return compactInline(inlineText(node))
+      return 'children' in node ? node.children.map(nodeText).join('') : ''
   }
 }
 
-function findFirstParagraph(node: MarkdownNode): string | undefined {
+function findFirstParagraph(node: Nodes): string | undefined {
   if (node.type === 'paragraph') {
-    const text = compactInline(inlineText(node))
+    const text = nodeText(node)
     if (text !== '') return text
   }
-  for (const child of node.children ?? []) {
+  for (const child of 'children' in node ? node.children : []) {
     const text = findFirstParagraph(child)
     if (text !== undefined) return text
   }
   return undefined
 }
 
-function fullText(root: MarkdownNode): string {
-  return blockText(root)
+function fullText(root: Nodes): string {
+  return nodeText(root)
     .split('\n')
     .map(line => line.trim())
     .join('\n')
@@ -108,14 +87,16 @@ export function extractMarkdownPlainText(
   options: MarkdownPlainTextOptions = {},
 ): string {
   const { mode = 'all' } = options
-  const root = parseGfm(markdown) as MarkdownNode
+  const root = parseGfm(markdown)
   const all = fullText(root)
+  const newline = all.indexOf('\n')
+  const firstLine = newline === -1 ? all : all.slice(0, newline)
   switch (mode) {
     case 'all':
       return all
     case 'first-line':
-      return all.split('\n').find(line => line !== '') ?? ''
+      return firstLine
     case 'first-paragraph':
-      return findFirstParagraph(root) ?? all.split('\n').find(line => line !== '') ?? ''
+      return findFirstParagraph(root) ?? firstLine
   }
 }

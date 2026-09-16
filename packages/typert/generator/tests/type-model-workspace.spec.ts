@@ -4,6 +4,7 @@
 
 import { afterEach, describe, expect, it } from 'vitest'
 import { rmSync } from 'node:fs'
+import { isAbsolute, relative, resolve, sep } from 'node:path'
 import { WorkspaceAnalyzer } from '../src/analyzer-workspace.ts'
 import {
   addExplicitServicePackage,
@@ -17,6 +18,12 @@ afterEach(() => {
 })
 
 describe('WorkspaceAnalyzer', { timeout: 60_000 }, () => {
+  it('keeps mutable compiler workspaces outside the repository audit corpus', () => {
+    const root = copyFixture('typert-workspace-isolation-')
+    const path = relative(resolve(import.meta.dirname, '../../../..'), root)
+    expect(isAbsolute(path) || path.startsWith(`..${sep}`)).toBe(true)
+  })
+
   it('builds independent face models with an explicit cross-face type graph', () => {
     const model = new WorkspaceAnalyzer({ root: fixtureRoot }).analyze()
     expect(model.faces.map(face => face.face)).toEqual(['host', 'client'])

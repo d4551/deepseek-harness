@@ -41,6 +41,7 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@deepseek-ai/dsh-storage-json": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/dsh-storage": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^"

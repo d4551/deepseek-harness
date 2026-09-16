@@ -493,7 +493,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ConnectionHandle',
-    declaration: 'export interface ConnectionHandle {\n    readonly isLoopback: boolean;\n    readonly generation: ConnectionGenerationState;\n    readonly rpc: ClientConnectionRpc;\n    registerGenerationSource(source: ConnectionGenerationSource): () => void;\n    start(sinks: ConnectionSinks, config?: ConnectionConfig): {\n        stop(): void;\n    };\n}',
+    declaration: 'export interface ConnectionHandle {\n    readonly isLoopback: boolean;\n    readonly generation: ConnectionGenerationState;\n    readonly rpc: ClientConnectionRpc;\n    registerGenerationSource(source: ConnectionGenerationSource): () => Promise<void>;\n    start(sinks: ConnectionSinks, config?: ConnectionConfig): {\n        stop(): Promise<void>;\n    };\n}',
   },
   {
     name: 'ConnectionHostInfo',

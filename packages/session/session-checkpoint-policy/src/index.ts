@@ -5,8 +5,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type { Session } from '@deepseek-ai/dsh-session'
-import type { StreamChunk } from '@deepseek-ai/dsh-llm'
+import type {} from '@deepseek-ai/dsh-llm'
 import { TOOL_ABORTED_BEFORE_DISPATCH, type ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import type { PreStepDecision } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-session-persistence'
@@ -16,26 +15,6 @@ export const name = 'session-checkpoint-policy'
 
 /** Services whose request, tool, session, and persistence boundaries this policy joins. */
 export const inject = ['llm', 'sessionPersistence', 'sessions', 'tools']
-
-/**
- * Delay construction of the downstream model stream until the complete logged
- * request prefix is durable. A checkpoint rejection prevents adapter dispatch.
- *
- * @param ctx - plugin context that owns the session store.
- * @param session - live session named by the model request.
- * @param next - downstream `llm/stream` chain.
- * @returns a stream that checkpoints before requesting its first chunk.
- */
-function afterCheckpoint(
-  ctx: Context,
-  session: Session,
-  next: () => AsyncIterable<StreamChunk>,
-): AsyncIterable<StreamChunk> {
-  return (async function* (): AsyncIterable<StreamChunk> {
-    await ctx.sessions.flush(session)
-    yield* next()
-  })()
-}
 
 /** Materialize the canonical result for a call cancelled before tool dispatch. */
 function abortedBeforeDispatchResult(): ToolExecutionResult {
@@ -61,10 +40,10 @@ function abortedBeforeDispatchResult(): ToolExecutionResult {
  * @param ctx - plugin context that owns the listeners.
  */
 export function apply(ctx: Context): void {
-  ctx.on('llm/stream', (options, next): AsyncIterable<StreamChunk> => {
-    if (options.sessionId === undefined) return next()
+  ctx.on('llm/request-ready', async (options): Promise<void> => {
+    if (options.sessionId === undefined) return
     const session = ctx.sessions.get(options.sessionId)
-    return session === undefined ? next() : afterCheckpoint(ctx, session, next)
+    if (session !== undefined) await ctx.sessions.flush(session)
   })
 
   ctx.on('tools/execute', async (exec, next): Promise<ToolExecutionResult> => {

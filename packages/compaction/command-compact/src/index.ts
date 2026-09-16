@@ -89,7 +89,7 @@ export function apply(ctx: Context): void {
     const retire = (): void => { active.delete(operation) }
     // Both branches retire without rethrowing, so the derived observer promise
     // cannot become an unhandled mirror of an expected handler rejection.
-    void operation.then(retire, retire)
+    operation.then(retire, retire)
     return operation
   }
 

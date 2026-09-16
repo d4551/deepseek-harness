@@ -15,6 +15,7 @@ export interface HttpMcpFixture {
 /** Start a local stateless MCP endpoint exposing one `ping` tool. */
 export async function startHttpMcpFixture(): Promise<HttpMcpFixture> {
   const authorization: Array<string | undefined> = []
+  const closing: Promise<void>[] = []
   const handleRequest = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
     authorization.push(request.headers.authorization)
     const mcp = new McpServer(
@@ -26,8 +27,7 @@ export async function startHttpMcpFixture(): Promise<HttpMcpFixture> {
     }))
     const transport = new StreamableHTTPServerTransport({})
     response.on('close', () => {
-      void transport.close()
-      void mcp.close()
+      closing.push(transport.close(), mcp.close())
     })
     await mcp.connect(transport as Transport)
     await transport.handleRequest(request, response)
@@ -45,8 +45,11 @@ export async function startHttpMcpFixture(): Promise<HttpMcpFixture> {
   return {
     url: `http://127.0.0.1:${address.port}/mcp`,
     authorization,
-    close: () => new Promise<void>((resolve, reject) => {
-      server.close((error) => { if (error === undefined) resolve(); else reject(error) })
-    }),
+    close: async () => {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => { if (error === undefined) resolve(); else reject(error) })
+      })
+      await Promise.all(closing)
+    },
   }
 }

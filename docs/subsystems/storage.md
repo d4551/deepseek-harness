@@ -72,7 +72,9 @@ interface DomainSpec {
 }
 ```
 
-`defineDomain(spec)` pins the spec's literal types and fails loud at the owner's module load, before any medium is touched: a domain or table name outside `UNIT_NAME_RE`, a version that is not a non-negative integer, or a global schema that accepts `null` all throw (`null` is the medium's "never written" sentinel, so a stored nullable global could not round-trip). `domainTable<K, V>(schema)` declares one table with a phantom compile-time key type (typically a [branded id](core.md#branded-ids)); `descriptorOf(spec)` projects the backend-facing unit descriptor.
+`defineDomain(spec)` pins the spec's literal types and fails loud at the owner's module load, before any medium is touched: a domain or table name outside `UNIT_NAME_RE`, a version that is not a non-negative integer, or a global schema that accepts `null` all throw (`null` is the medium's "never written" sentinel, so a stored nullable global could not round-trip). `domainTable<K, V>(schema, options?)` declares one table with a phantom compile-time key type (typically a [branded id](core.md#branded-ids)); `descriptorOf(spec)` projects the backend-facing unit descriptor.
+
+`DomainTableSpec.rebuildable?: true` declares derived records that consumers can reconstruct from an authoritative source. Set it with `domainTable(schema, { rebuildable: true })`; omitting the option preserves schema-invalid stored records and rejects domain open. The [projection-cache domain](../../packages/session/session-projection-cache/src/spec.ts) uses this option because session history owns the data needed to rebuild its checkpoints.
 
 ## The open domain
 
@@ -107,7 +109,9 @@ Reads are synchronous from authoritative in-memory state: `KvTable` exposes `get
 
 ## The domain facility: `ctx.storageDomain`
 
-`DomainFacility` ([signatures](#ctxstoragedomain--domainfacility)) opens declared domains over routed backends. Routing is the domain plugin's configuration, never the hub's: `backend` names the required default route and `routes` overrides it per domain name. `open(spec)` runs a strict sequence, each step failing the whole call: it rejects a name already open or still closing (`already-open`), resolves the route (`backend-not-found`), requires the backend's `kv` facet (`facet-unsupported`), opens the unit (backend `version-mismatch`/`malformed-medium` pass through), and validates every stored record and global against the spec's zod schemas (`invalid-record` with the offending table and key). The caller owns the returned handle and releases it with `Domain.close()`; domains still open when the plugin unmounts are closed by the facility, and a closed domain's name frees for reopening only after teardown fully completes. `get(name)` is an untyped diagnostic lookup onto the package-private `DomainImpl` runtime behind every typed handle; `closeAll()` is the unmount path.
+`DomainFacility` ([signatures](#ctxstoragedomain--domainfacility)) opens declared domains over routed backends. Routing is the domain plugin's configuration, never the hub's: `backend` names the required default route and `routes` overrides it per domain name. `open(spec)` rejects a name already open or still closing (`already-open`), resolves the route (`backend-not-found`), requires the backend's `kv` facet (`facet-unsupported`), opens the unit (backend `version-mismatch`/`malformed-medium` pass through), and validates stored records and the global against the spec's zod schemas. An invalid authoritative record or global rejects with `invalid-record` and its location. For explicitly rebuildable tables, open durably deletes each schema-invalid record and logs its location; valid neighbors remain available. Unit-read and deletion failures reject open, and the domain is published only after validation and recovery finish.
+
+The caller owns the returned handle and releases it with `Domain.close()`; domains still open when the plugin unmounts are closed by the facility, and a closed domain's name frees for reopening only after teardown fully completes. `get(name)` is an untyped diagnostic lookup onto the package-private `DomainImpl` runtime behind every typed handle; `closeAll()` is the unmount path.
 
 ## The change event: `domain/changed`
 
@@ -180,7 +184,10 @@ The mounted domain facility. Opens declared domains over routed backends; one fa
  * (`facet-unsupported`); open the unit projected from the spec (backend
  * `version-mismatch`/`malformed-medium` pass through); load and validate
  * every stored record against the spec's zod schemas (`invalid-record`
- * with the offending table and key); construct the domain.
+ * with the offending table and key). Explicitly rebuildable tables delete
+ * schema-invalid records durably and log their locations before publishing
+ * the domain; deletion failures reject open. Globals always reject invalid
+ * data. Construct the domain only after validation and recovery finish.
  *
  * Lifecycle: the CALLER owns the returned handle and closes it via
  * `Domain.close()` (typically as its own `ctx.effect` disposer) — the

@@ -1,12 +1,14 @@
 import { availableParallelism } from 'node:os'
 import { defineConfig } from 'vitest/config'
-import { standardDecoratorPlugin, vitestExecArgv } from './vitest.shared.ts'
+import { standardDecoratorPlugin, vitestCacheDir, vitestExecArgv, vitestFsModuleCachePath } from './vitest.shared.ts'
 
 /** Owner-local assembled expected-output tests that do not use a recorded session as their input. */
 export default defineConfig({
+  cacheDir: vitestCacheDir,
   resolve: { tsconfigPaths: true },
   plugins: [standardDecoratorPlugin()],
   test: {
+    fsModuleCachePath: vitestFsModuleCachePath,
     execArgv: vitestExecArgv,
     setupFiles: ['./scripts/test-invariants.ts'],
     include: [

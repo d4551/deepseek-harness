@@ -43,6 +43,7 @@ export type { ApiKeyCheck, ApiKeyRejection } from './api-key.ts'
 export type { ContentBlock, ContentBlockMap, ContentBlockType, FinishReason, FinishReasonMap, GenerateOptions, ImageBlock, LlmConfigurableProvider, LlmDiscoveredModel, LlmFailure, LlmImageRequestPrice, LlmImageRequestPricing, LlmModelContext, LlmModelDiscoveryError, LlmModelDiscoveryOperation, LlmModelDiscoveryRequest, LlmModelInfo, LlmModelReasoningInfo, LlmProviderHosting, LlmProviderInfo, LlmReasoningEffortInfo, LlmResolvedModelInfo, ModelModality, ModelModalityMap, ReasoningBlock, ReplayEnvelope, StreamChunk, TextBlock, TokenUsage, ToolCallBlock, ToolResultBlock, ToolSchema } from './types.ts'
 export { contentHasImage, offloadRequestImagesWithPolicy, offloadedImagePrefixCount, offloadedImageText, projectImagesForTextModel, requestImageHandleText, resolveImageAttachmentAccess, textOnlyImageText } from './content.ts'
 export type { ImageAttachmentAccess, ImageAttachmentAccessResolver, RequestImageOffloadPolicy } from './content.ts'
+export { prepareRequestImages } from './request-images.ts'
 export { CONTEXT_SUMMARY_MAX_CHARS, boundContextSummary, createAssistantMessage, createMessage, createToolResultMessage, createUserMessage, freezeMessage } from './message.ts'
 export type { AssistantMessage, AssistantProvenance, ContextForm, ContextFormed, ContextSnapshotSection, Message, MessageSource, MessageSourceMap, ModelMessageSource, ToolMessageSource, ToolResultMessage, ToolResultMessageInput, UserMessage } from './message.ts'
 export { RetryPolicySchema, resolveRetryPolicy } from './retry-policy.ts'
@@ -57,6 +58,15 @@ declare module '@deepseek-ai/cordis' {
   }
 
   interface Events {
+    /**
+     * Awaited admission barrier before streaming middleware is constructed.
+     * Every listener must settle before dispatch; failure prevents the request.
+     * Runs on first iteration for direct and prepared calls.
+     * @param options - the request whose durable prefix must be ready.
+     * @mode parallel
+     */
+    'llm/request-ready'(this: LlmRuntime, options: GenerateOptions): Promise<void> | void
+
     /**
      * Waterfall around every streaming model call (retry, replay, routing).
      * Bound to the {@link LlmRuntime}; call `next()` to reach the resolved
@@ -284,8 +294,8 @@ export abstract class LlmAdapter {
  * atomic route replacement for the same adapter instance.
  */
 export interface AdapterRegistrationHandle {
-  /** Release every route this registration currently holds. */
-  (): void
+  /** Release owned routes immediately and return the native effect's cleanup settlement. */
+  (): void | Promise<void>
   /**
    * Replace this registration's routes with `providers`, keeping the same
    * adapter instance. The candidate set is validated in full first — a
@@ -308,8 +318,8 @@ export interface AdapterRegistrationHandle {
  * replaceable — the directory counterpart of {@link AdapterRegistrationHandle}.
  */
 export interface DirectoryRegistrationHandle {
-  /** Withdraw every entry this registration currently holds. */
-  (): void
+  /** Withdraw owned entries immediately and return the native effect's cleanup settlement. */
+  (): void | Promise<void>
   /**
    * Replace this registration's entries with `entries`. The candidate set is
    * validated in full first — an entry another registration already declares,
@@ -399,10 +409,7 @@ export class LlmRuntime extends TypertRemoteService {
         this.emitAdaptersUpdated()
       }
     }.bind(this), 'llm.registerAdapter()')
-    const handle = (): void => {
-      Promise.resolve(dispose()).then(undefined, (error: unknown) => { this.ctx.logger.error(error) })
-    }
-    handle.replace = (next: string[]): void => {
+    const replace = (next: string[]): void => {
       // Registering here would leak: the effect's disposer already ran, so
       // nothing remains to release whatever this call would put in the map.
       if (released) {
@@ -410,7 +417,7 @@ export class LlmRuntime extends TypertRemoteService {
       }
       this.commitRoutes(owned, this.prepareRoutes(next, adapter, owned))
     }
-    return handle
+    return Object.assign(dispose, { replace })
   }
 
   /**
@@ -528,16 +535,13 @@ export class LlmRuntime extends TypertRemoteService {
       }
     }.bind(this), 'llm.registerConfigurableProviders()')
 
-    const handle = (): void => {
-      Promise.resolve(dispose()).then(undefined, (error: unknown) => { this.ctx.logger.error(error) })
-    }
-    handle.replace = (next: readonly LlmConfigurableProvider[]): void => {
+    const replace = (next: readonly LlmConfigurableProvider[]): void => {
       if (disposed) {
         throw new LlmError('this configurable-provider registration was disposed', 'REGISTRATION_DISPOSED')
       }
       commit(next)
     }
-    return handle
+    return Object.assign(dispose, { replace })
   }
 
   /**
@@ -557,7 +561,7 @@ export class LlmRuntime extends TypertRemoteService {
    * Disposed with the fiber.
    * @param settingsNs - the namespace whose profiles this discovery serves.
    * @param discover - interrogates one endpoint and must honor the supplied signal.
-   * @returns the disposer that withdraws the offer.
+   * @returns the native effect disposer; withdrawal is immediate and its cleanup settlement is returned.
    */
   registerModelDiscovery(
     settingsNs: string,
@@ -565,7 +569,7 @@ export class LlmRuntime extends TypertRemoteService {
       request: LlmModelDiscoveryRequest,
       signal?: AbortSignal,
     ) => Promise<readonly LlmDiscoveredModel[]>,
-  ): () => void {
+  ): () => void | Promise<void> {
     const dispose = this.ctx.effect(function* (this: LlmRuntime) {
       if (settingsNs.length === 0) {
         throw new LlmError('model discovery needs a non-empty settings namespace', 'INVALID_DISCOVERY')
@@ -578,9 +582,7 @@ export class LlmRuntime extends TypertRemoteService {
         this.discoveries.delete(settingsNs)
       }
     }.bind(this), 'llm.registerModelDiscovery()')
-    return () => {
-      Promise.resolve(dispose()).then(undefined, (error: unknown) => { this.ctx.logger.error(error) })
-    }
+    return dispose
   }
 
   /**
@@ -1060,6 +1062,9 @@ export class LlmRuntime extends TypertRemoteService {
    * dispatch, and iteration failures become terminal `error` or `aborted`
    * finish chunks; middleware, nested-call, cleanup, and consumer failures
    * remain thrown.
+   * Listener construction starts on first iteration, after every
+   * `llm/request-ready` listener settles. Readiness failures remain thrown;
+   * predispatch cancellation produces an aborted finish without dispatch.
    * @param options - the full request; `options.provider` selects the adapter.
    * @returns the chunk stream, possibly wrapped by `llm/stream` listeners.
    */
@@ -1067,11 +1072,24 @@ export class LlmRuntime extends TypertRemoteService {
     return this.streamWithRegistration(options)
   }
 
-  private streamWithRegistration(
+  private async *streamWithRegistration(
     options: GenerateOptions,
     prepared?: PreparedDispatch,
   ): AsyncIterable<StreamChunk> {
-    return this.ctx.waterfall(
+    if (options.signal?.aborted) {
+      yield adapterFailureChunk(new LlmError(
+        normalizeLlmFailure(options.signal.reason).message, 'ABORTED', { cause: options.signal.reason },
+      ), options.signal)
+      return
+    }
+    await this.ctx.parallel(this, 'llm/request-ready', options)
+    if (options.signal?.aborted) {
+      yield adapterFailureChunk(new LlmError(
+        normalizeLlmFailure(options.signal.reason).message, 'ABORTED', { cause: options.signal.reason },
+      ), options.signal)
+      return
+    }
+    yield* this.ctx.waterfall(
       this,
       'llm/stream',
       options,

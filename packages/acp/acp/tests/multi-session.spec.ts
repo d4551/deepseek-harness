@@ -81,14 +81,17 @@ describe('ACP multi-session isolation', () => {
     const b = (await harness.client.newSession({ cwd: process.cwd(), mcpServers: [] })).sessionId
     const agentA = harness.ctx.agents.get(SessionId(a))!
     const agentB = harness.ctx.agents.get(SessionId(b))!
-    void harness.client.prompt({ sessionId: a, prompt: [{ type: 'text', text: 'A' }] }).catch(() => {})
-    void harness.client.prompt({ sessionId: b, prompt: [{ type: 'text', text: 'B' }] }).catch(() => {})
+    const prompts = Promise.allSettled([
+      harness.client.prompt({ sessionId: a, prompt: [{ type: 'text', text: 'A' }] }),
+      harness.client.prompt({ sessionId: b, prompt: [{ type: 'text', text: 'B' }] }),
+    ])
     await vi.waitFor(() => {
       expect(agentA.status).toBe('running')
       expect(agentB.status).toBe('running')
     })
 
     await harness.acpFiber.dispose()
+    await prompts
     expect(harness.ctx.agents.get(SessionId(a))).toBeUndefined()
     expect(harness.ctx.agents.get(SessionId(b))).toBeUndefined()
   })

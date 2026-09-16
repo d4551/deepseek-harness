@@ -100,7 +100,7 @@ describe('adapters-updated invariants', () => {
     ctx.llm.registerConfigurableProviders([
       { provider: 'dormant', displayName: 'Dormant', settingsNs: 'ns', settingsPath: [] },
     ])
-    dispose()
+    await dispose()
     expect(ctx.llm.listProviders()).toEqual([])
   })
 

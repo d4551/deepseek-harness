@@ -33,7 +33,7 @@ kind: "package-reference"
 
 ### 配置
 
-两个字段：数据库路径与 journal mode。`:memory:` 打开一个进程内数据库，其内容随进程消失。
+配置数据库路径、journal mode 与锁等待预算。`:memory:` 打开一个进程内数据库，其内容随进程消失。
 
 ```yaml
 - name: '@deepseek-ai/dsh-storage'
@@ -49,12 +49,15 @@ kind: "package-reference"
 |---|---|---|
 | `path` | 必填 | SQLite 数据库文件路径，或 `:memory:` |
 | `journalMode` | `wal` | Journal mode：`wal`、`delete`、`truncate` 或 `persist` |
+| `busyTimeoutMs` | `5000` | 最大锁等待时间（毫秒）；`0` 表示立即拒绝锁竞争 |
 
 `wal` 适合本地磁盘；回滚日志模式（`delete`／`truncate`／`persist`）适合 WAL 共享内存文件不可用的文件系统，例如网络挂载。生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-storage-sqlite)是每个受支持字段及其 JSDoc 的穷尽式真源。
 
 ### 可观察行为
 
 缺失的目录与数据库文件会以仅所有者可访问的权限创建（`0o700`／`0o600`）；已有数据库保持其既有模式。已存格式版本与描述符不同的单元拒绝 `version-mismatch`，盖有非当前物理布局版本的数据库会直接拒绝——不做迁移，预发布立场。失败携带稳定的 `StorageError` 代码，写入 resolve 后即已持久。
+
+插件释放时撤下其生命周期服务，并等待依赖消费方排空已排队的写入，再注销后端并关闭数据库。整个组合被释放时也遵循这一顺序。
 
 -----
 
@@ -75,13 +78,13 @@ kind: "package-reference"
 
 ### 打开顺序
 
-打开数据库与会话持久化 SQLite 后端一致：`mkdir` 父目录 `0o700`、以 `0o600` 独占创建缺失文件、应用 `PRAGMA foreign_keys = ON` 与 journal mode、检查 `user_version`、创建 `units` 与 `unit_globals` 元数据表，并在最后给全新数据库盖戳，让失败留下未盖戳的介质。
+[共享 SQLite 连接所有者](../../util/sqlite-connection/README.zh.md)准备私有路径、配置 schema trust 与内存映射、在锁等待预算内选择 journal mode，并验证完整的同步持久性。本包启用外键、校验 `user_version`、创建自身的 `units` 与 `unit_globals` 表，并标记当前存储布局版本。打开失败会关闭连接。
 
 ### 源码地图
 
 | 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | 插件入口：后端注册、`path`／`journalMode` 配置、单元表 |
+| [`src/index.ts`](src/index.ts) | 插件入口：后端注册与释放、连接配置、单元表 |
 | [`src/schema.ts`](src/schema.ts) | 打开顺序、物理布局版本、元数据表、记录表命名 |
 | [`src/unit.ts`](src/unit.ts) | 一个已打开单元：预处理语句、JSON 值解析、关闭 |
 | [`src/invariant.ts`](src/invariant.ts) | 不变式伴生插件（无运行时不变式：版本是打开时检查） |
@@ -127,9 +130,7 @@ kind: "package-reference"
 这些限制说明本后端何时不合适，或何时需要特别的运维注意。它们是当前包约束，不是任务积压。
 
 - **同步驱动阻塞事件循环**——每次写入都是一次同步 `DatabaseSync` 调用；阻塞只持续一条语句，在领域数据规模下可以接受。
-- **没有忙等待或重试策略**——持有写锁的竞争连接会立即拒绝操作，而不是等待；领域层的写入链在单进程内串行化写入，跨进程协调属于范围外。
 - **只打开当前的物理布局版本**——任何其他已标记的 `user_version` 都会被拒绝而不是迁移（预发布立场）。
-- **打开顺序与会话包重复**——`openDatabase` 与会话持久化 SQLite 的打开顺序一致；提取到共享介质层的工作被推迟到计划的会话后端迁移。
 
 <a id="dev-note"></a>
 ### 开发备注

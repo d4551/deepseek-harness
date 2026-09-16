@@ -85,9 +85,9 @@ export class LocalFileReferenceService extends FileReferenceService {
         ctx.logger.warn(`file-reference-local: prompt cleanup failed: ${error instanceof Error ? error.message : String(error)}`)
       })
       this.promptDisposals.add(task)
-      void task.finally(() => {
+      task.finally(() => {
         this.promptDisposals.delete(task)
-      })
+      }).then(undefined, ctx.logger.error.bind(ctx.logger))
     }
     for (const agent of ctx.agents.list()) installPrompt(agent)
     ctx.on('agent/created', ({ agent }) => { installPrompt(agent) })

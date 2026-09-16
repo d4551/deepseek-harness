@@ -93,3 +93,5 @@
 - insert:
     - id: tool-shell-persistent
       name: '@deepseek-ai/dsh-tool-shell-persistent'
+      config:
+        dialect: pwsh

@@ -6,17 +6,17 @@
 
 ## 层级
 
-`bun run test` 和 `bun run test:coverage` 中的网络盘文件系统集成测试需要固定版本的官方 rclone WebDAV 服务器。运行前执行 `bun run test:prepare:network-drive`。在 Windows 和 macOS 上，准备命令下载 x64 或 arm64 原生可执行文件，按 `packages/fs/fs-network-drive/tests/fixtures/webdav/server.json` 校验压缩包与可执行文件的 SHA-256，并存放于 `node_modules/.cache/network-drive-tests`。Linux 需要运行中的 Docker 守护进程；准备命令下载以不可变摘要固定的官方镜像。所有平台使用同一上游修订。原生准备命令也接受已下载官方压缩包的路径作为唯一参数，并执行相同的校验。测试不会下载前置依赖：原生文件在启动前校验，容器使用 `--pull=never`。每个测试独立拥有原生进程或容器、回环端口和磁盘目录，在释放 Cordis 上下文后清理。参见官方 [rclone 下载](https://rclone.org/downloads/#beta-releases)与 [Docker 安装](https://rclone.org/install/#docker-installation)。
+网络盘测试需要固定版本的官方 rclone WebDAV 服务器。先运行 `bun run test:prepare:network-drive`。Windows/macOS 准备流程将 x64/arm64 二进制文件下载到 `node_modules/.cache/network-drive-tests`，按 `packages/fs/fs-network-drive/tests/fixtures/webdav/server.json` 校验压缩包和可执行文件的 SHA-256；可选的压缩包路径参数采用相同校验。Linux 需要 Docker，并按不可变摘要下载镜像。两者使用相同的上游修订。测试会校验原生二进制文件或使用 `--pull=never`，绝不下载依赖。每个测试在释放 Cordis 上下文后释放其进程/容器、端口和目录。参见 [rclone 下载](https://rclone.org/downloads/#beta-releases)和 [Docker 安装](https://rclone.org/install/#docker-installation)。
 
 - **单元测试**（`bun run test`）：Vitest 运行所属代码旁的包/示例 `tests/**` 与 `scripts/**/*.spec.ts`。注册表测试释放贡献 fiber，并断言 HMR 清理。覆盖边界情况、错误、事件顺序、并发竞态和约定回归（`packages/core/agent-loop/tests/contract-regressions.spec.ts`）。每个导出的 client UI 组件都使用 axe-core 审计 WCAG 2.0/2.1/2.2 A、AA 和最佳实践规则（[dsh-client-a11y](../packages/test-support/client-a11y/README.zh.md)）。
-- **覆盖率门禁**（`bun run test:coverage`）：要求 `packages/*/*/src` 按文件达到 100%。未覆盖行可能是应删除的死代码；执行过的行本身不能证明交付行为。`vitest.config.ts` 记录每项排除及理由：无可测运行时覆盖率、在单元进程 V8 不可见的 Worker／浏览器 realm／子进程中执行，或标为 `DEBT(gui)`、`DEBT(inspector)`、`DEBT(webworker)` 的浏览器通道欠债。`bun run verify-coverage-debt` 拒绝未标记欠债、空 glob、完全冗余条目和未使用标记，也检查 `scripts/vitest-inventory.ts` 中的平台条件清单；它报告各通道的 glob 数与文件数，供逐步减少欠债。`bun run measure-coverage-debt` 在测量时移除欠债排除，报告每个文件的差距并指出已达标条目；尾随参数选择单个包的测试套件。
+- **覆盖率门禁**（`bun run test:coverage`）：要求 `packages/*/*/src` 下每个 JavaScript/TypeScript 文件的语句、分支、函数和行覆盖率均达到 100%。`bun run verify-coverage-debt` 根据独立清单检查无条件逐文件阈值和完整源码纳入范围。欠债测量保留这些阈值，并拒绝过期或不完整的证据。变异测试验证断言能否检测行为变化（[决策](../.agents/notes/implemented/testing/2026-09-16-complete-source-quality-gates.zh.md)）。
 - **真实 API e2e**（`bun run test:e2e`）：带密钥测试调用真实提供方 API，包括 DeepSeek 模型以及各提供方特有的冒烟测试；这些测试各自由自己的密钥控制（`EXA_API_KEY`、`PERPLEXITY_API_KEY` 等），缺少密钥时套件会自动跳过，使 keyless CI 保持绿色（[真实 API e2e Agent Note](../.agents/notes/implemented/testing/2026-06-19-real-api-e2e-ci.zh.md)）。
 - **所属位置的预期输出**（`bun run test:expected`）：无录制会话往返的无密钥组装 CLI/进程预期。驱动使用 `*.expected.e2e.ts`，并与 `tests/expected/` 同属一处；CI 针对构建产物运行。包/脚本预期使用 `test`，浏览器预期使用 `test:web`。
 - **快照**（`bun run test:snapshot`）：顶层场景的录制 `session.jsonl` 同时提供用户输入和模型回放，并作为持久化结果的预期值。进程级场景都通过 `dsh` 启动：headless 负责一次性行为，SDK 负责持久控制，ACP 负责自动化协议行为，Web 在同一会话旁保留浏览器与 ARIA 证据。`snapshot.yml` 声明 profile、组合与请求头类别、录制策略、例外回放或输入元数据以及工作区事实。带类型的 token 保留父子身份关系；只有请求头 pin 拥有提示词/schema sidecar。变更工作区的场景会独立比较完整的 `workspace.expected/` 目录，record 与 refresh 绝不改写该目录。当模型 transcript（文本记录）变化时使用 `test:snapshot:record`，回放输入仍有效时使用 `test:snapshot:refresh`；请审查所有结果差异。
 - **Web 浏览器快照**（`bun run test:web`；必需的 Linux PR（Pull Request）门禁）：Chromium 比较 `snapshots/web/` 下由会话驱动的输出，以及 `apps/web/tests/expected/` 下仅含 UI 的输出。CI 强制只读的 `DSH_SNAPSHOT=replay`，绝不写入预期输出；record/refresh 留在本地，每处 diff 都须评审（[web e2e 车道](../.agents/notes/implemented/testing/2026-07-24-web-gui-browser-e2e-lane.zh.md)、[CI 门禁决策](../.agents/notes/implemented/testing/2026-07-30-web-browser-snapshot-ci-gate.zh.md)）。`test:web` 会[先构建](../.agents/notes/implemented/bug-fix/2026-07-28-themed-scrollbars-and-reserved-gutter.zh.md)以交付插件 CSS。
 - **变异测试**（`bun run mutation`）：Stryker 通过 Vitest 测试工具库、Agent Teams、会话 session manager 与 teammate 导航 UI。[配置](../stryker.config.mjs)定义完整源码范围和 99 分最低标准；[变异测试套件](../vitest.mutation.config.ts)包含对应包的测试。每个变异都在新进程中运行完整套件。变异结果表明测试能否检测已实现行为的变化。
 
-会话 fixture 保留 header 与 payload，但省略仅存储用编码，回放会合成这些字段；运行时持久化不变。写回直接写出规范打包布局；[迁移器](../scripts/migrate-packed-session-fixtures.ts)只转换较旧的 fixture。
+会话 fixture 保留 header 与 payload，但省略仅存储用编码，回放会合成这些字段。写回直接写出规范打包布局；[布局检查](../scripts/session-fixture-layout.spec.ts)拒绝不符合规范的 fixture。
 
 ## 带密钥策略：推理（inference）在这里很便宜
 

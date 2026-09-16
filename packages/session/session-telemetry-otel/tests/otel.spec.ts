@@ -42,6 +42,7 @@ interface OtlpLogsRequest {
 }
 
 const servers: Server[] = []
+const responses: Promise<void>[] = []
 
 // The backend resolves the harness home's anonymous user id at construction;
 // pin DSH_HOME to a temp dir so the suite never touches the ambient ~/.dsh.
@@ -63,6 +64,7 @@ afterEach(async () => {
     server.close()
     server.closeAllConnections()
   }
+  await Promise.all(responses.splice(0))
 })
 
 async function mockCollector(
@@ -75,7 +77,7 @@ async function mockCollector(
     request.on('data', chunk => chunks.push(chunk as Buffer))
     request.on('end', () => {
       const index = requestIndex++
-      void (async () => {
+      responses.push((async () => {
         await beforeRespond?.(index)
         const raw = Buffer.concat(chunks)
         const body = request.headers['content-encoding'] === 'gzip' ? gunzipSync(raw) : raw
@@ -84,7 +86,7 @@ async function mockCollector(
           body: JSON.parse(body.toString()) as OtlpLogsRequest,
         })
         response.writeHead(200, { 'content-type': 'application/json' }).end('{}')
-      })()
+      })())
     })
   })
   servers.push(server)

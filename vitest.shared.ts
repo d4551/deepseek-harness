@@ -1,4 +1,5 @@
 import { transformSync } from '@babel/core'
+import { fileURLToPath } from 'node:url'
 import decorators from '@babel/plugin-proposal-decorators'
 import syntaxJsx from '@babel/plugin-syntax-jsx'
 import presetTypescript from '@babel/preset-typescript'
@@ -10,6 +11,12 @@ const decoratorSyntax = /^\s*@[A-Za-z_$][\w$]*/m
  * Node lists the positive spelling in `allowedNodeEnvironmentFlags` for this negatable flag.
  */
 export const vitestExecArgv = process.allowedNodeEnvironmentFlags.has('--webstorage') ? ['--no-webstorage'] : []
+
+/** One Vitest process owns its dependency-optimizer writes within this checkout. */
+export const vitestCacheDir = fileURLToPath(new URL(`./.cache/vite/${process.pid}`, import.meta.url))
+
+/** Persistent module transforms belong to the checkout containing their source. */
+export const vitestFsModuleCachePath = fileURLToPath(new URL('./.cache/vitest', import.meta.url))
 
 /**
  * Transform standard TypeScript decorators before Vite's default parser sees source files.

@@ -54,14 +54,14 @@ function start(ctx: Context, provider: string, request: Omit<SubagentStartReques
 }
 
 /** Invoke the child lifecycle effect while its parent-owned setup is still unpublished. */
-function disposeChildLifecycle(parent: Agent): void {
+async function disposeChildLifecycle(parent: Agent): Promise<void> {
   const lifecycle = [...parent.ctx.fiber._disposables]
     .find((dispose) => {
       const effect = (dispose as typeof dispose & { [symbols.effect]?: EffectMeta })[symbols.effect]
       return effect?.label.startsWith('agentLoop.lifecycle(') === true
     })
   if (lifecycle === undefined) throw new Error('child lifecycle effect not found')
-  void lifecycle()
+  await lifecycle()
 }
 
 describe('dsh-subagent-spawn-in-process', () => {
@@ -198,11 +198,11 @@ describe('dsh-subagent-spawn-in-process', () => {
     const beforeAgents = ctx.agents.list().length
     const beforeSessions = ctx.sessions.list().length
     const published: string[] = []
-    ctx.on('session/created', () => void published.push('session/created'))
-    ctx.on('agent/created', () => void published.push('agent/created'))
-    ctx.on('agent/session-start', () => void published.push('agent/session-start'))
-    ctx.on('subagent/start', () => void published.push('subagent/start'))
-    ctx.on('subagent/end', () => void published.push('subagent/end'))
+    ctx.on('session/created', () => { published.push('session/created') })
+    ctx.on('agent/created', () => { published.push('agent/created') })
+    ctx.on('agent/session-start', () => { published.push('agent/session-start') })
+    ctx.on('subagent/start', () => { published.push('subagent/start') })
+    ctx.on('subagent/end', () => { published.push('subagent/end') })
     const controller = new AbortController()
     const starting = start(ctx, 'spawn', { prompt: [{ type: 'text', text: 'p' }], parent, signal: controller.signal })
     controller.abort('early')
@@ -374,8 +374,8 @@ describe('dsh-subagent-spawn-in-process', () => {
     const parent = ctx.agentLoop.create(SessionId('parent'), { provider: 'mock', model: 'mock' })
     const parentEffects = parent.ctx.fiber.getEffects().length
     const published: string[] = []
-    ctx.on('session/created', () => void published.push('session/created'))
-    ctx.on('agent/created', () => void published.push('agent/created'))
+    ctx.on('session/created', () => { published.push('session/created') })
+    ctx.on('agent/created', () => { published.push('agent/created') })
 
     const unloading = fiber.dispose()
     await unloading
@@ -471,9 +471,9 @@ describe('dsh-subagent-spawn-in-process', () => {
     const before = ctx.agents.list().length
     const sessionsBefore = ctx.sessions.list().length
     const published: string[] = []
-    ctx.on('session/created', () => void published.push('session/created'))
-    ctx.on('agent/created', () => void published.push('agent/created'))
-    ctx.on('agent/session-start', () => void published.push('agent/session-start'))
+    ctx.on('session/created', () => { published.push('session/created') })
+    ctx.on('agent/created', () => { published.push('agent/created') })
+    ctx.on('agent/session-start', () => { published.push('agent/session-start') })
     await expect(start(ctx, 'spawn', {
       prompt: [{ type: 'text', text: 'do X' }],
       parent: parentHandle.agent,
@@ -490,14 +490,15 @@ describe('dsh-subagent-spawn-in-process', () => {
       agentOptions: { provider: 'mock', model: 'mock' },
     })
     const published: string[] = []
-    ctx.on('session/created', () => void published.push('session/created'))
-    ctx.on('agent/created', () => void published.push('agent/created'))
-    ctx.on('agent/session-start', () => void published.push('agent/session-start'))
+    ctx.on('session/created', () => { published.push('session/created') })
+    ctx.on('agent/created', () => { published.push('agent/created') })
+    ctx.on('agent/session-start', () => { published.push('agent/session-start') })
     let teardownStarted = false
+    let teardown: void | Promise<void>
     ctx.on('internal/plugin', (fiber) => {
       if (teardownStarted || fiber.name !== 'scope') return
       teardownStarted = true
-      disposeChildLifecycle(parentHandle.agent)
+      teardown = disposeChildLifecycle(parentHandle.agent)
     })
 
     const starting = start(ctx, 'spawn', {
@@ -508,6 +509,7 @@ describe('dsh-subagent-spawn-in-process', () => {
     // parent context owns that transaction, so disposal wins without an
     // observer ever seeing the child.
     await expect(starting).rejects.toThrow(/owner disposed during setup|inactive context/)
+    await teardown
     await parentHandle.dispose()
 
     expect(published).toEqual([])

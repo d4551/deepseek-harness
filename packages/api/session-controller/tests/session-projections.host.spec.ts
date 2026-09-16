@@ -293,7 +293,9 @@ describe('session.history projections block', () => {
     const before = await opening(proxy, session.id)
     expect(before.projections.values['test/last-user']).toEqual({ text: 'm0' })
 
-    dispose()
+    const disposal = dispose()
+    expect('test/last-user' in ctx.sessionProjections.snapshot(session).values).toBe(false)
+    await disposal
     const after = await opening(proxy, session.id)
     // The registry stays mounted; only the disposed key leaves while the
     // gateway-owned Session-list unit remains.

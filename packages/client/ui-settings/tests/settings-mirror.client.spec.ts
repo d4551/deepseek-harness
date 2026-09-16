@@ -133,12 +133,13 @@ describe('SettingsDescribeMirror', () => {
     // nobody read, and that refresh never reached the wire.
     const describeCall = vi.fn().mockResolvedValue(described([view('theme', 1)]))
     const mirror = new SettingsDescribeMirror({ settings: { describe: describeCall } } as never)
-    void mirror.load()
+    const first = mirror.load()
     await vi.waitFor(() => { expect(describeCall).toHaveBeenCalledTimes(1) })
-    void mirror.load()
+    const second = mirror.load()
     await vi.waitFor(() => { expect(describeCall).toHaveBeenCalledTimes(2) })
-    void mirror.load()
+    const third = mirror.load()
     await vi.waitFor(() => { expect(describeCall).toHaveBeenCalledTimes(3) })
+    await Promise.all([first, second, third])
   })
 
   it('starts no second run for a load issued inside the loading publish', async () => {
@@ -146,16 +147,18 @@ describe('SettingsDescribeMirror', () => {
     const describeCall = vi.fn().mockReturnValue(gate.promise)
     const mirror = new SettingsDescribeMirror({ settings: { describe: describeCall } } as never)
     let reentered = false
+    let reentrantLoad: Promise<void> | undefined
     const unsubscribe = mirror.subscribe(() => {
       if (reentered) return
       reentered = true
-      void mirror.load()
+      reentrantLoad = mirror.load()
     })
     const loading = mirror.load()
     await Promise.resolve()
     expect(describeCall).toHaveBeenCalledTimes(1)
     gate.resolve(described([view('theme', 1)]))
     await loading
+    await reentrantLoad
     unsubscribe()
     // The reentrant load folded into the first run rather than racing it.
     expect(describeCall).toHaveBeenCalledTimes(1)

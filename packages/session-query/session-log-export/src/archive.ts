@@ -396,6 +396,7 @@ export function streamSessionLogZip(
   const consumerAbort = new AbortController()
   const producerSignal = AbortSignal.any([signal, consumerAbort.signal])
   let zip: Zip | undefined
+  let production: Promise<void> | undefined
   let zipTerminated = false
   const capacity = new ResponseCapacityGate()
   const terminateZip = (): void => {
@@ -420,7 +421,7 @@ export function streamSessionLogZip(
         if (final) controller.close()
       })
       zip = archive
-      void (async () => {
+      production = (async () => {
         try {
           for await (const entry of sessionLogZipEntries(deps, root, sessionId, includeDescendants, producerSignal)) {
             const deflate = new ZipDeflate(entry.path, { level: compressionLevel })
@@ -449,6 +450,7 @@ export function streamSessionLogZip(
         reason instanceof Error ? reason : new Error('session log export stream cancelled'),
       )
       terminateZip()
+      return production
     },
   }, {
     highWaterMark: RESPONSE_HIGH_WATER_MARK_BYTES,

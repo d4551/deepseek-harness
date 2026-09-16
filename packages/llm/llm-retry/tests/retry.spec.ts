@@ -103,7 +103,7 @@ async function harness(
   policies: Readonly<Record<string, RetryPolicyConfig | undefined>> = { mock: normalConfig() },
   beforeRetry?: (ctx: Context) => void,
   internals: retry.RetryInternals = {},
-): Promise<{ ctx: Context; retryFiber: Fiber; disposeAdapter: () => void }> {
+): Promise<{ ctx: Context; retryFiber: Fiber; disposeAdapter: () => void | Promise<void> }> {
   const ctx = new Context()
   await ctx.plugin(LlmRuntime)
   await ctx.plugin(SessionStore)
@@ -438,7 +438,7 @@ describe('provider-routed retry policy', () => {
     const adapter = new ScriptedAdapter([textResponse('must not run')])
     const mounted = await harness(adapter, { mock: alwaysConfig() })
     context = mounted.ctx
-    mounted.disposeAdapter()
+    await mounted.disposeAdapter()
     const agent = context.agentLoop.create(SessionId('retry-no-serving-policy'), {
       provider: 'mock',
       model: 'mock',
@@ -609,7 +609,7 @@ describe('provider-routed retry policy', () => {
       }))
       await entered.promise
 
-      mounted.disposeAdapter()
+      await mounted.disposeAdapter()
       const replacement = new ScriptedAdapter([
         new LlmError('replacement failed', 'AUTH'),
         textResponse('replacement recovered'),

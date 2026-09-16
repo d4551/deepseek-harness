@@ -156,7 +156,7 @@ class ClientRemoteService extends Service implements ClientRemote {
     else loader.await().then(start, () => {})
     ctx.effect(() => async () => {
       disposed = true
-      loop?.stop()
+      await loop?.stop()
       await this.events.dispose()
       await this.streams.close()
     }, 'api-gateway.client.transport')

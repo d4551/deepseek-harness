@@ -176,7 +176,7 @@ describe('ScopedLayers', () => {
     const events: string[] = []
     const layers = new ScopedLayers(
       scope => new TestLayer(scope),
-      () => void events.push('notify'),
+      () => { events.push('notify') },
     )
     const dispose = layers.effect(
       ctx,

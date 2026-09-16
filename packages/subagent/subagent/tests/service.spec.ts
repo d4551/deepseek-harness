@@ -73,8 +73,8 @@ describe('SubagentRuntime', () => {
     const { ctx, subagents } = await service()
     const added: string[] = []
     const removed: string[] = []
-    ctx.on('subagent/provider-added', provider => void added.push(provider.name))
-    ctx.on('subagent/provider-removed', name => void removed.push(name))
+    ctx.on('subagent/provider-added', (provider) => { added.push(provider.name) })
+    ctx.on('subagent/provider-removed', (name) => { removed.push(name) })
     const provider = new StubProvider('alpha')
 
     const dispose = subagents.registerProvider(provider)
@@ -223,7 +223,7 @@ describe('SubagentRuntime', () => {
     const { ctx, subagents } = await service()
     subagents.registerProvider(new StubProvider('reused'))
     const runIds: string[] = []
-    ctx.on('subagent/start', info => void runIds.push(info.runId))
+    ctx.on('subagent/start', (info) => { runIds.push(info.runId) })
 
     const first = await subagents.start('reused', baseRequest())
     const second = await subagents.start('reused', baseRequest())
@@ -296,14 +296,14 @@ describe('SubagentRuntime', () => {
   it('contains synchronous and asynchronous lifecycle observer failures', async () => {
     const { ctx, subagents } = await service()
     const warnings: string[] = []
-    ctx.logger.warn = ((message: unknown) => void warnings.push(String(message))) as typeof ctx.logger.warn
+    ctx.logger.warn = ((message: unknown) => { warnings.push(String(message)) }) as typeof ctx.logger.warn
     const heard: string[] = []
     ctx.on('subagent/provider-removed', () => { throw new Error('sync boom') })
     // Runtime listeners may return thenables even though the declaration's observable result is void.
     // oxlint-disable-next-line typescript/no-misused-promises -- exercises rejected-listener containment
     ctx.on('subagent/provider-removed', async () => { throw new Error('async boom') })
     ctx.on('subagent/provider-removed', () => { throw { toString: () => { throw new Error('coercion') } } })
-    ctx.on('subagent/provider-removed', name => void heard.push(name))
+    ctx.on('subagent/provider-removed', (name) => { heard.push(name) })
     const dispose = subagents.registerProvider(new StubProvider('contained'))
 
     dispose()

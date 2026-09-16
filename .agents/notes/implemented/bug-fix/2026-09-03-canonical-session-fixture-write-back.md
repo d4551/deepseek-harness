@@ -10,7 +10,7 @@ A committed session fixture is a projection of the persisted JSONL log: it drops
 
 `scrubSessionSnapshot` deleted the `seq`/`time` and `seq0`/`time0` envelopes but copied `sourceEventSeqs` through in the range form `encodeSeqRanges` produces at the JSONL storage boundary, so a refreshed `assistant/message` recorded `[[12,77]]` where the corpus records `[12…77]`. It also copied packed chunk rows exactly as the durable flush boundaries produced them, so a run split across two `eventLines` batches stayed two rows where the corpus records one.
 
-The comparison path hid both. `normalizeSessionLog` decoded the provenance ranges and a separate repack step merged flush-split rows before comparing, so a fixture in either layout compared equal and `bun run test:snapshot` stayed green. Only `scripts/session-fixture-layout.spec.ts` saw the difference, and its diagnostic named `bun run migrate:packed-session-fixtures` — a command the [removal proposal](../../proposed/process/2026-07-26-remove-packed-session-fixture-migrator.md) describes as branch-convergence residue. Every refresh therefore wrote a fixture the layout check rejected, and the transitional migrator became a required step of the refresh workflow.
+The comparison path hid both. `normalizeSessionLog` decoded the provenance ranges and a separate repack step merged flush-split rows before comparing, so a fixture in either layout compared equal and `bun run test:snapshot` stayed green. Only `scripts/session-fixture-layout.spec.ts` saw the difference, and its diagnostic directed users to the branch-conversion command documented in the [removal decision](../process/2026-07-26-remove-packed-session-fixture-migrator.md). Every refresh therefore wrote a fixture the layout check rejected, and the transitional migrator became a required step of the refresh workflow.
 
 The migrator cannot fully repair the second case. Once the writer has stripped `time0` from a flush-split pair, the gap between the two rows is gone, and re-decoding anchors both rows at time 0; canonicalizing that fixture merges them under a fabricated negative gap.
 
@@ -40,7 +40,7 @@ A keyless `bun run test:snapshot:refresh` rewrites every fixture that lane owns 
 
 **Run the migrator after every refresh.** Rejected. It makes a transitional command a permanent workflow step, and its repair of a flush-split run is lossy.
 
-**Delete the migrator in this change.** Rejected as a separate decision the [removal proposal](../../proposed/process/2026-07-26-remove-packed-session-fixture-migrator.md) owns; it still converts fixtures written before this projection.
+**Couple the projection fix to branch-command removal.** Kept separate until a live branch inventory established that no open branch needed conversion. The [removal decision](../process/2026-07-26-remove-packed-session-fixture-migrator.md) owns the completed deletion.
 
 ## Consequences
 

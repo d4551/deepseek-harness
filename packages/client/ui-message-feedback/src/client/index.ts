@@ -58,7 +58,7 @@ export function apply(ctx: ClientContext): void {
   // stays cold until something asks for it.
   ctx.on('connection/reset', () => {
     for (const controller of controllers.values()) {
-      if (controller.getSnapshot().status !== 'cold') void controller.resync()
+      if (controller.getSnapshot().status !== 'cold') controller.resync().catch(ctx.logger().error)
     }
   })
 

@@ -2,7 +2,8 @@
  * Shared fixtures for Typert type-model tests.
  */
 
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { parse, type ParseError } from 'jsonc-parser'
 import type {
@@ -97,9 +98,13 @@ export function distinct(values: readonly string[]): string[] {
 }
 
 export function copyFixture(prefix: string): string {
-  const root = mkdtempSync(join(import.meta.dirname, `.${prefix}`))
-  temporaryRoots.push(root)
+  const directory = mkdtempSync(join(tmpdir(), prefix))
+  temporaryRoots.push(directory)
+  const root = join(directory, 'workspace')
   cpSync(fixtureRoot, root, { recursive: true })
+  const linkType = process.platform === 'win32' ? 'junction' : 'dir'
+  symlinkSync(resolve(import.meta.dirname, '../node_modules'), join(root, 'node_modules'), linkType)
+  symlinkSync(resolve(import.meta.dirname, '../../../../node_modules'), join(directory, 'node_modules'), linkType)
   return root
 }
 

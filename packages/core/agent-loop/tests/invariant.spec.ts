@@ -14,7 +14,7 @@ async function setup(): Promise<Context> {
 }
 
 function dispatch(ctx: Context, options: unknown): void {
-  void ctx.waterfall('llm/stream', options as never, () => (async function* () {})() as never)
+  ctx.waterfall('llm/stream', options as never, () => (async function* () {})() as never)
 }
 
 function loopRequest<T extends object>(options: T): Readonly<T> {

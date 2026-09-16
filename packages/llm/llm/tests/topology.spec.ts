@@ -35,7 +35,7 @@ describe('llm/adapters-updated', () => {
     })
     const dispose = ctx.llm.registerAdapter(['a', 'b'], new NoopAdapter())
     expect(observed).toEqual([['a', 'b']])
-    dispose()
+    await dispose()
     expect(observed).toEqual([['a', 'b'], []])
   })
 
@@ -135,7 +135,7 @@ describe('configurable-provider directory', () => {
     const dispose = ctx.llm.registerConfigurableProviders([entry()])
     const events = vi.fn()
     ctx.on('llm/adapters-updated', events)
-    dispose()
+    await dispose()
     expect(ctx.llm.listConfigurableProviders()).toEqual([])
     expect(events).toHaveBeenCalledTimes(1)
   })
@@ -192,7 +192,7 @@ describe('configurable-provider directory', () => {
     handle.replace([])
     expect(ctx.llm.listConfigurableProviders().map(view => view.provider)).toEqual(['owned-elsewhere'])
 
-    handle()
+    await handle()
     expect(() =>{  handle.replace([entry()]) }).toThrow(/was disposed/)
   })
 
@@ -218,7 +218,7 @@ describe('model discovery registry', () => {
 
     // Disposal is observed through the offer itself, which is the only thing
     // the registration ever produced.
-    dispose()
+    await dispose()
     await expect(ctx.llm.discoverModels('llm-example', { baseURL: 'https://gateway.example/v1' }))
       .rejects.toThrow(/no model discovery is registered/)
   })
@@ -338,7 +338,7 @@ describe('imageRequestPricing resolution', () => {
     // Unregistered providers degrade instead of throwing: callers price
     // durable history whose route may no longer be mounted.
     expect(ctx.llm.imageRequestPricing('missing', 'vision')).toBeUndefined()
-    dispose()
+    await dispose()
     expect(ctx.llm.imageRequestPricing('a', 'vision')).toBeUndefined()
   })
 })

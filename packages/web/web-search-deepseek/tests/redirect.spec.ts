@@ -28,7 +28,7 @@ let redirectOrigin: string
 let targetOrigin: string
 
 const targetServer = createServer((request, response) => {
-  void captureRequest(request).then((received) => {
+  captureRequest(request).then((received) => {
     targetRequests.push(received)
     response.writeHead(204).end()
   }, (error: unknown) => response.destroy(asError(error)))

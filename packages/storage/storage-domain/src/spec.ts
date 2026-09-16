@@ -27,6 +27,8 @@ export interface DomainGlobalSpec<G> {
 export interface DomainTableSpec<K extends string = string, V = unknown> {
   /** Validates every stored record at the durable boundary. */
   readonly valueSchema: ZodType<V>
+  /** Derived records reconstructible from an authoritative source: delete schema-invalid records at open. */
+  readonly rebuildable?: true
   /** Phantom carrier for the key type; never present at runtime. */
   readonly __key?: K
 }
@@ -66,10 +68,14 @@ export type GlobalValueOf<S extends DomainSpec> =
 /**
  * Declare one table.
  * @param schema - zod schema validating every stored record of this table.
+ * @param options - Declare reconstructible derived records; omission preserves invalid records and rejects open.
  * @returns the table declaration, key-typed by `K`.
  */
-export function domainTable<K extends string, V>(schema: ZodType<V>): DomainTableSpec<K, V> {
-  return { valueSchema: schema }
+export function domainTable<K extends string, V>(
+  schema: ZodType<V>,
+  options: Pick<DomainTableSpec<K, V>, 'rebuildable'> = {},
+): DomainTableSpec<K, V> {
+  return { valueSchema: schema, ...options }
 }
 
 /**

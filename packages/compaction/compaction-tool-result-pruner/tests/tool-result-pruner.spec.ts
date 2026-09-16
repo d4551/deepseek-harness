@@ -29,7 +29,7 @@ function service(config: ToolResultPruneConfig = SMALL): ToolResultPruner {
   const ctx = new Context()
   // Service constructors self-register, so `ctx.tokenMeter` resolves for the
   // shadow-price pricing without a full plugin boot.
-  void new TokenMeter(ctx)
+  new TokenMeter(ctx)
   return new ToolResultPruner(ctx, config)
 }
 

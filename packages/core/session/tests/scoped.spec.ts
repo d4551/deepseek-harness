@@ -33,11 +33,11 @@ describe('session dispatch carriers', () => {
     const otherScope = await mintScope(ctx, 'other')
 
     const heard: string[] = []
-    ctx.on('session/event', (_session, event) => void heard.push(`global:${event.type}`))
-    scope.ctx.on('session/event', (_session, event) => void heard.push(`owner:${event.type}`))
-    otherScope.ctx.on('session/event', (_session, event) => void heard.push(`other:${event.type}`))
-    scope.ctx.on('session/created', session => void heard.push(`owner-created:${session.id}`))
-    otherScope.ctx.on('session/created', session => void heard.push(`other-created:${session.id}`))
+    ctx.on('session/event', (_session, event) => { heard.push(`global:${event.type}`) })
+    scope.ctx.on('session/event', (_session, event) => { heard.push(`owner:${event.type}`) })
+    otherScope.ctx.on('session/event', (_session, event) => { heard.push(`other:${event.type}`) })
+    scope.ctx.on('session/created', (session) => { heard.push(`owner-created:${session.id}`) })
+    otherScope.ctx.on('session/created', (session) => { heard.push(`other-created:${session.id}`) })
 
     const session = scope.ctx.sessions.create()
     session.append('turn/start', { turn: 1 })
@@ -53,8 +53,8 @@ describe('session dispatch carriers', () => {
     const ctx = await mount()
     const scope = await mintScope(ctx, 'owner')
     const heard: string[] = []
-    ctx.on('session/event', (_s, event) => void heard.push(`global:${event.type}`))
-    scope.ctx.on('session/event', (_s, event) => void heard.push(`owner:${event.type}`))
+    ctx.on('session/event', (_s, event) => { heard.push(`global:${event.type}`) })
+    scope.ctx.on('session/event', (_s, event) => { heard.push(`owner:${event.type}`) })
 
     const bare = ctx.sessions.create()
     bare.append('turn/start', { turn: 1 })
@@ -91,7 +91,7 @@ describe('sessions.flush()', () => {
     const ctx = await mount()
     const session = ctx.sessions.create()
     const flushed: Session[] = []
-    ctx.on('session/flush', current => void flushed.push(current))
+    ctx.on('session/flush', (current) => { flushed.push(current) })
 
     await expect(ctx.sessions.flush(session)).resolves.toBe(true)
 
@@ -106,7 +106,7 @@ describe('sessions.flush()', () => {
       await Promise.resolve()
       flushed.push(`global:${session.id}`)
     })
-    scope.ctx.on('session/flush', (session: Session) => void flushed.push(`owner:${session.id}`))
+    scope.ctx.on('session/flush', (session: Session) => { flushed.push(`owner:${session.id}`) })
 
     const owned = scope.ctx.sessions.create()
     const bare = ctx.sessions.create()
@@ -149,14 +149,14 @@ describe('sessions.flush()', () => {
     })
     const session = ctx.sessions.create()
 
-    const flushing = ctx.sessions.flush(session)
-    void flushing.finally(() => { settled = true }).catch(() => undefined)
+    const flushing = ctx.sessions.flush(session).finally(() => { settled = true })
+    const failure = expect(flushing).rejects.toThrow('disk full')
     await Promise.resolve()
     expect(slowStarted).toBe(true)
     expect(settled).toBe(false)
 
     gate.resolve(undefined)
-    await expect(flushing).rejects.toThrow('disk full')
+    await failure
     expect(settled).toBe(true)
   })
 
@@ -164,8 +164,8 @@ describe('sessions.flush()', () => {
     const ctx = await mount()
     const scope = await mintScope(ctx, 'owner')
     const flushed: string[] = []
-    ctx.on('session/flush', (session: Session) => void flushed.push(`global:${session.id}`))
-    scope.ctx.on('session/flush', (session: Session) => void flushed.push(`owner:${session.id}`))
+    ctx.on('session/flush', (session: Session) => { flushed.push(`global:${session.id}`) })
+    scope.ctx.on('session/flush', (session: Session) => { flushed.push(`owner:${session.id}`) })
 
     const prepared = ctx.sessions.prepare()
     await expect(ctx.sessions.flush(prepared)).rejects.toThrow(/not live/)
@@ -176,8 +176,8 @@ describe('sessions.flush()', () => {
     const ctx = await mount()
     const scope = await mintScope(ctx, 'owner')
     const flushed: string[] = []
-    ctx.on('session/flush', (session: Session) => void flushed.push(`global:${session.id}`))
-    scope.ctx.on('session/flush', (session: Session) => void flushed.push(`owner:${session.id}`))
+    ctx.on('session/flush', (session: Session) => { flushed.push(`global:${session.id}`) })
+    scope.ctx.on('session/flush', (session: Session) => { flushed.push(`owner:${session.id}`) })
 
     const session = scope.ctx.sessions.prepare()
     const detach = scope.ctx.sessions.enter(session)

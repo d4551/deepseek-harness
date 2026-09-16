@@ -27,7 +27,7 @@ export class TranscriptViewPolicy {
   setMode(mode: TranscriptViewMode): void {
     if (this.mode.getSnapshot() === mode) return
     this.mode.set(mode)
-    void this.host.set(TRANSCRIPT_VIEW_FIELD, mode)
+    this.host.set(TRANSCRIPT_VIEW_FIELD, mode).catch(console.error)
   }
 
   /** Adopt the latest accepted Host section without writing it back. */

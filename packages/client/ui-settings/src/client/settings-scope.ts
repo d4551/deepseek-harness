@@ -298,9 +298,10 @@ export class SettingsScopeBinder extends Service {
       this.schema,
     )
     ctx.effect(() => {
-      void this.mirror.ensure()
+      const initialRead = this.mirror.ensure()
       return async () => {
         await controller.dispose()
+        await initialRead
       }
     }, `ui-settings: ${spec.namespace} settings scope`)
     return controller

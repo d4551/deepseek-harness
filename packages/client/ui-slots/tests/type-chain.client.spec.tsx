@@ -1,42 +1,33 @@
-// Terminal-design compile-time samples: the four-share
-// composed register constraint — children spec x SlotMap alignment, renderSlot
-// key-set containment, store share matching, inject face completeness — plus
-// the full positive chain. Bodies with @ts-expect-error sites never run.
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { analyzeTypescriptFile } from '../../../../scripts/typescript-semantics.ts'
+
+const declarations = `
+import { expectTypeOf } from 'vitest'
 import type { ReactNode } from 'react'
 import type {
-  BoundActions, DefineStore, PropsRenderSlots, PropsRuntime, PropsStore, SlotComponent, SlotHookFactory,
+  BoundActions, DefineStore, PropsRenderSlots, PropsRuntime, PropsStore, SlotHookFactory,
 } from '@deepseek-ai/dsh-client-ui-slots'
 import { SlotCore } from '@deepseek-ai/dsh-client-ui-slots'
-
-// Only package-unique SlotMap keys are merged here. The standard-kit
-// interfaces (SessionStandardProps/GlobalStandardProps) are NOT re-merged:
-// the owning UI adapters provide the real members, and in the client aggregate
-// program a toy merge would collide with them — samples below stay
-// shape-agnostic about kit member payloads for the same reason.
+export { expectTypeOf }
+export interface Item { kind: 'q' | 'a'; id: string }
+export interface TurnDataMap { tail: string; files: string }
+export type UseTurnData = <Key extends keyof TurnDataMap>(key: Key) => TurnDataMap[Key] | undefined
+export interface ContextInjected { hooks: { turnData: SlotHookFactory<'chain.context', UseTurnData> } }
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
     'chain.frame': { kind: 'single'; scope: 'root' }
     'chain.side': { kind: 'single'; scope: 'root'; owner: { collapsed: boolean; width: number } }
     'chain.conv': { kind: 'single'; scope: 'session' }
-    'chain.context': {
-      kind: 'single'
-      scope: 'session'
-      hookContext: string
-      inject: ContextInjected
-    }
+    'chain.context': { kind: 'single'; scope: 'session'; hookContext: string; inject: ContextInjected }
     'chain.tools': { kind: 'keyed'; scope: 'session' }
     'chain.takeover': { kind: 'chain'; scope: 'session'; owner: { items: readonly Item[] } }
   }
 }
-
-/** Chain-currency fixture: the owner share carries a union the selectors narrow. */
-interface Item { kind: 'q' | 'a'; id: string }
-
-declare const defineStore: DefineStore
-
-/** Factory form (exclusive seat): module-level export, never a handle. */
-function createPanelStore() {
+export declare const defineStore: DefineStore
+export function createPanelStore() {
   return defineStore({
     init: () => ({ sidebar: 280, details: 0 }),
     persist: 'test.panels',
@@ -46,248 +37,172 @@ function createPanelStore() {
     },
   })
 }
+export function createChatStore() {
+  return defineStore({
+    init: (): { selection: { id: string } | null; draft: string } => ({ selection: null, draft: '' }),
+    actions: {
+      select: (d, t: { id: string }) => { d.selection = t },
+      setDraft: (d, text: string) => { d.draft = text },
+      clearDraft: (d) => { d.draft = '' },
+    },
+  })
+}
+export type ChatHandle = ReturnType<typeof createChatStore>
+export type FrameProps = PropsRuntime<'chain.frame'> & PropsRenderSlots<'chain.side' | 'chain.conv'>
+  & PropsStore<ReturnType<typeof createPanelStore>> & { openSettings: () => void }
+export type ConvProps = PropsRuntime<'chain.conv'> & PropsStore<ChatHandle> & { send: (t: string) => void }
+export type ContextProps = PropsRuntime<'chain.context'>
+export const CONTEXT_INJECT: ContextInjected = {
+  hooks: { turnData: (_standard, hookContext) => {
+    expectTypeOf(hookContext).toEqualTypeOf<string>()
+    return key => hookContext === '' ? undefined : ({ tail: 'tail', files: 'files' })[key]
+  } },
+}
+export declare function Frame(props: FrameProps): ReactNode
+export declare function Conv(props: ConvProps): ReactNode
+export declare function Details(props: PropsRuntime<'chain.conv'> & PropsStore<ChatHandle>): ReactNode
+export declare function Tool(props: PropsRuntime<'chain.tools'>): ReactNode
+export declare function Over(props: PropsRuntime<'chain.frame'> & PropsRenderSlots<'chain.side' | 'chain.conv'>): ReactNode
+export declare function NoDecl(props: PropsRuntime<'chain.frame'> & PropsRenderSlots<'chain.side'>): ReactNode
+export declare function Blind(props: PropsRuntime<'chain.frame'>): ReactNode
+export declare function WrongStore(props: PropsRuntime<'chain.conv'> & PropsStore<ReturnType<typeof createPanelStore>>): ReactNode
+export declare function Needs(props: PropsRuntime<'chain.conv'> & { send: (t: string) => void }): ReactNode
+export declare function ContextOwner(props: PropsRuntime<'chain.frame'> & PropsRenderSlots<'chain.context'>): ReactNode
+export declare function ContextReader(props: ContextProps): ReactNode
+export declare function Takeover(props: PropsRuntime<'chain.takeover'> & { matched: Item }): ReactNode
+export declare function WideTakeover(props: PropsRuntime<'chain.takeover'> & { matched: Item | string }): ReactNode
+export declare function NarrowTakeover(props: PropsRuntime<'chain.takeover'> & { matched: { kind: 'q'; id: string; extra: number } }): ReactNode
+export declare function Side(props: PropsRuntime<'chain.side'> & { x: string }): ReactNode
+export declare const core: SlotCore
+export declare const chat: ChatHandle
+export declare const fp: FrameProps
+export declare const cp: ConvProps
+export declare const acts: BoundActions<ChatHandle>
+export declare const chainSlots: PropsRenderSlots<'chain.takeover' | 'chain.conv'>
+export declare const contextProps: ContextProps
+export declare const contextSlots: PropsRenderSlots<'chain.context'>
+export declare const sideOnly: PropsRenderSlots<'chain.side'>
+`
 
-const _chatStore = () => defineStore({
-  init: () => ({ selection: null as { id: string } | null, draft: '' }),
-  actions: {
-    select: (d, t: { id: string }) => { d.selection = t },
-    setDraft: (d, text: string) => { d.draft = text },
-    clearDraft: (d) => { d.draft = '' },
+const positiveChain = `
+core.register({
+  name: 'chain.frame',
+  children: {
+    'chain.side': { kind: 'single', scope: 'root' },
+    'chain.conv': { kind: 'single', scope: 'session' },
   },
-})
-type ChatHandle = ReturnType<typeof _chatStore>
+  store: createPanelStore,
+  inject: (actions) => {
+    actions.setSidebar(0)
+    return { openSettings: () => actions.setDetails(1) }
+  },
+}, Frame)
+core.register({
+  name: 'chain.conv', store: chat,
+  inject: (sessionId, actions) => ({ send: (text: string) => {
+    expectTypeOf(sessionId).toExtend<string>()
+    actions.setDraft(text)
+  } }),
+}, Conv)
+core.register({ name: 'chain.conv', store: chat }, Details)
+fp.renderSlot('chain.side', { collapsed: false, width: 280 })
+expectTypeOf(cp.useStore(s => s.draft)).toEqualTypeOf<string>()
+cp.actions.select({ id: 'm1' })
+core.register({ name: 'chain.tools', key: 'bash' }, Tool)
+core.register({
+  name: 'chain.takeover', select: ({ items }) => items.find(i => i.kind === 'q') ?? null, priority: 1,
+}, Takeover)
+core.register({
+  name: 'chain.takeover', select: ({ items }) => items.find(i => i.kind === 'q') ?? null,
+}, WideTakeover)
+chainSlots.renderSlotChain('chain.takeover', { items: [] }, { fallback: null })
+chainSlots.renderSlot('chain.conv', {})
+core.register({ name: 'chain.frame', children: {
+  'chain.context': { kind: 'single', scope: 'session', inject: CONTEXT_INJECT },
+} }, ContextOwner)
+core.register({ name: 'chain.context' }, ContextReader)
+expectTypeOf(contextProps.useTurnData('tail')).toEqualTypeOf<string | undefined>()
+contextSlots.renderSlot('chain.context', {}, { hookContext: 'turn:1' })
+acts.setDraft('x')
+fp.SessionProvider({ empty: () => null, children: null })
+`
 
-type FrameProps =
-  & PropsRuntime<'chain.frame'>
-  & PropsRenderSlots<'chain.side' | 'chain.conv'>
-  & PropsStore<ReturnType<typeof createPanelStore>>
-  & { openSettings: () => void }
+const rejectedCalls = [
+  ['child scope matches SlotMap', 2322,
+    "core.register({ name: 'chain.frame', children: { 'chain.conv': { kind: 'single', scope: 'root' } } }, Blind)"],
+  ['contextual child requires common injection', 2741,
+    "core.register({ name: 'chain.frame', children: { 'chain.context': { kind: 'single', scope: 'session' } } }, ContextOwner)"],
+  ['component cannot widen declared children', 2345,
+    "core.register({ name: 'chain.frame', children: { 'chain.side': { kind: 'single', scope: 'root' } } }, Over)"],
+  ['render consumption requires children', 2345,
+    "core.register({ name: 'chain.frame' }, NoDecl)"],
+  ['declared children must be consumed', 2345,
+    "core.register({ name: 'chain.frame', children: { 'chain.side': { kind: 'single', scope: 'root' } } }, Blind)"],
+  ['component cannot infer a different store', 2345,
+    "core.register({ name: 'chain.conv', store: chat }, WrongStore)"],
+  ['injection must provide business props', 2345,
+    "core.register({ name: 'chain.conv', inject: () => ({ notSend: 1 }) }, Needs)"],
+  ['business props require injection', 2345,
+    "core.register({ name: 'chain.conv' }, Needs)"],
+  ['root injection has no session parameter', 2322,
+    "core.register({ name: 'chain.side', inject: (sessionId: string) => ({ x: sessionId }) }, Side)"],
+  ['keyed entries require a key', 2345,
+    "core.register({ name: 'chain.tools' }, Tool)"],
+  ['chain entries require a selector', 2345,
+    "core.register({ name: 'chain.takeover' }, Takeover)"],
+  ['component cannot change selector inference', 2345,
+    "core.register({ name: 'chain.takeover', select: ({ items }: { items: readonly Item[] }) => items.find(i => i.kind === 'q') ?? null }, NarrowTakeover)"],
+  ['selector cannot include undefined', 2345,
+    "core.register({ name: 'chain.takeover', select: ({ items }: { items: readonly Item[] }) => items.find(i => i.kind === 'q') }, Takeover)"],
+  ['chain slots use chain dispatch', 2345,
+    "chainSlots.renderSlot('chain.takeover', { items: [] })"],
+  ['ordinary slots use ordinary dispatch', 2345,
+    "chainSlots.renderSlotChain('chain.conv', {})"],
+  ['ordinary child sets have no chain seat', 2339,
+    'export type NoChainSeat = typeof fp.renderSlotChain'],
+  ['owner share requires width', 2345,
+    "fp.renderSlot('chain.side', { collapsed: false })"],
+  ['render keys stay within the declared share', 2345,
+    "fp.renderSlot('chain.tools', {})"],
+  ['contextual hooks preserve their key domain', 2345,
+    "contextProps.useTurnData('other')"],
+  ['contextual dispatch requires occurrence context', 2554,
+    "contextSlots.renderSlot('chain.context', {})"],
+  ['context factories preserve context type', 2322,
+    "export const wrongContextFactory: SlotHookFactory<'chain.context', UseTurnData> = (_standard, _hookContext: number) => () => undefined"],
+  ['baked actions retain payload type', 2345, 'acts.setDraft(1)'],
+  ['root-only children have no session provider', 2339,
+    'export type NoSessionProvider = typeof sideOnly.SessionProvider'],
+] satisfies readonly (readonly [string, number, string])[]
 
-type ConvProps =
-  & PropsRuntime<'chain.conv'>
-  & PropsStore<ChatHandle>
-  & { send: (t: string) => void }
-
-interface TurnDataMap { tail: string; files: string }
-type UseTurnData = <Key extends keyof TurnDataMap>(key: Key) => TurnDataMap[Key] | undefined
-interface ContextInjected {
-  hooks: {
-    turnData: SlotHookFactory<'chain.context', UseTurnData>
+function checkConsumer(body: string) {
+  const directory = mkdtempSync(join(tmpdir(), 'dsh-slot-types-'))
+  const repository = resolve(import.meta.dirname, '../../../..')
+  try {
+    symlinkSync(join(repository, 'node_modules'), join(directory, 'node_modules'), 'junction')
+    const sourceFile = join(directory, 'consumer.ts')
+    const configFile = join(directory, 'tsconfig.json')
+    writeFileSync(configFile, JSON.stringify({
+      extends: join(repository, 'tsconfig.base.client.json'),
+      compilerOptions: { noEmit: true, composite: false, incremental: false, types: ['node'] },
+      files: ['consumer.ts'],
+    }))
+    writeFileSync(sourceFile, `${declarations}\n${body}\n`)
+    return { ...analyzeTypescriptFile(configFile, sourceFile), bodyStart: declarations.length + 1 }
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
   }
 }
-type ContextProps = PropsRuntime<'chain.context'>
-const CONTEXT_INJECT: ContextInjected = {
-  hooks: {
-    turnData: (_standard, hookContext) => {
-      const id: string = hookContext
-      return key => id === '' ? undefined : ({ tail: 'tail', files: 'files' })[key]
-    },
-  },
-}
 
-// Component fixtures (never rendered; the register call sites are the test).
-declare function Frame(props: FrameProps): ReactNode
-declare function Conv(props: ConvProps): ReactNode
-declare function Details(props: PropsRuntime<'chain.conv'> & PropsStore<ChatHandle>): ReactNode
-declare function Tool(props: PropsRuntime<'chain.tools'>): ReactNode
-declare function Over(props: PropsRuntime<'chain.frame'> & PropsRenderSlots<'chain.side' | 'chain.conv'>): ReactNode
-declare function NoDecl(props: PropsRuntime<'chain.frame'> & PropsRenderSlots<'chain.side'>): ReactNode
-declare function Blind(props: PropsRuntime<'chain.frame'>): ReactNode
-declare function WrongStore(props: PropsRuntime<'chain.conv'> & PropsStore<ReturnType<typeof createPanelStore>>): ReactNode
-declare function Needs(props: PropsRuntime<'chain.conv'> & { send: (t: string) => void }): ReactNode
-declare function ContextOwner(props: PropsRuntime<'chain.frame'> & PropsRenderSlots<'chain.context'>): ReactNode
-declare function ContextReader(props: ContextProps): ReactNode
-declare function Takeover(props: PropsRuntime<'chain.takeover'> & { matched: Item }): ReactNode
-declare function WideTakeover(props: PropsRuntime<'chain.takeover'> & { matched: Item | string }): ReactNode
-declare function NarrowTakeover(props: PropsRuntime<'chain.takeover'> & { matched: { kind: 'q'; id: string; extra: number } }): ReactNode
+describe('slot registration type inference', () => {
+  it('compiles the complete positive chain against the actual source contracts', () => {
+    expect(checkConsumer(positiveChain).diagnostics).toEqual([])
+  })
 
-describe('terminal-design type chain', () => {
-  it('holds the positive chain and the compile-time negatives', () => {
-    // Everything below is compile-time only.
-    const samples = (core: SlotCore, chat: ChatHandle, fp: FrameProps, cp: ConvProps, acts: BoundActions<ChatHandle>) => {
-      // ── positive chain ─────────────────────────────────────────────
-      // Frame: children + factory store + inject; actions arrive baked.
-      core.register({
-        name: 'chain.frame',
-        children: {
-          'chain.side': { kind: 'single', scope: 'root' },
-          'chain.conv': { kind: 'single', scope: 'session' },
-        },
-        store: createPanelStore,
-        inject: (actions) => {
-          actions.setSidebar(0)
-          return { openSettings: () => {} }
-        },
-      }, Frame)
-
-      // Conv: shared handle; inject params derive as (sessionId, actions).
-      core.register({
-        name: 'chain.conv',
-        store: chat,
-        inject: (sessionId, actions) => ({
-          send: (text: string) => {
-            const sid: string = sessionId
-            actions.setDraft(text)
-            void sid
-          },
-        }),
-      }, Conv)
-
-      // Pure reader: same handle, no inject.
-      core.register({ name: 'chain.conv', store: chat }, Details)
-
-      // Owner + store shares arrive typed on the component face. Standard-kit
-      // member payloads are the owning adapters' property — not probed here
-      // (their package tests cover them).
-      void fp.renderSlot('chain.side', { collapsed: false, width: 280 })
-      const draft: string = cp.useStore(s => s.draft)
-      cp.actions.select({ id: 'm1' })
-      void draft
-
-      // Keyed registration carries key.
-      core.register({ name: 'chain.tools', key: 'bash' }, Tool)
-
-      // Chain registration: select is mandatory, M infers from its return,
-      // matched joins the component constraint; priority is the explicit
-      // chain position.
-      core.register({
-        name: 'chain.takeover',
-        select: ({ items }) => items.find(i => i.kind === 'q') ?? null,
-        priority: 1,
-      }, Takeover)
-
-      // A component accepting a wider matched than the selector supplies
-      // checks through parameter contravariance.
-      core.register({
-        name: 'chain.takeover',
-        select: ({ items }) => items.find(i => i.kind === 'q') ?? null,
-      }, WideTakeover)
-
-      // renderSlotChain share: chain keys dispatch with the fallback bag;
-      // non-chain keys stay on renderSlot.
-      const chainSlots: PropsRenderSlots<'chain.takeover' | 'chain.conv'> = null as never
-      void chainSlots.renderSlotChain('chain.takeover', { items: [] }, { fallback: null })
-      void chainSlots.renderSlot('chain.conv', {})
-
-      // A parent registration declares the Slot inject once; every child
-      // entry receives the same custom Hook, bound to official standard props
-      // and each render occurrence's opaque context.
-      core.register({
-        name: 'chain.frame',
-        children: {
-          'chain.context': { kind: 'single', scope: 'session', inject: CONTEXT_INJECT },
-        },
-      }, ContextOwner)
-      core.register({ name: 'chain.context' }, ContextReader)
-      const contextProps: ContextProps = null as never
-      const tail: string | undefined = contextProps.useTurnData('tail')
-      const contextSlots: PropsRenderSlots<'chain.context'> = null as never
-      void contextSlots.renderSlot('chain.context', {}, {
-        hookContext: 'turn:1',
-      })
-      void tail
-
-      // ── negatives ──────────────────────────────────────────────────
-      // children spec must match the SlotMap entry.
-      core.register({
-        name: 'chain.frame',
-        // @ts-expect-error chain.conv is session-scoped in SlotMap
-        children: { 'chain.conv': { kind: 'single', scope: 'root' } },
-      }, (() => null) as SlotComponent<never>)
-      core.register({
-        name: 'chain.frame',
-        // @ts-expect-error chain.context requires its Slot-level inject declaration
-        children: { 'chain.context': { kind: 'single', scope: 'session' } },
-      }, ContextOwner)
-
-      // renderSlot key set ⊄ children declaration.
-      // @ts-expect-error component renderSlot keys exceed the declaration
-      core.register({ name: 'chain.frame', children: { 'chain.side': { kind: 'single', scope: 'root' } } }, Over)
-
-      // renderSlot consumption without any children declaration.
-      // @ts-expect-error no children declaration authorizes rendering
-      core.register({ name: 'chain.frame' }, NoDecl)
-
-      // children declared but component consumes no renderSlot.
-      // @ts-expect-error children declared, component consumes no renderSlot
-      core.register({ name: 'chain.frame', children: { 'chain.side': { kind: 'single', scope: 'root' } } }, Blind)
-
-      // store share mismatch.
-      // @ts-expect-error component's store share doesn't match the declared handle
-      core.register({ name: 'chain.conv', store: chat }, WrongStore)
-
-      // inject face incomplete for the component's business share.
-      // @ts-expect-error inject face missing `send`
-      core.register({ name: 'chain.conv', inject: () => ({ notSend: 1 }) }, Needs)
-      // @ts-expect-error nothing provides `send` (no inject at all)
-      core.register({ name: 'chain.conv' }, Needs)
-
-      // root-scope inject takes no sessionId.
-      core.register({
-        name: 'chain.side',
-        // @ts-expect-error root-scope inject has no sessionId parameter
-        inject: (sessionId: string) => ({ x: sessionId }),
-      }, (_p => null) as SlotComponent<PropsRuntime<'chain.side'> & { x: string }>)
-
-      // keyed registration without key.
-      // @ts-expect-error keyed registration requires options.key
-      core.register({ name: 'chain.tools' }, Tool)
-
-      // chain registration without select.
-      // @ts-expect-error chain registration requires options.select
-      core.register({ name: 'chain.takeover' }, Takeover)
-
-      // Drifted chain component: demands a matched shape the selector cannot
-      // supply (NoInfer pins M to the select return — the component position
-      // must not widen it).
-      // @ts-expect-error component matched prop drifts from the select return
-      core.register({
-        name: 'chain.takeover',
-        select: ({ items }: { items: readonly Item[] }) => items.find(i => i.kind === 'q') ?? null,
-      }, NarrowTakeover)
-
-      // select must return M | null, not undefined (find() must be coalesced).
-      // @ts-expect-error select may not return undefined
-      core.register({
-        name: 'chain.takeover',
-        select: ({ items }: { items: readonly Item[] }) => items.find(i => i.kind === 'q'),
-      }, Takeover)
-
-      // Chain keys are not renderSlot-dispatchable (and vice versa).
-      // @ts-expect-error chain keys dispatch through renderSlotChain only
-      void chainSlots.renderSlot('chain.takeover', { items: [] })
-      // @ts-expect-error non-chain keys have no renderSlotChain dispatch
-      void chainSlots.renderSlotChain('chain.conv', {})
-      // @ts-expect-error a children set without chain keys provides no renderSlotChain
-      type _NoChainSeat = typeof fp.renderSlotChain
-
-      // renderSlot owner share typed at the call site.
-      // @ts-expect-error owner shape mismatch (width missing)
-      void fp.renderSlot('chain.side', { collapsed: false })
-      // @ts-expect-error key not in this render share
-      void fp.renderSlot('chain.tools', {})
-
-      // Contextual hooks preserve both the business key and value type.
-      // @ts-expect-error unknown Turn-data key
-      contextProps.useTurnData('other')
-      // @ts-expect-error a contextual slot requires its occurrence context
-      void contextSlots.renderSlot('chain.context', {})
-      // @ts-expect-error hookContext is the slot-declared string
-      const _wrongContextFactory: SlotHookFactory<'chain.context', UseTurnData> =
-        (_standard, _hookContext: number) => () => undefined
-      void _wrongContextFactory
-
-      // baked actions strip the draft parameter.
-      acts.setDraft('x')
-      // @ts-expect-error wrong payload type
-      acts.setDraft(1)
-
-      // SessionProvider seat: derives from a session-scope child declaration.
-      void fp.SessionProvider({ empty: () => null, children: null })
-      const sideOnly: PropsRenderSlots<'chain.side'> = null as never
-      // @ts-expect-error only root-scope children declared → no SessionProvider seat
-      void sideOnly.SessionProvider
-    }
-    expect(samples).toBeTypeOf('function')
+  it.each(rejectedCalls)('%s', (_obligation, code, source) => {
+    const report = checkConsumer(source)
+    expect(report.diagnostics).toHaveLength(1)
+    expect(report.diagnostics[0]).toMatchObject({ code, file: report.file })
+    expect(report.diagnostics[0]?.start).toBeGreaterThanOrEqual(report.bodyStart)
   })
 })

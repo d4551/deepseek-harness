@@ -1,7 +1,7 @@
 /**
  * One opened JSON unit in `single` layout: the whole unit is one document at
- * `<root>/<name>.json`. The in-memory state is authoritative; every write
- * primitive mutates it and republishes the whole file atomically. Writes are
+ * `<root>/<name>.json`. Reads expose the last committed state; every write
+ * publishes its candidate document durably before making it visible. Writes are
  * NOT queued here — per the backend contract, write ordering belongs to the
  * caller (the domain layer's write chain); this unit only guarantees that
  * each single call publishes a complete, durable file. The `per-record`
@@ -53,58 +53,47 @@ class SingleJsonUnit extends JsonUnitLifecycle implements KvUnit {
   constructor(
     descriptor: KvUnitDescriptor,
     private readonly path: string,
-    private readonly state: UnitState,
+    private state: UnitState,
     onClose: () => void,
   ) {
     super(descriptor, onClose)
   }
 
-  // oxlint-disable-next-line typescript/require-await -- async keeps the closed guard a rejection, not a synchronous throw
-  async loadAll(): Promise<{ tables: Record<string, Record<string, unknown>>; global: unknown }> {
-    this.assertOpen()
-    const tables: Record<string, Record<string, unknown>> = {}
-    for (const [table, records] of this.state.tables) {
-      tables[table] = Object.fromEntries(records)
-    }
-    return { tables, global: this.state.global }
+  loadAll(): Promise<{ tables: Record<string, Record<string, unknown>>; global: unknown }> {
+    return new Promise((resolve) => {
+      this.assertOpen()
+      const tables: Record<string, Record<string, unknown>> = {}
+      for (const [table, records] of this.state.tables) {
+        tables[table] = Object.fromEntries(records)
+      }
+      resolve({ tables, global: this.state.global })
+    })
   }
 
   async putRecord(table: string, key: string, value: unknown): Promise<void> {
     this.assertOpen()
-    const records = this.records(table)
-    const hadKey = records.has(key)
-    const previous = records.get(key)
+    const records = new Map(this.records(table))
     records.set(key, value)
-    // Roll back on a failed publish: memory is authoritative, so a rejected
-    // write must not survive in memory (or ride along with the next publish).
-    await this.publish().catch((error: unknown) => {
-      if (hadKey) records.set(key, previous)
-      else records.delete(key)
-      throw error
-    })
+    const tables = new Map(this.state.tables)
+    tables.set(table, records)
+    await this.tracked(this.publish({ ...this.state, tables }))
   }
 
   async deleteRecord(table: string, key: string): Promise<void> {
     this.assertOpen()
     const records = this.records(table)
     if (!records.has(key)) return
-    const previous = records.get(key)
-    records.delete(key)
-    await this.publish().catch((error: unknown) => {
-      records.set(key, previous)
-      throw error
-    })
+    const nextRecords = new Map(records)
+    nextRecords.delete(key)
+    const tables = new Map(this.state.tables)
+    tables.set(table, nextRecords)
+    await this.tracked(this.publish({ ...this.state, tables }))
   }
 
   async setGlobal(value: unknown): Promise<void> {
     this.assertOpen()
     this.assertGlobalDeclared()
-    const previous = this.state.global
-    this.state.global = value
-    await this.publish().catch((error: unknown) => {
-      this.state.global = previous
-      throw error
-    })
+    await this.tracked(this.publish({ ...this.state, global: value }))
   }
 
   private records(table: string): Map<string, unknown> {
@@ -115,7 +104,8 @@ class SingleJsonUnit extends JsonUnitLifecycle implements KvUnit {
     return records
   }
 
-  private publish(): Promise<void> {
-    return this.tracked(writeAtomic(this.path, serialize(this.descriptor.name, this.state)))
+  private async publish(state: UnitState): Promise<void> {
+    await writeAtomic(this.path, serialize(this.descriptor.name, state))
+    this.state = state
   }
 }

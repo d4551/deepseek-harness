@@ -56,7 +56,7 @@ export function apply(ctx: ClientContext): void {
       sessions.openSubagent(address)
     },
     refresh(parentSessionId: SessionId) {
-      void sessions.refreshSubagents(parentSessionId)
+      sessions.refreshSubagents(parentSessionId).catch(ctx.logger().error)
     },
     setCatalogOpen(parentSessionId: SessionId, open: boolean) {
       sessions.setSubagentCatalogOpen(parentSessionId, open)

@@ -38,7 +38,7 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => async () => { await controller.dispose() }, 'session-log-download: browser download lifecycle')
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'session-log-download: browser dictionaries')
   ctx.on('command/executed', (sessionId, commandName, result) => {
-    if (commandName === 'export' && result.kind === 'success') void controller.download(sessionId)
+    if (commandName === 'export' && result.kind === 'success') controller.download(sessionId).then(undefined, console.error)
   })
   ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register({
     name: 'conversation.session.header.utilities',

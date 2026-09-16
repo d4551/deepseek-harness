@@ -53,7 +53,7 @@ function waitForOutput(child: SubprocessHandle, pattern: RegExp, label: string):
     const timer = setTimeout(() => { rejectOnce(new Error(`${label} not ready:\n${output}`)) }, 60_000)
     child.stdout?.on('data', onData)
     child.stderr?.on('data', onData)
-    void child.done.then((outcome) => {
+    child.done.then((outcome) => {
       rejectOnce(new Error(`${label} exited before ready (${JSON.stringify(outcome)}):\n${output}`))
     }, (error: unknown) => {
       rejectOnce(new Error(`${label} failed before ready:\n${output}`, { cause: error }))

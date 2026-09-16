@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react'
 import clsx from 'clsx'
 import {
   Button, IconCheckOutline14, IconChevronDownOutline14, IconChevronLeftOutline14,
@@ -34,12 +34,6 @@ export function parseRecommendedLabel(label: string): { label: string; recommend
     : { label, recommended: false }
 }
 
-/** Return whether a text-field key event belongs to an active IME composition. */
-function isComposing(event: KeyboardEvent<HTMLTextAreaElement>): boolean {
-  // keyCode 229 is the legacy IME-composition signal engines emit without isComposing.
-  return event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229
-}
-
 /** The free-text answer field shared by both question variants. */
 interface AnswerFieldProps {
   /** Visual variant: the custom row's inline column or the optionless question's framed block. */
@@ -56,7 +50,7 @@ interface AnswerFieldProps {
   onFocus?: () => void
   /** Called with each edit of the draft. */
   onChange: (event: ChangeEvent<HTMLTextAreaElement>) => void
-  /** Called with each key press, before the browser's own handling. */
+  /** Called with each non-composing key press, before the browser's own handling. */
   onKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void
 }
 
@@ -77,6 +71,9 @@ interface AnswerFieldProps {
  * @returns The mirrored auto-growing field.
  */
 function AnswerField(props: AnswerFieldProps) {
+  const composing = useRef(false)
+  const compositionEndTimer = useRef<number | undefined>(undefined)
+  useEffect(() => () => { window.clearTimeout(compositionEndTimer.current) }, [])
   return (
     <div className={clsx(css.field, props.variant === 'inline' ? css.customInline : css.customBlock)}>
       <div aria-hidden className={css.fieldMirror}>{`${props.value}\n`}</div>
@@ -89,7 +86,17 @@ function AnswerField(props: AnswerFieldProps) {
         placeholder={props.placeholder}
         onFocus={props.onFocus}
         onChange={props.onChange}
-        onKeyDown={props.onKeyDown}
+        onCompositionStart={() => {
+          window.clearTimeout(compositionEndTimer.current)
+          composing.current = true
+        }}
+        onCompositionEnd={() => {
+          // A confirming keydown can follow compositionend in the same native event task.
+          compositionEndTimer.current = window.setTimeout(() => { composing.current = false }, 0)
+        }}
+        onKeyDown={(event) => {
+          if (!composing.current && !event.nativeEvent.isComposing) props.onKeyDown(event)
+        }}
       />
     </div>
   )
@@ -109,7 +116,7 @@ function AnswerField(props: AnswerFieldProps) {
  * @param props - the selector-matched pending question carrier plus the framework standard kit.
  * @returns The question flow, or the intent's own surface, for this request.
  */
-export function QuestionComposer(props: QuestionComposerProps) {
+export function QuestionComposer(props: Pick<QuestionComposerProps, 'matched' | 't' | 'useStore' | 'actions'>) {
   const question = props.matched
   const review = useMemo(() => planReviewOf(question.questions), [question])
   return review === undefined
@@ -157,11 +164,11 @@ function QuestionFlow({ pending, t, useStore, actions }: QuestionFlowProps) {
   // collapsed question must not steal focus from the expand toggle back into
   // the input, so focus is granted once per question index.
   const focusedQuestions = useRef(new Set<number>())
-  // Every navigation write stays in bounds and drafts mirrors questions 1:1.
-  // oxlint-disable-next-line typescript/no-non-null-assertion
-  const question = questions[index]!
-  // oxlint-disable-next-line typescript/no-non-null-assertion
-  const draft = drafts[index]!
+  const question = questions[index]
+  const draft = drafts[index]
+  if (question === undefined || draft === undefined) {
+    throw new Error(`Question progress index ${String(index)} has no matching question and draft`)
+  }
   const hasOptions = (question.options?.length ?? 0) > 0
 
   const replaceProgress = (nextIndex: number, nextDrafts: QuestionDraftAnswer[]): void => {
@@ -214,7 +221,8 @@ function QuestionFlow({ pending, t, useStore, actions }: QuestionFlowProps) {
     }
     const answer: QuestionAnswer = {
       answers: questions.map((item, itemIndex) => {
-        const value = values[itemIndex] as QuestionDraftAnswer
+        const value = values[itemIndex]
+        if (value === undefined) throw new Error(`Question ${item.id} has no answer draft`)
         if (value.skipped) return { id: item.id, selected: [] }
         const custom = value.custom.trim()
         return {
@@ -261,7 +269,7 @@ function QuestionFlow({ pending, t, useStore, actions }: QuestionFlowProps) {
   }
 
   const continueFromCustom = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
-    if (event.key !== 'Enter' || event.shiftKey || isComposing(event)) return
+    if (event.key !== 'Enter' || event.shiftKey) return
     event.preventDefault()
     continueFlow()
   }

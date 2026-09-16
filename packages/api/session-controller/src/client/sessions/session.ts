@@ -517,7 +517,7 @@ export class Session implements SessionFace {
       && this.address?.mode === address?.mode
     this.address = address
     this.parentAvailable = parentAvailable
-    if (!same && this.openState !== 'cold') void this.resync()
+    if (!same && this.openState !== 'cold') this.resync().then(undefined, console.error)
     else this.notifier.markDirty()
   }
 
@@ -719,7 +719,7 @@ export class Session implements SessionFace {
     this.openPromise = null
     this.openState = 'error'
     this.openError = openFailure(error)
-    void events.dispose()
+    events.dispose().then(undefined, console.error)
     this.notifier.markDirty()
   }
 

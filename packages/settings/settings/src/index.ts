@@ -356,6 +356,8 @@ interface SettingsRegistration extends SettingsFlowMembership {
    */
   revision: number
   watchers: Set<SettingsWatcher>
+  /** Invocations remain owned until settlement, including after unsubscribe. */
+  pendingTails: Set<Promise<void>>
 }
 
 /**
@@ -469,22 +471,22 @@ export abstract class SettingsProvider extends Service {
       resolved: deepFreeze(this.resolve(schema, options?.base, this.section(ns), options?.validate)),
       revision: 0,
       watchers: new Set(),
+      pendingTails: new Set(),
     }
     this.ctx.effect(() => {
       this.registrations.set(ns, registration)
       return async () => {
         this.registrations.delete(ns)
-        // Deactivate before awaiting: a queued invocation that has not started
-        // reads `active` when it would start, so closing the registry first
-        // keeps late completions silent. Awaiting the tails then holds the
-        // disposal open until the started ones finish, so no callback runs
-        // after the registrant fiber is gone.
-        const tails = [...registration.watchers].map((watcher) => {
+        for (const watcher of registration.watchers) {
           watcher.active = false
-          return watcher.tail
-        })
+        }
         registration.watchers.clear()
-        await Promise.all(tails)
+        const outcomes = await Promise.allSettled(registration.pendingTails)
+        const failures: unknown[] = []
+        for (const outcome of outcomes) {
+          if (outcome.status === 'rejected') failures.push(outcome.reason)
+        }
+        if (failures.length > 0) throw new AggregateError(failures, `settings: watcher disposal failed for "${ns}"`)
       }
     }, `settings.register(${JSON.stringify(String(ns))})`)
     return {
@@ -819,9 +821,12 @@ export abstract class SettingsProvider extends Service {
         .then(() => undefined, (error: unknown) => {
           this.warnWatcherFailure(registration.ns, error)
         })
-      watcher.tail = segment
+      registration.pendingTails.add(segment)
       this.pendingTails.add(segment)
-      segment.finally(() => this.pendingTails.delete(segment)).then(undefined, (error: unknown) => {
+      watcher.tail = segment.finally(() => {
+        registration.pendingTails.delete(segment)
+        this.pendingTails.delete(segment)
+      }).then(undefined, (error: unknown) => {
         this.warnWatcherFailure(registration.ns, error)
       })
     }

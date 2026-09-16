@@ -484,7 +484,7 @@ describe('dsh-tool-subagent', () => {
         id: SessionId('spy-child'),
         localAgent: undefined,
         result: Promise.resolve({ output: [{ type: 'text', text: 'ok' }], stopReason: 'completed' as const }),
-        dispose: async () => void disposed(),
+        dispose: async () => { disposed() },
       }),
     })
     await ctx.plugin(tool, { provider: 'spy', maxDepth: 'provider-managed' })
@@ -507,7 +507,7 @@ describe('dsh-tool-subagent', () => {
         id: SessionId('spy-child'),
         localAgent: undefined,
         result: Promise.resolve({ output: [], stopReason: 'error' as const }),
-        dispose: async () => void disposed(),
+        dispose: async () => { disposed() },
       }),
     })
     await ctx.plugin(tool, { provider: 'spy', maxDepth: 'provider-managed' })

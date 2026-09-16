@@ -18,7 +18,7 @@ describe('connection lifecycle', () => {
     try {
       await vi.waitFor(() => { expect(homes).toEqual(['/h']) })
     } finally {
-      controller.stop()
+      await controller.stop()
     }
   })
 
@@ -34,7 +34,7 @@ describe('connection lifecycle', () => {
       await vi.waitFor(() => { expect(connected).toBe(2) })
       expect(source.activeCount).toBe(1)
     } finally {
-      controller.stop()
+      await controller.stop()
       warnSpy.mockRestore()
     }
     await vi.waitFor(() => { expect(source.activeCount).toBe(0) })
@@ -58,7 +58,7 @@ describe('connection lifecycle', () => {
       expect(source.activeCount).toBe(1)
       expect(errorSpy).toHaveBeenCalledWith('[connection] connection sink threw:', expect.any(Error))
     } finally {
-      controller.stop()
+      await controller.stop()
       errorSpy.mockRestore()
     }
   })
@@ -76,7 +76,7 @@ describe('connection lifecycle', () => {
       source.releaseReady()
       await vi.waitFor(() => { expect(connected).toBe(1) })
     } finally {
-      controller.stop()
+      await controller.stop()
     }
   })
 
@@ -96,24 +96,26 @@ describe('connection lifecycle', () => {
     try {
       await vi.waitFor(() => { expect(homes).toEqual(['/first']) })
     } finally {
-      controller.stop()
+      await controller.stop()
     }
   })
 
   it('does not announce readiness after a stop queued from the ready callback', async () => {
     const owner: { controller?: ConnectionController } = {}
+    let stopping: Promise<void> | undefined
     let sourceCalls = 0
     const connected = vi.fn()
     const source: ConnectionGenerationSource = (signal, ready) => new Promise<void>((resolve) => {
       sourceCalls++
       ready({ home: '/h' })
-      queueMicrotask(() => { owner.controller?.stop() })
+      queueMicrotask(() => { stopping = owner.controller?.stop() })
       signal.addEventListener('abort', () => { resolve() }, { once: true })
     })
     const controller = new ConnectionController(source, { onConnected: connected }, FAST)
     owner.controller = controller
     controller.start()
     await vi.waitFor(() => { expect(sourceCalls).toBe(1) })
+    await stopping
     expect(connected).not.toHaveBeenCalled()
   })
 
@@ -135,7 +137,7 @@ describe('connection lifecycle', () => {
       await vi.waitFor(() => { expect(connected).toBe(1) })
       expect(states).toEqual(['reconnecting', 'connected'])
     } finally {
-      controller.stop()
+      await controller.stop()
       warnSpy.mockRestore()
     }
   })
@@ -165,7 +167,7 @@ describe('connection lifecycle', () => {
       await vi.waitFor(() => { expect(sourceCalls).toBe(2) })
       await vi.waitFor(() => { expect(connected).toBe(1) })
     } finally {
-      controller.stop()
+      await controller.stop()
       warnSpy.mockRestore()
     }
   })
@@ -186,7 +188,7 @@ describe('connection lifecycle', () => {
       await new Promise(resolve => setTimeout(resolve, 45))
       expect(connected).toBe(0)
     } finally {
-      controller.stop()
+      await controller.stop()
       warnSpy.mockRestore()
     }
   })
@@ -208,7 +210,7 @@ describe('connection lifecycle', () => {
       await vi.waitFor(() => { expect(connected).toBe(2) })
       expect(states).toEqual(['connected', 'reconnecting', 'connected'])
     } finally {
-      controller.stop()
+      await controller.stop()
       warnSpy.mockRestore()
     }
   })
@@ -217,16 +219,18 @@ describe('connection lifecycle', () => {
     const source = new FakeGenerationSource()
     const states: ConnectionState[] = []
     let connected = 0
+    let stopping: Promise<void> | undefined
     const controller = new ConnectionController(source.source, {
       onConnected: () => { connected++ },
       onStateChange: (state) => {
         states.push(state)
-        if (state === 'connected') controller.stop()
+        if (state === 'connected') stopping = controller.stop()
       },
     }, FAST)
 
     controller.start()
     await vi.waitFor(() => { expect(states).toEqual(['connected']) })
+    await stopping
     await vi.waitFor(() => { expect(source.activeCount).toBe(0) })
     expect(connected).toBe(0)
   })
@@ -254,7 +258,7 @@ describe('connection lifecycle', () => {
       await vi.waitFor(() => { expect(connected).toBe(1) })
       expect(states).toEqual(['reconnecting', 'connected'])
     } finally {
-      controller.stop()
+      await controller.stop()
       warnSpy.mockRestore()
     }
   })
@@ -266,7 +270,7 @@ describe('connection lifecycle', () => {
     try {
       await vi.waitFor(() => { expect(source.activeCount).toBe(1) })
     } finally {
-      controller.stop()
+      await controller.stop()
     }
   })
 
@@ -280,7 +284,7 @@ describe('connection lifecycle', () => {
       await vi.waitFor(() => { expect(connected).toBe(1) })
       expect(source.activeCount).toBe(1)
     } finally {
-      controller.stop()
+      await controller.stop()
     }
   })
 })

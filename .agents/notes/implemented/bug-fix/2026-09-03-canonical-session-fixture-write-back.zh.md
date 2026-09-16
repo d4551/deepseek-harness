@@ -10,7 +10,7 @@ Status: implemented
 
 `scrubSessionSnapshot` 删除了 `seq`/`time` 与 `seq0`/`time0` envelope，却原样复制了 `sourceEventSeqs` 在 JSONL 存储边界由 `encodeSeqRanges` 生成的区间形式，于是刷新后的 `assistant/message` 记为 `[[12,77]]`，而语料记的是 `[12…77]`。它同样原样复制了持久化 flush 边界产出的打包 chunk 行，于是被切分到两个 `eventLines` 批次的一段 run 保持为两行，而语料记的是一行。
 
-比较路径掩盖了这两点。`normalizeSessionLog` 会解码区间形式的 provenance，另一个重打包步骤会在比较前合并被 flush 切开的行，因此两种布局的 fixture 比较结果相等，`bun run test:snapshot` 始终通过。只有 `scripts/session-fixture-layout.spec.ts` 能看出差异，而它的诊断指向 `bun run migrate:packed-session-fixtures`——[移除提案](../../proposed/process/2026-07-26-remove-packed-session-fixture-migrator.zh.md)将该命令描述为分支收敛残留。于是每次刷新都会写出布局检查拒绝的 fixture，这个过渡性迁移器成了刷新流程的必需步骤。
+比较路径掩盖了这两点。`normalizeSessionLog` 会解码区间形式的 provenance，另一个重打包步骤会在比较前合并被 flush 切开的行，因此两种布局的 fixture 比较结果相等，`bun run test:snapshot` 始终通过。只有 `scripts/session-fixture-layout.spec.ts` 能看出差异，而它的诊断引导用户运行[移除决定](../process/2026-07-26-remove-packed-session-fixture-migrator.zh.md)记录的分支转换命令。于是每次刷新都会写出布局检查拒绝的 fixture，这个过渡性迁移器成了刷新流程的必需步骤。
 
 迁移器也无法完全修复第二种情况。写入器一旦从被 flush 切开的两行中剥掉 `time0`，两行之间的时间间隔就已丢失，重新解码会把两行都锚定在时间 0；对该 fixture 做规范化会以一个凭空产生的负间隔把它们合并。
 
@@ -40,7 +40,7 @@ Status: implemented
 
 **每次刷新后运行迁移器。** 已否决。这会把一个过渡命令变成永久流程步骤，而它对被 flush 切开的 run 的修复是有损的。
 
-**在本次改动中删除迁移器。** 已否决，这是[移除提案](../../proposed/process/2026-07-26-remove-packed-session-fixture-migrator.zh.md)负责的独立决定；该命令仍用于转换本投影之前写出的 fixture。
+**将投影修复与分支命令删除绑定。** 两者保持独立，直到实时分支清单确认没有开放分支需要转换。[移除决定](../process/2026-07-26-remove-packed-session-fixture-migrator.zh.md)负责记录已完成的删除。
 
 ## 影响
 

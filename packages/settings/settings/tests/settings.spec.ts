@@ -234,13 +234,14 @@ describe('replacement registration resync', () => {
     await ctx.plugin(GatedProvider)
     const provider = ctx.get('settings') as GatedProvider
     const NS = settingsNamespace('ui-theme')
+    const updates: Promise<void>[] = []
 
     const first = ctx.plugin({
       inject: ['settings'],
       apply: (child: Context) => {
         const scope = child.settings.register(NS, ThemeSchema)
         provider.hold = true
-        void scope.update({ theme: 'light' })
+        updates.push(scope.update({ theme: 'light' }))
       },
     })
     await first
@@ -251,7 +252,7 @@ describe('replacement registration resync', () => {
 
     provider.hold = false
     for (const release of provider.held.splice(0)) release()
-    await new Promise(resolve => setTimeout(resolve, 0))
+    await Promise.all(updates)
 
     expect(replacement.get()).toEqual({ theme: 'light', fontSize: 14 })
   })
@@ -262,13 +263,14 @@ describe('replacement registration resync', () => {
     const provider = ctx.get('settings') as GatedProvider
     const NS = settingsNamespace('ui-theme')
     const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => undefined)
+    const updates: Promise<void>[] = []
 
     const first = ctx.plugin({
       inject: ['settings'],
       apply: (child: Context) => {
         const scope = child.settings.register(NS, ThemeSchema)
         provider.hold = true
-        void scope.update({ theme: 'light' })
+        updates.push(scope.update({ theme: 'light' }))
       },
     })
     await first
@@ -280,7 +282,7 @@ describe('replacement registration resync', () => {
 
     provider.hold = false
     for (const release of provider.held.splice(0)) release()
-    await new Promise(resolve => setTimeout(resolve, 0))
+    await Promise.all(updates)
 
     expect(replacement.get()).toEqual({ theme: 0 })
     expect(warn).toHaveBeenCalled()

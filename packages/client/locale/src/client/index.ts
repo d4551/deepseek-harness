@@ -240,7 +240,7 @@ export class LocaleRuntime {
     if (match === undefined) throw new Error(`locale "${id}" is not registered`)
     this.preference = match.id
     if (this.snapshot.active !== match.id) this.publish(match.id, true)
-    void this.host?.set(LOCALE_PREFERENCE_FIELD, match.id)
+    this.host?.set(LOCALE_PREFERENCE_FIELD, match.id).catch(this.ctx.logger().error)
   }
 
   /**

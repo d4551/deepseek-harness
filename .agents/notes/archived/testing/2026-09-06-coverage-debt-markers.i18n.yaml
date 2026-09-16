@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   bun run verify-translation-pairing --write .agents/notes/implemented/testing/2026-09-06-coverage-debt-markers.md
+2026-09-06-coverage-debt-markers.md: c57d18fe243c02202310b808cac4e03f448fe1e1
+2026-09-06-coverage-debt-markers.zh.md: 28937e01059c666371f2681c45786fb45b1cfb1c

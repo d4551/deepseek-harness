@@ -89,7 +89,7 @@ export class InputHub implements SessionInputResolver {
       popup: () => this.popup(actx),
       queue: queueReadFaceOf(session),
       defaultSink: (text, imageIds, mode, signal) => this.sink(session, text, imageIds, mode, signal),
-      steerQueue: () => { void this.steerQueue(session, shell) },
+      steerQueue: () => { this.steerQueue(session, shell).catch(actx.logger().error) },
       commandImages: {
         serialize: ids => this.conversation().serializeDraftImages(ids),
         // Asymmetric with serialize on purpose: release settles AFTER the

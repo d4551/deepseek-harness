@@ -2,7 +2,6 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type {
-  ConnectionGenerationSource,
   ConnectionHostInfo,
   ConnectionHandle,
 } from '@deepseek-ai/dsh-client-connection/client'
@@ -61,8 +60,7 @@ const REMOTE_EVENT_NEXT = Symbol('api-gateway.remote-event.next')
 /** Own Cordis registrations, generation pumping, waterfall dispatch, and HTTP replies. */
 export class ClientRemoteEvents {
   private readonly eventPrefix = `internal/api-gateway/remote-event/${randomUUID()}/`
-  private readonly unregisterGeneration: () => void
-  private activeGeneration: Promise<void> | undefined
+  private readonly unregisterGeneration: () => Promise<void>
 
   /**
    * @param ownerCtx - Client Gateway root used for Agent Context resolution.
@@ -74,7 +72,7 @@ export class ClientRemoteEvents {
     private readonly connection: ConnectionHandle,
     private readonly openStream: RemoteEventStreamOpener,
   ) {
-    this.unregisterGeneration = connection.registerGenerationSource(this.runGeneration)
+    this.unregisterGeneration = connection.registerGenerationSource((signal, ready) => this.pumpEvents(signal, ready))
   }
 
   /**
@@ -98,22 +96,12 @@ export class ClientRemoteEvents {
 
   /** Withdraw the generation source and wait for active listener work to quiesce. */
   async dispose(): Promise<void> {
-    this.unregisterGeneration()
-    await Promise.allSettled([this.activeGeneration])
-  }
-
-  /** Track the current generation so plugin disposal waits for listener work to stop. */
-  private readonly runGeneration: ConnectionGenerationSource = (signal, ready) => {
-    const tracked = this.pumpEvents(signal, ready).finally(() => {
-      if (this.activeGeneration === tracked) this.activeGeneration = undefined
-    })
-    this.activeGeneration = tracked
-    return tracked
+    await this.unregisterGeneration()
   }
 
   /** Deliver one notification through Cordis while containing listener failures. */
-  private deliver(frame: RemoteEventEmitFrame): void {
-    privateEvents(this.ownerCtx)
+  private deliver(frame: RemoteEventEmitFrame): Promise<void> {
+    return privateEvents(this.ownerCtx)
       .parallel(this.eventKey(frame.event), ...frame.args)
       .catch((error: unknown) => { this.reportError(frame.event, error) })
   }
@@ -149,7 +137,8 @@ export class ClientRemoteEvents {
           continue
         }
         if (frame.type === 'emit') {
-          this.deliver(frame)
+          const task = this.deliver(frame).finally(() => { tasks.delete(task) })
+          tasks.add(task)
           continue
         }
         const controller = new AbortController()
@@ -225,20 +214,30 @@ export class ClientRemoteEvents {
     frame: RemoteEventInvocationFrame,
     signal: AbortSignal,
   ): Promise<RemoteEventReplyOutcome> {
+    signal.throwIfAborted()
     const request = {
       ...frame.request,
       agent: target,
       signal,
     }
-    const value = await abortable(
-      Promise.resolve(privateEvents(target).waterfall(
-        target,
-        this.eventKey(frame.event),
-        request,
-        () => Promise.resolve(REMOTE_EVENT_NEXT),
-      )),
-      signal,
-    )
+    const completion = Promise.resolve(privateEvents(target).waterfall(
+      target,
+      this.eventKey(frame.event),
+      request,
+      () => Promise.resolve(REMOTE_EVENT_NEXT),
+    ))
+    const aborted = Promise.withResolvers<never>()
+    const onAbort = (): void => { aborted.reject(signal.reason) }
+    signal.addEventListener('abort', onAbort, { once: true })
+    if (signal.aborted) onAbort()
+    let value: unknown
+    try {
+      value = await Promise.race([completion, aborted.promise])
+    } finally {
+      signal.removeEventListener('abort', onAbort)
+      await completion
+    }
+    signal.throwIfAborted()
     if (value !== REMOTE_EVENT_NEXT && value !== undefined && !isRemoteJsonValue(value)) {
       throw new TypeError('Remote event listener result is not lossless JSON data')
     }
@@ -325,20 +324,6 @@ function validRemoteEventName(value: unknown): value is string {
 
 function invalidRemoteEventFrame(): never {
   throw new TypeError('client api: invalid forwarded Remote event frame')
-}
-
-/** Race listener completion against its delivery lifetime. */
-async function abortable<T>(value: T | PromiseLike<T>, signal: AbortSignal): Promise<T> {
-  signal.throwIfAborted()
-  let rejectAbort: ((reason: unknown) => void) | undefined
-  const aborted = new Promise<never>((_resolve, reject) => { rejectAbort = reject })
-  const onAbort = (): void => { rejectAbort?.(signal.reason) }
-  signal.addEventListener('abort', onAbort, { once: true })
-  try {
-    return await Promise.race([Promise.resolve(value), aborted])
-  } finally {
-    signal.removeEventListener('abort', onAbort)
-  }
 }
 
 function privateEvents(ctx: Context): PrivateEventContext {

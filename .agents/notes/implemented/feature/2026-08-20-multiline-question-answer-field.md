@@ -18,7 +18,7 @@ The mirror sits in normal flow and so sizes the grid row; the textarea stretches
 
 Growth stops at the mirror's `max-height` of six lines, and past that the textarea scrolls itself. The mirror takes `box-sizing: content-box` against the card-wide `border-box` so that cap counts text lines rather than text plus padding: the optionless variant carries 16px of vertical padding, which under `border-box` spends two thirds of a line and delivers the last one as an 8px sliver, while the inline variant has no padding and would land on a different line count from the same declaration. It is the only scrollport in the stack: unlike the chat composer, this field paints its own glyphs, so there is no second layer whose scroll offset would have to match.
 
-Enter continues the flow and submits the batch on the last question, Shift+Enter breaks the line, and the IME guard is unchanged — Enter during composition confirms the candidate without advancing. The `variant` prop names which of the two looks the field takes, so the field owns both and neither caller assembles one out of class names.
+Enter continues the flow and submits the batch on the last question; Shift+Enter breaks the line. The field tracks composition from `compositionstart` through the native task containing `compositionend`, so a confirming Enter cannot advance even when its keydown follows compositionend. A zero-delay task releases that state; a new composition or unmount cancels the pending release. The native `isComposing` flag also protects events received without a start event. The `variant` prop names which of the two looks the field takes, so the field owns both and neither caller assembles one out of class names.
 
 ## Alternatives considered
 
@@ -34,9 +34,13 @@ Enter continues the flow and submits the batch on the last question, Shift+Enter
 
 **A per-variant cap that absorbs each variant's padding.** Rejected because it couples the line count to a padding value: changing `.customBlock`'s inset would silently change how many lines the field grows to. `content-box` states the intent once, in the units the cap is written in.
 
+**Use only `KeyboardEvent.isComposing`.** WebKit has emitted the confirming keydown after compositionend with that flag false ([browser issue](https://bugs.webkit.org/show_bug.cgi?id=165004)). Tracking the composition lifecycle preserves the confirmation boundary without deprecated numeric key codes.
+
 ## Testing
 
 Component tests pin the round trip: both shapes render a textarea, the mirror follows the draft, Shift+Enter never advances the flow, and line breaks reach the answer batch verbatim. The assembled `question-composer` web e2e measures the live engine — a soft-wrapped draft grows the field without scrolling it, two Shift+Enter presses leave `"\n\n"` in a taller field with the question still open, and a draft past the cap scrolls instead of growing at exactly six text lines in both variants.
+
+Native Chromium component tests exercise both field variants with real draft stores and pending-answer settlement. They replay both keyboard/composition event orders, a new composition before a queued release, and Shift+Enter, then require zero axe violations or incomplete checks. These event-sequence regressions do not automate an operating-system IME. Invalid stored indices and empty question batches fail explicitly rather than dereferencing an absent question or draft.
 
 ## Consequences
 

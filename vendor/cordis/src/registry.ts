@@ -195,6 +195,8 @@ declare module './context.ts' {
 export class RegistryService {
   private _counter = 0
   private _internal = new Map<Function, Plugin.Runtime>()
+  /** Fibers retained through cleanup, independently of public plugin registration. */
+  readonly lifetimes = new Set<Fiber>()
 
   constructor(public ctx: Context) {
     defineProperty(this, symbols.tracker, {

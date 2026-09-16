@@ -18,6 +18,7 @@
  */
 
 import { Context, Service } from '@deepseek-ai/cordis'
+import type { Disposable } from '@deepseek-ai/cordis'
 import type { ZodType } from 'zod'
 import type { Session, SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
 
@@ -218,7 +219,7 @@ export class SessionProjectionRegistry extends Service {
     definition: Omit<ProjectionDefinition<K, S>, 'wire'> & {
       wire: NonNullable<ProjectionDefinition<K, S>['wire']>
     },
-  ): () => void
+  ): Disposable<Promise<void>>
   /**
    * Register one host-only unit. Its state is omitted from client snapshots
    * and always checkpointed like every other unit.
@@ -230,10 +231,10 @@ export class SessionProjectionRegistry extends Service {
     S extends SessionProjectionStateMap[K],
   >(
     definition: Omit<ProjectionDefinition<K, S>, 'wire'>,
-  ): () => void
+  ): Disposable<Promise<void>>
   register<K extends keyof SessionProjectionStateMap, S extends SessionProjectionStateMap[K]>(
     definition: ProjectionDefinition<K, S>,
-  ): () => void {
+  ): Disposable<Promise<void>> {
     const wire = definition.wire as {
       viewSchema: ZodType
       view(state: S): unknown
@@ -270,7 +271,7 @@ export class SessionProjectionRegistry extends Service {
         if (live.refs === 0) this.registrations.delete(key)
       }
     }.bind(this), 'sessionProjections.register()')
-    return () => void dispose()
+    return dispose
   }
 
   /**
@@ -279,14 +280,14 @@ export class SessionProjectionRegistry extends Service {
    * @param listener - called once per client-visible unit whose state reference changed, per committed event.
    * @returns the exact disposer that unsubscribes.
    */
-  onChanged(listener: ProjectionChangeListener): () => void {
+  onChanged(listener: ProjectionChangeListener): Disposable<Promise<void>> {
     const dispose = this.ctx.effect(() => {
       this.listeners.add(listener)
       return () => {
         this.listeners.delete(listener)
       }
     }, 'sessionProjections.onChanged()')
-    return () => void dispose()
+    return dispose
   }
 
   /**

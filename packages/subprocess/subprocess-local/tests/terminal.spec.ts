@@ -263,13 +263,13 @@ describe('LocalTerminalHandle', () => {
     pty.emitExit()
     const waiting = handle.terminate()
     let settled = false
-    void waiting.then(() => { settled = true })
+    const observedWaiting = waiting.then(() => { settled = true })
     await vi.advanceTimersByTimeAsync(10)
     expect(settled).toBe(false)
 
     inspector.alive.delete(124)
     await vi.advanceTimersByTimeAsync(20)
-    await waiting
+    await observedWaiting
   })
 
   it('cleans a same-session descendant after the top-level shell exits naturally', async () => {

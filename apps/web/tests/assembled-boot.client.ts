@@ -12,7 +12,7 @@ import { createRequire } from 'node:module'
 import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { act, cleanup } from '@testing-library/react'
-import { afterEach, beforeEach, vi } from 'vitest'
+import { afterEach, beforeEach, onTestFinished, vi } from 'vitest'
 import { bootInjections, orderByModuleGraph } from '@deepseek-ai/dsh-client-modules'
 import type { ClientModuleLoaderTarget, WebBootEntry, WebBootGraph } from '@deepseek-ai/dsh-client-modules/client'
 import { AppWebEntry } from '@deepseek-ai/dsh-client-web'
@@ -278,7 +278,8 @@ export function mountAssembledApp(search = '?fixture', options: AssembledBootOpt
         ;(0, eval)(code)
       },
     })
-    void entry.run()
+    const startup = entry.run()
+    onTestFinished(async () => { await startup })
     unmount = () => entry.dispose()
   })
 }

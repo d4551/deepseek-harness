@@ -4,7 +4,7 @@ Status: implemented
 
 English | [中文](2026-06-11-quality-gates.zh.md)
 
-The hook/CI symmetry in this record is superseded by [Fast local Git hooks](2026-07-22-fast-local-git-hooks.md); CI remains the exhaustive enforcement path.
+The hook/CI symmetry in this record is superseded by [Fast local Git hooks](2026-07-22-fast-local-git-hooks.md); CI remains the exhaustive enforcement path. The [complete-source quality gates](../testing/2026-09-16-complete-source-quality-gates.md) supersede this record's permission for coverage directives.
 
 ## Problem
 
@@ -17,7 +17,7 @@ Every mechanically checkable AGENTS.md promise gets a command that exits non-zer
 - Max-strict TypeScript (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, …); examples, tests, and scripts typecheck in CI via the root no-emit `tsconfig.json` while package/vendor code stays behind its own project-reference boundary.
 - [Oxlint](2026-07-29-oxlint-linter.md) with type-aware TypeScript rules plus the @stylistic compatibility plugin, enforcing the house style; vendored code excluded. File-local duplicated-logic checks moved to the [syntax-duplication gate](../testing/2026-08-31-syntax-duplication-gate.md).
 - jscpd detects cross-file clones in package production TypeScript and repository scripts; narrow source-range exceptions document deliberately parallel implementations.
-- Per-file 100% coverage on `packages/*/*/src` (v8); unreachable defensive guards carry `/* v8 ignore */ ` with stated reasons instead of deletion.
+- Per-file 100% coverage on `packages/*/*/src` (V8), including subprocess and worker-thread execution. Coverage directives fail the source audit regardless of their explanation.
 - knip (dead code/deps), publint (package correctness), workspace constraints (workspace rules: private, cordis peer+dev, uniform version, ESM), and a NodeNext consumer typecheck for built package declarations.
 - lefthook pre-commit applies project-free Oxlint validation and [safe fixes with a bounded retry](2026-08-09-oxlint-only-fix-workflow.md), rejects staged whitespace, and checks the vendor manifest; pre-push runs incremental typecheck. CI runs the full matrix on node 22.19/24/26 plus built application smokes for the Headless, TUI, ACP, JSON-RPC, workflow, and code-runtime entry paths.
 
@@ -25,6 +25,6 @@ Every mechanically checkable AGENTS.md promise gets a command that exits non-zer
 
 - Conventions survive agent turnover; cheap commit/push defects fail locally and exhaustive violations fail in CI.
 - The gates themselves are code to maintain; config changes are reviewed like any change.
-- 100%-coverage pressure can produce assertion-free tests — mutation testing is the planned counterweight (see [the mutation-testing proposal](../testing/2026-06-11-mutation-testing.md)).
+- 100%-coverage pressure can produce assertion-free tests; [mutation testing](../testing/2026-06-11-mutation-testing.md) checks whether assertions detect behavior changes.
 
 <!-- agent-note-format: alternatives-not-recorded (pre-format Agent Note) -->

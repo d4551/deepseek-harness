@@ -56,8 +56,8 @@ describe('Inbox', () => {
     const discarded: UserMessage[] = []
     const inbox = new Inbox(session, {
       claimed: () => {},
-      inserted: message => void inserted.push(message),
-      discarded: message => void discarded.push(message),
+      inserted: (message) => { inserted.push(message) },
+      discarded: (message) => { discarded.push(message) },
     })
     const original = createUserMessage({
       content: [{ type: 'text', text: 'original' }],
@@ -117,7 +117,7 @@ describe('Inbox', () => {
     const inbox = new Inbox(session, {
       claimed: () => {},
       inserted: () => {},
-      discarded: message => void discarded.push(message),
+      discarded: (message) => { discarded.push(message) },
     })
     const nextTurn = createUserMessage({ content: [{ type: 'text', text: 'turn' }], source: { kind: 'user' } })
     const nextStep = createUserMessage({ content: [{ type: 'text', text: 'step' }], source: { kind: 'user' } })
@@ -175,8 +175,8 @@ describe('AgentRegistry', () => {
     const ctx = new Context()
     await ctx.plugin(AgentRegistry)
     const lifecycle: string[] = []
-    ctx.on('agent/created', ({ agent }) => void lifecycle.push(`created:${agent.id}`))
-    ctx.on('agent/disposed', ({ agent }) => void lifecycle.push(`disposed:${agent.id}`))
+    ctx.on('agent/created', ({ agent }) => { lifecycle.push(`created:${agent.id}`) })
+    ctx.on('agent/disposed', ({ agent }) => { lifecycle.push(`disposed:${agent.id}`) })
 
     const agent = stubAgent('a1')
     const dispose = ctx.agents.register(agent)
@@ -225,9 +225,9 @@ describe('AgentRegistry', () => {
     const ctx = new Context()
     await ctx.plugin(AgentRegistry)
     const lifecycle: string[] = []
-    ctx.on('agent/created', ({ agent }) => void lifecycle.push(`created:${agent.id}`))
+    ctx.on('agent/created', ({ agent }) => { lifecycle.push(`created:${agent.id}`) })
     ctx.on('agent/created', () => { throw new Error('creation veto') })
-    ctx.on('agent/disposed', ({ agent }) => void lifecycle.push(`disposed:${agent.id}`))
+    ctx.on('agent/disposed', ({ agent }) => { lifecycle.push(`disposed:${agent.id}`) })
 
     expect(() => ctx.agents.register(stubAgent('vetoed'))).toThrow('creation veto')
     expect(ctx.agents.get(SessionId('vetoed'))).toBeUndefined()
@@ -243,7 +243,7 @@ describe('AgentRegistry', () => {
     ctx.on('agent/created', () => Promise.reject(new Error('created async')) as never)
     ctx.on('agent/disposed', () => { throw new Error('disposed sync') })
     ctx.on('agent/disposed', () => Promise.reject(new Error('disposed async')) as never)
-    ctx.on('agent/disposed', ({ agent }) => void heard.push(agent.id))
+    ctx.on('agent/disposed', ({ agent }) => { heard.push(agent.id) })
 
     const dispose = ctx.agents.register(stubAgent('contained'))
     await Promise.resolve()
@@ -262,8 +262,8 @@ describe('AgentRegistry', () => {
     const ctx = new Context()
     await ctx.plugin(AgentRegistry)
     const lifecycle: string[] = []
-    ctx.on('agent/created', ({ agent }) => void lifecycle.push(`created:${agent.id}`))
-    ctx.on('agent/disposed', ({ agent }) => void lifecycle.push(`disposed:${agent.id}`))
+    ctx.on('agent/created', ({ agent }) => { lifecycle.push(`created:${agent.id}`) })
+    ctx.on('agent/disposed', ({ agent }) => { lifecycle.push(`disposed:${agent.id}`) })
 
     const first = stubAgent('split')
     const detachFirst = ctx.agents.enter(first, undefined)
@@ -292,8 +292,8 @@ describe('AgentRegistry', () => {
       detach()
       order.push(`after-detach:${ctx.agents.get(agent.id) === agent}`)
     })
-    ctx.on('agent/created', () => void order.push(`second:${ctx.agents.get(agent.id) === agent}`))
-    ctx.on('agent/disposed', () => void order.push('disposed'))
+    ctx.on('agent/created', () => { order.push(`second:${ctx.agents.get(agent.id) === agent}`) })
+    ctx.on('agent/disposed', () => { order.push('disposed') })
     const detach = ctx.agents.enter(agent, undefined)
     ctx.agents.announce(agent)
     expect(order).toEqual(['first:true', 'after-detach:true', 'second:true', 'disposed'])
@@ -310,7 +310,7 @@ describe('agentEvents()', () => {
     const agent = stubAgent('event')
     ctx.on('agent/status', () => { throw new Error('sync listener') })
     ctx.on('agent/status', () => Promise.reject(new Error('async listener')) as never)
-    ctx.on('agent/status', ({ status }) => void heard.push(status))
+    ctx.on('agent/status', ({ status }) => { heard.push(status) })
 
     agentEvents(ctx, agent).emit('agent/status', { status: 'running' })
     await Promise.resolve()
@@ -341,7 +341,7 @@ describe('agentEvents()', () => {
     const agent = stubAgent('fused-subject')
     const other = stubAgent('payload-agent')
     const heard: Agent[] = []
-    ctx.on('agent/status', ({ agent: subject }) => void heard.push(subject))
+    ctx.on('agent/status', ({ agent: subject }) => { heard.push(subject) })
     // A structurally acceptable payload may carry an extra `agent` field; the
     // dispatcher's injected subject must win over it.
     const payload: { status: AgentStatus; agent: Agent } = { status: 'running', agent: other }

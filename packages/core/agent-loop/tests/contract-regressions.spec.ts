@@ -363,7 +363,7 @@ describe('disposal leaves the two-state status contract balanced', () => {
 
     const statuses: string[] = []
     const reasons: TurnEndReason[] = []
-    ctx.on('agent/status', ({ status }) => void statuses.push(status))
+    ctx.on('agent/status', ({ status }) => { statuses.push(status) })
     ctx.on('session/event', (_s, event) => { if (event.type === 'turn/end') reasons.push(event.data.reason) })
 
     send(agent, 'go')
@@ -874,10 +874,11 @@ describe('turn and step boundary recovery', () => {
     }, { inject: ['agentLoop'] }))
 
     let threw = false
+    let disposal: Promise<void> | undefined
     ctx.on('agent/pre-step', (_payload, next) => {
       if (threw) return next()
       threw = true
-      void fiber.dispose()
+      disposal = fiber.dispose()
       throw new Error('boom pre-step during disposal')
     })
     const errorEmits: Error[] = []
@@ -888,6 +889,8 @@ describe('turn and step boundary recovery', () => {
     send(agent, 'go')
     await agent.whenIdle()
 
+    expect(disposal).toBeDefined()
+    await disposal
     const e = [...agent.session.events]
     expect(e.filter(x => x.type === 'turn/start' || x.type === 'turn/end').map(x => x.type))
       .toEqual(['turn/start', 'turn/end'])
@@ -1084,7 +1087,7 @@ describe('disposal and cancellation during pre-step assembly', () => {
     // waits for the blocked driver to exit.
     const adapter = new MockAdapter(['hang'])
     let releaseAssemble!: () => void
-    const blocked = new Promise<void>(r => void (releaseAssemble = r))
+    const blocked = new Promise<void>((resolve) => { releaseAssemble = resolve })
 
     const ctx = new Context()
     await ctx.plugin(LlmRuntime)
@@ -1134,7 +1137,7 @@ describe('disposal and cancellation during pre-step assembly', () => {
   it('cancel during system-prompt assembly closes a no-step turn', { timeout: 30000 }, async () => {
     const adapter = new MockAdapter([textResponse('should not appear')])
     let releaseAssemble!: () => void
-    const blocker = new Promise<void>(r => void (releaseAssemble = r))
+    const blocker = new Promise<void>((resolve) => { releaseAssemble = resolve })
 
     const ctx = new Context()
     await ctx.plugin(LlmRuntime)
@@ -1184,7 +1187,7 @@ describe('disposal and cancellation during pre-step assembly', () => {
     // Start disposal, then release pre-step; awaiting disposal first would deadlock on the blocked driver.
     const adapter = new MockAdapter(['hang'])
     let releasePreStep!: () => void
-    const blocker = new Promise<void>(r => void (releasePreStep = r))
+    const blocker = new Promise<void>((resolve) => { releasePreStep = resolve })
 
     const ctx = new Context()
     await ctx.plugin(LlmRuntime)
@@ -1230,7 +1233,7 @@ describe('disposal and cancellation during pre-step assembly', () => {
     // Release pre-step after cancellation to exercise the post-listener check.
     const adapter = new MockAdapter(['hang'])
     let releasePreStep!: () => void
-    const blocker = new Promise<void>(r => void (releasePreStep = r))
+    const blocker = new Promise<void>((resolve) => { releasePreStep = resolve })
 
     const ctx = new Context()
     await ctx.plugin(LlmRuntime)
@@ -1278,7 +1281,7 @@ describe('disposal and cancellation during pre-step assembly', () => {
     // before any model interaction.
     const adapter = new MockAdapter([textResponse('should not appear')])
     let releaseAssemble!: () => void
-    const blocker = new Promise<void>(r => void (releaseAssemble = r))
+    const blocker = new Promise<void>((resolve) => { releaseAssemble = resolve })
 
     const ctx = new Context()
     await ctx.plugin(LlmRuntime)

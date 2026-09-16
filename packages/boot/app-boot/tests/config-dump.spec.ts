@@ -129,7 +129,7 @@ describe('renderConfigDump', () => {
         patches: [{ id: 'g', config: [{ id: 'child', name: './noop.mjs', config: { v: 1 } }] }],
       },
       { label: 'b.yml', patches: [{ id: 'child', config: { v: 2 } }] },
-    ], line => void warnings.push(line))
+    ], (line) => { warnings.push(line) })
     expect(warnings).toEqual([`${NAME}: [b.yml] patch: entry "child" not found`])
     const parsed = yaml.load(dump, { schema: entryListSchema }) as {
       config?: { config?: { v?: number } }[]
@@ -157,7 +157,7 @@ describe('renderConfigDump', () => {
     const dump = renderConfigDump(
       NAME, base,
       [{ label: 'overlay.yml', patches: loadOverlayPatches(NAME, overlay) }],
-      line => void warnings.push(line),
+      (line) => { warnings.push(line) },
     )
     expect(warnings).toEqual([`${NAME}: [overlay.yml] patch: entry "only-on-another-surface" not found`])
     const parsed = yaml.load(dump, { schema: entryListSchema }) as { config?: { value?: string } }[]

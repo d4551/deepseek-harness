@@ -86,7 +86,7 @@ async function boot(): Promise<Bench> {
       const fiber = ctx.plugin(factories.get(options.name)?.() as Parameters<Context['plugin']>[0])
       // The runner reads activation failure through fiber.await(); terminate this
       // handle too, or a failing package also lands as an unhandled rejection.
-      void Promise.resolve(fiber).catch(() => {})
+      Promise.resolve(fiber).catch(() => {})
       fibers.set(entryId, { fiber })
       return Promise.resolve(entryId)
     },

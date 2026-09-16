@@ -16,7 +16,7 @@ function inputAndExecutionContracts(
 ): void {
   // @ts-expect-error -- every typed invocation must supply a caller-owned signal.
   const missingSignal: ToolExecutionInput = { callId: ToolCallId('missing'), name: 'probe', arguments: {} }
-  void missingSignal
+  expectTypeOf(missingSignal.signal).toEqualTypeOf<AbortSignal>()
 
   // @ts-expect-error -- caller input is readonly after construction.
   input.signal = new AbortController().signal
@@ -36,7 +36,7 @@ function inputAndExecutionContracts(
   // @ts-expect-error -- tool bodies cannot replace the required signal with undefined.
   run.signal = undefined
 }
-void inputAndExecutionContracts
+expectTypeOf(inputAndExecutionContracts).parameters.toEqualTypeOf<[ToolExecutionInput, ToolExecution, ToolRunContext]>()
 
 function observerContracts(ctx: Context): void {
   ctx.on('tools/pre-execute', (exec, next) => {
@@ -74,7 +74,7 @@ function observerContracts(ctx: Context): void {
     return next()
   })
 }
-void observerContracts
+expectTypeOf(observerContracts).parameters.toEqualTypeOf<[Context]>()
 
 const inferredTool = defineTool({
   name: 'signal-inference',
@@ -91,7 +91,6 @@ const inferredTool = defineTool({
     return null
   },
 })
-void inferredTool
 
 describe('tool execution signal types', () => {
   it('requires an exact AbortSignal at every readonly tool view', () => {

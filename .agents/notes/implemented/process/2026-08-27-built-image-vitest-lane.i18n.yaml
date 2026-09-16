@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/process/2026-08-27-built-image-vitest-lane.md
-2026-08-27-built-image-vitest-lane.md: 9c592ab6162e54f752e5f5b67c9e24a52c00a67d
-2026-08-27-built-image-vitest-lane.zh.md: b06b576e4196bce9206d5e93b9f4612a1c67e118
+2026-08-27-built-image-vitest-lane.md: f0d9977a1e14407ada6c0e7791f69bb81b5a57c0
+2026-08-27-built-image-vitest-lane.zh.md: b50c337c73aa78ee18c474bef50499b309ed77ae

@@ -25,8 +25,9 @@ import { replaceFileDurablyWin32 } from '@deepseek-ai/dsh-atomic-write/win32'
  */
 export async function writeAtomic(path: string, data: string): Promise<void> {
   const tmp = join(dirname(path), `.${randomUUID()}.tmp`)
+  const handle = await open(tmp, 'wx', 0o600)
+  let committed = false
   try {
-    const handle = await open(tmp, 'wx', 0o600)
     try {
       await handle.writeFile(data, 'utf8')
       await handle.sync()
@@ -34,9 +35,9 @@ export async function writeAtomic(path: string, data: string): Promise<void> {
       await handle.close()
     }
     await commitDurably(tmp, path)
-  } catch (error) {
-    await rm(tmp, { force: true })
-    throw error
+    committed = true
+  } finally {
+    if (!committed) await rm(tmp, { force: true })
   }
 }
 
@@ -48,7 +49,6 @@ export async function writeAtomic(path: string, data: string): Promise<void> {
  * @param path - the target being replaced.
  */
 async function commitDurably(temp: string, path: string): Promise<void> {
-  /* v8 ignore next -- native Windows coverage takes this arm; POSIX coverage takes the peer below. */
   if (process.platform === 'win32') return replaceFileDurablyWin32(temp, path)
   await rename(temp, path)
   await fsyncDirectory(dirname(path))

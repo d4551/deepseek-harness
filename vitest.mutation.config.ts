@@ -1,6 +1,6 @@
 import { globSync } from 'node:fs'
 import { defineConfig } from 'vitest/config'
-import { standardDecoratorPlugin, vitestExecArgv } from './vitest.shared.ts'
+import { standardDecoratorPlugin, vitestCacheDir, vitestExecArgv, vitestFsModuleCachePath } from './vitest.shared.ts'
 import { clientBrowserTests } from './vitest.client-browser.ts'
 
 const mutationTests = globSync([
@@ -17,9 +17,11 @@ const mutationTests = globSync([
 
 /** Tests owning the utility and conversation-linked Team mutation scope. */
 export default defineConfig({
+  cacheDir: vitestCacheDir,
   resolve: { tsconfigPaths: true },
   plugins: [standardDecoratorPlugin()],
   test: {
+    fsModuleCachePath: vitestFsModuleCachePath,
     execArgv: vitestExecArgv,
     setupFiles: ['./scripts/test-invariants.ts'],
     projects: [

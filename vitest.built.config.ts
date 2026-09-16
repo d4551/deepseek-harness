@@ -1,5 +1,5 @@
 import { defineConfig } from 'vitest/config'
-import { standardDecoratorPlugin, vitestExecArgv } from './vitest.shared.ts'
+import { standardDecoratorPlugin, vitestCacheDir, vitestExecArgv, vitestFsModuleCachePath } from './vitest.shared.ts'
 
 // Built-artifact lane (see AGENTS.md "Source plane vs artifact plane"): suites
 // that consume emitted `lib/` bundles from the real workspace composition.
@@ -8,9 +8,11 @@ import { standardDecoratorPlugin, vitestExecArgv } from './vitest.shared.ts'
 // tree — that is why they live outside the default `**/*.spec.ts` include of
 // vitest.config.ts and carry no `DSH_REQUIRE_BUILT_PACKAGES` check.
 export default defineConfig({
+  cacheDir: vitestCacheDir,
   resolve: { tsconfigPaths: true },
   plugins: [standardDecoratorPlugin()],
   test: {
+    fsModuleCachePath: vitestFsModuleCachePath,
     execArgv: vitestExecArgv,
     setupFiles: ['./scripts/test-invariants.ts'],
     include: ['packages/*/*/tests/**/*.built.ts'],

@@ -360,11 +360,12 @@ describe('Session Client stream adapters', () => {
     const carrierFailed = vi.fn()
     const failed = vi.fn()
     const afterRemote = new ScriptedSessionRemote([], [], [baseline], false)
+    let disposal: Promise<void> | undefined
     const after = createSessionControlStream(sessionClient(afterRemote), {
       accept: vi.fn(),
       carrierFailed: (error) => {
         carrierFailed(error)
-        void after.dispose()
+        disposal = after.dispose()
       },
       failed,
     })
@@ -374,6 +375,7 @@ describe('Session Client stream adapters', () => {
       message: 'session control stream ended without a terminal result',
     })
     expect(failed).not.toHaveBeenCalled()
+    await disposal
     await after.dispose()
   })
 })

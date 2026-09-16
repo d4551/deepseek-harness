@@ -765,7 +765,7 @@ describe('workspace authority and lineage redaction', () => {
       parent_session_ids: ['guessed-parent'],
     }, { signal: controller.signal })
     let settled = false
-    void pending.then(
+    pending.then(
       () => { settled = true },
       () => { settled = true },
     )
@@ -951,7 +951,7 @@ describe('workspace authority and lineage redaction', () => {
 
     const pending = mounted.call(toolName, args, { signal: controller.signal })
     let settled = false
-    void pending.then(
+    pending.then(
       () => { settled = true },
       () => { settled = true },
     )
@@ -1803,7 +1803,7 @@ describe('search paging, prior-history bounds, titles, and cancellation', () => 
       { signal: controller.signal },
     )
     let settled = false
-    void pending.then(
+    pending.then(
       () => { settled = true },
       () => { settled = true },
     )
@@ -1862,7 +1862,7 @@ describe('search paging, prior-history bounds, titles, and cancellation', () => 
       { signal: upstream.signal },
     )
     let settled = false
-    void pending.then(
+    pending.then(
       () => { settled = true },
       () => { settled = true },
     )

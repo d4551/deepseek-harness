@@ -38,7 +38,7 @@ function start(args: string[]): { ctx: Context; exits: number[]; out: () => stri
   internals.stderr = capture
   provideCmdline(ctx, {
     args,
-    exit: code => void exits.push(code),
+    exit: (code) => { exits.push(code) },
     ready: { onReady: (listener) => { listener(); return () => {} } },
   })
   apply(ctx)

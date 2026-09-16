@@ -277,7 +277,7 @@ export function apply(ctx: Context, config: Config): void {
           run: () => {
             const proc = ctx.shell.start(ctx.shell.resolve(request))
             return {
-              cancel: () => void proc.kill(),
+              cancel: () => { proc.kill() },
               done: proc.done.then(() => processOutcome(proc)),
               readOutput: () => renderShellProcessRead(proc.readOutput(), proc.sandbox, escalationModes),
             }
