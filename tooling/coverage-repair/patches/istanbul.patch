@@ -1,0 +1,2183 @@
+--- a/packages/istanbul-lib-coverage/package.json
++++ b/packages/istanbul-lib-coverage/package.json
+@@ -3 +3 @@
+-  "version": "1.0.0",
++  "version": "1.0.1",
+--- a/packages/istanbul-lib-instrument/package.json
++++ b/packages/istanbul-lib-instrument/package.json
+@@ -3 +3 @@
+-  "version": "1.0.0",
++  "version": "1.0.1",
+@@ -41,0 +42 @@
++    "@types/convert-source-map": "catalog:",
+--- a/packages/istanbul-lib-instrument/src/visitor.ts
++++ b/packages/istanbul-lib-instrument/src/visitor.ts
+@@ -777 +777 @@
+- * @param types - an instance of babel-types.
++ * @param babelTypes - an instance of babel-types.
+@@ -782 +782 @@
+-  types: typeof t,
++  babelTypes: typeof t,
+@@ -789 +789 @@
+-  const T = types;
++  const T = babelTypes;
+@@ -795 +795 @@
+-    types,
++    babelTypes,
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -10,2 +10,2 @@
+-      specifier: ^8.0.1
+-      version: 8.0.1
++      specifier: ^8.0.5
++      version: 8.0.5
+@@ -13,2 +13,2 @@
+-      specifier: ^8.0.4
+-      version: 8.0.4
++      specifier: ^8.0.5
++      version: 8.0.5
+@@ -19 +19 @@
+-      specifier: ^0.1.3
++      specifier: ^0.1.6
+@@ -22 +22 @@
+-      specifier: ^0.3.23
++      specifier: ^0.3.31
+@@ -23,0 +24,3 @@
++    '@types/convert-source-map':
++      specifier: ^2.0.3
++      version: 2.0.3
+@@ -25,2 +28,2 @@
+-      specifier: ^26.2.0
+-      version: 26.2.0
++      specifier: ^26.6.1
++      version: 26.6.1
+@@ -28,2 +31,2 @@
+-      specifier: 4.1.11
+-      version: 4.1.11
++      specifier: 5.0.1
++      version: 5.0.1
+@@ -31,2 +34,2 @@
+-      specifier: 4.1.11
+-      version: 4.1.11
++      specifier: 5.0.1
++      version: 5.0.1
+@@ -34,2 +37,2 @@
+-      specifier: ^15.0.4
+-      version: 15.0.4
++      specifier: ^15.0.5
++      version: 15.0.5
+@@ -37,2 +40,2 @@
+-      specifier: ^2.1.4
+-      version: 2.1.4
++      specifier: ^3.0.0
++      version: 3.0.0
+@@ -40,2 +43,2 @@
+-      specifier: ^0.64.0
+-      version: 0.64.0
++      specifier: ^0.68.0
++      version: 0.68.0
+@@ -43,2 +46,2 @@
+-      specifier: ^1.79.0
+-      version: 1.79.0
++      specifier: ^1.83.0
++      version: 1.83.0
+@@ -46,2 +49,2 @@
+-      specifier: ^1.62.1
+-      version: 1.62.1
++      specifier: ^1.63.0
++      version: 1.63.0
+@@ -52,2 +55,2 @@
+-      specifier: ^0.22.14
+-      version: 0.22.14
++      specifier: ^0.23.0
++      version: 0.23.0
+@@ -58,2 +61,2 @@
+-      specifier: ^4.1.10
+-      version: 4.1.11
++      specifier: ^5.0.1
++      version: 5.0.1
+@@ -61,2 +64,2 @@
+-      specifier: ^2.9.0
+-      version: 2.9.0
++      specifier: ^2.9.1
++      version: 2.9.1
+@@ -70 +73 @@
+-        version: 0.8.0(oxlint@1.79.0)
++        version: 0.8.0(oxlint@1.83.0)
+@@ -73 +76 @@
+-        version: 26.2.0
++        version: 26.6.1
+@@ -76 +79 @@
+-        version: 4.1.11(@vitest/browser@4.1.11)(vitest@4.1.11)
++        version: 5.0.1(@vitest/browser@5.0.1)(vitest@5.0.1)
+@@ -79 +82 @@
+-        version: 15.0.4
++        version: 15.0.5
+@@ -82 +85 @@
+-        version: 0.64.0
++        version: 0.68.0
+@@ -85 +88 @@
+-        version: 1.79.0
++        version: 1.83.0
+@@ -91 +94 @@
+-        version: 4.1.11(@types/node@26.2.0)(@vitest/browser-playwright@4.1.11)(@vitest/coverage-v8@4.1.11)(vite@8.2.2(@types/node@26.2.0)(jiti@2.7.0)(yaml@2.9.0))
++        version: 5.0.1(@types/node@26.6.1)(@vitest/browser-playwright@5.0.1)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(vite@8.2.2(@types/node@26.6.1)(jiti@2.7.0)(yaml@2.9.1))
+@@ -97 +100 @@
+-        version: 0.22.14(typescript@7.0.2)
++        version: 0.23.0(typescript@7.0.2)
+@@ -103 +106 @@
+-        version: 8.0.1
++        version: 8.0.5
+@@ -106 +109 @@
+-        version: 8.0.4
++        version: 8.0.5
+@@ -112,0 +116,3 @@
++      '@types/convert-source-map':
++        specifier: 'catalog:'
++        version: 2.0.3
+@@ -119 +125 @@
+-        version: 0.22.14(typescript@7.0.2)
++        version: 0.23.0(typescript@7.0.2)
+@@ -122 +128 @@
+-        version: 2.9.0
++        version: 2.9.1
+@@ -132 +138 @@
+-        version: 4.1.11(playwright@1.62.1)(vite@8.2.2(@types/node@26.2.0)(jiti@2.7.0)(yaml@2.9.0))(vitest@4.1.11)
++        version: 5.0.1(playwright@1.63.0)(vite@8.2.2(@types/node@26.6.1)(jiti@2.7.0)(yaml@2.9.1))(vitest@5.0.1)
+@@ -135 +141 @@
+-        version: 1.62.1
++        version: 1.63.0
+@@ -141 +147 @@
+-        version: 0.22.14(typescript@7.0.2)
++        version: 0.23.0(typescript@7.0.2)
+@@ -153 +159 @@
+-        version: 2.1.4
++        version: 3.0.0
+@@ -157 +163 @@
+-        version: 0.22.14(typescript@7.0.2)
++        version: 0.23.0(typescript@7.0.2)
+@@ -165,2 +171,2 @@
+-  '@babel/compat-data@8.0.0':
+-    resolution: {integrity: sha512-DOjnob/cXOUgDOozCDeq/aK2p5y8dUIVdf6tNhEV1HQRd6I8aQ4f4fbtHRVEvb6lP3BGomrKHiS8ICAASSVQSw==}
++  '@babel/compat-data@8.0.5':
++    resolution: {integrity: sha512-YLsYoQMvL8l8WrGpN3Zj7O1wK5LEBN+cQtux7BcuHyxIXve724XG+zuJ1n3U1cUweRtTzQOA4IHbuQw3N34SZw==}
+@@ -169,2 +175,2 @@
+-  '@babel/core@8.0.1':
+-    resolution: {integrity: sha512-5FgxM4dLQpMJHSiVATk8foW263dVHQHBVpXYiimNECVWG01f4nFyEbQixeT6Mwvg7TayREJ2gpKl3o2RoMdnqw==}
++  '@babel/core@8.0.5':
++    resolution: {integrity: sha512-2/oWkgTbBYoqioCWAE4XJobOrzwxTDa5/XjDP3tJ1BhDr/owcd9qnXBp4xc3/2G5X4bvXM04nrxbRJxFcXAxFQ==}
+@@ -173,2 +179,2 @@
+-  '@babel/generator@8.0.0':
+-    resolution: {integrity: sha512-NT9NrVwJsbSV6Y2FSstWa71EETOnzrjkL5/wX3D2mYHtKM+qvqB1DvR4D0Setb/gDBsHzRICifwEWMO8CnTF6g==}
++  '@babel/generator@8.0.5':
++    resolution: {integrity: sha512-f/TuhuMAxJqhwxEGNsJrswuG9VHmh0oNFoQoo6TbpgtFAz9wYZXcTAcWZMHfp7ljesr0RG04bp3Aos9GI59L7w==}
+@@ -177,2 +183,2 @@
+-  '@babel/helper-compilation-targets@8.0.0':
+-    resolution: {integrity: sha512-JwculLABZvyPvyLBpwU/E/IbH2uM3mnxNtIJpxnIfb24y1PrdVxK5Dqjle4DpgqpGRnwgC7G8IkzPdSXZrO1Ew==}
++  '@babel/helper-compilation-targets@8.0.5':
++    resolution: {integrity: sha512-Qk8ahMGooH5mz6uuhoDvfZGkUf/Mf3RTBucVVl4MKx4LKMTv872TeW8O92h15iVtlN8wAROBIpI1aV6x1z0LCQ==}
+@@ -205,2 +211,2 @@
+-  '@babel/helpers@8.0.0':
+-    resolution: {integrity: sha512-wfbi91pM3py96oIiJEz7qIpyXDytgr9zQC1HEWwlGNVRAEmItuU/0a41ZUKu1sJGyhhOIpc4t5vk4PYzt8wpsg==}
++  '@babel/helpers@8.0.5':
++    resolution: {integrity: sha512-fQtPOXjYOYv85PIdwotp2TJGVYOycX0PQq+l844fFAxOULtBy8BVF35GyeueX0r4KvDthqPH5xAI1clQPk/2uA==}
+@@ -214,2 +220,2 @@
+-  '@babel/parser@8.0.4':
+-    resolution: {integrity: sha512-srpptsAkEbbNIC/q8nT7o+m6CQe8CJUTV/t7MYc9NnWlgYVtHOb7JH6SorxMhN0kuRJjVqXbKClG6xSbPtzz+g==}
++  '@babel/parser@8.0.5':
++    resolution: {integrity: sha512-51RXvQNFakaS0bTpYiGkxNbUVwkPO4kONv6EVLorZABxsx+KZ6Z7uSYvi/wmKS/+X+rfj9RvOw0/ZNh+cmI0Rw==}
+@@ -223,2 +229,2 @@
+-  '@babel/traverse@8.0.4':
+-    resolution: {integrity: sha512-bZnmqzGG8UZneG1lLxBoWIH0G6Gr1D846Yu4/3XnY6FhCndMR49u26nTY08u/dAxWmLWF9vGQOuC+84FfIUoeg==}
++  '@babel/traverse@8.0.5':
++    resolution: {integrity: sha512-XFfnuvapSc/vJOcUO7kwORSvpBIvraofKEZ2dhT0PjiF21BRCD7YbAFC8UEeDJNeLoQz82/gVqzgX5hCzkCbdg==}
+@@ -231,2 +237,2 @@
+-  '@babel/types@8.0.4':
+-    resolution: {integrity: sha512-eY+Yn3dCqTGmyiq2QRU66lA5FL8lqqqvecHt0fF3uHONIa7ToYsaCiWV8lOKqAs0Rb2SjixiKFROngnulPtt2g==}
++  '@babel/types@8.0.5':
++    resolution: {integrity: sha512-eVdMqi3ej5aHhyQ2Si6yD2cAWeV8FJK9UrhK5aL0Sd8hu5GhT+YswhVNbVheOGVYMg8kuGuMaUpkB3stjj4z8A==}
+@@ -239,2 +245,2 @@
+-  '@blazediff/core@1.9.1':
+-    resolution: {integrity: sha512-ehg3jIkYKulZh+8om/O25vkvSsXXwC+skXmyA87FFx6A/45eqOkZsBltMw/TVteb0mloiGT8oGRTcjRAz66zaA==}
++  '@blazediff/core@1.10.0':
++    resolution: {integrity: sha512-AOQff0zgR7cGsZL+4E7hVkmujoPUpm0J9xzWGWZj5wCjd3gmxESXAPfKyuzs93VdpQNFhHlBhfOjrcZ+XTERtQ==}
+@@ -257,2 +263,2 @@
+-  '@jridgewell/gen-mapping@0.3.13':
+-    resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
++  '@jridgewell/gen-mapping@0.4.0-beta.0':
++    resolution: {integrity: sha512-JdGNkbE4GlNPYQhM0L95fBQr7ctLZJ276QXQLTad4t1oSdnnCI3fDq9DW3BqYAWv8Wc3+HS+4Gsii1oPMCfz1w==}
+@@ -264,2 +270,2 @@
+-  '@jridgewell/sourcemap-codec@1.5.5':
+-    resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==}
++  '@jridgewell/sourcemap-codec@1.6.0':
++    resolution: {integrity: sha512-T7jf+5zgsZHwNJ4lvQ7/aezbyk0nNX+zJVWpmHA7VYsEx7a7qr5Rg5IbtJFqkgze5Y2sruq1RUY8Q837Od7iFw==}
+@@ -270,5 +276,5 @@
+-  '@oxc-project/types@0.146.0':
+-    resolution: {integrity: sha512-XC0QsnnhVe7sLIWmYmdPw7x5P0h4W8vUU3Nv1ySgWXtvCz8NizoAEpGXA0sOYoJQV2Rl13LgURAHQ5cI5ILCSA==}
+-
+-  '@oxfmt/binding-android-arm-eabi@0.64.0':
+-    resolution: {integrity: sha512-o6uzh/jTOQeAY5TdkAeXdqv7MBRcPxiRA08zrcBtkKj5cSu/FMu0Hl7Q6Fi1KCKyCWZ6lJVjBzdsJvsKltUsGQ==}
++  '@oxc-project/types@0.149.0':
++    resolution: {integrity: sha512-Efcc+iF0j3Bf67YjEqIqWXbX5XddXoK/Mw4K1/JuXwRCZ8N16VR7iT23nlCc9XrveFVh/E5Rqs2StT0V8v9LdA==}
++
++  '@oxfmt/binding-android-arm-eabi@0.68.0':
++    resolution: {integrity: sha512-dhfYPbzv/h9JgHjNkl2R6sOjUfxDyLGOZVb3g8/ScaTNwwJcYgmHh8kcYFDUhinuy1QAoANCWUvw1jlk+z6gAg==}
+@@ -279,2 +285,2 @@
+-  '@oxfmt/binding-android-arm64@0.64.0':
+-    resolution: {integrity: sha512-jRGSUeeP7p3Gynw2YaCVtjBIA6ZxY6bEB/ES5i54OhqmRTyuVg7ZgstEtzgq6GOAJd+2QZ5pvf+bFfmW5Mp9cw==}
++  '@oxfmt/binding-android-arm64@0.68.0':
++    resolution: {integrity: sha512-v3Njdi6qY0O/5eGfg01ww2w6gTn2mUvZ72Bnx1/UN53A9wruh3Nk6otc3WkgJLkXD4Qgz1SOcVQieH1oD03V9Q==}
+@@ -285,2 +291,2 @@
+-  '@oxfmt/binding-darwin-arm64@0.64.0':
+-    resolution: {integrity: sha512-JINwtU2lW7nOFSqi+H2qplipNUqah9Gc1jgGmB82kTD4UnZrZIVxCJ9qEmFiKfjNq27gYLFhrUb0to86aCwMjw==}
++  '@oxfmt/binding-darwin-arm64@0.68.0':
++    resolution: {integrity: sha512-ei4MCMzHFREmZwPJ7KuWUB4kBuHdsgDrnXGJVcEAopU7fj7S42I8BChdFILWdHvhFqR08FLJtOfbZIr2CDw0cA==}
+@@ -291,2 +297,2 @@
+-  '@oxfmt/binding-darwin-x64@0.64.0':
+-    resolution: {integrity: sha512-gCmuswrgrOSajV4HCRFkVCGIruPq8bjYuPYgSE2WQB3mD6XrdyZ3JMSRZCkQ8zCxOyGWriBo6QoZ5nmMHQ1BfA==}
++  '@oxfmt/binding-darwin-x64@0.68.0':
++    resolution: {integrity: sha512-UrKgzZxYhwB9DSvTX+vdgl9M32wLUNKJcAKIoiyx/Kzn/zveqi7W6kYVcRroFMhS3Kwz0KhTk3WBeSuQn4YCTg==}
+@@ -297,2 +303,2 @@
+-  '@oxfmt/binding-freebsd-x64@0.64.0':
+-    resolution: {integrity: sha512-Ab8g7a38pT0MMImjh7anRSTve6buWBIlcXIFBYa5xl4s6UxEgKSc2xOOhbGtLwvXnEi2PsEDGoJh3oUU7xkehQ==}
++  '@oxfmt/binding-freebsd-x64@0.68.0':
++    resolution: {integrity: sha512-6jrEKgpJbilM1QaRv7hEtKXr4p4AK4jvvyOtajwyhu0kOz3e0O7OLnSTk6tBotRqCcUC4ehZRJ1Zx+Y99wieLw==}
+@@ -303,2 +309,2 @@
+-  '@oxfmt/binding-linux-arm-gnueabihf@0.64.0':
+-    resolution: {integrity: sha512-BgvS3CoQ+Xy2deoZqEN8JVKabcCZi2RxA3yant8G9OAv9KuPJ9TCjHkqigzdHUVwErZxEP5d2bzLIEyKYyBDLg==}
++  '@oxfmt/binding-linux-arm-gnueabihf@0.68.0':
++    resolution: {integrity: sha512-YOIVnKOBaLeGullskS179N12hjSAdFYnzLjOaKiLhAKNWgnShq9w4xRdtmUm6BlnP65l2/EA9Aw/KlftNxDM7Q==}
+@@ -309,2 +315,2 @@
+-  '@oxfmt/binding-linux-arm-musleabihf@0.64.0':
+-    resolution: {integrity: sha512-QXpNxwoMj0YvnceCNZadNSden3bIcnvjn/sDp/rwZhRoZoZYGpHvtPyhGsdJz9uvT9GkaMW7SsLddurU56dt8w==}
++  '@oxfmt/binding-linux-arm-musleabihf@0.68.0':
++    resolution: {integrity: sha512-xW5XoEHVNqydPBv2KXvk9lmEzyAlOQHVEazKoXUuAacqekjya+OdiaFjjEBl0oJD02raG8g3TRl9OVCh9PDIHA==}
+@@ -315,2 +321,2 @@
+-  '@oxfmt/binding-linux-arm64-gnu@0.64.0':
+-    resolution: {integrity: sha512-BBgH3I1ppDsI5pZ4Pdhw0ceYxwVCfbU/bZEBCeZ6caRS9x0ZabErxubP7riGUn11PXZBhe8DYdjkDKP1FlVQ5w==}
++  '@oxfmt/binding-linux-arm64-gnu@0.68.0':
++    resolution: {integrity: sha512-QCvYwVVQieu6oyJglAgV9vH/YMDxZyR4cwVSYtoq9oOXd5N+D3TDUBjNwxFrLn5AdcJZOcvn/7IB17vJGp+2Og==}
+@@ -322,2 +328,2 @@
+-  '@oxfmt/binding-linux-arm64-musl@0.64.0':
+-    resolution: {integrity: sha512-v19HSjC/BGXdt26qEvKZtwAHgGmQ2Agcap2kQP+KIqoRZqivVzYth3ui2dJA1i+6/fjpjga85lIOaJJjQ/bOOw==}
++  '@oxfmt/binding-linux-arm64-musl@0.68.0':
++    resolution: {integrity: sha512-4TVz5iFQ8ndrHnhX50UXiz9BIWAtUSOHJ6Nus4qWFfJBXq/Ed/krXbF/ehJu42BXM5tIvBs99jNIM22s9agY5A==}
+@@ -329,2 +335,2 @@
+-  '@oxfmt/binding-linux-ppc64-gnu@0.64.0':
+-    resolution: {integrity: sha512-PElLnOo4xFTBZrxPhgTIj0eHqZXwEBQoNWtb7facUV170T0B0FRET0iNbb3LUeLWTybkUW+vsdyv4ihOdyXGyw==}
++  '@oxfmt/binding-linux-ppc64-gnu@0.68.0':
++    resolution: {integrity: sha512-qLe3ao0RP84bnPxBvRI+GnlK/jybo538NWu0Xrm+zYeTmJtpzqLhnnd5BH21NafqKnplbGZjtN1cnrOlWF73lw==}
+@@ -336,2 +342,2 @@
+-  '@oxfmt/binding-linux-riscv64-gnu@0.64.0':
+-    resolution: {integrity: sha512-Qzsg15n4F5CH+MorcRW4MkAEMiLzXmeG+DiDSbP/bBTqCmWOH3K9DHryNrve+JHlV0txS+B6Z9P5Xz+cmWeL+g==}
++  '@oxfmt/binding-linux-riscv64-gnu@0.68.0':
++    resolution: {integrity: sha512-Yvyl7a6gbb0vM6r925KW2dO+/CmXySO5TVbcX7o/uZJ+d108HFOG0TxIyHApmn5USuj5mhDPxzhiVwOlGP7uSA==}
+@@ -343,2 +349,2 @@
+-  '@oxfmt/binding-linux-riscv64-musl@0.64.0':
+-    resolution: {integrity: sha512-/GZ358wnQ/Ez4UVnCcZIi56JkY0sOdZ+B108pqXKqZz3jLS59F4KEAB1Qv3fRlObrFEk+3L2vUQ/xoPx+3vjXw==}
++  '@oxfmt/binding-linux-riscv64-musl@0.68.0':
++    resolution: {integrity: sha512-mJlFuFVCxzrYM5sFStN433D/s/mb6Wq4aCQAM02vs/OudHywnaSAd2rb1vlYUJtqdYIciJtiasuxvfbYkv5fLg==}
+@@ -350,2 +356,2 @@
+-  '@oxfmt/binding-linux-s390x-gnu@0.64.0':
+-    resolution: {integrity: sha512-/C9We3DXegowfLXtVCYHeNiU9azwCDr5cQkEtCVlc74vyn+lLQSPApJ1CZmxAduqeq/Oi3gQ+IVptyhCaTMtkQ==}
++  '@oxfmt/binding-linux-s390x-gnu@0.68.0':
++    resolution: {integrity: sha512-RlfSg++qs1hbKltRR6lYvV9EoI3MdlfSQD9w1hdHVYjHqjIn1tkH4FWOpMSmjKGN20zr+nI+W9o4ARogCDudGQ==}
+@@ -357,2 +363,2 @@
+-  '@oxfmt/binding-linux-x64-gnu@0.64.0':
+-    resolution: {integrity: sha512-91KM2CeRWscIEHlj1NsW2WSnzGeq1Ehq+39bfDowTdkn+fcvK/x4Y1RcyqT7glyBjZio0ldkeCG6Usj3v7ASog==}
++  '@oxfmt/binding-linux-x64-gnu@0.68.0':
++    resolution: {integrity: sha512-nyzRB9U+dlYUKu3pMo3afHzZBUv/oTHZMG36ZfJViNVfOIzp70Q4GS8FFRGgYJ/p0zcyDCgpBvYISOdJOMh+jQ==}
+@@ -364,2 +370,2 @@
+-  '@oxfmt/binding-linux-x64-musl@0.64.0':
+-    resolution: {integrity: sha512-gw7uEk9I+7zoT1EYLra1eWArIzNcz8e3jkv+Noo2+o2T7wPvsNSQbfoa4DSfZlvn1i6mJ05RiZ4/omaXPDNhQg==}
++  '@oxfmt/binding-linux-x64-musl@0.68.0':
++    resolution: {integrity: sha512-iCx3sbZRIvGrL1RafphEiUKBaW1lc0/tAjKOIB/Wjw2+STRBEdu5+fH1Gc1faEWEmc2k5Ks4iUUV54Zd5C9a1A==}
+@@ -371,2 +377,2 @@
+-  '@oxfmt/binding-openharmony-arm64@0.64.0':
+-    resolution: {integrity: sha512-HYHFf616FHSPSO07c09mjmXBfQ73wIVM3m0txOiooa5XZkGoxFd6B14PVj0LB0DXIqJ6wAO/dDR/NX/5UUaqnw==}
++  '@oxfmt/binding-openharmony-arm64@0.68.0':
++    resolution: {integrity: sha512-x2X5AZez7OgyLLFpwIgItoXBUqudDM7yiaTsxv8R8vKQ6e81l0jVw0NFeUCXzcl1sAJq8h+tC8N4mY8EiMeL4w==}
+@@ -377,2 +383,2 @@
+-  '@oxfmt/binding-win32-arm64-msvc@0.64.0':
+-    resolution: {integrity: sha512-uQjFp081IZSWD6VAofX2iO2z01awAdHmfC+NrieWIPKrT2hZKQDyq/U18M7ifC0sm0Wz8aHY/p6+FDYIzs/CrQ==}
++  '@oxfmt/binding-win32-arm64-msvc@0.68.0':
++    resolution: {integrity: sha512-AHVPjXkenLPQUh6kB8zSC8pX2ct9r4T1Edk9r/RNJyov6wPsS5uAfYtipwG4chn6+3bPFG5rI/3DxEeH8vib1w==}
+@@ -383,2 +389,2 @@
+-  '@oxfmt/binding-win32-ia32-msvc@0.64.0':
+-    resolution: {integrity: sha512-lNM6byTAQ881jugzFu8juJTbNRgsUTlswMA6pJmwi1XDvmIqnnb49lcUAs5gz94fCJLrVN+/X3s3jOKqx23WIQ==}
++  '@oxfmt/binding-win32-ia32-msvc@0.68.0':
++    resolution: {integrity: sha512-n09SjEk5VH7z8Hl4WVP7hho+cCwGViENkQFiM45vbW85dJd7kEhWaHRUobaPzEmrWyu6uumd4EuNfNyDKLtzDA==}
+@@ -389,2 +395,2 @@
+-  '@oxfmt/binding-win32-x64-msvc@0.64.0':
+-    resolution: {integrity: sha512-BtmbtL/QjMtF1a6C3CqoDluH2IfB6fJt62E+B9RFfUPtFk4Iz9PFS6+y/SzzOvSxc7aUk2Kphwg7Dh8lMbwu6g==}
++  '@oxfmt/binding-win32-x64-msvc@0.68.0':
++    resolution: {integrity: sha512-gPe+dJLXaPuWPWqlpklDAJp0k+K9KhQPYiQLHfb+i2rmFuUGfJ/5Qlj6tr1mO6of5g0DiLjG/XCFHIaPhotqqA==}
+@@ -395,2 +401,2 @@
+-  '@oxlint/binding-android-arm-eabi@1.79.0':
+-    resolution: {integrity: sha512-TebFaaMklO/RXzTv7PucaCq9l3X6D1gA+C8H6K4njtjFOV+zWE9MKLpulcJZN9bzytbUbQIY0mZuz12nQ5Kv4Q==}
++  '@oxlint/binding-android-arm-eabi@1.83.0':
++    resolution: {integrity: sha512-0yGY24EwsLk5YDe6F+VkmZyRHSwJDALa3nIrPpq7FXmp2lV2d0TzvBCGeZk+wgiULRGr5blhyr4QMp5KCXJUqA==}
+@@ -401,2 +407,2 @@
+-  '@oxlint/binding-android-arm64@1.79.0':
+-    resolution: {integrity: sha512-KqqnOtAVgNsPPF0YSodkFZA1O80jcKoCZCTu3bgsszxA+MrMP9TLzfXitKjEj1FmrPprKDMdRDMmY3weESO9sg==}
++  '@oxlint/binding-android-arm64@1.83.0':
++    resolution: {integrity: sha512-hHfJ0vc17A4iUjH5p9BsTUPYbYRNxGpvD2lbu1aBRk54bzNIx9o5TtYF39QPZcV95DagZd+4DEAw2RH3G2ZsMg==}
+@@ -407,2 +413,2 @@
+-  '@oxlint/binding-darwin-arm64@1.79.0':
+-    resolution: {integrity: sha512-BVC2nsMzqQzRDPc5RhixkZ+m1p7iH4bxRRvqkbwDXX0PlQKm1BPy8J8cRjnAFafOq2QzI+BfO3vE8w2GZ3CBag==}
++  '@oxlint/binding-darwin-arm64@1.83.0':
++    resolution: {integrity: sha512-hsOjYjszLb/3zym/TkzUMPAoQlTJcuzSyEPOAyA+skXJIX9M0o+4JfOtqopX/Vf4hSLrJ98j0nvFo23gzk8auQ==}
+@@ -413,2 +419,2 @@
+-  '@oxlint/binding-darwin-x64@1.79.0':
+-    resolution: {integrity: sha512-p6Lm+snmhGuLKL1+CpCV8L6ijkE/qJzK2H2jG9+eKJT0n31RbY4FLsdhexekgP3bLpw4Kgde+9DZuDZQ4yIInA==}
++  '@oxlint/binding-darwin-x64@1.83.0':
++    resolution: {integrity: sha512-mjh5oH2EA+wl5yRJYT9K9G61O2zFlpuv+yf2JwZOi0+dq2FnTUtm1h8i+5Ik0fXPWIu/k84I1psZR9aQsLAnyA==}
+@@ -419,2 +425,2 @@
+-  '@oxlint/binding-freebsd-x64@1.79.0':
+-    resolution: {integrity: sha512-qDMm0dXZnoHyRqSL4N4xUq82T4sqK5cbKSjvd/dF/YbMUXc2R1wEPf+vmA5S0qUmi0nwXfNbjXBtZaIqzQLIMg==}
++  '@oxlint/binding-freebsd-x64@1.83.0':
++    resolution: {integrity: sha512-fNHr64/YaO8YssuoDVC8+F4Uk5enR86q5uxfHkQrjAPs1dbAILOrD2uaud+J7MO8Fx774g44ERLD0IGIvZE48w==}
+@@ -425,2 +431,2 @@
+-  '@oxlint/binding-linux-arm-gnueabihf@1.79.0':
+-    resolution: {integrity: sha512-2od7s0nuKPzqyUZAWk9KkCyGg7eI9dwFPZg+20lB15fKFkVZ0c9ZFxqPfiBAyDTlTkh9stPI0t+JlPCqMbItVA==}
++  '@oxlint/binding-linux-arm-gnueabihf@1.83.0':
++    resolution: {integrity: sha512-Qpwy3zzAwMj+8/lyYItHmkSMwbkprFNWTK7jPYDOxSyxEhaSLOWYUTCMkjF334J8/WD0nznCCsoBbIH6hpsuIw==}
+@@ -431,2 +437,2 @@
+-  '@oxlint/binding-linux-arm-musleabihf@1.79.0':
+-    resolution: {integrity: sha512-ZOQUjkzDnvlhSE3+tWC3YXx94MMl+sYMlwH+u1+YGApGHOJP/YAc8ZBRFOXZ6eOBmxtXAWuS/fBcdZr8qqNO1A==}
++  '@oxlint/binding-linux-arm-musleabihf@1.83.0':
++    resolution: {integrity: sha512-s+BirYLFq7JL2k9sP0XI3ZXJ9dYvJ8sX3jLCLoag7tt+zrSHpZxP0jqznfL+Gdgwu7ay0dYgGYJXrQvq3iWloA==}
+@@ -437,2 +443,2 @@
+-  '@oxlint/binding-linux-arm64-gnu@1.79.0':
+-    resolution: {integrity: sha512-lu158FR4nGqGeRS3BQvtG85wRgU/Fy4MD5Cxp1hzJXizGiLo6u2742wJSCDKh8cFcZntvX7fcxlq4mMmfryH1g==}
++  '@oxlint/binding-linux-arm64-gnu@1.83.0':
++    resolution: {integrity: sha512-7lihXt3vKr+GIyapNbHrnFHm/biiW30le6Zv/DExbAFPF6YwCQXVFlONPFehxs0CpGO4CBfYPM9rdDT+XMoIlg==}
+@@ -444,2 +450,2 @@
+-  '@oxlint/binding-linux-arm64-musl@1.79.0':
+-    resolution: {integrity: sha512-mbpKQeE2aflTjddaHK7MP8KP/OFbUM++lt5M635ENM8IyIdK0jm2t9pb+2v9mVVIvhF6TqA4l7F79Pll1mi+uw==}
++  '@oxlint/binding-linux-arm64-musl@1.83.0':
++    resolution: {integrity: sha512-q63JalLYVkZiZvls1z3PPUnpmQluOMXp0khqQMznCeAPLGydfNY8JhvuA4WlK57JfrvikU8wB5lPVveqpIXvew==}
+@@ -451,2 +457,2 @@
+-  '@oxlint/binding-linux-ppc64-gnu@1.79.0':
+-    resolution: {integrity: sha512-WpGNua7gaxaHnpSDeog2ji8IDHn/QLPl9LPzwkR/FvVv58vT5BcXjRXnU+wbu3N75cpeha8CdC7ho/U2OIsB4g==}
++  '@oxlint/binding-linux-ppc64-gnu@1.83.0':
++    resolution: {integrity: sha512-krQmDF+dRbxvdqVPV88ZuOoPPu8X5BuqDA8Hd+qcS4YMRQCb+nexA57DazgGsc/rGdKBe3QmV0mnv0bdpW/p5g==}
+@@ -458,2 +464,2 @@
+-  '@oxlint/binding-linux-riscv64-gnu@1.79.0':
+-    resolution: {integrity: sha512-tK1E93A5LVzISg4ngpKJnfTs7EqtIUceGI7MQ4GyDjJiLi8wPCkEyKlj2xkyKWZ1yzkDJyLHTBJ5/iFWRdnJvg==}
++  '@oxlint/binding-linux-riscv64-gnu@1.83.0':
++    resolution: {integrity: sha512-MmOl8Y6txEAXZU1RG8Rr264jQ6D7VPmqFsU/45x/FeWsGe32hklTqGrLE6UxHzp5Rjt0wP+20tY8YXKgSFB3mw==}
+@@ -465,2 +471,2 @@
+-  '@oxlint/binding-linux-riscv64-musl@1.79.0':
+-    resolution: {integrity: sha512-qhQvUIrngXivA2A9pQ+xPCychztn/5qUv7yS3gDwXv3w7Rag+eTeeXWmRyx+t7XsW5x6LuY/8AsTq36UgFIblg==}
++  '@oxlint/binding-linux-riscv64-musl@1.83.0':
++    resolution: {integrity: sha512-u1rMymh0W3JZkq370kzQsYPULGWqhE09pZRqnZvUSoYaI9pVO5yVX+iYIslmWuEgwuzH9YAaOsScJiobWCHoOw==}
+@@ -472,2 +478,2 @@
+-  '@oxlint/binding-linux-s390x-gnu@1.79.0':
+-    resolution: {integrity: sha512-sv6AaVgU/eE6u+6WFiQVDcPPwTxP6IJMSB9k701W2r/r6Tx465e8vPvVyRxquNH4Vy6KwRNu90mVbxXJN8+5gg==}
++  '@oxlint/binding-linux-s390x-gnu@1.83.0':
++    resolution: {integrity: sha512-y0zK3HNwGysu7rqtE+BQG/d0bx5gh/KwlOtghN8oWeK1KcWzeaLqtZrbm8owqdma1lFyrce/hTO5ismuNu+INQ==}
+@@ -479,2 +485,2 @@
+-  '@oxlint/binding-linux-x64-gnu@1.79.0':
+-    resolution: {integrity: sha512-iFZL02deziHslb3jEX9KdqlAkYoo4fGyotchKDzdfK1f5mxlIBeiQeHhvK3iFpuEJSB4ma/qeFn9oxPiwnhUPQ==}
++  '@oxlint/binding-linux-x64-gnu@1.83.0':
++    resolution: {integrity: sha512-rS5gM0NgD7ngmuJmbIehsidtrOwKkLFwCQbKEeb9KuyQrrWNq5Zkn0uV6AYdXOMJ0grrWEiLwBuvMxt8w5vsNw==}
+@@ -486,2 +492,2 @@
+-  '@oxlint/binding-linux-x64-musl@1.79.0':
+-    resolution: {integrity: sha512-3DtZR2raqObnh7wXZoFYFd0Fw7skBvcb3f7A+/lkEiDuh8hrE6vv9b/62Qxao1a9/OeHLw/FcXlXzgsW9wTRFg==}
++  '@oxlint/binding-linux-x64-musl@1.83.0':
++    resolution: {integrity: sha512-W2IH4EtpcPaWcvNGCA95YoDg4vxqE/ZiPCi3arrxEEpsK7+JQN9WYwrlYFx9pcdP6KPXqRqkv3zdQPHcx7b6YQ==}
+@@ -493,2 +499,2 @@
+-  '@oxlint/binding-openharmony-arm64@1.79.0':
+-    resolution: {integrity: sha512-Oatt4GuA1WJkqzk2ozx4HrWROOi7opV3AKDw/U8qDIqeTqzsjn5K2x3REJMNjU3/KU/Bkq96Zi3CknaiDTaC/Q==}
++  '@oxlint/binding-openharmony-arm64@1.83.0':
++    resolution: {integrity: sha512-6LyKkUyoajssTPLlZmDbZIbu4IZ5B4bGuRUnBgCGpEvHP3FQMaYITncHA/unPUo7q+Z+pIu2HhdkQ+8d1SG7iA==}
+@@ -499,2 +505,2 @@
+-  '@oxlint/binding-win32-arm64-msvc@1.79.0':
+-    resolution: {integrity: sha512-NAgZr9Qp8nIA9rpo0JEvwiabTF/2UVqBNnupBG9X4kxXcQoScJUTi+qHhvabb9s/thgj5wQ4XcIaJvb+ZMgoKw==}
++  '@oxlint/binding-win32-arm64-msvc@1.83.0':
++    resolution: {integrity: sha512-Uz/fObEtF0jmNJQJ8CGRBKfefYstS0/wjD3s6IGzP8nUwsJykHQJBiN3npHwKiGRGn/vvBEgNr4B3cCzmmatvg==}
+@@ -505,2 +511,2 @@
+-  '@oxlint/binding-win32-ia32-msvc@1.79.0':
+-    resolution: {integrity: sha512-+KyXjIvcpaXmWW/j9NNY5yWjrIVxaX18VyIheQy3jwc2GSYgpCr7MGI/HxIGQ/shAL5IWEKbhsqoMpAO5Stiog==}
++  '@oxlint/binding-win32-ia32-msvc@1.83.0':
++    resolution: {integrity: sha512-u7XcvPW6Bk58tY5iWs2ESb0vJjoE/kuSpHxopbwp/p3ZtWVQXZ6wor5w3ssVTHOqd/v8b+QdhSFWQ4grEUNWpA==}
+@@ -511,2 +517,2 @@
+-  '@oxlint/binding-win32-x64-msvc@1.79.0':
+-    resolution: {integrity: sha512-mEelcCMMBS57sIXh2veGMNy+pQwuGtcMxHxGIZWQ5Ba9pJ5jCCUFOZB9E2JhBaxGsURe+WGe0zJp4RVre52gpQ==}
++  '@oxlint/binding-win32-x64-msvc@1.83.0':
++    resolution: {integrity: sha512-LZRubd7ph13QmAg4fFecTYVZkiYbROR2Htaxh/ufWRkDhPOm2wrwaEYR89e0YpPFD3dqBrPoxS7myBw5hmYA7Q==}
+@@ -523,2 +529,2 @@
+-  '@rolldown/binding-android-arm-eabi@1.2.5':
+-    resolution: {integrity: sha512-DLe/i+l8ynIBY7XEQ191TeZvCoowIGa18R+dIV30GW7DiOtp74i/xX8hs8GUjW5ARV7VZuie3d6AumSmCwbeRA==}
++  '@rolldown/binding-android-arm-eabi@1.2.8':
++    resolution: {integrity: sha512-tN5aztYkKCte4i5SIrrz5yK/HMjEuCqCSCJa418jOV8tZ1cBY3YF2otxB1ktPxzsLA1BeTqwapK0bfjxNvHJVw==}
+@@ -529,2 +535,2 @@
+-  '@rolldown/binding-android-arm64@1.2.5':
+-    resolution: {integrity: sha512-zXcwKlQApYAOELHd8PwKDFkagYF9Wy4e0RJ+0qnzl9Pjnpj75TEG8ufv40p2J7kCEfwZAsNiuzRIyNNMWT38ig==}
++  '@rolldown/binding-android-arm64@1.2.8':
++    resolution: {integrity: sha512-dIYTWl9XprMUiQFoc55KUyk/oS8SKYH3zFl0LTR7RT0Xj4hgSVyuJcroH8JUu8RcpF8fTB6E0aOwCkZoYPcDSQ==}
+@@ -535,2 +541,2 @@
+-  '@rolldown/binding-darwin-arm64@1.2.5':
+-    resolution: {integrity: sha512-dK4QakI42nzWgJT5sm4y4y/O//D4OxM75/cH28RLV+nzIN9AY+YsbuUVrUTjlLjXR6vpyxFbSsbmNuJ6BP9sww==}
++  '@rolldown/binding-darwin-arm64@1.2.8':
++    resolution: {integrity: sha512-PCSDQGXD2IyTEFrcgPyBM8jJuGmrbCMuoIOXdbEGVemruKACXoLQJrb+A45Z0L5t1RQkdfJprAYPkikbh7dzdA==}
+@@ -541,2 +547,2 @@
+-  '@rolldown/binding-darwin-x64@1.2.5':
+-    resolution: {integrity: sha512-fqSALaUu1Wjd1nK2uW2kJDWdLCc8lx1IcY+MTY26Aurfdx19anlzhqXOgCFbBFQnlFDTn4TC1/7Nz4Bl2mLP3A==}
++  '@rolldown/binding-darwin-x64@1.2.8':
++    resolution: {integrity: sha512-Uk7lRsGhPFHVX/sAUC6D5H9Ol30dFHd6iquokll2th3LpdJ3F5CzQB+7DHn0Ri2mG+U7k2zXiPHDrwZenXhwSA==}
+@@ -547,2 +553,2 @@
+-  '@rolldown/binding-freebsd-x64@1.2.5':
+-    resolution: {integrity: sha512-/vCnNxlkxs9tKxNDcyWUePpJ/PgTzxIaVhoM5SmG8UV+GR/IcPam4VYxi7GIMo7PSDuNqlJqvprqii9NqqVCMw==}
++  '@rolldown/binding-freebsd-x64@1.2.8':
++    resolution: {integrity: sha512-DjszaTEVogPqA5bYzsEeqDCQxbcp2fexQwKcRspYji2yzR68fCf+e4fx6kBSRDwX5/brZaHw/hWS9+A/+/w9sQ==}
+@@ -553,2 +559,2 @@
+-  '@rolldown/binding-linux-arm-gnueabihf@1.2.5':
+-    resolution: {integrity: sha512-abk0NLA519LxRCszmbE0jYKuQ9YPocOXTiOXOo6Yr+YAT95VH+PtqYAjOJvGKt3viEd/x4qzabAlwd5bHOOARg==}
++  '@rolldown/binding-linux-arm-gnueabihf@1.2.8':
++    resolution: {integrity: sha512-zmwa7FTmdzB6aaEEuuls18H6Ap5JmJPSoPTuXixeJZV6tG40SyLkApQtz1g8ptZtiEKqj9OM0oNLPh1AgvE31Q==}
+@@ -559,2 +565,2 @@
+-  '@rolldown/binding-linux-arm64-gnu@1.2.5':
+-    resolution: {integrity: sha512-Y7eALiJ8lr0M2HH103Js+g7V34wf6snlpZLAsHI90uLhr3PVlNsbFVAXJC9d/V6BnPyKtpSwI+NcB/RLxsQxuA==}
++  '@rolldown/binding-linux-arm64-gnu@1.2.8':
++    resolution: {integrity: sha512-KdYQDPHwJVnbFwdTGMgxsI9SqblBlz6STGM+w1We/d5B8OWWidYH0MwkU/uA1wM5fIpO2MkOVxXrNzzuZhw9ew==}
+@@ -566,2 +572,2 @@
+-  '@rolldown/binding-linux-arm64-musl@1.2.5':
+-    resolution: {integrity: sha512-xMvZgnbZg4YVnR/AX2b3oOPDTFYJvUVaJg5FedA/LuvexAtXibZQej4cnTkw3rjsJ/ggUROB64TdtETiim+FYA==}
++  '@rolldown/binding-linux-arm64-musl@1.2.8':
++    resolution: {integrity: sha512-jFJTifHnNPY+yzOoNZQfSIysrVyXzEQPhPnOUjmD1bcQGHH6s7c8cViKWar8YplQImE5N9JRqMCLrM2CdxOrZA==}
+@@ -573,2 +579,2 @@
+-  '@rolldown/binding-linux-ppc64-gnu@1.2.5':
+-    resolution: {integrity: sha512-GRjeqTUDHTo5GwntsLaAMcBahG3nlpjftXWZLN73HiYQlhwEowvarFgQnRnQZtIp4keXX7quXFbG38uPZBa2EA==}
++  '@rolldown/binding-linux-ppc64-gnu@1.2.8':
++    resolution: {integrity: sha512-FhiOziBDWPBjbcmRzfLyIJnaP7AVMFXT7YCXPjXxj7wKU3vx24RjrCNN/zjvVa+N2vVoHJwCoUBvsrN/DG3zIA==}
+@@ -580,2 +586,2 @@
+-  '@rolldown/binding-linux-s390x-gnu@1.2.5':
+-    resolution: {integrity: sha512-vLNTR45F2Uwc8AufkNXPmB4VliaXs+FvcheEogIzOXzO4l+LzieXF5A/TWxLy5HtqpsRCHUfd0lPVrrdgXdLHQ==}
++  '@rolldown/binding-linux-s390x-gnu@1.2.8':
++    resolution: {integrity: sha512-WnHfADMzOV2Y55wlx1hzzQnar/wDt/VdvWSD99r18Mz9ylNieIGOkRx3UV21h7m/eJvjySYJkO26VvGNFkwsIQ==}
+@@ -587,2 +593,2 @@
+-  '@rolldown/binding-linux-x64-gnu@1.2.5':
+-    resolution: {integrity: sha512-Mgj59/HTuYeK9Gz2MA+mBWKnHsAgkBSec15ZMb1st3oIfFbX7gCjOae7GydHhzcyQi9Z/7M1QuN9bR3oFqF0jQ==}
++  '@rolldown/binding-linux-x64-gnu@1.2.8':
++    resolution: {integrity: sha512-H9tRr5ibfXFVLxbPOseVewewFpl28zcEdjRDt2FTUZU7odxP0gEv1ki4/kGmcGOh78oRwZuuQllGLZ9zTJp84g==}
+@@ -594,2 +600,2 @@
+-  '@rolldown/binding-linux-x64-musl@1.2.5':
+-    resolution: {integrity: sha512-mY8AP0/ichsbhAxGnLa3d3+MwV0EfgrPND2bplI3Ym8T6R2pJ0N87bvrKVwNXmdy3jnr6eQBecdqx/HMknBmpA==}
++  '@rolldown/binding-linux-x64-musl@1.2.8':
++    resolution: {integrity: sha512-UefiqfM3D6IVNlZ8tSGs9+Ejjud2T+oxO0IHADU45Y+lyEjD2dVFyZHbkfX0LUb5Zugo/oIv1eCO/KVYhgYJYA==}
+@@ -601,2 +607,2 @@
+-  '@rolldown/binding-openharmony-arm64@1.2.5':
+-    resolution: {integrity: sha512-8SLssA2oweAxyRgDp789ACfRb/3P+zNRJpzZxSizxF9m8NUDQ4+3xjo8ttjhVGGw6Qxb70oZiEtIjaKikCO7Yw==}
++  '@rolldown/binding-openharmony-arm64@1.2.8':
++    resolution: {integrity: sha512-637Ke4kWSy6rp9cxQ9gMOXlxPgIw/c1beASV4M//3+9I4uwBVOOl74G+e3zyU3u19U7RkRl/HuewixZ/Z6+Rjg==}
+@@ -607,2 +613,2 @@
+-  '@rolldown/binding-win32-arm64-msvc@1.2.5':
+-    resolution: {integrity: sha512-vGbruD5zquhoc8D9SViXgN2FBJtNdTyQ4DtG+SWiEGlJiAzoKcZ2xp+xuXCffhubVdt0NJlTZqkeRuERy7g8Cw==}
++  '@rolldown/binding-win32-arm64-msvc@1.2.8':
++    resolution: {integrity: sha512-xWBkPOF1Q9k/Gv1nQXnVdLxKu74jXppuOM4Z3mnypVUJJJwLsMl7hNJGRAUJoG8A5MgOI1ACKM+wBFxSJzKy4A==}
+@@ -613,2 +619,2 @@
+-  '@rolldown/binding-win32-x64-msvc@1.2.5':
+-    resolution: {integrity: sha512-e/SXpgISz+IoqVcSSI0rx/d/he8zqLex+/rCWpnHpmVfmPIUjag9H6P7zotf0gJHwPUhQxZ/mF8tr6acebT9yw==}
++  '@rolldown/binding-win32-x64-msvc@1.2.8':
++    resolution: {integrity: sha512-uz2ZvfgXbxqNwijjjbxrnvALwpyODDcgc1T1N8N3rf/DXKQmaFwmB4LX4yyjggpwN2obdQLb2rgirX5ffCWYng==}
+@@ -622,3 +627,0 @@
+-  '@standard-schema/spec@1.1.0':
+-    resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
+-
+@@ -627,0 +631,3 @@
++  '@types/convert-source-map@2.0.3':
++    resolution: {integrity: sha512-ag0BfJLZf6CQz8VIuRIEYQ5Ggwk/82uvTQf27RcpyDNbY0Vw49LIPqAxk5tqYfrCs9xDaIMvl4aj7ZopnYL8bA==}
++
+@@ -640,2 +646,2 @@
+-  '@types/node@26.2.0':
+-    resolution: {integrity: sha512-5IviulTZeRNp2vAJ514cc/HUlY5nZ9fCbq9DMyC52BrhFZACo3nI0R7qBxhQmo/d27NFe96ur/b7Wwxklda+kg==}
++  '@types/node@26.6.1':
++    resolution: {integrity: sha512-VqGJBMCtdhqkBUCcBLvywI0NJ+KLuVzgNnlBUNFOQjqVxzo2lxLUNg1DSey8+u2u6ktswSAxg+s68QLzWHNOuA==}
+@@ -763,2 +769,2 @@
+-  '@vitest/browser-playwright@4.1.11':
+-    resolution: {integrity: sha512-riLBxPqwnJ0lWs2DN2WeUfYeKLoAjbP2Xx8cLQdSddzMi20sksIa6K2mPz79DyMZKKVKH2ksOC2yJvtNcZg8cg==}
++  '@vitest/browser-playwright@5.0.1':
++    resolution: {integrity: sha512-BlknN81ZeoCyP5CSm5u7+1BTlS7d0cDU5DfndNSjEC3SmbzOESGrp+DQpNhQmTlggawWc+yKVEM03mM/aBynqg==}
+@@ -767,4 +773,4 @@
+-      vitest: 4.1.11
+-
+-  '@vitest/browser@4.1.11':
+-    resolution: {integrity: sha512-bwMovvAeuTFOK5kIFevw4VEf+1gVEICv4SYK4k3knJOxl6b1zEWud8mYKD73e1B0odAn174h1MofURy2TPWf3w==}
++      vitest: 5.0.1
++
++  '@vitest/browser@5.0.1':
++    resolution: {integrity: sha512-s2UroEhP2BZPoen1qrXXTtVqnUcs6y2sxMLGCZ8tZDkH2iM/6tTC2GVTPCgF+oVF3X5M6wC/X2O0MvvoHNmH0Q==}
+@@ -772,4 +778,4 @@
+-      vitest: 4.1.11
+-
+-  '@vitest/coverage-v8@4.1.11':
+-    resolution: {integrity: sha512-8MVGEFnJIcdGjcbfKmeq8z0pZHH0JlVtoVZH9Q/qwUp6wyFnEJUBMrw9DCaj+ra3vShGmhavjalMIhPNxZAUcw==}
++      vitest: 5.0.1
++
++  '@vitest/coverage-v8@5.0.1':
++    resolution: {integrity: sha512-FRC8ACiudC3dI6MTplzRSYWHDRnIv2IPfbzs4FdoJNsMal/35sWV8hwIfV8ZcqzSPy+uXHeMVONt9CEqtOU17w==}
+@@ -777,2 +783,2 @@
+-      '@vitest/browser': 4.1.11
+-      vitest: 4.1.11
++      '@vitest/browser': 5.0.1
++      vitest: 5.0.1
+@@ -783,5 +789,10 @@
+-  '@vitest/expect@4.1.11':
+-    resolution: {integrity: sha512-VX2x5vNJXET47KAFzwERI+KRMtTTCSWTfSMKsW7JsUsXV4psq++e3DvZpuTDOpHcxytiDs6p2nhVb2tVDiiUYw==}
+-
+-  '@vitest/mocker@4.1.11':
+-    resolution: {integrity: sha512-2XJVD55d1o5AZous5CCGKS74g/riOj9odEt2bQpCVZeblHyHdnMeFl4jl0XjU21stf4mbjUkew2eXQZt65g5CQ==}
++  '@vitest/istanbul-lib-coverage@1.0.1':
++    resolution: {integrity: sha512-k3DJZ8LhMBK9NS4SclF1ASD3OgXEWDorbIcPTRDK0/Zae6fRvu+fJRxtFdLfHsa9Y24beCdPnoNZ4LviTNstfA==}
++    engines: {node: '>=22'}
++
++  '@vitest/istanbul-lib-report@1.0.1':
++    resolution: {integrity: sha512-1EOLRfsTMnyAr3+kEAsP4o9dhaDlGPpD7H5iLBBeq//YpNB1VIahkPhB+eRp9N2Dkfw8oySROjE3yf9XDeaIkQ==}
++    engines: {node: '>=22'}
++
++  '@vitest/mocker@5.0.1':
++    resolution: {integrity: sha512-6K1DoBNAPGvuOcSsGA4D6x+5zEEff/KmOOP3uetT2TrGpVfI+HRHRnJJfKi5ib/g1vx8IYHQD8s0pbJz8WQI7Q==}
+@@ -797,17 +808,16 @@
+-  '@vitest/pretty-format@4.1.11':
+-    resolution: {integrity: sha512-yiZzPbGTS9Sr/JpFl8zHrcIkAofNbFV6k21vIgQN/cY/oxZeXhJv5sc/MBJ5jFKWmWs+oJHw0UXLZjmf931+Vw==}
+-
+-  '@vitest/runner@4.1.11':
+-    resolution: {integrity: sha512-LztvUgdwMNJMIkj3hQnnxiC2Xy1zNxq928W/xhjCLaNCzqTZOudjwbQf6v9IntZGPw132i2Lq2rgTRZHD3JHNw==}
+-
+-  '@vitest/snapshot@4.1.11':
+-    resolution: {integrity: sha512-pN7ikn1ON7h8ee4gIAp4AzyK+zBtJPzVbqOgu5LCEh4VaJVbPQcgYQYJIMGQPXVeJJq1fnfazis7a5pFNPahog==}
+-
+-  '@vitest/spy@4.1.11':
+-    resolution: {integrity: sha512-apNa/prQy2qCeywhnixOHPRCgGNhvg7T4Dapfl1GahLp/R+uhBm5cPyFoNVyqsNd2h1nJxL6BqqdIjiABL60YA==}
+-
+-  '@vitest/utils@4.1.11':
+-    resolution: {integrity: sha512-zTCVGpyFsGWBhllOyKlTw/vnr6D9qxsfSDyfbyZmTyjHw5N/VuvzHpHoQjm2ZJzn4RJgx5w4r7V0er69CmLgPQ==}
+-
+-  '@yuku-codegen/binding-android-arm64@0.8.7':
+-    resolution: {integrity: sha512-C/0zV5IhgVdYhGJTwrY0v8dknxlhiKwtVJkMUaexu9/QvRmzlV4vfU3hZlUSgqc2BxQHntL1mCVbDq8j0FRFDw==}
++  '@vitest/pretty-format@5.0.1':
++    resolution: {integrity: sha512-6guWwj5d9bguuefTOvJoq387tfpkzSv554YdUEGzjJH2PnnmvzTLQ1UQSuAk5wBFVhf2CUmy/S/palOcb6dmpA==}
++
++  '@vitest/spy@5.0.1':
++    resolution: {integrity: sha512-rbto/mF/SGERxEgYOek7Xm6B9b+y+mVoo+f4b2LymYO8zM1b7uB5nHuhVMTP2hxdzgxvGiZYGxGIaMvL5y180Q==}
++
++  '@vitest/ui@5.0.1':
++    resolution: {integrity: sha512-7PvQu/X9/pQoHYfNLAYL22qsD4/+sx2k7zpUA7XvjW0sc40r3/r0lGZ2fsEyOHMuO8Q1KjiO1QQVjJdnWUy/WQ==}
++    peerDependencies:
++      vitest: 5.0.1
++
++  '@vitest/utils@5.0.1':
++    resolution: {integrity: sha512-E9+yEA+jsfaoxZcUHFzEqUrQcoNh2EwrPT5efIqkUPUwD5Ua2Li9BRWaYeRwvzvdLgTSVrre8oKNeyrfg7KkdQ==}
++
++  '@yuku-codegen/binding-android-arm64@0.9.5':
++    resolution: {integrity: sha512-jrOY5WM+AaAqkv51fHP1x28ifto4WgcZVzodLUyMU1jMWn5Sq+VciRdk/n8E0Ey5w4p4cWWE+m5GfXWOYh7Kzw==}
+@@ -817,2 +827,2 @@
+-  '@yuku-codegen/binding-darwin-arm64@0.8.7':
+-    resolution: {integrity: sha512-/u+REDMI4a0/lsJXTM4c53/w31OGZLOReZIyg62uhgLs0kc8NHsj/nOcxTdlQjq5gi0zhdkccD9LaLTXcdzPvw==}
++  '@yuku-codegen/binding-darwin-arm64@0.9.5':
++    resolution: {integrity: sha512-4O4lkCQIzPZGjiNB1GORSI6hBECbiiSBS/APZXPvNKYH+nhY4uuqv03LNXA+SET3hoBjvr95P5rIhY8KQaQUBA==}
+@@ -822,2 +832,2 @@
+-  '@yuku-codegen/binding-darwin-x64@0.8.7':
+-    resolution: {integrity: sha512-sMMzFOwCo4WXR+/6zIBThOocSC50iIIZZdfiIDbaLvj0Ax/rWt/iavyfEAqajyvzydLyCqR/ZItdLWSRlu1umw==}
++  '@yuku-codegen/binding-darwin-x64@0.9.5':
++    resolution: {integrity: sha512-9EvoUO0SEhD6/d8VHdWuPerepPMSR1y84+UEgz8Un1Ope14Oe7xMvePpEQLTLovoIFZ8Zg3iZ8z8E11pZMqC3g==}
+@@ -827,2 +837,2 @@
+-  '@yuku-codegen/binding-freebsd-x64@0.8.7':
+-    resolution: {integrity: sha512-MpdpKXix9P+Y1rKgjvcNeNtGjXeL1CmttNhYINrWls8kRpm4xM/oBGTmn6w7to8lAlwj5jm8q03dQPl5mRv4Qw==}
++  '@yuku-codegen/binding-freebsd-x64@0.9.5':
++    resolution: {integrity: sha512-HqT78WwgHTmp8lwujoUa9CrIortX4DdpuiVC18ZPSGvuuJf4ylpIEI6QrQEM78Zwz3muhAWAOXZ5irdiYY+AyA==}
+@@ -832,2 +842,2 @@
+-  '@yuku-codegen/binding-linux-arm-gnu@0.8.7':
+-    resolution: {integrity: sha512-rr1srFLlPAmC1vtxfc9C1YLDe3iH09YjfSeeIidBqKhzx1MATjOAq4mjlRUOnhr/L27MotWIYOFKwVsd5JZFOg==}
++  '@yuku-codegen/binding-linux-arm-gnu@0.9.5':
++    resolution: {integrity: sha512-QJXwIW6Ms3QIawbcBIedmrmXnfdpuAOjZJ/eAABq5XTzWvSxZ7lutu9W5yIHahlaTaFnBo7ikrVMD1szLTpPUw==}
+@@ -838,2 +848,2 @@
+-  '@yuku-codegen/binding-linux-arm-musl@0.8.7':
+-    resolution: {integrity: sha512-eAufXh8qBRpiSO6ueaMDL+yyoXIGLhpUce72YbcACtZU2qhExwBIJyEtQf5kH2Ki0X2aqkSjSfog4OPtKXan3Q==}
++  '@yuku-codegen/binding-linux-arm-musl@0.9.5':
++    resolution: {integrity: sha512-eHbFy3IHGb+IYarrYwAo0yWSEQV3eAmEn6VrsKA6I1Wy1YPJxWqSJlV69JhqsHtJuJlljUIF3ex0y46yaKIu9w==}
+@@ -844,2 +854,2 @@
+-  '@yuku-codegen/binding-linux-arm64-gnu@0.8.7':
+-    resolution: {integrity: sha512-gw4w6wPoHObBrdIC4duVWLmJOvpdE25j5D7yrM5mACNlK4klRz/lv8hK+ssQk9EJHBgZjSaqZIJVFgqNYbfv7A==}
++  '@yuku-codegen/binding-linux-arm64-gnu@0.9.5':
++    resolution: {integrity: sha512-ByoJMbySTaDhjAXSu8q6Lh7HKg3YoesXpcT72aYk0Aiw4PCznmY4ybpLTq0RCvp0RIPhFm/6yECFiGBwyCC1nw==}
+@@ -850,2 +860,2 @@
+-  '@yuku-codegen/binding-linux-arm64-musl@0.8.7':
+-    resolution: {integrity: sha512-L68N6Y4XkqcIaKo3Ra88JEvBEH4AHff44A4INcrxeVWZ8CZtu2tCpfVxe3hR8qQQMcvBSQlDn24KpkCKEhVvfA==}
++  '@yuku-codegen/binding-linux-arm64-musl@0.9.5':
++    resolution: {integrity: sha512-gD9vfXIoBw1toSxhO9rgmSu/FEfy3PMznJAxVjIuH8DrWEiDKXmJO0pJKfj1Ltbe/TmtWVZR+TjISqeSIGQzMg==}
+@@ -856,2 +866,2 @@
+-  '@yuku-codegen/binding-linux-x64-gnu@0.8.7':
+-    resolution: {integrity: sha512-dzyAbltJmf3Cqlb8HcFuYIf5Yn0fl1vTr3XJ9HiVNNvOlhqPSArOqtw9vI1p6/VTXTjrMLXlU+s+/kNHiIy/Cw==}
++  '@yuku-codegen/binding-linux-x64-gnu@0.9.5':
++    resolution: {integrity: sha512-BARvdnvqMGjOr5Iel2JH+9H5vAIE0R6H0Z2fsT02xrvmI/1ZXNB8lkuX+ZGevPhZb3zJ9WeC/R8JZstrsUOK5g==}
+@@ -862,2 +872,2 @@
+-  '@yuku-codegen/binding-linux-x64-musl@0.8.7':
+-    resolution: {integrity: sha512-Otw4MH3404q0Bbvl+YTdW9aoUV5vXmUw8260bWvt1XlaoIX/ceSgI4ygheRDMfBPoHt6FDayQaO9OLVUZAgkFA==}
++  '@yuku-codegen/binding-linux-x64-musl@0.9.5':
++    resolution: {integrity: sha512-x8flcevS1fbb7ESrmpOY/pON4eInSaE/7Ktjqx2udOE2W33BNSZmJuwpyUgo54AoHNqrcaM7szqydyJn5fNvew==}
+@@ -868,2 +878,2 @@
+-  '@yuku-codegen/binding-win32-arm64@0.8.7':
+-    resolution: {integrity: sha512-qo/jyrzryiBuKEsFiuWaBCBe3tRMynQ0qFWFgOEjcCMQeZfBm+wKiVEUEFXXLc7bh8YezguAWp0Mtnhq4ARNyA==}
++  '@yuku-codegen/binding-win32-arm64@0.9.5':
++    resolution: {integrity: sha512-KOL/rBatWqH4ZpCNoF8ZtSNdOJbAxBJLmk/VeRciepGROPTbPum1A9t67GpFgOU7qrkUWlPJdJ+KHKbvbmOt+w==}
+@@ -873,2 +883,2 @@
+-  '@yuku-codegen/binding-win32-x64@0.8.7':
+-    resolution: {integrity: sha512-D5lDsVDx6m00E6bWySlWdH72Ca4TPSaphDqB6QjU6MpuNLIJqoGoatYyq2rOmBE8Zv/kunot/o58KGL03P3eiA==}
++  '@yuku-codegen/binding-win32-x64@0.9.5':
++    resolution: {integrity: sha512-FxENahEjWSan59Syh/us/Kf4wNq8qrJLFJ3R2N4Oiwtb6yNdz/rWLNTIoNSssnsp7IoWJdUP6o/Z8ppg7lXMcg==}
+@@ -878,2 +888,2 @@
+-  '@yuku-parser/binding-android-arm64@0.8.7':
+-    resolution: {integrity: sha512-eGKYiUDX7Y0V7tDTmg+JTVnXnjMqfXXsorZ+EDf5kxwchQ3Or1HS14MzI2fw+jFhHR85fCWt+mtX33Yao73hIQ==}
++  '@yuku-parser/binding-android-arm64@0.9.5':
++    resolution: {integrity: sha512-A2JCFCSHfnficqYEw4Iujpx7XrkMM3UfFcgJFmYpZSo9zM4nyhmdIIE0FogSduuU60lhM0/UcfuUBXIVNBMlGQ==}
+@@ -883,2 +893,2 @@
+-  '@yuku-parser/binding-darwin-arm64@0.8.7':
+-    resolution: {integrity: sha512-Re0RHelKLnjEURulY2/KxW+Ngb8zuNA4BRZuMwgGQNzVumT6u4U2N2hc01oeYVNVof0i7GrXE4UCNBgbpRRnjQ==}
++  '@yuku-parser/binding-darwin-arm64@0.9.5':
++    resolution: {integrity: sha512-3PiyU+Eare4YuKaQ22N98/yAiROPY5o/NQJHraICzDvk4pgS+m+bgLKOvkGBRn33OnV95Vdv1Mn38b+MQHpULQ==}
+@@ -888,2 +898,2 @@
+-  '@yuku-parser/binding-darwin-x64@0.8.7':
+-    resolution: {integrity: sha512-Hn8DROtQkjlA1ACbPgj4a7eP9IuVOI504oiTwpkWPbpaDWD9KdmnVYCqW+1LfenNK/g7O9NhWGpXEdaCNX7lIA==}
++  '@yuku-parser/binding-darwin-x64@0.9.5':
++    resolution: {integrity: sha512-blFMAFI7AInI83XaiOF8cIeiRM46Nz9EfpZtZPRLbKxSA9aAr5v8aHYpmfN6NoyXxAv/10pwS4gsAuc1W6fy5Q==}
+@@ -893,2 +903,2 @@
+-  '@yuku-parser/binding-freebsd-x64@0.8.7':
+-    resolution: {integrity: sha512-bAP2OV8wRuzplX/jYxv9+vvqQT8JxyNphI8fLfXGL054Xs+4/J5u33cIm3y4rxY8rdoLmmdiJs2Tq7r7lrDRfA==}
++  '@yuku-parser/binding-freebsd-x64@0.9.5':
++    resolution: {integrity: sha512-TsNuL4qsZdO0tHp5GW43Y5fHeLPpPHA675wdcPNTcdq2ZO5AvsQWFFoiDg8CH4oBktfsQ9tdvKhjLnLYwKvp4g==}
+@@ -898,2 +908,2 @@
+-  '@yuku-parser/binding-linux-arm-gnu@0.8.7':
+-    resolution: {integrity: sha512-kTYwJQQgmZeAWdDIWabiReIZMpmfLueIj1tCmjStUtFGhR1Z0qwxonKVfUC4N7h/VhGGzLZ//7O1kgt1QKqgCg==}
++  '@yuku-parser/binding-linux-arm-gnu@0.9.5':
++    resolution: {integrity: sha512-b0afYK5gHeV8RdmOcqAlgM8ONsye4cax4DMnIBaoJyPMd1UTGvTbpkqQcPVdhmHlcfcGVGMV1laeVovlr/dscw==}
+@@ -904,2 +914,2 @@
+-  '@yuku-parser/binding-linux-arm-musl@0.8.7':
+-    resolution: {integrity: sha512-uL4jE8HPT2BLlxAXyD10LqgPuXa9eDa0BKpCdSANmzIJghq/2eZo3/gQNtaxPZMupWoxjYzSad9IXrwu7aYPXQ==}
++  '@yuku-parser/binding-linux-arm-musl@0.9.5':
++    resolution: {integrity: sha512-fD3lKzl+r6j6n8DwiMY53qnh5DLqD8KJjCp+NbVud54Nnh3Q9Wprqss3YzyMHP3NSJk663Wlg1E1X5qOuFVFig==}
+@@ -910,2 +920,2 @@
+-  '@yuku-parser/binding-linux-arm64-gnu@0.8.7':
+-    resolution: {integrity: sha512-3gVN4pWSKZmXiNX7cU164dR9MPvesCHnlH6nPfpK+yQsCuYphjKKplcb4SnZBrhiqmXbgb2HR0c2TS0IZUPhgA==}
++  '@yuku-parser/binding-linux-arm64-gnu@0.9.5':
++    resolution: {integrity: sha512-aRU/aCphV1MWCl/lvI6NX8LgucHQ68Fx+vz7NBb/5MEr2EuzCxiPOQqeFcMdWh+2AED/p0AvAREch0c+cSnlhA==}
+@@ -916,2 +926,2 @@
+-  '@yuku-parser/binding-linux-arm64-musl@0.8.7':
+-    resolution: {integrity: sha512-S0mwfEjoLpxzXeZw802Wa4RaELsQiPtWqG6INcy8j4GtvNFtl4LCX3eGO1XLn9pyLAISLzTRyU3zUCBUPin8lg==}
++  '@yuku-parser/binding-linux-arm64-musl@0.9.5':
++    resolution: {integrity: sha512-5+Guro0l8H473YXlEjVNBRLN/IbPbJdnQh1zo0OLt49xxnON+XMJRRaEyTOTfkn9QSRg0+BhEKGR4W9Gu2uZJQ==}
+@@ -922,2 +932,2 @@
+-  '@yuku-parser/binding-linux-x64-gnu@0.8.7':
+-    resolution: {integrity: sha512-lnbWdPmerE5D1uH1G4IEZKnPzCrWCStRGrtgpSIe1RibAo5bZIjDbbbPYXmMHCEh4F+x/JaJpElh26a3r+BPbg==}
++  '@yuku-parser/binding-linux-x64-gnu@0.9.5':
++    resolution: {integrity: sha512-pwwSyV9q+GlvzSXlsMZBMlgk22L5bud714/vqZCdeUTivzeUVltQzUaf3IQXOGXdpc59JYTeuMCtbGquaAUoCA==}
+@@ -928,2 +938,2 @@
+-  '@yuku-parser/binding-linux-x64-musl@0.8.7':
+-    resolution: {integrity: sha512-769uwndMvMzUvATWbAcEvyLHKA+DzhHSCl/obBUrRdYfRo26yxui6S8y3z7uJ+Naup7UKrDxrpK7OnQkxkl9KQ==}
++  '@yuku-parser/binding-linux-x64-musl@0.9.5':
++    resolution: {integrity: sha512-z18j6JN3lBHH8vzN7gG1M8fI0nlgItSfnC9PfbmUbt97iHViKfw2iA2G9fGwRMe5LyPRZBrejIlapbygPbpdaw==}
+@@ -934,2 +944,2 @@
+-  '@yuku-parser/binding-win32-arm64@0.8.7':
+-    resolution: {integrity: sha512-mEB/9PlaAkisJ6KWGz0zvywXoU6+80dTlR2LwS7s/jcXXoU6fm2+sitBZXtqu3+Q4DcDgPxM45uWMCzPs0TSRw==}
++  '@yuku-parser/binding-win32-arm64@0.9.5':
++    resolution: {integrity: sha512-s6Gwttb1dQvtPX6Bgkw+UPC9IO3UBDXc6Zezog8MMgvu3UfJBBB9TQqKBX/2quu0Eyh+lLSAyNlIyyecaagUPg==}
+@@ -939,2 +949,2 @@
+-  '@yuku-parser/binding-win32-x64@0.8.7':
+-    resolution: {integrity: sha512-8vNB2DP0ou61nGb8tc/qfi41gfyDXz1MHr2zqL3nR+cJ6CEbiuWV/l/a/vv151gCgiZLLAyGkQGENpozdg716w==}
++  '@yuku-parser/binding-win32-x64@0.9.5':
++    resolution: {integrity: sha512-FrERt9YWatY3bJfSUdi4YWY+6iQcyo3MzCC821BxlWM5TFZEHijnpz/bknR79VHlXY/9CvXz8ZlaAGPsTtN3nw==}
+@@ -944,2 +954,2 @@
+-  '@yuku-toolchain/types@0.8.7':
+-    resolution: {integrity: sha512-2Z53dNxAJL6UvFoIrDZvYf3zlO8s4VJK4O2hhaB4mXVwwpX/7ajtss3cmfqKvamlNLWyt9FSWs4eoYdlbxpnHA==}
++  '@yuku-toolchain/types@0.9.5':
++    resolution: {integrity: sha512-KiuLNNgX9uNealaWAR+G3/cMXnRk9x4TY2EkYe/KIag+UPdwiA0RRf1hr1WAxzTP8KGzCTkqUdLPvqh32sEO3w==}
+@@ -952,2 +962,2 @@
+-  ansis@4.3.1:
+-    resolution: {integrity: sha512-BJ8/l4R5LRE7hW9WdSuGYrLSHi2ynxeFpDFbH0K/CgNeY/tyhk+vO6TYxXC5r5CpUhNVX310xzPsN/H9lCdfOA==}
++  ansis@4.4.0:
++    resolution: {integrity: sha512-9k3v7xcHwgdO/DruxGIg4HtjvlAZlcnsX/mzqUb1t3NkYnl9kK2UJ+Gq0io+vQf7iT//BD/HB/NBkUR1LWxoeA==}
+@@ -964,5 +974,5 @@
+-  ast-v8-to-istanbul@1.0.5:
+-    resolution: {integrity: sha512-UPAgKJFSEGMWSDr3LX4tqnAb4f7KGT8O40Tyx8wbYmmZ/yn58lNCm8h3svs3eXgiGd5AXxz8NDOvXWvicq+rJA==}
+-
+-  baseline-browser-mapping@2.11.15:
+-    resolution: {integrity: sha512-FwMjJJ7HnyZpWe+oWxegG0fezZyBZUagI5LZEoO3GCbtbKNwRfMH9Ue5d5v01PNePBy1QSfPSDTTeVL0Hb9EzA==}
++  ast-v8-to-istanbul@1.0.6:
++    resolution: {integrity: sha512-fvpl29helSO2w/z7utIbrkNXILdrLwDwAMH2I/zPKlGf5244+gf+B4cyS1sANcrPY2h+hWCGSgC8N61s/+AF9A==}
++
++  baseline-browser-mapping@2.11.24:
++    resolution: {integrity: sha512-hYrgxie335U08WqICoGqKRzV1HFXv6zdxwJE4ekCb80CM9a0SVVsN4QPwT67RraRo+9h8IATk6uxHJw7QSkdOg==}
+@@ -980,2 +990,2 @@
+-  browserslist@4.28.8:
+-    resolution: {integrity: sha512-V2NpofLblG64mfOtSgDhOJESZEGogzDMBv/q+W6oc4LXWP/q75eOXoOaaOu1EOadB9U4Bwx/e0yzbvwKH8zalA==}
++  browserslist@4.29.0:
++    resolution: {integrity: sha512-3GSvyjvDI4Dur1Meg2BekJquu5uF+9R9a1+5M1Mde192eZoXbeXjzgOsgqPS2V8D5wrrip0gR5Hf/GhWQ9ZzaA==}
+@@ -1009,2 +1019,2 @@
+-  caniuse-lite@1.0.30001809:
+-    resolution: {integrity: sha512-xxWVywk6a6Arlk+hymeycyn/VgqEfLDxupvhH/xiY5SJ/18kmi9o6MiO320DCUzypORHLtvh0I4i04tUhCNHNQ==}
++  caniuse-lite@1.0.30001810:
++    resolution: {integrity: sha512-TITQPUkaz+aVk5GL6NhOdwk1aEaNTSDPsGFWrTuhKGtjTF70jL/Oht2W4c6rXUe5fu7Ie19VIahAXHIIiWWNeg==}
+@@ -1020,2 +1030,2 @@
+-  changelogithub@15.0.4:
+-    resolution: {integrity: sha512-ZAVZRfE38jsT4FqBA2FZlyYXR6hNHWammR10QJSr5rnZB2XP0motbSgLAaj1OPZoKRvvVo6zCRPLGyjECuNwEg==}
++  changelogithub@15.0.5:
++    resolution: {integrity: sha512-GjRsZ+TPHieTBu8pMGP8pv2CdpCPl+OVDbz+oTxFwNIihCvg69oqsx+epo7EXypzSF46gr3HJPOTTjxm1nQRgw==}
+@@ -1047,0 +1058,3 @@
++
++  confbox@0.3.1:
++    resolution: {integrity: sha512-cKUSoKa8YxFZZSmraVi7onONx3amu77ngK3kGpsYHDH7drPwCRkQE1RYMPlLRrMtnciRj274XNRxcHxnKmDSnA==}
+@@ -1098,2 +1111,2 @@
+-  electron-to-chromium@1.5.411:
+-    resolution: {integrity: sha512-gglkxzokjHfawpGxq75XdBV2/l3BAPzrsMs70qgaZdTW5rpV1tC4MdgJVP9fN126bODA4ZJQkn1wryEzJyQXIg==}
++  electron-to-chromium@1.5.429:
++    resolution: {integrity: sha512-/1ENIE3cx4HTIx4IfPZFaOunJmsrSVTnj6coXoRVbiJUbkeTyFkJvBeWGkdgh08OhFbxYLMT1kbkwFVSarq6Ow==}
+@@ -1130,0 +1144,3 @@
++  fflate@0.8.3:
++    resolution: {integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==}
++
+@@ -1134,0 +1151,3 @@
++  flatted@3.4.4:
++    resolution: {integrity: sha512-5+ybhBZANEJxaH3X5evAFatUxLfEHSr7n6kYJ+1Qd0mUqr4eu9gIf6GDbWHf8RJijHrjjO8G+la14SlL2SeS1Q==}
++
+@@ -1138,5 +1156,0 @@
+-
+-  fsevents@2.3.2:
+-    resolution: {integrity: sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==}
+-    engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
+-    os: [darwin]
+@@ -1153,2 +1167,2 @@
+-  get-tsconfig@5.0.0-beta.5:
+-    resolution: {integrity: sha512-/6gFNr0N04nob252sTQxyFLi3eKFRqIg1I87YcqAMT1i6SQrSF6KujUEQrtrjMV0H/eejTCltLdDSTEMzHbnsQ==}
++  get-tsconfig@5.0.0-beta.6:
++    resolution: {integrity: sha512-X6fBC0pmImC70gvX2zm56go9hx0MyoGVdG0tUCkg/D+Xnh5TJsOZ7iDbOdI3PvmtrDxnu1YdDufpK2QJX1Meqw==}
+@@ -1169,4 +1182,0 @@
+-  has-flag@4.0.0:
+-    resolution: {integrity: sha512-EykJT/Q1KjTWctppgIAgfSO0tKVuZUjhgMr17kqTumMl6Afv3EISleU7qZUzoXDFTAHTDC4NOoG/ZxU3EvlMPQ==}
+-    engines: {node: '>=8'}
+-
+@@ -1175,3 +1184,0 @@
+-
+-  html-escaper@2.0.2:
+-    resolution: {integrity: sha512-H2iMtd0I4Mt5eYiapRdIDjp+XzelXQ0tFE4JS7YFwFevXXMmOp9myNrUvCg0D6ws8iqkRPBfKHgbwig1SmlLfg==}
+@@ -1215,12 +1221,0 @@
+-
+-  istanbul-lib-coverage@3.2.2:
+-    resolution: {integrity: sha512-O8dpsF+r0WV/8MNRKfnmrtCWhuKjxrq2w+jpzBL5UZKTi2LeVWnWOmWRxFlesJONmc+wLAGvKQZEOanko0LFTg==}
+-    engines: {node: '>=8'}
+-
+-  istanbul-lib-report@3.0.1:
+-    resolution: {integrity: sha512-GCfE1mtsHGOELCU8e/Z7YWzpmybrx/+dSTfLrvY8qRmaY6zXTKWn6WQIjaAFw069icm6GVMNkgu0NzI4iPZUNw==}
+-    engines: {node: '>=10'}
+-
+-  istanbul-reports@3.2.0:
+-    resolution: {integrity: sha512-HGYWWS/ehqTV3xN10i23tkPkpH46MLCIMFNCaaKNavAXTF1RkqxawEPtnjnGZ6XKSInBKkiOA5BKS+aZiY3AvA==}
+-    engines: {node: '>=8'}
+@@ -1327,9 +1322,5 @@
+-  magic-string@0.30.21:
+-    resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
+-
+-  magicast@0.5.4:
+-    resolution: {integrity: sha512-llBEhWm1SacoRwgHUoQJYtwp4PBLF4faQi5TCpIGyGs9n4y5+juI0tDgyKIfpqxckRHaHzouUEph3THklWh03w==}
+-
+-  make-dir@4.0.0:
+-    resolution: {integrity: sha512-hXdUTZYIVOt1Ex//jAQi+wTZZpUpwBj/0QsOzqegb3rGMMeJiSEu5xLHnYfBrRV4RH2+OCSOO95Is/7x1WJ4bw==}
+-    engines: {node: '>=10'}
++  magic-string@1.4.1:
++    resolution: {integrity: sha512-8lyCu36ErXR0J9uaGKlKQoiLZKmtI63YGLE8G2o9jyRPdr4X47LusSOwgOJOzcVtp81fTAAjxR7BwKz682Jhow==}
++
++  magicast@0.5.5:
++    resolution: {integrity: sha512-UicdXN8zQ3JHlxVq+28afMXPr1z7WNY6+7EJnzTdQWkTAlMLF5fNCCKxJHBQwGaNGR11581EiQmQzx73+MvszA==}
+@@ -1357,2 +1348,2 @@
+-  module-replacements@3.2.0:
+-    resolution: {integrity: sha512-zaDcWtW+kLmYGWCMWAyQ8Je333BYmsBMB2X6q5MKBCI697l7OawNaC5TQqfgPVxhdXBA1AjumQjPMcHyJe1f2A==}
++  module-replacements@3.3.0:
++    resolution: {integrity: sha512-AVZL23uePazQOZlb/QMGwxsUa1oWA62Cfe6ApPzgasUoF4cdCWAiRPVq4KkaQzXbIDAlpLhLG61Jx8Lju4wjTg==}
+@@ -1376,2 +1367,2 @@
+-  node-releases@2.0.53:
+-    resolution: {integrity: sha512-D9UOmYG3UH1V+ENW56t5QXBwJw1YEY18ruVeus89Rw+SyIgjPkCO84bRzO3uNIYosJbNwiabWVn48o3uJLjxFQ==}
++  node-releases@2.0.55:
++    resolution: {integrity: sha512-mIrE/Cw9y+9Au6dS5vDKDhQza9YvG6w+ZrS6X+ZzA7yFW/soAeaups4Qzn1bL6g5FVy8WtP79+0j82oPIbqRjQ==}
+@@ -1389,2 +1380,6 @@
+-  obug@2.1.4:
+-    resolution: {integrity: sha512-4a+OsYv9UktOJKE+l1A4OufDgdRF9PifWj+tJnHURo/P+WOxpG4GzUFL9qCalmWauao6ogiG+QvnCovwPoyAWA==}
++  obug@2.2.1:
++    resolution: {integrity: sha512-XrsrhT5sybtKI6wakr2SPOlGZWWYbUXZ7a0jT8/QOeAPau+1X/bSegNe5YR75oJmEZQbKningirmGOEJCIk61Q==}
++    engines: {node: '>=12.20.0'}
++
++  obug@3.0.0:
++    resolution: {integrity: sha512-5vvB5+W7ePv+p3uqxi+RcW1XAzLW0/hxt3/4X4Lc4qHudzOhmBiBwOY6DRob4WnanAEGvNcLjF+KNOufrUoEQw==}
+@@ -1406,2 +1401,2 @@
+-  oxfmt@0.64.0:
+-    resolution: {integrity: sha512-XZ4GFBN/PLbXKq+0zrgpQfPKYuJlUuj+nzZJY7UpIbFMNyefNLCdN9EwViycNqnYcv0wrn0jXcQLlqJp8RCKBg==}
++  oxfmt@0.68.0:
++    resolution: {integrity: sha512-Z0XMofcXCGUXbcpBHnWyUiX93BGiw1B+lcHNbQDWEtOhX06ewoFfu4zXkyiLhRrNnMq0twqXRHUcJetf+GsiQQ==}
+@@ -1419,2 +1414,2 @@
+-  oxlint@1.79.0:
+-    resolution: {integrity: sha512-hVJ9hq9m2unPS+Of4eJJgCPdIeCC+3DHEUX3tkmrPJr3OK2hz7PhXwgC+ZP71ZcYu8cCDEtQrqLxWNvxBppBVg==}
++  oxlint@1.83.0:
++    resolution: {integrity: sha512-cyDzSzaw3uzP0TeCeq3lLRPPoaUxkbB4ZOXj+kn+5r+BX9V+4bNVGk9lxer+WrgcpebH4JxLlJ3KQjveVztOLQ==}
+@@ -1451,2 +1446,2 @@
+-  picomatch@4.0.5:
+-    resolution: {integrity: sha512-RvwwcruNjI1ncT5xRakeyS9Lf8lcItv34KD+aif+VH9kduAyfYBipGh12274xtenIPZ119/R9BdTBa8gAwSh0A==}
++  picomatch@4.0.7:
++    resolution: {integrity: sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA==}
+@@ -1458,5 +1453,5 @@
+-  pkg-types@2.3.1:
+-    resolution: {integrity: sha512-y+ichcgc2LrADuhLNAx8DFjVfgz91pRxfZdI3UDhxHvcVEZsenLO+7XaU5vOp0u/7V/wZ+plyuQxtrDlZJ+yeg==}
+-
+-  playwright-core@1.62.1:
+-    resolution: {integrity: sha512-wPYSwEBJY9GHraISXqyqtx0na0LpO3XEX7jNDhntbex7tzUS7kLnZsOlFruFJB4Hi/rhDMjXGqHewDZ68nYZVw==}
++  pkg-types@2.3.3:
++    resolution: {integrity: sha512-j/lCFdcppV0JxWpCEITdbDltBxPP6cHT+yNJ6Go2OgoSA9518X847X9z0p6LtA4Nc16+eQzCZjRrWanTGvHJ5w==}
++
++  playwright-core@1.63.0:
++    resolution: {integrity: sha512-rYCsBF/M5HjUch52bbtVONEFjv6Xu8sm8h72dNlR5bzIE1fvC/bxgspzkjSfU+MweEMmPM8KJebG6nnyxo5mCg==}
+@@ -1466,2 +1461,2 @@
+-  playwright@1.62.1:
+-    resolution: {integrity: sha512-0M+L3LAD8/nm554LOla9Ayx0j0tmFZ0FBcoQ7F1VuVHpM/XpiC8RcDzBQB8W5+hA8L22THxELzeF+2WcUzvcLg==}
++  playwright@1.63.0:
++    resolution: {integrity: sha512-+7ziBLidS4NaNCdt57SUDT+wYmmd5fmiQejUic/kb+YsYSCPyOOE9sebzMjNmQrsnNpDJqd4WHvV/8lfKfUDUg==}
+@@ -1493,2 +1488,2 @@
+-  rc9@3.0.1:
+-    resolution: {integrity: sha512-gMDyleLWVE+i6Sgtc0QbbY6pEKqYs97NGi6isHQPqYlLemPoO8dxQ3uGi0f4NiP98c+jMW6cG1Kx9dDwfvqARQ==}
++  rc9@3.1.0:
++    resolution: {integrity: sha512-ufjkNVzbRHKcCOmTahZkmVsyc3W+MSk3jY03m+a7tGHkIsdVMG9l10/3HvFbWkkKzY5VFp3pkRsIo/UYgmFL7Q==}
+@@ -1507,3 +1502,3 @@
+-  rolldown-plugin-dts@0.27.14:
+-    resolution: {integrity: sha512-ZvuDDwoIpRK9RPxDXratCpklFO9QZZWndf/sd0VBFb4LEj0jj07UcHK9OCh7V4XiFz2Z89ziyBC2K6tJiDjrbw==}
+-    engines: {node: ^22.18.0 || >=24.11.0}
++  rolldown-plugin-dts@0.28.5:
++    resolution: {integrity: sha512-yYd3C9CeJwqjOc9X23m0Tyxcqic491uLZlfg51szT287S8zCCqLR2uoySoElgqy2CLn7PdXcEo1dlkBs4n1WHg==}
++    engines: {node: ^22.18.0 || ^24.11.0 || >=26.0.0}
+@@ -1513 +1508 @@
+-      rolldown: ^1.0.0
++      rolldown: ^1.2.0
+@@ -1526,2 +1521,2 @@
+-  rolldown@1.2.5:
+-    resolution: {integrity: sha512-VD2IE5PUG4Oj8zz2VGykiYd5wbnjdIiSsNQb8Qu5B+noEp+A78mu2iVvpp27g8es14Tk9rofNs5Tku9iQCS4fA==}
++  rolldown@1.2.8:
++    resolution: {integrity: sha512-Z67nTmhZe7anqnM/EjI392w5i/ANUinjip7QYsOyN37oayduxt3ksdX0hf5OOamkAd53BiIHfbfSzfUmzKFQqQ==}
+@@ -1562,4 +1556,0 @@
+-
+-  supports-color@7.2.0:
+-    resolution: {integrity: sha512-qpCAvRl9stuOHveKsn7HncJRvv501qIacKzQlO/+Lwxc9+0q2wLyv4Dfvt80/DPn2pqOBsJdDiogXGR9+OvwRw==}
+-    engines: {node: '>=8'}
+@@ -1572,2 +1563,3 @@
+-  tinybench@2.9.0:
+-    resolution: {integrity: sha512-0+DUvqWMValLmha6lr4kD8iAMK1HzV0/aKnCtWb9v9641TnP/MFb7Pc2bxoxQjTXAErryXVgUOfv2YqNllqGeg==}
++  tinybench@6.1.4:
++    resolution: {integrity: sha512-9APumHG7r4yOk4X4WlkmE71aZcv1gvin1czO3OQ1U9iJcFA5Ja/ygyb0vPOVHTthFozUYs8CLoLUlM8grb2lTQ==}
++    engines: {node: '>=20.0.0'}
+@@ -1581,0 +1574,4 @@
++  tinyexec@1.3.1:
++    resolution: {integrity: sha512-GCvB3aoys96IuDFBMcTB46JOR6mdMtAToqwiW8JlWhsoh1mhHi/xn9ss/Dg7N555GiJyEt2qzoG/NHCwM6h1EA==}
++    engines: {node: '>=18'}
++
+@@ -1586,2 +1582,2 @@
+-  tinypool@2.1.0:
+-    resolution: {integrity: sha512-Pugqs6M0m7Lv1I7FtxN4aoyToKg1C4tu+/381vH35y8oENM/Ai7f7C4StcoK4/+BSw9ebcS8jRiVrORFKCALLw==}
++  tinypool@2.1.2:
++    resolution: {integrity: sha512-9YodfrxS9g9IbFr/KOjE5bAeJ0p61n3bW6mqvy0jtoeKd1kTW1Cxm0oulm6KX2lyM9Gl6WIe8nEbY7LWv5ZJww==}
+@@ -1606,3 +1602,3 @@
+-  tsdown@0.22.14:
+-    resolution: {integrity: sha512-ule7Y+fsAN2iZbLDoo7C4KYljFJNJJ+fLshyn+9gozeTspVersWHxwdGB+Dm2hzA38s6muFnUTl0jK3vJm9ifQ==}
+-    engines: {node: ^22.18.0 || >=24.11.0}
++  tsdown@0.23.0:
++    resolution: {integrity: sha512-BaT+ep1xnj5hdyICLd5r5SYYE+TXnI1ATePLykv9vcKpHpFTWUWRH+x1AF/E2qcu3YB6+vI8IdyxIIIffEqw5Q==}
++    engines: {node: ^22.18.0 || ^24.11.0 || >=26.0.0}
+@@ -1612,2 +1608,2 @@
+-      '@tsdown/css': 0.22.14
+-      '@tsdown/exe': 0.22.14
++      '@tsdown/css': 0.23.0
++      '@tsdown/exe': 0.23.0
+@@ -1618 +1614 @@
+-      unplugin-unused: ^0.5.0
++      unplugin-unused: '>=0.5.0'
+@@ -1651,5 +1647,5 @@
+-  undici-types@8.3.0:
+-    resolution: {integrity: sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ==}
+-
+-  update-browserslist-db@1.3.1:
+-    resolution: {integrity: sha512-ZZ61DsRsOnakl74HAmp3oSN4aXUmEWXf+i/yv0h7tIBfICc3VdrFErQKUUKPgu3AMsTUMbcongALEN4l6GSUrQ==}
++  undici-types@8.9.0:
++    resolution: {integrity: sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg==}
++
++  update-browserslist-db@1.3.3:
++    resolution: {integrity: sha512-pJ2sYawQS0R/WI928Gj5GlPhTGzbMelq0+4INtSYNDV9ErKJcX6xjGWkoG/VnB3dpUm00zALaqkrUD77pO5TDQ==}
+@@ -1661,0 +1658,4 @@
++    engines: {node: '>=18.12.0'}
++
++  verkit@0.4.0:
++    resolution: {integrity: sha512-sXMwN6DMHeouPfCxkxWkKAmxphWKEenHYY5H1nIBzU3PmDsmJp6kBXJdshjVdpMZuWCmL9SH7KFRx29AylpP6g==}
+@@ -1707,3 +1707,3 @@
+-  vitest@4.1.11:
+-    resolution: {integrity: sha512-fhACrNXUidIbGSBr5FlbuBkO7VWC1ZyLl0DO4CU2DrQoAPxX84Ysxs+HeGQpii5lZWV1Q4gBZTTu49mF+A6Edw==}
+-    engines: {node: ^20.0.0 || ^22.0.0 || >=24.0.0}
++  vitest@5.0.1:
++    resolution: {integrity: sha512-iA95lQbKEkvrtTkdAgnWbXfbipWiiWe/hDl2P5tMi6WFwD76G0NxXAGp/M9EOcYupeGJRr6wppMc7CoA41TQjg==}
++    engines: {node: ^22.12.0 || ^24.0.0 || >=26.0.0}
+@@ -1714,7 +1714,7 @@
+-      '@types/node': ^20.0.0 || ^22.0.0 || >=24.0.0
+-      '@vitest/browser-playwright': 4.1.11
+-      '@vitest/browser-preview': 4.1.11
+-      '@vitest/browser-webdriverio': 4.1.11
+-      '@vitest/coverage-istanbul': 4.1.11
+-      '@vitest/coverage-v8': 4.1.11
+-      '@vitest/ui': 4.1.11
++      '@types/node': ^22.0.0 || >=24.0.0
++      '@vitest/browser-playwright': 5.0.1
++      '@vitest/browser-preview': 5.0.1
++      '@vitest/browser-webdriverio': ^5.0.0-beta.5 || >=5.0.0
++      '@vitest/coverage-istanbul': 5.0.1
++      '@vitest/coverage-v8': 5.0.1
++      '@vitest/ui': 5.0.1
+@@ -1723 +1723 @@
+-      vite: ^6.0.0 || ^7.0.0 || ^8.0.0
++      vite: ^6.4.0 || ^7.0.0 || ^8.0.0
+@@ -1772,2 +1772,2 @@
+-  yaml@2.9.0:
+-    resolution: {integrity: sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA==}
++  yaml@2.9.1:
++    resolution: {integrity: sha512-3NxN8+78OdzbT7C/WjGsyfPAtJaN3FNDsWxv7Y7mcDsT/oOmgW8BpyQQFFBnvZE3j9Y2Sdz1ULFLezL7Eb2yFw==}
+@@ -1777,8 +1777,8 @@
+-  yuku-ast@0.8.7:
+-    resolution: {integrity: sha512-h6+4bDfyootiMB9vckk5uKo5r5j0GHrkr17FQTDNfEsFT3DWlN9uu1HJwQwc64pgmLCI945fWM3lbTIqxjT3GQ==}
+-
+-  yuku-codegen@0.8.7:
+-    resolution: {integrity: sha512-adwDZSh8oVDzhE6Du9PwVWxcOxeV0e2EVhUuMKWfhSY4wkrDq9eqixlxFF3l/XGUV1E7UFzhpz9393MUumkyNw==}
+-
+-  yuku-parser@0.8.7:
+-    resolution: {integrity: sha512-vRD9nwt4L3aYpxNqeSC4WqLv58xrXef0Ong1Mc45CTXTIpvLafx7JO05sczmQZwdLEZvywrLOGdNC5+Rp5N1BQ==}
++  yuku-ast@0.9.5:
++    resolution: {integrity: sha512-Q8qW8WwQnN5Cm0ZZivdRIfv0sRLTjUq0YumXJkw8CYN1aCdICH9rk4C47/4n6kA5EqDtlj+F608twoTSV2MwdQ==}
++
++  yuku-codegen@0.9.5:
++    resolution: {integrity: sha512-zGUVyDpSK4b6c9B0yyxi2P0wujn1XZTbG9dCb7d6gyAoP63EMgyLzUwPUvwxPG5jgYqhlI7w+S3oCyapqGr4PA==}
++
++  yuku-parser@0.9.5:
++    resolution: {integrity: sha512-IBnAdNVMswWbJcM7woPluOudectJzFjJ1N8jVRxP9Uq4CIv5hZdBIcdmtRbFDYF/Ph2j2gVup4YJ4N9mh0jYFA==}
+@@ -1793,3 +1793,3 @@
+-  '@babel/compat-data@8.0.0': {}
+-
+-  '@babel/core@8.0.1':
++  '@babel/compat-data@8.0.5': {}
++
++  '@babel/core@8.0.5':
+@@ -1798,4 +1798,4 @@
+-      '@babel/generator': 8.0.0
+-      '@babel/helper-compilation-targets': 8.0.0
+-      '@babel/helpers': 8.0.0
+-      '@babel/parser': 8.0.4
++      '@babel/generator': 8.0.5
++      '@babel/helper-compilation-targets': 8.0.5
++      '@babel/helpers': 8.0.5
++      '@babel/parser': 8.0.5
+@@ -1803,2 +1803,2 @@
+-      '@babel/traverse': 8.0.4
+-      '@babel/types': 8.0.4
++      '@babel/traverse': 8.0.5
++      '@babel/types': 8.0.5
+@@ -1811,8 +1811,8 @@
+-      obug: 2.1.4
+-      semver: 7.8.5
+-
+-  '@babel/generator@8.0.0':
+-    dependencies:
+-      '@babel/parser': 8.0.4
+-      '@babel/types': 8.0.4
+-      '@jridgewell/gen-mapping': 0.3.13
++      obug: 2.2.1
++      verkit: 0.3.2
++
++  '@babel/generator@8.0.5':
++    dependencies:
++      '@babel/parser': 8.0.5
++      '@babel/types': 8.0.5
++      '@jridgewell/gen-mapping': 0.4.0-beta.0
+@@ -1823,3 +1823,3 @@
+-  '@babel/helper-compilation-targets@8.0.0':
+-    dependencies:
+-      '@babel/compat-data': 8.0.0
++  '@babel/helper-compilation-targets@8.0.5':
++    dependencies:
++      '@babel/compat-data': 8.0.5
+@@ -1827 +1827 @@
+-      browserslist: 4.28.8
++      browserslist: 4.29.0
+@@ -1829 +1829 @@
+-      semver: 7.8.5
++      verkit: 0.3.2
+@@ -1843 +1843 @@
+-  '@babel/helpers@8.0.0':
++  '@babel/helpers@8.0.5':
+@@ -1846 +1846 @@
+-      '@babel/types': 8.0.4
++      '@babel/types': 8.0.5
+@@ -1852,3 +1852,3 @@
+-  '@babel/parser@8.0.4':
+-    dependencies:
+-      '@babel/types': 8.0.4
++  '@babel/parser@8.0.5':
++    dependencies:
++      '@babel/types': 8.0.5
+@@ -1859,4 +1859,4 @@
+-      '@babel/parser': 8.0.4
+-      '@babel/types': 8.0.4
+-
+-  '@babel/traverse@8.0.4':
++      '@babel/parser': 8.0.5
++      '@babel/types': 8.0.5
++
++  '@babel/traverse@8.0.5':
+@@ -1865 +1865 @@
+-      '@babel/generator': 8.0.0
++      '@babel/generator': 8.0.5
+@@ -1867 +1867 @@
+-      '@babel/parser': 8.0.4
++      '@babel/parser': 8.0.5
+@@ -1869,2 +1869,2 @@
+-      '@babel/types': 8.0.4
+-      obug: 2.1.4
++      '@babel/types': 8.0.5
++      obug: 2.2.1
+@@ -1877 +1877 @@
+-  '@babel/types@8.0.4':
++  '@babel/types@8.0.5':
+@@ -1884,3 +1884,3 @@
+-  '@blazediff/core@1.9.1': {}
+-
+-  '@e18e/eslint-plugin@0.8.0(oxlint@1.79.0)':
++  '@blazediff/core@1.10.0': {}
++
++  '@e18e/eslint-plugin@0.8.0(oxlint@1.83.0)':
+@@ -1889 +1889 @@
+-      module-replacements: 3.2.0
++      module-replacements: 3.3.0
+@@ -1892 +1892 @@
+-      oxlint: 1.79.0
++      oxlint: 1.83.0
+@@ -1896,3 +1896,3 @@
+-  '@jridgewell/gen-mapping@0.3.13':
+-    dependencies:
+-      '@jridgewell/sourcemap-codec': 1.5.5
++  '@jridgewell/gen-mapping@0.4.0-beta.0':
++    dependencies:
++      '@jridgewell/sourcemap-codec': 1.6.0
+@@ -1903 +1903 @@
+-  '@jridgewell/sourcemap-codec@1.5.5': {}
++  '@jridgewell/sourcemap-codec@1.6.0': {}
+@@ -1908,116 +1908,116 @@
+-      '@jridgewell/sourcemap-codec': 1.5.5
+-
+-  '@oxc-project/types@0.146.0': {}
+-
+-  '@oxfmt/binding-android-arm-eabi@0.64.0':
+-    optional: true
+-
+-  '@oxfmt/binding-android-arm64@0.64.0':
+-    optional: true
+-
+-  '@oxfmt/binding-darwin-arm64@0.64.0':
+-    optional: true
+-
+-  '@oxfmt/binding-darwin-x64@0.64.0':
+-    optional: true
+-
+-  '@oxfmt/binding-freebsd-x64@0.64.0':
+-    optional: true
+-
+-  '@oxfmt/binding-linux-arm-gnueabihf@0.64.0':
+-    optional: true
+-
+-  '@oxfmt/binding-linux-arm-musleabihf@0.64.0':
+-    optional: true
+-
+-  '@oxfmt/binding-linux-arm64-gnu@0.64.0':
+-    optional: true
+-
+-  '@oxfmt/binding-linux-arm64-musl@0.64.0':
+-    optional: true
+-
+-  '@oxfmt/binding-linux-ppc64-gnu@0.64.0':
+-    optional: true
+-
+-  '@oxfmt/binding-linux-riscv64-gnu@0.64.0':
+-    optional: true
+-
+-  '@oxfmt/binding-linux-riscv64-musl@0.64.0':
+-    optional: true
+-
+-  '@oxfmt/binding-linux-s390x-gnu@0.64.0':
+-    optional: true
+-
+-  '@oxfmt/binding-linux-x64-gnu@0.64.0':
+-    optional: true
+-
+-  '@oxfmt/binding-linux-x64-musl@0.64.0':
+-    optional: true
+-
+-  '@oxfmt/binding-openharmony-arm64@0.64.0':
+-    optional: true
+-
+-  '@oxfmt/binding-win32-arm64-msvc@0.64.0':
+-    optional: true
+-
+-  '@oxfmt/binding-win32-ia32-msvc@0.64.0':
+-    optional: true
+-
+-  '@oxfmt/binding-win32-x64-msvc@0.64.0':
+-    optional: true
+-
+-  '@oxlint/binding-android-arm-eabi@1.79.0':
+-    optional: true
+-
+-  '@oxlint/binding-android-arm64@1.79.0':
+-    optional: true
+-
+-  '@oxlint/binding-darwin-arm64@1.79.0':
+-    optional: true
+-
+-  '@oxlint/binding-darwin-x64@1.79.0':
+-    optional: true
+-
+-  '@oxlint/binding-freebsd-x64@1.79.0':
+-    optional: true
+-
+-  '@oxlint/binding-linux-arm-gnueabihf@1.79.0':
+-    optional: true
+-
+-  '@oxlint/binding-linux-arm-musleabihf@1.79.0':
+-    optional: true
+-
+-  '@oxlint/binding-linux-arm64-gnu@1.79.0':
+-    optional: true
+-
+-  '@oxlint/binding-linux-arm64-musl@1.79.0':
+-    optional: true
+-
+-  '@oxlint/binding-linux-ppc64-gnu@1.79.0':
+-    optional: true
+-
+-  '@oxlint/binding-linux-riscv64-gnu@1.79.0':
+-    optional: true
+-
+-  '@oxlint/binding-linux-riscv64-musl@1.79.0':
+-    optional: true
+-
+-  '@oxlint/binding-linux-s390x-gnu@1.79.0':
+-    optional: true
+-
+-  '@oxlint/binding-linux-x64-gnu@1.79.0':
+-    optional: true
+-
+-  '@oxlint/binding-linux-x64-musl@1.79.0':
+-    optional: true
+-
+-  '@oxlint/binding-openharmony-arm64@1.79.0':
+-    optional: true
+-
+-  '@oxlint/binding-win32-arm64-msvc@1.79.0':
+-    optional: true
+-
+-  '@oxlint/binding-win32-ia32-msvc@1.79.0':
+-    optional: true
+-
+-  '@oxlint/binding-win32-x64-msvc@1.79.0':
++      '@jridgewell/sourcemap-codec': 1.6.0
++
++  '@oxc-project/types@0.149.0': {}
++
++  '@oxfmt/binding-android-arm-eabi@0.68.0':
++    optional: true
++
++  '@oxfmt/binding-android-arm64@0.68.0':
++    optional: true
++
++  '@oxfmt/binding-darwin-arm64@0.68.0':
++    optional: true
++
++  '@oxfmt/binding-darwin-x64@0.68.0':
++    optional: true
++
++  '@oxfmt/binding-freebsd-x64@0.68.0':
++    optional: true
++
++  '@oxfmt/binding-linux-arm-gnueabihf@0.68.0':
++    optional: true
++
++  '@oxfmt/binding-linux-arm-musleabihf@0.68.0':
++    optional: true
++
++  '@oxfmt/binding-linux-arm64-gnu@0.68.0':
++    optional: true
++
++  '@oxfmt/binding-linux-arm64-musl@0.68.0':
++    optional: true
++
++  '@oxfmt/binding-linux-ppc64-gnu@0.68.0':
++    optional: true
++
++  '@oxfmt/binding-linux-riscv64-gnu@0.68.0':
++    optional: true
++
++  '@oxfmt/binding-linux-riscv64-musl@0.68.0':
++    optional: true
++
++  '@oxfmt/binding-linux-s390x-gnu@0.68.0':
++    optional: true
++
++  '@oxfmt/binding-linux-x64-gnu@0.68.0':
++    optional: true
++
++  '@oxfmt/binding-linux-x64-musl@0.68.0':
++    optional: true
++
++  '@oxfmt/binding-openharmony-arm64@0.68.0':
++    optional: true
++
++  '@oxfmt/binding-win32-arm64-msvc@0.68.0':
++    optional: true
++
++  '@oxfmt/binding-win32-ia32-msvc@0.68.0':
++    optional: true
++
++  '@oxfmt/binding-win32-x64-msvc@0.68.0':
++    optional: true
++
++  '@oxlint/binding-android-arm-eabi@1.83.0':
++    optional: true
++
++  '@oxlint/binding-android-arm64@1.83.0':
++    optional: true
++
++  '@oxlint/binding-darwin-arm64@1.83.0':
++    optional: true
++
++  '@oxlint/binding-darwin-x64@1.83.0':
++    optional: true
++
++  '@oxlint/binding-freebsd-x64@1.83.0':
++    optional: true
++
++  '@oxlint/binding-linux-arm-gnueabihf@1.83.0':
++    optional: true
++
++  '@oxlint/binding-linux-arm-musleabihf@1.83.0':
++    optional: true
++
++  '@oxlint/binding-linux-arm64-gnu@1.83.0':
++    optional: true
++
++  '@oxlint/binding-linux-arm64-musl@1.83.0':
++    optional: true
++
++  '@oxlint/binding-linux-ppc64-gnu@1.83.0':
++    optional: true
++
++  '@oxlint/binding-linux-riscv64-gnu@1.83.0':
++    optional: true
++
++  '@oxlint/binding-linux-riscv64-musl@1.83.0':
++    optional: true
++
++  '@oxlint/binding-linux-s390x-gnu@1.83.0':
++    optional: true
++
++  '@oxlint/binding-linux-x64-gnu@1.83.0':
++    optional: true
++
++  '@oxlint/binding-linux-x64-musl@1.83.0':
++    optional: true
++
++  '@oxlint/binding-openharmony-arm64@1.83.0':
++    optional: true
++
++  '@oxlint/binding-win32-arm64-msvc@1.83.0':
++    optional: true
++
++  '@oxlint/binding-win32-ia32-msvc@1.83.0':
++    optional: true
++
++  '@oxlint/binding-win32-x64-msvc@1.83.0':
+@@ -2032,43 +2032,43 @@
+-  '@rolldown/binding-android-arm-eabi@1.2.5':
+-    optional: true
+-
+-  '@rolldown/binding-android-arm64@1.2.5':
+-    optional: true
+-
+-  '@rolldown/binding-darwin-arm64@1.2.5':
+-    optional: true
+-
+-  '@rolldown/binding-darwin-x64@1.2.5':
+-    optional: true
+-
+-  '@rolldown/binding-freebsd-x64@1.2.5':
+-    optional: true
+-
+-  '@rolldown/binding-linux-arm-gnueabihf@1.2.5':
+-    optional: true
+-
+-  '@rolldown/binding-linux-arm64-gnu@1.2.5':
+-    optional: true
+-
+-  '@rolldown/binding-linux-arm64-musl@1.2.5':
+-    optional: true
+-
+-  '@rolldown/binding-linux-ppc64-gnu@1.2.5':
+-    optional: true
+-
+-  '@rolldown/binding-linux-s390x-gnu@1.2.5':
+-    optional: true
+-
+-  '@rolldown/binding-linux-x64-gnu@1.2.5':
+-    optional: true
+-
+-  '@rolldown/binding-linux-x64-musl@1.2.5':
+-    optional: true
+-
+-  '@rolldown/binding-openharmony-arm64@1.2.5':
+-    optional: true
+-
+-  '@rolldown/binding-win32-arm64-msvc@1.2.5':
+-    optional: true
+-
+-  '@rolldown/binding-win32-x64-msvc@1.2.5':
++  '@rolldown/binding-android-arm-eabi@1.2.8':
++    optional: true
++
++  '@rolldown/binding-android-arm64@1.2.8':
++    optional: true
++
++  '@rolldown/binding-darwin-arm64@1.2.8':
++    optional: true
++
++  '@rolldown/binding-darwin-x64@1.2.8':
++    optional: true
++
++  '@rolldown/binding-freebsd-x64@1.2.8':
++    optional: true
++
++  '@rolldown/binding-linux-arm-gnueabihf@1.2.8':
++    optional: true
++
++  '@rolldown/binding-linux-arm64-gnu@1.2.8':
++    optional: true
++
++  '@rolldown/binding-linux-arm64-musl@1.2.8':
++    optional: true
++
++  '@rolldown/binding-linux-ppc64-gnu@1.2.8':
++    optional: true
++
++  '@rolldown/binding-linux-s390x-gnu@1.2.8':
++    optional: true
++
++  '@rolldown/binding-linux-x64-gnu@1.2.8':
++    optional: true
++
++  '@rolldown/binding-linux-x64-musl@1.2.8':
++    optional: true
++
++  '@rolldown/binding-openharmony-arm64@1.2.8':
++    optional: true
++
++  '@rolldown/binding-win32-arm64-msvc@1.2.8':
++    optional: true
++
++  '@rolldown/binding-win32-x64-msvc@1.2.8':
+@@ -2078,2 +2077,0 @@
+-
+-  '@standard-schema/spec@1.1.0': {}
+@@ -2085,0 +2084,2 @@
++  '@types/convert-source-map@2.0.3': {}
++
+@@ -2094,3 +2094,3 @@
+-  '@types/node@26.2.0':
+-    dependencies:
+-      undici-types: 8.3.0
++  '@types/node@26.6.1':
++    dependencies:
++      undici-types: 8.9.0
+@@ -2158,5 +2158,5 @@
+-  '@vitest/browser-playwright@4.1.11(playwright@1.62.1)(vite@8.2.2(@types/node@26.2.0)(jiti@2.7.0)(yaml@2.9.0))(vitest@4.1.11)':
+-    dependencies:
+-      '@vitest/browser': 4.1.11(vite@8.2.2(@types/node@26.2.0)(jiti@2.7.0)(yaml@2.9.0))(vitest@4.1.11)
+-      '@vitest/mocker': 4.1.11(vite@8.2.2(@types/node@26.2.0)(jiti@2.7.0)(yaml@2.9.0))
+-      playwright: 1.62.1
++  '@vitest/browser-playwright@5.0.1(playwright@1.63.0)(vite@8.2.2(@types/node@26.6.1)(jiti@2.7.0)(yaml@2.9.1))(vitest@5.0.1)':
++    dependencies:
++      '@vitest/browser': 5.0.1(vite@8.2.2(@types/node@26.6.1)(jiti@2.7.0)(yaml@2.9.1))(vitest@5.0.1)
++      '@vitest/mocker': 5.0.1(vite@8.2.2(@types/node@26.6.1)(jiti@2.7.0)(yaml@2.9.1))
++      playwright: 1.63.0
+@@ -2164 +2164 @@
+-      vitest: 4.1.11(@types/node@26.2.0)(@vitest/browser-playwright@4.1.11)(@vitest/coverage-v8@4.1.11)(vite@8.2.2(@types/node@26.2.0)(jiti@2.7.0)(yaml@2.9.0))
++      vitest: 5.0.1(@types/node@26.6.1)(@vitest/browser-playwright@5.0.1)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(vite@8.2.2(@types/node@26.6.1)(jiti@2.7.0)(yaml@2.9.1))
+@@ -2171,6 +2171,7 @@
+-  '@vitest/browser@4.1.11(vite@8.2.2(@types/node@26.2.0)(jiti@2.7.0)(yaml@2.9.0))(vitest@4.1.11)':
+-    dependencies:
+-      '@blazediff/core': 1.9.1
+-      '@vitest/mocker': 4.1.11(vite@8.2.2(@types/node@26.2.0)(jiti@2.7.0)(yaml@2.9.0))
+-      '@vitest/utils': 4.1.11
+-      magic-string: 0.30.21
++  '@vitest/browser@5.0.1(vite@8.2.2(@types/node@26.6.1)(jiti@2.7.0)(yaml@2.9.1))(vitest@5.0.1)':
++    dependencies:
++      '@blazediff/core': 1.10.0
++      '@vitest/mocker': 5.0.1(vite@8.2.2(@types/node@26.6.1)(jiti@2.7.0)(yaml@2.9.1))
++      '@vitest/ui': 5.0.1(vitest@5.0.1)
++      '@vitest/utils': 5.0.1
++      magic-string: 1.4.1
+@@ -2180 +2181 @@
+-      vitest: 4.1.11(@types/node@26.2.0)(@vitest/browser-playwright@4.1.11)(@vitest/coverage-v8@4.1.11)(vite@8.2.2(@types/node@26.2.0)(jiti@2.7.0)(yaml@2.9.0))
++      vitest: 5.0.1(@types/node@26.6.1)(@vitest/browser-playwright@5.0.1)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(vite@8.2.2(@types/node@26.6.1)(jiti@2.7.0)(yaml@2.9.1))
+@@ -2188 +2189 @@
+-  '@vitest/coverage-v8@4.1.11(@vitest/browser@4.1.11)(vitest@4.1.11)':
++  '@vitest/coverage-v8@5.0.1(@vitest/browser@5.0.1)(vitest@5.0.1)':
+@@ -2191,7 +2192,5 @@
+-      '@vitest/utils': 4.1.11
+-      ast-v8-to-istanbul: 1.0.5
+-      istanbul-lib-coverage: 3.2.2
+-      istanbul-lib-report: 3.0.1
+-      istanbul-reports: 3.2.0
+-      magicast: 0.5.4
+-      obug: 2.1.4
++      '@vitest/istanbul-lib-coverage': 1.0.1
++      '@vitest/istanbul-lib-report': 1.0.1
++      ast-v8-to-istanbul: 1.0.6
++      magicast: 0.5.5
++      obug: 2.2.1
+@@ -2200 +2199 @@
+-      vitest: 4.1.11(@types/node@26.2.0)(@vitest/browser-playwright@4.1.11)(@vitest/coverage-v8@4.1.11)(vite@8.2.2(@types/node@26.2.0)(jiti@2.7.0)(yaml@2.9.0))
++      vitest: 5.0.1(@types/node@26.6.1)(@vitest/browser-playwright@5.0.1)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(vite@8.2.2(@types/node@26.6.1)(jiti@2.7.0)(yaml@2.9.1))
+@@ -2202,9 +2201,19 @@
+-      '@vitest/browser': 4.1.11(vite@8.2.2(@types/node@26.2.0)(jiti@2.7.0)(yaml@2.9.0))(vitest@4.1.11)
+-
+-  '@vitest/expect@4.1.11':
+-    dependencies:
+-      '@standard-schema/spec': 1.1.0
+-      '@types/chai': 5.2.3
+-      '@vitest/spy': 4.1.11
+-      '@vitest/utils': 4.1.11
+-      chai: 6.2.2
++      '@vitest/browser': 5.0.1(vite@8.2.2(@types/node@26.6.1)(jiti@2.7.0)(yaml@2.9.1))(vitest@5.0.1)
++
++  '@vitest/istanbul-lib-coverage@1.0.1': {}
++
++  '@vitest/istanbul-lib-report@1.0.1':
++    dependencies:
++      '@vitest/istanbul-lib-coverage': 1.0.1
++
++  '@vitest/mocker@5.0.1(vite@8.2.2(@types/node@26.6.1)(jiti@2.7.0)(yaml@2.9.1))':
++    dependencies:
++      '@jridgewell/trace-mapping': 0.3.31
++      '@vitest/spy': 5.0.1
++      estree-walker: 3.0.3
++      magic-string: 1.4.1
++    optionalDependencies:
++      vite: 8.2.2(@types/node@26.6.1)(jiti@2.7.0)(yaml@2.9.1)
++
++  '@vitest/pretty-format@5.0.1':
++    dependencies:
+@@ -2213,10 +2222,9 @@
+-  '@vitest/mocker@4.1.11(vite@8.2.2(@types/node@26.2.0)(jiti@2.7.0)(yaml@2.9.0))':
+-    dependencies:
+-      '@vitest/spy': 4.1.11
+-      estree-walker: 3.0.3
+-      magic-string: 0.30.21
+-    optionalDependencies:
+-      vite: 8.2.2(@types/node@26.2.0)(jiti@2.7.0)(yaml@2.9.0)
+-
+-  '@vitest/pretty-format@4.1.11':
+-    dependencies:
++  '@vitest/spy@5.0.1': {}
++
++  '@vitest/ui@5.0.1(vitest@5.0.1)':
++    dependencies:
++      '@vitest/utils': 5.0.1
++      fflate: 0.8.3
++      flatted: 3.4.4
++      pathe: 2.0.3
++      sirv: 3.0.2
+@@ -2224,18 +2232,5 @@
+-
+-  '@vitest/runner@4.1.11':
+-    dependencies:
+-      '@vitest/utils': 4.1.11
+-      pathe: 2.0.3
+-
+-  '@vitest/snapshot@4.1.11':
+-    dependencies:
+-      '@vitest/pretty-format': 4.1.11
+-      '@vitest/utils': 4.1.11
+-      magic-string: 0.30.21
+-      pathe: 2.0.3
+-
+-  '@vitest/spy@4.1.11': {}
+-
+-  '@vitest/utils@4.1.11':
+-    dependencies:
+-      '@vitest/pretty-format': 4.1.11
++      vitest: 5.0.1(@types/node@26.6.1)(@vitest/browser-playwright@5.0.1)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(vite@8.2.2(@types/node@26.6.1)(jiti@2.7.0)(yaml@2.9.1))
++
++  '@vitest/utils@5.0.1':
++    dependencies:
++      '@vitest/pretty-format': 5.0.1
+@@ -2245,73 +2240,73 @@
+-  '@yuku-codegen/binding-android-arm64@0.8.7':
+-    optional: true
+-
+-  '@yuku-codegen/binding-darwin-arm64@0.8.7':
+-    optional: true
+-
+-  '@yuku-codegen/binding-darwin-x64@0.8.7':
+-    optional: true
+-
+-  '@yuku-codegen/binding-freebsd-x64@0.8.7':
+-    optional: true
+-
+-  '@yuku-codegen/binding-linux-arm-gnu@0.8.7':
+-    optional: true
+-
+-  '@yuku-codegen/binding-linux-arm-musl@0.8.7':
+-    optional: true
+-
+-  '@yuku-codegen/binding-linux-arm64-gnu@0.8.7':
+-    optional: true
+-
+-  '@yuku-codegen/binding-linux-arm64-musl@0.8.7':
+-    optional: true
+-
+-  '@yuku-codegen/binding-linux-x64-gnu@0.8.7':
+-    optional: true
+-
+-  '@yuku-codegen/binding-linux-x64-musl@0.8.7':
+-    optional: true
+-
+-  '@yuku-codegen/binding-win32-arm64@0.8.7':
+-    optional: true
+-
+-  '@yuku-codegen/binding-win32-x64@0.8.7':
+-    optional: true
+-
+-  '@yuku-parser/binding-android-arm64@0.8.7':
+-    optional: true
+-
+-  '@yuku-parser/binding-darwin-arm64@0.8.7':
+-    optional: true
+-
+-  '@yuku-parser/binding-darwin-x64@0.8.7':
+-    optional: true
+-
+-  '@yuku-parser/binding-freebsd-x64@0.8.7':
+-    optional: true
+-
+-  '@yuku-parser/binding-linux-arm-gnu@0.8.7':
+-    optional: true
+-
+-  '@yuku-parser/binding-linux-arm-musl@0.8.7':
+-    optional: true
+-
+-  '@yuku-parser/binding-linux-arm64-gnu@0.8.7':
+-    optional: true
+-
+-  '@yuku-parser/binding-linux-arm64-musl@0.8.7':
+-    optional: true
+-
+-  '@yuku-parser/binding-linux-x64-gnu@0.8.7':
+-    optional: true
+-
+-  '@yuku-parser/binding-linux-x64-musl@0.8.7':
+-    optional: true
+-
+-  '@yuku-parser/binding-win32-arm64@0.8.7':
+-    optional: true
+-
+-  '@yuku-parser/binding-win32-x64@0.8.7':
+-    optional: true
+-
+-  '@yuku-toolchain/types@0.8.7': {}
++  '@yuku-codegen/binding-android-arm64@0.9.5':
++    optional: true
++
++  '@yuku-codegen/binding-darwin-arm64@0.9.5':
++    optional: true
++
++  '@yuku-codegen/binding-darwin-x64@0.9.5':
++    optional: true
++
++  '@yuku-codegen/binding-freebsd-x64@0.9.5':
++    optional: true
++
++  '@yuku-codegen/binding-linux-arm-gnu@0.9.5':
++    optional: true
++
++  '@yuku-codegen/binding-linux-arm-musl@0.9.5':
++    optional: true
++
++  '@yuku-codegen/binding-linux-arm64-gnu@0.9.5':
++    optional: true
++
++  '@yuku-codegen/binding-linux-arm64-musl@0.9.5':
++    optional: true
++
++  '@yuku-codegen/binding-linux-x64-gnu@0.9.5':
++    optional: true
++
++  '@yuku-codegen/binding-linux-x64-musl@0.9.5':
++    optional: true
++
++  '@yuku-codegen/binding-win32-arm64@0.9.5':
++    optional: true
++
++  '@yuku-codegen/binding-win32-x64@0.9.5':
++    optional: true
++
++  '@yuku-parser/binding-android-arm64@0.9.5':
++    optional: true
++
++  '@yuku-parser/binding-darwin-arm64@0.9.5':
++    optional: true
++
++  '@yuku-parser/binding-darwin-x64@0.9.5':
++    optional: true
++
++  '@yuku-parser/binding-freebsd-x64@0.9.5':
++    optional: true
++
++  '@yuku-parser/binding-linux-arm-gnu@0.9.5':
++    optional: true
++
++  '@yuku-parser/binding-linux-arm-musl@0.9.5':
++    optional: true
++
++  '@yuku-parser/binding-linux-arm64-gnu@0.9.5':
++    optional: true
++
++  '@yuku-parser/binding-linux-arm64-musl@0.9.5':
++    optional: true
++
++  '@yuku-parser/binding-linux-x64-gnu@0.9.5':
++    optional: true
++
++  '@yuku-parser/binding-linux-x64-musl@0.9.5':
++    optional: true
++
++  '@yuku-parser/binding-win32-arm64@0.9.5':
++    optional: true
++
++  '@yuku-parser/binding-win32-x64@0.9.5':
++    optional: true
++
++  '@yuku-toolchain/types@0.9.5': {}
+@@ -2321 +2316 @@
+-  ansis@4.3.1: {}
++  ansis@4.4.0: {}
+@@ -2330 +2325 @@
+-  ast-v8-to-istanbul@1.0.5:
++  ast-v8-to-istanbul@1.0.6:
+@@ -2336 +2331 @@
+-  baseline-browser-mapping@2.11.15: {}
++  baseline-browser-mapping@2.11.24: {}
+@@ -2344,7 +2339,7 @@
+-  browserslist@4.28.8:
+-    dependencies:
+-      baseline-browser-mapping: 2.11.15
+-      caniuse-lite: 1.0.30001809
+-      electron-to-chromium: 1.5.411
+-      node-releases: 2.0.53
+-      update-browserslist-db: 1.3.1(browserslist@4.28.8)
++  browserslist@4.29.0:
++    dependencies:
++      baseline-browser-mapping: 2.11.24
++      caniuse-lite: 1.0.30001810
++      electron-to-chromium: 1.5.429
++      node-releases: 2.0.55
++      update-browserslist-db: 1.3.3(browserslist@4.29.0)
+@@ -2383,2 +2378,2 @@
+-      pkg-types: 2.3.1
+-      rc9: 3.0.1
++      pkg-types: 2.3.3
++      rc9: 3.1.0
+@@ -2388 +2383 @@
+-  caniuse-lite@1.0.30001809: {}
++  caniuse-lite@1.0.30001810: {}
+@@ -2407 +2402 @@
+-      yaml: 2.9.0
++      yaml: 2.9.1
+@@ -2411,3 +2406,3 @@
+-  changelogithub@15.0.4:
+-    dependencies:
+-      ansis: 4.3.1
++  changelogithub@15.0.5:
++    dependencies:
++      ansis: 4.4.0
+@@ -2419 +2414 @@
+-      tinyexec: 1.3.0
++      tinyexec: 1.3.1
+@@ -2421 +2416 @@
+-      verkit: 0.3.2
++      verkit: 0.4.0
+@@ -2452,0 +2448,2 @@
++  confbox@0.3.1: {}
++
+@@ -2480 +2477 @@
+-  electron-to-chromium@1.5.411: {}
++  electron-to-chromium@1.5.429: {}
+@@ -2496 +2493 @@
+-  fdir@6.5.0(picomatch@4.0.5):
++  fdir@6.5.0(picomatch@4.0.7):
+@@ -2498 +2495,3 @@
+-      picomatch: 4.0.5
++      picomatch: 4.0.7
++
++  fflate@0.8.3: {}
+@@ -2503,0 +2503,2 @@
++  flatted@3.4.4: {}
++
+@@ -2508,3 +2508,0 @@
+-  fsevents@2.3.2:
+-    optional: true
+-
+@@ -2516 +2514 @@
+-  get-tsconfig@5.0.0-beta.5:
++  get-tsconfig@5.0.0-beta.6:
+@@ -2536,2 +2533,0 @@
+-  has-flag@4.0.0: {}
+-
+@@ -2540,2 +2535,0 @@
+-  html-escaper@2.0.2: {}
+-
+@@ -2567,13 +2560,0 @@
+-
+-  istanbul-lib-coverage@3.2.2: {}
+-
+-  istanbul-lib-report@3.0.1:
+-    dependencies:
+-      istanbul-lib-coverage: 3.2.2
+-      make-dir: 4.0.0
+-      supports-color: 7.2.0
+-
+-  istanbul-reports@3.2.0:
+-    dependencies:
+-      html-escaper: 2.0.2
+-      istanbul-lib-report: 3.0.1
+@@ -2642,5 +2623,5 @@
+-  magic-string@0.30.21:
+-    dependencies:
+-      '@jridgewell/sourcemap-codec': 1.5.5
+-
+-  magicast@0.5.4:
++  magic-string@1.4.1:
++    dependencies:
++      '@jridgewell/sourcemap-codec': 1.6.0
++
++  magicast@0.5.5:
+@@ -2651,4 +2631,0 @@
+-
+-  make-dir@4.0.0:
+-    dependencies:
+-      semver: 7.8.5
+@@ -2676 +2653 @@
+-  module-replacements@3.2.0: {}
++  module-replacements@3.3.0: {}
+@@ -2686 +2663 @@
+-  node-releases@2.0.53: {}
++  node-releases@2.0.55: {}
+@@ -2699 +2676,3 @@
+-  obug@2.1.4: {}
++  obug@2.2.1: {}
++
++  obug@3.0.0: {}
+@@ -2718,3 +2697,3 @@
+-  oxfmt@0.64.0:
+-    dependencies:
+-      tinypool: 2.1.0
++  oxfmt@0.68.0:
++    dependencies:
++      tinypool: 2.1.2
+@@ -2722,21 +2701,21 @@
+-      '@oxfmt/binding-android-arm-eabi': 0.64.0
+-      '@oxfmt/binding-android-arm64': 0.64.0
+-      '@oxfmt/binding-darwin-arm64': 0.64.0
+-      '@oxfmt/binding-darwin-x64': 0.64.0
+-      '@oxfmt/binding-freebsd-x64': 0.64.0
+-      '@oxfmt/binding-linux-arm-gnueabihf': 0.64.0
+-      '@oxfmt/binding-linux-arm-musleabihf': 0.64.0
+-      '@oxfmt/binding-linux-arm64-gnu': 0.64.0
+-      '@oxfmt/binding-linux-arm64-musl': 0.64.0
+-      '@oxfmt/binding-linux-ppc64-gnu': 0.64.0
+-      '@oxfmt/binding-linux-riscv64-gnu': 0.64.0
+-      '@oxfmt/binding-linux-riscv64-musl': 0.64.0
+-      '@oxfmt/binding-linux-s390x-gnu': 0.64.0
+-      '@oxfmt/binding-linux-x64-gnu': 0.64.0
+-      '@oxfmt/binding-linux-x64-musl': 0.64.0
+-      '@oxfmt/binding-openharmony-arm64': 0.64.0
+-      '@oxfmt/binding-win32-arm64-msvc': 0.64.0
+-      '@oxfmt/binding-win32-ia32-msvc': 0.64.0
+-      '@oxfmt/binding-win32-x64-msvc': 0.64.0
+-
+-  oxlint@1.79.0:
++      '@oxfmt/binding-android-arm-eabi': 0.68.0
++      '@oxfmt/binding-android-arm64': 0.68.0
++      '@oxfmt/binding-darwin-arm64': 0.68.0
++      '@oxfmt/binding-darwin-x64': 0.68.0
++      '@oxfmt/binding-freebsd-x64': 0.68.0
++      '@oxfmt/binding-linux-arm-gnueabihf': 0.68.0
++      '@oxfmt/binding-linux-arm-musleabihf': 0.68.0
++      '@oxfmt/binding-linux-arm64-gnu': 0.68.0
++      '@oxfmt/binding-linux-arm64-musl': 0.68.0
++      '@oxfmt/binding-linux-ppc64-gnu': 0.68.0
++      '@oxfmt/binding-linux-riscv64-gnu': 0.68.0
++      '@oxfmt/binding-linux-riscv64-musl': 0.68.0
++      '@oxfmt/binding-linux-s390x-gnu': 0.68.0
++      '@oxfmt/binding-linux-x64-gnu': 0.68.0
++      '@oxfmt/binding-linux-x64-musl': 0.68.0
++      '@oxfmt/binding-openharmony-arm64': 0.68.0
++      '@oxfmt/binding-win32-arm64-msvc': 0.68.0
++      '@oxfmt/binding-win32-ia32-msvc': 0.68.0
++      '@oxfmt/binding-win32-x64-msvc': 0.68.0
++
++  oxlint@1.83.0:
+@@ -2744,19 +2723,19 @@
+-      '@oxlint/binding-android-arm-eabi': 1.79.0
+-      '@oxlint/binding-android-arm64': 1.79.0
+-      '@oxlint/binding-darwin-arm64': 1.79.0
+-      '@oxlint/binding-darwin-x64': 1.79.0
+-      '@oxlint/binding-freebsd-x64': 1.79.0
+-      '@oxlint/binding-linux-arm-gnueabihf': 1.79.0
+-      '@oxlint/binding-linux-arm-musleabihf': 1.79.0
+-      '@oxlint/binding-linux-arm64-gnu': 1.79.0
+-      '@oxlint/binding-linux-arm64-musl': 1.79.0
+-      '@oxlint/binding-linux-ppc64-gnu': 1.79.0
+-      '@oxlint/binding-linux-riscv64-gnu': 1.79.0
+-      '@oxlint/binding-linux-riscv64-musl': 1.79.0
+-      '@oxlint/binding-linux-s390x-gnu': 1.79.0
+-      '@oxlint/binding-linux-x64-gnu': 1.79.0
+-      '@oxlint/binding-linux-x64-musl': 1.79.0
+-      '@oxlint/binding-openharmony-arm64': 1.79.0
+-      '@oxlint/binding-win32-arm64-msvc': 1.79.0
+-      '@oxlint/binding-win32-ia32-msvc': 1.79.0
+-      '@oxlint/binding-win32-x64-msvc': 1.79.0
++      '@oxlint/binding-android-arm-eabi': 1.83.0
++      '@oxlint/binding-android-arm64': 1.83.0
++      '@oxlint/binding-darwin-arm64': 1.83.0
++      '@oxlint/binding-darwin-x64': 1.83.0
++      '@oxlint/binding-freebsd-x64': 1.83.0
++      '@oxlint/binding-linux-arm-gnueabihf': 1.83.0
++      '@oxlint/binding-linux-arm-musleabihf': 1.83.0
++      '@oxlint/binding-linux-arm64-gnu': 1.83.0
++      '@oxlint/binding-linux-arm64-musl': 1.83.0
++      '@oxlint/binding-linux-ppc64-gnu': 1.83.0
++      '@oxlint/binding-linux-riscv64-gnu': 1.83.0
++      '@oxlint/binding-linux-riscv64-musl': 1.83.0
++      '@oxlint/binding-linux-s390x-gnu': 1.83.0
++      '@oxlint/binding-linux-x64-gnu': 1.83.0
++      '@oxlint/binding-linux-x64-musl': 1.83.0
++      '@oxlint/binding-openharmony-arm64': 1.83.0
++      '@oxlint/binding-win32-arm64-msvc': 1.83.0
++      '@oxlint/binding-win32-ia32-msvc': 1.83.0
++      '@oxlint/binding-win32-x64-msvc': 1.83.0
+@@ -2776 +2755 @@
+-  picomatch@4.0.5: {}
++  picomatch@4.0.7: {}
+@@ -2784,3 +2763,3 @@
+-  pkg-types@2.3.1:
+-    dependencies:
+-      confbox: 0.2.4
++  pkg-types@2.3.3:
++    dependencies:
++      confbox: 0.3.1
+@@ -2790,7 +2769,5 @@
+-  playwright-core@1.62.1: {}
+-
+-  playwright@1.62.1:
+-    dependencies:
+-      playwright-core: 1.62.1
+-    optionalDependencies:
+-      fsevents: 2.3.2
++  playwright-core@1.63.0: {}
++
++  playwright@1.63.0:
++    dependencies:
++      playwright-core: 1.63.0
+@@ -2815 +2792 @@
+-  rc9@3.0.1:
++  rc9@3.1.0:
+@@ -2828 +2805 @@
+-  rolldown-plugin-dts@0.27.14(rolldown@1.2.5)(typescript@7.0.2):
++  rolldown-plugin-dts@0.28.5(rolldown@1.2.8)(typescript@7.0.2):
+@@ -2831,6 +2808,6 @@
+-      get-tsconfig: 5.0.0-beta.5
+-      obug: 2.1.4
+-      rolldown: 1.2.5
+-      yuku-ast: 0.8.7
+-      yuku-codegen: 0.8.7
+-      yuku-parser: 0.8.7
++      get-tsconfig: 5.0.0-beta.6
++      obug: 2.2.1
++      rolldown: 1.2.8
++      yuku-ast: 0.9.5
++      yuku-codegen: 0.9.5
++      yuku-parser: 0.9.5
+@@ -2842,3 +2819,3 @@
+-  rolldown@1.2.5:
+-    dependencies:
+-      '@oxc-project/types': 0.146.0
++  rolldown@1.2.8:
++    dependencies:
++      '@oxc-project/types': 0.149.0
+@@ -2847,15 +2824,15 @@
+-      '@rolldown/binding-android-arm-eabi': 1.2.5
+-      '@rolldown/binding-android-arm64': 1.2.5
+-      '@rolldown/binding-darwin-arm64': 1.2.5
+-      '@rolldown/binding-darwin-x64': 1.2.5
+-      '@rolldown/binding-freebsd-x64': 1.2.5
+-      '@rolldown/binding-linux-arm-gnueabihf': 1.2.5
+-      '@rolldown/binding-linux-arm64-gnu': 1.2.5
+-      '@rolldown/binding-linux-arm64-musl': 1.2.5
+-      '@rolldown/binding-linux-ppc64-gnu': 1.2.5
+-      '@rolldown/binding-linux-s390x-gnu': 1.2.5
+-      '@rolldown/binding-linux-x64-gnu': 1.2.5
+-      '@rolldown/binding-linux-x64-musl': 1.2.5
+-      '@rolldown/binding-openharmony-arm64': 1.2.5
+-      '@rolldown/binding-win32-arm64-msvc': 1.2.5
+-      '@rolldown/binding-win32-x64-msvc': 1.2.5
++      '@rolldown/binding-android-arm-eabi': 1.2.8
++      '@rolldown/binding-android-arm64': 1.2.8
++      '@rolldown/binding-darwin-arm64': 1.2.8
++      '@rolldown/binding-darwin-x64': 1.2.8
++      '@rolldown/binding-freebsd-x64': 1.2.8
++      '@rolldown/binding-linux-arm-gnueabihf': 1.2.8
++      '@rolldown/binding-linux-arm64-gnu': 1.2.8
++      '@rolldown/binding-linux-arm64-musl': 1.2.8
++      '@rolldown/binding-linux-ppc64-gnu': 1.2.8
++      '@rolldown/binding-linux-s390x-gnu': 1.2.8
++      '@rolldown/binding-linux-x64-gnu': 1.2.8
++      '@rolldown/binding-linux-x64-musl': 1.2.8
++      '@rolldown/binding-openharmony-arm64': 1.2.8
++      '@rolldown/binding-win32-arm64-msvc': 1.2.8
++      '@rolldown/binding-win32-x64-msvc': 1.2.8
+@@ -2884,4 +2860,0 @@
+-
+-  supports-color@7.2.0:
+-    dependencies:
+-      has-flag: 4.0.0
+@@ -2898 +2871 @@
+-  tinybench@2.9.0: {}
++  tinybench@6.1.4: {}
+@@ -2903,0 +2877,2 @@
++  tinyexec@1.3.1: {}
++
+@@ -2906,4 +2881,4 @@
+-      fdir: 6.5.0(picomatch@4.0.5)
+-      picomatch: 4.0.5
+-
+-  tinypool@2.1.0: {}
++      fdir: 6.5.0(picomatch@4.0.7)
++      picomatch: 4.0.7
++
++  tinypool@2.1.2: {}
+@@ -2921,3 +2896,2 @@
+-  tsdown@0.22.14(typescript@7.0.2):
+-    dependencies:
+-      ansis: 4.3.1
++  tsdown@0.23.0(typescript@7.0.2):
++    dependencies:
+@@ -2929,5 +2903,5 @@
+-      obug: 2.1.4
+-      picomatch: 4.0.5
+-      rolldown: 1.2.5
+-      rolldown-plugin-dts: 0.27.14(rolldown@1.2.5)(typescript@7.0.2)
+-      tinyexec: 1.3.0
++      obug: 2.2.1
++      picomatch: 4.0.7
++      rolldown: 1.2.8
++      rolldown-plugin-dts: 0.28.5(rolldown@1.2.8)(typescript@7.0.2)
++      tinyexec: 1.3.1
+@@ -2937 +2911 @@
+-      verkit: 0.3.2
++      verkit: 0.4.0
+@@ -2976,5 +2950,5 @@
+-  undici-types@8.3.0: {}
+-
+-  update-browserslist-db@1.3.1(browserslist@4.28.8):
+-    dependencies:
+-      browserslist: 4.28.8
++  undici-types@8.9.0: {}
++
++  update-browserslist-db@1.3.3(browserslist@4.29.0):
++    dependencies:
++      browserslist: 4.29.0
+@@ -2986 +2960,3 @@
+-  vite@8.2.2(@types/node@26.2.0)(jiti@2.7.0)(yaml@2.9.0):
++  verkit@0.4.0: {}
++
++  vite@8.2.2(@types/node@26.6.1)(jiti@2.7.0)(yaml@2.9.1):
+@@ -2989 +2965 @@
+-      picomatch: 4.0.5
++      picomatch: 4.0.7
+@@ -2991 +2967 @@
+-      rolldown: 1.2.5
++      rolldown: 1.2.8
+@@ -2994 +2970 @@
+-      '@types/node': 26.2.0
++      '@types/node': 26.6.1
+@@ -2997,11 +2973,7 @@
+-      yaml: 2.9.0
+-
+-  vitest@4.1.11(@types/node@26.2.0)(@vitest/browser-playwright@4.1.11)(@vitest/coverage-v8@4.1.11)(vite@8.2.2(@types/node@26.2.0)(jiti@2.7.0)(yaml@2.9.0)):
+-    dependencies:
+-      '@vitest/expect': 4.1.11
+-      '@vitest/mocker': 4.1.11(vite@8.2.2(@types/node@26.2.0)(jiti@2.7.0)(yaml@2.9.0))
+-      '@vitest/pretty-format': 4.1.11
+-      '@vitest/runner': 4.1.11
+-      '@vitest/snapshot': 4.1.11
+-      '@vitest/spy': 4.1.11
+-      '@vitest/utils': 4.1.11
++      yaml: 2.9.1
++
++  vitest@5.0.1(@types/node@26.6.1)(@vitest/browser-playwright@5.0.1)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(vite@8.2.2(@types/node@26.6.1)(jiti@2.7.0)(yaml@2.9.1)):
++    dependencies:
++      '@types/chai': 5.2.3
++      '@vitest/mocker': 5.0.1(vite@8.2.2(@types/node@26.6.1)(jiti@2.7.0)(yaml@2.9.1))
++      chai: 6.2.2
+@@ -3010,4 +2982,3 @@
+-      magic-string: 0.30.21
+-      obug: 2.1.4
+-      pathe: 2.0.3
+-      picomatch: 4.0.5
++      magic-string: 1.4.1
++      obug: 2.2.1
++      picomatch: 4.0.7
+@@ -3015 +2986 @@
+-      tinybench: 2.9.0
++      tinybench: 6.1.4
+@@ -3018,2 +2989 @@
+-      tinyrainbow: 3.1.1
+-      vite: 8.2.2(@types/node@26.2.0)(jiti@2.7.0)(yaml@2.9.0)
++      vite: 8.2.2(@types/node@26.6.1)(jiti@2.7.0)(yaml@2.9.1)
+@@ -3022,3 +2992,4 @@
+-      '@types/node': 26.2.0
+-      '@vitest/browser-playwright': 4.1.11(playwright@1.62.1)(vite@8.2.2(@types/node@26.2.0)(jiti@2.7.0)(yaml@2.9.0))(vitest@4.1.11)
+-      '@vitest/coverage-v8': 4.1.11(@vitest/browser@4.1.11)(vitest@4.1.11)
++      '@types/node': 26.6.1
++      '@vitest/browser-playwright': 5.0.1(playwright@1.63.0)(vite@8.2.2(@types/node@26.6.1)(jiti@2.7.0)(yaml@2.9.1))(vitest@5.0.1)
++      '@vitest/coverage-v8': 5.0.1(@vitest/browser@5.0.1)(vitest@5.0.1)
++      '@vitest/ui': 5.0.1(vitest@5.0.1)
+@@ -3041,9 +3012,9 @@
+-  yaml@2.9.0: {}
+-
+-  yuku-ast@0.8.7:
+-    dependencies:
+-      '@yuku-toolchain/types': 0.8.7
+-
+-  yuku-codegen@0.8.7:
+-    dependencies:
+-      '@yuku-toolchain/types': 0.8.7
++  yaml@2.9.1: {}
++
++  yuku-ast@0.9.5:
++    dependencies:
++      '@yuku-toolchain/types': 0.9.5
++
++  yuku-codegen@0.9.5:
++    dependencies:
++      '@yuku-toolchain/types': 0.9.5
+@@ -3051,17 +3022,17 @@
+-      '@yuku-codegen/binding-android-arm64': 0.8.7
+-      '@yuku-codegen/binding-darwin-arm64': 0.8.7
+-      '@yuku-codegen/binding-darwin-x64': 0.8.7
+-      '@yuku-codegen/binding-freebsd-x64': 0.8.7
+-      '@yuku-codegen/binding-linux-arm-gnu': 0.8.7
+-      '@yuku-codegen/binding-linux-arm-musl': 0.8.7
+-      '@yuku-codegen/binding-linux-arm64-gnu': 0.8.7
+-      '@yuku-codegen/binding-linux-arm64-musl': 0.8.7
+-      '@yuku-codegen/binding-linux-x64-gnu': 0.8.7
+-      '@yuku-codegen/binding-linux-x64-musl': 0.8.7
+-      '@yuku-codegen/binding-win32-arm64': 0.8.7
+-      '@yuku-codegen/binding-win32-x64': 0.8.7
+-
+-  yuku-parser@0.8.7:
+-    dependencies:
+-      '@yuku-toolchain/types': 0.8.7
+-      yuku-ast: 0.8.7
++      '@yuku-codegen/binding-android-arm64': 0.9.5
++      '@yuku-codegen/binding-darwin-arm64': 0.9.5
++      '@yuku-codegen/binding-darwin-x64': 0.9.5
++      '@yuku-codegen/binding-freebsd-x64': 0.9.5
++      '@yuku-codegen/binding-linux-arm-gnu': 0.9.5
++      '@yuku-codegen/binding-linux-arm-musl': 0.9.5
++      '@yuku-codegen/binding-linux-arm64-gnu': 0.9.5
++      '@yuku-codegen/binding-linux-arm64-musl': 0.9.5
++      '@yuku-codegen/binding-linux-x64-gnu': 0.9.5
++      '@yuku-codegen/binding-linux-x64-musl': 0.9.5
++      '@yuku-codegen/binding-win32-arm64': 0.9.5
++      '@yuku-codegen/binding-win32-x64': 0.9.5
++
++  yuku-parser@0.9.5:
++    dependencies:
++      '@yuku-toolchain/types': 0.9.5
++      yuku-ast: 0.9.5
+@@ -3069,12 +3040,12 @@
+-      '@yuku-parser/binding-android-arm64': 0.8.7
+-      '@yuku-parser/binding-darwin-arm64': 0.8.7
+-      '@yuku-parser/binding-darwin-x64': 0.8.7
+-      '@yuku-parser/binding-freebsd-x64': 0.8.7
+-      '@yuku-parser/binding-linux-arm-gnu': 0.8.7
+-      '@yuku-parser/binding-linux-arm-musl': 0.8.7
+-      '@yuku-parser/binding-linux-arm64-gnu': 0.8.7
+-      '@yuku-parser/binding-linux-arm64-musl': 0.8.7
+-      '@yuku-parser/binding-linux-x64-gnu': 0.8.7
+-      '@yuku-parser/binding-linux-x64-musl': 0.8.7
+-      '@yuku-parser/binding-win32-arm64': 0.8.7
+-      '@yuku-parser/binding-win32-x64': 0.8.7
++      '@yuku-parser/binding-android-arm64': 0.9.5
++      '@yuku-parser/binding-darwin-arm64': 0.9.5
++      '@yuku-parser/binding-darwin-x64': 0.9.5
++      '@yuku-parser/binding-freebsd-x64': 0.9.5
++      '@yuku-parser/binding-linux-arm-gnu': 0.9.5
++      '@yuku-parser/binding-linux-arm-musl': 0.9.5
++      '@yuku-parser/binding-linux-arm64-gnu': 0.9.5
++      '@yuku-parser/binding-linux-arm64-musl': 0.9.5
++      '@yuku-parser/binding-linux-x64-gnu': 0.9.5
++      '@yuku-parser/binding-linux-x64-musl': 0.9.5
++      '@yuku-parser/binding-win32-arm64': 0.9.5
++      '@yuku-parser/binding-win32-x64': 0.9.5
+--- a/pnpm-workspace.yaml
++++ b/pnpm-workspace.yaml
+@@ -13,9 +13,9 @@
+-  "@types/node": ^26.2.0
+-  tsdown: ^0.22.14
+-  "@babel/core": ^8.0.1
+-  "@babel/parser": ^8.0.4
+-  "@istanbuljs/schema": ^0.1.3
+-  "@jridgewell/trace-mapping": ^0.3.23
+-  obug: ^2.1.4
+-  oxfmt: ^0.64.0
+-  oxlint: ^1.79.0
++  "@types/node": ^26.6.1
++  tsdown: ^0.23.0
++  "@babel/core": ^8.0.5
++  "@babel/parser": ^8.0.5
++  "@istanbuljs/schema": ^0.1.6
++  "@jridgewell/trace-mapping": ^0.3.31
++  obug: ^3.0.0
++  oxfmt: ^0.68.0
++  oxlint: ^1.83.0
+@@ -23,5 +23,5 @@
+-  playwright: ^1.62.1
+-  vitest: ^4.1.10
+-  yaml: ^2.9.0
+-  "@vitest/browser-playwright": 4.1.11
+-  "@vitest/coverage-v8": 4.1.11
++  playwright: ^1.63.0
++  vitest: ^5.0.1
++  yaml: ^2.9.1
++  "@vitest/browser-playwright": 5.0.1
++  "@vitest/coverage-v8": 5.0.1
+@@ -30 +30,2 @@
+-  changelogithub: ^15.0.4
++  changelogithub: ^15.0.5
++  '@types/convert-source-map': ^2.0.3

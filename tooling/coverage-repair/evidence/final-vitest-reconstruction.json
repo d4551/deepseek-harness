@@ -1,0 +1,13 @@
+{
+  "command": [
+    "python3",
+    "tooling/coverage-repair/reconstruct.py",
+    "vitest",
+    "/tmp/dsh-vitest-5.0.1-source.tgz",
+    "/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-final-patch-check-pyqnffsc/vitest"
+  ],
+  "patchSha256": "904f21204f961ca356a94febe397accc54bc282599fa709bdc21e2ba45e23a81",
+  "exitCode": 0,
+  "output": "{\"source\": \"vitest\", \"destination\": \"/private/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-final-patch-check-pyqnffsc/vitest\", \"verifiedInputs\": 34}\n",
+  "error": ""
+}

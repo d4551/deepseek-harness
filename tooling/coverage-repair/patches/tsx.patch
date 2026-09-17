@@ -1,0 +1,9 @@
+--- a/package.json
++++ b/package.json
+@@ -62 +62 @@
+-    "esbuild": "~0.28.0"
++    "esbuild": "file:/tmp/dsh-toolchain-artifacts/esbuild-0.28.2.tgz"
+@@ -67 +67 @@
+-}
+\ No newline at end of file
++}

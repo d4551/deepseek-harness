@@ -1,0 +1,99 @@
+[
+  {
+    "source": "vitest",
+    "path": "licenses/vitest-LICENSE",
+    "upstreamPath": "LICENSE",
+    "upstreamSha256": "04575fc5bfae19a9b63100f8691f901a2e15a399011ac02db435a9ef27295551",
+    "sha256": "04575fc5bfae19a9b63100f8691f901a2e15a399011ac02db435a9ef27295551",
+    "archiveSha256": "956950edf0f0ef8e08ce0e18b20136eb4142995eadc8dfa7e8af6cb4ff65119e"
+  },
+  {
+    "source": "converter",
+    "path": "licenses/converter-LICENSE",
+    "upstreamPath": "LICENSE",
+    "upstreamSha256": "7771f0b6f55e76efe99cb8e6fdbff583193c9bdfd74d41620d330cc3db6b913a",
+    "sha256": "7771f0b6f55e76efe99cb8e6fdbff583193c9bdfd74d41620d330cc3db6b913a",
+    "archiveSha256": "429aa1cb7add6728d9d0e0dc512e15e04cb34a7a9831a8d16b8ea7d33a221f4f"
+  },
+  {
+    "source": "local-pkg",
+    "path": "licenses/local-pkg-LICENSE",
+    "upstreamPath": "LICENSE",
+    "upstreamSha256": "67cd5e903c1f908edfa27c25606fa806ce629d9a8ddb7d83019d9fd1f83f7fde",
+    "sha256": "67cd5e903c1f908edfa27c25606fa806ce629d9a8ddb7d83019d9fd1f83f7fde",
+    "archiveSha256": "5df896156e0389b38c4c45de9f1016932ac4301841ad888630d51fe53f4272e1"
+  },
+  {
+    "source": "istanbul",
+    "path": "licenses/istanbul-packages__istanbul-lib-coverage__LICENSE",
+    "upstreamPath": "packages/istanbul-lib-coverage/LICENSE",
+    "upstreamSha256": "77bf9ac1273b3af5c59c632e9dfad86bd1961f65d8a56c76b5fb844488b4991c",
+    "sha256": "77bf9ac1273b3af5c59c632e9dfad86bd1961f65d8a56c76b5fb844488b4991c",
+    "archiveSha256": "bc2d8a54ef26abe4f1a11fd7060cccd09fcf8c3d236a0f6065865643453d83aa"
+  },
+  {
+    "source": "istanbul",
+    "path": "licenses/istanbul-packages__istanbul-lib-instrument__LICENSE",
+    "upstreamPath": "packages/istanbul-lib-instrument/LICENSE",
+    "upstreamSha256": "77bf9ac1273b3af5c59c632e9dfad86bd1961f65d8a56c76b5fb844488b4991c",
+    "sha256": "77bf9ac1273b3af5c59c632e9dfad86bd1961f65d8a56c76b5fb844488b4991c",
+    "archiveSha256": "bc2d8a54ef26abe4f1a11fd7060cccd09fcf8c3d236a0f6065865643453d83aa"
+  },
+  {
+    "source": "istanbul",
+    "path": "licenses/istanbul-packages__istanbul-lib-report__LICENSE",
+    "upstreamPath": "packages/istanbul-lib-report/LICENSE",
+    "upstreamSha256": "77bf9ac1273b3af5c59c632e9dfad86bd1961f65d8a56c76b5fb844488b4991c",
+    "sha256": "77bf9ac1273b3af5c59c632e9dfad86bd1961f65d8a56c76b5fb844488b4991c",
+    "archiveSha256": "bc2d8a54ef26abe4f1a11fd7060cccd09fcf8c3d236a0f6065865643453d83aa"
+  },
+  {
+    "source": "istanbul",
+    "path": "licenses/istanbul-packages__istanbul-lib-source-maps__LICENSE",
+    "upstreamPath": "packages/istanbul-lib-source-maps/LICENSE",
+    "upstreamSha256": "042c86d19cc28c20e73fef91c846baa97178d269b27a003cd1c072c94382a12b",
+    "sha256": "042c86d19cc28c20e73fef91c846baa97178d269b27a003cd1c072c94382a12b",
+    "archiveSha256": "bc2d8a54ef26abe4f1a11fd7060cccd09fcf8c3d236a0f6065865643453d83aa"
+  },
+  {
+    "source": "esbuild",
+    "path": "licenses/esbuild-LICENSE.md",
+    "upstreamPath": "LICENSE.md",
+    "upstreamSha256": "b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681",
+    "sha256": "b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681",
+    "archiveSha256": "04cb2d38fb6af093577aa8bf174add7286099b65ef7854480cbbb8ff061cef1f"
+  },
+  {
+    "source": "node",
+    "path": "licenses/node-LICENSE",
+    "upstreamPath": "LICENSE",
+    "upstreamSha256": "6b85ee1983d01fa2cdcdd5d1a3053c6221fae41d6a54e43b416bf35969fc4128",
+    "sha256": "1d55543d6b9fc6110cd59897c93d0a9e0d11b296cbbc5ca670cd743560545fb2",
+    "archiveSha256": "47b970d88511b429e587b740fa733176909d2a2005a29662f01b05205f58468b",
+    "formatChange": "Replaced the indentation tab at line 362 with four spaces; all other bytes are identical."
+  },
+  {
+    "source": "pnpm",
+    "path": "licenses/pnpm-LICENSE",
+    "upstreamPath": "LICENSE",
+    "upstreamSha256": "4b8e2a57502758b2d034ece9cabf19dd098c5609003ed8dbdafd085274f25bd9",
+    "sha256": "4b8e2a57502758b2d034ece9cabf19dd098c5609003ed8dbdafd085274f25bd9",
+    "archiveSha256": "2fca2c303b978c8177c13550b2d0f8e442cf32b833bea7878421f90c18a7c612"
+  },
+  {
+    "source": "tsx",
+    "path": "licenses/tsx-LICENSE",
+    "upstreamPath": "LICENSE",
+    "upstreamSha256": "8dded67841a9261a622c739fb61c81785e93765de852828ceeb9403d20a74581",
+    "sha256": "8dded67841a9261a622c739fb61c81785e93765de852828ceeb9403d20a74581",
+    "archiveSha256": "2596b16677948b542eb1e74518a53d04ab3f504ef32acabcc1cdfdacb2fe20a8"
+  },
+  {
+    "source": "rrweb-snapshot",
+    "path": "licenses/rrweb-snapshot-LICENSE",
+    "upstreamPath": "dsh-rrweb-snapshot-LICENSE",
+    "upstreamSha256": "e49e62397b603438476e0d6b5ca3b6e6d4f23a80594e596aff29ac04fa3e1b1c",
+    "sha256": "e49e62397b603438476e0d6b5ca3b6e6d4f23a80594e596aff29ac04fa3e1b1c",
+    "upstreamUrl": "https://raw.githubusercontent.com/rrweb-io/rrweb/3deb6e7da4528ddb33b5b7ff6a3e805d4ed14930/LICENSE"
+  }
+]

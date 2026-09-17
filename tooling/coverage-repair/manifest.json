@@ -1,0 +1,691 @@
+{
+  "rootCommit": "105a97ef9c776a2856118ee02609dc61a0fb9617",
+  "status": "Unpromoted source candidates; complete green is not established.",
+  "sources": [
+    {
+      "name": "vitest",
+      "originalDirectory": "/tmp/dsh-vitest-5.0.1-source",
+      "archive": {
+        "url": "https://codeload.github.com/vitest-dev/vitest/tar.gz/refs/tags/v5.0.1",
+        "localPath": "/tmp/dsh-vitest-5.0.1-source.tgz",
+        "sha256": "956950edf0f0ef8e08ce0e18b20136eb4142995eadc8dfa7e8af6cb4ff65119e"
+      },
+      "patch": "patches/vitest.patch",
+      "patchSha256": "904f21204f961ca356a94febe397accc54bc282599fa709bdc21e2ba45e23a81",
+      "inputs": [
+        {
+          "path": "package.json",
+          "beforeSha256": "05b4a2f46fbee76d8093e45c2d7d81ed5175db7cf8931f0c28a2e2646beecf9f",
+          "sha256": "4d0dce6690371a4eb53f8a98f88666cde7379a789a4978e011657bc17d0d3b41"
+        },
+        {
+          "path": "packages/browser/package.json",
+          "beforeSha256": "6f67498fa07e3a6ab6e3684382db3107cfbeb6eeef8babe16b011cff15e06f07",
+          "sha256": "a20c1cd1228471932b1ed0ae6b41b331400fcf1f322c6b540070c735e3a70e17"
+        },
+        {
+          "path": "packages/coverage-v8/package.json",
+          "beforeSha256": "9eb8d07a4ec37ddf62337525c40030380ecc3e849343114476cffa6c12eaab6a",
+          "sha256": "6a2dd3b7c6f93dae8dc689d70a35857a8ca2aa7c632bb30bf96194ec0d1167a0"
+        },
+        {
+          "path": "packages/coverage-v8/src/executed-sources.ts",
+          "beforeSha256": null,
+          "sha256": "fb2926f4857801be262b7a2d0400eed4b858d2b159cc9ea30a54d0141c4c4193"
+        },
+        {
+          "path": "packages/coverage-v8/src/index.ts",
+          "beforeSha256": "a5212d97b556eeb8dc38ffbd8a1126059bf3c90df921fe99a5f3c7493bd6cc2d",
+          "sha256": "066b41fb1a49977e4f3183567939b84599087875f84e0985c889358964b90811"
+        },
+        {
+          "path": "packages/coverage-v8/src/provider.ts",
+          "beforeSha256": "bcc4d46846a5a71e55c57dc2898bf8295ec19f58c07fbcb6add8908e672b06f2",
+          "sha256": "8824a1d9d638395e40feb94092bd00d00a929a4a9fcba07448575b3d88031d34"
+        },
+        {
+          "path": "packages/mocker/package.json",
+          "beforeSha256": "a97d24c7847bc871f582d98a9eaca63e234da8c4c7b7525c5a4cbdd6bdc22e07",
+          "sha256": "48457b271ef84554774fb6fa721cc0c630da406d836fe74a5bfcee5c599aae5a"
+        },
+        {
+          "path": "packages/mocker/src/node/mockerPlugin.ts",
+          "beforeSha256": "be29dc1af2a13385b499fb6fbd6bce3565a248b6e86afcd000b6a6f6b5858401",
+          "sha256": "aa83d5824f85989bfced2603fcaa0eb617384a292a0ed9124fc86cba9cdbd380"
+        },
+        {
+          "path": "packages/mocker/src/node/parsers.ts",
+          "beforeSha256": "437afbc344ebd2296dc9afed6594682acb6a814f9c5403932f44c8ef2b19fb99",
+          "sha256": "03d4980968af9772a160efecab3892abfb228618e2dad32c1f88f88e944c402c"
+        },
+        {
+          "path": "packages/mocker/src/node/resolver.ts",
+          "beforeSha256": "09c2b07c45465f17e7a338eaefcacb7c469ba5ae092274a7078402348aaabf72",
+          "sha256": "d6e9ac636f19b24aca8f9eb2def80d8fc017c4c5aeb4ff65c9a0fd7cf6f0053f"
+        },
+        {
+          "path": "packages/mocker/tsdown.config.ts",
+          "beforeSha256": null,
+          "sha256": "838d46389a028cd08d4fad7b0445163568f4c4629c756d7ea092b9ea51a9dc71"
+        },
+        {
+          "path": "packages/ui/package.json",
+          "beforeSha256": "4fff6b7b2cb7de3b68c0b2ee86af80ad8ab10a09b1d1752206b1c72f2a52f016",
+          "sha256": "a6795854a8d93d10d8dfb8d14b10bc11024e82be0c97b00fbfe31040c04b5580"
+        },
+        {
+          "path": "packages/utils/src/timers.ts",
+          "beforeSha256": "f5432a257d1000d0b76de9df80484d779df59e79d37c1993342bd427f4419855",
+          "sha256": "45ef6beda510ece64b42af18af9f5de6d71c269b199f88ba09015a531819053b"
+        },
+        {
+          "path": "packages/vitest/LICENSE.md",
+          "beforeSha256": "d47eb4eeddb0a8b7776abd645d9c2d18e14bf6a5ffa52ac75fc3647d672d0260",
+          "sha256": "fd8396b40aa40138461eed0c97191bbe926d3376fdd154b3c421309cf0937cd9"
+        },
+        {
+          "path": "packages/vitest/package.json",
+          "beforeSha256": "3e4c3589edec9442d8bd16f4e4589f4196c4c626d3fafd5430e5507acfdc59ac",
+          "sha256": "05beee78f9297c4841df607337ab541eb0a2a4cd28db213b1a168bcc49aed113"
+        },
+        {
+          "path": "packages/vitest/rollup.config.js",
+          "beforeSha256": "59fb32650403e73efd66390abc1bbaab9d5ee096e2099a113a72e505985887bb",
+          "sha256": "4c054b4279992db6c8270c7257fef4575af7a3787994c6dbdcee0fc54d382848"
+        },
+        {
+          "path": "packages/vitest/src/node/coverage.ts",
+          "beforeSha256": "2912189dd88a74d2d00c3cf4f4149b7631fdf766a1dc8a28a84b63d0fab0e91d",
+          "sha256": "871c80f35c0d8457441b3bfb35f639c80eb8c53a8428faf4383e351783040b87"
+        },
+        {
+          "path": "packages/vitest/src/node/hash.ts",
+          "beforeSha256": "3527fb0386e3fe2de6f25ac9258dfbf52ea782cf7bb13760f8ae53b160bcf1a5",
+          "sha256": "33639d31e2be9081a479af4f5b5b11276a3c4a38191c1da62254e913ced198ac"
+        },
+        {
+          "path": "packages/vitest/src/runtime/runner/collect.ts",
+          "beforeSha256": "ecd8de769282f4ed5926218617ce483898ca6480604527c2bba56efe197acb23",
+          "sha256": "fbb12b2b142e1432998abcfeb5b3ba3b0e2aa4eb0071ab568c8cf7899c5e4741"
+        },
+        {
+          "path": "patches/js-tokens@8.0.2.patch",
+          "beforeSha256": null,
+          "sha256": "ec325b9234f65a91a7afbc6bda9425409ab1256ad2b7173726f16c807d70b9ab"
+        },
+        {
+          "path": "patches/js-tokens@9.0.1.patch",
+          "beforeSha256": null,
+          "sha256": "d4d4ab6cecf4dbcd2175cb4bfd1a2f8ed7ecc4c29a19a42e5dd590ef287c5c05"
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "beforeSha256": "f9dd36740bdbe144b6813292a1907068fd784b1a9778243f3a30aa7c2fa49b4e",
+          "sha256": "1c015e56c7097e9a9f7fafdb598ba5087b1615e5f207c0e98cc15ab5337bbbe7"
+        },
+        {
+          "path": "pnpm-workspace.yaml",
+          "beforeSha256": "8e1b1f2c4d0352afbbb801b49ff1e9d8ca9a18339f587d0a642426f7c8789605",
+          "sha256": "564125589bf10a581a613362713412be5c53e4e1ab954a16a3dca6a43d03b579"
+        },
+        {
+          "path": "test/coverage-deleted-source-probe.mjs",
+          "beforeSha256": null,
+          "sha256": "af8cb75b20c8fd0d45d3496bb2cb6850620a85d84c1ec748087d551081ae1d9e"
+        },
+        {
+          "path": "test/coverage-source-integrity.test.mjs",
+          "beforeSha256": null,
+          "sha256": "283225aad9ef2db32f37bb506cb1df3c89392f039e9b8d20e323d4f02b5b45de"
+        },
+        {
+          "path": "test/e2e/fixtures/mocker/auto-register/calculation.js",
+          "beforeSha256": null,
+          "sha256": "86cec2ac7fe86e900f00b94049ae9d9db30936d009140140aead4af95f4bf9b0"
+        },
+        {
+          "path": "test/e2e/fixtures/mocker/auto-register/entry.js",
+          "beforeSha256": null,
+          "sha256": "40e87ebf79756bb0917e6457f3d36833c7dffcc3fd63d287151a4249a4234425"
+        },
+        {
+          "path": "test/e2e/fixtures/mocker/auto-register/index.html",
+          "beforeSha256": null,
+          "sha256": "12f484e0d2da339a196001c5aec018ceda01f1706a27e42201fee8cbc691f58f"
+        },
+        {
+          "path": "test/e2e/fixtures/mocker/automock/index.html",
+          "beforeSha256": "cbb47b28b151359163e4d846fc4af6db08e473a5774c1d012a7692242256950a",
+          "sha256": "2c6844c8959db9f01ae918e04b2766c91413f3d7eaf38e36071b7e13edce0249"
+        },
+        {
+          "path": "test/e2e/fixtures/mocker/automock/index.js",
+          "beforeSha256": "e974ddc12fa5ba5d1a416ad2693c8821513b2f084fccd01a15aa269791cfa1e8",
+          "sha256": "a295367b0e7c86db9814ac5897ae7431ad957bce075dad926916c4be03644184"
+        },
+        {
+          "path": "test/e2e/test/public-mocker.test.ts",
+          "beforeSha256": "3a24cb973214595cce5575b391589dfacb04bce59a06340c6802caab7763fce8",
+          "sha256": "46fdc3dce67d8448b615ed892ab1d033fac4c2a0f82b9db2b3df03a05510c731"
+        },
+        {
+          "path": "test/native-typescript-transform.test.mjs",
+          "beforeSha256": null,
+          "sha256": "cbc116160ae86274572186ae024505da0c296b859058909ab21aa941baaa0a4a"
+        },
+        {
+          "path": "tsconfig.base.json",
+          "beforeSha256": "2055f8bbe947d437324f84632d3ddc8ebf9fbded32ae1c50c5394b50a501030b",
+          "sha256": "37b872193648eb3a7cf034d525eed9ca32151429b993788c21adef182c2499f2"
+        },
+        {
+          "path": "tsconfig.runtime-native.json",
+          "beforeSha256": null,
+          "sha256": "ccf18c3e54a30d244364055eecf5f8982b2e0d1f2f5114cae7115e1a694f724b"
+        }
+      ]
+    },
+    {
+      "name": "converter",
+      "originalDirectory": "/tmp/dsh-ast-v8-1.0.6-source",
+      "archive": {
+        "url": "https://codeload.github.com/AriPerkkio/ast-v8-to-istanbul/tar.gz/48f88c789411ce6e96137b16ec348d06ae6c2f6e",
+        "localPath": "/tmp/dsh-ast-v8-1.0.6-source.tgz",
+        "sha256": "429aa1cb7add6728d9d0e0dc512e15e04cb34a7a9831a8d16b8ea7d33a221f4f"
+      },
+      "patch": "patches/converter.patch",
+      "patchSha256": "16cadd38dce1829ea871545366e4ca5b73bc1b9d235c5c133ee5eb5500ef7f03",
+      "inputs": [
+        {
+          "path": "artifacts/vitest-istanbul-lib-instrument-1.0.1.tgz",
+          "beforeSha256": null,
+          "sha256": "7f04c226f6bf35ff97499c69d9f25e8052dbe8235145650008436a523196c2fd",
+          "asset": "artifacts/vitest-istanbul-lib-instrument-1.0.1.tgz"
+        },
+        {
+          "path": "bun.lock",
+          "beforeSha256": null,
+          "sha256": "5d3866fc1f16637e9d8766243acb59797aa929a0a8863590de0d95949d467c68"
+        },
+        {
+          "path": "checks/location-integrity.mjs",
+          "beforeSha256": null,
+          "sha256": "f66b4f052a18e3c4593c1996edd8419b5d7f437b51b0bed96bdf90f368afadc5"
+        },
+        {
+          "path": "package.json",
+          "beforeSha256": "a9a1858c8b20842c0019b83fef8460cffb24e4b1264427362abc38ee4cb28eb9",
+          "sha256": "2210350e695fee227f3cff0dc822c2cb70824f58b8577ba90e6efb0f2738c9b4"
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "beforeSha256": "109cedf736f502ab369a9493026a463588dfaba9a9266c808e8a71ebaca8213a",
+          "sha256": "591cdd6dcf72e712529531bee5bea580a2f682130bf7ac4c3b67e0147e16ae81"
+        },
+        {
+          "path": "pnpm-workspace.yaml",
+          "beforeSha256": "8755a5be710863f9239c93b787cc28d92d49bead7f9ff4cba936267fc5859268",
+          "sha256": "ac02d96368617c760f093cfe61fdec64b6244007ab3553e0d6621f706f54a353"
+        },
+        {
+          "path": "src/ast.ts",
+          "beforeSha256": "5074d82b8ab2a6e88eb55715599a84bceddf82110f1d43cf67c8bb918e0aeac9",
+          "sha256": "dedcb87632e32fc1bac57fe8a3f375f5a8618cf906b824b883cbacbc00433303"
+        },
+        {
+          "path": "src/coverage-mapper.ts",
+          "beforeSha256": "e1f604fc0060dbfd9cc585849923e5f1db3b727d49fda032156f421d80e53e2a",
+          "sha256": "def294b2079b0e67a128924d2f410ed7a40053c76f0cc69ce1df246684b3ff5d"
+        },
+        {
+          "path": "src/evaluation.ts",
+          "beforeSha256": null,
+          "sha256": "c8d2e8b5da579b1dda08c4e699489a4b62aa7b03beb9d83d51b67c4c96e6b566"
+        },
+        {
+          "path": "src/location.ts",
+          "beforeSha256": "2218111e083cf26f8328a31e3932f905913199d77bce547b037b34020104d4ca",
+          "sha256": "c62b1b6223addceed78be7a68d34a2b4ca499a7014357b301c9794c69ed426cc"
+        },
+        {
+          "path": "test/convert.e2e.ts",
+          "beforeSha256": "fb5e2dcc077819a13aa4694bb0b334c6ddf2087d8b8e59cfc2dfc34dcddd53a1",
+          "sha256": "25b222f016365b5b026cb8abca498cececddd1f7d564145e97d24b7cd01c0325"
+        },
+        {
+          "path": "test/declaration-location.test.ts",
+          "beforeSha256": null,
+          "sha256": "7b0fcbaeaf34d3c18c97316567b3b2da996289883bfe0dedcddc1276b4f4bdf0"
+        },
+        {
+          "path": "test/evaluation-location.test.ts",
+          "beforeSha256": null,
+          "sha256": "35d8525b9bcbaa10e0718b84e3bc1c1a5558a38475fabf896f47c0eca2113d4c"
+        },
+        {
+          "path": "test/location.test.ts",
+          "beforeSha256": "63e5a4744a7257df63f8840e693c32f20832fa8cad03e7bccb6491a000a0fbab",
+          "sha256": "af896d166319b768500c77edde17eebd623001c0b393887a8b3fdf9c8c3a116e"
+        },
+        {
+          "path": "test/logical-expression-functions.test.ts",
+          "beforeSha256": null,
+          "sha256": "4b0a767c6320db72e3ac468b94b7f485f4a1544828cf41f69134bcc0c25a9701"
+        },
+        {
+          "path": "test/source-map-integrity.test.ts",
+          "beforeSha256": null,
+          "sha256": "07ea0ff375af8b8e3226cda1c2129c22a0e3e0d72722a7d325c61e337d5d99e6"
+        },
+        {
+          "path": "test/source-maps.test.ts",
+          "beforeSha256": "78421db39c037f90e199ae9fa71f0783c6c98388b7c57f908dacc7510a0a30fe",
+          "sha256": "96264e057b52c1faa6c89d58f9b3fea956357677adc7ac42c458033e2dfd0fd6"
+        },
+        {
+          "path": "test/utils/e2e-functions.ts",
+          "beforeSha256": null,
+          "sha256": "ef072dd49251518ce152b4063d2ff9cedd53ebb114b59702afb52ef5dd2dc478"
+        },
+        {
+          "path": "test/utils/e2e-native-coverage.ts",
+          "beforeSha256": null,
+          "sha256": "acf7ad95102a09a6b9d12296445baa740be5d5ab13a65af172aff6f681631e46"
+        },
+        {
+          "path": "test/utils/e2e.ts",
+          "beforeSha256": "d71044f8344129107eafd4c03fabd67953a20ccbe19badb4df228f90ce64e8f7",
+          "sha256": "19e5d4cff55975a949684147ecdaec1f144c75213735319e16147bdd188925f1"
+        },
+        {
+          "path": "test/utils/expect-extend.d.ts",
+          "beforeSha256": "344e0c5ed0fc043c074a14a1b0ef4c6fb8a59791b5a6d09af7743245900bd347",
+          "sha256": "86cdf6c4560d3ede83dca114db7f7b906c0cf862029e94f3f656e9d6e646f606"
+        },
+        {
+          "path": "tsconfig.json",
+          "beforeSha256": "de41c9a038b5d448c0b0d6e57100be12476558aa9920debc86c5337876bc43f0",
+          "sha256": "a08bd4408f88602fc578658dc07dcfb788f92d93c626bcb3b9d9b9d6897976b4"
+        }
+      ]
+    },
+    {
+      "name": "local-pkg",
+      "originalDirectory": "/tmp/dsh-local-pkg-source",
+      "archive": {
+        "url": "https://codeload.github.com/antfu-collective/local-pkg/tar.gz/refs/tags/v1.2.1",
+        "localPath": "/tmp/dsh-local-pkg-1.2.1-source.tgz",
+        "sha256": "5df896156e0389b38c4c45de9f1016932ac4301841ad888630d51fe53f4272e1"
+      },
+      "patch": "patches/local-pkg.patch",
+      "patchSha256": "a8ec7e65ad07b0153c9dd69797dc2608ca0ebd10e5a989efbdc4f33ad55e9486",
+      "inputs": [
+        {
+          "path": "build.config.ts",
+          "beforeSha256": "84cfa713209b621ee5345de04e2efad6203eeb6abd3468d47585d732a5e914d8",
+          "sha256": null
+        },
+        {
+          "path": "build.mjs",
+          "beforeSha256": null,
+          "sha256": "67c5ff90be4f5880f90769d28ac968842538e237f255c5a331fb93d5adbeee2e"
+        },
+        {
+          "path": "bun.lock",
+          "beforeSha256": null,
+          "sha256": "8e2f5424718cc513893eb22ed51bef5cbf0a684efface467cb224e4610949bd7"
+        },
+        {
+          "path": "package.json",
+          "beforeSha256": "707546f01a8b75467a78cce78e7313e2bc6317351ddc78fc5e31c7de4cf6c85b",
+          "sha256": "2aaf29f978d50b72534ff73321d8ecba9fcb8f13a5792480fb1d8c83223bfd79"
+        },
+        {
+          "path": "src/index.ts",
+          "beforeSha256": "a9c3b61a11a523a51122154e8032441efdae06b26e162546a1d167b53a3258c8",
+          "sha256": "105baf9937ed91d9c54f60f24e29e7f3200293d3597c896541149c91011ccdb9"
+        },
+        {
+          "path": "tsconfig.declarations.json",
+          "beforeSha256": null,
+          "sha256": "fc8ac0488a50b25b5c82e675509c1e8073df3445395949c25f0679facad6a10b"
+        },
+        {
+          "path": "tsconfig.native.json",
+          "beforeSha256": null,
+          "sha256": "084d6c152c4b528a74b2cb4fc0acac7ea2790da52a7c5b5e6b16e8e654de24e4"
+        },
+        {
+          "path": "tsdown.config.ts",
+          "beforeSha256": null,
+          "sha256": "0dc832def1158bc2bd3144ac30b3ec1bb0af9971dbf02e2d2a3047349bcb834c"
+        }
+      ]
+    },
+    {
+      "name": "istanbul",
+      "originalDirectory": "/tmp/dsh-istanbul-1.0.1-source",
+      "archive": {
+        "url": "https://codeload.github.com/vitest-dev/istanbuljs/tar.gz/8bda20d9740143d950ea80e367b0151527faa0a9",
+        "localPath": "/tmp/dsh-istanbul-1.0.1-source.tar.gz",
+        "sha256": "bc2d8a54ef26abe4f1a11fd7060cccd09fcf8c3d236a0f6065865643453d83aa"
+      },
+      "patch": "patches/istanbul.patch",
+      "patchSha256": "11de8fe9487c3f739170df6c8be9e86ae504859360981e55178070c47821d40f",
+      "inputs": [
+        {
+          "path": "packages/istanbul-lib-coverage/package.json",
+          "beforeSha256": "4f60df292f11911fdd72a29f3a0cf2ccab07c7d1d066b8707c75a9e2d24bbc74",
+          "sha256": "e1c49e00579f411150ac5f7321472424ffda7cdd890f01a9c2017b2c10a29d11"
+        },
+        {
+          "path": "packages/istanbul-lib-instrument/package.json",
+          "beforeSha256": "41c24d9db9a8f5289fd46fa94e2acc56c0d5aea400bd6b4c80f983aab09a5860",
+          "sha256": "cb309ebd454b0b3ebe3342dd05b3b50b4022c907235b85c69fdf8e2f0200b198"
+        },
+        {
+          "path": "packages/istanbul-lib-instrument/src/visitor.ts",
+          "beforeSha256": "97ce446340bb0307cb03ce9592cb4a9134bc96d3177f937b1536c6f8679caeb4",
+          "sha256": "f1e8c707c51b6b230153aab439bcb47d6261573da5a4172090ebe9aab6a51cae"
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "beforeSha256": "67fa78c2f1d84efeb47b1220dd57695b1fa5dd314f7563e5cd8478695b81c559",
+          "sha256": "60e90b9c4761511883d4b77593a0bb581b547536f75b58adcda7e8db0dbb0a24"
+        },
+        {
+          "path": "pnpm-workspace.yaml",
+          "beforeSha256": "5b2d31ed4eaaf6b76c9369587f15b4625422b3b266b742d100b7989a7b15d37b",
+          "sha256": "417d37f4cf9634a363226f32dc0166d3b3f1b3b1efe3af945f61faec7feb7de1"
+        }
+      ]
+    },
+    {
+      "name": "esbuild",
+      "originalDirectory": "/tmp/dsh-esbuild-0.28.2-source",
+      "archive": {
+        "url": "https://codeload.github.com/evanw/esbuild/tar.gz/609683d892977362a0f99026cb74b96263d728a9",
+        "localPath": "/tmp/dsh-esbuild-0.28.2-source.tgz",
+        "sha256": "04cb2d38fb6af093577aa8bf174add7286099b65ef7854480cbbb8ff061cef1f"
+      },
+      "patch": "patches/esbuild.patch",
+      "patchSha256": "20c26004b4a27ecef609b1f5e4a5511e215f67a209389d35f514335919365a23",
+      "inputs": [
+        {
+          "path": "internal/linker/linker.go",
+          "beforeSha256": "9e99ef587421111f9a499583b2f6396bf845f59f91d2d6c80acc0f82eb9db192",
+          "sha256": "18d4e8c5b821a54362ecc8dbdf70841b79db1e9a66d79c027d41079448a10aba"
+        },
+        {
+          "path": "internal/sourcemap/sourcemap.go",
+          "beforeSha256": "4780d96fe72f3f05de24262b806e572695b2f3e73642b08047fae83e007f5d11",
+          "sha256": "3e321f389786827e6adcc1773c7ea20958dabafad8e8ba1d45749b42d74cfcd7"
+        },
+        {
+          "path": "internal/sourcemap/unmapped_test.go",
+          "beforeSha256": null,
+          "sha256": "36df87a2caedb54fb0296c03ccb531488389e9b4120f19a0e4274db2af1649ee"
+        }
+      ]
+    },
+    {
+      "name": "node",
+      "originalDirectory": "/tmp/dsh-node26.9.0/node-v26.9.0",
+      "archive": {
+        "url": "https://nodejs.org/dist/v26.9.0/node-v26.9.0.tar.xz",
+        "localPath": "/tmp/dsh-node26.9.0/node-v26.9.0.tar.xz",
+        "sha256": "47b970d88511b429e587b740fa733176909d2a2005a29662f01b05205f58468b"
+      },
+      "patch": "patches/node.patch",
+      "patchSha256": "385021bca6868ff5cec11b63fd928cea5002efc84b4a2c1ffc68b4aa7d3d988a",
+      "inputs": [
+        {
+          "path": "lib/internal/modules/package_json_reader.js",
+          "beforeSha256": "39adad2a6f023aa8a88c6173052920f0c6257099621222b1e39c9ace581b2291",
+          "sha256": "99b63c63ea01ccc667a2acb4f090bd74b9f28f2f5f0bbeca6fdb10e652cf5641"
+        },
+        {
+          "path": "test/parallel/test-find-package-json-missing.js",
+          "beforeSha256": null,
+          "sha256": "5eadb1d5f60a2930487ab87fddbf485449f5c6b4682da40995a7a079ff43b89b"
+        }
+      ]
+    },
+    {
+      "name": "pnpm",
+      "originalDirectory": "/tmp/dsh-pnpm-12.4.2-source",
+      "archive": {
+        "url": "https://codeload.github.com/pnpm/pnpm/tar.gz/refs/tags/v12.4.2",
+        "localPath": "/tmp/dsh-pnpm-12.4.2-source.tgz",
+        "sha256": "2fca2c303b978c8177c13550b2d0f8e442cf32b833bea7878421f90c18a7c612"
+      },
+      "patch": "patches/pnpm.patch",
+      "patchSha256": "e1898f2d901f77c70be59f83b97aeede9bb95bb25300dfeebea7d3b7b651a041",
+      "inputs": [
+        {
+          "path": ".changeset/archive-peer-versions.md",
+          "beforeSha256": null,
+          "sha256": "073242aa85b520213360a539e9937ce55e8265eecaf877c9a054569b0755abae"
+        },
+        {
+          "path": "pnpm/crates/deps-inspection-peers/src/artifact_versions.rs",
+          "beforeSha256": null,
+          "sha256": "f74ce18acc4842af97680cc225944284ba7d48ae8f13f53c1f6c77a880e37656"
+        },
+        {
+          "path": "pnpm/crates/deps-inspection-peers/src/lib.rs",
+          "beforeSha256": "7205d27fb760bfe72acbc62e20c6cf5860a57c932c8093dbd4165ecdad34fad0",
+          "sha256": "8b34109f79002fcec3851689adbfeb34578e29a03238f2e3d531d0e816a730ed"
+        },
+        {
+          "path": "pnpm/crates/deps-inspection-peers/src/linked.rs",
+          "beforeSha256": "af1695ff1b74310d23998d3cd3e37c1c0518fe941c3a81df1e1ad7ab7be1a9b8",
+          "sha256": "346a76f2cffa7af87501074c407c25b8a0dfe56a0b2f3b263346d6b4aa9a5fe6"
+        },
+        {
+          "path": "pnpm/crates/deps-inspection-peers/src/linked_artifact_versions.rs",
+          "beforeSha256": null,
+          "sha256": "3ca025a628cbd104b001dbe43eb5af046e61c932bae6cfa089c2a5f479480e94"
+        }
+      ]
+    },
+    {
+      "name": "tsx",
+      "originalDirectory": "/tmp/dsh-tsx-integrated/package",
+      "archive": {
+        "url": "https://registry.npmjs.org/tsx/-/tsx-4.23.13.tgz",
+        "localPath": "/tmp/dsh-tsx-integrated/tsx-4.23.13.tgz",
+        "sha256": "2596b16677948b542eb1e74518a53d04ab3f504ef32acabcc1cdfdacb2fe20a8"
+      },
+      "patch": "patches/tsx.patch",
+      "patchSha256": "51b692c4906b52303e4602d1b927ffc68ecd260e01a4fc33afaf4c66e2be1005",
+      "inputs": [
+        {
+          "path": "package.json",
+          "beforeSha256": "3ace2493a0acd26fc72a8433a38113ee04d5a1976910a3f40815f9e779d5c426",
+          "sha256": "8d5a6104b10daf1a4645390a6d32e862242b7854a5ae51d0d8d394dae8fe372d"
+        }
+      ]
+    },
+    {
+      "name": "rrweb-snapshot",
+      "originalDirectory": "/tmp/dsh-rrweb-snapshot-metadata/package",
+      "archive": {
+        "url": "https://registry.npmjs.org/rrweb-snapshot/-/rrweb-snapshot-2.1.1.tgz",
+        "localPath": "/tmp/dsh-rrweb-snapshot-2.1.1.tgz",
+        "sha256": "edb021b76cc2913ab5bc39cc634e30e75cc9d7de60b700ee8800ba58e6d81730"
+      },
+      "patch": "patches/rrweb-snapshot.patch",
+      "patchSha256": "946c17a078c8ae585f0e21e48876daad3c8d0a998e234db9d82bae345c439abc",
+      "inputs": [
+        {
+          "path": "package.json",
+          "beforeSha256": "78c8c361466ff1726bfab317baca3dedf6f81fea9ede07e7d7394f2a81fe80e7",
+          "sha256": "8a46a805e8e2158cdb4c919094a3d2241cb3afd8f25c3470096d3009d0c7061b"
+        }
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "originalPath": "/tmp/dsh-toolchain-artifacts/esbuild-darwin-arm64-0.28.2.tgz",
+      "path": "artifacts/esbuild-darwin-arm64-0.28.2.tgz",
+      "sha256": "814c01115da853a2901f8e9d91d58061ed5e179f46906c03a7f022a5244e6e42"
+    },
+    {
+      "originalPath": "/tmp/dsh-toolchain-artifacts/esbuild-linux-ia32-0.28.2.tgz",
+      "path": "artifacts/esbuild-linux-ia32-0.28.2.tgz",
+      "sha256": "687ebe98c0b85ff769354536ef0604aac2437990ba0c88f4da078ff98d7903c5"
+    },
+    {
+      "originalPath": "/tmp/dsh-toolchain-artifacts/esbuild-netbsd-x64-0.28.2.tgz",
+      "path": "artifacts/esbuild-netbsd-x64-0.28.2.tgz",
+      "sha256": "23b6102b5a8edff8afb3af05c4d958c196152d4e2219440469b028c39c128727"
+    },
+    {
+      "originalPath": "/tmp/dsh-toolchain-artifacts/esbuild-linux-mips64el-0.28.2.tgz",
+      "path": "artifacts/esbuild-linux-mips64el-0.28.2.tgz",
+      "sha256": "c41df28840c87246fa702f02686ffcf82b53a73158f073975f591a4b32d638d7"
+    },
+    {
+      "originalPath": "/tmp/dsh-toolchain-artifacts/esbuild-aix-ppc64-0.28.2.tgz",
+      "path": "artifacts/esbuild-aix-ppc64-0.28.2.tgz",
+      "sha256": "0afcf9c7bd37fd396a22ff7143732519671fa468ab358ca3c966175881aabf7e"
+    },
+    {
+      "originalPath": "/tmp/dsh-toolchain-artifacts/esbuild-sunos-x64-0.28.2.tgz",
+      "path": "artifacts/esbuild-sunos-x64-0.28.2.tgz",
+      "sha256": "656a63c733f0e1306b33826965f324c469f5bd6b79f7e9f4c2034e8b04eee372"
+    },
+    {
+      "originalPath": "/tmp/dsh-toolchain-artifacts/tsx-4.23.13.tgz",
+      "path": "artifacts/tsx-4.23.13.tgz",
+      "sha256": "6437e48acedd9ef8994770f255901fae49e1c4dd8d6341d276041bce5a039fab"
+    },
+    {
+      "originalPath": "/tmp/dsh-toolchain-artifacts/esbuild-linux-arm-0.28.2.tgz",
+      "path": "artifacts/esbuild-linux-arm-0.28.2.tgz",
+      "sha256": "958888a94d960f439e5c79a8ace3e776303b5a91b9bbb4ccce72e2e868750cf3"
+    },
+    {
+      "originalPath": "/tmp/dsh-toolchain-artifacts/esbuild-linux-x64-0.28.2.tgz",
+      "path": "artifacts/esbuild-linux-x64-0.28.2.tgz",
+      "sha256": "5289741c1b3a174ef41dee71975f5fc67a3e95f99b8c5f8673ea1aed91e080ff"
+    },
+    {
+      "originalPath": "/tmp/dsh-toolchain-artifacts/esbuild-android-arm64-0.28.2.tgz",
+      "path": "artifacts/esbuild-android-arm64-0.28.2.tgz",
+      "sha256": "da21b2ad498db3017235ae175c1bd1afde218968c20389ef78cea7a1e36b8c15"
+    },
+    {
+      "originalPath": "/tmp/dsh-toolchain-artifacts/esbuild-win32-arm64-0.28.2.tgz",
+      "path": "artifacts/esbuild-win32-arm64-0.28.2.tgz",
+      "sha256": "5a63a8ff3ce49edbcecbefbe7727b7961cdd1d86c342d60acdeb156fb3826d0a"
+    },
+    {
+      "originalPath": "/tmp/dsh-toolchain-artifacts/esbuild-linux-ppc64-0.28.2.tgz",
+      "path": "artifacts/esbuild-linux-ppc64-0.28.2.tgz",
+      "sha256": "7fc79bc774dbd673bd20b2ba09a91ad5484f65104b4754bd8bf51fc52d6cfae4"
+    },
+    {
+      "originalPath": "/tmp/dsh-toolchain-artifacts/esbuild-linux-arm64-0.28.2.tgz",
+      "path": "artifacts/esbuild-linux-arm64-0.28.2.tgz",
+      "sha256": "142a2d86aeed30d4ef96adabed0ced768235963fbf242d643759953269479453"
+    },
+    {
+      "originalPath": "/tmp/dsh-toolchain-artifacts/esbuild-android-x64-0.28.2.tgz",
+      "path": "artifacts/esbuild-android-x64-0.28.2.tgz",
+      "sha256": "231d4deff111f0f5e8f95fc5fe8787f5429e463001f3745b36069da8069cf203"
+    },
+    {
+      "originalPath": "/tmp/dsh-toolchain-artifacts/esbuild-darwin-x64-0.28.2.tgz",
+      "path": "artifacts/esbuild-darwin-x64-0.28.2.tgz",
+      "sha256": "7e4814de56e2d3a9eafebba4b3189f3b0413b8b99da9bfe2e569717a19c709e5"
+    },
+    {
+      "originalPath": "/tmp/dsh-toolchain-artifacts/esbuild-win32-x64-0.28.2.tgz",
+      "path": "artifacts/esbuild-win32-x64-0.28.2.tgz",
+      "sha256": "27cb3364278142e0fb884abdac803ef64b86d5717ea8582f2c4b4b9aa3bfe805"
+    },
+    {
+      "originalPath": "/tmp/dsh-toolchain-artifacts/esbuild-android-arm-0.28.2.tgz",
+      "path": "artifacts/esbuild-android-arm-0.28.2.tgz",
+      "sha256": "7deca202aec83e879d0fcdf67301c90b9588fa4166b49ec1210c57c0b8ed6c52"
+    },
+    {
+      "originalPath": "/tmp/dsh-toolchain-artifacts/esbuild-openbsd-x64-0.28.2.tgz",
+      "path": "artifacts/esbuild-openbsd-x64-0.28.2.tgz",
+      "sha256": "e15b5385c8ea4dcbc39400e2f1fd04a88de7504d9f9368d885d696b8dbd8f248"
+    },
+    {
+      "originalPath": "/tmp/dsh-toolchain-artifacts/esbuild-openbsd-arm64-0.28.2.tgz",
+      "path": "artifacts/esbuild-openbsd-arm64-0.28.2.tgz",
+      "sha256": "12a535416054d34dc9fed73d48687d16cad663e5c9f5fd15e7a58eee0de2120d"
+    },
+    {
+      "originalPath": "/tmp/dsh-toolchain-artifacts/esbuild-linux-s390x-0.28.2.tgz",
+      "path": "artifacts/esbuild-linux-s390x-0.28.2.tgz",
+      "sha256": "5b52df621b10b6c957d188f59e8ef81817ec20089d64f9dee0bfa3b2f3bb5823"
+    },
+    {
+      "originalPath": "/tmp/dsh-toolchain-artifacts/esbuild-win32-ia32-0.28.2.tgz",
+      "path": "artifacts/esbuild-win32-ia32-0.28.2.tgz",
+      "sha256": "a95552803efa67997232c1b46c45553ff04261115417778cbf5b683e257338aa"
+    },
+    {
+      "originalPath": "/tmp/dsh-toolchain-artifacts/esbuild-openharmony-arm64-0.28.2.tgz",
+      "path": "artifacts/esbuild-openharmony-arm64-0.28.2.tgz",
+      "sha256": "006256fdc418c65467a405ed298411fa4c84ada371dc25622d68a47da20eb720"
+    },
+    {
+      "originalPath": "/tmp/dsh-toolchain-artifacts/esbuild-linux-riscv64-0.28.2.tgz",
+      "path": "artifacts/esbuild-linux-riscv64-0.28.2.tgz",
+      "sha256": "452879ca0770a172a7c7d97a79d1c497e804fe5897d3b1e18dd5d867d644b2fd"
+    },
+    {
+      "originalPath": "/tmp/dsh-toolchain-artifacts/esbuild-linux-loong64-0.28.2.tgz",
+      "path": "artifacts/esbuild-linux-loong64-0.28.2.tgz",
+      "sha256": "4e5551dfab3eb634424a0ca2e966740f99ce266393e65ba4354a2fc26391cc55"
+    },
+    {
+      "originalPath": "/tmp/dsh-toolchain-artifacts/esbuild-freebsd-arm64-0.28.2.tgz",
+      "path": "artifacts/esbuild-freebsd-arm64-0.28.2.tgz",
+      "sha256": "79fa05fea0b84d09c02c6c0b5006c72ec823d06af68f2204f4ca53884c549167"
+    },
+    {
+      "originalPath": "/tmp/dsh-toolchain-artifacts/esbuild-netbsd-arm64-0.28.2.tgz",
+      "path": "artifacts/esbuild-netbsd-arm64-0.28.2.tgz",
+      "sha256": "04f4ee9acc31495a5044220b05f1936af7d4b7cdf2811ab5546ce1bf201bc795"
+    },
+    {
+      "originalPath": "/tmp/dsh-toolchain-artifacts/esbuild-0.28.2.tgz",
+      "path": "artifacts/esbuild-0.28.2.tgz",
+      "sha256": "91f363ef9c377e044a814d929cea9d495cfd095ac81b0dcc6e349999843f07cf"
+    },
+    {
+      "originalPath": "/tmp/dsh-toolchain-artifacts/esbuild-freebsd-x64-0.28.2.tgz",
+      "path": "artifacts/esbuild-freebsd-x64-0.28.2.tgz",
+      "sha256": "40a629134868926a8b5107c0803f8eb9470d1cf5d3202a8d30cdb28498ebe1a7"
+    },
+    {
+      "originalPath": "/tmp/dsh-ast-v8-integrated-artifact/ast-v8-to-istanbul-1.0.6.tgz",
+      "path": "artifacts/ast-v8-to-istanbul-1.0.6.tgz",
+      "sha256": "566e6e4abeb4af7a2e7346ddf455026a15bbaf688d1e47a96a97279d1fc9f9cd"
+    },
+    {
+      "originalPath": "/tmp/dsh-local-pkg-1.2.1-source-repair.tgz",
+      "path": "artifacts/dsh-local-pkg-1.2.1-source-repair.tgz",
+      "sha256": "02ee6422235b781197902fb20a49ac6a9897414bf2e6717b1b3623d5f4fac457"
+    },
+    {
+      "originalPath": "/tmp/dsh-rrweb-snapshot-2.1.1-metadata.tgz",
+      "path": "artifacts/dsh-rrweb-snapshot-2.1.1-metadata.tgz",
+      "sha256": "6e20ca26f8495f100c91dddfcdff0ad47e6259c837a7af824a871e0aa420841c"
+    },
+    {
+      "originalPath": "/tmp/dsh-mocker-browser-resolver-artifact/vitest-mocker-5.0.1.tgz",
+      "path": "artifacts/vitest-mocker-5.0.1.tgz",
+      "sha256": "d7e900f1dfda67006a05649db328e8892fd0ec305691279d6683df8f3e8e3e05"
+    }
+  ]
+}

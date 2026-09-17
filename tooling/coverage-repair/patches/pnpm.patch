@@ -1,0 +1,213 @@
+--- /dev/null
++++ b/.changeset/archive-peer-versions.md
+@@ -0,0 +1,5 @@
++---
++"pacquet": patch
++---
++
++Check archive peer dependencies against their package versions recorded in the lockfile. Compatible local and remote archives satisfy their peer ranges, and incompatible archives report their declared versions.
+--- /dev/null
++++ b/pnpm/crates/deps-inspection-peers/src/artifact_versions.rs
+@@ -0,0 +1,86 @@
++use crate::check_peer_dependencies_of_importers;
++use pnpm_lockfile::Lockfile;
++use serde_json::json;
++
++fn check_artifact_version(reference: &str, package_key: &str, version: Option<&str>) {
++    let directory = tempfile::tempdir().expect("create lockfile directory");
++    let lockfile: Lockfile = serde_json::from_value(json!({
++        "lockfileVersion": "9.0",
++        "importers": { ".": { "dependencies": {
++            "consumer": { "specifier": "1.0.0", "version": "1.0.0" }
++        } } },
++        "packages": {
++            "consumer@1.0.0": {
++                "resolution": { "integrity": "sha512-AAAA" },
++                "peerDependencies": { "provider": "^4.8.1" }
++            },
++            (package_key): {
++                "resolution": { "tarball": "file:provider.tgz" },
++                "version": version
++            }
++        },
++        "snapshots": {
++            "consumer@1.0.0": { "dependencies": { "provider": reference } },
++            (package_key): {}
++        }
++    }))
++    .expect("parse artifact lockfile");
++    let issues =
++        check_peer_dependencies_of_importers(&lockfile, directory.path(), &[".".to_owned()], None)
++            .expect("inspect peer dependencies");
++    let result = &issues["."];
++    if version == Some("4.23.13") {
++        assert_eq!(result.bad.len(), 0, "{result:?}");
++    } else {
++        assert_eq!(result.bad.len(), 1, "{result:?}");
++        let issue = &result.bad["provider"][0];
++        assert_eq!(issue.wanted_range, "^4.8.1");
++        if let Some(version) = version {
++            assert_eq!(issue.found_version, version);
++        }
++    }
++    assert_eq!(result.missing.len(), 0, "{result:?}");
++}
++
++#[test]
++fn local_archive_uses_declared_version() {
++    check_artifact_version("file:provider.tgz", "provider@file:provider.tgz", Some("4.23.13"));
++}
++
++#[test]
++fn local_archive_outside_peer_range_is_rejected() {
++    check_artifact_version("file:provider.tgz", "provider@file:provider.tgz", Some("3.9.0"));
++}
++
++#[test]
++fn local_archive_without_declared_version_is_rejected() {
++    check_artifact_version("file:provider.tgz", "provider@file:provider.tgz", None);
++}
++
++#[test]
++fn aliased_archive_uses_target_metadata() {
++    check_artifact_version("actual@file:provider.tgz", "actual@file:provider.tgz", Some("4.23.13"));
++}
++
++#[test]
++fn peer_suffixed_archive_uses_base_metadata() {
++    check_artifact_version(
++        "file:provider.tgz(other@1.0.0)",
++        "provider@file:provider.tgz",
++        Some("4.23.13"),
++    );
++}
++
++#[test]
++fn remote_archive_uses_declared_version() {
++    check_artifact_version(
++        "https://example.com/provider.tgz",
++        "provider@https://example.com/provider.tgz",
++        Some("4.23.13"),
++    );
++}
++
++#[test]
++fn registry_version_is_checked_without_metadata_version() {
++    check_artifact_version("3.9.0", "provider@3.9.0", None);
++}
+--- a/pnpm/crates/deps-inspection-peers/src/lib.rs
++++ b/pnpm/crates/deps-inspection-peers/src/lib.rs
+@@ -389 +389,6 @@
+-        let Some(found_version) = resolved_snapshot_version(dep_ref, inputs.lockfile_dir) else {
++        let Some(found_version) = resolved_snapshot_version(
++            dep_ref,
++            &peer_pkg_name,
++            inputs.packages,
++            inputs.lockfile_dir,
++        ) else {
+@@ -410,5 +415,9 @@
+-/// The version a snapshot dependency reference resolves to. A reference that
+-/// is neither a registry version nor a link has no version to check against.
+-fn resolved_snapshot_version(dep_ref: &SnapshotDepRef, lockfile_dir: &Path) -> Option<String> {
+-    if let Some(ver_peer) = dep_ref.ver_peer() {
+-        return Some(ver_peer.version().to_string());
++/// The package version recorded for a snapshot dependency or linked manifest.
++fn resolved_snapshot_version(
++    dep_ref: &SnapshotDepRef,
++    peer_name: &PkgName,
++    packages: &HashMap<PkgNameVerPeer, PackageMetadata>,
++    lockfile_dir: &Path,
++) -> Option<String> {
++    if let Some(key) = dep_ref.resolve(peer_name) {
++        return Some(get_pkg_version(&key, packages));
+@@ -478,0 +488,6 @@
++#[cfg(test)]
++mod artifact_versions;
++
++#[cfg(test)]
++mod linked_artifact_versions;
++
+--- a/pnpm/crates/deps-inspection-peers/src/linked.rs
++++ b/pnpm/crates/deps-inspection-peers/src/linked.rs
+@@ -37 +37 @@
+-fn resolve_file_version(
++fn resolve_package_version(
+@@ -223,0 +224,3 @@
++    if let Some(version) = resolve_package_version(lockfile, lockfile_dir, peer_pkg_name, spec) {
++        return Some(version);
++    }
+@@ -235,4 +238 @@
+-        .map(|file_target| {
+-            resolve_file_version(lockfile, lockfile_dir, peer_pkg_name, spec)
+-                .unwrap_or_else(|| format!("file:{file_target}"))
+-        })
++        .map(|file_target| format!("file:{file_target}"))
+--- /dev/null
++++ b/pnpm/crates/deps-inspection-peers/src/linked_artifact_versions.rs
+@@ -0,0 +1,66 @@
++use crate::check_peer_dependencies_of_importers;
++use pnpm_lockfile::Lockfile;
++use serde_json::json;
++
++fn check_linked_artifact(reference: &str, package_key: &str, version: &str) {
++    let directory = tempfile::tempdir().expect("create project directory");
++    let consumer = directory.path().join("consumer");
++    std::fs::create_dir(&consumer).expect("create consumer directory");
++    std::fs::write(
++        consumer.join("package.json"),
++        r#"{
++        "name": "consumer", "version": "1.0.0",
++        "peerDependencies": { "provider": "^4.8.1" }
++    }"#,
++    )
++    .expect("write linked consumer manifest");
++    let lockfile: Lockfile = serde_json::from_value(json!({
++        "lockfileVersion": "9.0",
++        "importers": { ".": { "dependencies": {
++            "consumer": { "specifier": "link:consumer", "version": "link:consumer" },
++            "provider": { "specifier": reference, "version": reference }
++        } } },
++        "packages": { (package_key): {
++            "resolution": { "tarball": "file:provider.tgz" }, "version": version
++        } },
++        "snapshots": { (package_key): {} }
++    }))
++    .expect("parse linked project lockfile");
++    let issues =
++        check_peer_dependencies_of_importers(&lockfile, directory.path(), &[".".to_owned()], None)
++            .expect("inspect linked peers");
++    let result = &issues["."];
++    assert_eq!(result.missing.len(), 0, "{result:?}");
++    if version == "4.23.13" {
++        assert_eq!(result.bad.len(), 0, "{result:?}");
++    } else {
++        assert_eq!(result.bad.len(), 1, "{result:?}");
++        assert_eq!(result.bad["provider"].len(), 1);
++        assert_eq!(result.bad["provider"][0].found_version, version);
++        assert_eq!(result.bad["provider"][0].wanted_range, "^4.8.1");
++    }
++}
++
++#[test]
++fn linked_consumer_accepts_local_archive() {
++    check_linked_artifact("file:provider.tgz", "provider@file:provider.tgz", "4.23.13");
++}
++
++#[test]
++fn linked_consumer_accepts_aliased_archive() {
++    check_linked_artifact("actual@file:provider.tgz", "actual@file:provider.tgz", "4.23.13");
++}
++
++#[test]
++fn linked_consumer_accepts_remote_archive() {
++    check_linked_artifact(
++        "https://example.com/provider.tgz",
++        "provider@https://example.com/provider.tgz",
++        "4.23.13",
++    );
++}
++
++#[test]
++fn linked_consumer_rejects_incompatible_archive_version() {
++    check_linked_artifact("actual@file:provider.tgz", "actual@file:provider.tgz", "3.9.0");
++}

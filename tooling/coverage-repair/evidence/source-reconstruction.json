@@ -1,0 +1,119 @@
+[
+  {
+    "source": "vitest",
+    "command": [
+      "python3",
+      "tooling/coverage-repair/reconstruct.py",
+      "vitest",
+      "/tmp/dsh-vitest-5.0.1-source.tgz",
+      "/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-consolidated-final-egb5l4b4/vitest"
+    ],
+    "exitCode": 0,
+    "output": "{\"source\": \"vitest\", \"destination\": \"/private/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-consolidated-final-egb5l4b4/vitest\", \"verifiedInputs\": 34}\n",
+    "error": "/Users/brandon/Downloads/deepseek-harness/tooling/coverage-repair/patches/vitest.patch:591: trailing whitespace.\n \n/Users/brandon/Downloads/deepseek-harness/tooling/coverage-repair/patches/vitest.patch:604: trailing whitespace.\n \nwarning: 2 lines add whitespace errors.\n"
+  },
+  {
+    "source": "converter",
+    "command": [
+      "python3",
+      "tooling/coverage-repair/reconstruct.py",
+      "converter",
+      "/tmp/dsh-ast-v8-1.0.6-source.tgz",
+      "/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-consolidated-final-egb5l4b4/converter"
+    ],
+    "exitCode": 0,
+    "output": "{\"source\": \"converter\", \"destination\": \"/private/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-consolidated-final-egb5l4b4/converter\", \"verifiedInputs\": 22}\n",
+    "error": ""
+  },
+  {
+    "source": "local-pkg",
+    "command": [
+      "python3",
+      "tooling/coverage-repair/reconstruct.py",
+      "local-pkg",
+      "/tmp/dsh-local-pkg-1.2.1-source.tgz",
+      "/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-consolidated-final-egb5l4b4/local-pkg"
+    ],
+    "exitCode": 0,
+    "output": "{\"source\": \"local-pkg\", \"destination\": \"/private/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-consolidated-final-egb5l4b4/local-pkg\", \"verifiedInputs\": 8}\n",
+    "error": ""
+  },
+  {
+    "source": "istanbul",
+    "command": [
+      "python3",
+      "tooling/coverage-repair/reconstruct.py",
+      "istanbul",
+      "/tmp/dsh-istanbul-1.0.1-source.tar.gz",
+      "/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-consolidated-final-egb5l4b4/istanbul"
+    ],
+    "exitCode": 0,
+    "output": "{\"source\": \"istanbul\", \"destination\": \"/private/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-consolidated-final-egb5l4b4/istanbul\", \"verifiedInputs\": 5}\n",
+    "error": ""
+  },
+  {
+    "source": "esbuild",
+    "command": [
+      "python3",
+      "tooling/coverage-repair/reconstruct.py",
+      "esbuild",
+      "/tmp/dsh-esbuild-0.28.2-source.tgz",
+      "/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-consolidated-final-egb5l4b4/esbuild"
+    ],
+    "exitCode": 0,
+    "output": "{\"source\": \"esbuild\", \"destination\": \"/private/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-consolidated-final-egb5l4b4/esbuild\", \"verifiedInputs\": 3}\n",
+    "error": ""
+  },
+  {
+    "source": "node",
+    "command": [
+      "python3",
+      "tooling/coverage-repair/reconstruct.py",
+      "node",
+      "/tmp/dsh-node26.9.0/node-v26.9.0.tar.xz",
+      "/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-consolidated-final-egb5l4b4/node"
+    ],
+    "exitCode": 0,
+    "output": "{\"source\": \"node\", \"destination\": \"/private/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-consolidated-final-egb5l4b4/node\", \"verifiedInputs\": 2}\n",
+    "error": ""
+  },
+  {
+    "source": "pnpm",
+    "command": [
+      "python3",
+      "tooling/coverage-repair/reconstruct.py",
+      "pnpm",
+      "/tmp/dsh-pnpm-12.4.2-source.tgz",
+      "/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-consolidated-final-egb5l4b4/pnpm"
+    ],
+    "exitCode": 0,
+    "output": "{\"source\": \"pnpm\", \"destination\": \"/private/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-consolidated-final-egb5l4b4/pnpm\", \"verifiedInputs\": 5}\n",
+    "error": ""
+  },
+  {
+    "source": "tsx",
+    "command": [
+      "python3",
+      "tooling/coverage-repair/reconstruct.py",
+      "tsx",
+      "/tmp/dsh-tsx-integrated/tsx-4.23.13.tgz",
+      "/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-consolidated-final-egb5l4b4/tsx"
+    ],
+    "exitCode": 0,
+    "output": "{\"source\": \"tsx\", \"destination\": \"/private/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-consolidated-final-egb5l4b4/tsx\", \"verifiedInputs\": 1}\n",
+    "error": ""
+  },
+  {
+    "source": "rrweb-snapshot",
+    "command": [
+      "python3",
+      "tooling/coverage-repair/reconstruct.py",
+      "rrweb-snapshot",
+      "/tmp/dsh-rrweb-snapshot-2.1.1.tgz",
+      "/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-consolidated-final-egb5l4b4/rrweb-snapshot"
+    ],
+    "exitCode": 0,
+    "output": "{\"source\": \"rrweb-snapshot\", \"destination\": \"/private/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-consolidated-final-egb5l4b4/rrweb-snapshot\", \"verifiedInputs\": 1}\n",
+    "error": ""
+  }
+]

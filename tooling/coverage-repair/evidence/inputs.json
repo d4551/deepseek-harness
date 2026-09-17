@@ -1,0 +1,2684 @@
+[
+  {
+    "originalPath": "/tmp/dsh-ast-v8-amaro-install.log",
+    "archivePath": "tmp/dsh-ast-v8-amaro-install.log",
+    "bytes": 259,
+    "sha256": "824334ffedee0ae10ae3feef0d3eae5cecc6a41baf4d1180972d1f47d6b565bc"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-baseline-complete-tests.log",
+    "archivePath": "tmp/dsh-ast-v8-baseline-complete-tests.log",
+    "bytes": 4981,
+    "sha256": "e48bcd20c66bc22bd392a35eb1685a7f9a5977d8bd978840a2135103dd98220b"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-complete-final.log",
+    "archivePath": "tmp/dsh-ast-v8-complete-final.log",
+    "bytes": 13480,
+    "sha256": "448d472601a8a5f54ace2d0fe69513d59b2eea3d7be2f6e509cf4995560fa55b"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-complete-tests.log",
+    "archivePath": "tmp/dsh-ast-v8-complete-tests.log",
+    "bytes": 13478,
+    "sha256": "12e4ba8797f160a20c0a0f22e8c08126b0f63229bb30d46dcbcec610080928d4"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-instrumenter-build.log",
+    "archivePath": "tmp/dsh-ast-v8-instrumenter-build.log",
+    "bytes": 833,
+    "sha256": "b0248cc1405b91dd1bc8554ebf6c311fad29bcc40b99ecc7ea1c2c9638e542e7"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-instrumenter-install.log",
+    "archivePath": "tmp/dsh-ast-v8-instrumenter-install.log",
+    "bytes": 234,
+    "sha256": "d91acdc216fb92e2ef34fe281c881e0174d6d65ab3871514e76103a2f1e1eed6"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-instrumenter-lint.log",
+    "archivePath": "tmp/dsh-ast-v8-instrumenter-lint.log",
+    "bytes": 267,
+    "sha256": "aef385c2c4ab4defe8c5593089c3a127ffacb54ac1b5f664d508dfde80fcbfbd"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-instrumenter-tests.log",
+    "archivePath": "tmp/dsh-ast-v8-instrumenter-tests.log",
+    "bytes": 13033,
+    "sha256": "79e94a9bd1aa5ca27e0c7af5a9337c623bfe3101b63e1e1620133cf710c9b0f0"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-instrumenter-types.log",
+    "archivePath": "tmp/dsh-ast-v8-instrumenter-types.log",
+    "bytes": 873,
+    "sha256": "97cee32d76e1947a3a47b04de7196ef212bcfd70f91afd87c5a601d9dd597a52"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-latest-registry.json",
+    "archivePath": "tmp/dsh-ast-v8-latest-registry.json",
+    "bytes": 3043,
+    "sha256": "fb103af46f20614b78da96d1d714ab4401797e9bb38d448bc6501cc95ca904f5"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-location-after.log",
+    "archivePath": "tmp/dsh-ast-v8-location-after.log",
+    "bytes": 377,
+    "sha256": "ebc73736535dbce7c35719cf09d116c5ceae1752aeda35f8b3bdadbf3fc54f3f"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-location-before-interior.log",
+    "archivePath": "tmp/dsh-ast-v8-location-before-interior.log",
+    "bytes": 3896,
+    "sha256": "40c18879a88049c0a5b0aefba46339cdf923787d466218aadedc3b3a898fef76"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-location-before.log",
+    "archivePath": "tmp/dsh-ast-v8-location-before.log",
+    "bytes": 299,
+    "sha256": "effcfa42b1cb44fd1eb2fe015d923b862280f140852baee580aac18bf79f1d61"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-location-build.log",
+    "archivePath": "tmp/dsh-ast-v8-location-build.log",
+    "bytes": 803,
+    "sha256": "56211e4a5127e15168ef10ef34b9c40ebdee07f45279f7d429cbcbacedb6bdb1"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-location-final.log",
+    "archivePath": "tmp/dsh-ast-v8-location-final.log",
+    "bytes": 3061,
+    "sha256": "1409a0c4f473e1297db10ea3cc8616d9b63dbcb1abdfb3fe877a10927cc01647"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-location-pack.log",
+    "archivePath": "tmp/dsh-ast-v8-location-pack.log",
+    "bytes": 386,
+    "sha256": "43f18bfc9b72c34b770b7db7743c535ebc7d6174460e4f53db7832c1774afe4b"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-location-upstream.log",
+    "archivePath": "tmp/dsh-ast-v8-location-upstream.log",
+    "bytes": 3061,
+    "sha256": "c80d696ba740c13ad6bd37faebc347015ef22ff693a41581f4d9531294ed67c3"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-native-e2e-before.log",
+    "archivePath": "tmp/dsh-ast-v8-native-e2e-before.log",
+    "bytes": 3353,
+    "sha256": "2db02b01908db338a71454b6be8d2776e3530feb09e892e3ca7dd98e45bbc933"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-native-e2e-build-final.log",
+    "archivePath": "tmp/dsh-ast-v8-native-e2e-build-final.log",
+    "bytes": 833,
+    "sha256": "27003d289998ecd7c5bb0a675bb974ce0c6f6256067abfedebf3e37aa2abef9a"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-native-e2e-complete.log",
+    "archivePath": "tmp/dsh-ast-v8-native-e2e-complete.log",
+    "bytes": 10643,
+    "sha256": "3380ae80ee6d944b6b0c865561f49c07824083b0adfa433b05872d241489b107"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-native-e2e-lint.log",
+    "archivePath": "tmp/dsh-ast-v8-native-e2e-lint.log",
+    "bytes": 267,
+    "sha256": "b0534a65f2d47537957cbd10e48efd2871e968b1b042b1a478ccb4d2d1b8ec73"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-native-e2e-types-final.log",
+    "archivePath": "tmp/dsh-ast-v8-native-e2e-types-final.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-native-e2e-types.log",
+    "archivePath": "tmp/dsh-ast-v8-native-e2e-types.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-native-e2e-verified.log",
+    "archivePath": "tmp/dsh-ast-v8-native-e2e-verified.log",
+    "bytes": 2498,
+    "sha256": "feb6ff2b46880f0640b80247a4f843c13563d15316d4e1e3868ce73247e57ff0"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-native-no-overrides-build.log",
+    "archivePath": "tmp/dsh-ast-v8-native-no-overrides-build.log",
+    "bytes": 833,
+    "sha256": "b0b198050e566229a43e1425af6193f7f390883927e1a821abc75d5e26093b90"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-native-no-overrides-install.log",
+    "archivePath": "tmp/dsh-ast-v8-native-no-overrides-install.log",
+    "bytes": 356,
+    "sha256": "59ec43c99a01594525b1e291064c711e72a7de9df37c37de43176f88353d46f7"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-native-no-overrides-lint.log",
+    "archivePath": "tmp/dsh-ast-v8-native-no-overrides-lint.log",
+    "bytes": 268,
+    "sha256": "32892b2b36c1543a3153770c55e091443aa5fa9ffd884590fb56d861d5cb0e8d"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-native-no-overrides-tests.log",
+    "archivePath": "tmp/dsh-ast-v8-native-no-overrides-tests.log",
+    "bytes": 10670,
+    "sha256": "cdd8a6463fd4ae9ecc327a958cdde00be96f8c5733885350143d8a34da855af6"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-native-no-overrides-types.log",
+    "archivePath": "tmp/dsh-ast-v8-native-no-overrides-types.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-native-portable-install.log",
+    "archivePath": "tmp/dsh-ast-v8-native-portable-install.log",
+    "bytes": 231,
+    "sha256": "10ea4ad8fda5ab1816a9373c6578d94351c92d7db538c147e8d5cd18913536e7"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-native-source-changes-final.json",
+    "archivePath": "tmp/dsh-ast-v8-native-source-changes-final.json",
+    "bytes": 2709,
+    "sha256": "b01aced82031943b0418b084545e30ef278f1bba1304ad28e44d092327182952"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-native-source-changes.json",
+    "archivePath": "tmp/dsh-ast-v8-native-source-changes.json",
+    "bytes": 2270,
+    "sha256": "826a74ea410c2a3799630560f1fa5576c470886946038a279c3b1f27644243c6"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-after.log",
+    "archivePath": "tmp/dsh-ast-v8-range-after.log",
+    "bytes": 13171,
+    "sha256": "1b8f440ee5060f432fee90f336b14e5f20a44843f98468720f082ea06eb33846"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-baseline-current.log",
+    "archivePath": "tmp/dsh-ast-v8-range-baseline-current.log",
+    "bytes": 4935,
+    "sha256": "507ad135b1087f4ae69c306701143577b2a1e959cfa6d1bfe3d5046e51603f2e"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-before.log",
+    "archivePath": "tmp/dsh-ast-v8-range-before.log",
+    "bytes": 8039,
+    "sha256": "fc15cf8c18e5a26e7f68fcc1f850cf1cff84363b1d2d3d295f493293d1fddd79"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-build.log",
+    "archivePath": "tmp/dsh-ast-v8-range-build.log",
+    "bytes": 6384,
+    "sha256": "12011319ab9fe0bc6e05c0adcebf9216d9834110bd680f50f4c1e3ec9b3de5b5"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-built-after-verified.log",
+    "archivePath": "tmp/dsh-ast-v8-range-built-after-verified.log",
+    "bytes": 1184,
+    "sha256": "8260d954bdeaf3b36dd8ce964bdb89e50d02ae28d5d893ea2074aa7f9c00f1fb"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-built-after.log",
+    "archivePath": "tmp/dsh-ast-v8-range-built-after.log",
+    "bytes": 1137,
+    "sha256": "dd3afce771d7831d2505a90ff7ee4d46832614edc5d78299d6e22df518df36be"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-built-before-verified.log",
+    "archivePath": "tmp/dsh-ast-v8-range-built-before-verified.log",
+    "bytes": 1074,
+    "sha256": "037bf40fea4a04b02ad48054c8d9d30f22ca4d4f14d170ed2cc9c5f5a359143b"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-built-before.log",
+    "archivePath": "tmp/dsh-ast-v8-range-built-before.log",
+    "bytes": 1137,
+    "sha256": "dd3afce771d7831d2505a90ff7ee4d46832614edc5d78299d6e22df518df36be"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-complete-current.log",
+    "archivePath": "tmp/dsh-ast-v8-range-complete-current.log",
+    "bytes": 13753,
+    "sha256": "70e7060ba9a0e6fe2eefc7134ca72bf64245905d9f9a6d9c596254f98573c496"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-complete-final.log",
+    "archivePath": "tmp/dsh-ast-v8-range-complete-final.log",
+    "bytes": 12971,
+    "sha256": "6aa41289560a25d6f1420df61a0c6a0588ca023ae288db0c6910646b8e6e107b"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-complete-types-final.log",
+    "archivePath": "tmp/dsh-ast-v8-range-complete-types-final.log",
+    "bytes": 1559,
+    "sha256": "0c9ff0b1cd7eb746b8be6899846ea5e4bc146fbef098cd3b81f47fead8c4dee4"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-complete-types.log",
+    "archivePath": "tmp/dsh-ast-v8-range-complete-types.log",
+    "bytes": 2626,
+    "sha256": "48aaa8d56a4e53c5b98ed4eb4b233a43273ae32d203f45d016d83f0f87aaba76"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-complete.log",
+    "archivePath": "tmp/dsh-ast-v8-range-complete.log",
+    "bytes": 13014,
+    "sha256": "e2aa23b726089f725dead1629a187ee793b5c87709096df6906e7a2f761d4200"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-dependency-status.json",
+    "archivePath": "tmp/dsh-ast-v8-range-dependency-status.json",
+    "bytes": 2272,
+    "sha256": "660861be8db14f1b7b14aca7faf4e20e181d499d457e69ef0b126d8be6e4eff7"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-end-before.log",
+    "archivePath": "tmp/dsh-ast-v8-range-end-before.log",
+    "bytes": 8421,
+    "sha256": "bb20d600aec9b82f27aac938783a5d9903805610f8d2b992fc94d12c0d700b3d"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-final-artifact.log",
+    "archivePath": "tmp/dsh-ast-v8-range-final-artifact.log",
+    "bytes": 833,
+    "sha256": "f29c31cbac84d1c9a7db967ac48c28bafca0ac07388d96534f06077e0c126598"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-final-build.log",
+    "archivePath": "tmp/dsh-ast-v8-range-final-build.log",
+    "bytes": 833,
+    "sha256": "c65ee7269d769954b4e1ae9999345f88b2461ef91005b947db5be367a2856e11"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-final-format.log",
+    "archivePath": "tmp/dsh-ast-v8-range-final-format.log",
+    "bytes": 45,
+    "sha256": "88f3c4a0251e6c796a5879ded976369b0037c38a9f0517ac9f1ac21bf87a3cd1"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-final-location.log",
+    "archivePath": "tmp/dsh-ast-v8-range-final-location.log",
+    "bytes": 3059,
+    "sha256": "6facf7e29718151062fffa9c02bf08fd26cbffdb42c95fdbce0d9a8dc882e9c8"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-format.log",
+    "archivePath": "tmp/dsh-ast-v8-range-format.log",
+    "bytes": 45,
+    "sha256": "10c66f148a13eb8d4f9c0b6760fc39fac3f206197201fb9d40b121a5a3c6ce22"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-framework-probe.log",
+    "archivePath": "tmp/dsh-ast-v8-range-framework-probe.log",
+    "bytes": 2144,
+    "sha256": "2bc6a352403894d57603d92dd802494d737fdbbe3dfb0ab57b2153697aa51b80"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-framework-proof.json",
+    "archivePath": "tmp/dsh-ast-v8-range-framework-proof.json",
+    "bytes": 27478,
+    "sha256": "7fc266752982bc7fd2c8e6a28f0281467aea644436f5c377387354fa451ade4d"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-full-lint-final.log",
+    "archivePath": "tmp/dsh-ast-v8-range-full-lint-final.log",
+    "bytes": 267,
+    "sha256": "e2b987425a7f255a9bbd4a6b012e37454c7621e83e84c231dfe7dbda3754384e"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-full-lint.log",
+    "archivePath": "tmp/dsh-ast-v8-range-full-lint.log",
+    "bytes": 1183,
+    "sha256": "7ac08674339fe378e86b2fbfaee873180e71b12047cf2937df0a5d669b5e40bf"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-latest-dependencies.log",
+    "archivePath": "tmp/dsh-ast-v8-range-latest-dependencies.log",
+    "bytes": 1614,
+    "sha256": "271e04675af91e30ec4e1bd804ea3de52bcca7384b8d1468318225bcb0964266"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-native-after-final.log",
+    "archivePath": "tmp/dsh-ast-v8-range-native-after-final.log",
+    "bytes": 426,
+    "sha256": "81d2a1cd6f79fca7ce3faa8caacdeae74803e349eedbfe6eda439b546d7afaed"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-native-before-final.log",
+    "archivePath": "tmp/dsh-ast-v8-range-native-before-final.log",
+    "bytes": 1075,
+    "sha256": "e89e6c1897afb07be6da5193a94dd9854d546763b246dc1893d9459774ef2db8"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-native-location-final.log",
+    "archivePath": "tmp/dsh-ast-v8-range-native-location-final.log",
+    "bytes": 377,
+    "sha256": "5e36dc8bac92ce3f720f8440cb11fb19e186ae7e6c643ad68095854e14751f80"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-native-proof.mjs",
+    "archivePath": "tmp/dsh-ast-v8-range-native-proof.mjs",
+    "bytes": 2212,
+    "sha256": "b0d5e031075e4b521eedde5f822dbcf3fbed71480c352b26aa7a2a8ae65e266d"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-native-tests.log",
+    "archivePath": "tmp/dsh-ast-v8-range-native-tests.log",
+    "bytes": 2873,
+    "sha256": "6096a8fda3852e0aa93c136d2f1c00bd5a0a507a557432ac74ab09e30009e705"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-probe.mjs",
+    "archivePath": "tmp/dsh-ast-v8-range-probe.mjs",
+    "bytes": 1660,
+    "sha256": "8a7a421dde965a96475ce054eb2112b23a2b2c9e0a9119ea2715c54a05fe5897"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-scoped-lint.log",
+    "archivePath": "tmp/dsh-ast-v8-range-scoped-lint.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-source-types-final.log",
+    "archivePath": "tmp/dsh-ast-v8-range-source-types-final.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-range-source-types.log",
+    "archivePath": "tmp/dsh-ast-v8-range-source-types.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-source-install.log",
+    "archivePath": "tmp/dsh-ast-v8-source-install.log",
+    "bytes": 1186,
+    "sha256": "7da7bfce4266b502006544c88df7b6c01a166ec9d551ff8e66cf118b3a19ef92"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-source-package.json",
+    "archivePath": "tmp/dsh-ast-v8-source-package.json",
+    "bytes": 2105,
+    "sha256": "a9a1858c8b20842c0019b83fef8460cffb24e4b1264427362abc38ee4cb28eb9"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-source-strict-types.log",
+    "archivePath": "tmp/dsh-ast-v8-source-strict-types.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-ast-v8-strict-types.log",
+    "archivePath": "tmp/dsh-ast-v8-strict-types.log",
+    "bytes": 1837,
+    "sha256": "09ecf01d02ebc5974816c3cc0d100069535dd2b583c418c022c06a60b6bdaf02"
+  },
+  {
+    "originalPath": "/tmp/dsh-consolidate-coverage-work.py",
+    "archivePath": "tmp/dsh-consolidate-coverage-work.py",
+    "bytes": 6751,
+    "sha256": "52a5aee2c1d7bedabfdbf329dc09a390787bd270b35c47065982c26279c5d917"
+  },
+  {
+    "originalPath": "/tmp/dsh-consolidation-evidence.py",
+    "archivePath": "tmp/dsh-consolidation-evidence.py",
+    "bytes": 3614,
+    "sha256": "f368015757c2aeb9120752c66b6498f5ff00535e538337c79157243c92bf91f6"
+  },
+  {
+    "originalPath": "/tmp/dsh-converter-integration-pack.log",
+    "archivePath": "tmp/dsh-converter-integration-pack.log",
+    "bytes": 195,
+    "sha256": "7f9f725595ebe1f4d5e42b4afeac0b181b241d75499d2285261e6e7b9d7a738d"
+  },
+  {
+    "originalPath": "/tmp/dsh-converter-native-frozen-install.log",
+    "archivePath": "tmp/dsh-converter-native-frozen-install.log",
+    "bytes": 1814,
+    "sha256": "230ba6b5431a788c23fcab9dc04b3148d889648645011b319882835b8160da2f"
+  },
+  {
+    "originalPath": "/tmp/dsh-converter-native-frozen-location.json",
+    "archivePath": "tmp/dsh-converter-native-frozen-location.json",
+    "bytes": 461,
+    "sha256": "540fe8d47d78b3f9a80da20c6c94adf29f382f7b153945f301d8e15aa49f9443"
+  },
+  {
+    "originalPath": "/tmp/dsh-converter-portable-build.log",
+    "archivePath": "tmp/dsh-converter-portable-build.log",
+    "bytes": 833,
+    "sha256": "a7ed76e428442620e98d03771c2f7ece7dd184cc9c4d6a20c00dbd21ea474807"
+  },
+  {
+    "originalPath": "/tmp/dsh-converter-portable-frozen-build.log",
+    "archivePath": "tmp/dsh-converter-portable-frozen-build.log",
+    "bytes": 931,
+    "sha256": "ceabc3b8f356f343943c9fe1a883c4a9a26b7840f43cf14afea8a449bb8b6d93"
+  },
+  {
+    "originalPath": "/tmp/dsh-converter-portable-frozen-install.log",
+    "archivePath": "tmp/dsh-converter-portable-frozen-install.log",
+    "bytes": 2067,
+    "sha256": "452a3ee2a9039d6d5bf51a7fd431a99883ca762080f6b657e4e9bef58eae722e"
+  },
+  {
+    "originalPath": "/tmp/dsh-converter-portable-frozen-location.json",
+    "archivePath": "tmp/dsh-converter-portable-frozen-location.json",
+    "bytes": 465,
+    "sha256": "b3beb36391b975dbe78a867383d8f76049a8501b033fe1f324c430e10425e534"
+  },
+  {
+    "originalPath": "/tmp/dsh-converter-portable-frozen-tests.log",
+    "archivePath": "tmp/dsh-converter-portable-frozen-tests.log",
+    "bytes": 12791,
+    "sha256": "4b73d07aa4528546f258fa40b7999cb7e39e7a1e75039f96845f1351b00d7a36"
+  },
+  {
+    "originalPath": "/tmp/dsh-converter-portable-frozen-types.log",
+    "archivePath": "tmp/dsh-converter-portable-frozen-types.log",
+    "bytes": 15,
+    "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92"
+  },
+  {
+    "originalPath": "/tmp/dsh-converter-portable-lint.log",
+    "archivePath": "tmp/dsh-converter-portable-lint.log",
+    "bytes": 267,
+    "sha256": "b3475c70a54b061aa68601fa2cf0c20956c51c3bf3c6f517b34f8dc36cc28385"
+  },
+  {
+    "originalPath": "/tmp/dsh-converter-portable-tests.log",
+    "archivePath": "tmp/dsh-converter-portable-tests.log",
+    "bytes": 10656,
+    "sha256": "c7321f74de76c5bda01894977382c8eea0b228503b3d05e647bc980b8c711618"
+  },
+  {
+    "originalPath": "/tmp/dsh-converter-portable-typecheck.log",
+    "archivePath": "tmp/dsh-converter-portable-typecheck.log",
+    "bytes": 15,
+    "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-bundled-frozen-cjs-es5-false.json",
+    "archivePath": "tmp/dsh-esbuild-bundled-frozen-cjs-es5-false.json",
+    "bytes": 19781,
+    "sha256": "1858c04ba940f893e6af33de2de3dae4cc20f1e07f45c7de2a56961b59c9632a"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-bundled-frozen-cjs-es5-true.json",
+    "archivePath": "tmp/dsh-esbuild-bundled-frozen-cjs-es5-true.json",
+    "bytes": 18055,
+    "sha256": "7d04f15e6be8b5bebe3c19a19a068b70d250ab13a5745ac20343fda7983641f1"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-bundled-frozen-cjs-esnext-false.json",
+    "archivePath": "tmp/dsh-esbuild-bundled-frozen-cjs-esnext-false.json",
+    "bytes": 19130,
+    "sha256": "bb4d4bd79819574fa22031d81af1534abfdbeadb1dabe53b695532ad47b03017"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-bundled-frozen-cjs-esnext-true.json",
+    "archivePath": "tmp/dsh-esbuild-bundled-frozen-cjs-esnext-true.json",
+    "bytes": 17682,
+    "sha256": "3b49e30b9cc1c4023caeb003177ad9d579baef7ecb2c72d3aa745afe7764c1a7"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-bundled-frozen-esm-es5-false.json",
+    "archivePath": "tmp/dsh-esbuild-bundled-frozen-esm-es5-false.json",
+    "bytes": 14235,
+    "sha256": "14aa4690a07efef427caac13a8d4e1815e92d26eb887618c5616032ae196cbce"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-bundled-frozen-esm-es5-true.json",
+    "archivePath": "tmp/dsh-esbuild-bundled-frozen-esm-es5-true.json",
+    "bytes": 13557,
+    "sha256": "75304b7d30c38be5b2e0036598f4f181812d63235155d71b18d1bea48f034ba5"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-bundled-frozen-esm-esnext-false.json",
+    "archivePath": "tmp/dsh-esbuild-bundled-frozen-esm-esnext-false.json",
+    "bytes": 14121,
+    "sha256": "5b98ddad3b4b059d093e2dd4fd8b04a966cc18a755036cea389cff06d5602998"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-bundled-frozen-esm-esnext-true.json",
+    "archivePath": "tmp/dsh-esbuild-bundled-frozen-esm-esnext-true.json",
+    "bytes": 13483,
+    "sha256": "aa705b3b288d851e461beee07e7dc30b59a1b5a0cd1badaf0ab5e791235eee78"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-bundled-frozen.log",
+    "archivePath": "tmp/dsh-esbuild-bundled-frozen.log",
+    "bytes": 386,
+    "sha256": "4169104cc84f9007d1606c458ea69e939e28050f1e7aa5808f61749906b8d215"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-bundled-mapping.test.mjs",
+    "archivePath": "tmp/dsh-esbuild-bundled-mapping.test.mjs",
+    "bytes": 5215,
+    "sha256": "aeffb645ae9e259960aa659159994b1342ee0242f5be97a6f28ebd191c2a5b72"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-bundled-official-cjs-es5-false.json",
+    "archivePath": "tmp/dsh-esbuild-bundled-official-cjs-es5-false.json",
+    "bytes": 20946,
+    "sha256": "7e413c105a7bf46b68e29f093ca078a19b6dacb8f56e1f6dab8885316ff56b42"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-bundled-official-cjs-es5-true.json",
+    "archivePath": "tmp/dsh-esbuild-bundled-official-cjs-es5-true.json",
+    "bytes": 19383,
+    "sha256": "7f06612da2f9cf7c7b1b54015b24bf6bc1c307d35f276014b818d3cc244a76ef"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-bundled-official-cjs-esnext-false.json",
+    "archivePath": "tmp/dsh-esbuild-bundled-official-cjs-esnext-false.json",
+    "bytes": 20264,
+    "sha256": "71d54af9d14dbcab57a747a1b0a6804c3a41d1139484855e8e77fcafa963fd13"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-bundled-official-cjs-esnext-true.json",
+    "archivePath": "tmp/dsh-esbuild-bundled-official-cjs-esnext-true.json",
+    "bytes": 19029,
+    "sha256": "3fd22118b2f05131e318e8c004b03e41bb0829db7770ec9c8e18c326a2702017"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-bundled-official-esm-es5-false.json",
+    "archivePath": "tmp/dsh-esbuild-bundled-official-esm-es5-false.json",
+    "bytes": 14807,
+    "sha256": "3e0380972e12d7bd13034b671a33af9fb342ef751821ac73bf25323260dd6eff"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-bundled-official-esm-es5-true.json",
+    "archivePath": "tmp/dsh-esbuild-bundled-official-esm-es5-true.json",
+    "bytes": 14169,
+    "sha256": "c287661fcfccdbcc87811d771e06f64316a14b84ceb1acc13893b21e9de767a7"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-bundled-official-esm-esnext-false.json",
+    "archivePath": "tmp/dsh-esbuild-bundled-official-esm-esnext-false.json",
+    "bytes": 14684,
+    "sha256": "63f4f63c5389e362c6837701ddff8a63ceed22faf68510e65c2742a8b42c9e6f"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-bundled-official-esm-esnext-true.json",
+    "archivePath": "tmp/dsh-esbuild-bundled-official-esm-esnext-true.json",
+    "bytes": 14104,
+    "sha256": "ed1b2da85afbd13af6db9391713488732e2b7b994b4d3231ba0dccdab7486617"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-bundled-official.log",
+    "archivePath": "tmp/dsh-esbuild-bundled-official.log",
+    "bytes": 5344,
+    "sha256": "703fbf78c20574c7dfa309e178f505315a53714810fae3411371bcfb2d0bc2c6"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-bundled-repaired-cjs-es5-false.json",
+    "archivePath": "tmp/dsh-esbuild-bundled-repaired-cjs-es5-false.json",
+    "bytes": 19781,
+    "sha256": "85749119296a5a30a8158564f09888e8ce899cb1076d06e9fe5712becd312ef8"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-bundled-repaired-cjs-es5-true.json",
+    "archivePath": "tmp/dsh-esbuild-bundled-repaired-cjs-es5-true.json",
+    "bytes": 18055,
+    "sha256": "0359e5a0780998028af3095b12cc881d7268ecb0f7611b6c9deae76b813a6ae4"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-bundled-repaired-cjs-esnext-false.json",
+    "archivePath": "tmp/dsh-esbuild-bundled-repaired-cjs-esnext-false.json",
+    "bytes": 19130,
+    "sha256": "58ca624ec07ed35d7de371995c30a2e349628151197287ac436f304d808fd1e1"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-bundled-repaired-cjs-esnext-true.json",
+    "archivePath": "tmp/dsh-esbuild-bundled-repaired-cjs-esnext-true.json",
+    "bytes": 17682,
+    "sha256": "bd1a33c0deddb6eeee3715d0da9b5ea1772a7f4d535240198825fc1a5b6a61db"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-bundled-repaired-esm-es5-false.json",
+    "archivePath": "tmp/dsh-esbuild-bundled-repaired-esm-es5-false.json",
+    "bytes": 14235,
+    "sha256": "2263f70c7408f83c889d2a4aac5f1e86708f20c7146fa3de34905e83c7f79875"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-bundled-repaired-esm-es5-true.json",
+    "archivePath": "tmp/dsh-esbuild-bundled-repaired-esm-es5-true.json",
+    "bytes": 13557,
+    "sha256": "1f5130d474a8ecdd1ea52abd8b477dd5fb2bdf8b923bab649fe97f0435f6504b"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-bundled-repaired-esm-esnext-false.json",
+    "archivePath": "tmp/dsh-esbuild-bundled-repaired-esm-esnext-false.json",
+    "bytes": 14121,
+    "sha256": "5f76f47c2f7d200af6140ac6c7f6ffb7d9ba53b76668ecb9189d9baa62d95dcb"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-bundled-repaired-esm-esnext-true.json",
+    "archivePath": "tmp/dsh-esbuild-bundled-repaired-esm-esnext-true.json",
+    "bytes": 13483,
+    "sha256": "059563938314d727a299f58d313b953e16822c2a76abbef1d5526373e40c147a"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-bundled-repaired.log",
+    "archivePath": "tmp/dsh-esbuild-bundled-repaired.log",
+    "bytes": 389,
+    "sha256": "9e007ed43df09e54403cb8d6081737c60e6dec450615995ea59eead2b832e7e3"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-export-map-cjs-false-false.json",
+    "archivePath": "tmp/dsh-esbuild-export-map-cjs-false-false.json",
+    "bytes": 6878,
+    "sha256": "fba545c418b5eeea421392b679324f5a9d2ac2d1acbc13fa16e621931dabd384"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-export-map-cjs-false-true.json",
+    "archivePath": "tmp/dsh-esbuild-export-map-cjs-false-true.json",
+    "bytes": 7519,
+    "sha256": "5923eafcc462e9b4cdbcc2a5fd4d61757414eaac5c0ae2a02b716d13d54ff36b"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-export-map-cjs-true-false.json",
+    "archivePath": "tmp/dsh-esbuild-export-map-cjs-true-false.json",
+    "bytes": 6537,
+    "sha256": "51a9146708e65ea77854cedd7847502daa6ea718d268ccd6d86e5322d026da75"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-export-map-cjs-true-true.json",
+    "archivePath": "tmp/dsh-esbuild-export-map-cjs-true-true.json",
+    "bytes": 7145,
+    "sha256": "5c6ad831e4c8b57373b0f349cb807f7011ede18fae03de168f7a322317afdf83"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-export-map-esm-false-false.json",
+    "archivePath": "tmp/dsh-esbuild-export-map-esm-false-false.json",
+    "bytes": 2274,
+    "sha256": "9574239431fee752983dc0886c0f65b4fa3d8a062ebfb3e09c320d40165e32ad"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-export-map-esm-false-true.json",
+    "archivePath": "tmp/dsh-esbuild-export-map-esm-false-true.json",
+    "bytes": 2959,
+    "sha256": "748a150e958db35ad96943d3a343e197838a846570e262e067871ad2b4d9cebc"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-export-map-esm-true-false.json",
+    "archivePath": "tmp/dsh-esbuild-export-map-esm-true-false.json",
+    "bytes": 2241,
+    "sha256": "f1e3f57095f8476bbf23fe304e4b0af606cd2684529e55796cc0920ddf44a779"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-export-map-esm-true-true.json",
+    "archivePath": "tmp/dsh-esbuild-export-map-esm-true-true.json",
+    "bytes": 2893,
+    "sha256": "256852c5ba0da0c79faf92d3ae6190654295fefd428ec1e83fd146b20f35ddb8"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-export-map-native.log",
+    "archivePath": "tmp/dsh-esbuild-export-map-native.log",
+    "bytes": 3289,
+    "sha256": "addf1cec900a5e98d1d8c5766447ca1e6d653df4d9c1d0b1fbd62dd71c36c4c0"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-export-map-probe.log",
+    "archivePath": "tmp/dsh-esbuild-export-map-probe.log",
+    "bytes": 4253,
+    "sha256": "b349f070d13faac9f2fd106f9e74957ace4c9d88b8fdce1510ab8d5078975b33"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-export-map-probe.mjs",
+    "archivePath": "tmp/dsh-esbuild-export-map-probe.mjs",
+    "bytes": 4305,
+    "sha256": "55fef73b9e35c3ff813894b8cf6df65ba29ea4a926a4376be5408d33f6573163"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-generated-location-cjs-false-false.json",
+    "archivePath": "tmp/dsh-esbuild-generated-location-cjs-false-false.json",
+    "bytes": 6448,
+    "sha256": "60b3687fcfa0977d2e7fae63f2b15c4a4ac0e9f370e57f926c46cc8428918c79"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-generated-location-cjs-false-true.json",
+    "archivePath": "tmp/dsh-esbuild-generated-location-cjs-false-true.json",
+    "bytes": 7089,
+    "sha256": "c66030de6a95b63ce0681888d4307b44fcd2c9036912c14d726529c35268429b"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-generated-location-cjs-true-false.json",
+    "archivePath": "tmp/dsh-esbuild-generated-location-cjs-true-false.json",
+    "bytes": 6129,
+    "sha256": "408b391bda014eba980f0b129478a48acde801af85792a84a97eb5f4c8f1003d"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-generated-location-cjs-true-true.json",
+    "archivePath": "tmp/dsh-esbuild-generated-location-cjs-true-true.json",
+    "bytes": 6737,
+    "sha256": "5c8c822089670b42d35b6e64fa1165656677813a0f9ecf69c0d9072e6e7fed36"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-generated-location-esm-false-false.json",
+    "archivePath": "tmp/dsh-esbuild-generated-location-esm-false-false.json",
+    "bytes": 2274,
+    "sha256": "e9d1f388a989f8f19b8090196d16f611e7e98e3ebf7269d7dad18bd1d78a54c0"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-generated-location-esm-false-true.json",
+    "archivePath": "tmp/dsh-esbuild-generated-location-esm-false-true.json",
+    "bytes": 2959,
+    "sha256": "118b752b9ec418dc648e5b345b6c840f07d89cfea54c90bd512e921f4e760d4e"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-generated-location-esm-true-false.json",
+    "archivePath": "tmp/dsh-esbuild-generated-location-esm-true-false.json",
+    "bytes": 2241,
+    "sha256": "ceab6e63f70f7d33ff432d8507f955f7094a3710530a2ae69b529905c34f08a7"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-generated-location-esm-true-true.json",
+    "archivePath": "tmp/dsh-esbuild-generated-location-esm-true-true.json",
+    "bytes": 2893,
+    "sha256": "2a5a37576d80c568896324b02bc6961f62e66640038bd2fff289b87ee7b70385"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-generated-location-frozen-tests.log",
+    "archivePath": "tmp/dsh-esbuild-generated-location-frozen-tests.log",
+    "bytes": 1724,
+    "sha256": "9081d6eadb1093fe40545b3800e2f52507fe1188f43a3183aa61b99de1855059"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-generated-location-frozen.json",
+    "archivePath": "tmp/dsh-esbuild-generated-location-frozen.json",
+    "bytes": 954,
+    "sha256": "aabfb376db111f54a0e58e3ba33643b0a5a68e971617d3c17187c2466c7c7699"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-generated-location-go-final.log",
+    "archivePath": "tmp/dsh-esbuild-generated-location-go-final.log",
+    "bytes": 1758,
+    "sha256": "71006a830a6d4ea44248a99f75cf57fdb022bb60f8988a9d27a673a41ae93a87"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-generated-location-go-tests.log",
+    "archivePath": "tmp/dsh-esbuild-generated-location-go-tests.log",
+    "bytes": 1733,
+    "sha256": "0542bbd96a9916f64e4c0a6e468cf68773ecb79b10e75190cdb652d0f5dff0c7"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-generated-location-native.log",
+    "archivePath": "tmp/dsh-esbuild-generated-location-native.log",
+    "bytes": 385,
+    "sha256": "c364be22ea8d042a32247724570d1dd64d95f857f0bb5bb67d035996e9e8ae8c"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-generated-location-probe.mjs",
+    "archivePath": "tmp/dsh-esbuild-generated-location-probe.mjs",
+    "bytes": 4324,
+    "sha256": "9261fb9133b5c3a7c6271f7854abd10b67006cc294828f1a16583a92315401e6"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-generated-location-reconstruct.py",
+    "archivePath": "tmp/dsh-esbuild-generated-location-reconstruct.py",
+    "bytes": 1632,
+    "sha256": "42ad58b5f11663ad076e261f6b15841c46ead3a25287cf3b1c7856b73532636a"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-generated-location-upstream-maps-final.log",
+    "archivePath": "tmp/dsh-esbuild-generated-location-upstream-maps-final.log",
+    "bytes": 29,
+    "sha256": "e6a273a33be3292cf17ffc3e240508fdc33cbb076bf35c57f8a58505b7d7723d"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-generated-location-upstream-maps.log",
+    "archivePath": "tmp/dsh-esbuild-generated-location-upstream-maps.log",
+    "bytes": 3034,
+    "sha256": "85ad56270f8ec151a1cf7a93b1aba3027d5c3f21eb9d5d7889bf5f9981709eac"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-generated-location-vet.log",
+    "archivePath": "tmp/dsh-esbuild-generated-location-vet.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-latest-metadata.json",
+    "archivePath": "tmp/dsh-esbuild-latest-metadata.json",
+    "bytes": 5022,
+    "sha256": "7a6838097b106ef5d8877fd543a1e25c46e5eb1730945fb7e57bc467c12c7c8c"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-map-validation-install.log",
+    "archivePath": "tmp/dsh-esbuild-map-validation-install.log",
+    "bytes": 26,
+    "sha256": "5e1306f495c3a3b485377a83e48ae56cac9d5c9c606ab2ef0e9ba07ff1a7bb66"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-name-lines-before.log",
+    "archivePath": "tmp/dsh-esbuild-name-lines-before.log",
+    "bytes": 2588,
+    "sha256": "aa20d22542996925d6bbf36673ba49aeefaee8416ecc210119d77ae1cb35caa5"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-name-lines-cjs-false-false.json",
+    "archivePath": "tmp/dsh-esbuild-name-lines-cjs-false-false.json",
+    "bytes": 6092,
+    "sha256": "64a6022a3545b26707c35a7199179080434b0fa62715c850367b8bcda6eca8ee"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-name-lines-cjs-false-true.json",
+    "archivePath": "tmp/dsh-esbuild-name-lines-cjs-false-true.json",
+    "bytes": 6906,
+    "sha256": "89b2d10ab9d017f9907d012f59bbf03100578365f555d861177ef42e0345684a"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-name-lines-cjs-true-false.json",
+    "archivePath": "tmp/dsh-esbuild-name-lines-cjs-true-false.json",
+    "bytes": 5558,
+    "sha256": "0b52521750479186d9b662a5018f97b0481c0810f1a4b95b343fb2a1c5b54d3f"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-name-lines-cjs-true-true.json",
+    "archivePath": "tmp/dsh-esbuild-name-lines-cjs-true-true.json",
+    "bytes": 6327,
+    "sha256": "e7d9bbf80ebf7b0839195bb88cf48e70e609a8c2cb5ba0fde4e44a6bb556b25e"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-name-lines-esm-false-false.json",
+    "archivePath": "tmp/dsh-esbuild-name-lines-esm-false-false.json",
+    "bytes": 3231,
+    "sha256": "59dc38f8e585db505876642a10e9ae6d9a5ad55dcdfc543e9ef864cf29bb0f62"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-name-lines-esm-false-true.json",
+    "archivePath": "tmp/dsh-esbuild-name-lines-esm-false-true.json",
+    "bytes": 4087,
+    "sha256": "b0df779213ec067aed331451009932fafc3db6be85d3555eecef0adcd3a10d53"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-name-lines-esm-true-false.json",
+    "archivePath": "tmp/dsh-esbuild-name-lines-esm-true-false.json",
+    "bytes": 3214,
+    "sha256": "f3052a0020dcc628eb96a7422e59643661fcdc03318b996d232634d38e3b0285"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-name-lines-esm-true-true.json",
+    "archivePath": "tmp/dsh-esbuild-name-lines-esm-true-true.json",
+    "bytes": 4015,
+    "sha256": "c95a2a51627c55430eabc3f9f653897e0956b04773c2bb11b364b8843bc5b86a"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-name-lines.mjs",
+    "archivePath": "tmp/dsh-esbuild-name-lines.mjs",
+    "bytes": 3659,
+    "sha256": "509a55782619d85fcb76b9e3cc95c34d2fe6b49136061b52c1d0cb5e8d72d077"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-official-build.log",
+    "archivePath": "tmp/dsh-esbuild-official-build.log",
+    "bytes": 68,
+    "sha256": "a7203fb4939ed051f2317efd594c0ebee670f75e8a24f6d21a6825be825b6c06"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-pack-candidate.log",
+    "archivePath": "tmp/dsh-esbuild-pack-candidate.log",
+    "bytes": 1421,
+    "sha256": "c7ab04961bbbeb28e01c1919c7f0de9c4e056a56391bd8971b350c0a01b9f0da"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-pack-candidate.py",
+    "archivePath": "tmp/dsh-esbuild-pack-candidate.py",
+    "bytes": 2585,
+    "sha256": "2ed9174336b3d9b9cd9586408e7d134eda26fe809924da78d33214dbc11e5f6c"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-packed-platforms.json",
+    "archivePath": "tmp/dsh-esbuild-packed-platforms.json",
+    "bytes": 14581,
+    "sha256": "6a4e3bf6abb3aeab801eb7090096c7dba3ea4193f1896b2efbf49eab3c6fb832"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-platform-aix-ppc64.log",
+    "archivePath": "tmp/dsh-esbuild-platform-aix-ppc64.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-platform-android-arm64.log",
+    "archivePath": "tmp/dsh-esbuild-platform-android-arm64.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-platform-build.json",
+    "archivePath": "tmp/dsh-esbuild-platform-build.json",
+    "bytes": 13692,
+    "sha256": "66e5b23c8c880ac64bac4bbea2f74c4b81297f669794f3c665d540bc3bce5899"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-platform-build.log",
+    "archivePath": "tmp/dsh-esbuild-platform-build.log",
+    "bytes": 760,
+    "sha256": "1ba3b90d40a59f2e428e4f36c87a743b4e684c1b02d7c792a1c1d318b90b5111"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-platform-build.py",
+    "archivePath": "tmp/dsh-esbuild-platform-build.py",
+    "bytes": 2158,
+    "sha256": "d959aabd13bc083599c27e3ebb95cd0c55e6ef705dd61d8dd602c2d04e41b496"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-platform-darwin-arm64.log",
+    "archivePath": "tmp/dsh-esbuild-platform-darwin-arm64.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-platform-darwin-x64.log",
+    "archivePath": "tmp/dsh-esbuild-platform-darwin-x64.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-platform-freebsd-arm64.log",
+    "archivePath": "tmp/dsh-esbuild-platform-freebsd-arm64.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-platform-freebsd-x64.log",
+    "archivePath": "tmp/dsh-esbuild-platform-freebsd-x64.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-platform-linux-arm.log",
+    "archivePath": "tmp/dsh-esbuild-platform-linux-arm.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-platform-linux-arm64.log",
+    "archivePath": "tmp/dsh-esbuild-platform-linux-arm64.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-platform-linux-ia32.log",
+    "archivePath": "tmp/dsh-esbuild-platform-linux-ia32.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-platform-linux-loong64.log",
+    "archivePath": "tmp/dsh-esbuild-platform-linux-loong64.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-platform-linux-mips64el.log",
+    "archivePath": "tmp/dsh-esbuild-platform-linux-mips64el.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-platform-linux-ppc64.log",
+    "archivePath": "tmp/dsh-esbuild-platform-linux-ppc64.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-platform-linux-riscv64.log",
+    "archivePath": "tmp/dsh-esbuild-platform-linux-riscv64.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-platform-linux-s390x.log",
+    "archivePath": "tmp/dsh-esbuild-platform-linux-s390x.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-platform-linux-x64.log",
+    "archivePath": "tmp/dsh-esbuild-platform-linux-x64.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-platform-netbsd-arm64.log",
+    "archivePath": "tmp/dsh-esbuild-platform-netbsd-arm64.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-platform-netbsd-x64.log",
+    "archivePath": "tmp/dsh-esbuild-platform-netbsd-x64.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-platform-openbsd-arm64.log",
+    "archivePath": "tmp/dsh-esbuild-platform-openbsd-arm64.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-platform-openbsd-x64.log",
+    "archivePath": "tmp/dsh-esbuild-platform-openbsd-x64.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-platform-sunos-x64.log",
+    "archivePath": "tmp/dsh-esbuild-platform-sunos-x64.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-platform-wasm.log",
+    "archivePath": "tmp/dsh-esbuild-platform-wasm.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-platform-win32-arm64.log",
+    "archivePath": "tmp/dsh-esbuild-platform-win32-arm64.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-platform-win32-ia32.log",
+    "archivePath": "tmp/dsh-esbuild-platform-win32-ia32.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-platform-win32-x64.log",
+    "archivePath": "tmp/dsh-esbuild-platform-win32-x64.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-unmapped-go-tests-final.log",
+    "archivePath": "tmp/dsh-esbuild-unmapped-go-tests-final.log",
+    "bytes": 56,
+    "sha256": "a0ceb0904b1bc2ce3b1777a8e48a5b63dcb1ac0519b5ac35fe5f998c7bf372c5"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-unmapped-go-tests.log",
+    "archivePath": "tmp/dsh-esbuild-unmapped-go-tests.log",
+    "bytes": 1652,
+    "sha256": "c502aa797ad780f1193db2120dec5aae0bd52d6712fd18a2d5be947e746c8bf7"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-unmapped-official-boundary.log",
+    "archivePath": "tmp/dsh-esbuild-unmapped-official-boundary.log",
+    "bytes": 782,
+    "sha256": "5c9bb026fa0239d306a24b526669c1f0a0b17077a688e804d4a0c319187d1d28"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-unmapped-official-location.log",
+    "archivePath": "tmp/dsh-esbuild-unmapped-official-location.log",
+    "bytes": 1395,
+    "sha256": "849485414cddc54bae7c4d7460008dce7d69ea243b1df50e452a2b7c167fdf06"
+  },
+  {
+    "originalPath": "/tmp/dsh-esbuild-upstream-fixtures-install.log",
+    "archivePath": "tmp/dsh-esbuild-upstream-fixtures-install.log",
+    "bytes": 164,
+    "sha256": "64b44c492bb5b6f79ef5cfa6f0fb572aa487c48a18d3f098cf3e64675bfa8142"
+  },
+  {
+    "originalPath": "/tmp/dsh-framework-logical-final-lint.log",
+    "archivePath": "tmp/dsh-framework-logical-final-lint.log",
+    "bytes": 268,
+    "sha256": "38730d7626d319465ec17589709a2a47e32c7b190ae6697e54d4d3cab18669e9"
+  },
+  {
+    "originalPath": "/tmp/dsh-framework-logical-final-tests.log",
+    "archivePath": "tmp/dsh-framework-logical-final-tests.log",
+    "bytes": 2828,
+    "sha256": "500a6e0d26536191a9c67cbd7237c1a1bc786b489625fe09738a24eca6cfba71"
+  },
+  {
+    "originalPath": "/tmp/dsh-framework-logical-final-types.log",
+    "archivePath": "tmp/dsh-framework-logical-final-types.log",
+    "bytes": 15,
+    "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92"
+  },
+  {
+    "originalPath": "/tmp/dsh-framework-logical-frozen-build.log",
+    "archivePath": "tmp/dsh-framework-logical-frozen-build.log",
+    "bytes": 931,
+    "sha256": "b97cc0400c78f28e5da8c7d3c61c4faa633359980180f9b1ed0155dc6c562038"
+  },
+  {
+    "originalPath": "/tmp/dsh-framework-logical-frozen-install.log",
+    "archivePath": "tmp/dsh-framework-logical-frozen-install.log",
+    "bytes": 2124,
+    "sha256": "e0c76be823eb5fd8c0e370f6813c1ce9f73d92e6009c8fa8a5cfbfc90a746cc9"
+  },
+  {
+    "originalPath": "/tmp/dsh-framework-logical-frozen-location.json",
+    "archivePath": "tmp/dsh-framework-logical-frozen-location.json",
+    "bytes": 4429,
+    "sha256": "b158f9d562a8f04ec5a56e4a2e9e01002af3b916ce260d3120b5490bba085c62"
+  },
+  {
+    "originalPath": "/tmp/dsh-framework-logical-frozen-tests.log",
+    "archivePath": "tmp/dsh-framework-logical-frozen-tests.log",
+    "bytes": 5129,
+    "sha256": "0f7d4c3cd38a6ae08724d4e8677d6ca2360737c285a36dbc837df27d23a7c1ce"
+  },
+  {
+    "originalPath": "/tmp/dsh-framework-logical-frozen-types.log",
+    "archivePath": "tmp/dsh-framework-logical-frozen-types.log",
+    "bytes": 15,
+    "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92"
+  },
+  {
+    "originalPath": "/tmp/dsh-framework-logical-reconstruct.py",
+    "archivePath": "tmp/dsh-framework-logical-reconstruct.py",
+    "bytes": 2132,
+    "sha256": "73768750dad0927f3533e564e0c73ed790ade94a493efd83b055ca77aa2c3885"
+  },
+  {
+    "originalPath": "/tmp/dsh-istanbul-baseline-build.log",
+    "archivePath": "tmp/dsh-istanbul-baseline-build.log",
+    "bytes": 10767,
+    "sha256": "776a0afb61097354f785766f9152f599199b6f8fda664eb1a7385aa8f7b8ee40"
+  },
+  {
+    "originalPath": "/tmp/dsh-istanbul-consumer-install.log",
+    "archivePath": "tmp/dsh-istanbul-consumer-install.log",
+    "bytes": 550,
+    "sha256": "79d5e4b4101e20852e0a34081665e7b3f1b7054db96be4bd7dfc0ec558c8e878"
+  },
+  {
+    "originalPath": "/tmp/dsh-istanbul-consumer-negative.log",
+    "archivePath": "tmp/dsh-istanbul-consumer-negative.log",
+    "bytes": 393,
+    "sha256": "29db13c3c635d81e62a8caa92b5652f0f1050b91a628551dbae72c9d56d4e805"
+  },
+  {
+    "originalPath": "/tmp/dsh-istanbul-consumer-runtime.log",
+    "archivePath": "tmp/dsh-istanbul-consumer-runtime.log",
+    "bytes": 128,
+    "sha256": "b3a9d94bf164cddab8e125882c94202603788aa93ea8b83da767b630a8962791"
+  },
+  {
+    "originalPath": "/tmp/dsh-istanbul-consumer-types.log",
+    "archivePath": "tmp/dsh-istanbul-consumer-types.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-istanbul-current-install.log",
+    "archivePath": "tmp/dsh-istanbul-current-install.log",
+    "bytes": 3662,
+    "sha256": "6a010585b1e7e28e821702453864b3b8d6d4b9272a0160a4179d96a370e5bdb4"
+  },
+  {
+    "originalPath": "/tmp/dsh-istanbul-declaration-build.log",
+    "archivePath": "tmp/dsh-istanbul-declaration-build.log",
+    "bytes": 11006,
+    "sha256": "3d26bc14fd7800009a140aaf59a5425fac8bec33c7765a603811a7bb88928913"
+  },
+  {
+    "originalPath": "/tmp/dsh-istanbul-declaration-complete-tests.log",
+    "archivePath": "tmp/dsh-istanbul-declaration-complete-tests.log",
+    "bytes": 4638,
+    "sha256": "62cbe4056c65a4e5b14661c051747a2b7173f95c1361ce8a91fc554e13dcd4c3"
+  },
+  {
+    "originalPath": "/tmp/dsh-istanbul-declaration-dependency.log",
+    "archivePath": "tmp/dsh-istanbul-declaration-dependency.log",
+    "bytes": 253,
+    "sha256": "f4f51db96638955b2629ea0216b60db04f043110bf6682301fef6486b554f82a"
+  },
+  {
+    "originalPath": "/tmp/dsh-istanbul-declaration-lint.log",
+    "archivePath": "tmp/dsh-istanbul-declaration-lint.log",
+    "bytes": 9,
+    "sha256": "fe82195262b09727902d8ea57ceb3e12a09e5df0c6f26157db77f5c51b45d9f5"
+  },
+  {
+    "originalPath": "/tmp/dsh-istanbul-declaration-pack.log",
+    "archivePath": "tmp/dsh-istanbul-declaration-pack.log",
+    "bytes": 223,
+    "sha256": "40157d53add717cd5649195c705469c53aa43c0dcefe92253656c29a27f110b6"
+  },
+  {
+    "originalPath": "/tmp/dsh-istanbul-declaration-types.log",
+    "archivePath": "tmp/dsh-istanbul-declaration-types.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-istanbul-frozen-build.log",
+    "archivePath": "tmp/dsh-istanbul-frozen-build.log",
+    "bytes": 11163,
+    "sha256": "d9b3de702e875b600382a8d3c9f8e6be626e0c2c107d38e0928da80f45430bf2"
+  },
+  {
+    "originalPath": "/tmp/dsh-istanbul-frozen-install.log",
+    "archivePath": "tmp/dsh-istanbul-frozen-install.log",
+    "bytes": 1259,
+    "sha256": "e5b10a6886589de3ddc6af4f5d82d7a84826022abcb306427af9b05552eca912"
+  },
+  {
+    "originalPath": "/tmp/dsh-istanbul-frozen-location.json",
+    "archivePath": "tmp/dsh-istanbul-frozen-location.json",
+    "bytes": 344,
+    "sha256": "574da2e373b04e900e79ae5ec2cb522c639b58364a8e9a5995a8cde81a099a2b"
+  },
+  {
+    "originalPath": "/tmp/dsh-istanbul-frozen-tests.log",
+    "archivePath": "tmp/dsh-istanbul-frozen-tests.log",
+    "bytes": 5311,
+    "sha256": "486e79d55729a81d1fd515f621b2c31de3f871183d9b13e56e2ceab2b89bdd93"
+  },
+  {
+    "originalPath": "/tmp/dsh-istanbul-frozen-types.log",
+    "archivePath": "tmp/dsh-istanbul-frozen-types.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-istanbul-instrument-attestation.json",
+    "archivePath": "tmp/dsh-istanbul-instrument-attestation.json",
+    "bytes": 15094,
+    "sha256": "ad6ca06590d9cef8cd902269cc868b4a2ce4672e260b6a118df77614ee945dfe"
+  },
+  {
+    "originalPath": "/tmp/dsh-istanbul-instrument-provenance.json",
+    "archivePath": "tmp/dsh-istanbul-instrument-provenance.json",
+    "bytes": 1437,
+    "sha256": "1c311acd505d837287ffd4db344068b8002daa058cd3c04787870c90c65ecd86"
+  },
+  {
+    "originalPath": "/tmp/dsh-istanbul-instrument-registry.json",
+    "archivePath": "tmp/dsh-istanbul-instrument-registry.json",
+    "bytes": 825,
+    "sha256": "2a8bd38f4dd34cd0a6eb5256d4cf83f7e147aca72062ddd5b148ef95910af220"
+  },
+  {
+    "originalPath": "/tmp/dsh-istanbul-source-changes.json",
+    "archivePath": "tmp/dsh-istanbul-source-changes.json",
+    "bytes": 1151,
+    "sha256": "3f89079fc91a7614f41ec6472056e28011427982ec216843d543980a85a9bcf2"
+  },
+  {
+    "originalPath": "/tmp/dsh-local-pkg-build-install.log",
+    "archivePath": "tmp/dsh-local-pkg-build-install.log",
+    "bytes": 299,
+    "sha256": "ba6a3de9bd282e44969493a5aa90c8803c87d9f6ff5c017dfa89131c6e19107c"
+  },
+  {
+    "originalPath": "/tmp/dsh-local-pkg-consumer-compile.log",
+    "archivePath": "tmp/dsh-local-pkg-consumer-compile.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-local-pkg-consumer-install.log",
+    "archivePath": "tmp/dsh-local-pkg-consumer-install.log",
+    "bytes": 234,
+    "sha256": "630ff5ecc268508fb02e40bc518d757fc0e57dacbb043915908a167545b063b1"
+  },
+  {
+    "originalPath": "/tmp/dsh-local-pkg-consumer-negative.log",
+    "archivePath": "tmp/dsh-local-pkg-consumer-negative.log",
+    "bytes": 216,
+    "sha256": "68481ef7f4978eeb87a282a83ee16053d4e1bae77bb3a8a43286478616ebf2b1"
+  },
+  {
+    "originalPath": "/tmp/dsh-local-pkg-consumer-runtime.log",
+    "archivePath": "tmp/dsh-local-pkg-consumer-runtime.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-local-pkg-final-build.log",
+    "archivePath": "tmp/dsh-local-pkg-final-build.log",
+    "bytes": 452,
+    "sha256": "4f5f723af815604cdaa0b4154fb9b100f52ad8b6732350bdf5e49c68e6d0142c"
+  },
+  {
+    "originalPath": "/tmp/dsh-local-pkg-final-tests.log",
+    "archivePath": "tmp/dsh-local-pkg-final-tests.log",
+    "bytes": 285,
+    "sha256": "801d0d7fb7764a9a2808c56aa1737043ea459caf89d5b58998264fd5c3d6634a"
+  },
+  {
+    "originalPath": "/tmp/dsh-local-pkg-frozen-build.log",
+    "archivePath": "tmp/dsh-local-pkg-frozen-build.log",
+    "bytes": 461,
+    "sha256": "780722749e3f80b46625de7e9d53e190fcd02e56ba9ccb6db9f682c45d688eed"
+  },
+  {
+    "originalPath": "/tmp/dsh-local-pkg-frozen-copy.json",
+    "archivePath": "tmp/dsh-local-pkg-frozen-copy.json",
+    "bytes": 51,
+    "sha256": "6c1574132f5436791a53914a39dd973439baa23789bed12357a83f6304d0dbbf"
+  },
+  {
+    "originalPath": "/tmp/dsh-local-pkg-frozen-install.log",
+    "archivePath": "tmp/dsh-local-pkg-frozen-install.log",
+    "bytes": 394,
+    "sha256": "63bb90beb165e4beb4824aa4f4b62226306214d84d3de7a6cd031319eb88a646"
+  },
+  {
+    "originalPath": "/tmp/dsh-local-pkg-frozen-tests.log",
+    "archivePath": "tmp/dsh-local-pkg-frozen-tests.log",
+    "bytes": 294,
+    "sha256": "52c0d10fd73eecdd7c66e616e5400f5b095c4b0746297b391b5e2258947c0fe9"
+  },
+  {
+    "originalPath": "/tmp/dsh-local-pkg-install.log",
+    "archivePath": "tmp/dsh-local-pkg-install.log",
+    "bytes": 654,
+    "sha256": "dae8ca067405ebc182e0aba511f6d82c7fbc3bc50c7b5f57cb0b9c7649183e69"
+  },
+  {
+    "originalPath": "/tmp/dsh-local-pkg-native-compile.log",
+    "archivePath": "tmp/dsh-local-pkg-native-compile.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-local-pkg-pack.log",
+    "archivePath": "tmp/dsh-local-pkg-pack.log",
+    "bytes": 393,
+    "sha256": "5586abacc7606cf3348a1c516a7aa505e98c0ef7be8b422fbbecb307da409fde"
+  },
+  {
+    "originalPath": "/tmp/dsh-local-pkg-rebuild.log",
+    "archivePath": "tmp/dsh-local-pkg-rebuild.log",
+    "bytes": 786,
+    "sha256": "acc6e57b2f6e3f5c40b75f1655ca968cbd291ae41a24fc7eed96d9f7ab6c1f01"
+  },
+  {
+    "originalPath": "/tmp/dsh-local-pkg-source-tests.log",
+    "archivePath": "tmp/dsh-local-pkg-source-tests.log",
+    "bytes": 285,
+    "sha256": "34b0437937f9e771af82d2dc8ab556e288c3a0da4139e25710542011b07182cd"
+  },
+  {
+    "originalPath": "/tmp/dsh-local-pkg-tsdown-build.log",
+    "archivePath": "tmp/dsh-local-pkg-tsdown-build.log",
+    "bytes": 1258,
+    "sha256": "31099261e123be201d958ebf0deb809f3627cb337a5dbf88c1911e7cb9c9fb4a"
+  },
+  {
+    "originalPath": "/tmp/dsh-local-pkg-tsdown-install.log",
+    "archivePath": "tmp/dsh-local-pkg-tsdown-install.log",
+    "bytes": 187,
+    "sha256": "23333626914da5c1235c38524ecd36b95b98ab87baab895ec8e9068e1e79c336"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-artifact-consumer.mjs",
+    "archivePath": "tmp/dsh-mocker-artifact-consumer.mjs",
+    "bytes": 2057,
+    "sha256": "7aba956ed2a5c588d5f8be6d0542c04d3b040792736e4bae79d37c0d43bd5e99"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-automock-inputs.json",
+    "archivePath": "tmp/dsh-mocker-browser-automock-inputs.json",
+    "bytes": 899,
+    "sha256": "f403970ab7b5e1528312d8c9a5fe345a835ae3ea630e6fdcb3e12417bdccb9d7"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-before.log",
+    "archivePath": "tmp/dsh-mocker-browser-before.log",
+    "bytes": 862,
+    "sha256": "e1a58ddd98843dafd9c74e0d22781e9cd71cfd03b370cf770fee7c83c03bee3b"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-byte-identity.json",
+    "archivePath": "tmp/dsh-mocker-browser-byte-identity.json",
+    "bytes": 2810,
+    "sha256": "80bfcd229aa21a93aa3e6bb1029b4da19c9e4bed4fb067538f81aa7ec3f55140"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-consumer-install.log",
+    "archivePath": "tmp/dsh-mocker-browser-consumer-install.log",
+    "bytes": 410,
+    "sha256": "f8438effb10d4ecc4c928c71b753f88eb7497834c9d7468184a9a20fbdd5d4fb"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-consumer-invalid-types.log",
+    "archivePath": "tmp/dsh-mocker-browser-consumer-invalid-types.log",
+    "bytes": 214,
+    "sha256": "c35a775684d48bfd8f67746ecaae78f397dfa0be244a58ac29f249088c537dc9"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-consumer-types.log",
+    "archivePath": "tmp/dsh-mocker-browser-consumer-types.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-frozen-build.log",
+    "archivePath": "tmp/dsh-mocker-browser-frozen-build.log",
+    "bytes": 2333,
+    "sha256": "a1a5cc2145375db8878f7bd30b8db355134e1d5bd3eb7fcc16524290ae4f4708"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-frozen-install.log",
+    "archivePath": "tmp/dsh-mocker-browser-frozen-install.log",
+    "bytes": 5354,
+    "sha256": "6782d284ddab698f21d96795672a548531cdf39f98b9e251c95d5dcf1c3eaf26"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-frozen-location.json",
+    "archivePath": "tmp/dsh-mocker-browser-frozen-location.json",
+    "bytes": 4964,
+    "sha256": "74bd4d0b6b27424827a83eb61b6dba6150357277f7240b375b96b15f7840b309"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-frozen-types.log",
+    "archivePath": "tmp/dsh-mocker-browser-frozen-types.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-full-types.log",
+    "archivePath": "tmp/dsh-mocker-browser-full-types.log",
+    "bytes": 11777,
+    "sha256": "d9714561c90fc1cb0392c2db33487a28b50b5e62bbcbc69130353510cfc48faf"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-node-repaired.log",
+    "archivePath": "tmp/dsh-mocker-browser-node-repaired.log",
+    "bytes": 309,
+    "sha256": "936d191e70278c2d2029e8731ffa815f24571ffcdaa5a2ce5b16cff63d6f2c3f"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-pack.log",
+    "archivePath": "tmp/dsh-mocker-browser-pack.log",
+    "bytes": 771,
+    "sha256": "68350199547e1c811c71b10c221d02eb04600d8a77341a111e532c03c230f12a"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-query-build.log",
+    "archivePath": "tmp/dsh-mocker-browser-query-build.log",
+    "bytes": 2295,
+    "sha256": "ad2f533e16a051591a3b49bf245c7848721308667e5507af7bc845d2372a5f89"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-query-install.log",
+    "archivePath": "tmp/dsh-mocker-browser-query-install.log",
+    "bytes": 524,
+    "sha256": "4a0471d573b8fe396b1d1331fb47c6d1ff7c5cdfbac1c62b9cc38951f398df1d"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-query-pack.log",
+    "archivePath": "tmp/dsh-mocker-browser-query-pack.log",
+    "bytes": 777,
+    "sha256": "cf062a1de6832311f1069b3c946d082ad1dfda574390664d640e3e003f0b3aac"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-query-runtime.log",
+    "archivePath": "tmp/dsh-mocker-browser-query-runtime.log",
+    "bytes": 982,
+    "sha256": "86108baf6a5bee5b70031adc7be716b585648589f86d020876937eb9b457498d"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-reconstruct.py",
+    "archivePath": "tmp/dsh-mocker-browser-reconstruct.py",
+    "bytes": 2790,
+    "sha256": "6addc32b50c2658e30a5d6e52c7533dea948feb20cbe0c559f4f4787029662cd"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-repair-build.log",
+    "archivePath": "tmp/dsh-mocker-browser-repair-build.log",
+    "bytes": 2296,
+    "sha256": "9f05331f98b43e8664c2463141ba959510ad28305728e1088e54f9fc2f1ef397"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-repair-install.log",
+    "archivePath": "tmp/dsh-mocker-browser-repair-install.log",
+    "bytes": 742,
+    "sha256": "92101ed3a641f9672adbcc08070493afb0ffdc0b891056138a3733c95a922fe4"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-repaired-first.log",
+    "archivePath": "tmp/dsh-mocker-browser-repaired-first.log",
+    "bytes": 1105,
+    "sha256": "09f610b5957cedaff4948162dadea38cb0686dd0eb374aaf896223824a3080da"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-resolver-build.log",
+    "archivePath": "tmp/dsh-mocker-browser-resolver-build.log",
+    "bytes": 2295,
+    "sha256": "0ac19006c44a44c54d113433d19c26005d143dc94b5f173bb61be493eee5ef0d"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-resolver-install.log",
+    "archivePath": "tmp/dsh-mocker-browser-resolver-install.log",
+    "bytes": 518,
+    "sha256": "94b62afedc2b338b31b1b6558d5826527a4bcc6a409ff35c4468f8408e0cb925"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-resolver-pack.log",
+    "archivePath": "tmp/dsh-mocker-browser-resolver-pack.log",
+    "bytes": 780,
+    "sha256": "541daef35feaa445a88d166ddd992babcf31c27d6c9670bb31cddc4141c689f3"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-resolver-runtime.log",
+    "archivePath": "tmp/dsh-mocker-browser-resolver-runtime.log",
+    "bytes": 307,
+    "sha256": "9d701548b3f7c3afe1214f921dc2224499c5b0bec26cc70053c8c77962bb35ea"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-rpc-build.log",
+    "archivePath": "tmp/dsh-mocker-browser-rpc-build.log",
+    "bytes": 2295,
+    "sha256": "b29fba795f171a7aaab00dc32dd81c99eb1d7628f5ac1a15c96772aec136a266"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-rpc-install.log",
+    "archivePath": "tmp/dsh-mocker-browser-rpc-install.log",
+    "bytes": 519,
+    "sha256": "207f364e0de11f93daefb766a410b078a02a5871f68d2ea670098fb5d5744683"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-rpc-pack.log",
+    "archivePath": "tmp/dsh-mocker-browser-rpc-pack.log",
+    "bytes": 775,
+    "sha256": "92cfa3ff5906d8d089c78c1b0d4516c920de117a8daccec9292d5efb2ff3f41a"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-rpc-runtime.log",
+    "archivePath": "tmp/dsh-mocker-browser-rpc-runtime.log",
+    "bytes": 1332,
+    "sha256": "278105fcb1991033dd272653333cf76eb4dc1a3ccada1966738f658fabd9c85a"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-source-types.log",
+    "archivePath": "tmp/dsh-mocker-browser-source-types.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-transform-build.log",
+    "archivePath": "tmp/dsh-mocker-browser-transform-build.log",
+    "bytes": 2296,
+    "sha256": "f5570938c6f6dd31f268b5bd2fc5ba2b67978411ce1c571fa41711c8cf573799"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-transform-install.log",
+    "archivePath": "tmp/dsh-mocker-browser-transform-install.log",
+    "bytes": 512,
+    "sha256": "704626b1e68306c1ee5e47c1d401d2303ed0c1a85ca6b8f149d27ed4a1bdbd2f"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-transform-pack.log",
+    "archivePath": "tmp/dsh-mocker-browser-transform-pack.log",
+    "bytes": 781,
+    "sha256": "50cd6388709c8ebd6237977ea181b08febbe1de6cf18822ae011f1ad72000649"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-browser-transform-runtime.log",
+    "archivePath": "tmp/dsh-mocker-browser-transform-runtime.log",
+    "bytes": 1211,
+    "sha256": "ccdd04b86c4aa18da2647c9c4da734080300d35dfab5413b35e11deed3f77335"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-build-byte-identity.json",
+    "archivePath": "tmp/dsh-mocker-build-byte-identity.json",
+    "bytes": 2789,
+    "sha256": "1a08c550ad34ad76f7c59d410be1a4afc57a2781871682380eed63ff02548217"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-consumer-install-reviewed.log",
+    "archivePath": "tmp/dsh-mocker-consumer-install-reviewed.log",
+    "bytes": 309,
+    "sha256": "4dffc80db46401ac9ac8e7801d9f4cd820c588c0c86fa14ed1fa609c93d19167"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-consumer-install.log",
+    "archivePath": "tmp/dsh-mocker-consumer-install.log",
+    "bytes": 1081,
+    "sha256": "ad927c22ec4483d0bc6bb8c5c7ef8388b08ee126e00e765f7e05c15caa9f2595"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-consumer-invalid-types.log",
+    "archivePath": "tmp/dsh-mocker-consumer-invalid-types.log",
+    "bytes": 214,
+    "sha256": "c35a775684d48bfd8f67746ecaae78f397dfa0be244a58ac29f249088c537dc9"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-consumer-runtime.log",
+    "archivePath": "tmp/dsh-mocker-consumer-runtime.log",
+    "bytes": 1369,
+    "sha256": "06c50a77fccffdddbf6f6b7f63e02f734e0e06684adf3abb3ca5578049f315b3"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-consumer-types.log",
+    "archivePath": "tmp/dsh-mocker-consumer-types.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-frozen-build.log",
+    "archivePath": "tmp/dsh-mocker-frozen-build.log",
+    "bytes": 2325,
+    "sha256": "e17fc4178735c158236c8a909e9a2f81e9ec9f6b3c52732e64d2ce55a8ceb921"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-frozen-install.log",
+    "archivePath": "tmp/dsh-mocker-frozen-install.log",
+    "bytes": 6971,
+    "sha256": "40a5770eb82a47796001975ab84f2b914be65f5307376dba1a9a18890d84a0b1"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-frozen-location.json",
+    "archivePath": "tmp/dsh-mocker-frozen-location.json",
+    "bytes": 4010,
+    "sha256": "340534b55ab57f436bb8a72521feaae3f5b3d0391c66b7a6f608989cbd4ecf88"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-frozen-types.log",
+    "archivePath": "tmp/dsh-mocker-frozen-types.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-full-types.log",
+    "archivePath": "tmp/dsh-mocker-full-types.log",
+    "bytes": 11777,
+    "sha256": "d9714561c90fc1cb0392c2db33487a28b50b5e62bbcbc69130353510cfc48faf"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-modern-build-corrected.log",
+    "archivePath": "tmp/dsh-mocker-modern-build-corrected.log",
+    "bytes": 2594,
+    "sha256": "c38b8fa0ac2c2f87ac7244760ec24bad1614214e309a35a818256dfd08fb5b9f"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-modern-build-final.log",
+    "archivePath": "tmp/dsh-mocker-modern-build-final.log",
+    "bytes": 2294,
+    "sha256": "954e7209475fd9c7b7b61dc0d19a26eccd87ff5e559e37eade9d4d50fcf8afda"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-modern-build-first.log",
+    "archivePath": "tmp/dsh-mocker-modern-build-first.log",
+    "bytes": 3007,
+    "sha256": "b3ecc679205353dbfa3418e00115236476343e2245c72478ffe95aec034f8520"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-modern-build-install.log",
+    "archivePath": "tmp/dsh-mocker-modern-build-install.log",
+    "bytes": 1558,
+    "sha256": "4d7ccb51814f85c6f3dc822808858f9936615ec2830a65700862883dd09b03f2"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-modern-node-repaired.log",
+    "archivePath": "tmp/dsh-mocker-modern-node-repaired.log",
+    "bytes": 308,
+    "sha256": "4ce4c5c7ff1c231e2f360bb5c66a61d7707aaeb969425ca32e599409d6362097"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-modern-pack.log",
+    "archivePath": "tmp/dsh-mocker-modern-pack.log",
+    "bytes": 762,
+    "sha256": "ec4d7844104ce135511ed613864bb32f85f89ee686bdd8589114d4491752c7bc"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-public-browser-automock-tests.log",
+    "archivePath": "tmp/dsh-mocker-public-browser-automock-tests.log",
+    "bytes": 190,
+    "sha256": "f14cf7d9bca229c80009c92b342ce5bc72ae5cff109daf2aed5f9951034c93e9"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-public-browser-diagnostics-tests.log",
+    "archivePath": "tmp/dsh-mocker-public-browser-diagnostics-tests.log",
+    "bytes": 190,
+    "sha256": "a0a6511e14904192984826aa2711a2b46f5bf5aeefab92fdddfdfb9a6778c1bb"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-public-browser-final.log",
+    "archivePath": "tmp/dsh-mocker-public-browser-final.log",
+    "bytes": 189,
+    "sha256": "f93f31729a38c1a969781b22d97e54931622df1e541b30d9744c77c46ba84bfc"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-public-browser-spy-control.log",
+    "archivePath": "tmp/dsh-mocker-public-browser-spy-control.log",
+    "bytes": 992,
+    "sha256": "a8f76149f378a8801fdd6d83277d9dc48f82e8b7ca537eb6a2e60f6495d1c8cc"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-public-browser-tests.log",
+    "archivePath": "tmp/dsh-mocker-public-browser-tests.log",
+    "bytes": 189,
+    "sha256": "4b3184459cabe4883713b6a81ff09817bdffb18f6967bed92e91fa46cf16fe73"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-public-consumer-install.log",
+    "archivePath": "tmp/dsh-mocker-public-consumer-install.log",
+    "bytes": 364,
+    "sha256": "a463e5e50691c225f55b10748b4217cc87bfd25bff3d27bc8f9e0d778d4dbd56"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-reconstruct.py",
+    "archivePath": "tmp/dsh-mocker-reconstruct.py",
+    "bytes": 2599,
+    "sha256": "2b3b3440750f9ef7c96c4a7d8b5f97ba346fccd06b97127853f65b59a9d46982"
+  },
+  {
+    "originalPath": "/tmp/dsh-mocker-source-strict-types.log",
+    "archivePath": "tmp/dsh-mocker-source-strict-types.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-native-toolchain-record.py",
+    "archivePath": "tmp/dsh-native-toolchain-record.py",
+    "bytes": 4815,
+    "sha256": "16853b4009a86314a1a518e0cbba40abc9b41c1587baa9c6f6145f5f7a5118f3"
+  },
+  {
+    "originalPath": "/tmp/dsh-native-typescript-after.log",
+    "archivePath": "tmp/dsh-native-typescript-after.log",
+    "bytes": 1671,
+    "sha256": "a4b2a24f69717feb6b64540dd7234551f5f23e51b3aa053e2aedfe64e2ffde03"
+  },
+  {
+    "originalPath": "/tmp/dsh-native-typescript-all-types-final.log",
+    "archivePath": "tmp/dsh-native-typescript-all-types-final.log",
+    "bytes": 11777,
+    "sha256": "d9714561c90fc1cb0392c2db33487a28b50b5e62bbcbc69130353510cfc48faf"
+  },
+  {
+    "originalPath": "/tmp/dsh-native-typescript-before.log",
+    "archivePath": "tmp/dsh-native-typescript-before.log",
+    "bytes": 5174,
+    "sha256": "038a876407d3be945fd872df2ae5ff773ace0f2684e0a72f5d9f4df2ca20a268"
+  },
+  {
+    "originalPath": "/tmp/dsh-native-typescript-combined.log",
+    "archivePath": "tmp/dsh-native-typescript-combined.log",
+    "bytes": 2180,
+    "sha256": "93ce634fa7fc34acc01cfc33ae88e376b37e3f830ff7a48527192869e105abc9"
+  },
+  {
+    "originalPath": "/tmp/dsh-native-typescript-final.log",
+    "archivePath": "tmp/dsh-native-typescript-final.log",
+    "bytes": 531,
+    "sha256": "ad214b03fcc0f4cdbfdb6a7796b300f6cc28b030cb9aed3e1809101f1c934795"
+  },
+  {
+    "originalPath": "/tmp/dsh-native-typescript-install.log",
+    "archivePath": "tmp/dsh-native-typescript-install.log",
+    "bytes": 1204,
+    "sha256": "431589d610c9ff462bb610f700e33d0d6afec0db4227c810a66db5ad4bb1ca18"
+  },
+  {
+    "originalPath": "/tmp/dsh-native-typescript-mapped.log",
+    "archivePath": "tmp/dsh-native-typescript-mapped.log",
+    "bytes": 528,
+    "sha256": "84a8de6cfd6a970f56c99173f88f453bcb7ae3506f822c8177e0c67a76a8a04e"
+  },
+  {
+    "originalPath": "/tmp/dsh-native-typescript-mocker-build.log",
+    "archivePath": "tmp/dsh-native-typescript-mocker-build.log",
+    "bytes": 1098,
+    "sha256": "34932101f1d7bcb67e5a4cad3ccf39b9c7a8ec27d0c07810d4cc26388b203979"
+  },
+  {
+    "originalPath": "/tmp/dsh-native-typescript-runtime-types-final.log",
+    "archivePath": "tmp/dsh-native-typescript-runtime-types-final.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-native-typescript-runtime-types.log",
+    "archivePath": "tmp/dsh-native-typescript-runtime-types.log",
+    "bytes": 629,
+    "sha256": "5a5fff3018a2017d273c6823548e7df64e21bd0283fee90c66654d6d355f2cba"
+  },
+  {
+    "originalPath": "/tmp/dsh-native-typescript-types.log",
+    "archivePath": "tmp/dsh-native-typescript-types.log",
+    "bytes": 12017,
+    "sha256": "c7d1b152de8ca102af97d2e905790feef17e6ea73f546b5d2a4a369d8cb49987"
+  },
+  {
+    "originalPath": "/tmp/dsh-native-typescript-vitest-build.log",
+    "archivePath": "tmp/dsh-native-typescript-vitest-build.log",
+    "bytes": 1575,
+    "sha256": "c06241c47c031c91ecac91344139831800a67af0a050e892c9690aa13f5af315"
+  },
+  {
+    "originalPath": "/tmp/dsh-node-package-json-after.log",
+    "archivePath": "tmp/dsh-node-package-json-after.log",
+    "bytes": 3887,
+    "sha256": "3d5ef1d8c3165bcfccc2738ccf96d7b722e1137bfc4ac64d567a845d1762fe36"
+  },
+  {
+    "originalPath": "/tmp/dsh-node-package-json-before.log",
+    "archivePath": "tmp/dsh-node-package-json-before.log",
+    "bytes": 6018,
+    "sha256": "5bc22d137866686d850bc66b4b602ff59aa62b56e28bc08e58da670128cf2f78"
+  },
+  {
+    "originalPath": "/tmp/dsh-node-package-json-build.log",
+    "archivePath": "tmp/dsh-node-package-json-build.log",
+    "bytes": 9959020,
+    "sha256": "20614283425e25d92926f4bffb0adf5b72770c7cc0450ffaeff5212ee977bfcd"
+  },
+  {
+    "originalPath": "/tmp/dsh-node-package-json-cache-after.log",
+    "archivePath": "tmp/dsh-node-package-json-cache-after.log",
+    "bytes": 167,
+    "sha256": "0644fce4bf0660338714d39e2d173bad6c5dcab8afbdff2029b6f993785fe75e"
+  },
+  {
+    "originalPath": "/tmp/dsh-node-package-json-configure.log",
+    "archivePath": "tmp/dsh-node-package-json-configure.log",
+    "bytes": 173,
+    "sha256": "64556da70c00c839bd8ab83f248ea0f88a8ef769526400284c271bf4f7969ae5"
+  },
+  {
+    "originalPath": "/tmp/dsh-node-package-json-existing-after.log",
+    "archivePath": "tmp/dsh-node-package-json-existing-after.log",
+    "bytes": 886,
+    "sha256": "c67efed245047bc172fd67c3c03325e894fbdc92be2e0609f8ce70fcd9d02958"
+  },
+  {
+    "originalPath": "/tmp/dsh-node-package-json-missing-after.log",
+    "archivePath": "tmp/dsh-node-package-json-missing-after.log",
+    "bytes": 631,
+    "sha256": "ec1643c2d28fcbff5c4f7e94438724d0c4c90ae954ac588ca66e740a3373641a"
+  },
+  {
+    "originalPath": "/tmp/dsh-node-package-json-native-runner.log",
+    "archivePath": "tmp/dsh-node-package-json-native-runner.log",
+    "bytes": 409,
+    "sha256": "ea396338847eda943202967926df8043664ac1662275ad870748f02cfbfede61"
+  },
+  {
+    "originalPath": "/tmp/dsh-pnpm-current-tags.json",
+    "archivePath": "tmp/dsh-pnpm-current-tags.json",
+    "bytes": 449,
+    "sha256": "380e38ee2f2ce6b68965f444d74d932f71a981e84d5e5c8287d25f92be21fc82"
+  },
+  {
+    "originalPath": "/tmp/dsh-pnpm-linked-versions-before.log",
+    "archivePath": "tmp/dsh-pnpm-linked-versions-before.log",
+    "bytes": 5366,
+    "sha256": "9b0550fd60c862678861cdba4ff6816447851fa3973a9f286785812c0dfd585c"
+  },
+  {
+    "originalPath": "/tmp/dsh-pnpm-peer-cli-build.log",
+    "archivePath": "tmp/dsh-pnpm-peer-cli-build.log",
+    "bytes": 19168,
+    "sha256": "0a64f4ca3b30802ec66e2df6d32469ff2dfda41412442bcca7bfe5e9b1e82278"
+  },
+  {
+    "originalPath": "/tmp/dsh-pnpm-peer-cli-release.log",
+    "archivePath": "tmp/dsh-pnpm-peer-cli-release.log",
+    "bytes": 24419,
+    "sha256": "eb0d577fb6f72332c97b3b7da3495e7d3bca754ca830a2557b0979950dc71d4f"
+  },
+  {
+    "originalPath": "/tmp/dsh-pnpm-peer-format-check.log",
+    "archivePath": "tmp/dsh-pnpm-peer-format-check.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-pnpm-peer-format-final.log",
+    "archivePath": "tmp/dsh-pnpm-peer-format-final.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-pnpm-peer-format.log",
+    "archivePath": "tmp/dsh-pnpm-peer-format.log",
+    "bytes": 5586,
+    "sha256": "a71f2daade1f7713c792d1760ca6b1006e3f885afd4273625f980239633de72c"
+  },
+  {
+    "originalPath": "/tmp/dsh-pnpm-peer-future-rust-warning.log",
+    "archivePath": "tmp/dsh-pnpm-peer-future-rust-warning.log",
+    "bytes": 1858,
+    "sha256": "1d54c95863231b8ef39434239fc9ef08b517b02591fdd25e574f072509190e2a"
+  },
+  {
+    "originalPath": "/tmp/dsh-pnpm-peer-native-official-final.log",
+    "archivePath": "tmp/dsh-pnpm-peer-native-official-final.log",
+    "bytes": 95,
+    "sha256": "dde0212a52050f040acaf7949ab628b034b8638e000d34b00043cb1213140b4e"
+  },
+  {
+    "originalPath": "/tmp/dsh-pnpm-peer-native-official.log",
+    "archivePath": "tmp/dsh-pnpm-peer-native-official.log",
+    "bytes": 95,
+    "sha256": "ae24d1bb454c08ae0cf3231d042bebb32d38bf34cd7fb60283b38f7ea23da0cf"
+  },
+  {
+    "originalPath": "/tmp/dsh-pnpm-peer-native-repaired.log",
+    "archivePath": "tmp/dsh-pnpm-peer-native-repaired.log",
+    "bytes": 95,
+    "sha256": "7e1a68259dbaf68b54476aba80fcb0c95dd80f923612a8517a1f8cb2f24686bf"
+  },
+  {
+    "originalPath": "/tmp/dsh-pnpm-peer-native.py",
+    "archivePath": "tmp/dsh-pnpm-peer-native.py",
+    "bytes": 3091,
+    "sha256": "8009319a82165e864788d40a324b38bf8e1726d829828d10a31a267e3a9f8a3a"
+  },
+  {
+    "originalPath": "/tmp/dsh-pnpm-peer-reconstruct.py",
+    "archivePath": "tmp/dsh-pnpm-peer-reconstruct.py",
+    "bytes": 2448,
+    "sha256": "6d1902f9c2a2235f5c4d1425bb99ced4ea47b08b8c1bf33e0bab7f01942d0cb2"
+  },
+  {
+    "originalPath": "/tmp/dsh-pnpm-peer-reconstruction-install.log",
+    "archivePath": "tmp/dsh-pnpm-peer-reconstruction-install.log",
+    "bytes": 6346,
+    "sha256": "bbf74ddcb33781e1b97cc3de622f96ddf78b61121ff1f0e0c04cf07198c36f96"
+  },
+  {
+    "originalPath": "/tmp/dsh-pnpm-peer-reconstruction-tests.log",
+    "archivePath": "tmp/dsh-pnpm-peer-reconstruction-tests.log",
+    "bytes": 19050,
+    "sha256": "7b0868aaa957bd122959c116df32671b86c75afd36984d6ff8efb60c56ba0893"
+  },
+  {
+    "originalPath": "/tmp/dsh-pnpm-peer-source-install.log",
+    "archivePath": "tmp/dsh-pnpm-peer-source-install.log",
+    "bytes": 7595,
+    "sha256": "cdec9d10ad1367e0041e21a111259b2e44e4dda11df226ea6f9783daadf57492"
+  },
+  {
+    "originalPath": "/tmp/dsh-pnpm-peer-versions-after.log",
+    "archivePath": "tmp/dsh-pnpm-peer-versions-after.log",
+    "bytes": 3230,
+    "sha256": "464cdb488aff8339a4855366aa385990af6dfbeb813612f6f7ce1dd982272ea8"
+  },
+  {
+    "originalPath": "/tmp/dsh-pnpm-peer-versions-before.log",
+    "archivePath": "tmp/dsh-pnpm-peer-versions-before.log",
+    "bytes": 16331,
+    "sha256": "38e9636bf259c7d42dcdf752216b6ca7470f312965c3957dd0940e671c2a0647"
+  },
+  {
+    "originalPath": "/tmp/dsh-pnpm-peer-versions-clippy.log",
+    "archivePath": "tmp/dsh-pnpm-peer-versions-clippy.log",
+    "bytes": 11707,
+    "sha256": "8943aa1911f52c7e43e3dc2ea5f77f40ccc7f8418e6d658a73dea16525527fa7"
+  },
+  {
+    "originalPath": "/tmp/dsh-pnpm-peer-versions-complete.log",
+    "archivePath": "tmp/dsh-pnpm-peer-versions-complete.log",
+    "bytes": 3552,
+    "sha256": "49bd72447e1cdd0ab8e16bb02cd5e7895ed8d50fe1947cff80b5f418155ea50c"
+  },
+  {
+    "originalPath": "/tmp/dsh-pnpm-peer-versions-final-clippy.log",
+    "archivePath": "tmp/dsh-pnpm-peer-versions-final-clippy.log",
+    "bytes": 191,
+    "sha256": "725d7f4aeb03d6da18ccb64c091f86b9c62c1868800e5bb9d5eb062f0a0e6284"
+  },
+  {
+    "originalPath": "/tmp/dsh-pnpm-peer-versions-final-tests.log",
+    "archivePath": "tmp/dsh-pnpm-peer-versions-final-tests.log",
+    "bytes": 3552,
+    "sha256": "102cdcb4b9b81c3ac07b327b939a348234d6b8e0aee17363fcc1e52f4238ea3c"
+  },
+  {
+    "originalPath": "/tmp/dsh-rrweb-snapshot-2.1.1-registry.json",
+    "archivePath": "tmp/dsh-rrweb-snapshot-2.1.1-registry.json",
+    "bytes": 3716,
+    "sha256": "9704df25e2b57e8aadb94fb01ae4346e1305c0f9c18916e28f216b8044f0a2ab"
+  },
+  {
+    "originalPath": "/tmp/dsh-rrweb-snapshot-metadata-build.log",
+    "archivePath": "tmp/dsh-rrweb-snapshot-metadata-build.log",
+    "bytes": 107,
+    "sha256": "fe353717441c8a3a4d180462d0c63082330bdeb39d46f19b202a2b50ffe12258"
+  },
+  {
+    "originalPath": "/tmp/dsh-rrweb-snapshot-registry.json",
+    "archivePath": "tmp/dsh-rrweb-snapshot-registry.json",
+    "bytes": 3959,
+    "sha256": "baff1b141b04b5c8fab899cafe24ca78be0955e453b0cb8bc82d18501e0ac977"
+  },
+  {
+    "originalPath": "/tmp/dsh-rrweb-snapshot-source-package.json",
+    "archivePath": "tmp/dsh-rrweb-snapshot-source-package.json",
+    "bytes": 2235,
+    "sha256": "8a46a805e8e2158cdb4c919094a3d2241cb3afd8f25c3470096d3009d0c7061b"
+  },
+  {
+    "originalPath": "/tmp/dsh-runner-integrated-deleted-line.json",
+    "archivePath": "tmp/dsh-runner-integrated-deleted-line.json",
+    "bytes": 9200,
+    "sha256": "e6cc58b8777f74d1f20bbb028c89a49b0f67b97c135a2f0afb075da45eb6eadb"
+  },
+  {
+    "originalPath": "/tmp/dsh-runner-integrated-deleted-line.log",
+    "archivePath": "tmp/dsh-runner-integrated-deleted-line.log",
+    "bytes": 941,
+    "sha256": "1be7708c5c6dd52ab47c8b429104239f1f79de72f1d47312945df776eac9fe44"
+  },
+  {
+    "originalPath": "/tmp/dsh-runner-integration-before.log",
+    "archivePath": "tmp/dsh-runner-integration-before.log",
+    "bytes": 2185,
+    "sha256": "cafce8924ca3e799afcb705de1882f094ee0016b0aa8f4b4c842ec9821eec396"
+  },
+  {
+    "originalPath": "/tmp/dsh-runner-integration-runtime-provisional.log",
+    "archivePath": "tmp/dsh-runner-integration-runtime-provisional.log",
+    "bytes": 2078,
+    "sha256": "cf11e5438c1ce7db56ef90fe18cac8fa5998aba3f2093c1c8276adbc263c19a9"
+  },
+  {
+    "originalPath": "/tmp/dsh-runner-toolchain-install.log",
+    "archivePath": "tmp/dsh-runner-toolchain-install.log",
+    "bytes": 1453,
+    "sha256": "24495e74402e2ea3b389edda491387288b14af8b6b7051f428e6cd809e187c3a"
+  },
+  {
+    "originalPath": "/tmp/dsh-runner-toolchain-strict-install.log",
+    "archivePath": "tmp/dsh-runner-toolchain-strict-install.log",
+    "bytes": 4719,
+    "sha256": "d3cd1ea59795b7904c5dbebc435da12b9f03416727938bb72c7c7219702625cb"
+  },
+  {
+    "originalPath": "/tmp/dsh-source-map-integrity-build-final.log",
+    "archivePath": "tmp/dsh-source-map-integrity-build-final.log",
+    "bytes": 833,
+    "sha256": "c01434fe93e5e7760df85986caa71b99f9d0fe45bb789fd2b8034aa3d39af640"
+  },
+  {
+    "originalPath": "/tmp/dsh-source-map-integrity-build.log",
+    "archivePath": "tmp/dsh-source-map-integrity-build.log",
+    "bytes": 833,
+    "sha256": "4842a0c50728af430783b88955c03d4a95f77250409bb05e5b372832be495e45"
+  },
+  {
+    "originalPath": "/tmp/dsh-source-map-integrity-byte-identity.json",
+    "archivePath": "tmp/dsh-source-map-integrity-byte-identity.json",
+    "bytes": 365,
+    "sha256": "36329967048a28db4fed3aea24bbfe3d005d07f6f7ee50a9418d1c06fd6891ef"
+  },
+  {
+    "originalPath": "/tmp/dsh-source-map-integrity-first.log",
+    "archivePath": "tmp/dsh-source-map-integrity-first.log",
+    "bytes": 2956,
+    "sha256": "28f7266f9444bc9107605d3cba36eadda66bbc759a8b379940fadb769f0def7c"
+  },
+  {
+    "originalPath": "/tmp/dsh-source-map-integrity-format.log",
+    "archivePath": "tmp/dsh-source-map-integrity-format.log",
+    "bytes": 46,
+    "sha256": "3d198b9fa6125b64217e159ef39fc2d7dc35976563c97ce577b6f183a8e57810"
+  },
+  {
+    "originalPath": "/tmp/dsh-source-map-integrity-frozen-build.log",
+    "archivePath": "tmp/dsh-source-map-integrity-frozen-build.log",
+    "bytes": 933,
+    "sha256": "ba0819d4ddda7e857d8bd2ff5f5420c9f161e41bcc3086e95f19acb97a0a83ab"
+  },
+  {
+    "originalPath": "/tmp/dsh-source-map-integrity-frozen-install.log",
+    "archivePath": "tmp/dsh-source-map-integrity-frozen-install.log",
+    "bytes": 2126,
+    "sha256": "1d26d74e8370469cfa1ccd3f98071b3259b8266904724eac78806e0a92663a01"
+  },
+  {
+    "originalPath": "/tmp/dsh-source-map-integrity-frozen-lint.log",
+    "archivePath": "tmp/dsh-source-map-integrity-frozen-lint.log",
+    "bytes": 268,
+    "sha256": "cff6d3a55271919d90ffa87a57fe7064847fd95cdfcd17b04a6cbecf9ca65acf"
+  },
+  {
+    "originalPath": "/tmp/dsh-source-map-integrity-frozen-location.json",
+    "archivePath": "tmp/dsh-source-map-integrity-frozen-location.json",
+    "bytes": 4604,
+    "sha256": "ae10e4a1aadcdb8fcff8d1f947fc7b618ea1e400eadcf18c3b04277c1bf990f5"
+  },
+  {
+    "originalPath": "/tmp/dsh-source-map-integrity-frozen-tests.log",
+    "archivePath": "tmp/dsh-source-map-integrity-frozen-tests.log",
+    "bytes": 3135,
+    "sha256": "9eed3b4b1b123f2f6482deddce22054a22e979840e264e1f6fe308174d830acb"
+  },
+  {
+    "originalPath": "/tmp/dsh-source-map-integrity-frozen-types.log",
+    "archivePath": "tmp/dsh-source-map-integrity-frozen-types.log",
+    "bytes": 15,
+    "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92"
+  },
+  {
+    "originalPath": "/tmp/dsh-source-map-integrity-full-tests.log",
+    "archivePath": "tmp/dsh-source-map-integrity-full-tests.log",
+    "bytes": 2813,
+    "sha256": "c7aed45376d2860eef1db42beb300ff88106fd3067cc01ab5013a39377139e46"
+  },
+  {
+    "originalPath": "/tmp/dsh-source-map-integrity-lint-complete.log",
+    "archivePath": "tmp/dsh-source-map-integrity-lint-complete.log",
+    "bytes": 268,
+    "sha256": "cff6d3a55271919d90ffa87a57fe7064847fd95cdfcd17b04a6cbecf9ca65acf"
+  },
+  {
+    "originalPath": "/tmp/dsh-source-map-integrity-lint-final.log",
+    "archivePath": "tmp/dsh-source-map-integrity-lint-final.log",
+    "bytes": 268,
+    "sha256": "8b0a7e614fbda0002924487b7c361106dcc21d031b1a4bde07afb10b61ce6c8b"
+  },
+  {
+    "originalPath": "/tmp/dsh-source-map-integrity-lint.log",
+    "archivePath": "tmp/dsh-source-map-integrity-lint.log",
+    "bytes": 376,
+    "sha256": "b316570d956e90985203a118b64af9bddad39a2a0b6c1daabfc0dfd73a7b1622"
+  },
+  {
+    "originalPath": "/tmp/dsh-source-map-integrity-old-control-final.log",
+    "archivePath": "tmp/dsh-source-map-integrity-old-control-final.log",
+    "bytes": 50089,
+    "sha256": "d7b4804c7754085c74bf31bb80bdc9897918b86a385a533675f89b08e362d8d4"
+  },
+  {
+    "originalPath": "/tmp/dsh-source-map-integrity-old-control.log",
+    "archivePath": "tmp/dsh-source-map-integrity-old-control.log",
+    "bytes": 48038,
+    "sha256": "cf2f196144e0a405e20136c942742450c9ca60955e34e9bcd411898c65d97656"
+  },
+  {
+    "originalPath": "/tmp/dsh-source-map-integrity-patch-check.json",
+    "archivePath": "tmp/dsh-source-map-integrity-patch-check.json",
+    "bytes": 285,
+    "sha256": "9bf29d557a0b5be1aa6a49ebfd0fc1677993690218be67029767967fbec04f76"
+  },
+  {
+    "originalPath": "/tmp/dsh-source-map-integrity-reconstruct.py",
+    "archivePath": "tmp/dsh-source-map-integrity-reconstruct.py",
+    "bytes": 2428,
+    "sha256": "52a54bb4a750df07afdfb301db8b0506e586515fe0afb2a237b9cc62a88af27f"
+  },
+  {
+    "originalPath": "/tmp/dsh-source-map-integrity-types.log",
+    "archivePath": "tmp/dsh-source-map-integrity-types.log",
+    "bytes": 15,
+    "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92"
+  },
+  {
+    "originalPath": "/tmp/dsh-tsx-integrated-identity.json",
+    "archivePath": "tmp/dsh-tsx-integrated-identity.json",
+    "bytes": 469,
+    "sha256": "8a8cd8295e5ed5669e392962d478d9b04f30367699128e0f46c605cc7356e9ea"
+  },
+  {
+    "originalPath": "/tmp/dsh-tsx-integrated-pack.json",
+    "archivePath": "tmp/dsh-tsx-integrated-pack.json",
+    "bytes": 5436,
+    "sha256": "5031375dcf029e6e56d1de99c6490ed05f01e5781f24660858fd4b44f3e7c2e6"
+  },
+  {
+    "originalPath": "/tmp/dsh-tsx-official-pack.json",
+    "archivePath": "tmp/dsh-tsx-official-pack.json",
+    "bytes": 5436,
+    "sha256": "34691fbb1cc6fca146ea9fbb61976e315e2fcc7a5d82d02718dd699334cb0b62"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-5.0.1-attestation.json",
+    "archivePath": "tmp/dsh-vitest-5.0.1-attestation.json",
+    "bytes": 14426,
+    "sha256": "dce79f44792c693b6b0cd59e2b4e92dd3c584d7b729f9245ce997a056f2ff31c"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-5.0.1-registry.json",
+    "archivePath": "tmp/dsh-vitest-5.0.1-registry.json",
+    "bytes": 5451,
+    "sha256": "bbe4bf014cce2d37760e031c9ee47db8af596f52022535dc3103c4c06a6a379d"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-5.0.1-tag.json",
+    "archivePath": "tmp/dsh-vitest-5.0.1-tag.json",
+    "bytes": 374,
+    "sha256": "9bfe5d303b24957916d985bcf17d5704ade0eed9e8c10566f7a241f512721e42"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-cache-lint.log",
+    "archivePath": "tmp/dsh-vitest-cache-lint.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-coverage-baseline-control.log",
+    "archivePath": "tmp/dsh-vitest-coverage-baseline-control.log",
+    "bytes": 2276,
+    "sha256": "e97c539f90d4eb29478b63b34fb1fdbfec0b3186c0dd2163f4ecd67694cdf85e"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-coverage-baseline-control.mjs",
+    "archivePath": "tmp/dsh-vitest-coverage-baseline-control.mjs",
+    "bytes": 3370,
+    "sha256": "2deda1d0cf7d6fec65d1c877c5830fe373cbb667cc02edb2c1c9fab7a93c6843"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-coverage-converter-update.log",
+    "archivePath": "tmp/dsh-vitest-coverage-converter-update.log",
+    "bytes": 380,
+    "sha256": "ba0f6d6c7cd245e76d1c2927d77258c647d96bf08be29fe9bcb31e717210de22"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-coverage-source-integrity-final.log",
+    "archivePath": "tmp/dsh-vitest-coverage-source-integrity-final.log",
+    "bytes": 424,
+    "sha256": "5890d8d5d08fd85a7d32fe20a8e48ef9dc2e7737e37eb3a1f1dd9a13f748b5be"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-coverage-source-integrity-four.log",
+    "archivePath": "tmp/dsh-vitest-coverage-source-integrity-four.log",
+    "bytes": 423,
+    "sha256": "a226e6e0a8198634293de44031a54a3ae8b4c43b71b62fe349542cfe8bdb723f"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-coverage-source-integrity-source.log",
+    "archivePath": "tmp/dsh-vitest-coverage-source-integrity-source.log",
+    "bytes": 1417,
+    "sha256": "bbacaacedee6430f58f467b54a85a3ebde7c993fc535a6939732575f0cf7708f"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-coverage-source-integrity.log",
+    "archivePath": "tmp/dsh-vitest-coverage-source-integrity.log",
+    "bytes": 1856,
+    "sha256": "8de687f1e069f9d3245e357f0a98db042ff3947e56001547f26ef3594726cd01"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-coverage-strict-current-converter.log",
+    "archivePath": "tmp/dsh-vitest-coverage-strict-current-converter.log",
+    "bytes": 390,
+    "sha256": "925a2c674232d9b3fc4a9f6a7c96c2df2051152476ee4d49f750931c9c296fb7"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-coverage-strict-native.log",
+    "archivePath": "tmp/dsh-vitest-coverage-strict-native.log",
+    "bytes": 587,
+    "sha256": "0a15fd0aa07ff8fa060225ee3f0b848d93b70c85246ec8e99ac2723d4fd4a11c"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-executed-source-deletion-proof.json",
+    "archivePath": "tmp/dsh-vitest-executed-source-deletion-proof.json",
+    "bytes": 111756,
+    "sha256": "07c7a1dd6f3e5fb8385f45c4dbf6e192031765eb763f39d9a15beb3916bf87d2"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-executed-source-dependency.log",
+    "archivePath": "tmp/dsh-vitest-executed-source-dependency.log",
+    "bytes": 324,
+    "sha256": "360a71a3520247bed9cec64a7b594ba6f6fc6f088758cfe862565835e8172cc9"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-executed-source-remove-merger.log",
+    "archivePath": "tmp/dsh-vitest-executed-source-remove-merger.log",
+    "bytes": 286,
+    "sha256": "df210c544438e2fec799c6fbb3c3f1ea59fb5ac4086963827d3263d0c427fa3d"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-executed-sources-deletion-proof.log",
+    "archivePath": "tmp/dsh-vitest-executed-sources-deletion-proof.log",
+    "bytes": 1425,
+    "sha256": "5815dd63b2203bd8a65a7dbea5fb051484afdecd3eb2c9fee108a950577e3958"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-executed-sources-final.log",
+    "archivePath": "tmp/dsh-vitest-executed-sources-final.log",
+    "bytes": 1762,
+    "sha256": "2626a7141e75909b4188cf0efb3df1baf4a2d623f4e17e361b7d6657679c15c0"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-executed-sources-first.log",
+    "archivePath": "tmp/dsh-vitest-executed-sources-first.log",
+    "bytes": 1275,
+    "sha256": "b3153a4753e9017ab24fdeb7c00675f5fdaaf7bbd824ce5aedb109b7781d883f"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-executed-sources-function-proof.log",
+    "archivePath": "tmp/dsh-vitest-executed-sources-function-proof.log",
+    "bytes": 1425,
+    "sha256": "94fdcc29523b429748e9d4e15c66a68034f70a1b390f744a11dcae277d89ee89"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-executed-sources-mapping.log",
+    "archivePath": "tmp/dsh-vitest-executed-sources-mapping.log",
+    "bytes": 1762,
+    "sha256": "4edc0f0eeebf64ac9d86721047da807a10daf8ed1dbc9901d929c03466c3d9b8"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-executed-sources-maps.log",
+    "archivePath": "tmp/dsh-vitest-executed-sources-maps.log",
+    "bytes": 1672,
+    "sha256": "8ae5433fcde6f3b3ecdbb9fd81130f155ff857ef0c0a0fd2b70bffb319169cc0"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-executed-sources-original-content.log",
+    "archivePath": "tmp/dsh-vitest-executed-sources-original-content.log",
+    "bytes": 1427,
+    "sha256": "58400150860a9d153725a4ad4a189b065acf7263ff96a563186ce3736ebd47d6"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-executed-sources-types-final.log",
+    "archivePath": "tmp/dsh-vitest-executed-sources-types-final.log",
+    "bytes": 390,
+    "sha256": "925a2c674232d9b3fc4a9f6a7c96c2df2051152476ee4d49f750931c9c296fb7"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-executed-sources-types-first.log",
+    "archivePath": "tmp/dsh-vitest-executed-sources-types-first.log",
+    "bytes": 390,
+    "sha256": "925a2c674232d9b3fc4a9f6a7c96c2df2051152476ee4d49f750931c9c296fb7"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-local-pkg-install.log",
+    "archivePath": "tmp/dsh-vitest-local-pkg-install.log",
+    "bytes": 1018,
+    "sha256": "0092d7b01f8cf833d1de7d928f623b14b0e28c0fa453cff882d43833f39b4220"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-mapping-converter-install.log",
+    "archivePath": "tmp/dsh-vitest-mapping-converter-install.log",
+    "bytes": 454,
+    "sha256": "5ff1532eb542b3208dccaef5c31e9c63e89db00aac6ba98257fefcca267b18a5"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-mapping-final-types.log",
+    "archivePath": "tmp/dsh-vitest-mapping-final-types.log",
+    "bytes": 390,
+    "sha256": "925a2c674232d9b3fc4a9f6a7c96c2df2051152476ee4d49f750931c9c296fb7"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-phase-current-tags.json",
+    "archivePath": "tmp/dsh-vitest-phase-current-tags.json",
+    "bytes": 85,
+    "sha256": "4a718ff7d2f13c2237ef69d08abf66a51463f3387f6e511ab180a6e031383cb0"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-phase-latest-release.json",
+    "archivePath": "tmp/dsh-vitest-phase-latest-release.json",
+    "bytes": 7371,
+    "sha256": "9cc6a833c59abe665bf940b6c5a7f7846aae9b4e47a5369966b348a2072726cc"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-phase-probe-after.log",
+    "archivePath": "tmp/dsh-vitest-phase-probe-after.log",
+    "bytes": 255,
+    "sha256": "c17a865e15976668ad1f81b4ff3a94bc6403d29578d8b26de551323462a4fd4c"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-phase-probe-before.log",
+    "archivePath": "tmp/dsh-vitest-phase-probe-before.log",
+    "bytes": 948,
+    "sha256": "c2134c0293857a708ed6eea4a83d5f0e511ca801fec32edadd0034b6f688a781"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-phase-probe-install-baseline-network.log",
+    "archivePath": "tmp/dsh-vitest-phase-probe-install-baseline-network.log",
+    "bytes": 157,
+    "sha256": "bdde3a33e30dae9997458038b0b6891f24e62f7c8e59c1fdda55b21215df7db3"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-phase-probe-install-baseline.log",
+    "archivePath": "tmp/dsh-vitest-phase-probe-install-baseline.log",
+    "bytes": 191,
+    "sha256": "3109fd1b5a86d330a7f8b1e936d04a9d38c1d4e150d3284f7a8d5e736890ab1a"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-phase-probe-install-candidate.log",
+    "archivePath": "tmp/dsh-vitest-phase-probe-install-candidate.log",
+    "bytes": 198,
+    "sha256": "4aa8c4fae101b631b4bbf0a121017e9d9e12162785c93887a4ad4b6b61a9e718"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-routing.json",
+    "archivePath": "tmp/dsh-vitest-routing.json",
+    "bytes": 209646,
+    "sha256": "91ce8f4f0eba64ee103e63ef51441556e1098da7ab78a5317050e0ec50a6634c"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-rrweb-metadata-install.log",
+    "archivePath": "tmp/dsh-vitest-rrweb-metadata-install.log",
+    "bytes": 381,
+    "sha256": "8b5c825515a3015d97f86be8da09a842742e9f7353d5663190f04555ff65a79f"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-runtime-build-current-registry.json",
+    "archivePath": "tmp/dsh-vitest-runtime-build-current-registry.json",
+    "bytes": 55800,
+    "sha256": "cb9074368e24062958eb8ee38f960426b085b1952ba0c7172d0ab914fd4e901e"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-runtime-build-first.log",
+    "archivePath": "tmp/dsh-vitest-runtime-build-first.log",
+    "bytes": 1108,
+    "sha256": "a353a04d482dbf7d19a74c123569f64af175fb6a88bab1676102a543b2f35457"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-runtime-build-published-inputs.log",
+    "archivePath": "tmp/dsh-vitest-runtime-build-published-inputs.log",
+    "bytes": 1520,
+    "sha256": "0a9795b8a3364d5615468c25cf8cafd7dbeef2419a99e0dc15f12d32b7e233bf"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-runtime-declaration-hashes.json",
+    "archivePath": "tmp/dsh-vitest-runtime-declaration-hashes.json",
+    "bytes": 4306,
+    "sha256": "67783cf34cf526b8e55a790a0fdecb20eeeed41d6b0ee96152b519736653a121"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-runtime-declarations.mjs",
+    "archivePath": "tmp/dsh-vitest-runtime-declarations.mjs",
+    "bytes": 1226,
+    "sha256": "2bd24068cb2c1ae6e2a6242c7c0802b4333470ac35b5c694018f3fce1ff9a949"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-runtime-inputs-browser.log",
+    "archivePath": "tmp/dsh-vitest-runtime-inputs-browser.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-runtime-inputs.log",
+    "archivePath": "tmp/dsh-vitest-runtime-inputs.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-runtime-inputs.mjs",
+    "archivePath": "tmp/dsh-vitest-runtime-inputs.mjs",
+    "bytes": 1458,
+    "sha256": "5bfc921416b745b254c7f61ac20ba3b80b089f1aae00cebade0489b54927e0ae"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-runtime-install-native.log",
+    "archivePath": "tmp/dsh-vitest-runtime-install-native.log",
+    "bytes": 6908,
+    "sha256": "b6026bf778732635e0eb4ade41520e92e4566306c5c3b1d001fa914c99df7a63"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-runtime-install-owned-build-closure.log",
+    "archivePath": "tmp/dsh-vitest-runtime-install-owned-build-closure.log",
+    "bytes": 1298,
+    "sha256": "78a104e15b70e12046d086bf8a89e4cbca4311bb914202afda46ad7ae09fa912"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-runtime-install.log",
+    "archivePath": "tmp/dsh-vitest-runtime-install.log",
+    "bytes": 747,
+    "sha256": "c77e8f2154d1500e5ad72767efec18090bb4955ef41a6b5cb82c1b6320e0e66b"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-runtime-native-after-declarations.log",
+    "archivePath": "tmp/dsh-vitest-runtime-native-after-declarations.log",
+    "bytes": 4210,
+    "sha256": "b950ef7f1b221ba4839497cd8ad00303857bc831f60e409b30867b8763537389"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-runtime-native-browser-owner.log",
+    "archivePath": "tmp/dsh-vitest-runtime-native-browser-owner.log",
+    "bytes": 1665,
+    "sha256": "3af4bd42093de4f6f984cfb1ee889ae3cb3bfc0720952fd5417c50e7c747655e"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-runtime-native-current.log",
+    "archivePath": "tmp/dsh-vitest-runtime-native-current.log",
+    "bytes": 6175,
+    "sha256": "8f01565804c105920aeb7ce6538b184316f4598110ad632476f41efe5ea65deb"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-runtime-native-metadata-owner.log",
+    "archivePath": "tmp/dsh-vitest-runtime-native-metadata-owner.log",
+    "bytes": 390,
+    "sha256": "925a2c674232d9b3fc4a9f6a7c96c2df2051152476ee4d49f750931c9c296fb7"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-runtime-native-types-first.log",
+    "archivePath": "tmp/dsh-vitest-runtime-native-types-first.log",
+    "bytes": 46444,
+    "sha256": "825e99ee644e990f620c600f43080289eaaf100eaeeb5caeb512060bbeec4fc7"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-runtime-native-types-owned-closure.log",
+    "archivePath": "tmp/dsh-vitest-runtime-native-types-owned-closure.log",
+    "bytes": 1398,
+    "sha256": "735e0d261c1951ba125797a9291d08bc4d68bff90ef65838e5d9295edc014034"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-runtime-pack.log",
+    "archivePath": "tmp/dsh-vitest-runtime-pack.log",
+    "bytes": 2661,
+    "sha256": "f91ae3ff349c24a1296f6500cf39d16d8fcd9140438d9956bd48771e7c7910fa"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-runtime-research-registry.json",
+    "archivePath": "tmp/dsh-vitest-runtime-research-registry.json",
+    "bytes": 9536,
+    "sha256": "e5b00a3d3d663a20a4be93c62b3ed0cb67e0ad780699db4af0754a8a84b79f9e"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-runtime-tools-install.log",
+    "archivePath": "tmp/dsh-vitest-runtime-tools-install.log",
+    "bytes": 215,
+    "sha256": "058292c3fe1509b19886439560cb0f3a831ae0055e4dafaf349283ee9ff22878"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-strict-current-before.log",
+    "archivePath": "tmp/dsh-vitest-strict-current-before.log",
+    "bytes": 1398,
+    "sha256": "735e0d261c1951ba125797a9291d08bc4d68bff90ef65838e5d9295edc014034"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-strict-dependencies-20260917.json",
+    "archivePath": "tmp/dsh-vitest-strict-dependencies-20260917.json",
+    "bytes": 11683,
+    "sha256": "9fd19def423aa20b1ad93a2d89d92adf18533a0e7d336dcbb913206f28ac7a80"
+  },
+  {
+    "originalPath": "/tmp/dsh-vitest-strict-dependency-update.log",
+    "archivePath": "tmp/dsh-vitest-strict-dependency-update.log",
+    "bytes": 3824,
+    "sha256": "8933957fdcf3e2523fe7baa6cf9637f9d2d4a1a2e4c8521147a7eef21ea07679"
+  },
+  {
+    "originalPath": "/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-pnpm-peers-official-c_nylyst/3.9.0/command-3.log",
+    "archivePath": "var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-pnpm-peers-official-c_nylyst/3.9.0/command-3.log",
+    "bytes": 693,
+    "sha256": "ec8a07d00a9f59aac2b24f96f4ea70f613d5a319b8fb8de91a878d492a148747"
+  },
+  {
+    "originalPath": "/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-pnpm-peers-official-c_nylyst/3.9.0/command-4.log",
+    "archivePath": "var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-pnpm-peers-official-c_nylyst/3.9.0/command-4.log",
+    "bytes": 135,
+    "sha256": "5337ba79908c79f6bcd2997986db7b9e4e15efd77bdd6f35065cc49ec2688491"
+  },
+  {
+    "originalPath": "/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-pnpm-peers-official-c_nylyst/3.9.0/command-5.log",
+    "archivePath": "var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-pnpm-peers-official-c_nylyst/3.9.0/command-5.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-pnpm-peers-official-c_nylyst/4.23.13/command-0.log",
+    "archivePath": "var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-pnpm-peers-official-c_nylyst/4.23.13/command-0.log",
+    "bytes": 695,
+    "sha256": "bce999d69a66d2de74a7037f77fbc4889c9d8349ab8df9da3f21023f9b5f241f"
+  },
+  {
+    "originalPath": "/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-pnpm-peers-official-c_nylyst/4.23.13/command-1.log",
+    "archivePath": "var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-pnpm-peers-official-c_nylyst/4.23.13/command-1.log",
+    "bytes": 135,
+    "sha256": "5337ba79908c79f6bcd2997986db7b9e4e15efd77bdd6f35065cc49ec2688491"
+  },
+  {
+    "originalPath": "/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-pnpm-peers-official-c_nylyst/4.23.13/command-2.log",
+    "archivePath": "var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-pnpm-peers-official-c_nylyst/4.23.13/command-2.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-pnpm-peers-official-c_nylyst/results.json",
+    "archivePath": "var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-pnpm-peers-official-c_nylyst/results.json",
+    "bytes": 2415,
+    "sha256": "4ac180233f7e30d8d9960da29901193d7a99a86cbd91a2e09fc7fb9062c5ae77"
+  },
+  {
+    "originalPath": "/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-pnpm-peers-repaired-srb4lnak/3.9.0/command-3.log",
+    "archivePath": "var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-pnpm-peers-repaired-srb4lnak/3.9.0/command-3.log",
+    "bytes": 681,
+    "sha256": "d4d76a1839440cb319550a5675bcca5a68c72deddfc3fca7c17a408f99938dc4"
+  },
+  {
+    "originalPath": "/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-pnpm-peers-repaired-srb4lnak/3.9.0/command-4.log",
+    "archivePath": "var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-pnpm-peers-repaired-srb4lnak/3.9.0/command-4.log",
+    "bytes": 123,
+    "sha256": "76bff9b58f1d753a55286f7204cbf2179bcfbff819672cc1f3ea5a1d8861e6f7"
+  },
+  {
+    "originalPath": "/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-pnpm-peers-repaired-srb4lnak/3.9.0/command-5.log",
+    "archivePath": "var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-pnpm-peers-repaired-srb4lnak/3.9.0/command-5.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-pnpm-peers-repaired-srb4lnak/4.23.13/command-0.log",
+    "archivePath": "var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-pnpm-peers-repaired-srb4lnak/4.23.13/command-0.log",
+    "bytes": 480,
+    "sha256": "2a0b757c0ab1e0af4ac2d5b283183e7b09d9f73e17ddc255aa1f6b09cc07fbc7"
+  },
+  {
+    "originalPath": "/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-pnpm-peers-repaired-srb4lnak/4.23.13/command-1.log",
+    "archivePath": "var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-pnpm-peers-repaired-srb4lnak/4.23.13/command-1.log",
+    "bytes": 32,
+    "sha256": "5ecf82a3fc1f9007eeea79ce3bf0d9c587150219ef245bb5a5a23609cdb562fb"
+  },
+  {
+    "originalPath": "/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-pnpm-peers-repaired-srb4lnak/4.23.13/command-2.log",
+    "archivePath": "var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-pnpm-peers-repaired-srb4lnak/4.23.13/command-2.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalPath": "/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-pnpm-peers-repaired-srb4lnak/results.json",
+    "archivePath": "var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-pnpm-peers-repaired-srb4lnak/results.json",
+    "bytes": 2455,
+    "sha256": "e9438f75cf227309176703a2a18a6570234503b89fcfa3920c782c570dc68a7e"
+  }
+]

@@ -1,0 +1,74 @@
+--- a/lib/internal/modules/package_json_reader.js
++++ b/lib/internal/modules/package_json_reader.js
+@@ -351 +351 @@
+- * @returns {string}
++ * @returns {string | undefined}
+@@ -395 +395 @@
+-  return pkg?.path;
++  return pkg?.exists ? pkg.path : undefined;
+--- /dev/null
++++ b/test/parallel/test-find-package-json-missing.js
+@@ -0,0 +1,63 @@
++'use strict';
++
++require('../common');
++const tmpdir = require('../common/tmpdir');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const { findPackageJSON } = require('node:module');
++const path = require('node:path');
++const { test } = require('node:test');
++const { pathToFileURL } = require('node:url');
++
++tmpdir.refresh();
++fs.writeFileSync(tmpdir.resolve('package.json'), '{"type":"module"}');
++
++for (const representation of ['path', 'url-string', 'url-object', 'relative']) {
++  test(`absent package metadata returns undefined for ${representation}`, () => {
++    const directory = tmpdir.resolve('node_modules', representation);
++    fs.mkdirSync(directory, { recursive: true });
++    const filename = path.join(directory, 'entry.js');
++    fs.writeFileSync(filename, 'module.exports = 17;');
++    const base = pathToFileURL(path.join(directory, 'parent.js'));
++    const specifiers = {
++      path: filename,
++      'url-string': pathToFileURL(filename).href,
++      'url-object': pathToFileURL(filename),
++      relative: './entry.js',
++    };
++    assert.equal(findPackageJSON(specifiers[representation], base), undefined);
++    assert.equal(findPackageJSON(specifiers[representation], base), undefined);
++  });
++}
++
++test('an absent cached package remains absent for sibling files and the directory', () => {
++  const directory = tmpdir.resolve('node_modules', 'siblings');
++  fs.mkdirSync(directory, { recursive: true });
++  for (const name of ['first.js', 'second.js']) {
++    const filename = path.join(directory, name);
++    fs.writeFileSync(filename, 'module.exports = 17;');
++    assert.equal(findPackageJSON(pathToFileURL(filename)), undefined);
++  }
++  assert.equal(findPackageJSON(pathToFileURL(directory + path.sep)), undefined);
++});
++
++test('existing nearest metadata is returned for each file in a directory', () => {
++  const directory = tmpdir.resolve('node_modules', 'present');
++  fs.mkdirSync(directory, { recursive: true });
++  const metadata = path.join(directory, 'package.json');
++  fs.writeFileSync(metadata, '{"type":"module"}');
++  for (const name of ['first.js', 'second.js']) {
++    const filename = path.join(directory, name);
++    fs.writeFileSync(filename, 'export const value = 17;');
++    assert.equal(findPackageJSON(pathToFileURL(filename)), path.toNamespacedPath(metadata));
++  }
++});
++
++test('invalid package metadata still throws', () => {
++  const directory = tmpdir.resolve('node_modules', 'invalid');
++  fs.mkdirSync(directory, { recursive: true });
++  fs.writeFileSync(path.join(directory, 'package.json'), '{');
++  const filename = path.join(directory, 'entry.js');
++  fs.writeFileSync(filename, 'module.exports = 17;');
++  assert.throws(() => findPackageJSON(pathToFileURL(filename)), { code: 'ERR_INVALID_PACKAGE_CONFIG' });
++});

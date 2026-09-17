@@ -1,0 +1,48 @@
+{
+  "recordedAt": "2026-09-17T04:51:35.319484+00:00",
+  "rootCommit": "105a97ef9c776a2856118ee02609dc61a0fb9617",
+  "userRequestedHaltAfterConsolidation": true,
+  "rootDependencyGraphChanged": false,
+  "fullGreen": false,
+  "sourceCandidates": 9,
+  "pnpm": {
+    "owningTests": {
+      "passed": 50,
+      "failed": 0,
+      "skipped": 0
+    },
+    "freshStoreReconstructedTests": {
+      "passed": 50,
+      "failed": 0,
+      "skipped": 0
+    },
+    "clippyWarningsDenied": "pass",
+    "pinnedFormat": "pass",
+    "nativeCompatibleArchiveStrictInstallAndPeerCheck": "pass",
+    "nativeIncompatibleArchiveStrictInstallAndPeerCheck": "rejected with actual version 3.9.0",
+    "releaseBuild": "completed",
+    "futureRustWarning": "proc-macro-error2 2.0.1 privately imports and publicly re-exports proc_macro",
+    "realRunnerStrictInstall": "fails with ERR_PNPM_IGNORED_BUILDS for the esbuild file archive despite esbuild: true"
+  },
+  "coverage": {
+    "nativeIntegratedRunner": {
+      "passed": 14,
+      "failed": 1
+    },
+    "namePreservationMatrix": {
+      "passed": 4,
+      "failed": 4
+    },
+    "failure": "Generated __name calls mark an uncalled function declaration line covered"
+  },
+  "remaining": [
+    "Repair archive build-script approval identity and verify actual runner strict/frozen installation",
+    "Repair name-preservation source mapping without changing coverage assertions",
+    "Finish complete runner compilation; last full measurement had 89 diagnostics",
+    "Relocate candidate file dependencies and regenerate package lockfiles before promotion",
+    "Complete maintained toolchain build, platform, and reproducibility acceptance",
+    "Resolve all repository debt and complete the original full-green plan"
+  ],
+  "historicalPlan": "evidence/full-green-plan.tar.gz",
+  "evidence": "evidence/inputs.json"
+}

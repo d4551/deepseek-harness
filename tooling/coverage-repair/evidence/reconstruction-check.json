@@ -1,0 +1,54 @@
+[
+  {
+    "source": "vitest",
+    "command": [
+      "python3",
+      "tooling/coverage-repair/reconstruct.py",
+      "vitest",
+      "/tmp/dsh-vitest-5.0.1-source.tgz",
+      "/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-consolidated-source-check-7ixyxq21/vitest"
+    ],
+    "exitCode": 0,
+    "output": "{\"source\": \"vitest\", \"destination\": \"/private/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-consolidated-source-check-7ixyxq21/vitest\", \"verifiedInputs\": 34}\n",
+    "error": "/Users/brandon/Downloads/deepseek-harness/tooling/coverage-repair/patches/vitest.patch:591: trailing whitespace.\n \n/Users/brandon/Downloads/deepseek-harness/tooling/coverage-repair/patches/vitest.patch:604: trailing whitespace.\n \nwarning: 2 lines add whitespace errors.\n"
+  },
+  {
+    "source": "converter",
+    "command": [
+      "python3",
+      "tooling/coverage-repair/reconstruct.py",
+      "converter",
+      "/tmp/dsh-ast-v8-1.0.6-source.tgz",
+      "/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-consolidated-source-check-7ixyxq21/converter"
+    ],
+    "exitCode": 0,
+    "output": "{\"source\": \"converter\", \"destination\": \"/private/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-consolidated-source-check-7ixyxq21/converter\", \"verifiedInputs\": 22}\n",
+    "error": ""
+  },
+  {
+    "source": "local-pkg",
+    "command": [
+      "python3",
+      "tooling/coverage-repair/reconstruct.py",
+      "local-pkg",
+      "/tmp/dsh-local-pkg-1.2.1-source.tgz",
+      "/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-consolidated-source-check-7ixyxq21/local-pkg"
+    ],
+    "exitCode": 0,
+    "output": "{\"source\": \"local-pkg\", \"destination\": \"/private/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-consolidated-source-check-7ixyxq21/local-pkg\", \"verifiedInputs\": 8}\n",
+    "error": ""
+  },
+  {
+    "source": "istanbul",
+    "command": [
+      "python3",
+      "tooling/coverage-repair/reconstruct.py",
+      "istanbul",
+      "/tmp/dsh-istanbul-1.0.1-source.tar.gz",
+      "/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-consolidated-source-check-7ixyxq21/istanbul"
+    ],
+    "exitCode": 0,
+    "output": "{\"source\": \"istanbul\", \"destination\": \"/private/var/folders/91/5qxhhcj142j402qfvs_twnh80000gn/T/dsh-consolidated-source-check-7ixyxq21/istanbul\", \"verifiedInputs\": 5}\n",
+    "error": ""
+  }
+]

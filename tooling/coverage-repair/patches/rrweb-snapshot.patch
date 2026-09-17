@@ -1,0 +1,6 @@
+--- a/package.json
++++ b/package.json
+@@ -64 +63,0 @@
+-    "@rrweb/types": "^2.1.1",
+@@ -78,0 +78 @@
++    "@rrweb/types": "^2.1.1",

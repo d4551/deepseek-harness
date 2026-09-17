@@ -1,0 +1,226 @@
+--- a/internal/linker/linker.go
++++ b/internal/linker/linker.go
+@@ -2267,0 +2268 @@
++	generatedLoc := logger.Loc{Start: -1}
+@@ -2290 +2291 @@
+-			value = js_ast.Expr{Data: &js_ast.EImportIdentifier{Ref: export.Ref}}
++			value = js_ast.Expr{Loc: generatedLoc, Data: &js_ast.EImportIdentifier{Ref: export.Ref}}
+@@ -2292 +2293 @@
+-			value = js_ast.Expr{Data: &js_ast.EIdentifier{Ref: export.Ref}}
++			value = js_ast.Expr{Loc: generatedLoc, Data: &js_ast.EIdentifier{Ref: export.Ref}}
+@@ -2297 +2298,4 @@
+-		body := js_ast.FnBody{Block: js_ast.SBlock{Stmts: []js_ast.Stmt{{Loc: value.Loc, Data: &js_ast.SReturn{ValueOrNil: value}}}}}
++		body := js_ast.FnBody{Loc: generatedLoc, Block: js_ast.SBlock{
++			Stmts:         []js_ast.Stmt{{Loc: generatedLoc, Data: &js_ast.SReturn{ValueOrNil: value}}},
++			CloseBraceLoc: generatedLoc,
++		}}
+@@ -2299 +2303 @@
+-			getter = js_ast.Expr{Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: body}}}
++			getter = js_ast.Expr{Loc: generatedLoc, Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: body, OpenParenLoc: generatedLoc}}}
+@@ -2301 +2305 @@
+-			getter = js_ast.Expr{Data: &js_ast.EArrow{PreferExpr: true, Body: body}}
++			getter = js_ast.Expr{Loc: generatedLoc, Data: &js_ast.EArrow{PreferExpr: true, Body: body}}
+@@ -2312,3 +2316,5 @@
+-			Flags:      flags,
+-			Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(alias)}},
+-			ValueOrNil: getter,
++			Loc:             generatedLoc,
++			CloseBracketLoc: generatedLoc,
++			Flags:           flags,
++			Key:             js_ast.Expr{Loc: generatedLoc, Data: &js_ast.EString{Value: helpers.StringToUTF16(alias)}},
++			ValueOrNil:      getter,
+@@ -2334,3 +2340,3 @@
+-		nsExportStmts = append(nsExportStmts, js_ast.Stmt{Data: &js_ast.SLocal{Decls: []js_ast.Decl{{
+-			Binding:    js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.AST.ExportsRef}},
+-			ValueOrNil: js_ast.Expr{Data: &js_ast.EObject{}},
++		nsExportStmts = append(nsExportStmts, js_ast.Stmt{Loc: generatedLoc, Data: &js_ast.SLocal{Decls: []js_ast.Decl{{
++			Binding:    js_ast.Binding{Loc: generatedLoc, Data: &js_ast.BIdentifier{Ref: repr.AST.ExportsRef}},
++			ValueOrNil: js_ast.Expr{Loc: generatedLoc, Data: &js_ast.EObject{CloseBraceLoc: generatedLoc}},
+@@ -2349,2 +2355,2 @@
+-		nsExportStmts = append(nsExportStmts, js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{Data: &js_ast.ECall{
+-			Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: exportRef}},
++		nsExportStmts = append(nsExportStmts, js_ast.Stmt{Loc: generatedLoc, Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: generatedLoc, Data: &js_ast.ECall{
++			Target: js_ast.Expr{Loc: generatedLoc, Data: &js_ast.EIdentifier{Ref: exportRef}},
+@@ -2352,3 +2358,4 @@
+-				{Data: &js_ast.EIdentifier{Ref: repr.AST.ExportsRef}},
+-				{Data: &js_ast.EObject{
+-					Properties: properties,
++				{Loc: generatedLoc, Data: &js_ast.EIdentifier{Ref: repr.AST.ExportsRef}},
++				{Loc: generatedLoc, Data: &js_ast.EObject{
++					Properties:    properties,
++					CloseBraceLoc: generatedLoc,
+@@ -2384,3 +2391,4 @@
+-			js_ast.Expr{Data: &js_ast.EDot{
+-				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: c.unboundModuleRef}},
+-				Name:   "exports",
++			js_ast.Expr{Loc: generatedLoc, Data: &js_ast.EDot{
++				Target:  js_ast.Expr{Loc: generatedLoc, Data: &js_ast.EIdentifier{Ref: c.unboundModuleRef}},
++				Name:    "exports",
++				NameLoc: generatedLoc,
+@@ -2389,3 +2397,3 @@
+-			js_ast.Expr{Data: &js_ast.ECall{
+-				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: toCommonJSRef}},
+-				Args:   []js_ast.Expr{{Data: &js_ast.EIdentifier{Ref: repr.AST.ExportsRef}}},
++			js_ast.Expr{Loc: generatedLoc, Data: &js_ast.ECall{
++				Target: js_ast.Expr{Loc: generatedLoc, Data: &js_ast.EIdentifier{Ref: toCommonJSRef}},
++				Args:   []js_ast.Expr{{Loc: generatedLoc, Data: &js_ast.EIdentifier{Ref: repr.AST.ExportsRef}}},
+--- a/internal/sourcemap/sourcemap.go
++++ b/internal/sourcemap/sourcemap.go
+@@ -421,13 +421 @@
+-	// Strip off the first mapping from the buffer. The first mapping should be
+-	// for the start of the original file (the printer always generates one for
+-	// the start of the file).
+-	//
+-	// Note that we do not want to strip off the original name, even though it
+-	// could be a part of the first mapping. This will be handled using a special
+-	// case below instead. Original names are optional and are often omitted, so
+-	// we handle it uniformly by saving an index to the first original name,
+-	// which may or may not be a part of the first mapping.
+-	var sourceIndex int
+-	var originalLine int
+-	var originalColumn int
+-	omitSource := false
++	// Generated columns reset at chunk boundaries independently of source fields.
+@@ -435,3 +423,21 @@
+-	if i == len(buffer.Data) || strings.IndexByte(",;", buffer.Data[i]) != -1 {
+-		omitSource = true
+-	} else {
++	startState.GeneratedColumn += generatedColumn
++	prevEndState.HasOriginalName = false // This is handled separately below
++	startState.HasOriginalName = false
++	rewritten, _ := appendMappingToBuffer(nil, j.LastByte(), prevEndState, startState, true)
++	j.AddBytes(rewritten)
++
++	// A chunk can begin with unmapped segments. Rebase source coordinates at
++	// the first segment that actually contains them.
++	sourceOffset := i
++	for sourceOffset < len(buffer.Data) && strings.IndexByte(",;", buffer.Data[sourceOffset]) != -1 {
++		for sourceOffset < len(buffer.Data) && strings.IndexByte(",;", buffer.Data[sourceOffset]) != -1 {
++			sourceOffset++
++		}
++		if sourceOffset < len(buffer.Data) {
++			_, sourceOffset = DecodeVLQ(buffer.Data, sourceOffset)
++		}
++	}
++	j.AddBytes(buffer.Data[i:sourceOffset])
++	i = sourceOffset
++	if i < len(buffer.Data) {
++		var sourceIndex, originalLine, originalColumn int
+@@ -441,12 +447,4 @@
+-	}
+-
+-	// Rewrite the first mapping to be relative to the end state of the previous
+-	// chunk. We now know what the end state is because we're in the second pass
+-	// where all chunks have already been generated.
+-	startState.GeneratedColumn += generatedColumn
+-	startState.SourceIndex += sourceIndex
+-	startState.OriginalLine += originalLine
+-	startState.OriginalColumn += originalColumn
+-	prevEndState.HasOriginalName = false // This is handled separately below
+-	rewritten, _ := appendMappingToBuffer(nil, j.LastByte(), prevEndState, startState, omitSource)
+-	j.AddBytes(rewritten)
++		j.AddBytes(encodeVLQ(nil, sourceIndex+startState.SourceIndex-prevEndState.SourceIndex))
++		j.AddBytes(encodeVLQ(nil, originalLine+startState.OriginalLine-prevEndState.OriginalLine))
++		j.AddBytes(encodeVLQ(nil, originalColumn+startState.OriginalColumn-prevEndState.OriginalColumn))
++	}
+@@ -625,0 +624 @@
++	hasMappedSource     bool
+@@ -665 +664 @@
+-	if originalLoc == b.prevOriginalLoc && (b.prevGeneratedLen == len(output) || b.prevOriginalName == originalName) {
++	if len(b.sourceMap) > 0 && originalLoc == b.prevOriginalLoc && (b.prevGeneratedLen == len(output) || b.prevOriginalName == originalName) {
+@@ -671,0 +671,16 @@
++
++	if originalLoc.Start < 0 {
++		b.updateGeneratedLineAndColumn(output)
++		currentState := b.prevState
++		currentState.GeneratedColumn = b.generatedColumn
++		currentState.HasOriginalName = false
++		var lastByte byte
++		if len(b.sourceMap) > 0 {
++			lastByte = b.sourceMap[len(b.sourceMap)-1]
++		}
++		b.sourceMap, _ = appendMappingToBuffer(b.sourceMap, lastByte, b.prevState, currentState, true)
++		b.prevState = currentState
++		b.hasPrevState = false
++		b.lineStartsWithMapping = true
++		return
++	}
+@@ -723,7 +737,0 @@
+-	shouldIgnore := true
+-	for _, c := range b.sourceMap {
+-		if c != ';' {
+-			shouldIgnore = false
+-			break
+-		}
+-	}
+@@ -738 +746 @@
+-		ShouldIgnore:         shouldIgnore,
++		ShouldIgnore:         !b.hasMappedSource,
+@@ -847 +855,2 @@
+-}
++	b.hasMappedSource = true
++}
+--- /dev/null
++++ b/internal/sourcemap/unmapped_test.go
+@@ -0,0 +1,61 @@
++package sourcemap
++
++import (
++	"testing"
++
++	"github.com/evanw/esbuild/internal/ast"
++	"github.com/evanw/esbuild/internal/helpers"
++	"github.com/evanw/esbuild/internal/logger"
++)
++
++func TestGeneratedLocations(t *testing.T) {
++	b := MakeChunkBuilder(nil, GenerateLineOffsetTables("value\nsecond", 2), false)
++	b.AddSourceMapping(logger.Loc{Start: -1}, "", nil)
++	b.AddSourceMapping(logger.Loc{Start: -1}, "", []byte("helper"))
++	b.AddSourceMapping(logger.Loc{Start: 0}, "value", []byte("helper;"))
++	b.AddSourceMapping(logger.Loc{Start: -1}, "", []byte("helper;value;"))
++	b.AddSourceMapping(logger.Loc{Start: 6}, "second", []byte("helper;value;generated\nmore\n"))
++	chunk := b.GenerateChunk([]byte("helper;value;generated\nmore\nsecond"))
++	if actual := string(chunk.Buffer.Data); actual != "A,OAAAA,M;;AACAC" {
++		t.Fatalf("mappings = %q", actual)
++	}
++	if chunk.ShouldIgnore || chunk.EndState.OriginalLine != 1 || chunk.FinalGeneratedColumn != 6 {
++		t.Fatalf("chunk = %+v", chunk)
++	}
++}
++
++func TestEntirelyGeneratedChunk(t *testing.T) {
++	b := MakeChunkBuilder(nil, nil, false)
++	b.AddSourceMapping(logger.Loc{Start: -1}, "", nil)
++	chunk := b.GenerateChunk([]byte("generated\nmore"))
++	if string(chunk.Buffer.Data) != "A;" || !chunk.ShouldIgnore {
++		t.Fatalf("chunk = %+v", chunk)
++	}
++}
++
++func TestAppendChunkLeadingUnmapped(t *testing.T) {
++	previous := SourceMapState{GeneratedColumn: 4, SourceIndex: 3, OriginalLine: 5, OriginalColumn: 7, OriginalName: 2}
++	start := SourceMapState{GeneratedColumn: 10, SourceIndex: 8, OriginalName: 6}
++	for _, test := range []struct {
++		name       string
++		data       string
++		nameOffset ast.Index32
++		expected   string
++	}{
++		{"mapped", "AAAAA", ast.MakeIndex32(4), "MKLPI"},
++		{"unmapped", "A", ast.Index32{}, "M"},
++		{"same-line", "A,KAAAA", ast.MakeIndex32(6), "M,KKLPI"},
++		{"later-line", "A;AAAAA", ast.MakeIndex32(6), "M;AKLPI"},
++		{"several-unmapped", "A,C;;A,EAAAA", ast.MakeIndex32(11), "M,C;;A,EKLPI"},
++		{"no-name", "A;AAAA", ast.Index32{}, "M;AKLP"},
++		{"leading-lines", ";;A;AAAAA", ast.MakeIndex32(8), ";;A;AKLPI"},
++	} {
++		t.Run(test.name, func(t *testing.T) {
++			var j helpers.Joiner
++			AppendSourceMapChunk(&j, previous, start, MappingsBuffer{Data: []byte(test.data), FirstNameOffset: test.nameOffset})
++			if actual := string(j.Done()); actual != test.expected {
++				t.Fatalf("mappings = %q, want %q", actual, test.expected)
++			}
++		})
++	}
++}
