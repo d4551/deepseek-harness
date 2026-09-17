@@ -18,6 +18,10 @@ it('awaits a started callback after unsubscribe when disposing its registration'
     await ctx.fiber.dispose()
   })
   await ctx.plugin(MemorySettings)
+  const registryChanges: string[][] = []
+  ctx.on('settings/registry-updated', () => {
+    registryChanges.push(ctx.settings.describe().map(section => String(section.ns)))
+  })
   const owner = ctx.plugin({
     inject: ['settings'],
     apply(child: Context) {
@@ -48,6 +52,7 @@ it('awaits a started callback after unsubscribe when disposing its registration'
   expect(finished).toBe(true)
   expect(calls).toBe(1)
   expect(ctx.settings.describe()).toEqual([])
+  expect(registryChanges).toEqual([['disposal'], []])
 })
 
 it('waits for every started callback when reporting a sibling failure encounters an I/O error', async () => {
@@ -76,6 +81,10 @@ it('waits for every started callback when reporting a sibling failure encounters
     },
   })
   await ctx.plugin(MemorySettings)
+  const registryChanges: string[][] = []
+  ctx.on('settings/registry-updated', () => {
+    registryChanges.push(ctx.settings.describe().map(section => String(section.ns)))
+  })
   const owner = ctx.plugin({
     inject: ['settings'],
     apply(child: Context) {
@@ -111,5 +120,6 @@ it('waits for every started callback when reporting a sibling failure encounters
   release.resolve(undefined)
   await disposal
   expect(finished).toBe(true)
+  expect(registryChanges).toEqual([['disposal'], []])
   expect((await readFile(filename, 'utf8')).slice(recoveryLog.length)).toContain('ENOENT')
 })

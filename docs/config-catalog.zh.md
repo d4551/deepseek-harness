@@ -96,6 +96,8 @@ export interface Config {
 ```ts config-catalog
 /** Agent-loop plugin configuration. */
 export interface Config {
+  /** Deployment request policy; users may change its limits through Settings. */
+  requestBudget?: RequestBudgetPolicy
   /**
    * Maximum parallel-safe calls in flight per agent step. `1` is serial;
    * omission defaults to {@link DEFAULT_MAX_PARALLEL_TOOL_CALLS}.
@@ -115,9 +117,9 @@ export interface Config {
 }
 ```
 
-依赖：[`AgentOptions`](subsystems/core.zh.md) · [`SessionId`](subsystems/core.zh.md)
+依赖：[`AgentOptions`](subsystems/core.zh.md) · [`RequestBudgetPolicy`](subsystems/session.zh.md) · [`SessionId`](subsystems/core.zh.md)
 
-来源：[`packages/core/agent-loop/src/index.ts:252`](../packages/core/agent-loop/src/index.ts)
+来源：[`packages/core/agent-loop/src/index.ts:265`](../packages/core/agent-loop/src/index.ts)
 
 <a id="deepseek-aidsh-agent-presets"></a>
 
@@ -199,6 +201,8 @@ export interface Config {
   agents?: AgentLoopConfig['agents']
   /** Agent-loop concurrency cap; `1` is serial. */
   maxParallelToolCalls?: AgentLoopConfig['maxParallelToolCalls']
+  /** Deployment request policy forwarded to the agent-loop owner. */
+  requestBudget?: AgentLoopConfig['requestBudget']
   /** Whether the system prompt includes the fixed Harness identity (default true). */
   includeHarnessIdentity?: SystemPromptConfig['includeHarnessIdentity']
   /** Whether model history includes dynamic runtime-context snapshots (default true). */
@@ -2517,7 +2521,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/subagent/subagent/src/index.ts:191`](../packages/subagent/subagent/src/index.ts)
+来源：[`packages/subagent/subagent/src/index.ts:192`](../packages/subagent/subagent/src/index.ts)
 
 <a id="deepseek-aidsh-subagent-acp"></a>
 

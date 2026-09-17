@@ -10,6 +10,8 @@ export type PluginsSettingsLocaleKey =
   | 'bashTitle' | 'bashDescription' | 'bashTimeoutMs' | 'bashTimeoutMsHint'
   | 'bashMaxOutputBytes' | 'bashMaxOutputBytesHint'
   | 'agentLoopTitle' | 'agentLoopDescription' | 'agentLoopMaxParallel' | 'agentLoopMaxParallelHint'
+  | 'requestBudgetTitle' | 'requestBudgetDescription' | 'requestBudgetInvalid'
+  | 'requestBudgetTask' | 'requestBudgetTaskHint' | 'requestBudgetAgent' | 'requestBudgetAgentHint'
   | 'approvalAssessorTitle' | 'approvalAssessorDescription'
   | 'approvalAssessorEnabled' | 'approvalAssessorEnabledHint'
   | 'approvalAssessorEnabledOn' | 'approvalAssessorEnabledOnHint'
@@ -100,6 +102,13 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
   agentLoopDescription: 'How the agent dispatches tool calls.',
   agentLoopMaxParallel: 'Parallel tool calls',
   agentLoopMaxParallelHint: 'Upper bound on parallel-safe calls running at once within one step.',
+  requestBudgetTitle: 'Model request budget',
+  requestBudgetDescription: 'Limits apply on the next model request, including requests already used. Saving keeps the current counts and does not resume paused work. Send a follow-up message to authorize more work.',
+  requestBudgetTask: 'Requests for the whole task',
+  requestBudgetTaskHint: 'Shared by the main agent and every delegated agent. Includes retries and failed requests.',
+  requestBudgetAgent: 'Requests per delegated agent',
+  requestBudgetAgentHint: 'Each delegated agent also has this individual limit. It must not exceed the whole-task limit.',
+  requestBudgetInvalid: 'Enter a positive whole number within the safe integer range, or leave blank to use the deployment default.',
   approvalAssessorTitle: 'Approval audit',
   approvalAssessorDescription: 'First stage: rule-based screening can reject a justification, but cannot approve an action.',
   approvalAssessorEnabled: 'Work-avoidance screening',
@@ -262,6 +271,13 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
   agentLoopDescription: 'Agent 如何派发工具调用。',
   agentLoopMaxParallel: '并行工具调用数',
   agentLoopMaxParallelHint: '同一步内最多同时运行多少个可并行的调用。',
+  requestBudgetTitle: '模型请求预算',
+  requestBudgetDescription: '限制在下一次模型请求时生效，并计入已使用的请求。保存会保留当前计数，不会恢复已暂停的工作。发送后续消息以授权继续工作。',
+  requestBudgetTask: '整个任务的请求数',
+  requestBudgetTaskHint: '主智能体与所有委派智能体共享此额度，包括重试和失败的请求。',
+  requestBudgetAgent: '每个委派智能体的请求数',
+  requestBudgetAgentHint: '每个委派智能体还受此独立限制，且此值不得超过整个任务的限制。',
+  requestBudgetInvalid: '请输入安全整数范围内的正整数；留空表示使用部署默认值。',
   approvalAssessorTitle: '审批审计',
   approvalAssessorDescription: '第一阶段：基于规则检查理由，可以拒绝请求，但不能批准操作。',
   approvalAssessorEnabled: '规避工作检查',

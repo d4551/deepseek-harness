@@ -44,6 +44,102 @@ it('reserves exact actor and root counts while the root is idle, enforcing both 
   expect(child.events).toEqual([])
 })
 
+it('lets the root use all 128 shared attempts while retaining the 32-attempt delegated ceiling', async () => {
+  const { ctx, root, budgets } = await setup()
+  const finite = { policyId: policy.policyId, maxAgentAttempts: 32, maxRootAttempts: 128 }
+  const flushed: Session[] = []
+  ctx.on('session/flush', (session) => { flushed.push(session) })
+  const message = logHuman(root)
+  budgets.admit(root, finite, message.id)
+  for (let attempt = 1; attempt <= finite.maxRootAttempts; attempt += 1) {
+    await expect(budgets.reserve(root, root, finite, signal)).resolves.toMatchObject({
+      userMessageId: message.id, actorAttempt: attempt, rootAttempt: attempt,
+    })
+  }
+  const denied = budgets.reserve(root, root, finite, signal)
+  await expect(denied).rejects.toThrow('agent root used 128/128; root root used 128/128')
+  await expect(denied).rejects.toMatchObject({ budget: {
+    actorSessionId: root.id, rootSessionId: root.id,
+    actorAttempts: 128, rootAttempts: 128, maxAgentAttempts: 32, maxRootAttempts: 128,
+  } })
+  expect(flushed).toHaveLength(128)
+  expect(root.events.filter(event => event.type === 'request/episode')).toHaveLength(1)
+  expect(root.events.filter(event => event.type === 'request/attempt')).toHaveLength(128)
+})
+
+it('limits a delegate to 32 requests and lets the root spend only the remaining 96 shared requests', async () => {
+  const { ctx, root, child, budgets } = await setup()
+  const finite = { policyId: policy.policyId, maxAgentAttempts: 32, maxRootAttempts: 128 }
+  const flushed: Session[] = []
+  ctx.on('session/flush', (session) => { flushed.push(session) })
+  const message = logHuman(root)
+  budgets.admit(root, finite, message.id)
+  for (let attempt = 1; attempt <= 32; attempt += 1) {
+    await expect(budgets.reserve(root, child, finite, signal)).resolves.toMatchObject({
+      actorAttempt: attempt, rootAttempt: attempt,
+    })
+  }
+  await expect(budgets.reserve(root, child, finite, signal)).rejects.toThrow('agent child used 32/32; root root used 32/128')
+  for (let attempt = 1; attempt <= 96; attempt += 1) {
+    await expect(budgets.reserve(root, root, finite, signal)).resolves.toMatchObject({
+      actorAttempt: attempt, rootAttempt: 32 + attempt,
+    })
+  }
+  await expect(budgets.reserve(root, root, finite, signal)).rejects.toThrow('agent root used 96/128; root root used 128/128')
+  const other = ctx.sessions.create(SessionId('other'))
+  await expect(budgets.reserve(root, other, finite, signal)).rejects.toThrow('root root used 128/128')
+  expect(flushed).toHaveLength(128)
+  expect(root.events.filter(event => event.type === 'request/episode')).toHaveLength(1)
+  expect(root.events.filter(event => event.type === 'request/attempt')).toHaveLength(128)
+  expect(child.events).toEqual([])
+  expect(other.events).toEqual([])
+})
+
+it('applies changed finite limits to the same episode without resetting or refunding charges', async () => {
+  const { ctx, root, child, budgets } = await setup()
+  const flushed: Session[] = []
+  ctx.on('session/flush', (session) => { flushed.push(session) })
+  const message = logHuman(root)
+  budgets.admit(root, policy, message.id)
+  await budgets.reserve(root, child, policy, signal)
+  await budgets.reserve(root, child, policy, signal)
+  await expect(budgets.reserve(root, child, policy, signal)).rejects.toThrow('agent child used 2/2')
+
+  const increased = { ...policy, maxAgentAttempts: 3, maxRootAttempts: 5 }
+  await expect(budgets.reserve(root, child, increased, signal)).resolves.toMatchObject({
+    userMessageId: message.id, actorAttempt: 3, rootAttempt: 3,
+  })
+  await budgets.reserve(root, root, increased, signal)
+  const decreased = { ...policy, maxRootAttempts: 3 }
+  await expect(budgets.reserve(root, root, decreased, signal)).rejects.toThrow('root root used 4/3')
+  expect(root.events.filter(event => event.type === 'request/attempt')).toHaveLength(4)
+
+  const moreShared = { ...policy, maxRootAttempts: 6 }
+  await expect(budgets.reserve(root, root, moreShared, signal)).resolves.toMatchObject({
+    userMessageId: message.id, actorAttempt: 2, rootAttempt: 5,
+  })
+  await expect(budgets.reserve(root, child, moreShared, signal)).rejects.toThrow('agent child used 3/2')
+  expect(root.events.filter(event => event.type === 'request/attempt')).toHaveLength(5)
+  const moreDelegated = { ...moreShared, maxAgentAttempts: 4 }
+  await expect(budgets.reserve(root, child, moreDelegated, signal)).resolves.toMatchObject({
+    userMessageId: message.id, actorAttempt: 4, rootAttempt: 6,
+  })
+  await expect(budgets.reserve(root, root, moreDelegated, signal)).rejects.toThrow('root root used 6/6')
+  expect(flushed).toHaveLength(6)
+  expect(root.events.filter(event => event.type === 'user/message')).toHaveLength(1)
+  expect(root.events.filter(event => event.type === 'request/episode')).toHaveLength(1)
+  const identity = { version: 1, policyId: policy.policyId, rootSessionId: root.id, userMessageId: message.id }
+  expect(root.events.flatMap(event => event.type === 'request/attempt' ? [event.data] : []))
+    .toEqual([
+      { ...identity, actorSessionId: child.id, actorAttempt: 1, rootAttempt: 1 },
+      { ...identity, actorSessionId: child.id, actorAttempt: 2, rootAttempt: 2 },
+      { ...identity, actorSessionId: child.id, actorAttempt: 3, rootAttempt: 3 },
+      { ...identity, actorSessionId: root.id, actorAttempt: 1, rootAttempt: 4 },
+      { ...identity, actorSessionId: root.id, actorAttempt: 2, rootAttempt: 5 },
+      { ...identity, actorSessionId: child.id, actorAttempt: 4, rootAttempt: 6 },
+    ])
+})
+
 it('cannot renew from pending, discarded, historical, or repeated input identities', async () => {
   const { ctx, root, budgets } = await setup()
   const flushed: string[] = []

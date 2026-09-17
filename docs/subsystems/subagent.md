@@ -548,6 +548,14 @@ Named provider registry with one-shot runs, durable discovery, and continuable-c
 delegatingParent(child: Agent): Agent | undefined
 
 /**
+ * Verify the exact envelope produced by an authorized native continuation.
+ * @param agent - exact live recipient of the claimed input.
+ * @param message - complete original envelope proposed for this step.
+ * @returns whether the native continuation owns its unconsumed claim.
+ */
+isContinuationMessage(agent: Agent, message: UserMessage): boolean
+
+/**
  * Establish one durable continuable child and deliver its initial prompt.
  * Resolves when the child's inbox accepts that prompt, without waiting for the
  * turn to start or for the message to reach the Session log; any earlier
@@ -770,7 +778,7 @@ capacity(): CapacitySnapshot
 async start(name: string, request: SubagentStartRequest): Promise<SubagentRun>
 ```
 
-Types: [Agent](core.md) · [ContentBlock](llm-streaming.md) · [MessageId](llm-streaming.md) · [SessionId](core.md)
+Types: [Agent](core.md) · [ContentBlock](llm-streaming.md) · [MessageId](llm-streaming.md) · [SessionId](core.md) · [UserMessage](session.md)
 
 Source: [`packages/subagent/subagent/src/index.ts`](../../packages/subagent/subagent/src/index.ts)
 

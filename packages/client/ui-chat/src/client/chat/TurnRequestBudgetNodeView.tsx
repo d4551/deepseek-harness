@@ -7,12 +7,14 @@ export const TurnRequestBudgetNodeView = memo(function TurnRequestBudgetNodeView
   node, t,
 }: Pick<ChatNodeViewProps<'turn-request-budget'>, 'node' | 't'>) {
   const budget = node.data.budget
+  const rootLimitReached = budget.actorSessionId === budget.rootSessionId && budget.rootAttempts >= budget.maxRootAttempts
   return (
     <TurnLimitNotice
       title={t('message.requestBudget')}
       hint={t('message.requestBudget.hint')}
       usage={t('message.requestBudget.usage', {
-        actor: budget.actorAttempts, actorLimit: budget.maxAgentAttempts,
+        actor: budget.actorAttempts,
+        actorLimit: rootLimitReached ? budget.maxRootAttempts : budget.maxAgentAttempts,
         root: budget.rootAttempts, rootLimit: budget.maxRootAttempts,
       })}
     />

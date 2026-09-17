@@ -81,7 +81,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }[T]
 ```
 
-来源：[`packages/core/session/src/types.ts:341`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:348`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:377`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:409`](../packages/core/session/src/types.ts)
+来源：[`packages/core/session/src/types.ts:343`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:350`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:379`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:411`](../packages/core/session/src/types.ts)
 
 ## 事件
 
@@ -107,6 +107,20 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 ```
 
 来源：[`packages/core/agent/src/types.ts:38`](../packages/core/agent/src/types.ts)
+
+<a id="agentmessageproduced--log-only"></a>
+
+#### `agent/message/produced` — log-only
+
+```ts persistence-catalog
+/** Exact native producer output, recorded before its recipient inbox insertion. */
+'agent/message/produced': {
+  readonly producer: MessageProducer
+  readonly message: UserMessage
+}
+```
+
+来源：[`packages/core/agent/src/message-receipt.ts:15`](../packages/core/agent/src/message-receipt.ts)
 
 ### `agent-preset/*`
 
@@ -219,7 +233,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 类型：[StreamChunk](subsystems/llm-streaming.zh.md)
 
-来源：[`packages/core/session/src/types.ts:252`](../packages/core/session/src/types.ts)
+来源：[`packages/core/session/src/types.ts:254`](../packages/core/session/src/types.ts)
 
 <a id="assistantmessage--surface"></a>
 
@@ -241,7 +255,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 类型：[TokenUsage](subsystems/llm-streaming.zh.md)
 
-来源：[`packages/core/session/src/types.ts:263`](../packages/core/session/src/types.ts)
+来源：[`packages/core/session/src/types.ts:265`](../packages/core/session/src/types.ts)
 
 ### `command/*`
 
@@ -569,7 +583,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'request/attempt': RequestAttempt
 ```
 
-来源：[`packages/core/session/src/request-budget-types.ts:54`](../packages/core/session/src/request-budget-types.ts)
+来源：[`packages/core/session/src/request-budget-types.ts:63`](../packages/core/session/src/request-budget-types.ts)
 
 <a id="requestcontext--log-only"></a>
 
@@ -583,7 +597,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'request/context': RequestContext
 ```
 
-来源：[`packages/core/session/src/types.ts:302`](../packages/core/session/src/types.ts)
+来源：[`packages/core/session/src/types.ts:304`](../packages/core/session/src/types.ts)
 
 <a id="requestepisode--log-only"></a>
 
@@ -598,7 +612,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'request/episode': RequestEpisode
 ```
 
-来源：[`packages/core/session/src/request-budget-types.ts:47`](../packages/core/session/src/request-budget-types.ts)
+来源：[`packages/core/session/src/request-budget-types.ts:56`](../packages/core/session/src/request-budget-types.ts)
 
 <a id="requestheader--log-only"></a>
 
@@ -617,7 +631,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }
 ```
 
-来源：[`packages/core/session/src/types.ts:292`](../packages/core/session/src/types.ts)
+来源：[`packages/core/session/src/types.ts:294`](../packages/core/session/src/types.ts)
 
 ### `sandbox/*`
 
@@ -692,7 +706,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'session/end-seed': Record<string, never>
 ```
 
-来源：[`packages/core/session/src/types.ts:337`](../packages/core/session/src/types.ts)
+来源：[`packages/core/session/src/types.ts:339`](../packages/core/session/src/types.ts)
 
 <a id="sessiontitle--log-only"></a>
 
@@ -752,7 +766,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'step/end': { turn: number; step: number }
 ```
 
-来源：[`packages/core/session/src/types.ts:242`](../packages/core/session/src/types.ts)
+来源：[`packages/core/session/src/types.ts:244`](../packages/core/session/src/types.ts)
 
 <a id="stepstart--log-only"></a>
 
@@ -763,7 +777,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'step/start': { turn: number; step: number }
 ```
 
-来源：[`packages/core/session/src/types.ts:240`](../packages/core/session/src/types.ts)
+来源：[`packages/core/session/src/types.ts:242`](../packages/core/session/src/types.ts)
 
 ### `subagent/*`
 
@@ -894,7 +908,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 类型：[ToolCallId](subsystems/core.zh.md)
 
-来源：[`packages/core/session/src/types.ts:269`](../packages/core/session/src/types.ts)
+来源：[`packages/core/session/src/types.ts:271`](../packages/core/session/src/types.ts)
 
 <a id="toolcode-dispatch--log-only"></a>
 
@@ -969,7 +983,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }
 ```
 
-来源：[`packages/core/session/src/types.ts:281`](../packages/core/session/src/types.ts)
+来源：[`packages/core/session/src/types.ts:283`](../packages/core/session/src/types.ts)
 
 ### `tool-workflow/*`
 
@@ -1049,7 +1063,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 类型：[TurnEndReason](subsystems/session.zh.md)
 
-来源：[`packages/core/session/src/types.ts:238`](../packages/core/session/src/types.ts)
+来源：[`packages/core/session/src/types.ts:240`](../packages/core/session/src/types.ts)
 
 <a id="turnstart--log-only"></a>
 
@@ -1065,7 +1079,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'turn/start': { turn: number }
 ```
 
-来源：[`packages/core/session/src/types.ts:229`](../packages/core/session/src/types.ts)
+来源：[`packages/core/session/src/types.ts:231`](../packages/core/session/src/types.ts)
 
 ### `user/*`
 
@@ -1084,7 +1098,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'user/message': UserMessage
 ```
 
-来源：[`packages/core/session/src/types.ts:250`](../packages/core/session/src/types.ts)
+来源：[`packages/core/session/src/types.ts:252`](../packages/core/session/src/types.ts)
 
 ### `web/*`
 
@@ -1120,4 +1134,4 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'workspace/roots': { roots: string[] }
 ```
 
-来源：[`packages/core/session/src/types.ts:314`](../packages/core/session/src/types.ts)
+来源：[`packages/core/session/src/types.ts:316`](../packages/core/session/src/types.ts)

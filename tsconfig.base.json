@@ -243,6 +243,7 @@
       "@deepseek-ai/dsh-acp-app": ["./packages/bundle/acp-app/src"],
       "@deepseek-ai/dsh-acp-app/invariant": ["./packages/bundle/acp-app/src/invariant.ts"],
       "@deepseek-ai/dsh-agent": ["./packages/core/agent/src"],
+      "@deepseek-ai/dsh-agent/message-receipt": ["./packages/core/agent/src/message-receipt.ts"],
       "@deepseek-ai/dsh-agent-default-model": ["./packages/core/agent-default-model/src"],
       "@deepseek-ai/dsh-agent-default-model/invariant": ["./packages/core/agent-default-model/src/invariant.ts"],
       "@deepseek-ai/dsh-agent-instructions": ["./packages/context/agent-instructions/src"],

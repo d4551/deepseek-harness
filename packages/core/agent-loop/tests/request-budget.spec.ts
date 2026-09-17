@@ -4,14 +4,14 @@ import { RequestBudgetExhausted, SessionId } from '@deepseek-ai/dsh-session'
 import { harness } from './harness.ts'
 import { MockAdapter, textResponse, toolCallResponse } from './mock-adapter.ts'
 
-it('pauses after 32 requests, retains tool work, and resumes only after new human admission', async () => {
+it('pauses at the 32-request whole-task ceiling, retains tool work, and resumes only after new human admission', async () => {
   const responses = Array.from({ length: 32 }, (_, index) =>
     toolCallResponse(`progress-${index}`, 'record_progress', { progress: index + 1 }, `Progress ${index + 1}`))
   const provider = new MockAdapter([...responses, textResponse('Explicit continuation completed')])
   const ctx = await harness(provider)
   onTestFinished(() => ctx.fiber.dispose())
   const agent = ctx.agentLoop.create(SessionId('budget-pause'), { provider: 'mock', model: 'mock' })
-  const policy = { policyId: 'test/finite-request-budget', maxAgentAttempts: 32, maxRootAttempts: 64 }
+  const policy = { policyId: 'test/finite-request-budget', maxAgentAttempts: 16, maxRootAttempts: 32 }
   const progress: number[] = []
   const errors: unknown[] = []
   let flushes = 0
@@ -49,7 +49,7 @@ it('pauses after 32 requests, retains tool work, and resumes only after new huma
   expect(agent.session.events.findLast(event => event.type === 'turn/end')).toMatchObject({ data: {
     turn: 1, reason: { kind: 'request-budget', budget: {
       policyId: policy.policyId, userMessageId: human.id, actorAttempts: 32, rootAttempts: 32,
-      maxAgentAttempts: 32, maxRootAttempts: 64,
+      maxAgentAttempts: 16, maxRootAttempts: 32,
     } },
   } })
 

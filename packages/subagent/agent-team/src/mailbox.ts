@@ -1,10 +1,12 @@
 /** Durable Team mailbox admission, target-local dispatch, acknowledgement, and recovery. */
 
 import { randomUUID } from 'node:crypto'
+import { isDeepStrictEqual } from 'node:util'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import { isProducedMessage } from '@deepseek-ai/dsh-agent/message-receipt'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import type { ContentBlock } from '@deepseek-ai/dsh-llm'
+import type { ContentBlock, UserMessage } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import { errorMessage, TeamError } from './error.ts'
@@ -58,6 +60,31 @@ export class TeamMailbox {
       signal: AbortSignal.any([request.signal, this.lifecycle.signal]),
     })
     return await this.trackDispatch(operation)
+  }
+
+  /**
+   * Authenticate a claimed Team envelope against native delivery and its mailbox.
+   * @param target - exact live recipient of the proposed input.
+   * @param input - complete original envelope claimed by that recipient.
+   * @returns whether the native mailbox produced this exact unconsumed input.
+   */
+  isTeamMessage(target: Agent, input: UserMessage): boolean {
+    if (this.lifecycle.disposed || input.source.kind !== 'team-message') return false
+    if (!isProducedMessage(this.ctx, target, input, 'agent-team')
+      && !isProducedMessage(this.ctx, target, input, 'subagent')) return false
+    const source = input.source
+    const root = this.ctx.agents.get(SessionId(source.teamId))
+    if (root === undefined || this.roster.tryMembership(root)?.role !== 'lead'
+      || this.roster.tryMembership(target) === undefined) return false
+    const queued = this.journal.state(root).messages.get(source.messageId)
+    return queued !== undefined && queued.targetId === target.id
+      && isDeepStrictEqual(source, {
+        kind: 'team-message',
+        teamId: TeamId(root.id),
+        messageId: queued.id,
+        senderId: queued.senderId,
+        senderName: queued.senderName,
+      }) && isDeepStrictEqual(input.content, this.deliveryContent(queued))
   }
 
   /**
@@ -252,12 +279,14 @@ export class TeamMailbox {
           .find(candidate => candidate.id === message.targetId)
         if (peer === undefined) return false
         const input = createUserMessage({ content, source })
+        peer.session.append('agent/message/produced', { producer: 'agent-team', message: input })
         if (message.delivery === 'wakeup') peer.followup(input)
         else peer.inject(input)
         return await this.checkpointDelivered(root, peer.session, message.id)
       }
       if (message.targetId === root.id) {
         const input = createUserMessage({ content, source })
+        root.session.append('agent/message/produced', { producer: 'agent-team', message: input })
         if (message.delivery === 'wakeup') {
           root.followup(input)
           return await this.checkpointDelivered(root, root.session, message.id)
@@ -267,7 +296,9 @@ export class TeamMailbox {
       }
       if (message.delivery === 'quiet') {
         if (target === undefined) return false
-        target.inject(createUserMessage({ content, source }))
+        const input = createUserMessage({ content, source })
+        target.session.append('agent/message/produced', { producer: 'agent-team', message: input })
+        target.inject(input)
         return await this.checkpointDelivered(root, target.session, message.id)
       }
       if (target === undefined) {

@@ -79,7 +79,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }[T]
 ```
 
-Sources: [`packages/core/session/src/types.ts:341`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:348`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:377`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:409`](../packages/core/session/src/types.ts)
+Sources: [`packages/core/session/src/types.ts:343`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:350`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:379`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:411`](../packages/core/session/src/types.ts)
 
 ## Events
 
@@ -105,6 +105,20 @@ Sources: [`packages/core/session/src/types.ts:341`](../packages/core/session/src
 ```
 
 Source: [`packages/core/agent/src/types.ts:38`](../packages/core/agent/src/types.ts)
+
+<a id="agentmessageproduced--log-only"></a>
+
+#### `agent/message/produced` — log-only
+
+```ts persistence-catalog
+/** Exact native producer output, recorded before its recipient inbox insertion. */
+'agent/message/produced': {
+  readonly producer: MessageProducer
+  readonly message: UserMessage
+}
+```
+
+Source: [`packages/core/agent/src/message-receipt.ts:15`](../packages/core/agent/src/message-receipt.ts)
 
 ### `agent-preset/*`
 
@@ -217,7 +231,7 @@ Source: [`packages/interaction/user-approval/src/index.ts:32`](../packages/inter
 
 Types: [StreamChunk](subsystems/llm-streaming.md)
 
-Source: [`packages/core/session/src/types.ts:252`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:254`](../packages/core/session/src/types.ts)
 
 <a id="assistantmessage--surface"></a>
 
@@ -239,7 +253,7 @@ Source: [`packages/core/session/src/types.ts:252`](../packages/core/session/src/
 
 Types: [TokenUsage](subsystems/llm-streaming.md)
 
-Source: [`packages/core/session/src/types.ts:263`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:265`](../packages/core/session/src/types.ts)
 
 ### `command/*`
 
@@ -567,7 +581,7 @@ Source: [`packages/plan/plan-mode/src/index.ts:53`](../packages/plan/plan-mode/s
 'request/attempt': RequestAttempt
 ```
 
-Source: [`packages/core/session/src/request-budget-types.ts:54`](../packages/core/session/src/request-budget-types.ts)
+Source: [`packages/core/session/src/request-budget-types.ts:63`](../packages/core/session/src/request-budget-types.ts)
 
 <a id="requestcontext--log-only"></a>
 
@@ -581,7 +595,7 @@ Source: [`packages/core/session/src/request-budget-types.ts:54`](../packages/cor
 'request/context': RequestContext
 ```
 
-Source: [`packages/core/session/src/types.ts:302`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:304`](../packages/core/session/src/types.ts)
 
 <a id="requestepisode--log-only"></a>
 
@@ -596,7 +610,7 @@ Source: [`packages/core/session/src/types.ts:302`](../packages/core/session/src/
 'request/episode': RequestEpisode
 ```
 
-Source: [`packages/core/session/src/request-budget-types.ts:47`](../packages/core/session/src/request-budget-types.ts)
+Source: [`packages/core/session/src/request-budget-types.ts:56`](../packages/core/session/src/request-budget-types.ts)
 
 <a id="requestheader--log-only"></a>
 
@@ -615,7 +629,7 @@ Source: [`packages/core/session/src/request-budget-types.ts:47`](../packages/cor
 }
 ```
 
-Source: [`packages/core/session/src/types.ts:292`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:294`](../packages/core/session/src/types.ts)
 
 ### `sandbox/*`
 
@@ -690,7 +704,7 @@ Source: [`packages/schedule/schedule/src/types.ts:219`](../packages/schedule/sch
 'session/end-seed': Record<string, never>
 ```
 
-Source: [`packages/core/session/src/types.ts:337`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:339`](../packages/core/session/src/types.ts)
 
 <a id="sessiontitle--log-only"></a>
 
@@ -750,7 +764,7 @@ Source: [`packages/session/session-log-deepseek/src/types.ts:26`](../packages/se
 'step/end': { turn: number; step: number }
 ```
 
-Source: [`packages/core/session/src/types.ts:242`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:244`](../packages/core/session/src/types.ts)
 
 <a id="stepstart--log-only"></a>
 
@@ -761,7 +775,7 @@ Source: [`packages/core/session/src/types.ts:242`](../packages/core/session/src/
 'step/start': { turn: number; step: number }
 ```
 
-Source: [`packages/core/session/src/types.ts:240`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:242`](../packages/core/session/src/types.ts)
 
 ### `subagent/*`
 
@@ -892,7 +906,7 @@ Source: [`packages/todo/tool-todo/src/types.ts:31`](../packages/todo/tool-todo/s
 
 Types: [ToolCallId](subsystems/core.md)
 
-Source: [`packages/core/session/src/types.ts:269`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:271`](../packages/core/session/src/types.ts)
 
 <a id="toolcode-dispatch--log-only"></a>
 
@@ -967,7 +981,7 @@ Source: [`packages/core/tools/src/types.ts:40`](../packages/core/tools/src/types
 }
 ```
 
-Source: [`packages/core/session/src/types.ts:281`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:283`](../packages/core/session/src/types.ts)
 
 ### `tool-workflow/*`
 
@@ -1047,7 +1061,7 @@ Source: [`packages/workflow/tool-workflow/src/types.ts:47`](../packages/workflow
 
 Types: [TurnEndReason](subsystems/session.md)
 
-Source: [`packages/core/session/src/types.ts:238`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:240`](../packages/core/session/src/types.ts)
 
 <a id="turnstart--log-only"></a>
 
@@ -1063,7 +1077,7 @@ Source: [`packages/core/session/src/types.ts:238`](../packages/core/session/src/
 'turn/start': { turn: number }
 ```
 
-Source: [`packages/core/session/src/types.ts:229`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:231`](../packages/core/session/src/types.ts)
 
 ### `user/*`
 
@@ -1082,7 +1096,7 @@ Source: [`packages/core/session/src/types.ts:229`](../packages/core/session/src/
 'user/message': UserMessage
 ```
 
-Source: [`packages/core/session/src/types.ts:250`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:252`](../packages/core/session/src/types.ts)
 
 ### `web/*`
 
@@ -1118,4 +1132,4 @@ Source: [`packages/web/web-search-deepseek/src/provider.ts:80`](../packages/web/
 'workspace/roots': { roots: string[] }
 ```
 
-Source: [`packages/core/session/src/types.ts:314`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:316`](../packages/core/session/src/types.ts)

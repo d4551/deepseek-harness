@@ -486,9 +486,11 @@ export abstract class SettingsProvider extends Service {
         for (const outcome of outcomes) {
           if (outcome.status === 'rejected') failures.push(outcome.reason)
         }
+        this.ctx.emit('settings/registry-updated', ns)
         if (failures.length > 0) throw new AggregateError(failures, `settings: watcher disposal failed for "${ns}"`)
       }
     }, `settings.register(${JSON.stringify(String(ns))})`)
+    this.ctx.emit('settings/registry-updated', ns)
     return {
       setAvailable: (available) => {
         if (this.registrations.get(ns) !== registration || registration.available === available) return

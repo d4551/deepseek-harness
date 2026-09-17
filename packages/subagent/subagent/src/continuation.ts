@@ -22,6 +22,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
+import { isDeepStrictEqual } from 'node:util'
 import type { Context } from '@deepseek-ai/cordis'
 import type {
   Agent,
@@ -674,6 +675,7 @@ export class SubagentContinuationManager {
         senderSessionId: activation.childId,
       },
     })
+    parent.session.append('agent/message/produced', { producer: 'subagent', message })
     if (delivery === 'next-step') {
       this.sendWaking(parent, message, () => { this.sendReport(parent, message, delivery) })
     } else {
@@ -1206,10 +1208,17 @@ export class SubagentContinuationManager {
     source: MessageSource,
     parent: Agent,
   ): MessageId {
+    if (source.kind === 'coordinator'
+      && !isDeepStrictEqual(source, { kind: 'coordinator', form: 'relay', senderSessionId: parent.id })) {
+      throw new SubagentError('coordinator source does not identify the authorized parent', 'UNAUTHORIZED')
+    }
     // Parent-originated delivery keeps the parent live through ownership, so
     // establish it before the message can enter the child's inbox.
     this.acquireOwnership(parent, activation.childId)
     const message = createUserMessage({ content, source })
+    if (source.kind !== 'subagent-report' && source.kind !== 'subagent-settled') {
+      activation.handle.agent.session.append('agent/message/produced', { producer: 'subagent', message })
+    }
     const accepted = this.admitWaking(activation, message.id, () => {
       activation.handle.agent.followup(message)
     })
@@ -1489,6 +1498,7 @@ export class SubagentContinuationManager {
           senderSessionId: activation.childId,
         },
       })
+      parent.session.append('agent/message/produced', { producer: 'subagent', message })
       // A parent whose own teardown already began must not be woken. Waking is
       // not a queue operation: `followup()` on a quiescent Agent starts a turn,
       // and `cancel()` does not arm against a later one, so a notice arriving

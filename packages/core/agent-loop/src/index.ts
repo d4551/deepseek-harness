@@ -28,6 +28,8 @@ import type {} from '@deepseek-ai/dsh-tools'
 import type { SessionPersistence } from '@deepseek-ai/dsh-session-persistence'
 import { ReactLoopAgent } from './agent.ts'
 import { DEFAULT_MAX_PARALLEL_TOOL_CALLS } from './constants.ts'
+import type { RequestBudgetPolicy } from '@deepseek-ai/dsh-session/types'
+import { installRequestBudgetSettings, REQUEST_BUDGET_POLICY_SCHEMA } from './request-budget-settings.ts'
 
 /** Fiber states that cannot own or serve a new lifecycle. */
 const INACTIVE_STATES: ReadonlySet<FiberState> = new Set([
@@ -154,9 +156,20 @@ interface PreparedAgent {
   dispose(): Promise<void>
 }
 
+/** Host-owned request policy read at every model reservation. */
+export interface RequestBudgetPolicyProvider {
+  /**
+   * Read the deployment identity and currently committed finite limits.
+   * @returns the immutable policy without changing the episode or its charges.
+   */
+  get(): RequestBudgetPolicy
+}
+
 declare module '@deepseek-ai/cordis' {
   interface Context {
     agentLoop: AgentLoop
+    /** Current deployment identity with user-selected finite request ceilings. */
+    requestBudgetPolicy: RequestBudgetPolicyProvider
     /**
      * Launcher-owned exact session identities for configured agents, keyed by
      * the agent's config `id` and set with `ctx.provide()` before any Loader
@@ -250,6 +263,8 @@ export const AGENT_LOOP_SETTINGS_SCHEMA: z<AgentLoopSettings> = z.object({
 
 /** Agent-loop plugin configuration. */
 export interface Config {
+  /** Deployment request policy; users may change its limits through Settings. */
+  requestBudget?: RequestBudgetPolicy
   /**
    * Maximum parallel-safe calls in flight per agent step. `1` is serial;
    * omission defaults to {@link DEFAULT_MAX_PARALLEL_TOOL_CALLS}.
@@ -295,6 +310,7 @@ export class AgentLoop extends Service implements AgentFactory {
 
   /** Runtime schema for declarative agents. */
   static Config = z.object({
+    requestBudget: z.union([REQUEST_BUDGET_POLICY_SCHEMA, z.const(undefined)]),
     maxParallelToolCalls: z.number().step(1).min(1).default(DEFAULT_MAX_PARALLEL_TOOL_CALLS),
     agents: z.array(z.object({
       id: z.string().required(),
@@ -316,6 +332,7 @@ export class AgentLoop extends Service implements AgentFactory {
 
   constructor(ctx: Context, config: Config) {
     super(ctx, 'agentLoop')
+    if (config.requestBudget !== undefined) installRequestBudgetSettings(ctx, config.requestBudget)
     const entry: AgentLoopSettings = {
       maxParallelToolCalls: resolveMaxParallelToolCalls(config.maxParallelToolCalls),
     }

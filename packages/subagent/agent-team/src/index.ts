@@ -3,6 +3,7 @@
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import type { UserMessage } from '@deepseek-ai/dsh-llm'
 import { parentAgentOptionsForDelegation } from '@deepseek-ai/dsh-subagent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-persistence'
@@ -262,6 +263,16 @@ export class TeamService extends TypertRemoteService {
    */
   async sendMessage(caller: Agent, request: SendTeamMessageRequest): Promise<SendTeamMessageResult> {
     return await this.mailbox.send(caller, request)
+  }
+
+  /**
+   * Authenticate native Team delivery against its exact durable mailbox entry.
+   * @param agent - exact live recipient of the claimed input.
+   * @param message - complete original envelope proposed for this step.
+   * @returns whether the native mailbox owns this exact unconsumed claim.
+   */
+  isTeamMessage(agent: Agent, message: UserMessage): boolean {
+    return this.mailbox.isTeamMessage(agent, message)
   }
 
   /**

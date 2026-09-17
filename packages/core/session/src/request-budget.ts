@@ -9,8 +9,9 @@ export class RequestBudgetExhausted extends Error {
   readonly budget: RequestBudgetExhaustion
 
   constructor(budget: RequestBudgetExhaustion) {
+    const actorLimit = budget.actorSessionId === budget.rootSessionId ? budget.maxRootAttempts : budget.maxAgentAttempts
     super(
-      `HOST_REQUEST_BUDGET: agent ${budget.actorSessionId} used ${budget.actorAttempts}/${budget.maxAgentAttempts}; `
+      `HOST_REQUEST_BUDGET: agent ${budget.actorSessionId} used ${budget.actorAttempts}/${actorLimit}; `
       + `root ${budget.rootSessionId} used ${budget.rootAttempts}/${budget.maxRootAttempts} attempts for ${budget.userMessageId}. `
       + 'Automatic work paused. Submit an explicit human follow-up to authorize more work. Prior work and charges remain recorded.',
     )
@@ -204,7 +205,7 @@ export class SessionRequestBudgets {
     const episode = book.policies.get(policy.policyId)
     if (episode === undefined) throw new Error('HOST_REQUEST_BUDGET: a new authenticated human work message is required')
     const actorCount = episode.actors.get(actor.id) ?? 0
-    if (actorCount >= policy.maxAgentAttempts || episode.total >= policy.maxRootAttempts) {
+    if ((actor !== root && actorCount >= policy.maxAgentAttempts) || episode.total >= policy.maxRootAttempts) {
       throw new RequestBudgetExhausted({
         ...episode.identity,
         actorSessionId: actor.id,

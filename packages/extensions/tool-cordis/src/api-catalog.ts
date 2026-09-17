@@ -367,6 +367,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'durable message identity and immediate-delivery observation.',
       },
       {
+        signature: 'isTeamMessage(agent: Agent, message: UserMessage): boolean',
+        description: 'Authenticate native Team delivery against its exact durable mailbox entry.',
+        parameters: [{ name: 'agent', description: 'exact live recipient of the claimed input.' }, { name: 'message', description: 'complete original envelope proposed for this step.' }],
+        returns: 'whether the native mailbox owns this exact unconsumed claim.',
+      },
+      {
         signature: 'async createTask(caller: Agent, request: CreateTeamTaskRequest): Promise<TeamTaskView>',
         description: 'Create one unowned pending task in the Team Lead log.',
         parameters: [{ name: 'caller', description: 'exact live Team member creating the task.' }, { name: 'request', description: 'task text, blockers, and advisory write scopes.' }],
@@ -1399,6 +1405,19 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'requestBudgetPolicy',
+    summary: 'Host-owned request policy read at every model reservation.',
+    description: 'Host-owned request policy read at every model reservation.',
+    methods: [
+      {
+        signature: 'get(): RequestBudgetPolicy',
+        description: 'Read the deployment identity and currently committed finite limits.',
+        parameters: [],
+        returns: 'the immutable policy without changing the episode or its charges.',
+      },
+    ],
+  },
+  {
     key: 'sandbox',
     summary: 'Abstract process-sandbox service.',
     description: 'Abstract process-sandbox service. confine must return enforcing argv or fail closed at wrap or runner-execution time; silent unconfined passthrough is forbidden. Functional probes arbitrate multi-runner chains and may be skipped for a sole candidate, whose own refusal remains the fail-closed end.',
@@ -2315,6 +2334,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Read creation-time delegation independently of structural lifecycle ownership.',
         parameters: [{ name: 'child', description: 'exact Agent whose child composition established the binding.' }],
         returns: 'the exact delegating parent, or undefined for an unbound Agent.',
+      },
+      {
+        signature: 'isContinuationMessage(agent: Agent, message: UserMessage): boolean',
+        description: 'Verify the exact envelope produced by an authorized native continuation.',
+        parameters: [{ name: 'agent', description: 'exact live recipient of the claimed input.' }, { name: 'message', description: 'complete original envelope proposed for this step.' }],
+        returns: 'whether the native continuation owns its unconsumed claim.',
       },
       {
         signature: 'async startContinuable(spec: ContinuableStartSpec): Promise<ContinuableStart>',
@@ -3391,6 +3416,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     summary: 'One registered namespace\'s RAW user section changed, whether or not the resolved value did.',
     description: 'One registered namespace\'s RAW user section changed, whether or not the resolved value did. `settings/updated` is the consumer-facing event and stays deep-equal-gated; this one exists for configuration surfaces, which must learn that a field went from inherited to overridden (same resolved value, different meaning) and that their held revision is stale. Listener containment matches `settings/updated`.',
     parameters: [{ name: 'ns', description: 'the namespace whose stored section changed.' }, { name: 'revision', description: 'the namespace\'s new revision.' }],
+  },
+  {
+    name: 'settings/registry-updated',
+    mode: 'emit',
+    signature: '\'settings/registry-updated\'(ns: SettingsNamespace): void',
+    summary: 'A namespace owner registered or finished releasing its registration.',
+    description: 'A namespace owner registered or finished releasing its registration. Describing settings now reflects the changed namespace directory; the stored document, revision, and capability readiness are unchanged.',
+    parameters: [{ name: 'ns', description: 'the namespace whose registration changed.' }],
   },
   {
     name: 'settings/updated',
@@ -4865,8 +4898,12 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface RequestAttempt extends RequestEpisode {\n    readonly actorSessionId: SessionId;\n    readonly actorAttempt: number;\n    readonly rootAttempt: number;\n}',
   },
   {
+    name: 'RequestBudgetLimits',
+    declaration: 'export interface RequestBudgetLimits {\n    readonly maxAgentAttempts: number;\n    readonly maxRootAttempts: number;\n}',
+  },
+  {
     name: 'RequestBudgetPolicy',
-    declaration: 'export interface RequestBudgetPolicy {\n    readonly policyId: string;\n    readonly maxAgentAttempts: number;\n    readonly maxRootAttempts: number;\n}',
+    declaration: 'export interface RequestBudgetPolicy extends RequestBudgetLimits {\n    readonly policyId: string;\n}',
   },
   {
     name: 'RequestContext',
@@ -5714,7 +5751,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SubagentRuntime',
-    declaration: 'export class SubagentRuntime extends TypertRemoteService {\n    static Config: z<Config>;\n    constructor(ctx: Context, config: Config);\n    delegatingParent(child: Agent): Agent | undefined;\n    async startContinuable(spec: ContinuableStartSpec): Promise<ContinuableStart>;\n    async followup(parent: Agent, childId: SessionId, content: ContentBlock[], options: SubagentFollowupOptions): Promise<MessageId>;\n    interrupt(targetSessionId: SessionId, authority: SubagentInterruptAuthority): void;\n    async reportFrom(child: Agent, content: ContentBlock[], options: SubagentReportOptions): Promise<MessageId>;\n    registerContinuableSetup(contribution: ContinuableSetupContribution): Disposable;\n    async drainContinuableDescendants(parents: readonly Agent[]): Promise<void>;\n    async drainContinuableChildren(parent: Agent, childIds: readonly SessionId[]): Promise<void>;\n    listChildren(parentSessionId: SessionId, signal?: AbortSignal): Promise<SubagentListEntry[]>;\n    listDescendants(rootSessionId: SessionId, signal?: AbortSignal): Promise<SubagentDescendantListEntry[]>;\n    @Remote(\'list\')\n    async remoteExportList(parentSessionId: SessionId, signal: AbortSignal): Promise<SubagentCatalog>;\n    @Remote(\'prompt\')\n    async prompt(request: SubagentPromptRequest, signal: AbortSignal): Promise<SubagentPromptReceipt>;\n    @Remote(\'interruptByParent\')\n    interruptByParent(childSessionId: SessionId, parentSessionId: SessionId, mode: \'continuable\'): SubagentInterruptReceipt;\n    registerP /* …truncated — full shape in source */',
+    declaration: 'export class SubagentRuntime extends TypertRemoteService {\n    static Config: z<Config>;\n    constructor(ctx: Context, config: Config);\n    delegatingParent(child: Agent): Agent | undefined;\n    isContinuationMessage(agent: Agent, message: UserMessage): boolean;\n    async startContinuable(spec: ContinuableStartSpec): Promise<ContinuableStart>;\n    async followup(parent: Agent, childId: SessionId, content: ContentBlock[], options: SubagentFollowupOptions): Promise<MessageId>;\n    interrupt(targetSessionId: SessionId, authority: SubagentInterruptAuthority): void;\n    async reportFrom(child: Agent, content: ContentBlock[], options: SubagentReportOptions): Promise<MessageId>;\n    registerContinuableSetup(contribution: ContinuableSetupContribution): Disposable;\n    async drainContinuableDescendants(parents: readonly Agent[]): Promise<void>;\n    async drainContinuableChildren(parent: Agent, childIds: readonly SessionId[]): Promise<void>;\n    listChildren(parentSessionId: SessionId, signal?: AbortSignal): Promise<SubagentListEntry[]>;\n    listDescendants(rootSessionId: SessionId, signal?: AbortSignal): Promise<SubagentDescendantListEntry[]>;\n    @Remote(\'list\')\n    async remoteExportList(parentSessionId: SessionId, signal: AbortSignal): Promise<SubagentCatalog>;\n    @Remote(\'prompt\')\n    async prompt(request: SubagentPromptRequest, signal: AbortSignal): Promise<SubagentPromptReceipt>;\n    @Remote(\'interruptByParent\')\n    interruptByParent(childSessionId: SessionId, parentSessionId:  /* …truncated — full shape in source */',
   },
   {
     name: 'SubagentStartRequest',

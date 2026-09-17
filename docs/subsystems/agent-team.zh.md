@@ -144,6 +144,14 @@ async spawnTeammate(caller: Agent, request: SpawnTeammateRequest): Promise<Spawn
 async sendMessage(caller: Agent, request: SendTeamMessageRequest): Promise<SendTeamMessageResult>
 
 /**
+ * Authenticate native Team delivery against its exact durable mailbox entry.
+ * @param agent - exact live recipient of the claimed input.
+ * @param message - complete original envelope proposed for this step.
+ * @returns whether the native mailbox owns this exact unconsumed claim.
+ */
+isTeamMessage(agent: Agent, message: UserMessage): boolean
+
+/**
  * Create one unowned pending task in the Team Lead log.
  * @param caller - exact live Team member creating the task.
  * @param request - task text, blockers, and advisory write scopes.
@@ -287,7 +295,7 @@ tryMembership(agent: Agent): TeamMembership | undefined
 @Remote('updateTask') remoteUpdateTask(agent: Agent, request: UpdateTeamTaskRequest): Promise<TeamTaskMutationResult>
 ```
 
-Types: [Agent](core.zh.md)
+Types: [Agent](core.zh.md) · [UserMessage](session.zh.md)
 
 Source: [`packages/subagent/agent-team/src/index.ts`](../../packages/subagent/agent-team/src/index.ts)
 <!-- END GENERATED cordis-surface -->

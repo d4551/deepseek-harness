@@ -36,8 +36,9 @@ import type { CapacityRelease, CapacitySnapshot } from '@deepseek-ai/dsh-capacit
 import { scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { Scoped } from '@deepseek-ai/dsh-scope'
 import { assertObjectJsonSchema } from '@deepseek-ai/dsh-tools'
-import type { ContentBlock, MessageId } from '@deepseek-ai/dsh-llm'
+import type { ContentBlock, MessageId, UserMessage } from '@deepseek-ai/dsh-llm'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import { isProducedMessage } from '@deepseek-ai/dsh-agent/message-receipt'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import {
@@ -264,6 +265,16 @@ export class SubagentRuntime extends TypertRemoteService {
    */
   delegatingParent(child: Agent): Agent | undefined {
     return delegatingParentOf(child)
+  }
+
+  /**
+   * Verify the exact envelope produced by an authorized native continuation.
+   * @param agent - exact live recipient of the claimed input.
+   * @param message - complete original envelope proposed for this step.
+   * @returns whether the native continuation owns its unconsumed claim.
+   */
+  isContinuationMessage(agent: Agent, message: UserMessage): boolean {
+    return isProducedMessage(this.ctx, agent, message, 'subagent')
   }
 
   /**
