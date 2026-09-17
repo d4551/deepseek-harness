@@ -114,6 +114,15 @@ describe('Cordis effect ownership', () => {
     expect(ctx.fiber.getEffects()).toEqual([])
   })
 
+  it('preserves synchronous single-disposer failures and removes their owner-list entry', () => {
+    const ctx = new Context()
+    const failure = new Error('Synchronous resource release failed')
+    const dispose = ctx.effect(() => () => { throw failure }, 'failed-sync-effect')
+    expect(() => dispose()).toThrow(failure)
+    expect(dispose()).toBeUndefined()
+    expect(ctx.fiber.getEffects()).toEqual([])
+  })
+
   it('keeps effect registration legal while child fibers are PENDING and LOADING', async () => {
     const ctx = new Context()
     let pendingCleanup = false

@@ -52,7 +52,7 @@ The smallest addition to an existing composition is the two-package fragment fro
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-tool-agent-team) is the exhaustive source for every accepted field and its JSDoc.
 
-Preset admission follows the Agent's live composition. Changing a blank session's composition removes or restores Team registrations before the next tool execution, even while its creation header still names the original preset. A Team call prepared before removal is denied before dispatch and cannot mutate the task board. With preset restrictions configured, an Agent awaiting composition receives no Team tools. Deployments without the preset service use the session header.
+Preset admission follows the Agent's live composition. A plugin mounted inside a preset grants Team tools only to members joined to that composition; copying the preset preserves that grant. Changing a blank session's composition removes or restores Team registrations before the next tool execution, even while its creation header still names the original preset. A Team call prepared before removal is denied before dispatch and cannot mutate the task board. With preset restrictions configured, an Agent awaiting composition receives no Team tools. Deployments without the preset service use the session header.
 
 Omit the provider settings when exactly one registered provider supports each requested context mode. Set them explicitly when several providers match. Missing providers and context mismatches reject creation before reserving a teammate name or consuming capacity.
 
@@ -111,7 +111,7 @@ One `team:policy` section teaches each member its role and configured coordinati
 
 ### Scoped registration and teardown
 
-Registrations follow Team membership and the live preset at Agent creation and on tool-registry changes. Reentrant registration notifications cannot install the same Agent twice. Agent disposal removes its registrations; plugin HMR removes every installed scope without reinstalling during unload. Each disposer unwinds registrations in reverse order, so a failed install cannot leave a partial scope.
+Registrations follow Team membership and the live preset at Agent creation and during `agent-preset/recompose`. The transition awaits removal of the old tools, policy, and command before moving the Agent to its new composition. A rejected transition restores contributions for the composition the Agent still holds. Cordis owns each Agent's contribution group and unwinds it in reverse order. Agent disposal and plugin HMR release those groups, including asynchronous command teardown.
 
 </details>
 

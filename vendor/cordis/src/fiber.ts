@@ -432,18 +432,31 @@ export class Fiber {
     const dispose = () => {
       if (disposing) return disposalTask
       disposing = true
-      let task!: void | Promise<void>
-      for (const disposable of disposables.splice(0).reverse()) {
-        if (task) {
-          task = task.then(() => runDisposable(disposable))
-        } else {
-          const result = runDisposable(disposable)
-          if (isObject(result) && 'then' in result) {
-            task = result as any
+      const failures: unknown[] = []
+      const remaining = disposables.splice(0)
+      if (remaining.length < 2) {
+        const [disposable] = remaining
+        return disposalTask = disposable === undefined ? undefined : runDisposable(disposable)
+      }
+      const drain = (): void | Promise<void> => {
+        for (let disposable = remaining.pop(); disposable !== undefined; disposable = remaining.pop()) {
+          let settledSynchronously = false
+          const pending = (async () => {
+            const result: unknown = runDisposable(disposable)
+            if (isObject(result) && 'then' in result) await Promise.resolve(result)
+            settledSynchronously = true
+          })()
+          if (!settledSynchronously) {
+            return Promise.allSettled([pending]).then(([result]) => {
+              if (result.status === 'rejected') failures.push(result.reason)
+              return drain()
+            })
           }
         }
+        if (failures.length === 1) throw failures[0]
+        if (failures.length > 1) throw new AggregateError(failures, 'Effect disposal failed')
       }
-      return disposalTask = task
+      return disposalTask = drain()
     }
 
     const meta: EffectMeta = { label, children: [] }

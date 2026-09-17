@@ -189,3 +189,50 @@ it('disposes a pending required-service cycle without activating either plugin',
   expect(first.state).toBe(FiberState.DISPOSED)
   expect(second.state).toBe(FiberState.DISPOSED)
 })
+
+it('drains ordered native cleanup after synchronous and asynchronous disposer failures', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-cordis-composite-disposal-'))
+  const path = join(root, 'completed.txt')
+  const file = await open(path, 'a')
+  const ctx = new Context()
+  const started = Promise.withResolvers<undefined>()
+  const release = Promise.withResolvers<undefined>()
+  onTestFinished(async () => {
+    release.resolve(undefined)
+    await ctx.fiber.dispose()
+    await file.close()
+    await rm(root, { recursive: true, force: true })
+  })
+  const firstFailure = new Error('First disposer failed')
+  const secondFailure = new Error('Second disposer failed')
+  const dispose = ctx.effect(function* () {
+    yield () => file.close()
+    yield () => file.appendFile('last\n')
+    yield async () => {
+      started.resolve(undefined)
+      await release.promise
+      await file.appendFile('middle\n')
+      throw secondFailure
+    }
+    yield () => { throw firstFailure }
+  }, 'native-composite-cleanup')
+
+  const outcome = Promise.allSettled([dispose()])
+  await started.promise
+  expect(await readFile(path, 'utf8')).toBe('')
+  expect(file.fd).not.toBe(-1)
+  let ownerSettled = false
+  const ownerDisposal = ctx.fiber.dispose().then(() => { ownerSettled = true })
+  await new Promise(resolve => setImmediate(resolve))
+  expect(ownerSettled).toBe(false)
+  release.resolve(undefined)
+  const [result] = await outcome
+  expect(result.status).toBe('rejected')
+  if (result.status !== 'rejected') throw new Error('Failed cleanup was reported as successful')
+  expect(result.reason).toBeInstanceOf(AggregateError)
+  expect(result.reason).toHaveProperty('errors', [firstFailure, secondFailure])
+  await ownerDisposal
+  expect(file.fd).toBe(-1)
+  expect(await readFile(path, 'utf8')).toBe('middle\nlast\n')
+  expect(ctx.fiber.getEffects()).toEqual([])
+})

@@ -1142,6 +1142,23 @@ Source: [`packages/core/agent-loop/src/index.ts`](../../packages/core/agent-loop
 
 ### `agent-preset/*` events
 
+<a id="agent-presetrecompose--waterfall"></a>
+
+#### `agent-preset/recompose` — waterfall
+
+Await Agent-owned contribution teardown before relinking, then rebuild against the resulting composition.
+
+```ts cordis-catalog
+/**
+ * Await Agent-owned contribution teardown before relinking, then rebuild against the resulting composition.
+ * @param agentCtx - scope context whose preset parent is being replaced.
+ * @mode waterfall
+ */
+'agent-preset/recompose'(agentCtx: Context, next: () => Promise<void>): Promise<void>
+```
+
+Source: [`packages/preset/agent-presets/src/index.ts`](../../packages/preset/agent-presets/src/index.ts)
+
 <a id="agent-presetselected--emit"></a>
 
 #### `agent-preset/selected` — emit

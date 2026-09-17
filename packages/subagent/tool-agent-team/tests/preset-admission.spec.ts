@@ -8,6 +8,7 @@ import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import AgentPresets from '@deepseek-ai/dsh-agent-presets'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
+import { createScope } from '@deepseek-ai/dsh-scope'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SubagentService from '@deepseek-ai/dsh-subagent'
@@ -130,6 +131,100 @@ it('denies a prepared Team call when its composition changes before dispatch', a
   expect(result.isError).toBe(true)
   expect(result.content).toEqual([{ type: 'text', text: 'Error: unknown tool "team_task_create"' }])
   expect(ctx.agentTeams.listTasks(handle.agent)).toEqual([])
+})
+
+it('restores the current Team contributions when a composition transition is rejected', async () => {
+  const { ctx } = await setup()
+  const handle = await ctx.agents.create({
+    sessionId: SessionId('rejected-team-transition'),
+    setup: async (agentCtx) => { await ctx.agentPresets.mount(agentCtx, 'enabled') },
+  })
+  const failure = new Error('Composition transition refused')
+  ctx.on('agent-preset/recompose', () => Promise.reject(failure))
+  await expect(ctx.agentPresets.recompose(handle.agent.ctx, 'excluded')).rejects.toBe(failure)
+  expect(ctx.agentPresets.composedPreset(handle.agent.ctx)).toBe('enabled')
+  expect(ctx.tools.schemas(handle.agent).map(tool => tool.name).sort()).toEqual(TEAM_TOOLS)
+  const assembled = await ctx.systemPrompt.assemble({ scope: handle.agent })
+  expect(assembled.sections.filter(section => section.name === 'team:policy')).toHaveLength(1)
+})
+
+it('composes an unpublished scope without granting Team tools', async () => {
+  const { ctx } = await setup()
+  const key = {}
+  const scope = createScope(ctx, key)
+  await ctx.agentPresets.recompose(scope.ctx, 'enabled')
+  expect(ctx.agentPresets.composedPreset(scope.ctx)).toBe('enabled')
+  expect(ctx.agents.list()).toEqual([])
+  expect(ctx.tools.schemas(key)).toEqual([])
+  expect(ctx.tools.schemas()).toEqual([])
+  await scope.dispose()
+})
+
+it('does not reinstall an unloaded Team plugin when an in-flight transition completes', async () => {
+  const { ctx, plugin } = await setup()
+  const handle = await ctx.agents.create({
+    sessionId: SessionId('unloaded-team-transition'),
+    setup: async (agentCtx) => { await ctx.agentPresets.mount(agentCtx, 'enabled') },
+  })
+  const entered = Promise.withResolvers<boolean>()
+  const release = Promise.withResolvers<boolean>()
+  ctx.on('agent-preset/recompose', async (_agentCtx, next) => {
+    entered.resolve(true)
+    await release.promise
+    await next()
+  })
+  const pending = ctx.agentPresets.recompose(handle.agent.ctx, 'enabled')
+  onTestFinished(async () => {
+    release.resolve(true)
+    await pending
+  })
+  await entered.promise
+  expect(ctx.tools.schemas(handle.agent)).toEqual([])
+  await plugin.dispose()
+  release.resolve(true)
+  await pending
+  expect(ctx.agentPresets.composedPreset(handle.agent.ctx)).toBe('enabled')
+  expect(ctx.tools.schemas(handle.agent)).toEqual([])
+  const assembled = await ctx.systemPrompt.assemble({ scope: handle.agent })
+  expect(assembled.sections.filter(section => section.name === 'team:policy')).toEqual([])
+})
+
+it.each<{ event: 'system-prompt/change' | 'tools/change'; count: number }>([
+  { event: 'system-prompt/change', count: 2 },
+  { event: 'tools/change', count: 22 },
+])('reports every $event removal failure while releasing both Agent contributions', async ({ event, count }) => {
+  const { ctx, plugin } = await setup()
+  const first = await ctx.agents.create({
+    sessionId: SessionId('first-team-removal'),
+    setup: async (agentCtx) => { await ctx.agentPresets.mount(agentCtx, 'enabled') },
+  })
+  const second = await ctx.agents.create({
+    sessionId: SessionId('second-team-removal'),
+    setup: async (agentCtx) => { await ctx.agentPresets.mount(agentCtx, 'enabled') },
+  })
+  const errors: Error[] = []
+  ctx.logger.exporter({
+    export(message) {
+      if (message.type === 'error') {
+        for (const value of message.args) {
+          if (value instanceof Error) errors.push(value)
+        }
+      }
+    },
+  })
+  const failure = new Error('Contribution removal observer failed')
+  const stop = ctx.on(event, () => { throw failure })
+  await plugin.dispose()
+  stop()
+  for (const handle of [first, second]) {
+    expect(ctx.tools.schemas(handle.agent)).toEqual([])
+    const assembled = await ctx.systemPrompt.assemble({ scope: handle.agent })
+    expect(assembled.sections.filter(section => section.name === 'team:policy')).toEqual([])
+  }
+  expect(errors).toEqual(Array.from({ length: count }, () => failure))
+  await ctx.plugin(toolTeam, { excludePresets: ['excluded'] })
+  expect(ctx.tools.schemas(first.agent).map(tool => tool.name).sort()).toEqual(TEAM_TOOLS)
+  expect(ctx.tools.schemas(second.agent).map(tool => tool.name).sort()).toEqual(TEAM_TOOLS)
 })
 
 it('rejects invalid coordination from an untyped direct plugin caller', async () => {

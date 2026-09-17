@@ -6,6 +6,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-presets'
 import { TeamTaskId } from '@deepseek-ai/dsh-agent-team'
 import { assertNever } from '@deepseek-ai/dsh-llm'
+import { scopeChainOf, scopeOf } from '@deepseek-ai/dsh-scope'
 import { FIRST_PARTY_SECTION_ORDER } from '@deepseek-ai/dsh-system-prompt'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { InferValue, ValueSchemaSpec } from '@deepseek-ai/dsh-tools'
@@ -235,23 +236,21 @@ function callingAgent(agent: Agent | undefined, toolName: string): Agent {
 }
 
 /** Register the complete Team tool set in one exact Agent scope. */
-function install(agent: Agent, ctx: Context, config: Config & { coordination: TeamCoordination }): () => void {
+function install(agent: Agent, ctx: Context, config: Config & { coordination: TeamCoordination }): () => Promise<void> {
   const scoped = agent.ctx
   const policy = policyText(config.coordination)
-  const disposers: Array<() => unknown> = []
-  const register = (disposer: () => unknown): void => { disposers.push(disposer) }
-  try {
-    if (config.coordination === 'swarm') register(installSwarmCommand(agent))
-    register(scoped.systemPrompt.section({
+  return scoped.effect(function* () {
+    if (config.coordination === 'swarm') yield installSwarmCommand(agent)
+    yield scoped.systemPrompt.section({
       name: 'team:policy',
       order: FIRST_PARTY_SECTION_ORDER.TEAM_POLICY,
       text: () => {
         const membership = ctx.agentTeams.membership(agent)
         return `${policy}\n\nYour Team role is ${membership.role}; your Team name is ${membership.name}; Team id is ${membership.id}.\n\nUse list_agents for the current roster and registered workspace conversations. Read current tasks with team_task_list and complete details with team_task_get; pass a workspace peer's exact id as session_id to read its board. Read every returned page using nextCursor when present. Completed tasks retain their full details in these tools. Independent workspace conversations have session-qualified names. Use their exact names with send_message or followup_task to coordinate shared files and responsibilities. Each conversation owns its task board; agree on disjoint work before editing. Maintain task descriptions, ownership, dependencies, and write scopes with the Team tools as work changes. Pass handoffs directly to the responsible agent with the relevant task and session context. Do not ask the user to copy task ids, assign owners, or enter file scopes for agent coordination.`
       },
-    }))
+    })
 
-    register(scoped.tools.register(defineTool({
+    yield scoped.tools.register(defineTool({
       name: 'spawn_teammate',
       description: 'Create one named, durable teammate. Only the Team Lead may call this tool.',
       parameters: {
@@ -278,10 +277,10 @@ function install(agent: Agent, ctx: Context, config: Config & { coordination: Te
           signal: exec.signal,
         })
       },
-    })))
+    }))
 
-    const messageTool = (toolName: 'send_message' | 'followup_task', delivery: 'quiet' | 'wakeup'): void => {
-      register(scoped.tools.register(defineTool({
+    const messageTool = (toolName: 'send_message' | 'followup_task', delivery: 'quiet' | 'wakeup'): (() => void) => {
+      return scoped.tools.register(defineTool({
         name: toolName,
         description: delivery === 'quiet'
           ? 'Send durable information to another Team member without starting an idle member.'
@@ -299,12 +298,12 @@ function install(agent: Agent, ctx: Context, config: Config & { coordination: Te
             signal: exec.signal,
           })
         },
-      })))
+      }))
     }
-    messageTool('send_message', 'quiet')
-    messageTool('followup_task', 'wakeup')
+    yield messageTool('send_message', 'quiet')
+    yield messageTool('followup_task', 'wakeup')
 
-    register(scoped.tools.register(defineTool({
+    yield scoped.tools.register(defineTool({
       name: 'list_agents',
       description: 'List the Lead, durable teammates, and live conversation leads in the same registered workspace with current runtime status and message targets.',
       parameters: {},
@@ -313,9 +312,9 @@ function install(agent: Agent, ctx: Context, config: Config & { coordination: Te
       async execute(_args, exec) {
         return Promise.resolve(ctx.agentTeams.listMembers(callingAgent(exec.agent, 'list_agents')))
       },
-    })))
+    }))
 
-    register(scoped.tools.register(defineTool({
+    yield scoped.tools.register(defineTool({
       name: 'wait_agent',
       description: 'Wait for meaningful progress on Team work. Waiting members and unrelated workspace conversations cannot satisfy admission. Returns an activity cursor and noProgress when no productive member exists or an unchanged-cursor wait fails the bounded extension rule: at least twice the prior expired duration, within one hour cumulative quiet waiting. Inspect and repair stalled work instead of repeating that wait. This never wakes members or declares their work complete.',
       parameters: {
@@ -330,9 +329,9 @@ function install(agent: Agent, ctx: Context, config: Config & { coordination: Te
         const timeoutMs = args.timeout_ms ?? 30_000
         return await ctx.agentTeams.waitForProgress(caller, timeoutMs, exec.signal)
       },
-    })))
+    }))
 
-    register(scoped.tools.register(defineTool({
+    yield scoped.tools.register(defineTool({
       name: 'interrupt_agent',
       description: 'Interrupt one teammate\'s current turn while preserving its pending inbox. Team Lead only.',
       parameters: {
@@ -345,9 +344,9 @@ function install(agent: Agent, ctx: Context, config: Config & { coordination: Te
           args.target,
         ))
       },
-    })))
+    }))
 
-    register(scoped.tools.register(defineTool({
+    yield scoped.tools.register(defineTool({
       name: 'team_task_create',
       directWorkspaceEffect: 'none',
       description: 'Create one unowned pending task on the shared Team task board.',
@@ -370,9 +369,9 @@ function install(agent: Agent, ctx: Context, config: Config & { coordination: Te
           ...args.write_scopes === undefined ? {} : { writeScopes: args.write_scopes },
         })
       },
-    })))
+    }))
 
-    register(scoped.tools.register(defineTool({
+    yield scoped.tools.register(defineTool({
       name: 'team_task_list',
       description: 'List shared tasks, including readiness, owner, revision, blockers, and write-scope warnings.',
       parameters: {
@@ -404,9 +403,9 @@ function install(agent: Agent, ctx: Context, config: Config & { coordination: Te
           ...(cursor + limit < filtered.length ? { nextCursor: cursor + limit } : {}),
         })
       },
-    })))
+    }))
 
-    register(scoped.tools.register(defineTool({
+    yield scoped.tools.register(defineTool({
       name: 'team_task_get',
       description: 'Read the complete latest value of one shared task before changing or executing it.',
       parameters: {
@@ -422,9 +421,9 @@ function install(agent: Agent, ctx: Context, config: Config & { coordination: Te
           args.session_id,
         ))
       },
-    })))
+    }))
 
-    register(scoped.tools.register(defineTool({
+    yield scoped.tools.register(defineTool({
       name: 'team_task_claim_next',
       directWorkspaceEffect: 'none',
       description: 'Take ownership of the next ready task on the shared board: the first unblocked pending task whose write scopes no in-progress task is already writing. Returns outcome claimed with the task you now own, or outcome none with a reason: no-pending-task when no pending task remains, so nothing becomes claimable until a task is created, released, or reopened; no-ready-task when every pending task is blocked by work still in progress; write-scope-conflict, plus the deferred task ids, when the ready work would write where work in progress already writes. No none result is a failure. Two members can never claim the same task.',
@@ -433,9 +432,9 @@ function install(agent: Agent, ctx: Context, config: Config & { coordination: Te
       async execute(_args, exec) {
         return await ctx.agentTeams.claimNextReadyTask(callingAgent(exec.agent, 'team_task_claim_next'))
       },
-    })))
+    }))
 
-    register(scoped.tools.register(defineTool({
+    yield scoped.tools.register(defineTool({
       name: 'team_task_update',
       directWorkspaceEffect: 'none',
       description: 'Compare-and-set a shared task action using the latest revision from team_task_get or team_task_list. claim, reassign, and a scope-widening edit are refused when the write scopes overlap a task already in progress.',
@@ -467,17 +466,11 @@ function install(agent: Agent, ctx: Context, config: Config & { coordination: Te
           ...args.owner === undefined ? {} : { owner: args.owner },
         })
       },
-    })))
-  } catch (error: unknown) {
-    for (const dispose of disposers.reverse()) dispose()
-    throw error
-  }
-  return () => {
-    for (const dispose of disposers.reverse()) dispose()
-  }
+    }))
+  }, 'tool-team.agentContributions()')
 }
 
-/** Install Team tools in every live or subsequently published Team member scope. */
+/** Install Team tools for members inside this composition's scope, including future joins. */
 export function apply(ctx: Context, config: Config = {}): void {
   const resolved = {
     ...(config.freshProvider === undefined ? {} : { freshProvider: config.freshProvider }),
@@ -486,7 +479,9 @@ export function apply(ctx: Context, config: Config = {}): void {
     excludePresets: config.excludePresets ?? [],
   }
   const excludedPresets = new Set(resolved.excludePresets)
+  const ownerScope = scopeOf(ctx)
   const keepsPresetToolSet = (agent: Agent): boolean => {
+    if (ownerScope !== undefined && !scopeChainOf(scopeOf(agent.ctx)).includes(ownerScope)) return true
     if (excludedPresets.size === 0) return false
     const presets = ctx.get('agentPresets')
     if (presets === undefined) {
@@ -496,35 +491,41 @@ export function apply(ctx: Context, config: Config = {}): void {
     const preset = presets.composedPreset(agent.ctx)
     return preset === undefined || excludedPresets.has(preset)
   }
-  const installed = new Map<Agent, () => void>()
-  const reconciling = new Set<Agent>()
-  const reconcile = (agent: Agent): void => {
-    if (ctx.fiber.uid === null || ctx.fiber.state === FiberState.UNLOADING || reconciling.has(agent)) return
-    reconciling.add(agent)
-    try {
-      if (keepsPresetToolSet(agent) || ctx.agentTeams.tryMembership(agent) === undefined) {
-        const dispose = installed.get(agent)
-        installed.delete(agent)
-        dispose?.()
-      } else if (!installed.has(agent)) {
-        installed.set(agent, install(agent, ctx, resolved))
-      }
-    } finally {
-      reconciling.delete(agent)
-    }
+  const installed = new Map<Agent, () => Promise<void>>()
+  const installFor = (agent: Agent): void => {
+    if (ctx.fiber.uid === null || ctx.fiber.state === FiberState.UNLOADING) return
+    if (keepsPresetToolSet(agent) || ctx.agentTeams.tryMembership(agent) === undefined) return
+    installed.set(agent, install(agent, ctx, resolved))
   }
-  for (const agent of ctx.agents.list()) reconcile(agent)
-  ctx.on('agent/created', ({ agent }) => { reconcile(agent) })
-  ctx.on('tools/change', () => {
-    for (const agent of ctx.agents.list()) reconcile(agent)
-  })
-  ctx.on('agent/disposed', ({ agent }) => {
+  for (const agent of ctx.agents.list()) installFor(agent)
+  ctx.on('agent/created', ({ agent }) => { installFor(agent) })
+  ctx.on('agent-preset/recompose', async (agentCtx, next) => {
+    const key = scopeOf(agentCtx)
+    const agent = ctx.agents.list().find(candidate => scopeOf(candidate.ctx) === key)
+    if (agent === undefined) {
+      await next()
+      return
+    }
     const dispose = installed.get(agent)
     installed.delete(agent)
-    dispose?.()
+    try {
+      await dispose?.()
+      await next()
+    } finally {
+      installFor(agent)
+    }
   })
-  ctx.effect(() => () => {
-    for (const dispose of installed.values()) dispose()
+  ctx.on('agent/disposed', ({ agent }) => {
+    installed.delete(agent)
+  })
+  ctx.effect(() => async () => {
+    const disposers = [...installed.values()]
     installed.clear()
+    const results = await Promise.allSettled(disposers.map(async (dispose) => { await dispose() }))
+    const failures: unknown[] = []
+    for (const result of results) {
+      if (result.status === 'rejected') failures.push(result.reason)
+    }
+    if (failures.length > 0) throw new AggregateError(failures, 'Team contribution disposal failed')
   }, 'tool-team.scopedTools()')
 }

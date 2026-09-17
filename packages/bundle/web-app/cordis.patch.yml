@@ -13,14 +13,6 @@
 
 # ── surface-specific values the base deliberately omits ─────────────────────
 
-# Web leads coordinate shared tasks as a swarm and expose `/swarm` in the composer.
-- id: tool-agent-team
-  config:
-    freshProvider: spawn
-    forkProvider: fork
-    coordination: swarm
-    excludePresets: [minimal]
-
 - id: system-prompt
   config:
     persona: >-
@@ -408,6 +400,10 @@
   disabled: true
 
 - id: tool-subagent-fork
+  disabled: true
+
+# Presets grant Team tools, policy, and `/swarm` through their own plugin row.
+- id: tool-agent-team
   disabled: true
 
 # `tool-subagent-report` is host-plane for the same reason as the registry, not

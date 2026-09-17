@@ -52,7 +52,7 @@ kind: "package-reference"
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-tool-agent-team)是每个受支持字段及其 JSDoc 的穷尽式真源。
 
-Preset 准入依据 Agent 的实时组合。更改空白会话的组合会在下一次工具执行前移除或恢复 Team 注册，即使创建时的 header 仍记录原 preset。移除前已准备好的 Team 调用会在派发前被拒绝，无法修改任务板。配置了 preset 限制时，尚未完成组合的 Agent 不会获得 Team 工具。没有 preset 服务的部署使用会话 header。
+Preset 准入依据 Agent 的实时组合。挂载在 preset 内的插件只向加入该组合的成员授予 Team 工具；复制 preset 会保留此授权。更改空白会话的组合会在下一次工具执行前移除或恢复 Team 注册，即使创建时的 header 仍记录原 preset。移除前已准备好的 Team 调用会在派发前被拒绝，无法修改任务板。配置了 preset 限制时，尚未完成组合的 Agent 不会获得 Team 工具。没有 preset 服务的部署使用会话 header。
 
 如果每种请求的上下文模式都恰好有一个已注册 provider 支持，可以省略 provider 设置。多个 provider 匹配时，必须明确指定。provider 缺失或上下文不匹配会在保留 teammate 名字或占用容量之前拒绝创建。
 
@@ -111,7 +111,7 @@ Preset 准入依据 Agent 的实时组合。更改空白会话的组合会在下
 
 ### 按作用域注册与拆除
 
-注册在 Agent 创建及工具注册表变更时依据 Team 成员关系和实时 preset 更新。重入的注册通知不会为同一个 Agent 重复安装。Agent 处置会移除其注册；插件 HMR 会移除所有已安装的 scope，卸载期间不会重新安装。每个 disposer 按逆序展开注册，因此失败的安装不会留下残缺 scope。
+注册在 Agent 创建和 `agent-preset/recompose` 期间依据 Team 成员关系和实时 preset 更新。转换会等待旧工具、策略和命令全部移除，然后将 Agent 移至新组合。转换被拒绝时，会为 Agent 仍持有的组合恢复贡献。Cordis 拥有每个 Agent 的贡献组，并按逆序卸载。Agent 处置和插件 HMR 会释放这些组，包括异步命令卸载。
 
 </details>
 

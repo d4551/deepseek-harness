@@ -56,6 +56,8 @@ Keep this log exhaustive — every divergence from upstream must be listed.
 
 22. **`cordis/src/{registry,fiber,reflect}.ts` retiring dependency ownership**: the registry retains each fiber through cleanup independently of immediate public plugin removal. Service removal joins matching retiring consumers without reactivating them or joining the providing fiber itself. Fiber disposal establishes its unload transition before publishing the removal notification, so a reentrant provider disposal observes the consumer's pending cleanup. During that notification a self-disposing fiber retains its registry entry, allowing Loader to distinguish self-disposal from registry deletion and persist the entry's disabled state. Public registration is removed synchronously before the disposal call returns; the lifetime entry is released after teardown settles. Covered by real native-file resource ownership tests in `packages/extensions/tool-cordis/tests/cordis-resource-disposal.spec.ts` and the queued domain writes in `packages/session/session-projection-cache/tests/recovery.spec.ts`.
 
+23. **`cordis/src/fiber.ts` complete composite teardown**: generator-effect disposal awaits every collected disposer in reverse order even after a synchronous throw or asynchronous rejection. One failure retains its original identity; multiple failures are reported together after cleanup finishes. Covered by the real Team tool-removal observers in `packages/subagent/tool-agent-team/tests/preset-admission.spec.ts`.
+
 ## Sync procedure
 
 To update a vendored package from upstream:

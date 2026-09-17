@@ -3025,6 +3025,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [{ name: 'payload', description: '.error - persistence, setup, or publication failure.' }],
   },
   {
+    name: 'agent-preset/recompose',
+    mode: 'waterfall',
+    signature: '\'agent-preset/recompose\'(agentCtx: Context, next: () => Promise<void>): Promise<void>',
+    summary: 'Await Agent-owned contribution teardown before relinking, then rebuild against the resulting composition.',
+    description: 'Await Agent-owned contribution teardown before relinking, then rebuild against the resulting composition.',
+    parameters: [{ name: 'agentCtx', description: 'scope context whose preset parent is being replaced.' }],
+  },
+  {
     name: 'agent-preset/selected',
     mode: 'emit',
     signature: '\'agent-preset/selected\'(sessionId: SessionId, agentPreset: string): void',

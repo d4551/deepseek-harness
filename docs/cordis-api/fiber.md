@@ -207,7 +207,7 @@ Return metadata for currently registered effects.
 
 **Returns** one `EffectMeta` tree per labeled live effect.
 
-[Source](../../vendor/cordis/src/fiber.ts#L573)
+[Source](../../vendor/cordis/src/fiber.ts#L586)
 
 ### fiber.await()
 
@@ -225,7 +225,7 @@ Wait for current lifecycle work and rethrow startup errors.
 
 **Returns** this fiber, once it has settled into a stable state.
 
-[Source](../../vendor/cordis/src/fiber.ts#L709)
+[Source](../../vendor/cordis/src/fiber.ts#L722)
 
 ### fiber.restart()
 
@@ -243,7 +243,7 @@ Dispose and immediately reload this plugin with its current config.
 
 **Returns** a promise resolving once the reload settled.
 
-[Source](../../vendor/cordis/src/fiber.ts#L723)
+[Source](../../vendor/cordis/src/fiber.ts#L736)
 
 ### fiber.update(config, noSave?)
 
@@ -271,7 +271,7 @@ Runs the `internal/update` waterfall first, so update hooks (and HMR) can veto o
 
 **Returns** the update waterfall result; the default restart returns a promise.
 
-[Source](../../vendor/cordis/src/fiber.ts#L741)
+[Source](../../vendor/cordis/src/fiber.ts#L754)
 
 ## Effect
 

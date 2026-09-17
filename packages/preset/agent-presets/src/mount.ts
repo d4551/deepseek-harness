@@ -125,35 +125,12 @@ export interface PresetMount {
 const mounts = new Set<PresetMount>()
 
 /**
- * Drop every record whose subtree is gone.
- *
- * Records are pruned by observation rather than through a disposal hook
- * because a subtree can be torn down by its owning agent, by a failed mount, or
- * by the whole tree unloading, and a cleared `uid` is what all three share.
- *
- * Pruning therefore has to happen on a path this module owns. Reading is one
- * such path, but not a reliable one: the only production reader is the
- * invariant companion's service listener, and `dsh-invariants` is a
- * development composition — a shipped host never loads it. Mounting is the
- * other, and it is the one every session takes, which bounds the set at one
- * generation of dead records rather than one per session ever composed. Each
- * record would otherwise retain its whole disposed subtree: the fiber holds
- * its config, and that config is the key its `EntryTree` is stored under.
- */
-function pruneDisposedMounts(): void {
-  for (const mount of mounts) {
-    if (mount.fiber.uid === null) mounts.delete(mount)
-  }
-}
-
-/**
- * Every preset composition still installed, pruning fibers disposed since the
- * last read.
+ * Every installed preset composition. Disposed fibers are absent immediately,
+ * including while their asynchronous cleanup is still releasing registrations.
  * @returns the live mounts.
  */
 export function livePresetMounts(): PresetMount[] {
-  pruneDisposedMounts()
-  return [...mounts]
+  return [...mounts].filter(mount => mount.fiber.uid !== null)
 }
 
 /**
@@ -335,8 +312,14 @@ function mountDetail(error: unknown): string {
   ].join('\n')
 }
 
-/** Await the complete subtree and reject inactive rows or services outside its scope. */
-async function inspectMount(agentCtx: Context, handle: Fiber, config: PresetTreeConfig): Promise<MountedTree> {
+/** Publish a usable, isolated subtree with registration owned by its lifecycle. */
+async function inspectMount(
+  agentCtx: Context,
+  handle: Fiber,
+  config: PresetTreeConfig,
+  presetId: string,
+  key: ScopeKey,
+): Promise<void> {
   await handle.await()
   const subtree = mounted.get(config)
   if (subtree === undefined) throw new Error('mounted subtree did not publish its entry tree')
@@ -352,14 +335,19 @@ async function inspectMount(agentCtx: Context, handle: Fiber, config: PresetTree
       + 'a preset service must sit behind an `isolate` realm or move to the host composition',
     )
   }
-  return subtree
+  const record: PresetMount = { presetId, tree, fiber, key }
+  fiber.effect(() => {
+    mounts.add(record)
+    return () => { mounts.delete(record) }
+  })
 }
 
 /**
  * Mount `preset` under `agentCtx` and return only once every row is usable.
  *
  * The subtree is owned by `agentCtx`'s fiber, so it unwinds with the agent and
- * the caller receives no disposer. A rejection leaves nothing mounted.
+ * the caller receives no disposer. Unload releases its registry record without
+ * requiring another mount or registry read. A rejection leaves nothing mounted.
  * @param agentCtx - the agent's scope context, from the agent factory's `setup`.
  * @param preset - the resolved preset to compose the agent from.
  * @throws when the scope or host base is absent, a row is unusable, or a row
@@ -379,14 +367,9 @@ export async function mountPreset(agentCtx: Context, preset: AgentPreset): Promi
     throw new PresetMountError(preset.id, 'mounting needs `ctx.baseUrl` to resolve packages from the host composition')
   }
   const config: PresetTreeConfig = { path: pathToFileURL(preset.path).href, harnessBase }
-  // Before the record this mount is about to add: standing mounts are one per
-  // preset and live until whole-tree teardown, so pruning here only sweeps
-  // records of torn-down runtimes (tests; an HMR reload of the roster).
-  pruneDisposedMounts()
   const handle = agentCtx.plugin(PresetTree, config)
-  const [inspected] = await Promise.allSettled([inspectMount(agentCtx, handle, config)])
+  const [inspected] = await Promise.allSettled([inspectMount(agentCtx, handle, config, preset.id, scope)])
   if (inspected.status === 'fulfilled') {
-    mounts.add({ presetId: preset.id, ...inspected.value, key: scope })
     return
   }
   const failures: unknown[] = [inspected.reason]

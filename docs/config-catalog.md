@@ -2899,7 +2899,7 @@ export interface Config {
 export type TeamCoordination = 'delegated' | 'swarm'
 ```
 
-Source: [`packages/subagent/tool-agent-team/src/index.ts:26`](../packages/subagent/tool-agent-team/src/index.ts)
+Source: [`packages/subagent/tool-agent-team/src/index.ts:27`](../packages/subagent/tool-agent-team/src/index.ts)
 
 <a id="deepseek-aidsh-tool-fs"></a>
 

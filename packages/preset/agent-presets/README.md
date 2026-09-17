@@ -80,11 +80,15 @@ A copy is refused when the id is not `[a-z0-9][a-z0-9-]*` (the id becomes a dire
 
 A session can switch to a different preset only while it has produced nothing — no messages or tool calls. After that, the composition is fixed for the session's life, because swapping tools mid-conversation would leave logged tool calls the new composition cannot make. A committed switch emits `tools/change` because the resolved tool set changed without a registry edit. The switch is also recorded in the session log, so a resumed or forked session rebuilds under the composition it ran.
 
+The awaited `agent-preset/recompose` lifecycle lets plugins remove Agent-owned contributions before the parent link moves and rebuild them afterwards. Listeners must await `next()` exactly once to allow the transition. A listener that rejects before `next()` prevents the relink; contributions are restored against the retained composition.
+
 ### Failures and recovery
 
 A preset whose composition is missing, unparsable, not a list of named plugin rows, or naming a module that cannot be resolved is listed as broken with a reason naming the rows at fault; composing such a preset is refused up front, so a session never starts half-composed. What survives to session creation is a row whose module loads and then refuses — a plugin that throws, or one waiting for a service the composition never supplies — which fails the creation and rolls it back, naming every failed row including those inside a group. Fix the preset's file or delete it, then retry.
 
 Mounting requires the host composition's `ctx.baseUrl`. Package names resolve from that host through Node's native module loader; an unavailable loader rejects package imports explicitly. Relative paths resolve from the preset directory, while absolute paths, file URLs, and `cordis:` builtins retain their own resolution. A failed mount awaits its owned teardown; if teardown also fails, the reported error retains both failures.
+
+Disposing a preset subtree releases its registry record as part of teardown, even if the process never mounts or queries another preset. Registry reads exclude a disposed subtree while its asynchronous cleanup is still running.
 
 -----
 

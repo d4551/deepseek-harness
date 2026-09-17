@@ -4,11 +4,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
+import { setImmediate } from 'node:timers/promises'
 import { Context, FiberState } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import { createScope } from '@deepseek-ai/dsh-scope'
 import { livePresetMounts, mountPreset, PresetMountError } from '../src/index.ts'
-import { expect, it } from 'vitest'
+import { expect, it, onTestFinished } from 'vitest'
 
 it('removes a pending mount when the Loader service is absent', async () => {
   const script = `
@@ -42,7 +43,7 @@ it('removes a pending mount when the Loader service is absent', async () => {
   expect(result.stdout).toBe('pending preset released\n')
 })
 
-it('retains non-Error details supplied by a plugin aggregate', async () => {
+it('retains nested and non-Error details supplied by a plugin aggregate', async () => {
   const root = await mkdtemp(join(tmpdir(), 'dsh-preset-details-'))
   const path = join(root, 'agent.cordis.json')
   await writeFile(path, JSON.stringify([{ id: 'failure', name: 'cordis:failure' }]))
@@ -50,13 +51,22 @@ it('retains non-Error details supplied by a plugin aggregate', async () => {
   ctx.baseUrl = pathToFileURL(root).href + '/'
   await ctx.plugin(Loader)
   ctx.loader.builtins.failure = function failure(): never {
-    throw new AggregateError([new Error('first failure'), 'second failure'], 'child failures')
+    throw new AggregateError([
+      new AggregateError([new Error('first failure'), 'second failure'], 'nested failures'),
+      new Error('third failure'),
+    ], 'child failures')
   }
   const key = {}
   const scoped = createScope(ctx, key)
   try {
     await expect(mountPreset(scoped.ctx, { id: 'details', trust: 'user', path }))
-      .rejects.toThrow('child failures\n- first failure\n- second failure')
+      .rejects.toThrow(new PresetMountError('details', [
+        'failed to apply loader entry failure (cordis:failure): child failures',
+        '- nested failures',
+        '  - first failure',
+        '  - second failure',
+        `- third failure (${path})`,
+      ].join('\n')))
     expect(livePresetMounts().some(mount => mount.key === key)).toBe(false)
   } finally {
     await ctx.fiber.dispose()
@@ -64,7 +74,41 @@ it('retains non-Error details supplied by a plugin aggregate', async () => {
   }
 })
 
-it('retains a mount failure and a teardown observer failure after owned cleanup settles', async () => {
+it('reports every inactive row and every missing dependency', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-preset-inactive-'))
+  onTestFinished(() => rm(root, { recursive: true, force: true }))
+  const path = join(root, 'agent.cordis.json')
+  await writeFile(path, JSON.stringify([
+    { id: 'first', name: 'cordis:missing' },
+    { id: 'second', name: 'cordis:missing' },
+  ]))
+  const ctx = new Context()
+  onTestFinished(() => ctx.fiber.dispose())
+  ctx.baseUrl = pathToFileURL(root).href + '/'
+  await ctx.plugin(Loader)
+  ctx.loader.builtins.missing = {
+    inject: ['presetDependencyOne', 'presetDependencyTwo'],
+    apply() { throw new Error('a dependency-blocked plugin must not start') },
+  }
+  const scoped = createScope(ctx, {})
+  await expect(mountPreset(scoped.ctx, { id: 'inactive', trust: 'user', path }))
+    .rejects.toThrow(new PresetMountError('inactive', [
+      '2 row(s) did not activate:',
+      'first (cordis:missing): waiting for presetDependencyOne, presetDependencyTwo',
+      `second (cordis:missing): waiting for presetDependencyOne, presetDependencyTwo (${path})`,
+    ].join('\n')))
+})
+
+it('explains the process-wide effect of mounting without a scope', async () => {
+  const ctx = new Context()
+  onTestFinished(() => ctx.fiber.dispose())
+  await expect(mountPreset(ctx, {
+    id: 'unscoped', trust: 'user', path: join(import.meta.dirname, 'fixtures/system/standard/agent.cordis.yml'),
+  })).rejects.toThrow('agent-presets: refusing to mount preset "unscoped" into an unscoped context; '
+    + 'its registrations would apply to every agent in the process')
+})
+
+it.each([false, true])('retains mount and teardown failures through cleanup (terminal observer fails: %s)', async (failAtSettlement) => {
   const root = await mkdtemp(join(tmpdir(), 'dsh-preset-cleanup-'))
   const path = join(root, 'agent.cordis.json')
   await writeFile(path, JSON.stringify([{ id: 'leaking', name: 'cordis:leaking' }]))
@@ -86,10 +130,14 @@ it('retains a mount failure and a teardown observer failure after owned cleanup 
     })
   }
   const observerFailure = new Error('preset teardown observer failed')
+  const settlementFailure = new Error('preset teardown settlement observer failed')
   const removeObserver = ctx.on('internal/status', (fiber) => {
-    if (fiber.parent !== scoped.ctx || fiber.state !== FiberState.UNLOADING) return
-    removeObserver()
-    throw observerFailure
+    if (fiber.parent !== scoped.ctx) return
+    if (fiber.state === FiberState.UNLOADING) throw observerFailure
+    if (fiber.state === FiberState.DISPOSED) {
+      removeObserver()
+      if (failAtSettlement) throw settlementFailure
+    }
   })
   try {
     const completion = Promise.allSettled([
@@ -99,6 +147,7 @@ it('retains a mount failure and a teardown observer failure after owned cleanup 
       return outcomes
     })
     await started.promise
+    await setImmediate()
     expect(settled).toBe(false)
     expect(cleaned).toBe(false)
     release.resolve(true)
@@ -112,9 +161,13 @@ it('retains a mount failure and a teardown observer failure after owned cleanup 
     expect(error.cause).toBeInstanceOf(AggregateError)
     if (!(error.cause instanceof AggregateError)) throw new Error('mount error lost its causes')
     expect(error.cause.message).toBe('preset mounting and cleanup failed')
-    expect(error.cause.errors).toHaveLength(2)
+    expect(error.cause.errors).toHaveLength(failAtSettlement ? 3 : 2)
     expect(error.cause.errors[0]).toEqual(new Error('row(s) published process-global service(s) [presetCleanupLeak]; a preset service must sit behind an `isolate` realm or move to the host composition'))
     expect(error.cause.errors[1]).toBe(observerFailure)
+    if (failAtSettlement) {
+      expect(error.message).toContain('preset teardown settlement observer failed')
+      expect(error.cause.errors[2]).toBe(settlementFailure)
+    }
     expect(cleaned).toBe(true)
     expect(ctx.get('presetCleanupLeak')).toBeUndefined()
     expect(livePresetMounts().some(mount => mount.key === key)).toBe(false)

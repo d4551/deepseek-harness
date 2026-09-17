@@ -160,6 +160,13 @@
 
 # ── delegation and workflows ────────────────────────────────────────────────
 
+- id: tool-agent-team
+  name: '@deepseek-ai/dsh-tool-agent-team'
+  config:
+    freshProvider: spawn
+    forkProvider: fork
+    coordination: swarm
+
 # The `subagents` registry and its spawn/fork backends live in the HOST
 # composition: the registry is a process singleton whose cross-session queries
 # the api-proxy serves to the browser, and a provider name may only be

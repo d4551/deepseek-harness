@@ -80,6 +80,14 @@ declare module '@deepseek-ai/cordis' {
   interface Context {
     agentPresets: AgentPresets
   }
+  interface Events {
+    /**
+     * Await Agent-owned contribution teardown before relinking, then rebuild against the resulting composition.
+     * @param agentCtx - scope context whose preset parent is being replaced.
+     * @mode waterfall
+     */
+    'agent-preset/recompose'(agentCtx: Context, next: () => Promise<void>): Promise<void>
+  }
 }
 
 /**
@@ -581,10 +589,10 @@ export class AgentPresets extends TypertRemoteService {
     }
     const preset = await this.resolveMountable(id)
     const standing = await this.standing.ensure(preset)
-    this.adopt(agentCtx, agentKey, standing.key, standing)
-    // Reparenting changes every scope-layered tool view without adding or
-    // removing a registration. Publish the registry's normal invalidation so
-    // Agent-owned overlays can reconcile with the new ancestry.
+    await this.ctx.waterfall('agent-preset/recompose', agentCtx, () => {
+      this.adopt(agentCtx, agentKey, standing.key, standing)
+      return Promise.resolve()
+    })
     try {
       this.ctx.emit('tools/change')
     } catch (error: unknown) {

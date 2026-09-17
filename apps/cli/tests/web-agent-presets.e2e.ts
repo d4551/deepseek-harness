@@ -30,6 +30,15 @@ const CODEX_PACKAGE_DIR = join(REPO_ROOT, 'packages/subagent/subagent-codex')
 const CLAUDE_CODE_PACKAGE_DIR = join(REPO_ROOT, 'packages/subagent/subagent-claude-code')
 /** The installation anchor whose dependency surface the preset module fallback mirrors. */
 const INSTALL_ANCHOR = join(REPO_ROOT, 'apps/cli/package.json')
+const STANDARD_SHELL_NAME = process.platform === 'win32' ? 'pwsh' : 'bash'
+const STANDARD_TOOLS = [
+  'ask_user_question', STANDARD_SHELL_NAME, 'create_goal', 'edit', 'exit_plan_mode',
+  'followup_task', 'get_goal', 'glob', 'grep', 'interrupt_agent', 'job_kill', 'job_list',
+  'job_output', 'list_agents', 'ralph', 'read', 'read_image', 'send_message', 'skill',
+  'spawn_teammate', 'subagent', 'subagent_fork', 'team_task_claim_next', 'team_task_create',
+  'team_task_get', 'team_task_list', 'team_task_update', 'todo_write', 'update_goal',
+  'wait_agent', 'web_fetch', 'web_search', 'workflow', 'write',
+].sort()
 const MINIMAL_PROMPT = 'You are a helpful software engineer assistant.'
 const MINIMAL_BASH_DESCRIPTION = `Run commands in a bash shell
 * When invoking this tool, the contents of the "command" parameter does NOT need to be XML-escaped.
@@ -230,18 +239,9 @@ describe('the shipped Web composition', () => {
       setup: agentCtx => ctx.agentPresets.mount(agentCtx, 'standard').then(() => undefined),
     })
     try {
-      // The EXACT catalog, not a spot-check: an omission is this design's
-      // quietest failure mode, because a row that registers into the wrong
-      // layer mounts cleanly and simply contributes nothing. `glob`/`grep` are
-      // excluded for the reason the TUI composition e2e excludes them — they
-      // depend on ripgrep being present on the machine.
-      expect(toolNames(ctx, handle.agent).filter(name => name !== 'glob' && name !== 'grep')).toEqual([
-        'ask_user_question', 'bash', 'create_goal', 'edit', 'exit_plan_mode',
-        'get_goal', 'interrupt_agent', 'job_kill', 'job_list', 'job_output', 'list_agents', 'ralph', 'read', 'read_image', 'send_message', 'skill',
-        'subagent', 'subagent_fork', 'todo_write', 'update_goal', 'web_fetch', 'web_search',
-        'workflow', 'write',
-      ])
+      expect(toolNames(ctx, handle.agent)).toEqual(STANDARD_TOOLS)
       expect(ctx.commands.find(handle.agent, 'goal')).toBeDefined()
+      expect(ctx.commands.find(handle.agent, 'swarm')).toBeDefined()
     } finally {
       await handle.dispose()
     }
@@ -314,12 +314,12 @@ describe('the shipped Web composition', () => {
     })
     try {
       expect(toolNames(ctx, minimal.agent)).toEqual(['bash', 'str_replace_editor'])
-      expect(toolNames(ctx, full.agent).length).toBeGreaterThan(10)
+      expect(toolNames(ctx, full.agent)).toEqual(STANDARD_TOOLS)
 
       await minimal.dispose()
 
       // Tearing the minimal session down leaves the full one whole.
-      expect(toolNames(ctx, full.agent).length).toBeGreaterThan(10)
+      expect(toolNames(ctx, full.agent)).toEqual(STANDARD_TOOLS)
       expect(toolNames(ctx)).toEqual([])
     } finally {
       await full.dispose()
@@ -339,7 +339,7 @@ describe('the shipped Web composition', () => {
         'cordis_define', 'cordis_run', 'cordis_stop', 'cordis_undefine',
       ]))
       // And it keeps the standard agent's own tools rather than replacing them.
-      expect(tools).toEqual(expect.arrayContaining(['bash', 'read', 'edit', 'skill']))
+      expect(tools).toEqual(expect.arrayContaining([STANDARD_SHELL_NAME, 'read', 'edit', 'skill']))
       expect(tools).not.toContain('str_replace_editor')
       expect(ctx.commands.find(handle.agent, 'goal')).toBeDefined()
 
@@ -377,7 +377,7 @@ describe('the shipped Web composition', () => {
       // The presentation is this agent's alone: the deployment default is
       // native, and the session composed from `standard` still sees it.
       const nativeAssembly = await ctx.systemPrompt.assemble({ scope: native.agent })
-      expect(nativeAssembly.tools.map(tool => tool.name)).toContain('bash')
+      expect(nativeAssembly.tools.map(tool => tool.name)).toContain(STANDARD_SHELL_NAME)
       expect(nativeAssembly.tools.map(tool => tool.name)).not.toContain('run_code')
       expect(nativeAssembly.sections.some(section => section.name === 'tools:sdk')).toBe(false)
     } finally {
@@ -729,7 +729,7 @@ describe('a delegated child', () => {
       expect(toolNames(ctx, child.agent)).toEqual(toolNames(ctx, parent.agent))
       // The shipped `standard` preset is the whole coding agent; an empty
       // child here is the defect, and equality alone would not catch it.
-      expect(toolNames(ctx, child.agent)).toContain('bash')
+      expect(toolNames(ctx, child.agent)).toContain(STANDARD_SHELL_NAME)
       expect(child.agent.session.header.agentPreset).toBe('standard')
     } finally {
       await child.dispose()
@@ -886,6 +886,42 @@ describe('authoring a preset on the shipped composition', () => {
     await authorCtx.agentPresets.remove('doomed')
 
     expect((await authorCtx.agentPresets.list()).map(preset => preset.id)).not.toContain('doomed')
+  })
+
+  it('preserves copied minimal admission beside a Team-enabled session and across switches', async () => {
+    await authorCtx.agentPresets.copy('minimal', 'minimal-switch-copy')
+    const full = await authorCtx.agents.create({
+      sessionId: SessionId('preset-copy-team-peer'),
+      setup: async (agentCtx) => { await authorCtx.agentPresets.mount(agentCtx, 'standard') },
+    })
+    onTestFinished(() => full.dispose())
+    const copy = await authorCtx.agents.create({
+      sessionId: SessionId('preset-copy-team-switch'),
+      setup: async (agentCtx) => { await authorCtx.agentPresets.mount(agentCtx, 'minimal-switch-copy') },
+    })
+    onTestFinished(() => copy.dispose())
+    for (const selected of ['minimal-switch-copy', 'standard', 'minimal-switch-copy', 'standard', 'minimal-switch-copy']) {
+      await authorCtx.agentPresets.recompose(copy.agent.ctx, selected)
+      const admitted = selected === 'standard'
+      expect(toolNames(authorCtx, copy.agent)).toEqual(admitted ? STANDARD_TOOLS : ['bash', 'str_replace_editor'])
+      const assembly = await authorCtx.systemPrompt.assemble({ scope: copy.agent })
+      expect(assembly.sections.filter(section => section.name === 'team:policy')).toHaveLength(admitted ? 1 : 0)
+      expect(authorCtx.commands.find(copy.agent, 'swarm') !== undefined).toBe(admitted)
+      const result = await authorCtx.tools.execute({
+        callId: ToolCallId(`preset-copy-team-${randomUUID()}`),
+        name: 'team_task_list',
+        arguments: {},
+        signal: new AbortController().signal,
+        agent: copy.agent,
+      })
+      expect(result.isError).toBe(!admitted)
+      expect(result.content).toEqual([{
+        type: 'text',
+        text: admitted ? '{"tasks":[]}' : 'Error: unknown tool "team_task_list"',
+      }])
+      expect(toolNames(authorCtx, full.agent)).toEqual(STANDARD_TOOLS)
+      expect(authorCtx.commands.find(full.agent, 'swarm')).toBeDefined()
+    }
   })
 })
 
