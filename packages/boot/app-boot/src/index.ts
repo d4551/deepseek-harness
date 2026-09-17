@@ -9,7 +9,7 @@
 import { pathToFileURL } from 'node:url'
 import { readFileSync } from 'node:fs'
 import { clearInterval, setInterval } from 'node:timers'
-import { parseEnv } from 'node:util'
+import { isDeepStrictEqual, parseEnv } from 'node:util'
 import { basename, dirname, isAbsolute, resolve } from 'node:path'
 import * as yaml from 'js-yaml'
 import { Context, type FiberState } from '@deepseek-ai/cordis'
@@ -227,6 +227,8 @@ export interface UserPatchWatchOptions {
   binName: string
   /** Absolute path of the watched patch file (a profile's `cordis.patch.yml`). */
   filename: string
+  /** Parsed user layer included in boot, retained separately from the mutable applied stack. */
+  initialPatches: readonly PatchOptions[]
   /**
    * Compose the full patch list for a fresh user-layer generation —
    * the same composition the app booted with, so a reload can interleave the
@@ -256,10 +258,13 @@ export interface UserPatchWatchOptions {
  * change happened to be reported. A repair reconciliation therefore re-reads
  * the file on `repairInterval`, and both triggers share one serialized
  * reconciliation that applies each generation of the file exactly once.
+ * The first reconciliation compares the file with the parsed user layer
+ * actually included in boot, covering edits and removals before attachment.
+ * Reconciliation starts only after the exact watch registers successfully.
  * @param ctx - settled app context containing the root Include and an active HMR service.
  * @param options - diagnostic, file, patch-composition, and repair-cadence inputs.
  * @returns an asynchronous disposer that stops both triggers and awaits the reconciliation in flight.
- * @throws when HMR or the root Include is absent, the present file is unreadable, watcher setup fails, or initial path resolution fails.
+ * @throws when HMR or the root Include is absent, watcher setup fails, or initial path resolution fails.
  */
 export async function watchUserPatches(
   ctx: Context,
@@ -268,6 +273,7 @@ export async function watchUserPatches(
   const {
     binName,
     filename,
+    initialPatches,
     compose = (patches: PatchOptions[]) => patches,
     repairInterval = DEFAULT_USER_PATCH_REPAIR_INTERVAL,
   } = options
@@ -275,11 +281,10 @@ export async function watchUserPatches(
   if (hmr === undefined) throw new Error(`${binName}: user patch-layer watching requires the Cordis HMR service`)
   const entry = bootstrapIncludes.get(ctx)
   if (entry === undefined) throw new Error(`${binName}: user patch-layer watching requires the root Include entry`)
-  // The two generations already accounted for: the file text the mounted tree
-  // reflects (`boot()` applied this file before this call), and the read
-  // failure last reported. Every later generation, valid or broken, is applied
-  // and reported once, whichever trigger observes it first.
-  let applied = readUserPatchSource(binName, filename)
+  // Boot's parsed layer is the initial provenance. A read during attachment
+  // can already contain a later edit, so it cannot establish applied state.
+  let applied: { source: string | undefined } | undefined
+  let registered = false
   let unreadable: string | undefined
   // One reconciliation at a time: both triggers observe the same file, and two
   // `entry.update()` calls in flight interleave candidate application and
@@ -287,6 +292,7 @@ export async function watchUserPatches(
   let queue: Promise<unknown> = Promise.resolve()
   const reconcile = (): Promise<void> => {
     const run = queue.then(async () => {
+      if (!registered) return
       let source: string | undefined
       try {
         source = readUserPatchSource(binName, filename)
@@ -297,9 +303,11 @@ export async function watchUserPatches(
         throw error
       }
       unreadable = undefined
-      if (source === applied) return
-      applied = source
+      if (applied !== undefined && source === applied.source) return
+      const initial = applied === undefined
+      applied = { source }
       const userPatches = source === undefined ? [] : parsePatchList(binName, filename, source, 'patches')
+      if (initial && isDeepStrictEqual(userPatches, initialPatches)) return
       // Re-read the include's non-patch options per generation so a writer that
       // updates another option between generations is not silently reverted.
       const { patches: _previousPatches, ...includeConfig } = entry.options.config as Include.Config
@@ -329,13 +337,14 @@ export async function watchUserPatches(
   }
   const cleanup: Array<() => unknown> = []
   try {
+    cleanup.push(await hmr.registerConfig(filename, reconcile))
+    registered = true
     cleanup.push(ctx.effect(() => {
       const timer = setInterval(() => { reconcile().then(undefined, report) }, repairInterval)
       // A repair cadence must never be why a finished process stays alive.
       timer.unref()
       return () => { clearInterval(timer) }
     }, 'watchUserPatches() repair cadence'))
-    cleanup.push(await hmr.registerConfig(filename, reconcile))
     return async () => {
       // Both triggers stop before the drain, so nothing new enters the queue.
       for (const stop of [...cleanup].reverse()) await stop()
@@ -529,35 +538,38 @@ export function renderConfigDump(
       warnings.push(message.replace(/%C/g, () => JSON.stringify(args[index++])))
     })
   }
-  let previous = base
   let previousWarnings: string[] = []
-  const provenance: { origin: string; patchedBy: string[] }[] = base.map(() => ({ origin: baseLabel, patchedBy: [] }))
-  let composed = base
-  for (let count = 1; count <= layers.length; count += 1) {
-    const layer = layers[count - 1]
-    /* v8 ignore next -- count iterates 1..length, so the slot exists */
-    if (layer === undefined) continue
+  let rows: ConfigDumpRow[] = base.map(entry => ({ entry, origin: baseLabel, patchedBy: [] }))
+  layers.forEach((layer, layerIndex) => {
     const warnings: string[] = []
-    composed = snapshot(count, warnings)
+    const composed = snapshot(layerIndex + 1, warnings)
     for (const line of warnings.slice(previousWarnings.length)) {
       warn(`${binName}: [${layer.label}] ${line}`)
     }
-    const before = previous.map(entry => JSON.stringify(entry))
-    for (let index = 0; index < composed.length; index += 1) {
-      if (index >= before.length) provenance.push({ origin: layer.label, patchedBy: [] })
-      else if (JSON.stringify(composed[index]) !== before[index]) provenance[index]?.patchedBy.push(layer.label)
-    }
-    previous = composed
+    rows = composed.map((entry, index) => {
+      const previous = rows[index]
+      if (previous === undefined) return { entry, origin: layer.label, patchedBy: [] }
+      return {
+        entry,
+        origin: previous.origin,
+        patchedBy: JSON.stringify(entry) === JSON.stringify(previous.entry)
+          ? previous.patchedBy
+          : [...previous.patchedBy, layer.label],
+      }
+    })
     previousWarnings = warnings
-  }
-  return groupedDump(composed, provenance)
+  })
+  return groupedDump(rows)
+}
+
+interface ConfigDumpRow {
+  entry: unknown
+  origin: string
+  patchedBy: string[]
 }
 
 /** Render the composed rows grouped under one source-and-patches comment per contiguous run. */
-function groupedDump(
-  composed: readonly unknown[],
-  provenance: readonly { origin: string; patchedBy: string[] }[],
-): string {
+function groupedDump(rows: readonly ConfigDumpRow[]): string {
   const lines: string[] = []
   let currentLabel: string | undefined
   let group: unknown[] = []
@@ -567,10 +579,7 @@ function groupedDump(
     lines.push(yaml.dump(group, { schema: entryListSchema, noRefs: true }).trimEnd())
     group = []
   }
-  for (let index = 0; index < composed.length; index += 1) {
-    const record = provenance[index]
-    /* v8 ignore next -- this array is index-aligned with composed by construction */
-    if (record === undefined) continue
+  for (const record of rows) {
     const label = record.patchedBy.length === 0
       ? record.origin
       : `${record.origin}, patched by ${record.patchedBy.join(', ')}`
@@ -578,7 +587,7 @@ function groupedDump(
       flush()
       currentLabel = label
     }
-    group.push(composed[index])
+    group.push(record.entry)
   }
   flush()
   return lines.join('\n') + '\n'
@@ -594,6 +603,7 @@ function groupedDump(
  * @returns the created root Include entry, or `undefined` when a surface
  * disposed the whole tree (taking the Loader service with it) while the
  * transactional create was still settling entry lifecycle.
+ * @throws when a host-based package import requires an unavailable native module loader.
  */
 export async function mountRootInclude(
   ctx: Context,
@@ -608,9 +618,10 @@ export async function mountRootInclude(
         const specifier = isAbsolute(name) ? pathToFileURL(name).href : name
         if (name.startsWith('.') || name.startsWith('cordis:')) return super.import(specifier, getOuterStack)
         const internal = this.ctx.loader.internal
-        /* v8 ignore next -- Node supplies the internal loader; this preserves the
-           original diagnostic for hypothetical embedders without it. */
-        if (internal === undefined) return super.import(specifier, getOuterStack)
+        if (internal === undefined) {
+          if (URL.canParse(specifier)) return super.import(specifier, getOuterStack)
+          throw new Error(`cannot resolve host plugin ${JSON.stringify(name)} from ${bareModuleBaseUrl}: native module loader is unavailable`)
+        }
         return internal.import(specifier, bareModuleBaseUrl, {})
       }
     }

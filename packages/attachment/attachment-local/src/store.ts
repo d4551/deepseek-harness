@@ -2,7 +2,7 @@
 
 import { createHash, randomUUID } from 'node:crypto'
 import { constants } from 'node:fs'
-import { chmod, link, mkdir, open, readFile, unlink } from 'node:fs/promises'
+import { chmod, link, mkdir, open, readFile, rm, unlink } from 'node:fs/promises'
 import { dirname, join, parse, resolve } from 'node:path'
 import {
   AttachmentError,
@@ -72,14 +72,16 @@ async function inspectMetadata(
  * @param input - encoded bytes and declared metadata.
  * @param limits - resolved source admission policy.
  * @param policy - resolved normalization policy.
+ * @param signal - cancellation checked before and between native image operations.
  * @returns completion after the raster has been decoded and its normalized version proven to fit.
  */
 export async function validateImageFile(
   input: SaveImageAttachment,
   limits: ImageAttachmentLimits,
   policy: NormalizationPolicy,
+  signal?: AbortSignal,
 ): Promise<void> {
-  await prepareImageFile(input, limits, policy)
+  await prepareImageFile(input, limits, policy, signal)
 }
 
 /** Fully prepared normalized object, verified before any batch member is persisted. */
@@ -95,18 +97,23 @@ export interface PreparedImageFile {
  * @param input - submitted encoded bytes and declared media type.
  * @param limits - source admission policy.
  * @param policy - independent normalization policy.
+ * @param signal - cancellation checked before and between native image operations.
  * @returns immutable reference facts beside bytes ready for atomic publication.
  */
 export async function prepareImageFile(
   input: SaveImageAttachment,
   limits: ImageAttachmentLimits,
   policy: NormalizationPolicy,
+  signal?: AbortSignal,
 ): Promise<PreparedImageFile> {
+  signal?.throwIfAborted()
   if (input.data.byteLength > limits.maxImageBytes) {
     throw new AttachmentError('Image exceeds the configured byte limit.', 'IMAGE_TOO_LARGE')
   }
   const detected = await inspectMetadata(input.data, input.mediaType, limits)
-  const normalized = await normalizeImage(input.data, detected, policy)
+  signal?.throwIfAborted()
+  const normalized = await normalizeImage(input.data, detected, policy, signal)
+  signal?.throwIfAborted()
   const sha256 = digest(normalized.data)
   const name = displayName(input.name)
   const downscaled = detected.width !== normalized.width || detected.height !== normalized.height
@@ -158,12 +165,10 @@ async function syncPosixDirectory(path: string): Promise<void> {
  */
 async function ensureDurableDirectory(path: string, boundary: string): Promise<void> {
   const target = resolve(path)
-  /* v8 ignore next 4 -- native Windows coverage takes this arm; POSIX coverage takes the peer below. */
   if (process.platform === 'win32') {
     await ensureDurableDirectoryWin32(target)
     return
   }
-  /* v8 ignore start -- Windows takes the arm above; POSIX behavior tests enforce this peer. */
   const stop = resolve(boundary)
   await mkdir(target, { recursive: true, mode: 0o700 })
   await chmod(target, 0o700)
@@ -171,11 +176,9 @@ async function ensureDurableDirectory(path: string, boundary: string): Promise<v
   while (level !== stop) {
     const parent = dirname(level)
     await syncPosixDirectory(parent)
-    /* v8 ignore next -- filesystem-root guard: callers pass a boundary that is an ancestor of path, so the walk reaches it first. */
     if (parent === level) return
     level = parent
   }
-  /* v8 ignore stop */
 }
 
 /**
@@ -191,17 +194,14 @@ async function ensureDurableDirectory(path: string, boundary: string): Promise<v
  */
 async function publishObject(temporary: string, target: string): Promise<'published' | 'exists'> {
   try {
-    /* v8 ignore next -- native Windows coverage takes this arm; POSIX coverage takes the peer. */
     if (process.platform === 'win32') await publishNewFileWin32(temporary, target)
     else await link(temporary, target)
     // Windows shares the read-only attribute across hard links and refuses to
     // unlink either name once it is set, so the staging name goes before the
     // caller stamps the target read-only. The Windows move already consumed it.
-    /* v8 ignore next -- native Windows coverage skips this unlink; POSIX coverage takes it. */
     if (process.platform !== 'win32') await unlink(temporary)
     return 'published'
   } catch (error) {
-    /* v8 ignore next -- Private same-filesystem directories make EEXIST the only recoverable publication race. */
     if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error
     await unlink(temporary)
     return 'exists'
@@ -226,12 +226,15 @@ async function ensureDurableHome(path: string): Promise<string> {
  * Publish one already verified normalized image below a versioned attachment root.
  * @param root - absolute `DSH_HOME/attachments/v1` root.
  * @param prepared - deterministic normalized bytes and reference.
+ * @param signal - cancellation is accepted until atomic publication starts; publication then completes durably.
  * @returns durable content-addressed normalized image reference.
  */
 export async function commitPreparedImageFile(
   root: string,
   prepared: PreparedImageFile,
+  signal?: AbortSignal,
 ): Promise<ImageAttachmentRef> {
+  signal?.throwIfAborted()
   const normalized = prepared.data
   const sha256 = ensureReference(prepared.ref)
   if (digest(normalized) !== sha256 || normalized.byteLength !== prepared.ref.bytes) {
@@ -245,15 +248,20 @@ export async function commitPreparedImageFile(
   const boundary = await ensureDurableHome(dirname(dirname(resolve(root))))
   await ensureDurableDirectory(bucket, boundary)
   await ensureDurableDirectory(staging, boundary)
+  signal?.throwIfAborted()
   const temporary = join(staging, randomUUID())
   const target = normalizedImagePath(root, prepared.ref)
-  let handle
+  let publicationStarted = false
   try {
-    handle = await open(temporary, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600)
-    await handle.writeFile(normalized)
-    await handle.sync()
-    await handle.close()
-    handle = undefined
+    const handle = await open(temporary, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600)
+    try {
+      await handle.writeFile(normalized, { signal })
+      await handle.sync()
+    } finally {
+      await handle.close()
+    }
+    signal?.throwIfAborted()
+    publicationStarted = true
     if (await publishObject(temporary, target) === 'exists') {
       const existing = new Uint8Array(await readFile(target))
       if (digest(existing) !== sha256) throw new AttachmentError('Stored attachment failed integrity verification.', 'ATTACHMENT_CORRUPT')
@@ -266,24 +274,13 @@ export async function commitPreparedImageFile(
     // repeats both syncs because it may observe another writer's link before
     // that writer reaches its own durability boundary. Windows published both
     // entries write-through already, so it has nothing left to flush.
-    /* v8 ignore next 4 -- native Windows coverage skips these syncs; POSIX coverage takes them. */
     if (process.platform !== 'win32') {
       await syncPosixDirectory(bucket)
       await syncPosixDirectory(join(root, 'objects'))
     }
   } catch (error) {
-    /* v8 ignore next -- A descriptor can remain open only when the underlying write/sync/close operation fails. */
-    if (handle !== undefined) await handle.close().catch(
-      /* v8 ignore next -- Close failure is superseded by the storage operation that entered cleanup. */
-      () => {},
-    )
-    await unlink(temporary).catch(
-      /* v8 ignore next -- The callback requires a second independent staging-unlink failure. */
-      (cleanupError: unknown) => {
-        /* v8 ignore next -- Cleanup is best-effort only for a staging file already removed by a failed operation. */
-        if (!(cleanupError instanceof Error && 'code' in cleanupError && cleanupError.code === 'ENOENT')) throw cleanupError
-      },
-    )
+    await rm(temporary, { force: true })
+    if (!publicationStarted) signal?.throwIfAborted()
     if (error instanceof AttachmentError) throw error
     throw new AttachmentError('Unable to persist image attachment.', 'ATTACHMENT_WRITE_FAILED', { cause: error })
   }
@@ -296,6 +293,7 @@ export async function commitPreparedImageFile(
  * @param input - submitted encoded bytes and declared media type.
  * @param limits - resolved source admission policy.
  * @param policy - resolved normalization policy.
+ * @param signal - cancellation of preparation and publication before its atomic commit begins.
  * @returns durable content-addressed normalized image reference.
  */
 export async function saveImageFile(
@@ -303,8 +301,9 @@ export async function saveImageFile(
   input: SaveImageAttachment,
   limits: ImageAttachmentLimits,
   policy: NormalizationPolicy,
+  signal?: AbortSignal,
 ): Promise<ImageAttachmentRef> {
-  return commitPreparedImageFile(root, await prepareImageFile(input, limits, policy))
+  return commitPreparedImageFile(root, await prepareImageFile(input, limits, policy, signal), signal)
 }
 
 /**

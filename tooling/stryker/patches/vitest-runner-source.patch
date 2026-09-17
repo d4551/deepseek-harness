@@ -1,0 +1,333 @@
+diff --git a/package.json b/package.json
+index 385a8a6..5ff79cc 100644
+--- a/package.json
++++ b/package.json
+@@ -51,10 +51,11 @@
+     "@types/node": "24.13.3",
+     "@types/semver": "7.7.1",
+-    "@vitest/browser": "4.1.10",
+-    "@vitest/browser-playwright": "4.1.10",
+-    "react": "19.2.8",
++    "@vitest/browser": "5.0.1",
++    "@vitest/browser-playwright": "5.0.1",
++    "react": "19.3.0",
+     "vite": "8.0.16",
+-    "vitest": "4.1.10",
+-    "vitest-browser-react": "2.2.0"
++    "vitest": "5.0.1",
++    "vitest-browser-react": "2.3.0",
++    "react-dom": "19.3.0"
+   },
+   "peerDependencies": {
+diff --git a/src/stryker-setup.ts b/src/stryker-setup.ts
+index ff31bed..6b7f90c 100644
+--- a/src/stryker-setup.ts
++++ b/src/stryker-setup.ts
+@@ -17,8 +17,24 @@ const globalNamespace = inject('globalNamespace');
+ const mutantActivation = inject('mutantActivation');
+ const mode = inject('mode');
++const nativeProcess = inject('nativeProcess');
++const activeMutantEnvironmentVariable = inject(
++  'activeMutantEnvironmentVariable',
++);
+
+ const ns = globalThis[globalNamespace] || (globalThis[globalNamespace] = {});
+ ns.hitLimit = inject('hitLimit');
+-const isGreaterThanVitest4Point1 = inject('isGreaterThanVitest4Point1');
++ns.activeMutant = undefined;
++ns.currentTestId = undefined;
++if (nativeProcess) delete process.env[activeMutantEnvironmentVariable];
++let testFile: RunnerTestSuite | undefined;
++beforeEach(({ task }) => {
++  testFile = task.file;
++});
++afterAll(() => {
++  if (!testFile)
++    throw new Error('Vitest completed without an executed test file.');
++  if (mode === 'mutant') testFile.meta.hitCount = ns.hitCount;
++  else testFile.meta.mutantCoverage = ns.mutantCoverage;
++});
+
+ if (mode === 'mutant') {
+@@ -29,20 +45,11 @@ if (mode === 'mutant') {
+   if (mutantActivation === 'static') {
+     ns.activeMutant = inject('activeMutant');
++    if (nativeProcess)
++      process.env[activeMutantEnvironmentVariable] = ns.activeMutant;
+   } else {
+     beforeAll(() => {
+       ns.activeMutant = inject('activeMutant');
+-    });
+-  }
+-
+-  if (isGreaterThanVitest4Point1) {
+-    // Vitest's hooks API requires this empty destructure to allow access to suite.meta
+-    // eslint-disable-next-line no-empty-pattern
+-    afterAll(({}, suite) => {
+-      suite.meta.hitCount = ns.hitCount;
+-    });
+-  } else {
+-    // @ts-expect-error This was changed in Vitest v4.1
+-    afterAll(({ meta }) => {
+-      meta.hitCount = ns.hitCount;
++      if (nativeProcess)
++        process.env[activeMutantEnvironmentVariable] = ns.activeMutant;
+     });
+   }
+@@ -57,20 +64,6 @@ if (mode === 'mutant') {
+     ns.currentTestId = undefined;
+   });
+-
+-  if (isGreaterThanVitest4Point1) {
+-    // Vitest's hooks API requires this empty destructure to allow access to suite.meta
+-    // eslint-disable-next-line no-empty-pattern
+-    afterAll(({}, suite) => {
+-      suite.meta.mutantCoverage = ns.mutantCoverage;
+-    });
+-  } else {
+-    // @ts-expect-error This was changed in Vitest v4.1
+-    afterAll(({ meta }) => {
+-      meta.mutantCoverage = ns.mutantCoverage;
+-    });
+-  }
+ }
+
+-// Stryker disable all: this file is copied to the sandbox dir
+ function collectTestName({
+   name,
+@@ -86,5 +79,5 @@ function collectTestName({
+     currentSuite = currentSuite.suite;
+   }
+-  return nameParts.join(' ').trim();
++  return nameParts.join(' > ').trim();
+ }
+
+@@ -92,5 +85,4 @@ function toRawTestId(test: RunnerTestCase): string {
+   return `${test.file?.filepath ?? 'unknown.js'}#${collectTestName(test)}`;
+ }
+-// Stryker restore all
+
+ declare module 'vitest' {
+@@ -101,5 +93,6 @@ declare module 'vitest' {
+     activeMutant: string | undefined;
+     mode: 'mutant' | 'dry-run';
+-    isGreaterThanVitest4Point1: boolean;
++    nativeProcess: boolean;
++    activeMutantEnvironmentVariable: string;
+   }
+   interface TaskMeta {
+diff --git a/src/test-helpers.ts b/src/test-helpers.ts
+index 1cf9538..14a21d9 100644
+--- a/src/test-helpers.ts
++++ b/src/test-helpers.ts
+@@ -18,5 +18,5 @@ export function collectTestName({
+     currentSuite = currentSuite.suite;
+   }
+-  return nameParts.join(' ').trim();
++  return nameParts.join(' > ').trim();
+ }
+
+diff --git a/src/vitest-helpers.ts b/src/vitest-helpers.ts
+index 691f04d..71b0145 100644
+--- a/src/vitest-helpers.ts
++++ b/src/vitest-helpers.ts
+@@ -1,3 +1,4 @@
+ import path from 'path';
++import { inspect } from 'node:util';
+
+ import {
+@@ -115,4 +116,15 @@ export function collectTestsFromSuite(
+ }
+
++export function collectSuiteErrors(suite: RunnerTestSuite): string[] {
++  return [
++    ...(suite.result?.errors ?? []).map((error) =>
++      inspect(error, { depth: null }),
++    ),
++    ...suite.tasks.flatMap((task) =>
++      task.type === 'suite' ? collectSuiteErrors(task) : [],
++    ),
++  ];
++}
++
+ export function isErrorCodeError(
+   error: unknown,
+diff --git a/src/vitest-test-runner.ts b/src/vitest-test-runner.ts
+index b54e16a..c741235 100644
+--- a/src/vitest-test-runner.ts
++++ b/src/vitest-test-runner.ts
+@@ -3,4 +3,5 @@ import path from 'path';
+ import semver from 'semver';
+ import fs from 'fs';
++import { inspect } from 'node:util';
+ import {
+   CoverageData,
+@@ -29,5 +30,4 @@ import {
+ } from '@stryker-mutator/api/test-runner';
+ import {
+-  errorToString,
+   escapeRegExp,
+   normalizeFileName,
+@@ -41,7 +41,6 @@ import {
+   fromTestId,
+   collectTestsFromSuite,
++  collectSuiteErrors,
+   normalizeCoverage,
+-  isErrorCodeError,
+-  VITEST_ERROR_CODES,
+ } from './vitest-helpers.js';
+ import { VitestRunnerOptionsWithStrykerOptions } from './vitest-runner-options-with-stryker-options.js';
+@@ -53,4 +52,5 @@ const STRYKER_SETUP = fileURLToPath(
+
+ interface RunFilter {
++  nativeActiveMutant?: string;
+   /**
+    * Run only tests with the specified IDs
+@@ -114,5 +114,4 @@ export class VitestTestRunner implements TestRunner {
+
+     return {
+-      pool: 'threads',
+       maxWorkers: 1,
+     };
+@@ -149,13 +148,14 @@ export class VitestTestRunner implements TestRunner {
+       dir: this.options.vitest.dir,
+       bail: this.options.disableBail ? 0 : 1,
+-      onConsoleLog: () => false,
+     });
+     this.ctx.provide('globalNamespace', this.globalNamespace);
+-    this.ctx.provide(
+-      'isGreaterThanVitest4Point1',
+-      semver.satisfies(vitestWrapper.version, '>=4.1.0'),
+-    );
+     this.ctx.config.browser.screenshotFailures = false;
+     this.ctx.projects.forEach((project) => {
++      project.config.maxConcurrency = 1;
++      project.provide('nativeProcess', !project.config.browser.enabled);
++      project.provide(
++        'activeMutantEnvironmentVariable',
++        INSTRUMENTER_CONSTANTS.ACTIVE_MUTANT_ENV_VARIABLE,
++      );
+       project.config.setupFiles = [
+         this.localSetupFile,
+@@ -173,4 +173,7 @@ export class VitestTestRunner implements TestRunner {
+   public async dryRun(options: DryRunOptions): Promise<DryRunResult> {
+     this.ctx!.provide('mode', 'dry-run');
++    this.ctx!.provide('activeMutant', undefined);
++    this.ctx!.provide('hitLimit', undefined);
++    this.ctx!.provide('mutantActivation', 'static');
+
+     // If testFilter is provided, use those files directly instead of relying on related files
+@@ -192,5 +195,8 @@ export class VitestTestRunner implements TestRunner {
+       );
+     }
+-    const mutantCoverage = this.readMutantCoverage();
++    const mutantCoverage =
++      options.coverageAnalysis === 'off'
++        ? undefined
++        : this.readMutantCoverage();
+     if (testResult.status === DryRunStatus.Complete) {
+       return {
+@@ -211,5 +217,12 @@ export class VitestTestRunner implements TestRunner {
+       testIds: options.testFilter,
+       relatedFiles: [options.sandboxFileName],
++      nativeActiveMutant:
++        options.mutantActivation === 'static'
++          ? options.activeMutant.id
++          : undefined,
+     });
++    if (dryRunResult.status !== DryRunStatus.Complete) {
++      return toMutantRunResult(dryRunResult);
++    }
+     const hitCount = this.readHitCount();
+     const timeOut = determineHitLimitReached(hitCount, options.hitLimit);
+@@ -221,4 +234,5 @@ export class VitestTestRunner implements TestRunner {
+     relatedFiles,
+     testFiles: explicitTestFiles,
++    nativeActiveMutant,
+   }: RunFilter = {}): Promise<DryRunResult> {
+     this.resetContext();
+@@ -243,13 +257,23 @@ export class VitestTestRunner implements TestRunner {
+       });
+     }
++    const environmentVariable =
++      INSTRUMENTER_CONSTANTS.ACTIVE_MUTANT_ENV_VARIABLE;
++    const nativeEnvironments = this.ctx!.projects.filter(
++      (project) => !project.config.browser.enabled,
++    ).map((project) => ({
++      project,
++      environment: project.config.env,
++    }));
++    for (const { project, environment } of nativeEnvironments) {
++      project.config.env = {
++        ...environment,
++        [environmentVariable]: nativeActiveMutant,
++      };
++    }
+     try {
+       await this.ctx!.start(testFilesToRun);
+-    } catch (error) {
+-      if (
+-        // No tests found, this isn't a problem, we can continue
+-        !isErrorCodeError(error) ||
+-        VITEST_ERROR_CODES.FILES_NOT_FOUND !== error.code
+-      ) {
+-        throw error;
++    } finally {
++      for (const { project, environment } of nativeEnvironments) {
++        project.config.env = environment;
+       }
+     }
+@@ -259,18 +283,21 @@ export class VitestTestRunner implements TestRunner {
+       .filter((test) => test.result); // if no result: it was skipped because of bail
+
+-    let failure = false;
+-    const testResults = tests.map((test) => {
+-      const testResult = convertTestToTestResult(test);
+-      failure ||= testResult.status === TestStatus.Failed;
+-      return testResult;
+-    });
+-
+-    if (!failure && this.ctx!.state.errorsSet.size > 0) {
+-      const errorText = [...this.ctx!.state.errorsSet]
+-        .map(errorToString)
+-        .join('\n');
++    const testResults = tests.map(convertTestToTestResult);
++    const errors = [
++      ...this.ctx!.state.getUnhandledErrors().map((error) =>
++        inspect(error, { depth: null }),
++      ),
++      ...this.ctx!.state.getFiles().flatMap(collectSuiteErrors),
++    ];
++    if (errors.length > 0) {
+       return {
+         status: DryRunStatus.Error,
+-        errorMessage: `An error occurred outside of a test run: ${errorText}`,
++        errorMessage: `An error occurred outside of a test run: ${errors.join('\n')}`,
++      };
++    }
++    if (!testResults.some((test) => test.status !== TestStatus.Skipped)) {
++      return {
++        status: DryRunStatus.Error,
++        errorMessage: 'Test run completed without executing a test.',
+       };
+     }
+@@ -290,4 +317,5 @@ export class VitestTestRunner implements TestRunner {
+     // Note that this is kind of a hack, see https://github.com/vitest-dev/vitest/discussions/3017#discussioncomment-5901751
+     this.ctx!.state.filesMap.clear();
++    this.ctx!.state.clearErrors();
+   }
+
+@@ -347,8 +375,9 @@ export class VitestTestRunner implements TestRunner {
+
+   public async dispose(): Promise<void> {
+-    this.ctx?.onClose(() => {
+-      return fs.promises.rm(this.localSetupFile, { force: true });
+-    });
+-    await this.ctx?.close();
++    try {
++      await this.ctx?.close();
++    } finally {
++      await fs.promises.rm(this.localSetupFile, { force: true });
++    }
+   }
+ }

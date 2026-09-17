@@ -12,7 +12,7 @@ token 计量服务把 `ImageBlock` 按其持久引用的 JSON 结构计价，约
 
 compaction 压力现在按路由模型自身的请求投影定价。`LlmAdapter.imageRequestPricing(provider, model)` 是可选的同步钩子，为一条确切路由返回 `LlmImageRequestPricing`，经 `ctx.llm.imageRequestPricing()` 解析；基类不声明定价，未注册的 provider 降级为 `undefined` 而绝不抛出。每个按序的图片出现处解析为一个 `LlmImageRequestPrice`：保留图片的提供方视觉 token，加上线上实际携带的模型可见文本（请求预览句柄、offload 占位文本或纯文本替换），文本交由调用方自己的估算器计价，避免任何提供方固定一种文本 token 化。
 
-DeepSeek 适配器基于连接快照实现该钩子（`request-pricing.ts`）：未编目和纯文本模型把每个出现处按其 `textOnlyImageText` 替换计价；支持图片的模型通过共享的 `offloadedImagePrefixCount()` 复现序列化器第一阶段的最旧优先 offload，经序列化器同一套执行环境访问解析构建句柄与占位文本，并按 `requestImageDimensions` 投影尺寸用 `deepSeekImageTokens()` 为保留图片计价，后者是提供方公布的 v4 视觉计算器的逐句移植（14px patch、3:1 降采样、384 token 上限、最小像素放大、8:1 宽度钳制），按最坏的 pad-to-4 对齐计价。纯几何函数从 `attachment-local` 上移到 `dsh-attachment`，供提供方与定价共享。
+DeepSeek 适配器基于连接快照实现该钩子（`request-pricing.ts`）：未编目和纯文本模型把每个出现处按其 `textOnlyImageText` 替换计价；支持图片的模型通过共享的 `offloadedImagePrefixCount()` 复现序列化器第一阶段的最旧优先 offload，经序列化器同一套执行环境访问解析构建句柄与占位文本，并按 `requestImageDimensions` 投影尺寸用 `deepSeekImageTokens()` 为保留图片计价。该函数实现[官方公布的 V4.1 计算器](https://api-docs.deepseek.com/quick_start/token_usage/)：14px patch、3:1 降采样、1,024 token 上限和 544×544 最小像素面积。输入尺寸必须是正安全整数。提供方与定价共享 `dsh-attachment` 中的纯请求几何函数。
 
 token 计量服务的表层 fold 为每个节点存储与路由无关的事实：固定启发式价格、去图价格与持久图片出现处；`measure()` 在每次调用时按生效 envelope 的路由为表层定价。锚点保存原始材料（表层快照、提供方输出价格、usage）而非预先计算的基线，因此匹配的标头会把锚点与当前表层放在同一路由下重新定价，带符号 delta 的比较口径一致；usage 与估算的选择在每次计量时针对路由定价锚点做出。公开的 `TokenSurfaceNode` 同时携带 `tokens`（路由定价；触发、保留、选段与摘要收缩比较读取它）和 `heuristicTokens`（固定值；影子价协议的计量单位，使 `compaction/summary` 与 `compaction/prune` 与 O(1) 投影 fold 自身的追加保持一致）。`contextPressure` 与 `contextBreakdown` 投影有意保持固定启发式规则。
 
@@ -32,8 +32,10 @@ test-support 的回放适配器按模型声明固定的 `imageRequestTokens`，�
 
 ## Consequences
 
-自动 compaction 现在按路由模型下一次请求实际携带的压力触发：图片密集的 DeepSeek 会话在溢出之前而非之后压缩，纯文本路由收取替换文本而非幻影视觉 token，被 offload 的图片按占位文本计费。最坏对齐 pad 对单图最多多计三个 token，未复现的 base64 回退预算只会多计——两种误差都偏保守；执行环境访问路径若在定价与请求之间变化，只会按其自身长度改变描述文本的价格，请求完成后 provider usage 仍是权威锚点。公布的 v4 计算器常量只存在于 `llm-deepseek`；提供方若修订其视觉投影，改动点就是这一个模块与其钉死的向量。每次计量多一次定价解析与一次图片出现处遍历，仍为 O(surface)。
+计量服务会拒绝缺失的图片价格、非整数、负数或不安全的视觉 token 数，以及完整路由定价表面的总量溢出。数组长度本身不能证明每个出现处都有已定义的价格。无效价格必须中止测量，因为 `NaN` 或低估的计数可能让压缩阈值失效；系统不会发布部分测量结果。后续有效的定价响应会复用会话中与路由无关的回放状态。
+
+自动 compaction 使用按路由估算的图片压力；纯文本路由按替换文本计价，被 offload 的图片按占位文本计价。未复现的 base64 恢复预算只会减少保留图片数。执行环境访问路径若在定价与请求之间变化，会按其自身长度改变描述文本的价格。请求完成后 provider usage 仍是权威锚点；提供方将其计算器描述为估算工具。V4.1 计算器常量只存在于 `llm-deepseek`；提供方修订算法时，必须更新该模块及其参考向量。每次计量增加一次定价解析与一次图片出现处遍历，仍为 O(surface)。
 
 ## Testing
 
-`image-tokens.spec.ts` 的公式向量钉死公布计算器的输出，覆盖宽高比钳制、放大下限、单列求解、奇数网格裁剪与第二遍收敛的用例，开发期间与参考实现在尺寸网格及五万点模糊测试上对拍。`request-pricing.spec.ts` 覆盖纯文本替换、低细节预设以及数量与字节驱动的 offload 边界。token-meter 测试覆盖首次多模态估算、usage 之上的锚后图片 delta、标头覆盖下的纯文本重定价、无定价器时的中性行为、出现处数量不匹配与嵌套工具结果图片。compaction 测试证明触发、保留、选段与摘要收缩比较读取路由价格而记录的影子价保持启发式，包括一个只有路由定价收缩才接受的摘要。访问解析的传递在定价函数与适配器覆写两处都有覆盖。keyless 的 `image-compaction` ACP 快照端到端验证装配后的应用。
+`image-tokens.spec.ts` 的公式向量钉死公布的 V4.1 计算器输出，覆盖放大下限、单行与单列求解、奇数网格高度和重复投影；无效尺寸会被拒绝。与提供方公布计算器的原生对拍检查了 3,887,248 组尺寸。`request-pricing.spec.ts` 覆盖纯文本替换、低细节预设、显式像素与编码字节预算，以及数量与字节驱动的 offload。token-meter 测试覆盖首次多模态估算、usage 之上的锚后图片 delta、标头覆盖下的纯文本重定价、无定价器时的中性行为、出现处数量不匹配与嵌套工具结果图片。compaction 测试证明触发、保留、选段与摘要收缩比较读取路由价格而记录的影子价保持启发式，包括一个只有路由定价收缩才接受的摘要。访问解析的传递在定价函数与适配器覆写两处都有覆盖。keyless 的 `image-compaction` ACP 快照端到端验证装配后的应用。

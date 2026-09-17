@@ -1,179 +1,101 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import {
-  createProcessShutdown,
-  PROCESS_SHUTDOWN_TIMEOUT_MS,
-} from '../src/process-shutdown.ts'
+import { fileURLToPath } from 'node:url'
+import { execa } from 'execa'
+import { describe, expect, it } from 'vitest'
 
-function deferred(): { promise: Promise<void>; resolve: () => void; reject: (error: Error) => void } {
-  let resolve!: () => void
-  let reject!: (error: Error) => void
-  const promise = new Promise<void>((accept, fail) => {
-    resolve = accept
-    reject = fail
-  })
-  return { promise, resolve, reject }
-}
+const driver = fileURLToPath(new URL('./fixtures/process-shutdown.mjs', import.meta.url))
 
-afterEach(() => {
-  vi.useRealTimers()
-  vi.restoreAllMocks()
-})
-
-describe('process shutdown', () => {
-  it('completes naturally after disposal resolves and forces exit when it rejects', async () => {
-    const resolvedExit = vi.fn()
-    const resolvedComplete = vi.fn()
-    const resolved = createProcessShutdown(() => Promise.resolve(), resolvedExit, resolvedComplete)
-    await resolved.shutdown(0)
-    expect(resolvedComplete).toHaveBeenCalledOnce()
-    expect(resolvedComplete).toHaveBeenCalledWith(0)
-    expect(resolvedExit).not.toHaveBeenCalled()
-
-    const rejectedExit = vi.fn()
-    const rejectedComplete = vi.fn()
-    const rejected = createProcessShutdown(
-      () => Promise.reject(new Error('dispose failed')),
-      rejectedExit,
-      rejectedComplete,
-    )
-    await rejected.shutdown(1)
-    expect(rejectedExit).toHaveBeenCalledOnce()
-    expect(rejectedExit).toHaveBeenCalledWith(1)
-    expect(rejectedComplete).not.toHaveBeenCalled()
+describe('native process shutdown', () => {
+  it.each([0, 7])('drains pending work before natural exit with code %s', async (code) => {
+    const result = await execa(process.execPath, ['--import', 'tsx', driver, 'complete', String(code)], {
+      reject: false,
+      timeout: 3_000,
+    })
+    expect(result.timedOut).toBe(false)
+    expect(result.signal).toBeUndefined()
+    expect(result.exitCode).toBe(code)
+    expect(result.stderr).toBe('')
+    expect(JSON.parse(result.stdout)).toEqual({
+      exitCode: code,
+      events: ['disposed', `exitCode:${code}`, 'drained'],
+    })
   })
 
-  it('uses process.exitCode for default normal completion', async () => {
-    const exit = vi.spyOn(process, 'exit').mockImplementation(_code => undefined as never)
-    const originalExitCode = process.exitCode
-    process.exitCode = undefined
-    const shutdown = createProcessShutdown(() => Promise.resolve())
-
-    try {
-      await shutdown.shutdown(7)
-
-      expect(process.exitCode).toBe(7)
-      expect(exit).not.toHaveBeenCalled()
-    } finally {
-      process.exitCode = originalExitCode
-    }
+  it.each([
+    ['reject', 0, 1],
+    ['reject', 7, 7],
+    ['reject-interrupt', 0, 1],
+    ['reject-interrupt', 143, 143],
+    ['throw', 0, 1],
+  ])('reports %s disposal with requested code %s as failure %s', async (scenario, requested, expected) => {
+    const result = await execa(process.execPath, ['--import', 'tsx', driver, scenario, String(requested)], {
+      reject: false,
+      timeout: 3_000,
+    })
+    expect(result.timedOut).toBe(false)
+    expect(result.signal).toBeUndefined()
+    expect(result.exitCode).toBe(expected)
+    expect(result.stderr).toContain('dsh: application disposal failed Error: disposal failure from child')
+    expect(JSON.parse(result.stdout)).toEqual({ exitCode: expected, events: ['disposing'] })
   })
 
-  it('forces exit when graceful disposal reaches its bound', async () => {
-    vi.useFakeTimers()
-    const disposal = deferred()
-    const exit = vi.fn()
-    const complete = vi.fn()
-    const shutdown = createProcessShutdown(() => disposal.promise, exit, complete)
-    const pending = shutdown.shutdown(0)
-
-    await vi.advanceTimersByTimeAsync(PROCESS_SHUTDOWN_TIMEOUT_MS - 1)
-    expect(exit).not.toHaveBeenCalled()
-    await vi.advanceTimersByTimeAsync(1)
-    expect(exit).toHaveBeenCalledOnce()
-    expect(exit).toHaveBeenCalledWith(0)
-
-    disposal.resolve()
-    await pending
-    expect(exit).toHaveBeenCalledOnce()
-    expect(complete).not.toHaveBeenCalled()
+  it.each([[0, 1], [143, 143]])('reports deadline with requested code %s as failure %s', async (requested, expected) => {
+    const result = await execa(process.execPath, ['--import', 'tsx', driver, 'deadline', String(requested)], {
+      reject: false,
+      timeout: 10_000,
+    })
+    expect(result.timedOut).toBe(false)
+    expect(result.signal).toBeUndefined()
+    expect(result.exitCode).toBe(expected)
+    expect(result.durationMs).toBeGreaterThanOrEqual(5_000)
+    expect(result.stderr).toBe('dsh: application disposal exceeded 5000ms')
+    expect(JSON.parse(result.stdout)).toEqual({ exitCode: expected, events: ['disposing'] })
   })
 
-  it('honors a caller-supplied grace period', async () => {
-    vi.useFakeTimers()
-    const disposal = deferred()
-    const exit = vi.fn()
-    const shutdown = createProcessShutdown(() => disposal.promise, exit, vi.fn(), 25)
-    const pending = shutdown.shutdown(0)
-
-    await vi.advanceTimersByTimeAsync(24)
-    expect(exit).not.toHaveBeenCalled()
-    await vi.advanceTimersByTimeAsync(1)
-    expect(exit).toHaveBeenCalledOnce()
-
-    disposal.resolve()
-    await pending
+  it.each([0, 143])('drains the first interrupt before exiting with code %s', async (code) => {
+    const result = await execa(process.execPath, ['--import', 'tsx', driver, 'interrupt-complete', String(code)], {
+      reject: false,
+      timeout: 3_000,
+    })
+    expect(result.timedOut).toBe(false)
+    expect(result.signal).toBeUndefined()
+    expect(result.exitCode).toBe(code)
+    expect(result.stderr).toBe('')
+    expect(JSON.parse(result.stdout)).toEqual({ exitCode: code, events: ['disposing', 'disposed'] })
   })
 
-  it('lets Ctrl+C force a normal shutdown already stuck in disposal', async () => {
-    const disposal = deferred()
-    const exit = vi.fn()
-    const complete = vi.fn()
-    const shutdown = createProcessShutdown(() => disposal.promise, exit, complete)
-    const pending = shutdown.shutdown(0)
-
-    shutdown.interrupt(130)
-    expect(exit).toHaveBeenCalledOnce()
-    expect(exit).toHaveBeenCalledWith(130)
-
-    disposal.resolve()
-    await pending
-    expect(exit).toHaveBeenCalledOnce()
-    expect(complete).not.toHaveBeenCalled()
+  it.each([0, 7])('coalesces shutdown promises and retains the first exit code %s', async (code) => {
+    const result = await execa(process.execPath, ['--import', 'tsx', driver, 'coalesce', String(code)], {
+      reject: false,
+      timeout: 3_000,
+    })
+    expect(result.timedOut).toBe(false)
+    expect(result.signal).toBeUndefined()
+    expect(result.exitCode).toBe(code)
+    expect(result.stderr).toBe('')
+    expect(JSON.parse(result.stdout)).toEqual({ exitCode: code, events: ['disposing', 'disposed', `exitCode:${code}`] })
   })
 
-  it('forces exit after disposal started by a signal', async () => {
-    const disposal = deferred()
-    const exit = vi.fn()
-    const complete = vi.fn()
-    const shutdown = createProcessShutdown(() => disposal.promise, exit, complete)
-
-    shutdown.interrupt(143)
-    disposal.resolve()
-    await shutdown.shutdown(0)
-
-    expect(exit).toHaveBeenCalledOnce()
-    expect(exit).toHaveBeenCalledWith(143)
-    expect(complete).not.toHaveBeenCalled()
+  it.each(['escalate-normal', 'escalate-interrupt'])('forces exit during pending disposal: %s', async (scenario) => {
+    const result = await execa(process.execPath, ['--import', 'tsx', driver, scenario, '0'], {
+      reject: false,
+      timeout: 3_000,
+    })
+    expect(result.timedOut).toBe(false)
+    expect(result.signal).toBeUndefined()
+    expect(result.exitCode).toBe(130)
+    expect(result.stderr).toBe('')
+    expect(JSON.parse(result.stdout)).toEqual({ exitCode: 130, events: ['disposing', 'escalating'] })
   })
 
-  it('drains on the first signal and forces on the second signal', async () => {
-    const disposal = deferred()
-    const dispose = vi.fn(() => disposal.promise)
-    const exit = vi.fn()
-    const shutdown = createProcessShutdown(dispose, exit, vi.fn())
-
-    shutdown.interrupt(143)
-    await Promise.resolve()
-    expect(dispose).toHaveBeenCalledOnce()
-    expect(exit).not.toHaveBeenCalled()
-
-    shutdown.interrupt(130)
-    expect(exit).toHaveBeenCalledOnce()
-    expect(exit).toHaveBeenCalledWith(130)
-
-    disposal.resolve()
-    await shutdown.shutdown(0)
-    expect(exit).toHaveBeenCalledOnce()
-  })
-
-  it('coalesces normal shutdown calls without treating them as escalation', async () => {
-    const disposal = deferred()
-    const exit = vi.fn()
-    const complete = vi.fn()
-    const shutdown = createProcessShutdown(() => disposal.promise, exit, complete)
-
-    const first = shutdown.shutdown(0)
-    const second = shutdown.shutdown(1)
-    expect(second).toBe(first)
-    expect(exit).not.toHaveBeenCalled()
-
-    disposal.resolve()
-    await first
-    expect(complete).toHaveBeenCalledOnce()
-    expect(complete).toHaveBeenCalledWith(0)
-    expect(exit).not.toHaveBeenCalled()
-  })
-
-  it('lets a signal force exit while natural completion drains remaining handles', async () => {
-    const exit = vi.fn()
-    const complete = vi.fn()
-    const shutdown = createProcessShutdown(() => Promise.resolve(), exit, complete)
-
-    await shutdown.shutdown(0)
-    shutdown.interrupt(130)
-
-    expect(complete).toHaveBeenCalledOnce()
-    expect(exit).toHaveBeenCalledOnce()
-    expect(exit).toHaveBeenCalledWith(130)
+  it('forces an interrupt while natural completion drains the process', async () => {
+    const result = await execa(process.execPath, ['--import', 'tsx', driver, 'interrupt-after-complete', '0'], {
+      reject: false,
+      timeout: 3_000,
+    })
+    expect(result.timedOut).toBe(false)
+    expect(result.signal).toBeUndefined()
+    expect(result.exitCode).toBe(130)
+    expect(result.stderr).toBe('')
+    expect(JSON.parse(result.stdout)).toEqual({ exitCode: 130, events: ['disposed', 'exitCode:0'] })
   })
 })

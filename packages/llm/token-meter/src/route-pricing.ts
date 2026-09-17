@@ -26,14 +26,15 @@ export interface PricedSurface {
  * @param nodes - the fold's current or snapshotted surface, in model-visible order.
  * @param pricing - the routed model's image pricing, or undefined to keep the fixed heuristic.
  * @returns detached public nodes and their route-priced total.
- * @throws when the pricing answers a different occurrence count than it was
- *   asked — misalignment would silently misprice nodes, so it must fail loud.
+ * @throws when prices are missing, misaligned, or contain a visual token count
+ *   that is not a non-negative safe integer, or when the complete surface
+ *   total exceeds the safe integer range.
  */
 export function priceSurface(
   nodes: readonly MeterSurfaceNode[],
   pricing: LlmImageRequestPricing | undefined,
 ): PricedSurface {
-  const images = pricing === undefined ? [] : nodes.flatMap(node => node.images)
+  const images = nodes.flatMap(node => node.images)
   if (pricing === undefined || images.length === 0) {
     let surfaceTokens = 0
     const publicNodes = nodes.map((node) => {
@@ -51,17 +52,22 @@ export function priceSurface(
   let cursor = 0
   let surfaceTokens = 0
   const publicNodes = nodes.map((node) => {
-    let tokens = node.heuristicTokens
-    if (node.images.length > 0) {
-      tokens = node.imageFreeTokens
-      for (let occurrence = 0; occurrence < node.images.length; occurrence += 1) {
-        // oxlint-disable-next-line typescript/no-non-null-assertion -- length equality is asserted above
-        const price = prices[cursor]!
-        cursor += 1
-        tokens += price.visualTokens + estimateContent([{ type: 'text', text: price.text }])
+    let tokens = node.imageFreeTokens
+    for (let occurrence = 0; occurrence < node.images.length; occurrence += 1) {
+      const price = prices[cursor]
+      if (price === undefined) {
+        throw new Error(`token meter: route image pricing omitted occurrence ${cursor}`)
       }
+      if (!Number.isSafeInteger(price.visualTokens) || price.visualTokens < 0) {
+        throw new Error(`token meter: route image pricing occurrence ${cursor} requires a non-negative safe integer visual token count`)
+      }
+      cursor += 1
+      tokens += price.visualTokens + estimateContent([{ type: 'text', text: price.text }])
     }
     surfaceTokens += tokens
+    if (!Number.isSafeInteger(surfaceTokens)) {
+      throw new Error(`token meter: route-priced surface exceeds the safe integer range at seq ${node.seq}`)
+    }
     return { seq: node.seq, tokens, heuristicTokens: node.heuristicTokens }
   })
   return { nodes: publicNodes, surfaceTokens }

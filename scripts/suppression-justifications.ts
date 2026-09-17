@@ -2,8 +2,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { parse, type ParserPlugin } from '@babel/parser'
-import traverse from '@babel/traverse'
-import type { MemberExpression, OptionalMemberExpression } from '@babel/types'
+import traverse, { type NodePath } from '@babel/traverse'
 import { gitWorktreeFiles } from './git-worktree-files.ts'
 
 const ROOT = resolve(import.meta.dirname, '..')
@@ -52,8 +51,121 @@ function directiveKind(text: string): SuppressionViolation['kind'] | undefined {
   return undefined
 }
 
+function expressionValue(path: NodePath): NodePath {
+  let value = path
+  while (value.isTSAsExpression() || value.isTSTypeAssertion() || value.isTSNonNullExpression()
+    || value.isTSSatisfiesExpression() || value.isParenthesizedExpression()) {
+    value = value.get('expression')
+  }
+  return value
+}
+
+interface StringAnalysis {
+  readonly values: Map<NodePath, string | undefined>
+  /** Expanded strings cannot exceed the containing source's code-unit length. */
+  readonly maxLength: number
+}
+
+function propertyName(
+  path: NodePath, computed: boolean, seen: ReadonlySet<NodePath>, analysis: StringAnalysis,
+): string | undefined {
+  return !computed && path.isIdentifier() ? path.node.name : literalString(path, seen, analysis)
+}
+
+/** Select a binding from inline data without reading getters, spreads or shared objects. */
+function destructuredValue(
+  pattern: NodePath, input: NodePath, name: string, seen: ReadonlySet<NodePath>, analysis: StringAnalysis,
+): NodePath | undefined {
+  const value = expressionValue(input)
+  if (pattern.isIdentifier()) return pattern.node.name === name ? value : undefined
+  if (pattern.isObjectPattern() && value.isObjectExpression()) {
+    const entries = new Map<string, NodePath>()
+    for (const entry of value.get('properties')) {
+      if (!entry.isObjectProperty()) return undefined
+      const key = propertyName(entry.get('key'), entry.node.computed, seen, analysis)
+      if (key === undefined || (key === '__proto__' && !entry.node.computed)) return undefined
+      entries.set(key, entry.get('value'))
+    }
+    for (const entry of pattern.get('properties')) {
+      if (!entry.isObjectProperty()) continue
+      const key = propertyName(entry.get('key'), entry.node.computed, seen, analysis)
+      const selected = key === undefined ? undefined : entries.get(key)
+      if (selected === undefined) continue
+      const result = destructuredValue(entry.get('value'), selected, name, seen, analysis)
+      if (result !== undefined) return result
+    }
+  }
+  if (pattern.isArrayPattern() && value.isArrayExpression()) {
+    const elements = value.get('elements')
+    if (elements.some(element => element.isSpreadElement())) return undefined
+    for (const [index, entry] of pattern.get('elements').entries()) {
+      const selected = elements[index]
+      if (entry.node === null || selected === undefined || selected.node === null) continue
+      const result = destructuredValue(entry, selected, name, seen, analysis)
+      if (result !== undefined) return result
+    }
+  }
+  return undefined
+}
+
+/** Prove strings from syntax and constant bindings; calls and runtime coercions remain unproven. */
+function literalString(input: NodePath, ancestors: ReadonlySet<NodePath>, analysis: StringAnalysis): string | undefined {
+  const path = expressionValue(input)
+  if (ancestors.has(path)) return undefined
+  const seen = new Set(ancestors).add(path)
+  if (path.isStringLiteral()) return path.node.value
+  if (path.isBinaryExpression({ operator: '+' })) {
+    const left = literalString(path.get('left'), seen, analysis)
+    const right = literalString(path.get('right'), seen, analysis)
+    if (left === undefined || right === undefined || left.length + right.length > analysis.maxLength) return undefined
+    return left + right
+  }
+  if (path.isTemplateLiteral()) {
+    let result = ''
+    const expressions = path.get('expressions')
+    for (const [index, quasi] of path.node.quasis.entries()) {
+      if (typeof quasi.value.cooked !== 'string') return undefined
+      if (result.length + quasi.value.cooked.length > analysis.maxLength) return undefined
+      result += quasi.value.cooked
+      const expression = expressions[index]
+      if (expression !== undefined) {
+        const part = literalString(expression, seen, analysis)
+        if (part === undefined || result.length + part.length > analysis.maxLength) return undefined
+        result += part
+      }
+    }
+    return result
+  }
+  if (!path.isReferencedIdentifier()) return undefined
+  const binding = path.scope.getBinding(path.node.name)
+  if (binding === undefined || binding.kind !== 'const' || !binding.constant
+    || !binding.path.isVariableDeclarator()) return undefined
+  const start = path.node.start
+  const end = binding.path.node.end
+  if (start === null || start === undefined || end === null || end === undefined || start < end) return undefined
+  const init = binding.path.get('init')
+  if (init.node === null) return undefined
+  const selected = destructuredValue(binding.path.get('id'), init, path.node.name, seen, analysis)
+  if (selected === undefined) return undefined
+  if (analysis.values.has(selected)) return analysis.values.get(selected)
+  const result = literalString(selected, seen, analysis)
+  analysis.values.set(selected, result)
+  return result
+}
+
+function handlerProperty(path: NodePath, computed: boolean, validSyntax: boolean, sourceLength: number): boolean {
+  if (!computed && path.isIdentifier()) return path.node.name === 'catch'
+  if (path.isStringLiteral()) return path.node.value === 'catch'
+  if (path.isTemplateLiteral() && path.node.expressions.length === 0) {
+    return path.node.quasis[0]?.value.cooked === 'catch'
+  }
+  if (!computed || !validSyntax) return false
+  return literalString(path, new Set(), { values: new Map(), maxLength: sourceLength }) === 'catch'
+}
+
 /**
  * Inspect actual comments and catch clauses/handlers, including directives carrying explanations.
+ * Computed names require a bounded syntax proof; unsupported computation remains unproven.
  * @param sources - Complete authored source files.
  * @returns Violations sorted by path and line. Empty inputs and unrecoverable syntax errors throw.
  */
@@ -76,16 +188,9 @@ export function scanSuppressions(sources: readonly SuppressionSource[]): Suppres
         if (kind !== undefined) violations.push({ file, line: comment.loc.start.line + offset, kind, text: line.trim() })
       }
     }
-    const recordCatchHandler = (node: MemberExpression | OptionalMemberExpression): void => {
-      const property = node.property
-      const name = node.computed
-        ? property.type === 'StringLiteral'
-          ? property.value
-          : property.type === 'TemplateLiteral' && property.expressions.length === 0
-            ? property.quasis[0]?.value.cooked
-            : undefined
-        : property.type === 'Identifier' ? property.name : undefined
-      if (name !== 'catch') return
+    const recordCatchHandler = (path: NodePath, computed: boolean): void => {
+      if (!handlerProperty(path, computed, ast.errors.length === 0, source.content.length)) return
+      const property = path.node
       if (property.loc === undefined || property.loc === null || property.start === null || property.start === undefined) {
         throw new Error(`${file}: catch-handler location is missing`)
       }
@@ -94,9 +199,12 @@ export function scanSuppressions(sources: readonly SuppressionSource[]): Suppres
       violations.push({ file, line: property.loc.start.line, kind: 'catch-handler', text })
     }
     traverse(ast, {
-      noScope: true,
-      MemberExpression({ node }) { recordCatchHandler(node) },
-      OptionalMemberExpression({ node }) { recordCatchHandler(node) },
+      noScope: ast.errors.length > 0,
+      MemberExpression(path) { recordCatchHandler(path.get('property'), path.node.computed) },
+      OptionalMemberExpression(path) { recordCatchHandler(path.get('property'), path.node.computed) },
+      ObjectProperty(path) {
+        if (path.parentPath.isObjectPattern()) recordCatchHandler(path.get('key'), path.node.computed)
+      },
       CatchClause({ node }) {
         if (node.loc === undefined || node.loc === null || node.start === null || node.start === undefined) {
           throw new Error(`${file}: catch location is missing`)

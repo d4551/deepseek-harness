@@ -91,8 +91,6 @@ export function contextKeyMap(body: ModuleBlock, sf: SourceFile): Map<string, st
   for (const stmt of body.statements) {
     if (!isInterfaceDeclaration(stmt) || stmt.name.text !== 'Context') continue
     for (const member of stmt.members) {
-      // TS7 declares PropertySignatureDeclaration.type non-optional; an unannotated member parses with none.
-      // oxlint-disable-next-line typescript/no-unnecessary-condition
       if (!isPropertySignatureDeclaration(member) || member.type === undefined) continue
       keyToType.set(member.name.getText(sf), member.type.getText(sf))
     }

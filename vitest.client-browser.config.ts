@@ -11,6 +11,8 @@ export default defineConfig({
   plugins: [standardDecoratorPlugin()],
   optimizeDeps: { entries: clientBrowserTests },
   test: {
+    reporters: ['default', './scripts/client-a11y-reporter.ts'],
+    includeTaskLocation: true,
     fsModuleCachePath: vitestFsModuleCachePath,
     name: 'client-browser',
     include: clientBrowserTests,

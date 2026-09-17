@@ -8,7 +8,6 @@ import {
   collectPythonDependencies,
   isOwnerAuthorizedRuntime,
   isPermissive,
-  type Manifest,
   manifestPatterns,
   parsePyprojectRequirements,
   parseVendoredRows,
@@ -16,6 +15,7 @@ import {
   tierExternalDeps,
   virtualManifest,
 } from './gen-third-party-notices.ts'
+import type { Manifest } from './npm-notice-manifests.ts'
 
 const root = resolve(import.meta.dirname, '..')
 
@@ -27,6 +27,7 @@ describe('THIRD_PARTY_NOTICES.md', () => {
   it('matches what the generator produces from the current manifests', () => {
     const generated = render()
     expect(generated).toContain('It depends on the third-party software listed below.')
+    expect(generated).toContain('[`tooling/stryker/artifacts/stryker-core-10.0.0-ts7-source-repair.tgz`](tooling/stryker/artifacts/stryker-core-10.0.0-ts7-source-repair.tgz)')
     expect(readFileSync(resolve(root, 'THIRD_PARTY_NOTICES.md'), 'utf8'), 'stale notices — run `bun run gen-third-party-notices`').toBe(generated)
   })
 })

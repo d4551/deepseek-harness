@@ -1,8 +1,9 @@
 /** Scoped model-facing tools for the opt-in Agent Teams runtime. */
 
-import type { Context } from '@deepseek-ai/cordis'
+import { FiberState, type Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import type {} from '@deepseek-ai/dsh-agent-presets'
 import { TeamTaskId } from '@deepseek-ai/dsh-agent-team'
 import { assertNever } from '@deepseek-ai/dsh-llm'
 import { FIRST_PARTY_SECTION_ORDER } from '@deepseek-ai/dsh-system-prompt'
@@ -34,10 +35,10 @@ export interface Config {
    */
   readonly coordination?: TeamCoordination
   /**
-   * Agent preset ids whose Agents keep their preset's exact tool set: an Agent
-   * whose session header names one of them receives neither the Team tools nor
-   * the policy section. A deployment without agent presets composes no such
-   * header, so every Agent is a member there.
+   * Agent preset ids that receive neither Team tools nor the policy section.
+   * The live composition decides admission, including changes before a session
+   * records its choice. Without the preset service, the session header decides.
+   * A configured restriction denies an uncomposed Agent while that service is present.
    */
   readonly excludePresets?: string[]
 }
@@ -486,19 +487,41 @@ export function apply(ctx: Context, config: Config = {}): void {
   }
   const excludedPresets = new Set(resolved.excludePresets)
   const keepsPresetToolSet = (agent: Agent): boolean => {
-    const preset = agent.session.header.agentPreset
-    return preset !== undefined && excludedPresets.has(preset)
+    if (excludedPresets.size === 0) return false
+    const presets = ctx.get('agentPresets')
+    if (presets === undefined) {
+      const preset = agent.session.header.agentPreset
+      return preset !== undefined && excludedPresets.has(preset)
+    }
+    const preset = presets.composedPreset(agent.ctx)
+    return preset === undefined || excludedPresets.has(preset)
   }
   const installed = new Map<Agent, () => void>()
-  const maybeInstall = (agent: Agent): void => {
-    if (installed.has(agent) || keepsPresetToolSet(agent) || ctx.agentTeams.tryMembership(agent) === undefined) return
-    installed.set(agent, install(agent, ctx, resolved))
+  const reconciling = new Set<Agent>()
+  const reconcile = (agent: Agent): void => {
+    if (ctx.fiber.uid === null || ctx.fiber.state === FiberState.UNLOADING || reconciling.has(agent)) return
+    reconciling.add(agent)
+    try {
+      if (keepsPresetToolSet(agent) || ctx.agentTeams.tryMembership(agent) === undefined) {
+        const dispose = installed.get(agent)
+        installed.delete(agent)
+        dispose?.()
+      } else if (!installed.has(agent)) {
+        installed.set(agent, install(agent, ctx, resolved))
+      }
+    } finally {
+      reconciling.delete(agent)
+    }
   }
-  for (const agent of ctx.agents.list()) maybeInstall(agent)
-  ctx.on('agent/created', ({ agent }) => { maybeInstall(agent) })
+  for (const agent of ctx.agents.list()) reconcile(agent)
+  ctx.on('agent/created', ({ agent }) => { reconcile(agent) })
+  ctx.on('tools/change', () => {
+    for (const agent of ctx.agents.list()) reconcile(agent)
+  })
   ctx.on('agent/disposed', ({ agent }) => {
-    installed.get(agent)?.()
+    const dispose = installed.get(agent)
     installed.delete(agent)
+    dispose?.()
   })
   ctx.effect(() => () => {
     for (const dispose of installed.values()) dispose()

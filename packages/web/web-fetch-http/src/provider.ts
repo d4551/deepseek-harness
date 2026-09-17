@@ -83,12 +83,12 @@ export class HttpFetchProvider implements WebFetchProvider {
             await response.body?.cancel()
             throw new WebError(`redirect response (HTTP ${response.status}) without a Location header`, 'WEB_PROVIDER_ERROR')
           }
-          const target = resolveRedirect(location, currentUrl)
           // Re-validate the target against the same transport hygiene a direct request gets: a
           // redirect must not be a back door to a credentialed, non-http(s), or over-long URL
           // that validateFetchUrl would reject.
           let validatedTarget: URL
           try {
+            const target = resolveRedirect(location, currentUrl)
             validatedTarget = validateFetchUrl(target.toString())
             if (!isSameOrigin(validatedTarget, currentUrl)) {
               throw new WebError(
@@ -178,17 +178,15 @@ export class HttpFetchProvider implements WebFetchProvider {
       }
     }
 
-    /* v8 ignore next -- a 2xx Response from fetch always exposes a body stream; the null guard is defensive. */
     if (response.body === null) return { bytes: new Uint8Array(0), truncatedByBytes: false }
 
     const chunks: Uint8Array[] = []
     let total = 0
     let truncatedByBytes = false
-    // Undici exposes response chunks as `any`; Fetch guarantees body chunks are Uint8Array.
-    const reader = response.body.getReader() as ReadableStreamDefaultReader<Uint8Array>
+    const reader = response.body.getReader({ mode: 'byob' })
     try {
       for (;;) {
-        const { done, value } = await reader.read()
+        const { done, value } = await reader.read(new Uint8Array(64 * 1024))
         if (done) break
         const remaining = this.limits.maxResponseBytes - total
         // Only DROPPED bytes count as truncation: a chunk that exactly fills the
@@ -203,15 +201,11 @@ export class HttpFetchProvider implements WebFetchProvider {
         chunks.push(value)
         total += value.byteLength
       }
+      if (truncatedByBytes) await reader.cancel()
     } catch (error: unknown) {
-      /* v8 ignore next -- mid-stream read fault needs a network drop after headers; translate path covered by request-phase tests. */
       throw translateAbortOrNetwork(error, signal)
     } finally {
-      /* v8 ignore next 4 -- cancel() after a completed/broken read settles without rejecting; unobserved best-effort cleanup. */
-      await reader.cancel().catch(() => {
-        // Cancel after a successful read (or after we broke past the cap) is
-        // best-effort cleanup; the bytes we need are already collected.
-      })
+      reader.releaseLock()
     }
 
     const bytes = new Uint8Array(total)
@@ -234,7 +228,6 @@ function resolveRedirect(location: string, base: URL): URL {
   try {
     return new URL(location, base)
   } catch (error: unknown) {
-    /* v8 ignore next 2 -- URL resolution against a valid absolute base effectively never throws; defensive guard. */
     throw new WebError(`invalid redirect Location "${location}"`, 'WEB_PROVIDER_ERROR', { cause: error })
   }
 }

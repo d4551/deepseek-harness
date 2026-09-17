@@ -154,6 +154,7 @@ export function indexExportedTypes(files: readonly ScannedFile[]): Map<string, T
  * Read every `SlotMap` member declared in one scanned file.
  * @param file - a file returned by {@link scanSlotFiles}.
  * @returns the declared slots, in source order.
+ * @throws When a slot or its selected fields have no explicit type annotation.
  */
 export function slotDeclarations(file: ScannedFile): SlotDeclaration[] {
   const out: SlotDeclaration[] = []
@@ -165,6 +166,9 @@ export function slotDeclarations(file: ScannedFile): SlotDeclaration[] {
         const key = isStringLiteral(member.name) || isIdentifier(member.name)
           ? member.name.text
           : member.name.getText(file.sf)
+        if (member.type === undefined) {
+          throw new Error(`${file.rel}:${lineOf(file.sf, member)}: SlotMap member ${key} requires an explicit type annotation`)
+        }
         const entry = isTypeLiteralNode(member.type) ? member.type : undefined
         const ownerType = memberTypeText(entry, 'owner', file.sf)
         const keyProps = memberTypeText(entry, 'keyProps', file.sf)
@@ -235,6 +239,7 @@ export function slotRegistrations(file: ScannedFile): SlotRegistration[] {
  * @param files - scanned files to search.
  * @param interfaceName - `GlobalStandardProps`, `SessionStandardProps`, or `SessionMaybeStandardProps`.
  * @returns `member: type` texts in declaration order, merged across declaring files.
+ * @throws When a property has no explicit type annotation.
  */
 export function standardKitMembers(files: readonly ScannedFile[], interfaceName: string): string[] {
   const out: string[] = []
@@ -244,6 +249,9 @@ export function standardKitMembers(files: readonly ScannedFile[], interfaceName:
         if (!isInterfaceDeclaration(statement) || statement.name.text !== interfaceName) continue
         for (const member of statement.members) {
           if (!isPropertySignatureDeclaration(member)) continue
+          if (member.type === undefined) {
+            throw new Error(`${file.rel}:${lineOf(file.sf, member)}: ${interfaceName} member ${member.name.getText(file.sf)} requires an explicit type annotation`)
+          }
           const type = member.type.getText(file.sf)
           out.push(`${member.name.getText(file.sf)}${member.postfixToken?.kind === SyntaxKind.QuestionToken ? '?' : ''}: ${collapse(type)}`)
         }

@@ -12,6 +12,12 @@ import axe from 'axe-core'
 import type { ElementContext, Result, RunOptions } from 'axe-core'
 import { completePopupReviews } from './popup-review.ts'
 import type { CompletedPopupReview } from './popup-review.ts'
+import { beginAccessibilityAudit, recordAccessibilityValidation } from './execution.ts'
+
+export { observeAccessibilityExecution } from './execution.ts'
+export type { AccessibilityExecutionObserver } from './execution.ts'
+
+const nativeFailures = new WeakMap<SurfaceAudit, string>()
 
 /**
  * Rule tags every audited client surface is held to: WCAG 2.0/2.1/2.2 levels A
@@ -84,9 +90,10 @@ export function clientAxeRunOptions(): RunOptions {
  * @returns the surface's passed/failed/undecided node counts and its violations.
  */
 export async function auditSurface(surface: string, context: ElementContext): Promise<SurfaceAudit> {
+  const complete = beginAccessibilityAudit()
   const options: RunOptions = clientAxeRunOptions()
   const results = await axe.run(context, options)
-  return {
+  const audit: SurfaceAudit = {
     surface,
     violations: results.violations,
     passed: nodeCount(results.passes),
@@ -96,6 +103,9 @@ export async function auditSurface(surface: string, context: ElementContext): Pr
     incomplete: results.incomplete,
     completedReviews: completePopupReviews(results.incomplete),
   }
+  nativeFailures.set(audit, accessibilityFailures([audit], 100))
+  complete(audit)
+  return audit
 }
 
 /**
@@ -131,6 +141,9 @@ export function formatViolations(audit: SurfaceAudit): string {
  */
 export function accessibilityFailures(audits: readonly SurfaceAudit[], minScore: number): string {
   if (audits.length === 0) return 'No surfaces were audited'
+  const originalFailures = audits.map(audit => nativeFailures.get(audit))
+    .filter(failure => failure !== undefined && failure !== '').join('\n')
+  if (originalFailures !== '') return originalFailures
   const silent = audits.filter(audit => audit.passed + audit.failed === 0).map(audit => audit.surface)
   if (silent.length > 0) return `${silent.join(', ')} decided no checks`
   const violations = audits.map(formatViolations).filter(text => text !== '').join('\n')
@@ -144,5 +157,7 @@ export function accessibilityFailures(audits: readonly SurfaceAudit[], minScore:
     }).join('\n')
   if (incomplete !== '') return incomplete
   const score = accessibilityScore(audits)
-  return score < minScore ? `score ${score} < ${minScore}` : ''
+  if (score < minScore) return `score ${score} < ${minScore}`
+  recordAccessibilityValidation(audits, minScore)
+  return ''
 }

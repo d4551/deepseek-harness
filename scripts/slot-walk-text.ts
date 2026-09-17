@@ -50,23 +50,26 @@ export function collapse(text: string): string {
   return text.replace(/\s+/g, ' ').trim()
 }
 
-/** A type-literal member's string-literal type text, '' when absent or computed. */
+/** A member's string-literal type text, '' when absent or computed; unannotated members throw. */
 export function literalMember(entry: TypeLiteralNode | undefined, name: string): string {
   const member = namedMember(entry, name)
   if (member === undefined) return ''
+  if (member.type === undefined) throw new Error(`SlotMap member ${name} requires an explicit type annotation`)
   return isLiteralTypeNode(member.type) && isStringLiteral(member.type.literal)
     ? member.type.literal.text
     : ''
 }
 
-/** A type-literal member's type text on one line, absent when the member is. */
+/** A member's type text on one line, absent when the member is; unannotated members throw. */
 export function memberTypeText(
   entry: TypeLiteralNode | undefined,
   name: string,
   sf: SourceFile,
 ): string | undefined {
   const member = namedMember(entry, name)
-  return member === undefined ? undefined : collapse(member.type.getText(sf))
+  if (member === undefined) return undefined
+  if (member.type === undefined) throw new Error(`SlotMap member ${name} requires an explicit type annotation`)
+  return collapse(member.type.getText(sf))
 }
 
 /** One named property signature of a type literal. */

@@ -1,0 +1,392 @@
+{
+  "vitest-browser-react": {
+    "bugs": {
+      "url": "https://github.com/vitest-community/vitest-browser-react/issues"
+    },
+    "dist": {
+      "shasum": "8fd981cc2858ea44ee204e1222c43c0069310ad2",
+      "tarball": "https://registry.npmjs.org/vitest-browser-react/-/vitest-browser-react-2.3.0.tgz",
+      "fileCount": 9,
+      "integrity": "sha512-S5vdGHHA93j2Z6dbmIJI1wtxT3AXPTRlmC1Meo+ekG011yNnEutMAnHrwyj8qFlGhgBYA8ENGK6+o1Q+vnFz6A==",
+      "signatures": [
+        {
+          "sig": "MEYCIQDTRwr7PkxgZ9ouBC7ZBtOoCIpLRO1cQAjI7TqWnNoeOwIhAN7IuVDgvTRdtd/HELiL54g7MKs5U5REThkn2WlESYSL",
+          "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+        }
+      ],
+      "attestations": {
+        "url": "https://registry.npmjs.org/-/npm/v1/attestations/vitest-browser-react@2.3.0",
+        "provenance": {
+          "predicateType": "https://slsa.dev/provenance/v1"
+        }
+      },
+      "unpackedSize": 18309
+    },
+    "main": "./dist/index.js",
+    "name": "vitest-browser-react",
+    "type": "module",
+    "types": "./dist/index.d.ts",
+    "author": "Vitest Team",
+    "module": "./dist/index.js",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./pure": {
+        "types": "./dist/pure.d.ts",
+        "default": "./dist/pure.js"
+      },
+      "./package.json": "./package.json"
+    },
+    "funding": "https://opencollective.com/vitest",
+    "license": "MIT",
+    "scripts": {
+      "dev": "tsdown --watch --sourcemap",
+      "lint": "eslint --cache .",
+      "test": "vitest",
+      "build": "tsdown",
+      "release": "tsx scripts/release.ts",
+      "lint:fix": "pnpm lint --fix",
+      "publish-ci": "tsx scripts/publish-ci.ts"
+    },
+    "_npmUser": {
+      "name": "GitHub Actions",
+      "email": "npm-oidc-no-reply@github.com",
+      "approver": {
+        "name": "oreanno",
+        "email": "foxzdavinci@gmail.com"
+      },
+      "trustedPublisher": {
+        "id": "github",
+        "oidcConfigId": "oidc:a579504d-0c8e-4df5-aac1-6aa0a2d22b3a"
+      }
+    },
+    "homepage": "https://github.com/vitest-community/vitest-browser-react#readme",
+    "keywords": [
+      "react",
+      "vitest",
+      "browser",
+      "testing"
+    ],
+    "repository": {
+      "url": "git+https://github.com/vitest-community/vitest-browser-react.git",
+      "type": "git"
+    },
+    "description": "Render React components in Vitest Browser Mode",
+    "directories": {},
+    "maintainers": [
+      {
+        "name": "ariperkkio",
+        "email": "ari.perkkio@gmail.com"
+      },
+      {
+        "name": "antfu",
+        "email": "anthonyfu117@hotmail.com"
+      },
+      {
+        "name": "hiogawa",
+        "email": "hi.ogawa.zz@gmail.com"
+      },
+      {
+        "name": "oreanno",
+        "email": "foxzdavinci@gmail.com"
+      },
+      {
+        "name": "yyx990803",
+        "email": "yyx990803@gmail.com"
+      },
+      {
+        "name": "vitestbot",
+        "email": "vitest.dev@gmail.com"
+      }
+    ],
+    "_nodeVersion": "24.20.0",
+    "_hasShrinkwrap": false,
+    "devDependencies": {
+      "zx": "^8.1.4",
+      "tsx": "^4.17.0",
+      "vite": "^8.0.14",
+      "bumpp": "^10.4.1",
+      "react": "^19.0.0",
+      "eslint": "^9.8.0",
+      "semver": "^7.8.3",
+      "tsdown": "^0.15.9",
+      "vitest": "^5.0.0",
+      "react-dom": "^19.0.0",
+      "@vitest/ui": "^5.0.0",
+      "playwright": "^1.60.0",
+      "typescript": "^5.5.4",
+      "@types/react": "^19.0.0",
+      "@types/semver": "^7.7.1",
+      "changelogithub": "^14.0.0",
+      "@playwright/test": "^1.60.0",
+      "@types/react-dom": "^19.0.0",
+      "@antfu/eslint-config": "^2.24.1",
+      "@vitejs/plugin-react": "^6.0.2",
+      "react-aria-components": "^1.10.1",
+      "@vitest/browser-playwright": "^5.0.0"
+    },
+    "peerDependencies": {
+      "react": "^18.0.0 || ^19.0.0",
+      "vitest": "^4.0.0 || ^5.0.0",
+      "react-dom": "^18.0.0 || ^19.0.0",
+      "@types/react": "^18.0.0 || ^19.0.0",
+      "@types/react-dom": "^18.0.0 || ^19.0.0"
+    },
+    "peerDependenciesMeta": {
+      "@types/react": {
+        "optional": true
+      },
+      "@types/react-dom": {
+        "optional": true
+      }
+    },
+    "_npmOperationalInternal": {
+      "tmp": "tmp/vitest-browser-react_2.3.0_1788508800851_0.4927381618903208",
+      "host": "s3://npm-registry-packages-npm-production"
+    },
+    "_id": "vitest-browser-react@2.3.0",
+    "version": "2.3.0"
+  },
+  "react": {
+    "bugs": {
+      "url": "https://github.com/react/react/issues"
+    },
+    "dist": {
+      "shasum": "e20aa3a14687075ce863351b5878b0608c3fbfb2",
+      "tarball": "https://registry.npmjs.org/react/-/react-19.3.0.tgz",
+      "fileCount": 27,
+      "integrity": "sha512-E8LUcbtBWt20bbl2YoHfx4ZDBdxVTfOKtCZn9cDSJ4l6/nuoApcpIBcj47t2wZoVX8g2ZHuMHbiShgCR1T5Sog==",
+      "signatures": [
+        {
+          "sig": "MEUCIALru2uJjzTwQTeh/ax6FRZSyVBDySuUEr4k+TiaANpDAiEAgJVCX1upjcvo4FzKCrJW9vcVnWVJwMbuM4Wsc4UM61o=",
+          "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+        },
+        {
+          "sig": "MEYCIQCLRI5uegHedldoJjX7BioMz8AnR5jZmFZB2+1PMyrFagIhAMlHH0dBWncX0Nq4vSqkVKZtP7Jolgae2aodnOtIRrQK",
+          "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+        }
+      ],
+      "attestations": {
+        "url": "https://registry.npmjs.org/-/npm/v1/attestations/react@19.3.0",
+        "provenance": {
+          "predicateType": "https://slsa.dev/provenance/v1"
+        }
+      },
+      "unpackedSize": 178663
+    },
+    "main": "index.js",
+    "name": "react",
+    "engines": {
+      "node": ">=0.10.0"
+    },
+    "exports": {
+      ".": {
+        "default": "./index.js",
+        "react-server": "./react.react-server.js"
+      },
+      "./jsx-runtime": {
+        "default": "./jsx-runtime.js",
+        "react-server": "./jsx-runtime.react-server.js"
+      },
+      "./package.json": "./package.json",
+      "./jsx-dev-runtime": {
+        "default": "./jsx-dev-runtime.js",
+        "react-server": "./jsx-dev-runtime.react-server.js"
+      },
+      "./compiler-runtime": {
+        "default": "./compiler-runtime.js",
+        "react-server": "./compiler-runtime.js"
+      }
+    },
+    "gitHead": "1d34f91dfde6bba84d08b683aaba164c7194dacb",
+    "license": "MIT",
+    "_npmUser": {
+      "name": "GitHub Actions",
+      "email": "npm-oidc-no-reply@github.com",
+      "trustedPublisher": {
+        "id": "github",
+        "oidcConfigId": "oidc:19f8086e-9f33-439e-8cce-d73997f53038"
+      }
+    },
+    "homepage": "https://react.dev/",
+    "keywords": [
+      "react"
+    ],
+    "repository": {
+      "url": "git+https://github.com/react/react.git",
+      "type": "git",
+      "directory": "packages/react"
+    },
+    "_npmVersion": "11.19.0",
+    "description": "React is a JavaScript library for building user interfaces.",
+    "directories": {},
+    "maintainers": [
+      {
+        "name": "fb",
+        "email": "opensource+npm@fb.com"
+      },
+      {
+        "name": "react-bot",
+        "email": "react-core@meta.com"
+      }
+    ],
+    "_nodeVersion": "24.20.0",
+    "_hasShrinkwrap": false,
+    "_npmOperationalInternal": {
+      "tmp": "tmp/react_19.3.0_1788974489959_0.967607494339469",
+      "host": "s3://npm-registry-packages-npm-production"
+    },
+    "_id": "react@19.3.0",
+    "version": "19.3.0"
+  },
+  "react-dom": {
+    "bugs": {
+      "url": "https://github.com/react/react/issues"
+    },
+    "dist": {
+      "shasum": "a0ff19161d7f4e9be5469a07278b0c06e00f9001",
+      "tarball": "https://registry.npmjs.org/react-dom/-/react-dom-19.3.0.tgz",
+      "fileCount": 43,
+      "integrity": "sha512-JDk8dgif51OjFoDE70+OT9ICyYr+69HlmihNwp1+Nsfbna3t5sIiCa9ZJktDmQ4/1b/rn26hIAR2uYXDMr5r0Q==",
+      "signatures": [
+        {
+          "sig": "MEUCIQDl7gfoVlOoqKLgPU325X6EcrNHIYuFJJX0R9PHDs9KygIgAQaRzlBCG57IDn6XBjaOL/adBCuf/oiguaTixpmBBjw=",
+          "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+        },
+        {
+          "sig": "MEUCIBJlBwP9e+XpqYfXpAJxCFTZ2i9tt8XCm9JYmuFMXsm1AiEAi9g3MN8fg6vModu7alAeUKmJ6iWO6untLGlvHfX1mb4=",
+          "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+        }
+      ],
+      "attestations": {
+        "url": "https://registry.npmjs.org/-/npm/v1/attestations/react-dom@19.3.0",
+        "provenance": {
+          "predicateType": "https://slsa.dev/provenance/v1"
+        }
+      },
+      "unpackedSize": 8063782
+    },
+    "main": "index.js",
+    "name": "react-dom",
+    "browser": {
+      "./server.js": "./server.browser.js",
+      "./static.js": "./static.browser.js"
+    },
+    "exports": {
+      ".": {
+        "default": "./index.js",
+        "react-server": "./react-dom.react-server.js"
+      },
+      "./client": {
+        "default": "./client.js",
+        "react-server": "./client.react-server.js"
+      },
+      "./server": {
+        "bun": "./server.bun.js",
+        "deno": "./server.node.js",
+        "node": "./server.node.js",
+        "worker": "./server.browser.js",
+        "browser": "./server.browser.js",
+        "default": "./server.node.js",
+        "workerd": "./server.edge.js",
+        "edge-light": "./server.edge.js",
+        "react-server": "./server.react-server.js"
+      },
+      "./static": {
+        "deno": "./static.browser.js",
+        "node": "./static.node.js",
+        "worker": "./static.browser.js",
+        "browser": "./static.browser.js",
+        "default": "./static.node.js",
+        "workerd": "./static.edge.js",
+        "edge-light": "./static.edge.js",
+        "react-server": "./static.react-server.js"
+      },
+      "./profiling": {
+        "default": "./profiling.js",
+        "react-server": "./profiling.react-server.js"
+      },
+      "./server.bun": {
+        "default": "./server.bun.js",
+        "react-server": "./server.react-server.js"
+      },
+      "./test-utils": "./test-utils.js",
+      "./server.edge": {
+        "default": "./server.edge.js",
+        "react-server": "./server.react-server.js"
+      },
+      "./server.node": {
+        "default": "./server.node.js",
+        "react-server": "./server.react-server.js"
+      },
+      "./static.edge": {
+        "default": "./static.edge.js",
+        "react-server": "./static.react-server.js"
+      },
+      "./static.node": {
+        "default": "./static.node.js",
+        "react-server": "./static.react-server.js"
+      },
+      "./package.json": "./package.json",
+      "./server.browser": {
+        "default": "./server.browser.js",
+        "react-server": "./server.react-server.js"
+      },
+      "./static.browser": {
+        "default": "./static.browser.js",
+        "react-server": "./static.react-server.js"
+      }
+    },
+    "gitHead": "1d34f91dfde6bba84d08b683aaba164c7194dacb",
+    "license": "MIT",
+    "scripts": {
+      "start": "node server.js"
+    },
+    "_npmUser": {
+      "name": "GitHub Actions",
+      "email": "npm-oidc-no-reply@github.com",
+      "trustedPublisher": {
+        "id": "github",
+        "oidcConfigId": "oidc:d9cd0825-8595-47d6-b8ae-76fbc589cbd8"
+      }
+    },
+    "homepage": "https://react.dev/",
+    "keywords": [
+      "react"
+    ],
+    "repository": {
+      "url": "git+https://github.com/react/react.git",
+      "type": "git",
+      "directory": "packages/react-dom"
+    },
+    "_npmVersion": "11.19.0",
+    "description": "React package for working with the DOM.",
+    "directories": {},
+    "maintainers": [
+      {
+        "name": "fb",
+        "email": "opensource+npm@fb.com"
+      },
+      {
+        "name": "react-bot",
+        "email": "react-core@meta.com"
+      }
+    ],
+    "_nodeVersion": "24.20.0",
+    "dependencies": {
+      "scheduler": "^0.28.0"
+    },
+    "_hasShrinkwrap": false,
+    "peerDependencies": {
+      "react": "^19.3.0"
+    },
+    "_npmOperationalInternal": {
+      "tmp": "tmp/react-dom_19.3.0_1788974259597_0.7644406281030367",
+      "host": "s3://npm-registry-packages-npm-production"
+    },
+    "_id": "react-dom@19.3.0",
+    "version": "19.3.0"
+  }
+}

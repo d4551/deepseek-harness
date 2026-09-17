@@ -170,6 +170,15 @@ describe('Remote analysis rejections', { timeout: 60_000 }, () => {
   })
 
   it.each([
+    ['TypertLookupMap', 'TypertLookup<Agent, AgentId>'],
+    ['TypertContextMap', 'TypertContext<AgentId>'],
+  ])('rejects an unannotated %s entry', (name, annotation) => {
+    const root = copyFixture()
+    editFile(root, 'packages/domain/src/index.ts', source => source.replace(`agent: ${annotation}`, 'agent'))
+    expect(() => analyzeRemote(root, false)).toThrow(`${name} entries must be required annotated properties`)
+  })
+
+  it.each([
     ['bigint', 'bigint'],
     ['symbol', 'symbol'],
     ['undefined', 'undefined'],

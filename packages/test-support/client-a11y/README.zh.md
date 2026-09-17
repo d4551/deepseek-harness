@@ -39,6 +39,8 @@ expect(audit.incomplete).toEqual([])
 
 `auditSurface(surface, context)` 返回违规、`passed`、`failed`、`undecided` 节点计数、`undecidedRules` 和完整的 `incomplete` 结果。`accessibilityFailures(audits, 100)` 拒绝空审计集、未判定任何检查的受审面、违规节点、未判定检查和低于 100 的分数。对 `incomplete` 的断言会输出完整诊断数据。`accessibilityScore(audits)` 衡量已判定检查；`formatViolations(audit)` 标明每条违规规则及受影响元素。
 
+根测试运行器和浏览器运行器要求每个选中的源码审计候选提供执行证据。每个必需测试必须通过，并以 100 分验证自身的原生 axe 结果。跳过的测试、不可达的检查、未注册的定义、自行构造的结果对象，以及从其他测试借用的结果，都不能满足该要求。运行 `bunx vitest run --config vitest.client-browser.config.ts` 可检查完整的包级候选清单；定向运行会明确报告证据不完整。
+
 ### 在 landmark 内渲染
 
 页面结构类规则无法由一个漂浮在空 `<body>` 中的组件满足。请把每个 surface（受审面）渲染进真实页面会提供的 landmark 中——一个 `<main>` 包裹层即可——这样审计报告的是组件缺陷，而不是测试脚手架自身缺少页面框架。
@@ -64,13 +66,18 @@ expect(audit.incomplete).toEqual([])
 
 该模块固定 `axe.run` 的标签清单，请求 violations、passes 与 incomplete 结果，并把 axe 的按规则节点数组转换为计数。原始 incomplete 结果和计数保持完整，不计入分数。对于 axe 的确切 `controlsWithinPopup` 审查，`completedReviews` 记录原生 DOM 证据：每个受控 ID 唯一解析，弹窗角色匹配 `aria-haspopup`，展开的弹窗可见且可访问。其他未判定检查，以及缺少上述证据的弹窗审查，都会使 `accessibilityFailures` 失败。
 
+审计引擎保留原生结果的对象身份与不可变的原始失败报告，随后发布执行与成功验证事件。修改返回结果不能抹去原生失败。浏览器初始化将两类事件绑定到 Vitest 的实际测试任务。报告器检查完整配置的发现范围是否包含源码候选，按定义位置（包括列号）核对执行凭据；必需测试缺少通过凭据时，检查失败。通过 CLI 或 Vitest 公共 API 显式选择文件时，报告会标明证据不完整。静态源码检查发现审计义务；只有完成的浏览器工作才能提供执行证据。
+
 ### 源码地图
 
 | 文件 | 作用 |
 |---|---|
 | [`src/index.ts`](src/index.ts) | `CLIENT_AXE_TAGS`、`clientAxeRunOptions`、`auditSurface`、`accessibilityFailures`、`accessibilityScore`、`formatViolations` |
 | [`src/popup-review.ts`](src/popup-review.ts) | 弹窗引用审查的原生 DOM 验证 |
-| [`src/invariant.ts`](src/invariant.ts) | 不变式伴生插件（无运行时不变式；该模块不拥有事件流或可变数据） |
+| [`src/execution.ts`](src/execution.ts) | 原生结果身份与执行观察器 |
+| [`tests/browser-setup.client.ts`](tests/browser-setup.client.ts) | 原生测试任务归属与产品主题初始化 |
+| [`../../../scripts/client-a11y-reporter.ts`](../../../scripts/client-a11y-reporter.ts) | 必需测试执行核对 |
+| [`src/invariant.ts`](src/invariant.ts) | 包不变式伴生插件注册 |
 
 </details>
 
@@ -104,6 +111,7 @@ expect(audit.incomplete).toEqual([])
 
 - **自动检查仅覆盖部分无障碍要求**——键盘操作流程、屏幕阅读器行为和内容可理解性还需要交互审查。
 - **一次只审计一个 surface（受审面）**——该模块审计调用方已渲染好的 DOM 子树。它不挂载任何东西，也不了解 slot，因此由套件决定什么算一个 surface 以及如何构建它。
+- **候选发现有语法边界**——包归属通过源码导入、渲染与断言检查确定。测试归属分析跟踪 Vitest 具名导入，以及直接调用、本地函数或具名相对路径辅助函数调用。命名空间导入、再导出链与生成测试的工厂仍需进一步源码分析；该清单并不能证明组件、状态或用户流程已被完整覆盖。
 
 <a id="dev-note"></a>
 ### 开发备注

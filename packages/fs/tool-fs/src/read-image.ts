@@ -217,7 +217,7 @@ export function applyReadImageTool(ctx: Context): void {
       // committed object by the time the tool/result event is appended.
       let ref: ImageAttachmentRef
       try {
-        ref = await attachments.saveImage({ data, mediaType, name: basename(target.displayPath) })
+        ref = await attachments.saveImage({ data, mediaType, name: basename(target.displayPath) }, exec.signal)
       } catch (error: unknown) {
         if (!(error instanceof AttachmentError)) throw error
         // Dimension refusals stay recoverable tool errors: an oversized image

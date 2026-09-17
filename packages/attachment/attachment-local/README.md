@@ -83,6 +83,10 @@ This section explains the durability and verification design behind the storage,
 
 ### Write and read paths
 
+Request cancellation preserves the caller's exact reason. A cancelling caller leaves other waiters running; the final cancelling caller waits for the shared operation and cache cleanup to settle. Abort listeners cannot prevent the provider from observing cancellation. Queued requests leave the compression queue immediately, and active encoders check cancellation between candidates. Missing or invalid cached image bytes are regenerated; other cache filesystem failures propagate without being treated as misses.
+
+Admission cancellation removes queued compression work immediately. Active native operations retain their concurrency slot until they settle, and a batch joins every preparation before returning failure. Cancellation before atomic publication prevents that image object from being published; once publication starts, its durability work finishes. Earlier committed members of a cancelled batch remain stored. The `read_image` tool passes its execution signal into admission.
+
 Objects land at `<DSH_HOME>/attachments/v1/objects/<sha256-prefix>/<sha256>`; equal bytes deduplicate to one object and one `sha256:` id. Before the first POSIX write, the process syncs every ancestor directory of the home down to the filesystem root once, so a directory another process created but has not yet synced is never mistaken for a safe boundary. Writes stage bytes in `v1/tmp` and sync the staging file. POSIX publishes with an atomic exclusive hard link and syncs the publication directories; Windows uses the [shared write-through helpers](../../util/atomic-write/src/win32.ts) to create missing directories and move new objects without replacing existing destinations. Once the save resolves, the reported reference is durable.
 
 Admission accepts up to 20 images and 200 MiB of source bytes per message; one source may use up to 20 MiB, 64 million pixels, and 8192 pixels per side. It applies orientation, removes metadata and color profiles, and normalizes under a 2048×2048 total-pixel budget, an 8192-pixel long edge, and a 4 MiB encoded-byte target. Extreme aspect ratios therefore retain their short-edge resolution. Clean single-frame 8-bit sRGB/sRGBA PNG, JPEG, or WebP input already within those limits passes through byte-identically; GIF, animation, metadata, orientation, 16-bit PNG, and incompatible color spaces force conversion.
@@ -97,6 +101,7 @@ Request versions live below `<DSH_HOME>/attachments/v1/request-images/`. `readIm
 | [`src/store.ts`](src/store.ts) | Content-addressed write and verified read: staging, hard-link publish, fsync chain, digest verification |
 | [`src/normalization.ts`](src/normalization.ts) + [`src/encoding.ts`](src/encoding.ts) | Provider-independent normalization and bounded format/quality candidates |
 | [`src/request-image.ts`](src/request-image.ts) | Route-specific request transforms and cache identity |
+| [`src/shared-request.ts`](src/shared-request.ts) | Shared transform ownership, independent caller cancellation, and final settlement |
 | [`src/image.ts`](src/image.ts) | Full raster decode and metadata verification |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; immutable writes and verified reads enforced at the backend boundary) |
 

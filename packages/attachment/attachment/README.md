@@ -67,6 +67,8 @@ This section explains the design decisions behind the seam and the service opera
 
 ### Service operations
 
+Admission methods accept an optional cancellation signal. Cancellation stops queued preparation and prevents further publication; native image work already running settles before rejection. Atomic publication already started finishes durably, and objects committed earlier in a cancelled batch remain stored. A failed batch returns no partial references.
+
 The service family runs one admission-and-storage flow: every entry point enforces source batch limits and canonical base64, prepares provider-independent normalized attachments before publishing any member, and commits them durably in input order without partial results. `readImageRequest` derives deterministic route-sized variants whose identity includes the attachment id, transform version, pixel and byte budgets, and encoder settings. The pure `requestImageDimensions` export computes each projection's aspect-preserving dimensions from a total-pixel budget, so providers and request pricing share one geometry. `imageHostPath` exposes an implementation-owned host location only to trusted same-process consumers that need execution-world mapping. Callers compose ordered batches while the implementation owns compression concurrency, caching, and singleflight. Reads and projections preserve caller cancellation. Failures carry stable machine-readable codes, and the caller-correctable admission subset is recognizable at runtime so each protocol adapter maps its own vocabulary; the exact per-operation contracts live in [`src/index.ts`](src/index.ts) and [`src/error.ts`](src/error.ts).
 
 ### Source map

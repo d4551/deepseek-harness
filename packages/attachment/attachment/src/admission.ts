@@ -30,12 +30,15 @@ function saveInput(image: EncodedImageAttachment): SaveImageAttachment {
  * The shared entry for every RPC endpoint accepting browser uploads.
  * @param attachments - the deployment attachment store owning batch policy.
  * @param images - base64-encoded uploads in caller order.
+ * @param signal - cancellation passed to batch preparation and publication.
  * @returns durable references in the same order as `images`.
  * @throws AttachmentError on a non-canonical payload or a refused batch.
  */
 export async function admitEncodedImages(
   attachments: AttachmentStore,
   images: readonly EncodedImageAttachment[],
+  signal?: AbortSignal,
 ): Promise<readonly ImageAttachmentRef[]> {
-  return attachments.saveImages(images.map(saveInput))
+  signal?.throwIfAborted()
+  return attachments.saveImages(images.map(saveInput), signal)
 }

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write docs/subsystems/attachment.md
-attachment.md: ce8cc21aa60cd210db5912de3120e40f2745ded4
-attachment.zh.md: ac407026d5d72c27ee9b36e452824a3491c86e79
+attachment.md: 3271b11e464ebaea41cad86d127f9bd423cca038
+attachment.zh.md: 4b5b1497d65f970edf7d8bafedc4052f7719dbbb

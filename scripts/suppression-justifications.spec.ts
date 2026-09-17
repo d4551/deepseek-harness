@@ -98,6 +98,42 @@ describe('scanSuppressions', () => {
     ].join('\n'))).toEqual([])
   })
 
+  it.each([
+    'const handler = "catch"; task[handler](report)',
+    'const first = "ca"; const handler = `${first}tch`; task?.[handler](report)',
+    'task["ca" + "tch"](report)',
+    'const { catch: reject } = task',
+    'const { "catch": reject } = task',
+    'const handler = "catch"; const { [handler]: reject } = task',
+    '({ catch: reject } = task)',
+    'function run({ catch: reject }) { return reject(report) }',
+    'const { nested: { catch: reject } } = holder',
+  ])('rejects resolved or destructured catch-handler access %s', (content) => {
+    expect(scan(content)).toEqual([
+      expect.objectContaining({ file: 'packages/x/y/src/index.ts', line: 1, kind: 'catch-handler' }),
+    ])
+  })
+
+  it('resolves computed handlers in their lexical scope', () => {
+    expect(scan([
+      'const handler = "catch"',
+      'function other(handler: string) { return task[handler] }',
+      '{ const handler = "then"; task[handler](report) }',
+      'task[handler](report)',
+    ].join('\n'))).toEqual([
+      expect.objectContaining({ file: 'packages/x/y/src/index.ts', line: 4, kind: 'catch-handler' }),
+    ])
+  })
+
+  it('does not treat property creation or unresolved computed access as proven handler access', () => {
+    expect(scan([
+      'const object = { catch: report, ["catch"]: report }',
+      'const { then: next } = task',
+      'function select(key: string) { return task[key] }',
+      'let changing = "catch"; changing = "then"; task[changing](report)',
+    ].join('\n'))).toEqual([])
+  })
+
   it('reports the handler property line across a multiline chain', () => {
     expect(scan('task\n  .catch(report)')).toEqual([
       { file: 'packages/x/y/src/index.ts', line: 2, kind: 'catch-handler', text: 'catch(report)' },
@@ -115,6 +151,61 @@ describe('scanSuppressions', () => {
     expect(() => scanSuppressions([])).toThrow('nonempty')
     expect(() => scan('export const value = (')).toThrow()
     expect(scan('const value = 1; const value = 2;')[0]?.kind).toBe('parse-error')
+  })
+
+  it('retains syntax failures and direct handler findings without constructing an invalid scope', () => {
+    const findings = scan('const value = 1; const value = 2; task.catch(report)')
+    expect(findings.map(finding => finding.kind)).toEqual(['catch-handler', 'parse-error'])
+  })
+
+  it('does not execute source callbacks while resolving a computed property', () => {
+    expect(scan('const handler = (() => { throw new Error("source executed") })(); task[handler](report)')).toEqual([])
+  })
+
+  it.each([
+    'const name = "catch" as const; task[name](report)',
+    'const name = ("catch" satisfies string)!; task[name](report)',
+    'const name = <string>"catch"; task[name](report)',
+    'const { name } = { name: "catch" }; task[name](report)',
+    'const { name: alias } = { name: "catch" }; task[alias](report)',
+    'const [name] = ["catch"]; task[name](report)',
+    'const [, name] = ["then", "catch"]; task[name](report)',
+    'const { nested: [name] } = { nested: ["catch"] }; task[name](report)',
+    'const field = "name"; const { [field]: name } = { name: "catch" }; task[name](report)',
+    'const key = "hand" + "ler"; const { [key]: name } = { handler: "catch" }; task[name](report)',
+    'const prefix = "hand"; const key = `${prefix}ler`; const { [key]: name } = { handler: "catch" }; task[name](report)',
+    'const { name } = { name: "then", name: "catch" }; task[name](report)',
+  ])('detects a statically bound handler without evaluating source: %s', (content) => {
+    expect(scan(content)).toEqual([expect.objectContaining({ kind: 'catch-handler' })])
+  })
+
+  it('reuses immutable alias proofs without expanding a repeated expression tree', () => {
+    const aliases = ['const part0 = ""']
+    for (let index = 1; index <= 40; index++) {
+      aliases.push(`const part${index} = part${index - 1} + part${index - 1}`)
+    }
+    expect(scan(`${aliases.join('; ')}; task["catch" + part40](report)`))
+      .toEqual([expect.objectContaining({ kind: 'catch-handler' })])
+  })
+
+  it.each([
+    'const slice = "toUpperCase"; task["catch"[slice]()](report)',
+    'const toUpperCase = "slice"; task["catch"[toUpperCase]()](report)',
+    'task["x".repeat(-1)]',
+    'task[false && decodeURIComponent("%")] ',
+    'task[String.fromCharCode(99, 97, 116, 99, 104)](report)',
+    'task[name](report); const name = "catch"',
+    'const name = name; task[name](report)',
+    'const first = second; const second = first; task[first](report)',
+    'let name = "then"; name = "catch"; task[name](report)',
+    'const { name } = { name: "catch", ...other }; task[name](report)',
+    'const { name } = { get name() { throw Error("executed") } }; task[name](report)',
+    'const holder = { name: "catch" }; holder.name = "then"; const { name } = holder; task[name](report)',
+    'const [name] = [...other]; task[name](report)',
+    'const { name = "catch" } = other; task[name](report)',
+    'const { name } = { name: "catch", name: "then" }; task[name](report)',
+  ])('leaves unsupported or unstable computations unproven without executing them: %s', (content) => {
+    expect(scan(content)).toEqual([])
   })
 
   it('normalizes paths and sorts reports by file and line', () => {

@@ -131,8 +131,6 @@ export function collectLogEvents(scanRoot: string = root): LogEventEntry[] {
       }
       for (const member of decl.members) {
         const src = pointer(rel, sf, member)
-        // TS7 declares PropertySignatureDeclaration.type non-optional; an unannotated member parses with none.
-        // oxlint-disable-next-line typescript/no-unnecessary-condition
         if (!isPropertySignatureDeclaration(member) || member.type === undefined) {
           const label = isPropertySignatureDeclaration(member) ? member.name.getText(sf) : member.getText(sf).replace(/\s+/g, ' ')
           violations.push(`SessionEventMap member ${label} (${src}) is not a property signature with an explicit payload type; declare every log event as 'scope/name': <payload>.`)

@@ -123,8 +123,6 @@ function intoMembers(
   for (const m of members) {
     if (!isPropertySignatureDeclaration(m) || m.name.getText(ctx.sf) !== step.member) continue
     if (steps.length === 1) return 'found'
-    // TS7 declares PropertySignatureDeclaration.type non-optional; an unannotated member parses with none.
-    // oxlint-disable-next-line typescript/no-unnecessary-condition
     return m.type === undefined ? 'unknown' : lookupPath(world, ctx, m.type, steps.slice(1), seen)
   }
   return null

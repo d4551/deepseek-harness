@@ -9,7 +9,7 @@ import { provideCmdline } from '@deepseek-ai/dsh-cmdline'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { PatchOptions } from '@deepseek-ai/cordis-plugin-include'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { SUBAGENT_MODEL_SELECTION_SETTINGS_NAMESPACE } from '@deepseek-ai/dsh-tool-subagent/model-selection-settings'
 import { SETTINGS_NAMESPACE, SHIPPED_PRESET_ROOT } from '@deepseek-ai/dsh-agent-presets'
@@ -64,6 +64,7 @@ async function bootWeb(
     // back on the next run, so a stored document from any other build decides
     // this test's boot. Same reason the settings row above is pinned.
     { id: 'storage-json', config: { root: storageRoot } },
+    { id: 'session-persistence-jsonl', config: { root: join(dirname(settingsFile), 'sessions') } },
     // Host rows with side effects outside this process: a bound port, a served
     // asset tree, a telemetry exporter. `api-gateway` and `directory-picker`
     // stay ENABLED on purpose — the api-proxy is the host row that injects
@@ -175,6 +176,8 @@ beforeAll(async () => {
   await writeFile(settingsFile, '{}\n')
   ctx = await bootWeb(settingsFile)
 }, 120_000)
+
+afterAll(async () => { await ctx.fiber.dispose() })
 
 describe('the shipped Web composition', () => {
   it('leaves the global tool layer empty', () => {
@@ -623,6 +626,37 @@ describe('product Bundle and user-preset intersection', () => {
 })
 
 describe('a switch survives the session', () => {
+  it.each([
+    { initial: 'standard', selected: 'minimal', denied: true },
+    { initial: 'minimal', selected: 'standard', denied: false },
+  ])('enforces Team execution after $initial changes to $selected', async ({ initial, selected, denied }) => {
+    const handle = await ctx.agents.create({
+      sessionId: SessionId(`preset-team-switch-${initial}`),
+      meta: { agentPreset: initial },
+      setup: async (agentCtx) => { await ctx.agentPresets.mount(agentCtx, initial) },
+    })
+    onTestFinished(() => handle.dispose())
+
+    await ctx.agentPresets.recompose(handle.agent.ctx, selected)
+    expect(handle.agent.session.header.agentPreset).toBe(initial)
+    expect(ctx.agentPresets.composedPreset(handle.agent.ctx)).toBe(selected)
+    const result = await ctx.tools.execute({
+      callId: ToolCallId(`preset-team-switch-${initial}`),
+      name: 'team_task_list',
+      arguments: {},
+      signal: new AbortController().signal,
+      agent: handle.agent,
+    })
+    expect(result.isError).toBe(denied)
+    if (denied) {
+      expect(result.content).toEqual([{ type: 'text', text: 'Error: unknown tool "team_task_list"' }])
+      expect(toolNames(ctx, handle.agent)).toEqual(['bash', 'str_replace_editor'])
+    } else {
+      expect(result.content).toEqual([{ type: 'text', text: '{"tasks":[]}' }])
+      expect(toolNames(ctx, handle.agent)).toContain('spawn_teammate')
+    }
+  })
+
   it('records the choice so the log states what the agent runs', async () => {
     const handle = await ctx.agents.create({
       sessionId: SessionId('preset-switch-logged'),
@@ -805,6 +839,8 @@ describe('authoring a preset on the shipped composition', () => {
       },
     }])
   })
+
+  afterAll(async () => { await authorCtx.fiber.dispose() })
 
   it('refuses to copy over or delete a shipped preset', async () => {
     await expect(authorCtx.agentPresets.copy('minimal', 'standard')).rejects.toThrow(/already exists/)

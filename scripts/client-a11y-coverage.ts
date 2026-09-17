@@ -1,8 +1,6 @@
 /**
- * The testing policy says every client UI package that ships TSX is held to
- * axe-core. A prose list of audited packages went stale; this asserts the
- * import exists in that package's own tests so a new ui-* surface cannot
- * ship without an audit.
+ * Discover source-owned accessibility test candidates. Source declarations
+ * establish obligations; the execution reporter requires native audit receipts.
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
@@ -25,10 +23,10 @@ function filesUnder(dir: string): string[] {
   return out
 }
 
-function uiPackagesWithTsx(): string[] {
-  return readdirSync(clientRoot).filter((name) => {
+function uiPackagesWithTsx(root = clientRoot): string[] {
+  return readdirSync(root).filter((name) => {
     if (!name.startsWith('ui-')) return false
-    const src = join(clientRoot, name, 'src')
+    const src = join(root, name, 'src')
     if (!existsSync(src)) return false
     return filesUnder(src).some(path => path.endsWith('.tsx'))
   }).sort()
@@ -176,7 +174,7 @@ function localHelperSources(specFile: string, source: string): { file: string; c
  * `auditSurface`, and `expect(accessibilityFailures(...)).toBe('')` at 100.
  * Score-only, silent, commented-out, or lowered-floor audits do not count.
  * @param source - spec text.
- * @returns true when the spec can fail on a silent or violating surface at 100.
+ * @returns whether the source declares the required calls; execution is checked separately.
  */
 export function specHoldsAxeFloor(source: string): boolean {
   const text = stripSpecComments(source)
@@ -198,7 +196,7 @@ export function specHoldsAxeFloor(source: string): boolean {
  * @param source - spec text.
  * @param packageName - `ui-*` directory name.
  * @param helpers - local test helper modules the spec imports.
- * @returns true when the spec renders that package's source and holds the floor.
+ * @returns whether the source declares a package render and floor check, including unreachable declarations.
  */
 export function specAuditsPackageSource(
   source: string,
@@ -232,10 +230,10 @@ function namesFromNamespaceDestructure(source: string, namespace: string): strin
   return namedImports(match[1])
 }
 
-function packageAuditsAxe(name: string): boolean {
-  const tests = join(clientRoot, name, 'tests')
-  if (!existsSync(tests)) return false
-  return filesUnder(tests).some((path) => {
+function packageAuditCandidates(root: string, name: string): string[] {
+  const tests = join(root, name, 'tests')
+  if (!existsSync(tests)) return []
+  return filesUnder(tests).filter((path) => {
     if (!path.includes('.spec.')) return false
     const source = readFileSync(path, 'utf8')
     return specAuditsPackageSource(source, name, localHelperSources(path, source))
@@ -247,7 +245,16 @@ function packageAuditsAxe(name: string): boolean {
  * @returns missing package directory names, sorted.
  */
 export function uiPackagesMissingAxeCoverage(): string[] {
-  return uiPackagesWithTsx().filter(name => !packageAuditsAxe(name))
+  return uiPackagesWithTsx().filter(name => packageAuditCandidates(clientRoot, name).length === 0)
+}
+
+/**
+ * Discover every required package and its source-owned audit candidates.
+ * @param root - client package directory belonging to this run.
+ * @returns package names mapped to complete candidate spec paths, including empty candidate sets.
+ */
+export function clientAccessibilityCandidates(root = clientRoot): Map<string, string[]> {
+  return new Map(uiPackagesWithTsx(root).map(name => [name, packageAuditCandidates(root, name)]))
 }
 
 /** Absolute `packages/client` directory the coverage scan reads. */

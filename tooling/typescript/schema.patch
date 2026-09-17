@@ -1,0 +1,18 @@
+diff --git a/_scripts/ast.json b/_scripts/ast.json
+--- a/_scripts/ast.json
++++ b/_scripts/ast.json
+@@ -2589,10 +2589,12 @@
+                     },
+                     {
+                         "name": "Type",
+-                        "type": "TypeNode"
++                        "type": "TypeNode",
++                        "optional": true
+                     },
+                     {
+                         "name": "Initializer",
+-                        "type": "Expression"
++                        "type": "Expression",
++                        "optional": true
+                     }
+                 ],

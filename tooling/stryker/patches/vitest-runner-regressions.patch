@@ -1,0 +1,606 @@
+diff --git a/test/integration/native-process/child-entry.mjs b/test/integration/native-process/child-entry.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/child-entry.mjs
+@@ -0,0 +1,8 @@
++import { INSTRUMENTER_CONSTANTS } from '@stryker-mutator/api/core'
++import { value } from './subject.mjs'
++
++process.stdout.write(JSON.stringify({
++  value: value(),
++  source: import.meta.resolve('./subject.mjs'),
++  activeMutant: process.env[INSTRUMENTER_CONSTANTS.ACTIVE_MUTANT_ENV_VARIABLE] ?? null,
++}))
+diff --git a/test/integration/native-process/child-entry.ts b/test/integration/native-process/child-entry.ts
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/child-entry.ts
+@@ -0,0 +1,13 @@
++import { INSTRUMENTER_CONSTANTS } from '@stryker-mutator/api/core'
++import { value } from './subject.ts'
++
++class Result {
++  constructor(public value: number) {}
++}
++
++process.stdout.write(JSON.stringify({
++  value: new Result(value()).value,
++  source: import.meta.resolve('./subject.ts'),
++  activeMutant: process.env[INSTRUMENTER_CONSTANTS.ACTIVE_MUTANT_ENV_VARIABLE] ?? null,
++  execArgv: process.execArgv,
++}))
+diff --git a/test/integration/native-process/child.spec.mjs b/test/integration/native-process/child.spec.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/child.spec.mjs
+@@ -0,0 +1,13 @@
++import { execFileSync } from 'node:child_process'
++import { writeFile } from 'node:fs/promises'
++import { fileURLToPath } from 'node:url'
++import { expect, inject, test } from 'vitest'
++
++test('real child returns five from instrumented source', async () => {
++  const options = inject('childEnvironment') === 'omit' ? { encoding: 'utf8', env: {} } : { encoding: 'utf8' }
++  const output = execFileSync(process.execPath, [fileURLToPath(new URL('./child-entry.mjs', import.meta.url))], options)
++  const result = JSON.parse(output)
++  await writeFile(new URL('./child-observation.json', import.meta.url), output)
++  expect(result.source).toBe(new URL('./subject.mjs', import.meta.url).href)
++  expect(result.value).toBe(5)
++})
+diff --git a/test/integration/native-process/cwd.spec.mjs b/test/integration/native-process/cwd.spec.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/cwd.spec.mjs
+@@ -0,0 +1,16 @@
++import { mkdtemp, realpath, rm } from 'node:fs/promises'
++import { join } from 'node:path'
++import { tmpdir } from 'node:os'
++import { expect, test } from 'vitest'
++
++test('native process changes and restores its working directory', async () => {
++  const original = process.cwd()
++  const directory = await mkdtemp(join(tmpdir(), 'dsh-runner-cwd-'))
++  try {
++    process.chdir(directory)
++    expect(process.cwd()).toBe(await realpath(directory))
++  } finally {
++    if (process.cwd() !== original) process.chdir(original)
++    await rm(directory, { recursive: true })
++  }
++})
+diff --git a/test/integration/native-process/direct.spec.mjs b/test/integration/native-process/direct.spec.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/direct.spec.mjs
+@@ -0,0 +1,6 @@
++import { expect, test } from 'vitest'
++import { value } from './subject.mjs'
++
++test('direct import returns five from instrumented source', () => {
++  expect(value()).toBe(5)
++})
+diff --git a/test/integration/native-process/missing-import.spec.mjs b/test/integration/native-process/missing-import.spec.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/missing-import.spec.mjs
+@@ -0,0 +1 @@
++import './missing-dependency.mjs'
+diff --git a/test/integration/native-process/native-process.test.mjs b/test/integration/native-process/native-process.test.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/native-process.test.mjs
+@@ -0,0 +1,43 @@
++import assert from 'node:assert/strict'
++import { spawnSync } from 'node:child_process'
++import { readFileSync, rmSync, writeFileSync } from 'node:fs'
++import { fileURLToPath } from 'node:url'
++import { test } from 'node:test'
++
++const directory = fileURLToPath(new URL('.', import.meta.url))
++const scenarios = [
++  ['cwd', 0],
++  ['child', 1],
++  ['direct', 1],
++  ['classification', 1],
++  ['browser', 1],
++  ['pertest', 1],
++  ['stale', 1],
++  ['explicit-env', 0],
++  ['threads', 1],
++  ['setup', 1],
++  ['nonisolated', 1],
++  ['collection', 1],
++  ['empty', 1],
++  ['tsx', 1],
++  ['mixed', 1],
++  ['react', 1],
++]
++
++for (const [scenario, expectedExit] of scenarios) {
++  test(`native runner integration: ${scenario}`, () => {
++    const marker = new URL(`./${scenario}-verified.json`, import.meta.url)
++    rmSync(marker, { force: true })
++    const result = spawnSync(process.execPath, ['probe.mjs', scenario], {
++      cwd: directory,
++      encoding: 'utf8',
++      timeout: 60000,
++    })
++    const output = `${result.stdout}${result.stderr}`
++    writeFileSync(new URL(`./${scenario}-case.log`, import.meta.url), output)
++    assert.equal(result.error, undefined, output)
++    assert.equal(result.signal, null, output)
++    assert.equal(result.status, expectedExit, output)
++    assert.deepEqual(JSON.parse(readFileSync(marker, 'utf8')), { repairVerified: true, kind: scenario })
++  })
++}
+diff --git a/test/integration/native-process/package.json b/test/integration/native-process/package.json
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/package.json
+@@ -0,0 +1,5 @@
++{
++  "name": "dsh-mutation-runner-probe",
++  "private": true,
++  "type": "module"
++}
+diff --git a/test/integration/native-process/probe.mjs b/test/integration/native-process/probe.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/probe.mjs
+@@ -0,0 +1,130 @@
++import assert from 'node:assert/strict'
++import { readFile, writeFile } from 'node:fs/promises'
++import { fileURLToPath } from 'node:url'
++import { resolve } from 'node:path'
++import { Instrumenter } from '@stryker-mutator/instrumenter'
++import { TestStatus } from '@stryker-mutator/api/test-runner'
++import { INSTRUMENTER_CONSTANTS } from '@stryker-mutator/api/core'
++
++const root = fileURLToPath(new URL('.', import.meta.url))
++assert.equal(process.cwd(), root.slice(0, -1), 'Run this probe from its own isolated directory')
++const coreEntry = import.meta.resolve('@stryker-mutator/core')
++const { LoggingBackend } = await import(new URL('./logging/logging-backend.js', coreEntry))
++const { LoggerImpl } = await import(new URL('./logging/logger-impl.js', coreEntry))
++const { defaultOptions } = await import(new URL('./config/options-validator.js', coreEntry))
++const { VitestTestRunner } = await import('../../../dist/src/vitest-test-runner.js')
++const backend = new LoggingBackend(process.stdout)
++const logger = new LoggerImpl('NativeRunnerProbe', backend)
++const kind = process.argv[2]
++const extension = kind === 'tsx' ? 'ts' : 'mjs'
++const subject = resolve(root, `subject.${extension}`)
++const instrumenter = new Instrumenter(logger)
++const instrumented = await instrumenter.instrument([{
++  name: subject,
++  content: await readFile(new URL(`./subject.original.${extension}`, import.meta.url), 'utf8'),
++  mutate: true,
++}], { plugins: null, excludedMutations: [], ignorers: [] })
++assert.equal(instrumented.files.length, 1)
++assert.ok(instrumented.mutants.length > 0)
++await writeFile(subject, instrumented.files[0].content)
++await writeFile(new URL('./mutant-manifest.json', import.meta.url), JSON.stringify(instrumented.mutants, null, 2))
++
++assert.ok(['cwd', 'child', 'direct', 'classification', 'browser', 'pertest', 'stale', 'explicit-env', 'threads', 'setup', 'nonisolated', 'collection', 'empty', 'tsx', 'mixed', 'react'].includes(kind))
++const configuration = kind === 'pertest' ? 'direct' : kind === 'stale' ? 'child' : kind
++const coverageAnalysis = kind === 'pertest' ? 'perTest' : 'off'
++const environmentKey = INSTRUMENTER_CONSTANTS.ACTIVE_MUTANT_ENV_VARIABLE
++const originalActiveEnvironment = process.env[environmentKey]
++if (kind === 'stale') process.env[environmentKey] = instrumented.mutants[0].id
++const options = {
++  ...defaultOptions,
++  testRunner: 'vitest',
++  vitest: { configFile: resolve(root, `vitest.${configuration}.config.mjs`), related: false, dir: root },
++  coverageAnalysis,
++  disableBail: true,
++  thresholds: { high: 100, low: 99, break: 99 },
++}
++const runner = new VitestTestRunner(options, logger, '__stryker__')
++const observations = { kind, mutantCount: instrumented.mutants.length, mutations: [] }
++try {
++  await runner.init()
++  observations.configuredPool = 'forks'
++  observations.resolvedPools = runner.ctx.projects.map(project => ({ name: project.name, pool: project.config.pool }))
++  const environmentReferences = runner.ctx.projects.map(project => project.config.env)
++  if (kind === 'empty') {
++    await assert.rejects(() => runner.dryRun({ coverageAnalysis, files: [subject], timeout: 30000 }), { code: 'VITEST_FILES_NOT_FOUND' })
++    observations.emptyRejected = true
++  } else {
++  observations.baseline = await runner.dryRun({ coverageAnalysis, files: [subject], timeout: 30000 })
++  if (['child', 'stale', 'explicit-env', 'tsx', 'mixed'].includes(kind)) observations.baselineChild = JSON.parse(await readFile(new URL('./child-observation.json', import.meta.url), 'utf8'))
++  if (kind !== 'cwd') {
++    for (const mutant of instrumented.mutants) {
++      const result = await runner.mutantRun({
++        activeMutant: mutant,
++        sandboxFileName: subject,
++        mutantActivation: kind === 'pertest' ? 'runtime' : 'static',
++        testFilter: kind === 'pertest' ? observations.baseline.tests.map(test => test.id) : undefined,
++        reloadEnvironment: true,
++        timeout: 30000,
++        disableBail: true,
++      })
++      const run = {
++        id: mutant.id,
++        mutatorName: mutant.mutatorName,
++        result,
++        outsideErrors: runner.ctx.state.getUnhandledErrors(),
++      }
++      if (['child', 'stale', 'explicit-env', 'tsx', 'mixed'].includes(kind)) run.child = JSON.parse(await readFile(new URL('./child-observation.json', import.meta.url), 'utf8'))
++      observations.mutations.push(run)
++    }
++    if (kind !== 'classification' && kind !== 'collection') {
++      observations.afterMutantsBaseline = await runner.dryRun({ coverageAnalysis, files: [subject], timeout: 30000 })
++      assert.equal(observations.afterMutantsBaseline.status, 'complete')
++      assert.ok(observations.afterMutantsBaseline.tests.every(test => test.status === TestStatus.Success))
++    }
++  }
++  }
++  assert.ok(runner.ctx.projects.every((project, index) => project.config.env === environmentReferences[index]))
++  await writeFile(new URL(`./${kind}-observations.json`, import.meta.url), JSON.stringify(observations, null, 2))
++  process.stdout.write(`${JSON.stringify(observations, null, 2)}\n`)
++} finally {
++  await runner.dispose()
++  await backend.dispose()
++  if (originalActiveEnvironment === undefined) delete process.env[environmentKey]
++  else process.env[environmentKey] = originalActiveEnvironment
++}
++
++if (kind === 'cwd') {
++  assert.ok(observations.resolvedPools.every(project => project.pool === 'forks'))
++  assert.equal(observations.baseline.status, 'complete')
++  assert.ok(observations.baseline.tests.every(test => test.status === TestStatus.Success))
++} else if (['child', 'stale', 'tsx', 'mixed'].includes(kind)) {
++  assert.equal(observations.baseline.status, 'complete')
++  assert.equal(observations.baselineChild.activeMutant, null)
++  assert.ok(observations.mutations.every(run => run.result.status === 'killed' && run.child.activeMutant === run.id && run.child.value !== 5))
++  if (kind === 'mixed') {
++    assert.equal(observations.baseline.tests.length, 2)
++    assert.equal(observations.afterMutantsBaseline.tests.length, 2)
++    assert.ok(observations.mutations.every(run => run.result.killedBy.length === 2))
++  }
++} else if (['direct', 'browser', 'react', 'pertest', 'threads', 'setup', 'nonisolated'].includes(kind)) {
++  assert.equal(observations.baseline.status, 'complete')
++  assert.ok(observations.mutations.every(run => run.result.status === 'killed'))
++  if (kind === 'pertest') {
++    const testId = observations.baseline.tests[0].id
++    const coverage = observations.baseline.mutantCoverage.perTest[testId]
++    assert.ok(instrumented.mutants.every(mutant => coverage[mutant.id] > 0))
++  }
++  if (kind === 'threads') assert.ok(observations.resolvedPools.every(project => project.pool === 'threads'))
++} else if (kind === 'explicit-env') {
++  assert.ok(observations.mutations.every(run => run.result.status === 'survived' && run.child.activeMutant === null && run.child.value === 5))
++} else if (kind === 'empty') {
++  assert.equal(observations.emptyRejected, true)
++} else if (kind === 'collection') {
++  assert.equal(observations.baseline.status, 'error')
++  assert.ok(observations.mutations.every(run => run.result.status === 'error' && run.result.errorMessage.includes('missing-dependency.mjs')))
++} else {
++  assert.equal(observations.baseline.status, 'error')
++  assert.ok(observations.mutations.every(run => run.result.status === 'error' && run.outsideErrors.length > 0))
++}
++await writeFile(new URL(`./${kind}-verified.json`, import.meta.url), JSON.stringify({ repairVerified: true, kind }))
++process.stdout.write(`Repair verified: ${kind}; Vitest's own exit status is retained.\n`)
+diff --git a/test/integration/native-process/react.spec.mjs b/test/integration/native-process/react.spec.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/react.spec.mjs
+@@ -0,0 +1,13 @@
++import { createElement } from 'react'
++import { render } from 'vitest-browser-react'
++import { expect, test } from 'vitest'
++import { value } from './subject.mjs'
++
++test('React browser renderer displays the instrumented source value', async () => {
++  const screen = await render(createElement('button', { type: 'button' }, String(value())))
++  try {
++    expect(screen.container.querySelector('button')?.textContent).toBe('5')
++  } finally {
++    await screen.unmount()
++  }
++})
+diff --git a/test/integration/native-process/setup.spec.mjs b/test/integration/native-process/setup.spec.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/setup.spec.mjs
+@@ -0,0 +1,8 @@
++import { expect, test } from 'vitest'
++import { initializedValue, initializedChild } from './static-setup.mjs'
++
++test('setup imports initialize parent and child source', () => {
++  expect(initializedValue).toBe(5)
++  expect(initializedChild.value).toBe(5)
++  expect(initializedChild.source).toBe(new URL('./subject.mjs', import.meta.url).href)
++})
+diff --git a/test/integration/native-process/startup.spec.mjs b/test/integration/native-process/startup.spec.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/startup.spec.mjs
+@@ -0,0 +1,6 @@
++import { expect, test } from 'vitest'
++import { value } from './subject.mjs'
++
++test('second project returns five from instrumented source', () => {
++  expect(value()).toBe(5)
++})
+diff --git a/test/integration/native-process/static-setup.mjs b/test/integration/native-process/static-setup.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/static-setup.mjs
+@@ -0,0 +1,6 @@
++import { execFileSync } from 'node:child_process'
++import { fileURLToPath } from 'node:url'
++import { value } from './subject.mjs'
++
++export const initializedValue = value()
++export const initializedChild = JSON.parse(execFileSync(process.execPath, [fileURLToPath(new URL('./child-entry.mjs', import.meta.url))], { encoding: 'utf8' }))
+diff --git a/test/integration/native-process/subject.original.mjs b/test/integration/native-process/subject.original.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/subject.original.mjs
+@@ -0,0 +1,3 @@
++export function value() {
++  return 2 + 3
++}
+diff --git a/test/integration/native-process/subject.original.ts b/test/integration/native-process/subject.original.ts
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/subject.original.ts
+@@ -0,0 +1 @@
++export function value(): number { return 2 + 3 }
+diff --git a/test/integration/native-process/tsx.spec.mjs b/test/integration/native-process/tsx.spec.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/tsx.spec.mjs
+@@ -0,0 +1,15 @@
++import { execFileSync } from 'node:child_process'
++import { writeFile } from 'node:fs/promises'
++import { fileURLToPath } from 'node:url'
++import { expect, test } from 'vitest'
++
++test('tsx child evaluates actual instrumented TypeScript source', async () => {
++  const output = execFileSync(process.execPath, [
++    '--import', 'tsx', fileURLToPath(new URL('./child-entry.ts', import.meta.url)),
++  ], { encoding: 'utf8', timeout: 10000 })
++  const result = JSON.parse(output)
++  await writeFile(new URL('./child-observation.json', import.meta.url), output)
++  expect(result.execArgv).toEqual(['--import', 'tsx'])
++  expect(result.source).toBe(new URL('./subject.ts', import.meta.url).href)
++  expect(result.value).toBe(5)
++})
+diff --git a/test/integration/native-process/vitest.browser.config.mjs b/test/integration/native-process/vitest.browser.config.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/vitest.browser.config.mjs
+@@ -0,0 +1,17 @@
++import { fileURLToPath } from 'node:url'
++import { defineConfig } from 'vitest/config'
++import { playwright } from '@vitest/browser-playwright'
++
++export default defineConfig({
++  root: fileURLToPath(new URL('.', import.meta.url)),
++  cacheDir: fileURLToPath(new URL('./.cache/browser/vite', import.meta.url)),
++  test: {
++    include: ['direct.spec.mjs'],
++    browser: {
++      enabled: true,
++      headless: true,
++      provider: playwright(),
++      instances: [{ browser: 'chromium' }],
++    },
++  },
++})
+diff --git a/test/integration/native-process/vitest.child.config.mjs b/test/integration/native-process/vitest.child.config.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/vitest.child.config.mjs
+@@ -0,0 +1,15 @@
++import { fileURLToPath } from 'node:url'
++import { defineConfig } from 'vitest/config'
++
++export default defineConfig({
++  root: fileURLToPath(new URL('.', import.meta.url)),
++  cacheDir: fileURLToPath(new URL('./.cache/child/vite', import.meta.url)),
++  test: {
++    pool: 'forks',
++    maxWorkers: 1,
++    isolate: true,
++    fsModuleCachePath: fileURLToPath(new URL('./.cache/child/modules', import.meta.url)),
++    include: ['child.spec.mjs'],
++    provide: { childEnvironment: 'inherit' },
++  },
++})
+diff --git a/test/integration/native-process/vitest.classification.config.mjs b/test/integration/native-process/vitest.classification.config.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/vitest.classification.config.mjs
+@@ -0,0 +1,27 @@
++import { fileURLToPath } from 'node:url'
++import { defineConfig } from 'vitest/config'
++
++export default defineConfig({
++  root: fileURLToPath(new URL('.', import.meta.url)),
++  cacheDir: fileURLToPath(new URL('./.cache/classification/vite', import.meta.url)),
++  test: {
++    pool: 'forks',
++    maxWorkers: 1,
++    isolate: true,
++    fsModuleCachePath: fileURLToPath(new URL('./.cache/classification/modules', import.meta.url)),
++    projects: [
++      {
++        extends: true,
++        test: { name: 'assertion', include: ['direct.spec.mjs'] },
++      },
++      {
++        extends: true,
++        test: {
++          name: 'worker-startup',
++          include: ['startup.spec.mjs'],
++          execArgv: ['--dsh-invalid-node-option-for-startup-regression'],
++        },
++      },
++    ],
++  },
++})
+diff --git a/test/integration/native-process/vitest.collection.config.mjs b/test/integration/native-process/vitest.collection.config.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/vitest.collection.config.mjs
+@@ -0,0 +1,6 @@
++import configuration from './vitest.direct.config.mjs'
++
++export default {
++  ...configuration,
++  test: { ...configuration.test, include: ['direct.spec.mjs', 'missing-import.spec.mjs'] },
++}
+diff --git a/test/integration/native-process/vitest.cwd.config.mjs b/test/integration/native-process/vitest.cwd.config.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/vitest.cwd.config.mjs
+@@ -0,0 +1,14 @@
++import { fileURLToPath } from 'node:url'
++import { defineConfig } from 'vitest/config'
++
++export default defineConfig({
++  root: fileURLToPath(new URL('.', import.meta.url)),
++  cacheDir: fileURLToPath(new URL('./.cache/cwd/vite', import.meta.url)),
++  test: {
++    pool: 'forks',
++    maxWorkers: 1,
++    isolate: true,
++    fsModuleCachePath: fileURLToPath(new URL('./.cache/cwd/modules', import.meta.url)),
++    include: ['cwd.spec.mjs'],
++  },
++})
+diff --git a/test/integration/native-process/vitest.direct.config.mjs b/test/integration/native-process/vitest.direct.config.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/vitest.direct.config.mjs
+@@ -0,0 +1,14 @@
++import { fileURLToPath } from 'node:url'
++import { defineConfig } from 'vitest/config'
++
++export default defineConfig({
++  root: fileURLToPath(new URL('.', import.meta.url)),
++  cacheDir: fileURLToPath(new URL('./.cache/direct/vite', import.meta.url)),
++  test: {
++    pool: 'forks',
++    maxWorkers: 1,
++    isolate: true,
++    fsModuleCachePath: fileURLToPath(new URL('./.cache/direct/modules', import.meta.url)),
++    include: ['direct.spec.mjs'],
++  },
++})
+diff --git a/test/integration/native-process/vitest.empty.config.mjs b/test/integration/native-process/vitest.empty.config.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/vitest.empty.config.mjs
+@@ -0,0 +1,6 @@
++import configuration from './vitest.direct.config.mjs'
++
++export default {
++  ...configuration,
++  test: { ...configuration.test, include: ['missing-test-file.spec.mjs'] },
++}
+diff --git a/test/integration/native-process/vitest.explicit-env.config.mjs b/test/integration/native-process/vitest.explicit-env.config.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/vitest.explicit-env.config.mjs
+@@ -0,0 +1,6 @@
++import configuration from './vitest.child.config.mjs'
++
++export default {
++  ...configuration,
++  test: { ...configuration.test, provide: { childEnvironment: 'omit' } },
++}
+diff --git a/test/integration/native-process/vitest.mixed.config.mjs b/test/integration/native-process/vitest.mixed.config.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/vitest.mixed.config.mjs
+@@ -0,0 +1,30 @@
++import { fileURLToPath } from 'node:url'
++import { defineConfig } from 'vitest/config'
++import { playwright } from '@vitest/browser-playwright'
++
++export default defineConfig({
++  root: fileURLToPath(new URL('.', import.meta.url)),
++  cacheDir: fileURLToPath(new URL('./.cache/mixed/vite', import.meta.url)),
++  test: {
++    pool: 'forks',
++    maxWorkers: 1,
++    isolate: true,
++    fsModuleCachePath: fileURLToPath(new URL('./.cache/mixed/modules', import.meta.url)),
++    projects: [
++      { extends: true, test: { name: 'native', include: ['child.spec.mjs'] } },
++      {
++        extends: true,
++        test: {
++          name: 'browser',
++          include: ['direct.spec.mjs'],
++          browser: {
++            enabled: true,
++            headless: true,
++            provider: playwright(),
++            instances: [{ browser: 'chromium' }],
++          },
++        },
++      },
++    ],
++  },
++})
+diff --git a/test/integration/native-process/vitest.nonisolated.config.mjs b/test/integration/native-process/vitest.nonisolated.config.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/vitest.nonisolated.config.mjs
+@@ -0,0 +1,6 @@
++import configuration from './vitest.setup.config.mjs'
++
++export default {
++  ...configuration,
++  test: { ...configuration.test, isolate: false },
++}
+diff --git a/test/integration/native-process/vitest.react.config.mjs b/test/integration/native-process/vitest.react.config.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/vitest.react.config.mjs
+@@ -0,0 +1,9 @@
++import { fileURLToPath } from 'node:url'
++import configuration from './vitest.browser.config.mjs'
++
++export default {
++  ...configuration,
++  cacheDir: fileURLToPath(new URL('./.cache/react/vite', import.meta.url)),
++  optimizeDeps: { include: ['react', 'react-dom/client', 'vitest-browser-react'] },
++  test: { ...configuration.test, include: ['react.spec.mjs'] },
++}
+diff --git a/test/integration/native-process/vitest.setup.config.mjs b/test/integration/native-process/vitest.setup.config.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/vitest.setup.config.mjs
+@@ -0,0 +1,6 @@
++import configuration from './vitest.direct.config.mjs'
++
++export default {
++  ...configuration,
++  test: { ...configuration.test, setupFiles: ['./static-setup.mjs'], include: ['setup.spec.mjs'] },
++}
+diff --git a/test/integration/native-process/vitest.threads.config.mjs b/test/integration/native-process/vitest.threads.config.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/vitest.threads.config.mjs
+@@ -0,0 +1,6 @@
++import configuration from './vitest.direct.config.mjs'
++
++export default {
++  ...configuration,
++  test: { ...configuration.test, pool: 'threads' },
++}
+diff --git a/test/integration/native-process/vitest.tsx.config.mjs b/test/integration/native-process/vitest.tsx.config.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/native-process/vitest.tsx.config.mjs
+@@ -0,0 +1,7 @@
++import { defineConfig } from 'vitest/config'
++import config from './vitest.child.config.mjs'
++
++export default defineConfig({
++  ...config,
++  test: { ...config.test, include: ['tsx.spec.mjs'] },
++})

@@ -45,14 +45,16 @@ With that entry point, success looks like a running app with every plugin active
 <a id="profiles"></a>
 ### Profiles
 
-A profile is how one dsh installation ships different app surfaces: `web`, `headless`, `acp`, `sdk`, and `sdk-minimal` start distinct compositions from the same launcher. A profile lives at `$DSH_HOME/profiles/<name>` and combines installable bundles, its own `cordis.patch.yml`, and `patchReload: live | startup`; omitted reload policy keeps the historical `live` default for custom profiles. The shipped `web` template uses live reload, while the other shipped templates apply patches only at startup. `sdk-minimal` names only its standalone bundle; the other templates retain base-plus-mode stacks. `dsh plugin` creates custom profiles, and a missing bundle or one without a patch declaration fails startup loudly.
+A profile selects an app composition from the same dsh launcher. It lives at `$DSH_HOME/profiles/<name>` and combines installable bundles, its own `cordis.patch.yml`, and `patchReload: live | startup`; a custom profile without a reload policy defaults to `live`. The [shipped templates](src/profile.ts) define each composition: `web`, `swarm-web`, and `hosted` use live reload, while the other shipped templates apply patches only at startup. `sdk-minimal` names only its standalone bundle; the other templates combine the base bundle with their application layers.
+
+Create a custom profile with `dsh init --profile <name>`. Install packages with `dsh plugin --profile <name> add <package>`; only packages declaring `dsh.bundle` become profile layers. A listed bundle that is missing or has no patch declaration fails startup loudly.
 
 Your machine-local preferences also live in the Harness home:
 
 - **`.env`** — your ordinary environment layers: the invoking directory's file outranks the Harness-home file, and both sit below the inherited environment. Variables that decide how the process starts (`PATH`, proxies, `DSH_*`, `XDG_*` and similar) are rejected from files: export them instead. For a non-product bin that just wants one directory's `.env`, a missing file is fine and an unloadable one prints one labelled warning line.
 - **`cordis.patch.yml`** — your tweak layer, applied after every bundle layer (per-profile first, then the home-level file, which therefore outranks it): replace one entry's whole config (restating the fields you keep), insert new entries, or interpolate `!!js` expressions at boot. A patch naming an entry that does not exist prints a stderr warning; an empty or comments-only file fails boot — disable the layer with `[]` instead.
 
-Profiles with `patchReload: live` watch both user patch files: a valid edit recomposes without restart, while a rejected edit leaves the last good app running. A `startup` profile installs neither those watchers nor the launcher's watch-only HMR fallback.
+Profiles with `patchReload: live` watch both user patch files: a valid edit recomposes without restart, while a rejected edit leaves the last good app running. Edits and removals between boot and watcher attachment are reconciled after registration. A `startup` profile installs neither those watchers nor the launcher's watch-only HMR fallback.
 
 ### Previewing the effective configuration
 
@@ -84,11 +86,14 @@ This section explains how the outcomes above are realized and points at the code
 - **Two Loader builtins.** `mountRootInclude` registers `cordis:include` and `cordis:group` as Loader builtins: a group row gives one `isolate` realm to a provider and its consumers together, and an agent preset outside this workspace cannot resolve `@deepseek-ai/cordis-plugin-group` by name. Both load through the ambient module pipeline rather than the included tree's own specifier resolution.
 - **Profile module fallback.** Bare plugin specifiers resolve through the Loader from the config directory. Plain Node maintains one symlink per package in the installation dependency closure. A packaged executable instead reads each installed export map with Node ESM conditions and writes real proxy packages that re-export virtual module URLs, because an operating-system symlink cannot enter pkg's `/snapshot` tree. Missing exports stay unavailable, malformed maps fail startup, and a cross-process writer lock replaces stale entries without exposing partial proxies. A selected external bundle absent from the installation closure receives a profile-local `.dsh-module-fallback` link; existing bun entries win, projected links are excluded from later closure discovery, and cleanup removes only dsh-owned links.
 - **One rejection checkpoint.** `assertEntriesActivated` keeps the exact reasons it folds into the boot diagnostic visible through the next process rejection checkpoint, so `installFailLoud` coalesces Loader's duplicate notification while unrelated unhandled rejections remain fatal.
+- **Local bundle dependencies.** A selected local bundle may omit its manifest's `name` field without losing its dependency, transitive-dependency, or peer-dependency links.
 - **Two-stage failure labels.** `boot()` distinguishes `host preparation failed` — `prepare` threw before any config-tree entry mounted — from `plugin tree failed to load`, and appends the deepest plugin error's stack so the startup diagnostic preserves the original activation error instead of only the wrap chain.
 
 ### Helper behavior
 
 The exports each own one stage of the boot: config resolution and snapshot replay, layered environment loading, fail-loud reporting, activation auditing, patch parsing, root-include mounting, config dump rendering, live patch watching, profile composition, and the harness-source section. Per-export contracts live in the code, not this README — see [`src/index.ts`](src/index.ts) and [`src/profile.ts`](src/profile.ts).
+
+Live-watch consumers must retain the parsed user layer included in boot and pass it as `initialPatches` to `watchUserPatches`; read the file before boot and apply a cloned patch stack so Loader cannot mutate that retained layer. The [CLI consumer](../../../apps/cli/src/profile-boot.ts) retains each user layer separately. Watcher attachment does not promise reconciliation has finished: the first repair compares the file with that retained layer, and later repairs identify generations by source text. Read or application failures report `hmr/config-update-failed` and preserve the committed tree; the returned disposer stops the watcher and cadence and drains accepted reconciliation work.
 
 ### Source map
 

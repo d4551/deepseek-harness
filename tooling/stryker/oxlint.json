@@ -1,0 +1,17 @@
+{
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error"
+  },
+  "plugins": ["import", "node", "promise"],
+  "options": {
+    "reportUnusedDisableDirectives": "error"
+  },
+  "env": {
+    "builtin": true,
+    "node": true
+  },
+  "globals": {
+    "Bun": "readonly"
+  }
+}

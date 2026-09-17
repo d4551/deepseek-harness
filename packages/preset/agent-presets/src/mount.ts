@@ -42,20 +42,19 @@ interface MountedTree {
  */
 const mounted = new WeakMap<object, MountedTree>()
 
-/**
- * The base URL bare specifiers resolve against, per pending mount, keyed by the
- * same config object. Recorded before the subtree is plugged, because `Include`
- * rewrites its own context's `baseUrl` to the composition's directory and the
- * pre-mount value is the only handle on where the harness itself lives.
- */
-const harnessBase = new WeakMap<object, string>()
+interface PresetTreeConfig extends Include.Config {
+  /** Host resolution base retained when Include changes its context to the preset directory. */
+  readonly harnessBase: string
+}
 
 /**
  * Include subclass that publishes its tree and fiber for the audit, and never
  * writes to the file it read.
  */
 class PresetTree extends Include {
-  constructor(ctx: Context, config: Include.Config) {
+  declare config: PresetTreeConfig
+
+  constructor(ctx: Context, config: PresetTreeConfig) {
     super(ctx, config)
     mounted.set(config, { tree: this, fiber: ctx.fiber })
   }
@@ -83,15 +82,12 @@ class PresetTree extends Include {
    */
   override import(name: string, getOuterStack?: () => string[]): unknown {
     const row = classifyRowSpecifier(name)
-    const base = harnessBase.get(this.config)
-    /* v8 ignore next -- every PresetTree is constructed by `mountPreset`, which records the base first */
-    if (base === undefined) return super.import(row.specifier, getOuterStack)
-    if (row.kind === 'builtin' || row.kind === 'preset') return super.import(row.specifier, getOuterStack)
+    if (row.kind !== 'package') return super.import(row.specifier, getOuterStack)
     const internal = this.ctx.loader.internal
-    /* v8 ignore next -- Node always supplies the internal module loader; the branch keeps a
-       hypothetical embedder from losing the row's name in a resolution error. */
-    if (internal === undefined) return super.import(row.specifier, getOuterStack)
-    return internal.import(row.specifier, base, {})
+    if (internal === undefined) {
+      throw new Error(`cannot resolve preset plugin "${name}" from ${this.config.harnessBase}: native module loader is unavailable`)
+    }
+    return internal.import(row.specifier, this.config.harnessBase, {})
   }
 
   /**
@@ -197,9 +193,6 @@ export function leakedServices(ctx: Context, mount: Fiber): string[] {
   const leaked: string[] = []
   for (const key of Object.getOwnPropertySymbols(store)) {
     const impl = store[key]
-    /* v8 ignore next -- cordis deletes a store slot on disposal rather than
-       clearing it, so an own symbol always resolves; the guard exists only
-       because the store's index signature is optional. */
     if (impl === undefined) continue
     if (!withinFiber(impl.fiber, mount)) continue
     if (rootIsolate[impl.name] === key) leaked.push(impl.name)
@@ -268,7 +261,6 @@ export function serviceForAgent<K extends string & keyof Context>(
   const store = ctx.reflect.store
   for (const key of Object.getOwnPropertySymbols(store)) {
     const impl = store[key]
-    /* v8 ignore next -- cordis deletes a store slot on disposal rather than clearing it */
     if (impl === undefined) continue
     if (impl.name !== name) continue
     if (withinFiber(impl.fiber, mount.fiber)) return impl.value as Context[K]
@@ -290,9 +282,6 @@ export function inactiveRows(tree: EntryTree): string[] {
   for (const entry of tree.entries()) {
     if (entry.disabled) continue
     const fiber = entry.fiber
-    /* v8 ignore next 4 -- the loader rejects an entry whose module or plugin failed,
-       so a settled tree never holds an enabled fiber-less entry; the branch exists
-       only because `Entry.fiber` is declared optional. */
     if (fiber === undefined) {
       lines.push(`${entry.options.id} (${entry.options.name}): never started`)
       continue
@@ -337,9 +326,6 @@ function detailBranches(error: Error): readonly unknown[] {
  * @returns a single-line-per-cause description.
  */
 function mountDetail(error: unknown): string {
-  /* v8 ignore next -- every path into the mount's catch throws an Error: the loader
-     wraps a row's thrown value before it propagates, and this module's own
-     rejections are Errors. The fallback keeps a hostile value readable. */
   if (!(error instanceof Error)) return String(error)
   const branches = detailBranches(error)
   if (branches.length === 0) return error.message
@@ -349,6 +335,26 @@ function mountDetail(error: unknown): string {
   ].join('\n')
 }
 
+/** Await the complete subtree and reject inactive rows or services outside its scope. */
+async function inspectMount(agentCtx: Context, handle: Fiber, config: PresetTreeConfig): Promise<MountedTree> {
+  await handle.await()
+  const subtree = mounted.get(config)
+  if (subtree === undefined) throw new Error('mounted subtree did not publish its entry tree')
+  const { tree, fiber } = subtree
+  const unusable = inactiveRows(tree)
+  if (unusable.length > 0) {
+    throw new Error(`${String(unusable.length)} row(s) did not activate:\n${unusable.join('\n')}`)
+  }
+  const leaked = leakedServices(agentCtx, fiber)
+  if (leaked.length > 0) {
+    throw new Error(
+      `row(s) published process-global service(s) [${leaked.join(', ')}]; `
+      + 'a preset service must sit behind an `isolate` realm or move to the host composition',
+    )
+  }
+  return subtree
+}
+
 /**
  * Mount `preset` under `agentCtx` and return only once every row is usable.
  *
@@ -356,8 +362,9 @@ function mountDetail(error: unknown): string {
  * the caller receives no disposer. A rejection leaves nothing mounted.
  * @param agentCtx - the agent's scope context, from the agent factory's `setup`.
  * @param preset - the resolved preset to compose the agent from.
- * @throws when `agentCtx` carries no scope, a row is unusable, or a row
- * published a service into the root realm.
+ * @throws when the scope or host base is absent, a row is unusable, or a row
+ * published a service into the root realm. Mount and teardown failures are
+ * retained together when cleanup rejects.
  */
 export async function mountPreset(agentCtx: Context, preset: AgentPreset): Promise<void> {
   const scope = scopeOf(agentCtx)
@@ -367,45 +374,33 @@ export async function mountPreset(agentCtx: Context, preset: AgentPreset): Promi
       + 'its registrations would apply to every agent in the process',
     )
   }
-  const config: Include.Config = { path: pathToFileURL(preset.path).href }
-  // Captured before the subtree exists: the standing scope context still
-  // carries the host composition's base, which is inside the installed
-  // harness and is therefore where a row's package name has to resolve from.
-  /* v8 ignore next -- the Loader sets `baseUrl` on the root before any scoped context derives from it */
-  if (agentCtx.baseUrl !== undefined) harnessBase.set(config, agentCtx.baseUrl)
+  const harnessBase = agentCtx.baseUrl
+  if (harnessBase === undefined) {
+    throw new PresetMountError(preset.id, 'mounting needs `ctx.baseUrl` to resolve packages from the host composition')
+  }
+  const config: PresetTreeConfig = { path: pathToFileURL(preset.path).href, harnessBase }
   // Before the record this mount is about to add: standing mounts are one per
   // preset and live until whole-tree teardown, so pruning here only sweeps
   // records of torn-down runtimes (tests; an HMR reload of the roster).
   pruneDisposedMounts()
   const handle = agentCtx.plugin(PresetTree, config)
-  try {
-    await handle.await()
-    const subtree = mounted.get(config)
-    /* v8 ignore next -- the subclass constructor runs before `await()` settles for every mounted tree */
-    if (subtree === undefined) throw new Error('mounted subtree did not publish its entry tree')
-    const { tree, fiber } = subtree
-    const unusable = inactiveRows(tree)
-    if (unusable.length > 0) {
-      throw new Error(`${String(unusable.length)} row(s) did not activate:\n${unusable.join('\n')}`)
-    }
-    const leaked = leakedServices(agentCtx, fiber)
-    if (leaked.length > 0) {
-      throw new Error(
-        `row(s) published process-global service(s) [${leaked.join(', ')}]; `
-        + 'a preset service must sit behind an `isolate` realm or move to the host composition',
-      )
-    }
-    mounts.add({ presetId: preset.id, fiber, tree, key: scopeOf(agentCtx) })
-  } catch (error) {
-    try {
-      await handle.dispose()
-    /* v8 ignore next 5 -- teardown of a subtree nothing else references has no
-       observed failure mode; the guard exists so a teardown error cannot
-       replace the mount diagnostic the caller needs. */
-    } catch {
-      // Swallows only this subtree's teardown failure. The mount error below is
-      // the actionable one, and the discarded fiber is unreachable either way.
-    }
-    throw new PresetMountError(preset.id, `${mountDetail(error)} (${preset.path})`, { cause: error })
+  const [inspected] = await Promise.allSettled([inspectMount(agentCtx, handle, config)])
+  if (inspected.status === 'fulfilled') {
+    mounts.add({ presetId: preset.id, ...inspected.value, key: scope })
+    return
   }
+  const failures: unknown[] = [inspected.reason]
+  const [disposed] = await Promise.allSettled([Promise.resolve().then(handle.dispose)])
+  if (disposed.status === 'rejected') failures.push(disposed.reason)
+  // Disposal can reject after starting asynchronous unload. Retain that failure
+  // and join the owned transition before returning the failed mount to its caller.
+  const pending = handle.inertia
+  if (pending !== undefined) {
+    const [unloaded] = await Promise.allSettled([pending])
+    if (unloaded.status === 'rejected') failures.push(unloaded.reason)
+  }
+  const error: unknown = failures.length === 1
+    ? inspected.reason
+    : new AggregateError(failures, 'preset mounting and cleanup failed')
+  throw new PresetMountError(preset.id, `${mountDetail(error)} (${preset.path})`, { cause: error })
 }

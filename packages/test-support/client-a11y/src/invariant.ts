@@ -14,9 +14,8 @@ export const name = 'client-a11y-invariant'
 export const inject = ['invariants']
 
 /**
- * No runtime invariant: this test-support package owns no event stream or
- * mutable runtime data; it runs axe over a DOM a suite already rendered, and
- * its scoring is enforced by unit tests.
+ * Package ownership registration. Browser test tasks and the execution reporter
+ * enforce audit completion and scoring; they do not publish application events.
  */
 const install: InvariantInstaller = () => {}
 

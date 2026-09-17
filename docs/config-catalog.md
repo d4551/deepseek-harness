@@ -437,7 +437,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/attachment/attachment-local/src/index.ts:55`](../packages/attachment/attachment-local/src/index.ts)
+Source: [`packages/attachment/attachment-local/src/index.ts:56`](../packages/attachment/attachment-local/src/index.ts)
 
 <a id="deepseek-aidsh-bash-local"></a>
 
@@ -2884,10 +2884,10 @@ export interface Config {
    */
   readonly coordination?: TeamCoordination
   /**
-   * Agent preset ids whose Agents keep their preset's exact tool set: an Agent
-   * whose session header names one of them receives neither the Team tools nor
-   * the policy section. A deployment without agent presets composes no such
-   * header, so every Agent is a member there.
+   * Agent preset ids that receive neither Team tools nor the policy section.
+   * The live composition decides admission, including changes before a session
+   * records its choice. Without the preset service, the session header decides.
+   * A configured restriction denies an uncomposed Agent while that service is present.
    */
   readonly excludePresets?: string[]
 }
@@ -2899,7 +2899,7 @@ export interface Config {
 export type TeamCoordination = 'delegated' | 'swarm'
 ```
 
-Source: [`packages/subagent/tool-agent-team/src/index.ts:25`](../packages/subagent/tool-agent-team/src/index.ts)
+Source: [`packages/subagent/tool-agent-team/src/index.ts:26`](../packages/subagent/tool-agent-team/src/index.ts)
 
 <a id="deepseek-aidsh-tool-fs"></a>
 

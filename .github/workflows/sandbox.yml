@@ -97,6 +97,14 @@ jobs:
         if: matrix.runner == 'seatbelt'
         run: bun run test:prepare:network-drive
 
+      - name: Install Playwright Chromium for native browser tests
+        if: matrix.runner == 'seatbelt'
+        run: bun run --filter @deepseek-ai/dsh-web-frontend playwright:install
+
+      - name: Build artifacts required by the complete unit suite
+        if: matrix.runner == 'seatbelt'
+        run: bun run build
+
       - name: Unit tests (darwin parity)
         if: matrix.runner == 'seatbelt'
         run: bun run test

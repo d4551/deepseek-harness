@@ -12,7 +12,9 @@ Team 服务、其作用域内的工具、Agent Teams 面板和 Agent team 设置
 
 ## Decision
 
-`dsh-base` 为每个 profile 挂载 `agent-team` 与 `tool-agent-team`，采用委派策略、八人名册以及 swarm 层曾重述的同一组 mailbox 与 disposal 限额。该策略告诉模型只在用户要求时才创建 teammate，因此普通会话读到 Team 工具，却不会被引向 swarm。`dsh-web-app` 在 `ui-subagent` 之后挂载 `ui-agent-team`，于是每个 Web profile 都渲染 roster、任务板与 teammate 导航；插件设置页上的 Agent team 卡片在 `agent-team` 命名空间被服务的任何地方渲染，而现在它无处不在。有一个 agent preset 留在外面：`minimal` 承诺恰好只有持久 bash 与字符串编辑器，因此 `tool-agent-team` 新增 `excludePresets`，base 把它设为 `minimal`，会话 header 指明该 preset 的 Agent 既不接收 Team 工具也不接收策略段落。Web bundle 的其他 preset 自行选择委派工具并保留 Team。
+`dsh-base` 为每个 profile 挂载 `agent-team` 与 `tool-agent-team`，采用委派策略、八人名册以及 swarm 层曾重述的同一组 mailbox 与 disposal 限额。该策略告诉模型只在用户要求时才创建 teammate，因此普通会话读到 Team 工具，却不会被引向 swarm。`dsh-web-app` 在 `ui-subagent` 之后挂载 `ui-agent-team`，于是每个 Web profile 都渲染 roster、任务板与 teammate 导航；插件设置页上的 Agent team 卡片在 `agent-team` 命名空间被服务的任何地方渲染，而现在它无处不在。有一个 agent preset 留在外面：`minimal` 承诺恰好只有持久 bash 与字符串编辑器，因此 base 将 `tool-agent-team.excludePresets` 设为 `minimal`。准入依据实际加入的组合及其变化，而非不可变的创建 header。被排除或尚未完成组合的 Agent 既不接收 Team 工具，也不接收策略段落。没有 preset 服务时，会话 header 决定此限制。Web bundle 的其他 preset 自行选择委派工具并保留 Team。
+
+[Preset 准入测试](../../../../packages/subagent/tool-agent-team/tests/preset-admission.spec.ts)验证真实组合切换、重复注册与处置，以及在派发前失去权限的已准备任务修改。[随发布的 Web 组合测试](../../../../apps/cli/tests/web-agent-presets.e2e.ts)在两个切换方向上调用执行器。移除工具必须同时撤销执行权限与展示；仅改变展示的 schema 会让已准备好的调用仍获授权。
 
 普通 `subagent` 和 `subagent_fork` 工具在 base 以及 `standard`、`ptc`、`cordis` preset 中使用一次性执行。前台调用返回结果；后台调用返回由 `job_output` 和 `job_kill` 控制的 job。`spawn_teammate` 使用全新或 fork 的上下文创建命名且持久的会话。Team 工具负责 `send_message`、`followup_task`、`list_agents`、`wait_agent` 与 `interrupt_agent`。Base 和 preset 不在这些名称下注册相互竞争的普通 child 控制。Host 为可续 child 保留 `tool-subagent-report`；Team 导航和人类后续消息使用 addressed-child 会话路径。
 

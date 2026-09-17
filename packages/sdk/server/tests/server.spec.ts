@@ -255,7 +255,9 @@ describe('HarnessSdkJsonRpcServer', () => {
       ],
     })
 
-    expect(saveImages).toHaveBeenCalledWith([{ data: Uint8Array.of(1), mediaType: 'image/png' }])
+    expect(saveImages).toHaveBeenCalledOnce()
+    expect(saveImages).toHaveBeenCalledWith([{ data: Uint8Array.of(1), mediaType: 'image/png' }], undefined)
+    expect(followup).toHaveBeenCalledOnce()
     expect(followup.mock.calls[0]?.[0].content).toEqual([
       { type: 'text', text: 'inspect' },
       { type: 'image', attachment: ref },

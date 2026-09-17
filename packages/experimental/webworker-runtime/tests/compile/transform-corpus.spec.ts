@@ -10,7 +10,7 @@
  * exemptions as stale. A gate whose verdict depends on how it was launched is
  * not a gate.
  *
- * The corpus is the build output, so this skips on a tree that has none.
+ * The corpus requires host build output; missing artifacts fail the gate.
  */
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -18,13 +18,9 @@ import { expect, test } from 'vitest'
 
 const runner = fileURLToPath(new URL('./transform-corpus-check.ts', import.meta.url))
 
-test('every built bundle imports under Node', (context) => {
+test('every built bundle imports under Node', () => {
   const finished = spawnSync(process.execPath, ['--import', 'tsx/esm', runner], { encoding: 'utf8' })
   const output = `${finished.stdout}${finished.stderr}`
-  if (output.includes('no built bundles found')) {
-    context.skip('the workspace has no build output to sweep')
-    return
-  }
   // The runner prefixes every finding with '- ', so a failure reads as the
   // findings themselves rather than as a diff of its whole report.
   expect(output.split('\n').filter(line => line.startsWith('- ')).join('\n')).toBe('')

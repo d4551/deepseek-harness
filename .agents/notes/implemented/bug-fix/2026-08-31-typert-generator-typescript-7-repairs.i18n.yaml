@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-31-typert-generator-typescript-7-repairs.md
-2026-08-31-typert-generator-typescript-7-repairs.md: d60b8748cbaa3b9182c1240645a3316b20d98f14
-2026-08-31-typert-generator-typescript-7-repairs.zh.md: 1880f8f9eafb07a85250338fa0025959b024db93
+2026-08-31-typert-generator-typescript-7-repairs.md: 76a2dae9dc00616a4059d8d7f99c83e6dcd4a2c7
+2026-08-31-typert-generator-typescript-7-repairs.zh.md: f46c84598ad222dc93f5985282c99a2430043ba8

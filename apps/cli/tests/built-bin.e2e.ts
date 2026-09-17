@@ -12,10 +12,11 @@ import {
   type SessionNotification,
 } from '@agentclientprotocol/sdk'
 import { startMockLlmServer } from '@deepseek-ai/dsh-llm-mock-server'
+import { readProfileManifest } from '@deepseek-ai/dsh-app-boot'
 import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
 import { execa } from 'execa'
 import * as yaml from 'js-yaml'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 /** Published-entry acceptance for argument errors, profile lifecycle, and boot-free config dumps. */
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url))
@@ -135,9 +136,6 @@ function createProfileLifecycleFixture(): ProfileLifecycleFixture {
   writeFileSync(join(profileDir, 'cordis.patch.yml'), '[]\n')
   const linkTarget = join(profileDir, 'node_modules', 'dsh-lifecycle-bundle')
   mkdirSync(join(profileDir, 'node_modules'), { recursive: true })
-  try {
-    rmSync(linkTarget, { recursive: true, force: true })
-  } catch { /* fresh dir */ }
   // Copy-free: a package.json redirecting via a relative main is enough for require.resolve.
   mkdirSync(linkTarget, { recursive: true })
   for (const file of ['package.json', 'cordis.patch.yml', 'plugin.mjs']) {
@@ -326,7 +324,10 @@ function startStartupProfile(fixture: StartupFixture, args: readonly string[]) {
   })
 }
 
-describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', () => {
+describe('dsh BUILT bin (node lib/bin.js, no tsx)', () => {
+  beforeAll(() => {
+    expect(existsSync(dshBin), 'Build the CLI before running its published-entry acceptance suite').toBe(true)
+  })
   it('requires --profile and rejects removed commands', async () => {
     const bare = await runBuiltBin()
     expect(bare.code).toBe(1)
@@ -602,13 +603,25 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
     }
   })
 
-  it('fails loud on a nonexistent profile with the plugin-command hint', async () => {
+  it('rejects a nonexistent profile and creates it with the recommended init command', async () => {
     const home = mkdtempSync(join(tmpdir(), 'dsh-missing-profile-'))
     try {
       const result = await runBuiltBin(['--profile', 'nope'], { DSH_HOME: home })
       expect(result.code).toBe(1)
       expect(result.stderr).toContain('profile "nope" does not exist')
-      expect(result.stderr).toContain('dsh plugin --profile nope add')
+      expect(result.stderr).toContain('create it with: dsh init --profile nope')
+      const profileDir = join(home, 'profiles', 'nope')
+      expect(existsSync(profileDir)).toBe(false)
+      const initialized = await runBuiltBin(['init', '--profile', 'nope'], { DSH_HOME: home })
+      expect(initialized.code, initialized.stderr).toBe(0)
+      expect(initialized.stderr).toBe('')
+      expect(initialized.stdout).toContain(`profile "nope" created at ${profileDir}`)
+      expect(readProfileManifest('dsh', profileDir).dsh?.profile).toEqual({
+        bundles: ['@deepseek-ai/dsh-base'],
+        patchReload: 'live',
+      })
+      expect(yaml.load(readFileSync(join(profileDir, 'cordis.patch.yml'), 'utf8'))).toEqual([])
+      expect(readFileSync(join(profileDir, 'bunfig.toml'), 'utf8')).toBe('[install]\nlinker = "hoisted"\npeer = false\n')
     } finally {
       rmSync(home, { recursive: true, force: true })
     }

@@ -2,14 +2,37 @@
  * Drives axe-core through auditSurface on a native browser tree. Score-only
  * helpers cannot substitute for this: an unnamed control must fail the floor.
  */
-import { afterEach, describe, expect, it } from 'vitest'
-import { accessibilityFailures, auditSurface, formatViolations } from '../src/index.ts'
+import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
+import { accessibilityFailures, auditSurface, formatViolations, observeAccessibilityExecution } from '../src/index.ts'
 
 afterEach(() => {
   document.body.replaceChildren()
 })
 
 describe('auditSurface against axe-core', () => {
+  it('owns original facts before completion and publishes validation only when the caller checks', async () => {
+    const events: string[] = []
+    const stop = observeAccessibilityExecution({
+      started() {
+        events.push('started')
+        return (audit) => { events.push(`completed:${audit.surface}`) }
+      },
+      validated(audits) { events.push(`validated:${audits.map(audit => audit.surface).join(',')}`) },
+    })
+    onTestFinished(() => { stop() })
+    const main = document.createElement('main')
+    const control = document.createElement('button')
+    control.textContent = 'Save'
+    main.append(control)
+    document.body.append(main)
+    const audit = await auditSurface('ordered-control', main)
+    expect(events).toEqual(['started', 'completed:ordered-control'])
+    expect(accessibilityFailures([audit], 0)).toBe('')
+    expect(events).toEqual(['started', 'completed:ordered-control'])
+    expect(accessibilityFailures([audit], 100)).toBe('')
+    expect(events).toEqual(['started', 'completed:ordered-control', 'validated:ordered-control'])
+  })
+
   it.each(['visible', 'missing-id', 'wrong-role', 'hidden-popup', 'duplicate-id', 'different-review'])('verifies popup references: %s', async (state) => {
     const main = document.createElement('main')
     const trigger = document.createElement('button')
@@ -53,6 +76,7 @@ describe('auditSurface against axe-core', () => {
     document.body.append(main)
     const audit = await auditSurface('unnamed-control', main)
     expect(accessibilityFailures([audit], 100)).toMatch(/button-name/)
+    expect(accessibilityFailures([audit], 0)).toBe(accessibilityFailures([audit], 100))
   })
 
   it('passes a named control in a landmark', async () => {

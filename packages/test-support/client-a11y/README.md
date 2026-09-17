@@ -39,6 +39,8 @@ expect(audit.incomplete).toEqual([])
 
 `auditSurface(surface, context)` returns violations, `passed`, `failed`, and `undecided` node counts, `undecidedRules`, and full `incomplete` results. `accessibilityFailures(audits, 100)` rejects empty audit sets, silent surfaces, violated nodes, unresolved checks, and scores below 100. An assertion on `incomplete` prints the full diagnostic data. `accessibilityScore(audits)` measures decided checks; `formatViolations(audit)` names each violated rule and affected element.
 
+The root and browser runners require execution evidence for every selected source audit candidate. Each required test must pass and validate its own native axe results at 100. Skipped tests, unreachable checks, unregistered definitions, constructed result objects, and results borrowed from another test cannot satisfy that obligation. Run `bunx vitest run --config vitest.client-browser.config.ts` for the complete package candidate inventory; focused runs explicitly report partial evidence.
+
 ### Render inside a landmark
 
 Page-structure rules cannot be satisfied by a component floating in a bare `<body>`. Render each surface inside the landmark a real page provides — a `<main>` wrapper is enough — so the audit reports component defects rather than the harness's own missing page frame.
@@ -64,13 +66,18 @@ A hand-written list of audited components silently stops covering the next one. 
 
 The module fixes the `axe.run` tag list, requests violations, passes, and incomplete results, and converts axe's per-rule node arrays into counts. Raw incomplete results and counts remain intact and do not enter the score. For axe's exact `controlsWithinPopup` review, `completedReviews` records native DOM evidence: each controlled ID resolves uniquely, the popup role matches `aria-haspopup`, and an expanded popup is visible and accessible. Every other incomplete check, and every popup review without that evidence, fails `accessibilityFailures`.
 
+The audit engine retains native result identities and immutable original failure reports, then publishes execution and successful validation events. Changing a returned result cannot erase its native failure. Browser setup binds both events to Vitest's actual test task. The reporter checks that full configured discovery includes the source candidates, joins receipts to definition locations including columns, and fails when a required test has no passing receipt. Explicit file selection through the CLI or public Vitest API reports partial evidence. Static source checks discover obligations; only completed browser work supplies execution evidence.
+
 ### Source map
 
 | File | Role |
 |---|---|
 | [`src/index.ts`](src/index.ts) | `CLIENT_AXE_TAGS`, `clientAxeRunOptions`, `auditSurface`, `accessibilityFailures`, `accessibilityScore`, `formatViolations` |
 | [`src/popup-review.ts`](src/popup-review.ts) | Native DOM verification of popup-reference reviews |
-| [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; the module owns no event stream or mutable data) |
+| [`src/execution.ts`](src/execution.ts) | Native result identity and execution observers |
+| [`tests/browser-setup.client.ts`](tests/browser-setup.client.ts) | Native test-task attribution and product theme setup |
+| [`../../../scripts/client-a11y-reporter.ts`](../../../scripts/client-a11y-reporter.ts) | Required test execution reconciliation |
+| [`src/invariant.ts`](src/invariant.ts) | Package invariant companion registration |
 
 </details>
 
@@ -104,6 +111,7 @@ These limits define how the auditing is consumed. They are current package const
 
 - **Automated checks cover part of accessibility** — keyboard journeys, screen-reader behavior, and understandable content also require interaction review.
 - **One surface at a time** — the module audits a DOM subtree a caller already rendered. It mounts nothing and knows nothing about slots, so a suite decides what a surface is and how to build it.
+- **Candidate discovery has a syntax boundary** — package ownership uses source import, rendering, and assertion checks. Test attribution follows named Vitest imports and direct, local, or named relative helper calls. Namespace imports, re-export chains, and generated test factories need further source analysis; the inventory does not establish complete component, state, or journey coverage.
 
 <a id="dev-note"></a>
 ### Dev Note

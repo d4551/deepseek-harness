@@ -1,0 +1,126 @@
+{
+  "node": "v26.8.2",
+  "bun": "1.4.2",
+  "gitHead": "2bd066d87f5bafd315be9f40889d0a60b9e58e0b",
+  "archives": {
+    "source": {
+      "url": "https://codeload.github.com/microsoft/typescript-go/tar.gz/2bd066d87f5bafd315be9f40889d0a60b9e58e0b",
+      "integrity": "sha256-XMtH27P2jNDaWLceb0Re7jalC9Pp+fMwzCOpe4hQARk="
+    },
+    "published": {
+      "url": "https://registry.npmjs.org/typescript/-/typescript-7.0.2.tgz",
+      "integrity": "sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA=="
+    }
+  },
+  "registry": [
+    {
+      "name": "typescript",
+      "version": "7.0.2",
+      "dist": {
+        "shasum": "9ec773d7954a8c182c17cc5bbd575aa28bc51582",
+        "tarball": "https://registry.npmjs.org/typescript/-/typescript-7.0.2.tgz",
+        "fileCount": 416,
+        "integrity": "sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA==",
+        "signatures": [
+          {
+            "sig": "MEUCIHn8lVrLBbTJToaOcV3IJ0oVPREmFT5BhqmO2niVNCaSAiEAjbubGExGAYMSJN39iEgX/eDYhwBGnh/iyyGTRigXGjY=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 2497498
+      },
+      "gitHead": "2bd066d87f5bafd315be9f40889d0a60b9e58e0b"
+    },
+    {
+      "name": "execa",
+      "version": "10.0.1",
+      "dist": {
+        "shasum": "7e5ed6cc9d5ac2cc4160036c624934137f0750ff",
+        "tarball": "https://registry.npmjs.org/execa/-/execa-10.0.1.tgz",
+        "fileCount": 145,
+        "integrity": "sha512-ge98qjkRK4IB7tL7Ju/6qmm5LHoH1eEMt5FNZrz3f4UIYhF28lggX20z3FaX1sgc67msLEn0N0BscOs29iuwyw==",
+        "signatures": [
+          {
+            "sig": "MEYCIQCRAYnkHDEngdwHO/JOle8/ra8BgZC98FXtvFqHLmkrPAIhAMb7z39BLY1czwu8OZTYQcs+FcVnrv4NbQUYSywdutd0",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEYCIQCGoBG6+OcG4Jh7JWy8m2YXY4dtX2jtRy88kaSGALctGQIhAMkT3RBJIe+o0BaPcg+Hx5gQj8CBvO2kPTxCJxAbXJ0O",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 360571
+      },
+      "gitHead": "8017b279e19347efaf2587711c2d57dbd4330740"
+    },
+    {
+      "name": "dprint",
+      "version": "0.57.4",
+      "dist": {
+        "shasum": "376faba4ee80af1557848bf6a00a0529e4265527",
+        "tarball": "https://registry.npmjs.org/dprint/-/dprint-0.57.4.tgz",
+        "fileCount": 7,
+        "integrity": "sha512-iiorgfJrrV7DDf7S9AB/d5ZB59Jn5idMDQoU7o6H9m6AvGVaLAPrGTAslmTwykkft9CYbWzqUrKjmKT80KWmAA==",
+        "signatures": [
+          {
+            "sig": "MEQCIDoXJwYoBXx/UUANLVWMtHE58uSgKl5AN178N0GuJ+TLAiB0mybuI0D5GRKZf4ZF/srec/AHOXqQm3aJYGPJU12vOw==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "attestations": {
+          "url": "https://registry.npmjs.org/-/npm/v1/attestations/dprint@0.57.4",
+          "provenance": {
+            "predicateType": "https://slsa.dev/provenance/v1"
+          }
+        },
+        "unpackedSize": 20231
+      },
+      "gitHead": "abd996b4a1f48f70e78a21451e523de9458ce8ab"
+    },
+    {
+      "name": "@dprint/typescript",
+      "version": "0.96.1",
+      "dist": {
+        "shasum": "d0d9e13a5e8af77ae1e23e45e442e92fdea2f036",
+        "tarball": "https://registry.npmjs.org/@dprint/typescript/-/typescript-0.96.1.tgz",
+        "fileCount": 5,
+        "integrity": "sha512-mz/nINSFQh1R5i2Qy90SWOCCK4SgNGRkNhCZba7LYmUkE4Zi8/45p8l8pqc9yN1fb4XY5Muhrzdh5Q3jFsYimw==",
+        "signatures": [
+          {
+            "sig": "MEUCIQDoF46PIRrlCRPAQDLx4tZe9zJDvynLVwjBHPACtKBeigIgDZ5RTuesVYJ0lMPGbp0AtvaBrVwWYnlFehD/O5OBZFI=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "attestations": {
+          "url": "https://registry.npmjs.org/-/npm/v1/attestations/@dprint%2ftypescript@0.96.1",
+          "provenance": {
+            "predicateType": "https://slsa.dev/provenance/v1"
+          }
+        },
+        "unpackedSize": 4175811
+      },
+      "gitHead": "f7dd1f3768da3aa97982d68cad62f720130d812a"
+    },
+    {
+      "name": "@types/node",
+      "version": "22.20.3",
+      "dist": {
+        "shasum": "f77d48b4cb336b4e6dc44850ddb6da69caade396",
+        "tarball": "https://registry.npmjs.org/@types/node/-/node-22.20.3.tgz",
+        "fileCount": 84,
+        "integrity": "sha512-DZmzkmwHzXrLPAXPyKNDzlIwMMUZCVacoD25ywdy5YTKGbOx/2ld+Q38Im2zJ0vBuZP5Prd3VZutKZyXwkOS8A==",
+        "signatures": [
+          {
+            "sig": "MEYCIQD8B0/Miye7Pcqa4CE2iwCc+VPMH8FynyLwWShFZonwxwIhAPqJr9tZFwWByKNvHdX2N2lsjacZF2OwWf4RRrhRxZGI",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEQCIBper6JFGBvSVGWECmJ+pg4RTeyKOByzg8LD/w6/AKI0AiAiMsR6xJ4G70QFQmbr9Q3AjYx7u1bdrIxbqiBgCW+r7Q==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 2438697
+      }
+    }
+  ]
+}

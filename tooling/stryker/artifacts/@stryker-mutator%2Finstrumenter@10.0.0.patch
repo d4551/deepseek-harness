@@ -1,0 +1,337 @@
+diff --git a/dist/src/mutators/empty-expression-mutator.d.ts.map b/dist/src/mutators/empty-expression-mutator.d.ts.map
+index 026b0de..c57b6b0 100644
+--- a/dist/src/mutators/empty-expression-mutator.d.ts.map
++++ b/dist/src/mutators/empty-expression-mutator.d.ts.map
+@@ -1 +1 @@
+-{"version":3,"file":"empty-expression-mutator.d.ts","sourceRoot":"","sources":["../../../src/mutators/empty-expression-mutator.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,WAAW,EAAE,MAAM,mBAAmB,CAAC;AAYhD,eAAO,MAAM,sBAAsB,EAAE,WAmCpC,CAAC"}
+\ No newline at end of file
++{"version":3,"file":"empty-expression-mutator.d.ts","sourceRoot":"","sources":["../../../src/mutators/empty-expression-mutator.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,WAAW,EAAE,MAAM,mBAAmB,CAAC;AAYhD,eAAO,MAAM,sBAAsB,EAAE,WA+BpC,CAAC"}
+\ No newline at end of file
+diff --git a/dist/src/mutators/empty-expression-mutator.js b/dist/src/mutators/empty-expression-mutator.js
+index 895ea46..bc71393 100644
+--- a/dist/src/mutators/empty-expression-mutator.js
++++ b/dist/src/mutators/empty-expression-mutator.js
+@@ -30,7 +30,4 @@ export const emptyExpressionMutator = {
+             }
+     },
+-    filter(mutantsInScope) {
+-        return mutantsInScope.length === 1;
+-    },
+ };
+ //# sourceMappingURL=empty-expression-mutator.js.map
+\ No newline at end of file
+diff --git a/dist/src/mutators/empty-expression-mutator.js.map b/dist/src/mutators/empty-expression-mutator.js.map
+index 168c387..05dea80 100644
+--- a/dist/src/mutators/empty-expression-mutator.js.map
++++ b/dist/src/mutators/empty-expression-mutator.js.map
+@@ -1 +1 @@
+-{"version":3,"file":"empty-expression-mutator.js","sourceRoot":"","sources":["../../../src/mutators/empty-expression-mutator.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,KAAK,MAAM,aAAa,CAAC;AAGrC,MAAM,EAAE,KAAK,EAAE,GAAG,KAAK,CAAC;AAExB,SAAS,WAAW,CAAC,UAAsC;IACzD,OAAO,UAAU,CAAC,MAAM,CAAC,IAAI,KAAK,OAAO,CAAC;AAC5C,CAAC;AAED,SAAS,QAAQ;IACf,OAAO,KAAK,CAAC,eAAe,CAAC,MAAM,EAAE,KAAK,CAAC,cAAc,CAAC,CAAC,CAAC,EAAE,IAAI,CAAC,CAAC;AACtE,CAAC;AAED,MAAM,CAAC,MAAM,sBAAsB,GAAgB;IACjD,IAAI,EAAE,gBAAgB;IAEtB,CAAC,MAAM,CAAC,IAAI,EAAE,OAAO;QACnB,IACE,IAAI,CAAC,gBAAgB,EAAE;YACvB,OAAO,CAAC,mBAAmB;YAC3B,CAAC,WAAW,CAAC,IAAI,CAAC,IAAI,CAAC,EACvB,CAAC;YACD,MAAM,QAAQ,EAAE,CAAC;YACjB,OAAO;QACT,CAAC;QAED,IAAI,OAAO,CAAC,mBAAmB,EAAE,CAAC;YAChC,OAAO;QACT,CAAC;QAED,IAAI,IAAI,CAAC,IAAI,CAAC,IAAI,KAAK,qBAAqB,EAAE,CAAC;YAC7C,IACE,IAAI,CAAC,IAAI,CAAC,UAAU,CAAC,IAAI,KAAK,gBAAgB;gBAC9C,CAAC,WAAW,CAAC,IAAI,CAAC,IAAI,CAAC,UAAU,CAAC,EAClC,CAAC;gBACD,MAAM,KAAK,CAAC,cAAc,EAAE,CAAC;YAC/B,CAAC;QACH,CAAC;QAED,IAAI,IAAI,CAAC,IAAI,CAAC,IAAI,KAAK,gBAAgB;YACrC,IAAI,IAAI,CAAC,IAAI,CAAC,QAAQ,CAAC,IAAI,KAAK,eAAe,EAAE,CAAC;gBAChD,MAAM,KAAK,CAAC,cAAc,EAAE,CAAC;YAC/B,CAAC;IACL,CAAC;IAED,MAAM,CAAC,cAAc;QACnB,OAAO,cAAc,CAAC,MAAM,KAAK,CAAC,CAAC;IACrC,CAAC;CACF,CAAC"}
+\ No newline at end of file
++{"version":3,"file":"empty-expression-mutator.js","sourceRoot":"","sources":["../../../src/mutators/empty-expression-mutator.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,KAAK,MAAM,aAAa,CAAC;AAGrC,MAAM,EAAE,KAAK,EAAE,GAAG,KAAK,CAAC;AAExB,SAAS,WAAW,CAAC,UAAsC;IACzD,OAAO,UAAU,CAAC,MAAM,CAAC,IAAI,KAAK,OAAO,CAAC;AAC5C,CAAC;AAED,SAAS,QAAQ;IACf,OAAO,KAAK,CAAC,eAAe,CAAC,MAAM,EAAE,KAAK,CAAC,cAAc,CAAC,CAAC,CAAC,EAAE,IAAI,CAAC,CAAC;AACtE,CAAC;AAED,MAAM,CAAC,MAAM,sBAAsB,GAAgB;IACjD,IAAI,EAAE,gBAAgB;IAEtB,CAAC,MAAM,CAAC,IAAI,EAAE,OAAO;QACnB,IACE,IAAI,CAAC,gBAAgB,EAAE;YACvB,OAAO,CAAC,mBAAmB;YAC3B,CAAC,WAAW,CAAC,IAAI,CAAC,IAAI,CAAC,EACvB,CAAC;YACD,MAAM,QAAQ,EAAE,CAAC;YACjB,OAAO;QACT,CAAC;QAED,IAAI,OAAO,CAAC,mBAAmB,EAAE,CAAC;YAChC,OAAO;QACT,CAAC;QAED,IAAI,IAAI,CAAC,IAAI,CAAC,IAAI,KAAK,qBAAqB,EAAE,CAAC;YAC7C,IACE,IAAI,CAAC,IAAI,CAAC,UAAU,CAAC,IAAI,KAAK,gBAAgB;gBAC9C,CAAC,WAAW,CAAC,IAAI,CAAC,IAAI,CAAC,UAAU,CAAC,EAClC,CAAC;gBACD,MAAM,KAAK,CAAC,cAAc,EAAE,CAAC;YAC/B,CAAC;QACH,CAAC;QAED,IAAI,IAAI,CAAC,IAAI,CAAC,IAAI,KAAK,gBAAgB;YACrC,IAAI,IAAI,CAAC,IAAI,CAAC,QAAQ,CAAC,IAAI,KAAK,eAAe,EAAE,CAAC;gBAChD,MAAM,KAAK,CAAC,cAAc,EAAE,CAAC;YAC/B,CAAC;IACL,CAAC;CACF,CAAC"}
+\ No newline at end of file
+diff --git a/dist/src/mutators/node-mutator.d.ts b/dist/src/mutators/node-mutator.d.ts
+index ae0c87b..b16a345 100644
+--- a/dist/src/mutators/node-mutator.d.ts
++++ b/dist/src/mutators/node-mutator.d.ts
+@@ -1,4 +1,3 @@
+ import type { types, NodePath } from '@babel/core';
+-import { Mutable } from '../mutant.js';
+ export interface NodeMutatorContext {
+     /** Script source was an expression */
+@@ -7,5 +6,4 @@ export interface NodeMutatorContext {
+ export interface NodeMutator {
+     mutate(path: NodePath, mutateContext: NodeMutatorContext): Iterable<types.Node>;
+-    filter?(mutantsInScope: Mutable[]): boolean;
+     readonly name: string;
+ }
+diff --git a/dist/src/mutators/node-mutator.d.ts.map b/dist/src/mutators/node-mutator.d.ts.map
+index 995433f..0ea0f7a 100644
+--- a/dist/src/mutators/node-mutator.d.ts.map
++++ b/dist/src/mutators/node-mutator.d.ts.map
+@@ -1 +1 @@
+-{"version":3,"file":"node-mutator.d.ts","sourceRoot":"","sources":["../../../src/mutators/node-mutator.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,KAAK,EAAE,QAAQ,EAAE,MAAM,aAAa,CAAC;AACnD,OAAO,EAAE,OAAO,EAAE,MAAM,cAAc,CAAC;AAEvC,MAAM,WAAW,kBAAkB;IACjC,sCAAsC;IACtC,mBAAmB,EAAE,OAAO,CAAC;CAC9B;AAED,MAAM,WAAW,WAAW;IAC1B,MAAM,CACJ,IAAI,EAAE,QAAQ,EACd,aAAa,EAAE,kBAAkB,GAChC,QAAQ,CAAC,KAAK,CAAC,IAAI,CAAC,CAAC;IACxB,MAAM,CAAC,CAAC,cAAc,EAAE,OAAO,EAAE,GAAG,OAAO,CAAC;IAC5C,QAAQ,CAAC,IAAI,EAAE,MAAM,CAAC;CACvB"}
+\ No newline at end of file
++{"version":3,"file":"node-mutator.d.ts","sourceRoot":"","sources":["../../../src/mutators/node-mutator.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,KAAK,EAAE,QAAQ,EAAE,MAAM,aAAa,CAAC;AAEnD,MAAM,WAAW,kBAAkB;IACjC,sCAAsC;IACtC,mBAAmB,EAAE,OAAO,CAAC;CAC9B;AAED,MAAM,WAAW,WAAW;IAC1B,MAAM,CACJ,IAAI,EAAE,QAAQ,EACd,aAAa,EAAE,kBAAkB,GAChC,QAAQ,CAAC,KAAK,CAAC,IAAI,CAAC,CAAC;IACxB,QAAQ,CAAC,IAAI,EAAE,MAAM,CAAC;CACvB"}
+\ No newline at end of file
+diff --git a/dist/src/parsers/js-parser.d.ts.map b/dist/src/parsers/js-parser.d.ts.map
+index 90a9a4f..50e9b36 100644
+--- a/dist/src/parsers/js-parser.d.ts.map
++++ b/dist/src/parsers/js-parser.d.ts.map
+@@ -1 +1 @@
+-{"version":3,"file":"js-parser.d.ts","sourceRoot":"","sources":["../../../src/parsers/js-parser.ts"],"names":[],"mappings":"AAGA,OAAO,EAAa,KAAK,EAAE,MAAM,oBAAoB,CAAC;AAEtD,OAAO,EAAE,aAAa,EAAE,MAAM,qBAAqB,CAAC;AAqBpD,wBAAgB,YAAY,CAAC,EAAE,OAAO,EAAE,eAAe,EAAE,EAAE,aAAa,UACpC,MAAM,YAAY,MAAM,KAAG,OAAO,CAAC,KAAK,CAAC,CAoB5E"}
+\ No newline at end of file
++{"version":3,"file":"js-parser.d.ts","sourceRoot":"","sources":["../../../src/parsers/js-parser.ts"],"names":[],"mappings":"AAGA,OAAO,EAAa,KAAK,EAAE,MAAM,oBAAoB,CAAC;AAEtD,OAAO,EAAE,aAAa,EAAE,MAAM,qBAAqB,CAAC;AAiBpD,wBAAgB,YAAY,CAAC,EAAE,OAAO,EAAE,eAAe,EAAE,EAAE,aAAa,UACpC,MAAM,YAAY,MAAM,KAAG,OAAO,CAAC,KAAK,CAAC,CAoB5E"}
+\ No newline at end of file
+diff --git a/dist/src/parsers/js-parser.js b/dist/src/parsers/js-parser.js
+index d99e33d..a45749c 100644
+--- a/dist/src/parsers/js-parser.js
++++ b/dist/src/parsers/js-parser.js
+@@ -2,7 +2,4 @@ import * as babel from '@babel/core';
+ import { AstFormat } from '../syntax/index.js';
+ const { types, parseAsync } = babel;
+-// Note: many syntax plugins (e.g. `optionalChaining`, `nullishCoalescingOperator`,
+-// `classProperties`, `numericSeparator`, ...) are enabled by default since Babel 8
+-// and no longer need to be listed here.
+ const defaultPlugins = [
+     'doExpressions',
+@@ -10,5 +7,4 @@ const defaultPlugins = [
+     'functionBind',
+     'functionSent',
+-    'importMeta',
+     ['pipelineOperator', { proposal: 'fsharp' }],
+     'throwExpressions',
+diff --git a/dist/src/parsers/js-parser.js.map b/dist/src/parsers/js-parser.js.map
+index 21c026b..9346b6d 100644
+--- a/dist/src/parsers/js-parser.js.map
++++ b/dist/src/parsers/js-parser.js.map
+@@ -1 +1 @@
+-{"version":3,"file":"js-parser.js","sourceRoot":"","sources":["../../../src/parsers/js-parser.ts"],"names":[],"mappings":"AACA,OAAO,KAAK,KAAK,MAAM,aAAa,CAAC;AAErC,OAAO,EAAE,SAAS,EAAS,MAAM,oBAAoB,CAAC;AAItD,MAAM,EAAE,KAAK,EAAE,UAAU,EAAE,GAAG,KAAK,CAAC;AAEpC,mFAAmF;AACnF,mFAAmF;AACnF,wCAAwC;AACxC,MAAM,cAAc,GAAmB;IACrC,eAAe;IACf,mBAAmB;IACnB,cAAc;IACd,cAAc;IACd,YAAY;IACZ,CAAC,kBAAkB,EAAE,EAAE,QAAQ,EAAE,QAAQ,EAAE,CAAC;IAC5C,kBAAkB;IAClB,aAAa;IACb,oBAAoB;IACpB,YAAY;IACZ,KAAK;CACN,CAAC;AAEF,MAAM,UAAU,YAAY,CAAC,EAAE,OAAO,EAAE,eAAe,EAAiB;IACtE,OAAO,KAAK,UAAU,KAAK,CAAC,IAAY,EAAE,QAAgB;QACxD,MAAM,GAAG,GAAG,MAAM,UAAU,CAAC,IAAI,EAAE;YACjC,UAAU,EAAE;gBACV,OAAO,EAAE,CAAC,GAAG,CAAC,eAAe,IAAI,cAAc,CAAC,CAAmB;aACpE;YACD,QAAQ,EAAE,QAAQ;YAClB,UAAU,EAAE,QAAQ;SACrB,CAAC,CAAC;QACH,IAAI,KAAK,CAAC,SAAS,CAAC,GAAG,CAAC,EAAE,CAAC;YACzB,MAAM,IAAI,KAAK,CACb,YAAY,QAAQ,mDAAmD,CACxE,CAAC;QACJ,CAAC;QACD,OAAO;YACL,cAAc,EAAE,QAAQ;YACxB,UAAU,EAAE,IAAI;YAChB,MAAM,EAAE,SAAS,CAAC,EAAE;YACpB,IAAI,EAAE,GAAI;SACX,CAAC;IACJ,CAAC,CAAC;AACJ,CAAC"}
+\ No newline at end of file
++{"version":3,"file":"js-parser.js","sourceRoot":"","sources":["../../../src/parsers/js-parser.ts"],"names":[],"mappings":"AACA,OAAO,KAAK,KAAK,MAAM,aAAa,CAAC;AAErC,OAAO,EAAE,SAAS,EAAS,MAAM,oBAAoB,CAAC;AAItD,MAAM,EAAE,KAAK,EAAE,UAAU,EAAE,GAAG,KAAK,CAAC;AAEpC,MAAM,cAAc,GAAmB;IACrC,eAAe;IACf,mBAAmB;IACnB,cAAc;IACd,cAAc;IACd,CAAC,kBAAkB,EAAE,EAAE,QAAQ,EAAE,QAAQ,EAAE,CAAC;IAC5C,kBAAkB;IAClB,aAAa;IACb,oBAAoB;IACpB,YAAY;IACZ,KAAK;CACN,CAAC;AAEF,MAAM,UAAU,YAAY,CAAC,EAAE,OAAO,EAAE,eAAe,EAAiB;IACtE,OAAO,KAAK,UAAU,KAAK,CAAC,IAAY,EAAE,QAAgB;QACxD,MAAM,GAAG,GAAG,MAAM,UAAU,CAAC,IAAI,EAAE;YACjC,UAAU,EAAE;gBACV,OAAO,EAAE,CAAC,GAAG,CAAC,eAAe,IAAI,cAAc,CAAC,CAAmB;aACpE;YACD,QAAQ,EAAE,QAAQ;YAClB,UAAU,EAAE,QAAQ;SACrB,CAAC,CAAC;QACH,IAAI,KAAK,CAAC,SAAS,CAAC,GAAG,CAAC,EAAE,CAAC;YACzB,MAAM,IAAI,KAAK,CACb,YAAY,QAAQ,mDAAmD,CACxE,CAAC;QACJ,CAAC;QACD,OAAO;YACL,cAAc,EAAE,QAAQ;YACxB,UAAU,EAAE,IAAI;YAChB,MAAM,EAAE,SAAS,CAAC,EAAE;YACpB,IAAI,EAAE,GAAI;SACX,CAAC;IACJ,CAAC,CAAC;AACJ,CAAC"}
+\ No newline at end of file
+diff --git a/dist/src/transformers/babel-transformer.d.ts.map b/dist/src/transformers/babel-transformer.d.ts.map
+index f5035e4..5cb60a0 100644
+--- a/dist/src/transformers/babel-transformer.d.ts.map
++++ b/dist/src/transformers/babel-transformer.d.ts.map
+@@ -1 +1 @@
+-{"version":3,"file":"babel-transformer.d.ts","sourceRoot":"","sources":["../../../src/transformers/babel-transformer.ts"],"names":[],"mappings":"AAUA,OAAO,EAAE,YAAY,EAAE,MAAM,oBAAoB,CAAC;AAYlD,OAAO,EAAE,cAAc,EAAE,MAAM,YAAY,CAAC;AAS5C,eAAO,MAAM,cAAc,EAAE,cAAc,CAAC,YAAY,CA6PvD,CAAC"}
+\ No newline at end of file
++{"version":3,"file":"babel-transformer.d.ts","sourceRoot":"","sources":["../../../src/transformers/babel-transformer.ts"],"names":[],"mappings":"AAUA,OAAO,EAAE,YAAY,EAAE,MAAM,oBAAoB,CAAC;AAYlD,OAAO,EAAE,cAAc,EAAE,MAAM,YAAY,CAAC;AAS5C,eAAO,MAAM,cAAc,EAAE,cAAc,CAAC,YAAY,CA+LvD,CAAC"}
+\ No newline at end of file
+diff --git a/dist/src/transformers/babel-transformer.js b/dist/src/transformers/babel-transformer.js
+index 494e306..7f403f0 100644
+--- a/dist/src/transformers/babel-transformer.js
++++ b/dist/src/transformers/babel-transformer.js
+@@ -19,12 +19,4 @@ export const transformBabel = ({ root, originFileName, rawContent, offset }, mut
+     // The ignorer bookkeeper is responsible for keeping track of the ignored node and the reason why it is ignored
+     const ignorerBookkeeper = new IgnorerBookkeeper(options.ignorers);
+-    // Mutant-filter bookkeeping. When no mutator declares a `filter` we bypass
+-    // all of this and traversal cost matches the unfiltered case.
+-    const mutatorsByName = new Map(mutators.map((m) => [m.name, m]));
+-    const hasAnyMutatorFilter = mutators.some((mutator) => mutator.filter);
+-    // Stack of `mutantCollector.mutants.length` captured on enter. The slice
+-    // [subtreeStart, mutants.length) on exit yields every mutant collected in
+-    // the subtree in O(1) — no need to re-traverse descendants.
+-    const subtreeMutantStartStack = [];
+     // Now start the actual traversing of the AST
+     //
+@@ -41,7 +33,4 @@ export const transformBabel = ({ root, originFileName, rawContent, offset }, mut
+     traverse(file.ast, {
+         enter(path) {
+-            if (hasAnyMutatorFilter) {
+-                subtreeMutantStartStack.push(mutantCollector.mutants.length);
+-            }
+             directiveBookkeeper.processStrykerDirectives(path.node);
+             if (shouldSkip(path)) {
+@@ -60,7 +49,4 @@ export const transformBabel = ({ root, originFileName, rawContent, offset }, mut
+         },
+         exit(path) {
+-            if (hasAnyMutatorFilter) {
+-                applyMutantFilters(path, subtreeMutantStartStack.pop());
+-            }
+             placeMutantsIfNeeded(path);
+             ignorerBookkeeper.leaveNode(path);
+@@ -68,39 +54,4 @@ export const transformBabel = ({ root, originFileName, rawContent, offset }, mut
+     });
+     placeHeaderIfNeeded(mutantCollector, originFileName, options, root);
+-    /**
+-     * Apply mutator filters on exit. Only mutators that (a) declare a `filter`
+-     * and (b) produced a mutant on this exact node are considered. The
+-     * `mutantsInScope` passed to the filter is every mutant collected for this
+-     * node and its descendants (the slice since this node was entered).
+-     */
+-    function applyMutantFilters(path, subtreeStart) {
+-        // Identify mutators-with-filter that produced a mutant on this exact node
+-        // by scanning only the subtree slice (not the full collector).
+-        let filteringMutators;
+-        for (let i = subtreeStart; i < mutantCollector.mutants.length; i++) {
+-            const mutant = mutantCollector.mutants[i];
+-            if (mutant.original === path.node) {
+-                const mutator = mutatorsByName.get(mutant.mutatorName);
+-                if (mutator?.filter) {
+-                    (filteringMutators ??= new Set()).add(mutator);
+-                }
+-            }
+-        }
+-        if (!filteringMutators) {
+-            return;
+-        }
+-        const mutantsInScope = mutantCollector.mutants
+-            .slice(subtreeStart)
+-            .filter((m) => !m.ignoreReason);
+-        for (const mutator of filteringMutators) {
+-            if (!mutator.filter(mutantsInScope)) {
+-                const mutantsToFilterOut = mutantsInScope.filter((mutant) => mutant.ignoreReason === undefined &&
+-                    mutant.mutatorName === mutator.name &&
+-                    mutant.original === path.node);
+-                removeFromPlacementMap(mutantsToFilterOut);
+-                mutantCollector.remove(mutantsToFilterOut);
+-            }
+-        }
+-    }
+     /**
+      *  If mutants were collected, be sure to register them in the placement map.
+@@ -125,11 +76,4 @@ export const transformBabel = ({ root, originFileName, rawContent, offset }, mut
+         }
+     }
+-    function removeFromPlacementMap(mutantsToRemove) {
+-        for (const mutantToRemove of mutantsToRemove) {
+-            for (const [, placementMapEntry] of placementMap) {
+-                placementMapEntry.appliedMutants.delete(mutantToRemove);
+-            }
+-        }
+-    }
+     /**
+      * Don't traverse import declarations, decorators and nodes that don't have overlap with the selected mutation ranges
+diff --git a/dist/src/transformers/babel-transformer.js.map b/dist/src/transformers/babel-transformer.js.map
+index 1388a15..d0993ed 100644
+--- a/dist/src/transformers/babel-transformer.js.map
++++ b/dist/src/transformers/babel-transformer.js.map
+@@ -1 +1 @@
+-{"version":3,"file":"babel-transformer.js","sourceRoot":"","sources":["../../../src/transformers/babel-transformer.ts"],"names":[],"mappings":"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"}
+\ No newline at end of file
++{"version":3,"file":"babel-transformer.js","sourceRoot":"","sources":["../../../src/transformers/babel-transformer.ts"],"names":[],"mappings":"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"}
+\ No newline at end of file
+diff --git a/src/mutators/empty-expression-mutator.ts b/src/mutators/empty-expression-mutator.ts
+index 50f0454..b606c1b 100644
+--- a/src/mutators/empty-expression-mutator.ts
++++ b/src/mutators/empty-expression-mutator.ts
+@@ -43,7 +43,3 @@ export const emptyExpressionMutator: NodeMutator = {
+       }
+   },
+-
+-  filter(mutantsInScope) {
+-    return mutantsInScope.length === 1;
+-  },
+ };
+diff --git a/src/mutators/node-mutator.ts b/src/mutators/node-mutator.ts
+index 624fac3..0015be6 100644
+--- a/src/mutators/node-mutator.ts
++++ b/src/mutators/node-mutator.ts
+@@ -1,4 +1,3 @@
+ import type { types, NodePath } from '@babel/core';
+-import { Mutable } from '../mutant.js';
+
+ export interface NodeMutatorContext {
+@@ -12,5 +11,4 @@ export interface NodeMutator {
+     mutateContext: NodeMutatorContext,
+   ): Iterable<types.Node>;
+-  filter?(mutantsInScope: Mutable[]): boolean;
+   readonly name: string;
+ }
+diff --git a/src/parsers/js-parser.ts b/src/parsers/js-parser.ts
+index 73656f4..6258af8 100644
+--- a/src/parsers/js-parser.ts
++++ b/src/parsers/js-parser.ts
+@@ -8,7 +8,4 @@ import { ParserOptions } from './parser-options.js';
+ const { types, parseAsync } = babel;
+
+-// Note: many syntax plugins (e.g. `optionalChaining`, `nullishCoalescingOperator`,
+-// `classProperties`, `numericSeparator`, ...) are enabled by default since Babel 8
+-// and no longer need to be listed here.
+ const defaultPlugins: ParserPlugin[] = [
+   'doExpressions',
+@@ -16,5 +13,4 @@ const defaultPlugins: ParserPlugin[] = [
+   'functionBind',
+   'functionSent',
+-  'importMeta',
+   ['pipelineOperator', { proposal: 'fsharp' }],
+   'throwExpressions',
+diff --git a/src/transformers/babel-transformer.ts b/src/transformers/babel-transformer.ts
+index 29728e3..619041c 100644
+--- a/src/transformers/babel-transformer.ts
++++ b/src/transformers/babel-transformer.ts
+@@ -16,5 +16,5 @@ import {
+ } from '../mutant-placers/index.js';
+ import { Mutable, Mutant } from '../mutant.js';
+-import { allMutators, type NodeMutator } from '../mutators/index.js';
++import { allMutators } from '../mutators/index.js';
+
+ import { DirectiveBookkeeper } from './directive-bookkeeper.js';
+@@ -62,13 +62,4 @@ export const transformBabel: AstTransformer<ScriptFormat> = (
+   const ignorerBookkeeper = new IgnorerBookkeeper(options.ignorers);
+
+-  // Mutant-filter bookkeeping. When no mutator declares a `filter` we bypass
+-  // all of this and traversal cost matches the unfiltered case.
+-  const mutatorsByName = new Map(mutators.map((m) => [m.name, m] as const));
+-  const hasAnyMutatorFilter = mutators.some((mutator) => mutator.filter);
+-  // Stack of `mutantCollector.mutants.length` captured on enter. The slice
+-  // [subtreeStart, mutants.length) on exit yields every mutant collected in
+-  // the subtree in O(1) — no need to re-traverse descendants.
+-  const subtreeMutantStartStack: number[] = [];
+-
+   // Now start the actual traversing of the AST
+   //
+@@ -86,7 +77,4 @@ export const transformBabel: AstTransformer<ScriptFormat> = (
+   traverse(file.ast, {
+     enter(path: NodePath) {
+-      if (hasAnyMutatorFilter) {
+-        subtreeMutantStartStack.push(mutantCollector.mutants.length);
+-      }
+       directiveBookkeeper.processStrykerDirectives(path.node);
+       if (shouldSkip(path)) {
+@@ -104,7 +92,4 @@ export const transformBabel: AstTransformer<ScriptFormat> = (
+     },
+     exit(path: NodePath) {
+-      if (hasAnyMutatorFilter) {
+-        applyMutantFilters(path, subtreeMutantStartStack.pop()!);
+-      }
+       placeMutantsIfNeeded(path);
+       ignorerBookkeeper.leaveNode(path);
+@@ -114,43 +99,4 @@ export const transformBabel: AstTransformer<ScriptFormat> = (
+   placeHeaderIfNeeded(mutantCollector, originFileName, options, root);
+
+-  /**
+-   * Apply mutator filters on exit. Only mutators that (a) declare a `filter`
+-   * and (b) produced a mutant on this exact node are considered. The
+-   * `mutantsInScope` passed to the filter is every mutant collected for this
+-   * node and its descendants (the slice since this node was entered).
+-   */
+-  function applyMutantFilters(path: NodePath, subtreeStart: number) {
+-    // Identify mutators-with-filter that produced a mutant on this exact node
+-    // by scanning only the subtree slice (not the full collector).
+-    let filteringMutators: Set<NodeMutator> | undefined;
+-    for (let i = subtreeStart; i < mutantCollector.mutants.length; i++) {
+-      const mutant = mutantCollector.mutants[i];
+-      if (mutant.original === path.node) {
+-        const mutator = mutatorsByName.get(mutant.mutatorName);
+-        if (mutator?.filter) {
+-          (filteringMutators ??= new Set()).add(mutator);
+-        }
+-      }
+-    }
+-    if (!filteringMutators) {
+-      return;
+-    }
+-    const mutantsInScope = mutantCollector.mutants
+-      .slice(subtreeStart)
+-      .filter((m) => !m.ignoreReason);
+-    for (const mutator of filteringMutators) {
+-      if (!mutator.filter!(mutantsInScope)) {
+-        const mutantsToFilterOut = mutantsInScope.filter(
+-          (mutant) =>
+-            mutant.ignoreReason === undefined &&
+-            mutant.mutatorName === mutator.name &&
+-            mutant.original === path.node,
+-        );
+-        removeFromPlacementMap(mutantsToFilterOut);
+-        mutantCollector.remove(mutantsToFilterOut);
+-      }
+-    }
+-  }
+-
+   /**
+    *  If mutants were collected, be sure to register them in the placement map.
+@@ -182,12 +128,4 @@ export const transformBabel: AstTransformer<ScriptFormat> = (
+   }
+
+-  function removeFromPlacementMap(mutantsToRemove: Mutant[]) {
+-    for (const mutantToRemove of mutantsToRemove) {
+-      for (const [, placementMapEntry] of placementMap) {
+-        placementMapEntry.appliedMutants.delete(mutantToRemove);
+-      }
+-    }
+-  }
+-
+   /**
+    * Don't traverse import declarations, decorators and nodes that don't have overlap with the selected mutation ranges

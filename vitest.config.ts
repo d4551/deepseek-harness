@@ -29,6 +29,7 @@ export default defineConfig({
   resolve: { tsconfigPaths: true },
   plugins: [standardDecoratorPlugin()],
   test: {
+    reporters: ['default', './scripts/client-a11y-reporter.ts'],
     setupFiles: ['./scripts/test-invariants.ts'],
     testTimeout: 30_000,
     maxWorkers: MAX_TEST_FORKS,

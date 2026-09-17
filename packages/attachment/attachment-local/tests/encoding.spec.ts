@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { readFile } from 'node:fs/promises'
 import { CompressionLimiter } from '../src/compression-limiter.ts'
 import { encodeFirstWithinLimit, isExhaustedEncoding } from '../src/encoding.ts'
 
@@ -81,15 +82,14 @@ describe('CompressionLimiter', () => {
     await expect(next).resolves.toBe('next')
   })
 
-  it('normalizes a non-Error rejection and releases its slot', async () => {
+  it('preserves a native operation failure and releases its slot', async () => {
     const limiter = new CompressionLimiter(1)
-    // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- Native bindings can reject non-Error values.
-    const failed = limiter.run(() => Promise.reject('native failure'))
+    const failed = limiter.run(() => readFile(new URL('./absent-compression-input', import.meta.url)))
     const next = limiter.run(() => Promise.resolve('next'))
 
     await expect(failed).rejects.toMatchObject({
-      message: 'Image compression task rejected with a non-Error value.',
-      cause: 'native failure',
+      code: 'ENOENT',
+      syscall: 'open',
     })
     await expect(next).resolves.toBe('next')
   })

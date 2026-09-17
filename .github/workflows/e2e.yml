@@ -60,9 +60,6 @@ jobs:
     if: >-
       github.event_name != 'pull_request'
       || !(github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]')
-    # Profile e2e files can each own several complete dsh subprocess trees, so
-    # four file workers preserve process/PTY headroom. Tests retain 120s/test
-    # and retry 2; 45m still bounds retry storms against a slow API.
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6

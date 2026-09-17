@@ -1,0 +1,208 @@
+{
+  "vitest": {
+    "distTags": {
+      "V3": "3.2.7",
+      "beta": "5.0.0-beta.7",
+      "V4": "4.1.11",
+      "rc": "5.0.0-rc.4",
+      "latest": "5.0.1"
+    },
+    "latest": "5.0.1",
+    "time": "2026-09-15T08:49:35.830Z",
+    "dist": {
+      "shasum": "22505b6481ed0e692b3f6d4fed179da8487d252c",
+      "tarball": "https://registry.npmjs.org/vitest/-/vitest-5.0.1.tgz",
+      "integrity": "sha512-iA95lQbKEkvrtTkdAgnWbXfbipWiiWe/hDl2P5tMi6WFwD76G0NxXAGp/M9EOcYupeGJRr6wppMc7CoA41TQjg==",
+      "fileCount": 103,
+      "unpackedSize": 2736905,
+      "attestations": {
+        "url": "https://registry.npmjs.org/-/npm/v1/attestations/vitest@5.0.1",
+        "provenance": {
+          "predicateType": "https://slsa.dev/provenance/v1"
+        }
+      },
+      "signatures": [
+        {
+          "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+          "sig": "MEUCIAdhfWS0gjWnhFRMrahSe+7QO4gFu5E/IdMPENdDDE9vAiEAh+IaVYGvUpfZinhweEX3yLqm9wI9UEEyTZaAoAE7hbc="
+        }
+      ]
+    },
+    "repository": {
+      "url": "git+https://github.com/vitest-dev/vitest.git",
+      "type": "git",
+      "directory": "packages/vitest"
+    }
+  },
+  "@vitest/browser-playwright": {
+    "distTags": {
+      "beta": "5.0.0-beta.7",
+      "rc": "5.0.0-rc.4",
+      "latest": "5.0.1"
+    },
+    "latest": "5.0.1",
+    "time": "2026-09-15T08:49:44.906Z",
+    "dist": {
+      "shasum": "73b50c71c740f4096a46477dac1057b6ce7a5bbf",
+      "tarball": "https://registry.npmjs.org/@vitest/browser-playwright/-/browser-playwright-5.0.1.tgz",
+      "integrity": "sha512-BlknN81ZeoCyP5CSm5u7+1BTlS7d0cDU5DfndNSjEC3SmbzOESGrp+DQpNhQmTlggawWc+yKVEM03mM/aBynqg==",
+      "fileCount": 7,
+      "unpackedSize": 53893,
+      "attestations": {
+        "url": "https://registry.npmjs.org/-/npm/v1/attestations/@vitest%2fbrowser-playwright@5.0.1",
+        "provenance": {
+          "predicateType": "https://slsa.dev/provenance/v1"
+        }
+      },
+      "signatures": [
+        {
+          "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+          "sig": "MEQCIGVPp5AhWaaUfnHC6w7Ocrg0aMTt2/cS7HI4UPJe2lfJAiAF1dYtnz1jJCIGE31/ofB6SvqAYUKL+f5+yZh8hVDr+w=="
+        }
+      ]
+    },
+    "repository": {
+      "url": "git+https://github.com/vitest-dev/vitest.git",
+      "type": "git",
+      "directory": "packages/browser-playwright"
+    }
+  },
+  "@vitest/coverage-v8": {
+    "distTags": {
+      "V3": "3.2.7",
+      "beta": "5.0.0-beta.7",
+      "rc": "5.0.0-rc.4",
+      "latest": "5.0.1"
+    },
+    "latest": "5.0.1",
+    "time": "2026-09-15T08:49:22.072Z",
+    "dist": {
+      "shasum": "2b2852c41a6d30dbbbac834f4b073a3fb34e790c",
+      "tarball": "https://registry.npmjs.org/@vitest/coverage-v8/-/coverage-v8-5.0.1.tgz",
+      "integrity": "sha512-FRC8ACiudC3dI6MTplzRSYWHDRnIv2IPfbzs4FdoJNsMal/35sWV8hwIfV8ZcqzSPy+uXHeMVONt9CEqtOU17w==",
+      "fileCount": 11,
+      "unpackedSize": 29156,
+      "attestations": {
+        "url": "https://registry.npmjs.org/-/npm/v1/attestations/@vitest%2fcoverage-v8@5.0.1",
+        "provenance": {
+          "predicateType": "https://slsa.dev/provenance/v1"
+        }
+      },
+      "signatures": [
+        {
+          "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+          "sig": "MEQCIGzL/9ojFTzCGSJLG9dAJFvyBfeyVkbLq03qxmH9vgbdAiBl+i/sftcV6tffeFP3eUidzOueNpZS9AA6EQKcLXocXg=="
+        }
+      ]
+    },
+    "repository": {
+      "url": "git+https://github.com/vitest-dev/vitest.git",
+      "type": "git",
+      "directory": "packages/coverage-v8"
+    }
+  },
+  "@stryker-mutator/core": {
+    "distTags": {
+      "next": "6.4.0-beta.3",
+      "latest": "10.0.0"
+    },
+    "latest": "10.0.0",
+    "time": "2026-08-14T16:51:22.686Z",
+    "dist": {
+      "shasum": "e080335b437a77518c276ccc9a402dfc114c2cea",
+      "tarball": "https://registry.npmjs.org/@stryker-mutator/core/-/core-10.0.0.tgz",
+      "fileCount": 626,
+      "integrity": "sha512-ZvMsRyaXQQ5e6Thcid9pkuODv6Fn9E3nrBQJUap+hcJuGJ4unm26afo3m6YKSjn8kinyxJ/3TXf0cTWRDaTxVw==",
+      "signatures": [
+        {
+          "sig": "MEUCIEPG0P7g/KN2YhLViqB0v95DWQ/4nlz/pMO4RAJlfPzbAiEAgw+5HBaoCpKeddqB66v0xTOoyjJN86ifcxfzz5sp6fo=",
+          "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+        },
+        {
+          "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+          "sig": "MEUCIHG3XcxgNMdBdmZmqyib5F1K4/LHTCH9QhG1psjVdx/HAiEAqtAD3X4HD6RNeoUMVWXiVbdI5etlIr9rCh3muGc/ACU="
+        }
+      ],
+      "attestations": {
+        "url": "https://registry.npmjs.org/-/npm/v1/attestations/@stryker-mutator%2fcore@10.0.0",
+        "provenance": {
+          "predicateType": "https://slsa.dev/provenance/v1"
+        }
+      },
+      "unpackedSize": 1224028
+    },
+    "repository": {
+      "url": "git+https://github.com/stryker-mutator/stryker-js.git",
+      "type": "git",
+      "directory": "packages/core"
+    },
+    "gitHead": "cb3bd8fe25d5215422c9b632357062d3a43fcf92"
+  },
+  "@stryker-mutator/vitest-runner": {
+    "distTags": {
+      "latest": "10.0.0"
+    },
+    "latest": "10.0.0",
+    "time": "2026-08-14T16:50:27.414Z",
+    "dist": {
+      "shasum": "ba7f61943f7e6d283349f33e401f24d820abfbb9",
+      "tarball": "https://registry.npmjs.org/@stryker-mutator/vitest-runner/-/vitest-runner-10.0.0.tgz",
+      "fileCount": 43,
+      "integrity": "sha512-SHK2/vfvRUpiz7jXPnQMBnr6zLdm69DK03Mo5mPhaZWcRSygrKUqYsPqWsXsK+5ySHzlMTfCyFK5NQ/X9sJFFw==",
+      "signatures": [
+        {
+          "sig": "MEUCIQCAdbHuAB3aZyuzQFsigUdBJAWYfYmM1wP4qljN7zStiQIgIqNV0Hq4UzLnsPtwCMI+aUQFrJL5l2paWCIy93CmL9g=",
+          "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+        },
+        {
+          "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+          "sig": "MEUCIFhnA8uf50PX8QH0jtdphjHYXi0/4ybX+N1JuxGxu2SMAiEA/f/ZoDVLi7287+pEfriLTf4BL8mxj2HuopxOkWKCBLQ="
+        }
+      ],
+      "attestations": {
+        "url": "https://registry.npmjs.org/-/npm/v1/attestations/@stryker-mutator%2fvitest-runner@10.0.0",
+        "provenance": {
+          "predicateType": "https://slsa.dev/provenance/v1"
+        }
+      },
+      "unpackedSize": 81343
+    },
+    "repository": {
+      "url": "git+https://github.com/stryker-mutator/stryker-js.git",
+      "type": "git",
+      "directory": "packages/vitest-runner"
+    },
+    "gitHead": "cb3bd8fe25d5215422c9b632357062d3a43fcf92"
+  },
+  "typescript": {
+    "distTags": {
+      "dev": "3.9.4",
+      "tag-for-publishing-older-releases": "4.1.6",
+      "insiders": "4.6.2-insiders.20220225",
+      "beta": "6.0.0-beta",
+      "rc": "7.0.1-rc",
+      "latest": "7.0.2",
+      "next": "7.1.0-dev.20260916.1"
+    },
+    "latest": "7.0.2",
+    "time": "2026-07-08T15:55:18.431Z",
+    "dist": {
+      "shasum": "9ec773d7954a8c182c17cc5bbd575aa28bc51582",
+      "tarball": "https://registry.npmjs.org/typescript/-/typescript-7.0.2.tgz",
+      "fileCount": 416,
+      "integrity": "sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA==",
+      "signatures": [
+        {
+          "sig": "MEUCIHn8lVrLBbTJToaOcV3IJ0oVPREmFT5BhqmO2niVNCaSAiEAjbubGExGAYMSJN39iEgX/eDYhwBGnh/iyyGTRigXGjY=",
+          "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+        }
+      ],
+      "unpackedSize": 2497498
+    },
+    "repository": {
+      "url": "git+https://github.com/microsoft/TypeScript.git",
+      "type": "git"
+    },
+    "gitHead": "2bd066d87f5bafd315be9f40889d0a60b9e58e0b"
+  }
+}

@@ -16,18 +16,19 @@ Status: implemented
 
 ### 注册必须全覆盖；断言必须有意义
 
-每个 workspace 包都发布单独构建的 `./invariant` companion，并用完整 npm 包名注册。companion 只能采用以下两种形式之一：
+每个 workspace 包都发布单独构建的 `./invariant` companion，并用完整 npm 包名注册。可执行 companion 安装包自有的事件流或相关可变数据结构检查，并通过绑定的 `fail(message)` 报告器报告违规。
 
-- 安装包自有的事件流或相关可变数据结构检查，并通过绑定的 `fail(message)` 报告器报告违规；或
-- 使用空安装器，并在其声明前写一条该包专属的 `No runtime invariant:` 注释，说明为什么该包没有合理的运行时关系可供观测。
+### 已移除的空安装器许可
 
-空形式是明确的架构结论，不是生成占位符。如果后续包变更引入可变状态或事件协议，就必须用相应检查替换该说明。
+原决策允许没有合理运行时关系可供观测的包使用空安装器，并要求附带该包专属的 `No runtime invariant:` 注释。此规则旨在避免人为合成断言，并要求在出现可变状态或事件协议后重新评估。
+
+[拒绝空不变量安装器](../process/2026-09-16-reject-empty-invariant-installers.zh.md)依据仓库禁止空操作的要求移除了这项许可。不论有无注释，空安装器都无法通过门禁；本笔记对有意义检查的要求仍然有效。
 
 中央 `dsh-invariants` 服务只负责配置、注册唯一性、子 fiber 生命周期、回滚、dispose（资源释放）和归属到包的失败。它不暴露通用插件形状、服务形状或启动断言 helper，也不导入产品包。
 
 ### 已实施的检查
 
-当前 103 个包的 workspace 包含 21 个可执行 companion 和 82 个有理由的空 companion。
+以下 companion 展示了运行时检查的所属关系；完整包门禁直接通过 manifest 发现当前工作区。
 
 | 所有者 | 运行时关系 |
 |---|---|
@@ -57,7 +58,7 @@ Status: implemented
 
 ### 仓库门禁与测试
 
-`verify-package-invariants` 发现每个 workspace 包，并强制 companion 源文件、完整名称注册、仅含具名 export 的 Loader 形状、`./invariant` export、发布文件、依赖、TypeScript reference 和 bundle entry 完整。其 AST 规则拒绝生成标记、默认导出和没有解释的空安装器。非空安装器必须接收并使用失败报告器，注册时还必须传入该经检查的本地 `install` 函数。门禁不会通过方法名或 helper 调用推断语义质量。
+`verify-package-invariants` 发现每个 workspace 包，并强制 companion 源文件、完整名称注册、仅含具名 export 的 Loader 形状、`./invariant` export、发布文件、依赖、TypeScript reference 和 bundle entry 完整。其 AST 规则拒绝生成标记、默认导出和所有空安装器。非空安装器必须接收并使用失败报告器，注册时还必须传入该经检查的本地 `install` 函数。门禁不会通过方法名或 helper 调用推断语义质量。
 
 Vitest 为每个包测试拓扑使用 `{ enabled: true }` 挂载 `InvariantRegistry`，并加载所有者 companion。不变量 subpath 的 path mapping 会解析源 companion，而不是陈旧的构建输出。聚焦 suite 覆盖每个可执行 companion 的有效和无效观测；穷举拓扑通过真实 Loader 命名空间归一化运行每个源 companion。结构门禁验证每个包的发布映射后，产物门禁会暂存其 manifest（元数据清单）声明的 `lib/` 文件，在 plain Node 下导入已编译的 `./invariant` 自引用，并重复执行该 Loader 形状检查；这样，若 companion 导入未声明的运行时分片，门禁就会在发布前失败。合成事件流的测试必须构造有效的外围生命周期，除非测试本身就是在断言违规。
 
@@ -72,7 +73,7 @@ Vitest 为每个包测试拓扑使用 `{ enabled: true }` 挂载 `InvariantRegis
 ## 后果
 
 - 每个包都有可见的所有权与发布 wiring，但只有具备合理运行时关系的包才会增加 listener 或 trace 状态。
-- 空 companion 是带包专属说明、可评审的决策；删除说明后门禁会失败。
+- 空 companion 无法通过门禁，包括带有包专属说明的实现；其缺失的检查仍属于实现债务。
 - 类型声明、Cordis 可加载性、插件 metadata、服务方法 API 和纯代数继续由所属的编译、加载、单元或集成门禁覆盖。
 - 运行时失败会标明所属 npm 包，并指出不一致的观测，而不是复述必要的 API 形状。
 - 原有 selection、blocklist 优先级、重复所有权、回滚、dispose 和 HMR（热模块替换）服务约定保持不变。

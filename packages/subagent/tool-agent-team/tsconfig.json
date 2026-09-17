@@ -11,6 +11,7 @@
     { "path": "../../../vendor/schemastery" },
     { "path": "../../../vendor/cordis" },
     { "path": "../../core/agent" },
+    { "path": "../../preset/agent-presets" },
     { "path": "../../llm/llm" },
     { "path": "../../core/scope" },
     { "path": "../../core/session" },

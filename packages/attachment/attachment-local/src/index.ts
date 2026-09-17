@@ -15,6 +15,7 @@ import type {
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import type { NormalizationPolicy } from './normalization.ts'
 import { CompressionLimiter } from './compression-limiter.ts'
+import { SharedRequest } from './shared-request.ts'
 import { commitPreparedImageFile, normalizedImagePath, prepareImageFile, readImageFile, validateImageFile } from './store.ts'
 import { readRequestImageFile, requestImageVariantId } from './request-image.ts'
 
@@ -78,59 +79,6 @@ export interface Config {
   imageCompressionConcurrency?: number
 }
 
-function abortReason(signal: AbortSignal): Error {
-  const reason: unknown = signal.reason
-  return reason instanceof Error
-    ? reason
-    : new Error('Attachment request cancelled with a non-Error reason.', { cause: reason })
-}
-
-class SharedRequest<T> {
-  readonly controller = new AbortController()
-  readonly promise: Promise<T>
-  private settled = false
-  private waiters = 0
-
-  constructor(start: (signal: AbortSignal) => Promise<T>) {
-    this.promise = start(this.controller.signal).finally(() => {
-      this.settled = true
-    })
-  }
-
-  wait(signal?: AbortSignal): Promise<T> {
-    signal?.throwIfAborted()
-    this.waiters += 1
-    if (signal === undefined) {
-      return this.promise.finally(() => {
-        this.release(false)
-      })
-    }
-    let released = false
-    const release = (cancelled: boolean): void => {
-      if (released) return
-      released = true
-      this.release(cancelled, signal)
-    }
-    const cancelled = Promise.withResolvers<never>()
-    const abort = (): void => {
-      release(true)
-      cancelled.reject(abortReason(signal))
-    }
-    signal.addEventListener('abort', abort, { once: true })
-    return Promise.race([this.promise, cancelled.promise]).finally(() => {
-      signal.removeEventListener('abort', abort)
-      release(false)
-    })
-  }
-
-  private release(cancelled: boolean, signal?: AbortSignal): void {
-    this.waiters -= 1
-    if (cancelled && this.waiters === 0 && !this.settled && signal !== undefined) {
-      this.controller.abort(abortReason(signal))
-    }
-  }
-}
-
 /** Persistent content-addressed local attachment store. */
 export class LocalAttachmentStore extends AttachmentStore {
   static Config: z<Config> = z.object({
@@ -185,25 +133,31 @@ export class LocalAttachmentStore extends AttachmentStore {
     this.compression = new CompressionLimiter(compressionConcurrency)
   }
 
-  async validateImage(input: SaveImageAttachment): Promise<void> {
-    await this.compression.run(() => validateImageFile(input, this.imageLimits, this.normalizationPolicy))
+  async validateImage(input: SaveImageAttachment, signal?: AbortSignal): Promise<void> {
+    await this.compression.run(() => validateImageFile(input, this.imageLimits, this.normalizationPolicy, signal), signal)
   }
 
-  override async saveImages(inputs: readonly SaveImageAttachment[]): Promise<readonly ImageAttachmentRef[]> {
+  override async saveImages(inputs: readonly SaveImageAttachment[], signal?: AbortSignal): Promise<readonly ImageAttachmentRef[]> {
+    signal?.throwIfAborted()
     this.validateImageBatch(inputs)
-    const prepared = await Promise.all(inputs.map(input => this.compression.run(
-      () => prepareImageFile(input, this.imageLimits, this.normalizationPolicy),
-    )))
+    const preparations = inputs.map(input => this.compression.run(
+      () => prepareImageFile(input, this.imageLimits, this.normalizationPolicy, signal),
+      signal,
+    ))
+    await Promise.allSettled(preparations)
+    signal?.throwIfAborted()
+    const images = await Promise.all(preparations)
     const refs: ImageAttachmentRef[] = []
-    for (const image of prepared) refs.push(await commitPreparedImageFile(this.root, image))
+    for (const image of images) refs.push(await commitPreparedImageFile(this.root, image, signal))
     return refs
   }
 
-  async saveImage(input: SaveImageAttachment): Promise<ImageAttachmentRef> {
+  async saveImage(input: SaveImageAttachment, signal?: AbortSignal): Promise<ImageAttachmentRef> {
     const prepared = await this.compression.run(
-      () => prepareImageFile(input, this.imageLimits, this.normalizationPolicy),
+      () => prepareImageFile(input, this.imageLimits, this.normalizationPolicy, signal),
+      signal,
     )
-    return commitPreparedImageFile(this.root, prepared)
+    return commitPreparedImageFile(this.root, prepared, signal)
   }
 
   async readImage(ref: ImageAttachmentRef, signal?: AbortSignal): Promise<StoredImageAttachment> {
@@ -235,7 +189,7 @@ export class LocalAttachmentStore extends AttachmentStore {
             await this.readImage(ref, sharedSignal),
             policy,
             sharedSignal,
-          ))
+          ), sharedSignal)
         } finally {
           if (this.requestInflight.get(key)?.controller.signal === sharedSignal) {
             this.requestInflight.delete(key)

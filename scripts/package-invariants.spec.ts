@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   collectPackageInvariantViolations,
+  formatPackageInvariantViolation,
 } from './package-invariants.ts'
 
 const roots: string[] = []
@@ -33,6 +34,7 @@ function fixture(options: {
   invariantDependency?: boolean
   invariantReference?: boolean
   buildEntry?: boolean
+  publishedInvariant?: boolean
 } = {}): string {
   const root = mkdtempSync(join(tmpdir(), 'dsh-package-invariants-'))
   roots.push(root)
@@ -47,7 +49,7 @@ function fixture(options: {
         default: './lib/invariant.js',
       },
     },
-    files: ['lib/index.js', 'lib/invariant.js'],
+    files: options.publishedInvariant === false ? ['lib/index.js'] : ['lib/index.js', 'lib/invariant.js'],
     peerDependencies: options.invariantDependency === false ? {} : {
       '@deepseek-ai/dsh-invariants': 'workspace:^',
     },
@@ -92,6 +94,7 @@ describe('package invariant gate', () => {
       invariantDependency: false,
       invariantReference: false,
       buildEntry: false,
+      publishedInvariant: false,
     }))
     expect(violations.map(violation => violation.message)).toEqual(expect.arrayContaining([
       expect.stringContaining('exports["./invariant"]'),
@@ -99,6 +102,7 @@ describe('package invariant gate', () => {
       expect.stringContaining('devDependency'),
       expect.stringContaining('TypeScript project references'),
       expect.stringContaining('must bundle lib/types/invariant.js'),
+      'files must publish lib/invariant.js',
     ]))
   })
 
@@ -169,33 +173,116 @@ export const apply = (ctx: { invariants: { register(name: string, install: () =>
   it.each([
     'export default { name, inject, apply }',
     "export * as default from './probe.ts'",
+    'export { apply as default }',
+    'export default function invariantPlugin() {}',
+    'export default class InvariantPlugin {}',
+    'export default interface InvariantPlugin {}',
   ])('rejects a default export that would collapse the Loader namespace', (defaultExport) => {
     const source = `${handwrittenInvariant('@deepseek-ai/dsh-probe')}\n${defaultExport}\n`
     expect(collectPackageInvariantViolations(fixture({ source })).map(violation => violation.message))
       .toContain('must not default-export; Loader must retain the companion namespace')
   })
 
-  it('accepts explained empty installers and rejects unexplained ones', () => {
-    const explained = `
-export const name = 'probe-invariant'
-export const inject = ['invariants']
-const PACKAGE_NAME = '@deepseek-ai/dsh-probe'
-/** No runtime invariant: this pure package owns no events or mutable data. */
-const install = () => {}
-export const apply = (ctx: { invariants: { register(name: string, install: () => void): () => void } }) =>
-  ctx.invariants.register(PACKAGE_NAME, install)
-`
-    expect(collectPackageInvariantViolations(fixture({ source: explained }))).toEqual([])
+  it('rejects unnamed package ownership', () => {
+    expect(() => collectPackageInvariantViolations(fixture({ packageName: '' })))
+      .toThrow('packages/core/probe/package.json: package invariant owner must declare a package name')
+  })
 
-    const unexplained = `
+  it('requires the companion source even when publication metadata exists', () => {
+    const root = fixture()
+    rmSync(join(root, 'packages/core/probe/src/invariant.ts'))
+    expect(collectPackageInvariantViolations(root)).toEqual([{
+      path: 'packages/core/probe/src/invariant.ts',
+      message: 'missing package-owned invariant companion',
+    }])
+  })
+
+  it('accepts the registry package without a dependency on itself', () => {
+    const root = fixture({
+      packageName: '@deepseek-ai/dsh-invariants',
+      invariantDependency: false,
+      invariantReference: false,
+    })
+    rmSync(join(root, 'packages/core/probe/tsdown.config.ts'))
+    expect(collectPackageInvariantViolations(root)).toEqual([])
+  })
+
+  it('rejects missing invariant references despite cyclic and missing local projects', () => {
+    const root = fixture()
+    const dir = join(root, 'packages/core/probe')
+    mkdirSync(join(dir, 'leaf'))
+    writeFileSync(join(dir, 'tsconfig.json'), JSON.stringify({
+      references: [{}, { path: './missing.json' }, { path: './leaf' }],
+    }))
+    writeFileSync(join(dir, 'leaf/tsconfig.json'), JSON.stringify({
+      references: [{ path: '../tsconfig.json' }, { path: '../../../other-package' }],
+    }))
+    expect(collectPackageInvariantViolations(root)).toEqual([{
+      path: 'packages/core/probe/tsconfig.json',
+      message: 'TypeScript project references must include ../../runtime-diagnostics/invariants',
+    }])
+  })
+
+  it('reports absent project references when the config has no reference list', () => {
+    const root = fixture()
+    writeFileSync(join(root, 'packages/core/probe/tsconfig.json'), '{}')
+    expect(collectPackageInvariantViolations(root).map(violation => violation.message))
+      .toEqual(['TypeScript project references must include ../../runtime-diagnostics/invariants'])
+  })
+
+  it.each([
+    '',
+    'let install;',
+    'const install = importedInstaller;',
+    'const install = Object.assign();',
+    'const install = Object.assign(existingInstaller, {});',
+    'const install = Object.freeze(existingInstaller);',
+  ])('rejects an installer whose local checking function cannot be inspected: %s', (declaration) => {
+    const source = `
+export const name = 'probe-invariant'
+export const inject = ['invariants']
+${declaration}
+export const apply = (ctx) => ctx.invariants.register('@deepseek-ai/dsh-probe', install)
+`
+    expect(collectPackageInvariantViolations(fixture({ source })).map(violation => violation.message))
+      .toEqual(['must declare a local install function for package-owned checks'])
+  })
+
+  it('reports every missing Loader export and an argument-free registration', () => {
+    const source = 'ctx.invariants.register()\nexport {}\n;'
+    const root = fixture({ source })
+    const violations = collectPackageInvariantViolations(root)
+    expect(violations.map(violation => violation.message)).toEqual([
+      'line 1: ctx.invariants.register package name must resolve to a local string constant',
+      'line 1: ctx.invariants.register must use the checked local install function',
+      'must register exactly its own package name "@deepseek-ai/dsh-probe"; saw []',
+      'must named-export name',
+      'must named-export inject',
+      'must named-export apply',
+      'must declare a local install function for package-owned checks',
+    ])
+    expect(violations.map(violation => formatPackageInvariantViolation(root, violation)))
+      .toEqual(violations.map(violation => `packages/core/probe/src/invariant.ts: ${violation.message}`))
+  })
+
+  it.each([
+    ['empty arrow', 'const install = () => {}'],
+    ['commented empty arrow', '/** No runtime invariant: this pure package owns no events or mutable data. */\nconst install = () => {}'],
+    ['empty function', 'const install = function () {}'],
+    ['commented body', 'const install = () => { /* No runtime invariant: this package has no mutable state. */ }'],
+    ['injected empty arrow', "const install = Object.assign(() => {}, { inject: ['attachments'] })"],
+  ])('rejects %s without accepting comment-based exemptions', (_label, declaration) => {
+    const source = `
 export const name = 'probe-invariant'
 export const inject = ['invariants']
 const PACKAGE_NAME = '@deepseek-ai/dsh-probe'
-const install = () => {}
+${declaration}
 export const apply = (ctx: { invariants: { register(name: string, install: () => void): () => void } }) =>
   ctx.invariants.register(PACKAGE_NAME, install)
 `
-    expect(collectPackageInvariantViolations(fixture({ source: unexplained })).map(violation => violation.message))
-      .toContain('empty install function must explain why with a "No runtime invariant:" comment')
+    expect(collectPackageInvariantViolations(fixture({ source }))).toEqual([{
+      path: 'packages/core/probe/src/invariant.ts',
+      message: 'install function must enforce a package-owned runtime contract; empty installers are prohibited',
+    }])
   })
 })

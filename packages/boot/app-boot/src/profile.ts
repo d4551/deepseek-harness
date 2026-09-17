@@ -337,9 +337,6 @@ function ensureSymlink(link: string, target: string): void {
   } catch (error) {
     // Concurrent launches heal the same fallback; losing the race to a
     // process writing the identical link is success, anything else is not.
-    // The window between the lstat miss above and this write cannot be
-    // staged deterministically from the public API.
-    /* v8 ignore next 4 */
     if ((error as NodeJS.ErrnoException).code !== 'EEXIST'
       || !lstatSync(link).isSymbolicLink() || !symlinkPointsTo(link, target)) {
       throw error
@@ -353,9 +350,7 @@ function canonicalLinkPath(path: string): string | undefined {
     return join(realpathSync.native(dirname(path)), basename(path))
   } catch (error) {
     // A missing parent means the candidate cannot identify an existing owned link.
-    /* v8 ignore next 2 -- a non-ENOENT realpath failure requires a host filesystem fault */
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
-    /* v8 ignore next -- see the host-filesystem exception above */
     throw error
   }
 }
@@ -374,7 +369,6 @@ function ensureProfileSymlink(link: string, target: string): void {
     lstatSync(link)
     return
   } catch (error) {
-    /* v8 ignore next -- a non-ENOENT lstat failure requires a host filesystem fault */
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
   }
   ensureSymlink(link, target)
@@ -399,13 +393,11 @@ function removeProfileSymlink(profileModulesDir: string, ownedModulesDir: string
   try {
     if (lstatSync(profileLink).isSymbolicLink() && symlinkPointsTo(profileLink, ownedLink)) unlinkSync(profileLink)
   } catch (error) {
-    /* v8 ignore next -- a non-ENOENT lstat failure requires a host filesystem fault */
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
   }
   try {
     unlinkSync(ownedLink)
   } catch (error) {
-    /* v8 ignore next -- concurrent identical cleanup may remove the link first */
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
   }
 }
@@ -600,7 +592,6 @@ function resolveModuleFallbackEntries(
   const appManifest = readModuleFallbackManifest(installAnchor)
   const appPackage = resolvedPackage(dirname(installAnchor))
   const links = new Map<string, ResolvedPackage>()
-  /* v8 ignore next -- a real app manifest always declares its name */
   if (appManifest.name !== undefined) links.set(appManifest.name, appPackage)
   // BFS over the resolvable dependency graph; the visited set is the link
   // map itself (first resolution wins, matching Node's own nearest-wins).
@@ -611,7 +602,6 @@ function resolveModuleFallbackEntries(
     // Peer dependencies participate: Service Definition packages (dsh-subprocess,
     // dsh-compaction, ...) are peers of their implementations, never plain
     // dependencies, yet out-of-tree plugins import them directly.
-    /* v8 ignore next -- a real app manifest always declares dependencies */
     for (const dep of profileDependencyNames(next.manifest)) {
       if (links.has(dep)) continue
       // A declared-but-uninstalled dependency cannot be a loader-visible
@@ -728,16 +718,13 @@ function dependencyClosure(
   for (const anchor of anchors) {
     const canonicalAnchor = realpathSync.native(anchor)
     const manifest = readModuleFallbackManifest(canonicalAnchor)
-    /* v8 ignore next -- an installable package manifest always declares its name */
-    if (manifest.name === undefined) continue
-    if (!visited.has(manifest.name)) {
+    if (manifest.name !== undefined && !visited.has(manifest.name)) {
       visited.add(manifest.name)
       links.set(manifest.name, dirname(canonicalAnchor))
     }
     const queue: { anchor: string; manifest: ProfileManifest }[] = [{ anchor: canonicalAnchor, manifest }]
     for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
       // Service Provider packages commonly expose Service Definitions as peers.
-      /* v8 ignore next -- an installable package manifest always declares dependencies or peers */
       for (const dep of profileDependencyNames(next.manifest)) {
         if (visited.has(dep)) continue
         const dir = packageDirFromAnchor(next.anchor, dep, exclude)
@@ -770,9 +757,7 @@ function healProfileModuleFallback(profile: Profile, installationPackageNames: R
         && symlinkPointsTo(profileLink, join(ownedModulesDir, packageName))
     } catch (error) {
       // A concurrent cleanup may remove the projection after package discovery.
-      /* v8 ignore next 2 -- a non-ENOENT lstat failure requires a host filesystem fault */
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return true
-      /* v8 ignore next -- see the host-filesystem exception above */
       throw error
     }
   })
@@ -869,7 +854,6 @@ function packageDirFromAnchor(
   exclude: (candidate: string, packageName: string) => boolean = () => false,
 ): string | undefined {
   // resolve.paths returns null only for builtins, which no bundle name is.
-  /* v8 ignore next */
   for (const searchPath of createRequire(anchor).resolve.paths(packageName) ?? []) {
     const candidate = join(searchPath, packageName)
     if (existsSync(join(candidate, 'package.json')) && !exclude(candidate, packageName)) return candidate

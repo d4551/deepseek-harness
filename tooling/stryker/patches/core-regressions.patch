@@ -1,0 +1,480 @@
+diff --git a/test/integration/child-timeout/child.mjs b/test/integration/child-timeout/child.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/child-timeout/child.mjs
+@@ -0,0 +1,9 @@
++import { appendFileSync } from 'node:fs'
++import { INSTRUMENTER_CONSTANTS } from '@stryker-mutator/api/core'
++import { shouldExit, value } from './subject.mjs'
++
++appendFileSync(process.env.DSH_RUNNER_OWNERSHIP_LOG, `${JSON.stringify({ child: process.pid, worker: process.ppid, activeMutant: process.env[INSTRUMENTER_CONSTANTS.ACTIVE_MUTANT_ENV_VARIABLE] ?? null })}\n`)
++while (!shouldExit()) {
++  Math.sqrt(process.uptime())
++}
++process.stdout.write(JSON.stringify({ value: value(), source: import.meta.resolve('./subject.mjs') }))
+diff --git a/test/integration/child-timeout/child.spec.mjs b/test/integration/child-timeout/child.spec.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/child-timeout/child.spec.mjs
+@@ -0,0 +1,11 @@
++import { execFileSync } from 'node:child_process'
++import { fileURLToPath } from 'node:url'
++import { expect, test } from 'vitest'
++
++test('real owned child returns the source value', () => {
++  const result = JSON.parse(execFileSync(process.execPath, [
++    fileURLToPath(new URL('./child.mjs', import.meta.url)),
++  ], { encoding: 'utf8' }))
++  expect(result.source).toBe(new URL('./subject.mjs', import.meta.url).href)
++  expect(result.value).toBe(5)
++})
+diff --git a/test/integration/child-timeout/package.json b/test/integration/child-timeout/package.json
+new file mode 100644
+--- /dev/null
++++ b/test/integration/child-timeout/package.json
+@@ -0,0 +1 @@
++{"private":true,"type":"module"}
+diff --git a/test/integration/child-timeout/stryker.config.mjs b/test/integration/child-timeout/stryker.config.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/child-timeout/stryker.config.mjs
+@@ -0,0 +1,18 @@
++import { fileURLToPath } from 'node:url'
++
++export default {
++  testRunner: 'vitest',
++  plugins: [fileURLToPath(new URL('../../../../vitest-runner/dist/src/index.js', import.meta.url))],
++  vitest: { configFile: 'vitest.config.mjs', related: false },
++  mutate: ['subject.mjs'],
++  testFiles: ['child.spec.mjs'],
++  coverageAnalysis: 'off',
++  disableTypeChecks: false,
++  thresholds: { high: 100, low: 99, break: 99 },
++  concurrency: 1,
++  timeoutMS: 1000,
++  timeoutFactor: 1.5,
++  reporters: ['clear-text', 'json', 'event-recorder'],
++  jsonReporter: { fileName: 'reports/mutation.json' },
++  eventReporter: { baseDir: 'reports/events' },
++}
+diff --git a/test/integration/child-timeout/subject.mjs b/test/integration/child-timeout/subject.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/child-timeout/subject.mjs
+@@ -0,0 +1,2 @@
++export function shouldExit() { return true }
++export function value() { return 2 + 3 }
+diff --git a/test/integration/child-timeout/verify.mjs b/test/integration/child-timeout/verify.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/child-timeout/verify.mjs
+@@ -0,0 +1,38 @@
++import assert from 'node:assert/strict'
++import { spawnSync } from 'node:child_process'
++import { readFileSync, writeFileSync } from 'node:fs'
++import { fileURLToPath } from 'node:url'
++
++const directory = fileURLToPath(new URL('.', import.meta.url))
++const ownershipLog = fileURLToPath(new URL('./owners.jsonl', import.meta.url))
++writeFileSync(ownershipLog, '')
++const environment = { ...process.env, DSH_RUNNER_OWNERSHIP_LOG: ownershipLog }
++try {
++  const run = spawnSync(process.execPath, [fileURLToPath(new URL('../../../bin/stryker.js', import.meta.url)), 'run'], {
++    cwd: directory, env: environment, encoding: 'utf8', timeout: 60000,
++  })
++  writeFileSync(new URL('./stryker.log', import.meta.url), `${run.stdout}${run.stderr}`)
++  assert.equal(run.error, undefined)
++  assert.equal(run.status, 0)
++  const report = JSON.parse(readFileSync(new URL('./reports/mutation.json', import.meta.url), 'utf8'))
++  const mutants = Object.values(report.files).flatMap(file => file.mutants)
++  assert.equal(mutants.length, 4)
++  assert.equal(mutants.filter(mutant => mutant.status === 'Timeout').length, 2)
++  assert.equal(mutants.filter(mutant => mutant.status === 'Killed').length, 2)
++  const owners = readFileSync(ownershipLog, 'utf8').trim().split('\n').map(line => JSON.parse(line))
++  for (const pid of new Set(owners.flatMap(owner => [owner.child, owner.worker]))) {
++    assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' }, `owned process ${pid} must be gone after mutation`)
++  }
++  const baseline = spawnSync(process.execPath, [fileURLToPath(new URL('../../../../../node_modules/vitest/vitest.mjs', import.meta.url)), 'run', '--config', 'vitest.config.mjs'], {
++    cwd: directory, env: environment, encoding: 'utf8', timeout: 30000,
++  })
++  writeFileSync(new URL('./baseline.log', import.meta.url), `${baseline.stdout}${baseline.stderr}`)
++  assert.equal(baseline.error, undefined)
++  assert.equal(baseline.status, 0)
++  console.log('All four mutations classified; timed-out child and worker owners are gone; subsequent original baseline passes.')
++} finally {
++  const owners = readFileSync(ownershipLog, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line))
++  for (const pid of new Set(owners.flatMap(owner => [owner.child, owner.worker]))) {
++    if (spawnSync('kill', ['-0', String(pid)]).status === 0) process.kill(pid, 'SIGKILL')
++  }
++}
+diff --git a/test/integration/child-timeout/vitest.config.mjs b/test/integration/child-timeout/vitest.config.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/child-timeout/vitest.config.mjs
+@@ -0,0 +1,14 @@
++import { fileURLToPath } from 'node:url'
++import { defineConfig } from 'vitest/config'
++
++export default defineConfig({
++  root: fileURLToPath(new URL('.', import.meta.url)),
++  cacheDir: fileURLToPath(new URL('./.cache/vite', import.meta.url)),
++  test: {
++    pool: 'forks',
++    isolate: true,
++    maxWorkers: 1,
++    fsModuleCachePath: fileURLToPath(new URL('./.cache/modules', import.meta.url)),
++    include: ['child.spec.mjs'],
++  },
++})
+diff --git a/test/integration/reporter-registry/negative.ts b/test/integration/reporter-registry/negative.ts
+new file mode 100644
+--- /dev/null
++++ b/test/integration/reporter-registry/negative.ts
+@@ -0,0 +1,6 @@
++import { createInjector } from 'typed-inject';
++import { strykerPlugins } from '../../../dist/src/reporters/index.js';
++const reporter = strykerPlugins.find(plugin => plugin.name === 'clear-text');
++if (!reporter || !('injectableClass' in reporter)) throw new Error('Expected real clear-text reporter');
++const instance = createInjector().injectClass(reporter.injectableClass);
++console.log(instance);
+diff --git a/test/integration/reporter-registry/positive.ts b/test/integration/reporter-registry/positive.ts
+new file mode 100644
+--- /dev/null
++++ b/test/integration/reporter-registry/positive.ts
+@@ -0,0 +1,27 @@
++import assert from 'node:assert/strict';
++import { createInjector } from 'typed-inject';
++import { strykerPlugins } from '../../../dist/src/reporters/index.js';
++import { ClearTextReporter } from '../../../dist/src/reporters/clear-text-reporter.js';
++import { HtmlReporter } from '../../../dist/src/reporters/html-reporter.js';
++import { JsonReporter } from '../../../dist/src/reporters/json-reporter.js';
++import { LoggingBackend } from '../../../dist/src/logging/logging-backend.js';
++import { LoggerImpl } from '../../../dist/src/logging/logger-impl.js';
++import { createDefaultOptions } from '../../../dist/src/config/options-validator.js';
++const backend = new LoggingBackend(process.stdout);
++const logger = new LoggerImpl('registry-consumer', backend);
++const injector = createInjector().provideValue('logger', logger).provideValue('options', createDefaultOptions());
++try {
++  assert.equal(strykerPlugins.length, 8);
++  assert.ok('inject' in strykerPlugins[0].injectableClass);
++  assert.deepEqual(strykerPlugins[0].injectableClass.inject, ClearTextReporter.inject);
++  assert.ok('inject' in strykerPlugins[5].injectableClass);
++  assert.deepEqual(strykerPlugins[5].injectableClass.inject, HtmlReporter.inject);
++  assert.ok('inject' in strykerPlugins[6].injectableClass);
++  assert.deepEqual(strykerPlugins[6].injectableClass.inject, JsonReporter.inject);
++  assert.ok(injector.injectClass(strykerPlugins[0].injectableClass) instanceof ClearTextReporter);
++  assert.ok(injector.injectClass(strykerPlugins[5].injectableClass) instanceof HtmlReporter);
++  assert.ok(injector.injectClass(strykerPlugins[6].injectableClass) instanceof JsonReporter);
++} finally {
++  await injector.dispose();
++  await backend.dispose();
++}
+diff --git a/test/integration/reporter-registry/tsconfig.negative.json b/test/integration/reporter-registry/tsconfig.negative.json
+new file mode 100644
+--- /dev/null
++++ b/test/integration/reporter-registry/tsconfig.negative.json
+@@ -0,0 +1,16 @@
++{
++  "compilerOptions": {
++    "strict": true,
++    "skipLibCheck": false,
++    "noEmit": true,
++    "module": "Node16",
++    "target": "es2022",
++    "types": [
++      "node"
++    ],
++    "resolveJsonModule": true
++  },
++  "files": [
++    "negative.ts"
++  ]
++}
+diff --git a/test/integration/reporter-registry/tsconfig.positive.json b/test/integration/reporter-registry/tsconfig.positive.json
+new file mode 100644
+--- /dev/null
++++ b/test/integration/reporter-registry/tsconfig.positive.json
+@@ -0,0 +1,16 @@
++{
++  "compilerOptions": {
++    "strict": true,
++    "skipLibCheck": false,
++    "noEmit": true,
++    "module": "Node16",
++    "target": "es2022",
++    "types": [
++      "node"
++    ],
++    "resolveJsonModule": true
++  },
++  "files": [
++    "positive.ts"
++  ]
++}
+diff --git a/test/integration/reporter-registry/verify.mjs b/test/integration/reporter-registry/verify.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/reporter-registry/verify.mjs
+@@ -0,0 +1,26 @@
++import assert from 'node:assert/strict';
++import { spawnSync } from 'node:child_process';
++import { writeFileSync } from 'node:fs';
++import { fileURLToPath } from 'node:url';
++const compiler = fileURLToPath(new URL('./bin/tsc', import.meta.resolve('typescript/package.json')));
++for (const [kind, expectedStatus] of [['positive', 0], ['negative', 1]]) {
++  const result = spawnSync(process.execPath, [compiler, '-p', `tsconfig.${kind}.json`, '--pretty', 'false'], { encoding: 'utf8' });
++  writeFileSync(`${kind}-types.log`, result.stdout + result.stderr);
++  assert.equal(result.error, undefined);
++  assert.equal(result.signal, null);
++  assert.equal(result.status, expectedStatus, result.stdout + result.stderr);
++  assert.equal(result.stderr, '');
++  if (expectedStatus === 0) assert.equal(result.stdout, '');
++  else {
++    const errors = result.stdout.split('\n').filter(line => /error TS\d+:/.test(line));
++    assert.equal(errors.length, 1, result.stdout);
++    assert.ok(errors[0].startsWith('negative.ts(5,47): error TS2345:'), result.stdout);
++  }
++}
++const execution = spawnSync(process.execPath, ['positive.ts'], { encoding: 'utf8' });
++writeFileSync('positive-runtime.log', execution.stdout + execution.stderr);
++assert.equal(execution.error, undefined);
++assert.equal(execution.signal, null);
++assert.equal(execution.status, 0, execution.stdout + execution.stderr);
++assert.equal(execution.stderr, '');
++console.log('Positive real DI consumer compiles and executes; empty injector rejects at the exact call with no extra diagnostics.');
+diff --git a/test/integration/static-test-files/child.mjs b/test/integration/static-test-files/child.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/static-test-files/child.mjs
+@@ -0,0 +1,3 @@
++import { value } from './subject.mjs'
++
++process.stdout.write(JSON.stringify({ value: value(), source: import.meta.resolve('./subject.mjs') }))
+diff --git a/test/integration/static-test-files/package.json b/test/integration/static-test-files/package.json
+new file mode 100644
+--- /dev/null
++++ b/test/integration/static-test-files/package.json
+@@ -0,0 +1,5 @@
++{
++  "name": "stryker-static-test-files-regression",
++  "private": true,
++  "type": "module"
++}
+diff --git a/test/integration/static-test-files/static.spec.mjs b/test/integration/static-test-files/static.spec.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/static-test-files/static.spec.mjs
+@@ -0,0 +1,13 @@
++import { execFileSync } from 'node:child_process'
++import { fileURLToPath } from 'node:url'
++import { expect, test } from 'vitest'
++import { value } from './subject.mjs'
++
++const initialValue = value()
++const child = JSON.parse(execFileSync(process.execPath, [fileURLToPath(new URL('./child.mjs', import.meta.url))], { encoding: 'utf8' }))
++
++test('static parent and fresh child imports retain their value', () => {
++  expect(initialValue).toBe(5)
++  expect(child.value).toBe(5)
++  expect(child.source).toBe(new URL('./subject.mjs', import.meta.url).href)
++})
+diff --git a/test/integration/static-test-files/stryker.config.mjs b/test/integration/static-test-files/stryker.config.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/static-test-files/stryker.config.mjs
+@@ -0,0 +1,16 @@
++import { fileURLToPath } from 'node:url'
++
++export default {
++  testRunner: 'vitest',
++  plugins: [fileURLToPath(new URL('../../../../vitest-runner/dist/src/index.js', import.meta.url))],
++  vitest: { configFile: 'vitest.config.mjs', related: false },
++  mutate: ['subject.mjs'],
++  testFiles: ['static.spec.mjs'],
++  coverageAnalysis: 'off',
++  disableTypeChecks: false,
++  thresholds: { high: 100, low: 99, break: 99 },
++  concurrency: 1,
++  reporters: ['clear-text', 'json', 'event-recorder'],
++  jsonReporter: { fileName: 'reports/mutation.json' },
++  eventReporter: { baseDir: 'reports/events' },
++}
+diff --git a/test/integration/static-test-files/subject.mjs b/test/integration/static-test-files/subject.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/static-test-files/subject.mjs
+@@ -0,0 +1,3 @@
++export function value() {
++  return 2 + 3
++}
+diff --git a/test/integration/static-test-files/vitest.config.mjs b/test/integration/static-test-files/vitest.config.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/static-test-files/vitest.config.mjs
+@@ -0,0 +1,14 @@
++import { fileURLToPath } from 'node:url'
++import { defineConfig } from 'vitest/config'
++
++export default defineConfig({
++  root: fileURLToPath(new URL('.', import.meta.url)),
++  cacheDir: fileURLToPath(new URL('./.cache/vite', import.meta.url)),
++  test: {
++    pool: 'forks',
++    isolate: true,
++    maxWorkers: 1,
++    fsModuleCachePath: fileURLToPath(new URL('./.cache/modules', import.meta.url)),
++    include: ['static.spec.mjs'],
++  },
++})
+diff --git a/test/integration/tsconfig-jsonc.test.mjs b/test/integration/tsconfig-jsonc.test.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/integration/tsconfig-jsonc.test.mjs
+@@ -0,0 +1,147 @@
++import assert from 'node:assert/strict';
++import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
++import path from 'node:path';
++import { test } from 'node:test';
++import { TSConfigPreprocessor } from '../../dist/src/sandbox/ts-config-preprocessor.js';
++import { Project } from '../../dist/src/fs/project.js';
++import { FileSystem } from '../../dist/src/fs/file-system.js';
++import { LoggerImpl } from '../../dist/src/logging/logger-impl.js';
++import { LoggingBackend } from '../../dist/src/logging/logging-backend.js';
++
++const invalid = [
++  ['missing closing brace', '{"files": ["index.ts"]', /CloseBraceExpected/],
++  ['BOM followed by missing closing brace', '\uFEFF{"files": []', /CloseBraceExpected at offset 13, length 0/],
++  ['missing comma', '{"files": [] "include": []}', /CommaExpected/],
++  ['unfinished comment', '{"files": []} /* unfinished', /UnexpectedEndOfComment/],
++  ['additional root', '{} {}', /EndOfFileExpected/],
++  ['empty input', '', /ValueExpected/],
++  ['null root', 'null', /root must be an object/],
++  ['array root', '[]', /root must be an object/],
++  ['boolean root', 'false', /root must be an object/],
++  ['string root', '"config"', /root must be an object/],
++  ['invalid files', '{"files": [1]}', /files must be an array of strings/],
++  ['invalid include', '{"include": "src"}', /include must be an array of strings/],
++  ['invalid exclude', '{"exclude": [null]}', /exclude must be an array of strings/],
++  ['invalid extends', '{"extends": 1}', /extends must be a string or an array of strings/],
++  ['invalid extends member', '{"extends": ["base", 1]}', /extends must be a string or an array of strings/],
++  ['invalid references', '{"references": {"path":"base"}}', /references must be an array/],
++  ['invalid reference entry', '{"references": [null]}', /references\[0\] must be an object with a string path/],
++  ['invalid reference path', '{"references": [{"path":1}]}', /references\[0\] must be an object with a string path/],
++  ['missing reference path', '{"references": [{}]}', /references\[0\] must be an object with a string path/],
++  ['inherited reference path', '{"references": [{"__proto__":{"path":"base"}}]}', /references\[0\] must be an object with a string path/],
++  ['invalid compiler options', '{"compilerOptions": []}', /compilerOptions must be an object/],
++];
++
++for (const [name, content, diagnostic] of invalid) {
++  test(`rejects ${name} without rewriting the project`, async () => {
++    const directory = await mkdtemp(path.join(process.cwd(), '.jsonc-invalid-'));
++    const fileName = path.join(directory, 'tsconfig.json');
++    const fs = new FileSystem();
++    const logging = new LoggingBackend(process.stdout);
++    try {
++      await writeFile(fileName, content);
++      const project = new Project(fs, { [fileName]: { mutate: false } });
++      const preprocessor = new TSConfigPreprocessor(new LoggerImpl('jsonc-regression', logging), {
++        inPlace: false, tsconfigFile: fileName,
++      });
++      await assert.rejects(preprocessor.preprocess(project), error => {
++        assert.ok(error instanceof Error);
++        assert.ok(error.message.includes(fileName));
++        assert.match(error.message, diagnostic);
++        return true;
++      });
++      assert.equal(await project.files.get(fileName).readContent(), content);
++      assert.equal(await readFile(fileName, 'utf8'), content);
++    } finally {
++      fs.dispose();
++      await logging.dispose();
++      await rm(directory, { recursive: true, force: true });
++    }
++  });
++}
++
++test('preserves BOM, JSONC semantics, ordered multiple extends, project references, and unrelated fields', async () => {
++  const directory = await mkdtemp(path.join(process.cwd(), '.jsonc-valid-'));
++  const fileName = path.join(directory, 'tsconfig.json');
++  const baseName = path.join(directory, 'base.json');
++  const modelName = path.join(directory, 'model/tsconfig.json');
++  const fs = new FileSystem();
++  const logging = new LoggingBackend(process.stdout);
++  const content = `\uFEFF{
++    // Both TypeScript JSONC extensions are intentional.
++    "extends": ["./base.json", "../../../external/base.json",],
++    "references": [{"path":"./model", "prepend":false}, {"path":"../../../external/model"},],
++    "files": ["local.ts", "../../outside.ts",],
++    "include": ["src/**", "../../outside/**"],
++    "exclude": ["build", "../../excluded/**"],
++    "compilerOptions": {"strict":true, "paths":{"pkg":["./pkg"]},},
++    "watchOptions": {"watchFile":"useFsEvents"},
++    "__proto__": {"retained":true, "files":[1]},
++  }`;
++  const base = '{"extends":"./tsconfig.json", "compilerOptions":{"target":"esnext"}}';
++  const model = '{"files":["../../../external/model.ts"], "references":[]}';
++  try {
++    await mkdir(path.dirname(modelName));
++    await writeFile(fileName, content);
++    await writeFile(baseName, base);
++    await writeFile(modelName, model);
++    const project = new Project(fs, Object.fromEntries(
++      [fileName, baseName, modelName].map(name => [name, { mutate: false }]),
++    ));
++    await new TSConfigPreprocessor(new LoggerImpl('jsonc-regression', logging), {
++      inPlace: false, tsconfigFile: fileName,
++    }).preprocess(project);
++    assert.deepEqual(JSON.parse(await project.files.get(fileName).readContent()), JSON.parse(`{
++      "extends":["./base.json", "../../../../../external/base.json"],
++      "references":[{"path":"./model", "prepend":false}, {"path":"../../../../../external/model/tsconfig.json"}],
++      "files":["local.ts", "../../../../outside.ts"],
++      "include":["src/**", "../../../../outside/**"],
++      "exclude":["build", "../../../../excluded/**"],
++      "compilerOptions":{"strict":true, "paths":{"pkg":["./pkg"]}},
++      "watchOptions":{"watchFile":"useFsEvents"},
++      "__proto__":{"retained":true, "files":[1]}
++    }`));
++    assert.deepEqual(JSON.parse(await project.files.get(baseName).readContent()), JSON.parse(base));
++    assert.deepEqual(JSON.parse(await project.files.get(modelName).readContent()), {
++      files: ['../../../../../external/model.ts'], references: [],
++    });
++    assert.equal(await readFile(fileName, 'utf8'), content);
++    assert.equal(await readFile(baseName, 'utf8'), base);
++    assert.equal(await readFile(modelName, 'utf8'), model);
++  } finally {
++    fs.dispose();
++    await logging.dispose();
++    await rm(directory, { recursive: true, force: true });
++  }
++});
++
++test('rejects a malformed referenced config with its own source location', async () => {
++  const directory = await mkdtemp(path.join(process.cwd(), '.jsonc-reference-'));
++  const fileName = path.join(directory, 'tsconfig.json');
++  const referenceName = path.join(directory, 'model.json');
++  const fs = new FileSystem();
++  const logging = new LoggingBackend(process.stdout);
++  const content = '{"references":[{"path":"./model.json"}]}';
++  const malformed = '{"files": []';
++  try {
++    await writeFile(fileName, content);
++    await writeFile(referenceName, malformed);
++    const project = new Project(fs, {
++      [fileName]: { mutate: false }, [referenceName]: { mutate: false },
++    });
++    await assert.rejects(new TSConfigPreprocessor(new LoggerImpl('jsonc-regression', logging), {
++      inPlace: false, tsconfigFile: fileName,
++    }).preprocess(project), error => {
++      assert.ok(error instanceof Error);
++      assert.ok(error.message.includes(referenceName));
++      assert.match(error.message, /CloseBraceExpected at offset 12, length 0/);
++      return true;
++    });
++    assert.equal(await project.files.get(fileName).readContent(), content);
++    assert.equal(await project.files.get(referenceName).readContent(), malformed);
++  } finally {
++    fs.dispose();
++    await logging.dispose();
++    await rm(directory, { recursive: true, force: true });
++  }
++});

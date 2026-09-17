@@ -1,0 +1,11 @@
+{
+  "name": "dsh-typescript-ast-build",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@types/node": "26.4.0",
+    "dprint": "0.57.4",
+    "execa": "10.0.1",
+    "typescript": "7.0.2"
+  }
+}

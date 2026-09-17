@@ -98,13 +98,16 @@ function initialDimensions(detected: DetectedImage, policy: NormalizationPolicy)
  * @param data - complete admitted source bytes.
  * @param detected - fully decoded source facts.
  * @param policy - resolved independent normalization limits.
+ * @param signal - cancellation between owned native transformations; active work settles before rejection.
  * @returns verified provider-independent normalized bytes and metadata.
  */
 export async function normalizeImage(
   data: Uint8Array,
   detected: DetectedImage,
   policy: NormalizationPolicy,
+  signal?: AbortSignal,
 ): Promise<NormalizedImage> {
+  signal?.throwIfAborted()
   if (canPassThroughNormalization(detected, data.byteLength, policy)) {
     return { data, mediaType: detected.mediaType, width: detected.width, height: detected.height }
   }
@@ -113,10 +116,14 @@ export async function normalizeImage(
     const encoded = await encodeFirstWithinLimit(
       encodingLadder(preparedPipeline(data, width, height), detected.hasAlpha),
       policy.maxBytes,
+      signal,
     )
     const chosen = isExhaustedEncoding(encoded) ? encoded.smallest : encoded
-    return await verifyNormalizedImage(chosen, detected.mediaType === 'image/gif' ? undefined : detected.hasAlpha)
+    const verified = await verifyNormalizedImage(chosen, detected.mediaType === 'image/gif' ? undefined : detected.hasAlpha)
+    signal?.throwIfAborted()
+    return verified
   } catch (error) {
+    signal?.throwIfAborted()
     if (error instanceof AttachmentError) throw error
     const source = detected.mediaType === 'image/png' && detected.depth !== 'uchar'
       ? `${detected.depth === 'ushort' ? '16-bit' : detected.depth} PNG`

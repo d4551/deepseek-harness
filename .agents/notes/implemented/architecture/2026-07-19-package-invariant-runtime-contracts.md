@@ -16,18 +16,19 @@ Some packages genuinely own no continuously observable relation. Pure utilities,
 
 ### Registration is exhaustive; assertions must be meaningful
 
-Every workspace package publishes a separately built `./invariant` companion and registers its exact npm package name. A companion does one of two things:
+Every workspace package publishes a separately built `./invariant` companion and registers its exact npm package name. An executable companion installs a package-owned check over an event stream or relevant mutable data structure and reports violations through its bound `fail(message)` reporter.
 
-- installs a package-owned check over an event stream or relevant mutable data structure and reports violations through its bound `fail(message)` reporter; or
-- uses an empty installer whose declaration has an owner-specific `No runtime invariant:` comment explaining why the package has no plausible runtime relation to observe.
+### Removed empty-installer allowance
 
-The empty form is an explicit architectural conclusion, not a generated placeholder. A future package change that introduces mutable state or an event protocol must replace the explanation with the corresponding check.
+The original decision permitted an empty installer with an owner-specific `No runtime invariant:` comment when the package had no plausible runtime relation to observe. This avoided synthetic assertions and required reconsideration when mutable state or an event protocol appeared.
+
+[Reject empty invariant installers](../process/2026-09-16-reject-empty-invariant-installers.md) removes that allowance under the repository's no-op prohibition. Empty installers fail the gate regardless of comments; the meaningful-check requirements in this note remain current.
 
 The central `dsh-invariants` service owns only configuration, registration uniqueness, child-fiber lifecycle, rollback, disposal, and package-attributed failure. It exposes no generic plugin-shape, service-shape, or startup-assertion helpers and imports no product package.
 
 ### Implemented checks
 
-The current 103-package workspace has 21 executable companions and 82 justified empty companions.
+The following companions illustrate the owned relationships checked at runtime; the complete package gate discovers the current workspace directly from its manifests.
 
 | Owner | Runtime relationship |
 |---|---|
@@ -57,7 +58,7 @@ Session-backed companions validate existing durable events when they load, using
 
 ### Repository gate and tests
 
-`verify-package-invariants` discovers every workspace package and enforces companion source, exact-name registration, named-only Loader shape, `./invariant` exports, publication files, dependencies, TypeScript references, and bundle entries. Its AST rule rejects generated markers, default exports, and unexplained empty installers. A non-empty installer must accept and use the failure reporter, and registration must pass that checked local `install` function. The gate deliberately does not infer semantic quality from method names or helper calls.
+`verify-package-invariants` discovers every workspace package and enforces companion source, exact-name registration, named-only Loader shape, `./invariant` exports, publication files, dependencies, TypeScript references, and bundle entries. Its AST rule rejects generated markers, default exports, and every empty installer. A non-empty installer must accept and use the failure reporter, and registration must pass that checked local `install` function. The gate deliberately does not infer semantic quality from method names or helper calls.
 
 Vitest mounts `InvariantRegistry` with `{ enabled: true }` for every package test topology and loads the owning companion. The invariant subpath path mapping resolves source companions instead of stale built output. Focused suites cover every executable companion's valid and invalid observations, and the exhaustive topology runs every source companion through the real Loader namespace normalization. After the structural gate validates each publication map, an artifact gate stages its manifest-declared `lib/` files, imports the compiled `./invariant` self-reference under plain Node, and repeats that Loader-shape check, so a companion that imports an undeclared runtime chunk fails before release. Tests that synthesize event streams must produce a valid surrounding lifecycle unless the test is intentionally asserting a violation.
 
@@ -72,7 +73,7 @@ Vitest mounts `InvariantRegistry` with `{ enabled: true }` for every package tes
 ## Consequences
 
 - Every package has visible ownership and publication wiring, but only packages with a plausible runtime relation add listeners or trace state.
-- Empty companions remain reviewable decisions with package-specific explanations and fail the gate if the explanation is removed.
+- Empty companions fail the gate, including those with package-specific explanations; their missing checks remain implementation debt.
 - Type declarations, Cordis loadability, plugin metadata, service method APIs, and pure algebra remain covered by their owning compile, load, unit, or integration gates.
 - Runtime failures identify the owning npm package and point to an inconsistent observation rather than restating a required API shape.
 - The original selection, blocklist precedence, duplicate ownership, rollback, disposal, and HMR service contracts remain unchanged.

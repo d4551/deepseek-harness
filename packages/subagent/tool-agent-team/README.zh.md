@@ -25,7 +25,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-当模型应该通过工具运行一支团队时，在 `@deepseek-ai/dsh-agent-team` 之上挂载本包。挂载后，每个团队成员——Lead 与每个 teammate——都会获得相同的十一个工具，外加一段说明自身角色与名字的策略段落。
+当模型应该通过工具运行一支团队时，在 `@deepseek-ai/dsh-agent-team` 之上挂载本包。每个获准的团队成员——Lead 与每个 teammate——都会获得相同的十一个工具，外加一段说明自身角色与名字的策略段落。使用 `excludePresets` 所列 preset 的成员两者都不会获得。
 
 ### 何时选择
 
@@ -51,6 +51,8 @@ kind: "package-reference"
 | `excludePresets` | `[]` | 其 Agent 保持 preset 自身精确工具集、不接收 Team 工具的 agent preset id |
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-tool-agent-team)是每个受支持字段及其 JSDoc 的穷尽式真源。
+
+Preset 准入依据 Agent 的实时组合。更改空白会话的组合会在下一次工具执行前移除或恢复 Team 注册，即使创建时的 header 仍记录原 preset。移除前已准备好的 Team 调用会在派发前被拒绝，无法修改任务板。配置了 preset 限制时，尚未完成组合的 Agent 不会获得 Team 工具。没有 preset 服务的部署使用会话 header。
 
 如果每种请求的上下文模式都恰好有一个已注册 provider 支持，可以省略 provider 设置。多个 provider 匹配时，必须明确指定。provider 缺失或上下文不匹配会在保留 teammate 名字或占用容量之前拒绝创建。
 
@@ -109,7 +111,7 @@ kind: "package-reference"
 
 ### 按作用域注册与拆除
 
-`maybeInstall` 对每个 live Agent 运行，并订阅 `agent/created`；它跳过没有 Team 成员关系的 Agent。Agent dispose 会运行已安装的 disposer，插件 HMR 会在重新安装前处置每个已安装的 scope。每个 disposer 按逆序展开注册，因此失败的安装不会留下残缺 scope。
+注册在 Agent 创建及工具注册表变更时依据 Team 成员关系和实时 preset 更新。重入的注册通知不会为同一个 Agent 重复安装。Agent 处置会移除其注册；插件 HMR 会移除所有已安装的 scope，卸载期间不会重新安装。每个 disposer 按逆序展开注册，因此失败的安装不会留下残缺 scope。
 
 </details>
 

@@ -219,7 +219,7 @@ export function gatesForMode(selected: Mode): Gate[] {
         bunScript('duplication', 'duplication'),
       ]
     case 'ci-coverage':
-      return coverageGates()
+      return [ciBuildGate(), ...coverageGates()]
     case 'ci-snapshot':
       return [ciBuildGate(), snapshotGate()]
     case 'ci-artifacts':
@@ -239,14 +239,14 @@ export function gatesForMode(selected: Mode): Gate[] {
         bunScript('runtime-closure', 'verify-runtime-closure', { label: 'runtime closure' }),
         bunScript('cordis-config', 'verify-cordis-config', { label: 'Cordis config' }),
         bunScript('client-domain-graph', 'verify-client-domain-graph', { label: 'client domain graph' }),
-        bunScript('test', 'test'),
+        bunScript('test', 'test', { needs: ['build', 'build:web'] }),
         bunScript('issue-management', 'test:issue-management', { label: 'Issue management policy' }),
         bunScript('duplication', 'duplication'),
         bunScript('mutation', 'mutation', { label: 'mutation score (util tier)' }),
         snapshotGate(),
         expectedOutputGate(),
         bunScript('build', 'build'),
-        bunScript('build:web', 'build:web'),
+        bunScript('build:web', 'build:web', { needs: ['build'] }),
         ...hygieneLeafGates({ artifactNeeds: ['build'] }),
         ...docSyncLeafGates({
           docTypecheckNeeds: ['build'],
@@ -526,10 +526,7 @@ function ciWindowsBlockingGates(): Gate[] {
 }
 
 function ciWindowsCompleteGates(): Gate[] {
-  const coverage = coverageGates().map(gate => ({
-    ...gate,
-    needs: [...new Set(['build', ...(gate.needs ?? [])])],
-  }))
+  const coverage = coverageGates()
   const coverageAfter = coverage.map(gate => gate.id)
   const observational = ciWindowsObservationalGates()
     // The required production site replaces the observational MPA build; both
@@ -600,6 +597,7 @@ function coverageGates(): Gate[] {
     ...timeouts,
   ], {
     label: 'test:coverage',
+    needs: ['build'],
   })]
 }
 

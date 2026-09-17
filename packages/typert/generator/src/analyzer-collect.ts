@@ -267,8 +267,6 @@ function collectServices(face: FaceContext, context: InterfaceDeclaration, recor
   }
   const result: ServiceModel[] = []
   for (const member of context.members) {
-    // TS7 declares PropertySignatureDeclaration.type non-optional; an unannotated member parses with none.
-    // oxlint-disable-next-line typescript/no-unnecessary-condition
     if (!isPropertySignatureDeclaration(member) || member.type === undefined) continue
     if (member.postfixToken !== undefined
       || (isUnionTypeNode(member.type) && member.type.types.some(node => node.kind === SyntaxKind.UndefinedKeyword))) continue
@@ -374,8 +372,6 @@ function collectEvents(face: FaceContext, events: InterfaceDeclaration): EventMo
         ...mode === undefined ? {} : { mode },
         location: face.location(member),
       })
-      // TS7 declares PropertySignatureDeclaration.type non-optional; an unannotated member parses with none.
-      // oxlint-disable-next-line typescript/no-unnecessary-condition
     } else if (isPropertySignatureDeclaration(member) && member.type !== undefined) {
       result.push({
         ...documentation,

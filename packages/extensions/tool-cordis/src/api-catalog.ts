@@ -500,21 +500,21 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [],
       },
       {
-        signature: 'abstract validateImage(input: SaveImageAttachment): Promise<void>',
+        signature: 'abstract validateImage(input: SaveImageAttachment, signal?: AbortSignal): Promise<void>',
         description: 'Validate one image without persisting it. Batch callers validate every member before saving any member.',
-        parameters: [{ name: 'input', description: 'encoded bytes, declared media type, and optional display name.' }],
+        parameters: [{ name: 'input', description: 'encoded bytes, declared media type, and optional display name.' }, { name: 'signal', description: 'cancellation of queued or active validation; owned work settles before rejection.' }],
         returns: 'completion after the encoded raster has been fully decoded.',
       },
       {
-        signature: 'async saveImages(inputs: readonly SaveImageAttachment[]): Promise<readonly ImageAttachmentRef[]>',
+        signature: 'async saveImages(inputs: readonly SaveImageAttachment[], signal?: AbortSignal): Promise<readonly ImageAttachmentRef[]>',
         description: 'Validate and durably commit one ordered image batch.',
-        parameters: [{ name: 'inputs', description: 'encoded images in owning-message order.' }],
+        parameters: [{ name: 'inputs', description: 'encoded images in owning-message order.' }, { name: 'signal', description: 'cancellation stops further preparation and publication; earlier committed objects remain durable.' }],
         returns: 'durable normalized attachment references in the same order after every member succeeds.',
       },
       {
-        signature: 'abstract saveImage(input: SaveImageAttachment): Promise<ImageAttachmentRef>',
+        signature: 'abstract saveImage(input: SaveImageAttachment, signal?: AbortSignal): Promise<ImageAttachmentRef>',
         description: 'Validate and durably commit one image before its owning session event is appended. The returned reference describes the persisted normalized image. When normalization reduces the raster, its `originalDimensions` records the orientation-applied input dimensions.',
-        parameters: [{ name: 'input', description: 'encoded bytes, declared media type, and optional display name.' }],
+        parameters: [{ name: 'input', description: 'encoded bytes, declared media type, and optional display name.' }, { name: 'signal', description: 'cancellation before atomic publication; publication already started completes durably.' }],
         returns: 'the durable content-addressed normalized image reference.',
       },
       {

@@ -204,3 +204,19 @@ describe('Linux primary graph', () => {
     })
   })
 })
+
+describe('built package prerequisites', () => {
+  it.each(['ci-primary', 'ci-linux-primary', 'ci-coverage', 'ci-windows-complete'] as const)(
+    'requires the complete build before coverage in %s', (mode) => {
+      const subject = withBunEntrypoint(() => gatesForMode(mode))
+      expect(subject.find(item => item.id === 'build')?.args).toEqual(['run', 'build'])
+      expect(subject.find(item => item.id === 'coverage')?.needs).toEqual(['build'])
+    },
+  )
+
+  it('requires both artifact writers to finish before the complete local tests', () => {
+    const subject = withBunEntrypoint(() => gatesForMode('check-all'))
+    expect(subject.find(item => item.id === 'test')?.needs).toEqual(['build', 'build:web'])
+    expect(subject.find(item => item.id === 'build:web')?.needs).toEqual(['build'])
+  })
+})

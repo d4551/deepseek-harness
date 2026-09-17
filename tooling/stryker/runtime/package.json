@@ -1,0 +1,23 @@
+{
+  "name": "dsh-stryker-owned-packaging-proof",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@stryker-mutator/api": "10.0.0",
+    "@stryker-mutator/core": "file:./artifacts/stryker-core-10.0.0-ts7-source-repair.tgz",
+    "@stryker-mutator/instrumenter": "10.0.0",
+    "@stryker-mutator/vitest-runner": "10.0.0",
+    "@vitest/browser-playwright": "5.0.1",
+    "playwright": "1.63.0",
+    "tsx": "4.23.13",
+    "vitest": "5.0.1",
+    "@vitest/coverage-v8": "5.0.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "vitest-browser-react": "2.3.0"
+  },
+  "patchedDependencies": {
+    "@stryker-mutator/instrumenter@10.0.0": "patches/@stryker-mutator%2Finstrumenter@10.0.0.patch",
+    "@stryker-mutator/vitest-runner@10.0.0": "patches/@stryker-mutator%2Fvitest-runner@10.0.0.patch"
+  }
+}

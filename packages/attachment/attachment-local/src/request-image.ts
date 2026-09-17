@@ -93,7 +93,9 @@ async function createRequestImage(
   attachment: StoredImageAttachment,
   policy: ImageRequestPolicy,
   hasAlpha: boolean,
+  signal?: AbortSignal,
 ): Promise<EncodedRequestImage> {
+  signal?.throwIfAborted()
   const dimensions = requestImageDimensions(attachment.ref.width, attachment.ref.height, policy.maxPixels)
   if (dimensions.width === attachment.ref.width
     && dimensions.height === attachment.ref.height
@@ -108,6 +110,7 @@ async function createRequestImage(
   const encodedVersion = await encodeFirstWithinLimit(
     encodingLadder(pipeline(attachment, dimensions.width, dimensions.height), hasAlpha),
     policy.maxBytes,
+    signal,
   )
   return isExhaustedEncoding(encodedVersion) ? encodedVersion.smallest : encodedVersion
 }
@@ -131,10 +134,11 @@ async function readCached(
       || detected.width > maximum.width || detected.height > maximum.height
       || !encodedAlphaIsCompatible(expectedAlpha, detected)) return undefined
     return { data, mediaType: detected.mediaType, width: detected.width, height: detected.height, hasAlpha: detected.hasAlpha }
-  } catch (error: unknown) {
-    if ((error as NodeJS.ErrnoException | null)?.code === 'ENOENT') return undefined
+  } catch (error) {
     signal?.throwIfAborted()
-    return undefined
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return undefined
+    if (error instanceof AttachmentError && error.code === 'INVALID_IMAGE') return undefined
+    throw error
   }
 }
 
@@ -154,11 +158,13 @@ async function verifyRequestImage(
   return { ...image, hasAlpha: detected.hasAlpha }
 }
 
-async function writeCached(path: string, data: Uint8Array): Promise<void> {
+async function writeCached(path: string, data: Uint8Array, signal?: AbortSignal): Promise<void> {
+  signal?.throwIfAborted()
   await mkdir(dirname(path), { recursive: true, mode: 0o700 })
   const temporary = `${path}.${randomUUID()}.tmp`
   try {
-    await writeFile(temporary, data, { mode: 0o600, flag: 'wx' })
+    await writeFile(temporary, data, { mode: 0o600, flag: 'wx', signal })
+    signal?.throwIfAborted()
     await rename(temporary, path)
   } finally {
     await rm(temporary, { force: true })
@@ -182,16 +188,18 @@ export async function readRequestImageFile(
   signal?.throwIfAborted()
   validatePolicy(policy)
   const source = await probeImage(attachment.data)
+  signal?.throwIfAborted()
   const variantId = requestImageVariantId(attachment.ref, policy)
   const hash = String(variantId).slice('sha256:'.length)
   const path = cachePath(root, hash)
   const cached = await readCached(path, attachment, policy, source.hasAlpha, signal)
-  const created = cached ?? await createRequestImage(attachment, policy, source.hasAlpha)
+  signal?.throwIfAborted()
+  const created = cached ?? await createRequestImage(attachment, policy, source.hasAlpha, signal)
   const version = cached ?? (created.data === attachment.data
     ? { ...created, hasAlpha: source.hasAlpha }
     : await verifyRequestImage(created, source.hasAlpha))
   signal?.throwIfAborted()
-  if (cached === undefined && version.data !== attachment.data) await writeCached(path, version.data)
+  if (cached === undefined && version.data !== attachment.data) await writeCached(path, version.data, signal)
   return {
     variantId,
     attachment: attachment.ref,

@@ -1,0 +1,7 @@
+{
+  "bun": "1.4.2",
+  "node": "v26.8.2",
+  "typescript": "7.0.2",
+  "vitest": "5.0.1",
+  "nodeRelease": "https://nodejs.org/en/blog/release/v26.8.2"
+}

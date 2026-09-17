@@ -416,19 +416,15 @@ function signalTree(
     windows?.terminate()
     return
   }
-  /* v8 ignore next -- kill/terminate gate on treeAlive(), which is false for pid -1; this guard protects direct callers only. */
   if (pid <= 0) return
   try {
     process.kill(-pid, sig)
   } catch {
-    /* v8 ignore start -- the fallback needs a live child whose group signal fails
-       (EPERM-style), which POSIX CI cannot stage; the swallow keeps teardown idempotent. */
     try {
       child.kill(sig)
     } catch {
       // The direct child already exited; teardown remains idempotent.
     }
-    /* v8 ignore stop */
   }
 }
 
@@ -512,8 +508,6 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
 
   /** Whether the detached tree's root (or POSIX group) is still alive. */
   const treeAlive = (): boolean => {
-    /* v8 ignore next -- only a timer callback already queued when the observer settles can enter here;
-       the guard is the final defense against probing an id after its tree was confirmed absent. */
     if (treeExitObserved) return false
     if (pid <= 0) return false
     if (platform === 'win32') {
@@ -535,14 +529,9 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
       return true
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code
-      /* v8 ignore next 2 -- POSIX reports an absent group as ESRCH; child-reaping timing
-         makes observing the other arm platform-dependent. */
       if (code === 'ESRCH') return false
-      /* v8 ignore start -- EPERM and non-POSIX negative-pid failures are platform defenses; CI runs
-         tree-lifecycle tests on POSIX hosts where absence reports ESRCH. */
       if (code === 'EPERM') return true
       return child.exitCode === null && child.signalCode === null
-      /* v8 ignore stop */
     }
   }
 
@@ -570,8 +559,6 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
   // child and must stay signalable, while a fully-dead tree (possible pid
   // reuse) must not be re-signalled by a later tier.
   const kill = (sig: NodeJS.Signals): void => {
-    /* v8 ignore next -- the shared exit observer cancels the ordinary dead-tree timer;
-       this remains the timer/death race guard and cannot be staged deterministically. */
     if (!treeAlive()) return
     signalTree(platform, pid, sig, child, windows)
   }
@@ -662,7 +649,6 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
     const aborted = Promise.withResolvers<boolean>()
     const onAbort = (): void => { aborted.resolve(false) }
     signal.addEventListener('abort', onAbort, { once: true })
-    /* v8 ignore next -- closes the event-loop race between the preceding aborted check and listener registration. */
     if (signal.aborted) onAbort()
     try {
       return await Promise.race([observed.then(() => true), aborted.promise])
@@ -673,11 +659,9 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
 
   return {
     pid,
-    /* v8 ignore start -- pipe-mode fds exist on every spawn Node returns; the null-coalesces guard a nonconforming ChildProcess only. */
     stdin: stdinMode === 'pipe' ? child.stdin ?? undefined : undefined,
     stdout: outMode === 'pipe' ? child.stdout ?? undefined : undefined,
     stderr: errMode === 'pipe' ? child.stderr ?? undefined : undefined,
-    /* v8 ignore stop */
     collected: {
       ...stdoutCollector !== undefined ? { stdout: stdoutCollector } : {},
       ...stderrCollector !== undefined ? { stderr: stderrCollector } : {},

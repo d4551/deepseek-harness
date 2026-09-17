@@ -70,7 +70,7 @@ const OXLINT_TSGOLINT_FLOOR: SemVer = { major: 7, minor: 0, patch: 2001 }
  * Vitest pin: the runner every lane configures. `@vitest/coverage-v8` is the
  * same triple — a second constant here is how the two would drift.
  */
-export const VITEST_FLOOR: SemVer = { major: 5, minor: 0, patch: 0 }
+export const VITEST_FLOOR: SemVer = { major: 5, minor: 0, patch: 1 }
 /** `@types/node` pin: the ambient surface every Host package compiles against. */
 const TYPES_NODE_FLOOR: SemVer = { major: 26, minor: 4, patch: 0 }
 /**

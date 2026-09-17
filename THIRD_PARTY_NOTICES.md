@@ -119,11 +119,20 @@ External packages that a workspace package resolves at runtime. The tier covers 
 | [`zod`](https://github.com/colinhacks/zod) | MIT |
 | [`zustand`](https://github.com/pmndrs/zustand) | MIT |
 
-bun applies local patches to the following packages at install time, so shipped artifacts carry modified copies; each patch file is the complete record of the modification:
+Bun applies the following repository patches at install time. Runtime and development dependency tables identify the declaring consumers; each patch records its package modifications:
 
+- `typescript@7.0.2` — [`tooling/typescript/artifacts/typescript@7.0.2.patch`](tooling/typescript/artifacts/typescript@7.0.2.patch)
 - `node-pty@1.2.0-beta.15` — [`patches/node-pty@1.2.0-beta.15.patch`](patches/node-pty@1.2.0-beta.15.patch)
-- `@stryker-mutator/core@10.0.0` — [`patches/@stryker-mutator%2Fcore@10.0.0.patch`](patches/@stryker-mutator%2Fcore@10.0.0.patch)
-- `@stryker-mutator/vitest-runner@10.0.0` — [`patches/@stryker-mutator%2Fvitest-runner@10.0.0.patch`](patches/@stryker-mutator%2Fvitest-runner@10.0.0.patch)
+- `@stryker-mutator/instrumenter@10.0.0` — [`tooling/stryker/artifacts/@stryker-mutator%2Finstrumenter@10.0.0.patch`](tooling/stryker/artifacts/@stryker-mutator%2Finstrumenter@10.0.0.patch)
+- `@stryker-mutator/vitest-runner@10.0.0` — [`tooling/stryker/artifacts/@stryker-mutator%2Fvitest-runner@10.0.0.patch`](tooling/stryker/artifacts/@stryker-mutator%2Fvitest-runner@10.0.0.patch)
+
+## Repository-local package dependencies
+
+These dependencies resolve from repository-local packages. Their license and upstream metadata appear in the dependency tables; the declarations and package payloads are linked here.
+
+| Package | Declaration | Local package |
+| --- | --- | --- |
+| `@stryker-mutator/core` | [`package.json`](package.json) — `devDependencies` | [`tooling/stryker/artifacts/stryker-core-10.0.0-ts7-source-repair.tgz`](tooling/stryker/artifacts/stryker-core-10.0.0-ts7-source-repair.tgz) |
 
 ## Official Claude Code platform payloads
 

@@ -1,0 +1,107 @@
+{
+  "@stryker-mutator/core": {
+    "version": "10.0.0",
+    "dist": {
+      "shasum": "e080335b437a77518c276ccc9a402dfc114c2cea",
+      "tarball": "https://registry.npmjs.org/@stryker-mutator/core/-/core-10.0.0.tgz",
+      "fileCount": 626,
+      "integrity": "sha512-ZvMsRyaXQQ5e6Thcid9pkuODv6Fn9E3nrBQJUap+hcJuGJ4unm26afo3m6YKSjn8kinyxJ/3TXf0cTWRDaTxVw==",
+      "signatures": [
+        {
+          "sig": "MEUCIEPG0P7g/KN2YhLViqB0v95DWQ/4nlz/pMO4RAJlfPzbAiEAgw+5HBaoCpKeddqB66v0xTOoyjJN86ifcxfzz5sp6fo=",
+          "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+        },
+        {
+          "sig": "MEUCIHG3XcxgNMdBdmZmqyib5F1K4/LHTCH9QhG1psjVdx/HAiEAqtAD3X4HD6RNeoUMVWXiVbdI5etlIr9rCh3muGc/ACU=",
+          "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+        }
+      ],
+      "attestations": {
+        "url": "https://registry.npmjs.org/-/npm/v1/attestations/@stryker-mutator%2fcore@10.0.0",
+        "provenance": {
+          "predicateType": "https://slsa.dev/provenance/v1"
+        }
+      },
+      "unpackedSize": 1224028
+    },
+    "gitHead": "cb3bd8fe25d5215422c9b632357062d3a43fcf92"
+  },
+  "@stryker-mutator/api": {
+    "version": "10.0.0",
+    "dist": {
+      "shasum": "62ae7b2db6083570ccbc7e6b3713d28377f83ff7",
+      "tarball": "https://registry.npmjs.org/@stryker-mutator/api/-/api-10.0.0.tgz",
+      "fileCount": 220,
+      "integrity": "sha512-ZtAJ0ZT3MVRCWJTBE2h90XB/6E+4lifHYtcTyNG6nU2nLekPgTo4gD5esjX6Okxo1b/JB4jJzyxYB54fwKAoJw==",
+      "signatures": [
+        {
+          "sig": "MEQCIFtb4USmKSRateb6fxRDu/DFBu2iQ+9QxCI3LnG9/UdiAiBY587X4/zkFJc0m4RcuQk7uRR81r7hjCQsaTambU6NPg==",
+          "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+        },
+        {
+          "sig": "MEYCIQC8D5S9+b1e6/UUwGkRu2A+YdEQZXN1W+iLIagjXjAuTQIhAOfZk8MEOlRX2J/2pFEKIbJc/OYNQm8k7kNNROGcE5Bu",
+          "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+        }
+      ],
+      "attestations": {
+        "url": "https://registry.npmjs.org/-/npm/v1/attestations/@stryker-mutator%2fapi@10.0.0",
+        "provenance": {
+          "predicateType": "https://slsa.dev/provenance/v1"
+        }
+      },
+      "unpackedSize": 171810
+    },
+    "gitHead": "cb3bd8fe25d5215422c9b632357062d3a43fcf92"
+  },
+  "@stryker-mutator/vitest-runner": {
+    "version": "10.0.0",
+    "dist": {
+      "shasum": "ba7f61943f7e6d283349f33e401f24d820abfbb9",
+      "tarball": "https://registry.npmjs.org/@stryker-mutator/vitest-runner/-/vitest-runner-10.0.0.tgz",
+      "fileCount": 43,
+      "integrity": "sha512-SHK2/vfvRUpiz7jXPnQMBnr6zLdm69DK03Mo5mPhaZWcRSygrKUqYsPqWsXsK+5ySHzlMTfCyFK5NQ/X9sJFFw==",
+      "signatures": [
+        {
+          "sig": "MEUCIQCAdbHuAB3aZyuzQFsigUdBJAWYfYmM1wP4qljN7zStiQIgIqNV0Hq4UzLnsPtwCMI+aUQFrJL5l2paWCIy93CmL9g=",
+          "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+        },
+        {
+          "sig": "MEUCIFhnA8uf50PX8QH0jtdphjHYXi0/4ybX+N1JuxGxu2SMAiEA/f/ZoDVLi7287+pEfriLTf4BL8mxj2HuopxOkWKCBLQ=",
+          "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+        }
+      ],
+      "attestations": {
+        "url": "https://registry.npmjs.org/-/npm/v1/attestations/@stryker-mutator%2fvitest-runner@10.0.0",
+        "provenance": {
+          "predicateType": "https://slsa.dev/provenance/v1"
+        }
+      },
+      "unpackedSize": 81343
+    },
+    "gitHead": "cb3bd8fe25d5215422c9b632357062d3a43fcf92"
+  },
+  "@stryker-mutator/instrumenter": {
+    "version": "10.0.0",
+    "dist": {
+      "shasum": "aa71013bc564c449e510d5b94514e8adb69ecce6",
+      "tarball": "https://registry.npmjs.org/@stryker-mutator/instrumenter/-/instrumenter-10.0.0.tgz",
+      "fileCount": 337,
+      "integrity": "sha512-B7Wmn1KlEWyFeOz6D6oGvQGRfi5Xw3VemG6dEKvFQp4qLvxD9Mf4kcZghfxffgnYwXd3bFgqXsJ+ZGlhdfIOrQ==",
+      "unpackedSize": 367285
+    },
+    "gitHead": "cb3bd8fe25d5215422c9b632357062d3a43fcf92"
+  },
+  "sourceArchive": {
+    "url": "https://codeload.github.com/stryker-mutator/stryker-js/tar.gz/cb3bd8fe25d5215422c9b632357062d3a43fcf92",
+    "sha256": "aca1fe8cbb04b2574bbe2cc40fe3ce897f706608170d329ddf817973830b1967",
+    "inputs": [
+      "tsconfig.settings.json",
+      "packages/core/tsconfig.src.json",
+      "packages/instrumenter/tsconfig.src.json",
+      "packages/vitest-runner/tsconfig.src.json",
+      "packages/vitest-runner/schema/vitest-runner-options.json",
+      "packages/vitest-runner/typings/global.d.ts",
+      "packages/test-helpers/"
+    ]
+  }
+}

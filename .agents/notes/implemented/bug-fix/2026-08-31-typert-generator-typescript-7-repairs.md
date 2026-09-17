@@ -10,6 +10,8 @@ The TypeScript 7 migration adapted the typert generator to the new AST and proje
 
 ## Decision
 
+**Property-signature declarations represent absent annotations.** The [maintained AST schema](../../../../tooling/typescript/README.md) generates optional annotation and initializer fields from the pinned compiler sources. The complete JavaScript API is rebuilt with strict TypeScript 7; executable bytes match the published implementation. Typert lookup and context maps retain their required-annotation checks. Client slot and standard-prop catalogs reject unannotated fields with explicit diagnostics. Native parser cases, compiler-checked factory arguments, complete installed-file digests, and independent reconstruction verify the correction without disabling diagnostics.
+
 **One compiler graph per face, not per file.** `indexSourceDeclarations` opened a project for every package, and before that a session snapshot for every file, leaving thousands of live graphs. It now runs on the face program, which already covers every package registered to that face, and `WorkspaceCaches.release` drops a memoized project so a batch or a package check cannot retain one. `scripts/cordis-walk` opens its whole file set in one snapshot for the same reason. The client catalog fell from 8.3 GB and 64 s to 0.37 GB and 4 s, the host catalog from an out-of-memory abort to 0.84 GB, and doc graphs to 2.0 GB.
 
 **Write mode annotates parameters before their initializer.** `annotationPosition` fell through to the parameter's end, which sits after any initializer, so `--write` emitted `echo(input = 'value': string)` — source that does not parse.

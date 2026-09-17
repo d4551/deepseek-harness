@@ -169,7 +169,6 @@ declare module '@deepseek-ai/cordis' {
  * skipped for a sole candidate, whose own refusal remains the fail-closed end.
  */
 export abstract class SandboxProvider extends Service {
-  /* v8 ignore next -- abstract service construction is covered through concrete provider packages. */
   constructor(ctx: Context) {
     super(ctx, 'sandbox')
   }

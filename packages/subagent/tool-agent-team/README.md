@@ -25,7 +25,7 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Add this package on top of `@deepseek-ai/dsh-agent-team` when the model should run a team through tools. Once mounted, every team member — the Lead and each teammate — gets the same eleven tools plus a policy paragraph that states its own role and name.
+Add this package on top of `@deepseek-ai/dsh-agent-team` when the model should run a team through tools. Every admitted team member — the Lead and each teammate — gets the same eleven tools plus a policy paragraph that states its own role and name. Members on a preset named by `excludePresets` receive neither.
 
 ### When to choose it
 
@@ -51,6 +51,8 @@ The smallest addition to an existing composition is the two-package fragment fro
 | `excludePresets` | `[]` | Agent preset ids whose Agents keep their preset's exact tool set and receive no Team tools |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-tool-agent-team) is the exhaustive source for every accepted field and its JSDoc.
+
+Preset admission follows the Agent's live composition. Changing a blank session's composition removes or restores Team registrations before the next tool execution, even while its creation header still names the original preset. A Team call prepared before removal is denied before dispatch and cannot mutate the task board. With preset restrictions configured, an Agent awaiting composition receives no Team tools. Deployments without the preset service use the session header.
 
 Omit the provider settings when exactly one registered provider supports each requested context mode. Set them explicitly when several providers match. Missing providers and context mismatches reject creation before reserving a teammate name or consuming capacity.
 
@@ -109,7 +111,7 @@ One `team:policy` section teaches each member its role and configured coordinati
 
 ### Scoped registration and teardown
 
-`maybeInstall` runs for every live Agent and subscribes to `agent/created`; it skips Agents without Team membership. Disposal of an Agent runs the installed disposer, and plugin HMR disposes every installed scope before reinstall. Each disposer unwinds registrations in reverse order, so a failed install cannot leave a partial scope.
+Registrations follow Team membership and the live preset at Agent creation and on tool-registry changes. Reentrant registration notifications cannot install the same Agent twice. Agent disposal removes its registrations; plugin HMR removes every installed scope without reinstalling during unload. Each disposer unwinds registrations in reverse order, so a failed install cannot leave a partial scope.
 
 </details>
 

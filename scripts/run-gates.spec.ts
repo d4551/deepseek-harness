@@ -215,11 +215,19 @@ describe('gate graph validation', () => {
           withBunEntrypoint(() => gatesForMode('ci-coverage')))))
 
     expect(gates).toEqual([{
+      id: 'build',
+      label: 'build',
+      displayCommand: 'bun run build',
+      command: '/private/bun',
+      args: ['run', 'build'],
+      env: { DSH_BUILD_CLIENT_PROFILE: 'official' },
+    }, {
       id: 'coverage',
       label: 'test:coverage',
       displayCommand: 'bun x vitest run --coverage --maxWorkers=6',
       command: '/private/bun',
       args: ['x', 'vitest', 'run', '--coverage', '--maxWorkers=6'],
+      needs: ['build'],
     }])
   })
 

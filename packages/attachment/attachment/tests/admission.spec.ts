@@ -45,7 +45,7 @@ describe('admitEncodedImages', () => {
   it('delegates an empty batch unchanged', async () => {
     const { store, mocks } = storeOf()
     await expect(admitEncodedImages(store, [])).resolves.toEqual([])
-    expect(mocks.saveImages).toHaveBeenCalledWith([])
+    expect(mocks.saveImages).toHaveBeenCalledWith([], undefined)
   })
 
   it('rejects non-canonical and empty base64 payloads before any store call', async () => {

@@ -21,8 +21,8 @@ concurrency:
 jobs:
 
   # Three enterprise jobs isolate coverage, static analysis, and the
-  # build-backed consumer tail. The consumer job owns the only Linux build so
-  # all three jobs enter runner allocation independently.
+  # build-backed consumer tail. Coverage and consumers each build the artifacts
+  # they validate; all three jobs enter runner allocation independently.
   #
   # FAILOVER (Linux): each Linux enterprise job resolves its pool through the
   # DSH_CI_FAILOVER_LINUX repository variable. Unset (normal), the expressions
@@ -453,9 +453,6 @@ jobs:
       - name: Install Playwright Chromium
         shell: pwsh
         run: bun run --filter @deepseek-ai/dsh-web-frontend playwright:install
-      - name: Build before coverage
-        shell: pwsh
-        run: bun run build
       - name: Prepare pinned native WebDAV server
         shell: pwsh
         run: bun run test:prepare:network-drive

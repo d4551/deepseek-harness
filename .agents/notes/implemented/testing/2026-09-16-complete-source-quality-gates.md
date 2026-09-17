@@ -14,6 +14,10 @@ The coverage inventory discovers every JavaScript and TypeScript file under pack
 
 Every scheduled gate propagates failure. Typechecking has no environment bypass. Windows checks contribute to the required CI aggregate. Process-bound suites retain separate workers while participating in instrumented coverage. CI runs the complete suite in one coverage invocation. Process isolation remains necessary for suites that exercise process-global state and native lifecycle behavior; the [Windows record](../process/2026-08-08-native-windows-pull-request-ci.md) retains its platform ownership rationale.
 
+Coverage waits for the complete application build because the suite includes emitted-bundle imports and packed Worker execution. The standalone coverage aggregate owns its build on both Linux and Windows; primary aggregates reuse their existing build dependency. The complete local test gate waits for both application and web build writers. This supersedes source-only coverage preparation in the [independent consumer build](../process/2026-07-30-independent-ci-consumer-build.md) while preserving independent job allocation. A missing artifact fails verification.
+
+Worker sandbox acceptance loads the real provider packages through the image packer and module loader inside native browser Workers. The production Worker installs its process environment and starts command Workers; tests verify workspace and temporary-directory writes, denied outside writes, read-only behavior, explicit full access, and concurrent policy isolation. Browser errors and warnings fail acceptance. This behavioral evidence does not substitute for source coverage of browser-executed bundles.
+
 The host TypeScript project includes snapshot drivers. Their imports participate in both typechecking and Vite's source-path resolution, so snapshot collection reaches the recorded-session assertions.
 
 The syntax-aware source audit rejects lint, TypeScript, coverage and mutation disabling directives in comments and every catch clause. Its Git worktree inventory includes tracked and untracked JavaScript and TypeScript across packages, applications, scripts, snapshots, vendor, native, website, CI, and root configuration; new source directories also participate. Directive-like strings and regular expressions are data. This supersedes the directive permission in [mechanical quality gates](../process/2026-06-11-quality-gates.md). Explanatory comments do not alter the verdict. Parsing errors and empty source groups fail the audit.
@@ -33,6 +37,8 @@ Historical partition trials reported roughly 405 seconds for two Windows childre
 **Keep optional shards or workflow-level sharding.** Shards cannot satisfy complete-source thresholds independently. Workflow-level shards also repeat setup and require transferred reports and a merge dependency. Removing the coordinator preserves one coverage invocation without weakening any result.
 
 **Keep platform failures advisory.** An aggregate must represent every required platform check; a successful Linux result cannot establish Windows behavior.
+
+**Substitute host process primitives for Worker execution.** Replacing only process execution retains the host platform and selects a different confinement backend. Overriding the platform or probe verdict would not prove that the deployed Worker confines commands.
 
 ## Consequences
 

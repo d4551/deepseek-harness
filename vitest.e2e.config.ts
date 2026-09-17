@@ -40,12 +40,8 @@ export default defineConfig({
       '**/*.expected.e2e.ts',
       'packages/experimental/inspector/tests/client-browser.e2e.ts',
     ],
-    // Real model calls: generous timeouts, and retries for transient flakes
-    // (the shared internal key hits concurrency quotas). No coverage — the
-    // unit suites own the coverage gate.
     testTimeout: 120_000,
     hookTimeout: 30_000,
-    retry: 2,
     // Run files in a bounded pool: enough lower-level parallelism to keep CI
     // and local with-key runs moving, while leaving a resource knob for shared
     // API quotas (`DSH_E2E_MAX_WORKERS=1` restores serial execution).

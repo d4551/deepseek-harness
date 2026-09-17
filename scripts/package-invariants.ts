@@ -6,7 +6,7 @@
 
 import { existsSync, globSync, readFileSync } from 'node:fs'
 import { dirname, relative, resolve, sep } from 'node:path'
-import type { ArrowFunction, Expression, FunctionExpression, Node, SourceFile, VariableStatement } from 'typescript/unstable/ast'
+import type { ArrowFunction, Expression, FunctionExpression, Node, SourceFile } from 'typescript/unstable/ast'
 import { SyntaxKind } from 'typescript/unstable/ast'
 import {
   isArrowFunction,
@@ -23,9 +23,6 @@ import {
   isVariableStatement,
 } from 'typescript/unstable/ast/is'
 import { createSourceFile } from './ts7-session.ts'
-
-/** Required explanation marker for an intentionally empty installer. */
-const NO_RUNTIME_INVARIANT_MARKER = 'No runtime invariant:'
 
 interface PackageManifest {
   name?: string
@@ -156,9 +153,7 @@ function projectReferencesInvariants(root: string, ownerDir: string, entryPath: 
   const target = resolve(root, 'packages/runtime-diagnostics/invariants')
   const pending = [resolve(root, entryPath)]
   const visited = new Set<string>()
-  while (pending.length > 0) {
-    const configPath = pending.pop()
-    if (configPath === undefined) break
+  for (let configPath = pending.pop(); configPath !== undefined; configPath = pending.pop()) {
     if (visited.has(configPath)) continue
     visited.add(configPath)
     const config = JSON.parse(readFileSync(configPath, 'utf8')) as {
@@ -245,17 +240,15 @@ function checkSource(
   if (hasDefaultExport(sourceFile)) {
     addViolation(violations, owner.sourcePath, 'must not default-export; Loader must retain the companion namespace')
   }
-  checkInstaller(owner, sourceFile, sourceText, violations)
+  checkInstaller(owner, sourceFile, violations)
 }
 
 function checkInstaller(
   owner: PackageInvariantOwner,
   sourceFile: SourceFile,
-  sourceText: string,
   violations: PackageInvariantViolation[],
 ): void {
   let initializer: Expression | undefined
-  let declarationStatement: VariableStatement | undefined
   for (const statement of sourceFile.statements) {
     if (!isVariableStatement(statement)) continue
     for (const declaration of statement.declarationList.declarations) {
@@ -263,7 +256,6 @@ function checkInstaller(
         && declaration.name.text === 'install'
         && declaration.initializer !== undefined) {
         initializer = declaration.initializer
-        declarationStatement = statement
       }
     }
   }
@@ -273,16 +265,11 @@ function checkInstaller(
     return
   }
   if (isBlock(installer.body) && installer.body.statements.length === 0) {
-    const declarationText = declarationStatement === undefined
-      ? ''
-      : sourceText.slice(declarationStatement.getFullStart(), declarationStatement.getEnd())
-    if (!declarationText.includes(NO_RUNTIME_INVARIANT_MARKER)) {
-      addViolation(
-        violations,
-        owner.sourcePath,
-        `empty install function must explain why with a "${NO_RUNTIME_INVARIANT_MARKER}" comment`,
-      )
-    }
+    addViolation(
+      violations,
+      owner.sourcePath,
+      'install function must enforce a package-owned runtime contract; empty installers are prohibited',
+    )
     return
   }
   const reporter = installer.parameters[1]?.name
@@ -357,10 +344,7 @@ function hasNamedExport(sourceFile: SourceFile, name: string): boolean {
 function hasDefaultExport(sourceFile: SourceFile): boolean {
   return sourceFile.statements.some((statement) => {
     if (isExportAssignment(statement)) return true
-    const modifiers = 'modifiers' in statement
-      ? (statement as VariableStatement).modifiers
-      : undefined
-    if (modifiers?.some(modifier => modifier.kind === SyntaxKind.DefaultKeyword)) return true
+    if (statement.forEachChild(child => child.kind === SyntaxKind.DefaultKeyword)) return true
     if (!isExportDeclaration(statement) || statement.exportClause === undefined) return false
     if (isNamespaceExport(statement.exportClause)) {
       return statement.exportClause.name.text === 'default'

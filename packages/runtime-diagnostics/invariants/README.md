@@ -68,7 +68,7 @@ Each companion protects relationships its package owns, and a companion installs
 | `dsh-agent-presets`, `dsh-session-title`, `dsh-plan-mode`, `dsh-schedule`, `dsh-webserver` | Preset mount placement, title source citation, plan-mode payload, schedule stream, route disposer symmetry |
 | `dsh-client-hmr`, `dsh-client-modules`, `dsh-client-runtime` | Browser/node-half stat-watcher lifecycle, boot entry graph, slot mutation versioning |
 
-Every other workspace package publishes an empty companion with a `No runtime invariant:` explanation of why nothing is checkable.
+Empty companions provide no runtime check and fail `verify-package-invariants`, including those carrying a `No runtime invariant:` comment. Their registration does not establish invariant coverage.
 
 ### Adding a companion to a custom composition
 
@@ -104,14 +104,14 @@ This section explains the design behind the registry; the observable behavior is
 - **Product-independent registry.** The service imports no session, agent, scope, or agent-loop package and contains none of their checks; companions carry checks next to their owners.
 - **Real relationships, not synthetic assertions.** A companion checks an event-stream or mutable-data relationship its package owns; confirming a method, plugin name, injection, or fixed pure result is a type, load, or unit-test concern, never a runtime invariant.
 - **Registration reserves ownership.** A package name is reserved even when filters keep its installer inactive, so two plugins can never silently claim the same name.
-- **Exhaustive wiring, mechanically enforced.** `bun run verify-package-invariants` rejects generated markers, unexplained empty installers, non-empty installers that omit or ignore the reporter, wrong registration names, and incomplete export, publication, dependency, or bundle wiring ([contracts note](../../../.agents/notes/implemented/architecture/2026-07-19-package-invariant-runtime-contracts.md)).
+- **Exhaustive wiring, mechanically enforced.** `bun run verify-package-invariants` rejects generated markers, every empty installer, non-empty installers that omit or ignore the reporter, wrong registration names, and incomplete export, publication, dependency, or bundle wiring ([gate decision](../../../.agents/notes/implemented/process/2026-09-16-reject-empty-invariant-installers.md)).
 
 ### Source map
 
 | File | Role |
 |---|---|
 | [`src/index.ts`](src/index.ts) | Plugin entry: `Config` schema, `InvariantRegistry` service, selection, registration, `InvariantError` |
-| [`src/invariant.ts`](src/invariant.ts) | This package's own companion: an empty installer explaining that registration ownership is the service's own mutation boundary |
+| [`src/invariant.ts`](src/invariant.ts) | This package's own empty companion; it fails the package invariant gate |
 
 ### Selection and registration lifecycle
 

@@ -1,0 +1,7 @@
+{
+  "core": "bd65a007f18963956ae89e1e6545ef360ec37bcc0fcb3a7971dbb087f5432233",
+  "runner": "9cab94331979c6d49b7c87eaa85dade57dd61c91fc7645fc6a332f94a4682c8a",
+  "runnerPatch": "9a9c8c4c88b4edc3f17466308ffdd5049096330abfd4e9492176d48aa5e65d98",
+  "instrumenter": "23c1e7674a858d33b89b67438c5666f95bdcb0dca0d9ea89366a832bb303aa76",
+  "instrumenterPatch": "bd1aac9a07c2a3fa52e7bfcd570bc962cfe56d31ac0fb3db3d66c5d5a8d50cc9"
+}

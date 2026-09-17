@@ -1,0 +1,4 @@
+- name: '@deepseek-ai/dsh-attachment-local'
+  config:
+    dshHome: !!js process.argv[3]
+    imageCompressionConcurrency: 1

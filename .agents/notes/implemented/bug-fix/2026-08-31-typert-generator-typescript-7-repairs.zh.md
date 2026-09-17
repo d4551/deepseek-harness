@@ -10,6 +10,8 @@ TypeScript 7 迁移让 typert generator 适配了新的 AST 与 project API，�
 
 ## Decision
 
+**属性签名声明表示缺失的类型标注。** [维护的 AST 模式](../../../../tooling/typescript/README.zh.md)从固定的编译器源码生成可选的类型标注和初始化器字段。完整 JavaScript API 通过严格 TypeScript 7 重建；可执行字节与发布版实现一致。Typert lookup 和 context 映射保留必需类型标注的检查。客户端 slot 和 standard-prop 目录以明确诊断拒绝没有类型标注的字段。原生解析器用例、经编译器检查的工厂参数、完整的已安装文件摘要和独立重建，在不禁用诊断的情况下验证该修正。
+
 **每个 face 一张编译图，而不是每个文件一张。** `indexSourceDeclarations` 为每个包打开一个 project，在此之前还为每个文件打开一次 session 快照，留下数千张存活的图。它现在运行在 face program 上——该 program 本就覆盖注册到该 face 的每个包——并由 `WorkspaceCaches.release` 丢弃已记忆的 project，使分批与包级检查都无法长期持有。`scripts/cordis-walk` 出于同样原因在一次快照中打开其全部文件集合。Client catalog 从 8.3 GB、64 秒降至 0.37 GB、4 秒，host catalog 从内存溢出中止降至 0.84 GB，doc graphs 降至 2.0 GB。
 
 **write 模式在初始化器之前标注参数。** `annotationPosition` 会落到参数末尾，而该位置位于初始化器之后，于是 `--write` 生成了 `echo(input = 'value': string)`——无法解析的源码。

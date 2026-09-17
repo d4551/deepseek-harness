@@ -48,9 +48,10 @@ export abstract class AttachmentStore extends Service {
    * Validate one image without persisting it.
    * Batch callers validate every member before saving any member.
    * @param input - encoded bytes, declared media type, and optional display name.
+   * @param signal - cancellation of queued or active validation; owned work settles before rejection.
    * @returns completion after the encoded raster has been fully decoded.
    */
-  abstract validateImage(input: SaveImageAttachment): Promise<void>
+  abstract validateImage(input: SaveImageAttachment, signal?: AbortSignal): Promise<void>
 
   /**
    * Validate one ordered image batch before committing any member.
@@ -79,14 +80,19 @@ export abstract class AttachmentStore extends Service {
   /**
    * Validate and durably commit one ordered image batch.
    * @param inputs - encoded images in owning-message order.
+   * @param signal - cancellation stops further preparation and publication; earlier committed objects remain durable.
    * @returns durable normalized attachment references in the same order after every member succeeds.
    */
-  async saveImages(inputs: readonly SaveImageAttachment[]): Promise<readonly ImageAttachmentRef[]> {
+  async saveImages(inputs: readonly SaveImageAttachment[], signal?: AbortSignal): Promise<readonly ImageAttachmentRef[]> {
+    signal?.throwIfAborted()
     this.validateImageBatch(inputs)
-    for (const input of inputs) await this.validateImage(input)
+    for (const input of inputs) await this.validateImage(input, signal)
 
     const refs: ImageAttachmentRef[] = []
-    for (const input of inputs) refs.push(await this.saveImage(input))
+    for (const input of inputs) {
+      signal?.throwIfAborted()
+      refs.push(await this.saveImage(input, signal))
+    }
     return refs
   }
 
@@ -96,9 +102,10 @@ export abstract class AttachmentStore extends Service {
    * normalization reduces the raster, its `originalDimensions` records the
    * orientation-applied input dimensions.
    * @param input - encoded bytes, declared media type, and optional display name.
+   * @param signal - cancellation before atomic publication; publication already started completes durably.
    * @returns the durable content-addressed normalized image reference.
    */
-  abstract saveImage(input: SaveImageAttachment): Promise<ImageAttachmentRef>
+  abstract saveImage(input: SaveImageAttachment, signal?: AbortSignal): Promise<ImageAttachmentRef>
 
   /**
    * Read one image and verify that bytes still match the recorded reference.

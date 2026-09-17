@@ -1,0 +1,50 @@
+diff --git a/packages/vitest-runner/typings/global.d.ts b/packages/vitest-runner/typings/global.d.ts
+--- a/packages/vitest-runner/typings/global.d.ts
++++ b/packages/vitest-runner/typings/global.d.ts
+@@ -1,5 +1,3 @@
+-/* eslint-disable no-var */
+-// Use "var" instead of let, otherwise we are not expanding the `globalThis`
+ declare var __stryker__:
+   | import('@stryker-mutator/api/core').InstrumenterContext
+   | undefined;
+diff --git a/packages/core/tsconfig.standalone.json b/packages/core/tsconfig.standalone.json
+new file mode 100644
+--- /dev/null
++++ b/packages/core/tsconfig.standalone.json
+@@ -0,0 +1,8 @@
++{
++  "extends": "./tsconfig.src.json",
++  "compilerOptions": {
++    "skipLibCheck": false,
++    "noEmitOnError": true
++  },
++  "references": []
++}
+diff --git a/packages/vitest-runner/tsconfig.standalone.json b/packages/vitest-runner/tsconfig.standalone.json
+new file mode 100644
+--- /dev/null
++++ b/packages/vitest-runner/tsconfig.standalone.json
+@@ -0,0 +1,9 @@
++{
++  "extends": "./tsconfig.src.json",
++  "compilerOptions": {
++    "skipLibCheck": false,
++    "lib": ["es2022", "dom"],
++    "noEmitOnError": true
++  },
++  "references": []
++}
+diff --git a/packages/instrumenter/tsconfig.standalone.json b/packages/instrumenter/tsconfig.standalone.json
+new file mode 100644
+--- /dev/null
++++ b/packages/instrumenter/tsconfig.standalone.json
+@@ -0,0 +1,9 @@
++{
++  "extends": "./tsconfig.src.json",
++  "compilerOptions": {
++    "skipLibCheck": false,
++    "lib": ["es2022", "dom"],
++    "noEmitOnError": true
++  },
++  "references": []
++}

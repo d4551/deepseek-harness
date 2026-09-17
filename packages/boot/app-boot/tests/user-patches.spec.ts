@@ -353,6 +353,7 @@ describe('boot with user patches', () => {
     const dispose = await watchUserPatches(ctx, {
       binName: NAME,
       filename,
+      initialPatches: [],
       compose: userPatches => [...basePatches, ...userPatches],
     })
     try {
@@ -385,7 +386,7 @@ describe('boot with user patches', () => {
       // Default compose: the user layer IS the whole patch list, so a
       // fresh generation replaces the app-owned layer instead of stacking on it.
       await dispose()
-      const disposeDefault = await watchUserPatches(ctx, { binName: NAME, filename })
+      const disposeDefault = await watchUserPatches(ctx, { binName: NAME, filename, initialPatches: [] })
       try {
         writeFileSync(filename, '- id: noop\n  config:\n    value: identity\n')
         await expect.poll(() => (entryConfig(ctx, 'noop') as { value?: string }).value, { ...WATCH_POLL, message: 'default-compose user patch was not applied' })
@@ -418,6 +419,7 @@ describe('boot with user patches', () => {
       const dispose = await watchUserPatches(ctx, {
         binName: NAME,
         filename,
+        initialPatches: [],
         compose: userPatches => [...basePatches, ...userPatches],
         repairInterval: 10,
       })
@@ -448,6 +450,7 @@ describe('boot with user patches', () => {
       const dispose = await watchUserPatches(ctx, {
         binName: NAME,
         filename,
+        initialPatches: [],
         compose: userPatches => [...basePatches, ...userPatches],
         repairInterval: 10,
       })
@@ -485,7 +488,7 @@ describe('boot with user patches', () => {
       // A cadence long enough that it cannot fire inside this case: the two
       // observations below are the watch trigger, driven by hand, so what the
       // assertions measure is the second observation and not a timer.
-      const dispose = await watchUserPatches(ctx, { binName: NAME, filename, repairInterval: 60_000 })
+      const dispose = await watchUserPatches(ctx, { binName: NAME, filename, initialPatches: [], repairInterval: 60_000 })
       try {
         // The absent layer the mounted tree already reflects: nothing to do.
         await expect(refresh?.()).resolves.toBeUndefined()
@@ -524,6 +527,7 @@ describe('boot with user patches', () => {
       const dispose = await watchUserPatches(ctx, {
         binName: NAME,
         filename,
+        initialPatches: [],
         // A composer that rejects with a bare value is what the normalization covers.
         compose: () => { throw 'composition rejected without an Error' },
         repairInterval: 10,
@@ -549,7 +553,7 @@ describe('boot with user patches', () => {
   it('fails loud when the exact watcher lacks HMR or a root Include', async () => {
     const dir = tmp()
     const withoutHmr = await boot(NAME, writeTree(dir))
-    await expect(watchUserPatches(withoutHmr, { binName: NAME, filename: join(tmp(), PROFILE_PATCH_FILENAME) })).rejects.toThrow('requires the Cordis HMR service')
+    await expect(watchUserPatches(withoutHmr, { binName: NAME, filename: join(tmp(), PROFILE_PATCH_FILENAME), initialPatches: [] })).rejects.toThrow('requires the Cordis HMR service')
     await withoutHmr.fiber.dispose()
 
     const withoutInclude = new Context()
@@ -557,7 +561,7 @@ describe('boot with user patches', () => {
     await withoutInclude.plugin(Loader)
     await withoutInclude.plugin(Timer)
     await withoutInclude.plugin(Hmr, { root: [], ignored: [], debounce: 0, repairInterval: 0 })
-    await expect(watchUserPatches(withoutInclude, { binName: NAME, filename: join(tmp(), PROFILE_PATCH_FILENAME) })).rejects.toThrow('requires the root Include entry')
+    await expect(watchUserPatches(withoutInclude, { binName: NAME, filename: join(tmp(), PROFILE_PATCH_FILENAME), initialPatches: [] })).rejects.toThrow('requires the root Include entry')
     await withoutInclude.fiber.dispose()
   })
 
@@ -572,7 +576,7 @@ describe('boot with user patches', () => {
     try {
       const teardown = Object.assign(new Error('cannot create effect on inactive context'), { code: 'INACTIVE_EFFECT' })
       ctx.provide('hmr', { registerConfig: () => Promise.reject(teardown) })
-      const dispose = await watchUserPatches(ctx, { binName: NAME, filename: join(tmp(), PROFILE_PATCH_FILENAME) })
+      const dispose = await watchUserPatches(ctx, { binName: NAME, filename: join(tmp(), PROFILE_PATCH_FILENAME), initialPatches: [] })
       await expect(dispose()).resolves.toBeUndefined()
     } finally {
       await ctx.fiber.dispose()
@@ -586,9 +590,9 @@ describe('boot with user patches', () => {
     try {
       await ctx.plugin(Timer)
       await ctx.plugin(Hmr, { root: [], ignored: [], debounce: 0, repairInterval: 0 })
-      const dispose = await watchUserPatches(ctx, { binName: NAME, filename })
+      const dispose = await watchUserPatches(ctx, { binName: NAME, filename, initialPatches: [] })
       // Same user-layer path registered twice: HMR refuses; not a teardown race.
-      await expect(watchUserPatches(ctx, { binName: NAME, filename })).rejects.toThrow('already registered')
+      await expect(watchUserPatches(ctx, { binName: NAME, filename, initialPatches: [] })).rejects.toThrow('already registered')
       await dispose()
     } finally {
       await ctx.fiber.dispose()

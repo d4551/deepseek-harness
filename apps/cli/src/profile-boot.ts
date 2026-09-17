@@ -218,9 +218,8 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
   }
   // Signals own teardown throughout the startup window, not only after boot()
   // settles: an inserted provider can publish before sibling rows finish mounting.
-  // SIGTERM is a supervisor's ordinary stop request and exits 0 on every
-  // surface — the launcher does not know whether the app considered its work
-  // complete; SIGINT is a user interrupt and reports 130.
+  // SIGTERM requests successful shutdown independently of task completion;
+  // failed disposal still exits nonzero. SIGINT reports the user interrupt as 130.
   process.on('SIGTERM', () => { interrupt(0) })
   process.on('SIGINT', () => { interrupt(130) })
   installFailLoud(NAME, process, async () => {
@@ -287,11 +286,13 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
       await watchUserPatches(ctx, {
         binName: NAME,
         filename: composed.profile.patchPath,
+        initialPatches: composed.profile.patches,
         compose: composeLive,
       })
       await watchUserPatches(ctx, {
         binName: NAME,
         filename: homePatchPath(),
+        initialPatches: composed.homePatches,
         compose: composeLive,
       })
     } catch (error) {

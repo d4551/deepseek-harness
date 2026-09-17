@@ -1,0 +1,217 @@
+diff --git a/package.json b/package.json
+index 2632a7a..a1a1561 100644
+--- a/package.json
++++ b/package.json
+@@ -77,4 +77,5 @@
+     "emoji-regex": "~10.6.0",
+     "execa": "~9.6.0",
++    "jsonc-parser": "^3.3.1",
+     "json-rpc-2.0": "^1.7.0",
+     "lodash.groupby": "~4.6.0",
+diff --git a/src/mutants/mutant-test-planner.ts b/src/mutants/mutant-test-planner.ts
+index 8ea60bc..bfb586f 100644
+--- a/src/mutants/mutant-test-planner.ts
++++ b/src/mutants/mutant-test-planner.ts
+@@ -1,5 +1,5 @@
+ import path from 'path';
+
+-import { TestResult } from '@stryker-mutator/api/test-runner';
++import { MutantActivation, TestResult } from '@stryker-mutator/api/test-runner';
+ import {
+   MutantRunPlan,
+@@ -111,4 +111,5 @@ export class MutantTestPlanner {
+           isStatic,
+           testFilter: coveredBy,
++          mutantActivation: 'runtime',
+         });
+       } else if (this.options.ignoreStatic) {
+@@ -127,4 +128,5 @@ export class MutantTestPlanner {
+           coveredBy,
+           testFilter: this.globalTestFilter,
++          mutantActivation: 'static',
+         });
+       }
+@@ -134,4 +136,5 @@ export class MutantTestPlanner {
+         netTime: this.timeSpentAllTests,
+         testFilter: this.globalTestFilter,
++        mutantActivation: 'static',
+       });
+     }
+@@ -174,4 +177,5 @@ export class MutantTestPlanner {
+       isStatic,
+       coveredBy,
++      mutantActivation,
+     }: {
+       netTime: number;
+@@ -179,4 +183,5 @@ export class MutantTestPlanner {
+       isStatic?: boolean | undefined;
+       coveredBy?: string[] | undefined;
++      mutantActivation: MutantActivation;
+     },
+   ): MutantRunPlan {
+@@ -209,5 +214,5 @@ export class MutantTestPlanner {
+           replacement: mutant.replacement,
+         },
+-        mutantActivation: testFilter ? 'runtime' : 'static',
++        mutantActivation,
+         timeout,
+         testFilter,
+diff --git a/src/reporters/index.ts b/src/reporters/index.ts
+index 3949769..55b1131 100644
+--- a/src/reporters/index.ts
++++ b/src/reporters/index.ts
+@@ -3,4 +3,5 @@ import {
+   declareFactoryPlugin,
+   PluginKind,
++  type Plugin,
+ } from '@stryker-mutator/api/plugin';
+
+@@ -38,5 +39,5 @@ export const strykerPlugins = [
+     dashboardReporterFactory,
+   ),
+-];
++] satisfies [Plugin<PluginKind.Reporter>, ...Plugin<PluginKind.Reporter>[]];
+
+ export const reporterPluginsFileUrl = import.meta.url;
+diff --git a/src/sandbox/ts-config-preprocessor.ts b/src/sandbox/ts-config-preprocessor.ts
+index 8c3a38d..dc22450 100644
+--- a/src/sandbox/ts-config-preprocessor.ts
++++ b/src/sandbox/ts-config-preprocessor.ts
+@@ -4,4 +4,5 @@ import { StrykerOptions } from '@stryker-mutator/api/core';
+ import { tokens, commonTokens } from '@stryker-mutator/api/plugin';
+ import { Logger } from '@stryker-mutator/api/logging';
++import type { ParseError } from 'jsonc-parser';
+
+ import { Project } from '../fs/project.js';
+@@ -11,5 +12,5 @@ import { FilePreprocessor } from './file-preprocessor.js';
+ export interface TSConfig {
+   references?: Array<{ path: string }>;
+-  extends?: string;
++  extends?: string | string[];
+   files?: string[];
+   exclude?: string[];
+@@ -17,4 +18,39 @@ export interface TSConfig {
+   compilerOptions?: Record<string, unknown>;
+ }
++
++function isObject(value: unknown): value is Record<string, unknown> {
++  return typeof value === 'object' && value !== null && !Array.isArray(value);
++}
++
++function isStringArray(value: unknown): value is string[] {
++  return Array.isArray(value) && value.every((entry: unknown) => typeof entry === 'string');
++}
++
++function validateConfig(value: unknown, fileName: string): asserts value is TSConfig {
++  if (!isObject(value)) {
++    throw new Error(`Invalid TypeScript config "${fileName}": root must be an object`);
++  }
++  for (const property of ['files', 'include', 'exclude']) {
++    if (value[property] !== undefined && !isStringArray(value[property])) {
++      throw new Error(`Invalid TypeScript config "${fileName}": ${property} must be an array of strings`);
++    }
++  }
++  if (value.extends !== undefined && typeof value.extends !== 'string' && !isStringArray(value.extends)) {
++    throw new Error(`Invalid TypeScript config "${fileName}": extends must be a string or an array of strings`);
++  }
++  if (value.compilerOptions !== undefined && !isObject(value.compilerOptions)) {
++    throw new Error(`Invalid TypeScript config "${fileName}": compilerOptions must be an object`);
++  }
++  if (value.references !== undefined) {
++    if (!Array.isArray(value.references)) {
++      throw new Error(`Invalid TypeScript config "${fileName}": references must be an array`);
++    }
++    for (const [index, reference] of value.references.entries()) {
++      if (!isObject(reference) || typeof reference.path !== 'string') {
++        throw new Error(`Invalid TypeScript config "${fileName}": references[${index}] must be an object with a string path`);
++      }
++    }
++  }
++}
+ /**
+  * A helper class that rewrites `references` and `extends` file paths if they end up falling outside of the sandbox.
+@@ -67,21 +103,28 @@ export class TSConfigPreprocessor implements FilePreprocessor {
+       if (tsconfigFile) {
+         this.log.debug('Rewriting file %s', tsconfigFile);
+-        const { default: ts } = await import('typescript');
+-        const { config }: { config?: TSConfig } = ts.parseConfigFileTextToJson(
+-          tsconfigFileName,
+-          await tsconfigFile.readContent(),
++        const { parseTree, getNodeValue, printParseErrorCode } = await import('jsonc-parser');
++        const errors: ParseError[] = [];
++        const content = await tsconfigFile.readContent();
++        // Preserve diagnostic offsets when consuming TypeScript's optional byte-order mark.
++        const jsonc = content.startsWith('\uFEFF') ? ` ${content.slice(1)}` : content;
++        const tree = parseTree(
++          jsonc,
++          errors,
++          { allowTrailingComma: true },
+         );
+-        if (config) {
+-          await this.rewriteExtends(project, config, tsconfigFileName);
+-          await this.rewriteProjectReferences(
+-            project,
+-            config,
+-            tsconfigFileName,
++        if (errors.length > 0) {
++          const diagnostics = errors.map(({ error, offset, length }) =>
++            `${printParseErrorCode(error)} at offset ${offset}, length ${length}`,
+           );
+-          this.rewriteFileArrayProperty(config, tsconfigFileName, 'include');
+-          this.rewriteFileArrayProperty(config, tsconfigFileName, 'exclude');
+-          this.rewriteFileArrayProperty(config, tsconfigFileName, 'files');
+-          tsconfigFile.setContent(JSON.stringify(config, null, 2));
++          throw new Error(`Invalid TypeScript config "${tsconfigFileName}": ${diagnostics.join('; ')}`);
+         }
++        const config: unknown = tree === undefined ? undefined : getNodeValue(tree);
++        validateConfig(config, tsconfigFileName);
++        await this.rewriteExtends(project, config, tsconfigFileName);
++        await this.rewriteProjectReferences(project, config, tsconfigFileName);
++        this.rewriteFileArrayProperty(config, tsconfigFileName, 'include');
++        this.rewriteFileArrayProperty(config, tsconfigFileName, 'exclude');
++        this.rewriteFileArrayProperty(config, tsconfigFileName, 'files');
++        tsconfigFile.setContent(JSON.stringify(config, null, 2));
+       }
+     }
+@@ -95,16 +138,21 @@ export class TSConfigPreprocessor implements FilePreprocessor {
+     const extend = config.extends;
+     if (typeof extend === 'string') {
+-      const rewritten = this.tryRewriteReference(extend, tsconfigFileName);
+-      if (rewritten) {
+-        config.extends = rewritten;
+-      } else {
+-        await this.rewriteTSConfigFile(
+-          project,
+-          path.resolve(path.dirname(tsconfigFileName), extend),
+-        );
++      config.extends = await this.rewriteExtendedConfig(project, extend, tsconfigFileName);
++    } else if (extend !== undefined) {
++      const rewritten: string[] = [];
++      for (const reference of extend) {
++        rewritten.push(await this.rewriteExtendedConfig(project, reference, tsconfigFileName));
+       }
++      config.extends = rewritten;
+     }
+   }
+
++  private async rewriteExtendedConfig(project: Project, reference: string, origin: string): Promise<string> {
++    const rewritten = this.tryRewriteReference(reference, origin);
++    if (rewritten) return rewritten;
++    await this.rewriteTSConfigFile(project, path.resolve(path.dirname(origin), reference));
++    return reference;
++  }
++
+   private rewriteFileArrayProperty(
+     config: TSConfig,
+@@ -130,8 +178,9 @@ export class TSConfigPreprocessor implements FilePreprocessor {
+     originTSConfigFileName: string,
+   ): Promise<void> {
+-    const { default: ts } = await import('typescript');
+     if (Array.isArray(config.references)) {
+       for (const reference of config.references) {
+-        const referencePath = ts.resolveProjectReferencePath(reference);
++        const referencePath = reference.path.endsWith('.json')
++          ? reference.path
++          : path.join(reference.path, 'tsconfig.json');
+         const rewritten = this.tryRewriteReference(
+           referencePath,
