@@ -8,7 +8,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-deepseek-llm-api-extensions'
-import { SessionId, type Session, type SessionEvent } from '@deepseek-ai/dsh-session'
+import { SessionId, type Session } from '@deepseek-ai/dsh-session'
 import type { DeepSeekSessionLogExtension } from './types.ts'
 
 export type { DeepSeekSessionLogExtension } from './types.ts'
@@ -47,7 +47,8 @@ export function acceptedThrough(session: Session): number {
   const events = session.events
   const start = previous?.scannedEvents ?? 0
   for (let index = start; index < events.length; index++) {
-    const event = events[index] as SessionEvent
+    const event = events[index]
+    if (event === undefined) continue
     if (event.type !== 'session-log-deepseek/delivery-accepted') continue
     if (typeof event.data.sessionId !== 'string' || event.data.sessionId.length === 0
       || !Number.isSafeInteger(event.data.throughSeq) || event.data.throughSeq < 0

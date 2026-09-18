@@ -7,7 +7,6 @@ import {
   SessionPersistence, SessionPersistenceRevision, PersistenceCoordinator,
   type PersistenceBackend, type SessionPersistenceSnapshot, type StoredPrefix, type StoredSuffix,
 } from '../src/index.ts'
-import { storedSessionEvents } from '../src/coordinator.ts'
 import { runPersistenceContract, meta, oneTurnLog } from './contract.ts'
 import { runCoordinatorContract, type CoordinatorFixture } from './coordinator-contract.ts'
 
@@ -156,7 +155,7 @@ class MemoryPersistence extends SessionPersistence implements PersistenceBackend
     if (!entry) return undefined
     return {
       meta: structuredClone(entry.meta),
-      events: storedSessionEvents(structuredClone(entry.events), id),
+      events: structuredClone(entry.events),
       revision: memoryRevision(entry),
     }
   }
@@ -235,7 +234,7 @@ class ControlledBackend implements PersistenceBackend<never> {
     if (entry === undefined) return undefined
     return {
       meta: structuredClone(entry.meta),
-      events: storedSessionEvents(structuredClone(entry.events), id),
+      events: structuredClone(entry.events),
       revision: memoryRevision(entry),
     }
   }
@@ -1513,7 +1512,7 @@ describe('PersistenceCoordinator observation cancellation', () => {
       backend.seekHook = async (hookId, fromSeq) => {
         const entry = backend.store.get(hookId)
         if (entry === undefined) return undefined
-        return { meta: structuredClone(entry.meta), events: storedSessionEvents(entry.events.filter(record => typeof record.seq === 'number' && record.seq >= fromSeq), hookId) }
+        return { meta: structuredClone(entry.meta), events: entry.events.filter(record => typeof record.seq === 'number' && record.seq >= fromSeq) }
       }
       const suffix = await coordinator.readFrom(id, 3)
       expect(suffix.events).toEqual(log.slice(3))

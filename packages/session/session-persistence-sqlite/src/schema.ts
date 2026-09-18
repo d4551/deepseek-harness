@@ -296,6 +296,15 @@ export function decodeStoreIdentity(value: unknown): string {
 }
 
 /**
+ * Read the integer primary key returned by a session-row insert or lookup.
+ * @param value - value returned by SQLite.
+ * @returns the session row id.
+ */
+export function decodeSessionKey(value: unknown): number {
+  return nonnegativeSafeIntegerField(value, 'id')
+}
+
+/**
  * Reconstruct an immutable session header from a validated metadata row.
  * @param row - validated stored metadata row.
  * @returns the session header.
@@ -316,7 +325,11 @@ export function rowToMeta(row: SessionRow): SessionHeader {
 
 function record(value: unknown, label: string): Record<string, unknown> {
   if (typeof value !== 'object' || value === null) throw new Error(`${label} must be an object`)
-  return value as Record<string, unknown>
+  const copied: Record<string, unknown> = {}
+  for (const key of Object.keys(value)) {
+    copied[key] = Reflect.get(value, key)
+  }
+  return copied
 }
 
 function stringField(value: unknown, key: string): string {
@@ -352,8 +365,10 @@ function nullableBlobField(value: unknown, key: string): Uint8Array | null {
 
 function integerField(value: unknown, key: string): number {
   const field = record(value, 'SQLite row')[key]
-  if (!Number.isSafeInteger(field)) throw new Error(`stored ${key} must be a safe integer`)
-  return field as number
+  if (typeof field !== 'number' || !Number.isSafeInteger(field)) {
+    throw new Error(`stored ${key} must be a safe integer`)
+  }
+  return field
 }
 
 function safeIntegerField(value: unknown, key: string): number {
@@ -369,8 +384,10 @@ function nonnegativeSafeIntegerField(value: unknown, key: string): number {
 function nullableSafeIntegerField(value: unknown, key: string): number | null {
   const field = record(value, 'SQLite row')[key]
   if (field === null) return null
-  if (!Number.isSafeInteger(field)) throw new Error(`stored ${key} must be a safe integer or null`)
-  return field as number
+  if (typeof field !== 'number' || !Number.isSafeInteger(field)) {
+    throw new Error(`stored ${key} must be a safe integer or null`)
+  }
+  return field
 }
 
 function nullableNonnegativeSafeIntegerField(value: unknown, key: string): number | null {

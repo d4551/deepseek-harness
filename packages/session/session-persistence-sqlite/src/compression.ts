@@ -8,7 +8,6 @@
 import { readFileSync } from 'node:fs'
 import { TextDecoder } from 'node:util'
 import { constants, zstdCompressSync, zstdDecompressSync } from 'node:zlib'
-import type { SessionEvent, SurfaceEventType } from '@deepseek-ai/dsh-session'
 import {
   decodeSerializedChunkRow,
   type ChunkRow,
@@ -50,7 +49,7 @@ const CHUNK_TAGS = ['text-chunks', 'reasoning-chunks', 'tool-call-chunks'] as co
 type ChunkTag = typeof CHUNK_TAGS[number]
 
 function isChunkTag(value: string): value is ChunkTag {
-  return (CHUNK_TAGS as readonly string[]).includes(value)
+  return CHUNK_TAGS.some(tag => tag === value)
 }
 
 /**
@@ -58,7 +57,7 @@ function isChunkTag(value: string): value is ChunkTag {
  * @param row - detached SQLite event row.
  * @returns every logical event represented by the row.
  */
-export function decodeRow(row: EventRow): SessionEvent[] {
+export function decodeRow(row: EventRow): object[] {
   if (row.is_packed === 0) return [decodeScalarRow(row)]
   if (!isChunkTag(row.type)) {
     throw new Error(`malformed ${row.type} storage row: packed discriminator requires a chunk tag`)
@@ -92,16 +91,15 @@ export function bindRecord(record: StorageRecord): BoundRecord {
     }
   }
   const event = record
-  const surface = event as SessionEvent<SurfaceEventType>
+  const sourceEventSeqs = sourceEventSeqsFrom(event)
+  const surfaceOp = Reflect.get(event, 'surfaceOp')
   return {
     seq: event.seq,
     type: event.type,
     time: event.time,
     data: encodeData(JSON.stringify(event.data)),
-    sourceEventSeqs: surface.sourceEventSeqs === undefined
-      ? null
-      : encodeSourceEventSeqs(surface.sourceEventSeqs),
-    surfaceOp: surface.surfaceOp === undefined ? null : JSON.stringify(surface.surfaceOp),
+    sourceEventSeqs: sourceEventSeqs === undefined ? null : encodeSourceEventSeqs(sourceEventSeqs),
+    surfaceOp: surfaceOp === undefined ? null : JSON.stringify(surfaceOp),
     isPacked: 0,
   }
 }
@@ -120,13 +118,30 @@ function decodeData(value: string | Uint8Array, maxOutputLength?: number): strin
   return UTF8_DECODER.decode(decoded)
 }
 
+/** Read source-event seqs from a scalar stored record. */
+function sourceEventSeqsFrom(event: object): readonly number[] | undefined {
+  const value = Reflect.get(event, 'sourceEventSeqs')
+  if (value === undefined) return undefined
+  if (!Array.isArray(value)) {
+    throw new TypeError('sourceEventSeqs must contain non-negative safe integers')
+  }
+  const seqs: number[] = []
+  for (const item of value) {
+    if (typeof item !== 'number') {
+      throw new TypeError('sourceEventSeqs must contain non-negative safe integers')
+    }
+    seqs.push(item)
+  }
+  return seqs
+}
+
 function encodeSourceEventSeqs(values: readonly number[]): Uint8Array {
   if (values.length === 0) return new Uint8Array()
   const deltas = [DELTA_TAG]
   let previous = 0n
   for (let index = 0; index < values.length; index += 1) {
-    const value = values[index] as number
-    if (!Number.isSafeInteger(value) || value < 0) {
+    const value = values[index]
+    if (value === undefined || !Number.isSafeInteger(value) || value < 0) {
       throw new TypeError('sourceEventSeqs must contain non-negative safe integers')
     }
     const current = BigInt(value)
@@ -141,10 +156,15 @@ function encodeSourceEventSeqs(values: readonly number[]): Uint8Array {
   if (!isStrictlyIncreasing(values)) return Uint8Array.from(deltas)
 
   const runs = [RUN_TAG]
-  let start = values[0] as number
+  const first = values[0]
+  if (first === undefined) return new Uint8Array()
+  let start = first
   let end = start
   for (let index = 1; index < values.length; index += 1) {
-    const value = values[index] as number
+    const value = values[index]
+    if (value === undefined) {
+      throw new TypeError('sourceEventSeqs must contain non-negative safe integers')
+    }
     if (value === end + 1) {
       end = value
       continue
@@ -160,7 +180,12 @@ function encodeSourceEventSeqs(values: readonly number[]): Uint8Array {
 }
 
 function isStrictlyIncreasing(values: readonly number[]): boolean {
-  return values.every((value, index) => index === 0 || value > (values[index - 1] as number))
+  for (let index = 1; index < values.length; index += 1) {
+    const previous = values[index - 1]
+    const value = values[index]
+    if (previous === undefined || value === undefined || value <= previous) return false
+  }
+  return true
 }
 
 function appendVarint(bytes: number[], value: bigint): void {
@@ -238,7 +263,10 @@ function readVarint(
   let value = 0n
   let shift = 0n
   while (offset < bytes.length) {
-    const byte = bytes[offset] as number
+    const byte = bytes[offset]
+    if (byte === undefined) {
+      throw new Error('malformed source_event_seqs storage value: truncated varint')
+    }
     offset += 1
     value |= BigInt(byte & 0x7f) << shift
     if ((byte & 0x80) === 0) {
@@ -262,22 +290,34 @@ function isChunkRow(record: StorageRecord): record is ChunkRow {
   return isChunkTag(record.type) && 'seq0' in record && !('seq' in record)
 }
 
-function decodeScalarRow(row: EventRow): SessionEvent {
-  const surfaceFields = {
-    ...row.source_event_seqs === null
-      ? {}
-      : { sourceEventSeqs: decodeSourceEventSeqs(row.source_event_seqs, row.seq) },
-    ...row.surface_op === null
-      ? {}
-      : { surfaceOp: JSON.parse(row.surface_op) as SessionEvent<SurfaceEventType>['surfaceOp'] },
-  }
-  return {
-    type: row.type as SessionEvent['type'],
+function decodeScalarRow(row: EventRow): object {
+  const event: { [key: string]: unknown } = {
+    type: row.type,
     seq: row.seq,
     time: row.time,
-    data: JSON.parse(decodeData(row.data)) as SessionEvent['data'],
-    ...surfaceFields,
-  } as SessionEvent
+    data: JSON.parse(decodeData(row.data)),
+  }
+  if (row.source_event_seqs !== null) {
+    event.sourceEventSeqs = decodeSourceEventSeqs(row.source_event_seqs, row.seq)
+  }
+  if (row.surface_op !== null) {
+    event.surfaceOp = JSON.parse(row.surface_op)
+  }
+  return event
+}
+
+/** Read the sequence number carried by one decoded stored record. */
+function storedEventSeq(event: object): number {
+  const seq = Reflect.get(event, 'seq')
+  if (typeof seq !== 'number' || !Number.isSafeInteger(seq)) {
+    throw new TypeError('stored event seq must be a safe integer')
+  }
+  return seq
+}
+
+/** Read the type carried by one decoded stored record. */
+function storedEventType(event: object): unknown {
+  return Reflect.get(event, 'type')
 }
 
 /**
@@ -291,11 +331,13 @@ function decodeScalarRow(row: EventRow): SessionEvent {
 export function scanRows(
   rows: readonly EventRow[],
   base = 0,
-): { preserved: SessionEvent[]; tornFrom?: number } {
+): { preserved: object[]; tornFrom?: number } {
   let lastTurnEndRow = -1
   for (let index = rows.length - 1; index >= 0; index -= 1) {
     try {
-      if (decodeRow(rows[index] as EventRow).some(event => event.type === 'turn/end')) {
+      const row = rows[index]
+      if (row === undefined) continue
+      if (decodeRow(row).some(event => storedEventType(event) === 'turn/end')) {
         lastTurnEndRow = index
         break
       }
@@ -304,11 +346,12 @@ export function scanRows(
     }
   }
 
-  const preserved: SessionEvent[] = []
+  const preserved: object[] = []
   let expected = base
   for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
-    const physical = rows[rowIndex] as EventRow
-    let logicalEvents: SessionEvent[] | undefined
+    const physical = rows[rowIndex]
+    if (physical === undefined) continue
+    let logicalEvents: object[] | undefined
     try {
       logicalEvents = decodeRow(physical)
     } catch {
@@ -322,7 +365,7 @@ export function scanRows(
     }
     let contiguous = true
     for (const event of logicalEvents) {
-      if (event.seq !== expected) {
+      if (storedEventSeq(event) !== expected) {
         contiguous = false
         break
       }

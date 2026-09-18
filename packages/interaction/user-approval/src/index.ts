@@ -76,7 +76,8 @@ const ASK_SENTENCE = 'Approval policy: ask. Operations that require approval may
  */
 export function effectiveApprovalPolicy(events: readonly SessionEvent[]): ApprovalPolicy | undefined {
   for (let index = events.length - 1; index >= 0; index -= 1) {
-    const event = events[index] as SessionEvent
+    const event = events[index]
+    if (event === undefined) continue
     if (event.type === 'approval/policy') return event.data.policy
   }
   return undefined
@@ -91,7 +92,9 @@ export function effectiveApprovalPolicy(events: readonly SessionEvent[]): Approv
  */
 function hasOpenTurn(events: readonly SessionEvent[]): boolean {
   for (let index = events.length - 1; index >= 0; index -= 1) {
-    const type = (events[index] as SessionEvent).type
+    const event = events[index]
+    if (event === undefined) continue
+    const type = event.type
     if (type === 'turn/start') return true
     if (type === 'turn/end') return false
   }

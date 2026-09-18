@@ -101,7 +101,7 @@ export interface PersistenceCoordinatorOptions {
  */
 export interface StoredPrefix<TornMarker = unknown> {
   meta: SessionHeader
-  events: SessionEvent[]
+  events: object[]
   /** Revision observed for exactly this detached prefix. */
   revision: SessionPersistenceRevision
   tornMarker?: TornMarker
@@ -115,7 +115,7 @@ export interface StoredPrefix<TornMarker = unknown> {
  */
 export interface StoredSuffix {
   meta: SessionHeader
-  events: SessionEvent[]
+  events: object[]
 }
 
 /**
@@ -351,7 +351,7 @@ function sessionEventsFromRecords(records: readonly object[]): SessionEvent[] {
 }
 
 /** Reject records from an obsolete v0 vocabulary before they are claimed as session events. */
-export function assertSupportedEventRecords(events: readonly object[], id: SessionId): void {
+function assertSupportedEventRecords(events: readonly object[], id: SessionId): void {
   for (const event of events) {
     const type = Reflect.get(event, 'type')
     const seq = Reflect.get(event, 'seq')
@@ -368,7 +368,7 @@ export function assertSupportedEventRecords(events: readonly object[], id: Sessi
 }
 
 /** Narrow stored records after refusing obsolete vocabulary. */
-export function storedSessionEvents(records: readonly object[], id: SessionId): SessionEvent[] {
+function storedSessionEvents(records: readonly object[], id: SessionId): SessionEvent[] {
   assertSupportedEventRecords(records, id)
   return sessionEventsFromRecords(records)
 }
@@ -425,12 +425,13 @@ function replacementStart(event: SessionEvent): number | undefined {
 }
 
 /** Whether one suffix event needs facts available only from the preceding stored prefix. */
-function needsLegacyPrefix(event: SessionEvent): boolean {
-  const data = asRecord(event.data)
+function needsLegacyPrefix(event: object): boolean {
+  const type = Reflect.get(event, 'type')
+  const data = asRecord(Reflect.get(event, 'data'))
   const legacySteeringType: string = 'steering/message'
-  if (event.type === legacySteeringType) return true
+  if (type === legacySteeringType) return true
   if (data === undefined) return false
-  switch (event.type) {
+  switch (type) {
     case 'user/message':
       return !Object.hasOwn(data, 'id') && Object.hasOwn(data, 'content')
     case 'assistant/message':

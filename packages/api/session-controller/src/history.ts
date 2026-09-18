@@ -82,7 +82,7 @@ export class SessionHistoryController {
    * Follow events appended after an initial cursor on one durable address.
    * @param request - durable address and last committed sequence already held by the caller.
    * @param signal - stream cancellation owned by the Remote carrier.
-   * @returns a complete opening snapshot followed by gap-free event frames.
+   * @yields a complete opening snapshot followed by gap-free event frames.
    */
   async *follow(request: SessionFollowRequest, signal: AbortSignal): AsyncIterable<SessionFollowFrame> {
     validateFollowRequest(request)
@@ -298,13 +298,16 @@ function paginate(
   let count = 0
   let cut = 0
   for (let index = end - 1; index >= 0; index--) {
-    const event = events[index] as SessionEvent
+    const event = events[index]
+    if (event === undefined) continue
     if (!MESSAGE_TYPES.has(event.type) || !isAppendSurfaceEvent(event)) continue
     count++
-    const sources = (event as { readonly sourceEventSeqs?: readonly number[] }).sourceEventSeqs
+    const sources = Reflect.get(event, 'sourceEventSeqs')
     let groupStart = event.seq
-    if (sources !== undefined) {
-      for (const source of sources) groupStart = Math.min(groupStart, source)
+    if (Array.isArray(sources)) {
+      for (const source of sources) {
+        if (typeof source === 'number') groupStart = Math.min(groupStart, source)
+      }
     }
     if (count >= maxMessages) {
       cut = groupStart
