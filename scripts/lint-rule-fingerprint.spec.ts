@@ -23,19 +23,19 @@ interface Profile {
 // three profiles; every other normalized rule retained its prior fingerprint.
 const profiles = {
   source: {
-    count: 83,
-    indexes: [0, 1, 4, 5],
-    sha256: 'df9baf14cf974f83cd850b8068d1a1b30fe855cc15c4e577cda19dc6bffdff6b',
+    count: 120,
+    indexes: [0, 1, 2, 5, 6],
+    sha256: '1b5ee8f6e5ef25a9a3ea99e214a3dec877b0505a35999125e56b07ee4f777a14',
   },
   example: {
     count: 82,
-    indexes: [0, 1, 2, 4, 5],
+    indexes: [0, 1, 3, 5, 6],
     sha256: 'dc1f88c06e8013c7fc5c135a986bf411c52c9a996793e6d9ac502f5d96c609cc',
   },
   test: {
-    count: 78,
-    indexes: [0, 3, 4, 5],
-    sha256: '10fa619bca1b6520197cf5c4ddc2d179cc1c9ed5ce63e1cac6adf2d784ea0498',
+    count: 115,
+    indexes: [0, 2, 4, 5, 6],
+    sha256: 'ef85e05128fb76a456e145d81c601b61881f0acb44602c8650075e3081948028',
   },
 } as const satisfies Record<string, Profile>
 
@@ -90,7 +90,7 @@ describe('Oxlint repository rule fingerprint', () => {
   const overrides: readonly unknown[] = parsed.overrides
 
   it('pins every override field', () => {
-    expect(overrides).toHaveLength(9)
+    expect(overrides).toHaveLength(10)
     assertLintScopeIntegrity(readLintScope(fileURLToPath(new URL('..', import.meta.url))))
   })
 
