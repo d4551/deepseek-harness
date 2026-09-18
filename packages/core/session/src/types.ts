@@ -430,3 +430,19 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
     surfaceOp?: SurfaceOp
   } : object)
 }[T]
+
+/** Confirm a JSON object carries the session-event envelope. */
+export function assertSessionEventObject(value: object): asserts value is SessionEvent {
+  if (!('type' in value) || typeof value.type !== 'string') {
+    throw new Error('session event has an invalid event type')
+  }
+  if (!('seq' in value) || typeof value.seq !== 'number') {
+    throw new Error('session event is missing envelope fields')
+  }
+  if (!('time' in value) || typeof value.time !== 'number' || !Number.isSafeInteger(value.time)) {
+    throw new Error('session event has an invalid time')
+  }
+  if (!('data' in value)) {
+    throw new Error('session event is missing envelope fields')
+  }
+}

@@ -12,7 +12,7 @@ import { deepFreeze, errorChain } from '@deepseek-ai/dsh-llm'
 import { scopeOf, scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { Scoped } from '@deepseek-ai/dsh-scope'
 import type { Message } from '@deepseek-ai/dsh-llm'
-import { SESSION_FORMAT_VERSION, SessionId } from './types.ts'
+import { SESSION_FORMAT_VERSION, SessionId, assertSessionEventObject } from './types.ts'
 import type { TypertLookup } from '@deepseek-ai/dsh-typert-protocol'
 import type { CreateSessionOptions, EpochHeader, PrepareSessionOptions, RequestContext, SessionEvent, SessionEventMap, SessionEventType, SessionHeader, SurfaceIntent, SurfaceEventType } from './types.ts'
 import { snapshotJsonObject, snapshotJsonValue } from './json.ts'
@@ -22,7 +22,7 @@ import type { SessionSurface } from './surface.ts'
 import { foldRequestHeader } from './request-header.ts'
 import { SessionRequestBudgets } from './request-budget.ts'
 
-export { SESSION_FORMAT_VERSION, SessionId } from './types.ts'
+export { SESSION_FORMAT_VERSION, SessionId, assertSessionEventObject } from './types.ts'
 export type { AgentCancelCause, CreateSessionOptions, EpochHeader, PrepareSessionOptions, RequestContext, RequestHeaderReason, RestoredSessionOptions, SessionEvent, SessionEventMap, SessionEventType, SessionHeader, SurfaceEvent, SurfaceEventType, SurfaceIntent, SurfaceOp, TurnEndCancelCause, TurnEndReason, TurnEndReasonMap } from './types.ts'
 export { SessionPreparation } from './preparation.ts'
 export type { SessionPreparationOptions } from './preparation.ts'
@@ -223,22 +223,6 @@ export function snapshotSessionEvent<T extends SessionEvent>(event: T): T {
 }
 
 type JsonObject = { [key: string]: JsonValue }
-
-/** Confirm a JSON object carries the session-event envelope. */
-export function assertSessionEventObject(value: object): asserts value is SessionEvent {
-  if (!('type' in value) || typeof value.type !== 'string') {
-    throw new Error('session event has an invalid event type')
-  }
-  if (!('seq' in value) || typeof value.seq !== 'number') {
-    throw new Error('session event is missing envelope fields')
-  }
-  if (!('time' in value) || typeof value.time !== 'number' || !Number.isSafeInteger(value.time)) {
-    throw new Error('session event has an invalid time')
-  }
-  if (!('data' in value)) {
-    throw new Error('session event is missing envelope fields')
-  }
-}
 
 /** Confirm a constructed append payload is a session event before it enters the log. */
 function assertPublishedSessionEvent(
