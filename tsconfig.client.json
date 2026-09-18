@@ -29,6 +29,7 @@
     "packages/extensions/ui-cordis/src/css-modules.d.ts",
     "packages/client/tsdown.client.ts",
     "scripts/client-build-environment.ts",
+    "scripts/tsdown-workspace-root.ts",
     "scripts/test-workspace-copy.ts",
     "scripts/git-worktree-files.ts",
     "scripts/*.client.spec.ts",
