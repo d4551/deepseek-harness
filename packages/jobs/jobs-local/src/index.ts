@@ -245,41 +245,38 @@ export class LocalJobRegistry extends JobRegistry {
         counted = false
         job.waiters -= 1
       }
-      try {
-        // The scoped deadline distinguishes a successful wait timeout from
-        // caller cancellation and clears its timer on every exit.
-        using d = deadline(signal, timeoutMs, TASK_WAIT_TIMEOUT)
-        await new Promise<void>((resolve, reject) => {
-          const onSettled = (): void => {
-            job.waitResolvers.delete(onSettled)
-            d.signal.removeEventListener('abort', onAbort)
+      using _uncountWaiter = { [Symbol.dispose]: uncount }
+      // The scoped deadline distinguishes a successful wait timeout from
+      // caller cancellation and clears its timer on every exit.
+      using d = deadline(signal, timeoutMs, TASK_WAIT_TIMEOUT)
+      await new Promise<void>((resolve, reject) => {
+        const onSettled = (): void => {
+          job.waitResolvers.delete(onSettled)
+          d.signal.removeEventListener('abort', onAbort)
+          resolve()
+        }
+        const onAbort = (): void => {
+          job.waitResolvers.delete(onSettled)
+          // A settled job cannot reach here: settlement releases every waiter
+          // before it announces completion, and each released waiter detaches
+          // this listener in the same synchronous span, so nothing that reacts
+          // to a settlement can abort a wait the settlement already owed.
+          if (timeoutOf(d.signal, TASK_WAIT_TIMEOUT) !== undefined) {
             resolve()
+          } else {
+            uncount()
+            reject(new Error('wait aborted'))
           }
-          const onAbort = (): void => {
-            job.waitResolvers.delete(onSettled)
-            // A settled job cannot reach here: settlement releases every waiter
-            // before it announces completion, and each released waiter detaches
-            // this listener in the same synchronous span, so nothing that reacts
-            // to a settlement can abort a wait the settlement already owed.
-            if (timeoutOf(d.signal, TASK_WAIT_TIMEOUT) !== undefined) {
-              resolve()
-            } else {
-              uncount()
-              reject(new Error('wait aborted'))
-            }
-          }
-          job.waitResolvers.add(onSettled)
-          d.signal.addEventListener('abort', onAbort, { once: true })
-        })
-      } finally {
-        uncount()
-      }
+        }
+        job.waitResolvers.add(onSettled)
+        d.signal.addEventListener('abort', onAbort, { once: true })
+      })
     }
     if (isTerminal(job.status)) job.reported = true
     return this.snapshot(job)
   }
 
-  onJobDone(listener: JobDoneListener): () => void {
+  onJobDone(listener: JobDoneListener): () => void | Promise<void> {
     return this.layers.effect(
       this.ctx,
       layer => layer.listeners.append(listener),
@@ -287,7 +284,7 @@ export class LocalJobRegistry extends JobRegistry {
     )
   }
 
-  onJobsChanged(listener: JobsChangedListener): () => void {
+  onJobsChanged(listener: JobsChangedListener): () => void | Promise<void> {
     return this.layers.effect(
       this.ctx,
       layer => layer.changed.append(listener),
@@ -295,7 +292,7 @@ export class LocalJobRegistry extends JobRegistry {
     )
   }
 
-  attachController(name: string): () => void {
+  attachController(name: string): () => void | Promise<void> {
     // One token per call keeps duplicate labels independently disposable.
     const token = Symbol(name)
     return this.layers.effect(
@@ -401,7 +398,9 @@ export class LocalJobRegistry extends JobRegistry {
   private notifyChanged(owner: Agent | undefined): void {
     for (const listener of this.changedFor(owner)) {
       observeListenerInvocation(
-        () => listener(owner),
+        () => {
+          listener(owner)
+        },
         (reason) => {
           this.selfCtx.logger.warn(`jobs: onJobsChanged listener threw: ${renderListenerFailure(reason)}`)
         },
@@ -523,17 +522,35 @@ export class LocalJobRegistry extends JobRegistry {
       // record too, so a throwing cancel must not be the one path that
       // announces an unreported completion into a disposing owner.
       job.reported = true
-      try {
-        job.cancel(reason)
+      observeListenerInvocation(
+        () => {
+          job.cancel(reason)
+        },
+        (error) => {
+          this.selfCtx.logger.warn(
+            `jobs: cancel of ${job.id} threw during teardown; job record forced failed and work may be orphaned: ${renderListenerFailure(error)}`,
+          )
+          this.settle(job, {
+            status: 'failed',
+            detail: 'cancel threw during teardown; work may be orphaned',
+          })
+        },
+        (error) => {
+          this.selfCtx.logger.warn(
+            `jobs: cancel of ${job.id} threw during teardown; job record forced failed and work may be orphaned: ${renderListenerFailure(error)}`,
+          )
+          this.settle(job, {
+            status: 'failed',
+            detail: 'cancel threw during teardown; work may be orphaned',
+          })
+        },
+      )
+      if (!isTerminal(job.status)) {
         job.status = 'stopping'
         // Teardown reaches settlement only after the producer releases, which a
         // slow stop can defer; announcing the transition here is what keeps an
         // observer from showing `running` for that whole window.
         this.notifyChanged(job.owner)
-      } catch (error: unknown) {
-        const detail = `cancel threw during teardown; work may be orphaned: ${String(error)}`
-        this.selfCtx.logger.warn(`jobs: cancel of ${job.id} threw during teardown; job record forced failed and work may be orphaned: ${String(error)}`)
-        this.settle(job, { status: 'failed', detail })
       }
     }
   }

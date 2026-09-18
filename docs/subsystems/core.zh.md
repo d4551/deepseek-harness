@@ -1148,10 +1148,10 @@ A declarative agent entry failed before it could publish a live agent. Consumers
  * transient signal to reject that work instead of waiting forever. Normal
  * factory teardown suppresses failures from the cancelled startup attempt.
  * @param payload.sessionId - exact shared agent/session identity that failed startup.
- * @param payload.error - persistence, setup, or publication failure.
+ * @param payload.error - contained persistence, setup, or publication failure.
  * @mode emit
  */
-'agent-loop/config-start-failed'(payload: { sessionId: SessionId; error: unknown }): void | Promise<void>
+'agent-loop/config-start-failed'(payload: { sessionId: SessionId; error: ListenerFailure }): void | Promise<void>
 ```
 
 Source: [`packages/core/agent-loop/src/index.ts`](../../packages/core/agent-loop/src/index.ts)

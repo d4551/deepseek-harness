@@ -49,7 +49,12 @@ type PayloadRest<K extends AgentSubjectEvent> = Omit<PayloadOf<K> & object, 'age
 type InjectedPayload<K extends AgentSubjectEvent> = { readonly agent: Agent } & PayloadRest<K>
 
 /** Values a contained listener may reject or throw. */
-type ListenerFailure = object | string | number | boolean | bigint | symbol | null | undefined
+export type ListenerFailure = object | string | number | boolean | bigint | symbol | null | undefined
+
+/** Drop a fulfilled containment promise so only the rejection path is observed. */
+function ignoreFulfilled(): undefined {
+  return undefined
+}
 
 /**
  * The fused dispatcher {@link agentEvents} returns: each method dispatches the
@@ -101,16 +106,14 @@ export function observeListenerInvocation(
   onReject: (reason: ListenerFailure) => void,
 ): void {
   let finishedSynchronously = false
+  function report(reason: ListenerFailure): void {
+    if (finishedSynchronously) onReject(reason)
+    else onThrow(reason)
+  }
   new Promise((resolve: (value: unknown) => void) => {
     resolve(invoke())
     finishedSynchronously = true
-  }).then(
-    () => undefined,
-    (reason: ListenerFailure) => {
-      if (finishedSynchronously) onReject(reason)
-      else onThrow(reason)
-    },
-  )
+  }).then(ignoreFulfilled, report)
 }
 
 /**
@@ -121,10 +124,7 @@ export function observeReturnedThenable(
   returned: unknown,
   onReject: (reason: ListenerFailure) => void,
 ): void {
-  Promise.resolve(returned).then(
-    () => undefined,
-    onReject,
-  )
+  Promise.resolve(returned).then(ignoreFulfilled, onReject)
 }
 
 /**
@@ -134,9 +134,23 @@ export function observeReturnedThenable(
 export function renderListenerFailure(reason: ListenerFailure): string {
   let text = '[unrenderable thrown value]'
   new Promise((resolve: (value: string) => void) => {
-    text = reason instanceof Error ? `${reason.name}: ${reason.message}` : String(reason)
+    if (reason instanceof Error) {
+      text = `${reason.name}: ${reason.message}`
+    } else if (
+      typeof reason === 'string'
+      || typeof reason === 'number'
+      || typeof reason === 'boolean'
+      || typeof reason === 'bigint'
+      || typeof reason === 'symbol'
+    ) {
+      text = String(reason)
+    } else if (reason === null) {
+      text = 'null'
+    } else if (reason === undefined) {
+      text = 'undefined'
+    }
     resolve(text)
-  }).then(() => undefined, () => undefined)
+  }).then(ignoreFulfilled, ignoreFulfilled)
   return text
 }
 
@@ -171,10 +185,10 @@ export function agentEvents(ctx: Context, agent: Agent, carrier: Scoped<Agent> =
         observeListenerInvocation(
           () => callback(...args),
           (reason) => {
-            ctx.logger.warn(`agent event "${name}" listener threw: ${String(reason)}`)
+            ctx.logger.warn(`agent event "${name}" listener threw: ${renderListenerFailure(reason)}`)
           },
           (reason) => {
-            ctx.logger.warn(`agent event "${name}" listener rejected: ${String(reason)}`)
+            ctx.logger.warn(`agent event "${name}" listener rejected: ${renderListenerFailure(reason)}`)
           },
         )
       }

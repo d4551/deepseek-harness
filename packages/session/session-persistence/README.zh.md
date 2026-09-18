@@ -40,10 +40,11 @@ await ctx.sessionPersistence.create(meta)                  // register a session
 await ctx.sessionPersistence.ensureMaterialized(session)   // persist an empty resumable session
 await ctx.sessionPersistence.append(id, events)            // durably persist a batch
 const { meta, events } = await ctx.sessionPersistence.load(id)   // reload on resume
+const present = await ctx.sessionPersistence.exists(id)        // one identity after retirement
 const headers = await ctx.sessionPersistence.list()        // every stored session
 ```
 
-`append` 只在批次持久后返回，因此成功返回的写入在操作系统崩溃或断电后依然存在。普通 `create` 保持惰性；只有当空会话本身必须出现在持久列表中时，生命周期前端才调用 `ensureMaterialized`，且不会虚构事件。`load` 返回不可变的平衡日志并提交任何需要的崩溃恢复；`inspect` 读取同一视图但不提交恢复。从水位恢复的消费方可以只读取该序列号及之后的已存储事件，会话的产物位置（`locate`）不经文件系统 I/O 即可解析。
+`append` 只在批次持久后返回，因此成功返回的写入在操作系统崩溃或断电后依然存在。普通 `create` 保持惰性；只有当空会话本身必须出现在持久列表中时，生命周期前端才调用 `ensureMaterialized`，且不会虚构事件。`exists(id)` 会等待该身份正在进行的退役，然后报告是否已有物化日志。`load` 返回不可变的平衡日志并提交任何需要的崩溃恢复；`inspect` 读取同一视图但不提交恢复。从水位恢复的消费方可以只读取该序列号及之后的已存储事件，会话的产物位置（`locate`）不经文件系统 I/O 即可解析。
 
 ### 恢复与崩溃恢复
 

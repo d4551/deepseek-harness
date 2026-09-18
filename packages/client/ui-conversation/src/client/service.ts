@@ -62,6 +62,33 @@ export interface IConversation {
    * @returns completion of the page pull.
    */
   loadOlder(): Promise<void>
+  /**
+   * Whether every file's browser-declared MIME is a supported draft image type.
+   * @param files - browser files considered for draft intake.
+   */
+  acceptsImageFiles(files: readonly File[]): boolean
+  /**
+   * Create runtime-only draft images and their object URLs.
+   * @param files - browser files to register after MIME validation.
+   * @returns ordered draft descriptors.
+   */
+  createDraftImages(files: readonly File[]): readonly ComposerAttachment[]
+  /**
+   * Resolve ordered input-state ids to runtime-owned draft images.
+   * @param ids - draft attachment ids.
+   * @returns descriptors that remain live, in requested order.
+   */
+  draftImages(ids: readonly DraftAttachmentId[]): readonly ComposerAttachment[]
+  /**
+   * Release one browser-owned draft image and preview URL.
+   * @param id - draft attachment id.
+   */
+  releaseDraftImage(id: DraftAttachmentId): void
+  /**
+   * Release a set of browser-owned draft images.
+   * @param attachments - descriptors to release.
+   */
+  releaseDraftImages(attachments: readonly ComposerAttachment[]): void
 }
 
 /** Create one browser-only draft descriptor; only its id enters input state. */
@@ -230,15 +257,16 @@ export class ConversationController extends Service implements IConversation {
         finishRetirement?.(settlement)
       },
     })
-    let content: Parameters<SessionFace['prompt']>[0]
-    try {
-      await nextPaint()
-      const uploaded = await this.serializeImages(attachments.map(attachment => attachment.file))
-      content = [...uploaded, ...(text === '' ? [] : [{ type: 'text' as const, text }])]
-    } catch (error) {
-      submission.abandon()
-      throw error
+    let serialized = false
+    using _abandonUnserialized = {
+      [Symbol.dispose]: (): void => {
+        if (!serialized) submission.abandon()
+      },
     }
+    await nextPaint()
+    const uploaded = await this.serializeImages(attachments.map(attachment => attachment.file))
+    const content = [...uploaded, ...(text === '' ? [] : [{ type: 'text' as const, text }])]
+    serialized = true
     const result = await session.prompt(content, mode, signal, submission.requestId)
     if (!result.ok) return { kind: 'error' }
     if (retirement !== undefined && (await retirement).reason !== 'observed') return { kind: 'error' }

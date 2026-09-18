@@ -126,6 +126,10 @@ class MemoryPersistence extends SessionPersistence implements PersistenceBackend
     return this.coordinator.readFrom(id, fromSeq, signal)
   }
 
+  override exists(id: SessionId, signal?: AbortSignal): Promise<boolean> {
+    return this.coordinator.exists(id, signal)
+  }
+
   // --- PersistenceBackend hooks (the Map storage primitives) ---
 
   // A Map-backed store has no torn tails, so `tornMarker` is never set.
@@ -273,7 +277,7 @@ describe('the inherited readRaw default', () => {
     ).rejects.toThrow('does not expose raw artifacts')
     await expect(
       ctx.sessionPersistence.readRaw(SessionId('any-session'), AbortSignal.abort()),
-    ).rejects.toThrow()
+    ).rejects.toThrow(/aborted/)
     // A non-Error abort reason falls back to a wrapped Error rejection.
     const controller = new AbortController()
     controller.abort('boom')
@@ -1566,6 +1570,43 @@ describe('PersistenceCoordinator observation cancellation', () => {
 
       appendGate.resolve(true)
       await observed
+    } finally {
+      appendGate.resolve(true)
+      await backendFiber.dispose()
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('exists waits for an in-flight retirement then reports the materialized identity', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    const backend = new ControlledBackend()
+    let coordinator!: PersistenceCoordinator<never>
+    const backendFiber = await ctx.plugin(Object.assign((inner: Context) => {
+      coordinator = new PersistenceCoordinator(inner, backend)
+    }, { inject: ['sessions'] }))
+    const appendGate = Promise.withResolvers<boolean>()
+    backend.beforeAppend = async () => { await appendGate.promise }
+
+    try {
+      const id = SessionId('retiring-exists')
+      let session!: Session
+      const sessionFiber = await ctx.plugin(Object.assign((inner: Context) => {
+        session = inner.sessions.create(id)
+      }, { inject: ['sessions'] }))
+      session.append('turn/start', { turn: 1 })
+      session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+      await sessionFiber.dispose()
+      await vi.waitFor(() => { expect(backend.appendAttempts).toBe(1) })
+
+      const pending = coordinator.exists(id)
+      let outcome: 'pending' | 'resolved' | 'rejected' = 'pending'
+      pending.then(() => { outcome = 'resolved' }, () => { outcome = 'rejected' })
+      await Promise.resolve()
+      expect(outcome).toBe('pending')
+
+      appendGate.resolve(true)
+      await expect(pending).resolves.toBe(true)
     } finally {
       appendGate.resolve(true)
       await backendFiber.dispose()

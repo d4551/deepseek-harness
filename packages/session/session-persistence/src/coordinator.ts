@@ -121,7 +121,7 @@ export interface StoredSuffix {
  * coordinator supplies everything else (buffering, serialization, cursors,
  * adoption, crash repair sequencing, dispose quiescence).
  *
- * @typeParam TornMarker - the backend's opaque torn-tail repair token (see
+ * @template TornMarker - the backend's opaque torn-tail repair token (see
  * {@link StoredPrefix}). The coordinator treats it as fully opaque.
  */
 export interface PersistenceBackend<TornMarker = unknown> {
@@ -256,7 +256,7 @@ interface PreparedSessionSource<TornMarker> {
 
 /** Collect the rejection reasons from a set of promises (none-throwing). */
 async function settledErrors(promises: Iterable<Promise<unknown>>): Promise<unknown[]> {
-  const settled = await Promise.allSettled([...promises])
+  const settled = await Promise.allSettled(promises)
   const errors: unknown[] = []
   for (const result of settled) {
     if (result.status === 'rejected') errors.push(result.reason)
@@ -585,7 +585,7 @@ function adoptStoredEvents(events: SessionEvent[], id: SessionId): SessionEvent[
  * constructor installs the write-path listeners, per-session retirement, and
  * the backend dispose effect.
  *
- * @typeParam TornMarker - the backend's opaque torn-tail repair token.
+ * @template TornMarker - the backend's opaque torn-tail repair token.
  */
 export class PersistenceCoordinator<TornMarker = unknown> {
   /** Backend bookkeeping keyed by session id (NOT the live Session object). */
@@ -919,6 +919,24 @@ export class PersistenceCoordinator<TornMarker = unknown> {
     return waited.then(() => this.serialize(id, () => this.readFromCore(id, fromSeq, signal), signal))
   }
 
+  /**
+   * Whether one identity currently has a materialized durable log.
+   * Waits for that id's in-flight retirement so a just-disposed session is
+   * reported present once its flush has landed. A lazy create with no append
+   * remains absent.
+   * @param id - session identity to probe.
+   * @param signal - optional cancellation for retirement wait and backend read.
+   * @returns true only when a materialized artifact exists for `id`.
+   */
+  async exists(id: SessionId, signal?: AbortSignal): Promise<boolean> {
+    await this.waitForRetirement(id, signal)
+    signal?.throwIfAborted()
+    return this.serialize(id, async () => {
+      if (this.states.get(id)?.materialized === true) return true
+      return await this.backend.loadStored(id, signal) !== undefined
+    }, signal)
+  }
+
   private async readFromCore(
     id: SessionId,
     fromSeq: number,
@@ -1166,26 +1184,23 @@ export class PersistenceCoordinator<TornMarker = unknown> {
     // reverse registration order, so event admission closes before this final
     // drain reaches quiescence and closes the backend.
     ctx.effect(() => async () => {
-      let disposeError: unknown
-      try {
-        const errors = await settledErrors([...this.live.keys()].map(session => this.flush(session)))
-        while (this.chains.size > 0) await Promise.allSettled([...this.chains.values()])
-        if (errors.length > 0) {
-          throw new AggregateError(errors, `${this.backend.name} dispose failed`)
+      const errors = await settledErrors([...this.live.keys()].map(session => this.flush(session)))
+      while (this.chains.size > 0) await Promise.allSettled(this.chains.values())
+      const drainError = errors.length > 0
+        ? new AggregateError(errors, `${this.backend.name} dispose failed`)
+        : undefined
+      if (this.backend.close !== undefined) {
+        const closed = await Promise.allSettled([this.backend.close()])
+        if (drainError !== undefined) throw drainError
+        const closeResult = closed[0]
+        if (closeResult.status === 'rejected') {
+          throw closeResult.reason instanceof Error
+            ? closeResult.reason
+            : new Error('backend close failed')
         }
-      } catch (error: unknown) {
-        disposeError = error
-        throw error
-      } finally {
-        try {
-          await this.backend.close?.()
-        } catch (closeError: unknown) {
-          // A close failure can only add teardown context; keep the already-
-          // captured drain AggregateError as the primary failure rather than
-          // masking it. Only surface the close error if the drain succeeded.
-          if (disposeError === undefined) throw closeError
-        }
+        return
       }
+      if (drainError !== undefined) throw drainError
     }, `${this.backend.name} write path`)
 
     // Capture the header on creation and persist a fork's seed once.

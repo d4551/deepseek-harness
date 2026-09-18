@@ -48,7 +48,8 @@ export function oneTurnLog(): SessionEvent[] {
         content: [{ type: 'text', text: 'hello' }],
         source: {
           kind: 'model',
-          ...{ provider: 'mock', model: 'mock' },
+          provider: 'mock',
+          model: 'mock',
         },
       }),
     }, surfaceOp: 'append' },
@@ -188,7 +189,8 @@ export function runPersistenceContract(name: string, make: () => Promise<Contrac
               ],
               source: {
                 kind: 'model',
-                ...{ provider: 'mock', model: 'mock' },
+                provider: 'mock',
+                model: 'mock',
               },
             }),
           }, surfaceOp: 'append' },
@@ -238,7 +240,8 @@ export function runPersistenceContract(name: string, make: () => Promise<Contrac
               ],
               source: {
                 kind: 'model',
-                ...{ provider: 'mock', model: 'mock' },
+                provider: 'mock',
+                model: 'mock',
               },
             }),
           }, surfaceOp: 'append' },
@@ -269,6 +272,7 @@ export function runPersistenceContract(name: string, make: () => Promise<Contrac
       const { persistence, dispose } = await make()
       try {
         await persistence.create(meta('empty'))
+        expect(await persistence.exists(SessionId('empty'))).toBe(false)
         expect((await persistence.list()).map(m => m.id)).not.toContain(SessionId('empty'))
         expect((await persistence.listSnapshots()).map(snapshot => snapshot.header.id))
           .not.toContain(SessionId('empty'))
@@ -287,6 +291,8 @@ export function runPersistenceContract(name: string, make: () => Promise<Contrac
 
         await expect(persistence.list(controller.signal)).rejects.toBe(reason)
         await expect(persistence.listSnapshots(controller.signal)).rejects.toBe(reason)
+        await expect(persistence.exists(SessionId('cancelled-exists'), controller.signal))
+          .rejects.toBe(reason)
         await expect(persistence.inspect(SessionId('cancelled-inspect'), controller.signal))
           .rejects.toBe(reason)
         await expect(persistence.readFrom(SessionId('cancelled-read-from'), 0, controller.signal))
@@ -337,6 +343,7 @@ export function runPersistenceContract(name: string, make: () => Promise<Contrac
         const m = meta('s2')
         await persistence.create(m)
         await persistence.append(m.id, oneTurnLog())
+        expect(await persistence.exists(m.id)).toBe(true)
         expect((await persistence.list()).map(x => x.id)).toContain(m.id)
         const first = (await persistence.listSnapshots()).find(snapshot => snapshot.header.id === m.id)
         const repeated = (await persistence.listSnapshots()).find(snapshot => snapshot.header.id === m.id)
@@ -364,7 +371,7 @@ export function runPersistenceContract(name: string, make: () => Promise<Contrac
         await persistence.append(m.id, oneTurnLog()) // seqs 0..5, next-seq = 6
         // A re-append of an already-stored seq must be rejected, not duplicated.
         const restated = oneTurnLog()
-        await expect(persistence.append(m.id, restated)).rejects.toThrow()
+        await expect(persistence.append(m.id, restated)).rejects.toThrow(/seq mismatch/)
       } finally {
         await dispose()
       }
@@ -379,7 +386,7 @@ export function runPersistenceContract(name: string, make: () => Promise<Contrac
           { type: 'turn/start', seq: 0, time: 1, data: { turn: 1 } },
           { type: 'step/start', seq: 2, time: 2, data: { turn: 1, step: 1 } }, // gap: missing seq 1
         ]
-        await expect(persistence.append(m.id, gapped)).rejects.toThrow()
+        await expect(persistence.append(m.id, gapped)).rejects.toThrow(/seq mismatch/)
       } finally {
         await dispose()
       }

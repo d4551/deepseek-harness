@@ -1675,6 +1675,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the header and the stored events with `seq >= fromSeq`.',
       },
       {
+        signature: 'async exists(id: SessionId, signal?: AbortSignal): Promise<boolean>',
+        description: 'Whether one identity currently has a materialized durable log. Coordinator-backed implementations wait for that id\'s in-flight retirement so a just-disposed session is reported present once its flush has landed. A lazy create with no append remains absent.',
+        parameters: [{ name: 'id', description: 'session identity to probe.' }, { name: 'signal', description: 'optional cancellation for retirement wait and backend read.' }],
+        returns: 'true only when a materialized artifact exists for `id`.',
+      },
+      {
         signature: 'abstract list(signal?: AbortSignal): Promise<SessionHeader[]>',
         description: 'Lightweight listing from metadata, without a full-log parse.',
         parameters: [{ name: 'signal', description: 'optional cancellation for backend listing work.' }],
@@ -3044,10 +3050,10 @@ export const EVENT_API: readonly EventApiEntry[] = [
   {
     name: 'agent-loop/config-start-failed',
     mode: 'emit',
-    signature: '\'agent-loop/config-start-failed\'(payload: { sessionId: SessionId; error: unknown }): void | Promise<void>',
+    signature: '\'agent-loop/config-start-failed\'(payload: { sessionId: SessionId; error: ListenerFailure }): void | Promise<void>',
     summary: 'A declarative agent entry failed before it could publish a live agent.',
     description: 'A declarative agent entry failed before it could publish a live agent. Consumers that buffer work for the configured identity use this transient signal to reject that work instead of waiting forever. Normal factory teardown suppresses failures from the cancelled startup attempt.',
-    parameters: [{ name: 'payload', description: '.error - persistence, setup, or publication failure.' }],
+    parameters: [{ name: 'payload', description: '.error - contained persistence, setup, or publication failure.' }],
   },
   {
     name: 'agent-preset/recompose',
@@ -4512,6 +4518,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'KvUnitDescriptor',
     declaration: 'export interface KvUnitDescriptor {\n    readonly name: string;\n    readonly version: number;\n    readonly tables: readonly string[];\n    readonly hasGlobal: boolean;\n    readonly layout?: \'single\' | \'per-record\';\n}',
+  },
+  {
+    name: 'ListenerFailure',
+    declaration: 'export type ListenerFailure = object | string | number | boolean | bigint | symbol | null | undefined;',
   },
   {
     name: 'LlmAdapter',

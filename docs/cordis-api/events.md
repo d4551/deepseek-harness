@@ -59,7 +59,8 @@ Dispatch an event synchronously, ignoring listener return values.
  * @returns the first bail value (non-null, non-false, non-undefined), if any.
  */
 serial<K extends keyof Events>(name: K, ...args: Parameters<Events[K]>): Promisify<ReturnType<Events[K]>>
-serial<K extends keyof Events>(thisArg: NoInfer<ThisType<Events[K]>>, name: K, ...args: Parameters<Events[K]>): Promisify<ReturnType<Events[K]>>
+serial<K extends keyof Events>(thisArg: object, name: K, ...args: Parameters<Events[K]>): Promisify<ReturnType<Events[K]>>
+serial<K extends keyof Events>(thisArg: object, name: K, ...args: readonly unknown[]): Promisify<ReturnType<Events[K]>>
 ```
 
 Dispatch an event, awaiting listeners in order until one bails.
@@ -92,7 +93,7 @@ Dispatch an event, calling listeners in order until one bails.
 
 **Returns** the first bail value (non-null, non-false, non-undefined), if any.
 
-[Source](../../vendor/cordis/src/events.ts#L73)
+[Source](../../vendor/cordis/src/events.ts#L75)
 
 ### ctx.waterfall(name, ...args)
 
@@ -108,7 +109,8 @@ Dispatch an event, calling listeners in order until one bails.
  * @returns the outermost listener's return value.
  */
 waterfall<K extends keyof Events>(name: K, ...args: Parameters<Events[K]>): ReturnType<Events[K]>
-waterfall<K extends keyof Events>(thisArg: NoInfer<ThisType<Events[K]>>, name: K, ...args: Parameters<Events[K]>): ReturnType<Events[K]>
+waterfall<K extends keyof Events>(thisArg: object, name: K, ...args: Parameters<Events[K]>): ReturnType<Events[K]>
+waterfall<K extends keyof Events>(thisArg: object, name: K, ...args: readonly unknown[]): ReturnType<Events[K]>
 ```
 
 Dispatch an event whose last argument is a `next` continuation.
@@ -120,7 +122,7 @@ Each listener wraps the rest of the chain: calling `next()` invokes the next lis
 
 **Returns** the outermost listener's return value.
 
-[Source](../../vendor/cordis/src/events.ts#L86)
+[Source](../../vendor/cordis/src/events.ts#L88)
 
 ### ctx.on(name, listener, options?)
 
@@ -144,7 +146,7 @@ Register an event listener owned by the current fiber.
 
 **Returns** a disposer removing the listener; `true` if it was still registered.
 
-[Source](../../vendor/cordis/src/events.ts#L97)
+[Source](../../vendor/cordis/src/events.ts#L101)
 
 ### ctx.once(name, listener, options?)
 
@@ -168,7 +170,7 @@ Same as `on()`, but the listener disposes itself after its first call.
 
 **Returns** a disposer removing the listener; `true` if it was still registered.
 
-[Source](../../vendor/cordis/src/events.ts#L106)
+[Source](../../vendor/cordis/src/events.ts#L110)
 
 ## EventOptions
 
@@ -184,7 +186,7 @@ interface EventOptions {
 }
 ```
 
-[Source](../../vendor/cordis/src/events.ts#L112)
+[Source](../../vendor/cordis/src/events.ts#L116)
 
 ## DispatchMode
 

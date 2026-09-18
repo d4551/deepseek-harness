@@ -27,8 +27,11 @@ export function ComposerContentEditable({ editor, editable, ...rest }: ComposerC
   const ref = useRef<HTMLDivElement | null>(null)
   useLayoutEffect(() => {
     const el = ref.current
-    if (editor === null || el === null) return
+    if (el === null) return
+    el.setAttribute('role', 'textbox')
+    if (editor === null) return
     editor.setRootElement(el)
+    el.setAttribute('role', 'textbox')
     return () => { editor.setRootElement(null) }
   }, [editor])
   useLayoutEffect(() => {

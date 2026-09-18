@@ -33,10 +33,23 @@ import { todoDockEntry } from './skeleton/TodoPanel.tsx'
 import { en, NS, zh, type ConversationKey } from './locales.ts'
 import { CONVERSATION_SETTINGS_NAMESPACE, type ConversationSettings } from '../submission-settings.ts'
 
+interface WorkspaceNavigation {
+  connectWorkspace(
+    workspaceId: Parameters<ConversationInjected['selectWorkspace']>[0],
+  ): Promise<SessionId>
+}
+
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
     /** Conversation shell, composer, queue, and dock copy. */
     conversation: ConversationKey
+  }
+}
+
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    /** Workspace picker navigation used by the conversation hero. */
+    uiWorkspace: WorkspaceNavigation
   }
 }
 
@@ -65,10 +78,17 @@ const ABSENT_MENU_LAUNCHER = {
   subscribe: () => () => {},
 }
 
-interface WorkspaceNavigation {
-  connectWorkspace(
-    workspaceId: Parameters<ConversationInjected['selectWorkspace']>[0],
-  ): Promise<SessionId>
+function requireWorkspaceNavigation(ctx: Context): WorkspaceNavigation {
+  const workspace = ctx.uiWorkspace
+  if (typeof workspace.connectWorkspace !== 'function') {
+    throw new Error('ui-conversation: uiWorkspace.connectWorkspace unavailable')
+  }
+  return workspace
+}
+
+/** Log a failed composer stop without a catch-callback binding. */
+function reportStopFailure(error: object | string | number | boolean | bigint | symbol | null | undefined): void {
+  console.error('[conversation] stop failed:', error)
 }
 
 /** Resolve the session-scoped Conversation action face, failing loud. */
@@ -83,8 +103,8 @@ function scopedConversation(sessions: ISessions, id: SessionId): IConversation {
 }
 
 /** Resolve package-internal attachment operations from the public service. */
-function concreteConversation(ctx: Context): ConversationController {
-  const conversation = ctx.get('conversation') as ConversationController | undefined
+function concreteConversation(ctx: Context): IConversation {
+  const conversation = ctx.get('conversation')
   if (conversation === undefined) throw new Error('ui-conversation: conversation service unavailable')
   return conversation
 }
@@ -96,7 +116,7 @@ function concreteConversation(ctx: Context): ConversationController {
 export function apply(ctx: Context): void {
   const sessions = ctx.sessions
   const slots = ctx.slots
-  const workspaceNavigation = ctx.get('uiWorkspace') as unknown as WorkspaceNavigation
+  const workspaceNavigation = requireWorkspaceNavigation(ctx)
   const uiConversation = new UiConversation(ctx, sessions)
 
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-conversation: dictionaries')
@@ -302,9 +322,7 @@ export function apply(ctx: Context): void {
         stop: () => {
           scopedConversation(sessions, sessionId).cancel().then(
             () => undefined,
-            (error: Error) => {
-              console.error('[conversation] stop failed:', error)
-            },
+            reportStopFailure,
           )
         },
         command: async (line) => {

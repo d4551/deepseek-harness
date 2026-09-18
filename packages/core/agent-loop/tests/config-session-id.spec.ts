@@ -229,7 +229,7 @@ describe('config-driven session id', () => {
     ctx.on('agent-loop/config-start-failed', ({ sessionId, error }) => {
       failures.push({ sessionId, error })
     })
-    vi.spyOn(ctx.sessionPersistence, 'list').mockRejectedValue(failure)
+    vi.spyOn(ctx.sessionPersistence, 'exists').mockRejectedValue(failure)
     const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => undefined)
 
     await ctx.plugin(AgentLoop, {
@@ -265,7 +265,7 @@ describe('config-driven session id', () => {
     ctx.on('agent-loop/config-start-failed', () => { throw unrenderable })
     ctx.on('agent-loop/config-start-failed', async () => { throw unrenderable })
     ctx.on('agent-loop/config-start-failed', ({ error }) => { failures.push(error) })
-    vi.spyOn(ctx.sessionPersistence, 'list').mockRejectedValue(unrenderable)
+    vi.spyOn(ctx.sessionPersistence, 'exists').mockRejectedValue(unrenderable)
     const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => undefined)
 
     await ctx.plugin(AgentLoop, {
@@ -293,6 +293,7 @@ describe('config-driven session id', () => {
       const ctx = await makeCoreContext()
       await ctx.plugin(JsonlSessionPersistence, { root })
       const preparing = Promise.withResolvers<SessionPreparation>()
+      vi.spyOn(ctx.sessionPersistence, 'exists').mockResolvedValue(true)
       vi.spyOn(ctx.sessionPersistence, 'prepare').mockReturnValue(preparing.promise)
       const released = vi.fn<() => void>()
       const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => undefined)
@@ -466,7 +467,7 @@ describe('startup reporting after factory teardown', () => {
     const gate = Promise.withResolvers<never>()
     // The teardown path may drop the pending lookup without awaiting it.
     gate.promise.catch(() => undefined)
-    vi.spyOn(ctx.sessionPersistence, 'list').mockReturnValue(gate.promise)
+    vi.spyOn(ctx.sessionPersistence, 'exists').mockReturnValue(gate.promise)
     const failures: unknown[] = []
     ctx.on('agent-loop/config-start-failed', ({ error }) => { failures.push(error) })
     const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => undefined)

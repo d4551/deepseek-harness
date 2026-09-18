@@ -8,7 +8,7 @@
 
 import { Context, Service } from '@deepseek-ai/cordis'
 import { isAbsolute } from 'node:path'
-import { deepFreeze } from '@deepseek-ai/dsh-llm'
+import { deepFreeze, errorChain } from '@deepseek-ai/dsh-llm'
 import { scopeOf, scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { Scoped } from '@deepseek-ai/dsh-scope'
 import type { Message } from '@deepseek-ai/dsh-llm'
@@ -198,21 +198,6 @@ export function snapshotSessionEvent<T extends SessionEvent>(event: T): T {
   return adoptSessionEvent(structuredClone(event))
 }
 
-/** Deep-freeze one acyclic JSON tree without consuming the JavaScript call stack. */
-function freezeRestoredObject<T extends object>(value: T): T {
-  const pending: object[] = [value]
-  while (pending.length > 0) {
-    const current = pending.pop()
-    if (current === undefined) throw new TypeError('freeze queue emptied between length check and pop')
-    Object.freeze(current)
-    for (const key of Object.keys(current)) {
-      const child = Reflect.get(current, key)
-      if (child !== null && typeof child === 'object') pending.push(child)
-    }
-  }
-  return value
-}
-
 /** Validate the fixed event envelope after one-pass JSON materialization. */
 function assertSessionEventEnvelope(value: Record<string, unknown>, index: number): asserts value is SessionEvent {
   const event = value
@@ -390,16 +375,19 @@ function observeListenerInvocation(
   onReject: (reason: ListenerFailure) => void,
 ): void {
   let finishedSynchronously = false
+  function report(reason: ListenerFailure): void {
+    if (finishedSynchronously) onReject(reason)
+    else onThrow(reason)
+  }
   new Promise((resolve: (value: unknown) => void) => {
     resolve(invoke())
     finishedSynchronously = true
-  }).then(
-    () => undefined,
-    (reason: ListenerFailure) => {
-      if (finishedSynchronously) onReject(reason)
-      else onThrow(reason)
-    },
-  )
+  }).then(ignoreFulfilledListener, report)
+}
+
+/** Drop a fulfilled containment promise so only the rejection path is observed. */
+function ignoreFulfilledListener(): undefined {
+  return undefined
 }
 
 /** Watch a value already returned from a listener. A throw at the call site still escapes. */
@@ -407,10 +395,7 @@ function observeReturnedThenable(
   returned: unknown,
   onReject: (reason: ListenerFailure) => void,
 ): void {
-  Promise.resolve(returned).then(
-    () => undefined,
-    onReject,
-  )
+  Promise.resolve(returned).then(ignoreFulfilledListener, onReject)
 }
 
 /** Invoke one resolved observe-only listener snapshot with per-listener containment. */
@@ -425,10 +410,10 @@ function invokeContainedSessionObservers(
     observeListenerInvocation(
       () => callback(...args),
       (reason) => {
-        ctx.logger.warn(`session "${id}": ${name} listener threw: ${String(reason)}`)
+        ctx.logger.warn(`session "${id}": ${name} listener threw: ${errorChain(reason)}`)
       },
       (reason) => {
-        ctx.logger.warn(`session "${id}": ${name} listener rejected: ${String(reason)}`)
+        ctx.logger.warn(`session "${id}": ${name} listener rejected: ${errorChain(reason)}`)
       },
     )
   }
@@ -565,7 +550,7 @@ export class Session {
         // live append and a full-log fold. The candidate is planned before it
         // enters `log`, so a failure cannot partially mutate the surface.
         this.surfaceManager.validateNext(snapshot)
-        this.log.push(mode === 'restore' ? freezeRestoredObject(snapshot) : deepFreeze(snapshot))
+        this.log.push(deepFreeze(snapshot))
       }
     }
     this.firstLiveSeq = this.log.length
@@ -661,8 +646,8 @@ export class Session {
       seq: this.log.length,
       time: Date.now(),
       data: dataSnapshot,
-      ...(surfaceMetadataSnapshot as { surfaceOp?: unknown; sourceEventSeqs?: unknown }),
-    } as unknown as SessionEvent<T>)
+      ...surfaceMetadataSnapshot,
+    }) as SessionEvent<T>
     this.surfaceManager.validateNext(event as SessionEvent)
 
     if (entry !== undefined) entry.appending = true
@@ -1026,7 +1011,7 @@ export class SessionStore extends Service {
       // promise: rejection is too late to roll back and must be logged instead
       // of becoming unhandled.
       observeReturnedThenable(callback(...callbackArgs), (reason) => {
-        this.ctx.logger.warn(`session "${entry.id}": session/created listener rejected: ${String(reason)}`)
+        this.ctx.logger.warn(`session "${entry.id}": session/created listener rejected: ${errorChain(reason)}`)
       })
     }
   }
@@ -1040,10 +1025,10 @@ export class SessionStore extends Service {
         invokeContainedSessionObservers(this.ctx, 'session/disposed', entry.id, callbackArgs, callbacks)
       },
       (reason) => {
-        this.ctx.logger.warn(`session "${entry.id}": session/disposed dispatch threw: ${String(reason)}`)
+        this.ctx.logger.warn(`session "${entry.id}": session/disposed dispatch threw: ${errorChain(reason)}`)
       },
       (reason) => {
-        this.ctx.logger.warn(`session "${entry.id}": session/disposed dispatch rejected: ${String(reason)}`)
+        this.ctx.logger.warn(`session "${entry.id}": session/disposed dispatch rejected: ${errorChain(reason)}`)
       },
     )
   }

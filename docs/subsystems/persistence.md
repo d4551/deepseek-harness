@@ -230,7 +230,7 @@ interface SessionPersistenceSnapshot {
 
 ## The backends
 
-All implement the same abstract `SessionPersistence` (locate/create/append/prepare/load/inspect/readFrom/list/listSnapshots over `SessionEvent`, with optional cancellation on observation methods) and pass the shared `runPersistenceContract` suite:
+All implement the same abstract `SessionPersistence` (locate/create/append/prepare/load/inspect/readFrom/exists/list/listSnapshots over `SessionEvent`, with optional cancellation on observation methods) and pass the shared `runPersistenceContract` suite:
 
 - **[dsh-session-persistence-jsonl](../../packages/session/session-persistence-jsonl)** — an append-only logical JSONL log per session, stored as checksummed concatenated Zstandard frames by default or raw lines by configuration, with crash-safe atomic writes, interrupted-turn recovery, and a read/replay path.
 - **[dsh-session-persistence-sqlite](../../packages/session/session-persistence-sqlite)** — an opt-in `node:sqlite` backend using schema 19 to store exact same-block delta runs in bounded physical `text-chunks`, `reasoning-chunks`, and `tool-call-chunks` rows. It reconstructs the complete logical event stream before returning it, packs only newly durable batches, and rejects older schemas rather than migrating them.
@@ -377,6 +377,17 @@ abstract borrowSession(id: SessionId, signal?: AbortSignal): Promise<BorrowedSes
  * @returns the header and the stored events with `seq >= fromSeq`.
  */
 abstract readFrom(id: SessionId, fromSeq: number, signal?: AbortSignal): Promise<{ meta: SessionHeader; events: SessionEvent[] }>
+
+/**
+ * Whether one identity currently has a materialized durable log.
+ * Coordinator-backed implementations wait for that id's in-flight retirement
+ * so a just-disposed session is reported present once its flush has landed.
+ * A lazy create with no append remains absent.
+ * @param id - session identity to probe.
+ * @param signal - optional cancellation for retirement wait and backend read.
+ * @returns true only when a materialized artifact exists for `id`.
+ */
+async exists(id: SessionId, signal?: AbortSignal): Promise<boolean>
 
 /**
  * Lightweight listing from metadata, without a full-log parse.

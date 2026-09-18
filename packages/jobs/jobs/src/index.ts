@@ -140,9 +140,8 @@ export abstract class JobRegistry extends Service {
    * @param listener - receives each terminal snapshot and its exact owner.
    * @returns disposer that unregisters the listener.
    */
-  abstract onJobDone(listener: JobDoneListener): () => void
+  abstract onJobDone(listener: JobDoneListener): () => void | Promise<void>
 
-  /**
   /**
    * Register an effect-scoped observer of visible-set changes. It fires after
    * every commit that changes what {@link list} returns for that owner —
@@ -164,7 +163,7 @@ export abstract class JobRegistry extends Service {
    *   `undefined` when an unowned job changed and every caller's set did.
    * @returns disposer that unregisters the listener.
    */
-  abstract onJobsChanged(listener: JobsChangedListener): () => void
+  abstract onJobsChanged(listener: JobsChangedListener): () => void | Promise<void>
 
   /**
    * Attach an effect-scoped controller that can read and stop jobs. It serves the
@@ -173,7 +172,7 @@ export abstract class JobRegistry extends Service {
    * @param name - diagnostic label; duplicate names remain independent.
    * @returns disposer that detaches this controller.
    */
-  abstract attachController(name: string): () => void
+  abstract attachController(name: string): () => void | Promise<void>
 }
 
 export default JobRegistry

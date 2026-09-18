@@ -14,7 +14,7 @@ import type { Scoped } from '@deepseek-ai/dsh-scope'
 import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 import type { Agent } from './types.ts'
 import type { AgentOptions } from './runtime-types.ts'
-import { observeListenerInvocation, observeReturnedThenable } from './dispatch.ts'
+import { observeListenerInvocation, observeReturnedThenable, renderListenerFailure } from './dispatch.ts'
 
 export type { AgentOptions, AgentStatus, CancelOptions, PreStepDecision, RequestErrorAction, SessionStartSource } from './runtime-types.ts'
 export type { Agent, InboxTarget } from './types.ts'
@@ -33,7 +33,7 @@ export {
   observeReturnedThenable,
   renderListenerFailure,
 } from './dispatch.ts'
-export type { AgentEventDispatch, AgentSubjectEvent } from './dispatch.ts'
+export type { AgentEventDispatch, AgentSubjectEvent, ListenerFailure } from './dispatch.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -522,10 +522,10 @@ export class AgentRegistry extends Service {
       observeListenerInvocation(
         () => callback(...args),
         (reason) => {
-          this.ctx.logger.warn(`agent "${entry.id}": agent/disposed listener threw: ${String(reason)}`)
+          this.ctx.logger.warn(`agent "${entry.id}": agent/disposed listener threw: ${renderListenerFailure(reason)}`)
         },
         (reason) => {
-          this.ctx.logger.warn(`agent "${entry.id}": agent/disposed listener rejected: ${String(reason)}`)
+          this.ctx.logger.warn(`agent "${entry.id}": agent/disposed listener rejected: ${renderListenerFailure(reason)}`)
         },
       )
     }
@@ -562,7 +562,7 @@ export class AgentRegistry extends Service {
       // Returned-promise rejection happens after this synchronous boundary, so
       // observe and report it instead of leaking an unhandled rejection.
       observeReturnedThenable(callback(...args), (reason) => {
-        this.ctx.logger.warn(`agent "${entry.id}": agent/created listener rejected: ${String(reason)}`)
+        this.ctx.logger.warn(`agent "${entry.id}": agent/created listener rejected: ${renderListenerFailure(reason)}`)
       })
     }
   }
@@ -645,10 +645,8 @@ export class AgentRegistry extends Service {
     const result = this.initiatorRuns.run(run, () => this.initiators.run(agent, operation))
     if (isPromise(result)) {
       retain = false
-      new Promise((resolve: (value: unknown) => void) => {
-        Promise.prototype.then.call(result, resolve, resolve)
-      }).then(
-        () => { this.releaseInitiatorRun(run) },
+      observeReturnedThenable(
+        Promise.resolve(result).then(() => { this.releaseInitiatorRun(run) }),
         () => { this.releaseInitiatorRun(run) },
       )
       return result

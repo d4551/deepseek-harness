@@ -52,25 +52,7 @@ async function rewriteHeader(path: string, update: (header: Record<string, unkno
 }
 
 async function expectFlushError(promise: Promise<unknown>, message: RegExp): Promise<void> {
-  try {
-    await promise
-  } catch (error) {
-    expect(error).toBeInstanceOf(Error)
-    expect((error as Error).message).toMatch(message)
-    return
-  }
-  throw new Error('expected flush to reject')
-}
-
-async function expectFlushCode(promise: Promise<unknown>, codes: readonly string[]): Promise<void> {
-  try {
-    await promise
-  } catch (error) {
-    expect(error).toBeInstanceOf(Error)
-    expect(codes).toContain((error as NodeJS.ErrnoException).code)
-    return
-  }
-  throw new Error('expected flush to reject')
+  await expect(promise).rejects.toThrow(message)
 }
 
 async function freshRoot(): Promise<string> {
@@ -277,7 +259,7 @@ describe('JsonlSessionPersistence: durability and crash semantics', () => {
     // locate() is a pure target-path calculation: neither it nor create()
     // materializes a file before the first append.
     const dir = sessionDir(root, '/work', m.id)
-    await expect(stat(rawLogPath(root, '/work', m.id))).rejects.toThrow()
+    await expect(stat(rawLogPath(root, '/work', m.id))).rejects.toThrow(/ENOENT/)
     expect((await ctx.sessionPersistence.list()).map(h => h.id)).not.toContain(m.id)
 
     await ctx.sessionPersistence.append(m.id, oneTurnLog())
@@ -381,7 +363,8 @@ describe('JsonlSessionPersistence: durability and crash semantics', () => {
           content: [{ type: 'text', text: 'hello' }],
           source: {
             kind: 'model',
-            ...{ provider: 'mock', model: 'mock' },
+            provider: 'mock',
+            model: 'mock',
           },
         }),
       }, surfaceOp: 'append', sourceEventSeqs: [2, 3] },
@@ -714,22 +697,25 @@ describe('JsonlSessionPersistence: durability and crash semantics', () => {
     const realRollback = backend.rollbackAppend.bind(backend)
     backend.rollbackAppend = () => Promise.reject(new Error('simulated rollback failure'))
 
-    try {
-      await ctx.sessionPersistence.append(m.id, [
-        { type: 'turn/start', seq: 6, time: 9, data: { turn: 2 } },
-      ] as SessionEvent[])
-      throw new Error('expected append to reject')
-    } catch (error) {
-      expect(error).toBeInstanceOf(AggregateError)
-      const aggregate = error as AggregateError
-      expect(aggregate.message).toContain(`failed to roll back append to "${path}"`)
-      expect(aggregate.errors).toHaveLength(2)
-      expect(aggregate.errors[0]).toMatchObject({ message: 'simulated append fsync failure' })
-      expect(aggregate.errors[1]).toMatchObject({ message: 'simulated rollback failure' })
-    } finally {
-      backend.rollbackAppend = realRollback
-      syncSpy.mockRestore()
+    using _restoreSpies = {
+      [Symbol.dispose]: (): void => {
+        backend.rollbackAppend = realRollback
+        syncSpy.mockRestore()
+      },
     }
+    const pending = ctx.sessionPersistence.append(m.id, [
+      { type: 'turn/start', seq: 6, time: 9, data: { turn: 2 } },
+    ] as SessionEvent[])
+    await expect(pending).rejects.toSatisfy(
+      (error: object | string | number | boolean | bigint | symbol | null | undefined) =>
+        error instanceof AggregateError
+        && error.message.includes(`failed to roll back append to "${path}"`)
+        && error.errors.length === 2
+        && error.errors[0] instanceof Error
+        && error.errors[0].message === 'simulated append fsync failure'
+        && error.errors[1] instanceof Error
+        && error.errors[1].message === 'simulated rollback failure',
+    )
   })
 
   it('load returns immutable meta without exposing backend pathing', async () => {
@@ -737,7 +723,7 @@ describe('JsonlSessionPersistence: durability and crash semantics', () => {
     await ctx.sessionPersistence.create(m)
     await ctx.sessionPersistence.append(m.id, oneTurnLog())
     const loaded = await ctx.sessionPersistence.load(m.id)
-    expect(() => { mutableHeader(loaded.meta).cwd = '/evil' }).toThrow()
+    expect(() => { mutableHeader(loaded.meta).cwd = '/evil' }).toThrow(/read only property/)
     await ctx.sessionPersistence.append(m.id, [
       { type: 'turn/start', seq: 6, time: 9, data: { turn: 2 } },
       { type: 'turn/end', seq: 7, time: 10, data: { turn: 2, reason: { kind: 'completed' } } },
@@ -895,7 +881,7 @@ describe('JsonlSessionPersistence: scanLog unit', () => {
   })
 
   it('rejects a header-less / empty log', () => {
-    expect(() => scanLog(Buffer.from(''))).toThrow()
+    expect(() => scanLog(Buffer.from(''))).toThrow(/header-less/)
   })
 
   it('rejects a corrupt header line', () => {
@@ -1070,7 +1056,8 @@ describe('JsonlSessionPersistence: default packed chunk rows', () => {
           content: [{ type: 'text', text: 't0t1t2t3t4' }],
           source: {
             kind: 'model',
-            ...{ provider: 'mock', model: 'mock' },
+            provider: 'mock',
+            model: 'mock',
           },
         }),
       }, surfaceOp: 'append', sourceEventSeqs: [2, 3, 4, 5, 6] },
@@ -1228,7 +1215,7 @@ describe('JsonlSessionPersistence: edge cases', () => {
     await ctx.sessionPersistence.append(SessionId('create-snap'), oneTurnLog())
     // The log materialized under the ORIGINAL cwd, not the mutated one.
     expect((await stat(rawLogPath(root, '/orig', SessionId('create-snap')))).isFile()).toBe(true)
-    await expect(stat(rawLogPath(root, '/mutated', SessionId('create-snap')))).rejects.toThrow()
+    await expect(stat(rawLogPath(root, '/mutated', SessionId('create-snap')))).rejects.toThrow(/ENOENT/)
   })
 
   it('list discovers sessions across multiple project directories', async () => {
@@ -1433,7 +1420,7 @@ describe('JsonlSessionPersistence: edge cases', () => {
     const inW = scanLog(await readFile(rawLogPath(root, '/w', SessionId('x'))))
     expect(inW.meta.cwd).toBe('/w')
     expect(inW.events).toHaveLength(6)
-    await expect(stat(rawLogPath(root, undefined, SessionId('x')))).rejects.toThrow()
+    await expect(stat(rawLogPath(root, undefined, SessionId('x')))).rejects.toThrow(/ENOENT/)
     await ctx2.fiber.dispose()
   })
 
@@ -1506,9 +1493,9 @@ describe('JsonlSessionPersistence: edge cases', () => {
   it('per-id lookup surfaces non-ENOENT storage errors', async () => {
     const blocker = join(root, 'not-a-directory')
     await writeFile(blocker, 'x')
-    const backend = ctx.sessionPersistence as unknown as { exists(path: string): Promise<boolean> }
+    const backend = ctx.sessionPersistence as unknown as { pathExists(path: string): Promise<boolean> }
 
-    await expect(backend.exists(join(blocker, 'child.jsonl'))).rejects.toThrow(/ENOTDIR/)
+    await expect(backend.pathExists(join(blocker, 'child.jsonl'))).rejects.toThrow(/ENOTDIR/)
   })
 
   it('materialization surfaces a project-directory storage fault', async () => {
@@ -1522,7 +1509,10 @@ describe('JsonlSessionPersistence: edge cases', () => {
       s = inner.sessions.create(SessionId('exists-fault'), { meta: { cwd } })
       appendClosedTurn(s)
     }, { inject: ['sessions'] }))
-    await expectFlushCode(ctx2.sessions.flush(s), ['EEXIST', 'ENOTDIR'])
+    await expect(ctx2.sessions.flush(s)).rejects.toSatisfy(
+      (error: object | string | number | boolean | bigint | symbol | null | undefined) =>
+        error instanceof Error && ['EEXIST', 'ENOTDIR'].some(code => 'code' in error && error.code === code),
+    )
     await ctx2.fiber.dispose()
   })
 

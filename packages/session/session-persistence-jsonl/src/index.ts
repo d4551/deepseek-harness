@@ -458,11 +458,11 @@ export class JsonlSessionPersistence extends CoordinatedSessionPersistence<Jsonl
       for (const dir of await this.listSessionDirs(project, signal)) {
         signal?.throwIfAborted()
         const opposite = join(dir, `session${logSuffix(this.oppositeCompression())}`)
-        const oppositeExists = await this.exists(opposite)
+        const oppositeExists = await this.pathExists(opposite)
         signal?.throwIfAborted()
         if (oppositeExists) throw this.encodingMismatch(opposite)
         const path = join(dir, `session${logSuffix(this.compression)}`)
-        const pathExists = await this.exists(path)
+        const pathExists = await this.pathExists(path)
         signal?.throwIfAborted()
         if (!pathExists) continue
         // Read only headers so listing scales with session count, not log size.
@@ -565,7 +565,7 @@ export class JsonlSessionPersistence extends CoordinatedSessionPersistence<Jsonl
   private async rejectExistingLog(finalPath: string, id: SessionId): Promise<void> {
     // Independent owners may discover absence before another owner publishes.
     // Existing committed bytes must survive either materialization path.
-    if (await this.exists(finalPath)) {
+    if (await this.pathExists(finalPath)) {
       throw new Error(`refusing to materialize "${id}": a log already exists on disk (load/resume it instead)`)
     }
   }
@@ -747,10 +747,10 @@ export class JsonlSessionPersistence extends CoordinatedSessionPersistence<Jsonl
       const dir = join(project, encodeSegment(id))
       const path = join(dir, `session${logSuffix(this.compression)}`)
       const opposite = join(dir, `session${logSuffix(this.oppositeCompression())}`)
-      const oppositeExists = await this.exists(opposite)
+      const oppositeExists = await this.pathExists(opposite)
       signal?.throwIfAborted()
       if (oppositeExists) throw this.encodingMismatch(opposite)
-      const pathExists = await this.exists(path)
+      const pathExists = await this.pathExists(path)
       signal?.throwIfAborted()
       if (pathExists) matches.push(path)
     }
@@ -847,7 +847,7 @@ export class JsonlSessionPersistence extends CoordinatedSessionPersistence<Jsonl
     for (const project of await this.listProjectDirs()) {
       for (const dir of await this.listSessionDirs(project)) {
         const incompatible = join(dir, `session${logSuffix(this.oppositeCompression())}`)
-        if (await this.exists(incompatible)) throw this.encodingMismatch(incompatible)
+        if (await this.pathExists(incompatible)) throw this.encodingMismatch(incompatible)
       }
     }
   }
@@ -861,7 +861,7 @@ export class JsonlSessionPersistence extends CoordinatedSessionPersistence<Jsonl
     const encoded = encodeSegment(id)
     for (const compression of ['zstd', 'none'] as const) {
       const path = join(project, encoded + logSuffix(compression))
-      const artifactExists = await this.exists(path)
+      const artifactExists = await this.pathExists(path)
       signal?.throwIfAborted()
       if (artifactExists) throw this.legacyLayout(path)
     }
@@ -869,7 +869,7 @@ export class JsonlSessionPersistence extends CoordinatedSessionPersistence<Jsonl
 
   private async rejectOppositeArtifact(cwd: string | undefined, id: SessionId): Promise<void> {
     const path = logPath(this.root, cwd, id, this.oppositeCompression())
-    if (await this.exists(path)) throw this.encodingMismatch(path)
+    if (await this.pathExists(path)) throw this.encodingMismatch(path)
   }
 
   private oppositeCompression(): JsonlCompression {
@@ -891,7 +891,7 @@ export class JsonlSessionPersistence extends CoordinatedSessionPersistence<Jsonl
     )
   }
 
-  private async exists(path: string): Promise<boolean> {
+  private async pathExists(path: string): Promise<boolean> {
     try {
       const handle = await open(path, 'r')
       await handle.close()
