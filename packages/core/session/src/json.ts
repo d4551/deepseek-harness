@@ -187,7 +187,8 @@ function walkJsonValue(value: unknown, detach: boolean): JsonValue | true | unde
  */
 export function snapshotJsonValue(value: unknown): JsonValue | undefined {
   const snapshot = walkJsonValue(value, true)
-  return snapshot === true ? undefined : snapshot
+  if (snapshot === undefined) return undefined
+  return snapshot
 }
 
 /**

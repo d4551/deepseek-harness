@@ -535,18 +535,28 @@ function projectionError(toolName: string, projector: 'render' | 'presentationMe
 
 /** Snapshot one projector result before later durable-result materialization. */
 function snapshotProjection(toolName: string, projector: 'render' | 'presentationMeta', candidate: unknown): JsonValue {
-  const detached = snapshotJsonValue(candidate)
-  if (detached === undefined) {
-    throw new ToolOutputError(toolName, [`output.${projector} returned non-lossless JSON`])
+  try {
+    const detached = snapshotJsonValue(candidate)
+    if (detached === undefined) {
+      throw new ToolOutputError(toolName, [`output.${projector} returned non-lossless JSON`])
+    }
+    return detached
+  } catch (error: unknown) {
+    if (error instanceof ToolOutputError) throw error
+    throw projectionError(toolName, projector, error)
   }
-  return detached
 }
 
 /** Snapshot one body or policy value into the canonical invalid-output failure class. */
 function snapshotToolValue(toolName: string, candidate: unknown): JsonValue {
-  const detached = snapshotJsonValue(candidate)
-  if (detached === undefined) throw new ToolOutputError(toolName, ['value is not lossless JSON'])
-  return detached
+  try {
+    const detached = snapshotJsonValue(candidate)
+    if (detached === undefined) throw new ToolOutputError(toolName, ['value is not lossless JSON'])
+    return detached
+  } catch (error: unknown) {
+    if (error instanceof ToolOutputError) throw error
+    throw new ToolOutputError(toolName, [`value snapshot failed: ${errorMessage(error)}`])
+  }
 }
 
 /** Confirm a JSON value is an array of merge-extensible content blocks. */
