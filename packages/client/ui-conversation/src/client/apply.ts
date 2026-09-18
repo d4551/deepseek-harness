@@ -46,13 +46,6 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   }
 }
 
-declare module '@deepseek-ai/cordis' {
-  interface Context {
-    /** Workspace picker navigation used by the conversation hero. */
-    uiWorkspace: WorkspaceNavigation
-  }
-}
-
 /** Services required by the Conversation plugin. */
 export const inject = [
   'slots', 'sessions', 'uiSession', 'uiWorkspace', 'locale', 'settingsScope',
@@ -83,12 +76,20 @@ function requireListSlotId(id: string | undefined, slot: string): string {
   return id
 }
 
-function requireWorkspaceNavigation(ctx: Context): WorkspaceNavigation {
+function hasWorkspaceNavigation(ctx: object): ctx is { uiWorkspace: WorkspaceNavigation } {
+  if (!('uiWorkspace' in ctx)) return false
   const workspace = ctx.uiWorkspace
-  if (typeof workspace.connectWorkspace !== 'function') {
+  return typeof workspace === 'object'
+    && workspace !== null
+    && 'connectWorkspace' in workspace
+    && typeof workspace.connectWorkspace === 'function'
+}
+
+function requireWorkspaceNavigation(ctx: Context): WorkspaceNavigation {
+  if (!hasWorkspaceNavigation(ctx)) {
     throw new Error('ui-conversation: uiWorkspace.connectWorkspace unavailable')
   }
-  return workspace
+  return ctx.uiWorkspace
 }
 
 /** Log a failed composer stop without a catch-callback binding. */
