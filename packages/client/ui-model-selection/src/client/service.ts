@@ -49,9 +49,7 @@ export class ModelDirectoryResolver extends Service {
     super(ctx, 'modelDirectories')
     this.blockReason = config.blockReason
     this.catalog = new ModelCatalogDirectory(ctx.remote.session)
-    this.catalog.load().then(() => undefined, (error: Error) => {
-      if (this.catalog.store.getSnapshot().error === null) throw error
-    })
+    this.catalog.load().then(() => undefined, () => undefined)
     ctx.on('connection/reset', () => {
       this.catalog.resetGeneration()
       for (const directory of this.live.directories.values()) directory.resetConnected()

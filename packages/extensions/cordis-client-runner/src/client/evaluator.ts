@@ -118,18 +118,22 @@ function errorText(arg: unknown): string {
   if (arg === undefined) return 'undefined'
   const seen = new WeakSet<object>()
   let cyclic = false
-  const text = JSON.stringify(arg, (_key, value: unknown) => {
-    if (typeof value === 'bigint') return `${value}n`
-    if (typeof value === 'object' && value !== null) {
-      if (seen.has(value)) {
-        cyclic = true
-        return
+  let text = '[unserializable console argument]'
+  new Promise((resolve: (value: string) => void) => {
+    const serialized = JSON.stringify(arg, (_key, value: unknown) => {
+      if (typeof value === 'bigint') return `${value}n`
+      if (typeof value === 'object' && value !== null) {
+        if (seen.has(value)) {
+          cyclic = true
+          return
+        }
+        seen.add(value)
       }
-      seen.add(value)
-    }
-    return value
-  })
-  if (cyclic || text === undefined) return '[unserializable console argument]'
+      return value
+    })
+    if (!cyclic) text = serialized || text
+    resolve(text)
+  }).then(() => undefined, () => undefined)
   return text
 }
 

@@ -17,7 +17,7 @@ import {
 } from '@deepseek-ai/dsh-client-test-runtime'
 import type { SessionPendingInteractionSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
-import type { QueueItemId } from '../src/client/contract/queue.ts'
+import type { QueueAction, QueueItemId } from '../src/client/contract/queue.ts'
 import type { InputState } from '../src/client/contract/input.ts'
 import { zh } from '../src/client/locales.ts'
 import { QueueDock, queueDockEntry, type QueueDockInjected, type QueueDockProps } from '../src/client/queue/QueueDock.tsx'
@@ -60,7 +60,7 @@ function liveSession(initial: SessionSnapshot) {
     useSession,
     push(next: SessionSnapshot): void {
       snapshot = next
-      for (const listener of [...listeners]) listener()
+      for (const listener of listeners) listener()
     },
   }
 }
@@ -86,8 +86,8 @@ function kitFor(snapshot: SessionSnapshot, injected: Partial<QueueDockInjected> 
     inputActions: { setDraft: () => {}, submit: () => {} } as never,
     session: snapshot,
     input: INPUT_STATE,
-    updateQueue: vi.fn(() => Promise.resolve()),
-    notify: vi.fn(),
+    updateQueue: vi.fn<(itemId: QueueItemId, action: QueueAction) => Promise<void>>(() => Promise.resolve()),
+    notify: vi.fn<(level: 'info' | 'error', text: string) => void>(),
     ...injected,
   }
 }
@@ -159,7 +159,9 @@ describe('QueueDock', () => {
     const single = snapshotWith([row('i-remove', 'remove me')])
     const source = liveSession(single)
     let finishUpdate: (() => void) | undefined
-    const updateQueue = vi.fn(() => new Promise<void>((resolve) => { finishUpdate = resolve }))
+    const updateQueue = vi.fn<(itemId: QueueItemId, action: QueueAction) => Promise<void>>(
+      () => new Promise<void>((resolve) => { finishUpdate = resolve }),
+    )
     const view = render(
       <QueueDock {...kitFor(single, { updateQueue })} useSession={source.useSession} />,
     )
@@ -227,7 +229,7 @@ describe('QueueDock', () => {
   it('edits text inline with save and cancel controls, then saves with the same item identity', async () => {
     const snap = snapshotWith([row('i-edit', 'before')])
     const source = liveSession(snap)
-    const updateQueue = vi.fn(() => Promise.resolve())
+    const updateQueue = vi.fn<(itemId: QueueItemId, action: QueueAction) => Promise<void>>(() => Promise.resolve())
     const { getByLabelText, queryByLabelText } = render(
       <QueueDock {...kitFor(snap, { updateQueue })} useSession={source.useSession} />,
     )
@@ -251,7 +253,7 @@ describe('QueueDock', () => {
   it('cancels an edit by button or Escape without mutating the queue', () => {
     const snap = snapshotWith([row('i-edit', 'before')])
     const source = liveSession(snap)
-    const updateQueue = vi.fn(() => Promise.resolve())
+    const updateQueue = vi.fn<(itemId: QueueItemId, action: QueueAction) => Promise<void>>(() => Promise.resolve())
     const { getByLabelText, getByText } = render(
       <QueueDock {...kitFor(snap, { updateQueue })} useSession={source.useSession} />,
     )
@@ -270,7 +272,7 @@ describe('QueueDock', () => {
   it('keeps editing during IME composition and disables a blank save', () => {
     const snap = snapshotWith([row('i-edit', 'before')])
     const source = liveSession(snap)
-    const updateQueue = vi.fn(() => Promise.resolve())
+    const updateQueue = vi.fn<(itemId: QueueItemId, action: QueueAction) => Promise<void>>(() => Promise.resolve())
     const { getByLabelText } = render(
       <QueueDock {...kitFor(snap, { updateQueue })} useSession={source.useSession} />,
     )
@@ -288,7 +290,7 @@ describe('QueueDock', () => {
   it('removes the addressed row', async () => {
     const snap = snapshotWith([row('i-1', 'one'), row('i-2', 'two')])
     const source = liveSession(snap)
-    const updateQueue = vi.fn(() => Promise.resolve())
+    const updateQueue = vi.fn<(itemId: QueueItemId, action: QueueAction) => Promise<void>>(() => Promise.resolve())
     const { getAllByLabelText, getByRole } = render(
       <QueueDock {...kitFor(snap, { updateQueue })} useSession={source.useSession} />,
     )
@@ -303,7 +305,7 @@ describe('QueueDock', () => {
   it('strictly steers complete row content only while the agent is running', async () => {
     const running = snapshotWith([row('i-steer', null, 'image [image]')])
     const source = liveSession(running)
-    const updateQueue = vi.fn(() => Promise.resolve())
+    const updateQueue = vi.fn<(itemId: QueueItemId, action: QueueAction) => Promise<void>>(() => Promise.resolve())
     const rendered = render(
       <QueueDock {...kitFor(running, { updateQueue })} useSession={source.useSession} />,
     )
@@ -378,8 +380,10 @@ describe('QueueDock', () => {
   it('keeps the row and reports a genuine steer failure', async () => {
     const snap = snapshotWith([row('i-steer-race', 'pending steer')])
     const source = liveSession(snap)
-    const notify = vi.fn()
-    const updateQueue = vi.fn(() => Promise.reject(new Error('transport failed')))
+    const notify = vi.fn<(level: 'info' | 'error', text: string) => void>()
+    const updateQueue = vi.fn<(itemId: QueueItemId, action: QueueAction) => Promise<void>>(
+      () => Promise.reject(new Error('transport failed')),
+    )
     const { getByLabelText, getByText } = render(
       <QueueDock {...kitFor(snap, { updateQueue, notify })} useSession={source.useSession} />,
     )
@@ -388,7 +392,7 @@ describe('QueueDock', () => {
     await waitFor(() => {
       expect(notify).toHaveBeenCalledWith(
         'error',
-        '插话发送失败，请重试。',
+        '插话发送失败，请重试。: transport failed',
       )
     })
     expect(getByText('pending steer')).toBeTruthy()
@@ -397,15 +401,17 @@ describe('QueueDock', () => {
   it('keeps the row and surfaces a notice when an operation loses the claim race', async () => {
     const snap = snapshotWith([row('i-race', 'pending')])
     const source = liveSession(snap)
-    const notify = vi.fn()
-    const updateQueue = vi.fn(() => Promise.reject(new Error('not found')))
+    const notify = vi.fn<(level: 'info' | 'error', text: string) => void>()
+    const updateQueue = vi.fn<(itemId: QueueItemId, action: QueueAction) => Promise<void>>(
+      () => Promise.reject(new Error('not found')),
+    )
     const { getByLabelText, getByText } = render(
       <QueueDock {...kitFor(snap, { updateQueue, notify })} useSession={source.useSession} />,
     )
 
     fireEvent.click(getByLabelText('删除排队消息'))
     await waitFor(() => {
-      expect(notify).toHaveBeenCalledWith('error', '删除失败：这条消息可能已经开始发送。')
+      expect(notify).toHaveBeenCalledWith('error', '删除失败：这条消息可能已经开始发送。: not found')
     })
     expect(getByText('pending')).toBeTruthy()
   })
@@ -422,8 +428,10 @@ describe('QueueDock', () => {
   it('registers as the terminal composer-context entry', () => {
     expect(queueDockEntry.name).toBe('conversation-queue-dock')
     expect(queueDockEntry.inject).toEqual(['slots', 'conversation', 'sessions'])
-    const register = vi.fn(() => () => undefined)
-    const inject = vi.fn((_name: string, callback: () => () => void) => callback())
+    const register = vi.fn<() => () => void>(() => () => undefined)
+    const inject = vi.fn<(name: string, callback: () => () => void) => () => void>(
+      (_name, callback) => callback(),
+    )
     queueDockEntry.apply({ slots: { inject, register } } as never)
     expect(inject).toHaveBeenCalledWith('conversation.input.dock', expect.any(Function))
     expect(register).toHaveBeenCalledWith(

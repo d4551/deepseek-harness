@@ -645,10 +645,13 @@ export class AgentRegistry extends Service {
     const result = this.initiatorRuns.run(run, () => this.initiators.run(agent, operation))
     if (isPromise(result)) {
       retain = false
-      observeReturnedThenable(
-        Promise.resolve(result).then(() => { this.releaseInitiatorRun(run) }),
-        () => { this.releaseInitiatorRun(run) },
-      )
+      const release = (): void => { this.releaseInitiatorRun(run) }
+      new Promise((resolve: (value: unknown) => void) => {
+        observeReturnedThenable(
+          Promise.prototype.then.call(result, resolve, resolve),
+          resolve,
+        )
+      }).then(release, release)
       return result
     }
     retain = false
