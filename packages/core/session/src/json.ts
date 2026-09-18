@@ -200,12 +200,3 @@ export function snapshotJsonValue<T>(value: T): T | undefined {
 export function isJsonValue(value: unknown): value is JsonValue {
   return walkJsonValue(value, false) === true
 }
-
-/** Read one own enumerable JSON field from its property descriptor. */
-export function jsonField(record: object, key: string): JsonValue | undefined {
-  if (!Object.hasOwn(record, key)) return undefined
-  const descriptor = Object.getOwnPropertyDescriptor(record, key)
-  if (descriptor === undefined || !Object.hasOwn(descriptor, 'value')) return undefined
-  if (!isJsonValue(descriptor.value)) return undefined
-  return descriptor.value
-}
