@@ -696,8 +696,14 @@ function materializeJsonSchema(candidate: unknown): JsonSchemaNode {
 
 /** Structured `{ name, code }` for a thrown HarnessError, else undefined. */
 function errorInfo(error: unknown): ToolErrorInfo | undefined {
-  if (!(error instanceof HarnessError)) return undefined
-  return { name: error.name, code: error.code }
+  let info: ToolErrorInfo | undefined
+  new Promise((resolve: (value: undefined) => void) => {
+    if (error instanceof HarnessError) {
+      info = { name: error.name, code: error.code }
+    }
+    resolve(undefined)
+  }).then(() => undefined, () => undefined)
+  return info
 }
 
 /** How the registry presents its tools to the model (see {@link Config.mode}). */
