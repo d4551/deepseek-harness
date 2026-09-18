@@ -379,6 +379,10 @@ function assertMessageEventShape(event: object, subject: string): void {
   }
 
   const content = 'content' in message ? message.content : undefined
+  if (typeof content !== 'object' || content === null) {
+    throw new Error(`${subject} message has invalid content`)
+  }
+  const contentObject = content
   if (!Array.isArray(content)) {
     throw new Error(`${subject} message has invalid content`)
   }
@@ -396,15 +400,11 @@ function assertMessageEventShape(event: object, subject: string): void {
     throw new Error(`${subject} message must have tool source`)
   }
 
-  const block = content[0]
-  const blockType = typeof block === 'object' && block !== null && 'type' in block
-    ? block.type
-    : undefined
-  const blockContent = typeof block === 'object' && block !== null && 'content' in block
-    ? block.content
-    : undefined
-  if (content.length !== 1 || typeof block !== 'object' || block === null
-    || blockType !== 'tool-result' || !Array.isArray(blockContent)) {
+  const block = '0' in contentObject ? contentObject['0'] : undefined
+  if (!('length' in contentObject) || contentObject.length !== 1
+    || typeof block !== 'object' || block === null
+    || !('type' in block) || block.type !== 'tool-result'
+    || !('content' in block) || !Array.isArray(block.content)) {
     throw new Error(`${subject} message must contain one tool-result block`)
   }
   const toolCallId = 'toolCallId' in block ? block.toolCallId : undefined
