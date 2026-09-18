@@ -171,7 +171,7 @@ describe('LocalJobRegistry.start', () => {
     async (maxConcurrentJobsPerOwner) => {
       const ctx = new Context()
       await expect(ctx.plugin(LocalJobRegistry, { maxConcurrentJobsPerOwner }))
-        .rejects.toThrow()
+        .rejects.toThrow(/maxConcurrentJobsPerOwner|number|min|max|step/)
     },
   )
 
@@ -186,7 +186,7 @@ describe('LocalJobRegistry.start', () => {
     for (const job of live) ctx.jobs.start(job.spec)
 
     const blocked = producer()
-    const run = vi.fn(() => blocked.spec.run())
+    const run = vi.fn<() => JobHooks>(() => blocked.spec.run())
     expect(() => ctx.jobs.start({ ...blocked.spec, run }))
       .toThrow('background job limit reached for this owner (limit: 10)')
     expect(run).not.toHaveBeenCalled()
@@ -199,7 +199,7 @@ describe('LocalJobRegistry.start', () => {
     expect(ctx.jobs.start(first.spec)).toBe('bash-1')
 
     const blocked = producer()
-    const run = vi.fn(() => blocked.spec.run())
+    const run = vi.fn<() => JobHooks>(() => blocked.spec.run())
     expect(() => ctx.jobs.start({ ...blocked.spec, run }))
       .toThrow('use job_kill to stop an unneeded job, wait for it to finish, then retry')
     expect(run).not.toHaveBeenCalled()
@@ -644,7 +644,7 @@ describe('LocalJobRegistry owner isolation', () => {
     ctx.jobs.start(current.spec) // Attach the current owner's cleanup first.
 
     const stale = producer({ owner: staleOwner })
-    const staleRun = vi.fn(() => stale.spec.run())
+    const staleRun = vi.fn<() => JobHooks>(() => stale.spec.run())
     expect(() => ctx.jobs.start({ ...stale.spec, run: staleRun }))
       .toThrow('is not the registered agent instance')
     expect(staleRun).not.toHaveBeenCalled()
@@ -1054,7 +1054,9 @@ describe('LocalJobRegistry.onJobsChanged', () => {
     const id = ctx.jobs.start(producer().spec)
     expect(id).toBe('bash-1')
     expect(seen).toEqual([undefined])
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('onJobsChanged listener threw'))
+    await vi.waitFor(() => {
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('onJobsChanged listener threw'))
+    })
   })
 
   it('unregisters through its disposer and with its fiber (HMR safety)', async () => {
