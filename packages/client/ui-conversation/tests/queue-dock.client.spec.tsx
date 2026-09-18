@@ -320,6 +320,38 @@ describe('QueueDock', () => {
     expect(rendered.getByLabelText('插话发送').getAttribute('title')).toBe('仅运行中可插话发送')
   })
 
+  it('closes a collapsed multi-item editor when the session becomes a subagent', () => {
+    const single = snapshotWith([row('i-edit', 'before')])
+    const source = liveSession(single)
+    const view = render(<QueueDock {...kitFor(single)} useSession={source.useSession} />)
+
+    fireEvent.click(view.getByLabelText('编辑排队消息'))
+    fireEvent.change(view.getByLabelText('编辑排队消息'), { target: { value: 'draft' } })
+    act(() => {
+      source.push(snapshotWith([row('i-edit', 'before'), row('i-2', 'second')]))
+    })
+    expect(view.getByRole('textbox', { name: '编辑排队消息' })).toBeTruthy()
+
+    act(() => {
+      source.push({
+        ...snapshotWith([row('i-edit', 'before'), row('i-2', 'second')]),
+        subagent: {
+          address: {
+            parentSessionId: 'parent' as SessionId,
+            childSessionId: SID,
+            mode: 'continuable' as const,
+          },
+          parentAvailable: true,
+        },
+      })
+    })
+
+    const header = view.getByRole('button', { name: '2 条排队消息' })
+    expect(header.getAttribute('aria-expanded')).toBe('false')
+    expect(view.queryByRole('textbox', { name: '编辑排队消息' })).toBeNull()
+    expect(view.queryByLabelText('编辑排队消息')).toBeNull()
+  })
+
   it('renders a session-backed subagent Queue without unsupported actions', () => {
     const snap = {
       ...snapshotWith([row('i-subagent', 'pending child follow-up')]),

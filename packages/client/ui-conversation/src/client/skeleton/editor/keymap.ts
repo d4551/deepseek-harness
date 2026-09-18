@@ -9,8 +9,8 @@
  * IME guard: a composition-closing Enter/Space must not submit or adjudicate.
  * KeyboardEvent.isComposing covers most engines; Safari delivers the closing
  * keydown AFTER compositionend, so a root-element composition watch holds the
- * guard for 10ms more (the old textarea's proven window); keyCode
- * 229 is the legacy signal engines emit without isComposing.
+ * guard for 10ms more (the old textarea's proven window); key "Process" and
+ * keyCode 229 are the signals engines emit without isComposing.
  */
 import type { LexicalEditor } from 'lexical'
 import {
@@ -38,9 +38,16 @@ export interface ComposerKeymapHandlers {
   pasteText(text: string): void
 }
 
+/** Windows VK_PROCESSKEY — IME engines emit this on keydown without isComposing. */
+const IME_PROCESS_KEY_CODE = 229
+
+function isImeProcessKey(event: Event): boolean {
+  return Reflect.get(event, 'keyCode') === IME_PROCESS_KEY_CODE
+}
+
 /** Composition state a keydown can trust (see the module doc's Safari note). */
 function isComposingEvent(event: KeyboardEvent, recentlyComposing: () => boolean): boolean {
-  return event.isComposing || event.key === 'Unidentified' || recentlyComposing()
+  return event.isComposing || event.key === 'Process' || isImeProcessKey(event) || recentlyComposing()
 }
 
 /**

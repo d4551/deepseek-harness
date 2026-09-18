@@ -30,7 +30,7 @@ export function QueueDock({ useSession, updateQueue, notify, t }: QueueDockProps
   const running = useSession(s => s.running)
   const queueMutable = useSession(s => s.subagent === null)
   const [editing, setEditing] = useState<{ id: QueueItemId; text: string } | null>(null)
-  const editorOpen = editing !== null && queue.some(row => row.id === editing.id)
+  const editorOpen = editing !== null && queueMutable && queue.some(row => row.id === editing.id)
   const editorRef = useFocusWhen<HTMLInputElement>(editorOpen)
   const [busy, setBusy] = useState<QueueItemId | null>(null)
   const [collapsed, setCollapsed] = useState(true)

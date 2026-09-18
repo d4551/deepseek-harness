@@ -60,4 +60,28 @@ describe('keymap keydown routing', () => {
     expect(passed).toBe(true) // pass: the browser keeps native focus traversal
   })
 
+  it('does not submit on IME Process or keyCode 229 Enter', () => {
+    const editor = createEditor({ namespace: 'keymap-routing-ime', onError: (e) => { throw e } })
+    const root = document.createElement('div')
+    root.contentEditable = 'true'
+    document.body.appendChild(root)
+    editor.setRootElement(root)
+    registerPlainText(editor)
+    const submit = vi.fn()
+    registerComposerKeymap(editor, {
+      arbitrate: () => 'pass',
+      space: () => false,
+      dismissPopup: () => {},
+      canSubmit: () => true,
+      submit,
+      intakeFiles: () => {},
+      pasteText: () => {},
+    })
+    fireEvent.keyDown(root, { key: 'Process', keyCode: 229 })
+    fireEvent.keyDown(root, { key: 'Enter', keyCode: 229 })
+    expect(submit).not.toHaveBeenCalled()
+    fireEvent.keyDown(root, { key: 'Enter' })
+    expect(submit).toHaveBeenCalledWith(false)
+  })
+
 })
