@@ -3,7 +3,7 @@
  * async function whose parameters ARE the symbol surface. Shadowing parameters
  * (setTimeout/fetch/require/…) turn the ambient browser globals into teaching
  * redirects without touching the page. The host syntax-prechecked the source at
- * define time; SyntaxError handling here is the engine-divergence fallback and
+ * define time; parse-failure handling here is the engine-divergence fallback and
  * reaches the model through the load report.
  */
 
@@ -182,7 +182,10 @@ export async function evaluateClientHalf(
     const exported = module.default
     closure = (...args: unknown[]): Promise<unknown> => Promise.resolve(Reflect.apply(exported, undefined, args))
   } catch (error) {
-    if (!(error instanceof SyntaxError)) throw error
+    // Node still throws SyntaxError for an unparseable data:text/javascript
+    // module. Chrome, Firefox, and Safari reject the same URL as TypeError
+    // (typically "Failed to fetch dynamically imported module").
+    if (!(error instanceof SyntaxError) && !(error instanceof TypeError)) throw error
     throw new Error(
       `client half failed to parse in this browser: ${error.message}\n`
       + 'The browser half is plain JavaScript (no JSX, no TypeScript); build elements with React.createElement.',
