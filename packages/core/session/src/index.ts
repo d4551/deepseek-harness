@@ -222,6 +222,8 @@ export function snapshotSessionEvent<T extends SessionEvent>(event: T): T {
   return adoptSessionEvent(structuredClone(event))
 }
 
+type JsonObject = { [key: string]: JsonValue }
+
 /** Confirm a constructed append payload is a session event before it enters the log. */
 function assertPublishedSessionEvent(
   value: object,
@@ -254,8 +256,6 @@ function isSessionEventOfType<T extends SessionEventType>(
 function isLegacyRequestHeaderDelta(type: string): boolean {
   return type === 'request/header-delta'
 }
-
-type JsonObject = { [key: string]: JsonValue }
 
 /** Detach the JSON object a session event serializes to. */
 function sessionJsonRecord(event: SessionEvent, subject: string): JsonObject {

@@ -17,13 +17,9 @@ function hasIntrinsicConstructor(prototype: object, name: 'Array' | 'Object'): b
   const descriptor = Object.getOwnPropertyDescriptor(prototype, 'constructor')
   const constructor: unknown = descriptor?.value
   if (typeof constructor !== 'function') return false
-  try {
-    return constructor.name === name
-      && constructor.prototype === prototype
-      && Function.prototype.toString.call(constructor) === `function ${name}() { [native code] }`
-  } catch {
-    return false
-  }
+  return constructor.name === name
+    && constructor.prototype === prototype
+    && Function.prototype.toString.call(constructor) === `function ${name}() { [native code] }`
 }
 
 /** Whether a candidate is one realm's intrinsic `Object.prototype`. */
@@ -63,8 +59,12 @@ export function hasPlainObjectPrototype(value: object): boolean {
 /** Return every JSON-visible object key, or reject own data JSON would discard. */
 function enumerableStringKeys(value: object): string[] | undefined {
   const keys = Reflect.ownKeys(value)
-  if (keys.some(key => typeof key !== 'string' || !Object.prototype.propertyIsEnumerable.call(value, key))) return undefined
-  return keys as string[]
+  const strings: string[] = []
+  for (const key of keys) {
+    if (typeof key !== 'string' || !Object.prototype.propertyIsEnumerable.call(value, key)) return undefined
+    strings.push(key)
+  }
+  return strings
 }
 
 type SnapshotDestination =
@@ -75,7 +75,7 @@ type SnapshotDestination =
 type JsonWalkTask =
   | { kind: 'visit'; value: unknown; destination?: SnapshotDestination }
   | { kind: 'array-item'; source: unknown[]; index: number; target?: JsonValue[] }
-  | { kind: 'object-property'; source: Record<string, unknown>; key: string; target?: { [key: string]: JsonValue } }
+  | { kind: 'object-property'; source: object; key: string; target?: { [key: string]: JsonValue } }
   | { kind: 'leave'; source: object }
 
 /** Validate lossless JSON iteratively, optionally materializing a detached snapshot. */
@@ -120,7 +120,7 @@ function walkJsonValue(value: unknown, detach: boolean): JsonValue | true | unde
     if (task.kind === 'object-property') {
       tasks.push({
         kind: 'visit',
-        value: task.source[task.key],
+        value: Reflect.get(task.source, task.key),
         ...(task.target === undefined ? {} : { destination: { kind: 'object', target: task.target, key: task.key } as const }),
       })
       continue
@@ -147,7 +147,7 @@ function walkJsonValue(value: unknown, detach: boolean): JsonValue | true | unde
       if (!hasPlainArrayPrototype(current)) return undefined
       const length = current.length
       if (Reflect.ownKeys(current).length !== length + 1) return undefined
-      const target = detach ? [] as JsonValue[] : undefined
+      const target: JsonValue[] | undefined = detach ? [] : undefined
       if (target !== undefined) assign(task.destination, target)
       ancestors.add(current)
       tasks.push({ kind: 'leave', source: current })
@@ -160,15 +160,14 @@ function walkJsonValue(value: unknown, detach: boolean): JsonValue | true | unde
     if (!hasPlainObjectPrototype(current)) return undefined
     const keys = enumerableStringKeys(current)
     if (keys === undefined) return undefined
-    const target = detach ? {} as { [key: string]: JsonValue } : undefined
+    const target: { [key: string]: JsonValue } | undefined = detach ? {} : undefined
     if (target !== undefined) assign(task.destination, target)
     ancestors.add(current)
     tasks.push({ kind: 'leave', source: current })
     for (let index = keys.length - 1; index >= 0; index--) {
       const key = keys[index]
-      /* v8 ignore next -- the loop is bounded by the captured key count. */
       if (key === undefined) return undefined
-      tasks.push({ kind: 'object-property', source: current as Record<string, unknown>, key, ...(target === undefined ? {} : { target }) })
+      tasks.push({ kind: 'object-property', source: current, key, ...(target === undefined ? {} : { target }) })
     }
   }
   return detach ? root : true

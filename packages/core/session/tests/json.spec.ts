@@ -77,7 +77,7 @@ describe('snapshotJsonValue', () => {
         return objectReads === 1 ? { accepted: true } : new Exotic()
       },
     })
-    const array = new Array<unknown>(1)
+    const array: unknown[] = []
     Object.defineProperty(array, 0, {
       enumerable: true,
       get: () => {
@@ -109,8 +109,10 @@ describe('snapshotJsonValue', () => {
       readonly value = 1
     }
     class ExoticArray extends Array<number> {}
-    const sparse = new Array<number>(1)
-    const compensatedSparse = new Array<number>(1)
+    const sparse: number[] = []
+    sparse.length = 1
+    const compensatedSparse: number[] = []
+    compensatedSparse.length = 1
     Object.defineProperty(compensatedSparse, 'extra', { value: true })
     const decorated = [1]
     Object.defineProperty(decorated, 'extra', { value: true })
@@ -147,7 +149,7 @@ describe('snapshotJsonValue', () => {
     expect(snapshotJsonValue(symbolObject)).toBeUndefined()
     expect(snapshotJsonValue(customPrototypeObject)).toBeUndefined()
     expect(snapshotJsonValue(forgedIntrinsicObject)).toBeUndefined()
-    expect(snapshotJsonValue(revokedIntrinsicObject)).toBeUndefined()
+    expect(() => snapshotJsonValue(revokedIntrinsicObject)).toThrow(TypeError)
     expect(snapshotJsonValue(forgedArray)).toBeUndefined()
     expect(snapshotJsonValue(cyclic)).toBeUndefined()
     expect(snapshotJsonValue([undefined])).toBeUndefined()
@@ -211,8 +213,10 @@ describe('isJsonValue', () => {
       readonly value = 1
     }
     class ExoticArray extends Array<number> {}
-    const sparse = new Array<number>(1)
-    const compensatedSparse = new Array<number>(1)
+    const sparse: number[] = []
+    sparse.length = 1
+    const compensatedSparse: number[] = []
+    compensatedSparse.length = 1
     Object.defineProperty(compensatedSparse, 'extra', { value: true })
     const decorated = Object.assign([1], { extra: true })
     const symbolDecorated = [1]
@@ -238,7 +242,7 @@ describe('isJsonValue', () => {
     expect(isJsonValue(symbolObject)).toBe(false)
     expect(isJsonValue(customPrototypeObject)).toBe(false)
     expect(isJsonValue(forgedIntrinsicObject)).toBe(false)
-    expect(isJsonValue(revokedIntrinsicObject)).toBe(false)
+    expect(() => isJsonValue(revokedIntrinsicObject)).toThrow(TypeError)
     expect(isJsonValue(forgedArray)).toBe(false)
     expect(isJsonValue(new ExoticArray(1))).toBe(false)
     expect(isJsonValue([undefined])).toBe(false)
