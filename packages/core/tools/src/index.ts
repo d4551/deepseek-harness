@@ -535,28 +535,24 @@ function projectionError(toolName: string, projector: 'render' | 'presentationMe
 
 /** Snapshot one projector result before later durable-result materialization. */
 function snapshotProjection(toolName: string, projector: 'render' | 'presentationMeta', candidate: unknown): JsonValue {
-  try {
-    const detached = snapshotJsonValue(candidate)
-    if (detached === undefined) {
-      throw new ToolOutputError(toolName, [`output.${projector} returned non-lossless JSON`])
-    }
-    return detached
-  } catch (error: unknown) {
-    if (error instanceof ToolOutputError) throw error
-    throw projectionError(toolName, projector, error)
+  const detached = snapshotJsonValue(candidate)
+  if (detached === undefined) {
+    throw new ToolOutputError(toolName, [`output.${projector} returned non-lossless JSON`])
   }
+  return detached
 }
 
 /** Snapshot one body or policy value into the canonical invalid-output failure class. */
 function snapshotToolValue(toolName: string, candidate: unknown): JsonValue {
-  try {
-    const detached = snapshotJsonValue(candidate)
-    if (detached === undefined) throw new ToolOutputError(toolName, ['value is not lossless JSON'])
-    return detached
-  } catch (error: unknown) {
-    if (error instanceof ToolOutputError) throw error
-    throw new ToolOutputError(toolName, [`value snapshot failed: ${errorMessage(error)}`])
-  }
+  const detached = snapshotJsonValue(candidate)
+  if (detached === undefined) throw new ToolOutputError(toolName, ['value is not lossless JSON'])
+  return detached
+}
+
+/** Classify a post-body snapshot throw as invalid tool output. */
+function toolOutputSnapshotResult(toolName: string, error: unknown): ToolExecutionResult {
+  if (error instanceof ToolOutputError) return toolErrorResult(error)
+  return toolErrorResult(new ToolOutputError(toolName, [`value snapshot failed: ${errorMessage(error)}`]))
 }
 
 /** Confirm a JSON value is an array of merge-extensible content blocks. */
@@ -1099,9 +1095,11 @@ export class ToolRuntime extends Service {
    */
   register(definition: ToolDefinition): () => void {
     const name = definition.name
-    const output = (definition as Partial<ToolDefinition>).output
-    if (output === undefined || typeof output !== 'object'
-      || typeof output.render !== 'function'
+    if (!('output' in definition) || typeof definition.output !== 'object' || definition.output === null) {
+      throw new TypeError(`tool "${name}" must declare output { schema, render, presentationMeta? }`)
+    }
+    const output = definition.output
+    if (typeof output.render !== 'function'
       || (output.presentationMeta !== undefined && typeof output.presentationMeta !== 'function')) {
       throw new TypeError(`tool "${name}" must declare output { schema, render, presentationMeta? }`)
     }
@@ -1467,6 +1465,7 @@ export class ToolRuntime extends Service {
     const visible = registration?.definition
     const collapsed = visible !== undefined && this.collapses(name, agent, parent !== undefined)
     const concludingExecutions = this.concludingExecutions
+    let execution: MutableToolRunContext | undefined
     const base = {
       token,
       callId,
@@ -1479,7 +1478,10 @@ export class ToolRuntime extends Service {
         deferredContexts.push(context)
       },
       concludeTurn(): void {
-        concludingExecutions.add(this as unknown as ToolExecution)
+        if (execution === undefined) {
+          throw new Error('tool registry scheduler invariant violated: concludeTurn before execution mint')
+        }
+        concludingExecutions.add(execution)
       },
     }
     // Capture the finalizer BEFORE argument materialization: the
@@ -1500,15 +1502,16 @@ export class ToolRuntime extends Service {
       if (detached === undefined) {
         throw new TypeError('tool execution arguments must be losslessly JSON-serializable')
       }
-      const execution: MutableToolRunContext = { ...base, arguments: deepFreeze(detached) }
-      Object.defineProperty(execution, 'directWorkspaceEffect', {
+      const minted: MutableToolRunContext = { ...base, arguments: deepFreeze(detached) }
+      execution = minted
+      Object.defineProperty(minted, 'directWorkspaceEffect', {
         value: collapsed ? undefined : registration?.implementation.directWorkspaceEffect,
         enumerable: true,
       })
-      if (registration !== undefined) this.executionRegistrations.set(execution, registration)
-      this.deferredContexts.set(execution, deferredContexts)
-      this.contentFinalizers.set(execution, finalizerFor())
-      this.cancellationStates.set(execution, {
+      if (registration !== undefined) this.executionRegistrations.set(minted, registration)
+      this.deferredContexts.set(minted, deferredContexts)
+      this.contentFinalizers.set(minted, finalizerFor())
+      this.cancellationStates.set(minted, {
         callerSignal: signal,
         bodyInvoked: false,
       })
@@ -1519,7 +1522,7 @@ export class ToolRuntime extends Service {
         // final-results, so honor the abort here instead of surfacing
         // `UNKNOWN_TOOL` on an already-cancelled call.
         if (signal.aborted) {
-          return { kind: 'final-result', exec: execution, result: toolAbortedBeforeDispatchResult() }
+          return { kind: 'final-result', exec: minted, result: toolAbortedBeforeDispatchResult() }
         }
         // The name IS visible here, so the denial carries the route the model
         // must take instead. Without it the model reads a bare `unknown tool`
@@ -1527,18 +1530,19 @@ export class ToolRuntime extends Service {
         // broken rather than correcting itself.
         return {
           kind: 'final-result',
-          exec: execution,
+          exec: minted,
           result: toolErrorResult(new ToolNotFoundError(
             name,
             `only \`${RUN_CODE_NAME}\` is callable directly — call \`${name}\` from inside a \`${RUN_CODE_NAME}\` program instead`,
           )),
         }
       }
-      return { kind: 'ready', exec: execution }
+      return { kind: 'ready', exec: minted }
     } catch (error: unknown) {
-      const execution: MutableToolRunContext = { ...base, arguments: undefined }
-      this.contentFinalizers.set(execution, finalizerFor())
-      return { kind: 'final-result', exec: execution, result: toolErrorResult(error) }
+      const failed: MutableToolRunContext = { ...base, arguments: undefined }
+      execution = failed
+      this.contentFinalizers.set(failed, finalizerFor())
+      return { kind: 'final-result', exec: failed, result: toolErrorResult(error) }
     }
   }
 
@@ -1645,16 +1649,18 @@ export class ToolRuntime extends Service {
       return toolAbortedBeforeDispatchResult()
     }
     exec.signal = signal
+    let snapshotting = false
     try {
       const tool = this.registeredExecution(exec)
       state.bodyInvoked = true
       const returned = await tool.execute(exec.arguments, exec)
+      snapshotting = true
       const result = this.createSuccessResult(exec, tool, returned)
       return isAborted(signal)
         ? toolAbortedResult(result)
         : result
     } catch (error: unknown) {
-      return toolErrorResult(error)
+      return snapshotting ? toolOutputSnapshotResult(exec.name, error) : toolErrorResult(error)
     } finally {
       fused.dispose()
       exec.signal = wrapperSignal
@@ -1917,13 +1923,17 @@ export class ToolRuntime extends Service {
       meta = snapshotProjection(tool.name, 'presentationMeta', projected)
     }
     const concludesTurn = this.concludingExecutions.has(exec)
-    return this.markCanonical(exec, this.materializeFinalResult({
+    const materialized = this.materializeFinalResult({
       isError: false,
       value,
       content,
       ...meta !== undefined ? { meta } : {},
       ...concludesTurn ? { concludesTurn: true as const } : {},
-    }) as ToolExecutionSuccess)
+    })
+    if (materialized.isError) {
+      throw new ToolOutputError(tool.name, ['success materialization produced a failure result'])
+    }
+    return this.markCanonical(exec, materialized)
   }
 
   /** Normalize an around-dispatch wrapper's authored result through the owning output contract. */
