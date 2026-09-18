@@ -805,10 +805,10 @@ export class PersistenceCoordinator<TornMarker = unknown> {
     if (batch === undefined) {
       throw new TypeError('session event batch is not losslessly JSON-serializable because it contains non-JSON-serializable data')
     }
-    return this.serialize(id, () => this.appendCore(id, sessionEventRecordsFromJson(batch)))
+    return this.serialize(id, () => this.appendCore(id, storedSessionEvents(sessionEventRecordsFromJson(batch), id)))
   }
 
-  private async appendCore(id: SessionId, records: readonly object[]): Promise<void> {
+  private async appendCore(id: SessionId, events: readonly SessionEvent[]): Promise<void> {
     // Every append route converges here: the public service, live write-behind
     // drains, and HMR seed/suffix adoption. Legacy-shape rejection stays at
     // this shared boundary so a stale JavaScript plugin cannot persist a
@@ -817,7 +817,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
     // session's durability mid-flight, which costs more than a loud refusal at
     // the log's next load (trade-off owned by the fail-closed-session-event-
     // vocabulary Agent Note).
-    const events = storedSessionEvents(records, id)
+    assertSupportedEventRecords(events, id)
     if (events.length === 0) return
     this.preparations.assertWritable(id)
     let state = this.states.get(id)
