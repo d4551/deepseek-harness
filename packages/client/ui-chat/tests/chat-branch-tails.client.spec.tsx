@@ -137,7 +137,7 @@ describe('MessageItem arms', () => {
   })
 
   it('user bubbles expose clock / copy and neither branch nor edit; copy writes the text', () => {
-    const writeText = vi.fn<(...args: never[]) => void>().mockResolvedValue(undefined)
+    const writeText = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText },
@@ -181,7 +181,7 @@ describe('MessageItem arms', () => {
   it('user copy never claims success when the host rejects the write', async () => {
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
-      value: { writeText: vi.fn<(...args: never[]) => void>().mockRejectedValue(new Error('denied')) },
+      value: { writeText: vi.fn<() => Promise<void>>().mockRejectedValue(new Error('denied')) },
     })
     render(
       <MessageItem t={t} node={{
@@ -202,7 +202,7 @@ describe('MessageItem arms', () => {
 
   it('copy swaps to the check success chrome, gates re-clicks, and reverts after a second', async () => {
     vi.useFakeTimers()
-    const writeText = vi.fn<(...args: never[]) => void>().mockResolvedValue(undefined)
+    const writeText = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText },
@@ -235,7 +235,7 @@ describe('MessageItem arms', () => {
   it('clears copy feedback work when the message unmounts', async () => {
     vi.useFakeTimers()
     let finishWrite!: () => void
-    const writeText = vi.fn<(...args: never[]) => void>(() => new Promise<void>((resolve) => { finishWrite = resolve }))
+    const writeText = vi.fn<() => Promise<void>>(() => new Promise<void>((resolve) => { finishWrite = resolve }))
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText },
@@ -267,7 +267,7 @@ describe('MessageItem arms', () => {
     )
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
-      value: { writeText: vi.fn<(...args: never[]) => void>().mockResolvedValue(undefined) },
+      value: { writeText: vi.fn<() => Promise<void>>().mockResolvedValue(undefined) },
     })
     fireEvent.click(screen.getByRole('button', { name: '复制' }))
     await act(async () => {
@@ -280,7 +280,7 @@ describe('MessageItem arms', () => {
   })
 
   it('consumed steering renders as a plain user bubble and keeps copy without branch', () => {
-    const writeText = vi.fn<(...args: never[]) => void>().mockResolvedValue(undefined)
+    const writeText = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText },

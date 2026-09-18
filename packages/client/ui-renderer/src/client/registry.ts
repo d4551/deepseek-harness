@@ -586,9 +586,9 @@ function copyUnique<T>(
 // Element access reaches the private _register legally and keeps it a
 // TS-visible read.
 ;(SlotRegistry.prototype as {
-  register: (options: object, component: unknown) => () => Promise<void>
+  register: (options: object, component: unknown) => () => void
 }).register
-  = function register(this: SlotRegistry, rawOptions: object, component: unknown): () => Promise<void> {
+  = function register(this: SlotRegistry, rawOptions: object, component: unknown): () => void {
     // The core's overloads proved the shares; the implementation works on
     // the erased view (same pattern as the core's own implementation arm).
     const options = rawOptions as ErasedRegisterOptions

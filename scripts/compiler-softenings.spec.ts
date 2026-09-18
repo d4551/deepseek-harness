@@ -1,27 +1,68 @@
 /**
  * Compiler/linter softening detectors fail injected misses; the live
- * tsconfig.base.json must keep skipLibCheck off.
+ * tsconfig bases must keep first-party strict flags on.
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
+  compilerSofteningHits,
   oxlintSofteningHits,
-  skipLibCheckHits,
 } from './compiler-softenings.ts'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 
+const STRICT_TRUE = {
+  strict: true,
+  noUncheckedIndexedAccess: true,
+  exactOptionalPropertyTypes: true,
+  noImplicitOverride: true,
+}
+
 describe('injected compiler softenings', () => {
-  it('fails skipLibCheck true', () => {
-    expect(skipLibCheckHits('tsconfig.base.json', '{"compilerOptions":{"skipLibCheck":true}}'))
-      .toEqual([{ file: 'tsconfig.base.json' }])
+  it('accepts first-party strict flags', () => {
+    expect(compilerSofteningHits(
+      'tsconfig.base.json',
+      JSON.stringify({ compilerOptions: STRICT_TRUE }),
+    )).toEqual([])
   })
 
-  it('accepts skipLibCheck false', () => {
-    expect(skipLibCheckHits('tsconfig.base.json', '{"compilerOptions":{"skipLibCheck":false}}'))
-      .toEqual([])
+  it('fails strict false', () => {
+    expect(compilerSofteningHits(
+      'tsconfig.base.json',
+      JSON.stringify({ compilerOptions: { ...STRICT_TRUE, strict: false } }),
+    )).toEqual([{ file: 'tsconfig.base.json', option: 'strict' }])
+  })
+
+  it('fails noUncheckedIndexedAccess false', () => {
+    expect(compilerSofteningHits(
+      'tsconfig.base.json',
+      JSON.stringify({ compilerOptions: { ...STRICT_TRUE, noUncheckedIndexedAccess: false } }),
+    )).toEqual([{ file: 'tsconfig.base.json', option: 'noUncheckedIndexedAccess' }])
+  })
+
+  it('fails exactOptionalPropertyTypes false', () => {
+    expect(compilerSofteningHits(
+      'tsconfig.base.json',
+      JSON.stringify({ compilerOptions: { ...STRICT_TRUE, exactOptionalPropertyTypes: false } }),
+    )).toEqual([{ file: 'tsconfig.base.json', option: 'exactOptionalPropertyTypes' }])
+  })
+
+  it('fails noImplicitOverride false', () => {
+    expect(compilerSofteningHits(
+      'tsconfig.base.json',
+      JSON.stringify({ compilerOptions: { ...STRICT_TRUE, noImplicitOverride: false } }),
+    )).toEqual([{ file: 'tsconfig.base.json', option: 'noImplicitOverride' }])
+  })
+
+  it('fails missing first-party strict flags', () => {
+    expect(compilerSofteningHits('tsconfig.base.json', '{"compilerOptions":{}}')).toEqual([
+      { file: 'tsconfig.base.json', option: 'strict' },
+      { file: 'tsconfig.base.json', option: 'noUncheckedIndexedAccess' },
+      { file: 'tsconfig.base.json', option: 'exactOptionalPropertyTypes' },
+      { file: 'tsconfig.base.json', option: 'noImplicitOverride' },
+    ])
   })
 
   it('fails empty oxlint plugins and correctness allow', () => {
@@ -51,9 +92,9 @@ describe('injected compiler softenings', () => {
 })
 
 describe('live compiler configuration', () => {
-  it('keeps skipLibCheck off in the shared Host/Client and landlock bases', () => {
+  it('keeps first-party strict flags on in the shared Host/Client and landlock bases', () => {
     const files = ['tsconfig.base.json', 'native/landlock-run/tsconfig.base.json']
-    expect(files.flatMap(file => skipLibCheckHits(file, readFileSync(join(root, file), 'utf8')))).toEqual([])
+    expect(files.flatMap(file => compilerSofteningHits(file, readFileSync(join(root, file), 'utf8')))).toEqual([])
   })
 
   it('keeps oxlint plugins populated and correctness enforced', () => {

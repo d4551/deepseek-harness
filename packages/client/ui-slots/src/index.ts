@@ -479,7 +479,7 @@ type FrameworkProps<
   H,
   M,
   N,
-> = ComposedProps<K, EntryKey, DeclaredChildKeys<D>, HandleOf<H>, object, M, N>
+> = ComposedProps<K, EntryKey, Extract<keyof D & keyof SlotMap, string>, HandleOf<H>, object, M, N>
 
 /**
  * The `inject` seat of register options, resolved from the component `C`:
@@ -585,6 +585,16 @@ type BaseOptions<
 } & KindOptions<K, EntryKey, M>
 
 /**
+ * Inject factory stored on an entry. Method-syntax bivariance lets the public
+ * `(...InjectParams) => I` factories assign into the erased ledger type.
+ */
+type BivariantInject = { bivarianceHack: (...args: never) => object }['bivarianceHack']
+
+function storedInject(factory: BivariantInject): (...args: never[]) => object {
+  return (...args: never[]): object => Reflect.apply(factory, undefined, args)
+}
+
+/**
  * One stored registration, as recorded by the core and read by the render
  * machinery (type-erased at this boundary; the registration contract already proved
  * the shares against the component).
@@ -595,7 +605,7 @@ export interface StoredEntry {
   /** Chain routing selector (type-erased like `inject`; present exactly on chain-slot entries). */
   select?: ((owner: never) => unknown) | undefined
   /** Registrant business face; positional params derive from the declaration (sessionId?, actions?). */
-  inject?: ((...args: never[]) => Record<string, unknown>) | undefined
+  inject?: ((...args: never[]) => object) | undefined
   /** Child-slot declaration table (declaration + authorization + runtime spec in one). */
   children?: Readonly<Record<string, SlotSpec<SlotEntryDef>>> | undefined
   /** Declared store seat (instance resolution and lifecycle live with the host machinery). */
@@ -634,7 +644,7 @@ interface ErasedOptions {
   children?: Record<string, SlotSpec<SlotEntryDef>> | undefined
   store?: StoreDecl | undefined
   locale?: string | undefined
-  inject?: ((...args: never[]) => Record<string, unknown>) | undefined
+  inject?: BivariantInject | undefined
   registrant?: string | undefined
 }
 
@@ -783,11 +793,11 @@ export class SlotCore {
     options: BaseOptions<K, EntryKey, D, H, M, N>
       & InjectSeat<C, FrameworkProps<K, EntryKey, D, H, M, N>, K, H, I>,
     component: RegisterComponent<C, D, ComposedProps<
-      K, NoInfer<EntryKey>, DeclaredChildKeys<NoInfer<D>>,
+      K, NoInfer<EntryKey>, Extract<keyof NoInfer<D> & keyof SlotMap, string>,
       HandleOf<NoInfer<H>>, I, NoInfer<M>, NoInfer<N>
     >>,
   ): () => void
-  register(options: ErasedOptions, component: unknown): () => void {
+  register(options: ErasedOptions, component: SlotComponent<never>): () => void {
     const rec = this.records.get(options.name)
     if (!rec?.spec) {
       throw new Error(`slot "${options.name}" is not declared (a parent entry's children table must declare it)`)
@@ -855,7 +865,7 @@ export class SlotCore {
         ...(options.priority !== undefined ? { priority: options.priority } : {}),
       },
       ...(options.select !== undefined ? { select: options.select } : {}),
-      ...(options.inject !== undefined ? { inject: options.inject } : {}),
+      ...(options.inject !== undefined ? { inject: storedInject(options.inject) } : {}),
       ...(options.children !== undefined ? { children: options.children } : {}),
       ...(options.store !== undefined ? { store: options.store } : {}),
       ...(options.locale !== undefined ? { locale: options.locale } : {}),

@@ -261,6 +261,11 @@ type VirtualSpacerStyle = CSSProperties & {
   '--trajectory-virtual-spacer-height': string
 }
 
+/** Pixel height for a virtualized spacer row. */
+function virtualSpacerStyle(height: number): VirtualSpacerStyle {
+  return { '--trajectory-virtual-spacer-height': `${height}px` }
+}
+
 interface OlderLoadAnchor {
   readonly historyStartSeq: number | undefined
   readonly scrollHeight: number
@@ -2377,9 +2382,7 @@ export function TrajectoryTable({
                 <td
                   colSpan={2}
                   aria-hidden="true"
-                  style={{
-                    '--trajectory-virtual-spacer-height': `${virtualTop}px`,
-                  } satisfies VirtualSpacerStyle}
+                  style={virtualSpacerStyle(virtualTop)}
                 />
               </tr>
             )}
@@ -2643,9 +2646,7 @@ export function TrajectoryTable({
                 <td
                   colSpan={2}
                   aria-hidden="true"
-                  style={{
-                    '--trajectory-virtual-spacer-height': `${virtualBottom}px`,
-                  } satisfies VirtualSpacerStyle}
+                  style={virtualSpacerStyle(virtualBottom)}
                 />
               </tr>
             )}

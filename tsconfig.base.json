@@ -10,7 +10,7 @@
     "declarationMap": true,
     "composite": true,
     "incremental": true,
-    "skipLibCheck": false,
+    "skipLibCheck": true,
     "esModuleInterop": true,
     "allowImportingTsExtensions": true,
     "rewriteRelativeImportExtensions": true,

@@ -148,17 +148,17 @@ function scriptedFace(overrides: {
   unset?: ReturnType<typeof vi.fn>
 } = {}) {
   const providerNamespace = wireNamespaces().find(view => view.ns === 'llm-pi-ai')!
-  const update = overrides.update ?? vi.fn<(...args: never[]) => void>(() => Promise.resolve(remoteOk(providerNamespace)))
-  const mutate = overrides.mutate ?? vi.fn<(...args: never[]) => void>(() => Promise.resolve(remoteOk(providerNamespace)))
-  const set = overrides.set ?? vi.fn<(...args: never[]) => void>(() => Promise.resolve(remoteOk(undefined)))
-  const unset = overrides.unset ?? vi.fn<(...args: never[]) => void>(() => Promise.resolve(remoteOk(undefined)))
+  const update = overrides.update ?? vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk(providerNamespace)))
+  const mutate = overrides.mutate ?? vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk(providerNamespace)))
+  const set = overrides.set ?? vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk(undefined)))
+  const unset = overrides.unset ?? vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk(undefined)))
   const face = {
     llm: {
-      listProviders: vi.fn<(...args: never[]) => void>(() => Promise.resolve(remoteOk([
+      listProviders: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk([
         { id: 'deepseek-official', name: 'DeepSeek' },
         { id: 'openai', name: 'openai' },
       ]))),
-      listConfigurableProviders: vi.fn<(...args: never[]) => void>(() => Promise.resolve(remoteOk([
+      listConfigurableProviders: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk([
         { provider: 'deepseek-official', displayName: 'DeepSeek', settingsNs: 'llm-deepseek', settingsPath: [], active: true },
         { provider: 'openai', displayName: 'openai', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'openai'], active: true },
         { provider: 'anthropic', displayName: 'anthropic', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'anthropic'], active: false },
@@ -166,10 +166,10 @@ function scriptedFace(overrides: {
         { provider: 'broken', displayName: 'broken', settingsNs: 'llm-pi-ai', settingsPath: ['nope', 'x'], active: false },
         { provider: 'plain', displayName: 'plain', settingsNs: 'llm-plain', settingsPath: ['profiles', 'plain'], active: false },
       ].map(({ active: _active, ...entry }) => entry)))),
-      discoverModels: vi.fn<(...args: never[]) => void>(() => Promise.resolve(remoteOk([]))),
+      discoverModels: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk([]))),
     },
     settings: {
-      describe: vi.fn<(...args: never[]) => void>(() => Promise.resolve(remoteOk({
+      describe: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk({
         writable: true,
         hasDocument: false,
         namespaces: wireNamespaces(),
@@ -178,7 +178,7 @@ function scriptedFace(overrides: {
       mutate,
     },
     credentials: {
-      describe: vi.fn<(...args: never[]) => void>((refs: string[]) => Promise.resolve(remoteOk(
+      describe: vi.fn<(refs: string[]) => Promise<unknown>>((refs: string[]) => Promise.resolve(remoteOk(
         Object.fromEntries(refs.map(ref => [ref, {
           configured: ref === 'OPENAI_API_KEY',
           ...ref === 'OPENAI_API_KEY' ? { source: 'file' } : {},
@@ -199,21 +199,40 @@ type RenderSlotCall = [name: string, owner: Record<string, unknown>, opts?: { en
 
 /** Child-slot dispatch stub: records every seat occurrence, renders nothing. */
 function stubRenderSlot() {
-  return vi.fn<(...args: never[]) => void>((..._call: RenderSlotCall) => null)
+  return vi.fn<(...call: RenderSlotCall) => null>(() => null)
 }
 
-/** The provider-card seat dispatches a stub recorded, as (route id, configured, keyConfigured, entryKey). */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function providerCardOwner(owner: Record<string, unknown>): {
+  provider: string
+  configured: boolean
+  keyConfigured: boolean
+} {
+  const providerField = owner['provider']
+  if (!isRecord(providerField) || typeof providerField['provider'] !== 'string') {
+    throw new Error('provider-card owner.provider.provider must be a string')
+  }
+  const configured = owner['configured']
+  const keyConfigured = owner['keyConfigured']
+  if (typeof configured !== 'boolean' || typeof keyConfigured !== 'boolean') {
+    throw new Error('provider-card owner configured flags must be booleans')
+  }
+  return { provider: providerField['provider'], configured, keyConfigured }
+}
+
+/** Provider-card seat dispatches recorded as (route id, configured, keyConfigured, entryKey). */
 function cardSeatCalls(
   renderSlot: ReturnType<typeof stubRenderSlot>,
 ): Array<[string, boolean, boolean, string | undefined]> {
   return renderSlot.mock.calls
     .filter(call => call[0] === 'settings.models.provider-card')
-    .map(call => [
-      (call[1] as { provider: { provider: string } }).provider.provider,
-      (call[1] as { configured: boolean }).configured,
-      (call[1] as { keyConfigured: boolean }).keyConfigured,
-      call[2]?.entryKey,
-    ])
+    .map((call) => {
+      const owner = providerCardOwner(call[1])
+      return [owner.provider, owner.configured, owner.keyConfigured, call[2]?.entryKey]
+    })
 }
 
 async function mountFace(scripted: ReturnType<typeof scriptedFace>) {
@@ -457,11 +476,11 @@ describe('ModelsSection', () => {
 
   it('reuses the provider editor as a required credential-only onboarding form', async () => {
     let finishSet: ((response: { ok: true; value: undefined }) => void) | undefined
-    const set = vi.fn<(...args: never[]) => void>(() => new Promise<{ ok: true; value: undefined }>((resolve) => {
+    const set = vi.fn<() => Promise<unknown>>(() => new Promise<{ ok: true; value: undefined }>((resolve) => {
       finishSet = resolve
     }))
     const { face, mutate } = scriptedFace({ set })
-    const onClose = vi.fn<(...args: never[]) => void>()
+    const onClose = vi.fn<() => void>()
     const { ProviderEditor } = await import('../src/client/ProviderEditor.tsx')
     const { OnboardingModal } = await import('../src/client/OnboardingModal.tsx')
 
@@ -521,7 +540,7 @@ describe('ModelsSection', () => {
 
   it('applies customized deepseek fields as path ops', async () => {
     const { mutate } = await mountDeepSeekCard({
-      mutate: vi.fn<(...args: never[]) => void>(() => Promise.resolve(remoteOk(wireNamespaces()[0]))),
+      mutate: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk(wireNamespaces()[0]))),
     })
     fireEvent.click(screen.getByText(en.customized))
     const baseURL = screen.getByLabelText<HTMLInputElement>(en.baseUrl)
@@ -542,7 +561,7 @@ describe('ModelsSection', () => {
 
   it('materializes inherited models and adds an arbitrary DeepSeek id', async () => {
     const { mutate } = await mountDeepSeekCard({
-      mutate: vi.fn<(...args: never[]) => void>(() => Promise.resolve(remoteOk(wireNamespaces()[0]))),
+      mutate: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk(wireNamespaces()[0]))),
     })
     fireEvent.click(screen.getByText(en.customized))
     expect(screen.getByText(en.modelsInherited)).toBeTruthy()
@@ -646,7 +665,7 @@ describe('ModelsSection', () => {
 
   it('accepts a suffixed context window and stores the plain count', async () => {
     const { mutate } = await mountDeepSeekCard({
-      mutate: vi.fn<(...args: never[]) => void>(() => Promise.resolve(remoteOk(wireNamespaces()[0]))),
+      mutate: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk(wireNamespaces()[0]))),
     })
     fireEvent.click(screen.getByText(en.customized))
     expandRow(1)
@@ -798,7 +817,7 @@ describe('ModelsSection', () => {
     // inherited row displayed text no settings layer stores — and because an
     // unreadable buffer never settles, it stayed there indefinitely.
     const { mutate } = await mountDeepSeekCard({
-      mutate: vi.fn<(...args: never[]) => void>(() => Promise.resolve(remoteOk(wireNamespaces()[0]))),
+      mutate: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk(wireNamespaces()[0]))),
     })
     fireEvent.click(screen.getByText(en.customized))
     expandRow(1)
@@ -821,7 +840,7 @@ describe('ModelsSection', () => {
 
   it('edits an output cap per model and carries its text across a removal', async () => {
     const { mutate } = await mountDeepSeekCard({
-      mutate: vi.fn<(...args: never[]) => void>(() => Promise.resolve(remoteOk(wireNamespaces()[0]))),
+      mutate: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk(wireNamespaces()[0]))),
     })
     fireEvent.click(screen.getByText(en.customized))
     expandRow(1)
@@ -879,8 +898,8 @@ describe('ModelsSection', () => {
       defaultMaxTokens={undefined}
       t={t}
       disabled={true}
-      onChange={vi.fn<(...args: never[]) => void>()}
-      onReset={vi.fn<(...args: never[]) => void>()}
+      onChange={vi.fn<() => void>()}
+      onReset={vi.fn<() => void>()}
     />)
     expect(screen.getByLabelText<HTMLInputElement>(`${en.modelId} 1`).value).toBe('')
     expandRow(1)
@@ -892,7 +911,7 @@ describe('ModelsSection', () => {
 
   it('can empty and reset the model override, then clear optional fields without dropping hidden data', async () => {
     const { mutate } = await mountDeepSeekCard({
-      mutate: vi.fn<(...args: never[]) => void>(() => Promise.resolve(remoteOk(wireNamespaces()[0]))),
+      mutate: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk(wireNamespaces()[0]))),
     })
     fireEvent.click(screen.getByText(en.customized))
     fireEvent.click(screen.getAllByLabelText(new RegExp(en.removeModel))[0] as HTMLElement)
@@ -1055,8 +1074,8 @@ describe('ModelsSection', () => {
       } },
       revision: 1,
     }
-    const mutate = vi.fn<(...args: never[]) => void>(() => Promise.resolve(remoteOk(afterSettings)))
-    const set = vi.fn<(...args: never[]) => void>()
+    const mutate = vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk(afterSettings)))
+    const set = vi.fn<() => Promise<unknown>>()
       .mockResolvedValueOnce(remoteFail('credential store unavailable'))
       .mockResolvedValueOnce(remoteOk(undefined))
     const { face, controller, mirror } = await mountSection({ mutate, set })
@@ -1101,7 +1120,7 @@ describe('ModelsSection', () => {
 
   it('surfaces a rejected settings write and never stores the key after it', async () => {
     const { set } = await mountSection({
-      mutate: vi.fn<(...args: never[]) => void>(() => Promise.resolve(remoteFail('llm-pi-ai: unknown pi-ai provider "bogus"', 'settings-rejected'))),
+      mutate: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteFail('llm-pi-ai: unknown pi-ai provider "bogus"', 'settings-rejected'))),
     })
     fireEvent.click(screen.getByText(en.add))
     await screen.findByLabelText(en.provider)
@@ -1115,8 +1134,8 @@ describe('ModelsSection', () => {
     // The probe is a placeholder hint, not a precondition: an escaping
     // rejection would surface in the browser as an unhandled rejection.
     const { face } = scriptedFace()
-    face.credentials.describe = vi.fn<(...args: never[]) => void>(() => Promise.reject(new Error('connection lost')))
-    const unhandled = vi.fn<(...args: never[]) => void>()
+    face.credentials.describe = vi.fn<() => Promise<unknown>>(() => Promise.reject(new Error('connection lost')))
+    const unhandled = vi.fn<() => void>()
     process.on('unhandledRejection', unhandled)
     onTestFinished(() => { process.off('unhandledRejection', unhandled) })
     const controller = new ModelsSettingsStore(face as unknown as WireFace, settingsSchema, new SettingsDescribeMirror(face as never))
@@ -1139,7 +1158,7 @@ describe('ModelsSection', () => {
     // The stale-draft overwrite: two tabs open the same card, the other saves,
     // and this one must be refused rather than replay its opening snapshot.
     const { set } = await mountDeepSeekCard({
-      mutate: vi.fn<(...args: never[]) => void>(() => Promise.resolve(remoteFail('changed since it was read', 'settings-conflict'))),
+      mutate: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteFail('changed since it was read', 'settings-conflict'))),
     })
     fireEvent.click(screen.getByText(en.customized))
     fireEvent.change(screen.getByLabelText<HTMLInputElement>(en.baseUrl), { target: { value: 'https://mine' } })
@@ -1149,7 +1168,7 @@ describe('ModelsSection', () => {
   })
 
   it('keeps the card usable when the write rejects instead of answering', async () => {
-    const { mutate } = await mountDeepSeekCard({ mutate: vi.fn<(...args: never[]) => void>(() => Promise.reject(new Error('connection lost'))) })
+    const { mutate } = await mountDeepSeekCard({ mutate: vi.fn<() => Promise<unknown>>(() => Promise.reject(new Error('connection lost'))) })
     fireEvent.click(screen.getByText(en.customized))
     fireEvent.change(screen.getByLabelText<HTMLInputElement>(en.baseUrl), { target: { value: 'https://next' } })
     fireEvent.click(screen.getByText(en.apply))
@@ -1172,7 +1191,7 @@ describe('ModelsSection', () => {
 
   it('surfaces a shadowed credential write on the card', async () => {
     await mountFirstRun({
-      set: vi.fn<(...args: never[]) => void>(() => Promise.resolve(remoteFail('credentials: DEEPSEEK_API_KEY is shadowed by the read-only environment'))),
+      set: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteFail('credentials: DEEPSEEK_API_KEY is shadowed by the read-only environment'))),
     })
     const key = screen.getByLabelText<HTMLInputElement>(en.keyInput)
     fireEvent.change(key, { target: { value: 'sk-live' } })
@@ -1239,7 +1258,7 @@ describe('ModelsSection', () => {
 
   it('blocks duplicate deletion while the confirmed removal is pending', async () => {
     let resolveRemoval!: (response: { ok: true; value: SettingsNamespaceView }) => void
-    const mutate = vi.fn<(...args: never[]) => void>(() => new Promise<{ ok: true; value: SettingsNamespaceView }>((resolve) => {
+    const mutate = vi.fn<() => Promise<unknown>>(() => new Promise<{ ok: true; value: SettingsNamespaceView }>((resolve) => {
       resolveRemoval = resolve
     }))
     await mountSection({ mutate })
@@ -1263,7 +1282,7 @@ describe('ModelsSection', () => {
 
   it('renders the load failure with a retry control', async () => {
     const face = scriptedFace()
-    face.face.llm.listProviders = vi.fn<(...args: never[]) => void>(() => Promise.resolve(remoteFail('directory down', 'internal'))) as never
+    face.face.llm.listProviders = vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteFail('directory down', 'internal'))) as never
     const controller = new ModelsSettingsStore(
       face.face as unknown as WireFace, settingsSchema, new SettingsDescribeMirror(face.face as never))
     await controller.load()
@@ -1382,7 +1401,7 @@ describe('ModelsSection', () => {
 
   it('keeps the snapshot untouched and reports the message when a removal write is refused', async () => {
     const { face, controller } = await mountSection({
-      mutate: vi.fn<(...args: never[]) => void>(() => Promise.resolve(remoteFail('read-only', 'settings-rejected'))),
+      mutate: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteFail('read-only', 'settings-rejected'))),
     })
     const before = controller.store.getSnapshot().rows
     const failure = await removeProviderProfile(
@@ -1395,7 +1414,7 @@ describe('ModelsSection', () => {
   })
 
   it('keeps a failed identified deletion recoverable in its confirmation dialog', async () => {
-    const mutate = vi.fn<(...args: never[]) => void>()
+    const mutate = vi.fn<() => Promise<unknown>>()
       .mockResolvedValueOnce(remoteFail('the host refused', 'settings-rejected'))
       .mockResolvedValueOnce(remoteOk(wireNamespaces()[2]!))
     const { unset } = await mountSection({ mutate })
@@ -1434,7 +1453,7 @@ describe('ModelsSection', () => {
 
   it('does not remove provider settings when its managed credential removal is refused', async () => {
     const { face, controller, mutate } = await mountSection({
-      unset: vi.fn<(...args: never[]) => void>(() => Promise.resolve(remoteFail('credential is read-only'))),
+      unset: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteFail('credential is read-only'))),
     })
     const failure = await removeProviderProfile(
       face as unknown as Parameters<typeof removeProviderProfile>[0],
@@ -1451,7 +1470,7 @@ describe('ModelsSection', () => {
 
   it('reports a transport rejection instead of failing the removal silently', async () => {
     const { face, controller } = await mountSection({
-      mutate: vi.fn<(...args: never[]) => void>(() => Promise.reject(new Error('connection lost'))),
+      mutate: vi.fn<() => Promise<unknown>>(() => Promise.reject(new Error('connection lost'))),
     })
     const failure = await removeProviderProfile(
       face as unknown as Parameters<typeof removeProviderProfile>[0],

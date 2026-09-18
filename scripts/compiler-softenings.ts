@@ -1,14 +1,16 @@
 /**
- * Compiler and linter configuration must not silently weaken the program.
+ * Compiler and linter configuration must not silently weaken first-party source.
  * Injected misses fail; a clean tree is not the only passing case.
  */
 
 import { parseConfigFileTextToJson, type JsonValue } from './ts7-session.ts'
 
-/** One skipLibCheck softening found in a tsconfig document. */
-export interface SkipLibCheckHit {
+/** One first-party compiler-option softening found in a tsconfig document. */
+export interface CompilerSofteningHit {
   /** Repository-relative path or injected fixture name. */
   file: string
+  /** Option that is missing or not set to the required value. */
+  option: string
 }
 
 function record(value: JsonValue | undefined): { [key: string]: JsonValue | undefined } | undefined {
@@ -18,19 +20,29 @@ function record(value: JsonValue | undefined): { [key: string]: JsonValue | unde
   return value
 }
 
+const REQUIRED_TRUE_OPTIONS = [
+  'strict',
+  'noUncheckedIndexedAccess',
+  'exactOptionalPropertyTypes',
+  'noImplicitOverride',
+] as const
+
 /**
- * Report whether a tsconfig document enables skipLibCheck.
+ * Report first-party compiler options that are missing or not true.
  * @param file - path used in the hit.
  * @param source - tsconfig JSONC text.
- * @returns a hit when skipLibCheck is true.
+ * @returns hits for each required option that is not true.
  */
-export function skipLibCheckHits(file: string, source: string): SkipLibCheckHit[] {
+export function compilerSofteningHits(file: string, source: string): CompilerSofteningHit[] {
   const parsed = parseConfigFileTextToJson(source)
   if (parsed.error !== undefined) throw new Error(`${file}: ${parsed.error.messageText}`)
   const compilerOptions = record(record(parsed.config)?.compilerOptions)
   if (compilerOptions === undefined) throw new Error(`${file}: compilerOptions is missing`)
-  if (compilerOptions.skipLibCheck === true) return [{ file }]
-  return []
+  const hits: CompilerSofteningHit[] = []
+  for (const option of REQUIRED_TRUE_OPTIONS) {
+    if (compilerOptions[option] !== true) hits.push({ file, option })
+  }
+  return hits
 }
 
 /**

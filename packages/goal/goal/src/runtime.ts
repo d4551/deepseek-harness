@@ -17,16 +17,21 @@ export function GoalId(id: string): GoalIdType {
   return id as GoalIdType
 }
 
+/** True when `code` is a member of {@link GOAL_ERROR_CODES}. */
+function isGoalErrorCode(code: string): code is GoalErrorCode {
+  return Object.hasOwn(GOAL_ERROR_CODES, code)
+}
+
 /** Error returned by the goal domain boundary. */
 export class GoalError extends HarnessError {
   declare readonly code: GoalErrorCode
 
   /**
    * @param message - human-readable rejection reason.
-   * @param code - stable machine-routable classification.
+   * @param code - stable machine-routable classification; rejected at runtime when outside the taxonomy.
    */
-  constructor(message: string, code: GoalErrorCode, options?: ErrorOptions) {
-    if (!Object.hasOwn(GOAL_ERROR_CODES, code)) {
+  constructor(message: string, code: string, options?: ErrorOptions) {
+    if (!isGoalErrorCode(code)) {
       throw new TypeError(`unrecognized goal error code: ${code}`)
     }
     super(message, code, options)

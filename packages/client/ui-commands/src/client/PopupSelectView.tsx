@@ -8,10 +8,15 @@
  * caret. Any pointer interaction outside the box dismisses (the click's own
  * target takes focus). Closed state renders null; the overlay slot stays
  * mounted. The card height clamps to the space above the composer.
+ *
+ * Ready options render in a native `<select size>` listbox with
+ * `appearance: base-select` so rows keep implicit option semantics while
+ * still hosting label, detail, and the current-value check.
  */
 import { startTransition, useEffect, useRef } from 'react'
 import { useSyncExternalStore } from 'react'
-import { RiskConfirmation, useAnchoredMaxHeight } from '@deepseek-ai/dsh-client-ui-primitives'
+import clsx from 'clsx'
+import { IconCheckOutline16, RiskConfirmation, useAnchoredMaxHeight } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { filterOptions } from './popup.ts'
 import type { PopupSelectController } from './popup.ts'
@@ -134,23 +139,34 @@ export function PopupSelectView({ popup, t }: PopupSelectViewProps) {
           {state.status === 'pending' && <div className={css.status}>{t('status.loading')}</div>}
           {state.submitting && <div className={css.status}>{t('status.applying')}</div>}
           {state.status === 'ready' && rows.length === 0 && <div className={css.status}>{t('status.empty')}</div>}
-          {state.status === 'ready' && (
+          {state.status === 'ready' && rows.length > 0 && (
             <select
               className={css.viewport}
               size={Math.max(2, rows.length)}
               tabIndex={-1}
               aria-label={t('listbox.aria', { command: String(state.command) })}
-              value={rows[state.active]?.id ?? ''}
+              value={rows[state.active]?.id ?? rows[0]?.id ?? ''}
+              onMouseDown={(ev) => { ev.preventDefault() }}
+              onChange={(ev) => {
+                const value = ev.currentTarget.value
+                if (value === '') return
+                const selected = rows.findIndex(option => option.id === value)
+                if (selected < 0) throw new Error(`popup option ${value} is missing`)
+                popup.highlight(selected)
+              }}
             >
               {rows.map((option, index) => (
                 <option
                   key={option.id}
                   value={option.id}
                   aria-selected={index === state.active}
+                  className={clsx(css.row, index === state.active && css.rowActive)}
                   onClick={() => { startTransition(() => popup.select(index)) }}
                   onMouseEnter={() => { popup.highlight(index) }}
                 >
-                  {option.label}{option.detail === undefined ? '' : ` ${option.detail}`}
+                  <span className={css.label}>{option.label}</span>
+                  {option.detail !== undefined && <span className={css.detail}>{option.detail}</span>}
+                  {option.active === true && <span className={css.check}><IconCheckOutline16 /></span>}
                 </option>
               ))}
             </select>

@@ -32,11 +32,14 @@
 }
 
 .viewport {
-  display: block;
+  appearance: base-select;
+  display: flex;
+  flex-direction: column;
   width: 100%;
   min-height: 0;
   overflow-y: auto;
-  appearance: none;
+  margin: 0;
+  padding: 0;
   border: none;
   background: transparent;
   color: var(--dsw-alias-label-primary);
@@ -44,17 +47,22 @@
   outline: none;
 }
 
+.viewport option::checkmark {
+  display: none;
+}
+
 .row {
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
   padding: 6px 8px;
   border: none;
   border-radius: 8px;
   background: transparent;
   cursor: pointer;
   font: inherit;
-  text-align: inherit;
+  text-align: start;
   font-size: var(--dsh-content-font-size-secondary);
   color: var(--dsw-alias-label-primary);
 }

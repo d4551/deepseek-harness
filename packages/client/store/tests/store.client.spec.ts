@@ -41,7 +41,7 @@ describe('createSnapshotStore', () => {
       return frame.length
     })
     const store = createSnapshotStore(init(), { flush: 'raf' })
-    const spy = vi.fn<(...args: never[]) => void>()
+    const spy = vi.fn<() => void>()
     store.subscribe(spy)
     store.update((d) => { d.a.n = 2 })
     store.update((d) => { d.a.n = 3 })
@@ -60,7 +60,7 @@ describe('createSnapshotStore', () => {
 
   it('falls back to microtask batching in raf mode without requestAnimationFrame', async () => {
     const store = createSnapshotStore(init(), { flush: 'raf' })
-    const spy = vi.fn<(...args: never[]) => void>()
+    const spy = vi.fn<() => void>()
     store.subscribe(spy)
     store.update((d) => { d.a.n = 2 })
     store.update((d) => { d.a.n = 3 })
@@ -76,7 +76,7 @@ describe('createSnapshotStore', () => {
       return frame.length
     })
     const store = createSnapshotStore(init(), { flush: 'raf' })
-    const spy = vi.fn<(...args: never[]) => void>()
+    const spy = vi.fn<() => void>()
     const off = store.subscribe(spy)
     store.update((d) => { d.a.n = 2 })
     off()
@@ -195,7 +195,7 @@ describe('defineStore', () => {
   it('create() yields a live instance: fresh init state, selector-visible action writes', () => {
     const inst = declare().create()
     expect(inst.getSnapshot()).toEqual({ selection: null, draft: '' })
-    const listener = vi.fn<(...args: never[]) => void>()
+    const listener = vi.fn<() => void>()
     const unsubscribe = inst.subscribe(listener)
     inst.actions.setDraft('hello')
     inst.actions.select('m1')

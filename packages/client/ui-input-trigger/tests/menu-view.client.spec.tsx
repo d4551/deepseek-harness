@@ -17,6 +17,7 @@ import { zh } from '../src/client/locales.ts'
 import type {
   InputTriggerCrumb, MenuState, TriggerHit,
 } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
+import type { PickAction } from '../src/types.ts'
 import { MenuView } from '../src/client/MenuView.tsx'
 import './menu-view.browser.css'
 
@@ -59,11 +60,11 @@ const t = makeTranslate(zh, commonZh)
 function mount(state: MenuState, crumbs: ReadonlyMap<string, readonly InputTriggerCrumb[]> = new Map()) {
   const menu = createSnapshotStore<MenuState>(state)
   const headers = createSnapshotStore<ReadonlyMap<string, readonly InputTriggerCrumb[]>>(crumbs)
-  const onPick = vi.fn<(...args: never[]) => void>()
-  const onCrumb = vi.fn<(...args: never[]) => void>()
-  const onHover = vi.fn<(...args: never[]) => void>()
-  const onRetry = vi.fn<(...args: never[]) => void>()
-  const onDismiss = vi.fn<(...args: never[]) => void>()
+  const onPick = vi.fn<(source: string, index: number, action?: PickAction) => void>()
+  const onCrumb = vi.fn<(source: string, index: number) => void>()
+  const onHover = vi.fn<(source: string, index: number) => void>()
+  const onRetry = vi.fn<(source: string) => void>()
+  const onDismiss = vi.fn<() => void>()
   const view = render(
     <main className="menuComposer">
       <MenuView
@@ -88,12 +89,10 @@ function menuShell(): HTMLElement {
   return shell
 }
 
-/** Group titles: native optgroup labels plus pending/failed heading rows. */
+/** The non-interactive group title rows (role=presentation), in document order. */
 function titles(container: HTMLElement): string[] {
-  return [...container.querySelectorAll('[data-source]')].map((el) => {
-    if (el instanceof HTMLOptGroupElement) return el.label
-    return el.textContent ?? ''
-  })
+  return [...container.querySelectorAll('div[role="presentation"][data-source]')]
+    .map(el => el.textContent ?? '')
 }
 
 describe('MenuView', () => {
@@ -254,16 +253,16 @@ describe('MenuView', () => {
 
   it('pointerdown inside the surrounding composer card does not dismiss; outside it does', () => {
     const menu = createSnapshotStore<MenuState>(openState())
-    const onDismiss = vi.fn<(...args: never[]) => void>()
+    const onDismiss = vi.fn<() => void>()
     render(
       <div data-composer-card="">
         <MenuView
           menu={menu}
           headers={createSnapshotStore<ReadonlyMap<string, readonly InputTriggerCrumb[]>>(new Map())}
-          onPick={vi.fn<(...args: never[]) => void>()}
-          onCrumb={vi.fn<(...args: never[]) => void>()}
-          onHover={vi.fn<(...args: never[]) => void>()}
-          onRetry={vi.fn<(...args: never[]) => void>()}
+          onPick={vi.fn<(source: string, index: number, action?: PickAction) => void>()}
+          onCrumb={vi.fn<(source: string, index: number) => void>()}
+          onHover={vi.fn<(source: string, index: number) => void>()}
+          onRetry={vi.fn<(source: string) => void>()}
           onDismiss={onDismiss}
           t={t}
         />

@@ -59,6 +59,8 @@ export interface StoreInstanceLike {
    */
   subscribe(fn: () => void): () => void
   readonly actions: Record<string, (...params: never[]) => void>
+  /** Drop persisted state for this instance's storage key. */
+  clearPersisted(): void
 }
 
 /** Resolve one member of an open-key standard hook family. */

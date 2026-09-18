@@ -38,6 +38,9 @@ export function HoverCard({
 }) {
   const rootRef = useRef<HTMLSpanElement>(null)
   const cardRef = useRef<HTMLElement>(null)
+  const assignCardRef = (node: HTMLButtonElement | HTMLDivElement | null): void => {
+    cardRef.current = node
+  }
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const copyHeightRef = useRef<number | null>(null)
@@ -156,7 +159,7 @@ export function HoverCard({
   const card = open && pos !== null && (copyText !== undefined
     ? (
       <button
-        ref={cardRef}
+        ref={assignCardRef}
         type="button"
         className={cardClassName}
         style={cardStyle}
@@ -175,7 +178,7 @@ export function HoverCard({
       </button>
     )
     : (
-      <div ref={cardRef} className={cardClassName} style={cardStyle}>
+      <div ref={assignCardRef} className={cardClassName} style={cardStyle}>
         {cardBody}
       </div>
     )

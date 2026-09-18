@@ -320,7 +320,7 @@ describe('TerminalBlock height cap', () => {
 describe('TerminalBlock copy', () => {
   it('copies the raw output, never the prompt line or the pill', async () => {
     vi.useFakeTimers()
-    const writeText = vi.fn<(...args: never[]) => void>().mockResolvedValue(undefined)
+    const writeText = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
     const output = `${ESC}[31mbad${ESC}[39m\n`
     render(<TerminalBlock command="make" cwd="/Users/me/app" output={output} exitCode={2} />)
@@ -339,7 +339,7 @@ describe('TerminalBlock copy', () => {
   })
 
   it('copies the whole output while the height cap hides its middle', async () => {
-    const writeText = vi.fn<(...args: never[]) => void>().mockResolvedValue(undefined)
+    const writeText = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
     const output = `${body(10)}\n`
     render(<TerminalBlock command="ls" output={output} maxLines={4} exitCode={0} />)
@@ -351,7 +351,7 @@ describe('TerminalBlock copy', () => {
   it('does not claim success when the host refuses the write', async () => {
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
-      value: { writeText: vi.fn<(...args: never[]) => void>().mockRejectedValue(new Error('denied')) },
+      value: { writeText: vi.fn<() => Promise<void>>().mockRejectedValue(new Error('denied')) },
     })
     render(<TerminalBlock command="ls" output="a" />)
     fireEvent.click(screen.getByRole('button', { name: '复制' }))
@@ -365,7 +365,7 @@ describe('TerminalBlock copy', () => {
 
 describe('writeClipboard', () => {
   it('reports true after the async Clipboard API accepts the exact text', async () => {
-    const writeText = vi.fn<(...args: never[]) => void>().mockResolvedValue(undefined)
+    const writeText = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
     await expect(writeClipboard('payload')).resolves.toBe(true)
     expect(writeText).toHaveBeenCalledWith('payload')
@@ -374,7 +374,7 @@ describe('writeClipboard', () => {
   it('reports false when the Clipboard API rejects', async () => {
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
-      value: { writeText: vi.fn<(...args: never[]) => void>().mockRejectedValue(new Error('denied')) },
+      value: { writeText: vi.fn<() => Promise<void>>().mockRejectedValue(new Error('denied')) },
     })
     await expect(writeClipboard('payload')).resolves.toBe(false)
   })

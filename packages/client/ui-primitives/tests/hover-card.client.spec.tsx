@@ -147,7 +147,7 @@ describe('HoverCard', () => {
   })
 
   it('keeps a completed card selection instead of treating its click as copy', async () => {
-    const writeText = vi.fn<(...args: never[]) => void>(async () => {})
+    const writeText = vi.fn<() => Promise<void>>(async () => {})
     const restoreClipboard = installClipboard(writeText)
     const selection = window.getSelection()
     if (selection === null) throw new Error('jsdom selection API unavailable')
@@ -185,7 +185,7 @@ describe('HoverCard', () => {
   })
 
   it('copies its configured value and shows success only for the feedback window', async () => {
-    const writeText = vi.fn<(...args: never[]) => void>(async () => {})
+    const writeText = vi.fn<() => Promise<void>>(async () => {})
     const restoreClipboard = installClipboard(writeText)
     try {
       const { wrapper } = mount({
@@ -222,7 +222,7 @@ describe('HoverCard', () => {
   })
 
   it('supports button keys and ignores unrelated keys', async () => {
-    const writeText = vi.fn<(...args: never[]) => void>(async () => {})
+    const writeText = vi.fn<() => Promise<void>>(async () => {})
     const restoreClipboard = installClipboard(writeText)
     try {
       const { wrapper } = mount({ copyText: 'value', copiedLabel: 'Copied' })
@@ -242,7 +242,7 @@ describe('HoverCard', () => {
   })
 
   it('keeps its content when the clipboard rejects the write', async () => {
-    const writeText = vi.fn<(...args: never[]) => void>(async () => { throw new Error('denied') })
+    const writeText = vi.fn<() => Promise<void>>(async () => { throw new Error('denied') })
     const restoreClipboard = installClipboard(writeText)
     try {
       const { wrapper } = mount({ copyText: 'value', copiedLabel: 'Copied' })
@@ -257,7 +257,7 @@ describe('HoverCard', () => {
   })
 
   it('unmount clears copied feedback', async () => {
-    const writeText = vi.fn<(...args: never[]) => void>(async () => {})
+    const writeText = vi.fn<() => Promise<void>>(async () => {})
     const restoreClipboard = installClipboard(writeText)
     try {
       const { view, wrapper } = mount({ copyText: 'value' })
@@ -273,7 +273,7 @@ describe('HoverCard', () => {
   })
 
   it('clears copied feedback when the card closes', async () => {
-    const writeText = vi.fn<(...args: never[]) => void>(async () => {})
+    const writeText = vi.fn<() => Promise<void>>(async () => {})
     const restoreClipboard = installClipboard(writeText)
     try {
       const { wrapper } = mount({ copyText: 'value', copiedLabel: 'Copied' })
@@ -294,7 +294,7 @@ describe('HoverCard', () => {
 
   it('does not create copied feedback after an in-flight write unmounts', async () => {
     let acceptWrite: (() => void) | undefined
-    const writeText = vi.fn<(...args: never[]) => void>(() => new Promise<void>((resolve) => { acceptWrite = resolve }))
+    const writeText = vi.fn<() => Promise<void>>(() => new Promise<void>((resolve) => { acceptWrite = resolve }))
     const restoreClipboard = installClipboard(writeText)
     try {
       const { view, wrapper } = mount({ copyText: 'value' })
@@ -312,7 +312,7 @@ describe('HoverCard', () => {
 
   it('does not restore copied feedback after an in-flight card closes', async () => {
     let acceptWrite: (() => void) | undefined
-    const writeText = vi.fn<(...args: never[]) => void>(() => new Promise<void>((resolve) => { acceptWrite = resolve }))
+    const writeText = vi.fn<() => Promise<void>>(() => new Promise<void>((resolve) => { acceptWrite = resolve }))
     const restoreClipboard = installClipboard(writeText)
     try {
       const { wrapper } = mount({ copyText: 'value', copiedLabel: 'Copied' })
@@ -333,7 +333,7 @@ describe('HoverCard', () => {
 
   it('coalesces activations while the clipboard write is in flight', async () => {
     let acceptWrite: (() => void) | undefined
-    const writeText = vi.fn<(...args: never[]) => void>(() => new Promise<void>((resolve) => { acceptWrite = resolve }))
+    const writeText = vi.fn<() => Promise<void>>(() => new Promise<void>((resolve) => { acceptWrite = resolve }))
     const restoreClipboard = installClipboard(writeText)
     try {
       const { wrapper } = mount({ copyText: 'value', copiedLabel: 'Copied' })

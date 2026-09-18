@@ -13,7 +13,7 @@ describe('ImageLightbox', () => {
     const opener = document.createElement('button')
     document.body.appendChild(opener)
     opener.focus()
-    const onClose = vi.fn<(...args: never[]) => void>()
+    const onClose = vi.fn<() => void>()
     const view = render(<ImageLightbox src="blob:original" alt="原图" labels={labels} onClose={onClose} />)
     const close = view.getByRole('button', { name: '关闭原图预览' })
     expect(document.activeElement).toBe(close)
@@ -32,7 +32,7 @@ describe('ImageLightbox', () => {
     // element-less state a detached focus can leave.
     Object.defineProperty(document, 'activeElement', { configurable: true, get: () => null })
     try {
-      const view = render(<ImageLightbox src="blob:original" alt="原图" labels={labels} onClose={vi.fn<(...args: never[]) => void>()} />)
+      const view = render(<ImageLightbox src="blob:original" alt="原图" labels={labels} onClose={vi.fn<() => void>()} />)
       // The dialog opens with no focus owner to remember...
       expect(view.getByRole('dialog')).toBeTruthy()
       view.unmount()
@@ -44,7 +44,7 @@ describe('ImageLightbox', () => {
   })
 
   it('closes on a mask press but not on a press over the image', () => {
-    const onClose = vi.fn<(...args: never[]) => void>()
+    const onClose = vi.fn<() => void>()
     const view = render(<ImageLightbox src="blob:original" alt="原图" labels={labels} onClose={onClose} />)
     fireEvent.mouseDown(view.getByRole('img'))
     expect(onClose).not.toHaveBeenCalled()

@@ -75,7 +75,7 @@ describe('CodeBlock', () => {
 
   it('shows the language banner and copies the displayed source text', async () => {
     vi.useFakeTimers()
-    const writeText = vi.fn<(...args: never[]) => void>().mockResolvedValue(undefined)
+    const writeText = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText },
@@ -97,7 +97,7 @@ describe('CodeBlock', () => {
   })
 
   it('does not claim success when clipboard.writeText rejects', async () => {
-    const writeText = vi.fn<(...args: never[]) => void>().mockRejectedValue(new Error('denied'))
+    const writeText = vi.fn<() => Promise<void>>().mockRejectedValue(new Error('denied'))
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText },

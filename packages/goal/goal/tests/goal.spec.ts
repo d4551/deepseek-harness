@@ -87,8 +87,7 @@ describe('GoalService creation and replay', () => {
     expect(error).toBeInstanceOf(GoalError)
     expect(error).toBeInstanceOf(HarnessError)
     expect(error.code).toBe('GOAL_NOT_FOUND')
-    const Ctor: new (message: string, code: string) => GoalError = GoalError
-    expect(() => new Ctor('x', 'NOT_A_CODE')).toThrow(TypeError)
+    expect(() => new GoalError('x', 'NOT_A_CODE')).toThrow(/unrecognized goal error code: NOT_A_CODE/)
   })
 
   it('applies the configured default and writes one durable goal change', async () => {

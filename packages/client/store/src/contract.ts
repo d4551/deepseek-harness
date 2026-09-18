@@ -114,7 +114,7 @@ export interface ErasedStoreHandle {
     actions: object
   }
   create(scopeKey?: string): {
-    readonly actions: object
+    readonly actions: Record<string, (...params: never[]) => void>
     getSnapshot(): unknown
     subscribe(fn: () => void): () => void
     clearPersisted(): void
