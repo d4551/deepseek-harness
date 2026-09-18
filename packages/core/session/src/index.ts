@@ -305,13 +305,19 @@ function assertCurrentLlmShape(event: object, index: number): void {
       && (typeof config.reasoningEffort !== 'string' || config.reasoningEffort.length === 0)) {
       throw new Error(`seed request/header at index ${index} has an invalid reasoningEffort`)
     }
-    assertAdapterDefaults(
-      typeof header === 'object' && header !== null && !Array.isArray(header) && 'adapterDefaults' in header
-        ? header.adapterDefaults
-        : undefined,
-      config,
-      index,
-    )
+    const adapterDefaults = typeof header === 'object' && header !== null && !Array.isArray(header) && 'adapterDefaults' in header
+      ? header.adapterDefaults
+      : undefined
+    if (adapterDefaults !== undefined
+      && typeof adapterDefaults !== 'object'
+      && typeof adapterDefaults !== 'string'
+      && typeof adapterDefaults !== 'number'
+      && typeof adapterDefaults !== 'boolean'
+      && typeof adapterDefaults !== 'bigint'
+      && typeof adapterDefaults !== 'symbol') {
+      throw new Error(`seed request/header at index ${index} has invalid adapterDefaults`)
+    }
+    assertAdapterDefaults(adapterDefaults, config, index)
   }
   if (type === 'user/message' || type === 'assistant/message' || type === 'tool/result') {
     assertMessageEventShape(event, `seed ${type} at index ${index}`)
