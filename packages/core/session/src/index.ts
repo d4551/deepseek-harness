@@ -258,8 +258,9 @@ function isLegacyRequestHeaderDelta(type: string): boolean {
 }
 
 /** Validate the fixed event envelope after one-pass JSON materialization. */
-function assertSessionEventEnvelope(event: SessionEvent, index: number): void {
-  if (isLegacyRequestHeaderDelta(event.type)) {
+function assertSessionEventEnvelope(event: object, index: number): void {
+  const type = 'type' in event ? event.type : undefined
+  if (typeof type === 'string' && isLegacyRequestHeaderDelta(type)) {
     throw new Error(`seed event at index ${index} uses unsupported legacy request/header-delta format`)
   }
   for (const key in event) {
@@ -275,27 +276,45 @@ function assertSessionEventEnvelope(event: SessionEvent, index: number): void {
         throw new Error(`seed event at index ${index} has an invalid event envelope`)
     }
   }
-  if (!Number.isSafeInteger(event.seq) || event.seq < 0
-    || !Number.isSafeInteger(event.time)) {
+  const seq = 'seq' in event ? event.seq : undefined
+  const time = 'time' in event ? event.time : undefined
+  if (typeof type !== 'string'
+    || typeof seq !== 'number' || !Number.isSafeInteger(seq) || seq < 0
+    || typeof time !== 'number' || !Number.isSafeInteger(time)
+    || !('data' in event) || event.data === undefined) {
     throw new Error(`seed event at index ${index} has an invalid event envelope`)
   }
 }
 
 /** Reject obsolete request headers and malformed messages at the seed/load boundary. */
-function assertCurrentLlmShape(event: SessionEvent, index: number): void {
-  if (event.type === 'request/header') {
-    const header = event.data.header
-    const config = header.config
-    if (!hasProviderModel(config)) {
+function assertCurrentLlmShape(event: object, index: number): void {
+  if (!('type' in event)) return
+  const type = event.type
+  if (type === 'request/header') {
+    const data = 'data' in event ? event.data : undefined
+    const header = typeof data === 'object' && data !== null && 'header' in data
+      ? data.header
+      : undefined
+    const config = typeof header === 'object' && header !== null && !Array.isArray(header) && 'config' in header
+      ? header.config
+      : undefined
+    if (typeof config !== 'object' || config === null || !hasProviderModel(config)) {
       throw new Error(`seed request/header at index ${index} lacks provider/model`)
     }
-    if (config.reasoningEffort !== undefined && config.reasoningEffort.length === 0) {
+    if ('reasoningEffort' in config && config.reasoningEffort !== undefined
+      && (typeof config.reasoningEffort !== 'string' || config.reasoningEffort.length === 0)) {
       throw new Error(`seed request/header at index ${index} has an invalid reasoningEffort`)
     }
-    assertAdapterDefaults(header.adapterDefaults, config, index)
+    assertAdapterDefaults(
+      typeof header === 'object' && header !== null && !Array.isArray(header) && 'adapterDefaults' in header
+        ? header.adapterDefaults
+        : undefined,
+      config,
+      index,
+    )
   }
-  if (event.type === 'user/message' || event.type === 'assistant/message' || event.type === 'tool/result') {
-    assertMessageEventShape(event, `seed ${event.type} at index ${index}`)
+  if (type === 'user/message' || type === 'assistant/message' || type === 'tool/result') {
+    assertMessageEventShape(event, `seed ${type} at index ${index}`)
   }
 }
 
@@ -321,22 +340,69 @@ function assertAdapterDefaults(
 }
 
 /** Validate only the event-specific invariants needed to safely replay a message. */
-function assertMessageEventShape(event: SessionEvent, subject: string): void {
-  if (event.type === 'user/message') {
-    if (event.data.id === '') throw new Error(`${subject} lacks an identified message`)
+function assertMessageEventShape(event: object, subject: string): void {
+  if (!('type' in event)) return
+  const type = event.type
+  if (type !== 'user/message' && type !== 'assistant/message' && type !== 'tool/result') return
+
+  const data = 'data' in event ? event.data : undefined
+  const message = type === 'user/message'
+    ? data
+    : typeof data === 'object' && data !== null && 'message' in data
+      ? data.message
+      : undefined
+  const id = typeof message === 'object' && message !== null && 'id' in message
+    ? message.id
+    : undefined
+  if (typeof message !== 'object' || message === null || typeof id !== 'string' || id === '') {
+    throw new Error(`${subject} lacks an identified message`)
+  }
+
+  const expectedRole = type === 'assistant/message' ? 'assistant' : 'user'
+  const role = 'role' in message ? message.role : undefined
+  if (role !== expectedRole) {
+    throw new Error(`${subject} message must have role "${expectedRole}"`)
+  }
+
+  const source = 'source' in message ? message.source : undefined
+  const kind = typeof source === 'object' && source !== null && 'kind' in source
+    ? source.kind
+    : undefined
+  if (typeof source !== 'object' || source === null || typeof kind !== 'string' || kind === '') {
+    throw new Error(`${subject} message has invalid source`)
+  }
+
+  const content = 'content' in message ? message.content : undefined
+  if (!Array.isArray(content)) {
+    throw new Error(`${subject} message has invalid content`)
+  }
+
+  if (type === 'assistant/message') {
+    if (kind !== 'model' || !hasProviderModel(source)) {
+      throw new Error(`${subject} message must have model source`)
+    }
     return
   }
-  if (event.type === 'assistant/message') {
-    const message = event.data.message
-    if (message.id === '') throw new Error(`${subject} lacks an identified message`)
-    if (!hasProviderModel(message.source)) throw new Error(`${subject} message must have model source`)
-    return
+  if (type !== 'tool/result') return
+
+  const callId = 'callId' in source ? source.callId : undefined
+  if (kind !== 'tool' || typeof callId !== 'string' || callId === '') {
+    throw new Error(`${subject} message must have tool source`)
   }
-  if (event.type !== 'tool/result') return
-  const message = event.data.message
-  if (message.id === '') throw new Error(`${subject} lacks an identified message`)
-  if (message.source.callId === '') throw new Error(`${subject} message must have tool source`)
-  if (message.content[0].toolCallId !== message.source.callId) {
+
+  const block = content[0]
+  const blockType = typeof block === 'object' && block !== null && 'type' in block
+    ? block.type
+    : undefined
+  const blockContent = typeof block === 'object' && block !== null && 'content' in block
+    ? block.content
+    : undefined
+  if (content.length !== 1 || typeof block !== 'object' || block === null
+    || blockType !== 'tool-result' || !Array.isArray(blockContent)) {
+    throw new Error(`${subject} message must contain one tool-result block`)
+  }
+  const toolCallId = 'toolCallId' in block ? block.toolCallId : undefined
+  if (toolCallId !== callId) {
     throw new Error(`${subject} message has mismatched tool call ids`)
   }
 }
