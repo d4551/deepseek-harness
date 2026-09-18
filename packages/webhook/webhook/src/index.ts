@@ -50,8 +50,25 @@ function snapshotDelivery(delivery: VerifiedWebhookDelivery): VerifiedWebhookDel
     throw new TypeError('webhook delivery receivedAt must be a non-negative safe integer')
   }
   const snapshot = snapshotJsonValue(delivery)
-  if (snapshot === undefined) throw new TypeError('webhook delivery must be lossless JSON')
-  return deepFreeze(snapshot)
+  if (snapshot === undefined || typeof snapshot !== 'object' || snapshot === null || Array.isArray(snapshot)) {
+    throw new TypeError('webhook delivery must be lossless JSON')
+  }
+  if (
+    snapshot.kind !== delivery.kind
+    || snapshot.source !== delivery.source
+    || snapshot.deliveryId !== delivery.deliveryId
+    || snapshot.receivedAt !== delivery.receivedAt
+    || !('event' in snapshot)
+  ) {
+    throw new TypeError('webhook delivery must be lossless JSON')
+  }
+  return deepFreeze({
+    kind: delivery.kind,
+    source: delivery.source,
+    deliveryId: delivery.deliveryId,
+    event: snapshot.event,
+    receivedAt: delivery.receivedAt,
+  })
 }
 
 /** Fire-and-forget rule runtime. Session creation is the only built-in action. */
@@ -126,7 +143,7 @@ export class WebhookRuntime extends Service {
   dispatch<K extends string>(delivery: VerifiedWebhookDelivery<K>): void {
     if (this.closing) throw new Error('webhook runtime is closing')
     const snapshot = snapshotDelivery(delivery)
-    for (const registration of [...this.rules.values()]) {
+    for (const registration of Array.from(this.rules.values())) {
       if (registration.closing || registration.rule.kind !== snapshot.kind) continue
       this.startInvocation(registration, snapshot)
     }
@@ -168,7 +185,7 @@ export class WebhookRuntime extends Service {
       this.rules.delete(registration.rule.id)
       registration.controller.abort(new Error(`webhook rule "${registration.rule.id}" was disposed`))
       while (registration.active.size > 0) {
-        await Promise.allSettled([...registration.active])
+        await Promise.allSettled(registration.active)
       }
     })()
     return registration.disposal

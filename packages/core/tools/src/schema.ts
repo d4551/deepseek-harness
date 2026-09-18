@@ -559,10 +559,14 @@ export function defineTool<const S extends ParameterSchemaSpec, const O extends 
   if (options.timeoutMs !== undefined && (!Number.isFinite(options.timeoutMs) || options.timeoutMs <= 0)) {
     throw new Error(`defineTool(${options.name}): timeoutMs must be a positive finite number`)
   }
-  const parameters = deepFreeze(snapshotJsonValue(parameterSchemaSpecToJsonSchema(options.parameters))
-    ?? authorError('parameters must be lossless JSON'))
-  const outputSchema = deepFreeze(snapshotJsonValue(valueSchemaSpecToJsonSchema(output.schema))
-    ?? authorError('output schema must be lossless JSON'))
+  const parametersJson = snapshotJsonValue(parameterSchemaSpecToJsonSchema(options.parameters))
+    ?? authorError('parameters must be lossless JSON')
+  assertSupportedJsonSchema(parametersJson)
+  const parameters = deepFreeze(parametersJson)
+  const outputJson = snapshotJsonValue(valueSchemaSpecToJsonSchema(output.schema))
+    ?? authorError('output schema must be lossless JSON')
+  assertSupportedJsonSchema(outputJson)
+  const outputSchema = deepFreeze(outputJson)
   const validate = (args: unknown): string[] => validateJsonSchemaValue(parameters, args, '')
   const tool: ToolDefinition = {
     name: options.name,

@@ -11,11 +11,14 @@ import {
   interruptedTurnClosers,
   KNOWN_SESSION_EVENT_TYPES,
   SESSION_FORMAT_VERSION,
+  SessionId,
   SessionPreparation,
+  assertSessionEventObject,
+  snapshotJsonObject,
   snapshotJsonValue,
   snapshotSessionEvent,
 } from '@deepseek-ai/dsh-session'
-import type { Session, SessionEvent, SessionId, SessionHeader } from '@deepseek-ai/dsh-session'
+import type { JsonValue, Session, SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import type { BorrowedSessionSource, SessionInspection, SessionLocation } from './index.ts'
 import { SessionPersistenceNotFoundError } from './errors.ts'
@@ -271,6 +274,70 @@ function seedCoversPrefix(seed: readonly SessionEvent[], prefix: readonly Sessio
       const seedEvent = seed[index]
       return seedEvent !== undefined && JSON.stringify(seedEvent) === JSON.stringify(event)
     })
+}
+
+/** Rebuild a session header from its detached JSON object. */
+function sessionHeaderFromJson(record: { [key: string]: JsonValue }): SessionHeader {
+  const id = record.id
+  const version = record.version
+  const createdAt = record.createdAt
+  if (typeof id !== 'string' || typeof version !== 'number' || typeof createdAt !== 'number') {
+    throw new TypeError('session metadata must be losslessly JSON-serializable')
+  }
+  const cwd = record.cwd
+  if (cwd !== undefined && typeof cwd !== 'string') {
+    throw new TypeError('session metadata must be losslessly JSON-serializable')
+  }
+  const parentSession = record.parentSession
+  if (parentSession !== undefined && typeof parentSession !== 'string') {
+    throw new TypeError('session metadata must be losslessly JSON-serializable')
+  }
+  const seedLength = record.seedLength
+  if (seedLength !== undefined && (typeof seedLength !== 'number' || !Number.isSafeInteger(seedLength) || seedLength < 0)) {
+    throw new TypeError('session metadata must be losslessly JSON-serializable')
+  }
+  const origin = record.origin
+  if (origin !== undefined && origin !== 'subagent') {
+    throw new TypeError('session metadata must be losslessly JSON-serializable')
+  }
+  const delegationDepth = record.delegationDepth
+  if (
+    delegationDepth !== undefined
+    && (typeof delegationDepth !== 'number' || !Number.isSafeInteger(delegationDepth) || delegationDepth < 0)
+  ) {
+    throw new TypeError('session metadata must be losslessly JSON-serializable')
+  }
+  const agentPreset = record.agentPreset
+  if (agentPreset !== undefined && typeof agentPreset !== 'string') {
+    throw new TypeError('session metadata must be losslessly JSON-serializable')
+  }
+  return {
+    version,
+    id: SessionId(id),
+    createdAt,
+    ...cwd === undefined ? {} : { cwd },
+    ...parentSession === undefined ? {} : { parentSession: SessionId(parentSession) },
+    ...seedLength === undefined ? {} : { seedLength },
+    ...origin === undefined ? {} : { origin },
+    ...delegationDepth === undefined ? {} : { delegationDepth },
+    ...agentPreset === undefined ? {} : { agentPreset },
+  }
+}
+
+/** Rebuild a detached event batch under the session-event envelope. */
+function sessionEventsFromJson(value: JsonValue): SessionEvent[] {
+  if (!Array.isArray(value)) {
+    throw new TypeError('session event batch is not losslessly JSON-serializable because it contains non-JSON-serializable data')
+  }
+  const events: SessionEvent[] = []
+  for (const item of value) {
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+      throw new TypeError('session event batch is not losslessly JSON-serializable because it contains non-JSON-serializable data')
+    }
+    assertSessionEventObject(item)
+    events.push(item)
+  }
+  return events
 }
 
 /** Reject events from an obsolete v0 vocabulary that this build cannot replay. */
@@ -634,13 +701,15 @@ export class PersistenceCoordinator<TornMarker = unknown> {
    */
   create(meta: SessionHeader): Promise<void> {
     // Snapshot before queueing so caller mutation cannot diverge the key and header.
-    const snapshot = snapshotJsonValue(meta)
-    if (snapshot === undefined) {
+    const record = snapshotJsonObject(meta)
+    if (record === undefined) {
       return Promise.reject(new TypeError('session metadata must be losslessly JSON-serializable'))
     }
-    if (!Number.isSafeInteger(snapshot.createdAt) || snapshot.createdAt < 0) {
+    const createdAt = record.createdAt
+    if (typeof createdAt !== 'number' || !Number.isSafeInteger(createdAt) || createdAt < 0) {
       return Promise.reject(new TypeError('session metadata createdAt must be a non-negative safe integer'))
     }
+    const snapshot = sessionHeaderFromJson(record)
     return this.serialize(snapshot.id, async () => { await this.createCore(snapshot) })
   }
 
@@ -699,7 +768,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
     if (batch === undefined) {
       throw new TypeError('session event batch is not losslessly JSON-serializable because it contains non-JSON-serializable data')
     }
-    return this.serialize(id, () => this.appendCore(id, batch))
+    return this.serialize(id, () => this.appendCore(id, sessionEventsFromJson(batch)))
   }
 
   private async appendCore(id: SessionId, events: readonly SessionEvent[]): Promise<void> {

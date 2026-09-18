@@ -182,11 +182,12 @@ function walkJsonValue(value: unknown, detach: boolean): JsonValue | true | unde
  * Getter throws propagate.
  *
  * @param value - the candidate value to validate and detach.
- * @returns the detached snapshot, or `undefined` when the value is not
+ * @returns the detached JSON snapshot, or `undefined` when the value is not
  *   losslessly JSON-serializable.
  */
-export function snapshotJsonValue<T>(value: T): T | undefined {
-  return walkJsonValue(value, true) as T | undefined
+export function snapshotJsonValue(value: unknown): JsonValue | undefined {
+  const snapshot = walkJsonValue(value, true)
+  return snapshot === true ? undefined : snapshot
 }
 
 /**

@@ -154,7 +154,7 @@ export class CodeRunFailedError extends HarnessError {
 function jsonNormalizeArgs(value: unknown): { dispatched: unknown; logged: unknown } {
   let snapshot: JsonValue | undefined
   try {
-    snapshot = snapshotJsonValue(value) as JsonValue | undefined
+    snapshot = snapshotJsonValue(value)
   } catch (error: unknown) {
     throw new Error(`tool arguments must be lossless JSON: ${error instanceof Error ? error.message : String(error)}`)
   }
@@ -456,7 +456,7 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
         await drive()
         // Every settle event is appended inside the open run_code turn
         // (tasks self-remove on settlement).
-        while (logWork.size > 0) await Promise.allSettled([...logWork])
+        while (logWork.size > 0) await Promise.allSettled(logWork)
       }
 
       // Read through a call, not a bare property: the abort state genuinely

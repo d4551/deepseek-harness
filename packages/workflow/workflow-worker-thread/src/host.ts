@@ -13,7 +13,9 @@ import { fileURLToPath } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { assertNever } from '@deepseek-ai/dsh-llm'
+import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { snapshotJsonValue } from '@deepseek-ai/dsh-session'
+import type { JsonValue } from '@deepseek-ai/dsh-session'
 import type SubagentRuntime from '@deepseek-ai/dsh-subagent'
 import type { SubagentRun } from '@deepseek-ai/dsh-subagent'
 import type { WorkflowAgentEndInfo, WorkflowAgentInfo, WorkflowMeta, WorkflowResult, WorkflowRun, WorkflowRunId } from '@deepseek-ai/dsh-workflow'
@@ -22,6 +24,39 @@ import type { ExecutionObserver } from './runtime.ts'
 import { HostToWorkerType, WorkerToHostType } from './protocol.ts'
 import type { HostToWorkerPayloads, WorkerToHostMessage } from './protocol.ts'
 import type { ChildResult, ChildStartRequest, WorkerInit } from './types.ts'
+
+/** Confirm child output is an array of merge-extensible content blocks. */
+function assertChildOutput(value: object): asserts value is ContentBlock[] {
+  if (!Array.isArray(value)) {
+    throw new TypeError('child result is not losslessly JSON-serializable')
+  }
+  for (const item of value) {
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+      throw new TypeError('child result is not losslessly JSON-serializable')
+    }
+    if (!('type' in item) || typeof item.type !== 'string') {
+      throw new TypeError('child result is not losslessly JSON-serializable')
+    }
+  }
+}
+
+/** Rebuild a child result from its detached JSON snapshot. */
+function childResultFromJson(value: JsonValue): ChildResult {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new TypeError('child result is not losslessly JSON-serializable')
+  }
+  const output = value.output
+  const stopReason = value.stopReason
+  if (!Array.isArray(output) || typeof stopReason !== 'string') {
+    throw new TypeError('child result is not losslessly JSON-serializable')
+  }
+  assertChildOutput(output)
+  return {
+    output,
+    ...value.structured === undefined ? {} : { structured: value.structured },
+    stopReason,
+  }
+}
 
 /** One published child and its shared quiescent-disposal transaction. */
 interface ChildRecord {
@@ -391,13 +426,13 @@ export class WorkerRun implements WorkflowRun {
     run.result.then(
       (result) => {
         try {
-          const snapshot = snapshotJsonValue<ChildResult>({
+          const snapshot = snapshotJsonValue({
             output: result.output,
             ...result.structured !== undefined ? { structured: result.structured } : {},
             stopReason: result.stopReason,
           })
           if (snapshot === undefined) throw new TypeError('child result is not losslessly JSON-serializable')
-          this.post(HostToWorkerType.ChildSettled, { callId, result: snapshot })
+          this.post(HostToWorkerType.ChildSettled, { callId, result: childResultFromJson(snapshot) })
         } catch (error: unknown) {
           const rendered = `workflow child result could not cross the worker boundary: ${renderThrown(error)}`
           this.post(HostToWorkerType.ChildFailed, { callId, rendered })
@@ -473,7 +508,7 @@ export class WorkerRun implements WorkflowRun {
   /** Abort + dispose every registered child (worker death / final teardown); disposal is contained, not awaited. */
   private reapChildren(reason: string): void {
     this.abortChildren(this.cancelReason ?? reason)
-    for (const [callId, record] of [...this.children]) {
+    for (const [callId, record] of Array.from(this.children)) {
       record.disposal = this.disposeChild(callId, record)
     }
   }
@@ -546,7 +581,7 @@ export class WorkerRun implements WorkflowRun {
     // precede `exit`. Admission is already closed, so this final sweep only
     // joins/starts disposal for registry survivors; it deliberately does not
     // repeat explicit provider cancellation.
-    for (const [callId, record] of [...this.children]) record.disposal = this.disposeChild(callId, record)
+    for (const [callId, record] of Array.from(this.children)) record.disposal = this.disposeChild(callId, record)
     this.endStrandedAgents()
   }
 
@@ -576,7 +611,7 @@ export class WorkerRun implements WorkflowRun {
    * The ledger preserves exactly-once pairing in both orders.
    */
   private endStrandedAgents(): void {
-    for (const info of [...this.liveAgents.values()]) {
+    for (const info of Array.from(this.liveAgents.values())) {
       this.endAgent({ ...info, outcome: 'cancelled' })
     }
   }

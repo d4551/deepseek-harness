@@ -26,7 +26,7 @@ import type {
   SessionProjectionMap,
 } from '@deepseek-ai/dsh-session-projection'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
-import { projectionCacheDomainSpec } from './spec.ts'
+import { checkpointRecord, projectionCacheDomainSpec } from './spec.ts'
 import type { CheckpointIdentity, CheckpointRecord } from './spec.ts'
 
 export { checkpointIdentity, checkpointRecord, checkpointRow, projectionCacheDomainSpec } from './spec.ts'
@@ -298,7 +298,11 @@ export class SessionProjectionCache extends Service {
     if (detached === undefined) {
       throw new TypeError('projection checkpoint is not losslessly JSON-serializable (a unit state violates the plain-JSON contract)')
     }
-    await this.requireTable().put(id, { identity, rows: detached as CheckpointRecord['rows'] })
+    const parsed = checkpointRecord.shape.rows.safeParse(detached)
+    if (!parsed.success) {
+      throw new TypeError('projection checkpoint is not losslessly JSON-serializable (a unit state violates the plain-JSON contract)')
+    }
+    await this.requireTable().put(id, { identity, rows: parsed.data })
   }
 
   private requireTable(): KvTable<SessionId, CheckpointRecord> {

@@ -65,8 +65,10 @@ function parsePayload(body: string): GitHubJsonObject {
     throw new WebhookHttpError(400, 'GitHub webhook payload must be a JSON object')
   }
   const snapshot = snapshotJsonValue(parsed)
-  if (snapshot === undefined) throw new WebhookHttpError(400, 'GitHub webhook payload is not lossless JSON')
-  return snapshot as GitHubJsonObject
+  if (snapshot === undefined || typeof snapshot !== 'object' || snapshot === null || Array.isArray(snapshot)) {
+    throw new WebhookHttpError(400, 'GitHub webhook payload is not lossless JSON')
+  }
+  return snapshot
 }
 
 /**

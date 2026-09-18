@@ -1,6 +1,12 @@
 import { runInNewContext } from 'node:vm'
 import { describe, expect, it } from 'vitest'
-import { isJsonValue, snapshotJsonValue, type JsonValue } from '@deepseek-ai/dsh-session'
+import { isJsonValue, snapshotJsonObject, snapshotJsonValue, type JsonValue } from '@deepseek-ai/dsh-session'
+
+function requireObjectSnapshot(value: object): { [key: string]: JsonValue } {
+  const snapshot = snapshotJsonObject(value)
+  if (snapshot === undefined) throw new Error('expected a detached JSON object')
+  return snapshot
+}
 
 function objectWithForgedIntrinsicPrototype(revoked = false): Record<string, unknown> {
   const prototype = Object.create(null) as Record<string, unknown>
@@ -37,15 +43,17 @@ describe('snapshotJsonValue', () => {
     const nullPrototype = Object.assign(Object.create(null) as Record<string, unknown>, { shared })
     const source = { list: [nullPrototype, shared], alias: shared }
 
-    const snapshot = snapshotJsonValue(source)!
+    const snapshot = requireObjectSnapshot(source)
     shared.value = 2
 
     expect(snapshot).toEqual({ list: [{ shared: { value: 1 } }, { value: 1 }], alias: { value: 1 } })
     expect(snapshot).not.toBe(source)
-    expect(snapshot.list).not.toBe(source.list)
+    const list = snapshot.list
+    if (!Array.isArray(list)) throw new Error('expected snapshot.list to be an array')
+    expect(list).not.toBe(source.list)
     expect(snapshot.alias).not.toBe(shared)
-    expect(snapshot.list[0]).not.toBe(nullPrototype)
-    expect(Object.getPrototypeOf(snapshot.list[0])).toBe(Object.prototype)
+    expect(list[0]).not.toBe(nullPrototype)
+    expect(Object.getPrototypeOf(list[0])).toBe(Object.prototype)
   })
 
   it('accepts intrinsic plain containers from another JavaScript realm', () => {
@@ -160,7 +168,7 @@ describe('snapshotJsonValue', () => {
     const source = Object.create(null) as Record<string, unknown>
     source.__proto__ = { safe: true }
 
-    const snapshot = snapshotJsonValue(source)!
+    const snapshot = requireObjectSnapshot(source)
 
     expect(Object.getPrototypeOf(snapshot)).toBe(Object.prototype)
     expect(Object.prototype.hasOwnProperty.call(snapshot, '__proto__')).toBe(true)

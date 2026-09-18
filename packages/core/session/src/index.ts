@@ -27,7 +27,7 @@ export type { AgentCancelCause, CreateSessionOptions, EpochHeader, PrepareSessio
 export { SessionPreparation } from './preparation.ts'
 export type { SessionPreparationOptions } from './preparation.ts'
 export type { AssistantMessage, ToolResultMessage, UserMessage } from '@deepseek-ai/dsh-llm'
-export { hasPlainArrayPrototype, hasPlainObjectPrototype, isJsonValue, snapshotJsonValue } from './json.ts'
+export { hasPlainArrayPrototype, hasPlainObjectPrototype, isJsonValue, snapshotJsonObject, snapshotJsonValue } from './json.ts'
 export type { JsonValue } from './json.ts'
 export { interruptedTurnClosers, TOOL_NOT_STARTED, TOOL_OUTCOME_UNKNOWN } from './repair.ts'
 export { decodeStorageRecord, packChunkRuns } from './chunk-rows.ts'
@@ -224,23 +224,34 @@ export function snapshotSessionEvent<T extends SessionEvent>(event: T): T {
 
 type JsonObject = { [key: string]: JsonValue }
 
+/** Confirm a JSON object carries the session-event envelope. */
+export function assertSessionEventObject(value: object): asserts value is SessionEvent {
+  if (!('type' in value) || typeof value.type !== 'string') {
+    throw new Error('session event has an invalid event type')
+  }
+  if (!('seq' in value) || typeof value.seq !== 'number') {
+    throw new Error('session event is missing envelope fields')
+  }
+  if (!('time' in value) || typeof value.time !== 'number' || !Number.isSafeInteger(value.time)) {
+    throw new Error('session event has an invalid time')
+  }
+  if (!('data' in value)) {
+    throw new Error('session event is missing envelope fields')
+  }
+}
+
 /** Confirm a constructed append payload is a session event before it enters the log. */
 function assertPublishedSessionEvent(
   value: object,
   expectedType: string,
   expectedSeq: number,
 ): asserts value is SessionEvent {
-  if (!('type' in value) || !('seq' in value) || !('time' in value) || !('data' in value)) {
-    throw new Error(`session event "${expectedType}" is missing envelope fields`)
-  }
+  assertSessionEventObject(value)
   if (value.type !== expectedType) {
     throw new Error(`session event "${expectedType}" published a different type`)
   }
-  if (typeof value.seq !== 'number' || value.seq !== expectedSeq) {
+  if (value.seq !== expectedSeq) {
     throw new Error(`session event "${expectedType}" published an unexpected seq`)
-  }
-  if (typeof value.time !== 'number' || !Number.isSafeInteger(value.time)) {
-    throw new Error(`session event "${expectedType}" has an invalid time`)
   }
 }
 

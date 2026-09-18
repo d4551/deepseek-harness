@@ -13,7 +13,7 @@ import type { ToolCallId, ContentBlock, ToolSchema } from '@deepseek-ai/dsh-llm'
 import { assertNever, deepFreeze, HarnessError } from '@deepseek-ai/dsh-llm'
 import { observeListenerInvocation, renderListenerFailure } from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { snapshotJsonValue } from '@deepseek-ai/dsh-session'
+import { snapshotJsonObject, snapshotJsonValue } from '@deepseek-ai/dsh-session'
 import type { JsonValue, UserMessage } from '@deepseek-ai/dsh-session'
 import { FIRST_PARTY_SECTION_ORDER, type ToolProviderResult } from '@deepseek-ai/dsh-system-prompt'
 import type { CodeRuntime } from '@deepseek-ai/dsh-code-runtime'
@@ -534,29 +534,66 @@ function projectionError(toolName: string, projector: 'render' | 'presentationMe
 }
 
 /** Snapshot one projector result before later durable-result materialization. */
-function snapshotProjection<T>(toolName: string, projector: 'render' | 'presentationMeta', candidate: T): T {
-  try {
-    const detached = snapshotJsonValue(candidate)
-    if (detached === undefined) {
-      throw new ToolOutputError(toolName, [`output.${projector} returned non-lossless JSON`])
-    }
-    return detached
-  } catch (error: unknown) {
-    if (error instanceof ToolOutputError) throw error
-    throw projectionError(toolName, projector, error)
+function snapshotProjection(toolName: string, projector: 'render' | 'presentationMeta', candidate: unknown): JsonValue {
+  const detached = snapshotJsonValue(candidate)
+  if (detached === undefined) {
+    throw new ToolOutputError(toolName, [`output.${projector} returned non-lossless JSON`])
   }
+  return detached
 }
 
 /** Snapshot one body or policy value into the canonical invalid-output failure class. */
 function snapshotToolValue(toolName: string, candidate: unknown): JsonValue {
-  try {
-    const detached = snapshotJsonValue(candidate)
-    if (detached === undefined) throw new ToolOutputError(toolName, ['value is not lossless JSON'])
-    return detached as JsonValue
-  } catch (error: unknown) {
-    if (error instanceof ToolOutputError) throw error
-    throw new ToolOutputError(toolName, [`value snapshot failed: ${errorMessage(error)}`])
+  const detached = snapshotJsonValue(candidate)
+  if (detached === undefined) throw new ToolOutputError(toolName, ['value is not lossless JSON'])
+  return detached
+}
+
+/** Confirm a JSON value is an array of merge-extensible content blocks. */
+function assertContentBlocks(value: object): asserts value is ContentBlock[] {
+  if (!Array.isArray(value)) {
+    throw new TypeError('tool result content must be an array of content blocks')
   }
+  for (const item of value) {
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+      throw new TypeError('tool result content must contain content-block objects')
+    }
+    if (!('type' in item) || typeof item.type !== 'string') {
+      throw new TypeError('tool result content block must have a string type')
+    }
+  }
+}
+
+/** Confirm a JSON value is an array of user messages. */
+function assertUserMessages(value: object): asserts value is UserMessage[] {
+  if (!Array.isArray(value)) {
+    throw new TypeError('tool result additionalContexts must be an array of messages')
+  }
+  for (const item of value) {
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+      throw new TypeError('tool result additionalContexts must contain message objects')
+    }
+  }
+}
+
+/** Detach one tool failure through the lossless JSON boundary. */
+function snapshotToolFailure(error: ToolFailure): ToolFailure {
+  const snapshot = snapshotJsonValue(error)
+  if (snapshot === undefined || typeof snapshot !== 'object' || snapshot === null || Array.isArray(snapshot)) {
+    throw new TypeError('tool result must be losslessly JSON-serializable')
+  }
+  if (typeof snapshot.message !== 'string') {
+    throw new TypeError('tool result must be losslessly JSON-serializable')
+  }
+  const info = snapshot.info
+  if (info === undefined) return { message: snapshot.message }
+  if (typeof info !== 'object' || info === null || Array.isArray(info)) {
+    throw new TypeError('tool result must be losslessly JSON-serializable')
+  }
+  if (typeof info.name !== 'string' || typeof info.code !== 'string') {
+    throw new TypeError('tool result must be losslessly JSON-serializable')
+  }
+  return { message: snapshot.message, info: { name: info.name, code: info.code } }
 }
 
 /** Successful canonical tool execution, including its Native/model projection. */
@@ -636,12 +673,13 @@ function failureMessageFromContent(content: ContentBlock[]): string {
   return text.length > 0 ? text : 'tool result blocked by post-execute policy'
 }
 
-/** Snapshot and freeze one durable tool-result projection or reject lossy data. */
-function materializePresentation<T>(candidate: T): T {
+/** Snapshot and freeze one JSON Schema node or reject lossy data. */
+function materializeJsonSchema(candidate: unknown): JsonSchemaNode {
   const detached = snapshotJsonValue(candidate)
   if (detached === undefined) {
     throw new TypeError('tool result must be losslessly JSON-serializable')
   }
+  assertSupportedJsonSchema(detached)
   return deepFreeze(detached)
 }
 
@@ -1057,8 +1095,7 @@ export class ToolRuntime extends Service {
       || (output.presentationMeta !== undefined && typeof output.presentationMeta !== 'function')) {
       throw new TypeError(`tool "${name}" must declare output { schema, render, presentationMeta? }`)
     }
-    const outputSchema = materializePresentation(output.schema)
-    assertSupportedJsonSchema(outputSchema)
+    const outputSchema = materializeJsonSchema(output.schema)
     const timeoutMs = definition.timeoutMs
     if (timeoutMs !== undefined
       && (!Number.isFinite(timeoutMs) || timeoutMs <= 0)) {
@@ -1074,7 +1111,7 @@ export class ToolRuntime extends Service {
     if (effect !== undefined && effect !== 'none') {
       throw new TypeError(`tool "${name}" directWorkspaceEffect must be none when declared`)
     }
-    const parameters = snapshotJsonValue(definition.parameters)
+    const parameters = snapshotJsonObject(definition.parameters)
     if (parameters === undefined) {
       throw new TypeError(`tool "${name}" parameters must be lossless JSON before schema projection`)
     }
@@ -1280,10 +1317,10 @@ export class ToolRuntime extends Service {
       .filter(({ implementation }) => implementation.name !== RUN_CODE_NAME)
       .map(({ implementation: definition }): ToolSdkSchema => {
         const output = snapshotJsonValue(definition.output.schema)
-        /* v8 ignore next -- registration already validated and retained this schema as lossless JSON. */
         if (output === undefined) {
           throw new Error(`tool "${definition.name}" output schema must be lossless JSON before SDK projection`)
         }
+        assertSupportedJsonSchema(output)
         return {
           ...this.schemaOf(definition, true),
           output,
@@ -1294,7 +1331,7 @@ export class ToolRuntime extends Service {
   /** Project one definition onto the model-facing schema fields. */
   private schemaOf(definition: ToolDefinition, detachParameters: boolean): ToolSchema {
     const { name, description, parameters } = definition
-    const detached = detachParameters ? snapshotJsonValue(parameters) : parameters
+    const detached = detachParameters ? snapshotJsonObject(parameters) : parameters
     if (detached === undefined) {
       throw new Error(`tool "${name}" parameters must be lossless JSON before schema projection`)
     }
@@ -1855,6 +1892,10 @@ export class ToolRuntime extends Service {
       throw projectionError(tool.name, 'render', error)
     }
     const content = snapshotProjection(tool.name, 'render', rendered)
+    if (typeof content !== 'object' || content === null) {
+      throw new ToolOutputError(tool.name, ['output.render returned non-lossless JSON'])
+    }
+    assertContentBlocks(content)
     let meta: JsonValue | undefined
     if (exec.parent === undefined && tool.output.presentationMeta !== undefined) {
       let projected: JsonValue
@@ -1897,20 +1938,45 @@ export class ToolRuntime extends Service {
 
   /** Materialize the authoritative commit outcome once, immediately before `tools/result`. */
   private materializeFinalResult(result: ToolExecutionResult): ToolExecutionResult {
-    const presentation = {
-      content: result.content,
-      ...result.meta !== undefined ? { meta: result.meta } : {},
-      ...result.additionalContexts !== undefined ? { additionalContexts: result.additionalContexts } : {},
+    const contentJson = snapshotJsonValue(result.content)
+    if (contentJson === undefined || typeof contentJson !== 'object' || contentJson === null) {
+      throw new TypeError('tool result must be losslessly JSON-serializable')
+    }
+    assertContentBlocks(contentJson)
+    const meta = result.meta === undefined ? undefined : snapshotJsonValue(result.meta)
+    if (result.meta !== undefined && meta === undefined) {
+      throw new TypeError('tool result must be losslessly JSON-serializable')
+    }
+    const additional = result.additionalContexts === undefined
+      ? undefined
+      : snapshotJsonValue(result.additionalContexts)
+    if (result.additionalContexts !== undefined && additional === undefined) {
+      throw new TypeError('tool result must be losslessly JSON-serializable')
+    }
+    if (additional !== undefined) {
+      if (typeof additional !== 'object' || additional === null) {
+        throw new TypeError('tool result must be losslessly JSON-serializable')
+      }
+      assertUserMessages(additional)
+    }
+    const snapped = {
+      content: contentJson,
+      ...meta === undefined ? {} : { meta },
+      ...additional === undefined ? {} : { additionalContexts: additional },
     }
     if (result.isError) {
-      return materializePresentation({ isError: true as const, error: result.error, ...presentation })
+      return deepFreeze({
+        isError: true as const,
+        error: snapshotToolFailure(result.error),
+        ...snapped,
+      })
     }
-    const detached = materializePresentation({
+    return deepFreeze({
       isError: false as const,
-      ...presentation,
+      value: result.value,
+      ...snapped,
       ...result.concludesTurn === true ? { concludesTurn: true as const } : {},
     })
-    return deepFreeze({ ...detached, value: result.value })
   }
 }
 
