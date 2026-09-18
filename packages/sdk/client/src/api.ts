@@ -8,7 +8,7 @@
  */
 
 import { assertSessionEventObject, type SessionEvent } from '@deepseek-ai/dsh-session/types'
-import { createProcessHarnessClient, HarnessClient, isRecord, SdkProtocolError } from './client.ts'
+import { createProcessHarnessClient, isRecord, SdkProtocolError } from './client.ts'
 import { DeepSeekHarness } from './index.ts'
 import type { RuntimeProcessOptions } from './launch.ts'
 import type { ContentBlock, DeepSeekHarnessOptions, HarnessNotification, RunResult, SdkPromptContentBlock } from './types.ts'
@@ -18,11 +18,7 @@ export function createProcessDeepSeekHarness(
   runtime: RuntimeProcessOptions,
   options: DeepSeekHarnessOptions = {},
 ): DeepSeekHarness {
-  const Constructor = DeepSeekHarness as unknown as new (
-    publicOptions: DeepSeekHarnessOptions,
-    clientFactory: () => HarnessClient,
-  ) => DeepSeekHarness
-  return new Constructor({
+  return new DeepSeekHarness({
     ...runtime.cwd === undefined ? {} : { processCwd: runtime.cwd },
     ...options,
   }, () => createProcessHarnessClient(runtime))

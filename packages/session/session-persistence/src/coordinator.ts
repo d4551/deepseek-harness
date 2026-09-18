@@ -325,44 +325,60 @@ function sessionHeaderFromJson(record: { [key: string]: JsonValue }): SessionHea
   }
 }
 
-/** Rebuild a detached event batch under the session-event envelope. */
-function sessionEventsFromJson(value: JsonValue): SessionEvent[] {
+/** Detach a JSON array of stored event records. */
+function sessionEventRecordsFromJson(value: JsonValue): object[] {
   if (!Array.isArray(value)) {
     throw new TypeError('session event batch is not losslessly JSON-serializable because it contains non-JSON-serializable data')
   }
-  const events: SessionEvent[] = []
+  const records: object[] = []
   for (const item of value) {
     if (typeof item !== 'object' || item === null || Array.isArray(item)) {
       throw new TypeError('session event batch is not losslessly JSON-serializable because it contains non-JSON-serializable data')
     }
-    assertSessionEventObject(item)
-    events.push(item)
+    records.push(item)
+  }
+  return records
+}
+
+/** Narrow stored records that already passed the current event vocabulary. */
+function sessionEventsFromRecords(records: readonly object[]): SessionEvent[] {
+  const events: SessionEvent[] = []
+  for (const record of records) {
+    assertSessionEventObject(record)
+    events.push(record)
   }
   return events
 }
 
-/** Reject events from an obsolete v0 vocabulary that this build cannot replay. */
-function assertSupportedEvents(events: readonly SessionEvent[], id: SessionId): void {
-  const legacyType: string = 'request/header-delta'
-  const legacy = events.find(event => event.type === legacyType)
-  if (legacy !== undefined) {
-    throw new Error(`session "${id}" contains unsupported legacy request/header-delta event at seq ${legacy.seq}`)
-  }
-  const legacyModeType: string = 'mode/set'
-  const legacyMode = events.find(event => event.type === legacyModeType)
-  if (legacyMode !== undefined) {
-    throw new Error(`session "${id}" contains unsupported legacy mode/set event at seq ${legacyMode.seq}`)
-  }
-  const fallback = events.find(event => requestHeaderReason(event) === 'fallback')
-  if (fallback !== undefined) {
-    throw new Error(`session "${id}" contains unsupported legacy request/header reason "fallback" at seq ${fallback.seq}`)
+/** Reject records from an obsolete v0 vocabulary before they are claimed as session events. */
+export function assertSupportedEventRecords(events: readonly object[], id: SessionId): void {
+  for (const event of events) {
+    const type = Reflect.get(event, 'type')
+    const seq = Reflect.get(event, 'seq')
+    if (type === 'request/header-delta') {
+      throw new Error(`session "${id}" contains unsupported legacy request/header-delta event at seq ${seq}`)
+    }
+    if (type === 'mode/set') {
+      throw new Error(`session "${id}" contains unsupported legacy mode/set event at seq ${seq}`)
+    }
+    if (requestHeaderReason(event) === 'fallback') {
+      throw new Error(`session "${id}" contains unsupported legacy request/header reason "fallback" at seq ${seq}`)
+    }
   }
 }
 
+/** Narrow stored records after refusing obsolete vocabulary. */
+export function storedSessionEvents(records: readonly object[], id: SessionId): SessionEvent[] {
+  assertSupportedEventRecords(records, id)
+  return sessionEventsFromRecords(records)
+}
+
 /** Read the request/header reason field. */
-function requestHeaderReason(event: SessionEvent): unknown {
-  if (event.type !== 'request/header') return undefined
-  return Reflect.get(event.data, 'reason')
+function requestHeaderReason(event: object): unknown {
+  if (Reflect.get(event, 'type') !== 'request/header') return undefined
+  const data = Reflect.get(event, 'data')
+  if (typeof data !== 'object' || data === null) return undefined
+  return Reflect.get(data, 'reason')
 }
 
 /** Copy own string keys from a non-array object. */
@@ -631,10 +647,10 @@ function eventMessageId(event: SessionEvent): PersistedMessageId | undefined {
 }
 
 /** Materialize stored events as upgraded, validated snapshots with immutable messages. */
-function snapshotStoredEvents(events: readonly SessionEvent[], id: SessionId): SessionEvent[] {
-  assertSupportedEvents(events, id)
+function snapshotStoredEvents(events: readonly object[], id: SessionId): SessionEvent[] {
+  const typed = storedSessionEvents(events, id)
   const messageIds = new Map<number, PersistedMessageId>()
-  return events.map((event) => {
+  return typed.map((event) => {
     const migratedStart = migrateLegacyTurnStartEvent(event, id)
     const migratedTurn = migrateLegacyTurnEndEvent(migratedStart, id)
     const migratedSteering = migrateLegacySteeringEvent(migratedTurn, id)
@@ -646,19 +662,20 @@ function snapshotStoredEvents(events: readonly SessionEvent[], id: SessionId): S
 }
 
 /** Upgrade and validate an exclusively owned backend result without copying it. */
-function adoptStoredEvents(events: SessionEvent[], id: SessionId): SessionEvent[] {
-  assertSupportedEvents(events, id)
+function adoptStoredEvents(events: object[], id: SessionId): SessionEvent[] {
+  const typed = storedSessionEvents(events, id)
   const messageIds = new Map<number, PersistedMessageId>()
-  for (const [index, event] of events.entries()) {
+  const adopted: SessionEvent[] = []
+  for (const event of typed) {
     const migratedStart = migrateLegacyTurnStartEvent(event, id)
     const migratedTurn = migrateLegacyTurnEndEvent(migratedStart, id)
     const migratedSteering = migrateLegacySteeringEvent(migratedTurn, id)
-    const adopted = adoptSessionEvent(migrateLegacyMessageEvent(migratedSteering, id, messageIds))
-    events[index] = adopted
-    const messageId = eventMessageId(adopted)
-    if (messageId !== undefined) messageIds.set(adopted.seq, messageId)
+    const next = adoptSessionEvent(migrateLegacyMessageEvent(migratedSteering, id, messageIds))
+    adopted.push(next)
+    const messageId = eventMessageId(next)
+    if (messageId !== undefined) messageIds.set(next.seq, messageId)
   }
-  return events
+  return adopted
 }
 
 /**
@@ -788,10 +805,10 @@ export class PersistenceCoordinator<TornMarker = unknown> {
     if (batch === undefined) {
       throw new TypeError('session event batch is not losslessly JSON-serializable because it contains non-JSON-serializable data')
     }
-    return this.serialize(id, () => this.appendCore(id, sessionEventsFromJson(batch)))
+    return this.serialize(id, () => this.appendCore(id, sessionEventRecordsFromJson(batch)))
   }
 
-  private async appendCore(id: SessionId, events: readonly SessionEvent[]): Promise<void> {
+  private async appendCore(id: SessionId, records: readonly object[]): Promise<void> {
     // Every append route converges here: the public service, live write-behind
     // drains, and HMR seed/suffix adoption. Legacy-shape rejection stays at
     // this shared boundary so a stale JavaScript plugin cannot persist a
@@ -800,7 +817,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
     // session's durability mid-flight, which costs more than a loud refusal at
     // the log's next load (trade-off owned by the fail-closed-session-event-
     // vocabulary Agent Note).
-    assertSupportedEvents(events, id)
+    const events = storedSessionEvents(records, id)
     if (events.length === 0) return
     this.preparations.assertWritable(id)
     let state = this.states.get(id)

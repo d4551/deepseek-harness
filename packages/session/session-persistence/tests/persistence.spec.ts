@@ -7,58 +7,63 @@ import {
   SessionPersistence, SessionPersistenceRevision, PersistenceCoordinator,
   type PersistenceBackend, type SessionPersistenceSnapshot, type StoredPrefix, type StoredSuffix,
 } from '../src/index.ts'
+import { storedSessionEvents } from '../src/coordinator.ts'
 import { runPersistenceContract, meta, oneTurnLog } from './contract.ts'
 import { runCoordinatorContract, type CoordinatorFixture } from './coordinator-contract.ts'
 
+/** One stored record before the coordinator refuses obsolete vocabulary. */
+type StoredEventRecord = {
+  type?: unknown
+  seq?: unknown
+  time?: unknown
+  data?: unknown
+  surfaceOp?: unknown
+  sourceEventSeqs?: unknown
+}
+
 /** The durable store shape: materialized sessions only (no lazy entries). */
-type MemoryStore = Map<string, { meta: SessionHeader; events: SessionEvent[] }>
+type MemoryStore = Map<string, { meta: SessionHeader; events: StoredEventRecord[] }>
 
 /** Test-store revision that changes for any metadata or event mutation. */
-function memoryRevision(entry: { meta: SessionHeader; events: SessionEvent[] }): SessionPersistenceRevision {
+function memoryRevision(entry: { meta: SessionHeader; events: StoredEventRecord[] }): SessionPersistenceRevision {
   return SessionPersistenceRevision(JSON.stringify(entry))
 }
 
-/** Copy a cloned event batch into a mutable array. */
-function storedSessionEvents(events: readonly SessionEvent[]): SessionEvent[] {
-  const cloned: SessionEvent[] = []
+/** Copy a cloned event batch into a mutable stored-record array. */
+function clonedStoredRecords(events: readonly object[]): StoredEventRecord[] {
+  const cloned: StoredEventRecord[] = []
   for (const event of structuredClone(events)) cloned.push(event)
   return cloned
 }
 
 /** An obsolete event fixture that emulates an untyped pre-change producer. */
-function legacyHeaderDelta(seq = 0): SessionEvent {
-  const event = {
+function legacyHeaderDelta(seq = 0): StoredEventRecord {
+  return {
     type: 'request/header-delta',
     seq,
     time: 1,
     data: { config: { model: 'legacy' } },
   }
-  assertSessionEventObject(event)
-  return event
 }
 
 /** An unsupported named-mode fixture emulating an untyped producer. */
-function legacyModeSet(seq = 0): SessionEvent {
-  const event = {
+function legacyModeSet(seq = 0): StoredEventRecord {
+  return {
     type: 'mode/set',
     seq,
     time: 1,
     data: { mode: 'plan' },
   }
-  assertSessionEventObject(event)
-  return event
 }
 
 /** An obsolete full-header reason fixture from the removed delta codec. */
-function legacyFallbackHeader(seq = 0): SessionEvent {
-  const event = {
+function legacyFallbackHeader(seq = 0): StoredEventRecord {
+  return {
     type: 'request/header',
     seq,
     time: 1,
     data: { header: { config: { model: 'legacy' } }, reason: 'fallback' },
   }
-  assertSessionEventObject(event)
-  return event
 }
 
 /** Optional plugin config: an EXTERNAL store shared across backend instances. */
@@ -96,7 +101,7 @@ class MemoryPersistence extends SessionPersistence implements PersistenceBackend
     // Assign the store BEFORE constructing the coordinator: the coordinator's
     // constructor installs the write path and synchronously seeds existing live
     // sessions through loadStored(), so store must exist first.
-    this.store = config?.store ?? new Map<string, { meta: SessionHeader; events: SessionEvent[] }>()
+    this.store = config?.store ?? new Map<string, { meta: SessionHeader; events: StoredEventRecord[] }>()
     this.coordinator = new PersistenceCoordinator<never>(this.ctx, this)
   }
 
@@ -151,7 +156,7 @@ class MemoryPersistence extends SessionPersistence implements PersistenceBackend
     if (!entry) return undefined
     return {
       meta: structuredClone(entry.meta),
-      events: structuredClone(entry.events),
+      events: storedSessionEvents(structuredClone(entry.events), id),
       revision: memoryRevision(entry),
     }
   }
@@ -170,9 +175,9 @@ class MemoryPersistence extends SessionPersistence implements PersistenceBackend
     const existing = this.store.get(m.id)
     if (!existing) {
       // The coordinator sends the first batch for materialization; later batches append.
-      this.store.set(m.id, { meta: structuredClone(m), events: storedSessionEvents(events) })
+      this.store.set(m.id, { meta: structuredClone(m), events: clonedStoredRecords(events) })
     } else {
-      existing.events.push(...storedSessionEvents(events))
+      existing.events.push(...clonedStoredRecords(events))
     }
   }
 
@@ -187,7 +192,7 @@ class MemoryPersistence extends SessionPersistence implements PersistenceBackend
     // minus the truncate).
     const entry = this.store.get(m.id)
     if (!entry) return
-    if (closers.length > 0) entry.events.push(...storedSessionEvents(closers))
+    if (closers.length > 0) entry.events.push(...clonedStoredRecords(closers))
   }
 
   async list(signal?: AbortSignal): Promise<SessionHeader[]> {
@@ -230,7 +235,7 @@ class ControlledBackend implements PersistenceBackend<never> {
     if (entry === undefined) return undefined
     return {
       meta: structuredClone(entry.meta),
-      events: structuredClone(entry.events),
+      events: storedSessionEvents(structuredClone(entry.events), id),
       revision: memoryRevision(entry),
     }
   }
@@ -247,16 +252,16 @@ class ControlledBackend implements PersistenceBackend<never> {
     await this.beforeAppend?.(attempt)
     const entry = this.store.get(m.id)
     if (entry === undefined) {
-      this.store.set(m.id, { meta: structuredClone(m), events: storedSessionEvents(events) })
+      this.store.set(m.id, { meta: structuredClone(m), events: clonedStoredRecords(events) })
     } else {
-      entry.events.push(...storedSessionEvents(events))
+      entry.events.push(...clonedStoredRecords(events))
     }
   }
 
   async commitRepair(m: SessionHeader, _tornMarker: undefined, closers: readonly SessionEvent[]): Promise<void> {
     this.repairAttempts += 1
     const entry = this.store.get(m.id)
-    if (entry !== undefined) entry.events.push(...storedSessionEvents(closers))
+    if (entry !== undefined) entry.events.push(...clonedStoredRecords(closers))
   }
 
   async list(): Promise<SessionHeader[]> {
@@ -1508,7 +1513,7 @@ describe('PersistenceCoordinator observation cancellation', () => {
       backend.seekHook = async (hookId, fromSeq) => {
         const entry = backend.store.get(hookId)
         if (entry === undefined) return undefined
-        return { meta: structuredClone(entry.meta), events: entry.events.filter(e => e.seq >= fromSeq) }
+        return { meta: structuredClone(entry.meta), events: storedSessionEvents(entry.events.filter(record => typeof record.seq === 'number' && record.seq >= fromSeq), hookId) }
       }
       const suffix = await coordinator.readFrom(id, 3)
       expect(suffix.events).toEqual(log.slice(3))

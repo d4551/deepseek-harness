@@ -54,8 +54,10 @@ export class DeepSeekHarness implements AsyncDisposable {
   private initialized: Promise<void> | undefined
   private closed = false
 
-  /** @param options - dsh launch configuration plus the session route, effort, and output cap. */
-  constructor(options?: DeepSeekHarnessOptions)
+  /**
+   * @param options - dsh launch configuration plus the session route, effort, and output cap.
+   * @param clientFactory - optional process-client factory used by package-local runtime tests.
+   */
   constructor(options: DeepSeekHarnessOptions = {}, clientFactory?: () => HarnessClient) {
     this.createClient = clientFactory ?? (() => new HarnessClient(options))
     this.clientInstance = this.createClient()
