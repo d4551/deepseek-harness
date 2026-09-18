@@ -10,7 +10,7 @@
   display: flex;
   flex-direction: column;
   font-size: var(--dsh-content-font-size);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  line-height: calc(24px + var(--dsh-content-font-delta));
   color: var(--dsw-alias-label-primary);
 }
 

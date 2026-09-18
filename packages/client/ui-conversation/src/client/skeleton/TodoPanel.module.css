@@ -112,8 +112,8 @@
   display: grid;
   flex: none;
   place-items: center;
-  width: calc(16px + var(--dsh-content-font-delta, 0px));
-  height: calc(16px + var(--dsh-content-font-delta, 0px));
+  width: calc(16px + var(--dsh-content-font-delta));
+  height: calc(16px + var(--dsh-content-font-delta));
 }
 
 .glyphCompleted {

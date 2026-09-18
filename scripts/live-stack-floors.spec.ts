@@ -382,6 +382,8 @@ describe('injected root manifest misses', () => {
     ['canvas', '3.2.2', '3.2.3'],
     ['axe-core', '4.12.0', '4.13.0'],
     ['playwright', '1.62.1', '1.63.0'],
+    ['unrun', '0.2.9', '0.3.1'],
+    ['tsdown', '0.21.7', '0.22.14'],
   ])('holds the declared and installed %s dependency at its reviewed floor', (name, stale, current) => {
     expect(rootDependencyMisses(JSON.stringify({ devDependencies: { [name]: stale } }))).toEqual([{
       file: 'package.json', name, range: stale, floor: ROOT_DEPENDENCY_FLOORS[name],

@@ -26,10 +26,10 @@ describe('WorkflowRunPanel.module.css font-size axis', () => {
   it('member labels ride the axis at the body size with matching row geometry', () => {
     expect(declarations('.memberLabel')).toEqual(expect.arrayContaining([
       'font-size: var(--dsh-content-font-size)',
-      'line-height: calc(24px + var(--dsh-content-font-delta, 0px))',
+      'line-height: calc(24px + var(--dsh-content-font-delta))',
     ]))
     expect(declarations('.memberLabelWrap')).toEqual(expect.arrayContaining([
-      'height: calc(24px + var(--dsh-content-font-delta, 0px))',
+      'height: calc(24px + var(--dsh-content-font-delta))',
     ]))
   })
 

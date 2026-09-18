@@ -169,6 +169,7 @@ export const ROOT_DEPENDENCY_FLOORS: Readonly<Record<string, SemVer>> = Object.f
   tsdown: { major: 0, minor: 22, patch: 14 },
   tsx: TSX_FLOOR,
   typescript: TYPESCRIPT_FLOOR,
+  unrun: { major: 0, minor: 3, patch: 1 },
   vite: VITE_FLOOR,
   vitest: VITEST_FLOOR,
 })

@@ -24,8 +24,8 @@
 .runLeading {
   display: inline-flex;
   flex: none;
-  width: calc(16px + var(--dsh-content-font-delta, 0px));
-  height: calc(16px + var(--dsh-content-font-delta, 0px));
+  width: calc(16px + var(--dsh-content-font-delta));
+  height: calc(16px + var(--dsh-content-font-delta));
   align-items: center;
   justify-content: center;
   margin-right: 0;
@@ -39,7 +39,7 @@
   color: var(--dsw-alias-label-secondary);
   font-size: var(--dsh-content-font-size-secondary);
   font-weight: 510;
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  line-height: calc(24px + var(--dsh-content-font-delta));
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -88,8 +88,8 @@
 .phaseLeading {
   display: inline-flex;
   flex: none;
-  width: calc(16px + var(--dsh-content-font-delta, 0px));
-  height: calc(16px + var(--dsh-content-font-delta, 0px));
+  width: calc(16px + var(--dsh-content-font-delta));
+  height: calc(16px + var(--dsh-content-font-delta));
   align-items: center;
   justify-content: center;
   margin-right: 0;
@@ -103,7 +103,7 @@
   max-width: 42%;
   color: var(--dsw-alias-label-secondary);
   font-size: var(--dsh-content-font-size-secondary);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  line-height: calc(24px + var(--dsh-content-font-delta));
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -168,7 +168,7 @@
   gap: 12px;
   width: 100%;
   min-width: 0;
-  min-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  min-height: calc(24px + var(--dsh-content-font-delta));
   padding: 0;
   border: 0;
   border-radius: 4px;
@@ -192,7 +192,7 @@
   display: inline-flex;
   flex: none;
   width: 16px;
-  height: calc(24px + var(--dsh-content-font-delta, 0px));
+  height: calc(24px + var(--dsh-content-font-delta));
   align-items: center;
   justify-content: center;
   overflow: hidden;
@@ -212,7 +212,7 @@
   overflow: hidden;
   flex: 1;
   min-width: 0;
-  height: calc(24px + var(--dsh-content-font-delta, 0px));
+  height: calc(24px + var(--dsh-content-font-delta));
   align-items: center;
   padding: 0 2px;
   border-radius: 4px;
@@ -227,7 +227,7 @@
      content (an agent's task), while the run/phase headers, counts, and
      statuses around it are chrome one step down. */
   font-size: var(--dsh-content-font-size);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  line-height: calc(24px + var(--dsh-content-font-delta));
   text-overflow: ellipsis;
   white-space: nowrap;
 }

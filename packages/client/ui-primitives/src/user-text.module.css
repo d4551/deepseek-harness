@@ -23,6 +23,6 @@
    size: the 16px svg edge moves by the same px delta as the surrounding font. */
 .refIcon {
   flex: none;
-  width: calc(16px + var(--dsh-content-font-delta, 0px));
-  height: calc(16px + var(--dsh-content-font-delta, 0px));
+  width: calc(16px + var(--dsh-content-font-delta));
+  height: calc(16px + var(--dsh-content-font-delta));
 }

@@ -82,7 +82,7 @@
   flex: none;
   display: inline-flex;
   align-items: center;
-  height: calc(26px + var(--dsh-content-font-delta, 0px));
+  height: calc(26px + var(--dsh-content-font-delta));
   font: var(--dsw-font-s-strong-14);
   /* The status line reads at the body size: the fixed 14 token supplies the
      family/weight, the axis supplies the size. At default that is 14px text
@@ -90,7 +90,7 @@
      delta, preserving the 8px (22 − 14) leading and the 4px (26 − 22) row
      padding at every size. */
   font-size: var(--dsh-content-font-size);
-  line-height: calc(22px + var(--dsh-content-font-delta, 0px));
+  line-height: calc(22px + var(--dsh-content-font-delta));
   white-space: nowrap;
   color: var(--dsw-alias-state-business-primary);
 }

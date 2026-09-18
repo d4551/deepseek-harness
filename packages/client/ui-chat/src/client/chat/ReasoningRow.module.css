@@ -61,7 +61,7 @@
 
 .thinkBody {
   /* Indent under the title, which starts at leading (16 + delta) + gap 6. */
-  padding: 4px 0 4px calc(22px + var(--dsh-content-font-delta, 0px));
+  padding: 4px 0 4px calc(22px + var(--dsh-content-font-delta));
   color: var(--dsw-alias-label-tertiary);
   font-size: var(--dsh-content-font-size-secondary);
   line-height: calc(20px + var(--dsh-content-font-delta-secondary));

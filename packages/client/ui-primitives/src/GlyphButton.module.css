@@ -59,8 +59,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: calc(28px + var(--dsh-content-font-delta, 0px));
-  height: calc(28px + var(--dsh-content-font-delta, 0px));
+  width: calc(28px + var(--dsh-content-font-delta));
+  height: calc(28px + var(--dsh-content-font-delta));
   padding: 6px;
   border-radius: 28px;
   color: var(--dsw-alias-label-tertiary);
@@ -69,6 +69,6 @@
 /* The 16px action glyphs follow the same px delta as the text they serve; the
    CSS edge overrides each svg's own width/height attributes. */
 .message svg {
-  width: calc(16px + var(--dsh-content-font-delta, 0px));
-  height: calc(16px + var(--dsh-content-font-delta, 0px));
+  width: calc(16px + var(--dsh-content-font-delta));
+  height: calc(16px + var(--dsh-content-font-delta));
 }

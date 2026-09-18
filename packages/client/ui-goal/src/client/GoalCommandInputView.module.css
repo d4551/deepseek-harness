@@ -28,6 +28,6 @@
      code family from the token but read at the body size, riding the
      Settings font-size axis like the user bubble (14/22 at the default). */
   font-size: var(--dsh-content-font-size);
-  line-height: calc(22px + var(--dsh-content-font-delta, 0px));
+  line-height: calc(22px + var(--dsh-content-font-delta));
   white-space: pre-wrap;
 }

@@ -52,7 +52,7 @@
      step); the line height keeps the default 10px leading via the shared px
      delta. */
   font-size: var(--dsh-content-font-size);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  line-height: calc(24px + var(--dsh-content-font-delta));
   /* Elevated surface in dark, same as the menus: the draft scrollport inside
      scrolls once the composer hits its height cap, so the thumb takes the l2
      pair. Declared on the card because the elevation belongs to the surface,

@@ -21,7 +21,7 @@
   overflow: hidden;
   color: var(--dsw-alias-label-tertiary);
   font-size: var(--dsh-content-font-size-secondary);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  line-height: calc(24px + var(--dsh-content-font-delta));
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -29,9 +29,9 @@
 .body {
   box-sizing: border-box;
   /* Indent under the title, which starts at leading (16 + delta) + gap 6. */
-  width: calc(100% - 22px - var(--dsh-content-font-delta, 0px));
+  width: calc(100% - 22px - var(--dsh-content-font-delta));
   max-height: 141px;
-  margin: 4px 0 0 calc(22px + var(--dsh-content-font-delta, 0px));
+  margin: 4px 0 0 calc(22px + var(--dsh-content-font-delta));
   overflow: auto;
   padding: 10px 16px 12px 12px;
   border: none;

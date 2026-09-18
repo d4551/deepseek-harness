@@ -70,8 +70,8 @@
 .itemIcon {
   display: inline-flex;
   flex: none;
-  width: calc(16px + var(--dsh-content-font-delta, 0px));
-  height: calc(16px + var(--dsh-content-font-delta, 0px));
+  width: calc(16px + var(--dsh-content-font-delta));
+  height: calc(16px + var(--dsh-content-font-delta));
   align-items: center;
   justify-content: center;
   color: var(--dsw-alias-label-tertiary);
@@ -137,8 +137,8 @@
   flex: none;
   display: inline-grid;
   place-items: center;
-  width: calc(20px + var(--dsh-content-font-delta, 0px));
-  height: calc(20px + var(--dsh-content-font-delta, 0px));
+  width: calc(20px + var(--dsh-content-font-delta));
+  height: calc(20px + var(--dsh-content-font-delta));
   border-radius: 4px;
   /* label-caption, the quiet tint the composer's access-mode chevron uses. */
   color: var(--dsw-alias-label-caption);
@@ -172,7 +172,7 @@
 }
 
 .skeletonBar {
-  height: calc(20px + var(--dsh-content-font-delta, 0px));
+  height: calc(20px + var(--dsh-content-font-delta));
   border-radius: 4px;
   background: var(--dsw-alias-bg-skeleton);
   animation: dsh-menu-skeleton 2s cubic-bezier(0.36, 0, 0.64, 1) infinite;

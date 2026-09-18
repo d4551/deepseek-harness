@@ -32,7 +32,7 @@
      height together through the body-published axis. */
   padding: 10px 16px;
   font-size: var(--dsh-content-font-size);
-  line-height: calc(22px + var(--dsh-content-font-delta, 0px));
+  line-height: calc(22px + var(--dsh-content-font-delta));
   color: var(--dsw-alias-label-primary);
   /* The projected user text is inline runs; the bubble owns wrapping so a
      decorated single-line message stays one line. */
@@ -60,7 +60,7 @@
   display: flex;
   align-items: center;
   width: 100%;
-  height: calc(24px + var(--dsh-content-font-delta, 0px));
+  height: calc(24px + var(--dsh-content-font-delta));
   min-width: 0;
   padding: 0;
   border: none;
@@ -83,8 +83,8 @@
   flex: none;
   display: inline-grid;
   place-items: center;
-  width: calc(16px + var(--dsh-content-font-delta, 0px));
-  height: calc(16px + var(--dsh-content-font-delta, 0px));
+  width: calc(16px + var(--dsh-content-font-delta));
+  height: calc(16px + var(--dsh-content-font-delta));
   margin-right: 6px;
   color: var(--dsw-alias-label-secondary);
 }
@@ -92,8 +92,8 @@
 /* Same glyph-scaling rule as DisclosureRow's leading: the CSS edge overrides
    the svg attributes so the 14px glyphs follow the font-size delta. */
 .compactionLeading svg {
-  width: calc(14px + var(--dsh-content-font-delta, 0px));
-  height: calc(14px + var(--dsh-content-font-delta, 0px));
+  width: calc(14px + var(--dsh-content-font-delta));
+  height: calc(14px + var(--dsh-content-font-delta));
 }
 
 .compactionContextIcon,
@@ -121,16 +121,16 @@
 .compactionTitle {
   flex: none;
   font-size: var(--dsh-content-font-size-secondary);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  line-height: calc(24px + var(--dsh-content-font-delta));
   color: var(--dsw-alias-label-primary-dimmed);
 }
 
 .compactionBody {
   /* Indent under the title, which starts at leading (16 + delta) + gap 6. */
-  padding: 4px 0 4px calc(22px + var(--dsh-content-font-delta, 0px));
+  padding: 4px 0 4px calc(22px + var(--dsh-content-font-delta));
   color: var(--dsw-alias-label-tertiary);
   font-size: var(--dsh-content-font-size-secondary);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  line-height: calc(24px + var(--dsh-content-font-delta));
 }
 
 .retryRow {
