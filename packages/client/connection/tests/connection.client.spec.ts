@@ -1,7 +1,7 @@
 /** Connection generation readiness, loss, retry, and sink isolation. */
 
 import { describe, expect, it, vi } from 'vitest'
-import type { ConnectionGenerationSource, ConnectionState } from '../src/client/connection.ts'
+import type { ConnectionGenerationSource, ConnectionHostInfo, ConnectionState } from '../src/client/connection.ts'
 import { ConnectionController } from '../src/client/connection.ts'
 import { FakeGenerationSource } from './fake-generation.client.ts'
 
@@ -104,7 +104,7 @@ describe('connection lifecycle', () => {
     const owner: { controller?: ConnectionController } = {}
     let stopping: Promise<void> | undefined
     let sourceCalls = 0
-    const connected = vi.fn()
+    const connected = vi.fn<(host: ConnectionHostInfo) => void>()
     const source: ConnectionGenerationSource = (signal, ready) => new Promise<void>((resolve) => {
       sourceCalls++
       ready({ home: '/h' })
@@ -146,8 +146,7 @@ describe('connection lifecycle', () => {
     { label: 'ends normally', fail: () => Promise.resolve() },
     {
       label: 'rejects with a non-Error reason',
-      // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- the non-Error rejection is the scenario under test
-      fail: () => Promise.reject('fixture offline'),
+      fail: async () => { throw 'fixture offline' },
     },
   ])('retries when the generation source $label before reporting ready', async ({ fail }) => {
     let sourceCalls = 0

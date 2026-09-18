@@ -195,6 +195,7 @@ async function rollbackUnpublishedTerminal(
     () => { topLevelExited = true },
     () => { topLevelExited = true },
   )
+  const hasTopLevelExited = (): boolean => topLevelExited
   const validPid = Number.isSafeInteger(handle.pid) && handle.pid > 1
   const attemptFailures: Error[] = []
   let sessionId: number | undefined
@@ -219,9 +220,7 @@ async function rollbackUnpublishedTerminal(
       attemptFailures.push(asError(error))
     }
   }
-  // Completion can settle while any awaited provider cleanup above is running.
-  // oxlint-disable-next-line typescript/no-unnecessary-condition -- Provider cleanup yields to completion.
-  if (!topLevelExited) {
+  if (!hasTopLevelExited()) {
     try {
       await handle.kill()
     } catch (error: unknown) {
@@ -243,9 +242,7 @@ async function rollbackUnpublishedTerminal(
       proofFailures.push(asError(error))
     }
   }
-  // The bounded completion race above updates this callback-owned state.
-  // oxlint-disable-next-line typescript/no-unnecessary-condition -- The callback mutates this after a race.
-  if (!topLevelExited) {
+  if (!hasTopLevelExited()) {
     proofFailures.push(new Error(`subprocess-e2b: terminal setup rollback failed; surviving pid: ${handle.pid}`))
   }
   if (proofFailures.length > 0) {

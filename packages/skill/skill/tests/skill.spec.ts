@@ -46,7 +46,7 @@ class MemoryProvider implements SkillProvider {
   }
 }
 
-function registerProvider(ctx: Context, provider: SkillProvider): () => void {
+function registerProvider(ctx: Context, provider: SkillProvider): () => void | Promise<void> {
   return ctx.skills.registerProvider(() => provider)
 }
 
@@ -156,7 +156,7 @@ describe('SkillRegistry registry', () => {
     })).toThrow(effectFailure)
     expect(effectSignal?.reason).toBe(effectFailure)
 
-    disposeMemory()
+    await disposeMemory()
     expect((await ctx.skills.list()).map(skill => skill.name)).toEqual(['same-rank-skill', 'shadowed'])
   })
 
@@ -647,7 +647,7 @@ describe('SkillRegistry registry', () => {
       path: 'memory://runtime-skill',
       metadata: { owner: 'tests' },
     })
-    disposeRuntime()
+    await disposeRuntime()
     await ctx.skills.list({ cwd: '/tmp/first-cache-key' })
     await ctx.skills.list({ cwd: '/tmp/second-cache-key' })
 
@@ -722,7 +722,7 @@ describe('SkillRegistry registry', () => {
 
     invalidate()
     expect((await ctx.skills.list()).map(skill => skill.name)).toEqual(['second-skill'])
-    dispose()
+    await dispose()
     expect(signal?.aborted).toBe(true)
 
     const replacement = new MemoryProvider([memorySkill('replacement-skill', 'Replacement', 10)])
@@ -756,9 +756,9 @@ describe('SkillRegistry registry', () => {
       content: 'Runtime body.',
     })
     expect(changes).toBe(3)
-    disposeRuntime()
+    await disposeRuntime()
     expect(changes).toBe(4)
-    disposeProvider()
+    await disposeProvider()
     expect(changes).toBe(5)
     invalidate()
     expect(changes).toBe(5)
@@ -768,10 +768,9 @@ describe('SkillRegistry registry', () => {
     const ctx = new Context()
     await ctx.plugin(SkillRegistry)
     const warnings: string[] = []
-    ctx.logger.warn = ((message: unknown) => { warnings.push(String(message)) }) as typeof ctx.logger.warn
+    ctx.logger.warn = (message: unknown) => { warnings.push(String(message)) }
     const disposeThrowing = ctx.on('skills/change', () => { throw new Error('observer threw') })
-    // oxlint-disable-next-line typescript/no-misused-promises -- deliberate rejection proves notification containment
-    const disposeRejecting = ctx.on('skills/change', () => Promise.reject(new Error('observer rejected')))
+    const disposeRejecting = ctx.on('skills/change', async () => { throw new Error('observer rejected') })
     let observed = 0
     const disposeObserver = ctx.on('skills/change', () => { observed += 1 })
 
@@ -926,7 +925,7 @@ describe('SkillRegistry registry', () => {
     const ctx = new Context()
     await ctx.plugin(SkillRegistry)
     const warnings: string[] = []
-    ctx.logger.warn = ((message: unknown) => { warnings.push(String(message)) }) as typeof ctx.logger.warn
+    ctx.logger.warn = (message: unknown) => { warnings.push(String(message)) }
     const hostileFailure = {
       toString() {
         throw new Error('provider failure coercion failed')
@@ -934,10 +933,8 @@ describe('SkillRegistry registry', () => {
     }
     registerProvider(ctx, {
       name: 'hostile-failure',
-      list() {
-        // Deliberately violate the provider contract to prove containment is total.
-        // oxlint-disable-next-line typescript/prefer-promise-reject-errors
-        return Promise.reject(hostileFailure)
+      async list() {
+        throw hostileFailure
       },
       async get() {
         return undefined
@@ -971,7 +968,7 @@ describe('SkillRegistry registry', () => {
 
     const pending = ctx.skills.list()
     await started
-    dispose()
+    await dispose()
     release?.()
 
     expect(await pending).toEqual([])
@@ -1035,10 +1032,10 @@ describe('SkillRegistry registry', () => {
     expect(await ctx.skills.get('Bad_Name')).toBeUndefined()
 
     const disposeFirst = ctx.skills.register({ name: 'same-skill', description: 'First', source: 'runtime', content: 'first' })
-    const disposeSecond = ctx.skills.register({ name: 'same-skill', description: 'Second', source: 'runtime', content: 'second' })
-    disposeSecond()
+    expect(() => ctx.skills.register({ name: 'same-skill', description: 'Second', source: 'runtime', content: 'second' }))
+      .toThrow('runtime skill "same-skill" is already registered')
     expect((await ctx.skills.get('same-skill'))?.description).toBe('First')
-    disposeFirst()
+    await disposeFirst()
     expect(await ctx.skills.get('same-skill')).toBeUndefined()
   })
 })
@@ -1212,8 +1209,8 @@ describe('SkillRegistry scoped layers', () => {
   it('keeps runtime duplicate handling per layer and shadows a global runtime name', async () => {
     const ctx = new Context()
     await ctx.plugin(SkillRegistry)
-    const warn = vi.fn()
-    ctx.logger.warn = warn as never
+    const warn = vi.fn<(message?: unknown, ...param: unknown[]) => void>()
+    ctx.logger.warn = warn
     ctx.skills.register({ name: 'told-twice', description: 'Global runtime', source: 'runtime', content: 'Global body.' })
     const preset = createScope(ctx, { preset: 'runtime' })
     const disposeShadow = scopedSkills(preset.ctx).register({
@@ -1223,11 +1220,11 @@ describe('SkillRegistry scoped layers', () => {
       content: 'Preset body.',
     })
     expect(warn).not.toHaveBeenCalled()
-    scopedSkills(preset.ctx).register({ name: 'told-twice', description: 'Ignored', source: 'preset', content: 'Ignored.' })
-    expect(warn).toHaveBeenCalledWith('runtime skill "told-twice" ignored because it is already registered')
+    expect(() => scopedSkills(preset.ctx).register({ name: 'told-twice', description: 'Ignored', source: 'preset', content: 'Ignored.' }))
+      .toThrow('runtime skill "told-twice" is already registered')
     expect((await ctx.skills.get('told-twice', { scope: scopeOf(preset.ctx) }))?.content).toBe('Preset body.')
     expect((await ctx.skills.get('told-twice'))?.content).toBe('Global body.')
-    disposeShadow()
+    await disposeShadow()
     expect((await ctx.skills.get('told-twice', { scope: scopeOf(preset.ctx) }))?.content).toBe('Global body.')
     await preset.dispose()
   })
@@ -1235,7 +1232,7 @@ describe('SkillRegistry scoped layers', () => {
   it('drops a disposed scoped registration from its scope view and notifies change', async () => {
     const ctx = new Context()
     await ctx.plugin(SkillRegistry)
-    const changes = vi.fn()
+    const changes = vi.fn<() => void | Promise<void>>()
     ctx.on('skills/change', changes)
     const preset = createScope(ctx, { preset: 'hmr' })
     const provider = new MemoryProvider([memorySkill('scoped-skill', 'Scoped', 100)])
@@ -1262,7 +1259,7 @@ describe('SkillRegistry scoped layers', () => {
     provider.replace([memorySkill('replaced', 'Replaced', 100)])
     control?.invalidate()
     expect((await ctx.skills.list({ scope })).map(skill => skill.name)).toEqual(['replaced'])
-    dispose()
+    await dispose()
     provider.replace([memorySkill('ignored', 'Ignored', 100)])
     control?.invalidate()
     expect(await ctx.skills.list({ scope })).toEqual([])

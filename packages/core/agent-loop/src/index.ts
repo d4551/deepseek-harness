@@ -190,7 +190,7 @@ declare module '@deepseek-ai/cordis' {
      * @param payload.error - persistence, setup, or publication failure.
      * @mode emit
      */
-    'agent-loop/config-start-failed'(payload: { sessionId: SessionId; error: unknown }): void
+    'agent-loop/config-start-failed'(payload: { sessionId: SessionId; error: unknown }): void | Promise<void>
   }
 }
 

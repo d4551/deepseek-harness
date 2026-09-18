@@ -363,7 +363,7 @@ export class AgentRegistry extends Service {
    *   Cordis effect disposer (single-shot): composite (generator) effects may
    *   yield it directly — exact identity nests the teardown in order.
    */
-  setFactory(factory: AgentFactory): () => void {
+  setFactory(factory: AgentFactory): () => void | Promise<void> {
     const dispose = this.ctx.effect(() => {
       if (this.factory !== undefined) throw new Error('an agent factory is already registered')
       // Avoid stacking two Cordis shadow layers when a caller passes a Service
@@ -373,11 +373,6 @@ export class AgentRegistry extends Service {
       this.factory = { target }
       return () => { this.factory = undefined }
     }, 'agents.setFactory()')
-    // The exact cordis effect disposer (the agents.register() convention): a
-    // caller's composite effect can yield it for in-order teardown; the
-    // loop's constructor effect returns it directly, identity-nesting the
-    // registration under that effect.
-    // oxlint-disable-next-line typescript/no-misused-promises -- synchronous cleanup; direct return preserves disposer identity
     return dispose
   }
 
@@ -404,8 +399,7 @@ export class AgentRegistry extends Service {
     // capability and need no Cordis tracker magic.
     const { target } = this.requireFactory()
     const receiver = getTraceable(ownerCtx, target)
-    // oxlint-disable-next-line typescript/unbound-method -- Reflect.apply intentionally supplies the caller-traced receiver
-    return Reflect.apply(target.createAgent, receiver, [ownerCtx, options])
+    return target.createAgent.call(receiver, ownerCtx, options)
   }
 
   /**
@@ -419,8 +413,7 @@ export class AgentRegistry extends Service {
     const ownerCtx = this.ctx
     const { target } = this.requireFactory()
     const receiver = getTraceable(ownerCtx, target)
-    // oxlint-disable-next-line typescript/unbound-method -- Reflect.apply intentionally supplies the caller-traced receiver
-    return Reflect.apply(target.resume, receiver, [ownerCtx, options])
+    return target.resume.call(receiver, ownerCtx, options)
   }
 
   /**
@@ -441,12 +434,11 @@ export class AgentRegistry extends Service {
    *   owner unload, unregistering the agent (and emitting `agent/disposed`)
    *   while its final turn is still draining.
    */
-  register(agent: Agent): () => void {
+  register(agent: Agent): () => void | Promise<void> {
     const dispose = this.ctx.effect(function* (this: AgentRegistry) {
       yield this.enter(agent, this.ctx.agent)
       this.announce(agent)
     }.bind(this), 'agents.register()')
-    // oxlint-disable-next-line typescript/no-misused-promises -- synchronous cleanup; direct return preserves disposer identity
     return dispose
   }
 

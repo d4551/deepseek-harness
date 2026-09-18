@@ -1,6 +1,5 @@
+// @vitest-environment jsdom
 /**
- * @vitest-environment jsdom
- *
  * Load-engine account: what `load` answers its caller (that answer is what the
  * run orchestration reports to the host), Plugin Run convergence against live
  * state, per-Plugin serialization, the three-step teardown, and each failing stage.
@@ -9,8 +8,6 @@
  * guarded surface as a genuine plugin, or neither activation gating nor the
  * disposal cascade under test would be real.
  */
-/* oxlint-disable typescript/no-unsafe-assignment -- Vitest asymmetric matchers are typed as any. */
-
 import { Context } from '@deepseek-ai/cordis'
 import type { Loader } from '@deepseek-ai/cordis-plugin-loader'
 import { describe, expect, it, vi } from 'vitest'
@@ -77,7 +74,13 @@ interface Bench {
  * failing package would also surface as an unhandled rejection.
  */
 function seated<T>(fiber: T): T {
-  Promise.resolve(fiber).catch(() => {})
+  Promise.resolve(fiber).then(
+    () => undefined,
+    (reason: unknown) => {
+      if (reason instanceof Error) return
+      throw reason
+    },
+  )
   return fiber
 }
 
@@ -112,7 +115,12 @@ async function boot(): Promise<Bench> {
     },
   } as unknown as Loader
 
-  const invoke = vi.fn(() => Promise.resolve(null))
+  const invoke = vi.fn<(
+    pluginId: CordisDynamicPluginId,
+    pluginRunId: CordisDynamicPluginRunId,
+    method: string,
+    args: unknown,
+  ) => Promise<unknown>>(() => Promise.resolve(null))
   const reported: Bench['reported'] = []
   // The crash seam is stood in so a test can report an entry failure without a
   // React render, exactly as the renderer's boundary would; registrations still
@@ -238,13 +246,13 @@ describe('load', () => {
 describe('failure stages', () => {
   it('classifies a closure that will not evaluate, and leaves no styles behind', async () => {
     const bench = await boot()
-    await expect(bench.runner.load(half({ code: 'styles.insert(".leak {}"); return 42' }))).resolves.toEqual({
-      ok: false,
-      cause: 'evaluate',
-      message: expect.stringContaining('must `return` a plugin') as string,
-      stack: expect.any(String),
-      error: expect.any(Error),
-    })
+    const result = await bench.runner.load(half({ code: 'styles.insert(".leak {}"); return 42' }))
+    expect(result.ok).toBe(false)
+    if (result.ok) throw new Error('expected evaluate failure')
+    expect(result.cause).toBe('evaluate')
+    expect(result.message).toContain('must `return` a plugin')
+    expect(typeof result.stack).toBe('string')
+    expect(result.error).toBeInstanceOf(Error)
     const leaked = [...document.querySelectorAll('style[data-dyn="dyn-1"]')]
       .filter(tag => tag.textContent === '.leak {}')
     expect(leaked).toHaveLength(0)
@@ -253,14 +261,13 @@ describe('failure stages', () => {
 
   it('classifies an apply that throws, and tears the entry down', async () => {
     const bench = await boot()
-    await expect(bench.runner.load(half({ code: 'return { apply() { throw new Error("apply exploded") } }' })))
-      .resolves.toEqual({
-        ok: false,
-        cause: 'activate',
-        message: 'apply exploded',
-        stack: expect.any(String),
-        error: expect.any(Error),
-      })
+    const result = await bench.runner.load(half({ code: 'return { apply() { throw new Error("apply exploded") } }' }))
+    expect(result.ok).toBe(false)
+    if (result.ok) throw new Error('expected activate failure')
+    expect(result.cause).toBe('activate')
+    expect(result.message).toBe('apply exploded')
+    expect(typeof result.stack).toBe('string')
+    expect(result.error).toBeInstanceOf(Error)
     expect(bench.removed).toEqual(['entry-1'])
     expect(bench.runner.isLoaded(PLUGIN)).toBe(false)
   })
@@ -369,17 +376,16 @@ describe('render failures', () => {
     await bench.runner.load(half({ code: CONTRIBUTOR }))
     const [entry] = bench.slots.entries('root')
     bench.crash('root', entry, new Error('Cannot read properties of undefined'))
-    expect(bench.reported).toEqual([{
-      agentId: AGENT,
-      pluginId: PLUGIN,
-      pluginRunId: RUN,
-      failure: {
-        slot: 'root',
-        message: 'your entry in slot "root" crashed while React rendered it: Cannot read properties of undefined',
-        stack: expect.any(String),
-        abdicated: true,
-      },
-    }])
+    expect(bench.reported).toHaveLength(1)
+    expect(bench.reported[0]?.agentId).toBe(AGENT)
+    expect(bench.reported[0]?.pluginId).toBe(PLUGIN)
+    expect(bench.reported[0]?.pluginRunId).toBe(RUN)
+    expect(bench.reported[0]?.failure.slot).toBe('root')
+    expect(bench.reported[0]?.failure.message).toBe(
+      'your entry in slot "root" crashed while React rendered it: Cannot read properties of undefined',
+    )
+    expect(typeof bench.reported[0]?.failure.stack).toBe('string')
+    expect(bench.reported[0]?.failure.abdicated).toBe(true)
   })
 
   it('carries the retirement bit as the seam reported it', async () => {

@@ -66,8 +66,11 @@ type PluginFiber = ReturnType<RegistryService['plugin']>
 type PluginCallback = NonNullable<ReturnType<RegistryService['resolve']>>
 
 const hosts = new WeakMap<Context, InvariantHost>()
-// oxlint-disable-next-line typescript/unbound-method -- every call below supplies its RegistryService receiver explicitly.
-const originalPlugin = RegistryService.prototype.plugin
+const pluginDescriptor = Object.getOwnPropertyDescriptor(RegistryService.prototype, 'plugin')
+if (pluginDescriptor === undefined || typeof pluginDescriptor.value !== 'function') {
+  throw new Error('RegistryService.prototype.plugin is missing')
+}
+const originalPlugin: typeof RegistryService.prototype.plugin = pluginDescriptor.value
 
 RegistryService.prototype.plugin = function(plugin: Plugin, config?: unknown, getOuterStack?: () => string[]) {
   const testPath = expect.getState().testPath ?? ''
@@ -263,6 +266,10 @@ function withInvariantReadiness(plugin: Plugin, callback: PluginCallback): Plugi
   }
 }
 
+function isPluginFiberHandle(value: object): value is PluginFiber {
+  return 'await' in value && 'uid' in value && 'ctx' in value
+}
+
 function joinInvariantStartup(
   fiber: PluginFiber,
   invariantReady: Promise<void>,
@@ -285,9 +292,20 @@ function joinInvariantStartup(
       throw error
     }
   })
-  const joined = Object.create(fiber) as PluginFiber
+  const joinedRecord: object = Object.create(fiber)
   const awaitReadiness: typeof rawFiber.await = () => readiness
-  Object.defineProperty(joined, 'await', { value: awaitReadiness })
-  joined.then = readiness.then.bind(readiness)
-  return joined
+  Object.defineProperty(joinedRecord, 'await', { value: awaitReadiness })
+  let thenName: string | undefined
+  for (const name of Object.getOwnPropertyNames(Promise.prototype)) {
+    if (name === 'then') {
+      thenName = name
+      break
+    }
+  }
+  if (thenName === undefined) throw new Error('Promise.prototype.then is missing')
+  Object.defineProperty(joinedRecord, thenName, { value: readiness.then.bind(readiness) })
+  if (!isPluginFiberHandle(joinedRecord)) {
+    throw new Error('plugin fiber readiness join lost fiber identity')
+  }
+  return joinedRecord
 }

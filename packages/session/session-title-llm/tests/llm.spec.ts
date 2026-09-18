@@ -1,5 +1,5 @@
 import { Context } from '@deepseek-ai/cordis'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import LlmRuntime, { createUserMessage, ToolCallId, isAgentLoopRequest, LlmAdapter  } from '@deepseek-ai/dsh-llm'
 import type { FinishReason, GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
@@ -31,20 +31,22 @@ class RecordingAdapter extends LlmAdapter {
 }
 
 class CooperativeAdapter extends LlmAdapter {
-  override async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+  override stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
     const signal = options.signal
     if (signal === undefined) throw new Error('expected title request signal')
-    await new Promise<never>((_resolve, reject) => {
-      const rejectAbort = (): void => {
-        // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- exercise exact AbortSignal.reason propagation
-        reject(signal.reason)
-      }
-      if (signal.aborted) {
-        rejectAbort()
-        return
-      }
-      signal.addEventListener('abort', rejectAbort, { once: true })
-    })
+    return {
+      [Symbol.asyncIterator](): AsyncIterator<StreamChunk> {
+        return {
+          async next(): Promise<IteratorResult<StreamChunk>> {
+            if (signal.aborted) throw signal.reason
+            await new Promise<void>((resolve) => {
+              signal.addEventListener('abort', () => { resolve() }, { once: true })
+            })
+            throw signal.reason
+          },
+        }
+      },
+    }
   }
 }
 
@@ -119,6 +121,9 @@ async function withScript(script: readonly StreamChunk[]): Promise<{
 }
 
 describe('generateSessionTitleWithLlm', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
   it('uses the exact logged route, language targets, full framed input, and output token cap', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)
@@ -313,53 +318,47 @@ describe('generateSessionTitleWithLlm', () => {
 
   it('aborts a cooperative model stream at the configured deadline', async () => {
     vi.useFakeTimers()
-    try {
-      const ctx = new Context()
-      await ctx.plugin(SessionStore)
-      await ctx.plugin(LlmRuntime)
-      ctx.llm.registerAdapter(['current-route'], new CooperativeAdapter())
-      const providerRequest = request(ctx)
-      const pending = generateSessionTitleWithLlm(
-        ctx,
-        resolveSessionTitleLlmConfig({ ...CONFIG, timeoutMs: 10 }),
-        providerRequest,
-        providerRequest.messages,
-        TITLE_PROVIDER,
-      )
-      const rejected = expect(pending).rejects.toMatchObject({
+    const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(LlmRuntime)
+    ctx.llm.registerAdapter(['current-route'], new CooperativeAdapter())
+    const providerRequest = request(ctx)
+    const pending = generateSessionTitleWithLlm(
+      ctx,
+      resolveSessionTitleLlmConfig({ ...CONFIG, timeoutMs: 10 }),
+      providerRequest,
+      providerRequest.messages,
+      TITLE_PROVIDER,
+    )
+    await Promise.all([
+      expect(pending).rejects.toMatchObject({
         code: SESSION_TITLE_TIMEOUT_CODE,
         timeoutMs: 10,
-      })
-      await vi.advanceTimersByTimeAsync(10)
-      await rejected
-    } finally {
-      vi.useRealTimers()
-    }
+      }),
+      vi.advanceTimersByTimeAsync(10),
+    ])
   })
 
   it('rejects a successful stream that completes after the configured deadline', async () => {
     vi.useFakeTimers()
-    try {
-      const ctx = new Context()
-      await ctx.plugin(SessionStore)
-      await ctx.plugin(LlmRuntime)
-      ctx.llm.registerAdapter(['current-route'], new DelayedSuccessAdapter(20))
-      const providerRequest = request(ctx)
-      const pending = generateSessionTitleWithLlm(
-        ctx,
-        resolveSessionTitleLlmConfig({ ...CONFIG, timeoutMs: 10 }),
-        providerRequest,
-        providerRequest.messages,
-        TITLE_PROVIDER,
-      )
-      const rejected = expect(pending).rejects.toMatchObject({
+    const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(LlmRuntime)
+    ctx.llm.registerAdapter(['current-route'], new DelayedSuccessAdapter(20))
+    const providerRequest = request(ctx)
+    const pending = generateSessionTitleWithLlm(
+      ctx,
+      resolveSessionTitleLlmConfig({ ...CONFIG, timeoutMs: 10 }),
+      providerRequest,
+      providerRequest.messages,
+      TITLE_PROVIDER,
+    )
+    await Promise.all([
+      expect(pending).rejects.toMatchObject({
         code: SESSION_TITLE_TIMEOUT_CODE,
         timeoutMs: 10,
-      })
-      await vi.advanceTimersByTimeAsync(20)
-      await rejected
-    } finally {
-      vi.useRealTimers()
-    }
+      }),
+      vi.advanceTimersByTimeAsync(20),
+    ])
   })
 })

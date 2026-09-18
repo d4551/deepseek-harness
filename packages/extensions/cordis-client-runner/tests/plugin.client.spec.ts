@@ -1,13 +1,10 @@
+// @vitest-environment jsdom
 /**
- * @vitest-environment jsdom
- *
  * Plugin composition account: the dispatch family reaches the runner with its
  * envelope rpcId, the service face is provided for UI surfaces, a load failure
  * always reaches the console, and the fiber owns the runner's teardown. Plus the two plane-level companions: the
  * node half's empty apply and the invariant registration.
  */
-/* oxlint-disable typescript/no-unsafe-assignment -- Vitest asymmetric matchers are typed as any. */
-
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import InvariantService from '@deepseek-ai/dsh-invariants'
@@ -86,7 +83,13 @@ async function boot(): Promise<Bench> {
       const fiber = ctx.plugin(factories.get(options.name)?.() as Parameters<Context['plugin']>[0])
       // The runner reads activation failure through fiber.await(); terminate this
       // handle too, or a failing package also lands as an unhandled rejection.
-      Promise.resolve(fiber).catch(() => {})
+      Promise.resolve(fiber).then(
+        () => undefined,
+        (reason: unknown) => {
+          if (reason instanceof Error) return
+          throw reason
+        },
+      )
       fibers.set(entryId, { fiber })
       return Promise.resolve(entryId)
     },
@@ -137,7 +140,7 @@ async function boot(): Promise<Bench> {
       resolved.push({ requestId, resolution })
       return answered({ accepted: true })
     },
-    invoke: (
+    invoke: async (
       pluginId: CordisDynamicPluginId,
       pluginRunId: CordisDynamicPluginRunId,
       method: string,
@@ -145,8 +148,9 @@ async function boot(): Promise<Bench> {
     ) => {
       invoked.push({ pluginId, pluginRunId, method, args })
       const refusal = invokeThrow.current
-      // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- the non-Error rejection is a case under test
-      if (refusal !== undefined) return Promise.reject(refusal)
+      if (refusal !== undefined) {
+        throw refusal
+      }
       return answered(invokeResult.current)
     },
   }
@@ -155,8 +159,8 @@ async function boot(): Promise<Bench> {
   // stub owes (api-gateway covers isolation and disposal on the real one).
   const listeners = new Map<string, ((...args: never[]) => void)[]>()
   const forward = (event: string, payload: object): void => {
-    for (const listener of [...listeners.get(event) ?? []]) {
-      (listener as (...args: readonly unknown[]) => void)(payload)
+    for (const listener of Array.from(listeners.get(event) ?? [])) {
+      Reflect.apply(listener, undefined, [payload])
     }
   }
   const remote = {
@@ -295,23 +299,22 @@ describe('browser half', () => {
     await bench.ctx.dynamicCordisRunner.startUserRun(USER_RUN)
     const [entry] = bench.ctx.slots.entries('root')
     bench.crash('root', entry, true, new Error('Cannot read properties of undefined'))
-    expect(bench.renderFailures).toEqual([{
-      agentId: AGENT,
-      pluginId: PLUGIN,
-      pluginRunId: RUN,
-      failure: {
-        slot: 'root',
-        message: 'your entry in slot "root" crashed while React rendered it: Cannot read properties of undefined',
-        stack: expect.any(String),
-        abdicated: true,
-      },
-    }])
+    expect(bench.renderFailures).toHaveLength(1)
+    expect(bench.renderFailures[0]?.agentId).toBe(AGENT)
+    expect(bench.renderFailures[0]?.pluginId).toBe(PLUGIN)
+    expect(bench.renderFailures[0]?.pluginRunId).toBe(RUN)
+    expect(bench.renderFailures[0]?.failure.slot).toBe('root')
+    expect(bench.renderFailures[0]?.failure.message).toBe(
+      'your entry in slot "root" crashed while React rendered it: Cannot read properties of undefined',
+    )
+    expect(typeof bench.renderFailures[0]?.failure.stack).toBe('string')
+    expect(bench.renderFailures[0]?.failure.abdicated).toBe(true)
     // The same observation also reaches the page's own surface, so a row can show
     // it without reading the host back — in its own shape: the host is sent the
     // model-facing line, and the page keeps the crash text on its own so the
     // panel can put a translated label in front of it instead of that framing.
     expect(bench.ctx.dynamicCordisRunner.renderFailures.getSnapshot().get(PLUGIN)).toEqual({
-      ...bench.renderFailures[0]?.failure ?? {},
+      ...bench.renderFailures[0]?.failure,
       cause: 'Cannot read properties of undefined',
     })
     // A report the host refuses is logged and dropped: one crash must not become

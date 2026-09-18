@@ -87,6 +87,10 @@ export class E2BRuntime extends Service {
   private readonly ready: Promise<Sandbox>
   private disposed = false
 
+  private isDisposed(): boolean {
+    return this.disposed
+  }
+
   constructor(ctx: Context, config: Config) {
     super(ctx, 'e2b')
     // Schemastery fills these fields before construction; the type does not encode that step.
@@ -128,11 +132,9 @@ export class E2BRuntime extends Service {
    * @throws when E2B rejects creation or the service is disposing.
    */
   async getSandbox(): Promise<Sandbox> {
-    if (this.disposed) throw new Error('E2B sandbox service is disposing')
+    if (this.isDisposed()) throw new Error('E2B sandbox service is disposing')
     const sandbox = await this.ready
-    // Disposal can race the awaited sandbox readiness despite the synchronous precheck.
-    // oxlint-disable-next-line typescript/no-unnecessary-condition -- Awaiting readiness yields to disposal.
-    if (this.disposed) throw new Error('E2B sandbox service is disposing')
+    if (this.isDisposed()) throw new Error('E2B sandbox service is disposing')
     return sandbox
   }
 

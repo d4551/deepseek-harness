@@ -20,7 +20,12 @@ import { describe, expect, it } from 'vitest'
 import { closeCompiler, createSourceFile } from '../../../../scripts/ts7-session.ts'
 
 const PACKAGE_ROOT = fileURLToPath(new URL('../', import.meta.url))
-const SQL_LITERAL = /^\s*(?:ALTER|ATTACH|BEGIN|COMMIT|CREATE|DELETE|DETACH|DROP|INSERT|PRAGMA|REINDEX|RELEASE|ROLLBACK|SAVEPOINT|SELECT|UPDATE|VACUUM|WITH)\s/iu // eslint-disable-line @stylistic/max-len
+const SQL_KEYWORDS = [
+  'ALTER', 'ATTACH', 'BEGIN', 'COMMIT', 'CREATE', 'DELETE', 'DETACH', 'DROP',
+  'INSERT', 'PRAGMA', 'REINDEX', 'RELEASE', 'ROLLBACK', 'SAVEPOINT', 'SELECT',
+  'UPDATE', 'VACUUM', 'WITH',
+].join('|')
+const SQL_LITERAL = new RegExp(`^\\s*(?:${SQL_KEYWORDS})\\s`, 'iu')
 
 async function filesUnder(path: string): Promise<string[]> {
   const entries = await readdir(path, { withFileTypes: true })

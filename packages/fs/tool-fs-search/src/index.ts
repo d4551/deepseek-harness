@@ -123,23 +123,10 @@ function assertPositiveInteger(name: string, value: number): void {
  * unconditional.
  *
  * @param ctx - plugin context; registrations are effects scoped to this plugin.
- * @param config - resolved plugin configuration from schemastery.
+ * @param config - plugin configuration; defaulted fields are filled here when omitted.
  */
-// oxlint-disable-next-line typescript/require-await -- async keeps a load-time config rejection a rejection, not a synchronous throw
-export async function apply(ctx: Context, config: Config): Promise<void> {
-  // schemastery (Config) has already filled every defaulted field.
-  const resolved = config as ResolvedConfig
-  assertPositiveInteger('globMaxResults', resolved.globMaxResults)
-  assertPositiveInteger('grepMaxMatches', resolved.grepMaxMatches)
-  assertPositiveInteger('grepMaxLineBytes', resolved.grepMaxLineBytes)
-  assertPositiveInteger('searchMetaMaxBytes', resolved.searchMetaMaxBytes)
-  assertPositiveInteger('rawOutputMaxBytes', resolved.rawOutputMaxBytes)
-  assertPositiveInteger('graceMs', resolved.graceMs)
-  if (resolved.graceMs > MAX_TIMER_DELAY_MS) {
-    throw new Error(`tool-fs-search: graceMs must be no greater than ${MAX_TIMER_DELAY_MS}`)
-  }
-  assertPositiveInteger('stderrMaxBytes', resolved.stderrMaxBytes)
-  assertPositiveInteger('timeoutMs', resolved.timeoutMs)
+export function apply(ctx: Context, config: Config): void {
+  const resolved = resolveConfig(config)
   applyGlobTool(ctx, {
     sampleOverCapGlobResults: resolved.sampleOverCapGlobResults,
     maxResults: resolved.globMaxResults,
@@ -158,4 +145,37 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     stderrMaxBytes: resolved.stderrMaxBytes,
     timeoutMs: resolved.timeoutMs,
   })
+}
+
+function resolveConfig(config: Config): ResolvedConfig {
+  const globMaxResults = config.globMaxResults ?? GLOB_MAX_RESULTS
+  const grepMaxMatches = config.grepMaxMatches ?? GREP_MAX_MATCHES
+  const grepMaxLineBytes = config.grepMaxLineBytes ?? GREP_MAX_LINE_BYTES
+  const searchMetaMaxBytes = config.searchMetaMaxBytes ?? SEARCH_META_MAX_BYTES
+  const rawOutputMaxBytes = config.rawOutputMaxBytes ?? RAW_OUTPUT_MAX_BYTES
+  const graceMs = config.graceMs ?? SEARCH_GRACE_MS
+  const stderrMaxBytes = config.stderrMaxBytes ?? SEARCH_STDERR_MAX_BYTES
+  const timeoutMs = config.timeoutMs ?? SEARCH_TIMEOUT_MS
+  assertPositiveInteger('globMaxResults', globMaxResults)
+  assertPositiveInteger('grepMaxMatches', grepMaxMatches)
+  assertPositiveInteger('grepMaxLineBytes', grepMaxLineBytes)
+  assertPositiveInteger('searchMetaMaxBytes', searchMetaMaxBytes)
+  assertPositiveInteger('rawOutputMaxBytes', rawOutputMaxBytes)
+  assertPositiveInteger('graceMs', graceMs)
+  if (graceMs > MAX_TIMER_DELAY_MS) {
+    throw new Error(`tool-fs-search: graceMs must be no greater than ${MAX_TIMER_DELAY_MS}`)
+  }
+  assertPositiveInteger('stderrMaxBytes', stderrMaxBytes)
+  assertPositiveInteger('timeoutMs', timeoutMs)
+  return {
+    sampleOverCapGlobResults: config.sampleOverCapGlobResults,
+    globMaxResults,
+    grepMaxMatches,
+    grepMaxLineBytes,
+    searchMetaMaxBytes,
+    rawOutputMaxBytes,
+    graceMs,
+    stderrMaxBytes,
+    timeoutMs,
+  }
 }

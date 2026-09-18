@@ -81,7 +81,7 @@ Package-owned invariant registry with global and regex-based selection.
  * @param installer - listener or startup-check installer for the child context.
  * @returns an effect-scoped disposer for the registration.
  */
-register(packageName: string, installer: InvariantInstaller): () => void
+register(packageName: string, installer: InvariantInstaller): () => void | Promise<void>
 ```
 
 Source: [`packages/runtime-diagnostics/invariants/src/index.ts`](../../packages/runtime-diagnostics/invariants/src/index.ts)

@@ -77,7 +77,7 @@ declare module '@deepseek-ai/cordis' {
      * Observer failures are contained and cannot veto the registry mutation.
      * @mode emit
      */
-    'commands/change'(): void
+    'commands/change'(): void | Promise<void>
   }
 }
 

@@ -4,7 +4,7 @@ import { createScope } from '@deepseek-ai/dsh-scope'
 import type { Scope } from '@deepseek-ai/dsh-scope'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
-import CommandRuntime, { parseCommand, type CommandDefinition } from '@deepseek-ai/dsh-commands'
+import CommandRuntime, { parseCommand, type CommandDefinition, type CommandInvocation, type CommandResult } from '@deepseek-ai/dsh-commands'
 import { AttachmentStore } from '@deepseek-ai/dsh-attachment'
 
 function command(name: string, text = `ran:${name}`): CommandDefinition {
@@ -128,7 +128,7 @@ describe('CommandRuntime', () => {
 
   it('notifies on registration and disposal while containing broken observers', async () => {
     const ctx = await mount()
-    const changed = vi.fn()
+    const changed = vi.fn<() => void>()
     ctx.on('commands/change', changed)
     const dispose = ctx.commands.register(command('live'))
     dispose()
@@ -137,9 +137,8 @@ describe('CommandRuntime', () => {
 
     const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => undefined)
     ctx.on('commands/change', () => { throw new Error('observer threw') })
-    // oxlint-disable-next-line typescript/no-misused-promises -- exercises rejected-listener containment
-    ctx.on('commands/change', () => Promise.reject(new Error('observer rejected')))
-    const afterFailures = vi.fn()
+    ctx.on('commands/change', async () => { throw new Error('observer rejected') })
+    const afterFailures = vi.fn<() => void>()
     ctx.on('commands/change', afterFailures)
     const removeContained = ctx.commands.register(command('contained'))
     const { agent } = await mintAgentScope(ctx, 'a')
@@ -173,7 +172,7 @@ describe('CommandRuntime', () => {
   it('passes exact invocation context and detaches valid handler results', async () => {
     const ctx = await mount()
     const { agent } = await mintAgentScope(ctx, 'a')
-    const seen = vi.fn(() => ({ kind: 'success' as const, text: 'ok' }))
+    const seen = vi.fn<(invocation: CommandInvocation) => CommandResult>(() => ({ kind: 'success' as const, text: 'ok' }))
     ctx.commands.register({ name: 'run', description: 'Run it', handler: seen })
     const controller = new AbortController()
 
@@ -230,8 +229,7 @@ describe('CommandRuntime', () => {
     ctx.commands.register({
       name: 'reject-value',
       description: 'Reject a non-Error value',
-      // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- exercise untyped plugin normalization
-      handler: () => Promise.reject('not an Error'),
+      handler: async () => { throw 'not an Error' },
     })
     await expect(ctx.commands.execute(agent, '/reject-value', [], new AbortController().signal))
       .rejects.toThrow('command handler rejected with a non-Error value: not an Error')
@@ -240,8 +238,7 @@ describe('CommandRuntime', () => {
     ctx.commands.register({
       name: 'reject-hostile',
       description: 'Reject an unrenderable value',
-      // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- exercise hostile plugin normalization
-      handler: () => Promise.reject(hostile),
+      handler: async () => { throw hostile },
     })
     await expect(ctx.commands.execute(agent, '/reject-hostile', [], new AbortController().signal))
       .rejects.toMatchObject({
@@ -343,7 +340,7 @@ describe('CommandRuntime', () => {
   it('omits raw input from command/run when an authoritative domain event owns it', async () => {
     const ctx = await mount()
     const { agent } = await mintAgentScope(ctx, 'a')
-    const seen = vi.fn(() => ({ kind: 'success' as const }))
+    const seen = vi.fn<(invocation: CommandInvocation) => CommandResult>(() => ({ kind: 'success' as const }))
     ctx.commands.register({
       name: 'private',
       description: 'Record privately',
@@ -475,8 +472,15 @@ describe('image attachments', () => {
         maxImageBytes: 1024, maxImagesPerMessage: 2, maxMessageImageBytes: 1024,
         maxImagePixels: 1_000_000, maxImageDimension: 2000, mediaTypes: ['image/png'],
       },
-      validateImage: vi.fn(() => Promise.resolve()),
-      saveImage: vi.fn((input: { mediaType: string; name?: string }) => {
+      validateImage: vi.fn<() => Promise<void>>(() => Promise.resolve()),
+      saveImage: vi.fn<(input: { mediaType: string; name?: string }) => Promise<{
+        attachmentId: string
+        mediaType: string
+        bytes: number
+        width: number
+        height: number
+        name?: string
+      }>>((input) => {
         saved += 1
         return Promise.resolve({
           attachmentId: `att-${saved}`, mediaType: input.mediaType, bytes: 3, width: 1, height: 1,
@@ -527,7 +531,7 @@ describe('image attachments', () => {
   it('settles images sent to a non-declaring command as a logged error before the handler', async () => {
     const ctx = await mount()
     const { agent } = await mintAgentScope(ctx, 'a')
-    const handler = vi.fn(() => ({ kind: 'success' as const }))
+    const handler = vi.fn<(invocation: CommandInvocation) => CommandResult>(() => ({ kind: 'success' as const }))
     ctx.commands.register({ ...command('deploy'), handler })
     const execution = await ctx.commands.execute(
       agent, '/deploy now', [{ mediaType: 'image/png', data: PNG }], new AbortController().signal)
@@ -555,7 +559,7 @@ describe('image attachments', () => {
     const ctx = await mount()
     ctx.provide('attachments', storeOf())
     const { agent } = await mintAgentScope(ctx, 'a')
-    const seen = vi.fn((invocation: { attachments: readonly unknown[] }) => {
+    const seen = vi.fn<(invocation: CommandInvocation) => CommandResult>((invocation) => {
       expect(Object.isFrozen(invocation.attachments)).toBe(true)
       return { kind: 'success' as const }
     })
@@ -564,19 +568,22 @@ describe('image attachments', () => {
       { mediaType: 'image/png', data: PNG, name: 'a.png' },
       { mediaType: 'image/png', data: PNG, name: 'b.png' },
     ], new AbortController().signal)
-    const invocation = seen.mock.calls[0]?.[0] as { attachments: ReadonlyArray<{ type: string; attachment: { name?: string } }> }
-    expect(invocation.attachments.map(block => [block.type, block.attachment.name])).toEqual([
+    const firstCall = seen.mock.calls[0]
+    if (firstCall === undefined) throw new Error('expected handler invocation with attachments')
+    expect(firstCall[0].attachments.map(block => [block.type, block.attachment.name])).toEqual([
       ['image', 'a.png'], ['image', 'b.png'],
     ])
     await ctx.commands.execute(agent, '/vision y', [], new AbortController().signal)
-    expect((seen.mock.calls[1]?.[0] as { attachments: readonly unknown[] }).attachments).toEqual([])
+    const secondCall = seen.mock.calls[1]
+    if (secondCall === undefined) throw new Error('expected second handler invocation')
+    expect(secondCall[0].attachments).toEqual([])
   })
 
   it('settles an admission limit failure as a logged error result', async () => {
     const ctx = await mount()
     ctx.provide('attachments', storeOf())
     const { agent } = await mintAgentScope(ctx, 'a')
-    const handler = vi.fn(() => ({ kind: 'success' as const }))
+    const handler = vi.fn<(invocation: CommandInvocation) => CommandResult>(() => ({ kind: 'success' as const }))
     ctx.commands.register(accepting(handler))
     const three = [1, 2, 3].map(() => ({ mediaType: 'image/png' as const, data: PNG }))
     const execution = await ctx.commands.execute(agent, '/vision x', three, new AbortController().signal)
@@ -597,7 +604,7 @@ describe('image attachments', () => {
     })
     ctx.provide('attachments', store)
     const { agent } = await mintAgentScope(ctx, 'a')
-    const handler = vi.fn(() => ({ kind: 'success' as const }))
+    const handler = vi.fn<(invocation: CommandInvocation) => CommandResult>(() => ({ kind: 'success' as const }))
     ctx.commands.register(accepting(handler))
     await expect(ctx.commands.execute(
       agent, '/vision x', [{ mediaType: 'image/png', data: PNG }], controller.signal,

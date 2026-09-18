@@ -172,21 +172,23 @@ export async function evaluateClientHalf(
   const traps = closureTraps()
   const parameters = ['React', 'console', 'styles', 'host', 'harness', ...Object.keys(traps), 'process', 'Buffer']
   let closure: (...args: unknown[]) => Promise<unknown>
+  const source = `export default (${parameters.join(', ')}) => (async () => {\n${clientCode}\n})()`
+  const url = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }))
   try {
-    // The wrapper mirrors the host precheck exactly, so line offsets match.
-    // Evaluating a definition's browser half IS this package's product: the
-    // source arrived from a host process that accepted and prechecked it.
-    // oxlint-disable-next-line typescript/no-implied-eval -- see above
-    const factory = new Function(...parameters, `return (async () => {\n${clientCode}\n})()`)
-    closure = factory as (...args: unknown[]) => Promise<unknown>
+    const module: unknown = await import(url)
+    if (typeof module !== 'object' || module === null || !('default' in module) || typeof module.default !== 'function') {
+      throw new Error('client half module did not export a function')
+    }
+    const exported = module.default
+    closure = (...args: unknown[]): Promise<unknown> => Promise.resolve(Reflect.apply(exported, undefined, args))
   } catch (error) {
     if (!(error instanceof SyntaxError)) throw error
-    // Engine-divergence fallback: the host precheck already carried the
-    // line/caret teaching; browsers give only the message.
     throw new Error(
       `client half failed to parse in this browser: ${error.message}\n`
       + 'The browser half is plain JavaScript (no JSX, no TypeScript); build elements with React.createElement.',
     )
+  } finally {
+    URL.revokeObjectURL(url)
   }
   const host = {
     /**

@@ -78,15 +78,19 @@ export function boundedInsert(window: ListingCandidate[], candidate: ListingCand
   // oversized level costs O(1) per candidate past the head instead of a
   // window scan (100k children against a 1,001 window must not approach
   // 10^8 comparisons).
-  // oxlint-disable-next-line typescript/no-non-null-assertion -- a full window (length === keep >= 1) has a tail
-  if (window.length === keep && candidate.name.localeCompare(window[window.length - 1]!.name) >= 0) return true
+  if (window.length === keep) {
+    const tail = window.at(-1)
+    if (tail === undefined) throw new Error('bounded insert: full window has no tail')
+    if (candidate.name.localeCompare(tail.name) >= 0) return true
+  }
   // Binary insertion keeps a retained candidate at O(log keep) comparisons.
   let lo = 0
   let hi = window.length
   while (lo < hi) {
     const mid = (lo + hi) >>> 1
-    // oxlint-disable-next-line typescript/no-non-null-assertion -- bounded by the loop condition
-    if (candidate.name.localeCompare(window[mid]!.name) < 0) hi = mid
+    const midpoint = window[mid]
+    if (midpoint === undefined) throw new Error('bounded insert: midpoint is missing')
+    if (candidate.name.localeCompare(midpoint.name) < 0) hi = mid
     else lo = mid + 1
   }
   window.splice(lo, 0, candidate)

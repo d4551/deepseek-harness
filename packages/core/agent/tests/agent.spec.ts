@@ -164,7 +164,7 @@ describe('AgentRegistry', () => {
     expect(context?.identity(ctx)).toBeUndefined()
     expect(context?.resolve(agent.id)).toBe(agent.ctx)
 
-    disposeAgent()
+    await disposeAgent()
     expect(lookup?.resolve(agent.id)).toBeUndefined()
     await agentFiber.dispose()
     expect(ctx.typert.lookups.get('agent')).toBeUndefined()
@@ -185,7 +185,7 @@ describe('AgentRegistry', () => {
     expect(ctx.agents.roots()).toEqual([agent])
     expect(() => ctx.agents.register(stubAgent('a1'))).toThrow(/already registered/)
 
-    dispose()
+    await dispose()
     expect(ctx.agents.get(agent.id)).toBeUndefined()
     expect(lifecycle).toEqual(['created:a1', 'disposed:a1'])
   })
@@ -239,15 +239,15 @@ describe('AgentRegistry', () => {
     await ctx.plugin(AgentRegistry)
     const warnings: string[] = []
     const heard: string[] = []
-    ctx.logger.warn = ((message: unknown) => { warnings.push(String(message)) }) as typeof ctx.logger.warn
-    ctx.on('agent/created', () => Promise.reject(new Error('created async')) as never)
+    ctx.logger.warn = (message: unknown) => { warnings.push(String(message)) }
+    ctx.on('agent/created', async () => { throw new Error('created async') })
     ctx.on('agent/disposed', () => { throw new Error('disposed sync') })
-    ctx.on('agent/disposed', () => Promise.reject(new Error('disposed async')) as never)
+    ctx.on('agent/disposed', async () => { throw new Error('disposed async') })
     ctx.on('agent/disposed', ({ agent }) => { heard.push(agent.id) })
 
     const dispose = ctx.agents.register(stubAgent('contained'))
     await Promise.resolve()
-    dispose()
+    await dispose()
     await Promise.resolve()
 
     expect(heard).toEqual(['contained'])

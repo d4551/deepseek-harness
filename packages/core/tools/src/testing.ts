@@ -1,7 +1,6 @@
 /** Canonical tool-definition fixtures for repository tests. @module dsh-tools/testing */
 
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-import type { JsonValue } from '@deepseek-ai/dsh-session'
 import { defineTool } from './schema.ts'
 import type { DefineToolOptions, ParameterSchemaSpec } from './schema.ts'
 import type { ToolDefinition, ToolRunContext } from './index.ts'
@@ -27,17 +26,24 @@ export type ContentToolFixtureOptions<S extends ParameterSchemaSpec> = Omit<
 export function defineContentToolFixture<const S extends ParameterSchemaSpec>(
   options: ContentToolFixtureOptions<S>,
 ): ToolDefinition {
-  // Object-literal methods do not use `this`; retaining the reference is safe.
-  // oxlint-disable-next-line typescript/unbound-method
-  const execute = options.execute
   return defineTool({
     ...options,
     output: {
       schema: CONTENT_VALUE_SCHEMA,
-      render: (_args, value) => value as unknown as ContentBlock[],
+      render: (_args, value) => {
+        if (!Array.isArray(value)) throw new Error('content tool fixture: output is not an array')
+        const blocks: ContentBlock[] = []
+        for (const item of value) {
+          if (item === null || typeof item !== 'object' || !('type' in item) || typeof item.type !== 'string') {
+            throw new Error('content tool fixture: output item is not a content block')
+          }
+          blocks.push(item)
+        }
+        return blocks
+      },
     },
     async execute(args, exec) {
-      return await execute(args, exec) as unknown as JsonValue[]
+      return await options.execute(args, exec)
     },
   })
 }

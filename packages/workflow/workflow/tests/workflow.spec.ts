@@ -73,8 +73,6 @@ describe('dsh-workflow (interface)', () => {
     await ctx.plugin(StubEngine)
     const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => ctx.logger)
     const seen: string[] = []
-    // Runtime listeners may return thenables even though the declaration's observable result is void.
-    // oxlint-disable-next-line typescript/no-misused-promises -- exercises rejected-listener containment
     ctx.on('workflow/agent-start', async () => { throw new Error('async observer failed') })
     ctx.on('workflow/agent-start', (_info, agent) => { seen.push(agent.label) })
     const engine = ctx.workflowEngine as StubEngine

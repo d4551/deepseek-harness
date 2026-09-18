@@ -318,14 +318,14 @@ describe('registration and schemas', () => {
       expect(() => { ToolSessionQuery.apply(mounted.ctx, { searchTimeoutMs }) })
         .toThrow(`no greater than ${MAX_TIMER_DELAY_MS}`)
     }
-    expect(() => { ToolSessionQuery.apply(new Context(), {}) }).toThrow()
+    expect(() => { ToolSessionQuery.apply(new Context(), {}) }).toThrow('inject')
   })
 
   it('expresses the complete Node timer range in the Loader config schema', () => {
     expect(new ToolSessionQuery.Config({ searchTimeoutMs: MAX_TIMER_DELAY_MS }))
       .toEqual({ maxSearchResults: 100, searchTimeoutMs: MAX_TIMER_DELAY_MS })
-    expect(() => new ToolSessionQuery.Config({ searchTimeoutMs: 1.5 })).toThrow()
-    expect(() => new ToolSessionQuery.Config({ searchTimeoutMs: MAX_TIMER_DELAY_MS + 1 })).toThrow()
+    expect(() => new ToolSessionQuery.Config({ searchTimeoutMs: 1.5 })).toThrow('searchTimeoutMs')
+    expect(() => new ToolSessionQuery.Config({ searchTimeoutMs: MAX_TIMER_DELAY_MS + 1 })).toThrow('searchTimeoutMs')
   })
 })
 
@@ -1444,8 +1444,7 @@ describe('search paging, prior-history bounds, titles, and cancellation', () => 
     },
   ])('fails generic when inspecting $name is unsafe', async ({ secrets, diagnostic, failure }) => {
     const mounted = await mount()
-    // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- hostile unknown rejection is the scenario
-    FakeQuery.sessionSearch = () => Promise.reject(failure())
+    FakeQuery.sessionSearch = async () => { throw failure() }
     const warn = vi.spyOn(mounted.ctx.logger, 'warn').mockImplementation(() => undefined)
 
     const result = await mounted.call('session_search', { query: 'needle' })
@@ -1968,10 +1967,11 @@ describe('trace and exact read rendering', () => {
         message: createMessage({
           role: 'assistant',
           content: [{ type: 'text', text: 'replacement' }],
-          source: {
+          source: ({
             kind: 'model',
-            ...{ provider: 'test', model: 'test' },
-          },
+            provider: 'test',
+            model: 'test',
+          }),
         }),
       },
       { surfaceOp: { op: 'replace', start: 0, end: 0 }, sourceEventSeqs: [0] },
@@ -2001,10 +2001,11 @@ describe('trace and exact read rendering', () => {
         message: createMessage({
           role: 'assistant',
           content: [{ type: 'text', text: 'target full text' }],
-          source: {
+          source: ({
             kind: 'model',
-            ...{ provider: 'test', model: 'test' },
-          },
+            provider: 'test',
+            model: 'test',
+          }),
         }),
       },
       { surfaceOp: 'append' },

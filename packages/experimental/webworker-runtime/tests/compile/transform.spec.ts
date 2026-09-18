@@ -18,6 +18,7 @@
  */
 import { expect, test } from 'vitest'
 import { parse } from 'acorn'
+import { compileFunction } from 'node:vm'
 import { lowerModuleSource } from '../../src/compile/transform.ts'
 import { LOWERING_VERSION, MODULE_PARAMS } from '../../src/image-layout.ts'
 
@@ -33,17 +34,17 @@ const transformModule = (source: string, path = 'probe.js'): string =>
 /** Register one comparison as its own case, serialized at call time. */
 const check = (label: string, actual: unknown, expected: unknown): void => {
   const [seen, wanted] = [JSON.stringify(actual), JSON.stringify(expected)]
-  test(label, () => { expect(seen).toBe(wanted) })
+  test(`transform check: ${label}`, () => { expect(seen).toBe(wanted) })
 }
 
 /** Assert a substring is present in an emitted body. */
 const contains = (label: string, code: string, needle: string): void => {
-  test(label, () => { expect(code).toContain(needle) })
+  test(`transform contains: ${label}`, () => { expect(code).toContain(needle) })
 }
 
 /** Assert a substring is absent (used for "must survive untouched" cases). */
 const lacks = (label: string, code: string, needle: string): void => {
-  test(label, () => { expect(code).not.toContain(needle) })
+  test(`transform lacks: ${label}`, () => { expect(code).not.toContain(needle) })
 }
 
 /** @returns The error message of a refused transform, or undefined when it succeeded. */
@@ -59,7 +60,7 @@ const refusal = (source: string, path = 'probe.js'): string | undefined => {
 /** Assert the transform refuses a source and names the reason. */
 const refuses = (label: string, source: string, fragment: string): void => {
   const message = refusal(source)
-  test(label, () => { expect(message).toContain(fragment) })
+  test(`transform refuses: ${label}`, () => { expect(message).toContain(fragment) })
 }
 
 /**
@@ -78,15 +79,14 @@ function runBody(
 ): Record<string, unknown> {
   const exports: Record<string, unknown> = {}
   const module = { exports }
-  // eslint-disable-next-line @typescript-eslint/no-implied-eval -- the wrapper contract under test is a `new Function` body
-  const factory = new Function(...MODULE_PARAMS, code) as (...args: unknown[]) => void
-  factory(exports, require, module, '/vfs/probe.js', '/vfs', { url: 'file:///vfs/probe.js' }, als)
+  const factory = compileFunction(code, [...MODULE_PARAMS])
+  Reflect.apply(factory, undefined, [exports, require, module, '/vfs/probe.js', '/vfs', { url: 'file:///vfs/probe.js' }, als])
   return exports
 }
 
 /** Every emitted body must parse as a script — the transform's own exit gate, re-checked here. */
 const parsesAsScript = (label: string, code: string): void => {
-  test(label, () => {
+  test(`transform parses: ${label}`, () => {
     expect(() => parse(code, { ecmaVersion: 'latest', sourceType: 'script', allowAwaitOutsideFunction: false })).not.toThrow()
   })
 }
@@ -105,8 +105,7 @@ check(
   'every wrapper parameter is a usable identifier',
   (() => {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-implied-eval -- proves the parameter names compile where the loader uses them
-      new Function(...MODULE_PARAMS, 'return 0')
+      compileFunction('return 0', [...MODULE_PARAMS])
       return true
     } catch {
       return false

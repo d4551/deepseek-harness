@@ -189,6 +189,9 @@ export class LocalPtySession implements TerminalBackendSession {
   private initializing = false
   private lastOutputAt = Date.now()
   private closing = false
+  private isClosing(): boolean {
+    return this.closing
+  }
   private closePromise: Promise<void> | undefined
   private transportFailure: Error | undefined
   private emulatorWrites = Promise.resolve()
@@ -328,9 +331,7 @@ export class LocalPtySession implements TerminalBackendSession {
         this.releaseSettledActive()
         return
       }
-      // Closing can race the awaited provider write even though static analysis sees only local assignments.
-      // oxlint-disable-next-line typescript/no-unnecessary-condition -- awaited provider writes can close the session.
-      if (this.active === operation && !this.closing) {
+      if (this.active === operation && !this.isClosing()) {
         this.pollingReady = operation
         this.schedulePoll(operation)
       }
@@ -516,9 +517,8 @@ export class LocalPtySession implements TerminalBackendSession {
     } finally {
       this.polling = false
       const active = this.active
-      // Awaited provider inspection can clear or replace the active send despite static analysis.
-      // oxlint-disable-next-line typescript/no-unnecessary-condition -- awaited inspection can replace the active send.
-      if (active !== undefined && this.pollingReady === active) this.schedulePoll(active)
+      const ready = this.pollingReady
+      if (ready !== undefined && active === ready) this.schedulePoll(ready)
     }
   }
 

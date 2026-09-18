@@ -25,12 +25,12 @@ function port(answer: () => Promise<readonly CordisInventoryRow[]>): { port: Cor
 describe('reading the registry', () => {
   it('starts unread, then publishes the rows', async () => {
     const seam = port(() => Promise.resolve([ROW]))
-    const inventory = createCordisInventory(seam.port, vi.fn())
+    const inventory = createCordisInventory(seam.port, vi.fn<(error: unknown) => void>())
     // Unread is not empty: the panel must not claim "nothing defined" before a
     // read settles.
     expect(inventory.getSnapshot()).toEqual({ rows: [], removed: new Set(), read: false })
 
-    const seen = vi.fn()
+    const seen = vi.fn<() => void>()
     const off = inventory.subscribe(seen)
     inventory.refresh()
     await vi.waitFor(() => { expect(inventory.getSnapshot().read).toBe(true) })
@@ -47,7 +47,7 @@ describe('reading the registry', () => {
   it('is single-flight: concurrent triggers read once', async () => {
     let release: ((rows: readonly CordisInventoryRow[]) => void) | undefined
     const seam = port(() => new Promise((resolve) => { release = resolve }))
-    const inventory = createCordisInventory(seam.port, vi.fn())
+    const inventory = createCordisInventory(seam.port, vi.fn<(error: unknown) => void>())
     inventory.refresh()
     inventory.refresh()
     inventory.refresh()
@@ -62,7 +62,7 @@ describe('reading the registry', () => {
   it('keeps the rows it had when a read fails, and says why', async () => {
     let fail = false
     const seam = port(() => (fail ? Promise.reject(new Error('socket closed')) : Promise.resolve([ROW])))
-    const onError = vi.fn()
+    const onError = vi.fn<(error: unknown) => void>()
     const inventory = createCordisInventory(seam.port, onError)
     inventory.refresh()
     await vi.waitFor(() => { expect(inventory.getSnapshot().read).toBe(true) })
@@ -79,9 +79,8 @@ describe('reading the registry', () => {
   })
 
   it('reports a non-Error rejection without inventing a message', async () => {
-    // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- the non-Error rejection is the scenario.
-    const seam = port(() => Promise.reject('nope'))
-    const inventory = createCordisInventory(seam.port, vi.fn())
+    const seam = port(async () => { throw 'nope' })
+    const inventory = createCordisInventory(seam.port, vi.fn<(error: unknown) => void>())
     inventory.refresh()
     await vi.waitFor(() => { expect(inventory.getSnapshot().error).toBeDefined() })
     expect(inventory.getSnapshot().error).toBe('reading the cordis inventory failed')
@@ -89,7 +88,7 @@ describe('reading the registry', () => {
 
   it('forgets everything on reset, because the next host may be a new process', async () => {
     const seam = port(() => Promise.resolve([ROW]))
-    const inventory = createCordisInventory(seam.port, vi.fn())
+    const inventory = createCordisInventory(seam.port, vi.fn<(error: unknown) => void>())
     inventory.refresh()
     await vi.waitFor(() => { expect(inventory.getSnapshot().read).toBe(true) })
     inventory.reset()
@@ -102,7 +101,7 @@ describe('a reconnect while a read is in flight', () => {
     // Each read gets its own resolver, so the test can settle the stale one only.
     const releases: ((rows: readonly CordisInventoryRow[]) => void)[] = []
     const seam = port(() => new Promise((resolve) => { releases.push(resolve) }))
-    const inventory = createCordisInventory(seam.port, vi.fn())
+    const inventory = createCordisInventory(seam.port, vi.fn<(error: unknown) => void>())
     inventory.refresh()
     expect(seam.reads()).toBe(1)
 
@@ -127,7 +126,7 @@ describe('a reconnect while a read is in flight', () => {
   it('swallows a stale read’s failure too, rather than blaming the new connection', async () => {
     const rejects: ((reason: unknown) => void)[] = []
     const seam = port(() => new Promise((_resolve, reject) => { rejects.push(reject) }))
-    const onError = vi.fn()
+    const onError = vi.fn<(error: unknown) => void>()
     const inventory = createCordisInventory(seam.port, onError)
     inventory.refresh()
     inventory.reset()
@@ -151,7 +150,7 @@ describe('rows that leave the registry', () => {
   it('remembers a row that vanished between two reads, so its historical cards keep their identity', async () => {
     let answer: readonly CordisInventoryRow[] = [live('dyn-1'), live('dyn-2')]
     const seam = port(() => Promise.resolve(answer))
-    const inventory = createCordisInventory(seam.port, vi.fn())
+    const inventory = createCordisInventory(seam.port, vi.fn<(error: unknown) => void>())
     inventory.refresh()
     await vi.waitFor(() => { expect(inventory.getSnapshot().read).toBe(true) })
 
@@ -163,11 +162,11 @@ describe('rows that leave the registry', () => {
 
   it('retires a row at once on an explicit remove, ahead of the next read', async () => {
     const seam = port(() => Promise.resolve([live('dyn-1'), live('dyn-2')]))
-    const inventory = createCordisInventory(seam.port, vi.fn())
+    const inventory = createCordisInventory(seam.port, vi.fn<(error: unknown) => void>())
     inventory.refresh()
     await vi.waitFor(() => { expect(inventory.getSnapshot().read).toBe(true) })
 
-    const seen = vi.fn()
+    const seen = vi.fn<() => void>()
     inventory.subscribe(seen)
     inventory.retire('dyn-1' as CordisInventoryRow['pluginId'])
     expect(seen).toHaveBeenCalledTimes(1)

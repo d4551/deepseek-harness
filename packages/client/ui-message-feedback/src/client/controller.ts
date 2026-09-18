@@ -110,6 +110,10 @@ export class MessageFeedbackController implements HostObservable<MessageFeedback
   private operationTail: Promise<void> = Promise.resolve()
   private disposed = false
 
+  private isDisposed(): boolean {
+    return this.disposed
+  }
+
   /**
    * @param remote - the messageFeedback Remote namespace.
    * @param sessionId - Session owning every addressed assistant message.
@@ -326,10 +330,7 @@ export class MessageFeedbackController implements HostObservable<MessageFeedback
       if (options.seed !== false) {
         const loaded = await this.ensure()
         if (!loaded.ok) return loaded
-        // Disposal can land while the seeding read is in flight; without this
-        // second check the fiber would still reach the wire after unloading.
-        // oxlint-disable-next-line typescript/no-unnecessary-condition -- dispose() can run during the await.
-        if (this.disposed) return DISPOSED
+        if (this.isDisposed()) return DISPOSED
       }
       try {
         return await operation()

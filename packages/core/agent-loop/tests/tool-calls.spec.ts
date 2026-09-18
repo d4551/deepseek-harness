@@ -263,8 +263,8 @@ describe('tool-call scheduler: model-order results despite out-of-order settleme
 
 describe('tool-call scheduler: rolling pool honors maxParallelToolCalls', () => {
   it('rejects invalid global maxParallelToolCalls config at plugin load', async () => {
-    await expect(harness(new MockAdapter([]), 0)).rejects.toThrow()
-    await expect(harness(new MockAdapter([]), 1.5)).rejects.toThrow()
+    await expect(harness(new MockAdapter([]), 0)).rejects.toThrow('maxParallelToolCalls')
+    await expect(harness(new MockAdapter([]), 1.5)).rejects.toThrow('maxParallelToolCalls')
   })
 
   it('defensively rejects invalid caps when direct construction bypasses the config schema', () => {
@@ -694,7 +694,7 @@ describe('PTC mode native-tool denial through the agent loop', () => {
   /** A minimal in-process code runtime for test purposes — never actually runs. */
   class FakeCodeRuntime extends CodeRuntime {
     readonly language = 'typescript'
-    readonly isolation = 'fake' as const
+    readonly isolation = 'in-process' as const
     async run(_request: CodeRunRequest): Promise<CodeRunResult> {
       return { logs: [] }
     }
@@ -706,8 +706,7 @@ describe('PTC mode native-tool denial through the agent loop', () => {
     await ctx.plugin(SessionStore)
     await ctx.plugin(SystemPrompt, { persona: '' })
     await ctx.plugin(ToolRuntime, { mode: 'ptc' })
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- FakeCodeRuntime is an internal test helper with an opaque type shape
-    await ctx.plugin(FakeCodeRuntime as any)
+    await ctx.plugin(FakeCodeRuntime)
     await ctx.plugin(AgentRegistry)
     await ctx.plugin(AgentLoop, { agents: [] })
     ctx.llm.registerAdapter(['mock'], adapter)

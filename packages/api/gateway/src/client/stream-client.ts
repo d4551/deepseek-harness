@@ -75,6 +75,7 @@ export class RemoteStreamMuxClient {
    * @param endpoint - Typert Remote stream endpoint.
    * @param payload - endpoint request encoded on the wire.
    * @param signal - cancellation for this logical stream.
+   * @yields Host items until completion, cancellation, or failure.
    * @returns Host items until completion, cancellation, or failure.
    */
   async *open(
@@ -130,7 +131,7 @@ export class RemoteStreamMuxClient {
       this.running = false
       const error = new Error('api gateway: Remote stream client disposed')
       this.failAll(error)
-      for (const waiter of [...this.waiters]) waiter.reject(error)
+      for (const waiter of Array.from(this.waiters)) waiter.reject(error)
       this.keepAliveAbort?.abort(error)
       this.keepAliveAbort = undefined
     }
@@ -156,7 +157,7 @@ export class RemoteStreamMuxClient {
       const opened = (): void => {
         didOpen = true
         this.socket = socket
-        for (const waiter of [...this.waiters]) waiter.resolve(socket)
+        for (const waiter of Array.from(this.waiters)) waiter.resolve(socket)
       }
       const failed = (): void => {
         finish(new RemoteStreamCarrierError(didOpen
@@ -205,9 +206,7 @@ export class RemoteStreamMuxClient {
         },
         reject: (error) => {
           cleanup()
-          // AbortSignal.reason belongs to the caller and may intentionally be a non-Error sentinel.
-          // oxlint-disable-next-line typescript/prefer-promise-reject-errors
-          reject(error)
+          reject(error instanceof Error ? error : new Error(String(error), { cause: error }))
         },
       }
       this.waiters.add(waiter)

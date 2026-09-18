@@ -49,16 +49,36 @@ interface Overlay<T> {
   readonly store: T | undefined
 }
 
+function isNativePromiseThen(value: unknown): value is typeof Promise.prototype.then {
+  return typeof value === 'function'
+}
+
+/**
+ * Read `Promise.prototype.then` from its own property descriptor so ALS
+ * bookkeeping can call the pristine method after the hook layer patches it.
+ * @returns the native `then` implementation present at capture time.
+ */
+export function captureNativePromiseThen(): typeof Promise.prototype.then {
+  const descriptor = Object.getOwnPropertyDescriptor(Promise.prototype, 'then')
+  if (descriptor === undefined) {
+    throw new Error('Promise.prototype.then is missing')
+  }
+  const record: object = descriptor
+  if (!('value' in record) || !isNativePromiseThen(record.value)) {
+    throw new Error('Promise.prototype.then is missing')
+  }
+  return record.value
+}
+
 /** Pristine `then`, so this module's own bookkeeping never re-enters the hook layer. */
-// oxlint-disable-next-line typescript/unbound-method -- capturing it unbound is the point; `nativeThen.call` names the promise.
-const nativeThen = Promise.prototype.then
+const nativeThen = captureNativePromiseThen()
 
 /** Every live instance, so one snapshot can capture all of their stores at once. */
 const instances = new Set<AsyncLocalStorage<unknown>>()
 
 function isThenable(value: unknown): value is PromiseLike<unknown> {
   if (value === null || (typeof value !== 'object' && typeof value !== 'function')) return false
-  return typeof (value as { then?: unknown }).then === 'function'
+  return 'then' in value && typeof value.then === 'function'
 }
 
 /** Node's AsyncLocalStorage face, restricted to the members the host tree uses. */

@@ -13,7 +13,7 @@ function header(id: string): SessionHeader {
 
 function preparedSource(
   meta: SessionHeader,
-  dispose = vi.fn(),
+  dispose = vi.fn<() => void>(),
 ): BorrowedSessionSource {
   const preparedSession = Session.create(meta.id, [], meta)
   return {
@@ -30,7 +30,7 @@ describe('SessionObservationReader', () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)
     const meta = header('attached-during-borrow')
-    const dispose = vi.fn()
+    const dispose = vi.fn<() => void>()
     const prepared = preparedSource(meta, dispose)
     ctx.provide('sessionPersistence', {
       borrowSession: () => {
@@ -51,7 +51,7 @@ describe('SessionObservationReader', () => {
     await ctx.plugin(SessionStore)
     await ctx.plugin(SessionProjectionRegistry)
     const meta = header('attached-projection-failure')
-    const dispose = vi.fn()
+    const dispose = vi.fn<() => void>()
     const prepared = preparedSource(meta, dispose)
     ctx.provide('sessionPersistence', {
       borrowSession: () => {
@@ -72,9 +72,9 @@ describe('SessionObservationReader', () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)
     const meta = header('detached-live-source')
-    const disposeLive = vi.fn()
+    const disposeLive = vi.fn<() => void>()
     const prepared = preparedSource(meta)
-    const borrowSession = vi.fn()
+    const borrowSession = vi.fn<() => Promise<BorrowedSessionSource>>()
       .mockResolvedValueOnce({
         source: 'live', inspection: { meta, events: [] }, [Symbol.dispose]: disposeLive,
       } satisfies BorrowedSessionSource)
@@ -93,7 +93,7 @@ describe('SessionObservationReader', () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)
     const meta = header('prepared-leases')
-    const dispose = vi.fn()
+    const dispose = vi.fn<() => void>()
     ctx.provide('sessionPersistence', {
       borrowSession: () => Promise.resolve(preparedSource(meta, dispose)),
     } as never)
@@ -129,7 +129,7 @@ describe('SessionObservationReader', () => {
     await ctx.plugin(SessionStore)
     ctx.provide('sessionPersistence', {
       // Exercise containment of a backend that violates the Error rejection convention.
-      borrowSession: () => Promise.reject('offline'), // oxlint-disable-line typescript/prefer-promise-reject-errors
+      borrowSession: async () => { throw 'offline' },
     } as never)
 
     await expect(new SessionObservationReader(ctx).read(SessionId('failed'))).rejects.toMatchObject({

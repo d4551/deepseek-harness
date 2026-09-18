@@ -837,7 +837,7 @@ A provider left the registry. Accepted runs remain holder-owned.
  * @param name - the provider name that no longer resolves.
  * @mode emit
  */
-'subagent/provider-removed'(name: string): void
+'subagent/provider-removed'(name: string): void | Promise<void>
 ```
 
 Source: [`packages/subagent/subagent/src/index.ts`](../../packages/subagent/subagent/src/index.ts)

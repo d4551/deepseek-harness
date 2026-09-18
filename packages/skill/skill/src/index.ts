@@ -302,7 +302,7 @@ declare module '@deepseek-ai/cordis' {
      * contained and cannot veto the registry mutation.
      * @mode emit
      */
-    'skills/change'(): void
+    'skills/change'(): void | Promise<void>
   }
 }
 
@@ -396,7 +396,7 @@ export class SkillRegistry extends Service {
    * @returns the exact Cordis effect disposer that unregisters this provider;
    *   composite effects may yield it directly to preserve teardown ordering.
    */
-  registerProvider(create: (control: SkillProviderControl) => SkillProvider): () => void {
+  registerProvider(create: (control: SkillProviderControl) => SkillProvider): () => void | Promise<void> {
     const lifecycle = new AbortController()
     let registration: { layer: SkillLayer; name: string } | undefined
     let provider: SkillProvider
@@ -439,19 +439,17 @@ export class SkillRegistry extends Service {
   /**
    * Register a borrowed readonly runtime skill into the calling context's
    * layer. Project entries outrank runtime entries, which outrank user
-   * entries, within one layer. Same-name runtime entries in one layer are
-   * first-wins; a duplicate logs a warning and receives a no-op disposer so
-   * it cannot remove the winner.
+   * entries, within one layer. Same-name runtime entries in one layer throw
+   * so a duplicate cannot dispose or replace the winner.
    * @param skill - the skill definition input; omitted invocation and provider fields receive defaults.
    * @returns the exact Cordis effect disposer, preserving composite teardown order and invalidating caches.
    */
-  register(skill: SkillRegistration): () => void {
+  register(skill: SkillRegistration): () => void | Promise<void> {
     validateRuntimeSkill(skill)
     const scope = scopeOf(this.ctx)
     const existingLayer = scope === undefined ? this.layers.global : this.layers.peek(scope)
     if (existingLayer !== undefined && existingLayer.runtime.has(skill.name)) {
-      this.ctx.logger.warn(`runtime skill "${skill.name}" ignored because it is already registered`)
-      return () => {}
+      throw new Error(`runtime skill "${skill.name}" is already registered`)
     }
     const definition: SkillDefinition = {
       ...skill,
@@ -605,7 +603,7 @@ export class SkillRegistry extends Service {
       })
       runtimeOrder += 1
     }
-    for (const { provider, order } of [...layer.providers.values()]) {
+    for (const { provider, order } of layer.providers.values()) {
       let localOrder = 0
       let output: unknown
       try {

@@ -133,7 +133,7 @@ export class InvariantRegistry extends Service {
    * @param installer - listener or startup-check installer for the child context.
    * @returns an effect-scoped disposer for the registration.
    */
-  register(packageName: string, installer: InvariantInstaller): () => void {
+  register(packageName: string, installer: InvariantInstaller): () => void | Promise<void> {
     if (packageName.length === 0 || packageName.trim() !== packageName || /\s/.test(packageName)) {
       throw new Error('invariants: packageName must be non-blank and contain no whitespace')
     }
@@ -190,9 +190,6 @@ export class InvariantRegistry extends Service {
       registrations.delete(packageName)
       throw error
     }
-    // Cordis attaches setup thenability and async teardown to this callable;
-    // the service contract intentionally exposes only the conventional disposer.
-    // oxlint-disable-next-line typescript/no-misused-promises -- the extra runtime shape stays private.
     return registration
   }
 }

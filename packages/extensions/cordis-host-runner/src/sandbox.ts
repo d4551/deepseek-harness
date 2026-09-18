@@ -11,7 +11,7 @@
  * @module @deepseek-ai/dsh-cordis-host-runner/sandbox
  */
 
-import { createContext, runInContext, Script } from 'node:vm'
+import { compileFunction, createContext, runInContext, Script } from 'node:vm'
 import { sandboxDefineTool, sandboxRegisterTool } from './guard.ts'
 
 /** Exact Host closure symbols exposed by the sandbox and guarded Context. */
@@ -212,9 +212,7 @@ export function parseErrorMessage(half: 'code.host' | 'code.client', context: st
 export function precheckCode(code: string, half: 'code.host' | 'code.client'): void {
   const wrapped = `(async () => {\n${code}\n})()`
   try {
-    // Compile-only: constructing the function parses the source and runs nothing.
-    // oxlint-disable-next-line typescript/no-implied-eval -- parse gate over model-written code; nothing is invoked
-    new Function(wrapped)
+    compileFunction(wrapped)
   } catch (error) {
     if (!isSyntaxError(error)) throw error
     throw new Error(parseErrorMessage(half, prettyParseContext(wrapped, half, error)))

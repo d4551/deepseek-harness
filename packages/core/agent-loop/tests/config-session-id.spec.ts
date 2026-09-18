@@ -225,7 +225,7 @@ describe('config-driven session id', () => {
     const asyncListenerFailure = new Error('async failure observer failed')
     const failures: { sessionId: SessionId; error: unknown }[] = []
     ctx.on('agent-loop/config-start-failed', () => { throw listenerFailure })
-    ctx.on('agent-loop/config-start-failed', () => Promise.reject(asyncListenerFailure) as never)
+    ctx.on('agent-loop/config-start-failed', async () => { throw asyncListenerFailure })
     ctx.on('agent-loop/config-start-failed', ({ sessionId, error }) => {
       failures.push({ sessionId, error })
     })
@@ -263,9 +263,7 @@ describe('config-driven session id', () => {
     }
     const failures: unknown[] = []
     ctx.on('agent-loop/config-start-failed', () => { throw unrenderable })
-    // Deliberately violate the normal Error-only rejection rule to exercise the unknown boundary.
-    // oxlint-disable-next-line typescript/prefer-promise-reject-errors
-    ctx.on('agent-loop/config-start-failed', () => Promise.reject(unrenderable) as never)
+    ctx.on('agent-loop/config-start-failed', async () => { throw unrenderable })
     ctx.on('agent-loop/config-start-failed', ({ error }) => { failures.push(error) })
     vi.spyOn(ctx.sessionPersistence, 'list').mockRejectedValue(unrenderable)
     const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => undefined)
@@ -296,7 +294,7 @@ describe('config-driven session id', () => {
       await ctx.plugin(JsonlSessionPersistence, { root })
       const preparing = Promise.withResolvers<SessionPreparation>()
       vi.spyOn(ctx.sessionPersistence, 'prepare').mockReturnValue(preparing.promise)
-      const released = vi.fn()
+      const released = vi.fn<() => void>()
       const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => undefined)
       const failures: unknown[] = []
       ctx.on('agent-loop/config-start-failed', ({ error }) => { failures.push(error) })
@@ -314,7 +312,7 @@ describe('config-driven session id', () => {
         preparing.reject(new Error('startup cancelled by teardown'))
       }
       await Promise.resolve()
-      if (outcome === 'resolve') await expect.poll(() => released).toHaveBeenCalledOnce()
+      await expect.poll(() => released.mock.calls.length).toBe(outcome === 'resolve' ? 1 : 0)
       expect(ctx.agents.get(SessionId('config-exact-dispose'))).toBeUndefined()
       expect(failures).toEqual([])
       expect(warn).not.toHaveBeenCalled()

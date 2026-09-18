@@ -201,9 +201,12 @@ export class EventsService {
    * @param args — optional `this`, the event name, then listener arguments.
    * @returns the first bail value (see {@link isBailed}), if any.
    */
-  async serial(...args: any[]) {
-    for (const cb of this.dispatch('serial', args)) {
-      const result = await cb(...args)
+  async serial<K extends keyof Events>(name: K, ...args: Parameters<Events[K]>): Promisify<ReturnType<Events[K]>>
+  async serial<K extends keyof Events>(thisArg: NoInfer<ThisType<Events[K]>>, name: K, ...args: Parameters<Events[K]>): Promisify<ReturnType<Events[K]>>
+  async serial(...args: unknown[]) {
+    const forwarded = [...args]
+    for (const cb of this.dispatch('serial', forwarded)) {
+      const result: unknown = await cb(...forwarded)
       if (isBailed(result)) return result
     }
   }
@@ -231,14 +234,17 @@ export class EventsService {
    * @param args — optional `this`, the event name, listener arguments, then `next`.
    * @returns the outermost listener's return value.
    */
-  waterfall(...args: any[]) {
-    const cbs = this.dispatch('waterfall', args)
-    const inner = args.pop()
+  waterfall<K extends keyof Events>(name: K, ...args: Parameters<Events[K]>): ReturnType<Events[K]>
+  waterfall<K extends keyof Events>(thisArg: NoInfer<ThisType<Events[K]>>, name: K, ...args: Parameters<Events[K]>): ReturnType<Events[K]>
+  waterfall(...args: unknown[]) {
+    const forwarded = [...args]
+    const cbs = this.dispatch('waterfall', forwarded)
+    const inner = forwarded.pop()
     const next = () => {
       const cb = cbs.shift() ?? inner
-      return cb(...args)
+      return cb(...forwarded)
     }
-    args.push(next)
+    forwarded.push(next)
     return next()
   }
 
@@ -328,7 +334,7 @@ export class EventsService {
  */
 export interface Events {
   /** A plugin fiber was created or its uid was cleared on disposal. */
-  'internal/plugin'(fiber: Fiber): void
+  'internal/plugin'(fiber: Fiber): void | Promise<void>
   /** A fiber changed lifecycle state; receives the fiber and its previous state. */
   'internal/status'(fiber: Fiber, oldValue: FiberState): void
   /**

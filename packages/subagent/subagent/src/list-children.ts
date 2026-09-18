@@ -253,9 +253,8 @@ function descendantCandidates(
     .reverse()
   const visited = new Set<SessionId>([rootSessionId])
   while (stack.length > 0) {
-    // The length guard proves one frame exists.
-    // oxlint-disable-next-line typescript/no-non-null-assertion
-    const position = stack.pop()!
+    const position = stack.pop()
+    if (position === undefined) throw new Error('list-children: empty stack')
     const id = position.record.header.id
     if (visited.has(id)) continue
     visited.add(id)
@@ -315,9 +314,7 @@ async function resolveColdIdentity(
   assertListingNotCancelled(signal)
   let observation: SessionObservation
   try {
-    observation = await query.observeSession(childId, {
-      ...(signal === undefined ? {} : { signal }),
-    })
+    observation = await query.observeSession(childId, (signal === undefined ? {} : { signal }))
   } catch (error: unknown) {
     // Per-child isolation: durable corruption is stable; absence and backend
     // failures remain retryable. Either way, the listing itself still succeeds.

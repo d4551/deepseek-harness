@@ -227,7 +227,7 @@ export class ScopedLayers<L extends ScopeLayer> {
     ctx: Context,
     action: (layer: L) => () => void,
     options: { label: string; notify?: boolean },
-  ): () => void {
+  ): () => void | Promise<void> {
     const scope = scopeOf(ctx)
     const notify = options.notify ?? true
     const dispose = ctx.effect(function* (this: ScopedLayers<L>) {
@@ -261,7 +261,6 @@ export class ScopedLayers<L extends ScopeLayer> {
       }
       if (notify) this.onChange()
     }.bind(this), options.label)
-    // oxlint-disable-next-line typescript/no-misused-promises -- exact synchronous disposer preserves Cordis effect identity
     return dispose
   }
 }

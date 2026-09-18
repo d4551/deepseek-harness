@@ -151,7 +151,7 @@ declare module '@deepseek-ai/cordis' {
      * @param name - the provider name that no longer resolves.
      * @mode emit
      */
-    'subagent/provider-removed'(name: string): void
+    'subagent/provider-removed'(name: string): void | Promise<void>
     /**
      * A provider established a published child. For in-process providers,
      * `ctx.agents.get(info.id)` resolves during this notification.

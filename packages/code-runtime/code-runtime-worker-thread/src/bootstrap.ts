@@ -132,10 +132,12 @@ export function makeConsoleShim(logs: LogBuffer): Record<(typeof CONSOLE_LEVELS)
  *   worker never needs to).
  */
 export function captureStreamWrites(logs: LogBuffer, stream: PatchableStream): () => void {
-  // The slot's VALUE is stored for restore and reassigned — never invoked
-  // detached, so the unbound-method concern does not apply.
-  // oxlint-disable-next-line typescript/unbound-method
-  const original = stream.write
+  const writeDescriptor = Object.getOwnPropertyDescriptor(stream, 'write')
+    ?? Object.getOwnPropertyDescriptor(Object.getPrototypeOf(stream), 'write')
+  if (writeDescriptor === undefined || typeof writeDescriptor.value !== 'function') {
+    throw new Error('stream.write is missing')
+  }
+  const original: PatchableStream['write'] = writeDescriptor.value
   stream.write = (chunk: unknown, ...rest: unknown[]): boolean => {
     logs.push(typeof chunk === 'string' ? chunk : String(chunk))
     // Node's optional-encoding shape: the callback is whichever of the next

@@ -65,7 +65,7 @@ declare module '@deepseek-ai/cordis' {
      * @param agent - the call's sequence number, label, phase, and child id.
      * @mode emit
      */
-    'workflow/agent-start'(info: WorkflowRunInfo, agent: WorkflowAgentInfo): void
+    'workflow/agent-start'(info: WorkflowRunInfo, agent: WorkflowAgentInfo): void | Promise<void>
     /**
      * One `agent()` call settled (clean result, child failure, or run
      * cancellation). Paired with {@link Events['workflow/agent-start']} by

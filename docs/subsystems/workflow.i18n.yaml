@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   bun run verify-translation-pairing --write docs/subsystems/workflow.md
-workflow.md: 2f58134bf6df6c9ad124185f17da689199247233
-workflow.zh.md: fe47bd483c948ea05ae9d362c8b1809bbd78838b
+workflow.md: eeaa03f9ecec120521b9b1f9e16b9814bdca3c9f
+workflow.zh.md: e3c1d7cc31380cd6b86ddf7a24d0964281370cb9
