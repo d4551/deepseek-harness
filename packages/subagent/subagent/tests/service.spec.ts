@@ -310,7 +310,7 @@ describe('SubagentRuntime', () => {
       expect(heard).toEqual(['contained'])
       expect(warnings.some(message => message.includes('sync boom'))).toBe(true)
       expect(warnings.some(message => message.includes('async boom'))).toBe(true)
-      expect(warnings.some(message => message.includes('<unrenderable thrown value>'))).toBe(true)
+      expect(warnings.some(message => message.includes('[unrenderable thrown value]'))).toBe(true)
     })
   })
 
