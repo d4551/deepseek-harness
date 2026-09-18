@@ -306,11 +306,12 @@ describe('SubagentRuntime', () => {
     const dispose = subagents.registerProvider(new StubProvider('contained'))
 
     dispose()
-    await Promise.resolve()
-    expect(heard).toEqual(['contained'])
-    expect(warnings.some(message => message.includes('sync boom'))).toBe(true)
-    expect(warnings.some(message => message.includes('async boom'))).toBe(true)
-    expect(warnings.some(message => message.includes('<unrenderable thrown value>'))).toBe(true)
+    await vi.waitFor(() => {
+      expect(heard).toEqual(['contained'])
+      expect(warnings.some(message => message.includes('sync boom'))).toBe(true)
+      expect(warnings.some(message => message.includes('async boom'))).toBe(true)
+      expect(warnings.some(message => message.includes('<unrenderable thrown value>'))).toBe(true)
+    })
   })
 
   it('SubagentError participates in the harness error taxonomy', () => {
