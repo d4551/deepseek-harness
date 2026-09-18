@@ -258,23 +258,18 @@ function isLegacyRequestHeaderDelta(type: string): boolean {
   return type === 'request/header-delta'
 }
 
-/**
- * JSON record that has not been accepted as a {@link SessionEvent}. Seed and
- * adopt validate this shape; a typed SessionEvent is one member of the union.
- */
+/** Session-log record at the seed/adopt boundary. */
 type SessionJsonRecord = {
-  readonly type?: JsonValue
-  readonly seq?: JsonValue
-  readonly time?: JsonValue
-  readonly data?: JsonValue
+  readonly type?: string | number | boolean | null
+  readonly seq?: number | string | boolean | null
+  readonly time?: number | string | boolean | null
+  readonly data?: SessionEvent['data'] | JsonValue
   readonly surfaceOp?: JsonValue
   readonly sourceEventSeqs?: JsonValue
 }
 
-type SessionImportRecord = SessionEvent | SessionJsonRecord
-
 /** Validate the fixed event envelope after one-pass JSON materialization. */
-function assertSessionEventEnvelope(event: SessionImportRecord, index: number): void {
+function assertSessionEventEnvelope(event: SessionJsonRecord, index: number): void {
   const type = event.type
   if (typeof type === 'string' && isLegacyRequestHeaderDelta(type)) {
     throw new Error(`seed event at index ${index} uses unsupported legacy request/header-delta format`)
@@ -303,7 +298,7 @@ function assertSessionEventEnvelope(event: SessionImportRecord, index: number): 
 }
 
 /** Reject obsolete request headers and malformed messages at the seed/load boundary. */
-function assertCurrentLlmShape(event: SessionImportRecord, index: number): void {
+function assertCurrentLlmShape(event: SessionJsonRecord, index: number): void {
   const type = event.type
   if (type === 'request/header') {
     const data = event.data
@@ -352,7 +347,7 @@ function assertAdapterDefaults(
 }
 
 /** Validate only the event-specific invariants needed to safely replay a message. */
-function assertMessageEventShape(event: SessionImportRecord, subject: string): void {
+function assertMessageEventShape(event: SessionJsonRecord, subject: string): void {
   const type = event.type
   if (typeof type !== 'string') {
     throw new Error(`${subject} has an invalid event type`)
@@ -418,8 +413,8 @@ function assertMessageEventShape(event: SessionImportRecord, subject: string): v
 }
 
 /** Whether a JSON value carries the current provider/model pair. */
-function hasProviderModel(value: JsonValue | object | undefined): boolean {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+function hasProviderModel(value: object | undefined): boolean {
+  if (value === undefined || Array.isArray(value)) return false
   return 'provider' in value && typeof value.provider === 'string' && value.provider.length > 0
     && 'model' in value && typeof value.model === 'string' && value.model.length > 0
 }
