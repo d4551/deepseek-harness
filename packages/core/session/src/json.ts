@@ -191,6 +191,18 @@ export function snapshotJsonValue<T>(value: T): T | undefined {
 }
 
 /**
+ * Detach a plain JSON object. Unlike {@link snapshotJsonValue}, the return type
+ * is the JSON object the walk produced, not the input type.
+ */
+export function snapshotJsonObject(value: object): { readonly [key: string]: JsonValue } | undefined {
+  const snapshot = walkJsonValue(value, true)
+  if (snapshot === undefined || typeof snapshot !== 'object' || snapshot === null || Array.isArray(snapshot)) {
+    return undefined
+  }
+  return snapshot
+}
+
+/**
  * Test the same lossless JSON boundary as {@link snapshotJsonValue} without
  * detaching it. Only own enumerable string properties participate; `toJSON`
  * is ignored and getters run, so persistence boundaries use the snapshotter.

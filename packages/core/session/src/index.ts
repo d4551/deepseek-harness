@@ -15,7 +15,7 @@ import type { Message } from '@deepseek-ai/dsh-llm'
 import { SESSION_FORMAT_VERSION, SessionId } from './types.ts'
 import type { TypertLookup } from '@deepseek-ai/dsh-typert-protocol'
 import type { CreateSessionOptions, EpochHeader, PrepareSessionOptions, RequestContext, SessionEvent, SessionEventMap, SessionEventType, SessionHeader, SurfaceIntent, SurfaceEventType } from './types.ts'
-import { snapshotJsonValue } from './json.ts'
+import { snapshotJsonObject, snapshotJsonValue } from './json.ts'
 import type { JsonValue } from './json.ts'
 import { deriveEventMessage, SurfaceManager } from './surface.ts'
 import type { SessionSurface } from './surface.ts'
@@ -197,8 +197,12 @@ function snapshotSessionHeader(id: SessionId, source?: SessionHeader): SessionHe
  * @returns the same event object with a validated, deeply frozen message.
  */
 export function adoptSessionEvent<T extends SessionEvent>(event: T): T {
+  const record = snapshotJsonObject(event)
+  if (record === undefined) {
+    throw new Error(`session event at seq ${event.seq} is not losslessly JSON-serializable`)
+  }
   assertMessageEventShape(
-    event,
+    record,
     `session event at seq ${event.seq}`,
   )
   switch (event.type) {
@@ -258,18 +262,10 @@ function isLegacyRequestHeaderDelta(type: string): boolean {
   return type === 'request/header-delta'
 }
 
-/** Session-log record at the seed/adopt boundary. */
-type SessionJsonRecord = {
-  readonly type?: string | number | boolean | null
-  readonly seq?: number | string | boolean | null
-  readonly time?: number | string | boolean | null
-  readonly data?: SessionEvent['data'] | JsonValue
-  readonly surfaceOp?: JsonValue
-  readonly sourceEventSeqs?: JsonValue
-}
+type JsonObject = { readonly [key: string]: JsonValue }
 
 /** Validate the fixed event envelope after one-pass JSON materialization. */
-function assertSessionEventEnvelope(event: SessionJsonRecord, index: number): void {
+function assertSessionEventEnvelope(event: JsonObject, index: number): void {
   const type = event.type
   if (typeof type === 'string' && isLegacyRequestHeaderDelta(type)) {
     throw new Error(`seed event at index ${index} uses unsupported legacy request/header-delta format`)
@@ -298,7 +294,7 @@ function assertSessionEventEnvelope(event: SessionJsonRecord, index: number): vo
 }
 
 /** Reject obsolete request headers and malformed messages at the seed/load boundary. */
-function assertCurrentLlmShape(event: SessionJsonRecord, index: number): void {
+function assertCurrentLlmShape(event: JsonObject, index: number): void {
   const type = event.type
   if (type === 'request/header') {
     const data = event.data
@@ -347,7 +343,7 @@ function assertAdapterDefaults(
 }
 
 /** Validate only the event-specific invariants needed to safely replay a message. */
-function assertMessageEventShape(event: SessionJsonRecord, subject: string): void {
+function assertMessageEventShape(event: JsonObject, subject: string): void {
   const type = event.type
   if (typeof type !== 'string') {
     throw new Error(`${subject} has an invalid event type`)
@@ -420,7 +416,7 @@ function hasProviderModel(value: object | undefined): boolean {
 }
 
 /** Reject request-header vocabulary removed with the legacy delta codec. */
-function assertSupportedRequestHeader(type: string, data: unknown, location: string): void {
+function assertSupportedRequestHeader(type: string, data: JsonValue | object | undefined, location: string): void {
   if (type === 'request/header-delta') {
     throw new Error(`${location} uses unsupported legacy request/header-delta format`)
   }
@@ -624,21 +620,30 @@ export class Session {
       for (const [index, source] of seed.entries()) {
         // The seed is a persistence/replay boundary: validate and detach the
         // complete event in one lossless-JSON pass.
-        const snapshot = mode === 'restore' ? source : snapshotJsonValue(source)
-        if (snapshot === undefined) {
+        const record = snapshotJsonObject(source)
+        if (record === undefined) {
           throw new Error(`seed event at index ${index} is not losslessly JSON-serializable`)
         }
-        assertSessionEventEnvelope(snapshot, index)
-        assertCurrentLlmShape(snapshot, index)
-        assertSupportedRequestHeader(snapshot.type, snapshot.data, `seed event at index ${index}`)
-        if (snapshot.seq !== index) {
-          throw new Error(`seed event at index ${index} has seq ${snapshot.seq} (expected ${index}); seed must be contiguous from 0`)
+        assertSessionEventEnvelope(record, index)
+        assertCurrentLlmShape(record, index)
+        const type = record.type
+        const seq = record.seq
+        if (typeof type !== 'string' || typeof seq !== 'number') {
+          throw new Error(`seed event at index ${index} has an invalid event envelope`)
         }
-        // A seed is accepted incrementally through the same transition as a
-        // live append and a full-log fold. The candidate is planned before it
-        // enters `log`, so a failure cannot partially mutate the surface.
-        this.surfaceManager.validateNext(snapshot)
-        this.log.push(deepFreeze(snapshot))
+        assertSupportedRequestHeader(type, record.data, `seed event at index ${index}`)
+        if (seq !== index) {
+          throw new Error(`seed event at index ${index} has seq ${seq} (expected ${index}); seed must be contiguous from 0`)
+        }
+        if (mode === 'restore') {
+          this.surfaceManager.validateNext(source)
+          this.log.push(deepFreeze(source))
+        } else {
+          const accepted = deepFreeze(record)
+          assertPublishedSessionEvent(accepted, type, seq)
+          this.surfaceManager.validateNext(accepted)
+          this.log.push(accepted)
+        }
       }
     }
     this.firstLiveSeq = this.log.length
