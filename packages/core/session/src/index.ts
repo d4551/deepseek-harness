@@ -266,9 +266,25 @@ function sessionJsonRecord(event: SessionEvent, subject: string): JsonObject {
   return record
 }
 
-/** Validate the fixed event envelope after one-pass JSON materialization. */
-function assertSessionEventEnvelope(event: SessionEvent, index: number): JsonObject {
+/** Validate one seed event after a single JSON snapshot. */
+function assertSeedSessionEvent(event: SessionEvent, index: number): JsonObject {
   const record = sessionJsonRecord(event, `seed event at index ${index}`)
+  assertSessionEventEnvelopeRecord(record, index)
+  assertCurrentLlmShapeRecord(record, index)
+  const type = record.type
+  const seq = record.seq
+  if (typeof type !== 'string' || typeof seq !== 'number') {
+    throw new Error(`seed event at index ${index} has an invalid event envelope`)
+  }
+  assertSupportedRequestHeader(type, record.data, `seed event at index ${index}`)
+  if (seq !== index) {
+    throw new Error(`seed event at index ${index} has seq ${seq} (expected ${index}); seed must be contiguous from 0`)
+  }
+  return record
+}
+
+/** Validate the fixed event envelope on a detached JSON record. */
+function assertSessionEventEnvelopeRecord(record: JsonObject, index: number): void {
   const type = record.type
   if (typeof type === 'string' && isLegacyRequestHeaderDelta(type)) {
     throw new Error(`seed event at index ${index} uses unsupported legacy request/header-delta format`)
@@ -294,12 +310,10 @@ function assertSessionEventEnvelope(event: SessionEvent, index: number): JsonObj
     || !Object.hasOwn(record, 'data')) {
     throw new Error(`seed event at index ${index} has an invalid event envelope`)
   }
-  return record
 }
 
-/** Reject obsolete request headers and malformed messages at the seed/load boundary. */
-function assertCurrentLlmShape(event: SessionEvent, index: number): void {
-  const record = sessionJsonRecord(event, `seed event at index ${index}`)
+/** Reject obsolete request headers and malformed messages on a detached JSON record. */
+function assertCurrentLlmShapeRecord(record: JsonObject, index: number): void {
   const type = record.type
   if (type === 'request/header') {
     const data = record.data
@@ -322,7 +336,7 @@ function assertCurrentLlmShape(event: SessionEvent, index: number): void {
     assertAdapterDefaults(adapterDefaults, config, index)
   }
   if (type === 'user/message' || type === 'assistant/message' || type === 'tool/result') {
-    assertMessageEventShape(event, `seed ${type} at index ${index}`)
+    assertMessageEventShapeRecord(record, `seed ${type} at index ${index}`)
   }
 }
 
@@ -349,7 +363,10 @@ function assertAdapterDefaults(
 
 /** Validate only the event-specific invariants needed to safely replay a message. */
 function assertMessageEventShape(event: SessionEvent, subject: string): void {
-  const record = sessionJsonRecord(event, subject)
+  assertMessageEventShapeRecord(sessionJsonRecord(event, subject), subject)
+}
+
+function assertMessageEventShapeRecord(record: JsonObject, subject: string): void {
   const type = record.type
   if (typeof type !== 'string') {
     throw new Error(`${subject} has an invalid event type`)
@@ -624,16 +641,11 @@ export class Session {
       // a bad seed would surface only later as a backend rejection or a silent
       // divergence between the live log and disk.
       for (const [index, source] of seed.entries()) {
-        const record = assertSessionEventEnvelope(source, index)
-        assertCurrentLlmShape(source, index)
+        const record = assertSeedSessionEvent(source, index)
         const type = record.type
         const seq = record.seq
         if (typeof type !== 'string' || typeof seq !== 'number') {
           throw new Error(`seed event at index ${index} has an invalid event envelope`)
-        }
-        assertSupportedRequestHeader(type, record.data, `seed event at index ${index}`)
-        if (seq !== index) {
-          throw new Error(`seed event at index ${index} has seq ${seq} (expected ${index}); seed must be contiguous from 0`)
         }
         if (mode === 'restore') {
           this.surfaceManager.validateNext(source)
