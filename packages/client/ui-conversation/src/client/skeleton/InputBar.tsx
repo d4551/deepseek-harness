@@ -27,9 +27,27 @@ import type {} from '@deepseek-ai/dsh-goal/client'
 // The `imageLimits` projection key merge (intake pre-check) arrives with the
 // wire types: apiproxy's sessions contract declares it, and client-runtime's
 // api-remotes import already places it in every client program.
-import type { Translate } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ComposerBarProps } from '../contract/slots.ts'
 import { ComposerContentEditable } from './editor/ComposerContentEditable.tsx'
+
+type ComposerHintStyle = CSSProperties & {
+  '--dsh-composer-hint': string
+}
+
+function composerHintStyle(hint: string): ComposerHintStyle {
+  return { '--dsh-composer-hint': JSON.stringify(hint) }
+}
+
+function lookupLocale(translate: object, key: string): string {
+  if (typeof translate !== 'function') {
+    throw new TypeError('locale lookup must be a function')
+  }
+  const translated: unknown = translate(key)
+  if (typeof translated !== 'string') {
+    throw new TypeError('locale lookup must return a string')
+  }
+  return translated
+}
 import { DecoratorPortals } from './editor/DecoratorPortals.tsx'
 import { registerComposerKeymap } from './editor/keymap.ts'
 import { attachmentErrorText, imageSizeText } from '../image-labels.ts'
@@ -236,7 +254,7 @@ export function InputBar({
         // Format precedes limits: a batch with
         // a non-image must announce the format problem, not a count or size
         // it could never pass anyway — addImages rejects it authoritatively.
-        if (files.some(file => !(imageLimits.mediaTypes as readonly string[]).includes(file.type))) {
+        if (files.some(file => !imageLimits.mediaTypes.some(type => type === file.type))) {
           return addImages(files)
         }
         if (attachments.length + files.length > imageLimits.maxImagesPerMessage) {
@@ -362,7 +380,7 @@ export function InputBar({
     const hintKey = `hint.${commandName === 'goal' && hasGoal ? 'goal.active' : commandName}`
     // Dynamic lookup by claimed command name: unknown commands miss the
     // dictionary and keep the machine's own hint, so the call is wide.
-    const translated = (t as Translate)(hintKey)
+    const translated = lookupLocale(t, hintKey)
     return translated !== hintKey ? translated : rawHint
   })()
 
@@ -436,7 +454,7 @@ export function InputBar({
               aria-expanded={workspaceTrigger ? workspacePickerOpen : undefined}
               tabIndex={workspaceTrigger ? 0 : undefined}
               onKeyDown={workspaceTrigger ? onWorkspaceKeyDown : undefined}
-              style={hint === null ? undefined : { '--dsh-composer-hint': JSON.stringify(hint) } as CSSProperties}
+              style={hint === null ? undefined : composerHintStyle(hint)}
             />
             {empty && !claimActive && (
               <div aria-hidden className={css.placeholder} data-composer-placeholder>

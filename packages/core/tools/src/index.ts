@@ -427,8 +427,13 @@ export interface ToolRunContext extends ToolExecution {
   concludeTurn(): void
 }
 
-/** Registry-owned live execution object; public pipeline views stay readonly. */
-type MutableToolRunContext = Omit<ToolRunContext, 'signal'> & { signal: AbortSignal }
+/** Registry-owned live execution: the same object wrappers may retarget `signal` on. */
+type LiveToolRunContext = ToolRunContext & { signal: AbortSignal }
+
+/** Write the live signal so `tools/execute` can replace it. */
+function liveToolRunContext(exec: ToolRunContext): LiveToolRunContext {
+  return Object.assign(exec, { signal: exec.signal })
+}
 
 /**
  * Scheduler-only result after ordered pre-execute and guards. A `post-result`
@@ -691,11 +696,8 @@ function materializeJsonSchema(candidate: unknown): JsonSchemaNode {
 
 /** Structured `{ name, code }` for a thrown HarnessError, else undefined. */
 function errorInfo(error: unknown): ToolErrorInfo | undefined {
-  try {
-    return error instanceof HarnessError ? { name: error.name, code: error.code } : undefined
-  } catch {
-    return undefined
-  }
+  if (!(error instanceof HarnessError)) return undefined
+  return { name: error.name, code: error.code }
 }
 
 /** How the registry presents its tools to the model (see {@link Config.mode}). */
@@ -1445,7 +1447,7 @@ export class ToolRuntime extends Service {
     }
   }
 
-  private createExecution(exec: ToolExecutionInput): ScheduledToolPreparation | { kind: 'ready'; exec: MutableToolRunContext } {
+  private createExecution(exec: ToolExecutionInput): ScheduledToolPreparation | { kind: 'ready'; exec: LiveToolRunContext } {
     const deferredContexts: UserMessage[] = []
     const token = createExecutionToken()
     const callId = exec.callId
@@ -1465,7 +1467,7 @@ export class ToolRuntime extends Service {
     const visible = registration?.definition
     const collapsed = visible !== undefined && this.collapses(name, agent, parent !== undefined)
     const concludingExecutions = this.concludingExecutions
-    let execution: MutableToolRunContext | undefined
+    let execution: LiveToolRunContext | undefined
     const base = {
       token,
       callId,
@@ -1502,7 +1504,7 @@ export class ToolRuntime extends Service {
       if (detached === undefined) {
         throw new TypeError('tool execution arguments must be losslessly JSON-serializable')
       }
-      const minted: MutableToolRunContext = { ...base, arguments: deepFreeze(detached) }
+      const minted: LiveToolRunContext = { ...base, arguments: deepFreeze(detached) }
       execution = minted
       Object.defineProperty(minted, 'directWorkspaceEffect', {
         value: collapsed ? undefined : registration?.implementation.directWorkspaceEffect,
@@ -1539,7 +1541,7 @@ export class ToolRuntime extends Service {
       }
       return { kind: 'ready', exec: minted }
     } catch (error: unknown) {
-      const failed: MutableToolRunContext = { ...base, arguments: undefined }
+      const failed: LiveToolRunContext = { ...base, arguments: undefined }
       execution = failed
       this.contentFinalizers.set(failed, finalizerFor())
       return { kind: 'final-result', exec: failed, result: toolErrorResult(error) }
@@ -1636,7 +1638,7 @@ export class ToolRuntime extends Service {
    * into any around-wrapper replacement. Cancellation never abandons the body:
    * a started promise reaches quiescence before its outcome becomes `ABORTED`.
    */
-  private async dispatchToolBody(exec: MutableToolRunContext): Promise<ToolExecutionResult> {
+  private async dispatchToolBody(exec: LiveToolRunContext): Promise<ToolExecutionResult> {
     const state = this.cancellationStates.get(exec)
     /* v8 ignore next -- only registry-minted executions reach the staged scheduler methods */
     if (state === undefined) throw new Error('tool registry scheduler invariant violated: missing cancellation state')
@@ -1676,11 +1678,11 @@ export class ToolRuntime extends Service {
    */
   private async dispatchScheduledExecution(exec: ToolRunContext): Promise<ScheduledToolDispatch> {
     try {
-      const mutableExec = exec as MutableToolRunContext
+      const liveExec = liveToolRunContext(exec)
       const carrier = scopeTarget(this, exec.agent)
       const result = await this.ctx.waterfall(
-        carrier, 'tools/execute', mutableExec,
-        () => this.dispatchToolBody(mutableExec),
+        carrier, 'tools/execute', liveExec,
+        () => this.dispatchToolBody(liveExec),
       )
       const normalized = this.normalizeDispatchResult(exec, result)
       const deferredContexts = this.deferredContexts.get(exec)
@@ -2002,7 +2004,12 @@ export class ToolRuntime extends Service {
 
 /** Mint a same-process correlation token whose identity is its value. */
 function createExecutionToken(): ToolExecutionToken {
-  return Symbol('dsh.tool.execution') as ToolExecutionToken
+  return brandToolExecutionToken(Symbol('dsh.tool.execution'))
+}
+
+/** Brand a same-process symbol as a {@link ToolExecutionToken}. */
+function brandToolExecutionToken(token: symbol): ToolExecutionToken {
+  return token as ToolExecutionToken
 }
 
 function toolErrorResult(error: unknown): ToolExecutionResult {

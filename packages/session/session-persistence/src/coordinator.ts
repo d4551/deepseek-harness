@@ -18,6 +18,7 @@ import {
   snapshotJsonValue,
   snapshotSessionEvent,
 } from '@deepseek-ai/dsh-session'
+import { MessageId } from '@deepseek-ai/dsh-llm'
 import type { JsonValue, Session, SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import type { BorrowedSessionSource, SessionInspection, SessionLocation } from './index.ts'
@@ -377,7 +378,7 @@ function asRecord(value: unknown): { [key: string]: unknown } | undefined {
 /** Confirm a reconstructed migrate payload still carries the session-event envelope. */
 function migratedSessionEvent(value: object): SessionEvent {
   assertSessionEventObject(value)
-  return value
+  return adoptSessionEvent(value)
 }
 
 /** Whether a record contains every required key and no key outside the optional extension set. */
@@ -395,7 +396,7 @@ type PersistedMessageId = SessionEvent<'user/message'>['data']['id']
 
 /** Mint the stable import identity for a message persisted before identities existed. */
 function legacyMessageId(id: SessionId, seq: number): PersistedMessageId {
-  return `legacy-message:${id}:${seq}` as PersistedMessageId
+  return MessageId(`legacy-message:${id}:${seq}`)
 }
 
 /** Read a replacement target while leaving malformed surface metadata to the session validator. */
@@ -625,7 +626,8 @@ function migrateLegacyMessageEvent(
 function eventMessageId(event: SessionEvent): PersistedMessageId | undefined {
   const data = asRecord(event.data)
   const message = event.type === 'user/message' ? data : asRecord(data?.['message'])
-  return typeof message?.['id'] === 'string' ? message['id'] as PersistedMessageId : undefined
+  const id = message?.['id']
+  return typeof id === 'string' ? MessageId(id) : undefined
 }
 
 /** Materialize stored events as upgraded, validated snapshots with immutable messages. */
