@@ -173,9 +173,9 @@ export async function evaluateClientHalf(
   const parameters = ['React', 'console', 'styles', 'host', 'harness', ...Object.keys(traps), 'process', 'Buffer']
   let closure: (...args: unknown[]) => Promise<unknown>
   const source = `export default (${parameters.join(', ')}) => (async () => {\n${clientCode}\n})()`
-  const url = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }))
+  const moduleUrl = `data:text/javascript;charset=utf-8,${encodeURIComponent(source)}`
   try {
-    const module: unknown = await import(url)
+    const module: unknown = await import(/* @vite-ignore */ moduleUrl)
     if (typeof module !== 'object' || module === null || !('default' in module) || typeof module.default !== 'function') {
       throw new Error('client half module did not export a function')
     }
@@ -187,8 +187,6 @@ export async function evaluateClientHalf(
       `client half failed to parse in this browser: ${error.message}\n`
       + 'The browser half is plain JavaScript (no JSX, no TypeScript); build elements with React.createElement.',
     )
-  } finally {
-    URL.revokeObjectURL(url)
   }
   const host = {
     /**

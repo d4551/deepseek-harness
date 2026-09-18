@@ -184,7 +184,7 @@ describe('SubagentRuntime', () => {
     await expect(subagents.start('strong', baseRequest({ maxDepth: -1 })))
       .rejects.toThrow('non-negative safe integer')
     await expect(subagents.start('strong', baseRequest({ outputSchema: { type: 'string' } as never })))
-      .rejects.toThrow('outputSchema')
+      .rejects.toThrow('unsupported JSON schema')
     expect(provider.startCount).toBe(0)
     expect(() => { assertSubagentMaxDepth(undefined) }).not.toThrow()
   })
