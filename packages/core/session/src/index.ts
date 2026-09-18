@@ -15,7 +15,8 @@ import type { Message } from '@deepseek-ai/dsh-llm'
 import { SESSION_FORMAT_VERSION, SessionId } from './types.ts'
 import type { TypertLookup } from '@deepseek-ai/dsh-typert-protocol'
 import type { CreateSessionOptions, EpochHeader, PrepareSessionOptions, RequestContext, SessionEvent, SessionEventMap, SessionEventType, SessionHeader, SurfaceIntent, SurfaceEventType } from './types.ts'
-import { snapshotJsonValue } from './json.ts'
+import { jsonField, snapshotJsonValue } from './json.ts'
+import type { JsonValue } from './json.ts'
 import { deriveEventMessage, SurfaceManager } from './surface.ts'
 import type { SessionSurface } from './surface.ts'
 import { foldRequestHeader } from './request-header.ts'
@@ -258,8 +259,8 @@ function isLegacyRequestHeaderDelta(type: string): boolean {
 }
 
 /** Validate the fixed event envelope after one-pass JSON materialization. */
-function assertSessionEventEnvelope(event: object, index: number): void {
-  const type = 'type' in event ? event.type : undefined
+function assertSessionEventEnvelope(event: SessionEvent, index: number): void {
+  const type = jsonField(event, 'type')
   if (typeof type === 'string' && isLegacyRequestHeaderDelta(type)) {
     throw new Error(`seed event at index ${index} uses unsupported legacy request/header-delta format`)
   }
@@ -276,47 +277,37 @@ function assertSessionEventEnvelope(event: object, index: number): void {
         throw new Error(`seed event at index ${index} has an invalid event envelope`)
     }
   }
-  const seq = 'seq' in event ? event.seq : undefined
-  const time = 'time' in event ? event.time : undefined
+  const seq = jsonField(event, 'seq')
+  const time = jsonField(event, 'time')
   if (typeof type !== 'string'
     || typeof seq !== 'number' || !Number.isSafeInteger(seq) || seq < 0
     || typeof time !== 'number' || !Number.isSafeInteger(time)
-    || !('data' in event) || event.data === undefined) {
+    || !Object.hasOwn(event, 'data')) {
     throw new Error(`seed event at index ${index} has an invalid event envelope`)
   }
 }
 
 /** Reject obsolete request headers and malformed messages at the seed/load boundary. */
-function assertCurrentLlmShape(event: object, index: number): void {
-  const type = 'type' in event ? event.type : undefined
+function assertCurrentLlmShape(event: SessionEvent, index: number): void {
+  const type = jsonField(event, 'type')
   if (type === 'request/header') {
-    const data = 'data' in event ? event.data : undefined
-    const header = typeof data === 'object' && data !== null && 'header' in data
-      ? data.header
+    const data = jsonField(event, 'data')
+    const header = typeof data === 'object' && data !== null && !Array.isArray(data)
+      ? jsonField(data, 'header')
       : undefined
-    const config = typeof header === 'object' && header !== null && !Array.isArray(header) && 'config' in header
-      ? header.config
-      : undefined
-    if (typeof config !== 'object' || config === null || !hasProviderModel(config)) {
+    if (typeof header !== 'object' || header === null || Array.isArray(header)) {
       throw new Error(`seed request/header at index ${index} lacks provider/model`)
     }
-    if ('reasoningEffort' in config && config.reasoningEffort !== undefined
-      && (typeof config.reasoningEffort !== 'string' || config.reasoningEffort.length === 0)) {
+    const config = jsonField(header, 'config')
+    if (typeof config !== 'object' || config === null || Array.isArray(config) || !hasProviderModel(config)) {
+      throw new Error(`seed request/header at index ${index} lacks provider/model`)
+    }
+    const reasoningEffort = jsonField(config, 'reasoningEffort')
+    if (reasoningEffort !== undefined
+      && (typeof reasoningEffort !== 'string' || reasoningEffort.length === 0)) {
       throw new Error(`seed request/header at index ${index} has an invalid reasoningEffort`)
     }
-    const adapterDefaults = typeof header === 'object' && header !== null && !Array.isArray(header) && 'adapterDefaults' in header
-      ? header.adapterDefaults
-      : undefined
-    if (adapterDefaults !== undefined
-      && typeof adapterDefaults !== 'object'
-      && typeof adapterDefaults !== 'string'
-      && typeof adapterDefaults !== 'number'
-      && typeof adapterDefaults !== 'boolean'
-      && typeof adapterDefaults !== 'bigint'
-      && typeof adapterDefaults !== 'symbol') {
-      throw new Error(`seed request/header at index ${index} has invalid adapterDefaults`)
-    }
-    assertAdapterDefaults(adapterDefaults, config, index)
+    assertAdapterDefaults(jsonField(header, 'adapterDefaults'), config, index)
   }
   if (type === 'user/message' || type === 'assistant/message' || type === 'tool/result') {
     assertMessageEventShape(event, `seed ${type} at index ${index}`)
@@ -327,7 +318,7 @@ const allowedAdapterKeys = new Set(['reasoningEffort', 'maxTokens'])
 
 /** Validate adapter-default markers imported from a durable request header. */
 function assertAdapterDefaults(
-  value: object | string | number | boolean | bigint | symbol | null | undefined,
+  value: JsonValue | undefined,
   config: object,
   index: number,
 ): void {
@@ -338,52 +329,47 @@ function assertAdapterDefaults(
   const keys = Object.keys(value)
   if (keys.some(key => !allowedAdapterKeys.has(key))
     || Object.values(value).some(marker => marker !== true)
-    || 'reasoningEffort' in value && value.reasoningEffort === true && !('reasoningEffort' in config)
-    || 'maxTokens' in value && value.maxTokens === true && !('maxTokens' in config)) {
+    || jsonField(value, 'reasoningEffort') === true && !Object.hasOwn(config, 'reasoningEffort')
+    || jsonField(value, 'maxTokens') === true && !Object.hasOwn(config, 'maxTokens')) {
     throw new Error(`seed request/header at index ${index} has invalid adapterDefaults`)
   }
 }
 
 /** Validate only the event-specific invariants needed to safely replay a message. */
-function assertMessageEventShape(event: object, subject: string): void {
-  const type = 'type' in event ? event.type : undefined
+function assertMessageEventShape(event: SessionEvent, subject: string): void {
+  const type = jsonField(event, 'type')
   if (typeof type !== 'string') {
     throw new Error(`${subject} has an invalid event type`)
   }
   if (type !== 'user/message' && type !== 'assistant/message' && type !== 'tool/result') return
 
-  const data = 'data' in event ? event.data : undefined
+  const data = jsonField(event, 'data')
   const message = type === 'user/message'
     ? data
-    : typeof data === 'object' && data !== null && 'message' in data
-      ? data.message
+    : typeof data === 'object' && data !== null && !Array.isArray(data)
+      ? jsonField(data, 'message')
       : undefined
-  const id = typeof message === 'object' && message !== null && 'id' in message
-    ? message.id
+  const id = typeof message === 'object' && message !== null && !Array.isArray(message)
+    ? jsonField(message, 'id')
     : undefined
-  if (typeof message !== 'object' || message === null || typeof id !== 'string' || id === '') {
+  if (typeof message !== 'object' || message === null || Array.isArray(message) || typeof id !== 'string' || id === '') {
     throw new Error(`${subject} lacks an identified message`)
   }
 
   const expectedRole = type === 'assistant/message' ? 'assistant' : 'user'
-  const role = 'role' in message ? message.role : undefined
-  if (role !== expectedRole) {
+  if (jsonField(message, 'role') !== expectedRole) {
     throw new Error(`${subject} message must have role "${expectedRole}"`)
   }
 
-  const source = 'source' in message ? message.source : undefined
-  const kind = typeof source === 'object' && source !== null && 'kind' in source
-    ? source.kind
+  const source = jsonField(message, 'source')
+  const kind = typeof source === 'object' && source !== null && !Array.isArray(source)
+    ? jsonField(source, 'kind')
     : undefined
-  if (typeof source !== 'object' || source === null || typeof kind !== 'string' || kind === '') {
+  if (typeof source !== 'object' || source === null || Array.isArray(source) || typeof kind !== 'string' || kind === '') {
     throw new Error(`${subject} message has invalid source`)
   }
 
-  const content = 'content' in message ? message.content : undefined
-  if (typeof content !== 'object' || content === null) {
-    throw new Error(`${subject} message has invalid content`)
-  }
-  const contentObject = content
+  const content = jsonField(message, 'content')
   if (!Array.isArray(content)) {
     throw new Error(`${subject} message has invalid content`)
   }
@@ -396,29 +382,30 @@ function assertMessageEventShape(event: object, subject: string): void {
   }
   if (type !== 'tool/result') return
 
-  const callId = 'callId' in source ? source.callId : undefined
+  const callId = jsonField(source, 'callId')
   if (kind !== 'tool' || typeof callId !== 'string' || callId === '') {
     throw new Error(`${subject} message must have tool source`)
   }
 
-  const block = '0' in contentObject ? contentObject['0'] : undefined
-  if (!('length' in contentObject) || contentObject.length !== 1
-    || typeof block !== 'object' || block === null
-    || !('type' in block) || block.type !== 'tool-result'
-    || !('content' in block) || !Array.isArray(block.content)) {
+  const block = jsonField(content, '0')
+  if (content.length !== 1
+    || typeof block !== 'object' || block === null || Array.isArray(block)
+    || jsonField(block, 'type') !== 'tool-result'
+    || !Array.isArray(jsonField(block, 'content'))) {
     throw new Error(`${subject} message must contain one tool-result block`)
   }
-  const toolCallId = 'toolCallId' in block ? block.toolCallId : undefined
-  if (toolCallId !== callId) {
+  if (jsonField(block, 'toolCallId') !== callId) {
     throw new Error(`${subject} message has mismatched tool call ids`)
   }
 }
 
-/** Whether an unknown value carries the current provider/model pair. */
-function hasProviderModel(value: object | string | number | boolean | bigint | symbol | null | undefined): boolean {
-  if (typeof value !== 'object' || value === null) return false
-  return 'provider' in value && typeof value.provider === 'string' && value.provider.length > 0
-    && 'model' in value && typeof value.model === 'string' && value.model.length > 0
+/** Whether a JSON value carries the current provider/model pair. */
+function hasProviderModel(value: JsonValue | undefined): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const provider = jsonField(value, 'provider')
+  const model = jsonField(value, 'model')
+  return typeof provider === 'string' && provider.length > 0
+    && typeof model === 'string' && model.length > 0
 }
 
 /** Reject request-header vocabulary removed with the legacy delta codec. */

@@ -197,6 +197,15 @@ export function snapshotJsonValue<T>(value: T): T | undefined {
  * @param value - the candidate event data to test.
  * @returns whether `value` survives JSON round-trip losslessly.
  */
-export function isJsonValue(value: unknown): boolean {
+export function isJsonValue(value: unknown): value is JsonValue {
   return walkJsonValue(value, false) === true
+}
+
+/** Read one own enumerable JSON field from its property descriptor. */
+export function jsonField(record: object, key: string): JsonValue | undefined {
+  if (!Object.hasOwn(record, key)) return undefined
+  const descriptor = Object.getOwnPropertyDescriptor(record, key)
+  if (descriptor === undefined || !Object.hasOwn(descriptor, 'value')) return undefined
+  if (!isJsonValue(descriptor.value)) return undefined
+  return descriptor.value
 }
