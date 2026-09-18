@@ -899,7 +899,7 @@ describe('Session', () => {
       time: 1,
       data: { turn: 1 },
       surfaceOp: 'append',
-    } as unknown as SessionEvent])).toThrow(/invalid seed event.*not surface-eligible/)
+    } as unknown as SessionEvent])).toThrow(/not surface-eligible and cannot carry surfaceOp/)
     expect(session.events).toEqual([])
   })
 
