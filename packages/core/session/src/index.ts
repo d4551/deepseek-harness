@@ -100,44 +100,70 @@ function validateSessionHeader(id: SessionId, input: unknown): SessionHeader {
   if (input === null || typeof input !== 'object' || Array.isArray(input)) {
     throw new Error('session header is not a plain JSON record')
   }
-  const record = input as Record<string, unknown>
-  if (record.version !== SESSION_FORMAT_VERSION) {
-    throw new Error(`session header version must be ${SESSION_FORMAT_VERSION}, got ${String(record.version)}`)
+  if (!('version' in input) || input.version !== SESSION_FORMAT_VERSION) {
+    throw new Error(`session header version must be ${SESSION_FORMAT_VERSION}`)
   }
-  if (record.id !== id) {
-    throw new Error(`session header id "${String(record.id)}" does not match session id "${id}"`)
+  if (!('id' in input) || input.id !== id) {
+    throw new Error('session header id does not match session id')
   }
-  if (typeof record.createdAt !== 'number'
-    || !Number.isSafeInteger(record.createdAt)
-    || record.createdAt < 0) {
+  if (!('createdAt' in input)
+    || typeof input.createdAt !== 'number'
+    || !Number.isSafeInteger(input.createdAt)
+    || input.createdAt < 0) {
     throw new Error('session header createdAt must be a non-negative safe integer')
   }
-  if (record.cwd !== undefined) {
-    if (typeof record.cwd !== 'string') throw new Error('session header cwd must be a string')
-    if (!isAbsolute(record.cwd)) {
-      throw new Error(`session header cwd must be an absolute path, got "${record.cwd}"`)
+  const cwd = 'cwd' in input && input.cwd !== undefined
+    ? input.cwd
+    : undefined
+  if (cwd !== undefined) {
+    if (typeof cwd !== 'string') throw new Error('session header cwd must be a string')
+    if (!isAbsolute(cwd)) {
+      throw new Error(`session header cwd must be an absolute path, got "${cwd}"`)
     }
   }
-  if (record.parentSession !== undefined && typeof record.parentSession !== 'string') {
+  const parentSession = 'parentSession' in input && input.parentSession !== undefined
+    ? input.parentSession
+    : undefined
+  if (parentSession !== undefined && typeof parentSession !== 'string') {
     throw new Error('session header parentSession must be a string')
   }
-  if (record.seedLength !== undefined
-    && (typeof record.seedLength !== 'number' || !Number.isSafeInteger(record.seedLength) || record.seedLength < 0)) {
+  const seedLength = 'seedLength' in input && input.seedLength !== undefined
+    ? input.seedLength
+    : undefined
+  if (seedLength !== undefined
+    && (typeof seedLength !== 'number' || !Number.isSafeInteger(seedLength) || seedLength < 0)) {
     throw new Error('session header seedLength must be a non-negative safe integer')
   }
-  if (record.origin !== undefined && record.origin !== 'subagent') {
+  const origin = 'origin' in input && input.origin !== undefined
+    ? input.origin
+    : undefined
+  if (origin !== undefined && origin !== 'subagent') {
     throw new Error('session header origin must be "subagent"')
   }
-  if (record.delegationDepth !== undefined
-    && (typeof record.delegationDepth !== 'number' || !Number.isSafeInteger(record.delegationDepth) || record.delegationDepth < 0)) {
+  const delegationDepth = 'delegationDepth' in input && input.delegationDepth !== undefined
+    ? input.delegationDepth
+    : undefined
+  if (delegationDepth !== undefined
+    && (typeof delegationDepth !== 'number' || !Number.isSafeInteger(delegationDepth) || delegationDepth < 0)) {
     throw new Error('session header delegationDepth must be a non-negative safe integer')
   }
-  if (record.agentPreset !== undefined && typeof record.agentPreset !== 'string') {
+  const agentPreset = 'agentPreset' in input && input.agentPreset !== undefined
+    ? input.agentPreset
+    : undefined
+  if (agentPreset !== undefined && typeof agentPreset !== 'string') {
     throw new Error('session header agentPreset must be a string')
   }
-  // Every field above is checked, so the narrowing states what the checks
-  // proved rather than standing in for them.
-  return deepFreeze(record as SessionHeader)
+  return deepFreeze({
+    version: SESSION_FORMAT_VERSION,
+    id,
+    createdAt: input.createdAt,
+    ...cwd === undefined ? {} : { cwd },
+    ...parentSession === undefined ? {} : { parentSession: SessionId(parentSession) },
+    ...seedLength === undefined ? {} : { seedLength },
+    ...origin === undefined ? {} : { origin },
+    ...delegationDepth === undefined ? {} : { delegationDepth },
+    ...agentPreset === undefined ? {} : { agentPreset },
+  })
 }
 
 /** Validate and freeze one exclusively owned persistence header in place. */
@@ -226,10 +252,14 @@ function isSessionEventOfType<T extends SessionEventType>(
   return event.type === type
 }
 
+/** Whether a seed type is the removed request/header-delta codec. */
+function isLegacyRequestHeaderDelta(type: string): boolean {
+  return type === 'request/header-delta'
+}
+
 /** Validate the fixed event envelope after one-pass JSON materialization. */
-function assertSessionEventEnvelope(value: Record<string, unknown>, index: number): asserts value is SessionEvent {
-  const event = value
-  if (event['type'] === 'request/header-delta') {
+function assertSessionEventEnvelope(event: SessionEvent, index: number): void {
+  if (isLegacyRequestHeaderDelta(event.type)) {
     throw new Error(`seed event at index ${index} uses unsupported legacy request/header-delta format`)
   }
   for (const key in event) {
@@ -245,133 +275,77 @@ function assertSessionEventEnvelope(value: Record<string, unknown>, index: numbe
         throw new Error(`seed event at index ${index} has an invalid event envelope`)
     }
   }
-  const type = event['type']
-  const seq = event['seq']
-  const time = event['time']
-  if (typeof type !== 'string'
-    || typeof seq !== 'number' || !Number.isSafeInteger(seq) || seq < 0
-    || typeof time !== 'number' || !Number.isSafeInteger(time)
-    || event['data'] === undefined) {
+  if (!Number.isSafeInteger(event.seq) || event.seq < 0
+    || !Number.isSafeInteger(event.time)) {
     throw new Error(`seed event at index ${index} has an invalid event envelope`)
-  }
-  switch (type) {
-    case 'request/header':
-    case 'user/message':
-    case 'assistant/message':
-    case 'tool/result':
-      assertCurrentLlmShape(event, index)
-      break
   }
 }
 
 /** Reject obsolete request headers and malformed messages at the seed/load boundary. */
-function assertCurrentLlmShape(event: Record<string, unknown>, index: number): void {
-  const data = event['data']
-  const record = typeof data === 'object' && data !== null
-    ? data as Record<string, unknown>
-    : undefined
-  if (event['type'] === 'request/header') {
-    const header = record?.['header']
-    const headerRecord = typeof header === 'object' && header !== null && !Array.isArray(header)
-      ? header as Record<string, unknown>
-      : undefined
-    const config = headerRecord?.['config']
-    if (!hasProviderModel(config)) throw new Error(`seed request/header at index ${index} lacks provider/model`)
-    const configRecord = config as Record<string, unknown>
-    const reasoningEffort = configRecord['reasoningEffort']
-    if (reasoningEffort !== undefined
-      && (typeof reasoningEffort !== 'string' || reasoningEffort.length === 0)) {
+function assertCurrentLlmShape(event: SessionEvent, index: number): void {
+  if (event.type === 'request/header') {
+    const header = event.data.header
+    const config = header.config
+    if (!hasProviderModel(config)) {
+      throw new Error(`seed request/header at index ${index} lacks provider/model`)
+    }
+    if (config.reasoningEffort !== undefined && config.reasoningEffort.length === 0) {
       throw new Error(`seed request/header at index ${index} has an invalid reasoningEffort`)
     }
-    assertAdapterDefaults(headerRecord?.['adapterDefaults'], configRecord, index)
+    assertAdapterDefaults(header.adapterDefaults, config, index)
   }
-  const type = event['type']
-  if (type !== 'user/message' && type !== 'assistant/message'
-    && type !== 'tool/result') return
-  assertMessageEventShape(event, `seed ${type} at index ${index}`)
+  if (event.type === 'user/message' || event.type === 'assistant/message' || event.type === 'tool/result') {
+    assertMessageEventShape(event, `seed ${event.type} at index ${index}`)
+  }
 }
 
 const allowedAdapterKeys = new Set(['reasoningEffort', 'maxTokens'])
 
 /** Validate adapter-default markers imported from a durable request header. */
 function assertAdapterDefaults(
-  value: unknown,
-  config: Record<string, unknown>,
+  value: object | string | number | boolean | bigint | symbol | null | undefined,
+  config: object,
   index: number,
 ): void {
   if (value === undefined) return
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new Error(`seed request/header at index ${index} has invalid adapterDefaults`)
   }
-  const defaults = value as Record<string, unknown>
-  if (Object.keys(defaults).some(key => !allowedAdapterKeys.has(key))
-    || Object.values(defaults).some(marker => marker !== true)
-    || defaults['reasoningEffort'] === true && config['reasoningEffort'] === undefined
-    || defaults['maxTokens'] === true && config['maxTokens'] === undefined) {
+  const keys = Object.keys(value)
+  if (keys.some(key => !allowedAdapterKeys.has(key))
+    || Object.values(value).some(marker => marker !== true)
+    || 'reasoningEffort' in value && value.reasoningEffort === true && !('reasoningEffort' in config)
+    || 'maxTokens' in value && value.maxTokens === true && !('maxTokens' in config)) {
     throw new Error(`seed request/header at index ${index} has invalid adapterDefaults`)
   }
 }
 
 /** Validate only the event-specific invariants needed to safely replay a message. */
-function assertMessageEventShape(event: Record<string, unknown>, subject: string): void {
-  const type = event['type']
-  if (type !== 'user/message' && type !== 'assistant/message'
-    && type !== 'tool/result') return
-  const data = event['data']
-  const record = typeof data === 'object' && data !== null
-    ? data as Record<string, unknown>
-    : undefined
-  const message = type === 'user/message' ? record : record?.['message']
-  if (typeof message !== 'object' || message === null
-    || typeof (message as Record<string, unknown>)['id'] !== 'string'
-    || (message as Record<string, unknown>)['id'] === '') {
-    throw new Error(`${subject} lacks an identified message`)
-  }
-  const messageRecord = message as Record<string, unknown>
-  const expectedRole = type === 'assistant/message' ? 'assistant' : 'user'
-  if (messageRecord['role'] !== expectedRole) {
-    throw new Error(`${subject} message must have role "${expectedRole}"`)
-  }
-  const source = messageRecord['source']
-  if (typeof source !== 'object' || source === null
-    || typeof (source as Record<string, unknown>)['kind'] !== 'string'
-    || (source as Record<string, unknown>)['kind'] === '') {
-    throw new Error(`${subject} message has invalid source`)
-  }
-  if (!Array.isArray(messageRecord['content'])) {
-    throw new Error(`${subject} message has invalid content`)
-  }
-  const sourceRecord = source as Record<string, unknown>
-  if (type === 'assistant/message') {
-    if (sourceRecord['kind'] !== 'model' || !hasProviderModel(sourceRecord)) {
-      throw new Error(`${subject} message must have model source`)
-    }
+function assertMessageEventShape(event: SessionEvent, subject: string): void {
+  if (event.type === 'user/message') {
+    if (event.data.id === '') throw new Error(`${subject} lacks an identified message`)
     return
   }
-  if (type !== 'tool/result') return
-  if (sourceRecord['kind'] !== 'tool'
-    || typeof sourceRecord['callId'] !== 'string'
-    || sourceRecord['callId'] === '') {
-    throw new Error(`${subject} message must have tool source`)
+  if (event.type === 'assistant/message') {
+    const message = event.data.message
+    if (message.id === '') throw new Error(`${subject} lacks an identified message`)
+    if (!hasProviderModel(message.source)) throw new Error(`${subject} message must have model source`)
+    return
   }
-  const content = messageRecord['content'] as unknown[]
-  const block = content[0]
-  if (content.length !== 1 || typeof block !== 'object' || block === null
-    || (block as Record<string, unknown>)['type'] !== 'tool-result'
-    || !Array.isArray((block as Record<string, unknown>)['content'])) {
-    throw new Error(`${subject} message must contain one tool-result block`)
-  }
-  if ((block as Record<string, unknown>)['toolCallId'] !== sourceRecord['callId']) {
+  if (event.type !== 'tool/result') return
+  const message = event.data.message
+  if (message.id === '') throw new Error(`${subject} lacks an identified message`)
+  if (message.source.callId === '') throw new Error(`${subject} message must have tool source`)
+  if (message.content[0].toolCallId !== message.source.callId) {
     throw new Error(`${subject} message has mismatched tool call ids`)
   }
 }
 
 /** Whether an unknown value carries the current provider/model pair. */
-function hasProviderModel(value: unknown): boolean {
+function hasProviderModel(value: object | string | number | boolean | bigint | symbol | null | undefined): boolean {
   if (typeof value !== 'object' || value === null) return false
-  const pair = value as Record<string, unknown>
-  return typeof pair['provider'] === 'string' && pair['provider'].length > 0
-    && typeof pair['model'] === 'string' && pair['model'].length > 0
+  return 'provider' in value && typeof value.provider === 'string' && value.provider.length > 0
+    && 'model' in value && typeof value.model === 'string' && value.model.length > 0
 }
 
 /** Reject request-header vocabulary removed with the legacy delta codec. */
@@ -381,7 +355,7 @@ function assertSupportedRequestHeader(type: string, data: unknown, location: str
   }
   if (type === 'request/header'
     && data !== null && typeof data === 'object' && !Array.isArray(data)
-    && (data as Record<string, unknown>)['reason'] === 'fallback') {
+    && 'reason' in data && data.reason === 'fallback') {
     throw new Error(`${location} uses unsupported legacy request/header reason "fallback"`)
   }
 }
@@ -390,7 +364,14 @@ type SessionCallback = (...args: unknown[]) => unknown
 
 /** Resolve one listener snapshot, including Cordis's internal dispatch checks. */
 function collectSessionCallbacks(ctx: Context, args: unknown[]): SessionCallback[] {
-  return [...ctx.events.dispatch('emit', args)] as SessionCallback[]
+  const callbacks: SessionCallback[] = []
+  for (const callback of ctx.events.dispatch('emit', args)) {
+    if (typeof callback !== 'function') {
+      throw new Error('session dispatch produced a non-function listener')
+    }
+    callbacks.push(callback)
+  }
+  return callbacks
 }
 
 /** Values a contained listener may reject or throw. */
@@ -577,6 +558,7 @@ export class Session {
           throw new Error(`seed event at index ${index} is not losslessly JSON-serializable`)
         }
         assertSessionEventEnvelope(snapshot, index)
+        assertCurrentLlmShape(snapshot, index)
         assertSupportedRequestHeader(snapshot.type, snapshot.data, `seed event at index ${index}`)
         if (snapshot.seq !== index) {
           throw new Error(`seed event at index ${index} has seq ${snapshot.seq} (expected ${index}); seed must be contiguous from 0`)
@@ -1091,7 +1073,10 @@ export class SessionStore extends Service {
     const callbacks = collectSessionCallbacks(this.ctx, [carrier, 'session/flush', session])
     const results = await Promise.allSettled(callbacks.map(async callback => await callback(...callbackArgs)))
     const failure = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
-    if (failure !== undefined) throw failure.reason
+    if (failure !== undefined) {
+      if (failure.reason instanceof Error) throw failure.reason
+      throw new Error('session flush listener failed')
+    }
     return callbacks.length > 0
   }
 

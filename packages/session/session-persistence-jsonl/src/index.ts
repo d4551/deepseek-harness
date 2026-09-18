@@ -8,7 +8,7 @@
 
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { readdirSync } from 'node:fs'
+import { existsSync, readdirSync, statSync } from 'node:fs'
 import { open, mkdir, readFile, readdir, realpath, link, rm, stat, truncate } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { performance } from 'node:perf_hooks'
@@ -117,11 +117,6 @@ class ParentNotDirectoryError extends Error {
     this.name = 'ParentNotDirectoryError'
     this.path = parent
   }
-}
-
-/** Whether a filesystem error means absence; every non-ENOENT failure must surface. */
-function isENOENT(error: object): boolean {
-  return 'code' in error && error.code === 'ENOENT'
 }
 
 /** Whether a settled rejection is a Node ENOENT Error. */
@@ -812,13 +807,10 @@ export class JsonlSessionPersistence extends CoordinatedSessionPersistence<Jsonl
 
   /** Require an existing configured root to be a readable directory. */
   private assertUsableRoot(): void {
-    try {
-      readdirSync(this.root)
-    } catch (error) {
-      if (typeof error === 'object' && error !== null && isENOENT(error)) return
-      if (error instanceof Error) throw error
-      throw new Error(`root probe failed: ${this.root}`)
-    }
+    if (!existsSync(this.root)) return
+    const info = statSync(this.root)
+    if (!info.isDirectory()) throw new ParentNotDirectoryError(this.root)
+    readdirSync(this.root)
   }
 
   /** Reject metadata that does not identify the selected physical log. */

@@ -4,6 +4,8 @@ import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
 import { createSnapshotStore, type BoundActions } from '@deepseek-ai/dsh-client-store'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+// Type-only: pulls the Workspace UI capability merge (ctx.uiWorkspace).
+import type {} from '@deepseek-ai/dsh-client-ui-workspace/capability'
 // Type-only service and declaration merges used by this assembly.
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
@@ -32,12 +34,6 @@ import { InputBar } from './skeleton/InputBar.tsx'
 import { todoDockEntry } from './skeleton/TodoPanel.tsx'
 import { en, NS, zh, type ConversationKey } from './locales.ts'
 import { CONVERSATION_SETTINGS_NAMESPACE, type ConversationSettings } from '../submission-settings.ts'
-
-interface WorkspaceNavigation {
-  connectWorkspace(
-    workspaceId: Parameters<ConversationInjected['selectWorkspace']>[0],
-  ): Promise<SessionId>
-}
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -76,22 +72,6 @@ function requireListSlotId(id: string | undefined, slot: string): string {
   return id
 }
 
-function hasWorkspaceNavigation(ctx: object): ctx is { uiWorkspace: WorkspaceNavigation } {
-  if (!('uiWorkspace' in ctx)) return false
-  const workspace = ctx.uiWorkspace
-  return typeof workspace === 'object'
-    && workspace !== null
-    && 'connectWorkspace' in workspace
-    && typeof workspace.connectWorkspace === 'function'
-}
-
-function requireWorkspaceNavigation(ctx: Context): WorkspaceNavigation {
-  if (!hasWorkspaceNavigation(ctx)) {
-    throw new Error('ui-conversation: uiWorkspace.connectWorkspace unavailable')
-  }
-  return ctx.uiWorkspace
-}
-
 /** Log a failed composer stop without a catch-callback binding. */
 function reportStopFailure(error: object | string | number | boolean | bigint | symbol | null | undefined): void {
   console.error('[conversation] stop failed:', error)
@@ -122,7 +102,7 @@ function concreteConversation(ctx: Context): IConversation {
 export function apply(ctx: Context): void {
   const sessions = ctx.sessions
   const slots = ctx.slots
-  const workspaceNavigation = requireWorkspaceNavigation(ctx)
+  const workspaceNavigation = ctx.uiWorkspace
   const uiConversation = new UiConversation(ctx, sessions)
 
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-conversation: dictionaries')

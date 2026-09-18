@@ -26,6 +26,9 @@
       "types": "./lib/types/client/index.d.ts",
       "default": "./lib/client.js"
     },
+    "./capability": {
+      "types": "./lib/types/client/capability.d.ts"
+    },
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
