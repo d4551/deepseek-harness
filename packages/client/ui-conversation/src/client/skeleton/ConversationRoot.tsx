@@ -43,6 +43,12 @@ function resolveContentWidth(columnWidth: number, preference: number | null): nu
   return Math.max(680, Math.min(columnWidth * 0.64, 920))
 }
 
+/** Width handles render inside the conversation root; a missing ref is a mount fault. */
+function requireConversationRoot(root: HTMLDivElement | null): HTMLDivElement {
+  if (root === null) throw new Error('conversation width handle fired before the root attached')
+  return root
+}
+
 /** One transcript width handle: pointer capture + rAF-throttled symmetric
  * resize (both sides write the one centered width, so outward travel widens
  * by 2× the pointer distance). pointermove publishes the pointer's Y as a CSS
@@ -211,22 +217,16 @@ export function ConversationRoot({
   // republishes from storage — an uncommitted press leaves the stored
   // preference untouched.
   const onHandleStart = useCallback((): number => {
-    const root = rootEl.current
-    /* v8 ignore next -- handles render inside the root, so the ref is always attached. */
-    if (root === null) return 680
+    const root = requireConversationRoot(rootEl.current)
     return resolveContentWidth(root.offsetWidth, readWidthPreference())
   }, [])
   const onHandleDrag = useCallback((width: number): void => {
-    const root = rootEl.current
-    /* v8 ignore next -- handles render inside the root, so the ref is always attached. */
-    if (root === null) return
+    const root = requireConversationRoot(rootEl.current)
     const clamped = resolveContentWidth(root.offsetWidth, width)
     root.style.setProperty('--dsh-chat-user-width', `${clamped}px`)
   }, [])
   const onHandleCommit = useCallback((width: number): void => {
-    const root = rootEl.current
-    /* v8 ignore next -- handles render inside the root, so the ref is always attached. */
-    if (root === null) return
+    const root = requireConversationRoot(rootEl.current)
     localStorage.setItem(WIDTH_PREF_KEY, `${resolveContentWidth(root.offsetWidth, width)}`)
   }, [])
   const onHandleEnd = useCallback((): void => {
@@ -306,13 +306,15 @@ export function ConversationRoot({
         onPick: (workspaceId) => {
           setPickerOpen(false)
           setPendingWorkspaceId(workspaceId)
-          selectWorkspace(workspaceId).then(
-            () => undefined,
-            (error: Error) => {
-              setPendingWorkspaceId(current => current === workspaceId ? undefined : current)
-              console.error('[conversation] workspace switch failed:', error)
-            },
-          )
+          const reportSwitchFailure = (
+            reason: object | string | number | boolean | bigint | symbol | null | undefined,
+          ): undefined => {
+            if (!(reason instanceof Error)) throw new TypeError('workspace switch rejected with a non-Error')
+            setPendingWorkspaceId(current => current === workspaceId ? undefined : current)
+            console.error('[conversation] workspace switch failed:', reason)
+            return undefined
+          }
+          selectWorkspace(workspaceId).then(() => undefined, reportSwitchFailure)
         },
         onClose: () => { setPickerOpen(false) },
       })}

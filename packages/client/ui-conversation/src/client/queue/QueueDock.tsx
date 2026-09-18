@@ -11,6 +11,9 @@ import type { QueueAction, QueueItemId } from '../contract/queue.ts'
 import { NS } from '../locales.ts'
 import css from './QueueDock.module.css'
 
+/** Values a queue mutation promise may reject with. */
+type QueueActionFailure = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Queue operations injected by the session-scoped registration. */
 export interface QueueDockInjected {
   updateQueue: (itemId: QueueItemId, action: QueueAction) => Promise<void>
@@ -53,18 +56,19 @@ export function QueueDock({ useSession, updateQueue, notify, t }: QueueDockProps
     failure: string,
   ): Promise<boolean> => {
     setBusy(itemId)
-    return updateQueue(itemId, action).then(
-      () => {
-        setBusy(current => current === itemId ? null : current)
-        return true
-      },
-      (reason: unknown) => {
-        if (!(reason instanceof Error)) throw new TypeError('queue mutation rejected with a non-Error')
-        notify('error', `${failure}: ${reason.message}`)
-        setBusy(current => current === itemId ? null : current)
-        return false
-      },
-    )
+    const clearBusy = (): void => {
+      setBusy(current => current === itemId ? null : current)
+    }
+    const reportFailure = (reason: QueueActionFailure): false => {
+      if (!(reason instanceof Error)) throw new TypeError('queue mutation rejected with a non-Error')
+      notify('error', failure)
+      clearBusy()
+      return false
+    }
+    return updateQueue(itemId, action).then(() => {
+      clearBusy()
+      return true
+    }, reportFailure)
   }
 
   const saveEdit = async (): Promise<void> => {

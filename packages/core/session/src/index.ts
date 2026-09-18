@@ -198,6 +198,34 @@ export function snapshotSessionEvent<T extends SessionEvent>(event: T): T {
   return adoptSessionEvent(structuredClone(event))
 }
 
+/** Confirm a constructed append payload is a session event before it enters the log. */
+function assertPublishedSessionEvent(
+  value: object,
+  expectedType: string,
+  expectedSeq: number,
+): asserts value is SessionEvent {
+  if (!('type' in value) || !('seq' in value) || !('time' in value) || !('data' in value)) {
+    throw new Error(`session event "${expectedType}" is missing envelope fields`)
+  }
+  if (value.type !== expectedType) {
+    throw new Error(`session event "${expectedType}" published a different type`)
+  }
+  if (typeof value.seq !== 'number' || value.seq !== expectedSeq) {
+    throw new Error(`session event "${expectedType}" published an unexpected seq`)
+  }
+  if (typeof value.time !== 'number' || !Number.isSafeInteger(value.time)) {
+    throw new Error(`session event "${expectedType}" has an invalid time`)
+  }
+}
+
+/** Narrow a published event to the append call's type argument. */
+function isSessionEventOfType<T extends SessionEventType>(
+  event: SessionEvent,
+  type: T,
+): event is SessionEvent<T> {
+  return event.type === type
+}
+
 /** Validate the fixed event envelope after one-pass JSON materialization. */
 function assertSessionEventEnvelope(value: Record<string, unknown>, index: number): asserts value is SessionEvent {
   const event = value
@@ -368,6 +396,13 @@ function collectSessionCallbacks(ctx: Context, args: unknown[]): SessionCallback
 /** Values a contained listener may reject or throw. */
 type ListenerFailure = object | string | number | boolean | bigint | symbol | null | undefined
 
+/** Render a contained listener failure with the Error name plus the errorChain body. */
+function renderContainedFailure(reason: ListenerFailure): string {
+  const chain = errorChain(reason)
+  if (reason instanceof Error && chain !== reason.name) return `${reason.name}: ${chain}`
+  return chain
+}
+
 /** Run one emit listener and report a synchronous throw separately from a returned-thenable rejection. */
 function observeListenerInvocation(
   invoke: () => unknown,
@@ -410,10 +445,10 @@ function invokeContainedSessionObservers(
     observeListenerInvocation(
       () => callback(...args),
       (reason) => {
-        ctx.logger.warn(`session "${id}": ${name} listener threw: ${errorChain(reason)}`)
+        ctx.logger.warn(`session "${id}": ${name} listener threw: ${renderContainedFailure(reason)}`)
       },
       (reason) => {
-        ctx.logger.warn(`session "${id}": ${name} listener rejected: ${errorChain(reason)}`)
+        ctx.logger.warn(`session "${id}": ${name} listener rejected: ${renderContainedFailure(reason)}`)
       },
     )
   }
@@ -641,14 +676,18 @@ export class Session {
     if (entry?.appending) {
       throw new Error('session append cannot reenter while another append is being published')
     }
-    const event = deepFreeze({
+    const published = deepFreeze({
       type,
       seq: this.log.length,
       time: Date.now(),
       data: dataSnapshot,
       ...surfaceMetadataSnapshot,
-    }) as SessionEvent<T>
-    this.surfaceManager.validateNext(event as SessionEvent)
+    })
+    assertPublishedSessionEvent(published, type, this.log.length)
+    this.surfaceManager.validateNext(published)
+    if (!isSessionEventOfType(published, type)) {
+      throw new Error(`session event "${type}" failed publication narrowing`)
+    }
 
     if (entry !== undefined) entry.appending = true
     using _publishing = {
@@ -659,16 +698,16 @@ export class Session {
       },
     }
     let callbacks: SessionCallback[] | undefined
-    const callbackArgs: unknown[] = [this, event]
+    const callbackArgs: unknown[] = [this, published]
     if (entry !== undefined) {
       callbacks = collectSessionCallbacks(entry.emitCtx, [entry.carrier, 'session/event', ...callbackArgs])
     }
-    this.log.push(event as SessionEvent)
+    this.log.push(published)
     this.eventsSnapshot = undefined
     if (callbacks !== undefined && entry !== undefined) {
       invokeContainedSessionObservers(entry.emitCtx, 'session/event', entry.id, callbackArgs, callbacks)
     }
-    return event
+    return published
   }
 
   /** Cached fold of the request-header events — see {@link requestHeader}. */
@@ -1011,7 +1050,7 @@ export class SessionStore extends Service {
       // promise: rejection is too late to roll back and must be logged instead
       // of becoming unhandled.
       observeReturnedThenable(callback(...callbackArgs), (reason) => {
-        this.ctx.logger.warn(`session "${entry.id}": session/created listener rejected: ${errorChain(reason)}`)
+        this.ctx.logger.warn(`session "${entry.id}": session/created listener rejected: ${renderContainedFailure(reason)}`)
       })
     }
   }
@@ -1025,10 +1064,10 @@ export class SessionStore extends Service {
         invokeContainedSessionObservers(this.ctx, 'session/disposed', entry.id, callbackArgs, callbacks)
       },
       (reason) => {
-        this.ctx.logger.warn(`session "${entry.id}": session/disposed dispatch threw: ${errorChain(reason)}`)
+        this.ctx.logger.warn(`session "${entry.id}": session/disposed dispatch threw: ${renderContainedFailure(reason)}`)
       },
       (reason) => {
-        this.ctx.logger.warn(`session "${entry.id}": session/disposed dispatch rejected: ${errorChain(reason)}`)
+        this.ctx.logger.warn(`session "${entry.id}": session/disposed dispatch rejected: ${renderContainedFailure(reason)}`)
       },
     )
   }

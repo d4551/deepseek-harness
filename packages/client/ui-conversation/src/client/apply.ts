@@ -78,6 +78,11 @@ const ABSENT_MENU_LAUNCHER = {
   subscribe: () => () => {},
 }
 
+function requireListSlotId(id: string | undefined, slot: string): string {
+  if (id === undefined) throw new Error(`${slot} list entry is missing options.id`)
+  return id
+}
+
 function requireWorkspaceNavigation(ctx: Context): WorkspaceNavigation {
   const workspace = ctx.uiWorkspace
   if (typeof workspace.connectWorkspace !== 'function') {
@@ -140,11 +145,10 @@ export function apply(ctx: Context): void {
   const viewTabs = (): ViewTab[] => {
     const tabs: ViewTab[] = []
     for (const entry of slots.entries('conversation.view')) {
-      /* v8 ignore next -- list registration validates id at load. */
-      if (entry.options.id === undefined) continue
+      const id = requireListSlotId(entry.options.id, 'conversation.view')
       tabs.push({
-        id: entry.options.id,
-        label: resolveSlotLabel(entry.options.label) ?? entry.options.id,
+        id,
+        label: resolveSlotLabel(entry.options.label) ?? id,
       })
     }
     return tabs

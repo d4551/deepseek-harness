@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import type { Session, SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
-import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
+import JsonlSessionPersistence, { probeReadablePath } from '../src/index.ts'
 import {
   encodeSegment, eventLines, logPath, projectDir, projectKey, scanLog, sessionDir, SessionLogScanner, toHeaderLine,
 } from '../src/format.ts'
@@ -1493,9 +1493,7 @@ describe('JsonlSessionPersistence: edge cases', () => {
   it('per-id lookup surfaces non-ENOENT storage errors', async () => {
     const blocker = join(root, 'not-a-directory')
     await writeFile(blocker, 'x')
-    const backend = ctx.sessionPersistence as unknown as { pathExists(path: string): Promise<boolean> }
-
-    await expect(backend.pathExists(join(blocker, 'child.jsonl'))).rejects.toThrow(/ENOTDIR/)
+    await expect(probeReadablePath(join(blocker, 'child.jsonl'))).rejects.toThrow(/ENOTDIR/)
   })
 
   it('materialization surfaces a project-directory storage fault', async () => {
