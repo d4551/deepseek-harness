@@ -197,14 +197,7 @@ function snapshotSessionHeader(id: SessionId, source?: SessionHeader): SessionHe
  * @returns the same event object with a validated, deeply frozen message.
  */
 export function adoptSessionEvent<T extends SessionEvent>(event: T): T {
-  const record = snapshotJsonObject(event)
-  if (record === undefined) {
-    throw new Error(`session event at seq ${event.seq} is not losslessly JSON-serializable`)
-  }
-  assertMessageEventShape(
-    record,
-    `session event at seq ${event.seq}`,
-  )
+  assertMessageEventShape(event, `session event at seq ${event.seq}`)
   switch (event.type) {
     case 'user/message':
       deepFreeze(event.data)
@@ -262,15 +255,25 @@ function isLegacyRequestHeaderDelta(type: string): boolean {
   return type === 'request/header-delta'
 }
 
-type JsonObject = { readonly [key: string]: JsonValue }
+type JsonObject = { [key: string]: JsonValue }
+
+/** Detach the JSON object a session event serializes to. */
+function sessionJsonRecord(event: SessionEvent, subject: string): JsonObject {
+  const record = snapshotJsonObject(event)
+  if (record === undefined) {
+    throw new Error(`${subject} is not losslessly JSON-serializable`)
+  }
+  return record
+}
 
 /** Validate the fixed event envelope after one-pass JSON materialization. */
-function assertSessionEventEnvelope(event: JsonObject, index: number): void {
-  const type = event.type
+function assertSessionEventEnvelope(event: SessionEvent, index: number): JsonObject {
+  const record = sessionJsonRecord(event, `seed event at index ${index}`)
+  const type = record.type
   if (typeof type === 'string' && isLegacyRequestHeaderDelta(type)) {
     throw new Error(`seed event at index ${index} uses unsupported legacy request/header-delta format`)
   }
-  for (const key in event) {
+  for (const key in record) {
     switch (key) {
       case 'type':
       case 'seq':
@@ -283,21 +286,23 @@ function assertSessionEventEnvelope(event: JsonObject, index: number): void {
         throw new Error(`seed event at index ${index} has an invalid event envelope`)
     }
   }
-  const seq = event.seq
-  const time = event.time
+  const seq = record.seq
+  const time = record.time
   if (typeof type !== 'string'
     || typeof seq !== 'number' || !Number.isSafeInteger(seq) || seq < 0
     || typeof time !== 'number' || !Number.isSafeInteger(time)
-    || !Object.hasOwn(event, 'data')) {
+    || !Object.hasOwn(record, 'data')) {
     throw new Error(`seed event at index ${index} has an invalid event envelope`)
   }
+  return record
 }
 
 /** Reject obsolete request headers and malformed messages at the seed/load boundary. */
-function assertCurrentLlmShape(event: JsonObject, index: number): void {
-  const type = event.type
+function assertCurrentLlmShape(event: SessionEvent, index: number): void {
+  const record = sessionJsonRecord(event, `seed event at index ${index}`)
+  const type = record.type
   if (type === 'request/header') {
-    const data = event.data
+    const data = record.data
     const header = typeof data === 'object' && data !== null && !Array.isArray(data) && 'header' in data
       ? data.header
       : undefined
@@ -325,7 +330,7 @@ const allowedAdapterKeys = new Set(['reasoningEffort', 'maxTokens'])
 
 /** Validate adapter-default markers imported from a durable request header. */
 function assertAdapterDefaults(
-  value: object | string | number | boolean | bigint | symbol | null | undefined,
+  value: JsonValue | undefined,
   config: object,
   index: number,
 ): void {
@@ -343,14 +348,15 @@ function assertAdapterDefaults(
 }
 
 /** Validate only the event-specific invariants needed to safely replay a message. */
-function assertMessageEventShape(event: JsonObject, subject: string): void {
-  const type = event.type
+function assertMessageEventShape(event: SessionEvent, subject: string): void {
+  const record = sessionJsonRecord(event, subject)
+  const type = record.type
   if (typeof type !== 'string') {
     throw new Error(`${subject} has an invalid event type`)
   }
   if (type !== 'user/message' && type !== 'assistant/message' && type !== 'tool/result') return
 
-  const data = event.data
+  const data = record.data
   const message = type === 'user/message'
     ? data
     : typeof data === 'object' && data !== null && !Array.isArray(data) && 'message' in data
@@ -416,7 +422,7 @@ function hasProviderModel(value: object | undefined): boolean {
 }
 
 /** Reject request-header vocabulary removed with the legacy delta codec. */
-function assertSupportedRequestHeader(type: string, data: JsonValue | object | undefined, location: string): void {
+function assertSupportedRequestHeader(type: string, data: JsonValue | undefined, location: string): void {
   if (type === 'request/header-delta') {
     throw new Error(`${location} uses unsupported legacy request/header-delta format`)
   }
@@ -618,14 +624,8 @@ export class Session {
       // a bad seed would surface only later as a backend rejection or a silent
       // divergence between the live log and disk.
       for (const [index, source] of seed.entries()) {
-        // The seed is a persistence/replay boundary: validate and detach the
-        // complete event in one lossless-JSON pass.
-        const record = snapshotJsonObject(source)
-        if (record === undefined) {
-          throw new Error(`seed event at index ${index} is not losslessly JSON-serializable`)
-        }
-        assertSessionEventEnvelope(record, index)
-        assertCurrentLlmShape(record, index)
+        const record = assertSessionEventEnvelope(source, index)
+        assertCurrentLlmShape(source, index)
         const type = record.type
         const seq = record.seq
         if (typeof type !== 'string' || typeof seq !== 'number') {
@@ -721,12 +721,12 @@ export class Session {
       ...surfaceOpts?.sourceEventSeqs === undefined ? {} : { sourceEventSeqs: surfaceOpts.sourceEventSeqs },
       ...surfaceOpts?.surfaceOp === undefined ? {} : { surfaceOp: surfaceOpts.surfaceOp },
     }
-    const dataSnapshot = snapshotJsonValue(data)
+    const dataSnapshot = snapshotJsonObject(data)
     if (dataSnapshot === undefined) {
       throw new Error(`session event "${type}" carries non-JSON-serializable data`)
     }
     assertSupportedRequestHeader(type, dataSnapshot, `session event "${type}"`)
-    const surfaceMetadataSnapshot = snapshotJsonValue(surfaceMetadata)
+    const surfaceMetadataSnapshot = snapshotJsonObject(surfaceMetadata)
     if (surfaceMetadataSnapshot === undefined) {
       throw new Error(`session event "${type}" carries non-JSON-serializable surface metadata`)
     }

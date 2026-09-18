@@ -194,7 +194,7 @@ export function snapshotJsonValue<T>(value: T): T | undefined {
  * Detach a plain JSON object. Unlike {@link snapshotJsonValue}, the return type
  * is the JSON object the walk produced, not the input type.
  */
-export function snapshotJsonObject(value: object): { readonly [key: string]: JsonValue } | undefined {
+export function snapshotJsonObject(value: object): { [key: string]: JsonValue } | undefined {
   const snapshot = walkJsonValue(value, true)
   if (snapshot === undefined || typeof snapshot !== 'object' || snapshot === null || Array.isArray(snapshot)) {
     return undefined
