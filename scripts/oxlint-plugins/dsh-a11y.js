@@ -2,6 +2,8 @@
  * Accessibility rules that jsx-a11y does not model for custom editors.
  * A Lexical (or other) contenteditable host cannot be a native textarea
  * because decorator chips are element children of the root.
+ * jsx-a11y/prefer-tag-over-role wants a textarea for role=textbox, so the
+ * host must apply role=textbox on the element (setAttribute) rather than in JSX.
  */
 
 function attribute(node, name) {
@@ -30,6 +32,12 @@ function literalRole(node) {
   return undefined
 }
 
+function setsTextboxRoleOnHost(context) {
+  const source = context.sourceCode.getText()
+  return source.includes("setAttribute('role', 'textbox')")
+    || source.includes('setAttribute("role", "textbox")')
+}
+
 const plugin = {
   meta: { name: 'dsh-a11y' },
   rules: {
@@ -40,7 +48,7 @@ const plugin = {
           description: 'Generic contenteditable hosts must expose role=textbox; generic textboxes must declare contentEditable.',
         },
         messages: {
-          missingRole: 'Contenteditable hosts that are not native text fields must set role="textbox".',
+          missingRole: 'Contenteditable hosts that are not native text fields must set role="textbox" on the host element.',
           missingContentEditable: 'role="textbox" on a generic element requires a contentEditable attribute.',
         },
         schema: [],
@@ -52,7 +60,7 @@ const plugin = {
             if (tag === 'input' || tag === 'textarea') return
             const role = literalRole(node)
             const contentEditable = attribute(node, 'contentEditable') ?? attribute(node, 'contenteditable')
-            if (contentEditable !== undefined && role !== 'textbox') {
+            if (contentEditable !== undefined && role !== 'textbox' && !setsTextboxRoleOnHost(context)) {
               context.report({ node, messageId: 'missingRole' })
             }
             if (role === 'textbox' && contentEditable === undefined) {

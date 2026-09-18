@@ -269,14 +269,6 @@
     },
     {
       "files": [
-        "packages/client/ui-conversation/src/client/skeleton/editor/ComposerContentEditable.tsx"
-      ],
-      "rules": {
-        "jsx-a11y/prefer-tag-over-role": "off"
-      }
-    },
-    {
-      "files": [
         "examples/**/*.ts"
       ],
       "rules": {

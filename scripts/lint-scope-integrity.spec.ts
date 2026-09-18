@@ -40,7 +40,7 @@ describe('complete lint scope integrity', () => {
 
   it.each(['files', 'plugins', 'jsPlugins'])('rejects changing every override %s field', (field) => {
     const overrides = array(object(object(object(reviewed).configurations)['.oxlintrc.json']).overrides)
-    expect(overrides).toHaveLength(11)
+    expect(overrides).toHaveLength(10)
     for (const index of overrides.keys()) {
       const changed = changedRoot((config) => {
         object(array(config.overrides)[index])[field] = []

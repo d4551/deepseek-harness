@@ -47,7 +47,6 @@ export function ComposerContentEditable({ editor, editable, ...rest }: ComposerC
       aria-multiline="true"
       data-composer-input
       {...rest}
-      role="textbox"
     />
   )
 }
