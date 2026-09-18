@@ -15,7 +15,7 @@
   box-sizing: border-box;
   background: var(--dsw-specific-sidebar-fill);
   color: var(--dsw-alias-label-primary);
-  font-size: 14px;
+  font-size: var(--dsh-content-font-size);
   /* The sidebar is elevated above the conversation surface, so a revealed
      scrollbar uses the l2 pair. .quietBars hides it without changing layout. */
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
@@ -147,14 +147,14 @@
   gap: 6px;
   min-width: 0;
   height: 24px;
-  font-size: 18px;
+  font-size: var(--dsw-font-size-18);
   font-weight: 600;
   line-height: 24px;
   letter-spacing: 0.04em;
 }
 
 .fallbackBrandName {
-  font-size: 17px;
+  font-size: var(--dsw-font-size-17);
   letter-spacing: 0px;
   white-space: nowrap;
 }
@@ -169,7 +169,7 @@
 }
 
 .localBuildTitle {
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 13px;
   letter-spacing: 0;
 }
@@ -259,7 +259,7 @@
   border-radius: 12px;
   background: var(--dsw-alias-button-elevated-fill);
   color: var(--dsw-alias-label-primary);
-  font-size: 14px;
+  font-size: var(--dsh-content-font-size);
   font-weight: 500;
   line-height: 22px;
   cursor: pointer;

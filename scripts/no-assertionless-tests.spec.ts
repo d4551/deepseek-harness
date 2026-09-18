@@ -161,16 +161,20 @@ describe('injected cases', () => {
     ])).toEqual(['no-assertion'])
   })
 
-  it('accepts it.todo and the title-only registration, which have no body by design', () => {
-    expect(kinds(["it.todo('restores focus after unmount')"])).toEqual([])
-    expect(kinds(["it('restores focus after unmount')"])).toEqual([])
+  it('reports it.todo and the title-only registration as todo cases', () => {
+    expect(kinds(["it.todo('restores focus after unmount')"])).toEqual(['todo-case'])
+    expect(kinds(["it('restores focus after unmount')"])).toEqual(['todo-case'])
+  })
+
+  it('reports an unconditionally skipped case', () => {
+    expect(kinds(["it.skip('restores focus after unmount', () => { expect(1).toBe(1) })"]))
+      .toEqual(['skipped-case'])
   })
 
   it('reads every vitest runner modifier chain as one case', () => {
     const silent = '() => { void 0 }'
     const chains = [
       `it.only('a', ${silent})`,
-      `it.skip('b', ${silent})`,
       `it.fails('c', ${silent})`,
       `it.concurrent('d', ${silent})`,
       `it.sequential('e', ${silent})`,
@@ -184,6 +188,7 @@ describe('injected cases', () => {
       `test.each([1])('m %s', ${silent})`,
     ]
     expect(kinds(chains)).toEqual(chains.map(() => 'no-assertion'))
+    expect(kinds([`it.skip('b', ${silent})`])).toEqual(['skipped-case'])
   })
 
   it('counts the it.each table call and its registration as one case', () => {

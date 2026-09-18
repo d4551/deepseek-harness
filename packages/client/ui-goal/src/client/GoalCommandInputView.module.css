@@ -27,7 +27,7 @@
   /* The command echo is a user message, not dense code-in-prose: keep the
      code family from the token but read at the body size, riding the
      Settings font-size axis like the user bubble (14/22 at the default). */
-  font-size: var(--dsh-content-font-size, 14px);
+  font-size: var(--dsh-content-font-size);
   line-height: calc(22px + var(--dsh-content-font-delta, 0px));
   white-space: pre-wrap;
 }

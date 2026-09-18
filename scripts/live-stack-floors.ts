@@ -4,9 +4,9 @@
  * manifest or source snippet; a clean tree is not the only passing case.
  */
 
-import { createRequire } from 'node:module'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
+import type { JsonValue } from './ts7-session.ts'
 import { uniqueRepoFiles } from './repo-files.ts'
 
 /** One three-part version used as a floor, never as a copied expected blob. */
@@ -49,7 +49,7 @@ const TYPES_REACT_FLOOR: SemVer = REACT_FLOOR
 /** @types/react-dom product pin. */
 const TYPES_REACT_DOM_FLOOR: SemVer = REACT_FLOOR
 /** Vite pin for the web app and the repo root (VitePress on the website is exempt). */
-export const VITE_FLOOR: SemVer = { major: 8, minor: 2, patch: 2 }
+export const VITE_FLOOR: SemVer = { major: 8, minor: 3, patch: 0 }
 /** @vitejs/plugin-react pin for the web app. */
 const PLUGIN_REACT_FLOOR: SemVer = { major: 6, minor: 1, patch: 1 }
 /** axe-core pin. */
@@ -57,7 +57,7 @@ export const AXE_FLOOR: SemVer = { major: 4, minor: 13, patch: 0 }
 /** @modelcontextprotocol/sdk v1 latest. */
 export const MCP_SDK_FLOOR: SemVer = { major: 1, minor: 30, patch: 0 }
 /** Oxlint pin: the repository's only linter. */
-const OXLINT_FLOOR: SemVer = { major: 1, minor: 81, patch: 0 }
+const OXLINT_FLOOR: SemVer = { major: 1, minor: 83, patch: 0 }
 /**
  * `oxlint-tsgolint` pin. This is the type-aware half of the lint gate — the
  * `no-unsafe-*` and `no-unnecessary-condition` rules that hold the TypeScript 7
@@ -72,7 +72,7 @@ const OXLINT_TSGOLINT_FLOOR: SemVer = { major: 7, minor: 0, patch: 2001 }
  */
 export const VITEST_FLOOR: SemVer = { major: 5, minor: 0, patch: 1 }
 /** `@types/node` pin: the ambient surface every Host package compiles against. */
-const TYPES_NODE_FLOOR: SemVer = { major: 26, minor: 4, patch: 0 }
+const TYPES_NODE_FLOOR: SemVer = { major: 26, minor: 6, patch: 1 }
 /**
  * `tsx` pin. The `dsh` source launch runs through tsx's ESM-only hook, so this
  * is a named part of the source-launch contract rather than a test-only tool.
@@ -91,7 +91,7 @@ const YAML_FLOOR: SemVer = { major: 2, minor: 9, patch: 0 }
 /** `fflate` pin: session-transcript compression. */
 const FFLATE_FLOOR: SemVer = { major: 0, minor: 8, patch: 3 }
 /** `playwright` pin: the browser the Web snapshot and e2e lanes drive. */
-const PLAYWRIGHT_FLOOR: SemVer = { major: 1, minor: 62, patch: 1 }
+const PLAYWRIGHT_FLOOR: SemVer = { major: 1, minor: 63, patch: 0 }
 /** Exact bun pin the root `packageManager` field must carry. */
 export const BUN_FLOOR: SemVer = { major: 1, minor: 4, patch: 2 }
 /** `packageManager` spelling of {@link BUN_FLOOR}. */
@@ -134,7 +134,7 @@ export const ROOT_DEPENDENCY_FLOORS: Readonly<Record<string, SemVer>> = Object.f
   '@stryker-mutator/core': { major: 10, minor: 0, patch: 0 },
   '@stryker-mutator/vitest-runner': { major: 10, minor: 0, patch: 0 },
   '@stylistic/eslint-plugin': { major: 5, minor: 10, patch: 0 },
-  '@testing-library/dom': { major: 10, minor: 4, patch: 1 },
+  '@testing-library/dom': { major: 10, minor: 4, patch: 2 },
   '@testing-library/react': TESTING_LIBRARY_REACT_FLOOR,
   '@types/jsdom': { major: 30, minor: 0, patch: 0 },
   '@types/mdast': { major: 4, minor: 0, patch: 4 },
@@ -146,14 +146,14 @@ export const ROOT_DEPENDENCY_FLOORS: Readonly<Record<string, SemVer>> = Object.f
   'axe-core': AXE_FLOOR,
   canvas: { major: 3, minor: 2, patch: 3 },
   execa: EXECA_FLOOR,
-  'fast-check': { major: 4, minor: 9, patch: 0 },
+  'fast-check': { major: 4, minor: 10, patch: 1 },
   'istanbul-lib-report': { major: 3, minor: 0, patch: 1 },
   'js-yaml': { major: 5, minor: 4, patch: 1 },
-  jscpd: { major: 5, minor: 1, patch: 1 },
-  jsdom: { major: 30, minor: 0, patch: 1 },
+  jscpd: { major: 5, minor: 2, patch: 1 },
+  jsdom: { major: 30, minor: 1, patch: 0 },
   'jsonc-parser': { major: 3, minor: 3, patch: 1 },
-  knip: { major: 6, minor: 34, patch: 0 },
-  lefthook: { major: 2, minor: 1, patch: 12 },
+  knip: { major: 6, minor: 36, patch: 0 },
+  lefthook: { major: 2, minor: 1, patch: 14 },
   lightningcss: { major: 1, minor: 33, patch: 0 },
   'mdast-util-from-markdown': { major: 2, minor: 0, patch: 3 },
   'mdast-util-gfm': { major: 3, minor: 1, patch: 0 },
@@ -270,6 +270,30 @@ export function rangeMeetsFloor(range: string, floor: SemVer): boolean {
 /** Manifest fields whose entries declare a dependency range. */
 const DEPENDENCY_GROUPS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const
 
+/** Product-UI packages that must never appear in a workspace manifest. */
+const FORBIDDEN_PRODUCT_DEPENDENCIES = new Set([
+  'daisyui',
+  'tailwindcss',
+  'htmx.org',
+  '@tailwindcss/vite',
+  '@tailwindcss/postcss',
+  '@tailwindcss/cli',
+])
+
+/**
+ * Parse package.json text into an object map. Throws when the document is not an object.
+ * @param source - raw JSON text.
+ * @param label - path used in the error.
+ * @returns the object document.
+ */
+function parseJsonObject(source: string, label: string): { [key: string]: JsonValue | undefined } {
+  const parsed: JsonValue = JSON.parse(source)
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new Error(`${label} is not an object`)
+  }
+  return parsed
+}
+
 /**
  * Read a declared dependency range from a package.json document.
  *
@@ -295,11 +319,7 @@ export function declaredRange(source: string, name: string): string | undefined 
  * @returns one record per present group, in {@link DEPENDENCY_GROUPS} order.
  */
 function dependencyGroups(source: string): Record<string, string>[] {
-  const manifest: unknown = JSON.parse(source)
-  if (typeof manifest !== 'object' || manifest === null || Array.isArray(manifest)) {
-    throw new Error('package.json is not an object')
-  }
-  const record = manifest as Record<string, unknown>
+  const record = parseJsonObject(source, 'package.json')
   const groups: Record<string, string>[] = []
   for (const field of DEPENDENCY_GROUPS) {
     const group = record[field]
@@ -308,7 +328,8 @@ function dependencyGroups(source: string): Record<string, string>[] {
       throw new Error(`package.json ${field} is not an object`)
     }
     const ranges: Record<string, string> = {}
-    for (const [name, range] of Object.entries(group as Record<string, unknown>)) {
+    for (const [name, range] of Object.entries(group)) {
+      if (range === undefined) continue
       if (typeof range !== 'string') throw new Error(`package.json ${field}.${name} is not a string`)
       ranges[name] = range
     }
@@ -513,24 +534,15 @@ export function exactPinnedDependencies(
 /**
  * Locate an installed package's own manifest from the manifest that declares it.
  *
- * `require.resolve` is tried first and is not sufficient on its own: a package
- * whose `exports` map omits `./package.json` refuses that subpath, and the
- * product SDKs pinned here do exactly that. Falling back to the directory on
- * disk keeps them measured rather than silently skipped, which is the shape of
- * hole this check exists to close.
+ * Isolated linker layouts place each package under a `node_modules` ancestor
+ * of the declaring manifest, including packages whose `exports` map omits
+ * `./package.json`.
  * @param name - the dependency's package name.
  * @param declaredIn - absolute path of the manifest declaring it.
  * @returns absolute path to the installed package.json, or undefined when the
  *   package is not materialized in this checkout.
  */
 function installedManifestOf(name: string, declaredIn: string): string | undefined {
-  const from = createRequire(declaredIn)
-  try {
-    return from.resolve(`${name}/package.json`)
-  } catch {
-    // The exports map refuses the subpath, or the package is absent; the disk
-    // answers both cases below.
-  }
   let directory = dirname(declaredIn)
   for (;;) {
     const candidate = resolve(directory, 'node_modules', name, 'package.json')
@@ -554,8 +566,8 @@ function installedManifestOf(name: string, declaredIn: string): string | undefin
 export function installedNamedVersion(name: string, root: string = ROOT): string | undefined {
   const installed = installedManifestOf(name, resolve(root, 'package.json'))
   if (installed === undefined) return undefined
-  const version = (JSON.parse(readFileSync(installed, 'utf8')) as { version?: string }).version
-  return version
+  const version = parseJsonObject(readFileSync(installed, 'utf8'), installed)['version']
+  return typeof version === 'string' ? version : undefined
 }
 
 /**
@@ -579,8 +591,8 @@ export function installedPinVersions(
   for (const pin of exactPinnedDependencies(manifests)) {
     const installed = installedManifestOf(pin.name, resolve(root, pin.file))
     if (installed === undefined) continue
-    const version = (JSON.parse(readFileSync(installed, 'utf8')) as { version?: string }).version
-    if (version !== undefined) found.push({ file: pin.file, name: pin.name, version })
+    const version = parseJsonObject(readFileSync(installed, 'utf8'), installed)['version']
+    if (typeof version === 'string') found.push({ file: pin.file, name: pin.name, version })
   }
   return found
 }
@@ -720,11 +732,7 @@ export function rootManifestSource(root: string = ROOT): string {
  * @returns a miss when the field is absent or not {@link BUN_PIN}.
  */
 export function packageManagerMisses(source: string): RangeMiss[] {
-  const manifest: unknown = JSON.parse(source)
-  if (typeof manifest !== 'object' || manifest === null || Array.isArray(manifest)) {
-    throw new Error('package.json is not an object')
-  }
-  const declared = (manifest as Record<string, unknown>)['packageManager']
+  const declared = parseJsonObject(source, 'package.json')['packageManager']
   if (typeof declared === 'string' && declared === BUN_PIN) return []
   return [{
     file: 'package.json',
@@ -746,6 +754,28 @@ function isProductUiPath(relativePath: string): boolean {
   if (relativePath === 'apps/web/package.json') return true
   if (/^packages\/client\/[^/]+\/package\.json$/.test(relativePath)) return true
   return false
+}
+
+/**
+ * Scan workspace manifests for Tailwind / daisyUI / htmx packages.
+ * Any version is a miss: the product UI stack is CSS Modules, not those tools.
+ * @param manifests - repository-relative path plus raw package.json text.
+ * @returns every forbidden dependency name hit.
+ */
+export function forbiddenProductDependencyHits(
+  manifests: readonly { file: string; source: string }[],
+): ForbiddenHit[] {
+  const hits: ForbiddenHit[] = []
+  for (const { file, source } of manifests) {
+    for (const group of dependencyGroups(source)) {
+      for (const name of Object.keys(group)) {
+        if (FORBIDDEN_PRODUCT_DEPENDENCIES.has(name) || name.startsWith('@tailwindcss/')) {
+          hits.push({ file, token: name })
+        }
+      }
+    }
+  }
+  return hits
 }
 
 /**

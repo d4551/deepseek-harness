@@ -36,6 +36,15 @@
   --dsw-font-body: 400 0.875rem/1.5 var(--dsw-font-family);
   --dsw-font-title: 600 1rem/1.5 var(--dsw-font-family);
   --dsw-font-caption: 400 0.75rem/1.5 var(--dsw-font-family);
+  --dsh-content-font-size: 14px;
+  --dsh-content-font-size-secondary: 13px;
+  --dsh-content-font-delta: 0px;
+  --dsh-content-font-delta-secondary: 0px;
+  --dsw-font-size-10: 10px;
+  --dsw-font-size-15: 15px;
+  --dsw-font-size-17: 17px;
+  --dsw-font-size-18: 18px;
+  --dsw-font-size-26: 26px;
   --dsw-status-size: 0.625rem;
   --dsw-status-size-large: 0.75rem;
   --dsw-status-cycle: 1s;

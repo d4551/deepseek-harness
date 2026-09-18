@@ -9,7 +9,7 @@
   height: 22px;
   border-radius: 6px;
   background: var(--dsw-alias-fill-tsp-secondary);
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 22px;
   color: var(--dsw-alias-label-secondary);
   white-space: nowrap;

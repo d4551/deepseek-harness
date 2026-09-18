@@ -21,7 +21,7 @@
   align-items: flex-start;
   gap: 10px;
   color: var(--dsw-alias-label-secondary);
-  font-size: 14px;
+  font-size: var(--dsh-content-font-size);
   line-height: 22px;
 }
 
@@ -41,7 +41,7 @@
   gap: 10px;
   margin-top: 20px;
   color: var(--dsw-alias-label-primary);
-  font-size: 14px;
+  font-size: var(--dsh-content-font-size);
   line-height: 22px;
   cursor: pointer;
 }

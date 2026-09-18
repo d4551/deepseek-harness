@@ -41,7 +41,7 @@
   border-radius: 10px;
   background: transparent;
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--dsh-content-font-size);
   line-height: 22px;
   color: var(--dsw-alias-label-primary);
   text-align: start;
@@ -58,7 +58,7 @@
   min-height: 26px;
   padding: 6px 10px 2px;
   color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   font-weight: 500;
   line-height: 18px;
 }
@@ -110,7 +110,7 @@
 .drillHintText {
   display: none;
   color: var(--dsw-alias-label-caption);
-  font-size: 11px;
+  font-size: var(--dsw-font-xxxs-11-font-size);
   line-height: 18px;
   white-space: nowrap;
 }
@@ -122,7 +122,7 @@
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-caption);
   font-family: inherit;
-  font-size: 11px;
+  font-size: var(--dsw-font-xxxs-11-font-size);
   line-height: 18px;
 }
 
@@ -153,7 +153,7 @@
  * padding aligned with items (mirrors ui-primitives Menu .label). */
 .groupTitle {
   padding: 8px 10px;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 16px;
   color: var(--dsw-alias-label-tertiary);
 }
@@ -217,7 +217,7 @@
   color: var(--dsw-alias-label-tertiary);
   cursor: pointer;
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -257,7 +257,7 @@
   gap: 4px 8px;
   box-sizing: border-box;
   padding: 8px 10px;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
   color: var(--dsw-alias-label-error);
 }
@@ -286,7 +286,7 @@
   color: var(--dsw-alias-label-primary);
   cursor: pointer;
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
 }
 

@@ -20,7 +20,7 @@
 .title {
   flex: none;
   color: var(--dsw-alias-state-business-primary);
-  font-size: 14px;
+  font-size: var(--dsh-content-font-size);
   font-weight: 500;
   line-height: 24px;
 }
@@ -40,7 +40,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--dsw-alias-label-secondary);
-  font-size: 13px;
+  font-size: var(--dsh-content-font-size-secondary);
   line-height: 24px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -54,7 +54,7 @@
   flex: none;
   margin-left: 8px;
   color: var(--dsw-alias-label-caption);
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 24px;
 }
 
@@ -101,7 +101,7 @@
   border-radius: 8px;
   background: var(--dsw-alias-button-ghost-active-fill);
   color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
 }
 

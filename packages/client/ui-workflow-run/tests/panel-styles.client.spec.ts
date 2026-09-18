@@ -25,7 +25,7 @@ function declarations(selector: string): string[] {
 describe('WorkflowRunPanel.module.css font-size axis', () => {
   it('member labels ride the axis at the body size with matching row geometry', () => {
     expect(declarations('.memberLabel')).toEqual(expect.arrayContaining([
-      'font-size: var(--dsh-content-font-size, 14px)',
+      'font-size: var(--dsh-content-font-size)',
       'line-height: calc(24px + var(--dsh-content-font-delta, 0px))',
     ]))
     expect(declarations('.memberLabelWrap')).toEqual(expect.arrayContaining([
@@ -36,15 +36,15 @@ describe('WorkflowRunPanel.module.css font-size axis', () => {
   it('member status and the empty placeholder read the secondary tier', () => {
     for (const selector of ['.memberStatus', '.empty']) {
       expect(declarations(selector)).toEqual(expect.arrayContaining([
-        'font-size: var(--dsh-content-font-size-secondary, 13px)',
-        'line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px))',
+        'font-size: var(--dsh-content-font-size-secondary)',
+        'line-height: calc(20px + var(--dsh-content-font-delta-secondary))',
       ]))
     }
   })
 
   it('the phase status column widens with the text so larger sizes do not truncate', () => {
     expect(declarations('.phaseStatus')).toEqual(expect.arrayContaining([
-      'width: calc(132px + var(--dsh-content-font-delta-secondary, 0px) * 10)',
+      'width: calc(132px + var(--dsh-content-font-delta-secondary) * 10)',
     ]))
   })
 })

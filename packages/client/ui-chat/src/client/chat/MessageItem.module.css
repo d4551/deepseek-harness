@@ -31,7 +31,7 @@
      padding each side; the Settings font-size preference moves size and line
      height together through the body-published axis. */
   padding: 10px 16px;
-  font-size: var(--dsh-content-font-size, 14px);
+  font-size: var(--dsh-content-font-size);
   line-height: calc(22px + var(--dsh-content-font-delta, 0px));
   color: var(--dsw-alias-label-primary);
   /* The projected user text is inline runs; the bubble owns wrapping so a
@@ -42,8 +42,8 @@
 
 .referenceSummary {
   color: var(--dsw-alias-label-tertiary);
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(18px + var(--dsh-content-font-delta-secondary, 0px));
+  font-size: var(--dsh-content-font-size-secondary);
+  line-height: calc(18px + var(--dsh-content-font-delta-secondary));
 }
 .contextRow {
   padding: 2px 0;
@@ -120,7 +120,7 @@
 
 .compactionTitle {
   flex: none;
-  font-size: var(--dsh-content-font-size-secondary, 13px);
+  font-size: var(--dsh-content-font-size-secondary);
   line-height: calc(24px + var(--dsh-content-font-delta, 0px));
   color: var(--dsw-alias-label-primary-dimmed);
 }
@@ -129,14 +129,14 @@
   /* Indent under the title, which starts at leading (16 + delta) + gap 6. */
   padding: 4px 0 4px calc(22px + var(--dsh-content-font-delta, 0px));
   color: var(--dsw-alias-label-tertiary);
-  font-size: var(--dsh-content-font-size-secondary, 13px);
+  font-size: var(--dsh-content-font-size-secondary);
   line-height: calc(24px + var(--dsh-content-font-delta, 0px));
 }
 
 .retryRow {
   color: var(--dsw-alias-label-tertiary);
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
+  font-size: var(--dsh-content-font-size-secondary);
+  line-height: calc(20px + var(--dsh-content-font-delta-secondary));
 }
 
 .retrySummary {
@@ -207,8 +207,8 @@
   margin-top: 3px;
   padding-left: 14px;
   overflow-wrap: anywhere;
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(18px + var(--dsh-content-font-delta-secondary, 0px));
+  font-size: var(--dsh-content-font-size-secondary);
+  line-height: calc(18px + var(--dsh-content-font-delta-secondary));
 }
 
 .retryDetailLabel {
@@ -221,8 +221,8 @@
   gap: 8px;
   align-items: start;
   padding: 2px 0;
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
+  font-size: var(--dsh-content-font-size-secondary);
+  line-height: calc(20px + var(--dsh-content-font-delta-secondary));
 }
 
 .turnErrorDot {

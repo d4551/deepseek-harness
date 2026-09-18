@@ -23,7 +23,7 @@
 
 .empty {
   padding: 8px 0;
-  font-size: 13px;
+  font-size: var(--dsh-content-font-size-secondary);
   line-height: 20px;
   color: var(--dsw-alias-label-tertiary);
 }

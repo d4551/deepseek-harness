@@ -18,7 +18,7 @@ const ROOT_MANIFEST = {
   packageManager: BUN_PIN,
   devDependencies: {
     typescript: '^7.0.2',
-    vite: '^8.2.2',
+    vite: '^8.3.0',
     vitest: '^5.0.0',
     '@vitest/coverage-v8': '^5.0.0',
     tsx: '^4.23.13',
@@ -29,7 +29,7 @@ const WEB_MANIFEST = {
   devDependencies: {
     react: '~19.3.0',
     'react-dom': '~19.3.0',
-    playwright: '^1.62.1',
+    playwright: '^1.63.0',
   },
 }
 
@@ -38,7 +38,8 @@ describe('rangeMeetsFloor', () => {
     for (const [range, floor] of [
       ['^7.0.2', TOOLCHAIN_FLOORS['typescript']],
       ['~19.3.0', TOOLCHAIN_FLOORS['react']],
-      ['^1.62.1', TOOLCHAIN_FLOORS['playwright']],
+      ['^1.63.0', TOOLCHAIN_FLOORS['playwright']],
+      ['^8.3.0', TOOLCHAIN_FLOORS['vite']],
       ['^4.23.13', TOOLCHAIN_FLOORS['tsx']],
       ['^5.0.0', TOOLCHAIN_FLOORS['vitest']],
       ['^5.0.0', TOOLCHAIN_FLOORS['@vitest/coverage-v8']],
@@ -50,6 +51,8 @@ describe('rangeMeetsFloor', () => {
   it('rejects old-major and old-minor bases and unparsable ranges', () => {
     expect(rangeMeetsFloor('^6.9.9', TOOLCHAIN_FLOORS['typescript'])).toBe(false)
     expect(rangeMeetsFloor('^8.1.9', TOOLCHAIN_FLOORS['vite'])).toBe(false)
+    expect(rangeMeetsFloor('^8.2.2', TOOLCHAIN_FLOORS['vite'])).toBe(false)
+    expect(rangeMeetsFloor('^1.62.1', TOOLCHAIN_FLOORS['playwright'])).toBe(false)
     expect(rangeMeetsFloor('^19.2.8', TOOLCHAIN_FLOORS['react'])).toBe(false)
     expect(rangeMeetsFloor('^19.2.8', TOOLCHAIN_FLOORS['react-dom'])).toBe(false)
     expect(rangeMeetsFloor('^4.1.11', TOOLCHAIN_FLOORS['vitest'])).toBe(false)
@@ -132,8 +135,8 @@ describe('checkToolchainFloors', () => {
   })
 
   it('holds the live root and web manifests, not only the in-spec fixtures', () => {
-    const root = JSON.parse(readFileSync(resolve(import.meta.dirname, '../package.json'), 'utf8')) as Record<string, unknown>
-    const web = JSON.parse(readFileSync(resolve(import.meta.dirname, '../apps/web/package.json'), 'utf8')) as Record<string, unknown>
+    const root: Record<string, unknown> = JSON.parse(readFileSync(resolve(import.meta.dirname, '../package.json'), 'utf8'))
+    const web: Record<string, unknown> = JSON.parse(readFileSync(resolve(import.meta.dirname, '../apps/web/package.json'), 'utf8'))
     expect(checkToolchainFloors(root, web)).toEqual([])
     expect(root['packageManager']).toBe(BUN_PIN)
   })

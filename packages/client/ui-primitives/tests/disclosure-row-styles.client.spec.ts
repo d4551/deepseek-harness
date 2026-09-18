@@ -24,7 +24,7 @@ const declarations = (selector: string): string[] => declarationsFrom('Disclosur
 describe('DisclosureRow.module.css font-size axis', () => {
   it('sizes the title from the secondary content tier on the shared row line', () => {
     expect(declarations('.title')).toEqual(expect.arrayContaining([
-      'font-size: var(--dsh-content-font-size-secondary, 13px)',
+      'font-size: var(--dsh-content-font-size-secondary)',
       'line-height: calc(24px + var(--dsh-content-font-delta, 0px))',
     ]))
   })

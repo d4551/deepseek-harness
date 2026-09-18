@@ -29,8 +29,8 @@ describe('chat flow font-size axis', () => {
     const css = read('ReasoningRow.module.css')
     for (const selector of ['.summary', '.thinkBody']) {
       expect(declarationsFrom(css, selector)).toEqual(expect.arrayContaining([
-        'font-size: var(--dsh-content-font-size-secondary, 13px)',
-        'line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px))',
+        'font-size: var(--dsh-content-font-size-secondary)',
+        'line-height: calc(20px + var(--dsh-content-font-delta-secondary))',
       ]))
     }
   })
@@ -39,11 +39,11 @@ describe('chat flow font-size axis', () => {
     // Both rows put RowSummary in the summary slot, so the tier is asserted on
     // that sheet; the context row's producer name is its own and sits beside it.
     expect(declarationsFrom(readPrimitive('RowSummary.module.css'), '.summary')).toEqual(expect.arrayContaining([
-      'font-size: var(--dsh-content-font-size-secondary, 13px)',
+      'font-size: var(--dsh-content-font-size-secondary)',
       'line-height: calc(24px + var(--dsh-content-font-delta, 0px))',
     ]))
     expect(declarationsFrom(read('ContextInjectionRow.module.css'), '.source')).toEqual(expect.arrayContaining([
-      'font-size: var(--dsh-content-font-size-secondary, 13px)',
+      'font-size: var(--dsh-content-font-size-secondary)',
       'line-height: calc(24px + var(--dsh-content-font-delta, 0px))',
     ]))
   })
@@ -52,7 +52,7 @@ describe('chat flow font-size axis', () => {
     const actions = read('MessageIconActions.module.css')
     for (const selector of ['.timeStart', '.timeEnd']) {
       expect(declarationsFrom(actions, selector)).toEqual(expect.arrayContaining([
-        'font-size: var(--dsh-content-font-size, 14px)',
+        'font-size: var(--dsh-content-font-size)',
       ]))
     }
     // The buttons beside that clock are GlyphButton's `message` surface, whose
@@ -72,13 +72,13 @@ describe('chat flow font-size axis', () => {
     const css = read('MessageItem.module.css')
     for (const selector of ['.compactionTitle', '.compactionBody']) {
       expect(declarationsFrom(css, selector)).toEqual(expect.arrayContaining([
-        'font-size: var(--dsh-content-font-size-secondary, 13px)',
+        'font-size: var(--dsh-content-font-size-secondary)',
         'line-height: calc(24px + var(--dsh-content-font-delta, 0px))',
       ]))
     }
     // The marker's summary slot is RowSummary, on the same tier.
     expect(declarationsFrom(readPrimitive('RowSummary.module.css'), '.summary')).toEqual(expect.arrayContaining([
-      'font-size: var(--dsh-content-font-size-secondary, 13px)',
+      'font-size: var(--dsh-content-font-size-secondary)',
       'line-height: calc(24px + var(--dsh-content-font-delta, 0px))',
     ]))
     expect(declarationsFrom(css, '.compactionLeading svg')).toEqual(expect.arrayContaining([

@@ -2,7 +2,7 @@
    through `font: inherit`, so no control restates a size. */
 .root {
   position: relative;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
 }
 
 .trigger,
@@ -112,7 +112,7 @@
 .alertText {
   flex: 1;
   color: var(--dsw-alias-label-error);
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
 }
 
 .retry,
@@ -147,7 +147,7 @@
   min-width: 0;
   overflow-wrap: anywhere;
   color: var(--dsw-alias-label-primary);
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
 }
 
 .badge {
@@ -155,7 +155,7 @@
   border-radius: 8px;
   background: var(--dsw-alias-fill-l2);
   color: var(--dsw-alias-label-tertiary);
-  font-size: 11px;
+  font-size: var(--dsw-font-xxxs-11-font-size);
   white-space: nowrap;
 }
 
@@ -174,14 +174,14 @@
 
 .empty strong {
   color: var(--dsw-alias-label-secondary);
-  font-size: 13px;
+  font-size: var(--dsh-content-font-size-secondary);
 }
 
 .empty p {
   max-width: 34ch;
   margin: 0;
   color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
 }
 
 .form {
@@ -197,7 +197,7 @@
 
 .fieldLabel {
   color: var(--dsw-alias-label-tertiary);
-  font-size: 11px;
+  font-size: var(--dsw-font-xxxs-11-font-size);
 }
 
 .input {
@@ -210,7 +210,7 @@
   background: var(--dsw-alias-bg-base);
   color: var(--dsw-alias-label-primary);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
 }
 
 .formActions {

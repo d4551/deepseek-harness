@@ -7,7 +7,7 @@
 .modalError,
 .menuStatus {
   margin-top: 8px;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
 }
 

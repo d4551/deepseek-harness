@@ -80,13 +80,13 @@
   /* Eyebrow-to-title gap widened from the figma 2px (user-tuned). */
   margin-bottom: 5px;
   color: var(--dsw-alias-label-tertiary);
-  font-size: 11px;
+  font-size: var(--dsw-font-xxxs-11-font-size);
   line-height: 16px;
 }
 
 .title {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--dsw-font-base-16-font-size);
   line-height: 22px;
   font-weight: 500;
 }
@@ -112,7 +112,7 @@
 .progress {
   padding: 0 4px;
   color: var(--dsw-alias-label-secondary);
-  font-size: 14px;
+  font-size: var(--dsh-content-font-size);
   line-height: 24px;
   font-weight: 500;
   white-space: nowrap;
@@ -213,7 +213,7 @@
   border-radius: 6px;
   background: var(--dsw-alias-bg-overlay);
   color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   font-weight: 500;
   line-height: 18px;
 }
@@ -269,7 +269,7 @@
 }
 
 .optionLabel {
-  font-size: 14px;
+  font-size: var(--dsh-content-font-size);
   line-height: 24px;
   font-weight: 500;
 }
@@ -279,14 +279,14 @@
   border-radius: 6px;
   background: var(--dsw-specific-sidebar-nav-item-active-accent);
   color: var(--dsw-alias-button-info-fill);
-  font-size: 11px;
+  font-size: var(--dsw-font-xxxs-11-font-size);
   line-height: 18px;
   font-weight: 600;
 }
 
 .description {
   color: var(--dsw-alias-label-tertiary);
-  font-size: 14px;
+  font-size: var(--dsh-content-font-size);
   line-height: 24px;
   font-weight: 400;
 }
@@ -336,7 +336,7 @@
   min-width: 0;
   padding: var(--dsh-answer-field-padding);
   font: inherit;
-  font-size: 14px;
+  font-size: var(--dsh-content-font-size);
   line-height: 24px;
   white-space: pre-wrap;
   word-break: break-word;
@@ -412,7 +412,7 @@
   flex: 1;
   min-height: 16px;
   color: var(--dsw-alias-state-error-primary);
-  font-size: 11px;
+  font-size: var(--dsw-font-xxxs-11-font-size);
   line-height: 16px;
   text-align: right;
 }
@@ -431,7 +431,7 @@
   }
 
   .title {
-    font-size: 15px;
+    font-size: var(--dsw-font-size-15);
     line-height: 21px;
   }
 

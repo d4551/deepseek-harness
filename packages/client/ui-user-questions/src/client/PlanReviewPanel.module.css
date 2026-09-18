@@ -42,7 +42,7 @@
   padding: 10px 16px;
   background: var(--dsw-alias-state-warn-tertiary);
   color: var(--dsw-alias-state-warn-label);
-  font-size: 13px;
+  font-size: var(--dsh-content-font-size-secondary);
   line-height: 18px;
 }
 
@@ -60,7 +60,7 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 12px 16px 4px;
-  font-size: 14px;
+  font-size: var(--dsh-content-font-size);
   line-height: 22px;
 }
 
@@ -76,7 +76,7 @@
 .feedback {
   min-height: 16px;
   color: var(--dsw-alias-label-error);
-  font-size: 11px;
+  font-size: var(--dsw-font-xxxs-11-font-size);
   line-height: 16px;
 }
 

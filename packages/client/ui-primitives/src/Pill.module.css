@@ -6,7 +6,7 @@
   padding: 0 8px;
   border: none;
   border-radius: 12px;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
   color: var(--dsw-alias-label-secondary);
   background: var(--dsw-alias-bg-layer-2);

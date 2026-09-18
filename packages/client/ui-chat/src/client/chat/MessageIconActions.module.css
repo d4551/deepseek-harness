@@ -12,7 +12,7 @@
 /* Clock before icons (user figma 388:20051) / after (assistant 43:32997). */
 .timeStart {
   padding-right: 12px;
-  font-size: var(--dsh-content-font-size, 14px);
+  font-size: var(--dsh-content-font-size);
   line-height: calc(24px + var(--dsh-content-font-delta, 0px));
   color: var(--dsw-alias-label-tertiary);
   white-space: nowrap;
@@ -20,7 +20,7 @@
 
 .timeEnd {
   padding-left: 12px;
-  font-size: var(--dsh-content-font-size, 14px);
+  font-size: var(--dsh-content-font-size);
   line-height: calc(24px + var(--dsh-content-font-delta, 0px));
   color: var(--dsw-alias-label-tertiary);
   white-space: nowrap;

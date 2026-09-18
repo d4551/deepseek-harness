@@ -89,7 +89,7 @@
      on a 22px line inside a 26px row; both box heights shift by the same
      delta, preserving the 8px (22 − 14) leading and the 4px (26 − 22) row
      padding at every size. */
-  font-size: var(--dsh-content-font-size, 14px);
+  font-size: var(--dsh-content-font-size);
   line-height: calc(22px + var(--dsh-content-font-delta, 0px));
   white-space: nowrap;
   color: var(--dsw-alias-state-business-primary);
@@ -98,8 +98,8 @@
 .turnStatusClock {
   margin-left: 8px;
   font: var(--dsw-font-xs-13);
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
+  font-size: var(--dsh-content-font-size-secondary);
+  line-height: calc(20px + var(--dsh-content-font-delta-secondary));
   font-weight: 400;
   font-variant-numeric: tabular-nums;
   color: var(--dsw-alias-label-caption);
@@ -107,14 +107,14 @@
 
 .hint {
   color: var(--dsw-alias-label-tertiary);
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(18px + var(--dsh-content-font-delta-secondary, 0px));
+  font-size: var(--dsh-content-font-size-secondary);
+  line-height: calc(18px + var(--dsh-content-font-delta-secondary));
 }
 
 .openError {
   color: var(--dsw-alias-state-error-primary);
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(18px + var(--dsh-content-font-delta-secondary, 0px));
+  font-size: var(--dsh-content-font-size-secondary);
+  line-height: calc(18px + var(--dsh-content-font-delta-secondary));
 }
 
 .older {
@@ -129,7 +129,7 @@
   border: none;
   border-radius: 14px;
   padding: 4px 12px;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   color: var(--dsw-alias-label-secondary);
   background: var(--dsw-alias-interactive-bg-hover-solid);
   cursor: pointer;

@@ -56,7 +56,7 @@ describe('ToolRow.module.css summary line', () => {
     // the narration body: summary, suffix, and file link read the secondary
     // tier (one step under the body), matching think text.
     const tier = [
-      'font-size: var(--dsh-content-font-size-secondary, 13px)',
+      'font-size: var(--dsh-content-font-size-secondary)',
       'line-height: calc(24px + var(--dsh-content-font-delta, 0px))',
     ]
     expect(declarationsFrom(SUMMARY, '.summary')).toEqual(expect.arrayContaining(tier))
