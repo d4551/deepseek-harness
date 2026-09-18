@@ -12,7 +12,9 @@ import type {
   ApprovalRequestId, CordisDynamicPackageId, CordisDynamicPluginId, CordisDynamicPluginRunId,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SessionId } from '@deepseek-ai/dsh-client-connection/client'
-import type { DynamicCordisInvokeResult } from '@deepseek-ai/dsh-api-remotes/client'
+import type { DynamicCordisInvokeResult, DynamicCordisRunResolution } from '@deepseek-ai/dsh-api-remotes/client'
+import type { StoredEntry } from '@deepseek-ai/dsh-client-ui-slots'
+import type { DynamicCordisRenderFailure } from '../src/client/runtime.ts'
 // Type-only: resolves the `ctx.remote.$on` surface.
 import type {} from '@deepseek-ai/dsh-api-gateway/client'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
@@ -39,7 +41,7 @@ interface Bench {
     pluginRunId: CordisDynamicPluginRunId
   } }
   /** Resolutions the host received. */
-  resolved: { requestId: string; resolution: unknown }[]
+  resolved: { requestId: string; resolution: DynamicCordisRunResolution }[]
   /** What the namespace received. */
   invoked: { pluginId: CordisDynamicPluginId; pluginRunId: CordisDynamicPluginRunId; method: string; args: unknown }[]
   /** Answer of the next invoke call. */
@@ -51,7 +53,7 @@ interface Bench {
     agentId: string
     pluginId: CordisDynamicPluginId
     pluginRunId: CordisDynamicPluginRunId
-    failure: unknown
+    failure: DynamicCordisRenderFailure
   }[]
   /** Whether the namespace refuses the next render-failure report. */
   reportRefused: { current: boolean }
@@ -62,7 +64,7 @@ interface Bench {
    * this from ui-renderer's boundary through the render host; a test has no React
    * tree, so it stands in for that caller on the same core seam.
    */
-  crash: (slot: string, entry: unknown, abdicate: boolean, error: unknown) => void
+  crash: (slot: string, entry: StoredEntry, abdicate: boolean, error: Error) => void
   dispose: () => Promise<void>
   settle: () => Promise<void>
 }
@@ -111,7 +113,7 @@ async function boot(): Promise<Bench> {
     packageId: PACKAGE,
     pluginRunId: RUN,
   } }
-  const resolved: { requestId: string; resolution: unknown }[] = []
+  const resolved: { requestId: string; resolution: DynamicCordisRunResolution }[] = []
   const renderFailures: Bench['renderFailures'] = []
   const reportRefused = { current: false }
   // Every generated Remote method resolves to a RemoteResult: the carrier folds
@@ -130,13 +132,13 @@ async function boot(): Promise<Bench> {
       agentId: string,
       pluginId: CordisDynamicPluginId,
       pluginRunId: CordisDynamicPluginRunId,
-      failure: unknown,
+      failure: DynamicCordisRenderFailure,
     ) => {
       renderFailures.push({ agentId, pluginId, pluginRunId, failure })
       return reportRefused.current ? Promise.reject(new Error('stream gone')) : answered(undefined)
     },
     getClientCode: () => answered(source.current),
-    resolveRequestRun: (requestId: string, resolution: unknown) => {
+    resolveRequestRun: (requestId: string, resolution: DynamicCordisRunResolution) => {
       resolved.push({ requestId, resolution })
       return answered({ accepted: true })
     },
@@ -190,10 +192,7 @@ async function boot(): Promise<Bench> {
     reportRefused,
     forward,
     crash: (slot, entry, abdicate, error) => {
-      const core = (ctx.slots as unknown as {
-        _core: { reportEntryError(key: string, entry: unknown, error: unknown, info: { abdicate: boolean }): void }
-      })._core
-      core.reportEntryError(slot, entry, error, { abdicate })
+      ctx.slots.reportEntryError(slot, entry, error, { abdicate })
     },
     dispose: async () => { await fiber.dispose() },
     settle: async () => { await new Promise((resolve) => { setTimeout(resolve, 0) }) },
@@ -298,23 +297,26 @@ describe('browser half', () => {
     }
     await bench.ctx.dynamicCordisRunner.startUserRun(USER_RUN)
     const [entry] = bench.ctx.slots.entries('root')
+    if (entry === undefined) throw new Error('root has no registration')
     bench.crash('root', entry, true, new Error('Cannot read properties of undefined'))
     expect(bench.renderFailures).toHaveLength(1)
-    expect(bench.renderFailures[0]?.agentId).toBe(AGENT)
-    expect(bench.renderFailures[0]?.pluginId).toBe(PLUGIN)
-    expect(bench.renderFailures[0]?.pluginRunId).toBe(RUN)
-    expect(bench.renderFailures[0]?.failure.slot).toBe('root')
-    expect(bench.renderFailures[0]?.failure.message).toBe(
+    const recorded = bench.renderFailures[0]
+    if (recorded === undefined) throw new Error('missing render failure report')
+    expect(recorded.agentId).toBe(AGENT)
+    expect(recorded.pluginId).toBe(PLUGIN)
+    expect(recorded.pluginRunId).toBe(RUN)
+    expect(recorded.failure.slot).toBe('root')
+    expect(recorded.failure.message).toBe(
       'your entry in slot "root" crashed while React rendered it: Cannot read properties of undefined',
     )
-    expect(typeof bench.renderFailures[0]?.failure.stack).toBe('string')
-    expect(bench.renderFailures[0]?.failure.abdicated).toBe(true)
+    expect(typeof recorded.failure.stack).toBe('string')
+    expect(recorded.failure.abdicated).toBe(true)
     // The same observation also reaches the page's own surface, so a row can show
     // it without reading the host back — in its own shape: the host is sent the
     // model-facing line, and the page keeps the crash text on its own so the
     // panel can put a translated label in front of it instead of that framing.
     expect(bench.ctx.dynamicCordisRunner.renderFailures.getSnapshot().get(PLUGIN)).toEqual({
-      ...bench.renderFailures[0]?.failure,
+      ...recorded.failure,
       cause: 'Cannot read properties of undefined',
     })
     // A report the host refuses is logged and dropped: one crash must not become

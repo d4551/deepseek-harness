@@ -14,6 +14,7 @@ import type { Scoped } from '@deepseek-ai/dsh-scope'
 import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 import type { Agent } from './types.ts'
 import type { AgentOptions } from './runtime-types.ts'
+import { observeListenerInvocation, observeReturnedThenable } from './dispatch.ts'
 
 export type { AgentOptions, AgentStatus, CancelOptions, PreStepDecision, RequestErrorAction, SessionStartSource } from './runtime-types.ts'
 export type { Agent, InboxTarget } from './types.ts'
@@ -514,14 +515,15 @@ export class AgentRegistry extends Service {
   private emitDisposed(entry: AgentEntry): void {
     const args: unknown[] = [entry.carrier, 'agent/disposed', { agent: entry.agent }]
     for (const callback of this.ctx.events.dispatch('emit', args)) {
-      try {
-        const returned: unknown = callback(...args)
-        Promise.resolve(returned).catch((error: unknown) => {
-          this.ctx.logger.warn(`agent "${entry.id}": agent/disposed listener rejected: ${String(error)}`)
-        })
-      } catch (error: unknown) {
-        this.ctx.logger.warn(`agent "${entry.id}": agent/disposed listener threw: ${String(error)}`)
-      }
+      observeListenerInvocation(
+        () => callback(...args),
+        (reason) => {
+          this.ctx.logger.warn(`agent "${entry.id}": agent/disposed listener threw: ${String(reason)}`)
+        },
+        (reason) => {
+          this.ctx.logger.warn(`agent "${entry.id}": agent/disposed listener rejected: ${String(reason)}`)
+        },
+      )
     }
   }
 
@@ -550,9 +552,8 @@ export class AgentRegistry extends Service {
         // A synchronous creation failure vetoes publication and rolls back.
         // Returned-promise rejection happens after this synchronous boundary, so
         // observe and report it instead of leaking an unhandled rejection.
-        const returned: unknown = callback(...args)
-        Promise.resolve(returned).catch((error: unknown) => {
-          this.ctx.logger.warn(`agent "${entry.id}": agent/created listener rejected: ${String(error)}`)
+        observeReturnedThenable(callback(...args), (reason) => {
+          this.ctx.logger.warn(`agent "${entry.id}": agent/created listener rejected: ${String(reason)}`)
         })
       }
     } finally {

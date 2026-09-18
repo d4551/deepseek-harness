@@ -62,7 +62,9 @@ declare module './context.ts' {
      */
     serial<K extends keyof Events>(name: K, ...args: Parameters<Events[K]>): Promisify<ReturnType<Events[K]>>
     /** Same as above, with an explicit `this` for listeners (also used for filtering). */
-    serial<K extends keyof Events>(thisArg: NoInfer<ThisType<Events[K]>>, name: K, ...args: Parameters<Events[K]>): Promisify<ReturnType<Events[K]>>
+    serial<K extends keyof Events>(thisArg: object, name: K, ...args: Parameters<Events[K]>): Promisify<ReturnType<Events[K]>>
+    /** Generic fused dispatch: payload tuples are not recoverable from `K`. */
+    serial<K extends keyof Events>(thisArg: object, name: K, ...args: readonly unknown[]): Promisify<ReturnType<Events[K]>>
     /**
      * Dispatch an event, calling listeners in order until one bails.
      *
@@ -85,7 +87,9 @@ declare module './context.ts' {
      */
     waterfall<K extends keyof Events>(name: K, ...args: Parameters<Events[K]>): ReturnType<Events[K]>
     /** Same as above, with an explicit `this` for listeners (also used for filtering). */
-    waterfall<K extends keyof Events>(thisArg: NoInfer<ThisType<Events[K]>>, name: K, ...args: Parameters<Events[K]>): ReturnType<Events[K]>
+    waterfall<K extends keyof Events>(thisArg: object, name: K, ...args: Parameters<Events[K]>): ReturnType<Events[K]>
+    /** Generic fused dispatch: payload tuples are not recoverable from `K`. */
+    waterfall<K extends keyof Events>(thisArg: object, name: K, ...args: readonly unknown[]): ReturnType<Events[K]>
     /**
      * Register an event listener owned by the current fiber.
      *
@@ -202,7 +206,8 @@ export class EventsService {
    * @returns the first bail value (see {@link isBailed}), if any.
    */
   async serial<K extends keyof Events>(name: K, ...args: Parameters<Events[K]>): Promisify<ReturnType<Events[K]>>
-  async serial<K extends keyof Events>(thisArg: NoInfer<ThisType<Events[K]>>, name: K, ...args: Parameters<Events[K]>): Promisify<ReturnType<Events[K]>>
+  async serial<K extends keyof Events>(thisArg: object, name: K, ...args: Parameters<Events[K]>): Promisify<ReturnType<Events[K]>>
+  async serial<K extends keyof Events>(thisArg: object, name: K, ...args: readonly unknown[]): Promisify<ReturnType<Events[K]>>
   async serial(...args: unknown[]) {
     const forwarded = [...args]
     for (const cb of this.dispatch('serial', forwarded)) {
@@ -235,13 +240,15 @@ export class EventsService {
    * @returns the outermost listener's return value.
    */
   waterfall<K extends keyof Events>(name: K, ...args: Parameters<Events[K]>): ReturnType<Events[K]>
-  waterfall<K extends keyof Events>(thisArg: NoInfer<ThisType<Events[K]>>, name: K, ...args: Parameters<Events[K]>): ReturnType<Events[K]>
+  waterfall<K extends keyof Events>(thisArg: object, name: K, ...args: Parameters<Events[K]>): ReturnType<Events[K]>
+  waterfall<K extends keyof Events>(thisArg: object, name: K, ...args: readonly unknown[]): ReturnType<Events[K]>
   waterfall(...args: unknown[]) {
     const forwarded = [...args]
     const cbs = this.dispatch('waterfall', forwarded)
     const inner = forwarded.pop()
     const next = () => {
       const cb = cbs.shift() ?? inner
+      if (typeof cb !== 'function') throw new Error('waterfall continuation is not a function')
       return cb(...forwarded)
     }
     forwarded.push(next)

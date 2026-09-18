@@ -46,15 +46,16 @@ class StubCompactionEngine extends CompactionEngine {
     return Promise.resolve(RESULT)
   }
 
-  override compactNow(
+  override async compactNow(
     agent: ManualCompactAgentContext,
     signal: AbortSignal,
     sourceCommandId?: Parameters<CompactionEngine['compactNow']>[2],
   ): Promise<CompactionResult | null> {
     this.calls.push({ agent, signal })
-    if (this.operation !== undefined) return this.operation()
+    if (this.operation !== undefined) return await this.operation()
     if (this.failure === undefined) {
-      return this.result === null ? null : this.appendResult(agent, this.result, sourceCommandId)
+      if (this.result === null) return null
+      return this.appendResult(agent, this.result, sourceCommandId)
     }
     throw this.failure
   }

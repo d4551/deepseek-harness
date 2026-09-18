@@ -6,7 +6,8 @@
  * @module @deepseek-ai/dsh-agent/dispatch
  */
 
-import type { Context, Events } from '@deepseek-ai/cordis'
+import type { Context, Events, ReturnType as CordisReturn } from '@deepseek-ai/cordis'
+import type { Promisify } from '@deepseek-ai/cosmokit'
 import { scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { Scoped } from '@deepseek-ai/dsh-scope'
 import type { AssembleContext } from '@deepseek-ai/dsh-system-prompt'
@@ -14,8 +15,6 @@ import type { Agent } from './types.ts'
 
 /** Extract the parameter tuple from an event handler type (its `this` is not part of the tuple). */
 type Params<F> = F extends (...args: infer P) => unknown ? P : never
-/** Extract the return type from an event handler type. */
-type Return<F> = F extends (...args: never[]) => infer R ? R : never
 
 /**
  * The event names whose subject is an agent: the handler's first parameter is
@@ -46,6 +45,12 @@ type Tail<K extends AgentSubjectEvent> = Params<Events[K]> extends [unknown, ...
  */
 type PayloadRest<K extends AgentSubjectEvent> = Omit<PayloadOf<K> & object, 'agent'>
 
+/** Injected subject plus caller fields; Cordis fused dispatch accepts this as unknown rest. */
+type InjectedPayload<K extends AgentSubjectEvent> = { readonly agent: Agent } & PayloadRest<K>
+
+/** Values a contained listener may reject or throw. */
+type ListenerFailure = object | string | number | boolean | bigint | symbol | null | undefined
+
 /**
  * The fused dispatcher {@link agentEvents} returns: each method dispatches the
  * named agent-subject event with the agent's scope carrier as `thisArg` and
@@ -67,7 +72,7 @@ export interface AgentEventDispatch {
    * @param payload - the event's payload fields; `agent` is injected.
    * @returns the serial chain's result (the first bail value, if any).
    */
-  serial<K extends AgentSubjectEvent>(name: K, payload: PayloadRest<K>): Promise<Awaited<Return<Events[K]>>>
+  serial<K extends AgentSubjectEvent>(name: K, payload: PayloadRest<K>): Promisify<CordisReturn<Events[K]>>
   /**
    * Around-middleware dispatch (Cordis `waterfall`) in the agent's scope. The
    * declared event parameters already end with the `next` callback, so `rest`
@@ -78,7 +83,48 @@ export interface AgentEventDispatch {
    * @param rest - the event's arguments after the payload (the `next` callback).
    * @returns the waterfall's composed result.
    */
-  waterfall<K extends AgentSubjectEvent>(name: K, payload: PayloadRest<K>, ...rest: Tail<K>): Return<Events[K]>
+  waterfall<K extends AgentSubjectEvent>(name: K, payload: PayloadRest<K>, ...rest: Tail<K>): CordisReturn<Events[K]>
+}
+
+function injectSubject<K extends AgentSubjectEvent>(agent: Agent, payload: PayloadRest<K>): InjectedPayload<K> {
+  return { ...payload, agent }
+}
+
+/**
+ * Run one emit listener and report a synchronous throw separately from a
+ * returned-thenable rejection. The Promise executor converts a throw into a
+ * rejection before the synchronous-completion flag is set.
+ */
+export function observeListenerInvocation(
+  invoke: () => unknown,
+  onThrow: (reason: ListenerFailure) => void,
+  onReject: (reason: ListenerFailure) => void,
+): void {
+  let finishedSynchronously = false
+  new Promise((resolve: (value: unknown) => void) => {
+    resolve(invoke())
+    finishedSynchronously = true
+  }).then(
+    () => undefined,
+    (reason: ListenerFailure) => {
+      if (finishedSynchronously) onReject(reason)
+      else onThrow(reason)
+    },
+  )
+}
+
+/**
+ * Watch a value already returned from a listener. A throw at the call site
+ * still escapes; only a thenable rejection is reported.
+ */
+export function observeReturnedThenable(
+  returned: unknown,
+  onReject: (reason: ListenerFailure) => void,
+): void {
+  Promise.resolve(returned).then(
+    () => undefined,
+    onReject,
+  )
 }
 
 /**
@@ -105,41 +151,26 @@ export function agentCarrier(agent: Agent): Scoped<Agent> {
  * @returns the fused dispatcher.
  */
 export function agentEvents(ctx: Context, agent: Agent, carrier: Scoped<Agent> = agentCarrier(agent)): AgentEventDispatch {
-  // The ordinary dispatch methods forward through Cordis' variadic mixins. The
-  // fused (carrier, name, payload, ...rest) tuple is provably a valid argument
-  // list for the matching thisArg overload, but TypeScript cannot relate the
-  // generic Tail<K> spread back to that overload's conditional parameter
-  // tuple — hence one contained, shape-preserving cast per method.
-  const fused = <K extends AgentSubjectEvent>(payload: PayloadRest<K>): PayloadOf<K> =>
-    // The dispatcher owns the subject injection; callers pass PayloadRest, so
-    // the fused record is exactly the declared payload. The spread comes
-    // first, so a structurally acceptable payload that happens to carry an
-    // `agent` field can never override the injected subject.
-    ({ ...payload, agent } as PayloadOf<K>)
   return {
     emit(name, payload) {
-      // Cordis emit invokes callbacks through Array.map: one synchronous throw
-      // starves later listeners, and returned promises are discarded. Agent
-      // notifications are non-vetoing, so resolve the same filtered callback
-      // set ourselves and contain both failure modes independently.
-      const args: unknown[] = [carrier, name, fused(payload)]
-      const callbacks = ctx.events.dispatch('emit', args)
-      for (const callback of callbacks) {
-        try {
-          const returned: unknown = callback(...args)
-          Promise.resolve(returned).catch((error: unknown) => {
-            ctx.logger.warn(`agent event "${name}" listener rejected: ${String(error)}`)
-          })
-        } catch (error: unknown) {
-          ctx.logger.warn(`agent event "${name}" listener threw: ${String(error)}`)
-        }
+      const args: unknown[] = [carrier, name, injectSubject(agent, payload)]
+      for (const callback of ctx.events.dispatch('emit', args)) {
+        observeListenerInvocation(
+          () => callback(...args),
+          (reason) => {
+            ctx.logger.warn(`agent event "${name}" listener threw: ${String(reason)}`)
+          },
+          (reason) => {
+            ctx.logger.warn(`agent event "${name}" listener rejected: ${String(reason)}`)
+          },
+        )
       }
     },
-    async serial(name, payload) {
-      return await ctx.serial(carrier, name, fused(payload)) as Awaited<Return<Events[typeof name]>>
+    serial(name, payload) {
+      return ctx.serial(carrier, name, injectSubject(agent, payload))
     },
     waterfall(name, payload, ...rest) {
-      return ctx.waterfall(carrier, name, fused(payload), ...rest) as Return<Events[typeof name]>
+      return ctx.waterfall(carrier, name, injectSubject(agent, payload), ...rest)
     },
   }
 }

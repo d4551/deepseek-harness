@@ -43,6 +43,17 @@ export function installAsyncContextHooks(): void {
   installed = true
 
   const nativeThen = captureNativePromiseThen()
+  const continueNative = <T, R1, R2>(
+    promise: Promise<T>,
+    onFulfilled?: ((value: T) => R1 | PromiseLike<R1>) | null,
+    onRejected?: ((reason: unknown) => R2 | PromiseLike<R2>) | null,
+  ): Promise<R1 | R2> => {
+    const continued: unknown = nativeThen.call(promise, onFulfilled, onRejected)
+    if (!(continued instanceof Promise)) {
+      throw new Error('Promise.prototype.then did not return a Promise')
+    }
+    return continued
+  }
   const promisePrototype: object = Promise.prototype
   let thenName: string | undefined
   for (const name of Object.getOwnPropertyNames(promisePrototype)) {
@@ -63,9 +74,9 @@ export function installAsyncContextHooks(): void {
   ): Promise<R1 | R2> {
     const snapshot = captureAsyncContext()
     if (snapshot === undefined) {
-      return nativeThen.call(this, onFulfilled, onRejected)
+      return continueNative(this, onFulfilled, onRejected)
     }
-    return nativeThen.call(
+    return continueNative(
       this,
       bindSlot(onFulfilled, snapshot),
       bindSlot(onRejected, snapshot),
@@ -88,7 +99,7 @@ export function installAsyncContextHooks(): void {
     if (snapshot === undefined) return nativeFetch(input, init)
     // Bind the response continuation to the call site, for consumers that hand
     // the promise on before attaching handlers. `nativeThen` keeps the chain native.
-    return nativeThen.call(
+    return continueNative(
       nativeFetch(input, init),
       (response: Response) => runWithAsyncContext(snapshot, () => response),
       (reason: unknown) => runWithAsyncContext(snapshot, () => { throw reason }),

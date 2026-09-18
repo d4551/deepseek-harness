@@ -400,6 +400,18 @@ export class SlotRegistry extends Service {
   }
 
   /**
+   * Report an entry-boundary crash. The renderer host calls this; a caller that
+   * observed the crash without going through that host may call it on the service.
+   * @param key - slot key the entry rendered under.
+   * @param entry - the crashed stored entry.
+   * @param error - the crash cause, forwarded to listeners verbatim.
+   * @param info - `abdicate`: whether the crash retires the entry from its cell.
+   */
+  reportEntryError(key: string, entry: StoredEntry, error: unknown, info: { abdicate: boolean }): void {
+    this._core.reportEntryError(key, entry, error, info)
+  }
+
+  /**
    * Look up a declared spec (register-declared or the built-in 'root').
    * @param key - SlotMap key.
    * @returns spec or undefined.
@@ -466,7 +478,7 @@ export class SlotRegistry extends Service {
       getVersion: key => this._core.getVersion(key),
       entriesOf: key => this._core.entries(key),
       entriesOfSlot: key => this._core.entriesOfSlot(key),
-      reportEntryError: (key, entry, error, info) => { this._core.reportEntryError(key, entry, error, info) },
+      reportEntryError: (key, entry, error, info) => { this.reportEntryError(key, entry, error, info) },
       specOf: key => this._core.specDynamic(key),
       isLive: entry => this._core.isLive(entry),
       storeOf: (entry, scopeBinding) =>

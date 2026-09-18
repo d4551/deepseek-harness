@@ -93,15 +93,23 @@ type TypertWaterfallEvent<Event extends keyof Events> =
         : never
       : never
 
+type TypertEmitCompatible<Result> =
+  [Result] extends [void | Promise<void>]
+    ? [void] extends [Result]
+      ? 'emit'
+      : never
+    : never
+
 type TypertForwardingMode<Event extends keyof Events> =
   unknown extends ThisParameterType<Events[Event]>
-    ? TypertEventResult<Event> extends void ? 'emit' : never
+    ? TypertEmitCompatible<TypertEventResult<Event>>
     : TypertWaterfallEvent<Event> extends never ? never : 'waterfall'
 
 /**
  * Cordis event names the Remote Event carrier can preserve without a second
- * signature declaration: unscoped `void` notifications and scoped async
- * waterfalls whose final parameter is their same-result `next()` callback.
+ * signature declaration: unscoped void notifications (listeners may return a
+ * thenable void) and scoped async waterfalls whose final parameter is their
+ * same-result `next()` callback.
  */
 export type TypertForwardableEvent = {
   [Event in keyof Events]: TypertForwardingMode<Event> extends never ? never : Event

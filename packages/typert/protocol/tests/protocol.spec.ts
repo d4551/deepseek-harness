@@ -296,6 +296,7 @@ describe('typert-protocol Remote declarations', () => {
       .toExtend<TypertForwardableEventEntry>()
     expectTypeOf<{ event: 'meta-fixture/waterfall'; mode: 'emit' }>()
       .not.toExtend<TypertForwardableEventEntry>()
+    expectTypeOf<'commands/change'>().toExtend<TypertForwardableEvent>()
   })
 
   it('derives Client Context arguments from the selected Cordis waterfall declaration', () => {
