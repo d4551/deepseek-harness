@@ -430,11 +430,6 @@ export interface ToolRunContext extends ToolExecution {
 /** Registry-owned live execution: the same object wrappers may retarget `signal` on. */
 type LiveToolRunContext = ToolRunContext & { signal: AbortSignal }
 
-/** Write the live signal so `tools/execute` can replace it. */
-function liveToolRunContext(exec: ToolRunContext): LiveToolRunContext {
-  return Object.assign(exec, { signal: exec.signal })
-}
-
 /**
  * Scheduler-only result after ordered pre-execute and guards. A `post-result`
  * still receives post-execute; a `final-result` bypasses it.
@@ -1684,7 +1679,7 @@ export class ToolRuntime extends Service {
    */
   private async dispatchScheduledExecution(exec: ToolRunContext): Promise<ScheduledToolDispatch> {
     try {
-      const liveExec = liveToolRunContext(exec)
+      const liveExec = Object.assign(exec, { signal: exec.signal })
       const carrier = scopeTarget(this, exec.agent)
       const result = await this.ctx.waterfall(
         carrier, 'tools/execute', liveExec,
@@ -2010,12 +2005,7 @@ export class ToolRuntime extends Service {
 
 /** Mint a same-process correlation token whose identity is its value. */
 function createExecutionToken(): ToolExecutionToken {
-  return brandToolExecutionToken(Symbol('dsh.tool.execution'))
-}
-
-/** Brand a same-process symbol as a {@link ToolExecutionToken}. */
-function brandToolExecutionToken(token: symbol): ToolExecutionToken {
-  return token as ToolExecutionToken
+  return Symbol('dsh.tool.execution') as ToolExecutionToken
 }
 
 function toolErrorResult(error: unknown): ToolExecutionResult {

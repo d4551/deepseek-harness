@@ -29,6 +29,12 @@ import type {} from '@deepseek-ai/dsh-goal/client'
 // api-remotes import already places it in every client program.
 import type { ComposerBarProps } from '../contract/slots.ts'
 import { ComposerContentEditable } from './editor/ComposerContentEditable.tsx'
+import { DecoratorPortals } from './editor/DecoratorPortals.tsx'
+import { registerComposerKeymap } from './editor/keymap.ts'
+import { attachmentErrorText, imageSizeText } from '../image-labels.ts'
+import { ContextMeter } from './ContextMeter.tsx'
+import { PermissionSelect } from './PermissionSelect.tsx'
+import css from './InputBar.module.css'
 
 type ComposerHintStyle = CSSProperties & {
   '--dsh-composer-hint': string
@@ -37,23 +43,6 @@ type ComposerHintStyle = CSSProperties & {
 function composerHintStyle(hint: string): ComposerHintStyle {
   return { '--dsh-composer-hint': JSON.stringify(hint) }
 }
-
-function lookupLocale(translate: object, key: string): string {
-  if (typeof translate !== 'function') {
-    throw new TypeError('locale lookup must be a function')
-  }
-  const translated: unknown = translate(key)
-  if (typeof translated !== 'string') {
-    throw new TypeError('locale lookup must return a string')
-  }
-  return translated
-}
-import { DecoratorPortals } from './editor/DecoratorPortals.tsx'
-import { registerComposerKeymap } from './editor/keymap.ts'
-import { attachmentErrorText, imageSizeText } from '../image-labels.ts'
-import { ContextMeter } from './ContextMeter.tsx'
-import { PermissionSelect } from './PermissionSelect.tsx'
-import css from './InputBar.module.css'
 
 export type InputBarProps = ComposerBarProps
 
@@ -377,11 +366,16 @@ export function InputBar({
     if (rawHint === null) return null
     // Claim tokens have the `/name ` format (trailing space); trim to the bare name.
     const commandName = input?.claim?.token.slice(1).trim() ?? ''
-    const hintKey = `hint.${commandName === 'goal' && hasGoal ? 'goal.active' : commandName}`
-    // Dynamic lookup by claimed command name: unknown commands miss the
-    // dictionary and keep the machine's own hint, so the call is wide.
-    const translated = lookupLocale(t, hintKey)
-    return translated !== hintKey ? translated : rawHint
+    if (commandName === 'goal') {
+      const key = hasGoal ? 'hint.goal.active' : 'hint.goal'
+      const translated = t(key)
+      return translated !== key ? translated : rawHint
+    }
+    if (commandName === 'plan') {
+      const translated = t('hint.plan')
+      return translated !== 'hint.plan' ? translated : rawHint
+    }
+    return rawHint
   })()
 
   const placeholderText = placeholder ?? (parentOffline
