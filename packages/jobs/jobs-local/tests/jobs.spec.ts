@@ -2,7 +2,7 @@ import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import AgentRegistry, { Inbox } from '@deepseek-ai/dsh-agent'
-import type { Agent } from '@deepseek-ai/dsh-agent'
+import type { Agent, ListenerFailure } from '@deepseek-ai/dsh-agent'
 import { bindScopeParent, createScope, scopeOf } from '@deepseek-ai/dsh-scope'
 import type { ScopeKey } from '@deepseek-ai/dsh-scope'
 import { JobId } from '@deepseek-ai/dsh-jobs'
@@ -58,7 +58,7 @@ async function disposeAgentScope(agent: Agent): Promise<void> {
 /** A controllable producer start-spec: settle its `done` on demand, record cancels. */
 function producer(overrides: Partial<Omit<JobStart, 'run'> & JobHooks> = {}) {
   let settle!: (outcome: JobOutcome) => void
-  let reject!: (error: unknown) => void
+  let reject!: (error: ListenerFailure) => void
   const cancels: (string | undefined)[] = []
   const { kind = 'bash', label = 'sleep 60', owner, outputLimitBytes, ...hookOverrides } = overrides
   const hooks: JobHooks = {
@@ -175,6 +175,17 @@ describe('LocalJobRegistry.start', () => {
     },
   )
 
+  it('applies the documented concurrent-job default when config omits the limit', () => {
+    const ctx = new Context()
+    const registry = new LocalJobRegistry(ctx, {})
+    ctx.jobs.attachController('test-controller')
+    for (let index = 0; index < 10; index += 1) {
+      registry.start(producer({ label: `job-${index}` }).spec)
+    }
+    expect(() => registry.start(producer({ label: 'over-limit' }).spec))
+      .toThrow('background job limit reached for this owner (limit: 10)')
+  })
+
   it('accepts the largest safe integer limit', async () => {
     const ctx = await harness({ maxConcurrentJobsPerOwner: Number.MAX_SAFE_INTEGER })
     expect(ctx.jobs).toBeInstanceOf(LocalJobRegistry)
@@ -246,7 +257,7 @@ describe('LocalJobRegistry.start', () => {
     ctx.agents.register(otherOwner)
     expect(() => ctx.jobs.start(producer({ owner: otherOwner }).spec)).not.toThrow()
 
-    detachOld()
+    await detachOld()
     const replacement = stubAgent(ctx, 'shared-session')
     ctx.agents.register(replacement)
     expect(() => ctx.jobs.start(producer({ owner: replacement }).spec)).not.toThrow()
@@ -380,7 +391,7 @@ describe('LocalJobRegistry reads and settlement', () => {
     await fiber.dispose()
     // The returned disposer detaches too (the non-fiber path).
     const detach = ctx.jobs.onJobDone((snapshot) => { seen.push(snapshot.id) })
-    detach()
+    await detach()
 
     const p = producer()
     ctx.jobs.start(p.spec)
@@ -636,7 +647,7 @@ describe('LocalJobRegistry owner isolation', () => {
     const ctx = await harness()
     const staleOwner = stubAgent(ctx, 'owner')
     const unregisterStale = ctx.agents.register(staleOwner)
-    unregisterStale()
+    await unregisterStale()
 
     const currentOwner = stubAgent(ctx, 'owner')
     ctx.agents.register(currentOwner)
@@ -771,7 +782,7 @@ describe('LocalJobRegistry owner cleanup', () => {
     }
 
     start(oldOwner, 'old job')
-    detachOld()
+    await detachOld()
     const replacement = stubAgent(ctx, 'owner')
     ctx.agents.register(replacement)
     const replacementId = start(replacement, 'replacement job')
@@ -976,10 +987,10 @@ describe('LocalJobRegistry disposal', () => {
       inner.jobs.attachController('b')
     }, { inject: ['jobs'] }))
 
-    detachA1()
-    detachA1() // second call of the same disposer is a no-op
+    await detachA1()
+    await detachA1() // second call of the same disposer is a no-op
     expect(() => ctx.jobs.start(producer().spec)).not.toThrow() // a ×1 + b remain
-    detachA2()
+    await detachA2()
     expect(() => ctx.jobs.start(producer().spec)).not.toThrow() // b remains
     await fiber.dispose() // detaches b with its fiber (HMR safety)
     expect(() => ctx.jobs.start(producer().spec)).toThrow('no job controller serves this agent')
@@ -1070,8 +1081,8 @@ describe('LocalJobRegistry.onJobsChanged', () => {
     ctx.jobs.start(producer().spec)
     expect(seen).toEqual([1, 2])
 
-    detach()
-    detach() // second call of the same disposer is a no-op
+    await detach()
+    await detach() // second call of the same disposer is a no-op
     ctx.jobs.start(producer().spec)
     expect(seen).toEqual([1, 2, 2])
 

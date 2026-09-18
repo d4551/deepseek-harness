@@ -370,6 +370,8 @@ describe('Session', () => {
       },
     } as unknown as SessionEvent
     expect(() => adoptSessionEvent(malformed)).toThrow('message must have role "user"')
+    expect(() => adoptSessionEvent({ seq: 0 } as unknown as SessionEvent))
+      .toThrow('has an invalid event type')
   })
 
   it('round-trips a non-empty reasoning effort and rejects invalid durable values', () => {

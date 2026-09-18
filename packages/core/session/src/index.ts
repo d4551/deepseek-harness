@@ -288,8 +288,7 @@ function assertSessionEventEnvelope(event: object, index: number): void {
 
 /** Reject obsolete request headers and malformed messages at the seed/load boundary. */
 function assertCurrentLlmShape(event: object, index: number): void {
-  if (!('type' in event)) return
-  const type = event.type
+  const type = 'type' in event ? event.type : undefined
   if (type === 'request/header') {
     const data = 'data' in event ? event.data : undefined
     const header = typeof data === 'object' && data !== null && 'header' in data
@@ -347,8 +346,10 @@ function assertAdapterDefaults(
 
 /** Validate only the event-specific invariants needed to safely replay a message. */
 function assertMessageEventShape(event: object, subject: string): void {
-  if (!('type' in event)) return
-  const type = event.type
+  const type = 'type' in event ? event.type : undefined
+  if (typeof type !== 'string') {
+    throw new Error(`${subject} has an invalid event type`)
+  }
   if (type !== 'user/message' && type !== 'assistant/message' && type !== 'tool/result') return
 
   const data = 'data' in event ? event.data : undefined

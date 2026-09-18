@@ -12,7 +12,7 @@
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { observeListenerInvocation, renderListenerFailure } from '@deepseek-ai/dsh-agent'
-import type { Agent } from '@deepseek-ai/dsh-agent'
+import type { Agent, ListenerFailure } from '@deepseek-ai/dsh-agent'
 import { AnonymousEntries, ScopedLayers, scopeOf } from '@deepseek-ai/dsh-scope'
 import type { ScopeLayer } from '@deepseek-ai/dsh-scope'
 import { deadline, timeoutOf } from '@deepseek-ai/dsh-timeout'
@@ -123,8 +123,8 @@ export class LocalJobRegistry extends JobRegistry {
 
   constructor(ctx: Context, config: Config) {
     super(ctx)
-    // Schemastery validates and fills the default before constructing the service.
-    this.maxConcurrentJobsPerOwner = (config as Required<Config>).maxConcurrentJobsPerOwner
+    this.maxConcurrentJobsPerOwner = config.maxConcurrentJobsPerOwner
+      ?? DEFAULT_MAX_CONCURRENT_TASKS_PER_OWNER
     this.selfCtx = ctx
     ctx.effect(() => () => this.disposeAll(), 'jobs teardown')
   }
@@ -176,13 +176,13 @@ export class LocalJobRegistry extends JobRegistry {
     }
     this.store.set(id, job)
 
+    const onProducerRejected = (error: ListenerFailure): void => {
+      this.selfCtx.logger.warn(`jobs: job ${job.id} producer done promise rejected (producer contract violation): ${renderListenerFailure(error)}`)
+      this.settle(job, { status: 'failed', detail: renderListenerFailure(error) })
+    }
     hooks.done.then(
       (outcome) => { this.settle(job, outcome) },
-      (error: unknown) => {
-        // Contain a producer contract violation (`done` rejected) so cleanup and waiters cannot hang.
-        this.selfCtx.logger.warn(`jobs: job ${job.id} producer done promise rejected (producer contract violation): ${String(error)}`)
-        this.settle(job, { status: 'failed', detail: String(error) })
-      },
+      onProducerRejected,
     )
     // Registration is complete and cannot fail from here, so the visible set
     // has genuinely changed.
