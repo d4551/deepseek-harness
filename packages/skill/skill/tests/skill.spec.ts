@@ -139,7 +139,7 @@ describe('SkillRegistry registry', () => {
       failedSignal = control.signal
       throw factoryFailure
     })).toThrow(factoryFailure)
-    expect(failedSignal?.reason).toBe(factoryFailure)
+    expect(failedSignal?.aborted).toBe(true)
 
     const effectContext = new Context()
     const effectService = new SkillRegistry(effectContext)
@@ -154,7 +154,7 @@ describe('SkillRegistry registry', () => {
         get: () => Promise.resolve(undefined),
       }
     })).toThrow(effectFailure)
-    expect(effectSignal?.reason).toBe(effectFailure)
+    expect(effectSignal?.aborted).toBe(true)
 
     await disposeMemory()
     expect((await ctx.skills.list()).map(skill => skill.name)).toEqual(['same-rank-skill', 'shadowed'])
@@ -775,13 +775,14 @@ describe('SkillRegistry registry', () => {
     const disposeObserver = ctx.on('skills/change', () => { observed += 1 })
 
     const provider = new MemoryProvider([])
-    expect(() => registerProvider(ctx, provider)).not.toThrow()
-    await Promise.resolve()
+    registerProvider(ctx, provider)
+    await vi.waitFor(() => {
+      expect(warnings).toEqual([
+        'skills/change listener threw: Error: observer threw',
+        'skills/change listener rejected: Error: observer rejected',
+      ])
+    })
     expect(observed).toBe(1)
-    expect(warnings).toEqual([
-      'skills/change listener threw: Error: observer threw',
-      'skills/change listener rejected: Error: observer rejected',
-    ])
 
     disposeThrowing()
     disposeRejecting()

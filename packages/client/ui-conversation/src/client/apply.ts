@@ -17,7 +17,7 @@ import type {
 } from './contract/slots.ts'
 import type { InputNotice } from './contract/input.ts'
 import { createConversationStore } from './stores.ts'
-import { ConversationController, UnsupportedImageMediaTypeError } from './service.ts'
+import { ConversationController } from './service.ts'
 import type { IConversation } from './service.ts'
 import { ComposerBlockRegistry } from './input/blocks.ts'
 import type { ComposerBlock } from './contract/composer-blocks.ts'
@@ -272,16 +272,12 @@ export function apply(ctx: Context): void {
       return {
         keyboard: shell,
         addImages: (files) => {
-          try {
-            const images = conversation.createDraftImages(files)
-            if (!shell.addImages(images.map(image => image.id))) {
-              conversation.releaseDraftImages(images)
-            }
-            return null
-          } catch (error: unknown) {
-            if (error instanceof UnsupportedImageMediaTypeError) return t('image.unsupportedType')
-            return error instanceof Error ? error.message : String(error)
+          if (!conversation.acceptsImageFiles(files)) return t('image.unsupportedType')
+          const images = conversation.createDraftImages(files)
+          if (!shell.addImages(images.map(image => image.id))) {
+            conversation.releaseDraftImages(images)
           }
+          return null
         },
         removeImage: (id) => {
           conversation.releaseDraftImage(id)
@@ -304,9 +300,12 @@ export function apply(ctx: Context): void {
             })
           },
         stop: () => {
-          scopedConversation(sessions, sessionId).cancel().catch(() => {
-            // Stop failure is published through Session promptError.
-          })
+          scopedConversation(sessions, sessionId).cancel().then(
+            () => undefined,
+            (error: Error) => {
+              console.error('[conversation] stop failed:', error)
+            },
+          )
         },
         command: async (line) => {
           const session = sessions.binding(sessionId)?.session

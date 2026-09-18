@@ -128,6 +128,19 @@ export function observeReturnedThenable(
 }
 
 /**
+ * Render a contained listener failure. Hostile `toString` stays inside the
+ * Promise executor so coercion cannot escape the notification path.
+ */
+export function renderListenerFailure(reason: ListenerFailure): string {
+  let text = '[unrenderable thrown value]'
+  new Promise((resolve: (value: string) => void) => {
+    text = reason instanceof Error ? `${reason.name}: ${reason.message}` : String(reason)
+    resolve(text)
+  }).then(() => undefined, () => undefined)
+  return text
+}
+
+/**
  * Build the fused scope carrier for one agent subject.
  *
  * The carrier is a stateless routing object. {@link agentEvents} accepts an

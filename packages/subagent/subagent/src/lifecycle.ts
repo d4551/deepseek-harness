@@ -16,9 +16,9 @@
 
 import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
+import { foldConsumedWork, observeListenerInvocation, renderListenerFailure } from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-import { foldConsumedWork } from '@deepseek-ai/dsh-agent'
 import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 import { finalAssistantOutput } from './assistant-output.ts'
 import { SubagentRunId } from './types.ts'
@@ -110,14 +110,15 @@ export function createLifecycleEmitter(
       ? [name, info]
       : [carrier(parent), name, info]
     for (const callback of ctx.events.dispatch('emit', dispatchArgs)) {
-      try {
-        const returned: unknown = callback(info)
-        Promise.resolve(returned).catch((error: unknown) => {
-          ctx.logger.warn(`subagent: ${name} listener rejected: ${renderThrown(error)}`)
-        })
-      } catch (error: unknown) {
-        ctx.logger.warn(`subagent: ${name} listener threw: ${renderThrown(error)}`)
-      }
+      observeListenerInvocation(
+        () => callback(info),
+        (reason) => {
+          ctx.logger.warn(`subagent: ${name} listener threw: ${renderListenerFailure(reason)}`)
+        },
+        (reason) => {
+          ctx.logger.warn(`subagent: ${name} listener rejected: ${renderListenerFailure(reason)}`)
+        },
+      )
     }
   }
 }
@@ -253,19 +254,7 @@ function epochStopReason(events: readonly SessionEvent[]): SubagentResult['stopR
     case undefined:
     case 'completed':
       return droppedUnrun ? 'aborted' : 'completed'
-    /* v8 ignore next 3 -- `TurnEndReason` is merge-extensible, so this arm needs a
-     * backend that adds a variant; treating an unnameable reason as success would
-     * report failed work as completed. */
     default:
       return 'error'
-  }
-}
-
-/** Render any listener-thrown value without letting coercion escape containment. */
-function renderThrown(value: unknown): string {
-  try {
-    return value instanceof Error ? `${value.name}: ${value.message}` : String(value)
-  } catch {
-    return '<unrenderable thrown value>'
   }
 }

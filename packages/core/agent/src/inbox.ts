@@ -31,11 +31,7 @@ export class Inbox {
   ) {
     for (const event of session.events.slice(session.header.seedLength ?? 0)) {
       if (event.type !== 'agent/inbox/spliced') continue
-      try {
-        this.apply(event.data)
-      } catch (error: unknown) {
-        throw new Error(`invalid persisted inbox splice at session seq ${event.seq}`, { cause: error })
-      }
+      this.apply(event.data, event.seq)
     }
   }
 
@@ -192,28 +188,34 @@ export class Inbox {
     return removed
   }
 
-  /** Apply one normalized durable splice to the projection. */
-  private apply(splice: SessionEventMap['agent/inbox/spliced']): UserMessage[] {
-    this.validate(splice)
+  /** Apply one persisted splice, stamping the durable seq into validation failures. */
+  private apply(splice: SessionEventMap['agent/inbox/spliced'], persistedSeq: number): UserMessage[] {
+    this.validate(
+      splice,
+      detail => new Error(`invalid persisted inbox splice at session seq ${persistedSeq}`, { cause: new Error(detail) }),
+    )
     const inbox = this.state[splice.target]
     return inbox.splice(splice.start, splice.removedCount ?? 0, ...splice.inserted)
   }
 
   /** Validate one normalized splice against the current projection. */
-  private validate(splice: SessionEventMap['agent/inbox/spliced']): void {
+  private validate(
+    splice: SessionEventMap['agent/inbox/spliced'],
+    wrap: (detail: string) => Error = detail => new Error(detail),
+  ): void {
     const inbox = this.state[splice.target]
     const removedCount = splice.removedCount ?? 0
     if (!Number.isSafeInteger(splice.start) || splice.start < 0 || splice.start > inbox.length
       || !Number.isSafeInteger(removedCount) || removedCount < 0
       || splice.start + removedCount > inbox.length) {
-      throw new Error('invalid inbox splice')
+      throw wrap('invalid inbox splice')
     }
     const candidate = inbox.toSpliced(splice.start, removedCount, ...splice.inserted)
     const ids = new Set<string>()
     for (const message of splice.target === 'next-turn'
       ? [...candidate, ...this.nextStep]
       : [...this.nextTurn, ...candidate]) {
-      if (ids.has(message.id)) throw new Error(`message "${message.id}" is already pending`)
+      if (ids.has(message.id)) throw wrap(`message "${message.id}" is already pending`)
       ids.add(message.id)
     }
   }

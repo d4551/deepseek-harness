@@ -11,6 +11,7 @@
 
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import { observeListenerInvocation, renderListenerFailure } from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { AnonymousEntries, ScopedLayers, scopeOf } from '@deepseek-ai/dsh-scope'
 import type { ScopeLayer } from '@deepseek-ai/dsh-scope'
@@ -333,6 +334,7 @@ export class LocalJobRegistry extends JobRegistry {
    * that chain belongs to another composition and must not deliver, or the
    * owner reads one notice per mounted preset.
    * @param owner - the settled job's owner, or undefined for unowned work.
+   * @yields the listeners to notify, in registration order per layer.
    * @returns the listeners to notify, in registration order per layer.
    */
   private *listenersFor(owner?: Agent): IterableIterator<JobDoneListener> {
@@ -383,6 +385,7 @@ export class LocalJobRegistry extends JobRegistry {
    * An observer outside that chain belongs to another composition and would
    * otherwise be told about agents it does not compose.
    * @param owner - the owner whose visible set moved, or undefined for unowned work.
+   * @yields the observers to notify, in registration order per layer.
    * @returns the observers to notify, in registration order per layer.
    */
   private *changedFor(owner?: Agent): IterableIterator<JobsChangedListener> {
@@ -397,11 +400,15 @@ export class LocalJobRegistry extends JobRegistry {
    */
   private notifyChanged(owner: Agent | undefined): void {
     for (const listener of this.changedFor(owner)) {
-      try {
-        listener(owner)
-      } catch (error: unknown) {
-        this.selfCtx.logger.warn(`jobs: onJobsChanged listener threw: ${String(error)}`)
-      }
+      observeListenerInvocation(
+        () => listener(owner),
+        (reason) => {
+          this.selfCtx.logger.warn(`jobs: onJobsChanged listener threw: ${renderListenerFailure(reason)}`)
+        },
+        (reason) => {
+          this.selfCtx.logger.warn(`jobs: onJobsChanged listener rejected: ${renderListenerFailure(reason)}`)
+        },
+      )
     }
   }
 
@@ -428,14 +435,15 @@ export class LocalJobRegistry extends JobRegistry {
     this.notifyChanged(job.owner)
     if (this.listenersClosed) return
     for (const listener of this.listenersFor(job.owner)) {
-      try {
-        const returned = listener(snapshot, job.owner)
-        Promise.resolve(returned).catch((error: unknown) => {
-          this.selfCtx.logger.warn(`jobs: onJobDone listener rejected for ${job.id}: ${String(error)}`)
-        })
-      } catch (error: unknown) {
-        this.selfCtx.logger.warn(`jobs: onJobDone listener threw for ${job.id}: ${String(error)}`)
-      }
+      observeListenerInvocation(
+        () => listener(snapshot, job.owner),
+        (reason) => {
+          this.selfCtx.logger.warn(`jobs: onJobDone listener threw for ${job.id}: ${renderListenerFailure(reason)}`)
+        },
+        (reason) => {
+          this.selfCtx.logger.warn(`jobs: onJobDone listener rejected for ${job.id}: ${renderListenerFailure(reason)}`)
+        },
+      )
     }
   }
 

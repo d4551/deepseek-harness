@@ -37,7 +37,8 @@ describe('Session', () => {
         ],
         source: {
           kind: 'model',
-          ...{ provider: 'mock', model: 'mock' },
+          provider: 'mock',
+          model: 'mock',
         },
       }),
     }, { surfaceOp: 'append' })
@@ -126,7 +127,8 @@ describe('Session', () => {
         content: [{ type: 'text', text: 'a' }],
         source: {
           kind: 'model',
-          ...{ provider: 'mock', model: 'mock' },
+          provider: 'mock',
+          model: 'mock',
         },
       }),
     }, { surfaceOp: 'append' })
@@ -297,7 +299,6 @@ describe('Session', () => {
     for (const { name, event, message } of invalid) {
       expect(
         () => Session.create(SessionId(`invalid-${name}`), [event as unknown as SessionEvent]),
-        name,
       ).toThrow(message)
     }
   })
@@ -569,9 +570,10 @@ describe('Session', () => {
     }
     const drifted = { ...accepted, seq: 99, data: { invalid: 1n } }
     let reads = 0
-    const seed = new Array<SessionEvent>(1)
+    const seed: SessionEvent[] = [accepted]
     Object.defineProperty(seed, 0, {
       enumerable: true,
+      configurable: true,
       get: () => {
         reads += 1
         return reads === 1 ? accepted : drifted
@@ -699,9 +701,9 @@ describe('Session', () => {
   })
 
   it.each([
-    ['an Error', new Error('validator failed'), 'validator failed'],
-    ['a non-Error value', 'validator failed', 'invalid surface metadata'],
-  ] as const)('adds seed context when surface validation throws %s', (_name, failure, expected) => {
+    ['an Error', new Error('validator failed')],
+    ['a non-Error value', 'validator failed'],
+  ] as const)('propagates surface validation throws during seed for %s', (_name, failure) => {
     const originalHasOwn = Object.hasOwn
     const hasOwn = vi.spyOn(Object, 'hasOwn').mockImplementation((object: object, property: PropertyKey): boolean => {
       if ((object as Record<string, unknown>)['op'] === 'replace') throw failure
@@ -726,12 +728,13 @@ describe('Session', () => {
       sourceEventSeqs: [0],
     }] as unknown as SessionEvent[]
 
-    try {
-      expect(() => Session.create(SessionId('seed-non-error-metadata-failure'), seed))
-        .toThrow(`invalid seed event at index 1: ${expected}`)
-    } finally {
-      hasOwn.mockRestore()
+    using _restoreHasOwn = {
+      [Symbol.dispose]: (): void => {
+        hasOwn.mockRestore()
+      },
     }
+    expect(() => Session.create(SessionId('seed-non-error-metadata-failure'), seed))
+      .toThrow(failure)
   })
 
   it('snapshots the seed: mutating the original after construction does not affect session.events', () => {
@@ -1404,13 +1407,12 @@ describe('SessionStore', () => {
     expect(committedBeforeNotify).toBe(true)
     expect(session.events).toEqual([appended])
     expect(heard).toEqual([appended])
-    await Promise.resolve()
-    await Promise.resolve()
-
-    expect(warnings).toEqual([
-      'session "contained-event": session/event listener threw: Error: sync event observer',
-      'session "contained-event": session/event listener rejected: Error: async event observer',
-    ])
+    await vi.waitFor(() => {
+      expect(warnings).toEqual([
+        'session "contained-event": session/event listener threw: Error: sync event observer',
+        'session "contained-event": session/event listener rejected: Error: async event observer',
+      ])
+    })
   })
 
   it('runs internal dispatch validation on one frozen candidate before commit and resets after a veto', async () => {
@@ -1481,7 +1483,8 @@ describe('SessionStore', () => {
         content: [{ type: 'text', text: 'replacement' }],
         source: {
           kind: 'model',
-          ...{ provider: 'mock', model: 'mock' },
+          provider: 'mock',
+          model: 'mock',
         },
       }),
     }, {
@@ -1535,9 +1538,11 @@ describe('SessionStore', () => {
     })
     expect(session.events).toEqual([appended])
     expect(heard).toEqual([appended])
-    expect(warnings).toEqual([
-      'session "reentrant-observer": session/event listener threw: Error: session append cannot reenter while another append is being published',
-    ])
+    await vi.waitFor(() => {
+      expect(warnings).toEqual([
+        'session "reentrant-observer": session/event listener threw: Error: session append cannot reenter while another append is being published',
+      ])
+    })
   })
 
   it('defers detach through dispatch resolution, commit, and observer publication', async () => {
@@ -1579,14 +1584,14 @@ describe('SessionStore', () => {
     ctx.on('session/created', (session) => { heard.push(session.id) })
 
     const session = ctx.sessions.create(SessionId('async-created'))
-    await Promise.resolve()
-    await Promise.resolve()
+    await vi.waitFor(() => {
+      expect(warnings).toEqual([
+        'session "async-created": session/created listener rejected: Error: late creation failure',
+      ])
+    })
 
     expect(ctx.sessions.get(session.id)).toBe(session)
     expect(heard).toEqual(['async-created'])
-    expect(warnings).toEqual([
-      'session "async-created": session/created listener rejected: Error: late creation failure',
-    ])
   })
 
   it('contains synchronous and async session/disposed listener failures per observer', async () => {
@@ -1608,14 +1613,14 @@ describe('SessionStore', () => {
     const detach = ctx.sessions.enter(announced)
     ctx.sessions.announce(announced)
     expect(() => { detach() }).not.toThrow()
-    await Promise.resolve()
-    await Promise.resolve()
+    await vi.waitFor(() => {
+      expect(warnings).toEqual([
+        'session "contained-disposal": session/disposed listener threw: Error: sync disposed',
+        'session "contained-disposal": session/disposed listener rejected: Error: async disposed',
+      ])
+    })
 
     expect(heard).toEqual(['contained-disposal'])
-    expect(warnings).toEqual([
-      'session "contained-disposal": session/disposed listener threw: Error: sync disposed',
-      'session "contained-disposal": session/disposed listener rejected: Error: async disposed',
-    ])
   })
 
   it('contains internal dispatch failure after session detachment', async () => {
@@ -1635,9 +1640,11 @@ describe('SessionStore', () => {
     expect(() => { detach() }).not.toThrow()
     expect(ctx.sessions.get(session.id)).toBeUndefined()
     expect(heard).toEqual([])
-    expect(warnings).toEqual([
-      'session "disposed-dispatch": session/disposed dispatch threw: Error: disposed dispatch instrumentation',
-    ])
+    await vi.waitFor(() => {
+      expect(warnings).toEqual([
+        'session "disposed-dispatch": session/disposed dispatch threw: Error: disposed dispatch instrumentation',
+      ])
+    })
   })
 
   it('does not let internal dispatch replace the disposed callback tuple', async () => {

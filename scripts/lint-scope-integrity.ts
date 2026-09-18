@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join, posix } from 'node:path'
 import { parseConfigFileTextToJson, type JsonValue } from './ts7-session.ts'
 
-const REVIEWED_SCOPE_SHA256 = '78d9ee8ea1d39f0d653f14e68ae8cc46412926e086f905ca1312218c78ef548f'
+const REVIEWED_SCOPE_SHA256 = '151f1c61209117d04ec2358db43e4f1691ba91b0fa36d909bcbabc408b10bc01'
 const CONFIG_FILES = ['.oxlintrc.json', '.oxlintrc.staged.json']
 const DISCOVERY_FILES = ['.gitignore', 'website/.gitignore', 'native/landlock-run/.gitignore', '.agents/skills/.gitignore']
 const SCOPE_FILE_NAMES = [

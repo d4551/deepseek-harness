@@ -11,6 +11,7 @@ import { AnonymousEntries, NamedEntries, ScopedLayers, scopeOf, scopeTarget } fr
 import type { ScopeKey, ScopeLayer, Scoped } from '@deepseek-ai/dsh-scope'
 import type { ToolCallId, ContentBlock, ToolSchema } from '@deepseek-ai/dsh-llm'
 import { assertNever, deepFreeze, HarnessError } from '@deepseek-ai/dsh-llm'
+import { observeListenerInvocation, renderListenerFailure } from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { snapshotJsonValue } from '@deepseek-ai/dsh-session'
 import type { JsonValue, UserMessage } from '@deepseek-ai/dsh-session'
@@ -612,19 +613,19 @@ export type PostToolDecision =
  * is stringified.
  */
 function errorMessage(error: unknown): string {
-  try {
-    if (error instanceof Error) return error.message
-    if (typeof error === 'object' && error !== null
+  let text = '<unprintable thrown value>'
+  new Promise((resolve: (value: string) => void) => {
+    if (error instanceof Error) {
+      text = error.message
+    } else if (typeof error === 'object' && error !== null
       && 'message' in error && typeof error.message === 'string') {
-      return error.message
+      text = error.message
+    } else {
+      text = String(error)
     }
-    return String(error)
-  } catch {
-    // A hostile thrown value can trap `instanceof`, property access, or string
-    // coercion. Error normalization is the outermost safety boundary, so its
-    // fallback must itself be total.
-    return '<unprintable thrown value>'
-  }
+    resolve(text)
+  }).then(() => undefined, () => undefined)
+  return text
 }
 
 /** Derive one failure message from policy feedback without changing its rendered blocks. */
@@ -1713,19 +1714,18 @@ export class ToolRuntime extends Service {
     // WeakMap-keyable view.
     Object.freeze(exec)
     const { name: toolName, callId } = exec
-    const reportFailure = (error: unknown): void => {
-      this.ctx.logger.warn(`tool "${toolName}" (${callId}): tools/result observer failed: ${errorMessage(error)}`)
+    const reportFailure = (error: Parameters<typeof renderListenerFailure>[0]): void => {
+      this.ctx.logger.warn(`tool "${toolName}" (${callId}): tools/result observer failed: ${renderListenerFailure(error)}`)
     }
     const callbacks = this.ctx.events.dispatch('emit', [
       scopeTarget(this, exec.agent), 'tools/result', exec, result,
     ])
     for (const callback of callbacks) {
-      try {
-        const returned: unknown = callback(exec, result)
-        Promise.resolve(returned).catch(reportFailure)
-      } catch (error: unknown) {
-        reportFailure(error)
-      }
+      observeListenerInvocation(
+        () => callback(exec, result),
+        reportFailure,
+        reportFailure,
+      )
     }
   }
 

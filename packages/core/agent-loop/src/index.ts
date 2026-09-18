@@ -8,7 +8,7 @@
 import { Context, FiberState, Service } from '@deepseek-ai/cordis'
 import { randomUUID } from 'node:crypto'
 import z from '@deepseek-ai/schemastery'
-import { emitAgentEvent } from '@deepseek-ai/dsh-agent'
+import { emitAgentEvent, observeListenerInvocation, observeReturnedThenable, renderListenerFailure } from '@deepseek-ai/dsh-agent'
 import type {
   Agent,
   AgentFactory,
@@ -100,11 +100,12 @@ async function raceAbort<T>(operation: PromiseLike<T> | T, signal: AbortSignal, 
   const aborted = Promise.withResolvers<never>()
   const listener = (): void => { aborted.reject(toAbortError()) }
   signal.addEventListener('abort', listener, { once: true })
-  try {
-    return await Promise.race([Promise.resolve(operation), aborted.promise])
-  } finally {
-    signal.removeEventListener('abort', listener)
+  using _removeAbortListener = {
+    [Symbol.dispose]: (): void => {
+      signal.removeEventListener('abort', listener)
+    },
   }
+  return await Promise.race([Promise.resolve(operation), aborted.promise])
 }
 
 /** Start an abortable operation and release a value that arrives after cancellation. */
@@ -118,14 +119,20 @@ async function raceAbortCall<T>(
     signal.throwIfAborted()
     return operation()
   })
-  try {
-    return await raceAbort(pending, signal, id)
-  } catch (error: unknown) {
-    if (signal.aborted) {
-      pending.then(releaseAbandoned, () => undefined)
-    }
-    throw error
-  }
+  return await Promise.resolve(raceAbort(pending, signal, id)).then(
+    (value: T) => value,
+    (error: object | string | number | boolean | bigint | symbol | null | undefined) => {
+      if (signal.aborted) {
+        pending.then(
+          releaseAbandoned,
+          (abandoned: object | string | number | boolean | bigint | symbol | null | undefined) => {
+            console.error('abandoned agent-loop operation rejected after abort:', abandoned)
+          },
+        )
+      }
+      throw error instanceof Error ? error : new Error(renderListenerFailure(error))
+    },
+  )
 }
 
 /** Resolve the deployment-wide scheduler cap at the owning config boundary. */
@@ -375,7 +382,8 @@ export class AgentLoop extends Service implements AgentFactory {
         if (persistence === undefined) {
           this.create(configuredId, options, meta)
         } else {
-          const startup = this.restoreOrCreateConfigured(ctx, persistence, configuredId, options, meta).catch((error: unknown) => {
+          const startup = this.restoreOrCreateConfigured(ctx, persistence, configuredId, options, meta)
+          observeReturnedThenable(startup, (error) => {
             this.reportConfiguredStartupFailure(id, 'restore', configuredId, error)
           })
           this.ownership.trackStartup(startup)
@@ -384,12 +392,15 @@ export class AgentLoop extends Service implements AgentFactory {
       }
       ctx.effect(() => {
         const fiber = ctx.inject(['sessionPersistence'], (childCtx: Context) => {
-          this.resumeWith(ctx, childCtx.sessionPersistence, {
-            resumeSessionId,
-            agentOptions: options,
-          }).catch((error: unknown) => {
-            this.reportConfiguredStartupFailure(id, 'resume', resumeSessionId, error)
-          })
+          observeReturnedThenable(
+            this.resumeWith(ctx, childCtx.sessionPersistence, {
+              resumeSessionId,
+              agentOptions: options,
+            }),
+            (error) => {
+              this.reportConfiguredStartupFailure(id, 'resume', resumeSessionId, error)
+            },
+          )
         })
         return fiber.dispose
       }, `agentLoop.resume(${id})`)
@@ -401,20 +412,21 @@ export class AgentLoop extends Service implements AgentFactory {
     configId: string,
     action: 'restore' | 'resume',
     sessionId: SessionId,
-    error: unknown,
+    error: object | string | number | boolean | bigint | symbol | null | undefined,
   ): void {
     if (!this.ownership.isActive()) return
     this.ctx.logger.warn(`agent "${configId}": config-driven ${action} of "${sessionId}" failed: ${errorChain(error)}`)
     const args: unknown[] = ['agent-loop/config-start-failed', { sessionId, error }]
     for (const callback of this.ctx.events.dispatch('emit', args)) {
-      try {
-        const returned: unknown = callback(...args)
-        Promise.resolve(returned).catch((listenerError: unknown) => {
-          this.ctx.logger.warn(`agent "${configId}": config-start-failed listener rejected: ${errorChain(listenerError)}`)
-        })
-      } catch (listenerError: unknown) {
-        this.ctx.logger.warn(`agent "${configId}": config-start-failed listener threw: ${errorChain(listenerError)}`)
-      }
+      observeListenerInvocation(
+        () => callback(...args),
+        (reason) => {
+          this.ctx.logger.warn(`agent "${configId}": config-start-failed listener threw: ${renderListenerFailure(reason)}`)
+        },
+        (reason) => {
+          this.ctx.logger.warn(`agent "${configId}": config-start-failed listener rejected: ${renderListenerFailure(reason)}`)
+        },
+      )
     }
   }
 
@@ -428,16 +440,11 @@ export class AgentLoop extends Service implements AgentFactory {
   ): Promise<void> {
     await this.waitForDrainingConfiguredIdentity(ownerCtx, sessionId)
     if (!this.ownership.isActive()) return
-    try {
+    const exists = (await persistence.list()).some(header => header.id === sessionId)
+    if (!this.ownership.isActive()) return
+    if (exists) {
       await this.resumeWith(ownerCtx, persistence, { resumeSessionId: sessionId, agentOptions })
       return
-    } catch (error: unknown) {
-      if (!this.ownership.isActive()) return
-      // A load is the per-id serialization barrier for eager write-behind and
-      // lifecycle retirement. Only a genuinely absent artifact falls back to
-      // first creation; corruption and backend failures stay loud.
-      const exists = (await persistence.list()).some(header => header.id === sessionId)
-      if (exists) throw error
     }
     this.create(sessionId, agentOptions, meta)
   }
@@ -456,13 +463,14 @@ export class AgentLoop extends Service implements AgentFactory {
     }
     const disposeAgentListener = ownerCtx.on('agent/disposed', () => { checkReleased() })
     const disposeSessionListener = ownerCtx.on('session/disposed', checkReleased)
-    try {
-      checkReleased()
-      await this.ownership.waitWhileActive(released.promise)
-    } finally {
-      disposeAgentListener()
-      disposeSessionListener()
+    using _releaseListeners = {
+      [Symbol.dispose]: (): void => {
+        disposeAgentListener()
+        disposeSessionListener()
+      },
     }
+    checkReleased()
+    await this.ownership.waitWhileActive(released.promise)
   }
 
   /**

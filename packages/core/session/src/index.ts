@@ -380,6 +380,39 @@ function collectSessionCallbacks(ctx: Context, args: unknown[]): SessionCallback
   return [...ctx.events.dispatch('emit', args)] as SessionCallback[]
 }
 
+/** Values a contained listener may reject or throw. */
+type ListenerFailure = object | string | number | boolean | bigint | symbol | null | undefined
+
+/** Run one emit listener and report a synchronous throw separately from a returned-thenable rejection. */
+function observeListenerInvocation(
+  invoke: () => unknown,
+  onThrow: (reason: ListenerFailure) => void,
+  onReject: (reason: ListenerFailure) => void,
+): void {
+  let finishedSynchronously = false
+  new Promise((resolve: (value: unknown) => void) => {
+    resolve(invoke())
+    finishedSynchronously = true
+  }).then(
+    () => undefined,
+    (reason: ListenerFailure) => {
+      if (finishedSynchronously) onReject(reason)
+      else onThrow(reason)
+    },
+  )
+}
+
+/** Watch a value already returned from a listener. A throw at the call site still escapes. */
+function observeReturnedThenable(
+  returned: unknown,
+  onReject: (reason: ListenerFailure) => void,
+): void {
+  Promise.resolve(returned).then(
+    () => undefined,
+    onReject,
+  )
+}
+
 /** Invoke one resolved observe-only listener snapshot with per-listener containment. */
 function invokeContainedSessionObservers(
   ctx: Context,
@@ -389,14 +422,15 @@ function invokeContainedSessionObservers(
   callbacks: SessionCallback[],
 ): void {
   for (const callback of callbacks) {
-    try {
-      const returned: unknown = callback(...args)
-      Promise.resolve(returned).catch((error: unknown) => {
-        ctx.logger.warn(`session "${id}": ${name} listener rejected: ${String(error)}`)
-      })
-    } catch (error: unknown) {
-      ctx.logger.warn(`session "${id}": ${name} listener threw: ${String(error)}`)
-    }
+    observeListenerInvocation(
+      () => callback(...args),
+      (reason) => {
+        ctx.logger.warn(`session "${id}": ${name} listener threw: ${String(reason)}`)
+      },
+      (reason) => {
+        ctx.logger.warn(`session "${id}": ${name} listener rejected: ${String(reason)}`)
+      },
+    )
   }
 }
 
@@ -530,11 +564,7 @@ export class Session {
         // A seed is accepted incrementally through the same transition as a
         // live append and a full-log fold. The candidate is planned before it
         // enters `log`, so a failure cannot partially mutate the surface.
-        try {
-          this.surfaceManager.validateNext(snapshot)
-        } catch (error: unknown) {
-          throw new Error(`invalid seed event at index ${index}: ${error instanceof Error ? error.message : 'invalid surface metadata'}`)
-        }
+        this.surfaceManager.validateNext(snapshot)
         this.log.push(mode === 'restore' ? freezeRestoredObject(snapshot) : deepFreeze(snapshot))
       }
     }
@@ -636,24 +666,24 @@ export class Session {
     this.surfaceManager.validateNext(event as SessionEvent)
 
     if (entry !== undefined) entry.appending = true
-    try {
-      let callbacks: SessionCallback[] | undefined
-      const callbackArgs: unknown[] = [this, event]
-      if (entry !== undefined) {
-        callbacks = collectSessionCallbacks(entry.emitCtx, [entry.carrier, 'session/event', ...callbackArgs])
-      }
-      this.log.push(event as SessionEvent)
-      this.eventsSnapshot = undefined
-      if (callbacks !== undefined && entry !== undefined) {
-        invokeContainedSessionObservers(entry.emitCtx, 'session/event', entry.id, callbackArgs, callbacks)
-      }
-      return event
-    } finally {
-      if (entry !== undefined) {
+    using _publishing = {
+      [Symbol.dispose]: (): void => {
+        if (entry === undefined) return
         entry.appending = false
         if (entry.detachRequested && !entry.announcing) entry.detach()
-      }
+      },
     }
+    let callbacks: SessionCallback[] | undefined
+    const callbackArgs: unknown[] = [this, event]
+    if (entry !== undefined) {
+      callbacks = collectSessionCallbacks(entry.emitCtx, [entry.carrier, 'session/event', ...callbackArgs])
+    }
+    this.log.push(event as SessionEvent)
+    this.eventsSnapshot = undefined
+    if (callbacks !== undefined && entry !== undefined) {
+      invokeContainedSessionObservers(entry.emitCtx, 'session/event', entry.id, callbackArgs, callbacks)
+    }
+    return event
   }
 
   /** Cached fold of the request-header events — see {@link requestHeader}. */
@@ -982,34 +1012,40 @@ export class SessionStore extends Service {
     entry.announced = true
     const callbackArgs: unknown[] = [session]
     entry.announcing = true
-    try {
-      const callbacks = collectSessionCallbacks(this.ctx, [entry.carrier, 'session/created', session])
-      for (const callback of callbacks) {
-        // Synchronous throws intentionally propagate and veto publication; the
-        // yielded detach then emits the paired disposal edge. An async function
-        // is nevertheless assignable to a void listener, so observe its returned
-        // promise: rejection is too late to roll back and must be logged instead
-        // of becoming unhandled.
-        const returned: unknown = callback(...callbackArgs)
-        Promise.resolve(returned).catch((error: unknown) => {
-          this.ctx.logger.warn(`session "${entry.id}": session/created listener rejected: ${String(error)}`)
-        })
-      }
-    } finally {
-      entry.announcing = false
-      if (entry.detachRequested && !entry.appending) entry.detach()
+    using _announcing = {
+      [Symbol.dispose]: (): void => {
+        entry.announcing = false
+        if (entry.detachRequested && !entry.appending) entry.detach()
+      },
+    }
+    const callbacks = collectSessionCallbacks(this.ctx, [entry.carrier, 'session/created', session])
+    for (const callback of callbacks) {
+      // Synchronous throws intentionally propagate and veto publication; the
+      // yielded detach then emits the paired disposal edge. An async function
+      // is nevertheless assignable to a void listener, so observe its returned
+      // promise: rejection is too late to roll back and must be logged instead
+      // of becoming unhandled.
+      observeReturnedThenable(callback(...callbackArgs), (reason) => {
+        this.ctx.logger.warn(`session "${entry.id}": session/created listener rejected: ${String(reason)}`)
+      })
     }
   }
 
   /** Emit the paired teardown notification with per-listener containment. */
   private emitDisposed(entry: SessionEntry): void {
     const callbackArgs: unknown[] = [entry.session]
-    try {
-      const callbacks = collectSessionCallbacks(this.ctx, [entry.carrier, 'session/disposed', entry.session])
-      invokeContainedSessionObservers(this.ctx, 'session/disposed', entry.id, callbackArgs, callbacks)
-    } catch (error: unknown) {
-      this.ctx.logger.warn(`session "${entry.id}": session/disposed dispatch threw: ${String(error)}`)
-    }
+    observeListenerInvocation(
+      () => {
+        const callbacks = collectSessionCallbacks(this.ctx, [entry.carrier, 'session/disposed', entry.session])
+        invokeContainedSessionObservers(this.ctx, 'session/disposed', entry.id, callbackArgs, callbacks)
+      },
+      (reason) => {
+        this.ctx.logger.warn(`session "${entry.id}": session/disposed dispatch threw: ${String(reason)}`)
+      },
+      (reason) => {
+        this.ctx.logger.warn(`session "${entry.id}": session/disposed dispatch rejected: ${String(reason)}`)
+      },
+    )
   }
 
   /**

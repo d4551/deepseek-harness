@@ -633,7 +633,7 @@ export function resolveSlotLabel(label: SlotLabel | undefined): string | undefin
  * overloads (whose generics admit undefined) would otherwise fail
  * overload-to-implementation compatibility.
  */
-interface ErasedOptions {
+export interface SlotRegisterOptions {
   name: string
   key?: string | undefined
   id?: string | undefined
@@ -797,7 +797,18 @@ export class SlotCore {
       HandleOf<NoInfer<H>>, I, NoInfer<M>, NoInfer<N>
     >>,
   ): () => void
-  register(options: ErasedOptions, component: SlotComponent<never>): () => void {
+  register(options: SlotRegisterOptions, component: SlotComponent<never>): () => void {
+    return this.registerContribution(options, component)
+  }
+
+  /**
+   * Implementation-face registration used by the renderer host after it has
+   * minted exclusive store handles. Typed SlotMap callers use {@link register}.
+   * @param options - erased registration options.
+   * @param component - the slot component.
+   * @returns disposer removing the registration and its declarations.
+   */
+  registerContribution(options: SlotRegisterOptions, component: SlotComponent<never>): () => void {
     const rec = this.records.get(options.name)
     if (!rec?.spec) {
       throw new Error(`slot "${options.name}" is not declared (a parent entry's children table must declare it)`)

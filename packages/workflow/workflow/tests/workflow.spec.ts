@@ -79,11 +79,12 @@ describe('dsh-workflow (interface)', () => {
     const payload = { seq: 1, label: 'original', childId: 'c' }
     engine.emit('workflow/start', INFO)
     engine.emit('workflow/agent-start', INFO, payload)
-    await Promise.resolve()
+    await vi.waitFor(() => {
+      expect(String(warn.mock.calls[0]![0])).toContain('listener rejected')
+    })
     engine.emit('workflow/agent-end', INFO, { ...payload, outcome: 'completed' })
     engine.emit('workflow/end', INFO, { stopReason: 'completed', agentsStarted: 1 })
     expect(seen).toEqual(['original'])
-    expect(String(warn.mock.calls[0]![0])).toContain('listener rejected')
   })
 
   it('contains a throwing listener PER LISTENER: later listeners still run, nothing propagates', async () => {
@@ -98,8 +99,10 @@ describe('dsh-workflow (interface)', () => {
     expect(() => { engine.emit('workflow/phase', INFO, 'Scan') }).not.toThrow()
     engine.emit('workflow/end', INFO, { stopReason: 'completed', agentsStarted: 0 })
     expect(reached).toEqual(['Scan'])
-    expect(warn).toHaveBeenCalledOnce()
-    expect(String(warn.mock.calls[0]![0])).toContain('workflow/phase listener threw')
+    await vi.waitFor(() => {
+      expect(warn).toHaveBeenCalledOnce()
+      expect(String(warn.mock.calls[0]![0])).toContain('workflow/phase listener threw')
+    })
   })
 
   it('containment is total: a listener throwing a value whose coercion throws neither propagates nor starves later listeners', async () => {
@@ -116,8 +119,10 @@ describe('dsh-workflow (interface)', () => {
     expect(() => { engine.emit('workflow/phase', INFO, 'Scan') }).not.toThrow()
     engine.emit('workflow/end', INFO, { stopReason: 'completed', agentsStarted: 0 })
     expect(reached).toEqual(['Scan'])
-    expect(warn).toHaveBeenCalledOnce()
-    expect(String(warn.mock.calls[0]![0])).toContain('[unrenderable thrown value]')
+    await vi.waitFor(() => {
+      expect(warn).toHaveBeenCalledOnce()
+      expect(String(warn.mock.calls[0]![0])).toContain('[unrenderable thrown value]')
+    })
   })
 
   it('has the expected exports (default = the abstract service class)', () => {

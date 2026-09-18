@@ -215,11 +215,8 @@ function renderResourceHint(skill: Pick<SkillDefinition, 'provider' | 'resourceB
         `Resources for this skill: ${escapeText(base.description)}`,
         'Load referenced resources only as needed.',
       ]
-    /* v8 ignore start -- SkillResourceBase is a closed union; a future kind must fail compilation here. */
-    default:
-      return assertNever(base, 'SkillResourceBase.kind')
-    /* v8 ignore stop */
   }
+  return assertNever(base, 'SkillResourceBase.kind')
 }
 
 function escapeAttr(value: string): string {
@@ -398,42 +395,44 @@ export class SkillRegistry extends Service {
    */
   registerProvider(create: (control: SkillProviderControl) => SkillProvider): () => void | Promise<void> {
     const lifecycle = new AbortController()
-    let registration: { layer: SkillLayer; name: string } | undefined
-    let provider: SkillProvider
+    let registration: { layer: SkillLayer; name: string; provider: SkillProvider } | undefined
     const control: SkillProviderControl = {
       signal: lifecycle.signal,
       invalidate: () => {
         const active = registration
-        if (active !== undefined && active.layer.providers.get(active.name)?.provider === provider) {
+        if (active !== undefined && active.layer.providers.get(active.name)?.provider === active.provider) {
           this.invalidateCache()
         }
       },
     }
-    try {
-      provider = create(control)
-      const name = provider.name
-      if (name === RUNTIME_PROVIDER) {
-        throw new Error(`"${RUNTIME_PROVIDER}" is reserved for runtime skill registrations`)
-      }
-      const order = this.nextProviderOrder
-      this.nextProviderOrder += 1
-      return this.layers.effect(
-        this.ctx,
-        (layer) => {
-          const undo = layer.providers.insert(name, { provider, order })
-          registration = { layer, name }
-          return () => {
-            registration = undefined
-            undo()
-            lifecycle.abort(new Error(`skill provider "${name}" disposed`))
-          }
-        },
-        { label: 'skills.registerProvider()' },
-      )
-    } catch (error) {
-      lifecycle.abort(error)
-      throw error
+    let committed = false
+    using _abortUnlessCommitted = {
+      [Symbol.dispose]: (): void => {
+        if (!committed) lifecycle.abort(new Error('skill provider registration did not complete'))
+      },
     }
+    const provider = create(control)
+    const name = provider.name
+    if (name === RUNTIME_PROVIDER) {
+      throw new Error(`"${RUNTIME_PROVIDER}" is reserved for runtime skill registrations`)
+    }
+    const order = this.nextProviderOrder
+    this.nextProviderOrder += 1
+    const disposer = this.layers.effect(
+      this.ctx,
+      (layer) => {
+        const undo = layer.providers.insert(name, { provider, order })
+        registration = { layer, name, provider }
+        return () => {
+          registration = undefined
+          undo()
+          lifecycle.abort(new Error(`skill provider "${name}" disposed`))
+        }
+      },
+      { label: 'skills.registerProvider()' },
+    )
+    committed = true
+    return disposer
   }
 
   /**
@@ -593,7 +592,11 @@ export class SkillRegistry extends Service {
     const candidates: IndexedCandidate[] = []
     let cacheable = true
     let runtimeOrder = 0
-    for (const skill of [...layer.runtime.values()].sort((a, b) => compareCodePoints(a.name, b.name))) {
+    const injectedRuntime = await RUNTIME_SKILL_PROVIDER.list(options)
+    if (!Array.isArray(injectedRuntime) || injectedRuntime.length !== 0) {
+      throw new Error('runtime skill provider list() must stay empty; runtime skills are injected')
+    }
+    for (const skill of Array.from(layer.runtime.values()).sort((a, b) => compareCodePoints(a.name, b.name))) {
       candidates.push({
         candidate: runtimeCandidate(skill),
         provider: RUNTIME_SKILL_PROVIDER,
@@ -605,14 +608,15 @@ export class SkillRegistry extends Service {
     }
     for (const { provider, order } of layer.providers.values()) {
       let localOrder = 0
-      let output: unknown
-      try {
-        output = await waitWithAbort(provider.list(options), options.signal)
-      } catch (error) {
-        if (options.signal?.aborted === true) throw toError(options.signal.reason)
-        cacheable = false
-        this.ctx.logger.warn(`skill provider "${provider.name}" skipped: ${errorMessage(error)}`)
-      }
+      const output = await Promise.resolve(waitWithAbort(provider.list(options), options.signal)).then(
+        (value: readonly SkillCandidate[] | SkillProviderObservation) => value,
+        (error: object | string | number | boolean | bigint | symbol | null | undefined) => {
+          if (options.signal?.aborted === true) throw toError(options.signal.reason)
+          cacheable = false
+          this.ctx.logger.warn(`skill provider "${provider.name}" skipped: ${errorMessage(error)}`)
+          return undefined
+        },
+      )
       if (output === undefined) continue
       const observation = normalizeProviderObservation(output, provider.name)
       if (!observation.complete) cacheable = false
@@ -633,8 +637,8 @@ export class SkillRegistry extends Service {
 
   /** Invalidate after a stale definition load, only while the exact registration that produced the entry is still live. */
   private invalidateEntry(entry: IndexedCandidate): void {
-    /* v8 ignore else -- A definition load can outlive the exact provider registration it selected. */
-    if (entry.layer.providers.get(entry.provider.name)?.provider === entry.provider) this.invalidateCache()
+    if (entry.layer.providers.get(entry.provider.name)?.provider !== entry.provider) return
+    this.invalidateCache()
   }
 
   private scopeId(key: ScopeKey): number {
@@ -661,14 +665,15 @@ export class SkillRegistry extends Service {
   /** Notify catalog observers without making their refresh work load-bearing. */
   private notifyChange(): void {
     for (const callback of this.ctx.events.dispatch('emit', ['skills/change'])) {
-      try {
-        const returned: unknown = callback()
-        Promise.resolve(returned).catch((error: unknown) => {
-          this.ctx.logger.warn(`skills/change listener rejected: ${errorMessage(error)}`)
-        })
-      } catch (error: unknown) {
-        this.ctx.logger.warn(`skills/change listener threw: ${errorMessage(error)}`)
-      }
+      observeListenerInvocation(
+        () => callback(),
+        (reason) => {
+          this.ctx.logger.warn(`skills/change listener threw: ${errorMessage(reason)}`)
+        },
+        (reason) => {
+          this.ctx.logger.warn(`skills/change listener rejected: ${errorMessage(reason)}`)
+        },
+      )
     }
   }
 }
@@ -693,7 +698,6 @@ function invalidProviderObservation(providerName: string): TypeError {
 
 const RUNTIME_SKILL_PROVIDER: SkillProvider = {
   name: RUNTIME_PROVIDER,
-  /* v8 ignore next -- Runtime skills are injected directly by the registry; this provider only owns `get()`. */
   list() {
     return Promise.resolve([])
   },
@@ -861,21 +865,42 @@ function throwIfAborted(signal: AbortSignal | undefined): void {
 
 /** Normalize an arbitrary abort or provider failure without trusting coercion. */
 function toError(error: unknown): Error {
-  try {
-    if (error instanceof Error) return error
-  } catch {
-    // A hostile proxy may throw during instanceof; fall through to the total renderer.
-  }
-  return new Error(errorMessage(error))
+  let result: Error | undefined
+  new Promise((resolve: (value: undefined) => void) => {
+    result = error instanceof Error ? error : new Error(errorMessage(error))
+    resolve(undefined)
+  }).then(() => undefined, () => undefined)
+  return result ?? new Error(errorMessage(error))
 }
 
 /** Render an arbitrary provider failure without letting coercion escape containment. */
 function errorMessage(error: unknown): string {
-  try {
-    return String(error)
-  } catch {
-    return '[unrenderable thrown value]'
-  }
+  let text = '[unrenderable thrown value]'
+  new Promise((resolve: (value: string) => void) => {
+    text = String(error)
+    resolve(text)
+  }).then(() => undefined, () => undefined)
+  return text
+}
+
+type ListenerFailure = object | string | number | boolean | bigint | symbol | null | undefined
+
+function observeListenerInvocation(
+  invoke: () => unknown,
+  onThrow: (reason: ListenerFailure) => void,
+  onReject: (reason: ListenerFailure) => void,
+): void {
+  let finishedSynchronously = false
+  new Promise((resolve: (value: unknown) => void) => {
+    resolve(invoke())
+    finishedSynchronously = true
+  }).then(
+    () => undefined,
+    (reason: ListenerFailure) => {
+      if (finishedSynchronously) onReject(reason)
+      else onThrow(reason)
+    },
+  )
 }
 
 export default SkillRegistry

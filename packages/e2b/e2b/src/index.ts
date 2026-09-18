@@ -105,24 +105,24 @@ export class E2BRuntime extends Service {
     this.cwd = this.config.cwd
     this.runtimeRoot = posix.join(this.cwd, '.dsh-e2b')
     this.ready = this.open()
-    // A deployment may load the owner before any adapter uses it. Keep a
-    // failed eager connection observed; getSandbox() still returns the error.
-    this.ready.catch(() => {})
+    this.ready.then(() => undefined, (error: Error) => {
+      this.ctx.logger.debug(error)
+    })
 
     ctx.effect(() => async () => {
       this.disposed = true
-      let sandbox: Sandbox
-      try {
-        sandbox = await this.ready
-      } catch (_sandboxSetupFailure) {
-        // open() either acquired no sandbox or already made the POC's one rollback attempt.
-        return
-      }
-      try {
-        await sandbox.kill()
-      } catch (error: unknown) {
-        if (!(error instanceof SandboxNotFoundError)) throw error
-      }
+      const sandbox = await this.ready.then(
+        value => value,
+        () => undefined,
+      )
+      if (sandbox === undefined) return
+      await sandbox.kill().then(
+        () => undefined,
+        (error: Error) => {
+          if (error instanceof SandboxNotFoundError) return
+          throw error
+        },
+      )
     }, 'e2b sandbox teardown')
   }
 
@@ -157,27 +157,24 @@ export class E2BRuntime extends Service {
       secure: true,
       lifecycle: { onTimeout: 'kill' },
     })
-    try {
-      await sandbox.files.makeDir(this.cwd)
-      await sandbox.files.makeDir(this.runtimeRoot)
-      const runtimeRoot = await sandbox.files.getInfo(this.runtimeRoot)
-      if (runtimeRoot.type !== FileType.DIR || runtimeRoot.symlinkTarget !== undefined) {
-        throw new Error(`dsh-e2b: runtime root must be a real directory: ${this.runtimeRoot}`)
-      }
-      await sandbox.commands.run(
-        `chmod 700 -- ${quoteE2BShellArg(this.runtimeRoot)}`,
-        { envs: e2bControlEnvs() },
-      )
-      return sandbox
-    } catch (error: unknown) {
-      try {
-        await sandbox.kill()
-      } catch (_sandboxSetupRollbackFailure) {
-        // TODO(e2b-setup-rollback): Add retry state only if a real double failure
-        // outlives E2B's configured sandbox timeout.
-      }
-      throw error
+    let published = false
+    await using _rollback = {
+      async [Symbol.asyncDispose](): Promise<void> {
+        if (!published) await sandbox.kill()
+      },
     }
+    await sandbox.files.makeDir(this.cwd)
+    await sandbox.files.makeDir(this.runtimeRoot)
+    const runtimeRoot = await sandbox.files.getInfo(this.runtimeRoot)
+    if (runtimeRoot.type !== FileType.DIR || runtimeRoot.symlinkTarget !== undefined) {
+      throw new Error(`dsh-e2b: runtime root must be a real directory: ${this.runtimeRoot}`)
+    }
+    await sandbox.commands.run(
+      `chmod 700 -- ${quoteE2BShellArg(this.runtimeRoot)}`,
+      { envs: e2bControlEnvs() },
+    )
+    published = true
+    return sandbox
   }
 }
 

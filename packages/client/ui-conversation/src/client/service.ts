@@ -246,6 +246,14 @@ export class ConversationController extends Service implements IConversation {
   }
 
   /**
+   * Whether every file's browser-declared MIME is a supported draft image type.
+   * @param files - browser files considered for draft intake.
+   */
+  acceptsImageFiles(files: readonly File[]): boolean {
+    return files.every(file => parseImageMediaType(file.type) !== undefined)
+  }
+
+  /**
    * Create runtime-only draft images and their object URLs.
    * @param files - browser files to register after MIME validation.
    * @returns ordered draft descriptors.
@@ -398,7 +406,7 @@ export class ConversationController extends Service implements IConversation {
   }
 }
 
-function imageMediaType(value: string): ImageMediaType {
+function parseImageMediaType(value: string): ImageMediaType | undefined {
   switch (value) {
     case 'image/png':
     case 'image/jpeg':
@@ -406,8 +414,14 @@ function imageMediaType(value: string): ImageMediaType {
     case 'image/gif':
       return value
     default:
-      throw new UnsupportedImageMediaTypeError(value)
+      return undefined
   }
+}
+
+function imageMediaType(value: string): ImageMediaType {
+  const parsed = parseImageMediaType(value)
+  if (parsed === undefined) throw new UnsupportedImageMediaTypeError(value)
+  return parsed
 }
 
 function revokePreview(url: string): void {

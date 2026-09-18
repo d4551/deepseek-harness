@@ -24,7 +24,15 @@ export { foldConsumedWork } from './consumed-work.ts'
 export type { ConsumedWork } from './consumed-work.ts'
 export { installModelSelection } from './model-selection.ts'
 export type { ModelSelection, ModelSelectionRef } from './model-selection.ts'
-export { agentCarrier, agentEvents, assembleContextFor, emitAgentEvent } from './dispatch.ts'
+export {
+  agentCarrier,
+  agentEvents,
+  assembleContextFor,
+  emitAgentEvent,
+  observeListenerInvocation,
+  observeReturnedThenable,
+  renderListenerFailure,
+} from './dispatch.ts'
 export type { AgentEventDispatch, AgentSubjectEvent } from './dispatch.ts'
 
 declare module '@deepseek-ai/cordis' {
@@ -498,10 +506,6 @@ export class AgentRegistry extends Service {
   /** Remove one exact entered agent and emit its paired disposal when announced. */
   private detachEntered(entry: AgentEntry): void {
     entry.detachRequested = false
-    // A stale capability can never delete a later same-id lifecycle. The
-    // captured entry identity is the final boundary.
-    /* v8 ignore next -- enter() rejects replacement while this single-shot detach capability is live. */
-    if (this.store.get(entry.id) !== entry) return
     this.store.delete(entry.id)
     // An insertion rolled back before announce was never externally created,
     // so emitting disposed would invent an impossible lifecycle edge. Marking
@@ -547,18 +551,19 @@ export class AgentRegistry extends Service {
     entry.announcing = true
     entry.announced = true
     const args: unknown[] = [entry.carrier, 'agent/created', { agent: entry.agent }]
-    try {
-      for (const callback of this.ctx.events.dispatch('emit', args)) {
-        // A synchronous creation failure vetoes publication and rolls back.
-        // Returned-promise rejection happens after this synchronous boundary, so
-        // observe and report it instead of leaking an unhandled rejection.
-        observeReturnedThenable(callback(...args), (reason) => {
-          this.ctx.logger.warn(`agent "${entry.id}": agent/created listener rejected: ${String(reason)}`)
-        })
-      }
-    } finally {
-      entry.announcing = false
-      if (entry.detachRequested) this.detachEntered(entry)
+    using _announcing = {
+      [Symbol.dispose]: (): void => {
+        entry.announcing = false
+        if (entry.detachRequested) this.detachEntered(entry)
+      },
+    }
+    for (const callback of this.ctx.events.dispatch('emit', args)) {
+      // A synchronous creation failure vetoes publication and rolls back.
+      // Returned-promise rejection happens after this synchronous boundary, so
+      // observe and report it instead of leaking an unhandled rejection.
+      observeReturnedThenable(callback(...args), (reason) => {
+        this.ctx.logger.warn(`agent "${entry.id}": agent/created listener rejected: ${String(reason)}`)
+      })
     }
   }
 
@@ -631,28 +636,25 @@ export class AgentRegistry extends Service {
       parent: this.initiatorRuns.getStore(),
     }
     this.activeInitiatorRuns += 1
-    let result: T
-    try {
-      result = this.initiatorRuns.run(run, () => this.initiators.run(agent, operation))
-    } catch (error: unknown) {
-      this.releaseInitiatorRun(run)
-      throw error
+    let retain = true
+    using _boundary = {
+      [Symbol.dispose]: (): void => {
+        if (retain) this.releaseInitiatorRun(run)
+      },
     }
+    const result = this.initiatorRuns.run(run, () => this.initiators.run(agent, operation))
     if (isPromise(result)) {
-      try {
-        Promise.prototype.then.call(
-          result,
-          () => { this.releaseInitiatorRun(run) },
-          () => { this.releaseInitiatorRun(run) },
-        ).then(undefined, (error: unknown) => { this.ctx.logger.error(error) })
-      } catch {
-        // A branded Promise may expose a failing @@species. Observer setup did
-        // not attach, so preserve the exact return without leaking the run.
-        this.releaseInitiatorRun(run)
-      }
-    } else {
-      this.releaseInitiatorRun(run)
+      retain = false
+      new Promise((resolve: (value: unknown) => void) => {
+        Promise.prototype.then.call(result, resolve, resolve)
+      }).then(
+        () => { this.releaseInitiatorRun(run) },
+        () => { this.releaseInitiatorRun(run) },
+      )
+      return result
     }
+    retain = false
+    this.releaseInitiatorRun(run)
     return result
   }
 

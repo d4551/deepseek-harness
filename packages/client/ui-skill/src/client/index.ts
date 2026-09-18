@@ -42,6 +42,26 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { SkillRow } from './SkillRow.tsx'
 import { en, NS, zh, type SkillKey } from './locales.ts'
 
+type ListenerFailure = object | string | number | boolean | bigint | symbol | null | undefined
+
+function observeListenerInvocation(
+  invoke: () => unknown,
+  onThrow: (reason: ListenerFailure) => void,
+  onReject: (reason: ListenerFailure) => void,
+): void {
+  let finishedSynchronously = false
+  new Promise((resolve: (value: unknown) => void) => {
+    resolve(invoke())
+    finishedSynchronously = true
+  }).then(
+    () => undefined,
+    (reason: ListenerFailure) => {
+      if (finishedSynchronously) onReject(reason)
+      else onThrow(reason)
+    },
+  )
+}
+
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
     /** The dedicated skill tool row's copy. */
@@ -80,15 +100,12 @@ export function apply(ctx: ClientContext): void {
   const lexiconListeners = new Map<SessionId, Set<() => void>>()
 
   const notifyLexicon = (sessionId: SessionId): void => {
-    for (const listener of [...(lexiconListeners.get(sessionId) ?? [])]) {
-      try {
-        listener()
-      } catch (error) {
-        // Contain listener failures: settlement notifies from an ignored
-        // promise chain (a throw would surface as an unhandled rejection)
-        // and one faulty consumer must not starve the others.
-        console.error('[ui-skill] lexicon listener failed:', error)
-      }
+    for (const listener of Array.from(lexiconListeners.get(sessionId) ?? [])) {
+      observeListenerInvocation(
+        listener,
+        (reason) => { console.error('[ui-skill] lexicon listener threw:', reason) },
+        (reason) => { console.error('[ui-skill] lexicon listener rejected:', reason) },
+      )
     }
   }
 
@@ -127,7 +144,7 @@ export function apply(ctx: ClientContext): void {
   }
 
   const clearAll = (): void => {
-    for (const key of [...fetches.keys()]) invalidate(key)
+    for (const key of Array.from(fetches.keys())) invalidate(key)
   }
 
   // The bound translate resolves against the registered dictionaries with the
@@ -154,7 +171,12 @@ export function apply(ctx: ClientContext): void {
     warm(session) {
       // Fire-and-forget scope-birth prewarm; the shared fetch reports
       // through candidates.
-      fetchCatalog(session.sessionId).catch(() => {})
+      fetchCatalog(session.sessionId).then(
+        () => undefined,
+        (error: Error) => {
+          console.error('[ui-skill] catalog prewarm failed:', error)
+        },
+      )
     },
     lexicon(session) {
       return fetches.get(session.sessionId)?.settled?.map(skill => skill.name)

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { createScope, scopeTarget } from '@deepseek-ai/dsh-scope'
 import { createUserMessage, ToolCallId, createMessage, createToolResultMessage, freezeMessage } from '@deepseek-ai/dsh-llm'
@@ -49,7 +49,8 @@ describe('session-log invariants', () => {
           content: [{ type: 'tool-call', id: ToolCallId('c1'), name: 'echo', arguments: '{}' }],
           source: {
             kind: 'model',
-            ...{ provider: 'mock', model: 'mock' },
+            provider: 'mock',
+            model: 'mock',
           },
         }),
       }, { surfaceOp: 'append' })
@@ -96,7 +97,9 @@ describe('session-log invariants', () => {
       session.append('turn/start', { turn: 1 })
       session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
     }).not.toThrow()
-    expect(warnings).toHaveLength(2)
+    await vi.waitFor(() => {
+      expect(warnings).toHaveLength(2)
+    })
   })
 
   it('rejects non-monotonic event sequence numbers', async () => {
@@ -188,7 +191,8 @@ describe('session-log invariants', () => {
         content: [],
         source: {
           kind: 'model',
-          ...{ provider: 'mock', model: 'mock' },
+          provider: 'mock',
+          model: 'mock',
         },
       }),
     }, { surfaceOp: 'append' })).toThrow(/open is turn 1\/step 1/)

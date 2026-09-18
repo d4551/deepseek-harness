@@ -116,13 +116,21 @@ function errorText(arg: unknown): string {
   if (arg instanceof Error) return arg.message
   if (typeof arg === 'string') return arg
   if (arg === undefined) return 'undefined'
-  try {
-    return JSON.stringify(arg)
-  } catch {
-    // A circular or otherwise non-serializable console argument: the mirror
-    // carries the message, and nothing else here can fail.
-    return '[unserializable console argument]'
-  }
+  const seen = new WeakSet<object>()
+  let cyclic = false
+  const text = JSON.stringify(arg, (_key, value: unknown) => {
+    if (typeof value === 'bigint') return `${value}n`
+    if (typeof value === 'object' && value !== null) {
+      if (seen.has(value)) {
+        cyclic = true
+        return
+      }
+      seen.add(value)
+    }
+    return value
+  })
+  if (cyclic || text === undefined) return '[unserializable console argument]'
+  return text
 }
 
 /** Tagged write-through console; error lines additionally copy into the load report. */

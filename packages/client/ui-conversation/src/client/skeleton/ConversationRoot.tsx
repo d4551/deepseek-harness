@@ -306,9 +306,13 @@ export function ConversationRoot({
         onPick: (workspaceId) => {
           setPickerOpen(false)
           setPendingWorkspaceId(workspaceId)
-          selectWorkspace(workspaceId).catch(() => {
-            setPendingWorkspaceId(current => current === workspaceId ? undefined : current)
-          })
+          selectWorkspace(workspaceId).then(
+            () => undefined,
+            (error: Error) => {
+              setPendingWorkspaceId(current => current === workspaceId ? undefined : current)
+              console.error('[conversation] workspace switch failed:', error)
+            },
+          )
         },
         onClose: () => { setPickerOpen(false) },
       })}

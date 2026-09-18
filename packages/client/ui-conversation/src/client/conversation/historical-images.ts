@@ -88,17 +88,22 @@ export class HistoricalImageCache {
     }
     this.urls.add(url)
     this.entries.set(key, entry)
-    entry.pending = this.loadCanonical(key, entry, attachment).catch((error: unknown) => {
-      if (this.entries.get(key) === entry && entry.current === url) {
-        this.entries.delete(key)
-        this.releaseUrl(url)
-      }
-      throw error
-    })
+    entry.pending = this.loadCanonical(key, entry, attachment).then(
+      value => value,
+      (error: Error) => {
+        if (this.entries.get(key) === entry && entry.current === url) {
+          this.entries.delete(key)
+          this.releaseUrl(url)
+        }
+        throw error
+      },
+    )
     // Seed begins the durable read before a transcript image necessarily
-    // mounts. Keep that legitimate no-consumer path from becoming an
-    // unhandled rejection; resolve() still returns the rejecting promise.
-    entry.pending.catch(() => {})
+    // mounts. Observe that rejection so a no-consumer path is not unhandled;
+    // resolve() still returns the rejecting promise.
+    entry.pending.then(() => undefined, (error: Error) => {
+      console.error('[conversation] historical image load failed:', error)
+    })
     return true
   }
 
@@ -173,7 +178,7 @@ export class HistoricalImageCache {
   private dispose(): void {
     if (this.disposed) return
     this.disposed = true
-    for (const dispose of [...this.scopeDisposers.values()]) dispose()
+    for (const dispose of Array.from(this.scopeDisposers.values())) dispose()
     this.scopeDisposers.clear()
     for (const url of this.urls) revokeUrl(url)
     this.urls.clear()

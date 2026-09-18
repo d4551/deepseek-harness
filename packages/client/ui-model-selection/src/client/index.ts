@@ -168,7 +168,11 @@ export function apply(ctx: ClientContext): void {
           available,
           directory: directory.store,
           load: () => {
-            if (available) directory.load().catch(() => { /* surfaced on the store */ })
+            if (available) {
+              directory.load().then(() => undefined, (error: Error) => {
+                console.error('[model-selection] catalog load failed:', error)
+              })
+            }
           },
           select: (selection: ModelSelection) => available
             ? directory.select(selection).then(() => true, () => false)

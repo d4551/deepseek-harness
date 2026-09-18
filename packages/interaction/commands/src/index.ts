@@ -5,6 +5,7 @@
 
 import { Context } from '@deepseek-ai/cordis'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
+import { observeListenerInvocation, renderListenerFailure } from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { AttachmentError, admitEncodedImages } from '@deepseek-ai/dsh-attachment'
 import type { EncodedImageAttachment } from '@deepseek-ai/dsh-attachment/types'
@@ -136,11 +137,12 @@ function cancellationOf(signal: AbortSignal): Error | undefined {
 
 /** Render arbitrary thrown values without trusting their string coercion. */
 function renderThrown(value: unknown): string {
-  try {
-    return String(value)
-  } catch {
-    return '<unrenderable thrown value>'
-  }
+  let text = '<unrenderable thrown value>'
+  new Promise((resolve: (value: string) => void) => {
+    text = String(value)
+    resolve(text)
+  }).then(() => undefined, () => undefined)
+  return text
 }
 
 /** Stop awaiting an uncooperative handler once its owning UI request aborts. */
@@ -443,14 +445,15 @@ export class CommandRuntime extends TypertRemoteService {
     // and returned promises are discarded. Registry notifications are
     // non-vetoing, so contain each callback independently.
     for (const callback of this.ctx.events.dispatch('emit', ['commands/change'])) {
-      try {
-        const returned: unknown = callback()
-        Promise.resolve(returned).catch((error: unknown) => {
-          this.ctx.logger.warn(`commands/change listener rejected: ${renderThrown(error)}`)
-        })
-      } catch (error: unknown) {
-        this.ctx.logger.warn(`commands/change listener threw: ${renderThrown(error)}`)
-      }
+      observeListenerInvocation(
+        () => callback(),
+        (reason) => {
+          this.ctx.logger.warn(`commands/change listener threw: ${renderListenerFailure(reason)}`)
+        },
+        (reason) => {
+          this.ctx.logger.warn(`commands/change listener rejected: ${renderListenerFailure(reason)}`)
+        },
+      )
     }
   }
 }
