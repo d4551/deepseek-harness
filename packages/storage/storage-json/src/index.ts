@@ -39,6 +39,7 @@ export const Config: z<Config> = z.object({
 /** JSON backend: owns the file-tree root and serves the `kv` facet. */
 export class JsonStorageBackend implements StorageBackend {
   private readonly root: string
+  private rootInitialization: Promise<void> | undefined
   private readonly open = new Map<string, KvUnit>()
   // Reserved synchronously at open() entry so a concurrent open of the same
   // unit fails, and close() can await opens still in flight.
@@ -67,7 +68,7 @@ export class JsonStorageBackend implements StorageBackend {
   }
 
   private async openUnit(descriptor: KvUnitDescriptor): Promise<KvUnit> {
-    await ensureDurableDirectory(this.root)
+    await (this.rootInitialization ??= ensureDurableDirectory(this.root))
     // The two layouts differ in medium shape only; each opener owns its own
     // path convention under the shared root.
     const onClose = () => this.open.delete(descriptor.name)

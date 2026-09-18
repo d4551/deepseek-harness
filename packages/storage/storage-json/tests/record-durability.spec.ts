@@ -44,13 +44,19 @@ it.each(['create', 'delete'])('flushes actual record %s publication before retur
     const required = new Set([dirname(record)])
     if (operation === 'create') {
       let ancestor = dirname(record)
-      const boundary = parse(ancestor).root
-      while (ancestor !== boundary) {
+      while (ancestor !== directory) {
         ancestor = dirname(ancestor)
         required.add(ancestor)
       }
     }
     const starts = operations.filter(event => event.phase === 'b')
+    let unchangedAncestor = directory
+    while (unchangedAncestor !== parse(directory).root) {
+      unchangedAncestor = dirname(unchangedAncestor)
+      expect(starts.some(event => event.name === 'open'
+        && 'path' in event.args && event.args.path === unchangedAncestor),
+      `unchanged ancestor ${unchangedAncestor} must not require read access`).toBe(false)
+    }
     for (const path of required) {
       const index = starts.findIndex(event => event.name === 'open'
         && 'path' in event.args && event.args.path === path)
