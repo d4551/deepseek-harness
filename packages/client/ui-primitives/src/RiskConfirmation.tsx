@@ -46,6 +46,7 @@ export function RiskConfirmation({
       onClose={onCancel}
       title={title}
       closeLabel={closeLabel}
+      initialFocus="field"
       className={css.confirmation ?? ''}
       contentClassName={css.confirmationContent ?? ''}
       footer={(
@@ -73,7 +74,6 @@ export function RiskConfirmation({
           type="checkbox"
           checked={acknowledged}
           disabled={disabled}
-          autoFocus
           onChange={(event) => { onAcknowledgedChange(event.currentTarget.checked) }}
         />
         <span>{acknowledgeLabel}</span>

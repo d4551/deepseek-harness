@@ -1,10 +1,6 @@
 import type { SessionEventLike } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
 
-/* oxlint-disable typescript/no-duplicate-type-constituents, typescript/no-redundant-type-constituents --
- * The unaugmented declaration-merge maps intentionally resolve to never in the Runtime program;
- * installed business packages supply their concrete keys in consuming Client programs. */
-
 /** Definition-local identity and lifecycle role extracted from one event. */
 export interface ConversationMatchResult {
   readonly id: string
@@ -24,7 +20,7 @@ export interface ConversationLocationDataStore<DataMap extends object> {
    * @param key - declaration-merged business key.
    * @returns latest immutable value, when its owning Context has published one.
    */
-  get<Key extends keyof DataMap & string>(key: Key): Readonly<DataMap[Key]> | undefined
+  get<Key extends Extract<keyof DataMap, string>>(key: Key): Readonly<DataMap[Key]> | undefined
 }
 
 interface ConversationLocationDataValue {
@@ -35,30 +31,37 @@ interface ConversationLocationDataValue {
   readonly value: unknown
 }
 
-type RegisteredTurnData = {
-  [Key in keyof ConversationTurnDataMap & string]: {
-    readonly kind: 'turn'
-    readonly turn: number
-    readonly key: Key
-    readonly value: ConversationTurnDataMap[Key]
-  }
-}[keyof ConversationTurnDataMap & string]
+type RegisteredTurnData = [keyof ConversationTurnDataMap] extends [never]
+  ? ConversationLocationDataValue & { readonly kind: 'turn' }
+  : {
+    [Key in Extract<keyof ConversationTurnDataMap, string>]: {
+      readonly kind: 'turn'
+      readonly turn: number
+      readonly key: Key
+      readonly value: ConversationTurnDataMap[Key]
+    }
+  }[Extract<keyof ConversationTurnDataMap, string>]
 
-type RegisteredStepData = {
-  [Key in keyof ConversationStepDataMap & string]: {
-    readonly kind: 'step'
-    readonly turn: number
-    readonly step: number
-    readonly key: Key
-    readonly value: ConversationStepDataMap[Key]
-  }
-}[keyof ConversationStepDataMap & string]
+type RegisteredStepData = [keyof ConversationStepDataMap] extends [never]
+  ? ConversationLocationDataValue & { readonly kind: 'step' }
+  : {
+    [Key in Extract<keyof ConversationStepDataMap, string>]: {
+      readonly kind: 'step'
+      readonly turn: number
+      readonly step: number
+      readonly key: Key
+      readonly value: ConversationStepDataMap[Key]
+    }
+  }[Extract<keyof ConversationStepDataMap, string>]
 
 /** One Definition-owned value attached to an Engine-owned Turn or Step. */
-export type ConversationLocationData =
-  [keyof ConversationTurnDataMap | keyof ConversationStepDataMap] extends [never]
+export type ConversationLocationData = [keyof ConversationTurnDataMap] extends [never]
+  ? ([keyof ConversationStepDataMap] extends [never]
     ? ConversationLocationDataValue
-    : RegisteredTurnData | RegisteredStepData
+    : RegisteredStepData)
+  : ([keyof ConversationStepDataMap] extends [never]
+    ? RegisteredTurnData
+    : RegisteredTurnData | RegisteredStepData)
 
 /** Immutable resolved boundary for one Agent step. */
 export interface StepLocation {

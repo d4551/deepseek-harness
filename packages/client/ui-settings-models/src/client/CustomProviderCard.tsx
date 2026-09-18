@@ -29,7 +29,7 @@ import { EditorFooter } from './EditorFooter.tsx'
 import { validateDeepSeekModels } from './DeepSeekModelsEditor.tsx'
 import { ModelListEditor } from './ModelListEditor.tsx'
 import type { ModelDraft } from './ModelListEditor.tsx'
-import { deriveKeyRef, messageOf } from './store.ts'
+import { deriveKeyRef } from './store.ts'
 import type { ModelsWire } from './store.ts'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
@@ -168,23 +168,24 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
     return undefined
   }
 
-  const create = async (): Promise<void> => {
+  const create = (): void => {
     setBusy(true)
     setFailure(undefined)
-    try {
-      const outcome = await createOnce()
-      if (outcome !== undefined) {
-        setFailure(outcome)
-        return
-      }
-      props.onClose(true)
-    } catch (error) {
-      // A transport failure rejects rather than answering; without this the
-      // card would stay busy with nothing shown.
-      setFailure(messageOf(error))
-    } finally {
-      setBusy(false)
-    }
+    createOnce().then(
+      (outcome) => {
+        setBusy(false)
+        if (outcome !== undefined) {
+          setFailure(outcome)
+          return
+        }
+        props.onClose(true)
+      },
+      (reason: unknown) => {
+        setBusy(false)
+        if (!(reason instanceof Error)) throw new TypeError('custom provider create rejected with a non-Error')
+        setFailure(reason.message)
+      },
+    )
   }
 
   return (

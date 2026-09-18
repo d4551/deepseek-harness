@@ -1,8 +1,9 @@
-import { startTransition, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { writeClipboard } from './clipboard.ts'
 import { usePointerGrace } from './pointer-grace.ts'
+import { selectionIntersectsNode } from './selection-intersection.ts'
 import css from './HoverCard.module.css'
 
 /**
@@ -36,7 +37,7 @@ export function HoverCard({
   presentational?: boolean
 }) {
   const rootRef = useRef<HTMLSpanElement>(null)
-  const cardRef = useRef<HTMLDivElement>(null)
+  const cardRef = useRef<HTMLElement>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const copyHeightRef = useRef<number | null>(null)
@@ -98,10 +99,10 @@ export function HoverCard({
     if (!open) { setPos(null); return }
     const place = () => {
       const wrapper = rootRef.current
-      /* v8 ignore next -- the ref is attached before the layout effect runs and the listeners die with it. */
-      if (wrapper === null) return
+      if (wrapper === null) throw new TypeError('hover card anchor is not mounted')
       const r = wrapper.getBoundingClientRect()
-      const h = cardRef.current?.offsetHeight ?? 0
+      const cardEl = cardRef.current
+      const h = cardEl === null ? 0 : cardEl.offsetHeight
       const top = r.top + h > window.innerHeight - 8 ? window.innerHeight - h - 8 : r.top
       setPos({ left: r.right + 8, top })
     }
@@ -119,8 +120,9 @@ export function HoverCard({
   // correction converges — a clamped top satisfies the guard, so it runs once.
   useLayoutEffect(() => {
     if (!open || pos === null) return
-    /* v8 ignore next -- the card is mounted whenever pos is set, so the ref is attached here. */
-    const h = cardRef.current?.offsetHeight ?? 0
+    const cardEl = cardRef.current
+    if (cardEl === null) throw new TypeError('hover card is not mounted')
+    const h = cardEl.offsetHeight
     if (pos.top + h > window.innerHeight - 8) {
       setPos({ left: pos.left, top: window.innerHeight - h - 8 })
     }
@@ -140,36 +142,43 @@ export function HoverCard({
     copyTimerRef.current = setTimeout(clearCopied, 1000)
   }
 
+  const queueCopy = (text: string): void => {
+    copy(text).then(() => undefined, (reason: unknown) => {
+      if (!(reason instanceof Error)) throw new TypeError('clipboard copy rejected with a non-Error')
+      throw reason
+    })
+  }
+
   const copyable = copyText !== undefined
-  const card = open && pos !== null && (
-    <div
-      ref={cardRef}
-      className={`${css.card}${copyable ? ` ${css.copyable}` : ''}${copied ? ` ${css.feedback}` : ''}`}
-      style={{ ...pos, minHeight: copied && copyHeightRef.current !== null ? copyHeightRef.current : undefined }}
-      role={copyable ? 'button' : undefined}
-      tabIndex={copyable ? 0 : undefined}
-      aria-label={copyable ? `${copyLabel}: ${copyText}` : undefined}
-      onClick={copyable
-        ? (e) => {
-          const selection = window.getSelection()
-          if (selection !== null && !selection.isCollapsed) {
-            for (let i = 0; i < selection.rangeCount; i += 1) {
-              if (selection.getRangeAt(i).intersectsNode(e.currentTarget)) return
-            }
-          }
-          startTransition(() => copy(copyText))
-        }
-        : undefined}
-      onKeyDown={copyable
-        ? (e) => {
+  const cardClassName = `${css.card}${copyable ? ` ${css.copyable}` : ''}${copied ? ` ${css.feedback}` : ''}`
+  const cardStyle = { ...pos, minHeight: copied && copyHeightRef.current !== null ? copyHeightRef.current : undefined }
+  const cardBody = copied ? <span className={css.copied} aria-hidden="true">{copiedLabel}</span> : content
+  const card = open && pos !== null && (copyText !== undefined
+    ? (
+      <button
+        ref={cardRef}
+        type="button"
+        className={cardClassName}
+        style={cardStyle}
+        aria-label={`${copyLabel}: ${copyText}`}
+        onClick={(e) => {
+          if (selectionIntersectsNode(window.getSelection(), e.currentTarget)) return
+          queueCopy(copyText)
+        }}
+        onKeyDown={(e) => {
           if (e.key !== 'Enter' && e.key !== ' ') return
           e.preventDefault()
-          startTransition(() => copy(copyText))
-        }
-        : undefined}
-    >
-      {copied ? <span className={css.copied} aria-hidden="true">{copiedLabel}</span> : content}
-    </div>
+          queueCopy(copyText)
+        }}
+      >
+        {cardBody}
+      </button>
+    )
+    : (
+      <div ref={cardRef} className={cardClassName} style={cardStyle}>
+        {cardBody}
+      </div>
+    )
   )
 
   return (
@@ -198,14 +207,15 @@ export function HoverCard({
       // child of the wrapper — but a press there starts a selection, so the
       // card must stay mounted under it (and the browser's click with it).
       onPointerDownCapture={(e) => {
-        if (cardRef.current?.contains(e.target as Node)) return
+        const target = e.target
+        if (target instanceof Node && cardRef.current?.contains(target) === true) return
         clearTimer()
         cancelClose()
         close()
       }}
     >
       {anchor}
-      {open && copyable && <span className="dsw-visually-hidden" role="status">{copied ? copiedLabel : ''}</span>}
+      {open && copyable && <output className="dsw-visually-hidden">{copied ? copiedLabel : ''}</output>}
       {card !== false && createPortal(card, document.body)}
     </span>
   )

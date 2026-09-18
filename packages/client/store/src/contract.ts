@@ -33,11 +33,7 @@ export type MaybeSnapshotSelectorHook<T> =
  * declared as the store's complete write set (the audit face — components can
  * only write through these).
  */
-/* oxlint-disable-next-line typescript/no-explicit-any --
- * any[] (not unknown[]): each action carries its own parameter list, and
- * unknown[] would reject every concrete signature under strict parameter
- * contravariance. Params are re-inferred per action by BakedActions. */
-export type ActionsDecl<T> = Record<string, (draft: T, ...params: any[]) => void>
+export type ActionsDecl<T> = Record<string, (draft: T, ...params: never[]) => void>
 
 /**
  * Draft-stripped callback form of an actions table: what components
@@ -107,15 +103,29 @@ export interface StoreHandle<T, A extends ActionsDecl<T>> {
  * Exclusive-store registration form: the registrant passes the factory itself
  * and the framework calls it per entry x scope (no shared identity exists).
  */
-/* oxlint-disable-next-line typescript/no-explicit-any --
- * erased position accepting every StoreHandle instantiation; T/A are
- * recovered per use site by conditional inference (HandleOf/BoundActions/
- * PropsStore). */
-export type StoreFactory = () => StoreHandle<any, any>
+/**
+ * Existential store handle: every {@link StoreHandle} is assignable here
+ * because snapshot reads are covariant and the write table is an object.
+ */
+export interface ErasedStoreHandle {
+  readonly spec: {
+    init: () => unknown
+    persist?: string
+    actions: object
+  }
+  create(scopeKey?: string): {
+    readonly actions: object
+    getSnapshot(): unknown
+    subscribe(fn: () => void): () => void
+    clearPersisted(): void
+  }
+}
+
+/** Exclusive-store registration form: the registrant passes the factory itself. */
+export type StoreFactory = () => ErasedStoreHandle
 
 /** The register `store` option position: a shared handle or an exclusive factory. */
-// oxlint-disable-next-line typescript/no-explicit-any -- same erased-constraint position as StoreFactory (see above).
-export type StoreDecl = StoreHandle<any, any> | StoreFactory
+export type StoreDecl = ErasedStoreHandle | StoreFactory
 
 /** Normalize a store declaration to its handle type (factories yield their return). */
 export type HandleOf<H> = H extends () => infer R ? R : H

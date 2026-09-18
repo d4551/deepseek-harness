@@ -24,10 +24,29 @@
 }
 
 .viewport {
-  display: flex;
-  flex-direction: column;
+  display: block;
+  width: 100%;
   min-height: 0;
   overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  outline: none;
+}
+
+.viewport option {
+  min-height: 40px;
+  padding: 8px 10px;
+  background: var(--dsw-specific-menu);
+  color: var(--dsw-alias-label-primary);
+}
+
+.viewport option:checked {
+  background: var(--dsw-alias-interactive-bg-hover);
 }
 
 .item {
@@ -41,6 +60,7 @@
   border-radius: 10px;
   background: transparent;
   cursor: pointer;
+  list-style: none;
   font-size: var(--dsh-content-font-size);
   line-height: 22px;
   color: var(--dsw-alias-label-primary);
@@ -139,7 +159,13 @@
   place-items: center;
   width: calc(20px + var(--dsh-content-font-delta));
   height: calc(20px + var(--dsh-content-font-delta));
+  margin: 0;
+  padding: 0;
+  border: none;
   border-radius: 4px;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
   /* label-caption, the quiet tint the composer's access-mode chevron uses. */
   color: var(--dsw-alias-label-caption);
 }

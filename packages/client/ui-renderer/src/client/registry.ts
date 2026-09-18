@@ -9,11 +9,6 @@
  * key -> create/cache, dropped with the last holding entry, session instances
  * cleared (with persisted state) on scope death.
  */
-/* oxlint-disable typescript/no-redundant-type-constituents --
- * `keyof SlotMap & string` is the declare-merge key pattern: SlotMap only
- * holds this package's 'root' row in this compilation unit, but consumers
- * merge keys in; the rule fires on the narrow-map view, not on real
- * redundancy. */
 import { Service } from '@deepseek-ai/cordis'
 import type { Context } from '@deepseek-ai/cordis'
 import { SlotCore, standardHookPropName } from '@deepseek-ai/dsh-client-ui-slots'
@@ -169,7 +164,7 @@ export class SlotRegistry extends Service {
    * @returns idempotent disposer for the wait and active effect.
    * @throws callback setup failures synchronously when the slot is already declared.
    */
-  inject(key: keyof SlotMap & string, callback: () => SlotInjectionEffect): () => void {
+  inject(key: Extract<keyof SlotMap, string>, callback: () => SlotInjectionEffect): () => void {
     const ctx = this.ctx
     const disposeController = ctx.effect(() => {
       let active: (() => void) | undefined
@@ -342,7 +337,7 @@ export class SlotRegistry extends Service {
    * @param owner - owner share for the root entry (the shell supplies {}).
    * @returns the rendered root tree.
    */
-  renderSlot<K extends keyof SlotMap & string>(key: K, owner: OwnerOf<K>): ReturnType<SlotRenderer['renderRoot']> {
+  renderSlot<K extends Extract<keyof SlotMap, string>>(key: K, owner: OwnerOf<K>): ReturnType<SlotRenderer['renderRoot']> {
     // Widened: in this package's own program SlotMap holds only 'root', which
     // would fold the guard to constant-false; the check exists for plain-JS
     // and cross-program callers where K is wider.
@@ -363,7 +358,7 @@ export class SlotRegistry extends Service {
    * @param key - SlotMap key.
    * @returns registered entries.
    */
-  entries(key: keyof SlotMap & string): readonly StoredEntry[] {
+  entries(key: Extract<keyof SlotMap, string>): readonly StoredEntry[] {
     return this._core.entries(key)
   }
 
@@ -376,7 +371,7 @@ export class SlotRegistry extends Service {
    * @param key - SlotMap key.
    * @returns the winning entry per occupied cell.
    */
-  entriesOfSlot(key: keyof SlotMap & string): readonly StoredEntry[] {
+  entriesOfSlot(key: Extract<keyof SlotMap, string>): readonly StoredEntry[] {
     return this._core.entriesOfSlot(key)
   }
 
@@ -409,7 +404,7 @@ export class SlotRegistry extends Service {
    * @param key - SlotMap key.
    * @returns spec or undefined.
    */
-  spec<K extends keyof SlotMap & string>(key: K): SlotSpec<SlotMap[K]> | undefined {
+  spec<K extends Extract<keyof SlotMap, string>>(key: K): SlotSpec<SlotMap[K]> | undefined {
     return this._core.spec(key)
   }
 
@@ -419,7 +414,7 @@ export class SlotRegistry extends Service {
    * @param fn - change callback.
    * @returns unsubscribe.
    */
-  subscribe(key: keyof SlotMap & string, fn: () => void): () => void {
+  subscribe(key: Extract<keyof SlotMap, string>, fn: () => void): () => void {
     return this._core.subscribe(key, fn)
   }
 
@@ -428,12 +423,12 @@ export class SlotRegistry extends Service {
    * @param key - SlotMap key.
    * @returns current version.
    */
-  getVersion(key: keyof SlotMap & string): number {
+  getVersion(key: string): number {
     return this._core.getVersion(key)
   }
 
   /** Delegating registration path: factory minting + registrant stamp + core write + instance-axis bookkeeping. */
-  private _register(options: ErasedRegisterOptions, component: unknown): () => void {
+  _register(options: ErasedRegisterOptions, component: unknown): () => void {
     // Exclusive stores pass the factory itself: minted here into a per-entry
     // handle so the stored entry always carries a resolvable handle (the
     // core's shared-handle scope pinning applies to it harmlessly).
@@ -464,12 +459,8 @@ export class SlotRegistry extends Service {
   /** Build the domain-neutral host face once; installed adapters remain live through getters. */
   private hostFace(): SlotRendererHost {
     if (this._host !== undefined) return this._host
-    // `locale` is a live getter: the face installs (and, under HMR, swaps)
-    // on the locale plugin's own fiber lifetime, while this host object is
-    // built once — a captured value would strand renders on a dead face. The
-    // alias is required: `this` inside the getter is the host literal.
-    // oxlint-disable-next-line typescript/no-this-alias
-    const service = this
+    const localeOf = (): typeof this._locale => this._locale
+    const scopes = this._scopes
     this._host = {
       subscribe: (key, fn) => this._core.subscribe(key, fn),
       getVersion: key => this._core.getVersion(key),
@@ -484,8 +475,8 @@ export class SlotRegistry extends Service {
           : this.resolveStore(entry.store as unknown as EngineStoreHandle, scopeBinding),
       root: this._rootSource,
       scopeRevision: this._scopeRevisionSource,
-      scope: scope => service._scopes.get(scope === 'session-maybe' ? 'session' : scope),
-      get locale() { return service._locale },
+      scope: scope => scopes.get(scope === 'session-maybe' ? 'session' : scope),
+      get locale() { return localeOf() },
     }
     return this._host
   }
@@ -502,24 +493,16 @@ export class SlotRegistry extends Service {
       copyUnique('prop', props, contribution.props, finalProps, name => name)
     }
     this._rootBinding = { key: undefined, hooks, keyedHooks, props }
-    for (const listener of [...this._rootListeners]) {
-      try {
-        listener()
-      } catch (error) {
-        console.error('root standard-source subscriber failed:', error)
-      }
+    for (const listener of Array.from(this._rootListeners)) {
+      listener()
     }
   }
 
   /** Publish one installed-scope roster transition after the map is authoritative. */
   private publishScopeRevision(): void {
     this._scopeRevision += 1
-    for (const listener of [...this._scopeListeners]) {
-      try {
-        listener()
-      } catch (error) {
-        console.error('scope-adapter subscriber failed:', error)
-      }
+    for (const listener of Array.from(this._scopeListeners)) {
+      listener()
     }
   }
 
@@ -571,10 +554,9 @@ export class SlotRegistry extends Service {
   /** Drop one reference; the last holder's unload drops the record (instances go with it — engine stores need no explicit dispose). */
   private _release(handle: EngineStoreHandle): void {
     const record = this._stores.get(handle)
-    /* v8 ignore next -- defensive: release only runs from a disposer whose
-     * register acquired the same handle, so the record must exist; kept so a
-     * future call site cannot underflow the axis. */
-    if (record === undefined) return
+    if (record === undefined) {
+      throw new Error('store handle is not registered for release')
+    }
     record.refs -= 1
     if (record.refs !== 0) return
     this._stores.delete(handle)
@@ -603,11 +585,15 @@ function copyUnique<T>(
 // inside the class — see its JSDoc for why it must live on the prototype).
 // Element access reaches the private _register legally and keeps it a
 // TS-visible read.
-;(SlotRegistry.prototype as { register: (options: object, component: unknown) => () => void }).register
-  = function register(this: SlotRegistry, rawOptions: object, component: unknown): () => void {
+;(SlotRegistry.prototype as {
+  register: (options: object, component: unknown) => () => Promise<void>
+}).register
+  = function register(this: SlotRegistry, rawOptions: object, component: unknown): () => Promise<void> {
     // The core's overloads proved the shares; the implementation works on
     // the erased view (same pattern as the core's own implementation arm).
     const options = rawOptions as ErasedRegisterOptions
-    // oxlint-disable-next-line typescript/no-misused-promises -- synchronous cleanup; direct return preserves disposer identity
-    return this.ctx.effect(() => this['_register'](options, component), 'slots.register()')
+    return this.ctx.effect(
+      (): (() => void) => this._register(options, component),
+      'slots.register()',
+    )
   }

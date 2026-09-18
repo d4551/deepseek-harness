@@ -3,11 +3,7 @@
  * @module @deepseek-ai/dsh-client-ui-renderer/invariant
  */
 
-/* oxlint-disable typescript/no-redundant-type-constituents --
- * `keyof SlotMap & string` is the declaration-merge key pattern: SlotMap is
- * empty in this compilation unit but consumers merge concrete keys into it. */
 import type { Context } from '@deepseek-ai/cordis'
-import type { SlotMap } from '@deepseek-ai/dsh-client-ui-slots'
 import type { InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 
 const PACKAGE_NAME = '@deepseek-ai/dsh-client-ui-renderer'
@@ -30,7 +26,7 @@ const install: InvariantInstaller = (ctx, fail) => {
       return
     }
     const slots = ctx.get('slots')
-    if (slots !== undefined && slots.getVersion(key as keyof SlotMap & string) === 0) {
+    if (slots !== undefined && slots.getVersion(key) === 0) {
       fail(`'slots/changed' fired for "${key}" before any mutation bumped its version — emission must follow the applied mutation`)
     }
   }, { global: true })

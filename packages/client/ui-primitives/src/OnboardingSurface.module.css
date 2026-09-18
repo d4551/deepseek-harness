@@ -14,8 +14,7 @@
   top: 80px;
   bottom: 0px;
   background: var(--dsw-alias-bg-mask-1);
-  /* Mask-blur */
-  backdrop-filter: blur(2px);
+  backdrop-filter: var(--dsw-mask-blur);
 }
 
 .onboardingStage {
@@ -24,6 +23,10 @@
   inset: 0;
   display: flex;
   justify-content: center;
+  margin: 0;
+  padding: 0;
   overflow: hidden;
+  border: none;
   background: var(--dsw-alias-bg-layer-1);
+  color: inherit;
 }

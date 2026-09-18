@@ -215,6 +215,8 @@
 .separator {
   height: 1px;
   margin: 4px 2px;
+  padding: 0;
+  border: none;
   background: var(--dsw-alias-border-l1);
 }
 

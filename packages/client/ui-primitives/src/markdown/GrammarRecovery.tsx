@@ -20,9 +20,9 @@ export function GrammarRecovery({ lang, labels }: {
   )
   if (failure === undefined) return null
   return (
-    <div role="status">
+    <output>
       <span>{labels.failed}</span>{' '}
       <Button onClick={() => { window.location.reload() }}>{labels.reload}</Button>
-    </div>
+    </output>
   )
 }

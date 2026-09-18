@@ -56,6 +56,7 @@ export { SessionSearchCursor } from './cursor.ts'
 export type { Config, SessionQueryErrorCode } from './config.ts'
 export {
   SESSION_QUERY_DEFAULT_PERSISTED_INSPECT_CONCURRENCY,
+  SESSION_QUERY_ERROR_CODES,
   SESSION_QUERY_READ_WINDOW_MAX,
   SessionQueryError,
 } from './config.ts'

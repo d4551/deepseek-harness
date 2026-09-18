@@ -29,14 +29,8 @@ export type WelcomeSection = Record<string, unknown>
  * @returns the section object, or an empty one for non-object values.
  */
 export function decodeWelcomeSection(section: unknown): WelcomeSection {
-  return typeof section === 'object' && section !== null && !Array.isArray(section)
-    ? section as WelcomeSection
-    : {}
-}
-
-/* v8 ignore next 3 -- closed-union default only defends future source widening */
-function assertNever(_value: never): never {
-  throw new Error('unexpected welcome settings status')
+  if (typeof section !== 'object' || section === null || Array.isArray(section)) return {}
+  return { ...section }
 }
 
 /** Coordinates durable Host acknowledgement or a process-local remote fallback. */
@@ -72,28 +66,33 @@ export class WelcomeNoticeStore {
    * refused or failed write reports false after its recovery read settles.
    * @returns true when the selected persistence mode holds the acknowledgement.
    */
-  async acknowledge(): Promise<boolean> {
+  acknowledge(): Promise<boolean> {
     if (this.scope.getSnapshot().mode === 'memory') {
       this.localAcknowledged = true
       this.derive()
-      return true
+      return Promise.resolve(true)
     }
     this.saving = true
     this.store.update((state) => { state.status = 'saving'; state.error = null })
-    try {
-      await this.scope.set(WELCOME_NOTICE_ACK_FIELD, WELCOME_NOTICE_VERSION)
-    } finally {
-      this.saving = false
-    }
-    this.derive()
-    const { acknowledged } = this.store.getSnapshot()
-    if (!acknowledged) {
-      this.store.update((state) => {
-        state.status = 'error'
-        state.error = 'the acknowledgement did not persist'
-      })
-    }
-    return acknowledged
+    return this.scope.set(WELCOME_NOTICE_ACK_FIELD, WELCOME_NOTICE_VERSION).then(
+      () => {
+        this.saving = false
+        this.derive()
+        const { acknowledged } = this.store.getSnapshot()
+        if (!acknowledged) {
+          this.store.update((state) => {
+            state.status = 'error'
+            state.error = 'the acknowledgement did not persist'
+          })
+        }
+        return acknowledged
+      },
+      (reason: unknown) => {
+        this.saving = false
+        if (!(reason instanceof Error)) throw new TypeError('welcome acknowledgement rejected with a non-Error')
+        throw reason
+      },
+    )
   }
 
   /** Stop following the scope. */
@@ -133,8 +132,6 @@ export class WelcomeNoticeStore {
         })
         return
       }
-      /* v8 ignore next -- every current settings scope status is handled above */
-      default: return assertNever(scope.status)
     }
   }
 }

@@ -38,6 +38,7 @@ export function SessionRenameDialog({ target, onClose, renameSession, t }: Pick<
       onClose={close}
       closeLabel={t('close')}
       title={t('rename.session.title')}
+      initialFocus="field"
       footer={(
         <>
           <Button variant="outline" disabled={pending} onClick={close}>{t('cancel')}</Button>
@@ -49,7 +50,6 @@ export function SessionRenameDialog({ target, onClose, renameSession, t }: Pick<
         className={css.renameInput}
         value={draft}
         aria-label={t('field.sessionName')}
-        autoFocus
         disabled={pending}
         onFocus={(event) => { event.target.select() }}
         onChange={(event) => { setDraft(event.target.value); setError(null) }}

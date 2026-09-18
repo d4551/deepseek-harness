@@ -11,8 +11,7 @@
  */
 import { startTransition, useEffect, useRef } from 'react'
 import { useSyncExternalStore } from 'react'
-import clsx from 'clsx'
-import { IconCheckOutline16, RiskConfirmation, useAnchoredMaxHeight } from '@deepseek-ai/dsh-client-ui-primitives'
+import { RiskConfirmation, useAnchoredMaxHeight } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { filterOptions } from './popup.ts'
 import type { PopupSelectController } from './popup.ts'
@@ -40,7 +39,7 @@ export function PopupSelectView({ popup, t }: PopupSelectViewProps) {
     fn => popup.state.subscribe(fn),
     () => popup.state.getSnapshot(),
   )
-  const cardRef = useRef<HTMLDivElement>(null)
+  const cardRef = useRef<HTMLDialogElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   // The card is bottom-anchored above the composer; clamp the design cap to
   // the space above it, re-measured on every store update.
@@ -79,7 +78,7 @@ export function PopupSelectView({ popup, t }: PopupSelectViewProps) {
   const rows = filterOptions(state.options, state.search)
   const confirmation = state.confirming?.confirmation
 
-  const onKeyDown = (ev: React.KeyboardEvent<HTMLDivElement>): void => {
+  const onKeyDown = (ev: React.KeyboardEvent<HTMLDialogElement>): void => {
     // ArrowLeft/ArrowRight fall through on purpose: the search input keeps
     // its native caret movement.
     switch (ev.key) {
@@ -106,10 +105,10 @@ export function PopupSelectView({ popup, t }: PopupSelectViewProps) {
   return (
     <>
       {state.confirming === null && (
-        <div
+        <dialog
           ref={cardRef}
           className={css.card}
-          role="dialog"
+          open
           style={{ maxHeight }}
           aria-label={t('overlay.aria', { command: String(state.command) })}
           onKeyDown={onKeyDown}
@@ -136,27 +135,27 @@ export function PopupSelectView({ popup, t }: PopupSelectViewProps) {
           {state.submitting && <div className={css.status}>{t('status.applying')}</div>}
           {state.status === 'ready' && rows.length === 0 && <div className={css.status}>{t('status.empty')}</div>}
           {state.status === 'ready' && (
-            <div role="listbox" tabIndex={0} aria-label={t('listbox.aria', { command: String(state.command) })} className={css.viewport}>
+            <select
+              className={css.viewport}
+              size={Math.max(2, rows.length)}
+              tabIndex={-1}
+              aria-label={t('listbox.aria', { command: String(state.command) })}
+              value={rows[state.active]?.id ?? ''}
+            >
               {rows.map((option, index) => (
-                <div
+                <option
                   key={option.id}
-                  role="option"
+                  value={option.id}
                   aria-selected={index === state.active}
-                  className={clsx(css.row, index === state.active && css.rowActive)}
-                  // mousedown would race the document capture listener; the shell
-                  // owns focus anyway, so a plain click (inside the card → no
-                  // dismiss) works.
                   onClick={() => { startTransition(() => popup.select(index)) }}
                   onMouseEnter={() => { popup.highlight(index) }}
                 >
-                  <span className={css.label}>{option.label}</span>
-                  {option.detail !== undefined && <span className={css.detail}>{option.detail}</span>}
-                  {option.active === true && <span className={css.check}><IconCheckOutline16 /></span>}
-                </div>
+                  {option.label}{option.detail === undefined ? '' : ` ${option.detail}`}
+                </option>
               ))}
-            </div>
+            </select>
           )}
-        </div>
+        </dialog>
       )}
       {confirmation !== undefined && (
         <RiskConfirmation

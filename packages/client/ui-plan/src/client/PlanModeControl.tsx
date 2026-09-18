@@ -63,7 +63,7 @@ export function PlanChip({ useProjection, locked, exitPlanMode, t }: PlanChipPro
           <IconCloseFill14 size={12} />
         </span>
       </button>
-      {error !== null && <span className={css.error} role="status" title={error}>{t('chip.exitFailed')}</span>}
+      {error !== null && <output className={css.error} title={error}>{t('chip.exitFailed')}</output>}
     </span>
   )
 }

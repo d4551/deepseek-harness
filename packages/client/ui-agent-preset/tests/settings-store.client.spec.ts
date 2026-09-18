@@ -252,11 +252,8 @@ describe('the agent-preset settings controller', () => {
     expect(controller.store.getSnapshot().status).toBe('ready')
   })
 
-  it('reads an Error\'s message and stringifies anything else', () => {
-    // A transport rejects with an Error, but a host or a runtime can reject
-    // with anything and the surface still has to say something.
+  it('reads an Error message for surface copy', () => {
     expect(messageOf(new Error('boom'))).toBe('boom')
-    expect(messageOf({ code: 7 })).toBe('[object Object]')
   })
 
   it('reports a transport that rejects rather than answering', async () => {

@@ -144,32 +144,32 @@ export function WorkspaceRootsAction({
     })
   }, [loadOrigin, open, origin])
 
-  const submit = useCallback((next: readonly string[], after: () => void): void => {
+  const submit = useCallback((paths: readonly string[], onSettled: () => void): void => {
     setSaving(true)
     setError(null)
     setFieldError(false)
     setRetry(null)
-    setRoots(sessionId, next).then((result) => {
+    setRoots(sessionId, paths).then((result) => {
       if (!aliveRef.current || sessionRef.current !== sessionId) return
       setSaving(false)
       if (result.ok) {
-        after()
+        onSettled()
         return
       }
       setError(failureText(result.error))
       setFieldError(false)
-      setRetry(() => () => { submit(next, after) })
+      setRetry(() => () => { submit(paths, onSettled) })
     }, (reason: unknown) => {
       if (!aliveRef.current || sessionRef.current !== sessionId) return
       setSaving(false)
       setError(reason instanceof Error ? reason.message : String(reason))
       setFieldError(false)
-      setRetry(() => () => { submit(next, after) })
+      setRetry(() => () => { submit(paths, onSettled) })
     })
   }, [sessionId, setRoots])
 
   if (roots === undefined) {
-    return <span className={css.skeleton} role="status" aria-label={t('trigger.loading')} />
+    return <output className={css.skeleton} aria-label={t('trigger.loading')} />
   }
 
   const additional = roots.additional
@@ -222,9 +222,9 @@ export function WorkspaceRootsAction({
         <span className={css.count}>{count}</span>
       </button>
       {open && (
-        <div
+        <dialog
           className={css.panel}
-          role="dialog"
+          open
           aria-labelledby={titleId}
           onKeyDown={(event) => {
             if (event.key !== 'Escape') return
@@ -322,7 +322,7 @@ export function WorkspaceRootsAction({
               </button>
             </div>
           </form>
-        </div>
+        </dialog>
       )}
     </div>
   )

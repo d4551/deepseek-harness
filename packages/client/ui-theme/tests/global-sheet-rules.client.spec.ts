@@ -25,6 +25,16 @@ describe('ui-theme global sheet rules', () => {
     expect(css).not.toContain('clip: rect')
   })
 
+  it('resets native dialog UA chrome so component tokens own the surface', () => {
+    const css = sheet('base.css')
+    expect(css).toContain('dialog {')
+    expect(css).toContain('dialog:focus-visible,')
+    expect(css).toContain('max-width: none')
+    expect(css).toContain('background: transparent')
+    expect(css).toContain('fieldset {')
+    expect(css).toContain('min-inline-size: 0')
+  })
+
   it('declares the Settings cell the General section composes its rows from', () => {
     const css = sheet('settings-cell.css')
     for (const rule of [

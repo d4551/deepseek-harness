@@ -9,16 +9,24 @@
  * aria-activedescendant on the listbox). A source publishing crumbs gets a
  * breadcrumb header pinned above the scrolling list.
  */
-import { Fragment, useEffect, useRef, useSyncExternalStore } from 'react'
+import { Fragment, useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react'
 import clsx from 'clsx'
-import { IconChevronRightOutline14, ReferenceIcon, useAnchoredMaxHeight } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconChevronRightOutline14, useAnchoredMaxHeight } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import css from './MenuView.module.css'
 import type { MenuViewInjected } from './slots.ts'
-import type { MenuKey } from './locales.ts'
+import { zh, type MenuKey } from './locales.ts'
 
 /** Full menu props: injected face + the locale seat. */
 export type MenuViewProps = MenuViewInjected & PropsLocale<'slash.menu'>
+
+function isMenuKey(source: string): source is MenuKey {
+  return Object.hasOwn(zh, source)
+}
+
+function sourceTitle(t: MenuViewProps['t'], source: string): string {
+  return isMenuKey(source) ? t(source) : source
+}
 
 /** Design cap on the list height (figma SLASH 39:26572 MenuDropdown). */
 const MAX_HEIGHT = 320
@@ -102,85 +110,88 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onRetry, onD
       {/* An empty listbox violates aria-required-children; with no ready
           options the pending and failed blocks below carry the open state alone. */}
       {state.groups.some(group => group.status === 'ready' && group.items.length > 0) && (
-        <div
-          className={css.viewport}
-          role="listbox"
-          aria-label={t('suggestions.aria')}
-          aria-activedescendant={highlight !== null ? optionId(highlight.source, highlight.index) : undefined}
-        >
-          {/* Only a ready group with rows enters the listbox: a pending or
-              failed one has no options and renders its own block below. */}
-          {state.groups.map(group => group.status !== 'ready' || group.items.length === 0
-            ? null
-            : (
-              <Fragment key={group.source}>
-                {/* Source names key the dictionary open-endedly: the lookup chain
-                  returns an unknown key verbatim, so an unregistered source
-                  shows its raw name — hence the cast past the typed key union. */}
-                {group.showGroupTitle === false || group.items.some(item => item.section !== undefined)
-                  ? null
-                  : <div className={css.groupTitle} role="presentation" data-source={group.source}>{t(group.source as MenuKey)}</div>}
-                {group.items.map((item, index) => {
-                  const active = highlight !== null && highlight.source === group.source && highlight.index === index
-                  return (
-                    <Fragment key={optionId(group.source, index)}>
-                      {item.section !== undefined && item.section !== group.items[index - 1]?.section
-                        ? <div className={css.sectionTitle} role="presentation">{item.section}</div>
-                        : null}
-                      <button
-                        id={optionId(group.source, index)}
-                        type="button"
-                        role="option"
-                        aria-selected={active}
-                        className={clsx(css.item, active && css.active)}
-                        // mousedown, not click: the textarea keeps focus (combobox
-                        // pattern) — preventing default stops the focus steal, and the
-                        // pick runs before any blur-driven teardown.
-                        onMouseDown={(ev) => {
-                          ev.preventDefault()
-                          onPick(group.source, index)
-                        }}
-                        // mousemove, not mouseenter: real pointer motion moves the
-                        // shared highlight; keyboard scrolling rows under a resting
-                        // pointer must not steal it back.
-                        onMouseMove={active ? undefined : () => { onHover(group.source, index) }}
-                      >
-                        {item.icon !== undefined && (
-                          <span className={css.itemIcon} aria-hidden>
-                            <ReferenceIcon kind={item.icon} size={16} />
-                          </span>
-                        )}
-                        <span className={css.itemName}>{item.name}</span>
-                        {item.description !== undefined && <span className={css.itemDescription}>{item.description}</span>}
-                        {item.drill === true && (
-                          <span className={css.trailing}>
-                            {/* Visual hint only: Tab drills the highlighted row (the
-                                keyboard twin of the chevron, which owns the aria label). */}
-                            <span className={css.drillHintText} aria-hidden>{t('drill.hint')}</span>
-                            <kbd className={css.drillHint} aria-hidden>{t('drill.key')}</kbd>
-                            <span
-                              role="button"
-                              aria-label={t('drill.aria')}
-                              className={css.drill}
-                              // mousedown so the composer keeps focus, same as the row;
-                              // stopPropagation keeps the row's settling pick out of it.
-                              onMouseDown={(ev) => {
-                                ev.preventDefault()
-                                ev.stopPropagation()
-                                onPick(group.source, index, 'drill')
-                              }}
-                            >
-                              <IconChevronRightOutline14 />
-                            </span>
-                          </span>
-                        )}
-                      </button>
-                    </Fragment>
-                  )
-                })}
-              </Fragment>
+        <>
+          <select
+            className={css.viewport}
+            size={Math.max(2, state.groups.reduce(
+              (count, group) => count + (group.status === 'ready' ? group.items.length : 0),
+              0,
             ))}
-        </div>
+            tabIndex={-1}
+            aria-label={t('suggestions.aria')}
+            aria-activedescendant={highlight !== null ? optionId(highlight.source, highlight.index) : undefined}
+            value={highlight !== null ? optionId(highlight.source, highlight.index) : ''}
+          >
+            {state.groups.map((group) => {
+              if (group.status !== 'ready' || group.items.length === 0) return null
+              const title = sourceTitle(t, group.source)
+              const sectioned = group.items.some(item => item.section !== undefined)
+              const wrapTitle = group.showGroupTitle !== false && !sectioned
+              const options = group.items.map((item, index) => {
+                const active = highlight !== null && highlight.source === group.source && highlight.index === index
+                return (
+                  <option
+                    key={optionId(group.source, index)}
+                    id={optionId(group.source, index)}
+                    value={optionId(group.source, index)}
+                    data-icon={item.icon}
+                    aria-selected={active}
+                    onMouseDown={(ev) => {
+                      ev.preventDefault()
+                      onPick(group.source, index)
+                    }}
+                    onMouseMove={active ? undefined : () => { onHover(group.source, index) }}
+                  >
+                    {item.name}{item.description ?? ''}
+                  </option>
+                )
+              })
+              if (sectioned) {
+                const clusters: Array<{ label: string; nodes: ReactNode[] }> = []
+                for (const [index, item] of group.items.entries()) {
+                  const label = item.section ?? title
+                  const node = options[index]
+                  if (node === undefined) throw new Error(`slash option ${String(index)} is missing`)
+                  const last = clusters.at(-1)
+                  if (last !== undefined && last.label === label) last.nodes.push(node)
+                  else clusters.push({ label, nodes: [node] })
+                }
+                return clusters.map(cluster => (
+                  <optgroup key={`${group.source}:${cluster.label}`} label={cluster.label} data-source={group.source}>
+                    {cluster.nodes}
+                  </optgroup>
+                ))
+              }
+              if (wrapTitle) {
+                return (
+                  <optgroup key={group.source} label={title} data-source={group.source}>
+                    {options}
+                  </optgroup>
+                )
+              }
+              return <Fragment key={group.source}>{options}</Fragment>
+            })}
+          </select>
+          {state.groups.flatMap(group => group.status !== 'ready'
+            ? []
+            : group.items.flatMap((item, index) => item.drill !== true
+              ? []
+              : [
+                <button
+                  key={`drill-${optionId(group.source, index)}`}
+                  type="button"
+                  aria-label={t('drill.aria')}
+                  className={css.drill}
+                  onMouseDown={(ev) => {
+                    ev.preventDefault()
+                    ev.stopPropagation()
+                    onPick(group.source, index, 'drill')
+                  }}
+                >
+                  <IconChevronRightOutline14 />
+                </button>,
+              ]))}
+        </>
       )}
       {/* Pending skeletons and failure alerts sit OUTSIDE the listbox: neither
           a role=status nor a role=alert live region is an allowed listbox
@@ -193,11 +204,11 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onRetry, onD
           <Fragment key={group.source}>
             {group.showGroupTitle === false
               ? null
-              : <div className={css.groupTitle} role="presentation" data-source={group.source}>{t(group.source as MenuKey)}</div>}
+              : <div className={css.groupTitle} role="presentation" data-source={group.source}>{sourceTitle(t, group.source)}</div>}
             {group.status === 'failed'
               ? (
                 <div className={css.error} role="alert" data-source={group.source}>
-                  <span className={css.errorTitle}>{t('error.title', { source: t(group.source as MenuKey) })}</span>
+                  <span className={css.errorTitle}>{t('error.title', { source: sourceTitle(t, group.source) })}</span>
                   {/* The load failure's own message, verbatim from the host it
                       came from: it names the actual defect, so it is data the
                       user reads, not copy the dictionaries own. */}
@@ -217,11 +228,11 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onRetry, onD
                 </div>
               )
               : (
-                <div role="status" aria-label={t('loading')} data-source={group.source}>
+                <output aria-label={t('loading')} data-source={group.source}>
                   <span className="dsw-visually-hidden">{t('loading')}</span>
-                  <div className={css.skeletonRow}><span className={clsx(css.skeletonBar, css.skeletonBarShort)} /></div>
-                  <div className={css.skeletonRow}><span className={clsx(css.skeletonBar, css.skeletonBarLong)} /></div>
-                </div>
+                  <span className={css.skeletonRow}><span className={clsx(css.skeletonBar, css.skeletonBarShort)} /></span>
+                  <span className={css.skeletonRow}><span className={clsx(css.skeletonBar, css.skeletonBarLong)} /></span>
+                </output>
               )}
           </Fragment>
         ))}

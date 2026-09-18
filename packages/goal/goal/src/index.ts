@@ -54,6 +54,7 @@ import type {
 // still receive the SessionProjectionMap merge.
 export type { CreateGoalRequest, CreateGoalResult, EditGoalRequest, GoalActivation, GoalBlockReason, GoalPhase, GoalProjection, GoalRef, GoalSnapshot, GoalView } from './types.ts'
 export type { FoldedGoal, GoalChangeMeta, GoalChanged, GoalClearChangeMeta, GoalErrorCode, GoalMessageSource, GoalOperation, GoalSnapshotChangeMeta } from './domain.ts'
+export { GOAL_ERROR_CODES } from './domain.ts'
 export { GOAL_CHANGE_VERSION, GoalError, GoalId } from './runtime.ts'
 export { decodeGoalChange, foldGoal, goalChangeRef } from './fold.ts'
 

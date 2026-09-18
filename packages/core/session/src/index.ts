@@ -31,7 +31,7 @@ export type { JsonValue } from './json.ts'
 export { interruptedTurnClosers, TOOL_NOT_STARTED, TOOL_OUTCOME_UNKNOWN } from './repair.ts'
 export { decodeStorageRecord, packChunkRuns } from './chunk-rows.ts'
 export type { ChunkRow, StorageRecord } from './chunk-rows.ts'
-export type { SessionSurface, SurfaceFoldReplacement, SurfaceFoldResult } from './surface.ts'
+export type { SessionSurface, SurfaceContractReject, SurfaceFoldReplacement, SurfaceFoldResult } from './surface.ts'
 export { deriveEventMessage, foldSurface, isAppendSurfaceEvent, isReplacementSurfaceEvent, isSurfaceEvent, isSurfaceEligibleType } from './surface.ts'
 export { canonicalHeader, foldRequestHeader, headerEquals } from './request-header.ts'
 export { KNOWN_SESSION_EVENT_TYPES } from './known-event-types.ts'
@@ -202,12 +202,11 @@ export function snapshotSessionEvent<T extends SessionEvent>(event: T): T {
 function freezeRestoredObject<T extends object>(value: T): T {
   const pending: object[] = [value]
   while (pending.length > 0) {
-    // The non-empty check proves an object remains to visit.
-    // oxlint-disable-next-line typescript/no-non-null-assertion
-    const current = pending.pop()!
+    const current = pending.pop()
+    if (current === undefined) throw new TypeError('freeze queue emptied between length check and pop')
     Object.freeze(current)
-    for (const key in current) {
-      const child = (current as Record<string, unknown>)[key]
+    for (const key of Object.keys(current)) {
+      const child = Reflect.get(current, key)
       if (child !== null && typeof child === 'object') pending.push(child)
     }
   }
@@ -736,10 +735,11 @@ export class Session {
       this.derivedGeneration = generation
     }
     for (const seq of nodes.slice(this.derivedNodes)) {
-      // Surface sequences are built from this.log — seq is always a valid
-      // index by construction. The non-null assertion expresses that invariant.
-      // oxlint-disable-next-line typescript/no-non-null-assertion
-      const msg = this.deriveEventMessage(this.log[seq]!)
+      const event = this.log[seq]
+      if (event === undefined) {
+        throw new Error(`surface sequence ${String(seq)} is missing from the session log`)
+      }
+      const msg = this.deriveEventMessage(event)
       // A surface node is one of the five message-producing types, but an
       // empty-content assistant/message (a max-tokens step that hosts only
       // usage) derives to null and must not enter the transcript.
@@ -956,8 +956,9 @@ export class SessionStore extends Service {
     entry.detachRequested = false
     // A stale capability cannot remove observers or storage belonging to a
     // later same-id lifecycle.
-    /* v8 ignore next -- enter() rejects replacement while this single-shot detach capability is live. */
-    if (this.store.get(entry.id) !== entry) return
+    if (this.store.get(entry.id) !== entry) {
+      throw new Error(`session "${entry.id}" detach target is not the live entry`)
+    }
     this.store.delete(entry.id)
     attachments.delete(entry.session)
     if (entry.announced) this.emitDisposed(entry)

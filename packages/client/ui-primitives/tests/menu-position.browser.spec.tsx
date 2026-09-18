@@ -34,7 +34,7 @@ function PersistentSelectionMenu() {
     <Menu
       open={open}
       portal
-      autoFocus
+      focusOnOpen
       ariaLabel="Options"
       anchor={<button type="button" onClick={() => { setOpen(true) }}>Options</button>}
       items={[{ id: 'first', label: 'First' }, { id: 'more', label: 'More', submenu: [{ id: 'second', label: 'Second' }] }]}
@@ -83,13 +83,10 @@ describe('Menu placement', () => {
     const bounds = menu.getBoundingClientRect()
     expect(menu.hasAttribute('style')).toBe(false)
     expect(menu.parentElement).toBe(screen.getByRole('main'))
-    if (side === 'right') {
-      expect(bounds.left).toBe(rect.right + 4)
-      expect(bounds.top).toBe(rect.top)
-    } else {
-      expect(align === 'start' ? bounds.left : bounds.right).toBe(align === 'start' ? rect.left : rect.right)
-      expect(side === 'top' ? bounds.bottom : bounds.top).toBe(side === 'top' ? rect.top - 4 : rect.bottom + 4)
-    }
+    expect(side === 'right' ? bounds.left : (align === 'start' ? bounds.left : bounds.right))
+      .toBe(side === 'right' ? rect.right + 4 : (align === 'start' ? rect.left : rect.right))
+    expect(side === 'right' ? bounds.top : (side === 'top' ? bounds.bottom : bounds.top))
+      .toBe(side === 'right' ? rect.top : (side === 'top' ? rect.top - 4 : rect.bottom + 4))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Rename' }))
     expect(screen.getByLabelText('Selection').textContent).toBe('rename')
     expect(screen.queryByRole('menu')).toBeNull()
@@ -131,8 +128,8 @@ describe('Menu placement', () => {
     const bounds = menu.getBoundingClientRect()
     expect(menu.hasAttribute('style')).toBe(false)
     const origin = anchor.getBoundingClientRect()
-    if (side === 'bottom') expect(bounds.bottom).toBe(origin.top - 4)
-    else expect(bounds.right).toBe(origin.left - 4)
+    expect(side === 'bottom' ? bounds.bottom : bounds.right)
+      .toBe(side === 'bottom' ? origin.top - 4 : origin.left - 4)
     expect(bounds.left).toBeGreaterThanOrEqual(12)
     expect(bounds.top).toBeGreaterThanOrEqual(12)
     expect(bounds.right).toBeLessThanOrEqual(window.innerWidth - 12)

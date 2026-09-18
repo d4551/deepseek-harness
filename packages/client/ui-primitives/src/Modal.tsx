@@ -6,7 +6,7 @@ import { IconCloseOutline16 } from './icons/index.tsx'
 import css from './Modal.module.css'
 
 interface ModalBaseProps {
-  ref?: Ref<HTMLDivElement>
+  ref?: Ref<HTMLDialogElement>
   open: boolean
   description?: string
   children?: ReactNode
@@ -22,8 +22,8 @@ type ModalProps = ModalBaseProps & (
   | { dismissible?: true; onClose: () => void }
   | { dismissible: false; onClose?: never }
 ) & (
-  | { headless: true; title: string; closeLabel?: never; initialFocus?: never }
-  | { headless?: false; title: ReactNode; closeLabel: ReactNode; initialFocus?: 'dialog' | 'close' }
+  | { headless: true; title: string; closeLabel?: never; initialFocus?: 'dialog' | 'field' }
+  | { headless?: false; title: ReactNode; closeLabel: ReactNode; initialFocus?: 'dialog' | 'close' | 'field' | 'footer' }
 )
 
 /**
@@ -52,8 +52,9 @@ export function Modal({
   useEffect(() => {
     if (!open) return
     const root = rootRef.current
-    const dialog = root?.querySelector<HTMLElement>('[role="dialog"]')
-    if (root === null || dialog == null) return
+    if (root === null) throw new TypeError('modal root is not mounted')
+    const dialog = root.querySelector('dialog')
+    if (dialog === null) throw new TypeError('modal dialog is not mounted')
     const previousFocus = document.activeElement
     const siblings = new Map<HTMLElement, boolean>()
     for (const element of document.body.children) {
@@ -63,8 +64,21 @@ export function Modal({
       }
     }
     if (!dialog.contains(document.activeElement)) {
-      const target = initialFocus === 'close' && dismissible ? closeRef.current : dialog
-      target?.focus()
+      if (initialFocus === 'close' && dismissible) {
+        const close = closeRef.current
+        if (close === null) throw new TypeError('modal close control is not mounted')
+        close.focus()
+      } else if (initialFocus === 'field') {
+        const field = dialog.querySelector<HTMLElement>('input:not(:disabled), textarea:not(:disabled), select:not(:disabled)')
+        if (field === null) throw new TypeError('modal initialFocus=field requires an enabled field')
+        field.focus()
+      } else if (initialFocus === 'footer') {
+        const footer = dialog.querySelector<HTMLElement>('[data-modal-footer] button:not(:disabled)')
+        if (footer === null) throw new TypeError('modal initialFocus=footer requires an enabled footer control')
+        footer.focus()
+      } else {
+        dialog.focus()
+      }
     }
     const containFocus = (event: FocusEvent) => {
       if (root.inert) return
@@ -107,8 +121,10 @@ export function Modal({
     }
     const onPointerDown = (event: PointerEvent) => {
       const root = rootRef.current
-      const dialog = root?.querySelector('[role="dialog"]')
-      if (root === null || root.inert || dialog == null) return
+      if (root === null) throw new TypeError('modal root is not mounted')
+      if (root.inert) return
+      const dialog = root.querySelector('dialog')
+      if (dialog === null) throw new TypeError('modal dialog is not mounted')
       if (event.target instanceof Node && !dialog.contains(event.target)) onClose()
     }
     document.addEventListener('keydown', onKeyDown)
@@ -123,14 +139,13 @@ export function Modal({
 
   return createPortal((
     <div ref={rootRef} className={css.root} role="presentation">
-      <div className={css.mask} aria-hidden="true" onClick={dismissible ? onClose : undefined} />
-      <div
+      <div className={css.mask} aria-hidden="true" />
+      <dialog
         ref={ref}
         className={clsx(css.dialog, size === 'workspace' && css.workspace, className)}
-        role="dialog"
-        aria-modal="true"
-        aria-label={typeof title === 'string' ? title : undefined}
+        open
         aria-labelledby={typeof title === 'string' ? undefined : titleId}
+        aria-label={typeof title === 'string' ? title : undefined}
         tabIndex={-1}
       >
         {headless
@@ -160,10 +175,10 @@ export function Modal({
                 )}
                 {children !== undefined && <div className={css.body}>{children}</div>}
               </div>
-              {footer !== undefined && <div className={css.footer}>{footer}</div>}
+              {footer !== undefined && <div className={css.footer} data-modal-footer="">{footer}</div>}
             </>
           )}
-      </div>
+      </dialog>
     </div>
   ), document.body)
 }

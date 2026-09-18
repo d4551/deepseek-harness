@@ -16,7 +16,7 @@
 
 import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
-import { beginRosterRead, messageOf, writeDefaultPreset } from './settings-store.ts'
+import { beginRosterRead, writeDefaultPreset } from './settings-store.ts'
 
 /** Ids a preset directory may be named, mirroring the host's own rule. */
 const PRESET_ID = /^[a-z0-9][a-z0-9-]*$/
@@ -201,17 +201,20 @@ export class AgentPresetSectionController {
    */
   async view(id: string): Promise<void> {
     this.set({ error: null })
-    try {
-      const result = await this.remote.agentPresets.read(id)
-      if (!result.ok) {
-        this.set({ error: result.error.message })
-        return
-      }
-      const { name, content } = result.value
-      this.set({ view: { id, title: name ?? id, content } })
-    } catch (error) {
-      this.set({ error: messageOf(error) })
-    }
+    return this.remote.agentPresets.read(id).then(
+      (result) => {
+        if (!result.ok) {
+          this.set({ error: result.error.message })
+          return
+        }
+        const { name, content } = result.value
+        this.set({ view: { id, title: name ?? id, content } })
+      },
+      (reason: unknown) => {
+        if (!(reason instanceof Error)) throw new TypeError('preset read rejected with a non-Error')
+        this.set({ error: reason.message })
+      },
+    )
   }
 
   /** Close the read-only viewer. */
@@ -263,28 +266,26 @@ export class AgentPresetSectionController {
     if (draft === null || draft.saving) return
     if (draftBlocker(draft, this.store.getSnapshot().rows) !== undefined) return
     this.patchCopy({ saving: true, error: null })
-    try {
-      const name = draft.name.trim()
-      // Every declared parameter is passed even when optional: the Remote face
-      // checks arity against the declaration and rejects a short call. An
-      // empty display name goes as `undefined` — absent rather than empty, so
-      // the host falls back to the id instead of labelling the row with ''.
-      const result = await this.remote.agentPresets.copy(
-        draft.from, draft.id, name === '' ? undefined : name)
-      if (!result.ok) {
-        this.patchCopy({ saving: false, error: result.error.message })
-        return
-      }
-      this.set({ copy: null })
-      await this.load()
-      await this.rosterChanged?.()
-      // A preset is its files from here on (the dialog collected nothing
-      // else), so landing in them is the completion, not a follow-up.
-      await this.openLocation(draft.id)
-    } catch (error) {
-      if (this.store.getSnapshot().copy === null) this.set({ error: messageOf(error) })
-      else this.patchCopy({ saving: false, error: messageOf(error) })
-    }
+    const name = draft.name.trim()
+    return this.remote.agentPresets.copy(
+      draft.from, draft.id, name === '' ? undefined : name,
+    ).then(
+      async (result) => {
+        if (!result.ok) {
+          this.patchCopy({ saving: false, error: result.error.message })
+          return
+        }
+        this.set({ copy: null })
+        await this.load()
+        await this.rosterChanged?.()
+        await this.openLocation(draft.id)
+      },
+      (reason: unknown) => {
+        if (!(reason instanceof Error)) throw new TypeError('preset copy rejected with a non-Error')
+        if (this.store.getSnapshot().copy === null) this.set({ error: reason.message })
+        else this.patchCopy({ saving: false, error: reason.message })
+      },
+    )
   }
 
   /**
@@ -294,18 +295,21 @@ export class AgentPresetSectionController {
    * @returns once the host answered and the page reflects it.
    */
   async openLocation(id: string): Promise<void> {
-    try {
-      const result = await this.remote.settings.openAgentPresetDirectory(id)
-      if (!result.ok) {
-        this.set({ error: result.error.message })
-        return
-      }
-      if (result.value.opened) return
-      const { path } = result.value
-      this.set({ revealedPaths: { ...this.store.getSnapshot().revealedPaths, [id]: path } })
-    } catch (error) {
-      this.set({ error: messageOf(error) })
-    }
+    return this.remote.settings.openAgentPresetDirectory(id).then(
+      (result) => {
+        if (!result.ok) {
+          this.set({ error: result.error.message })
+          return
+        }
+        if (result.value.opened) return
+        const { path } = result.value
+        this.set({ revealedPaths: { ...this.store.getSnapshot().revealedPaths, [id]: path } })
+      },
+      (reason: unknown) => {
+        if (!(reason instanceof Error)) throw new TypeError('preset directory open rejected with a non-Error')
+        this.set({ error: reason.message })
+      },
+    )
   }
 
   /**
@@ -328,18 +332,21 @@ export class AgentPresetSectionController {
     const { pendingDelete, deleting } = this.store.getSnapshot()
     if (pendingDelete === null || deleting) return
     this.set({ deleting: true, error: null })
-    try {
-      const result = await this.remote.agentPresets.deletePreset(pendingDelete)
-      if (!result.ok) {
-        this.set({ deleting: false, pendingDelete: null, error: result.error.message })
-        return
-      }
-      this.set({ deleting: false, pendingDelete: null })
-      await this.load()
-      await this.rosterChanged?.()
-    } catch (error) {
-      this.set({ deleting: false, pendingDelete: null, error: messageOf(error) })
-    }
+    return this.remote.agentPresets.deletePreset(pendingDelete).then(
+      async (result) => {
+        if (!result.ok) {
+          this.set({ deleting: false, pendingDelete: null, error: result.error.message })
+          return
+        }
+        this.set({ deleting: false, pendingDelete: null })
+        await this.load()
+        await this.rosterChanged?.()
+      },
+      (reason: unknown) => {
+        if (!(reason instanceof Error)) throw new TypeError('preset delete rejected with a non-Error')
+        this.set({ deleting: false, pendingDelete: null, error: reason.message })
+      },
+    )
   }
 
   /**

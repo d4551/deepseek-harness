@@ -115,7 +115,7 @@ export function TeamAction({ sessionId, changes, load, loadConversations, openTe
           </Button>
         )}>
         {error !== null && <p role="alert">{error}</p>}
-        {loading && view === null && <p role="status">{t('loading')}</p>}
+        {loading && view === null && <output>{t('loading')}</output>}
         {view !== null && <PanelLayout>
           <PanelStack>
             <TeamMembers members={view.members} sessionId={sessionId} t={t}

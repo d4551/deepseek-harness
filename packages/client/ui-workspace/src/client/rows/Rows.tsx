@@ -110,7 +110,7 @@ interface RowMenu {
   /** `Menu` placement override, spread in; empty while the trailing button anchors the list. */
   anchorProps: { getAnchorRect?: () => DOMRect }
   /** The list was asked for from the keyboard, so it owes its first row the focus. */
-  autoFocus: boolean
+  focusOnOpen: boolean
   /** Row `onContextMenu`: replace the platform menu with this row's list. */
   openFrom: (event: ReactMouseEvent) => void
   /** Trailing `...` button click, from the pointer or from Enter/Space on it. */
@@ -150,7 +150,7 @@ function useRowMenu(): RowMenu {
   return {
     open,
     anchorProps,
-    autoFocus: open && origin?.seated === true,
+    focusOnOpen: open && origin?.seated === true,
     openFrom: (event) => {
       event.preventDefault()
       event.stopPropagation()
@@ -507,8 +507,8 @@ export function ProjectRowItem({ group, onToggle, onCreate, actions, seat, selec
               else actions.delete()
             }}
             portal
-            closeOnPointerLeave={menu.anchorProps.getAnchorRect === undefined && !menu.autoFocus}
-            autoFocus={menu.autoFocus}
+            closeOnPointerLeave={menu.anchorProps.getAnchorRect === undefined && !menu.focusOnOpen}
+            focusOnOpen={menu.focusOnOpen}
             ariaLabel={t('actions.workspace.aria', { name: label })}
             {...menu.anchorProps}
             anchor={(
@@ -865,8 +865,8 @@ export function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork
               if (id === 'archive') onArchive(node.id)
             }}
             portal
-            closeOnPointerLeave={menu.anchorProps.getAnchorRect === undefined && !menu.autoFocus}
-            autoFocus={menu.autoFocus}
+            closeOnPointerLeave={menu.anchorProps.getAnchorRect === undefined && !menu.focusOnOpen}
+            focusOnOpen={menu.focusOnOpen}
             ariaLabel={t('actions.session.aria', { name: title })}
             {...menu.anchorProps}
             anchor={(

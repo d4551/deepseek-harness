@@ -147,7 +147,7 @@ describe('HoverCard', () => {
   })
 
   it('keeps a completed card selection instead of treating its click as copy', async () => {
-    const writeText = vi.fn(async () => {})
+    const writeText = vi.fn<(...args: never[]) => void>(async () => {})
     const restoreClipboard = installClipboard(writeText)
     const selection = window.getSelection()
     if (selection === null) throw new Error('jsdom selection API unavailable')
@@ -165,21 +165,7 @@ describe('HoverCard', () => {
       expect(selection.toString()).toBe('card body')
       expect(screen.getByText('card body')).toBeTruthy()
 
-      // Firefox supports multiple selection ranges: any range intersecting
-      // this card wins, not only the first.
       selection.removeAllRanges()
-      const getSelection = vi.spyOn(window, 'getSelection').mockReturnValue({
-        isCollapsed: false,
-        rangeCount: 2,
-        getRangeAt: vi.fn((index: number) => ({
-          intersectsNode: () => index === 1,
-        })),
-      } as unknown as Selection)
-      await act(async () => { fireEvent.click(card) })
-      expect(writeText).not.toHaveBeenCalled()
-      getSelection.mockRestore()
-
-      // A non-collapsed selection elsewhere does not block this card.
       const anchorRange = document.createRange()
       anchorRange.selectNodeContents(screen.getByText('row'))
       selection.addRange(anchorRange)
@@ -199,7 +185,7 @@ describe('HoverCard', () => {
   })
 
   it('copies its configured value and shows success only for the feedback window', async () => {
-    const writeText = vi.fn(async () => {})
+    const writeText = vi.fn<(...args: never[]) => void>(async () => {})
     const restoreClipboard = installClipboard(writeText)
     try {
       const { wrapper } = mount({
@@ -236,7 +222,7 @@ describe('HoverCard', () => {
   })
 
   it('supports button keys and ignores unrelated keys', async () => {
-    const writeText = vi.fn(async () => {})
+    const writeText = vi.fn<(...args: never[]) => void>(async () => {})
     const restoreClipboard = installClipboard(writeText)
     try {
       const { wrapper } = mount({ copyText: 'value', copiedLabel: 'Copied' })
@@ -256,7 +242,7 @@ describe('HoverCard', () => {
   })
 
   it('keeps its content when the clipboard rejects the write', async () => {
-    const writeText = vi.fn(async () => { throw new Error('denied') })
+    const writeText = vi.fn<(...args: never[]) => void>(async () => { throw new Error('denied') })
     const restoreClipboard = installClipboard(writeText)
     try {
       const { wrapper } = mount({ copyText: 'value', copiedLabel: 'Copied' })
@@ -271,7 +257,7 @@ describe('HoverCard', () => {
   })
 
   it('unmount clears copied feedback', async () => {
-    const writeText = vi.fn(async () => {})
+    const writeText = vi.fn<(...args: never[]) => void>(async () => {})
     const restoreClipboard = installClipboard(writeText)
     try {
       const { view, wrapper } = mount({ copyText: 'value' })
@@ -287,7 +273,7 @@ describe('HoverCard', () => {
   })
 
   it('clears copied feedback when the card closes', async () => {
-    const writeText = vi.fn(async () => {})
+    const writeText = vi.fn<(...args: never[]) => void>(async () => {})
     const restoreClipboard = installClipboard(writeText)
     try {
       const { wrapper } = mount({ copyText: 'value', copiedLabel: 'Copied' })
@@ -308,7 +294,7 @@ describe('HoverCard', () => {
 
   it('does not create copied feedback after an in-flight write unmounts', async () => {
     let acceptWrite: (() => void) | undefined
-    const writeText = vi.fn(() => new Promise<void>((resolve) => { acceptWrite = resolve }))
+    const writeText = vi.fn<(...args: never[]) => void>(() => new Promise<void>((resolve) => { acceptWrite = resolve }))
     const restoreClipboard = installClipboard(writeText)
     try {
       const { view, wrapper } = mount({ copyText: 'value' })
@@ -326,7 +312,7 @@ describe('HoverCard', () => {
 
   it('does not restore copied feedback after an in-flight card closes', async () => {
     let acceptWrite: (() => void) | undefined
-    const writeText = vi.fn(() => new Promise<void>((resolve) => { acceptWrite = resolve }))
+    const writeText = vi.fn<(...args: never[]) => void>(() => new Promise<void>((resolve) => { acceptWrite = resolve }))
     const restoreClipboard = installClipboard(writeText)
     try {
       const { wrapper } = mount({ copyText: 'value', copiedLabel: 'Copied' })
@@ -347,7 +333,7 @@ describe('HoverCard', () => {
 
   it('coalesces activations while the clipboard write is in flight', async () => {
     let acceptWrite: (() => void) | undefined
-    const writeText = vi.fn(() => new Promise<void>((resolve) => { acceptWrite = resolve }))
+    const writeText = vi.fn<(...args: never[]) => void>(() => new Promise<void>((resolve) => { acceptWrite = resolve }))
     const restoreClipboard = installClipboard(writeText)
     try {
       const { wrapper } = mount({ copyText: 'value', copiedLabel: 'Copied' })

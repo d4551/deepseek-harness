@@ -16,14 +16,12 @@ import type { SettingsDescribeFace, SettingsWireFace } from '@deepseek-ai/dsh-cl
 export const AGENT_PRESET_SETTINGS_NS = 'agent-presets'
 
 /**
- * Human text for a rejected wire call. A transport failure rejects with an
- * Error; a host or a runtime can reject with anything, and the surface still
- * has to say something.
- * @param error - the rejection value.
+ * Human text for a rejected wire call.
+ * @param error - the Error the transport or host rejected with.
  * @returns the message to show.
  */
-export function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+export function messageOf(error: Error): string {
+  return error.message
 }
 
 /**
@@ -40,19 +38,17 @@ export async function writeDefaultPreset(
   api: SettingsWireFace,
   id: string,
 ): Promise<string | undefined> {
-  let response
-  try {
-    response = await api.settings.update(
-      AGENT_PRESET_SETTINGS_NS,
-      { default: id },
-      undefined,
-    )
-  } catch (error) {
-    // The transport rejected rather than answering; the caller must be able to
-    // say so instead of the row silently snapping back.
-    return messageOf(error)
-  }
-  return response.ok ? undefined : response.error.message
+  return api.settings.update(
+    AGENT_PRESET_SETTINGS_NS,
+    { default: id },
+    undefined,
+  ).then(
+    response => response.ok ? undefined : response.error.message,
+    (reason: unknown) => {
+      if (!(reason instanceof Error)) throw new TypeError('settings update rejected with a non-Error')
+      return reason.message
+    },
+  )
 }
 
 /** One selectable preset. */
@@ -86,17 +82,17 @@ const EMPTY_ROSTER: AgentPresetRoster = { presets: [], authorable: false }
  * @returns the roster, or the message to show in its place.
  */
 export async function readRoster(remote: { agentPresets: Pick<ClientRemote['agentPresets'], 'list'> }): Promise<RosterRead> {
-  try {
-    const result = await remote.agentPresets.list()
-    if (result.ok) return { ok: true, value: result.value }
-    // Agent presets are optional: without that service every session uses the
-    // Host composition, so callers receive the same empty roster as a mounted
-    // service with no configured roots.
-    if (result.error.code === 'invocation-unavailable') return { ok: true, value: EMPTY_ROSTER }
-    return { ok: false, error: result.error.message }
-  } catch (error) {
-    return { ok: false, error: messageOf(error) }
-  }
+  return remote.agentPresets.list().then(
+    (result) => {
+      if (result.ok) return { ok: true, value: result.value }
+      if (result.error.code === 'invocation-unavailable') return { ok: true, value: EMPTY_ROSTER }
+      return { ok: false, error: result.error.message }
+    },
+    (reason: unknown): RosterRead => {
+      if (!(reason instanceof Error)) throw new TypeError('preset roster list rejected with a non-Error')
+      return { ok: false, error: reason.message }
+    },
+  )
 }
 
 /**

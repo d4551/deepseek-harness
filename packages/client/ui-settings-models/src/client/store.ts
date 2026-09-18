@@ -122,17 +122,6 @@ export interface ModelsSettingsState {
 }
 
 /**
- * Human text for a rejected wire call. A transport failure rejects with an
- * Error; a host or a runtime can reject with anything, and the page still has
- * to say something.
- * @param error - the rejection value.
- * @returns the message to show.
- */
-export function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
-
-/**
  * Derive the conventional credential reference for a provider route: the v1
  * page never asks for an environment-variable name, so a typed key stores
  * under this derived reference and the profile records it as `apiKeyEnv`.
@@ -158,9 +147,8 @@ export function protocolChoices(
 ): string[] {
   if (namespace === undefined) return []
   const node = schema.nodeAtPath(schema.rehydrate(namespace.schema), ['providers', PROBE_ROUTE, 'api'])
-  const list = (node as { type?: string; list?: readonly { value?: unknown }[] } | undefined)
-  if (list?.type !== 'union' || list.list === undefined) return []
-  return list.list.map(entry => entry.value).filter((value): value is string => typeof value === 'string')
+  if (node === undefined || node.type !== 'union' || node.list === undefined) return []
+  return node.list.flatMap(entry => typeof entry.value === 'string' ? [entry.value] : [])
 }
 
 /** The credential reference a resolved profile names (its `apiKeyEnv` field). */
@@ -171,8 +159,8 @@ function apiKeyEnvOf(
 ): string | undefined {
   if (namespace === undefined) return undefined
   const profile = schema.getPath(namespace.value, path)
-  if (typeof profile !== 'object' || profile === null) return undefined
-  const ref = (profile as { apiKeyEnv?: unknown }).apiKeyEnv
+  if (typeof profile !== 'object' || profile === null || !('apiKeyEnv' in profile)) return undefined
+  const ref = profile.apiKeyEnv
   return typeof ref === 'string' && ref.length > 0 ? ref : undefined
 }
 
@@ -207,32 +195,41 @@ export class ModelsSettingsStore {
   async load(): Promise<void> {
     const generation = ++this.generation
     this.store.update((s) => { s.status = 'loading'; s.error = null })
-    let providers: ProviderDirectoryEntry[]
-    let writable: boolean
-    let views: readonly SettingsNamespaceView[]
-    try {
-      const [registered, declared] = await Promise.all([
-        this.api.llm.listProviders(),
-        this.api.llm.listConfigurableProviders(),
-        this.describeFace.ensure(),
-      ])
+    const directory = await Promise.all([
+      this.api.llm.listProviders(),
+      this.api.llm.listConfigurableProviders(),
+      this.describeFace.ensure(),
+    ]).then(([registered, declared]) => {
       if (!registered.ok) throw new Error(registered.error.message)
       if (!declared.ok) throw new Error(declared.error.message)
       const mirrored = this.describeFace.getSnapshot()
       if (mirrored.view === undefined) {
-        throw new Error(mirrored.error ?? 'settings are unavailable in this browser')
+        if (mirrored.error === null) {
+          throw new TypeError('settings describe returned no view and no error')
+        }
+        throw new Error(mirrored.error)
       }
-      providers = joinProviderDirectory(registered.value, declared.value)
-      writable = mirrored.view.writable
-      views = mirrored.view.namespaces
-    } catch (error) {
+      return {
+        providers: joinProviderDirectory(registered.value, declared.value),
+        writable: mirrored.view.writable,
+        views: mirrored.view.namespaces,
+      }
+    }).then(
+      value => value,
+      (reason: unknown) => {
+        if (!(reason instanceof Error)) throw new TypeError('models directory load rejected with a non-Error')
+        return { failure: reason.message }
+      },
+    )
+    if ('failure' in directory) {
       if (generation !== this.generation) return
       this.store.update((s) => {
         s.status = 'error'
-        s.error = error instanceof Error ? error.message : String(error)
+        s.error = directory.failure
       })
       return
     }
+    const { providers, writable, views } = directory
     const namespaces = new Map(views.map(view => [view.ns, view]))
     const rows: ProviderRow[] = providers.map((entry) => {
       const namespace = namespaces.get(entry.settingsNs)
@@ -251,29 +248,27 @@ export class ModelsSettingsStore {
       }
     })
     const refs = [...new Set(rows.map(row => row.apiKeyEnv ?? deriveKeyRef(row.entry.provider)))]
-    let credentials: Record<string, CredentialInfo> = {}
-    let credentialError: string | null = null
-    if (refs.length > 0) {
-      try {
-        const response = await this.api.credentials.describe(refs)
-        // Credential state is an enrichment for the Models page: neither a
-        // business rejection nor a transport failure fails the load. The
-        // onboarding projection below retains the failure distinction.
-        if (response.ok) credentials = response.value
-        else credentialError = response.error.message
-      } catch (error) {
-        credentialError = messageOf(error)
-      }
-    }
+    const emptyCredentials: Record<string, CredentialInfo> = {}
+    const credentialState = refs.length === 0
+      ? { credentials: emptyCredentials, credentialError: null }
+      : await this.api.credentials.describe(refs).then(
+        response => response.ok
+          ? { credentials: response.value, credentialError: null }
+          : { credentials: emptyCredentials, credentialError: response.error.message },
+        (reason: unknown) => {
+          if (!(reason instanceof Error)) throw new TypeError('credential describe rejected with a non-Error')
+          return { credentials: emptyCredentials, credentialError: reason.message }
+        },
+      )
     if (generation !== this.generation) return
     this.store.update((s) => {
       s.status = 'ready'
       s.error = null
-      s.credentialError = credentialError
+      s.credentialError = credentialState.credentialError
       s.writable = writable
       s.rows = rows.map((row) => {
-        const named = row.apiKeyEnv === undefined ? undefined : credentials[row.apiKeyEnv]
-        const derived = row.apiKeyEnv !== undefined ? undefined : credentials[deriveKeyRef(row.entry.provider)]
+        const named = row.apiKeyEnv === undefined ? undefined : credentialState.credentials[row.apiKeyEnv]
+        const derived = row.apiKeyEnv !== undefined ? undefined : credentialState.credentials[deriveKeyRef(row.entry.provider)]
         return {
           ...row,
           ...named === undefined ? {} : { credential: named },

@@ -16,6 +16,7 @@ import type {
 } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
 import type { DirectoryFlowOwnerProps, WorkspacePickerProps } from './contract/slots.ts'
+import { mutationFailureMessage } from './mutation-failure.ts'
 import css from './WorkspacePicker.module.css'
 
 const ADD_WORKSPACE = '::add-workspace'
@@ -122,8 +123,8 @@ export function WorkspacePickFlow({
     createWorkspace({ path }).then((workspace) => {
       setFlowOpen(false)
       onPick(workspace.workspaceId)
-    }).catch((reason: unknown) => {
-      setModalError(reason instanceof Error ? reason.message : String(reason))
+    }, (reason: Error) => {
+      setModalError(mutationFailureMessage(reason))
       setFlowOpen(false)
       setErrorOpen(true)
     })
@@ -197,7 +198,7 @@ export function WorkspacePickFlow({
         portal
         getAnchorRect={getAnchorRect}
       />
-      {open && !addIsTheOnlyEntry && !menuIsEmpty && workspaceSnapshot.phase === 'pending' && <div className={css.menuStatus} role="status">{t('picker.loading')}</div>}
+      {open && !addIsTheOnlyEntry && !menuIsEmpty && workspaceSnapshot.phase === 'pending' && <output className={css.menuStatus}>{t('picker.loading')}</output>}
       {renderDirectoryFlow(flowOwner)}
       <Modal
         open={errorOpen}

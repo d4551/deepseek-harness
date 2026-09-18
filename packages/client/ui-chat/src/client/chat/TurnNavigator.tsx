@@ -19,7 +19,7 @@ function TurnNavigatorMenu({ items, activeTurn, onNavigate, t }: TurnNavigatorPr
       <Menu
         open={open}
         ariaLabel={label}
-        autoFocus
+        focusOnOpen
         selectedId={activeTurn === null ? undefined : String(activeTurn)}
         anchor={(
           <Button aria-expanded={open} aria-haspopup="menu" icon={<IconChecklistOutline14 />}

@@ -46,7 +46,7 @@ export function TeamConversations({ view, load, t, open, reportError }: TeamConv
     <PanelSection title={t('conversations')} actions={directory.status === 'error' && (
       <Button size="touch" onClick={() => { setRevision(current => current + 1) }}>{t('refreshConversations')}</Button>
     )}>
-      {directory.status === 'loading' && <p role="status">{t('loadingConversations')}</p>}
+      {directory.status === 'loading' && <output>{t('loadingConversations')}</output>}
       {directory.status === 'error' && <p role="alert">{directory.message}</p>}
       {directory.status === 'ready' && directory.entries.length === 0 && <p>{t('noSubagents')}</p>}
       {directory.status === 'ready' && directory.entries.length > 0 && <PanelTable label={t('conversations')}

@@ -84,7 +84,7 @@ export function SubagentModelSelectionCard(props: SubagentModelSelectionCardProp
         )
         : null}
       {state.conflicted
-        ? <p className={css.conflict} role="status">{t('subagentModelSelectionConflict')}</p>
+        ? <output className={css.conflict}>{t('subagentModelSelectionConflict')}</output>
         : null}
     </PluginCard>
   )

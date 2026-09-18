@@ -23,24 +23,29 @@ function ApprovalFlow({ pending, detail, t }: {
   t: ApprovalComposerProps['t']
 }) {
   const [answered, setAnswered] = useState(false)
+  const [answerError, setAnswerError] = useState<string | null>(null)
   const answer = (outcome: 'allowed-once' | 'rejected'): void => {
     setAnswered(true)
-    pending.answer(outcome).catch(() => { setAnswered(false) })
+    setAnswerError(null)
+    pending.answer(outcome).then(
+      () => {},
+      (reason: unknown) => {
+        if (!(reason instanceof Error)) throw new TypeError('approval answer rejected with a non-Error')
+        setAnswered(false)
+        setAnswerError(reason.message)
+      },
+    )
   }
   return (
     <div className={css.root} data-approval-key={pending.key}>
       <div className={css.card}>
         <div className={css.strip}><span className={css.dot} />{t('waiting')}</div>
-        <div
-          className={css.body}
-          data-approval-scroll=""
-          tabIndex={0}
-          role="group"
-          aria-label={t('detail.aria')}
-        >
+        <fieldset className={css.body} data-approval-scroll="">
+          <legend className="dsw-visually-hidden">{t('detail.aria')}</legend>
           <div className={css.headline}>{pending.reason ?? t('escalation', { toolName: pending.toolName })}</div>
           {detail !== null && <div className={css.command}>{detail}</div>}
-        </div>
+        </fieldset>
+        {answerError !== null && <div className={css.headline} role="alert">{answerError}</div>}
         <div className={css.actionRow}>
           <Button variant="outline" className={css.reject} disabled={answered} onClick={() => { answer('rejected') }}>
             {t('reject')}

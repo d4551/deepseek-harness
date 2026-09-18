@@ -48,7 +48,7 @@ export function MessageFeedbackActions({ messageId, ensure, rate, toggle, clearN
   // looking; it stays open so the draft survives to be corrected.
   const [noteFailure, setNoteFailure] = useState<string | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const panelRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDialogElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   // The controls mount for every settled message in the transcript, so the
   // Session's feedback is read once on first hover/focus rather than on mount.
@@ -263,9 +263,9 @@ export function MessageFeedbackActions({ messageId, ensure, rate, toggle, clearN
         </button>
       )}
       {rowFailure === null && loadFailed && (
-        <span className={css.failure} role="status">{t('error.load')}</span>
+        <output className={css.failure}>{t('error.load')}</output>
       )}
-      {rowFailure !== null && <span className={css.failure} role="status">{rowFailure}</span>}
+      {rowFailure !== null && <output className={css.failure}>{rowFailure}</output>}
       {/* A note-save failure normally lives inside the panel, beside the buttons
           that produced it. Whenever the panel is not on screen it falls back to
           the row instead: the rating may have disappeared underneath an open
@@ -274,13 +274,13 @@ export function MessageFeedbackActions({ messageId, ensure, rate, toggle, clearN
           have closed the panel before a slow save came back. Either way the row
           reports that the save did not land rather than dropping it. */}
       {!(rating !== undefined && noteOpen) && noteFailure !== null && (
-        <span className={css.failure} role="status">{noteFailure}</span>
+        <output className={css.failure}>{noteFailure}</output>
       )}
       {rating !== undefined && noteOpen && createPortal(
-        <div
+        <dialog
           ref={panelRef}
           className={css.notePanel}
-          role="dialog"
+          open
           aria-label={t('note.dialog')}
           data-anchored-position={pos ?? undefined}
         >
@@ -306,8 +306,8 @@ export function MessageFeedbackActions({ messageId, ensure, rate, toggle, clearN
               {t('note.cancel')}
             </button>
           </div>
-          {noteFailure !== null && <span className={css.failure} role="status">{noteFailure}</span>}
-        </div>,
+          {noteFailure !== null && <output className={css.failure}>{noteFailure}</output>}
+        </dialog>,
         document.body,
       )}
     </>

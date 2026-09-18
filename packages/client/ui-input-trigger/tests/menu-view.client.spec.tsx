@@ -59,11 +59,11 @@ const t = makeTranslate(zh, commonZh)
 function mount(state: MenuState, crumbs: ReadonlyMap<string, readonly InputTriggerCrumb[]> = new Map()) {
   const menu = createSnapshotStore<MenuState>(state)
   const headers = createSnapshotStore<ReadonlyMap<string, readonly InputTriggerCrumb[]>>(crumbs)
-  const onPick = vi.fn()
-  const onCrumb = vi.fn()
-  const onHover = vi.fn()
-  const onRetry = vi.fn()
-  const onDismiss = vi.fn()
+  const onPick = vi.fn<(...args: never[]) => void>()
+  const onCrumb = vi.fn<(...args: never[]) => void>()
+  const onHover = vi.fn<(...args: never[]) => void>()
+  const onRetry = vi.fn<(...args: never[]) => void>()
+  const onDismiss = vi.fn<(...args: never[]) => void>()
   const view = render(
     <main className="menuComposer">
       <MenuView
@@ -88,10 +88,12 @@ function menuShell(): HTMLElement {
   return shell
 }
 
-/** The non-interactive group title rows (role=presentation), in document order. */
+/** Group titles: native optgroup labels plus pending/failed heading rows. */
 function titles(container: HTMLElement): string[] {
-  return [...container.querySelectorAll('div[role="presentation"][data-source]')]
-    .map(el => el.textContent ?? '')
+  return [...container.querySelectorAll('[data-source]')].map((el) => {
+    if (el instanceof HTMLOptGroupElement) return el.label
+    return el.textContent ?? ''
+  })
 }
 
 describe('MenuView', () => {
@@ -110,9 +112,8 @@ describe('MenuView', () => {
     mount(openState())
     const options = screen.getAllByRole('option')
     expect(options.map(o => o.textContent)).toEqual(['goalSet up a goal', 'plan'])
-    // The icon token renders as an SVG glyph, not text.
-    expect(options[0]?.querySelector('svg')).not.toBeNull()
-    expect(options[1]?.querySelector('svg')).toBeNull()
+    expect(options[0]?.getAttribute('data-icon')).toBe('file')
+    expect(options[1]?.getAttribute('data-icon')).toBeNull()
     // The loading state is announced by text, not by the skeleton bars alone.
     const status = screen.getByRole('status', { name: '正在加载…' })
     expect(status.textContent).toBe('正在加载…')
@@ -253,20 +254,20 @@ describe('MenuView', () => {
 
   it('pointerdown inside the surrounding composer card does not dismiss; outside it does', () => {
     const menu = createSnapshotStore<MenuState>(openState())
-    const onDismiss = vi.fn()
+    const onDismiss = vi.fn<(...args: never[]) => void>()
     render(
       <div data-composer-card="">
         <MenuView
           menu={menu}
           headers={createSnapshotStore<ReadonlyMap<string, readonly InputTriggerCrumb[]>>(new Map())}
-          onPick={vi.fn()}
-          onCrumb={vi.fn()}
-          onHover={vi.fn()}
-          onRetry={vi.fn()}
+          onPick={vi.fn<(...args: never[]) => void>()}
+          onCrumb={vi.fn<(...args: never[]) => void>()}
+          onHover={vi.fn<(...args: never[]) => void>()}
+          onRetry={vi.fn<(...args: never[]) => void>()}
           onDismiss={onDismiss}
           t={t}
         />
-        <button type="button" data-testid="composer-button" />
+        <button type="button" data-testid="composer-button" aria-label="composer" />
       </div>,
     )
     fireEvent.pointerDown(screen.getByTestId('composer-button'))

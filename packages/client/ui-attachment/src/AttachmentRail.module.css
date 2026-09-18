@@ -6,6 +6,10 @@
 .rail {
   display: flex;
   gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-inline-size: 0;
   overflow-x: auto;
   overflow-y: hidden;
   /* Edge arrows page the overflow; the scrollbar stays hidden (both engines). */

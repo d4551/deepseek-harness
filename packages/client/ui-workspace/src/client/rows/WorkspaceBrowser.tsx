@@ -32,6 +32,7 @@ import type { RowKey, RowSelection } from '../selection.ts'
 import { FLAT_SESSION_ORDER_KEY } from '../stores.ts'
 import { WorkspacePickFlow } from '../WorkspacePicker.tsx'
 import { SessionRenameDialog, type SessionRenameTarget } from './SessionRenameDialog.tsx'
+import { mutationFailureMessage } from '../mutation-failure.ts'
 import css from './WorkspaceBrowser.module.css'
 
 /**
@@ -372,11 +373,11 @@ function SelectionStatus({ count, reached, t }: {
   // that appears already carrying its text is commonly missed, because assistive
   // technology watches an existing region for changes.
   return (
-    <span className="dsw-visually-hidden" role="status">
+    <output className="dsw-visually-hidden">
       {count === 0
         ? ''
         : t(reached === 1 ? 'selection.count.one' : 'selection.count.other', { n: reached })}
-    </span>
+    </output>
   )
 }
 
@@ -614,9 +615,7 @@ function SessionTree({
     }
     setSessionOrder(activeDrag.accountKey, nextOrder.map(id => id as string))
     if (orderBy === 'updated' || activeDrag.accountKey === UNGROUPED_KEY) return
-    insertSessionBefore(activeDrag.accountKey as WorkspaceId, activeDrag.sessionId, anchor).catch((reason: unknown) => {
-      console.warn('session reorder rejected:', reason)
-    })
+    insertSessionBefore(activeDrag.accountKey as WorkspaceId, activeDrag.sessionId, anchor).then(undefined, reportError)
   }
   const commitWorkspaceDrag = (
     activeDrag: WorkspaceDragState,
@@ -634,9 +633,7 @@ function SessionTree({
       ? workspaces.length
       : workspaces.findIndex(workspace => workspace.workspaceId === anchor)
     if (sourceIndex !== -1 && (anchorIndex === sourceIndex || anchorIndex === sourceIndex + 1)) return
-    insertWorkspaceBefore(activeDrag.workspaceId, anchor).catch((reason: unknown) => {
-      console.warn('workspace reorder rejected:', reason)
-    })
+    insertWorkspaceBefore(activeDrag.workspaceId, anchor).then(undefined, reportError)
   }
   const workspaceDropAtListStart = groups[0]?.workspaceId !== undefined
     && workspaceDrag?.over?.id === groups[0].workspaceId
@@ -756,12 +753,18 @@ function SessionTree({
                   ? undefined
                   : {
                     rename: () => {
-                    /* v8 ignore next -- narrowing guard: the actions object exists only for real-workspace groups. */
-                      if (group.workspaceId !== undefined) onRenameRequest(group.workspaceId, group.label)
+                      const workspaceId = group.workspaceId
+                      if (workspaceId === undefined) {
+                        throw new TypeError('rename actions exist only for real workspaces')
+                      }
+                      onRenameRequest(workspaceId, group.label)
                     },
                     delete: () => {
-                    /* v8 ignore next -- narrowing guard: the actions object exists only for real-workspace groups. */
-                      if (group.workspaceId !== undefined) onDeleteRequest(group.workspaceId, group.label)
+                      const workspaceId = group.workspaceId
+                      if (workspaceId === undefined) {
+                        throw new TypeError('delete actions exist only for real workspaces')
+                      }
+                      onDeleteRequest(workspaceId, group.label)
                     },
                   }}
               />
@@ -780,12 +783,13 @@ function SessionTree({
                   active: sameGroupDrag,
                   marker: sameGroupDrag && drag.over?.id === node.id ? drag.over.half : null,
                   hover: (half: 'before' | 'after') => {
-                  /* v8 ignore next -- narrowing guard: Rows gates hover on `active`, which is false while the drag state is null. */
-                    setDrag(d => (d === null ? d : { ...d, over: { id: node.id, half } }))
+                    setDrag((d) => {
+                      if (d === null) throw new TypeError('session drag hover without an active drag')
+                      return { ...d, over: { id: node.id, half } }
+                    })
                   },
                   drop: (half: 'before' | 'after') => {
-                  /* v8 ignore next -- narrowing guard: Rows gates drop on `active`, which is false while the drag state is null. */
-                    if (drag === null) return
+                    if (drag === null) throw new TypeError('session drag drop without an active drag')
                     commitSessionDrag(drag, { id: node.id, half })
                   },
                   end: () => {
@@ -1085,12 +1089,12 @@ function SearchResults({
           })}
         </div>
         {pending && (
-          <div className={css.searchStatus} role="status">{t('search.pending')}</div>
+          <output className={css.searchStatus}>{t('search.pending')}</output>
         )}
         {failed && (
-          <div className={css.searchWarning} role="status">
+          <output className={css.searchWarning}>
             {t('search.unavailable')}
-          </div>
+          </output>
         )}
         {!pending && results.items.length === 0 && (
           <div className={css.empty}>{t('search.noMatches')}</div>
@@ -1257,7 +1261,7 @@ export function WorkspaceBrowser({
           items: result.items,
           hasMore: result.hasMore,
         })
-      }).catch(() => {
+      }, () => {
         if (controller.signal.aborted) return
         setRemoteSearch({
           query: normalizedQuery,
@@ -1295,9 +1299,10 @@ export function WorkspaceBrowser({
     renameWorkspace(renameTarget.workspaceId, renameTrimmed).then(() => {
       setRenaming(false)
       setRenameTarget(null)
-    }).catch((reason: unknown) => {
+    }, (reason: unknown) => {
+      if (!(reason instanceof Error)) throw new TypeError('workspace rename rejected with a non-Error')
       setRenaming(false)
-      setRenameError(reason instanceof Error ? reason.message : String(reason))
+      setRenameError(mutationFailureMessage(reason))
     })
   }
 
@@ -1322,9 +1327,7 @@ export function WorkspaceBrowser({
   // console diagnostics, the same posture as reorder rejections.
   const onSessionsArchive = (sessionIds: readonly SessionNode['id'][]) => {
     for (const sessionId of sessionIds) {
-      archiveSession(sessionId).catch((reason: unknown) => {
-        console.warn('session archive rejected:', reason)
-      })
+      archiveSession(sessionId).then(undefined, reportError)
     }
   }
 
@@ -1347,7 +1350,6 @@ export function WorkspaceBrowser({
     setDeleteError(null)
   }
   const confirmDelete = () => {
-    /* v8 ignore next -- the Modal is absent without a target and its button is disabled while deleting. */
     if (deleting || deleteTarget === null) return
     setDeleting(true)
     setDeleteCommittedId(null)
@@ -1357,9 +1359,10 @@ export function WorkspaceBrowser({
       // committed list projection without the deleted id. Closing earlier
       // exposes one stale React frame to the next Create Workspace gesture.
       setDeleteCommittedId(deleteTarget.workspaceId)
-    }).catch((reason: unknown) => {
+    }, (reason: unknown) => {
+      if (!(reason instanceof Error)) throw new TypeError('workspace delete rejected with a non-Error')
       setDeleting(false)
-      setDeleteError(reason instanceof Error ? reason.message : String(reason))
+      setDeleteError(mutationFailureMessage(reason))
     })
   }
 
@@ -1376,11 +1379,6 @@ export function WorkspaceBrowser({
             <div
               ref={searchRoot}
               className={clsx(css.search, searchExpanded && css.searchExpanded)}
-              onClick={() => {
-                setWsPickerOpen(false)
-                setSearchExpanded(true)
-                searchInput.current?.focus()
-              }}
             >
               <Tooltip label={t('search')} side="bottom" delayMs={500} disabled={searchExpanded}>
                 <button
@@ -1564,6 +1562,7 @@ export function WorkspaceBrowser({
         onClose={closeRename}
         closeLabel={t('close')}
         title={t('rename.workspace.title')}
+        initialFocus="field"
         footer={(
           <>
             <Button variant="outline" disabled={renaming} onClick={closeRename}>{t('cancel')}</Button>
@@ -1575,7 +1574,6 @@ export function WorkspaceBrowser({
           className={css.renameInput}
           value={renameDraft}
           aria-label={t('field.workspaceName')}
-          autoFocus
           disabled={renaming}
           onFocus={(e) => { e.target.select() }}
           onChange={(e) => { setRenameDraft(e.target.value); setRenameError(null) }}
@@ -1633,7 +1631,7 @@ export function WorkspaceBrowser({
           </>
         )}
       >
-        {deleting && <div className={css.deleteStatus} role="status">{t('delete.pending')}</div>}
+        {deleting && <output className={css.deleteStatus}>{t('delete.pending')}</output>}
         {deleteError !== null && <div className={css.renameError} role="alert">{deleteError}</div>}
       </Modal>
     </div>

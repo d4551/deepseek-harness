@@ -41,7 +41,7 @@ describe('createSnapshotStore', () => {
       return frame.length
     })
     const store = createSnapshotStore(init(), { flush: 'raf' })
-    const spy = vi.fn()
+    const spy = vi.fn<(...args: never[]) => void>()
     store.subscribe(spy)
     store.update((d) => { d.a.n = 2 })
     store.update((d) => { d.a.n = 3 })
@@ -60,7 +60,7 @@ describe('createSnapshotStore', () => {
 
   it('falls back to microtask batching in raf mode without requestAnimationFrame', async () => {
     const store = createSnapshotStore(init(), { flush: 'raf' })
-    const spy = vi.fn()
+    const spy = vi.fn<(...args: never[]) => void>()
     store.subscribe(spy)
     store.update((d) => { d.a.n = 2 })
     store.update((d) => { d.a.n = 3 })
@@ -76,7 +76,7 @@ describe('createSnapshotStore', () => {
       return frame.length
     })
     const store = createSnapshotStore(init(), { flush: 'raf' })
-    const spy = vi.fn()
+    const spy = vi.fn<(...args: never[]) => void>()
     const off = store.subscribe(spy)
     store.update((d) => { d.a.n = 2 })
     off()
@@ -89,7 +89,7 @@ describe('createSnapshotStore', () => {
     const next = init()
     store.set(next)
     expect(store.getSnapshot()).toBe(next)
-    expect(() => { (store.getSnapshot().a).n = 9 }).toThrow()
+    expect(() => { (store.getSnapshot().a).n = 9 }).toThrow(/read only|Cannot assign|frozen|not extensible/i)
   })
 
   it('freezes the owned envelope without traversing opaque object handles', () => {
@@ -104,13 +104,13 @@ describe('createSnapshotStore', () => {
     const snapshot = store.getSnapshot()
     expect(Object.isFrozen(snapshot)).toBe(true)
     expect(Object.isFrozen(snapshot.handle)).toBe(false)
-    expect(() => { snapshot.values.add('z') }).toThrow()
+    expect(() => { snapshot.values.add('z') }).toThrow(/read only|Cannot assign|frozen|not extensible/i)
   })
 
   it('freezes update produce output outside production (immer dev freeze)', () => {
     const store = createSnapshotStore(init())
     store.update((d) => { d.a.n = 2 })
-    expect(() => { (store.getSnapshot().a).n = 9 }).toThrow()
+    expect(() => { (store.getSnapshot().a).n = 9 }).toThrow(/read only|Cannot assign|frozen|not extensible/i)
   })
 
   it('skips the wholesale-set freeze only for an official client artifact', () => {
@@ -121,7 +121,7 @@ describe('createSnapshotStore', () => {
     const frozen = createSnapshotStore(init())
     const stillGuarded = init()
     frozen.set(stillGuarded)
-    expect(() => { stillGuarded.a.n = 9 }).toThrow()
+    expect(() => { stillGuarded.a.n = 9 }).toThrow(/read only|Cannot assign|frozen|not extensible/i)
 
     vi.stubEnv('DSH_CLIENT_BUILD_PROFILE', 'official')
     const official = createSnapshotStore(init())
@@ -159,40 +159,26 @@ describe('createSnapshotStore', () => {
     expect(revived.getSnapshot().a.n).toBe(42)
   })
 
-  it('reports rehydration failures without preventing store creation', () => {
+  it('propagates rehydration failures', () => {
     const failure = new Error('storage read failed')
     vi.stubGlobal('localStorage', {
       getItem: () => { throw failure },
       setItem: () => {},
       removeItem: () => {},
     })
-    const report = vi.spyOn(console, 'error').mockImplementation(() => {})
-
-    const store = createSnapshotStore(init(), { persist: { name: 'spec-broken-read' } })
-
-    expect(store.getSnapshot()).toEqual(init())
-    expect(report).toHaveBeenCalledWith(
-      "snapshot store 'spec-broken-read' rehydration failed:",
-      failure,
-    )
+    expect(() => createSnapshotStore(init(), { persist: { name: 'spec-broken-read' } }))
+      .toThrow('storage read failed')
   })
 
-  it('reports persistence failures without rejecting the write', () => {
+  it('propagates persistence failures', () => {
     const failure = new Error('storage write failed')
     vi.stubGlobal('localStorage', {
       getItem: () => null,
       setItem: () => { throw failure },
       removeItem: () => {},
     })
-    const report = vi.spyOn(console, 'error').mockImplementation(() => {})
     const store = createSnapshotStore(init(), { persist: { name: 'spec-broken-write' } })
-
-    expect(() => { store.update((draft) => { draft.a.n = 7 }) }).not.toThrow()
-    expect(store.getSnapshot().a.n).toBe(7)
-    expect(report).toHaveBeenCalledWith(
-      "snapshot store 'spec-broken-write' persistence failed:",
-      failure,
-    )
+    expect(() => { store.update((draft) => { draft.a.n = 7 }) }).toThrow('storage write failed')
   })
 })
 
@@ -209,7 +195,7 @@ describe('defineStore', () => {
   it('create() yields a live instance: fresh init state, selector-visible action writes', () => {
     const inst = declare().create()
     expect(inst.getSnapshot()).toEqual({ selection: null, draft: '' })
-    const listener = vi.fn()
+    const listener = vi.fn<(...args: never[]) => void>()
     const unsubscribe = inst.subscribe(listener)
     inst.actions.setDraft('hello')
     inst.actions.select('m1')
@@ -278,7 +264,7 @@ describe('defineStore', () => {
     expect(() => { persisting.clearPersisted() }).not.toThrow()
   })
 
-  it('swallows storage failures in clearPersisted (same non-fatal contract as persistence)', () => {
+  it('propagates storage failures in clearPersisted', () => {
     vi.stubGlobal('localStorage', {
       getItem: () => null,
       setItem: () => {},
@@ -289,7 +275,7 @@ describe('defineStore', () => {
       persist: 'spec.throwing',
       actions: { inc: (d) => { d.n += 1 } },
     }).create()
-    expect(() => { inst.clearPersisted() }).not.toThrow()
+    expect(() => { inst.clearPersisted() }).toThrow('quota / private mode')
   })
 })
 

@@ -399,7 +399,9 @@ export class SessionManager {
     this.notifier.markDirty()
     const operation = (async () => {
       const [outcome] = await Promise.allSettled([
-        Promise.try(() => this.remote.subagents.list(parentSessionId, this.lifetime.signal)),
+        new Promise<RemoteResult<SubagentCatalog>>((resolve) => {
+          resolve(this.remote.subagents.list(parentSessionId, this.lifetime.signal))
+        }),
       ])
       if (this.lifetime.signal.aborted) return
       const result = outcome.status === 'fulfilled'
@@ -496,7 +498,9 @@ export class SessionManager {
     this.notifier.markDirty()
     const promise = (async () => {
       const [outcome] = await Promise.allSettled([
-        Promise.try(() => this.remote.session.list({}, this.lifetime.signal)),
+        new Promise<Awaited<ReturnType<SessionRemotes['session']['list']>>>((resolve) => {
+          resolve(this.remote.session.list({}, this.lifetime.signal))
+        }),
       ])
       if (this.lifetime.signal.aborted) return
       const result = outcome.status === 'fulfilled'

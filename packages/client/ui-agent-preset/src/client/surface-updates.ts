@@ -1,7 +1,7 @@
 /** Roster and selection work admitted by synchronous surface notifications. */
 import { AgentPresetSeatController } from './seat-store.ts'
 import type { AgentPresetSectionController } from './section-store.ts'
-import { messageOf, type AgentPresetSettingsController } from './settings-store.ts'
+import type { AgentPresetSettingsController } from './settings-store.ts'
 
 type SurfaceController = AgentPresetSettingsController | AgentPresetSectionController | AgentPresetSeatController
 
@@ -28,14 +28,24 @@ export class AgentPresetSurfaceUpdates {
   }
 
   private async complete(controller: SurfaceController, action: 'load' | 'apply', key: symbol): Promise<void> {
-    const [result] = await Promise.allSettled([Promise.try<void | string, []>(() => {
-      if (action === 'load') return controller.load()
-      if (!(controller instanceof AgentPresetSeatController)) throw new Error('Preset selection requires a session seat')
-      return controller.apply()
+    const [result] = await Promise.allSettled([new Promise<void | string>((resolve, reject) => {
+      if (action === 'load') {
+        resolve(controller.load())
+        return
+      }
+      if (!(controller instanceof AgentPresetSeatController)) {
+        reject(new Error('Preset selection requires a session seat'))
+        return
+      }
+      resolve(controller.apply())
     })])
     if (result.status === 'rejected') {
+      if (!(result.reason instanceof Error)) {
+        throw new TypeError('agent preset surface update rejected with a non-Error')
+      }
+      const message = result.reason.message
       controller.store.update((state) => {
-        state.error = messageOf(result.reason)
+        state.error = message
         if ('status' in state) state.status = 'error'
         if ('busy' in state) state.busy = false
       })

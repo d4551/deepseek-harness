@@ -14,17 +14,16 @@ export const GoalCommandInputView = memo(function GoalCommandInputView({
 }: GoalCommandInputViewProps) {
   const data: GoalCommandInputData = node.data
   return (
-    <div
+    <fieldset
       className={css.row}
       data-command-input=""
-      role="group"
-      aria-label={t('commandInput.aria')}
     >
+      <legend className="dsw-visually-hidden">{t('commandInput.aria')}</legend>
       <div className={css.stack}>
         <div className={css.bubble}>
           <MessageText text={data.text} />
         </div>
       </div>
-    </div>
+    </fieldset>
   )
 })

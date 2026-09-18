@@ -75,7 +75,7 @@ describe('CodeBlock', () => {
 
   it('shows the language banner and copies the displayed source text', async () => {
     vi.useFakeTimers()
-    const writeText = vi.fn().mockResolvedValue(undefined)
+    const writeText = vi.fn<(...args: never[]) => void>().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText },
@@ -97,7 +97,7 @@ describe('CodeBlock', () => {
   })
 
   it('does not claim success when clipboard.writeText rejects', async () => {
-    const writeText = vi.fn().mockRejectedValue(new Error('denied'))
+    const writeText = vi.fn<(...args: never[]) => void>().mockRejectedValue(new Error('denied'))
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText },
@@ -111,47 +111,17 @@ describe('CodeBlock', () => {
     expect(screen.queryByRole('button', { name: '复制成功' })).toBeNull()
   })
 
-  it('falls back to execCommand when clipboard.writeText is unavailable', async () => {
+  it('does not claim success when the host omits clipboard.writeText', async () => {
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: undefined,
-    })
-    const exec = vi.fn().mockReturnValue(true)
-    Object.defineProperty(document, 'execCommand', {
-      configurable: true,
-      value: exec,
     })
     render(<CodeBlock code="plain body" />)
     fireEvent.click(screen.getByRole('button', { name: '复制' }))
-    expect(exec).toHaveBeenCalledWith('copy')
-    expect(await screen.findByRole('button', { name: '复制成功' })).toBeTruthy()
-  })
-
-  it('does not claim success when execCommand throws or is absent', async () => {
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: undefined,
+    await act(async () => {
+      await Promise.resolve()
     })
-    Object.defineProperty(document, 'execCommand', {
-      configurable: true,
-      value: () => {
-        throw new Error('denied')
-      },
-    })
-    const denied = render(<CodeBlock code="plain body" />)
-    fireEvent.click(denied.getByRole('button', { name: '复制' }))
-    await Promise.resolve()
-    expect(denied.getByRole('button', { name: '复制' })).toBeTruthy()
-    denied.unmount()
-
-    Object.defineProperty(document, 'execCommand', {
-      configurable: true,
-      value: undefined,
-    })
-    const absent = render(<CodeBlock code="plain body" />)
-    fireEvent.click(absent.getByRole('button', { name: '复制' }))
-    await Promise.resolve()
-    expect(absent.getByRole('button', { name: '复制' })).toBeTruthy()
-    expect(absent.queryByRole('button', { name: '复制成功' })).toBeNull()
+    expect(screen.getByRole('button', { name: '复制' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '复制成功' })).toBeNull()
   })
 })

@@ -32,7 +32,7 @@ import {
 import { apiKeyFailure } from './apiKey.ts'
 import { EditorFooter } from './EditorFooter.tsx'
 import { ModelListEditor } from './ModelListEditor.tsx'
-import { deriveKeyRef, messageOf, protocolChoices } from './store.ts'
+import { deriveKeyRef, protocolChoices } from './store.ts'
 import type { ModelsWire } from './store.ts'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
 import type { en } from './locales.ts'
@@ -76,8 +76,6 @@ export interface ProviderEditorProps {
   credentialOnly?: boolean
   /** Require a newly entered credential before this editor can submit. */
   credentialRequired?: boolean
-  /** Give the credential field initial focus when this editor mounts. */
-  autoFocusCredential?: boolean
   /** Override the dismiss action copy. */
   cancelLabelKey?: keyof typeof en
   /** Override the idle commit action copy. */
@@ -262,12 +260,10 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
       // the write with a message naming a path instead of the row, and because
       // nothing but this function decides what is written.
       const failure = validateDeepSeekModels(schema.getPath(next, ['models']))
-      /* v8 ignore next 3 -- unreachable from the card: the same failure disables submit */
       if (failure !== undefined) {
-        return `${t('model')} ${String(failure.index + 1)}: ${t(failure.key)}`
+        throw new TypeError(`${t('model')} ${String(failure.index + 1)}: ${t(failure.key)}`)
       }
     }
-    /* v8 ignore next -- apply is only reachable from the rendered card, which required a resolved node */
     if (props.credentialOnly !== true && node !== undefined && settingsPath.length === 0) {
       const sectionError = schema.validate(node, next)
       if (sectionError !== undefined) return sectionError
@@ -300,11 +296,18 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
     return undefined
   }
 
-  const apply = async (): Promise<void> => {
+  const apply = (): Promise<void> => {
     setFailure(undefined)
-    const failure = await applyOnce().then(undefined, messageOf)
-    if (failure !== undefined) setFailure(failure)
-    else props.onClose(true)
+    return applyOnce().then(
+      (failure) => {
+        if (failure !== undefined) setFailure(failure)
+        else props.onClose(true)
+      },
+      (reason: unknown) => {
+        if (!(reason instanceof Error)) throw new TypeError('provider apply rejected with a non-Error')
+        setFailure(reason.message)
+      },
+    )
   }
 
   if (node === undefined) {
@@ -371,7 +374,6 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
             aria-label={t('keyInput')}
             aria-invalid={shownKeyFailure !== undefined}
             required={props.credentialRequired === true}
-            autoFocus={props.autoFocusCredential === true}
             disabled={disabled || keyLocked}
             onChange={(event) => { setKeyDraft(event.target.value) }}
           />

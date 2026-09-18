@@ -4,13 +4,13 @@ import css from './MessageItem.module.css'
 /** Persistent notice for a host or provider limit; continuation remains a user action. */
 export function TurnLimitNotice({ title, hint, usage }: { title: string; hint: string; usage?: string }) {
   return (
-    <div className={css.turnErrorRow} role="status">
+    <output className={css.turnErrorRow}>
       <StateDot state="warning" className={css.turnErrorDot} />
-      <div className={css.turnErrorCopy}>
+      <span className={css.turnErrorCopy}>
         <span className={css.turnLimitTitle}>{title}</span>
         {usage !== undefined && <span className={css.turnErrorMessage}>{usage} </span>}
         <span className={css.turnErrorMessage}>{hint}</span>
-      </div>
-    </div>
+      </span>
+    </output>
   )
 }

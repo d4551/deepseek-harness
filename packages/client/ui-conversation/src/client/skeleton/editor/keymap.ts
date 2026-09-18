@@ -2,7 +2,7 @@
  * Composer keymap over the Lexical command layer: menu arbitration
  * (arrows/escape/enter), space adjudication, the Enter submit gesture, and
  * paste routing. Registered at CRITICAL priority so it decides before
- * @lexical/plain-text's own Enter/paste defaults; a handler returning false
+ * Lexical plain-text's own Enter/paste defaults; a handler returning false
  * falls through to those defaults (Shift+Enter's line break, ordinary
  * spaces, text paste the bar routes itself).
  *
@@ -40,9 +40,7 @@ export interface ComposerKeymapHandlers {
 
 /** Composition state a keydown can trust (see the module doc's Safari note). */
 function isComposingEvent(event: KeyboardEvent, recentlyComposing: () => boolean): boolean {
-  // keyCode 229 is the legacy IME-composition signal engines emit without isComposing.
-  // oxlint-disable-next-line typescript/no-deprecated
-  return event.isComposing || event.keyCode === 229 || recentlyComposing()
+  return event.isComposing || event.key === 'Unidentified' || recentlyComposing()
 }
 
 /**

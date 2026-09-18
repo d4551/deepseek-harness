@@ -46,16 +46,16 @@ function mount(options: {
     items: new Map(options.current === undefined ? [] : [[MSG, options.current]]),
     error: null,
   }
-  const ensure = vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true }))
-  const rate = vi.fn((_id: MessageId, _rating: MessageFeedbackRating, _note?: string) =>
+  const ensure = vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true }))
+  const rate = vi.fn<(...args: never[]) => void>((_id: MessageId, _rating: MessageFeedbackRating, _note?: string) =>
     Promise.resolve(options.rateResult ?? { ok: true as const }))
-  const clear = vi.fn((_id: MessageId) =>
+  const clear = vi.fn<(...args: never[]) => void>((_id: MessageId) =>
     Promise.resolve(options.clearResult ?? { ok: true as const }))
   // The controller owns retract-vs-replace, so the double stands in for it:
   // matching the shown rating retracts, anything else replaces.
-  const toggle = vi.fn((id: MessageId, next: MessageFeedbackRating) =>
+  const toggle = vi.fn<(...args: never[]) => void>((id: MessageId, next: MessageFeedbackRating) =>
     (options.current?.rating === next ? clear(id) : rate(id, next)))
-  const clearNote = vi.fn((_id: MessageId) =>
+  const clearNote = vi.fn<(...args: never[]) => void>((_id: MessageId) =>
     Promise.resolve(options.rateResult ?? { ok: true as const }))
   const useFeedback = (<T,>(select: (v: MessageFeedbackView) => T): T =>
     useSyncExternalStore(() => () => {}, () => select(view))) as never
@@ -213,11 +213,11 @@ describe('MessageFeedbackActions', () => {
       useSyncExternalStore(() => () => {}, () => select(view))) as never
     const props = {
       messageId: MSG,
-      ensure: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
-      rate: vi.fn(() => gate),
-      toggle: vi.fn(() => gate),
-      clearNote: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
-      clear: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      ensure: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      rate: vi.fn<(...args: never[]) => void>(() => gate),
+      toggle: vi.fn<(...args: never[]) => void>(() => gate),
+      clearNote: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      clear: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
       useFeedback,
       t,
     } as unknown as Parameters<typeof MessageFeedbackActions>[0]
@@ -264,7 +264,7 @@ describe('MessageFeedbackActions', () => {
     const panel = ui.getByRole('dialog')
     expect(panel).toBeTruthy()
     expect(panel.hasAttribute('style')).toBe(false)
-    expect(ui.container.querySelector('[role="dialog"]')).toBeNull()
+    expect(ui.container.querySelector('dialog')).toBeNull()
     expect(document.body.contains(panel)).toBe(true)
   })
 
@@ -374,11 +374,11 @@ describe('MessageFeedbackActions', () => {
       useSyncExternalStore(() => () => {}, () => select(view))) as never
     const props = {
       messageId: MSG,
-      ensure: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
-      rate: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
-      toggle: vi.fn(() => gate),
-      clearNote: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
-      clear: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      ensure: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      rate: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      toggle: vi.fn<(...args: never[]) => void>(() => gate),
+      clearNote: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      clear: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
       useFeedback,
       t,
     } as unknown as Parameters<typeof MessageFeedbackActions>[0]
@@ -408,11 +408,11 @@ describe('MessageFeedbackActions', () => {
       useSyncExternalStore(() => () => {}, () => select(view))) as never
     const props = {
       messageId: MSG,
-      ensure: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
-      rate: vi.fn(() => gate),
-      toggle: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
-      clearNote: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
-      clear: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      ensure: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      rate: vi.fn<(...args: never[]) => void>(() => gate),
+      toggle: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      clearNote: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      clear: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
       useFeedback,
       t,
     } as unknown as Parameters<typeof MessageFeedbackActions>[0]
@@ -514,11 +514,11 @@ describe('MessageFeedbackActions', () => {
       useSyncExternalStore((cb) => { notify = cb; return () => {} }, () => select(view))) as never
     const props = {
       messageId: MSG,
-      ensure: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
-      rate: vi.fn(() => gate),
-      toggle: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
-      clearNote: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
-      clear: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      ensure: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      rate: vi.fn<(...args: never[]) => void>(() => gate),
+      toggle: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      clearNote: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      clear: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
       useFeedback,
       t,
     } as unknown as Parameters<typeof MessageFeedbackActions>[0]
@@ -554,11 +554,11 @@ describe('MessageFeedbackActions', () => {
       useSyncExternalStore(() => () => {}, () => select(view))) as never
     const props = {
       messageId: MSG,
-      ensure: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
-      rate: vi.fn(() => gate),
-      toggle: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
-      clearNote: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
-      clear: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      ensure: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      rate: vi.fn<(...args: never[]) => void>(() => gate),
+      toggle: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      clearNote: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      clear: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
       useFeedback,
       t,
     } as unknown as Parameters<typeof MessageFeedbackActions>[0]
@@ -608,11 +608,11 @@ describe('MessageFeedbackActions', () => {
       useSyncExternalStore(() => () => {}, () => select(view))) as never
     const props = {
       messageId: MSG,
-      ensure: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
-      rate: vi.fn(() => gate),
-      toggle: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
-      clearNote: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
-      clear: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      ensure: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      rate: vi.fn<(...args: never[]) => void>(() => gate),
+      toggle: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      clearNote: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      clear: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
       useFeedback,
       t,
     } as unknown as Parameters<typeof MessageFeedbackActions>[0]
@@ -652,11 +652,11 @@ describe('MessageFeedbackActions', () => {
       useSyncExternalStore(() => () => {}, () => select(view))) as never
     const props = {
       messageId: MSG,
-      ensure: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
-      rate: vi.fn(() => gate),
-      toggle: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
-      clearNote: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
-      clear: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      ensure: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      rate: vi.fn<(...args: never[]) => void>(() => gate),
+      toggle: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      clearNote: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      clear: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
       useFeedback,
       t,
     } as unknown as Parameters<typeof MessageFeedbackActions>[0]
@@ -699,11 +699,11 @@ describe('MessageFeedbackActions', () => {
       useSyncExternalStore(() => () => {}, () => select(view))) as never
     const props = {
       messageId: MSG,
-      ensure: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
-      rate: vi.fn(() => gate),
-      toggle: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
-      clearNote: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
-      clear: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      ensure: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      rate: vi.fn<(...args: never[]) => void>(() => gate),
+      toggle: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      clearNote: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      clear: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
       useFeedback,
       t,
     } as unknown as Parameters<typeof MessageFeedbackActions>[0]
@@ -742,11 +742,11 @@ describe('MessageFeedbackActions', () => {
       useSyncExternalStore(() => () => {}, () => select(view))) as never
     const props = {
       messageId: MSG,
-      ensure: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
-      rate: vi.fn(() => gate),
-      toggle: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
-      clearNote: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
-      clear: vi.fn(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      ensure: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      rate: vi.fn<(...args: never[]) => void>(() => gate),
+      toggle: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      clearNote: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
+      clear: vi.fn<(...args: never[]) => void>(() => Promise.resolve<MessageFeedbackActionResult>({ ok: true })),
       useFeedback,
       t,
     } as unknown as Parameters<typeof MessageFeedbackActions>[0]

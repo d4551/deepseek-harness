@@ -128,7 +128,7 @@ export function ContextMeter({ useProjection, t }: ContextMeterProps) {
         </GlyphButton>
       </Tooltip>
       {open && (
-        <div className={css.panel} role="dialog" aria-label={t('context.used')}>
+        <dialog className={css.panel} open aria-label={t('context.used')}>
           <div className={css.header}>
             {/* Empty sides collapse through `.headline:empty` so the locale that
                 needs no leading (or trailing) text spends no header gap. */}
@@ -161,7 +161,7 @@ export function ContextMeter({ useProjection, t }: ContextMeterProps) {
               ))}
             </dl>
           )}
-        </div>
+        </dialog>
       )}
     </span>
   )

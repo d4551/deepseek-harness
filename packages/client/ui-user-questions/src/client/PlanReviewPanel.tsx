@@ -61,7 +61,7 @@ export function PlanReviewPanel({ pending, review, t }: PlanReviewPanelProps) {
           <MarkdownText text={review.plan} labels={markdownLabels} />
         </div>
         <div className={css.footer}>
-          <div className={css.feedback} role="status">{error}</div>
+          <output className={css.feedback}>{error}</output>
           <div className={css.actions}>
             <Button
               variant="ghost" className={css.discuss} icon={<IconEditOutline16 size={14} />}

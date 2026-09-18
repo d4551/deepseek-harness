@@ -5,6 +5,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import {
   IconCheckOutline16, IconChevronDownOutline14, IconChevronUpOutline14, IconCloseOutline16,
   IconEditOutline16, IconQueueOutline14, IconSendOutline14, IconTrashOutline16, projectUserText, Tooltip,
+  useFocusWhen,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { QueueAction, QueueItemId } from '../contract/queue.ts'
 import { NS } from '../locales.ts'
@@ -29,6 +30,8 @@ export function QueueDock({ useSession, updateQueue, notify, t }: QueueDockProps
   const running = useSession(s => s.running)
   const queueMutable = useSession(s => s.subagent === null)
   const [editing, setEditing] = useState<{ id: QueueItemId; text: string } | null>(null)
+  const editorOpen = editing !== null && queue.some(row => row.id === editing.id)
+  const editorRef = useFocusWhen<HTMLInputElement>(editorOpen)
   const [busy, setBusy] = useState<QueueItemId | null>(null)
   const [collapsed, setCollapsed] = useState(true)
   const listId = useId()
@@ -44,21 +47,24 @@ export function QueueDock({ useSession, updateQueue, notify, t }: QueueDockProps
   const expanded = !collapsed || interactionActive
   const listVisible = queue.length === 1 || expanded
 
-  const applyAction = async (
+  const applyAction = (
     itemId: QueueItemId,
     action: QueueAction,
     failure: string,
   ): Promise<boolean> => {
     setBusy(itemId)
-    try {
-      await updateQueue(itemId, action)
-      return true
-    } catch {
-      notify('error', failure)
-      return false
-    } finally {
-      setBusy(current => current === itemId ? null : current)
-    }
+    return updateQueue(itemId, action).then(
+      () => {
+        setBusy(current => current === itemId ? null : current)
+        return true
+      },
+      (reason: unknown) => {
+        if (!(reason instanceof Error)) throw new TypeError('queue mutation rejected with a non-Error')
+        notify('error', `${failure}: ${reason.message}`)
+        setBusy(current => current === itemId ? null : current)
+        return false
+      },
+    )
   }
 
   const saveEdit = async (): Promise<void> => {
@@ -97,7 +103,7 @@ export function QueueDock({ useSession, updateQueue, notify, t }: QueueDockProps
               {editing?.id === row.id
                 ? (
                   <input
-                    autoFocus
+                    ref={editorRef}
                     className={css.editor}
                     aria-label={t('queue.edit')}
                     value={editing.text}

@@ -133,6 +133,20 @@ export function InputBar({
     && input.queue.some(row => row.placement === 'queued')
 
   useEffect(() => {
+    if (!workspaceTrigger || onRequestWorkspace === undefined) return
+    const card = cardRef.current
+    if (card === null) return
+    const pick = (): void => { onRequestWorkspace() }
+    const swallow = (event: PointerEvent): void => { event.stopPropagation() }
+    card.addEventListener('click', pick)
+    card.addEventListener('pointerdown', swallow)
+    return () => {
+      card.removeEventListener('click', pick)
+      card.removeEventListener('pointerdown', swallow)
+    }
+  }, [workspaceTrigger, onRequestWorkspace])
+
+  useEffect(() => {
     if (input === undefined || inputActions === undefined) return
     if (attachments.length !== input.imageIds.length) {
       inputActions.pruneImages(attachments.map(attachment => attachment.id))
@@ -318,9 +332,11 @@ export function InputBar({
       stop?.()
       return
     }
-    if (inputActions === undefined) return // absent machine: the button is disabled
-    /* v8 ignore next -- defensive: the primary button is disabled while empty||disabled, so a click cannot reach the false arm. */
-    if (!empty && !disabled && !machineBusy) inputActions.submit()
+    if (inputActions === undefined) return
+    if (empty || disabled || machineBusy) {
+      throw new Error('primary submit invoked while the send control is disabled')
+    }
+    inputActions.submit()
   }
 
   // The Access seat: the projection-fed permission chip (renders nothing
@@ -373,9 +389,9 @@ export function InputBar({
         />
       )}
       {notice?.level === 'info' && (
-        <div className={css.notice} role="status">
+        <output className={css.notice}>
           {notice.text}
-        </div>
+        </output>
       )}
       {/* Trigger clicks land on the card, not the editor: the toolbar row's
           disabled controls swallow clicks otherwise (the CSS state disarms
@@ -386,8 +402,6 @@ export function InputBar({
         ref={cardRef}
         className={clsx(css.card, workspaceTrigger && css.cardWorkspaceTrigger)}
         data-composer-card
-        onClick={workspaceTrigger ? onRequestWorkspace : undefined}
-        onPointerDown={workspaceTrigger ? (e) => { e.stopPropagation() } : undefined}
       >
         {overlay !== undefined && <div className={css.overlayAnchor}>{overlay}</div>}
         {accessory !== undefined && <div className={css.accessory}>{accessory}</div>}

@@ -207,6 +207,8 @@
   flex: 1 1 0;
   min-width: 256px;
   overflow-y: auto;
+  margin: 0;
+  list-style: none;
   /* The themed scrollbar occupies the column's edge (styled scrollbars are
    * classic, gutter-taking ones); the extra clearance keeps the row pills
    * clear of the thumb. */

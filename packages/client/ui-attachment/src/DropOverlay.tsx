@@ -26,7 +26,8 @@ export function DropOverlay({ disabled, labels }: {
   labels: DropOverlayLabels
 }) {
   return createPortal(
-    <div className={css.mask} role="status">
+    <div className={css.mask}>
+      <output className="dsw-visually-hidden">{labels.title}{labels.desc === undefined ? '' : ` ${labels.desc}`}</output>
       <div className={css.wrap}>
         <div className={css.illustration} aria-hidden="true">
           {disabled ? <UploadDisabledIllustration /> : <UploadIllustration />}

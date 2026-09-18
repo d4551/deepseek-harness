@@ -38,7 +38,6 @@ export interface DeepSeekOnboardingInjected {
 export type DeepSeekOnboardingDialogProps =
   PropsRuntime<'settings.onboarding'> & InjectFace<DeepSeekOnboardingInjected>
 
-/* v8 ignore next 3 -- closed-union defaults only defend future source widening */
 function assertNever(_value: never): never {
   throw new Error('unexpected DeepSeek onboarding state')
 }
@@ -74,7 +73,6 @@ export function DeepSeekOnboardingDialog(props: DeepSeekOnboardingDialogProps): 
       return null
     case 'credential-missing':
       break
-    /* v8 ignore next -- every current readiness variant is handled above */
     default:
       return assertNever(readiness)
   }
@@ -84,8 +82,9 @@ export function DeepSeekOnboardingDialog(props: DeepSeekOnboardingDialogProps): 
     && candidate.entry.settingsNs === 'llm-deepseek'
     && candidate.entry.settingsPath.length === 0)
   const namespace = state.namespaces.get('llm-deepseek')
-  /* v8 ignore next 2 -- credential-missing is derived only from this exact joined row. */
-  if (row === undefined || namespace === undefined) return null
+  if (row === undefined || namespace === undefined) {
+    throw new TypeError('DeepSeek onboarding credential-missing state has no official row')
+  }
 
   const finishCredential = (changed: boolean): void => {
     if (!changed) {
@@ -111,7 +110,6 @@ export function DeepSeekOnboardingDialog(props: DeepSeekOnboardingDialogProps): 
           hideTitle
           credentialOnly
           credentialRequired
-          autoFocusCredential
           cancelLabelKey="onboardingLater"
           submitLabelKey="onboardingSave"
           submitBusyLabelKey="onboardingSaving"
