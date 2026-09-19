@@ -44,6 +44,9 @@ import { parseSse } from './sse.ts'
 import { translate } from './translate.ts'
 import type { WireError, WireRequest } from './types.ts'
 
+/** Values a Promise reject arm from a request, extension, or Files API wait may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** One optional model entry advertised by the direct-fetch adapter. */
 export interface DeepSeekCatalogModel {
   /** Wire model id accepted by the configured endpoint. */
@@ -322,8 +325,24 @@ export function httpErrorCode(status: number, error?: WireError['error']): strin
  * @returns the failure text, or `no detail` when it carries none.
  */
 function extensionFailureText(error: unknown): string {
-  const text = error instanceof Error ? error.message : String(error)
-  return text.length === 0 ? 'no detail' : text
+  if (error instanceof Error) {
+    return error.message.length === 0 ? 'no detail' : error.message
+  }
+  switch (typeof error) {
+    case 'string':
+      return error.length === 0 ? 'no detail' : error
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(error)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (error === null) return 'null'
+      return Object.prototype.toString.call(error)
+  }
 }
 
 /**
@@ -478,7 +497,7 @@ export class DeepSeekAdapter extends LlmAdapter {
         }
         yield result.value
       }
-    } catch (error: unknown) {
+    } catch (error) {
       if (timeoutOf(watchdog.signal, STREAM_IDLE_TIMEOUT_CODE) !== undefined) {
         throw new LlmError(
           `DeepSeek stream idle timeout after ${connection.streamIdleTimeoutMs}ms`,
@@ -578,7 +597,7 @@ export class DeepSeekAdapter extends LlmAdapter {
                     connection.filePolicy,
                     filesDeadline.signal,
                   )
-                } catch (error: unknown) {
+                } catch (error) {
                   if (signal.aborted) throw error
                   throw new FileResolutionFailure(error)
                 }
@@ -594,7 +613,7 @@ export class DeepSeekAdapter extends LlmAdapter {
             byteQuantum: connection.imageOffloadByteQuantum,
             countQuantum: connection.imageOffloadCountQuantum,
           }, connection.defaults)
-        } catch (error: unknown) {
+        } catch (error) {
           if (!(error instanceof FileResolutionFailure)) throw error
           representation = 'base64'
           continue
@@ -630,7 +649,7 @@ export class DeepSeekAdapter extends LlmAdapter {
           body: payload,
           signal,
         })
-      } catch (error: unknown) {
+      } catch (error) {
         if (signal.aborted) throw error
         throw new LlmError(
           `DeepSeek API request to ${connection.baseURL} failed`,
@@ -655,9 +674,16 @@ export class DeepSeekAdapter extends LlmAdapter {
           .join(' ')
         const staleFile = usedFiles.length > 0 && providerRejectedFileId(detail)
         if (staleFile) {
+          let firstFailure: { error: Thrown } | undefined
           await Promise.all(staleMappings(usedFiles, detail).map(file => (
-            this.files.invalidate(file.version, file.fileId, fileConnection)
+            this.files.invalidate(file.version, file.fileId, fileConnection).then(
+              undefined,
+              (error: Thrown) => {
+                if (firstFailure === undefined) firstFailure = { error }
+              },
+            )
           )))
+          if (firstFailure !== undefined) throw firstFailure.error
           if (fileAttempt === 0) {
             fileAttempt += 1
             continue

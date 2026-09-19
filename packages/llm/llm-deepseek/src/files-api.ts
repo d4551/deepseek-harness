@@ -149,7 +149,7 @@ export class DeepSeekFilesClient {
         headers,
         ...signal === undefined ? {} : { signal },
       })
-    } catch (error: unknown) {
+    } catch (error) {
       if (signal?.aborted) throw error
       throw new LlmError(`DeepSeek Files API request to ${this.baseURL} failed`, 'TRANSPORT', { cause: error })
     }

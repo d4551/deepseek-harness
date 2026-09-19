@@ -174,7 +174,7 @@ export class DeepSeekFileStore {
     this.inflight.set(key, shared)
     shared.promise.finally(() => {
       if (this.inflight.get(key) === shared) this.inflight.delete(key)
-    }).catch(() => {})
+    }).catch((_error: Thrown) => {})
     return waitForUpload(shared, signal)
   }
 

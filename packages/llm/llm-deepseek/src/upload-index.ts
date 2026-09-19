@@ -84,7 +84,7 @@ function parseIndex(text: string): StoredIndex {
   let value: unknown
   try {
     value = JSON.parse(text)
-  } catch (error: unknown) {
+  } catch (error) {
     throw new InvalidUploadIndexError('llm-deepseek: upload index is not valid JSON', { cause: error })
   }
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
@@ -123,7 +123,7 @@ export class DeepSeekUploadIndex {
   private async load(): Promise<StoredIndex> {
     try {
       return parseIndex(await readFile(this.path, 'utf8'))
-    } catch (error: unknown) {
+    } catch (error) {
       if (absent(error) || error instanceof InvalidUploadIndexError) {
         return { formatVersion: 3, records: [] }
       }
