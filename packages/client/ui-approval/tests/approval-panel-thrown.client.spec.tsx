@@ -30,7 +30,7 @@ describe('ApprovalPanel Thrown claim', () => {
     render(<ApprovalPanel {...panelProps(pending)} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Allow once' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('plain refusal')
+    expect((await screen.findByRole('alert')).textContent).toBe('plain refusal')
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Allow once' }).disabled).toBe(false)
     const settled = pending.result
     pending.abort(new Error('test cleanup'))
