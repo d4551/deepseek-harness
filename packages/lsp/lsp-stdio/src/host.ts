@@ -4,6 +4,9 @@ import { Buffer } from 'node:buffer'
 import type { FileSystem, FsTarget } from '@deepseek-ai/dsh-fs'
 import { throwIfAborted } from './abort.ts'
 
+/** Values a Promise reject arm from a filesystem provider may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** A canonical workspace in the filesystem/subprocess execution world. */
 export interface HostWorkspace {
   /** Stable filesystem identity used for provider pooling. */
@@ -43,7 +46,7 @@ export async function canonicalizeWorkspace(
     throw new Error(`workspace root "${workspaceRoot}" cannot be resolved: ${messageOf(error)}`, { cause: error })
   }
   throwIfAborted(signal)
-  const info = await fs.stat(target, signal).catch((error: unknown) => {
+  const info = await fs.stat(target, signal).then(undefined, (error: Thrown) => {
     throwIfAborted(signal)
     throw error
   })
