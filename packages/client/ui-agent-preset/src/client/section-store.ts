@@ -18,12 +18,24 @@ import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { beginRosterRead, writeDefaultPreset } from './settings-store.ts'
 
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+function thrownMessage(reason: Thrown): string {
+  return reason instanceof Error ? reason.message : String(reason)
+}
+
+function openerHasDocument(value: Thrown): boolean {
+  if (typeof value !== 'object' || value === null) return false
+  if (Reflect.get(value, 'ok') !== true) return false
+  return Reflect.get(value, 'value') === true
+}
+
 /** Ids a preset directory may be named, mirroring the host's own rule. */
 const PRESET_ID = /^[a-z0-9][a-z0-9-]*$/
 
 /** One preset row the page renders. */
 export interface PresetRow {
-  /** Preset id and directory name; the display name falls back to it. */
+  /** Preset id and directory name; used as the display name when the preset published none. */
   id: string
   /** Display name the preset published, absent when it published none. */
   name?: string
@@ -50,7 +62,7 @@ export interface CopyDraft {
   fromTitle: string
   /** New preset id being typed; the directory name, so it is required. */
   id: string
-  /** Display name being typed; empty falls back to the id. */
+  /** Display name being typed; empty uses the id. */
   name: string
   /** Whether the copy is in flight. */
   saving: boolean
@@ -169,11 +181,16 @@ export class AgentPresetSectionController {
     // where a concurrent reload silently returns instead of refreshing.
     const opener = this.remote.settings.canOpenAgentPresetDirectory()
     const roster = await beginRosterRead(this.remote, this.store)
-    // A refused describe leaves the reveal-the-path path, which needs no opener.
-    const described = await opener.catch(() => undefined)
+    // A refused opener leaves the reveal-the-path path, which needs no desktop open.
+    const described = await new Promise<Thrown>((resolve) => {
+      resolve(opener)
+    }).then(
+      (value: Thrown) => value,
+      (_reason: Thrown) => undefined,
+    )
     if (roster === undefined) return
     const { presets, authorable } = roster
-    const hasDocument = described?.ok === true && described.value
+    const hasDocument = openerHasDocument(described)
     if (presets.length === 0) {
       // Nothing to manage leaves nothing to keep a dialog open over.
       this.set({ status: 'unavailable', rows: [], authorable, hasDocument, copy: null, view: null })
@@ -210,9 +227,8 @@ export class AgentPresetSectionController {
         const { name, content } = result.value
         this.set({ view: { id, title: name ?? id, content } })
       },
-      (reason: unknown) => {
-        if (!(reason instanceof Error)) throw new TypeError('preset read rejected with a non-Error')
-        this.set({ error: reason.message })
+      (reason: Thrown) => {
+        this.set({ error: thrownMessage(reason) })
       },
     )
   }
@@ -280,10 +296,10 @@ export class AgentPresetSectionController {
         await this.rosterChanged?.()
         await this.openLocation(draft.id)
       },
-      (reason: unknown) => {
-        if (!(reason instanceof Error)) throw new TypeError('preset copy rejected with a non-Error')
-        if (this.store.getSnapshot().copy === null) this.set({ error: reason.message })
-        else this.patchCopy({ saving: false, error: reason.message })
+      (reason: Thrown) => {
+        const message = thrownMessage(reason)
+        if (this.store.getSnapshot().copy === null) this.set({ error: message })
+        else this.patchCopy({ saving: false, error: message })
       },
     )
   }
@@ -305,9 +321,8 @@ export class AgentPresetSectionController {
         const { path } = result.value
         this.set({ revealedPaths: { ...this.store.getSnapshot().revealedPaths, [id]: path } })
       },
-      (reason: unknown) => {
-        if (!(reason instanceof Error)) throw new TypeError('preset directory open rejected with a non-Error')
-        this.set({ error: reason.message })
+      (reason: Thrown) => {
+        this.set({ error: thrownMessage(reason) })
       },
     )
   }
@@ -342,9 +357,8 @@ export class AgentPresetSectionController {
         await this.load()
         await this.rosterChanged?.()
       },
-      (reason: unknown) => {
-        if (!(reason instanceof Error)) throw new TypeError('preset delete rejected with a non-Error')
-        this.set({ deleting: false, pendingDelete: null, error: reason.message })
+      (reason: Thrown) => {
+        this.set({ deleting: false, pendingDelete: null, error: thrownMessage(reason) })
       },
     )
   }
