@@ -646,7 +646,7 @@ export class LlmRuntime extends TypertRemoteService {
   ): Promise<LlmDiscoveredModel[]> {
     try {
       return await this.discoverModels(settingsNs, request, signal)
-    } catch (error: unknown) {
+    } catch (error) {
       throw new TypertRemoteFailure({
         code: 'model-discovery-failed',
         message: error instanceof Error ? error.message : String(error),
@@ -980,6 +980,7 @@ export class LlmRuntime extends TypertRemoteService {
    * Final adapter boundary. Adapter selection, dispatch, iterator construction,
    * and iteration failures become one terminal failure chunk. Middleware and
    * downstream consumer failures remain thrown plugin or consumer errors.
+   * @yields adapter stream chunks, or one terminal adapter-failure chunk.
    */
   private async * adapterStream(
     options: GenerateOptions,
@@ -1022,7 +1023,7 @@ export class LlmRuntime extends TypertRemoteService {
         : resolvedOptions
       const stream = dispatch(this.forAdapter(projectedOptions, adapter))
       iterator = stream[Symbol.asyncIterator]()
-    } catch (error: unknown) {
+    } catch (error) {
       yield adapterFailureChunk(error, options.signal)
       return
     }
@@ -1036,7 +1037,7 @@ export class LlmRuntime extends TypertRemoteService {
           item = next.done
             ? { done: true }
             : { done: false, value: next.value }
-        } catch (error: unknown) {
+        } catch (error) {
           completed = true
           yield adapterFailureChunk(error, options.signal)
           return
