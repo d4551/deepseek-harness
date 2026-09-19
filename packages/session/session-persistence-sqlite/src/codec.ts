@@ -13,6 +13,7 @@ import {
   decodeChunkStorageRecord,
   expandChunkRow,
   malformedChunkRow,
+  materializeChunkRow,
   scanChunkRuns,
   validateChunkRowShape,
 } from '@deepseek-ai/dsh-session/chunk-run-codec'
@@ -91,7 +92,7 @@ function validateRow(
   if ((serializedBytes ?? Buffer.byteLength(JSON.stringify(data))) > MAX_PACKED_DATA_BYTES) {
     malformedChunkRow(tag, `data exceeds ${MAX_PACKED_DATA_BYTES} UTF-8 bytes`)
   }
-  return value as unknown as ChunkRow
+  return materializeChunkRow(value, tag, { data, payloadKey, payload })
 }
 
 /**
@@ -120,5 +121,9 @@ export function decodeSerializedChunkRow(
 ): SessionEvent[] {
   const bytes = Buffer.byteLength(serializedData)
   if (bytes > MAX_PACKED_DATA_BYTES) malformedChunkRow(tag, `data exceeds ${MAX_PACKED_DATA_BYTES} UTF-8 bytes`)
-  return expandChunkRow(validateRow({ type: tag, seq0, time0, data: JSON.parse(serializedData) as unknown }, tag, bytes))
+  const parsed: unknown = JSON.parse(serializedData)
+  if (typeof parsed !== 'object' || parsed === null) {
+    malformedChunkRow(tag, 'data must be an object')
+  }
+  return expandChunkRow(validateRow({ type: tag, seq0, time0, data: parsed }, tag, bytes))
 }

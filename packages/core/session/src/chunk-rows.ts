@@ -11,6 +11,7 @@
 import {
   buildChunkRow,
   decodeChunkStorageRecord,
+  materializeChunkRow,
   scanChunkRuns,
   validateChunkRowShape,
 } from './chunk-run-codec.ts'
@@ -44,8 +45,7 @@ export function packChunkRuns(events: readonly SessionEvent[]): StorageRecord[] 
 
 /** Validate a row-tagged parsed value; a JSONL line bounds neither members nor bytes. */
 function validateRow(value: Record<string, unknown>, tag: ChunkRow['type']): ChunkRow {
-  validateChunkRowShape(value, tag)
-  return value as unknown as ChunkRow
+  return materializeChunkRow(value, tag, validateChunkRowShape(value, tag))
 }
 
 /**

@@ -151,7 +151,11 @@ function validatedSessionEvent(value: unknown): SessionEvent {
     }
   }
   if (value.type === 'turn/end') {
-    assertWireTurnEndReason(value.data.reason)
+    const data: unknown = value.data
+    if (!isRecord(data)) {
+      throw new SdkProtocolError(`turn/end carried malformed data: ${JSON.stringify(value)}`)
+    }
+    assertWireTurnEndReason(data.reason)
   }
   return value
 }
