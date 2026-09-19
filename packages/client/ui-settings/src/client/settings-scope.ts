@@ -33,6 +33,7 @@ import type { SettingsScope, SettingsScopeSnapshot, SettingsScopeSpec } from './
 import { SettingsDescribeMirror, type SettingsDescribeFace, type SettingsWireFace } from './settings-mirror.ts'
 
 type SettingsFace = SettingsWireFace
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
 
 /**
  * One namespace's derived view over the shared describe mirror, plus that
@@ -176,9 +177,13 @@ export class SettingsScopeController<T> implements SettingsScope<T> {
       if (this.disposed) return
       await operation()
     })
-    // The returned task carries its own settlement to the caller; the queue
-    // tail is kept fulfilled so one failed subscriber cannot strand later operations.
-    this.tail = task.catch(() => {})
+    // Caller receives task settlement. The queue tail advances after reject so a later write is not stranded.
+    const completed = Promise.withResolvers<void>()
+    task.then(
+      () => { completed.resolve() },
+      (_reason: Thrown) => { completed.resolve() },
+    )
+    this.tail = completed.promise
     return task
   }
 
