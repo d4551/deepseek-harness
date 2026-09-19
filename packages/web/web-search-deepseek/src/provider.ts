@@ -27,7 +27,7 @@ type Thrown = object | string | number | boolean | bigint | symbol | null | unde
 
 /**
  * Human text for a rejected search, parse, or credential operation.
- * @param reason - the Thrown the Promise rejected with.
+ * @param reason - a claim-boundary reject value.
  * @returns the Error message, primitive text, or object tag.
  */
 function thrownMessage(reason: unknown): string {
@@ -356,14 +356,14 @@ function throwIfSearchAborted(signal?: AbortSignal): void {
 }
 
 /** Build the provider's stable cancellation error while retaining the caller's reason. */
-function searchAborted(signal?: AbortSignal, fallback?: unknown): WebError {
+function searchAborted(signal?: AbortSignal, fallback?: Thrown): WebError {
   return new WebError('DeepSeek search aborted', 'WEB_ABORTED', {
     cause: signal?.aborted === true ? signal.reason : fallback,
   })
 }
 
 /** True for a fetch/`AbortSignal` abort, surfaced as `WEB_ABORTED`. */
-function isAbortError(error: unknown): boolean {
+function isAbortError(error: Thrown): boolean {
   return error instanceof DOMException && error.name === 'AbortError'
 }
 

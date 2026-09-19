@@ -35,6 +35,9 @@ import type {
   ScheduleToolError,
 } from './types.ts'
 
+/** Values a Promise reject arm from a Schedule tool persistence barrier may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 const SHARED_VIEW_PROPERTIES = {
   id: { type: 'string', required: true },
   prompt: { type: 'string', required: true },
@@ -258,18 +261,16 @@ function isToolError(
 }
 
 /** Require one persistence checkpoint without leaking the backend failure. */
-async function preflight(
+function preflight(
   rootCtx: Context,
   agent: Agent,
   operation: SchedulePersistenceOperation,
   id?: ScheduleIdType,
 ): Promise<PersistenceUncertainError | undefined> {
-  try {
-    await flushSchedulePersistence(rootCtx, agent.session)
-    return undefined
-  } catch {
-    return persistenceError(operation, id)
-  }
+  return flushSchedulePersistence(rootCtx, agent.session).then(
+    () => undefined,
+    (_error: Thrown) => persistenceError(operation, id),
+  )
 }
 
 /** Validate the v1 selector constraints that the open parameter root cannot express. */

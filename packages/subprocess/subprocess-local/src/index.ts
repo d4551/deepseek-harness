@@ -140,10 +140,10 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
     // outlive the fiber. Keep both sets authoritative while these waits are
     // pending so a shorter process-level exit bound can still force-kill them.
     const pending: Promise<void>[] = []
-    let firstFailure: Thrown | undefined
+    let recorded: { error: Thrown } | undefined
     const failures: Thrown[] = []
     const recordFailure = (error: Thrown): void => {
-      firstFailure ??= error
+      recorded ??= { error }
       failures.push(error)
     }
     for (const handle of this.live) {
@@ -157,10 +157,10 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
       pending.push(terminal.terminate().then(undefined, recordFailure))
     }
     await Promise.all(pending)
-    if (firstFailure !== undefined) this.terminateForHostExit()
+    if (recorded !== undefined) this.terminateForHostExit()
     this.live.clear()
     this.terminals.clear()
-    if (failures.length === 1) throw firstFailure
+    if (recorded !== undefined && failures.length === 1) throw recorded.error
     if (failures.length > 1) throw new AggregateError(failures, 'local subprocess teardown failed')
   }
 

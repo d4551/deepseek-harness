@@ -88,6 +88,7 @@ describe('GoalService creation and replay', () => {
     expect(error).toBeInstanceOf(HarnessError)
     expect(error.code).toBe('GOAL_NOT_FOUND')
     expect(() => new GoalError('x', 'NOT_A_CODE')).toThrow(/unrecognized goal error code: NOT_A_CODE/)
+    expect(() => GoalId('')).toThrow(/goal id must be a non-empty string/)
   })
 
   it('applies the configured default and writes one durable goal change', async () => {
@@ -384,7 +385,21 @@ describe('GoalService mutations', () => {
   it('records canonical blocker reasons and enforces the round cap on resume', async () => {
     const { ctx, agent, session } = await harness()
     let goal = ctx.goals.create(agent, { objective: 'bounded', maxGoalRounds: 2 })
-    for (const reason of [null, [], { code: 1, message: 'invalid code' }, { code: 'round-limit', message: 1 }]) {
+    for (const reason of [
+      null,
+      undefined,
+      '',
+      0,
+      false,
+      1n,
+      Symbol.for('goal-block-reason'),
+      [],
+      {},
+      { message: 'Blocked for the test.' },
+      { code: 'needs-input' },
+      { code: 1, message: 'invalid code' },
+      { code: 'round-limit', message: 1 },
+    ]) {
       expect(() => ctx.goals.block(agent, goal, reason as never)).toThrow(expect.objectContaining({
         code: 'GOAL_INVALID_BLOCK_REASON',
       }))
@@ -455,6 +470,8 @@ describe('GoalService mutations', () => {
     ctx.on('goal/changed', ({ change }) => { seen.push(change.operation) })
     expect(ctx.goals.create(agent, { objective: 'notify' }).phase).toBe('active')
     expect(seen).toEqual(['create'])
+    // agentEvents reports the contained throw on its Thrown reject arm.
+    await Promise.resolve()
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('broken observer'))
   })
 

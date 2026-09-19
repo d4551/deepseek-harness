@@ -7,7 +7,8 @@
  * @module dsh-subprocess-local/spawn
  */
 
-import { type ChildProcess, spawn, spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
+import type { ChildProcess } from 'node:child_process'
 import type { Readable } from 'node:stream'
 import { randomBytes } from 'node:crypto'
 import { closeSync, mkdtempSync, openSync, unlinkSync, writeSync } from 'node:fs'
@@ -618,7 +619,7 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
       if (collectionFailure !== undefined) reject(collectionFailure)
       else resolve({ exitCode, signal })
     }
-    child.on('error', (error) => {
+    child.on('error', (error: Thrown) => {
       // No meaningful close outcome follows a spawn failure.
       settled = true
       cleanup()

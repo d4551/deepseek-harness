@@ -15,6 +15,9 @@ type JsonRpcId = string | number
 type RequestHandler = (method: string, params: Record<string, unknown>) => Promise<unknown>
 type NotificationHandler = (method: string, params: Record<string, unknown>) => void | Promise<void>
 
+/** Values a Promise reject arm from a frame, request handler, write, or abort may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** A JSON-RPC error response, preserving the wire `code` and optional `data`. */
 export class JsonRpcResponseError extends Error {
   /**
@@ -169,16 +172,18 @@ export class JsonRpcLineTransport implements JsonRpcTransportPeer {
     if (this.closedReason !== undefined) return Promise.reject(this.closedReason)
     const id = `req_${randomUUID().replaceAll('-', '')}`
     const message = { jsonrpc: '2.0', id, method, params }
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve, reject: (reason: Thrown) => void) => {
       let detach = (): void => {}
       if (signal !== undefined) {
         if (signal.aborted) {
-          reject(abortError(signal.reason))
+          const reason: Thrown = signal.reason
+          reject(abortError(reason))
           return
         }
         const onAbort = (): void => {
           this.pending.delete(id)
-          reject(abortError(signal.reason))
+          const reason: Thrown = signal.reason
+          reject(abortError(reason))
         }
         signal.addEventListener('abort', onAbort, { once: true })
         detach = () => { signal.removeEventListener('abort', onAbort) }
@@ -213,7 +218,7 @@ export class JsonRpcLineTransport implements JsonRpcTransportPeer {
    */
   flush(): Promise<void> {
     if (this.closedReason !== undefined) return Promise.reject(this.closedReason)
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<void>((resolve, reject: (reason: Thrown) => void) => {
       this.output.write('', (error) => {
         if (error) reject(error)
         else resolve()
@@ -239,7 +244,7 @@ export class JsonRpcLineTransport implements JsonRpcTransportPeer {
       completion.resolve(Promise.allSettled([this.handleLine(line)]).then(([outcome]) => {
         this.frames.delete(frameId)
         if (outcome.status === 'rejected') {
-          const reason: unknown = outcome.reason
+          const reason: Thrown = outcome.reason
           const failure = reason instanceof Error ? reason : new Error(String(reason))
           if (this.closedReason === undefined) this.close(failure)
           else if (failure !== this.closedReason) this.closingFrameFailures.push(failure)
@@ -298,7 +303,7 @@ export class JsonRpcLineTransport implements JsonRpcTransportPeer {
     const [outcome] = await Promise.allSettled([request])
     if (outcome.status === 'fulfilled') this.write({ jsonrpc: '2.0', id, result: outcome.value })
     else {
-      const reason: unknown = outcome.reason
+      const reason: Thrown = outcome.reason
       this.writeError(id, -32603, reason instanceof Error ? reason.message : String(reason))
     }
   }

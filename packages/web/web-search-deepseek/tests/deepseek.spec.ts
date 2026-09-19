@@ -18,6 +18,31 @@ import type { AnthropicResponse } from '@deepseek-ai/dsh-web-search-deepseek/src
 /** Construct the provider over a fixed options value; production passes a live thunk. */
 import type { DeepSeekSearchProviderOptions } from '@deepseek-ai/dsh-web-search-deepseek'
 
+/** Values a Promise reject arm from search dispatch or credential resolution may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+type ResolveApiKey = NonNullable<DeepSeekSearchProviderOptions['resolveApiKey']>
+type RecordRequest = NonNullable<DeepSeekSearchProviderOptions['recordRequest']>
+
+function leftoverRefuse(): string {
+  return 'fn'
+}
+
+const leftoverFetchRefuses: ReadonlyArray<{
+  readonly kind: string
+  readonly reason: Thrown
+  readonly rendered: string
+}> = [
+  { kind: 'string', reason: 'plain refusal', rendered: 'plain refusal' },
+  { kind: 'number', reason: 7, rendered: '7' },
+  { kind: 'boolean', reason: false, rendered: 'false' },
+  { kind: 'bigint', reason: 2n, rendered: '2' },
+  { kind: 'symbol', reason: Symbol.for('deepseek-search-refuse'), rendered: 'Symbol(deepseek-search-refuse)' },
+  { kind: 'null', reason: null, rendered: 'null' },
+  { kind: 'undefined', reason: undefined, rendered: 'undefined' },
+  { kind: 'object', reason: { refused: true }, rendered: '[object Object]' },
+  { kind: 'function', reason: leftoverRefuse, rendered: String(leftoverRefuse) },
+]
+
 const searchProvider = (options: DeepSeekSearchProviderOptions): DeepSeekSearchProvider =>
   new DeepSeekSearchProvider(() => options)
 
@@ -168,8 +193,8 @@ describe('DeepSeekSearchProvider availability', () => {
 
 describe('DeepSeekSearchProvider request mapping', () => {
   it('records and posts the same Anthropic Messages request with the web_search server tool', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse(searchResponse()))
-    const recordRequest = vi.fn()
+    const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse(searchResponse()))
+    const recordRequest = vi.fn<RecordRequest>()
     vi.stubGlobal('fetch', fetchMock)
     await searchProvider({ ...options, recordRequest }).search({ query: 'hello' })
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
@@ -196,7 +221,7 @@ describe('DeepSeekSearchProvider request mapping', () => {
   })
 
   it('forwards the abort signal', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse(searchResponse()))
+    const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse(searchResponse()))
     vi.stubGlobal('fetch', fetchMock)
     const controller = new AbortController()
     await searchProvider(options).search({ query: 'q' }, controller.signal)
@@ -216,7 +241,7 @@ describe('DeepSeekSearchProvider settings changes mid-search', () => {
     const resolveApiKey = () => new Promise<string>((resolve) => {
       commitSettings = () => { current = after; resolve('key-from-before') }
     })
-    const fetchMock = vi.fn(async () => jsonResponse(searchResponse()))
+    const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse(searchResponse()))
     vi.stubGlobal('fetch', fetchMock)
 
     const provider = new DeepSeekSearchProvider(() => ({ ...current, resolveApiKey }))
@@ -235,9 +260,9 @@ describe('DeepSeekSearchProvider settings changes mid-search', () => {
 
 describe('DeepSeekSearchProvider error handling', () => {
   it('does not start credential resolution or dispatch for a pre-aborted call', async () => {
-    const resolveApiKey = vi.fn(async () => 'late-key')
-    const recordRequest = vi.fn()
-    const fetchMock = vi.fn()
+    const resolveApiKey = vi.fn<ResolveApiKey>(async () => 'late-key')
+    const recordRequest = vi.fn<RecordRequest>()
+    const fetchMock = vi.fn<typeof fetch>()
     vi.stubGlobal('fetch', fetchMock)
     const controller = new AbortController()
     controller.abort(new Error('caller stopped'))
@@ -254,9 +279,9 @@ describe('DeepSeekSearchProvider error handling', () => {
   })
 
   it('aborts while an uncooperative credential resolver remains pending', async () => {
-    const resolveApiKey = vi.fn(() => new Promise<string>(() => {}))
-    const recordRequest = vi.fn()
-    const fetchMock = vi.fn()
+    const resolveApiKey = vi.fn<ResolveApiKey>(() => new Promise<string>(() => {}))
+    const recordRequest = vi.fn<RecordRequest>()
+    const fetchMock = vi.fn<typeof fetch>()
     vi.stubGlobal('fetch', fetchMock)
     const controller = new AbortController()
     const search = searchProvider({
@@ -273,7 +298,7 @@ describe('DeepSeekSearchProvider error handling', () => {
   })
 
   it('resolves credentials under an active cancellation signal', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse(searchResponse()))
+    const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse(searchResponse()))
     vi.stubGlobal('fetch', fetchMock)
     const controller = new AbortController()
     await expect(searchProvider({
@@ -303,9 +328,19 @@ describe('DeepSeekSearchProvider error handling', () => {
       .rejects.toThrow('DeepSeek search has no API key for "DEEPSEEK_API_KEY"')
   })
 
+  it('names the configured credential reference when resolution returns empty', async () => {
+    await expect(searchProvider({
+      ...options,
+      apiKey: '',
+      apiKeyEnv: credentialRef('DSH_DEEPSEEK_SEARCH_KEY'),
+      resolveApiKey: async () => '',
+    }).search({ query: 'q' }))
+      .rejects.toThrow('DeepSeek search has no API key for "DSH_DEEPSEEK_SEARCH_KEY"')
+  })
+
   it('observes cancellation triggered synchronously by credential resolution', async () => {
     const controller = new AbortController()
-    const fetchMock = vi.fn()
+    const fetchMock = vi.fn<typeof fetch>()
     vi.stubGlobal('fetch', fetchMock)
     await expect(searchProvider({
       ...options,
@@ -320,38 +355,56 @@ describe('DeepSeekSearchProvider error handling', () => {
   })
 
   it('maps an HTTP error to WEB_PROVIDER_ERROR with the provider message', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ error: { message: 'rate limited' } }, { status: 429 })))
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => jsonResponse({ error: { message: 'rate limited' } }, { status: 429 })))
     await expect(searchProvider(options).search({ query: 'q' }))
       .rejects.toThrow(expect.objectContaining({ code: 'WEB_PROVIDER_ERROR', message: 'rate limited' }))
   })
 
   it('handles a string-form error body', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ error: 'bad request' }, { status: 400 })))
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => jsonResponse({ error: 'bad request' }, { status: 400 })))
     await expect(searchProvider(options).search({ query: 'q' }))
       .rejects.toThrow(expect.objectContaining({ message: 'bad request' }))
   })
 
   it('keeps a status-line message when the error body is not JSON', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('upstream error', { status: 503 })))
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => new Response('upstream error', { status: 503 })))
     await expect(searchProvider(options).search({ query: 'q' }))
       .rejects.toThrow(expect.objectContaining({ message: 'DeepSeek API error (HTTP 503)' }))
   })
 
   it('keeps the status-line message when the JSON error body carries no detail', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({}, { status: 500 })))
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => jsonResponse({}, { status: 500 })))
     await expect(searchProvider(options).search({ query: 'q' }))
       .rejects.toThrow(expect.objectContaining({ message: 'DeepSeek API error (HTTP 500)' }))
   })
 
+  it('keeps the status-line message when an HTTP error body is leftover null JSON', async () => {
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => jsonResponse(null, { status: 503 })))
+    await expect(searchProvider(options).search({ query: 'q' }))
+      .rejects.toThrow(expect.objectContaining({ message: 'DeepSeek API error (HTTP 503)' }))
+  })
+
+  it('uses a leftover top-level string message when the error envelope has no error field', async () => {
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => jsonResponse({ message: 'quota exhausted' }, { status: 429 })))
+    await expect(searchProvider(options).search({ query: 'q' }))
+      .rejects.toThrow(expect.objectContaining({ message: 'quota exhausted' }))
+  })
+
+  it('keeps the status-line message when leftover error text is empty', async () => {
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => jsonResponse({ error: '' }, { status: 502 })))
+    await expect(searchProvider(options).search({ query: 'q' }))
+      .rejects.toThrow(expect.objectContaining({ message: 'DeepSeek API error (HTTP 502)' }))
+  })
+
   it('maps an abort to WEB_ABORTED', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new DOMException('aborted', 'AbortError'))))
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(() => Promise.reject(new DOMException('aborted', 'AbortError'))))
     await expect(searchProvider(options).search({ query: 'q' }))
       .rejects.toThrow(expect.objectContaining({ code: 'WEB_ABORTED' }))
   })
 
   it('maps a custom abort reason to WEB_ABORTED', async () => {
     const controller = new AbortController()
-    vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) =>
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(async (_input: RequestInfo | URL, init?: RequestInit) =>
       await new Promise<Response>((_resolve, reject) => {
         init?.signal?.addEventListener('abort', () => { reject(new Error('custom abort reason')) }, { once: true })
       })))
@@ -361,39 +414,104 @@ describe('DeepSeekSearchProvider error handling', () => {
   })
 
   it('maps an unparseable success body to WEB_PROVIDER_ERROR', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('not json', { status: 200 })))
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => new Response('not json', { status: 200 })))
     await expect(searchProvider(options).search({ query: 'q' }))
       .rejects.toThrow(expect.objectContaining({ code: 'WEB_PROVIDER_ERROR' }))
   })
 
   it('maps a well-formed body of the wrong shape to WEB_PROVIDER_ERROR, not a raw TypeError', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ content: {} }, { status: 200 })))
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => jsonResponse({ content: {} }, { status: 200 })))
     await expect(searchProvider(options).search({ query: 'q' }))
       .rejects.toThrow(expect.objectContaining({ code: 'WEB_PROVIDER_ERROR' }))
   })
 
+  it('maps a leftover non-object success body to WEB_PROVIDER_ERROR', async () => {
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => jsonResponse(null)))
+    await expect(searchProvider(options).search({ query: 'q' }))
+      .rejects.toThrow(expect.objectContaining({
+        code: 'WEB_PROVIDER_ERROR',
+        message: 'DeepSeek returned an unprocessable response body: TypeError: DeepSeek response body is not an object',
+      }))
+  })
+
   it('surfaces an abort during success-body parse as WEB_ABORTED', async () => {
     const body = { json: () => Promise.reject(new DOMException('aborted', 'AbortError')), ok: true, status: 200 }
-    vi.stubGlobal('fetch', vi.fn(async () => body as unknown as Response))
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => body as unknown as Response))
     await expect(searchProvider(options).search({ query: 'q' }))
       .rejects.toThrow(expect.objectContaining({ code: 'WEB_ABORTED' }))
   })
 
   it('surfaces an abort during error-body parse as WEB_ABORTED', async () => {
     const body = { json: () => Promise.reject(new DOMException('aborted', 'AbortError')), ok: false, status: 500 }
-    vi.stubGlobal('fetch', vi.fn(async () => body as unknown as Response))
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => body as unknown as Response))
     await expect(searchProvider(options).search({ query: 'q' }))
       .rejects.toThrow(expect.objectContaining({ code: 'WEB_ABORTED' }))
   })
 
   it('maps a network failure to WEB_PROVIDER_ERROR', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new TypeError('connection refused'))))
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(() => Promise.reject(new TypeError('connection refused'))))
     await expect(searchProvider(options).search({ query: 'q' }))
       .rejects.toThrow(expect.objectContaining({ code: 'WEB_PROVIDER_ERROR' }))
   })
 
+  it.each(leftoverFetchRefuses)('maps a leftover $kind fetch refuse through thrownMessage', async ({ reason, rendered }) => {
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(() => Promise.reject(reason)))
+    await expect(searchProvider(options).search({ query: 'q' }))
+      .rejects.toThrow(expect.objectContaining({
+        code: 'WEB_PROVIDER_ERROR',
+        message: `DeepSeek search request failed: ${rendered}`,
+      }))
+  })
+
+  it('uses Error.message when a leftover fetch Error has no stack', async () => {
+    const error = new Error('no stack')
+    delete error.stack
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(() => Promise.reject(error)))
+    await expect(searchProvider(options).search({ query: 'q' }))
+      .rejects.toThrow(expect.objectContaining({
+        code: 'WEB_PROVIDER_ERROR',
+        message: 'DeepSeek search request failed: no stack',
+      }))
+  })
+
+  it('uses Error.message when a leftover fetch Error has an empty first stack line', async () => {
+    const error = new Error('empty stack line')
+    error.stack = '\n    at nowhere'
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(() => Promise.reject(error)))
+    await expect(searchProvider(options).search({ query: 'q' }))
+      .rejects.toThrow(expect.objectContaining({
+        code: 'WEB_PROVIDER_ERROR',
+        message: 'DeepSeek search request failed: empty stack line',
+      }))
+  })
+
+  it('maps a leftover string credential refuse without a signal', async () => {
+    await expect(searchProvider({
+      ...options,
+      apiKey: '',
+      resolveApiKey: () => Promise.reject('credential backend refused'),
+    }).search({ query: 'q' }))
+      .rejects.toThrow(expect.objectContaining({
+        code: 'WEB_PROVIDER_ERROR',
+        message: 'DeepSeek search credential resolution failed: credential backend refused',
+      }))
+  })
+
+  it('maps a leftover string credential refuse under an active signal', async () => {
+    const controller = new AbortController()
+    await expect(searchProvider({
+      ...options,
+      apiKey: '',
+      resolveApiKey: () => Promise.reject('credential backend refused'),
+    }).search({ query: 'q' }, controller.signal))
+      .rejects.toThrow(expect.objectContaining({
+        code: 'WEB_PROVIDER_ERROR',
+        message: 'DeepSeek search credential resolution failed: Error: credential backend refused',
+      }))
+  })
+
   it('strict mode flows through search(): a prose-only response throws WEB_PROVIDER_ERROR', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ content: [{ type: 'text', text: 'no search happened' }] })))
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => jsonResponse({ content: [{ type: 'text', text: 'no search happened' }] })))
     await expect(searchProvider(options).search({ query: 'q' }))
       .rejects.toThrow(expect.objectContaining({ code: 'WEB_PROVIDER_ERROR' }))
   })
@@ -401,7 +519,7 @@ describe('DeepSeekSearchProvider error handling', () => {
 
 describe('web-search-deepseek plugin registration', () => {
   it('registers the provider into ctx.web (HMR-safe)', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(searchResponse())))
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => jsonResponse(searchResponse())))
     const ctx = new Context()
     await ctx.plugin(WebRuntime, { searchProvider: DEEPSEEK_PROVIDER_ID })
     const fiber = await ctx.plugin(deepseekPlugin, { apiKey: 'ds-key' })
@@ -448,7 +566,7 @@ describe('web-search-deepseek plugin registration', () => {
   })
 
   it('boots over ctx.web through the unwrapped module without an inject error', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(searchResponse())))
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => jsonResponse(searchResponse())))
     const ctx = new Context()
     await ctx.plugin(WebRuntime, { searchProvider: DEEPSEEK_PROVIDER_ID })
     const loader = Object.create(Loader.prototype) as Loader
@@ -463,7 +581,7 @@ describe('web-search-deepseek plugin registration', () => {
     const prev = process.env.DEEPSEEK_API_KEY
     process.env.DEEPSEEK_API_KEY = 'env-key'
     try {
-      const fetchMock = vi.fn(async () => jsonResponse(searchResponse()))
+      const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse(searchResponse()))
       vi.stubGlobal('fetch', fetchMock)
       const ctx = new Context()
       await ctx.plugin(WebRuntime, { searchProvider: DEEPSEEK_PROVIDER_ID })
@@ -484,7 +602,7 @@ describe('web-search-deepseek plugin registration', () => {
     const previous = process.env.DEEPSEEK_API_KEY
     delete process.env.DEEPSEEK_API_KEY
     const dir = await mkdtemp(join(tmpdir(), 'dsh-web-search-credentials-'))
-    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => jsonResponse(searchResponse()))
+    const fetchMock = vi.fn<typeof fetch>(async (_input: RequestInfo | URL, _init?: RequestInit) => jsonResponse(searchResponse()))
     vi.stubGlobal('fetch', fetchMock)
     const ctx = new Context()
     try {
@@ -518,15 +636,10 @@ describe('web-search-deepseek plugin registration', () => {
       const ctx = new Context()
       await ctx.plugin(WebRuntime, { searchProvider: DEEPSEEK_PROVIDER_ID })
       await ctx.plugin(deepseekPlugin, {})
-      let caught: unknown
-      try {
-        await ctx.web.search({ query: 'q' })
-      } catch (error: unknown) {
-        caught = error
-      }
-      expect(caught).toMatchObject({ code: 'WEB_PROVIDER_CREDENTIAL_MISSING' })
-      if (!(caught instanceof Error)) throw new Error('search did not throw an Error')
-      expect(caught.message).toMatch(/store it through the credentials service.*Models page/s)
+      await expect(ctx.web.search({ query: 'q' })).rejects.toThrow(expect.objectContaining({
+        code: 'WEB_PROVIDER_CREDENTIAL_MISSING',
+        message: expect.stringMatching(/store it through the credentials service.*Models page/s),
+      }))
     } finally {
       if (prev !== undefined) process.env.DEEPSEEK_API_KEY = prev
     }

@@ -3,6 +3,20 @@ import { PassThrough, Writable } from 'node:stream'
 import { describe, expect, it } from 'vitest'
 import { JsonRpcLineTransport, JsonRpcResponseError } from '../src/index.ts'
 
+/** Values a Promise reject arm from a frame, request handler, write, or abort may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+const leftoverRejects: { label: string; reason: Thrown; text: string }[] = [
+  { label: 'string', reason: 'leftover-string', text: 'leftover-string' },
+  { label: 'number', reason: 7, text: '7' },
+  { label: 'boolean', reason: false, text: 'false' },
+  { label: 'bigint', reason: 8n, text: '8' },
+  { label: 'symbol', reason: Symbol.for('leftover'), text: 'Symbol(leftover)' },
+  { label: 'null', reason: null, text: 'null' },
+  { label: 'undefined', reason: undefined, text: 'undefined' },
+  { label: 'object', reason: { leftover: true }, text: '[object Object]' },
+]
+
 function transportPair() {
   const aToB = new PassThrough()
   const bToA = new PassThrough()
@@ -51,7 +65,7 @@ describe('JsonRpcLineTransport', () => {
 
     const failure = await b.request('explode', {}).then(
       () => { throw new Error('request unexpectedly succeeded') },
-      (error: unknown) => error,
+      (error: Thrown) => error,
     )
     expect(failure).toBeInstanceOf(JsonRpcResponseError)
     expect(failure).toMatchObject({ message: 'handler boom', code: -32603, data: undefined })
@@ -65,20 +79,62 @@ describe('JsonRpcLineTransport', () => {
     b.start()
     const controller = new AbortController()
     controller.abort(new Error('already gone'))
-    await expect(b.request('never-sent', {}, controller.signal)).rejects.toThrow('already gone')
+    const failure = await b.request('never-sent', {}, controller.signal).then(
+      () => { throw new Error('request unexpectedly succeeded') },
+      (error: Thrown) => error,
+    )
+    expect(failure).toMatchObject({ message: 'already gone' })
     expect((b as unknown as { pending: Map<string, unknown> }).pending.size).toBe(0)
     b.close()
   })
 
-  it('abandons a pending request on abort, stringifying a non-Error reason', async () => {
+  it.each(leftoverRejects.filter(row => row.reason !== undefined))(
+    'rejects immediately on leftover $label pre-aborted signal',
+    async ({ reason, text }) => {
+      const { b } = transportPair()
+      b.start()
+      const controller = new AbortController()
+      controller.abort(reason)
+      const failure = await b.request('never-sent', {}, controller.signal).then(
+        () => { throw new Error('request unexpectedly succeeded') },
+        (error: Thrown) => error,
+      )
+      expect(failure).toMatchObject({ message: `JSON-RPC request aborted: ${text}` })
+      expect((b as unknown as { pending: Map<string, unknown> }).pending.size).toBe(0)
+      b.close()
+    },
+  )
+
+  it.each(leftoverRejects.filter(row => row.reason !== undefined))(
+    'abandons a pending request on leftover $label abort',
+    async ({ reason, text }) => {
+      const { b } = transportPair()
+      b.start()
+      const controller = new AbortController()
+      const pending = b.request('never-answered', {}, controller.signal)
+      controller.abort(reason)
+      const failure = await pending.then(
+        () => { throw new Error('request unexpectedly succeeded') },
+        (error: Thrown) => error,
+      )
+      expect(failure).toBeInstanceOf(Error)
+      expect(failure).toMatchObject({ message: `JSON-RPC request aborted: ${text}` })
+      expect((b as unknown as { pending: Map<string, unknown> }).pending.size).toBe(0)
+      b.close()
+    },
+  )
+
+  it('preserves Node abort(undefined) as AbortError on the request reject arm', async () => {
     const { b } = transportPair()
     b.start()
     const controller = new AbortController()
-    const pending = b.request('never-answered', {}, controller.signal)
-    controller.abort('plain-string-reason')
-    await expect(pending).rejects.toThrow('JSON-RPC request aborted: plain-string-reason')
-    // The abandonment removed the pending entry — nothing is retained for a
-    // response that may never come.
+    controller.abort(undefined)
+    const failure = await b.request('never-sent', {}, controller.signal).then(
+      () => { throw new Error('request unexpectedly succeeded') },
+      (error: Thrown) => error,
+    )
+    expect(failure).toBeInstanceOf(Error)
+    expect(failure).toMatchObject({ name: 'AbortError' })
     expect((b as unknown as { pending: Map<string, unknown> }).pending.size).toBe(0)
     b.close()
   })
@@ -94,7 +150,7 @@ describe('JsonRpcLineTransport', () => {
 
     const failure = await pending.then(
       () => { throw new Error('request unexpectedly succeeded') },
-      (error: unknown) => error,
+      (error: Thrown) => error,
     )
     expect(failure).toBeInstanceOf(JsonRpcResponseError)
     expect(failure).toMatchObject({ code: 7, message: 'structured', data: { detail: 'x' } })
@@ -102,18 +158,35 @@ describe('JsonRpcLineTransport', () => {
     b.close()
   })
 
-  it('stringifies non-Error request handler failures', async () => {
+  it.each(leftoverRejects)('stringifies a leftover $label request-handler reject', async ({ reason, text }) => {
     const { a, b } = transportPair()
     a.onRequest(async () => {
-      throw 'string boom'
+      throw reason
     })
     a.start()
     b.start()
 
-    await expect(b.request('explode-string', {})).rejects.toThrow('string boom')
+    const failure = await b.request('explode-leftover', {}).then(
+      () => { throw new Error('request unexpectedly succeeded') },
+      (error: Thrown) => error,
+    )
+    expect(failure).toBeInstanceOf(JsonRpcResponseError)
+    expect(failure).toMatchObject({ message: text, code: -32603 })
 
     a.close()
     b.close()
+  })
+
+  it.each(leftoverRejects)('closes on a leftover $label notification reject', async ({ reason, text }) => {
+    const input = new PassThrough()
+    const transport = new JsonRpcLineTransport(input, new PassThrough())
+    transport.onNotification(() => { throw reason })
+    transport.start()
+    input.write('{"jsonrpc":"2.0","method":"fail"}\n')
+    const closed = await transport.closed
+    expect(closed).toBeInstanceOf(Error)
+    expect(closed.message).toBe(text)
+    await expect(transport.request('later', {})).rejects.toThrow(text)
   })
 
   it('reports method-not-found when no request handler is installed', async () => {
@@ -224,7 +297,28 @@ describe('JsonRpcLineTransport', () => {
     }
     const transport = new JsonRpcLineTransport(new PassThrough(), output as never)
 
-    await expect(transport.flush()).rejects.toThrow('flush failed')
+    const failure = await transport.flush().then(
+      () => { throw new Error('flush unexpectedly succeeded') },
+      (error: Thrown) => error,
+    )
+    expect(failure).toBeInstanceOf(Error)
+    expect(failure).toMatchObject({ message: 'flush failed' })
+  })
+
+  it.each(leftoverRejects.filter(row => Boolean(row.reason)))('rejects flush with a leftover $label write-callback reason', async ({ reason }) => {
+    const output = {
+      write(_chunk: string, callback?: (error?: Thrown) => void) {
+        callback?.(reason)
+        return true
+      },
+    }
+    const transport = new JsonRpcLineTransport(new PassThrough(), output as never)
+
+    const failure = await transport.flush().then(
+      () => { throw new Error('flush unexpectedly succeeded') },
+      (error: Thrown) => error,
+    )
+    expect(failure).toBe(reason)
   })
 
   it('rejects pending requests when the input closes', async () => {
@@ -270,16 +364,21 @@ describe('JsonRpcLineTransport', () => {
     await expect(transport.request('write-fails', {})).rejects.toThrow('write exploded')
   })
 
-  it('stringifies non-Error write failures', async () => {
+  it.each(leftoverRejects)('stringifies leftover $label write throws', async ({ reason, text }) => {
     const input = new PassThrough()
     const output = {
       write() {
-        throw 'write string'
+        throw reason
       },
     }
     const transport = new JsonRpcLineTransport(input, output as never)
 
-    await expect(transport.request('write-fails', {})).rejects.toThrow('write string')
+    const failure = await transport.request('write-fails', {}).then(
+      () => { throw new Error('request unexpectedly succeeded') },
+      (error: Thrown) => error,
+    )
+    expect(failure).toBeInstanceOf(Error)
+    expect(failure).toMatchObject({ message: text })
   })
 
   it('uses a fallback message for malformed JSON-RPC error responses', async () => {

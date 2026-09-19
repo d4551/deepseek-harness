@@ -3,6 +3,9 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Session } from '@deepseek-ai/dsh-session'
 
+/** Values a Promise reject arm from the shared durability barrier may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Failure to prove that the current live prefix reached a persistence listener. */
 export class SchedulePersistenceError extends Error {
   /**
@@ -21,11 +24,13 @@ export class SchedulePersistenceError extends Error {
  * @param session - Exact live session to checkpoint.
  * @returns After at least one listener explicitly acknowledges completed durability work.
  */
-export async function flushSchedulePersistence(ctx: Context, session: Session): Promise<void> {
-  try {
-    if (!await ctx.sessions.flush(session)) throw new SchedulePersistenceError()
-  } catch (error) {
-    if (error instanceof SchedulePersistenceError) throw error
-    throw new SchedulePersistenceError(error)
-  }
+export function flushSchedulePersistence(ctx: Context, session: Session): Promise<void> {
+  return ctx.sessions.flush(session).then(
+    (acknowledged) => {
+      if (!acknowledged) throw new SchedulePersistenceError()
+    },
+    (error: Thrown) => {
+      throw new SchedulePersistenceError(error)
+    },
+  )
 }

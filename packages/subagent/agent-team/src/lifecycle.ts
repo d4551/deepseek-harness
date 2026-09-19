@@ -75,7 +75,7 @@ export class TeamRuntimeLifecycle {
    * @param operation - settlement that may otherwise block HMR or process shutdown.
    * @returns the operation result.
    */
-  async withTimeout<T>(operation: Promise<T>): Promise<T> {
+  withTimeout<T>(operation: Promise<T>): Promise<T> {
     let timer!: ReturnType<typeof setTimeout>
     const timeout = new Promise<never>((_resolve, reject) => {
       timer = setTimeout(() => {
@@ -85,10 +85,15 @@ export class TeamRuntimeLifecycle {
         ))
       }, this.disposalTimeoutMs)
     })
-    try {
-      return await Promise.race([operation, timeout])
-    } finally {
-      clearTimeout(timer)
-    }
+    return Promise.race([operation, timeout]).then(
+      (value) => {
+        clearTimeout(timer)
+        return value
+      },
+      (error: Thrown) => {
+        clearTimeout(timer)
+        return Promise.reject(error)
+      },
+    )
   }
 }
