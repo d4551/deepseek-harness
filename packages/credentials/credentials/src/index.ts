@@ -15,6 +15,9 @@ export type {
   ApiKeyRecord, CredentialInfo, CredentialKey, CredentialRecord, CredentialRef, GrantRecord,
 } from './types.ts'
 
+/** Values a Promise reject arm from reference-updated or record-updated listeners may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 const REF_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
 
 /** Both halves of a {@link CredentialKey}; the `/` between them is what keeps it out of {@link REF_PATTERN}. */
@@ -289,7 +292,7 @@ export abstract class CredentialProvider extends Service {
       try {
         const returned = listener(subject)
         if (returned != null && typeof (returned as PromiseLike<unknown>).then === 'function') {
-          Promise.resolve(returned as PromiseLike<unknown>).then(undefined, (error: unknown) => {
+          Promise.resolve(returned as PromiseLike<unknown>).then(undefined, (error: Thrown) => {
             this.warnListenerFailure(event, subject, error)
           })
         }

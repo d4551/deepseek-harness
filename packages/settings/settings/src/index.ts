@@ -16,6 +16,9 @@ export { redactSecrets } from './redact.ts'
 export type { RedactedSecret, RedactedValue } from './redact.ts'
 export type { SettingsNamespace, SettingsUpdateSource } from './types.ts'
 
+/** Values a Promise reject arm from document-updated listeners, updated listeners, or watchers may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 const NAMESPACE_PATTERN = /^[a-z][a-z0-9-]*$/
 
 /**
@@ -788,7 +791,7 @@ export abstract class SettingsProvider extends Service {
       try {
         const returned = listener(ns, revision)
         if (returned != null && typeof (returned as PromiseLike<unknown>).then === 'function') {
-          Promise.resolve(returned as PromiseLike<unknown>).then(undefined, (error: unknown) => {
+          Promise.resolve(returned as PromiseLike<unknown>).then(undefined, (error: Thrown) => {
             this.warnListenerFailure(ns, error)
           })
         }
@@ -820,7 +823,7 @@ export abstract class SettingsProvider extends Service {
           if (!watcher.active || this.isStopped()) return
           return watcher.callback(next as never, prev as never)
         })
-        .then(() => undefined, (error: unknown) => {
+        .then(() => undefined, (error: Thrown) => {
           this.warnWatcherFailure(registration.ns, error)
         })
       registration.pendingTails.add(segment)
@@ -828,7 +831,7 @@ export abstract class SettingsProvider extends Service {
       watcher.tail = segment.finally(() => {
         registration.pendingTails.delete(segment)
         this.pendingTails.delete(segment)
-      }).then(undefined, (error: unknown) => {
+      }).then(undefined, (error: Thrown) => {
         this.warnWatcherFailure(registration.ns, error)
       })
     }
@@ -846,7 +849,7 @@ export abstract class SettingsProvider extends Service {
           // An emit listener may still be an async function; its rejection
           // cannot reach the synchronous INVARIANT rethrow below, so it is
           // contained here instead of becoming an unhandled rejection.
-          Promise.resolve(returned as PromiseLike<unknown>).then(undefined, (error: unknown) => {
+          Promise.resolve(returned as PromiseLike<unknown>).then(undefined, (error: Thrown) => {
             this.warnListenerFailure(registration.ns, error)
           })
         }
