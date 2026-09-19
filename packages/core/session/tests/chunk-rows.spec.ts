@@ -9,7 +9,9 @@ import fc from 'fast-check'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { StreamChunk } from '@deepseek-ai/dsh-llm'
 import { decodeStorageRecord, packChunkRuns } from '@deepseek-ai/dsh-session'
+import { buildChunkRow } from '@deepseek-ai/dsh-session/chunk-run-codec'
 import { chunkRowLength, isChunkRow } from '@deepseek-ai/dsh-session/chunk-rows'
+import type { DeltaChunkEvent } from '@deepseek-ai/dsh-session/chunk-run-codec'
 import type { ChunkRow, SessionEvent, StorageRecord } from '@deepseek-ai/dsh-session'
 
 /** Build an `assistant/chunk` event with the exact live-append shape. */
@@ -66,9 +68,9 @@ describe('packChunkRuns', () => {
     expect(decoded).toStrictEqual(events)
     expect(decoded.every((item) => {
       if (typeof item !== 'object' || item === null) return false
-      const data = Reflect.get(item, 'data')
+      const data: unknown = Reflect.get(item, 'data')
       if (typeof data !== 'object' || data === null) return false
-      const chunk = Reflect.get(data, 'chunk')
+      const chunk: unknown = Reflect.get(data, 'chunk')
       return typeof chunk === 'object' && chunk !== null && !Object.hasOwn(chunk, 'name')
     })).toBe(true)
   })
@@ -243,5 +245,63 @@ describe('chunk-row codec properties', () => {
     fc.assert(fc.property(batchArb, (events) => {
       expect(decodeAll(packChunkRuns(events))).toStrictEqual(events)
     }))
+  })
+})
+
+describe('buildChunkRow', () => {
+  it('refuses an empty run', () => {
+    expect(() => buildChunkRow('text-delta', [])).toThrow(/non-empty run/)
+  })
+
+  it('refuses a claimed text run whose first chunk has no index', () => {
+    const usage: DeltaChunkEvent = {
+      type: 'assistant/chunk',
+      seq: 0,
+      time: 1,
+      data: { turn: 1, step: 1, chunk: { type: 'usage', usage: { inputTokens: 1, outputTokens: 1 } } },
+    }
+    expect(() => buildChunkRow('text-delta', [usage])).toThrow(/missing a numeric index/)
+  })
+
+  it('refuses a claimed tool-call run whose member is a text delta', () => {
+    const text: DeltaChunkEvent = {
+      type: 'assistant/chunk',
+      seq: 0,
+      time: 1,
+      data: { turn: 1, step: 1, chunk: { type: 'text-delta', index: 0, text: 'a' } },
+    }
+    expect(() => buildChunkRow('tool-call-delta', [text])).toThrow(/tool-call-delta/)
+  })
+
+  it('refuses a run with a missing member', () => {
+    const first: DeltaChunkEvent = {
+      type: 'assistant/chunk',
+      seq: 0,
+      time: 1,
+      data: { turn: 1, step: 1, chunk: { type: 'text-delta', index: 0, text: 'a' } },
+    }
+    const third: DeltaChunkEvent = {
+      type: 'assistant/chunk',
+      seq: 2,
+      time: 3,
+      data: { turn: 1, step: 1, chunk: { type: 'text-delta', index: 0, text: 'c' } },
+    }
+    const run: DeltaChunkEvent[] = [first]
+    run[2] = third
+    expect(() => buildChunkRow('text-delta', run)).toThrow(/contiguous/)
+  })
+
+  it('refuses a claimed text run whose member is a tool-call delta', () => {
+    const call: DeltaChunkEvent = {
+      type: 'assistant/chunk',
+      seq: 0,
+      time: 1,
+      data: {
+        turn: 1,
+        step: 1,
+        chunk: { type: 'tool-call-delta', index: 0, id: ToolCallId('c1'), argumentsDelta: 'a' },
+      },
+    }
+    expect(() => buildChunkRow('text-delta', [call])).toThrow(/text or reasoning delta/)
   })
 })

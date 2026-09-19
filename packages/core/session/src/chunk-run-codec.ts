@@ -122,8 +122,7 @@ function hasExactKeys(value: object, keys: readonly string[]): boolean {
  * type-trusted. Integer times keep gap encoding exact: a fractional time would
  * reconstruct through float subtraction/addition, which need not round-trip.
  */
-function classifyDeltaChunk(event: SessionEvent): DeltaChunkKind | undefined {
-  if (event.type !== 'assistant/chunk') return undefined
+function classifyDeltaChunk(event: DeltaChunkEvent): DeltaChunkKind | undefined {
   if (!hasExactKeys(event, ['type', 'seq', 'time', 'data'])) return undefined
   if (!Number.isSafeInteger(event.seq) || event.seq < 0 || !Number.isSafeInteger(event.time)) return undefined
   const data: unknown = event.data
@@ -151,14 +150,49 @@ function classifyDeltaChunk(event: SessionEvent): DeltaChunkKind | undefined {
   }
 }
 
+/** Classify a live or parsed event only when it is a whitelisted assistant delta chunk. */
+function classifiedDeltaChunk(event: SessionEvent): { kind: DeltaChunkKind; event: DeltaChunkEvent } | undefined {
+  if (event.type !== 'assistant/chunk') return undefined
+  const kind = classifyDeltaChunk(event)
+  if (kind === undefined) return undefined
+  return { kind, event }
+}
+
 /** The tool-call fields of a whitelisted delta chunk (only after {@link classifyDeltaChunk} returned `'tool-call-delta'`). */
 function toolCallOf(event: DeltaChunkEvent): { id: string; name?: string } {
-  return event.data.chunk as { id: string; name?: string }
+  const chunk = event.data.chunk
+  if (chunk.type !== 'tool-call-delta') {
+    throw new TypeError('toolCallOf requires a tool-call-delta chunk')
+  }
+  if (typeof chunk.name === 'string') return { id: chunk.id, name: chunk.name }
+  return { id: chunk.id }
 }
 
 /** The block index of a whitelisted delta chunk (not every {@link StreamChunk} variant carries one). */
 function indexOf(event: DeltaChunkEvent): number {
-  return (event.data.chunk as { index: number }).index
+  const chunk = event.data.chunk
+  if (chunk.type === 'usage' || chunk.type === 'finish') {
+    throw new TypeError('classified delta chunk is missing a numeric index')
+  }
+  return chunk.index
+}
+
+/** The text payload of a whitelisted text or reasoning delta. */
+function textOf(event: DeltaChunkEvent): string {
+  const chunk = event.data.chunk
+  if (chunk.type !== 'text-delta' && chunk.type !== 'reasoning-delta') {
+    throw new TypeError('text run member is not a text or reasoning delta')
+  }
+  return chunk.text
+}
+
+/** The arguments fragment of a whitelisted tool-call delta. */
+function argumentsDeltaOf(event: DeltaChunkEvent): string {
+  const chunk = event.data.chunk
+  if (chunk.type !== 'tool-call-delta') {
+    throw new TypeError('tool-call run member is not a tool-call-delta')
+  }
+  return chunk.argumentsDelta
 }
 
 /** Whether `next` extends a run ending in `previous`; the caller already matched the run's kind. */
@@ -192,12 +226,24 @@ function chunkRunContinues(
  * @returns the packed row representing exactly those events.
  */
 export function buildChunkRow(kind: DeltaChunkKind, run: readonly DeltaChunkEvent[]): ChunkRow {
-  const first = run[0] as DeltaChunkEvent
+  const first = run[0]
+  if (first === undefined) {
+    throw new TypeError('buildChunkRow requires a non-empty run')
+  }
+  const dt: number[] = []
+  for (let index = 1; index < run.length; index++) {
+    const event = run.at(index)
+    const previous = run.at(index - 1)
+    if (event === undefined || previous === undefined) {
+      throw new TypeError('chunk run members are contiguous')
+    }
+    dt.push(event.time - previous.time)
+  }
   const base = {
     turn: first.data.turn,
     step: first.data.step,
     index: indexOf(first),
-    dt: run.slice(1).map((event, index) => event.time - (run[index] as DeltaChunkEvent).time),
+    dt,
   }
   const envelope = { seq0: first.seq, time0: first.time }
   if (kind === 'tool-call-delta') {
@@ -208,12 +254,12 @@ export function buildChunkRow(kind: DeltaChunkKind, run: readonly DeltaChunkEven
       data: {
         ...base,
         id: ToolCallId(call.id),
-        ...Object.hasOwn(call, 'name') ? { name: call.name as string } : {},
-        args: run.map(event => (event.data.chunk as { argumentsDelta: string }).argumentsDelta),
+        ...call.name === undefined ? {} : { name: call.name },
+        args: run.map(argumentsDeltaOf),
       },
     }
   }
-  const data = { ...base, texts: run.map(event => (event.data.chunk as { text: string }).text) }
+  const data = { ...base, texts: run.map(textOf) }
   return kind === 'text-delta'
     ? { type: 'text-chunks', ...envelope, data }
     : { type: 'reasoning-chunks', ...envelope, data }
@@ -243,21 +289,20 @@ export function scanChunkRuns(
     run = []
   }
   for (const event of events) {
-    const nextKind = classifyDeltaChunk(event)
-    if (nextKind === undefined) {
+    const classified = classifiedDeltaChunk(event)
+    if (classified === undefined) {
       flush()
       out.push(event)
       continue
     }
-    const delta = event as DeltaChunkEvent
     const previous = run.at(-1)
-    if (nextKind === kind && previous !== undefined && chunkRunContinues(previous, delta, nextKind)) {
-      run.push(delta)
+    if (classified.kind === kind && previous !== undefined && chunkRunContinues(previous, classified.event, classified.kind)) {
+      run.push(classified.event)
       continue
     }
     flush()
-    kind = nextKind
-    run = [delta]
+    kind = classified.kind
+    run = [classified.event]
   }
   flush()
   return out
@@ -472,6 +517,26 @@ export function materializeChunkRow(
   }
 }
 
+/** Reconstruct one member's stream chunk from a validated packed row. */
+function streamChunkFromRow(row: ChunkRow, member: string): StreamChunk {
+  switch (row.type) {
+    case 'text-chunks':
+      return { type: 'text-delta', index: row.data.index, text: member }
+    case 'reasoning-chunks':
+      return { type: 'reasoning-delta', index: row.data.index, text: member }
+    case 'tool-call-chunks': {
+      const name = Object.hasOwn(row.data, 'name') ? row.data.name : undefined
+      return {
+        type: 'tool-call-delta',
+        index: row.data.index,
+        id: row.data.id,
+        ...name === undefined ? {} : { name },
+        argumentsDelta: member,
+      }
+    }
+  }
+}
+
 /**
  * Expand a validated row back into its exact original events, in order.
  * @param row - a row that passed its format's validation.
@@ -493,31 +558,7 @@ export function expandChunkRow(row: ChunkRow): SessionEvent[] {
     if (member === undefined) {
       throw new Error(`chunk-run-codec row member ${String(index)} missing`)
     }
-    let chunk: StreamChunk
-    switch (row.type) {
-      case 'text-chunks':
-        chunk = { type: 'text-delta', index: row.data.index, text: member }
-        break
-      case 'reasoning-chunks':
-        chunk = { type: 'reasoning-delta', index: row.data.index, text: member }
-        break
-      case 'tool-call-chunks': {
-        const name = Object.hasOwn(row.data, 'name') ? row.data.name : undefined
-        chunk = {
-          type: 'tool-call-delta',
-          index: row.data.index,
-          id: row.data.id,
-          ...name === undefined ? {} : { name },
-          argumentsDelta: member,
-        }
-        break
-      }
-      /* v8 ignore next 4 -- a validated row carries one of the three row tags */
-      default: {
-        const unreachable: never = row
-        throw new Error(`chunk-run-codec received unsupported row ${String(unreachable)}`)
-      }
-    }
+    const chunk = streamChunkFromRow(row, member)
     events.push({
       type: 'assistant/chunk',
       seq: row.seq0 + index,
