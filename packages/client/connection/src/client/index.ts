@@ -92,6 +92,8 @@ export interface ClientTransportHooks {
   ownsHost?: boolean
 }
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 function isClientTransportHooks(value: object): value is ClientTransportHooks {
   if (!('fetch' in value) || typeof value.fetch !== 'function') return false
   if ('openStream' in value && value.openStream !== undefined && typeof value.openStream !== 'function') {
@@ -217,10 +219,15 @@ export function apply(ctx: Context): void {
       generationSource = registration
       return async () => {
         if (generationSource === registration) generationSource = undefined
-        const results = await Promise.allSettled([...registration.owners.values()].map(releaseOwner))
-        const failures = results.filter(result => result.status === 'rejected')
+        const outcomes = await Promise.all([...registration.owners.values()].map(owner =>
+          releaseOwner(owner).then(
+            () => ({ kind: 'fulfilled' as const }),
+            (reason: Thrown) => ({ kind: 'rejected' as const, reason }),
+          )))
+        const failures = outcomes.filter((outcome): outcome is { readonly kind: 'rejected'; readonly reason: Thrown } =>
+          outcome.kind === 'rejected')
         if (failures.length > 0) {
-          throw new AggregateError(failures.map(result => result.reason), 'connection source disposal failed')
+          throw new AggregateError(failures.map(outcome => outcome.reason), 'connection source disposal failed')
         }
       }
     },
@@ -255,7 +262,7 @@ export function apply(ctx: Context): void {
         const stopping = controller.stop()
         stopping.then(
           () => { registration.owners.delete(token) },
-          () => { registration.owners.delete(token) },
+          (_reason: Thrown) => { registration.owners.delete(token) },
         )
         return stopping
       }, 'connection.generation')

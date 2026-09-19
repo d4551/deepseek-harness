@@ -115,10 +115,20 @@ export class ConnectionController {
   start(): Promise<void> {
     if (this.run !== null) return this.completion
     this.run = new AbortController()
-    this.completion = Promise.allSettled([this.completion, this.loop(this.run.signal)]).then((results) => {
-      const failures = results.filter(result => result.status === 'rejected')
+    this.completion = Promise.all([
+      this.completion.then(
+        () => ({ kind: 'fulfilled' as const }),
+        (reason: Thrown) => ({ kind: 'rejected' as const, reason }),
+      ),
+      this.loop(this.run.signal).then(
+        () => ({ kind: 'fulfilled' as const }),
+        (reason: Thrown) => ({ kind: 'rejected' as const, reason }),
+      ),
+    ]).then((outcomes) => {
+      const failures = outcomes.filter((outcome): outcome is { readonly kind: 'rejected'; readonly reason: Thrown } =>
+        outcome.kind === 'rejected')
       if (failures.length > 0) {
-        throw new AggregateError(failures.map(result => result.reason), 'connection loop failed')
+        throw new AggregateError(failures.map(outcome => outcome.reason), 'connection loop failed')
       }
     })
     return this.completion
@@ -152,7 +162,15 @@ export class ConnectionController {
     const sources = new Set<Promise<void>>()
     await using _waitSources = {
       async [Symbol.asyncDispose](): Promise<void> {
-        await Promise.all(sources)
+        const outcomes = await Promise.all([...sources].map(source => source.then(
+          () => ({ kind: 'fulfilled' as const }),
+          (reason: Thrown) => ({ kind: 'rejected' as const, reason }),
+        )))
+        const failures = outcomes.filter((outcome): outcome is { readonly kind: 'rejected'; readonly reason: Thrown } =>
+          outcome.kind === 'rejected')
+        if (failures.length > 0) {
+          throw new AggregateError(failures.map(outcome => outcome.reason), 'connection generation sources failed')
+        }
       },
     }
     await this.pump(run, sources)
