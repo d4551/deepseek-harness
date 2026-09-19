@@ -7,9 +7,15 @@ import { SettingsSchemaService } from '../src/client/schema.ts'
 const service = new SettingsSchemaService(new Context())
 const wire = (schema: Schema): unknown => JSON.parse(JSON.stringify(schema.toJSON()))
 
+function requireSchema(serialized: unknown): SchemaNode {
+  const schema = service.rehydrate(serialized)
+  if (schema === undefined) throw new Error('expected rehydrated schema')
+  return schema
+}
+
 describe('SettingsSchemaService validation', () => {
   it('rehydrates a serialized envelope into a working validator', () => {
-    const root = service.rehydrate(wire(Schema.object({ name: Schema.string().required() })))
+    const root = requireSchema(wire(Schema.object({ name: Schema.string().required() })))
     expect(service.validate(root, { name: 'ok' })).toBeUndefined()
     expect(service.validate(root, { name: 42 })).toContain('name')
   })
@@ -82,7 +88,7 @@ describe('SettingsSchemaService node traversal', () => {
   })
 
   it('resolves object, dict, and array positions', () => {
-    const root = service.rehydrate(wire(rootSchema))
+    const root = requireSchema(wire(rootSchema))
     expect(service.nodeAtPath(root, [])).toBe(root)
     expect(service.nodeAtPath(root, ['providers', 'openai'])?.type).toBe('object')
     expect(service.nodeAtPath(root, ['providers', 'openai', 'baseURL'])?.type).toBe('string')
