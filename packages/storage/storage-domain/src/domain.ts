@@ -15,6 +15,9 @@ import { DomainError } from './error.ts'
 import type { DomainSpec, DomainGlobalSpec, TableKeyOf, TableValueOf } from './spec.ts'
 import type { DomainChanged } from './events.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Handle on a domain's global singleton. */
 export interface DomainGlobal<G> {
   /**
@@ -235,7 +238,7 @@ export class DomainImpl {
 
   private async runClose(): Promise<void> {
     this.disposing = true
-    // Chain links never reject (each is settled via then(noop, noop)), so
+    // Chain links never reject (each is settled on both arms), so
     // this await is a pure drain barrier.
     await this.chain
     await this.unit.close()
@@ -265,7 +268,7 @@ export class DomainImpl {
       return Promise.reject(new DomainError('closed', `domain '${this.name}' is closed`))
     }
     const result = this.chain.then(job)
-    this.chain = result.then(noop, noop)
+    this.chain = result.then(noop, (_error: Thrown) => {})
     return result
   }
 

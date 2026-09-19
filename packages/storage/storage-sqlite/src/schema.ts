@@ -71,7 +71,7 @@ export async function openDatabase(
     })
     configureDurability(db, database)
     return db
-  } catch (error: unknown) {
+  } catch (error) {
     db.close()
     throw error
   }
