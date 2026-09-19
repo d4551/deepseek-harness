@@ -4,7 +4,7 @@ import type {
   LegacyConversationSlice, PartialAssistant, RunningToolCall, ToolCallBlock, TurnNavigationItem,
 } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {
-  ConversationLocationDataStore, ConversationTurnDataMap, TurnLocation,
+  ConversationLocationDataStore, TurnLocation,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { deriveTurnMetrics } from '../src/client/contract/turn-metrics.ts'
 import {
@@ -115,19 +115,14 @@ class FixtureLocationIndex implements ChatLocationNodeIndex {
   }
 }
 
-class FixtureTurnDataStore implements ConversationLocationDataStore<ConversationTurnDataMap> {
+class FixtureTurnDataStore implements ConversationLocationDataStore {
   private readonly values = new Map<string, unknown>()
 
-  get<Key extends Extract<keyof ConversationTurnDataMap, string>>(
-    key: Key,
-  ): Readonly<ConversationTurnDataMap[Key]> | undefined {
-    return this.values.get(key) as Readonly<ConversationTurnDataMap[Key]> | undefined
+  get(key: string): unknown {
+    return this.values.get(key)
   }
 
-  set<Key extends Extract<keyof ConversationTurnDataMap, string>>(
-    key: Key,
-    value: ConversationTurnDataMap[Key],
-  ): void {
+  set(key: string, value: unknown): void {
     this.values.set(key, value)
   }
 }

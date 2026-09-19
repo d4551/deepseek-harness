@@ -19,7 +19,7 @@ import type {
   TurnTailOwnerProps,
 } from './contract/slots.ts'
 import type { ChatSnapshot } from './contract/snapshot.ts'
-import { EMPTY_CHAT_SNAPSHOT } from './contract/snapshot.ts'
+import { requireChatSnapshot } from './contract/snapshot.ts'
 import { ApprovalCommand } from './chat/ApprovalCommand.tsx'
 import { ChatView } from './chat/ChatView.tsx'
 import { registerChatNodeRenderers } from './chat/register-node-renderers.ts'
@@ -62,7 +62,7 @@ export function apply(ctx: Context): void {
     if (source === undefined) {
       const target = ctx.uiConversation.binding(binding).target('chat')
       source = {
-        getSnapshot: () => target.getSnapshot() ?? EMPTY_CHAT_SNAPSHOT,
+        getSnapshot: () => requireChatSnapshot(target.getSnapshot()),
         subscribe: listener => target.subscribe(listener),
       }
       chatSources.set(binding, source)

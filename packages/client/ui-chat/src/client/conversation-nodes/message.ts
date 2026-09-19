@@ -1,6 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConversationNodeDefinition } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { inputMessageNode, type InboxState } from '@deepseek-ai/dsh-client-ui-projection'
+import { inputMessageNode, readInboxState } from '@deepseek-ai/dsh-client-ui-projection'
 import { isAppendSurfaceEvent, isReplacementSurfaceEvent } from '@deepseek-ai/dsh-session/surface'
 // The declaring package, not the local barrel: a Typert-modeled reference must
 // name the package that owns the type so the generated import can point at it.
@@ -50,8 +50,8 @@ export const messageDefinition: ConversationNodeDefinition<MessageNode> = {
   start: (_context, match, reader) => {
     if (match.event.type !== 'user/message') throw new Error('input-message start requires user/message')
     const event = match.event
-    const claimed = reader.previous<InboxState>('inbox-next-step')
-      ?.state.claimed.has(String(event.data.id)) === true
+    const claimed = readInboxState(reader.previous('inbox-next-step'))
+      ?.claimed.has(String(event.data.id)) === true
     return inputMessageNode(event, claimed)
   },
   update: context => context.state,

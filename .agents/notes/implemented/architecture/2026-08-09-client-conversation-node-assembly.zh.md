@@ -98,7 +98,7 @@ Definition 可以读取完整 `matches` 辅助构造 State 或 fallback Node，�
 
 `reader.previous(kind)` 查找满足 `candidate.startSeq < current.startSeq` 且 State 已初始化的最近 Context。它不会返回同 seq、未来 Context 或尚无 State 的 pending Context。
 
-返回值包含前序 Context 的 key、kind、id、start seq、只读 State 和 Matches。消费者自行解释 State；提供方只负责把自己的 State 维护正确，不需要注册特化 query 方法。
+返回值包含前序 Context 的 key、kind、id、start seq、未类型化的 State 和 Matches。消费者在调用处认领 State；提供方只负责把自己的 State 维护正确，不需要注册特化 query 方法。
 
 Reader 每次查询都记录 `{ key, revision, windowGap }` 依赖。命中前序 Context 时，其 revision 变化会 replay 消费者；未命中且仍有 older 历史时，window gap 会等待后续 prepend。
 
@@ -164,7 +164,7 @@ ID 不复用，完成的 Context 继续存在于当前窗口，既提供稳定�
 
 Location 有 `session`、`turn`、`step` 和 `unresolved` 四种形状。Turn/Step 各自带 `open`、`closed` 或 `unknown` 状态，以及已加载的 start/end Event。
 
-每个 Turn 和 Step 还持有 reference-stable 的 Location data store。Definition 更新只替换自己拥有的 key；同一个 store identity 可以随 append 或 prepend 获得新值，使 Context、View Builder 和 React renderer 共享已经确定的层级业务事实，而不复制或遍历全局 Node 数组。
+每个 Turn 和 Step 还持有 reference-stable 的 Location data store，其 `get(key)` 返回 unknown。Definition 更新只替换自己拥有的 key；消费者认领自己能证明的 payload。同一个 store identity 可以随 append 或 prepend 获得新值，使 Context、View Builder 和 React renderer 共享已经确定的层级业务事实，而不复制或遍历全局 Node 数组。
 
 `unresolved` 表示当前历史窗口缺少足够前序边界，不等于 session-level。older prepend 补入边界后，索引修正 Match Location，并只 replay 拥有这些 seq 的 Context。
 

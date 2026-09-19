@@ -1,8 +1,9 @@
 import type { Context } from '@deepseek-ai/cordis'
-import type {
-  ConversationMatch, ConversationNodeContext, ConversationNodeDefinition, RequestPromptInspector,
+import {
+  requireConversationPromptSnapshot,
+  type ConversationMatch, type ConversationNodeContext, type ConversationNodeDefinition,
+  type RequestPromptInspector,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type { ChatNode } from '../contract/chat-nodes.ts'
 import { chatNode } from './common.ts'
 
 declare module '../contract/chat-nodes.ts' {
@@ -17,6 +18,31 @@ interface RequestPromptState extends ReturnType<RequestPromptInspector> {
   readonly showsPrompt: boolean
   readonly turn?: number
   readonly step?: number
+}
+
+function isRecord(value: unknown): value is object {
+  return typeof value === 'object' && value !== null
+}
+
+function previousRequestPrompt(value: unknown): RequestPromptState | undefined {
+  if (value === undefined) return undefined
+  if (!isRecord(value)) throw new TypeError('request-prompt predecessor State is not an object')
+  const prompt = requireConversationPromptSnapshot(Reflect.get(value, 'prompt'))
+  const anchorSeq: unknown = Reflect.get(value, 'anchorSeq')
+  const showsPrompt: unknown = Reflect.get(value, 'showsPrompt')
+  if (typeof anchorSeq !== 'number' || !Number.isSafeInteger(anchorSeq)
+    || typeof showsPrompt !== 'boolean') {
+    throw new TypeError('request-prompt predecessor State is malformed')
+  }
+  const turn: unknown = Reflect.get(value, 'turn')
+  const step: unknown = Reflect.get(value, 'step')
+  return {
+    prompt,
+    anchorSeq,
+    showsPrompt,
+    ...typeof turn === 'number' && Number.isSafeInteger(turn) && turn >= 0 ? { turn } : {},
+    ...typeof step === 'number' && Number.isSafeInteger(step) && step >= 0 ? { step } : {},
+  }
 }
 
 /** Place a request's system field at the start of its visible message series. */
@@ -41,10 +67,12 @@ function stableRequestPromptAnchor(
   previous: Readonly<RequestPromptState> | undefined,
   isInitial: boolean,
 ): number {
-  const current = context.current.get('chat') as ChatNode | null | undefined
-  return current?.kind === 'system-prompt'
-    ? current.anchorSeq
-    : requestPromptAnchor(match, previous, isInitial)
+  const current = context.current.get('chat')
+  if (current !== undefined && current !== null && current.kind === 'system-prompt') {
+    const anchorSeq: unknown = Reflect.get(current, 'anchorSeq')
+    if (typeof anchorSeq === 'number' && Number.isSafeInteger(anchorSeq)) return anchorSeq
+  }
+  return requestPromptAnchor(match, previous, isInitial)
 }
 
 /**
@@ -64,7 +92,7 @@ export function requestPromptDefinition(inspect: RequestPromptInspector): Conver
       if (match.event.type !== 'request/header') {
         throw new Error('request-prompt start requires request/header')
       }
-      const previous = reader.previous<RequestPromptState>('request-prompt')?.state
+      const previous = previousRequestPrompt(reader.previous('request-prompt')?.state)
       const location = match.location.kind === 'step'
         ? { turn: match.location.turn.turn, step: match.location.step.step }
         : {}

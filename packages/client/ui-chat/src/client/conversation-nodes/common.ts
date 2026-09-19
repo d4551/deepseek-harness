@@ -5,12 +5,13 @@ import type {
   ChatNode, ChatNodeDataMap, ChatNodeKind,
 } from '../contract/chat-nodes.ts'
 import { SYNTHETIC_SEQ_OFFSETS } from '@deepseek-ai/dsh-client-ui-projection'
+import { publishedTurnTail } from './location-data.ts'
 
 /** Position a turn-limit notice before its tail and retain its final step. */
 export function turnNoticePosition(context: ConversationNodeContext, seq: number): { anchor: number; step: number } {
   const location = contextLocation(context)
   if (location.kind !== 'turn' && location.kind !== 'step') return { anchor: seq, step: 0 }
-  const closing = location.turn.data.get('turn-tail')?.closing
+  const closing = publishedTurnTail(location.turn.data.get('turn-tail'))?.closing
   return {
     anchor: closing === null || closing === undefined
       ? seq

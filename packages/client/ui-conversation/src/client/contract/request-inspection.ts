@@ -54,6 +54,106 @@ export type RequestPromptInspector = (
  * @param event - Durable full request header to inspect.
  * @returns The canonical prompt and an initial/system/tool change when it can be established.
  */
+function isRecord(value: unknown): value is object {
+  return typeof value === 'object' && value !== null
+}
+
+function requireToolSchema(value: unknown): ToolSchema {
+  if (!isRecord(value)) throw new TypeError('request header tool is not an object')
+  const name: unknown = Reflect.get(value, 'name')
+  const description: unknown = Reflect.get(value, 'description')
+  const parameters: unknown = Reflect.get(value, 'parameters')
+  if (typeof name !== 'string' || typeof description !== 'string') {
+    throw new TypeError('request header tool is missing name or description')
+  }
+  if (!isRecord(parameters) || Array.isArray(parameters)) {
+    throw new TypeError('request header tool parameters is not an object')
+  }
+  const claimed: Record<string, unknown> = {}
+  for (const key of Object.keys(parameters)) {
+    claimed[key] = Reflect.get(parameters, key)
+  }
+  return { name, description, parameters: claimed }
+}
+
+function requireAssistantRequestConfig(value: unknown): AssistantRequestConfig {
+  if (!isRecord(value)) throw new TypeError('request header config is not an object')
+  const provider: unknown = Reflect.get(value, 'provider')
+  const model: unknown = Reflect.get(value, 'model')
+  if (typeof provider !== 'string' || typeof model !== 'string') {
+    throw new TypeError('request header config is missing provider or model')
+  }
+  const purpose: unknown = Reflect.get(value, 'purpose')
+  const thinking: unknown = Reflect.get(value, 'thinking')
+  const reasoningEffort: unknown = Reflect.get(value, 'reasoningEffort')
+  const temperature: unknown = Reflect.get(value, 'temperature')
+  const maxTokens: unknown = Reflect.get(value, 'maxTokens')
+  const stop: unknown = Reflect.get(value, 'stop')
+  if (purpose !== undefined && typeof purpose !== 'string') {
+    throw new TypeError('request header config purpose is not a string')
+  }
+  if (thinking !== undefined && typeof thinking !== 'string') {
+    throw new TypeError('request header config thinking is not a string')
+  }
+  if (reasoningEffort !== undefined && typeof reasoningEffort !== 'string') {
+    throw new TypeError('request header config reasoningEffort is not a string')
+  }
+  if (temperature !== undefined && typeof temperature !== 'number') {
+    throw new TypeError('request header config temperature is not a number')
+  }
+  if (maxTokens !== undefined && typeof maxTokens !== 'number') {
+    throw new TypeError('request header config maxTokens is not a number')
+  }
+  const claimedStop: string[] = []
+  if (stop !== undefined) {
+    if (!Array.isArray(stop)) throw new TypeError('request header config stop is not an array')
+    for (let index = 0; index < stop.length; index++) {
+      const entry: unknown = Reflect.get(stop, index)
+      if (typeof entry !== 'string') {
+        throw new TypeError('request header config stop entry is not a string')
+      }
+      claimedStop.push(entry)
+    }
+  }
+  return {
+    provider,
+    model,
+    ...purpose === undefined ? {} : { purpose },
+    ...thinking === undefined ? {} : { thinking },
+    ...reasoningEffort === undefined ? {} : { reasoningEffort },
+    ...temperature === undefined ? {} : { temperature },
+    ...maxTokens === undefined ? {} : { maxTokens },
+    ...stop === undefined ? {} : { stop: claimedStop },
+  }
+}
+
+/**
+ * Claim a model-visible request-header snapshot.
+ * @param value - untyped predecessor or stored prompt payload.
+ * @returns the snapshot.
+ */
+export function requireConversationPromptSnapshot(value: unknown): ConversationPromptSnapshot {
+  if (!isRecord(value)) throw new TypeError('conversation prompt snapshot is not an object')
+  const system: unknown = Reflect.get(value, 'system')
+  const tools: unknown = Reflect.get(value, 'tools')
+  const config: unknown = Reflect.get(value, 'config')
+  if (typeof system !== 'string') {
+    throw new TypeError('conversation prompt snapshot system is not a string')
+  }
+  if (!Array.isArray(tools)) {
+    throw new TypeError('conversation prompt snapshot tools is not an array')
+  }
+  const claimed: ToolSchema[] = []
+  for (let index = 0; index < tools.length; index++) {
+    claimed.push(requireToolSchema(Reflect.get(tools, index)))
+  }
+  return {
+    system,
+    tools: claimed,
+    config: requireAssistantRequestConfig(config),
+  }
+}
+
 export function inspectRequestPrompt(
   previous: ConversationPromptSnapshot | undefined,
   event: SessionEvent<'request/header'>,
@@ -61,9 +161,9 @@ export function inspectRequestPrompt(
   const header = event.data.header
   const rawTools: unknown = header.tools
   const prompt: ConversationPromptSnapshot = {
-    config: header.config,
+    config: requireAssistantRequestConfig(header.config),
     system: header.system ?? '',
-    tools: Array.isArray(rawTools) ? rawTools as readonly ToolSchema[] : [],
+    tools: Array.isArray(rawTools) ? rawTools.map(requireToolSchema) : [],
   }
   if (previous === undefined && event.data.reason !== 'initial') return { prompt }
   const systemChanged = previous !== undefined && previous.system !== prompt.system

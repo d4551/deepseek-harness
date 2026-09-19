@@ -1,7 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConversationNodeDefinition } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import {
-  applyInboxSplice, inputMessageNode, type InboxState, type InputMessageNode,
+  applyInboxSplice, inputMessageNode, readInboxState, type InboxState, type InputMessageNode,
 } from '@deepseek-ai/dsh-client-ui-projection'
 import type {} from '@deepseek-ai/dsh-agent/types'
 import { trajectoryNode } from './trajectory-definition-common.ts'
@@ -19,7 +19,7 @@ const trajectoryInboxDefinition: ConversationNodeDefinition<InboxState> = {
     if (match.event.type !== 'agent/inbox/spliced') {
       throw new Error(`${INBOX_KIND} start requires agent/inbox/spliced`)
     }
-    return applyInboxSplice(reader.previous<InboxState>(INBOX_KIND), match.event.data)
+    return applyInboxSplice(reader.previous(INBOX_KIND), match.event.data)
   },
   update: context => context.state,
   publication: () => 'none',
@@ -36,8 +36,8 @@ const trajectoryMessageDefinition: ConversationNodeDefinition<InputMessageNode> 
       throw new Error('trajectory-input-message start requires user/message')
     }
     const event = match.event
-    const claimed = reader.previous<InboxState>(INBOX_KIND)
-      ?.state.claimed.has(String(event.data.id)) === true
+    const claimed = readInboxState(reader.previous(INBOX_KIND))
+      ?.claimed.has(String(event.data.id)) === true
     return inputMessageNode(event, claimed)
   },
   update: context => context.state,

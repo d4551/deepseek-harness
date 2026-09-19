@@ -98,7 +98,7 @@ Each new `start()` invocation replaces the Reader dependencies recorded by the p
 
 `reader.previous(kind)` finds the nearest Context whose `candidate.startSeq < current.startSeq` and whose State is initialized. It never returns a Context at the same seq, a future Context, or a pending Context without State.
 
-The result contains the predecessor's key, kind, ID, start seq, read-only State, and Matches. The consumer interprets that State itself; the provider only maintains its State correctly and need not register a specialized query method.
+The result contains the predecessor's key, kind, ID, start seq, untyped State, and Matches. The consumer claims that State at the call site; the provider only maintains its State correctly and need not register a specialized query method.
 
 Each Reader query records a `{ key, revision, windowGap }` dependency. A matched predecessor's revision change replays the consumer; a miss while older history remains records a window gap for a later prepend.
 
@@ -164,7 +164,7 @@ IDs are never reused. Completed Contexts remain in the current window, providing
 
 Location has four shapes: `session`, `turn`, `step`, and `unresolved`. Turns and Steps each carry `open`, `closed`, or `unknown` status plus any loaded start and end Events.
 
-Each Turn and Step also carries a reference-stable Location data store. A Definition update replaces only its owned key; the same store identity can acquire new values through append or prepend, allowing Contexts, View Builders, and React renderers to share resolved hierarchy-level business facts without copying or scanning the global Node array.
+Each Turn and Step also carries a reference-stable Location data store whose `get(key)` returns unknown. A Definition update replaces only its owned key; consumers claim the payload they can prove. The same store identity can acquire new values through append or prepend, allowing Contexts, View Builders, and React renderers to share resolved hierarchy-level business facts without copying or scanning the global Node array.
 
 `unresolved` means the current history window lacks sufficient preceding boundaries; it does not mean session-level. When older prepend supplies those boundaries, the index corrects Match Locations and replays only Contexts that own those seqs.
 

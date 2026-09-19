@@ -1,9 +1,18 @@
 import type { Context } from '@deepseek-ai/cordis'
-import type {
-  ConversationNodeDefinition, RequestPromptInspector,
+import {
+  requireConversationPromptSnapshot,
+  type ConversationNodeDefinition, type ConversationPromptSnapshot, type RequestPromptInspector,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { trajectoryNode } from './trajectory-definition-common.ts'
 import type { TrajectoryRequestHeaderState } from './trajectory-contract.ts'
+
+function previousRequestHeaderPrompt(value: unknown): ConversationPromptSnapshot | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'object' || value === null) {
+    throw new TypeError('trajectory-request-header predecessor State is not an object')
+  }
+  return requireConversationPromptSnapshot(Reflect.get(value, 'prompt'))
+}
 
 /**
  * Request-header fact Definition for the Trajectory target.
@@ -22,8 +31,7 @@ function trajectoryRequestHeaderDefinition(inspect: RequestPromptInspector): Con
       if (match.event.type !== 'request/header') {
         throw new Error('trajectory-request-header start requires request/header')
       }
-      const previous = reader.previous<TrajectoryRequestHeaderState>('trajectory-request-header')
-        ?.state.prompt
+      const previous = previousRequestHeaderPrompt(reader.previous('trajectory-request-header')?.state)
       const { prompt, change } = inspect(previous, match.event)
       return {
         seq: match.event.seq,

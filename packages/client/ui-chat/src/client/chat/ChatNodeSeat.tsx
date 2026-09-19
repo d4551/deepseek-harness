@@ -1,13 +1,14 @@
 import { memo, useCallback, useMemo } from 'react'
 import { JsonBlock } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ChatNodeOwnerProps, ChatViewSlotProps } from '../contract/slots.ts'
-import type { ChatNode } from '../contract/chat-nodes.ts'
+import { storedChatNode, type ChatNode } from '../contract/chat-nodes.ts'
 import type { ChatNodeStore } from '../contract/snapshot.ts'
 import {
   decodeTurnProcess, TURN_PROCESS_INDEPENDENT_KINDS, turnProcessGeneration,
   type TurnProcessSpec,
 } from '../contract/turn-process.ts'
 import { storedTurnProcessEntry } from '../stores.ts'
+import { publishedTurnProcess } from '../conversation-nodes/location-data.ts'
 import { useSearchableHidden } from './searchable-hidden.ts'
 import css from './ChatView.module.css'
 
@@ -26,6 +27,18 @@ type RoutedChatNodeOwner = {
   [Kind in ChatNode['kind']]: ChatNodeOwnerProps & { readonly node: ChatNode<Kind> }
 }[ChatNode['kind']]
 
+function isRoutedChatOwner(
+  value: ChatNodeOwnerProps & { readonly node: ChatNode },
+): value is RoutedChatNodeOwner {
+  return typeof value.node.kind === 'string' && value.node.kind.length > 0
+}
+
+function routedChatOwner(owner: ChatNodeOwnerProps, node: ChatNode): RoutedChatNodeOwner {
+  const routed = { ...owner, node }
+  if (!isRoutedChatOwner(routed)) throw new TypeError('Chat node owner is not keyed')
+  return routed
+}
+
 const EMPTY_PROCESS_KEYS: readonly string[] = []
 
 interface TurnProcessLayout {
@@ -40,7 +53,7 @@ function turnProcessOpeningHumanAnchor(
 ): number | undefined {
   let anchor: number | undefined
   for (const key of keys) {
-    const node = nodes.get(key) as ChatNode | undefined
+    const node = storedChatNode(nodes.get(key))
     if ((node?.kind === 'user' || node?.kind === 'steering')
       && node.anchorSeq < spec.controlAnchorSeq) {
       anchor = Math.min(anchor ?? node.anchorSeq, node.anchorSeq)
@@ -59,7 +72,7 @@ function turnProcessLayout(
   let compactAnswer = true
   const openingHumanAnchor = turnProcessOpeningHumanAnchor(keys, nodes, spec)
   for (const key of keys) {
-    const node = nodes.get(key) as ChatNode | undefined
+    const node = storedChatNode(nodes.get(key))
     if (node === undefined || node.kind === 'turn-process') continue
     if ((node.kind === 'user' || node.kind === 'steering')
       && (openingHumanAnchor === undefined || node.anchorSeq > openingHumanAnchor)
@@ -82,12 +95,12 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
   selectedCallId, cwd, openFile, inspectCall, forkAt,
   renderMessageImages, fileMentions, useChat, useStore, actions, renderSlot, t,
 }: ChatNodeSeatProps) {
-  const node = useChat(snapshot => snapshot.nodes.get(nodeKey))
+  const node = useChat(snapshot => storedChatNode(snapshot.nodes.get(nodeKey)))
   const processSignature = useChat((snapshot) => {
     const current = snapshot.nodes.get(nodeKey)
     const location = current?.location
     return location?.kind === 'turn' || location?.kind === 'step'
-      ? location.turn.data.get('turn-process')
+      ? publishedTurnProcess(location.turn.data.get('turn-process'))
       : undefined
   })
   const processSpec = useMemo(
@@ -97,7 +110,7 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
   const nodeStore = useChat(snapshot => snapshot.nodes)
   const processLayoutKeys = useChat((snapshot) => {
     if (!compactTranscript || historyIncomplete || processSpec === undefined) return EMPTY_PROCESS_KEYS
-    const current = snapshot.nodes.get(nodeKey) as ChatNode | undefined
+    const current = storedChatNode(snapshot.nodes.get(nodeKey))
     const location = current?.location
     if (current === undefined
       || (location?.kind !== 'turn' && location?.kind !== 'step')
@@ -127,7 +140,7 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
       actions.setTurnProcessOpen(processSpec.turn, processGeneration, open)
     }
   }, [actions, processGeneration, processSpec])
-  const routedNode = node as ChatNode | undefined
+  const routedNode = node
   const sameTurn = routedNode !== undefined
     && processSpec !== undefined
     && (routedNode.location.kind === 'turn' || routedNode.location.kind === 'step')
@@ -193,10 +206,7 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
   const turn = location.kind === 'turn' || location.kind === 'step'
     ? location.turn.turn
     : undefined
-  // Runtime dispatch owns the correlation: every Node's discriminant is the
-  // keyed-slot entry passed alongside that same Node. TypeScript does not
-  // distribute an object containing a union into a union of objects itself.
-  const routedOwner = { ...owner, node: routedNode } as RoutedChatNodeOwner
+  const routedOwner = routedChatOwner(owner, routedNode)
   return (
     <div
       ref={wrapperRef}

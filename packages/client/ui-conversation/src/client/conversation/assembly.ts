@@ -9,7 +9,7 @@ import {
   createSnapshotStore, type ObservableSnapshot, type SnapshotStore,
 } from '@deepseek-ai/dsh-client-store'
 import type {
-  ConversationPublication, ConversationViewSnapshotMap,
+  ConversationPublication,
   ConversationViewSnapshotStore,
 } from '../contract/conversation.ts'
 import type { ConversationSnapshot } from '../contract/snapshot.ts'
@@ -28,9 +28,7 @@ export interface ConversationBinding {
    * @param target - registered Conversation target.
    * @returns source following the target through the binding snapshot store.
    */
-  target<Target extends Extract<keyof ConversationViewSnapshotMap, string>>(
-    target: Target,
-  ): ObservableSnapshot<ConversationViewSnapshotMap[Target] | undefined>
+  target(target: string): ObservableSnapshot<unknown>
 }
 
 class BoundConversation implements ConversationBinding {
@@ -52,9 +50,7 @@ class BoundConversation implements ConversationBinding {
     })
   }
 
-  target<Target extends Extract<keyof ConversationViewSnapshotMap, string>>(
-    target: Target,
-  ): ObservableSnapshot<ConversationViewSnapshotMap[Target] | undefined> {
+  target(target: string): ObservableSnapshot<unknown> {
     return {
       getSnapshot: () => this.viewStore.get(target),
       subscribe: listener => this.snapshot.subscribe(listener),

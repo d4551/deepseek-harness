@@ -4,8 +4,8 @@ import {
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
 import type {
   ConversationLocation, ConversationLocationData,
-  ConversationLocationDataStore, ConversationStepDataMap, ConversationTimelineSnapshot,
-  ConversationTurnDataMap, StepLocation, TurnLocation,
+  ConversationLocationDataStore, ConversationTimelineSnapshot,
+  StepLocation, TurnLocation,
 } from '../contract/conversation.ts'
 
 interface OwnedLocationData {
@@ -20,7 +20,7 @@ export interface ConversationLocationDataChange {
   readonly next: ConversationLocationData | null
 }
 
-class MutableLocationDataStore {
+class MutableLocationDataStore implements ConversationLocationDataStore {
   private entries = new Map<string, OwnedLocationData>()
 
   get(key: string): unknown {
@@ -478,12 +478,12 @@ export class ConversationLocationIndex {
     this.seqsByTurn.set(turn, current)
   }
 
-  private turnData(turn: number): ConversationLocationDataStore<ConversationTurnDataMap> {
-    return this.mutableTurnData(turn) as ConversationLocationDataStore<ConversationTurnDataMap>
+  private turnData(turn: number): ConversationLocationDataStore {
+    return this.mutableTurnData(turn)
   }
 
-  private stepData(turn: number, step: number): ConversationLocationDataStore<ConversationStepDataMap> {
-    return this.mutableStepData(stepDataKey(turn, step)) as ConversationLocationDataStore<ConversationStepDataMap>
+  private stepData(turn: number, step: number): ConversationLocationDataStore {
+    return this.mutableStepData(stepDataKey(turn, step))
   }
 
   private mutableTurnData(turn: number): MutableLocationDataStore {

@@ -76,6 +76,37 @@ declare module '@deepseek-ai/dsh-client-ui-conversation/client' {
 const EMPTY_LIST: readonly never[] = []
 const EMPTY_TIMELINE: ConversationTimelineSnapshot = { turnOrder: EMPTY_LIST, turns: new Map() }
 
+function isRecord(value: unknown): value is object {
+  return typeof value === 'object' && value !== null
+}
+
+function isChatSnapshot(value: unknown): value is ChatSnapshot {
+  if (!isRecord(value)) return false
+  const order: unknown = Reflect.get(value, 'order')
+  const nodes: unknown = Reflect.get(value, 'nodes')
+  const locations: unknown = Reflect.get(value, 'locations')
+  const navigation: unknown = Reflect.get(value, 'navigation')
+  const timeline: unknown = Reflect.get(value, 'timeline')
+  const legacy: unknown = Reflect.get(value, 'legacy')
+  return Array.isArray(order)
+    && isRecord(nodes) && typeof Reflect.get(nodes, 'get') === 'function' && typeof Reflect.get(nodes, 'values') === 'function'
+    && isRecord(locations) && typeof Reflect.get(locations, 'getTurn') === 'function' && typeof Reflect.get(locations, 'getStep') === 'function'
+    && isRecord(navigation) && typeof Reflect.get(navigation, 'items') === 'function'
+    && isRecord(timeline)
+    && isRecord(legacy)
+}
+
+/**
+ * Refuse a Conversation target snapshot that is not a Chat snapshot.
+ * @param value - snapshot published for the chat target.
+ * @returns the Chat snapshot.
+ */
+export function requireChatSnapshot(value: unknown): ChatSnapshot {
+  if (value === undefined) return EMPTY_CHAT_SNAPSHOT
+  if (!isChatSnapshot(value)) throw new TypeError('ui-chat: chat target snapshot is not a ChatSnapshot')
+  return value
+}
+
 /** Empty Chat target used before a view builder is registered. */
 export const EMPTY_CHAT_SNAPSHOT: ChatSnapshot = {
   order: EMPTY_LIST,

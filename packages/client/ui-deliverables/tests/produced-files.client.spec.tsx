@@ -14,7 +14,7 @@ import {
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {
   ConversationLocationDataStore, ConversationMatch, ConversationNodeDefinition,
-  ConversationStartMatch, ConversationTimelineSnapshot, ConversationTurnDataMap, ConversationViewDefinition,
+  ConversationStartMatch, ConversationTimelineSnapshot, ConversationViewDefinition,
   ConversationViewNode, TurnLocation,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
@@ -46,19 +46,14 @@ afterEach(() => {
   }
 })
 
-class TestTurnDataStore implements ConversationLocationDataStore<ConversationTurnDataMap> {
+class TestTurnDataStore implements ConversationLocationDataStore {
   private readonly values = new Map<string, unknown>()
 
-  get<Key extends Extract<keyof ConversationTurnDataMap, string>>(
-    key: Key,
-  ): Readonly<ConversationTurnDataMap[Key]> | undefined {
-    return this.values.get(key) as Readonly<ConversationTurnDataMap[Key]> | undefined
+  get(key: string): unknown {
+    return this.values.get(key)
   }
 
-  set<Key extends Extract<keyof ConversationTurnDataMap, string>>(
-    key: Key,
-    value: ConversationTurnDataMap[Key],
-  ): void {
+  set(key: string, value: unknown): void {
     this.values.set(key, value)
   }
 }
@@ -429,7 +424,7 @@ describe('ProducedFiles row', () => {
     const openFile = vi.fn<(path: string) => void>()
     let available = 226
     let resize: ResizeObserverCallback | undefined
-    const disconnect = vi.fn()
+    const disconnect = vi.fn<() => void>()
     const observeNode = vi.fn<(target: Element) => void>()
     vi.stubGlobal('ResizeObserver', class {
       constructor(callback: ResizeObserverCallback) { resize = callback }
@@ -643,7 +638,7 @@ describe('plugin registration', () => {
     const first = Promise.withResolvers<{ ok: true; value: boolean }>()
     const second = Promise.withResolvers<{ ok: true; value: boolean }>()
     const staleFailure = Promise.withResolvers<{ ok: true; value: boolean }>()
-    const capability = vi.fn()
+    const capability = vi.fn<() => Promise<{ ok: true; value: boolean }>>()
       .mockReturnValueOnce(first.promise)
       .mockReturnValueOnce(second.promise)
       .mockReturnValueOnce(staleFailure.promise)

@@ -135,10 +135,9 @@ export class HistoricalImageCache {
         entry.current = url
         if (previous !== undefined && previous !== url) this.releaseUrl(previous)
         return url
-      })
-      .catch((error: unknown) => {
+      }, (reason: Error) => {
         if (this.entries.get(key) === entry && entry.current === undefined) this.entries.delete(key)
-        throw error
+        throw reason
       })
   }
 
@@ -157,7 +156,10 @@ export class HistoricalImageCache {
       this.release(sessionId)
     }, 'ui-conversation historical image scope')
     this.scopeDisposers.set(sessionId, () => {
-      Promise.resolve(dispose()).then(undefined, (error: unknown) => { scope.logger.error(error) })
+      const released = dispose()
+      if (released !== undefined) {
+        throw new TypeError('ui-conversation historical image scope dispose must complete synchronously')
+      }
     })
   }
 

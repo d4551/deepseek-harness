@@ -14,13 +14,13 @@ export interface ConversationTurnDataMap {}
 export interface ConversationStepDataMap {}
 
 /** Stable keyed reader for independently owned Location business values. */
-export interface ConversationLocationDataStore<DataMap extends object> {
+export interface ConversationLocationDataStore {
   /**
-   * Read one business value without exposing another owner's mutable State.
+   * Read one published Location value by its owning kind key.
    * @param key - declaration-merged business key.
-   * @returns latest immutable value, when its owning Context has published one.
+   * @returns latest stored value, when its owning Context has published one.
    */
-  get<Key extends Extract<keyof DataMap, string>>(key: Key): Readonly<DataMap[Key]> | undefined
+  get(key: string): unknown
 }
 
 interface ConversationLocationDataValue {
@@ -71,7 +71,7 @@ export interface StepLocation {
   readonly end: SessionEvent<'step/end'> | undefined
   readonly status: 'open' | 'closed' | 'unknown'
   /** Stable reader for Step-scoped business values. */
-  readonly data: ConversationLocationDataStore<ConversationStepDataMap>
+  readonly data: ConversationLocationDataStore
 }
 
 /** Immutable resolved boundary for one Agent turn. */
@@ -82,7 +82,7 @@ export interface TurnLocation {
   readonly status: 'open' | 'closed' | 'unknown'
   readonly steps: readonly StepLocation[]
   /** Stable reader for Turn-scoped business values. */
-  readonly data: ConversationLocationDataStore<ConversationTurnDataMap>
+  readonly data: ConversationLocationDataStore
 }
 
 /** Engine-owned placement of one matched event in the Session hierarchy. */
@@ -124,9 +124,7 @@ export interface ConversationViewSnapshotMap {}
 /** Stable reader over the latest snapshot of every registered view target. */
 export interface ConversationViewSnapshotStore {
   /** @param target - registered view target. @returns its current snapshot. */
-  get<Target extends Extract<keyof ConversationViewSnapshotMap, string>>(
-    target: Target,
-  ): ConversationViewSnapshotMap[Target] | undefined
+  get(target: string): unknown
 }
 
 /** Immutable public view of an assembled business Context. */
@@ -141,12 +139,12 @@ export interface ConversationNodeContext<State = unknown> {
 }
 
 /** Read-only predecessor returned to a Definition's start function. */
-export interface ConversationPreviousContext<State = unknown> {
+export interface ConversationPreviousContext {
   readonly key: string
   readonly kind: string
   readonly id: string
   readonly startSeq: number
-  readonly state: Readonly<State>
+  readonly state: unknown
   readonly matches: readonly ConversationMatch[]
 }
 
@@ -158,7 +156,7 @@ export interface ConversationContextReader {
    * @param kind - Definition kind to query.
    * @returns the nearest predecessor, or undefined when absent in the current window.
    */
-  previous<State>(kind: string): ConversationPreviousContext<State> | undefined
+  previous(kind: string): ConversationPreviousContext | undefined
 }
 
 /** Requested cadence for materializing updated business State into view Nodes. */

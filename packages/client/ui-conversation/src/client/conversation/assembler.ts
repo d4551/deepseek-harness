@@ -6,7 +6,7 @@ import type {
   ConversationNodeContext, ConversationNodeDefinition, ConversationPreviousContext,
   ConversationLocationDataScope, ConversationPublication, ConversationViewBuilder,
   ConversationStartMatch,
-  ConversationViewDefinition, ConversationViewNode, ConversationViewSnapshotMap,
+  ConversationViewDefinition, ConversationViewNode,
   ConversationViewSnapshotStore,
 } from '../contract/conversation.ts'
 import { conversationContextKey } from '../contract/conversation.ts'
@@ -375,10 +375,8 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
     return this.views.get(target)?.snapshot
   }
 
-  get<Target extends Extract<keyof ConversationViewSnapshotMap, string>>(
-    target: Target,
-  ): ConversationViewSnapshotMap[Target] | undefined {
-    return this.snapshot(target) as ConversationViewSnapshotMap[Target] | undefined
+  get(target: string): unknown {
+    return this.snapshot(target)
   }
 
   /**
@@ -654,7 +652,7 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
     dependencies: Map<string, Dependency>,
   ): ConversationContextReader {
     return {
-      previous: <State>(kind: string): ConversationPreviousContext<State> | undefined => {
+      previous: (kind: string): ConversationPreviousContext | undefined => {
         const predecessor = this.previousContext(kind, beforeSeq)
         dependencies.set(kind, {
           kind,
@@ -670,7 +668,7 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
           kind: predecessor.kind,
           id: predecessor.id,
           startSeq: seq,
-          state: predecessor.state as Readonly<State>,
+          state: predecessor.state,
           matches: predecessor.matches,
         }
       },

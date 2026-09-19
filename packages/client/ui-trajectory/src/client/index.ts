@@ -21,7 +21,7 @@ import { registerTrajectoryCompactionDefinitions } from './trajectory-compaction
 import { registerTrajectoryMessageDefinitions } from './trajectory-message-definitions.ts'
 import { registerTrajectoryRequestHeaderDefinition } from './trajectory-request-header-definition.ts'
 import {
-  EMPTY_TRAJECTORY_SNAPSHOT, registerTrajectoryConversationView,
+  registerTrajectoryConversationView, requireTrajectorySnapshot,
 } from './trajectory-snapshot-builder.ts'
 import type { TrajectorySnapshot } from './trajectory-contract.ts'
 import { registerTrajectoryToolDefinition } from './trajectory-tool-definition.ts'
@@ -51,7 +51,7 @@ export function apply(ctx: Context): void {
     if (source === undefined) {
       const target = ctx.uiConversation.binding(binding).target('trajectory')
       source = {
-        getSnapshot: () => target.getSnapshot() ?? EMPTY_TRAJECTORY_SNAPSHOT,
+        getSnapshot: () => requireTrajectorySnapshot(target.getSnapshot()),
         subscribe: listener => target.subscribe(listener),
       }
       trajectorySources.set(binding, source)

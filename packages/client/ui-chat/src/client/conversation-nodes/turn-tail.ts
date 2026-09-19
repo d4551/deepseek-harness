@@ -12,6 +12,7 @@ import type {
 import { deriveTurnMetrics } from '../contract/turn-metrics.ts'
 import { SYNTHETIC_SEQ_OFFSETS } from '@deepseek-ai/dsh-client-ui-projection'
 import { chatNode } from './common.ts'
+import { publishedAssistantStep, publishedTurnTail } from './location-data.ts'
 import { toAssistantBlocks } from '@deepseek-ai/dsh-client-ui-projection'
 
 declare module '../contract/chat-nodes.ts' {
@@ -141,7 +142,7 @@ function tailData(context: ConversationNodeContext<TurnTailState>): TurnTailChat
   const turn = turnLocation(context)
   if (turn === undefined) return null
   const assistants = turn.steps
-    .map(step => step.data.get('assistant-step'))
+    .map(step => publishedAssistantStep(step.data.get('assistant-step')))
     .filter((candidate): candidate is Readonly<AssistantChatData> => candidate !== undefined)
   const finalized = assistants
     .filter((candidate): candidate is Readonly<FinalAssistantChatData> => candidate.finalNode !== undefined)
@@ -210,7 +211,7 @@ export const turnTailDefinition: ConversationNodeDefinition<TurnTailState> = {
   },
   buildViewNode: (context) => {
     const turn = turnLocation(context)
-    const data = turn?.data.get('turn-tail')
+    const data = publishedTurnTail(turn?.data.get('turn-tail'))
     return data === undefined ? null : chatNode(context, 'turn-tail', closingAnchor(context), data)
   },
 }

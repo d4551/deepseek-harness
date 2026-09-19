@@ -23,6 +23,38 @@ export const EMPTY_TRAJECTORY_SNAPSHOT: TrajectorySnapshot = {
   runningCalls: EMPTY_LIST,
 }
 
+function isRecord(value: unknown): value is object {
+  return typeof value === 'object' && value !== null
+}
+
+function isTrajectorySnapshot(value: unknown): value is TrajectorySnapshot {
+  if (!isRecord(value)) return false
+  const eventNodes: unknown = Reflect.get(value, 'eventNodes')
+  const eventLocations: unknown = Reflect.get(value, 'eventLocations')
+  const requests: unknown = Reflect.get(value, 'requests')
+  const callSchemas: unknown = Reflect.get(value, 'callSchemas')
+  const runningCalls: unknown = Reflect.get(value, 'runningCalls')
+  return Array.isArray(eventNodes)
+    && eventLocations instanceof Map
+    && Array.isArray(requests)
+    && callSchemas instanceof Map
+    && Array.isArray(runningCalls)
+    && 'partial' in value
+}
+
+/**
+ * Refuse a Conversation target snapshot that is not a Trajectory snapshot.
+ * @param value - snapshot published for the trajectory target.
+ * @returns the Trajectory snapshot.
+ */
+export function requireTrajectorySnapshot(value: unknown): TrajectorySnapshot {
+  if (value === undefined) return EMPTY_TRAJECTORY_SNAPSHOT
+  if (!isTrajectorySnapshot(value)) {
+    throw new TypeError('ui-trajectory: trajectory target snapshot is not a TrajectorySnapshot')
+  }
+  return value
+}
+
 function stepKey(turn: number, step: number): string {
   return `${turn}\u0000${step}`
 }

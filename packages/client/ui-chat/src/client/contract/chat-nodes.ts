@@ -26,6 +26,29 @@ export type ChatNode<Kind extends ChatNodeKind = ChatNodeKind> = {
   }
 }[Kind]
 
+function isChatNode(value: ChatConversationViewNode): value is ChatNode {
+  return value.target === 'chat' && typeof value.kind === 'string' && value.kind.length > 0
+}
+
+/**
+ * Claim a Chat target Node published through the Chat view store.
+ * @param value - Chat target view Node.
+ * @returns the Node with its registered renderer kind.
+ */
+export function publishedChatNode(value: ChatConversationViewNode): ChatNode {
+  if (!isChatNode(value)) throw new TypeError('Chat view node is not a published ChatNode')
+  return value
+}
+
+/**
+ * Claim a stored Chat target Node, when the store has one.
+ * @param value - store entry for one Chat Context key.
+ * @returns the published Node, or undefined when absent.
+ */
+export function storedChatNode(value: ChatConversationViewNode | undefined): ChatNode | undefined {
+  return value === undefined ? undefined : publishedChatNode(value)
+}
+
 /** Final Assistant row payload shared by streaming and settled states. */
 export interface AssistantChatData {
   readonly status: 'running' | 'settled' | 'interrupted'
