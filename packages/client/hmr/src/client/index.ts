@@ -75,6 +75,9 @@ export const name = 'client-hmr'
 /** Required services: the vendored Loader (entry governance) and the client module system (boot provide, service name `modules`). */
 export const inject = ['loader', 'modules']
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Find the loader entry whose module specifier is `id` (entry tree ids are random; the package name lives in `options.name`). */
 function findEntry(loader: Loader, id: string): Entry | undefined {
   for (const entry of loader.entries()) {
@@ -145,9 +148,9 @@ export function apply(ctx: Context): void {
   const handle = (frame: PluginsEventFrame): void => {
     switch (frame.type) {
       case 'rebuilt':
-        queue = queue.then(() => reload(frame.id, frame.rev)).catch((error: unknown) => {
+        queue = queue.then(() => reload(frame.id, frame.rev)).then(undefined, (reason: Thrown) => {
           ctx.logger.error(`client-hmr: reload of "${frame.id}" failed`)
-          ctx.logger.error(error)
+          ctx.logger.error(reason)
         })
         break
       case 'graph':
