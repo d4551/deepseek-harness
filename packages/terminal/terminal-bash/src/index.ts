@@ -20,6 +20,17 @@ import { CONTROLLED_PROMPT } from './sanitize.ts'
 export { Config } from './config.ts'
 export type { Config as TerminalLocalConfig } from './config.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+function thrownMessage(reason: Thrown): string {
+  if (reason === undefined) return 'undefined'
+  if (typeof reason === 'object') {
+    return reason === null ? 'null' : Object.prototype.toString.call(reason)
+  }
+  return String(reason)
+}
+
 /** Cordis plugin name. */
 export const name = 'terminal-bash'
 /** Required services: PTY registry, shared confinement policy, and process substrate. */
@@ -103,7 +114,7 @@ function spawnArgv(ctx: Context, config: ResolvedConfig, policy: SandboxExecutio
 // TODO(pty-initialize-race-home): Fold this outer abort race into
 // LocalPtySession.initialize when the send-state consolidation lands; the
 // session already owns the send lifecycle the race protects.
-async function startupSession(
+function startupSession(
   session: LocalPtySession,
   dialect: ShellDialect,
   timeoutMs: number,
@@ -136,13 +147,17 @@ async function startupSession(
     }
     session.motd = viewport
   }
+  let startSucceeded = false
+  let firstFailure: Thrown | undefined
+  const claimFulfill = (): void => { startSucceeded = true }
+  const claimReject = (error: Thrown): void => { firstFailure ??= error }
   const races: Promise<void>[] = []
   let onAbort: (() => void) | undefined
   if (signal !== undefined) {
     const aborted = Promise.withResolvers<never>()
     onAbort = () => { aborted.reject(signal.reason) }
     signal.addEventListener('abort', onAbort, { once: true })
-    races.push(aborted.promise)
+    races.push(aborted.promise.then(undefined, claimReject))
   }
   let deadlineTimer: ReturnType<typeof setTimeout> | undefined
   if (dialect === 'pwsh') {
@@ -151,15 +166,30 @@ async function startupSession(
       startupOperation?.cancel()
       deadline.reject(new Error('PTY shell did not reach readiness before startup timeout'))
     }, timeoutMs)
-    races.push(deadline.promise)
+    races.push(deadline.promise.then(undefined, claimReject))
   }
-  try {
-    signal?.throwIfAborted()
-    await Promise.race([start(), ...races])
-  } finally {
+  const release = (): void => {
     if (deadlineTimer !== undefined) clearTimeout(deadlineTimer)
     if (signal !== undefined && onAbort !== undefined) signal.removeEventListener('abort', onAbort)
   }
+  const raced = new Promise<void>((resolve, reject) => {
+    signal?.throwIfAborted()
+    Promise.race([
+      start().then(claimFulfill, claimReject),
+      ...races,
+    ]).then(() => {
+      if (!startSucceeded && firstFailure !== undefined) {
+        throw firstFailure instanceof Error ? firstFailure : new Error(thrownMessage(firstFailure))
+      }
+    }).then(resolve, reject)
+  })
+  return raced.then(
+    () => { release() },
+    (error: Thrown) => {
+      release()
+      throw error
+    },
+  )
 }
 
 /** Local shell backend registered under the configured type. */
@@ -196,17 +226,15 @@ export class BashTerminalBackend implements TerminalBackend {
       signal: spec.signal,
     })
     const session = this.createSession(terminal, this.config)
-    try {
-      await startupSession(session, this.config.shellDialect, this.config.timeoutMs, spec.signal)
-      return session
-    } catch (error) {
-      try {
-        await session.close('PTY startup failed')
-      } catch (closeError) {
-        throw new TerminalBackendCleanupError(error, closeError)
-      }
-      throw error
-    }
+    return startupSession(session, this.config.shellDialect, this.config.timeoutMs, spec.signal).then(
+      () => session,
+      (error: Thrown) => session.close('PTY startup failed').then(
+        () => { throw error },
+        (closeError: Thrown) => {
+          throw new TerminalBackendCleanupError(error, closeError)
+        },
+      ),
+    )
   }
 }
 

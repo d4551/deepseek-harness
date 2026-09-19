@@ -28,6 +28,19 @@ import { CONTROLLED_PROMPT, TerminalSanitizer } from './sanitize.ts'
 /** Values a Promise reject arm may deliver. */
 type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
 
+/**
+ * Human text for a rejected PTY transport or send value.
+ * @param reason - the Thrown the Promise rejected with.
+ * @returns undefined/null literals; objects Object.prototype.toString.call(reason); primitives String(reason).
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason === undefined) return 'undefined'
+  if (typeof reason === 'object') {
+    return reason === null ? 'null' : Object.prototype.toString.call(reason)
+  }
+  return String(reason)
+}
+
 // Node exposes this package's CommonJS main as default-only, so load its named export through require.
 const { Terminal: HeadlessTerminal } = createRequire(import.meta.url)('@xterm/headless') as typeof import('@xterm/headless')
 
@@ -128,10 +141,10 @@ class LocalSendOperation implements TerminalSendOperation {
     })
   }
 
-  fail(error: unknown): void {
+  fail(error: Thrown): void {
     if (this.finished) return
     this.finished = true
-    this.promise.reject(error)
+    this.promise.reject(error instanceof Error ? error : new Error(thrownMessage(error)))
   }
 
   readOutput(): TerminalSendRead {
@@ -238,20 +251,29 @@ export class LocalPtySession implements TerminalBackendSession {
    * @param signal - optional cancellation while the shell reaches its first prompt.
    * @returns Resolves after startup readiness; rejects on exit or readiness timeout.
    */
-  async initialize(signal?: AbortSignal): Promise<void> {
+  initialize(signal?: AbortSignal): Promise<void> {
     this.initializing = true
-    try {
+    const started = new Promise<TerminalSendResult>((resolve, reject) => {
       const operation = this.startSend({ text: '', submit: false, ...signal !== undefined ? { signal } : {} })
-      const result = await operation.done
-      if (result.waitReason === 'session_exit') throw new Error('PTY shell exited during startup')
-      if (result.waitReason === 'timeout') throw new Error('PTY shell did not reach readiness before startup timeout')
-      this.motd = result.viewport
-    } catch (error) {
-      signal?.throwIfAborted()
-      throw error
-    } finally {
-      this.initializing = false
-    }
+      operation.done.then(resolve, reject)
+    })
+    return started.then(
+      (result) => {
+        if (result.waitReason === 'session_exit') throw new Error('PTY shell exited during startup')
+        if (result.waitReason === 'timeout') throw new Error('PTY shell did not reach readiness before startup timeout')
+        this.motd = result.viewport
+      },
+      (error: Thrown) => {
+        signal?.throwIfAborted()
+        throw error
+      },
+    ).then(
+      () => { this.initializing = false },
+      (error: Thrown) => {
+        this.initializing = false
+        throw error
+      },
+    )
   }
 
   startSend(request: TerminalSendRequest): TerminalSendOperation {
@@ -287,62 +309,100 @@ export class LocalPtySession implements TerminalBackendSession {
           || this.protocolWorkPending())
       }
     }, this.config.timeoutMs)
-    this.beginSend(operation, request).then(undefined, (reason: Thrown) => { this.onTransportFailure(reason) })
+    this.beginSend(operation, request).then(undefined, this.claimTransportRejection)
     return operation
   }
 
-  private async beginSend(operation: LocalSendOperation, request: TerminalSendRequest): Promise<void> {
-    let foreground: SubprocessTerminalForeground | undefined
-    try {
-      if (this.protocolWorkPending()) await this.drainTerminalProtocol()
-      const emulatorWrites = this.emulatorWrites
-      const responseWrites = this.responseWrites
-      foreground = await this.terminal.inspectForeground()
+  private readonly claimTransportRejection = (reason: Thrown): void => {
+    this.onTransportFailure(reason)
+  }
+
+  private beginSend(operation: LocalSendOperation, request: TerminalSendRequest): Promise<void> {
+    const inspect = this.protocolWorkPending()
+      ? this.drainTerminalProtocol().then(() => this.inspectForegroundThenWrite(operation, request))
+      : this.inspectForegroundThenWrite(operation, request)
+    return inspect.then(
+      undefined,
+      (error: Thrown) => this.claimInspectionFailure(operation, error),
+    )
+  }
+
+  private claimInspectionFailure(operation: LocalSendOperation, error: Thrown): Promise<void> {
+    const drained = this.protocolWorkPending() ? this.drainTerminalProtocol() : Promise.resolve()
+    return drained.then(
+      () => {
+        // A pre-write inspection failure while cancellation owns the slot must not
+        // release it: interruptOnce's in-flight foreground signal could land on a
+        // successor's foreground group. The interrupt path's post-signal tail
+        // resumes polling, whose guarded catch propagates a persistent failure.
+        // A retained settled operation implies that same in-flight interrupt, so
+        // this guard admits only an unsettled active send.
+        if (this.active === operation && !this.closing && this.interrupting !== operation) {
+          this.failActive(error)
+        }
+      },
+      this.claimTransportRejection,
+    )
+  }
+
+  private inspectForegroundThenWrite(
+    operation: LocalSendOperation,
+    request: TerminalSendRequest,
+  ): Promise<void> {
+    const emulatorWrites = this.emulatorWrites
+    const responseWrites = this.responseWrites
+    return this.terminal.inspectForeground().then((foreground) => {
       if (this.protocolStateChanged(emulatorWrites, responseWrites)) {
-        foreground = await this.inspectForegroundAfterProtocol()
+        return this.inspectForegroundAfterProtocol().then(resolved =>
+          this.writeSendInput(operation, request, resolved))
       }
-    } catch (error) {
-      if (this.protocolWorkPending()) await this.drainTerminalProtocol()
-      // A pre-write inspection failure while cancellation owns the slot must not
-      // release it: interruptOnce's in-flight foreground signal could land on a
-      // successor's foreground group. The interrupt path's post-signal tail
-      // resumes polling, whose guarded catch propagates a persistent failure.
-      // A retained settled operation implies that same in-flight interrupt, so
-      // this guard admits only an unsettled active send.
-      if (this.active === operation && !this.closing && this.interrupting !== operation) {
-        this.failActive(error)
-      }
+      return this.writeSendInput(operation, request, foreground)
+    })
+  }
+
+  private writeSendInput(
+    operation: LocalSendOperation,
+    request: TerminalSendRequest,
+    foreground: SubprocessTerminalForeground | undefined,
+  ): Promise<void> {
+    if (this.active !== operation || this.closing || this.interrupting === operation) return Promise.resolve()
+    operation.setInitialForeground(foreground)
+    const input = `${request.text}${request.submit ? '\r' : ''}`
+    if (input.length === 0 || operation.cancelRequested) {
+      this.scheduleAfterWrite(operation)
+      return Promise.resolve()
+    }
+    return this.awaitProviderWrite(operation, input)
+  }
+
+  private awaitProviderWrite(operation: LocalSendOperation, input: string): Promise<void> {
+    this.resetReadinessEvidence()
+    const write = this.terminal.write(input)
+    this.activeWrite = write.then(() => true, (_error: Thrown) => false)
+    return write.then(
+      () => {
+        this.activeWrite = undefined
+        this.scheduleAfterWrite(operation)
+      },
+      (error: Thrown) => {
+        this.activeWrite = undefined
+        if (this.active === operation && !this.closing) {
+          if (operation.settled) this.releaseSettledActive()
+          else this.failActive(error)
+        }
+      },
+    )
+  }
+
+  private scheduleAfterWrite(operation: LocalSendOperation): void {
+    if (operation.cancelRequested) return
+    if (this.active === operation && operation.settled) {
+      this.releaseSettledActive()
       return
     }
-    try {
-      if (this.active !== operation || this.closing || this.interrupting === operation) return
-      operation.setInitialForeground(foreground)
-      const input = `${request.text}${request.submit ? '\r' : ''}`
-      if (input.length > 0 && !operation.cancelRequested) {
-        this.resetReadinessEvidence()
-        const write = this.terminal.write(input)
-        this.activeWrite = write.then(() => true, (_error: Thrown) => false)
-        try {
-          await write
-        } finally {
-          this.activeWrite = undefined
-        }
-      }
-      // Cancellation owns post-write signalling and reservation release.
-      if (operation.cancelRequested) return
-      if (this.active === operation && operation.settled) {
-        this.releaseSettledActive()
-        return
-      }
-      if (this.active === operation && !this.isClosing()) {
-        this.pollingReady = operation
-        this.schedulePoll(operation)
-      }
-    } catch (error) {
-      if (this.active === operation && !this.closing) {
-        if (operation.settled) this.releaseSettledActive()
-        else this.failActive(error)
-      }
+    if (this.active === operation && !this.isClosing()) {
+      this.pollingReady = operation
+      this.schedulePoll(operation)
     }
   }
 
@@ -448,8 +508,8 @@ export class LocalPtySession implements TerminalBackendSession {
     this.settleActive('session_exit')
   }
 
-  private onTransportFailure(error: unknown): void {
-    const failure = error instanceof Error ? error : new Error(String(error))
+  private onTransportFailure(error: Thrown): void {
+    const failure = error instanceof Error ? error : new Error(thrownMessage(error))
     this.transportFailure ??= failure
     this.statusValue = { kind: 'exited', exitCode: null, signal: null }
     this.closeEmulator()
@@ -469,60 +529,83 @@ export class LocalPtySession implements TerminalBackendSession {
     if (this.activeTimer !== undefined) clearTimeout(this.activeTimer)
     this.activeTimer = setTimeout(() => {
       this.activeTimer = undefined
-      this.pollReadiness(operation).then(undefined, (reason: Thrown) => { this.onTransportFailure(reason) })
+      this.pollReadiness(operation).then(undefined, this.claimTransportRejection)
     }, delayMs)
   }
 
-  private async pollReadiness(operation: LocalSendOperation): Promise<void> {
-    if (this.active !== operation || this.polling) return
+  private pollReadiness(operation: LocalSendOperation): Promise<void> {
+    if (this.active !== operation || this.polling) return Promise.resolve()
     this.polling = true
-    try {
-      if (this.statusValue.kind === 'exited') {
-        this.settleActive('session_exit')
-        return
-      }
-      if (this.protocolWorkPending()) await this.drainTerminalProtocol()
-      const emulatorWrites = this.emulatorWrites
-      const responseWrites = this.responseWrites
-      let foreground = await this.terminal.inspectForeground()
-      if (this.protocolStateChanged(emulatorWrites, responseWrites)) {
-        foreground = await this.inspectForegroundAfterProtocol()
-      }
-      if (this.active !== operation || this.closing || this.interrupting === operation) return
-      const idleFor = Date.now() - this.lastOutputAt
-      if (this.promptSeen && foreground !== undefined && this.shellPgid === undefined) {
-        this.shellPgid = foreground.processGroupId
-      }
-      if (this.promptSeen && this.promptTextSeen && idleFor >= this.config.pollIntervalMs
-        && foreground?.processGroupId === this.shellPgid) {
-        this.settleActive('stdin_read')
-        return
-      }
-      const elapsed = Date.now() - operation.startedAt
-      const startupHasOutput = !this.initializing || this.scrollback.snapshot().text.length > 0
-      const acceptsStdinWait = startupHasOutput && foreground !== undefined
-        && operation.acceptsStdinWait(foreground.processGroupId, foreground.inputWaiting)
-      if (elapsed >= this.config.exactProbeAfterMs && acceptsStdinWait) {
-        this.settleActive('stdin_read')
-        return
-      }
-      // A prompt candidate can race bash's foreground handoff, but an interactive
-      // child also inherits PROMPT_COMMAND. Silence therefore remains the bound
-      // on waiting for shell ownership instead of letting a child marker suppress
-      // readiness until the absolute timeout.
-      const handoffGrace = this.promptSeen ? this.config.handoffGraceMs : 0
-      if (startupHasOutput && idleFor >= this.config.idleSilenceMs + handoffGrace) {
-        this.settleActive('inferred_idle')
-      }
-    } catch (error) {
-      if (this.protocolWorkPending()) await this.drainTerminalProtocol()
-      if (this.active === operation && !this.closing && this.interrupting !== operation) this.failActive(error)
-    } finally {
-      this.polling = false
-      const active = this.active
-      const ready = this.pollingReady
-      if (ready !== undefined && active === ready) this.schedulePoll(ready)
+    let poll: Promise<void>
+    if (this.statusValue.kind === 'exited') {
+      this.settleActive('session_exit')
+      poll = Promise.resolve()
+    } else if (this.protocolWorkPending()) {
+      poll = this.drainTerminalProtocol().then(() => this.inspectAndApplyReadiness(operation))
+    } else {
+      poll = this.inspectAndApplyReadiness(operation)
     }
+    return poll.then(
+      undefined,
+      (error: Thrown) => {
+        const drained = this.protocolWorkPending() ? this.drainTerminalProtocol() : Promise.resolve()
+        return drained.then(
+          () => {
+            if (this.active === operation && !this.closing && this.interrupting !== operation) this.failActive(error)
+          },
+          this.claimTransportRejection,
+        )
+      },
+    ).then(() => { this.finishReadinessPoll() })
+  }
+
+  private inspectAndApplyReadiness(operation: LocalSendOperation): Promise<void> {
+    const emulatorWrites = this.emulatorWrites
+    const responseWrites = this.responseWrites
+    return this.terminal.inspectForeground().then((foreground) => {
+      if (this.protocolStateChanged(emulatorWrites, responseWrites)) {
+        return this.inspectForegroundAfterProtocol().then((resolved) => {
+          this.applyReadiness(operation, resolved)
+        })
+      }
+      this.applyReadiness(operation, foreground)
+    })
+  }
+
+  private applyReadiness(operation: LocalSendOperation, foreground: SubprocessTerminalForeground | undefined): void {
+    if (this.active !== operation || this.closing || this.interrupting === operation) return
+    const idleFor = Date.now() - this.lastOutputAt
+    if (this.promptSeen && foreground !== undefined && this.shellPgid === undefined) {
+      this.shellPgid = foreground.processGroupId
+    }
+    if (this.promptSeen && this.promptTextSeen && idleFor >= this.config.pollIntervalMs
+      && foreground?.processGroupId === this.shellPgid) {
+      this.settleActive('stdin_read')
+      return
+    }
+    const elapsed = Date.now() - operation.startedAt
+    const startupHasOutput = !this.initializing || this.scrollback.snapshot().text.length > 0
+    const acceptsStdinWait = startupHasOutput && foreground !== undefined
+      && operation.acceptsStdinWait(foreground.processGroupId, foreground.inputWaiting)
+    if (elapsed >= this.config.exactProbeAfterMs && acceptsStdinWait) {
+      this.settleActive('stdin_read')
+      return
+    }
+    // A prompt candidate can race bash's foreground handoff, but an interactive
+    // child also inherits PROMPT_COMMAND. Silence therefore remains the bound
+    // on waiting for shell ownership instead of letting a child marker suppress
+    // readiness until the absolute timeout.
+    const handoffGrace = this.promptSeen ? this.config.handoffGraceMs : 0
+    if (startupHasOutput && idleFor >= this.config.idleSilenceMs + handoffGrace) {
+      this.settleActive('inferred_idle')
+    }
+  }
+
+  private finishReadinessPoll(): void {
+    this.polling = false
+    const active = this.active
+    const ready = this.pollingReady
+    if (ready !== undefined && active === ready) this.schedulePoll(ready)
   }
 
   /** Wait until generated replies reach the provider before another send can publish. */
@@ -656,7 +739,7 @@ export class LocalPtySession implements TerminalBackendSession {
     this.active = undefined
   }
 
-  private failActive(error: unknown): void {
+  private failActive(error: Thrown): void {
     const operation = this.active
     if (operation === undefined) return
     this.clearActive()
@@ -667,20 +750,34 @@ export class LocalPtySession implements TerminalBackendSession {
     if (this.active !== operation) return
     this.interrupting = operation
     this.stopReadinessPolling()
-    this.interruptOnce(operation).then(undefined, (reason: Thrown) => { this.onTransportFailure(reason) })
+    this.interruptOnce(operation).then(undefined, this.claimTransportRejection)
   }
 
-  private async interruptOnce(operation: LocalSendOperation): Promise<void> {
-    try {
-      const activeWrite = this.activeWrite
-      if (activeWrite !== undefined && !await activeWrite) return
-      await this.terminal.signalForeground('SIGINT')
-    } catch (error) {
-      if (this.active === operation && !this.closing) this.onTransportFailure(error)
-      return
-    } finally {
-      if (this.interrupting === operation) this.interrupting = undefined
-    }
+  private interruptOnce(operation: LocalSendOperation): Promise<void> {
+    const activeWrite = this.activeWrite
+    const signaled = activeWrite === undefined
+      ? this.terminal.signalForeground('SIGINT').then((): 'signaled' => 'signaled')
+      : activeWrite.then((writeOk): 'skipped' | Promise<'signaled'> => {
+        if (!writeOk) return 'skipped'
+        return this.terminal.signalForeground('SIGINT').then((): 'signaled' => 'signaled')
+      })
+    return signaled.then(
+      (result) => {
+        this.clearInterrupt(operation)
+        if (result === 'signaled') this.resumeAfterInterrupt(operation)
+      },
+      (error: Thrown) => {
+        this.clearInterrupt(operation)
+        if (this.active === operation && !this.closing) this.onTransportFailure(error)
+      },
+    )
+  }
+
+  private clearInterrupt(operation: LocalSendOperation): void {
+    if (this.interrupting === operation) this.interrupting = undefined
+  }
+
+  private resumeAfterInterrupt(operation: LocalSendOperation): void {
     if (this.active === operation && operation.settled) {
       this.releaseSettledActive()
     } else if (this.active === operation && !this.closing) {
@@ -689,23 +786,25 @@ export class LocalPtySession implements TerminalBackendSession {
     }
   }
 
-  private async closeOnce(reason: string): Promise<void> {
+  private closeOnce(reason: string): Promise<void> {
     // Stop readiness polling but retain the active operation: teardown settles
     // it as session_exit below, so an in-flight send is never mis-settled as
     // stdin_read/inferred_idle/timeout during the grace period.
     this.stopPolling()
     this.closeEmulator()
-    try {
-      await this.terminal.terminate()
-    } catch (error) {
-      throw new Error(`PTY cleanup failed (${reason})`, { cause: error })
-    }
-    // Quiescence is the active send's terminal outcome.
-    this.settleActive('session_exit')
-    await this.completion
-    this.terminal.output.off('data', this.onTerminalData)
-    this.terminal.output.off('end', this.onTerminalEnd)
-    this.terminal.output.off('error', this.onTerminalError)
-    if (this.transportFailure !== undefined) throw this.transportFailure
+    return this.terminal.terminate().then(
+      () => {
+        this.settleActive('session_exit')
+        return this.completion.then(() => {
+          this.terminal.output.off('data', this.onTerminalData)
+          this.terminal.output.off('end', this.onTerminalEnd)
+          this.terminal.output.off('error', this.onTerminalError)
+          if (this.transportFailure !== undefined) throw this.transportFailure
+        })
+      },
+      (error: Thrown) => {
+        throw new Error(`PTY cleanup failed (${reason})`, { cause: error })
+      },
+    )
   }
 }
