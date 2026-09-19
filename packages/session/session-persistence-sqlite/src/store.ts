@@ -47,9 +47,6 @@ import {
 } from './schema.ts'
 import { sql } from './sql.ts'
 
-/** Values a Promise reject arm from store open, mutation rollback, or path validation may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
-
 /** Storage options resolved by the service provider. */
 export interface SqliteStoreOptions {
   readonly path: string
@@ -360,7 +357,7 @@ export class SqliteStore implements PersistenceBackend<number> {
       try {
         const last = decodeRow(predecessor).at(-1)
         if (last !== undefined && storedEventSeq(last) >= fromSeq) base = Math.min(base, predecessor.seq)
-      } catch (_error: Thrown) {
+      } catch {
         // A malformed bounded predecessor may cover fromSeq; include it so the scanner fails closed.
         base = Math.min(base, predecessor.seq)
       }

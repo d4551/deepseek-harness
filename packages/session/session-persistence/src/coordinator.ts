@@ -1160,7 +1160,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
       // surface it unwrapped so callers can point at the raw artifact.
       if (error instanceof SessionFormatUnsupportedError) throw error
       throw new SessionPersistenceCorruptionError(
-        `stored session "${id}" failed validation: ${thrownMessage(error)}`,
+        `stored session "${id}" failed validation: ${String(error)}`,
         { cause: error },
       )
     }

@@ -206,37 +206,14 @@ function unattendedDiagnostic(
 /** Values a Promise reject arm from Codex wire or transport work may deliver. */
 type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
 
-/**
- * Human text for a leftover thrown protocol or stream value.
- * @param reason - the Thrown or catch-boundary value.
- * @returns the Error message, primitive text, or object tag.
- */
-function thrownMessage(reason: Thrown): string {
-  if (reason instanceof Error) return reason.message
-  switch (typeof reason) {
-    case 'string': return reason
-    case 'number':
-    case 'boolean':
-    case 'bigint':
-    case 'symbol':
-    case 'function':
-      return String(reason)
-    case 'undefined':
-      return 'undefined'
-    case 'object':
-      if (reason === null) return 'null'
-      return Object.prototype.toString.call(reason)
-  }
-}
-
 function thrown(value: unknown): Error {
-  return value instanceof Error ? value : new Error(thrownMessage(value))
+  return value instanceof Error ? value : new Error(String(value))
 }
 
 function abortError(signal: AbortSignal): Error {
   return signal.reason instanceof Error
     ? signal.reason
-    : new Error(`subagent-codex: app-server request aborted: ${thrownMessage(signal.reason)}`)
+    : new Error(`subagent-codex: app-server request aborted: ${String(signal.reason)}`)
 }
 
 async function raceAbort<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {

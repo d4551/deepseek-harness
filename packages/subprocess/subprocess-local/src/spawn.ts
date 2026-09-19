@@ -32,29 +32,6 @@ import type { WindowsJobFactory, WindowsProcessJob } from './windows-job.ts'
 /** Values a Promise reject arm may deliver. */
 type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
 
-/**
- * Human text for a leftover Thrown or catch-boundary value.
- * @param reason - the Thrown, catch value, or abort reason.
- * @returns the Error message, primitive text, or object tag.
- */
-function thrownMessage(reason: Thrown): string {
-  if (reason instanceof Error) return reason.message
-  switch (typeof reason) {
-    case 'string': return reason
-    case 'number':
-    case 'boolean':
-    case 'bigint':
-    case 'symbol':
-    case 'function':
-      return String(reason)
-    case 'undefined':
-      return 'undefined'
-    case 'object':
-      if (reason === null) return 'null'
-      return Object.prototype.toString.call(reason)
-  }
-}
-
 /** Node's Windows process launcher restores omitted environment entries from its parent. */
 export const LOCAL_ENVIRONMENT_ISOLATION_SUPPORTED = process.platform !== 'win32'
 
@@ -387,7 +364,7 @@ function windowsTreeControl(
   try {
     job = createJob(pid)
   } catch (error) {
-    warn(`subprocess-local: pid ${String(pid)} could not be placed in a Job object, falling back to taskkill: ${thrownMessage(error)}`)
+    warn(`subprocess-local: pid ${String(pid)} could not be placed in a Job object, falling back to taskkill: ${String(error)}`)
   }
   const fallbackTerminate = (): void => {
     const outcome = taskkill(pid)
@@ -400,7 +377,7 @@ function windowsTreeControl(
       try {
         job.terminate()
       } catch (error) {
-        warn(`subprocess-local: Job termination of pid ${String(pid)} failed, falling back to taskkill: ${thrownMessage(error)}`)
+        warn(`subprocess-local: Job termination of pid ${String(pid)} failed, falling back to taskkill: ${String(error)}`)
         fallbackTerminate()
       }
     },
@@ -409,7 +386,7 @@ function windowsTreeControl(
       try {
         return job.liveMemberCount()
       } catch (error) {
-        warn(`subprocess-local: Job liveness query for pid ${String(pid)} failed: ${thrownMessage(error)}`)
+        warn(`subprocess-local: Job liveness query for pid ${String(pid)} failed: ${String(error)}`)
         return undefined
       }
     },
@@ -419,7 +396,7 @@ function windowsTreeControl(
       try {
         closing?.close()
       } catch (error) {
-        warn(`subprocess-local: releasing the Job for pid ${String(pid)} failed: ${thrownMessage(error)}`)
+        warn(`subprocess-local: releasing the Job for pid ${String(pid)} failed: ${String(error)}`)
       }
     },
   }
@@ -475,7 +452,7 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
   const linuxGroupHasLiveMembers = internals.linuxProcessGroupHasLiveMembers ?? linuxProcessGroupHasLiveMembers
 
   if (spec.signal?.aborted) {
-    throw new Error(`aborted before spawn: ${thrownMessage(spec.signal.reason ?? 'aborted')}`)
+    throw new Error(`aborted before spawn: ${String(spec.signal.reason ?? 'aborted')}`)
   }
   const [program, ...args] = spec.argv
   if (program === undefined || program.length === 0) {
