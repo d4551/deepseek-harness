@@ -3,6 +3,9 @@
  * @module @deepseek-ai/dsh-lsp-stdio/outcome
  */
 
+/** Values a Promise reject arm from an LSP operation or cleanup may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /**
  * Return the operation result only after all supplied cleanup outcomes succeed.
  * @param operation - the completed operation.
@@ -13,9 +16,11 @@ export function finishLspOperation<T>(
   operation: PromiseSettledResult<T>,
   ...cleanup: readonly PromiseSettledResult<unknown>[]
 ): T {
-  const failures: unknown[] = []
+  const failures: Thrown[] = []
   for (const outcome of [operation, ...cleanup]) {
-    if (outcome.status === 'rejected' && !failures.includes(outcome.reason)) failures.push(outcome.reason)
+    if (outcome.status !== 'rejected') continue
+    const reason: Thrown = outcome.reason
+    if (!failures.includes(reason)) failures.push(reason)
   }
   if (failures.length > 1) {
     const details = failures.map(error => error instanceof Error ? error.message : String(error)).join('; ')

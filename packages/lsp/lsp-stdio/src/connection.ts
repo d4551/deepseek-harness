@@ -14,6 +14,9 @@ import type { Writable } from 'node:stream'
 import type { SubprocessHandle, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { encodeMessage, MessageDecoder } from './framing.ts'
 
+/** Values a Promise reject arm from protocol or subprocess work may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** How to launch the server and answer its config requests. */
 export interface ConnectionSpec {
   /** The resolved absolute executable path (no shell). */
@@ -211,7 +214,8 @@ export class LspConnection {
   private async onStdout(chunk: Buffer): Promise<void> {
     const [decoded] = await Promise.allSettled([Promise.resolve().then(() => this.decoder.push(chunk))])
     if (decoded.status === 'rejected') {
-      this.breakConnection(asError(decoded.reason))
+      const reason: Thrown = decoded.reason
+      this.breakConnection(asError(reason))
       return
     }
     for (const message of decoded.value) this.dispatch(message)
@@ -240,7 +244,8 @@ export class LspConnection {
       : { jsonrpc: '2.0', id, error: { code: -32601, message: asError(response.reason).message } }
     const [written] = await Promise.allSettled([this.write(message)])
     if (written.status === 'rejected') {
-      this.breakConnection(asError(written.reason))
+      const reason: Thrown = written.reason
+      this.breakConnection(asError(reason))
     }
   }
 
@@ -272,7 +277,8 @@ export class LspConnection {
     const [written] = await writing
     this.writes.delete(writing)
     if (written.status === 'rejected') {
-      const failure = asError(written.reason)
+      const reason: Thrown = written.reason
+      const failure = asError(reason)
       this.breakConnection(failure)
       throw failure
     }
@@ -324,8 +330,8 @@ export class LspConnection {
   }
 }
 
-/** Coerce an unknown thrown value to an `Error`. */
-function asError(value: unknown): Error {
+/** Coerce a Thrown reject reason to an `Error`. */
+function asError(value: Thrown): Error {
   return value instanceof Error ? value : new Error(String(value))
 }
 

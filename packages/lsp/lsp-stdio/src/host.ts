@@ -41,7 +41,7 @@ export async function canonicalizeWorkspace(
   let target: FsTarget
   try {
     target = await fs.resolve(workspaceRoot, signal === undefined ? {} : { signal })
-  } catch (error: unknown) {
+  } catch (error) {
     throwIfAborted(signal)
     throw new Error(`workspace root "${workspaceRoot}" cannot be resolved: ${messageOf(error)}`, { cause: error })
   }
@@ -86,7 +86,7 @@ export async function readHostSource(
       cwd: workspace.canonicalPath,
       ...signal === undefined ? {} : { signal },
     })
-  } catch (error: unknown) {
+  } catch (error) {
     throwIfAborted(signal)
     throw new Error(`source "${filePath}" cannot be resolved: ${messageOf(error)}`, { cause: error })
   }
@@ -106,7 +106,7 @@ export async function readHostSource(
       if (bytes > maxDocumentBytes) break
       chunks.push(chunk)
     }
-  } catch (error: unknown) {
+  } catch (error) {
     throwIfAborted(signal)
     throw new Error(`source "${filePath}" could not be read: ${messageOf(error)}`, { cause: error })
   }
