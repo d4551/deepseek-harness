@@ -5,6 +5,9 @@
 
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 
+/** Values a Promise reject arm from a durable write may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Dependencies and scheduling policy for one live session's write controller. */
 export interface SessionWriteBehindOptions {
   /** Maximum intentional batching wait after an idle queue receives work. */
@@ -12,7 +15,7 @@ export interface SessionWriteBehindOptions {
   /** Persist one stable ordered prefix; resolves only after backend durability. */
   readonly write: (events: readonly SessionEvent[]) => Promise<void>
   /** Observe a detached background write failure without rejecting the producer. */
-  readonly reportBackgroundFailure: (error: unknown) => void
+  readonly reportBackgroundFailure: (error: Thrown) => void
 }
 
 /**
@@ -142,7 +145,7 @@ export class SessionWriteBehind {
     this.deadlineExpired = false
     const operation = Promise.resolve().then(() => this.options.write(batch))
     const active = operation
-      .catch((error: unknown) => {
+      .then(undefined, (error: Thrown) => {
         this.pending = batch.concat(this.pending)
         this.cancelTimer()
         this.deadlineExpired = false

@@ -37,6 +37,32 @@ export const DEFAULT_WRITE_BATCH_MAX_DELAY_MS = 200
 /** Largest write batching delay accepted by Node's timer implementation. */
 export const MAX_WRITE_BATCH_DELAY_MS = MAX_TIMER_DELAY_MS
 
+/** Values a Promise reject arm from retirement or a detached write may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a rejected retirement or background write.
+ * @param reason - the Thrown the write path rejected with.
+ * @returns the message to log.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /** Durable session contents failed validation after a successful backend read. */
 export class SessionPersistenceCorruptionError extends Error {
   /**
@@ -1340,8 +1366,8 @@ export class PersistenceCoordinator<TornMarker = unknown> {
       if (this.retirements.get(session.id) === retirement) this.retirements.delete(session.id)
     }
     retirement.then(forget, forget)
-    retirement.catch((error: unknown) => {
-      this.ctx.logger.warn(`${this.backend.name}: session "${session.id}" retirement failed: ${String(error)}`)
+    retirement.then(undefined, (error: Thrown) => {
+      this.ctx.logger.warn(`${this.backend.name}: session "${session.id}" retirement failed: ${thrownMessage(error)}`)
     })
   }
 
@@ -1537,7 +1563,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
         await this.serialize(session.header.id, () => this.appendLiveBatch(session.header.id, batch))
       },
       reportBackgroundFailure: (error) => {
-        this.ctx.logger.warn(`${this.backend.name}: background write for session "${session.id}" failed (buffered events retained): ${String(error)}`)
+        this.ctx.logger.warn(`${this.backend.name}: background write for session "${session.id}" failed (buffered events retained): ${thrownMessage(error)}`)
       },
     })
   }
