@@ -202,7 +202,7 @@ export class BashTerminalBackend implements TerminalBackend {
     } catch (error) {
       try {
         await session.close('PTY startup failed')
-      } catch (closeError: unknown) {
+      } catch (closeError) {
         throw new TerminalBackendCleanupError(error, closeError)
       }
       throw error

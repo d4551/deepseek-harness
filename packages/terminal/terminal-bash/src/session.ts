@@ -246,7 +246,7 @@ export class LocalPtySession implements TerminalBackendSession {
       if (result.waitReason === 'session_exit') throw new Error('PTY shell exited during startup')
       if (result.waitReason === 'timeout') throw new Error('PTY shell did not reach readiness before startup timeout')
       this.motd = result.viewport
-    } catch (error: unknown) {
+    } catch (error) {
       signal?.throwIfAborted()
       throw error
     } finally {
@@ -301,7 +301,7 @@ export class LocalPtySession implements TerminalBackendSession {
       if (this.protocolStateChanged(emulatorWrites, responseWrites)) {
         foreground = await this.inspectForegroundAfterProtocol()
       }
-    } catch (error: unknown) {
+    } catch (error) {
       if (this.protocolWorkPending()) await this.drainTerminalProtocol()
       // A pre-write inspection failure while cancellation owns the slot must not
       // release it: interruptOnce's in-flight foreground signal could land on a
@@ -321,7 +321,7 @@ export class LocalPtySession implements TerminalBackendSession {
       if (input.length > 0 && !operation.cancelRequested) {
         this.resetReadinessEvidence()
         const write = this.terminal.write(input)
-        this.activeWrite = write.then(() => true, () => false)
+        this.activeWrite = write.then(() => true, (_error: Thrown) => false)
         try {
           await write
         } finally {
@@ -338,7 +338,7 @@ export class LocalPtySession implements TerminalBackendSession {
         this.pollingReady = operation
         this.schedulePoll(operation)
       }
-    } catch (error: unknown) {
+    } catch (error) {
       if (this.active === operation && !this.closing) {
         if (operation.settled) this.releaseSettledActive()
         else this.failActive(error)
@@ -454,7 +454,7 @@ export class LocalPtySession implements TerminalBackendSession {
     this.statusValue = { kind: 'exited', exitCode: null, signal: null }
     this.closeEmulator()
     this.failActive(failure)
-    this.terminal.terminate().catch(() => {})
+    this.terminal.terminate().catch((_error: Thrown) => {})
   }
 
   private appendOutput(text: string): void {
@@ -514,7 +514,7 @@ export class LocalPtySession implements TerminalBackendSession {
       if (startupHasOutput && idleFor >= this.config.idleSilenceMs + handoffGrace) {
         this.settleActive('inferred_idle')
       }
-    } catch (error: unknown) {
+    } catch (error) {
       if (this.protocolWorkPending()) await this.drainTerminalProtocol()
       if (this.active === operation && !this.closing && this.interrupting !== operation) this.failActive(error)
     } finally {
@@ -585,7 +585,7 @@ export class LocalPtySession implements TerminalBackendSession {
         this.emulatorWriting = false
         this.pumpEmulator()
       })
-    } catch (error: unknown) {
+    } catch (error) {
       this.emulatorWriting = false
       this.emulatorBuffer = ''
       const done = this.emulatorWriteDone
@@ -675,7 +675,7 @@ export class LocalPtySession implements TerminalBackendSession {
       const activeWrite = this.activeWrite
       if (activeWrite !== undefined && !await activeWrite) return
       await this.terminal.signalForeground('SIGINT')
-    } catch (error: unknown) {
+    } catch (error) {
       if (this.active === operation && !this.closing) this.onTransportFailure(error)
       return
     } finally {
@@ -697,7 +697,7 @@ export class LocalPtySession implements TerminalBackendSession {
     this.closeEmulator()
     try {
       await this.terminal.terminate()
-    } catch (error: unknown) {
+    } catch (error) {
       throw new Error(`PTY cleanup failed (${reason})`, { cause: error })
     }
     // Quiescence is the active send's terminal outcome.
