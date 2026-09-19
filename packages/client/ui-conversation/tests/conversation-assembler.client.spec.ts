@@ -40,6 +40,26 @@ function numberState(state: unknown, absent: number): number {
   return state
 }
 
+function scopeProbeStep(value: unknown): ScopeProbeStepData | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'object' || value === null) {
+    throw new TypeError('scope-probe Step data is not an object')
+  }
+  const claimed: unknown = Reflect.get(value, 'value')
+  if (typeof claimed !== 'number') throw new TypeError('scope-probe Step value is not a number')
+  return { value: claimed }
+}
+
+function scopeProbeTurn(value: unknown): ScopeProbeTurnData | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'object' || value === null) {
+    throw new TypeError('scope-probe Turn data is not an object')
+  }
+  const claimed: unknown = Reflect.get(value, 'valueSeenFromStep')
+  if (typeof claimed !== 'number') throw new TypeError('scope-probe Turn valueSeenFromStep is not a number')
+  return { valueSeenFromStep: claimed }
+}
+
 class TestEventDefinitions {
   readonly definitions: readonly ConversationNodeDefinition[]
   readonly fallback: ConversationNodeDefinition | undefined
@@ -118,8 +138,18 @@ function chunkInput(row: ChunkRow): SessionEventLikeEntry {
   return { type: 'chunks', event }
 }
 
+function isTestSnapshot(value: unknown): value is TestSnapshot {
+  if (typeof value !== 'object' || value === null) return false
+  const order: unknown = Reflect.get(value, 'order')
+  const nodes: unknown = Reflect.get(value, 'nodes')
+  return Array.isArray(order) && nodes instanceof Map
+}
+
 function testSnapshot(assembler: ConversationNodeAssembler): TestSnapshot | undefined {
-  return assembler.snapshot('test') as TestSnapshot | undefined
+  const value = assembler.snapshot('test')
+  if (value === undefined) return undefined
+  if (!isTestSnapshot(value)) throw new TypeError('test target snapshot is not TestSnapshot')
+  return value
 }
 
 function node(
@@ -135,7 +165,7 @@ function node(
   }
 }
 
-function fallbackDefinition(start: () => string): ConversationNodeDefinition<string> {
+function fallbackDefinition(start: ConversationNodeDefinition<string>['start']): ConversationNodeDefinition<string> {
   return {
     kind: 'fallback',
     target: 'test',
@@ -196,8 +226,8 @@ describe('ConversationNodeAssembler', () => {
   })
 
   it('keeps one Match collection while a long Context appends without replay', () => {
-    const starts = vi.fn<ConversationNodeDefinition<number>['start']>(() => 0)
-    const updates = vi.fn<ConversationNodeDefinition<number>['update']>((context: ConversationNodeContext<number> & { readonly state: number }) => (
+    const starts = vi.fn<() => number>(() => 0)
+    const updates = vi.fn<(context: ConversationNodeContext<number> & { readonly state: number }) => number>(context => (
       context.state + 1
     ))
     const matchCollections = new Set<readonly ConversationMatch[]>()
@@ -869,7 +899,7 @@ describe('ConversationNodeAssembler', () => {
         }
         const location = context.start?.location
         const stepValue = location?.kind === 'step'
-          ? location.step.data.get('scope-probe')?.value
+          ? scopeProbeStep(location.step.data.get('scope-probe'))?.value
           : undefined
         return {
           kind: 'turn',
@@ -883,8 +913,8 @@ describe('ConversationNodeAssembler', () => {
         const location = context.start?.location
         if (location?.kind !== 'step') return null
         return node(context, {
-          step: location.step.data.get('scope-probe')?.value,
-          turn: location.turn.data.get('scope-probe')?.valueSeenFromStep,
+          step: scopeProbeStep(location.step.data.get('scope-probe'))?.value,
+          turn: scopeProbeTurn(location.turn.data.get('scope-probe'))?.valueSeenFromStep,
         })
       },
     }

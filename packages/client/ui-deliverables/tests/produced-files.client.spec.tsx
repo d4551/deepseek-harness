@@ -25,7 +25,8 @@ import {
   fitProducedFiles, ProducedFiles, type ProducedFilesInjected, type ProducedFilesProps,
 } from '../src/client/ProducedFiles.tsx'
 import {
-  basename, deliverablesDefinition, producedFileMentions, producedForClosing, selectProducedFiles,
+  basename, deliverablesDefinition, producedFileMentions, producedForClosing, publishedDeliverables,
+  selectProducedFiles,
   type DeliverablesTurnData,
 } from '../src/client/turn-deliverables.ts'
 import { apply, inject } from '../src/client/index.ts'
@@ -164,9 +165,17 @@ function assembler(entries: readonly SessionLiveEventEntry[], hasMore = false): 
   return value
 }
 
+function isTimelineSnapshot(value: unknown): value is TimelineSnapshot {
+  if (typeof value !== 'object' || value === null) return false
+  const timeline: unknown = Reflect.get(value, 'timeline')
+  return typeof timeline === 'object' && timeline !== null
+}
+
 function deliverablesOf(value: ConversationNodeAssembler, turn = 1): Readonly<DeliverablesTurnData> | undefined {
-  const snapshot = value.snapshot('test') as TimelineSnapshot
-  return snapshot.timeline.turns.get(turn)?.data.get('deliverables')
+  const snapshot = value.snapshot('test')
+  if (snapshot === undefined) return undefined
+  if (!isTimelineSnapshot(snapshot)) throw new TypeError('test target snapshot is not TimelineSnapshot')
+  return publishedDeliverables(snapshot.timeline.turns.get(turn)?.data.get('deliverables'))
 }
 
 describe('produced-file Turn data', () => {

@@ -50,7 +50,7 @@ import {
 import { createTrajectoryDurationStore } from '../src/client/duration-store.ts'
 import { EMPTY_TRAJECTORY_SNAPSHOT } from '../src/client/trajectory-snapshot-builder.ts'
 import type { TrajectorySnapshot } from '../src/client/trajectory-contract.ts'
-import { deriveTrajectoryTimeline } from '../src/client/timeline.ts'
+import { deriveTrajectoryTimeline, type TrajectoryTimeRange } from '../src/client/timeline.ts'
 import { t as tTrajectory, tZh } from './locale.client.ts'
 
 function TrajectoryTimeline(
@@ -249,7 +249,7 @@ async function bench(snapshot = historySnapshot(NODES)) {
   runtimes.push(runtime)
   const ctx = runtime.ctx
   const slots = runtime.slots
-  const loadOlder = vi.fn(() => Promise.resolve())
+  const loadOlder = vi.fn<() => Promise<void>>(() => Promise.resolve())
   await runtime.sessions.add({
     id: SID,
     snapshot: { blank: false },
@@ -265,7 +265,11 @@ async function bench(snapshot = historySnapshot(NODES)) {
   }
   const binding: ConversationBinding = {
     snapshot: conversationStore,
-    target: target => targetSources[target],
+    target: (target) => {
+      if (target === 'chat') return targetSources.chat
+      if (target === 'trajectory') return targetSources.trajectory
+      throw new TypeError(`unknown conversation target "${target}"`)
+    },
   }
   vi.spyOn(uiConversation, 'binding').mockReturnValue(binding)
   // The conversation entry's role: declare the ring, then seed the chat entry.
@@ -273,7 +277,7 @@ async function bench(snapshot = historySnapshot(NODES)) {
     { 'conversation.view': { kind: 'list', scope: 'session' } },
     (_p: { renderSlot?: unknown }) => null,
   )
-  const chatBody = vi.fn(() => <div data-testid="chat-body" />)
+  const chatBody = vi.fn<() => ReactNode>(() => <div data-testid="chat-body" />)
   slots.register(
     { name: 'conversation.view', id: 'chat', order: 0, label: 'Chat' } as never, chatBody as never)
   // The locale plugin backs the locale-aware view tab label ('locale' in
@@ -329,11 +333,11 @@ function mount(fixture: Awaited<ReturnType<typeof bench>>) {
     draft: '', imageIds: [], draftRev: 0, phase: 'plain', occurrences: [], queue: [],
   }))
   const inputActions: InputActions = {
-    setDraft: vi.fn(),
-    addImages: vi.fn(() => false),
-    removeImage: vi.fn(),
-    pruneImages: vi.fn(),
-    submit: vi.fn(),
+    setDraft: vi.fn<(draft: string) => void>(),
+    addImages: vi.fn<() => boolean>(() => false),
+    removeImage: vi.fn<() => void>(),
+    pruneImages: vi.fn<() => void>(),
+    submit: vi.fn<() => void>(),
   }
   const standardProps = {
     sessionId: SID,
@@ -389,7 +393,7 @@ function mount(fixture: Awaited<ReturnType<typeof bench>>) {
         useStore={bindSnapshotSelector(conversation)}
         actions={conversation.actions}
         renderSlot={() => null}
-        open={vi.fn()}
+        open={vi.fn<() => void>()}
         t={tConversation}
       />
       <ConversationSession
@@ -773,7 +777,7 @@ describe('timeline projection', () => {
           }]}
           mode="duration"
           range={null}
-          onRangeChange={vi.fn()}
+          onRangeChange={vi.fn<(range: TrajectoryTimeRange | null) => void>()}
         />,
       )
       const span = view.container.querySelector<HTMLElement>(
@@ -797,7 +801,7 @@ describe('timeline projection', () => {
   })
 
   it('marks an unloaded history prefix without inventing timeline duration', () => {
-    const onLoadEarlier = vi.fn(() => new Promise<boolean>(() => {}))
+    const onLoadEarlier = vi.fn<() => Promise<boolean>>(() => new Promise<boolean>(() => {}))
     const view = render(
       <TrajectoryTimeline
         turns={turns}
@@ -805,7 +809,7 @@ describe('timeline projection', () => {
         range={null}
         hasEarlierRecords
         onLoadEarlier={onLoadEarlier}
-        onRangeChange={vi.fn()}
+        onRangeChange={vi.fn<(range: TrajectoryTimeRange | null) => void>()}
       />,
     )
 
@@ -828,7 +832,7 @@ describe('timeline projection', () => {
         turns={turns}
         mode="sequence"
         range={null}
-        onRangeChange={vi.fn()}
+        onRangeChange={vi.fn<(range: TrajectoryTimeRange | null) => void>()}
       />,
     )
     expect(screen.queryByLabelText('Load earlier history')).toBeNull()
@@ -841,7 +845,7 @@ describe('timeline projection', () => {
         turns={longTurns}
         mode="sequence"
         range={null}
-        onRangeChange={vi.fn()}
+        onRangeChange={vi.fn<(range: TrajectoryTimeRange | null) => void>()}
       />,
     )
     const plot = screen.getByLabelText('Timeline overview; drag horizontally to focus events')
@@ -863,7 +867,7 @@ describe('timeline projection', () => {
         turns={longTurns}
         mode="sequence"
         range={null}
-        onRangeChange={vi.fn()}
+        onRangeChange={vi.fn<(range: TrajectoryTimeRange | null) => void>()}
       />,
     )
     const span = view.container.querySelector<HTMLElement>('[data-timeline-span]')
@@ -890,7 +894,7 @@ describe('timeline projection', () => {
         turns={denseTurns}
         mode="sequence"
         range={null}
-        onRangeChange={vi.fn()}
+        onRangeChange={vi.fn<(range: TrajectoryTimeRange | null) => void>()}
       />,
     )
 
@@ -901,7 +905,7 @@ describe('timeline projection', () => {
   })
 
   it('clears the selection without changing zoom on a zoomed right click', () => {
-    const onRangeChange = vi.fn()
+    const onRangeChange = vi.fn<(range: TrajectoryTimeRange | null) => void>()
     const view = render(
       <TrajectoryTimeline
         turns={longTurns}
@@ -933,7 +937,7 @@ describe('timeline projection', () => {
   })
 
   it('clears the selection and suppresses the context menu at full zoom', () => {
-    const onRangeChange = vi.fn()
+    const onRangeChange = vi.fn<(range: TrajectoryTimeRange | null) => void>()
     render(
       <TrajectoryTimeline
         turns={longTurns}
@@ -952,7 +956,7 @@ describe('timeline projection', () => {
   })
 
   it('pans the zoomed viewport with a right-button drag without changing the selection', () => {
-    const onRangeChange = vi.fn()
+    const onRangeChange = vi.fn<(range: TrajectoryTimeRange | null) => void>()
     const view = render(
       <TrajectoryTimeline
         turns={longTurns}
@@ -982,7 +986,7 @@ describe('timeline projection', () => {
   })
 
   it('pans the zoomed viewport only far enough to reveal a newly selected record', async () => {
-    const onRangeChange = vi.fn()
+    const onRangeChange = vi.fn<(range: TrajectoryTimeRange | null) => void>()
     const view = render(
       <TrajectoryTimeline
         turns={longTurns}
@@ -1032,7 +1036,7 @@ describe('timeline projection', () => {
   })
 
   it('auto-pans a zoomed viewport while a range drag pushes against an edge', () => {
-    const onRangeChange = vi.fn()
+    const onRangeChange = vi.fn<(range: TrajectoryTimeRange | null) => void>()
     const view = render(
       <TrajectoryTimeline
         turns={longTurns}
@@ -1062,9 +1066,7 @@ describe('timeline projection', () => {
     }
     fireEvent.pointerUp(plot, { clientX: 99, pointerId: 1 })
 
-    const selectedRange = onRangeChange.mock.calls.at(-1)?.[0] as
-      | { start: number; end: number }
-      | undefined
+    const selectedRange = onRangeChange.mock.calls.at(-1)?.[0]
     const fullRange = deriveTrajectoryTimeline(longTurns)
     expect(selectedRange).toBeDefined()
     expect(fullRange).not.toBeNull()
@@ -1330,7 +1332,7 @@ describe('TrajectoryView state', () => {
         {...standaloneHistory(historySnapshot([]))}
         {...standaloneDuration()}
         useTrajectory={bindSnapshotSelector(store)}
-        loadOlder={vi.fn(() => Promise.resolve(false))}
+        loadOlder={vi.fn<() => Promise<boolean>>(() => Promise.resolve(false))}
       />,
     )
     fireEvent.click(screen.getByRole('row', { name: /selected current response/ }))

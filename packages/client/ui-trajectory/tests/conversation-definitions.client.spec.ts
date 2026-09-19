@@ -17,7 +17,9 @@ import { registerTrajectoryCompactionDefinitions } from '../src/client/trajector
 import type { TrajectorySnapshot } from '../src/client/trajectory-contract.ts'
 import { registerTrajectoryMessageDefinitions } from '../src/client/trajectory-message-definitions.ts'
 import { registerTrajectoryRequestHeaderDefinition } from '../src/client/trajectory-request-header-definition.ts'
-import { trajectoryViewDefinition } from '../src/client/trajectory-snapshot-builder.ts'
+import {
+  requireTrajectorySnapshot, trajectoryViewDefinition,
+} from '../src/client/trajectory-snapshot-builder.ts'
 import { registerTrajectoryToolDefinition } from '../src/client/trajectory-tool-definition.ts'
 
 const DEFINITIONS: ConversationNodeDefinition[] = []
@@ -104,7 +106,7 @@ function assembler(events: readonly SessionEventLikeEntry[]): ConversationNodeAs
 function snapshot(value: ConversationNodeAssembler): TrajectorySnapshot {
   const current = value.get('trajectory')
   if (current === undefined) throw new Error('trajectory view was not registered')
-  return current
+  return requireTrajectorySnapshot(current)
 }
 
 function assistantMessage(id: string, text: string) {

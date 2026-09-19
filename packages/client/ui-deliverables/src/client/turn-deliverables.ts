@@ -139,7 +139,8 @@ export function producedForClosing(
  * @param owner - Turn-tail owner currency for the closing assistant.
  * @returns Produced paths as the component's match, or null to decline before mount.
  */
-function publishedDeliverables(value: unknown): DeliverablesTurnData | undefined {
+/** Read Deliverables data published on Location data. */
+export function publishedDeliverables(value: unknown): DeliverablesTurnData | undefined {
   if (value === undefined) return undefined
   if (typeof value !== 'object' || value === null) {
     throw new TypeError('deliverables Location data is not an object')

@@ -17,6 +17,7 @@ import { turnErrorDefinition } from '../src/client/conversation-nodes/turn-error
 import { chatViewDefinition } from '../src/client/conversation-nodes/chat-snapshot-builder.ts'
 import { TurnRequestBudgetNodeView } from '../src/client/chat/TurnRequestBudgetNodeView.tsx'
 import type { ChatNode } from '../src/client/contract/chat-nodes.ts'
+import { requireChatSnapshot } from '../src/client/contract/snapshot.ts'
 import { en } from '../src/client/locale.ts'
 
 it('keeps the typed budget pause visible through live assembly and history replay', async () => {
@@ -45,9 +46,11 @@ it('keeps the typed budget pause visible through live assembly and history repla
   const replay = new ConversationNodeAssembler(events, views)
   replay.replaceWindow(structuredClone(session.events).map(event => ({ type: 'event', event })), false)
   replay.flush()
-  const current = live.get('chat')
-  const restored = replay.get('chat')
-  if (current === undefined || restored === undefined) throw new Error('Chat projection was not produced')
+  const currentRaw = live.get('chat')
+  const restoredRaw = replay.get('chat')
+  if (currentRaw === undefined || restoredRaw === undefined) throw new Error('Chat projection was not produced')
+  const current = requireChatSnapshot(currentRaw)
+  const restored = requireChatSnapshot(restoredRaw)
   expect(current.nodes.values()).toEqual(restored.nodes.values())
   expect(current.order).toHaveLength(1)
   expect(current.nodes.values()[0]).toMatchObject({ kind: 'turn-request-budget', visibility: 'visible', data: {
