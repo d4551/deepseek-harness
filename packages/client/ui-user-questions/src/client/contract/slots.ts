@@ -163,10 +163,10 @@ export class PendingQuestion {
 
   /**
    * Test whether a rejection requests waterfall delegation.
-   * @param reason - rejection received from {@link PendingQuestion.result}.
+   * @param reason - Thrown rejection received from {@link PendingQuestion.result}.
    * @returns whether {@link PendingQuestion.delegate} produced it.
    */
-  isDelegation(reason: unknown): boolean {
+  isDelegation(reason: Thrown): boolean {
     return reason === this.#delegated
   }
 

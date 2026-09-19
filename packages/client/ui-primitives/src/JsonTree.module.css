@@ -59,7 +59,9 @@
 
 .children {
   margin: 0;
+  min-width: 0;
   padding: 0;
+  border: 0;
   list-style: none;
 }
 
@@ -99,6 +101,11 @@
 }
 
 .clickableLabel {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
   cursor: pointer;
 }
 
@@ -183,6 +190,10 @@
   width: 24px;
   height: 24px;
   margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
   color: var(--json-tree-icon);
   cursor: pointer;
   user-select: none;

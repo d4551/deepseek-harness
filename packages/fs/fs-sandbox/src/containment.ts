@@ -11,9 +11,13 @@ import { dirname, sep } from 'node:path'
 
 const MISSING_CODES: ReadonlySet<NodeJS.ErrnoException['code']> = new Set(['ENOENT', 'ENOTDIR'])
 
-function isMissing(error: unknown): boolean {
-  const code = (error as NodeJS.ErrnoException).code
-  return MISSING_CODES.has(code)
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+function isMissing(error: Thrown): boolean {
+  return error instanceof Error
+    && 'code' in error
+    && typeof error.code === 'string'
+    && MISSING_CODES.has(error.code)
 }
 
 function comparablePath(path: string, caseSensitive: boolean): string {
@@ -28,15 +32,16 @@ function isLexicallyUnder(path: string, root: string, caseSensitive: boolean): b
   return comparableTarget.startsWith(prefix)
 }
 
-async function statIfPresent(path: string): Promise<BigIntStats | undefined> {
-  try {
-    return await stat(path, { bigint: true })
-  } catch (error) {
-    /* v8 ignore else -- a non-missing stat failure requires a host permission or I/O fault after resolve reached this ancestor. */
-    if (isMissing(error)) return undefined
-    /* v8 ignore next -- requires a host permission or I/O fault after resolve already reached this ancestor. */
-    throw error
-  }
+function statIfPresent(path: string): Promise<BigIntStats | undefined> {
+  return stat(path, { bigint: true }).then(
+    undefined,
+    (error: Thrown) => {
+      /* v8 ignore else -- a non-missing stat failure requires a host permission or I/O fault after resolve reached this ancestor. */
+      if (isMissing(error)) return undefined
+      /* v8 ignore next -- requires a host permission or I/O fault after resolve already reached this ancestor. */
+      throw error
+    },
+  )
 }
 
 function sameIdentity(left: BigIntStats, right: BigIntStats): boolean {

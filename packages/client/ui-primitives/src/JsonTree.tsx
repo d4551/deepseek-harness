@@ -2,11 +2,12 @@ import clsx from 'clsx'
 import { startTransition, useEffect, useId, useRef, useState } from 'react'
 import type {
   KeyboardEvent as ReactKeyboardEvent,
-  MouseEvent as ReactMouseEvent,
   ReactNode,
   UIEvent as ReactUIEvent,
 } from 'react'
 import { IconCheckOutline16, IconCopyOutline16 } from './icons/index.tsx'
+
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 import { Menu } from './Menu.tsx'
 import type { MenuEntry } from './Menu.tsx'
 import css from './JsonTree.module.css'
@@ -215,13 +216,21 @@ function NodeField({
   onToggle: () => void
 }) {
   if (field === undefined) return null
+  if (!expandable) {
+    return (
+      <span className={css.label}>
+        {fieldText(field)}:
+      </span>
+    )
+  }
   return (
-    <span
-      className={clsx(css.label, expandable && css.clickableLabel)}
-      onClick={expandable ? onToggle : undefined}
+    <button
+      type="button"
+      className={clsx(css.label, css.clickableLabel)}
+      onClick={onToggle}
     >
       {fieldText(field)}:
-    </span>
+    </button>
   )
 }
 
@@ -232,6 +241,7 @@ interface JsonTreeNodeProps {
   lastElement: boolean
   onClaimTabStop: (id: string) => void
   onRowHover: (row: HTMLElement, target: RowTarget) => void
+  onRowLeave: (relatedTarget: unknown) => void
   path: JsonPath
   tabStopId: string | null
   value: unknown
@@ -244,12 +254,13 @@ function JsonTreeNode({
   lastElement,
   onClaimTabStop,
   onRowHover,
+  onRowLeave,
   path,
   tabStopId,
   value,
 }: JsonTreeNodeProps) {
   const contentsId = useId()
-  const expanderRef = useRef<HTMLSpanElement>(null)
+  const expanderRef = useRef<HTMLButtonElement>(null)
   const [expanded, setExpanded] = useState(initialExpanded)
   const nodeId = pathId(path)
   const container = isExpandableValue(value)
@@ -258,10 +269,10 @@ function JsonTreeNode({
 
   const toggle = () => {
     setExpanded(current => !current)
-    claimFocus(expanderRef.current as HTMLSpanElement)
+    if (expanderRef.current !== null) claimFocus(expanderRef.current)
   }
 
-  const onExpanderKeyDown = (event: ReactKeyboardEvent<HTMLSpanElement>) => {
+  const onExpanderKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
     if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
       event.preventDefault()
       setExpanded(event.key === 'ArrowRight')
@@ -278,8 +289,15 @@ function JsonTreeNode({
       className={css.row}
       role="treeitem"
       aria-expanded={ariaExpanded}
+      tabIndex={-1}
       onMouseOver={(event) => {
         event.stopPropagation()
+        onRowHover(event.currentTarget, { path, value })
+      }}
+      onMouseLeave={(event) => {
+        onRowLeave(event.relatedTarget)
+      }}
+      onFocus={(event) => {
         onRowHover(event.currentTarget, { path, value })
       }}
     >
@@ -311,11 +329,11 @@ function JsonTreeNode({
 
   return row((
     <>
-      <span
+      <button
         ref={expanderRef}
+        type="button"
         className={clsx(css.expander, expanded ? css.collapseIcon : css.expandIcon)}
         data-json-expander
-        role="button"
         aria-label={expanded ? labels.collapseNode : labels.expandNode}
         aria-expanded={expanded}
         aria-controls={expanded ? contentsId : undefined}
@@ -328,7 +346,7 @@ function JsonTreeNode({
       <span className={css.preview}>{previewValue(value, 0)}</span>
       {!lastElement && <span className={css.punctuation}>,</span>}
       {expanded && (
-        <ul id={contentsId} role="group" className={css.children}>
+        <fieldset id={contentsId} className={css.children}>
           {entries.map(([key, item], index) => (
             <JsonTreeNode
               key={key}
@@ -341,9 +359,10 @@ function JsonTreeNode({
               tabStopId={tabStopId}
               onClaimTabStop={onClaimTabStop}
               onRowHover={onRowHover}
+              onRowLeave={onRowLeave}
             />
           ))}
-        </ul>
+        </fieldset>
       )}
     </>
   ), expanded)
@@ -498,11 +517,11 @@ export function JsonTree({
     positionCopyButton(row, target)
   }
 
-  const handleRootMouseOver = (event: ReactMouseEvent<HTMLDivElement>) => {
+  const handleRowLeave = (relatedTarget: unknown): void => {
     if (!copyable || copyMenuOpenRef.current) return
-    /* v8 ignore next -- browser mouse events delivered through React target an Element. */
-    if (!(event.target instanceof Element)) return
-    if (event.target.closest('[data-json-copy-button]') === null) clearCopyTarget()
+    if (relatedTarget instanceof Element
+      && relatedTarget.closest('[role="treeitem"],[data-json-copy-button]') !== null) return
+    clearCopyTarget()
   }
 
   const handleScroll = (_event: ReactUIEvent<HTMLDivElement>) => {
@@ -510,17 +529,18 @@ export function JsonTree({
     if (row !== null) repositionCopyButton(row)
   }
 
-  const copy = async (mode: 'json' | 'path' | 'prettyJson' | 'value') => {
+  const copy = (mode: 'json' | 'path' | 'prettyJson' | 'value'): void => {
     /* v8 ignore next -- copy controls only render while their target exists. */
     if (copyTarget === undefined) return
-    try {
-      await navigator.clipboard.writeText(copyText(copyTarget, mode))
-      setCopyState('copied')
-    } catch {
-      setCopyState('failed')
+    const finish = (state: 'copied' | 'failed'): void => {
+      setCopyState(state)
+      if (resetTimer.current !== undefined) clearTimeout(resetTimer.current)
+      resetTimer.current = setTimeout(() => { setCopyState('idle') }, 1_500)
     }
-    if (resetTimer.current !== undefined) clearTimeout(resetTimer.current)
-    resetTimer.current = setTimeout(() => { setCopyState('idle') }, 1_500)
+    navigator.clipboard.writeText(copyText(copyTarget, mode)).then(
+      () => { finish('copied') },
+      (_error: Thrown) => { finish('failed') },
+    )
   }
 
   const [rootOpen, rootClose] = bracketOf(data)
@@ -536,7 +556,6 @@ export function JsonTree({
     <div
       ref={rootRef}
       className={clsx(css.root, className)}
-      onMouseOver={handleRootMouseOver}
       onMouseLeave={() => {
         if (!copyMenuOpenRef.current) clearCopyTarget()
       }}
@@ -550,6 +569,12 @@ export function JsonTree({
               data-json-root-row
               onMouseOver={(event) => {
                 event.stopPropagation()
+                handleRowHover(event.currentTarget, { path: [], value: data })
+              }}
+              onMouseLeave={(event) => {
+                handleRowLeave(event.relatedTarget)
+              }}
+              onFocus={(event) => {
                 handleRowHover(event.currentTarget, { path: [], value: data })
               }}
             >
@@ -572,6 +597,7 @@ export function JsonTree({
                   tabStopId={tabStopId}
                   onClaimTabStop={setTabStopId}
                   onRowHover={handleRowHover}
+                  onRowLeave={handleRowLeave}
                 />
               ))}
             </div>
@@ -591,6 +617,7 @@ export function JsonTree({
               tabStopId={tabStopId}
               onClaimTabStop={setTabStopId}
               onRowHover={handleRowHover}
+              onRowLeave={handleRowLeave}
             />
           </div>
         )}

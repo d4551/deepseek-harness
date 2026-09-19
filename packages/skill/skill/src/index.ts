@@ -871,7 +871,7 @@ function toError(error: unknown): Error {
   new Promise((resolve: (value: undefined) => void) => {
     result = error instanceof Error ? error : new Error(errorMessage(error))
     resolve(undefined)
-  }).then(() => undefined, () => undefined)
+  }).then(() => undefined, (_error: Thrown) => undefined)
   return result ?? new Error(errorMessage(error))
 }
 
@@ -881,7 +881,7 @@ function errorMessage(error: unknown): string {
   new Promise((resolve: (value: string) => void) => {
     text = String(error)
     resolve(text)
-  }).then(() => undefined, () => undefined)
+  }).then(() => undefined, (_error: Thrown) => undefined)
   return text
 }
 

@@ -11,10 +11,10 @@ function JsonTree(props: Omit<ComponentProps<typeof LocalizedJsonTree>, 'label' 
   return <LocalizedJsonTree label="JSON" {...props} labels={jsonTreeLabels} />
 }
 
-let writeText: ReturnType<typeof vi.fn>
+let writeText: ReturnType<typeof vi.fn<() => Promise<void>>>
 
 beforeEach(() => {
-  writeText = vi.fn().mockResolvedValue(undefined)
+  writeText = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
   Object.defineProperty(navigator, 'clipboard', {
     configurable: true,
     value: { writeText },
@@ -141,7 +141,7 @@ describe('JsonTree', () => {
     render(<JsonTree copyable={false} data={data} />)
 
     const text = screen.getByRole('tree').textContent
-    expect(text).toContain('"":\"empty key\"')
+    expect(text).toContain('"":"empty key"')
     expect(text).toContain('nil:null')
     expect(text).toContain('flag:true')
     expect(text).toContain('count:3')
@@ -303,7 +303,9 @@ describe('JsonTree', () => {
 
     fireEvent.mouseOver(firstRow)
     const copyButton = screen.getByRole('button', { name: 'Copy pretty JSON' })
-    expect((copyButton.closest('span')?.parentElement as HTMLElement).style.left).toBe('280px')
+    const copyAnchor = copyButton.closest('span')
+    if (copyAnchor === null || copyAnchor.parentElement === null) throw new Error('copy anchor is not mounted')
+    expect(copyAnchor.parentElement.style.left).toBe('280px')
     fireEvent.mouseOver(copyButton)
     expect(screen.getByRole('button', { name: 'Copy pretty JSON' })).toBeDefined()
     fireEvent.mouseOver(firstRow)
@@ -322,6 +324,7 @@ describe('JsonTree', () => {
 
     fireEvent.mouseOver(secondRow)
     expect(screen.getByRole('button', { name: 'Copy value' })).toBeDefined()
+    fireEvent.mouseLeave(secondRow)
     fireEvent.mouseOver(root)
     expect(screen.queryByRole('button', { name: /Copy/ })).toBeNull()
 
