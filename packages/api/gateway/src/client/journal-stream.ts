@@ -7,6 +7,9 @@ import type {
   RemoteStreamOptions,
 } from './remote-stream.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Transport-neutral opening snapshot or journal entry. */
 export type RemoteJournalFrame<Entry, Cursor, Page> =
   | { readonly type: 'opened'; readonly cursor: Cursor; readonly page: Page }
@@ -151,16 +154,17 @@ export abstract class RemoteJournalStream<Page, Entry, Cursor, PageRequest = voi
     this.started = true
     this.initialRequest = request
     const iterator = this.stream[Symbol.asyncIterator]()
-    try {
-      const first = await this.takeNext(iterator)
+    await this.takeNext(iterator).then((first) => {
       if (first.done) throw new Error(`${this.options.name} ended before its opening cursor`)
       this.replaceGeneration(first.value, false)
       this.opened = true
-      this.done = this.consume(iterator)
-    } catch (error) {
-      await this.stream.dispose()
+      this.done = this.consume(iterator).then(undefined, (error: Thrown) => {
+        if (!this.disposed) this.options.failed(error)
+      })
+      return
+    }).then(undefined, (error: Thrown) => this.stream.dispose().then(() => {
       throw error
-    }
+    }))
   }
 
   /**
@@ -218,22 +222,18 @@ export abstract class RemoteJournalStream<Page, Entry, Cursor, PageRequest = voi
   private async consume(
     iterator: AsyncIterator<JournalStreamItem<Page, Entry, Cursor>>,
   ): Promise<void> {
-    try {
-      while (true) {
-        const next = await this.takeNext(iterator)
-        if (next.done) return
-        const item = next.value
-        if (item.generation !== this.generation) {
-          this.replaceGeneration(item, true)
-          continue
-        }
-        if (item.value.type === 'opened') {
-          throw new Error(`${this.options.name} emitted more than one opening cursor`)
-        }
-        await this.acceptEntry(item.value.entry, item, iterator)
+    while (true) {
+      const next = await this.takeNext(iterator)
+      if (next.done) return
+      const item = next.value
+      if (item.generation !== this.generation) {
+        this.replaceGeneration(item, true)
+        continue
       }
-    } catch (error) {
-      if (!this.disposed) this.options.failed(error)
+      if (item.value.type === 'opened') {
+        throw new Error(`${this.options.name} emitted more than one opening cursor`)
+      }
+      await this.acceptEntry(item.value.entry, item, iterator)
     }
   }
 
@@ -379,13 +379,13 @@ export abstract class RemoteJournalStream<Page, Entry, Cursor, PageRequest = voi
   > {
     const page = this.readPage(request, through, signal).then(
       value => ({ type: 'page' as const, value }),
-      (error: unknown) => ({ type: 'page-error' as const, error }),
+      (error: Thrown) => ({ type: 'page-error' as const, error }),
     )
     while (true) {
       const pending = this.nextResult(iterator)
       const next = pending.then(
         value => ({ type: 'next' as const, value }),
-        (error: unknown) => ({ type: 'next-error' as const, error }),
+        (error: Thrown) => ({ type: 'next-error' as const, error }),
       )
       const result = await Promise.race([page, next])
       if (result.type === 'page') {
@@ -394,7 +394,7 @@ export abstract class RemoteJournalStream<Page, Entry, Cursor, PageRequest = voi
       }
       if (result.type === 'page-error') {
         if (!signal.aborted || this.stream.signal.aborted) throw result.error
-        return this.awaitReplacementGeneration(generation, iterator, pending)
+        return this.awaitReplacementGeneration(generation, iterator)
       }
       this.releaseNext()
       if (result.type === 'next-error') throw result.error
@@ -414,16 +414,9 @@ export abstract class RemoteJournalStream<Page, Entry, Cursor, PageRequest = voi
   private async awaitReplacementGeneration(
     generation: number,
     iterator: AsyncIterator<JournalStreamItem<Page, Entry, Cursor>>,
-    initial: Promise<IteratorResult<JournalStreamItem<Page, Entry, Cursor>>>,
   ): Promise<{ readonly type: 'superseded'; readonly item: JournalStreamItem<Page, Entry, Cursor> }> {
-    let pending = initial
     while (true) {
-      let next: IteratorResult<JournalStreamItem<Page, Entry, Cursor>>
-      try {
-        next = await pending
-      } finally {
-        this.releaseNext()
-      }
+      const next = await this.takeNext(iterator)
       if (next.done) {
         this.stream.signal.throwIfAborted()
         throw new Error(`${this.options.name} ended while replacing an aborted page generation`)
@@ -433,7 +426,6 @@ export abstract class RemoteJournalStream<Page, Entry, Cursor, PageRequest = voi
       if (item.value.type === 'opened') {
         throw new Error(`${this.options.name} emitted more than one opening cursor`)
       }
-      pending = this.nextResult(iterator)
     }
   }
 
@@ -475,15 +467,19 @@ export abstract class RemoteJournalStream<Page, Entry, Cursor, PageRequest = voi
     return this.pendingNext
   }
 
-  private async takeNext(
+  private takeNext(
     iterator: AsyncIterator<JournalStreamItem<Page, Entry, Cursor>>,
   ): Promise<IteratorResult<JournalStreamItem<Page, Entry, Cursor>>> {
-    const pending = this.nextResult(iterator)
-    try {
-      return await pending
-    } finally {
-      this.releaseNext()
-    }
+    return this.nextResult(iterator).then(
+      (value) => {
+        this.releaseNext()
+        return value
+      },
+      (error: Thrown) => {
+        this.releaseNext()
+        throw error
+      },
+    )
   }
 
   private releaseNext(): void {
