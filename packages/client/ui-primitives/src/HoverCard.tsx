@@ -135,9 +135,9 @@ export function HoverCard({
   const copy = async (text: string): Promise<void> => {
     if (copied || copyingRef.current) return
     copyingRef.current = true
+    using _copying = { [Symbol.dispose]: () => { copyingRef.current = false } }
     const copyEpoch = copyEpochRef.current
     const accepted = await writeClipboard(text)
-    copyingRef.current = false
     const card = cardRef.current
     if (!accepted || !mountedRef.current || copyEpoch !== copyEpochRef.current || card === null) return
     const height = card.offsetHeight
@@ -147,7 +147,8 @@ export function HoverCard({
   }
 
   const queueCopy = (text: string): void => {
-    copyFlightRef.current = copy(text)
+    const startCopy = (): Promise<void> => copy(text)
+    copyFlightRef.current = copyFlightRef.current.then(startCopy, startCopy)
   }
 
   const copyable = copyText !== undefined

@@ -115,9 +115,16 @@ function scrollPosition(list: HTMLElement, scrollport: HTMLElement): ChatScrollP
   }
 }
 
-/** Host/OS refusal text for the file-open dialog; empty throws keep a locale fallback. */
-function openFailureMessage(error: unknown, fallback: string): string {
-  const message = error instanceof Error ? error.message : String(error)
+/** Values a Promise reject arm or host file-open refusal may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Host/OS refusal text for the file-open dialog; empty throws keep a locale fallback.
+ * @param reason - the Thrown the host rejected with.
+ * @param fallback - localized copy when Thrown text is empty.
+ */
+function openFailureMessage(reason: Thrown, fallback: string): string {
+  const message = reason instanceof Error ? reason.message : String(reason)
   return message === '' ? fallback : message
 }
 

@@ -15,6 +15,18 @@ import { TeamMembers } from './TeamMembers.tsx'
 import { TeamConversations, type TeamConversation } from './TeamConversations.tsx'
 import { TeamMessages } from './TeamMessages.tsx'
 
+/** Values a Promise reject arm or wire refusal may deliver. */
+export type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a rejected team load, refresh, or navigation.
+ * @param reason - the Thrown the transport or host rejected with.
+ * @returns the message to show.
+ */
+export function thrownMessage(reason: Thrown): string {
+  return reason instanceof Error ? reason.message : String(reason)
+}
+
 /** Generated Remote result consumed directly by the Team UI. */
 export type TeamActionResult<T> = RemoteResult<T>
 
@@ -38,10 +50,10 @@ function useTeamObservation({ sessionId, changes, load, t }: Pick<TeamActionProp
   const sessionRef = useRef(sessionId)
   const refreshGeneration = useRef(0)
   sessionRef.current = sessionId
-  const reportError = (reason: unknown): void => {
+  const reportError = (reason: Thrown): void => {
     if (sessionRef.current === sessionId) {
       setLoading(false)
-      setError(String(reason))
+      setError(thrownMessage(reason))
     }
   }
 
@@ -60,7 +72,7 @@ function useTeamObservation({ sessionId, changes, load, t }: Pick<TeamActionProp
     if (sessionRef.current !== sessionId || refreshGeneration.current !== generation) return false
     setLoading(false)
     if (outcome.status === 'rejected') {
-      setError(String(outcome.reason))
+      setError(thrownMessage(outcome.reason))
       return false
     }
     const result = outcome.value
@@ -83,10 +95,10 @@ function useTeamObservation({ sessionId, changes, load, t }: Pick<TeamActionProp
           setError(t('disconnected'))
         }
       },
-      (reason: unknown) => {
+      (reason: Thrown) => {
         if (!controller.signal.aborted) {
           setLoading(false)
-          setError(String(reason))
+          setError(thrownMessage(reason))
         }
       },
     )

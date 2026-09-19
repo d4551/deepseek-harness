@@ -256,6 +256,25 @@ describe('HoverCard', () => {
     }
   })
 
+  it('accepts another copy after the clipboard rejects the write', async () => {
+    const writeText = vi.fn<() => Promise<void>>()
+      .mockRejectedValueOnce(new Error('denied'))
+      .mockResolvedValueOnce(undefined)
+    const restoreClipboard = installClipboard(writeText)
+    try {
+      const { wrapper } = mount({ copyText: 'value', copiedLabel: 'Copied' })
+      fireEvent.pointerEnter(wrapper)
+      act(() => { vi.advanceTimersByTime(500) })
+      await act(async () => { fireEvent.click(screen.getByRole('button')) })
+      expect(screen.queryByText('Copied')).toBeNull()
+      await act(async () => { fireEvent.click(screen.getByRole('button')) })
+      expect(writeText).toHaveBeenCalledTimes(2)
+      expect(screen.getByRole('status').textContent).toBe('Copied')
+    } finally {
+      restoreClipboard()
+    }
+  })
+
   it('unmount clears copied feedback', async () => {
     const writeText = vi.fn<() => Promise<void>>(async () => {})
     const restoreClipboard = installClipboard(writeText)

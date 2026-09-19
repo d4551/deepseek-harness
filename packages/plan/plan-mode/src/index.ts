@@ -78,6 +78,9 @@ const REVIEW_ID = 'plan-review'
 /** The review question's approve option label. */
 const APPROVE_LABEL = 'Approve'
 
+/** Values a Promise reject arm from the review channel may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** The review question's keep-planning option label. */
 const KEEP_PLANNING_LABEL = 'Keep planning'
 
@@ -385,18 +388,21 @@ export class PlanModeController extends Service {
           }],
           agent,
           signal: exec.signal,
-        }).catch((cause: unknown) => {
-          // A dismissed review is not a failed one: the user took the turn back
-          // to say something the two options do not cover. Say so, because the
-          // generic channel message names ask_user_question, which the model
-          // never called. An abort (turn cancel, provider teardown) keeps its
-          // own message — there is no user to wait for.
-          if (cause instanceof UserQuestionError && cause.code === 'ASK_CANCELLED') {
-            throw new Error('The user dismissed the plan review to speak instead; '
-              + 'stay in plan mode, stop here, and wait for their message.')
-          }
-          throw cause
-        })
+        }).then(
+          answer => answer,
+          (reason: Thrown) => {
+            // A dismissed review is not a failed one: the user took the turn back
+            // to say something the two options do not cover. Say so, because the
+            // generic channel message names ask_user_question, which the model
+            // never called. An abort (turn cancel, provider teardown) keeps its
+            // own message — there is no user to wait for.
+            if (reason instanceof UserQuestionError && reason.code === 'ASK_CANCELLED') {
+              throw new Error('The user dismissed the plan review to speak instead; '
+                + 'stay in plan mode, stop here, and wait for their message.')
+            }
+            throw reason
+          },
+        )
         // A review may outlive this plugin fiber. Without its pre-step listener,
         // an approved selection could never be appended, so fail and keep planning.
         if (disposed) {
