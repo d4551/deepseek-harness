@@ -19,6 +19,9 @@ import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { SessionTelemetrySink, SessionTelemetryRecord, SessionTelemetrySeverity } from './index.ts'
 
+/** Values a Promise reject arm from backend shutdown may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Whether capture follows live events or reads the canonical log only when requested. */
 export type SessionTelemetryCapture = 'live' | 'on-demand'
 
@@ -117,11 +120,9 @@ export class SessionTelemetryCoordinator {
           this.deliver(session, { record: this.redact(shutdownRecord(session)) })
         })
       }
-      try {
-        await this.backend.shutdown()
-      } catch (error) {
+      await this.backend.shutdown().then(undefined, (error: Thrown) => {
         this.ctx.logger.warn(`telemetry: backend shutdown failed: ${String(error)}`)
-      }
+      })
     }, 'telemetry capture')
   }
 

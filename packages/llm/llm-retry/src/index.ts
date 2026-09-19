@@ -41,18 +41,20 @@ export interface RetryInternals {
   random?: () => number
 }
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 type DownstreamOutcome =
   | { readonly type: 'decision'; readonly decision: RequestErrorAction }
-  | { readonly type: 'error'; readonly error: unknown }
+  | { readonly type: 'error'; readonly error: Thrown }
 
-async function settleDownstream(
+function settleDownstream(
   next: () => Promise<RequestErrorAction>,
 ): Promise<DownstreamOutcome> {
-  try {
-    return { type: 'decision', decision: await next() }
-  } catch (error: unknown) {
-    return { type: 'error', error }
-  }
+  return new Promise<RequestErrorAction>((resolve) => { resolve(next()) }).then(
+    (decision): DownstreamOutcome => ({ type: 'decision', decision }),
+    (error: Thrown): DownstreamOutcome => ({ type: 'error', error }),
+  )
 }
 
 function localDelay(config: ResolvedRetryPolicy, retry: number, random: () => number): number {
@@ -221,6 +223,6 @@ export function apply(ctx: Context, config: Config = {}, internals: RetryInterna
   ctx.effect(() => async () => {
     disposeListener()
     lifetime.abort(new Error('llm-retry plugin disposed'))
-    await Promise.allSettled([...active])
+    await Promise.all([...active].map(p => p.then(() => undefined, (_error: Thrown) => undefined)))
   }, 'llm-retry: abort and drain active recovery')
 }

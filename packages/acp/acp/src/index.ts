@@ -221,18 +221,24 @@ export function apply(ctx: Context, config: AcpConfig): void {
         throw internalError('connection closed during session/new')
       }
       sessions.set(sessionId, record)
-      try {
+      return new Promise((resolve) => {
         setAdditionalWorkspaceRoots(record.agent.session, additionalRoots)
-        const configOptions = await record.configOptions(signal)
-        assertOpen()
-        await persistence.ensureMaterialized(record.agent.session)
-        assertOpen()
-        return { sessionId, configOptions }
-      } catch (error) {
-        sessions.delete(sessionId)
-        await record.close('session/new activation failed')
-        throw error
-      }
+        resolve(record.configOptions(signal))
+      })
+        .then((configOptions) => {
+          assertOpen()
+          return persistence.ensureMaterialized(record.agent.session).then(() => configOptions)
+        })
+        .then((configOptions) => {
+          assertOpen()
+          return { sessionId, configOptions }
+        })
+        .then(undefined, (error: Thrown) => {
+          sessions.delete(sessionId)
+          return record.close('session/new activation failed').then(() => {
+            throw error
+          })
+        })
     },
 
     async resumeSession(params: ResumeSessionRequest, signal: AbortSignal): Promise<ResumeSessionResponse> {
@@ -275,16 +281,19 @@ export function apply(ctx: Context, config: AcpConfig): void {
           throw internalError('connection closed during session/resume')
         }
         sessions.set(sessionId, record)
-        try {
+        return new Promise((resolve) => {
           // The client restates its complete workspace on every resume, so the
           // request — not the stored log — decides the session's current roots.
           setAdditionalWorkspaceRoots(record.agent.session, additionalRoots)
-          return { configOptions: await record.configOptions(signal) }
-        } catch (error) {
-          sessions.delete(sessionId)
-          await record.close('session/resume option discovery failed')
-          throw error
-        }
+          resolve(record.configOptions(signal))
+        })
+          .then(configOptions => ({ configOptions }))
+          .then(undefined, (error: Thrown) => {
+            sessions.delete(sessionId)
+            return record.close('session/resume option discovery failed').then(() => {
+              throw error
+            })
+          })
       })().finally(() => { activating.delete(sessionId) })
     },
 

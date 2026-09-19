@@ -236,6 +236,9 @@ export function spawnPipedProcess(
   }
 }
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /**
  * Drain one anonymous pipe until the writer closes it.
  * @param api - active binding table.
@@ -243,36 +246,48 @@ export function spawnPipedProcess(
  * @returns complete bytes read before EOF; the handle is always closed.
  * @throws when a Win32 pipe operation fails.
  */
-export async function drainPipe(
+export function drainPipe(
   api: Win32ProcessBindings,
   handle: NativePtr,
 ): Promise<Buffer> {
   const chunks: Buffer[] = []
   let countSlot: NativePtr | undefined
-  try {
-    countSlot = allocUint32()
-    for (;;) {
-      const peeked = api.peekNamedPipe(handle, null, 0, null, countSlot, null)
-      if (peeked === 0) {
-        const win32Code = api.getLastError()
-        if (win32Code === abi.ERROR_BROKEN_PIPE || win32Code === abi.ERROR_NO_DATA) break
-        throwLastError(api, 'PeekNamedPipe', `drain failure after ${chunks.length} chunk(s)`)
-      }
-      const available = decodeUint32(countSlot)
-      if (available > 0) {
-        const chunk = Buffer.alloc(available)
-        if (api.readFile(handle, chunk, chunk.length, countSlot, null) === 0) {
-          throwLastError(api, 'ReadFile', `drain failure after ${chunks.length} chunk(s)`)
-        }
-        chunks.push(chunk.subarray(0, decodeUint32(countSlot)))
-      }
-      await new Promise<void>(resolve => setTimeout(resolve, 1))
-    }
-    return Buffer.concat(chunks)
-  } finally {
+  const release = (): void => {
     freeNative(countSlot)
     api.closeHandle(handle)
   }
+  const drain = (slot: NativePtr): Promise<Buffer> => {
+    const peeked = api.peekNamedPipe(handle, null, 0, null, slot, null)
+    if (peeked === 0) {
+      const win32Code = api.getLastError()
+      if (win32Code === abi.ERROR_BROKEN_PIPE || win32Code === abi.ERROR_NO_DATA) {
+        return Promise.resolve(Buffer.concat(chunks))
+      }
+      throwLastError(api, 'PeekNamedPipe', `drain failure after ${chunks.length} chunk(s)`)
+    }
+    const available = decodeUint32(slot)
+    if (available > 0) {
+      const chunk = Buffer.alloc(available)
+      if (api.readFile(handle, chunk, chunk.length, slot, null) === 0) {
+        throwLastError(api, 'ReadFile', `drain failure after ${chunks.length} chunk(s)`)
+      }
+      chunks.push(chunk.subarray(0, decodeUint32(slot)))
+    }
+    return new Promise<void>(resolve => setTimeout(resolve, 1)).then(() => drain(slot))
+  }
+  return new Promise<Buffer>((resolve) => {
+    countSlot = allocUint32()
+    resolve(drain(countSlot))
+  }).then(
+    (buffer) => {
+      release()
+      return buffer
+    },
+    (error: Thrown) => {
+      release()
+      throw error
+    },
+  )
 }
 
 /**
@@ -301,7 +316,7 @@ export function waitForProcessExit(api: Win32ProcessBindings, process: NativePtr
  * @param api - active binding table.
  * @param options - command, cwd, args, and restricted primary token.
  * @returns caller-owned process and Job handles after successful resume.
- * @remarks Node clears stdio handle inheritability at startup through
+ * Node clears stdio handle inheritability at startup through
  * uv_disable_stdio_inheritance. This operation temporarily restores the bits
  * required by STARTF_USESTDHANDLES. Restoring them afterward is best-effort:
  * failure must not replace the already-created child's outcome.
