@@ -46,13 +46,13 @@ interface SharedUpload {
 }
 
 function abortReason(signal: AbortSignal): Error {
-  const reason: unknown = signal.reason
+  const reason: Thrown = signal.reason
   return reason instanceof Error
     ? reason
     : new Error('DeepSeek file upload cancelled with a non-Error reason.', { cause: reason })
 }
 
-function uploadFailure(error: unknown): Error {
+function uploadFailure(error: Thrown): Error {
   return error instanceof Error
     ? error
     : new Error('DeepSeek file upload failed with a non-Error reason.', { cause: error })

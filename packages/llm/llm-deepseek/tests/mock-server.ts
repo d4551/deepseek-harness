@@ -1,6 +1,8 @@
 import { createServer } from 'node:http'
 import type { IncomingMessage, Server, ServerResponse } from 'node:http'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** One scripted behavior for the next request the mock server receives. */
 export type Behavior =
   | { kind: 'sse'; events: string[]; delayMs?: number }
@@ -140,7 +142,7 @@ export async function mockServer(script: Behavior[]): Promise<MockServer> {
           setTimeout(() => { write(index + 1) }, behavior.kind === 'sse' ? behavior.delayMs ?? 0 : 5)
         }
         write(0)
-      })().catch((error: unknown) => {
+      })().catch((error: Thrown) => {
         response.writeHead(500, { 'content-type': 'text/plain' }).end(String(error))
       })
     })
