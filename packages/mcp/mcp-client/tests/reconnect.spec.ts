@@ -22,8 +22,12 @@ const { mockConnect, mockClose, mockListTools, mockCallTool, mockSetNotification
   const mockCallTool = vi.fn<(
     _params?: Record<string, unknown>, _compatibilitySchema?: unknown, _options?: unknown,
   ) => Promise<unknown>>()
-  const mockSetNotificationHandler = vi.fn()
-  const mockRequest = vi.fn(async (
+  const mockSetNotificationHandler = vi.fn<(schema: unknown, handler: () => Promise<void>) => void>()
+  const mockRequest = vi.fn<(
+    request: { method: string; params?: Record<string, unknown> },
+    schema: unknown,
+    options?: unknown,
+  ) => Promise<unknown>>(async (
     request: { method: string; params?: Record<string, unknown> },
     _schema: unknown,
     options?: unknown,
@@ -49,11 +53,11 @@ vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
 }))
 
 vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
-  StdioClientTransport: vi.fn(),
+  StdioClientTransport: vi.fn<new (...args: unknown[]) => object>(),
 }))
 
 vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
-  StreamableHTTPClientTransport: vi.fn(),
+  StreamableHTTPClientTransport: vi.fn<new (...args: unknown[]) => object>(),
 }))
 
 // vi.mock is hoisted above static imports, so the modules under test see the
@@ -471,6 +475,27 @@ describe('reconnect supervisor', () => {
     const staleHandler = mockSetNotificationHandler.mock.calls[0]![1] as () => Promise<void>
     await staleHandler()
     expect(mockListTools).toHaveBeenCalledTimes(listCalls)
+  })
+
+  it('does not reconnect when disposal wins the failed-generation close wait', async () => {
+    vi.useFakeTimers()
+    try {
+      mockConnect.mockRejectedValue(new Error('initialize failed'))
+      mockClose.mockResolvedValue(undefined)
+      const handle = startConnection(
+        ctx,
+        stdioConfig({ initialDelayMs: 2, maxDelayMs: 8, maxAttempts: 2 }),
+        resolveReconnectPolicy({ initialDelayMs: 2, maxDelayMs: 8, maxAttempts: 2 }, 'reconnect'),
+      )
+      await vi.advanceTimersByTimeAsync(0)
+      const disposing = handle.dispose()
+      await vi.advanceTimersByTimeAsync(5_000)
+      await disposing
+      await handle.ready
+      expect(instances).toHaveLength(1)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
