@@ -8,6 +8,18 @@ import type { ToolSchema } from '@deepseek-ai/dsh-llm'
 
 const CONFIG = { provider: 'mock', model: 'm' }
 
+function applySessionCreate(id: SessionId, seed: object[]): void {
+  const create = Reflect.get(Session, 'create')
+  if (typeof create !== 'function') throw new TypeError('Session.create is not a function')
+  Reflect.apply(create, Session, [id, seed])
+}
+
+function applySessionAppend(session: Session, type: string, data: object): void {
+  const append = Reflect.get(session, 'append')
+  if (typeof append !== 'function') throw new TypeError('session.append is not a function')
+  Reflect.apply(append, session, [type, data])
+}
+
 function tool(name: string, description = 'd'): ToolSchema {
   return { name, description, parameters: { type: 'object' } }
 }
@@ -86,31 +98,37 @@ describe('foldRequestHeader', () => {
   })
 })
 
-describe('legacy request-header format', () => {
+describe('removed request-header format', () => {
   it('rejects request/header-delta in seeds and untyped appends', () => {
-    const legacy = [{
-      type: 'request/header-delta', seq: 0, time: 1, data: { config: CONFIG },
-    }] as unknown as SessionEvent[]
-    expect(() => Session.create(SessionId('legacy'), legacy)).toThrow(/unsupported legacy request\/header-delta/)
+    expect(() => {
+      applySessionCreate(
+        SessionId('removed-header-delta'),
+        [{ type: 'request/header-delta', seq: 0, time: 1, data: { config: CONFIG } }],
+      )
+    }).toThrow(/unsupported legacy request\/header-delta/)
 
-    const session = Session.create(SessionId('legacy-append-delta'))
-    const appendLegacy = session.append.bind(session) as (type: string, data: unknown) => SessionEvent
-    expect(() => appendLegacy('request/header-delta', { config: CONFIG }))
-      .toThrow(/unsupported legacy request\/header-delta/)
+    const session = Session.create(SessionId('removed-append-delta'))
+    expect(() => {
+      applySessionAppend(session, 'request/header-delta', { config: CONFIG })
+    }).toThrow(/unsupported legacy request\/header-delta/)
     expect(session.events).toHaveLength(0)
   })
 
   it('rejects the removed fallback reason in seeds and untyped appends', () => {
-    const legacy = [{
-      type: 'request/header', seq: 0, time: 1, data: { header: { config: CONFIG }, reason: 'fallback' },
-    }] as unknown as SessionEvent[]
-    expect(() => Session.create(SessionId('legacy-seed-reason'), legacy))
-      .toThrow('unsupported legacy request/header reason "fallback"')
+    expect(() => {
+      applySessionCreate(
+        SessionId('removed-seed-reason'),
+        [{ type: 'request/header', seq: 0, time: 1, data: { header: { config: CONFIG }, reason: 'fallback' } }],
+      )
+    }).toThrow('unsupported legacy request/header reason "fallback"')
 
-    const session = Session.create(SessionId('legacy-append-reason'))
-    const appendLegacy = session.append.bind(session) as (type: string, data: unknown) => SessionEvent
-    expect(() => appendLegacy('request/header', { header: { config: CONFIG }, reason: 'fallback' }))
-      .toThrow('unsupported legacy request/header reason "fallback"')
+    const session = Session.create(SessionId('removed-append-reason'))
+    expect(() => {
+      applySessionAppend(session, 'request/header', {
+        header: { config: CONFIG },
+        reason: 'fallback',
+      })
+    }).toThrow('unsupported legacy request/header reason "fallback"')
     expect(session.events).toHaveLength(0)
   })
 })
@@ -172,6 +190,8 @@ describe('Session.requestContext', () => {
     const held = session.requestContext()
     if (held === undefined) throw new Error('expected a folded capacity record')
     expect(Object.isFrozen(held)).toBe(true)
-    expect(() => { (held as { contextWindow?: number }).contextWindow = 1 }).toThrow()
+    expect(() => {
+      Object.defineProperty(held, 'contextWindow', { value: 1 })
+    }).toThrow(/Cannot redefine property: contextWindow/)
   })
 })
