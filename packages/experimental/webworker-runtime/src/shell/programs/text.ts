@@ -8,6 +8,8 @@ import { describeFailure, resolveIn } from '../fs-access.ts'
 import type { ShellFileSystem, ShellIo, ShellProgram, ShellState } from '../types.ts'
 import { numberOption, parseOptions, toLines } from './options.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /**
  * Read every operand as a file, reporting the ones that fail.
  * @param program - name used in diagnostics.
@@ -33,12 +35,13 @@ async function readInputs(
       continue
     }
     const path = resolveIn(state.cwd, operand)
-    try {
-      sources.push({ name: operand, text: await fs.readText(path) })
-    } catch (error) {
-      io.err(`${describeFailure(program, operand, error)}\n`)
-      status = 1
-    }
+    await new Promise<string>((resolve) => { resolve(fs.readText(path)) }).then(
+      (text) => { sources.push({ name: operand, text }) },
+      (error: Thrown) => {
+        io.err(`${describeFailure(program, operand, error)}\n`)
+        status = 1
+      },
+    )
   }
   return { sources, status }
 }
@@ -181,12 +184,13 @@ const grep: ShellProgram = async (argv, io, state, fs) => {
         for (const file of files) sources.push({ name: file.display, text: await fs.readText(file.path) })
         continue
       }
-      try {
-        sources.push({ name: target, text: await fs.readText(path) })
-      } catch (error) {
-        io.err(`${describeFailure('grep', target, error)}\n`)
-        status = Math.max(status, 2)
-      }
+      await new Promise<string>((resolve) => { resolve(fs.readText(path)) }).then(
+        (text) => { sources.push({ name: target, text }) },
+        (error: Thrown) => {
+          io.err(`${describeFailure('grep', target, error)}\n`)
+          status = Math.max(status, 2)
+        },
+      )
     }
   }
 
@@ -344,12 +348,16 @@ const tee: ShellProgram = async (argv, io, state, fs) => {
   const options = parseOptions(argv)
   io.out(io.stdin)
   for (const operand of options.operands) {
-    try {
-      await fs.writeText(resolveIn(state.cwd, operand), io.stdin, options.flags.has('a'))
-    } catch (error) {
-      io.err(`${describeFailure('tee', operand, error)}\n`)
-      return 1
-    }
+    const written = await new Promise<void>((resolve) => {
+      resolve(fs.writeText(resolveIn(state.cwd, operand), io.stdin, options.flags.has('a')))
+    }).then(
+      () => true,
+      (error: Thrown) => {
+        io.err(`${describeFailure('tee', operand, error)}\n`)
+        return false
+      },
+    )
+    if (!written) return 1
   }
   return 0
 }

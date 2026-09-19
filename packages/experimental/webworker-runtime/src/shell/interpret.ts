@@ -19,6 +19,26 @@ import { describeFailure, hostFileSystem, resolveIn } from './fs-access.ts'
 import { standardPrograms } from './programs/index.ts'
 import type { ShellFileSystem, ShellIo, ShellProgram, ShellRunOutcome, ShellState } from './types.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /** Status a command line reports once the caller's abort signal has fired. */
 const ABORTED_STATUS = 130
 
@@ -104,12 +124,15 @@ export async function runShellProgram(argv: readonly string[], options: ShellRun
     return run.settle(NOT_FOUND_STATUS)
   }
   if (options.signal?.aborted === true) return run.settle(ABORTED_STATUS)
-  try {
-    return run.settle(await program(argv, run.io, run.state, options.fs ?? hostFileSystem()))
-  } catch (error) {
-    run.io.err(`bash: ${name}: ${error instanceof Error ? error.message : String(error)}\n`)
-    return run.settle(1)
-  }
+  return new Promise<number>((resolve) => {
+    resolve(program(argv, run.io, run.state, options.fs ?? hostFileSystem()))
+  }).then(
+    status => run.settle(status),
+    (error: Thrown) => {
+      run.io.err(`bash: ${name}: ${thrownMessage(error)}\n`)
+      return run.settle(1)
+    },
+  )
 }
 
 /** Build the state, the sinks, and the settlement one run reports through. */
@@ -270,15 +293,14 @@ class Interpreter {
       io.err(`bash: ${name}: command not found\n`)
       return NOT_FOUND_STATUS
     }
-    return await this.redirected(redirections, state, io, async (inner) => {
-      try {
-        return await program(argv, inner, scope, this.fs)
-      } catch (error) {
-        // A program's own defect must not take the whole worker down with it.
-        inner.err(`bash: ${name}: ${error instanceof Error ? error.message : String(error)}\n`)
-        return 1
-      }
-    })
+    return await this.redirected(redirections, state, io, inner =>
+      new Promise<number>((resolve) => { resolve(program(argv, inner, scope, this.fs)) }).then(
+        status => status,
+        (error: Thrown) => {
+          inner.err(`bash: ${name}: ${thrownMessage(error)}\n`)
+          return 1
+        },
+      ))
   }
 
   /**
@@ -305,7 +327,7 @@ class Interpreter {
         io.err('bash: ambiguous redirect\n')
         return 1
       }
-      try {
+      const applied = await Promise.resolve().then(async () => {
         switch (redirection.subtype) {
           case '<':
             stdin = await this.fs.readText(resolveIn(state.cwd, target))
@@ -345,13 +367,27 @@ class Interpreter {
             io.err(`bash: <&${target}: unsupported descriptor redirection\n`)
             return 1
         }
-      } catch (error) {
-        io.err(`${describeFailure('bash', resolveIn(state.cwd, target), error)}\n`)
-        return 1
-      }
+        return undefined
+      }).then(
+        status => status,
+        (error: Thrown) => {
+          io.err(`${describeFailure('bash', resolveIn(state.cwd, target), error)}\n`)
+          return 1
+        },
+      )
+      if (applied === 1) return 1
     }
     const status = await body({ stdin, out, err })
-    await Promise.all(writes)
+    const outcomes = await Promise.allSettled(writes)
+    let firstFailure: Thrown | undefined
+    const failures: Thrown[] = []
+    for (const outcome of outcomes) {
+      if (outcome.status !== 'rejected') continue
+      firstFailure ??= outcome.reason
+      failures.push(outcome.reason)
+    }
+    if (failures.length === 1) throw firstFailure
+    if (failures.length > 1) throw new AggregateError(failures, 'webworker shell: redirection writes failed')
     return status
   }
 

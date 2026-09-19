@@ -39,6 +39,8 @@ import {
 
 export { DEFAULT_ROOT } from './image-layout.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Port reported to the tree when the caller names none; the bind is fake either way. */
 export const DEFAULT_PORT = 3080
 
@@ -180,93 +182,91 @@ export function createWorkerHost(options: WorkerHostOptions): WorkerHost {
   let modules: WorkerModuleLoader | undefined
   let context: HostContext | undefined
 
-  const start = async (): Promise<void> => {
-    try {
-      const home = join(root, IMAGE_HOME_DIRECTORY)
-      installProcessGlobal({ cwd: root, env: { DSH_HOME: home, HOME: home, ...options.env } })
+  const start = (): Promise<void> => Promise.resolve().then(async () => {
+    const home = join(root, IMAGE_HOME_DIRECTORY)
+    installProcessGlobal({ cwd: root, env: { DSH_HOME: home, HOME: home, ...options.env } })
 
-      const [bytes, overlays] = await Promise.all([
-        readImage(options.image),
-        Promise.all((options.overlays ?? []).map(readImage)),
-      ])
-      const mounted = loadVfsImage(bytes, root)
-      for (const overlay of overlays) loadVfsOverlay(overlay, root, mounted)
-      // Belt and braces over the image's own empty-directory entries: a hand
-      // -built image without them still boots.
-      for (const directory of IMAGE_EMPTY_DIRECTORIES) {
-        mounted.seedDirectory(join(root, directory.replace(/\/$/, '')))
-      }
-      setActiveVfs(mounted)
-      vfs = mounted
-
-      const manifestPath = options.manifestPath ?? join(root, IMAGE_MANIFEST_PATH)
-      requireLoweredImage(mounted, manifestPath)
-      const staticModules: Record<string, StaticModuleFactory> = { ...options.staticModules }
-      // Read at require time, not here: the table entry then answers whichever
-      // global `installProcessGlobal` left in place, in this role's order.
-      for (const key of ['node:process', 'process']) {
-        staticModules[key] ??= (): unknown => (globalThis as { process?: unknown }).process
-      }
-      const loader = new WorkerModuleLoader({
-        vfs: mounted,
-        root,
-        staticModules,
-        ...options.staticModulePrefixes === undefined ? {} : { staticModulePrefixes: options.staticModulePrefixes },
-        ...options.alsCausality === undefined ? {} : { alsCausality: options.alsCausality },
-      })
-      setActiveModuleLoader(loader)
-      modules = loader
-      // Ahead of the first require: every lowered body becomes a compiled
-      // factory here, so evaluation never builds code from strings.
-      await loader.precompile()
-
-      const require = loader.requireFrom(dirname(configPath))
-      const appBoot = require('@deepseek-ai/dsh-app-boot') as {
-        boot(
-          binName: string,
-          configPath: string,
-          patches: unknown[],
-          prepare: (ctx: HostContext) => void,
-        ): Promise<HostContext>
-      }
-      const cmdline = require('@deepseek-ai/dsh-cmdline') as {
-        provideCmdline(ctx: unknown, host: { args: readonly string[]; exit: (code: number) => void }): void
-      }
-
-      const { patches, presetOverlay } = bootPatches(loader, mounted, configPath, root)
-      const ctx = await appBoot.boot('dsh-webworker', configPath, patches, (hostCtx) => {
-        // Before any entry mounts: the Loader would otherwise fall back to the
-        // runtime's own dynamic import for every row.
-        hostCtx.loader.internal = loader.internal
-        installLogSink(hostCtx, require)
-        cmdline.provideCmdline(hostCtx, {
-          args: [...(options.cmdlineArgs ?? ['--host', '127.0.0.1', '--port', String(port), '--no-open'])],
-          exit: (code: number) => { console.warn(`webworker host: tree requested exit(${String(code)})`) },
-        })
-      })
-      context = ctx
-
-      const connection = ctx.get('connection') as HostConnectionHandle | undefined
-      if (connection === undefined) throw new Error('webworker host: the tree activated without a Connection service')
-      const typertGateway = ctx.get('typertGateway') as TypertGateway | undefined
-      if (typertGateway === undefined) {
-        throw new Error('webworker host: the tree activated without a typertGateway service')
-      }
-      const handler = connection.createSharedFetchHandler('/api')
-      const usage = loader.usage()
-      console.info(`webworker host: tree active (modules=${String(usage.modules)}, data overlays=${String(overlays.length)}, preset root overlay=${presetOverlay ? 'applied' : 'already in roster'}, direct lane=connection.createSharedFetchHandler, als causality=${options.alsCausality === undefined ? 'inert' : 'snapshot/restore'}, image lowering=${LOWERING_VERSION})`)
-
-      tunnel.serve({
-        directFetch: (request: Request) => handler.fetch(request),
-        bootPayload: () => readBootPayload(ctx),
-        openStream: typertGateway.wireStream.open,
-        streamFailure: typertGateway.wireStream.failure,
-      })
-    } catch (reason) {
-      tunnel.fail(reason)
-      throw reason
+    const [bytes, overlays] = await Promise.all([
+      readImage(options.image),
+      Promise.all((options.overlays ?? []).map(readImage)),
+    ])
+    const mounted = loadVfsImage(bytes, root)
+    for (const overlay of overlays) loadVfsOverlay(overlay, root, mounted)
+    // Belt and braces over the image's own empty-directory entries: a hand
+    // -built image without them still boots.
+    for (const directory of IMAGE_EMPTY_DIRECTORIES) {
+      mounted.seedDirectory(join(root, directory.replace(/\/$/, '')))
     }
-  }
+    setActiveVfs(mounted)
+    vfs = mounted
+
+    const manifestPath = options.manifestPath ?? join(root, IMAGE_MANIFEST_PATH)
+    requireLoweredImage(mounted, manifestPath)
+    const staticModules: Record<string, StaticModuleFactory> = { ...options.staticModules }
+    // Read at require time, not here: the table entry then answers whichever
+    // global `installProcessGlobal` left in place, in this role's order.
+    for (const key of ['node:process', 'process']) {
+      staticModules[key] ??= (): unknown => (globalThis as { process?: unknown }).process
+    }
+    const loader = new WorkerModuleLoader({
+      vfs: mounted,
+      root,
+      staticModules,
+      ...options.staticModulePrefixes === undefined ? {} : { staticModulePrefixes: options.staticModulePrefixes },
+      ...options.alsCausality === undefined ? {} : { alsCausality: options.alsCausality },
+    })
+    setActiveModuleLoader(loader)
+    modules = loader
+    // Ahead of the first require: every lowered body becomes a compiled
+    // factory here, so evaluation never builds code from strings.
+    await loader.precompile()
+
+    const require = loader.requireFrom(dirname(configPath))
+    const appBoot = require('@deepseek-ai/dsh-app-boot') as {
+      boot(
+        binName: string,
+        configPath: string,
+        patches: unknown[],
+        prepare: (ctx: HostContext) => void,
+      ): Promise<HostContext>
+    }
+    const cmdline = require('@deepseek-ai/dsh-cmdline') as {
+      provideCmdline(ctx: unknown, host: { args: readonly string[]; exit: (code: number) => void }): void
+    }
+
+    const { patches, presetOverlay } = bootPatches(loader, mounted, configPath, root)
+    const ctx = await appBoot.boot('dsh-webworker', configPath, patches, (hostCtx) => {
+      // Before any entry mounts: the Loader would otherwise fall back to the
+      // runtime's own dynamic import for every row.
+      hostCtx.loader.internal = loader.internal
+      installLogSink(hostCtx, require)
+      cmdline.provideCmdline(hostCtx, {
+        args: [...(options.cmdlineArgs ?? ['--host', '127.0.0.1', '--port', String(port), '--no-open'])],
+        exit: (code: number) => { console.warn(`webworker host: tree requested exit(${String(code)})`) },
+      })
+    })
+    context = ctx
+
+    const connection = ctx.get('connection') as HostConnectionHandle | undefined
+    if (connection === undefined) throw new Error('webworker host: the tree activated without a Connection service')
+    const typertGateway = ctx.get('typertGateway') as TypertGateway | undefined
+    if (typertGateway === undefined) {
+      throw new Error('webworker host: the tree activated without a typertGateway service')
+    }
+    const handler = connection.createSharedFetchHandler('/api')
+    const usage = loader.usage()
+    console.info(`webworker host: tree active (modules=${String(usage.modules)}, data overlays=${String(overlays.length)}, preset root overlay=${presetOverlay ? 'applied' : 'already in roster'}, direct lane=connection.createSharedFetchHandler, als causality=${options.alsCausality === undefined ? 'inert' : 'snapshot/restore'}, image lowering=${LOWERING_VERSION})`)
+
+    tunnel.serve({
+      directFetch: (request: Request) => handler.fetch(request),
+      bootPayload: () => readBootPayload(ctx),
+      openStream: typertGateway.wireStream.open,
+      streamFailure: typertGateway.wireStream.failure,
+    })
+  }).then(undefined, (reason: Thrown) => {
+    tunnel.fail(reason)
+    throw reason
+  })
 
   return {
     handleMessage: (data: unknown): void => { tunnel.handleMessage(data) },

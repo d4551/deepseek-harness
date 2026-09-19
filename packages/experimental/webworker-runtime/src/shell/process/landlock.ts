@@ -18,6 +18,8 @@ export type LandlockInvocation =
 /** Launcher-owned failure; callers print its message with the `landlock-run:` prefix. */
 export class LandlockLauncherError extends Error {}
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /**
  * Parse the native launcher's argv grammar.
  * @param args - Arguments after the launcher executable.
@@ -167,19 +169,23 @@ export async function landlockFileSystem(
 /** Virtual executable implementing the native launcher's CLI over VFS grants. */
 export const LANDLOCK_EXECUTABLE: VirtualExecutable = {
   name: 'landlock-run',
-  async prepare(args, context) {
+  prepare(args, context) {
+    let invocation: LandlockInvocation
     try {
-      const invocation = parseLandlockArguments(args)
-      if (invocation.kind === 'probe') return launcherExit(0, 'landlock: fully enforced\n')
-      return {
-        kind: 'delegate',
-        argv: invocation.argv,
-        filesystem: await landlockFileSystem(context.filesystem, invocation, context.cwd),
-        missingExecutable: launcherExit(125, '', 'landlock-run: exec failed: No such file or directory\n'),
-      }
+      invocation = parseLandlockArguments(args)
     } catch (error) {
-      return launcherFailure(error)
+      return Promise.resolve(launcherFailure(error))
     }
+    if (invocation.kind === 'probe') return Promise.resolve(launcherExit(0, 'landlock: fully enforced\n'))
+    return landlockFileSystem(context.filesystem, invocation, context.cwd).then(
+      filesystem => ({
+        kind: 'delegate' as const,
+        argv: invocation.argv,
+        filesystem,
+        missingExecutable: launcherExit(125, '', 'landlock-run: exec failed: No such file or directory\n'),
+      }),
+      (error: Thrown) => launcherFailure(error),
+    )
   },
   runSync(args) {
     try {

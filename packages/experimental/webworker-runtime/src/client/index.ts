@@ -22,6 +22,8 @@ export {
   type PreviewFixtureManifest, type PreviewFixtureManifestEntry,
 } from '../fixture-manifest.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Transport global the connection plugin reads instead of building an HTTP carrier. */
 interface ClientTransportGlobal {
   __DSH_TRANSPORT__?: {
@@ -85,7 +87,7 @@ function holdWorkerHostBoot(): void {
   const ready = bootReadyGate()
   // A chooser may remain open indefinitely; if a later connection fails before
   // the stock entry subscribes, retain the rejection without browser noise.
-  ready.promise.catch(() => {})
+  ready.promise.catch((_error: Thrown) => {})
 }
 
 /**
@@ -96,19 +98,19 @@ function holdWorkerHostBoot(): void {
  * @param options - Base image and optional fixture-catalog locations.
  * @returns The ordered overlays selected by the user.
  */
-export async function chooseWorkerHostSource(
+export function chooseWorkerHostSource(
   options: WorkerHostSourceOptions = {},
 ): Promise<WorkerHostSource> {
   holdWorkerHostBoot()
   const image = new URL(options.image ?? IMAGE_FILE_NAME, document.baseURI)
   const manifest = new URL(options.fixtureManifest ?? PREVIEW_FIXTURE_MANIFEST_FILE, image)
-  try {
-    const overlays = await choosePreviewSource(manifest)
-    return { overlays }
-  } catch (reason) {
-    bootReadyGate().reject(reason)
-    throw reason
-  }
+  return choosePreviewSource(manifest).then(
+    overlays => ({ overlays }),
+    (reason: Thrown) => {
+      bootReadyGate().reject(reason)
+      throw reason
+    },
+  )
 }
 
 /**
@@ -131,12 +133,12 @@ export async function chooseWorkerHostSource(
  * @param options - Base-image and overlay location overrides.
  * @returns The connection; hand `loadBundle` to the shell entry's boot seam.
  */
-export async function connectWorkerHost(worker: Worker, options?: WorkerHostConnectOptions): Promise<WorkerHostConnection> {
+export function connectWorkerHost(worker: Worker, options?: WorkerHostConnectOptions): Promise<WorkerHostConnection> {
   const ready = bootReadyGate()
   // The handshake may fail before any entry awaits the promise; this no-op
   // subscription keeps that from surfacing as an unhandled rejection.
-  ready.promise.catch(() => {})
-  try {
+  ready.promise.catch((_error: Thrown) => {})
+  return Promise.resolve().then(async () => {
     const tunnel = new WorkerTunnel(worker)
     tunnel.init(
       new URL(options?.image ?? IMAGE_FILE_NAME, document.baseURI).href,
@@ -154,8 +156,8 @@ export async function connectWorkerHost(worker: Worker, options?: WorkerHostConn
     await applyIndexInjections(payload.injections, src => tunnel.loadBundle(src))
     ready.resolve()
     return { worker, tunnel, loadBundle: (url: string) => tunnel.loadBundle(url) }
-  } catch (reason) {
+  }).then(undefined, (reason: Thrown) => {
     ready.reject(reason)
     throw reason
-  }
+  })
 }

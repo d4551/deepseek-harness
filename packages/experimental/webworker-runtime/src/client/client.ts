@@ -17,6 +17,8 @@ import type {
   TunnelStreamOpenFrame,
 } from '../transport/frames.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Boot payload of the tunnel bootstrap route. */
 export interface BootPayload {
   /** Structured index injection table, executed by the page interpreter. */
@@ -104,19 +106,14 @@ function base64(value: string): string {
 }
 
 /** Replace a tunnel-only map reference with a self-contained Base64 data URL. */
-async function localizeSourceMap(source: string, bundleUrl: string, fetch: TunnelFetch): Promise<string> {
+function localizeSourceMap(source: string, bundleUrl: string, fetch: TunnelFetch): Promise<string> {
   const match = SOURCE_MAP_TRAILER.exec(source)
-  if (match?.[1] === undefined) return source
-  try {
-    const response = await fetch(new URL(match[1], new URL(bundleUrl, globalThis.location.origin)))
+  if (match?.[1] === undefined) return Promise.resolve(source)
+  return fetch(new URL(match[1], new URL(bundleUrl, globalThis.location.origin))).then(async (response) => {
     if (!response.ok) return source.replace(SOURCE_MAP_TRAILER, '')
     const dataUrl = `data:application/json;charset=utf-8;base64,${base64(await response.text())}`
     return source.replace(SOURCE_MAP_TRAILER, `//# sourceMappingURL=${dataUrl}`)
-  } catch {
-    // A source map is diagnostic-only; its transport failure must not prevent
-    // the plugin factory from registering.
-    return source.replace(SOURCE_MAP_TRAILER, '')
-  }
+  }).then(undefined, (_error: Thrown) => source.replace(SOURCE_MAP_TRAILER, ''))
 }
 
 /** Normalize a RequestInit body to a transferable ArrayBuffer. */
@@ -230,6 +227,7 @@ export class WorkerTunnel {
    * @param endpoint - canonical Gateway Remote endpoint.
    * @param payload - decoded endpoint payload.
    * @param signal - logical-stream cancellation.
+   * @yields decoded stream values from the worker Host.
    * @returns decoded stream values from the worker Host.
    */
   async *open(endpoint: string, payload: unknown, signal: AbortSignal): AsyncGenerator {

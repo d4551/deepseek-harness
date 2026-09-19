@@ -10,6 +10,8 @@
  * The transform that inserts these calls lives in `transform.ts`.
  * @module @deepseek-ai/dsh-experimental-webworker-runtime/src/polyfill/async-context/als-runtime
  */
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Snapshot of every ambient store, opaque to this module. */
 export type AlsSnapshot = unknown
 
@@ -54,7 +56,7 @@ export function createAlsRuntime(causality?: AlsCausality): AlsRuntime {
       const captured = snapshot()
       return Promise.resolve(value).then(
         settled => ({ ok: true, value: settled, snapshot: captured }),
-        (error: unknown) => ({ ok: false, error, snapshot: captured }),
+        (error: Thrown) => ({ ok: false, error, snapshot: captured }),
       )
     },
     resume: (token: AlsToken): unknown => {
@@ -90,13 +92,10 @@ export function createAlsRuntime(causality?: AlsCausality): AlsRuntime {
         },
       } as AsyncIterator<unknown>
     },
-    close: async (iterator: AsyncIterator<unknown>): Promise<unknown> => {
-      try {
-        return await iterator.return?.(undefined)
-      } catch {
-        // Closing an iterator that already failed has nothing left to release.
-        return undefined
-      }
-    },
+    close: (iterator: AsyncIterator<unknown>): Promise<unknown> =>
+      new Promise<unknown>((resolve) => { resolve(iterator.return?.(undefined)) }).then(
+        value => value,
+        (_error: Thrown) => undefined,
+      ),
   }
 }

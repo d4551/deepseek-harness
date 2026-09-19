@@ -12,6 +12,8 @@ import type { ValueArgument } from './ast.ts'
 import { resolve } from '../module-system/posix-path.ts'
 import type { ShellFileSystem, ShellState } from './types.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Characters that make the grammar treat a whole word as a glob pattern. */
 const GLOB_PATTERN = /[*?]|\[[^\]]*\]/
 
@@ -75,13 +77,11 @@ export async function expandGlob(pattern: string, cwd: string, fs: ShellFileSyst
   const segments = pattern.split('/').filter(segment => segment !== '')
   // A glob walks paths that may not exist or may not be directories; both
   // simply contribute no matches, so listing failures are absorbed here.
-  const safeList = async (path: string): Promise<{ name: string; directory: boolean }[]> => {
-    try {
-      return await fs.list(path)
-    } catch {
-      return []
-    }
-  }
+  const safeList = (path: string): Promise<{ name: string; directory: boolean }[]> =>
+    new Promise<{ name: string; directory: boolean }[]>((resolve) => { resolve(fs.list(path)) }).then(
+      entries => entries,
+      (_error: Thrown) => [],
+    )
   // Each frontier entry pairs the directory to search with the prefix that
   // reproduces the caller's spelling for anything found under it.
   let frontier: { path: string; display: string }[] = [{ path: absolute ? '/' : cwd, display: absolute ? '/' : '' }]

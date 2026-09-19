@@ -12,6 +12,8 @@ import { describeFailure, resolveIn } from '../fs-access.ts'
 import type { ShellFileSystem, ShellProgram, ShellStats } from '../types.ts'
 import { parseOptions } from './options.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Format one entry the way `ls -l` does, with the facts the VFS actually holds. */
 function longEntry(stats: ShellStats | undefined, name: string): string {
   const size = String(stats?.size ?? 0).padStart(8)
@@ -91,12 +93,12 @@ const mkdir: ShellProgram = async (argv, io, state, fs) => {
   const options = parseOptions(argv)
   let status = 0
   for (const operand of options.operands) {
-    try {
-      await fs.mkdir(resolveIn(state.cwd, operand), options.flags.has('p'))
-    } catch (error) {
+    await new Promise<void>((resolve) => {
+      resolve(fs.mkdir(resolveIn(state.cwd, operand), options.flags.has('p')))
+    }).then(undefined, (error: Thrown) => {
       io.err(`${describeFailure('mkdir', operand, error)}\n`)
       status = 1
-    }
+    })
   }
   return status
 }
@@ -111,12 +113,12 @@ const rmdir: ShellProgram = async (argv, io, state, fs) => {
       status = 1
       continue
     }
-    try {
-      await fs.remove(path, { recursive: true, force: false })
-    } catch (error) {
+    await new Promise<void>((resolve) => {
+      resolve(fs.remove(path, { recursive: true, force: false }))
+    }).then(undefined, (error: Thrown) => {
       io.err(`${describeFailure('rmdir', operand, error)}\n`)
       status = 1
-    }
+    })
   }
   return status
 }
@@ -140,12 +142,12 @@ const rm: ShellProgram = async (argv, io, state, fs) => {
       status = 1
       continue
     }
-    try {
-      await fs.remove(path, { recursive, force })
-    } catch (error) {
+    await new Promise<void>((resolve) => {
+      resolve(fs.remove(path, { recursive, force }))
+    }).then(undefined, (error: Thrown) => {
       io.err(`${describeFailure('rm', operand, error)}\n`)
       status = 1
-    }
+    })
   }
   return status
 }
@@ -189,12 +191,12 @@ const cp: ShellProgram = async (argv, io, state, fs) => {
       status = 1
       continue
     }
-    try {
-      await copyTree(sourcePath, await destinationFor(targetPath, source, fs), fs)
-    } catch (error) {
+    await new Promise<void>((resolve) => {
+      resolve(destinationFor(targetPath, source, fs).then(destination => copyTree(sourcePath, destination, fs)))
+    }).then(undefined, (error: Thrown) => {
       io.err(`${describeFailure('cp', source, error)}\n`)
       status = 1
-    }
+    })
   }
   return status
 }
@@ -210,12 +212,13 @@ const mv: ShellProgram = async (argv, io, state, fs) => {
   const targetPath = resolveIn(state.cwd, target)
   let status = 0
   for (const source of sources) {
-    try {
-      await fs.rename(resolveIn(state.cwd, source), await destinationFor(targetPath, source, fs))
-    } catch (error) {
+    await new Promise<void>((resolve) => {
+      resolve(destinationFor(targetPath, source, fs).then(destination =>
+        fs.rename(resolveIn(state.cwd, source), destination)))
+    }).then(undefined, (error: Thrown) => {
       io.err(`${describeFailure('mv', source, error)}\n`)
       status = 1
-    }
+    })
   }
   return status
 }
@@ -225,13 +228,14 @@ const touch: ShellProgram = async (argv, io, state, fs) => {
   let status = 0
   for (const operand of options.operands) {
     const path = resolveIn(state.cwd, operand)
-    try {
+    await new Promise<void>((resolve) => {
       // Rewriting the existing bytes is what advances the VFS timestamp.
-      await fs.writeText(path, await fs.stat(path) === undefined ? '' : await fs.readText(path))
-    } catch (error) {
+      resolve(fs.stat(path).then(stats =>
+        stats === undefined ? fs.writeText(path, '') : fs.readText(path).then(text => fs.writeText(path, text))))
+    }).then(undefined, (error: Thrown) => {
       io.err(`${describeFailure('touch', operand, error)}\n`)
       status = 1
-    }
+    })
   }
   return status
 }

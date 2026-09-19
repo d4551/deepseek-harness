@@ -25,6 +25,8 @@ import { installCryptoGlobals } from './node/globals/crypto.ts'
 import { isShellStartFrame } from './shell/process/protocol.ts'
 import { runShellProcess } from './shell/process/host.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 // Before the timer globals, so the wrappers close over the patched platform.
 installAsyncContextHooks()
 installTimerGlobals()
@@ -68,7 +70,7 @@ self.addEventListener('message', (event: MessageEvent) => {
       runAtAsyncContextRoot(() => { created.handleMessage(queued) })
     }
     pending.length = 0
-    created.start().catch(() => {
+    created.start().catch((_error: Thrown) => {
       // start() already reported the failure to the page through tunnel.fail;
       // nothing else can reach this rejection, so only the duplicate
       // unhandled-rejection noise is dropped here.
