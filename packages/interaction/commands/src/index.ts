@@ -25,6 +25,9 @@ import type {
 export { CommandId } from './brand.ts'
 export type { CommandDescriptor, CommandExecution, CommandInputDescriptor, CommandResult, CommandSource, CommandSourceMap } from './types.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 export const name = 'commands'
 
 const COMMAND_NAME = /^[a-z][a-z0-9_-]*$/u
@@ -159,7 +162,7 @@ function withAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
         signal.removeEventListener('abort', onAbort)
         resolve(value)
       },
-      (error: unknown) => {
+      (error: Thrown) => {
         signal.removeEventListener('abort', onAbort)
         reject(error instanceof Error
           ? error
@@ -366,16 +369,21 @@ export class CommandRuntime extends TypertRemoteService {
       if (store === undefined) {
         return settle({ kind: 'error', text: `/${parsed.name}: image attachments are unavailable because no attachment store is composed` })
       }
-      try {
-        const refs = await admitEncodedImages(store, images)
-        attachments = Object.freeze(refs.map(ref => Object.freeze({ type: 'image' as const, attachment: ref })))
-      } catch (error: unknown) {
-        if (error instanceof AttachmentError) {
-          return settle({ kind: 'error', text: error.message })
-        }
-        this.settleThrown(agent.session, parsed.name, commandId, error)
-        throw error
-      }
+      const admitted = await admitEncodedImages(store, images).then(
+        refs => ({
+          kind: 'attachments',
+          attachments: Object.freeze(refs.map(ref => Object.freeze({ type: 'image' as const, attachment: ref }))),
+        }),
+        (error: Thrown) => {
+          if (error instanceof AttachmentError) {
+            return { kind: 'execution', execution: settle({ kind: 'error', text: error.message }) }
+          }
+          this.settleThrown(agent.session, parsed.name, commandId, error)
+          throw error
+        },
+      )
+      if (admitted.kind === 'execution') return admitted.execution
+      attachments = admitted.attachments
       // Cancellation must be honored BEFORE the handler runs: admission may
       // await slow storage, and a handler entered after the caller cancelled
       // would mutate state the retrying caller then duplicates. (The committed
@@ -387,25 +395,28 @@ export class CommandRuntime extends TypertRemoteService {
       }
     }
     const invocation = Object.freeze({ commandId, agent, rawInput: parsed.rawInput, attachments, signal })
-    let result: CommandResult
-    try {
-      const output = command.definition.handler(invocation)
-      result = normalizeResult(parsed.name, await withAbort(Promise.resolve(output), signal))
-    } catch (error: unknown) {
-      this.settleThrown(agent.session, parsed.name, commandId, error)
-      throw error
-    }
-    return settle(result)
+    return await withAbort(
+      new Promise<CommandResult>((resolve) => {
+        resolve(command.definition.handler(invocation))
+      }),
+      signal,
+    ).then(
+      value => settle(normalizeResult(parsed.name, value)),
+      (error: Thrown) => {
+        this.settleThrown(agent.session, parsed.name, commandId, error)
+        throw error
+      },
+    )
   }
 
   /** Contained `command/done` error append for a thrown handler or admission failure. */
-  private settleThrown(session: Session, command: string, commandId: CommandId, error: unknown): void {
+  private settleThrown(session: Session, command: string, commandId: CommandId, error: Thrown): void {
     try {
       this.appendLifecycle(session, 'command/done', {
         commandId, kind: 'error',
         text: error instanceof Error ? error.message : renderThrown(error),
       })
-    } catch (appendError: unknown) {
+    } catch (appendError) {
       this.ctx.logger.warn(`command "${command}": command/done append failed: ${renderThrown(appendError)}`)
     }
   }

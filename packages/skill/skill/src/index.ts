@@ -608,9 +608,9 @@ export class SkillRegistry extends Service {
     }
     for (const { provider, order } of layer.providers.values()) {
       let localOrder = 0
-      const output = await Promise.resolve(waitWithAbort(provider.list(options), options.signal)).then(
+      const output = await waitWithAbort(provider.list(options), options.signal).then(
         (value: readonly SkillCandidate[] | SkillProviderObservation) => value,
-        (error: object | string | number | boolean | bigint | symbol | null | undefined) => {
+        (error: Thrown) => {
           if (options.signal?.aborted === true) throw toError(options.signal.reason)
           cacheable = false
           this.ctx.logger.warn(`skill provider "${provider.name}" skipped: ${errorMessage(error)}`)
@@ -833,6 +833,9 @@ function assertPositiveInteger(name: string, value: number, minimum = 1): void {
   }
 }
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 function waitWithAbort<T>(promise: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
   if (signal === undefined) return promise
   throwIfAborted(signal)
@@ -850,7 +853,7 @@ function waitWithAbort<T>(promise: Promise<T>, signal: AbortSignal | undefined):
         cleanup()
         resolve(value)
       },
-      (error: unknown) => {
+      (error: Thrown) => {
         cleanup()
         reject(toError(error))
       },
@@ -883,12 +886,10 @@ function errorMessage(error: unknown): string {
   return text
 }
 
-type ListenerFailure = object | string | number | boolean | bigint | symbol | null | undefined
-
 function observeListenerInvocation(
   invoke: () => unknown,
-  onThrow: (reason: ListenerFailure) => void,
-  onReject: (reason: ListenerFailure) => void,
+  onThrow: (reason: Thrown) => void,
+  onReject: (reason: Thrown) => void,
 ): void {
   let finishedSynchronously = false
   new Promise((resolve: (value: unknown) => void) => {
@@ -896,7 +897,7 @@ function observeListenerInvocation(
     finishedSynchronously = true
   }).then(
     () => undefined,
-    (reason: ListenerFailure) => {
+    (reason: Thrown) => {
       if (finishedSynchronously) onReject(reason)
       else onThrow(reason)
     },
