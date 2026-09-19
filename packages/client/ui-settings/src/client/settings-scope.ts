@@ -164,9 +164,9 @@ export class SettingsScopeController<T> implements SettingsScope<T> {
         return
       }
       let flight: Thrown | undefined
-      const response = await Promise.try(() => {
+      const response = await new Promise<Thrown>((resolve) => {
         flight = mutate.call(this.api.settings, this.spec.namespace, ownedOps, revision)
-        return flight
+        resolve(flight)
       }).then(
         (value: Thrown) => ({ kind: 'answered' as const, value }),
         (_reason: Thrown) => ({ kind: 'failed' as const }),

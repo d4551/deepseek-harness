@@ -223,7 +223,9 @@ export class SettingsDescribeMirror implements SettingsDescribeFace {
       if (typeof describe !== 'function') {
         outcome = { failure: 'settings.describe is not a function' }
       } else {
-        const response = await Promise.try(() => describe.call(this.api.settings)).then(
+        const response = await new Promise<Thrown>((resolve) => {
+          resolve(describe.call(this.api.settings))
+        }).then(
           (value: Thrown) => ({ kind: 'settled' as const, value }),
           (reason: Thrown) => ({ kind: 'failed' as const, reason }),
         )
