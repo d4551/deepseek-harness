@@ -33,6 +33,30 @@ function thrownMessage(reason: Thrown): string {
   return reason instanceof Error ? reason.message : String(reason)
 }
 
+function isSettingsDescribeView(value: object): value is SettingsDescribeView {
+  return 'namespaces' in value && 'writable' in value && 'hasDocument' in value
+}
+
+function describeOutcome(value: Thrown): { view: SettingsDescribeView } | { failure: string } {
+  if (typeof value !== 'object' || value === null) return { failure: thrownMessage(value) }
+  if (!('ok' in value)) return { failure: thrownMessage(value) }
+  const ok = Reflect.get(value, 'ok')
+  if (ok === true) {
+    const view = 'value' in value ? Reflect.get(value, 'value') : undefined
+    if (typeof view === 'object' && view !== null && isSettingsDescribeView(view)) {
+      return { view }
+    }
+  }
+  if (ok === false) {
+    const error = 'error' in value ? Reflect.get(value, 'error') : undefined
+    if (typeof error === 'object' && error !== null && 'message' in error) {
+      const message = Reflect.get(error, 'message')
+      if (typeof message === 'string') return { failure: message }
+    }
+  }
+  return { failure: thrownMessage(value) }
+}
+
 /** The full `settings.describe` answer the mirror serves. */
 export interface SettingsDescribeView {
   /** Every namespace a live Host plugin registered, as the Host reported it. */
@@ -201,16 +225,14 @@ export class SettingsDescribeMirror implements SettingsDescribeFace {
       // rerun.
       this.rerun = false
       const generation = ++this.generation
-      const flight = this.api.settings.describe()
-      const response = await flight.then(
-        value => ({ kind: 'answered' as const, value }),
+      const started = Promise.resolve().then(() => this.api.settings.describe())
+      const response = await started.then(
+        (value: Thrown) => ({ kind: 'settled' as const, value }),
         (reason: Thrown) => ({ kind: 'failed' as const, reason }),
       )
       const outcome = response.kind === 'failed'
         ? { failure: thrownMessage(response.reason) }
-        : response.value.ok
-          ? { view: response.value.value }
-          : { failure: response.value.error.message }
+        : describeOutcome(response.value)
       // A write answer invalidates a document read before that write committed.
       if (generation !== this.generation) continue
       if ('view' in outcome) {
