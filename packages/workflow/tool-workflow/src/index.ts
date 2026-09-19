@@ -56,10 +56,14 @@ interface ToolWorkflowRecordEventMap {
   'tool-workflow/run-end': ToolWorkflowRunEndData
 }
 
-/** Render a contained recording failure without trusting the thrown value. */
-function renderRecordingError(error: unknown): string {
+/**
+ * Human text for a contained recording failure.
+ * @param value - the catch-boundary value to render.
+ * @returns String(value), or a fixed tag when object coercion throws.
+ */
+function thrownMessage(value: unknown): string {
   try {
-    return String(error)
+    return String(value)
   } catch {
     return '[unrenderable thrown value]'
   }
@@ -85,8 +89,8 @@ function createWorkflowRecorder(ctx: Context): WorkflowRecorder {
     try {
       appendRecord(type, data)
       return true
-    } catch (error: unknown) {
-      ctx.logger.warn(`tool-workflow: disabled durable record after ${type} append failed: ${renderRecordingError(error)}`)
+    } catch (error) {
+      ctx.logger.warn(`tool-workflow: disabled durable record after ${type} append failed: ${thrownMessage(error)}`)
       return false
     }
   }
@@ -312,17 +316,12 @@ export function apply(ctx: Context, config: Config): void {
         }
       } finally {
         exec.signal.removeEventListener('abort', onAbort)
-        try {
-          // Keep member listeners alive through disposal: an engine may
-          // synthesize cancelled member endings while reaching quiescence.
-          await run.dispose()
-          if (recordsRun) {
-            /* v8 ignore next -- WorkflowRun.result never rejects by contract, so result is assigned before finally. */
-            if (result === undefined) throw new Error('workflow run settled without a result')
-            recorder.finish(run.id, result.stopReason)
-          }
-        } finally {
-          if (recordsRun) recorder.abandon(run.id)
+        // Keep member listeners alive through disposal: an engine may
+        // synthesize cancelled member endings while reaching quiescence.
+        await run.dispose()
+        if (recordsRun && result !== undefined) {
+          recorder.finish(run.id, result.stopReason)
+          recorder.abandon(run.id)
         }
       }
     },
