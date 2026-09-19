@@ -1578,7 +1578,7 @@ describe('ModelsSection', () => {
     expect(mutate).not.toHaveBeenCalled()
   })
 
-  it('reports a settled load failure after a successful removal write', async () => {
+  it('does not treat a settled load error as a deletion write failure', async () => {
     const { face, controller } = await mountSection()
     face.llm.listProviders = vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteFail('directory down', 'internal')))
     const failure = await removeProviderProfile(
@@ -1586,8 +1586,21 @@ describe('ModelsSection', () => {
       controller,
       { settingsNs: 'llm-plain', settingsPath: ['ghost-profile'] },
     )
-    expect(failure).toBe('directory down')
-    expect(controller.store.getSnapshot().status).toBe('error')
+    expect(failure).toBeUndefined()
+    expect(controller.store.getSnapshot()).toMatchObject({ status: 'error', error: 'directory down' })
+  })
+
+  it('does not remount the delete dialog after a successful write whose reload settled as error', async () => {
+    const { face } = await mountSection()
+    face.llm.listProviders = vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteFail('directory down', 'internal')))
+    fireEvent.click(screen.getByRole('button', { name: openaiCopy(en.removeProvider) }))
+    const dialog = screen.getByRole('dialog', { name: openaiCopy(en.deleteTitle) })
+    fireEvent.click(within(dialog).getByRole('button', { name: openaiCopy(en.deleteConfirm) }))
+    expect(await screen.findByText(`${en.loadFailed}: directory down`)).toBeTruthy()
+    expect(screen.queryByRole('dialog', { name: openaiCopy(en.deleteTitle) })).toBeNull()
+    fireEvent.click(screen.getByText(en.retry))
+    expect(await screen.findByText(`${en.loadFailed}: directory down`)).toBeTruthy()
+    expect(screen.queryByRole('dialog', { name: openaiCopy(en.deleteTitle) })).toBeNull()
   })
 
   it('claims a non-Error load refusal onto the page', async () => {

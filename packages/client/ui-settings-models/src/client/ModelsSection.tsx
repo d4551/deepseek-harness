@@ -111,15 +111,15 @@ function transportRefusal(reason: Thrown): string {
  * @param api - settings and credential wire faces.
  * @param controller - the page store to refresh.
  * @param target - the provider's settings address and optional managed credential.
- * @returns the failure message, or undefined once the write and reload landed.
+ * @returns the write-failure message, or undefined once the write landed.
  */
 export function removeProviderProfile(
   api: Pick<ModelsWire, 'settings' | 'credentials'>,
   controller: ModelsSettingsStore,
   target: { settingsNs: string; settingsPath: readonly string[]; credentialRef?: string },
 ): Promise<string | undefined> {
-  const credentialStep = target.credentialRef === undefined
-    ? Promise.resolve(undefined as string | undefined)
+  const credentialStep: Promise<string | undefined> = target.credentialRef === undefined
+    ? Promise.resolve(undefined)
     : api.credentials.unset(target.credentialRef).then(
       credential => credential.ok ? undefined : credential.error.message,
       transportRefusal,
@@ -136,12 +136,7 @@ export function removeProviderProfile(
     )
   }).then((failure) => {
     if (failure !== undefined) return failure
-    return controller.load().then(() => {
-      const snapshot = controller.store.getSnapshot()
-      if (snapshot.status !== 'error') return undefined
-      if (snapshot.error === null) throw new TypeError('models error status requires a message')
-      return snapshot.error
-    })
+    return controller.load().then(() => undefined)
   })
 }
 
