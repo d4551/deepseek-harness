@@ -154,19 +154,17 @@ export class PopupSelectController<TCtx = unknown> {
       resolve(binding.spec.options(binding.context, binding.abort.signal))
     }).then(
       (options) => {
+        if (this.flight === started) this.flight = null
         if (this.binding !== binding) return
         this.state.set({ ...this.state.getSnapshot(), status: 'ready', options, active: 0, error: null })
       },
       (reason: Thrown) => {
+        if (this.flight === started) this.flight = null
         if (this.binding !== binding) return
         this.state.set({ ...this.state.getSnapshot(), status: 'failed', options: [], active: 0, error: thrownMessage(reason) })
       },
     )
     this.flight = started
-    const clearFlight = (): void => {
-      if (this.flight === started) this.flight = null
-    }
-    started.then(clearFlight, clearFlight)
   }
 
   /** Re-run a failed options fetch (search survives; no-op unless status is 'failed'). */

@@ -482,19 +482,17 @@ export class InputTriggerController {
       }))
     }).then(
       (items) => {
+        if (this.candidateFlight === started) this.candidateFlight = null
         if (signal.aborted) return
         this.reduce({ type: 'source-settled', generation, source: source.name, items })
       },
       (reason: Thrown) => {
+        if (this.candidateFlight === started) this.candidateFlight = null
         if (signal.aborted) return
         this.reduce({ type: 'source-failed', generation, source: source.name, error: thrownMessage(reason) })
       },
     )
     this.candidateFlight = started
-    const clearFlight = (): void => {
-      if (this.candidateFlight === started) this.candidateFlight = null
-    }
-    started.then(clearFlight, clearFlight)
   }
 
   private stopFetch(): void {
