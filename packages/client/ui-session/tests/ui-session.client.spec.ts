@@ -155,6 +155,40 @@ afterEach(() => {
 })
 
 describe('UiSession bindings', () => {
+  it('registers and releases multiple contributions before a Session exists', async () => {
+    const ctx = new Context()
+    const bench = createSessionsBench(ctx)
+    const service = createUiSession(ctx, bench)
+    const releaseFirst = service.provide({
+      props: ['first'],
+      resolve: () => ({ props: { first: 1 } }),
+    })
+    const releaseSecond = service.provide({
+      props: ['second'],
+      resolve: () => ({ props: { second: 2 } }),
+    })
+    expect(service.adapter.current.getSnapshot().props).toEqual({
+      sessionId: undefined,
+      first: undefined,
+      second: undefined,
+    })
+
+    releaseFirst()
+    expect(service.adapter.current.getSnapshot().props).toEqual({
+      sessionId: undefined,
+      second: undefined,
+    })
+    const id = SessionId('first-session')
+    bench.binding(id)
+    bench.select(id)
+    expect(service.adapter.current.getSnapshot().props).toEqual({ sessionId: id, second: 2 })
+
+    releaseSecond()
+    expect(service.adapter.current.getSnapshot().props).toEqual({ sessionId: id })
+    await ctx.fiber.dispose()
+    await bench.release(id)
+  })
+
   it('binds each materialized Session to renderer-owned Store cleanup', () => {
     const ctx = new Context()
     const bench = createSessionsBench(ctx)
