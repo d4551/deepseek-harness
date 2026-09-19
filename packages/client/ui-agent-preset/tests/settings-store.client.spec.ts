@@ -34,13 +34,24 @@ interface Recorded { ns: string; ops: unknown }
 /** A roster Remote answering a fixed set of rows, or refusing. */
 function fakeRoster(
   presets: { id: string; trust: 'system' | 'user'; isDefault: boolean }[],
-  options: { failList?: string; failListCode?: string; throwOnList?: boolean | string } = {},
+  options: {
+    failList?: string
+    failListCode?: string
+    throwOnList?: boolean | string
+    failListWithoutMessage?: boolean
+  } = {},
 ): Pick<ClientRemote, 'agentPresets'> {
   return {
     agentPresets: {
       list: () => {
         if (options.throwOnList === true) return Promise.reject(new Error('socket closed'))
         if (typeof options.throwOnList === 'string') return Promise.reject(options.throwOnList)
+        if (options.failListWithoutMessage === true) {
+          return Promise.resolve({
+            ok: false as const,
+            error: { code: 'internal', details: {} },
+          })
+        }
         return Promise.resolve(options.failList === undefined
           ? { ok: true as const, value: { presets, authorable: true } }
           : {
@@ -290,6 +301,18 @@ describe('the agent-preset settings controller', () => {
     })
     await controller.load()
     expect(controller.store.getSnapshot()).toMatchObject({ status: 'error', error: 'plain refusal' })
+  })
+
+  it('claims a roster refusal envelope that carries no string message', async () => {
+    const controller = derivedController({
+      api: {} as SettingsWireFace,
+      remote: fakeRoster([], { failListWithoutMessage: true }),
+    })
+    await controller.load()
+    expect(controller.store.getSnapshot()).toMatchObject({
+      status: 'error',
+      error: '[object Object]',
+    })
   })
 
   it('reports a non-Error write refusal and keeps the old default showing', async () => {
