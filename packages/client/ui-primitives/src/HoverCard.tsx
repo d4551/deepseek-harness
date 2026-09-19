@@ -50,7 +50,7 @@ export function HoverCard({
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
   const [copied, setCopied] = useState(false)
-  const copyFlightRef = useRef(Promise.resolve())
+  const copyFlightRef = useRef<Promise<void> | null>(null)
 
   const clearCopied = useCallback(() => {
     if (copyTimerRef.current !== null) {
@@ -147,8 +147,13 @@ export function HoverCard({
   }
 
   const queueCopy = (text: string): void => {
-    const startCopy = (): Promise<void> => copy(text)
-    copyFlightRef.current = copyFlightRef.current.then(startCopy, startCopy)
+    if (copyFlightRef.current !== null) return
+    const flight = copy(text)
+    copyFlightRef.current = flight
+    const clearFlight = (): void => {
+      if (copyFlightRef.current === flight) copyFlightRef.current = null
+    }
+    flight.then(clearFlight, clearFlight)
   }
 
   const copyable = copyText !== undefined
