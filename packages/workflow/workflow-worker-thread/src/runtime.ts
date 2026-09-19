@@ -28,6 +28,9 @@ import type {
 import { materializeFromRealm, MaterializeError, renderThrown } from './realm.ts'
 import type { ChildHandle, ChildPort, WorkerLimits } from './types.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** The observers the execution reports progress through (the session posts them to the host). */
 export interface ExecutionObserver {
   phase(title: string): void
@@ -92,7 +95,7 @@ export class WorkflowExecution {
         filename: `workflow:${meta.name}`,
         lineOffset: -1,
       })
-    } catch (error: unknown) {
+    } catch (error) {
       throw new WorkflowError(`workflow script does not parse: ${String(error)}`, 'SCRIPT_PARSE', { cause: error })
     }
 
@@ -175,7 +178,7 @@ export class WorkflowExecution {
       if (this.isCancelled()) throw this.cancelledError()
       const value = raw === undefined ? null : this.materializeResult(raw)
       return { value, stopReason: 'completed', agentsStarted: this.started }
-    } catch (error: unknown) {
+    } catch (error) {
       // Any failure after cancel() reports `cancelled` with the canonical
       // reason — the reject path mirrors the resolve path's post-settle check.
       if (this.isCancelled()) {
@@ -195,7 +198,7 @@ export class WorkflowExecution {
    * the script does await it, it still observes the rejection.
    */
   private contain<T>(promise: Promise<T>): Promise<T> {
-    promise.catch(() => { /* consumed: see method contract — a dropped hook promise must not surface an unhandled rejection */ })
+    promise.catch((_error: Thrown) => {})
     return promise
   }
 
@@ -210,7 +213,7 @@ export class WorkflowExecution {
   private materializeResult(raw: unknown): unknown {
     try {
       return materializeFromRealm(raw, 'workflow result')
-    } catch (error: unknown) {
+    } catch (error) {
       /* v8 ignore next -- defensive rethrow arm: materializeFromRealm only throws MaterializeError */
       if (!(error instanceof MaterializeError)) throw error
       throw new WorkflowError(
@@ -255,7 +258,7 @@ export class WorkflowExecution {
           ...opts.provider !== undefined ? { provider: opts.provider } : {},
           ...opts.model !== undefined ? { model: opts.model } : {},
         })
-      } catch (error: unknown) {
+      } catch (error) {
         // The host refuses starts once the run is cancelled — a refusal that
         // races our own cancel state must read as the cancellation it is,
         // not as a broken contract.
@@ -276,7 +279,7 @@ export class WorkflowExecution {
         let result
         try {
           result = await run.result
-        } catch (error: unknown) {
+        } catch (error) {
           // A rejected child result is an INFRASTRUCTURE fault relayed by the
           // host — distinct from a child that failed and resolved. Pair the
           // lifecycle before propagating, and propagate FATAL: an ordinary
@@ -331,7 +334,7 @@ export class WorkflowExecution {
     let opts: unknown
     try {
       opts = materializeFromRealm(rawOpts, 'agent() options')
-    } catch (error: unknown) {
+    } catch (error) {
       /* v8 ignore next -- defensive rethrow arm: materializeFromRealm only throws MaterializeError */
       if (!(error instanceof MaterializeError)) throw error
       throw new WorkflowError(`agent() options must be plain JSON data — ${error.message}`, 'INVALID_ARGUMENT', { cause: error })
@@ -357,7 +360,7 @@ export class WorkflowExecution {
       try {
         assertObjectJsonSchema(record.schema)
         schema = record.schema
-      } catch (error: unknown) {
+      } catch (error) {
         /* v8 ignore next -- defensive rethrow arm: assertObjectJsonSchema only throws JsonSchemaError */
         if (!(error instanceof JsonSchemaError)) throw error
         throw new WorkflowError(`agent() schema is outside the supported subset — ${error.message}`, 'UNSUPPORTED_SCHEMA', { cause: error })
@@ -388,7 +391,7 @@ export class WorkflowExecution {
     return Promise.all(thunks.map(async (thunk) => {
       try {
         return await thunk()
-      } catch (error: unknown) {
+      } catch (error) {
         // Hook failures are WorkflowErrors built OUTSIDE the script's realm;
         // fatality is recognized by `instanceof` against this realm's class —
         // a script-built object can never pass it, so fatality cannot be
@@ -422,7 +425,7 @@ export class WorkflowExecution {
           value = await stage(value, item, index)
         }
         return value
-      } catch (error: unknown) {
+      } catch (error) {
         // An ordinary stage throw drops the ITEM to null and skips its
         // remaining stages; a fatal WorkflowError (see parallel()) kills the
         // whole script.

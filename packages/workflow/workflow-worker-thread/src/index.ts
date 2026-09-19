@@ -17,6 +17,9 @@ import { WorkerRun } from './host.ts'
 import { validateMeta } from './meta.ts'
 import type { WorkerInit, WorkerLimits } from './types.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 export { validateMeta } from './meta.ts'
 export { materializeFromRealm, MaterializeError } from './realm.ts'
 export type {
@@ -68,7 +71,7 @@ function assertBodyParses(body: string, name: string): void {
   try {
     // Parse only — the script object is discarded, nothing executes.
     new vm.Script(`(async () => {\n${body}\n})()`, { filename: `workflow:${name}`, lineOffset: -1 })
-  } catch (error: unknown) {
+  } catch (error) {
     throw new WorkflowError(`workflow script does not parse: ${String(error)}`, 'SCRIPT_PARSE', { cause: error })
   }
 }
@@ -196,7 +199,7 @@ class WorkerThreadWorkflowEngine extends WorkflowEngine {
         ...settled.error !== undefined ? { error: settled.error } : {},
         agentsStarted: settled.agentsStarted,
       })
-    }).then(undefined, this.ctx.logger.error.bind(this.ctx.logger))
+    }).then(undefined, (error: Thrown) => { this.ctx.logger.error(error) })
 
     return workerRun
   }

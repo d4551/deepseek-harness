@@ -28,6 +28,33 @@ import type { ChildResult, ChildStartRequest, WorkerInit } from './types.ts'
 /** Values a Promise reject arm may deliver. */
 type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
 
+/**
+ * Human text for a rejected host-side promise.
+ * @param reason - the Thrown the reject arm received.
+ * @returns the Error message, first stack line when that text is `Error: msg`, primitive text, or object tag.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) {
+    if (reason.message.length > 0) return reason.message
+    const line = reason.stack?.split('\n', 1)[0]
+    return line !== undefined && line.length > 0 ? line : reason.message
+  }
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /** Confirm child output is an array of merge-extensible content blocks. */
 function assertChildOutput(value: JsonValue | ContentBlock[]): asserts value is ContentBlock[] {
   if (!Array.isArray(value)) {
@@ -301,7 +328,7 @@ export class WorkerRun implements WorkflowRun {
     if (this.workerGone || this.workerDeathObserved) return
     try {
       this.worker.postMessage({ type, ...payload })
-    } catch (error: unknown) {
+    } catch (error) {
       // Only a teardown race can land here (every engine message is JSON
       // data, so serialization cannot fail); there is nothing left to
       // deliver to — log and move on.
@@ -386,7 +413,7 @@ export class WorkerRun implements WorkflowRun {
     task.then(
       () => { this.finishPendingStart(task) },
       /* v8 ignore next -- startChild contains provider and cleanup failures */
-      () => { this.finishPendingStart(task) },
+      (_error: Thrown) => { this.finishPendingStart(task) },
     )
   }
 
@@ -408,7 +435,7 @@ export class WorkerRun implements WorkflowRun {
           }
           : {},
       })
-    } catch (error: unknown) {
+    } catch (error) {
       const failure = this.childAdmissionFailure()
       this.post(HostToWorkerType.ChildStartError, {
         callId,
@@ -421,7 +448,7 @@ export class WorkerRun implements WorkflowRun {
       this.post(HostToWorkerType.ChildStartError, { callId, rendered: failure.rendered })
       try {
         await run.dispose()
-      } catch (error: unknown) {
+      } catch (error) {
         this.ctx.logger.warn(`workflow-worker-thread: refused child dispose failed: ${renderThrown(error)}`)
       }
       return
@@ -442,13 +469,13 @@ export class WorkerRun implements WorkflowRun {
           })
           if (snapshot === undefined) throw new TypeError('child result is not losslessly JSON-serializable')
           this.post(HostToWorkerType.ChildSettled, { callId, result: childResultFromJson(snapshot) })
-        } catch (error: unknown) {
+        } catch (error) {
           const rendered = `workflow child result could not cross the worker boundary: ${renderThrown(error)}`
           this.post(HostToWorkerType.ChildFailed, { callId, rendered })
         }
       },
       (error: Thrown) => {
-        const rendered = renderThrown(error)
+        const rendered = thrownMessage(error)
         this.post(HostToWorkerType.ChildFailed, { callId, rendered })
       },
     )
@@ -464,7 +491,7 @@ export class WorkerRun implements WorkflowRun {
       return
     }
     const ack = (): void => { this.post(HostToWorkerType.ChildDisposed, { callId }) }
-    this.disposeChild(callId, record).then(ack, ack) // disposeChild never rejects (containment is inside): the ack always follows
+    this.disposeChild(callId, record).then(ack, (_error: Thrown) => { ack() })
   }
 
   /**
@@ -484,7 +511,7 @@ export class WorkerRun implements WorkflowRun {
     record.disposal = Promise.resolve()
       .then(() => record.run.dispose())
       .catch((error: Thrown) => {
-        this.ctx.logger.warn(`workflow-worker-thread: child dispose failed: ${renderThrown(error)}`)
+        this.ctx.logger.warn(`workflow-worker-thread: child dispose failed: ${thrownMessage(error)}`)
       })
       .then(() => { this.finishChild(callId) })
     return record.disposal
