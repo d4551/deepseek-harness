@@ -29,6 +29,9 @@ import { renderToolsSdk } from './ts-types.ts'
 import type { ToolSdkSchema } from './ts-types.ts'
 import { renderToolsSdkPy } from './py-types.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /**
  * Language → SDK-section renderer. The registry looks up the loaded
  * `ctx.codeRuntime.language` in this table when assembling the `tools:sdk`
@@ -655,10 +658,9 @@ export type PostToolDecision =
   | { kind: 'block'; feedback: ContentBlock[]; additionalContexts?: UserMessage[] }
 
 /**
- * Best-effort human-readable message from an arbitrary thrown value: Error
- * instances use `.message`; non-Error objects with a string `message`
- * property (e.g. `throw { message: 'denied' }`) use it too; everything else
- * is stringified.
+ * Human text for a thrown value: Error.message, a non-Error string
+ * `message` property, primitive String, null/undefined literals, or the
+ * object's toString tag.
  */
 function errorMessage(error: unknown): string {
   let text = '<unprintable thrown value>'
@@ -669,10 +671,25 @@ function errorMessage(error: unknown): string {
       && 'message' in error && typeof error.message === 'string') {
       text = error.message
     } else {
-      text = String(error)
+      switch (typeof error) {
+        case 'string':
+        case 'number':
+        case 'boolean':
+        case 'bigint':
+        case 'symbol':
+        case 'function':
+          text = String(error)
+          break
+        case 'undefined':
+          text = 'undefined'
+          break
+        case 'object':
+          text = error === null ? 'null' : Object.prototype.toString.call(error)
+          break
+      }
     }
     resolve(text)
-  }).then(() => undefined, () => undefined)
+  }).then(() => undefined, (_error: Thrown) => {})
   return text
 }
 
@@ -702,7 +719,7 @@ function errorInfo(error: unknown): ToolErrorInfo | undefined {
       info = { name: error.name, code: error.code }
     }
     resolve(undefined)
-  }).then(() => undefined, () => undefined)
+  }).then(() => undefined, (_error: Thrown) => {})
   return info
 }
 
@@ -1390,7 +1407,7 @@ export class ToolRuntime extends Service {
         scopeTarget(this, dispatch.agent), 'tools/ptc-dispatch-log', dispatch,
         () => Promise.resolve(dispatch.content),
       )
-    } catch (error: unknown) {
+    } catch (error) {
       this.ctx.logger.warn(`tools: ptc-dispatch-log listener failed for ${dispatch.name}: ${errorMessage(error)}; logging the original settled content`)
       return dispatch.content
     }
@@ -1544,7 +1561,7 @@ export class ToolRuntime extends Service {
         }
       }
       return { kind: 'ready', exec: minted }
-    } catch (error: unknown) {
+    } catch (error) {
       const failed: LiveToolRunContext = { ...base, arguments: undefined }
       execution = failed
       this.contentFinalizers.set(failed, finalizerFor())
@@ -1603,7 +1620,7 @@ export class ToolRuntime extends Service {
         return await next({ kind: 'post-result', exec, result: toolAbortedBeforeDispatchResult() })
       }
       return await next({ kind: 'dispatch', exec })
-    } catch (error: unknown) {
+    } catch (error) {
       return next({ kind: 'final-result', exec, result: toolErrorResult(error) })
     }
   }
@@ -1662,7 +1679,7 @@ export class ToolRuntime extends Service {
       return isAborted(signal)
         ? toolAbortedResult(result)
         : result
-    } catch (error: unknown) {
+    } catch (error) {
       return snapshotting ? toolOutputSnapshotResult(exec.name, error) : toolErrorResult(error)
     } finally {
       fused.dispose()
@@ -1703,7 +1720,7 @@ export class ToolRuntime extends Service {
           ? this.cancellationResult(exec, resultWithDeferredContexts)
           : resultWithDeferredContexts,
       }
-    } catch (error: unknown) {
+    } catch (error) {
       return { kind: 'final-result', result: toolErrorResult(error) }
     }
   }
@@ -1725,7 +1742,7 @@ export class ToolRuntime extends Service {
           ? this.cancellationResult(exec, postResult)
           : postResult,
       )
-    } catch (error: unknown) {
+    } catch (error) {
       return this.finishScheduledExecution(exec, toolErrorResult(error))
     }
   }
@@ -1742,13 +1759,13 @@ export class ToolRuntime extends Service {
     let materializedResult: ToolExecutionResult
     try {
       materializedResult = this.materializeFinalResult(result)
-    } catch (error: unknown) {
+    } catch (error) {
       materializedResult = this.materializeFinalResult(toolErrorResult(error))
     }
     let finalResult: ToolExecutionResult
     try {
       finalResult = this.materializeFinalResult(this.applyFinalContent(exec, materializedResult))
-    } catch (error: unknown) {
+    } catch (error) {
       finalResult = this.materializeFinalResult(toolErrorResult(error))
     }
     this.notifyResult(exec, finalResult)
@@ -1906,7 +1923,7 @@ export class ToolRuntime extends Service {
     let rendered: ContentBlock[]
     try {
       rendered = tool.output.render(exec.arguments, value)
-    } catch (error: unknown) {
+    } catch (error) {
       throw projectionError(tool.name, 'render', error)
     }
     const content = snapshotProjection(tool.name, 'render', rendered)
@@ -1919,7 +1936,7 @@ export class ToolRuntime extends Service {
       let projected: JsonValue
       try {
         projected = tool.output.presentationMeta(exec.arguments, value)
-      } catch (error: unknown) {
+      } catch (error) {
         throw projectionError(tool.name, 'presentationMeta', error)
       }
       meta = snapshotProjection(tool.name, 'presentationMeta', projected)
@@ -2033,7 +2050,7 @@ function fuseToolSignals(caller: AbortSignal, wrapper: AbortSignal): FusedToolSi
     wrapper.removeEventListener('abort', abortFromWrapper)
   }
   const abortFrom = (source: AbortSignal): void => {
-    const reason: unknown = source.reason
+    const reason: Thrown = source.reason
     controller.abort(reason)
     dispose()
   }
