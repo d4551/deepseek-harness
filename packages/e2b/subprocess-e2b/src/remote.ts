@@ -7,13 +7,39 @@
 import { CommandExitError, e2bControlEnvs, SandboxNotFoundError } from '@deepseek-ai/dsh-e2b'
 import type { Sandbox } from '@deepseek-ai/dsh-e2b'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a rejected remote-control or teardown value.
+ * @param reason - the Thrown or claim-boundary unknown to render.
+ * @returns the Error message, primitive text, or object tag.
+ */
+function thrownMessage(reason: unknown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /**
  * Normalize an unknown rejection into an Error.
  * @param error - Any thrown or rejected value.
  * @returns The value itself when already an Error, else a stringified wrapper.
  */
 export function asError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error))
+  return error instanceof Error ? error : new Error(thrownMessage(error))
 }
 
 /**
@@ -78,7 +104,7 @@ export function waitTick(pollMs: number, signal?: AbortSignal): Promise<boolean>
  * @param groups - Positive process-group ids to signal.
  * @param signal - `TERM` or `KILL`.
  */
-export async function signalRemoteGroups(
+export function signalRemoteGroups(
   sandbox: Sandbox,
   envs: Record<string, string>,
   groups: readonly number[],
@@ -86,12 +112,13 @@ export async function signalRemoteGroups(
 ): Promise<void> {
   // TODO(e2b-pgid-identity): Prefer an atomic identity-bound group signal if E2B adds one;
   // a userspace identity precheck cannot close the numeric-PGID reuse race.
-  try {
-    await sandbox.commands.run(
-      `kill -${signal} -- ${groups.map(group => `-${group}`).join(' ')}`,
-      commandOpts(envs),
-    )
-  } catch (error: unknown) {
-    if (!(error instanceof CommandExitError) && !(error instanceof SandboxNotFoundError)) throw error
-  }
+  return sandbox.commands.run(
+    `kill -${signal} -- ${groups.map(group => `-${group}`).join(' ')}`,
+    commandOpts(envs),
+  ).then(
+    () => undefined,
+    (error: Thrown) => {
+      if (!(error instanceof CommandExitError) && !(error instanceof SandboxNotFoundError)) throw error
+    },
+  )
 }
