@@ -294,7 +294,7 @@ export class TeamRoster {
         signal,
       })
       await this.checkpointInitialPrompt(childId, started.messageId, signal)
-    } catch (error: unknown) {
+    } catch (error) {
       const failed: TeamMemberSnapshot = {
         ...member,
         phase: 'failed',
@@ -310,7 +310,7 @@ export class TeamRoster {
             { cause: error },
           )
         }
-      } catch (recordError: unknown) {
+      } catch (recordError) {
         throw new AggregateError([error, recordError], 'teammate creation and durable failure recording both failed')
       }
       throw error
@@ -331,7 +331,7 @@ export class TeamRoster {
       )
       try {
         await this.stopTeammates(root, [childId])
-      } catch (cleanupError: unknown) {
+      } catch (cleanupError) {
         throw new AggregateError([conflict, cleanupError], 'provisioning conflict cleanup failed')
       }
       throw conflict
@@ -413,7 +413,7 @@ export class TeamRoster {
         } else {
           failure = 'persisted child Session does not match the provisioned continuation'
         }
-      } catch (error: unknown) {
+      } catch (error) {
         failure = `child Session recovery failed: ${errorMessage(error)}`
       }
       signal.throwIfAborted()

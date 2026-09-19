@@ -2,6 +2,9 @@
 
 import { TeamError } from './error.ts'
 
+/** Values a Promise reject arm from runtime settlement may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Owns the single Team runtime cancellation fact and disposal timeout. */
 export class TeamRuntimeLifecycle {
   private readonly controller = new AbortController()
@@ -53,14 +56,18 @@ export class TeamRuntimeLifecycle {
    */
   async settle(operations: readonly Promise<unknown>[], failures: unknown[]): Promise<void> {
     if (operations.length === 0) return
-    try {
-      const outcomes = await this.withTimeout(Promise.allSettled(operations))
-      for (const outcome of outcomes) {
-        if (outcome.status === 'rejected' && !this.isCancellation(outcome.reason)) failures.push(outcome.reason)
-      }
-    } catch (error: unknown) {
-      failures.push(error)
-    }
+    const pending = operations.map(operation => operation.then(
+      undefined,
+      (error: Thrown) => {
+        if (!this.isCancellation(error)) failures.push(error)
+      },
+    ))
+    await this.withTimeout(Promise.all(pending)).then(
+      undefined,
+      (error: Thrown) => {
+        failures.push(error)
+      },
+    )
   }
 
   /**

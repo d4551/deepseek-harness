@@ -462,6 +462,7 @@ export class TeamService extends TypertRemoteService {
    * @param agent - exact live Team member authorizing the subscription.
    * @param signal - Remote subscription cancellation.
    * @returns an initial revision followed by coalesced changes requiring a fresh view.
+   * @yields the next Team activity revision the subscriber is authorized to see.
    */
   @Remote({ mode: 'stream' })
   async *changes(agent: Agent, signal: AbortSignal): AsyncIterable<number> {
@@ -554,13 +555,15 @@ export class TeamService extends TypertRemoteService {
     const failures: unknown[] = []
     await this.lifecycle.settle(this.roster.pendingCreations(), failures)
     await this.lifecycle.settle(this.mailbox.pendingDispatches(), failures)
-    for (const [root, childIds] of this.roster.liveChildrenByRoot()) {
-      try {
-        await this.roster.stopTeammates(root, childIds)
-      } catch (error: unknown) {
-        failures.push(error)
-      }
-    }
+    const stops = [...this.roster.liveChildrenByRoot()].map(([root, childIds]) =>
+      this.roster.stopTeammates(root, childIds).then(
+        undefined,
+        (error: Thrown) => {
+          failures.push(error)
+        },
+      ),
+    )
+    await Promise.all(stops)
     if (failures.length > 0) throw new AggregateError(failures, 'Agent Teams runtime disposal failed')
   }
 }
