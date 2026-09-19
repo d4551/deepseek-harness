@@ -269,6 +269,22 @@ describe('SettingsScopeController', () => {
     expect(scope.getSnapshot()).toMatchObject({ value: { preference: 'dark' }, revision: 2 })
   })
 
+  it('accepts JSON null, boolean, number, and array field writes', async () => {
+    const describeCall = vi.fn<SettingsRemote['describe']>().mockResolvedValueOnce(described({ preference: 'system' }, 1))
+    const mutate = vi.fn<SettingsRemote['mutate']>()
+      .mockResolvedValueOnce(ok(view({ preference: 'system' }, 2)))
+      .mockResolvedValueOnce(ok(view({ preference: 'system' }, 3)))
+      .mockResolvedValueOnce(ok(view({ preference: 'system' }, 4)))
+      .mockResolvedValueOnce(ok(view({ preference: 'system' }, 5)))
+    const { mirror, scope } = derivedScope({ describe: describeCall, mutate })
+    await mirror.load()
+    await scope.set('cleared', null)
+    await scope.set('flag', true)
+    await scope.set('count', 1)
+    await scope.set('list', ['a'])
+    expect(mutate).toHaveBeenCalledTimes(4)
+  })
+
   it('refuses a field write that is not JSON', async () => {
     const describeCall = vi.fn<SettingsRemote['describe']>().mockResolvedValueOnce(described({ preference: 'system' }, 1))
     const mutate = vi.fn<SettingsRemote['mutate']>()
