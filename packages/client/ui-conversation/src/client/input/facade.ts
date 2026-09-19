@@ -99,6 +99,14 @@ function projectionContentChanged(prev: EditorProjection, next: EditorProjection
 
 const EMPTY_QUEUE: readonly QueuedMessage[] = []
 
+/** Values a throw or Promise rejection can carry. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  return String(reason)
+}
+
 /** No-pipeline lexicon: zero text-ref decorations. */
 const EMPTY_LEXICON: ReadonlyMap<'/' | '@', readonly string[]> = new Map()
 
@@ -373,10 +381,10 @@ export class SessionInputShell implements SessionInput {
           if (outcome.kind === 'success') return
           this.restoreImages(imageIds)
           if (outcome.text !== undefined) this.notify('error', outcome.text)
-        }, (error: unknown) => {
+        }, (error: Thrown) => {
           if (this.disposed || !this.imageFlights.delete(flight)) return
           this.restoreImages(imageIds)
-          this.notify('error', error instanceof Error ? error.message : String(error))
+          this.notify('error', thrownMessage(error))
         })
       }
       return
@@ -424,9 +432,9 @@ export class SessionInputShell implements SessionInput {
       () => {
         if (this.steerFlight === flight) this.steerFlight = undefined
       },
-      (error: Error) => {
+      (error: Thrown) => {
         if (this.steerFlight === flight) this.steerFlight = undefined
-        this.notify('error', error instanceof Error ? error.message : String(error))
+        this.notify('error', thrownMessage(error))
       },
     )
   }
@@ -742,10 +750,9 @@ export class SessionInputShell implements SessionInput {
         out += draft.slice(cursor)
         this.settleSink(attempt, this.deps.defaultSink(out.trim(), imageIds, mode, attempt.signal))
       },
-      (error: unknown) => {
+      (error: Thrown) => {
         if (this.dead(attempt)) return
-        const message = error instanceof Error ? error.message : String(error)
-        this.settleDetachedFailure(attempt, message)
+        this.settleDetachedFailure(attempt, thrownMessage(error))
       },
     )
   }
@@ -765,9 +772,9 @@ export class SessionInputShell implements SessionInput {
         this.detachedDrafts.delete(attempt.seq)
         this.dispatchRun(({ type: 'sink-settled', attempt, ok: true, outcome }))
       },
-      (error: unknown) => {
+      (error: Thrown) => {
         if (this.dead(attempt)) return
-        this.settleDetachedFailure(attempt, error instanceof Error ? error.message : String(error))
+        this.settleDetachedFailure(attempt, thrownMessage(error))
       },
     )
   }
@@ -864,10 +871,9 @@ export class SessionInputShell implements SessionInput {
         if (this.dead(attempt)) return
         this.dispatchRun(({ type: 'adjudicated', attempt, outcome }))
       },
-      (error: unknown) => {
+      (error: Thrown) => {
         if (this.dead(attempt)) return
-        const message = error instanceof Error ? error.message : String(error)
-        this.dispatchRun(({ type: 'adjudication-failed', attempt, message }))
+        this.dispatchRun(({ type: 'adjudication-failed', attempt, message: thrownMessage(error) }))
       },
     )
   }
@@ -903,12 +909,11 @@ export class SessionInputShell implements SessionInput {
             ...(outcome.kind === 'error' && outcome.text === undefined ? { message: 'command failed' } : {}),
           }))
         },
-        (error: unknown) => {
+        (error: Thrown) => {
           if (this.dead(attempt)) return
-          const message = error instanceof Error ? error.message : String(error)
           this.dispatchRun(({
             type: 'submit-settled', attempt, ok: false,
-            draft: this.projection.clipboardText, message,
+            draft: this.projection.clipboardText, message: thrownMessage(error),
           }))
         },
       )

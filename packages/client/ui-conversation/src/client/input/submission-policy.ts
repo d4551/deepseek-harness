@@ -15,6 +15,14 @@ import type { ConversationSettings } from '../../submission-settings.ts'
 
 export { DEFAULT_BUSY_ENTER_BEHAVIOR } from '../../submission-settings.ts'
 
+/** Values a throw or Promise rejection can carry. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  return String(reason)
+}
+
 /**
  * Busy-Enter policy used by both the composer inject face and its Settings row.
  * Direct `steer` is intentionally best-effort: AgentLoop turns a closed-window
@@ -77,9 +85,9 @@ export class ComposerSubmissionPolicy {
       () => {
         if (this.hostWrite === flight) this.writeError.set(null)
       },
-      (error: Error) => {
+      (error: Thrown) => {
         if (this.hostWrite !== flight) return
-        this.writeError.set(error instanceof Error ? error.message : String(error))
+        this.writeError.set(thrownMessage(error))
       },
     )
   }

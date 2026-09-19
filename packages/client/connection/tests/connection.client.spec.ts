@@ -1,4 +1,4 @@
-/** Connection generation readiness, loss, retry, and sink isolation. */
+/** Connection generation readiness, loss, retry, and sink throws. */
 
 import { describe, expect, it, vi } from 'vitest'
 import type { ConnectionGenerationSource, ConnectionHostInfo, ConnectionState } from '../src/client/connection.ts'
@@ -42,10 +42,9 @@ describe('connection lifecycle', () => {
     expect(source.activeCount).toBe(0)
   })
 
-  it('isolates a connected sink exception from the generation', async () => {
+  it('lets a connected sink throw fail the loop', async () => {
     const source = new FakeGenerationSource()
     let connected = 0
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const controller = new ConnectionController(source.source, {
       onConnected: () => {
         connected++
@@ -53,14 +52,8 @@ describe('connection lifecycle', () => {
       },
     }, FAST)
     controller.start()
-    try {
-      await vi.waitFor(() => { expect(connected).toBe(1) })
-      expect(source.activeCount).toBe(1)
-      expect(errorSpy).toHaveBeenCalledWith('[connection] connection sink threw:', expect.any(Error))
-    } finally {
-      await controller.stop()
-      errorSpy.mockRestore()
-    }
+    await vi.waitFor(() => { expect(connected).toBe(1) })
+    await expect(controller.stop()).rejects.toThrow('connection loop failed')
   })
 
   it('holds onConnected until the incremental source reports ready', async () => {

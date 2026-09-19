@@ -136,7 +136,6 @@ describe('connection client apply', () => {
     ;(globalThis as Win).location = { hostname: 'localhost', search: '?fixture' }
     const handle = await mount()
     installGeneration(handle)
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const generations: Array<string | undefined> = []
     const stopThrowing = handle.generation.subscribe(() => { throw new Error('subscriber bug') })
     const stopGeneration = handle.generation.subscribe(() => {
@@ -152,13 +151,11 @@ describe('connection client apply', () => {
     })
     expect(generations).toEqual([])
     expect(connected).toBe(0)
-    expect(errorSpy).toHaveBeenCalled()
     const stopping = loop.stop()
     expect(handle.generation.getSnapshot()).toBeUndefined()
     await expect(stopping).rejects.toThrow('subscriber bug')
     stopThrowing()
     stopGeneration()
-    errorSpy.mockRestore()
   })
 
   it('allows a replacement owner and ignores the previous owner handle', async () => {
