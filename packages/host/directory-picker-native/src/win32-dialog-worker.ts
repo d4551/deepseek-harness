@@ -41,6 +41,24 @@ process.on('disconnect', () => process.exit(0))
 /** Values a Promise reject arm may deliver. */
 type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
 
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.stack ?? reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 function failWorker(error: Thrown): never {
   console.error(error)
   process.exit(1)
@@ -53,6 +71,5 @@ loadWin32DialogBindings().then((bindings) => {
   })
   post({ kind: 'done', path } satisfies Win32DialogWorkerMessage)
 }).then(undefined, (error: Thrown) => {
-  const message = error instanceof Error ? (error.stack ?? error.message) : String(error)
-  post({ kind: 'error', message } satisfies Win32DialogWorkerMessage)
+  post({ kind: 'error', message: thrownMessage(error) } satisfies Win32DialogWorkerMessage)
 }).then(undefined, failWorker)

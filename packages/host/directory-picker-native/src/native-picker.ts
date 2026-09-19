@@ -60,7 +60,7 @@ export async function pickNativeDirectory(
       '-e', 'set selectedFolder to choose folder with prompt "Select Workspace Directory"',
       '-e', 'POSIX path of selectedFolder',
     ], signal).then(
-      (result) => outputPath(result.stdout),
+      result => outputPath(result.stdout),
       (error: Thrown) => {
         if (!signal.aborted && errorCode(error) === 1
           && /(?:User canceled|-128)/i.test(errorStderr(error))) return null
@@ -83,7 +83,7 @@ export async function pickNativeDirectory(
     return run('zenity', [
       '--file-selection', '--directory', '--title=Select Workspace Directory',
     ], signal).then(
-      (result) => outputPath(result.stdout),
+      result => outputPath(result.stdout),
       (error: Thrown) => {
         rethrowIfAborted(signal, error)
         if (errorCode(error) === 1) return null
@@ -91,7 +91,7 @@ export async function pickNativeDirectory(
         return run('kdialog', [
           '--getexistingdirectory', '.', '--title', 'Select Workspace Directory',
         ], signal).then(
-          (result) => outputPath(result.stdout),
+          result => outputPath(result.stdout),
           (error: Thrown) => {
             rethrowIfAborted(signal, error)
             if (errorCode(error) === 1) return null

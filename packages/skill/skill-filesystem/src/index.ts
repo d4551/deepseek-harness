@@ -573,7 +573,7 @@ class SkillWatchManager {
     const currentOpening = state.opening ?? Promise.resolve()
     settleWatcherOpening(currentOpening)
       .then(() => this.ensureWatcher(state))
-      .then(() => { this.queueInvalidation() }, (error: unknown) => {
+      .then(() => { this.queueInvalidation() }, (error: Thrown) => {
         this.ctx.logger.warn(`skill-filesystem: rewatch of ${state.root.path} failed: ${errorMessage(error)}`)
       })
   }
