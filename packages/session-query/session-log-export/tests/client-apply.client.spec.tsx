@@ -40,9 +40,12 @@ describe('session-log-download browser plugin', () => {
     expect(b.ctx.sessionLogDownload).toBeDefined()
     expect(b.slots.entries('conversation.session.header.actions')).toHaveLength(0)
     const entry = b.slots.entries('conversation.session.header.utilities')[0]
-    expect(entry?.component).toBe(SessionLogDownloadHeaderAction)
-    expect(entry?.options).toMatchObject({ id: 'session-log-download' })
-    const injected = (entry?.inject as unknown as () => import('../src/client/Dialog.tsx').SessionLogDownloadDialogInjected)()
+    if (entry === undefined) {
+      throw new Error('missing conversation.session.header.utilities contribution')
+    }
+    expect(entry.component).toBe(SessionLogDownloadHeaderAction)
+    expect(entry.options).toMatchObject({ id: 'session-log-download' })
+    const injected = (entry.inject as () => import('../src/client/Dialog.tsx').SessionLogDownloadDialogInjected)()
     await injected.request(SID)
     expect(b.ctx.sessionLogDownload.store.getSnapshot().bySession[SID]?.status).toBe('error')
     injected.dismiss(SID)
@@ -53,7 +56,9 @@ describe('session-log-download browser plugin', () => {
   })
 
   it('downloads only for an export execution acknowledged by this browser client', async () => {
-    const fetcher = vi.fn(async () => new Response('', { status: 500 }))
+    const fetcher = vi.fn<(input?: string | URL, init?: RequestInit) => Promise<Response>>(
+      async () => new Response('', { status: 500 }),
+    )
     vi.stubGlobal('fetch', fetcher)
     const first = await bench()
     const second = await bench()
@@ -81,6 +86,20 @@ describe('session-log-download browser plugin', () => {
     await Promise.resolve()
     expect(b.slots.entries('conversation.session.header.utilities')[0]?.component).toBe(SessionLogDownloadHeaderAction)
     redeclare()
+    await b.fiber.dispose()
+  })
+
+  it('records a rejected command-triggered download on the console', async () => {
+    const b = await bench()
+    vi.spyOn(b.ctx.sessionLogDownload, 'download').mockRejectedValue('offline')
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    b.ctx.emit('command/executed', SID, 'export', { kind: 'success' })
+    await vi.waitFor(() => {
+      expect(logged).toHaveBeenCalledWith('offline')
+    })
+
+    logged.mockRestore()
     await b.fiber.dispose()
   })
 })
