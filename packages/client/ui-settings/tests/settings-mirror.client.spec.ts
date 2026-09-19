@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
+
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
 import type { SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import { SettingsDescribeMirror, type SettingsDescribeView, type SettingsRemote } from '../src/client/settings-mirror.ts'
 
@@ -77,6 +79,38 @@ describe('SettingsDescribeMirror', () => {
     await mirror.ensure()
     expect(mirror.getSnapshot()).toMatchObject({ status: 'ready', error: null })
     expect(describeCall).toHaveBeenCalledTimes(2)
+  })
+
+  it('returns to idle when settings.describe is not a function', async () => {
+    const mirror = new SettingsDescribeMirror({ settings: {} } as never)
+    await mirror.ensure()
+    expect(mirror.getSnapshot()).toMatchObject({
+      status: 'idle', view: undefined, error: 'settings.describe is not a function',
+    })
+    await mirror.ensure()
+    expect(mirror.getSnapshot()).toMatchObject({
+      status: 'idle', error: 'settings.describe is not a function',
+    })
+  })
+
+  it('records a describe settlement that is not a settings view', async () => {
+    const describeCall = vi.fn<() => Thrown>()
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce({ ok: true, value: null })
+      .mockResolvedValueOnce({ ok: false })
+      .mockResolvedValueOnce({ ok: false, error: { message: 4 } })
+      .mockResolvedValueOnce({ flag: true })
+    const mirror = new SettingsDescribeMirror({ settings: { describe: describeCall } } as never)
+    await mirror.load()
+    expect(mirror.getSnapshot()).toMatchObject({ status: 'idle', error: '1' })
+    await mirror.load()
+    expect(mirror.getSnapshot()).toMatchObject({ status: 'idle', error: '[object Object]' })
+    await mirror.load()
+    expect(mirror.getSnapshot()).toMatchObject({ status: 'idle', error: '[object Object]' })
+    await mirror.load()
+    expect(mirror.getSnapshot()).toMatchObject({ status: 'idle', error: '[object Object]' })
+    await mirror.load()
+    expect(mirror.getSnapshot()).toMatchObject({ status: 'idle', error: '[object Object]' })
   })
 
   it('returns to idle after a first describe that throws in the load turn, so ensure retries', async () => {

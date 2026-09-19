@@ -51,12 +51,13 @@ describe('connection lifecycle', () => {
         throw new Error('business layer bug')
       },
     }, FAST)
-    controller.start()
+    const loop = controller.start()
     await vi.waitFor(() => { expect(connected).toBe(1) })
     await vi.waitFor(() => { expect(source.activeCount).toBe(0) })
-    controller.start()
+    expect(controller.start()).toBe(loop)
     await new Promise(resolve => setTimeout(resolve, 40))
     expect(source.activeCount).toBe(0)
+    await expect(loop).rejects.toThrow('connection loop failed')
     await expect(controller.stop()).rejects.toThrow('connection loop failed')
   })
 
@@ -69,9 +70,10 @@ describe('connection lifecycle', () => {
         throw new Error('state sink bug')
       },
     }, FAST)
-    controller.start()
+    const loop = controller.start()
     await vi.waitFor(() => { expect(states).toEqual(['connected']) })
     await vi.waitFor(() => { expect(source.activeCount).toBe(0) })
+    await expect(loop).rejects.toThrow('connection loop failed')
     await expect(controller.stop()).rejects.toThrow('connection loop failed')
   })
 

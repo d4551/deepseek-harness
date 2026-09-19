@@ -293,6 +293,27 @@ describe('SettingsScopeController', () => {
     expect(describeCall).toHaveBeenCalledTimes(2)
   })
 
+  it('recovers the latest write when mutate answers without a namespace view', async () => {
+    const describeCall = vi.fn<SettingsRemote['describe']>()
+      .mockResolvedValueOnce(described({ preference: 'system' }, 2))
+      .mockResolvedValueOnce(described({ preference: 'light' }, 3))
+      .mockResolvedValueOnce(described({ preference: 'dark' }, 4))
+      .mockResolvedValueOnce(described({ preference: 'system' }, 5))
+    const mutate = vi.fn<SettingsRemote['mutate']>()
+      .mockResolvedValueOnce(1 as never)
+      .mockResolvedValueOnce({ ok: 'yes' } as never)
+      .mockResolvedValueOnce({ ok: true, value: { ns: 'ui-test' } } as never)
+    const { mirror, scope } = derivedScope({ describe: describeCall, mutate })
+    await mirror.load()
+    await scope.set('preference', 'dark')
+    expect(scope.getSnapshot()).toMatchObject({ value: { preference: 'light' }, revision: 3 })
+    await scope.set('preference', 'dark')
+    expect(scope.getSnapshot()).toMatchObject({ value: { preference: 'dark' }, revision: 4 })
+    await scope.set('preference', 'dark')
+    expect(scope.getSnapshot()).toMatchObject({ value: { preference: 'system' }, revision: 5 })
+    expect(describeCall).toHaveBeenCalledTimes(4)
+  })
+
   it('recovers the latest write when mutate is not thenable', async () => {
     const describeCall = vi.fn<SettingsRemote['describe']>()
       .mockResolvedValueOnce(described({ preference: 'system' }, 2))
@@ -474,6 +495,7 @@ describe('SettingsScopeController', () => {
   it('carries the composition base and the user layer into the snapshot', async () => {
     const layered: SettingsNamespaceView = {
       ...view({ preference: 'dark' }, 3),
+      available: true,
       base: { preference: 'system' },
       user: { preference: 'dark' },
     }
@@ -485,6 +507,7 @@ describe('SettingsScopeController', () => {
 
     expect(scope.getSnapshot()).toMatchObject({
       value: { preference: 'dark' },
+      available: true,
       base: { preference: 'system' },
       user: { preference: 'dark' },
     })

@@ -109,9 +109,12 @@ export class ConnectionController {
     this.config = { ...CONNECTION_DEFAULTS, ...config }
   }
 
-  /** Idempotent: begin the connect/pump/reconnect loop. */
-  start(): void {
-    if (this.run !== null) return
+  /**
+   * Idempotent: begin the connect/pump/reconnect loop.
+   * @returns settlement of this controller's loop; a sink throw rejects it.
+   */
+  start(): Promise<void> {
+    if (this.run !== null) return this.completion
     this.run = new AbortController()
     this.completion = Promise.allSettled([this.completion, this.loop(this.run.signal)]).then((results) => {
       const failures = results.filter(result => result.status === 'rejected')
@@ -119,6 +122,7 @@ export class ConnectionController {
         throw new AggregateError(failures.map(result => result.reason), 'connection loop failed')
       }
     })
+    return this.completion
   }
 
   /** Abort immediately, then await every started generation, including retiring sources. */
@@ -215,10 +219,7 @@ export class ConnectionController {
           handshakeReady,
           handshakeUnavailable,
         ),
-        sourceLost.then(
-          (): Handshake => handshakeUnavailable(new Error('connection generation ended')),
-          handshakeUnavailable,
-        ),
+        sourceLost.then(undefined, handshakeUnavailable),
       ])
       if (handshake.kind === 'ready' && !ac.signal.aborted) {
         this.attempt = 0
