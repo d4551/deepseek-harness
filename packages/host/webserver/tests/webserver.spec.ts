@@ -218,7 +218,7 @@ describe('real Loader composition', () => {
       get socket(): undefined { return undefined },
       writeHead(status: number): void { this.statusCode = status },
       end(): void { finished.resolve(undefined) },
-      destroy(): void { finished.resolve() },
+      destroy(): void { finished.resolve(undefined) },
     }
     listenEmitter(server).emit('request', req, res)
     await finished.promise

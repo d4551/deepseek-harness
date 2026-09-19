@@ -30,9 +30,6 @@
       "path": "../../util/sqlite-connection"
     },
     {
-      "path": "../../util/thrown"
-    },
-    {
       "path": "../../runtime-diagnostics/invariants"
     }
   ]

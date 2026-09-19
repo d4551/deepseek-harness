@@ -16,8 +16,6 @@ import {
 } from './codec.ts'
 import type { EventRow } from './schema.ts'
 
-import type { Thrown } from '@deepseek-ai/dsh-thrown'
-
 /** One physical row ready for SQLite parameter binding. */
 export interface BoundRecord {
   readonly seq: number
@@ -343,7 +341,7 @@ export function scanRows(
         lastTurnEndRow = index
         break
       }
-    } catch (_error: Thrown) {
+    } catch {
       // A malformed row cannot prove that an earlier physical prefix committed.
     }
   }
@@ -356,7 +354,7 @@ export function scanRows(
     let logicalEvents: object[] | undefined
     try {
       logicalEvents = decodeRow(physical)
-    } catch (_error: Thrown) {
+    } catch {
       // The committed-prefix rule below owns whether this invalid row is fatal or repairable.
     }
     if (logicalEvents === undefined) {

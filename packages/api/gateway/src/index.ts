@@ -9,7 +9,6 @@ import { randomUUID } from 'node:crypto'
 import { Context, Service, symbols } from '@deepseek-ai/cordis'
 import type { ConnectionRpcHandler } from '@deepseek-ai/dsh-client-connection'
 import type { WebUpgradeRoute } from '@deepseek-ai/dsh-host-webserver'
-import type { Thrown } from '@deepseek-ai/dsh-thrown'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import z from '@deepseek-ai/schemastery'
 import {
