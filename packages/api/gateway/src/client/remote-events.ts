@@ -48,6 +48,9 @@ interface PrivateEventContext {
   ): unknown
 }
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Transport outcome after one Client listener chain either claims or delegates. */
 type RemoteEventReplyOutcome =
   | { readonly kind: 'result'; readonly value: unknown }
@@ -103,7 +106,7 @@ export class ClientRemoteEvents {
   private deliver(frame: RemoteEventEmitFrame): Promise<void> {
     return privateEvents(this.ownerCtx)
       .parallel(this.eventKey(frame.event), ...frame.args)
-      .catch((error: unknown) => { this.reportError(frame.event, error) })
+      .then(undefined, (reason: Thrown) => { this.reportError(frame.event, reason) })
   }
 
   /** Run one Connection generation over the forwarded-event logical stream. */
@@ -145,8 +148,8 @@ export class ClientRemoteEvents {
         active.set(frame.eventId, controller)
         const deliverySignal = AbortSignal.any([generationSignal, controller.signal])
         const task = this.answer(frame, clientId, deliverySignal)
-          .catch((error: unknown) => {
-            if (!deliverySignal.aborted) failed.abort(error)
+          .then(undefined, (reason: Thrown) => {
+            if (!deliverySignal.aborted) failed.abort(reason)
           })
           .finally(() => {
             active.delete(frame.eventId)
