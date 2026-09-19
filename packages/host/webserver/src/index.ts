@@ -73,6 +73,32 @@ const DEFAULT_COMPRESSION = 'none' as const
 const DEFAULT_COMPRESSION_LEVEL = 1
 const DEFAULT_COMPRESSION_THRESHOLD_BYTES = 1024
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a rejected HTTP or upgrade handler.
+ * @param reason - the Thrown the handler rejected with.
+ * @returns the message to wrap for the logger.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 interface ResolvedConfig extends Config {
   compression: 'none' | 'gzip'
   compressionLevel: number
@@ -241,8 +267,8 @@ export class WebServer extends Service {
     // never a process exit.
     this.server = createServer((req, res) => {
       const next = (): void => {
-        handle(req, res).catch((err: unknown) => {
-          this.ctx.logger.warn(err instanceof Error ? err : new Error(String(err)))
+        handle(req, res).then(undefined, (reason: Thrown) => {
+          this.ctx.logger.warn(reason instanceof Error ? reason : new Error(thrownMessage(reason)))
           if (res.headersSent) {
             res.destroy()
             return
@@ -279,8 +305,8 @@ export class WebServer extends Service {
       }
       this.upgradedSockets.add(socket)
       try {
-        Promise.resolve(route.handler(req, socket, head)).catch((error: unknown) => {
-          this.ctx.logger.warn(error instanceof Error ? error : new Error(String(error)))
+        Promise.resolve(route.handler(req, socket, head)).then(undefined, (reason: Thrown) => {
+          this.ctx.logger.warn(reason instanceof Error ? reason : new Error(thrownMessage(reason)))
           socket.destroy()
         })
       } catch (error) {
